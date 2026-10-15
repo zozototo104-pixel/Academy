@@ -38,7 +38,6 @@ const MESSAGE_PROCESSING_BUDGET_MS = 50_000
 const STALE_PROCESSING_RETRY_MS = 10 * 60 * 1000
 const WHATSAPP_VOICE_MAX_BYTES = 10 * 1024 * 1024
 const WHATSAPP_VOICE_HOURLY_LIMIT = 10
-const WHATSAPP_AI_FALLBACK_REPLY = 'ما قدرت أجاوب تلقائياً هلأ، حوّلت رسالتك لفريق الأكاديمية وبيردوا عليك بأقرب وقت.'
 
 function conversationKey(from: string) {
   return `wa:${whatsappWaIdHash(from).slice(0, 32)}`
@@ -134,12 +133,12 @@ function filterMessagesForConfiguredPhoneNumber(messages: WhatsAppInboundMessage
 }
 
 function inboundEventPayload(message: WhatsAppInboundMessage) {
-  return redactDeep({
+  const fromEncrypted = encryptWhatsAppPhone(message.from) || null
+  const payload = redactDeep({
     message: {
       id: message.id,
       fromHash: waIdHash(message.from),
       fromMasked: maskPhone(message.from),
-      fromEncrypted: encryptWhatsAppPhone(message.from) || null,
       text: message.text || '',
       name: message.name || null,
       phoneNumberId: message.phoneNumberId || null,
@@ -151,7 +150,8 @@ function inboundEventPayload(message: WhatsAppInboundMessage) {
       isVoice: Boolean(message.isVoice),
       originKind: message.originKind || (message.rawType === 'audio' ? 'VOICE' : 'TEXT'),
     },
-  })
+  }) as any
+  return { ...payload, message: { ...(payload?.message || {}), fromEncrypted } }
 }
 
 function shouldRetryExistingInboundEvent(event: { status: string; updatedAt: Date }) {
@@ -256,19 +256,21 @@ async function hasExceededVoiceHourlyLimit(message: WhatsAppInboundMessage) {
   return count > WHATSAPP_VOICE_HOURLY_LIMIT
 }
 
-async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessage): Promise<{ message: WhatsAppInboundMessage; failureReason?: string }> {
+async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessage): Promise<{ message: WhatsAppInboundMessage; requestHuman?: boolean; failureReason?: string }> {
   if (message.rawType !== 'audio') return { message }
 
   if (await hasExceededVoiceHourlyLimit(message)) {
     return {
-      message: { ...message, text: 'سياق واتساب للنموذج: المستخدم أرسل رسائل صوتية كثيرة خلال ساعة واحدة، ولم يتم تفريغ هذه الرسالة بسبب حد الاستخدام المؤقت. حلّل الحالة وصغ رداً مناسباً دون استخدام نص جاهز.', originKind: 'VOICE' },
+      message: { ...message, text: '🎤 رسالة صوتية تجاوزت حد الاستخدام المؤقت.', originKind: 'VOICE' },
+      requestHuman: true,
       failureReason: 'voice_hourly_limit',
     }
   }
 
   if (!message.mediaId) {
     return {
-      message: { ...message, text: 'سياق واتساب للنموذج: المستخدم أرسل رسالة صوتية، لكن ملف الصوت غير متاح للقراءة أو لم يصل media_id من واتساب. حلّل الحالة وصغ رداً مناسباً دون استخدام نص جاهز.', originKind: 'VOICE' },
+      message: { ...message, text: '🎤 رسالة صوتية بدون ملف قابل للقراءة.', originKind: 'VOICE' },
+      requestHuman: true,
       failureReason: 'missing_media_id',
     }
   }
@@ -286,6 +288,7 @@ async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessa
           mediaSha256: mediaInfo.sha256 || message.mediaSha256,
           originKind: 'VOICE',
         },
+        requestHuman: true,
         failureReason: 'voice_file_too_large',
       }
     }
@@ -295,7 +298,7 @@ async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessa
     const transcript = await withTimeout(
       transcribeAudioBase64(audioBase64, {
         mimeType: mediaInfo.mimeType || message.mediaMimeType || 'audio/ogg',
-        allowZaiFallback: false,
+        allowZaiFallback: true,
       }),
       38_000,
       'whatsapp_voice_transcription'
@@ -318,6 +321,7 @@ async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessa
           mediaSha256: mediaInfo.sha256 || message.mediaSha256,
           originKind: 'VOICE',
         },
+        requestHuman: true,
         failureReason: 'empty_transcript',
       }
     }
@@ -354,36 +358,11 @@ async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessa
       error: msg,
     }, message.id)
     return {
-      message: { ...message, text: `سياق واتساب للنموذج: المستخدم أرسل رسالة صوتية، لكن تفريغ الصوت فشل بسبب: ${msg}. حلّل الحالة وصغ رداً مناسباً دون استخدام نص جاهز.`, originKind: 'VOICE' },
+      message: { ...message, text: '🎤 رسالة صوتية تعذر تفريغها؛ تم تحويلها للموظف لمتابعة الطلب.', originKind: 'VOICE' },
+      requestHuman: true,
       failureReason: msg,
     }
   }
-}
-
-async function sendFallbackAndRequestHuman(message: WhatsAppInboundMessage, reason: string) {
-  const sendResult = await sendOfficialWhatsAppText(message.from, WHATSAPP_AI_FALLBACK_REPLY, {
-    phoneNumberId: message.phoneNumberId,
-    replyToMessageId: message.id,
-  })
-  await recordWhatsAppOutboundMessage({
-    waId: message.from,
-    phoneNumberId: message.phoneNumberId,
-    text: WHATSAPP_AI_FALLBACK_REPLY,
-    sender: 'BOT',
-    whatsappMessageId: sendResult?.messages?.[0]?.id || null,
-  }).catch(() => {})
-  const handoff = await createHumanHandoffRequest({
-    user: { name: 'زائر واتساب', phone: maskPhone(message.from), rawPhone: message.from },
-    message: `${reason}\n\n${message.text || ''}`.trim(),
-    source: 'WHATSAPP',
-    sourceRef: conversationKey(message.from),
-  })
-  await markWhatsAppConversationRequested({ waId: message.from, handoffRequestId: handoff?.id || null })
-  await auditWhatsAppWebhook('WHATSAPP_AI_FALLBACK_SENT', {
-    from: maskPhone(message.from),
-    messageId: message.id,
-    reason: reason.slice(0, 300),
-  }, conversationKey(message.from))
 }
 
 type WhatsAppContactIntentKind = 'REQUEST_OFFICIAL_CONTACT' | 'PROVIDED_OWN_CONTACT' | 'OTHER'
@@ -476,39 +455,26 @@ async function classifyWhatsAppRoutingIntent(text: string, context: { promptActi
   return { intent: 'QUERY', confidence: handoffIntent.confidence || contactIntent.confidence || 0.5, reason: handoffIntent.reason || contactIntent.reason, contactIntent, handoffIntent }
 }
 
-type WhatsAppResolveDeps = {
-  classifyRoutingIntent?: typeof classifyWhatsAppRoutingIntent
-  createAgentReply?: (message: WhatsAppInboundMessage, extraContext?: string) => Promise<string>
+type WhatsAppModelContextFlags = {
+  handoffCreated?: boolean
+  voiceNotTranscribed?: boolean
+  voiceTooLong?: boolean
+  nonTextMessage?: string | null
+  contactRequested?: boolean
+}
+
+type ResolveWhatsAppBotReplyDeps = {
   hasRecentAudit?: typeof hasRecentWhatsAppAudit
   hasOpenHandoff?: typeof hasOpenHumanHandoffRequest
+  audit?: typeof auditWhatsAppWebhook
+  classifyRoutingIntent?: typeof classifyWhatsAppRoutingIntent
   createHandoff?: typeof createHumanHandoffRequest
   markRequested?: typeof markWhatsAppConversationRequested
-  audit?: typeof auditWhatsAppWebhook
+  createAgentReply?: (message: WhatsAppInboundMessage, extraContext?: string) => Promise<string>
+  contextFlags?: WhatsAppModelContextFlags
 }
 
-function routingIntentContext(intent: WhatsAppRoutingIntent, handoffOpen: boolean, handoffCreated: boolean) {
-  const lines = [
-    `تصنيف داخلي لاستخدام النموذج فقط: ${intent.intent}.`,
-    intent.reason ? `سبب التصنيف الداخلي: ${intent.reason}.` : '',
-  ].filter(Boolean)
-  if (intent.intent === 'REQUEST_OFFICIAL_CONTACT') {
-    lines.push('المستخدم يطلب بيانات التواصل الرسمية. استخدم معلومات الإعدادات الرسمية الموجودة في سياق النموذج، وصغ الجواب بنفسك دون رد جاهز.')
-  }
-  if (intent.intent === 'PROVIDED_OWN_CONTACT') {
-    lines.push(handoffCreated
-      ? 'المستخدم أرسل بيانات تواصل خاصة به، وتم تسجيل طلب تحويل لموظف. صغ تأكيداً مناسباً عبر النموذج دون نص ثابت.'
-      : 'المستخدم أرسل بيانات تواصل خاصة به، وكان لديه طلب تحويل مفتوح بالفعل. صغ توضيحاً مناسباً عبر النموذج دون نص ثابت.')
-  }
-  if (intent.intent === 'HANDOFF_DETAILS' || intent.intent === 'HUMAN_HANDOFF') {
-    lines.push(handoffCreated
-      ? 'تم تسجيل طلب تحويل لموظف. صغ أنت تأكيد التحويل للمستخدم دون استخدام رد جاهز.'
-      : 'يوجد طلب تحويل لموظف مفتوح مسبقاً. صغ أنت الرد المناسب للمستخدم دون استخدام رد جاهز.')
-  }
-  if (handoffOpen) lines.push('معلومة سياقية: يوجد طلب تحويل سابق مفتوح لهذه المحادثة. لا تضف ملاحظة جاهزة؛ صغها ضمن جوابك إذا كانت مفيدة.')
-  return lines.join('\n')
-}
-
-async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedInbound: any, deps: WhatsAppResolveDeps = {}) {
+async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedInbound: any, deps: ResolveWhatsAppBotReplyDeps = {}) {
   const handoffKey = conversationKey(message.from)
   const hasRecentAudit = deps.hasRecentAudit || hasRecentWhatsAppAudit
   const hasOpenHandoff = deps.hasOpenHandoff || hasOpenHumanHandoffRequest
@@ -536,6 +502,7 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
       }))
     : []
 
+  let handoffCreated = Boolean(deps.contextFlags?.handoffCreated)
   const routingIntent = await classifyRoutingIntent(text, { promptActive, handoffOpen, recentMessages })
   await audit('WHATSAPP_ROUTING_INTENT_CLASSIFIED', {
     from: maskPhone(message.from),
@@ -545,12 +512,11 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
     decision: routingIntent,
   }, message.id)
 
-  let handoffCreated = false
   if (routingIntent.intent === 'PROVIDED_OWN_CONTACT' || routingIntent.intent === 'HANDOFF_DETAILS' || routingIntent.intent === 'HUMAN_HANDOFF') {
     if (!handoffOpen) {
       const handoff = await createHandoff({
         user: { name: 'زائر واتساب', phone: maskedFrom || undefined, rawPhone: message.from },
-        message: text || (routingIntent.intent === 'HUMAN_HANDOFF' ? 'طلب صريح للتواصل مع موظف' : 'بيانات تواصل من زائر واتساب'),
+        message: text || 'WHATSAPP_HUMAN_HANDOFF_INTENT',
         source: 'WHATSAPP',
         sourceRef: handoffKey,
       })
@@ -559,10 +525,18 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
     }
   }
 
-  return createAgentReply(message, routingIntentContext(routingIntent, handoffOpen, handoffCreated))
+  const contactRequested = routingIntent.intent === 'REQUEST_OFFICIAL_CONTACT'
+  const extraContext = [
+    `handoffCreated=${handoffCreated ? 'true' : 'false'}`,
+    `voiceNotTranscribed=${deps.contextFlags?.voiceNotTranscribed ? 'true' : 'false'}`,
+    `voiceTooLong=${deps.contextFlags?.voiceTooLong ? 'true' : 'false'}`,
+    `nonTextMessage=${deps.contextFlags?.nonTextMessage || 'none'}`,
+    `contactRequested=${contactRequested ? 'true' : 'false'}`,
+  ].join('; ')
+  return createAgentReply(message, extraContext)
 }
 
-export async function __resolveWhatsAppBotReplyForTests(message: WhatsAppInboundMessage, storedInbound: any, deps: WhatsAppResolveDeps = {}) {
+export async function __resolveWhatsAppBotReplyForTests(message: WhatsAppInboundMessage, storedInbound: any, deps: ResolveWhatsAppBotReplyDeps = {}) {
   return resolveWhatsAppBotReply(message, storedInbound, deps)
 }
 
@@ -591,6 +565,24 @@ async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<
     return 'SKIPPED'
   }
 
+  let handoffCreated = false
+  if (prepared.requestHuman) {
+    const handoff = await createHumanHandoffRequest({
+      user: { name: 'زائر واتساب', phone: maskPhone(inboundMessage.from) || undefined, rawPhone: inboundMessage.from },
+      message: `${prepared.failureReason || 'voice_processing_failed'}\n\n${inboundMessage.text || ''}`.trim(),
+      source: 'WHATSAPP',
+      sourceRef: conversationKey(inboundMessage.from),
+    })
+    await markWhatsAppConversationRequested({ waId: inboundMessage.from, handoffRequestId: handoff?.id || null })
+    handoffCreated = true
+    await auditWhatsAppWebhook('WHATSAPP_VOICE_HANDOFF_REQUESTED', {
+      from: maskPhone(inboundMessage.from),
+      messageId: inboundMessage.id,
+      conversationId: storedInbound?.conversation?.id || null,
+      reason: String(prepared.failureReason || 'voice_processing_failed').slice(0, 300),
+    }, storedInbound?.conversation?.id || inboundMessage.id)
+  }
+
   await sendOfficialWhatsAppReadReceipt(inboundMessage).catch((readError: any) => {
     console.warn('official WhatsApp read receipt failed:', String(readError?.message || readError || 'failed').slice(0, 220))
   })
@@ -607,8 +599,15 @@ async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<
   )
 
   let reply = ''
+  const failureReason = String(prepared.failureReason || '')
+  const contextFlags: WhatsAppModelContextFlags = {
+    handoffCreated,
+    voiceNotTranscribed: Boolean(prepared.requestHuman && inboundMessage.originKind === 'VOICE' && failureReason !== 'voice_file_too_large'),
+    voiceTooLong: failureReason === 'voice_file_too_large' || failureReason === 'voice_hourly_limit',
+    nonTextMessage: inboundMessage.rawType && inboundMessage.rawType !== 'text' ? inboundMessage.rawType : null,
+  }
   try {
-    reply = await withTimeout(resolveWhatsAppBotReply(inboundMessage, storedInbound), MESSAGE_PROCESSING_BUDGET_MS, 'whatsapp_reply_generation')
+    reply = await withTimeout(resolveWhatsAppBotReply(inboundMessage, storedInbound, { contextFlags }), MESSAGE_PROCESSING_BUDGET_MS, 'whatsapp_reply_generation')
   } finally {
     stopTypingRefresh()
   }
@@ -631,14 +630,12 @@ async function processWhatsAppMessage(message: WhatsAppInboundMessage): Promise<
 }
 
 async function processWhatsAppEvent(eventId: string) {
-  const staleBefore = new Date(Date.now() - STALE_PROCESSING_RETRY_MS)
   const claim = await db.whatsAppInboundEvent.updateMany({
     where: {
       id: eventId,
       OR: [
         { status: 'RECEIVED' },
         { status: 'FAILED' },
-        { status: 'PROCESSING', updatedAt: { lt: staleBefore } },
       ],
     },
     data: { status: 'PROCESSING', attempts: { increment: 1 }, error: null },
@@ -669,15 +666,18 @@ async function processWhatsAppEvent(eventId: string) {
   } catch (error: any) {
     const msg = String(error?.message || error || 'unknown WhatsApp processing error').slice(0, 500)
     console.error('official WhatsApp event processing failed:', msg)
-    let fallbackDelivered = false
     try {
-      await sendFallbackAndRequestHuman(message, msg)
-      fallbackDelivered = true
-    } catch (fallbackError: any) {
-      console.error('official WhatsApp fallback reply failed:', String(fallbackError?.message || fallbackError || 'failed').slice(0, 500))
+      const handoff = await createHumanHandoffRequest({
+        user: { name: 'زائر واتساب', phone: maskPhone(message.from), rawPhone: message.from },
+        message: `${msg}\n\n${message.text || ''}`.trim(),
+        source: 'WHATSAPP',
+        sourceRef: conversationKey(message.from),
+      })
+      await markWhatsAppConversationRequested({ waId: message.from, handoffRequestId: handoff?.id || null })
+    } catch (handoffError: any) {
+      console.error('official WhatsApp handoff after processing failure failed:', String(handoffError?.message || handoffError || 'failed').slice(0, 500))
     }
-    // Do not retry this inbound event after successfully sending a fallback reply.
-    await markInboundEventStatus(eventId, fallbackDelivered ? 'SENT' : 'FAILED', msg)
+    await markInboundEventStatus(eventId, 'FAILED', msg)
     await auditWhatsAppWebhook('WHATSAPP_INBOUND_EVENT_FAILED', {
       eventId,
       messageId: message.id,

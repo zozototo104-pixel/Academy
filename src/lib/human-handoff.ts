@@ -1,9 +1,9 @@
 import { db } from '@/lib/db'
 import { ensureGeminiKey, geminiCompleteJson } from '@/lib/gemini'
 import { makeBasicEmailHtml, sendMail } from '@/lib/mail'
+import { getOfficialContact } from '@/lib/settings'
 import { decryptSecret, encryptSecret, hasSecretEncryptionKey, isEncryptedSecret } from '@/lib/secret-crypto'
 import { maskWhatsAppPhone, whatsappWaIdHash } from '@/lib/whatsapp-privacy'
-
 
 function normalizeArabic(text: string): string {
   return text
@@ -249,20 +249,6 @@ export async function analyzeHumanHandoffIntent(message: string, context?: {
   }
 }
 
-const HUMAN_HANDOFF_CONFIRMATION_REPLY_AR = 'تم إرسال طلبك إلى موظف بشري، وسيقوم الفريق المختص بمراجعة رسالتك والتواصل معك عبر بياناتك المسجلة أو من خلال هذه المحادثة.'
-const HUMAN_HANDOFF_CONFIRMATION_REPLY_EN = 'Your request has been sent to a human staff member. The appropriate team will review your message and follow up through your registered contact details or this conversation.'
-const HUMAN_HANDOFF_ACTIVE_NOTE = '\n\nملاحظة: طلبك السابق للتواصل مع الإدارة ما زال مسجلاً لدى الفريق، ويمكنك متابعة أسئلتك هنا إلى حين تواصل الموظف المختص معك.'
-
-export async function getHumanHandoffConfirmationReply(language: 'ar' | 'en' = 'ar') {
-  return language === 'en' ? HUMAN_HANDOFF_CONFIRMATION_REPLY_EN : HUMAN_HANDOFF_CONFIRMATION_REPLY_AR
-}
-
-export function withHumanHandoffActiveNote(reply: string) {
-  if (!reply.trim()) return reply
-  if (reply.includes('طلبك السابق للتواصل مع الإدارة')) return reply
-  return `${reply.trim()}${HUMAN_HANDOFF_ACTIVE_NOTE}`
-}
-
 export async function hasOpenHumanHandoffRequest(args: {
   userId?: string | null
   sourceRef?: string | null
@@ -326,12 +312,33 @@ export async function hasRecentHumanHandoffRequest(userId: string, days = 7) {
 
 export function hadRecentHumanSupportPrompt(messages: Array<{ role: string; content: string }>) {
   const recent = messages.slice(-8)
-  const lastSubmittedIdx = recent.findLastIndex((m) => m.role === 'assistant' && wantsHumanSupport(m.content) && /(?:تحويل|تواصل|موظف|اداره|إدارة)/.test(normalizeArabic(m.content)))
-  const afterSubmit = lastSubmittedIdx >= 0 ? recent.slice(lastSubmittedIdx + 1) : recent
-  return afterSubmit.some((m) =>
-    (m.role === 'user' && wantsHumanSupport(m.content)) ||
-    (m.role === 'assistant' && wantsHumanSupport(m.content))
-  )
+  return recent.some((m) => m.role === 'user' && wantsHumanSupport(m.content))
+}
+
+export const HUMAN_HANDOFF_ACTIVE_NOTE = '\n\nملاحظة: طلبك السابق للتواصل مع الإدارة ما زال مسجلاً لدى الفريق، ويمكنك متابعة أسئلتك هنا إلى حين تواصل الموظف المختص معك.'
+
+async function officialContactLines() {
+  const contact = await getOfficialContact().catch(() => ({ phones: [], whatsapps: [], phone: '', whatsapp: '' } as any))
+  const numbers = Array.from(new Set([contact.whatsapp, ...(contact.whatsapps || []), contact.phone, ...(contact.phones || [])].map((v: unknown) => String(v || '').trim()).filter(Boolean)))
+  return numbers.length ? numbers.map((n) => `📞 ${n}`).join('\n') : 'هاي المعلومة مش متوفرة عندي هلأ، تواصل مع الإدارة'
+}
+
+export async function getHumanHandoffConfirmationReply() {
+  const lines = await officialContactLines()
+  return [
+    'تم استلام طلبك وتحويله لفريق الإدارة 🌟',
+    '',
+    'وصلنا اسمك وموضوعك، وسيقوم موظف مختص بمراجعة الطلب والتواصل معك عبر الأرقام الرسمية أو من خلال بيانات التواصل المسجلة لديك.',
+    '',
+    'للاستعجال يمكنك أيضًا مراسلة الإدارة مباشرة على:',
+    lines,
+  ].join('\n')
+}
+
+export function withHumanHandoffActiveNote(reply: string) {
+  if (!reply.trim()) return reply
+  if (reply.includes('طلبك السابق للتواصل مع الإدارة')) return reply
+  return `${reply.trim()}${HUMAN_HANDOFF_ACTIVE_NOTE}`
 }
 
 export function shouldCreateHumanHandoffForOpenConversation(existingOpenRequest: unknown): boolean {

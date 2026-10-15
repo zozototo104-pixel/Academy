@@ -36,6 +36,7 @@ function compactText(value: unknown, max = 1200) {
 }
 
 const WHATSAPP_CUSTOMER_CARE_WINDOW_MS = 24 * 60 * 60 * 1000
+const PLATFORM_AI_UNAVAILABLE_MESSAGE = 'المساعد غير متاح حالياً، حاول بعد قليل'
 
 async function assertWhatsAppFreeformWindowOpen(to: string) {
   const waIdHash = hashWhatsAppId(to)
@@ -162,17 +163,9 @@ async function recentWhatsAppAgentMessages(message: WhatsAppInboundMessage) {
   return history.slice(-12)
 }
 
-function whatsAppMessageTextForModel(message: WhatsAppInboundMessage) {
-  const text = String(message.text || '').trim()
-  if (text) return text
-  const type = message.rawType || message.originKind || 'غير نصي'
-  const mime = message.mediaMimeType ? `، نوع الملف: ${message.mediaMimeType}` : ''
-  return `سياق واتساب للنموذج: المستخدم أرسل رسالة ${type}${mime}، ولم يتوفر نص قابل للقراءة منها. حلّل نوع الرسالة وصغ رداً مناسباً دون استخدام نص جاهز.`
-}
-
-export async function createOfficialWhatsAppAgentReply(message: WhatsAppInboundMessage, extraContext = '') {
-  const agentMessage = { ...message, text: whatsAppMessageTextForModel(message) }
-  const messages = await recentWhatsAppAgentMessages(agentMessage)
+export async function createOfficialWhatsAppAgentReply(message: WhatsAppInboundMessage, extraContext?: string) {
+  const modelMessage = message.text ? message : { ...message, text: '[رسالة واتساب غير نصية أو فارغة]' }
+  const messages = await recentWhatsAppAgentMessages(modelMessage)
   const contact = await getOfficialContact().catch(() => ({} as any))
   const officialNumbers = Array.from(new Set([contact.whatsapp, ...(contact.whatsapps || []), contact.phone, ...(contact.phones || [])].map((v: unknown) => String(v || '').trim()).filter(Boolean))).join(' / ') || 'غير مضبوط في الإعدادات'
   const result = await platformPublicAgentComplete({
@@ -188,7 +181,9 @@ export async function createOfficialWhatsAppAgentReply(message: WhatsAppInboundM
     ].filter(Boolean).join(' ')),
   })
 
-  if (!result.reply?.trim()) throw new Error('WHATSAPP_AI_EMPTY_REPLY')
+  const reply = String(result.reply || '').trim()
+  if (!reply) throw new Error('WHATSAPP_MODEL_EMPTY_REPLY')
+  if (reply === PLATFORM_AI_UNAVAILABLE_MESSAGE) throw new Error('WHATSAPP_MODEL_UNAVAILABLE_REPLY')
   return result.reply
 }
 

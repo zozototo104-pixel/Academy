@@ -1,3 +1,4 @@
+import { readFileSync } from 'fs'
 import { __resolveWhatsAppBotReplyForTests } from '../src/app/api/webhooks/whatsapp/route'
 import type { WhatsAppInboundMessage } from '../src/lib/whatsapp-cloud'
 
@@ -32,7 +33,7 @@ function message(partial: Partial<WhatsAppInboundMessage>): WhatsAppInboundMessa
   }
 }
 
-async function assertModelOnlyCase(name: string, input: Partial<WhatsAppInboundMessage>, intent: Intent, options: { expectHandoff?: boolean } = {}) {
+async function assertModelOnlyCase(name: string, input: Partial<WhatsAppInboundMessage>, intent: Intent, options: { expectHandoff?: boolean; contextFlags?: Record<string, unknown>; expectContext?: string[] } = {}) {
   let modelCalls = 0
   let handoffCalls = 0
   let markCalls = 0
@@ -50,9 +51,12 @@ async function assertModelOnlyCase(name: string, input: Partial<WhatsAppInboundM
     },
     createAgentReply: async (_message, extraContext) => {
       modelCalls += 1
-      assert(typeof extraContext === 'string' && extraContext.includes(intent), `${name}: model must receive routing context`)
+      assert(typeof extraContext === 'string', `${name}: model must receive explicit context`)
+      const context = String(extraContext ?? '')
+      for (const expected of options.expectContext || []) assert(context.includes(expected), `${name}: model context must include ${expected}`)
       return `MODEL_ONLY_REPLY:${name}:${modelCalls}`
     },
+    contextFlags: options.contextFlags as any,
   })
   assert(modelCalls === 1, `${name}: exactly one model call is required`)
   assert(reply === `MODEL_ONLY_REPLY:${name}:1`, `${name}: reply must come from the model stub`)
@@ -65,12 +69,24 @@ async function assertModelOnlyCase(name: string, input: Partial<WhatsAppInboundM
   }
 }
 
+function testWhatsAppSourceWiring() {
+  const route = readFileSync('src/app/api/webhooks/whatsapp/route.ts', 'utf8')
+  assert(!route.includes('getHumanHandoffConfirmationReply'), 'WhatsApp route must not import or call getHumanHandoffConfirmationReply')
+  const cloud = readFileSync('src/lib/whatsapp-cloud.ts', 'utf8')
+  assert(cloud.includes('createOfficialWhatsAppAgentReply(message: WhatsAppInboundMessage, extraContext?: string)'), 'WhatsApp model reply must accept optional extraContext')
+  assert(cloud.includes('سياق داخلي إضافي للنموذج فقط وليس رداً جاهزاً: ${extraContext}'), 'WhatsApp extraContext must be passed into uiContext')
+  assert(cloud.includes('WHATSAPP_MODEL_UNAVAILABLE_REPLY'), 'WhatsApp must reject the fixed platform unavailable reply instead of sending it')
+  assert(!route.includes('sendFallbackAndRequestHuman') && !route.includes('WHATSAPP_AI_FALLBACK_REPLY'), 'WhatsApp route must not send fixed fallback text when all models fail')
+}
+
 async function main() {
+  testWhatsAppSourceWiring()
   await assertModelOnlyCase('greeting', { text: 'السلام عليكم' }, 'QUERY')
-  await assertModelOnlyCase('official-contact', { text: 'ممكن رقم التواصل؟' }, 'REQUEST_OFFICIAL_CONTACT')
-  await assertModelOnlyCase('program-books', { text: 'شو الكتب المقررة لدبلوم الإسعاف النفسي؟' }, 'QUERY')
-  await assertModelOnlyCase('human-handoff', { text: 'بدي موظف يحكيني' }, 'HUMAN_HANDOFF', { expectHandoff: true })
-  await assertModelOnlyCase('image', { text: '', rawType: 'image', mediaMimeType: 'image/jpeg' }, 'QUERY')
+  await assertModelOnlyCase('official-contact', { text: 'ممكن رقم التواصل؟' }, 'REQUEST_OFFICIAL_CONTACT', { expectContext: ['contactRequested=true'] })
+  await assertModelOnlyCase('program-books', { text: 'شو الكتب المقررة لدبلوم الإسعاف النفسي؟' }, 'QUERY', { expectContext: ['contactRequested=false'] })
+  await assertModelOnlyCase('human-handoff', { text: 'بدي موظف يحكيني' }, 'HUMAN_HANDOFF', { expectHandoff: true, expectContext: ['handoffCreated=true'] })
+  await assertModelOnlyCase('voice-failed', { text: '🎤 رسالة صوتية تعذر تفريغها إلى نص.', rawType: 'audio', isVoice: true, originKind: 'VOICE' }, 'QUERY', { contextFlags: { voiceNotTranscribed: true, nonTextMessage: 'audio' }, expectContext: ['voiceNotTranscribed=true', 'nonTextMessage=audio'] })
+  await assertModelOnlyCase('image', { text: '', rawType: 'image', mediaMimeType: 'image/jpeg' }, 'QUERY', { contextFlags: { nonTextMessage: 'image' }, expectContext: ['nonTextMessage=image'] })
   console.log('✓ WhatsApp model-only reply checks passed')
 }
 
