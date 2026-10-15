@@ -28,6 +28,11 @@ export interface TextAiTurn {
   text: string
 }
 
+export interface TextAiAttachment {
+  mimeType: string
+  base64: string
+}
+
 export interface TextAiCallOpts {
   system: string
   history: TextAiTurn[]
