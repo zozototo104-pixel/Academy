@@ -1135,10 +1135,14 @@ export function AdminFinanceTab() {
                               <span>إثباتات الدفع: {p.proofs.length}</span>
                               <Badge className="bg-white text-emerald-700 hover:bg-white">{p.proofs[0].status === 'PENDING' ? 'قيد المراجعة' : p.proofs[0].status}</Badge>
                             </div>
-                            <a href={`/api/admin/payments/proofs/${encodeURIComponent(p.proofs[0].id)}/download`} target="_blank" rel="noreferrer" className="inline-flex font-black text-emerald-700 underline">
-                              فتح آخر إثبات: {p.proofs[0].fileName}
-                            </a>
-                            {p.proofs[0].uploadedBy?.name ? <div className="text-emerald-700">رفعه: {p.proofs[0].uploadedBy.name}</div> : null}
+                            {p.proofs.slice(0, 1).map((proof) => (
+                              <div key={proof.id} className="space-y-1">
+                                <a href={proof.fileUrl || proof.downloadUrl || `/api/admin/payments/proofs/${encodeURIComponent(proof.id)}/download`} target="_blank" rel="noreferrer" className="inline-flex font-black text-emerald-700 underline">
+                                  فتح الإيصال: {proof.fileName}
+                                </a>
+                                {proof.uploadedBy?.name ? <div className="text-emerald-700">رفعه: {proof.uploadedBy.name}</div> : null}
+                              </div>
+                            ))}
                           </div>
                         ) : null}
                       </td>
