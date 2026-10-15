@@ -291,6 +291,7 @@ export default function AdminRepresentativesTab() {
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.message || 'تعذر إلغاء رابط الاستكمال')
       setOnboardingLink('')
+      setOnboardingResult({})
       await load(form.id)
       toast({ title: 'تم إلغاء رابط الاستكمال' })
     } catch (e: any) {
