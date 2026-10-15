@@ -20,7 +20,7 @@ import { useAdminActionDialog } from '@/components/aact/AdminActionDialog'
 import {
   Loader2, Gavel, CalendarClock, CheckCircle2, XCircle, Banknote, TrendingUp, Globe2,
   Award, Settings2, ScrollText, Mail, FileDown, Plus, Users2, ReceiptText, Bot,
-  FileSignature, Video, RefreshCw, ShieldCheck, Trash2, KeyRound, Upload, Eye, ExternalLink, FileText,
+  FileSignature, Video, RefreshCw, ShieldCheck, Trash2, KeyRound, Upload, Eye, ExternalLink, FileText, Copy, Check,
 } from 'lucide-react'
 
 const DefenseRoom = dynamic(
@@ -738,6 +738,9 @@ export function AdminFinanceTab() {
   const [paymentTotal, setPaymentTotal] = useState(0)
   const [paymentRefresh, setPaymentRefresh] = useState(0)
   const [pdfBusy, setPdfBusy] = useState<string | null>(null)
+  const [waiverBusy, setWaiverBusy] = useState<string | null>(null)
+  const [generatedWaiverCodes, setGeneratedWaiverCodes] = useState<Record<string, string>>({})
+  const [copiedWaiverPaymentId, setCopiedWaiverPaymentId] = useState<string | null>(null)
 
   const load = () => setPaymentRefresh((v) => v + 1)
 
@@ -817,11 +820,52 @@ export function AdminFinanceTab() {
         ? 'منحة كاملة'
         : 'إعفاء'
 
+  const activeWaiverForPayment = (payment: PaymentRow) => payment.waiverCodes?.find((w) => ['ISSUED', 'VERIFIED'].includes(w.status)) || null
+
+  const copyText = async (value: string) => {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value)
+      return
+    }
+    const textarea = document.createElement('textarea')
+    textarea.value = value
+    textarea.setAttribute('readonly', 'true')
+    textarea.style.position = 'fixed'
+    textarea.style.left = '-9999px'
+    document.body.appendChild(textarea)
+    textarea.select()
+    textarea.setSelectionRange(0, textarea.value.length)
+    try {
+      const ok = document.execCommand('copy')
+      if (!ok) throw new Error('copy command failed')
+    } finally {
+      document.body.removeChild(textarea)
+    }
+  }
+
+  const copyWaiverCode = async (paymentId: string, code: string) => {
+    try {
+      await copyText(code)
+      setCopiedWaiverPaymentId(paymentId)
+      toast({ title: 'تم نسخ كود الإعفاء', description: code })
+      window.setTimeout(() => setCopiedWaiverPaymentId((current) => (current === paymentId ? null : current)), 1800)
+    } catch (error) {
+      console.warn('Failed to copy waiver code.', error)
+      toast({ title: 'تعذر النسخ التلقائي', description: 'انسخ الكود الظاهر يدوياً.', variant: 'destructive' })
+    }
+  }
+
   const generateWaiver = async (payment: PaymentRow, waiverType: 'APPLICATION_FEE' | 'PARTIAL_TUITION' | 'FULL_SCHOLARSHIP') => {
     if (payment.status !== 'UNPAID') {
       toast({ title: 'لا يمكن إصدار كود إعفاء', description: 'الكود يصدر فقط للفواتير غير المسددة.', variant: 'destructive' })
       return
     }
+    const activeWaiver = activeWaiverForPayment(payment)
+    if (activeWaiver) {
+      toast({ title: 'يوجد كود إعفاء نشط', description: `الكود الحالي ${activeWaiver.codePreview}. لا يمكن توليد كود آخر قبل استخدامه أو اعتماده.`, variant: 'destructive' })
+      return
+    }
+    if (waiverBusy === payment.id) return
     let requestedAmount: number | null = null
     if (waiverType === 'PARTIAL_TUITION') {
       const amountText = await promptAction({
@@ -860,16 +904,20 @@ export function AdminFinanceTab() {
       tone: waiverType === 'FULL_SCHOLARSHIP' ? 'success' : 'warning',
     })
     if (reason === null) return
+    setWaiverBusy(payment.id)
     try {
       const result = await api<{ code: string; waiver: PaymentWaiverCodeRow }>('/api/admin/payments/waivers', {
         method: 'POST',
         body: JSON.stringify({ paymentId: payment.id, waiverType, requestedAmount, reason }),
       })
-      try { await navigator.clipboard?.writeText(result.code) } catch (error) { console.warn('Failed to copy waiver code automatically.', error) }
-      toast({ title: 'تم توليد كود الإعفاء', description: `الكود: ${result.code} — انسخه للطالب.` })
+      setGeneratedWaiverCodes((prev) => ({ ...prev, [payment.id]: result.code }))
+      await copyWaiverCode(payment.id, result.code)
+      toast({ title: 'تم توليد ونسخ كود الإعفاء', description: `الكود: ${result.code}` })
       load()
     } catch (e: any) {
       toast({ title: 'تعذر توليد كود الإعفاء', description: e.message, variant: 'destructive' })
+    } finally {
+      setWaiverBusy((current) => (current === payment.id ? null : current))
     }
   }
 
@@ -1184,17 +1232,40 @@ export function AdminFinanceTab() {
                               className="border-emerald-200 font-bold text-emerald-600">
                               <Banknote className="ml-1 h-3 w-3" /> {p.purpose === 'AI_LIVE_CREDIT' ? 'تأكيد وصول مبلغ باقة الصوت' : 'تأكيد وصول المبلغ'}
                             </Button>
-                            {p.waiverCodes?.some((w) => w.status === 'VERIFIED') ? (
-                              <Button size="sm" variant="outline" onClick={() => approveWaiver(p)} className="border-blue-200 font-bold text-blue-700">
-                                <ShieldCheck className="ml-1 h-3 w-3" /> اعتماد الإعفاء
-                              </Button>
-                            ) : (
-                              <div className="flex flex-wrap gap-1">
-                                {p.purpose === 'APPLICATION_FEE' && <Button type="button" size="sm" variant="outline" onClick={() => generateWaiver(p, 'APPLICATION_FEE')} className="h-7 border-blue-200 text-[10px] font-black text-blue-700">كود إعفاء 30$</Button>}
-                                {['APPLICATION_FEE', 'TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && <Button type="button" size="sm" variant="outline" onClick={() => generateWaiver(p, 'PARTIAL_TUITION')} className="h-7 border-amber-200 text-[10px] font-black text-amber-700">إعفاء جزئي</Button>}
-                                {['TUITION', 'TUITION_INSTALLMENT', 'APPLICATION_FEE'].includes(p.purpose) && <Button type="button" size="sm" variant="outline" onClick={() => generateWaiver(p, 'FULL_SCHOLARSHIP')} className="h-7 border-emerald-200 text-[10px] font-black text-emerald-700">منحة كاملة</Button>}
-                              </div>
-                            )}
+                            {(() => {
+                              const activeWaiver = activeWaiverForPayment(p)
+                              const generatedCode = generatedWaiverCodes[p.id]
+                              const busy = waiverBusy === p.id
+                              if (activeWaiver?.status === 'VERIFIED') {
+                                return (
+                                  <Button size="sm" variant="outline" onClick={() => approveWaiver(p)} className="border-blue-200 font-bold text-blue-700">
+                                    <ShieldCheck className="ml-1 h-3 w-3" /> اعتماد الإعفاء
+                                  </Button>
+                                )
+                              }
+                              if (activeWaiver) {
+                                return (
+                                  <div className="flex flex-col gap-1 rounded-lg border border-blue-100 bg-blue-50 p-2 text-[10px] font-black text-blue-800">
+                                    <span>كود إعفاء نشط: {generatedCode || activeWaiver.codePreview}</span>
+                                    {generatedCode ? (
+                                      <Button type="button" size="sm" variant="outline" onClick={() => copyWaiverCode(p.id, generatedCode)} className="h-7 border-blue-200 bg-white text-[10px] font-black text-blue-700">
+                                        {copiedWaiverPaymentId === p.id ? <Check className="ml-1 h-3 w-3" /> : <Copy className="ml-1 h-3 w-3" />}
+                                        {copiedWaiverPaymentId === p.id ? 'تم النسخ' : 'نسخ الكود'}
+                                      </Button>
+                                    ) : (
+                                      <span className="text-[9px] text-blue-600">بعد التحديث يظهر رمز مختصر فقط، ولا يرجع الكود الخام.</span>
+                                    )}
+                                  </div>
+                                )
+                              }
+                              return (
+                                <div className="flex flex-wrap gap-1">
+                                  {p.purpose === 'APPLICATION_FEE' && <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => generateWaiver(p, 'APPLICATION_FEE')} className="h-7 border-blue-200 text-[10px] font-black text-blue-700">{busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}كود إعفاء 30$</Button>}
+                                  {['APPLICATION_FEE', 'TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => generateWaiver(p, 'PARTIAL_TUITION')} className="h-7 border-amber-200 text-[10px] font-black text-amber-700">{busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}إعفاء جزئي</Button>}
+                                  {['TUITION', 'TUITION_INSTALLMENT', 'APPLICATION_FEE'].includes(p.purpose) && <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => generateWaiver(p, 'FULL_SCHOLARSHIP')} className="h-7 border-emerald-200 text-[10px] font-black text-emerald-700">{busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}منحة كاملة</Button>}
+                                </div>
+                              )
+                            })()}
                           </div>
                         ) : p.status === 'WAIVED' && p.purpose === 'APPLICATION_FEE' && p.waiverCodes?.length && p.waiverStatus !== 'PROGRAM_APPLIED' ? (
                           <Button size="sm" variant="outline" onClick={() => approveWaiver(p)} className="border-blue-200 font-bold text-blue-700">

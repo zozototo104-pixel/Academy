@@ -800,15 +800,17 @@ function computeRuleScore(args: {
   const unverified = args.checklist.filter((c) => c.status === 'UNVERIFIED').length
   const high = args.findings.filter((f) => f.severity === 'HIGH').length
   const medium = args.findings.filter((f) => f.severity === 'MEDIUM').length
+  const onlyVisionUnavailable = missing === 0 && problem === 0 && args.hardProblems === 0 && unverified > 0 && args.requiredFound === 0
 
   let score = Math.round((args.requiredFound / Math.max(1, args.requiredTotal)) * 100)
   score -= missing * 18 + problem * 20 + unverified * 9 + high * 12 + medium * 4 + args.hardProblems * 4
 
-  if (!args.docTextFound) score = Math.min(score, 20)
-  if (args.requiredFound === 0) score = Math.min(score, 10)
+  if (!args.docTextFound && !onlyVisionUnavailable) score = Math.min(score, 20)
+  if (args.requiredFound === 0 && !onlyVisionUnavailable) score = Math.min(score, 10)
   if (problem > 0) score = Math.min(score, 45)
   if (missing > 0) score = Math.min(score, 55)
   if (args.unverifiableRequired >= 2) score = Math.min(score, 58)
+  if (onlyVisionUnavailable) score = Math.max(score, 35)
   if (args.hardProblems >= 3) score = Math.min(score, 30)
   if (args.requiredFound === args.requiredTotal && args.hardProblems === 0 && problem === 0 && missing === 0 && unverified === 0) score = Math.max(score, 82)
 
@@ -816,6 +818,7 @@ function computeRuleScore(args: {
 
   let verdict: Verdict
   if (score >= 78 && args.hardProblems === 0 && missing === 0 && problem === 0 && args.unverifiableRequired === 0) verdict = 'RECOMMEND_APPROVE'
+  else if (onlyVisionUnavailable) verdict = 'NEEDS_CLARIFICATION'
   else if (score < 25 || problem >= 2 || args.hardProblems >= 3) verdict = 'RECOMMEND_REJECT'
   else verdict = 'NEEDS_CLARIFICATION'
 
