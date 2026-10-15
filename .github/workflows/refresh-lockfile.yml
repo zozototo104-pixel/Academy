@@ -34,6 +34,15 @@ jobs:
           node <<'NODE'
           const { execSync } = require('node:child_process')
           const output = execSync('bun pm ls', { encoding: 'utf8' })
+          const versionOf = (name) => {
+            const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\      - name: Verify installed Next.js patch level
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun pm ls | grep -E "next@|eslint-config-next@"
+          node <<'NODE'
+          const { execSync } = require('node:child_process')
+          const output = execSync('bun pm ls', { encoding: 'utf8' })
           const match = output.match(/(?:^|\s)next@(\d+)\.(\d+)\.(\d+)/)
           if (!match) {
             console.error('Unable to find installed next version in bun pm ls output')
@@ -45,6 +54,26 @@ jobs:
           const ok = major > 16 || (major === 16 && (minor > 4 || (minor === 4 && patch >= 1)))
           if (!ok) {
             console.error(`Installed next@${major}.${minor}.${patch} is below the required 16.4.1 patch level`)
+            process.exit(1)
+          }
+          NODE')
+            const match = output.match(new RegExp(`(?:^|\\s)${escaped}@(\\d+)\\.(\\d+)\\.(\\d+)`))
+            if (!match) {
+              console.error(`Unable to find installed ${name} version in bun pm ls output`)
+              process.exit(1)
+            }
+            return match.slice(1, 4).map(Number)
+          }
+          const atLeast = ([major, minor, patch], requiredMajor, requiredMinor, requiredPatch) =>
+            major > requiredMajor || (major === requiredMajor && (minor > requiredMinor || (minor === requiredMinor && patch >= requiredPatch)))
+          const next = versionOf('next')
+          if (!atLeast(next, 16, 4, 1)) {
+            console.error(`Installed next@${next.join('.')} is below the required 16.4.1 patch level`)
+            process.exit(1)
+          }
+          const sharp = versionOf('sharp')
+          if (!atLeast(sharp, 0, 35, 5)) {
+            console.error(`Installed sharp@${sharp.join('.')} is below the required 0.35.5 patch level`)
             process.exit(1)
           }
           NODE
