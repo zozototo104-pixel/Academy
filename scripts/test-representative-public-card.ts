@@ -207,6 +207,7 @@ async function main() {
   await testNoPhoneCannotExpand()
   await testRateLimitUnavailableFailsClosed()
   await testRateLimitSixthAttempt()
+  testRepresentativeOnboardingLinkHardening()
   await testQrEncodesSameUrl()
   console.log('✓ representative public card behavioral checks passed')
 }
