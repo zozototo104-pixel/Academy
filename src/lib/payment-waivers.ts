@@ -394,54 +394,6 @@ export async function verifyPaymentWaiverCode(params: { paymentId: string; code:
   return result.updated
 }
 
-async function legacyAdmissionWaiverSettlementEffects(payment: any, actor: { id?: string | null; name: string }) {
-  if (!payment.admissionId) return
-  const app = await db.admissionApplication.findUnique({ where: { id: payment.admissionId } })
-  if (!app) return
-
-  let linkedUserId = app.userId
-  if (!linkedUserId && app.email) {
-    const matchedUser = await db.user.findUnique({ where: { email: app.email.trim().toLowerCase() }, select: { id: true, role: true } }).catch(() => null)
-    if (matchedUser?.role === 'STUDENT') {
-      linkedUserId = matchedUser.id
-      await db.admissionApplication.update({ where: { id: app.id }, data: { userId: linkedUserId } }).catch((error) => { console.warn('Failed to link admission user during waiver approval.', error) })
-    }
-  }
-  if (linkedUserId) {
-    await db.payment.updateMany({ where: { admissionId: app.id, OR: [{ userId: null }, { NOT: { userId: linkedUserId } }] }, data: { userId: linkedUserId } }).catch((error) => { console.warn('Failed to link admission payments during waiver approval.', error) })
-  }
-
-  const all = await db.payment.findMany({ where: { admissionId: app.id } })
-  const allSettled = all.length > 0 && all.every((p) => isSettledPayment(p.status))
-  const applicationFeeSettled = all.some((p) => p.purpose === 'APPLICATION_FEE' && isSettledPayment(p.status))
-  const tuitionSettled = all.some((p) => ['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && isSettledPayment(p.status))
-
-  if (applicationFeeSettled && app.status === 'AWAITING_FEE' && !tuitionSettled) {
-    await db.admissionApplication.update({ where: { id: app.id }, data: { status: 'AWAITING_TUITION' } })
-    const admins = await db.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } })
-    for (const admin of admins) {
-      await notify(admin.id, 'ADMISSION', 'طلب التحاق بانتظار متابعة الرسوم بعد الإعفاء', `تم اعتماد إعفاء رسوم التقديم للمتقدم ${app.fullName} (${app.reference}) — برنامج: ${app.program}.`, 'admin')
-    }
-    if (linkedUserId) {
-      await notify(linkedUserId, 'PAYMENT', 'تم اعتماد إعفاء رسوم التقديم', `تم إعفاؤك من رسوم التقديم لطلب ${app.reference}. يمكنك الآن متابعة الرسوم الدراسية أو طلب التقسيط من بوابة الدفعات.`, 'dashboard')
-    }
-    await audit(actor, 'APPLICATION_FEE_WAIVED', 'AdmissionApplication', app.id, `${app.reference} — ${payment.invoiceNo}`)
-  }
-
-  if (tuitionSettled && allSettled && ['AWAITING_FEE', 'UNDER_REVIEW', 'AWAITING_TUITION'].includes(app.status)) {
-    const newStatus = app.supervisorId ? 'THESIS' : 'SUPERVISOR_ASSIGNED'
-    await db.admissionApplication.update({ where: { id: app.id }, data: { status: newStatus } })
-    if (app.programId && linkedUserId) {
-      const existingEnrollment = await db.enrollment.findUnique({ where: { userId_programId: { userId: linkedUserId, programId: app.programId } } })
-      if (!existingEnrollment) await db.enrollment.create({ data: { userId: linkedUserId, programId: app.programId, status: 'ACTIVE' } })
-    }
-    if (linkedUserId) {
-      await notify(linkedUserId, 'ADMISSION', 'تم تفعيل تسجيلك بمنحة/إعفاء', `تم اعتماد الإعفاء المالي المطلوب وأصبح تسجيلك في «${app.program}» فعالاً.`, 'dashboard')
-    }
-    await audit(actor, 'FINAL_REGISTRATION_BY_WAIVER', 'AdmissionApplication', app.id, `${app.reference} — ${payment.invoiceNo}`)
-  }
-}
-
 async function waiveAllAdmissionTuitionPayments(admissionId: string, waiver: any, actor: { id?: string | null; name: string }) {
   await db.admissionApplication.update({ where: { id: admissionId }, data: { scholarshipFull: true } })
   const payments = await db.payment.findMany({
