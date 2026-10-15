@@ -474,6 +474,7 @@ export async function approvePaymentWaiver(params: { waiverId: string; actor: { 
           reason: waiver.reason,
           actor: params.actor,
         })
+        if (fullScholarship) await waiveAllAdmissionTuitionPayments(app.id, waiver, params.actor)
         await moveAdmissionToTuitionStage(app, params.actor)
       }
     }
