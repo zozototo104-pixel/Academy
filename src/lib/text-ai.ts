@@ -1508,7 +1508,7 @@ async function callChatCompletions(provider: string, baseUrl: string, key: strin
     },
     body: JSON.stringify({
       model,
-      messages: toChatMessages(opts),
+      messages: toOpenAiChatMessages(opts),
       max_tokens: opts.maxOutputTokens ?? (opts.json ? 4096 : 2048),
       temperature: opts.temperature ?? (opts.json ? 0.2 : 0.6),
       ...(opts.json ? { response_format: { type: 'json_object' } } : {}),
