@@ -16,9 +16,18 @@ export interface SettleResult {
   receiptNo?: string
 }
 
-export async function finalizeAdmissionAfterSettlement(tx: any, admissionId: string, opts: { source: 'PAYMENT' | 'WAIVER'; actor?: { id?: string | null; name: string } | null } = { source: 'PAYMENT' }) {
+type FinalizeAdmissionAfterSettlementOptions = {
+  source: 'PAYMENT' | 'WAIVER'
+  actor?: { id?: string | null; name: string } | null
+  payment?: any
+  receiptNo?: string
+  amountDollars?: number
+}
+
+export async function finalizeAdmissionAfterSettlement(tx: any, admissionId: string, opts: FinalizeAdmissionAfterSettlementOptions = { source: 'PAYMENT' }) {
   const app = await tx.admissionApplication.findUnique({ where: { id: admissionId } })
   if (!app) return null
+
   let linkedUserId = app.userId
   if (!linkedUserId && app.email) {
     const matchedUser = await tx.user.findUnique({ where: { email: app.email.trim().toLowerCase() }, select: { id: true, role: true } }).catch(() => null)
@@ -37,8 +46,106 @@ export async function finalizeAdmissionAfterSettlement(tx: any, admissionId: str
   const feeSettled = all.some((p: any) => p.purpose === 'APPLICATION_FEE' && isSettled(p.status))
   const tuitionSettled = all.some((p: any) => ['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && isSettled(p.status))
 
+  if (opts.source === 'PAYMENT') {
+    const payment = opts.payment
+    const receiptNo = opts.receiptNo || payment?.receiptNo || ''
+    const amountDollars = opts.amountDollars ?? (payment ? paymentAmountDollars(payment) : 0)
+    const amountLabel = amountDollars.toFixed(2)
+    const tuitionPlan = await getAdmissionTuitionPlan(app.id)
+    const installmentActivationReady =
+      tuitionPlan?.appealStatus === 'APPROVED' &&
+      app.status === 'AWAITING_TUITION' &&
+      tuitionPlan.approvedInitialAmount !== null &&
+      tuitionPlan.paidTuition >= tuitionPlan.approvedInitialAmount
+    let newStatus = app.status
+    let finalRegistration = false
+    let installmentRegistration = false
+
+    // 1) بعد سداد رسوم التقديم (30$): الملف يُحوَّل تلقائياً للإدارة للدراسة والإقرار
+    if (feeSettled && app.status === 'AWAITING_FEE') {
+      newStatus = 'UNDER_REVIEW'
+      const admins = await tx.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } })
+      for (const a of admins) {
+        await notify(
+          a.id,
+          'ADMISSION',
+          'طلب التحاق بانتظار دراستكم وإقراركم',
+          `المتقدم ${app.fullName} (${app.country}) سدد رسوم التقديم لطلب (${app.reference}) — برنامج: ${app.program}. الملف مكتمل بالمستندات — راجعه ووافق لإصدار فاتورة الرسوم الدراسية الكاملة.`,
+          'admin'
+        )
+      }
+    }
+
+    // 2) بعد موافقة الإدارة وسداد الرسوم الدراسية كاملة، أو قبول التقسيط وسداد الدفعة الأولى المعتمدة: تفعيل الالتحاق
+    if ((all.every((p: any) => isSettled(p.status)) || installmentActivationReady) && app.status === 'AWAITING_TUITION') {
+      newStatus = app.supervisorId ? 'THESIS' : 'SUPERVISOR_ASSIGNED'
+      finalRegistration = true
+      installmentRegistration = !!installmentActivationReady && !all.every((p: any) => isSettled(p.status))
+      if (app.programId && linkedUserId) {
+        const existingEnrollment = await tx.enrollment.findUnique({
+          where: { userId_programId: { userId: linkedUserId, programId: app.programId } },
+        })
+        if (!existingEnrollment) {
+          await tx.enrollment.create({
+            data: { userId: linkedUserId, programId: app.programId, status: 'ACTIVE' },
+          })
+        }
+      }
+    }
+
+    if (newStatus !== app.status) {
+      await tx.admissionApplication.update({ where: { id: app.id }, data: { status: newStatus } })
+    }
+    if (payment && receiptNo) {
+      await notify(
+        linkedUserId,
+        'PAYMENT',
+        'تم استلام دفعتك بنجاح',
+        `سُددت فاتورة «${payment.description}» بمبلغ ${amountLabel}$ — رقم الإيصال ${receiptNo}.`,
+        'dashboard'
+      )
+      if (app.email) {
+        await emailPaymentReceipt(app.email, app.fullName, payment.invoiceNo, payment.description, amountDollars, receiptNo)
+      }
+      if (payment.purpose === 'SERVICE_FEE') {
+        const admins = await tx.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } })
+        for (const admin of admins) {
+          await notify(
+            admin.id,
+            'SERVICE',
+            'الخدمة مدفوعة وجاهزة للتنفيذ والتسليم',
+            `تم سداد فاتورة خدمة «${app.program}» للعميل ${app.fullName} (${app.reference}) — رقم الإيصال ${receiptNo}. يمكن الآن رفع المخرج من قسم تنفيذ وتسليم الخدمة.`,
+            'admin'
+          )
+        }
+        await audit(opts.actor || null, 'SERVICE_READY_FOR_DELIVERY', 'AdmissionApplication', app.id, `${app.reference} — خدمة مدفوعة وجاهزة للتسليم`)
+      }
+    }
+    if (finalRegistration && linkedUserId) {
+      await notify(
+        linkedUserId,
+        'ADMISSION',
+        installmentRegistration ? 'تم تفعيل تسجيلك وفق خطة التقسيط المعتمدة' : 'التسجيل النهائي مكتمل — أهلاً بك في برنامجك!',
+        installmentRegistration
+          ? `تم تفعيل تسجيلك في «${app.program}» بعد سداد الدفعة الأولى المعتمدة. تذكير: لا يفتح امتحان الفصل الأول قبل سداد نصف الرسوم، ولا يفتح امتحان الفصل الثاني قبل سداد كامل المتبقي.`
+          : `مبروك! بعد سداد الرسوم الدراسية كاملة أصبح تسجيلك النهائي في «${app.program}» فعالاً — يمكنك الآن الدخول لبوابة الطالب وقراءة الكتب المقررة والبدء مع مشرفك الذكي${app.supervisorId ? ' ومشرفك الأكاديمي' : ''}.`,
+        'dashboard'
+      )
+      const student = await tx.user.findUnique({ where: { id: linkedUserId }, select: { email: true, name: true } })
+      if (student) await emailFinalRegistration(student.email, student.name, app.program)
+      await audit(
+        { id: linkedUserId, name: app.fullName },
+        'FINAL_REGISTRATION',
+        'Enrollment',
+        app.id,
+        `تسجيل نهائي فعّال: ${app.fullName} — ${app.program} (${app.reference}) — ${receiptNo}`
+      )
+    }
+    return { admissionId: app.id, userId: linkedUserId, allSettled, feeSettled, tuitionSettled, finalRegistration }
+  }
+
   if (feeSettled && app.status === 'AWAITING_FEE' && !tuitionSettled) {
-    await tx.admissionApplication.update({ where: { id: app.id }, data: { status: opts.source === 'WAIVER' ? 'AWAITING_TUITION' : 'UNDER_REVIEW' } })
+    await tx.admissionApplication.update({ where: { id: app.id }, data: { status: 'AWAITING_TUITION' } })
   }
 
   if (allSettled && tuitionSettled && ['AWAITING_FEE', 'UNDER_REVIEW', 'AWAITING_TUITION'].includes(String(app.status || ''))) {
@@ -48,20 +155,18 @@ export async function finalizeAdmissionAfterSettlement(tx: any, admissionId: str
       const existingEnrollment = await tx.enrollment.findUnique({ where: { userId_programId: { userId: linkedUserId, programId: app.programId } } }).catch(() => null)
       if (!existingEnrollment) await tx.enrollment.create({ data: { userId: linkedUserId, programId: app.programId, status: 'ACTIVE' } })
       else if (!['ACTIVE', 'COMPLETED'].includes(existingEnrollment.status)) await tx.enrollment.update({ where: { id: existingEnrollment.id }, data: { status: 'ACTIVE' } })
-      await notify(linkedUserId, 'ADMISSION', opts.source === 'WAIVER' ? 'تم تفعيل تسجيلك بمنحة/إعفاء' : 'التسجيل النهائي مكتمل — أهلاً بك في برنامجك!', `أصبح تسجيلك في «${app.program}» فعالاً.`, 'dashboard')
+      await notify(linkedUserId, 'ADMISSION', 'تم تفعيل تسجيلك بمنحة/إعفاء', `أصبح تسجيلك في «${app.program}» فعالاً.`, 'dashboard')
       const student = await tx.user.findUnique({ where: { id: linkedUserId }, select: { email: true, name: true } }).catch(() => null)
       if (student) await emailFinalRegistration(student.email, student.name, app.program)
     }
-    await audit(opts.actor || { name: opts.source }, opts.source === 'WAIVER' ? 'FINAL_REGISTRATION_BY_WAIVER' : 'FINAL_REGISTRATION', 'AdmissionApplication', app.id, `${app.reference} — ${app.program}`)
+    await audit(opts.actor || { name: opts.source }, 'FINAL_REGISTRATION_BY_WAIVER', 'AdmissionApplication', app.id, `${app.reference} — ${app.program}`)
   }
 
-  if (opts.source === 'WAIVER') {
-    const waived = all.find((p: any) => p.status === 'WAIVED' && !p.receiptNo)
-    if (waived) {
-      const receiptNo = await nextReceiptNo()
-      await tx.payment.update({ where: { id: waived.id }, data: { receiptNo, method: 'WAIVER', paidAt: new Date() } }).catch(() => null)
-      if (linkedUserId) await notify(linkedUserId, 'PAYMENT', 'تم اعتماد الإعفاء/المنحة', `تمت تسوية الفاتورة ${waived.invoiceNo} كإعفاء/منحة بقيمة 0$ — رقم الإيصال ${receiptNo}.`, 'dashboard')
-    }
+  const waived = all.find((p: any) => p.status === 'WAIVED' && !p.receiptNo)
+  if (waived) {
+    const receiptNo = await nextReceiptNo()
+    await tx.payment.update({ where: { id: waived.id }, data: { receiptNo, method: 'WAIVER', paidAt: new Date() } }).catch(() => null)
+    if (linkedUserId) await notify(linkedUserId, 'PAYMENT', 'تم اعتماد الإعفاء/المنحة', `تمت تسوية الفاتورة ${waived.invoiceNo} كإعفاء/منحة بقيمة 0$ — رقم الإيصال ${receiptNo}.`, 'dashboard')
   }
   return { admissionId: app.id, userId: linkedUserId, allSettled, feeSettled, tuitionSettled }
 }
