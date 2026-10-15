@@ -372,6 +372,14 @@ function testSecurityBatchA() {
 
   const payments = file('src/app/api/payments/route.ts')
   assert(payments.includes("const isPrivileged = user.role === 'ADMIN'") && !payments.includes("user.role === 'ADMIN' || user.role === 'SUPERVISOR'"), 'payments privileged access must be ADMIN-only')
+  assert(payments.includes('hasActiveWaiver') && payments.includes("['REQUESTED', 'VERIFIED'].includes"), 'student payments API must keep waiver invoices visible even when installment plan hides tuition invoices')
+  const dashboardExtras = file('src/components/aact/DashboardExtras.tsx')
+  assert(dashboardExtras.includes("['REQUESTED', 'VERIFIED'].includes(String(p.waiverStatus || ''))") && dashboardExtras.includes('لديك كود إعفاء من الإدارة'), 'student dashboard must show waiver entry for REQUESTED/VERIFIED invoices')
+  const examDetail = file('src/app/api/exam/detail/route.ts')
+  const examSubmit = file('src/app/api/exam/submit/route.ts')
+  assert(examDetail.includes("!['ACTIVE', 'COMPLETED'].includes(enrollment.status)") && examSubmit.includes("!['ACTIVE', 'COMPLETED'].includes(enrollment.status)"), 'exam access must require ACTIVE or COMPLETED enrollment')
+  const aiHealthCron = file('src/app/api/cron/ai-health/route.ts')
+  assert(aiHealthCron.includes("status: 'ISSUED'") && aiHealthCron.includes("status: 'EXPIRED'") && aiHealthCron.includes('PAYMENT_WAIVER_CODES_EXPIRED'), 'existing cron must expire issued waiver codes with audit')
 }
 
 async function main() {
