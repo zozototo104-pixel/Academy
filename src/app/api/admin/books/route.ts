@@ -433,13 +433,9 @@ export async function PATCH(req: NextRequest) {
     let linkReadStatus = book.linkReadStatus || 'NOT_ATTEMPTED'
 
     if (linkRaw) {
-      try {
-        const u = new URL(linkRaw)
-        if (!['http:', 'https:'].includes(u.protocol)) throw new Error()
-        link = linkRaw.slice(0, 600)
-      } catch {
-        return NextResponse.json({ error: 'رابط القراءة غير صالح — يجب أن يبدأ بـ http:// أو https://' }, { status: 400 })
-      }
+      const validation = await validateBookLinkUrl(linkRaw)
+      if (!validation.ok) return NextResponse.json({ error: validation.error }, { status: 400 })
+      link = validation.url.slice(0, 600)
     }
 
     if (file && file.size > 0) {
