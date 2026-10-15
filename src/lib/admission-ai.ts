@@ -847,6 +847,12 @@ function computeRuleScore(args: {
   if (args.unverifiableRequired >= 2) score = Math.min(score, 58)
   if (onlyVisionUnavailable) score = Math.max(score, 35)
   if (args.hardProblems >= 3) score = Math.min(score, 30)
+  if (args.requiredFound > 0) {
+    const partialCoverageFloor = args.hardProblems >= 3 || problem > 0
+      ? Math.min(45, Math.max(20, Math.round(coverageBase * 0.8)))
+      : Math.min(60, Math.max(25, Math.round(coverageBase * 0.85)))
+    score = Math.max(score, partialCoverageFloor)
+  }
   if (args.requiredFound === args.requiredTotal && args.hardProblems === 0 && problem === 0 && missing === 0 && unverified === 0) score = Math.max(score, 82)
 
   score = Math.max(0, Math.min(100, Math.round(score)))
