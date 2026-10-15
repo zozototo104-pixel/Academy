@@ -64,6 +64,8 @@ interface PaymentProofSummary {
   note?: string | null
   adminNote?: string | null
   fileName: string
+  fileUrl?: string | null
+  downloadUrl?: string | null
   mimeType: string
   fileSize: number
   createdAt: string
@@ -614,7 +616,14 @@ export function PaymentsTab() {
                         <span>إثباتات الدفع المرفوعة: {p.proofs?.length || 0}</span>
                         {p.proofs?.[0] ? <Badge className='bg-white text-emerald-700 hover:bg-white'>{p.proofs[0].status === 'PENDING' ? 'قيد مراجعة الإدارة' : p.proofs[0].status}</Badge> : null}
                       </div>
-                      {p.proofs?.[0] ? <p className='mt-1 text-emerald-800'>آخر ملف: {p.proofs[0].fileName}</p> : <p className='mt-1 text-emerald-800'>ارفع صورة أو PDF لإثبات التحويل حتى تراجعه الإدارة داخل الفاتورة.</p>}
+                      {p.proofs?.[0] ? (
+                        <div className='mt-1 space-y-1 text-emerald-800'>
+                          <p>آخر ملف: {p.proofs[0].fileName}</p>
+                          {(p.proofs[0].fileUrl || p.proofs[0].downloadUrl) && (
+                            <a href={p.proofs[0].fileUrl || p.proofs[0].downloadUrl || '#'} target='_blank' rel='noopener noreferrer' className='inline-flex rounded-lg border border-emerald-200 bg-white px-2 py-1 text-[10px] font-black text-emerald-700 hover:bg-emerald-50'>تحميل الإيصال</a>
+                          )}
+                        </div>
+                      ) : <p className='mt-1 text-emerald-800'>ارفع صورة أو PDF لإثبات التحويل حتى تراجعه الإدارة داخل الفاتورة.</p>}
                       <div className='mt-2'>
                         <Input
                           type='file'

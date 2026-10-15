@@ -5,6 +5,7 @@ import { markInvoicePaid } from '@/lib/settle-payment'
 import { isProductionRuntime, sandboxPaymentsAllowed, sandboxPaymentsBlockedMessage } from '@/lib/payments'
 import { getAdmissionTuitionPlan } from '@/lib/tuition-installments'
 import { repairVerifiedStudentRecordOwnership, studentAdmissionOwnershipWhere, studentPaymentOwnershipWhere } from '@/lib/student-record-ownership'
+import { getStorageDownloadPathForKey } from '@/lib/storage'
 
 // GET /api/payments — فواتير المستخدم (حسب حسابه أو بريده في طلبات الالتحاق)
 export async function GET() {
@@ -33,6 +34,7 @@ export async function GET() {
             fileName: true,
             mimeType: true,
             fileSize: true,
+            storageKey: true,
             createdAt: true,
             reviewedAt: true,
           },
@@ -52,7 +54,18 @@ export async function GET() {
     const approvedInstallmentAdmissions = new Set(tuitionPlans.filter((p: any) => p?.appealStatus === 'APPROVED').map((p: any) => p.admissionId))
     const visiblePayments = payments.filter((p) => !(p.purpose === 'TUITION' && p.status === 'UNPAID' && p.admissionId && approvedInstallmentAdmissions.has(p.admissionId)))
     return NextResponse.json({
-      payments: visiblePayments.map((p) => ({ ...p, reference: p.admissionId ? refById[p.admissionId] : null })),
+      payments: visiblePayments.map((p) => ({
+        ...p,
+        reference: p.admissionId ? refById[p.admissionId] : null,
+        proofs: (p.proofs || []).map((proof) => {
+          const { storageKey, storageUrl, ...safeProof } = proof as any
+          return {
+            ...safeProof,
+            fileUrl: storageKey ? getStorageDownloadPathForKey(storageKey) : null,
+            downloadUrl: storageKey ? getStorageDownloadPathForKey(storageKey) : null,
+          }
+        }),
+      })),
       tuitionPlans,
     })
   } catch (e) {

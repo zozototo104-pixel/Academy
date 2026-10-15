@@ -6,7 +6,7 @@ import { ACADEMY_INFO, ADMISSION_FEES } from '@/lib/academyData'
 import { getSettingNum, nextInvoiceNo } from '@/lib/settings'
 import { notify, audit } from '@/lib/notify'
 import { emailAdminNewAdmissionRequest, emailAdmissionSubmitted, emailServiceRequestSubmitted } from '@/lib/mailer'
-import { storageErrorMessage, storeFileBuffer } from '@/lib/storage'
+import { getStorageDownloadPathForKey, storageErrorMessage, storeFileBuffer } from '@/lib/storage'
 import { clientIpFromHeaders, enforceApiRateLimit } from '@/lib/rate-limit'
 import { buildServiceAdmissionDefaults, getServiceFlow } from '@/lib/service-flows'
 import { REQUIRED_ADMISSION_DOCS, resolveAdmissionRequiredDocuments } from '@/lib/admission-required-documents'
@@ -449,7 +449,7 @@ export async function GET(req: NextRequest) {
     const include: any = {
       supervisor: { select: { name: true } },
       programRef: { select: { slug: true, category: true, titleAr: true } },
-      files: { select: { id: true, docType: true, fileName: true, size: true } },
+      files: { select: { id: true, docType: true, fileName: true, size: true, storageKey: true } },
       payments: {
         select: {
           invoiceNo: true, purpose: true, amount: true, amountCents: true, status: true,
@@ -503,7 +503,7 @@ export async function GET(req: NextRequest) {
       createdAt: app.createdAt,
       email: app.email,
       phone: app.phone,
-      documents: (app.files || []).map((f: any) => ({ id: f.id, docType: f.docType, fileName: f.fileName, size: f.size })),
+      documents: (app.files || []).map((f: any) => ({ id: f.id, docType: f.docType, fileName: f.fileName, size: f.size, fileUrl: f.storageKey ? getStorageDownloadPathForKey(f.storageKey) : null, downloadUrl: f.storageKey ? getStorageDownloadPathForKey(f.storageKey) : null })),
       documentReplacementRequest,
       replacementUploadToken: app.status === 'DOCUMENTS_NEED_REPLACEMENT' && documentReplacementRequest ? createAdmissionUploadToken(app) : null,
       payments: app.payments || [],
