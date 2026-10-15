@@ -74,12 +74,14 @@ export async function transcribeScannedDocumentWithVision(buffer: Buffer, pageNu
   const copied = await subset.copyPages(original, pageNumbers.map((page) => page - 1))
   for (const page of copied) subset.addPage(page)
   const data = Buffer.from(await subset.save())
-  const result = await geminiVisionJson({
+  const result = await textAiCompleteJson({
     system: 'أنت محرك OCR حرفي. انسخ النص المرئي كما هو، دون شرح أو وصف أو استنتاج. لا تستخدم VISION_DESCRIPTION.',
-    prompt: `الملف يحتوي ${pageNumbers.length} صفحات بالترتيب. أرجع JSON فقط بالشكل {"pages":[{"page":1,"text":"النص الحرفي"}]}، حيث page هو رقم الصفحة داخل الملف الفرعي من 1 إلى ${pageNumbers.length}. لا تخترع نصاً ولا تلخص.`,
-    images: [{ mimeType: 'application/pdf', dataBase64: data.toString('base64') }],
+    history: [{ role: 'user', text: `الملف يحتوي ${pageNumbers.length} صفحات بالترتيب. أرجع JSON فقط بالشكل {"pages":[{"page":1,"text":"النص الحرفي"}]}، حيث page هو رقم الصفحة داخل الملف الفرعي من 1 إلى ${pageNumbers.length}. لا تخترع نصاً ولا تلخص.` }],
+    purpose: 'VISION',
+    routerPolicy: 'primary_first',
     maxOutputTokens: 16000,
-    timeoutMs: Math.min(120_000, deadlineMs - Date.now() - 10_000),
+    deadlineMs: Math.min(deadlineMs - 10_000, Date.now() + 25_000),
+    attachments: [{ mimeType: 'application/pdf', base64: data.toString('base64') }],
   })
   const parsed = JSON.parse(result.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim())
   if (!Array.isArray(parsed?.pages)) throw new Error('OCR_INVALID_PAGE_RESPONSE')
