@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
   })
 
   if (!user.emailVerifiedAt) emailWelcome(user.email, user.name).catch(() => {})
-  const response = redirectAuth(req, { email_verified: '1', email: user.email, reset_session: '1' })
+  const response = redirectAuth({ email_verified: '1', email: user.email, reset_session: '1' })
   response.cookies.set('aact_session', '', { path: '/', httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 0 })
   return response
 }
