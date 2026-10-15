@@ -84,27 +84,6 @@ async function extractPdfText(buffer: Buffer): Promise<string> {
   }
 }
 
-function isBlockedBookLinkIp(address: string) {
-  const ipVersion = isIP(address)
-  if (ipVersion === 4) {
-    const parts = address.split('.').map((part) => Number(part))
-    const [a, b] = parts
-    return (
-      a === 10 ||
-      a === 127 ||
-      (a === 172 && b >= 16 && b <= 31) ||
-      (a === 192 && b === 168) ||
-      (a === 169 && b === 254)
-    )
-  }
-  if (ipVersion === 6) {
-    const normalized = address.toLowerCase()
-    if (normalized.startsWith('::ffff:')) return isBlockedBookLinkIp(normalized.slice('::ffff:'.length))
-    return normalized === '::1' || normalized.startsWith('fe80:') || normalized.startsWith('fc') || normalized.startsWith('fd')
-  }
-  return false
-}
-
 async function validateBookLinkUrl(raw: string): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
   let parsed: URL
   try {
