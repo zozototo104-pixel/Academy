@@ -18,8 +18,9 @@ const deployCandidates = [
 ]
 
 const args = new Set(process.argv.slice(2))
+const mutatesDatabase = args.size === 0 || args.has('--migrate') || args.has('--push') || args.has('--force-push')
 
-if (process.env.VERCEL_ENV !== 'production' && (args.size === 0 || args.has('--migrate'))) {
+if (process.env.VERCEL_ENV !== 'production' && mutatesDatabase) {
   console.log('skipped')
   process.exit(0)
 }
