@@ -6,7 +6,7 @@ import { db } from '@/lib/db'
 import { extractDocumentText } from '@/lib/document-extract'
 import { storeFileBuffer, storageErrorMessage } from '@/lib/storage'
 import { textAiCompleteJson } from '@/lib/text-ai'
-import { serializeRepresentative } from '@/lib/academy-representatives'
+import { hashRepresentativeOnboardingToken, serializeRepresentative } from '@/lib/academy-representatives'
 import { emailAdminRepresentativeProfileSubmitted } from '@/lib/mailer'
 
 export const runtime = 'nodejs'
