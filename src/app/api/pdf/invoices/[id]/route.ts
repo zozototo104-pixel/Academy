@@ -192,7 +192,7 @@ function buildInvoiceSvg(data: {
   ${invoiceRows.svg}
 
   <rect x="52" y="490" width="690" height="162" rx="22" fill="#ffffff" stroke="#e2e8f0"/>
-  ${text(690, 478, 'بيانات الدافع / Payer Details', { size: 19, fill: BRAND_NAVY, weight: 900, anchor: 'end', dir: 'rtl' })}
+  ${text(690, 478, 'Payer Details', { size: 19, fill: BRAND_NAVY, weight: 900, anchor: 'end', dir: 'ltr', family: 'Arial,sans-serif' })}
   ${payerRows.svg}
 
   <rect x="52" y="682" width="690" height="190" rx="22" fill="#fffbeb" stroke="#fde68a"/>
