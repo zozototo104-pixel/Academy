@@ -269,6 +269,29 @@ describe('server-side session security', () => {
   })
 })
 
+describe('email verification redirects', () => {
+  test('uses NEXT_PUBLIC_APP_URL even when request host is untrusted', async () => {
+    const token = 'verify-token-abcdefghijklmnopqrstuvwxyz'
+    const user = seedUser('verify-user', 'ACTIVE', 'STUDENT', 'verify@example.test')
+    user.emailVerificationTokenHash = hashEmailVerificationToken(token)
+    user.emailVerificationExpiresAt = new Date(Date.now() + 60_000)
+    user.emailVerificationSentAt = new Date()
+
+    const response = await verifyEmail(new NextRequest(`https://evil.example/api/auth/verify-email?token=${encodeURIComponent(token)}`, {
+      headers: { host: 'evil.example', 'x-forwarded-host': 'evil.example', 'x-forwarded-proto': 'https' },
+    }))
+
+    expect(response.status).toBe(307)
+    const location = response.headers.get('location')!
+    expect(location).not.toContain('evil.example')
+    const url = new URL(location)
+    expect(url.origin).toBe('https://aactacademy.com')
+    expect(url.searchParams.get('email_verified')).toBe('1')
+    expect(url.searchParams.get('email')).toBe('verify@example.test')
+    expect(users.get('verify-user')?.emailVerificationTokenHash).toBeNull()
+  })
+})
+
 describe('Google OAuth callback', () => {
   test('a missing state cookie rejects callback before Google or database calls', async () => {
     const { state } = await beginGoogle('aactacademy.com')
