@@ -300,6 +300,8 @@ function testSecurityBatchAFollowup() {
   assert(waiverLib.includes('SELECT id FROM "Payment" WHERE id = ${current.paymentId} FOR UPDATE') && waiverLib.includes("where: { id: current.id, status: 'VERIFIED' }"), 'admin waiver approval must lock the invoice and be idempotent')
   assert(waiverLib.includes('waiveAllAdmissionTuitionPayments') && waiverLib.includes('scholarshipFull: true'), 'full scholarships must waive all admission tuition invoices and mark the application')
   assert(waiverLib.includes("? Math.min(Number(waiver.requestedAmountCents || 0), currentCents)"), 'partial waiver equal to remaining balance must be allowed and settle the invoice')
+  const dbClient = file('src/lib/db.ts')
+  assert(dbClient.includes('basePrisma.$extends') && dbClient.includes("['TUITION', 'TUITION_INSTALLMENT'].includes(purpose)") && dbClient.includes('app?.scholarshipFull') && dbClient.includes("data.status = 'WAIVED'"), 'future tuition installments for full-scholarship admissions must be auto-waived')
 
   const adminExtras = file('src/components/aact/AdminExtras.tsx')
   assert(adminExtras.includes('activeWaiverForPayment') && adminExtras.includes('كود إعفاء نشط'), 'admin payments UI must show an active waiver badge/state')
