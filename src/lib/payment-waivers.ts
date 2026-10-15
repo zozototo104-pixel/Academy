@@ -235,17 +235,37 @@ export async function createPaymentWaiverCode(params: {
 
   await audit(params.actor || { name: 'Admin' }, 'PAYMENT_WAIVER_CODE_CREATED', 'Payment', payment.id, `${payment.invoiceNo} — ${params.waiverType} — ${waiver.codePreview}`)
   const recipient = await resolveWaiverEmailRecipient(payment.id).catch((error) => { console.warn('Failed to resolve waiver code email recipient.', error); return null })
+  let emailStatus: 'SENT' | 'FAILED' | 'SKIPPED' = recipient ? 'FAILED' : 'SKIPPED'
+  const waiverLink = `/?view=dashboard&tab=payments&invoice=${encodeURIComponent(payment.invoiceNo)}`
   if (recipient) {
-    await emailPaymentWaiverCode(recipient.email, {
-      name: recipient.name,
-      invoiceNo: recipient.invoiceNo,
-      description: recipient.description,
-      code,
-      waiverLabel: waiverTypeLabel(params.waiverType),
-      reason,
-    }).catch((error) => { console.warn('Failed to send payment waiver code email.', error) })
+    try {
+      await emailPaymentWaiverCode(recipient.email, {
+        name: recipient.name,
+        invoiceNo: recipient.invoiceNo,
+        description: recipient.description,
+        code,
+        waiverLabel: waiverTypeLabel(params.waiverType),
+        reason,
+        link: waiverLink,
+      })
+      emailStatus = 'SENT'
+    } catch (error) {
+      emailStatus = 'FAILED'
+      console.warn('Failed to send payment waiver code email.', error)
+    }
+    await notify(
+      recipient.userId,
+      'PAYMENT',
+      'لديك كود إعفاء من الإدارة',
+      `${waiverTypeLabel(params.waiverType)} مرتبط بالفاتورة ${payment.invoiceNo}. افتح الدفعات وأدخل الكود المرسل إلى بريدك أو الذي زودتك به الإدارة.`,
+      waiverLink
+    )
   }
-  return { code, waiver }
+  const savedWaiver = await db.paymentWaiverCode.update({
+    where: { id: waiver.id },
+    data: { emailStatus, emailSentAt: emailStatus === 'SENT' ? new Date() : null },
+  })
+  return { code, waiver: savedWaiver, emailStatus }
 }
 
 export async function verifyPaymentWaiverCode(params: { paymentId: string; code: string; user: { id: string; email?: string | null; name?: string | null; emailVerifiedAt?: Date | string | null } }) {
