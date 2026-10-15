@@ -98,6 +98,7 @@ const originalFetch = globalThis.fetch
 const previousAuthSecret = process.env.AUTH_SECRET
 const previousGoogleClientId = process.env.GOOGLE_CLIENT_ID
 const previousGoogleClientSecret = process.env.GOOGLE_CLIENT_SECRET
+const previousNextPublicAppUrl = process.env.NEXT_PUBLIC_APP_URL
 
 function seedUser(id: string, status = 'ACTIVE', role = 'STUDENT', email = `${id}@example.test`): FakeUser {
   const user = { id, email, name: id, role, status }
