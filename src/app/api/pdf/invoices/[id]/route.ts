@@ -50,20 +50,29 @@ function formatDate(value: Date | string | null | undefined) {
 
 function purposeLabel(value?: string | null) {
   const labels: Record<string, string> = {
-    APPLICATION_FEE: 'رسوم تقديم / Application Fee',
-    TUITION: 'رسوم دراسية / Tuition',
-    TUITION_INSTALLMENT: 'قسط رسوم دراسية / Tuition Installment',
-    ACCREDITATION_APP: 'رسوم تقديم اعتماد / Accreditation Application',
-    ACCREDITATION_FEE: 'رسوم تقديم اعتماد / Accreditation Fee',
-    ACCREDITATION: 'اعتماد / Accreditation',
-    SERVICE_FEE: 'رسوم خدمة / Service Fee',
-    OTHER: 'أخرى / Other',
+    APPLICATION_FEE: 'Application Fee',
+    TUITION: 'Tuition Invoice',
+    TUITION_INSTALLMENT: 'Tuition Installment',
+    ACCREDITATION_APP: 'Accreditation Application Fee',
+    ACCREDITATION_FEE: 'Accreditation Fee',
+    ACCREDITATION: 'Accreditation',
+    SERVICE_FEE: 'Service Fee',
+    OTHER: 'Other Fee',
   }
   return labels[safeText(value, '')] || safeText(value, 'Other')
 }
 
-function statusLabel(value?: string | null) {
-  return value === 'PAID' ? 'مسددة / PAID' : 'غير مسددة / UNPAID'
+function statusLabel(value?: string | null, waiverStatus?: string | null) {
+  if (value === 'PAID') return 'PAID / Receipt issued'
+  if (value === 'WAIVED') return 'WAIVED / Scholarship or waiver settled'
+  if (waiverStatus === 'APPROVED' || waiverStatus === 'PROGRAM_APPLIED') return 'WAIVED / Scholarship or waiver settled'
+  if (waiverStatus === 'REQUESTED' || waiverStatus === 'VERIFIED') return 'WAIVER PENDING / awaiting approval'
+  return 'UNPAID / Amount due'
+}
+
+function pdfSafeText(value: unknown, fallback = 'See student portal') {
+  const text = safeText(value, fallback)
+  return /[\u0600-\u06FF\u0750-\u077F]/.test(text) ? fallback : text
 }
 
 function methodLabel(value?: string | null) {
