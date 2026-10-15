@@ -1690,10 +1690,13 @@ async function keyRateAllowed(provider: ConcreteProvider, key: string): Promise<
 }
 
 export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
+  const attachments = normalizedAttachments(opts)
+  const visionCall = attachments.length > 0
+  const effectiveOpts = visionCall ? { ...opts, attachments, purpose: opts.purpose || 'VISION', deadlineMs: opts.deadlineMs || Date.now() + VISION_ATTEMPT_TIMEOUT_MS } : opts
   const baseSettings = await settings()
-  const s: Settings = opts.routerPolicy ? { ...baseSettings, policy: opts.routerPolicy } : baseSettings
-  const taskLevel = opts.taskLevel || 'GENERAL'
-  const excluded = excludedConcreteProviders(opts.excludeProviders)
+  const s: Settings = effectiveOpts.routerPolicy ? { ...baseSettings, policy: effectiveOpts.routerPolicy } : baseSettings
+  const taskLevel = effectiveOpts.taskLevel || 'GENERAL'
+  const excluded = excludedConcreteProviders(effectiveOpts.excludeProviders)
   const excludedFamilies = excludedModelFamilies(opts.excludeModelFamilies)
   const sticky = opts.stickyScope ? stickyModels.get(opts.stickyScope) : null
   const preferredProviders = (opts.preferredProviders || []).filter(Boolean)
