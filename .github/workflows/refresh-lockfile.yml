@@ -22,9 +22,8 @@ jobs:
 
       - name: Refresh bun.lock
         run: |
-          bun add next@^16.4.1 sharp@^0.35.5
-          bun add -d eslint-config-next@^16.4.1
           bun install
+          bun update next eslint-config-next react react-dom
 
       - name: Verify installed versions
         shell: bash
@@ -48,6 +47,8 @@ jobs:
           const next = installedVersion('next')
           installedVersion('eslint-config-next')
           const sharp = installedVersion('sharp')
+          const react = installedVersion('react')
+          const reactDom = installedVersion('react-dom')
 
           if (!atLeast(next, [16, 4, 1])) {
             console.error(`Installed next@${next.join('.')} is below the required 16.4.1 patch level`)
@@ -56,6 +57,16 @@ jobs:
 
           if (!atLeast(sharp, [0, 35, 5])) {
             console.error(`Installed sharp@${sharp.join('.')} is below the required 0.35.5 patch level`)
+            process.exit(1)
+          }
+
+          if (!atLeast(react, [19, 3, 0])) {
+            console.error(`Installed react@${react.join('.')} is below the required 19.3.0 patch level`)
+            process.exit(1)
+          }
+
+          if (!atLeast(reactDom, [19, 3, 0])) {
+            console.error(`Installed react-dom@${reactDom.join('.')} is below the required 19.3.0 patch level`)
             process.exit(1)
           }
           NODE
