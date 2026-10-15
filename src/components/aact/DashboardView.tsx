@@ -219,6 +219,8 @@ interface StudentAssignment {
     id: string
     answerText?: string | null
     fileName?: string | null
+    fileUrl?: string | null
+    downloadUrl?: string | null
     mimeType?: string | null
     size?: number | null
     status: string
@@ -620,6 +622,18 @@ export function DashboardView() {
               <p><b>الدفع:</b> {studentSummary.summary.unpaidPayments ? `يوجد ${studentSummary.summary.unpaidPayments} دفعة تحتاج متابعة` : 'لا توجد دفعات معلقة'}</p>
               <p><b>التسجيل الدراسي:</b> {studentSummary.summary.activeEnrollment ? `مسجل في ${studentSummary.summary.activeEnrollment.program?.titleAr || 'برنامج'}` : 'لا يوجد تسجيل دراسي نشط'}</p>
             </div>
+            {studentSummary.summary.latestAdmission?.documents?.length ? (
+              <div className="mt-3 rounded-2xl border border-[#c9a227]/20 bg-[#fffaf0] p-3">
+                <p className="mb-2 text-xs font-black text-[#0f2b46]">وثائق الطلب</p>
+                <div className="flex flex-wrap gap-2">
+                  {studentSummary.summary.latestAdmission.documents.map((doc: any) => (doc.fileUrl || doc.downloadUrl) ? (
+                    <a key={doc.id || doc.fileName} href={doc.fileUrl || doc.downloadUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center rounded-lg border border-[#c9a227]/40 bg-white px-3 py-1.5 text-[11px] font-black text-[#a8841a] hover:bg-[#f7edd0]">
+                      <FileText className="ml-1 h-3.5 w-3.5" /> {doc.fileName || doc.docType || 'وثيقة'}
+                    </a>
+                  ) : null)}
+                </div>
+              </div>
+            ) : null}
             <div className="mt-3 grid grid-cols-2 gap-2">
               <Button size="sm" variant="outline" onClick={() => setDashboardTab('payments')} className="border-[#c9a227] font-black text-[#a8841a] hover:bg-[#f7edd0]">
                 الدفعات
@@ -1049,6 +1063,11 @@ export function DashboardView() {
                                 <p className="font-black text-[#0f2b46]">تسليمك الحالي</p>
                                 {submission.answerText && <p className="mt-1 rounded-lg bg-white p-2 ring-1 ring-slate-100">{submission.answerText}</p>}
                                 {submission.fileName && <p className="mt-1 text-[#a8841a]">ملف مرفق: {submission.fileName} {submission.size ? `(${Math.ceil(submission.size / 1024)} ك.ب)` : ''}</p>}
+                                {(submission.fileUrl || submission.downloadUrl) && (
+                                  <a className="mt-2 inline-flex rounded-lg border border-[#d6bb6e]/60 bg-white px-3 py-1.5 text-[11px] font-black text-[#0f2b46] hover:bg-[#fff7df]" href={submission.fileUrl || submission.downloadUrl || '#'} target="_blank" rel="noopener noreferrer">
+                                    تحميل ملفي
+                                  </a>
+                                )}
                                 {submission.feedback && <p className={`mt-1 ${needsRevision ? 'text-amber-700' : 'text-emerald-700'}`}>ملاحظة التصحيح: {submission.feedback}</p>}
                               </div>
                             )}

@@ -9,6 +9,7 @@ import {
   remainingDeadlineMs,
 } from '../src/lib/prod-safety'
 import { canAccessStorageKeyWithClient } from '../src/lib/file-access-policy'
+import { getStorageDownloadPathForKey } from '../src/lib/storage'
 import { __handleFileGetForTests } from '../src/app/api/files/[...key]/route'
 
 function assert(condition: unknown, message: string) {
@@ -102,8 +103,20 @@ function testPrivateStoragePolicy() {
 
   const adminAdmissions = file('src/app/api/admin/admissions/route.ts')
   assert(adminAdmissions.includes('getStorageDownloadPathForKey(file.storageKey)'), 'admin admission documents must expose protected file URLs')
+  const studentAdmissions = file('src/app/api/admissions/route.ts')
+  assert(studentAdmissions.includes('files: { select: { id: true, docType: true, fileName: true, size: true, storageKey: true } }'), 'student admissions GET must select document storage keys')
+  assert(studentAdmissions.includes('fileUrl: f.storageKey ? getStorageDownloadPathForKey(f.storageKey) : null'), 'student admissions GET must expose protected document file URLs')
+  const dashboardSummary = file('src/app/api/my/dashboard-summary/route.ts')
+  assert(dashboardSummary.includes('files: { select: { id: true, docType: true, fileName: true, size: true, storageKey: true } }'), 'student dashboard summary must select admission documents')
+  assert(dashboardSummary.includes('documents: (a.files || []).map') && dashboardSummary.includes('downloadUrl: file.storageKey ? getStorageDownloadPathForKey(file.storageKey) : null'), 'student dashboard summary must expose protected admission document links')
   const assignments = file('src/app/api/assignments/route.ts')
   assert(assignments.includes('getStorageDownloadPathForKey(submission.fileStorageKey)'), 'student assignment files must expose protected file URLs')
+  assert(getStorageDownloadPathForKey('payment-proofs/2026/p.png').startsWith('/api/files/'), 'protected file URLs must be rooted at /api/files')
+  assert(getStorageDownloadPathForKey('admissions/a b.pdf') === '/api/files/admissions/a%20b.pdf', 'protected file URLs must encode path segments and spaces')
+  const dashboard = file('src/components/aact/DashboardView.tsx')
+  assert(dashboard.includes('fileUrl?: string | null') && dashboard.includes('downloadUrl?: string | null'), 'student dashboard assignment submission type must include protected file URLs')
+  assert(dashboard.includes('href={submission.fileUrl || submission.downloadUrl ||') && dashboard.includes('تحميل ملفي'), 'student dashboard assignment download href must use fileUrl || downloadUrl')
+  assert(dashboard.includes('studentSummary.summary.latestAdmission?.documents') && dashboard.includes('وثائق الطلب'), 'student dashboard must expose protected admission document links')
   const thesis = file('src/app/api/thesis/route.ts')
   assert(thesis.includes('getStorageDownloadPathForKey(thesis.fileStorageKey)'), 'student thesis files must expose protected file URLs')
   const adminAssignments = file('src/app/api/admin/assignments/route.ts')
@@ -113,11 +126,25 @@ function testPrivateStoragePolicy() {
   assert(adminThesis.includes('getStorageDownloadPathForKey(recordingStorageKey)'), 'admin thesis recording URLs must be protected')
   const deliverables = file('src/app/api/service-deliverables/route.ts')
   assert(deliverables.includes('getStorageDownloadPathForKey(storageKey)'), 'service deliverables must expose protected file URLs')
+  const studentPayments = file('src/app/api/payments/route.ts')
+  assert(studentPayments.includes('storageKey: true') && !studentPayments.includes('storageUrl: true'), 'student payment proofs may select storageKey internally but must not select storageUrl')
+  assert(studentPayments.includes('const { storageKey, storageUrl, ...safeProof } = proof as any'), 'student payment proof responses must strip raw storage fields')
+  assert(studentPayments.includes('fileUrl: storageKey ? getStorageDownloadPathForKey(storageKey) : null'), 'student payment proofs must expose protected file URLs')
+  const adminPayments = file('src/app/api/admin/payments/route.ts')
+  assert(adminPayments.includes('const { storageKey, storageUrl, ...safeProof } = proof || {}'), 'admin payment proof responses must strip raw storage fields')
+  assert(adminPayments.includes('safeProof.id ? `/api/admin/payments/proofs/${encodeURIComponent(safeProof.id)}/download` : null'), 'admin payment proofs, including legacy storageUrl-only rows, must expose protected admin download URLs')
+  assert(!adminPayments.includes('isPrivateStorageKey'), 'admin payment proof response shaping must not expose or depend on raw storage keys')
+  const dashboardExtras = file('src/components/aact/DashboardExtras.tsx')
+  assert(dashboardExtras.includes('downloadUrl?: string | null') && dashboardExtras.includes('تحميل الإيصال'), 'student dashboard payments must display protected receipt links')
+  const adminPaymentProofDownload = file('src/app/api/admin/payments/proofs/[id]/download/route.ts')
+  assert(adminPaymentProofDownload.includes('await requireAdmin()') && adminPaymentProofDownload.includes('readStoredFile({'), 'admin payment proof download route must require admin and read stored files')
   const adminBooks = file('src/components/aact/AdminBooks.tsx')
   assert(adminBooks.includes('s.fileUrl || s.downloadUrl'), 'admin assignment inline list must display protected file URLs')
   assert(adminBooks.includes('submission.fileUrl || submission.downloadUrl'), 'admin assignment grading cards must display protected file URLs')
   assert(adminBooks.includes('gradingDialog.submission.fileUrl || gradingDialog.submission.downloadUrl'), 'admin assignment grading dialog must display protected file URLs')
   const adminExtras = file('src/components/aact/AdminExtras.tsx')
+  assert(!adminExtras.includes('storageKey') && !adminExtras.includes('storageUrl'), 'AdminExtras must not expose raw payment storage fields')
+  assert(adminExtras.includes('proof.fileUrl || proof.downloadUrl'), 'AdminExtras payment proofs must use protected receipt URLs')
   assert(adminExtras.includes('فتح ملف البحث'), 'admin thesis UI must expose protected thesis file link')
   assert(adminExtras.includes('minutesThesis.recordingUrl ||'), 'admin thesis minutes dialog must use protected recording URL')
   assert(adminExtras.includes('showRecording.recordingUrl ||'), 'admin thesis recording dialog must use protected recording URL')

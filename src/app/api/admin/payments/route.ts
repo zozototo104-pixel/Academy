@@ -6,8 +6,6 @@ import { notify, audit } from '@/lib/notify'
 import { adminPaginationMeta, cleanAdminQuery, parseAdminPagination } from '@/lib/admin-query'
 import { getSettings } from '@/lib/settings'
 import { dollarsToCents } from '@/lib/money'
-import { getStorageDownloadPathForKey } from '@/lib/storage'
-import { isPrivateStorageKey } from '@/lib/prod-safety'
 
 function cleanText(value: unknown, max = 500) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
@@ -33,10 +31,12 @@ function hasPositivePrice(value: unknown): value is number {
 }
 
 function secureProofPayload(proof: any) {
-  if (!proof?.storageKey || !isPrivateStorageKey(proof.storageKey)) return proof
+  const { storageKey, storageUrl, ...safeProof } = proof || {}
+  const protectedUrl = safeProof.id ? `/api/admin/payments/proofs/${encodeURIComponent(safeProof.id)}/download` : null
   return {
-    ...proof,
-    storageUrl: getStorageDownloadPathForKey(proof.storageKey),
+    ...safeProof,
+    fileUrl: protectedUrl,
+    downloadUrl: protectedUrl,
   }
 }
 
