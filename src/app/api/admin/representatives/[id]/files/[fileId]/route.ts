@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { readStoredFile } from '@/lib/storage'
+import { hashRepresentativeVerifier } from '@/lib/academy-representatives'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
