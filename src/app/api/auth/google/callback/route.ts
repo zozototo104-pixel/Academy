@@ -81,7 +81,7 @@ function oauthLanding(_req: NextRequest, token: string, view: string) {
       'cache-control': 'no-store, no-cache, must-revalidate',
     },
   })
-  // تثبيت الجلسة من السيرفر أيضاً، وليس فقط localStorage، لأن Safari أحياناً يرجع للتطبيق قبل ثبات التخزين المحلي.
+  // تثبيت الجلسة من السيرفر أيضاً لأن Safari أحياناً يرجع للتطبيق قبل اكتمال الانتقال.
   res.cookies.set('aact_session', token, {
     httpOnly: true,
     sameSite: 'lax',
