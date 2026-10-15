@@ -164,9 +164,15 @@ export function AdminStudentPreview() {
   const changeAccountStatus = async (status: 'ACTIVE' | 'DISABLED') => {
     if (!id || !data || updatingStatus || data.student.status === status) return
     const disabling = status === 'DISABLED'
-    const confirmed = window.confirm(disabling
-      ? `تعطيل حساب ${data.student.name}؟ سيتم تسجيل خروجه من جميع الأجهزة فورًا، مع الاحتفاظ ببياناته الأكاديمية.`
-      : `إعادة تفعيل حساب ${data.student.name}؟ سيتمكن من تسجيل الدخول مجددًا، ولن تعود جلساته الملغاة.`)
+    const confirmed = await confirmAction({
+      title: disabling ? 'تأكيد تعطيل حساب الطالب' : 'تأكيد إعادة تفعيل حساب الطالب',
+      description: disabling
+        ? `تعطيل حساب ${data.student.name}؟ سيتم تسجيل خروجه من جميع الأجهزة فورًا، مع الاحتفاظ ببياناته الأكاديمية.`
+        : `إعادة تفعيل حساب ${data.student.name}؟ سيتمكن من تسجيل الدخول مجددًا، ولن تعود جلساته الملغاة.`,
+      confirmLabel: disabling ? 'تعطيل الحساب' : 'إعادة التفعيل',
+      cancelLabel: 'إلغاء',
+      tone: disabling ? 'danger' : 'success',
+    })
     if (!confirmed) return
     setUpdatingStatus(true)
     setStatusMessage(null)
