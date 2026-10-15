@@ -210,6 +210,10 @@ export async function markInvoicePaid(
     }
   }
 
+  if (payment.admissionId) {
+    await finalizeAdmissionAfterSettlement(db, payment.admissionId, { source: 'PAYMENT', actor })
+  }
+
   // تفعيل التسجيل المباشر في البرنامج بعد سداد فاتورته
   if (payment.enrollmentId) {
     const enrollment = await db.enrollment.findUnique({
