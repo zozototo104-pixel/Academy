@@ -104,7 +104,7 @@ async function validateBookLinkUrl(raw: string): Promise<{ ok: true; url: string
   try {
     const records = await lookup(parsed.hostname, { all: true, verbatim: true })
     if (!records.length) return { ok: false, error: 'تعذر التحقق من عنوان رابط الكتاب' }
-    if (records.some((record) => isBlockedBookLinkIp(record.address))) {
+    if (records.some((record) => isPrivateIp(record.address))) {
       return { ok: false, error: 'رابط الكتاب لا يمكن أن يشير إلى localhost أو شبكة داخلية' }
     }
   } catch {
