@@ -79,6 +79,7 @@ function parsePendingProfileData(file: any) {
     if (next) data[field] = next.slice(0, field === 'rawBio' ? 12000 : 6000)
   }
   if (data.phone) data.verifyPhoneLast4Hash = hashRepresentativeVerifier(data.phone) as any
+  if (data.email) data.verifyEmailLast4Hash = hashRepresentativeVerifier(data.email) as any
   return data
 }
 
