@@ -144,6 +144,7 @@ function testPrivateStoragePolicy() {
   assert(adminBooks.includes('gradingDialog.submission.fileUrl || gradingDialog.submission.downloadUrl'), 'admin assignment grading dialog must display protected file URLs')
   const adminExtras = file('src/components/aact/AdminExtras.tsx')
   assert(!adminExtras.includes('storageKey') && !adminExtras.includes('storageUrl'), 'AdminExtras must not expose raw payment storage fields')
+  assert(adminExtras.includes('proof.fileUrl || proof.downloadUrl'), 'AdminExtras payment proofs must use protected receipt URLs')
   assert(adminExtras.includes('فتح ملف البحث'), 'admin thesis UI must expose protected thesis file link')
   assert(adminExtras.includes('minutesThesis.recordingUrl ||'), 'admin thesis minutes dialog must use protected recording URL')
   assert(adminExtras.includes('showRecording.recordingUrl ||'), 'admin thesis recording dialog must use protected recording URL')
