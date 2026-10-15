@@ -270,6 +270,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
+  const limited = await enforceOnboardingRateLimit(req, token, 'PATCH')
+  if (limited) return limited
   const loaded = await loadRepresentative(token)
   if (!loaded.representative) return onboardingNotFound(loaded.expired)
   const rep = loaded.representative
