@@ -251,6 +251,7 @@ async function main() {
   await testFileAccessPolicyBehavior()
   testOfficialSettingsDeploymentHook()
   testAiDeadlines()
+  testGradingCertificateFlowRegressions()
   testWhatsAppMinimalSafety()
   testAactTestRecipientBlocks()
   testDependencyPins()
