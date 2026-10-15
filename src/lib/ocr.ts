@@ -1,5 +1,4 @@
-import { getZAI } from '@/lib/ai'
-import { ensureGeminiKey, geminiVisionJson } from '@/lib/gemini'
+import { textAiCompleteJson } from '@/lib/text-ai'
 
 // ===== قراءة صور المستندات (Vision OCR) =====
 // خبير الذكاء الاصطناعي «يرى» صور المستندات المرفوعة ويستخرج نوع الوثيقة، النص الظاهر،
