@@ -818,6 +818,7 @@ function computeRuleScore(args: {
 
   let verdict: Verdict
   if (score >= 78 && args.hardProblems === 0 && missing === 0 && problem === 0 && args.unverifiableRequired === 0) verdict = 'RECOMMEND_APPROVE'
+  else if (onlyVisionUnavailable) verdict = 'NEEDS_CLARIFICATION'
   else if (score < 25 || problem >= 2 || args.hardProblems >= 3) verdict = 'RECOMMEND_REJECT'
   else verdict = 'NEEDS_CLARIFICATION'
 
