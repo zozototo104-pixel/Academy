@@ -41,6 +41,33 @@ function waiverTypeLabel(type: string) {
   return 'إعفاء مالي'
 }
 
+export async function applyScholarshipToNewInvoiceData(tx: any, data: any) {
+  const purpose = String(data?.purpose || '').toUpperCase()
+  if (!data?.admissionId || !['TUITION', 'TUITION_INSTALLMENT'].includes(purpose)) return data
+  const app = await tx.admissionApplication.findUnique({
+    where: { id: data.admissionId },
+    select: { scholarshipFull: true },
+  }).catch(() => null)
+  if (!app?.scholarshipFull) return data
+
+  const originalAmountCents = Number(data.amountCents ?? dollarsToCents(Number(data.amount || 0)))
+  const originalAmount = Number(data.amount ?? centsToDollars(originalAmountCents))
+  return {
+    ...data,
+    status: 'WAIVED',
+    originalAmount,
+    originalAmountCents,
+    waivedAmount: originalAmount,
+    waivedAmountCents: originalAmountCents,
+    amount: 0,
+    amountCents: 0,
+    waiverType: 'FULL_SCHOLARSHIP',
+    waiverStatus: 'APPROVED',
+    waiverReason: data.waiverReason || 'منحة كاملة معتمدة مسبقاً لهذا الطلب',
+    waiverApprovedAt: data.waiverApprovedAt || new Date(),
+  }
+}
+
 async function resolveWaiverEmailRecipient(paymentId: string) {
   const payment = await db.payment.findUnique({
     where: { id: paymentId },
