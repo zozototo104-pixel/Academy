@@ -665,6 +665,8 @@ interface PaymentProofRow {
   fileName: string
   mimeType: string
   fileSize: number
+  fileUrl?: string | null
+  downloadUrl?: string | null
   createdAt: string
   reviewedAt?: string | null
   uploadedBy?: { id: string; name: string; email: string } | null
