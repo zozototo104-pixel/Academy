@@ -378,7 +378,7 @@ export async function verifyPaymentWaiverCode(params: { paymentId: string; code:
   return result.updated
 }
 
-async function applyAdmissionWaiverEffects(payment: any, actor: { id?: string | null; name: string }) {
+async function legacyAdmissionWaiverSettlementEffects(payment: any, actor: { id?: string | null; name: string }) {
   if (!payment.admissionId) return
   const app = await db.admissionApplication.findUnique({ where: { id: payment.admissionId } })
   if (!app) return
