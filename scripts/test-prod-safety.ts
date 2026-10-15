@@ -1,3 +1,4 @@
+import { spawnSync } from 'child_process'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import { NextRequest } from 'next/server'
