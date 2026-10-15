@@ -3,9 +3,17 @@ import { requireAdmin } from '@/lib/auth'
 import { ensureCoreSeed } from '@/lib/bootstrap'
 import { ensureDemoThesisStudent } from '@/lib/demo-thesis'
 
+function demoThesisEnabled() {
+  if (process.env.VERCEL_ENV !== 'production') return true
+  return ['1', 'true', 'yes'].includes(String(process.env.ENABLE_DEMO_THESIS || '').trim().toLowerCase())
+}
+
 export async function POST() {
   try {
     const admin = await requireAdmin()
+    if (!demoThesisEnabled()) {
+      return NextResponse.json({ error: 'الطالب التجريبي غير مفعل في بيئة الإنتاج' }, { status: 403 })
+    }
     await ensureCoreSeed(true)
     const demo = await ensureDemoThesisStudent({ resetDefense: true, actor: admin })
 
