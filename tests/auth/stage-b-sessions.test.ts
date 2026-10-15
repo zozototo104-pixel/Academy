@@ -40,6 +40,14 @@ const db = {
   user: {
     findUnique: async ({ where }: { where: { id?: string; email?: string } }) =>
       [...users.values()].find((u) => (where.id ? u.id === where.id : u.email === where.email)) || null,
+    findFirst: async ({ where }: { where: any }) =>
+      [...users.values()].find((u) => {
+        if (where.status && u.status !== where.status) return false
+        if (where.emailVerificationTokenHash && u.emailVerificationTokenHash !== where.emailVerificationTokenHash) return false
+        const gt = where.emailVerificationExpiresAt?.gt
+        if (gt && (!u.emailVerificationExpiresAt || u.emailVerificationExpiresAt <= gt)) return false
+        return true
+      }) || null,
     update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
       const user = users.get(where.id)
       if (!user) throw new Error('USER_NOT_FOUND')
