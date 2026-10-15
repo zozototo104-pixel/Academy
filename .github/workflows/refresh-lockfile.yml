@@ -1,8 +1,6 @@
 name: Refresh bun.lock
 
 on:
-  push:
-    branches: ['fix/security-batch-a']
   workflow_dispatch:
 
 permissions:
