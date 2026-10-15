@@ -29,6 +29,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ code: result.code, waiver: result.waiver })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
+    if (e instanceof ActivePaymentWaiverExistsError || e?.code === 'ACTIVE_WAIVER_EXISTS') {
+      return NextResponse.json({ error: e.message, code: 'ACTIVE_WAIVER_EXISTS' }, { status: 409 })
+    }
     return NextResponse.json({ error: e?.message || 'تعذر توليد كود الإعفاء' }, { status: 400 })
   }
 }
