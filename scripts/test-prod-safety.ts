@@ -313,10 +313,11 @@ function testSecurityBatchAFollowup() {
   assert(admissionAi.includes('onlyVisionUnavailable') && admissionAi.includes("else if (onlyVisionUnavailable) verdict = 'NEEDS_CLARIFICATION'"), 'vision-reader failures for all uploaded files must require clarification rather than rejection')
   assert(admissionAi.includes("status: 'MISSING'") && admissionAi.includes('hardProblems++'), 'truly missing required documents must remain hard problems')
   assert(admissionAi.includes("args.unverifiableRequired === 0") && admissionAi.includes('unverified === 0') && admissionAi.includes("verdict = 'RECOMMEND_APPROVE'"), 'unreadable/unverified attachments must never auto-approve')
-  const transcriptSignalIndex = admissionAi.indexOf('const transcriptSignal')
-  const weakIdReturnIndex = admissionAi.indexOf('if (strongIdSignal || (weakIdSignal')
-  assert(transcriptSignalIndex > -1 && weakIdReturnIndex > -1 && transcriptSignalIndex < weakIdReturnIndex, 'academic transcript/degree signals must be evaluated before weak ID cues such as nationality')
-  assert(admissionAi.includes('مؤشرات الهوية الضعيفة مثل nationality/gender') && admissionAi.includes('academy|school'), 'degree certificates with nationality text must not be classified as ID/passport')
+  assert(admissionAi.includes("scores: Record<'CV' | 'TRANSCRIPT' | 'DEGREE_CERTIFICATE' | 'ID' | 'PHOTO', number>"), 'admission document classification must use multi-factor scoring instead of one keyword')
+  assert(admissionAi.includes("addEvidence('ID', 1, 'بيانات شخصية تظهر أيضاً في مستندات أخرى')"), 'weak ID cues such as nationality/gender must be low-weight evidence only')
+  assert(admissionAi.includes("addEvidence('CV', 6, 'عنوان/بنية سيرة ذاتية')") && admissionAi.includes('scores.CV >= scores.DEGREE_CERTIFICATE - 1'), 'explicit CV structure must outweigh embedded academic credentials')
+  assert(admissionAi.includes("addEvidence('DEGREE_CERTIFICATE', 5, 'صياغة شهادة أو منح مؤهل')") && admissionAi.includes("addEvidence('TRANSCRIPT', 6, 'كشف علامات/سجل أكاديمي')"), 'degree/transcript classification must require multiple academic evidence signals')
+  assert(admissionAi.includes('best.score >= 6 && best.score >= second.score + 2'), 'document kind must require enough evidence and separation from the next candidate')
 }
 
 function testSecurityBatchA() {
