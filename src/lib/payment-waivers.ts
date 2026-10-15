@@ -385,6 +385,35 @@ async function applyAdmissionWaiverEffects(payment: any, actor: { id?: string | 
   }
 }
 
+async function waiveAllAdmissionTuitionPayments(admissionId: string, waiver: any, actor: { id?: string | null; name: string }) {
+  await db.admissionApplication.update({ where: { id: admissionId }, data: { scholarshipFull: true } })
+  const payments = await db.payment.findMany({
+    where: { admissionId, purpose: { in: ['TUITION', 'TUITION_INSTALLMENT'] }, status: { notIn: ['PAID', 'WAIVED'] } },
+  })
+  for (const item of payments) {
+    const remainingCents = paymentAmountCents(item)
+    const originalCents = Math.max(Number(item.originalAmountCents || 0), remainingCents + Number(item.waivedAmountCents || 0), remainingCents)
+    const waivedCents = Math.max(Number(item.waivedAmountCents || 0) + remainingCents, originalCents)
+    await db.payment.update({
+      where: { id: item.id },
+      data: {
+        status: 'WAIVED',
+        waiverType: waiver.waiverType,
+        waiverStatus: 'APPROVED',
+        waiverReason: waiver.reason,
+        originalAmount: centsToDollars(originalCents),
+        originalAmountCents: originalCents,
+        waivedAmount: centsToDollars(waivedCents),
+        waivedAmountCents: waivedCents,
+        amount: 0,
+        amountCents: 0,
+        waiverApprovedById: actor.id || null,
+        waiverApprovedAt: new Date(),
+      },
+    })
+  }
+}
+
 export async function approvePaymentWaiver(params: { waiverId: string; actor: { id?: string | null; name: string } }) {
   const waiver = await db.$transaction(async (tx) => {
     const current = await tx.paymentWaiverCode.findUnique({ where: { id: params.waiverId }, include: { payment: true } })
