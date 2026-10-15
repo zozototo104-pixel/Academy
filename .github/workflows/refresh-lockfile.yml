@@ -1,0 +1,55 @@
+name: Refresh bun.lock
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout selected ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Refresh bun.lock
+        run: bun install
+
+      - name: Verify installed Next.js patch level
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun pm ls | grep -E "next@|eslint-config-next@"
+          node <<'NODE'
+          const { execSync } = require('node:child_process')
+          const output = execSync('bun pm ls', { encoding: 'utf8' })
+          const match = output.match(/(?:^|\s)next@(\d+)\.(\d+)\.(\d+)/)
+          if (!match) {
+            console.error('Unable to find installed next version in bun pm ls output')
+            process.exit(1)
+          }
+          const major = Number(match[1])
+          const minor = Number(match[2])
+          const patch = Number(match[3])
+          const ok = major > 16 || (major === 16 && (minor > 4 || (minor === 4 && patch >= 1)))
+          if (!ok) {
+            console.error(`Installed next@${major}.${minor}.${patch} is below the required 16.4.1 patch level`)
+            process.exit(1)
+          }
+          NODE
+
+      - name: Commit refreshed lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add bun.lock
+          git diff --cached --quiet || git commit -m "Refresh bun.lock"
+          git push
