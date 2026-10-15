@@ -310,12 +310,12 @@ describe('Google OAuth callback', () => {
 })
 
 // Restore environment variables after the test suite; no external credentials are ever used.
-import { afterAll } from 'bun:test'
 afterAll(() => {
   for (const [key, previous] of [
     ['AUTH_SECRET', previousAuthSecret],
     ['GOOGLE_CLIENT_ID', previousGoogleClientId],
     ['GOOGLE_CLIENT_SECRET', previousGoogleClientSecret],
+    ['NEXT_PUBLIC_APP_URL', previousNextPublicAppUrl],
   ] as const) {
     if (previous === undefined) delete process.env[key]
     else process.env[key] = previous
