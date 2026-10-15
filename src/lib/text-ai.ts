@@ -1338,10 +1338,21 @@ function toChatMessages(opts: TextAiCallOpts): { role: 'system' | 'user' | 'assi
 }
 
 function toGeminiContents(opts: TextAiCallOpts) {
-  return opts.history.filter((m) => m.text?.trim()).map((m) => ({
+  const contents = opts.history.filter((m) => m.text?.trim()).map((m) => ({
     role: m.role === 'user' ? 'user' : 'model',
-    parts: [{ text: m.text }],
+    parts: [{ text: m.text } as any],
   }))
+  const attachments = normalizedAttachments(opts)
+  if (attachments.length) {
+    contents.push({
+      role: 'user',
+      parts: [
+        { text: userTextForAttachments(opts) } as any,
+        ...attachments.map((attachment) => ({ inlineData: { mimeType: attachment.mimeType, data: attachment.base64 } })),
+      ],
+    })
+  }
+  return contents
 }
 
 async function parseResponse(response: Response): Promise<any> {
