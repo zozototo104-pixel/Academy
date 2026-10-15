@@ -42,6 +42,7 @@ export interface TextAiCallOpts {
   routerPolicy?: TextAiRouterPolicy
   taskLevel?: TextAiTaskLevel
   purpose?: TextAiPurpose
+  attachments?: TextAiAttachment[]
   excludeProviders?: TextAiProvider[]
   preferredProviders?: TextAiProvider[]
   excludeModelFamilies?: string[]
