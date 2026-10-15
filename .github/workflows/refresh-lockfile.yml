@@ -21,7 +21,10 @@ jobs:
         uses: oven-sh/setup-bun@v2
 
       - name: Refresh bun.lock
-        run: bun install
+        run: |
+          bun add next@^16.4.1 sharp@^0.35.5
+          bun add -d eslint-config-next@^16.4.1
+          bun install
 
       - name: Verify installed Next.js patch level
         shell: bash
