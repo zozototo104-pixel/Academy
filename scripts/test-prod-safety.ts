@@ -304,6 +304,7 @@ function testSecurityBatchAFollowup() {
   const adminExtras = file('src/components/aact/AdminExtras.tsx')
   assert(adminExtras.includes('activeWaiverForPayment') && adminExtras.includes('كود إعفاء نشط'), 'admin payments UI must show an active waiver badge/state')
   assert(adminExtras.includes('generatedWaiverCodes') && adminExtras.includes('نسخ الكود') && adminExtras.includes('تم النسخ'), 'admin payments UI must expose one-time raw code copy state after generation')
+  assert(adminExtras.includes('تم إرسال البريد ✅') && adminExtras.includes('فشل إرسال البريد، انسخ الكود يدوياً'), 'admin payments UI must show waiver email delivery result')
   assert(adminExtras.includes('navigator.clipboard.writeText') && adminExtras.includes("document.execCommand('copy')"), 'waiver code copy must use clipboard with textarea execCommand fallback')
   assert(adminExtras.includes('disabled={busy}') && adminExtras.includes('بعد التحديث يظهر رمز مختصر فقط'), 'waiver buttons must disable while/after active code issuance and show only preview after refresh')
 
