@@ -164,6 +164,7 @@ beforeEach(() => {
   process.env.AUTH_SECRET = 'stage-b-test-only-secret'
   process.env.GOOGLE_CLIENT_ID = 'stage-b-test-only-client'
   process.env.GOOGLE_CLIENT_SECRET = 'stage-b-test-only-client-secret'
+  process.env.NEXT_PUBLIC_APP_URL = 'https://aactacademy.com'
 })
 
 afterEach(() => { globalThis.fetch = originalFetch })
