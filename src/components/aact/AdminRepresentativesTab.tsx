@@ -309,13 +309,17 @@ export default function AdminRepresentativesTab() {
 
   async function reviewFile(fileId: string, action: 'APPROVE' | 'REJECT') {
     if (!form.id) return
-    if (action === 'REJECT' && !window.confirm('تأكيد رفض ملف الممثل؟ سيبقى محفوظاً في السجل لكنه لن يعتمد للعرض العام.')) return
+    let note = ''
+    if (action === 'REJECT') {
+      note = window.prompt('اكتب سبب رفض هذا التعديل/الملف ليظهر في سجل المراجعة:', '') || ''
+      if (!note.trim() && !window.confirm('لم تكتب سبباً للرفض. هل تريد الرفض بدون سبب؟')) return
+    }
     setUploading(true)
     try {
       const res = await fetch(`/api/admin/representatives/${form.id}/files/${fileId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action, note }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.message || 'تعذر تحديث مراجعة الملف')
