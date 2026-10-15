@@ -324,7 +324,7 @@ describe('representative active profile pending review', () => {
         representativeId: rep.id,
         kind: 'PROFILE_CHANGE',
         title: 'تعديل بيانات حساسة بانتظار مراجعة الإدارة',
-        description: JSON.stringify({ 'الاسم الكامل بالعربي': 'ممثل معتمد جديد', 'الهاتف': '+970 59 123 4567' }),
+        description: JSON.stringify({ 'الاسم الكامل بالعربي': 'ممثل معتمد جديد', 'الهاتف': '+970 59 123 4567', 'البريد الإلكتروني': 'new.rep@example.test' }),
         reviewStatus: 'PENDING_REVIEW',
       },
     })
