@@ -1725,7 +1725,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const attempts: TextAiAttemptDiagnostics[] = []
   const persistentCooldowns = await loadPersistentCooldowns()
   const exploreModels = ++routerRequestSeq % 5 === 0
-  const estimatedPaidCost = estimatedPaidCostUsd(opts)
+  const estimatedPaidCost = estimatedPaidCostUsd(effectiveOpts)
   let paidAvailable: boolean | null = null
   let skippedCooldownUntil: number | null = null
   let onlySameFamilyModelsExcluded = false
