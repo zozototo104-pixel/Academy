@@ -31,6 +31,11 @@ function canSkipUnavailableDatabase() {
 }
 
 async function main() {
+  if (!isProductionDeployment()) {
+    console.log('skipped')
+    return
+  }
+
   let created = 0
   for (const [key, value] of Object.entries(defaults)) {
     const existing = await db.setting.findUnique({ where: { key }, select: { key: true } })
