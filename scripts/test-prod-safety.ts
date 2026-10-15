@@ -270,6 +270,18 @@ function testDependencyPins() {
   assert(pkg.devDependencies['eslint-config-next'] === '^16.4.1', 'eslint-config-next must match Next.js patch')
 }
 
+function testPrismaDeployPreviewPushSkips() {
+  const command = process.platform === 'win32' ? 'tsx.cmd' : 'tsx'
+  const result = spawnSync(command, ['scripts/prisma-deploy.ts', '--push'], {
+    cwd: process.cwd(),
+    env: { ...process.env, VERCEL_ENV: 'preview', DATABASE_URL: 'postgresql://user:pass@example.invalid:5432/db' },
+    encoding: 'utf8',
+  })
+  const output = `${result.stdout || ''}${result.stderr || ''}`
+  assert(result.status === 0, `prisma-deploy --push in preview must skip successfully: ${output}`)
+  assert(output.includes('skipped'), 'prisma-deploy --push in preview must print skipped')
+}
+
 function testSecurityBatchA() {
   const loginRoute = file('src/app/api/auth/login/route.ts')
   assert(!loginRoute.includes('token,'), 'login response must not return a token field')
