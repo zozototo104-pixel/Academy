@@ -119,14 +119,35 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const action = String(body.action || '').toUpperCase()
   if (!['APPROVE', 'REJECT'].includes(action)) return NextResponse.json({ error: 'INVALID_ACTION' }, { status: 400 })
   const reviewStatus = action === 'APPROVE' ? 'APPROVED' : 'REJECTED'
+  const reviewNote = String(body.note || body.reason || '').slice(0, 500) || null
   const existing = await db.academyRepresentativeFile.findFirst({ where: { id: fileId, representativeId: id } })
   if (!existing) return NextResponse.json({ error: 'FILE_NOT_FOUND' }, { status: 404 })
-  const file = await db.academyRepresentativeFile.update({
-    where: { id: fileId },
-    data: { reviewStatus, reviewedAt: new Date(), reviewNote: String(body.note || '').slice(0, 500) || null },
+  const result = await db.$transaction(async (tx) => {
+    const representativeUpdate = action === 'APPROVE' ? pendingRepresentativeData(existing) : {}
+    let updatedRepresentative = null
+    if (Object.keys(representativeUpdate).length > 0) {
+      updatedRepresentative = await tx.academyRepresentative.update({
+        where: { id },
+        data: { ...representativeUpdate, updatedById: user.id },
+      })
+    }
+    const file = await tx.academyRepresentativeFile.update({
+      where: { id: fileId },
+      data: { reviewStatus, reviewedAt: new Date(), reviewNote },
+    })
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        actorName: 'إدارة النظام',
+        action: `${action}_REPRESENTATIVE_FILE`,
+        entity: 'AcademyRepresentative',
+        entityId: id,
+        details: `${representative.fullName} — ${file.title}`.slice(0, 3900),
+      },
+    }).catch(() => {})
+    return { file, representative: updatedRepresentative }
   })
-  await audit(user.id, `${action}_REPRESENTATIVE_FILE`, id, `${representative.fullName} — ${file.title}`)
-  return NextResponse.json({ ok: true, file })
+  return NextResponse.json({ ok: true, file: result.file, representative: result.representative })
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string; fileId: string }> }) {
