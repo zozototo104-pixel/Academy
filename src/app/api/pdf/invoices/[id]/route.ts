@@ -188,7 +188,7 @@ function buildInvoiceSvg(data: {
   ${text(90, 218, data.amount, { size: 24, fill: BRAND_NAVY, weight: 900, anchor: 'start', dir: 'ltr', family: 'Arial,sans-serif' })}
 
   <rect x="52" y="258" width="690" height="188" rx="22" fill="#f8fafc" stroke="#e2e8f0"/>
-  ${text(690, 242, 'بيانات الفاتورة / Invoice Details', { size: 19, fill: BRAND_NAVY, weight: 900, anchor: 'end', dir: 'rtl' })}
+  ${text(690, 242, 'Invoice Details', { size: 19, fill: BRAND_NAVY, weight: 900, anchor: 'end', dir: 'ltr', family: 'Arial,sans-serif' })}
   ${invoiceRows.svg}
 
   <rect x="52" y="490" width="690" height="162" rx="22" fill="#ffffff" stroke="#e2e8f0"/>
