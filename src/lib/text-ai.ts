@@ -1480,7 +1480,7 @@ async function callOpenAIResponses(s: Settings, key: string, model: string, opts
     method: 'POST',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ model, input: toOpenAiResponsesInput(opts), max_output_tokens: opts.maxOutputTokens ?? (opts.json ? 4096 : 2048) }),
-  }, aiProviderTimeoutMs(opts.taskLevel || 'GENERAL'), opts.deadlineMs)
+  }, providerAttemptTimeoutMs(opts), opts.deadlineMs)
   const data = await parseResponse(response)
   if (!response.ok) throwHttp('OpenAI', response.status, data)
   const text = extractOpenAiText(data)
