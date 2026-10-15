@@ -555,6 +555,8 @@ model AcademyRepresentative {
   @@index([sourceAgentApplicationId])
   @@index([sourceUserId])
   @@index([onboardingToken])
+  @@index([onboardingTokenHash])
+  @@index([onboardingExpiresAt])
   @@index([deletedAt])
 }
 
