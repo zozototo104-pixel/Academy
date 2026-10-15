@@ -33,17 +33,9 @@ function verifySignedState(state: string | null) {
   return safeEqual(sig, signState(nonce, ts))
 }
 
-function appBaseUrl(req: NextRequest) {
-  // Google OAuth يجب أن يعود إلى نفس الدومين الذي بدأ منه الطالب.
-  // لذلك نفضّل Host الفعلي للطلب على NEXTAUTH_URL/APP_URL حتى لا يعيد متغير قديم المستخدم إلى دومين Vercel سابق.
-  const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || ''
-  const proto = req.headers.get('x-forwarded-proto') || 'https'
-  if (host) {
-    // The token exchange redirect_uri must exactly match the host used when
-    // the cookie-bound state was created, including its www prefix.
-    return `${proto}://${host}`.replace(/\/$/, '')
-  }
-  const configured = process.env.NEXTAUTH_URL || process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '')
+function appBaseUrl() {
+  const configured = process.env.NEXT_PUBLIC_APP_URL
+  if (!configured) throw new Error('NEXT_PUBLIC_APP_URL is required for Google OAuth redirects')
   return configured.replace(/\/$/, '')
 }
 
