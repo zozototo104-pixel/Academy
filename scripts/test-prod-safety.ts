@@ -303,7 +303,9 @@ function testSecurityBatchA() {
 
   const adminBooks = file('src/app/api/admin/books/route.ts')
   assert(adminBooks.includes("parsed.protocol !== 'https:'"), 'admin book links must require HTTPS')
-  assert(adminBooks.includes("lookup(parsed.hostname") && adminBooks.includes('isBlockedBookLinkIp(record.address)'), 'admin book links must reject internal IPs after DNS lookup')
+  assert(adminBooks.includes("lookup(parsed.hostname") && adminBooks.includes('isPrivateIp(record.address)'), 'admin book links must reject internal IPs after DNS lookup through the shared storage guard')
+  assert(!adminBooks.includes('function isBlockedBookLinkIp'), 'admin book links must not duplicate private IP logic')
+  assert(isPrivateIp('0.0.0.0') && isPrivateIp('100.64.0.1') && isPrivateIp('224.0.0.1'), 'shared private IP guard must block 0/8, carrier-grade NAT, and multicast addresses')
   assert(adminBooks.includes("redirect: 'manual'"), 'admin book link fetch must not auto-follow redirects')
   assert(adminBooks.includes('readResponseBufferWithLimit(res, MAX_BOOK_SIZE)'), 'admin book link fetch must enforce a maximum response size')
 
