@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
   }
 
   const state = createSignedState()
-  const baseUrl = appBaseUrl(req)
+  const baseUrl = appBaseUrl()
   const redirectUri = `${baseUrl}/api/auth/google/callback`
   const store = await cookies()
   store.set(STATE_COOKIE, state, {
