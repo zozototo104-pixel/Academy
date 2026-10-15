@@ -680,6 +680,7 @@ interface PaymentWaiverCodeRow {
   requestedAmount?: number | null
   reason?: string | null
   status: string
+  emailStatus?: 'SENT' | 'FAILED' | 'SKIPPED' | string | null
   expiresAt?: string | null
   verifiedAt?: string | null
   approvedAt?: string | null
