@@ -29,6 +29,47 @@ function text(value: unknown, max = 5000) {
 
 const IMAGE_MAX_BYTES = 5 * 1024 * 1024
 const DOCUMENT_MAX_BYTES = 15 * 1024 * 1024
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000
+const ONBOARDING_RATE_LIMITS = { GET: 30, PATCH: 10, POST: 10 } as const
+
+type OnboardingMethod = keyof typeof ONBOARDING_RATE_LIMITS
+
+function sha256(value: string) {
+  return createHash('sha256').update(value).digest('hex')
+}
+
+function hourWindowStart(now = Date.now()) {
+  return new Date(Math.floor(now / RATE_LIMIT_WINDOW_MS) * RATE_LIMIT_WINDOW_MS)
+}
+
+async function enforceOnboardingRateLimit(req: NextRequest, token: string, method: OnboardingMethod) {
+  const tokenHash = hashRepresentativeOnboardingToken(token)
+  const ipHash = sha256(clientIpFromHeaders(req.headers))
+  const windowStart = hourWindowStart()
+  const limit = ONBOARDING_RATE_LIMITS[method]
+  const keyHash = sha256(`representative-onboarding:${method}:${tokenHash}:${ipHash}`)
+  try {
+    const bucket = await db.keyRateWindow.upsert({
+      where: { keyHash_window_windowStart: { keyHash, window: `REPRESENTATIVE_ONBOARDING_${method}`, windowStart } },
+      create: { keyHash, window: `REPRESENTATIVE_ONBOARDING_${method}`, windowStart, count: 1 },
+      update: { count: { increment: 1 } },
+      select: { count: true },
+    })
+    if (bucket.count > limit) {
+      return NextResponse.json(
+        { error: 'RATE_LIMITED', message: 'تم تجاوز الحد المسموح لطلبات رابط الاستكمال، حاول مرة أخرى بعد ساعة.' },
+        { status: 429, headers: { 'Retry-After': String(Math.max(1, Math.ceil((windowStart.getTime() + RATE_LIMIT_WINDOW_MS - Date.now()) / 1000))) } }
+      )
+    }
+    return null
+  } catch (error) {
+    console.warn('Representative onboarding rate limit counter failed closed.', error)
+    return NextResponse.json(
+      { error: 'RATE_LIMIT_UNAVAILABLE', message: 'تعذر التحقق من حد الطلبات حالياً، حاول مرة أخرى لاحقاً.' },
+      { status: 503 }
+    )
+  }
+}
 
 function isPrivateHostAddress(address: string) {
   const family = net.isIP(address)
