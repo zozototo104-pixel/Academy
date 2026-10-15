@@ -52,7 +52,10 @@ export async function GET() {
     for (const a of ownAdmissions) refById[a.id] = a.reference
     const tuitionPlans = (await Promise.all(admissionIds.map((id) => getAdmissionTuitionPlan(id)))).filter(Boolean)
     const approvedInstallmentAdmissions = new Set(tuitionPlans.filter((p: any) => p?.appealStatus === 'APPROVED').map((p: any) => p.admissionId))
-    const visiblePayments = payments.filter((p) => !(p.purpose === 'TUITION' && p.status === 'UNPAID' && p.admissionId && approvedInstallmentAdmissions.has(p.admissionId)))
+    const visiblePayments = payments.filter((p) => {
+      const hasActiveWaiver = ['REQUESTED', 'VERIFIED'].includes(String(p.waiverStatus || '')) || (p.waiverCodes || []).some((code) => ['ISSUED', 'VERIFIED'].includes(String(code.status || '')))
+      return hasActiveWaiver || !(p.purpose === 'TUITION' && p.status === 'UNPAID' && p.admissionId && approvedInstallmentAdmissions.has(p.admissionId))
+    })
     return NextResponse.json({
       payments: visiblePayments.map((p) => ({
         ...p,
