@@ -68,9 +68,6 @@ function oauthLanding(_req: NextRequest, token: string, view: string) {
   <div class="card"><div class="spin"></div><p>تم تسجيل الدخول عبر Google<br/>يتم فتح حسابك الآن…</p></div>
   <script>
     (function(){
-      // Discard both legacy Bearer tokens so the newly issued HttpOnly cookie wins.
-      try { sessionStorage.removeItem('aact_token'); } catch(e) {}
-      try { localStorage.removeItem('aact_token'); } catch(e) {}
       try { sessionStorage.setItem('aact_skip_startup', '1'); } catch(e) {}
       location.replace(${targetJson});
     })();
