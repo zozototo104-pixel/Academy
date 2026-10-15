@@ -191,19 +191,11 @@ export async function readDocumentImage(
   const errors: string[] = []
 
   try {
-    const geminiRead = await readWithGemini(buffer, effectiveMime, declaredTypeAr)
-    if (geminiRead) return geminiRead
+    const routerRead = await readWithVisionRouter(buffer, effectiveMime, declaredTypeAr)
+    if (routerRead) return routerRead
   } catch (e: any) {
     errors.push(publicVisionError(e))
-    console.error('Gemini Vision failed:', String(e?.message || e).slice(0, 500))
-  }
-
-  try {
-    const legacyRead = await readWithLegacyZai(buffer, effectiveMime, declaredTypeAr)
-    if (legacyRead) return legacyRead
-  } catch (e: any) {
-    errors.push(publicVisionError(e))
-    console.error('Legacy Vision failed:', String(e?.message || e).slice(0, 500))
+    console.error('AI Router Vision failed:', String(e?.message || e).slice(0, 500))
   }
 
   const publicReason = [...new Set(errors)].join(' / ') || 'تعذر تشغيل قارئ الصور الآلي لهذا المرفق.'
