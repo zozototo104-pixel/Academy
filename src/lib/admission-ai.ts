@@ -492,6 +492,19 @@ function detectAdmissionDocumentKind(f: AdmissionFileEvidence): { kind: Detected
   const cvSignal = hasAny(visual, KEYWORDS.cvDoc) || /\bcv\b|resume|curriculum vitae|work experience|training\s*&\s*work experience|professional experience|employment|skills|other skills|interests|objective|الموارد البشريه|الخبرات العمليه|الخبرات العملية|المهارات/.test(n)
   const strongIdSignal = hasAny(visual, KEYWORDS.idDoc) || /national\s*id|passport|رقم جواز|رقم الهويه|رقم الهوية|identity card|id card|passport no|document number/.test(n)
   const weakIdSignal = /date of birth|place of birth|الجنسية|الجنسيه|nationality|gender/.test(n)
+  const transcriptSignal = hasAny(visual, KEYWORDS.transcriptDoc) || /gpa|grade|credit hours|course|marks|علامه|علامات|درجه|درجات|معدل|مساق|مواد دراسيه|مواد دراسية|الساعات المعتمده|الساعات المعتمدة/.test(n)
+  const degreeSignal = hasAny(visual, KEYWORDS.degreeDoc) || hasAny(visual, KEYWORDS.bachelor) || hasAny(visual, KEYWORDS.master) || hasAny(visual, KEYWORDS.phd) || hasAny(visual, KEYWORDS.highSchool)
+  const institutionalSignal = /university|faculty|deanery|admission|registration|dean|president|college|institute|academy|school|جامعه|جامعة|كليه|كلية|اكاديميه|أكاديمية|اكاديمية|مدرسه|مدرسة|عماده|عمادة|قبول|تسجيل|رئيس الجامعه|عميد/.test(n)
+
+  // مؤشرات الهوية الضعيفة مثل nationality/gender قد تظهر داخل شهادة أو كشف علامات أو CV.
+  // لا نصنفها كهوية إلا عند غياب دلائل أكاديمية/مهنية أقوى، بينما يبقى passport/id الصريح دليلاً قوياً.
+  if (transcriptSignal) {
+    return { kind: 'TRANSCRIPT', reason: 'يحتوي مؤشرات كشف درجات/علامات أو سجل أكاديمي داخل الملف' }
+  }
+
+  if (degreeSignal && institutionalSignal) {
+    return { kind: 'DEGREE_CERTIFICATE', reason: 'يحتوي مؤشرات شهادة علمية/مؤهل دراسي صادرة من جهة تعليمية' }
+  }
 
   // السيرة الذاتية تحتوي عادةً على تاريخ ميلاد وجنسية وجنس، لذلك لا يجوز أن تسبقها قاعدة الهوية الضعيفة.
   // نعطي الأولوية لبنية CV الواضحة ما لم يظهر دليل هوية/جواز رسمي قوي.
@@ -499,19 +512,8 @@ function detectAdmissionDocumentKind(f: AdmissionFileEvidence): { kind: Detected
     return { kind: 'CV', reason: 'يحتوي مؤشرات سيرة ذاتية/خبرات/مهارات داخل الملف المقروء' }
   }
 
-  if (strongIdSignal || weakIdSignal) {
+  if (strongIdSignal || (weakIdSignal && !transcriptSignal && !(degreeSignal && institutionalSignal) && !cvSignal)) {
     return { kind: 'ID', reason: 'يحتوي مؤشرات هوية أو جواز سفر داخل الملف المقروء' }
-  }
-
-  const transcriptSignal = hasAny(visual, KEYWORDS.transcriptDoc) || /gpa|grade|credit hours|course|marks|علامه|علامات|درجه|درجات|معدل|مساق|مواد دراسيه|مواد دراسية|الساعات المعتمده|الساعات المعتمدة/.test(n)
-  if (transcriptSignal) {
-    return { kind: 'TRANSCRIPT', reason: 'يحتوي مؤشرات كشف درجات/علامات أو سجل أكاديمي داخل الملف' }
-  }
-
-  const degreeSignal = hasAny(visual, KEYWORDS.degreeDoc) || hasAny(visual, KEYWORDS.bachelor) || hasAny(visual, KEYWORDS.master) || hasAny(visual, KEYWORDS.phd) || hasAny(visual, KEYWORDS.highSchool)
-  const institutionalSignal = /university|faculty|deanery|admission|registration|dean|president|college|institute|جامعه|جامعة|كليه|كلية|عماده|عمادة|قبول|تسجيل|رئيس الجامعه|عميد/.test(n)
-  if (degreeSignal && institutionalSignal) {
-    return { kind: 'DEGREE_CERTIFICATE', reason: 'يحتوي مؤشرات شهادة علمية/مؤهل دراسي صادرة من جهة تعليمية' }
   }
 
   if (cvSignal) {
