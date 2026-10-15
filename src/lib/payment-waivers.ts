@@ -314,55 +314,67 @@ export async function createPaymentWaiverCode(params: {
 }
 
 export async function verifyPaymentWaiverCode(params: { paymentId: string; code: string; user: { id: string; email?: string | null; name?: string | null; emailVerifiedAt?: Date | string | null } }) {
-  const payment = await db.payment.findUnique({
-    where: { id: params.paymentId },
-    include: { admission: { select: { id: true, userId: true, email: true, fullName: true, reference: true } }, enrollment: { select: { userId: true } } },
-  })
-  if (!payment) throw new Error('الفاتورة غير موجودة')
-  const ownsPayment = payment.userId === params.user.id
-    || payment.enrollment?.userId === params.user.id
-    || payment.admission?.userId === params.user.id
-    || (!!params.user.emailVerifiedAt && !!payment.admission?.email && payment.admission.email.trim().toLowerCase() === String(params.user.email || '').trim().toLowerCase())
-  if (!ownsPayment) throw new Error('هذا الكود لا يخص هذه الفاتورة')
-  if (payment.status === 'PAID') throw new Error('الفاتورة مسددة مسبقاً')
-  if (payment.status === 'WAIVED') throw new Error('الفاتورة معفاة مسبقاً')
+  const result = await db.$transaction(async (tx) => {
+    const payment = await tx.payment.findUnique({
+      where: { id: params.paymentId },
+      include: { admission: { select: { id: true, userId: true, email: true, fullName: true, reference: true } }, enrollment: { select: { userId: true } } },
+    })
+    if (!payment) throw new Error('الفاتورة غير موجودة')
+    await tx.$queryRaw`SELECT id FROM "Payment" WHERE id = ${payment.id} FOR UPDATE`
 
-  const hourAgo = new Date(Date.now() - 60 * 60 * 1000)
-  const failedAttempts = await db.paymentWaiverAttempt.count({
-    where: { paymentId: payment.id, userId: params.user.id, success: false, createdAt: { gte: hourAgo } },
-  })
-  if (failedAttempts >= 5) throw new PaymentWaiverRateLimitError()
+    const ownsPayment = payment.userId === params.user.id
+      || payment.enrollment?.userId === params.user.id
+      || payment.admission?.userId === params.user.id
+      || (!!params.user.emailVerifiedAt && !!payment.admission?.email && payment.admission.email.trim().toLowerCase() === String(params.user.email || '').trim().toLowerCase())
+    if (!ownsPayment) throw new Error('هذا الكود لا يخص هذه الفاتورة')
+    if (payment.status === 'PAID') throw new Error('الفاتورة مسددة مسبقاً')
+    if (payment.status === 'WAIVED') throw new Error('الفاتورة معفاة مسبقاً')
 
-  const codeHash = hashWaiverCode(params.code)
-  const waiver = await db.paymentWaiverCode.findFirst({ where: { paymentId: payment.id, codeHash } })
-  if (!waiver || waiver.status !== 'ISSUED') {
-    await db.paymentWaiverAttempt.create({ data: { paymentId: payment.id, userId: params.user.id, success: false } }).catch(() => null)
-    if (waiver) throw new UsedPaymentWaiverCodeError()
-    throw new Error('كود الإعفاء غير صحيح')
-  }
-  if (waiver.expiresAt && waiver.expiresAt < new Date()) {
-    await db.paymentWaiverCode.update({ where: { id: waiver.id }, data: { status: 'EXPIRED' } })
-    await db.paymentWaiverAttempt.create({ data: { paymentId: payment.id, userId: params.user.id, success: false } }).catch(() => null)
-    throw new Error('انتهت صلاحية كود الإعفاء')
-  }
+    const recordFailed = () => tx.paymentWaiverAttempt.create({ data: { paymentId: payment.id, userId: params.user.id, success: false } }).catch(() => null)
+    const hourAgo = new Date(Date.now() - 60 * 60 * 1000)
+    const failedAttempts = await tx.paymentWaiverAttempt.count({
+      where: { paymentId: payment.id, userId: params.user.id, success: false, createdAt: { gte: hourAgo } },
+    })
+    if (failedAttempts >= 5) {
+      await recordFailed()
+      throw new PaymentWaiverRateLimitError()
+    }
 
-  const verifiedAt = new Date()
-  const atomic = await db.paymentWaiverCode.updateMany({
-    where: { id: waiver.id, status: 'ISSUED' },
-    data: { status: 'VERIFIED', verifiedById: params.user.id, verifiedAt },
+    const codeHash = hashWaiverCode(params.code)
+    const waiver = await tx.paymentWaiverCode.findFirst({ where: { paymentId: payment.id, codeHash } })
+    if (!waiver || waiver.status !== 'ISSUED') {
+      await recordFailed()
+      if (waiver) throw new UsedPaymentWaiverCodeError()
+      throw new Error('كود الإعفاء غير صحيح')
+    }
+    if (waiver.expiresAt && waiver.expiresAt < new Date()) {
+      await tx.paymentWaiverCode.update({ where: { id: waiver.id }, data: { status: 'EXPIRED' } })
+      await recordFailed()
+      throw new Error('انتهت صلاحية كود الإعفاء')
+    }
+
+    const verifiedAt = new Date()
+    const atomic = await tx.paymentWaiverCode.updateMany({
+      where: { id: waiver.id, status: 'ISSUED' },
+      data: { status: 'VERIFIED', verifiedById: params.user.id, verifiedAt },
+    })
+    if (atomic.count === 0) {
+      await recordFailed()
+      throw new UsedPaymentWaiverCodeError()
+    }
+    await tx.paymentWaiverAttempt.create({ data: { paymentId: payment.id, userId: params.user.id, success: true } }).catch(() => null)
+    const updated = await tx.paymentWaiverCode.findUniqueOrThrow({ where: { id: waiver.id } })
+    await tx.payment.update({ where: { id: payment.id }, data: { waiverStatus: 'VERIFIED', waiverType: waiver.waiverType, waiverReason: waiver.reason } })
+    return { payment, updated }
   })
-  if (atomic.count === 0) throw new UsedPaymentWaiverCodeError()
-  await db.paymentWaiverAttempt.create({ data: { paymentId: payment.id, userId: params.user.id, success: true } }).catch(() => null)
-  const updated = await db.paymentWaiverCode.findUniqueOrThrow({ where: { id: waiver.id } })
-  await db.payment.update({ where: { id: payment.id }, data: { waiverStatus: 'VERIFIED', waiverType: waiver.waiverType, waiverReason: waiver.reason } })
 
   const admins = await db.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } })
   for (const admin of admins) {
-    await notify(admin.id, 'PAYMENT', 'كود إعفاء بانتظار الاعتماد', `${payment.invoiceNo} — أدخل الطالب كود إعفاء صحيحاً (${updated.codePreview}). راجع الفاتورة واعتمد الإعفاء إن كان القرار صحيحاً.`, 'admin')
+    await notify(admin.id, 'PAYMENT', 'كود إعفاء بانتظار الاعتماد', `${result.payment.invoiceNo} — أدخل الطالب كود إعفاء صحيحاً (${result.updated.codePreview}). راجع الفاتورة واعتمد الإعفاء إن كان القرار صحيحاً.`, 'admin')
   }
 
-  await audit({ id: params.user.id, name: params.user.name || params.user.email || 'Student' }, 'PAYMENT_WAIVER_CODE_VERIFIED', 'Payment', payment.id, `${payment.invoiceNo} — ${updated.codePreview}`)
-  return updated
+  await audit({ id: params.user.id, name: params.user.name || params.user.email || 'Student' }, 'PAYMENT_WAIVER_CODE_VERIFIED', 'Payment', result.payment.id, `${result.payment.invoiceNo} — ${result.updated.codePreview}`)
+  return result.updated
 }
 
 async function applyAdmissionWaiverEffects(payment: any, actor: { id?: string | null; name: string }) {
