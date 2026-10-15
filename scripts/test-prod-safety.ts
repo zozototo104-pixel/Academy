@@ -285,6 +285,7 @@ function testSecurityBatchA() {
 
   const prismaDeploy = file('scripts/prisma-deploy.ts')
   assert(prismaDeploy.includes("process.env.VERCEL_ENV !== 'production'") && prismaDeploy.includes("console.log('skipped')"), 'prisma deploy build hook must skip outside production')
+  assert(prismaDeploy.includes("args.has('--push')") && prismaDeploy.includes("args.has('--force-push')") && prismaDeploy.includes('mutatesDatabase'), 'prisma deploy must skip --push and --force-push outside production')
   const officialAiMigration = file('scripts/migrate-official-ai-settings.ts')
   assert(officialAiMigration.includes("if (!isProductionDeployment())") && officialAiMigration.includes("console.log('skipped')"), 'official AI settings migration must skip outside production')
   const vercelSetup = file('scripts/vercel-production-setup.ts')
