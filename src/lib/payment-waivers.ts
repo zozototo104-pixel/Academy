@@ -151,12 +151,13 @@ async function ensureTuitionInvoiceWithWaiverCredit(params: {
   if (existing) {
     return db.payment.update({ where: { id: existing.id }, data })
   }
+  const newInvoiceData = await applyScholarshipToNewInvoiceData(db, {
+    admissionId: params.app.id,
+    invoiceNo: await nextInvoiceNo(),
+    ...data,
+  })
   return db.payment.create({
-    data: {
-      admissionId: params.app.id,
-      invoiceNo: await nextInvoiceNo(),
-      ...data,
-    },
+    data: newInvoiceData,
   })
 }
 
