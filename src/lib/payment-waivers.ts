@@ -278,12 +278,13 @@ export async function createPaymentWaiverCode(params: {
   })
 
   await audit(params.actor || { name: 'Admin' }, 'PAYMENT_WAIVER_CODE_CREATED', 'Payment', payment.id, `${payment.invoiceNo} — ${params.waiverType} — ${waiver.codePreview}`)
-  const recipient = await resolveWaiverEmailRecipient(payment.id).catch((error) => { console.warn('Failed to resolve waiver code email recipient.', error); return null })
-  let emailStatus: 'SENT' | 'FAILED' | 'SKIPPED' = recipient ? 'FAILED' : 'SKIPPED'
+  const recipient = await resolveWaiverEmailRecipient(payment.id).catch((error) => { console.warn('Failed to resolve waiver code recipient.', error); return null })
   const waiverLink = `/?view=dashboard&tab=payments&invoice=${encodeURIComponent(payment.invoiceNo)}`
-  if (recipient) {
+  const emailConfigured = await isEmailDeliveryConfigured().catch(() => false)
+  let emailStatus: 'SENT' | 'FAILED' | 'SKIPPED' = recipient?.email && emailConfigured ? 'FAILED' : 'SKIPPED'
+  if (recipient?.email && emailConfigured) {
     try {
-      await emailPaymentWaiverCode(recipient.email, {
+      const sent = await emailPaymentWaiverCode(recipient.email, {
         name: recipient.name,
         invoiceNo: recipient.invoiceNo,
         description: recipient.description,
@@ -292,19 +293,19 @@ export async function createPaymentWaiverCode(params: {
         reason,
         link: waiverLink,
       })
-      emailStatus = 'SENT'
+      emailStatus = sent ? 'SENT' : 'FAILED'
     } catch (error) {
       emailStatus = 'FAILED'
       console.warn('Failed to send payment waiver code email.', error)
     }
-    await notify(
-      recipient.userId,
-      'PAYMENT',
-      'لديك كود إعفاء من الإدارة',
-      `${waiverTypeLabel(params.waiverType)} مرتبط بالفاتورة ${payment.invoiceNo}. افتح الدفعات وأدخل الكود المرسل إلى بريدك أو الذي زودتك به الإدارة.`,
-      waiverLink
-    )
   }
+  await notify(
+    recipient?.userId || null,
+    'PAYMENT',
+    'لديك كود إعفاء من الإدارة',
+    `${waiverTypeLabel(params.waiverType)} مرتبط بالفاتورة ${payment.invoiceNo}. افتح الدفعات وأدخل الكود المرسل إلى بريدك أو الذي زودتك به الإدارة.`,
+    waiverLink
+  )
   const savedWaiver = await db.paymentWaiverCode.update({
     where: { id: waiver.id },
     data: { emailStatus, emailSentAt: emailStatus === 'SENT' ? new Date() : null },
