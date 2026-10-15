@@ -54,11 +54,10 @@ export function AuthView() {
     e?.preventDefault()
     setLoading('login')
     try {
-      const d = await api<{ user: any; token?: string }>('/api/auth/login', {
+      const d = await api<{ user: any }>('/api/auth/login', {
         method: 'POST',
         body: JSON.stringify(loginData),
       })
-      if (d.token) saveToken(d.token)
       try { sessionStorage.setItem('aact_skip_startup', '1') } catch (error) { console.warn('Failed to persist startup skip flag after login.', error) }
       setUser(d.user)
       toast({ title: `أهلاً بعودتك ${d.user.name}!`, description: 'تم تسجيل الدخول بنجاح' })
