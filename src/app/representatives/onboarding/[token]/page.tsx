@@ -106,9 +106,15 @@ export default function RepresentativeOnboardingPage() {
             {error && <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div>}
             <div className="grid gap-4 md:grid-cols-2">
               {[
+                ['fullName', 'الاسم الكامل بالعربي (يراجَع قبل الاعتماد)'],
+                ['fullNameEn', 'الاسم الكامل بالإنجليزي (يراجَع قبل الاعتماد)'],
+                ['phone', 'الهاتف (يراجَع قبل الاعتماد)'],
+                ['whatsapp', 'واتساب (يراجَع قبل الاعتماد)'],
+                ['email', 'البريد الإلكتروني (يراجَع قبل الاعتماد)'],
+                ['country', 'الدولة'],
+                ['city', 'المدينة'],
                 ['degreeTitle', 'الدرجة العلمية'],
                 ['academicRank', 'الرتبة العلمية'],
-                ['city', 'المدينة'],
                 ['specialization', 'التخصص/مجال التمثيل'],
                 ['website', 'الموقع أو رابط الأعمال'],
               ].map(([key, label]) => (
