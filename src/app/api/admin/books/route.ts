@@ -164,23 +164,26 @@ async function readResponseBufferWithLimit(res: Response, maxBytes: number) {
 /** جلب محتوى رابط الكتاب من الإنترنت واستخراج نصه ليقرأه خبير الذكاء الاصطناعي (PDF أو صفحة HTML) */
 async function fetchLinkContent(url: string): Promise<{ ok: boolean; mime: string; buffer?: Buffer; htmlText?: string; note?: string }> {
   try {
+    const validation = await validateBookLinkUrl(url)
+    if (!validation.ok) return { ok: false, mime: '', note: validation.error }
+
     const ctrl = new AbortController()
     const timer = setTimeout(() => ctrl.abort(), 15000)
-    const res = await fetch(url, {
+    const res = await fetch(validation.url, {
       signal: ctrl.signal,
-      redirect: 'follow',
+      redirect: 'manual',
       headers: { 'User-Agent': 'Mozilla/5.0 (AACT-Academy-Platform; book-indexing)' },
     })
     clearTimeout(timer)
+    if (res.status >= 300 && res.status < 400) return { ok: false, mime: '', note: 'رابط الكتاب يعيد توجيهاً، والتحويلات غير مسموحة لأمان الخادم' }
     if (!res.ok) return { ok: false, mime: '', note: `الرابط أعاد حالة ${res.status}` }
     const mime = res.headers.get('content-type') || ''
+    const payload = await readResponseBufferWithLimit(res, MAX_BOOK_SIZE)
     if (mime.includes('pdf')) {
-      const arr = await res.arrayBuffer()
-      if (arr.byteLength > MAX_BOOK_SIZE) return { ok: false, mime, note: 'حجم الملف على الرابط يتجاوز 10 ميجابايت' }
-      return { ok: true, mime, buffer: Buffer.from(arr) }
+      return { ok: true, mime, buffer: payload }
     }
     if (mime.includes('text/') || mime.includes('html')) {
-      const html = await res.text()
+      const html = payload.toString('utf8')
       // استخراج نص الصفحة: إزالة السكربتات والأنماط والوسوم
       const text = html
         .replace(/<script[\s\S]*?<\/script>/gi, ' ')
@@ -194,6 +197,9 @@ async function fetchLinkContent(url: string): Promise<{ ok: boolean; mime: strin
     }
     return { ok: false, mime, note: 'نوع المحتوى غير مدعوم للاستخراج الآلي (الرابط يبقى متاحاً للطلاب للقراءة)' }
   } catch (e: any) {
+    if (String(e?.message || e) === 'REMOTE_BOOK_TOO_LARGE') {
+      return { ok: false, mime: '', note: 'حجم الملف على الرابط يتجاوز 10 ميجابايت' }
+    }
     return { ok: false, mime: '', note: `تعذر الوصول للرابط: ${String(e?.message || e).slice(0, 100)}` }
   }
 }
