@@ -159,6 +159,24 @@ export class ActivePaymentWaiverExistsError extends Error {
   }
 }
 
+export class PaymentWaiverRateLimitError extends Error {
+  status = 429
+  code = 'WAIVER_CODE_RATE_LIMITED'
+
+  constructor() {
+    super('تم تجاوز عدد محاولات إدخال كود الإعفاء لهذه الفاتورة. حاول مرة أخرى بعد ساعة.')
+  }
+}
+
+export class UsedPaymentWaiverCodeError extends Error {
+  status = 409
+  code = 'WAIVER_CODE_ALREADY_USED'
+
+  constructor() {
+    super('الكود مستخدم أو لم يعد صالحاً لهذه الفاتورة')
+  }
+}
+
 export async function createPaymentWaiverCode(params: {
   paymentId: string
   waiverType: PaymentWaiverType
