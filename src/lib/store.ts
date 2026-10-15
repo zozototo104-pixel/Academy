@@ -234,9 +234,8 @@ export async function api<T = any>(url: string, options?: RequestInit): Promise<
         },
       })
       const data = await res.json().catch(() => ({}))
-      // انتهت صلاحية الجلسة على الخادم → نظّف الرمز والمستخدم المحلي (وإلا تبقى الواجهة تعتبره مسجلاً)
-      if (res.status === 401 && token) {
-        clearToken()
+      // انتهت صلاحية الجلسة على الخادم → نظّف المستخدم المحلي (وإلا تبقى الواجهة تعتبره مسجلاً)
+      if (res.status === 401) {
         try { useAppStore.setState({ user: null }) } catch (error) { console.warn('Failed to clear app user after unauthorized API response.', error) }
       }
       if (!res.ok) {
