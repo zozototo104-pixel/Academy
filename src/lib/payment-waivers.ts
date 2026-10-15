@@ -149,6 +149,15 @@ async function moveAdmissionToTuitionStage(app: any, actor: { id?: string | null
   await audit(actor, 'ADMISSION_TUITION_STAGE_BY_WAIVER', 'AdmissionApplication', app.id, `${app.reference} — أُتيحت متابعة الرسوم بعد الإعفاء`)
 }
 
+export class ActivePaymentWaiverExistsError extends Error {
+  status = 409
+  code = 'ACTIVE_WAIVER_EXISTS'
+
+  constructor(codePreviewValue: string) {
+    super(`يوجد كود إعفاء نشط لهذه الفاتورة (${codePreviewValue}). استخدمه أو اعتمده قبل توليد كود جديد.`)
+  }
+}
+
 export async function createPaymentWaiverCode(params: {
   paymentId: string
   waiverType: PaymentWaiverType
@@ -185,26 +194,31 @@ export async function createPaymentWaiverCode(params: {
     if (purpose === 'APPLICATION_FEE' && requestedAmountCents <= currentCents) throw new Error('للإعفاء الجزئي من فاتورة التقديم أدخل مبلغاً أكبر من رسوم التقديم حتى يخصم الباقي من الرسوم الدراسية.')
   }
 
-  await db.paymentWaiverCode.updateMany({
-    where: { paymentId: payment.id, status: { in: ['ISSUED', 'VERIFIED'] } },
-    data: { status: 'CANCELLED' },
-  })
-
   const code = generateWaiverCode()
   const expiresDays = Number(params.expiresDays || 7)
   const expiresAt = new Date(Date.now() + Math.max(1, Math.min(60, expiresDays)) * 24 * 60 * 60 * 1000)
-  const waiver = await db.paymentWaiverCode.create({
-    data: {
-      paymentId: payment.id,
-      codeHash: hashWaiverCode(code),
-      codePreview: codePreview(code),
-      waiverType: params.waiverType,
-      requestedAmount: requestedAmountCents === null ? null : centsToDollars(requestedAmountCents),
-      requestedAmountCents,
-      reason,
-      issuedById: params.actor?.id || null,
-      expiresAt,
-    },
+
+  const waiver = await db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Payment" WHERE id = ${params.paymentId} FOR UPDATE`
+    const activeWaiver = await tx.paymentWaiverCode.findFirst({
+      where: { paymentId: params.paymentId, status: { in: ['ISSUED', 'VERIFIED'] } },
+      orderBy: { createdAt: 'desc' },
+    })
+    if (activeWaiver) throw new ActivePaymentWaiverExistsError(activeWaiver.codePreview)
+
+    return tx.paymentWaiverCode.create({
+      data: {
+        paymentId: payment.id,
+        codeHash: hashWaiverCode(code),
+        codePreview: codePreview(code),
+        waiverType: params.waiverType,
+        requestedAmount: requestedAmountCents === null ? null : centsToDollars(requestedAmountCents),
+        requestedAmountCents,
+        reason,
+        issuedById: params.actor?.id || null,
+        expiresAt,
+      },
+    })
   })
 
   await db.payment.update({

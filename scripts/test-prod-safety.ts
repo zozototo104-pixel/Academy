@@ -283,6 +283,38 @@ function testPrismaDeployPreviewPushSkips() {
   assert(output.includes('skipped'), 'prisma-deploy --push in preview must print skipped')
 }
 
+function testSecurityBatchAFollowup() {
+  const waiverLib = file('src/lib/payment-waivers.ts')
+  assert(waiverLib.includes('class ActivePaymentWaiverExistsError') && waiverLib.includes("code = 'ACTIVE_WAIVER_EXISTS'") && waiverLib.includes('status = 409'), 'payment waivers must expose a 409 ACTIVE_WAIVER_EXISTS error')
+  assert(waiverLib.includes('db.$transaction(async (tx)') && waiverLib.includes('SELECT id FROM "Payment" WHERE id = ${params.paymentId} FOR UPDATE'), 'payment waiver creation must lock the payment row inside a transaction')
+  assert(waiverLib.includes("status: { in: ['ISSUED', 'VERIFIED'] }") && waiverLib.includes('throw new ActivePaymentWaiverExistsError(activeWaiver.codePreview)'), 'payment waiver transaction must reject existing active codes before create')
+  assert(!waiverLib.includes("data: { status: 'CANCELLED' }"), 'payment waiver creation must not cancel active codes to create a replacement')
+  assert(waiverLib.includes("PAYMENT_WAIVER_CODE_CREATED") && waiverLib.includes('waiver.codePreview'), 'payment waiver audit logs must use codePreview only')
+
+  const waiverRoute = file('src/app/api/admin/payments/waivers/route.ts')
+  assert(waiverRoute.includes('ActivePaymentWaiverExistsError') && waiverRoute.includes('status: 409') && waiverRoute.includes("code: 'ACTIVE_WAIVER_EXISTS'"), 'waiver API must return 409 ACTIVE_WAIVER_EXISTS for duplicate active code issuance')
+
+  const adminExtras = file('src/components/aact/AdminExtras.tsx')
+  assert(adminExtras.includes('activeWaiverForPayment') && adminExtras.includes('كود إعفاء نشط'), 'admin payments UI must show an active waiver badge/state')
+  assert(adminExtras.includes('generatedWaiverCodes') && adminExtras.includes('نسخ الكود') && adminExtras.includes('تم النسخ'), 'admin payments UI must expose one-time raw code copy state after generation')
+  assert(adminExtras.includes('navigator.clipboard.writeText') && adminExtras.includes("document.execCommand('copy')"), 'waiver code copy must use clipboard with textarea execCommand fallback')
+  assert(adminExtras.includes('disabled={busy}') && adminExtras.includes('بعد التحديث يظهر رمز مختصر فقط'), 'waiver buttons must disable while/after active code issuance and show only preview after refresh')
+
+  const adminPayments = file('src/app/api/admin/payments/route.ts')
+  assert(adminPayments.includes('select: { id: true, codePreview: true') && !adminPayments.includes('codeHash: true'), 'admin payments GET must expose waiver codePreview but never codeHash')
+  assert(!adminPayments.includes('code: true') && !adminPayments.includes('code,'), 'admin payments GET must never expose a raw waiver code field')
+
+  const admissions = file('src/app/api/admin/admissions/route.ts')
+  assert(admissions.includes("sp.get('includeDemo') !== '1'") && admissions.includes('AACT-2026-DEMO-VC') && admissions.includes('demo.thesis@student.aact.academy'), 'admin admissions must hide demo thesis records by default')
+  const demoThesis = file('src/app/api/admin/demo-thesis/route.ts')
+  assert(demoThesis.includes('ENABLE_DEMO_THESIS') && demoThesis.includes("process.env.VERCEL_ENV !== 'production'"), 'demo thesis seeding must be disabled in production unless explicitly enabled')
+
+  const admissionAi = file('src/lib/admission-ai.ts')
+  assert(admissionAi.includes('onlyVisionUnavailable') && admissionAi.includes("else if (onlyVisionUnavailable) verdict = 'NEEDS_CLARIFICATION'"), 'vision-reader failures for all uploaded files must require clarification rather than rejection')
+  assert(admissionAi.includes("status: 'MISSING'") && admissionAi.includes('hardProblems++'), 'truly missing required documents must remain hard problems')
+  assert(admissionAi.includes("args.unverifiableRequired === 0") && admissionAi.includes('unverified === 0') && admissionAi.includes("verdict = 'RECOMMEND_APPROVE'"), 'unreadable/unverified attachments must never auto-approve')
+}
+
 function testSecurityBatchA() {
   const loginRoute = file('src/app/api/auth/login/route.ts')
   assert(!loginRoute.includes('token,'), 'login response must not return a token field')
@@ -343,6 +375,7 @@ async function main() {
   testAactTestRecipientBlocks()
   testDependencyPins()
   testPrismaDeployPreviewPushSkips()
+  testSecurityBatchAFollowup()
   testSecurityBatchA()
   console.log('✓ production safety behavioral checks passed')
 }
