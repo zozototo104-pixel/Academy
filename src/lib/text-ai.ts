@@ -1485,7 +1485,7 @@ async function callOpenAIResponses(s: Settings, key: string, model: string, opts
 }
 
 async function callAnthropic(key: string, model: string, opts: TextAiCallOpts): Promise<string> {
-  const messages = opts.history.filter((m) => m.text?.trim()).map((m) => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text }))
+  const messages = toAnthropicMessages(opts)
   const response = await fetchWithTimeout('Anthropic', 'https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
