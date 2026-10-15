@@ -387,9 +387,18 @@ async function applyAdmissionWaiverEffects(payment: any, actor: { id?: string | 
 }
 
 export async function approvePaymentWaiver(params: { waiverId: string; actor: { id?: string | null; name: string } }) {
-  const waiver = await db.paymentWaiverCode.findUnique({ where: { id: params.waiverId }, include: { payment: true } })
-  if (!waiver) throw new Error('كود الإعفاء غير موجود')
-  if (!['VERIFIED', 'ISSUED', 'APPROVED'].includes(waiver.status)) throw new Error('لا يمكن اعتماد هذا الكود بحالته الحالية')
+  const waiver = await db.$transaction(async (tx) => {
+    const current = await tx.paymentWaiverCode.findUnique({ where: { id: params.waiverId }, include: { payment: true } })
+    if (!current) throw new Error('كود الإعفاء غير موجود')
+    if (current.status !== 'VERIFIED') throw new Error(current.status === 'APPROVED' ? 'تم اعتماد هذا الكود مسبقاً' : 'لا يمكن اعتماد الكود قبل أن يدخله الطالب ويتحقق منه')
+    await tx.$queryRaw`SELECT id FROM "Payment" WHERE id = ${current.paymentId} FOR UPDATE`
+    const approved = await tx.paymentWaiverCode.updateMany({
+      where: { id: current.id, status: 'VERIFIED' },
+      data: { status: 'APPROVED', approvedById: params.actor.id || null, approvedAt: new Date() },
+    })
+    if (approved.count === 0) throw new Error('تم اعتماد هذا الكود مسبقاً أو تغيرت حالته أثناء المعالجة')
+    return tx.paymentWaiverCode.findUniqueOrThrow({ where: { id: params.waiverId }, include: { payment: true } })
+  })
   const payment = waiver.payment
   const purpose = String(payment.purpose || '').toUpperCase()
   if (payment.status === 'PAID') throw new Error('لا يمكن إعفاء فاتورة مسددة فعلياً')
