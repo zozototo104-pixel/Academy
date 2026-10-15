@@ -2,6 +2,7 @@ import { readFileSync } from 'fs'
 import { NextRequest } from 'next/server'
 import QRCode from 'qrcode'
 import {
+  hashRepresentativeOnboardingToken,
   hashRepresentativeVerifier,
   representativeVerifyUrl,
   representativeQrDataUrl,
