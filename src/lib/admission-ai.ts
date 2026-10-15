@@ -1292,6 +1292,12 @@ ${evidence}
       documentFitScore >= 65
 
     let finalScore = Math.min(rules.deterministicScore, Number.isFinite(aiScore) ? aiScore : rules.deterministicScore)
+    if (rules.requiredFound > 0 && app.files.length > 0) {
+      const verifiedCoverageFloor = Math.min(65, Math.max(15, Math.round((rules.requiredFound / Math.max(1, rules.requiredTotal)) * 80), Math.round(documentFitScore * 0.6)))
+      // لا نسمح لفشل أو تشدد النموذج اللغوي أن يحوّل تغطية قواعدية مثبتة إلى 0%.
+      // النواقص تبقى في الحكم والملاحظات، لكن النسبة تعكس ما تم التحقق منه فعلاً.
+      finalScore = Math.max(finalScore, Math.min(rules.deterministicScore || verifiedCoverageFloor, verifiedCoverageFloor))
+    }
     if (mostlySatisfied || oneWeakNonCriticalDoc) {
       // الدرجة النهائية تمثل ملف القبول كله، وليست أقل مرفق منفرد.
       // إذا كانت الهوية والشهادة سليمتين وباقي الملفات قوية، لا نسمح لسيرة ذاتية ضعيفة/غير متحققة أن تسحب الطلب كله إلى 32%.
