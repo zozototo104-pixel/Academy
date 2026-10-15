@@ -486,7 +486,7 @@ export async function approvePaymentWaiver(params: { waiverId: string; actor: { 
   }
 
   const waiveCents = waiver.waiverType === 'PARTIAL_TUITION'
-    ? Math.min(Number(waiver.requestedAmountCents || 0), currentCents - 1)
+    ? Math.min(Number(waiver.requestedAmountCents || 0), currentCents)
     : currentCents
   if (waiveCents <= 0) throw new Error('مبلغ الإعفاء غير صالح')
   const remainingCents = Math.max(0, currentCents - waiveCents)
