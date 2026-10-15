@@ -20,7 +20,7 @@ import { useAdminActionDialog } from '@/components/aact/AdminActionDialog'
 import {
   Loader2, Gavel, CalendarClock, CheckCircle2, XCircle, Banknote, TrendingUp, Globe2,
   Award, Settings2, ScrollText, Mail, FileDown, Plus, Users2, ReceiptText, Bot,
-  FileSignature, Video, RefreshCw, ShieldCheck, Trash2, KeyRound, Upload, Eye, ExternalLink, FileText,
+  FileSignature, Video, RefreshCw, ShieldCheck, Trash2, KeyRound, Upload, Eye, ExternalLink, FileText, Copy, Check,
 } from 'lucide-react'
 
 const DefenseRoom = dynamic(
