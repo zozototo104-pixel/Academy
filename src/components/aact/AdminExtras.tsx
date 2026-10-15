@@ -860,6 +860,12 @@ export function AdminFinanceTab() {
       toast({ title: 'لا يمكن إصدار كود إعفاء', description: 'الكود يصدر فقط للفواتير غير المسددة.', variant: 'destructive' })
       return
     }
+    const activeWaiver = activeWaiverForPayment(payment)
+    if (activeWaiver) {
+      toast({ title: 'يوجد كود إعفاء نشط', description: `الكود الحالي ${activeWaiver.codePreview}. لا يمكن توليد كود آخر قبل استخدامه أو اعتماده.`, variant: 'destructive' })
+      return
+    }
+    if (waiverBusy === payment.id) return
     let requestedAmount: number | null = null
     if (waiverType === 'PARTIAL_TUITION') {
       const amountText = await promptAction({
