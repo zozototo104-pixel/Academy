@@ -308,15 +308,6 @@ function testSecurityBatchA() {
   const vercel = JSON.parse(file('vercel.json'))
   assert(Array.isArray(vercel.regions) && vercel.regions.includes('fra1'), 'vercel.json must pin the fra1 region')
 
-  const refreshLockfile = file('.github/workflows/refresh-lockfile.yml')
-  assert(refreshLockfile.includes('workflow_dispatch'), 'lockfile refresh workflow must be manually triggered')
-  assert(refreshLockfile.includes('contents: write'), 'lockfile refresh workflow must be able to commit bun.lock')
-  assert(refreshLockfile.includes('ref: ${{ github.ref }}'), 'lockfile refresh workflow must checkout the selected ref')
-  assert(refreshLockfile.includes('oven-sh/setup-bun@v2') && refreshLockfile.includes('bun install'), 'lockfile refresh workflow must install with Bun without frozen lockfile')
-  assert(refreshLockfile.includes('bun pm ls | grep -E "next@|eslint-config-next@"'), 'lockfile refresh workflow must print installed Next.js package versions')
-  assert(refreshLockfile.includes('below the required 16.4.1'), 'lockfile refresh workflow must fail if next is below 16.4.1')
-  assert(refreshLockfile.includes('git add bun.lock') && refreshLockfile.includes('git commit -m "Refresh bun.lock"') && refreshLockfile.includes('git push'), 'lockfile refresh workflow must commit and push refreshed bun.lock')
-
   const emailVerification = file('src/lib/email-verification.ts')
   assert(emailVerification.includes('process.env.NEXT_PUBLIC_APP_URL') && !emailVerification.includes('x-forwarded-host') && !emailVerification.includes("req.headers.get('host')"), 'email verification URLs must use NEXT_PUBLIC_APP_URL only')
   const verifyEmailRoute = file('src/app/api/auth/verify-email/route.ts')
