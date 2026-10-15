@@ -820,6 +820,41 @@ export function AdminFinanceTab() {
         ? 'منحة كاملة'
         : 'إعفاء'
 
+  const activeWaiverForPayment = (payment: PaymentRow) => payment.waiverCodes?.find((w) => ['ISSUED', 'VERIFIED'].includes(w.status)) || null
+
+  const copyText = async (value: string) => {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value)
+      return
+    }
+    const textarea = document.createElement('textarea')
+    textarea.value = value
+    textarea.setAttribute('readonly', 'true')
+    textarea.style.position = 'fixed'
+    textarea.style.left = '-9999px'
+    document.body.appendChild(textarea)
+    textarea.select()
+    textarea.setSelectionRange(0, textarea.value.length)
+    try {
+      const ok = document.execCommand('copy')
+      if (!ok) throw new Error('copy command failed')
+    } finally {
+      document.body.removeChild(textarea)
+    }
+  }
+
+  const copyWaiverCode = async (paymentId: string, code: string) => {
+    try {
+      await copyText(code)
+      setCopiedWaiverPaymentId(paymentId)
+      toast({ title: 'تم نسخ كود الإعفاء', description: code })
+      window.setTimeout(() => setCopiedWaiverPaymentId((current) => (current === paymentId ? null : current)), 1800)
+    } catch (error) {
+      console.warn('Failed to copy waiver code.', error)
+      toast({ title: 'تعذر النسخ التلقائي', description: 'انسخ الكود الظاهر يدوياً.', variant: 'destructive' })
+    }
+  }
+
   const generateWaiver = async (payment: PaymentRow, waiverType: 'APPLICATION_FEE' | 'PARTIAL_TUITION' | 'FULL_SCHOLARSHIP') => {
     if (payment.status !== 'UNPAID') {
       toast({ title: 'لا يمكن إصدار كود إعفاء', description: 'الكود يصدر فقط للفواتير غير المسددة.', variant: 'destructive' })
