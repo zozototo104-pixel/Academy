@@ -160,15 +160,17 @@ async function normalizeVisionInput(buffer: Buffer, mimeType: string): Promise<{
   return { buffer, mimeType: safeMime || 'image/jpeg', converted: false }
 }
 
-async function readWithGemini(buffer: Buffer, mimeType: string, declaredTypeAr: string): Promise<ImageDocRead | null> {
-  const hasKey = await ensureGeminiKey().catch(() => false)
-  if (!hasKey) return null
+async function readWithVisionRouter(buffer: Buffer, mimeType: string, declaredTypeAr: string): Promise<ImageDocRead | null> {
   const normalized = await normalizeVisionInput(buffer, mimeType)
-  const raw = await geminiVisionJson({
-    prompt: promptForImage(declaredTypeAr),
-    images: [{ mimeType: normalized.mimeType, dataBase64: normalized.buffer.toString('base64') }],
+  const raw = await textAiCompleteJson({
+    system: promptForImage(declaredTypeAr),
+    history: [{ role: 'user', text: 'حلّل المرفق البصري المرفق فقط وأعد JSON حسب التعليمات.' }],
+    purpose: 'VISION',
+    routerPolicy: 'primary_first',
     temperature: 0.05,
     maxOutputTokens: 2400,
+    deadlineMs: Date.now() + 25_000,
+    attachments: [{ mimeType: normalized.mimeType, base64: normalized.buffer.toString('base64') }],
   })
   const parsed = parseVisionJson(raw, declaredTypeAr)
   if (parsed && normalized.converted) {
@@ -177,29 +179,7 @@ async function readWithGemini(buffer: Buffer, mimeType: string, declaredTypeAr: 
   return parsed
 }
 
-async function readWithLegacyZai(buffer: Buffer, mimeType: string, declaredTypeAr: string): Promise<ImageDocRead | null> {
-  const normalized = await normalizeVisionInput(buffer, mimeType)
-  const zai = await getZAI()
-  const dataUrl = `data:${normalized.mimeType};base64,${normalized.buffer.toString('base64')}`
-  const response = await zai.chat.completions.createVision({
-    model: process.env.VISION_MODEL || 'glm-5v-turbo',
-    messages: [
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: promptForImage(declaredTypeAr) },
-          { type: 'image_url', image_url: { url: dataUrl } },
-        ],
-      },
-    ],
-    thinking: { type: 'disabled' },
-  })
-
-  const raw = response.choices[0]?.message?.content || ''
-  return parseVisionJson(raw, declaredTypeAr)
-}
-
-/** قراءة صورة/ملف بصري بواسطة نموذج الرؤية — Gemini أولاً ثم GLM كاحتياط */
+/** قراءة صورة/ملف بصري بواسطة AI Router ومزودات الرؤية المضبوطة */
 export async function readDocumentImage(
   buffer: Buffer,
   mimeType: string,
