@@ -85,6 +85,82 @@ async function extractPdfText(buffer: Buffer): Promise<string> {
   }
 }
 
+function isBlockedBookLinkIp(address: string) {
+  const ipVersion = isIP(address)
+  if (ipVersion === 4) {
+    const parts = address.split('.').map((part) => Number(part))
+    const [a, b] = parts
+    return (
+      a === 10 ||
+      a === 127 ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 169 && b === 254)
+    )
+  }
+  if (ipVersion === 6) {
+    const normalized = address.toLowerCase()
+    return normalized === '::1' || normalized.startsWith('fe80:') || normalized.startsWith('fc') || normalized.startsWith('fd')
+  }
+  return false
+}
+
+async function validateBookLinkUrl(raw: string): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  let parsed: URL
+  try {
+    parsed = new URL(raw)
+  } catch {
+    return { ok: false, error: 'رابط الكتاب غير صالح — يجب أن يكون رابط HTTPS مباشراً' }
+  }
+
+  if (parsed.protocol !== 'https:') {
+    return { ok: false, error: 'رابط الكتاب يجب أن يبدأ بـ https://' }
+  }
+
+  const host = parsed.hostname.toLowerCase()
+  if (host === 'localhost' || host.endsWith('.localhost')) {
+    return { ok: false, error: 'رابط الكتاب لا يمكن أن يشير إلى localhost أو شبكة داخلية' }
+  }
+
+  try {
+    const records = await lookup(parsed.hostname, { all: true, verbatim: true })
+    if (!records.length) return { ok: false, error: 'تعذر التحقق من عنوان رابط الكتاب' }
+    if (records.some((record) => isBlockedBookLinkIp(record.address))) {
+      return { ok: false, error: 'رابط الكتاب لا يمكن أن يشير إلى localhost أو شبكة داخلية' }
+    }
+  } catch {
+    return { ok: false, error: 'تعذر التحقق من عنوان رابط الكتاب' }
+  }
+
+  return { ok: true, url: parsed.toString() }
+}
+
+async function readResponseBufferWithLimit(res: Response, maxBytes: number) {
+  const contentLength = Number(res.headers.get('content-length') || '0')
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+    throw new Error('REMOTE_BOOK_TOO_LARGE')
+  }
+
+  if (!res.body) {
+    const arr = await res.arrayBuffer()
+    if (arr.byteLength > maxBytes) throw new Error('REMOTE_BOOK_TOO_LARGE')
+    return Buffer.from(arr)
+  }
+
+  const reader = res.body.getReader()
+  const chunks: Buffer[] = []
+  let total = 0
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    if (!value) continue
+    total += value.byteLength
+    if (total > maxBytes) throw new Error('REMOTE_BOOK_TOO_LARGE')
+    chunks.push(Buffer.from(value))
+  }
+  return Buffer.concat(chunks, total)
+}
+
 /** جلب محتوى رابط الكتاب من الإنترنت واستخراج نصه ليقرأه خبير الذكاء الاصطناعي (PDF أو صفحة HTML) */
 async function fetchLinkContent(url: string): Promise<{ ok: boolean; mime: string; buffer?: Buffer; htmlText?: string; note?: string }> {
   try {
