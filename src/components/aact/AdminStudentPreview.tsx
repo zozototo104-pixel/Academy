@@ -5,6 +5,7 @@ import { api, useAppStore } from '@/lib/store'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { useAdminActionDialog } from '@/components/aact/AdminActionDialog'
 import {
   AlertTriangle,
   ArrowRight,
