@@ -520,7 +520,7 @@ export async function approvePaymentWaiver(params: { waiverId: string; actor: { 
       }
     }
 
-    await applyAdmissionWaiverEffects(updatedPayment, params.actor)
+    if (updatedPayment.admissionId) await finalizeAdmissionAfterSettlement(db, updatedPayment.admissionId, { source: 'WAIVER', actor: params.actor })
     const auditedCents = waiver.waiverType === 'PARTIAL_TUITION' ? Math.max(requestedCents, waiveApplicationCents) : waiveApplicationCents
     await audit(params.actor, 'PAYMENT_WAIVER_APPROVED', 'Payment', payment.id, `${payment.invoiceNo} — ${waiver.waiverType} — ${centsToDollars(auditedCents).toFixed(2)}$`)
     return updatedPayment
