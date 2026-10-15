@@ -298,8 +298,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ to
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
-  const rep = await loadRepresentative(token)
-  if (!rep) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 })
+  const loaded = await loadRepresentative(token)
+  if (!loaded.representative) return onboardingNotFound(loaded.expired)
+  const rep = loaded.representative
   const maxRequestBytes = DOCUMENT_MAX_BYTES + 256 * 1024
   const declaredLength = req.headers.get('content-length')
   if (declaredLength && (!/^\d+$/.test(declaredLength) || Number(declaredLength) > maxRequestBytes)) {
