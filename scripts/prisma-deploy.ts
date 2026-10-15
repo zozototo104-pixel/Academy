@@ -17,6 +17,13 @@ const deployCandidates = [
   'SUPABASE_URL',
 ]
 
+const args = new Set(process.argv.slice(2))
+
+if (process.env.VERCEL_ENV !== 'production' && (args.size === 0 || args.has('--migrate'))) {
+  console.log('skipped')
+  process.exit(0)
+}
+
 function resolveDatabaseUrl() {
   for (const key of deployCandidates) {
     const value = process.env[key]
