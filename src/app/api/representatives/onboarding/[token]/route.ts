@@ -305,7 +305,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ to
     include: { files: { orderBy: [{ displayOrder: 'asc' }, { createdAt: 'desc' }] } },
   })
 
-  if (submit) {
+  if (submit && !publicLocked) {
     try {
       const rewritten = await rewriteRepresentativeProfile(updated)
       updated = await db.academyRepresentative.update({
