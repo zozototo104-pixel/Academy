@@ -32,7 +32,8 @@ assert(textAi.includes('createVision') && textAi.includes("provider === 'ZAI' &&
 assert(textAi.includes('candidateKeys(provider, s)') && textAi.includes('for (const key of candidateKeys(provider, s))'), 'router must keep rotating through provider keys, including Gemini DB/env keys')
 assert(textAi.includes('OPENAI_COMPAT') && textAi.includes('s.openaiCompatTier === \'PAID\''), 'paid OpenAI-compatible provider must remain last-resort governed by existing policy')
 assert(textAi.includes('recordAttempt(attempt)') && textAi.includes('logRouterSummary(attempts'), 'router must keep audit diagnostics for successful and failed providers')
-assert(!textAi.includes('console.info') || !textAi.includes('base64'), 'router diagnostics must not log file base64 content')
+const recordAttemptBody = textAi.slice(textAi.indexOf('function recordAttempt'), textAi.indexOf('async function callGemini'))
+assert(!recordAttemptBody.includes('attachments') && !recordAttemptBody.includes('base64'), 'router diagnostics must not log file attachment content')
 assert(textAi.includes('errors.push(`${provider}/${model}/key#${keyIndex}: ${msg}`)'), 'router must record failed providers and reasons without file content')
 
 assert(ocr.includes("import { textAiCompleteJson } from '@/lib/text-ai'") && !ocr.includes('geminiVisionJson') && !ocr.includes('getZAI()'), 'ocr.ts must route visual documents through text AI router only')
