@@ -1211,17 +1211,40 @@ export function AdminFinanceTab() {
                               className="border-emerald-200 font-bold text-emerald-600">
                               <Banknote className="ml-1 h-3 w-3" /> {p.purpose === 'AI_LIVE_CREDIT' ? 'تأكيد وصول مبلغ باقة الصوت' : 'تأكيد وصول المبلغ'}
                             </Button>
-                            {p.waiverCodes?.some((w) => w.status === 'VERIFIED') ? (
-                              <Button size="sm" variant="outline" onClick={() => approveWaiver(p)} className="border-blue-200 font-bold text-blue-700">
-                                <ShieldCheck className="ml-1 h-3 w-3" /> اعتماد الإعفاء
-                              </Button>
-                            ) : (
-                              <div className="flex flex-wrap gap-1">
-                                {p.purpose === 'APPLICATION_FEE' && <Button type="button" size="sm" variant="outline" onClick={() => generateWaiver(p, 'APPLICATION_FEE')} className="h-7 border-blue-200 text-[10px] font-black text-blue-700">كود إعفاء 30$</Button>}
-                                {['APPLICATION_FEE', 'TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && <Button type="button" size="sm" variant="outline" onClick={() => generateWaiver(p, 'PARTIAL_TUITION')} className="h-7 border-amber-200 text-[10px] font-black text-amber-700">إعفاء جزئي</Button>}
-                                {['TUITION', 'TUITION_INSTALLMENT', 'APPLICATION_FEE'].includes(p.purpose) && <Button type="button" size="sm" variant="outline" onClick={() => generateWaiver(p, 'FULL_SCHOLARSHIP')} className="h-7 border-emerald-200 text-[10px] font-black text-emerald-700">منحة كاملة</Button>}
-                              </div>
-                            )}
+                            {(() => {
+                              const activeWaiver = activeWaiverForPayment(p)
+                              const generatedCode = generatedWaiverCodes[p.id]
+                              const busy = waiverBusy === p.id
+                              if (activeWaiver?.status === 'VERIFIED') {
+                                return (
+                                  <Button size="sm" variant="outline" onClick={() => approveWaiver(p)} className="border-blue-200 font-bold text-blue-700">
+                                    <ShieldCheck className="ml-1 h-3 w-3" /> اعتماد الإعفاء
+                                  </Button>
+                                )
+                              }
+                              if (activeWaiver) {
+                                return (
+                                  <div className="flex flex-col gap-1 rounded-lg border border-blue-100 bg-blue-50 p-2 text-[10px] font-black text-blue-800">
+                                    <span>كود إعفاء نشط: {generatedCode || activeWaiver.codePreview}</span>
+                                    {generatedCode ? (
+                                      <Button type="button" size="sm" variant="outline" onClick={() => copyWaiverCode(p.id, generatedCode)} className="h-7 border-blue-200 bg-white text-[10px] font-black text-blue-700">
+                                        {copiedWaiverPaymentId === p.id ? <Check className="ml-1 h-3 w-3" /> : <Copy className="ml-1 h-3 w-3" />}
+                                        {copiedWaiverPaymentId === p.id ? 'تم النسخ' : 'نسخ الكود'}
+                                      </Button>
+                                    ) : (
+                                      <span className="text-[9px] text-blue-600">بانتظار إدخال الطالب للكود، ولا يمكن توليد كود آخر.</span>
+                                    )}
+                                  </div>
+                                )
+                              }
+                              return (
+                                <div className="flex flex-wrap gap-1">
+                                  {p.purpose === 'APPLICATION_FEE' && <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => generateWaiver(p, 'APPLICATION_FEE')} className="h-7 border-blue-200 text-[10px] font-black text-blue-700">{busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}كود إعفاء 30$</Button>}
+                                  {['APPLICATION_FEE', 'TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => generateWaiver(p, 'PARTIAL_TUITION')} className="h-7 border-amber-200 text-[10px] font-black text-amber-700">{busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}إعفاء جزئي</Button>}
+                                  {['TUITION', 'TUITION_INSTALLMENT', 'APPLICATION_FEE'].includes(p.purpose) && <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => generateWaiver(p, 'FULL_SCHOLARSHIP')} className="h-7 border-emerald-200 text-[10px] font-black text-emerald-700">{busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}منحة كاملة</Button>}
+                                </div>
+                              )
+                            })()}
                           </div>
                         ) : p.status === 'WAIVED' && p.purpose === 'APPLICATION_FEE' && p.waiverCodes?.length && p.waiverStatus !== 'PROGRAM_APPLIED' ? (
                           <Button size="sm" variant="outline" onClick={() => approveWaiver(p)} className="border-blue-200 font-bold text-blue-700">
