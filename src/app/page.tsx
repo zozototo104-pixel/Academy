@@ -210,7 +210,7 @@ export default function Home() {
         if (d?.user) {
           setUser(d.user)
           const targetView = routeForUser(d.user)
-          if (currentView === 'auth' || oauthReturn || oauthToken) {
+          if (currentView === 'auth' || oauthReturn) {
             navigate(targetView as any)
           }
         } else {
