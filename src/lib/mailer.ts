@@ -265,8 +265,8 @@ export async function emailPaymentReceipt(to: string, name: string, invoiceNo: s
   })
 }
 
-export async function emailPaymentWaiverCode(to: string, input: { name: string; invoiceNo: string; description: string; code: string; waiverLabel: string; reason?: string | null; link?: string | null }) {
-  await sendEmail({
+export async function emailPaymentWaiverCode(to: string, input: { name: string; invoiceNo: string; description: string; code: string; waiverLabel: string; reason?: string | null; link?: string | null }): Promise<boolean> {
+  return sendEmail({
     to,
     event: 'PAYMENT_WAIVER_CODE',
     subject: `كود إعفاء مالي من الأكاديمية — ${input.invoiceNo}`,
