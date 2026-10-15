@@ -410,6 +410,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     const detected = detectAllowedUpload(buffer, file.name || 'file', file.type || 'application/octet-stream', assetType)
     const stored = await storeFileBuffer({ buffer, fileName: file.name || 'file', mimeType: detected.mimeType, namespace: `representatives-private/${rep.id}` })
     if (assetType === 'profilePhoto') {
+      if (String(rep.status || '').toUpperCase() === 'ACTIVE') {
+        const created = await db.academyRepresentativeFile.create({ data: { representativeId: rep.id, kind: 'PROFILE_PHOTO', title: 'صورة شخصية بانتظار اعتماد الإدارة', fileName: file.name, mimeType: stored.mimeType, size: stored.size, storageProvider: stored.provider, storageKey: stored.key, fileUrl: stored.url, reviewStatus: 'PENDING_REVIEW' } })
+        await db.academyRepresentative.update({ where: { id: rep.id }, data: { onboardingStatus: rep.onboardingStatus === 'SUBMITTED_REVIEW' ? 'SUBMITTED_REVIEW' : 'WAITING_PROFILE' } })
+        return NextResponse.json({ file: created })
+      }
       const updated = await db.academyRepresentative.update({
         where: { id: rep.id },
         data: { profilePhotoUrl: stored.url, profilePhotoName: file.name, profilePhotoMime: stored.mimeType, profilePhotoSize: stored.size, profilePhotoStorageProvider: stored.provider, profilePhotoStorageKey: stored.key, onboardingStatus: rep.onboardingStatus === 'SUBMITTED_REVIEW' ? 'SUBMITTED_REVIEW' : 'WAITING_PROFILE' },
@@ -417,6 +422,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       return NextResponse.json({ representative: updated })
     }
     if (assetType === 'officialCard') {
+      if (String(rep.status || '').toUpperCase() === 'ACTIVE') {
+        const created = await db.academyRepresentativeFile.create({ data: { representativeId: rep.id, kind: 'OFFICIAL_CARD', title: 'بطاقة رسمية بانتظار اعتماد الإدارة', fileName: file.name, mimeType: stored.mimeType, size: stored.size, storageProvider: stored.provider, storageKey: stored.key, fileUrl: stored.url, reviewStatus: 'PENDING_REVIEW' } })
+        await db.academyRepresentative.update({ where: { id: rep.id }, data: { onboardingStatus: rep.onboardingStatus === 'SUBMITTED_REVIEW' ? 'SUBMITTED_REVIEW' : 'WAITING_PROFILE' } })
+        return NextResponse.json({ file: created })
+      }
       const updated = await db.academyRepresentative.update({
         where: { id: rep.id },
         data: { officialCardUrl: stored.url, officialCardName: file.name, officialCardMime: stored.mimeType, officialCardSize: stored.size, officialCardStorageProvider: stored.provider, officialCardStorageKey: stored.key, onboardingStatus: rep.onboardingStatus === 'SUBMITTED_REVIEW' ? 'SUBMITTED_REVIEW' : 'WAITING_PROFILE' },
