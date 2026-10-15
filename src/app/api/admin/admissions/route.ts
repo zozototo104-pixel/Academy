@@ -54,6 +54,16 @@ export async function GET(req: NextRequest) {
     const status = cleanAdminQuery(sp.get('status'))
     const kind = cleanAdminQuery(sp.get('kind'))
     const filters: any[] = []
+    if (sp.get('includeDemo') !== '1') {
+      filters.push({
+        NOT: {
+          OR: [
+            { reference: 'AACT-2026-DEMO-VC' },
+            { email: 'demo.thesis@student.aact.academy' },
+          ],
+        },
+      })
+    }
     if (status && status !== 'ALL') {
       if (status === 'ACTIVE') filters.push({ status: { notIn: ['REJECTED', 'CERTIFIED'] } })
       else filters.push({ status })
