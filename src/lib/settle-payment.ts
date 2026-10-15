@@ -16,6 +16,52 @@ export interface SettleResult {
   receiptNo?: string
 }
 
+export async function finalizeAdmissionAfterSettlement(tx: any, admissionId: string, opts: { source: 'PAYMENT' | 'WAIVER'; actor?: { id?: string | null; name: string } | null } = { source: 'PAYMENT' }) {
+  const app = await tx.admissionApplication.findUnique({ where: { id: admissionId } })
+  if (!app) return null
+  let linkedUserId = app.userId
+  if (!linkedUserId && app.email) {
+    const matchedUser = await tx.user.findUnique({ where: { email: app.email.trim().toLowerCase() }, select: { id: true, role: true } }).catch(() => null)
+    if (matchedUser?.role === 'STUDENT') {
+      linkedUserId = matchedUser.id
+      await tx.admissionApplication.update({ where: { id: app.id }, data: { userId: linkedUserId } }).catch(() => {})
+    }
+  }
+  if (linkedUserId) {
+    await tx.payment.updateMany({ where: { admissionId: app.id, OR: [{ userId: null }, { NOT: { userId: linkedUserId } }] }, data: { userId: linkedUserId } }).catch(() => {})
+  }
+
+  const all = await tx.payment.findMany({ where: { admissionId: app.id } })
+  const isSettled = (status?: string | null) => status === 'PAID' || status === 'WAIVED'
+  const allSettled = all.length > 0 && all.every((p: any) => isSettled(p.status))
+  const feeSettled = all.some((p: any) => p.purpose === 'APPLICATION_FEE' && isSettled(p.status))
+  const tuitionSettled = all.some((p: any) => ['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && isSettled(p.status))
+
+  if (feeSettled && app.status === 'AWAITING_FEE' && !tuitionSettled) {
+    await tx.admissionApplication.update({ where: { id: app.id }, data: { status: opts.source === 'WAIVER' ? 'AWAITING_TUITION' : 'UNDER_REVIEW' } })
+  }
+
+  if (allSettled && tuitionSettled && ['AWAITING_FEE', 'UNDER_REVIEW', 'AWAITING_TUITION'].includes(String(app.status || ''))) {
+    const newStatus = app.supervisorId ? 'THESIS' : 'SUPERVISOR_ASSIGNED'
+    await tx.admissionApplication.update({ where: { id: app.id }, data: { status: newStatus } })
+    if (app.programId && linkedUserId) {
+      const existingEnrollment = await tx.enrollment.findUnique({ where: { userId_programId: { userId: linkedUserId, programId: app.programId } } }).catch(() => null)
+      if (!existingEnrollment) await tx.enrollment.create({ data: { userId: linkedUserId, programId: app.programId, status: 'ACTIVE' } })
+      else if (!['ACTIVE', 'COMPLETED'].includes(existingEnrollment.status)) await tx.enrollment.update({ where: { id: existingEnrollment.id }, data: { status: 'ACTIVE' } })
+    }
+  }
+
+  if (opts.source === 'WAIVER') {
+    const waived = all.find((p: any) => p.status === 'WAIVED' && !p.receiptNo)
+    if (waived) {
+      const receiptNo = await nextReceiptNo()
+      await tx.payment.update({ where: { id: waived.id }, data: { receiptNo, method: 'WAIVER', paidAt: new Date() } }).catch(() => null)
+      if (linkedUserId) await notify(linkedUserId, 'PAYMENT', 'تم اعتماد الإعفاء/المنحة', `تمت تسوية الفاتورة ${waived.invoiceNo} كإعفاء/منحة بقيمة 0$ — رقم الإيصال ${receiptNo}.`, 'dashboard')
+    }
+  }
+  return { admissionId: app.id, userId: linkedUserId, allSettled, feeSettled, tuitionSettled }
+}
+
 export async function markInvoicePaid(
   invoiceNo: string,
   method: string,
