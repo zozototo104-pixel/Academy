@@ -20,7 +20,7 @@ function redirectAuth(params: Record<string, string>) {
 
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get('token') || ''
-  if (!token || token.length < 20) return redirectAuth(req, { verify_email: 'invalid' })
+  if (!token || token.length < 20) return redirectAuth({ verify_email: 'invalid' })
 
   const tokenHash = hashEmailVerificationToken(token)
   const user = await db.user.findFirst({
