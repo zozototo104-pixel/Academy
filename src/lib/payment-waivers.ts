@@ -379,9 +379,7 @@ export async function verifyPaymentWaiverCode(params: { paymentId: string; code:
   })
 
   if (!result.ok) {
-    if (result.reason !== 'RATE_LIMIT') {
-      await db.paymentWaiverAttempt.create({ data: { paymentId: result.paymentId, userId: result.userId, success: false } }).catch(() => null)
-    }
+    await db.paymentWaiverAttempt.create({ data: { paymentId: result.paymentId, userId: result.userId, success: false } }).catch(() => null)
     throw waiverVerificationError(result.reason)
   }
 
