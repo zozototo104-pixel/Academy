@@ -100,6 +100,7 @@ function isBlockedBookLinkIp(address: string) {
   }
   if (ipVersion === 6) {
     const normalized = address.toLowerCase()
+    if (normalized.startsWith('::ffff:')) return isBlockedBookLinkIp(normalized.slice('::ffff:'.length))
     return normalized === '::1' || normalized.startsWith('fe80:') || normalized.startsWith('fc') || normalized.startsWith('fd')
   }
   return false
