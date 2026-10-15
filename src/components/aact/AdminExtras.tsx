@@ -907,7 +907,7 @@ export function AdminFinanceTab() {
     if (reason === null) return
     setWaiverBusy(payment.id)
     try {
-      const result = await api<{ code: string; waiver: PaymentWaiverCodeRow }>('/api/admin/payments/waivers', {
+      const result = await api<{ code: string; waiver: PaymentWaiverCodeRow; emailStatus?: 'SENT' | 'FAILED' | 'SKIPPED' }>('/api/admin/payments/waivers', {
         method: 'POST',
         body: JSON.stringify({ paymentId: payment.id, waiverType, requestedAmount, reason }),
       })
