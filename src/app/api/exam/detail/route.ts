@@ -26,10 +26,10 @@ export async function GET(req: NextRequest) {
       where: { userId_programId: { userId: user.id, programId: exam.unit.programId } },
     })
     if (!enrollment) return NextResponse.json({ error: 'يجب التسجيل في البرنامج أولاً' }, { status: 403 })
-    if (enrollment.status === 'PENDING_PAYMENT') {
+    if (!['ACTIVE', 'COMPLETED'].includes(enrollment.status)) {
       return NextResponse.json(
-        { error: 'تسجيلك بانتظار سداد الفاتورة — أكمل الدفع لتفعيل الوصول للاختبارات', code: 'PENDING_PAYMENT' },
-        { status: 402 }
+        { error: 'تسجيلك غير مفعل بعد — يجب أن تكون حالة التسجيل ACTIVE أو COMPLETED لفتح الاختبارات', code: 'ENROLLMENT_NOT_ACTIVE' },
+        { status: 403 }
       )
     }
 
