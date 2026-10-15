@@ -48,7 +48,11 @@ export async function finalizeAdmissionAfterSettlement(tx: any, admissionId: str
       const existingEnrollment = await tx.enrollment.findUnique({ where: { userId_programId: { userId: linkedUserId, programId: app.programId } } }).catch(() => null)
       if (!existingEnrollment) await tx.enrollment.create({ data: { userId: linkedUserId, programId: app.programId, status: 'ACTIVE' } })
       else if (!['ACTIVE', 'COMPLETED'].includes(existingEnrollment.status)) await tx.enrollment.update({ where: { id: existingEnrollment.id }, data: { status: 'ACTIVE' } })
+      await notify(linkedUserId, 'ADMISSION', opts.source === 'WAIVER' ? 'تم تفعيل تسجيلك بمنحة/إعفاء' : 'التسجيل النهائي مكتمل — أهلاً بك في برنامجك!', `أصبح تسجيلك في «${app.program}» فعالاً.`, 'dashboard')
+      const student = await tx.user.findUnique({ where: { id: linkedUserId }, select: { email: true, name: true } }).catch(() => null)
+      if (student) await emailFinalRegistration(student.email, student.name, app.program)
     }
+    await audit(opts.actor || { name: opts.source }, opts.source === 'WAIVER' ? 'FINAL_REGISTRATION_BY_WAIVER' : 'FINAL_REGISTRATION', 'AdmissionApplication', app.id, `${app.reference} — ${app.program}`)
   }
 
   if (opts.source === 'WAIVER') {
