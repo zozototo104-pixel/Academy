@@ -266,7 +266,7 @@ function testDependencyPins() {
   assert(pkg.dependencies.next === '^16.4.1', 'Next.js dependency must be updated to the patched security release')
   assert(pkg.dependencies.react === '^19.3.0', 'React dependency must be updated')
   assert(pkg.dependencies['react-dom'] === '^19.3.0', 'React DOM dependency must be updated')
-  assert(pkg.devDependencies['eslint-config-next'] === '^16.4.0', 'eslint-config-next must match Next.js patch')
+  assert(pkg.devDependencies['eslint-config-next'] === '^16.4.1', 'eslint-config-next must match Next.js patch')
 }
 
 async function main() {
