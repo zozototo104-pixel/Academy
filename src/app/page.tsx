@@ -153,14 +153,12 @@ export default function Home() {
   const didAutoRouteRef = useRef(false)
   const [authRecovering, setAuthRecovering] = useState(false)
   // Keep the first client render identical to the server HTML.
-  // Reading localStorage/getToken() inside the useState initializer causes React hydration
-  // mismatch #418 for returning users and for Playwright, which injects the token before page load.
+  // Startup state is presentation-only; authentication now relies on the HttpOnly cookie.
   const [startupDone, setStartupDone] = useState(false)
 
   useEffect(() => {
     try {
-      const q = new URLSearchParams(window.location.search)
-      if (q.has('authToken') || hasSeenStartup() || Boolean(getToken())) {
+      if (hasSeenStartup()) {
         setStartupDone(true)
       }
     } catch (error) {
