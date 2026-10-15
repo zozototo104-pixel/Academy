@@ -1,4 +1,5 @@
 /// <reference types="bun-types" />
+import type { AcademyRepresentative } from '@prisma/client'
 import { beforeEach, describe, expect, mock, test } from 'bun:test'
 import { NextRequest } from 'next/server'
 import { hashRepresentativeOnboardingToken, verifyRepresentativeLast4 } from '../../src/lib/academy-representatives'
