@@ -167,6 +167,6 @@ function TextBlock({ label, value, onChange }: { label: string; value: string; o
   return <label className="block text-sm font-black">{label}<textarea value={value || ''} onChange={(e) => onChange(e.target.value)} className="mt-2 min-h-32 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold leading-7 outline-none focus:border-[#c9a227]" /></label>
 }
 
-function UploadBox({ label, accept, onFile, uploading }: { label: string; accept: string; onFile: (file: File) => void; uploading: boolean }) {
-  return <label className="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-3 text-xs font-black hover:border-[#c9a227]"><input type="file" accept={accept} disabled={uploading} className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) onFile(file); e.currentTarget.value = '' }} /><Upload className="h-4 w-4" /> {label}</label>
+function UploadBox({ label, accept, onFile, uploading, multiple = false }: { label: string; accept: string; onFile: (file: File) => void; uploading: boolean; multiple?: boolean }) {
+  return <label className="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-3 text-xs font-black hover:border-[#c9a227]"><input type="file" accept={accept} multiple={multiple} disabled={uploading} className="hidden" onChange={(e) => { for (const file of Array.from(e.target.files || [])) onFile(file); e.currentTarget.value = '' }} /><Upload className="h-4 w-4" /> {label}</label>
 }
