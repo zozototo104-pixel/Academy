@@ -230,7 +230,6 @@ export async function api<T = any>(url: string, options?: RequestInit): Promise<
         cache: 'no-store',
         headers: {
           ...(isForm ? {} : { 'Content-Type': 'application/json' }),
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...(options?.headers || {}),
         },
       })
