@@ -144,10 +144,23 @@ function uploadErrorResponse(error: unknown) {
 }
 
 async function loadRepresentative(token: string) {
-  return db.academyRepresentative.findFirst({
-    where: { onboardingToken: token, deletedAt: null, status: { in: ['DRAFT', 'HIDDEN'] } },
+  const tokenHash = hashRepresentativeOnboardingToken(token)
+  const rep = await db.academyRepresentative.findFirst({
+    where: { onboardingTokenHash: tokenHash, deletedAt: null, status: { notIn: ['SUSPENDED', 'REVOKED'] } },
     include: { files: { orderBy: [{ displayOrder: 'asc' }, { createdAt: 'desc' }] } },
   }).catch(() => null)
+  if (!rep) return { representative: null, expired: false }
+  if (rep.onboardingExpiresAt && rep.onboardingExpiresAt.getTime() < Date.now()) {
+    return { representative: null, expired: true }
+  }
+  return { representative: rep, expired: false }
+}
+
+function onboardingNotFound(expired = false) {
+  return NextResponse.json(
+    { error: expired ? 'LINK_EXPIRED' : 'NOT_FOUND', message: expired ? 'انتهت صلاحية الرابط، اطلب رابط جديد من الإدارة' : 'رابط الاستكمال غير صالح' },
+    { status: expired ? 410 : 404 }
+  )
 }
 
 function parseJson(raw: string) {
