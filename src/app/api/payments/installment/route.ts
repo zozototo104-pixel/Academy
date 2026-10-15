@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { nextInvoiceNo } from '@/lib/settings'
+import { applyScholarshipToNewInvoiceData } from '@/lib/payment-waivers'
 import { getAdmissionTuitionPlan, roundMoney } from '@/lib/tuition-installments'
 
 export async function POST(req: NextRequest) {
