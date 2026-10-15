@@ -50,19 +50,13 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   let emailStatus: 'SENT' | 'FAILED' | 'SKIPPED' = 'SKIPPED'
   if (updated.email && updated.email.includes('@')) {
-    try {
-      const sent = await emailRepresentativeOnboardingInvitation(updated.email, {
-        name: updated.fullName,
-        country: updated.country,
-        territory: updated.territory,
-        contractNo: updated.cardNumber,
-        onboardingUrl: url,
-      })
-      emailStatus = sent ? 'SENT' : 'FAILED'
-    } catch (error) {
-      emailStatus = 'FAILED'
-      console.warn('Failed to send representative onboarding invitation.', error)
-    }
+    emailStatus = await emailRepresentativeOnboardingInvitationDetailed(updated.email, {
+      name: updated.fullName,
+      country: updated.country,
+      territory: updated.territory,
+      contractNo: updated.cardNumber,
+      onboardingUrl: url,
+    })
   }
 
   await audit(user.id, 'CREATE_REPRESENTATIVE_ONBOARDING_LINK', id, `${representative.fullName} — expires=${expiresAt.toISOString()} — email=${emailStatus}`)
