@@ -305,6 +305,8 @@ function testSecurityBatchA() {
 
   const emailVerification = file('src/lib/email-verification.ts')
   assert(emailVerification.includes('process.env.NEXT_PUBLIC_APP_URL') && !emailVerification.includes('x-forwarded-host') && !emailVerification.includes("req.headers.get('host')"), 'email verification URLs must use NEXT_PUBLIC_APP_URL only')
+  const verifyEmailRoute = file('src/app/api/auth/verify-email/route.ts')
+  assert(verifyEmailRoute.includes('process.env.NEXT_PUBLIC_APP_URL') && !verifyEmailRoute.includes('x-forwarded-host') && !verifyEmailRoute.includes("headers.get('host')"), 'verify-email redirects must use NEXT_PUBLIC_APP_URL only')
   const googleRoute = file('src/app/api/auth/google/route.ts')
   assert(googleRoute.includes('process.env.NEXT_PUBLIC_APP_URL') && !googleRoute.includes('x-forwarded-host') && !googleRoute.includes("headers.get('host')"), 'Google OAuth start must use NEXT_PUBLIC_APP_URL only')
   const googleCallback = file('src/app/api/auth/google/callback/route.ts')
