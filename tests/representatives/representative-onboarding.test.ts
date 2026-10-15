@@ -11,7 +11,7 @@ process.env.RESEND_API_KEY = ''
 process.env.MAIL_FROM = ''
 process.env.RESEND_FROM = ''
 
-const representatives = new Map<string, any>()
+const representatives = new Map<string, AcademyRepresentative>()
 const files = new Map<string, any>()
 const rateWindows = new Map<string, any>()
 const auditLogs: any[] = []
