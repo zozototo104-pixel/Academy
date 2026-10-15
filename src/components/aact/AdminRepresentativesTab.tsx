@@ -461,7 +461,11 @@ export default function AdminRepresentativesTab() {
                     {form.id && <Button type="button" variant="outline" disabled={onboardingBusy} onClick={revokeOnboardingLink} className="border-red-200 bg-white text-red-700">إلغاء الرابط</Button>}
                   </div>
                 </div>
-                {onboardingLink && <p className="mt-3 break-all rounded-xl bg-white p-3 text-[11px] text-indigo-800">{onboardingLink}</p>}
+                {onboardingLink && <div className="mt-3 space-y-2 rounded-xl bg-white p-3 text-[11px] font-bold text-indigo-800">
+                  <p className="break-all">{onboardingLink}</p>
+                  <p>{onboardingResult.emailStatus === 'SENT' ? 'تم إرسال الرابط على بريد الممثل ✅' : onboardingResult.emailStatus === 'FAILED' ? 'فشل إرسال البريد، انسخ الرابط وأرسله يدوياً' : 'لم يتم إرسال بريد؛ انسخ الرابط وأرسله يدوياً'}</p>
+                  {onboardingResult.expiresAt && <p>ينتهي الرابط في: {new Date(onboardingResult.expiresAt).toLocaleString('ar')}</p>}
+                </div>}
               </div>
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <AssetUploader label="الصورة الشخصية" hint="صورة واضحة للممثل" icon={<ImageIcon className="h-4 w-4" />} accept="image/*" onUpload={(file) => upload('profilePhoto', file)} uploading={uploading || !form.id} />
