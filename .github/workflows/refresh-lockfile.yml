@@ -84,6 +84,6 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add bun.lock
+          git add package.json bun.lock
           git diff --cached --quiet || git commit -m "Refresh bun.lock"
           git push
