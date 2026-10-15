@@ -27,7 +27,7 @@ function appBaseUrl() {
 export async function GET(req: NextRequest) {
   const clientId = process.env.GOOGLE_CLIENT_ID
   if (!clientId) {
-    return NextResponse.redirect(new URL('/?view=auth&oauth_error=google_not_configured', req.url))
+    return NextResponse.redirect(new URL('/?view=auth&oauth_error=google_not_configured', appBaseUrl()))
   }
 
   const state = createSignedState()
