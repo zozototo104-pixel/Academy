@@ -836,7 +836,8 @@ function computeRuleScore(args: {
   const medium = args.findings.filter((f) => f.severity === 'MEDIUM').length
   const onlyVisionUnavailable = missing === 0 && problem === 0 && args.hardProblems === 0 && unverified > 0 && args.requiredFound === 0
 
-  let score = Math.round((args.requiredFound / Math.max(1, args.requiredTotal)) * 100)
+  const coverageBase = Math.round((args.requiredFound / Math.max(1, args.requiredTotal)) * 100)
+  let score = coverageBase
   score -= missing * 18 + problem * 20 + unverified * 9 + high * 12 + medium * 4 + args.hardProblems * 4
 
   if (!args.docTextFound && !onlyVisionUnavailable) score = Math.min(score, 20)
