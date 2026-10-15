@@ -258,6 +258,31 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ to
     try { safeWebsite = await validatePublicHttpsUrl(String(body.website)) }
     catch (error) { return uploadErrorResponse(error) }
   }
+  const publicLocked = String(rep.status || '').toUpperCase() === 'ACTIVE'
+  if (publicLocked) {
+    const pendingProfileChanges: Record<string, string> = {}
+    const profileFields = [
+      ['degreeTitle', 'الدرجة العلمية', rep.degreeTitle, 220],
+      ['academicRank', 'الرتبة العلمية', rep.academicRank, 160],
+      ['country', 'الدولة', rep.country, 120],
+      ['city', 'المدينة', rep.city, 120],
+      ['specialization', 'التخصص', rep.specialization, 260],
+      ['rawBio', 'السيرة الخام', rep.rawBio, 12000],
+      ['worksSummary', 'الأعمال والخبرات', rep.worksSummary, 6000],
+      ['achievements', 'الإنجازات', rep.achievements, 6000],
+      ['publicContactNote', 'ملاحظة التواصل العامة', rep.publicContactNote, 1200],
+    ] as const
+    for (const [key, label, current, max] of profileFields) {
+      const next = text(body[key], max)
+      if (next && next !== String(current || '')) pendingProfileChanges[label] = next
+    }
+    if (safeWebsite && safeWebsite !== rep.website) pendingProfileChanges['الموقع الإلكتروني'] = safeWebsite
+    if (Object.keys(pendingProfileChanges).length > 0) {
+      await db.academyRepresentativeFile.create({
+        data: { representativeId: rep.id, kind: 'PROFILE_UPDATE', title: 'تعديلات ملف الممثل بانتظار اعتماد الإدارة', description: JSON.stringify(pendingProfileChanges, null, 2), reviewStatus: 'PENDING_REVIEW' },
+      }).catch(() => null)
+    }
+  }
 
   let updated = await db.academyRepresentative.update({
     where: { id: rep.id },
