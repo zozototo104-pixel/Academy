@@ -199,9 +199,9 @@ export async function createPaymentWaiverCode(params: {
   const expiresAt = new Date(Date.now() + Math.max(1, Math.min(60, expiresDays)) * 24 * 60 * 60 * 1000)
 
   const waiver = await db.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT id FROM "Payment" WHERE id = ${payment.id} FOR UPDATE`
+    await tx.$queryRaw`SELECT id FROM "Payment" WHERE id = ${params.paymentId} FOR UPDATE`
     const activeWaiver = await tx.paymentWaiverCode.findFirst({
-      where: { paymentId: payment.id, status: { in: ['ISSUED', 'VERIFIED'] } },
+      where: { paymentId: params.paymentId, status: { in: ['ISSUED', 'VERIFIED'] } },
       orderBy: { createdAt: 'desc' },
     })
     if (activeWaiver) throw new ActivePaymentWaiverExistsError(activeWaiver.codePreview)
