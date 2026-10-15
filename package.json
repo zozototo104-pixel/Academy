@@ -15,6 +15,7 @@
     "test:stage-c-exams": "bun run db:generate && tsx scripts/test-stage-c-exams.ts",
     "test:ai-ui-wiring": "tsx scripts/test-ai-ui-wiring.ts",
     "test:prod-safety": "bun run db:generate && tsx scripts/test-prod-safety.ts",
+    "test:payments": "tsx scripts/test-payments.ts",
     "test:private-files-maintenance": "bun run db:generate && tsx scripts/test-private-files-maintenance.ts",
     "test:whatsapp-ai-only": "bun run db:generate && tsx scripts/test-whatsapp-ai-only.ts",
     "test:academic-ai-router": "tsx scripts/test-academic-ai-router.ts",
