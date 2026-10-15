@@ -350,6 +350,7 @@ async function main() {
   testWhatsAppMinimalSafety()
   testAactTestRecipientBlocks()
   testDependencyPins()
+  testPrismaDeployPreviewPushSkips()
   testSecurityBatchA()
   console.log('✓ production safety behavioral checks passed')
 }
