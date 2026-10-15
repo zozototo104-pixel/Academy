@@ -217,6 +217,9 @@ export async function POST(req: NextRequest) {
       where: { userId_programId: { userId: user.id, programId } },
     })
     if (!enrollment) return NextResponse.json({ error: 'غير مسجل في البرنامج' }, { status: 403 })
+    if (!['ACTIVE', 'COMPLETED'].includes(enrollment.status)) {
+      return NextResponse.json({ error: 'تسجيلك غير مفعّل — افتح بوابة الدفعات لاستكمال السداد أو اعتماد الإعفاء', code: 'ENROLLMENT_NOT_ACTIVE' }, { status: 403 })
+    }
 
     // تحقق صارم: الوحدة يجب أن تنتمي فعلاً لهذا البرنامج (منع تجميع وحدات برامج أخرى)
     const unit = await db.unit.findFirst({ where: { id: unitId, programId }, select: { id: true } })
