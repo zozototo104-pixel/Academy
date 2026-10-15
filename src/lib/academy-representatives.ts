@@ -142,6 +142,10 @@ export function createRepresentativeOnboardingToken() {
   return `rep_onb_${randomBytes(32).toString('base64url')}`
 }
 
+export function hashRepresentativeOnboardingToken(token: string) {
+  return createHash('sha256').update(String(token || '').trim()).digest('hex')
+}
+
 function verificationSecret() {
   return process.env.AACT_REPRESENTATIVE_CARD_SECRET || process.env.NEXTAUTH_SECRET || process.env.SESSION_SECRET || 'aact-representative-local-secret'
 }
