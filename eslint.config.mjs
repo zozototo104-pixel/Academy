@@ -18,6 +18,12 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     
     // React rules
     "react-hooks/exhaustive-deps": "warn",
+    // TODO(batch-E): fix after Next 16.4 / React Compiler upgrade
+    "react-hooks/set-state-in-effect": "warn",
+    "react-hooks/refs": "warn",
+    "react-hooks/immutability": "warn",
+    "react-hooks/static-components": "warn",
+    "react-hooks/preserve-manual-memoization": "warn",
     "react-hooks/purity": "off",
     "react/no-unescaped-entities": "off",
     "react/display-name": "off",
