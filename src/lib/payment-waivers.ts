@@ -511,7 +511,10 @@ export async function approvePaymentWaiver(params: { waiverId: string; actor: { 
   })
   await db.paymentWaiverCode.update({ where: { id: waiver.id }, data: { status: 'APPROVED', approvedById: params.actor.id || null, approvedAt: new Date() } })
 
-  if (isFull) await applyAdmissionWaiverEffects(updatedPayment, params.actor)
+  if (waiver.waiverType === 'FULL_SCHOLARSHIP' && payment.admissionId) {
+    await waiveAllAdmissionTuitionPayments(payment.admissionId, waiver, params.actor)
+  }
+  if (isFull || waiver.waiverType === 'FULL_SCHOLARSHIP') await applyAdmissionWaiverEffects(updatedPayment, params.actor)
   await audit(params.actor, 'PAYMENT_WAIVER_APPROVED', 'Payment', payment.id, `${payment.invoiceNo} — ${waiver.waiverType} — ${centsToDollars(waiveCents).toFixed(2)}$`)
   return updatedPayment
 }
