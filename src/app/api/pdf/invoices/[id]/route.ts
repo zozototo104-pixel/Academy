@@ -209,8 +209,8 @@ function buildInvoiceSvg(data: {
   ${text(92, 982, data.amount, { size: 25, fill: BRAND_NAVY, weight: 900, anchor: 'start', dir: 'ltr', family: 'Arial,sans-serif' })}
 
   <line x1="52" y1="1030" x2="742" y2="1030" stroke="#e2e8f0"/>
-  ${text(742, 1056, 'تم إصدار هذه الفاتورة إلكترونياً من منصة AACT. لا تتطلب توقيعاً يدوياً.', { size: 15, fill: MUTED, weight: 700, anchor: 'end', dir: 'rtl' })}
-  ${text(52, 1056, 'Generated electronically by AACT Platform.', { size: 13, fill: MUTED, weight: 700, anchor: 'start', dir: 'ltr', family: 'Arial,sans-serif' })}
+  ${text(742, 1056, 'Generated electronically by AACT Platform. No manual signature required.', { size: 15, fill: MUTED, weight: 700, anchor: 'end', dir: 'ltr', family: 'Arial,sans-serif' })}
+  ${text(52, 1056, data.status, { size: 13, fill: MUTED, weight: 700, anchor: 'start', dir: 'ltr', family: 'Arial,sans-serif' })}
   ${text(397, 1088, 'aactacademy.com', { size: 13, fill: BRAND_NAVY, weight: 800, anchor: 'middle', dir: 'ltr', family: 'Arial,sans-serif' })}
 </svg>`
 }
