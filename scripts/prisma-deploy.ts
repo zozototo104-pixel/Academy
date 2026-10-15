@@ -106,8 +106,6 @@ function shouldRunMigrateDeploy(args: Set<string>) {
   return args.has('--migrate')
 }
 
-const args = new Set(process.argv.slice(2))
-
 run('npx', ['prisma', 'generate'])
 
 const runMigrateDeploy = shouldRunMigrateDeploy(args)
