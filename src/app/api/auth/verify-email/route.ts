@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
     select: { id: true, email: true, name: true, emailVerifiedAt: true },
   }).catch(() => null)
 
-  if (!user) return redirectAuth(req, { verify_email: 'invalid_or_expired' })
+  if (!user) return redirectAuth({ verify_email: 'invalid_or_expired' })
 
   await db.user.update({
     where: { id: user.id },
