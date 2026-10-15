@@ -325,7 +325,7 @@ function testSecurityBatchAFollowup() {
   assert(admissionAi.includes("args.unverifiableRequired === 0") && admissionAi.includes('unverified === 0') && admissionAi.includes("verdict = 'RECOMMEND_APPROVE'"), 'unreadable/unverified attachments must never auto-approve')
   assert(admissionAi.includes("scores: Record<'CV' | 'TRANSCRIPT' | 'DEGREE_CERTIFICATE' | 'ID' | 'PHOTO', number>"), 'admission document classification must use multi-factor scoring instead of one keyword')
   assert(admissionAi.includes("addEvidence('ID', 1, 'بيانات شخصية تظهر أيضاً في مستندات أخرى')"), 'weak ID cues such as nationality/gender must be low-weight evidence only')
-  assert(admissionAi.includes("addEvidence('CV', 6, 'عنوان/بنية سيرة ذاتية')") && admissionAi.includes('scores.CV >= scores.DEGREE_CERTIFICATE - 1'), 'explicit CV structure must outweigh embedded academic credentials')
+  assert(admissionAi.includes('const cvTitleSignal') && admissionAi.includes("addEvidence('CV', 10, 'عنوان/بنية سيرة ذاتية صريحة')") && admissionAi.includes("addEvidence('CV', 6, 'أقسام سيرة ذاتية متعددة')") && admissionAi.includes('scores.CV >= scores.DEGREE_CERTIFICATE - 1'), 'explicit CV structure must outweigh embedded academic credentials')
   assert(admissionAi.includes("addEvidence('DEGREE_CERTIFICATE', 5, 'صياغة شهادة أو منح مؤهل')") && admissionAi.includes("addEvidence('TRANSCRIPT', 6, 'كشف علامات/سجل أكاديمي')"), 'degree/transcript classification must require multiple academic evidence signals')
   assert(admissionAi.includes('best.score >= 6 && best.score >= second.score + 2'), 'document kind must require enough evidence and separation from the next candidate')
 }
