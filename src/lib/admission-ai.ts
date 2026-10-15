@@ -489,40 +489,63 @@ function detectAdmissionDocumentKind(f: AdmissionFileEvidence): { kind: Detected
     return { kind: 'LOGO', reason: 'ظهر أنه شعار/ختم/رمز فقط وليس مستند قبول مكتمل' }
   }
 
-  const cvSignal = hasAny(visual, KEYWORDS.cvDoc) || /\bcv\b|resume|curriculum vitae|work experience|training\s*&\s*work experience|professional experience|employment|skills|other skills|interests|objective|الموارد البشريه|الخبرات العمليه|الخبرات العملية|المهارات/.test(n)
-  const strongIdSignal = hasAny(visual, KEYWORDS.idDoc) || /national\s*id|passport|رقم جواز|رقم الهويه|رقم الهوية|identity card|id card|passport no|document number/.test(n)
-  const weakIdSignal = /date of birth|place of birth|الجنسية|الجنسيه|nationality|gender/.test(n)
-  const transcriptSignal = hasAny(visual, KEYWORDS.transcriptDoc) || /gpa|grade|credit hours|course|marks|علامه|علامات|درجه|درجات|معدل|مساق|مواد دراسيه|مواد دراسية|الساعات المعتمده|الساعات المعتمدة/.test(n)
-  const degreeSignal = hasAny(visual, KEYWORDS.degreeDoc) || hasAny(visual, KEYWORDS.bachelor) || hasAny(visual, KEYWORDS.master) || hasAny(visual, KEYWORDS.phd) || hasAny(visual, KEYWORDS.highSchool)
-  const institutionalSignal = /university|faculty|deanery|admission|registration|dean|president|college|institute|academy|school|جامعه|جامعة|كليه|كلية|اكاديميه|أكاديمية|اكاديمية|مدرسه|مدرسة|عماده|عمادة|قبول|تسجيل|رئيس الجامعه|عميد/.test(n)
-
-  // مؤشرات الهوية الضعيفة مثل nationality/gender قد تظهر داخل شهادة أو كشف علامات أو CV.
-  // لا نصنفها كهوية إلا عند غياب دلائل أكاديمية/مهنية أقوى، بينما يبقى passport/id الصريح دليلاً قوياً.
-  if (transcriptSignal) {
-    return { kind: 'TRANSCRIPT', reason: 'يحتوي مؤشرات كشف درجات/علامات أو سجل أكاديمي داخل الملف' }
+  const scores: Record<'CV' | 'TRANSCRIPT' | 'DEGREE_CERTIFICATE' | 'ID' | 'PHOTO', number> = {
+    CV: 0,
+    TRANSCRIPT: 0,
+    DEGREE_CERTIFICATE: 0,
+    ID: 0,
+    PHOTO: 0,
+  }
+  const reasons: Record<keyof typeof scores, string[]> = {
+    CV: [],
+    TRANSCRIPT: [],
+    DEGREE_CERTIFICATE: [],
+    ID: [],
+    PHOTO: [],
+  }
+  const addEvidence = (kind: keyof typeof scores, points: number, reason: string) => {
+    scores[kind] += points
+    reasons[kind].push(reason)
   }
 
-  if (degreeSignal && institutionalSignal) {
-    return { kind: 'DEGREE_CERTIFICATE', reason: 'يحتوي مؤشرات شهادة علمية/مؤهل دراسي صادرة من جهة تعليمية' }
+  // تصنيف متعدد المعايير: لا نقرر النوع من كلمة واحدة، لأن السيرة قد تحتوي MBA، والشهادة قد تحتوي Nationality.
+  if (/\bcv\b|resume|curriculum vitae|سيره ذاتيه|سيرة ذاتية/.test(n) || hasAny(visual, KEYWORDS.cvDoc)) addEvidence('CV', 6, 'عنوان/بنية سيرة ذاتية')
+  if (/work experience|training\s*&\s*work experience|professional experience|employment|skills|other skills|interests|objective|البيانات الشخصيه|البيانات الشخصية|الخبرات العمليه|الخبرات العملية|المهارات|الدورات|ورش/.test(n)) addEvidence('CV', 3, 'خبرات/مهارات/دورات أو بيانات شخصية')
+  if (/email|gmail|hotmail|@|phone|mobile|الهاتف|البريد/.test(n)) addEvidence('CV', 1, 'بيانات تواصل داخل مستند مهني')
+
+  if (hasAny(visual, KEYWORDS.transcriptDoc) || /transcript|academic record|grade report|كشف علامات|كشف درجات|marks|gpa|المعدل|الساعات المعتمده|الساعات المعتمدة|course title|semester/.test(n)) addEvidence('TRANSCRIPT', 6, 'كشف علامات/سجل أكاديمي')
+  if (/average|grade|percentage|النسبه|النسبة|المجموع|تقدير|معدل|82\.4/.test(n)) addEvidence('TRANSCRIPT', 3, 'معدل/درجات/نسبة')
+
+  if (hasAny(visual, KEYWORDS.degreeDoc) || /certificate|certifies|fulfilled the requirements|awarded|granted|graduation|شهاده|شهادة|تشهد|منح|حصل على/.test(n)) addEvidence('DEGREE_CERTIFICATE', 5, 'صياغة شهادة أو منح مؤهل')
+  if (hasAny(visual, KEYWORDS.bachelor) || hasAny(visual, KEYWORDS.master) || hasAny(visual, KEYWORDS.phd) || hasAny(visual, KEYWORDS.highSchool)) addEvidence('DEGREE_CERTIFICATE', 4, 'مستوى مؤهل دراسي')
+  if (/university|academy|faculty|college|institute|school|dean|president|جامعه|جامعة|كليه|كلية|اكاديميه|أكاديمية|اكاديمية|مدرسه|مدرسة|عميد|رئيس/.test(n)) addEvidence('DEGREE_CERTIFICATE', 3, 'جهة تعليمية')
+
+  if (hasAny(visual, KEYWORDS.idDoc) || /national\s*id|passport|رقم جواز|رقم الهويه|رقم الهوية|identity card|id card|passport no|document number|id no|authority/.test(n)) addEvidence('ID', 7, 'رقم/نوع هوية أو جواز رسمي')
+  if (/date of birth|place of birth|الجنسية|الجنسيه|nationality|gender/.test(n)) addEvidence('ID', 1, 'بيانات شخصية تظهر أيضاً في مستندات أخرى')
+
+  if (/صوره شخصيه|صورة شخصية|وجه شخص|وجه واضح|صوره وجه|صورة وجه|headshot|portrait photo|personal photo|passport photo/.test(n) || hasAny(visual, KEYWORDS.photoDoc)) addEvidence('PHOTO', 6, 'صورة وجه/بورتريه')
+
+  // لا نسمح لمؤشرات الشهادة داخل CV أن تغلب CV إذا كانت بنية السيرة واضحة.
+  if (scores.CV >= 6 && scores.CV >= scores.DEGREE_CERTIFICATE - 1 && scores.CV >= scores.TRANSCRIPT - 1 && scores.ID < 7) {
+    return { kind: 'CV', reason: `تقييم متعدد المعايير: ${reasons.CV.join('، ')}` }
   }
 
-  // السيرة الذاتية تحتوي عادةً على تاريخ ميلاد وجنسية وجنس، لذلك لا يجوز أن تسبقها قاعدة الهوية الضعيفة.
-  // نعطي الأولوية لبنية CV الواضحة ما لم يظهر دليل هوية/جواز رسمي قوي.
-  if (cvSignal && !strongIdSignal) {
-    return { kind: 'CV', reason: 'يحتوي مؤشرات سيرة ذاتية/خبرات/مهارات داخل الملف المقروء' }
+  const ranked = (Object.keys(scores) as (keyof typeof scores)[])
+    .map((kind) => ({ kind, score: scores[kind], reason: reasons[kind].join('، ') }))
+    .sort((a, b) => b.score - a.score)
+  const best = ranked[0]
+  const second = ranked[1]
+
+  if (best.score >= 6 && best.score >= second.score + 2) {
+    return { kind: best.kind, reason: `تقييم متعدد المعايير (${best.score} نقطة): ${best.reason}` }
+  }
+  if (best.score >= 8 && best.score > second.score) {
+    return { kind: best.kind, reason: `تقييم متعدد المعايير (${best.score} نقطة): ${best.reason}` }
   }
 
-  if (strongIdSignal || (weakIdSignal && !transcriptSignal && !(degreeSignal && institutionalSignal) && !cvSignal)) {
-    return { kind: 'ID', reason: 'يحتوي مؤشرات هوية أو جواز سفر داخل الملف المقروء' }
-  }
-
-  if (cvSignal) {
-    return { kind: 'CV', reason: 'يحتوي مؤشرات سيرة ذاتية/خبرات/مهارات داخل الملف المقروء' }
-  }
-
-  const explicitFaceSignal = /صوره شخصيه|صورة شخصية|وجه شخص|وجه واضح|صوره وجه|صورة وجه|headshot|portrait photo|personal photo|passport photo/.test(n)
+  const explicitFaceSignal = scores.PHOTO >= 6
   const negativePhoto = /تصميم|رمزي|ديني|شعار|ليست صوره شخصيه|ليست صورة شخصية|not a personal photo/.test(n)
-  if (explicitFaceSignal && !negativePhoto && !(strongIdSignal || weakIdSignal) && !degreeSignal && !transcriptSignal && !cvSignal) {
+  if (explicitFaceSignal && !negativePhoto && scores.ID < 7 && scores.DEGREE_CERTIFICATE < 6 && scores.TRANSCRIPT < 6 && scores.CV < 6) {
     return { kind: 'PHOTO', reason: 'تم التعرف على صورة وجه شخصية فعلية بدون مؤشرات مستند رسمي آخر' }
   }
 
