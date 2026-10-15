@@ -265,10 +265,16 @@ export default function AdminRepresentativesTab() {
     try {
       const res = await fetch(`/api/admin/representatives/${form.id}/onboarding`, { method: 'POST' })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.message || 'تعذر إنشاء رابط الاستكمال')
+      if (!res.ok) throw new Error(data.message || data.error || 'تعذر إنشاء رابط الاستكمال')
       setOnboardingLink(data.url || '')
+      setOnboardingResult({ emailStatus: data.emailStatus, expiresAt: data.expiresAt })
       await load(form.id)
-      toast({ title: 'تم تجهيز رابط الاستكمال', description: 'انسخ الرابط وأرسله للممثل لاستكمال ملفه.' })
+      const mailNote = data.emailStatus === 'SENT'
+        ? 'تم إرسال الرابط على بريد الممثل ✅'
+        : data.emailStatus === 'FAILED'
+          ? 'فشل إرسال البريد، انسخ الرابط وأرسله يدوياً'
+          : 'لا يوجد بريد صالح، انسخ الرابط وأرسله يدوياً'
+      toast({ title: 'تم تجهيز رابط الاستكمال', description: mailNote })
     } catch (e: any) {
       toast({ title: 'تعذر إنشاء رابط الاستكمال', description: String(e?.message || e), variant: 'destructive' })
     } finally {
