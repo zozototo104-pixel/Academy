@@ -820,6 +820,20 @@ export function AdminFinanceTab() {
         ? 'منحة كاملة'
         : 'إعفاء'
 
+  const activeWaiverForPayment = (payment: PaymentRow) => payment.waiverCodes?.find((w) => ['ISSUED', 'VERIFIED'].includes(w.status)) || null
+
+  const copyWaiverCode = async (paymentId: string, code: string) => {
+    try {
+      await navigator.clipboard?.writeText(code)
+      setCopiedWaiverPaymentId(paymentId)
+      toast({ title: 'تم نسخ كود الإعفاء', description: code })
+      window.setTimeout(() => setCopiedWaiverPaymentId((current) => (current === paymentId ? null : current)), 1800)
+    } catch (error) {
+      console.warn('Failed to copy waiver code.', error)
+      toast({ title: 'تعذر النسخ التلقائي', description: 'انسخ الكود الظاهر يدوياً.', variant: 'destructive' })
+    }
+  }
+
   const generateWaiver = async (payment: PaymentRow, waiverType: 'APPLICATION_FEE' | 'PARTIAL_TUITION' | 'FULL_SCHOLARSHIP') => {
     if (payment.status !== 'UNPAID') {
       toast({ title: 'لا يمكن إصدار كود إعفاء', description: 'الكود يصدر فقط للفواتير غير المسددة.', variant: 'destructive' })
