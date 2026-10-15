@@ -102,6 +102,7 @@ mock.module('next/headers', () => ({
   headers: async () => new Headers(bearerToken ? { authorization: `Bearer ${bearerToken}` } : {}),
 }))
 mock.module('@/lib/notify', () => ({ audit: async () => {} }))
+mock.module('@/lib/mailer', () => ({ emailWelcome: async () => {} }))
 mock.module('@/lib/rate-limit', () => ({ enforceApiRateLimit: () => null }))
 mock.module('@/lib/admin-query', () => ({
   adminPaginationMeta: () => ({}),
