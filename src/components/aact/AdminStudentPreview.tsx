@@ -234,6 +234,7 @@ export function AdminStudentPreview() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:py-8">
+      {dialog}
       <div className="flex flex-col gap-3 rounded-3xl bg-[#0f2b46] p-5 text-[#f5f0e1] shadow-lg sm:flex-row sm:items-center sm:justify-between">
         <div>
           <Badge className="mb-3 bg-[#c9a227] text-[#0f2b46] hover:bg-[#c9a227]">معاينة السجل الأكاديمي — قراءة فقط</Badge>
