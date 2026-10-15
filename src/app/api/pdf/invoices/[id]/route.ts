@@ -154,11 +154,11 @@ function buildInvoiceSvg(data: {
   const statusBg = isPaid ? '#d1fae5' : '#fef3c7'
 
   const invoiceRows = lineRows([
-    { label: 'رقم الفاتورة / Invoice No.', value: data.invoiceNo, dir: 'ltr' },
-    { label: 'رقم الإيصال / Receipt No.', value: data.receiptNo || '—', dir: 'ltr' },
-    { label: 'تاريخ الإصدار / Issue Date', value: data.issueDate, dir: 'ltr' },
-    { label: 'تاريخ السداد / Paid At', value: data.paidAt, dir: 'ltr' },
-    { label: 'طريقة الدفع / Payment Method', value: data.method, dir: 'ltr' },
+    { label: 'Invoice No.', value: data.invoiceNo, dir: 'ltr' },
+    { label: 'Receipt No.', value: data.receiptNo || '—', dir: 'ltr' },
+    { label: 'Issue Date', value: data.issueDate, dir: 'ltr' },
+    { label: 'Paid / Waived At', value: data.paidAt, dir: 'ltr' },
+    { label: 'Payment Method', value: data.method, dir: 'ltr' },
   ], 262, { xLabel: 690, xValue: 92, rowH: 38 })
 
   const payerRows = lineRows([
