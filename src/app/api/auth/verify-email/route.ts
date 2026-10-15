@@ -6,15 +6,14 @@ import { emailWelcome } from '@/lib/mailer'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-function appBaseUrl(req: NextRequest) {
-  const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || ''
-  const proto = req.headers.get('x-forwarded-proto') || 'https'
-  if (host) return `${proto}://${host}`.replace(/\/$/, '')
-  return String(process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'https://aactacademy.com').replace(/\/+$/, '')
+function appBaseUrl() {
+  const configured = process.env.NEXT_PUBLIC_APP_URL
+  if (!configured) throw new Error('NEXT_PUBLIC_APP_URL is required for email verification redirects')
+  return configured.replace(/\/+$/, '')
 }
 
-function redirectAuth(req: NextRequest, params: Record<string, string>) {
-  const url = new URL('/?view=auth', appBaseUrl(req))
+function redirectAuth(params: Record<string, string>) {
+  const url = new URL('/?view=auth', appBaseUrl())
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value)
   return NextResponse.redirect(url)
 }
