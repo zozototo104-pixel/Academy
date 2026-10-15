@@ -149,6 +149,15 @@ async function moveAdmissionToTuitionStage(app: any, actor: { id?: string | null
   await audit(actor, 'ADMISSION_TUITION_STAGE_BY_WAIVER', 'AdmissionApplication', app.id, `${app.reference} — أُتيحت متابعة الرسوم بعد الإعفاء`)
 }
 
+export class ActivePaymentWaiverExistsError extends Error {
+  status = 409
+  code = 'ACTIVE_WAIVER_EXISTS'
+
+  constructor(codePreviewValue: string) {
+    super(`يوجد كود إعفاء نشط لهذه الفاتورة (${codePreviewValue}). استخدمه أو اعتمده قبل توليد كود جديد.`)
+  }
+}
+
 export async function createPaymentWaiverCode(params: {
   paymentId: string
   waiverType: PaymentWaiverType
