@@ -97,7 +97,7 @@ async function exchangeCode(req: NextRequest, code: string) {
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET
   if (!clientId || !clientSecret) throw new Error('GOOGLE_NOT_CONFIGURED')
 
-  const redirectUri = `${appBaseUrl(req)}/api/auth/google/callback`
+  const redirectUri = `${appBaseUrl()}/api/auth/google/callback`
   const res = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
