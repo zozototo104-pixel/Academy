@@ -147,6 +147,10 @@ const UNOROUTER_TEXT_MODELS = [
 const RELAYROUTER_TEXT_MODELS = ['relayrouter/auto', 'claude-opus-4-8', 'gpt-5.5', 'gemini-3.5-flash']
 const TOPTOOLS_TEXT_MODELS = ['top-tools-ai']
 const OPENAI_COMPAT_TEXT_MODELS = ['auto']
+const MAX_VISION_ATTACHMENT_BYTES = 15 * 1024 * 1024
+const VISION_ATTEMPT_TIMEOUT_MS = 25_000
+const VISION_OPENAI_COMPAT_PROVIDERS = new Set<TextAiProvider>(['OPENAI', 'OPENROUTER', 'OPENAI_COMPAT'])
+const VISION_NATIVE_PROVIDERS = new Set<TextAiProvider>(['GEMINI', 'ANTHROPIC', 'ZAI'])
 
 const cooldowns = new Map<string, { until: number; reason: string; status?: number; model?: string }>()
 let roundRobin = 0
