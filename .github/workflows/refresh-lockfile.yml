@@ -26,24 +26,17 @@ jobs:
           bun add -d eslint-config-next@^16.4.1
           bun install
 
-      - name: Verify installed Next.js patch level
+      - name: Verify installed versions
         shell: bash
         run: |
           set -euo pipefail
-          bun pm ls | grep -E "next@|eslint-config-next@"
-          bun pm ls | grep -E "sharp@"
           node <<'NODE'
-          const { execSync } = require('node:child_process')
-          const output = execSync('bun pm ls', { encoding: 'utf8' })
+          const { readFileSync } = require('node:fs')
 
-          function parseVersion(name) {
-            const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-            const match = output.match(new RegExp(`(?:^|\\s)${escaped}@(\\d+)\\.(\\d+)\\.(\\d+)`))
-            if (!match) {
-              console.error(`Unable to find installed ${name} version in bun pm ls output`)
-              process.exit(1)
-            }
-            return match.slice(1, 4).map(Number)
+          function installedVersion(name) {
+            const pkg = JSON.parse(readFileSync(`node_modules/${name}/package.json`, 'utf8'))
+            console.log(`${name}@${pkg.version}`)
+            return pkg.version.split('.').map(Number)
           }
 
           function atLeast(actual, required) {
@@ -52,13 +45,15 @@ jobs:
             return major > requiredMajor || (major === requiredMajor && (minor > requiredMinor || (minor === requiredMinor && patch >= requiredPatch)))
           }
 
-          const next = parseVersion('next')
+          const next = installedVersion('next')
+          installedVersion('eslint-config-next')
+          const sharp = installedVersion('sharp')
+
           if (!atLeast(next, [16, 4, 1])) {
             console.error(`Installed next@${next.join('.')} is below the required 16.4.1 patch level`)
             process.exit(1)
           }
 
-          const sharp = parseVersion('sharp')
           if (!atLeast(sharp, [0, 35, 5])) {
             console.error(`Installed sharp@${sharp.join('.')} is below the required 0.35.5 patch level`)
             process.exit(1)
