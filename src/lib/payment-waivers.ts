@@ -80,10 +80,9 @@ async function resolveWaiverEmailRecipient(paymentId: string) {
   })
   if (!payment) return null
   const email = payment.payerEmail || payment.user?.email || payment.admission?.email || payment.enrollment?.user?.email || payment.agent?.email || ''
-  if (!email || !email.includes('@')) return null
   const name = payment.payerName || payment.user?.name || payment.admission?.fullName || payment.enrollment?.user?.name || payment.agent?.repName || payment.agent?.orgName || 'الطالب'
   const userId = payment.user?.id || payment.admission?.userId || payment.enrollment?.user?.id || null
-  return { email, name, userId, invoiceNo: payment.invoiceNo, description: payment.description }
+  return { email: email && email.includes('@') ? email : '', name, userId, invoiceNo: payment.invoiceNo, description: payment.description }
 }
 
 function addMonths(date: Date, months: number) {
