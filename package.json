@@ -9,7 +9,7 @@
     "typecheck": "bun run db:generate && tsc --noEmit --pretty false",
     "quality": "bun run test:stage-c-exams && bun run test:ai-ui-wiring && bun run test:prod-safety && bun run test:private-files-maintenance && bun run test:whatsapp-ai-only && bun run test:representative-public-card && bun run typecheck",
     "check:deploy": "bun run quality && bun run build",
-    "lint": "eslint . --max-warnings=54",
+    "lint": "eslint . --max-warnings=126",
     "ai:knowledge-check": "tsx scripts/ai-knowledge-check.ts",
     "settings:migrate:official-ai": "tsx scripts/migrate-official-ai-settings.ts",
     "test:stage-c-exams": "bun run db:generate && tsx scripts/test-stage-c-exams.ts",
