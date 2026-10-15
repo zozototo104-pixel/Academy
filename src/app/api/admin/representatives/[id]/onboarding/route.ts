@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { createRepresentativeOnboardingToken, hashRepresentativeOnboardingToken } from '@/lib/academy-representatives'
-import { emailRepresentativeOnboardingInvitation } from '@/lib/mailer'
+import { emailRepresentativeOnboardingInvitationDetailed } from '@/lib/mailer'
 
 async function audit(actorId: string, action: string, entityId: string, details: string) {
   await db.auditLog.create({
