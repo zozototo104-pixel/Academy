@@ -1355,6 +1355,57 @@ function toGeminiContents(opts: TextAiCallOpts) {
   return contents
 }
 
+function openAiVisionContent(opts: TextAiCallOpts, mode: 'responses' | 'chat') {
+  const attachments = normalizedAttachments(opts)
+  const textPart = mode === 'responses' ? { type: 'input_text', text: userTextForAttachments(opts) } : { type: 'text', text: userTextForAttachments(opts) }
+  const parts: any[] = [textPart]
+  for (const attachment of attachments) {
+    const url = attachmentDataUrl(attachment)
+    if (attachment.mimeType === 'application/pdf') {
+      parts.push(mode === 'responses'
+        ? { type: 'input_file', filename: 'attachment.pdf', file_data: url }
+        : { type: 'file', file: { filename: 'attachment.pdf', file_data: url } })
+    } else {
+      parts.push(mode === 'responses'
+        ? { type: 'input_image', image_url: url }
+        : { type: 'image_url', image_url: { url } })
+    }
+  }
+  return parts
+}
+
+function toOpenAiResponsesInput(opts: TextAiCallOpts): any[] {
+  const attachments = normalizedAttachments(opts)
+  if (!attachments.length) return toChatMessages(opts)
+  return [
+    { role: 'system', content: promptWithJsonInstruction(opts) },
+    { role: 'user', content: openAiVisionContent(opts, 'responses') },
+  ]
+}
+
+function toOpenAiChatMessages(opts: TextAiCallOpts): any[] {
+  const attachments = normalizedAttachments(opts)
+  if (!attachments.length) return toChatMessages(opts)
+  return [
+    { role: 'system', content: promptWithJsonInstruction(opts) },
+    { role: 'user', content: openAiVisionContent(opts, 'chat') },
+  ]
+}
+
+function toAnthropicMessages(opts: TextAiCallOpts): any[] {
+  const attachments = normalizedAttachments(opts)
+  if (!attachments.length) return opts.history.filter((m) => m.text?.trim()).map((m) => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text }))
+  return [{
+    role: 'user',
+    content: [
+      { type: 'text', text: userTextForAttachments(opts) },
+      ...attachments.map((attachment) => attachment.mimeType === 'application/pdf'
+        ? { type: 'document', source: { type: 'base64', media_type: attachment.mimeType, data: attachment.base64 } }
+        : { type: 'image', source: { type: 'base64', media_type: attachment.mimeType, data: attachment.base64 } }),
+    ],
+  }]
+}
+
 async function parseResponse(response: Response): Promise<any> {
   const text = await response.text().catch(() => '')
   try {
