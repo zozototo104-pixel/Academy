@@ -39,14 +39,14 @@ function appBaseUrl() {
   return configured.replace(/\/$/, '')
 }
 
-function authRedirect(req: NextRequest, params: Record<string, string>) {
-  const url = new URL('/?view=auth', appBaseUrl(req))
+function authRedirect(_req: NextRequest, params: Record<string, string>) {
+  const url = new URL('/?view=auth', appBaseUrl())
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
   return NextResponse.redirect(url)
 }
 
-function oauthLanding(req: NextRequest, token: string, view: string) {
-  const target = new URL('/', appBaseUrl(req))
+function oauthLanding(_req: NextRequest, token: string, view: string) {
+  const target = new URL('/', appBaseUrl())
   target.searchParams.set('view', view)
   target.searchParams.set('oauth', 'google_ok')
   const targetJson = JSON.stringify(`${target.pathname}${target.search}`)
