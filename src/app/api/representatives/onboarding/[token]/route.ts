@@ -9,6 +9,7 @@ import { storeFileBuffer, storageErrorMessage } from '@/lib/storage'
 import { textAiCompleteJson } from '@/lib/text-ai'
 import { hashRepresentativeOnboardingToken, serializeRepresentative } from '@/lib/academy-representatives'
 import { emailAdminRepresentativeProfileSubmitted } from '@/lib/mailer'
+import { clientIpFromHeaders } from '@/lib/rate-limit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
