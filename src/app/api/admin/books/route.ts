@@ -266,13 +266,9 @@ export async function POST(req: NextRequest) {
 
     // رابط الكتاب على الإنترنت (بديل أو مكمّل للملف المرفوع) — يُجلب نصه آلياً ليقرأه خبير الذكاء الاصطناعي
     if (linkRaw) {
-      try {
-        const u = new URL(linkRaw)
-        if (!['http:', 'https:'].includes(u.protocol)) throw new Error()
-        link = linkRaw.slice(0, 600)
-      } catch {
-        return NextResponse.json({ error: 'رابط الكتاب غير صالح — يجب أن يبدأ بـ http:// أو https://' }, { status: 400 })
-      }
+      const validation = await validateBookLinkUrl(linkRaw)
+      if (!validation.ok) return NextResponse.json({ error: validation.error }, { status: 400 })
+      link = validation.url.slice(0, 600)
       if (!file || file.size === 0) {
         if (isCatalogOrSearchLink(link!)) {
           linkReadStatus = 'SEARCH_LINK_ONLY'
