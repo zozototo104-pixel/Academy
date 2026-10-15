@@ -299,11 +299,9 @@ export default function Home() {
     setAuthRecovering(false)
     setAuthChecked(false)
     try {
-      const token = getToken()
       const res = await fetch('/api/auth/me', {
         cache: 'no-store',
         credentials: 'same-origin',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
       const d = await res.json().catch(() => ({ user: null }))
       if (res.ok && d?.user) {
