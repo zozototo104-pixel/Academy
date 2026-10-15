@@ -203,7 +203,7 @@ function buildInvoiceSvg(data: {
   ${descSvg}
 
   <rect x="52" y="900" width="690" height="96" rx="22" fill="${SOFT_GOLD}" stroke="#ead389"/>
-  ${text(690, 938, 'الغرض / Purpose', { size: 17, fill: MUTED, weight: 900, anchor: 'end', dir: 'rtl' })}
+  ${text(690, 938, 'Purpose', { size: 17, fill: MUTED, weight: 900, anchor: 'end', dir: 'ltr', family: 'Arial,sans-serif' })}
   ${text(690, 970, data.purpose, { size: 19, fill: BRAND_NAVY, weight: 900, anchor: 'end', dir: 'rtl' })}
   ${text(92, 956, 'TOTAL', { size: 16, fill: MUTED, weight: 900, anchor: 'start', dir: 'ltr', family: 'Arial,sans-serif' })}
   ${text(92, 982, data.amount, { size: 25, fill: BRAND_NAVY, weight: 900, anchor: 'start', dir: 'ltr', family: 'Arial,sans-serif' })}
