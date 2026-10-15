@@ -92,7 +92,7 @@ function oauthLanding(_req: NextRequest, token: string, view: string) {
   return res
 }
 
-async function exchangeCode(req: NextRequest, code: string) {
+async function exchangeCode(code: string) {
   const clientId = process.env.GOOGLE_CLIENT_ID
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET
   if (!clientId || !clientSecret) throw new Error('GOOGLE_NOT_CONFIGURED')
