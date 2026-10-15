@@ -198,8 +198,8 @@ export async function emailAdminAlert(to: string, title: string, body: string, e
   await sendEmail({ to, event, subject: title, html: emailTemplate(title, `<p>${escapeHtml(body)}</p>`, { label: 'فتح لوحة الإدارة', url: appLink('/?view=admin') }) })
 }
 
-export async function emailRepresentativeOnboardingInvitation(to: string, input: { name: string; country: string; territory?: string | null; contractNo?: string | null; onboardingUrl: string }) {
-  await sendEmail({
+export async function emailRepresentativeOnboardingInvitation(to: string, input: { name: string; country: string; territory?: string | null; contractNo?: string | null; onboardingUrl: string }): Promise<boolean> {
+  return sendEmail({
     to,
     event: 'REPRESENTATIVE_ONBOARDING_INVITATION',
     subject: 'استكمال ملف ممثل الأكاديمية الرسمي',
