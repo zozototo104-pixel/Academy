@@ -1758,17 +1758,17 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           continue
         }
         if (!(await keyRateAllowed(provider, key))) continue
-        if (Number.isFinite(opts.deadlineMs || NaN) && Date.now() >= Number(opts.deadlineMs)) throw deadlineExceeded()
+        if (Number.isFinite(effectiveOpts.deadlineMs || NaN) && Date.now() >= Number(effectiveOpts.deadlineMs)) throw deadlineExceeded()
         const started = Date.now()
         try {
-          const providerResult = await callProviderWithJsonRepair(provider, s, key, model, opts)
+          const providerResult = await callProviderWithJsonRepair(provider, s, key, model, effectiveOpts)
           const text = providerResult.text
-          opts.validate?.(text, { provider, model })
+          effectiveOpts.validate?.(text, { provider, model })
           const at = new Date().toISOString()
           const ms = Date.now() - started
-          await recordModelStats(provider, model, { ok: true, ms, jsonOk: providerResult.jsonOk, evidenceOk: true }, opts.purpose)
+          await recordModelStats(provider, model, { ok: true, ms, jsonOk: providerResult.jsonOk, evidenceOk: true }, effectiveOpts.purpose)
           lastResult = { provider, model, ok: true, at }
-          if (opts.stickyScope) stickyModels.set(opts.stickyScope, { provider, model, at: Date.now() })
+          if (effectiveOpts.stickyScope) stickyModels.set(effectiveOpts.stickyScope, { provider, model, at: Date.now() })
           const attempt = { provider, model, keyIndex, ok: true, ms, at }
           attempts.push(attempt)
           recordAttempt(attempt)
