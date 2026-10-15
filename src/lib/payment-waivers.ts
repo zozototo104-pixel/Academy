@@ -300,18 +300,33 @@ export async function verifyPaymentWaiverCode(params: { paymentId: string; code:
   if (payment.status === 'PAID') throw new Error('الفاتورة مسددة مسبقاً')
   if (payment.status === 'WAIVED') throw new Error('الفاتورة معفاة مسبقاً')
 
+  const hourAgo = new Date(Date.now() - 60 * 60 * 1000)
+  const failedAttempts = await db.paymentWaiverAttempt.count({
+    where: { paymentId: payment.id, userId: params.user.id, success: false, createdAt: { gte: hourAgo } },
+  })
+  if (failedAttempts >= 5) throw new PaymentWaiverRateLimitError()
+
   const codeHash = hashWaiverCode(params.code)
-  const waiver = await db.paymentWaiverCode.findFirst({ where: { paymentId: payment.id, codeHash, status: 'ISSUED' } })
-  if (!waiver) throw new Error('كود الإعفاء غير صحيح أو تم استخدامه')
+  const waiver = await db.paymentWaiverCode.findFirst({ where: { paymentId: payment.id, codeHash } })
+  if (!waiver || waiver.status !== 'ISSUED') {
+    await db.paymentWaiverAttempt.create({ data: { paymentId: payment.id, userId: params.user.id, success: false } }).catch(() => null)
+    if (waiver) throw new UsedPaymentWaiverCodeError()
+    throw new Error('كود الإعفاء غير صحيح')
+  }
   if (waiver.expiresAt && waiver.expiresAt < new Date()) {
     await db.paymentWaiverCode.update({ where: { id: waiver.id }, data: { status: 'EXPIRED' } })
+    await db.paymentWaiverAttempt.create({ data: { paymentId: payment.id, userId: params.user.id, success: false } }).catch(() => null)
     throw new Error('انتهت صلاحية كود الإعفاء')
   }
 
-  const updated = await db.paymentWaiverCode.update({
-    where: { id: waiver.id },
-    data: { status: 'VERIFIED', verifiedById: params.user.id, verifiedAt: new Date() },
+  const verifiedAt = new Date()
+  const atomic = await db.paymentWaiverCode.updateMany({
+    where: { id: waiver.id, status: 'ISSUED' },
+    data: { status: 'VERIFIED', verifiedById: params.user.id, verifiedAt },
   })
+  if (atomic.count === 0) throw new UsedPaymentWaiverCodeError()
+  await db.paymentWaiverAttempt.create({ data: { paymentId: payment.id, userId: params.user.id, success: true } }).catch(() => null)
+  const updated = await db.paymentWaiverCode.findUniqueOrThrow({ where: { id: waiver.id } })
   await db.payment.update({ where: { id: payment.id }, data: { waiverStatus: 'VERIFIED', waiverType: waiver.waiverType, waiverReason: waiver.reason } })
 
   const admins = await db.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } })
