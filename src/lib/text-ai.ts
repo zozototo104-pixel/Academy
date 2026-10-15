@@ -433,6 +433,10 @@ function aiProviderTimeoutMs(taskLevel: TextAiTaskLevel = 'GENERAL'): number {
   return Math.min(base, defaults[taskLevel])
 }
 
+function providerAttemptTimeoutMs(opts: TextAiCallOpts): number {
+  return hasVisionAttachments(opts) ? VISION_ATTEMPT_TIMEOUT_MS : aiProviderTimeoutMs(opts.taskLevel || 'GENERAL')
+}
+
 function aiDiscoveryTimeoutMs(): number {
   const configured = Number(env('AI_DISCOVERY_TIMEOUT_MS'))
   if (Number.isFinite(configured) && configured >= 1500) return Math.min(Math.floor(configured), 15000)
