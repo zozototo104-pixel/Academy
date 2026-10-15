@@ -314,8 +314,21 @@ export async function createPaymentWaiverCode(params: {
   return { code, waiver: savedWaiver, emailStatus }
 }
 
+type VerifyPaymentWaiverFailureReason = 'INVALID' | 'USED' | 'EXPIRED' | 'RATE_LIMIT'
+
+type VerifyPaymentWaiverResult =
+  | { ok: true; payment: any; updated: any }
+  | { ok: false; reason: VerifyPaymentWaiverFailureReason; paymentId: string; userId: string }
+
+function waiverVerificationError(reason: VerifyPaymentWaiverFailureReason) {
+  if (reason === 'RATE_LIMIT') return new PaymentWaiverRateLimitError()
+  if (reason === 'USED') return new UsedPaymentWaiverCodeError()
+  if (reason === 'EXPIRED') return new Error('انتهت صلاحية كود الإعفاء')
+  return new Error('كود الإعفاء غير صحيح')
+}
+
 export async function verifyPaymentWaiverCode(params: { paymentId: string; code: string; user: { id: string; email?: string | null; name?: string | null; emailVerifiedAt?: Date | string | null } }) {
-  const result = await db.$transaction(async (tx) => {
+  const result = await db.$transaction(async (tx): Promise<VerifyPaymentWaiverResult> => {
     const payment = await tx.payment.findUnique({
       where: { id: params.paymentId },
       include: { admission: { select: { id: true, userId: true, email: true, fullName: true, reference: true } }, enrollment: { select: { userId: true } } },
@@ -331,27 +344,26 @@ export async function verifyPaymentWaiverCode(params: { paymentId: string; code:
     if (payment.status === 'PAID') throw new Error('الفاتورة مسددة مسبقاً')
     if (payment.status === 'WAIVED') throw new Error('الفاتورة معفاة مسبقاً')
 
-    const recordFailed = () => tx.paymentWaiverAttempt.create({ data: { paymentId: payment.id, userId: params.user.id, success: false } }).catch(() => null)
+    const failedResult = (reason: VerifyPaymentWaiverFailureReason): VerifyPaymentWaiverResult => ({
+      ok: false,
+      reason,
+      paymentId: payment.id,
+      userId: params.user.id,
+    })
     const hourAgo = new Date(Date.now() - 60 * 60 * 1000)
     const failedAttempts = await tx.paymentWaiverAttempt.count({
       where: { paymentId: payment.id, userId: params.user.id, success: false, createdAt: { gte: hourAgo } },
     })
-    if (failedAttempts >= 5) {
-      await recordFailed()
-      throw new PaymentWaiverRateLimitError()
-    }
+    if (failedAttempts >= 5) return failedResult('RATE_LIMIT')
 
     const codeHash = hashWaiverCode(params.code)
     const waiver = await tx.paymentWaiverCode.findFirst({ where: { paymentId: payment.id, codeHash } })
     if (!waiver || waiver.status !== 'ISSUED') {
-      await recordFailed()
-      if (waiver) throw new UsedPaymentWaiverCodeError()
-      throw new Error('كود الإعفاء غير صحيح')
+      return failedResult(waiver ? 'USED' : 'INVALID')
     }
     if (waiver.expiresAt && waiver.expiresAt < new Date()) {
       await tx.paymentWaiverCode.update({ where: { id: waiver.id }, data: { status: 'EXPIRED' } })
-      await recordFailed()
-      throw new Error('انتهت صلاحية كود الإعفاء')
+      return failedResult('EXPIRED')
     }
 
     const verifiedAt = new Date()
@@ -359,15 +371,19 @@ export async function verifyPaymentWaiverCode(params: { paymentId: string; code:
       where: { id: waiver.id, status: 'ISSUED' },
       data: { status: 'VERIFIED', verifiedById: params.user.id, verifiedAt },
     })
-    if (atomic.count === 0) {
-      await recordFailed()
-      throw new UsedPaymentWaiverCodeError()
-    }
+    if (atomic.count === 0) return failedResult('USED')
     await tx.paymentWaiverAttempt.create({ data: { paymentId: payment.id, userId: params.user.id, success: true } }).catch(() => null)
     const updated = await tx.paymentWaiverCode.findUniqueOrThrow({ where: { id: waiver.id } })
     await tx.payment.update({ where: { id: payment.id }, data: { waiverStatus: 'VERIFIED', waiverType: waiver.waiverType, waiverReason: waiver.reason } })
-    return { payment, updated }
+    return { ok: true, payment, updated }
   })
+
+  if (!result.ok) {
+    if (result.reason !== 'RATE_LIMIT') {
+      await db.paymentWaiverAttempt.create({ data: { paymentId: result.paymentId, userId: result.userId, success: false } }).catch(() => null)
+    }
+    throw waiverVerificationError(result.reason)
+  }
 
   const admins = await db.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } })
   for (const admin of admins) {
