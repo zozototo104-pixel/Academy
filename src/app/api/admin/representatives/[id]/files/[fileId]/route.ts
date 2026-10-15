@@ -1,3 +1,4 @@
+import type { AcademyRepresentative } from '@prisma/client'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
