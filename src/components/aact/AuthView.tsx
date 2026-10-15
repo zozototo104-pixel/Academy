@@ -75,13 +75,12 @@ export function AuthView() {
     clearToken()
     setUser(null)
     try {
-      const d = await api<{ user: any; token?: string; requiresEmailVerification?: boolean; verificationEmailSent?: boolean; message?: string }>('/api/auth/register', {
+      const d = await api<{ user: any; requiresEmailVerification?: boolean; verificationEmailSent?: boolean; message?: string }>('/api/auth/register', {
         method: 'POST',
         headers: { 'X-AACT-Register-Form': 'web' },
         body: JSON.stringify(regData),
       })
-      if (d.token) {
-        saveToken(d.token)
+      if (!d.requiresEmailVerification && d.user) {
         try { sessionStorage.setItem('aact_skip_startup', '1') } catch (error) { console.warn('Failed to persist startup skip flag after registration.', error) }
         setUser(d.user)
         navigate('dashboard')
