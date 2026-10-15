@@ -3,7 +3,17 @@ import { afterAll, afterEach, beforeEach, describe, expect, mock, test } from 'b
 import { NextRequest } from 'next/server'
 import { createHmac } from 'node:crypto'
 
-type FakeUser = { id: string; email: string; name: string; role: string; status: string; emailVerifiedAt?: Date | null }
+type FakeUser = {
+  id: string
+  email: string
+  name: string
+  role: string
+  status: string
+  emailVerifiedAt?: Date | null
+  emailVerificationTokenHash?: string | null
+  emailVerificationExpiresAt?: Date | null
+  emailVerificationSentAt?: Date | null
+}
 type FakeSession = { id: string; token: string; userId: string; expiresAt: Date }
 
 const users = new Map<string, FakeUser>()
