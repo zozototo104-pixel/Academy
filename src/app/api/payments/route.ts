@@ -126,7 +126,7 @@ export async function POST(req: NextRequest) {
       owns = !!enr && enr.userId === user.id
     } else {
       // فاتورة بلا رابط مالك معروف — للإدارة فقط
-      owns = user.role === 'ADMIN' || user.role === 'SUPERVISOR'
+      owns = isPrivileged
     }
     if (!owns) {
       return NextResponse.json({ error: 'هذه الفاتورة غير مرتبطة بحسابك' }, { status: 403 })
