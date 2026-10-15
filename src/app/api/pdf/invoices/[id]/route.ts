@@ -196,7 +196,7 @@ function buildInvoiceSvg(data: {
   ${payerRows.svg}
 
   <rect x="52" y="682" width="690" height="190" rx="22" fill="#fffbeb" stroke="#fde68a"/>
-  ${text(690, 670, 'الخدمة أو البرنامج / Service or Program', { size: 19, fill: BRAND_NAVY, weight: 900, anchor: 'end', dir: 'rtl' })}
+  ${text(690, 670, 'Service or Program', { size: 19, fill: BRAND_NAVY, weight: 900, anchor: 'end', dir: 'ltr', family: 'Arial,sans-serif' })}
   ${programSvg}
   <line x1="86" y1="736" x2="706" y2="736" stroke="#f4d675" stroke-width="1"/>
   ${text(690, 760, 'الوصف / Description', { size: 16, fill: MUTED, weight: 900, anchor: 'end', dir: 'rtl' })}
