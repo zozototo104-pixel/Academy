@@ -106,7 +106,7 @@ export async function GET() {
         createdAt: true,
         updatedAt: true,
       },
-    })
+    }) : null
     const gate = await getExamsGate(user.id, admission?.programId)
     const thesisPlan = admission?.programId
       ? mapThesisPlan(await db.programStudyGuide.findFirst({
