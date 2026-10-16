@@ -5,6 +5,7 @@ import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { getAiGenerationProgress } from '@/lib/ai-generation-progress'
 import { audit } from '@/lib/notify'
 import { ensureQuestionBankGenerationJob, runNextQuestionBankGenerationJobStep, runQuestionBankGenerationJobStepsUntil } from '@/lib/question-bank-job'
+import { withTimedResponse, withTiming } from '@/lib/timing'
 
 export const maxDuration = 300
 
@@ -101,7 +102,7 @@ function sanitizeQuestion(raw: any, fallback: any = {}) {
 }
 
 async function insertBankQuestions(programId: string, questions: any[], meta: { generatedBy: string; status?: string; fallback?: any }) {
-  const existing = await db.questionBankItem.findMany({ where: { programId }, select: { text: true } })
+  const existing = await withTiming('db_question_bank_existing_texts', () => db.questionBankItem.findMany({ where: { programId }, select: { text: true } }))
   const seen = new Set(existing.map((q) => norm(q.text)))
   const rows: any[] = []
   let skippedDuplicates = 0
@@ -116,12 +117,12 @@ async function insertBankQuestions(programId: string, questions: any[], meta: { 
     seen.add(key)
     rows.push({ programId, ...q, status: meta.status || 'PENDING_REVIEW', generatedBy: meta.generatedBy, qualityFlags: q.qualityFlags || JSON.stringify(['NEEDS_HUMAN_REVIEW']) })
   }
-  if (rows.length > 0) await db.questionBankItem.createMany({ data: rows })
+  if (rows.length > 0) await withTiming('db_question_bank_create_many', () => db.questionBankItem.createMany({ data: rows }))
   return { inserted: rows.length, skippedDuplicates }
 }
 
 async function questionStats(programId: string) {
-  const rows = await db.questionBankItem.findMany({ where: { programId }, select: { status: true, difficulty: true, type: true } })
+  const rows = await withTiming('db_question_bank_stats_rows', () => db.questionBankItem.findMany({ where: { programId }, select: { status: true, difficulty: true, type: true } }))
   return {
     total: rows.length,
     pending: rows.filter((x) => x.status === 'PENDING_REVIEW').length,
@@ -133,38 +134,41 @@ async function questionStats(programId: string) {
 }
 
 async function listQuestions(programId: string, status?: string | null) {
-  const items = await db.questionBankItem.findMany({
+  const items = await withTiming('db_question_bank_items', () => db.questionBankItem.findMany({
     where: { programId, ...(status && STATUSES.has(status) ? { status } : {}) },
     orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
     take: 120,
-  })
+  }))
   return items.map((item) => ({ ...item, verifierReason: item.reviewNotes || null }))
 }
 
 export async function GET(req: NextRequest) {
+  return withTimedResponse(async () => {
   try {
-    await requireAdmin()
+    await withTiming('db_require_admin', () => requireAdmin())
     const programId = cleanText(req.nextUrl.searchParams.get('programId'), 80)
     const status = cleanText(req.nextUrl.searchParams.get('status'), 40)
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
-    const program = await db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true } })
+    const program = await withTiming('db_question_bank_program', () => db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true } }))
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
-    await runNextQuestionBankGenerationJobStep(programId).catch((error) => console.warn('question bank background resume failed:', error))
-    const pauseSetting = await db.setting.findUnique({ where: { key: `AI_TASK_PAUSE:QUESTION_BANK:${programId}` } }).catch(() => null)
+    await withTiming('db_question_bank_resume_job_step', () => runNextQuestionBankGenerationJobStep(programId).catch((error) => console.warn('question bank background resume failed:', error)))
+    const pauseSetting = await withTiming('db_question_bank_pause_setting', () => db.setting.findUnique({ where: { key: `AI_TASK_PAUSE:QUESTION_BANK:${programId}` } }).catch(() => null))
     const paused = pauseSetting?.value ? safeJson(pauseSetting.value, null) : null
-    const progress = await getAiGenerationProgress('QUESTION_BANK', programId, 'ALL')
-    const jobs = await db.questionBankGenerationJob.findMany({ where: { programId }, orderBy: { createdAt: 'desc' }, take: 5 })
+    const progress = await withTiming('db_question_bank_progress', () => getAiGenerationProgress('QUESTION_BANK', programId, 'ALL'))
+    const jobs = await withTiming('db_question_bank_jobs', () => db.questionBankGenerationJob.findMany({ where: { programId }, orderBy: { createdAt: 'desc' }, take: 5 }))
     return NextResponse.json({ program, stats: await questionStats(programId), items: await listQuestions(programId, status), paused, progress, jobs })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('question bank GET error:', e)
     return NextResponse.json({ error: 'تعذر تحميل بنك الأسئلة' }, { status: 500 })
   }
+  })
 }
 
 export async function POST(req: NextRequest) {
+  return withTimedResponse(async () => {
   try {
-    const admin = await requireAdmin()
+    const admin = await withTiming('db_require_admin', () => requireAdmin())
     const limited = enforceApiRateLimit(req, 'admin-question-bank', 10, 60 * 1000, admin.id)
     if (limited) return limited
     const body = await req.json()
@@ -172,22 +176,22 @@ export async function POST(req: NextRequest) {
     const source = cleanText(body?.source, 40) || 'AI'
     const requestedTotal = Math.max(1, Math.min(60, Number(body?.count || 12)))
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
-    const program = await db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true } })
+    const program = await withTiming('db_question_bank_program', () => db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true } }))
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
 
     if (source === 'MANUAL') {
       const result = await insertBankQuestions(programId, [body?.question || body], { generatedBy: 'MANUAL', status: body?.approveNow ? 'APPROVED' : 'PENDING_REVIEW' })
       if (!result.inserted) return NextResponse.json({ error: 'لم يتم حفظ السؤال؛ قد يكون مكررًا أو غير مكتمل', skippedDuplicates: result.skippedDuplicates }, { status: 409 })
-      await audit({ id: admin.id, name: admin.name }, 'ADD_QUESTION_BANK_ITEM', 'Program', programId, `إضافة ${result.inserted} سؤال يدوي إلى بنك أسئلة ${program.titleAr}`)
+      await withTiming('db_audit_question_bank_manual', () => audit({ id: admin.id, name: admin.name }, 'ADD_QUESTION_BANK_ITEM', 'Program', programId, `إضافة ${result.inserted} سؤال يدوي إلى بنك أسئلة ${program.titleAr}`))
       return NextResponse.json({ ok: true, ...result, stats: await questionStats(programId), items: await listQuestions(programId) })
     }
 
     if (source === 'REVIEW_LEGACY_GROUNDING') {
-      const legacy = await db.questionBankItem.findMany({ where: { programId, generatedBy: 'AI', qualityFlags: { contains: 'SOURCE_GROUNDED' } }, select: { id: true } })
+      const legacy = await withTiming('db_question_bank_legacy_grounded', () => db.questionBankItem.findMany({ where: { programId, generatedBy: 'AI', qualityFlags: { contains: 'SOURCE_GROUNDED' } }, select: { id: true } }))
       if (legacy.length) {
-        await db.questionBankItem.updateMany({ where: { id: { in: legacy.map((item) => item.id) } }, data: { status: 'PENDING_REVIEW', approvedBy: null, approvedAt: null, qualityFlags: JSON.stringify(['LEGACY_GROUNDING_UNVERIFIED', 'NEEDS_HUMAN_REVIEW']) } })
+        await withTiming('db_question_bank_legacy_update_many', () => db.questionBankItem.updateMany({ where: { id: { in: legacy.map((item) => item.id) } }, data: { status: 'PENDING_REVIEW', approvedBy: null, approvedAt: null, qualityFlags: JSON.stringify(['LEGACY_GROUNDING_UNVERIFIED', 'NEEDS_HUMAN_REVIEW']) } }))
       }
-      await audit({ id: admin.id, name: admin.name }, 'REVIEW_LEGACY_QUESTION_GROUNDING', 'Program', programId, `إعادة ${legacy.length} سؤال AI قديم إلى المراجعة دون حذف`)
+      await withTiming('db_audit_question_bank_legacy', () => audit({ id: admin.id, name: admin.name }, 'REVIEW_LEGACY_QUESTION_GROUNDING', 'Program', programId, `إعادة ${legacy.length} سؤال AI قديم إلى المراجعة دون حذف`))
       return NextResponse.json({ ok: true, marked: legacy.length, stats: await questionStats(programId), items: await listQuestions(programId) })
     }
 
@@ -195,15 +199,15 @@ export async function POST(req: NextRequest) {
       const imported = parseImportedQuestions(body?.questions || body?.text || body?.csv)
       const result = await insertBankQuestions(programId, imported, { generatedBy: 'IMPORT', status: body?.approveNow ? 'APPROVED' : 'PENDING_REVIEW' })
       if (!result.inserted) return NextResponse.json({ error: 'لم يتم استيراد أسئلة جديدة؛ تحقق من التنسيق أو التكرار', skippedDuplicates: result.skippedDuplicates }, { status: 409 })
-      await audit({ id: admin.id, name: admin.name }, 'IMPORT_QUESTION_BANK', 'Program', programId, `استيراد ${result.inserted} سؤال إلى بنك أسئلة ${program.titleAr} وتجاوز ${result.skippedDuplicates} مكرر`)
+      await withTiming('db_audit_question_bank_import', () => audit({ id: admin.id, name: admin.name }, 'IMPORT_QUESTION_BANK', 'Program', programId, `استيراد ${result.inserted} سؤال إلى بنك أسئلة ${program.titleAr} وتجاوز ${result.skippedDuplicates} مكرر`))
       return NextResponse.json({ ok: true, ...result, stats: await questionStats(programId), items: await listQuestions(programId) })
     }
 
     const unitId = cleanText(body?.unitId, 80) || null
-    await db.setting.deleteMany({ where: { key: { startsWith: `AI_TASK_PAUSE:QUESTION_BANK:${programId}` } } }).catch(() => null)
-    const backgroundJob = await ensureQuestionBankGenerationJob({ programId, unitId, requested: requestedTotal, startNew: body?.startNew === true, manual: true })
+    await withTiming('db_question_bank_pause_delete_many', () => db.setting.deleteMany({ where: { key: { startsWith: `AI_TASK_PAUSE:QUESTION_BANK:${programId}` } } }).catch(() => null))
+    const backgroundJob = await withTiming('db_question_bank_ensure_job', () => ensureQuestionBankGenerationJob({ programId, unitId, requested: requestedTotal, startNew: body?.startNew === true, manual: true }))
     after(() => runQuestionBankGenerationJobStepsUntil(backgroundJob.id, { budgetMs: 260_000 }).catch((error) => console.error('manual question bank after() runner failed:', error)))
-    await audit({ id: admin.id, name: admin.name }, 'QUEUE_QUESTION_BANK_JOB', unitId ? 'Unit' : 'Program', unitId || programId, `تشغيل وظيفة بنك الأسئلة ${backgroundJob.id} للنطاق ${unitId ? 'وحدة' : 'برنامج'} من ${program.titleAr}`)
+    await withTiming('db_audit_question_bank_queue', () => audit({ id: admin.id, name: admin.name }, 'QUEUE_QUESTION_BANK_JOB', unitId ? 'Unit' : 'Program', unitId || programId, `تشغيل وظيفة بنك الأسئلة ${backgroundJob.id} للنطاق ${unitId ? 'وحدة' : 'برنامج'} من ${program.titleAr}`))
     return NextResponse.json({
       ok: false,
       job: backgroundJob,
@@ -223,15 +227,17 @@ export async function POST(req: NextRequest) {
     console.error('question bank POST error:', e)
     return NextResponse.json({ error: 'تعذر توليد أسئلة بنك الأسئلة' }, { status: 500 })
   }
+  })
 }
 
 export async function PATCH(req: NextRequest) {
+  return withTimedResponse(async () => {
   try {
-    const admin = await requireAdmin()
+    const admin = await withTiming('db_require_admin', () => requireAdmin())
     const body = await req.json()
     const id = cleanText(body?.id, 80)
     if (!id) return NextResponse.json({ error: 'معرف السؤال مطلوب' }, { status: 400 })
-    const existing = await db.questionBankItem.findUnique({ where: { id }, select: { type: true, options: true, correctAnswer: true } })
+    const existing = await withTiming('db_question_bank_item_for_patch', () => db.questionBankItem.findUnique({ where: { id }, select: { type: true, options: true, correctAnswer: true } }))
     if (!existing) return NextResponse.json({ error: 'السؤال غير موجود' }, { status: 404 })
     const data: any = {}
     if (body?.status !== undefined) {
@@ -262,12 +268,13 @@ export async function PATCH(req: NextRequest) {
       }
       if (finalType === 'TF' && !['0', '1'].includes(String(finalCorrectAnswer))) return NextResponse.json({ error: 'إجابة صح/خطأ يجب أن تكون 0 أو 1' }, { status: 400 })
     }
-    const item = await db.questionBankItem.update({ where: { id }, data })
-    await audit({ id: admin.id, name: admin.name }, 'REVIEW_QUESTION_BANK_ITEM', 'QuestionBankItem', id, `تحديث سؤال بنك الأسئلة إلى الحالة ${item.status}`)
+    const item = await withTiming('db_question_bank_item_update', () => db.questionBankItem.update({ where: { id }, data }))
+    await withTiming('db_audit_question_bank_patch', () => audit({ id: admin.id, name: admin.name }, 'REVIEW_QUESTION_BANK_ITEM', 'QuestionBankItem', id, `تحديث سؤال بنك الأسئلة إلى الحالة ${item.status}`))
     return NextResponse.json({ ok: true, item })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('question bank PATCH error:', e)
     return NextResponse.json({ error: 'تعذر تحديث سؤال بنك الأسئلة' }, { status: 500 })
   }
+  })
 }

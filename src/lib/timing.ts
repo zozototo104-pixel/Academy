@@ -35,3 +35,43 @@ export function withServerTiming<T extends Response>(response: T, metrics: Timin
   if (header) response.headers.set('Server-Timing', header)
   return response
 }
+
+export type TimedJsonResult<T> = { payload: T; init?: ResponseInit }
+
+export async function jsonWithTimings<T>(fn: () => Promise<TimedJsonResult<T>> | TimedJsonResult<T>): Promise<Response> {
+  const { result, metrics } = await collectTimings(async () => {
+    const result = await fn()
+    const body = await withTiming('serialize', () => JSON.stringify(result.payload))
+    return { ...result, body, bytes: new TextEncoder().encode(body).byteLength }
+  })
+  const headers = new Headers(result.init?.headers)
+  if (!headers.has('content-type')) headers.set('content-type', 'application/json; charset=utf-8')
+  headers.set('X-Response-Bytes', String(result.bytes))
+  const response = new Response(result.body, { ...result.init, headers })
+  return withServerTiming(response, metrics)
+}
+
+export async function withTimedResponse(fn: () => Promise<Response> | Response): Promise<Response> {
+  const { result, metrics } = await collectTimings(async () => {
+    const response = await fn()
+    const knownBytes = response.headers.get('X-Response-Bytes') || response.headers.get('content-length')
+    if (knownBytes && /^\d+$/.test(knownBytes)) {
+      return { response, bytes: Number(knownBytes), body: response.body }
+    }
+    const body = response.body
+      ? await withTiming('serialize', () => response.arrayBuffer())
+      : new ArrayBuffer(0)
+    return { response, bytes: body.byteLength, body }
+  })
+
+  const headers = new Headers(result.response.headers)
+  headers.set('X-Response-Bytes', String(result.bytes))
+  const serverTiming = serverTimingHeader(metrics)
+  if (serverTiming) headers.set('Server-Timing', serverTiming)
+
+  return new Response(result.body, {
+    status: result.response.status,
+    statusText: result.response.statusText,
+    headers,
+  })
+}

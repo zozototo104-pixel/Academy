@@ -10,6 +10,7 @@ import { normalizeAcademicProfileOverride } from '@/lib/program-tracks'
 import { clearPublicProgramsCache } from '@/lib/programs-public-cache'
 import { compactChangeSummary, pickChangedFields } from '@/lib/program-rules-audit'
 import { buildOfficialStudyAdmissionDefaults, buildServiceAdmissionDefaults, getServiceFlow } from '@/lib/service-flows'
+import { withTimedResponse, withTiming } from '@/lib/timing'
 
 function isInternalQaProgram(p: { slug?: string | null; titleAr?: string | null; titleEn?: string | null }) {
   const slug = String(p.slug || '')
@@ -69,7 +70,7 @@ async function uniqueProgramSlug(titleAr: string, titleEn: string | null | undef
   const base = baseSlugFromText(titleEn || titleAr, fallback)
   let candidate = base
   let i = 2
-  while (await db.program.findUnique({ where: { slug: candidate }, select: { id: true } })) {
+  while (await withTiming('db_program_rules_slug_exists', () => db.program.findUnique({ where: { slug: candidate }, select: { id: true } }))) {
     candidate = `${base}-${i}`
     i += 1
   }
@@ -137,11 +138,12 @@ function revalidatePublicProgramSurfaces(slugs: Array<string | null | undefined>
 // PUT  /api/admin/program-rules — حفظ قواعد قبول مخصصة لبرنامج بعينه
 // القواعد المخصصة يقرأها خبير القبول الذكي ويطبقها على كل طلب قبل زر الاعتماد
 export async function GET() {
-  const user = await getCurrentUser()
+  return withTimedResponse(async () => {
+  const user = await withTiming('db_program_rules_current_user', () => getCurrentUser())
   if (!user || user.role !== 'ADMIN') {
     return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
   }
-  const programs = await db.program.findMany({
+  const programs = await withTiming('db_program_rules_programs', () => db.program.findMany({
     orderBy: [{ category: 'asc' }, { order: 'asc' }],
     select: {
       id: true,
@@ -162,7 +164,7 @@ export async function GET() {
       admissionRules: true,
       _count: { select: { units: true } },
     },
-  })
+  }))
   const visiblePrograms = programs.filter((p) => !isInternalQaProgram(p))
   return NextResponse.json({
     programs: visiblePrograms.map((p) => {
@@ -180,20 +182,22 @@ export async function GET() {
       }
     }),
   })
+  })
 }
 
 export async function POST(req: NextRequest) {
+  return withTimedResponse(async () => {
   try {
     const body = await req.json().catch(() => ({}))
     if (body?.action === 'renumber-units') {
-      const admin = await requireAdmin()
+      const admin = await withTiming('db_require_admin', () => requireAdmin())
       const programId = String(body?.programId || '').trim()
       if (!programId) return NextResponse.json({ error: 'معرّف البرنامج مطلوب' }, { status: 400 })
 
-      const program = await db.program.findUnique({
+      const program = await withTiming('db_program_rules_renumber_program', () => db.program.findUnique({
         where: { id: programId },
         select: { id: true, titleAr: true, units: { select: { id: true, order: true, semester: true }, orderBy: [{ semester: 'asc' }, { order: 'asc' }, { id: 'asc' }] } },
-      })
+      }))
       if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
 
       const bySemester = new Map<number, typeof program.units>()
@@ -206,9 +210,9 @@ export async function POST(req: NextRequest) {
         units.map((unit, index) => ({ id: unit.id, semester, from: unit.order, to: index + 1 })).filter((change) => change.from !== change.to),
       )
       if (changes.length) {
-        await db.$transaction(changes.map((change) => db.unit.update({ where: { id: change.id }, data: { order: change.to } })))
+        await withTiming('db_program_rules_renumber_transaction', () => db.$transaction(changes.map((change) => db.unit.update({ where: { id: change.id }, data: { order: change.to } }))))
       }
-      await db.auditLog.create({
+      await withTiming('db_program_rules_renumber_audit', () => db.auditLog.create({
         data: {
           actorId: admin.id,
           actorName: admin.name,
@@ -217,20 +221,20 @@ export async function POST(req: NextRequest) {
           entityId: program.id,
           details: JSON.stringify({ titleAr: program.titleAr, changes }),
         },
-      })
+      }))
       return NextResponse.json({ ok: true, changed: changes.length, changes })
     }
 
-    const user = await getCurrentUser()
+    const user = await withTiming('db_program_rules_current_user', () => getCurrentUser())
     if (!user || user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
     }
 
     const payload = programCreateSchema.parse(body.program || body)
-    const lastProgram = await db.program.findFirst({ orderBy: { order: 'desc' }, select: { order: true } })
+    const lastProgram = await withTiming('db_program_rules_last_order', () => db.program.findFirst({ orderBy: { order: 'desc' }, select: { order: true } }))
     const sortOrder = payload.sortOrder ?? Number(lastProgram?.order || 0) + 10
     const slug = await uniqueProgramSlug(payload.titleAr, payload.titleEn, payload.category)
-    const saved = await db.program.create({
+    const saved = await withTiming('db_program_rules_program_create', () => db.program.create({
       data: {
         slug,
         titleAr: payload.titleAr,
@@ -247,11 +251,11 @@ export async function POST(req: NextRequest) {
         trademarkNotice: payload.trademarkNotice || null,
         disclosureConsentText: payload.disclosureConsentText || null,
       },
-    })
+    }))
 
     clearPublicProgramsCache()
     revalidatePublicProgramSurfaces([saved.slug])
-    await audit(user, 'PROGRAM_CREATED', 'Program', saved.id, `أنشأ برنامجاً جديداً من محرر قواعد القبول: ${saved.titleAr} — slug: ${saved.slug} — الحالة: ${saved.active ? 'منشور' : 'مسودة غير منشورة'}`)
+    await withTiming('db_audit_program_rules_create', () => audit(user, 'PROGRAM_CREATED', 'Program', saved.id, `أنشأ برنامجاً جديداً من محرر قواعد القبول: ${saved.titleAr} — slug: ${saved.slug} — الحالة: ${saved.active ? 'منشور' : 'مسودة غير منشورة'}`))
 
     const flow = getServiceFlow(saved.slug)
     const isStudyProgram = flow ? flow.isStudyProgram : saved.category !== 'SERVICE'
@@ -271,11 +275,13 @@ export async function POST(req: NextRequest) {
     console.error('program create error:', e)
     return NextResponse.json({ error: e?.message || 'تعذر إنشاء البرنامج' }, { status: 500 })
   }
+  })
 }
 
 export async function PATCH(req: NextRequest) {
+  return withTimedResponse(async () => {
   try {
-    const user = await getCurrentUser()
+    const user = await withTiming('db_program_rules_current_user', () => getCurrentUser())
     if (!user || user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
     }
@@ -287,28 +293,28 @@ export async function PATCH(req: NextRequest) {
     }
 
     const payload = bulkApplyPriceHoursSchema.parse(body)
-    const programs = await db.program.findMany({
+    const programs = await withTiming('db_program_rules_bulk_programs', () => db.program.findMany({
       where: { category: payload.category, active: true },
       orderBy: [{ order: 'asc' }, { titleAr: 'asc' }],
       select: { id: true, slug: true, titleAr: true, titleEn: true, category: true, price: true, hours: true },
-    })
+    }))
     const visiblePrograms = programs.filter((p) => !isInternalQaProgram(p))
     if (!visiblePrograms.length) {
       return NextResponse.json({ error: 'لا توجد برامج منشورة ضمن هذا التصنيف' }, { status: 404 })
     }
 
     const ids = visiblePrograms.map((p) => p.id)
-    await db.program.updateMany({
+    await withTiming('db_program_rules_bulk_update_many', () => db.program.updateMany({
       where: { id: { in: ids } },
       data: { price: payload.price, hours: payload.hours },
-    })
+    }))
     clearPublicProgramsCache()
     revalidatePublicProgramSurfaces(visiblePrograms.map((p) => p.slug))
 
     const changedSummary = visiblePrograms
       .map((p) => `${p.titleAr}: السعر ${p.price ?? 'فارغ'} ← ${payload.price}، الساعات ${p.hours ?? 'فارغ'} ← ${payload.hours}`)
       .join('؛ ')
-    await audit(user, 'PROGRAM_CATEGORY_PRICE_HOURS_APPLIED', 'Program', payload.category, `تطبيق السعر/الساعات على تصنيف ${payload.category}: ${changedSummary}`)
+    await withTiming('db_audit_program_rules_bulk_apply', () => audit(user, 'PROGRAM_CATEGORY_PRICE_HOURS_APPLIED', 'Program', payload.category, `تطبيق السعر/الساعات على تصنيف ${payload.category}: ${changedSummary}`))
 
     return NextResponse.json({
       ok: true,
@@ -321,11 +327,13 @@ export async function PATCH(req: NextRequest) {
     console.error('program-rules bulk apply error:', e)
     return NextResponse.json({ error: e?.message || 'تعذر تطبيق السعر والساعات على التصنيف' }, { status: 500 })
   }
+  })
 }
 
 export async function PUT(req: NextRequest) {
+  return withTimedResponse(async () => {
   try {
-    const user = await getCurrentUser()
+    const user = await withTiming('db_program_rules_current_user', () => getCurrentUser())
     if (!user || user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
     }
@@ -336,7 +344,7 @@ export async function PUT(req: NextRequest) {
     const programPatch: ProgramPatchInput | null = programPatchRaw ? programPatchSchema.parse(programPatchRaw) : null
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
 
-    const program = await db.program.findUnique({
+    const program = await withTiming('db_program_rules_program', () => db.program.findUnique({
       where: { id: programId },
       select: {
         id: true,
@@ -357,18 +365,18 @@ export async function PUT(req: NextRequest) {
         admissionRules: true,
         _count: { select: { units: true } },
       },
-    })
+    }))
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
     const flow = getServiceFlow(program.slug)
     const isStudyProgram = flow ? flow.isStudyProgram : program.category !== 'SERVICE'
 
     // reset=true يعيد القواعد الافتراضية (يمسح التخصيص)
     if (rules?.reset) {
-      await db.program.update({ where: { id: programId }, data: { admissionRules: Prisma.DbNull } })
+      await withTiming('db_program_rules_reset_update', () => db.program.update({ where: { id: programId }, data: { admissionRules: Prisma.DbNull } }))
       clearPublicProgramsCache()
       revalidatePublicProgramSurfaces([program.slug])
-      const invalidated = await clearAdmissionAiReviewCacheForProgram(programId)
-      await audit(user, 'PROGRAM_RULES_RESET', 'Program', programId, `أعاد الإدارة قواعد قبول «${program.titleAr}» للافتراضية — أُبطلت مراجعات قبول ذكية: ${invalidated.count}`)
+      const invalidated = await withTiming('db_program_rules_reset_cache_clear', () => clearAdmissionAiReviewCacheForProgram(programId))
+      await withTiming('db_audit_program_rules_reset', () => audit(user, 'PROGRAM_RULES_RESET', 'Program', programId, `أعاد الإدارة قواعد قبول «${program.titleAr}» للافتراضية — أُبطلت مراجعات قبول ذكية: ${invalidated.count}`))
       return NextResponse.json({ ok: true, rules: buildServiceAdmissionDefaults(flow) || (isStudyProgram ? buildOfficialStudyAdmissionDefaults(program) : resolveRules(program.category, null, isStudyProgram)), custom: false, invalidatedAdmissionAiReviews: invalidated.count })
     }
 
@@ -414,13 +422,13 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'لا توجد بيانات للحفظ' }, { status: 400 })
     }
 
-    const saved = await db.program.update({ where: { id: programId }, data })
+    const saved = await withTiming('db_program_rules_update', () => db.program.update({ where: { id: programId }, data }))
     clearPublicProgramsCache()
     revalidatePublicProgramSurfaces([program.slug, saved.slug])
-    const invalidated = await clearAdmissionAiReviewCacheForProgram(programId)
+    const invalidated = await withTiming('db_program_rules_cache_clear', () => clearAdmissionAiReviewCacheForProgram(programId))
     const after = programSnapshot(saved)
     const changes = pickChangedFields(before, after)
-    await audit(user, 'PROGRAM_RULES_SAVED', 'Program', programId, `حفظ محرر البرنامج «${saved.titleAr}» — ${compactChangeSummary(changes)} — أُبطلت مراجعات قبول ذكية: ${invalidated.count}`)
+    await withTiming('db_audit_program_rules_save', () => audit(user, 'PROGRAM_RULES_SAVED', 'Program', programId, `حفظ محرر البرنامج «${saved.titleAr}» — ${compactChangeSummary(changes)} — أُبطلت مراجعات قبول ذكية: ${invalidated.count}`))
     const savedFlow = getServiceFlow(saved.slug)
     const savedIsStudyProgram = savedFlow ? savedFlow.isStudyProgram : saved.category !== 'SERVICE'
     return NextResponse.json({
@@ -434,4 +442,5 @@ export async function PUT(req: NextRequest) {
     console.error('program-rules error:', e)
     return NextResponse.json({ error: e?.message || 'تعذر حفظ القواعد' }, { status: 500 })
   }
+  })
 }

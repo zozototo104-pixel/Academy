@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
 import { getProgramKnowledgeItems, rebuildKnowledgeForBook, rebuildProgramKnowledge, cleanAcademicGeneratedText, looksLikeBrokenAcademicOutput, KNOWLEDGE_BANK_LIMITS } from '@/lib/knowledge-bank'
 import { scheduleProgramKnowledgeV2 } from '@/lib/book-knowledge-v2-scheduler'
+import { withTimedResponse, withTiming } from '@/lib/timing'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -24,26 +25,27 @@ function categoryStats(items: { category: string; importance: number }[]) {
 
 // GET /api/admin/knowledge-bank?programId=xxx&semester=1
 export async function GET(req: NextRequest) {
+  return withTimedResponse(async () => {
   try {
-    await requireAdmin()
+    await withTiming('db_require_admin', () => requireAdmin())
     const programId = req.nextUrl.searchParams.get('programId') || ''
     const semRaw = req.nextUrl.searchParams.get('semester')
     const semester = semRaw ? Number(semRaw) || null : null
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
 
-    const program = await db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true } })
+    const program = await withTiming('db_knowledge_bank_program', () => db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true } }))
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
 
     const showAll = req.nextUrl.searchParams.get('all') === '1'
-    const allItems = await getProgramKnowledgeItems(programId, semester, showAll ? 2000 : 140)
+    const allItems = await withTiming('db_knowledge_bank_items', () => getProgramKnowledgeItems(programId, semester, showAll ? 2000 : 140))
     const items = showAll ? allItems : allItems.slice(0, 140)
-    const total = await db.bookKnowledgeItem.count({ where: { programId, ...(semester ? { OR: [{ semester: null }, { semester }] } : {}) } })
-    const booksCount = await db.book.count({ where: { programId, ...(semester ? { OR: [{ semester: null }, { semester }] } : {}) } })
-    const v2BookCounts = await db.bookKnowledgeItem.groupBy({
+    const total = await withTiming('db_knowledge_bank_total_count', () => db.bookKnowledgeItem.count({ where: { programId, ...(semester ? { OR: [{ semester: null }, { semester }] } : {}) } }))
+    const booksCount = await withTiming('db_knowledge_bank_books_count', () => db.book.count({ where: { programId, ...(semester ? { OR: [{ semester: null }, { semester }] } : {}) } }))
+    const v2BookCounts = await withTiming('db_knowledge_bank_v2_book_counts', () => db.bookKnowledgeItem.groupBy({
       by: ['bookId'],
       where: { programId, kbVersion: 2, bookId: { not: null }, category: { notIn: ['LEGACY', 'QUESTION_SEED'] } },
       _count: { _all: true },
-    })
+    }))
     const v2CountsByBook = Object.fromEntries(v2BookCounts.filter((row) => row.bookId).map((row) => [row.bookId!, row._count._all]))
     const contextPreview = items.length
       ? items.slice(0, 16).map((item, i) => `${i + 1}. [${item.category}] ${item.title}: ${item.summary.slice(0, 320)}${item.bookTitle ? ` — المصدر: ${item.bookTitle}` : ''}`).join('\n')
@@ -65,12 +67,14 @@ export async function GET(req: NextRequest) {
     console.error('knowledge-bank GET error:', e)
     return NextResponse.json({ error: 'تعذر تحميل بنك المعرفة' }, { status: 500 })
   }
+  })
 }
 
 // POST /api/admin/knowledge-bank — action: rebuild | rebuild-book
 export async function POST(req: NextRequest) {
+  return withTimedResponse(async () => {
   try {
-    const admin = await requireAdmin()
+    const admin = await withTiming('db_require_admin', () => requireAdmin())
     const body = await req.json().catch(() => ({}))
     const action = String(body.action || 'rebuild').trim()
     const programId = String(body.programId || '').trim()
@@ -84,7 +88,7 @@ export async function POST(req: NextRequest) {
       let updated = 0
       let cursor: string | undefined
       while (true) {
-        const rows = await db.bookKnowledgeItem.findMany({ where: { programId, ...(cursor ? { id: { gt: cursor } } : {}) }, orderBy: { id: 'asc' }, take: 500 })
+        const rows = await withTiming('db_knowledge_bank_sanitize_page', () => db.bookKnowledgeItem.findMany({ where: { programId, ...(cursor ? { id: { gt: cursor } } : {}) }, orderBy: { id: 'asc' }, take: 500 }))
         if (!rows.length) break
         cursor = rows[rows.length - 1].id
         const deleteIds: string[] = []
@@ -98,15 +102,15 @@ export async function POST(req: NextRequest) {
             continue
           }
           if (title !== row.title || summary !== row.summary || excerpt !== row.excerpt) {
-            updates.push(db.bookKnowledgeItem.update({ where: { id: row.id }, data: { title, summary, excerpt } }))
+            updates.push(withTiming('db_knowledge_bank_sanitize_update', () => db.bookKnowledgeItem.update({ where: { id: row.id }, data: { title, summary, excerpt } })))
           }
         }
-        if (deleteIds.length) { await db.bookKnowledgeItem.deleteMany({ where: { id: { in: deleteIds } } }); deleted += deleteIds.length }
+        if (deleteIds.length) { await withTiming('db_knowledge_bank_sanitize_delete_many', () => db.bookKnowledgeItem.deleteMany({ where: { id: { in: deleteIds } } })); deleted += deleteIds.length }
         if (updates.length) { await Promise.all(updates); updated += updates.length }
         if (rows.length < 500) break
       }
-      await audit(admin, 'SANITIZE_KNOWLEDGE_BANK', 'Program', programId, `تنظيف بنك المعرفة: حذف ${deleted} عنصر مشوه وتحديث ${updated} عنصر`)
-      const items = await getProgramKnowledgeItems(programId, semester, 140)
+      await withTiming('db_audit_knowledge_bank_sanitize', () => audit(admin, 'SANITIZE_KNOWLEDGE_BANK', 'Program', programId, `تنظيف بنك المعرفة: حذف ${deleted} عنصر مشوه وتحديث ${updated} عنصر`))
+      const items = await withTiming('db_knowledge_bank_items_after_sanitize', () => getProgramKnowledgeItems(programId, semester, 140))
       const message = items.length < KNOWLEDGE_BANK_LIMITS.minContextItems ? 'شغّل القراءة الكاملة أو استخراج المزيد' : null
       return NextResponse.json({ ok: true, deleted, updated, rebuilt: null, message, count: items.length, stats: categoryStats(items), items })
     }
@@ -116,32 +120,33 @@ export async function POST(req: NextRequest) {
       const strictFullRead = action === 'read-book-full' || body.strictFullRead === true
       let result
       try {
-        result = await rebuildKnowledgeForBook(bookId, { strictFullRead })
+        result = await withTiming('db_knowledge_bank_rebuild_book', () => rebuildKnowledgeForBook(bookId, { strictFullRead }))
       } catch (e: any) {
         if (e?.code !== 'AI_ACADEMIC_PROVIDER_UNAVAILABLE') throw e
         const paused = { code: e.code, reason: String(e?.message || e).slice(0, 500), retryAt: e?.retryAt || null, pausedAt: new Date().toISOString() }
-        await db.setting.upsert({
+        await withTiming('db_knowledge_bank_pause_upsert', () => db.setting.upsert({
           where: { key: `AI_TASK_PAUSE:KNOWLEDGE:${bookId}` },
           create: { key: `AI_TASK_PAUSE:KNOWLEDGE:${bookId}`, value: JSON.stringify(paused) },
           update: { value: JSON.stringify(paused) },
-        }).catch(() => {})
+        }).catch(() => {}))
         return NextResponse.json({ error: 'توقف تحليل الكتاب مؤقتاً لأن المزود الأكاديمي غير متاح. يمكن استئنافه لاحقاً من نفس زر القراءة الكاملة.', status: 'PAUSED', ...paused }, { status: 503 })
       }
-      await db.setting.delete({ where: { key: `AI_TASK_PAUSE:KNOWLEDGE:${bookId}` } }).catch(() => {})
-      await audit(admin, strictFullRead ? 'READ_FULL_BOOK_KNOWLEDGE' : 'REBUILD_BOOK_KNOWLEDGE', 'Book', bookId, `${strictFullRead ? 'قراءة وتحليل كامل للكتاب' : 'بناء'} ${result.inserted} عنصر معرفة من كتاب واحد`)
-      const items = await getProgramKnowledgeItems(result.programId, semester, 140)
+      await withTiming('db_knowledge_bank_pause_delete', () => db.setting.delete({ where: { key: `AI_TASK_PAUSE:KNOWLEDGE:${bookId}` } }).catch(() => {}))
+      await withTiming('db_audit_knowledge_bank_book', () => audit(admin, strictFullRead ? 'READ_FULL_BOOK_KNOWLEDGE' : 'REBUILD_BOOK_KNOWLEDGE', 'Book', bookId, `${strictFullRead ? 'قراءة وتحليل كامل للكتاب' : 'بناء'} ${result.inserted} عنصر معرفة من كتاب واحد`))
+      const items = await withTiming('db_knowledge_bank_items_after_book', () => getProgramKnowledgeItems(result.programId, semester, 140))
       return NextResponse.json({ ok: true, strictFullRead, result, count: items.length, stats: categoryStats(items), items })
     }
 
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
     // The program-wide rebuild button schedules v2 jobs; the legacy v1 builder stays available for other paths.
-    const result = await scheduleProgramKnowledgeV2(programId, semester)
-    await audit(admin, 'SCHEDULE_PROGRAM_KNOWLEDGE_V2', 'Program', programId, `جدولة/استكمال ${result.results.length} كتاب عبر v2`)
-    const items = await getProgramKnowledgeItems(programId, semester, 140)
+    const result = await withTiming('db_knowledge_bank_schedule_v2', () => scheduleProgramKnowledgeV2(programId, semester))
+    await withTiming('db_audit_knowledge_bank_schedule', () => audit(admin, 'SCHEDULE_PROGRAM_KNOWLEDGE_V2', 'Program', programId, `جدولة/استكمال ${result.results.length} كتاب عبر v2`))
+    const items = await withTiming('db_knowledge_bank_items_after_schedule', () => getProgramKnowledgeItems(programId, semester, 140))
     return NextResponse.json({ ok: true, result, count: items.length, stats: categoryStats(items), items })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('knowledge-bank POST error:', e)
     return NextResponse.json({ error: e?.message || 'تعذر بناء بنك المعرفة' }, { status: 500 })
   }
+  })
 }

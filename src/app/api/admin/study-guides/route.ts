@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
+import { withTimedResponse, withTiming } from '@/lib/timing'
 
 export const runtime = 'nodejs'
 export const maxDuration = 180
@@ -45,19 +46,19 @@ function pageRefsFromSections(sections: GuideSection[]) {
 }
 
 async function unitGuidesForProgram(programId: string, semester: number) {
-  const units = await db.unit.findMany({
+  const units = await withTiming('db_study_guides_units', () => db.unit.findMany({
     where: { programId, ...(semester === 3 ? {} : { semester }) },
     orderBy: [{ semester: 'asc' }, { order: 'asc' }],
     select: { id: true, title: true, semester: true, objectives: true, summary: true, sourceBookId: true, outlineSectionId: true },
-  })
-  const guides = units.length ? await db.programStudyGuide.findMany({ where: { unitId: { in: units.map((unit) => unit.id) }, status: { in: ['DRAFT', 'PUBLISHED'] } } }) : []
+  }))
+  const guides = units.length ? await withTiming('db_study_guides_unit_guides', () => db.programStudyGuide.findMany({ where: { unitId: { in: units.map((unit) => unit.id) }, status: { in: ['DRAFT', 'PUBLISHED'] } } })) : []
   const guideByUnit = new Map(guides.filter((guide) => guide.unitId).map((guide) => [guide.unitId!, guide] as const))
   const missing = units.filter((unit) => !guideByUnit.has(unit.id))
   return { units, guides, guideByUnit, missing }
 }
 
 async function buildSemesterGuide(programId: string, semester: number) {
-  const program = await db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true, titleEn: true } })
+  const program = await withTiming('db_study_guides_program', () => db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true, titleEn: true } }))
   if (!program) throw new Error('PROGRAM_NOT_FOUND')
   const { units, guideByUnit, missing } = await unitGuidesForProgram(programId, semester)
   if (!units.length) throw new Error('لا توجد وحدات لهذا النطاق. ولّد الوحدات ومحتواها أولاً.')
@@ -100,42 +101,47 @@ async function buildSemesterGuide(programId: string, semester: number) {
 }
 
 export async function GET(req: NextRequest) {
+  return withTimedResponse(async () => {
   try {
-    await requireAdmin()
+    await withTiming('db_require_admin', () => requireAdmin())
     const programId = clean(req.nextUrl.searchParams.get('programId'), 80)
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
-    const guides = await db.programStudyGuide.findMany({ where: { programId }, orderBy: [{ semester: 'asc' }, { updatedAt: 'desc' }] })
+    const guides = await withTiming('db_study_guides_list', () => db.programStudyGuide.findMany({ where: { programId }, orderBy: [{ semester: 'asc' }, { updatedAt: 'desc' }] }))
     return NextResponse.json({ guides: guides.map(mapGuide) })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     return NextResponse.json({ error: 'تعذر تحميل أدلة الدراسة' }, { status: 500 })
   }
+  })
 }
 
 export async function POST(req: NextRequest) {
+  return withTimedResponse(async () => {
   try {
-    const admin = await requireAdmin()
+    const admin = await withTiming('db_require_admin', () => requireAdmin())
     const body = await req.json().catch(() => ({}))
     const programId = clean(body.programId, 80)
     const semester = Math.max(1, Math.min(3, Number(body.semester || 1)))
     const status = ['DRAFT', 'PUBLISHED', 'ARCHIVED'].includes(String(body.status || '').toUpperCase()) ? String(body.status).toUpperCase() : 'DRAFT'
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
     const generated = await buildSemesterGuide(programId, semester)
-    const existing = await db.programStudyGuide.findFirst({ where: { programId, semester, unitId: null }, select: { id: true } })
+    const existing = await withTiming('db_study_guides_existing_semester', () => db.programStudyGuide.findFirst({ where: { programId, semester, unitId: null }, select: { id: true } }))
     const data = { title: generated.title, overview: generated.overview, objectives: json(generated.objectives), keyTerms: json(generated.keyTerms), sections: json(generated.sections), activities: json(generated.activities), discussionQuestions: json(generated.discussionQuestions), sourceKnowledgeIds: json(generated.sourceKnowledgeIds), status, generatedBy: 'AI' }
-    const guide = existing ? await db.programStudyGuide.update({ where: { id: existing.id }, data }) : await db.programStudyGuide.create({ data: { programId, semester, unitId: null, ...data } })
-    await audit({ id: admin.id, name: admin.name }, 'GENERATE_STUDY_GUIDE', 'Program', programId, `توليد ${generated.title} من أدلة الوحدات`)
+    const guide = existing ? await withTiming('db_study_guides_update', () => db.programStudyGuide.update({ where: { id: existing.id }, data })) : await withTiming('db_study_guides_create', () => db.programStudyGuide.create({ data: { programId, semester, unitId: null, ...data } }))
+    await withTiming('db_audit_study_guides_generate', () => audit({ id: admin.id, name: admin.name }, 'GENERATE_STUDY_GUIDE', 'Program', programId, `توليد ${generated.title} من أدلة الوحدات`))
     return NextResponse.json({ guide: mapGuide(guide) })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('study guide POST error:', e)
     return NextResponse.json({ error: e?.message || 'تعذر توليد دليل الدراسة' }, { status: 500 })
   }
+  })
 }
 
 export async function PATCH(req: NextRequest) {
+  return withTimedResponse(async () => {
   try {
-    await requireAdmin()
+    await withTiming('db_require_admin', () => requireAdmin())
     const body = await req.json().catch(() => ({}))
     const id = clean(body.id, 80)
     if (!id) return NextResponse.json({ error: 'معرف الدليل مطلوب' }, { status: 400 })
@@ -143,23 +149,26 @@ export async function PATCH(req: NextRequest) {
     for (const key of ['title', 'overview']) if (body[key] !== undefined) data[key] = clean(body[key], key === 'title' ? 220 : 4000)
     for (const key of ['objectives', 'keyTerms', 'sections', 'activities', 'discussionQuestions', 'sourceKnowledgeIds']) if (body[key] !== undefined) data[key] = JSON.stringify(Array.isArray(body[key]) ? body[key] : [])
     if (body.status !== undefined && ['DRAFT', 'PUBLISHED', 'ARCHIVED'].includes(String(body.status).toUpperCase())) data.status = String(body.status).toUpperCase()
-    const guide = await db.programStudyGuide.update({ where: { id }, data })
+    const guide = await withTiming('db_study_guides_patch_update', () => db.programStudyGuide.update({ where: { id }, data }))
     return NextResponse.json({ guide: mapGuide(guide) })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     return NextResponse.json({ error: 'تعذر تحديث دليل الدراسة' }, { status: 500 })
   }
+  })
 }
 
 export async function DELETE(req: NextRequest) {
+  return withTimedResponse(async () => {
   try {
-    await requireAdmin()
+    await withTiming('db_require_admin', () => requireAdmin())
     const id = clean(req.nextUrl.searchParams.get('id'), 80)
     if (!id) return NextResponse.json({ error: 'معرف الدليل مطلوب' }, { status: 400 })
-    await db.programStudyGuide.delete({ where: { id } })
+    await withTiming('db_study_guides_delete', () => db.programStudyGuide.delete({ where: { id } }))
     return NextResponse.json({ ok: true })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     return NextResponse.json({ error: 'تعذر حذف دليل الدراسة' }, { status: 500 })
   }
+  })
 }

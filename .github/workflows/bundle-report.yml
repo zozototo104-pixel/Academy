@@ -1,0 +1,31 @@
+name: bundle-report
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  bundle-report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install
+      - run: bunx prisma generate
+      - name: Build with bundle analyzer
+        env:
+          ANALYZE: "true"
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: |
+          set -o pipefail
+          bunx next build 2>&1 | tee next-build.log
+      - name: Write bundle summary
+        if: always()
+        run: node scripts/bundle-report-summary.mjs next-build.log >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload analyzer HTML reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: next-bundle-analyzer
+          path: .next/analyze/*.html
+          if-no-files-found: warn
