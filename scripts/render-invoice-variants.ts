@@ -273,7 +273,7 @@ function writeCanvasArabic(): ArabicWriter {
     ctx.font = `${size}px Amiri`
     ctx.fillStyle = opts.color || TEXT
     ctx.textBaseline = 'alphabetic'
-    ctx.direction = 'rtl'
+    ;(ctx as any).direction = 'rtl'
     ctx.textAlign = opts.align === 'center' ? 'center' : 'right'
     const drawX = opts.align === 'center' ? width / 2 : width - pad
     lines.forEach((line, index) => ctx.fillText(line, drawX, pad + size + index * lineHeight))
