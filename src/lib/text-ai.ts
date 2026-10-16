@@ -1958,26 +1958,26 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
             break
           }
           if (isNoBalanceLike(e)) {
-            markCooldown(provider, key, msg, 24 * 60)
+            markCooldown(provider, key, msg, 24 * 60, status)
             await markPersistentNoBalance(provider, keyIndex, msg, status)
             continue
           }
           if (isHighDemandLike(e)) {
             skipModelsThisRequest.add(`${provider}:${model}`)
-            markCooldown(provider, key, msg, 1)
+            markCooldown(provider, key, msg, 1, status)
             await markPersistentCooldown(provider, keyIndex, model, msg, status, 1)
             break
           }
           if (isTimeoutLike(e)) {
-            markCooldown(provider, key, msg, 2)
+            markCooldown(provider, key, msg, 2, status)
             if (status === 503 || status === 504) await markPersistentCooldown(provider, keyIndex, model, msg, status, 2)
           }
           if (isQuotaLike(e)) {
-            markCooldown(provider, key, msg)
+            markCooldown(provider, key, msg, undefined, status)
             await markPersistentCooldown(provider, keyIndex, model, msg, status)
           }
           if (isAuthLike(e)) {
-            markCooldown(provider, key, msg, 60)
+            markCooldown(provider, key, msg, 60, status)
             await markPersistentCooldown(provider, keyIndex, model, msg, status, 60)
           }
         }
