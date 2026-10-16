@@ -298,6 +298,7 @@ export async function POST(req: NextRequest) {
       sdkConfig: {
         responseModalities: ['AUDIO'],
         speechConfig: speechConfigForVoice(voice),
+        inputAudioTranscription: { languageCode: dialect },
         systemInstruction: systemInstruction.slice(0, 32000),
       },
     })
