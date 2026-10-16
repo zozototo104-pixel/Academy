@@ -11,15 +11,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
   }
 
-  const endAt = Date.now() + 240_000
+  const endAt = Date.now() + 50_000
   const outcomes: { jobId: string; status: string }[] = []
 
-  while (Date.now() < endAt - 20_000) {
+  while (Date.now() < endAt - 5_000) {
     const job = await runNextQuestionBankGenerationJobStep()
     if (!job) break
     outcomes.push({ jobId: job.id, status: job.status })
-    if (job.status === 'RUNNING') break
-    if (!['QUEUED', 'PAUSED'].includes(job.status)) break
+    if (job.status !== 'QUEUED') break
   }
 
   return NextResponse.json({ ok: true, processed: outcomes.length, outcomes }, { headers: { 'Cache-Control': 'no-store' } })
