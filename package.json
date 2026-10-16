@@ -19,7 +19,7 @@
     "test:whatsapp-ai-only": "bun run db:generate && tsx scripts/test-whatsapp-ai-only.ts",
     "test:academic-ai-router": "tsx scripts/test-academic-ai-router.ts",
     "test:stage-b-sessions": "bun test tests/auth/stage-b-sessions.test.ts",
-    "test:payments": "bun test tests/payments",
+    "test:payments": "bun test tests/payments/payment-settlement.test.ts && bun test tests/payments/payments-c1.test.ts",
     "test:representatives": "tsx scripts/test-representative-file-visibility.ts",
     "test:representative-public-card": "bun run db:generate && tsx scripts/test-representative-public-card.ts",
     "test:representative-onboarding": "bun test tests/representatives",
