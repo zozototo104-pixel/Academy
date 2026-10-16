@@ -865,6 +865,13 @@ export function AdminRulesTab() {
                   </div>
                 </div>
 
+                {detailsLoading && !programDraft && (
+                  <div className="flex items-center justify-center rounded-2xl border border-dashed bg-slate-50 p-6 text-xs font-black text-slate-500">
+                    <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                    جاري تحميل تفاصيل البرنامج...
+                  </div>
+                )}
+
                 {programDraft && (
                   <div className="space-y-3">
                     <details open className="rounded-2xl border bg-white p-4">
