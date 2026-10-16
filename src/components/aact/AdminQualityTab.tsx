@@ -825,18 +825,22 @@ export function AdminQualityTab() {
   }
 
   const generateExamFromQuestionBank = async (program: ProgramReadinessItem, semester: number) => {
-    const rawCount = window.prompt('كم عدد الأسئلة المطلوب في الامتحان؟', '30')
+    const askNumber = async (title: string, defaultValue: string) => {
+      const value = await promptAction({ title, defaultValue, fieldLabel: title, confirmLabel: 'اعتماد القيمة', tone: 'info' })
+      return value
+    }
+    const rawCount = await askNumber('كم عدد الأسئلة المطلوب في الامتحان؟', '30')
     if (rawCount === null) return
     const count = Math.max(5, Math.min(80, Number(rawCount || 30)))
-    const easy = Number(window.prompt('نسبة/وزن الأسئلة السهلة؟', '25') || 25)
-    const medium = Number(window.prompt('نسبة/وزن الأسئلة المتوسطة؟', '50') || 50)
-    const advanced = Number(window.prompt('نسبة/وزن الأسئلة المتقدمة؟', '25') || 25)
-    const mcq = Number(window.prompt('نسبة/وزن أسئلة الاختيار المتعدد؟', '50') || 50)
-    const tf = Number(window.prompt('نسبة/وزن أسئلة الصح والخطأ؟', '20') || 20)
-    const short = Number(window.prompt('نسبة/وزن الأسئلة القصيرة؟', '20') || 20)
-    const essay = Number(window.prompt('نسبة/وزن الأسئلة المقالية؟', '10') || 10)
+    const easy = Number((await askNumber('نسبة/وزن الأسئلة السهلة؟', '25')) || 25)
+    const medium = Number((await askNumber('نسبة/وزن الأسئلة المتوسطة؟', '50')) || 50)
+    const advanced = Number((await askNumber('نسبة/وزن الأسئلة المتقدمة؟', '25')) || 25)
+    const mcq = Number((await askNumber('نسبة/وزن أسئلة الاختيار المتعدد؟', '50')) || 50)
+    const tf = Number((await askNumber('نسبة/وزن أسئلة الصح والخطأ؟', '20')) || 20)
+    const short = Number((await askNumber('نسبة/وزن الأسئلة القصيرة؟', '20')) || 20)
+    const essay = Number((await askNumber('نسبة/وزن الأسئلة المقالية؟', '10')) || 10)
     let unitId: string | null = null
-    if (confirm('هل تريد تقييد الامتحان بوحدة محددة؟')) {
+    if (await confirmAction({ title: 'تقييد الامتحان بوحدة', description: 'هل تريد تقييد الامتحان بوحدة محددة من وحدات البرنامج؟', confirmLabel: 'اختيار وحدة', tone: 'info' })) {
       try {
         const res = await api<{ units: { id: string; title: string }[] }>(`/api/admin/program-units?programId=${program.id}`)
         const units = res.units || []
