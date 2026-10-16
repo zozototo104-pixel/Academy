@@ -2,7 +2,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { join, resolve } from 'path'
 import { jsPDF } from 'jspdf'
 import { createCanvas, GlobalFonts } from '@napi-rs/canvas'
-import { buildInvoicePdf } from '@/app/api/pdf/invoices/[id]/route'
+import { buildInvoicePdf } from '@/lib/invoice-pdf'
+import { loadArabicCanvas } from '@/lib/pdf-arabic'
 
 type InvoicePdfData = {
   invoiceNo: string
