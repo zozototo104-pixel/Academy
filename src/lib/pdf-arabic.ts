@@ -1,5 +1,5 @@
 const ARABIC_RE = /[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]/
-const LTR_TOKEN_RE = /[A-Za-z0-9][A-Za-z0-9._:/%+\-@]*|\d+(?:[.,]\d+)*(?:\s*[A-Za-z]{2,6})?/g
+const LTR_TOKEN_RE = /\d+(?:[.,]\d+)*(?:\s*[A-Za-z]{2,6})?|[A-Za-z][A-Za-z0-9._:/%+\-@]*(?:\s+[A-Za-z][A-Za-z0-9._:/%+\-@]*)*/g
 
 type ArabicForms = { iso: string; fin?: string; ini?: string; med?: string }
 
