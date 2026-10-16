@@ -375,8 +375,8 @@ export async function PUT(req: NextRequest) {
       await withTiming('db_program_rules_reset_update', () => db.program.update({ where: { id: programId }, data: { admissionRules: Prisma.DbNull } }))
       clearPublicProgramsCache()
       revalidatePublicProgramSurfaces([program.slug])
-      const invalidated = await clearAdmissionAiReviewCacheForProgram(programId)
-      await audit(user, 'PROGRAM_RULES_RESET', 'Program', programId, `أعاد الإدارة قواعد قبول «${program.titleAr}» للافتراضية — أُبطلت مراجعات قبول ذكية: ${invalidated.count}`)
+      const invalidated = await withTiming('db_program_rules_reset_cache_clear', () => clearAdmissionAiReviewCacheForProgram(programId))
+      await withTiming('db_audit_program_rules_reset', () => audit(user, 'PROGRAM_RULES_RESET', 'Program', programId, `أعاد الإدارة قواعد قبول «${program.titleAr}» للافتراضية — أُبطلت مراجعات قبول ذكية: ${invalidated.count}`))
       return NextResponse.json({ ok: true, rules: buildServiceAdmissionDefaults(flow) || (isStudyProgram ? buildOfficialStudyAdmissionDefaults(program) : resolveRules(program.category, null, isStudyProgram)), custom: false, invalidatedAdmissionAiReviews: invalidated.count })
     }
 
