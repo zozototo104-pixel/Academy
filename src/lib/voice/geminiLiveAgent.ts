@@ -499,7 +499,12 @@ export class GeminiLiveAgent {
   private handleServerMessage(msg: any): boolean {
     if (!msg) return false
     if (msg.error) {
-      this.cb.onError?.(friendlyClientError(msg.error.message || 'خطأ من Gemini Live'))
+      const error = msg.error
+      this.cb.onError?.(
+        friendlyClientError(error.message || 'خطأ من Gemini Live'),
+        typeof error.code === 'string' ? error.code : undefined,
+        typeof error.status === 'number' ? error.status : undefined,
+      )
       return false
     }
     if (msg.setupComplete) return true
