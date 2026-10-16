@@ -275,6 +275,7 @@ export async function POST(req: NextRequest) {
     console.error('program create error:', e)
     return NextResponse.json({ error: e?.message || 'تعذر إنشاء البرنامج' }, { status: 500 })
   }
+  })
 }
 
 export async function PATCH(req: NextRequest) {
