@@ -8,6 +8,7 @@ import { FileText, Printer, ShieldCheck } from 'lucide-react'
 import { api } from '@/lib/store'
 
 export interface CertificateData {
+  id?: string
   serial: string
   qrToken?: string | null
   type: string
@@ -16,6 +17,9 @@ export interface CertificateData {
   grade?: string | null
   country?: string | null
   issuedAt: string
+  valid?: boolean
+  revokedAt?: string | null
+  revokedReason?: string | null
 }
 
 const TYPE_LABEL: Record<string, string> = {
