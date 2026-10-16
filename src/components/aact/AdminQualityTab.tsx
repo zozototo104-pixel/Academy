@@ -2389,7 +2389,9 @@ export function AdminQualityTab() {
                       {s.enrollments.map((e: any) => (
                         <div key={e.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 p-2 text-[11px] font-bold text-slate-600">
                           <span>{e.program?.titleAr || 'برنامج'} · {e.status}</span>
-                          <Button size="sm" variant="outline" disabled={studentBusyId === s.id} onClick={() => confirm('إلغاء التسجيل متاح فقط إذا لا توجد مدفوعات مدفوعة مرتبطة. متابعة؟') && updateStudentAction(s.id, 'cancelEnrollment', { enrollmentId: e.id })} className="h-7 px-2 text-[10px] font-black">إلغاء التسجيل</Button>
+                          <Button size="sm" variant="outline" disabled={studentBusyId === s.id} onClick={async () => {
+                            if (await confirmAction({ title: 'إلغاء تسجيل الطالب', description: 'إلغاء التسجيل متاح فقط إذا لا توجد مدفوعات مدفوعة مرتبطة.', confirmLabel: 'إلغاء التسجيل', tone: 'warning' })) await updateStudentAction(s.id, 'cancelEnrollment', { enrollmentId: e.id })
+                          }} className="h-7 px-2 text-[10px] font-black">إلغاء التسجيل</Button>
                         </div>
                       ))}
                     </div>
