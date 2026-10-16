@@ -146,7 +146,11 @@ export async function POST(req: NextRequest) {
         currentQuestions: scoped.selection.currentEligibleCount,
         approvedQuestions: scoped.selection.approvedCount,
         pendingReviewQuestions: scoped.selection.pendingReviewCount,
+        requestedQuestions,
         requiredQuestions,
+        warning: limitedKnowledge ? 'LIMITED_KNOWLEDGE' : null,
+        knowledgeItems: knowledge.count,
+        minKnowledgeItems: knowledge.minItems,
         error: `لا يكفي عدد الأسئلة المعتمدة: ${scoped.selection.currentEligibleCount} من ${requiredQuestions}. في ${scoped.selection.pendingReviewCount} أسئلة بانتظار المراجعة.`,
       }, { status: 202 })
     }
