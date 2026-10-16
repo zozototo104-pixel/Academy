@@ -363,17 +363,14 @@ export async function POST(req: NextRequest) {
         deadlineMs: Date.now() + 45_000,
       })
       const clampedPoints = Math.max(0, Math.min(q.points, Number(graded.points) || 0))
-      await db.programAnswer.create({
-        data: {
-          attemptId: attempt.id,
-          questionId: q.id,
-          answerText: text,
-          isCorrect: clampedPoints >= q.points * 0.6 ? true : clampedPoints > 0 ? null : false,
-          points: clampedPoints,
-          maxPoints: q.points,
-          aiFeedback: graded.feedback,
-        },
-      })
+      await persistProgramAnswer(db, attempt.id, {
+        questionId: q.id,
+        answerText: text,
+        isCorrect: clampedPoints >= q.points * 0.6 ? true : clampedPoints > 0 ? null : false,
+        points: clampedPoints,
+        maxPoints: q.points,
+        aiFeedback: graded.feedback,
+      }, prePersistedEssayQuestionIds.has(q.id))
       if (clampedPoints < q.points * 0.6) weakPoints.push(`سؤال تحليلي: ${q.text.slice(0, 60)}...`)
       const r: GradedResult = {
         questionId: q.id,
