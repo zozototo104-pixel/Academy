@@ -101,7 +101,24 @@ async function unitKnowledgeAvailability(programId: string, unit: any) {
   const minRaw = await getSetting('UNIT_MIN_KNOWLEDGE_ITEMS').catch(() => process.env.UNIT_MIN_KNOWLEDGE_ITEMS || '15')
   const minItems = Math.max(1, Number(minRaw || 15) || 15)
   const where: any = { programId }
-  if (unit?.sourceBookId) where.bookId = unit.sourceBookId
+
+  if (unit?.sourceBookId) {
+    where.bookId = unit.sourceBookId
+    if (Number.isFinite(Number(unit.chunkStartIndex)) && Number.isFinite(Number(unit.chunkEndIndex))) {
+      const chunks = await db.bookChunk.findMany({
+        where: { bookId: unit.sourceBookId, index: { gte: Number(unit.chunkStartIndex), lte: Number(unit.chunkEndIndex) } },
+        select: { id: true },
+      }).catch(() => [])
+      const chunkIds = chunks.map((chunk) => chunk.id)
+      if (chunkIds.length) where.chunkId = { in: chunkIds }
+    } else if (Number.isFinite(Number(unit.semester))) {
+      where.semester = Number(unit.semester)
+    }
+  } else if (Number.isFinite(Number(unit.semester))) {
+    where.semester = Number(unit.semester)
+  }
+
+  // BookKnowledgeItem does not have a review status column; persisted items are treated as the approved/equivalent knowledge source.
   const count = await db.bookKnowledgeItem.count({ where }).catch(() => 0)
   return { count, minItems, limited: count < minItems }
 }
