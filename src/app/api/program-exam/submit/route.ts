@@ -14,6 +14,16 @@ interface SubmitAnswer {
   selectedOption?: number
 }
 
+interface ProgramAnswerData {
+  questionId: string
+  answerText?: string | null
+  selectedOption?: number | null
+  isCorrect?: boolean | null
+  points?: number | null
+  maxPoints?: number | null
+  aiFeedback?: string | null
+}
+
 function parseJsonArray(value: string | null): any[] {
   if (!value) return []
   try {
@@ -57,6 +67,28 @@ function resultMetadata(q: any) {
     difficulty: q.difficulty || null,
     correctRationale: q.correctRationale || null,
   }
+}
+
+function programAnswerData(attemptId: string, prepared: ProgramAnswerData) {
+  return {
+    attemptId,
+    questionId: prepared.questionId,
+    selectedOption: prepared.selectedOption ?? null,
+    answerText: prepared.answerText ?? null,
+    isCorrect: prepared.isCorrect ?? null,
+    points: prepared.points ?? null,
+    maxPoints: prepared.maxPoints == null ? null : Math.max(0, Math.round(Number(prepared.maxPoints) || 0)),
+    aiFeedback: prepared.aiFeedback ?? null,
+  }
+}
+
+async function persistProgramAnswer(client: any, attemptId: string, prepared: ProgramAnswerData, updateExisting = false) {
+  const data = programAnswerData(attemptId, prepared)
+  if (updateExisting) {
+    const updated = await client.programAnswer.updateMany({ where: { attemptId, questionId: prepared.questionId }, data })
+    if (updated.count > 0) return
+  }
+  await client.programAnswer.create({ data })
 }
 
 /** تنفيذ مهام بشكل متوازٍ على دفعات (لتسريع التصحيح الآلي دون إغراق النموذج) */
@@ -193,6 +225,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'تم تسليم هذه المحاولة أو يجري تصحيحها بالفعل', code: 'ATTEMPT_ALREADY_CLAIMED' }, { status: 409 })
     }
     const attempt = startedAttempt
+    const prePersistedEssayQuestionIds = new Set<string>()
+    const essayQuestions = exam.questions.filter((q) => q.type !== 'MCQ' && q.type !== 'TF')
+    if (essayQuestions.length) {
+      await db.$transaction(async (tx) => {
+        for (const q of essayQuestions) {
+          const submit = answerMap.get(q.id)
+          await persistProgramAnswer(tx, attempt.id, {
+            questionId: q.id,
+            answerText: submit?.answerText || '',
+            isCorrect: null,
+            points: null,
+            maxPoints: q.points,
+            aiFeedback: JSON.stringify({ status: 'PENDING_AI_GRADING' }),
+          })
+          prePersistedEssayQuestionIds.add(q.id)
+        }
+      })
+    }
 
     try {
     let totalScore = 0
@@ -275,17 +325,14 @@ export async function POST(req: NextRequest) {
     const emptyEssayTasks = essayTasks.filter(({ text }) => text.trim().length < 3)
 
     for (const { q, text } of emptyEssayTasks) {
-      await db.programAnswer.create({
-        data: {
-          attemptId: attempt.id,
-          questionId: q.id,
-          answerText: text,
-          isCorrect: false,
-          points: 0,
-          maxPoints: q.points,
-          aiFeedback: 'لم يجب على هذا السؤال — هذه فرصة لمراجعة المفهوم في الكتب المقررة.',
-        },
-      })
+      await persistProgramAnswer(db, attempt.id, {
+        questionId: q.id,
+        answerText: text,
+        isCorrect: false,
+        points: 0,
+        maxPoints: q.points,
+        aiFeedback: 'لم يجب على هذا السؤال — هذه فرصة لمراجعة المفهوم في الكتب المقررة.',
+      }, prePersistedEssayQuestionIds.has(q.id))
       weakPoints.push(`سؤال بدون إجابة: ${q.text.slice(0, 60)}...`)
       essayResults.push({
         questionId: q.id,
@@ -316,17 +363,14 @@ export async function POST(req: NextRequest) {
         deadlineMs: Date.now() + 45_000,
       })
       const clampedPoints = Math.max(0, Math.min(q.points, Number(graded.points) || 0))
-      await db.programAnswer.create({
-        data: {
-          attemptId: attempt.id,
-          questionId: q.id,
-          answerText: text,
-          isCorrect: clampedPoints >= q.points * 0.6 ? true : clampedPoints > 0 ? null : false,
-          points: clampedPoints,
-          maxPoints: q.points,
-          aiFeedback: graded.feedback,
-        },
-      })
+      await persistProgramAnswer(db, attempt.id, {
+        questionId: q.id,
+        answerText: text,
+        isCorrect: clampedPoints >= q.points * 0.6 ? true : clampedPoints > 0 ? null : false,
+        points: clampedPoints,
+        maxPoints: q.points,
+        aiFeedback: graded.feedback,
+      }, prePersistedEssayQuestionIds.has(q.id))
       if (clampedPoints < q.points * 0.6) weakPoints.push(`سؤال تحليلي: ${q.text.slice(0, 60)}...`)
       const r: GradedResult = {
         questionId: q.id,

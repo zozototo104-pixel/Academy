@@ -77,6 +77,7 @@ async function buildCertificateAcademicRecord(cert: { userId?: string | null; ad
       select: {
         id: true,
         score: true,
+        finalScore: true,
         passed: true,
         status: true,
         submittedAt: true,
@@ -120,7 +121,7 @@ async function buildCertificateAcademicRecord(cert: { userId?: string | null; ad
     }).then((rows) => rows.find((t) => t.admission?.programId === program.id || (!!cert.admissionId && t.admissionId === cert.admissionId)) || null).catch(() => null),
   ])
 
-  const examScores = [...unitAttempts.map((a) => a.score), ...programAttempts.map((a) => a.score)].filter((x): x is number => typeof x === 'number')
+  const examScores = [...unitAttempts.map((a) => a.score), ...programAttempts.map((a) => a.finalScore ?? a.score)].filter((x): x is number => typeof x === 'number')
   const avgExamScore = examScores.length ? Math.round((examScores.reduce((a, b) => a + b, 0) / examScores.length) * 10) / 10 : null
   const finalScore = enrollment?.finalScore ?? thesis?.resultScore ?? avgExamScore
 
@@ -162,7 +163,8 @@ async function buildCertificateAcademicRecord(cert: { userId?: string | null; ad
     comprehensiveExams: programAttempts.map((a) => ({
       title: a.exam.title,
       semester: a.exam.semester,
-      score: a.score,
+      score: a.finalScore ?? a.score,
+      rawScore: a.score,
       passed: a.passed,
       status: a.status,
       passScore: a.exam.passScore,

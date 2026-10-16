@@ -8,6 +8,7 @@ export interface FinalGradeComponent {
   score: number | null
   weighted: number
   ready: boolean
+  exempt?: boolean
 }
 
 export interface FinalGradeResult {
@@ -17,6 +18,8 @@ export interface FinalGradeResult {
 }
 
 type DbClient = typeof db | Prisma.TransactionClient
+
+type ComponentScore = number | null | 'EXEMPT'
 
 type ScoredAnswer = { points: number | null; maxPoints: number | null }
 
@@ -36,7 +39,10 @@ function best(values: Array<number | null | undefined>) {
   return Math.max(...nums)
 }
 
-function component(key: string, label: string, weight: number, score: number | null): FinalGradeComponent {
+function component(key: string, label: string, weight: number, score: ComponentScore): FinalGradeComponent {
+  if (score === 'EXEMPT') {
+    return { key, label, weight, score: null, weighted: 0, ready: true, exempt: true }
+  }
   const ready = typeof score === 'number' && Number.isFinite(score)
   const rawScore = ready ? clampPercent(score) : null
   return {
@@ -64,16 +70,20 @@ function addMissing(missing: string[], label: string) {
 async function unitQuizAverage(client: DbClient, userId: string, programId: string, missing: string[], semester?: number) {
   const exams = await client.exam.findMany({
     where: { status: 'READY', unit: { programId, ...(semester ? { semester } : {}) } },
-    select: { id: true, title: true, passScore: true, unit: { select: { title: true } } },
+    select: { id: true, title: true, passScore: true, unit: { select: { title: true } }, _count: { select: { questions: true } } },
     orderBy: { unit: { order: 'asc' } },
   })
   if (!exams.length) {
     addMissing(missing, semester ? `اختبارات وحدات الفصل ${semester}` : 'اختبارات الوحدات المطلوبة')
     return null
   }
+  const scorableExams = exams.filter((exam) => Number((exam as any)._count?.questions || 0) > 0)
+  // Legacy READY unit exams with no published questions are ignored for certification eligibility:
+  // they cannot be attempted, so they must not block graduation forever or inflate the final score.
+  if (!scorableExams.length) return 'EXEMPT' as const
 
   const bestScores: number[] = []
-  for (const exam of exams) {
+  for (const exam of scorableExams) {
     const attempts = await client.examAttempt.findMany({
       where: { userId, examId: exam.id, status: 'GRADED', passed: true },
       select: { score: true, answers: { select: { points: true, maxPoints: true } } },
@@ -82,7 +92,7 @@ async function unitQuizAverage(client: DbClient, userId: string, programId: stri
     if (bestAttemptScore == null) addMissing(missing, `اختبار وحدة: ${exam.unit.title || exam.title}`)
     else bestScores.push(bestAttemptScore)
   }
-  return bestScores.length === exams.length ? avg(bestScores) : null
+  return bestScores.length === scorableExams.length ? avg(bestScores) : null
 }
 
 async function programExamAverage(client: DbClient, userId: string, programId: string, missing: string[], semester?: number) {
@@ -199,9 +209,15 @@ export async function calculateFinalGrade(input: {
   }
 
   for (const c of components) {
-    if (!c.ready) addMissing(missing, c.label)
+    if (!c.ready && !c.exempt) addMissing(missing, c.label)
   }
 
   if (missing.length) return { score: null, components, missing }
-  return { score: components.reduce((sum, c) => sum + c.weighted, 0), components, missing }
+  const activeComponents = components.filter((c) => !c.exempt && typeof c.score === 'number')
+  const activeWeight = activeComponents.reduce((sum, c) => sum + c.weight, 0)
+  if (activeWeight <= 0) return { score: null, components, missing }
+  for (const c of components) {
+    c.weighted = c.exempt || typeof c.score !== 'number' ? 0 : (c.score * c.weight) / activeWeight
+  }
+  return { score: activeComponents.reduce((sum, c) => sum + c.weighted, 0), components, missing }
 }
