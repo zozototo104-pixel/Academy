@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
       },
     })
   } catch (e: any) {
-    if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
+    if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة أو المشرف مطلوبة' }, { status: 401 })
     if (String(e?.message || e) === 'STORAGE_FILE_TOO_LARGE') return NextResponse.json({ error: 'حجم التسجيل أكبر من الحد المسموح للعرض المباشر' }, { status: 413 })
     console.error('defense recording GET error:', e)
     return NextResponse.json({ error: 'خطأ في تحميل التسجيل' }, { status: 500 })
