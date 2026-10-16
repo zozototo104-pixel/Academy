@@ -10,6 +10,8 @@ import { getServiceFlow } from '@/lib/service-flows'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+const MAX_DELIVERABLE_BYTES = 25 * 1024 * 1024
+
 function clean(value: FormDataEntryValue | null, max = 500): string {
   return String(value || '').trim().slice(0, max)
 }
