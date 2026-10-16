@@ -604,6 +604,8 @@ export function AdminBooksTab() {
   const [suggestingAssignments, setSuggestingAssignments] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [stoppingExamId, setStoppingExamId] = useState<string | null>(null)
+  const [examKickFailures, setExamKickFailures] = useState<Record<string, { count: number; blocked: boolean; message: string }>>({})
+  const examKickFailuresRef = useRef<Record<string, { count: number; blocked: boolean; message: string }>>({})
   const [form, setForm] = useState({ title: '', titleEn: '', author: '', year: '', description: '', semester: '', link: '' })
   const [assignmentForm, setAssignmentForm] = useState({ id: '', title: '', description: '', semester: '1', type: 'REPORT', points: '10', weight: '0', dueDays: '', rubric: '', status: 'PUBLISHED' })
   const [savingAssignment, setSavingAssignment] = useState(false)
