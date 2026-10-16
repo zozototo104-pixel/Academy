@@ -314,7 +314,7 @@ export async function PATCH(req: NextRequest) {
     const changedSummary = visiblePrograms
       .map((p) => `${p.titleAr}: السعر ${p.price ?? 'فارغ'} ← ${payload.price}، الساعات ${p.hours ?? 'فارغ'} ← ${payload.hours}`)
       .join('؛ ')
-    await audit(user, 'PROGRAM_CATEGORY_PRICE_HOURS_APPLIED', 'Program', payload.category, `تطبيق السعر/الساعات على تصنيف ${payload.category}: ${changedSummary}`)
+    await withTiming('db_audit_program_rules_bulk_apply', () => audit(user, 'PROGRAM_CATEGORY_PRICE_HOURS_APPLIED', 'Program', payload.category, `تطبيق السعر/الساعات على تصنيف ${payload.category}: ${changedSummary}`))
 
     return NextResponse.json({
       ok: true,
