@@ -1085,7 +1085,7 @@ export function AdminQualityTab() {
       const res = await api<any>('/api/admin/daily-tasks')
       setDailyTasks(res)
     } catch (e: any) {
-      alert(e?.message || 'تعذر تحميل مهام الإدارة اليوم')
+      await alertAction({ title: 'تعذر تحميل مهام الإدارة اليوم', description: e?.message || 'لم يتم تحميل قائمة المهام.', tone: 'danger' })
     } finally {
       setDailyTasksLoading(false)
     }
