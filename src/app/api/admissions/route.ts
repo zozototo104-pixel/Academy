@@ -1024,4 +1024,5 @@ export async function GET(req: NextRequest) {
     console.error('admissions GET error:', e)
     return NextResponse.json({ error: 'حدث خطأ أثناء البحث عن الطلب' }, { status: 500 })
   }
+  })
 }
