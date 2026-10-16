@@ -3825,7 +3825,8 @@ export function AdminBooksTab() {
                         </div>
                       </div>
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
               <p className="mt-3 text-[10px] leading-relaxed text-slate-400">
