@@ -740,6 +740,7 @@ export function AdminFinanceTab() {
   const [paymentRefresh, setPaymentRefresh] = useState(0)
   const [pdfBusy, setPdfBusy] = useState<string | null>(null)
   const [waiverBusy, setWaiverBusy] = useState<string | null>(null)
+  const [proofReviewBusy, setProofReviewBusy] = useState<string | null>(null)
   const [generatedWaiverCodes, setGeneratedWaiverCodes] = useState<Record<string, string>>({})
   const [copiedWaiverPaymentId, setCopiedWaiverPaymentId] = useState<string | null>(null)
 
