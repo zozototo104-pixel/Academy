@@ -967,6 +967,12 @@ export function AdminBooksTab() {
           body: JSON.stringify({ examId: generatingExam.id, action: 'kick' }),
         })
         if (d.ok === false) throw new Error(d.error || 'تعذر استكمال توليد الامتحان')
+        setExamKickFailures((prev) => {
+          if (!prev[generatingExam.id]) return prev
+          const next = { ...prev }
+          delete next[generatingExam.id]
+          return next
+        })
         if (d.done || d.status === 'REVIEW') {
           await loadProgramData(programId, true)
           toast({ title: 'اكتمل توليد الامتحان', description: `تم إنشاء ${d.questionCount || generatingExam.questionCount} سؤالاً وتحويلها إلى مراجعة الإدارة` })
