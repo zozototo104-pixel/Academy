@@ -327,31 +327,58 @@ export interface GeminiLiveTokenPayload {
   apiVersion: 'v1beta'
 }
 
+function geminiLiveFailureStatus(e: any): number | undefined {
+  const status = Number(e?.status || e?.code || 0)
+  return Number.isFinite(status) && status >= 100 && status <= 599 ? status : undefined
+}
+
+function shouldTryNextGeminiLiveTokenKey(e: any): boolean {
+  const status = geminiLiveFailureStatus(e)
+  return status === 402 || isAuthError(e) || isQuotaError(e)
+}
+
 export async function createGeminiLiveEphemeralToken(
   purpose: GeminiLivePurpose = 'SUPERVISOR',
   opts?: { sessionLimitMinutes?: number; systemInstruction?: string }
 ): Promise<GeminiLiveTokenPayload> {
-  await refreshFromDb()
-  const key = resolvedKey()
-  if (!key) throw new Error('GEMINI_NOT_CONFIGURED')
+  const { geminiKeysForLive, reportGeminiLiveKeyFailure, reportGeminiLiveKeySuccess } = await import('@/lib/text-ai')
+  const keys = await geminiKeysForLive()
+  if (!keys.length) throw new Error('GEMINI_NOT_CONFIGURED')
   const model = await geminiActiveLiveModel(purpose)
   const config = await geminiLiveConnectConfig(purpose, model, opts?.systemInstruction)
   const sessionLimitMinutes = Math.max(1, Math.min(30, Math.floor(opts?.sessionLimitMinutes || 10)))
   const expireTime = new Date(Date.now() + sessionLimitMinutes * 60 * 1000).toISOString()
   const newSessionExpireTime = new Date(Date.now() + 60 * 1000).toISOString()
-  const client = new GoogleGenAI({ apiKey: key, httpOptions: { apiVersion: 'v1beta' } } as any)
-  const token = await (client as any).authTokens.create({
-    config: {
-      uses: 1,
-      expireTime,
-      newSessionExpireTime,
-      liveConnectConstraints: { model, config },
-    },
-  })
-  const name = String(token?.name || token?.token || '')
-  if (!name) throw new Error('GEMINI_LIVE_TOKEN_EMPTY')
-  rememberGeminiLiveModel(model, purpose)
-  return { token: name, name, model, purpose, config, expireTime, newSessionExpireTime, apiVersion: 'v1beta' }
+  let lastError: any = null
+
+  for (const { key, keyIndex } of keys) {
+    const started = Date.now()
+    try {
+      const client = new GoogleGenAI({ apiKey: key, httpOptions: { apiVersion: 'v1beta' } } as any)
+      const token = await (client as any).authTokens.create({
+        config: {
+          uses: 1,
+          expireTime,
+          newSessionExpireTime,
+          liveConnectConstraints: { model, config },
+        },
+      })
+      const name = String(token?.name || token?.token || '')
+      if (!name) throw new Error('GEMINI_LIVE_TOKEN_EMPTY')
+      reportGeminiLiveKeySuccess(keyIndex, model, Date.now() - started)
+      rememberGeminiLiveModel(model, purpose)
+      return { token: name, name, model, purpose, config, expireTime, newSessionExpireTime, apiVersion: 'v1beta' }
+    } catch (error: any) {
+      error.model = error.model || model
+      error.ms = error.ms || Date.now() - started
+      lastError = error
+      await reportGeminiLiveKeyFailure(keyIndex, error)
+      if (shouldTryNextGeminiLiveTokenKey(error)) continue
+      throw error
+    }
+  }
+
+  throw lastError || new Error('GEMINI_NOT_CONFIGURED')
 }
 
 export async function geminiModelSource(): Promise<'custom' | 'auto'> {
