@@ -1,5 +1,5 @@
 import { after, NextRequest, NextResponse } from 'next/server'
-import type { QuestionBankItem } from '@prisma/client'
+import type { Prisma, QuestionBankItem } from '@prisma/client'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
