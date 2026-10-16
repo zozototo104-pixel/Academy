@@ -354,6 +354,8 @@ export async function POST(req: NextRequest) {
         expiresAt: expireTime,
         sessionLimitMinutes,
         liveUsage: allowance,
+        setup,
+        sdkConfig,
         message: 'تم إنشاء رمز Gemini Live مؤقت بنجاح',
       })
     }
