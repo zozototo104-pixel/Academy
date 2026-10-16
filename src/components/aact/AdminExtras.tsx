@@ -1458,6 +1458,29 @@ export function AdminCertificatesTab() {
     }
   }
 
+  const revokeCertificate = async (certificate: CertificateData) => {
+    const id = certificate.id
+    if (!id) {
+      toast({ title: 'تعذر الإلغاء', description: 'معرّف الشهادة غير متوفر في السجل الحالي.', variant: 'destructive' })
+      return
+    }
+    const reason = window.prompt(`اكتب سبب إلغاء الشهادة ${certificate.serial}`)?.trim() || ''
+    if (reason.length < 6) {
+      toast({ title: 'سبب الإلغاء إلزامي', description: 'اكتب سبباً واضحاً لا يقل عن 6 أحرف.', variant: 'destructive' })
+      return
+    }
+    setBusy(true)
+    try {
+      await api('/api/admin/certificates', { method: 'PATCH', body: JSON.stringify({ id, reason }) })
+      toast({ title: 'تم إلغاء الشهادة', description: 'أصبحت صفحة التحقق تعرض أن الشهادة ملغاة مع تاريخ الإلغاء.' })
+      load()
+    } catch (e: any) {
+      toast({ title: 'تعذر إلغاء الشهادة', description: e.message, variant: 'destructive' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const issueWithFinancialOverride = async (candidate: CertificateCandidate) => {
     const reason = String(financialOverrideReasons[candidate.id] || '').trim()
     if (!candidate.eligibility?.ok) {
