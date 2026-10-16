@@ -1365,7 +1365,7 @@ export function AdminRulesTab() {
                     إعادة ترقيم الوحدات
                   </Button>
                   {custom && (
-                    <Button onClick={() => save(true)} disabled={saving} variant="outline" className="border-red-200 text-red-600 hover:bg-red-50">
+                    <Button onClick={() => save(true)} disabled={saving || editorUnavailable} variant="outline" className="border-red-200 text-red-600 hover:bg-red-50">
                       <RotateCcw className="ml-1 h-4 w-4" />
                       العودة للافتراضي
                     </Button>
