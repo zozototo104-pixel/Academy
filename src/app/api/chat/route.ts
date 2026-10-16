@@ -13,6 +13,7 @@ import {
   withHumanHandoffActiveNote,
 } from '@/lib/human-handoff'
 import { requireStudentAiSupervisorAccess } from '@/lib/student-ai-access'
+import { enforceAiUserDailyCostCap, recordAiUsage } from '@/lib/ai-usage-accounting'
 import { updateStudentAcademicMemory } from '@/lib/supervisor-ai'
 import { wrapUntrustedUiContext } from '@/lib/untrusted-context'
 import { deadlineFromNow } from '@/lib/prod-safety'
