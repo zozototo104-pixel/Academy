@@ -177,7 +177,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ students, total, pagination: adminPaginationMeta(page, pageSize, total) })
     }
 
-    const where: any = { role: 'STUDENT', enrollments: { some: enrollmentWhere } }
+    const where: any = { role: 'STUDENT' }
+    const hasEnrollmentFilter = Object.keys(enrollmentWhere).length > 0
+    if (hasEnrollmentFilter) where.enrollments = { some: enrollmentWhere }
     if (q) {
       where.OR = [
         { name: { contains: q, mode: 'insensitive' } },
