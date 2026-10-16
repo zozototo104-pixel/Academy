@@ -144,6 +144,21 @@ function wordCount(value: string) {
   return cleanOutlineUnitText(value, 4000).split(/\s+/).filter(Boolean).length
 }
 
+export function normalizeUnitSummaryAfterRetry(value: string) {
+  const summary = cleanOutlineUnitText(value, 4000)
+  const wc = wordCount(summary)
+  if (wc >= 80 && wc <= 150) return summary
+  if (wc < 60 || wc > 200) throw new Error(`UNIT_SUMMARY_OUT_OF_RANGE:wc=${wc}`)
+  if (wc <= 150) return summary
+
+  const words = summary.split(/\s+/).filter(Boolean)
+  const prefix = words.slice(0, 150).join(' ')
+  const sentenceEnds = [...prefix.matchAll(/[.!؟。](?=\s|$)/g)]
+  const lastEnd = sentenceEnds.at(-1)?.index
+  if (lastEnd === undefined) throw new Error(`UNIT_SUMMARY_OUT_OF_RANGE:wc=${wc}`)
+  return prefix.slice(0, lastEnd + 1).trim()
+}
+
 function pageRef(pageStart?: number | null, pageEnd?: number | null) {
   if (!pageStart && !pageEnd) return ''
   if (pageStart && pageEnd && pageStart !== pageEnd) return `صفحات ${pageStart}–${pageEnd}`
