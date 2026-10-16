@@ -43,6 +43,9 @@ type InvoicePdfOptions = {
   arabicImageRenderer?: ArabicImageRenderer
 }
 
+let activeArabicImageRenderer: ArabicImageRenderer = drawArabicImage
+let warnedArabicImageFallback = false
+
 type BilingualLabel = {
   ar: string
   en: string
