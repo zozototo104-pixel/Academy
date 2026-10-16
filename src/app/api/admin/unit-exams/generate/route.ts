@@ -151,8 +151,20 @@ export async function POST(req: NextRequest) {
       }, { status: 202 })
     }
 
+    const cognitive = validateCognitiveDistribution(scoped.questions, 'UNIT')
+    if (!cognitive.ok) {
+      if (!overrideCognitivePolicy || overrideReason.length < 8) {
+        return NextResponse.json(
+          { ok: false, error: cognitivePolicyArabicMessage(cognitive), details: cognitive.details, code: 'COGNITIVE_DISTRIBUTION_FAILED' },
+          { status: 409 }
+        )
+      }
+      await audit({ id: admin.id, name: admin.name }, 'OVERRIDE_UNIT_COGNITIVE_DISTRIBUTION', 'Unit', unitId, `${overrideReason} — ${cognitive.details.join(' | ')}`)
+    }
+
     const reviewRequired = false
     const examStatus = reviewRequired ? 'DRAFT' : 'READY'
+    const warningPrefix = limitedKnowledge ? '[LIMITED_KNOWLEDGE] ' : ''
     const examQuestions = scoped.questions.map((item, index) => toExamQuestion(item, index, reviewRequired))
 
     const result = await db.$transaction(async (tx) => {
