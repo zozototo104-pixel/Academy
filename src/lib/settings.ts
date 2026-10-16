@@ -132,7 +132,130 @@ export const DEFAULT_SETTINGS: SettingDef[] = [
 
   // باقات الذكاء الاصطناعي — تبيع المنصة دقائق محادثة صوتية للطلاب بعد انتهاء الرصيد المجاني
   { key: 'AI_LIVE_PACKAGE_MINUTES', value: '60', label: 'عدد دقائق باقة المحادثة الصوتية الإضافية', group: 'AI', suffix: 'دقيقة', inputType: 'number' },
-  { key: 'AI_LIVE_PACKAGE_PRICE_USD', value: '10', label: 'سعر باقة دقائق المحادثة الصوتية', group: 'AI', suffix: '$', inputType: 'number' },
+  { key: 'AI_LIVE_PACKAGE_PRICE_USD', value: '10', label: 'سعر باقة دقائق المحادثة الصوتية', group: 'AI', suffix: '
+
+  // القواعد والمهل الزمنية
+  { key: 'AGENT_COMMISSION_RATE', value: '25', label: 'نسبة عمولة الوكيل من إيرادات البرامج', group: 'RULES', suffix: '%', inputType: 'number' },
+  { key: 'COMMITTEE_MEMBER_FEE', value: '100', label: 'مستحقات عضو لجنة المناقشة من الوكيل لكل بحث', group: 'RULES', suffix: '$', inputType: 'number' },
+  { key: 'CERTIFICATE_ISSUE_DAYS', value: '30', label: 'المدة القصوى لإصدار الشهادة من استلام كشوف الدرجات والرسوم', group: 'RULES', suffix: 'يوماً', inputType: 'number' },
+  { key: 'THESIS_MIN_MONTHS', value: '3', label: 'الحد الأدنى لتقديم ومناقشة بحث التخرج', group: 'RULES', suffix: 'أشهر', inputType: 'number' },
+  { key: 'THESIS_MAX_MONTHS', value: '6', label: 'الحد الأقصى لتقديم ومناقشة بحث التخرج', group: 'RULES', suffix: 'أشهر', inputType: 'number' },
+  { key: 'TRANSFER_DUE_DAYS', value: '14', label: 'مهلة تحويل المستحقات المالية للأكاديمية من تاريخ طلب إصدار الشهادات', group: 'RULES', suffix: 'يوماً', inputType: 'number' },
+  { key: 'CONTRACT_RENEW_NOTICE_DAYS', value: '30', label: 'فترة إشعار عدم تجديد عقد الوكالة (30-60 يوماً)', group: 'RULES', suffix: 'يوماً', inputType: 'number' },
+
+  // محتوى عام يظهر في الواجهات العامة
+  { key: 'DISCLOSURE_CONSENT_TEXT', value: DEFAULT_DISCLOSURE_CONSENT_TEXT, label: 'نص الإقرار العام قبل الدفع', group: 'CONTENT', suffix: '', inputType: 'textarea', help: 'يستخدم إذا لم يحدد البرنامج نص إقرار خاصاً من قواعد القبول.' },
+  { key: 'TRUST_BANNER_TEXT', value: DEFAULT_TRUST_BANNER_TEXT, label: 'نص شريط الثقة في الرئيسية', group: 'CONTENT', suffix: '', inputType: 'textarea' },
+  { key: 'HOME_STATS', value: JSON.stringify(DEFAULT_HOME_STATS), label: 'إحصائيات الرئيسية', group: 'CONTENT', suffix: '', inputType: 'json', help: 'JSON: graduates, experts, countries' },
+  { key: 'ACCREDITATION_PAGE', value: JSON.stringify(DEFAULT_ACCREDITATION_PAGE), label: 'بيانات صفحة الاعتماد والتحقق', group: 'CONTENT', suffix: '', inputType: 'json', help: 'رقم الترخيص وروابط التحقق والوثائق والشراكات. ضع روابط وثائق Cloudflare فقط، ولا ترفع الملفات داخل المنصة.' },
+
+  // بيانات التواصل الرسمية
+  { key: 'OFFICIAL_CONTACT', value: JSON.stringify(DEFAULT_OFFICIAL_CONTACT), label: 'بيانات التواصل الرسمية', group: 'CONTACT', suffix: '', inputType: 'json', help: 'JSON: legalEntity, registrationNumber, address, email, phone, phones[], whatsapp, whatsapps[], responsiblePerson' },
+]
+
+export async function getSettings(): Promise<Record<string, string>> {
+  const rows = await db.setting.findMany()
+  const map: Record<string, string> = {}
+  for (const def of DEFAULT_SETTINGS) map[def.key] = def.value
+  for (const r of rows) map[r.key] = r.value
+  return map
+}
+
+export async function getSetting(key: string): Promise<string> {
+  const row = await db.setting.findUnique({ where: { key } })
+  return row?.value ?? DEFAULT_SETTINGS.find((d) => d.key === key)?.value ?? ''
+}
+
+export async function getSettingNum(key: string): Promise<number> {
+  const v = await getSetting(key)
+  const n = parseFloat(v)
+  return isNaN(n) ? 0 : n
+}
+
+export async function getSettingJson<T>(key: string, fallback: T): Promise<T> {
+  const raw = await getSetting(key)
+  try {
+    return JSON.parse(raw) as T
+  } catch {
+    return fallback
+  }
+}
+
+export async function getHomeStats() {
+  return getSettingJson('HOME_STATS', DEFAULT_HOME_STATS)
+}
+
+export async function getOfficialContact() {
+  return getSettingJson('OFFICIAL_CONTACT', DEFAULT_OFFICIAL_CONTACT)
+}
+
+// توليد أرقام فريدة متسلسلة
+function pad(n: number, len = 4): string {
+  return String(n).padStart(len, '0')
+}
+
+function invoiceSequence(invoiceNo: string, prefix: string): number {
+  if (!invoiceNo.startsWith(prefix)) return 0
+  const n = Number(invoiceNo.slice(prefix.length))
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0
+}
+
+export async function nextSerial(prefix: string): Promise<string> {
+  const year = new Date().getFullYear()
+  const base = `${prefix}-${year}-`
+  const count =
+    (await db.certificate.count()) +
+    (await db.payment.count()) +
+    (await db.admissionApplication.count()) +
+    1
+  return `${base}${pad(count)}`
+}
+
+export async function nextInvoiceNo(): Promise<string> {
+  const year = new Date().getFullYear()
+  const prefix = `AACT-INV-${year}-`
+  const rows = await db.payment.findMany({
+    where: { invoiceNo: { startsWith: prefix } },
+    select: { invoiceNo: true },
+  })
+  let next = rows.reduce((max, row) => Math.max(max, invoiceSequence(row.invoiceNo, prefix)), 0) + 1
+
+  // لا نعتمد على عدد السجلات لأن تنظيف بيانات QA أو حذف فواتير قديمة يخلق فجوات.
+  // نفحص الوجود فعلياً حتى لا نصطدم بقيد invoiceNo الفريد في قاعدة البيانات.
+  for (let attempt = 0; attempt < 1000; attempt++) {
+    const candidate = `${prefix}${pad(next + attempt)}`
+    const exists = await db.payment.findUnique({ where: { invoiceNo: candidate }, select: { id: true } })
+    if (!exists) return candidate
+  }
+
+  throw new Error('INVOICE_SEQUENCE_EXHAUSTED')
+}
+
+export async function nextReceiptNo(): Promise<string> {
+  const rows = await db.$queryRaw<Array<{ n: bigint | number }>>`SELECT nextval('payment_receipt_no_seq') AS n`
+  const n = Number(rows[0]?.n || 1)
+  return `AACT-REC-${new Date().getFullYear()}-${pad(n)}`
+}
+
+export async function nextCertSerial(): Promise<string> {
+  const c = await db.certificate.count()
+  return `AACT-C-${new Date().getFullYear()}-${pad(c + 1, 5)}`
+}
+
+export async function nextContractNo(): Promise<string> {
+  const c = await db.agentApplication.count({ where: { contractNo: { not: null } } })
+  return `AACT-AG-${new Date().getFullYear()}-${pad(c + 1, 3)}`
+}
+
+export async function nextAdmissionRef(): Promise<string> {
+  const c = await db.admissionApplication.count()
+  return `AACT-${new Date().getFullYear()}-${1000 + c + 1}`
+}
+, inputType: 'number' },
+  { key: 'AI_USER_DAILY_COST_CAP_CENTS', value: '0', label: 'سقف صرف الذكاء الاصطناعي اليومي لكل طالب (0 = بدون سقف)', group: 'AI', suffix: 'سنت', inputType: 'number' },
+  { key: 'CHAT_RETENTION_DAYS', value: '180', label: 'مدة الاحتفاظ بالمحادثات قبل الحذف التلقائي', group: 'AI', suffix: 'يوماً', inputType: 'number' },
+  { key: 'UNIT_MIN_KNOWLEDGE_ITEMS', value: '15', label: 'الحد الأدنى لعناصر المعرفة قبل تخفيض عدد أسئلة الوحدة', group: 'AI', suffix: 'عنصر', inputType: 'number' },
+  { key: 'VOICE_DEFAULT_DIALECT', value: 'ar-PS', label: 'اللهجة الافتراضية للتعرّف على الصوت', group: 'AI', suffix: '', inputType: 'text' },
 
   // القواعد والمهل الزمنية
   { key: 'AGENT_COMMISSION_RATE', value: '25', label: 'نسبة عمولة الوكيل من إيرادات البرامج', group: 'RULES', suffix: '%', inputType: 'number' },
