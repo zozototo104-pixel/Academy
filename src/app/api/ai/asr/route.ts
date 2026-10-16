@@ -26,7 +26,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'حجم التسجيل كبير جداً — سجل مقطعاً أقصر' }, { status: 413 })
     }
 
-    const text = await transcribeAudioBase64(audioBase64, { mimeType: mimeType || 'audio/webm', languageCode: dialect || undefined })
+    const defaultDialect = await getSetting('VOICE_DEFAULT_DIALECT').catch(() => process.env.VOICE_DEFAULT_DIALECT || 'ar-PS')
+    const text = await transcribeAudioBase64(audioBase64, { mimeType: mimeType || 'audio/webm', languageCode: dialect || defaultDialect || 'ar-PS' })
 
     return NextResponse.json({ text })
   } catch (e: any) {
