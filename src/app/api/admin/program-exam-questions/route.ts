@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
 import { notify } from '@/lib/notify'
 import { emailExamPublished } from '@/lib/mailer'
+import { getSetting } from '@/lib/settings'
 import { cognitivePolicyArabicMessage, validateCognitiveDistribution } from '@/lib/exam-cognitive-policy'
 
 const REQUIRED_PUBLISHED_QUESTIONS = 80
