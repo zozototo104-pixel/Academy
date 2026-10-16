@@ -369,12 +369,13 @@ export async function createGeminiLiveEphemeralToken(
       rememberGeminiLiveModel(model, purpose)
       return { token: name, name, model, purpose, config, expireTime, newSessionExpireTime, apiVersion: 'v1beta' }
     } catch (error: any) {
-      error.model = error.model || model
-      error.ms = error.ms || Date.now() - started
-      lastError = error
-      await reportGeminiLiveKeyFailure(keyIndex, error)
-      if (shouldTryNextGeminiLiveTokenKey(error)) continue
-      throw error
+      const err: any = error && typeof error === 'object' ? error : new Error(String(error || 'Gemini Live token failure'))
+      err.model = err.model || model
+      err.ms = err.ms || Date.now() - started
+      lastError = err
+      await reportGeminiLiveKeyFailure(keyIndex, err)
+      if (shouldTryNextGeminiLiveTokenKey(err)) continue
+      throw err
     }
   }
 
