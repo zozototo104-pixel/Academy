@@ -138,8 +138,27 @@ async function listQuestions(programId: string, status?: string | null) {
     where: { programId, ...(status && STATUSES.has(status) ? { status } : {}) },
     orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
     take: 120,
+    select: {
+      id: true,
+      type: true,
+      text: true,
+      options: true,
+      correctAnswer: true,
+      sourceLocator: true,
+      sourceBookTitle: true,
+      knowledgeItemId: true,
+      cognitiveSkill: true,
+      difficulty: true,
+      status: true,
+      qualityFlags: true,
+      provider: true,
+      model: true,
+      generatorModel: true,
+      rejectedReason: true,
+      createdAt: true,
+    },
   }))
-  return items.map((item) => ({ ...item, verifierReason: item.reviewNotes || null }))
+  return items.map((item) => ({ ...item, verifierReason: null }))
 }
 
 export async function GET(req: NextRequest) {
