@@ -58,7 +58,7 @@ async function unitGuidesForProgram(programId: string, semester: number) {
 }
 
 async function buildSemesterGuide(programId: string, semester: number) {
-  const program = await db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true, titleEn: true } })
+  const program = await withTiming('db_study_guides_program', () => db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true, titleEn: true } }))
   if (!program) throw new Error('PROGRAM_NOT_FOUND')
   const { units, guideByUnit, missing } = await unitGuidesForProgram(programId, semester)
   if (!units.length) throw new Error('لا توجد وحدات لهذا النطاق. ولّد الوحدات ومحتواها أولاً.')
