@@ -26,6 +26,12 @@ function applyNumberMutation(current: number, mutation: any) {
   return current
 }
 
+function firstLiveUsage() {
+  const row = [...liveUsages.values()][0]
+  if (!row) throw new Error('no live usage row')
+  return row
+}
+
 const db: any = {
   $transaction: async (work: (tx: any) => Promise<any>) => work(db),
   setting: {
