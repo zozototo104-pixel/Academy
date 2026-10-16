@@ -203,10 +203,14 @@ describe('academic B1 safety', () => {
     expect(defenseMessages).toHaveLength(1)
   })
 
-  test('empty unit exam cannot be published and legacy empty READY unit exams do not block certificate eligibility', async () => {
+  test('empty unit exam cannot be published and legacy empty READY unit exams do not block certificate eligibility or inflate the grade', async () => {
     expect(canPublishUnitExamFromQuestions([])).toBe(false)
+    const finalGrade = await calculateFinalGrade({ userId: 'user-1', programId: 'program-1', client: db })
+    expect(finalGrade.score).toBe(86)
+    expect(finalGrade.components.find((component) => component.key === 'quizzes')).toMatchObject({ exempt: true, weighted: 0 })
     const eligibility = await evaluateProgramCertificateEligibility({ userId: 'user-1', programId: 'program-1', client: db })
     expect(eligibility.ok).toBe(true)
+    expect(eligibility.score).toBe(86)
     expect(eligibility.missing.some((item) => item.includes('اختبار وحدة'))).toBe(false)
   })
 
