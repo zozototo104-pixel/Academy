@@ -162,15 +162,15 @@ describe('AI D1 behavior', () => {
     const reserved = await reserveGeminiLiveUsage({ userId: 'student-1', role: 'STUDENT', purpose: 'SUPERVISOR', requestedMinutes: 2, sessionId: 'live-session-1' })
     expect(reserved.ok).toBe(true)
     expect(reserved.sessionLimitMinutes).toBe(2)
-    expect(liveUsages.values().next().value.freeMinutesUsed).toBe(2)
+    expect(firstLiveUsage().freeMinutesUsed).toBe(2)
 
     const settled = await settleGeminiLiveUsage({ sessionId: 'live-session-1', actualSeconds: 30 })
     expect(settled).toMatchObject({ ok: true, refundMinutes: 1 })
-    expect(liveUsages.values().next().value.freeMinutesUsed).toBe(1)
+    expect(firstLiveUsage().freeMinutesUsed).toBe(1)
 
     const retried = await settleGeminiLiveUsage({ sessionId: 'live-session-1', actualSeconds: 30 })
     expect(retried).toMatchObject({ ok: true, idempotent: true })
-    expect(liveUsages.values().next().value.freeMinutesUsed).toBe(1)
+    expect(firstLiveUsage().freeMinutesUsed).toBe(1)
   })
 
   test('OGG voice falls back to Whisper-compatible provider when Gemini is unavailable', async () => {
