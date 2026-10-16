@@ -287,6 +287,7 @@ export async function POST(req: NextRequest) {
       token,
       model,
       voice,
+      dialect,
       setupVariant,
       expiresAt: expireTime,
       sessionLimitMinutes,
