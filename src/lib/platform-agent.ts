@@ -1024,6 +1024,8 @@ export async function platformPublicAgentComplete(opts: {
     timeoutMs,
     requireModelResponse: isWhatsApp,
     routerPolicy: isWhatsApp ? 'primary_first' : undefined,
+    userId: opts.userId,
+    taskType: isWhatsApp ? 'WHATSAPP' : 'CHAT',
   })
   return { reply: annotateReply(agent, reply, 'MODEL_ROUTER_OR_FALLBACK'), agent, engine: 'MODEL_ROUTER_OR_FALLBACK' }
 }
