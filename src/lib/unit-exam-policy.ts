@@ -68,7 +68,7 @@ export function countUnitExamQuestionsNeedingReview(questions: Array<{ text: str
 }
 
 export function canPublishUnitExamFromQuestions(questions: Array<{ text: string }>) {
-  return countUnitExamQuestionsNeedingReview(questions) === 0
+  return questions.length > 0 && countUnitExamQuestionsNeedingReview(questions) === 0
 }
 
 export function unitExamQuestionTextWithReviewLabel(text: string, needsReview: boolean) {
