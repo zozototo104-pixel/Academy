@@ -32,6 +32,7 @@ async function handler(req: NextRequest) {
     }
     const purpose = normalizePurpose(bodyPurpose || urlPurpose)
     const thesisId = String(bodyThesisId || urlThesisId || '').trim() || null
+    const sessionId = String(bodySessionId || req.nextUrl.searchParams.get('sessionId') || '').trim() || `live_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
     let systemInstruction: string | undefined
     if (purpose === 'DISCUSSION') {
       if (!thesisId) return NextResponse.json({ error: 'thesisId مطلوب لفتح جلسة المناقشة الصوتية.' }, { status: 400 })
