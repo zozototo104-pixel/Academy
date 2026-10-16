@@ -845,7 +845,7 @@ export function AdminQualityTab() {
         const res = await api<{ units: { id: string; title: string }[] }>(`/api/admin/program-units?programId=${program.id}`)
         const units = res.units || []
         if (units.length > 0) {
-          const choice = window.prompt(`اختر رقم الوحدة:\n${units.map((u, i) => `${i + 1}. ${u.title}`).join('\n')}`, '1')
+          const choice = await promptAction({ title: 'اختيار وحدة الامتحان', description: units.map((u, i) => `${i + 1}. ${u.title}`).join('\n'), fieldLabel: 'رقم الوحدة', defaultValue: '1', confirmLabel: 'اختيار الوحدة', tone: 'info' })
           unitId = units[Number(choice || 0) - 1]?.id || null
         }
       } catch (error) {
