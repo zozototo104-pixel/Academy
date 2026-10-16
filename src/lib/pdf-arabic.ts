@@ -174,32 +174,41 @@ export function drawArabicImage(
   y: number,
   opts: DrawArabicImageOptions = {}
 ): number {
-  ensureCanvasArabicFont(opts.fontPath)
-  const logical = String(text || '').trim() || '—'
-  const size = opts.size || 13
-  const maxWidth = opts.maxWidth || Math.min(620, Math.max(180, opts.align === 'center' ? x * 2 : x - 52))
-  const maxLines = opts.maxLines || 3
-  const lines = wrapCanvasLines(logical, size, maxWidth).slice(0, maxLines)
-  const lineHeight = size + 6
-  const pad = 8
-  const width = Math.ceil(maxWidth + pad * 2)
-  const height = Math.ceil(lines.length * lineHeight + pad * 2)
-  const scale = 2
-  const { createCanvas } = loadCanvasModule()
-  const canvas = createCanvas(width * scale, height * scale)
-  const ctx = canvas.getContext('2d')
-  ctx.scale(scale, scale)
-  ctx.font = `${size}px ${CANVAS_ARABIC_FONT_FAMILY}`
-  ctx.fillStyle = opts.color || DEFAULT_CANVAS_TEXT
-  ctx.textBaseline = 'alphabetic'
-  ;(ctx as any).direction = 'rtl'
-  ctx.textAlign = opts.align === 'center' ? 'center' : 'right'
-  const drawX = opts.align === 'center' ? width / 2 : width - pad
-  lines.forEach((line, index) => ctx.fillText(line, drawX, pad + size + index * lineHeight))
-  const image = `data:image/png;base64,${canvas.toBuffer('image/png').toString('base64')}`
-  const left = opts.align === 'center' ? x - width / 2 : x - width
-  doc.addImage(image, 'PNG', left, y - size - 4, width, height)
-  return Math.max(20, lines.length * (size + 4))
+  const canvas = canvasLoadState === 'ready' ? canvasModule : null
+  if (!canvas) return drawArabicTextFallback(doc, text, x, y, opts)
+
+  try {
+    const logical = String(text || '').trim() || '—'
+    const size = opts.size || 13
+    const maxWidth = opts.maxWidth || Math.min(620, Math.max(180, opts.align === 'center' ? x * 2 : x - 52))
+    const maxLines = opts.maxLines || 3
+    const lines = wrapCanvasLines(logical, size, maxWidth, canvas).slice(0, maxLines)
+    const lineHeight = size + 6
+    const pad = 8
+    const width = Math.ceil(maxWidth + pad * 2)
+    const height = Math.ceil(lines.length * lineHeight + pad * 2)
+    const scale = 2
+    const imageCanvas = canvas.createCanvas(width * scale, height * scale)
+    const ctx = imageCanvas.getContext('2d')
+    ctx.scale(scale, scale)
+    ctx.font = `${size}px ${CANVAS_ARABIC_FONT_FAMILY}`
+    ctx.fillStyle = opts.color || DEFAULT_CANVAS_TEXT
+    ctx.textBaseline = 'alphabetic'
+    ;(ctx as any).direction = 'rtl'
+    ctx.textAlign = opts.align === 'center' ? 'center' : 'right'
+    const drawX = opts.align === 'center' ? width / 2 : width - pad
+    lines.forEach((line, index) => ctx.fillText(line, drawX, pad + size + index * lineHeight))
+    const image = `data:image/png;base64,${imageCanvas.toBuffer('image/png').toString('base64')}`
+    const left = opts.align === 'center' ? x - width / 2 : x - width
+    doc.addImage(image, 'PNG', left, y - size - 4, width, height)
+    return Math.max(20, lines.length * (size + 4))
+  } catch (error) {
+    if (!canvasDrawWarned) {
+      canvasDrawWarned = true
+      console.warn('[pdf-arabic] Canvas Arabic draw failed; using shaped text fallback.', error)
+    }
+    return drawArabicTextFallback(doc, text, x, y, opts)
+  }
 }
 
 /**
