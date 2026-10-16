@@ -425,14 +425,8 @@ export class GeminiLiveAgent {
     })
   }
 
-  private sendAudioFrame(e: AudioProcessingEvent) {
-    if (!this.running || !this.setupReady || this.muted || !this.ctx) return
-
-    const input = e.inputBuffer.getChannelData(0)
-    let peak = 0
-    for (let i = 0; i < input.length; i++) peak = Math.max(peak, Math.abs(input[i]))
+  private updateMicLevel(peak: number) {
     this.cb.onLevel?.(Math.min(1, peak * 6))
-
     const isUserSpeaking = peak > 0.018
     if (isUserSpeaking) {
       this.lastUserSpeechAt = performance.now()
@@ -443,8 +437,9 @@ export class GeminiLiveAgent {
     } else {
       this.state('LISTENING')
     }
+  }
 
-    const data = b64FromInt16(downsampleTo16k(input, this.ctx.sampleRate || 48000))
+  private sendPcmBase64(data: string) {
     try {
       if (this.usingSdk && this.sdkSession?.sendRealtimeInput) {
         this.sdkSession.sendRealtimeInput({ audio: { mimeType: 'audio/pcm;rate=16000', data } })
@@ -460,6 +455,25 @@ export class GeminiLiveAgent {
     } catch (e) {
       this.cb.onError?.(friendlyClientError(e))
     }
+  }
+
+  private sendWorkletAudioFrame(message: any) {
+    if (!this.running || !this.setupReady || this.muted) return
+    this.updateMicLevel(Number(message?.peak || 0))
+    const pcmBuffer = message?.pcm
+    if (!pcmBuffer) return
+    this.sendPcmBase64(b64FromInt16(new Int16Array(pcmBuffer)))
+  }
+
+  private sendAudioFrame(e: AudioProcessingEvent) {
+    if (!this.running || !this.setupReady || this.muted || !this.ctx) return
+
+    const input = e.inputBuffer.getChannelData(0)
+    let peak = 0
+    for (let i = 0; i < input.length; i++) peak = Math.max(peak, Math.abs(input[i]))
+    this.updateMicLevel(peak)
+
+    this.sendPcmBase64(b64FromInt16(downsampleTo16k(input, this.ctx.sampleRate || 48000)))
   }
 
   private handleRawMessage(raw: any): boolean {
