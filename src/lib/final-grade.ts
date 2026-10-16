@@ -209,9 +209,15 @@ export async function calculateFinalGrade(input: {
   }
 
   for (const c of components) {
-    if (!c.ready) addMissing(missing, c.label)
+    if (!c.ready && !c.exempt) addMissing(missing, c.label)
   }
 
   if (missing.length) return { score: null, components, missing }
-  return { score: components.reduce((sum, c) => sum + c.weighted, 0), components, missing }
+  const activeComponents = components.filter((c) => !c.exempt && typeof c.score === 'number')
+  const activeWeight = activeComponents.reduce((sum, c) => sum + c.weight, 0)
+  if (activeWeight <= 0) return { score: null, components, missing }
+  for (const c of components) {
+    c.weighted = c.exempt || typeof c.score !== 'number' ? 0 : (c.score * c.weight) / activeWeight
+  }
+  return { score: activeComponents.reduce((sum, c) => sum + c.weighted, 0), components, missing }
 }
