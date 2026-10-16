@@ -293,11 +293,11 @@ export async function PATCH(req: NextRequest) {
     }
 
     const payload = bulkApplyPriceHoursSchema.parse(body)
-    const programs = await db.program.findMany({
+    const programs = await withTiming('db_program_rules_bulk_programs', () => db.program.findMany({
       where: { category: payload.category, active: true },
       orderBy: [{ order: 'asc' }, { titleAr: 'asc' }],
       select: { id: true, slug: true, titleAr: true, titleEn: true, category: true, price: true, hours: true },
-    })
+    }))
     const visiblePrograms = programs.filter((p) => !isInternalQaProgram(p))
     if (!visiblePrograms.length) {
       return NextResponse.json({ error: 'لا توجد برامج منشورة ضمن هذا التصنيف' }, { status: 404 })
