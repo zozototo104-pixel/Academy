@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 
-type DialogKind = 'confirm' | 'prompt'
+type DialogKind = 'alert' | 'confirm' | 'prompt'
 type DialogTone = 'danger' | 'warning' | 'info' | 'success'
 
 interface BaseOptions {
