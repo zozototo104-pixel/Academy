@@ -30,6 +30,7 @@
     "test:ai-d1": "bun test tests/ai/ai-d1.test.ts",
     "test:ai-d2": "bun test tests/ai/ai-d2.test.ts",
     "test:admin-voice": "bun test tests/ai/admin-voice.test.ts",
+    "test:gemini-live-rotation": "bun test tests/ai/gemini-live-key-rotation.test.ts",
     "test:ui-e": "bun test tests/ui/ui-e.test.ts",
     "test:vision-router": "tsx scripts/test-vision-router.ts",
     "audit:representative-private-files": "tsx scripts/audit-representative-private-files.ts",
