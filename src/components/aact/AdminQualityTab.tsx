@@ -1165,7 +1165,9 @@ export function AdminQualityTab() {
   }
 
   const updateThesisTopicRequestStatus = async (requestId: string, status: string) => {
-    const adminNote = status === 'NEEDS_REVISION' || status === 'REJECTED' ? window.prompt('اكتب ملاحظة للطالب', '') || '' : ''
+    const adminNote = status === 'NEEDS_REVISION' || status === 'REJECTED'
+      ? (await promptAction({ title: 'ملاحظة للطالب', description: 'اكتب الملاحظة التي ستظهر للطالب مع قرار الطلب.', fieldLabel: 'الملاحظة', defaultValue: '', multiline: true, confirmLabel: 'اعتماد الملاحظة', tone: 'info' })) || ''
+      : ''
     setThesisTopicBusy(true)
     try {
       await api('/api/admin/thesis-topics', {
