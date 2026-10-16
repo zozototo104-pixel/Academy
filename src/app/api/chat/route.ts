@@ -226,6 +226,9 @@ export async function POST(req: NextRequest) {
     if (message.includes('AI_SUPERVISOR_LOCKED')) {
       return NextResponse.json({ error: e?.reason || 'المشرف الذكي غير مفعل لهذا الطالب بعد.' }, { status: e?.status || 403 })
     }
+    if (e?.status === 429 || e?.code === 'AI_USER_DAILY_COST_CAP_EXCEEDED') {
+      return NextResponse.json({ error: e?.message || 'تجاوزت سقف استخدام الذكاء الاصطناعي اليومي.' }, { status: 429 })
+    }
     if (message.includes('EMPTY_AI_RESPONSE') || message.includes('AI_PROVIDER_UNAVAILABLE')) {
       return NextResponse.json({ error: 'تعذر توليد إجابة أكاديمية الآن بسبب فشل مزوّد الذكاء. أعد المحاولة بعد قليل.' }, { status: 502 })
     }
