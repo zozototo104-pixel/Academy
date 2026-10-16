@@ -35,3 +35,18 @@ export function withServerTiming<T extends Response>(response: T, metrics: Timin
   if (header) response.headers.set('Server-Timing', header)
   return response
 }
+
+export type TimedJsonResult<T> = { payload: T; init?: ResponseInit }
+
+export async function jsonWithTimings<T>(fn: () => Promise<TimedJsonResult<T>> | TimedJsonResult<T>): Promise<Response> {
+  const { result, metrics } = await collectTimings(async () => {
+    const result = await fn()
+    const body = await withTiming('serialize', () => JSON.stringify(result.payload))
+    return { ...result, body, bytes: Buffer.byteLength(body) }
+  })
+  const headers = new Headers(result.init?.headers)
+  if (!headers.has('content-type')) headers.set('content-type', 'application/json; charset=utf-8')
+  headers.set('X-Response-Bytes', String(result.bytes))
+  const response = new Response(result.body, { ...result.init, headers })
+  return withServerTiming(response, metrics)
+}
