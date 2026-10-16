@@ -95,16 +95,20 @@ export function useAdminActionDialog() {
     const Icon = tone.icon
     return (
       <Dialog open={!!state} onOpenChange={(open) => { if (!open) close(state.kind === 'confirm' ? false : null) }}>
-        <DialogContent className="max-w-md rounded-[2rem] border border-[#0f2b46]/10 bg-white p-0" dir="rtl">
-          <div className={`rounded-t-[2rem] bg-gradient-to-l ${tone.header} px-5 py-5 text-[#f5f0e1]`}>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-lg font-black">
-                <Icon className="h-5 w-5" /> {state.title}
+        <DialogContent className={`max-w-md overflow-hidden rounded-[2rem] border border-[#0f2b46]/10 bg-gradient-to-br ${tone.shell} p-0 shadow-2xl shadow-[#0f2b46]/20`} dir="rtl">
+          <div className="relative px-5 pb-3 pt-5">
+            <div className="absolute inset-x-8 top-0 h-1 rounded-b-full bg-gradient-to-l from-[#c9a227] via-[#0f2b46] to-[#e0b83a]" />
+            <DialogHeader className="items-center text-center">
+              <div className={`mb-3 flex h-14 w-14 items-center justify-center rounded-2xl ${tone.ring} shadow-lg`}>
+                <Icon className="h-7 w-7" />
+              </div>
+              <DialogTitle className="text-2xl font-black leading-9 text-[#0f2b46]">
+                {state.title}
               </DialogTitle>
-              {state.description && <DialogDescription className="text-xs font-bold leading-6 text-[#f5f0e1]/80">{state.description}</DialogDescription>}
+              {state.description && <DialogDescription className="max-w-sm whitespace-pre-line text-center text-sm font-bold leading-8 text-slate-600">{state.description}</DialogDescription>}
             </DialogHeader>
           </div>
-          <div className="space-y-4 p-5">
+          <div className="space-y-4 px-5 pb-5">
             {state.kind === 'prompt' && (
               <div className="space-y-2">
                 <Label className="text-xs font-black text-[#0f2b46]">{state.fieldLabel || 'الملاحظة'}</Label>
