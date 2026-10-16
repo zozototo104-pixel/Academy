@@ -450,6 +450,21 @@ export function AIChatView() {
     }
   }
 
+  const switchVoiceToText = () => {
+    agentRef.current?.stop()
+    agentRef.current = null
+    setVoiceMode(false)
+    voiceModeRef.current = false
+    setSpeakingId(null)
+    setListening(false)
+    setInterim('')
+    setLiveCaption('')
+    setMicLevel(0)
+    setVoiceState('IDLE')
+    setMuted(false)
+    setTimeout(() => document.querySelector<HTMLTextAreaElement>('textarea')?.focus(), 80)
+  }
+
   const toggleVoiceMode = () => {
     if (voiceMode) {
       setVoiceMode(false)
