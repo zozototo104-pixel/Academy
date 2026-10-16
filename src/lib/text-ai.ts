@@ -1458,10 +1458,12 @@ const GEMINI_LIVE_ROUTER_MODEL = 'gemini-live'
 
 export type GeminiLiveRouterKey = { key: string; keyIndex: number }
 
-function isPersistentCoolingAnyGeminiModel(values: Record<string, string>, keyIndex: number): boolean {
-  if (isPersistentCooling(values, 'GEMINI', keyIndex, GEMINI_LIVE_ROUTER_MODEL)) return true
-  const prefix = `${persistentCooldownKey('GEMINI', keyIndex)}:`
-  return Object.entries(values).some(([key, value]) => key.startsWith(prefix) && !!parseCooldown(value))
+function isAuthOrNoBalanceMemoryCooling(provider: string, key: string): boolean {
+  const item = activeMemoryCooldown(provider, key)
+  if (!item) return false
+  const status = Number(item.status || 0)
+  if (status === 401 || status === 403 || status === 402) return true
+  return /AUTH|UNAUTHENTICATED|PERMISSION_DENIED|API_KEY|NO_BALANCE|INSUFFICIENT|BILLING|PAYMENT_REQUIRED/i.test(item.reason)
 }
 
 export async function geminiKeysForLive(): Promise<GeminiLiveRouterKey[]> {
@@ -1469,7 +1471,7 @@ export async function geminiKeysForLive(): Promise<GeminiLiveRouterKey[]> {
   const persistentCooldowns = await loadPersistentCooldowns()
   return providerKeys(s, 'GEMINI')
     .map((key, index) => ({ key, keyIndex: index + 1 }))
-    .filter(({ key, keyIndex }) => !isCooling('GEMINI', key) && !isPersistentNoBalance(persistentCooldowns, 'GEMINI', keyIndex) && !isPersistentCoolingAnyGeminiModel(persistentCooldowns, keyIndex))
+    .filter(({ key, keyIndex }) => !isAuthOrNoBalanceMemoryCooling('GEMINI', key) && !isPersistentNoBalance(persistentCooldowns, 'GEMINI', keyIndex) && !isPersistentCooling(persistentCooldowns, 'GEMINI', keyIndex, GEMINI_LIVE_ROUTER_MODEL))
 }
 
 export function reportGeminiLiveKeySuccess(keyIndex: number, model: string, ms = 0): void {
