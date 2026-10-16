@@ -86,7 +86,7 @@ const db: any = {
 mock.module('@/lib/db', () => ({ db }))
 mock.module('@/lib/auth', () => ({
   requireAdmin: async () => ({ id: 'admin-1', name: 'مدير', role: 'ADMIN' }),
-  getCurrentUser: async () => ({ id: 'student-1', name: 'طالب', email: 'student@example.test', role: 'STUDENT' }),
+  getCurrentUser: async () => currentUser,
 }))
 mock.module('@/lib/enrollment-completion', () => ({
   completeEnrollmentIfEligible: async (input: any) => { calls.push(`complete:${input.userId}:${input.programId}`); return { ok: true, completed: true, certificateIssued: true } },
