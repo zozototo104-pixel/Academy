@@ -416,8 +416,23 @@ export function buildUnitStudyGuideDraft(params: {
   }
 }
 
+const PROVIDER_UNAVAILABLE_ERROR_CODES = new Set([
+  'GEMINI_NOT_CONFIGURED',
+  'AI_VERIFIER_UNAVAILABLE',
+  'PROVIDER_UNAVAILABLE',
+  'AI_ACADEMIC_PROVIDER_UNAVAILABLE',
+  'TEXT_AI_ROUTER_NOT_CONFIGURED',
+  'TEXT_AI_ROUTER_NO_VISION_PROVIDER',
+  'TEXT_AI_ROUTER_FAILED',
+])
+
 export function providerUnavailableStatus(error: unknown) {
-  const message = String((error as any)?.message || error || '')
-  if (/^(?:UNIT_|STUDY_GUIDE_)/i.test(message)) return false
-  return /TIMEOUT|QUOTA|RATE_LIMIT|429|503|API_KEY|PROVIDER_UNAVAILABLE/i.test(message)
+  const message = String((error as any)?.message || error || '').trim()
+  const code = String((error as any)?.code || '').trim()
+
+  if (code === 'VALIDATION_REJECTED') return false
+  if (message.startsWith('UNIT_') || message.startsWith('STUDY_GUIDE_') || message.includes('INVALID_JSON')) return false
+
+  if (PROVIDER_UNAVAILABLE_ERROR_CODES.has(message) || PROVIDER_UNAVAILABLE_ERROR_CODES.has(code)) return true
+  return isQuotaError(error) || isTransientGeminiError(error) || isAuthError(error) || isModelUnavailableError(error)
 }
