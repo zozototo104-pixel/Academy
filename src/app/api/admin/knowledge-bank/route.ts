@@ -148,4 +148,5 @@ export async function POST(req: NextRequest) {
     console.error('knowledge-bank POST error:', e)
     return NextResponse.json({ error: e?.message || 'تعذر بناء بنك المعرفة' }, { status: 500 })
   }
+  })
 }
