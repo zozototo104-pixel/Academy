@@ -74,7 +74,7 @@ function isIsoBaseMedia(buffer: Buffer) {
   return buffer.byteLength >= 12 && buffer.toString('ascii', 4, 8) === 'ftyp'
 }
 
-function detectImageOrPdfOrOffice(buffer: Buffer): FileKind | null {
+function detectImageOrPdfOrOffice(buffer: Buffer, ext = ''): FileKind | null {
   if (startsWithBytes(buffer, [0xff, 0xd8, 0xff])) return 'jpeg'
   if (startsWithBytes(buffer, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return 'png'
   if (buffer.byteLength >= 12 && buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP') return 'webp'
