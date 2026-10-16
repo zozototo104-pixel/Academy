@@ -109,8 +109,8 @@ export async function POST(req: NextRequest) {
         if (updates.length) { await Promise.all(updates); updated += updates.length }
         if (rows.length < 500) break
       }
-      await audit(admin, 'SANITIZE_KNOWLEDGE_BANK', 'Program', programId, `تنظيف بنك المعرفة: حذف ${deleted} عنصر مشوه وتحديث ${updated} عنصر`)
-      const items = await getProgramKnowledgeItems(programId, semester, 140)
+      await withTiming('db_audit_knowledge_bank_sanitize', () => audit(admin, 'SANITIZE_KNOWLEDGE_BANK', 'Program', programId, `تنظيف بنك المعرفة: حذف ${deleted} عنصر مشوه وتحديث ${updated} عنصر`))
+      const items = await withTiming('db_knowledge_bank_items_after_sanitize', () => getProgramKnowledgeItems(programId, semester, 140))
       const message = items.length < KNOWLEDGE_BANK_LIMITS.minContextItems ? 'شغّل القراءة الكاملة أو استخراج المزيد' : null
       return NextResponse.json({ ok: true, deleted, updated, rebuilt: null, message, count: items.length, stats: categoryStats(items), items })
     }
