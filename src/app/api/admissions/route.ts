@@ -103,11 +103,11 @@ function trackingVerifierMatches(app: { email?: string | null; phone?: string | 
 }
 
 async function adminAdmissionEmailRecipients() {
-  const adminUsers = await db.user.findMany({
+  const adminUsers = await withTiming('db_admissions_admin_email_recipients', () => db.user.findMany({
     where: { role: 'ADMIN' },
     select: { email: true },
     take: 20,
-  }).catch(() => [])
+  }).catch(() => []))
   const candidates = [
     ...adminUsers.map((u) => u.email),
     process.env.ADMIN_EMAIL,
