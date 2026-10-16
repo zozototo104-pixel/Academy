@@ -358,7 +358,7 @@ async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessa
       error: msg,
     }, message.id)
     return {
-      message: { ...message, text: '🎤 رسالة صوتية تعذر تفريغها؛ تم تحويلها للموظف لمتابعة الطلب.', originKind: 'VOICE' },
+      message: { ...message, text: 'ما قدرت أسمع الرسالة الصوتية، ابعتها كتابة.', originKind: 'VOICE' },
       requestHuman: true,
       failureReason: msg,
     }
