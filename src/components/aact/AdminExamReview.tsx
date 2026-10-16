@@ -262,10 +262,23 @@ export function QuestionReviewDialog({
     if (!confirm('سيتم اعتماد كل الأسئلة المعلّقة ونشر الامتحان للطلاب المتسجلين مع إشعارهم. متابعة؟')) return
     setBusy(true)
     try {
-      const d = await api<{ published: number }>('/api/admin/program-exam-questions', {
+      const publishRequest = (overrideReason?: string) => api<{ published: number }>('/api/admin/program-exam-questions', {
         method: 'POST',
-        body: JSON.stringify({ examId, action: 'APPROVE_ALL' }),
+        body: JSON.stringify({ examId, action: 'APPROVE_ALL', ...(overrideReason ? { overrideCognitivePolicy: true, overrideReason } : {}) }),
       })
+      let d: { published: number }
+      try {
+        d = await publishRequest()
+      } catch (e: any) {
+        if (e?.status === 409 && e?.code === 'COGNITIVE_DISTRIBUTION_FAILED') {
+          const details = Array.isArray(e?.data?.details) ? `\n${e.data.details.join('\n')}` : ''
+          const reason = window.prompt(`${e.message}${details}\n\nاكتب سبب التجاوز الإداري لنشر الامتحان رغم توزيع المهارات:`)
+          if (!reason || reason.trim().length < 8) throw new Error('يجب كتابة سبب واضح لتجاوز توزيع المهارات المعرفية.')
+          d = await publishRequest(reason.trim())
+        } else {
+          throw e
+        }
+      }
       toast({ title: 'نُشر الامتحان', description: `${d.published} سؤالاً معتمداً — وصل إشعار للطلاب المتسجلين` })
       onPublished()
       onClose()
