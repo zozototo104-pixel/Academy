@@ -2379,7 +2379,9 @@ export function AdminQualityTab() {
                       {s.status !== 'ACTIVE' ? <Button size="sm" disabled={studentBusyId === s.id} onClick={() => updateStudentAction(s.id, 'setStatus', { status: 'ACTIVE' })} className="bg-emerald-600 text-xs font-black text-white">تفعيل</Button> : null}
                       {s.status !== 'DISABLED' ? <Button size="sm" variant="outline" disabled={studentBusyId === s.id} onClick={() => updateStudentAction(s.id, 'setStatus', { status: 'DISABLED' })} className="text-xs font-black">تعطيل</Button> : null}
                       {s.status !== 'ARCHIVED' ? <Button size="sm" variant="outline" disabled={studentBusyId === s.id} onClick={() => updateStudentAction(s.id, 'setStatus', { status: 'ARCHIVED' })} className="text-xs font-black">أرشفة</Button> : null}
-                      <Button size="sm" variant="outline" disabled={studentBusyId === s.id} onClick={() => confirm('الحذف الآمن يعمل فقط للطالب التجريبي بلا مدفوعات أو شهادات أو سجلات أكاديمية. متابعة؟') && updateStudentAction(s.id, 'safeDelete')} className="border-red-200 text-xs font-black text-red-700">حذف آمن</Button>
+                      <Button size="sm" variant="outline" disabled={studentBusyId === s.id} onClick={async () => {
+                        if (await confirmAction({ title: 'حذف آمن للطالب', description: 'الحذف الآمن يعمل فقط للطالب التجريبي بلا مدفوعات أو شهادات أو سجلات أكاديمية.', confirmLabel: 'متابعة الحذف الآمن', tone: 'danger' })) await updateStudentAction(s.id, 'safeDelete')
+                      }} className="border-red-200 text-xs font-black text-red-700">حذف آمن</Button>
                     </div>
                   </div>
                   {s.enrollments?.length ? (
