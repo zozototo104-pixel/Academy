@@ -105,18 +105,23 @@ export async function POST(req: NextRequest) {
     const appFee = isServiceRequest ? 0 : await getSettingNum('FEE_APPLICATION')
 
     const existingFee = app.payments.find((p) => p.purpose === 'APPLICATION_FEE') || null
-    const feeInvoice = isServiceRequest ? null : (existingFee || await db.payment.create({
-      data: {
-        admissionId: app.id,
-        userId: owner?.id || null,
-        invoiceNo: await nextInvoiceNo(),
-        purpose: 'APPLICATION_FEE',
-        description: `رسوم التقديم وحجز المقعد (غير مستردة) — ${selectedTitle}`,
-        amount: appFee,
-        payerName: app.fullName,
-        payerEmail: app.email,
-        payerCountry: app.country,
-      },
+    const feeInvoice = isServiceRequest ? null : (existingFee || await db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "AdmissionApplication" WHERE id = ${app.id} FOR UPDATE`
+      const duplicate = await tx.payment.findFirst({ where: { admissionId: app.id, purpose: 'APPLICATION_FEE' } })
+      if (duplicate) return duplicate
+      return tx.payment.create({
+        data: {
+          admissionId: app.id,
+          userId: owner?.id || null,
+          invoiceNo: await nextInvoiceNo(),
+          purpose: 'APPLICATION_FEE',
+          description: `رسوم التقديم وحجز المقعد (غير مستردة) — ${selectedTitle}`,
+          amount: appFee,
+          payerName: app.fullName,
+          payerEmail: app.email,
+          payerCountry: app.country,
+        },
+      })
     }))
 
     const updateData: any = {
