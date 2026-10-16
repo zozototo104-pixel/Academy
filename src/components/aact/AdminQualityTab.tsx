@@ -1158,7 +1158,7 @@ export function AdminQualityTab() {
       })
       await loadThesisTopics()
     } catch (e: any) {
-      alert(e?.message || 'تعذر تحديث حالة العنوان')
+      await alertAction({ title: 'تعذر تحديث حالة العنوان', description: e?.message || 'لم يتم تحديث عنوان البحث.', tone: 'danger' })
     } finally {
       setThesisTopicBusy(false)
     }
