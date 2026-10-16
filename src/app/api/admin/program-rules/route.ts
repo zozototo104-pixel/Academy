@@ -304,10 +304,10 @@ export async function PATCH(req: NextRequest) {
     }
 
     const ids = visiblePrograms.map((p) => p.id)
-    await db.program.updateMany({
+    await withTiming('db_program_rules_bulk_update_many', () => db.program.updateMany({
       where: { id: { in: ids } },
       data: { price: payload.price, hours: payload.hours },
-    })
+    }))
     clearPublicProgramsCache()
     revalidatePublicProgramSurfaces(visiblePrograms.map((p) => p.slug))
 
