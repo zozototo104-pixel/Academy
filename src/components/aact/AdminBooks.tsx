@@ -3744,6 +3744,21 @@ export function AdminBooksTab() {
                               )}
                             </>
                           )}
+                          {e.status === 'GENERATING' && examKickFailures[e.id]?.blocked && (
+                            <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-2 text-[10px] font-bold text-amber-800">
+                              <p>توقفت محاولات الاستكمال التلقائي بعد {examKickFailures[e.id].count} محاولات فاشلة. آخر خطأ: {examKickFailures[e.id].message}</p>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => resumeExam(e)}
+                                disabled={generating || stoppingExamId === e.id}
+                                className="mt-2 h-7 border-amber-300 bg-white text-[10px] font-black text-amber-700 hover:bg-amber-100"
+                              >
+                                {generating ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : <RefreshCw className="ml-1 h-3 w-3" />}
+                                استئناف
+                              </Button>
+                            </div>
+                          )}
                         </div>
                         <div className="flex shrink-0 gap-1">
                           {e.status === 'GENERATING' && (
