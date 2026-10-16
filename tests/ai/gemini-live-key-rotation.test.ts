@@ -117,7 +117,7 @@ describe('Gemini Live raw setup shape', () => {
         voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Charon' } },
       })
       expect(setup.generationConfig?.speechConfig?.languageCode).toBeUndefined()
-      expect(setup.systemInstruction.parts[0].text).toStartWith(palestinianInstruction)
+      expect(setup.systemInstruction.parts[0].text.startsWith(palestinianInstruction)).toBe(true)
       expect(setup.systemInstruction.parts[0].text).toContain('\n\nvoice instructions')
       expect(setup.inputAudioTranscription).toEqual({})
       expect(setup.outputAudioTranscription).toEqual({})
