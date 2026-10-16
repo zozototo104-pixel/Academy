@@ -468,6 +468,7 @@ export function AdminQualityTab() {
   const [unitSuggestionModeBusy, setUnitSuggestionModeBusy] = useState<'append' | null>(null)
   const [unitRegenerateDrafts, setUnitRegenerateDrafts] = useState<Record<string, boolean>>({})
   const [unitGenerationResult, setUnitGenerationResult] = useState<any | null>(null)
+  const { alertAction, confirmAction, promptAction, dialog: actionDialog } = useAdminActionDialog()
   const [questionBankOpen, setQuestionBankOpen] = useState(false)
   const [questionBankProgram, setQuestionBankProgram] = useState<ProgramReadinessItem | null>(null)
   const [questionBankItems, setQuestionBankItems] = useState<QuestionBankReviewItem[]>([])
