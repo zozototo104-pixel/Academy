@@ -101,6 +101,31 @@ afterAll(() => {
   else process.env.GEMINI_API_KEYS = originalGeminiApiKeys
 })
 
+describe('Gemini Live raw setup shape', () => {
+  test('uses generationConfig for response modalities and keeps transcription directly under setup', () => {
+    const variants = ['minimal', 'generationConfig', 'bare'] as const
+
+    for (const variant of variants) {
+      const payload = buildGeminiLiveSetup(variant, 'gemini-3.1-flash-live-preview', 'voice instructions', 'Charon', 'ar-PS') as any
+      const setup = payload.setup
+
+      expect(setup.model).toBe('models/gemini-3.1-flash-live-preview')
+      expect(setup.generationConfig?.responseModalities).toEqual(['AUDIO'])
+      expect(setup.generationConfig?.speechConfig).toMatchObject({
+        voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Charon' } },
+        languageCode: 'ar-PS',
+      })
+      expect(setup.systemInstruction).toEqual({ parts: [{ text: 'voice instructions' }] })
+      expect(setup.inputAudioTranscription).toEqual({})
+      expect(setup.outputAudioTranscription).toEqual({})
+      expect(setup.responseModalities).toBeUndefined()
+      expect(setup.speechConfig).toBeUndefined()
+      expect(setup.generationConfig?.inputAudioTranscription).toBeUndefined()
+      expect(setup.generationConfig?.outputAudioTranscription).toBeUndefined()
+    }
+  })
+})
+
 describe('Gemini Live key rotation uses the text AI router state', () => {
   test('key 1 returns 403 and key 2 succeeds, while key 1 receives router cooldown', async () => {
     configureGeminiKeys('AIzaBAD1111', 'AIzaGOOD2222')
