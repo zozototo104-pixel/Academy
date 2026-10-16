@@ -1125,7 +1125,7 @@ export function AdminQualityTab() {
         method: 'POST',
         body: JSON.stringify({ to }),
       })
-      alert(res.ok ? `تم إرسال رسالة اختبار إلى ${res.to}` : 'تمت محاولة الإرسال، راجع حالة البريد والسجل')
+      await alertAction({ title: res.ok ? 'تم إرسال رسالة الاختبار' : 'تمت محاولة الإرسال', description: res.ok ? `تم إرسال رسالة اختبار إلى ${res.to}` : 'راجع حالة البريد والسجل للتأكد من النتيجة.', tone: res.ok ? 'success' : 'warning' })
       await loadMailStatus()
     } catch (e: any) {
       alert(e?.message || 'تعذر إرسال رسالة الاختبار')
