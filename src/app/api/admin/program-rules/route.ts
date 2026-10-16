@@ -186,6 +186,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  return withTimedResponse(async () => {
   try {
     const body = await req.json().catch(() => ({}))
     if (body?.action === 'renumber-units') {
