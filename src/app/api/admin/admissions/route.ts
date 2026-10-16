@@ -374,19 +374,24 @@ export async function PATCH(req: NextRequest) {
       if (!existingServiceInvoice) {
         const settings = await getSettings()
         const amount = Number(programForFlow?.price || parseFloat(settings.FEE_SERVICE_DEFAULT || '50') || 50)
-        await db.payment.create({
-          data: {
-            admissionId: id,
-            userId: app.userId,
-            invoiceNo: await nextInvoiceNo(),
-            purpose: 'SERVICE_FEE',
-            description: `رسوم تنفيذ الخدمة — ${app.program}`,
-            amount,
-            amountCents: dollarsToCents(amount),
-            payerName: app.fullName,
-            payerEmail: app.email,
-            payerCountry: app.country,
-          },
+        await db.$transaction(async (tx) => {
+          await tx.$queryRaw`SELECT id FROM "AdmissionApplication" WHERE id = ${id} FOR UPDATE`
+          const duplicate = await tx.payment.findFirst({ where: { admissionId: id, purpose: 'SERVICE_FEE' }, select: { id: true } })
+          if (duplicate) return duplicate
+          return tx.payment.create({
+            data: {
+              admissionId: id,
+              userId: app.userId,
+              invoiceNo: await nextInvoiceNo(),
+              purpose: 'SERVICE_FEE',
+              description: `رسوم تنفيذ الخدمة — ${app.program}`,
+              amount,
+              amountCents: dollarsToCents(amount),
+              payerName: app.fullName,
+              payerEmail: app.email,
+              payerCountry: app.country,
+            },
+          })
         })
       }
       const updated = await db.admissionApplication.update({ where: { id }, data })
