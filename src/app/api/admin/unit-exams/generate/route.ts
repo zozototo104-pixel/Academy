@@ -169,8 +169,8 @@ export async function POST(req: NextRequest) {
 
     const result = await db.$transaction(async (tx) => {
       const exam = unit.exam
-        ? await tx.exam.update({ where: { id: unit.exam.id }, data: { title: `${reviewRequired ? `[${UNIT_EXAM_REVIEW_LABEL}] ` : ''}اختبار وحدة: ${unit.title}`, status: examStatus, passScore: 60 } })
-        : await tx.exam.create({ data: { unitId: unit.id, title: `${reviewRequired ? `[${UNIT_EXAM_REVIEW_LABEL}] ` : ''}اختبار وحدة: ${unit.title}`, status: examStatus, passScore: 60 } })
+        ? await tx.exam.update({ where: { id: unit.exam.id }, data: { title: `${warningPrefix}${reviewRequired ? `[${UNIT_EXAM_REVIEW_LABEL}] ` : ''}اختبار وحدة: ${unit.title}`, status: examStatus, passScore: 60 } })
+        : await tx.exam.create({ data: { unitId: unit.id, title: `${warningPrefix}${reviewRequired ? `[${UNIT_EXAM_REVIEW_LABEL}] ` : ''}اختبار وحدة: ${unit.title}`, status: examStatus, passScore: 60 } })
       if (replace) {
         await tx.examDraft.deleteMany({ where: { examId: exam.id, examType: 'UNIT' } })
         await tx.question.deleteMany({ where: { examId: exam.id } })
