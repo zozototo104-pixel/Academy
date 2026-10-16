@@ -200,7 +200,7 @@ export async function POST(req: NextRequest) {
       for (const [index, question] of examQuestions.entries()) await tx.question.create({ data: { examId: exam.id, ...question, order: existingCount + index + 1 } })
       await tx.questionBankItem.updateMany({ where: { id: { in: scoped.questions.map((item) => item.id) } }, data: { usageCount: { increment: 1 } } })
       await tx.program.update({ where: { id: programId }, data: { academicReadinessStatus: 'READY_FOR_REVIEW', academicApproved: false, academicApprovedAt: null, academicApprovedById: null } })
-      return tx.exam.findUnique({ where: { id: exam.id }, select: { id: true, title: true, status: true, passScore: true, _count: { select: { questions: true, attempts: true } } } })
+      return tx.exam.findUnique({ where: { id: exam.id }, select: { id: true, title: true, status: true, passScore: true, generationWarning: true, _count: { select: { questions: true, attempts: true } } } })
     })
 
     if (limitedKnowledge) {
