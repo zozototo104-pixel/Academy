@@ -5,7 +5,8 @@ import { describe, expect, mock, test } from 'bun:test'
 import { jsPDF } from 'jspdf'
 
 mock.module('@/lib/db', () => ({ db: {} }))
-mock.module('@/lib/auth', () => ({ requireUser: async () => ({ id: 'admin-1', role: 'ADMIN' }) }))
+const realAuth = await import('../../src/lib/auth')
+mock.module('@/lib/auth', () => ({ ...realAuth, requireUser: async () => ({ id: 'admin-1', role: 'ADMIN' }) }))
 
 const { ARABIC_FONT_NAME, buildInvoicePdf } = await import('../../src/app/api/pdf/invoices/[id]/route')
 const { toVisualArabic } = await import('../../src/lib/pdf-arabic')
