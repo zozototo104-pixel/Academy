@@ -85,26 +85,6 @@ function shapeArabicLogical(input: string) {
   return shaped.join('')
 }
 
-/* Previous mapper replaced by the loop above. */
-function unusedShapeMapperRemoved() {
-  return [] as string[]
-}
-/* end */
-function legacyShapeArabicLogical(input: string) {
-  const chars = Array.from(input)
-  return chars.map((ch, i) => {
-    const forms = FORMS[ch]
-    if (!forms) return ch
-    const prev = chars[i - 1]
-    const next = chars[i + 1]
-    const joinsPrev = !!prev && canJoinNext(prev) && canJoinPrev(ch)
-    const joinsNext = !!next && canJoinNext(ch) && canJoinPrev(next)
-    if (joinsPrev && joinsNext && forms.med) return forms.med
-    if (joinsPrev && forms.fin) return forms.fin
-    if (joinsNext && forms.ini) return forms.ini
-    return forms.iso
-  }).join('')
-}
 
 function reverseArabicRunPreservingLtr(run: string) {
   const placeholders: string[] = []
