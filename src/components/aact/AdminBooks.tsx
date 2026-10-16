@@ -948,7 +948,7 @@ export function AdminBooksTab() {
   // تحريك التوليد تلقائياً دفعة بعد دفعة طالما الإدارة فاتحة الصفحة.
   // هذا يلغي الاعتماد على خلفية Vercel التي كانت تسبب بقاء الامتحان على 20 سؤالاً فقط.
   useEffect(() => {
-    if (!programId || advanceRef.current || stoppingExamId) return
+    if (!programId || advanceRef.current || stoppingExamId || document.visibilityState === 'hidden') return
     const generatingExam = exams.find((e) => e.status === 'GENERATING')
     if (!generatingExam) return
 
