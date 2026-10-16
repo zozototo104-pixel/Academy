@@ -79,6 +79,16 @@ mock.module('@/lib/notify', () => ({
   notify: async (...args: any[]) => { calls.push(`notify:${args[0]}:${args[2]}:${args[3]}`) },
   audit: async (...args: any[]) => { calls.push(`audit:${args[1]}:${args[3]}`) },
 }))
+
+const realSettlePayment = await import('../../src/lib/settle-payment')
+mock.module('@/lib/settle-payment', () => ({
+  ...realSettlePayment,
+  markInvoicePaid: async (invoiceNo: string, method: string) => {
+    calls.push(`markInvoicePaid:${invoiceNo}:${method}`)
+    return { ok: true, payment: { ...proofPayment, status: 'PAID', method }, receiptNo: 'RCT-1' }
+  },
+}))
+
 const realSettings = await import('../../src/lib/settings')
 mock.module('@/lib/settings', () => ({
   ...realSettings,
