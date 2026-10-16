@@ -204,6 +204,30 @@ describe('payments C1 safety', () => {
     expect(calls).toContain('markInvoicePaid:INV-1:BANK_TRANSFER')
   })
 
+  test('failed settlement after accepting proof reverts it to pending so admin can retry', async () => {
+    markInvoicePaidOk = false
+    const failed = await proofReviewRoute.PATCH(new NextRequest('https://academy.test/api/admin/payments/proofs/proof-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ action: 'ACCEPT' }),
+      headers: { 'content-type': 'application/json' },
+    }), { params: { id: 'proof-1' } } as any)
+    const failedPayload = await json(failed as any)
+    expect(failed.status).toBe(400)
+    expect(failedPayload.error).toContain('SETTLEMENT_FAILED')
+    expect(calls).toContain('proof.updateMany:PENDING:ACCEPTED')
+    expect(calls).toContain('proof.updateMany:ACCEPTED:PENDING')
+    expect(proofStatus).toBe('PENDING')
+
+    markInvoicePaidOk = true
+    const retried = await proofReviewRoute.PATCH(new NextRequest('https://academy.test/api/admin/payments/proofs/proof-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ action: 'ACCEPT' }),
+      headers: { 'content-type': 'application/json' },
+    }), { params: { id: 'proof-1' } } as any)
+    expect(retried.status).toBe(200)
+    expect(proofStatus).toBe('ACCEPTED')
+  })
+
   test('application fee invoice finalization reuses existing invoice inside locked transaction', async () => {
     duplicateInstallmentInvoice = 'INV-FEE'
     const res = await admissionsFinalizeRoute.POST(new NextRequest('https://academy.test/api/admissions/finalize', {
