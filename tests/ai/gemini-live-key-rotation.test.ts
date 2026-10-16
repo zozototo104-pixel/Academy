@@ -63,11 +63,11 @@ function configureGeminiKeys(...keys: string[]) {
   values.set('GEMINI_API_KEYS', keys.join('\n'))
 }
 
-function liveRequest() {
+function liveRequest(dialect = 'ar-PS') {
   return new NextRequest('http://localhost/api/ai/gemini-live/session', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ testOnly: true, purpose: 'SUPERVISOR', model: 'gemini-3.1-flash-live-preview' }),
+    body: JSON.stringify({ testOnly: true, purpose: 'SUPERVISOR', model: 'gemini-3.1-flash-live-preview', dialect }),
   })
 }
 
