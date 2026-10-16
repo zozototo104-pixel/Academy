@@ -903,6 +903,7 @@ export async function platformPublicAgentComplete(opts: {
   messages: { role: string; content: string }[]
   channel?: 'WEB_WIDGET' | 'WHATSAPP' | string
   uiContext?: string
+  userId?: string | null
   deadlineMs?: number
 }): Promise<{ reply: string; agent: PlatformAgentKind; engine: PlatformAgentEngine }> {
   if (opts.channel !== 'WHATSAPP') assertWithinDeadline(opts.deadlineMs, 'Public platform agent deadline exceeded')
