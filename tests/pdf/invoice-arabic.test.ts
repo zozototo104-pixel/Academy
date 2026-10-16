@@ -1,15 +1,11 @@
 /// <reference types="bun-types" />
 import { existsSync, statSync } from 'fs'
 import { join } from 'path'
-import { describe, expect, mock, test } from 'bun:test'
+import { beforeAll, describe, expect, test } from 'bun:test'
 import { jsPDF } from 'jspdf'
 
-mock.module('@/lib/db', () => ({ db: {} }))
-const realAuth = await import('../../src/lib/auth')
-mock.module('@/lib/auth', () => ({ ...realAuth, requireUser: async () => ({ id: 'admin-1', role: 'ADMIN' }) }))
-
-const { ARABIC_FONT_NAME, buildInvoicePdf } = await import('../../src/app/api/pdf/invoices/[id]/route')
-const { toVisualArabic } = await import('../../src/lib/pdf-arabic')
+const { ARABIC_FONT_NAME, buildInvoicePdf } = await import('../../src/lib/invoice-pdf')
+const { loadArabicCanvas, toVisualArabic } = await import('../../src/lib/pdf-arabic')
 
 const fontPath = join(process.cwd(), 'public', 'fonts', 'Amiri-Regular.ttf')
 
