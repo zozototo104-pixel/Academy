@@ -99,30 +99,81 @@ function shapeArabicLogical(input: string) {
   return shaped.join('')
 }
 
+function ensureCanvasArabicFont(fontPath = CANVAS_ARABIC_FONT_PATH) {
+  if (canvasArabicFontRegistrationAttempted) {
+    if (canvasArabicFontRegistrationError) throw canvasArabicFontRegistrationError
+    return
+  }
 
-function reverseArabicRunPreservingLtr(run: string) {
-  const placeholders: string[] = []
-  const protectedRun = run.replace(LTR_TOKEN_RE, (token) => {
-    const marker = `\u0000${placeholders.length}\u0000`
-    placeholders.push(token)
-    return marker
-  })
-  let reversed = reverseChars(protectedRun)
-  placeholders.forEach((token, index) => {
-    const reversedMarker = reverseChars(`\u0000${index}\u0000`)
-    reversed = reversed.replace(reversedMarker, token)
-  })
-  return reversed
+  canvasArabicFontRegistrationAttempted = true
+  try {
+    if (!existsSync(fontPath)) throw new Error(`Missing Arabic canvas font: ${fontPath}`)
+    GlobalFonts.registerFromPath(fontPath, CANVAS_ARABIC_FONT_FAMILY)
+  } catch (error) {
+    canvasArabicFontRegistrationError = error
+    throw error
+  }
+}
+
+function wrapCanvasLines(text: string, size: number, maxWidth: number) {
+  const probe = createCanvas(10, 10)
+  const ctx = probe.getContext('2d')
+  ctx.font = `${size}px ${CANVAS_ARABIC_FONT_FAMILY}`
+  const words = String(text || '').split(/\s+/).filter(Boolean)
+  const lines: string[] = []
+  let current = ''
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word
+    if (ctx.measureText(candidate).width <= maxWidth || !current) current = candidate
+    else {
+      lines.push(current)
+      current = word
+    }
+  }
+  if (current) lines.push(current)
+  return lines.length ? lines : [String(text || '')]
+}
+
+export function drawArabicImage(
+  doc: jsPDF,
+  text: string,
+  x: number,
+  y: number,
+  opts: DrawArabicImageOptions = {}
+): number {
+  ensureCanvasArabicFont(opts.fontPath)
+  const logical = String(text || '').trim() || '—'
+  const size = opts.size || 13
+  const maxWidth = opts.maxWidth || Math.min(620, Math.max(180, opts.align === 'center' ? x * 2 : x - 52))
+  const maxLines = opts.maxLines || 3
+  const lines = wrapCanvasLines(logical, size, maxWidth).slice(0, maxLines)
+  const lineHeight = size + 6
+  const pad = 8
+  const width = Math.ceil(maxWidth + pad * 2)
+  const height = Math.ceil(lines.length * lineHeight + pad * 2)
+  const scale = 2
+  const canvas = createCanvas(width * scale, height * scale)
+  const ctx = canvas.getContext('2d')
+  ctx.scale(scale, scale)
+  ctx.font = `${size}px ${CANVAS_ARABIC_FONT_FAMILY}`
+  ctx.fillStyle = opts.color || DEFAULT_CANVAS_TEXT
+  ctx.textBaseline = 'alphabetic'
+  ;(ctx as any).direction = 'rtl'
+  ctx.textAlign = opts.align === 'center' ? 'center' : 'right'
+  const drawX = opts.align === 'center' ? width / 2 : width - pad
+  lines.forEach((line, index) => ctx.fillText(line, drawX, pad + size + index * lineHeight))
+  const image = `data:image/png;base64,${canvas.toBuffer('image/png').toString('base64')}`
+  const left = opts.align === 'center' ? x - width / 2 : x - width
+  doc.addImage(image, 'PNG', left, y - size - 4, width, height)
+  return Math.max(20, lines.length * (size + 4))
 }
 
 /**
- * Convert logical Arabic text to a pre-shaped visual order suitable for jsPDF text() with align:right.
- * Do not combine this with jsPDF setR2L/isInputRtl; that would apply a second bidi pass and flip mixed text.
+ * Shape logical Arabic text for jsPDF text() fallback without reversing the run.
+ * The primary PDF path draws Arabic through canvas images; this is only a no-canvas fallback.
  */
 export function toVisualArabic(text: string): string {
   const input = String(text || '')
   if (!ARABIC_RE.test(input)) return input
-  const shaped = shapeArabicLogical(input)
-  return reverseArabicRunPreservingLtr(shaped)
-    .replace(/\s+([:،؛])/g, '$1')
+  return shapeArabicLogical(input).replace(/\s+([:،؛])/g, '$1')
 }
