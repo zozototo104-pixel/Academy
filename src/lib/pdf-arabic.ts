@@ -130,25 +130,26 @@ function shapeArabicLogical(input: string) {
   return shaped.join('')
 }
 
-function ensureCanvasArabicFont(fontPath = CANVAS_ARABIC_FONT_PATH) {
-  if (canvasArabicFontRegistrationAttempted) {
-    if (canvasArabicFontRegistrationError) throw canvasArabicFontRegistrationError
-    return
-  }
-
-  canvasArabicFontRegistrationAttempted = true
-  try {
-    if (!existsSync(fontPath)) throw new Error(`Missing Arabic canvas font: ${fontPath}`)
-    loadCanvasModule().GlobalFonts.registerFromPath(fontPath, CANVAS_ARABIC_FONT_FAMILY)
-  } catch (error) {
-    canvasArabicFontRegistrationError = error
-    throw error
-  }
+function drawArabicTextFallback(
+  doc: jsPDF,
+  text: string,
+  x: number,
+  y: number,
+  opts: DrawArabicImageOptions = {}
+): number {
+  const logical = String(text || '').trim() || '—'
+  const size = opts.size || 13
+  doc.setFont('AmiriArabic', 'normal')
+  doc.setFontSize(size)
+  doc.setTextColor(opts.color || DEFAULT_CANVAS_TEXT)
+  const logicalLines = opts.maxWidth ? doc.splitTextToSize(logical, opts.maxWidth).slice(0, opts.maxLines || 3) : [logical]
+  const visualLines = logicalLines.map((line: string) => toVisualArabic(line))
+  doc.text(visualLines, x, y, { align: opts.align || 'right' })
+  return Math.max(20, visualLines.length * (size + 4))
 }
 
-function wrapCanvasLines(text: string, size: number, maxWidth: number) {
-  const { createCanvas } = loadCanvasModule()
-  const probe = createCanvas(10, 10)
+function wrapCanvasLines(text: string, size: number, maxWidth: number, canvas: CanvasModule) {
+  const probe = canvas.createCanvas(10, 10)
   const ctx = probe.getContext('2d')
   ctx.font = `${size}px ${CANVAS_ARABIC_FONT_FAMILY}`
   const words = String(text || '').split(/\s+/).filter(Boolean)
