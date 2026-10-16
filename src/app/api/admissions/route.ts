@@ -19,6 +19,7 @@ import { extractAdmissionDocumentReplacement } from '@/lib/admission-document-re
 import { repairVerifiedStudentRecordOwnership, studentAdmissionOwnershipWhere, studentOwnsAdmission } from '@/lib/student-record-ownership'
 import { validateAdmissionFileSignature } from '@/lib/file-signature'
 import { dollarsToCents } from '@/lib/money'
+import { withTimedResponse, withTiming } from '@/lib/timing'
 
 // المستندات الرسمية الإلزامية وفق دليل إجراءات وشروط الالتحاق.
 // المصدر التنفيذي المشترك مع ApplyView موجود في src/lib/admission-required-documents.ts.
