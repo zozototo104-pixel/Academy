@@ -111,8 +111,8 @@ export async function GET(req: NextRequest) {
     const manualPendingWhere = {
       status: 'UNPAID',
       OR: [
-        { method: { in: ['DIRECT_PAYMENT', 'USDT'] } },
-        { provider: { in: ['DIRECT_PAYMENT', 'USDT'] } },
+        { method: { in: ['DIRECT_PAYMENT', 'BANK_TRANSFER', 'USDT', 'CASH'] } },
+        { provider: { in: ['DIRECT_PAYMENT', 'BANK_TRANSFER', 'USDT', 'CASH'] } },
       ],
     }
 
