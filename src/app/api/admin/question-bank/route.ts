@@ -117,12 +117,12 @@ async function insertBankQuestions(programId: string, questions: any[], meta: { 
     seen.add(key)
     rows.push({ programId, ...q, status: meta.status || 'PENDING_REVIEW', generatedBy: meta.generatedBy, qualityFlags: q.qualityFlags || JSON.stringify(['NEEDS_HUMAN_REVIEW']) })
   }
-  if (rows.length > 0) await db.questionBankItem.createMany({ data: rows })
+  if (rows.length > 0) await withTiming('db_question_bank_create_many', () => db.questionBankItem.createMany({ data: rows }))
   return { inserted: rows.length, skippedDuplicates }
 }
 
 async function questionStats(programId: string) {
-  const rows = await db.questionBankItem.findMany({ where: { programId }, select: { status: true, difficulty: true, type: true } })
+  const rows = await withTiming('db_question_bank_stats_rows', () => db.questionBankItem.findMany({ where: { programId }, select: { status: true, difficulty: true, type: true } }))
   return {
     total: rows.length,
     pending: rows.filter((x) => x.status === 'PENDING_REVIEW').length,
