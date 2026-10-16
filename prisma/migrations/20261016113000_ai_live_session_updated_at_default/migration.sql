@@ -1,0 +1,1 @@
+ALTER TABLE "AiLiveSession" ALTER COLUMN "updatedAt" DROP DEFAULT;

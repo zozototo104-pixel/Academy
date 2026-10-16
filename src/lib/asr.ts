@@ -160,6 +160,38 @@ async function transcribeWithZai(audioBase64: string) {
   return String(response?.text || '').trim()
 }
 
+async function transcribeWithWhisperCompatible(audioBase64: string, mimeType: string) {
+  const { clean } = cleanBase64AndMime(audioBase64, mimeType)
+  if (!clean) return null
+  const providers = [
+    { name: 'OPENAI', key: process.env.OPENAI_API_KEY || '', base: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1', model: process.env.OPENAI_ASR_MODEL || 'whisper-1' },
+    { name: 'GROQ', key: process.env.GROQ_API_KEY || '', base: process.env.GROQ_API_BASE || 'https://api.groq.com/openai/v1', model: process.env.GROQ_ASR_MODEL || 'whisper-large-v3-turbo' },
+  ].filter((p) => p.key.trim())
+  if (!providers.length) return null
+  const audioBuffer = Buffer.from(clean, 'base64')
+  for (const provider of providers) {
+    const form = new FormData()
+    form.set('file', new Blob([audioBuffer], { type: mimeType }) as any, `voice.${audioExtensionForMime(mimeType)}`)
+    form.set('model', provider.model)
+    form.set('response_format', 'json')
+    try {
+      const response = await fetch(`${provider.base.replace(/\/$/, '')}/audio/transcriptions`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${provider.key}` },
+        body: form,
+        signal: AbortSignal.timeout(25_000),
+      } as any)
+      const data: any = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data?.error?.message || `${provider.name} ASR HTTP ${response.status}`)
+      const text = String(data?.text || '').trim()
+      if (text) return text
+    } catch (error) {
+      console.warn('Whisper-compatible ASR failed:', JSON.stringify({ provider: provider.name, error: String((error as any)?.message || error).slice(0, 240) }).slice(0, 500))
+    }
+  }
+  return null
+}
+
 export async function transcribeAudioBase64(audioBase64: string, options: TranscribeAudioOptions = {}) {
   const { clean, mimeType } = cleanBase64AndMime(audioBase64, options.mimeType)
   if (!clean) return ''
@@ -169,8 +201,19 @@ export async function transcribeAudioBase64(audioBase64: string, options: Transc
   try {
     const geminiText = await transcribeWithGemini(clean, { ...options, mimeType })
     if (geminiText !== null) return geminiText
+    if (isOggOrOpusMime(mimeType)) {
+      const whisperText = await transcribeWithWhisperCompatible(clean, mimeType)
+      if (whisperText) return whisperText
+      return ''
+    }
   } catch (error) {
     const reason = String((error as any)?.message || error).slice(0, 300)
+    if (isOggOrOpusMime(mimeType)) {
+      const whisperText = await transcribeWithWhisperCompatible(clean, mimeType)
+      if (whisperText) return whisperText
+      console.warn('Gemini ASR failed and no Whisper-compatible OGG provider succeeded:', JSON.stringify({ mimeType, reason }).slice(0, 500))
+      return ''
+    }
     if (skipZaiFallback) {
       console.warn('Gemini ASR failed; ZAI fallback disabled for this audio:', JSON.stringify({ mimeType, reason }).slice(0, 500))
       throw error

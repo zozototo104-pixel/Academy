@@ -903,6 +903,7 @@ export async function platformPublicAgentComplete(opts: {
   messages: { role: string; content: string }[]
   channel?: 'WEB_WIDGET' | 'WHATSAPP' | string
   uiContext?: string
+  userId?: string | null
   deadlineMs?: number
 }): Promise<{ reply: string; agent: PlatformAgentKind; engine: PlatformAgentEngine }> {
   if (opts.channel !== 'WHATSAPP') assertWithinDeadline(opts.deadlineMs, 'Public platform agent deadline exceeded')
@@ -1024,6 +1025,8 @@ export async function platformPublicAgentComplete(opts: {
     timeoutMs,
     requireModelResponse: isWhatsApp,
     routerPolicy: isWhatsApp ? 'primary_first' : undefined,
+    userId: opts.userId,
+    taskType: isWhatsApp ? 'WHATSAPP' : 'CHAT',
   })
   return { reply: annotateReply(agent, reply, 'MODEL_ROUTER_OR_FALLBACK'), agent, engine: 'MODEL_ROUTER_OR_FALLBACK' }
 }
@@ -1138,6 +1141,8 @@ export async function platformAgentComplete(opts: {
     timeoutMs,
     requireModelResponse: shouldPreferGemini,
     includeGeneralCatalog: !(agent === 'ACADEMIC_SUPERVISOR' || agent === 'THESIS_DEFENSE'),
+    userId: opts.userId,
+    taskType: opts.mode === 'VOICE' ? 'CHAT_VOICE' : 'CHAT',
   })
   return { reply: annotateReply(agent, reply, 'MODEL_ROUTER_OR_FALLBACK'), agent, engine: 'MODEL_ROUTER_OR_FALLBACK' }
 }

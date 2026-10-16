@@ -13,6 +13,7 @@ import {
   withHumanHandoffActiveNote,
 } from '@/lib/human-handoff'
 import { requireStudentAiSupervisorAccess } from '@/lib/student-ai-access'
+import { enforceAiUserDailyCostCap, recordAiUsage } from '@/lib/ai-usage-accounting'
 import { updateStudentAcademicMemory } from '@/lib/supervisor-ai'
 import { wrapUntrustedUiContext } from '@/lib/untrusted-context'
 import { deadlineFromNow } from '@/lib/prod-safety'
@@ -56,6 +57,7 @@ export async function POST(req: NextRequest) {
     if (!message?.trim()) {
       return NextResponse.json({ error: 'الرسالة فارغة' }, { status: 400 })
     }
+    await enforceAiUserDailyCostCap({ userId: user.id, role: user.role, estimatedCostCents: 1 })
 
     // وكيل المنصة المتكامل: يختار الشخصية المناسبة، ويجعل المشرف الذكي جزءاً من العقل العام.
     const chatMode = mode === 'VOICE' ? 'VOICE' : 'TEXT'
@@ -135,6 +137,7 @@ export async function POST(req: NextRequest) {
             const saved = await db.chatMessage.create({
               data: { userId: user.id, role: 'assistant', content: reply, mode: chatMode },
             })
+            await recordAiUsage({ userId: user.id, provider: String(agentResult.engine || 'CHAT'), model: String(agentResult.agent || 'platform-agent'), taskType: 'CHAT', inputText: userText, outputText: reply })
 
             await updateStudentAcademicMemory(user.id, {
               kind: 'CHAT',
@@ -203,6 +206,7 @@ export async function POST(req: NextRequest) {
     const saved = await db.chatMessage.create({
       data: { userId: user.id, role: 'assistant', content: reply, mode: chatMode },
     })
+    await recordAiUsage({ userId: user.id, provider: String(agentResult.engine || 'CHAT'), model: String(agentResult.agent || 'platform-agent'), taskType: 'CHAT', inputText: userText, outputText: reply })
 
     await updateStudentAcademicMemory(user.id, {
       kind: 'CHAT',
@@ -221,6 +225,9 @@ export async function POST(req: NextRequest) {
     const message = String(e?.message || '')
     if (message.includes('AI_SUPERVISOR_LOCKED')) {
       return NextResponse.json({ error: e?.reason || 'المشرف الذكي غير مفعل لهذا الطالب بعد.' }, { status: e?.status || 403 })
+    }
+    if (e?.status === 429 || e?.code === 'AI_USER_DAILY_COST_CAP_EXCEEDED') {
+      return NextResponse.json({ error: e?.message || 'تجاوزت سقف استخدام الذكاء الاصطناعي اليومي.' }, { status: 429 })
     }
     if (message.includes('EMPTY_AI_RESPONSE') || message.includes('AI_PROVIDER_UNAVAILABLE')) {
       return NextResponse.json({ error: 'تعذر توليد إجابة أكاديمية الآن بسبب فشل مزوّد الذكاء. أعد المحاولة بعد قليل.' }, { status: 502 })

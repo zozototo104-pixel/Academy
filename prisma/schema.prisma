@@ -49,6 +49,8 @@ model User {
   ownedAgentApplications AgentApplication[] @relation("AgentApplicationOwner")
   aiLiveUsages  AiLiveUsage[]
   aiLiveCredits AiLiveCredit[]
+  aiLiveSessions AiLiveSession[]
+  aiUsageLogs   AiUsageLog[]
   humanHandoffRequests HumanHandoffRequest[] @relation("HumanHandoffRequester")
   certificates Certificate[]
 
@@ -98,6 +100,44 @@ model AiLiveCredit {
 
   @@index([userId, status])
   @@index([expiresAt])
+}
+
+model AiLiveSession {
+  id              String   @id @default(cuid())
+  sessionId       String   @unique
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  month           String
+  purpose         String   @default("SUPERVISOR")
+  status          String   @default("RESERVED") // RESERVED | SETTLED | REFUNDED
+  reservedMinutes Int
+  freeReserved    Int      @default(0)
+  paidReserved    Int      @default(0)
+  actualMinutes   Int?
+  startedAt       DateTime @default(now())
+  settledAt       DateTime?
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([status, expiresAt])
+}
+
+model AiUsageLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  provider    String
+  model       String
+  taskType    String
+  inputTokens Int      @default(0)
+  outputTokens Int     @default(0)
+  costCents   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([provider, createdAt])
 }
 
 model Program {

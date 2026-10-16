@@ -1,5 +1,6 @@
 import { createHash } from 'crypto'
 import { db } from '@/lib/db'
+import { enforceAiUserDailyCostCap, estimateAiCostCents, estimatePromptTokens, recordAiUsage } from '@/lib/ai-usage-accounting'
 import { decryptSecret, isEncryptedSecret, isSecretKeyName, keyHashForRateLimit, redactSecrets } from '@/lib/secret-crypto'
 
 export type TextAiProvider =
@@ -48,6 +49,8 @@ export interface TextAiCallOpts {
   excludeModelFamilies?: string[]
   deadlineMs?: number
   stickyScope?: string
+  userId?: string | null
+  taskType?: string
   validate?: (text: string, context?: { provider: string; model: string }) => void
 }
 
@@ -457,7 +460,7 @@ function remainingTimeoutMs(deadlineMs?: number, defaultTimeoutMs = aiProviderTi
   return Math.max(1, Math.min(defaultTimeoutMs, remaining))
 }
 
-async function fetchWithTimeout(provider: string, url: string, init: RequestInit = {}, timeoutMs = aiProviderTimeoutMs(), deadlineMs?: number): Promise<Response> {
+export async function __testFetchWithTimeout(provider: string, url: string, init: RequestInit = {}, timeoutMs = aiProviderTimeoutMs(), deadlineMs?: number): Promise<Response> {
   const effectiveTimeoutMs = remainingTimeoutMs(deadlineMs, timeoutMs)
   let timer: ReturnType<typeof setTimeout> | null = null
   const fallbackController = new AbortController()
@@ -479,6 +482,8 @@ async function fetchWithTimeout(provider: string, url: string, init: RequestInit
     if (timer) clearTimeout(timer)
   }
 }
+
+const fetchWithTimeout = __testFetchWithTimeout
 
 function isTimeoutLike(e: any): boolean {
   const msg = String(e?.message || e || '').toLowerCase()
@@ -1808,6 +1813,12 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const persistentCooldowns = await loadPersistentCooldowns()
   const exploreModels = ++routerRequestSeq % 5 === 0
   const estimatedPaidCost = estimatedPaidCostUsd(effectiveOpts)
+  const estimatedInputTokens = estimatePromptTokens(effectiveOpts.system, effectiveOpts.history)
+  const estimatedOutputTokens = Number(effectiveOpts.maxOutputTokens || (effectiveOpts.json ? 4096 : 2048))
+  await enforceAiUserDailyCostCap({
+    userId: effectiveOpts.userId,
+    estimatedCostCents: estimateAiCostCents(estimatedInputTokens, estimatedOutputTokens),
+  })
   let paidAvailable: boolean | null = null
   let skippedCooldownUntil: number | null = null
   let onlySameFamilyModelsExcluded = false
@@ -1854,6 +1865,14 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           const attempt = { provider, model, keyIndex, ok: true, ms, at }
           attempts.push(attempt)
           recordAttempt(attempt)
+          await recordAiUsage({
+            userId: effectiveOpts.userId,
+            provider,
+            model,
+            taskType: effectiveOpts.taskType || effectiveOpts.purpose || 'CHAT',
+            inputTokens: estimatedInputTokens,
+            outputText: text,
+          })
           if (provider === 'OPENAI_COMPAT' && s.openaiCompatTier === 'PAID') await recordPaidSpend(s, estimatedPaidCost)
           if (provider === 'OPENAI' && taskLevel !== 'GENERAL') console.warn('paid fallback used: OPENAI academic router')
           logRouterSummary(attempts, true)

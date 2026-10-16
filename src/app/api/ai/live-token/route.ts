@@ -23,13 +23,16 @@ async function handler(req: NextRequest) {
     const urlThesisId = req.nextUrl.searchParams.get('thesisId')
     let bodyPurpose: unknown = null
     let bodyThesisId: unknown = null
+    let bodySessionId: unknown = null
     if (req.method === 'POST') {
       const body = await req.json().catch(() => null) as any
       bodyPurpose = body?.purpose
       bodyThesisId = body?.thesisId
+      bodySessionId = body?.sessionId
     }
     const purpose = normalizePurpose(bodyPurpose || urlPurpose)
     const thesisId = String(bodyThesisId || urlThesisId || '').trim() || null
+    const sessionId = String(bodySessionId || req.nextUrl.searchParams.get('sessionId') || '').trim() || `live_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
     let systemInstruction: string | undefined
     if (purpose === 'DISCUSSION') {
       if (!thesisId) return NextResponse.json({ error: 'thesisId مطلوب لفتح جلسة المناقشة الصوتية.' }, { status: 400 })
@@ -43,12 +46,13 @@ async function handler(req: NextRequest) {
       return NextResponse.json({ error: allowance.message, liveUsage: allowance }, { status: allowance.status })
     }
 
+    const reserveMinutes = Math.min(2, allowance.sessionLimitMinutes)
     const payload = await createGeminiLiveEphemeralToken(purpose, { sessionLimitMinutes: allowance.sessionLimitMinutes, systemInstruction })
-    const usage = await reserveGeminiLiveUsage({ userId: user.id, role: user.role, purpose, requestedMinutes: allowance.sessionLimitMinutes })
+    const usage = await reserveGeminiLiveUsage({ userId: user.id, role: user.role, purpose, requestedMinutes: reserveMinutes, sessionId })
     if (!usage.ok) {
       return NextResponse.json({ error: usage.message, liveUsage: usage }, { status: usage.status })
     }
-    return NextResponse.json({ ...payload, liveUsage: usage, sessionLimitMinutes: usage.sessionLimitMinutes })
+    return NextResponse.json({ ...payload, liveUsage: usage, sessionId: usage.sessionId || sessionId, sessionLimitMinutes: allowance.sessionLimitMinutes })
   } catch (e: any) {
     const msg = String(e?.message || e || '')
     if (msg === 'UNAUTHORIZED') return NextResponse.json({ error: 'يلزم تسجيل الدخول قبل إنشاء جلسة Gemini Live' }, { status: 401 })
