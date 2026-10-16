@@ -25,8 +25,9 @@ function categoryStats(items: { category: string; importance: number }[]) {
 
 // GET /api/admin/knowledge-bank?programId=xxx&semester=1
 export async function GET(req: NextRequest) {
+  return withTimedResponse(async () => {
   try {
-    await requireAdmin()
+    await withTiming('db_require_admin', () => requireAdmin())
     const programId = req.nextUrl.searchParams.get('programId') || ''
     const semRaw = req.nextUrl.searchParams.get('semester')
     const semester = semRaw ? Number(semRaw) || null : null
