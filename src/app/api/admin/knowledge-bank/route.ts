@@ -139,9 +139,9 @@ export async function POST(req: NextRequest) {
 
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
     // The program-wide rebuild button schedules v2 jobs; the legacy v1 builder stays available for other paths.
-    const result = await scheduleProgramKnowledgeV2(programId, semester)
-    await audit(admin, 'SCHEDULE_PROGRAM_KNOWLEDGE_V2', 'Program', programId, `جدولة/استكمال ${result.results.length} كتاب عبر v2`)
-    const items = await getProgramKnowledgeItems(programId, semester, 140)
+    const result = await withTiming('db_knowledge_bank_schedule_v2', () => scheduleProgramKnowledgeV2(programId, semester))
+    await withTiming('db_audit_knowledge_bank_schedule', () => audit(admin, 'SCHEDULE_PROGRAM_KNOWLEDGE_V2', 'Program', programId, `جدولة/استكمال ${result.results.length} كتاب عبر v2`))
+    const items = await withTiming('db_knowledge_bank_items_after_schedule', () => getProgramKnowledgeItems(programId, semester, 140))
     return NextResponse.json({ ok: true, result, count: items.length, stats: categoryStats(items), items })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
