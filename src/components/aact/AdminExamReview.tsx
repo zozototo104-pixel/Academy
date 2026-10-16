@@ -276,7 +276,7 @@ export function QuestionReviewDialog({
       })
       return
     }
-    if (!confirm('سيتم اعتماد كل الأسئلة المعلّقة ونشر الامتحان للطلاب المتسجلين مع إشعارهم. متابعة؟')) return
+    if (!(await confirmAction({ title: 'نشر الامتحان للطلاب', description: 'سيتم اعتماد كل الأسئلة المعلّقة ونشر الامتحان للطلاب المتسجلين مع إشعارهم.', confirmLabel: 'نشر الامتحان', tone: 'success' }))) return
     setBusy(true)
     try {
       const publishRequest = (overrideReason?: string) => api<{ published: number }>('/api/admin/program-exam-questions', {
