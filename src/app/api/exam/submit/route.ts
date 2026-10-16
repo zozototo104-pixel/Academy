@@ -58,6 +58,28 @@ function buildAnswerKeyFeedback(programTitle: string, percentage: number, passed
   }
 }
 
+function answerData(attemptId: string, prepared: PreparedAnswer) {
+  return {
+    attemptId,
+    questionId: prepared.questionId,
+    selectedOption: prepared.selectedOption ?? null,
+    answerText: prepared.answerText ?? null,
+    isCorrect: prepared.isCorrect,
+    points: prepared.points,
+    maxPoints: prepared.maxPoints,
+    aiFeedback: prepared.aiFeedback,
+  }
+}
+
+async function persistPreparedAnswer(tx: any, attemptId: string, prepared: PreparedAnswer, updateExisting = false) {
+  const data = answerData(attemptId, prepared)
+  if (updateExisting) {
+    const updated = await tx.answer.updateMany({ where: { attemptId, questionId: prepared.questionId }, data })
+    if (updated.count > 0) return
+  }
+  await tx.answer.create({ data })
+}
+
 // POST /api/exam/submit — تسليم الاختبار والتصحيح الآلي وفق مفتاح الإجابة، وبالذكاء للأسئلة المقالية فقط
 export async function POST(req: NextRequest) {
   let claimedUnitAttemptId: string | null = null
