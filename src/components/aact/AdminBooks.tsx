@@ -416,6 +416,7 @@ interface CurriculumUnitReviewItem {
     title: string
     status?: 'READY' | 'DRAFT' | string
     passScore: number
+    generationWarning?: string | null
     questionsCount: number
     attemptsCount: number
     reviewQuestionsCount?: number
