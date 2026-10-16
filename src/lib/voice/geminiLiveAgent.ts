@@ -253,7 +253,7 @@ export class GeminiLiveAgent {
         return
       } catch (error) {
         console.warn('AudioWorklet microphone capture unavailable; falling back to ScriptProcessorNode.', error)
-        try { this.worklet?.disconnect() } catch {}
+        try { this.worklet?.disconnect() } catch (error) { console.warn('Failed to disconnect Gemini Live worklet.', error) }
         this.worklet = null
       }
     } else {
