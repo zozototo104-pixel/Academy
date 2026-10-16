@@ -34,7 +34,14 @@ type LiveSessionPayload = {
   model: string
   voice: string
   error?: string
+  code?: string
   details?: string
+}
+
+type LiveSessionError = Error & { code?: string; status?: number }
+
+export function isLiveMinutesExhausted(error: { code?: string; status?: number } | null | undefined): boolean {
+  return error?.status === 402 || error?.code === 'LIVE_MINUTES_EXHAUSTED'
 }
 
 function getToken(): string {
