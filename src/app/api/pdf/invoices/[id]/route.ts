@@ -379,9 +379,9 @@ export function buildInvoicePdf(data: InvoicePdfData, options: InvoicePdfOptions
   doc.setDrawColor(BORDER)
   doc.line(52, 1084, 742, 1084)
   setText(doc, 11, MUTED, 'normal')
-  doc.text('Generated electronically by AACT Platform. No manual signature required.', 52, 1106)
-  if (arabicReady) writeArabic(doc, 'تم إنشاء المستند إلكترونياً عبر منصة AACT ولا يحتاج إلى توقيع يدوي.', 714, 1106, { size: 11, color: MUTED })
-  doc.text('aactacademy.com', 742, 1106, { align: 'right' })
+  if (arabicReady) writeArabic(doc, 'تم إنشاء المستند إلكترونياً عبر منصة AACT ولا يحتاج إلى توقيع يدوي.', 714, 1092, { size: 10, color: MUTED })
+  doc.text('Generated electronically by AACT Platform. No manual signature required.', 52, 1110)
+  doc.text('aactacademy.com', 742, 1110, { align: 'right' })
 
   return new Uint8Array(doc.output('arraybuffer'))
 }
