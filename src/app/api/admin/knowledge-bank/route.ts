@@ -131,9 +131,9 @@ export async function POST(req: NextRequest) {
         }).catch(() => {}))
         return NextResponse.json({ error: 'توقف تحليل الكتاب مؤقتاً لأن المزود الأكاديمي غير متاح. يمكن استئنافه لاحقاً من نفس زر القراءة الكاملة.', status: 'PAUSED', ...paused }, { status: 503 })
       }
-      await db.setting.delete({ where: { key: `AI_TASK_PAUSE:KNOWLEDGE:${bookId}` } }).catch(() => {})
-      await audit(admin, strictFullRead ? 'READ_FULL_BOOK_KNOWLEDGE' : 'REBUILD_BOOK_KNOWLEDGE', 'Book', bookId, `${strictFullRead ? 'قراءة وتحليل كامل للكتاب' : 'بناء'} ${result.inserted} عنصر معرفة من كتاب واحد`)
-      const items = await getProgramKnowledgeItems(result.programId, semester, 140)
+      await withTiming('db_knowledge_bank_pause_delete', () => db.setting.delete({ where: { key: `AI_TASK_PAUSE:KNOWLEDGE:${bookId}` } }).catch(() => {}))
+      await withTiming('db_audit_knowledge_bank_book', () => audit(admin, strictFullRead ? 'READ_FULL_BOOK_KNOWLEDGE' : 'REBUILD_BOOK_KNOWLEDGE', 'Book', bookId, `${strictFullRead ? 'قراءة وتحليل كامل للكتاب' : 'بناء'} ${result.inserted} عنصر معرفة من كتاب واحد`))
+      const items = await withTiming('db_knowledge_bank_items_after_book', () => getProgramKnowledgeItems(result.programId, semester, 140))
       return NextResponse.json({ ok: true, strictFullRead, result, count: items.length, stats: categoryStats(items), items })
     }
 
