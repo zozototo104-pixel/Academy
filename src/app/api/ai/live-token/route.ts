@@ -23,10 +23,12 @@ async function handler(req: NextRequest) {
     const urlThesisId = req.nextUrl.searchParams.get('thesisId')
     let bodyPurpose: unknown = null
     let bodyThesisId: unknown = null
+    let bodySessionId: unknown = null
     if (req.method === 'POST') {
       const body = await req.json().catch(() => null) as any
       bodyPurpose = body?.purpose
       bodyThesisId = body?.thesisId
+      bodySessionId = body?.sessionId
     }
     const purpose = normalizePurpose(bodyPurpose || urlPurpose)
     const thesisId = String(bodyThesisId || urlThesisId || '').trim() || null
