@@ -367,7 +367,7 @@ export async function POST(req: NextRequest) {
     }
 
     const subject = `${byToken ? `token:${token}` : `serial:${serial}`}:${email}:${phone4}`
-    const detailsLimit = enforceApiRateLimit(req, 'certificates:verify-details', 5, 15 * 60 * 1000, subject)
+    const detailsLimit = await enforceDatabaseApiRateLimit(req, 'certificates:verify-details', 5, 15 * 60 * 1000, subject)
     if (detailsLimit) return detailsLimit
 
     const cert = await findCertificateForVerify(serial, token)
