@@ -164,7 +164,7 @@ export async function DELETE(req: NextRequest) {
     await withTiming('db_require_admin', () => requireAdmin())
     const id = clean(req.nextUrl.searchParams.get('id'), 80)
     if (!id) return NextResponse.json({ error: 'معرف الدليل مطلوب' }, { status: 400 })
-    await db.programStudyGuide.delete({ where: { id } })
+    await withTiming('db_study_guides_delete', () => db.programStudyGuide.delete({ where: { id } }))
     return NextResponse.json({ ok: true })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
