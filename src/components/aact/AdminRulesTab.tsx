@@ -552,7 +552,7 @@ export function AdminRulesTab() {
   }
 
   const setSelectedProgramActive = async (active: boolean) => {
-    if (!selected || !programDraft) return
+    if (!selected || editorUnavailable) return
     if (!active) {
       const confirmed = await confirmAction({
         title: 'إخفاء برنامج من الموقع العام',
