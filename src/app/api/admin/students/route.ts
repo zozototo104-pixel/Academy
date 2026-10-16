@@ -401,6 +401,6 @@ export async function PATCH(req: NextRequest) {
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('admin students PATCH error:', e)
-    return NextResponse.json({ error: e?.message || 'تعذر تحديث الطالب' }, { status: 500 })
+    return NextResponse.json({ error: 'تعذر تنفيذ العملية' }, { status: 500 })
   }
 }
