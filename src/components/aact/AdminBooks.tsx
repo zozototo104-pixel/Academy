@@ -2259,6 +2259,12 @@ export function AdminBooksTab() {
 
   const resumeExam = async (exam: ExamRow) => {
     if (!programId) return
+    setExamKickFailures((prev) => {
+      if (!prev[exam.id]) return prev
+      const next = { ...prev }
+      delete next[exam.id]
+      return next
+    })
     const semLabel = exam.semester === 2 ? 'الفصل الثاني' : 'الفصل الأول'
     if (!(await askAdminConfirm({ title: `استكمال توليد ${semLabel}`, description: `سيستكمل خبير الذكاء الاصطناعي التوليد من حيث توقف، وسيحافظ على ${exam.questionCount} سؤالاً موجوداً حالياً.`, confirmLabel: 'استكمال التوليد' }))) return
     setGenerating(true)
