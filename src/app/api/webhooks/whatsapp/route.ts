@@ -315,7 +315,7 @@ async function prepareWhatsAppMessageForProcessing(message: WhatsAppInboundMessa
       return {
         message: {
           ...message,
-          text: '🎤 رسالة صوتية تعذر تفريغها إلى نص.',
+          text: 'ما قدرت أسمع الرسالة الصوتية، ابعتها كتابة.',
           mediaMimeType: mediaInfo.mimeType || message.mediaMimeType,
           mediaFileSize: fileSize,
           mediaSha256: mediaInfo.sha256 || message.mediaSha256,
