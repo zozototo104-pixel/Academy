@@ -417,7 +417,9 @@ export async function POST(req: NextRequest) {
       app.id,
       isServiceRequest
         ? `${reference} — طلب خدمة: ${selectedTitle} — مرفقات: ${uniqueFiles.length} + إقرار`
-        : `${reference} — ${selectedTitle} — مستندات: ${uniqueFiles.length}/4 + إقرار — فاتورة رسوم تقديم ${appFee}import { randomBytes } from 'crypto'
+        : `${reference} — ${selectedTitle} — مستندات: ${uniqueFiles.length}/4 + إقرار — فاتورة رسوم تقديم ${appFee}$`
+    ))
+import { randomBytes } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
