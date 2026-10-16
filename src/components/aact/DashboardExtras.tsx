@@ -233,7 +233,7 @@ export function PaymentsTab() {
       .then((d) => {
         setPayConfig(d)
         setPayMode(d.mode || 'SANDBOX')
-        const firstEnabled = d.methods?.find((m) => m.enabled)?.id
+        const firstEnabled = visiblePaymentMethods(d.methods).find((m) => m.enabled)?.id
         if (firstEnabled) setMethod(firstEnabled)
       })
       .catch(() => {})
