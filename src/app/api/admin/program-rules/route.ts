@@ -365,7 +365,7 @@ export async function PUT(req: NextRequest) {
         admissionRules: true,
         _count: { select: { units: true } },
       },
-    })
+    }))
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
     const flow = getServiceFlow(program.slug)
     const isStudyProgram = flow ? flow.isStudyProgram : program.category !== 'SERVICE'
