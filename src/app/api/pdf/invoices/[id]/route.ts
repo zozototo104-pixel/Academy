@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { jsPDF } from 'jspdf'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
-import { toVisualArabic } from '@/lib/pdf-arabic'
+import { drawArabicImage, toVisualArabic, type DrawArabicImageOptions } from '@/lib/pdf-arabic'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
