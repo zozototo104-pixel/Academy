@@ -70,7 +70,7 @@ async function uniqueProgramSlug(titleAr: string, titleEn: string | null | undef
   const base = baseSlugFromText(titleEn || titleAr, fallback)
   let candidate = base
   let i = 2
-  while (await db.program.findUnique({ where: { slug: candidate }, select: { id: true } })) {
+  while (await withTiming('db_program_rules_slug_exists', () => db.program.findUnique({ where: { slug: candidate }, select: { id: true } }))) {
     candidate = `${base}-${i}`
     i += 1
   }
