@@ -247,12 +247,6 @@ export async function POST(req: NextRequest) {
   const sessionLimit = enforceApiRateLimit(req, 'ai:gemini-live-session', 12, 10 * 60 * 1000, user.id)
   if (sessionLimit) return sessionLimit
 
-  await ensureGeminiKey()
-  const apiKey = await geminiApiKey()
-  if (!apiKey) {
-    return NextResponse.json({ error: 'أدخل مفتاح Gemini API أولاً من لوحة الإدارة' }, { status: 400 })
-  }
-
   let body: { model?: string; voice?: string; dialect?: string; context?: string; purpose?: string; testOnly?: boolean; setupVariant?: SetupVariant } = {}
   try {
     body = await req.json()
