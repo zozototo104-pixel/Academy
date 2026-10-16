@@ -148,6 +148,20 @@ describe('payments C1 safety', () => {
     expect(calls).toContain('markInvoicePaid:INV-1:BANK_TRANSFER')
   })
 
+  test('application fee invoice finalization reuses existing invoice inside locked transaction', async () => {
+    duplicateInstallmentInvoice = 'INV-FEE'
+    const res = await admissionsFinalizeRoute.POST(new NextRequest('https://academy.test/api/admissions/finalize', {
+      method: 'POST',
+      body: JSON.stringify({ applicationId: 'adm-1', uploadToken: 'token' }),
+      headers: { 'content-type': 'application/json' },
+    }))
+    const payload = await json(res as any)
+    expect(res.status).toBe(200)
+    expect(calls).toContain('lock')
+    expect(payload.invoice.invoiceNo).toBe('INV-FEE')
+    expect(calls).not.toContain('payment.create:APPLICATION_FEE')
+  })
+
   test('installment invoice creation is locked and returns conflict for duplicate pending installment', async () => {
     duplicateInstallmentInvoice = 'INV-PENDING'
     const res = await installmentRoute.POST(new NextRequest('https://academy.test/api/payments/installment', {
