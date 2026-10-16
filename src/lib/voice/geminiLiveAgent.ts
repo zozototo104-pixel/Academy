@@ -569,12 +569,17 @@ export class GeminiLiveAgent {
     this.closeConnectionOnly()
     this.player.stop()
     try { this.processor?.disconnect() } catch (error) { console.warn('Failed to disconnect Gemini Live processor.', error) }
+    try { this.worklet?.port.close() } catch (error) { console.warn('Failed to close Gemini Live worklet port.', error) }
+    try { this.worklet?.disconnect() } catch (error) { console.warn('Failed to disconnect Gemini Live worklet.', error) }
+    try { this.silentSink?.disconnect() } catch (error) { console.warn('Failed to disconnect Gemini Live silent sink.', error) }
     try { this.source?.disconnect() } catch (error) { console.warn('Failed to disconnect Gemini Live audio source.', error) }
     try { this.ctx?.close() } catch (error) { console.warn('Failed to close Gemini Live audio context.', error) }
     try { this.stream?.getTracks().forEach((t) => t.stop()) } catch (error) { console.warn('Failed to stop Gemini Live media tracks.', error) }
     this.stream = null
     this.ctx = null
     this.processor = null
+    this.worklet = null
+    this.silentSink = null
     this.source = null
     this.state('IDLE')
   }
