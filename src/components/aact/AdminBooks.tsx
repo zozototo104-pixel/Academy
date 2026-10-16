@@ -981,6 +981,12 @@ export function AdminBooksTab() {
         }
       } catch (err: any) {
         await loadExamProgress(programId).catch(() => null)
+        const message = err?.message || 'تعذر استكمال توليد الامتحان تلقائياً'
+        setExamKickFailures((prev) => {
+          const current = prev[generatingExam.id]?.count || 0
+          const count = current + 1
+          return { ...prev, [generatingExam.id]: { count, blocked: count >= 5, message } }
+        })
         // لا نزعج الإدارة بتوست كل عدة ثوانٍ؛ تظهر التفاصيل داخل بطاقة الامتحان.
         console.error('auto exam generation step failed:', err)
       } finally {
