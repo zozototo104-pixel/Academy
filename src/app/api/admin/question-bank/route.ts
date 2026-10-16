@@ -143,8 +143,9 @@ async function listQuestions(programId: string, status?: string | null) {
 }
 
 export async function GET(req: NextRequest) {
+  return withTimedResponse(async () => {
   try {
-    await requireAdmin()
+    await withTiming('db_require_admin', () => requireAdmin())
     const programId = cleanText(req.nextUrl.searchParams.get('programId'), 80)
     const status = cleanText(req.nextUrl.searchParams.get('status'), 40)
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
