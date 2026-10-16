@@ -1258,8 +1258,8 @@ export function AdminFinanceTab() {
                           <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">مسددة {p.receiptNo ? `(${p.receiptNo})` : ''}</Badge>
                         ) : p.status === 'WAIVED' ? (
                           <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">معفاة — ليست دفعاً</Badge>
-                        ) : ['DIRECT_PAYMENT', 'USDT'].includes(String(p.method || p.provider || '')) ? (
-                          <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">دفع مباشر بانتظار التأكيد</Badge>
+                        ) : ['DIRECT_PAYMENT', 'BANK_TRANSFER', 'USDT', 'CASH'].includes(String(p.method || p.provider || '')) ? (
+                          <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">دفع يدوي بانتظار التأكيد</Badge>
                         ) : (
                           <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">معلقة</Badge>
                         )}
