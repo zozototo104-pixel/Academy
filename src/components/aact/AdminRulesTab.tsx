@@ -303,6 +303,7 @@ export function AdminRulesTab() {
   }, [selectProgram])
 
   const selected = programs.find((p) => p.id === selectedId)
+  const editorUnavailable = detailsLoading || !programDraft
   const categoryProgramsForBulkApply = programDraft
     ? programs.filter((p) => p.category === programDraft.category && p.active !== false)
     : []
