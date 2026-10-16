@@ -77,13 +77,41 @@ const db: any = {
   },
   programExam: {
     findMany: async () => [clone(program.programExams[0])],
+    findUnique: async () => ({
+      id: 'program-exam-1',
+      title: 'اختبار نهائي',
+      status: 'READY',
+      programId: 'program-1',
+      semester: 1,
+      passScore: 51,
+      durationMin: 60,
+      totalPoints: 100,
+      program: { id: 'program-1', titleAr: 'برنامج عربي للاختبار' },
+      questions: [{ id: 'program-essay-1', order: 1, type: 'ESSAY', text: 'حلل الحالة', modelAnswer: 'إجابة نموذجية', rubric: null, knowledgeItemId: null, sourceEvidence: null, points: 100, status: 'PUBLISHED' }],
+    }),
   },
   programExamAttempt: {
+    findFirst: async ({ where }: any) => {
+      if (where?.status === 'EXPIRED') return null
+      if (where?.status === 'STARTED') return { id: 'program-attempt-started', userId: 'user-1', examId: 'program-exam-1', status: 'STARTED', startedAt: new Date(Date.now() - 60_000), createdAt: new Date() }
+      return null
+    },
+    updateMany: async ({ data }: any) => { calls.push(`programAttempt.updateMany:${data.status}`); return { count: 1 } },
+    update: async ({ data }: any) => { calls.push(`programAttempt.update:${data.status}`); return { id: 'program-attempt-started', ...data } },
     findMany: async ({ where }: any) => {
       if (where?.examId) {
         return [{ score: 72, finalScore: 88, appealStatus: 'REVIEWED', status: 'GRADED', passed: true, answers: [{ points: 72, maxPoints: 100 }] }]
       }
       return [{ id: 'program-attempt-1', score: 72, finalScore: 88, passed: true, status: 'GRADED', submittedAt: new Date(), exam: { title: 'اختبار نهائي', semester: 1, passScore: 51, totalPoints: 100 } }]
+    },
+  },
+  programAnswer: {
+    create: async ({ data }: any) => { calls.push(`programAnswer.create:${data.questionId}:${data.aiFeedback || ''}`); answers.push({ ...data }); return data },
+    updateMany: async ({ where, data }: any) => {
+      calls.push(`programAnswer.updateMany:${where.questionId}:${data.aiFeedback || ''}`)
+      const existing = answers.find((answer) => answer.attemptId === where.attemptId && answer.questionId === where.questionId)
+      if (existing) Object.assign(existing, data)
+      return { count: existing ? 1 : 0 }
     },
   },
   programAssignment: {
