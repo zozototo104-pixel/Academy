@@ -280,7 +280,7 @@ export async function POST(req: NextRequest) {
     voice,
   })
 
-  const setup = buildSetup(setupVariant, model, systemInstruction, voice, dialect)
+  const setup = buildGeminiLiveSetup(setupVariant, model, systemInstruction, voice, dialect)
 
   const now = Date.now()
   const sessionLimitMinutes = allowance?.sessionLimitMinutes || 10
