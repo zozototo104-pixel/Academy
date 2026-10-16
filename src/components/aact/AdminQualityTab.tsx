@@ -1128,7 +1128,7 @@ export function AdminQualityTab() {
       await alertAction({ title: res.ok ? 'تم إرسال رسالة الاختبار' : 'تمت محاولة الإرسال', description: res.ok ? `تم إرسال رسالة اختبار إلى ${res.to}` : 'راجع حالة البريد والسجل للتأكد من النتيجة.', tone: res.ok ? 'success' : 'warning' })
       await loadMailStatus()
     } catch (e: any) {
-      alert(e?.message || 'تعذر إرسال رسالة الاختبار')
+      await alertAction({ title: 'تعذر إرسال رسالة الاختبار', description: e?.message || 'راجع إعدادات البريد وحاول مرة أخرى.', tone: 'danger' })
     } finally {
       setMailTestSending(false)
     }
