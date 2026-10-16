@@ -35,8 +35,8 @@ export async function GET(_req: NextRequest, context: RouteContext) {
         where: { userId_programId: { userId: user.id, programId: book.programId } },
         select: { status: true },
       })
-      if (!enrollment || enrollment.status === 'PENDING_PAYMENT') {
-        return NextResponse.json({ error: 'صلاحيات غير كافية لفتح هذا الكتاب' }, { status: 403 })
+      if (!enrollment || !['ACTIVE', 'COMPLETED'].includes(enrollment.status)) {
+        return NextResponse.json({ error: 'تسجيلك غير مفعّل — افتح بوابة الدفعات لاستكمال السداد أو اعتماد الإعفاء', code: 'ENROLLMENT_NOT_ACTIVE' }, { status: 403 })
       }
     }
 

@@ -509,8 +509,17 @@ function detectAdmissionDocumentKind(f: AdmissionFileEvidence): { kind: Detected
   }
 
   // تصنيف متعدد المعايير: لا نقرر النوع من كلمة واحدة، لأن السيرة قد تحتوي MBA، والشهادة قد تحتوي Nationality.
-  if (/\bcv\b|resume|curriculum vitae|سيره ذاتيه|سيرة ذاتية/.test(n) || hasAny(visual, KEYWORDS.cvDoc)) addEvidence('CV', 6, 'عنوان/بنية سيرة ذاتية')
-  if (/work experience|training\s*&\s*work experience|professional experience|employment|skills|other skills|interests|objective|البيانات الشخصيه|البيانات الشخصية|الخبرات العمليه|الخبرات العملية|المهارات|الدورات|ورش/.test(n)) addEvidence('CV', 3, 'خبرات/مهارات/دورات أو بيانات شخصية')
+  const cvTitleSignal = /\bcv\b|resume|curriculum vitae|(?:ال)?سير[هة]\s+(?:ال)?ذاتي[هة]/.test(n) || hasAny(visual, KEYWORDS.cvDoc)
+  const cvSectionCount = [
+    /البيانات\s+(?:الشخصيه|الشخصية)|personal\s+information/.test(n),
+    /work experience|professional experience|employment|الخبرات\s+(?:العمليه|العملية)|خبرات\s+عملية/.test(n),
+    /training\s*&\s*work experience|courses|workshops|الدورات|ورش/.test(n),
+    /skills|other skills|المهارات/.test(n),
+    /objective|interests|الهدف|الاهتمامات/.test(n),
+  ].filter(Boolean).length
+  if (cvTitleSignal) addEvidence('CV', 10, 'عنوان/بنية سيرة ذاتية صريحة')
+  if (cvSectionCount >= 2) addEvidence('CV', 6, 'أقسام سيرة ذاتية متعددة')
+  else if (cvSectionCount === 1) addEvidence('CV', 3, 'خبرات/مهارات/دورات أو بيانات شخصية')
   if (/email|gmail|hotmail|@|phone|mobile|الهاتف|البريد/.test(n)) addEvidence('CV', 1, 'بيانات تواصل داخل مستند مهني')
 
   if (hasAny(visual, KEYWORDS.transcriptDoc) || /transcript|academic record|grade report|كشف علامات|كشف درجات|marks|gpa|المعدل|الساعات المعتمده|الساعات المعتمدة|course title|semester/.test(n)) addEvidence('TRANSCRIPT', 6, 'كشف علامات/سجل أكاديمي')
@@ -827,7 +836,8 @@ function computeRuleScore(args: {
   const medium = args.findings.filter((f) => f.severity === 'MEDIUM').length
   const onlyVisionUnavailable = missing === 0 && problem === 0 && args.hardProblems === 0 && unverified > 0 && args.requiredFound === 0
 
-  let score = Math.round((args.requiredFound / Math.max(1, args.requiredTotal)) * 100)
+  const coverageBase = Math.round((args.requiredFound / Math.max(1, args.requiredTotal)) * 100)
+  let score = coverageBase
   score -= missing * 18 + problem * 20 + unverified * 9 + high * 12 + medium * 4 + args.hardProblems * 4
 
   if (!args.docTextFound && !onlyVisionUnavailable) score = Math.min(score, 20)
@@ -837,6 +847,12 @@ function computeRuleScore(args: {
   if (args.unverifiableRequired >= 2) score = Math.min(score, 58)
   if (onlyVisionUnavailable) score = Math.max(score, 35)
   if (args.hardProblems >= 3) score = Math.min(score, 30)
+  if (args.requiredFound > 0) {
+    const partialCoverageFloor = args.hardProblems >= 3 || problem > 0
+      ? Math.min(45, Math.max(20, Math.round(coverageBase * 0.8)))
+      : Math.min(60, Math.max(25, Math.round(coverageBase * 0.85)))
+    score = Math.max(score, partialCoverageFloor)
+  }
   if (args.requiredFound === args.requiredTotal && args.hardProblems === 0 && problem === 0 && missing === 0 && unverified === 0) score = Math.max(score, 82)
 
   score = Math.max(0, Math.min(100, Math.round(score)))
@@ -1276,6 +1292,12 @@ ${evidence}
       documentFitScore >= 65
 
     let finalScore = Math.min(rules.deterministicScore, Number.isFinite(aiScore) ? aiScore : rules.deterministicScore)
+    if (rules.requiredFound > 0 && app.files.length > 0) {
+      const verifiedCoverageFloor = Math.min(65, Math.max(15, Math.round((rules.requiredFound / Math.max(1, rules.requiredTotal)) * 80), Math.round(documentFitScore * 0.6)))
+      // لا نسمح لفشل أو تشدد النموذج اللغوي أن يحوّل تغطية قواعدية مثبتة إلى 0%.
+      // النواقص تبقى في الحكم والملاحظات، لكن النسبة تعكس ما تم التحقق منه فعلاً.
+      finalScore = Math.max(finalScore, Math.min(rules.deterministicScore || verifiedCoverageFloor, verifiedCoverageFloor))
+    }
     if (mostlySatisfied || oneWeakNonCriticalDoc) {
       // الدرجة النهائية تمثل ملف القبول كله، وليست أقل مرفق منفرد.
       // إذا كانت الهوية والشهادة سليمتين وباقي الملفات قوية، لا نسمح لسيرة ذاتية ضعيفة/غير متحققة أن تسحب الطلب كله إلى 32%.

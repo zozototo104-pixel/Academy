@@ -406,6 +406,8 @@ model PaymentWaiverCode {
   requestedAmountCents Int?
   reason          String
   status          String   @default("ISSUED") // ISSUED | VERIFIED | APPROVED | REJECTED | CANCELLED | EXPIRED
+  emailStatus     String   @default("SKIPPED") // SENT | FAILED | SKIPPED
+  emailSentAt     DateTime?
   issuedById      String?
   verifiedById    String?
   approvedById    String?
@@ -417,6 +419,16 @@ model PaymentWaiverCode {
 
   @@index([paymentId, status])
   @@index([expiresAt])
+}
+
+model PaymentWaiverAttempt {
+  id        String   @id @default(cuid())
+  paymentId String
+  userId    String
+  success   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([paymentId, userId, success, createdAt])
 }
 
 model PaymentProof {
@@ -1121,6 +1133,7 @@ model AdmissionApplication {
   certificates Certificate[]
   files      AdmissionDocument[]
   deliverables ServiceDeliverable[]
+  scholarshipFull Boolean @default(false) // منحة كاملة معتمدة: أي فواتير دراسية لاحقة لهذا الطلب تُنشأ معفاة تلقائياً
   // نوع الإشراف الأكاديمي: AI = مشرف ذكي فقط، HUMAN = مشرف بشري معيّن من الإدارة، HYBRID = الاثنين معاً
   supervisionMode String @default("AI")
 }

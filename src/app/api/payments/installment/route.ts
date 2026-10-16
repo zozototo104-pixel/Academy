@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { nextInvoiceNo } from '@/lib/settings'
+import { applyScholarshipToNewInvoiceData } from '@/lib/payment-waivers'
 import { getAdmissionTuitionPlan, roundMoney } from '@/lib/tuition-installments'
 
 export async function POST(req: NextRequest) {
@@ -67,20 +68,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `المبلغ يتجاوز المتبقي غير المفوتر: ${availableToInvoice}$` }, { status: 400 })
     }
 
-    const payment = await db.payment.create({
-      data: {
-        invoiceNo: await nextInvoiceNo(),
-        purpose: 'TUITION_INSTALLMENT',
-        description: `دفعة جزئية من الرسوم الدراسية — ${app.program}`,
-        amount,
-        currency: 'USD',
-        status: 'UNPAID',
-        admissionId: app.id,
-        userId: app.userId || user.id,
-        payerName: app.fullName,
-        payerEmail: app.email,
-      },
+    const installmentInvoiceData = await applyScholarshipToNewInvoiceData(db, {
+      invoiceNo: await nextInvoiceNo(),
+      purpose: 'TUITION_INSTALLMENT',
+      description: `دفعة جزئية من الرسوم الدراسية — ${app.program}`,
+      amount,
+      currency: 'USD',
+      status: 'UNPAID',
+      admissionId: app.id,
+      userId: app.userId || user.id,
+      payerName: app.fullName,
+      payerEmail: app.email,
     })
+    const payment = await db.payment.create({ data: installmentInvoiceData })
 
     return NextResponse.json({ ok: true, payment })
   } catch (e: any) {

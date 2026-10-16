@@ -112,6 +112,13 @@ async function getResendConfig(): Promise<{ apiKey: string; from: string }> {
   }
 }
 
+export async function isEmailDeliveryConfigured(): Promise<boolean> {
+  const smtp = await getSmtpConfig().catch(() => null)
+  if (smtp?.enabled) return true
+  const resend = await getResendConfig().catch(() => null)
+  return !!(resend?.apiKey && resend?.from)
+}
+
 async function sendWithResend(input: SendEmailInput): Promise<boolean> {
   const { apiKey, from } = await getResendConfig()
   if (!apiKey || !from) return false
@@ -273,15 +280,15 @@ export async function emailPaymentReceipt(to: string, name: string, invoiceNo: s
   })
 }
 
-export async function emailPaymentWaiverCode(to: string, input: { name: string; invoiceNo: string; description: string; code: string; waiverLabel: string; reason?: string | null }) {
-  await sendEmail({
+export async function emailPaymentWaiverCode(to: string, input: { name: string; invoiceNo: string; description: string; code: string; waiverLabel: string; reason?: string | null; link?: string | null }): Promise<boolean> {
+  return sendEmail({
     to,
     event: 'PAYMENT_WAIVER_CODE',
     subject: `كود إعفاء مالي من الأكاديمية — ${input.invoiceNo}`,
     html: emailTemplate(
       'كود إعفاء مالي من الأكاديمية 🎓',
       `<p>${greeting(input.name)}،</p><p>أصدرت الإدارة كود إعفاء مالي مرتبطاً بفاتورتك. أدخل الكود من بوابة الطالب ضمن بطاقة الفاتورة، ثم انتظر اعتماد الإدارة النهائي.</p>${infoRows([{ label: 'رقم الفاتورة', value: input.invoiceNo }, { label: 'البند', value: input.description }, { label: 'نوع الإعفاء', value: input.waiverLabel }, { label: 'كود الإعفاء', value: input.code }, { label: 'تنبيه', value: 'الكود مرتبط بحسابك وهذه الفاتورة فقط، ولا يعتبر دفعاً فعلياً.' }])}${input.reason ? `<p><strong>ملاحظة الإدارة:</strong> ${escapeHtml(input.reason)}</p>` : ''}`,
-      { label: 'فتح بوابة الطالب', url: appLink('/?view=dashboard') }
+      { label: 'فتح الفاتورة في بوابة الطالب', url: appLink(input.link || '/?view=dashboard&tab=payments') }
     ),
   })
 }
