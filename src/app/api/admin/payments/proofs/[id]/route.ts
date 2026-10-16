@@ -83,10 +83,25 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
         : proof.payment.method === 'CASH'
           ? 'CASH'
           : 'BANK_TRANSFER'
-    const result = await markInvoicePaid(proof.payment.invoiceNo, confirmMethod, {
-      actor: { id: admin.id, name: admin.name },
-    })
-    if (!result.ok) return NextResponse.json({ error: result.error || 'تم قبول الإثبات لكن تعذر تسوية الفاتورة' }, { status: 400 })
+    let result: Awaited<ReturnType<typeof markInvoicePaid>>
+    try {
+      result = await markInvoicePaid(proof.payment.invoiceNo, confirmMethod, {
+        actor: { id: admin.id, name: admin.name },
+      })
+    } catch (error: any) {
+      await db.paymentProof.updateMany({
+        where: { id: proof.id, status: 'ACCEPTED' },
+        data: { status: 'PENDING', reviewedById: null, reviewedAt: null },
+      })
+      return NextResponse.json({ error: error?.message || 'تم قبول الإثبات لكن تعذر تسوية الفاتورة' }, { status: 500 })
+    }
+    if (!result.ok) {
+      await db.paymentProof.updateMany({
+        where: { id: proof.id, status: 'ACCEPTED' },
+        data: { status: 'PENDING', reviewedById: null, reviewedAt: null },
+      })
+      return NextResponse.json({ error: result.error || 'تم قبول الإثبات لكن تعذر تسوية الفاتورة' }, { status: 400 })
+    }
 
     await audit(admin, 'ACCEPT_PAYMENT_PROOF', 'PaymentProof', proof.id, `${proof.payment.invoiceNo} — ${result.receiptNo || ''}`)
     const updated = await db.paymentProof.findUnique({ where: { id: proof.id } })
