@@ -82,4 +82,4 @@ const nextConfig: NextConfig = {
   reactStrictMode: false,
 };
 
-export default nextConfig;
+export default withBundleAnalyzer(nextConfig);
