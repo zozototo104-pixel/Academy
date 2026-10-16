@@ -987,13 +987,13 @@ export async function GET(req: NextRequest) {
       if (user.role !== 'STUDENT') {
         return NextResponse.json({ applications: [], application: null, restricted: true, reason: 'طلبات الالتحاق والخدمات تخص حسابات الطلاب/المتقدمين فقط.' })
       }
-      await repairVerifiedStudentRecordOwnership(user).catch(() => null)
-      const apps = await db.admissionApplication.findMany({
+      await withTiming('db_admissions_repair_student_ownership', () => repairVerifiedStudentRecordOwnership(user).catch(() => null))
+      const apps = await withTiming('db_admissions_student_applications', () => db.admissionApplication.findMany({
         where: studentAdmissionOwnershipWhere(user),
         orderBy: [{ createdAt: 'desc' }],
         take: 10,
         include,
-      })
+      }))
       const serialized = apps.map(serialize)
       return NextResponse.json({ applications: serialized, application: serialized[0] || null })
     }
