@@ -257,6 +257,7 @@ export function AdminRulesTab() {
   const [programDraft, setProgramDraft] = useState<ProgramDraft | null>(null)
   const [custom, setCustom] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [detailsLoading, setDetailsLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [renumberingUnits, setRenumberingUnits] = useState(false)
   const [creatingProgram, setCreatingProgram] = useState(false)
