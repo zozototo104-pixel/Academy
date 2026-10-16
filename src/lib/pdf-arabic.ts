@@ -19,13 +19,37 @@ export type DrawArabicImageOptions = {
   fontPath?: string
 }
 
-let canvasArabicFontRegistrationAttempted = false
-let canvasArabicFontRegistrationError: unknown = null
 let canvasModule: CanvasModule | null = null
+let canvasLoadState: 'idle' | 'loading' | 'ready' | 'failed' = 'idle'
+let canvasLoadPromise: Promise<boolean> | null = null
+let canvasLoadWarned = false
+let canvasDrawWarned = false
 
-function loadCanvasModule(): CanvasModule {
-  if (!canvasModule) canvasModule = require('@napi-rs/canvas') as CanvasModule
-  return canvasModule
+export async function loadArabicCanvas(fontPath = CANVAS_ARABIC_FONT_PATH): Promise<boolean> {
+  if (canvasLoadState === 'ready') return true
+  if (canvasLoadState === 'failed') return false
+  if (!canvasLoadPromise) {
+    canvasLoadState = 'loading'
+    canvasLoadPromise = (async () => {
+      try {
+        if (!existsSync(fontPath)) throw new Error(`Missing Arabic canvas font: ${fontPath}`)
+        const mod = await import('@napi-rs/canvas')
+        mod.GlobalFonts.registerFromPath(fontPath, CANVAS_ARABIC_FONT_FAMILY)
+        canvasModule = mod
+        canvasLoadState = 'ready'
+        return true
+      } catch (error) {
+        canvasModule = null
+        canvasLoadState = 'failed'
+        if (!canvasLoadWarned) {
+          canvasLoadWarned = true
+          console.warn('[pdf-arabic] Canvas Arabic renderer unavailable; PDF Arabic will use shaped text fallback.', error)
+        }
+        return false
+      }
+    })()
+  }
+  return canvasLoadPromise
 }
 
 const FORMS: Record<string, ArabicForms> = {
