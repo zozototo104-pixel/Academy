@@ -187,6 +187,30 @@ function shapeArabicLogical(input: string) {
   return shaped.join('')
 }
 
+function reverseChars(value: string) {
+  return Array.from(value).reverse().join('')
+}
+
+function reverseArabicRunPreservingLtr(run: string) {
+  const placeholders: string[] = []
+  const protectedRun = run.replace(LTR_TOKEN_RE, (token) => {
+    const marker = `\u0000${placeholders.length}\u0000`
+    placeholders.push(token)
+    return marker
+  })
+  let reversed = reverseChars(protectedRun)
+  placeholders.forEach((token, index) => {
+    const reversedMarker = reverseChars(`\u0000${index}\u0000`)
+    reversed = reversed.replace(reversedMarker, token)
+  })
+  return reversed
+}
+
+function oldVisualArabicWithReverse(value: string) {
+  if (!ARABIC_RE.test(value)) return value
+  return reverseArabicRunPreservingLtr(shapeArabicLogical(value)).replace(/\s+([:،؛])/g, '$1')
+}
+
 function sampleInvoice(): InvoicePdfData {
   return {
     invoiceNo: 'INV-AR-1',
