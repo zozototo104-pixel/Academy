@@ -130,11 +130,13 @@ describe('Gemini Live raw setup shape', () => {
     }
   })
 
-  test('falls back to simplified MSA for unknown dialect codes', () => {
-    expect(dialectInstruction('xx-YY')).toBe('احكِ بالعربية الفصحى المبسّطة. حافظ على اللهجة طول المكالمة. المصطلحات الأكاديمية خليها بالفصحى أو متل ما هي بالكتاب.')
+  test('normalizes unknown dialect codes to the supported default', () => {
+    expect(cleanDialect('ar-XX')).toBe('ar-PS')
+    expect(cleanDialect('ar-IQ')).toBe('ar-IQ')
+    expect(dialectInstruction('xx-YY')).toBe(dialectInstruction('ar-PS'))
   })
 
-  test('uses the same dialect instruction in SDK config', () => {
+  test('uses the same dialect instruction and transcription shape in SDK config', () => {
     const palestinianInstruction = dialectInstruction('ar-PS')
     const sdkConfig = buildGeminiLiveSdkConfig('voice instructions', 'Charon', 'ar-PS') as any
 
