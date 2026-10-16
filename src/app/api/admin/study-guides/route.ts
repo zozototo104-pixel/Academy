@@ -116,8 +116,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  return withTimedResponse(async () => {
   try {
-    const admin = await requireAdmin()
+    const admin = await withTiming('db_require_admin', () => requireAdmin())
     const body = await req.json().catch(() => ({}))
     const programId = clean(body.programId, 80)
     const semester = Math.max(1, Math.min(3, Number(body.semester || 1)))
