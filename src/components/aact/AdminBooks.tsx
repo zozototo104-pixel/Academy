@@ -875,6 +875,11 @@ export function AdminBooksTab() {
     }
   }, [toast])
 
+  const hasActiveExamGenerationJob = useMemo(() => {
+    const activeStatuses = new Set(['GENERATING', 'RUNNING', 'QUEUED', 'PENDING'])
+    return exams.some((e) => activeStatuses.has(e.status))
+  }, [exams])
+
   const loadExamProgress = useCallback(async (pid: string) => {
     const progress = await api<{ active?: boolean; exams: Partial<ExamRow>[] }>(`/api/admin/program-exams/progress?programId=${pid}`)
     setExams((prev) => prev.map((exam) => {
