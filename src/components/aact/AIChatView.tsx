@@ -508,13 +508,13 @@ export function AIChatView() {
         setLiveCaption(userText)
       },
       onInterrupted: () => {},
-      onError: (msg) => {
-        const text = String(msg || '')
-        if (text.includes('Gemini Live') || text.includes('انتهت دقائق') || text.includes('دقائق صوت')) {
+      onError: (msg, code, status) => {
+        const text = String(msg || '').trim() || 'تعذر تشغيل المحادثة الصوتية'
+        if (isLiveMinutesExhausted({ code, status })) {
           openVoicePackageDialog(text)
           return
         }
-        toast({ title: 'تنبيه', description: friendlyLiveMinutesMessage(text), variant: 'destructive' })
+        toast({ title: 'تنبيه', description: text, variant: 'destructive' })
       },
     })
     agentRef.current = agent
