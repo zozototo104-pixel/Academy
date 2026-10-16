@@ -154,6 +154,8 @@ export function HomeView() {
   const [generalSettings, setGeneralSettings] = useState<GeneralSettings>(DEFAULT_SETTINGS)
   const [programCount, setProgramCount] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
+  const [programsError, setProgramsError] = useState(false)
+  const [retryPrograms, setRetryPrograms] = useState(0)
 
   useEffect(() => {
     let alive = true
