@@ -23,6 +23,7 @@ import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { getSetting } from '@/lib/settings'
 import { redactSecrets } from '@/lib/secret-crypto'
 import { getGeminiLiveAllowance, reserveGeminiLiveUsage, type LivePurpose } from '@/lib/live-usage-guard'
+import { dialectInstruction } from '@/lib/voice-dialect'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
