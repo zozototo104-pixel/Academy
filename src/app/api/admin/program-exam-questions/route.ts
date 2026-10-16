@@ -296,7 +296,10 @@ export async function PATCH(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const admin = await requireAdmin()
-    const { examId, action } = await req.json()
+    const body = await req.json()
+    const { examId, action } = body
+    const overrideCognitivePolicy = body?.overrideCognitivePolicy === true
+    const overrideReason = cleanInternalExamMeta(body?.overrideReason, 1000)
     if (!examId || action !== 'APPROVE_ALL') return NextResponse.json({ error: 'بيانات غير مكتملة' }, { status: 400 })
 
     const exam = await db.programExam.findUnique({
