@@ -372,7 +372,7 @@ export async function POST(req: NextRequest) {
         payerEmail: submittedEmail,
         payerCountry: country.trim(),
       },
-    })
+    }))
 
     if (owner) {
       await notify(
