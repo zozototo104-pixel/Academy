@@ -327,6 +327,7 @@ export async function PATCH(req: NextRequest) {
     console.error('program-rules bulk apply error:', e)
     return NextResponse.json({ error: e?.message || 'تعذر تطبيق السعر والساعات على التصنيف' }, { status: 500 })
   }
+  })
 }
 
 export async function PUT(req: NextRequest) {
