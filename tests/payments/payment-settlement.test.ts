@@ -200,7 +200,17 @@ mock.module('@/lib/notify', () => ({
     audits.push({ actor, action, entity, entityId, details })
   },
 }))
+const realSettings = await import('../../src/lib/settings')
+mock.module('@/lib/settings', () => ({
+  ...realSettings,
+  getSettings: async () => ({ THESIS_MAX_MONTHS: '6' }),
+  nextInvoiceNo: async () => `INV-${payments.size + 1}`,
+  nextReceiptNo: async () => `RCPT-${++receiptSequence}`,
+}))
+
+const realMailer = await import('../../src/lib/mailer')
 mock.module('@/lib/mailer', () => ({
+  ...realMailer,
   emailPaymentReceipt: async (email: string, name: string, invoiceNo: string, description: string, amount: number, receiptNo: string) => {
     receiptEmails.push({ email, name, invoiceNo, description, amount, receiptNo })
     return true
@@ -212,12 +222,12 @@ mock.module('@/lib/mailer', () => ({
   emailPaymentWaiverCode: async () => true,
   isEmailDeliveryConfigured: async () => false,
 }))
-mock.module('@/lib/settings', () => ({
-  getSettings: async () => ({ THESIS_MAX_MONTHS: '6' }),
-  nextInvoiceNo: async () => `INV-${payments.size + 1}`,
-  nextReceiptNo: async () => `RCPT-${++receiptSequence}`,
+
+const realTuitionInstallments = await import('../../src/lib/tuition-installments')
+mock.module('@/lib/tuition-installments', () => ({
+  ...realTuitionInstallments,
+  getAdmissionTuitionPlan: async () => tuitionPlan,
 }))
-mock.module('@/lib/tuition-installments', () => ({ getAdmissionTuitionPlan: async () => tuitionPlan }))
 mock.module('@/lib/live-usage-guard', () => ({ grantGeminiLiveCredit: async () => {} }))
 
 const { verifyPaymentWaiverCode } = await import('../../src/lib/payment-waivers')

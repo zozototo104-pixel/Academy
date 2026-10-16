@@ -111,8 +111,8 @@ export async function GET(req: NextRequest) {
     const manualPendingWhere = {
       status: 'UNPAID',
       OR: [
-        { method: { in: ['DIRECT_PAYMENT', 'USDT'] } },
-        { provider: { in: ['DIRECT_PAYMENT', 'USDT'] } },
+        { method: { in: ['DIRECT_PAYMENT', 'BANK_TRANSFER', 'USDT', 'CASH'] } },
+        { provider: { in: ['DIRECT_PAYMENT', 'BANK_TRANSFER', 'USDT', 'CASH'] } },
       ],
     }
 
@@ -278,7 +278,11 @@ export async function PATCH(req: NextRequest) {
     }
 
     const proofCount = payment.proofs.length
-    const reviewableProofs = payment.proofs.filter((proof) => ['PENDING', 'ACCEPTED'].includes(proof.status))
+    const pendingProofs = payment.proofs.filter((proof) => proof.status === 'PENDING')
+    if (isManualPaymentMethod(payment.method, payment.provider) && pendingProofs.length > 0) {
+      return NextResponse.json({ error: 'إثبات الدفع بانتظار مراجعة الإدارة. استخدم زر قبول الإثبات لتسوية الفاتورة أو زر الرفض مع سبب واضح.' }, { status: 409 })
+    }
+    const reviewableProofs = payment.proofs.filter((proof) => proof.status === 'ACCEPTED')
     const hasReviewableProof = reviewableProofs.length > 0
     const effectiveApprovalReference = approvalReference || payment.manualApprovalReference || ''
     const effectiveApprovalNote = approvalNote || payment.manualApprovalNote || ''

@@ -314,9 +314,9 @@ function testSecurityBatchAFollowup() {
   assert(waiverLib.includes('export async function applyScholarshipToNewInvoiceData') && waiverLib.includes("['TUITION', 'TUITION_INSTALLMENT'].includes(purpose)") && waiverLib.includes("status: 'WAIVED'") && waiverLib.includes("waiverType: 'FULL_SCHOLARSHIP'"), 'future tuition invoice data must be explicitly auto-waived by the scholarship helper')
   const adminAdmissions = file('src/app/api/admin/admissions/route.ts')
   const installmentRoute = file('src/app/api/payments/installment/route.ts')
-  assert(adminAdmissions.includes('applyScholarshipToNewInvoiceData(db') && adminAdmissions.includes("purpose: 'TUITION'"), 'admin admission tuition invoice creation must call the scholarship helper')
-  assert(installmentRoute.includes('applyScholarshipToNewInvoiceData(db') && installmentRoute.includes("purpose: 'TUITION_INSTALLMENT'"), 'student installment invoice creation must call the scholarship helper')
-  assert(waiverLib.includes('const newInvoiceData = await applyScholarshipToNewInvoiceData(db') && waiverLib.includes("purpose: 'TUITION'"), 'waiver-created tuition invoices must call the scholarship helper')
+  assert(/applyScholarshipToNewInvoiceData\((db|tx)\b/.test(adminAdmissions) && adminAdmissions.includes("purpose: 'TUITION'"), 'admin admission tuition invoice creation must call the scholarship helper')
+  assert(/applyScholarshipToNewInvoiceData\((db|tx)\b/.test(installmentRoute) && installmentRoute.includes("purpose: 'TUITION_INSTALLMENT'"), 'student installment invoice creation must call the scholarship helper')
+  assert(/const newInvoiceData = await applyScholarshipToNewInvoiceData\((db|tx)\b/.test(waiverLib) && waiverLib.includes("purpose: 'TUITION'"), 'waiver-created tuition invoices must call the scholarship helper')
 
   const adminExtras = file('src/components/aact/AdminExtras.tsx')
   assert(adminExtras.includes('activeWaiverForPayment') && adminExtras.includes('كود إعفاء نشط'), 'admin payments UI must show an active waiver badge/state')

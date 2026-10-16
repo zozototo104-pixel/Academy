@@ -740,6 +740,7 @@ export function AdminFinanceTab() {
   const [paymentRefresh, setPaymentRefresh] = useState(0)
   const [pdfBusy, setPdfBusy] = useState<string | null>(null)
   const [waiverBusy, setWaiverBusy] = useState<string | null>(null)
+  const [proofReviewBusy, setProofReviewBusy] = useState<string | null>(null)
   const [generatedWaiverCodes, setGeneratedWaiverCodes] = useState<Record<string, string>>({})
   const [copiedWaiverPaymentId, setCopiedWaiverPaymentId] = useState<string | null>(null)
 
@@ -810,6 +811,47 @@ export function AdminFinanceTab() {
       load()
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
+    }
+  }
+
+  const reviewPaymentProof = async (payment: PaymentRow, proof: PaymentProofRow, action: 'ACCEPT' | 'REJECT') => {
+    let reason = ''
+    if (action === 'REJECT') {
+      const value = await promptAction({
+        title: 'رفض إثبات الدفع',
+        description: `اكتب سبب رفض إثبات الفاتورة ${payment.invoiceNo}. سيصل السبب للطالب ليعيد رفع إثبات صحيح.`,
+        fieldLabel: 'سبب الرفض',
+        placeholder: 'مثال: الصورة غير واضحة أو المبلغ لا يطابق الفاتورة',
+        required: true,
+        minLength: 6,
+        multiline: true,
+        confirmLabel: 'رفض الإثبات',
+        tone: 'danger',
+      })
+      if (value === null) return
+      reason = value.trim()
+      if (reason.length < 6) {
+        toast({ title: 'سبب الرفض إلزامي', description: 'اكتب سبباً واضحاً يصل للطالب.', variant: 'destructive' })
+        return
+      }
+    } else {
+      const ok = await confirmAction({
+        title: 'قبول إثبات الدفع',
+        description: `سيتم قبول إثبات الفاتورة ${payment.invoiceNo} وتسوية الفاتورة وتفعيل أي أثر مرتبط بالسداد.`,
+        confirmLabel: 'قبول وتسوية الفاتورة',
+        tone: 'success',
+      })
+      if (!ok) return
+    }
+    setProofReviewBusy(proof.id)
+    try {
+      await api(`/api/admin/payments/proofs/${encodeURIComponent(proof.id)}`, { method: 'PATCH', body: JSON.stringify({ action, reason }) })
+      toast({ title: action === 'ACCEPT' ? 'تم قبول الإثبات' : 'تم رفض الإثبات', description: action === 'ACCEPT' ? 'سُويت الفاتورة بعد قبول الإثبات.' : 'وصل سبب الرفض للطالب.' })
+      load()
+    } catch (e: any) {
+      toast({ title: 'تعذر مراجعة الإثبات', description: e.message, variant: 'destructive' })
+    } finally {
+      setProofReviewBusy(null)
     }
   }
 
@@ -1195,6 +1237,13 @@ export function AdminFinanceTab() {
                                   فتح الإيصال: {proof.fileName}
                                 </a>
                                 {proof.uploadedBy?.name ? <div className="text-emerald-700">رفعه: {proof.uploadedBy.name}</div> : null}
+                                {proof.adminNote ? <div className="text-slate-500">ملاحظة الإدارة: {proof.adminNote}</div> : null}
+                                {proof.status === 'PENDING' && (
+                                  <div className="flex flex-wrap gap-1 pt-1">
+                                    <Button type="button" size="sm" disabled={proofReviewBusy === proof.id} onClick={() => reviewPaymentProof(p, proof, 'ACCEPT')} className="h-7 bg-emerald-600 px-2 text-[10px] font-black text-white hover:bg-emerald-700">قبول الإثبات</Button>
+                                    <Button type="button" size="sm" variant="outline" disabled={proofReviewBusy === proof.id} onClick={() => reviewPaymentProof(p, proof, 'REJECT')} className="h-7 border-red-200 px-2 text-[10px] font-black text-red-600 hover:bg-red-50">رفض بسبب</Button>
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -1209,8 +1258,8 @@ export function AdminFinanceTab() {
                           <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">مسددة {p.receiptNo ? `(${p.receiptNo})` : ''}</Badge>
                         ) : p.status === 'WAIVED' ? (
                           <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">معفاة — ليست دفعاً</Badge>
-                        ) : ['DIRECT_PAYMENT', 'USDT'].includes(String(p.method || p.provider || '')) ? (
-                          <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">دفع مباشر بانتظار التأكيد</Badge>
+                        ) : ['DIRECT_PAYMENT', 'BANK_TRANSFER', 'USDT', 'CASH'].includes(String(p.method || p.provider || '')) ? (
+                          <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">دفع يدوي بانتظار التأكيد</Badge>
                         ) : (
                           <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">معلقة</Badge>
                         )}

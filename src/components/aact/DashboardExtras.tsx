@@ -146,6 +146,11 @@ const METHOD_LABEL: Record<string, string> = {
   SANDBOX: 'محاكاة آمنة',
 }
 
+export function visiblePaymentMethods(methods?: PaymentMethodStatus[]) {
+  const list = Array.isArray(methods) ? methods : []
+  return list.filter((m) => !['STRIPE', 'PAYPAL'].includes(String(m.id).toUpperCase()) || m.configured)
+}
+
 function Money({ value }: { value: number }) {
   return <span dir='ltr'>{Math.round((Number(value) || 0) * 100) / 100}$</span>
 }
@@ -228,7 +233,7 @@ export function PaymentsTab() {
       .then((d) => {
         setPayConfig(d)
         setPayMode(d.mode || 'SANDBOX')
-        const firstEnabled = d.methods?.find((m) => m.enabled)?.id
+        const firstEnabled = visiblePaymentMethods(d.methods).find((m) => m.enabled)?.id
         if (firstEnabled) setMethod(firstEnabled)
       })
       .catch(() => {})
@@ -250,7 +255,7 @@ export function PaymentsTab() {
   }, [])
 
   const openPaymentDialog = (payment: Payment) => {
-    const firstEnabled = payConfig?.methods?.find((m) => m.enabled)?.id
+    const firstEnabled = visiblePaymentMethods(payConfig?.methods).find((m) => m.enabled)?.id
     if (firstEnabled) setMethod(firstEnabled)
     setPayTarget(payment)
   }
@@ -261,7 +266,7 @@ export function PaymentsTab() {
     if (!target) return
     setAutoOpenedInvoiceNo(initialInvoiceNo)
     if (target.status === 'UNPAID') {
-      const firstEnabled = payConfig?.methods?.find((m) => m.enabled)?.id
+      const firstEnabled = visiblePaymentMethods(payConfig?.methods).find((m) => m.enabled)?.id
       if (firstEnabled) setMethod(firstEnabled)
       setPayTarget(target)
     } else {
@@ -697,7 +702,7 @@ export function PaymentsTab() {
               <Select value={method} onValueChange={setMethod}>
                 <SelectTrigger className='w-full'><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {(payConfig?.methods?.length ? payConfig.methods : [{ id: 'DIRECT_PAYMENT', label: 'دفع مباشر — تواصل مع الإدارة', enabled: true, configured: true, kind: 'manual' as const }]).map((m) => (
+                  {(visiblePaymentMethods(payConfig?.methods).length ? visiblePaymentMethods(payConfig?.methods) : [{ id: 'DIRECT_PAYMENT', label: 'دفع مباشر — تواصل مع الإدارة', enabled: true, configured: true, kind: 'manual' as const }]).map((m) => (
                     <SelectItem key={m.id} value={m.id} disabled={!m.enabled}>
                       <span className='flex w-full items-center justify-between gap-2'>
                         <span>{m.label}</span>
