@@ -59,6 +59,68 @@ function mapThesisPlan(guide: any) {
   }
 }
 
+const studentThesisSelect = {
+  id: true,
+  userId: true,
+  admissionId: true,
+  title: true,
+  abstract: true,
+  fileNote: true,
+  reviewNote: true,
+  reviewNotes: { where: { visibleToStudent: true }, orderBy: { createdAt: 'desc' }, take: 10 },
+  status: true,
+  defenseDate: true,
+  committee: true,
+  agentMember: true,
+  defenseStatus: true,
+  aiScore: true,
+  aiRecommendation: true,
+  defenseCompletedAt: true,
+  defenseMinutes: true,
+  recordingMime: true,
+  recordingSize: true,
+  recordingDurationSec: true,
+  recordingStorageKey: true,
+  resultScore: true,
+  passed: true,
+  extractionStatus: true,
+  extractionError: true,
+  pageCount: true,
+  wordCount: true,
+  digest: true,
+  extractedAt: true,
+  fileName: true,
+  fileMime: true,
+  fileSize: true,
+  fileStorageKey: true,
+  createdAt: true,
+  updatedAt: true,
+} as const
+
+async function adoptLegacyThesisForAdmission(userId: string, admissionId: string) {
+  const legacy = await db.thesisSubmission.findFirst({
+    where: { userId, admissionId: null },
+    orderBy: { createdAt: 'desc' },
+    select: studentThesisSelect,
+  })
+  if (!legacy) return null
+  const adopted = await db.thesisSubmission.updateMany({
+    where: { id: legacy.id, userId, admissionId: null },
+    data: { admissionId },
+  })
+  if (adopted.count !== 1) return null
+  return { ...legacy, admissionId }
+}
+
+async function findThesisForAdmission(userId: string, admissionId: string) {
+  const thesis = await db.thesisSubmission.findFirst({
+    where: { userId, admissionId },
+    orderBy: { createdAt: 'desc' },
+    select: studentThesisSelect,
+  })
+  return thesis || adoptLegacyThesisForAdmission(userId, admissionId)
+}
+
 // GET /api/thesis — بحث التخرج الخاص بالمستخدم + بيانات طلب الالتحاق والمهلة
 export async function GET() {
   try {
