@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { requireAdmin } from '@/lib/auth'
+import { getCurrentUser } from '@/lib/auth'
 import { readStoredFile } from '@/lib/storage'
 
 const MAX_DEFENSE_RECORDING_BYTES = 350 * 1024 * 1024
