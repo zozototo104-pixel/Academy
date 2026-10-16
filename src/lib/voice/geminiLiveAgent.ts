@@ -10,7 +10,7 @@ export interface AgentCallbacks {
   onInterrupted?: (info: { spokenPartial: string }) => void
   /** مسار صوت المشرف الخارج من Gemini Live حتى يمكن خلطه داخل تسجيل جلسة المناقشة. */
   onOutputStream?: (stream: MediaStream | null) => void
-  onError?: (msg: string) => void
+  onError?: (msg: string, code?: string, status?: number) => void
   /** سياق إضافي يرسل إلى جلسة Gemini Live، مثل سياق قاعة المناقشة أو الوحدة الدراسية. */
   context?: string
   /** صوت Gemini Live المطلوب. قاعة المناقشة تستخدم صوتاً أخف حتى لا يظهر صوت الرجل الفصيح الآلي. */
