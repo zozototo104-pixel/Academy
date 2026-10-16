@@ -325,17 +325,14 @@ export async function POST(req: NextRequest) {
     const emptyEssayTasks = essayTasks.filter(({ text }) => text.trim().length < 3)
 
     for (const { q, text } of emptyEssayTasks) {
-      await db.programAnswer.create({
-        data: {
-          attemptId: attempt.id,
-          questionId: q.id,
-          answerText: text,
-          isCorrect: false,
-          points: 0,
-          maxPoints: q.points,
-          aiFeedback: 'لم يجب على هذا السؤال — هذه فرصة لمراجعة المفهوم في الكتب المقررة.',
-        },
-      })
+      await persistProgramAnswer(db, attempt.id, {
+        questionId: q.id,
+        answerText: text,
+        isCorrect: false,
+        points: 0,
+        maxPoints: q.points,
+        aiFeedback: 'لم يجب على هذا السؤال — هذه فرصة لمراجعة المفهوم في الكتب المقررة.',
+      }, prePersistedEssayQuestionIds.has(q.id))
       weakPoints.push(`سؤال بدون إجابة: ${q.text.slice(0, 60)}...`)
       essayResults.push({
         questionId: q.id,
