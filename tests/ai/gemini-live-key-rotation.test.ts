@@ -142,6 +142,10 @@ describe('Gemini Live raw setup shape', () => {
 
     expect(sdkConfig.responseModalities).toEqual(['AUDIO'])
     expect(sdkConfig.speechConfig).toEqual({ voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Charon' } } })
+    expect(sdkConfig.inputAudioTranscription).toEqual({})
+    expect(sdkConfig.inputAudioTranscription.languageCode).toBeUndefined()
+    expect(sdkConfig.outputAudioTranscription).toEqual({})
+    expect(sdkConfig.outputAudioTranscription.languageCode).toBeUndefined()
     expect(sdkConfig.systemInstruction.startsWith(palestinianInstruction)).toBe(true)
     expect(sdkConfig.systemInstruction).toContain('\n\nvoice instructions')
   })
