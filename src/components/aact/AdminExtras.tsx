@@ -1729,12 +1729,17 @@ export function AdminCertificatesTab() {
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {pagedCerts.map((c) => (
-              <Card key={c.serial} className="border-[#c9a227]/30 bg-white">
+              <Card key={c.serial} className={`bg-white ${c.valid === false ? 'border-red-200' : 'border-[#c9a227]/30'}`}>
                 <CardContent className="p-4">
-                  <div className="flex items-start justify-between"><Award className="h-5 w-5 text-[#a8841a]" /><span className="font-mono text-[10px] text-slate-400" dir="ltr">{c.serial}</span></div>
+                  <div className="flex items-start justify-between"><Award className={`h-5 w-5 ${c.valid === false ? 'text-red-500' : 'text-[#a8841a]'}`} /><span className="font-mono text-[10px] text-slate-400" dir="ltr">{c.serial}</span></div>
                   <h4 className="mt-2 text-xs font-black text-[#0f2b46]">{c.holderName}</h4>
                   <p className="mt-0.5 line-clamp-1 text-[11px] font-bold text-slate-500">{c.program}</p>
-                  <Button size="sm" variant="outline" className="mt-3 w-full border-[#c9a227] font-bold text-[#a8841a]" onClick={() => { setSelected(c); setOpen(true) }}><FileDown className="ml-1 h-3.5 w-3.5" /> عرض / طباعة</Button>
+                  {c.valid === false && <Badge className="mt-2 bg-red-100 text-red-700">ملغاة {c.revokedAt ? new Date(c.revokedAt).toLocaleDateString('ar') : ''}</Badge>}
+                  {c.revokedReason && <p className="mt-1 line-clamp-2 text-[10px] font-bold text-red-600">سبب الإلغاء: {c.revokedReason}</p>}
+                  <div className="mt-3 grid gap-2">
+                    <Button size="sm" variant="outline" className="w-full border-[#c9a227] font-bold text-[#a8841a]" onClick={() => { setSelected(c); setOpen(true) }}><FileDown className="ml-1 h-3.5 w-3.5" /> عرض / طباعة</Button>
+                    {c.valid !== false && <Button size="sm" variant="outline" disabled={busy} className="w-full border-red-200 font-bold text-red-600" onClick={() => revokeCertificate(c)}><XCircle className="ml-1 h-3.5 w-3.5" /> إلغاء الشهادة</Button>}
+                  </div>
                 </CardContent>
               </Card>
             ))}
