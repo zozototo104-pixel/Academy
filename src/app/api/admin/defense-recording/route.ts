@@ -6,10 +6,11 @@ import { readStoredFile } from '@/lib/storage'
 const MAX_DEFENSE_RECORDING_BYTES = 350 * 1024 * 1024
 
 // GET /api/admin/defense-recording?thesisId=xxx — تشغيل تسجيل جلسة المناقشة المؤرشف
-// متاح للإدارة فقط لأن تسجيلات المناقشة تحتوي بيانات أكاديمية وشخصية حساسة.
+// متاح للإدارة والمشرف لأن تسجيلات المناقشة تحتوي بيانات أكاديمية وشخصية حساسة.
 export async function GET(req: NextRequest) {
   try {
-    await requireAdmin()
+    const user = await getCurrentUser()
+    if (!user || !['ADMIN', 'SUPERVISOR'].includes(user.role)) throw new Error('UNAUTHORIZED')
     const thesisId = req.nextUrl.searchParams.get('thesisId')
     if (!thesisId) return NextResponse.json({ error: 'معرف البحث مطلوب' }, { status: 400 })
 
