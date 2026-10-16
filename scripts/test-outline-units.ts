@@ -58,7 +58,17 @@ function testReplaceProtectionKeepsApprovedOutlineAndAttemptedUnits() {
   assert(summary.keptWithAttempts === 1, 'replace يجب أن يحفظ وحدة لها محاولات')
 }
 
+function testSummaryFallbackAndProviderClassification() {
+  const longSummary = Array.from({ length: 172 }, (_, index) => `كلمة${index + 1}${index === 139 ? '.' : ''}`).join(' ')
+  const trimmed = normalizeUnitSummaryAfterRetry(longSummary)
+  assert(trimmed.split(/\s+/).length === 140, 'ملخص 172 كلمة يجب أن يُقص عند آخر جملة كاملة قبل 150 كلمة')
+  assertThrows(() => normalizeUnitSummaryAfterRetry(Array.from({ length: 40 }, () => 'كلمة').join(' ')), 'ملخص 40 كلمة يجب أن يُرفض')
+  assert(!providerUnavailableStatus(new Error('UNIT_CONTENT_SECTION_MISSING_SOURCE_REFERENCE')), 'خطأ مرجع الوحدة لا يجب أن يعتبر PAUSED')
+  assert(providerUnavailableStatus(new Error('PROVIDER_UNAVAILABLE')), 'عطل المزود الفعلي يجب أن يعتبر PAUSED')
+}
+
 const tests = [
+  testSummaryFallbackAndProviderClassification,
   testApprovedUnitNotUpdatedOnRegenerate,
   testUnitContentRejectsOutsideChunkRange,
   testGuideWithoutSourceKnowledgeIdsRejected,
