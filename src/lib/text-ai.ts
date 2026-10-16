@@ -483,6 +483,8 @@ export async function __testFetchWithTimeout(provider: string, url: string, init
   }
 }
 
+const fetchWithTimeout = __testFetchWithTimeout
+
 function isTimeoutLike(e: any): boolean {
   const msg = String(e?.message || e || '').toLowerCase()
   const status = Number(e?.status || e?.code || 0)
