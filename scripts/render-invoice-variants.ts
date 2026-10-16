@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { join, resolve } from 'path'
 import { jsPDF } from 'jspdf'
 import { createCanvas, GlobalFonts } from '@napi-rs/canvas'
-import { toVisualArabic } from '@/lib/pdf-arabic'
+import { buildInvoicePdf } from '@/app/api/pdf/invoices/[id]/route'
 
 type InvoicePdfData = {
   invoiceNo: string
