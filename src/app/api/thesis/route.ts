@@ -179,7 +179,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const existing = await db.thesisSubmission.findFirst({ where: { userId: user.id } })
+    const existing = await db.thesisSubmission.findFirst({ where: { userId: user.id, admissionId: admission.id } })
     if (existing && ['SCHEDULED', 'RESULT_APPROVED'].includes(existing.status)) {
       return NextResponse.json({ error: 'بحثك قيد المناقشة أو تم اعتماد نتيجته — لا يمكن التعديل الآن' }, { status: 400 })
     }
