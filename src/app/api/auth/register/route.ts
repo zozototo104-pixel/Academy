@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { hashPassword } from '@/lib/auth'
 import { emailVerifyAccount } from '@/lib/mailer'
 import { createEmailVerificationToken, emailVerificationUrl } from '@/lib/email-verification'
-import { checkRateLimit, clientIpFromHeaders, rateLimitHeaders } from '@/lib/rate-limit'
+import { checkDatabaseRateLimit, clientIpFromHeaders, rateLimitHeaders } from '@/lib/rate-limit'
 
 function sameSiteRequest(req: NextRequest) {
   const host = req.headers.get('host') || ''
