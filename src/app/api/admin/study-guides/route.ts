@@ -46,12 +46,12 @@ function pageRefsFromSections(sections: GuideSection[]) {
 }
 
 async function unitGuidesForProgram(programId: string, semester: number) {
-  const units = await db.unit.findMany({
+  const units = await withTiming('db_study_guides_units', () => db.unit.findMany({
     where: { programId, ...(semester === 3 ? {} : { semester }) },
     orderBy: [{ semester: 'asc' }, { order: 'asc' }],
     select: { id: true, title: true, semester: true, objectives: true, summary: true, sourceBookId: true, outlineSectionId: true },
-  })
-  const guides = units.length ? await db.programStudyGuide.findMany({ where: { unitId: { in: units.map((unit) => unit.id) }, status: { in: ['DRAFT', 'PUBLISHED'] } } }) : []
+  }))
+  const guides = units.length ? await withTiming('db_study_guides_unit_guides', () => db.programStudyGuide.findMany({ where: { unitId: { in: units.map((unit) => unit.id) }, status: { in: ['DRAFT', 'PUBLISHED'] } } })) : []
   const guideByUnit = new Map(guides.filter((guide) => guide.unitId).map((guide) => [guide.unitId!, guide] as const))
   const missing = units.filter((unit) => !guideByUnit.has(unit.id))
   return { units, guides, guideByUnit, missing }
