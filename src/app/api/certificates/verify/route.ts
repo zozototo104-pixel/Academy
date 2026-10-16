@@ -77,6 +77,7 @@ async function buildCertificateAcademicRecord(cert: { userId?: string | null; ad
       select: {
         id: true,
         score: true,
+        finalScore: true,
         passed: true,
         status: true,
         submittedAt: true,
