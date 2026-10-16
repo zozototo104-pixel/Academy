@@ -69,12 +69,23 @@ interface SpeechRecognitionLike {
   stop: () => void
   abort: () => void
 }
-function getRecognition(): SpeechRecognitionLike | null {
+const DIALECT_OPTIONS = [
+  { value: 'ar-PS', label: 'شامي/فلسطيني' },
+  { value: 'ar-EG', label: 'مصري' },
+  { value: 'ar-SA', label: 'خليجي' },
+  { value: 'ar-MA', label: 'مغاربي' },
+]
+
+function defaultVoiceDialect() {
+  return process.env.NEXT_PUBLIC_VOICE_DEFAULT_DIALECT || 'ar-PS'
+}
+
+function getRecognition(lang: string): SpeechRecognitionLike | null {
   const w = window as any
   const SR = w.SpeechRecognition || w.webkitSpeechRecognition
   if (!SR) return null
   const rec: SpeechRecognitionLike = new SR()
-  rec.lang = 'ar-SA'
+  rec.lang = lang || defaultVoiceDialect()
   rec.continuous = true
   rec.interimResults = true
   rec.maxAlternatives = 1
