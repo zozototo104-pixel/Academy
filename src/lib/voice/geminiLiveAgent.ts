@@ -221,7 +221,11 @@ export class GeminiLiveAgent {
       await this.connectWithFallbacks()
     } catch (e) {
       this.stop()
-      throw new Error(friendlyClientError(e))
+      const original = e as LiveSessionError
+      const error = new Error(friendlyClientError(e)) as LiveSessionError
+      error.code = original?.code
+      error.status = original?.status
+      throw error
     }
   }
 
