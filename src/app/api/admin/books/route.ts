@@ -5,6 +5,7 @@ import { requireAdmin } from '@/lib/auth'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { audit, notify } from '@/lib/notify'
 import { extractDocumentText } from '@/lib/document-extract'
+import { validateAdmissionFileSignature } from '@/lib/file-signature'
 import { isPrivateIp, storageErrorMessage, storeFileBuffer } from '@/lib/storage'
 
 export const runtime = 'nodejs'
