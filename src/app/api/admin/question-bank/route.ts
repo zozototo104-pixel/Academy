@@ -268,8 +268,8 @@ export async function PATCH(req: NextRequest) {
       }
       if (finalType === 'TF' && !['0', '1'].includes(String(finalCorrectAnswer))) return NextResponse.json({ error: 'إجابة صح/خطأ يجب أن تكون 0 أو 1' }, { status: 400 })
     }
-    const item = await db.questionBankItem.update({ where: { id }, data })
-    await audit({ id: admin.id, name: admin.name }, 'REVIEW_QUESTION_BANK_ITEM', 'QuestionBankItem', id, `تحديث سؤال بنك الأسئلة إلى الحالة ${item.status}`)
+    const item = await withTiming('db_question_bank_item_update', () => db.questionBankItem.update({ where: { id }, data }))
+    await withTiming('db_audit_question_bank_patch', () => audit({ id: admin.id, name: admin.name }, 'REVIEW_QUESTION_BANK_ITEM', 'QuestionBankItem', id, `تحديث سؤال بنك الأسئلة إلى الحالة ${item.status}`))
     return NextResponse.json({ ok: true, item })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
