@@ -181,6 +181,8 @@ describe('AI D2 behavior', () => {
     expect(payload.warning).toBe('LIMITED_KNOWLEDGE')
     expect(payload.requestedQuestions).toBe(20)
     expect(payload.requiredQuestions).toBe(5)
+    expect(payload.exam.title).not.toContain('LIMITED_KNOWLEDGE')
+    expect(payload.exam.generationWarning).toBe('LIMITED_KNOWLEDGE')
     expect(calls.filter((call) => call.startsWith('unit.question.create:')).length).toBe(5)
   })
 
