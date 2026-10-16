@@ -134,11 +134,11 @@ async function questionStats(programId: string) {
 }
 
 async function listQuestions(programId: string, status?: string | null) {
-  const items = await db.questionBankItem.findMany({
+  const items = await withTiming('db_question_bank_items', () => db.questionBankItem.findMany({
     where: { programId, ...(status && STATUSES.has(status) ? { status } : {}) },
     orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
     take: 120,
-  })
+  }))
   return items.map((item) => ({ ...item, verifierReason: item.reviewNotes || null }))
 }
 
