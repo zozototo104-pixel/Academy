@@ -547,7 +547,7 @@ export function AdminQualityTab() {
 
   const importProgramCatalog = async () => {
     if (!catalogImportText.trim()) return
-    if (!confirm('سيتم استيراد كتالوج البرامج إلى قاعدة البيانات الحالية. الطلاب والمدفوعات والمحاولات ليست ضمن هذا الملف. هل تريد المتابعة؟')) return
+    if (!(await confirmAction({ title: 'استيراد كتالوج البرامج', description: 'سيتم استيراد كتالوج البرامج إلى قاعدة البيانات الحالية. الطلاب والمدفوعات والمحاولات ليست ضمن هذا الملف.', confirmLabel: 'استيراد الكتالوج', tone: 'warning' }))) return
     setCatalogBusy('import')
     try {
       const catalog = JSON.parse(catalogImportText)
