@@ -49,6 +49,8 @@ model User {
   ownedAgentApplications AgentApplication[] @relation("AgentApplicationOwner")
   aiLiveUsages  AiLiveUsage[]
   aiLiveCredits AiLiveCredit[]
+  aiLiveSessions AiLiveSession[]
+  aiUsageLogs   AiUsageLog[]
   humanHandoffRequests HumanHandoffRequest[] @relation("HumanHandoffRequester")
   certificates Certificate[]
 
