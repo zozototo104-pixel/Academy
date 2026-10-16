@@ -1,7 +1,8 @@
 import { existsSync } from 'fs'
 import { join } from 'path'
 import type { jsPDF } from 'jspdf'
-import { createCanvas, GlobalFonts } from '@napi-rs/canvas'
+
+type CanvasModule = typeof import('@napi-rs/canvas')
 
 const ARABIC_RE = /[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]/
 const CANVAS_ARABIC_FONT_FAMILY = 'Amiri'
