@@ -19,6 +19,8 @@ export interface FinalGradeResult {
 
 type DbClient = typeof db | Prisma.TransactionClient
 
+type ComponentScore = number | null | 'EXEMPT'
+
 type ScoredAnswer = { points: number | null; maxPoints: number | null }
 
 function clampPercent(n: number) {
