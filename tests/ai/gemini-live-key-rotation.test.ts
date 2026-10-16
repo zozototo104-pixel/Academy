@@ -35,7 +35,7 @@ mock.module('@/lib/gemini', () => ({
 }))
 
 const textAi = await import('../../src/lib/text-ai')
-const { POST } = await import('../../src/app/api/ai/gemini-live/session/route')
+const { POST, buildGeminiLiveSetup } = await import('../../src/app/api/ai/gemini-live/session/route')
 
 const values = new Map<string, string>()
 const store = {
