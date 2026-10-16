@@ -303,7 +303,7 @@ export function HomeView() {
       if (idleId !== null && 'cancelIdleCallback' in window) window.cancelIdleCallback(idleId)
       if (timeoutId) clearTimeout(timeoutId)
     }
-  }, [])
+  }, [retryPrograms])
 
   const visibleProgramCount = programCount ?? programs.length
   const programCountLabel = visibleProgramCount > 0 ? visibleProgramCount.toLocaleString('ar-EG') : (loading ? '...' : '...')
