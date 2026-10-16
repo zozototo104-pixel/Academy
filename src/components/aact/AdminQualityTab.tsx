@@ -1034,7 +1034,7 @@ export function AdminQualityTab() {
       const selectedId = res.preview?.program?.id || programId || res.programs?.[0]?.id || ''
       setStudentPreviewProgramId(selectedId)
     } catch (e: any) {
-      alert(e?.message || 'تعذر تحميل معاينة الطالب')
+      await alertAction({ title: 'تعذر تحميل معاينة الطالب', description: e?.message || 'لم يتم تجهيز المعاينة.', tone: 'danger' })
     } finally {
       setStudentPreviewLoading(false)
     }
