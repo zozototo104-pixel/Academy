@@ -225,6 +225,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'تم تسليم هذه المحاولة أو يجري تصحيحها بالفعل', code: 'ATTEMPT_ALREADY_CLAIMED' }, { status: 409 })
     }
     const attempt = startedAttempt
+    const prePersistedEssayQuestionIds = new Set<string>()
+    const essayQuestions = exam.questions.filter((q) => q.type !== 'MCQ' && q.type !== 'TF')
+    if (essayQuestions.length) {
+      await db.$transaction(async (tx) => {
+        for (const q of essayQuestions) {
+          const submit = answerMap.get(q.id)
+          await persistProgramAnswer(tx, attempt.id, {
+            questionId: q.id,
+            answerText: submit?.answerText || '',
+            isCorrect: null,
+            points: null,
+            maxPoints: q.points,
+            aiFeedback: JSON.stringify({ status: 'PENDING_AI_GRADING' }),
+          })
+          prePersistedEssayQuestionIds.add(q.id)
+        }
+      })
+    }
 
     try {
     let totalScore = 0
