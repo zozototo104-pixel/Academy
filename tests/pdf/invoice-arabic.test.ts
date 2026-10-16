@@ -65,10 +65,13 @@ describe('Arabic invoice PDF rendering', () => {
     }
 
     try {
-      const pdf = buildInvoicePdf(sampleInvoice(), { fontPaths: [missingFontPath] })
+      const pdf = buildInvoicePdf(sampleInvoice(), { fontPaths: [missingFontPath], compress: false })
+      const output = pdfOutput(pdf)
 
       expect(pdf.byteLength).toBeGreaterThan(1000)
-      expect(pdfOutput(pdf)).not.toContain(ARABIC_FONT_NAME)
+      expect(output).toContain('Management Consulting Program')
+      expect(output).toContain('Tuition Invoice')
+      expect(output).not.toContain(ARABIC_FONT_NAME)
       expect(warnings.some((entry) => String(entry[0]).includes('Arabic font missing') && String(entry[0]).includes(missingFontPath))).toBe(true)
     } finally {
       console.warn = originalWarn
