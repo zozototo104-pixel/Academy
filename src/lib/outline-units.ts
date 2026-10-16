@@ -329,9 +329,23 @@ ${sourceChunkLines(params.chunks)}
     deadlineMs: params.deadlineMs,
   })
   const parsed = parseOutlineUnitJson(raw)
-  const summary = cleanOutlineUnitText(parsed?.summary, 1600)
-  const wc = wordCount(summary)
-  if (wc < 80 || wc > 150) throw new Error('UNIT_SUMMARY_OUT_OF_RANGE')
+  let summary = cleanOutlineUnitText(parsed?.summary, 4000)
+  let wc = wordCount(summary)
+  if (wc < 80 || wc > 150) {
+    console.warn('Retrying unit summary length', { unitTitle: params.unitTitle, wc })
+    const retryRaw = await geminiCompleteJson({
+      system: 'أنت محرر أكاديمي. أعد JSON صالحاً فقط، والتزم بالمصادر المحددة.',
+      history: [{ role: 'user', text: `${prompt}\n\nالملخص السابق (${wc} كلمة) خارج النطاق المطلوب:\n${summary}\n\nأعد صياغة الملخص نفسه من المصادر أعلاه فقط ليكون بين 90 و140 كلمة. أعد JSON object يحتوي على summary فقط.` }],
+      taskLevel: 'ACADEMIC_DRAFT',
+      temperature: 0.12,
+      maxOutputTokens: 1200,
+      deadlineMs: params.deadlineMs,
+    })
+    const retried = parseOutlineUnitJson(retryRaw)
+    summary = cleanOutlineUnitText(retried?.summary, 4000)
+    wc = wordCount(summary)
+    summary = normalizeUnitSummaryAfterRetry(summary)
+  }
   const objectives = Array.isArray(parsed?.objectives)
     ? parsed.objectives.map((x: any) => cleanOutlineUnitText(x, 240)).filter((x: string) => x.length >= 12).slice(0, 7)
     : []
