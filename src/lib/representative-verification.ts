@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createHash } from 'crypto'
 import { serializeRepresentativeExpanded, serializeRepresentativePublicCard, verifyRepresentativeLast4 } from '@/lib/academy-representatives'
+import { clientIpFromHeaders } from '@/lib/rate-limit'
 
 type DbLike = any
 
