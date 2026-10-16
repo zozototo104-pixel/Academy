@@ -428,7 +428,7 @@ export async function PUT(req: NextRequest) {
     const invalidated = await withTiming('db_program_rules_cache_clear', () => clearAdmissionAiReviewCacheForProgram(programId))
     const after = programSnapshot(saved)
     const changes = pickChangedFields(before, after)
-    await audit(user, 'PROGRAM_RULES_SAVED', 'Program', programId, `حفظ محرر البرنامج «${saved.titleAr}» — ${compactChangeSummary(changes)} — أُبطلت مراجعات قبول ذكية: ${invalidated.count}`)
+    await withTiming('db_audit_program_rules_save', () => audit(user, 'PROGRAM_RULES_SAVED', 'Program', programId, `حفظ محرر البرنامج «${saved.titleAr}» — ${compactChangeSummary(changes)} — أُبطلت مراجعات قبول ذكية: ${invalidated.count}`))
     const savedFlow = getServiceFlow(saved.slug)
     const savedIsStudyProgram = savedFlow ? savedFlow.isStudyProgram : saved.category !== 'SERVICE'
     return NextResponse.json({
