@@ -97,6 +97,21 @@ async function queueQuestionBankJob(programId: string, unitId: string, requiredQ
   return job
 }
 
+async function unitKnowledgeAvailability(programId: string, unit: any) {
+  const minRaw = await getSetting('UNIT_MIN_KNOWLEDGE_ITEMS').catch(() => process.env.UNIT_MIN_KNOWLEDGE_ITEMS || '15')
+  const minItems = Math.max(1, Number(minRaw || 15) || 15)
+  const where: any = { programId }
+  if (unit?.sourceBookId) where.bookId = unit.sourceBookId
+  const count = await db.bookKnowledgeItem.count({ where }).catch(() => 0)
+  return { count, minItems, limited: count < minItems }
+}
+
+function limitedKnowledgeQuestionCount(requested: number, available: number, minimum: number) {
+  if (available >= minimum) return requested
+  const ratio = Math.max(0, available) / Math.max(1, minimum)
+  return Math.max(5, Math.min(requested, Math.floor(requested * ratio)))
+}
+
 // POST /api/admin/unit-exams/generate
 // body: { programId, unitId, count?, replace? }
 export async function POST(req: NextRequest) {
