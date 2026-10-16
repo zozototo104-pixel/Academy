@@ -56,8 +56,9 @@ function makeProgramQuestions(skill = 'UNDERSTAND') {
 const db: any = {
   $transaction: async (work: (tx: any) => Promise<any>) => work(db),
   unit: {
-    findFirst: async () => ({ id: 'unit-1', title: 'وحدة محدودة المعرفة', sourceBookId: 'book-1', exam: null }),
+    findFirst: async () => ({ id: 'unit-1', title: 'وحدة محدودة المعرفة', sourceBookId: 'book-1', chunkStartIndex: 0, chunkEndIndex: 10, semester: 1, exam: null }),
   },
+  bookChunk: { findMany: async () => [{ id: 'chunk-1' }, { id: 'chunk-2' }] },
   bookKnowledgeItem: { count: async () => unitKnowledgeCount },
   questionBankItem: {
     findMany: async ({ where }: any) => makeBankQuestions(20, where?.unitId ? 'ANALYZE' : 'UNDERSTAND'),
