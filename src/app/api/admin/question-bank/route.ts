@@ -227,6 +227,7 @@ export async function POST(req: NextRequest) {
     console.error('question bank POST error:', e)
     return NextResponse.json({ error: 'تعذر توليد أسئلة بنك الأسئلة' }, { status: 500 })
   }
+  })
 }
 
 export async function PATCH(req: NextRequest) {
