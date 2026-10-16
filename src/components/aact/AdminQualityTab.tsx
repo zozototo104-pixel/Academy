@@ -2315,8 +2315,8 @@ export function AdminQualityTab() {
                     {selectedStudent.status !== 'DISABLED' ? <Button size="sm" variant="outline" disabled={studentBusyId === selectedStudent.id} onClick={() => updateStudentAction(selectedStudent.id, 'setStatus', { status: 'DISABLED' })} className="text-xs font-black">تعطيل</Button> : null}
                     {selectedStudent.status !== 'ARCHIVED' ? <Button size="sm" variant="outline" disabled={studentBusyId === selectedStudent.id} onClick={() => updateStudentAction(selectedStudent.id, 'setStatus', { status: 'ARCHIVED' })} className="text-xs font-black">أرشفة</Button> : null}
                     <Button size="sm" variant="outline" disabled={studentBusyId === selectedStudent.id} onClick={exportSelectedStudent} className="border-[#c9a227]/40 text-xs font-black text-[#a8841a]">تصدير JSON</Button>
-                    <Button size="sm" variant="outline" disabled={studentBusyId === selectedStudent.id} onClick={() => {
-                      if (confirm('سيتم حذف الطالب فقط إذا لم يكن لديه سجلات حقيقية. هل تريد المتابعة؟')) updateStudentAction(selectedStudent.id, 'safeDelete').then(() => setSelectedStudent(null))
+                    <Button size="sm" variant="outline" disabled={studentBusyId === selectedStudent.id} onClick={async () => {
+                      if (await confirmAction({ title: 'حذف آمن للطالب', description: 'سيتم حذف الطالب فقط إذا لم يكن لديه سجلات حقيقية.', confirmLabel: 'متابعة الحذف الآمن', tone: 'danger' })) updateStudentAction(selectedStudent.id, 'safeDelete').then(() => setSelectedStudent(null))
                     }} className="border-red-200 text-xs font-black text-red-700">حذف آمن</Button>
                     <Button size="sm" variant="outline" onClick={() => setSelectedStudent(null)} className="text-xs font-black">إغلاق التفاصيل</Button>
                   </div>
