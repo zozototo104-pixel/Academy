@@ -3,6 +3,7 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 import { beforeEach, describe, expect, mock, test } from 'bun:test'
 import { NextRequest } from 'next/server'
+import { toVisualArabic } from '../../src/lib/pdf-arabic'
 
 const calls: string[] = []
 let capturedAsrOptions: Record<string, unknown> | null = null
