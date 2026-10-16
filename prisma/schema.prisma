@@ -484,6 +484,7 @@ model Certificate {
   agent       AgentApplication? @relation(fields: [agentId], references: [id])
 
   @@unique([enrollmentId, type])
+  @@index([valid, revokedAt])
 }
 
 model CertificateTemplate {
