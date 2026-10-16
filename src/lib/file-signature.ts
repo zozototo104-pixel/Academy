@@ -107,8 +107,8 @@ function isLikelyUtf8Text(buffer: Buffer) {
 }
 
 function mimeLooksCompatible(kind: FileKind, mime: string) {
-  if (!mime) return true
-  if (mime === 'application/octet-stream') return false
+  // Empty or octet-stream MIME is common for browser/server uploads; trust magic bytes + extension instead.
+  if (!mime || mime === 'application/octet-stream') return true
   return MIMES_BY_KIND[kind].includes(mime)
 }
 
