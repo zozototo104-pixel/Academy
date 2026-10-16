@@ -133,9 +133,9 @@ beforeEach(() => {
 describe('AI D1 behavior', () => {
   test('provider timeout aborts fetch at the network signal level', async () => {
     const originalFetch = globalThis.fetch
-    let capturedSignal: AbortSignal | null = null
+    const captured: { signal: AbortSignal | null } = { signal: null }
     globalThis.fetch = ((_: any, init: any) => new Promise<Response>((_resolve, reject) => {
-      capturedSignal = init.signal
+      captured.signal = init.signal
       init.signal.addEventListener('abort', () => {
         const error: any = new Error('aborted')
         error.name = 'AbortError'
@@ -144,7 +144,7 @@ describe('AI D1 behavior', () => {
     })) as any
     try {
       await expect(__testFetchWithTimeout('TEST', 'https://example.test/slow', {}, 5)).rejects.toMatchObject({ status: 504, code: 'AI_PROVIDER_TIMEOUT' })
-      expect(capturedSignal?.aborted).toBe(true)
+      expect(captured.signal?.aborted).toBe(true)
     } finally {
       globalThis.fetch = originalFetch
     }
