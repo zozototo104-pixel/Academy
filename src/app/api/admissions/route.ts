@@ -419,8 +419,6 @@ export async function POST(req: NextRequest) {
         ? `${reference} — طلب خدمة: ${selectedTitle} — مرفقات: ${uniqueFiles.length} + إقرار`
         : `${reference} — ${selectedTitle} — مستندات: ${uniqueFiles.length}/4 + إقرار — فاتورة رسوم تقديم ${appFee}$`
     ))
-import { randomBytes } from 'crypto'
-import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 import { ACADEMY_INFO, ADMISSION_FEES } from '@/lib/academyData'
