@@ -1140,6 +1140,8 @@ export async function platformAgentComplete(opts: {
     timeoutMs,
     requireModelResponse: shouldPreferGemini,
     includeGeneralCatalog: !(agent === 'ACADEMIC_SUPERVISOR' || agent === 'THESIS_DEFENSE'),
+    userId: opts.userId,
+    taskType: opts.mode === 'VOICE' ? 'CHAT_VOICE' : 'CHAT',
   })
   return { reply: annotateReply(agent, reply, 'MODEL_ROUTER_OR_FALLBACK'), agent, engine: 'MODEL_ROUTER_OR_FALLBACK' }
 }
