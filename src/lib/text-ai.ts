@@ -49,6 +49,8 @@ export interface TextAiCallOpts {
   excludeModelFamilies?: string[]
   deadlineMs?: number
   stickyScope?: string
+  userId?: string | null
+  taskType?: string
   validate?: (text: string, context?: { provider: string; model: string }) => void
 }
 
