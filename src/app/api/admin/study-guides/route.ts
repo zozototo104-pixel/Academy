@@ -127,8 +127,8 @@ export async function POST(req: NextRequest) {
     const generated = await buildSemesterGuide(programId, semester)
     const existing = await withTiming('db_study_guides_existing_semester', () => db.programStudyGuide.findFirst({ where: { programId, semester, unitId: null }, select: { id: true } }))
     const data = { title: generated.title, overview: generated.overview, objectives: json(generated.objectives), keyTerms: json(generated.keyTerms), sections: json(generated.sections), activities: json(generated.activities), discussionQuestions: json(generated.discussionQuestions), sourceKnowledgeIds: json(generated.sourceKnowledgeIds), status, generatedBy: 'AI' }
-    const guide = existing ? await db.programStudyGuide.update({ where: { id: existing.id }, data }) : await db.programStudyGuide.create({ data: { programId, semester, unitId: null, ...data } })
-    await audit({ id: admin.id, name: admin.name }, 'GENERATE_STUDY_GUIDE', 'Program', programId, `توليد ${generated.title} من أدلة الوحدات`)
+    const guide = existing ? await withTiming('db_study_guides_update', () => db.programStudyGuide.update({ where: { id: existing.id }, data })) : await withTiming('db_study_guides_create', () => db.programStudyGuide.create({ data: { programId, semester, unitId: null, ...data } }))
+    await withTiming('db_audit_study_guides_generate', () => audit({ id: admin.id, name: admin.name }, 'GENERATE_STUDY_GUIDE', 'Program', programId, `توليد ${generated.title} من أدلة الوحدات`))
     return NextResponse.json({ guide: mapGuide(guide) })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
