@@ -190,6 +190,20 @@ describe('academic B1 safety', () => {
     expect(calls.some((call) => call.startsWith('answer.updateMany:essay-1'))).toBe(true)
   })
 
+  test('program exam essay answer is persisted before AI grading and remains saved when grading fails', async () => {
+    const res = await programExamSubmitRoute.POST(new NextRequest('https://academy.test/api/program-exam/submit', {
+      method: 'POST',
+      body: JSON.stringify({ examId: 'program-exam-1', answers: [{ questionId: 'program-essay-1', answerText: 'إجابة برنامج مقالية' }] }),
+      headers: { 'content-type': 'application/json' },
+    }))
+    const payload = await body(res as any)
+    expect(res.status).toBe(202)
+    expect(payload.status).toBe('NEEDS_REVIEW')
+    expect(calls.indexOf('programAnswer.create:program-essay-1:{"status":"PENDING_AI_GRADING"}')).toBeLessThan(calls.indexOf('essay.grade'))
+    expect(answers[0]).toMatchObject({ questionId: 'program-essay-1', answerText: 'إجابة برنامج مقالية', isCorrect: null, points: null })
+    expect(calls).toContain('programAttempt.update:NEEDS_REVIEW')
+  })
+
   test('NEEDS_REVIEW defense cannot be restarted and existing messages are not deleted', async () => {
     const res = await defenseRoute.POST(new NextRequest('https://academy.test/api/defense', {
       method: 'POST',
