@@ -175,6 +175,15 @@ export function AIChatView() {
   useEffect(() => { autoSpeakRef.current = autoSpeak }, [autoSpeak])
   useEffect(() => { voiceModeRef.current = voiceMode }, [voiceMode])
   useEffect(() => { activeUnitRef.current = activeUnitId ?? null }, [activeUnitId])
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('aact_voice_dialect')
+      if (saved) setVoiceDialect(saved)
+    } catch (error) { console.warn('Failed to load voice dialect preference.', error) }
+  }, [])
+  useEffect(() => {
+    try { localStorage.setItem('aact_voice_dialect', voiceDialect) } catch (error) { console.warn('Failed to save voice dialect preference.', error) }
+  }, [voiceDialect])
 
   useEffect(() => {
     if (!user) return
