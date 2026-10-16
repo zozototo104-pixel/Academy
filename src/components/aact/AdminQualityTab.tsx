@@ -863,7 +863,7 @@ export function AdminQualityTab() {
       try {
         await doGenerate(false)
       } catch (e: any) {
-        if (String(e?.message || '').includes('بانتظار المراجعة') && confirm('يوجد امتحان بانتظار المراجعة لهذا الفصل. هل تريد استبداله بامتحان جديد من بنك الأسئلة؟')) {
+        if (String(e?.message || '').includes('بانتظار المراجعة') && await confirmAction({ title: 'استبدال امتحان قيد المراجعة', description: 'يوجد امتحان بانتظار المراجعة لهذا الفصل. هل تريد استبداله بامتحان جديد من بنك الأسئلة؟', confirmLabel: 'استبدال الامتحان', tone: 'danger' })) {
           await doGenerate(true)
         } else {
           throw e
