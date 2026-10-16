@@ -21,6 +21,12 @@ export type DrawArabicImageOptions = {
 
 let canvasArabicFontRegistrationAttempted = false
 let canvasArabicFontRegistrationError: unknown = null
+let canvasModule: CanvasModule | null = null
+
+function loadCanvasModule(): CanvasModule {
+  if (!canvasModule) canvasModule = require('@napi-rs/canvas') as CanvasModule
+  return canvasModule
+}
 
 const FORMS: Record<string, ArabicForms> = {
   'ء': { iso: '\uFE80' },
