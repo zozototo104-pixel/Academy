@@ -106,7 +106,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
         total: items.length,
       },
       questions: grouped,
-      exam: unit.exam ? { id: unit.exam.id, title: unit.exam.title, status: unit.exam.status, questionsCount: unit.exam._count.questions } : null,
+      exam: unit.exam ? { id: unit.exam.id, title: unit.exam.title, status: unit.exam.status, generationWarning: unit.exam.generationWarning, questionsCount: unit.exam._count.questions } : null,
     })
   } catch (error: unknown) {
     if (error instanceof Error && error.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
