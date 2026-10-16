@@ -1068,7 +1068,7 @@ export function AdminQualityTab() {
       const res = await api<any>('/api/admin/launch-health')
       setLaunchHealth(res)
     } catch (e: any) {
-      alert(e?.message || 'تعذر تحميل مراقبة الإطلاق')
+      await alertAction({ title: 'تعذر تحميل مراقبة الإطلاق', description: e?.message || 'لم يتم تحميل الفحص التشغيلي.', tone: 'danger' })
     } finally {
       setLaunchHealthLoading(false)
     }
