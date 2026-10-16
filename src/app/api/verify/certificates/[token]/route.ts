@@ -61,10 +61,15 @@ export async function GET(req: NextRequest, context: RouteContext) {
       return NextResponse.json({ valid: false, error: 'الشهادة غير موجودة أو رمز التحقق غير صحيح' }, { status: 404 })
     }
 
-    const credential = buildCertificateCredential(cert)
+    const revokedAt = cert.revokedAt ? new Date(cert.revokedAt).toISOString() : null
+    const effectiveValid = cert.valid && !revokedAt
+    const credential = buildCertificateCredential({ ...cert, valid: effectiveValid })
     return new NextResponse(
       JSON.stringify({
-        valid: cert.valid,
+        valid: effectiveValid,
+        statusLabel: effectiveValid ? 'سارية' : `ملغاة${revokedAt ? ` بتاريخ ${revokedAt.slice(0, 10)}` : ''}`,
+        revokedAt,
+        revokedReason: cert.revokedReason || null,
         proofVerified: verifyCertificateCredential(credential),
         verificationUrl: certificateVerificationUrl(cert),
         credential,
