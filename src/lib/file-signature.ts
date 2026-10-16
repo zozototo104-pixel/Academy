@@ -1,4 +1,4 @@
-type FileKind = 'jpeg' | 'png' | 'webp' | 'heic' | 'pdf' | 'docx' | 'xlsx' | 'xls' | 'txt' | 'csv'
+type FileKind = 'jpeg' | 'png' | 'webp' | 'heic' | 'pdf' | 'doc' | 'docx' | 'xlsx' | 'xls' | 'txt' | 'csv'
 
 type SignatureValidationResult =
   | { ok: true; kind: FileKind; mimeType: string }
