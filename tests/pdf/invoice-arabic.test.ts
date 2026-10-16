@@ -42,6 +42,10 @@ function pdfOutput(pdf: Uint8Array) {
   return Buffer.from(pdf).toString('latin1')
 }
 
+beforeAll(async () => {
+  await loadArabicCanvas(fontPath)
+})
+
 describe('Arabic invoice PDF rendering', () => {
   test('converts Arabic to visual presentation forms without reversing embedded Latin and numbers', () => {
     const visual = toVisualArabic('رقم')
