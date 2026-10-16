@@ -67,6 +67,7 @@ export async function GET(req: NextRequest) {
     console.error('knowledge-bank GET error:', e)
     return NextResponse.json({ error: 'تعذر تحميل بنك المعرفة' }, { status: 500 })
   }
+  })
 }
 
 // POST /api/admin/knowledge-bank — action: rebuild | rebuild-book
