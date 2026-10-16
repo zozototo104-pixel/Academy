@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     }
 
     const ip = clientIpFromHeaders(req.headers)
-    const ipLimit = checkRateLimit(`auth:register:ip:${ip}`, 4, 15 * 60 * 1000)
+    const ipLimit = await checkDatabaseRateLimit(`auth:register:ip:${ip}`, 4, 15 * 60 * 1000)
     if (!ipLimit.ok) {
       return NextResponse.json(
         { error: 'محاولات إنشاء حسابات كثيرة من نفس المصدر. انتظر قليلاً ثم حاول مرة أخرى.' },
