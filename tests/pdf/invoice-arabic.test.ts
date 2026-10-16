@@ -10,7 +10,9 @@ const { ARABIC_FONT_NAME, buildInvoicePdf } = await import('../../src/app/api/pd
 
 const fontPath = join(process.cwd(), 'public', 'fonts', 'Amiri-Regular.ttf')
 
-function sampleInvoice(overrides: Record<string, unknown> = {}) {
+type InvoicePdfFixture = Parameters<typeof buildInvoicePdf>[0]
+
+function sampleInvoice(overrides: Partial<InvoicePdfFixture> = {}): InvoicePdfFixture {
   return {
     invoiceNo: 'INV-AR-1',
     receiptNo: 'RCPT-AR-1',
