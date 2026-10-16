@@ -397,7 +397,7 @@ export async function POST(req: NextRequest) {
       },
     })
   } catch (e: any) {
-    console.error('gemini-live session error:', String(e?.message || e).slice(0, 500))
+    console.error('gemini-live session error:', redactSecrets(String(e?.message || e)).slice(0, 500))
     return NextResponse.json(
       { error: arabicErrorForGemini(e) },
       { status: httpStatusForGeminiError(e) }
