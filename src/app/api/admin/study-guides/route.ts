@@ -155,6 +155,7 @@ export async function PATCH(req: NextRequest) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     return NextResponse.json({ error: 'تعذر تحديث دليل الدراسة' }, { status: 500 })
   }
+  })
 }
 
 export async function DELETE(req: NextRequest) {
