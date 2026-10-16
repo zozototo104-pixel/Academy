@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
-import { AlertTriangle, CheckCircle2, Info, MessageSquareText, Sparkles, Trash2 } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, MessageSquareText, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
