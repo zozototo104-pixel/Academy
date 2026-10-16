@@ -63,7 +63,7 @@ mock.module('@/lib/settle-payment', () => ({
     return { ok: true, payment: { ...proofPayment, status: 'PAID', method }, receiptNo: 'RCT-1' }
   },
 }))
-mock.module('@/lib/settings', () => ({ nextInvoiceNo: async () => 'INV-NEW' }))
+mock.module('@/lib/settings', () => ({ getSettings: async () => ({}), nextInvoiceNo: async () => 'INV-NEW' }))
 mock.module('@/lib/payment-waivers', () => ({ applyScholarshipToNewInvoiceData: async (_tx: any, data: any) => data }))
 mock.module('@/lib/tuition-installments', () => ({
   roundMoney: (value: number) => Math.round((Number(value) || 0) * 100) / 100,
