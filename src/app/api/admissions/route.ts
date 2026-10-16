@@ -357,12 +357,13 @@ export async function POST(req: NextRequest) {
     }
 
     // البرامج الدراسية لها فاتورة رسوم تقديم، أما الخدمات المهنية فتدخل مباشرة للمراجعة.
-    const appFee = isServiceRequest ? 0 : await getSettingNum('FEE_APPLICATION')
-    const feeInvoice = isServiceRequest ? null : await db.payment.create({
+    const appFee = isServiceRequest ? 0 : await withTiming('db_admissions_application_fee_setting', () => getSettingNum('FEE_APPLICATION'))
+    const invoiceNo = isServiceRequest ? null : await withTiming('db_admissions_next_invoice_no', () => nextInvoiceNo())
+    const feeInvoice = isServiceRequest ? null : await withTiming('db_admissions_payment_create', () => db.payment.create({
       data: {
         admissionId: app.id,
         userId: owner?.id || null,
-        invoiceNo: await nextInvoiceNo(),
+        invoiceNo: invoiceNo!,
         purpose: 'APPLICATION_FEE',
         description: `رسوم التقديم وحجز المقعد (غير مستردة) — ${selectedTitle}`,
         amount: appFee,
