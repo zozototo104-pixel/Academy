@@ -204,10 +204,10 @@ export async function POST(req: NextRequest) {
     }
 
     const unitId = cleanText(body?.unitId, 80) || null
-    await db.setting.deleteMany({ where: { key: { startsWith: `AI_TASK_PAUSE:QUESTION_BANK:${programId}` } } }).catch(() => null)
-    const backgroundJob = await ensureQuestionBankGenerationJob({ programId, unitId, requested: requestedTotal, startNew: body?.startNew === true, manual: true })
+    await withTiming('db_question_bank_pause_delete_many', () => db.setting.deleteMany({ where: { key: { startsWith: `AI_TASK_PAUSE:QUESTION_BANK:${programId}` } } }).catch(() => null))
+    const backgroundJob = await withTiming('db_question_bank_ensure_job', () => ensureQuestionBankGenerationJob({ programId, unitId, requested: requestedTotal, startNew: body?.startNew === true, manual: true }))
     after(() => runQuestionBankGenerationJobStepsUntil(backgroundJob.id, { budgetMs: 260_000 }).catch((error) => console.error('manual question bank after() runner failed:', error)))
-    await audit({ id: admin.id, name: admin.name }, 'QUEUE_QUESTION_BANK_JOB', unitId ? 'Unit' : 'Program', unitId || programId, `تشغيل وظيفة بنك الأسئلة ${backgroundJob.id} للنطاق ${unitId ? 'وحدة' : 'برنامج'} من ${program.titleAr}`)
+    await withTiming('db_audit_question_bank_queue', () => audit({ id: admin.id, name: admin.name }, 'QUEUE_QUESTION_BANK_JOB', unitId ? 'Unit' : 'Program', unitId || programId, `تشغيل وظيفة بنك الأسئلة ${backgroundJob.id} للنطاق ${unitId ? 'وحدة' : 'برنامج'} من ${program.titleAr}`))
     return NextResponse.json({
       ok: false,
       job: backgroundJob,
