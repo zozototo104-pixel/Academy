@@ -120,9 +120,6 @@ export function useAdminActionDialog() {
                 {error && <p className="text-[11px] font-bold text-red-600">{error}</p>}
               </div>
             )}
-            {state.kind === 'confirm' && state.description && (
-              <div className="rounded-3xl border border-[#0f2b46]/10 bg-white/75 p-4 text-sm font-bold leading-8 text-[#0f2b46] shadow-inner">{state.description}</div>
-            )}
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               {state.kind !== 'alert' && <Button type="button" variant="outline" onClick={() => close(state.kind === 'confirm' ? false : null)} className="rounded-2xl font-black">{state.cancelLabel || 'إلغاء'}</Button>}
               <Button type="button" onClick={submit} className={`rounded-2xl font-black ${tone.button}`}>{state.confirmLabel || 'تأكيد'}</Button>
