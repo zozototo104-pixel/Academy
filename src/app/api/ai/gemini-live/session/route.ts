@@ -3,8 +3,6 @@ import { requireUser } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { resolveAiKnowledgeScope, type AiKnowledgeScope } from '@/lib/ai-knowledge-policy'
 import {
-  ensureGeminiKey,
-  geminiApiKey,
   geminiActiveLiveModel,
   geminiTTSVoice,
   normalizeGeminiModelName,
@@ -14,6 +12,11 @@ import {
   isModelUnavailableError,
   isInvalidArgumentError,
 } from '@/lib/gemini'
+import {
+  geminiKeysForLive,
+  reportGeminiLiveKeyFailure,
+  reportGeminiLiveKeySuccess,
+} from '@/lib/text-ai'
 import { buildSupervisorContext, mergeContext } from '@/lib/supervisor-ai'
 import { buildVoiceSystemPrompt } from '@/lib/voicePrompt'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
