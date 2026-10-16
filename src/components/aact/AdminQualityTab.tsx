@@ -1051,7 +1051,7 @@ export function AdminQualityTab() {
       const res = await api<any>('/api/admin/mail-status')
       setMailStatus(res)
     } catch (e: any) {
-      alert(e?.message || 'تعذر تحميل حالة البريد')
+      await alertAction({ title: 'تعذر تحميل حالة البريد', description: e?.message || 'لم تصل حالة البريد.', tone: 'danger' })
     } finally {
       setMailStatusLoading(false)
     }
