@@ -15,6 +15,7 @@ export interface LiveUsageDecision {
   paidRemainingMinutes: number
   totalRemainingMinutes: number
   sessionsUsed: number
+  sessionId?: string
 }
 
 function envNum(name: string, fallback: number): number {
@@ -33,6 +34,11 @@ function roleName(role: unknown): string {
 function purposeName(value: unknown): LivePurpose {
   const p = String(value || '').toUpperCase()
   return p === 'DISCUSSION' || p === 'DEFENSE' ? 'DISCUSSION' : 'SUPERVISOR'
+}
+
+function sessionIdValue(input?: string | null) {
+  const v = String(input || '').trim()
+  return v || `live_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
 }
 
 async function hasActiveEnrollment(userId: string): Promise<boolean> {
@@ -114,19 +120,70 @@ export async function getGeminiLiveAllowance(input: {
   }
 }
 
+async function refundReserved(tx: any, session: any, minutes: number) {
+  const refund = Math.max(0, Math.min(Math.floor(minutes || 0), session.reservedMinutes || 0))
+  if (!refund) return { freeRefund: 0, paidRefund: 0 }
+  const paidRefund = Math.min(session.paidReserved || 0, refund)
+  const freeRefund = Math.min(session.freeReserved || 0, refund - paidRefund)
+  const usage = await tx.aiLiveUsage.findUnique({ where: { userId_month_purpose: { userId: session.userId, month: session.month, purpose: session.purpose } } })
+  if (usage) {
+    await tx.aiLiveUsage.update({
+      where: { id: usage.id },
+      data: {
+        freeMinutesUsed: { decrement: Math.min(freeRefund, usage.freeMinutesUsed || 0) },
+        paidMinutesUsed: { decrement: Math.min(paidRefund, usage.paidMinutesUsed || 0) },
+      },
+    })
+  }
+  if (paidRefund > 0) {
+    await tx.aiLiveCredit.create({
+      data: {
+        userId: session.userId,
+        minutes: paidRefund,
+        remainingMinutes: paidRefund,
+        source: 'REFUND',
+        note: `Auto refund for live session ${session.sessionId}`,
+      },
+    })
+  }
+  return { freeRefund, paidRefund }
+}
+
 export async function reserveGeminiLiveUsage(input: {
   userId: string
   role: unknown
   purpose?: LivePurpose | string
   requestedMinutes?: number
+  sessionId?: string | null
 }): Promise<LiveUsageDecision> {
   const purpose = purposeName(input.purpose)
   const month = monthKey()
   const now = new Date()
   const freeMonthlyLimitMinutes = await freeMonthlyLiveMinutes(input.userId, input.role)
-  const maxSession = Math.max(1, Math.min(input.requestedMinutes || liveSessionLimitMinutes(input.role, purpose), liveSessionLimitMinutes(input.role, purpose)))
+  const hardSessionLimit = liveSessionLimitMinutes(input.role, purpose)
+  const maxSession = Math.max(1, Math.min(input.requestedMinutes || 2, hardSessionLimit))
+  const sessionId = sessionIdValue(input.sessionId)
 
   return db.$transaction(async (tx) => {
+    const existing = await tx.aiLiveSession.findUnique({ where: { sessionId } }).catch(() => null)
+    if (existing) {
+      const usage = await tx.aiLiveUsage.findUnique({ where: { userId_month_purpose: { userId: existing.userId, month: existing.month, purpose: existing.purpose } } }).catch(() => null)
+      return {
+        ok: true,
+        status: 200,
+        purpose: existing.purpose,
+        month: existing.month,
+        freeMonthlyLimitMinutes,
+        sessionLimitMinutes: existing.reservedMinutes,
+        usedFreeMinutes: usage?.freeMinutesUsed || 0,
+        usedPaidMinutes: usage?.paidMinutesUsed || 0,
+        paidRemainingMinutes: 0,
+        totalRemainingMinutes: 0,
+        sessionsUsed: usage?.sessionsCount || 0,
+        sessionId,
+      }
+    }
+
     const usage = await tx.aiLiveUsage.upsert({
       where: { userId_month_purpose: { userId: input.userId, month, purpose } },
       create: { userId: input.userId, month, purpose },
@@ -162,6 +219,7 @@ export async function reserveGeminiLiveUsage(input: {
         paidRemainingMinutes,
         totalRemainingMinutes: 0,
         sessionsUsed: usage.sessionsCount,
+        sessionId,
       }
     }
 
@@ -174,10 +232,7 @@ export async function reserveGeminiLiveUsage(input: {
       const remaining = credit.remainingMinutes - take
       await tx.aiLiveCredit.update({
         where: { id: credit.id },
-        data: {
-          remainingMinutes: remaining,
-          status: remaining <= 0 ? 'CONSUMED' : 'ACTIVE',
-        },
+        data: { remainingMinutes: remaining, status: remaining <= 0 ? 'CONSUMED' : 'ACTIVE' },
       })
       paidTake -= take
     }
@@ -193,6 +248,19 @@ export async function reserveGeminiLiveUsage(input: {
       },
     })
 
+    await tx.aiLiveSession.create({
+      data: {
+        sessionId,
+        userId: input.userId,
+        month,
+        purpose,
+        reservedMinutes: reserve,
+        freeReserved: freeTake,
+        paidReserved: paidUsed,
+        expiresAt: new Date(now.getTime() + 10 * 60 * 1000),
+      },
+    })
+
     return {
       ok: true,
       status: 200,
@@ -205,7 +273,37 @@ export async function reserveGeminiLiveUsage(input: {
       paidRemainingMinutes: Math.max(0, paidRemainingMinutes - paidUsed),
       totalRemainingMinutes: Math.max(0, totalRemainingMinutes - reserve),
       sessionsUsed: updated.sessionsCount,
+      sessionId,
     }
+  })
+}
+
+export async function settleGeminiLiveUsage(input: { sessionId: string; actualSeconds?: number; actualMinutes?: number }) {
+  const actualMinutes = Math.max(0, Math.ceil(input.actualMinutes ?? ((Number(input.actualSeconds || 0) || 0) / 60)))
+  return db.$transaction(async (tx) => {
+    const session = await tx.aiLiveSession.findUnique({ where: { sessionId: input.sessionId } })
+    if (!session) return { ok: false, status: 404, message: 'جلسة الصوت غير موجودة' }
+    if (session.status !== 'RESERVED') return { ok: true, status: 200, idempotent: true, session }
+    const refund = Math.max(0, session.reservedMinutes - Math.min(session.reservedMinutes, actualMinutes))
+    await refundReserved(tx, session, refund)
+    const updated = await tx.aiLiveSession.update({
+      where: { id: session.id },
+      data: { status: 'SETTLED', actualMinutes: Math.min(session.reservedMinutes, actualMinutes), settledAt: new Date() },
+    })
+    return { ok: true, status: 200, refundMinutes: refund, session: updated }
+  })
+}
+
+export async function refundExpiredGeminiLiveSessions(now = new Date()) {
+  return db.$transaction(async (tx) => {
+    const sessions = await tx.aiLiveSession.findMany({ where: { status: 'RESERVED', expiresAt: { lt: now } }, take: 50 })
+    let refunded = 0
+    for (const session of sessions) {
+      await refundReserved(tx, session, session.reservedMinutes)
+      await tx.aiLiveSession.update({ where: { id: session.id }, data: { status: 'REFUNDED', settledAt: now, actualMinutes: 0 } })
+      refunded += session.reservedMinutes
+    }
+    return { sessions: sessions.length, refunded }
   })
 }
 
