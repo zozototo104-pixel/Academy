@@ -1115,7 +1115,10 @@ export function AdminQualityTab() {
 
   const sendMailTest = async () => {
     const to = mailTestEmail.trim()
-    if (!to || !to.includes('@')) return alert('اكتب بريدًا صحيحًا لإرسال رسالة الاختبار')
+    if (!to || !to.includes('@')) {
+      await alertAction({ title: 'بريد غير صحيح', description: 'اكتب بريدًا صحيحًا لإرسال رسالة الاختبار.', tone: 'warning' })
+      return
+    }
     setMailTestSending(true)
     try {
       const res = await api<{ ok: boolean; to: string }>('/api/admin/mail-status', {
