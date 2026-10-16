@@ -68,19 +68,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `المبلغ يتجاوز المتبقي غير المفوتر: ${availableToInvoice}$` }, { status: 400 })
     }
 
-    const installmentInvoiceData = await applyScholarshipToNewInvoiceData(db, {
-      invoiceNo: await nextInvoiceNo(),
-      purpose: 'TUITION_INSTALLMENT',
-      description: `دفعة جزئية من الرسوم الدراسية — ${app.program}`,
-      amount,
-      currency: 'USD',
-      status: 'UNPAID',
-      admissionId: app.id,
-      userId: app.userId || user.id,
-      payerName: app.fullName,
-      payerEmail: app.email,
+    const payment = await db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "AdmissionApplication" WHERE id = ${app.id} FOR UPDATE`
+      const existingPending = await tx.payment.findFirst({
+        where: { admissionId: app.id, purpose: 'TUITION_INSTALLMENT', status: 'UNPAID' },
+        select: { invoiceNo: true },
+      })
+      if (existingPending) {
+        throw new Error(`DUPLICATE_INSTALLMENT:${existingPending.invoiceNo}`)
+      }
+      const installmentInvoiceData = await applyScholarshipToNewInvoiceData(tx, {
+        invoiceNo: await nextInvoiceNo(),
+        purpose: 'TUITION_INSTALLMENT',
+        description: `دفعة جزئية من الرسوم الدراسية — ${app.program}`,
+        amount,
+        currency: 'USD',
+        status: 'UNPAID',
+        admissionId: app.id,
+        userId: app.userId || user.id,
+        payerName: app.fullName,
+        payerEmail: app.email,
+      })
+      return tx.payment.create({ data: installmentInvoiceData })
     })
-    const payment = await db.payment.create({ data: installmentInvoiceData })
 
     return NextResponse.json({ ok: true, payment })
   } catch (e: any) {
