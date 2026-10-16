@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     const userId = clean(req.nextUrl.searchParams.get('userId'), 120)
     if (userId) {
       const studentCore = await db.user.findFirst({
-        where: { id: userId, role: 'STUDENT', enrollments: { some: {} } },
+        where: { id: userId, role: 'STUDENT' },
         select: { id: true, email: true, name: true, phone: true, country: true, status: true, createdAt: true, updatedAt: true },
       })
       if (!studentCore) return NextResponse.json({ error: 'الطالب غير موجود' }, { status: 404 })
