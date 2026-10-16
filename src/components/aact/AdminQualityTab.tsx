@@ -555,7 +555,7 @@ export function AdminQualityTab() {
         method: 'POST',
         body: JSON.stringify({ catalog, confirmRestore: 'YES' }),
       })
-      alert(`تم الاستيراد بنجاح. البرامج: ${res.stats.programs || 0}، الوحدات: ${res.stats.units || 0}، الكتب: ${res.stats.books || 0}`)
+      await alertAction({ title: 'تم الاستيراد بنجاح', description: `البرامج: ${res.stats.programs || 0}، الوحدات: ${res.stats.units || 0}، الكتب: ${res.stats.books || 0}`, confirmLabel: 'حسناً', tone: 'success' })
       setCatalogImportOpen(false)
       setCatalogImportText('')
       await load()
