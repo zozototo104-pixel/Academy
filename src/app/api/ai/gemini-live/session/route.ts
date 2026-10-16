@@ -333,14 +333,15 @@ export async function POST(req: NextRequest) {
         reportGeminiLiveKeySuccess(keyIndex, model, result.ms)
         break
       } catch (e: any) {
-        e.model = e.model || model
-        lastError = e
-        failures.push(failureDetail(keyIndex, key, e))
-        await reportGeminiLiveKeyFailure(keyIndex, e)
-        if (shouldTryNextGeminiLiveKey(e)) continue
+        const err: any = e && typeof e === 'object' ? e : new Error(String(e || 'Gemini Live token failure'))
+        err.model = err.model || model
+        lastError = err
+        failures.push(failureDetail(keyIndex, key, err))
+        await reportGeminiLiveKeyFailure(keyIndex, err)
+        if (shouldTryNextGeminiLiveKey(err)) continue
         return NextResponse.json(
-          { error: arabicErrorForGemini(e), details: failures },
-          { status: httpStatusForGeminiError(e) }
+          { error: arabicErrorForGemini(err), details: failures },
+          { status: httpStatusForGeminiError(err) }
         )
       }
     }
