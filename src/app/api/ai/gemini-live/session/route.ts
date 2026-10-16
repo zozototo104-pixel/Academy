@@ -17,6 +17,7 @@ import {
 import { buildSupervisorContext, mergeContext } from '@/lib/supervisor-ai'
 import { buildVoiceSystemPrompt } from '@/lib/voicePrompt'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
+import { getSetting } from '@/lib/settings'
 import { getGeminiLiveAllowance, reserveGeminiLiveUsage, type LivePurpose } from '@/lib/live-usage-guard'
 
 export const runtime = 'nodejs'
