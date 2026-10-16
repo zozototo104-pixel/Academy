@@ -198,17 +198,18 @@ function speechConfigForVoice(voice: string) {
   }
 }
 
+function withDialectInstruction(systemInstruction: string, dialect: string) {
+  return `${dialectInstruction(dialect)}\n\n${String(systemInstruction || '')}`.slice(0, 32000)
+}
+
 export function buildGeminiLiveSetup(_variant: SetupVariant, model: string, systemInstruction: string, voice: string, dialect: string) {
-  const instruction = systemInstruction.slice(0, 32000)
+  const instruction = withDialectInstruction(systemInstruction, dialect)
   return {
     setup: {
       model: `models/${model}`,
       generationConfig: {
         responseModalities: ['AUDIO'],
-        speechConfig: {
-          ...speechConfigForVoice(voice),
-          languageCode: dialect,
-        },
+        speechConfig: speechConfigForVoice(voice),
       },
       systemInstruction: {
         parts: [{ text: instruction }],
@@ -216,6 +217,15 @@ export function buildGeminiLiveSetup(_variant: SetupVariant, model: string, syst
       inputAudioTranscription: {},
       outputAudioTranscription: {},
     },
+  }
+}
+
+export function buildGeminiLiveSdkConfig(systemInstruction: string, voice: string, dialect: string) {
+  return {
+    responseModalities: ['AUDIO'],
+    speechConfig: speechConfigForVoice(voice),
+    inputAudioTranscription: { languageCode: dialect },
+    systemInstruction: withDialectInstruction(systemInstruction, dialect),
   }
 }
 
