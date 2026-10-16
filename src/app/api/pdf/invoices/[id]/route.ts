@@ -399,6 +399,7 @@ export function buildInvoicePdf(data: InvoicePdfData, options: InvoicePdfOptions
   doc.text('Generated electronically by AACT Platform. No manual signature required.', 52, 1110)
   doc.text('aactacademy.com', 742, 1110, { align: 'right' })
 
+  activeArabicImageRenderer = previousArabicImageRenderer
   return new Uint8Array(doc.output('arraybuffer'))
 }
 
