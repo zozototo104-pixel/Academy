@@ -331,11 +331,12 @@ export async function settleGeminiLiveUsage(input: { sessionId: string; actualSe
     const session = await tx.aiLiveSession.findUnique({ where: { sessionId: input.sessionId } })
     if (!session) return { ok: false, status: 404, message: 'جلسة الصوت غير موجودة' }
     if (session.status !== 'RESERVED') return { ok: true, status: 200, idempotent: true, session }
-    const refund = Math.max(0, session.reservedMinutes - Math.min(session.reservedMinutes, actualMinutes))
+    const recordedMinutes = session.reservedMinutes === 0 ? actualMinutes : Math.min(session.reservedMinutes, actualMinutes)
+    const refund = Math.max(0, session.reservedMinutes - recordedMinutes)
     await refundReserved(tx, session, refund)
     const updated = await tx.aiLiveSession.update({
       where: { id: session.id },
-      data: { status: 'SETTLED', actualMinutes: Math.min(session.reservedMinutes, actualMinutes), settledAt: new Date() },
+      data: { status: 'SETTLED', actualMinutes: recordedMinutes, settledAt: new Date() },
     })
     return { ok: true, status: 200, refundMinutes: refund, session: updated }
   })
