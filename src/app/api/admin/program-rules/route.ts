@@ -210,9 +210,9 @@ export async function POST(req: NextRequest) {
         units.map((unit, index) => ({ id: unit.id, semester, from: unit.order, to: index + 1 })).filter((change) => change.from !== change.to),
       )
       if (changes.length) {
-        await db.$transaction(changes.map((change) => db.unit.update({ where: { id: change.id }, data: { order: change.to } })))
+        await withTiming('db_program_rules_renumber_transaction', () => db.$transaction(changes.map((change) => db.unit.update({ where: { id: change.id }, data: { order: change.to } }))))
       }
-      await db.auditLog.create({
+      await withTiming('db_program_rules_renumber_audit', () => db.auditLog.create({
         data: {
           actorId: admin.id,
           actorName: admin.name,
