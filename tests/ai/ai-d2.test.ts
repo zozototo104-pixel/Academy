@@ -67,7 +67,7 @@ const db: any = {
   exam: {
     create: async ({ data }: any) => ({ id: 'exam-1', ...data }),
     update: async ({ data }: any) => ({ id: 'exam-1', ...data }),
-    findUnique: async () => ({ id: 'exam-1', title: '[LIMITED_KNOWLEDGE] اختبار وحدة', status: 'READY', passScore: 60, _count: { questions: 5, attempts: 0 } }),
+    findUnique: async () => ({ id: 'exam-1', title: 'اختبار وحدة: وحدة محدودة المعرفة', status: 'READY', passScore: 60, generationWarning: 'LIMITED_KNOWLEDGE', _count: { questions: 5, attempts: 0 } }),
   },
   examDraft: { deleteMany: async () => ({ count: 0 }) },
   question: {
