@@ -164,7 +164,7 @@ export async function GET() {
       admissionRules: true,
       _count: { select: { units: true } },
     },
-  })
+  }))
   const visiblePrograms = programs.filter((p) => !isInternalQaProgram(p))
   return NextResponse.json({
     programs: visiblePrograms.map((p) => {
