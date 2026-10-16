@@ -1,7 +1,25 @@
+import { existsSync } from 'fs'
+import { join } from 'path'
+import type { jsPDF } from 'jspdf'
+import { createCanvas, GlobalFonts } from '@napi-rs/canvas'
+
 const ARABIC_RE = /[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]/
-const LTR_TOKEN_RE = /\d+(?:[.,]\d+)*(?:\s*[A-Za-z]{2,6})?|[A-Za-z][A-Za-z0-9._:/%+\-@]*(?:\s+[A-Za-z][A-Za-z0-9._:/%+\-@]*)*/g
+const CANVAS_ARABIC_FONT_FAMILY = 'Amiri'
+const CANVAS_ARABIC_FONT_PATH = join(process.cwd(), 'public', 'fonts', 'Amiri-Regular.ttf')
+const DEFAULT_CANVAS_TEXT = '#1f2937'
 
 type ArabicForms = { iso: string; fin?: string; ini?: string; med?: string }
+export type DrawArabicImageOptions = {
+  size?: number
+  color?: string
+  maxWidth?: number
+  maxLines?: number
+  align?: 'right' | 'center'
+  fontPath?: string
+}
+
+let canvasArabicFontRegistrationAttempted = false
+let canvasArabicFontRegistrationError: unknown = null
 
 const FORMS: Record<string, ArabicForms> = {
   'ء': { iso: '\uFE80' },
