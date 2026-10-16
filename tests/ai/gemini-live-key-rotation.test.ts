@@ -143,6 +143,39 @@ describe('Gemini Live key rotation uses the text AI router state', () => {
     expect(fetchKeys).toEqual(['AIzaTEXT1111'])
   })
 
+  test('a memory cooldown with status 429 and api_key in the reason remains available for Live', async () => {
+    configureGeminiKeys('AIzaRATE1111')
+    globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+      const urlText = String(url)
+      if (urlText.includes(':generateContent')) {
+        fetchKeys.push('text:AIzaRATE1111')
+        return new Response(JSON.stringify({ error: { message: 'rate limited api_key:xyz' } }), {
+          status: 429,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      const headers = init?.headers as Record<string, string> | undefined
+      const key = String(headers?.['x-goog-api-key'] || '')
+      fetchKeys.push(key)
+      return new Response(JSON.stringify({ name: 'live-token-from-rate-key' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }) as any
+
+    await expect(textAi.textAiComplete({
+      system: 'test',
+      history: [{ role: 'user', text: 'hello' }],
+      maxOutputTokens: 8,
+      deadlineMs: Date.now() + 5_000,
+    })).rejects.toThrow()
+
+    const response = await POST(liveRequest())
+
+    expect(response.status).toBe(200)
+    expect(fetchKeys).toEqual(['text:AIzaRATE1111', 'AIzaRATE1111'])
+  })
+
   test('all key failures return 401 with masked key details only', async () => {
     configureGeminiKeys('AIzaBAD1111', 'AIzaBAD2222')
     mockTokenFetch(() => ({ status: 401, body: { error: { message: 'UNAUTHENTICATED: invalid Live key' } } }))
