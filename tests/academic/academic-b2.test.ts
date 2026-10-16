@@ -119,6 +119,7 @@ beforeEach(() => {
   calls.splice(0, calls.length)
   appealUpdateCount = 1
   storedReadResult = { buffer: Buffer.from('webm-data'), mimeType: 'video/webm' }
+  currentUser = { id: 'student-1', name: 'طالب', email: 'student@example.test', role: 'STUDENT' }
   certificate = { id: 'cert-1', serial: 'AACT-C-2026-00001', qrToken: 'qr-1', type: 'PROGRAM_COMPLETION', holderName: 'طالب', program: 'برنامج جديد', grade: 'امتياز', country: 'فلسطين', issuedAt: new Date('2026-01-10'), valid: true, userId: 'student-1', admissionId: 'adm-new', enrollmentId: 'enroll-program-new', revokedAt: null, revokedReason: null }
   thesisRows = [
     { id: 'thesis-old', userId: 'student-1', admissionId: 'adm-old', title: 'رسالة قديمة', abstract: 'ملخص قديم طويل جداً للاختبار', status: 'PLAN_NEEDS_REVISION' },
