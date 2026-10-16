@@ -2,6 +2,12 @@ name: Invoice PDF Variants
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'scripts/render-invoice-variants.ts'
+      - 'src/lib/pdf-arabic.ts'
+      - 'src/app/api/pdf/invoices/**'
+      - '.github/workflows/invoice-variants.yml'
 
 jobs:
   render:
