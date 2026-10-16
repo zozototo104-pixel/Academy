@@ -168,6 +168,29 @@ describe('academic B2 safety', () => {
     expect(payload.certificate.revokedAt).toBeTruthy()
   })
 
+  test('legacy thesis without admissionId is adopted for the current admission instead of duplicated', async () => {
+    thesisRows = [
+      { id: 'thesis-legacy', userId: 'student-1', admissionId: null, title: 'رسالة قديمة بلا طلب', abstract: 'ملخص رسالة قديمة طويل جداً للاختبار', status: 'PLAN_NEEDS_REVISION' },
+    ]
+    const loaded = await thesisRoute.GET()
+    const loadedPayload = await json(loaded as any)
+    expect(loaded.status).toBe(200)
+    expect(loadedPayload.thesis.id).toBe('thesis-legacy')
+    expect(loadedPayload.thesis.admissionId).toBe('adm-new')
+    expect(thesisRows).toHaveLength(1)
+    expect(thesisRows[0].admissionId).toBe('adm-new')
+
+    const submitted = await thesisRoute.POST(new NextRequest('https://academy.test/api/thesis', {
+      method: 'POST',
+      body: JSON.stringify({ stage: 'PLAN', title: 'عنوان محدث للرسالة القديمة', abstract: 'هذا ملخص طويل بما يكفي ويجب أن يحدث الرسالة القديمة بدل إنشاء نسخة ثانية.' }),
+      headers: { 'content-type': 'application/json' },
+    }))
+    const submittedPayload = await json(submitted as any)
+    expect(submitted.status).toBe(200)
+    expect(submittedPayload.thesis.id).toBe('thesis-legacy')
+    expect(thesisRows).toHaveLength(1)
+  })
+
   test('thesis updates are scoped to the current admissionId so another program thesis is untouched', async () => {
     const res = await thesisRoute.POST(new NextRequest('https://academy.test/api/thesis', {
       method: 'POST',
