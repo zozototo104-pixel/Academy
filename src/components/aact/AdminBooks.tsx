@@ -430,7 +430,7 @@ interface UnitQuestionReviewPayload {
   publishable: boolean
   counts: { APPROVED: number; PENDING_REVIEW: number; REJECTED: number; total: number }
   questions: { APPROVED: QuestionBankItemRow[]; PENDING_REVIEW: QuestionBankItemRow[]; REJECTED: QuestionBankItemRow[] }
-  exam: { id: string; title: string; status: string; questionsCount: number } | null
+  exam: { id: string; title: string; status: string; generationWarning?: string | null; questionsCount: number } | null
 }
 
 interface ProgramReadinessSnapshot {
