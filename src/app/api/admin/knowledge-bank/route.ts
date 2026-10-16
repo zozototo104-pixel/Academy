@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
       const strictFullRead = action === 'read-book-full' || body.strictFullRead === true
       let result
       try {
-        result = await rebuildKnowledgeForBook(bookId, { strictFullRead })
+        result = await withTiming('db_knowledge_bank_rebuild_book', () => rebuildKnowledgeForBook(bookId, { strictFullRead }))
       } catch (e: any) {
         if (e?.code !== 'AI_ACADEMIC_PROVIDER_UNAVAILABLE') throw e
         const paused = { code: e.code, reason: String(e?.message || e).slice(0, 500), retryAt: e?.retryAt || null, pausedAt: new Date().toISOString() }
