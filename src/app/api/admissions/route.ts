@@ -851,6 +851,7 @@ export async function POST(req: NextRequest) {
     console.error('admissions POST error:', e)
     return NextResponse.json({ error: 'حدث خطأ أثناء تقديم الطلب، حاول مرة أخرى' }, { status: 500 })
   }
+  })
 }
 
 // GET /api/admissions?ref=AACT-2026-1234 — تتبع طلب بالكود المرجعي
