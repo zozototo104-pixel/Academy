@@ -331,8 +331,9 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  return withTimedResponse(async () => {
   try {
-    const user = await getCurrentUser()
+    const user = await withTiming('db_program_rules_current_user', () => getCurrentUser())
     if (!user || user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
     }
