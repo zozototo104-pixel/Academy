@@ -420,51 +420,6 @@ export async function POST(req: NextRequest) {
         : `${reference} — ${selectedTitle} — مستندات: ${uniqueFiles.length}/4 + إقرار — فاتورة رسوم تقديم ${appFee}$`
     ))
 
-// المستندات الرسمية الإلزامية وفق دليل إجراءات وشروط الالتحاق.
-// المصدر التنفيذي المشترك مع ApplyView موجود في src/lib/admission-required-documents.ts.
-export const REQUIRED_DOCS = REQUIRED_ADMISSION_DOCS
-
-const MAX_FILE_SIZE = 4 * 1024 * 1024 // 4MB لكل ملف
-const ALLOWED_MIME = [
-  'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif',
-  'application/pdf',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/vnd.ms-excel',
-  'text/plain', 'text/csv', 'application/csv',
-]
-
-type UploadedAdmissionFile = {
-  docType: string
-  fileName: string
-  mimeType: string
-  size: number
-  data: string | null
-  storageProvider: string | null
-  storageKey: string | null
-  fileUrl: string | null
-}
-
-// آلة الحالات الرسمية (بالترتيب الصحيح وفق الدليل):
-// 1) تقديم الطلب ببيانات كاملة + المستندات + الإقرار
-// 2) سداد رسوم التقديم وحجز المقعد 30$ (غير مستردة) للبرامج الدراسية
-// 3) الملف يذهب للإدارة للدراسة وتعيين مشرف أو متابعة خدمة مهنية
-// 4) بعد موافقة الإدارة: يسدد الطالب الرسوم الدراسية كاملة للدخول للبرنامج
-export const STATUS_LABEL: Record<string, string> = {
-  AWAITING_FEE: 'بانتظار سداد رسوم التقديم (30$)',
-  UNDER_REVIEW: 'قيد دراسة الإدارة',
-  DOCUMENTS_NEED_REPLACEMENT: 'مطلوب استبدال مستندات',
-  AWAITING_TUITION: 'مقبول — بانتظار سداد الرسوم الدراسية',
-  SUPERVISOR_ASSIGNED: 'تم تعيين مشرف',
-  THESIS: 'التسجيل النهائي — قيد إعداد بحث التخرج',
-  SCHEDULED: 'مجدول للمناقشة',
-  RESULT_APPROVED: 'تم اعتماد النتيجة',
-  CERTIFIED: 'تم إصدار الشهادة',
-  REJECTED: 'غير مقبول',
-  UPLOADING_DOCUMENTS: 'جاري رفع المستندات',
-  PENDING: 'تم التقديم',
-}
-
 function normalizeDocType(key: string) {
   return key.replace(/^doc_/, '').toUpperCase().slice(0, 40)
 }
