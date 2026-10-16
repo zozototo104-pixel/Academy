@@ -84,7 +84,7 @@ async function unitQuizAverage(client: DbClient, userId: string, programId: stri
     if (bestAttemptScore == null) addMissing(missing, `اختبار وحدة: ${exam.unit.title || exam.title}`)
     else bestScores.push(bestAttemptScore)
   }
-  return bestScores.length === exams.length ? avg(bestScores) : null
+  return bestScores.length === scorableExams.length ? avg(bestScores) : null
 }
 
 async function programExamAverage(client: DbClient, userId: string, programId: string, missing: string[], semester?: number) {
