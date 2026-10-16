@@ -101,8 +101,9 @@ async function buildSemesterGuide(programId: string, semester: number) {
 }
 
 export async function GET(req: NextRequest) {
+  return withTimedResponse(async () => {
   try {
-    await requireAdmin()
+    await withTiming('db_require_admin', () => requireAdmin())
     const programId = clean(req.nextUrl.searchParams.get('programId'), 80)
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
     const guides = await db.programStudyGuide.findMany({ where: { programId }, orderBy: [{ semester: 'asc' }, { updatedAt: 'desc' }] })
