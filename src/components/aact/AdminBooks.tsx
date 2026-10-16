@@ -1277,7 +1277,8 @@ export function AdminBooksTab() {
       try {
         result = await runGenerate()
       } catch (e: any) {
-        if (e?.status === 409 && e?.code === 'COGNITIVE_DISTRIBUTION_FAILED') {
+        const code = e?.code || e?.data?.code
+        if (e?.status === 409 && code === 'COGNITIVE_DISTRIBUTION_FAILED') {
           const reason = await askCognitiveOverride({ title: 'تجاوز توزيع المهارات المعرفية', message: e.message || 'توزيع المستويات المعرفية غير مناسب للنشر.', details: Array.isArray(e?.data?.details) ? e.data.details : [] })
           if (!reason || reason.trim().length < 8) throw new Error('يجب كتابة سبب واضح لا يقل عن 8 أحرف لتجاوز توزيع المهارات المعرفية.')
           result = await runGenerate(reason.trim())
