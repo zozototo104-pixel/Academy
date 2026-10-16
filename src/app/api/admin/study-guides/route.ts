@@ -170,4 +170,5 @@ export async function DELETE(req: NextRequest) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     return NextResponse.json({ error: 'تعذر حذف دليل الدراسة' }, { status: 500 })
   }
+  })
 }
