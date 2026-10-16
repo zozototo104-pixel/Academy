@@ -187,9 +187,13 @@ export async function POST(req: NextRequest) {
       exam: result,
       reviewRequired,
       currentQuestions: scoped.selection.currentEligibleCount,
+      requestedQuestions,
       requiredQuestions,
+      warning: limitedKnowledge ? 'LIMITED_KNOWLEDGE' : null,
+      knowledgeItems: knowledge.count,
+      minKnowledgeItems: knowledge.minItems,
       pendingReviewQuestions: scoped.selection.pendingReviewCount,
-      sourceGroundedRatio: scoped.selection.approvedCount / scoped.questions.length,
+      sourceGroundedRatio: scoped.questions.length ? scoped.selection.approvedCount / scoped.questions.length : 0,
       message: reviewRequired ? 'تم حفظ اختبار الوحدة كمسودة لأنه يحتوي أسئلة تحتاج مراجعة. لن يظهر للطلاب حتى تعتمد الأسئلة.' : 'تم توليد اختبار الوحدة من أسئلة معتمدة وموثقة ضمن نطاق الوحدة.',
     })
   } catch (error: unknown) {
