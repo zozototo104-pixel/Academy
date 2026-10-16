@@ -34,7 +34,8 @@ export async function getTodayAiCostCents(userId: string) {
 
 export async function enforceAiUserDailyCostCap(input: { userId?: string | null; role?: string | null; estimatedCostCents?: number }) {
   if (!input.userId) return
-  if (String(input.role || '').toUpperCase() === 'ADMIN') return
+  const role = input.role || (await db.user.findUnique({ where: { id: input.userId }, select: { role: true } }).catch(() => null))?.role
+  if (String(role || '').toUpperCase() === 'ADMIN') return
   const cap = await dailyCapCents()
   if (cap <= 0) return
   const spent = await getTodayAiCostCents(input.userId)
