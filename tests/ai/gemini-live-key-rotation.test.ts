@@ -1,0 +1,164 @@
+/// <reference types="bun-types" />
+import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test'
+import { NextRequest } from 'next/server'
+
+const db: any = {
+  auditLog: { create: async () => ({}) },
+  enrollment: { count: async () => 0 },
+  setting: {
+    findMany: async () => [],
+    findUnique: async () => null,
+    upsert: async () => ({}),
+    delete: async () => ({}),
+  },
+}
+
+mock.module('@/lib/db', () => ({ db }))
+mock.module('@/lib/auth', () => ({ requireUser: async () => ({ id: 'student-1', role: 'STUDENT' }) }))
+mock.module('@/lib/rate-limit', () => ({ enforceApiRateLimit: () => null }))
+mock.module('@/lib/settings', () => ({ getSetting: async () => 'ar-PS' }))
+mock.module('@/lib/supervisor-ai', () => ({
+  buildSupervisorContext: async () => '',
+  mergeContext: (...parts: unknown[]) => parts.filter(Boolean).join('\n'),
+}))
+mock.module('@/lib/voicePrompt', () => ({ buildVoiceSystemPrompt: (context: string) => `voice:${context}` }))
+mock.module('@/lib/live-usage-guard', () => ({
+  getGeminiLiveAllowance: async () => ({ ok: true, status: 200, sessionLimitMinutes: 10, totalRemainingMinutes: 10, message: 'ok' }),
+  reserveGeminiLiveUsage: async () => ({ ok: true, status: 200, sessionId: 'live-session-1', sessionLimitMinutes: 10, totalRemainingMinutes: 8, message: 'ok' }),
+}))
+
+const realGemini = await import('../../src/lib/gemini')
+mock.module('@/lib/gemini', () => ({
+  ...realGemini,
+  geminiActiveLiveModel: async () => 'gemini-3.1-flash-live-preview',
+  geminiTTSVoice: async () => 'Charon',
+}))
+
+const textAi = await import('../../src/lib/text-ai')
+const { POST } = await import('../../src/app/api/ai/gemini-live/session/route')
+
+const values = new Map<string, string>()
+const store = {
+  async read(keys: string[]) {
+    return Object.fromEntries(keys.map((key) => [key, values.get(key) || '']))
+  },
+  async write(key: string, value: string) {
+    values.set(key, value)
+  },
+  async delete(key: string) {
+    values.delete(key)
+  },
+  async scan(prefix: string) {
+    return Object.fromEntries([...values.entries()].filter(([key]) => key.startsWith(prefix)))
+  },
+}
+
+const originalFetch = globalThis.fetch
+const originalGeminiApiKey = process.env.GEMINI_API_KEY
+const originalGeminiApiKeys = process.env.GEMINI_API_KEYS
+let fetchKeys: string[] = []
+
+function configureGeminiKeys(...keys: string[]) {
+  values.set('GEMINI_API_KEYS', keys.join('\n'))
+}
+
+function liveRequest() {
+  return new NextRequest('http://localhost/api/ai/gemini-live/session', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ testOnly: true, purpose: 'SUPERVISOR', model: 'gemini-3.1-flash-live-preview' }),
+  })
+}
+
+function mockTokenFetch(handler: (key: string) => { status: number; body: unknown }) {
+  globalThis.fetch = mock(async (_url: string | URL | Request, init?: RequestInit) => {
+    const headers = init?.headers as Record<string, string> | undefined
+    const key = String(headers?.['x-goog-api-key'] || '')
+    fetchKeys.push(key)
+    const result = handler(key)
+    return new Response(JSON.stringify(result.body), {
+      status: result.status,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }) as any
+}
+
+beforeEach(() => {
+  values.clear()
+  fetchKeys = []
+  delete process.env.GEMINI_API_KEY
+  delete process.env.GEMINI_API_KEYS
+  textAi.__resetTextAiStateForTests()
+  textAi.__setTextAiSettingStoreForTests(store)
+})
+
+afterAll(() => {
+  globalThis.fetch = originalFetch
+  textAi.__setTextAiSettingStoreForTests(null)
+  if (originalGeminiApiKey === undefined) delete process.env.GEMINI_API_KEY
+  else process.env.GEMINI_API_KEY = originalGeminiApiKey
+  if (originalGeminiApiKeys === undefined) delete process.env.GEMINI_API_KEYS
+  else process.env.GEMINI_API_KEYS = originalGeminiApiKeys
+})
+
+describe('Gemini Live key rotation uses the text AI router state', () => {
+  test('key 1 returns 403 and key 2 succeeds, while key 1 receives router cooldown', async () => {
+    configureGeminiKeys('AIzaBAD1111', 'AIzaGOOD2222')
+    mockTokenFetch((key) => key === 'AIzaBAD1111'
+      ? { status: 403, body: { error: { message: 'PERMISSION_DENIED: Live API disabled for this key' } } }
+      : { status: 200, body: { name: 'live-token-from-key-2' } })
+
+    const response = await POST(liveRequest())
+    const payload = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(payload).toMatchObject({ ok: true, model: 'gemini-3.1-flash-live-preview' })
+    expect(fetchKeys).toEqual(['AIzaBAD1111', 'AIzaGOOD2222'])
+
+    const cooldownRaw = values.get('AI_COOLDOWN:GEMINI:1:gemini-live')
+    expect(cooldownRaw).toBeTruthy()
+    const cooldown = JSON.parse(String(cooldownRaw))
+    expect(cooldown.status).toBe(403)
+    expect(Date.parse(cooldown.until)).toBeGreaterThan(Date.now() + 50 * 60 * 1000)
+
+    const diagnostics = await textAi.textAiDiagnostics()
+    expect(diagnostics.recentAttempts.map((attempt: any) => ({ provider: attempt.provider, keyIndex: attempt.keyIndex, ok: attempt.ok, status: attempt.status }))).toEqual([
+      { provider: 'GEMINI', keyIndex: 1, ok: false, status: 403 },
+      { provider: 'GEMINI', keyIndex: 2, ok: true, status: undefined },
+    ])
+  })
+
+  test('a key already cooled down by the text router is not attempted by Live', async () => {
+    configureGeminiKeys('AIzaBAD1111', 'AIzaGOOD2222')
+    values.set('AI_COOLDOWN:GEMINI:1:gemini-3.8-flash', JSON.stringify({
+      until: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+      reason: 'text router cooldown',
+      status: 429,
+    }))
+    mockTokenFetch(() => ({ status: 200, body: { name: 'live-token-from-key-2' } }))
+
+    const response = await POST(liveRequest())
+
+    expect(response.status).toBe(200)
+    expect(fetchKeys).toEqual(['AIzaGOOD2222'])
+  })
+
+  test('all key failures return 401 with masked key details only', async () => {
+    configureGeminiKeys('AIzaBAD1111', 'AIzaBAD2222')
+    mockTokenFetch(() => ({ status: 401, body: { error: { message: 'UNAUTHENTICATED: invalid Live key' } } }))
+
+    const response = await POST(liveRequest())
+    const payload = await response.json()
+    const serialized = JSON.stringify(payload)
+
+    expect(response.status).toBe(401)
+    expect(payload.details).toEqual([
+      { keyIndex: 1, maskedKey: 'AIza…1111', status: 401, message: 'UNAUTHENTICATED: invalid Live key' },
+      { keyIndex: 2, maskedKey: 'AIza…2222', status: 401, message: 'UNAUTHENTICATED: invalid Live key' },
+    ])
+    expect(serialized).not.toContain('AIzaBAD1111')
+    expect(serialized).not.toContain('AIzaBAD2222')
+    expect(serialized).toContain('AIza…1111')
+    expect(serialized).toContain('AIza…2222')
+  })
+})
