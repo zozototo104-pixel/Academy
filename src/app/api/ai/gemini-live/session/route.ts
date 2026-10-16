@@ -223,7 +223,8 @@ export function buildGeminiLiveSdkConfig(systemInstruction: string, voice: strin
   return {
     responseModalities: ['AUDIO'],
     speechConfig: speechConfigForVoice(voice),
-    inputAudioTranscription: { languageCode: dialect },
+    inputAudioTranscription: {},
+    outputAudioTranscription: {},
     systemInstruction: withDialectInstruction(systemInstruction, dialect),
   }
 }
