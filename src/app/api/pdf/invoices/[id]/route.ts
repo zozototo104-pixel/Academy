@@ -289,7 +289,7 @@ function methodArabicLabel(value: string) {
 }
 
 export function buildInvoicePdf(data: InvoicePdfData, options: InvoicePdfOptions = {}): Uint8Array {
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'px', format: [PAGE_W, PAGE_H], compress: true })
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'px', format: [PAGE_W, PAGE_H], compress: options.compress ?? true })
   const fontPaths = options.fontPaths || ARABIC_FONT_PATHS
   const arabicReady = registerArabicFont(doc, fontPaths)
   const descriptionText = pdfValue(data.description, data.descriptionFallback || data.purpose, arabicReady)
