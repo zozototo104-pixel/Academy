@@ -35,9 +35,12 @@ type InvoicePdfData = {
   reference: string
 }
 
+type ArabicImageRenderer = (doc: jsPDF, text: string, x: number, y: number, opts?: DrawArabicImageOptions) => number
+
 type InvoicePdfOptions = {
   fontPaths?: string[]
   compress?: boolean
+  arabicImageRenderer?: ArabicImageRenderer
 }
 
 type BilingualLabel = {
