@@ -72,7 +72,9 @@ async function unitQuizAverage(client: DbClient, userId: string, programId: stri
     return null
   }
   const scorableExams = exams.filter((exam) => Number((exam as any)._count?.questions || 0) > 0)
-  if (!scorableExams.length) return null
+  // Legacy READY unit exams with no published questions are ignored for certification eligibility:
+  // they cannot be attempted, so they must not block graduation forever.
+  if (!scorableExams.length) return 100
 
   const bestScores: number[] = []
   for (const exam of scorableExams) {
