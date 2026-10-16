@@ -962,7 +962,7 @@ export function AdminQualityTab() {
       await loadStudents()
       if (selectedStudent?.id === studentId) await loadStudentDetails(studentId)
     } catch (e: any) {
-      alert(e?.message || 'تعذر تنفيذ الإجراء')
+      await alertAction({ title: 'تعذر تنفيذ الإجراء', description: e?.message || 'لم يتم تحديث سجل الطالب.', tone: 'danger' })
     } finally {
       setStudentBusyId(null)
     }
