@@ -90,6 +90,8 @@ async function auditLiveKnowledgeSession(args: {
 }
 
 function httpStatusForGeminiError(e: any): number {
+  const status = statusFromGeminiError(e)
+  if (status === 402) return 402
   if (isAuthError(e)) return 401
   if (isQuotaError(e)) return 429
   if (isModelUnavailableError(e) || isInvalidArgumentError(e)) return 400
