@@ -1194,7 +1194,10 @@ export function AdminQualityTab() {
   }
 
   const submitThesisTopicAction = async () => {
-    if (!thesisProgramId) return alert('اختر البرنامج أولًا')
+    if (!thesisProgramId) {
+      await alertAction({ title: 'اختر البرنامج أولًا', description: 'يجب اختيار برنامج قبل توليد أو إضافة عنوان بحث.', tone: 'warning' })
+      return
+    }
     setThesisTopicBusy(true)
     try {
       if (thesisTopicMode === 'generate') {
