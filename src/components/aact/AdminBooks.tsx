@@ -943,7 +943,7 @@ export function AdminBooksTab() {
       document.removeEventListener('visibilitychange', onVisibility)
       stopPolling()
     }
-  }, [exams, programId, loadExamProgress, loadProgramData])
+  }, [hasActiveExamGenerationJob, programId, loadExamProgress, loadProgramData])
 
   // تحريك التوليد تلقائياً دفعة بعد دفعة طالما الإدارة فاتحة الصفحة.
   // هذا يلغي الاعتماد على خلفية Vercel التي كانت تسبب بقاء الامتحان على 20 سؤالاً فقط.
