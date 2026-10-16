@@ -59,6 +59,9 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   output: "standalone",
   serverExternalPackages: ["pdf-parse", "@napi-rs/canvas"],
+  outputFileTracingIncludes: {
+    "/api/pdf/**/*": ["./public/fonts/**"],
+  },
   async headers() {
     return [
       {
