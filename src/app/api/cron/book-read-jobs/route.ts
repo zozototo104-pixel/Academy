@@ -23,13 +23,6 @@ export async function GET(request: NextRequest) {
     outcomes.push({ jobId: 'AI_MODEL_HEALTH', outcome: `CHECKED_${health.checked}` })
   }
 
-  while (Date.now() < endAt - 48_000) {
-    const questionJob = await runNextQuestionBankGenerationJobStep()
-    if (!questionJob) break
-    outcomes.push({ jobId: questionJob.id, outcome: `QUESTION_BANK_${questionJob.status}` })
-    if (questionJob.status === 'RUNNING') break
-    if (!['QUEUED'].includes(questionJob.status)) break
-  }
   // Select only eligible jobs; the atomic lock still decides which worker owns each job.
   const jobs = await db.bookReadJob.findMany({
     where: { OR: [
