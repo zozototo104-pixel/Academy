@@ -67,6 +67,7 @@ mock.module('@/lib/db', () => ({ db }))
 mock.module('@/lib/auth', () => ({
   requireAdmin: async () => ({ id: 'admin-1', name: 'مدير', email: 'admin@example.test', role: 'ADMIN' }),
   requireUser: async () => ({ id: 'student-1', email: 'student@example.test', name: 'طالب', role: 'STUDENT' }),
+  getCurrentUser: async () => ({ id: 'student-1', email: 'student@example.test', name: 'طالب', role: 'STUDENT' }),
 }))
 mock.module('@/lib/notify', () => ({
   notify: async (...args: any[]) => { calls.push(`notify:${args[0]}:${args[2]}:${args[3]}`) },
