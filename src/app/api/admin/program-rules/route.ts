@@ -442,4 +442,5 @@ export async function PUT(req: NextRequest) {
     console.error('program-rules error:', e)
     return NextResponse.json({ error: e?.message || 'تعذر حفظ القواعد' }, { status: 500 })
   }
+  })
 }
