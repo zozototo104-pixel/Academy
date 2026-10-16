@@ -1,4 +1,6 @@
 /// <reference types="bun-types" />
+import { readFileSync } from 'fs'
+import { join } from 'path'
 import { beforeEach, describe, expect, mock, test } from 'bun:test'
 import { NextRequest } from 'next/server'
 
