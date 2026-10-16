@@ -343,7 +343,7 @@ export async function POST(req: NextRequest) {
           })),
         },
       },
-    })
+    }))
 
     if (stagedUpload) {
       return NextResponse.json({
