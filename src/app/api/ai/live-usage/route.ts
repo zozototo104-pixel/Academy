@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/auth'
-import { getGeminiLiveAllowance, type LivePurpose } from '@/lib/live-usage-guard'
+import { getGeminiLiveAllowance, settleGeminiLiveUsage, type LivePurpose } from '@/lib/live-usage-guard'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
