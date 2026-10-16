@@ -65,8 +65,8 @@ export async function GET() {
     const user = await getCurrentUser()
     if (!user) return NextResponse.json({ thesis: null, admission: null })
     const { admission } = await findLatestStudyAdmission(user, true)
-    const thesis = await db.thesisSubmission.findFirst({
-      where: { userId: user.id },
+    const thesis = admission ? await db.thesisSubmission.findFirst({
+      where: { userId: user.id, admissionId: admission.id },
       orderBy: { createdAt: 'desc' },
       // select صريح: نستثني recordingData (تسجيل ثقيل حتى 24MB لا يُنقل مع فتح التبويب)
       select: {
