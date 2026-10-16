@@ -115,7 +115,7 @@ function ensureCanvasArabicFont(fontPath = CANVAS_ARABIC_FONT_PATH) {
   canvasArabicFontRegistrationAttempted = true
   try {
     if (!existsSync(fontPath)) throw new Error(`Missing Arabic canvas font: ${fontPath}`)
-    GlobalFonts.registerFromPath(fontPath, CANVAS_ARABIC_FONT_FAMILY)
+    loadCanvasModule().GlobalFonts.registerFromPath(fontPath, CANVAS_ARABIC_FONT_FAMILY)
   } catch (error) {
     canvasArabicFontRegistrationError = error
     throw error
