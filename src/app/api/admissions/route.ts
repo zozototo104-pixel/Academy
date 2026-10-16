@@ -972,7 +972,7 @@ export async function GET(req: NextRequest) {
     }
 
     if (mine) {
-      const user = await getCurrentUser()
+      const user = await withTiming('db_admissions_current_user_mine', () => getCurrentUser())
       if (!user) return NextResponse.json({ applications: [], application: null })
       if (user.role === 'SUPERVISOR') {
         const apps = await db.admissionApplication.findMany({
