@@ -3746,9 +3746,9 @@ export function AdminBooksTab() {
                               )}
                             </>
                           )}
-                          {e.status === 'GENERATING' && examKickFailures[e.id]?.blocked && (
+                          {e.status === 'GENERATING' && kickFailure?.blocked && (
                             <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-2 text-[10px] font-bold text-amber-800">
-                              <p>توقفت محاولات الاستكمال التلقائي بعد {examKickFailures[e.id].count} محاولات فاشلة. آخر خطأ: {examKickFailures[e.id].message}</p>
+                              <p>توقفت محاولات الاستكمال التلقائي بعد {kickFailure.count} محاولات فاشلة. آخر خطأ: {kickFailure.message}</p>
                               <Button
                                 size="sm"
                                 variant="outline"
