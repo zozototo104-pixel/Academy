@@ -111,6 +111,19 @@ export function QuestionReviewDialog({
     if (open) load()
   }, [open, load])
 
+  const askCognitiveOverride = useCallback((message: string, details: string[]) => {
+    return new Promise<string | null>((resolve) => {
+      cognitiveOverrideResolveRef.current = resolve
+      setCognitiveOverrideDialog({ message, details, reason: '' })
+    })
+  }, [])
+
+  const closeCognitiveOverride = (reason: string | null) => {
+    cognitiveOverrideResolveRef.current?.(reason)
+    cognitiveOverrideResolveRef.current = null
+    setCognitiveOverrideDialog(null)
+  }
+
   const startEdit = (q: ReviewQuestion) => {
     const options = q.options || (q.type === 'TF' ? ['صح', 'خطأ'] : ['', '', '', ''])
     const correctAnswer = q.correctAnswer || '0'
