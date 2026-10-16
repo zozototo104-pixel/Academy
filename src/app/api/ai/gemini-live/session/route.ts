@@ -136,6 +136,7 @@ function buildSetup(variant: SetupVariant, model: string, systemInstruction: str
         generationConfig: {
           responseModalities: ['AUDIO'],
           speechConfig,
+          inputAudioTranscription: { languageCode: dialect },
         },
         systemInstruction: {
           parts: [{ text: instruction }],
