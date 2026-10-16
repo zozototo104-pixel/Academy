@@ -613,7 +613,7 @@ export function AdminQualityTab() {
       } catch (e: any) {
         if (String(e?.data?.code || '').includes('LEGACY_UNIT_GENERATION_CONFIRMATION_REQUIRED')) {
           const skippedBooks = Array.isArray(e?.data?.skippedBooks) ? e.data.skippedBooks.map((book: any) => book?.reason).filter(Boolean).join('\n') : ''
-          const ok = confirm(`${skippedBooks || e.message}\n\nلا يوجد فهرس معتمد لأي كتاب في هذا البرنامج. سيُستخدم التوليد القديم من نص الكتاب وبنك المعرفة. هل تريد المتابعة؟`)
+          const ok = await confirmAction({ title: 'تأكيد التوليد القديم للوحدات', description: `${skippedBooks || e.message}\n\nلا يوجد فهرس معتمد لأي كتاب في هذا البرنامج. سيُستخدم التوليد القديم من نص الكتاب وبنك المعرفة.`, confirmLabel: 'استخدم التوليد القديم', tone: 'warning' })
           if (ok) await runSuggestedUnits(program, { legacyConfirmed: true })
         } else if (String(e?.message || '').includes('توجد وحدات')) {
           setUnitSuggestionConflict({ program, existingUnits: Number(e?.data?.existingUnits || program.counts?.units || 0) })
