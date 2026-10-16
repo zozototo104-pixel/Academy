@@ -52,7 +52,7 @@ async function handler(req: NextRequest) {
     if (!usage.ok) {
       return NextResponse.json({ error: usage.message, liveUsage: usage }, { status: usage.status })
     }
-    return NextResponse.json({ ...payload, liveUsage: usage, sessionLimitMinutes: usage.sessionLimitMinutes })
+    return NextResponse.json({ ...payload, liveUsage: usage, sessionId: usage.sessionId || sessionId, sessionLimitMinutes: allowance.sessionLimitMinutes })
   } catch (e: any) {
     const msg = String(e?.message || e || '')
     if (msg === 'UNAUTHORIZED') return NextResponse.json({ error: 'يلزم تسجيل الدخول قبل إنشاء جلسة Gemini Live' }, { status: 401 })
