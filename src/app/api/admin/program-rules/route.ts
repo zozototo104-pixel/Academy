@@ -190,7 +190,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}))
     if (body?.action === 'renumber-units') {
-      const admin = await requireAdmin()
+      const admin = await withTiming('db_require_admin', () => requireAdmin())
       const programId = String(body?.programId || '').trim()
       if (!programId) return NextResponse.json({ error: 'معرّف البرنامج مطلوب' }, { status: 400 })
 
