@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
-import { enforceApiRateLimit } from '@/lib/rate-limit'
+import { enforceDatabaseApiRateLimit } from '@/lib/rate-limit'
 import { platformAgentComplete, platformAgentStream } from '@/lib/platform-agent'
 import {
   createHumanHandoffRequest,
