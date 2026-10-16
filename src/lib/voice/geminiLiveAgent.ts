@@ -501,7 +501,7 @@ export class GeminiLiveAgent {
     if (msg.error) {
       const error = msg.error
       this.cb.onError?.(
-        friendlyClientError(error.message || 'خطأ من Gemini Live'),
+        friendlyClientError(typeof error === 'string' ? error : error.message || 'خطأ من Gemini Live'),
         typeof error.code === 'string' ? error.code : undefined,
         typeof error.status === 'number' ? error.status : undefined,
       )
