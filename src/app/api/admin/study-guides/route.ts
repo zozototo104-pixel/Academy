@@ -112,6 +112,7 @@ export async function GET(req: NextRequest) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     return NextResponse.json({ error: 'تعذر تحميل أدلة الدراسة' }, { status: 500 })
   }
+  })
 }
 
 export async function POST(req: NextRequest) {
