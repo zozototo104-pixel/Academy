@@ -454,7 +454,7 @@ function buildVariantPdf(data: InvoicePdfData, writeArabic: ArabicWriter) {
 }
 
 const variants: Record<Variant, ArabicWriter> = {
-  'A-current': writeTextArabic(toVisualArabic),
+  'A-current': writeTextArabic(oldVisualArabicWithReverse),
   'B-shape-no-reverse': writeTextArabic((value) => ARABIC_RE.test(value) ? shapeArabicLogical(value) : value),
   'C-canvas-rtl': writeCanvasArabic(),
 }
@@ -467,3 +467,8 @@ for (const [variant, writer] of Object.entries(variants) as [Variant, ArabicWrit
   writeFileSync(file, pdf)
   console.log(`[invoice-variants] wrote ${file}`)
 }
+
+const realPdf = Buffer.from(buildInvoicePdf(data, { fontPaths: [FONT_PATH], compress: false }))
+const realFile = join(OUT_DIR, 'D-real-after-change.pdf')
+writeFileSync(realFile, realPdf)
+console.log(`[invoice-variants] wrote ${realFile}`)
