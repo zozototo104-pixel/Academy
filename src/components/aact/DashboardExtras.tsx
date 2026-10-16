@@ -471,15 +471,16 @@ export function PaymentsTab() {
   if (loading) return <div className='flex h-40 items-center justify-center'><Loader2 className='h-8 w-8 animate-spin text-[#c9a227]' /></div>
 
   const approvedPlanIds = new Set(tuitionPlans.filter((p) => p.appealStatus === 'APPROVED').map((p) => p.admissionId))
+  const paymentHasActiveWaiver = (p: Payment) => ['REQUESTED', 'VERIFIED'].includes(String(p.waiverStatus || '')) || (p.waiverCodes || []).some((code) => ['ISSUED', 'VERIFIED'].includes(String(code.status || '')))
   const tuitionRemainingDue = tuitionPlans.filter((p) => p.appealStatus === 'APPROVED' && p.totalTuition > 0).reduce((s, p) => s + p.remainingTuition, 0)
   const invoiceDueOutsideApprovedPlans = payments
     .filter((p) => p.status === 'UNPAID')
-    .filter((p) => !(p.admissionId && approvedPlanIds.has(p.admissionId) && ['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose)))
+    .filter((p) => paymentHasActiveWaiver(p) || !(p.admissionId && approvedPlanIds.has(p.admissionId) && ['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose)))
     .reduce((s, p) => s + p.amount, 0)
   const totalDue = Math.round((invoiceDueOutsideApprovedPlans + tuitionRemainingDue) * 100) / 100
   const totalPaid = payments.filter((p) => p.status === 'PAID').reduce((s, p) => s + p.amount, 0)
   const displayPayments = [...payments]
-    .filter((p) => !(p.status === 'UNPAID' && p.admissionId && approvedPlanIds.has(p.admissionId) && p.purpose === 'TUITION'))
+    .filter((p) => paymentHasActiveWaiver(p) || !(p.status === 'UNPAID' && p.admissionId && approvedPlanIds.has(p.admissionId) && p.purpose === 'TUITION'))
     .sort((a, b) => new Date(b.paidAt || b.createdAt).getTime() - new Date(a.paidAt || a.createdAt).getTime())
   const plansWithBalance = tuitionPlans.filter((p) => p.totalTuition > 0 && p.remainingTuition > 0)
 
@@ -640,7 +641,7 @@ export function PaymentsTab() {
                       </div>
                     </div>
                   )}
-                  {p.status === 'UNPAID' && p.waiverCodes?.[0] && (
+                  {p.status === 'UNPAID' && (p.waiverCodes?.[0] || ['REQUESTED', 'VERIFIED'].includes(String(p.waiverStatus || ''))) && (
                     <div className='mt-3 rounded-xl border border-blue-100 bg-blue-50 p-3 text-[11px] font-bold text-blue-950'>
                       <div className='flex flex-wrap items-center justify-between gap-2'>
                         <span>لديك كود إعفاء من الإدارة؟</span>

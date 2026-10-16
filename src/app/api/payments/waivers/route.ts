@@ -17,6 +17,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ waiver, message: 'تم التحقق من كود الإعفاء. بانتظار اعتماد الإدارة النهائي.' })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'يجب تسجيل الدخول' }, { status: 401 })
-    return NextResponse.json({ error: e?.message || 'تعذر التحقق من كود الإعفاء' }, { status: 400 })
+    const status = Number(e?.status || 400)
+    return NextResponse.json({ error: e?.message || 'تعذر التحقق من كود الإعفاء', code: e?.code || undefined }, { status })
   }
 }

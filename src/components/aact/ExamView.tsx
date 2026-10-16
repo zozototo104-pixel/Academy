@@ -108,7 +108,7 @@ function fmtTime(totalSec: number): string {
 function examErrorMessage(error: ApiError) {
   if (error.code === 'SEM1_REQUIRED') return 'يجب اجتياز امتحان الفصل الدراسي الأول أولاً قبل فتح امتحان الفصل الثاني.'
   if (error.code === 'EXAM_NOT_READY_MARKED') return 'اضغط زر «جاهز للامتحان» من بوابة الطالب قبل بدء الاختبار.'
-  if (error.code === 'PENDING_PAYMENT') return 'تسجيلك بانتظار الدفع. سيتم تحويلك إلى صفحة السداد.'
+  if (error.code === 'PENDING_PAYMENT' || error.code === 'ENROLLMENT_NOT_ACTIVE') return 'تسجيلك غير مفعّل. افتح بوابة الدفعات لاستكمال السداد أو اعتماد الإعفاء.'
   if (error.code === 'PASSED_ALREADY' || error.code === 'ALREADY_PASSED') return 'لقد اجتزت هذا الاختبار سابقاً. سيتم توجيهك للنتائج.'
   if (error.code === 'SUBMITTED' || error.code === 'ATTEMPT_SUBMITTED') return 'محاولتك محفوظة وقيد التصحيح. سيتم توجيهك للنتائج.'
   if (error.code === 'ATTEMPT_EXPIRED' || error.code === 'UNIT_EXAM_EXPIRED') return 'انتهت المحاولة وحُسبت صفر'
@@ -238,7 +238,7 @@ export function ExamView() {
       .catch((e: ApiError) => {
         const message = examErrorMessage(e)
         toast({ title: 'تنبيه الاختبار', description: message, variant: 'destructive' })
-        if (e.status === 402 || e.code === 'PENDING_PAYMENT') navigate('dashboard', { programId: String(e.data?.programId || ''), tab: 'payments' })
+        if (e.status === 402 || e.code === 'PENDING_PAYMENT' || e.code === 'ENROLLMENT_NOT_ACTIVE') navigate('dashboard', { programId: String(e.data?.programId || ''), tab: 'payments' })
         else if ((e.status === 403 || e.status === 409) && ['ALREADY_PASSED', 'PASSED_ALREADY', 'SUBMITTED', 'ATTEMPT_SUBMITTED', 'ATTEMPT_EXPIRED', 'UNIT_EXAM_EXPIRED', 'ATTEMPT_ALREADY_CLAIMED', 'EXAM_HAS_NO_QUESTIONS'].includes(String(e.code || ''))) {
           submittedRef.current = true
           setSecondsLeft(null)

@@ -680,6 +680,7 @@ interface PaymentWaiverCodeRow {
   requestedAmount?: number | null
   reason?: string | null
   status: string
+  emailStatus?: 'SENT' | 'FAILED' | 'SKIPPED' | string | null
   expiresAt?: string | null
   verifiedAt?: string | null
   approvedAt?: string | null
@@ -883,7 +884,7 @@ export function AdminFinanceTab() {
       if (amountText === null) return
       requestedAmount = Number(amountText)
       const isApplicationFee = payment.purpose === 'APPLICATION_FEE'
-      if (!Number.isFinite(requestedAmount) || requestedAmount <= 0 || (!isApplicationFee && requestedAmount >= Number(payment.amount || 0)) || (isApplicationFee && requestedAmount <= Number(payment.amount || 0))) {
+      if (!Number.isFinite(requestedAmount) || requestedAmount <= 0 || (!isApplicationFee && requestedAmount > Number(payment.amount || 0)) || (isApplicationFee && requestedAmount <= Number(payment.amount || 0))) {
         toast({
           title: 'مبلغ غير صالح',
           description: isApplicationFee ? 'في فاتورة التقديم، اكتب مبلغاً أكبر من 30$ حتى يخصم 30$ للتقديم والباقي من رسوم البرنامج.' : 'الإعفاء الجزئي يجب أن يكون أكبر من صفر وأقل من المبلغ المتبقي.',
@@ -906,13 +907,18 @@ export function AdminFinanceTab() {
     if (reason === null) return
     setWaiverBusy(payment.id)
     try {
-      const result = await api<{ code: string; waiver: PaymentWaiverCodeRow }>('/api/admin/payments/waivers', {
+      const result = await api<{ code: string; waiver: PaymentWaiverCodeRow; emailStatus?: 'SENT' | 'FAILED' | 'SKIPPED' }>('/api/admin/payments/waivers', {
         method: 'POST',
         body: JSON.stringify({ paymentId: payment.id, waiverType, requestedAmount, reason }),
       })
       setGeneratedWaiverCodes((prev) => ({ ...prev, [payment.id]: result.code }))
       await copyWaiverCode(payment.id, result.code)
-      toast({ title: 'تم توليد ونسخ كود الإعفاء', description: `الكود: ${result.code}` })
+      const mailNote = result.emailStatus === 'SENT'
+        ? 'تم إرسال البريد ✅'
+        : result.emailStatus === 'FAILED'
+          ? 'فشل إرسال البريد، انسخ الكود يدوياً'
+          : 'لم يتم إرسال بريد، انسخ الكود يدوياً'
+      toast({ title: 'تم توليد ونسخ كود الإعفاء', description: `الكود: ${result.code} — ${mailNote}` })
       load()
     } catch (e: any) {
       toast({ title: 'تعذر توليد كود الإعفاء', description: e.message, variant: 'destructive' })

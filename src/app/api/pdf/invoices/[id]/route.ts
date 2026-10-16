@@ -50,20 +50,29 @@ function formatDate(value: Date | string | null | undefined) {
 
 function purposeLabel(value?: string | null) {
   const labels: Record<string, string> = {
-    APPLICATION_FEE: 'رسوم تقديم / Application Fee',
-    TUITION: 'رسوم دراسية / Tuition',
-    TUITION_INSTALLMENT: 'قسط رسوم دراسية / Tuition Installment',
-    ACCREDITATION_APP: 'رسوم تقديم اعتماد / Accreditation Application',
-    ACCREDITATION_FEE: 'رسوم تقديم اعتماد / Accreditation Fee',
-    ACCREDITATION: 'اعتماد / Accreditation',
-    SERVICE_FEE: 'رسوم خدمة / Service Fee',
-    OTHER: 'أخرى / Other',
+    APPLICATION_FEE: 'Application Fee',
+    TUITION: 'Tuition Invoice',
+    TUITION_INSTALLMENT: 'Tuition Installment',
+    ACCREDITATION_APP: 'Accreditation Application Fee',
+    ACCREDITATION_FEE: 'Accreditation Fee',
+    ACCREDITATION: 'Accreditation',
+    SERVICE_FEE: 'Service Fee',
+    OTHER: 'Other Fee',
   }
   return labels[safeText(value, '')] || safeText(value, 'Other')
 }
 
-function statusLabel(value?: string | null) {
-  return value === 'PAID' ? 'مسددة / PAID' : 'غير مسددة / UNPAID'
+function statusLabel(value?: string | null, waiverStatus?: string | null) {
+  if (value === 'PAID') return 'PAID / Receipt issued'
+  if (value === 'WAIVED') return 'WAIVED / Scholarship or waiver settled'
+  if (waiverStatus === 'APPROVED' || waiverStatus === 'PROGRAM_APPLIED') return 'WAIVED / Scholarship or waiver settled'
+  if (waiverStatus === 'REQUESTED' || waiverStatus === 'VERIFIED') return 'WAIVER PENDING / awaiting approval'
+  return 'UNPAID / Amount due'
+}
+
+function pdfSafeText(value: unknown, fallback = 'See student portal') {
+  const text = safeText(value, fallback)
+  return /[\u0600-\u06FF\u0750-\u077F]/.test(text) ? fallback : text
 }
 
 function methodLabel(value?: string | null) {
@@ -140,23 +149,23 @@ function buildInvoiceSvg(data: {
 }) {
   const descLines = wrapText(data.description, 72).slice(0, 4)
   const programLines = wrapText(data.programOrService, 66).slice(0, 3)
-  const isPaid = data.status === 'مسددة / PAID'
-  const statusColor = isPaid ? '#047857' : '#b45309'
-  const statusBg = isPaid ? '#d1fae5' : '#fef3c7'
+  const isSettled = data.status.startsWith('PAID') || data.status.startsWith('WAIVED')
+  const statusColor = isSettled ? '#047857' : '#b45309'
+  const statusBg = isSettled ? '#d1fae5' : '#fef3c7'
 
   const invoiceRows = lineRows([
-    { label: 'رقم الفاتورة / Invoice No.', value: data.invoiceNo, dir: 'ltr' },
-    { label: 'رقم الإيصال / Receipt No.', value: data.receiptNo || '—', dir: 'ltr' },
-    { label: 'تاريخ الإصدار / Issue Date', value: data.issueDate, dir: 'ltr' },
-    { label: 'تاريخ السداد / Paid At', value: data.paidAt, dir: 'ltr' },
-    { label: 'طريقة الدفع / Payment Method', value: data.method, dir: 'ltr' },
+    { label: 'Invoice No.', value: data.invoiceNo, dir: 'ltr' },
+    { label: 'Receipt No.', value: data.receiptNo || '—', dir: 'ltr' },
+    { label: 'Issue Date', value: data.issueDate, dir: 'ltr' },
+    { label: 'Paid / Waived At', value: data.paidAt, dir: 'ltr' },
+    { label: 'Payment Method', value: data.method, dir: 'ltr' },
   ], 262, { xLabel: 690, xValue: 92, rowH: 38 })
 
   const payerRows = lineRows([
-    { label: 'اسم الدافع / Payer', value: data.payerName },
-    { label: 'البريد / Email', value: data.payerEmail, dir: 'ltr' },
-    { label: 'الدولة / Country', value: data.payerCountry },
-    { label: 'مرجع الطلب / Reference', value: data.reference, dir: 'ltr' },
+    { label: 'Payer', value: data.payerName, dir: 'ltr' },
+    { label: 'Email', value: data.payerEmail, dir: 'ltr' },
+    { label: 'Country', value: data.payerCountry, dir: 'ltr' },
+    { label: 'Reference', value: data.reference, dir: 'ltr' },
   ], 500, { xLabel: 690, xValue: 92, rowH: 38 })
 
   const descSvg = descLines.map((l, i) => text(690, 772 + i * 30, l, { size: 17, fill: TEXT, weight: 700, anchor: 'end', dir: 'rtl' })).join('')
@@ -169,39 +178,39 @@ function buildInvoiceSvg(data: {
   <rect x="0" y="138" width="${PAGE_W}" height="8" fill="${BRAND_GOLD}"/>
   <circle cx="704" cy="70" r="38" fill="${BRAND_GOLD}" opacity="0.95"/>
   ${text(704, 80, 'AACT', { size: 24, fill: '#ffffff', weight: 900, anchor: 'middle', dir: 'ltr', family: 'Arial,sans-serif' })}
-  ${text(665, 54, 'الأكاديمية الأمريكية للاستشارات والتدريب', { size: 24, fill: '#ffffff', weight: 900, anchor: 'end', dir: 'rtl' })}
-  ${text(665, 88, 'American Academy for Consulting and Training', { size: 18, fill: '#dbeafe', weight: 700, anchor: 'end', dir: 'ltr', family: 'Arial,sans-serif' })}
-  ${text(86, 62, 'OFFICIAL INVOICE', { size: 27, fill: '#ffffff', weight: 900, anchor: 'start', dir: 'ltr', family: 'Arial,sans-serif' })}
-  ${text(86, 96, 'فاتورة رسمية قابلة للطباعة', { size: 18, fill: '#f7edd0', weight: 800, anchor: 'start', dir: 'rtl' })}
+  ${text(665, 54, 'American Academy for Consulting and Training', { size: 24, fill: '#ffffff', weight: 900, anchor: 'end', dir: 'ltr', family: 'Arial,sans-serif' })}
+  ${text(665, 88, 'AACT Platform', { size: 18, fill: '#dbeafe', weight: 700, anchor: 'end', dir: 'ltr', family: 'Arial,sans-serif' })}
+  ${text(86, 62, data.status.startsWith('PAID') || data.status.startsWith('WAIVED') ? 'OFFICIAL RECEIPT' : 'OFFICIAL INVOICE', { size: 27, fill: '#ffffff', weight: 900, anchor: 'start', dir: 'ltr', family: 'Arial,sans-serif' })}
+  ${text(86, 96, data.status, { size: 18, fill: '#f7edd0', weight: 800, anchor: 'start', dir: 'ltr', family: 'Arial,sans-serif' })}
 
   <rect x="52" y="178" width="690" height="64" rx="20" fill="${statusBg}" stroke="${statusColor}" stroke-width="1.2"/>
   ${text(705, 218, data.status, { size: 22, fill: statusColor, weight: 900, anchor: 'end', dir: 'rtl' })}
   ${text(90, 218, data.amount, { size: 24, fill: BRAND_NAVY, weight: 900, anchor: 'start', dir: 'ltr', family: 'Arial,sans-serif' })}
 
   <rect x="52" y="258" width="690" height="188" rx="22" fill="#f8fafc" stroke="#e2e8f0"/>
-  ${text(690, 242, 'بيانات الفاتورة / Invoice Details', { size: 19, fill: BRAND_NAVY, weight: 900, anchor: 'end', dir: 'rtl' })}
+  ${text(690, 242, 'Invoice Details', { size: 19, fill: BRAND_NAVY, weight: 900, anchor: 'end', dir: 'ltr', family: 'Arial,sans-serif' })}
   ${invoiceRows.svg}
 
   <rect x="52" y="490" width="690" height="162" rx="22" fill="#ffffff" stroke="#e2e8f0"/>
-  ${text(690, 478, 'بيانات الدافع / Payer Details', { size: 19, fill: BRAND_NAVY, weight: 900, anchor: 'end', dir: 'rtl' })}
+  ${text(690, 478, 'Payer Details', { size: 19, fill: BRAND_NAVY, weight: 900, anchor: 'end', dir: 'ltr', family: 'Arial,sans-serif' })}
   ${payerRows.svg}
 
   <rect x="52" y="682" width="690" height="190" rx="22" fill="#fffbeb" stroke="#fde68a"/>
-  ${text(690, 670, 'الخدمة أو البرنامج / Service or Program', { size: 19, fill: BRAND_NAVY, weight: 900, anchor: 'end', dir: 'rtl' })}
+  ${text(690, 670, 'Service or Program', { size: 19, fill: BRAND_NAVY, weight: 900, anchor: 'end', dir: 'ltr', family: 'Arial,sans-serif' })}
   ${programSvg}
   <line x1="86" y1="736" x2="706" y2="736" stroke="#f4d675" stroke-width="1"/>
-  ${text(690, 760, 'الوصف / Description', { size: 16, fill: MUTED, weight: 900, anchor: 'end', dir: 'rtl' })}
+  ${text(690, 760, 'Description', { size: 16, fill: MUTED, weight: 900, anchor: 'end', dir: 'ltr', family: 'Arial,sans-serif' })}
   ${descSvg}
 
   <rect x="52" y="900" width="690" height="96" rx="22" fill="${SOFT_GOLD}" stroke="#ead389"/>
-  ${text(690, 938, 'الغرض / Purpose', { size: 17, fill: MUTED, weight: 900, anchor: 'end', dir: 'rtl' })}
+  ${text(690, 938, 'Purpose', { size: 17, fill: MUTED, weight: 900, anchor: 'end', dir: 'ltr', family: 'Arial,sans-serif' })}
   ${text(690, 970, data.purpose, { size: 19, fill: BRAND_NAVY, weight: 900, anchor: 'end', dir: 'rtl' })}
   ${text(92, 956, 'TOTAL', { size: 16, fill: MUTED, weight: 900, anchor: 'start', dir: 'ltr', family: 'Arial,sans-serif' })}
   ${text(92, 982, data.amount, { size: 25, fill: BRAND_NAVY, weight: 900, anchor: 'start', dir: 'ltr', family: 'Arial,sans-serif' })}
 
   <line x1="52" y1="1030" x2="742" y2="1030" stroke="#e2e8f0"/>
-  ${text(742, 1056, 'تم إصدار هذه الفاتورة إلكترونياً من منصة AACT. لا تتطلب توقيعاً يدوياً.', { size: 15, fill: MUTED, weight: 700, anchor: 'end', dir: 'rtl' })}
-  ${text(52, 1056, 'Generated electronically by AACT Platform.', { size: 13, fill: MUTED, weight: 700, anchor: 'start', dir: 'ltr', family: 'Arial,sans-serif' })}
+  ${text(742, 1056, 'Generated electronically by AACT Platform. No manual signature required.', { size: 15, fill: MUTED, weight: 700, anchor: 'end', dir: 'ltr', family: 'Arial,sans-serif' })}
+  ${text(52, 1056, data.status, { size: 13, fill: MUTED, weight: 700, anchor: 'start', dir: 'ltr', family: 'Arial,sans-serif' })}
   ${text(397, 1088, 'aactacademy.com', { size: 13, fill: BRAND_NAVY, weight: 800, anchor: 'middle', dir: 'ltr', family: 'Arial,sans-serif' })}
 </svg>`
 }
@@ -287,15 +296,15 @@ export async function GET(_req: NextRequest, context: RouteContext) {
     const svg = buildInvoiceSvg({
       invoiceNo: payment.invoiceNo,
       receiptNo: payment.receiptNo,
-      status: statusLabel(payment.status),
+      status: statusLabel(payment.status, payment.waiverStatus),
       issueDate: formatDate(payment.createdAt),
       paidAt: formatDate(payment.paidAt),
-      payerName,
+      payerName: pdfSafeText(payerName, 'AACT Student'),
       payerEmail,
-      payerCountry,
-      programOrService,
+      payerCountry: pdfSafeText(payerCountry, 'Student country in portal'),
+      programOrService: pdfSafeText(programOrService, 'Program / service details in portal'),
       purpose: purposeLabel(payment.purpose),
-      description: safeText(payment.description, purposeLabel(payment.purpose)),
+      description: pdfSafeText(payment.description, purposeLabel(payment.purpose)),
       amount: formatMoney(payment.amount, payment.currency),
       method: methodLabel(payment.method || payment.provider),
       reference,
