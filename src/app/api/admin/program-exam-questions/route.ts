@@ -322,6 +322,17 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    const cognitive = validateCognitiveDistribution(publicationCandidates, 'PROGRAM')
+    if (!cognitive.ok) {
+      if (!overrideCognitivePolicy || overrideReason.length < 8) {
+        return NextResponse.json(
+          { error: cognitivePolicyArabicMessage(cognitive), details: cognitive.details, code: 'COGNITIVE_DISTRIBUTION_FAILED' },
+          { status: 409 }
+        )
+      }
+      await audit({ id: admin.id, name: admin.name }, 'OVERRIDE_COGNITIVE_DISTRIBUTION', 'ProgramExam', examId, `${overrideReason} — ${cognitive.details.join(' | ')}`)
+    }
+
     // اعتماد كل الأسئلة المعلقة بعد تنظيف أي تسميات تقنية تسربت من بنك المعرفة.
     const pendingQuestions = await db.programQuestion.findMany({
       where: { examId, status: 'PENDING_REVIEW' },
