@@ -54,11 +54,14 @@ export async function jsonWithTimings<T>(fn: () => Promise<TimedJsonResult<T>> |
 export async function withTimedResponse(fn: () => Promise<Response> | Response): Promise<Response> {
   const { result, metrics } = await collectTimings(async () => {
     const response = await fn()
-    const bytes = await withTiming('serialize', async () => {
-      const body = await response.clone().arrayBuffer()
-      return body.byteLength
-    })
-    return { response, bytes }
+    const knownBytes = response.headers.get('X-Response-Bytes') || response.headers.get('content-length')
+    if (knownBytes && /^\d+$/.test(knownBytes)) {
+      return { response, bytes: Number(knownBytes), body: response.body }
+    }
+    const body = response.body
+      ? await withTiming('serialize', () => response.arrayBuffer())
+      : new ArrayBuffer(0)
+    return { response, bytes: body.byteLength, body }
   })
 
   const headers = new Headers(result.response.headers)
@@ -66,7 +69,7 @@ export async function withTimedResponse(fn: () => Promise<Response> | Response):
   const serverTiming = serverTimingHeader(metrics)
   if (serverTiming) headers.set('Server-Timing', serverTiming)
 
-  return new Response(result.response.body, {
+  return new Response(result.body, {
     status: result.response.status,
     statusText: result.response.statusText,
     headers,
