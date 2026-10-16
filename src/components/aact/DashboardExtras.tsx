@@ -266,7 +266,7 @@ export function PaymentsTab() {
     if (!target) return
     setAutoOpenedInvoiceNo(initialInvoiceNo)
     if (target.status === 'UNPAID') {
-      const firstEnabled = payConfig?.methods?.find((m) => m.enabled)?.id
+      const firstEnabled = visiblePaymentMethods(payConfig?.methods).find((m) => m.enabled)?.id
       if (firstEnabled) setMethod(firstEnabled)
       setPayTarget(target)
     } else {
