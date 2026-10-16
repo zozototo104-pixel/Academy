@@ -153,12 +153,24 @@ async function listQuestions(programId: string, status?: string | null) {
       difficulty: true,
       status: true,
       qualityFlags: true,
+      reviewNotes: true,
       generatedBy: true,
       rejectedReason: true,
       createdAt: true,
     },
   }))
-  return items.map((item) => ({ ...item, verifierReason: null }))
+  const preview = (value?: string | null) => {
+    const text = String(value || '').trim()
+    return text ? text.slice(0, 200) : null
+  }
+  return items.map((item) => ({
+    ...item,
+    modelAnswer: preview(item.modelAnswer),
+    sourceEvidence: preview(item.sourceEvidence),
+    rejectedReason: preview(item.rejectedReason),
+    verifierReason: preview(item.reviewNotes),
+    reviewNotes: undefined,
+  }))
 }
 
 export async function GET(req: NextRequest) {
