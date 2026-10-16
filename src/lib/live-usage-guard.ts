@@ -67,6 +67,25 @@ export function liveSessionLimitMinutes(role: unknown, purpose: LivePurpose): nu
   return envNum('AACT_LIVE_SESSION_MAX_MINUTES_STUDENT', envNum('AACT_LIVE_SESSION_MAX_MINUTES', 10))
 }
 
+const ADMIN_UNLIMITED_LIVE_MINUTES = 999999
+
+function adminLiveDecision(role: unknown, purpose: LivePurpose, month: string, sessionId?: string): LiveUsageDecision {
+  return {
+    ok: true,
+    status: 200,
+    purpose,
+    month,
+    freeMonthlyLimitMinutes: ADMIN_UNLIMITED_LIVE_MINUTES,
+    sessionLimitMinutes: liveSessionLimitMinutes(role, purpose),
+    usedFreeMinutes: 0,
+    usedPaidMinutes: 0,
+    paidRemainingMinutes: 0,
+    totalRemainingMinutes: ADMIN_UNLIMITED_LIVE_MINUTES,
+    sessionsUsed: 0,
+    ...(sessionId ? { sessionId } : {}),
+  }
+}
+
 async function activePaidCredits(userId: string, now: Date) {
   return db.aiLiveCredit.findMany({
     where: {
