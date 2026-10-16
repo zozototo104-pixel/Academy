@@ -954,12 +954,14 @@ export function AdminBooksTab() {
           body: JSON.stringify({ examId: generatingExam.id, action: 'kick' }),
         })
         if (d.ok === false) throw new Error(d.error || 'تعذر استكمال توليد الامتحان')
-        await loadProgramData(programId, true)
         if (d.done || d.status === 'REVIEW') {
+          await loadProgramData(programId, true)
           toast({ title: 'اكتمل توليد الامتحان', description: `تم إنشاء ${d.questionCount || generatingExam.questionCount} سؤالاً وتحويلها إلى مراجعة الإدارة` })
+        } else {
+          await loadExamProgress(programId)
         }
       } catch (err: any) {
-        await loadProgramData(programId, true)
+        await loadExamProgress(programId).catch(() => null)
         // لا نزعج الإدارة بتوست كل عدة ثوانٍ؛ تظهر التفاصيل داخل بطاقة الامتحان.
         console.error('auto exam generation step failed:', err)
       } finally {
