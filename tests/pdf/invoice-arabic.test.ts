@@ -63,20 +63,28 @@ describe('Arabic invoice PDF rendering', () => {
     expect(statSync(fontPath).size).toBeGreaterThan(100 * 1024)
   })
 
-  test('embeds the AmiriArabic font without using jsPDF setR2L double-flip mode', () => {
+  test('embeds the AmiriArabic font without using jsPDF RTL double-flip mode', () => {
     const originalSetR2L = (jsPDF as any).API.setR2L
-    let calls = 0
+    const originalIsInputRtl = (jsPDF as any).API.isInputRtl
+    let r2lCalls = 0
+    let inputRtlCalls = 0
     ;(jsPDF as any).API.setR2L = function (...args: any[]) {
-      calls += 1
+      r2lCalls += 1
       return originalSetR2L?.apply(this, args)
+    }
+    ;(jsPDF as any).API.isInputRtl = function (...args: any[]) {
+      inputRtlCalls += 1
+      return originalIsInputRtl?.apply(this, args)
     }
     try {
       const pdf = buildInvoicePdf(sampleInvoice(), { fontPaths: [fontPath] })
       expect(pdf.byteLength).toBeGreaterThan(1000)
       expect(pdfOutput(pdf)).toContain(ARABIC_FONT_NAME)
-      expect(calls).toBe(0)
+      expect(r2lCalls).toBe(0)
+      expect(inputRtlCalls).toBe(0)
     } finally {
       ;(jsPDF as any).API.setR2L = originalSetR2L
+      ;(jsPDF as any).API.isInputRtl = originalIsInputRtl
     }
   })
 
