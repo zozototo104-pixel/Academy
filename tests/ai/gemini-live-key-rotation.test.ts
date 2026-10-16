@@ -155,6 +155,8 @@ describe('Gemini Live key rotation uses the text AI router state', () => {
 
     expect(response.status).toBe(200)
     expect(payload).toMatchObject({ ok: true, model: 'gemini-3.1-flash-live-preview' })
+    expect(payload.setup.setup.systemInstruction.parts[0].text.startsWith(dialectInstruction('ar-PS'))).toBe(true)
+    expect(payload.sdkConfig.systemInstruction.startsWith(dialectInstruction('ar-PS'))).toBe(true)
     expect(fetchKeys).toEqual(['AIzaBAD1111', 'AIzaGOOD2222'])
 
     const cooldownRaw = values.get('AI_COOLDOWN:GEMINI:1:gemini-live')
