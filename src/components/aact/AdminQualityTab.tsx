@@ -1221,7 +1221,7 @@ export function AdminQualityTab() {
         setThesisTopicDialogOpen(false)
       }
     } catch (e: any) {
-      alert(e?.message || 'تعذر تنفيذ العملية')
+      await alertAction({ title: 'تعذر تنفيذ العملية', description: e?.message || 'لم تكتمل عملية عناوين البحث.', tone: 'danger' })
     } finally {
       setThesisTopicBusy(false)
     }
