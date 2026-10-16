@@ -144,7 +144,7 @@ export function validateAdmissionFileSignature(input: {
 
   const ext = extensionOf(fileName)
   const mime = normalizedMime(input.mimeType)
-  const detected = detectImageOrPdfOrOffice(buffer)
+  const detected = detectImageOrPdfOrOffice(buffer, ext)
   const requestedTextKind = kindFromTextRequest(ext, mime)
   const kind = detected || (requestedTextKind && isLikelyUtf8Text(buffer) ? requestedTextKind : null)
 
