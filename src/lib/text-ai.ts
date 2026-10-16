@@ -1461,8 +1461,10 @@ export type GeminiLiveRouterKey = { key: string; keyIndex: number }
 function isAuthOrNoBalanceMemoryCooling(provider: string, key: string): boolean {
   const item = activeMemoryCooldown(provider, key)
   if (!item) return false
-  const status = Number(item.status || 0)
-  if (status === 401 || status === 403 || status === 402) return true
+  if (item.status !== undefined && item.status !== null) {
+    const status = Number(item.status)
+    return status === 401 || status === 402 || status === 403
+  }
   return /AUTH|UNAUTHENTICATED|PERMISSION_DENIED|API_KEY|NO_BALANCE|INSUFFICIENT|BILLING|PAYMENT_REQUIRED/i.test(item.reason)
 }
 
