@@ -206,6 +206,8 @@ export function HomeView() {
 
   useEffect(() => {
     let alive = true
+    setProgramsError(false)
+    setLoading(true)
     let hasCachedList = false
     let idleId: number | null = null
     let timeoutId: ReturnType<typeof setTimeout> | null = null
