@@ -171,7 +171,7 @@ export async function reserveGeminiLiveUsage(input: {
       return {
         ok: true,
         status: 200,
-        purpose: existing.purpose,
+        purpose: purposeName(existing.purpose),
         month: existing.month,
         freeMonthlyLimitMinutes,
         sessionLimitMinutes: existing.reservedMinutes,
