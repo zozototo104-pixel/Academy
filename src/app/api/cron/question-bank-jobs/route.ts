@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   const outcomes: { jobId: string; status: string }[] = []
 
   while (Date.now() < endAt - 5_000) {
-    const job = await runNextQuestionBankGenerationJobStep()
+    const job = await runNextQuestionBankGenerationJobStep(undefined, { queuedOnly: true })
     if (!job) break
     outcomes.push({ jobId: job.id, status: job.status })
     if (job.status !== 'QUEUED') break
