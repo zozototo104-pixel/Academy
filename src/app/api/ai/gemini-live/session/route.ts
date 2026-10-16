@@ -197,46 +197,23 @@ function speechConfigForVoice(voice: string) {
   }
 }
 
-function buildSetup(variant: SetupVariant, model: string, systemInstruction: string, voice: string, dialect: string) {
+export function buildGeminiLiveSetup(_variant: SetupVariant, model: string, systemInstruction: string, voice: string, dialect: string) {
   const instruction = systemInstruction.slice(0, 32000)
-  const speechConfig = speechConfigForVoice(voice)
-
-  if (variant === 'bare') {
-    return {
-      setup: {
-        model: `models/${model}`,
-        responseModalities: ['AUDIO'],
-        speechConfig,
-        inputAudioTranscription: { languageCode: dialect },
-      },
-    }
-  }
-
-  if (variant === 'generationConfig') {
-    return {
-      setup: {
-        model: `models/${model}`,
-        generationConfig: {
-          responseModalities: ['AUDIO'],
-          speechConfig,
-          inputAudioTranscription: { languageCode: dialect },
-        },
-        systemInstruction: {
-          parts: [{ text: instruction }],
-        },
-      },
-    }
-  }
-
   return {
     setup: {
       model: `models/${model}`,
-      responseModalities: ['AUDIO'],
-      speechConfig,
-      inputAudioTranscription: { languageCode: dialect },
+      generationConfig: {
+        responseModalities: ['AUDIO'],
+        speechConfig: {
+          ...speechConfigForVoice(voice),
+          languageCode: dialect,
+        },
+      },
       systemInstruction: {
         parts: [{ text: instruction }],
       },
+      inputAudioTranscription: {},
+      outputAudioTranscription: {},
     },
   }
 }
