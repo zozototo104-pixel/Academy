@@ -3,6 +3,7 @@ import { transcribeAudioBase64 } from '@/lib/asr'
 import { requireUser } from '@/lib/auth'
 import { AI_RATE_LIMITS, base64DecodedSize, enforceUserAiRateLimit } from '@/lib/ai-rate-limits'
 import { getSetting } from '@/lib/settings'
+import { normalizeVoiceDialect, VOICE_DEFAULT_DIALECT } from '@/lib/voice-dialect'
 
 // POST /api/ai/asr — تحويل الصوت المسجل إلى نص (احتياطي عندما لا يتوفر Web Speech API)
 export async function POST(req: NextRequest) {
@@ -26,8 +27,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'حجم التسجيل كبير جداً — سجل مقطعاً أقصر' }, { status: 413 })
     }
 
-    const defaultDialect = await getSetting('VOICE_DEFAULT_DIALECT').catch(() => process.env.VOICE_DEFAULT_DIALECT || 'ar-PS')
-    const safeDialect = /^ar-[A-Z]{2}$/.test(dialect) ? dialect : (/^ar-[A-Z]{2}$/.test(defaultDialect) ? defaultDialect : 'ar-PS')
+    const defaultDialect = await getSetting('VOICE_DEFAULT_DIALECT').catch(() => process.env.VOICE_DEFAULT_DIALECT || VOICE_DEFAULT_DIALECT)
+    const safeDialect = normalizeVoiceDialect(dialect || defaultDialect)
     const text = await transcribeAudioBase64(audioBase64, { mimeType: mimeType || 'audio/webm', languageCode: safeDialect })
 
     return NextResponse.json({ text })
