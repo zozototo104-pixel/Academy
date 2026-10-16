@@ -300,7 +300,7 @@ export async function POST(req: NextRequest) {
     let reference = ''
     for (let i = 0; i < 5; i++) {
       reference = strongAdmissionReference()
-      const exists = await db.admissionApplication.findUnique({ where: { reference } })
+      const exists = await withTiming('db_admissions_reference_exists', () => db.admissionApplication.findUnique({ where: { reference } }))
       if (!exists) break
     }
 
