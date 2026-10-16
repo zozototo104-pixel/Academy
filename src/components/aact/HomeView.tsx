@@ -281,9 +281,10 @@ export function HomeView() {
             }
           }
         })
-        .catch(() => {
-          if (!alive) return
-          setProgramCount((current) => current ?? null)
+        .catch((error) => {
+          if (!alive || controller.signal.aborted) return
+          console.warn('Failed to load public programs summary.', error)
+          if (!hasCachedList) setProgramsError(true)
         })
         .finally(() => {
           if (alive && !hasCachedList) setLoading(false)
