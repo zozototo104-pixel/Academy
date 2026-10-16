@@ -79,7 +79,11 @@ function detectImageOrPdfOrOffice(buffer: Buffer, ext = ''): FileKind | null {
   if (startsWithBytes(buffer, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return 'png'
   if (buffer.byteLength >= 12 && buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP') return 'webp'
   if (startsWithBytes(buffer, [0x25, 0x50, 0x44, 0x46, 0x2d])) return 'pdf'
-  if (startsWithBytes(buffer, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1])) return 'xls'
+  if (startsWithBytes(buffer, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1])) {
+    if (ext === 'doc') return 'doc'
+    if (ext === 'xls') return 'xls'
+    return 'xls'
+  }
   if (isIsoBaseMedia(buffer)) {
     const brandWindow = buffer.toString('ascii', 8, Math.min(buffer.byteLength, 64))
     if (/(heic|heix|hevc|hevx|heif|mif1|msf1)/.test(brandWindow)) return 'heic'
