@@ -424,7 +424,7 @@ function buildVariantPdf(data: InvoicePdfData, writeArabic: ArabicWriter) {
   doc.text('Generated electronically by AACT Platform. No manual signature required.', 52, 1110)
   doc.text('aactacademy.com', 742, 1110, { align: 'right' })
 
-  return Buffer.from(doc.output('arraybuffer'))
+  return Buffer.from(doc.output('arraybuffer') as ArrayBuffer)
 }
 
 const variants: Record<Variant, ArabicWriter> = {
