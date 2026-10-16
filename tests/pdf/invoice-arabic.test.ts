@@ -8,6 +8,7 @@ mock.module('@/lib/db', () => ({ db: {} }))
 mock.module('@/lib/auth', () => ({ requireUser: async () => ({ id: 'admin-1', role: 'ADMIN' }) }))
 
 const { ARABIC_FONT_NAME, buildInvoicePdf } = await import('../../src/app/api/pdf/invoices/[id]/route')
+const { toVisualArabic } = await import('../../src/lib/pdf-arabic')
 
 const fontPath = join(process.cwd(), 'public', 'fonts', 'Amiri-Regular.ttf')
 
