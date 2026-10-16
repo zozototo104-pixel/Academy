@@ -124,11 +124,11 @@ export async function POST(req: NextRequest) {
       } catch (e: any) {
         if (e?.code !== 'AI_ACADEMIC_PROVIDER_UNAVAILABLE') throw e
         const paused = { code: e.code, reason: String(e?.message || e).slice(0, 500), retryAt: e?.retryAt || null, pausedAt: new Date().toISOString() }
-        await db.setting.upsert({
+        await withTiming('db_knowledge_bank_pause_upsert', () => db.setting.upsert({
           where: { key: `AI_TASK_PAUSE:KNOWLEDGE:${bookId}` },
           create: { key: `AI_TASK_PAUSE:KNOWLEDGE:${bookId}`, value: JSON.stringify(paused) },
           update: { value: JSON.stringify(paused) },
-        }).catch(() => {})
+        }).catch(() => {}))
         return NextResponse.json({ error: 'توقف تحليل الكتاب مؤقتاً لأن المزود الأكاديمي غير متاح. يمكن استئنافه لاحقاً من نفس زر القراءة الكاملة.', status: 'PAUSED', ...paused }, { status: 503 })
       }
       await db.setting.delete({ where: { key: `AI_TASK_PAUSE:KNOWLEDGE:${bookId}` } }).catch(() => {})
