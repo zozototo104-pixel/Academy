@@ -329,19 +329,24 @@ export async function PATCH(req: NextRequest) {
         else if (app.program.includes('دكتوراة') || app.program.includes('دكتوراه')) tuition = parseFloat(settings.FEE_DOCTORATE || '1300')
         else if (app.education === 'MASTER') tuition = parseFloat(settings.FEE_MASTERS || '700')
         else tuition = parseFloat(settings.FEE_DIPLOMAS_MAX || '350')
-        const tuitionInvoiceData = await applyScholarshipToNewInvoiceData(db, {
-          admissionId: id,
-          userId: app.userId,
-          invoiceNo: await nextInvoiceNo(),
-          purpose: 'TUITION',
-          description: `الرسوم الدراسية الكاملة للدخول للبرنامج — ${app.program}`,
-          amount: tuition,
-          amountCents: dollarsToCents(tuition),
-          payerName: app.fullName,
-          payerEmail: app.email,
-          payerCountry: app.country,
+        await db.$transaction(async (tx) => {
+          await tx.$queryRaw`SELECT id FROM "AdmissionApplication" WHERE id = ${id} FOR UPDATE`
+          const duplicate = await tx.payment.findFirst({ where: { admissionId: id, purpose: 'TUITION' }, select: { id: true } })
+          if (duplicate) return duplicate
+          const tuitionInvoiceData = await applyScholarshipToNewInvoiceData(tx, {
+            admissionId: id,
+            userId: app.userId,
+            invoiceNo: await nextInvoiceNo(),
+            purpose: 'TUITION',
+            description: `الرسوم الدراسية الكاملة للدخول للبرنامج — ${app.program}`,
+            amount: tuition,
+            amountCents: dollarsToCents(tuition),
+            payerName: app.fullName,
+            payerEmail: app.email,
+            payerCountry: app.country,
+          })
+          return tx.payment.create({ data: tuitionInvoiceData })
         })
-        await db.payment.create({ data: tuitionInvoiceData })
       }
       const updated = await db.admissionApplication.update({ where: { id }, data })
 
