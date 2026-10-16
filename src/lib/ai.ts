@@ -17,6 +17,8 @@ interface ChatCompleteOptions {
   requireModelResponse?: boolean
   routerPolicy?: TextAiRouterPolicy
   includeGeneralCatalog?: boolean
+  userId?: string | null
+  taskType?: string
 }
 
 interface ProgramCatalogItem {
