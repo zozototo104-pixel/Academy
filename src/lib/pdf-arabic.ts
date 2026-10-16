@@ -123,6 +123,7 @@ function ensureCanvasArabicFont(fontPath = CANVAS_ARABIC_FONT_PATH) {
 }
 
 function wrapCanvasLines(text: string, size: number, maxWidth: number) {
+  const { createCanvas } = loadCanvasModule()
   const probe = createCanvas(10, 10)
   const ctx = probe.getContext('2d')
   ctx.font = `${size}px ${CANVAS_ARABIC_FONT_FAMILY}`
