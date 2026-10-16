@@ -186,6 +186,10 @@ export async function POST(req: NextRequest) {
       return tx.exam.findUnique({ where: { id: exam.id }, select: { id: true, title: true, status: true, passScore: true, _count: { select: { questions: true, attempts: true } } } })
     })
 
+    if (limitedKnowledge) {
+      await audit({ id: admin.id, name: admin.name }, 'LIMITED_UNIT_KNOWLEDGE_EXAM', 'Unit', unitId, `LIMITED_KNOWLEDGE: ${knowledge.count}/${knowledge.minItems}; requested ${requestedQuestions}, generated ${requiredQuestions}`)
+    }
+
     return NextResponse.json({
       ok: true,
       exam: result,
