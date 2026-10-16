@@ -1269,10 +1269,22 @@ export function AdminBooksTab() {
     if (!confirmed) return
     setUnitBusyId(unit.id)
     try {
-      const result = await api<{ ok?: boolean; status?: string; error?: string; message?: string; reviewRequired?: boolean; jobId?: string; saved?: number; requested?: number; currentQuestions?: number; approvedQuestions?: number; pendingReviewQuestions?: number; requiredQuestions?: number }>('/api/admin/unit-exams/generate', {
+      const runGenerate = (overrideReason?: string) => api<{ ok?: boolean; status?: string; error?: string; message?: string; reviewRequired?: boolean; jobId?: string; saved?: number; requested?: number; currentQuestions?: number; approvedQuestions?: number; pendingReviewQuestions?: number; requiredQuestions?: number }>('/api/admin/unit-exams/generate', {
         method: 'POST',
-        body: JSON.stringify({ programId, unitId: unit.id, count: requestedCount, replace: true }),
+        body: JSON.stringify({ programId, unitId: unit.id, count: requestedCount, replace: true, ...(overrideReason ? { overrideCognitivePolicy: true, overrideReason } : {}) }),
       })
+      let result: Awaited<ReturnType<typeof runGenerate>>
+      try {
+        result = await runGenerate()
+      } catch (e: any) {
+        if (e?.status === 409 && e?.code === 'COGNITIVE_DISTRIBUTION_FAILED') {
+          const reason = await askCognitiveOverride({ title: 'تجاوز توزيع المهارات المعرفية', message: e.message || 'توزيع المستويات المعرفية غير مناسب للنشر.', details: Array.isArray(e?.data?.details) ? e.data.details : [] })
+          if (!reason || reason.trim().length < 8) throw new Error('يجب كتابة سبب واضح لا يقل عن 8 أحرف لتجاوز توزيع المهارات المعرفية.')
+          result = await runGenerate(reason.trim())
+        } else {
+          throw e
+        }
+      }
       if (result?.ok === false && result.jobId) {
         setCurriculumUnits((prev) => prev.map((item) => item.id === unit.id ? {
           ...item,
