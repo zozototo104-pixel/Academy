@@ -95,6 +95,7 @@ async function listProgramUnits(programId: string) {
           title: true,
           status: true,
           passScore: true,
+          generationWarning: true,
           _count: { select: { questions: true, attempts: true } },
         },
       },
