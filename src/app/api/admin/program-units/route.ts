@@ -208,6 +208,7 @@ async function listProgramUnits(programId: string) {
             title: u.exam.title,
             status: u.exam.status,
             passScore: u.exam.passScore,
+            generationWarning: u.exam.generationWarning,
             questionsCount: u.exam._count.questions,
             attemptsCount: u.exam._count.attempts,
             reviewQuestionsCount: reviewQuestionsByExam.get(u.exam.id) || 0,
