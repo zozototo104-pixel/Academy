@@ -139,8 +139,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  return withTimedResponse(async () => {
   try {
-    await requireAdmin()
+    await withTiming('db_require_admin', () => requireAdmin())
     const body = await req.json().catch(() => ({}))
     const id = clean(body.id, 80)
     if (!id) return NextResponse.json({ error: 'معرف الدليل مطلوب' }, { status: 400 })
