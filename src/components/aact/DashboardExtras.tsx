@@ -146,7 +146,7 @@ const METHOD_LABEL: Record<string, string> = {
   SANDBOX: 'محاكاة آمنة',
 }
 
-function visiblePaymentMethods(methods?: PaymentMethodStatus[]) {
+export function visiblePaymentMethods(methods?: PaymentMethodStatus[]) {
   const list = Array.isArray(methods) ? methods : []
   return list.filter((m) => !['STRIPE', 'PAYPAL'].includes(String(m.id).toUpperCase()) || m.configured)
 }
