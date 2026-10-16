@@ -93,10 +93,6 @@ export function toVisualArabic(text: string): string {
   const input = String(text || '')
   if (!ARABIC_RE.test(input)) return input
   const shaped = shapeArabicLogical(input)
-  const segments = shaped.split(/(\s+)/)
-  return segments
-    .map((segment) => (ARABIC_RE.test(segment) ? reverseArabicRunPreservingLtr(segment) : segment))
-    .reverse()
-    .join('')
+  return reverseArabicRunPreservingLtr(shaped)
     .replace(/\s+([:،؛])/g, '$1')
 }
