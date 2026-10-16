@@ -159,8 +159,9 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  return withTimedResponse(async () => {
   try {
-    await requireAdmin()
+    await withTiming('db_require_admin', () => requireAdmin())
     const id = clean(req.nextUrl.searchParams.get('id'), 80)
     if (!id) return NextResponse.json({ error: 'معرف الدليل مطلوب' }, { status: 400 })
     await db.programStudyGuide.delete({ where: { id } })
