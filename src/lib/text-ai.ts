@@ -1494,17 +1494,17 @@ export async function reportGeminiLiveKeyFailure(keyIndex: number, error: unknow
 
   if (!key) return
   if (isNoBalanceLike(error)) {
-    markCooldown('GEMINI', key, msg, 24 * 60)
+    markCooldown('GEMINI', key, msg, 24 * 60, status)
     await markPersistentNoBalance('GEMINI', keyIndex, msg, status)
     return
   }
   if (isQuotaLike(error)) {
-    markCooldown('GEMINI', key, msg)
+    markCooldown('GEMINI', key, msg, undefined, status)
     await markPersistentCooldown('GEMINI', keyIndex, GEMINI_LIVE_ROUTER_MODEL, msg, status)
     return
   }
   if (isAuthLike(error)) {
-    markCooldown('GEMINI', key, msg, 60)
+    markCooldown('GEMINI', key, msg, 60, status)
     await markPersistentCooldown('GEMINI', keyIndex, GEMINI_LIVE_ROUTER_MODEL, msg, status, 60)
   }
 }
