@@ -32,11 +32,11 @@ interface DialogState extends PromptOptions {
   kind: DialogKind
 }
 
-const toneStyles: Record<DialogTone, { header: string; button: string; icon: any }> = {
-  danger: { header: 'from-red-700 to-[#0f2b46]', button: 'bg-red-700 text-white hover:bg-red-800', icon: Trash2 },
-  warning: { header: 'from-amber-600 to-[#0f2b46]', button: 'bg-[#c9a227] text-[#0f2b46] hover:bg-[#e0b83a]', icon: AlertTriangle },
-  info: { header: 'from-[#12365c] to-[#0f2b46]', button: 'bg-[#0f2b46] text-[#f5f0e1] hover:bg-[#12365c]', icon: MessageSquareText },
-  success: { header: 'from-emerald-700 to-[#0f2b46]', button: 'bg-emerald-700 text-white hover:bg-emerald-800', icon: CheckCircle2 },
+const toneStyles: Record<DialogTone, { shell: string; ring: string; button: string; icon: any }> = {
+  danger: { shell: 'from-red-50 via-white to-red-100', ring: 'bg-red-600 text-white shadow-red-200', button: 'bg-red-700 text-white hover:bg-red-800', icon: Trash2 },
+  warning: { shell: 'from-amber-50 via-white to-[#f7edd0]', ring: 'bg-[#c9a227] text-[#0f2b46] shadow-amber-200', button: 'bg-[#c9a227] text-[#0f2b46] hover:bg-[#e0b83a]', icon: AlertTriangle },
+  info: { shell: 'from-[#f6f8fb] via-white to-[#edf4ff]', ring: 'bg-[#0f2b46] text-[#f5f0e1] shadow-slate-300', button: 'bg-[#0f2b46] text-[#f5f0e1] hover:bg-[#12365c]', icon: MessageSquareText },
+  success: { shell: 'from-emerald-50 via-white to-emerald-100', ring: 'bg-emerald-700 text-white shadow-emerald-200', button: 'bg-emerald-700 text-white hover:bg-emerald-800', icon: CheckCircle2 },
 }
 
 export function useAdminActionDialog() {
