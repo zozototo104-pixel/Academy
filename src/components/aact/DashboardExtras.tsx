@@ -702,7 +702,7 @@ export function PaymentsTab() {
               <Select value={method} onValueChange={setMethod}>
                 <SelectTrigger className='w-full'><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {(payConfig?.methods?.length ? payConfig.methods : [{ id: 'DIRECT_PAYMENT', label: 'دفع مباشر — تواصل مع الإدارة', enabled: true, configured: true, kind: 'manual' as const }]).map((m) => (
+                  {(visiblePaymentMethods(payConfig?.methods).length ? visiblePaymentMethods(payConfig?.methods) : [{ id: 'DIRECT_PAYMENT', label: 'دفع مباشر — تواصل مع الإدارة', enabled: true, configured: true, kind: 'manual' as const }]).map((m) => (
                     <SelectItem key={m.id} value={m.id} disabled={!m.enabled}>
                       <span className='flex w-full items-center justify-between gap-2'>
                         <span>{m.label}</span>
