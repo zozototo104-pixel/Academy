@@ -1,7 +1,56 @@
+import { existsSync } from 'fs'
+import { join } from 'path'
+import type { jsPDF } from 'jspdf'
+
+type CanvasModule = typeof import('@napi-rs/canvas')
+
 const ARABIC_RE = /[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]/
-const LTR_TOKEN_RE = /\d+(?:[.,]\d+)*(?:\s*[A-Za-z]{2,6})?|[A-Za-z][A-Za-z0-9._:/%+\-@]*(?:\s+[A-Za-z][A-Za-z0-9._:/%+\-@]*)*/g
+const CANVAS_ARABIC_FONT_FAMILY = 'Amiri'
+const CANVAS_ARABIC_FONT_PATH = join(process.cwd(), 'public', 'fonts', 'Amiri-Regular.ttf')
+const DEFAULT_CANVAS_TEXT = '#1f2937'
 
 type ArabicForms = { iso: string; fin?: string; ini?: string; med?: string }
+export type DrawArabicImageOptions = {
+  size?: number
+  color?: string
+  maxWidth?: number
+  maxLines?: number
+  align?: 'right' | 'center'
+  fontPath?: string
+}
+
+let canvasModule: CanvasModule | null = null
+let canvasLoadState: 'idle' | 'loading' | 'ready' | 'failed' = 'idle'
+let canvasLoadPromise: Promise<boolean> | null = null
+let canvasLoadWarned = false
+let canvasDrawWarned = false
+
+export async function loadArabicCanvas(fontPath = CANVAS_ARABIC_FONT_PATH): Promise<boolean> {
+  if (canvasLoadState === 'ready') return true
+  if (canvasLoadState === 'failed') return false
+  if (!canvasLoadPromise) {
+    canvasLoadState = 'loading'
+    canvasLoadPromise = (async () => {
+      try {
+        if (!existsSync(fontPath)) throw new Error(`Missing Arabic canvas font: ${fontPath}`)
+        const mod = await import('@napi-rs/canvas')
+        mod.GlobalFonts.registerFromPath(fontPath, CANVAS_ARABIC_FONT_FAMILY)
+        canvasModule = mod
+        canvasLoadState = 'ready'
+        return true
+      } catch (error) {
+        canvasModule = null
+        canvasLoadState = 'failed'
+        if (!canvasLoadWarned) {
+          canvasLoadWarned = true
+          console.warn('[pdf-arabic] Canvas Arabic renderer unavailable; PDF Arabic will use shaped text fallback.', error)
+        }
+        return false
+      }
+    })()
+  }
+  return canvasLoadPromise
+}
 
 const FORMS: Record<string, ArabicForms> = {
   'ء': { iso: '\uFE80' },
@@ -40,10 +89,6 @@ const FORMS: Record<string, ArabicForms> = {
   'و': { iso: '\uFEED', fin: '\uFEEE' },
   'ى': { iso: '\uFEEF', fin: '\uFEF0' },
   'ي': { iso: '\uFEF1', fin: '\uFEF2', ini: '\uFEF3', med: '\uFEF4' },
-}
-
-function reverseChars(value: string) {
-  return Array.from(value).reverse().join('')
 }
 
 function canJoinNext(ch: string) {
@@ -85,30 +130,93 @@ function shapeArabicLogical(input: string) {
   return shaped.join('')
 }
 
+function drawArabicTextFallback(
+  doc: jsPDF,
+  text: string,
+  x: number,
+  y: number,
+  opts: DrawArabicImageOptions = {}
+): number {
+  const logical = String(text || '').trim() || '—'
+  const size = opts.size || 13
+  doc.setFont('AmiriArabic', 'normal')
+  doc.setFontSize(size)
+  doc.setTextColor(opts.color || DEFAULT_CANVAS_TEXT)
+  const logicalLines = opts.maxWidth ? doc.splitTextToSize(logical, opts.maxWidth).slice(0, opts.maxLines || 3) : [logical]
+  const visualLines = logicalLines.map((line: string) => toVisualArabic(line))
+  doc.text(visualLines, x, y, { align: opts.align || 'right' })
+  return Math.max(20, visualLines.length * (size + 4))
+}
 
-function reverseArabicRunPreservingLtr(run: string) {
-  const placeholders: string[] = []
-  const protectedRun = run.replace(LTR_TOKEN_RE, (token) => {
-    const marker = `\u0000${placeholders.length}\u0000`
-    placeholders.push(token)
-    return marker
-  })
-  let reversed = reverseChars(protectedRun)
-  placeholders.forEach((token, index) => {
-    const reversedMarker = reverseChars(`\u0000${index}\u0000`)
-    reversed = reversed.replace(reversedMarker, token)
-  })
-  return reversed
+function wrapCanvasLines(text: string, size: number, maxWidth: number, canvas: CanvasModule) {
+  const probe = canvas.createCanvas(10, 10)
+  const ctx = probe.getContext('2d')
+  ctx.font = `${size}px ${CANVAS_ARABIC_FONT_FAMILY}`
+  const words = String(text || '').split(/\s+/).filter(Boolean)
+  const lines: string[] = []
+  let current = ''
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word
+    if (ctx.measureText(candidate).width <= maxWidth || !current) current = candidate
+    else {
+      lines.push(current)
+      current = word
+    }
+  }
+  if (current) lines.push(current)
+  return lines.length ? lines : [String(text || '')]
+}
+
+export function drawArabicImage(
+  doc: jsPDF,
+  text: string,
+  x: number,
+  y: number,
+  opts: DrawArabicImageOptions = {}
+): number {
+  const canvas = canvasLoadState === 'ready' ? canvasModule : null
+  if (!canvas) return drawArabicTextFallback(doc, text, x, y, opts)
+
+  try {
+    const logical = String(text || '').trim() || '—'
+    const size = opts.size || 13
+    const maxWidth = opts.maxWidth || Math.min(620, Math.max(180, opts.align === 'center' ? x * 2 : x - 52))
+    const maxLines = opts.maxLines || 3
+    const lines = wrapCanvasLines(logical, size, maxWidth, canvas).slice(0, maxLines)
+    const lineHeight = size + 6
+    const pad = 8
+    const width = Math.ceil(maxWidth + pad * 2)
+    const height = Math.ceil(lines.length * lineHeight + pad * 2)
+    const scale = 2
+    const imageCanvas = canvas.createCanvas(width * scale, height * scale)
+    const ctx = imageCanvas.getContext('2d')
+    ctx.scale(scale, scale)
+    ctx.font = `${size}px ${CANVAS_ARABIC_FONT_FAMILY}`
+    ctx.fillStyle = opts.color || DEFAULT_CANVAS_TEXT
+    ctx.textBaseline = 'alphabetic'
+    ;(ctx as any).direction = 'rtl'
+    ctx.textAlign = opts.align === 'center' ? 'center' : 'right'
+    const drawX = opts.align === 'center' ? width / 2 : width - pad
+    lines.forEach((line, index) => ctx.fillText(line, drawX, pad + size + index * lineHeight))
+    const image = `data:image/png;base64,${imageCanvas.toBuffer('image/png').toString('base64')}`
+    const left = opts.align === 'center' ? x - width / 2 : x - width
+    doc.addImage(image, 'PNG', left, y - size - 4, width, height)
+    return Math.max(20, lines.length * (size + 4))
+  } catch (error) {
+    if (!canvasDrawWarned) {
+      canvasDrawWarned = true
+      console.warn('[pdf-arabic] Canvas Arabic draw failed; using shaped text fallback.', error)
+    }
+    return drawArabicTextFallback(doc, text, x, y, opts)
+  }
 }
 
 /**
- * Convert logical Arabic text to a pre-shaped visual order suitable for jsPDF text() with align:right.
- * Do not combine this with jsPDF setR2L/isInputRtl; that would apply a second bidi pass and flip mixed text.
+ * Shape logical Arabic text for jsPDF text() fallback without reversing the run.
+ * The primary PDF path draws Arabic through canvas images; this is only a no-canvas fallback.
  */
 export function toVisualArabic(text: string): string {
   const input = String(text || '')
   if (!ARABIC_RE.test(input)) return input
-  const shaped = shapeArabicLogical(input)
-  return reverseArabicRunPreservingLtr(shaped)
-    .replace(/\s+([:،؛])/g, '$1')
+  return shapeArabicLogical(input).replace(/\s+([:،؛])/g, '$1')
 }

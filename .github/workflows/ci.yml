@@ -13,4 +13,5 @@ jobs:
       - run: bun install
       - run: bunx prisma generate
       - run: bun run test:outline-units
+      - run: bun run test:gemini-live-rotation
       - run: bunx tsc --noEmit

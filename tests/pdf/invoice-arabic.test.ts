@@ -1,15 +1,11 @@
 /// <reference types="bun-types" />
 import { existsSync, statSync } from 'fs'
 import { join } from 'path'
-import { describe, expect, mock, test } from 'bun:test'
+import { beforeAll, describe, expect, test } from 'bun:test'
 import { jsPDF } from 'jspdf'
 
-mock.module('@/lib/db', () => ({ db: {} }))
-const realAuth = await import('../../src/lib/auth')
-mock.module('@/lib/auth', () => ({ ...realAuth, requireUser: async () => ({ id: 'admin-1', role: 'ADMIN' }) }))
-
-const { ARABIC_FONT_NAME, buildInvoicePdf } = await import('../../src/app/api/pdf/invoices/[id]/route')
-const { toVisualArabic } = await import('../../src/lib/pdf-arabic')
+const { ARABIC_FONT_NAME, buildInvoicePdf } = await import('../../src/lib/invoice-pdf')
+const { loadArabicCanvas, toVisualArabic } = await import('../../src/lib/pdf-arabic')
 
 const fontPath = join(process.cwd(), 'public', 'fonts', 'Amiri-Regular.ttf')
 
@@ -46,6 +42,10 @@ function pdfOutput(pdf: Uint8Array) {
   return Buffer.from(pdf).toString('latin1')
 }
 
+beforeAll(async () => {
+  await loadArabicCanvas(fontPath)
+})
+
 describe('Arabic invoice PDF rendering', () => {
   test('converts Arabic to visual presentation forms without reversing embedded Latin and numbers', () => {
     const visual = toVisualArabic('رقم')
@@ -77,7 +77,7 @@ describe('Arabic invoice PDF rendering', () => {
       return originalIsInputRtl?.apply(this, args)
     }
     try {
-      const pdf = buildInvoicePdf(sampleInvoice(), { fontPaths: [fontPath] })
+      const pdf = buildInvoicePdf(sampleInvoice(), { fontPaths: [fontPath], compress: false })
       expect(pdf.byteLength).toBeGreaterThan(1000)
       expect(pdfOutput(pdf)).toContain(ARABIC_FONT_NAME)
       expect(r2lCalls).toBe(0)
@@ -86,6 +86,28 @@ describe('Arabic invoice PDF rendering', () => {
       ;(jsPDF as any).API.setR2L = originalSetR2L
       ;(jsPDF as any).API.isInputRtl = originalIsInputRtl
     }
+  })
+
+  test('renders Arabic invoice text as images in the PDF', () => {
+    const pdf = buildInvoicePdf(sampleInvoice(), { fontPaths: [fontPath], compress: false })
+    const output = pdfOutput(pdf)
+
+    expect(pdf.byteLength).toBeGreaterThan(1000)
+    expect(output).toContain('/Subtype /Image')
+  })
+
+  test('falls back to shaped Amiri text when the Arabic image renderer throws', () => {
+    const pdf = buildInvoicePdf(sampleInvoice(), {
+      fontPaths: [fontPath],
+      compress: false,
+      arabicImageRenderer: () => {
+        throw new Error('canvas unavailable')
+      },
+    })
+    const output = pdfOutput(pdf)
+
+    expect(pdf.byteLength).toBeGreaterThan(1000)
+    expect(output).toContain(ARABIC_FONT_NAME)
   })
 
   test('falls back without throwing when the Arabic font is unavailable', () => {

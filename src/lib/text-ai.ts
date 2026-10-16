@@ -413,20 +413,25 @@ async function markPersistentCooldown(provider: string, keyIndex: number, model:
   }
 }
 
-function isCooling(provider: string, key: string): boolean {
-  const item = cooldowns.get(cooldownId(provider, key))
-  if (!item) return false
+function activeMemoryCooldown(provider: string, key: string): { until: number; reason: string; status?: number; model?: string } | null {
+  const id = cooldownId(provider, key)
+  const item = cooldowns.get(id)
+  if (!item) return null
   if (item.until <= Date.now()) {
-    cooldowns.delete(cooldownId(provider, key))
-    return false
+    cooldowns.delete(id)
+    return null
   }
-  return true
+  return item
 }
 
-function markCooldown(provider: string, key: string, reason: string, minutes?: number) {
+function isCooling(provider: string, key: string): boolean {
+  return !!activeMemoryCooldown(provider, key)
+}
+
+function markCooldown(provider: string, key: string, reason: string, minutes?: number, status?: number) {
   const fallback = Number(env('AI_ROUTER_COOLDOWN_MINUTES')) || 15
   const ttl = Math.max(1, Math.floor(minutes || fallback))
-  cooldowns.set(cooldownId(provider, key), { until: Date.now() + ttl * 60 * 1000, reason: reason.slice(0, 180) })
+  cooldowns.set(cooldownId(provider, key), { until: Date.now() + ttl * 60 * 1000, reason: reason.slice(0, 180), status })
 }
 
 function aiProviderTimeoutMs(taskLevel: TextAiTaskLevel = 'GENERAL'): number {
@@ -1449,6 +1454,63 @@ function recordAttempt(attempt: TextAiAttemptDiagnostics) {
   })
 }
 
+const GEMINI_LIVE_ROUTER_MODEL = 'gemini-live'
+
+export type GeminiLiveRouterKey = { key: string; keyIndex: number }
+
+function isAuthOrNoBalanceMemoryCooling(provider: string, key: string): boolean {
+  const item = activeMemoryCooldown(provider, key)
+  if (!item) return false
+  if (item.status !== undefined && item.status !== null) {
+    const status = Number(item.status)
+    return status === 401 || status === 402 || status === 403
+  }
+  return /AUTH|UNAUTHENTICATED|PERMISSION_DENIED|API_KEY|NO_BALANCE|INSUFFICIENT|BILLING|PAYMENT_REQUIRED/i.test(item.reason)
+}
+
+export async function geminiKeysForLive(): Promise<GeminiLiveRouterKey[]> {
+  const s = await settings()
+  const persistentCooldowns = await loadPersistentCooldowns()
+  return providerKeys(s, 'GEMINI')
+    .map((key, index) => ({ key, keyIndex: index + 1 }))
+    .filter(({ key, keyIndex }) => !isAuthOrNoBalanceMemoryCooling('GEMINI', key) && !isPersistentNoBalance(persistentCooldowns, 'GEMINI', keyIndex) && !isPersistentCooling(persistentCooldowns, 'GEMINI', keyIndex, GEMINI_LIVE_ROUTER_MODEL))
+}
+
+export function reportGeminiLiveKeySuccess(keyIndex: number, model: string, ms = 0): void {
+  const at = new Date().toISOString()
+  const safeModel = String(model || GEMINI_LIVE_ROUTER_MODEL).slice(0, 180)
+  lastResult = { provider: 'GEMINI', model: safeModel, ok: true, at }
+  recordAttempt({ provider: 'GEMINI', model: safeModel, keyIndex, ok: true, ms: Math.max(0, Math.floor(ms || 0)), at })
+}
+
+export async function reportGeminiLiveKeyFailure(keyIndex: number, error: unknown): Promise<void> {
+  const s = await settings()
+  const key = providerKeys(s, 'GEMINI')[Math.max(0, keyIndex - 1)] || ''
+  const status = statusFromError(error)
+  const msg = redactSecrets((error as any)?.message || error).slice(0, 240)
+  const model = String((error as any)?.model || GEMINI_LIVE_ROUTER_MODEL).slice(0, 180)
+  const at = new Date().toISOString()
+  const ms = Math.max(0, Math.floor(Number((error as any)?.ms || 0) || 0))
+  lastResult = { provider: 'GEMINI', model, ok: false, error: msg, at }
+  recordAttempt({ provider: 'GEMINI', model, keyIndex, ok: false, ms, status, error: msg, at })
+
+  if (!key) return
+  if (isNoBalanceLike(error)) {
+    markCooldown('GEMINI', key, msg, 24 * 60, status)
+    await markPersistentNoBalance('GEMINI', keyIndex, msg, status)
+    return
+  }
+  if (isQuotaLike(error)) {
+    markCooldown('GEMINI', key, msg, undefined, status)
+    await markPersistentCooldown('GEMINI', keyIndex, GEMINI_LIVE_ROUTER_MODEL, msg, status)
+    return
+  }
+  if (isAuthLike(error)) {
+    markCooldown('GEMINI', key, msg, 60, status)
+    await markPersistentCooldown('GEMINI', keyIndex, GEMINI_LIVE_ROUTER_MODEL, msg, status, 60)
+  }
+}
+
 async function callGemini(key: string, model: string, opts: TextAiCallOpts): Promise<string> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`
   const response = await fetchWithTimeout('Gemini', url, {
@@ -1898,26 +1960,26 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
             break
           }
           if (isNoBalanceLike(e)) {
-            markCooldown(provider, key, msg, 24 * 60)
+            markCooldown(provider, key, msg, 24 * 60, status)
             await markPersistentNoBalance(provider, keyIndex, msg, status)
             continue
           }
           if (isHighDemandLike(e)) {
             skipModelsThisRequest.add(`${provider}:${model}`)
-            markCooldown(provider, key, msg, 1)
+            markCooldown(provider, key, msg, 1, status)
             await markPersistentCooldown(provider, keyIndex, model, msg, status, 1)
             break
           }
           if (isTimeoutLike(e)) {
-            markCooldown(provider, key, msg, 2)
+            markCooldown(provider, key, msg, 2, status)
             if (status === 503 || status === 504) await markPersistentCooldown(provider, keyIndex, model, msg, status, 2)
           }
           if (isQuotaLike(e)) {
-            markCooldown(provider, key, msg)
+            markCooldown(provider, key, msg, undefined, status)
             await markPersistentCooldown(provider, keyIndex, model, msg, status)
           }
           if (isAuthLike(e)) {
-            markCooldown(provider, key, msg, 60)
+            markCooldown(provider, key, msg, 60, status)
             await markPersistentCooldown(provider, keyIndex, model, msg, status, 60)
           }
         }
@@ -1987,9 +2049,9 @@ export async function textAiTestConnection(): Promise<{ ok: boolean; provider?: 
           lastResult = { provider, model, ok: false, error: msg, at }
           recordAttempt({ provider, model, keyIndex, ok: false, ms, status, error: msg, at })
           errors.push(`${provider}/${model}/key#${keyIndex}: ${msg}`)
-          if (isTimeoutLike(e)) markCooldown(provider, key, msg, 2)
-          if (isQuotaLike(e)) markCooldown(provider, key, msg)
-          if (isAuthLike(e)) markCooldown(provider, key, msg, 60)
+          if (isTimeoutLike(e)) markCooldown(provider, key, msg, 2, status)
+          if (isQuotaLike(e)) markCooldown(provider, key, msg, undefined, status)
+          if (isAuthLike(e)) markCooldown(provider, key, msg, 60, status)
         }
       }
     }

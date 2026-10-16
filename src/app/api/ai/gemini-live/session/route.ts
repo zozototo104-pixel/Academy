@@ -3,8 +3,6 @@ import { requireUser } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { resolveAiKnowledgeScope, type AiKnowledgeScope } from '@/lib/ai-knowledge-policy'
 import {
-  ensureGeminiKey,
-  geminiApiKey,
   geminiActiveLiveModel,
   geminiTTSVoice,
   normalizeGeminiModelName,
@@ -14,10 +12,16 @@ import {
   isModelUnavailableError,
   isInvalidArgumentError,
 } from '@/lib/gemini'
+import {
+  geminiKeysForLive,
+  reportGeminiLiveKeyFailure,
+  reportGeminiLiveKeySuccess,
+} from '@/lib/text-ai'
 import { buildSupervisorContext, mergeContext } from '@/lib/supervisor-ai'
 import { buildVoiceSystemPrompt } from '@/lib/voicePrompt'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { getSetting } from '@/lib/settings'
+import { redactSecrets } from '@/lib/secret-crypto'
 import { getGeminiLiveAllowance, reserveGeminiLiveUsage, type LivePurpose } from '@/lib/live-usage-guard'
 
 export const runtime = 'nodejs'
@@ -87,6 +91,8 @@ async function auditLiveKnowledgeSession(args: {
 }
 
 function httpStatusForGeminiError(e: any): number {
+  const status = statusFromGeminiError(e)
+  if (status === 402) return 402
   if (isAuthError(e)) return 401
   if (isQuotaError(e)) return 429
   if (isModelUnavailableError(e) || isInvalidArgumentError(e)) return 400
@@ -101,7 +107,84 @@ function arabicErrorForGemini(e: any): string {
   if (isInvalidArgumentError(e)) {
     return 'إعدادات Gemini Live غير مقبولة. استخدم gemini-3.1-flash-live-preview، أو جرّب gemini-2.5-flash-live-preview إذا لم تكن 3.1 متاحة لمشروعك'
   }
-  return raw.slice(0, 220) || 'تعذر إنشاء جلسة Gemini Live'
+  return redactSecrets(raw).slice(0, 220) || 'تعذر إنشاء جلسة Gemini Live'
+}
+
+type LiveKeyFailureDetail = {
+  keyIndex: number
+  maskedKey: string
+  status?: number
+  message: string
+}
+
+function statusFromGeminiError(e: any): number | undefined {
+  const status = Number(e?.status || e?.code || 0)
+  return Number.isFinite(status) && status >= 100 && status <= 599 ? status : undefined
+}
+
+function shouldTryNextGeminiLiveKey(e: any): boolean {
+  const status = statusFromGeminiError(e)
+  return status === 402 || isAuthError(e) || isQuotaError(e)
+}
+
+function maskGeminiKey(key: string): string {
+  const clean = String(key || '').trim()
+  if (!clean) return ''
+  if (clean.length <= 8) return `${clean.slice(0, 2)}…${clean.slice(-2)}`
+  return `${clean.slice(0, 4)}…${clean.slice(-4)}`
+}
+
+function googleErrorMessage(payload: any, status: number): string {
+  return redactSecrets(String(
+    payload?.error?.message ||
+    payload?.message ||
+    payload?.raw ||
+    `Gemini token HTTP ${status}`
+  )).slice(0, 500)
+}
+
+function failureDetail(keyIndex: number, key: string, e: any): LiveKeyFailureDetail {
+  return {
+    keyIndex,
+    maskedKey: maskGeminiKey(key),
+    status: statusFromGeminiError(e),
+    message: redactSecrets(String(e?.googleMessage || e?.message || e || '')).slice(0, 500),
+  }
+}
+
+function liveTokenError(message: string, status: number, model: string, ms: number): Error & { status: number; model: string; ms: number; googleMessage: string } {
+  const err = new Error(message) as Error & { status: number; model: string; ms: number; googleMessage: string }
+  err.status = status
+  err.model = model
+  err.ms = ms
+  err.googleMessage = message
+  return err
+}
+
+async function requestGeminiLiveToken(args: {
+  key: string
+  model: string
+  body: Record<string, unknown>
+}): Promise<{ token: string; payload: any; ms: number }> {
+  const started = Date.now()
+  const upstream = await fetch('https://generativelanguage.googleapis.com/v1beta/auth_tokens', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': args.key,
+    },
+    body: JSON.stringify(args.body),
+  })
+
+  const payload = await upstream.json().catch(() => ({} as any))
+  const ms = Date.now() - started
+  if (!upstream.ok) {
+    throw liveTokenError(googleErrorMessage(payload, upstream.status), upstream.status, args.model, ms)
+  }
+
+  const token = String(payload?.name || payload?.token || payload?.authToken?.name || '').trim()
+  if (!token) throw liveTokenError('GEMINI_LIVE_TOKEN_EMPTY', 502, args.model, ms)
+  return { token, payload, ms }
 }
 
 function speechConfigForVoice(voice: string) {
@@ -166,12 +249,6 @@ export async function POST(req: NextRequest) {
 
   const sessionLimit = enforceApiRateLimit(req, 'ai:gemini-live-session', 12, 10 * 60 * 1000, user.id)
   if (sessionLimit) return sessionLimit
-
-  await ensureGeminiKey()
-  const apiKey = await geminiApiKey()
-  if (!apiKey) {
-    return NextResponse.json({ error: 'أدخل مفتاح Gemini API أولاً من لوحة الإدارة' }, { status: 400 })
-  }
 
   let body: { model?: string; voice?: string; dialect?: string; context?: string; purpose?: string; testOnly?: boolean; setupVariant?: SetupVariant } = {}
   try {
@@ -241,32 +318,41 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const upstream = await fetch('https://generativelanguage.googleapis.com/v1beta/auth_tokens', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey,
-      },
-      body: JSON.stringify(tokenBody),
-    })
-
-    const payload = await upstream.json().catch(() => ({} as any))
-    if (!upstream.ok) {
-      const msg =
-        payload?.error?.message ||
-        payload?.message ||
-        `Gemini token HTTP ${upstream.status}`
-      const err: any = new Error(msg)
-      err.status = upstream.status
-      return NextResponse.json(
-        { error: arabicErrorForGemini(err), details: msg.slice(0, 500) },
-        { status: httpStatusForGeminiError(err) }
-      )
+    const liveKeys = await geminiKeysForLive()
+    if (!liveKeys.length) {
+      return NextResponse.json({ error: 'أدخل مفتاح Gemini API أولاً من لوحة الإدارة أو انتظر انتهاء تبريد مفاتيح Gemini الحالية', details: [] }, { status: 400 })
     }
 
-    const token = String(payload?.name || payload?.token || payload?.authToken?.name || '').trim()
+    const failures: LiveKeyFailureDetail[] = []
+    let lastError: any = null
+    let token = ''
+
+    for (const { key, keyIndex } of liveKeys) {
+      try {
+        const result = await requestGeminiLiveToken({ key, model, body: tokenBody })
+        token = result.token
+        reportGeminiLiveKeySuccess(keyIndex, model, result.ms)
+        break
+      } catch (e: any) {
+        const err: any = e && typeof e === 'object' ? e : new Error(String(e || 'Gemini Live token failure'))
+        err.model = err.model || model
+        lastError = err
+        failures.push(failureDetail(keyIndex, key, err))
+        await reportGeminiLiveKeyFailure(keyIndex, err)
+        if (shouldTryNextGeminiLiveKey(err)) continue
+        return NextResponse.json(
+          { error: arabicErrorForGemini(err), details: failures },
+          { status: httpStatusForGeminiError(err) }
+        )
+      }
+    }
+
     if (!token) {
-      return NextResponse.json({ error: 'لم يرجع Gemini رمز جلسة Live صالحاً' }, { status: 502 })
+      const e = lastError || new Error('GEMINI_LIVE_NO_AVAILABLE_KEY')
+      return NextResponse.json(
+        { error: arabicErrorForGemini(e), details: failures },
+        { status: httpStatusForGeminiError(e) }
+      )
     }
 
     if (body.testOnly) {
@@ -311,7 +397,7 @@ export async function POST(req: NextRequest) {
       },
     })
   } catch (e: any) {
-    console.error('gemini-live session error:', String(e?.message || e).slice(0, 500))
+    console.error('gemini-live session error:', redactSecrets(String(e?.message || e)).slice(0, 500))
     return NextResponse.json(
       { error: arabicErrorForGemini(e) },
       { status: httpStatusForGeminiError(e) }
