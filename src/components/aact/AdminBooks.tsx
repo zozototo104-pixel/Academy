@@ -889,15 +889,18 @@ export function AdminBooksTab() {
     const activeStatuses = new Set(['GENERATING', 'RUNNING', 'QUEUED', 'PENDING'])
     const hasActiveJob = exams.some((e) => activeStatuses.has(e.status))
 
-    const stopPolling = () => {
+    const clearPollTimer = () => {
       if (pollRef.current) clearTimeout(pollRef.current)
       pollRef.current = null
+    }
+    const stopPolling = () => {
+      clearPollTimer()
       examPollingActiveRef.current = false
       examPollDelayRef.current = 5_000
       examProgressSignatureRef.current = ''
     }
 
-    if (!programId || !hasActiveJob || document.visibilityState === 'hidden') {
+    if (!programId || !hasActiveJob) {
       stopPolling()
       return stopPolling
     }
