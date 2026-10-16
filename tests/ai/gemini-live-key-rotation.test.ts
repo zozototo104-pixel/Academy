@@ -105,6 +105,7 @@ afterAll(() => {
 describe('Gemini Live raw setup shape', () => {
   test('uses generationConfig for response modalities and keeps transcription directly under setup', () => {
     const variants = ['minimal', 'generationConfig', 'bare'] as const
+    const palestinianInstruction = dialectInstruction('ar-PS')
 
     for (const variant of variants) {
       const payload = buildGeminiLiveSetup(variant, 'gemini-3.1-flash-live-preview', 'voice instructions', 'Charon', 'ar-PS') as any
@@ -112,11 +113,12 @@ describe('Gemini Live raw setup shape', () => {
 
       expect(setup.model).toBe('models/gemini-3.1-flash-live-preview')
       expect(setup.generationConfig?.responseModalities).toEqual(['AUDIO'])
-      expect(setup.generationConfig?.speechConfig).toMatchObject({
+      expect(setup.generationConfig?.speechConfig).toEqual({
         voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Charon' } },
-        languageCode: 'ar-PS',
       })
-      expect(setup.systemInstruction).toEqual({ parts: [{ text: 'voice instructions' }] })
+      expect(setup.generationConfig?.speechConfig?.languageCode).toBeUndefined()
+      expect(setup.systemInstruction.parts[0].text).toStartWith(palestinianInstruction)
+      expect(setup.systemInstruction.parts[0].text).toContain('\n\nvoice instructions')
       expect(setup.inputAudioTranscription).toEqual({})
       expect(setup.outputAudioTranscription).toEqual({})
       expect(setup.responseModalities).toBeUndefined()
@@ -124,6 +126,20 @@ describe('Gemini Live raw setup shape', () => {
       expect(setup.generationConfig?.inputAudioTranscription).toBeUndefined()
       expect(setup.generationConfig?.outputAudioTranscription).toBeUndefined()
     }
+  })
+
+  test('falls back to simplified MSA for unknown dialect codes', () => {
+    expect(dialectInstruction('xx-YY')).toBe('احكِ بالعربية الفصحى المبسّطة. حافظ على اللهجة طول المكالمة. المصطلحات الأكاديمية خليها بالفصحى أو متل ما هي بالكتاب.')
+  })
+
+  test('uses the same dialect instruction in SDK config', () => {
+    const palestinianInstruction = dialectInstruction('ar-PS')
+    const sdkConfig = buildGeminiLiveSdkConfig('voice instructions', 'Charon', 'ar-PS') as any
+
+    expect(sdkConfig.responseModalities).toEqual(['AUDIO'])
+    expect(sdkConfig.speechConfig).toEqual({ voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Charon' } } })
+    expect(sdkConfig.systemInstruction).toStartWith(palestinianInstruction)
+    expect(sdkConfig.systemInstruction).toContain('\n\nvoice instructions')
   })
 })
 
