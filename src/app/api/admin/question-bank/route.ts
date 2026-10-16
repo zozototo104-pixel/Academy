@@ -162,6 +162,7 @@ export async function GET(req: NextRequest) {
     console.error('question bank GET error:', e)
     return NextResponse.json({ error: 'تعذر تحميل بنك الأسئلة' }, { status: 500 })
   }
+  })
 }
 
 export async function POST(req: NextRequest) {
