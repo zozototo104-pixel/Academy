@@ -237,15 +237,32 @@ export class GeminiLiveAgent {
     this.ctx = new Ctx() as AudioContext
     if (this.ctx.state === 'suspended') await this.ctx.resume().catch(() => {})
     this.source = this.ctx.createMediaStreamSource(this.stream)
+    this.silentSink = this.ctx.createGain()
+    this.silentSink.gain.value = 0
+
+    if (this.ctx.audioWorklet) {
+      try {
+        await this.ctx.audioWorklet.addModule('/worklets/pcm-capture.js')
+        this.worklet = new AudioWorkletNode(this.ctx, 'pcm-capture', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] })
+        this.worklet.port.onmessage = (ev) => this.sendWorkletAudioFrame(ev.data)
+        this.source.connect(this.worklet)
+        this.worklet.connect(this.silentSink)
+        this.silentSink.connect(this.ctx.destination)
+        return
+      } catch (error) {
+        console.warn('AudioWorklet microphone capture unavailable; falling back to ScriptProcessorNode.', error)
+        try { this.worklet?.disconnect() } catch {}
+        this.worklet = null
+      }
+    } else {
+      console.warn('AudioWorklet is not supported; falling back to ScriptProcessorNode for microphone capture.')
+    }
+
     this.processor = this.ctx.createScriptProcessor(4096, 1, 1)
     this.processor.onaudioprocess = (e) => this.sendAudioFrame(e)
     this.source.connect(this.processor)
-
-    // إبقاء ScriptProcessor حيّاً بدون إخراج صوت المستخدم للسماعة.
-    const silent = this.ctx.createGain()
-    silent.gain.value = 0
-    this.processor.connect(silent)
-    silent.connect(this.ctx.destination)
+    this.processor.connect(this.silentSink)
+    this.silentSink.connect(this.ctx.destination)
   }
 
   private async connectWithFallbacks(): Promise<void> {
