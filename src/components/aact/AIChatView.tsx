@@ -70,12 +70,7 @@ interface SpeechRecognitionLike {
   stop: () => void
   abort: () => void
 }
-const DIALECT_OPTIONS = [
-  { value: 'ar-PS', label: 'شامي/فلسطيني' },
-  { value: 'ar-EG', label: 'مصري' },
-  { value: 'ar-SA', label: 'خليجي' },
-  { value: 'ar-MA', label: 'مغاربي' },
-]
+const DIALECT_OPTIONS = VOICE_DIALECT_OPTIONS
 
 function defaultVoiceDialect() {
   return process.env.NEXT_PUBLIC_VOICE_DEFAULT_DIALECT || 'ar-PS'
