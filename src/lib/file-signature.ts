@@ -38,6 +38,7 @@ const CANONICAL_MIME_BY_KIND: Record<FileKind, string> = {
   webp: 'image/webp',
   heic: 'image/heic',
   pdf: 'application/pdf',
+  doc: 'application/msword',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   xls: 'application/vnd.ms-excel',
