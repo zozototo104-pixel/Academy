@@ -228,7 +228,7 @@ export function QuestionReviewDialog({
   }
 
   const deleteQuestion = async (q: ReviewQuestion) => {
-    if (!confirm(`حذف السؤال رقم ${q.order} نهائياً من الامتحان؟`)) return
+    if (!(await confirmAction({ title: 'حذف سؤال من الامتحان', description: `سيتم حذف السؤال رقم ${q.order} نهائياً من هذا الامتحان.`, confirmLabel: 'حذف السؤال', tone: 'danger' }))) return
     setBusy(true)
     try {
       await api('/api/admin/program-exam-questions', {
