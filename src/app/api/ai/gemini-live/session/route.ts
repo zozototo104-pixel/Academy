@@ -148,7 +148,7 @@ function failureDetail(keyIndex: number, key: string, e: any): LiveKeyFailureDet
     keyIndex,
     maskedKey: maskGeminiKey(key),
     status: statusFromGeminiError(e),
-    message: String(e?.googleMessage || e?.message || e || '').slice(0, 500),
+    message: redactSecrets(String(e?.googleMessage || e?.message || e || '')).slice(0, 500),
   }
 }
 
