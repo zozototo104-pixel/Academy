@@ -875,18 +875,68 @@ export function AdminBooksTab() {
     }
   }, [toast])
 
-  // استطلاع دوري أثناء وجود اختبار قيد التوليد
+  const loadExamProgress = useCallback(async (pid: string) => {
+    const progress = await api<{ active?: boolean; exams: Partial<ExamRow>[] }>(`/api/admin/program-exams/progress?programId=${pid}`)
+    setExams((prev) => prev.map((exam) => {
+      const next = progress.exams.find((item) => item.id === exam.id)
+      return next ? { ...exam, ...next } : exam
+    }))
+    return progress
+  }, [])
+
+  // استطلاع خفيف أثناء وجود job فعلاً؛ كان سابقاً في هذا الملف يستدعي loadProgramData كل 5 ثوانٍ فيعيد طلب حزم الإدارة الثقيلة.
   useEffect(() => {
-    const anyGenerating = exams.some((e) => e.status === 'GENERATING')
-    if (anyGenerating && programId && !pollRef.current) {
-      pollRef.current = setInterval(() => loadProgramData(programId, true), 5000)
-    } else if (!anyGenerating && pollRef.current) {
-      clearInterval(pollRef.current)
+    const activeStatuses = new Set(['GENERATING', 'RUNNING', 'QUEUED', 'PENDING'])
+    const hasActiveJob = exams.some((e) => activeStatuses.has(e.status))
+
+    const stopPolling = () => {
+      if (pollRef.current) clearTimeout(pollRef.current)
       pollRef.current = null
-      // تحديث نهائي بعد اكتمال التوليد
-      if (programId) loadProgramData(programId, true)
+      examPollingActiveRef.current = false
+      examPollDelayRef.current = 5_000
+      examProgressSignatureRef.current = ''
     }
-  }, [exams, programId, loadProgramData])
+
+    if (!programId || !hasActiveJob || document.visibilityState === 'hidden') {
+      stopPolling()
+      return stopPolling
+    }
+
+    examPollingActiveRef.current = true
+    let cancelled = false
+
+    const tick = async () => {
+      if (cancelled || !programId || document.visibilityState === 'hidden') return
+      try {
+        const progress = await loadExamProgress(programId)
+        const signature = JSON.stringify((progress.exams || []).map((exam) => [exam.id, exam.status, exam.questionCount, exam.pendingReview, exam.rejectedCount]))
+        const changed = signature !== examProgressSignatureRef.current
+        examProgressSignatureRef.current = signature
+        examPollDelayRef.current = changed ? 5_000 : Math.min(30_000, examPollDelayRef.current + 5_000)
+        if (!progress.active) {
+          stopPolling()
+          await loadProgramData(programId, true)
+          return
+        }
+      } catch (err) {
+        console.error('program exam progress polling failed:', err)
+        examPollDelayRef.current = Math.min(30_000, examPollDelayRef.current + 5_000)
+      }
+      if (!cancelled) pollRef.current = setTimeout(tick, examPollDelayRef.current)
+    }
+
+    pollRef.current = setTimeout(tick, examPollDelayRef.current)
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') stopPolling()
+      else if (!pollRef.current && examPollingActiveRef.current) pollRef.current = setTimeout(tick, 5_000)
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      cancelled = true
+      document.removeEventListener('visibilitychange', onVisibility)
+      stopPolling()
+    }
+  }, [exams, programId, loadExamProgress, loadProgramData])
 
   // تحريك التوليد تلقائياً دفعة بعد دفعة طالما الإدارة فاتحة الصفحة.
   // هذا يلغي الاعتماد على خلفية Vercel التي كانت تسبب بقاء الامتحان على 20 سؤالاً فقط.
