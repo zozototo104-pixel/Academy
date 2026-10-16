@@ -8,6 +8,7 @@ export interface FinalGradeComponent {
   score: number | null
   weighted: number
   ready: boolean
+  exempt?: boolean
 }
 
 export interface FinalGradeResult {
