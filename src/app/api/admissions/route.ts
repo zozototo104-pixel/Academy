@@ -857,6 +857,7 @@ export async function POST(req: NextRequest) {
 // GET /api/admissions?ref=AACT-2026-1234 — تتبع طلب بالكود المرجعي
 // GET /api/admissions?mine=1 — آخر طلبات الطالب الحالي بدون إدخال كود التتبع
 export async function GET(req: NextRequest) {
+  return withTimedResponse(async () => {
   try {
     const ref = req.nextUrl.searchParams.get('ref')?.trim()
     const mine = req.nextUrl.searchParams.get('mine') === '1'
