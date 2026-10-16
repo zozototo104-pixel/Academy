@@ -111,8 +111,9 @@ interface ProgramRules {
   disclosureConsentText?: string | null
   program?: ProgramDraft
   _count?: { units: number }
-  rules: Rules
+  rules?: Rules
   custom: boolean
+  detailsLoaded?: boolean
 }
 
 const EDU_AR: Record<string, string> = {
