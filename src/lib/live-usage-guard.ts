@@ -180,10 +180,36 @@ export async function reserveGeminiLiveUsage(input: {
   const purpose = purposeName(input.purpose)
   const month = monthKey()
   const now = new Date()
-  const freeMonthlyLimitMinutes = await freeMonthlyLiveMinutes(input.userId, input.role)
   const hardSessionLimit = liveSessionLimitMinutes(input.role, purpose)
-  const maxSession = Math.max(1, Math.min(input.requestedMinutes || 2, hardSessionLimit))
   const sessionId = sessionIdValue(input.sessionId)
+
+  if (roleName(input.role) === 'ADMIN') {
+    await db.$transaction(async (tx) => {
+      const existing = await tx.aiLiveSession.findUnique({ where: { sessionId } })
+      if (existing) {
+        if (existing.userId !== input.userId || existing.reservedMinutes !== 0 || existing.purpose !== purpose) {
+          throw new Error('LIVE_SESSION_ID_CONFLICT')
+        }
+        return
+      }
+      await tx.aiLiveSession.create({
+        data: {
+          sessionId,
+          userId: input.userId,
+          month,
+          purpose,
+          reservedMinutes: 0,
+          freeReserved: 0,
+          paidReserved: 0,
+          expiresAt: new Date(now.getTime() + hardSessionLimit * 60 * 1000),
+        },
+      })
+    })
+    return adminLiveDecision(input.role, purpose, month, sessionId)
+  }
+
+  const freeMonthlyLimitMinutes = await freeMonthlyLiveMinutes(input.userId, input.role)
+  const maxSession = Math.max(1, Math.min(input.requestedMinutes || 2, hardSessionLimit))
 
   return db.$transaction(async (tx) => {
     const existing = await tx.aiLiveSession.findUnique({ where: { sessionId } }).catch(() => null)
