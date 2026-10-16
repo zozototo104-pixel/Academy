@@ -285,6 +285,10 @@ function activeBackupTables() {
   return BACKUP_TABLES.filter((t) => t.includeByDefault !== false || includeSessions)
 }
 
+export function backupTableNames() {
+  return activeBackupTables().map((table) => table.name)
+}
+
 function jsonSafe(value: unknown): unknown {
   if (typeof value === 'bigint') return value.toString()
   if (value instanceof Date) return value.toISOString()
