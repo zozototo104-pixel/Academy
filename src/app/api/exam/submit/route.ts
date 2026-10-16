@@ -341,7 +341,7 @@ export async function POST(req: NextRequest) {
       const attempt = await db.$transaction(async (tx) => {
         const created = await tx.examAttempt.update({ where: { id: activeAttempt.id }, data: { status: 'NEEDS_REVIEW', feedback: JSON.stringify({ summary: 'تم حفظ الإجابات، التصحيح قيد المراجعة.' }) } })
         for (const prepared of answersToPersist) {
-          await tx.answer.create({ data: { attemptId: created.id, questionId: prepared.questionId, selectedOption: prepared.selectedOption ?? null, answerText: prepared.answerText ?? null, isCorrect: prepared.isCorrect, points: prepared.points, maxPoints: prepared.maxPoints, aiFeedback: prepared.aiFeedback } })
+          await persistPreparedAnswer(tx, created.id, prepared, prePersistedEssayQuestionIds.has(prepared.questionId))
         }
         await tx.examDraft.deleteMany({ where: { userId: user.id, examId, examType: 'UNIT' } })
         return created
