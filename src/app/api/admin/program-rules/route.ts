@@ -372,7 +372,7 @@ export async function PUT(req: NextRequest) {
 
     // reset=true يعيد القواعد الافتراضية (يمسح التخصيص)
     if (rules?.reset) {
-      await db.program.update({ where: { id: programId }, data: { admissionRules: Prisma.DbNull } })
+      await withTiming('db_program_rules_reset_update', () => db.program.update({ where: { id: programId }, data: { admissionRules: Prisma.DbNull } }))
       clearPublicProgramsCache()
       revalidatePublicProgramSurfaces([program.slug])
       const invalidated = await clearAdmissionAiReviewCacheForProgram(programId)
