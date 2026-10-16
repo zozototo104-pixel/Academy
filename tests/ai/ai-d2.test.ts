@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, mock, test } from 'bun:test'
 import { NextRequest } from 'next/server'
 
 const calls: string[] = []
-let capturedAsrOptions: any = null
+let capturedAsrOptions: Record<string, unknown> | null = null
 let unitKnowledgeCount = 3
 let programOverrideAudit = false
 
