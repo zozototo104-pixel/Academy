@@ -785,7 +785,7 @@ export function AIChatView() {
             </div>
           </div>
           <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 overflow-hidden px-6 py-3 sm:gap-6">
-            <div className="aact-voice-orb-stage relative flex items-center justify-center">
+            <div className="aact-voice-orb-stage relative flex items-center justify-center" style={{ width: 'min(21rem, 70vw)', height: 'min(21rem, 70vw)' }}>
               <span className="aact-voice-halo" />
               <span className="aact-voice-halo h2" />
               {listeningForUI && !muted && <><span className="aact-orb-ring" /><span className="aact-orb-ring r2" /><span className="aact-orb-ring r3" /></>}
