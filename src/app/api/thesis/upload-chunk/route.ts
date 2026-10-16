@@ -118,8 +118,8 @@ export async function POST(req: NextRequest) {
     const updated = await db.$transaction(async (tx) => {
       await tx.thesisChunk.deleteMany({ where: { thesisId } })
       await tx.thesisUploadChunk.deleteMany({ where: { uploadId, userId: user.id, thesisId } })
-      return tx.thesisSubmission.update({
-        where: { id: thesisId },
+      const updatedRows = await tx.thesisSubmission.updateMany({
+        where: { id: thesisId, userId: user.id, admissionId: thesis.admissionId },
         data: {
           fileStorageProvider: stored.provider,
           fileStorageKey: stored.key,
@@ -139,6 +139,8 @@ export async function POST(req: NextRequest) {
           extractedAt: null,
         },
       })
+      if (updatedRows.count !== 1) throw new Error('THESIS_ADMISSION_SCOPE_MISMATCH')
+      return tx.thesisSubmission.findFirst({ where: { id: thesisId, userId: user.id, admissionId: thesis.admissionId } })
     })
     return NextResponse.json({ ok: true, thesis: updated })
   } catch (error: any) {
