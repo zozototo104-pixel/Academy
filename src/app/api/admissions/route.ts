@@ -288,7 +288,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'بريد الطلب يجب أن يطابق بريد حساب الطالب المؤكد. سجّل خروجاً واستخدم الحساب الصحيح إذا كان الطلب لطالب آخر.' }, { status: 400 })
       }
     }
-    const owner = me ? me : await db.user.findUnique({ where: { email: submittedEmail } })
+    const owner = me ? me : await withTiming('db_admissions_user_by_email', () => db.user.findUnique({ where: { email: submittedEmail } }))
     if (owner && owner.role !== 'STUDENT') {
       return NextResponse.json(
         { error: 'البريد المدخل مرتبط بحساب إداري/غير طالب. أنشئ حساب طالب منفصل أو استخدم بريد الطالب الحقيقي قبل تقديم الطلب.' },
