@@ -105,6 +105,8 @@ export async function getGeminiLiveAllowance(input: {
 }): Promise<LiveUsageDecision> {
   const purpose = purposeName(input.purpose)
   const month = monthKey()
+  if (roleName(input.role) === 'ADMIN') return adminLiveDecision(input.role, purpose, month)
+
   const freeMonthlyLimitMinutes = await freeMonthlyLiveMinutes(input.userId, input.role)
   const sessionLimitMinutes = liveSessionLimitMinutes(input.role, purpose)
   const now = new Date()
