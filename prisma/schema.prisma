@@ -255,6 +255,7 @@ model Exam {
   title     String
   status    String        @default("READY") // READY | DRAFT
   passScore Int           @default(60)
+  generationWarning String?
   questions Question[]
   attempts  ExamAttempt[]
 }

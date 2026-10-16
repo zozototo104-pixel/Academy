@@ -416,6 +416,7 @@ interface CurriculumUnitReviewItem {
     title: string
     status?: 'READY' | 'DRAFT' | string
     passScore: number
+    generationWarning?: string | null
     questionsCount: number
     attemptsCount: number
     reviewQuestionsCount?: number
@@ -429,7 +430,7 @@ interface UnitQuestionReviewPayload {
   publishable: boolean
   counts: { APPROVED: number; PENDING_REVIEW: number; REJECTED: number; total: number }
   questions: { APPROVED: QuestionBankItemRow[]; PENDING_REVIEW: QuestionBankItemRow[]; REJECTED: QuestionBankItemRow[] }
-  exam: { id: string; title: string; status: string; questionsCount: number } | null
+  exam: { id: string; title: string; status: string; generationWarning?: string | null; questionsCount: number } | null
 }
 
 interface ProgramReadinessSnapshot {
@@ -615,6 +616,8 @@ export function AdminBooksTab() {
   const [gradingDialog, setGradingDialog] = useState<null | { mode: 'GRADE' | 'REVISION'; submission: AssignmentSubmissionRow; assignment: AssignmentRow; score: string; feedback: string }>(null)
   const [confirmDialog, setConfirmDialog] = useState<null | { title: string; description: string; confirmLabel?: string; danger?: boolean }>(null)
   const confirmResolveRef = useRef<((ok: boolean) => void) | null>(null)
+  const [cognitiveOverrideDialog, setCognitiveOverrideDialog] = useState<null | { title: string; message: string; details: string[]; reason: string }>(null)
+  const cognitiveOverrideResolveRef = useRef<((reason: string | null) => void) | null>(null)
   const [rebuildingKnowledge, setRebuildingKnowledge] = useState(false)
   const [sanitizingKnowledge, setSanitizingKnowledge] = useState(false)
   const [rebuildingBookId, setRebuildingBookId] = useState<string | null>(null)
@@ -641,6 +644,19 @@ export function AdminBooksTab() {
     confirmResolveRef.current?.(ok)
     confirmResolveRef.current = null
     setConfirmDialog(null)
+  }
+
+  const askCognitiveOverride = useCallback((input: { title: string; message: string; details?: string[] }) => {
+    return new Promise<string | null>((resolve) => {
+      cognitiveOverrideResolveRef.current = resolve
+      setCognitiveOverrideDialog({ title: input.title, message: input.message, details: input.details || [], reason: '' })
+    })
+  }, [])
+
+  const closeCognitiveOverride = (reason: string | null) => {
+    cognitiveOverrideResolveRef.current?.(reason)
+    cognitiveOverrideResolveRef.current = null
+    setCognitiveOverrideDialog(null)
   }
 
   useEffect(() => {
@@ -1253,10 +1269,23 @@ export function AdminBooksTab() {
     if (!confirmed) return
     setUnitBusyId(unit.id)
     try {
-      const result = await api<{ ok?: boolean; status?: string; error?: string; message?: string; reviewRequired?: boolean; jobId?: string; saved?: number; requested?: number; currentQuestions?: number; approvedQuestions?: number; pendingReviewQuestions?: number; requiredQuestions?: number }>('/api/admin/unit-exams/generate', {
+      const runGenerate = (overrideReason?: string) => api<{ ok?: boolean; status?: string; error?: string; message?: string; reviewRequired?: boolean; jobId?: string; saved?: number; requested?: number; currentQuestions?: number; approvedQuestions?: number; pendingReviewQuestions?: number; requiredQuestions?: number }>('/api/admin/unit-exams/generate', {
         method: 'POST',
-        body: JSON.stringify({ programId, unitId: unit.id, count: requestedCount, replace: true }),
+        body: JSON.stringify({ programId, unitId: unit.id, count: requestedCount, replace: true, ...(overrideReason ? { overrideCognitivePolicy: true, overrideReason } : {}) }),
       })
+      let result: Awaited<ReturnType<typeof runGenerate>>
+      try {
+        result = await runGenerate()
+      } catch (e: any) {
+        const code = e?.code || e?.data?.code
+        if (e?.status === 409 && code === 'COGNITIVE_DISTRIBUTION_FAILED') {
+          const reason = await askCognitiveOverride({ title: 'تجاوز توزيع المهارات المعرفية', message: e.message || 'توزيع المستويات المعرفية غير مناسب للنشر.', details: Array.isArray(e?.data?.details) ? e.data.details : [] })
+          if (!reason || reason.trim().length < 8) throw new Error('يجب كتابة سبب واضح لا يقل عن 8 أحرف لتجاوز توزيع المهارات المعرفية.')
+          result = await runGenerate(reason.trim())
+        } else {
+          throw e
+        }
+      }
       if (result?.ok === false && result.jobId) {
         setCurriculumUnits((prev) => prev.map((item) => item.id === unit.id ? {
           ...item,
@@ -3842,6 +3871,7 @@ export function AdminBooksTab() {
           {unitQuestionsLoading ? <div className="flex h-32 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-[#c9a227]" /></div> : unitQuestions ? <div className="space-y-4">
             <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-3 text-xs font-bold text-indigo-900">
               بنك أسئلة الوحدة: {unitQuestions.counts.APPROVED} معتمد · {unitQuestions.counts.PENDING_REVIEW} بانتظار المراجعة · {unitQuestions.counts.REJECTED} مرفوض — الاختبار: {unitExamLabel(unitQuestions.exam)}
+              {unitQuestions.exam?.generationWarning === 'LIMITED_KNOWLEDGE' && <Badge className="mr-2 bg-amber-100 text-amber-700 hover:bg-amber-100">معرفة الوحدة محدودة</Badge>}
               {!unitQuestions.readyToBuild && unitQuestions.counts.total > 0 && <p className="mt-2 rounded-xl bg-white/70 p-2 text-indigo-800">جاهز الآن {unitQuestions.counts.total} من {unitQuestions.requiredQuestions}. يمكنك مراجعة الموجود وبناء مسودة من الأسئلة الجاهزة، أو استكمال التوليد للعدد الكامل.</p>}
             </div>
             <Tabs value={unitQuestionsTab} onValueChange={(value) => { setUnitQuestionsTab(value as typeof unitQuestionsTab); setSelectedUnitQuestionIds([]) }} dir="rtl">
@@ -3978,6 +4008,28 @@ export function AdminBooksTab() {
                 <Button onClick={() => closeAdminConfirm(true)} className={confirmDialog.danger ? 'flex-1 rounded-2xl bg-red-600 font-black text-white hover:bg-red-700' : 'flex-1 rounded-2xl bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]'}>
                   {confirmDialog.confirmLabel || 'متابعة'}
                 </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!cognitiveOverrideDialog} onOpenChange={(open) => { if (!open) closeCognitiveOverride(null) }}>
+        <DialogContent className="max-w-xl rounded-3xl" dir="rtl">
+          {cognitiveOverrideDialog && (
+            <div className="space-y-4">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 font-black text-[#0f2b46]"><AlertTriangle className="h-5 w-5 text-amber-500" />{cognitiveOverrideDialog.title}</DialogTitle>
+                <DialogDescription className="text-sm font-bold leading-7 text-slate-600">{cognitiveOverrideDialog.message}</DialogDescription>
+              </DialogHeader>
+              {cognitiveOverrideDialog.details.length > 0 && <div className="rounded-2xl bg-amber-50 p-3 text-xs font-bold leading-6 text-amber-800">{cognitiveOverrideDialog.details.map((detail, index) => <p key={index}>• {detail}</p>)}</div>}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-black text-slate-700">سبب التجاوز الإداري</Label>
+                <Textarea value={cognitiveOverrideDialog.reason} onChange={(e) => setCognitiveOverrideDialog((prev) => prev ? { ...prev, reason: e.target.value } : prev)} className="min-h-24 text-xs" placeholder="اكتب سبباً واضحاً لا يقل عن 8 أحرف..." />
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button variant="outline" onClick={() => closeCognitiveOverride(null)} className="flex-1 rounded-2xl font-black">إلغاء</Button>
+                <Button onClick={() => closeCognitiveOverride(cognitiveOverrideDialog.reason.trim())} disabled={cognitiveOverrideDialog.reason.trim().length < 8} className="flex-1 rounded-2xl bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">تجاوز وتسجيل السبب</Button>
               </div>
             </div>
           )}

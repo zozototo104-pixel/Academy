@@ -15,6 +15,8 @@ export interface AgentCallbacks {
   context?: string
   /** صوت Gemini Live المطلوب. قاعة المناقشة تستخدم صوتاً أخف حتى لا يظهر صوت الرجل الفصيح الآلي. */
   voice?: string
+  /** لهجة التفريغ/التعرّف على الصوت المطلوبة مثل ar-PS أو ar-EG. */
+  dialect?: string
   /** endpoint بديل لحفظ تفريغ الدور؛ الدردشة تحفظ في /api/ai/gemini-live/log، والمناقشة تحفظ في /api/defense. */
   logEndpoint?: string
   /** حقول إضافية ترسل مع حفظ الدور، مثل action: live-turn. */
@@ -167,6 +169,8 @@ export class GeminiLiveAgent {
   private stream: MediaStream | null = null
   private ctx: AudioContext | null = null
   private processor: ScriptProcessorNode | null = null
+  private worklet: AudioWorkletNode | null = null
+  private silentSink: GainNode | null = null
   private source: MediaStreamAudioSourceNode | null = null
   private player: Pcm24Player
   private muted = false
@@ -235,15 +239,32 @@ export class GeminiLiveAgent {
     this.ctx = new Ctx() as AudioContext
     if (this.ctx.state === 'suspended') await this.ctx.resume().catch(() => {})
     this.source = this.ctx.createMediaStreamSource(this.stream)
+    this.silentSink = this.ctx.createGain()
+    this.silentSink.gain.value = 0
+
+    if (this.ctx.audioWorklet) {
+      try {
+        await this.ctx.audioWorklet.addModule('/worklets/pcm-capture.js')
+        this.worklet = new AudioWorkletNode(this.ctx, 'pcm-capture', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] })
+        this.worklet.port.onmessage = (ev) => this.sendWorkletAudioFrame(ev.data)
+        this.source.connect(this.worklet)
+        this.worklet.connect(this.silentSink)
+        this.silentSink.connect(this.ctx.destination)
+        return
+      } catch (error) {
+        console.warn('AudioWorklet microphone capture unavailable; falling back to ScriptProcessorNode.', error)
+        try { this.worklet?.disconnect() } catch (error) { console.warn('Failed to disconnect Gemini Live worklet.', error) }
+        this.worklet = null
+      }
+    } else {
+      console.warn('AudioWorklet is not supported; falling back to ScriptProcessorNode for microphone capture.')
+    }
+
     this.processor = this.ctx.createScriptProcessor(4096, 1, 1)
     this.processor.onaudioprocess = (e) => this.sendAudioFrame(e)
     this.source.connect(this.processor)
-
-    // إبقاء ScriptProcessor حيّاً بدون إخراج صوت المستخدم للسماعة.
-    const silent = this.ctx.createGain()
-    silent.gain.value = 0
-    this.processor.connect(silent)
-    silent.connect(this.ctx.destination)
+    this.processor.connect(this.silentSink)
+    this.silentSink.connect(this.ctx.destination)
   }
 
   private async connectWithFallbacks(): Promise<void> {
@@ -292,6 +313,7 @@ export class GeminiLiveAgent {
     const body: Record<string, string> = { setupVariant }
     if (model) body.model = model
     if (this.cb.voice) body.voice = this.cb.voice
+    if (this.cb.dialect) body.dialect = this.cb.dialect
     if (this.cb.context) body.context = this.cb.context
     const sessionRes = await fetch('/api/ai/gemini-live/session', {
       method: 'POST',
@@ -406,14 +428,8 @@ export class GeminiLiveAgent {
     })
   }
 
-  private sendAudioFrame(e: AudioProcessingEvent) {
-    if (!this.running || !this.setupReady || this.muted || !this.ctx) return
-
-    const input = e.inputBuffer.getChannelData(0)
-    let peak = 0
-    for (let i = 0; i < input.length; i++) peak = Math.max(peak, Math.abs(input[i]))
+  private updateMicLevel(peak: number) {
     this.cb.onLevel?.(Math.min(1, peak * 6))
-
     const isUserSpeaking = peak > 0.018
     if (isUserSpeaking) {
       this.lastUserSpeechAt = performance.now()
@@ -424,8 +440,9 @@ export class GeminiLiveAgent {
     } else {
       this.state('LISTENING')
     }
+  }
 
-    const data = b64FromInt16(downsampleTo16k(input, this.ctx.sampleRate || 48000))
+  private sendPcmBase64(data: string) {
     try {
       if (this.usingSdk && this.sdkSession?.sendRealtimeInput) {
         this.sdkSession.sendRealtimeInput({ audio: { mimeType: 'audio/pcm;rate=16000', data } })
@@ -441,6 +458,25 @@ export class GeminiLiveAgent {
     } catch (e) {
       this.cb.onError?.(friendlyClientError(e))
     }
+  }
+
+  private sendWorkletAudioFrame(message: { peak?: number; pcm?: ArrayBuffer }) {
+    if (!this.running || !this.setupReady || this.muted) return
+    this.updateMicLevel(Number(message?.peak || 0))
+    const pcmBuffer = message?.pcm
+    if (!pcmBuffer) return
+    this.sendPcmBase64(b64FromInt16(new Int16Array(pcmBuffer)))
+  }
+
+  private sendAudioFrame(e: AudioProcessingEvent) {
+    if (!this.running || !this.setupReady || this.muted || !this.ctx) return
+
+    const input = e.inputBuffer.getChannelData(0)
+    let peak = 0
+    for (let i = 0; i < input.length; i++) peak = Math.max(peak, Math.abs(input[i]))
+    this.updateMicLevel(peak)
+
+    this.sendPcmBase64(b64FromInt16(downsampleTo16k(input, this.ctx.sampleRate || 48000)))
   }
 
   private handleRawMessage(raw: any): boolean {
@@ -536,12 +572,17 @@ export class GeminiLiveAgent {
     this.closeConnectionOnly()
     this.player.stop()
     try { this.processor?.disconnect() } catch (error) { console.warn('Failed to disconnect Gemini Live processor.', error) }
+    try { this.worklet?.port.close() } catch (error) { console.warn('Failed to close Gemini Live worklet port.', error) }
+    try { this.worklet?.disconnect() } catch (error) { console.warn('Failed to disconnect Gemini Live worklet.', error) }
+    try { this.silentSink?.disconnect() } catch (error) { console.warn('Failed to disconnect Gemini Live silent sink.', error) }
     try { this.source?.disconnect() } catch (error) { console.warn('Failed to disconnect Gemini Live audio source.', error) }
     try { this.ctx?.close() } catch (error) { console.warn('Failed to close Gemini Live audio context.', error) }
     try { this.stream?.getTracks().forEach((t) => t.stop()) } catch (error) { console.warn('Failed to stop Gemini Live media tracks.', error) }
     this.stream = null
     this.ctx = null
     this.processor = null
+    this.worklet = null
+    this.silentSink = null
     this.source = null
     this.state('IDLE')
   }

@@ -4,6 +4,8 @@ import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
 import { notify } from '@/lib/notify'
 import { emailExamPublished } from '@/lib/mailer'
+import { getSetting } from '@/lib/settings'
+import { cognitivePolicyArabicMessage, validateCognitiveDistribution } from '@/lib/exam-cognitive-policy'
 
 const REQUIRED_PUBLISHED_QUESTIONS = 80
 const DEFAULT_MIN_TYPE_DISTRIBUTION: Record<string, number> = { MCQ: 20, TF: 12, SHORT: 10, ESSAY: 8 }
@@ -295,7 +297,10 @@ export async function PATCH(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const admin = await requireAdmin()
-    const { examId, action } = await req.json()
+    const body = await req.json()
+    const { examId, action } = body
+    const overrideCognitivePolicy = body?.overrideCognitivePolicy === true
+    const overrideReason = cleanInternalExamMeta(body?.overrideReason, 1000)
     if (!examId || action !== 'APPROVE_ALL') return NextResponse.json({ error: 'بيانات غير مكتملة' }, { status: 400 })
 
     const exam = await db.programExam.findUnique({
@@ -316,6 +321,24 @@ export async function POST(req: NextRequest) {
         },
         { status: 400 }
       )
+    }
+
+    const [lowMaxRaw, highMinRaw] = await Promise.all([
+      getSetting('EXAM_LOW_SKILL_MAX_PERCENT').catch(() => '50'),
+      getSetting('PROGRAM_EXAM_HIGH_SKILL_MIN_PERCENT').catch(() => '20'),
+    ])
+    const cognitive = validateCognitiveDistribution(publicationCandidates, 'PROGRAM', {
+      lowMaxPercent: Number(lowMaxRaw || 50) || 50,
+      programHighMinPercent: Number(highMinRaw || 20) || 20,
+    })
+    if (!cognitive.ok) {
+      if (!overrideCognitivePolicy || overrideReason.length < 8) {
+        return NextResponse.json(
+          { error: cognitivePolicyArabicMessage(cognitive), details: cognitive.details, code: 'COGNITIVE_DISTRIBUTION_FAILED' },
+          { status: 409 }
+        )
+      }
+      await audit({ id: admin.id, name: admin.name }, 'OVERRIDE_COGNITIVE_DISTRIBUTION', 'ProgramExam', examId, `${overrideReason} — ${cognitive.details.join(' | ')}`)
     }
 
     // اعتماد كل الأسئلة المعلقة بعد تنظيف أي تسميات تقنية تسربت من بنك المعرفة.

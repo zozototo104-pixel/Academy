@@ -69,12 +69,23 @@ interface SpeechRecognitionLike {
   stop: () => void
   abort: () => void
 }
-function getRecognition(): SpeechRecognitionLike | null {
+const DIALECT_OPTIONS = [
+  { value: 'ar-PS', label: 'شامي/فلسطيني' },
+  { value: 'ar-EG', label: 'مصري' },
+  { value: 'ar-SA', label: 'خليجي' },
+  { value: 'ar-MA', label: 'مغاربي' },
+]
+
+function defaultVoiceDialect() {
+  return process.env.NEXT_PUBLIC_VOICE_DEFAULT_DIALECT || 'ar-PS'
+}
+
+function getRecognition(lang: string): SpeechRecognitionLike | null {
   const w = window as any
   const SR = w.SpeechRecognition || w.webkitSpeechRecognition
   if (!SR) return null
   const rec: SpeechRecognitionLike = new SR()
-  rec.lang = 'ar-SA'
+  rec.lang = lang || defaultVoiceDialect()
   rec.continuous = true
   rec.interimResults = true
   rec.maxAlternatives = 1
@@ -138,6 +149,7 @@ export function AIChatView() {
   const [voicePackageDialog, setVoicePackageDialog] = useState<{ open: boolean; message: string }>({ open: false, message: '' })
   const [voicePackageOffer, setVoicePackageOffer] = useState<{ minutes: number; amount: number; currency: string } | null>(null)
   const [voicePackageBusy, setVoicePackageBusy] = useState(false)
+  const [voiceDialect, setVoiceDialect] = useState(() => defaultVoiceDialect())
   const agentRef = useRef<VoiceAgent | null>(null)
   const mutedRef = useRef(muted)
 
@@ -163,6 +175,26 @@ export function AIChatView() {
   useEffect(() => { autoSpeakRef.current = autoSpeak }, [autoSpeak])
   useEffect(() => { voiceModeRef.current = voiceMode }, [voiceMode])
   useEffect(() => { activeUnitRef.current = activeUnitId ?? null }, [activeUnitId])
+  useEffect(() => {
+    let cancelled = false
+    try {
+      const saved = localStorage.getItem('aact_voice_dialect')
+      if (saved) {
+        setVoiceDialect(saved)
+        return
+      }
+    } catch (error) { console.warn('Failed to load voice dialect preference.', error) }
+    api<{ values?: Record<string, string> }>('/api/settings')
+      .then((d) => {
+        const configured = d.values?.VOICE_DEFAULT_DIALECT
+        if (!cancelled && configured && /^ar-[A-Z]{2}$/.test(configured)) setVoiceDialect(configured)
+      })
+      .catch((error) => console.warn('Failed to load default voice dialect setting.', error))
+    return () => { cancelled = true }
+  }, [])
+  useEffect(() => {
+    try { localStorage.setItem('aact_voice_dialect', voiceDialect) } catch (error) { console.warn('Failed to save voice dialect preference.', error) }
+  }, [voiceDialect])
 
   useEffect(() => {
     if (!user) return
@@ -429,6 +461,21 @@ export function AIChatView() {
     }
   }
 
+  const switchVoiceToText = () => {
+    agentRef.current?.stop()
+    agentRef.current = null
+    setVoiceMode(false)
+    voiceModeRef.current = false
+    setSpeakingId(null)
+    setListening(false)
+    setInterim('')
+    setLiveCaption('')
+    setMicLevel(0)
+    setVoiceState('IDLE')
+    setMuted(false)
+    setTimeout(() => document.querySelector<HTMLTextAreaElement>('textarea')?.focus(), 80)
+  }
+
   const toggleVoiceMode = () => {
     if (voiceMode) {
       setVoiceMode(false)
@@ -460,6 +507,7 @@ export function AIChatView() {
       onUserCaption: (t) => setLiveCaption(t),
       onAiCaption: (t) => setLastReply(t),
       onTimings: (rows) => setTimings(rows),
+      dialect: voiceDialect,
       onTurnComplete: ({ userText, aiText, messageId }) => {
         const now = new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' })
         setMessages((prev) => [...prev, { id: `vu-${Date.now()}`, role: 'user', content: userText, mode: 'VOICE', time: now }, { id: messageId || `va-${Date.now()}`, role: 'assistant', content: aiText, mode: 'VOICE', time: now }])
@@ -525,7 +573,7 @@ export function AIChatView() {
       speechUtteranceRef.current = null
       setSpeakingId(null)
     }
-    const rec = getRecognition()
+    const rec = getRecognition(voiceDialect)
     if (!rec) {
       startAsrFallback()
       return
@@ -608,7 +656,7 @@ export function AIChatView() {
             fr.onload = () => resolve(String(fr.result || '').split(',')[1] || '')
             fr.readAsDataURL(blob)
           })
-          const d = await api<{ text: string }>('/api/ai/asr', { method: 'POST', body: JSON.stringify({ audioBase64: b64 }) })
+          const d = await api<{ text: string }>('/api/ai/asr', { method: 'POST', body: JSON.stringify({ audioBase64: b64, dialect: voiceDialect }) })
           setInterim('')
           if (d.text?.trim()) send(d.text.trim(), { voice: true })
           else toast({ title: 'لم يُفهم الصوت', description: 'حاول مرة أخرى بنطق أوضح', variant: 'destructive' })
@@ -728,6 +776,9 @@ export function AIChatView() {
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <Badge className="hidden gap-1 bg-emerald-500/15 text-[9px] font-black text-emerald-300 hover:bg-emerald-500/15 sm:inline-flex"><ShieldCheck className="h-3 w-3" /> تُحفظ المحادثة في ملفك تلقائياً</Badge>
+              <select value={voiceDialect} onChange={(e) => setVoiceDialect(e.target.value)} className="h-8 max-w-24 rounded-full border border-white/20 bg-white/10 px-1.5 text-[10px] font-black text-white outline-none sm:max-w-none sm:px-2" title="لهجة التعرّف على الصوت">
+                {DIALECT_OPTIONS.map((d) => <option key={d.value} value={d.value} className="text-slate-900">{d.label}</option>)}
+              </select>
               <Button onClick={toggleVoiceMode} size="sm" className="rounded-full bg-[#b22234] px-4 font-black text-white shadow-lg hover:bg-[#c9333f]" title="إنهاء المحادثة الصوتية">
                 <PhoneOff className="ml-1.5 h-4 w-4" /> إنهاء
               </Button>
@@ -753,9 +804,10 @@ export function AIChatView() {
             {showTimings && timings.length > 0 && <div dir="ltr" className="rounded-xl bg-black/40 px-4 py-3 font-mono text-[10px] leading-relaxed text-emerald-300">{timings.map((t) => <div key={t.event}>{t.event.padEnd(22, ' ')} +{t.atMs}ms</div>)}</div>}
           </div>
           <div className="sticky bottom-0 z-30 mt-auto shrink-0 border-t border-white/10 bg-[#06182c]/95 px-4 py-3 shadow-2xl backdrop-blur">
-            <div className="mx-auto grid w-full max-w-md grid-cols-4 items-center gap-3">
+            <div className="mx-auto grid w-full max-w-lg grid-cols-5 items-center gap-3">
               <button onClick={toggleMute} aria-label={muted ? 'إلغاء الكتم' : 'كتم المايك'} className={`mx-auto flex h-14 w-14 items-center justify-center rounded-full border transition-all active:scale-95 ${muted ? 'border-white/20 bg-white/10 text-white/60' : 'border-white/30 bg-white/15 text-white hover:bg-white/25'}`}>{muted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}</button>
               <button onClick={toggleVoiceMode} aria-label="إنهاء المحادثة الصوتية" className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#b22234] text-white shadow-2xl transition-all hover:bg-[#c9333f] active:scale-95"><PhoneOff className="h-6 w-6" /></button>
+              <button onClick={switchVoiceToText} aria-label="حوّل المحادثة إلى كتابة" title="حوّل لكتابة" className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-white/30 bg-white/15 text-white transition-all hover:bg-white/25 active:scale-95"><MessageCircle className="h-5 w-5" /></button>
               <button onClick={() => setShowCaptions(!showCaptions)} aria-label="إظهار/إخفاء التسميات" className={`mx-auto flex h-14 w-14 items-center justify-center rounded-full border transition-all active:scale-95 ${showCaptions ? 'border-white/30 bg-white/15 text-white hover:bg-white/25' : 'border-white/20 bg-transparent text-white/50'}`}><Captions className="h-5 w-5" /></button>
               <button onClick={() => setShowTimings(!showTimings)} aria-label="إظهار/إخفاء أزمنة المراحل" title="أزمنة المراحل (تشخيصي)" className={`mx-auto flex h-14 w-14 items-center justify-center rounded-full border transition-all active:scale-95 ${showTimings ? 'border-emerald-300/50 bg-emerald-400/20 text-emerald-200' : 'border-white/20 bg-transparent text-white/50'}`}><Activity className="h-5 w-5" /></button>
             </div>

@@ -17,6 +17,7 @@ import {
 import { buildSupervisorContext, mergeContext } from '@/lib/supervisor-ai'
 import { buildVoiceSystemPrompt } from '@/lib/voicePrompt'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
+import { getSetting } from '@/lib/settings'
 import { getGeminiLiveAllowance, reserveGeminiLiveUsage, type LivePurpose } from '@/lib/live-usage-guard'
 
 export const runtime = 'nodejs'
@@ -34,6 +35,11 @@ function cleanModel(model: unknown): string {
 function cleanVoice(voice: unknown): string {
   const v = String(voice || '').trim()
   return /^[A-Za-z][A-Za-z0-9_-]{1,40}$/.test(v) ? v : 'Charon'
+}
+
+function cleanDialect(value: unknown): string {
+  const v = String(value || '').trim()
+  return /^ar-[A-Z]{2}$/.test(v) ? v : 'ar-PS'
 }
 
 function cleanVariant(v: unknown): SetupVariant {
@@ -108,7 +114,7 @@ function speechConfigForVoice(voice: string) {
   }
 }
 
-function buildSetup(variant: SetupVariant, model: string, systemInstruction: string, voice: string) {
+function buildSetup(variant: SetupVariant, model: string, systemInstruction: string, voice: string, dialect: string) {
   const instruction = systemInstruction.slice(0, 32000)
   const speechConfig = speechConfigForVoice(voice)
 
@@ -118,6 +124,7 @@ function buildSetup(variant: SetupVariant, model: string, systemInstruction: str
         model: `models/${model}`,
         responseModalities: ['AUDIO'],
         speechConfig,
+        inputAudioTranscription: { languageCode: dialect },
       },
     }
   }
@@ -129,6 +136,7 @@ function buildSetup(variant: SetupVariant, model: string, systemInstruction: str
         generationConfig: {
           responseModalities: ['AUDIO'],
           speechConfig,
+          inputAudioTranscription: { languageCode: dialect },
         },
         systemInstruction: {
           parts: [{ text: instruction }],
@@ -142,6 +150,7 @@ function buildSetup(variant: SetupVariant, model: string, systemInstruction: str
       model: `models/${model}`,
       responseModalities: ['AUDIO'],
       speechConfig,
+      inputAudioTranscription: { languageCode: dialect },
       systemInstruction: {
         parts: [{ text: instruction }],
       },
@@ -164,7 +173,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'أدخل مفتاح Gemini API أولاً من لوحة الإدارة' }, { status: 400 })
   }
 
-  let body: { model?: string; voice?: string; context?: string; purpose?: string; testOnly?: boolean; setupVariant?: SetupVariant } = {}
+  let body: { model?: string; voice?: string; dialect?: string; context?: string; purpose?: string; testOnly?: boolean; setupVariant?: SetupVariant } = {}
   try {
     body = await req.json()
   } catch (error) {
@@ -188,6 +197,8 @@ export async function POST(req: NextRequest) {
   }
 
   const voice = cleanVoice(body.voice || await geminiTTSVoice())
+  const defaultDialect = await getSetting('VOICE_DEFAULT_DIALECT').catch(() => process.env.VOICE_DEFAULT_DIALECT || 'ar-PS')
+  const dialect = cleanDialect(body.dialect || defaultDialect || 'ar-PS')
   const setupVariant = cleanVariant(body.setupVariant)
   const liveScope = resolveAiKnowledgeScope({ role: user.role, purpose })
   const liveQuery = String(body.context || '')
@@ -211,7 +222,7 @@ export async function POST(req: NextRequest) {
     voice,
   })
 
-  const setup = buildSetup(setupVariant, model, systemInstruction, voice)
+  const setup = buildSetup(setupVariant, model, systemInstruction, voice, dialect)
 
   const now = Date.now()
   const sessionLimitMinutes = allowance?.sessionLimitMinutes || 10
@@ -259,6 +270,7 @@ export async function POST(req: NextRequest) {
         ok: true,
         model,
         voice,
+        dialect,
         setupVariant,
         expiresAt: expireTime,
         sessionLimitMinutes,
@@ -267,7 +279,7 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    const reservedUsage = await reserveGeminiLiveUsage({ userId: user.id, role: user.role, purpose, requestedMinutes: sessionLimitMinutes })
+    const reservedUsage = await reserveGeminiLiveUsage({ userId: user.id, role: user.role, purpose, requestedMinutes: Math.min(2, sessionLimitMinutes) })
     if (!reservedUsage.ok) {
       return NextResponse.json({ error: reservedUsage.message, liveUsage: reservedUsage }, { status: reservedUsage.status })
     }
@@ -276,6 +288,7 @@ export async function POST(req: NextRequest) {
       token,
       model,
       voice,
+      dialect,
       setupVariant,
       expiresAt: expireTime,
       sessionLimitMinutes,
@@ -285,6 +298,7 @@ export async function POST(req: NextRequest) {
       sdkConfig: {
         responseModalities: ['AUDIO'],
         speechConfig: speechConfigForVoice(voice),
+        inputAudioTranscription: { languageCode: dialect },
         systemInstruction: systemInstruction.slice(0, 32000),
       },
     })

@@ -41,7 +41,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     if (!unitId) return NextResponse.json({ error: 'معرف الوحدة مطلوب' }, { status: 400 })
     const unit = await db.unit.findUnique({
       where: { id: unitId },
-      select: { id: true, title: true, programId: true, exam: { select: { id: true, title: true, status: true, _count: { select: { questions: true } } } } },
+      select: { id: true, title: true, programId: true, exam: { select: { id: true, title: true, status: true, generationWarning: true, _count: { select: { questions: true } } } } },
     })
     if (!unit) return NextResponse.json({ error: 'الوحدة غير موجودة' }, { status: 404 })
     const [items, job] = await Promise.all([
@@ -106,7 +106,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
         total: items.length,
       },
       questions: grouped,
-      exam: unit.exam ? { id: unit.exam.id, title: unit.exam.title, status: unit.exam.status, questionsCount: unit.exam._count.questions } : null,
+      exam: unit.exam ? { id: unit.exam.id, title: unit.exam.title, status: unit.exam.status, generationWarning: unit.exam.generationWarning, questionsCount: unit.exam._count.questions } : null,
     })
   } catch (error: unknown) {
     if (error instanceof Error && error.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })

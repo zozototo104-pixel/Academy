@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { jsPDF } from 'jspdf'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
+import { toVisualArabic } from '@/lib/pdf-arabic'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -201,18 +202,13 @@ function setText(doc: jsPDF, size: number, color = TEXT, style: 'normal' | 'bold
   doc.setTextColor(color)
 }
 
-function shapeArabic(doc: jsPDF, value: string) {
-  return typeof (doc as any).processArabic === 'function' ? (doc as any).processArabic(value) : value
-}
-
 function writeArabic(doc: jsPDF, value: string, x: number, y: number, opts: { size?: number; color?: string; maxWidth?: number; maxLines?: number; align?: 'right' | 'center' } = {}) {
   setText(doc, opts.size || 13, opts.color || TEXT, 'normal', ARABIC_FONT_NAME)
-  const shaped = shapeArabic(doc, safeText(value))
-  const lines = opts.maxWidth ? doc.splitTextToSize(shaped, opts.maxWidth).slice(0, opts.maxLines || 3) : [shaped]
-  ;(doc as any).setR2L?.(true)
-  doc.text(lines, x, y, { align: opts.align || 'right' })
-  ;(doc as any).setR2L?.(false)
-  return Math.max(20, lines.length * ((opts.size || 13) + 4))
+  const logical = safeText(value)
+  const logicalLines = opts.maxWidth ? doc.splitTextToSize(logical, opts.maxWidth).slice(0, opts.maxLines || 3) : [logical]
+  const visualLines = logicalLines.map((line: string) => toVisualArabic(line))
+  doc.text(visualLines, x, y, { align: opts.align || 'right' })
+  return Math.max(20, visualLines.length * ((opts.size || 13) + 4))
 }
 
 function drawBilingualLabel(doc: jsPDF, label: BilingualLabel, x: number, y: number, arabicX: number, arabicReady: boolean, color = MUTED) {
@@ -383,9 +379,9 @@ export function buildInvoicePdf(data: InvoicePdfData, options: InvoicePdfOptions
   doc.setDrawColor(BORDER)
   doc.line(52, 1084, 742, 1084)
   setText(doc, 11, MUTED, 'normal')
-  doc.text('Generated electronically by AACT Platform. No manual signature required.', 52, 1106)
-  if (arabicReady) writeArabic(doc, 'تم إنشاء المستند إلكترونياً عبر منصة AACT ولا يحتاج إلى توقيع يدوي.', 714, 1106, { size: 11, color: MUTED })
-  doc.text('aactacademy.com', 742, 1106, { align: 'right' })
+  if (arabicReady) writeArabic(doc, 'تم إنشاء المستند إلكترونياً عبر منصة AACT ولا يحتاج إلى توقيع يدوي.', 714, 1092, { size: 10, color: MUTED })
+  doc.text('Generated electronically by AACT Platform. No manual signature required.', 52, 1110)
+  doc.text('aactacademy.com', 742, 1110, { align: 'right' })
 
   return new Uint8Array(doc.output('arraybuffer'))
 }

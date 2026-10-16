@@ -1,7 +1,10 @@
 import { after, NextRequest, NextResponse } from 'next/server'
-import type { QuestionBankItem } from '@prisma/client'
+import type { Prisma, QuestionBankItem } from '@prisma/client'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
+import { audit } from '@/lib/notify'
+import { getSetting } from '@/lib/settings'
+import { cognitivePolicyArabicMessage, validateCognitiveDistribution } from '@/lib/exam-cognitive-policy'
 import { ensureQuestionBankGenerationJob, runQuestionBankGenerationJobStepsUntil } from '@/lib/question-bank-job'
 import { UNIT_EXAM_REVIEW_LABEL, selectUnitExamQuestionsApprovedFirst, unitExamQuestionTextWithReviewLabel, unitExamRequiredQuestions, type UnitExamSelection } from '@/lib/unit-exam-policy'
 
@@ -9,7 +12,7 @@ export const runtime = 'nodejs'
 export const maxDuration = 300
 export const dynamic = 'force-dynamic'
 
-type UnitExamBankItem = Pick<QuestionBankItem, 'id' | 'status' | 'type' | 'text' | 'options' | 'correctAnswer' | 'modelAnswer' | 'knowledgeItemId' | 'sourceEvidence' | 'rubric' | 'correctRationale' | 'qualityFlags' | 'usageCount' | 'createdAt'>
+type UnitExamBankItem = Pick<QuestionBankItem, 'id' | 'status' | 'type' | 'text' | 'options' | 'correctAnswer' | 'modelAnswer' | 'knowledgeItemId' | 'sourceEvidence' | 'rubric' | 'correctRationale' | 'qualityFlags' | 'cognitiveSkill' | 'usageCount' | 'createdAt'>
 type ScopedQuestionResult = { questions: UnitExamBankItem[]; selection: UnitExamSelection; requiredQuestions: number }
 
 function cleanText(value: unknown, max = 1200) {
@@ -94,21 +97,60 @@ async function queueQuestionBankJob(programId: string, unitId: string, requiredQ
   return job
 }
 
+async function unitKnowledgeAvailability(programId: string, unit: { sourceBookId: string | null; chunkStartIndex: number | null; chunkEndIndex: number | null; semester: number | null }) {
+  const minRaw = await getSetting('UNIT_MIN_KNOWLEDGE_ITEMS').catch(() => process.env.UNIT_MIN_KNOWLEDGE_ITEMS || '15')
+  const minItems = Math.max(1, Number(minRaw || 15) || 15)
+  const where: Prisma.BookKnowledgeItemWhereInput = { programId }
+
+  if (unit?.sourceBookId) {
+    where.bookId = unit.sourceBookId
+    if (Number.isFinite(Number(unit.chunkStartIndex)) && Number.isFinite(Number(unit.chunkEndIndex))) {
+      const chunks = await db.bookChunk.findMany({
+        where: { bookId: unit.sourceBookId, index: { gte: Number(unit.chunkStartIndex), lte: Number(unit.chunkEndIndex) } },
+        select: { id: true },
+      }).catch(() => [])
+      const chunkIds = chunks.map((chunk) => chunk.id)
+      if (!chunkIds.length) return { count: 0, minItems, limited: true }
+      where.chunkId = { in: chunkIds }
+    } else if (Number.isFinite(Number(unit.semester))) {
+      where.semester = Number(unit.semester)
+    }
+  } else if (Number.isFinite(Number(unit.semester))) {
+    where.semester = Number(unit.semester)
+  }
+
+  // BookKnowledgeItem does not have a review status column; persisted items are treated as the approved/equivalent knowledge source.
+  const count = await db.bookKnowledgeItem.count({ where }).catch(() => 0)
+  return { count, minItems, limited: count < minItems }
+}
+
+function limitedKnowledgeQuestionCount(requested: number, available: number, minimum: number) {
+  if (available >= minimum) return requested
+  const ratio = Math.max(0, available) / Math.max(1, minimum)
+  return Math.max(5, Math.min(requested, Math.floor(requested * ratio)))
+}
+
 // POST /api/admin/unit-exams/generate
 // body: { programId, unitId, count?, replace? }
 export async function POST(req: NextRequest) {
   try {
-    await requireAdmin()
+    const admin = await requireAdmin()
     const body = bodyRecord(await req.json().catch(() => ({})))
     const programId = cleanText(body.programId, 80)
     const unitId = cleanText(body.unitId, 80)
-    const requiredQuestions = unitExamRequiredQuestions(body.count)
+    const requestedQuestions = unitExamRequiredQuestions(body.count)
     const replace = body.replace !== false
+    const overrideCognitivePolicy = body.overrideCognitivePolicy === true
+    const overrideReason = cleanText(body.overrideReason, 1000)
 
     if (!programId || !unitId) return NextResponse.json({ ok: false, error: 'معرف البرنامج والوحدة مطلوبان' }, { status: 400 })
     const unit = await db.unit.findFirst({ where: { id: unitId, programId }, include: { exam: { select: { id: true, title: true, status: true, _count: { select: { questions: true, attempts: true } } } } } })
     if (!unit) return NextResponse.json({ ok: false, error: 'الوحدة غير موجودة ضمن البرنامج المحدد' }, { status: 404 })
     if (unit.exam?._count.attempts && replace) return NextResponse.json({ ok: false, error: 'لا يمكن إعادة توليد اختبار وحدة لديه محاولات طلابية محفوظة. أنشئ وحدة/اختباراً جديداً بدلاً من مسح سجل الطلاب.' }, { status: 409 })
+
+    const knowledge = await unitKnowledgeAvailability(programId, unit)
+    const limitedKnowledge = knowledge.limited
+    const requiredQuestions = limitedKnowledge ? limitedKnowledgeQuestionCount(requestedQuestions, knowledge.count, knowledge.minItems) : requestedQuestions
 
     const scoped = await loadScopedQuestions(programId, unitId, requiredQuestions)
     if (!scoped.selection.readyToBuild) {
@@ -122,19 +164,36 @@ export async function POST(req: NextRequest) {
         currentQuestions: scoped.selection.currentEligibleCount,
         approvedQuestions: scoped.selection.approvedCount,
         pendingReviewQuestions: scoped.selection.pendingReviewCount,
+        requestedQuestions,
         requiredQuestions,
+        warning: limitedKnowledge ? 'LIMITED_KNOWLEDGE' : null,
+        knowledgeItems: knowledge.count,
+        minKnowledgeItems: knowledge.minItems,
         error: `لا يكفي عدد الأسئلة المعتمدة: ${scoped.selection.currentEligibleCount} من ${requiredQuestions}. في ${scoped.selection.pendingReviewCount} أسئلة بانتظار المراجعة.`,
       }, { status: 202 })
     }
 
+    const lowMaxRaw = await getSetting('EXAM_LOW_SKILL_MAX_PERCENT').catch(() => '50')
+    const cognitive = validateCognitiveDistribution(scoped.questions, 'UNIT', { lowMaxPercent: Number(lowMaxRaw || 50) || 50 })
+    if (!cognitive.ok) {
+      if (!overrideCognitivePolicy || overrideReason.length < 8) {
+        return NextResponse.json(
+          { ok: false, error: cognitivePolicyArabicMessage(cognitive), details: cognitive.details, code: 'COGNITIVE_DISTRIBUTION_FAILED' },
+          { status: 409 }
+        )
+      }
+      await audit({ id: admin.id, name: admin.name }, 'OVERRIDE_UNIT_COGNITIVE_DISTRIBUTION', 'Unit', unitId, `${overrideReason} — ${cognitive.details.join(' | ')}`)
+    }
+
     const reviewRequired = false
     const examStatus = reviewRequired ? 'DRAFT' : 'READY'
+    const generationWarning = limitedKnowledge ? 'LIMITED_KNOWLEDGE' : null
     const examQuestions = scoped.questions.map((item, index) => toExamQuestion(item, index, reviewRequired))
 
     const result = await db.$transaction(async (tx) => {
       const exam = unit.exam
-        ? await tx.exam.update({ where: { id: unit.exam.id }, data: { title: `${reviewRequired ? `[${UNIT_EXAM_REVIEW_LABEL}] ` : ''}اختبار وحدة: ${unit.title}`, status: examStatus, passScore: 60 } })
-        : await tx.exam.create({ data: { unitId: unit.id, title: `${reviewRequired ? `[${UNIT_EXAM_REVIEW_LABEL}] ` : ''}اختبار وحدة: ${unit.title}`, status: examStatus, passScore: 60 } })
+        ? await tx.exam.update({ where: { id: unit.exam.id }, data: { title: `${reviewRequired ? `[${UNIT_EXAM_REVIEW_LABEL}] ` : ''}اختبار وحدة: ${unit.title}`, status: examStatus, passScore: 60, generationWarning } })
+        : await tx.exam.create({ data: { unitId: unit.id, title: `${reviewRequired ? `[${UNIT_EXAM_REVIEW_LABEL}] ` : ''}اختبار وحدة: ${unit.title}`, status: examStatus, passScore: 60, generationWarning } })
       if (replace) {
         await tx.examDraft.deleteMany({ where: { examId: exam.id, examType: 'UNIT' } })
         await tx.question.deleteMany({ where: { examId: exam.id } })
@@ -143,17 +202,25 @@ export async function POST(req: NextRequest) {
       for (const [index, question] of examQuestions.entries()) await tx.question.create({ data: { examId: exam.id, ...question, order: existingCount + index + 1 } })
       await tx.questionBankItem.updateMany({ where: { id: { in: scoped.questions.map((item) => item.id) } }, data: { usageCount: { increment: 1 } } })
       await tx.program.update({ where: { id: programId }, data: { academicReadinessStatus: 'READY_FOR_REVIEW', academicApproved: false, academicApprovedAt: null, academicApprovedById: null } })
-      return tx.exam.findUnique({ where: { id: exam.id }, select: { id: true, title: true, status: true, passScore: true, _count: { select: { questions: true, attempts: true } } } })
+      return tx.exam.findUnique({ where: { id: exam.id }, select: { id: true, title: true, status: true, passScore: true, generationWarning: true, _count: { select: { questions: true, attempts: true } } } })
     })
+
+    if (limitedKnowledge) {
+      await audit({ id: admin.id, name: admin.name }, 'LIMITED_UNIT_KNOWLEDGE_EXAM', 'Unit', unitId, `LIMITED_KNOWLEDGE: ${knowledge.count}/${knowledge.minItems}; requested ${requestedQuestions}, generated ${requiredQuestions}`)
+    }
 
     return NextResponse.json({
       ok: true,
       exam: result,
       reviewRequired,
       currentQuestions: scoped.selection.currentEligibleCount,
+      requestedQuestions,
       requiredQuestions,
+      warning: limitedKnowledge ? 'LIMITED_KNOWLEDGE' : null,
+      knowledgeItems: knowledge.count,
+      minKnowledgeItems: knowledge.minItems,
       pendingReviewQuestions: scoped.selection.pendingReviewCount,
-      sourceGroundedRatio: scoped.selection.approvedCount / scoped.questions.length,
+      sourceGroundedRatio: scoped.questions.length ? scoped.selection.approvedCount / scoped.questions.length : 0,
       message: reviewRequired ? 'تم حفظ اختبار الوحدة كمسودة لأنه يحتوي أسئلة تحتاج مراجعة. لن يظهر للطلاب حتى تعتمد الأسئلة.' : 'تم توليد اختبار الوحدة من أسئلة معتمدة وموثقة ضمن نطاق الوحدة.',
     })
   } catch (error: unknown) {

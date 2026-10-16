@@ -1,7 +1,7 @@
 'use client'
 
 import { api } from '@/lib/store'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast, useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -91,6 +91,8 @@ export function QuestionReviewDialog({
   const [draft, setDraft] = useState<QuestionDraft | null>(null)
   const [busy, setBusy] = useState(false)
   const [filter, setFilter] = useState<'ALL' | 'PENDING_REVIEW' | 'PUBLISHED' | 'REJECTED'>('ALL')
+  const [cognitiveOverrideDialog, setCognitiveOverrideDialog] = useState<null | { message: string; details: string[]; reason: string }>(null)
+  const cognitiveOverrideResolveRef = useRef<((reason: string | null) => void) | null>(null)
 
   const load = useCallback(async () => {
     if (!examId) return
@@ -108,6 +110,19 @@ export function QuestionReviewDialog({
   useEffect(() => {
     if (open) load()
   }, [open, load])
+
+  const askCognitiveOverride = useCallback((message: string, details: string[]) => {
+    return new Promise<string | null>((resolve) => {
+      cognitiveOverrideResolveRef.current = resolve
+      setCognitiveOverrideDialog({ message, details, reason: '' })
+    })
+  }, [])
+
+  const closeCognitiveOverride = (reason: string | null) => {
+    cognitiveOverrideResolveRef.current?.(reason)
+    cognitiveOverrideResolveRef.current = null
+    setCognitiveOverrideDialog(null)
+  }
 
   const startEdit = (q: ReviewQuestion) => {
     const options = q.options || (q.type === 'TF' ? ['صح', 'خطأ'] : ['', '', '', ''])
@@ -262,10 +277,25 @@ export function QuestionReviewDialog({
     if (!confirm('سيتم اعتماد كل الأسئلة المعلّقة ونشر الامتحان للطلاب المتسجلين مع إشعارهم. متابعة؟')) return
     setBusy(true)
     try {
-      const d = await api<{ published: number }>('/api/admin/program-exam-questions', {
+      const publishRequest = (overrideReason?: string) => api<{ published: number }>('/api/admin/program-exam-questions', {
         method: 'POST',
-        body: JSON.stringify({ examId, action: 'APPROVE_ALL' }),
+        body: JSON.stringify({ examId, action: 'APPROVE_ALL', ...(overrideReason ? { overrideCognitivePolicy: true, overrideReason } : {}) }),
       })
+      let d: { published: number } | null = null
+      try {
+        d = await publishRequest()
+      } catch (e: any) {
+        const code = e?.code || e?.data?.code
+        if (e?.status === 409 && code === 'COGNITIVE_DISTRIBUTION_FAILED') {
+          const details = Array.isArray(e?.data?.details) ? e.data.details : []
+          const reason = await askCognitiveOverride(e.message || 'توزيع المستويات المعرفية غير مناسب للنشر.', details)
+          if (!reason || reason.trim().length < 8) throw new Error('يجب كتابة سبب واضح لتجاوز توزيع المهارات المعرفية.')
+          d = await publishRequest(reason.trim())
+        } else {
+          throw e
+        }
+      }
+      if (!d) throw new Error('لم يكتمل نشر الامتحان')
       toast({ title: 'نُشر الامتحان', description: `${d.published} سؤالاً معتمداً — وصل إشعار للطلاب المتسجلين` })
       onPublished()
       onClose()
@@ -539,6 +569,27 @@ export function QuestionReviewDialog({
             </div>
           </>
         )}
+        <Dialog open={!!cognitiveOverrideDialog} onOpenChange={(v) => { if (!v) closeCognitiveOverride(null) }}>
+          <DialogContent className="max-w-xl" dir="rtl">
+            {cognitiveOverrideDialog && (
+              <div className="space-y-4">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2 font-black text-[#0f2b46]"><AlertTriangle className="h-5 w-5 text-amber-500" />تجاوز توزيع المهارات المعرفية</DialogTitle>
+                  <DialogDescription className="text-sm font-bold leading-7 text-slate-600">{cognitiveOverrideDialog.message}</DialogDescription>
+                </DialogHeader>
+                {cognitiveOverrideDialog.details.length > 0 && <div className="rounded-xl bg-amber-50 p-3 text-xs font-bold leading-6 text-amber-800">{cognitiveOverrideDialog.details.map((detail, index) => <p key={index}>• {detail}</p>)}</div>}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-black text-slate-700">سبب التجاوز الإداري</Label>
+                  <Textarea value={cognitiveOverrideDialog.reason} onChange={(e) => setCognitiveOverrideDialog((prev) => prev ? { ...prev, reason: e.target.value } : prev)} className="min-h-24 text-xs" placeholder="اكتب سبباً واضحاً لا يقل عن 8 أحرف..." />
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button variant="outline" onClick={() => closeCognitiveOverride(null)} className="flex-1 font-black">إلغاء</Button>
+                  <Button onClick={() => closeCognitiveOverride(cognitiveOverrideDialog.reason.trim())} disabled={cognitiveOverrideDialog.reason.trim().length < 8} className="flex-1 bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">تجاوز وتسجيل السبب</Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </DialogContent>
     </Dialog>
   )

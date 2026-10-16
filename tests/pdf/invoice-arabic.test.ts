@@ -2,11 +2,14 @@
 import { existsSync, statSync } from 'fs'
 import { join } from 'path'
 import { describe, expect, mock, test } from 'bun:test'
+import { jsPDF } from 'jspdf'
 
 mock.module('@/lib/db', () => ({ db: {} }))
-mock.module('@/lib/auth', () => ({ requireUser: async () => ({ id: 'admin-1', role: 'ADMIN' }) }))
+const realAuth = await import('../../src/lib/auth')
+mock.module('@/lib/auth', () => ({ ...realAuth, requireUser: async () => ({ id: 'admin-1', role: 'ADMIN' }) }))
 
 const { ARABIC_FONT_NAME, buildInvoicePdf } = await import('../../src/app/api/pdf/invoices/[id]/route')
+const { toVisualArabic } = await import('../../src/lib/pdf-arabic')
 
 const fontPath = join(process.cwd(), 'public', 'fonts', 'Amiri-Regular.ttf')
 
@@ -44,16 +47,45 @@ function pdfOutput(pdf: Uint8Array) {
 }
 
 describe('Arabic invoice PDF rendering', () => {
+  test('converts Arabic to visual presentation forms without reversing embedded Latin and numbers', () => {
+    const visual = toVisualArabic('رقم')
+    expect(visual).not.toBe('رقم')
+    expect(/[\uFE70-\uFEFF]/.test(visual)).toBe(true)
+    const mixed = toVisualArabic('المتبقي: 100.00 USD')
+    expect(mixed).toContain('100.00')
+    expect(mixed).toContain('USD')
+    expect(mixed).not.toContain('00.001')
+    expect(mixed).not.toContain('DSU')
+  })
+
   test('ships the Amiri font file used by Arabic invoice PDFs', () => {
     expect(existsSync(fontPath)).toBe(true)
     expect(statSync(fontPath).size).toBeGreaterThan(100 * 1024)
   })
 
-  test('embeds the AmiriArabic font when Arabic invoice data is rendered with the font available', () => {
-    const pdf = buildInvoicePdf(sampleInvoice(), { fontPaths: [fontPath] })
-
-    expect(pdf.byteLength).toBeGreaterThan(1000)
-    expect(pdfOutput(pdf)).toContain(ARABIC_FONT_NAME)
+  test('embeds the AmiriArabic font without using jsPDF RTL double-flip mode', () => {
+    const originalSetR2L = (jsPDF as any).API.setR2L
+    const originalIsInputRtl = (jsPDF as any).API.isInputRtl
+    let r2lCalls = 0
+    let inputRtlCalls = 0
+    ;(jsPDF as any).API.setR2L = function (...args: any[]) {
+      r2lCalls += 1
+      return originalSetR2L?.apply(this, args)
+    }
+    ;(jsPDF as any).API.isInputRtl = function (...args: any[]) {
+      inputRtlCalls += 1
+      return originalIsInputRtl?.apply(this, args)
+    }
+    try {
+      const pdf = buildInvoicePdf(sampleInvoice(), { fontPaths: [fontPath] })
+      expect(pdf.byteLength).toBeGreaterThan(1000)
+      expect(pdfOutput(pdf)).toContain(ARABIC_FONT_NAME)
+      expect(r2lCalls).toBe(0)
+      expect(inputRtlCalls).toBe(0)
+    } finally {
+      ;(jsPDF as any).API.setR2L = originalSetR2L
+      ;(jsPDF as any).API.isInputRtl = originalIsInputRtl
+    }
   })
 
   test('falls back without throwing when the Arabic font is unavailable', () => {
