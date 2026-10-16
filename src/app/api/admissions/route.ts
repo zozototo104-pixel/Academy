@@ -975,12 +975,12 @@ export async function GET(req: NextRequest) {
       const user = await withTiming('db_admissions_current_user_mine', () => getCurrentUser())
       if (!user) return NextResponse.json({ applications: [], application: null })
       if (user.role === 'SUPERVISOR') {
-        const apps = await db.admissionApplication.findMany({
+        const apps = await withTiming('db_admissions_supervisor_applications', () => db.admissionApplication.findMany({
           where: { supervisorId: user.id },
           orderBy: [{ supervisorAt: 'desc' }, { createdAt: 'desc' }],
           take: 50,
           include,
-        })
+        }))
         const serialized = apps.map(serialize)
         return NextResponse.json({ applications: serialized, application: serialized[0] || null, supervisorMode: true })
       }
