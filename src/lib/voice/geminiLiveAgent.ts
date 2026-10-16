@@ -337,7 +337,10 @@ export class GeminiLiveAgent {
     }))
     if (!sessionRes.ok || !session.wsUrl) {
       const detail = session.details ? ` — ${session.details}` : ''
-      throw new Error((session.error || `فشل إنشاء جلسة Gemini Live HTTP ${sessionRes.status}`) + detail)
+      const error = new Error((session.error || `فشل إنشاء جلسة Gemini Live HTTP ${sessionRes.status}`) + detail) as LiveSessionError
+      error.status = sessionRes.status
+      error.code = session.code
+      throw error
     }
     return session
   }
