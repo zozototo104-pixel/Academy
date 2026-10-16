@@ -367,6 +367,10 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ ok: true, rules: buildServiceAdmissionDefaults(flow) || (isStudyProgram ? buildOfficialStudyAdmissionDefaults(program) : resolveRules(program.category, null, isStudyProgram)), custom: false, invalidatedAdmissionAiReviews: invalidated.count })
     }
 
+    if (rules && Object.keys(rules).length === 0 && program.admissionRules) {
+      return NextResponse.json({ error: 'رفض الحفظ: لا يمكن استبدال قواعد مخصصة موجودة بقواعد فارغة قبل تحميل تفاصيل البرنامج.' }, { status: 400 })
+    }
+
     const before = programSnapshot(program)
     const data: Prisma.ProgramUpdateInput = {}
     let clean: AdmissionRules | null = null
