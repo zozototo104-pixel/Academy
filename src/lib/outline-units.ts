@@ -412,5 +412,6 @@ export function buildUnitStudyGuideDraft(params: {
 
 export function providerUnavailableStatus(error: unknown) {
   const message = String((error as any)?.message || error || '')
-  return /MISSING|NO_|UNAVAILABLE|TIMEOUT|QUOTA|RATE|KEY|provider|AI|Gemini|ZAI|OpenAI/i.test(message)
+  if (/^(?:UNIT_|STUDY_GUIDE_)/i.test(message)) return false
+  return /TIMEOUT|QUOTA|RATE_LIMIT|429|503|API_KEY|PROVIDER_UNAVAILABLE/i.test(message)
 }
