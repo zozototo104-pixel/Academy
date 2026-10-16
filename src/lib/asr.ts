@@ -203,6 +203,12 @@ export async function transcribeAudioBase64(audioBase64: string, options: Transc
     if (geminiText !== null) return geminiText
   } catch (error) {
     const reason = String((error as any)?.message || error).slice(0, 300)
+    if (isOggOrOpusMime(mimeType)) {
+      const whisperText = await transcribeWithWhisperCompatible(clean, mimeType)
+      if (whisperText) return whisperText
+      console.warn('Gemini ASR failed and no Whisper-compatible OGG provider succeeded:', JSON.stringify({ mimeType, reason }).slice(0, 500))
+      return ''
+    }
     if (skipZaiFallback) {
       console.warn('Gemini ASR failed; ZAI fallback disabled for this audio:', JSON.stringify({ mimeType, reason }).slice(0, 500))
       throw error
