@@ -148,6 +148,17 @@ beforeEach(() => {
 })
 
 describe('AI D2 behavior', () => {
+  test('PCM capture worklet buffers small 48k frames and preserves downsampled sample count', () => {
+    const processor = simulatePcmCaptureWorklet()
+    for (let i = 0; i < 100; i++) processor.process([ [new Float32Array(128).fill(0.1)] ])
+    const messages = processor.port.messages
+    const samples = messages.reduce((sum: number, message: any) => sum + Number(message.sampleCount || 0), 0)
+    expect(messages.length).toBeGreaterThanOrEqual(7)
+    expect(messages.length).toBeLessThanOrEqual(9)
+    expect(Math.abs(samples - (100 * 128 / 3))).toBeLessThanOrEqual(1)
+    expect(messages.every((message: any) => message.level > 0 && message.peak > 0)).toBe(true)
+  })
+
   test('selected dialect reaches ASR and does not default to ar-SA', async () => {
     const res = await asrRoute.POST(new NextRequest('https://academy.test/api/ai/asr', {
       method: 'POST',
