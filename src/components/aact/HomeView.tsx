@@ -533,7 +533,7 @@ export function HomeView() {
               return (
                 <div key={s.l} className="rounded-[1.75rem] border border-white/10 bg-[#bf1646]/92 px-4 py-6 text-center shadow-xl shadow-[#111827]/15 backdrop-blur">
                   <Icon className="mx-auto mb-3 h-7 w-7 text-white/88" />
-                  <div className="text-4xl font-black text-white sm:text-5xl"><CountUp to={s.v} suffix={s.s} /></div>
+                  <div className="text-4xl font-black text-white sm:text-5xl">{'pending' in s && s.pending ? '...' : <CountUp to={s.v} suffix={s.s} />}</div>
                   <div className="mt-3 text-sm font-black text-white/88 sm:text-base">{s.l}</div>
                 </div>
               )
