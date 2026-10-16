@@ -1,7 +1,9 @@
+import type { AcademyRepresentative } from '@prisma/client'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { readStoredFile } from '@/lib/storage'
+import { hashRepresentativeVerifier } from '@/lib/academy-representatives'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -48,6 +50,68 @@ async function audit(actorId: string, action: string, entityId: string, details:
   }).catch(() => {})
 }
 
+const pendingProfileFieldMap: Record<string, string> = {
+  'الاسم الكامل بالعربي': 'fullName',
+  'البريد الإلكتروني': 'email',
+  'الهاتف': 'phone',
+  'واتساب': 'whatsapp',
+  'الدرجة العلمية': 'degreeTitle',
+  'الرتبة العلمية': 'academicRank',
+  'الدولة': 'country',
+  'المدينة': 'city',
+  'التخصص': 'specialization',
+  'السيرة الخام': 'rawBio',
+  'الأعمال والخبرات': 'worksSummary',
+  'الإنجازات': 'achievements',
+  'ملاحظة التواصل العامة': 'publicContactNote',
+  'الموقع الإلكتروني': 'website',
+}
+
+function parsePendingProfileData(file: any) {
+  if (!['PROFILE_CHANGE', 'PROFILE_UPDATE'].includes(String(file?.kind || '').toUpperCase())) return {}
+  let raw: Record<string, unknown> = {}
+  try { raw = JSON.parse(String(file.description || '{}')) } catch { return {} }
+  const data: Record<string, string> = {}
+  for (const [label, value] of Object.entries(raw)) {
+    const field = pendingProfileFieldMap[label]
+    if (!field) continue
+    const next = String(value ?? '').trim()
+    if (next) data[field] = next.slice(0, field === 'rawBio' ? 12000 : 6000)
+  }
+  if (data.phone) data.verifyPhoneLast4Hash = hashRepresentativeVerifier(data.phone) as any
+  if (data.email) data.verifyEmailLast4Hash = hashRepresentativeVerifier(data.email) as any
+  return data
+}
+
+function pendingAssetData(file: any) {
+  const kind = String(file?.kind || '').toUpperCase()
+  if (kind === 'PROFILE_PHOTO') {
+    return {
+      profilePhotoUrl: file.fileUrl,
+      profilePhotoName: file.fileName,
+      profilePhotoMime: file.mimeType,
+      profilePhotoSize: file.size,
+      profilePhotoStorageProvider: file.storageProvider,
+      profilePhotoStorageKey: file.storageKey,
+    }
+  }
+  if (kind === 'OFFICIAL_CARD') {
+    return {
+      officialCardUrl: file.fileUrl,
+      officialCardName: file.fileName,
+      officialCardMime: file.mimeType,
+      officialCardSize: file.size,
+      officialCardStorageProvider: file.storageProvider,
+      officialCardStorageKey: file.storageKey,
+    }
+  }
+  return {}
+}
+
+function pendingRepresentativeData(file: any) {
+  return { ...parsePendingProfileData(file), ...pendingAssetData(file) }
+}
+
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string; fileId: string }> }) {
   const user = await requireAdmin()
   const { id, fileId } = await params
@@ -57,14 +121,35 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const action = String(body.action || '').toUpperCase()
   if (!['APPROVE', 'REJECT'].includes(action)) return NextResponse.json({ error: 'INVALID_ACTION' }, { status: 400 })
   const reviewStatus = action === 'APPROVE' ? 'APPROVED' : 'REJECTED'
+  const reviewNote = String(body.note || body.reason || '').slice(0, 500) || null
   const existing = await db.academyRepresentativeFile.findFirst({ where: { id: fileId, representativeId: id } })
   if (!existing) return NextResponse.json({ error: 'FILE_NOT_FOUND' }, { status: 404 })
-  const file = await db.academyRepresentativeFile.update({
-    where: { id: fileId },
-    data: { reviewStatus, reviewedAt: new Date(), reviewNote: String(body.note || '').slice(0, 500) || null },
+  const result = await db.$transaction(async (tx) => {
+    const representativeUpdate = action === 'APPROVE' ? pendingRepresentativeData(existing) : {}
+    let updatedRepresentative: AcademyRepresentative | null = null
+    if (Object.keys(representativeUpdate).length > 0) {
+      updatedRepresentative = await tx.academyRepresentative.update({
+        where: { id },
+        data: { ...representativeUpdate, updatedById: user.id },
+      })
+    }
+    const file = await tx.academyRepresentativeFile.update({
+      where: { id: fileId },
+      data: { reviewStatus, reviewedAt: new Date(), reviewNote },
+    })
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        actorName: 'إدارة النظام',
+        action: `${action}_REPRESENTATIVE_FILE`,
+        entity: 'AcademyRepresentative',
+        entityId: id,
+        details: `${representative.fullName} — ${file.title}`.slice(0, 3900),
+      },
+    }).catch(() => {})
+    return { file, representative: updatedRepresentative }
   })
-  await audit(user.id, `${action}_REPRESENTATIVE_FILE`, id, `${representative.fullName} — ${file.title}`)
-  return NextResponse.json({ ok: true, file })
+  return NextResponse.json({ ok: true, file: result.file, representative: result.representative })
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string; fileId: string }> }) {

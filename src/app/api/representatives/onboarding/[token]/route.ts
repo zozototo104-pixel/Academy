@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { promises as dns } from 'dns'
 import net from 'net'
 import { inflateRawSync } from 'zlib'
+import { createHash } from 'crypto'
 import { db } from '@/lib/db'
 import { extractDocumentText } from '@/lib/document-extract'
 import { storeFileBuffer, storageErrorMessage } from '@/lib/storage'
 import { textAiCompleteJson } from '@/lib/text-ai'
-import { serializeRepresentative } from '@/lib/academy-representatives'
+import { hashRepresentativeOnboardingToken, serializeRepresentative } from '@/lib/academy-representatives'
 import { emailAdminRepresentativeProfileSubmitted } from '@/lib/mailer'
+import { clientIpFromHeaders } from '@/lib/rate-limit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -27,6 +29,47 @@ function text(value: unknown, max = 5000) {
 
 const IMAGE_MAX_BYTES = 5 * 1024 * 1024
 const DOCUMENT_MAX_BYTES = 15 * 1024 * 1024
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000
+const ONBOARDING_RATE_LIMITS = { GET: 30, PATCH: 10, POST: 10 } as const
+
+type OnboardingMethod = keyof typeof ONBOARDING_RATE_LIMITS
+
+function sha256(value: string) {
+  return createHash('sha256').update(value).digest('hex')
+}
+
+function hourWindowStart(now = Date.now()) {
+  return new Date(Math.floor(now / RATE_LIMIT_WINDOW_MS) * RATE_LIMIT_WINDOW_MS)
+}
+
+async function enforceOnboardingRateLimit(req: NextRequest, token: string, method: OnboardingMethod) {
+  const tokenHash = hashRepresentativeOnboardingToken(token)
+  const ipHash = sha256(clientIpFromHeaders(req.headers))
+  const windowStart = hourWindowStart()
+  const limit = ONBOARDING_RATE_LIMITS[method]
+  const keyHash = sha256(`representative-onboarding:${method}:${tokenHash}:${ipHash}`)
+  try {
+    const bucket = await db.keyRateWindow.upsert({
+      where: { keyHash_window_windowStart: { keyHash, window: `REPRESENTATIVE_ONBOARDING_${method}`, windowStart } },
+      create: { keyHash, window: `REPRESENTATIVE_ONBOARDING_${method}`, windowStart, count: 1 },
+      update: { count: { increment: 1 } },
+      select: { count: true },
+    })
+    if (bucket.count > limit) {
+      return NextResponse.json(
+        { error: 'RATE_LIMITED', message: 'تم تجاوز الحد المسموح لطلبات رابط الاستكمال، حاول مرة أخرى بعد ساعة.' },
+        { status: 429, headers: { 'Retry-After': String(Math.max(1, Math.ceil((windowStart.getTime() + RATE_LIMIT_WINDOW_MS - Date.now()) / 1000))) } }
+      )
+    }
+    return null
+  } catch (error) {
+    console.warn('Representative onboarding rate limit counter failed closed.', error)
+    return NextResponse.json(
+      { error: 'RATE_LIMIT_UNAVAILABLE', message: 'تعذر التحقق من حد الطلبات حالياً، حاول مرة أخرى لاحقاً.' },
+      { status: 503 }
+    )
+  }
+}
 
 function isPrivateHostAddress(address: string) {
   const family = net.isIP(address)
@@ -144,10 +187,23 @@ function uploadErrorResponse(error: unknown) {
 }
 
 async function loadRepresentative(token: string) {
-  return db.academyRepresentative.findFirst({
-    where: { onboardingToken: token, deletedAt: null, status: { in: ['DRAFT', 'HIDDEN'] } },
+  const tokenHash = hashRepresentativeOnboardingToken(token)
+  const rep = await db.academyRepresentative.findFirst({
+    where: { onboardingTokenHash: tokenHash, deletedAt: null, status: { notIn: ['SUSPENDED', 'REVOKED'] } },
     include: { files: { orderBy: [{ displayOrder: 'asc' }, { createdAt: 'desc' }] } },
   }).catch(() => null)
+  if (!rep) return { representative: null, expired: false }
+  if (rep.onboardingExpiresAt && rep.onboardingExpiresAt.getTime() < Date.now()) {
+    return { representative: null, expired: true }
+  }
+  return { representative: rep, expired: false }
+}
+
+function onboardingNotFound(expired = false) {
+  return NextResponse.json(
+    { error: expired ? 'LINK_EXPIRED' : 'NOT_FOUND', message: expired ? 'انتهت صلاحية الرابط، اطلب رابط جديد من الإدارة' : 'رابط الاستكمال غير صالح' },
+    { status: expired ? 410 : 404 }
+  )
 }
 
 function parseJson(raw: string) {
@@ -203,43 +259,100 @@ ${fileEvidence || 'لا توجد ملفات مقروءة.'}
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
-  const rep = await loadRepresentative(token)
-  if (!rep) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 })
+  const limited = await enforceOnboardingRateLimit(req, token, 'GET')
+  if (limited) return limited
+  const loaded = await loadRepresentative(token)
+  if (!loaded.representative) return onboardingNotFound(loaded.expired)
+  const rep = loaded.representative
   const visible = serializeRepresentative(rep, originFrom(req), false)
   return NextResponse.json({ representative: { ...visible, files: rep.files.map((file) => ({ id: file.id, title: file.title, kind: file.kind, description: file.description, reviewStatus: file.reviewStatus || 'APPROVED', reviewNote: file.reviewNote, externalUrl: file.externalUrl, fileUrl: file.reviewStatus === 'APPROVED' ? visible.files?.find((item) => item.id === file.id)?.fileUrl || null : null })), rawBio: rep.rawBio, onboardingStatus: rep.onboardingStatus, aiRewriteStatus: rep.aiRewriteStatus, aiRewriteNote: rep.aiRewriteNote } })
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
-  const rep = await loadRepresentative(token)
-  if (!rep) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 })
+  const limited = await enforceOnboardingRateLimit(req, token, 'PATCH')
+  if (limited) return limited
+  const loaded = await loadRepresentative(token)
+  if (!loaded.representative) return onboardingNotFound(loaded.expired)
+  const rep = loaded.representative
   const body = await req.json().catch(() => ({}))
   const submit = body.submit === true
+  const pendingSensitiveChanges: Record<string, string> = {}
+  const sensitiveFields = [
+    ['fullName', 'الاسم الكامل بالعربي', rep.fullName],
+    ['fullNameEn', 'الاسم الكامل بالإنجليزي', null],
+    ['email', 'البريد الإلكتروني', rep.email],
+    ['phone', 'الهاتف', rep.phone],
+    ['whatsapp', 'واتساب', rep.whatsapp],
+  ] as const
+  for (const [key, label, current] of sensitiveFields) {
+    const next = text(body[key], key === 'fullNameEn' ? 220 : 320)
+    if (next && next !== String(current || '')) pendingSensitiveChanges[label] = next
+  }
+  if (Object.keys(pendingSensitiveChanges).length > 0) {
+    await db.academyRepresentativeFile.create({
+      data: {
+        representativeId: rep.id,
+        kind: 'PROFILE_CHANGE',
+        title: 'تعديل بيانات حساسة بانتظار مراجعة الإدارة',
+        description: JSON.stringify(pendingSensitiveChanges, null, 2),
+        reviewStatus: 'PENDING_REVIEW',
+      },
+    }).catch(() => null)
+  }
   let safeWebsite = rep.website
   if (body.website) {
     try { safeWebsite = await validatePublicHttpsUrl(String(body.website)) }
     catch (error) { return uploadErrorResponse(error) }
   }
+  const publicLocked = String(rep.status || '').toUpperCase() === 'ACTIVE'
+  if (publicLocked) {
+    const pendingProfileChanges: Record<string, string> = {}
+    const profileFields = [
+      ['degreeTitle', 'الدرجة العلمية', rep.degreeTitle, 220],
+      ['academicRank', 'الرتبة العلمية', rep.academicRank, 160],
+      ['country', 'الدولة', rep.country, 120],
+      ['city', 'المدينة', rep.city, 120],
+      ['specialization', 'التخصص', rep.specialization, 260],
+      ['rawBio', 'السيرة الخام', rep.rawBio, 12000],
+      ['worksSummary', 'الأعمال والخبرات', rep.worksSummary, 6000],
+      ['achievements', 'الإنجازات', rep.achievements, 6000],
+      ['publicContactNote', 'ملاحظة التواصل العامة', rep.publicContactNote, 1200],
+    ] as const
+    for (const [key, label, current, max] of profileFields) {
+      const next = text(body[key], max)
+      if (next && next !== String(current || '')) pendingProfileChanges[label] = next
+    }
+    if (safeWebsite && safeWebsite !== rep.website) pendingProfileChanges['الموقع الإلكتروني'] = safeWebsite
+    if (Object.keys(pendingProfileChanges).length > 0) {
+      await db.academyRepresentativeFile.create({
+        data: { representativeId: rep.id, kind: 'PROFILE_UPDATE', title: 'تعديلات ملف الممثل بانتظار اعتماد الإدارة', description: JSON.stringify(pendingProfileChanges, null, 2), reviewStatus: 'PENDING_REVIEW' },
+      }).catch(() => null)
+    }
+  }
 
   let updated = await db.academyRepresentative.update({
     where: { id: rep.id },
     data: {
-      degreeTitle: text(body.degreeTitle, 220) ?? rep.degreeTitle,
-      academicRank: text(body.academicRank, 160) ?? rep.academicRank,
-      city: text(body.city, 120) ?? rep.city,
-      specialization: text(body.specialization, 260) ?? rep.specialization,
-      rawBio: text(body.rawBio, 12000) ?? rep.rawBio,
-      worksSummary: text(body.worksSummary, 6000) ?? rep.worksSummary,
-      achievements: text(body.achievements, 6000) ?? rep.achievements,
-      website: safeWebsite,
-      publicContactNote: text(body.publicContactNote, 1200) ?? rep.publicContactNote,
+      ...(publicLocked ? {} : {
+        degreeTitle: text(body.degreeTitle, 220) ?? rep.degreeTitle,
+        academicRank: text(body.academicRank, 160) ?? rep.academicRank,
+        country: text(body.country, 120) ?? rep.country,
+        city: text(body.city, 120) ?? rep.city,
+        specialization: text(body.specialization, 260) ?? rep.specialization,
+        rawBio: text(body.rawBio, 12000) ?? rep.rawBio,
+        worksSummary: text(body.worksSummary, 6000) ?? rep.worksSummary,
+        achievements: text(body.achievements, 6000) ?? rep.achievements,
+        website: safeWebsite,
+        publicContactNote: text(body.publicContactNote, 1200) ?? rep.publicContactNote,
+      }),
       onboardingStatus: submit || rep.onboardingStatus === 'SUBMITTED_REVIEW' ? 'SUBMITTED_REVIEW' : 'WAITING_PROFILE',
       onboardingSubmittedAt: submit ? new Date() : rep.onboardingSubmittedAt,
     },
     include: { files: { orderBy: [{ displayOrder: 'asc' }, { createdAt: 'desc' }] } },
   })
 
-  if (submit) {
+  if (submit && !publicLocked) {
     try {
       const rewritten = await rewriteRepresentativeProfile(updated)
       updated = await db.academyRepresentative.update({
@@ -283,8 +396,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ to
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
-  const rep = await loadRepresentative(token)
-  if (!rep) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 })
+  const limited = await enforceOnboardingRateLimit(req, token, 'POST')
+  if (limited) return limited
+  const loaded = await loadRepresentative(token)
+  if (!loaded.representative) return onboardingNotFound(loaded.expired)
+  const rep = loaded.representative
   const maxRequestBytes = DOCUMENT_MAX_BYTES + 256 * 1024
   const declaredLength = req.headers.get('content-length')
   if (declaredLength && (!/^\d+$/.test(declaredLength) || Number(declaredLength) > maxRequestBytes)) {
@@ -343,6 +459,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     const detected = detectAllowedUpload(buffer, file.name || 'file', file.type || 'application/octet-stream', assetType)
     const stored = await storeFileBuffer({ buffer, fileName: file.name || 'file', mimeType: detected.mimeType, namespace: `representatives-private/${rep.id}` })
     if (assetType === 'profilePhoto') {
+      if (String(rep.status || '').toUpperCase() === 'ACTIVE') {
+        const created = await db.academyRepresentativeFile.create({ data: { representativeId: rep.id, kind: 'PROFILE_PHOTO', title: 'صورة شخصية بانتظار اعتماد الإدارة', fileName: file.name, mimeType: stored.mimeType, size: stored.size, storageProvider: stored.provider, storageKey: stored.key, fileUrl: stored.url, reviewStatus: 'PENDING_REVIEW' } })
+        await db.academyRepresentative.update({ where: { id: rep.id }, data: { onboardingStatus: rep.onboardingStatus === 'SUBMITTED_REVIEW' ? 'SUBMITTED_REVIEW' : 'WAITING_PROFILE' } })
+        return NextResponse.json({ file: created })
+      }
       const updated = await db.academyRepresentative.update({
         where: { id: rep.id },
         data: { profilePhotoUrl: stored.url, profilePhotoName: file.name, profilePhotoMime: stored.mimeType, profilePhotoSize: stored.size, profilePhotoStorageProvider: stored.provider, profilePhotoStorageKey: stored.key, onboardingStatus: rep.onboardingStatus === 'SUBMITTED_REVIEW' ? 'SUBMITTED_REVIEW' : 'WAITING_PROFILE' },
@@ -350,6 +471,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       return NextResponse.json({ representative: updated })
     }
     if (assetType === 'officialCard') {
+      if (String(rep.status || '').toUpperCase() === 'ACTIVE') {
+        const created = await db.academyRepresentativeFile.create({ data: { representativeId: rep.id, kind: 'OFFICIAL_CARD', title: 'بطاقة رسمية بانتظار اعتماد الإدارة', fileName: file.name, mimeType: stored.mimeType, size: stored.size, storageProvider: stored.provider, storageKey: stored.key, fileUrl: stored.url, reviewStatus: 'PENDING_REVIEW' } })
+        await db.academyRepresentative.update({ where: { id: rep.id }, data: { onboardingStatus: rep.onboardingStatus === 'SUBMITTED_REVIEW' ? 'SUBMITTED_REVIEW' : 'WAITING_PROFILE' } })
+        return NextResponse.json({ file: created })
+      }
       const updated = await db.academyRepresentative.update({
         where: { id: rep.id },
         data: { officialCardUrl: stored.url, officialCardName: file.name, officialCardMime: stored.mimeType, officialCardSize: stored.size, officialCardStorageProvider: stored.provider, officialCardStorageKey: stored.key, onboardingStatus: rep.onboardingStatus === 'SUBMITTED_REVIEW' ? 'SUBMITTED_REVIEW' : 'WAITING_PROFILE' },

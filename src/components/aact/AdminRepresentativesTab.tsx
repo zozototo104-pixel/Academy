@@ -106,6 +106,7 @@ export default function AdminRepresentativesTab() {
   const [rewriting, setRewriting] = useState(false)
   const [onboardingBusy, setOnboardingBusy] = useState(false)
   const [onboardingLink, setOnboardingLink] = useState('')
+  const [onboardingResult, setOnboardingResult] = useState<{ emailStatus?: string; expiresAt?: string | null }>({})
   const [query, setQuery] = useState('')
   const selected = useMemo(() => rows.find((row) => row.id === selectedId) || null, [rows, selectedId])
   const filtered = useMemo(() => {
@@ -150,12 +151,14 @@ export default function AdminRepresentativesTab() {
   function newRepresentative() {
     setSelectedId('')
     setOnboardingLink('')
+    setOnboardingResult({})
     setForm(EMPTY_FORM)
   }
 
   function choose(rep: Representative) {
     setSelectedId(rep.id)
     setOnboardingLink('')
+    setOnboardingResult({})
     setForm(formFromRepresentative(rep))
   }
 
@@ -262,10 +265,16 @@ export default function AdminRepresentativesTab() {
     try {
       const res = await fetch(`/api/admin/representatives/${form.id}/onboarding`, { method: 'POST' })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.message || 'تعذر إنشاء رابط الاستكمال')
+      if (!res.ok) throw new Error(data.message || data.error || 'تعذر إنشاء رابط الاستكمال')
       setOnboardingLink(data.url || '')
+      setOnboardingResult({ emailStatus: data.emailStatus, expiresAt: data.expiresAt })
       await load(form.id)
-      toast({ title: 'تم تجهيز رابط الاستكمال', description: 'انسخ الرابط وأرسله للممثل لاستكمال ملفه.' })
+      const mailNote = data.emailStatus === 'SENT'
+        ? 'تم إرسال الرابط على بريد الممثل ✅'
+        : data.emailStatus === 'FAILED'
+          ? 'فشل إرسال البريد، انسخ الرابط وأرسله يدوياً'
+          : 'لا يوجد بريد صالح، انسخ الرابط وأرسله يدوياً'
+      toast({ title: 'تم تجهيز رابط الاستكمال', description: mailNote })
     } catch (e: any) {
       toast({ title: 'تعذر إنشاء رابط الاستكمال', description: String(e?.message || e), variant: 'destructive' })
     } finally {
@@ -282,6 +291,7 @@ export default function AdminRepresentativesTab() {
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.message || 'تعذر إلغاء رابط الاستكمال')
       setOnboardingLink('')
+      setOnboardingResult({})
       await load(form.id)
       toast({ title: 'تم إلغاء رابط الاستكمال' })
     } catch (e: any) {
@@ -299,13 +309,18 @@ export default function AdminRepresentativesTab() {
 
   async function reviewFile(fileId: string, action: 'APPROVE' | 'REJECT') {
     if (!form.id) return
-    if (action === 'REJECT' && !window.confirm('تأكيد رفض ملف الممثل؟ سيبقى محفوظاً في السجل لكنه لن يعتمد للعرض العام.')) return
+    let note = ''
+    if (action === 'REJECT') {
+      if (!window.confirm('تأكيد رفض ملف الممثل؟ سيبقى محفوظاً في السجل لكنه لن يعتمد للعرض العام.')) return
+      note = window.prompt('اكتب سبب رفض هذا التعديل/الملف ليظهر في سجل المراجعة:', '') || ''
+      if (!note.trim() && !window.confirm('لم تكتب سبباً للرفض. هل تريد الرفض بدون سبب؟')) return
+    }
     setUploading(true)
     try {
       const res = await fetch(`/api/admin/representatives/${form.id}/files/${fileId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action, note }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.message || 'تعذر تحديث مراجعة الملف')
@@ -451,7 +466,11 @@ export default function AdminRepresentativesTab() {
                     {form.id && <Button type="button" variant="outline" disabled={onboardingBusy} onClick={revokeOnboardingLink} className="border-red-200 bg-white text-red-700">إلغاء الرابط</Button>}
                   </div>
                 </div>
-                {onboardingLink && <p className="mt-3 break-all rounded-xl bg-white p-3 text-[11px] text-indigo-800">{onboardingLink}</p>}
+                {onboardingLink && <div className="mt-3 space-y-2 rounded-xl bg-white p-3 text-[11px] font-bold text-indigo-800">
+                  <p className="break-all">{onboardingLink}</p>
+                  <p>{onboardingResult.emailStatus === 'SENT' ? 'تم إرسال الرابط على بريد الممثل ✅' : onboardingResult.emailStatus === 'FAILED' ? 'فشل إرسال البريد، انسخ الرابط وأرسله يدوياً' : 'لم يتم إرسال بريد؛ انسخ الرابط وأرسله يدوياً'}</p>
+                  {onboardingResult.expiresAt && <p>ينتهي الرابط في: {new Date(onboardingResult.expiresAt).toLocaleString('ar')}</p>}
+                </div>}
               </div>
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <AssetUploader label="الصورة الشخصية" hint="صورة واضحة للممثل" icon={<ImageIcon className="h-4 w-4" />} accept="image/*" onUpload={(file) => upload('profilePhoto', file)} uploading={uploading || !form.id} />
@@ -488,7 +507,7 @@ export default function AdminRepresentativesTab() {
                         <p className="break-all text-xs font-bold text-slate-500">{file.kind} — {file.externalUrl || file.fileUrl || 'ملف محفوظ'}</p>
                         {file.reviewNote && <p className="text-xs font-bold text-slate-500">ملاحظة المراجعة: {file.reviewNote}</p>}
                       </div>
-                      <div className="flex shrink-0 flex-wrap gap-2">{(file.externalUrl || file.fileUrl) && <a href={file.externalUrl || `/api/admin/representatives/${encodeURIComponent(form.id)}/files/${encodeURIComponent(file.id)}`} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-slate-200 p-2 text-[#0f2b46]" title="عرض الملف للإدارة"><ExternalLink className="h-4 w-4" /></a>}{reviewStatus !== 'APPROVED' && <Button size="icon" variant="outline" onClick={() => reviewFile(file.id, 'APPROVE')} className="border-emerald-200 text-emerald-700" title="اعتماد الملف"><CheckCircle2 className="h-4 w-4" /></Button>}{reviewStatus !== 'REJECTED' && <Button size="icon" variant="outline" onClick={() => reviewFile(file.id, 'REJECT')} className="border-amber-200 text-amber-700" title="رفض الملف"><XCircle className="h-4 w-4" /></Button>}<Button size="icon" variant="outline" onClick={() => deleteFile(file.id)} className="border-red-200 text-red-700"><Trash2 className="h-4 w-4" /></Button></div>
+                      <div className="flex shrink-0 flex-wrap gap-2">{(file.externalUrl || file.fileUrl) && <a href={file.externalUrl || `/api/admin/representatives/${encodeURIComponent(form.id)}/files/${encodeURIComponent(file.id)}`} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-slate-200 p-2 text-[#0f2b46]" title="عرض الملف للإدارة"><ExternalLink className="h-4 w-4" /></a>}{reviewStatus !== 'APPROVED' && <Button size="sm" variant="outline" onClick={() => reviewFile(file.id, 'APPROVE')} className="gap-1 border-emerald-200 text-emerald-700" title="اعتماد الملف"><CheckCircle2 className="h-4 w-4" /> اعتماد</Button>}{reviewStatus !== 'REJECTED' && <Button size="sm" variant="outline" onClick={() => reviewFile(file.id, 'REJECT')} className="gap-1 border-amber-200 text-amber-700" title="رفض الملف"><XCircle className="h-4 w-4" /> رفض</Button>}<Button size="icon" variant="outline" onClick={() => deleteFile(file.id)} className="border-red-200 text-red-700"><Trash2 className="h-4 w-4" /></Button></div>
                     </div>
                   )
                 })}

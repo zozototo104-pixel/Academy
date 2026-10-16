@@ -134,14 +134,17 @@ async function sendWithResend(input: SendEmailInput): Promise<boolean> {
   return true
 }
 
-export async function sendEmail(input: SendEmailInput): Promise<boolean> {
-  try {
-    if (hasAactTestRecipient(input.to)) {
-      await db.emailLog.create({ data: { to: input.to, subject: input.subject, event: input.event, status: 'SKIPPED', error: 'AACT_TEST_RECIPIENT_BLOCKED' } }).catch((error) => { console.warn('Failed to log blocked test email.', error) })
-      return false
-    }
-    const cfg = await getSmtpConfig()
-    if (cfg.enabled) {
+export type EmailDeliveryStatus = 'SENT' | 'SKIPPED' | 'FAILED'
+
+export async function sendEmailDetailed(input: SendEmailInput): Promise<EmailDeliveryStatus> {
+  if (hasAactTestRecipient(input.to)) {
+    await db.emailLog.create({ data: { to: input.to, subject: input.subject, event: input.event, status: 'SKIPPED', error: 'AACT_TEST_RECIPIENT_BLOCKED' } }).catch((error) => { console.warn('Failed to log blocked test email.', error) })
+    return 'SKIPPED'
+  }
+
+  const cfg = await getSmtpConfig()
+  if (cfg.enabled) {
+    try {
       const transporter = nodemailer.createTransport({
         host: cfg.host,
         port: cfg.port,
@@ -157,30 +160,38 @@ export async function sendEmail(input: SendEmailInput): Promise<boolean> {
         text: input.text || plainText(input.html),
       })
       await db.emailLog.create({ data: { to: input.to, subject: input.subject, event: input.event, status: 'SENT' } }).catch((error) => { console.warn('Failed to log SMTP email success.', error) })
-      return true
+      return 'SENT'
+    } catch (e: any) {
+      try {
+        const sentByResend = await sendWithResend(input)
+        if (sentByResend) {
+          await db.emailLog.create({ data: { to: input.to, subject: input.subject, event: input.event, status: 'SENT', error: 'SMTP failed; sent by RESEND' } }).catch((error) => { console.warn('Failed to log Resend fallback email success.', error) })
+          return 'SENT'
+        }
+      } catch (error) {
+        console.warn('Resend fallback email delivery failed after SMTP failure.', error)
+      }
+      await db.emailLog.create({ data: { to: input.to, subject: input.subject, event: input.event, status: 'FAILED', error: String(e?.message || e).slice(0, 400) } }).catch((error) => { console.warn('Failed to log email delivery failure.', error) })
+      return 'FAILED'
     }
+  }
 
+  try {
     const sentByResend = await sendWithResend(input)
     if (sentByResend) {
       await db.emailLog.create({ data: { to: input.to, subject: input.subject, event: input.event, status: 'SENT', error: 'RESEND' } }).catch((error) => { console.warn('Failed to log Resend email success.', error) })
-      return true
+      return 'SENT'
     }
-
     await db.emailLog.create({ data: { to: input.to, subject: input.subject, event: input.event, status: 'SKIPPED', error: 'البريد غير مهيأ — أضف SMTP من لوحة الإدارة أو RESEND_API_KEY و MAIL_FROM في Vercel' } }).catch((error) => { console.warn('Failed to log skipped email.', error) })
-    return false
+    return 'SKIPPED'
   } catch (e: any) {
-    try {
-      const sentByResend = await sendWithResend(input)
-      if (sentByResend) {
-        await db.emailLog.create({ data: { to: input.to, subject: input.subject, event: input.event, status: 'SENT', error: 'SMTP failed; sent by RESEND' } }).catch((error) => { console.warn('Failed to log Resend fallback email success.', error) })
-        return true
-      }
-    } catch (error) {
-      console.warn('Resend fallback email delivery failed after SMTP failure.', error)
-    }
     await db.emailLog.create({ data: { to: input.to, subject: input.subject, event: input.event, status: 'FAILED', error: String(e?.message || e).slice(0, 400) } }).catch((error) => { console.warn('Failed to log email delivery failure.', error) })
-    return false
+    return 'FAILED'
   }
+}
+
+export async function sendEmail(input: SendEmailInput): Promise<boolean> {
+  return (await sendEmailDetailed(input)) === 'SENT'
 }
 
 export async function emailVerifyAccount(to: string, name: string, verifyUrl: string) {
@@ -205,13 +216,17 @@ export async function emailAdminAlert(to: string, title: string, body: string, e
   await sendEmail({ to, event, subject: title, html: emailTemplate(title, `<p>${escapeHtml(body)}</p>`, { label: 'فتح لوحة الإدارة', url: appLink('/?view=admin') }) })
 }
 
-export async function emailRepresentativeOnboardingInvitation(to: string, input: { name: string; country: string; territory?: string | null; contractNo?: string | null; onboardingUrl: string }) {
-  await sendEmail({
+export async function emailRepresentativeOnboardingInvitationDetailed(to: string, input: { name: string; country: string; territory?: string | null; contractNo?: string | null; onboardingUrl: string }): Promise<EmailDeliveryStatus> {
+  return sendEmailDetailed({
     to,
     event: 'REPRESENTATIVE_ONBOARDING_INVITATION',
     subject: 'استكمال ملف ممثل الأكاديمية الرسمي',
     html: emailTemplate('استكمال ملف ممثل الأكاديمية 🌐', `<p>${greeting(input.name)}،</p><p>تم اعتماد طلب التمثيل/الوكالة، والخطوة التالية هي استكمال ملف ممثل الأكاديمية.</p>${infoRows([{ label: 'الدولة/النطاق', value: input.territory || input.country }, { label: 'رقم العقد', value: input.contractNo || 'حسب سجل الوكالة في المنصة' }])}`, { label: 'استكمال ملف الممثل', url: input.onboardingUrl }),
   })
+}
+
+export async function emailRepresentativeOnboardingInvitation(to: string, input: { name: string; country: string; territory?: string | null; contractNo?: string | null; onboardingUrl: string }): Promise<boolean> {
+  return (await emailRepresentativeOnboardingInvitationDetailed(to, input)) === 'SENT'
 }
 
 export async function emailAdminRepresentativeProfileSubmitted(to: string, input: { name: string; country: string; region: string; email?: string | null }) {

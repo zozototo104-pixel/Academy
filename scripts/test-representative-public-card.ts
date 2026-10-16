@@ -1,6 +1,8 @@
+import { readFileSync } from 'fs'
 import { NextRequest } from 'next/server'
 import QRCode from 'qrcode'
 import {
+  hashRepresentativeOnboardingToken,
   hashRepresentativeVerifier,
   representativeVerifyUrl,
   representativeQrDataUrl,
@@ -159,6 +161,22 @@ async function testRateLimitSixthAttempt() {
   assert(sixth.status === 429, 'sixth POST attempt within an hour must return 429')
 }
 
+function testRepresentativeOnboardingLinkHardening() {
+  const adminRoute = readFileSync('src/app/api/admin/representatives/[id]/onboarding/route.ts', 'utf8')
+  const publicRoute = readFileSync('src/app/api/representatives/onboarding/[token]/route.ts', 'utf8')
+  const page = readFileSync('src/app/representatives/onboarding/[token]/page.tsx', 'utf8')
+  const schema = readFileSync('prisma/schema.prisma', 'utf8')
+  const hash = hashRepresentativeOnboardingToken('rep_onb_raw_secret')
+  assert(hash !== 'rep_onb_raw_secret' && /^[a-f0-9]{64}$/.test(hash), 'onboarding token helper must store only a SHA-256 hash')
+  assert(schema.includes('onboardingTokenHash') && schema.includes('onboardingExpiresAt'), 'representative schema must include hashed onboarding token fields')
+  assert(adminRoute.includes("['SUSPENDED', 'REVOKED'].includes(status)") && !adminRoute.includes("['DRAFT', 'HIDDEN'].includes"), 'ACTIVE representatives must be allowed to receive onboarding links while suspended/revoked are rejected')
+  assert(adminRoute.includes('onboardingToken: null') && adminRoute.includes('onboardingTokenHash: hashRepresentativeOnboardingToken(token)') && adminRoute.includes('onboardingExpiresAt: expiresAt'), 'new onboarding link must store hash + expiry and avoid storing raw token')
+  assert(adminRoute.includes('emailStatus = sent ? \'SENT\' : \'FAILED\'') && adminRoute.includes("emailStatus: 'SENT' | 'FAILED' | 'SKIPPED'"), 'admin onboarding route must return real email delivery status')
+  assert(publicRoute.includes('onboardingTokenHash: tokenHash') && publicRoute.includes('انتهت صلاحية الرابط، اطلب رابط جديد من الإدارة'), 'public onboarding route must search by hash and reject expired links clearly')
+  assert(publicRoute.includes("kind: 'PROFILE_CHANGE'") && publicRoute.includes('تعديل بيانات حساسة بانتظار مراجعة الإدارة'), 'sensitive identity/contact edits must be stored for admin review, not applied directly')
+  assert(page.includes('الاسم الكامل بالعربي') && page.includes('الاسم الكامل بالإنجليزي') && page.includes('الشهادات والاعتمادات') && page.includes('multiple={multiple}'), 'onboarding page must expose identity/contact fields and multiple document uploads')
+}
+
 async function testQrEncodesSameUrl() {
   const origin = 'https://academy.test'
   const token = 'rep-token-qr'
@@ -189,6 +207,7 @@ async function main() {
   await testNoPhoneCannotExpand()
   await testRateLimitUnavailableFailsClosed()
   await testRateLimitSixthAttempt()
+  testRepresentativeOnboardingLinkHardening()
   await testQrEncodesSameUrl()
   console.log('✓ representative public card behavioral checks passed')
 }

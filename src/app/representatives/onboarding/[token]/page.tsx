@@ -12,7 +12,7 @@ export default function RepresentativeOnboardingPage() {
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
   const [rep, setRep] = useState<any>(null)
-  const [form, setForm] = useState<any>({ degreeTitle: '', academicRank: '', city: '', specialization: '', rawBio: '', worksSummary: '', achievements: '', website: '', publicContactNote: '' })
+  const [form, setForm] = useState<any>({ fullName: '', fullNameEn: '', phone: '', whatsapp: '', email: '', country: '', degreeTitle: '', academicRank: '', city: '', specialization: '', rawBio: '', worksSummary: '', achievements: '', website: '', publicContactNote: '' })
   const [linkTitle, setLinkTitle] = useState('رابط أعمال')
   const [linkUrl, setLinkUrl] = useState('')
 
@@ -22,9 +22,15 @@ export default function RepresentativeOnboardingPage() {
     try {
       const res = await fetch(`/api/representatives/onboarding/${encodeURIComponent(token)}`, { cache: 'no-store' })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error('رابط الاستكمال غير صالح أو انتهى.')
+      if (!res.ok) throw new Error(data.message || data.error || 'رابط الاستكمال غير صالح أو انتهى.')
       setRep(data.representative)
       if (!preserveForm) setForm({
+        fullName: data.representative.fullName || '',
+        fullNameEn: '',
+        phone: data.representative.phone || '',
+        whatsapp: data.representative.whatsapp || '',
+        email: data.representative.email || '',
+        country: data.representative.country || '',
         degreeTitle: data.representative.degreeTitle || '',
         academicRank: data.representative.academicRank || '',
         city: data.representative.city || '',
@@ -100,9 +106,15 @@ export default function RepresentativeOnboardingPage() {
             {error && <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div>}
             <div className="grid gap-4 md:grid-cols-2">
               {[
+                ['fullName', 'الاسم الكامل بالعربي (يراجَع قبل الاعتماد)'],
+                ['fullNameEn', 'الاسم الكامل بالإنجليزي (يراجَع قبل الاعتماد)'],
+                ['phone', 'الهاتف (يراجَع قبل الاعتماد)'],
+                ['whatsapp', 'واتساب (يراجَع قبل الاعتماد)'],
+                ['email', 'البريد الإلكتروني (يراجَع قبل الاعتماد)'],
+                ['country', 'الدولة'],
+                ['city', 'المدينة'],
                 ['degreeTitle', 'الدرجة العلمية'],
                 ['academicRank', 'الرتبة العلمية'],
-                ['city', 'المدينة'],
                 ['specialization', 'التخصص/مجال التمثيل'],
                 ['website', 'الموقع أو رابط الأعمال'],
               ].map(([key, label]) => (
@@ -126,8 +138,9 @@ export default function RepresentativeOnboardingPage() {
             <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
               <h2 className="font-black">رفع المرفقات</h2>
               <UploadBox label="الصورة الشخصية" accept="image/*" onFile={(file) => upload('profilePhoto', file)} uploading={uploading} />
-              <UploadBox label="الكرنيه الرسمي إن وجد" accept="image/*,.pdf" onFile={(file) => upload('officialCard', file)} uploading={uploading} />
-              <UploadBox label="CV / كتب / أعمال" accept=".pdf,.docx,.xlsx,.pptx,.jpg,.jpeg,.png" onFile={(file) => upload('file', file, { kind: 'CV', title: file.name })} uploading={uploading} />
+              <UploadBox label="الكرنيه/البطاقة الرسمية" accept="image/*,.pdf" onFile={(file) => upload('officialCard', file)} uploading={uploading} />
+              <UploadBox label="السيرة الذاتية CV" accept=".pdf,.docx,.jpg,.jpeg,.png" onFile={(file) => upload('file', file, { kind: 'CV', title: file.name })} uploading={uploading} multiple />
+              <UploadBox label="الشهادات والاعتمادات" accept=".pdf,.docx,.jpg,.jpeg,.png" onFile={(file) => upload('file', file, { kind: 'CERTIFICATE', title: file.name })} uploading={uploading} multiple />
             </div>
             <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
               <h2 className="font-black">إضافة رابط أعمال</h2>
@@ -154,6 +167,6 @@ function TextBlock({ label, value, onChange }: { label: string; value: string; o
   return <label className="block text-sm font-black">{label}<textarea value={value || ''} onChange={(e) => onChange(e.target.value)} className="mt-2 min-h-32 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold leading-7 outline-none focus:border-[#c9a227]" /></label>
 }
 
-function UploadBox({ label, accept, onFile, uploading }: { label: string; accept: string; onFile: (file: File) => void; uploading: boolean }) {
-  return <label className="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-3 text-xs font-black hover:border-[#c9a227]"><input type="file" accept={accept} disabled={uploading} className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) onFile(file); e.currentTarget.value = '' }} /><Upload className="h-4 w-4" /> {label}</label>
+function UploadBox({ label, accept, onFile, uploading, multiple = false }: { label: string; accept: string; onFile: (file: File) => void; uploading: boolean; multiple?: boolean }) {
+  return <label className="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-3 text-xs font-black hover:border-[#c9a227]"><input type="file" accept={accept} multiple={multiple} disabled={uploading} className="hidden" onChange={(e) => { for (const file of Array.from(e.target.files || [])) onFile(file); e.currentTarget.value = '' }} /><Upload className="h-4 w-4" /> {label}</label>
 }

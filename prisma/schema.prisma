@@ -550,7 +550,9 @@ model AcademyRepresentative {
   sourceAgentApplicationId String?
   sourceUserId       String?
   onboardingStatus   String   @default("ADMIN_CREATED") // ADMIN_CREATED | WAITING_PROFILE | SUBMITTED_REVIEW | APPROVED
-  onboardingToken    String?
+  onboardingToken    String? // legacy only: لا يُستخدم لحفظ روابط الاستكمال الجديدة
+  onboardingTokenHash String?
+  onboardingExpiresAt DateTime?
   onboardingSubmittedAt DateTime?
   createdById        String?
   updatedById        String?
@@ -565,6 +567,8 @@ model AcademyRepresentative {
   @@index([sourceAgentApplicationId])
   @@index([sourceUserId])
   @@index([onboardingToken])
+  @@index([onboardingTokenHash])
+  @@index([onboardingExpiresAt])
   @@index([deletedAt])
 }
 

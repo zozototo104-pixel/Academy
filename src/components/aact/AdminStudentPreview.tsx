@@ -5,6 +5,7 @@ import { api, useAppStore } from '@/lib/store'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { useAdminActionDialog } from '@/components/aact/AdminActionDialog'
 import {
   AlertTriangle,
   ArrowRight,
@@ -133,6 +134,7 @@ export function AdminStudentPreview() {
   const [error, setError] = useState<string | null>(null)
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
+  const { confirmAction, dialog } = useAdminActionDialog()
 
   const id = useMemo(() => {
     if (studentPreviewId) return studentPreviewId
@@ -162,9 +164,15 @@ export function AdminStudentPreview() {
   const changeAccountStatus = async (status: 'ACTIVE' | 'DISABLED') => {
     if (!id || !data || updatingStatus || data.student.status === status) return
     const disabling = status === 'DISABLED'
-    const confirmed = window.confirm(disabling
-      ? `تعطيل حساب ${data.student.name}؟ سيتم تسجيل خروجه من جميع الأجهزة فورًا، مع الاحتفاظ ببياناته الأكاديمية.`
-      : `إعادة تفعيل حساب ${data.student.name}؟ سيتمكن من تسجيل الدخول مجددًا، ولن تعود جلساته الملغاة.`)
+    const confirmed = await confirmAction({
+      title: disabling ? 'تأكيد تعطيل حساب الطالب' : 'تأكيد إعادة تفعيل حساب الطالب',
+      description: disabling
+        ? `تعطيل حساب ${data.student.name}؟ سيتم تسجيل خروجه من جميع الأجهزة فورًا، مع الاحتفاظ ببياناته الأكاديمية.`
+        : `إعادة تفعيل حساب ${data.student.name}؟ سيتمكن من تسجيل الدخول مجددًا، ولن تعود جلساته الملغاة.`,
+      confirmLabel: disabling ? 'تعطيل الحساب' : 'إعادة التفعيل',
+      cancelLabel: 'إلغاء',
+      tone: disabling ? 'danger' : 'success',
+    })
     if (!confirmed) return
     setUpdatingStatus(true)
     setStatusMessage(null)
@@ -226,6 +234,7 @@ export function AdminStudentPreview() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:py-8">
+      {dialog}
       <div className="flex flex-col gap-3 rounded-3xl bg-[#0f2b46] p-5 text-[#f5f0e1] shadow-lg sm:flex-row sm:items-center sm:justify-between">
         <div>
           <Badge className="mb-3 bg-[#c9a227] text-[#0f2b46] hover:bg-[#c9a227]">معاينة السجل الأكاديمي — قراءة فقط</Badge>
