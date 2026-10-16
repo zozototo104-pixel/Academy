@@ -375,7 +375,7 @@ export async function POST(req: NextRequest) {
     }))
 
     if (owner) {
-      await notify(
+      await withTiming('db_admissions_notify_owner', () => notify(
         owner.id,
         'ADMISSION',
         isServiceRequest ? 'تم استلام طلب الخدمة — قيد دراسة الإدارة' : 'تم استلام طلب الالتحاق — سدد رسوم التقديم (30$)',
@@ -383,7 +383,7 @@ export async function POST(req: NextRequest) {
           ? `طلبك (${reference}) لخدمة «${selectedTitle}» وصل للإدارة مع ${uniqueFiles.length} ملف/مرفق. ستصلك تعليمات المتابعة أو التسعير أو الموعد بعد المراجعة.`
           : `طلبك (${reference}) ببرنامج «${selectedTitle}» مكتمل بالبيانات والمستندات (${uniqueFiles.length}/4) والإقرار. سدد رسوم التقديم وحجز المقعد ${appFee}$ (غير مستردة) ليُحوَّل ملفك للإدارة للدراسة ويعطيك إشعار القبول.`,
         'apply'
-      )
+      ))
     }
 
     // إشعار بريدي بكود التتبع وخطوات ما بعد التقديم للبرامج الدراسية؛ الخدمات تُراجع أولاً لتحديد المتطلبات.
