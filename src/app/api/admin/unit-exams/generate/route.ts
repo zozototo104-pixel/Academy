@@ -172,7 +172,8 @@ export async function POST(req: NextRequest) {
       }, { status: 202 })
     }
 
-    const cognitive = validateCognitiveDistribution(scoped.questions, 'UNIT')
+    const lowMaxRaw = await getSetting('EXAM_LOW_SKILL_MAX_PERCENT').catch(() => '50')
+    const cognitive = validateCognitiveDistribution(scoped.questions, 'UNIT', { lowMaxPercent: Number(lowMaxRaw || 50) || 50 })
     if (!cognitive.ok) {
       if (!overrideCognitivePolicy || overrideReason.length < 8) {
         return NextResponse.json(
