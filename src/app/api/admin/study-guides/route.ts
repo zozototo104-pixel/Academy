@@ -106,7 +106,7 @@ export async function GET(req: NextRequest) {
     await withTiming('db_require_admin', () => requireAdmin())
     const programId = clean(req.nextUrl.searchParams.get('programId'), 80)
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
-    const guides = await db.programStudyGuide.findMany({ where: { programId }, orderBy: [{ semester: 'asc' }, { updatedAt: 'desc' }] })
+    const guides = await withTiming('db_study_guides_list', () => db.programStudyGuide.findMany({ where: { programId }, orderBy: [{ semester: 'asc' }, { updatedAt: 'desc' }] }))
     return NextResponse.json({ guides: guides.map(mapGuide) })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
