@@ -245,7 +245,7 @@ export function QuestionReviewDialog({
   }
 
   const continueGeneration = async () => {
-    if (!confirm(`هذا الامتحان فيه ${questions.length} سؤالاً فقط من ${FULL_EXAM_TARGET}. سيتم استكمال بقية الأسئلة من محتوى الكتب دون حذف الحالي. متابعة؟`)) return
+    if (!(await confirmAction({ title: 'استكمال أسئلة الامتحان', description: `هذا الامتحان فيه ${questions.length} سؤالاً فقط من ${FULL_EXAM_TARGET}. سيتم استكمال بقية الأسئلة من محتوى الكتب دون حذف الحالي.`, confirmLabel: 'متابعة الاستكمال', tone: 'warning' }))) return
     setBusy(true)
     try {
       const d = await api<{ ok?: boolean; error?: string; questionCount?: number; inserted?: number; status?: string }>('/api/admin/program-exams/generate', {
