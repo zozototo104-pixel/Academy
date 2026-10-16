@@ -646,6 +646,19 @@ export function AdminBooksTab() {
     setConfirmDialog(null)
   }
 
+  const askCognitiveOverride = useCallback((input: { title: string; message: string; details?: string[] }) => {
+    return new Promise<string | null>((resolve) => {
+      cognitiveOverrideResolveRef.current = resolve
+      setCognitiveOverrideDialog({ title: input.title, message: input.message, details: input.details || [], reason: '' })
+    })
+  }, [])
+
+  const closeCognitiveOverride = (reason: string | null) => {
+    cognitiveOverrideResolveRef.current?.(reason)
+    cognitiveOverrideResolveRef.current = null
+    setCognitiveOverrideDialog(null)
+  }
+
   useEffect(() => {
     api<{ programs: ProgramOption[] }>('/api/programs?summary=1&public=1')
       .then((d) => setPrograms(d.programs))
