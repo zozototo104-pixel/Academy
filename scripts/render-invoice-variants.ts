@@ -255,7 +255,7 @@ function wrapCanvasLines(text: string, size: number, maxWidth: number) {
 }
 
 function writeCanvasArabic(): ArabicWriter {
-  if (!GlobalFonts.has('Amiri')) GlobalFonts.registerFromPath(FONT_PATH, 'Amiri')
+  GlobalFonts.registerFromPath(FONT_PATH, 'Amiri')
   return (doc, value, x, y, opts = {}) => {
     const logical = safeText(value)
     const size = opts.size || 13
