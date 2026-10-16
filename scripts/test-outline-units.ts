@@ -1,4 +1,4 @@
-import { canReplaceDeleteUnit, planOutlineUnitsFromSections, summarizeReplaceUnitProtection, validateStudyGuideSources, validateUnitContentReferences } from '@/lib/outline-units'
+import { canReplaceDeleteUnit, normalizeUnitSummaryAfterRetry, planOutlineUnitsFromSections, providerUnavailableStatus, summarizeReplaceUnitProtection, validateStudyGuideSources, validateUnitContentReferences } from '@/lib/outline-units'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
@@ -58,7 +58,39 @@ function testReplaceProtectionKeepsApprovedOutlineAndAttemptedUnits() {
   assert(summary.keptWithAttempts === 1, 'replace يجب أن يحفظ وحدة لها محاولات')
 }
 
+function errorWithStatus(status: number) {
+  const error = new Error(`HTTP ${status}`) as Error & { status: number }
+  error.status = status
+  return error
+}
+
+function errorWithCode(message: string, code: string) {
+  const error = new Error(message) as Error & { code: string }
+  error.code = code
+  return error
+}
+
+function testSummaryFallbackAndProviderClassification() {
+  const longSummary = Array.from({ length: 172 }, (_, index) => `كلمة${index + 1}${index === 139 ? '.' : ''}`).join(' ')
+  const trimmed = normalizeUnitSummaryAfterRetry(longSummary)
+  assert(trimmed.split(/\s+/).length === 140, 'ملخص 172 كلمة يجب أن يُقص عند آخر جملة كاملة قبل 150 كلمة')
+  assertThrows(() => normalizeUnitSummaryAfterRetry(Array.from({ length: 40 }, () => 'كلمة').join(' ')), 'ملخص 40 كلمة يجب أن يُرفض')
+
+  assert(providerUnavailableStatus(errorWithStatus(429)), 'status=429 يجب أن يعتبر PAUSED')
+  assert(providerUnavailableStatus(errorWithStatus(503)), 'status=503 يجب أن يعتبر PAUSED')
+  assert(providerUnavailableStatus(new Error('GEMINI_NOT_CONFIGURED')), 'GEMINI_NOT_CONFIGURED يجب أن يعتبر PAUSED')
+  assert(providerUnavailableStatus(new Error('AI_ACADEMIC_PROVIDER_UNAVAILABLE')), 'خطأ الراوتر الأكاديمي الثابت يجب أن يعتبر PAUSED')
+  assert(providerUnavailableStatus(new Error('TEXT_AI_ROUTER_FAILED')), 'خطأ الراوتر العام الثابت يجب أن يعتبر PAUSED')
+  assert(providerUnavailableStatus(new Error('PROVIDER_UNAVAILABLE')), 'عطل المزود الفعلي يجب أن يعتبر PAUSED')
+
+  assert(!providerUnavailableStatus(new Error('UNIT_SUMMARY_OUT_OF_RANGE:wc=172')), 'خطأ طول ملخص الوحدة يجب أن يبقى FAILED')
+  assert(!providerUnavailableStatus(new Error('UNIT_CONTENT_SECTION_MISSING_SOURCE_REFERENCE')), 'خطأ مرجع الوحدة لا يجب أن يعتبر PAUSED')
+  assert(!providerUnavailableStatus(new Error('INVALID_JSON')), 'INVALID_JSON يجب أن يبقى FAILED لأنه خطأ تحقق')
+  assert(!providerUnavailableStatus(errorWithCode('provider returned structurally invalid output', 'VALIDATION_REJECTED')), 'VALIDATION_REJECTED يجب أن يبقى FAILED حتى لو الرسالة عامة')
+}
+
 const tests = [
+  testSummaryFallbackAndProviderClassification,
   testApprovedUnitNotUpdatedOnRegenerate,
   testUnitContentRejectsOutsideChunkRange,
   testGuideWithoutSourceKnowledgeIdsRejected,

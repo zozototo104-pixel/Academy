@@ -1,5 +1,11 @@
 import type { Prisma } from '@prisma/client'
-import { geminiCompleteJson } from '@/lib/gemini'
+import {
+  geminiCompleteJson,
+  isAuthError,
+  isModelUnavailableError,
+  isQuotaError,
+  isTransientGeminiError,
+} from '@/lib/gemini'
 
 export type OutlineUnitSectionInput = {
   id: string
@@ -142,6 +148,21 @@ export function parseOutlineUnitJson(raw: string): any {
 
 function wordCount(value: string) {
   return cleanOutlineUnitText(value, 4000).split(/\s+/).filter(Boolean).length
+}
+
+export function normalizeUnitSummaryAfterRetry(value: string) {
+  const summary = cleanOutlineUnitText(value, 4000)
+  const wc = wordCount(summary)
+  if (wc >= 80 && wc <= 150) return summary
+  if (wc < 60 || wc > 200) throw new Error(`UNIT_SUMMARY_OUT_OF_RANGE:wc=${wc}`)
+  if (wc <= 150) return summary
+
+  const words = summary.split(/\s+/).filter(Boolean)
+  const prefix = words.slice(0, 150).join(' ')
+  const sentenceEnds = [...prefix.matchAll(/[.!؟。](?=\s|$)/g)]
+  const lastEnd = sentenceEnds.at(-1)?.index
+  if (lastEnd === undefined) throw new Error(`UNIT_SUMMARY_OUT_OF_RANGE:wc=${wc}`)
+  return prefix.slice(0, lastEnd + 1).trim()
 }
 
 function pageRef(pageStart?: number | null, pageEnd?: number | null) {
@@ -314,9 +335,23 @@ ${sourceChunkLines(params.chunks)}
     deadlineMs: params.deadlineMs,
   })
   const parsed = parseOutlineUnitJson(raw)
-  const summary = cleanOutlineUnitText(parsed?.summary, 1600)
-  const wc = wordCount(summary)
-  if (wc < 80 || wc > 150) throw new Error('UNIT_SUMMARY_OUT_OF_RANGE')
+  let summary = cleanOutlineUnitText(parsed?.summary, 4000)
+  let wc = wordCount(summary)
+  if (wc < 80 || wc > 150) {
+    console.warn('Retrying unit summary length', { unitTitle: params.unitTitle, wc })
+    const retryRaw = await geminiCompleteJson({
+      system: 'أنت محرر أكاديمي. أعد JSON صالحاً فقط، والتزم بالمصادر المحددة.',
+      history: [{ role: 'user', text: `${prompt}\n\nالملخص السابق (${wc} كلمة) خارج النطاق المطلوب:\n${summary}\n\nأعد صياغة الملخص نفسه من المصادر أعلاه فقط ليكون بين 90 و140 كلمة. أعد JSON object يحتوي على summary فقط.` }],
+      taskLevel: 'ACADEMIC_DRAFT',
+      temperature: 0.12,
+      maxOutputTokens: 1200,
+      deadlineMs: params.deadlineMs,
+    })
+    const retried = parseOutlineUnitJson(retryRaw)
+    summary = cleanOutlineUnitText(retried?.summary, 4000)
+    wc = wordCount(summary)
+    summary = normalizeUnitSummaryAfterRetry(summary)
+  }
   const objectives = Array.isArray(parsed?.objectives)
     ? parsed.objectives.map((x: any) => cleanOutlineUnitText(x, 240)).filter((x: string) => x.length >= 12).slice(0, 7)
     : []
@@ -381,7 +416,23 @@ export function buildUnitStudyGuideDraft(params: {
   }
 }
 
+const PROVIDER_UNAVAILABLE_ERROR_CODES = new Set([
+  'GEMINI_NOT_CONFIGURED',
+  'AI_VERIFIER_UNAVAILABLE',
+  'PROVIDER_UNAVAILABLE',
+  'AI_ACADEMIC_PROVIDER_UNAVAILABLE',
+  'TEXT_AI_ROUTER_NOT_CONFIGURED',
+  'TEXT_AI_ROUTER_NO_VISION_PROVIDER',
+  'TEXT_AI_ROUTER_FAILED',
+])
+
 export function providerUnavailableStatus(error: unknown) {
-  const message = String((error as any)?.message || error || '')
-  return /MISSING|NO_|UNAVAILABLE|TIMEOUT|QUOTA|RATE|KEY|provider|AI|Gemini|ZAI|OpenAI/i.test(message)
+  const message = String((error as any)?.message || error || '').trim()
+  const code = String((error as any)?.code || '').trim()
+
+  if (code === 'VALIDATION_REJECTED') return false
+  if (message.startsWith('UNIT_') || message.startsWith('STUDY_GUIDE_') || message.includes('INVALID_JSON')) return false
+
+  if (PROVIDER_UNAVAILABLE_ERROR_CODES.has(message) || PROVIDER_UNAVAILABLE_ERROR_CODES.has(code)) return true
+  return isQuotaError(error) || isTransientGeminiError(error) || isAuthError(error) || isModelUnavailableError(error)
 }
