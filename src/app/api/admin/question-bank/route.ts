@@ -144,6 +144,8 @@ async function listQuestions(programId: string, status?: string | null) {
       text: true,
       options: true,
       correctAnswer: true,
+      modelAnswer: true,
+      sourceEvidence: true,
       sourceLocator: true,
       sourceBookTitle: true,
       knowledgeItemId: true,
