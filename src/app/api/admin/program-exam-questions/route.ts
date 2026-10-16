@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
 import { notify } from '@/lib/notify'
 import { emailExamPublished } from '@/lib/mailer'
+import { cognitivePolicyArabicMessage, validateCognitiveDistribution } from '@/lib/exam-cognitive-policy'
 
 const REQUIRED_PUBLISHED_QUESTIONS = 80
 const DEFAULT_MIN_TYPE_DISTRIBUTION: Record<string, number> = { MCQ: 20, TF: 12, SHORT: 10, ESSAY: 8 }
