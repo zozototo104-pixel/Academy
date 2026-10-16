@@ -273,7 +273,9 @@ async function certificateOwnerMatches(cert: { userId?: string | null; admission
 
 async function buildVerifyPayload(cert: any, verificationMode: 'QR_TOKEN' | 'SERIAL', includeDetails: boolean) {
   const eligibility = await evaluateCertificateRecordEligibility(cert)
-  const effectiveValid = cert.valid && eligibility.ok
+  const revokedAt = toIso(cert.revokedAt)
+  const isRevoked = !cert.valid || !!revokedAt
+  const effectiveValid = !isRevoked && eligibility.ok
   const academicProfile = includeDetails && effectiveValid ? await buildCertificateAcademicProfile(cert) : null
   const academicRecord = includeDetails && effectiveValid ? await buildCertificateAcademicRecord(cert) : null
   return {
