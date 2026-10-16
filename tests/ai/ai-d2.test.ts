@@ -149,6 +149,12 @@ beforeEach(() => {
 })
 
 describe('AI D2 behavior', () => {
+  test('Arabic PDF shaping joins lam-alef in السلام and لا', () => {
+    expect(toVisualArabic('لا')).toBe('\uFEFB')
+    expect(toVisualArabic('السلام')).toContain('\uFEFC')
+    expect(toVisualArabic('لَا')).toBe('\uFEFB')
+  })
+
   test('PCM capture worklet buffers small 48k frames and preserves downsampled sample count', () => {
     const processor = simulatePcmCaptureWorklet()
     for (let i = 0; i < 100; i++) processor.process([ [new Float32Array(128).fill(0.1)] ])
