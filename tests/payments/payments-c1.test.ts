@@ -84,6 +84,11 @@ mock.module('@/lib/tuition-installments', () => ({
   roundMoney: (value: number) => Math.round((Number(value) || 0) * 100) / 100,
   getAdmissionTuitionPlan: async () => ({ applicationFeePaid: true, appealStatus: 'APPROVED', remainingTuition: 300, paidTuition: 100, approvedInitialAmount: null }),
 }))
+mock.module('@/lib/mailer', () => ({ emailAdmissionSubmitted: async () => true, emailServiceRequestSubmitted: async () => true }))
+mock.module('@/lib/service-flows', () => ({ buildServiceAdmissionDefaults: () => null, getServiceDocumentOptions: () => [], getServiceFlow: () => null }))
+mock.module('@/lib/admission-ai', () => ({ resolveRules: () => ({ requiredDocuments: ['DEGREE', 'ID', 'PHOTO', 'CV'] }) }))
+mock.module('@/lib/admission-upload-token', () => ({ verifyAdmissionUploadToken: () => true }))
+mock.module('@/lib/admission-document-replacement', () => ({ extractAdmissionDocumentReplacement: () => null, stripAdmissionDocumentReplacement: (notes: any) => notes }))
 
 const proofReviewRoute = await import('../../src/app/api/admin/payments/proofs/[id]/route')
 const adminPaymentsRoute = await import('../../src/app/api/admin/payments/route')
