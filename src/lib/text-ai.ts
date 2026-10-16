@@ -1811,6 +1811,12 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const persistentCooldowns = await loadPersistentCooldowns()
   const exploreModels = ++routerRequestSeq % 5 === 0
   const estimatedPaidCost = estimatedPaidCostUsd(effectiveOpts)
+  const estimatedInputTokens = estimatePromptTokens(effectiveOpts.system, effectiveOpts.history)
+  const estimatedOutputTokens = Number(effectiveOpts.maxOutputTokens || (effectiveOpts.json ? 4096 : 2048))
+  await enforceAiUserDailyCostCap({
+    userId: effectiveOpts.userId,
+    estimatedCostCents: estimateAiCostCents(estimatedInputTokens, estimatedOutputTokens),
+  })
   let paidAvailable: boolean | null = null
   let skippedCooldownUntil: number | null = null
   let onlySameFamilyModelsExcluded = false
