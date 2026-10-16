@@ -201,6 +201,11 @@ export async function transcribeAudioBase64(audioBase64: string, options: Transc
   try {
     const geminiText = await transcribeWithGemini(clean, { ...options, mimeType })
     if (geminiText !== null) return geminiText
+    if (isOggOrOpusMime(mimeType)) {
+      const whisperText = await transcribeWithWhisperCompatible(clean, mimeType)
+      if (whisperText) return whisperText
+      return ''
+    }
   } catch (error) {
     const reason = String((error as any)?.message || error).slice(0, 300)
     if (isOggOrOpusMime(mimeType)) {
