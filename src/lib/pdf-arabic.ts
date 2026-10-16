@@ -55,6 +55,42 @@ function canJoinPrev(ch: string) {
 }
 
 function shapeArabicLogical(input: string) {
+  const chars = Array.from(input.replace(/[\u064B-\u0652]/g, ''))
+  const lamAlef: Record<string, [string, string]> = {
+    'ا': ['\uFEFB', '\uFEFC'],
+    'أ': ['\uFEF7', '\uFEF8'],
+    'إ': ['\uFEF9', '\uFEFA'],
+    'آ': ['\uFEF5', '\uFEF6'],
+  }
+  const shaped: string[] = []
+  for (let i = 0; i < chars.length; i++) {
+    const ch = chars[i]
+    const prev = chars[i - 1]
+    const next = chars[i + 1]
+    if (ch === 'ل' && next && lamAlef[next]) {
+      const joinsPrev = !!prev && canJoinNext(prev) && canJoinPrev(ch)
+      shaped.push(lamAlef[next][joinsPrev ? 1 : 0])
+      i++
+      continue
+    }
+    const forms = FORMS[ch]
+    if (!forms) { shaped.push(ch); continue }
+    const joinsPrev = !!prev && canJoinNext(prev) && canJoinPrev(ch)
+    const joinsNext = !!next && canJoinNext(ch) && canJoinPrev(next)
+    if (joinsPrev && joinsNext && forms.med) shaped.push(forms.med)
+    else if (joinsPrev && forms.fin) shaped.push(forms.fin)
+    else if (joinsNext && forms.ini) shaped.push(forms.ini)
+    else shaped.push(forms.iso)
+  }
+  return shaped.join('')
+}
+
+/* Previous mapper replaced by the loop above. */
+function unusedShapeMapperRemoved() {
+  return [] as string[]
+}
+/* end */
+function legacyShapeArabicLogical(input: string) {
   const chars = Array.from(input)
   return chars.map((ch, i) => {
     const forms = FORMS[ch]
