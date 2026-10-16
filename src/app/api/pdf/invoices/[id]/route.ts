@@ -137,10 +137,12 @@ function shapeArabic(doc: jsPDF, value: string) {
 function writeValue(doc: jsPDF, value: string, x: number, y: number, opts: { size?: number; color?: string; style?: 'normal' | 'bold'; maxWidth?: number; align?: 'left' | 'right'; arabicReady: boolean }) {
   const isArabic = hasArabic(value) && opts.arabicReady
   const font = isArabic ? ARABIC_FONT_NAME : 'helvetica'
-  setText(doc, opts.size || 13, opts.color || TEXT, opts.style || 'normal', font)
+  setText(doc, opts.size || 13, opts.color || TEXT, isArabic ? 'normal' : (opts.style || 'normal'), font)
   const shaped = isArabic ? shapeArabic(doc, value) : value
   const lines = opts.maxWidth ? doc.splitTextToSize(shaped, opts.maxWidth).slice(0, 3) : [shaped]
+  if (isArabic) (doc as any).setR2L?.(true)
   doc.text(lines, x, y, { align: opts.align || (isArabic ? 'right' : 'left') })
+  if (isArabic) (doc as any).setR2L?.(false)
   return Math.max(20, lines.length * ((opts.size || 13) + 4))
 }
 
