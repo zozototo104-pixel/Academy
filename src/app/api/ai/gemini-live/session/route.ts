@@ -380,12 +380,7 @@ export async function POST(req: NextRequest) {
       liveUsage: reservedUsage,
       wsUrl: `${LIVE_WS_BASE}?access_token=${encodeURIComponent(token)}`,
       setup,
-      sdkConfig: {
-        responseModalities: ['AUDIO'],
-        speechConfig: speechConfigForVoice(voice),
-        inputAudioTranscription: { languageCode: dialect },
-        systemInstruction: systemInstruction.slice(0, 32000),
-      },
+      sdkConfig,
     })
   } catch (e: any) {
     console.error('gemini-live session error:', redactSecrets(String(e?.message || e)).slice(0, 500))
