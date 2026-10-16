@@ -1449,6 +1449,59 @@ function recordAttempt(attempt: TextAiAttemptDiagnostics) {
   })
 }
 
+const GEMINI_LIVE_ROUTER_MODEL = 'gemini-live'
+
+export type GeminiLiveRouterKey = { key: string; keyIndex: number }
+
+function isPersistentCoolingAnyGeminiModel(values: Record<string, string>, keyIndex: number): boolean {
+  if (isPersistentCooling(values, 'GEMINI', keyIndex, GEMINI_LIVE_ROUTER_MODEL)) return true
+  const prefix = `${persistentCooldownKey('GEMINI', keyIndex)}:`
+  return Object.entries(values).some(([key, value]) => key.startsWith(prefix) && !!parseCooldown(value))
+}
+
+export async function geminiKeysForLive(): Promise<GeminiLiveRouterKey[]> {
+  const s = await settings()
+  const persistentCooldowns = await loadPersistentCooldowns()
+  return providerKeys(s, 'GEMINI')
+    .map((key, index) => ({ key, keyIndex: index + 1 }))
+    .filter(({ key, keyIndex }) => !isCooling('GEMINI', key) && !isPersistentNoBalance(persistentCooldowns, 'GEMINI', keyIndex) && !isPersistentCoolingAnyGeminiModel(persistentCooldowns, keyIndex))
+}
+
+export function reportGeminiLiveKeySuccess(keyIndex: number, model: string, ms = 0): void {
+  const at = new Date().toISOString()
+  const safeModel = String(model || GEMINI_LIVE_ROUTER_MODEL).slice(0, 180)
+  lastResult = { provider: 'GEMINI', model: safeModel, ok: true, at }
+  recordAttempt({ provider: 'GEMINI', model: safeModel, keyIndex, ok: true, ms: Math.max(0, Math.floor(ms || 0)), at })
+}
+
+export async function reportGeminiLiveKeyFailure(keyIndex: number, error: unknown): Promise<void> {
+  const s = await settings()
+  const key = providerKeys(s, 'GEMINI')[Math.max(0, keyIndex - 1)] || ''
+  const status = statusFromError(error)
+  const msg = redactSecrets((error as any)?.message || error).slice(0, 240)
+  const model = String((error as any)?.model || GEMINI_LIVE_ROUTER_MODEL).slice(0, 180)
+  const at = new Date().toISOString()
+  const ms = Math.max(0, Math.floor(Number((error as any)?.ms || 0) || 0))
+  lastResult = { provider: 'GEMINI', model, ok: false, error: msg, at }
+  recordAttempt({ provider: 'GEMINI', model, keyIndex, ok: false, ms, status, error: msg, at })
+
+  if (!key) return
+  if (isNoBalanceLike(error)) {
+    markCooldown('GEMINI', key, msg, 24 * 60)
+    await markPersistentNoBalance('GEMINI', keyIndex, msg, status)
+    return
+  }
+  if (isQuotaLike(error)) {
+    markCooldown('GEMINI', key, msg)
+    await markPersistentCooldown('GEMINI', keyIndex, GEMINI_LIVE_ROUTER_MODEL, msg, status)
+    return
+  }
+  if (isAuthLike(error)) {
+    markCooldown('GEMINI', key, msg, 60)
+    await markPersistentCooldown('GEMINI', keyIndex, GEMINI_LIVE_ROUTER_MODEL, msg, status, 60)
+  }
+}
+
 async function callGemini(key: string, model: string, opts: TextAiCallOpts): Promise<string> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`
   const response = await fetchWithTimeout('Gemini', url, {
