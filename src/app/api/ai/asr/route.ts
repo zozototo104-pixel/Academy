@@ -16,6 +16,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const audioBase64 = body?.audioBase64
     const mimeType = String(body?.mimeType || body?.mime_type || '')
+    const dialect = String(body?.dialect || body?.languageCode || '').trim()
     if (!audioBase64 || typeof audioBase64 !== 'string') {
       return NextResponse.json({ error: 'الصوت مطلوب' }, { status: 400 })
     }
