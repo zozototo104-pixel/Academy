@@ -814,6 +814,47 @@ export function AdminFinanceTab() {
     }
   }
 
+  const reviewPaymentProof = async (payment: PaymentRow, proof: PaymentProofRow, action: 'ACCEPT' | 'REJECT') => {
+    let reason = ''
+    if (action === 'REJECT') {
+      const value = await promptAction({
+        title: 'رفض إثبات الدفع',
+        description: `اكتب سبب رفض إثبات الفاتورة ${payment.invoiceNo}. سيصل السبب للطالب ليعيد رفع إثبات صحيح.`,
+        fieldLabel: 'سبب الرفض',
+        placeholder: 'مثال: الصورة غير واضحة أو المبلغ لا يطابق الفاتورة',
+        required: true,
+        minLength: 6,
+        multiline: true,
+        confirmLabel: 'رفض الإثبات',
+        tone: 'danger',
+      })
+      if (value === null) return
+      reason = value.trim()
+      if (reason.length < 6) {
+        toast({ title: 'سبب الرفض إلزامي', description: 'اكتب سبباً واضحاً يصل للطالب.', variant: 'destructive' })
+        return
+      }
+    } else {
+      const ok = await confirmAction({
+        title: 'قبول إثبات الدفع',
+        description: `سيتم قبول إثبات الفاتورة ${payment.invoiceNo} وتسوية الفاتورة وتفعيل أي أثر مرتبط بالسداد.`,
+        confirmLabel: 'قبول وتسوية الفاتورة',
+        tone: 'success',
+      })
+      if (!ok) return
+    }
+    setProofReviewBusy(proof.id)
+    try {
+      await api(`/api/admin/payments/proofs/${encodeURIComponent(proof.id)}`, { method: 'PATCH', body: JSON.stringify({ action, reason }) })
+      toast({ title: action === 'ACCEPT' ? 'تم قبول الإثبات' : 'تم رفض الإثبات', description: action === 'ACCEPT' ? 'سُويت الفاتورة بعد قبول الإثبات.' : 'وصل سبب الرفض للطالب.' })
+      load()
+    } catch (e: any) {
+      toast({ title: 'تعذر مراجعة الإثبات', description: e.message, variant: 'destructive' })
+    } finally {
+      setProofReviewBusy(null)
+    }
+  }
+
   const waiverLabel = (type?: string | null) => type === 'APPLICATION_FEE'
     ? 'إعفاء رسوم التقديم'
     : type === 'PARTIAL_TUITION'
