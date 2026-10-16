@@ -272,7 +272,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ربط الطلب بحساب المستخدم إن كان مسجلاً بنفس البريد. حسابات الإدارة/المشرفين لا تقدم كطلاب.
-    const me = await getCurrentUser()
+    const me = await withTiming('db_admissions_current_user', () => getCurrentUser())
     if (me && me.role !== 'STUDENT') {
       return NextResponse.json(
         { error: 'حساب الإدارة أو المشرف لا يقدم طلب التحاق كطالب. استخدم حساب طالب منفصل ببريد الطالب الحقيقي، ويمكن للإدارة متابعة الطالب من صفحة معاينة طالب.' },
