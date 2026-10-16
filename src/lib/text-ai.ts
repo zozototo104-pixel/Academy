@@ -2047,9 +2047,9 @@ export async function textAiTestConnection(): Promise<{ ok: boolean; provider?: 
           lastResult = { provider, model, ok: false, error: msg, at }
           recordAttempt({ provider, model, keyIndex, ok: false, ms, status, error: msg, at })
           errors.push(`${provider}/${model}/key#${keyIndex}: ${msg}`)
-          if (isTimeoutLike(e)) markCooldown(provider, key, msg, 2)
-          if (isQuotaLike(e)) markCooldown(provider, key, msg)
-          if (isAuthLike(e)) markCooldown(provider, key, msg, 60)
+          if (isTimeoutLike(e)) markCooldown(provider, key, msg, 2, status)
+          if (isQuotaLike(e)) markCooldown(provider, key, msg, undefined, status)
+          if (isAuthLike(e)) markCooldown(provider, key, msg, 60, status)
         }
       }
     }
