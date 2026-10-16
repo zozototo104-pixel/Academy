@@ -121,12 +121,14 @@ export async function POST(req: NextRequest) {
       const file = fd.get('file')
       if (file instanceof File && file.size > 0) {
         if (file.size > MAX_FILE_SIZE) return NextResponse.json({ error: 'حجم ملف الواجب كبير جداً؛ الحد الأقصى 6 ميجابايت' }, { status: 400 })
-        const supported = ALLOWED_MIME.has(file.type) || ALLOWED_EXT.test(file.name)
-        if (!supported) return NextResponse.json({ error: 'صيغة الملف غير مدعومة للواجبات' }, { status: 400 })
         pendingFileBuffer = Buffer.from(await file.arrayBuffer())
+        const signature = validateAdmissionFileSignature({ buffer: pendingFileBuffer, fileName: file.name, mimeType: file.type })
+        if (!signature.ok) return NextResponse.json({ error: signature.error }, { status: 400 })
+        const supported = ALLOWED_MIME.has(signature.mimeType) || ALLOWED_EXT.test(file.name)
+        if (!supported) return NextResponse.json({ error: 'صيغة الملف غير مدعومة للواجبات' }, { status: 400 })
         fileName = file.name.slice(0, 220)
-        mimeType = file.type
-        size = file.size
+        mimeType = signature.mimeType
+        size = pendingFileBuffer.byteLength
       }
     } else {
       const body = await req.json().catch(() => ({}))
