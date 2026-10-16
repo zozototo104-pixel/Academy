@@ -422,7 +422,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'لا توجد بيانات للحفظ' }, { status: 400 })
     }
 
-    const saved = await db.program.update({ where: { id: programId }, data })
+    const saved = await withTiming('db_program_rules_update', () => db.program.update({ where: { id: programId }, data }))
     clearPublicProgramsCache()
     revalidatePublicProgramSurfaces([program.slug, saved.slug])
     const invalidated = await clearAdmissionAiReviewCacheForProgram(programId)
