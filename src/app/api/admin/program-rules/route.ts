@@ -425,7 +425,7 @@ export async function PUT(req: NextRequest) {
     const saved = await withTiming('db_program_rules_update', () => db.program.update({ where: { id: programId }, data }))
     clearPublicProgramsCache()
     revalidatePublicProgramSurfaces([program.slug, saved.slug])
-    const invalidated = await clearAdmissionAiReviewCacheForProgram(programId)
+    const invalidated = await withTiming('db_program_rules_cache_clear', () => clearAdmissionAiReviewCacheForProgram(programId))
     const after = programSnapshot(saved)
     const changes = pickChangedFields(before, after)
     await audit(user, 'PROGRAM_RULES_SAVED', 'Program', programId, `حفظ محرر البرنامج «${saved.titleAr}» — ${compactChangeSummary(changes)} — أُبطلت مراجعات قبول ذكية: ${invalidated.count}`)
