@@ -36,10 +36,10 @@ function programSnapshot(program: any) {
   }
 }
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> | { id: string } }) {
+export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
     await requireAdmin()
-    const { id } = await params
+    const { id } = await ctx.params
     const program = await db.program.findUnique({
       where: { id },
       select: {
