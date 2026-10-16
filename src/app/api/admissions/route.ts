@@ -1005,10 +1005,10 @@ export async function GET(req: NextRequest) {
     const trackLimit = enforceApiRateLimit(req, 'admissions:track', 12, 10 * 60 * 1000, ref)
     if (trackLimit) return trackLimit
 
-    const app = await db.admissionApplication.findUnique({
+    const app = await withTiming('db_admissions_tracking_application', () => db.admissionApplication.findUnique({
       where: { reference: ref },
       include,
-    })
+    }))
     if (!app) {
       return NextResponse.json({ error: 'لا يوجد طلب بهذا الكود المرجعي' }, { status: 404 })
     }
