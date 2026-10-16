@@ -107,7 +107,7 @@ function arabicErrorForGemini(e: any): string {
   if (isInvalidArgumentError(e)) {
     return 'إعدادات Gemini Live غير مقبولة. استخدم gemini-3.1-flash-live-preview، أو جرّب gemini-2.5-flash-live-preview إذا لم تكن 3.1 متاحة لمشروعك'
   }
-  return raw.slice(0, 220) || 'تعذر إنشاء جلسة Gemini Live'
+  return redactSecrets(raw).slice(0, 220) || 'تعذر إنشاء جلسة Gemini Live'
 }
 
 type LiveKeyFailureDetail = {
