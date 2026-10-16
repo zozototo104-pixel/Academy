@@ -234,7 +234,7 @@ export async function POST(req: NextRequest) {
     const lastProgram = await withTiming('db_program_rules_last_order', () => db.program.findFirst({ orderBy: { order: 'desc' }, select: { order: true } }))
     const sortOrder = payload.sortOrder ?? Number(lastProgram?.order || 0) + 10
     const slug = await uniqueProgramSlug(payload.titleAr, payload.titleEn, payload.category)
-    const saved = await db.program.create({
+    const saved = await withTiming('db_program_rules_program_create', () => db.program.create({
       data: {
         slug,
         titleAr: payload.titleAr,
