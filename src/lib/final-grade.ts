@@ -39,7 +39,10 @@ function best(values: Array<number | null | undefined>) {
   return Math.max(...nums)
 }
 
-function component(key: string, label: string, weight: number, score: number | null): FinalGradeComponent {
+function component(key: string, label: string, weight: number, score: ComponentScore): FinalGradeComponent {
+  if (score === 'EXEMPT') {
+    return { key, label, weight, score: null, weighted: 0, ready: true, exempt: true }
+  }
   const ready = typeof score === 'number' && Number.isFinite(score)
   const rawScore = ready ? clampPercent(score) : null
   return {
