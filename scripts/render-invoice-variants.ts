@@ -461,6 +461,7 @@ const variants: Record<Variant, ArabicWriter> = {
 }
 
 mkdirSync(OUT_DIR, { recursive: true })
+await loadArabicCanvas(FONT_PATH)
 const data = sampleInvoice()
 for (const [variant, writer] of Object.entries(variants) as [Variant, ArabicWriter][]) {
   const pdf = buildVariantPdf(data, writer)
