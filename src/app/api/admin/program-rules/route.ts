@@ -10,6 +10,7 @@ import { normalizeAcademicProfileOverride } from '@/lib/program-tracks'
 import { clearPublicProgramsCache } from '@/lib/programs-public-cache'
 import { compactChangeSummary, pickChangedFields } from '@/lib/program-rules-audit'
 import { buildOfficialStudyAdmissionDefaults, buildServiceAdmissionDefaults, getServiceFlow } from '@/lib/service-flows'
+import { withTimedResponse, withTiming } from '@/lib/timing'
 
 function isInternalQaProgram(p: { slug?: string | null; titleAr?: string | null; titleEn?: string | null }) {
   const slug = String(p.slug || '')
