@@ -285,7 +285,8 @@ export function QuestionReviewDialog({
       try {
         d = await publishRequest()
       } catch (e: any) {
-        if (e?.status === 409 && e?.code === 'COGNITIVE_DISTRIBUTION_FAILED') {
+        const code = e?.code || e?.data?.code
+        if (e?.status === 409 && code === 'COGNITIVE_DISTRIBUTION_FAILED') {
           const details = Array.isArray(e?.data?.details) ? e.data.details : []
           const reason = await askCognitiveOverride(e.message || 'توزيع المستويات المعرفية غير مناسب للنشر.', details)
           if (!reason || reason.trim().length < 8) throw new Error('يجب كتابة سبب واضح لتجاوز توزيع المهارات المعرفية.')
