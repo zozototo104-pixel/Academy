@@ -33,19 +33,19 @@ export async function GET(req: NextRequest) {
     const semester = semRaw ? Number(semRaw) || null : null
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
 
-    const program = await db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true } })
+    const program = await withTiming('db_knowledge_bank_program', () => db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true } }))
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
 
     const showAll = req.nextUrl.searchParams.get('all') === '1'
-    const allItems = await getProgramKnowledgeItems(programId, semester, showAll ? 2000 : 140)
+    const allItems = await withTiming('db_knowledge_bank_items', () => getProgramKnowledgeItems(programId, semester, showAll ? 2000 : 140))
     const items = showAll ? allItems : allItems.slice(0, 140)
-    const total = await db.bookKnowledgeItem.count({ where: { programId, ...(semester ? { OR: [{ semester: null }, { semester }] } : {}) } })
-    const booksCount = await db.book.count({ where: { programId, ...(semester ? { OR: [{ semester: null }, { semester }] } : {}) } })
-    const v2BookCounts = await db.bookKnowledgeItem.groupBy({
+    const total = await withTiming('db_knowledge_bank_total_count', () => db.bookKnowledgeItem.count({ where: { programId, ...(semester ? { OR: [{ semester: null }, { semester }] } : {}) } }))
+    const booksCount = await withTiming('db_knowledge_bank_books_count', () => db.book.count({ where: { programId, ...(semester ? { OR: [{ semester: null }, { semester }] } : {}) } }))
+    const v2BookCounts = await withTiming('db_knowledge_bank_v2_book_counts', () => db.bookKnowledgeItem.groupBy({
       by: ['bookId'],
       where: { programId, kbVersion: 2, bookId: { not: null }, category: { notIn: ['LEGACY', 'QUESTION_SEED'] } },
       _count: { _all: true },
-    })
+    }))
     const v2CountsByBook = Object.fromEntries(v2BookCounts.filter((row) => row.bookId).map((row) => [row.bookId!, row._count._all]))
     const contextPreview = items.length
       ? items.slice(0, 16).map((item, i) => `${i + 1}. [${item.category}] ${item.title}: ${item.summary.slice(0, 320)}${item.bookTitle ? ` — المصدر: ${item.bookTitle}` : ''}`).join('\n')
