@@ -167,6 +167,8 @@ export class GeminiLiveAgent {
   private stream: MediaStream | null = null
   private ctx: AudioContext | null = null
   private processor: ScriptProcessorNode | null = null
+  private worklet: AudioWorkletNode | null = null
+  private silentSink: GainNode | null = null
   private source: MediaStreamAudioSourceNode | null = null
   private player: Pcm24Player
   private muted = false
