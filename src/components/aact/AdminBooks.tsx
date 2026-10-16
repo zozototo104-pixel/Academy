@@ -891,8 +891,7 @@ export function AdminBooksTab() {
 
   // استطلاع خفيف أثناء وجود job فعلاً؛ كان سابقاً في هذا الملف يستدعي loadProgramData كل 5 ثوانٍ فيعيد طلب حزم الإدارة الثقيلة.
   useEffect(() => {
-    const activeStatuses = new Set(['GENERATING', 'RUNNING', 'QUEUED', 'PENDING'])
-    const hasActiveJob = exams.some((e) => activeStatuses.has(e.status))
+    const hasActiveJob = hasActiveExamGenerationJob
 
     const clearPollTimer = () => {
       if (pollRef.current) clearTimeout(pollRef.current)
