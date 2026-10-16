@@ -592,12 +592,16 @@ export async function runQuestionBankGenerationJobStepsUntil(jobId: string, opti
   return current
 }
 
-export async function runNextQuestionBankGenerationJobStep(programId?: string) {
+export async function runNextQuestionBankGenerationJobStep(programId?: string, options: { queuedOnly?: boolean } = {}) {
   const now = new Date()
   const job = await db.questionBankGenerationJob.findFirst({
     where: {
       ...(programId ? { programId } : {}),
-      OR: [
+      OR: options.queuedOnly ? [
+        { status: 'QUEUED' },
+        { status: 'RUNNING', lockedUntil: { lt: now } },
+        { status: 'PAUSED', retryAt: { lte: now } },
+      ] : [
         { status: 'QUEUED' },
         { status: 'RUNNING', lockedUntil: { lt: now } },
         { status: 'PAUSED', retryAt: null },

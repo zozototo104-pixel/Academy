@@ -604,6 +604,8 @@ export function AdminBooksTab() {
   const [suggestingAssignments, setSuggestingAssignments] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [stoppingExamId, setStoppingExamId] = useState<string | null>(null)
+  const [examKickFailures, setExamKickFailures] = useState<Record<string, { count: number; blocked: boolean; message: string }>>({})
+  const examKickFailuresRef = useRef<Record<string, { count: number; blocked: boolean; message: string }>>({})
   const [form, setForm] = useState({ title: '', titleEn: '', author: '', year: '', description: '', semester: '', link: '' })
   const [assignmentForm, setAssignmentForm] = useState({ id: '', title: '', description: '', semester: '1', type: 'REPORT', points: '10', weight: '0', dueDays: '', rubric: '', status: 'PUBLISHED' })
   const [savingAssignment, setSavingAssignment] = useState(false)
@@ -627,7 +629,10 @@ export function AdminBooksTab() {
   const [sourceFiles, setSourceFiles] = useState<Record<string, File | null>>({})
   const [updatingSourceBookId, setUpdatingSourceBookId] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const examPollDelayRef = useRef(5_000)
+  const examProgressSignatureRef = useRef('')
+  const examPollingActiveRef = useRef(false)
   const latestProgramLoadRef = useRef('')
   const advanceRef = useRef(false)
   const [genSemester, setGenSemester] = useState('1')
@@ -872,24 +877,85 @@ export function AdminBooksTab() {
     }
   }, [toast])
 
-  // استطلاع دوري أثناء وجود اختبار قيد التوليد
   useEffect(() => {
-    const anyGenerating = exams.some((e) => e.status === 'GENERATING')
-    if (anyGenerating && programId && !pollRef.current) {
-      pollRef.current = setInterval(() => loadProgramData(programId, true), 5000)
-    } else if (!anyGenerating && pollRef.current) {
-      clearInterval(pollRef.current)
+    examKickFailuresRef.current = examKickFailures
+  }, [examKickFailures])
+
+  const hasActiveExamGenerationJob = useMemo(() => {
+    const activeStatuses = new Set(['GENERATING', 'RUNNING', 'QUEUED', 'PENDING'])
+    return exams.some((e) => activeStatuses.has(e.status))
+  }, [exams])
+
+  const loadExamProgress = useCallback(async (pid: string) => {
+    const progress = await api<{ active?: boolean; exams: Partial<ExamRow>[] }>(`/api/admin/program-exams/progress?programId=${pid}`)
+    setExams((prev) => prev.map((exam) => {
+      const next = progress.exams.find((item) => item.id === exam.id)
+      return next ? { ...exam, ...next } : exam
+    }))
+    return progress
+  }, [])
+
+  // استطلاع خفيف أثناء وجود job فعلاً؛ كان سابقاً في هذا الملف يستدعي loadProgramData كل 5 ثوانٍ فيعيد طلب حزم الإدارة الثقيلة.
+  useEffect(() => {
+    const hasActiveJob = hasActiveExamGenerationJob
+
+    const clearPollTimer = () => {
+      if (pollRef.current) clearTimeout(pollRef.current)
       pollRef.current = null
-      // تحديث نهائي بعد اكتمال التوليد
-      if (programId) loadProgramData(programId, true)
     }
-  }, [exams, programId, loadProgramData])
+    const stopPolling = () => {
+      clearPollTimer()
+      examPollingActiveRef.current = false
+      examPollDelayRef.current = 5_000
+      examProgressSignatureRef.current = ''
+    }
+
+    if (!programId || !hasActiveJob) {
+      stopPolling()
+      return stopPolling
+    }
+
+    examPollingActiveRef.current = true
+    let cancelled = false
+
+    const tick = async () => {
+      if (cancelled || !programId || document.visibilityState === 'hidden') return
+      try {
+        const progress = await loadExamProgress(programId)
+        const signature = JSON.stringify((progress.exams || []).map((exam) => [exam.id, exam.status, exam.questionCount, exam.pendingReview, exam.rejectedCount]))
+        const changed = signature !== examProgressSignatureRef.current
+        examProgressSignatureRef.current = signature
+        examPollDelayRef.current = changed ? 5_000 : Math.min(30_000, examPollDelayRef.current + 5_000)
+        if (!progress.active) {
+          stopPolling()
+          await loadProgramData(programId, true)
+          return
+        }
+      } catch (err) {
+        console.error('program exam progress polling failed:', err)
+        examPollDelayRef.current = Math.min(30_000, examPollDelayRef.current + 5_000)
+      }
+      if (!cancelled) pollRef.current = setTimeout(tick, examPollDelayRef.current)
+    }
+
+    if (document.visibilityState !== 'hidden') pollRef.current = setTimeout(tick, examPollDelayRef.current)
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') clearPollTimer()
+      else if (!pollRef.current && examPollingActiveRef.current) pollRef.current = setTimeout(tick, 5_000)
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      cancelled = true
+      document.removeEventListener('visibilitychange', onVisibility)
+      stopPolling()
+    }
+  }, [hasActiveExamGenerationJob, programId, loadExamProgress, loadProgramData])
 
   // تحريك التوليد تلقائياً دفعة بعد دفعة طالما الإدارة فاتحة الصفحة.
   // هذا يلغي الاعتماد على خلفية Vercel التي كانت تسبب بقاء الامتحان على 20 سؤالاً فقط.
   useEffect(() => {
-    if (!programId || advanceRef.current || stoppingExamId) return
-    const generatingExam = exams.find((e) => e.status === 'GENERATING')
+    if (!programId || advanceRef.current || stoppingExamId || document.visibilityState === 'hidden') return
+    const generatingExam = exams.find((e) => e.status === 'GENERATING' && !examKickFailuresRef.current[e.id]?.blocked)
     if (!generatingExam) return
 
     const timer = setTimeout(async () => {
@@ -901,12 +967,26 @@ export function AdminBooksTab() {
           body: JSON.stringify({ examId: generatingExam.id, action: 'kick' }),
         })
         if (d.ok === false) throw new Error(d.error || 'تعذر استكمال توليد الامتحان')
-        await loadProgramData(programId, true)
+        setExamKickFailures((prev) => {
+          if (!prev[generatingExam.id]) return prev
+          const next = { ...prev }
+          delete next[generatingExam.id]
+          return next
+        })
         if (d.done || d.status === 'REVIEW') {
+          await loadProgramData(programId, true)
           toast({ title: 'اكتمل توليد الامتحان', description: `تم إنشاء ${d.questionCount || generatingExam.questionCount} سؤالاً وتحويلها إلى مراجعة الإدارة` })
+        } else {
+          await loadExamProgress(programId)
         }
       } catch (err: any) {
-        await loadProgramData(programId, true)
+        await loadExamProgress(programId).catch(() => null)
+        const message = err?.message || 'تعذر استكمال توليد الامتحان تلقائياً'
+        setExamKickFailures((prev) => {
+          const current = prev[generatingExam.id]?.count || 0
+          const count = current + 1
+          return { ...prev, [generatingExam.id]: { count, blocked: count >= 5, message } }
+        })
         // لا نزعج الإدارة بتوست كل عدة ثوانٍ؛ تظهر التفاصيل داخل بطاقة الامتحان.
         console.error('auto exam generation step failed:', err)
       } finally {
@@ -916,7 +996,7 @@ export function AdminBooksTab() {
     }, generatingExam.questionCount === 0 ? 1200 : 2200)
 
     return () => clearTimeout(timer)
-  }, [exams, programId, stoppingExamId, loadProgramData, toast])
+  }, [exams, programId, stoppingExamId, loadProgramData, loadExamProgress, toast])
 
   const addBook = async (payload?: Partial<Suggestion>) => {
     if (!programId) return
@@ -2188,6 +2268,12 @@ export function AdminBooksTab() {
 
   const resumeExam = async (exam: ExamRow) => {
     if (!programId) return
+    setExamKickFailures((prev) => {
+      if (!prev[exam.id]) return prev
+      const next = { ...prev }
+      delete next[exam.id]
+      return next
+    })
     const semLabel = exam.semester === 2 ? 'الفصل الثاني' : 'الفصل الأول'
     if (!(await askAdminConfirm({ title: `استكمال توليد ${semLabel}`, description: `سيستكمل خبير الذكاء الاصطناعي التوليد من حيث توقف، وسيحافظ على ${exam.questionCount} سؤالاً موجوداً حالياً.`, confirmLabel: 'استكمال التوليد' }))) return
     setGenerating(true)
@@ -3555,7 +3641,9 @@ export function AdminBooksTab() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {exams.map((e) => (
+                  {exams.map((e) => {
+                    const kickFailure = examKickFailures[e.id]
+                    return (
                     <div key={e.id} className="rounded-xl border border-slate-100 bg-white p-4">
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
@@ -3667,6 +3755,21 @@ export function AdminBooksTab() {
                               )}
                             </>
                           )}
+                          {e.status === 'GENERATING' && kickFailure?.blocked && (
+                            <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-2 text-[10px] font-bold text-amber-800">
+                              <p>توقفت محاولات الاستكمال التلقائي بعد {kickFailure.count} محاولات فاشلة. آخر خطأ: {kickFailure.message}</p>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => resumeExam(e)}
+                                disabled={generating || stoppingExamId === e.id}
+                                className="mt-2 h-7 border-amber-300 bg-white text-[10px] font-black text-amber-700 hover:bg-amber-100"
+                              >
+                                {generating ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : <RefreshCw className="ml-1 h-3 w-3" />}
+                                استئناف
+                              </Button>
+                            </div>
+                          )}
                         </div>
                         <div className="flex shrink-0 gap-1">
                           {e.status === 'GENERATING' && (
@@ -3731,7 +3834,8 @@ export function AdminBooksTab() {
                         </div>
                       </div>
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
               <p className="mt-3 text-[10px] leading-relaxed text-slate-400">

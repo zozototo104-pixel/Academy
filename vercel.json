@@ -13,6 +13,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/cron/question-bank-jobs",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/ai-health",
       "schedule": "0 * * * *"
     },
