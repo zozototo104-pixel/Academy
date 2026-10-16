@@ -3632,7 +3632,9 @@ export function AdminBooksTab() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {exams.map((e) => (
+                  {exams.map((e) => {
+                    const kickFailure = examKickFailures[e.id]
+                    return (
                     <div key={e.id} className="rounded-xl border border-slate-100 bg-white p-4">
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
