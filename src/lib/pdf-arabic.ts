@@ -60,10 +60,6 @@ const FORMS: Record<string, ArabicForms> = {
   'ي': { iso: '\uFEF1', fin: '\uFEF2', ini: '\uFEF3', med: '\uFEF4' },
 }
 
-function reverseChars(value: string) {
-  return Array.from(value).reverse().join('')
-}
-
 function canJoinNext(ch: string) {
   return !!FORMS[ch]?.ini || !!FORMS[ch]?.med
 }
