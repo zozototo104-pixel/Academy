@@ -166,8 +166,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  return withTimedResponse(async () => {
   try {
-    const admin = await requireAdmin()
+    const admin = await withTiming('db_require_admin', () => requireAdmin())
     const limited = enforceApiRateLimit(req, 'admin-question-bank', 10, 60 * 1000, admin.id)
     if (limited) return limited
     const body = await req.json()
