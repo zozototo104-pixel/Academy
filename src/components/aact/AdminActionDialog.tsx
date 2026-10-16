@@ -76,6 +76,7 @@ export function useAdminActionDialog() {
 
   const submit = useCallback(() => {
     if (!state) return
+    if (state.kind === 'alert') return close(true)
     if (state.kind === 'confirm') return close(true)
     const trimmed = value.trim()
     if (state.required && !trimmed) {
