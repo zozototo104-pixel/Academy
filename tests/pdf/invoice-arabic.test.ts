@@ -46,6 +46,17 @@ function pdfOutput(pdf: Uint8Array) {
 }
 
 describe('Arabic invoice PDF rendering', () => {
+  test('converts Arabic to visual order without reversing embedded Latin and numbers', () => {
+    const visual = toVisualArabic('رقم الفاتورة')
+    expect(visual).not.toBe('رقم الفاتورة')
+    expect(visual).not.toBe(Array.from(Array.from('رقم الفاتورة').reverse().join('')).reverse().join(''))
+    const mixed = toVisualArabic('المتبقي: 100.00 USD')
+    expect(mixed).toContain('100.00')
+    expect(mixed).toContain('USD')
+    expect(mixed).not.toContain('00.001')
+    expect(mixed).not.toContain('DSU')
+  })
+
   test('ships the Amiri font file used by Arabic invoice PDFs', () => {
     expect(existsSync(fontPath)).toBe(true)
     expect(statSync(fontPath).size).toBeGreaterThan(100 * 1024)
