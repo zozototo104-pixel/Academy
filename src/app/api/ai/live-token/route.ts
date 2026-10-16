@@ -46,8 +46,9 @@ async function handler(req: NextRequest) {
       return NextResponse.json({ error: allowance.message, liveUsage: allowance }, { status: allowance.status })
     }
 
+    const reserveMinutes = Math.min(2, allowance.sessionLimitMinutes)
     const payload = await createGeminiLiveEphemeralToken(purpose, { sessionLimitMinutes: allowance.sessionLimitMinutes, systemInstruction })
-    const usage = await reserveGeminiLiveUsage({ userId: user.id, role: user.role, purpose, requestedMinutes: allowance.sessionLimitMinutes })
+    const usage = await reserveGeminiLiveUsage({ userId: user.id, role: user.role, purpose, requestedMinutes: reserveMinutes, sessionId })
     if (!usage.ok) {
       return NextResponse.json({ error: usage.message, liveUsage: usage }, { status: usage.status })
     }
