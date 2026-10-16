@@ -36,6 +36,11 @@ function cleanVoice(voice: unknown): string {
   return /^[A-Za-z][A-Za-z0-9_-]{1,40}$/.test(v) ? v : 'Charon'
 }
 
+function cleanDialect(value: unknown): string {
+  const v = String(value || '').trim()
+  return /^ar-[A-Z]{2}$/.test(v) ? v : 'ar-PS'
+}
+
 function cleanVariant(v: unknown): SetupVariant {
   return v === 'generationConfig' || v === 'bare' ? v : 'minimal'
 }
