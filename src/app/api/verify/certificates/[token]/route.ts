@@ -48,6 +48,8 @@ export async function GET(req: NextRequest, context: RouteContext) {
         country: true,
         issuedAt: true,
         valid: true,
+        revokedAt: true,
+        revokedReason: true,
         userId: true,
         enrollmentId: true,
         admissionId: true,
