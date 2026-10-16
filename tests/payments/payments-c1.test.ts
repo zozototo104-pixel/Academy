@@ -64,20 +64,20 @@ const db: any = {
 }
 
 mock.module('@/lib/db', () => ({ db }))
+
+const realAuth = await import('../../src/lib/auth')
 mock.module('@/lib/auth', () => ({
+  ...realAuth,
   requireAdmin: async () => ({ id: 'admin-1', name: 'مدير', email: 'admin@example.test', role: 'ADMIN' }),
   requireUser: async () => ({ id: 'student-1', email: 'student@example.test', name: 'طالب', role: 'STUDENT' }),
   getCurrentUser: async () => ({ id: 'student-1', email: 'student@example.test', name: 'طالب', role: 'STUDENT' }),
 }))
+
+const realNotify = await import('../../src/lib/notify')
 mock.module('@/lib/notify', () => ({
+  ...realNotify,
   notify: async (...args: any[]) => { calls.push(`notify:${args[0]}:${args[2]}:${args[3]}`) },
   audit: async (...args: any[]) => { calls.push(`audit:${args[1]}:${args[3]}`) },
-}))
-mock.module('@/lib/settle-payment', () => ({
-  markInvoicePaid: async (invoiceNo: string, method: string) => {
-    calls.push(`markInvoicePaid:${invoiceNo}:${method}`)
-    return { ok: true, payment: { ...proofPayment, status: 'PAID', method }, receiptNo: 'RCT-1' }
-  },
 }))
 const realSettings = await import('../../src/lib/settings')
 mock.module('@/lib/settings', () => ({
