@@ -116,12 +116,14 @@ function limitedKnowledgeQuestionCount(requested: number, available: number, min
 // body: { programId, unitId, count?, replace? }
 export async function POST(req: NextRequest) {
   try {
-    await requireAdmin()
+    const admin = await requireAdmin()
     const body = bodyRecord(await req.json().catch(() => ({})))
     const programId = cleanText(body.programId, 80)
     const unitId = cleanText(body.unitId, 80)
-    const requiredQuestions = unitExamRequiredQuestions(body.count)
+    const requestedQuestions = unitExamRequiredQuestions(body.count)
     const replace = body.replace !== false
+    const overrideCognitivePolicy = body.overrideCognitivePolicy === true
+    const overrideReason = cleanText(body.overrideReason, 1000)
 
     if (!programId || !unitId) return NextResponse.json({ ok: false, error: 'معرف البرنامج والوحدة مطلوبان' }, { status: 400 })
     const unit = await db.unit.findFirst({ where: { id: unitId, programId }, include: { exam: { select: { id: true, title: true, status: true, _count: { select: { questions: true, attempts: true } } } } } })
