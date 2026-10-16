@@ -496,6 +496,7 @@ export function AIChatView() {
       onUserCaption: (t) => setLiveCaption(t),
       onAiCaption: (t) => setLastReply(t),
       onTimings: (rows) => setTimings(rows),
+      dialect: voiceDialect,
       onTurnComplete: ({ userText, aiText, messageId }) => {
         const now = new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' })
         setMessages((prev) => [...prev, { id: `vu-${Date.now()}`, role: 'user', content: userText, mode: 'VOICE', time: now }, { id: messageId || `va-${Date.now()}`, role: 'assistant', content: aiText, mode: 'VOICE', time: now }])
