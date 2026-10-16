@@ -703,6 +703,11 @@ export function HomeView() {
         <p className="mb-8 text-center text-sm text-slate-500">{programCountLabel} برنامجاً وخدمة للعام 2026-2027 — من الدبلومات المهنية إلى الدكتوراه والاعتمادات والخدمات المؤسسية</p>
         {loading ? (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{[...Array(5)].map((_, i) => <div key={i} className="h-52 animate-pulse rounded-2xl bg-slate-100" />)}</div>
+        ) : programsError ? (
+          <div role="alert" className="flex flex-col items-center gap-3 py-10 text-center">
+            <p>تعذر تحميل البرامج</p>
+            <Button onClick={() => setRetryPrograms((n) => n + 1)}>إعادة المحاولة</Button>
+          </div>
         ) : (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {programs.slice(0, 6).map((p) => {
