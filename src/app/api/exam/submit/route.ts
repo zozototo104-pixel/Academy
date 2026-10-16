@@ -179,6 +179,25 @@ export async function POST(req: NextRequest) {
     claimedUnitAttemptId = activeAttempt.id
 
     const answerMap = new Map(answers.map((a) => [a.questionId, a]))
+    const prePersistedEssayQuestionIds = new Set<string>()
+    const essayQuestions = exam.questions.filter((q) => q.type !== 'MCQ' && q.type !== 'TF')
+    if (essayQuestions.length) {
+      await db.$transaction(async (tx) => {
+        for (const q of essayQuestions) {
+          const submit = answerMap.get(q.id)
+          const essayText = submit?.answerText || ''
+          await persistPreparedAnswer(tx, activeAttempt.id, {
+            questionId: q.id,
+            answerText: essayText,
+            isCorrect: null,
+            points: null,
+            maxPoints: q.points,
+            aiFeedback: JSON.stringify({ status: 'PENDING_AI_GRADING' }),
+          })
+          prePersistedEssayQuestionIds.add(q.id)
+        }
+      })
+    }
     const knowledgeIds = [...new Set(exam.questions.map((q) => q.knowledgeItemId).filter((id): id is string => Boolean(id)))]
     const knowledgeItems = knowledgeIds.length ? await db.bookKnowledgeItem.findMany({ where: { id: { in: knowledgeIds } }, select: { id: true, excerpt: true } }) : []
     const excerptByKnowledgeId = new Map(knowledgeItems.map((item) => [item.id, item.excerpt || ''] as const))
