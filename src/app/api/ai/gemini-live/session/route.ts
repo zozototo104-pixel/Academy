@@ -107,6 +107,83 @@ function arabicErrorForGemini(e: any): string {
   return raw.slice(0, 220) || 'تعذر إنشاء جلسة Gemini Live'
 }
 
+type LiveKeyFailureDetail = {
+  keyIndex: number
+  maskedKey: string
+  status?: number
+  message: string
+}
+
+function statusFromGeminiError(e: any): number | undefined {
+  const status = Number(e?.status || e?.code || 0)
+  return Number.isFinite(status) && status >= 100 && status <= 599 ? status : undefined
+}
+
+function shouldTryNextGeminiLiveKey(e: any): boolean {
+  const status = statusFromGeminiError(e)
+  return status === 402 || isAuthError(e) || isQuotaError(e)
+}
+
+function maskGeminiKey(key: string): string {
+  const clean = String(key || '').trim()
+  if (!clean) return ''
+  if (clean.length <= 8) return `${clean.slice(0, 2)}…${clean.slice(-2)}`
+  return `${clean.slice(0, 4)}…${clean.slice(-4)}`
+}
+
+function googleErrorMessage(payload: any, status: number): string {
+  return String(
+    payload?.error?.message ||
+    payload?.message ||
+    payload?.raw ||
+    `Gemini token HTTP ${status}`
+  ).slice(0, 500)
+}
+
+function failureDetail(keyIndex: number, key: string, e: any): LiveKeyFailureDetail {
+  return {
+    keyIndex,
+    maskedKey: maskGeminiKey(key),
+    status: statusFromGeminiError(e),
+    message: String(e?.googleMessage || e?.message || e || '').slice(0, 500),
+  }
+}
+
+function liveTokenError(message: string, status: number, model: string, ms: number): Error & { status: number; model: string; ms: number; googleMessage: string } {
+  const err = new Error(message) as Error & { status: number; model: string; ms: number; googleMessage: string }
+  err.status = status
+  err.model = model
+  err.ms = ms
+  err.googleMessage = message
+  return err
+}
+
+async function requestGeminiLiveToken(args: {
+  key: string
+  model: string
+  body: Record<string, unknown>
+}): Promise<{ token: string; payload: any; ms: number }> {
+  const started = Date.now()
+  const upstream = await fetch('https://generativelanguage.googleapis.com/v1beta/auth_tokens', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': args.key,
+    },
+    body: JSON.stringify(args.body),
+  })
+
+  const payload = await upstream.json().catch(() => ({} as any))
+  const ms = Date.now() - started
+  if (!upstream.ok) {
+    throw liveTokenError(googleErrorMessage(payload, upstream.status), upstream.status, args.model, ms)
+  }
+
+  const token = String(payload?.name || payload?.token || payload?.authToken?.name || '').trim()
+  if (!token) throw liveTokenError('GEMINI_LIVE_TOKEN_EMPTY', 502, args.model, ms)
+  return { token, payload, ms }
+}
+
 function speechConfigForVoice(voice: string) {
   return {
     voiceConfig: {
