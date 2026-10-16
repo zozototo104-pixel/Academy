@@ -137,6 +137,7 @@ export async function POST(req: NextRequest) {
             const saved = await db.chatMessage.create({
               data: { userId: user.id, role: 'assistant', content: reply, mode: chatMode },
             })
+            await recordAiUsage({ userId: user.id, provider: String(agentResult.engine || 'CHAT'), model: String(agentResult.agent || 'platform-agent'), taskType: 'CHAT', inputText: userText, outputText: reply })
 
             await updateStudentAcademicMemory(user.id, {
               kind: 'CHAT',
