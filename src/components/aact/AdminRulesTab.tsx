@@ -976,7 +976,7 @@ export function AdminRulesTab() {
                                 type="button"
                                 size="sm"
                                 className="bg-red-600 text-xs font-black text-white hover:bg-red-700"
-                                disabled={bulkApplying}
+                                disabled={bulkApplying || editorUnavailable}
                                 onClick={applyPriceHoursToCategory}
                               >
                                 {bulkApplying ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : null}
