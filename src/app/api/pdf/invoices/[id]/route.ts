@@ -292,7 +292,7 @@ export function buildInvoicePdf(data: InvoicePdfData, options: InvoicePdfOptions
   const fontPaths = options.fontPaths || ARABIC_FONT_PATHS
   const arabicReady = registerArabicFont(doc, fontPaths)
   const descriptionText = pdfValue(data.description, data.descriptionFallback || data.purpose, arabicReady)
-  const methodText = pdfValue(data.method, methodLabel(), arabicReady)
+  const methodText = pdfValue(data.method, 'Payment Method', arabicReady)
   const purposeText = pdfValue(data.purpose, 'Other Fee', arabicReady)
 
   doc.setFillColor(BRAND_NAVY)
