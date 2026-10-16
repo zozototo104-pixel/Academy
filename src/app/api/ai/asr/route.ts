@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { transcribeAudioBase64 } from '@/lib/asr'
 import { requireUser } from '@/lib/auth'
 import { AI_RATE_LIMITS, base64DecodedSize, enforceUserAiRateLimit } from '@/lib/ai-rate-limits'
+import { getSetting } from '@/lib/settings'
 
 // POST /api/ai/asr — تحويل الصوت المسجل إلى نص (احتياطي عندما لا يتوفر Web Speech API)
 export async function POST(req: NextRequest) {
