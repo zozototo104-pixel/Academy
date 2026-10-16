@@ -149,7 +149,7 @@ export async function PATCH(req: NextRequest) {
     for (const key of ['title', 'overview']) if (body[key] !== undefined) data[key] = clean(body[key], key === 'title' ? 220 : 4000)
     for (const key of ['objectives', 'keyTerms', 'sections', 'activities', 'discussionQuestions', 'sourceKnowledgeIds']) if (body[key] !== undefined) data[key] = JSON.stringify(Array.isArray(body[key]) ? body[key] : [])
     if (body.status !== undefined && ['DRAFT', 'PUBLISHED', 'ARCHIVED'].includes(String(body.status).toUpperCase())) data.status = String(body.status).toUpperCase()
-    const guide = await db.programStudyGuide.update({ where: { id }, data })
+    const guide = await withTiming('db_study_guides_patch_update', () => db.programStudyGuide.update({ where: { id }, data }))
     return NextResponse.json({ guide: mapGuide(guide) })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
