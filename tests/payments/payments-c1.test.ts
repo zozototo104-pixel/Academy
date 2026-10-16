@@ -79,17 +79,59 @@ mock.module('@/lib/settle-payment', () => ({
     return { ok: true, payment: { ...proofPayment, status: 'PAID', method }, receiptNo: 'RCT-1' }
   },
 }))
-mock.module('@/lib/settings', () => ({ getSettings: async () => ({}), getSettingNum: async () => 50, nextInvoiceNo: async () => 'INV-NEW' }))
-mock.module('@/lib/payment-waivers', () => ({ applyScholarshipToNewInvoiceData: async (_tx: any, data: any) => data }))
+const realSettings = await import('../../src/lib/settings')
+mock.module('@/lib/settings', () => ({
+  ...realSettings,
+  getSettings: async () => ({}),
+  getSettingNum: async () => 50,
+  nextInvoiceNo: async () => 'INV-NEW',
+}))
+
+const realPaymentWaivers = await import('../../src/lib/payment-waivers')
+mock.module('@/lib/payment-waivers', () => ({
+  ...realPaymentWaivers,
+  applyScholarshipToNewInvoiceData: async (_tx: any, data: any) => data,
+}))
+
+const realTuitionInstallments = await import('../../src/lib/tuition-installments')
 mock.module('@/lib/tuition-installments', () => ({
-  roundMoney: (value: number) => Math.round((Number(value) || 0) * 100) / 100,
+  ...realTuitionInstallments,
   getAdmissionTuitionPlan: async () => ({ applicationFeePaid: true, appealStatus: 'APPROVED', remainingTuition: 300, paidTuition: 100, approvedInitialAmount: null }),
 }))
-mock.module('@/lib/mailer', () => ({ emailAdmissionSubmitted: async () => true, emailServiceRequestSubmitted: async () => true }))
-mock.module('@/lib/service-flows', () => ({ buildServiceAdmissionDefaults: () => null, getServiceDocumentOptions: () => [], getServiceFlow: () => null }))
-mock.module('@/lib/admission-ai', () => ({ resolveRules: () => ({ requiredDocuments: ['DEGREE', 'ID', 'PHOTO', 'CV'] }) }))
-mock.module('@/lib/admission-upload-token', () => ({ verifyAdmissionUploadToken: () => true }))
-mock.module('@/lib/admission-document-replacement', () => ({ extractAdmissionDocumentReplacement: () => null, stripAdmissionDocumentReplacement: (notes: any) => notes }))
+
+const realMailer = await import('../../src/lib/mailer')
+mock.module('@/lib/mailer', () => ({
+  ...realMailer,
+  emailAdmissionSubmitted: async () => true,
+  emailServiceRequestSubmitted: async () => true,
+}))
+
+const realServiceFlows = await import('../../src/lib/service-flows')
+mock.module('@/lib/service-flows', () => ({
+  ...realServiceFlows,
+  buildServiceAdmissionDefaults: () => null,
+  getServiceDocumentOptions: () => [],
+  getServiceFlow: () => null,
+}))
+
+const realAdmissionAi = await import('../../src/lib/admission-ai')
+mock.module('@/lib/admission-ai', () => ({
+  ...realAdmissionAi,
+  resolveRules: () => ({ requiredDocuments: ['DEGREE', 'ID', 'PHOTO', 'CV'] }),
+}))
+
+const realAdmissionUploadToken = await import('../../src/lib/admission-upload-token')
+mock.module('@/lib/admission-upload-token', () => ({
+  ...realAdmissionUploadToken,
+  verifyAdmissionUploadToken: () => true,
+}))
+
+const realAdmissionDocumentReplacement = await import('../../src/lib/admission-document-replacement')
+mock.module('@/lib/admission-document-replacement', () => ({
+  ...realAdmissionDocumentReplacement,
+  extractAdmissionDocumentReplacement: () => null,
+  stripAdmissionDocumentReplacement: (notes: any) => notes,
+}))
 
 const proofReviewRoute = await import('../../src/app/api/admin/payments/proofs/[id]/route')
 const adminPaymentsRoute = await import('../../src/app/api/admin/payments/route')
