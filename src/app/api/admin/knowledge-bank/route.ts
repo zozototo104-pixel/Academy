@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
       let updated = 0
       let cursor: string | undefined
       while (true) {
-        const rows = await db.bookKnowledgeItem.findMany({ where: { programId, ...(cursor ? { id: { gt: cursor } } : {}) }, orderBy: { id: 'asc' }, take: 500 })
+        const rows = await withTiming('db_knowledge_bank_sanitize_page', () => db.bookKnowledgeItem.findMany({ where: { programId, ...(cursor ? { id: { gt: cursor } } : {}) }, orderBy: { id: 'asc' }, take: 500 }))
         if (!rows.length) break
         cursor = rows[rows.length - 1].id
         const deleteIds: string[] = []
