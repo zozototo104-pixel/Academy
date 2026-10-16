@@ -3842,6 +3842,7 @@ export function AdminBooksTab() {
           {unitQuestionsLoading ? <div className="flex h-32 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-[#c9a227]" /></div> : unitQuestions ? <div className="space-y-4">
             <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-3 text-xs font-bold text-indigo-900">
               بنك أسئلة الوحدة: {unitQuestions.counts.APPROVED} معتمد · {unitQuestions.counts.PENDING_REVIEW} بانتظار المراجعة · {unitQuestions.counts.REJECTED} مرفوض — الاختبار: {unitExamLabel(unitQuestions.exam)}
+              {unitQuestions.exam?.title?.includes('LIMITED_KNOWLEDGE') && <Badge className="mr-2 bg-amber-100 text-amber-700 hover:bg-amber-100">معرفة الوحدة محدودة</Badge>}
               {!unitQuestions.readyToBuild && unitQuestions.counts.total > 0 && <p className="mt-2 rounded-xl bg-white/70 p-2 text-indigo-800">جاهز الآن {unitQuestions.counts.total} من {unitQuestions.requiredQuestions}. يمكنك مراجعة الموجود وبناء مسودة من الأسئلة الجاهزة، أو استكمال التوليد للعدد الكامل.</p>}
             </div>
             <Tabs value={unitQuestionsTab} onValueChange={(value) => { setUnitQuestionsTab(value as typeof unitQuestionsTab); setSelectedUnitQuestionIds([]) }} dir="rtl">
