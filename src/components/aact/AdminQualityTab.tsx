@@ -1176,7 +1176,7 @@ export function AdminQualityTab() {
       })
       await loadThesisTopics()
     } catch (e: any) {
-      alert(e?.message || 'تعذر تحديث طلب الطالب')
+      await alertAction({ title: 'تعذر تحديث طلب الطالب', description: e?.message || 'لم يتم حفظ قرار الطلب.', tone: 'danger' })
     } finally {
       setThesisTopicBusy(false)
     }
