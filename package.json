@@ -24,6 +24,7 @@
     "test:representative-public-card": "bun run db:generate && tsx scripts/test-representative-public-card.ts",
     "test:representative-onboarding": "bun test tests/representatives",
     "test:academic-b1": "bun test tests/academic",
+    "test:academic-b2": "bun test tests/academic/academic-b2.test.ts",
     "test:vision-router": "tsx scripts/test-vision-router.ts",
     "audit:representative-private-files": "tsx scripts/audit-representative-private-files.ts",
     "storage:migrate-private-files:dry-run": "tsx scripts/migrate-private-file-storage.ts",
