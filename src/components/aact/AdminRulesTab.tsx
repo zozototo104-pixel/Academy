@@ -950,7 +950,7 @@ export function AdminRulesTab() {
                             variant="outline"
                             size="sm"
                             className="border-[#c9a227]/50 text-[11px] font-black text-[#0f2b46] hover:bg-[#f7edd0]"
-                            disabled={saving || bulkApplying || !categoryProgramsForBulkApply.length}
+                            disabled={saving || bulkApplying || editorUnavailable || !categoryProgramsForBulkApply.length}
                             onClick={() => setBulkApplyOpen((v) => !v)}
                           >
                             {bulkApplyOpen ? 'إخفاء التأكيد' : 'تطبيق على التصنيف'}
