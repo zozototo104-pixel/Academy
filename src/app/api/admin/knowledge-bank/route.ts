@@ -72,8 +72,9 @@ export async function GET(req: NextRequest) {
 
 // POST /api/admin/knowledge-bank — action: rebuild | rebuild-book
 export async function POST(req: NextRequest) {
+  return withTimedResponse(async () => {
   try {
-    const admin = await requireAdmin()
+    const admin = await withTiming('db_require_admin', () => requireAdmin())
     const body = await req.json().catch(() => ({}))
     const action = String(body.action || 'rebuild').trim()
     const programId = String(body.programId || '').trim()
