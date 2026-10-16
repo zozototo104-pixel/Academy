@@ -188,6 +188,7 @@ function uniqueAdmissionFiles(files: UploadedAdmissionFile[]) {
 
 // POST /api/admissions — تقديم طلب التحاق أو طلب خدمة مهنية (multipart/form-data)
 export async function POST(req: NextRequest) {
+  return withTimedResponse(async () => {
   try {
     const submitLimit = enforceApiRateLimit(req, 'admissions:submit', 8, 60 * 60 * 1000, clientIpFromHeaders(req.headers))
     if (submitLimit) return submitLimit
