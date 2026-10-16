@@ -102,10 +102,10 @@ export async function POST(req: NextRequest) {
             continue
           }
           if (title !== row.title || summary !== row.summary || excerpt !== row.excerpt) {
-            updates.push(db.bookKnowledgeItem.update({ where: { id: row.id }, data: { title, summary, excerpt } }))
+            updates.push(withTiming('db_knowledge_bank_sanitize_update', () => db.bookKnowledgeItem.update({ where: { id: row.id }, data: { title, summary, excerpt } })))
           }
         }
-        if (deleteIds.length) { await db.bookKnowledgeItem.deleteMany({ where: { id: { in: deleteIds } } }); deleted += deleteIds.length }
+        if (deleteIds.length) { await withTiming('db_knowledge_bank_sanitize_delete_many', () => db.bookKnowledgeItem.deleteMany({ where: { id: { in: deleteIds } } })); deleted += deleteIds.length }
         if (updates.length) { await Promise.all(updates); updated += updates.length }
         if (rows.length < 500) break
       }
