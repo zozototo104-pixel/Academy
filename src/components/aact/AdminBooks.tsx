@@ -971,7 +971,7 @@ export function AdminBooksTab() {
     }, generatingExam.questionCount === 0 ? 1200 : 2200)
 
     return () => clearTimeout(timer)
-  }, [exams, programId, stoppingExamId, loadProgramData, toast])
+  }, [exams, programId, stoppingExamId, loadProgramData, loadExamProgress, toast])
 
   const addBook = async (payload?: Partial<Suggestion>) => {
     if (!programId) return
