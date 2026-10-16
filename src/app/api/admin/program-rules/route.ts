@@ -150,37 +150,24 @@ export async function GET() {
       slug: true,
       titleAr: true,
       titleEn: true,
-      description: true,
       category: true,
       hours: true,
       price: true,
-      icon: true,
-      features: true,
       active: true,
       order: true,
       credentialType: true,
-      trademarkNotice: true,
-      disclosureConsentText: true,
-      admissionRules: true,
       _count: { select: { units: true } },
     },
   }))
+  const customRows = await withTiming('db_program_rules_custom_ids', () => db.$queryRaw<Array<{ id: string }>>`SELECT id FROM "Program" WHERE "admissionRules" IS NOT NULL`)
+  const customIds = new Set(customRows.map((row) => row.id))
   const visiblePrograms = programs.filter((p) => !isInternalQaProgram(p))
   return NextResponse.json({
-    programs: visiblePrograms.map((p) => {
-      const flow = getServiceFlow(p.slug)
-      const isStudyProgram = flow ? flow.isStudyProgram : p.category !== 'SERVICE'
-      return {
-        ...p,
-        features: parseProgramFeatures(p.features),
-        sortOrder: p.order,
-        program: programSnapshot(p),
-        rules: p.admissionRules
-          ? resolveRules(p.category, p.admissionRules, isStudyProgram)
-          : (buildServiceAdmissionDefaults(flow) || (isStudyProgram ? buildOfficialStudyAdmissionDefaults(p) : resolveRules(p.category, p.admissionRules, isStudyProgram))),
-        custom: !!p.admissionRules,
-      }
-    }),
+    programs: visiblePrograms.map((p) => ({
+      ...p,
+      sortOrder: p.order,
+      custom: customIds.has(p.id),
+    })),
   })
   })
 }
@@ -378,6 +365,10 @@ export async function PUT(req: NextRequest) {
       const invalidated = await withTiming('db_program_rules_reset_cache_clear', () => clearAdmissionAiReviewCacheForProgram(programId))
       await withTiming('db_audit_program_rules_reset', () => audit(user, 'PROGRAM_RULES_RESET', 'Program', programId, `أعاد الإدارة قواعد قبول «${program.titleAr}» للافتراضية — أُبطلت مراجعات قبول ذكية: ${invalidated.count}`))
       return NextResponse.json({ ok: true, rules: buildServiceAdmissionDefaults(flow) || (isStudyProgram ? buildOfficialStudyAdmissionDefaults(program) : resolveRules(program.category, null, isStudyProgram)), custom: false, invalidatedAdmissionAiReviews: invalidated.count })
+    }
+
+    if (rules && Object.keys(rules).length === 0 && program.admissionRules) {
+      return NextResponse.json({ error: 'رفض الحفظ: لا يمكن استبدال قواعد مخصصة موجودة بقواعد فارغة قبل تحميل تفاصيل البرنامج.' }, { status: 400 })
     }
 
     const before = programSnapshot(program)

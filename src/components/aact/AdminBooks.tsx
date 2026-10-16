@@ -1533,19 +1533,28 @@ export function AdminBooksTab() {
     }
   }
 
-  const openEditBankQuestion = (q: QuestionBankItemRow) => {
-    let options: string[] = []
-    try { options = q.options ? JSON.parse(q.options) : [] } catch (error) { console.warn('Failed to parse question bank options before editing.', error) }
-    setEditingBankQuestion(q)
-    setEditingBankQuestionForm({
-      type: q.type || 'MCQ',
-      text: q.text || '',
-      options: options.join('\n'),
-      correctAnswer: q.correctAnswer || '',
-      modelAnswer: q.modelAnswer || '',
-      sourceEvidence: q.sourceEvidence || '',
-      difficulty: q.difficulty || 'MEDIUM',
-    })
+  const openEditBankQuestion = async (q: QuestionBankItemRow) => {
+    setQuestionBankBusy(q.id)
+    try {
+      const detail = await api<{ item: QuestionBankItemRow }>(`/api/admin/question-bank/${q.id}`)
+      const fullQuestion = detail.item || q
+      let options: string[] = []
+      try { options = fullQuestion.options ? JSON.parse(fullQuestion.options) : [] } catch (error) { console.warn('Failed to parse question bank options before editing.', error) }
+      setEditingBankQuestion(fullQuestion)
+      setEditingBankQuestionForm({
+        type: fullQuestion.type || 'MCQ',
+        text: fullQuestion.text || '',
+        options: options.join('\n'),
+        correctAnswer: fullQuestion.correctAnswer || '',
+        modelAnswer: fullQuestion.modelAnswer || '',
+        sourceEvidence: fullQuestion.sourceEvidence || '',
+        difficulty: fullQuestion.difficulty || 'MEDIUM',
+      })
+    } catch (e: any) {
+      toast({ title: 'تعذر تحميل تفاصيل السؤال', description: e.message, variant: 'destructive' })
+    } finally {
+      setQuestionBankBusy(null)
+    }
   }
 
   const saveEditedBankQuestion = async () => {
