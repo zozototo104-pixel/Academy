@@ -143,7 +143,7 @@ export async function GET() {
   if (!user || user.role !== 'ADMIN') {
     return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
   }
-  const programs = await db.program.findMany({
+  const programs = await withTiming('db_program_rules_programs', () => db.program.findMany({
     orderBy: [{ category: 'asc' }, { order: 'asc' }],
     select: {
       id: true,
