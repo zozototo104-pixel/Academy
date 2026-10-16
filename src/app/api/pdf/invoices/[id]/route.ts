@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from 'fs'
+import { join } from 'path'
 import { NextRequest, NextResponse } from 'next/server'
 import { jsPDF } from 'jspdf'
 import { db } from '@/lib/db'
@@ -17,9 +19,11 @@ type InvoicePdfData = {
   issueDate: string
   settledAt: string
   payerName: string
+  payerNameFallback: string
   payerEmail: string
   payerCountry: string
   programOrService: string
+  programOrServiceFallback: string
   purpose: string
   description: string
   amount: string
@@ -37,6 +41,12 @@ const SOFT_GOLD = '#f7edd0'
 const TEXT = '#1f2937'
 const MUTED = '#64748b'
 const BORDER = '#e2e8f0'
+const ARABIC_FONT_NAME = 'AmiriArabic'
+const ARABIC_FONT_FILE = 'Amiri-Regular.ttf'
+const ARABIC_FONT_PATHS = [
+  join(process.cwd(), 'public', 'fonts', ARABIC_FONT_FILE),
+  join(process.cwd(), 'src', 'assets', 'fonts', ARABIC_FONT_FILE),
+]
 
 function safeText(value: unknown, fallback = '—') {
   const text = String(value ?? '').trim()
@@ -45,6 +55,10 @@ function safeText(value: unknown, fallback = '—') {
 
 function fileSafe(value: string) {
   return value.replace(/[^a-zA-Z0-9._-]+/g, '-')
+}
+
+function hasArabic(value: unknown) {
+  return /[\u0600-\u06FF\u0750-\u077F]/.test(String(value ?? ''))
 }
 
 function formatMoney(amount: number | null | undefined, currency?: string | null) {
@@ -77,7 +91,7 @@ function statusInfo(value?: string | null, waiverStatus?: string | null) {
   if (value === 'PAID') return { label: 'PAID / Receipt issued', kind: 'PAID' as const, title: 'OFFICIAL RECEIPT' }
   if (value === 'WAIVED') return { label: 'WAIVED / Scholarship or waiver settled', kind: 'WAIVED' as const, title: 'OFFICIAL WAIVER RECEIPT' }
   if (waiverStatus === 'APPROVED' || waiverStatus === 'PROGRAM_APPLIED') return { label: 'WAIVED / Scholarship or waiver settled', kind: 'WAIVED' as const, title: 'OFFICIAL WAIVER RECEIPT' }
-  if (waiverStatus === 'REQUESTED' || waiverStatus === 'VERIFIED') return { label: 'WAIVER PENDING / awaiting approval', kind: 'PENDING' as const, title: 'OFFICIAL INVOICE' }
+  if (waiverStatus === 'REQUESTED' || waiverStatus === 'VERIFIED') return { label: 'WAIVER PENDING / awaiting approval', kind: 'PENDING' as const, title: 'PENDING - NOT A FINAL RECEIPT' }
   return { label: 'UNPAID / Amount due', kind: 'UNPAID' as const, title: 'OFFICIAL INVOICE' }
 }
 
@@ -97,17 +111,38 @@ function methodLabel(value?: string | null) {
   return labels[value] || value
 }
 
-function pdfSafeText(value: unknown, fallback = 'See student portal') {
-  const text = safeText(value, fallback)
-  // jsPDF built-in fonts are Latin-safe. Arabic details remain visible inside the portal;
-  // the PDF uses safe English fallbacks to avoid missing-glyph boxes on mobile viewers.
-  return /[\u0600-\u06FF\u0750-\u077F]/.test(text) ? fallback : text
+function registerArabicFont(doc: jsPDF) {
+  const fontPath = ARABIC_FONT_PATHS.find((candidate) => existsSync(candidate))
+  if (!fontPath) return false
+  const base64 = Buffer.from(readFileSync(fontPath)).toString('base64')
+  doc.addFileToVFS(ARABIC_FONT_FILE, base64)
+  doc.addFont(ARABIC_FONT_FILE, ARABIC_FONT_NAME, 'normal')
+  ;(doc as any).setR2L?.(true)
+  return true
 }
 
-function setText(doc: jsPDF, size: number, color = TEXT, style: 'normal' | 'bold' = 'normal') {
-  doc.setFont('helvetica', style)
+function pdfValue(value: string, fallback: string, arabicReady: boolean) {
+  return hasArabic(value) && !arabicReady ? fallback : safeText(value, fallback)
+}
+
+function setText(doc: jsPDF, size: number, color = TEXT, style: 'normal' | 'bold' = 'normal', font = 'helvetica') {
+  doc.setFont(font, style)
   doc.setFontSize(size)
   doc.setTextColor(color)
+}
+
+function shapeArabic(doc: jsPDF, value: string) {
+  return typeof (doc as any).processArabic === 'function' ? (doc as any).processArabic(value) : value
+}
+
+function writeValue(doc: jsPDF, value: string, x: number, y: number, opts: { size?: number; color?: string; style?: 'normal' | 'bold'; maxWidth?: number; align?: 'left' | 'right'; arabicReady: boolean }) {
+  const isArabic = hasArabic(value) && opts.arabicReady
+  const font = isArabic ? ARABIC_FONT_NAME : 'helvetica'
+  setText(doc, opts.size || 13, opts.color || TEXT, opts.style || 'normal', font)
+  const shaped = isArabic ? shapeArabic(doc, value) : value
+  const lines = opts.maxWidth ? doc.splitTextToSize(shaped, opts.maxWidth).slice(0, 3) : [shaped]
+  doc.text(lines, x, y, { align: opts.align || (isArabic ? 'right' : 'left') })
+  return Math.max(20, lines.length * ((opts.size || 13) + 4))
 }
 
 function fillRounded(doc: jsPDF, x: number, y: number, w: number, h: number, fill: string, stroke?: string) {
@@ -120,13 +155,12 @@ function fillRounded(doc: jsPDF, x: number, y: number, w: number, h: number, fil
   }
 }
 
-function drawPair(doc: jsPDF, label: string, value: string, x: number, y: number, maxValueWidth = 410) {
+function drawPair(doc: jsPDF, label: string, value: string, x: number, y: number, maxValueWidth: number, arabicReady: boolean) {
   setText(doc, 12, MUTED, 'bold')
   doc.text(label, x, y)
-  setText(doc, 13, TEXT, 'bold')
-  const lines = doc.splitTextToSize(value || '—', maxValueWidth).slice(0, 2)
-  doc.text(lines, x + 180, y)
-  return y + Math.max(28, lines.length * 18)
+  const valueX = hasArabic(value) && arabicReady ? x + 585 : x + 180
+  const height = writeValue(doc, value || '—', valueX, y, { size: 13, color: TEXT, style: 'bold', maxWidth: maxValueWidth, arabicReady })
+  return y + Math.max(28, height)
 }
 
 function drawSectionTitle(doc: jsPDF, title: string, x: number, y: number) {
@@ -134,8 +168,9 @@ function drawSectionTitle(doc: jsPDF, title: string, x: number, y: number) {
   doc.text(title, x, y)
 }
 
-function buildInvoicePdf(data: InvoicePdfData): Uint8Array {
+export function buildInvoicePdf(data: InvoicePdfData): Uint8Array {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'px', format: [PAGE_W, PAGE_H], compress: true })
+  const arabicReady = registerArabicFont(doc)
 
   doc.setFillColor(BRAND_NAVY)
   doc.rect(0, 0, PAGE_W, 140, 'F')
@@ -163,30 +198,29 @@ function buildInvoicePdf(data: InvoicePdfData): Uint8Array {
   fillRounded(doc, 52, 280, 690, 208, '#f8fafc', BORDER)
   drawSectionTitle(doc, 'Invoice Details', 80, 310)
   let y = 342
-  y = drawPair(doc, 'Invoice No.', data.invoiceNo, 80, y)
-  y = drawPair(doc, 'Receipt No.', data.receiptNo || '—', 80, y)
-  y = drawPair(doc, 'Issue Date', data.issueDate, 80, y)
-  y = drawPair(doc, 'Paid / Waived At', data.settledAt, 80, y)
-  y = drawPair(doc, 'Payment Method', data.method, 80, y)
+  y = drawPair(doc, 'Invoice No.', data.invoiceNo, 80, y, 410, arabicReady)
+  y = drawPair(doc, 'Receipt No.', data.receiptNo || '—', 80, y, 410, arabicReady)
+  y = drawPair(doc, 'Issue Date', data.issueDate, 80, y, 410, arabicReady)
+  y = drawPair(doc, 'Paid / Waived At', data.settledAt, 80, y, 410, arabicReady)
+  y = drawPair(doc, 'Payment Method', data.method, 80, y, 410, arabicReady)
 
   fillRounded(doc, 52, 520, 690, 176, '#ffffff', BORDER)
   drawSectionTitle(doc, 'Payer Details', 80, 550)
   y = 582
-  y = drawPair(doc, 'Payer', data.payerName, 80, y)
-  y = drawPair(doc, 'Email', data.payerEmail, 80, y)
-  y = drawPair(doc, 'Country', data.payerCountry, 80, y)
-  y = drawPair(doc, 'Reference', data.reference, 80, y)
+  y = drawPair(doc, 'Payer', pdfValue(data.payerName, data.payerNameFallback, arabicReady), 80, y, 410, arabicReady)
+  y = drawPair(doc, 'Email', data.payerEmail, 80, y, 410, arabicReady)
+  y = drawPair(doc, 'Country', data.payerCountry, 80, y, 410, arabicReady)
+  y = drawPair(doc, 'Reference', data.reference, 80, y, 410, arabicReady)
 
   fillRounded(doc, 52, 728, 690, 196, '#fffbeb', '#fde68a')
   drawSectionTitle(doc, 'Service or Program', 80, 760)
-  setText(doc, 14, TEXT, 'bold')
-  doc.text(doc.splitTextToSize(data.programOrService, 610).slice(0, 3), 80, 792)
+  const programText = pdfValue(data.programOrService, data.programOrServiceFallback, arabicReady)
+  writeValue(doc, programText, hasArabic(programText) && arabicReady ? 714 : 80, 792, { size: 14, color: TEXT, style: 'bold', maxWidth: 610, arabicReady })
   doc.setDrawColor('#f4d675')
   doc.line(80, 852, 714, 852)
   setText(doc, 12, MUTED, 'bold')
   doc.text('Description', 80, 884)
-  setText(doc, 13, TEXT, 'normal')
-  doc.text(doc.splitTextToSize(data.description, 610).slice(0, 3), 80, 910)
+  writeValue(doc, data.description, 80, 910, { size: 13, color: TEXT, maxWidth: 610, arabicReady })
 
   fillRounded(doc, 52, 952, 690, 92, SOFT_GOLD, '#ead389')
   setText(doc, 12, MUTED, 'bold')
@@ -277,14 +311,21 @@ export async function GET(_req: NextRequest, context: RouteContext) {
     const payerEmail = safeText(payment.payerEmail || payment.user?.email || payment.admission?.email || payment.enrollment?.user?.email || payment.agent?.email, '—')
     const payerCountry = safeText(payment.payerCountry || payment.user?.country || payment.admission?.country || payment.enrollment?.user?.country || payment.agent?.country, '—')
     const programOrService = safeText(
-      payment.admission?.programRef?.titleEn ||
-        payment.admission?.programRef?.titleAr ||
+      payment.admission?.programRef?.titleAr ||
+        payment.admission?.programRef?.titleEn ||
         payment.admission?.program ||
-        payment.enrollment?.program?.titleEn ||
         payment.enrollment?.program?.titleAr ||
+        payment.enrollment?.program?.titleEn ||
         payment.agent?.orgName ||
         payment.description,
       'AACT Service'
+    )
+    const programFallback = safeText(
+      payment.admission?.programRef?.titleEn ||
+        payment.enrollment?.program?.titleEn ||
+        payment.admission?.program ||
+        payment.description,
+      'Program / service details in portal'
     )
     const reference = safeText(payment.admission?.reference || payment.agent?.territory || payment.enrollment?.id || payment.id, payment.id)
     const status = statusInfo(payment.status, payment.waiverStatus)
@@ -299,17 +340,19 @@ export async function GET(_req: NextRequest, context: RouteContext) {
       statusKind: status.kind,
       issueDate: formatDate(payment.createdAt),
       settledAt: formatDate(payment.paidAt || payment.waiverApprovedAt),
-      payerName: pdfSafeText(payerName, 'AACT Student'),
-      payerEmail: pdfSafeText(payerEmail, 'Student email in portal'),
-      payerCountry: pdfSafeText(payerCountry, 'Student country in portal'),
-      programOrService: pdfSafeText(programOrService, 'Program / service details in portal'),
+      payerName,
+      payerNameFallback: 'AACT Student',
+      payerEmail,
+      payerCountry,
+      programOrService,
+      programOrServiceFallback: programFallback,
       purpose: purposeLabel(payment.purpose),
-      description: pdfSafeText(payment.description, purposeLabel(payment.purpose)),
+      description: pdfValue(payment.description || purposeLabel(payment.purpose), purposeLabel(payment.purpose), false),
       amount: formatMoney(payment.amount, payment.currency),
       originalAmount: formatMoney(originalAmount, payment.currency),
       waivedAmount: formatMoney(waivedAmount, payment.currency),
       method: methodLabel(payment.method || payment.provider),
-      reference: pdfSafeText(reference, payment.id),
+      reference,
     })
 
     const filename = `${fileSafe(payment.invoiceNo || payment.id)}.pdf`
