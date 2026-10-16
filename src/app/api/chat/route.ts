@@ -57,6 +57,7 @@ export async function POST(req: NextRequest) {
     if (!message?.trim()) {
       return NextResponse.json({ error: 'الرسالة فارغة' }, { status: 400 })
     }
+    await enforceAiUserDailyCostCap({ userId: user.id, role: user.role, estimatedCostCents: 1 })
 
     // وكيل المنصة المتكامل: يختار الشخصية المناسبة، ويجعل المشرف الذكي جزءاً من العقل العام.
     const chatMode = mode === 'VOICE' ? 'VOICE' : 'TEXT'
