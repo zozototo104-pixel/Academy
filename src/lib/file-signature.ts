@@ -10,6 +10,7 @@ const EXTENSIONS_BY_KIND: Record<FileKind, string[]> = {
   webp: ['webp'],
   heic: ['heic', 'heif'],
   pdf: ['pdf'],
+  doc: ['doc'],
   docx: ['docx'],
   xlsx: ['xlsx'],
   xls: ['xls'],
