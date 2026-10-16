@@ -1012,7 +1012,7 @@ export async function GET(req: NextRequest) {
     if (!app) {
       return NextResponse.json({ error: 'لا يوجد طلب بهذا الكود المرجعي' }, { status: 404 })
     }
-    const user = await getCurrentUser().catch(() => null)
+    const user = await withTiming('db_admissions_current_user_tracking', () => getCurrentUser().catch(() => null))
     const ownsApplication = !!user && (
       user.role === 'ADMIN' ||
       user.role === 'SUPERVISOR' ||
