@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/cron/book-read-jobs",
-      "schedule": "* * * * *"
+      "schedule": "*/5 * * * *"
     },
     {
       "path": "/api/cron/ai-health",

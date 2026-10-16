@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 
 const W3C_CERTIFICATE_PROBE_PATH = '/api/verify/certificates/__route_probe__'
 
-export function middleware(req: Request) {
+export function proxy(req: Request) {
   const url = new URL(req.url)
 
   if (url.pathname === W3C_CERTIFICATE_PROBE_PATH) {

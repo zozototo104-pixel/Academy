@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('admin supervisors POST error:', e)
-    return NextResponse.json({ error: e?.message || 'تعذر إنشاء المشرف' }, { status: 500 })
+    return NextResponse.json({ error: 'تعذر تنفيذ العملية' }, { status: 500 })
   }
 }
 
@@ -143,6 +143,6 @@ export async function PATCH(req: NextRequest) {
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('admin supervisors PATCH error:', e)
-    return NextResponse.json({ error: e?.message || 'تعذر تحديث المشرف' }, { status: 500 })
+    return NextResponse.json({ error: 'تعذر تنفيذ العملية' }, { status: 500 })
   }
 }

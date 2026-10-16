@@ -154,6 +154,8 @@ export function HomeView() {
   const [generalSettings, setGeneralSettings] = useState<GeneralSettings>(DEFAULT_SETTINGS)
   const [programCount, setProgramCount] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
+  const [programsError, setProgramsError] = useState(false)
+  const [retryPrograms, setRetryPrograms] = useState(0)
 
   useEffect(() => {
     let alive = true
@@ -204,6 +206,8 @@ export function HomeView() {
 
   useEffect(() => {
     let alive = true
+    setProgramsError(false)
+    setLoading(true)
     let hasCachedList = false
     let idleId: number | null = null
     let timeoutId: ReturnType<typeof setTimeout> | null = null
@@ -277,9 +281,10 @@ export function HomeView() {
             }
           }
         })
-        .catch(() => {
-          if (!alive) return
-          setProgramCount((current) => current ?? null)
+        .catch((error) => {
+          if (!alive || controller.signal.aborted) return
+          console.warn('Failed to load public programs summary.', error)
+          if (!hasCachedList) setProgramsError(true)
         })
         .finally(() => {
           if (alive && !hasCachedList) setLoading(false)
@@ -298,7 +303,7 @@ export function HomeView() {
       if (idleId !== null && 'cancelIdleCallback' in window) window.cancelIdleCallback(idleId)
       if (timeoutId) clearTimeout(timeoutId)
     }
-  }, [])
+  }, [retryPrograms])
 
   const visibleProgramCount = programCount ?? programs.length
   const programCountLabel = visibleProgramCount > 0 ? visibleProgramCount.toLocaleString('ar-EG') : (loading ? '...' : '...')
@@ -520,7 +525,7 @@ export function HomeView() {
           <div className="order-3 grid grid-cols-2 gap-3 sm:gap-4 lg:col-span-2 lg:grid-cols-4">
             {[
               { v: homeStats.graduates, s: '+', l: 'خريج ومتدرب', icon: Users },
-              { v: Math.max(visibleProgramCount || 0, 0), s: '+', l: 'برنامج مهني', icon: BookOpen },
+              ...(visibleProgramCount > 0 || loading ? [{ v: visibleProgramCount, s: '+', l: 'برنامج مهني', icon: BookOpen, pending: visibleProgramCount <= 0 }] : []),
               { v: homeStats.experts, s: '+', l: 'خبير ومستشار', icon: GraduationCap },
               { v: homeStats.countries, s: '+', l: 'دولة وشراكة مهنية', icon: Globe2 },
             ].map((s) => {
@@ -528,7 +533,7 @@ export function HomeView() {
               return (
                 <div key={s.l} className="rounded-[1.75rem] border border-white/10 bg-[#bf1646]/92 px-4 py-6 text-center shadow-xl shadow-[#111827]/15 backdrop-blur">
                   <Icon className="mx-auto mb-3 h-7 w-7 text-white/88" />
-                  <div className="text-4xl font-black text-white sm:text-5xl"><CountUp to={s.v} suffix={s.s} /></div>
+                  <div className="text-4xl font-black text-white sm:text-5xl">{'pending' in s && s.pending ? '...' : <CountUp to={s.v} suffix={s.s} />}</div>
                   <div className="mt-3 text-sm font-black text-white/88 sm:text-base">{s.l}</div>
                 </div>
               )
@@ -698,6 +703,11 @@ export function HomeView() {
         <p className="mb-8 text-center text-sm text-slate-500">{programCountLabel} برنامجاً وخدمة للعام 2026-2027 — من الدبلومات المهنية إلى الدكتوراه والاعتمادات والخدمات المؤسسية</p>
         {loading ? (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{[...Array(5)].map((_, i) => <div key={i} className="h-52 animate-pulse rounded-2xl bg-slate-100" />)}</div>
+        ) : programsError ? (
+          <div role="alert" className="flex flex-col items-center gap-3 py-10 text-center">
+            <p>تعذر تحميل البرامج</p>
+            <Button onClick={() => setRetryPrograms((n) => n + 1)}>إعادة المحاولة</Button>
+          </div>
         ) : (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {programs.slice(0, 6).map((p) => {

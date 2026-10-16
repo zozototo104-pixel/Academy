@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
-import { enforceApiRateLimit } from '@/lib/rate-limit'
+import { enforceDatabaseApiRateLimit } from '@/lib/rate-limit'
 import { platformAgentComplete, platformAgentStream } from '@/lib/platform-agent'
 import {
   createHumanHandoffRequest,
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireUser()
     await requireStudentAiSupervisorAccess(user)
-    const limited = enforceApiRateLimit(req, 'chat', 12, 60 * 1000, user.id)
+    const limited = await enforceDatabaseApiRateLimit(req, 'chat', 12, 60 * 1000, user.id)
     if (limited) return limited
     const deadlineMs = deadlineFromNow(55_000)
     const { message, context, mode, stream } = await req.json()
