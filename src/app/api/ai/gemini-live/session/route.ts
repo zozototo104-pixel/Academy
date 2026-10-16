@@ -135,12 +135,12 @@ function maskGeminiKey(key: string): string {
 }
 
 function googleErrorMessage(payload: any, status: number): string {
-  return String(
+  return redactSecrets(String(
     payload?.error?.message ||
     payload?.message ||
     payload?.raw ||
     `Gemini token HTTP ${status}`
-  ).slice(0, 500)
+  )).slice(0, 500)
 }
 
 function failureDetail(keyIndex: number, key: string, e: any): LiveKeyFailureDetail {
