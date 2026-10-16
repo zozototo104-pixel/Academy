@@ -1216,7 +1216,7 @@ export function AdminQualityTab() {
           method: 'POST',
           body: JSON.stringify({ action: 'create', programId: thesisProgramId, title: thesisTopicTitle, description: thesisTopicDescription, status: 'APPROVED' }),
         })
-        alert('تمت إضافة عنوان بحث التخرج واعتماده للطلاب.')
+        await alertAction({ title: 'تمت إضافة عنوان بحث التخرج', description: 'تم اعتماد العنوان للطلاب ويمكنهم اختياره الآن.', tone: 'success' })
         await loadThesisTopics(thesisProgramId)
         setThesisTopicDialogOpen(false)
       }
