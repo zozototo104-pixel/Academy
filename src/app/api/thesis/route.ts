@@ -192,8 +192,8 @@ export async function POST(req: NextRequest) {
     const nextStatus = requestedStage === 'PLAN' ? 'PLAN_SUBMITTED' : 'SUBMITTED'
     let thesis
     if (existing) {
-      thesis = await db.thesisSubmission.update({
-        where: { id: existing.id },
+      const updated = await db.thesisSubmission.updateMany({
+        where: { id: existing.id, userId: user.id, admissionId: admission.id },
         data: {
           title: title.trim().slice(0, 300),
           abstract: abstract.trim().slice(0, 4000),
@@ -202,6 +202,8 @@ export async function POST(req: NextRequest) {
           status: nextStatus,
         },
       })
+      if (updated.count !== 1) return NextResponse.json({ error: 'تعذر تحديث رسالة البحث لهذا الطلب تحديداً' }, { status: 409 })
+      thesis = await db.thesisSubmission.findFirst({ where: { id: existing.id, userId: user.id, admissionId: admission.id } })
     } else {
       thesis = await db.thesisSubmission.create({
         data: {
