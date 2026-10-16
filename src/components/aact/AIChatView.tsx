@@ -520,8 +520,8 @@ export function AIChatView() {
     agentRef.current = agent
     agent.start().catch((e: any) => {
       const msg = String(e?.message || '').trim() || 'تأكد من السماح بالمايكروفون ثم أعد المحاولة'
-      if (msg.includes('Gemini Live') || msg.includes('انتهت دقائق') || msg.includes('دقائق صوت')) openVoicePackageDialog(msg)
-      else toast({ title: 'تعذر بدء المحادثة الصوتية', description: friendlyLiveMinutesMessage(msg), variant: 'destructive' })
+      if (isLiveMinutesExhausted(e)) openVoicePackageDialog(msg)
+      else toast({ title: 'تعذر بدء المحادثة الصوتية', description: msg, variant: 'destructive' })
       setVoiceMode(false)
       voiceModeRef.current = false
       try { agent.stop() } catch (error) { console.warn('Failed to stop voice agent after start failure.', error) }
