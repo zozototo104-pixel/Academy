@@ -151,7 +151,6 @@ export async function GET(req: NextRequest) {
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
     const program = await withTiming('db_question_bank_program', () => db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true } }))
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
-    await withTiming('db_question_bank_resume_job_step', () => runNextQuestionBankGenerationJobStep(programId).catch((error) => console.warn('question bank background resume failed:', error)))
     const pauseSetting = await withTiming('db_question_bank_pause_setting', () => db.setting.findUnique({ where: { key: `AI_TASK_PAUSE:QUESTION_BANK:${programId}` } }).catch(() => null))
     const paused = pauseSetting?.value ? safeJson(pauseSetting.value, null) : null
     const progress = await withTiming('db_question_bank_progress', () => getAiGenerationProgress('QUESTION_BANK', programId, 'ALL'))
