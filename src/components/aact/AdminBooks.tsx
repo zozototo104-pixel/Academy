@@ -877,6 +877,10 @@ export function AdminBooksTab() {
     }
   }, [toast])
 
+  useEffect(() => {
+    examKickFailuresRef.current = examKickFailures
+  }, [examKickFailures])
+
   const hasActiveExamGenerationJob = useMemo(() => {
     const activeStatuses = new Set(['GENERATING', 'RUNNING', 'QUEUED', 'PENDING'])
     return exams.some((e) => activeStatuses.has(e.status))
