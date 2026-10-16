@@ -266,7 +266,7 @@ export function QuestionReviewDialog({
         method: 'POST',
         body: JSON.stringify({ examId, action: 'APPROVE_ALL', ...(overrideReason ? { overrideCognitivePolicy: true, overrideReason } : {}) }),
       })
-      let d: { published: number }
+      let d: { published: number } | null = null
       try {
         d = await publishRequest()
       } catch (e: any) {
