@@ -64,16 +64,18 @@ function addMissing(missing: string[], label: string) {
 async function unitQuizAverage(client: DbClient, userId: string, programId: string, missing: string[], semester?: number) {
   const exams = await client.exam.findMany({
     where: { status: 'READY', unit: { programId, ...(semester ? { semester } : {}) } },
-    select: { id: true, title: true, passScore: true, unit: { select: { title: true } } },
+    select: { id: true, title: true, passScore: true, unit: { select: { title: true } }, _count: { select: { questions: true } } },
     orderBy: { unit: { order: 'asc' } },
   })
   if (!exams.length) {
     addMissing(missing, semester ? `اختبارات وحدات الفصل ${semester}` : 'اختبارات الوحدات المطلوبة')
     return null
   }
+  const scorableExams = exams.filter((exam) => Number((exam as any)._count?.questions || 0) > 0)
+  if (!scorableExams.length) return null
 
   const bestScores: number[] = []
-  for (const exam of exams) {
+  for (const exam of scorableExams) {
     const attempts = await client.examAttempt.findMany({
       where: { userId, examId: exam.id, status: 'GRADED', passed: true },
       select: { score: true, answers: { select: { points: true, maxPoints: true } } },
