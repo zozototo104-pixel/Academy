@@ -460,7 +460,7 @@ export class GeminiLiveAgent {
     }
   }
 
-  private sendWorkletAudioFrame(message: any) {
+  private sendWorkletAudioFrame(message: { peak?: number; pcm?: ArrayBuffer }) {
     if (!this.running || !this.setupReady || this.muted) return
     this.updateMicLevel(Number(message?.peak || 0))
     const pcmBuffer = message?.pcm
