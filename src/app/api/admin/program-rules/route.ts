@@ -138,7 +138,8 @@ function revalidatePublicProgramSurfaces(slugs: Array<string | null | undefined>
 // PUT  /api/admin/program-rules — حفظ قواعد قبول مخصصة لبرنامج بعينه
 // القواعد المخصصة يقرأها خبير القبول الذكي ويطبقها على كل طلب قبل زر الاعتماد
 export async function GET() {
-  const user = await getCurrentUser()
+  return withTimedResponse(async () => {
+  const user = await withTiming('db_program_rules_current_user', () => getCurrentUser())
   if (!user || user.role !== 'ADMIN') {
     return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
   }
