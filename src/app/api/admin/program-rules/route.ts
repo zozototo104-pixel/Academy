@@ -344,7 +344,7 @@ export async function PUT(req: NextRequest) {
     const programPatch: ProgramPatchInput | null = programPatchRaw ? programPatchSchema.parse(programPatchRaw) : null
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
 
-    const program = await db.program.findUnique({
+    const program = await withTiming('db_program_rules_program', () => db.program.findUnique({
       where: { id: programId },
       select: {
         id: true,
