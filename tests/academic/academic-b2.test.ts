@@ -84,26 +84,48 @@ const db: any = {
 }
 
 mock.module('@/lib/db', () => ({ db }))
+
+const realAuth = await import('../../src/lib/auth')
 mock.module('@/lib/auth', () => ({
+  ...realAuth,
   requireAdmin: async () => ({ id: 'admin-1', name: 'مدير', role: 'ADMIN' }),
   getCurrentUser: async () => currentUser,
 }))
+
+const realEnrollmentCompletion = await import('../../src/lib/enrollment-completion')
 mock.module('@/lib/enrollment-completion', () => ({
+  ...realEnrollmentCompletion,
   completeEnrollmentIfEligible: async (input: any) => { calls.push(`complete:${input.userId}:${input.programId}`); return { ok: true, completed: true, certificateIssued: true } },
 }))
+
+const realNotify = await import('../../src/lib/notify')
 mock.module('@/lib/notify', () => ({
+  ...realNotify,
   notify: async (...args: any[]) => { calls.push(`notify:${args[0]}:${args[2]}`) },
   audit: async (...args: any[]) => { calls.push(`audit:${args[1]}:${args[3]}`) },
 }))
+
+const realStorage = await import('../../src/lib/storage')
 mock.module('@/lib/storage', () => ({
+  ...realStorage,
   getStorageDownloadPathForKey: (key: string) => `/api/files/${key}`,
   readStoredFile: async (input: any) => { calls.push(`readStoredFile:${input.provider}:${input.key || input.url}`); return storedReadResult },
 }))
-mock.module('@/lib/exam-gate', () => ({ getExamsGate: async () => ({ hasAnyExam: false, complete: true, missing: [] }) }))
-mock.module('@/lib/service-flows', () => ({ getServiceFlow: () => ({ isStudyProgram: true }) }))
-mock.module('@/lib/rate-limit', () => ({ enforceApiRateLimit: () => null }))
-mock.module('@/lib/w3c/certificate-credential', () => ({ certificateCredentialUrl: () => 'https://credential.test', certificateVerificationUrl: () => 'https://verify.test' }))
-mock.module('@/lib/certificate-eligibility', () => ({ evaluateCertificateRecordEligibility: async () => ({ ok: true, gradeLabel: 'امتياز' }) }))
+
+const realExamGate = await import('../../src/lib/exam-gate')
+mock.module('@/lib/exam-gate', () => ({ ...realExamGate, getExamsGate: async () => ({ hasAnyExam: false, complete: true, missing: [] }) }))
+
+const realServiceFlows = await import('../../src/lib/service-flows')
+mock.module('@/lib/service-flows', () => ({ ...realServiceFlows, getServiceFlow: () => ({ isStudyProgram: true }) }))
+
+const realRateLimit = await import('../../src/lib/rate-limit')
+mock.module('@/lib/rate-limit', () => ({ ...realRateLimit, enforceApiRateLimit: () => null, enforceDatabaseApiRateLimit: async () => null, checkDatabaseRateLimit: async () => ({ ok: true, remaining: 99, resetAt: Date.now() + 60000, retryAfterSec: 0 }) }))
+
+const realCertificateCredential = await import('../../src/lib/w3c/certificate-credential')
+mock.module('@/lib/w3c/certificate-credential', () => ({ ...realCertificateCredential, certificateCredentialUrl: () => 'https://credential.test', certificateVerificationUrl: () => 'https://verify.test' }))
+
+const realCertificateEligibility = await import('../../src/lib/certificate-eligibility')
+mock.module('@/lib/certificate-eligibility', () => ({ ...realCertificateEligibility, evaluateCertificateRecordEligibility: async () => ({ ok: true, gradeLabel: 'امتياز' }) }))
 
 const appealsRoute = await import('../../src/app/api/admin/appeals/route')
 const defenseRecordingRoute = await import('../../src/app/api/admin/defense-recording/route')

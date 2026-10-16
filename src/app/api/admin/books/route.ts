@@ -5,6 +5,7 @@ import { requireAdmin } from '@/lib/auth'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { audit, notify } from '@/lib/notify'
 import { extractDocumentText } from '@/lib/document-extract'
+import { validateAdmissionFileSignature } from '@/lib/file-signature'
 import { isPrivateIp, storageErrorMessage, storeFileBuffer } from '@/lib/storage'
 
 export const runtime = 'nodejs'
@@ -284,7 +285,9 @@ export async function POST(req: NextRequest) {
       }
       const buf = Buffer.from(await file.arrayBuffer())
       fileName = file.name
-      mimeType = file.type || 'application/octet-stream'
+      const signature = validateAdmissionFileSignature({ buffer: buf, fileName, mimeType: file.type })
+      if (!signature.ok) return NextResponse.json({ error: signature.error }, { status: 400 })
+      mimeType = signature.mimeType
       const stored = await storeFileBuffer({
         buffer: buf,
         fileName,
@@ -423,7 +426,9 @@ export async function PATCH(req: NextRequest) {
       }
       const buf = Buffer.from(await file.arrayBuffer())
       fileName = file.name
-      mimeType = file.type || 'application/octet-stream'
+      const signature = validateAdmissionFileSignature({ buffer: buf, fileName, mimeType: file.type })
+      if (!signature.ok) return NextResponse.json({ error: signature.error }, { status: 400 })
+      mimeType = signature.mimeType
       const stored = await storeFileBuffer({
         buffer: buf,
         fileName,

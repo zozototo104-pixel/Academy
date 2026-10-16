@@ -2,12 +2,15 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { getStorageDownloadPathForKey, storeFileBuffer, storageErrorMessage } from '@/lib/storage'
+import { validateAdmissionFileSignature } from '@/lib/file-signature'
 import { deliverableTypeLabel, normalizeDeliverableType } from '@/lib/service-deliverables'
 import { emailServiceDeliverablePublished } from '@/lib/mailer'
 import { getServiceFlow } from '@/lib/service-flows'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+const MAX_DELIVERABLE_BYTES = 25 * 1024 * 1024
 
 function clean(value: FormDataEntryValue | null, max = 500): string {
   return String(value || '').trim().slice(0, max)
@@ -78,11 +81,14 @@ export async function POST(req: Request) {
 
     let stored: { provider?: string; key?: string; url?: string; fileName?: string; mimeType?: string; size?: number } = {}
     if (file instanceof File && file.size > 0) {
+      if (file.size > MAX_DELIVERABLE_BYTES) return NextResponse.json({ error: 'FILE_TOO_LARGE', message: 'حجم ملف المخرج يجب ألا يتجاوز 25MB' }, { status: 400 })
       const buffer = Buffer.from(await file.arrayBuffer())
+      const signature = validateAdmissionFileSignature({ buffer, fileName: file.name || `${title}.pdf`, mimeType: file.type })
+      if (!signature.ok) return NextResponse.json({ error: 'INVALID_FILE_SIGNATURE', message: signature.error }, { status: 400 })
       const saved = await storeFileBuffer({
         buffer,
         fileName: file.name || `${title}.pdf`,
-        mimeType: file.type || 'application/octet-stream',
+        mimeType: signature.mimeType,
         namespace: `service-deliverables/${admission.reference}`,
       })
       stored = {

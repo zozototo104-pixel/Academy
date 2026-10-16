@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createHash } from 'crypto'
 import { serializeRepresentativeExpanded, serializeRepresentativePublicCard, verifyRepresentativeLast4 } from '@/lib/academy-representatives'
+import { clientIpFromHeaders } from '@/lib/rate-limit'
 
 type DbLike = any
 
@@ -9,7 +10,7 @@ function originFrom(req: NextRequest) {
 }
 
 function ipFrom(req: NextRequest) {
-  return (req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown').split(',')[0].trim() || 'unknown'
+  return clientIpFromHeaders(req.headers)
 }
 
 function safeHash(value: string) {

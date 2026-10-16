@@ -1,4 +1,4 @@
-type FileKind = 'jpeg' | 'png' | 'webp' | 'heic' | 'pdf' | 'docx' | 'xlsx' | 'xls' | 'txt' | 'csv'
+type FileKind = 'jpeg' | 'png' | 'webp' | 'heic' | 'pdf' | 'doc' | 'docx' | 'xlsx' | 'xls' | 'txt' | 'csv'
 
 type SignatureValidationResult =
   | { ok: true; kind: FileKind; mimeType: string }
@@ -10,6 +10,7 @@ const EXTENSIONS_BY_KIND: Record<FileKind, string[]> = {
   webp: ['webp'],
   heic: ['heic', 'heif'],
   pdf: ['pdf'],
+  doc: ['doc'],
   docx: ['docx'],
   xlsx: ['xlsx'],
   xls: ['xls'],
@@ -23,6 +24,7 @@ const MIMES_BY_KIND: Record<FileKind, string[]> = {
   webp: ['image/webp'],
   heic: ['image/heic', 'image/heif'],
   pdf: ['application/pdf'],
+  doc: ['application/msword'],
   docx: ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
   xlsx: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
   xls: ['application/vnd.ms-excel'],
@@ -36,6 +38,7 @@ const CANONICAL_MIME_BY_KIND: Record<FileKind, string> = {
   webp: 'image/webp',
   heic: 'image/heic',
   pdf: 'application/pdf',
+  doc: 'application/msword',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   xls: 'application/vnd.ms-excel',
@@ -71,12 +74,16 @@ function isIsoBaseMedia(buffer: Buffer) {
   return buffer.byteLength >= 12 && buffer.toString('ascii', 4, 8) === 'ftyp'
 }
 
-function detectImageOrPdfOrOffice(buffer: Buffer): FileKind | null {
+function detectImageOrPdfOrOffice(buffer: Buffer, ext = ''): FileKind | null {
   if (startsWithBytes(buffer, [0xff, 0xd8, 0xff])) return 'jpeg'
   if (startsWithBytes(buffer, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return 'png'
   if (buffer.byteLength >= 12 && buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP') return 'webp'
   if (startsWithBytes(buffer, [0x25, 0x50, 0x44, 0x46, 0x2d])) return 'pdf'
-  if (startsWithBytes(buffer, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1])) return 'xls'
+  if (startsWithBytes(buffer, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1])) {
+    if (ext === 'doc') return 'doc'
+    if (ext === 'xls') return 'xls'
+    return 'xls'
+  }
   if (isIsoBaseMedia(buffer)) {
     const brandWindow = buffer.toString('ascii', 8, Math.min(buffer.byteLength, 64))
     if (/(heic|heix|hevc|hevx|heif|mif1|msf1)/.test(brandWindow)) return 'heic'
@@ -107,6 +114,7 @@ function isLikelyUtf8Text(buffer: Buffer) {
 }
 
 function mimeLooksCompatible(kind: FileKind, mime: string) {
+  // Empty or octet-stream MIME is common for browser/server uploads; trust magic bytes + extension instead.
   if (!mime || mime === 'application/octet-stream') return true
   return MIMES_BY_KIND[kind].includes(mime)
 }
@@ -136,7 +144,7 @@ export function validateAdmissionFileSignature(input: {
 
   const ext = extensionOf(fileName)
   const mime = normalizedMime(input.mimeType)
-  const detected = detectImageOrPdfOrOffice(buffer)
+  const detected = detectImageOrPdfOrOffice(buffer, ext)
   const requestedTextKind = kindFromTextRequest(ext, mime)
   const kind = detected || (requestedTextKind && isLikelyUtf8Text(buffer) ? requestedTextKind : null)
 

@@ -134,27 +134,60 @@ const db: any = {
 }
 
 mock.module('@/lib/db', () => ({ db }))
-mock.module('@/lib/auth', () => ({ requireUser: async () => ({ id: 'user-1', name: 'طالب', email: 'student@example.test', role: 'STUDENT' }) }))
-mock.module('@/lib/essay-grading', () => ({ gradeEssayWithRubric: async () => { calls.push('essay.grade'); throw new Error('AI_DOWN') } }))
-mock.module('@/lib/ai', () => ({ generateOverallFeedback: async () => ({ summary: '', strengths: [], improvements: [] }) }))
-mock.module('@/lib/enrollment-completion', () => ({ completeEnrollmentIfEligible: async () => null }))
-mock.module('@/lib/semester-readiness', () => ({ calculateSemesterReadiness: async () => ({ readyMarked: true, maxExamScore: 100, missing: [] }) }))
+
+const realAuth = await import('../../src/lib/auth')
+mock.module('@/lib/auth', () => ({ ...realAuth, requireUser: async () => ({ id: 'user-1', name: 'طالب', email: 'student@example.test', role: 'STUDENT' }) }))
+
+const realEssayGrading = await import('../../src/lib/essay-grading')
+mock.module('@/lib/essay-grading', () => ({ ...realEssayGrading, gradeEssayWithRubric: async () => { calls.push('essay.grade'); throw new Error('AI_DOWN') } }))
+
+const realAi = await import('../../src/lib/ai')
+mock.module('@/lib/ai', () => ({ ...realAi, generateOverallFeedback: async () => ({ summary: '', strengths: [], improvements: [] }) }))
+
+const realEnrollmentCompletion = await import('../../src/lib/enrollment-completion')
+mock.module('@/lib/enrollment-completion', () => ({ ...realEnrollmentCompletion, completeEnrollmentIfEligible: async () => null }))
+
+const realSemesterReadiness = await import('../../src/lib/semester-readiness')
+mock.module('@/lib/semester-readiness', () => ({ ...realSemesterReadiness, calculateSemesterReadiness: async () => ({ readyMarked: true, maxExamScore: 100, missing: [] }) }))
+
+const realTuitionInstallments = await import('../../src/lib/tuition-installments')
 mock.module('@/lib/tuition-installments', () => ({
+  ...realTuitionInstallments,
   enforceSemesterTuitionGate: async () => ({ ok: true }),
   inferTotalTuition: () => 0,
   roundMoney: (value: number) => Math.round(value * 100) / 100,
   tuitionPaidTotal: () => 0,
 }))
-mock.module('@/lib/text-ai', () => ({ textAiComplete: async () => 'سؤال', textAiCompleteJson: async () => JSON.stringify({}) }))
-mock.module('@/lib/notify', () => ({ notify: async () => null, audit: async () => null }))
-mock.module('@/lib/storage', () => ({ storeFileBuffer: async () => ({}), storageErrorMessage: () => 'storage error' }))
-mock.module('@/lib/supervisor-ai', () => ({ buildSupervisorContext: async () => '', mergeContext: (...parts: string[]) => parts.filter(Boolean).join('\n'), buildSupervisorPersonaBlock: () => '', updateStudentAcademicMemory: async () => null }))
-mock.module('@/lib/ai-rate-limits', () => ({ AI_RATE_LIMITS: { defense: {}, defenseRecording: {} }, base64DecodedSize: () => 0, enforceUserAiRateLimit: () => null }))
-mock.module('@/lib/thesis-context', () => ({ buildThesisDefenseContextFromDb: async () => '', getThesisDigest: async () => null, summarizeDigestForPrompt: () => '' }))
-mock.module('@/lib/thesis-defense-score', () => ({ scoreDefenseBreakdown: () => ({ score: null, needsReview: true }) }))
-mock.module('@/lib/rate-limit', () => ({ enforceApiRateLimit: () => null }))
-mock.module('@/lib/w3c/certificate-credential', () => ({ certificateCredentialUrl: () => 'https://credential.test', certificateVerificationUrl: () => 'https://verify.test' }))
-mock.module('@/lib/program-tracks', () => ({ academicProfileFromRules: () => ({}), buildAcademicProgramProfile: (input: any) => input }))
+
+const realTextAi = await import('../../src/lib/text-ai')
+mock.module('@/lib/text-ai', () => ({ ...realTextAi, textAiComplete: async () => 'سؤال', textAiCompleteJson: async () => JSON.stringify({}) }))
+
+const realNotify = await import('../../src/lib/notify')
+mock.module('@/lib/notify', () => ({ ...realNotify, notify: async () => null, audit: async () => null }))
+
+const realStorage = await import('../../src/lib/storage')
+mock.module('@/lib/storage', () => ({ ...realStorage, storeFileBuffer: async () => ({}), storageErrorMessage: () => 'storage error' }))
+
+const realSupervisorAi = await import('../../src/lib/supervisor-ai')
+mock.module('@/lib/supervisor-ai', () => ({ ...realSupervisorAi, buildSupervisorContext: async () => '', mergeContext: (...parts: string[]) => parts.filter(Boolean).join('\n'), buildSupervisorPersonaBlock: () => '', updateStudentAcademicMemory: async () => null }))
+
+const realAiRateLimits = await import('../../src/lib/ai-rate-limits')
+mock.module('@/lib/ai-rate-limits', () => ({ ...realAiRateLimits, AI_RATE_LIMITS: { defense: {}, defenseRecording: {} }, base64DecodedSize: () => 0, enforceUserAiRateLimit: () => null }))
+
+const realThesisContext = await import('../../src/lib/thesis-context')
+mock.module('@/lib/thesis-context', () => ({ ...realThesisContext, buildThesisDefenseContextFromDb: async () => '', getThesisDigest: async () => null, summarizeDigestForPrompt: () => '' }))
+
+const realThesisDefenseScore = await import('../../src/lib/thesis-defense-score')
+mock.module('@/lib/thesis-defense-score', () => ({ ...realThesisDefenseScore, scoreDefenseBreakdown: () => ({ score: null, needsReview: true }) }))
+
+const realRateLimit = await import('../../src/lib/rate-limit')
+mock.module('@/lib/rate-limit', () => ({ ...realRateLimit, enforceApiRateLimit: () => null, enforceDatabaseApiRateLimit: async () => null, checkDatabaseRateLimit: async () => ({ ok: true, remaining: 99, resetAt: Date.now() + 60000, retryAfterSec: 0 }) }))
+
+const realCertificateCredential = await import('../../src/lib/w3c/certificate-credential')
+mock.module('@/lib/w3c/certificate-credential', () => ({ ...realCertificateCredential, certificateCredentialUrl: () => 'https://credential.test', certificateVerificationUrl: () => 'https://verify.test' }))
+
+const realProgramTracks = await import('../../src/lib/program-tracks')
+mock.module('@/lib/program-tracks', () => ({ ...realProgramTracks, academicProfileFromRules: () => ({}), buildAcademicProgramProfile: (input: any) => input }))
 
 const examSubmitRoute = await import('../../src/app/api/exam/submit/route')
 const programExamSubmitRoute = await import('../../src/app/api/program-exam/submit/route')

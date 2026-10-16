@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     const userId = clean(req.nextUrl.searchParams.get('userId'), 120)
     if (userId) {
       const studentCore = await db.user.findFirst({
-        where: { id: userId, role: 'STUDENT', enrollments: { some: {} } },
+        where: { id: userId, role: 'STUDENT' },
         select: { id: true, email: true, name: true, phone: true, country: true, status: true, createdAt: true, updatedAt: true },
       })
       if (!studentCore) return NextResponse.json({ error: 'الطالب غير موجود' }, { status: 404 })
@@ -177,7 +177,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ students, total, pagination: adminPaginationMeta(page, pageSize, total) })
     }
 
-    const where: any = { role: 'STUDENT', enrollments: { some: enrollmentWhere } }
+    const where: any = { role: 'STUDENT' }
+    const hasEnrollmentFilter = Object.keys(enrollmentWhere).length > 0
+    if (hasEnrollmentFilter) where.enrollments = { some: enrollmentWhere }
     if (q) {
       where.OR = [
         { name: { contains: q, mode: 'insensitive' } },

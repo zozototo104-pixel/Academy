@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { hashPassword } from '@/lib/auth'
 import { emailVerifyAccount } from '@/lib/mailer'
 import { createEmailVerificationToken, emailVerificationUrl } from '@/lib/email-verification'
-import { checkRateLimit, clientIpFromHeaders, rateLimitHeaders } from '@/lib/rate-limit'
+import { checkDatabaseRateLimit, clientIpFromHeaders, rateLimitHeaders } from '@/lib/rate-limit'
 
 function sameSiteRequest(req: NextRequest) {
   const host = req.headers.get('host') || ''
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     }
 
     const ip = clientIpFromHeaders(req.headers)
-    const ipLimit = checkRateLimit(`auth:register:ip:${ip}`, 4, 15 * 60 * 1000)
+    const ipLimit = await checkDatabaseRateLimit(`auth:register:ip:${ip}`, 4, 15 * 60 * 1000)
     if (!ipLimit.ok) {
       return NextResponse.json(
         { error: 'محاولات إنشاء حسابات كثيرة من نفس المصدر. انتظر قليلاً ثم حاول مرة أخرى.' },
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'صيغة البريد الإلكتروني غير صحيحة' }, { status: 400 })
     }
 
-    const emailLimit = checkRateLimit(`auth:register:email:${emailNorm}`, 2, 60 * 60 * 1000)
+    const emailLimit = await checkDatabaseRateLimit(`auth:register:email:${emailNorm}`, 2, 60 * 60 * 1000)
     if (!emailLimit.ok) {
       return NextResponse.json(
         { error: 'تم إرسال طلبات كثيرة لهذا البريد. انتظر قليلاً ثم حاول مرة أخرى.' },

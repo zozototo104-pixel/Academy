@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
       }
 
       const normalizedEmail = email.trim().toLowerCase()
-      const [{ db }, { verifyPassword, createSession }, { checkRateLimit, clientIpFromHeaders, rateLimitHeaders }, emailVerification, mailer] = await Promise.all([
+      const [{ db }, { verifyPassword, createSession }, { checkDatabaseRateLimit, clientIpFromHeaders, rateLimitHeaders }, emailVerification, mailer] = await Promise.all([
         import('@/lib/db'),
         import('@/lib/auth'),
         import('@/lib/rate-limit'),
@@ -22,8 +22,8 @@ export async function POST(req: NextRequest) {
       ])
 
       const ip = clientIpFromHeaders(req.headers)
-      const ipLimit = checkRateLimit(`login:ip:${ip}`, 40, 15 * 60 * 1000)
-      const accountLimit = checkRateLimit(`login:account:${normalizedEmail}:${ip}`, 8, 15 * 60 * 1000)
+      const ipLimit = await checkDatabaseRateLimit(`login:ip:${ip}`, 40, 15 * 60 * 1000)
+      const accountLimit = await checkDatabaseRateLimit(`login:account:${normalizedEmail}:${ip}`, 8, 15 * 60 * 1000)
       if (!ipLimit.ok || !accountLimit.ok) {
         const limited = !accountLimit.ok ? accountLimit : ipLimit
         return NextResponse.json(

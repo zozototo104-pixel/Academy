@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { academicProfileFromRules, buildAcademicProgramProfile } from '@/lib/program-tracks'
-import { enforceApiRateLimit } from '@/lib/rate-limit'
+import { enforceDatabaseApiRateLimit } from '@/lib/rate-limit'
 import { certificateCredentialUrl, certificateVerificationUrl } from '@/lib/w3c/certificate-credential'
 import { evaluateCertificateRecordEligibility } from '@/lib/certificate-eligibility'
 
@@ -328,7 +328,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'يرجى إدخال رقم الشهادة أو مسح رمز QR' }, { status: 400 })
     }
 
-    const verifyLimit = enforceApiRateLimit(
+    const verifyLimit = await enforceDatabaseApiRateLimit(
       req,
       'certificates:verify',
       byToken ? 30 : 20,
@@ -367,7 +367,7 @@ export async function POST(req: NextRequest) {
     }
 
     const subject = `${byToken ? `token:${token}` : `serial:${serial}`}:${email}:${phone4}`
-    const detailsLimit = enforceApiRateLimit(req, 'certificates:verify-details', 5, 15 * 60 * 1000, subject)
+    const detailsLimit = await enforceDatabaseApiRateLimit(req, 'certificates:verify-details', 5, 15 * 60 * 1000, subject)
     if (detailsLimit) return detailsLimit
 
     const cert = await findCertificateForVerify(serial, token)

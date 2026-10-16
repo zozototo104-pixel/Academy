@@ -5,6 +5,7 @@ import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { notify } from '@/lib/notify'
 import { cleanAcademicOutput, looksLikeBrokenGeneratedArabic } from '@/lib/academic-output-quality'
 import { getStorageDownloadPathForKey, storeFileBuffer, storageErrorMessage } from '@/lib/storage'
+import { validateAdmissionFileSignature } from '@/lib/file-signature'
 
 const MAX_FILE_SIZE = 6 * 1024 * 1024
 const ALLOWED_MIME = new Set([
@@ -16,7 +17,6 @@ const ALLOWED_MIME = new Set([
   'text/plain',
   'image/png',
   'image/jpeg',
-  'application/octet-stream',
 ])
 const ALLOWED_EXT = /\.(pdf|doc|docx|xls|xlsx|txt|png|jpe?g)$/i
 
@@ -121,12 +121,14 @@ export async function POST(req: NextRequest) {
       const file = fd.get('file')
       if (file instanceof File && file.size > 0) {
         if (file.size > MAX_FILE_SIZE) return NextResponse.json({ error: 'حجم ملف الواجب كبير جداً؛ الحد الأقصى 6 ميجابايت' }, { status: 400 })
-        const supported = ALLOWED_MIME.has(file.type) || ALLOWED_EXT.test(file.name)
-        if (!supported) return NextResponse.json({ error: 'صيغة الملف غير مدعومة للواجبات' }, { status: 400 })
         pendingFileBuffer = Buffer.from(await file.arrayBuffer())
+        const signature = validateAdmissionFileSignature({ buffer: pendingFileBuffer, fileName: file.name, mimeType: file.type })
+        if (!signature.ok) return NextResponse.json({ error: signature.error }, { status: 400 })
+        const supported = ALLOWED_MIME.has(signature.mimeType) || ALLOWED_EXT.test(file.name)
+        if (!supported) return NextResponse.json({ error: 'صيغة الملف غير مدعومة للواجبات' }, { status: 400 })
         fileName = file.name.slice(0, 220)
-        mimeType = file.type
-        size = file.size
+        mimeType = signature.mimeType
+        size = pendingFileBuffer.byteLength
       }
     } else {
       const body = await req.json().catch(() => ({}))

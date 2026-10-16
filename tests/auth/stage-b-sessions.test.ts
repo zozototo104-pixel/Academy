@@ -103,7 +103,8 @@ mock.module('next/headers', () => ({
 }))
 mock.module('@/lib/notify', () => ({ audit: async () => {} }))
 mock.module('@/lib/mailer', () => ({ emailWelcome: async () => {} }))
-mock.module('@/lib/rate-limit', () => ({ enforceApiRateLimit: () => null }))
+const realRateLimit = await import('../../src/lib/rate-limit')
+mock.module('@/lib/rate-limit', () => ({ ...realRateLimit, enforceApiRateLimit: () => null, enforceDatabaseApiRateLimit: async () => null, checkDatabaseRateLimit: async () => ({ ok: true, remaining: 99, resetAt: Date.now() + 60000, retryAfterSec: 0 }) }))
 mock.module('@/lib/admin-query', () => ({
   adminPaginationMeta: () => ({}),
   parseAdminPagination: () => ({ page: 1, pageSize: 25, skip: 0, take: 25 }),

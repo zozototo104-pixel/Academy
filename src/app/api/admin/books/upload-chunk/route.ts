@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
+import { validateAdmissionFileSignature } from '@/lib/file-signature'
 import { storageErrorMessage, storeFileBuffer } from '@/lib/storage'
 
 export const runtime = 'nodejs'
@@ -67,7 +68,12 @@ export async function POST(req: NextRequest) {
       }
 
       const fileName = cleanFileName(chunks[0].fileName)
-      const mimeType = cleanMime(chunks[0].mimeType)
+      const signature = validateAdmissionFileSignature({ buffer: fileBuffer, fileName, mimeType: chunks[0].mimeType })
+      if (!signature.ok) {
+        await db.bookUploadChunk.deleteMany({ where: { bookId, uploadId } }).catch(() => {})
+        return NextResponse.json({ error: signature.error }, { status: 400 })
+      }
+      const mimeType = signature.mimeType
       const linkedUnits = await db.unit.count({ where: { sourceBookId: bookId } })
       if (linkedUnits > 0) return NextResponse.json({ error: 'الكتاب مربوط بوحدات' }, { status: 409 })
 

@@ -31,7 +31,11 @@ const BACKUP_TABLES: BackupTableSpec[] = [
   { name: 'ChatFeedback', delegate: 'chatFeedback' },
   { name: 'StudentAcademicMemory', delegate: 'studentAcademicMemory' },
   { name: 'Payment', delegate: 'payment' },
+  { name: 'PaymentProof', delegate: 'paymentProof' },
+  { name: 'PaymentWaiverCode', delegate: 'paymentWaiverCode' },
+  { name: 'PaymentWaiverAttempt', delegate: 'paymentWaiverAttempt' },
   { name: 'Certificate', delegate: 'certificate' },
+  { name: 'CertificateTemplate', delegate: 'certificateTemplate' },
   { name: 'MicroCredential', delegate: 'microCredential' },
   { name: 'UserMicroCredential', delegate: 'userMicroCredential' },
   { name: 'Notification', delegate: 'notification' },
@@ -279,6 +283,10 @@ export function isBackupRequestAuthorized(req: NextRequest) {
 function activeBackupTables() {
   const includeSessions = process.env.AACT_BACKUP_INCLUDE_SESSIONS === 'true'
   return BACKUP_TABLES.filter((t) => t.includeByDefault !== false || includeSessions)
+}
+
+export function backupTableNames() {
+  return activeBackupTables().map((table) => table.name)
 }
 
 function jsonSafe(value: unknown): unknown {
