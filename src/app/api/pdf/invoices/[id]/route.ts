@@ -117,7 +117,6 @@ function registerArabicFont(doc: jsPDF) {
   const base64 = Buffer.from(readFileSync(fontPath)).toString('base64')
   doc.addFileToVFS(ARABIC_FONT_FILE, base64)
   doc.addFont(ARABIC_FONT_FILE, ARABIC_FONT_NAME, 'normal')
-  ;(doc as any).setR2L?.(true)
   return true
 }
 
