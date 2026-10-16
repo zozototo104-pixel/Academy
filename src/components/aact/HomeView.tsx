@@ -525,7 +525,7 @@ export function HomeView() {
           <div className="order-3 grid grid-cols-2 gap-3 sm:gap-4 lg:col-span-2 lg:grid-cols-4">
             {[
               { v: homeStats.graduates, s: '+', l: 'خريج ومتدرب', icon: Users },
-              { v: Math.max(visibleProgramCount || 0, 0), s: '+', l: 'برنامج مهني', icon: BookOpen },
+              ...(visibleProgramCount > 0 || loading ? [{ v: visibleProgramCount, s: '+', l: 'برنامج مهني', icon: BookOpen, pending: visibleProgramCount <= 0 }] : []),
               { v: homeStats.experts, s: '+', l: 'خبير ومستشار', icon: GraduationCap },
               { v: homeStats.countries, s: '+', l: 'دولة وشراكة مهنية', icon: Globe2 },
             ].map((s) => {
