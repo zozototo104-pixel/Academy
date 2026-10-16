@@ -138,6 +138,13 @@ mock.module('@/lib/auth', () => ({ requireUser: async () => ({ id: 'user-1', nam
 mock.module('@/lib/essay-grading', () => ({ gradeEssayWithRubric: async () => { calls.push('essay.grade'); throw new Error('AI_DOWN') } }))
 mock.module('@/lib/ai', () => ({ generateOverallFeedback: async () => ({ summary: '', strengths: [], improvements: [] }) }))
 mock.module('@/lib/enrollment-completion', () => ({ completeEnrollmentIfEligible: async () => null }))
+mock.module('@/lib/semester-readiness', () => ({ calculateSemesterReadiness: async () => ({ readyMarked: true, maxExamScore: 100, missing: [] }) }))
+mock.module('@/lib/tuition-installments', () => ({
+  enforceSemesterTuitionGate: async () => ({ ok: true }),
+  inferTotalTuition: () => 0,
+  roundMoney: (value: number) => Math.round(value * 100) / 100,
+  tuitionPaidTotal: () => 0,
+}))
 mock.module('@/lib/text-ai', () => ({ textAiComplete: async () => 'سؤال', textAiCompleteJson: async () => JSON.stringify({}) }))
 mock.module('@/lib/notify', () => ({ notify: async () => null, audit: async () => null }))
 mock.module('@/lib/storage', () => ({ storeFileBuffer: async () => ({}), storageErrorMessage: () => 'storage error' }))
