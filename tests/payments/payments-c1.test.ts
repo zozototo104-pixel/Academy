@@ -159,6 +159,7 @@ beforeEach(() => {
   calls.splice(0, calls.length)
   proofStatus = 'PENDING'
   duplicateInstallmentInvoice = null
+  markInvoicePaidOk = true
 })
 
 describe('payments C1 safety', () => {
