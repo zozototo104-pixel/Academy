@@ -93,6 +93,7 @@ mock.module('@/lib/admission-document-replacement', () => ({ extractAdmissionDoc
 const proofReviewRoute = await import('../../src/app/api/admin/payments/proofs/[id]/route')
 const adminPaymentsRoute = await import('../../src/app/api/admin/payments/route')
 const installmentRoute = await import('../../src/app/api/payments/installment/route')
+const admissionsFinalizeRoute = await import('../../src/app/api/admissions/finalize/route')
 const { visiblePaymentMethods } = await import('../../src/components/aact/DashboardExtras')
 
 async function json(res: Response) {
