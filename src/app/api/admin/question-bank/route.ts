@@ -276,4 +276,5 @@ export async function PATCH(req: NextRequest) {
     console.error('question bank PATCH error:', e)
     return NextResponse.json({ error: 'تعذر تحديث سؤال بنك الأسئلة' }, { status: 500 })
   }
+  })
 }
