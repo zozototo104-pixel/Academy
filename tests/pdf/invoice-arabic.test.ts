@@ -77,7 +77,7 @@ describe('Arabic invoice PDF rendering', () => {
       return originalIsInputRtl?.apply(this, args)
     }
     try {
-      const pdf = buildInvoicePdf(sampleInvoice(), { fontPaths: [fontPath] })
+      const pdf = buildInvoicePdf(sampleInvoice(), { fontPaths: [fontPath], compress: false })
       expect(pdf.byteLength).toBeGreaterThan(1000)
       expect(pdfOutput(pdf)).toContain(ARABIC_FONT_NAME)
       expect(r2lCalls).toBe(0)
@@ -86,6 +86,28 @@ describe('Arabic invoice PDF rendering', () => {
       ;(jsPDF as any).API.setR2L = originalSetR2L
       ;(jsPDF as any).API.isInputRtl = originalIsInputRtl
     }
+  })
+
+  test('renders Arabic invoice text as images in the PDF', () => {
+    const pdf = buildInvoicePdf(sampleInvoice(), { fontPaths: [fontPath], compress: false })
+    const output = pdfOutput(pdf)
+
+    expect(pdf.byteLength).toBeGreaterThan(1000)
+    expect(output).toContain('/Subtype /Image')
+  })
+
+  test('falls back to shaped Amiri text when the Arabic image renderer throws', () => {
+    const pdf = buildInvoicePdf(sampleInvoice(), {
+      fontPaths: [fontPath],
+      compress: false,
+      arabicImageRenderer: () => {
+        throw new Error('canvas unavailable')
+      },
+    })
+    const output = pdfOutput(pdf)
+
+    expect(pdf.byteLength).toBeGreaterThan(1000)
+    expect(output).toContain(ARABIC_FONT_NAME)
   })
 
   test('falls back without throwing when the Arabic font is unavailable', () => {
