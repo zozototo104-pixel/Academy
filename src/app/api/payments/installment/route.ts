@@ -95,6 +95,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, payment })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'يجب تسجيل الدخول أولاً' }, { status: 401 })
+    if (String(e?.message || '').startsWith('DUPLICATE_INSTALLMENT:')) {
+      const invoiceNo = String(e.message).split(':')[1] || ''
+      return NextResponse.json({ error: `توجد فاتورة دفعة غير مسددة بالفعل (${invoiceNo}). ادفعها أو راجع الإدارة قبل إنشاء دفعة جديدة.` }, { status: 409 })
+    }
     console.error('installment payment POST error:', e)
     return NextResponse.json({ error: 'تعذر إنشاء دفعة جزئية' }, { status: 500 })
   }
