@@ -97,14 +97,22 @@ export async function PATCH(req: NextRequest) {
     const score = Math.max(0, Math.min(100, numericFinalScore))
     const passed = score >= attempt.exam.passScore
 
-    await db.programExamAttempt.update({
-      where: { id: attemptId },
+    const resolved = await db.programExamAttempt.updateMany({
+      where: { id: attemptId, appealStatus: 'PENDING' },
       data: {
         appealStatus: 'REVIEWED',
         finalScore: score,
         passed,
         appealResponse: String(response || '').slice(0, 3000),
       },
+    })
+    if (resolved.count !== 1) {
+      return NextResponse.json({ error: 'هذا الاعتراض حُسم من جلسة أخرى ولا يمكن الكتابة فوق القرار.' }, { status: 409 })
+    }
+
+    await completeEnrollmentIfEligible({ userId: attempt.userId, programId: attempt.exam.programId }).catch((error) => {
+      console.warn('Appeal resolved but enrollment completion check did not issue a certificate yet.', error)
+      return null
     })
 
     await audit(
