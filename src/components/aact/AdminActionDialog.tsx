@@ -53,6 +53,13 @@ export function useAdminActionDialog() {
     if (resolver) resolver(result)
   }, [])
 
+  const alertAction = useCallback((options: BaseOptions) => new Promise<void>((resolve) => {
+    resolverRef.current = () => resolve()
+    setValue('')
+    setError('')
+    setState({ kind: 'alert', tone: 'info', confirmLabel: 'حسناً', ...options })
+  }), [])
+
   const confirmAction = useCallback((options: BaseOptions) => new Promise<boolean>((resolve) => {
     resolverRef.current = (result) => resolve(result === true)
     setValue('')
