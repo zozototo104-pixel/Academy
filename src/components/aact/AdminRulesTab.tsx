@@ -111,8 +111,9 @@ interface ProgramRules {
   disclosureConsentText?: string | null
   program?: ProgramDraft
   _count?: { units: number }
-  rules: Rules
+  rules?: Rules
   custom: boolean
+  detailsLoaded?: boolean
 }
 
 const EDU_AR: Record<string, string> = {
@@ -256,6 +257,7 @@ export function AdminRulesTab() {
   const [programDraft, setProgramDraft] = useState<ProgramDraft | null>(null)
   const [custom, setCustom] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [detailsLoading, setDetailsLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [renumberingUnits, setRenumberingUnits] = useState(false)
   const [creatingProgram, setCreatingProgram] = useState(false)
@@ -265,13 +267,30 @@ export function AdminRulesTab() {
   const [bulkApplyOpen, setBulkApplyOpen] = useState(false)
   const [bulkApplying, setBulkApplying] = useState(false)
 
+  const loadProgramDetails = useCallback(async (programId: string) => {
+    setDetailsLoading(true)
+    try {
+      const d = await api<{ item: ProgramRules }>(`/api/admin/program-rules/${programId}`)
+      const item = { ...d.item, detailsLoaded: true }
+      setPrograms((ps) => ps.map((p) => p.id === programId ? { ...p, ...item } : p))
+      setDraft({ ...(item.rules || {}) })
+      setProgramDraft(programDraftFromProgram(item))
+      setCustom(item.custom)
+    } catch (e: any) {
+      toast({ title: e?.message || 'تعذر تحميل تفاصيل البرنامج', variant: 'destructive' })
+    } finally {
+      setDetailsLoading(false)
+    }
+  }, [])
+
   const selectProgram = useCallback((p: ProgramRules) => {
     setSelectedId(p.id)
-    setDraft({ ...p.rules })
-    setProgramDraft(programDraftFromProgram(p))
+    setDraft({ ...(p.rules || {}) })
+    setProgramDraft(p.detailsLoaded ? programDraftFromProgram(p) : null)
     setCustom(p.custom)
     setBulkApplyOpen(false)
-  }, [])
+    if (!p.detailsLoaded) void loadProgramDetails(p.id)
+  }, [loadProgramDetails])
 
   useEffect(() => {
     api<{ programs: ProgramRules[] }>('/api/admin/program-rules')
@@ -284,6 +303,7 @@ export function AdminRulesTab() {
   }, [selectProgram])
 
   const selected = programs.find((p) => p.id === selectedId)
+  const editorUnavailable = detailsLoading || !programDraft
   const categoryProgramsForBulkApply = programDraft
     ? programs.filter((p) => p.category === programDraft.category && p.active !== false)
     : []
@@ -532,7 +552,7 @@ export function AdminRulesTab() {
   }
 
   const setSelectedProgramActive = async (active: boolean) => {
-    if (!selected || !programDraft) return
+    if (!selected || detailsLoading || !programDraft) return
     if (!active) {
       const confirmed = await confirmAction({
         title: 'إخفاء برنامج من الموقع العام',
@@ -592,7 +612,7 @@ export function AdminRulesTab() {
   }
 
   const save = async (reset = false) => {
-    if (!selectedId) return
+    if (!selectedId || detailsLoading || !programDraft) return
     setSaving(true)
     try {
       const d = await api<{ rules: Rules; custom: boolean; program?: ProgramDraft }>('/api/admin/program-rules', {
@@ -635,7 +655,7 @@ export function AdminRulesTab() {
   }
 
   const applyPriceHoursToCategory = async () => {
-    if (!programDraft) return
+    if (detailsLoading || !programDraft) return
     if (programDraft.price === null || programDraft.price === undefined || !Number.isFinite(Number(programDraft.price))) {
       toast({ title: 'أدخل السعر أولاً قبل التطبيق الجماعي', variant: 'destructive' })
       return
@@ -835,7 +855,7 @@ export function AdminRulesTab() {
                         type="button"
                         size="sm"
                         variant="outline"
-                        disabled={saving}
+                        disabled={saving || editorUnavailable}
                         onClick={() => setSelectedProgramActive(!(programDraft.active !== false))}
                         className={programDraft.active !== false ? 'border-slate-200 text-slate-600' : 'border-emerald-200 text-emerald-700'}
                       >
@@ -845,6 +865,13 @@ export function AdminRulesTab() {
                     )}
                   </div>
                 </div>
+
+                {detailsLoading && !programDraft && (
+                  <div className="flex items-center justify-center rounded-2xl border border-dashed bg-slate-50 p-6 text-xs font-black text-slate-500">
+                    <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                    جاري تحميل تفاصيل البرنامج...
+                  </div>
+                )}
 
                 {programDraft && (
                   <div className="space-y-3">
@@ -923,7 +950,7 @@ export function AdminRulesTab() {
                             variant="outline"
                             size="sm"
                             className="border-[#c9a227]/50 text-[11px] font-black text-[#0f2b46] hover:bg-[#f7edd0]"
-                            disabled={saving || bulkApplying || !categoryProgramsForBulkApply.length}
+                            disabled={saving || bulkApplying || editorUnavailable || !categoryProgramsForBulkApply.length}
                             onClick={() => setBulkApplyOpen((v) => !v)}
                           >
                             {bulkApplyOpen ? 'إخفاء التأكيد' : 'تطبيق على التصنيف'}
@@ -949,7 +976,7 @@ export function AdminRulesTab() {
                                 type="button"
                                 size="sm"
                                 className="bg-red-600 text-xs font-black text-white hover:bg-red-700"
-                                disabled={bulkApplying}
+                                disabled={bulkApplying || editorUnavailable}
                                 onClick={applyPriceHoursToCategory}
                               >
                                 {bulkApplying ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : null}
@@ -1329,7 +1356,7 @@ export function AdminRulesTab() {
                 )}
 
                 <div className="flex flex-wrap gap-2 border-t pt-3">
-                  <Button onClick={() => save(false)} disabled={saving || renumberingUnits} className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#12365c]">
+                  <Button onClick={() => save(false)} disabled={saving || renumberingUnits || editorUnavailable} className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#12365c]">
                     {saving ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : <Save className="ml-1 h-4 w-4" />}
                     حفظ القواعد والملف الأكاديمي
                   </Button>
@@ -1338,7 +1365,7 @@ export function AdminRulesTab() {
                     إعادة ترقيم الوحدات
                   </Button>
                   {custom && (
-                    <Button onClick={() => save(true)} disabled={saving} variant="outline" className="border-red-200 text-red-600 hover:bg-red-50">
+                    <Button onClick={() => save(true)} disabled={saving || editorUnavailable} variant="outline" className="border-red-200 text-red-600 hover:bg-red-50">
                       <RotateCcw className="ml-1 h-4 w-4" />
                       العودة للافتراضي
                     </Button>
