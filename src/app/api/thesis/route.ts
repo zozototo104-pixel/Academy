@@ -127,48 +127,7 @@ export async function GET() {
     const user = await getCurrentUser()
     if (!user) return NextResponse.json({ thesis: null, admission: null })
     const { admission } = await findLatestStudyAdmission(user, true)
-    const thesis = admission ? await db.thesisSubmission.findFirst({
-      where: { userId: user.id, admissionId: admission.id },
-      orderBy: { createdAt: 'desc' },
-      // select صريح: نستثني recordingData (تسجيل ثقيل حتى 24MB لا يُنقل مع فتح التبويب)
-      select: {
-        id: true,
-        userId: true,
-        admissionId: true,
-        title: true,
-        abstract: true,
-        fileNote: true,
-        reviewNote: true,
-        reviewNotes: { where: { visibleToStudent: true }, orderBy: { createdAt: 'desc' }, take: 10 },
-        status: true,
-        defenseDate: true,
-        committee: true,
-        agentMember: true,
-        defenseStatus: true,
-        aiScore: true,
-        aiRecommendation: true,
-        defenseCompletedAt: true,
-        defenseMinutes: true,
-        recordingMime: true,
-        recordingSize: true,
-        recordingDurationSec: true,
-        recordingStorageKey: true,
-        resultScore: true,
-        passed: true,
-        extractionStatus: true,
-        extractionError: true,
-        pageCount: true,
-        wordCount: true,
-        digest: true,
-        extractedAt: true,
-        fileName: true,
-        fileMime: true,
-        fileSize: true,
-        fileStorageKey: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    }) : null
+    const thesis = admission ? await findThesisForAdmission(user.id, admission.id) : null
     const gate = await getExamsGate(user.id, admission?.programId)
     const thesisPlan = admission?.programId
       ? mapThesisPlan(await db.programStudyGuide.findFirst({
