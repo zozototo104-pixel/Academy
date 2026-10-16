@@ -616,6 +616,8 @@ export function AdminBooksTab() {
   const [gradingDialog, setGradingDialog] = useState<null | { mode: 'GRADE' | 'REVISION'; submission: AssignmentSubmissionRow; assignment: AssignmentRow; score: string; feedback: string }>(null)
   const [confirmDialog, setConfirmDialog] = useState<null | { title: string; description: string; confirmLabel?: string; danger?: boolean }>(null)
   const confirmResolveRef = useRef<((ok: boolean) => void) | null>(null)
+  const [cognitiveOverrideDialog, setCognitiveOverrideDialog] = useState<null | { title: string; message: string; details: string[]; reason: string }>(null)
+  const cognitiveOverrideResolveRef = useRef<((reason: string | null) => void) | null>(null)
   const [rebuildingKnowledge, setRebuildingKnowledge] = useState(false)
   const [sanitizingKnowledge, setSanitizingKnowledge] = useState(false)
   const [rebuildingBookId, setRebuildingBookId] = useState<string | null>(null)
