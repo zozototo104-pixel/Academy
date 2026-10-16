@@ -419,26 +419,6 @@ export async function POST(req: NextRequest) {
         ? `${reference} — طلب خدمة: ${selectedTitle} — مرفقات: ${uniqueFiles.length} + إقرار`
         : `${reference} — ${selectedTitle} — مستندات: ${uniqueFiles.length}/4 + إقرار — فاتورة رسوم تقديم ${appFee}$`
     ))
-import { db } from '@/lib/db'
-import { getCurrentUser } from '@/lib/auth'
-import { ACADEMY_INFO, ADMISSION_FEES } from '@/lib/academyData'
-import { getSettingNum, nextInvoiceNo } from '@/lib/settings'
-import { notify, audit } from '@/lib/notify'
-import { emailAdminNewAdmissionRequest, emailAdmissionSubmitted, emailServiceRequestSubmitted } from '@/lib/mailer'
-import { getStorageDownloadPathForKey, storageErrorMessage, storeFileBuffer } from '@/lib/storage'
-import { clientIpFromHeaders, enforceApiRateLimit } from '@/lib/rate-limit'
-import { buildServiceAdmissionDefaults, getServiceFlow } from '@/lib/service-flows'
-import { REQUIRED_ADMISSION_DOCS, resolveAdmissionRequiredDocuments } from '@/lib/admission-required-documents'
-import { resolveRules } from '@/lib/admission-ai'
-import { deriveServiceWorkflowState } from '@/lib/service-workflows'
-import { createAdmissionUploadToken } from '@/lib/admission-upload-token'
-import { normalizePhone, isSupportedCountry, validateApplicantFullName, validateBirthDateForMinAge, validateNationalIdOrPassport, validatePhone } from '@/lib/admission-validation'
-import { inferTotalTuition, roundMoney, tuitionPaidTotal } from '@/lib/tuition-installments'
-import { extractAdmissionDocumentReplacement } from '@/lib/admission-document-replacement'
-import { repairVerifiedStudentRecordOwnership, studentAdmissionOwnershipWhere, studentOwnsAdmission } from '@/lib/student-record-ownership'
-import { validateAdmissionFileSignature } from '@/lib/file-signature'
-import { dollarsToCents } from '@/lib/money'
-import { withTimedResponse, withTiming } from '@/lib/timing'
 
 // المستندات الرسمية الإلزامية وفق دليل إجراءات وشروط الالتحاق.
 // المصدر التنفيذي المشترك مع ApplyView موجود في src/lib/admission-required-documents.ts.
