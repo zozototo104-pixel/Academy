@@ -333,6 +333,7 @@ export async function POST(req: NextRequest) {
         reportGeminiLiveKeySuccess(keyIndex, model, result.ms)
         break
       } catch (e: any) {
+        e.model = e.model || model
         lastError = e
         failures.push(failureDetail(keyIndex, key, e))
         await reportGeminiLiveKeyFailure(keyIndex, e)
