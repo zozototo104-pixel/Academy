@@ -208,13 +208,21 @@ function setText(doc: jsPDF, size: number, color = TEXT, style: 'normal' | 'bold
   doc.setTextColor(color)
 }
 
-function writeArabic(doc: jsPDF, value: string, x: number, y: number, opts: { size?: number; color?: string; maxWidth?: number; maxLines?: number; align?: 'right' | 'center' } = {}) {
-  setText(doc, opts.size || 13, opts.color || TEXT, 'normal', ARABIC_FONT_NAME)
+function writeArabic(doc: jsPDF, value: string, x: number, y: number, opts: DrawArabicImageOptions = {}) {
   const logical = safeText(value)
-  const logicalLines = opts.maxWidth ? doc.splitTextToSize(logical, opts.maxWidth).slice(0, opts.maxLines || 3) : [logical]
-  const visualLines = logicalLines.map((line: string) => toVisualArabic(line))
-  doc.text(visualLines, x, y, { align: opts.align || 'right' })
-  return Math.max(20, visualLines.length * ((opts.size || 13) + 4))
+  try {
+    return activeArabicImageRenderer(doc, logical, x, y, opts)
+  } catch (error) {
+    if (!warnedArabicImageFallback) {
+      warnedArabicImageFallback = true
+      console.warn('[invoice-pdf] Canvas Arabic renderer failed; falling back to shaped jsPDF text.', error)
+    }
+    setText(doc, opts.size || 13, opts.color || TEXT, 'normal', ARABIC_FONT_NAME)
+    const logicalLines = opts.maxWidth ? doc.splitTextToSize(logical, opts.maxWidth).slice(0, opts.maxLines || 3) : [logical]
+    const visualLines = logicalLines.map((line: string) => toVisualArabic(line))
+    doc.text(visualLines, x, y, { align: opts.align || 'right' })
+    return Math.max(20, visualLines.length * ((opts.size || 13) + 4))
+  }
 }
 
 function drawBilingualLabel(doc: jsPDF, label: BilingualLabel, x: number, y: number, arabicX: number, arabicReady: boolean, color = MUTED) {
