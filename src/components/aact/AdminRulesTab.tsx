@@ -612,7 +612,7 @@ export function AdminRulesTab() {
   }
 
   const save = async (reset = false) => {
-    if (!selectedId) return
+    if (!selectedId || detailsLoading || !programDraft) return
     setSaving(true)
     try {
       const d = await api<{ rules: Rules; custom: boolean; program?: ProgramDraft }>('/api/admin/program-rules', {
