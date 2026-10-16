@@ -267,13 +267,30 @@ export function AdminRulesTab() {
   const [bulkApplyOpen, setBulkApplyOpen] = useState(false)
   const [bulkApplying, setBulkApplying] = useState(false)
 
+  const loadProgramDetails = useCallback(async (programId: string) => {
+    setDetailsLoading(true)
+    try {
+      const d = await api<{ item: ProgramRules }>(`/api/admin/program-rules/${programId}`)
+      const item = { ...d.item, detailsLoaded: true }
+      setPrograms((ps) => ps.map((p) => p.id === programId ? { ...p, ...item } : p))
+      setDraft({ ...(item.rules || {}) })
+      setProgramDraft(programDraftFromProgram(item))
+      setCustom(item.custom)
+    } catch (e: any) {
+      toast({ title: e?.message || 'تعذر تحميل تفاصيل البرنامج', variant: 'destructive' })
+    } finally {
+      setDetailsLoading(false)
+    }
+  }, [])
+
   const selectProgram = useCallback((p: ProgramRules) => {
     setSelectedId(p.id)
-    setDraft({ ...p.rules })
-    setProgramDraft(programDraftFromProgram(p))
+    setDraft({ ...(p.rules || {}) })
+    setProgramDraft(p.detailsLoaded ? programDraftFromProgram(p) : null)
     setCustom(p.custom)
     setBulkApplyOpen(false)
-  }, [])
+    if (!p.detailsLoaded) void loadProgramDetails(p.id)
+  }, [loadProgramDetails])
 
   useEffect(() => {
     api<{ programs: ProgramRules[] }>('/api/admin/program-rules')
