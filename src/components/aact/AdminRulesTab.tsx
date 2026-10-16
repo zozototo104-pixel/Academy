@@ -855,7 +855,7 @@ export function AdminRulesTab() {
                         type="button"
                         size="sm"
                         variant="outline"
-                        disabled={saving}
+                        disabled={saving || editorUnavailable}
                         onClick={() => setSelectedProgramActive(!(programDraft.active !== false))}
                         className={programDraft.active !== false ? 'border-slate-200 text-slate-600' : 'border-emerald-200 text-emerald-700'}
                       >
