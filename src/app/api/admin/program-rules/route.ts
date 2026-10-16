@@ -255,7 +255,7 @@ export async function POST(req: NextRequest) {
 
     clearPublicProgramsCache()
     revalidatePublicProgramSurfaces([saved.slug])
-    await audit(user, 'PROGRAM_CREATED', 'Program', saved.id, `أنشأ برنامجاً جديداً من محرر قواعد القبول: ${saved.titleAr} — slug: ${saved.slug} — الحالة: ${saved.active ? 'منشور' : 'مسودة غير منشورة'}`)
+    await withTiming('db_audit_program_rules_create', () => audit(user, 'PROGRAM_CREATED', 'Program', saved.id, `أنشأ برنامجاً جديداً من محرر قواعد القبول: ${saved.titleAr} — slug: ${saved.slug} — الحالة: ${saved.active ? 'منشور' : 'مسودة غير منشورة'}`))
 
     const flow = getServiceFlow(saved.slug)
     const isStudyProgram = flow ? flow.isStudyProgram : saved.category !== 'SERVICE'
