@@ -764,6 +764,9 @@ export function AIChatView() {
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <Badge className="hidden gap-1 bg-emerald-500/15 text-[9px] font-black text-emerald-300 hover:bg-emerald-500/15 sm:inline-flex"><ShieldCheck className="h-3 w-3" /> تُحفظ المحادثة في ملفك تلقائياً</Badge>
+              <select value={voiceDialect} onChange={(e) => setVoiceDialect(e.target.value)} className="hidden h-8 rounded-full border border-white/20 bg-white/10 px-2 text-[10px] font-black text-white outline-none sm:block" title="لهجة التعرّف على الصوت">
+                {DIALECT_OPTIONS.map((d) => <option key={d.value} value={d.value} className="text-slate-900">{d.label}</option>)}
+              </select>
               <Button onClick={toggleVoiceMode} size="sm" className="rounded-full bg-[#b22234] px-4 font-black text-white shadow-lg hover:bg-[#c9333f]" title="إنهاء المحادثة الصوتية">
                 <PhoneOff className="ml-1.5 h-4 w-4" /> إنهاء
               </Button>
