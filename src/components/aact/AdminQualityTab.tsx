@@ -560,7 +560,7 @@ export function AdminQualityTab() {
       setCatalogImportText('')
       await load()
     } catch (e: any) {
-      alert(e?.message || 'تعذر استيراد كتالوج البرامج')
+      await alertAction({ title: 'تعذر استيراد كتالوج البرامج', description: e?.message || 'راجع ملف JSON وحاول مرة أخرى.', tone: 'danger' })
     } finally {
       setCatalogBusy(null)
     }
