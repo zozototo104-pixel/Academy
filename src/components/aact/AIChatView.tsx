@@ -546,7 +546,7 @@ export function AIChatView() {
       speechUtteranceRef.current = null
       setSpeakingId(null)
     }
-    const rec = getRecognition()
+    const rec = getRecognition(voiceDialect)
     if (!rec) {
       startAsrFallback()
       return
