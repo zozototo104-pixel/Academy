@@ -157,8 +157,10 @@ mock.module('@/lib/w3c/certificate-credential', () => ({ certificateCredentialUr
 mock.module('@/lib/program-tracks', () => ({ academicProfileFromRules: () => ({}), buildAcademicProgramProfile: (input: any) => input }))
 
 const examSubmitRoute = await import('../../src/app/api/exam/submit/route')
+const programExamSubmitRoute = await import('../../src/app/api/program-exam/submit/route')
 const defenseRoute = await import('../../src/app/api/defense/route')
 const { canPublishUnitExamFromQuestions } = await import('../../src/lib/unit-exam-policy')
+const { calculateFinalGrade } = await import('../../src/lib/final-grade')
 const { evaluateProgramCertificateEligibility } = await import('../../src/lib/certificate-eligibility')
 const certVerifyRoute = await import('../../src/app/api/certificates/verify/route')
 
