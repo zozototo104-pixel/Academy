@@ -163,7 +163,8 @@ async function buildCertificateAcademicRecord(cert: { userId?: string | null; ad
     comprehensiveExams: programAttempts.map((a) => ({
       title: a.exam.title,
       semester: a.exam.semester,
-      score: a.score,
+      score: a.finalScore ?? a.score,
+      rawScore: a.score,
       passed: a.passed,
       status: a.status,
       passScore: a.exam.passScore,
