@@ -85,7 +85,7 @@ export async function PATCH(req: NextRequest) {
 
     const attempt = await db.programExamAttempt.findUnique({
       where: { id: attemptId },
-      include: { exam: { select: { title: true, passScore: true } } },
+      include: { exam: { select: { title: true, passScore: true, programId: true } } },
     })
     if (!attempt) return NextResponse.json({ error: 'المحاولة غير موجودة' }, { status: 404 })
     if (attempt.appealStatus !== 'PENDING') {
