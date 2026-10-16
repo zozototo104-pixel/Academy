@@ -539,7 +539,7 @@ export function AdminQualityTab() {
       a.remove()
       URL.revokeObjectURL(url)
     } catch (e: any) {
-      alert(e?.message || 'تعذر تصدير كتالوج البرامج')
+      await alertAction({ title: 'تعذر تصدير كتالوج البرامج', description: e?.message || 'حاول مرة أخرى أو راجع صلاحيات الإدارة.', tone: 'danger' })
     } finally {
       setCatalogBusy(null)
     }
