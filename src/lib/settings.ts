@@ -67,6 +67,7 @@ export const PUBLIC_SETTING_KEYS = new Set<string>([
   'BINANCE_DOWNLOAD_URL',
   'BINANCE_PAY_WEB_URL',
   'BINANCE_PAY_GUIDE_URL',
+  'VOICE_DEFAULT_DIALECT',
 ])
 
 function isFeeSettingKey(key: string): boolean {
