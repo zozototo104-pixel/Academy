@@ -2,6 +2,7 @@
 import { existsSync, statSync } from 'fs'
 import { join } from 'path'
 import { describe, expect, mock, test } from 'bun:test'
+import { jsPDF } from 'jspdf'
 
 mock.module('@/lib/db', () => ({ db: {} }))
 mock.module('@/lib/auth', () => ({ requireUser: async () => ({ id: 'admin-1', role: 'ADMIN' }) }))
