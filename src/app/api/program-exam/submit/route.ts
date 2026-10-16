@@ -14,6 +14,16 @@ interface SubmitAnswer {
   selectedOption?: number
 }
 
+interface ProgramAnswerData {
+  questionId: string
+  answerText?: string | null
+  selectedOption?: number | null
+  isCorrect?: boolean | null
+  points?: number | null
+  maxPoints?: number | null
+  aiFeedback?: string | null
+}
+
 function parseJsonArray(value: string | null): any[] {
   if (!value) return []
   try {
