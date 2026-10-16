@@ -3034,6 +3034,7 @@ export function AdminQualityTab() {
           )}
         </DialogContent>
       </Dialog>
+      {actionDialog}
     </div>
   )
 }
