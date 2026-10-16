@@ -176,10 +176,21 @@ export function AIChatView() {
   useEffect(() => { voiceModeRef.current = voiceMode }, [voiceMode])
   useEffect(() => { activeUnitRef.current = activeUnitId ?? null }, [activeUnitId])
   useEffect(() => {
+    let cancelled = false
     try {
       const saved = localStorage.getItem('aact_voice_dialect')
-      if (saved) setVoiceDialect(saved)
+      if (saved) {
+        setVoiceDialect(saved)
+        return
+      }
     } catch (error) { console.warn('Failed to load voice dialect preference.', error) }
+    api<{ values?: Record<string, string> }>('/api/settings')
+      .then((d) => {
+        const configured = d.values?.VOICE_DEFAULT_DIALECT
+        if (!cancelled && configured && /^ar-[A-Z]{2}$/.test(configured)) setVoiceDialect(configured)
+      })
+      .catch((error) => console.warn('Failed to load default voice dialect setting.', error))
+    return () => { cancelled = true }
   }, [])
   useEffect(() => {
     try { localStorage.setItem('aact_voice_dialect', voiceDialect) } catch (error) { console.warn('Failed to save voice dialect preference.', error) }
