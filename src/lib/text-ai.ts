@@ -460,7 +460,7 @@ function remainingTimeoutMs(deadlineMs?: number, defaultTimeoutMs = aiProviderTi
   return Math.max(1, Math.min(defaultTimeoutMs, remaining))
 }
 
-async function fetchWithTimeout(provider: string, url: string, init: RequestInit = {}, timeoutMs = aiProviderTimeoutMs(), deadlineMs?: number): Promise<Response> {
+export async function __testFetchWithTimeout(provider: string, url: string, init: RequestInit = {}, timeoutMs = aiProviderTimeoutMs(), deadlineMs?: number): Promise<Response> {
   const effectiveTimeoutMs = remainingTimeoutMs(deadlineMs, timeoutMs)
   let timer: ReturnType<typeof setTimeout> | null = null
   const fallbackController = new AbortController()
