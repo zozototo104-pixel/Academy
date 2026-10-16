@@ -629,7 +629,7 @@ export function AIChatView() {
             fr.onload = () => resolve(String(fr.result || '').split(',')[1] || '')
             fr.readAsDataURL(blob)
           })
-          const d = await api<{ text: string }>('/api/ai/asr', { method: 'POST', body: JSON.stringify({ audioBase64: b64 }) })
+          const d = await api<{ text: string }>('/api/ai/asr', { method: 'POST', body: JSON.stringify({ audioBase64: b64, dialect: voiceDialect }) })
           setInterim('')
           if (d.text?.trim()) send(d.text.trim(), { voice: true })
           else toast({ title: 'لم يُفهم الصوت', description: 'حاول مرة أخرى بنطق أوضح', variant: 'destructive' })
