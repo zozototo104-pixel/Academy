@@ -2,7 +2,7 @@
 
 import { useAppStore, api, getToken } from '@/lib/store'
 import { getSharedAudio, playOnSharedAudio, unlockAudioOnFirstGesture } from '@/lib/audioPlayer'
-import { GeminiLiveAgent as VoiceAgent } from '@/lib/voice/geminiLiveAgent'
+import { GeminiLiveAgent as VoiceAgent, isLiveMinutesExhausted } from '@/lib/voice/geminiLiveAgent'
 import type { VoiceState as AgentVoiceState } from '@/lib/voice/voiceStateMachine'
 import { AcademyLogo } from '@/components/aact/Shell'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -431,17 +431,11 @@ export function AIChatView() {
     }
   }, [input, sending, fetchSpeechUrl, playSpeechUrl, showSpeechError, speak, toast])
 
-  const friendlyLiveMinutesMessage = (message?: string | null) => {
-    const raw = String(message || '')
-    if (!raw.trim()) return 'انتهى رصيد المحادثة الصوتية الحية لهذا الشهر. يمكنك متابعة السؤال كتابةً فوراً، أو شراء باقة دقائق صوت إضافية لتفعيل المكالمة الصوتية من جديد.'
-    if (raw.includes('انتهت دقائق') || raw.includes('Gemini Live') || raw.includes('دقائق صوت')) {
-      return 'انتهى رصيد المحادثة الصوتية الحية لهذا الشهر. تستطيع متابعة الحديث كتابةً الآن، أو شراء باقة دقائق صوت إضافية لاستخدام المشرف بالصوت.'
-    }
-    return raw
-  }
-
   const openVoicePackageDialog = (message?: string | null) => {
-    setVoicePackageDialog({ open: true, message: friendlyLiveMinutesMessage(message) })
+    setVoicePackageDialog({
+      open: true,
+      message: String(message || '').trim() || 'انتهى رصيد المحادثة الصوتية الحية لهذا الشهر. يمكنك متابعة السؤال كتابةً أو شراء باقة دقائق صوت إضافية.',
+    })
     api<{ ok: boolean; minutes: number; amount: number; currency: string }>('/api/ai/gemini-live/package')
       .then((offer) => setVoicePackageOffer({ minutes: offer.minutes, amount: offer.amount, currency: offer.currency }))
       .catch(() => setVoicePackageOffer(null))
@@ -514,20 +508,20 @@ export function AIChatView() {
         setLiveCaption(userText)
       },
       onInterrupted: () => {},
-      onError: (msg) => {
-        const text = String(msg || '')
-        if (text.includes('Gemini Live') || text.includes('انتهت دقائق') || text.includes('دقائق صوت')) {
+      onError: (msg, code, status) => {
+        const text = String(msg || '').trim() || 'تعذر تشغيل المحادثة الصوتية'
+        if (isLiveMinutesExhausted({ code, status })) {
           openVoicePackageDialog(text)
           return
         }
-        toast({ title: 'تنبيه', description: friendlyLiveMinutesMessage(text), variant: 'destructive' })
+        toast({ title: 'تنبيه', description: text, variant: 'destructive' })
       },
     })
     agentRef.current = agent
     agent.start().catch((e: any) => {
       const msg = String(e?.message || '').trim() || 'تأكد من السماح بالمايكروفون ثم أعد المحاولة'
-      if (msg.includes('Gemini Live') || msg.includes('انتهت دقائق') || msg.includes('دقائق صوت')) openVoicePackageDialog(msg)
-      else toast({ title: 'تعذر بدء المحادثة الصوتية', description: friendlyLiveMinutesMessage(msg), variant: 'destructive' })
+      if (isLiveMinutesExhausted(e)) openVoicePackageDialog(msg)
+      else toast({ title: 'تعذر بدء المحادثة الصوتية', description: msg, variant: 'destructive' })
       setVoiceMode(false)
       voiceModeRef.current = false
       try { agent.stop() } catch (error) { console.warn('Failed to stop voice agent after start failure.', error) }

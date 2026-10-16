@@ -10,7 +10,7 @@ export interface AgentCallbacks {
   onInterrupted?: (info: { spokenPartial: string }) => void
   /** مسار صوت المشرف الخارج من Gemini Live حتى يمكن خلطه داخل تسجيل جلسة المناقشة. */
   onOutputStream?: (stream: MediaStream | null) => void
-  onError?: (msg: string) => void
+  onError?: (msg: string, code?: string, status?: number) => void
   /** سياق إضافي يرسل إلى جلسة Gemini Live، مثل سياق قاعة المناقشة أو الوحدة الدراسية. */
   context?: string
   /** صوت Gemini Live المطلوب. قاعة المناقشة تستخدم صوتاً أخف حتى لا يظهر صوت الرجل الفصيح الآلي. */
@@ -34,7 +34,14 @@ type LiveSessionPayload = {
   model: string
   voice: string
   error?: string
+  code?: string
   details?: string
+}
+
+type LiveSessionError = Error & { code?: string; status?: number }
+
+export function isLiveMinutesExhausted(error: { code?: string; status?: number } | null | undefined): boolean {
+  return error?.status === 402 || error?.code === 'LIVE_MINUTES_EXHAUSTED'
 }
 
 function getToken(): string {
@@ -56,9 +63,6 @@ function friendlyClientError(e: unknown): string {
   }
   if (/mediaDevices|getUserMedia|secure context|HTTPS/i.test(raw)) {
     return 'هذا المتصفح لا يسمح بالمايكروفون هنا. افتح الموقع عبر HTTPS ومن Safari/Chrome مباشرة.'
-  }
-  if (/انتهت دقائق|دقائق صوت|LIVE_MINUTES|402/i.test(raw)) {
-    return 'انتهى رصيد المحادثة الصوتية الحية لهذا الشهر. يمكنك استخدام المشرف النصي أو شراء باقة دقائق صوت إضافية.'
   }
   if (/429|RESOURCE_EXHAUSTED|quota|rate limit/i.test(raw)) {
     return 'انتهت حصة Gemini Live مؤقتاً. فعّل Billing أو انتظر إعادة ضبط الحصة.'
@@ -217,7 +221,11 @@ export class GeminiLiveAgent {
       await this.connectWithFallbacks()
     } catch (e) {
       this.stop()
-      throw new Error(friendlyClientError(e))
+      const original = e as LiveSessionError
+      const error = new Error(friendlyClientError(e)) as LiveSessionError
+      error.code = original?.code
+      error.status = original?.status
+      throw error
     }
   }
 
@@ -282,7 +290,7 @@ export class GeminiLiveAgent {
         return
       } catch (e) {
         const msg = String((e as any)?.message || e)
-        if (/انتهت دقائق|دقائق صوت|LIVE_MINUTES|402/i.test(msg)) throw e
+        if (isLiveMinutesExhausted(e as LiveSessionError)) throw e
         failures.push(`SDK/${model || 'saved'}: ${msg.slice(0, 160)}`)
         this.closeConnectionOnly()
       }
@@ -298,7 +306,7 @@ export class GeminiLiveAgent {
           return
         } catch (e) {
           const msg = String((e as any)?.message || e)
-          if (/انتهت دقائق|دقائق صوت|LIVE_MINUTES|402/i.test(msg)) throw e
+          if (isLiveMinutesExhausted(e as LiveSessionError)) throw e
           failures.push(`WS/${variant}/${model || 'saved'}: ${msg.slice(0, 160)}`)
           this.closeConnectionOnly()
         }
@@ -329,7 +337,10 @@ export class GeminiLiveAgent {
     }))
     if (!sessionRes.ok || !session.wsUrl) {
       const detail = session.details ? ` — ${session.details}` : ''
-      throw new Error((session.error || `فشل إنشاء جلسة Gemini Live HTTP ${sessionRes.status}`) + detail)
+      const error = new Error((session.error || `فشل إنشاء جلسة Gemini Live HTTP ${sessionRes.status}`) + detail) as LiveSessionError
+      error.status = sessionRes.status
+      error.code = session.code
+      throw error
     }
     return session
   }
@@ -488,7 +499,12 @@ export class GeminiLiveAgent {
   private handleServerMessage(msg: any): boolean {
     if (!msg) return false
     if (msg.error) {
-      this.cb.onError?.(friendlyClientError(msg.error.message || 'خطأ من Gemini Live'))
+      const error = msg.error
+      this.cb.onError?.(
+        friendlyClientError(typeof error === 'string' ? error : error.message || 'خطأ من Gemini Live'),
+        typeof error.code === 'string' ? error.code : undefined,
+        typeof error.status === 'number' ? error.status : undefined,
+      )
       return false
     }
     if (msg.setupComplete) return true

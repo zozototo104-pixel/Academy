@@ -185,7 +185,11 @@ export async function POST(req: NextRequest) {
     ? null
     : await getGeminiLiveAllowance({ userId: user.id, role: user.role, purpose })
   if (allowance && !allowance.ok) {
-    return NextResponse.json({ error: allowance.message, liveUsage: allowance }, { status: allowance.status })
+    return NextResponse.json({
+      error: allowance.message,
+      ...(allowance.status === 402 ? { code: 'LIVE_MINUTES_EXHAUSTED' } : {}),
+      liveUsage: allowance,
+    }, { status: allowance.status })
   }
 
   const model = cleanModel(body.model) || await geminiActiveLiveModel(purpose)
@@ -281,7 +285,11 @@ export async function POST(req: NextRequest) {
 
     const reservedUsage = await reserveGeminiLiveUsage({ userId: user.id, role: user.role, purpose, requestedMinutes: Math.min(2, sessionLimitMinutes) })
     if (!reservedUsage.ok) {
-      return NextResponse.json({ error: reservedUsage.message, liveUsage: reservedUsage }, { status: reservedUsage.status })
+      return NextResponse.json({
+        error: reservedUsage.message,
+        ...(reservedUsage.status === 402 ? { code: 'LIVE_MINUTES_EXHAUSTED' } : {}),
+        liveUsage: reservedUsage,
+      }, { status: reservedUsage.status })
     }
 
     return NextResponse.json({

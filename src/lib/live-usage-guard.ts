@@ -67,6 +67,25 @@ export function liveSessionLimitMinutes(role: unknown, purpose: LivePurpose): nu
   return envNum('AACT_LIVE_SESSION_MAX_MINUTES_STUDENT', envNum('AACT_LIVE_SESSION_MAX_MINUTES', 10))
 }
 
+const ADMIN_UNLIMITED_LIVE_MINUTES = 999999
+
+function adminLiveDecision(role: unknown, purpose: LivePurpose, month: string, sessionId?: string): LiveUsageDecision {
+  return {
+    ok: true,
+    status: 200,
+    purpose,
+    month,
+    freeMonthlyLimitMinutes: ADMIN_UNLIMITED_LIVE_MINUTES,
+    sessionLimitMinutes: liveSessionLimitMinutes(role, purpose),
+    usedFreeMinutes: 0,
+    usedPaidMinutes: 0,
+    paidRemainingMinutes: 0,
+    totalRemainingMinutes: ADMIN_UNLIMITED_LIVE_MINUTES,
+    sessionsUsed: 0,
+    ...(sessionId ? { sessionId } : {}),
+  }
+}
+
 async function activePaidCredits(userId: string, now: Date) {
   return db.aiLiveCredit.findMany({
     where: {
@@ -86,6 +105,8 @@ export async function getGeminiLiveAllowance(input: {
 }): Promise<LiveUsageDecision> {
   const purpose = purposeName(input.purpose)
   const month = monthKey()
+  if (roleName(input.role) === 'ADMIN') return adminLiveDecision(input.role, purpose, month)
+
   const freeMonthlyLimitMinutes = await freeMonthlyLiveMinutes(input.userId, input.role)
   const sessionLimitMinutes = liveSessionLimitMinutes(input.role, purpose)
   const now = new Date()
@@ -159,10 +180,36 @@ export async function reserveGeminiLiveUsage(input: {
   const purpose = purposeName(input.purpose)
   const month = monthKey()
   const now = new Date()
-  const freeMonthlyLimitMinutes = await freeMonthlyLiveMinutes(input.userId, input.role)
   const hardSessionLimit = liveSessionLimitMinutes(input.role, purpose)
-  const maxSession = Math.max(1, Math.min(input.requestedMinutes || 2, hardSessionLimit))
   const sessionId = sessionIdValue(input.sessionId)
+
+  if (roleName(input.role) === 'ADMIN') {
+    await db.$transaction(async (tx) => {
+      const existing = await tx.aiLiveSession.findUnique({ where: { sessionId } })
+      if (existing) {
+        if (existing.userId !== input.userId || existing.reservedMinutes !== 0 || existing.purpose !== purpose) {
+          throw new Error('LIVE_SESSION_ID_CONFLICT')
+        }
+        return
+      }
+      await tx.aiLiveSession.create({
+        data: {
+          sessionId,
+          userId: input.userId,
+          month,
+          purpose,
+          reservedMinutes: 0,
+          freeReserved: 0,
+          paidReserved: 0,
+          expiresAt: new Date(now.getTime() + hardSessionLimit * 60 * 1000),
+        },
+      })
+    })
+    return adminLiveDecision(input.role, purpose, month, sessionId)
+  }
+
+  const freeMonthlyLimitMinutes = await freeMonthlyLiveMinutes(input.userId, input.role)
+  const maxSession = Math.max(1, Math.min(input.requestedMinutes || 2, hardSessionLimit))
 
   return db.$transaction(async (tx) => {
     const existing = await tx.aiLiveSession.findUnique({ where: { sessionId } }).catch(() => null)
@@ -284,11 +331,12 @@ export async function settleGeminiLiveUsage(input: { sessionId: string; actualSe
     const session = await tx.aiLiveSession.findUnique({ where: { sessionId: input.sessionId } })
     if (!session) return { ok: false, status: 404, message: 'جلسة الصوت غير موجودة' }
     if (session.status !== 'RESERVED') return { ok: true, status: 200, idempotent: true, session }
-    const refund = Math.max(0, session.reservedMinutes - Math.min(session.reservedMinutes, actualMinutes))
+    const recordedMinutes = session.reservedMinutes === 0 ? actualMinutes : Math.min(session.reservedMinutes, actualMinutes)
+    const refund = Math.max(0, session.reservedMinutes - recordedMinutes)
     await refundReserved(tx, session, refund)
     const updated = await tx.aiLiveSession.update({
       where: { id: session.id },
-      data: { status: 'SETTLED', actualMinutes: Math.min(session.reservedMinutes, actualMinutes), settledAt: new Date() },
+      data: { status: 'SETTLED', actualMinutes: recordedMinutes, settledAt: new Date() },
     })
     return { ok: true, status: 200, refundMinutes: refund, session: updated }
   })
