@@ -110,7 +110,8 @@ async function unitKnowledgeAvailability(programId: string, unit: any) {
         select: { id: true },
       }).catch(() => [])
       const chunkIds = chunks.map((chunk) => chunk.id)
-      if (chunkIds.length) where.chunkId = { in: chunkIds }
+      if (!chunkIds.length) return { count: 0, minItems, limited: true }
+      where.chunkId = { in: chunkIds }
     } else if (Number.isFinite(Number(unit.semester))) {
       where.semester = Number(unit.semester)
     }
