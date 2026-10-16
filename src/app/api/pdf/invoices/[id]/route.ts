@@ -26,11 +26,21 @@ type InvoicePdfData = {
   programOrServiceFallback: string
   purpose: string
   description: string
+  descriptionFallback?: string
   amount: string
   originalAmount: string
   waivedAmount: string
   method: string
   reference: string
+}
+
+type InvoicePdfOptions = {
+  fontPaths?: string[]
+}
+
+type BilingualLabel = {
+  ar: string
+  en: string
 }
 
 const PAGE_W = 794
@@ -41,12 +51,55 @@ const SOFT_GOLD = '#f7edd0'
 const TEXT = '#1f2937'
 const MUTED = '#64748b'
 const BORDER = '#e2e8f0'
-const ARABIC_FONT_NAME = 'AmiriArabic'
+export const ARABIC_FONT_NAME = 'AmiriArabic'
 const ARABIC_FONT_FILE = 'Amiri-Regular.ttf'
 const ARABIC_FONT_PATHS = [
   join(process.cwd(), 'public', 'fonts', ARABIC_FONT_FILE),
   join(process.cwd(), 'src', 'assets', 'fonts', ARABIC_FONT_FILE),
 ]
+
+const LABELS = {
+  invoiceDetails: { ar: 'تفاصيل الفاتورة', en: 'Invoice Details' },
+  invoiceNo: { ar: 'رقم الفاتورة', en: 'Invoice No.' },
+  receiptNo: { ar: 'رقم الإيصال', en: 'Receipt No.' },
+  issueDate: { ar: 'تاريخ الإصدار', en: 'Issue Date' },
+  settledAt: { ar: 'تاريخ الدفع', en: 'Paid / Waived At' },
+  paymentMethod: { ar: 'طريقة الدفع', en: 'Payment Method' },
+  payerDetails: { ar: 'بيانات الدافع', en: 'Payer Details' },
+  payer: { ar: 'الدافع', en: 'Payer' },
+  email: { ar: 'البريد', en: 'Email' },
+  country: { ar: 'الدولة', en: 'Country' },
+  reference: { ar: 'المرجع', en: 'Reference' },
+  programOrService: { ar: 'البرنامج أو الخدمة', en: 'Program or Service' },
+  description: { ar: 'الوصف', en: 'Description' },
+  purpose: { ar: 'الغرض', en: 'Purpose' },
+  total: { ar: 'المجموع', en: 'Total' },
+  status: { ar: 'الحالة', en: 'Status' },
+} satisfies Record<string, BilingualLabel>
+
+const PURPOSE_LABELS_AR: Record<string, string> = {
+  'Application Fee': 'رسوم التقديم',
+  'Tuition Invoice': 'فاتورة الرسوم الدراسية',
+  'Tuition Installment': 'قسط الرسوم الدراسية',
+  'Accreditation Application Fee': 'رسوم طلب الاعتماد',
+  'Accreditation Fee': 'رسوم الاعتماد',
+  Accreditation: 'اعتماد',
+  'Service Fee': 'رسوم خدمة',
+  'Other Fee': 'رسوم أخرى',
+}
+
+const METHOD_LABELS_AR: Record<string, string> = {
+  Paymob: 'بايموب',
+  Fawry: 'فوري',
+  Stripe: 'سترايب',
+  PayPal: 'باي بال',
+  USDT: 'USDT',
+  'Bank Transfer': 'تحويل بنكي',
+  'Direct Payment': 'دفع مباشر',
+  Cash: 'نقداً',
+  'Waiver / Scholarship': 'إعفاء / منحة',
+  '—': '—',
+}
 
 function safeText(value: unknown, fallback = '—') {
   const text = String(value ?? '').trim()
@@ -111,13 +164,30 @@ function methodLabel(value?: string | null) {
   return labels[value] || value
 }
 
-function registerArabicFont(doc: jsPDF) {
-  const fontPath = ARABIC_FONT_PATHS.find((candidate) => existsSync(candidate))
-  if (!fontPath) return false
-  const base64 = Buffer.from(readFileSync(fontPath)).toString('base64')
-  doc.addFileToVFS(ARABIC_FONT_FILE, base64)
-  doc.addFont(ARABIC_FONT_FILE, ARABIC_FONT_NAME, 'normal')
-  return true
+function resolveArabicFontPath(fontPaths = ARABIC_FONT_PATHS) {
+  return fontPaths.find((candidate) => existsSync(candidate)) || null
+}
+
+export function isArabicFontAvailable(fontPaths = ARABIC_FONT_PATHS) {
+  return Boolean(resolveArabicFontPath(fontPaths))
+}
+
+export function registerArabicFont(doc: jsPDF, fontPaths = ARABIC_FONT_PATHS) {
+  const fontPath = resolveArabicFontPath(fontPaths)
+  if (!fontPath) {
+    console.warn(`[invoice-pdf] Arabic font missing. Tried paths: ${fontPaths.join(', ')}`)
+    return false
+  }
+
+  try {
+    const base64 = Buffer.from(readFileSync(fontPath)).toString('base64')
+    doc.addFileToVFS(ARABIC_FONT_FILE, base64)
+    doc.addFont(ARABIC_FONT_FILE, ARABIC_FONT_NAME, 'normal')
+    return true
+  } catch (error) {
+    console.warn(`[invoice-pdf] Arabic font could not be loaded from ${fontPath}. Tried paths: ${fontPaths.join(', ')}`, error)
+    return false
+  }
 }
 
 function pdfValue(value: string, fallback: string, arabicReady: boolean) {
@@ -134,15 +204,36 @@ function shapeArabic(doc: jsPDF, value: string) {
   return typeof (doc as any).processArabic === 'function' ? (doc as any).processArabic(value) : value
 }
 
+function writeArabic(doc: jsPDF, value: string, x: number, y: number, opts: { size?: number; color?: string; maxWidth?: number; maxLines?: number; align?: 'right' | 'center' } = {}) {
+  setText(doc, opts.size || 13, opts.color || TEXT, 'normal', ARABIC_FONT_NAME)
+  const shaped = shapeArabic(doc, safeText(value))
+  const lines = opts.maxWidth ? doc.splitTextToSize(shaped, opts.maxWidth).slice(0, opts.maxLines || 3) : [shaped]
+  ;(doc as any).setR2L?.(true)
+  doc.text(lines, x, y, { align: opts.align || 'right' })
+  ;(doc as any).setR2L?.(false)
+  return Math.max(20, lines.length * ((opts.size || 13) + 4))
+}
+
+function drawBilingualLabel(doc: jsPDF, label: BilingualLabel, x: number, y: number, arabicX: number, arabicReady: boolean, color = MUTED) {
+  setText(doc, 12, color, 'bold')
+  doc.text(label.en, x, y)
+  if (arabicReady) writeArabic(doc, label.ar, arabicX, y, { size: 12, color })
+}
+
 function writeValue(doc: jsPDF, value: string, x: number, y: number, opts: { size?: number; color?: string; style?: 'normal' | 'bold'; maxWidth?: number; align?: 'left' | 'right'; arabicReady: boolean }) {
   const isArabic = hasArabic(value) && opts.arabicReady
-  const font = isArabic ? ARABIC_FONT_NAME : 'helvetica'
-  setText(doc, opts.size || 13, opts.color || TEXT, isArabic ? 'normal' : (opts.style || 'normal'), font)
-  const shaped = isArabic ? shapeArabic(doc, value) : value
-  const lines = opts.maxWidth ? doc.splitTextToSize(shaped, opts.maxWidth).slice(0, 3) : [shaped]
-  if (isArabic) (doc as any).setR2L?.(true)
-  doc.text(lines, x, y, { align: opts.align || (isArabic ? 'right' : 'left') })
-  if (isArabic) (doc as any).setR2L?.(false)
+  if (isArabic) {
+    return writeArabic(doc, value, x, y, {
+      size: opts.size || 13,
+      color: opts.color || TEXT,
+      maxWidth: opts.maxWidth,
+      align: opts.align === 'left' ? 'right' : opts.align,
+    })
+  }
+
+  setText(doc, opts.size || 13, opts.color || TEXT, opts.style || 'normal')
+  const lines = opts.maxWidth ? doc.splitTextToSize(value, opts.maxWidth).slice(0, 3) : [value]
+  doc.text(lines, x, y, { align: opts.align || 'left' })
   return Math.max(20, lines.length * ((opts.size || 13) + 4))
 }
 
@@ -156,22 +247,53 @@ function fillRounded(doc: jsPDF, x: number, y: number, w: number, h: number, fil
   }
 }
 
-function drawPair(doc: jsPDF, label: string, value: string, x: number, y: number, maxValueWidth: number, arabicReady: boolean) {
-  setText(doc, 12, MUTED, 'bold')
-  doc.text(label, x, y)
+function drawPair(doc: jsPDF, label: BilingualLabel, value: string, x: number, y: number, maxValueWidth: number, arabicReady: boolean) {
+  if (arabicReady) {
+    drawBilingualLabel(doc, label, x, y, x + 150, true)
+  } else {
+    setText(doc, 12, MUTED, 'bold')
+    doc.text(label.en, x, y)
+  }
   const valueX = hasArabic(value) && arabicReady ? x + 585 : x + 180
   const height = writeValue(doc, value || '—', valueX, y, { size: 13, color: TEXT, style: 'bold', maxWidth: maxValueWidth, arabicReady })
   return y + Math.max(28, height)
 }
 
-function drawSectionTitle(doc: jsPDF, title: string, x: number, y: number) {
+function drawSectionTitle(doc: jsPDF, label: BilingualLabel, x: number, y: number, arabicReady: boolean) {
   setText(doc, 15, BRAND_NAVY, 'bold')
-  doc.text(title, x, y)
+  doc.text(label.en, x, y)
+  if (arabicReady) writeArabic(doc, label.ar, 714, y, { size: 15, color: BRAND_NAVY })
 }
 
-export function buildInvoicePdf(data: InvoicePdfData): Uint8Array {
+function statusArabicLabel(kind: InvoicePdfData['statusKind']) {
+  if (kind === 'PAID') return 'مدفوعة / صدر الإيصال'
+  if (kind === 'WAIVED') return 'معفاة / تمت التسوية'
+  if (kind === 'PENDING') return 'غير مدفوعة / الإعفاء قيد المراجعة'
+  return 'غير مدفوعة / المبلغ مستحق'
+}
+
+function titleArabicLabel(kind: InvoicePdfData['statusKind']) {
+  if (kind === 'PAID') return 'إيصال رسمي'
+  if (kind === 'WAIVED') return 'إيصال إعفاء رسمي'
+  if (kind === 'PENDING') return 'قيد الانتظار - ليس إيصالاً نهائياً'
+  return 'فاتورة رسمية'
+}
+
+function purposeArabicLabel(value: string) {
+  return PURPOSE_LABELS_AR[value] || (hasArabic(value) ? value : 'غرض الدفع')
+}
+
+function methodArabicLabel(value: string) {
+  return METHOD_LABELS_AR[value] || (hasArabic(value) ? value : 'طريقة دفع')
+}
+
+export function buildInvoicePdf(data: InvoicePdfData, options: InvoicePdfOptions = {}): Uint8Array {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'px', format: [PAGE_W, PAGE_H], compress: true })
-  const arabicReady = registerArabicFont(doc)
+  const fontPaths = options.fontPaths || ARABIC_FONT_PATHS
+  const arabicReady = registerArabicFont(doc, fontPaths)
+  const descriptionText = pdfValue(data.description, data.descriptionFallback || data.purpose, arabicReady)
+  const methodText = pdfValue(data.method, methodLabel(), arabicReady)
+  const purposeText = pdfValue(data.purpose, 'Other Fee', arabicReady)
 
   doc.setFillColor(BRAND_NAVY)
   doc.rect(0, 0, PAGE_W, 140, 'F')
@@ -185,66 +307,83 @@ export function buildInvoicePdf(data: InvoicePdfData): Uint8Array {
   doc.text('American Academy for Consulting and Training', 70, 54)
   setText(doc, 16, '#dbeafe', 'bold')
   doc.text('AACT Platform', 70, 88)
-  setText(doc, 26, '#ffffff', 'bold')
-  doc.text(data.title, 70, 122)
+  if (arabicReady) {
+    writeArabic(doc, titleArabicLabel(data.statusKind), 714, 116, { size: 23, color: '#ffffff' })
+    setText(doc, 13, '#dbeafe', 'bold')
+    doc.text(data.title, 70, 122)
+  } else {
+    setText(doc, 26, '#ffffff', 'bold')
+    doc.text(data.title, 70, 122)
+  }
 
   const statusFill = data.statusKind === 'PAID' || data.statusKind === 'WAIVED' ? '#d1fae5' : '#fef3c7'
   const statusStroke = data.statusKind === 'PAID' || data.statusKind === 'WAIVED' ? '#047857' : '#b45309'
   fillRounded(doc, 52, 178, 690, 70, statusFill, statusStroke)
-  setText(doc, 19, statusStroke, 'bold')
-  doc.text(data.status, 80, 220)
+  if (arabicReady) {
+    drawBilingualLabel(doc, LABELS.status, 80, 204, 260, true, statusStroke)
+    setText(doc, 13, statusStroke, 'bold')
+    doc.text(data.status, 80, 228)
+    writeArabic(doc, statusArabicLabel(data.statusKind), 500, 228, { size: 16, color: statusStroke, maxWidth: 220 })
+  } else {
+    setText(doc, 19, statusStroke, 'bold')
+    doc.text(data.status, 80, 220)
+  }
   setText(doc, 24, BRAND_NAVY, 'bold')
   doc.text(data.amount, 710, 220, { align: 'right' })
 
   fillRounded(doc, 52, 280, 690, 208, '#f8fafc', BORDER)
-  drawSectionTitle(doc, 'Invoice Details', 80, 310)
+  drawSectionTitle(doc, LABELS.invoiceDetails, 80, 310, arabicReady)
   let y = 342
-  y = drawPair(doc, 'Invoice No.', data.invoiceNo, 80, y, 410, arabicReady)
-  y = drawPair(doc, 'Receipt No.', data.receiptNo || '—', 80, y, 410, arabicReady)
-  y = drawPair(doc, 'Issue Date', data.issueDate, 80, y, 410, arabicReady)
-  y = drawPair(doc, 'Paid / Waived At', data.settledAt, 80, y, 410, arabicReady)
-  y = drawPair(doc, 'Payment Method', data.method, 80, y, 410, arabicReady)
+  y = drawPair(doc, LABELS.invoiceNo, data.invoiceNo, 80, y, 410, arabicReady)
+  y = drawPair(doc, LABELS.receiptNo, data.receiptNo || '—', 80, y, 410, arabicReady)
+  y = drawPair(doc, LABELS.issueDate, data.issueDate, 80, y, 410, arabicReady)
+  y = drawPair(doc, LABELS.settledAt, data.settledAt, 80, y, 410, arabicReady)
+  y = drawPair(doc, LABELS.paymentMethod, arabicReady ? `${methodArabicLabel(methodText)} / ${methodText}` : methodText, 80, y, 410, arabicReady)
 
   fillRounded(doc, 52, 520, 690, 176, '#ffffff', BORDER)
-  drawSectionTitle(doc, 'Payer Details', 80, 550)
+  drawSectionTitle(doc, LABELS.payerDetails, 80, 550, arabicReady)
   y = 582
-  y = drawPair(doc, 'Payer', pdfValue(data.payerName, data.payerNameFallback, arabicReady), 80, y, 410, arabicReady)
-  y = drawPair(doc, 'Email', data.payerEmail, 80, y, 410, arabicReady)
-  y = drawPair(doc, 'Country', data.payerCountry, 80, y, 410, arabicReady)
-  y = drawPair(doc, 'Reference', data.reference, 80, y, 410, arabicReady)
+  y = drawPair(doc, LABELS.payer, pdfValue(data.payerName, data.payerNameFallback, arabicReady), 80, y, 410, arabicReady)
+  y = drawPair(doc, LABELS.email, data.payerEmail, 80, y, 410, arabicReady)
+  y = drawPair(doc, LABELS.country, data.payerCountry, 80, y, 410, arabicReady)
+  y = drawPair(doc, LABELS.reference, data.reference, 80, y, 410, arabicReady)
 
   fillRounded(doc, 52, 728, 690, 196, '#fffbeb', '#fde68a')
-  drawSectionTitle(doc, 'Service or Program', 80, 760)
+  drawSectionTitle(doc, LABELS.programOrService, 80, 760, arabicReady)
   const programText = pdfValue(data.programOrService, data.programOrServiceFallback, arabicReady)
   writeValue(doc, programText, hasArabic(programText) && arabicReady ? 714 : 80, 792, { size: 14, color: TEXT, style: 'bold', maxWidth: 610, arabicReady })
   doc.setDrawColor('#f4d675')
   doc.line(80, 852, 714, 852)
-  setText(doc, 12, MUTED, 'bold')
-  doc.text('Description', 80, 884)
-  writeValue(doc, data.description, 80, 910, { size: 13, color: TEXT, maxWidth: 610, arabicReady })
+  drawBilingualLabel(doc, LABELS.description, 80, 884, 230, arabicReady)
+  writeValue(doc, descriptionText, hasArabic(descriptionText) && arabicReady ? 714 : 80, 910, { size: 13, color: TEXT, maxWidth: 610, arabicReady })
 
   fillRounded(doc, 52, 952, 690, 92, SOFT_GOLD, '#ead389')
-  setText(doc, 12, MUTED, 'bold')
-  doc.text('Purpose', 80, 986)
-  setText(doc, 17, BRAND_NAVY, 'bold')
-  doc.text(data.purpose, 80, 1016)
-  setText(doc, 12, MUTED, 'bold')
-  doc.text('Total', 520, 986)
+  drawBilingualLabel(doc, LABELS.purpose, 80, 986, 230, arabicReady)
+  if (arabicReady) {
+    writeArabic(doc, `${purposeArabicLabel(purposeText)} / ${purposeText}`, 365, 1016, { size: 16, color: BRAND_NAVY, maxWidth: 285 })
+  } else {
+    setText(doc, 17, BRAND_NAVY, 'bold')
+    doc.text(purposeText, 80, 1016)
+  }
+  drawBilingualLabel(doc, LABELS.total, 520, 986, 640, arabicReady)
   setText(doc, 22, BRAND_NAVY, 'bold')
   doc.text(data.amount, 714, 1016, { align: 'right' })
 
   if (data.statusKind === 'WAIVED') {
     setText(doc, 11, '#047857', 'bold')
     doc.text(`Original: ${data.originalAmount} | Waived: ${data.waivedAmount} | Remaining: 0.00 USD`, 80, 1064)
+    if (arabicReady) writeArabic(doc, `الأصل: ${data.originalAmount} | المعفى: ${data.waivedAmount} | المتبقي: 0.00 USD`, 714, 1064, { size: 11, color: '#047857' })
   } else if (data.statusKind === 'UNPAID' || data.statusKind === 'PENDING') {
     setText(doc, 11, '#b45309', 'bold')
     doc.text(`Remaining due: ${data.amount}`, 80, 1064)
+    if (arabicReady) writeArabic(doc, `المتبقي المستحق: ${data.amount}`, 714, 1064, { size: 11, color: '#b45309' })
   }
 
   doc.setDrawColor(BORDER)
   doc.line(52, 1084, 742, 1084)
   setText(doc, 11, MUTED, 'normal')
   doc.text('Generated electronically by AACT Platform. No manual signature required.', 52, 1106)
+  if (arabicReady) writeArabic(doc, 'تم إنشاء المستند إلكترونياً عبر منصة AACT ولا يحتاج إلى توقيع يدوي.', 714, 1106, { size: 11, color: MUTED })
   doc.text('aactacademy.com', 742, 1106, { align: 'right' })
 
   return new Uint8Array(doc.output('arraybuffer'))
@@ -332,6 +471,8 @@ export async function GET(_req: NextRequest, context: RouteContext) {
     const status = statusInfo(payment.status, payment.waiverStatus)
     const originalAmount = typeof payment.originalAmount === 'number' && payment.originalAmount > 0 ? payment.originalAmount : payment.amount
     const waivedAmount = typeof payment.waivedAmount === 'number' && payment.waivedAmount > 0 ? payment.waivedAmount : (payment.status === 'WAIVED' ? originalAmount : 0)
+    const arabicFontReady = isArabicFontAvailable()
+    const fallbackDescription = purposeLabel(payment.purpose)
 
     const pdf = buildInvoicePdf({
       invoiceNo: payment.invoiceNo,
@@ -347,8 +488,9 @@ export async function GET(_req: NextRequest, context: RouteContext) {
       payerCountry,
       programOrService,
       programOrServiceFallback: programFallback,
-      purpose: purposeLabel(payment.purpose),
-      description: pdfValue(payment.description || purposeLabel(payment.purpose), purposeLabel(payment.purpose), false),
+      purpose: fallbackDescription,
+      description: safeText(payment.description || fallbackDescription, fallbackDescription),
+      descriptionFallback: fallbackDescription,
       amount: formatMoney(payment.amount, payment.currency),
       originalAmount: formatMoney(originalAmount, payment.currency),
       waivedAmount: formatMoney(waivedAmount, payment.currency),
@@ -367,6 +509,7 @@ export async function GET(_req: NextRequest, context: RouteContext) {
         'Content-Disposition': `inline; filename="${filename}"`,
         'Cache-Control': 'private, no-store, max-age=0',
         'Content-Length': String(pdf.byteLength),
+        'X-Arabic-Font': arabicFontReady ? 'ready' : 'missing',
       },
     })
   } catch (e) {
