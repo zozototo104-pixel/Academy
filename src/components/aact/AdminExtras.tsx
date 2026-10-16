@@ -1237,6 +1237,13 @@ export function AdminFinanceTab() {
                                   فتح الإيصال: {proof.fileName}
                                 </a>
                                 {proof.uploadedBy?.name ? <div className="text-emerald-700">رفعه: {proof.uploadedBy.name}</div> : null}
+                                {proof.adminNote ? <div className="text-slate-500">ملاحظة الإدارة: {proof.adminNote}</div> : null}
+                                {proof.status === 'PENDING' && (
+                                  <div className="flex flex-wrap gap-1 pt-1">
+                                    <Button type="button" size="sm" disabled={proofReviewBusy === proof.id} onClick={() => reviewPaymentProof(p, proof, 'ACCEPT')} className="h-7 bg-emerald-600 px-2 text-[10px] font-black text-white hover:bg-emerald-700">قبول الإثبات</Button>
+                                    <Button type="button" size="sm" variant="outline" disabled={proofReviewBusy === proof.id} onClick={() => reviewPaymentProof(p, proof, 'REJECT')} className="h-7 border-red-200 px-2 text-[10px] font-black text-red-600 hover:bg-red-50">رفض بسبب</Button>
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
