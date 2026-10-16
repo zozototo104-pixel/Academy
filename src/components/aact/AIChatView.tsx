@@ -149,6 +149,7 @@ export function AIChatView() {
   const [voicePackageDialog, setVoicePackageDialog] = useState<{ open: boolean; message: string }>({ open: false, message: '' })
   const [voicePackageOffer, setVoicePackageOffer] = useState<{ minutes: number; amount: number; currency: string } | null>(null)
   const [voicePackageBusy, setVoicePackageBusy] = useState(false)
+  const [voiceDialect, setVoiceDialect] = useState(() => defaultVoiceDialect())
   const agentRef = useRef<VoiceAgent | null>(null)
   const mutedRef = useRef(muted)
 
