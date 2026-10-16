@@ -328,7 +328,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'يرجى إدخال رقم الشهادة أو مسح رمز QR' }, { status: 400 })
     }
 
-    const verifyLimit = enforceApiRateLimit(
+    const verifyLimit = await enforceDatabaseApiRateLimit(
       req,
       'certificates:verify',
       byToken ? 30 : 20,
