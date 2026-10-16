@@ -1,0 +1,31 @@
+name: Invoice PDF Variants
+
+on:
+  workflow_dispatch:
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install dependencies
+        run: bun install
+      - name: Install PDF rasterizer
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils
+      - name: Render invoice PDF variants
+        run: bun scripts/render-invoice-variants.ts --out=.artifacts/invoice-variants
+      - name: Convert PDFs to PNG previews
+        run: |
+          mkdir -p .artifacts/invoice-variants/png
+          for pdf in .artifacts/invoice-variants/*.pdf; do
+            base="$(basename "$pdf" .pdf)"
+            pdftoppm -png -singlefile -r 180 "$pdf" ".artifacts/invoice-variants/png/$base"
+          done
+      - name: Upload invoice variants
+        uses: actions/upload-artifact@v4
+        with:
+          name: invoice-variants
+          path: .artifacts/invoice-variants
