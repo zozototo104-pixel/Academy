@@ -6,6 +6,7 @@ on:
     paths:
       - 'scripts/render-invoice-variants.ts'
       - 'src/lib/pdf-arabic.ts'
+      - 'src/lib/invoice-pdf.ts'
       - 'src/app/api/pdf/invoices/**'
       - '.github/workflows/invoice-variants.yml'
 
