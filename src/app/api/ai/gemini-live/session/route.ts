@@ -266,8 +266,8 @@ export async function POST(req: NextRequest) {
   }
 
   const voice = cleanVoice(body.voice || await geminiTTSVoice())
-  const defaultDialect = await getSetting('VOICE_DEFAULT_DIALECT').catch(() => process.env.VOICE_DEFAULT_DIALECT || 'ar-PS')
-  const dialect = cleanDialect(body.dialect || defaultDialect || 'ar-PS')
+  const defaultDialect = await getSetting('VOICE_DEFAULT_DIALECT').catch(() => process.env.VOICE_DEFAULT_DIALECT || VOICE_DEFAULT_DIALECT)
+  const dialect = cleanDialect(body.dialect || defaultDialect || VOICE_DEFAULT_DIALECT)
   const setupVariant = cleanVariant(body.setupVariant)
   const liveScope = resolveAiKnowledgeScope({ role: user.role, purpose })
   const liveQuery = String(body.context || '')
