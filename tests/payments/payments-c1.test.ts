@@ -86,6 +86,7 @@ mock.module('@/lib/settle-payment', () => ({
   ...realSettlePayment,
   markInvoicePaid: async (invoiceNo: string, method: string) => {
     calls.push(`markInvoicePaid:${invoiceNo}:${method}`)
+    if (!markInvoicePaidOk) return { ok: false, error: 'SETTLEMENT_FAILED' }
     return { ok: true, payment: { ...proofPayment, status: 'PAID', method }, receiptNo: 'RCT-1' }
   },
 }))
