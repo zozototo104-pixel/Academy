@@ -194,10 +194,10 @@ export async function POST(req: NextRequest) {
       const programId = String(body?.programId || '').trim()
       if (!programId) return NextResponse.json({ error: 'معرّف البرنامج مطلوب' }, { status: 400 })
 
-      const program = await db.program.findUnique({
+      const program = await withTiming('db_program_rules_renumber_program', () => db.program.findUnique({
         where: { id: programId },
         select: { id: true, titleAr: true, units: { select: { id: true, order: true, semester: true }, orderBy: [{ semester: 'asc' }, { order: 'asc' }, { id: 'asc' }] } },
-      })
+      }))
       if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
 
       const bySemester = new Map<number, typeof program.units>()
