@@ -135,6 +135,7 @@ export async function POST(req: NextRequest) {
     console.error('study guide POST error:', e)
     return NextResponse.json({ error: e?.message || 'تعذر توليد دليل الدراسة' }, { status: 500 })
   }
+  })
 }
 
 export async function PATCH(req: NextRequest) {
