@@ -302,11 +302,13 @@ async function buildVerifyPayload(cert: any, verificationMode: 'QR_TOKEN' | 'SER
       verificationUrl: includeDetails ? certificateVerificationUrl(cert) : null,
       credentialUrl: includeDetails ? certificateCredentialUrl(cert) : null,
     },
-    message: effectiveValid
-      ? includeDetails
-        ? 'تم التحقق من بيانات صاحب الشهادة وعرض التفاصيل الأكاديمية الكاملة.'
-        : 'شهادة صحيحة ومسجلة رسمياً. تظهر هنا بيانات التحقق العامة فقط؛ يمكن لصاحب الشهادة فتح التفاصيل بإدخال البريد المسجل وآخر 4 أرقام من الهاتف.'
-      : 'الشهادة موجودة لكنها موقوفة أو لم تعد مستوفية لشروط الإصدار الأكاديمية — يرجى التواصل مع الإدارة',
+    message: isRevoked
+      ? `الشهادة ملغاة${revokedAt ? ` بتاريخ ${revokedAt.slice(0, 10)}` : ''}${cert.revokedReason ? ` — السبب: ${cert.revokedReason}` : ''}`
+      : effectiveValid
+        ? includeDetails
+          ? 'تم التحقق من بيانات صاحب الشهادة وعرض التفاصيل الأكاديمية الكاملة.'
+          : 'شهادة صحيحة ومسجلة رسمياً. تظهر هنا بيانات التحقق العامة فقط؛ يمكن لصاحب الشهادة فتح التفاصيل بإدخال البريد المسجل وآخر 4 أرقام من الهاتف.'
+        : 'الشهادة موجودة لكنها موقوفة أو لم تعد مستوفية لشروط الإصدار الأكاديمية — يرجى التواصل مع الإدارة',
   }
 }
 
