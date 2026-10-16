@@ -1,8 +1,10 @@
 'use client'
 
 import { ArrowRight } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 export function PublicBackButton({ label = 'رجوع للخلف' }: { label?: string }) {
+  const router = useRouter()
   return (
     <button
       type="button"
