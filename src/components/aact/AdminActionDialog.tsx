@@ -133,5 +133,5 @@ export function useAdminActionDialog() {
     )
   })() : null
 
-  return { confirmAction, promptAction, dialog: DialogNode }
+  return { alertAction, confirmAction, promptAction, dialog: DialogNode }
 }
