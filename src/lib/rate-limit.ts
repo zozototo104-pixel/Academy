@@ -88,19 +88,26 @@ export async function checkDatabaseRateLimit(key: string, limit: number, windowM
   const resetAt = windowStart.getTime() + windowMs
   const window = `${windowMs}`
   const keyHashValue = keyHash(key)
-  await db.keyRateWindow.deleteMany({ where: { windowStart: { lt: new Date(now - windowMs * 4) } } }).catch(() => null)
-  const row = await db.keyRateWindow.upsert({
-    where: { keyHash_window_windowStart: { keyHash: keyHashValue, window, windowStart } },
-    create: { keyHash: keyHashValue, window, windowStart, count: 1 },
-    update: { count: { increment: 1 } },
-    select: { count: true },
-  })
-  const ok = row.count <= limit
-  return {
-    ok,
-    remaining: ok ? Math.max(0, limit - row.count) : 0,
-    resetAt,
-    retryAfterSec: ok ? 0 : Math.max(1, Math.ceil((resetAt - now) / 1000)),
+  try {
+    if (Math.random() < 0.05) {
+      await db.keyRateWindow.deleteMany({ where: { window, windowStart: { lt: new Date(now - windowMs * 4) } } }).catch(() => null)
+    }
+    const row = await db.keyRateWindow.upsert({
+      where: { keyHash_window_windowStart: { keyHash: keyHashValue, window, windowStart } },
+      create: { keyHash: keyHashValue, window, windowStart, count: 1 },
+      update: { count: { increment: 1 } },
+      select: { count: true },
+    })
+    const ok = row.count <= limit
+    return {
+      ok,
+      remaining: ok ? Math.max(0, limit - row.count) : 0,
+      resetAt,
+      retryAfterSec: ok ? 0 : Math.max(1, Math.ceil((resetAt - now) / 1000)),
+    }
+  } catch (error) {
+    console.error('[rate-limit] database limiter failed; falling back to in-memory limiter', error)
+    return checkRateLimit(`db-fallback:${key}`, limit, windowMs)
   }
 }
 
