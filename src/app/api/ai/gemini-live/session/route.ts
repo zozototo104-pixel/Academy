@@ -171,7 +171,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'أدخل مفتاح Gemini API أولاً من لوحة الإدارة' }, { status: 400 })
   }
 
-  let body: { model?: string; voice?: string; context?: string; purpose?: string; testOnly?: boolean; setupVariant?: SetupVariant } = {}
+  let body: { model?: string; voice?: string; dialect?: string; context?: string; purpose?: string; testOnly?: boolean; setupVariant?: SetupVariant } = {}
   try {
     body = await req.json()
   } catch (error) {
