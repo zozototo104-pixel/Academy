@@ -5,6 +5,7 @@ import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { getAiGenerationProgress } from '@/lib/ai-generation-progress'
 import { audit } from '@/lib/notify'
 import { ensureQuestionBankGenerationJob, runNextQuestionBankGenerationJobStep, runQuestionBankGenerationJobStepsUntil } from '@/lib/question-bank-job'
+import { withTimedResponse, withTiming } from '@/lib/timing'
 
 export const maxDuration = 300
 
