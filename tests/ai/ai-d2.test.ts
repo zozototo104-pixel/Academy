@@ -124,6 +124,22 @@ async function json(res: Response) {
   return res.json() as Promise<any>
 }
 
+function simulatePcmCaptureWorklet() {
+  const code = readFileSync(join(process.cwd(), 'public', 'worklets', 'pcm-capture.js'), 'utf8')
+  const registry: Record<string, any> = {}
+  class FakeAudioWorkletProcessor {
+    port = { messages: [] as any[], postMessage: (message: any) => this.port.messages.push(message) }
+  }
+  new Function('AudioWorkletProcessor', 'sampleRate', 'registerProcessor', code)(
+    FakeAudioWorkletProcessor,
+    48000,
+    (name: string, processor: any) => { registry[name] = processor }
+  )
+  const Processor = registry['pcm-capture']
+  if (!Processor) throw new Error('pcm-capture worklet was not registered')
+  return new Processor() as FakeAudioWorkletProcessor & { process: (inputs: Float32Array[][]) => boolean }
+}
+
 beforeEach(() => {
   calls.splice(0, calls.length)
   capturedAsrOptions = null
