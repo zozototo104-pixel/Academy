@@ -7,6 +7,7 @@ let appealUpdateCount = 1
 let storedReadResult: { buffer: Buffer; mimeType: string } | null = null
 let certificate: any
 let thesisRows: any[] = []
+let currentUser: any
 
 function matchWhere(row: any, where: any) {
   if (!where) return true
