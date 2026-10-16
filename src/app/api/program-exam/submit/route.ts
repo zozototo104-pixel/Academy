@@ -69,6 +69,28 @@ function resultMetadata(q: any) {
   }
 }
 
+function programAnswerData(attemptId: string, prepared: ProgramAnswerData) {
+  return {
+    attemptId,
+    questionId: prepared.questionId,
+    selectedOption: prepared.selectedOption ?? null,
+    answerText: prepared.answerText ?? null,
+    isCorrect: prepared.isCorrect ?? null,
+    points: prepared.points ?? null,
+    maxPoints: prepared.maxPoints == null ? null : Math.max(0, Math.round(Number(prepared.maxPoints) || 0)),
+    aiFeedback: prepared.aiFeedback ?? null,
+  }
+}
+
+async function persistProgramAnswer(client: any, attemptId: string, prepared: ProgramAnswerData, updateExisting = false) {
+  const data = programAnswerData(attemptId, prepared)
+  if (updateExisting) {
+    const updated = await client.programAnswer.updateMany({ where: { attemptId, questionId: prepared.questionId }, data })
+    if (updated.count > 0) return
+  }
+  await client.programAnswer.create({ data })
+}
+
 /** تنفيذ مهام بشكل متوازٍ على دفعات (لتسريع التصحيح الآلي دون إغراق النموذج) */
 async function mapLimited<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const results: R[] = new Array(items.length)
