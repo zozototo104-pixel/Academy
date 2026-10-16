@@ -142,7 +142,8 @@ describe('academic B2 safety', () => {
     expect(payload.error).toContain('حُسم')
   })
 
-  test('admin defense recording route reads external stored file through readStoredFile only for admin route', async () => {
+  test('supervisor defense recording route reads external stored file through readStoredFile', async () => {
+    currentUser = { id: 'supervisor-1', name: 'مشرف', email: 'supervisor@example.test', role: 'SUPERVISOR' }
     const res = await defenseRecordingRoute.GET(new NextRequest('https://academy.test/api/admin/defense-recording?thesisId=thesis-rec'))
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toBe('video/webm')
