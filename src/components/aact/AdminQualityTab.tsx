@@ -949,7 +949,7 @@ export function AdminQualityTab() {
       const res = await api<{ student: any }>(`/api/admin/students?userId=${encodeURIComponent(studentId)}`)
       setSelectedStudent(res.student)
     } catch (e: any) {
-      alert(e?.message || 'تعذر تحميل تفاصيل الطالب')
+      await alertAction({ title: 'تعذر تحميل تفاصيل الطالب', description: e?.message || 'لم يتم فتح ملف الطالب.', tone: 'danger' })
     } finally {
       setStudentBusyId(null)
     }
