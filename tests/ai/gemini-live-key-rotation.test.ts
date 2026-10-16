@@ -35,7 +35,8 @@ mock.module('@/lib/gemini', () => ({
 }))
 
 const textAi = await import('../../src/lib/text-ai')
-const { POST } = await import('../../src/app/api/ai/gemini-live/session/route')
+const { dialectInstruction } = await import('../../src/lib/voice-dialect')
+const { POST, buildGeminiLiveSetup, buildGeminiLiveSdkConfig, cleanDialect } = await import('../../src/app/api/ai/gemini-live/session/route')
 
 const values = new Map<string, string>()
 const store = {
@@ -62,11 +63,11 @@ function configureGeminiKeys(...keys: string[]) {
   values.set('GEMINI_API_KEYS', keys.join('\n'))
 }
 
-function liveRequest() {
+function liveRequest(dialect = 'ar-PS') {
   return new NextRequest('http://localhost/api/ai/gemini-live/session', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ testOnly: true, purpose: 'SUPERVISOR', model: 'gemini-3.1-flash-live-preview' }),
+    body: JSON.stringify({ testOnly: true, purpose: 'SUPERVISOR', model: 'gemini-3.1-flash-live-preview', dialect }),
   })
 }
 
@@ -101,6 +102,55 @@ afterAll(() => {
   else process.env.GEMINI_API_KEYS = originalGeminiApiKeys
 })
 
+describe('Gemini Live raw setup shape', () => {
+  test('uses generationConfig for response modalities and keeps transcription directly under setup', () => {
+    const variants = ['minimal', 'generationConfig', 'bare'] as const
+    const palestinianInstruction = dialectInstruction('ar-PS')
+
+    for (const variant of variants) {
+      const payload = buildGeminiLiveSetup(variant, 'gemini-3.1-flash-live-preview', 'voice instructions', 'Charon', 'ar-PS') as any
+      const setup = payload.setup
+
+      expect(setup.model).toBe('models/gemini-3.1-flash-live-preview')
+      expect(setup.generationConfig?.responseModalities).toEqual(['AUDIO'])
+      expect(setup.generationConfig?.speechConfig).toEqual({
+        voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Charon' } },
+      })
+      expect(setup.generationConfig?.speechConfig?.languageCode).toBeUndefined()
+      expect(setup.systemInstruction.parts[0].text.startsWith(palestinianInstruction)).toBe(true)
+      expect(setup.systemInstruction.parts[0].text).toContain('\n\nvoice instructions')
+      expect(setup.inputAudioTranscription).toEqual({})
+      expect(setup.inputAudioTranscription.languageCode).toBeUndefined()
+      expect(setup.outputAudioTranscription).toEqual({})
+      expect(setup.outputAudioTranscription.languageCode).toBeUndefined()
+      expect(setup.responseModalities).toBeUndefined()
+      expect(setup.speechConfig).toBeUndefined()
+      expect(setup.generationConfig?.inputAudioTranscription).toBeUndefined()
+      expect(setup.generationConfig?.outputAudioTranscription).toBeUndefined()
+    }
+  })
+
+  test('normalizes unknown dialect codes to the supported default', () => {
+    expect(cleanDialect('ar-XX')).toBe('ar-PS')
+    expect(cleanDialect('ar-IQ')).toBe('ar-IQ')
+    expect(dialectInstruction('xx-YY')).toBe(dialectInstruction('ar-PS'))
+  })
+
+  test('uses the same dialect instruction and transcription shape in SDK config', () => {
+    const palestinianInstruction = dialectInstruction('ar-PS')
+    const sdkConfig = buildGeminiLiveSdkConfig('voice instructions', 'Charon', 'ar-PS') as any
+
+    expect(sdkConfig.responseModalities).toEqual(['AUDIO'])
+    expect(sdkConfig.speechConfig).toEqual({ voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Charon' } } })
+    expect(sdkConfig.inputAudioTranscription).toEqual({})
+    expect(sdkConfig.inputAudioTranscription.languageCode).toBeUndefined()
+    expect(sdkConfig.outputAudioTranscription).toEqual({})
+    expect(sdkConfig.outputAudioTranscription.languageCode).toBeUndefined()
+    expect(sdkConfig.systemInstruction.startsWith(palestinianInstruction)).toBe(true)
+    expect(sdkConfig.systemInstruction).toContain('\n\nvoice instructions')
+  })
+})
+
 describe('Gemini Live key rotation uses the text AI router state', () => {
   test('key 1 returns 403 and key 2 succeeds, while key 1 receives router cooldown', async () => {
     configureGeminiKeys('AIzaBAD1111', 'AIzaGOOD2222')
@@ -113,6 +163,8 @@ describe('Gemini Live key rotation uses the text AI router state', () => {
 
     expect(response.status).toBe(200)
     expect(payload).toMatchObject({ ok: true, model: 'gemini-3.1-flash-live-preview' })
+    expect(payload.setup.setup.systemInstruction.parts[0].text.startsWith(dialectInstruction('ar-PS'))).toBe(true)
+    expect(payload.sdkConfig.systemInstruction.startsWith(dialectInstruction('ar-PS'))).toBe(true)
     expect(fetchKeys).toEqual(['AIzaBAD1111', 'AIzaGOOD2222'])
 
     const cooldownRaw = values.get('AI_COOLDOWN:GEMINI:1:gemini-live')

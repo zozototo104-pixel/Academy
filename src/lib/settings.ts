@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { VOICE_DEFAULT_DIALECT } from '@/lib/voice-dialect'
 
 // ===== إعدادات المنصة القابلة للتعديل من لوحة التحكم بدون كود =====
 // القيم الافتراضية مأخوذة من دليل إجراءات وشروط الالتحاق وعقد التمثيل الدولي.
@@ -139,7 +140,7 @@ export const DEFAULT_SETTINGS: SettingDef[] = [
   { key: 'UNIT_MIN_KNOWLEDGE_ITEMS', value: '15', label: 'الحد الأدنى لعناصر المعرفة قبل تخفيض عدد أسئلة الوحدة', group: 'AI', suffix: 'عنصر', inputType: 'number' },
   { key: 'EXAM_LOW_SKILL_MAX_PERCENT', value: '50', label: 'الحد الأعلى لنسبة أسئلة الحفظ/الفهم قبل نشر الاختبارات', group: 'AI', suffix: '%', inputType: 'number' },
   { key: 'PROGRAM_EXAM_HIGH_SKILL_MIN_PERCENT', value: '20', label: 'الحد الأدنى للتحليل والتقييم في الامتحان الشامل', group: 'AI', suffix: '%', inputType: 'number' },
-  { key: 'VOICE_DEFAULT_DIALECT', value: 'ar-PS', label: 'اللهجة الافتراضية للتعرّف على الصوت', group: 'AI', suffix: '', inputType: 'text' },
+  { key: 'VOICE_DEFAULT_DIALECT', value: VOICE_DEFAULT_DIALECT, label: 'اللهجة الافتراضية للتعرّف على الصوت', group: 'AI', suffix: '', inputType: 'text' },
 
   // القواعد والمهل الزمنية
   { key: 'AGENT_COMMISSION_RATE', value: '25', label: 'نسبة عمولة الوكيل من إيرادات البرامج', group: 'RULES', suffix: '%', inputType: 'number' },

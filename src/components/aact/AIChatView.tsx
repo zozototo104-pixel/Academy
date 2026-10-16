@@ -4,6 +4,7 @@ import { useAppStore, api, getToken } from '@/lib/store'
 import { getSharedAudio, playOnSharedAudio, unlockAudioOnFirstGesture } from '@/lib/audioPlayer'
 import { GeminiLiveAgent as VoiceAgent, isLiveMinutesExhausted } from '@/lib/voice/geminiLiveAgent'
 import type { VoiceState as AgentVoiceState } from '@/lib/voice/voiceStateMachine'
+import { VOICE_DIALECT_OPTIONS } from '@/lib/voice-dialect'
 import { AcademyLogo } from '@/components/aact/Shell'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast, useToast } from '@/hooks/use-toast'
@@ -69,12 +70,7 @@ interface SpeechRecognitionLike {
   stop: () => void
   abort: () => void
 }
-const DIALECT_OPTIONS = [
-  { value: 'ar-PS', label: 'شامي/فلسطيني' },
-  { value: 'ar-EG', label: 'مصري' },
-  { value: 'ar-SA', label: 'خليجي' },
-  { value: 'ar-MA', label: 'مغاربي' },
-]
+const DIALECT_OPTIONS = VOICE_DIALECT_OPTIONS
 
 function defaultVoiceDialect() {
   return process.env.NEXT_PUBLIC_VOICE_DEFAULT_DIALECT || 'ar-PS'

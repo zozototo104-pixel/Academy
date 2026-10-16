@@ -23,6 +23,7 @@ import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { getSetting } from '@/lib/settings'
 import { redactSecrets } from '@/lib/secret-crypto'
 import { getGeminiLiveAllowance, reserveGeminiLiveUsage, type LivePurpose } from '@/lib/live-usage-guard'
+import { dialectInstruction, normalizeVoiceDialect, VOICE_DEFAULT_DIALECT } from '@/lib/voice-dialect'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
@@ -41,9 +42,8 @@ function cleanVoice(voice: unknown): string {
   return /^[A-Za-z][A-Za-z0-9_-]{1,40}$/.test(v) ? v : 'Charon'
 }
 
-function cleanDialect(value: unknown): string {
-  const v = String(value || '').trim()
-  return /^ar-[A-Z]{2}$/.test(v) ? v : 'ar-PS'
+export function cleanDialect(value: unknown): string {
+  return normalizeVoiceDialect(value)
 }
 
 function cleanVariant(v: unknown): SetupVariant {
@@ -197,47 +197,35 @@ function speechConfigForVoice(voice: string) {
   }
 }
 
-function buildSetup(variant: SetupVariant, model: string, systemInstruction: string, voice: string, dialect: string) {
-  const instruction = systemInstruction.slice(0, 32000)
-  const speechConfig = speechConfigForVoice(voice)
+function withDialectInstruction(systemInstruction: string, dialect: string) {
+  return `${dialectInstruction(dialect)}\n\n${String(systemInstruction || '')}`.slice(0, 32000)
+}
 
-  if (variant === 'bare') {
-    return {
-      setup: {
-        model: `models/${model}`,
-        responseModalities: ['AUDIO'],
-        speechConfig,
-        inputAudioTranscription: { languageCode: dialect },
-      },
-    }
-  }
-
-  if (variant === 'generationConfig') {
-    return {
-      setup: {
-        model: `models/${model}`,
-        generationConfig: {
-          responseModalities: ['AUDIO'],
-          speechConfig,
-          inputAudioTranscription: { languageCode: dialect },
-        },
-        systemInstruction: {
-          parts: [{ text: instruction }],
-        },
-      },
-    }
-  }
-
+export function buildGeminiLiveSetup(_variant: SetupVariant, model: string, systemInstruction: string, voice: string, dialect: string) {
+  const instruction = withDialectInstruction(systemInstruction, dialect)
   return {
     setup: {
       model: `models/${model}`,
-      responseModalities: ['AUDIO'],
-      speechConfig,
-      inputAudioTranscription: { languageCode: dialect },
+      generationConfig: {
+        responseModalities: ['AUDIO'],
+        speechConfig: speechConfigForVoice(voice),
+      },
       systemInstruction: {
         parts: [{ text: instruction }],
       },
+      inputAudioTranscription: {},
+      outputAudioTranscription: {},
     },
+  }
+}
+
+export function buildGeminiLiveSdkConfig(systemInstruction: string, voice: string, dialect: string) {
+  return {
+    responseModalities: ['AUDIO'],
+    speechConfig: speechConfigForVoice(voice),
+    inputAudioTranscription: {},
+    outputAudioTranscription: {},
+    systemInstruction: withDialectInstruction(systemInstruction, dialect),
   }
 }
 
@@ -278,8 +266,8 @@ export async function POST(req: NextRequest) {
   }
 
   const voice = cleanVoice(body.voice || await geminiTTSVoice())
-  const defaultDialect = await getSetting('VOICE_DEFAULT_DIALECT').catch(() => process.env.VOICE_DEFAULT_DIALECT || 'ar-PS')
-  const dialect = cleanDialect(body.dialect || defaultDialect || 'ar-PS')
+  const defaultDialect = await getSetting('VOICE_DEFAULT_DIALECT').catch(() => process.env.VOICE_DEFAULT_DIALECT || VOICE_DEFAULT_DIALECT)
+  const dialect = cleanDialect(body.dialect || defaultDialect || VOICE_DEFAULT_DIALECT)
   const setupVariant = cleanVariant(body.setupVariant)
   const liveScope = resolveAiKnowledgeScope({ role: user.role, purpose })
   const liveQuery = String(body.context || '')
@@ -303,7 +291,8 @@ export async function POST(req: NextRequest) {
     voice,
   })
 
-  const setup = buildSetup(setupVariant, model, systemInstruction, voice, dialect)
+  const setup = buildGeminiLiveSetup(setupVariant, model, systemInstruction, voice, dialect)
+  const sdkConfig = buildGeminiLiveSdkConfig(systemInstruction, voice, dialect)
 
   const now = Date.now()
   const sessionLimitMinutes = allowance?.sessionLimitMinutes || 10
@@ -365,6 +354,8 @@ export async function POST(req: NextRequest) {
         expiresAt: expireTime,
         sessionLimitMinutes,
         liveUsage: allowance,
+        setup,
+        sdkConfig,
         message: 'تم إنشاء رمز Gemini Live مؤقت بنجاح',
       })
     }
@@ -389,12 +380,7 @@ export async function POST(req: NextRequest) {
       liveUsage: reservedUsage,
       wsUrl: `${LIVE_WS_BASE}?access_token=${encodeURIComponent(token)}`,
       setup,
-      sdkConfig: {
-        responseModalities: ['AUDIO'],
-        speechConfig: speechConfigForVoice(voice),
-        inputAudioTranscription: { languageCode: dialect },
-        systemInstruction: systemInstruction.slice(0, 32000),
-      },
+      sdkConfig,
     })
   } catch (e: any) {
     console.error('gemini-live session error:', redactSecrets(String(e?.message || e)).slice(0, 500))
