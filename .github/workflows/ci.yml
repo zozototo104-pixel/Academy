@@ -12,4 +12,5 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install
       - run: bunx prisma generate
+      - run: bun run test:outline-units
       - run: bunx tsc --noEmit
