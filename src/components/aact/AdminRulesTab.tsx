@@ -655,7 +655,7 @@ export function AdminRulesTab() {
   }
 
   const applyPriceHoursToCategory = async () => {
-    if (!programDraft) return
+    if (detailsLoading || !programDraft) return
     if (programDraft.price === null || programDraft.price === undefined || !Number.isFinite(Number(programDraft.price))) {
       toast({ title: 'أدخل السعر أولاً قبل التطبيق الجماعي', variant: 'destructive' })
       return
