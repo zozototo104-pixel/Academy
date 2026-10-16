@@ -311,7 +311,7 @@ export async function POST(req: NextRequest) {
     }
 
     const selectedTitle = programRec?.titleAr || program.trim()
-    const app = await db.admissionApplication.create({
+    const app = await withTiming('db_admissions_application_create', () => db.admissionApplication.create({
       data: {
         reference,
         fullName: fullName.trim(),
