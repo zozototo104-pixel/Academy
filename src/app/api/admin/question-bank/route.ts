@@ -149,13 +149,13 @@ export async function GET(req: NextRequest) {
     const programId = cleanText(req.nextUrl.searchParams.get('programId'), 80)
     const status = cleanText(req.nextUrl.searchParams.get('status'), 40)
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
-    const program = await db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true } })
+    const program = await withTiming('db_question_bank_program', () => db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true } }))
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
-    await runNextQuestionBankGenerationJobStep(programId).catch((error) => console.warn('question bank background resume failed:', error))
-    const pauseSetting = await db.setting.findUnique({ where: { key: `AI_TASK_PAUSE:QUESTION_BANK:${programId}` } }).catch(() => null)
+    await withTiming('db_question_bank_resume_job_step', () => runNextQuestionBankGenerationJobStep(programId).catch((error) => console.warn('question bank background resume failed:', error)))
+    const pauseSetting = await withTiming('db_question_bank_pause_setting', () => db.setting.findUnique({ where: { key: `AI_TASK_PAUSE:QUESTION_BANK:${programId}` } }).catch(() => null))
     const paused = pauseSetting?.value ? safeJson(pauseSetting.value, null) : null
-    const progress = await getAiGenerationProgress('QUESTION_BANK', programId, 'ALL')
-    const jobs = await db.questionBankGenerationJob.findMany({ where: { programId }, orderBy: { createdAt: 'desc' }, take: 5 })
+    const progress = await withTiming('db_question_bank_progress', () => getAiGenerationProgress('QUESTION_BANK', programId, 'ALL'))
+    const jobs = await withTiming('db_question_bank_jobs', () => db.questionBankGenerationJob.findMany({ where: { programId }, orderBy: { createdAt: 'desc' }, take: 5 }))
     return NextResponse.json({ program, stats: await questionStats(programId), items: await listQuestions(programId, status), paused, progress, jobs })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
