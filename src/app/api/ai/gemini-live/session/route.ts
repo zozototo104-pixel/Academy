@@ -113,7 +113,7 @@ function speechConfigForVoice(voice: string) {
   }
 }
 
-function buildSetup(variant: SetupVariant, model: string, systemInstruction: string, voice: string) {
+function buildSetup(variant: SetupVariant, model: string, systemInstruction: string, voice: string, dialect: string) {
   const instruction = systemInstruction.slice(0, 32000)
   const speechConfig = speechConfigForVoice(voice)
 
