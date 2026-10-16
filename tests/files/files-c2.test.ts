@@ -14,6 +14,15 @@ describe('files C2 upload and backup safety', () => {
     expect(valid).toMatchObject({ ok: true, mimeType: 'application/pdf' })
   })
 
+  test('legacy OLE doc files are accepted as application/msword by extension', () => {
+    const oleDoc = Buffer.concat([Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]), Buffer.alloc(32)])
+    expect(validateAdmissionFileSignature({ buffer: oleDoc, fileName: 'file.doc', mimeType: 'application/octet-stream' })).toMatchObject({
+      ok: true,
+      kind: 'doc',
+      mimeType: 'application/msword',
+    })
+  })
+
   test('database backup includes payment proofs waivers attempts and certificate templates', () => {
     const tables = backupTableNames()
     expect(tables).toContain('PaymentProof')
