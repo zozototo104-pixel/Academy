@@ -160,6 +160,7 @@ export function drawArabicImage(
   const width = Math.ceil(maxWidth + pad * 2)
   const height = Math.ceil(lines.length * lineHeight + pad * 2)
   const scale = 2
+  const { createCanvas } = loadCanvasModule()
   const canvas = createCanvas(width * scale, height * scale)
   const ctx = canvas.getContext('2d')
   ctx.scale(scale, scale)
