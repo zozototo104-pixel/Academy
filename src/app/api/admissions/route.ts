@@ -222,9 +222,9 @@ export async function POST(req: NextRequest) {
     // البحث عن البرنامج/الخدمة قبل فحص الهوية والمستندات حتى نفرق بين طلب الدراسة وطلب الخدمة المهنية.
     // لا نستخدم contains هنا؛ المطابقة الجزئية قد تربط الطلب بأول برنامج يشترك بجزء من الاسم.
     const requestedProgramTitle = program.trim().split(' — ')[0].trim()
-    const programRec = programId
-      ? await db.program.findFirst({ where: { id: programId, active: true } })
-      : await db.program.findFirst({ where: { titleAr: requestedProgramTitle, active: true } })
+    const programRec = await withTiming('db_admissions_program_lookup', () => programId
+      ? db.program.findFirst({ where: { id: programId, active: true } })
+      : db.program.findFirst({ where: { titleAr: requestedProgramTitle, active: true } }))
     if (!programRec) {
       return NextResponse.json({ error: 'البرنامج أو الخدمة المحددة غير موجودة أو غير متاحة حالياً. يرجى العودة إلى قائمة البرامج واختيارها من جديد.' }, { status: 400 })
     }
