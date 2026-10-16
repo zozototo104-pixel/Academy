@@ -47,10 +47,10 @@ function pdfOutput(pdf: Uint8Array) {
 }
 
 describe('Arabic invoice PDF rendering', () => {
-  test('converts Arabic to visual order without reversing embedded Latin and numbers', () => {
-    const visual = toVisualArabic('رقم الفاتورة')
-    expect(visual).not.toBe('رقم الفاتورة')
-    expect(visual).not.toBe(Array.from(Array.from('رقم الفاتورة').reverse().join('')).reverse().join(''))
+  test('converts Arabic to visual presentation forms without reversing embedded Latin and numbers', () => {
+    const visual = toVisualArabic('رقم')
+    expect(visual).not.toBe('رقم')
+    expect(/[\uFE70-\uFEFF]/.test(visual)).toBe(true)
     const mixed = toVisualArabic('المتبقي: 100.00 USD')
     expect(mixed).toContain('100.00')
     expect(mixed).toContain('USD')
