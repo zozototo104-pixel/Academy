@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { jsPDF } from 'jspdf'
-import sharp from 'sharp'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 
@@ -8,7 +7,27 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 type RouteContext = { params: Promise<{ id: string }> | { id: string } }
-type PdfLine = { label: string; value: string; dir?: 'rtl' | 'ltr' }
+
+type InvoicePdfData = {
+  invoiceNo: string
+  receiptNo?: string | null
+  title: string
+  status: string
+  statusKind: 'PAID' | 'WAIVED' | 'PENDING' | 'UNPAID'
+  issueDate: string
+  settledAt: string
+  payerName: string
+  payerEmail: string
+  payerCountry: string
+  programOrService: string
+  purpose: string
+  description: string
+  amount: string
+  originalAmount: string
+  waivedAmount: string
+  method: string
+  reference: string
+}
 
 const PAGE_W = 794
 const PAGE_H = 1123
@@ -17,19 +36,11 @@ const BRAND_GOLD = '#c9a227'
 const SOFT_GOLD = '#f7edd0'
 const TEXT = '#1f2937'
 const MUTED = '#64748b'
+const BORDER = '#e2e8f0'
 
 function safeText(value: unknown, fallback = '—') {
   const text = String(value ?? '').trim()
   return text || fallback
-}
-
-function escapeXml(value: unknown) {
-  return safeText(value, '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;')
 }
 
 function fileSafe(value: string) {
@@ -59,20 +70,15 @@ function purposeLabel(value?: string | null) {
     SERVICE_FEE: 'Service Fee',
     OTHER: 'Other Fee',
   }
-  return labels[safeText(value, '')] || safeText(value, 'Other')
+  return labels[safeText(value, '')] || safeText(value, 'Other Fee')
 }
 
-function statusLabel(value?: string | null, waiverStatus?: string | null) {
-  if (value === 'PAID') return 'PAID / Receipt issued'
-  if (value === 'WAIVED') return 'WAIVED / Scholarship or waiver settled'
-  if (waiverStatus === 'APPROVED' || waiverStatus === 'PROGRAM_APPLIED') return 'WAIVED / Scholarship or waiver settled'
-  if (waiverStatus === 'REQUESTED' || waiverStatus === 'VERIFIED') return 'WAIVER PENDING / awaiting approval'
-  return 'UNPAID / Amount due'
-}
-
-function pdfSafeText(value: unknown, fallback = 'See student portal') {
-  const text = safeText(value, fallback)
-  return /[\u0600-\u06FF\u0750-\u077F]/.test(text) ? fallback : text
+function statusInfo(value?: string | null, waiverStatus?: string | null) {
+  if (value === 'PAID') return { label: 'PAID / Receipt issued', kind: 'PAID' as const, title: 'OFFICIAL RECEIPT' }
+  if (value === 'WAIVED') return { label: 'WAIVED / Scholarship or waiver settled', kind: 'WAIVED' as const, title: 'OFFICIAL WAIVER RECEIPT' }
+  if (waiverStatus === 'APPROVED' || waiverStatus === 'PROGRAM_APPLIED') return { label: 'WAIVED / Scholarship or waiver settled', kind: 'WAIVED' as const, title: 'OFFICIAL WAIVER RECEIPT' }
+  if (waiverStatus === 'REQUESTED' || waiverStatus === 'VERIFIED') return { label: 'WAIVER PENDING / awaiting approval', kind: 'PENDING' as const, title: 'OFFICIAL INVOICE' }
+  return { label: 'UNPAID / Amount due', kind: 'UNPAID' as const, title: 'OFFICIAL INVOICE' }
 }
 
 function methodLabel(value?: string | null) {
@@ -86,139 +92,126 @@ function methodLabel(value?: string | null) {
     BANK_TRANSFER: 'Bank Transfer',
     DIRECT_PAYMENT: 'Direct Payment',
     CASH: 'Cash',
+    WAIVER: 'Waiver / Scholarship',
   }
   return labels[value] || value
 }
 
-function wrapText(input: string, maxChars: number) {
-  const words = safeText(input, '').replace(/\s+/g, ' ').split(' ').filter(Boolean)
-  const lines: string[] = []
-  let current = ''
-  for (const word of words) {
-    const next = current ? `${current} ${word}` : word
-    if (next.length > maxChars && current) {
-      lines.push(current)
-      current = word
-    } else {
-      current = next
-    }
+function pdfSafeText(value: unknown, fallback = 'See student portal') {
+  const text = safeText(value, fallback)
+  // jsPDF built-in fonts are Latin-safe. Arabic details remain visible inside the portal;
+  // the PDF uses safe English fallbacks to avoid missing-glyph boxes on mobile viewers.
+  return /[\u0600-\u06FF\u0750-\u077F]/.test(text) ? fallback : text
+}
+
+function setText(doc: jsPDF, size: number, color = TEXT, style: 'normal' | 'bold' = 'normal') {
+  doc.setFont('helvetica', style)
+  doc.setFontSize(size)
+  doc.setTextColor(color)
+}
+
+function fillRounded(doc: jsPDF, x: number, y: number, w: number, h: number, fill: string, stroke?: string) {
+  doc.setFillColor(fill)
+  if (stroke) {
+    doc.setDrawColor(stroke)
+    doc.roundedRect(x, y, w, h, 16, 16, 'FD')
+  } else {
+    doc.roundedRect(x, y, w, h, 16, 16, 'F')
   }
-  if (current) lines.push(current)
-  return lines.length ? lines : ['—']
 }
 
-function text(x: number, y: number, content: string, opts: { size?: number; fill?: string; weight?: number; anchor?: 'start' | 'middle' | 'end'; dir?: 'rtl' | 'ltr'; family?: string } = {}) {
-  const size = opts.size || 18
-  const fill = opts.fill || TEXT
-  const anchor = opts.anchor || 'start'
-  const dir = opts.dir || 'rtl'
-  const weight = opts.weight || 500
-  const family = opts.family || "'DejaVu Sans','Noto Naskh Arabic','Arial','Tahoma',sans-serif"
-  return `<text x="${x}" y="${y}" text-anchor="${anchor}" direction="${dir}" unicode-bidi="plaintext" style="font-family:${family};font-size:${size}px;font-weight:${weight};fill:${fill};dominant-baseline:alphabetic">${escapeXml(content)}</text>`
+function drawPair(doc: jsPDF, label: string, value: string, x: number, y: number, maxValueWidth = 410) {
+  setText(doc, 12, MUTED, 'bold')
+  doc.text(label, x, y)
+  setText(doc, 13, TEXT, 'bold')
+  const lines = doc.splitTextToSize(value || '—', maxValueWidth).slice(0, 2)
+  doc.text(lines, x + 180, y)
+  return y + Math.max(28, lines.length * 18)
 }
 
-function lineRows(rows: PdfLine[], startY: number, opts: { xLabel?: number; xValue?: number; rowH?: number } = {}) {
-  const xLabel = opts.xLabel ?? 705
-  const xValue = opts.xValue ?? 85
-  const rowH = opts.rowH ?? 42
-  let y = startY
-  let out = ''
-  for (const row of rows) {
-    out += text(xLabel, y, row.label, { size: 17, fill: MUTED, weight: 800, anchor: 'end', dir: 'rtl' })
-    out += text(xValue, y, row.value, { size: 17, fill: TEXT, weight: 700, anchor: 'start', dir: row.dir || 'rtl' })
-    y += rowH
-  }
-  return { svg: out, endY: y }
+function drawSectionTitle(doc: jsPDF, title: string, x: number, y: number) {
+  setText(doc, 15, BRAND_NAVY, 'bold')
+  doc.text(title, x, y)
 }
 
-function buildInvoiceSvg(data: {
-  invoiceNo: string
-  receiptNo?: string | null
-  status: string
-  issueDate: string
-  paidAt: string
-  payerName: string
-  payerEmail: string
-  payerCountry: string
-  programOrService: string
-  purpose: string
-  description: string
-  amount: string
-  method: string
-  reference: string
-}) {
-  const descLines = wrapText(data.description, 72).slice(0, 4)
-  const programLines = wrapText(data.programOrService, 66).slice(0, 3)
-  const isSettled = data.status.startsWith('PAID') || data.status.startsWith('WAIVED')
-  const statusColor = isSettled ? '#047857' : '#b45309'
-  const statusBg = isSettled ? '#d1fae5' : '#fef3c7'
-
-  const invoiceRows = lineRows([
-    { label: 'Invoice No.', value: data.invoiceNo, dir: 'ltr' },
-    { label: 'Receipt No.', value: data.receiptNo || '—', dir: 'ltr' },
-    { label: 'Issue Date', value: data.issueDate, dir: 'ltr' },
-    { label: 'Paid / Waived At', value: data.paidAt, dir: 'ltr' },
-    { label: 'Payment Method', value: data.method, dir: 'ltr' },
-  ], 262, { xLabel: 690, xValue: 92, rowH: 38 })
-
-  const payerRows = lineRows([
-    { label: 'Payer', value: data.payerName, dir: 'ltr' },
-    { label: 'Email', value: data.payerEmail, dir: 'ltr' },
-    { label: 'Country', value: data.payerCountry, dir: 'ltr' },
-    { label: 'Reference', value: data.reference, dir: 'ltr' },
-  ], 500, { xLabel: 690, xValue: 92, rowH: 38 })
-
-  const descSvg = descLines.map((l, i) => text(690, 772 + i * 30, l, { size: 17, fill: TEXT, weight: 700, anchor: 'end', dir: 'rtl' })).join('')
-  const programSvg = programLines.map((l, i) => text(690, 690 + i * 30, l, { size: 17, fill: TEXT, weight: 800, anchor: 'end', dir: 'rtl' })).join('')
-
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${PAGE_W}" height="${PAGE_H}" viewBox="0 0 ${PAGE_W} ${PAGE_H}">
-  <rect width="${PAGE_W}" height="${PAGE_H}" fill="#ffffff"/>
-  <rect x="0" y="0" width="${PAGE_W}" height="138" fill="${BRAND_NAVY}"/>
-  <rect x="0" y="138" width="${PAGE_W}" height="8" fill="${BRAND_GOLD}"/>
-  <circle cx="704" cy="70" r="38" fill="${BRAND_GOLD}" opacity="0.95"/>
-  ${text(704, 80, 'AACT', { size: 24, fill: '#ffffff', weight: 900, anchor: 'middle', dir: 'ltr', family: 'Arial,sans-serif' })}
-  ${text(665, 54, 'American Academy for Consulting and Training', { size: 24, fill: '#ffffff', weight: 900, anchor: 'end', dir: 'ltr', family: 'Arial,sans-serif' })}
-  ${text(665, 88, 'AACT Platform', { size: 18, fill: '#dbeafe', weight: 700, anchor: 'end', dir: 'ltr', family: 'Arial,sans-serif' })}
-  ${text(86, 62, data.status.startsWith('PAID') || data.status.startsWith('WAIVED') ? 'OFFICIAL RECEIPT' : 'OFFICIAL INVOICE', { size: 27, fill: '#ffffff', weight: 900, anchor: 'start', dir: 'ltr', family: 'Arial,sans-serif' })}
-  ${text(86, 96, data.status, { size: 18, fill: '#f7edd0', weight: 800, anchor: 'start', dir: 'ltr', family: 'Arial,sans-serif' })}
-
-  <rect x="52" y="178" width="690" height="64" rx="20" fill="${statusBg}" stroke="${statusColor}" stroke-width="1.2"/>
-  ${text(705, 218, data.status, { size: 22, fill: statusColor, weight: 900, anchor: 'end', dir: 'rtl' })}
-  ${text(90, 218, data.amount, { size: 24, fill: BRAND_NAVY, weight: 900, anchor: 'start', dir: 'ltr', family: 'Arial,sans-serif' })}
-
-  <rect x="52" y="258" width="690" height="188" rx="22" fill="#f8fafc" stroke="#e2e8f0"/>
-  ${text(690, 242, 'Invoice Details', { size: 19, fill: BRAND_NAVY, weight: 900, anchor: 'end', dir: 'ltr', family: 'Arial,sans-serif' })}
-  ${invoiceRows.svg}
-
-  <rect x="52" y="490" width="690" height="162" rx="22" fill="#ffffff" stroke="#e2e8f0"/>
-  ${text(690, 478, 'Payer Details', { size: 19, fill: BRAND_NAVY, weight: 900, anchor: 'end', dir: 'ltr', family: 'Arial,sans-serif' })}
-  ${payerRows.svg}
-
-  <rect x="52" y="682" width="690" height="190" rx="22" fill="#fffbeb" stroke="#fde68a"/>
-  ${text(690, 670, 'Service or Program', { size: 19, fill: BRAND_NAVY, weight: 900, anchor: 'end', dir: 'ltr', family: 'Arial,sans-serif' })}
-  ${programSvg}
-  <line x1="86" y1="736" x2="706" y2="736" stroke="#f4d675" stroke-width="1"/>
-  ${text(690, 760, 'Description', { size: 16, fill: MUTED, weight: 900, anchor: 'end', dir: 'ltr', family: 'Arial,sans-serif' })}
-  ${descSvg}
-
-  <rect x="52" y="900" width="690" height="96" rx="22" fill="${SOFT_GOLD}" stroke="#ead389"/>
-  ${text(690, 938, 'Purpose', { size: 17, fill: MUTED, weight: 900, anchor: 'end', dir: 'ltr', family: 'Arial,sans-serif' })}
-  ${text(690, 970, data.purpose, { size: 19, fill: BRAND_NAVY, weight: 900, anchor: 'end', dir: 'rtl' })}
-  ${text(92, 956, 'TOTAL', { size: 16, fill: MUTED, weight: 900, anchor: 'start', dir: 'ltr', family: 'Arial,sans-serif' })}
-  ${text(92, 982, data.amount, { size: 25, fill: BRAND_NAVY, weight: 900, anchor: 'start', dir: 'ltr', family: 'Arial,sans-serif' })}
-
-  <line x1="52" y1="1030" x2="742" y2="1030" stroke="#e2e8f0"/>
-  ${text(742, 1056, 'Generated electronically by AACT Platform. No manual signature required.', { size: 15, fill: MUTED, weight: 700, anchor: 'end', dir: 'ltr', family: 'Arial,sans-serif' })}
-  ${text(52, 1056, data.status, { size: 13, fill: MUTED, weight: 700, anchor: 'start', dir: 'ltr', family: 'Arial,sans-serif' })}
-  ${text(397, 1088, 'aactacademy.com', { size: 13, fill: BRAND_NAVY, weight: 800, anchor: 'middle', dir: 'ltr', family: 'Arial,sans-serif' })}
-</svg>`
-}
-
-async function svgToPdfBuffer(svg: string): Promise<Uint8Array> {
-  const png = await sharp(Buffer.from(svg)).png().toBuffer()
+function buildInvoicePdf(data: InvoicePdfData): Uint8Array {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'px', format: [PAGE_W, PAGE_H], compress: true })
-  doc.addImage(new Uint8Array(png), 'PNG', 0, 0, PAGE_W, PAGE_H)
+
+  doc.setFillColor(BRAND_NAVY)
+  doc.rect(0, 0, PAGE_W, 140, 'F')
+  doc.setFillColor(BRAND_GOLD)
+  doc.rect(0, 140, PAGE_W, 8, 'F')
+  doc.circle(704, 72, 38, 'F')
+
+  setText(doc, 22, '#ffffff', 'bold')
+  doc.text('AACT', 704, 80, { align: 'center' })
+  setText(doc, 24, '#ffffff', 'bold')
+  doc.text('American Academy for Consulting and Training', 70, 54)
+  setText(doc, 16, '#dbeafe', 'bold')
+  doc.text('AACT Platform', 70, 88)
+  setText(doc, 26, '#ffffff', 'bold')
+  doc.text(data.title, 70, 122)
+
+  const statusFill = data.statusKind === 'PAID' || data.statusKind === 'WAIVED' ? '#d1fae5' : '#fef3c7'
+  const statusStroke = data.statusKind === 'PAID' || data.statusKind === 'WAIVED' ? '#047857' : '#b45309'
+  fillRounded(doc, 52, 178, 690, 70, statusFill, statusStroke)
+  setText(doc, 19, statusStroke, 'bold')
+  doc.text(data.status, 80, 220)
+  setText(doc, 24, BRAND_NAVY, 'bold')
+  doc.text(data.amount, 710, 220, { align: 'right' })
+
+  fillRounded(doc, 52, 280, 690, 208, '#f8fafc', BORDER)
+  drawSectionTitle(doc, 'Invoice Details', 80, 310)
+  let y = 342
+  y = drawPair(doc, 'Invoice No.', data.invoiceNo, 80, y)
+  y = drawPair(doc, 'Receipt No.', data.receiptNo || '—', 80, y)
+  y = drawPair(doc, 'Issue Date', data.issueDate, 80, y)
+  y = drawPair(doc, 'Paid / Waived At', data.settledAt, 80, y)
+  y = drawPair(doc, 'Payment Method', data.method, 80, y)
+
+  fillRounded(doc, 52, 520, 690, 176, '#ffffff', BORDER)
+  drawSectionTitle(doc, 'Payer Details', 80, 550)
+  y = 582
+  y = drawPair(doc, 'Payer', data.payerName, 80, y)
+  y = drawPair(doc, 'Email', data.payerEmail, 80, y)
+  y = drawPair(doc, 'Country', data.payerCountry, 80, y)
+  y = drawPair(doc, 'Reference', data.reference, 80, y)
+
+  fillRounded(doc, 52, 728, 690, 196, '#fffbeb', '#fde68a')
+  drawSectionTitle(doc, 'Service or Program', 80, 760)
+  setText(doc, 14, TEXT, 'bold')
+  doc.text(doc.splitTextToSize(data.programOrService, 610).slice(0, 3), 80, 792)
+  doc.setDrawColor('#f4d675')
+  doc.line(80, 852, 714, 852)
+  setText(doc, 12, MUTED, 'bold')
+  doc.text('Description', 80, 884)
+  setText(doc, 13, TEXT, 'normal')
+  doc.text(doc.splitTextToSize(data.description, 610).slice(0, 3), 80, 910)
+
+  fillRounded(doc, 52, 952, 690, 92, SOFT_GOLD, '#ead389')
+  setText(doc, 12, MUTED, 'bold')
+  doc.text('Purpose', 80, 986)
+  setText(doc, 17, BRAND_NAVY, 'bold')
+  doc.text(data.purpose, 80, 1016)
+  setText(doc, 12, MUTED, 'bold')
+  doc.text('Total', 520, 986)
+  setText(doc, 22, BRAND_NAVY, 'bold')
+  doc.text(data.amount, 714, 1016, { align: 'right' })
+
+  if (data.statusKind === 'WAIVED') {
+    setText(doc, 11, '#047857', 'bold')
+    doc.text(`Original: ${data.originalAmount} | Waived: ${data.waivedAmount} | Remaining: 0.00 USD`, 80, 1064)
+  } else if (data.statusKind === 'UNPAID' || data.statusKind === 'PENDING') {
+    setText(doc, 11, '#b45309', 'bold')
+    doc.text(`Remaining due: ${data.amount}`, 80, 1064)
+  }
+
+  doc.setDrawColor(BORDER)
+  doc.line(52, 1084, 742, 1084)
+  setText(doc, 11, MUTED, 'normal')
+  doc.text('Generated electronically by AACT Platform. No manual signature required.', 52, 1106)
+  doc.text('aactacademy.com', 742, 1106, { align: 'right' })
+
   return new Uint8Array(doc.output('arraybuffer'))
 }
 
@@ -284,35 +277,42 @@ export async function GET(_req: NextRequest, context: RouteContext) {
     const payerEmail = safeText(payment.payerEmail || payment.user?.email || payment.admission?.email || payment.enrollment?.user?.email || payment.agent?.email, '—')
     const payerCountry = safeText(payment.payerCountry || payment.user?.country || payment.admission?.country || payment.enrollment?.user?.country || payment.agent?.country, '—')
     const programOrService = safeText(
-      payment.admission?.programRef?.titleAr ||
+      payment.admission?.programRef?.titleEn ||
+        payment.admission?.programRef?.titleAr ||
         payment.admission?.program ||
+        payment.enrollment?.program?.titleEn ||
         payment.enrollment?.program?.titleAr ||
         payment.agent?.orgName ||
         payment.description,
       'AACT Service'
     )
     const reference = safeText(payment.admission?.reference || payment.agent?.territory || payment.enrollment?.id || payment.id, payment.id)
+    const status = statusInfo(payment.status, payment.waiverStatus)
+    const originalAmount = typeof payment.originalAmount === 'number' && payment.originalAmount > 0 ? payment.originalAmount : payment.amount
+    const waivedAmount = typeof payment.waivedAmount === 'number' && payment.waivedAmount > 0 ? payment.waivedAmount : (payment.status === 'WAIVED' ? originalAmount : 0)
 
-    const svg = buildInvoiceSvg({
+    const pdf = buildInvoicePdf({
       invoiceNo: payment.invoiceNo,
       receiptNo: payment.receiptNo,
-      status: statusLabel(payment.status, payment.waiverStatus),
+      title: status.title,
+      status: status.label,
+      statusKind: status.kind,
       issueDate: formatDate(payment.createdAt),
-      paidAt: formatDate(payment.paidAt),
+      settledAt: formatDate(payment.paidAt || payment.waiverApprovedAt),
       payerName: pdfSafeText(payerName, 'AACT Student'),
-      payerEmail,
+      payerEmail: pdfSafeText(payerEmail, 'Student email in portal'),
       payerCountry: pdfSafeText(payerCountry, 'Student country in portal'),
       programOrService: pdfSafeText(programOrService, 'Program / service details in portal'),
       purpose: purposeLabel(payment.purpose),
       description: pdfSafeText(payment.description, purposeLabel(payment.purpose)),
       amount: formatMoney(payment.amount, payment.currency),
+      originalAmount: formatMoney(originalAmount, payment.currency),
+      waivedAmount: formatMoney(waivedAmount, payment.currency),
       method: methodLabel(payment.method || payment.provider),
-      reference,
+      reference: pdfSafeText(reference, payment.id),
     })
 
-    const pdf = await svgToPdfBuffer(svg)
     const filename = `${fileSafe(payment.invoiceNo || payment.id)}.pdf`
-
     const body = new ArrayBuffer(pdf.byteLength)
     new Uint8Array(body).set(pdf)
 
