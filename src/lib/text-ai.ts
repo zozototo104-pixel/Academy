@@ -413,20 +413,25 @@ async function markPersistentCooldown(provider: string, keyIndex: number, model:
   }
 }
 
-function isCooling(provider: string, key: string): boolean {
-  const item = cooldowns.get(cooldownId(provider, key))
-  if (!item) return false
+function activeMemoryCooldown(provider: string, key: string): { until: number; reason: string; status?: number; model?: string } | null {
+  const id = cooldownId(provider, key)
+  const item = cooldowns.get(id)
+  if (!item) return null
   if (item.until <= Date.now()) {
-    cooldowns.delete(cooldownId(provider, key))
-    return false
+    cooldowns.delete(id)
+    return null
   }
-  return true
+  return item
 }
 
-function markCooldown(provider: string, key: string, reason: string, minutes?: number) {
+function isCooling(provider: string, key: string): boolean {
+  return !!activeMemoryCooldown(provider, key)
+}
+
+function markCooldown(provider: string, key: string, reason: string, minutes?: number, status?: number) {
   const fallback = Number(env('AI_ROUTER_COOLDOWN_MINUTES')) || 15
   const ttl = Math.max(1, Math.floor(minutes || fallback))
-  cooldowns.set(cooldownId(provider, key), { until: Date.now() + ttl * 60 * 1000, reason: reason.slice(0, 180) })
+  cooldowns.set(cooldownId(provider, key), { until: Date.now() + ttl * 60 * 1000, reason: reason.slice(0, 180), status })
 }
 
 function aiProviderTimeoutMs(taskLevel: TextAiTaskLevel = 'GENERAL'): number {
