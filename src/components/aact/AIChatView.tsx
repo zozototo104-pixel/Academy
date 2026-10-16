@@ -431,17 +431,11 @@ export function AIChatView() {
     }
   }, [input, sending, fetchSpeechUrl, playSpeechUrl, showSpeechError, speak, toast])
 
-  const friendlyLiveMinutesMessage = (message?: string | null) => {
-    const raw = String(message || '')
-    if (!raw.trim()) return 'انتهى رصيد المحادثة الصوتية الحية لهذا الشهر. يمكنك متابعة السؤال كتابةً فوراً، أو شراء باقة دقائق صوت إضافية لتفعيل المكالمة الصوتية من جديد.'
-    if (raw.includes('انتهت دقائق') || raw.includes('Gemini Live') || raw.includes('دقائق صوت')) {
-      return 'انتهى رصيد المحادثة الصوتية الحية لهذا الشهر. تستطيع متابعة الحديث كتابةً الآن، أو شراء باقة دقائق صوت إضافية لاستخدام المشرف بالصوت.'
-    }
-    return raw
-  }
-
   const openVoicePackageDialog = (message?: string | null) => {
-    setVoicePackageDialog({ open: true, message: friendlyLiveMinutesMessage(message) })
+    setVoicePackageDialog({
+      open: true,
+      message: String(message || '').trim() || 'انتهى رصيد المحادثة الصوتية الحية لهذا الشهر. يمكنك متابعة السؤال كتابةً أو شراء باقة دقائق صوت إضافية.',
+    })
     api<{ ok: boolean; minutes: number; amount: number; currency: string }>('/api/ai/gemini-live/package')
       .then((offer) => setVoicePackageOffer({ minutes: offer.minutes, amount: offer.amount, currency: offer.currency }))
       .catch(() => setVoicePackageOffer(null))
