@@ -130,6 +130,10 @@ export async function POST(req: NextRequest) {
     if (!unit) return NextResponse.json({ ok: false, error: 'الوحدة غير موجودة ضمن البرنامج المحدد' }, { status: 404 })
     if (unit.exam?._count.attempts && replace) return NextResponse.json({ ok: false, error: 'لا يمكن إعادة توليد اختبار وحدة لديه محاولات طلابية محفوظة. أنشئ وحدة/اختباراً جديداً بدلاً من مسح سجل الطلاب.' }, { status: 409 })
 
+    const knowledge = await unitKnowledgeAvailability(programId, unit)
+    const limitedKnowledge = knowledge.limited
+    const requiredQuestions = limitedKnowledge ? limitedKnowledgeQuestionCount(requestedQuestions, knowledge.count, knowledge.minItems) : requestedQuestions
+
     const scoped = await loadScopedQuestions(programId, unitId, requiredQuestions)
     if (!scoped.selection.readyToBuild) {
       const job = await queueQuestionBankJob(programId, unitId, requiredQuestions)
