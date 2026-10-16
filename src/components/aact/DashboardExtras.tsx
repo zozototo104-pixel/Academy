@@ -255,7 +255,7 @@ export function PaymentsTab() {
   }, [])
 
   const openPaymentDialog = (payment: Payment) => {
-    const firstEnabled = payConfig?.methods?.find((m) => m.enabled)?.id
+    const firstEnabled = visiblePaymentMethods(payConfig?.methods).find((m) => m.enabled)?.id
     if (firstEnabled) setMethod(firstEnabled)
     setPayTarget(payment)
   }
