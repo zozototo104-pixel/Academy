@@ -97,10 +97,10 @@ async function queueQuestionBankJob(programId: string, unitId: string, requiredQ
   return job
 }
 
-async function unitKnowledgeAvailability(programId: string, unit: any) {
+async function unitKnowledgeAvailability(programId: string, unit: { sourceBookId: string | null; chunkStartIndex: number | null; chunkEndIndex: number | null; semester: number | null }) {
   const minRaw = await getSetting('UNIT_MIN_KNOWLEDGE_ITEMS').catch(() => process.env.UNIT_MIN_KNOWLEDGE_ITEMS || '15')
   const minItems = Math.max(1, Number(minRaw || 15) || 15)
-  const where: any = { programId }
+  const where: Prisma.BookKnowledgeItemWhereInput = { programId }
 
   if (unit?.sourceBookId) {
     where.bookId = unit.sourceBookId
