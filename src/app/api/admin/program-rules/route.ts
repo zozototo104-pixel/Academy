@@ -221,7 +221,7 @@ export async function POST(req: NextRequest) {
           entityId: program.id,
           details: JSON.stringify({ titleAr: program.titleAr, changes }),
         },
-      })
+      }))
       return NextResponse.json({ ok: true, changed: changes.length, changes })
     }
 
