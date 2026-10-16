@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
 import { notify } from '@/lib/notify'
+import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
 
 // ===== 12.2 لوحة الاعتراضات — مراجعة يدوية من المشرف البشري/الإدارة =====
 
