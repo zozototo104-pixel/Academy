@@ -279,6 +279,7 @@ export function QuestionReviewDialog({
           throw e
         }
       }
+      if (!d) throw new Error('لم يكتمل نشر الامتحان')
       toast({ title: 'نُشر الامتحان', description: `${d.published} سؤالاً معتمداً — وصل إشعار للطلاب المتسجلين` })
       onPublished()
       onClose()
