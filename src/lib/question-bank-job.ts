@@ -599,6 +599,8 @@ export async function runNextQuestionBankGenerationJobStep(programId?: string, o
       ...(programId ? { programId } : {}),
       OR: options.queuedOnly ? [
         { status: 'QUEUED' },
+        { status: 'RUNNING', lockedUntil: { lt: now } },
+        { status: 'PAUSED', retryAt: { lte: now } },
       ] : [
         { status: 'QUEUED' },
         { status: 'RUNNING', lockedUntil: { lt: now } },
