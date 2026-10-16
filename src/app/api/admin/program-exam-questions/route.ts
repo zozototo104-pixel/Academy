@@ -323,7 +323,14 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const cognitive = validateCognitiveDistribution(publicationCandidates, 'PROGRAM')
+    const [lowMaxRaw, highMinRaw] = await Promise.all([
+      getSetting('EXAM_LOW_SKILL_MAX_PERCENT').catch(() => '50'),
+      getSetting('PROGRAM_EXAM_HIGH_SKILL_MIN_PERCENT').catch(() => '20'),
+    ])
+    const cognitive = validateCognitiveDistribution(publicationCandidates, 'PROGRAM', {
+      lowMaxPercent: Number(lowMaxRaw || 50) || 50,
+      programHighMinPercent: Number(highMinRaw || 20) || 20,
+    })
     if (!cognitive.ok) {
       if (!overrideCognitivePolicy || overrideReason.length < 8) {
         return NextResponse.json(
