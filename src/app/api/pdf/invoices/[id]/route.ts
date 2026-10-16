@@ -36,6 +36,7 @@ type InvoicePdfData = {
 
 type InvoicePdfOptions = {
   fontPaths?: string[]
+  compress?: boolean
 }
 
 type BilingualLabel = {
