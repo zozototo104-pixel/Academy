@@ -292,6 +292,7 @@ export async function POST(req: NextRequest) {
   })
 
   const setup = buildGeminiLiveSetup(setupVariant, model, systemInstruction, voice, dialect)
+  const sdkConfig = buildGeminiLiveSdkConfig(systemInstruction, voice, dialect)
 
   const now = Date.now()
   const sessionLimitMinutes = allowance?.sessionLimitMinutes || 10
