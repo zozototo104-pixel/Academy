@@ -27,7 +27,8 @@ export async function POST(req: NextRequest) {
     }
 
     const defaultDialect = await getSetting('VOICE_DEFAULT_DIALECT').catch(() => process.env.VOICE_DEFAULT_DIALECT || 'ar-PS')
-    const text = await transcribeAudioBase64(audioBase64, { mimeType: mimeType || 'audio/webm', languageCode: dialect || defaultDialect || 'ar-PS' })
+    const safeDialect = /^ar-[A-Z]{2}$/.test(dialect) ? dialect : (/^ar-[A-Z]{2}$/.test(defaultDialect) ? defaultDialect : 'ar-PS')
+    const text = await transcribeAudioBase64(audioBase64, { mimeType: mimeType || 'audio/webm', languageCode: safeDialect })
 
     return NextResponse.json({ text })
   } catch (e: any) {
