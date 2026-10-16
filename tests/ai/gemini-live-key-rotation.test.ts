@@ -128,19 +128,19 @@ describe('Gemini Live key rotation uses the text AI router state', () => {
     ])
   })
 
-  test('a key already cooled down by the text router is not attempted by Live', async () => {
-    configureGeminiKeys('AIzaBAD1111', 'AIzaGOOD2222')
-    values.set('AI_COOLDOWN:GEMINI:1:gemini-3.8-flash', JSON.stringify({
+  test('a key cooled down only for a text model remains available for Live', async () => {
+    configureGeminiKeys('AIzaTEXT1111', 'AIzaGOOD2222')
+    values.set('AI_COOLDOWN:GEMINI:1:gemini-3.5-flash-lite', JSON.stringify({
       until: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
       reason: 'text router cooldown',
       status: 429,
     }))
-    mockTokenFetch(() => ({ status: 200, body: { name: 'live-token-from-key-2' } }))
+    mockTokenFetch(() => ({ status: 200, body: { name: 'live-token-from-key-1' } }))
 
     const response = await POST(liveRequest())
 
     expect(response.status).toBe(200)
-    expect(fetchKeys).toEqual(['AIzaGOOD2222'])
+    expect(fetchKeys).toEqual(['AIzaTEXT1111'])
   })
 
   test('all key failures return 401 with masked key details only', async () => {
