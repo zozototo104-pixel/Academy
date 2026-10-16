@@ -601,7 +601,7 @@ export function AdminQualityTab() {
     setReadinessItems(refreshedItems)
     setUnitGenerationResult({ ...result, programId: program.id })
     setUnitSuggestionConflict(null)
-    if (result.warnings?.length) alert(result.warnings.join('\n'))
+    if (result.warnings?.length) await alertAction({ title: 'ملاحظات توليد الوحدات', description: result.warnings.join('\n'), tone: 'warning' })
     await openUnitReview(refreshedProgram)
   }
 
