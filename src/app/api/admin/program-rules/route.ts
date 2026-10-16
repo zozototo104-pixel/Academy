@@ -251,7 +251,7 @@ export async function POST(req: NextRequest) {
         trademarkNotice: payload.trademarkNotice || null,
         disclosureConsentText: payload.disclosureConsentText || null,
       },
-    })
+    }))
 
     clearPublicProgramsCache()
     revalidatePublicProgramSurfaces([saved.slug])
