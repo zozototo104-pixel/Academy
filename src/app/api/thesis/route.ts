@@ -59,54 +59,75 @@ function mapThesisPlan(guide: any) {
   }
 }
 
+const studentThesisSelect = {
+  id: true,
+  userId: true,
+  admissionId: true,
+  title: true,
+  abstract: true,
+  fileNote: true,
+  reviewNote: true,
+  reviewNotes: { where: { visibleToStudent: true }, orderBy: { createdAt: 'desc' }, take: 10 },
+  status: true,
+  defenseDate: true,
+  committee: true,
+  agentMember: true,
+  defenseStatus: true,
+  aiScore: true,
+  aiRecommendation: true,
+  defenseCompletedAt: true,
+  defenseMinutes: true,
+  recordingMime: true,
+  recordingSize: true,
+  recordingDurationSec: true,
+  recordingStorageKey: true,
+  resultScore: true,
+  passed: true,
+  extractionStatus: true,
+  extractionError: true,
+  pageCount: true,
+  wordCount: true,
+  digest: true,
+  extractedAt: true,
+  fileName: true,
+  fileMime: true,
+  fileSize: true,
+  fileStorageKey: true,
+  createdAt: true,
+  updatedAt: true,
+} as const
+
+async function adoptLegacyThesisForAdmission(userId: string, admissionId: string) {
+  const legacy = await db.thesisSubmission.findFirst({
+    where: { userId, admissionId: null },
+    orderBy: { createdAt: 'desc' },
+    select: studentThesisSelect,
+  })
+  if (!legacy) return null
+  const adopted = await db.thesisSubmission.updateMany({
+    where: { id: legacy.id, userId, admissionId: null },
+    data: { admissionId },
+  })
+  if (adopted.count !== 1) return null
+  return { ...legacy, admissionId }
+}
+
+async function findThesisForAdmission(userId: string, admissionId: string) {
+  const thesis = await db.thesisSubmission.findFirst({
+    where: { userId, admissionId },
+    orderBy: { createdAt: 'desc' },
+    select: studentThesisSelect,
+  })
+  return thesis || adoptLegacyThesisForAdmission(userId, admissionId)
+}
+
 // GET /api/thesis — بحث التخرج الخاص بالمستخدم + بيانات طلب الالتحاق والمهلة
 export async function GET() {
   try {
     const user = await getCurrentUser()
     if (!user) return NextResponse.json({ thesis: null, admission: null })
     const { admission } = await findLatestStudyAdmission(user, true)
-    const thesis = await db.thesisSubmission.findFirst({
-      where: { userId: user.id },
-      orderBy: { createdAt: 'desc' },
-      // select صريح: نستثني recordingData (تسجيل ثقيل حتى 24MB لا يُنقل مع فتح التبويب)
-      select: {
-        id: true,
-        userId: true,
-        admissionId: true,
-        title: true,
-        abstract: true,
-        fileNote: true,
-        reviewNote: true,
-        reviewNotes: { where: { visibleToStudent: true }, orderBy: { createdAt: 'desc' }, take: 10 },
-        status: true,
-        defenseDate: true,
-        committee: true,
-        agentMember: true,
-        defenseStatus: true,
-        aiScore: true,
-        aiRecommendation: true,
-        defenseCompletedAt: true,
-        defenseMinutes: true,
-        recordingMime: true,
-        recordingSize: true,
-        recordingDurationSec: true,
-        recordingStorageKey: true,
-        resultScore: true,
-        passed: true,
-        extractionStatus: true,
-        extractionError: true,
-        pageCount: true,
-        wordCount: true,
-        digest: true,
-        extractedAt: true,
-        fileName: true,
-        fileMime: true,
-        fileSize: true,
-        fileStorageKey: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    })
+    const thesis = admission ? await findThesisForAdmission(user.id, admission.id) : null
     const gate = await getExamsGate(user.id, admission?.programId)
     const thesisPlan = admission?.programId
       ? mapThesisPlan(await db.programStudyGuide.findFirst({
@@ -179,7 +200,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const existing = await db.thesisSubmission.findFirst({ where: { userId: user.id } })
+    const existing = await findThesisForAdmission(user.id, admission.id)
     if (existing && ['SCHEDULED', 'RESULT_APPROVED'].includes(existing.status)) {
       return NextResponse.json({ error: 'بحثك قيد المناقشة أو تم اعتماد نتيجته — لا يمكن التعديل الآن' }, { status: 400 })
     }
@@ -192,8 +213,8 @@ export async function POST(req: NextRequest) {
     const nextStatus = requestedStage === 'PLAN' ? 'PLAN_SUBMITTED' : 'SUBMITTED'
     let thesis
     if (existing) {
-      thesis = await db.thesisSubmission.update({
-        where: { id: existing.id },
+      const updated = await db.thesisSubmission.updateMany({
+        where: { id: existing.id, userId: user.id, admissionId: admission.id },
         data: {
           title: title.trim().slice(0, 300),
           abstract: abstract.trim().slice(0, 4000),
@@ -202,6 +223,8 @@ export async function POST(req: NextRequest) {
           status: nextStatus,
         },
       })
+      if (updated.count !== 1) return NextResponse.json({ error: 'تعذر تحديث رسالة البحث لهذا الطلب تحديداً' }, { status: 409 })
+      thesis = await db.thesisSubmission.findFirst({ where: { id: existing.id, userId: user.id, admissionId: admission.id } })
     } else {
       thesis = await db.thesisSubmission.create({
         data: {

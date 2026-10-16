@@ -50,6 +50,37 @@ export async function GET(req: NextRequest) {
   }
 }
 
+// PATCH /api/admin/certificates — إلغاء شهادة بسبب إلزامي
+export async function PATCH(req: NextRequest) {
+  try {
+    const admin = await requireAdmin()
+    const { id, reason } = await req.json().catch(() => ({}))
+    const certId = String(id || '').trim()
+    const revocationReason = String(reason || '').trim().slice(0, 1000)
+    if (!certId) return NextResponse.json({ error: 'معرّف الشهادة مطلوب' }, { status: 400 })
+    if (!revocationReason) return NextResponse.json({ error: 'سبب إلغاء الشهادة إلزامي' }, { status: 400 })
+
+    const cert = await db.certificate.findUnique({ where: { id: certId } })
+    if (!cert) return NextResponse.json({ error: 'الشهادة غير موجودة' }, { status: 404 })
+    if (!cert.valid) return NextResponse.json({ error: 'الشهادة ملغاة مسبقاً' }, { status: 409 })
+
+    const revokedAt = new Date()
+    const updated = await db.certificate.update({
+      where: { id: certId },
+      data: { valid: false, revokedAt, revokedReason: revocationReason, revokedById: admin.id },
+    })
+
+    await audit(admin, 'REVOKE_CERTIFICATE', 'Certificate', certId, `${cert.serial} — ${cert.holderName} — ${revocationReason}`)
+    return NextResponse.json({ ok: true, certificate: updated })
+  } catch (e: any) {
+    if (e?.message === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
+    }
+    console.error('admin certificates PATCH error:', e)
+    return NextResponse.json({ error: 'تعذر إلغاء الشهادة' }, { status: 500 })
+  }
+}
+
 // POST /api/admin/certificates — إصدار شهادة برنامج من مسار الإكمال المركزي فقط
 export async function POST(req: NextRequest) {
   try {

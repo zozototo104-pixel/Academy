@@ -471,6 +471,9 @@ model Certificate {
   country     String?
   issuedAt    DateTime @default(now())
   valid       Boolean  @default(true)
+  revokedAt   DateTime?
+  revokedReason String?
+  revokedById String?
   userId      String?  // إن كان صاحبه مستخدماً مسجلاً
   user        User?    @relation(fields: [userId], references: [id], onDelete: Restrict)
   enrollmentId String?
@@ -481,6 +484,7 @@ model Certificate {
   agent       AgentApplication? @relation(fields: [agentId], references: [id])
 
   @@unique([enrollmentId, type])
+  @@index([valid, revokedAt])
 }
 
 model CertificateTemplate {
