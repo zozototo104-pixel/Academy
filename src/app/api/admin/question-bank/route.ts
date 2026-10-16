@@ -102,7 +102,7 @@ function sanitizeQuestion(raw: any, fallback: any = {}) {
 }
 
 async function insertBankQuestions(programId: string, questions: any[], meta: { generatedBy: string; status?: string; fallback?: any }) {
-  const existing = await db.questionBankItem.findMany({ where: { programId }, select: { text: true } })
+  const existing = await withTiming('db_question_bank_existing_texts', () => db.questionBankItem.findMany({ where: { programId }, select: { text: true } }))
   const seen = new Set(existing.map((q) => norm(q.text)))
   const rows: any[] = []
   let skippedDuplicates = 0
