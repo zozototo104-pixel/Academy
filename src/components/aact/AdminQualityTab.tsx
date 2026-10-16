@@ -1206,9 +1206,12 @@ export function AdminQualityTab() {
           body: JSON.stringify({ action: 'generate', programId: thesisProgramId, count: thesisGenerateCount }),
         })
         setThesisTopicList(res.created || [])
-        alert(`تم توليد ${res.created?.length || 0} مقترح عنوان. راجعها أسفل النافذة واعتمد المناسب قبل ظهورها للطلاب.`)
+        await alertAction({ title: 'تم توليد عناوين بحث التخرج', description: `تم توليد ${res.created?.length || 0} مقترح عنوان. راجعها أسفل النافذة واعتمد المناسب قبل ظهورها للطلاب.`, tone: 'success' })
       } else {
-        if (!thesisTopicTitle.trim()) return alert('اكتب عنوان البحث')
+        if (!thesisTopicTitle.trim()) {
+          await alertAction({ title: 'اكتب عنوان البحث', description: 'عنوان البحث مطلوب قبل اعتماده للطلاب.', tone: 'warning' })
+          return
+        }
         await api('/api/admin/thesis-topics', {
           method: 'POST',
           body: JSON.stringify({ action: 'create', programId: thesisProgramId, title: thesisTopicTitle, description: thesisTopicDescription, status: 'APPROVED' }),
