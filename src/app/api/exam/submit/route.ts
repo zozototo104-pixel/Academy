@@ -366,18 +366,7 @@ export async function POST(req: NextRequest) {
       const created = activeAttempt
 
       for (const prepared of answersToPersist) {
-        await tx.answer.create({
-          data: {
-            attemptId: created.id,
-            questionId: prepared.questionId,
-            selectedOption: prepared.selectedOption ?? null,
-            answerText: prepared.answerText ?? null,
-            isCorrect: prepared.isCorrect,
-            points: prepared.points,
-            maxPoints: prepared.maxPoints,
-            aiFeedback: prepared.aiFeedback,
-          },
-        })
+        await persistPreparedAnswer(tx, created.id, prepared, prePersistedEssayQuestionIds.has(prepared.questionId))
       }
 
       await tx.examAttempt.update({
