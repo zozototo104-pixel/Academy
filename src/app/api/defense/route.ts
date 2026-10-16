@@ -122,6 +122,9 @@ export async function POST(req: NextRequest) {
       if (thesis.defenseStatus === 'COMPLETED') {
         return NextResponse.json({ error: 'انتهت مناقشتك مسبقاً — النتيجة لدى اللجنة' }, { status: 400 })
       }
+      if (thesis.defenseStatus === 'NEEDS_REVIEW') {
+        return NextResponse.json({ error: 'مناقشتك بانتظار مراجعة اللجنة ولا يمكن إعادة تشغيلها أو حذف رسائلها. تواصل مع الإدارة لمتابعة القرار.', code: 'DEFENSE_NEEDS_REVIEW' }, { status: 409 })
+      }
       await db.defenseMessage.deleteMany({ where: { thesisId: thesis.id } })
       const digest = legacyDefense ? null : await getThesisDigest(thesis.id)
       const digestContext = legacyDefense ? thesis.abstract : summarizeDigestForPrompt(digest, 6000)
