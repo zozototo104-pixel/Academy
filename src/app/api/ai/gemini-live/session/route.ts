@@ -315,32 +315,39 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const upstream = await fetch('https://generativelanguage.googleapis.com/v1beta/auth_tokens', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey,
-      },
-      body: JSON.stringify(tokenBody),
-    })
-
-    const payload = await upstream.json().catch(() => ({} as any))
-    if (!upstream.ok) {
-      const msg =
-        payload?.error?.message ||
-        payload?.message ||
-        `Gemini token HTTP ${upstream.status}`
-      const err: any = new Error(msg)
-      err.status = upstream.status
-      return NextResponse.json(
-        { error: arabicErrorForGemini(err), details: msg.slice(0, 500) },
-        { status: httpStatusForGeminiError(err) }
-      )
+    const liveKeys = await geminiKeysForLive()
+    if (!liveKeys.length) {
+      return NextResponse.json({ error: 'أدخل مفتاح Gemini API أولاً من لوحة الإدارة أو انتظر انتهاء تبريد مفاتيح Gemini الحالية', details: [] }, { status: 400 })
     }
 
-    const token = String(payload?.name || payload?.token || payload?.authToken?.name || '').trim()
+    const failures: LiveKeyFailureDetail[] = []
+    let lastError: any = null
+    let token = ''
+
+    for (const { key, keyIndex } of liveKeys) {
+      try {
+        const result = await requestGeminiLiveToken({ key, model, body: tokenBody })
+        token = result.token
+        reportGeminiLiveKeySuccess(keyIndex, model, result.ms)
+        break
+      } catch (e: any) {
+        lastError = e
+        failures.push(failureDetail(keyIndex, key, e))
+        await reportGeminiLiveKeyFailure(keyIndex, e)
+        if (shouldTryNextGeminiLiveKey(e)) continue
+        return NextResponse.json(
+          { error: arabicErrorForGemini(e), details: failures },
+          { status: httpStatusForGeminiError(e) }
+        )
+      }
+    }
+
     if (!token) {
-      return NextResponse.json({ error: 'لم يرجع Gemini رمز جلسة Live صالحاً' }, { status: 502 })
+      const e = lastError || new Error('GEMINI_LIVE_NO_AVAILABLE_KEY')
+      return NextResponse.json(
+        { error: arabicErrorForGemini(e), details: failures },
+        { status: httpStatusForGeminiError(e) }
+      )
     }
 
     if (body.testOnly) {
