@@ -937,7 +937,7 @@ export function AdminQualityTab() {
       const res = await api<{ students: any[] }>(`/api/admin/students?${params.toString()}`)
       setStudents(res.students || [])
     } catch (e: any) {
-      alert(e?.message || 'تعذر تحميل الطلاب')
+      await alertAction({ title: 'تعذر تحميل الطلاب', description: e?.message || 'حاول تحديث القائمة مرة أخرى.', tone: 'danger' })
     } finally {
       setStudentsLoading(false)
     }
