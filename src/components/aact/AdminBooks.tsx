@@ -928,9 +928,9 @@ export function AdminBooksTab() {
       if (!cancelled) pollRef.current = setTimeout(tick, examPollDelayRef.current)
     }
 
-    pollRef.current = setTimeout(tick, examPollDelayRef.current)
+    if (document.visibilityState !== 'hidden') pollRef.current = setTimeout(tick, examPollDelayRef.current)
     const onVisibility = () => {
-      if (document.visibilityState === 'hidden') stopPolling()
+      if (document.visibilityState === 'hidden') clearPollTimer()
       else if (!pollRef.current && examPollingActiveRef.current) pollRef.current = setTimeout(tick, 5_000)
     }
     document.addEventListener('visibilitychange', onVisibility)
