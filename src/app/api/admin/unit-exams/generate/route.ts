@@ -185,7 +185,7 @@ export async function POST(req: NextRequest) {
 
     const reviewRequired = false
     const examStatus = reviewRequired ? 'DRAFT' : 'READY'
-    const warningPrefix = limitedKnowledge ? '[LIMITED_KNOWLEDGE] ' : ''
+    const generationWarning = limitedKnowledge ? 'LIMITED_KNOWLEDGE' : null
     const examQuestions = scoped.questions.map((item, index) => toExamQuestion(item, index, reviewRequired))
 
     const result = await db.$transaction(async (tx) => {
