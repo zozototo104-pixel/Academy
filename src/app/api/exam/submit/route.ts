@@ -164,7 +164,13 @@ export async function POST(req: NextRequest) {
       select: { id: true, createdAt: true },
     })
     if (!activeAttempt) {
+      if (completedAttemptsBeforeSubmit >= maxAttempts) {
+        return NextResponse.json({ error: 'استنفدت عدد محاولات هذا الاختبار', code: 'MAX_ATTEMPTS_REACHED', maxAttempts, attemptsUsed: completedAttemptsBeforeSubmit }, { status: 403 })
+      }
       return NextResponse.json({ error: 'يجب بدء الاختبار من صفحة الأسئلة قبل التسليم' }, { status: 409 })
+    }
+    if (completedAttemptsBeforeSubmit >= maxAttempts) {
+      return NextResponse.json({ error: 'استنفدت عدد محاولات هذا الاختبار', code: 'MAX_ATTEMPTS_REACHED', maxAttempts, attemptsUsed: completedAttemptsBeforeSubmit }, { status: 403 })
     }
     if (Date.now() > unitAttemptDeadline(activeAttempt.createdAt)) {
       await db.$transaction(async (tx) => {
