@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
 
       const ip = clientIpFromHeaders(req.headers)
       const ipLimit = await checkDatabaseRateLimit(`login:ip:${ip}`, 40, 15 * 60 * 1000)
-      const accountLimit = await checkDatabaseRateLimit(`login:account:${normalizedEmail}:${ip}`, 8, 15 * 60 * 1000)
+      const accountLimit = await checkDatabaseRateLimit(`login:account:${normalizedEmail}`, 8, 15 * 60 * 1000)
       if (!ipLimit.ok || !accountLimit.ok) {
         const limited = !accountLimit.ok ? accountLimit : ipLimit
         return NextResponse.json(
