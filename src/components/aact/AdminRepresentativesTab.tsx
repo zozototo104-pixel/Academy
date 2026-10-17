@@ -313,9 +313,9 @@ export default function AdminRepresentativesTab() {
     if (!form.id) return
     let note = ''
     if (action === 'REJECT') {
-      if (!window.confirm('تأكيد رفض ملف الممثل؟ سيبقى محفوظاً في السجل لكنه لن يعتمد للعرض العام.')) return
-      note = window.prompt('اكتب سبب رفض هذا التعديل/الملف ليظهر في سجل المراجعة:', '') || ''
-      if (!note.trim() && !window.confirm('لم تكتب سبباً للرفض. هل تريد الرفض بدون سبب؟')) return
+      if (!(await confirmAction({ title: 'رفض ملف الممثل', description: 'سيبقى الملف محفوظاً في السجل لكنه لن يعتمد للعرض العام.', confirmLabel: 'متابعة الرفض', tone: 'warning' }))) return
+      note = (await promptAction({ title: 'سبب رفض ملف الممثل', description: 'اكتب سبب رفض هذا التعديل/الملف ليظهر في سجل المراجعة.', fieldLabel: 'سبب الرفض', defaultValue: '', multiline: true, confirmLabel: 'اعتماد السبب', tone: 'info' })) || ''
+      if (!note.trim() && !(await confirmAction({ title: 'رفض بدون سبب', description: 'لم تكتب سبباً للرفض. هل تريد الرفض بدون سبب؟', confirmLabel: 'رفض بدون سبب', tone: 'warning' }))) return
     }
     setUploading(true)
     try {
