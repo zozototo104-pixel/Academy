@@ -65,10 +65,6 @@ export async function PUT(req: NextRequest) {
       if (inputType === 'number') {
         if (v === '' || isNaN(parseFloat(v))) continue
         const numericValue = parseFloat(v)
-        if (key.startsWith('FEE_') && numericValue <= 0) {
-          invalidFeeLabels.push(def.label)
-          continue
-        }
         v = String(numericValue)
       }
       if (inputType === 'json') {
