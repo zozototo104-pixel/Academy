@@ -26,7 +26,7 @@ function testSupervisorsApiAndUi() {
 
   const ui = file('src/components/aact/AdminSupervisors.tsx')
   assert(occurrences(ui, '/api/admin/supervisors') >= 3, 'AdminSupervisors must use the dedicated supervisors API')
-  assert(ui.includes('window.confirm'), 'AdminSupervisors must confirm before supervisor revocation')
+  assert(ui.includes('useAdminActionDialog') && ui.includes('confirmAction'), 'AdminSupervisors must confirm before supervisor revocation')
 }
 
 function testApprovedOnlyExamAssembly() {
