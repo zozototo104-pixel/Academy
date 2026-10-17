@@ -105,6 +105,8 @@ function mockTokenFetch(handler: (key: string) => { status: number; body: unknow
 beforeEach(() => {
   values.clear()
   fetchKeys = []
+  supervisorAccessLocked = false
+  reserveUsageCalls = 0
   delete process.env.GEMINI_API_KEY
   delete process.env.GEMINI_API_KEYS
   textAi.__resetTextAiStateForTests()
