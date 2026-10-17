@@ -214,7 +214,8 @@ describe('server-side session security', () => {
   test('active user gets an HttpOnly session and remains authenticated', async () => {
     seedUser('active')
     const token = await createSession('active')
-    expect(sessions.has(token)).toBe(true)
+    expect(sessions.has(token)).toBe(false)
+    expect(sessions.has(hashSessionToken(token))).toBe(true)
     expect(cookieValues.get('aact_session')).toBe(token)
     expect(cookieOptions.get('aact_session')?.httpOnly).toBe(true)
     expect((await getCurrentUser())?.id).toBe('active')
