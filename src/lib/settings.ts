@@ -219,6 +219,10 @@ export async function nextSerial(prefix: string): Promise<string> {
   return `${base}${pad(count)}`
 }
 
+function isUniqueConstraintError(error: any) {
+  return error?.code === 'P2002'
+}
+
 export async function nextInvoiceNo(): Promise<string> {
   const year = new Date().getFullYear()
   const prefix = `AACT-INV-${year}-`
