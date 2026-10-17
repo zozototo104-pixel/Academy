@@ -365,10 +365,7 @@ export async function POST(req: NextRequest) {
 
     if (!token) {
       const e = lastError || new Error('GEMINI_LIVE_NO_AVAILABLE_KEY')
-      return NextResponse.json(
-        { error: arabicErrorForGemini(e), details: failures },
-        { status: httpStatusForGeminiError(e) }
-      )
+      return geminiLiveTokenFailureResponse(user, e, failures)
     }
 
     if (body.testOnly) {
