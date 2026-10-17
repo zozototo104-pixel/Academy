@@ -470,11 +470,12 @@ export function ExamView() {
       setProctorEnabled(enable)
       setExamStarted(true)
       if (stream) {
-        proctorStreamRef.current = stream
+        const activeStream = stream
+        proctorStreamRef.current = activeStream
         setProctorActive(true)
         setTimeout(() => {
           if (proctorVideoRef.current) {
-            proctorVideoRef.current.srcObject = stream
+            proctorVideoRef.current.srcObject = activeStream
             proctorVideoRef.current.play().catch((error) => { console.warn('Failed to start proctoring video playback.', error) })
             // لقطة أولى لتوثيق هوية الممتحن
             try {
