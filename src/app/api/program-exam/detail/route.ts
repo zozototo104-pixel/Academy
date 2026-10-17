@@ -124,7 +124,7 @@ export async function GET(req: NextRequest) {
       }),
       getExamMaxAttempts('PROGRAM'),
       db.programExamAttempt.count({
-        where: { userId: user.id, examId, status: { in: COMPLETED_PROGRAM_ATTEMPT_STATUSES } },
+        where: { userId: user.id, examId, status: { in: COMPLETED_PROGRAM_ATTEMPT_STATUSES }, createdAt: { gte: EXAM_ATTEMPT_POLICY_SINCE } },
       }),
     ])
 
