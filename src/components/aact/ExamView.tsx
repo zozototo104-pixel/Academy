@@ -117,6 +117,7 @@ function examErrorMessage(error: ApiError) {
   if (error.code === 'SUBMITTED' || error.code === 'ATTEMPT_SUBMITTED') return 'محاولتك محفوظة وقيد التصحيح. سيتم توجيهك للنتائج.'
   if (error.code === 'ATTEMPT_EXPIRED' || error.code === 'UNIT_EXAM_EXPIRED') return 'انتهت المحاولة وحُسبت صفر'
   if (error.code === 'ATTEMPT_ALREADY_CLAIMED') return 'تم تسليم هذه المحاولة أو يجري تصحيحها بالفعل. سيتم توجيهك للنتائج.'
+  if (error.code === 'MAX_ATTEMPTS_REACHED') return 'استنفدت عدد محاولات هذا الاختبار'
   if (error.code === 'EXAM_HAS_NO_QUESTIONS') return 'هذا الاختبار غير جاهز للنشر لأنه لا يحتوي أسئلة منشورة صالحة بعد.'
   return error.message
 }
