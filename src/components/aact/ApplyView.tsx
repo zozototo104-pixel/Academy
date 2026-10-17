@@ -47,6 +47,7 @@ interface ProgramLite {
   categoryLabel?: string
   specialty?: string
   price?: number | null
+  registrationStatus?: string | null
   admissionRules?: {
     minEducation?: string
     minAge?: number
@@ -159,12 +160,13 @@ const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
 const ALLOWED_FILE_MIME = [
   'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif',
   'application/pdf',
+  'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/vnd.ms-excel',
   'text/plain', 'text/csv', 'application/csv',
 ]
-const ALLOWED_FILE_RE = /\.(jpe?g|png|webp|heic|heif|pdf|docx|xlsx|xls|txt|csv)$/i
+const ALLOWED_FILE_RE = /\.(jpe?g|png|webp|heic|heif|pdf|doc|docx|xlsx|xls|txt|csv)$/i
 
 export function ApplyView() {
   const { toast } = useToast()
@@ -454,6 +456,10 @@ export function ApplyView() {
       toast({ title: 'تنبيه', description: isServiceRequest ? 'يرجى اختيار الخدمة المطلوبة' : 'يرجى اختيار التخصص أو البرنامج المرغوب', variant: 'destructive' })
       return
     }
+    if (selectedProgram?.registrationStatus && selectedProgram.registrationStatus !== 'OPEN') {
+      toast({ title: 'التسجيل مغلق', description: 'التسجيل في هذا البرنامج غير مفتوح حالياً. يرجى اختيار برنامج آخر أو متابعة الإعلانات الرسمية عند إعادة فتح التسجيل.', variant: 'destructive' })
+      return
+    }
     const validationError = validateApplicantFullName(form.fullName, 3)
       || validatePhone(form.phone)
       || (!SUPPORTED_COUNTRIES.includes(form.country) ? 'يرجى اختيار الدولة من القائمة المعتمدة بدلاً من كتابتها يدوياً.' : null)
@@ -489,7 +495,13 @@ export function ApplyView() {
 
       // لا نرسل كل المرفقات دفعة واحدة حتى لا يصطدم الطلب بحد Vercel ويرجع HTTP 413.
       // ننشئ الطلب أولاً، ثم نرفع كل ملف في طلب مستقل، ثم نكمل التقديم ونصدر الفاتورة.
-      const staged = await api<{ reference: string; applicationId: string; uploadToken: string; staged: boolean }>('/api/admissions', { method: 'POST', body: fd })
+      const staged = await api<{ reference: string; applicationId: string; uploadToken: string | null; staged: boolean; existingOpen?: boolean; invoice?: any; message?: string }>('/api/admissions', { method: 'POST', body: fd })
+      if (staged.existingOpen && !staged.staged) {
+        setDone({ reference: staged.reference, invoice: staged.invoice || null })
+        toast({ title: 'لديك طلب مفتوح', description: staged.message || 'أعدنا الطلب الحالي بدون إنشاء فاتورة جديدة.' })
+        return
+      }
+      if (!staged.uploadToken) throw new Error('رابط رفع الملفات غير متاح حالياً. حاول مرة أخرى أو تواصل مع الإدارة.')
       const docsToUpload = activeDocs.filter((d) => files[d.type])
       for (let i = 0; i < docsToUpload.length; i++) {
         const d = docsToUpload[i]

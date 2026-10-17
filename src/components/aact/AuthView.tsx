@@ -209,6 +209,9 @@ export function AuthView() {
                       onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
                     />
                   </div>
+                  <button type="button" onClick={() => { window.location.href = '/forgot-password' }} className="block text-xs font-black text-[#bf1646] hover:underline">
+                    نسيت كلمة السر؟
+                  </button>
                   <Button type="submit" disabled={!!loading} className="h-12 w-full rounded-2xl bg-[#bf1646] text-base font-black text-white shadow-lg shadow-[#bf1646]/25 hover:bg-[#a61139]">
                     {loading === 'login' ? <Loader2 className="ml-2 h-5 w-5 animate-spin" /> : <LogIn className="ml-2 h-5 w-5" />}
                     دخول إلى المنصة
