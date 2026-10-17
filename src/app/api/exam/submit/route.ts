@@ -4,7 +4,7 @@ import { requireUser } from '@/lib/auth'
 import { generateOverallFeedback } from '@/lib/ai'
 import { gradeEssayWithRubric } from '@/lib/essay-grading'
 import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
-import { getExamMaxAttempts, shouldRevealCorrectAnswers } from '@/lib/exam-attempt-policy'
+import { EXAM_ATTEMPT_POLICY_SINCE, getExamMaxAttempts, shouldRevealCorrectAnswers } from '@/lib/exam-attempt-policy'
 
 const UNIT_EXAM_DURATION_MIN = Math.max(1, Number(process.env.AACT_UNIT_EXAM_DURATION_MIN || 60))
 const UNIT_EXAM_SUBMIT_GRACE_MS = 2 * 60 * 1000
