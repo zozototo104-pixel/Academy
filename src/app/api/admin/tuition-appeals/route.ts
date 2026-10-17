@@ -24,8 +24,8 @@ export async function PATCH(req: NextRequest) {
     if (!plan || plan.totalTuition <= 0) return NextResponse.json({ error: 'لا توجد رسوم دراسية لهذا الطلب' }, { status: 400 })
 
     if (decision === 'REJECT') {
-      const rejected = await db.tuitionInstallmentAppeal.update({
-        where: { id },
+      const rejectedRows = await db.tuitionInstallmentAppeal.updateMany({
+        where: { id, status: 'PENDING' },
         data: {
           status: 'REJECTED',
           adminNote: typeof body?.adminNote === 'string' ? body.adminNote.trim().slice(0, 1500) : null,
@@ -33,6 +33,9 @@ export async function PATCH(req: NextRequest) {
           decidedAt: new Date(),
         },
       })
+      if (rejectedRows.count !== 1) return NextResponse.json({ error: 'تم اتخاذ قرار على هذا الالتماس من جلسة أخرى' }, { status: 409 })
+      const rejected = await db.tuitionInstallmentAppeal.findUnique({ where: { id } })
+      if (!rejected) return NextResponse.json({ error: 'الالتماس غير موجود' }, { status: 404 })
       if (app.userId) {
         await notify(app.userId, 'PAYMENT', 'تم رفض التماس تقسيط الرسوم', rejected.adminNote || 'يرجى سداد الرسوم الدراسية وفق الفاتورة الأصلية لاستكمال الإجراءات.', 'dashboard').catch(() => {})
       }
