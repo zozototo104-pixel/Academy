@@ -83,6 +83,11 @@ export async function POST(req: NextRequest) {
     })
     if (!payment) return NextResponse.json({ error: 'الفاتورة غير موجودة أو غير مرتبطة بحسابك' }, { status: 404 })
     if (payment.status === 'PAID') return NextResponse.json({ error: 'الفاتورة مسددة بالفعل ولا تحتاج إثبات دفع جديد' }, { status: 400 })
+    if (payment.status === 'WAIVED') return NextResponse.json({ error: 'الفاتورة معفاة ولا تحتاج إثبات دفع' }, { status: 400 })
+    if (declaredAmount === null) return NextResponse.json({ error: 'يرجى إدخال مبلغ التحويل الظاهر في إثبات الدفع حتى تتمكن الإدارة من مطابقته.' }, { status: 400 })
+
+    const expectedAmount = paymentAmountDollars(payment)
+    if (declaredAmount <= 0) return NextResponse.json({ error: 'مبلغ التحويل يجب أن يكون أكبر من صفر' }, { status: 400 })
 
     const manualMethod = String(payment.method || payment.provider || '').toUpperCase()
     if (!MANUAL_METHODS.has(manualMethod)) {
