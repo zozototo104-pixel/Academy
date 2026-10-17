@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 export type ExamAttemptKind = 'UNIT' | 'PROGRAM'
 
 export const DEFAULT_EXAM_MAX_ATTEMPTS = 3
+export const EXAM_ATTEMPT_POLICY_SINCE = new Date('2026-10-17T00:00:00Z')
 
 const MAX_REASONABLE_ATTEMPTS = 20
 
