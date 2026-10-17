@@ -16,10 +16,7 @@ export async function POST(req: NextRequest) {
     const ip = clientIpFromHeaders(req.headers)
     const ipLimit = await checkDatabaseRateLimit(`auth:forgot-password:ip:${ip}`, 10, 60 * 60 * 1000)
     const emailLimit = await checkDatabaseRateLimit(`auth:forgot-password:email:${email}`, 3, 60 * 60 * 1000)
-    if (!ipLimit.ok || !emailLimit.ok) {
-      const limited = !emailLimit.ok ? emailLimit : ipLimit
-      return NextResponse.json({ error: 'طلبات كثيرة لإعادة تعيين كلمة المرور. انتظر قليلاً ثم حاول مرة أخرى.' }, { status: 429, headers: rateLimitHeaders(limited) })
-    }
+    if (!ipLimit.ok || !emailLimit.ok) return genericResponse(false)
 
     const user = await db.user.findUnique({ where: { email } })
     if (!user || user.status !== 'ACTIVE') return genericResponse(false)
