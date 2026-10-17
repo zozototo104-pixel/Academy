@@ -3,6 +3,9 @@ import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { calculateSemesterReadiness } from '@/lib/semester-readiness'
 import { enforceSemesterTuitionGate } from '@/lib/tuition-installments'
+import { EXAM_ATTEMPT_POLICY_SINCE, getExamMaxAttempts } from '@/lib/exam-attempt-policy'
+
+const COMPLETED_PROGRAM_ATTEMPT_STATUSES = ['GRADED', 'EXPIRED', 'NEEDS_REVIEW']
 
 // GET /api/program-exam/detail?examId=xxx — امتحان الفصل للمسجلين المفعّلين فقط
 // 12.2: الأسئلة المعتمدة من الإدارة فقط (PUBLISHED) + امتحان الفصل الثاني يتطلب اجتياز الفصل الأول
@@ -77,70 +80,64 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    const now = new Date()
-    const allowedMs = (exam.durationMin + 2) * 60 * 1000
-    // Serialize starts for this student, so concurrent browser requests reuse one attempt.
-    const attemptState = await db.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${user.id} FOR UPDATE`
-      let startedAttempt = await tx.programExamAttempt.findFirst({
+    const [passedAttempt, submittedAttempt, activeAttempt] = await Promise.all([
+      db.programExamAttempt.findFirst({
+        where: { userId: user.id, examId, passed: true, OR: [{ appealStatus: null }, { appealStatus: { not: 'PENDING' } }] },
+        select: { id: true },
+      }),
+      db.programExamAttempt.findFirst({
+        where: { userId: user.id, examId, status: 'SUBMITTED' },
+        select: { id: true },
+      }),
+      db.programExamAttempt.findFirst({
         where: { userId: user.id, examId, status: 'STARTED' },
         orderBy: { createdAt: 'desc' },
         select: { id: true, startedAt: true, createdAt: true },
+      }),
+    ])
+    if (passedAttempt) return NextResponse.json({ error: 'لقد اجتزت هذا الاختبار سابقاً، لا يمكن بدء محاولة جديدة', code: 'ALREADY_PASSED' }, { status: 403 })
+    if (submittedAttempt) return NextResponse.json({ error: 'هذه المحاولة قيد التصحيح', code: 'SUBMITTED' }, { status: 409 })
+    let currentActiveAttempt = activeAttempt
+    let lastAttemptNotice: { code: 'ATTEMPT_EXPIRED'; message: string } | null = null
+    const activeStartedAt = activeAttempt?.startedAt || activeAttempt?.createdAt || null
+    if (activeAttempt && activeStartedAt && activeStartedAt.getTime() + (exam.durationMin + 2) * 60 * 1000 < Date.now()) {
+      const expired = await db.programExamAttempt.updateMany({
+        where: { id: activeAttempt.id, status: 'STARTED' },
+        data: { status: 'EXPIRED', score: 0, finalScore: 0, passed: false, durationUsedMin: exam.durationMin + 2, submittedAt: new Date() },
       })
-      if (startedAttempt) {
-        const effectiveStartedAt = startedAttempt.startedAt || startedAttempt.createdAt
-        if (!startedAttempt.startedAt) {
-          startedAttempt = await tx.programExamAttempt.update({ where: { id: startedAttempt.id }, data: { startedAt: effectiveStartedAt }, select: { id: true, startedAt: true, createdAt: true } })
-        }
-        if (effectiveStartedAt.getTime() + allowedMs < now.getTime()) {
-          const expired = await tx.programExamAttempt.updateMany({
-            where: { id: startedAttempt.id, status: 'STARTED' },
-            data: { status: 'EXPIRED', score: 0, finalScore: 0, passed: false, durationUsedMin: exam.durationMin + 2, submittedAt: now },
-          })
-          if (expired.count !== 1) return { blocked: 'GRADING' as const, attempt: null }
-          return { blocked: 'EXPIRED' as const, attempt: null }
-        }
+      currentActiveAttempt = null
+      if (expired.count > 0) {
+        lastAttemptNotice = { code: 'ATTEMPT_EXPIRED', message: 'انتهت المحاولة السابقة وحُسبت صفر — يمكنك بدء محاولة جديدة' }
       }
-      if (!startedAttempt) {
-        const submitted = await tx.programExamAttempt.findFirst({
-          where: { userId: user.id, examId, status: 'SUBMITTED' }, select: { id: true },
-        })
-        if (submitted) return { blocked: 'GRADING' as const, attempt: null }
-        const passedAttempt = await tx.programExamAttempt.findFirst({
-          where: { userId: user.id, examId, passed: true, OR: [{ appealStatus: null }, { appealStatus: { not: 'PENDING' } }] },
-          select: { id: true },
-        })
-        if (passedAttempt) return { blocked: 'PASSED' as const, attempt: null }
-        startedAttempt = await tx.programExamAttempt.create({
-          data: { userId: user.id, examId, status: 'STARTED', startedAt: new Date() },
-          select: { id: true, startedAt: true, createdAt: true },
-        })
-      }
-      return { blocked: null, attempt: startedAttempt }
-    })
-    if (attemptState.blocked === 'GRADING') return NextResponse.json({ error: 'هذه المحاولة قيد التصحيح', code: 'SUBMITTED' }, { status: 409 })
-    if (attemptState.blocked === 'EXPIRED') return NextResponse.json({ error: 'انتهت المحاولة وحُسبت صفر', code: 'ATTEMPT_EXPIRED' }, { status: 409 })
-    if (attemptState.blocked === 'PASSED') return NextResponse.json({ error: 'لقد اجتزت هذا الاختبار سابقاً، لا يمكن بدء محاولة جديدة', code: 'ALREADY_PASSED' }, { status: 403 })
-    if (!attemptState.attempt) return NextResponse.json({ error: 'تعذر بدء الاختبار' }, { status: 409 })
-    const startedAttempt = attemptState.attempt
+    }
 
-    const books = await db.book.findMany({
-      where: { programId: exam.programId, OR: [{ semester: null }, { semester: exam.semester }] },
-      select: { id: true, title: true, author: true },
-      orderBy: { createdAt: 'asc' },
-    })
+    const [books, previousAttempts, maxAttempts, completedAttempts] = await Promise.all([
+      db.book.findMany({
+        where: { programId: exam.programId, OR: [{ semester: null }, { semester: exam.semester }] },
+        select: { id: true, title: true, author: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+      db.programExamAttempt.findMany({
+        where: { userId: user.id, examId, status: { not: 'STARTED' } },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true, status: true, score: true, finalScore: true, passed: true, durationUsedMin: true, submittedAt: true,
+          appealStatus: true, appealResponse: true,
+        },
+        take: 10,
+      }),
+      getExamMaxAttempts('PROGRAM'),
+      db.programExamAttempt.count({
+        where: { userId: user.id, examId, status: { in: COMPLETED_PROGRAM_ATTEMPT_STATUSES }, createdAt: { gte: EXAM_ATTEMPT_POLICY_SINCE } },
+      }),
+    ])
 
-    const previousAttempts = await db.programExamAttempt.findMany({
-      where: { userId: user.id, examId, status: { not: 'STARTED' } },
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true, status: true, score: true, finalScore: true, passed: true, durationUsedMin: true, submittedAt: true,
-        appealStatus: true, appealResponse: true,
-      },
-      take: 10,
-    })
+    if (lastAttemptNotice?.code === 'ATTEMPT_EXPIRED' && completedAttempts >= maxAttempts) {
+      return NextResponse.json({ error: 'انتهت المحاولة وحُسبت صفر — انتهى الوقت دون تسليم', code: 'ATTEMPT_EXPIRED' }, { status: 409 })
+    }
 
     return NextResponse.json({
+      serverNow: new Date().toISOString(),
       exam: {
         id: exam.id,
         title: exam.title,
@@ -154,8 +151,9 @@ export async function GET(req: NextRequest) {
         booksCount: books.length,
         books: books.map((b) => ({ id: b.id, title: b.title, author: b.author })),
         readiness,
-        attemptId: startedAttempt.id,
-        startedAt: startedAttempt.startedAt,
+        maxAttempts,
+        attemptsUsed: completedAttempts,
+        hasActiveAttempt: !!currentActiveAttempt,
       },
       questions: exam.questions.map((q) => ({
         id: q.id,
@@ -165,6 +163,7 @@ export async function GET(req: NextRequest) {
         options: q.options ? JSON.parse(q.options) : null,
         points: q.points,
       })),
+      lastAttemptNotice,
       previousAttempts: previousAttempts.map((attempt) => ({
         ...attempt,
         score: attempt.status === 'NEEDS_REVIEW' ? null : attempt.score,

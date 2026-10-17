@@ -4,9 +4,12 @@ import { requireUser } from '@/lib/auth'
 import { generateOverallFeedback } from '@/lib/ai'
 import { gradeEssayWithRubric } from '@/lib/essay-grading'
 import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
+import { EXAM_ATTEMPT_POLICY_SINCE, getExamMaxAttempts, shouldRevealCorrectAnswers } from '@/lib/exam-attempt-policy'
 
 const UNIT_EXAM_DURATION_MIN = Math.max(1, Number(process.env.AACT_UNIT_EXAM_DURATION_MIN || 60))
 const UNIT_EXAM_SUBMIT_GRACE_MS = 2 * 60 * 1000
+const COMPLETED_UNIT_ATTEMPT_STATUSES = ['GRADED', 'EXPIRED', 'NEEDS_REVIEW']
+const HIDDEN_CORRECT_ANSWER_FEEDBACK = 'إجابة غير صحيحة — راجع هذا المفهوم في الوحدة'
 
 interface SubmitAnswer {
   questionId: string
@@ -56,6 +59,23 @@ function buildAnswerKeyFeedback(programTitle: string, percentage: number, passed
       ? weakPoints.slice(0, 3).map((point) => point.replace(/\.\.\.$/, ''))
       : ['مراجعة محتوى الوحدة وتثبيت المفاهيم الأساسية'],
   }
+}
+
+function sanitizeUnitFeedbackForHiddenAnswers<T extends { isCorrect: boolean | null; aiFeedback: string; correctAnswerText?: string }>(items: T[]): T[] {
+  return items.map((item) => {
+    const { correctAnswerText: _correctAnswerText, ...rest } = item
+    return {
+      ...rest,
+      aiFeedback: item.isCorrect === true ? item.aiFeedback : HIDDEN_CORRECT_ANSWER_FEEDBACK,
+    } as T
+  })
+}
+
+function sanitizePreparedAnswersForHiddenAnswers(items: PreparedAnswer[]): PreparedAnswer[] {
+  return items.map((item) => ({
+    ...item,
+    aiFeedback: item.isCorrect === true ? item.aiFeedback : HIDDEN_CORRECT_ANSWER_FEEDBACK,
+  }))
 }
 
 function answerData(attemptId: string, prepared: PreparedAnswer) {
@@ -133,6 +153,11 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    const maxAttempts = await getExamMaxAttempts('UNIT')
+    const completedAttemptsBeforeSubmit = typeof db.examAttempt.count === 'function'
+      ? await db.examAttempt.count({ where: { userId: user.id, examId, status: { in: COMPLETED_UNIT_ATTEMPT_STATUSES }, createdAt: { gte: EXAM_ATTEMPT_POLICY_SINCE } } })
+      : 0
+
     const allowedQuestionIds = new Set(exam.questions.map((q) => q.id))
     if (answers.some((a) => !allowedQuestionIds.has(a.questionId))) {
       return NextResponse.json({ error: 'توجد إجابات لأسئلة لا تنتمي لهذا الاختبار' }, { status: 400 })
@@ -157,7 +182,13 @@ export async function POST(req: NextRequest) {
       select: { id: true, createdAt: true },
     })
     if (!activeAttempt) {
+      if (completedAttemptsBeforeSubmit >= maxAttempts) {
+        return NextResponse.json({ error: 'استنفدت عدد محاولات هذا الاختبار', code: 'MAX_ATTEMPTS_REACHED', maxAttempts, attemptsUsed: completedAttemptsBeforeSubmit }, { status: 403 })
+      }
       return NextResponse.json({ error: 'يجب بدء الاختبار من صفحة الأسئلة قبل التسليم' }, { status: 409 })
+    }
+    if (completedAttemptsBeforeSubmit >= maxAttempts) {
+      return NextResponse.json({ error: 'استنفدت عدد محاولات هذا الاختبار', code: 'MAX_ATTEMPTS_REACHED', maxAttempts, attemptsUsed: completedAttemptsBeforeSubmit }, { status: 403 })
     }
     if (Date.now() > unitAttemptDeadline(activeAttempt.createdAt)) {
       await db.$transaction(async (tx) => {
@@ -338,16 +369,21 @@ export async function POST(req: NextRequest) {
     }
 
     if (needsReview) {
+      const revealCorrectAnswers = shouldRevealCorrectAnswers({ passed: false, completedAttempts: completedAttemptsBeforeSubmit + 1, maxAttempts })
+      const persistedAnswers = revealCorrectAnswers ? answersToPersist : sanitizePreparedAnswersForHiddenAnswers(answersToPersist)
+      const responseResults = revealCorrectAnswers ? gradedResults : sanitizeUnitFeedbackForHiddenAnswers(gradedResults)
       const attempt = await db.$transaction(async (tx) => {
         const created = await tx.examAttempt.update({ where: { id: activeAttempt.id }, data: { status: 'NEEDS_REVIEW', feedback: JSON.stringify({ summary: 'تم حفظ الإجابات، التصحيح قيد المراجعة.' }) } })
-        for (const prepared of answersToPersist) {
+        for (const prepared of persistedAnswers) {
           await persistPreparedAnswer(tx, created.id, prepared, prePersistedEssayQuestionIds.has(prepared.questionId))
         }
         await tx.examDraft.deleteMany({ where: { userId: user.id, examId, examType: 'UNIT' } })
         return created
       })
       claimedUnitAttemptId = null
-      return NextResponse.json({ ok: true, status: 'NEEDS_REVIEW', attemptId: attempt.id, message: 'تم حفظ إجاباتك، التصحيح قيد المراجعة', results: gradedResults.sort((a, b) => a.order - b.order) }, { status: 202 })
+      const results = responseResults.sort((a, b) => a.order - b.order)
+      const reviewResults = revealCorrectAnswers ? results : results.map(({ correctAnswerText, ...result }) => result)
+      return NextResponse.json({ ok: true, status: 'NEEDS_REVIEW', attemptId: attempt.id, message: 'تم حفظ إجاباتك، التصحيح قيد المراجعة', maxAttempts, attemptsUsed: completedAttemptsBeforeSubmit + 1, results: reviewResults }, { status: 202 })
     }
 
     const percentage = maxTotal > 0 ? (totalScore / maxTotal) * 100 : 0
@@ -361,11 +397,15 @@ export async function POST(req: NextRequest) {
       overall = buildAnswerKeyFeedback(exam.unit.program.titleAr, percentage, passed, weakPoints)
     }
     const feedbackJson = JSON.stringify(overall)
+    const completedAttempts = completedAttemptsBeforeSubmit + 1
+    const revealCorrectAnswers = shouldRevealCorrectAnswers({ passed, completedAttempts, maxAttempts })
+    const persistedAnswers = revealCorrectAnswers ? answersToPersist : sanitizePreparedAnswersForHiddenAnswers(answersToPersist)
+    const responseResults = revealCorrectAnswers ? gradedResults : sanitizeUnitFeedbackForHiddenAnswers(gradedResults)
 
     const attempt = await db.$transaction(async (tx) => {
       const created = activeAttempt
 
-      for (const prepared of answersToPersist) {
+      for (const prepared of persistedAnswers) {
         await persistPreparedAnswer(tx, created.id, prepared, prePersistedEssayQuestionIds.has(prepared.questionId))
       }
 
@@ -389,6 +429,8 @@ export async function POST(req: NextRequest) {
       ? await completeEnrollmentIfEligible({ enrollmentId: enrollment.id })
       : null
     const certificateNo = completion?.ok ? completion.certificate?.serial || null : null
+    const results = responseResults.sort((a, b) => a.order - b.order)
+    const finalResults = revealCorrectAnswers ? results : results.map(({ correctAnswerText, ...result }) => result)
 
     return NextResponse.json({
       ok: true,
@@ -400,7 +442,9 @@ export async function POST(req: NextRequest) {
       passed,
       overall,
       certificateNo,
-      results: gradedResults.sort((a, b) => a.order - b.order),
+      maxAttempts,
+      attemptsUsed: completedAttempts,
+      results: finalResults,
     })
   } catch (e: any) {
     if (claimedUnitAttemptId) {

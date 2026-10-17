@@ -1,7 +1,7 @@
 /// <reference types="bun-types" />
 import { afterAll, afterEach, beforeEach, describe, expect, mock, test } from 'bun:test'
 import { NextRequest } from 'next/server'
-import { createHmac } from 'node:crypto'
+import { createHash, createHmac } from 'node:crypto'
 
 type FakeUser = {
   id: string
@@ -26,6 +26,19 @@ let createdSessions = 0
 let deletedSessions = 0
 let updatedUsers = 0
 let googleRequests = 0
+
+function hashSessionToken(token: string) {
+  return createHash('sha256').update(String(token || '')).digest('hex')
+}
+
+function sessionMatchesWhere(token: string, session: FakeSession, where: any): boolean {
+  if (!where) return true
+  if (Array.isArray(where.OR)) return where.OR.some((branch: any) => sessionMatchesWhere(token, session, branch))
+  if (where.token && token !== where.token) return false
+  if (where.id && session.id !== where.id) return false
+  if (where.userId && session.userId !== where.userId) return false
+  return true
+}
 
 const cookieJar = {
   get: (name: string) => cookieValues.has(name) ? { name, value: cookieValues.get(name)! } : undefined,
@@ -79,10 +92,16 @@ const db = {
       const session = sessions.get(where.token)
       return session ? { ...session, user: users.get(session.userId) } : null
     },
-    deleteMany: async ({ where }: { where: { token?: string; id?: string; userId?: string } }) => {
+    findFirst: async ({ where }: { where: any }) => {
+      for (const [token, session] of sessions) {
+        if (sessionMatchesWhere(token, session, where)) return { ...session, user: users.get(session.userId) }
+      }
+      return null
+    },
+    deleteMany: async ({ where }: { where: any }) => {
       let count = 0
       for (const [token, session] of sessions) {
-        if ((where.token && token === where.token) || (where.id && session.id === where.id) || (where.userId && session.userId === where.userId)) {
+        if (sessionMatchesWhere(token, session, where)) {
           sessions.delete(token)
           count++
         }
@@ -195,7 +214,8 @@ describe('server-side session security', () => {
   test('active user gets an HttpOnly session and remains authenticated', async () => {
     seedUser('active')
     const token = await createSession('active')
-    expect(sessions.has(token)).toBe(true)
+    expect(sessions.has(token)).toBe(false)
+    expect(sessions.has(hashSessionToken(token))).toBe(true)
     expect(cookieValues.get('aact_session')).toBe(token)
     expect(cookieOptions.get('aact_session')?.httpOnly).toBe(true)
     expect((await getCurrentUser())?.id).toBe('active')

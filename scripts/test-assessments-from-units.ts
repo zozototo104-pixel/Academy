@@ -345,10 +345,11 @@ function testQuestionBankSanitizesTfBeforeNumericValidation() {
 
 function testExamTimingUsesStartedAtNotClientDuration() {
   const detail = src('src/app/api/program-exam/detail/route.ts')
+  const start = src('src/app/api/program-exam/start/route.ts')
   const submit = src('src/app/api/program-exam/submit/route.ts')
-  assert(detail.includes("status: 'STARTED'") && detail.includes('startedAt: new Date()'), 'فتح الامتحان يجب أن يسجل startedAt على الخادم')
+  assert(start.includes("status: 'STARTED'") && start.includes('startedAt: now'), 'بدء الامتحان يجب أن يسجل startedAt على الخادم من مسار start الصريح')
   assert(submit.includes('startedAttempt.startedAt') && submit.includes('(exam.durationMin + 2)'), 'التسليم يجب أن يتحقق من startedAt ومدة الامتحان مع دقيقتي سماح')
-  assert(detail.includes("status: 'EXPIRED'") && detail.includes('انتهى الوقت دون تسليم'), 'المحاولة STARTED المنتهية يجب أن تتحول إلى EXPIRED وتظهر بتسمية واضحة')
+  assert(start.includes("status: 'EXPIRED'") && detail.includes('انتهى الوقت دون تسليم'), 'المحاولة STARTED المنتهية يجب أن تتحول إلى EXPIRED وتظهر بتسمية واضحة')
   assert(submit.includes("status: 'EXPIRED'") && submit.includes('انتهى وقت هذه المحاولة'), 'تسليم محاولة EXPIRED يجب أن يرجع 409 برسالة واضحة')
   assert(submit.includes('serverDurationUsedMin'), 'مدة الاستخدام يجب أن تحسب من الخادم لا من المتصفح')
 }

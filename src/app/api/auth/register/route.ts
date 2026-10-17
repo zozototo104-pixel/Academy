@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { hashPassword } from '@/lib/auth'
+import { destroySession, hashPassword } from '@/lib/auth'
 import { emailVerifyAccount } from '@/lib/mailer'
 import { createEmailVerificationToken, emailVerificationUrl } from '@/lib/email-verification'
 import { checkDatabaseRateLimit, clientIpFromHeaders, rateLimitHeaders } from '@/lib/rate-limit'
+import { normalizePhone, validatePhone } from '@/lib/admission-validation'
 
 function sameSiteRequest(req: NextRequest) {
   const host = req.headers.get('host') || ''
@@ -61,6 +62,12 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       )
     }
+    const phoneValue = typeof phone === 'string' && phone.trim() ? phone.trim() : null
+    if (phoneValue) {
+      const phoneError = validatePhone(phoneValue)
+      if (phoneError) return NextResponse.json({ error: phoneError }, { status: 400 })
+    }
+
     const emailNorm = email.trim().toLowerCase()
     const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRe.test(emailNorm)) {
@@ -83,20 +90,30 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    await destroySession().catch(() => null)
+
     const verification = createEmailVerificationToken()
-    const user = await db.user.create({
-      data: {
-        name: normalizeOptionalText(name, 120),
-        email: emailNorm,
-        password: hashPassword(password),
-        phone: normalizeOptionalText(phone, 40) || null,
-        country: normalizeOptionalText(country, 80) || null,
-        role: 'STUDENT',
-        emailVerificationTokenHash: verification.tokenHash,
-        emailVerificationExpiresAt: verification.expiresAt,
-        emailVerificationSentAt: new Date(),
-      },
-    })
+    let user
+    try {
+      user = await db.user.create({
+        data: {
+          name: normalizeOptionalText(name, 120),
+          email: emailNorm,
+          password: hashPassword(password),
+          phone: phoneValue ? normalizePhone(phoneValue) || null : null,
+          country: normalizeOptionalText(country, 80) || null,
+          role: 'STUDENT',
+          emailVerificationTokenHash: verification.tokenHash,
+          emailVerificationExpiresAt: verification.expiresAt,
+          emailVerificationSentAt: new Date(),
+        },
+      })
+    } catch (e: any) {
+      if (e?.code === 'P2002') {
+        return NextResponse.json({ error: 'الإيميل مسجل مسبقاً' }, { status: 409 })
+      }
+      throw e
+    }
 
     const verificationSent = await emailVerifyAccount(user.email, user.name, emailVerificationUrl(req, verification.token)).catch(() => false)
 

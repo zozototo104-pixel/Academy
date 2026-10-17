@@ -6,15 +6,17 @@ export { hashPassword, verifyPassword } from '@/lib/password'
 const SESSION_COOKIE = 'aact_session'
 const SESSION_DAYS = 30
 
+function hashSessionToken(token: string) {
+  return createHash('sha256').update(String(token || '')).digest('hex')
+}
+
 export async function createSession(userId: string) {
   const account = await db.user.findUnique({ where: { id: userId }, select: { status: true } })
   if (account?.status !== 'ACTIVE') throw new Error('ACCOUNT_DISABLED')
-  const token = createHash('sha256')
-    .update(randomBytes(32))
-    .update(userId)
-    .digest('hex')
+  const token = randomBytes(32).toString('base64url')
+  const tokenHash = hashSessionToken(token)
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000)
-  await db.session.create({ data: { token, userId, expiresAt } })
+  await db.session.create({ data: { token: tokenHash, userId, expiresAt } })
   const store = await cookies()
   store.set(SESSION_COOKIE, token, {
     httpOnly: true,
@@ -52,7 +54,7 @@ async function getSessionToken(): Promise<string | null> {
 export async function destroySession() {
   const token = await getSessionToken()
   if (token) {
-    await db.session.deleteMany({ where: { token } }).catch((error) => { console.warn('Failed to delete auth session during logout.', error) })
+    await db.session.deleteMany({ where: { OR: [{ token }, { token: hashSessionToken(token) }] } }).catch((error) => { console.warn('Failed to delete auth session during logout.', error) })
   }
   try {
     const store = await cookies()
@@ -66,8 +68,8 @@ export async function getCurrentUser() {
   try {
     const token = await getSessionToken()
     if (!token) return null
-    const session = await db.session.findUnique({
-      where: { token },
+    const session = await db.session.findFirst({
+      where: { OR: [{ token }, { token: hashSessionToken(token) }] },
       include: { user: true },
     })
     if (!session) return null
