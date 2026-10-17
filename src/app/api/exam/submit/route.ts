@@ -9,6 +9,7 @@ import { EXAM_ATTEMPT_POLICY_SINCE, getExamMaxAttempts, shouldRevealCorrectAnswe
 const UNIT_EXAM_DURATION_MIN = Math.max(1, Number(process.env.AACT_UNIT_EXAM_DURATION_MIN || 60))
 const UNIT_EXAM_SUBMIT_GRACE_MS = 2 * 60 * 1000
 const COMPLETED_UNIT_ATTEMPT_STATUSES = ['GRADED', 'EXPIRED', 'NEEDS_REVIEW']
+const HIDDEN_CORRECT_ANSWER_FEEDBACK = 'إجابة غير صحيحة — راجع هذا المفهوم في الوحدة'
 
 interface SubmitAnswer {
   questionId: string
