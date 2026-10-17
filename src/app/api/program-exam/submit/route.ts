@@ -10,6 +10,7 @@ import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
 import { EXAM_ATTEMPT_POLICY_SINCE, getExamMaxAttempts, shouldRevealCorrectAnswers } from '@/lib/exam-attempt-policy'
 
 const COMPLETED_PROGRAM_ATTEMPT_STATUSES = ['GRADED', 'EXPIRED', 'NEEDS_REVIEW']
+const HIDDEN_CORRECT_ANSWER_FEEDBACK = 'إجابة غير صحيحة — راجع هذا المفهوم في الوحدة'
 
 interface SubmitAnswer {
   questionId: string
