@@ -153,6 +153,15 @@ function failureDetail(keyIndex: number, key: string, e: any): LiveKeyFailureDet
   }
 }
 
+function geminiLiveTokenFailureResponse(user: any, e: any, details: LiveKeyFailureDetail[]) {
+  const status = httpStatusForGeminiError(e)
+  if (user?.role === 'ADMIN') {
+    return NextResponse.json({ error: arabicErrorForGemini(e), details }, { status })
+  }
+  console.error('gemini-live token failure:', JSON.stringify(details).slice(0, 2000))
+  return NextResponse.json({ error: 'الصوت غير متاح حالياً، استخدم المحادثة النصية' }, { status })
+}
+
 function liveTokenError(message: string, status: number, model: string, ms: number): Error & { status: number; model: string; ms: number; googleMessage: string } {
   const err = new Error(message) as Error & { status: number; model: string; ms: number; googleMessage: string }
   err.status = status
