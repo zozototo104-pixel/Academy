@@ -26,6 +26,7 @@
     "test:representative-onboarding": "bun test tests/representatives",
     "test:academic-b1": "bun test tests/academic/academic-b1.test.ts",
     "test:academic-b2": "bun test tests/academic/academic-b2.test.ts",
+    "test:question-bank-normalize": "bun test tests/academic/question-bank-normalize.test.ts",
     "test:files-c2": "bun test tests/files/files-c2.test.ts && bun test tests/files/admin-students-c2.test.ts",
     "test:ai-d1": "bun test tests/ai/ai-d1.test.ts",
     "test:ai-d2": "bun test tests/ai/ai-d2.test.ts",
