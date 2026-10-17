@@ -9,6 +9,7 @@ const source = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf
 const unitDetail = source('src/app/api/exam/detail/route.ts')
 const unitSubmit = source('src/app/api/exam/submit/route.ts')
 const programDetail = source('src/app/api/program-exam/detail/route.ts')
+const programStart = source('src/app/api/program-exam/start/route.ts')
 const programSubmit = source('src/app/api/program-exam/submit/route.ts')
 
 describe('Stage C exam security invariants (static regression)', () => {
@@ -37,9 +38,11 @@ describe('Stage C exam security invariants (static regression)', () => {
     expect(unitSubmit).toContain("where: { id: claimedUnitAttemptId, status: 'SUBMITTED' }")
   })
   test('program attempt starts serialize requests on the student row', () => {
-    expect(programDetail).toContain('db.$transaction(async (tx) =>')
-    expect(programDetail).toContain('FOR UPDATE')
-    expect(programDetail).toContain('tx.programExamAttempt.create(')
+    expect(programDetail).not.toContain('programExamAttempt.create')
+    expect(programDetail).not.toContain('FOR UPDATE')
+    expect(programStart).toContain('db.$transaction(async (tx) =>')
+    expect(programStart).toContain('FOR UPDATE')
+    expect(programStart).toContain('tx.programExamAttempt.create(')
   })
   test('program submission claims attempts atomically', () => {
     expect(programSubmit).toContain('db.programExamAttempt.updateMany(')

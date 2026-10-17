@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
+import { EXAM_ATTEMPT_POLICY_SINCE, getExamMaxAttempts } from '@/lib/exam-attempt-policy'
+
+const UNIT_EXAM_DURATION_MIN = Math.max(1, Number(process.env.AACT_UNIT_EXAM_DURATION_MIN || 60))
+const COMPLETED_UNIT_ATTEMPT_STATUSES = ['GRADED', 'EXPIRED', 'NEEDS_REVIEW']
 
 // GET /api/exam/detail?examId=xxx — أسئلة الاختبار (بدون الإجابات الصحيحة)
 export async function GET(req: NextRequest) {
@@ -46,16 +50,22 @@ export async function GET(req: NextRequest) {
     // لا نحتسب الوقت القادم من المتصفح؛ createdAt محفوظ من قاعدة البيانات.
     const attemptState = await db.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${user.id} FOR UPDATE`
+      const maxAttempts = await getExamMaxAttempts('UNIT', tx)
+      const completedAttempts = await tx.examAttempt.count({
+        where: { userId: user.id, examId, status: { in: COMPLETED_UNIT_ATTEMPT_STATUSES }, createdAt: { gte: EXAM_ATTEMPT_POLICY_SINCE } },
+      })
+      if (completedAttempts >= maxAttempts) return { blocked: true as const, reason: 'MAX_ATTEMPTS_REACHED' as const, maxAttempts, completedAttempts }
+
       const passedAttempt = await tx.examAttempt.findFirst({
         where: { userId: user.id, examId, status: 'GRADED', passed: true },
         select: { id: true },
       })
-      if (passedAttempt) return { blocked: true as const, reason: 'PASSED_ALREADY' as const }
+      if (passedAttempt) return { blocked: true as const, reason: 'PASSED_ALREADY' as const, maxAttempts, completedAttempts }
       const grading = await tx.examAttempt.findFirst({
         where: { userId: user.id, examId, status: 'SUBMITTED' },
         select: { id: true },
       })
-      if (grading) return { blocked: true as const, reason: 'SUBMITTED' as const }
+      if (grading) return { blocked: true as const, reason: 'SUBMITTED' as const, maxAttempts, completedAttempts }
       const existing = await tx.examAttempt.findFirst({
         where: { userId: user.id, examId, status: 'STARTED' },
         orderBy: { createdAt: 'desc' },
@@ -65,11 +75,21 @@ export async function GET(req: NextRequest) {
         data: { userId: user.id, examId, status: 'STARTED' },
         select: { id: true, createdAt: true },
       })
-      return { blocked: false as const, attempt }
+      return { blocked: false as const, attempt, maxAttempts, completedAttempts }
     })
     if (attemptState.blocked) {
       return NextResponse.json(
-        { error: attemptState.reason === 'PASSED_ALREADY' ? 'لقد اجتزت هذا الاختبار بالفعل ولا يمكن بدء محاولة جديدة.' : 'هذه المحاولة قيد التصحيح بالفعل', code: attemptState.reason },
+        {
+          error:
+            attemptState.reason === 'PASSED_ALREADY'
+              ? 'لقد اجتزت هذا الاختبار بالفعل ولا يمكن بدء محاولة جديدة.'
+              : attemptState.reason === 'MAX_ATTEMPTS_REACHED'
+              ? 'استنفدت عدد محاولات هذا الاختبار'
+              : 'هذه المحاولة قيد التصحيح بالفعل',
+          code: attemptState.reason,
+          maxAttempts: attemptState.maxAttempts,
+          attemptsUsed: attemptState.completedAttempts,
+        },
         { status: 409 }
       )
     }
@@ -82,6 +102,7 @@ export async function GET(req: NextRequest) {
     })
 
     return NextResponse.json({
+      serverNow: new Date().toISOString(),
       exam: {
         id: exam.id,
         title: exam.title,
@@ -90,6 +111,10 @@ export async function GET(req: NextRequest) {
         programId: exam.unit.programId,
         programTitle: exam.unit.program.titleAr,
         totalPoints: totalQuestionPoints,
+        durationMin: UNIT_EXAM_DURATION_MIN,
+        startedAt: attemptState.attempt.createdAt,
+        maxAttempts: attemptState.maxAttempts,
+        attemptsUsed: attemptState.completedAttempts,
       },
       questions: questions.map((q) => ({
         id: q.id,

@@ -25,6 +25,33 @@ function safeAnswersJson(value: unknown) {
   return json
 }
 
+function parseDraftAnswers(answersJson: string | null | undefined) {
+  try {
+    const parsed = JSON.parse(answersJson || '[]')
+    return Array.isArray(parsed) ? parsed : []
+  } catch (error) {
+    console.warn('Failed to parse saved exam draft answers JSON.', error)
+    return []
+  }
+}
+
+function serializeDraft(draft: { examId: string; examType: string; answersJson: string; current: number; startedAtMs: string | null; updatedAt: Date }) {
+  return {
+    examId: draft.examId,
+    examType: draft.examType,
+    answers: parseDraftAnswers(draft.answersJson),
+    current: draft.current,
+    startedAtMs: draft.startedAtMs,
+    updatedAt: draft.updatedAt,
+  }
+}
+
+function parseExpectedUpdatedAt(value: unknown) {
+  if (!value) return null
+  const parsed = new Date(String(value))
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
 async function assertExamAccess(userId: string, examId: string, examType: ExamType) {
   if (examType === 'UNIT') {
     const exam = await db.exam.findUnique({
@@ -72,18 +99,7 @@ export async function GET(req: NextRequest) {
     })
     if (!draft) return NextResponse.json({ draft: null })
 
-    let answers: any[] = []
-    try { answers = JSON.parse(draft.answersJson || '[]') } catch (error) { console.warn('Failed to parse saved exam draft answers JSON.', error) }
-    return NextResponse.json({
-      draft: {
-        examId: draft.examId,
-        examType: draft.examType,
-        answers,
-        current: draft.current,
-        startedAtMs: draft.startedAtMs,
-        updatedAt: draft.updatedAt,
-      },
-    })
+    return NextResponse.json({ draft: serializeDraft(draft) })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'يجب تسجيل الدخول أولاً' }, { status: 401 })
     console.error('exam draft GET error:', e)
@@ -106,14 +122,39 @@ export async function POST(req: NextRequest) {
     const answersJson = safeAnswersJson(body?.answers)
     const current = Math.max(0, Math.min(500, Number(body?.current || 0)))
     const startedAtMs = body?.startedAtMs ? String(body.startedAtMs).slice(0, 32) : null
+    const expectedUpdatedAt = parseExpectedUpdatedAt(body?.expectedUpdatedAt || body?.updatedAt)
 
-    const draft = await db.examDraft.upsert({
+    const existing = await db.examDraft.findUnique({
       where: { userId_examId_examType: { userId: user.id, examId, examType } },
-      create: { userId: user.id, examId, examType, answersJson, current, startedAtMs },
-      update: { answersJson, current, startedAtMs },
     })
 
-    return NextResponse.json({ ok: true, updatedAt: draft.updatedAt })
+    if (!existing) {
+      const draft = await db.examDraft.create({
+        data: { userId: user.id, examId, examType, answersJson, current, startedAtMs },
+      })
+      return NextResponse.json({ ok: true, updatedAt: draft.updatedAt })
+    }
+
+    if (!expectedUpdatedAt || existing.updatedAt.getTime() !== expectedUpdatedAt.getTime()) {
+      return NextResponse.json({ error: 'DRAFT_CONFLICT', code: 'DRAFT_CONFLICT', draft: serializeDraft(existing) }, { status: 409 })
+    }
+
+    const updated = await db.examDraft.updateMany({
+      where: { id: existing.id, updatedAt: existing.updatedAt },
+      data: { answersJson, current, startedAtMs },
+    })
+    if (updated.count !== 1) {
+      const latest = await db.examDraft.findUnique({
+        where: { userId_examId_examType: { userId: user.id, examId, examType } },
+      })
+      return NextResponse.json({ error: 'DRAFT_CONFLICT', code: 'DRAFT_CONFLICT', draft: latest ? serializeDraft(latest) : null }, { status: 409 })
+    }
+
+    const draft = await db.examDraft.findUnique({
+      where: { id: existing.id },
+    })
+
+    return NextResponse.json({ ok: true, updatedAt: draft?.updatedAt || new Date() })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'يجب تسجيل الدخول أولاً' }, { status: 401 })
     if (e?.message === 'DRAFT_TOO_LARGE') return NextResponse.json({ error: 'حجم مسودة الإجابات كبير جداً' }, { status: 413 })
