@@ -13,12 +13,10 @@ function hashSessionToken(token: string) {
 export async function createSession(userId: string) {
   const account = await db.user.findUnique({ where: { id: userId }, select: { status: true } })
   if (account?.status !== 'ACTIVE') throw new Error('ACCOUNT_DISABLED')
-  const token = createHash('sha256')
-    .update(randomBytes(32))
-    .update(userId)
-    .digest('hex')
+  const token = randomBytes(32).toString('base64url')
+  const tokenHash = hashSessionToken(token)
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000)
-  await db.session.create({ data: { token, userId, expiresAt } })
+  await db.session.create({ data: { token: tokenHash, userId, expiresAt } })
   const store = await cookies()
   store.set(SESSION_COOKIE, token, {
     httpOnly: true,
