@@ -38,9 +38,11 @@ describe('Stage C exam security invariants (static regression)', () => {
     expect(unitSubmit).toContain("where: { id: claimedUnitAttemptId, status: 'SUBMITTED' }")
   })
   test('program attempt starts serialize requests on the student row', () => {
-    expect(programDetail).toContain('db.$transaction(async (tx) =>')
-    expect(programDetail).toContain('FOR UPDATE')
-    expect(programDetail).toContain('tx.programExamAttempt.create(')
+    expect(programDetail).not.toContain('programExamAttempt.create')
+    expect(programDetail).not.toContain('FOR UPDATE')
+    expect(programStart).toContain('db.$transaction(async (tx) =>')
+    expect(programStart).toContain('FOR UPDATE')
+    expect(programStart).toContain('tx.programExamAttempt.create(')
   })
   test('program submission claims attempts atomically', () => {
     expect(programSubmit).toContain('db.programExamAttempt.updateMany(')
