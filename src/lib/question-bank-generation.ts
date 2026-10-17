@@ -103,12 +103,7 @@ function normalizeCandidate(candidate: unknown): unknown {
     qualityFlags.add('NORMALIZED_TF_OPTIONS')
   }
   if (typeof q.correctAnswer === 'number') q.correctAnswer = String(q.correctAnswer)
-  if (q.type === 'TF' && q.correctAnswer != null) {
-    const normalizedTf = normalizeTfCorrectAnswer(q.correctAnswer, q.options)
-    if (normalizedTf === 'صح') q.correctAnswer = '0'
-    else if (normalizedTf === 'خطأ') q.correctAnswer = '1'
-    else q.correctAnswer = normalizedTf
-  }
+  if (q.type === 'TF' && q.correctAnswer != null) q.correctAnswer = normalizeTfCorrectAnswer(q.correctAnswer, q.options)
   if (q.type === 'MCQ' && typeof q.correctAnswer === 'string') {
     const answerText = q.correctAnswer.trim()
     const letterIndex: Record<string, number> = { 'أ': 0, 'ا': 0, 'ب': 1, 'ج': 2, 'د': 3, 'هـ': 4, 'ه': 4, A: 0, a: 0, B: 1, b: 1, C: 2, c: 2, D: 3, d: 3, E: 4, e: 4 }
