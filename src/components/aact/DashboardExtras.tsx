@@ -356,6 +356,11 @@ export function PaymentsTab() {
 
   const uploadPaymentProof = async (payment: Payment, file?: File | null) => {
     if (!file) return
+    const declaredAmount = Number(transferAmounts[payment.id] || payment.amount || 0)
+    if (!Number.isFinite(declaredAmount) || declaredAmount <= 0) {
+      toast({ title: 'أدخل مبلغ التحويل', description: 'قيمة المبلغ المحوّل يجب أن تكون أكبر من صفر.', variant: 'destructive' })
+      return
+    }
     if (file.size > 8 * 1024 * 1024) {
       toast({ title: 'الملف كبير جداً', description: 'حجم إثبات الدفع يجب ألا يتجاوز 8MB.', variant: 'destructive' })
       return
@@ -365,6 +370,7 @@ export function PaymentsTab() {
       const form = new FormData()
       form.set('paymentId', payment.id)
       form.set('proofType', payment.method === 'USDT' ? 'USDT_RECEIPT' : 'TRANSFER_RECEIPT')
+      form.set('amount', String(declaredAmount))
       form.set('file', file)
       const token = getToken()
       const res = await fetch('/api/payments/proofs', {
