@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
 
     const maxAttempts = await getExamMaxAttempts('UNIT')
     const completedAttemptsBeforeSubmit = typeof db.examAttempt.count === 'function'
-      ? await db.examAttempt.count({ where: { userId: user.id, examId, status: { in: COMPLETED_UNIT_ATTEMPT_STATUSES } } })
+      ? await db.examAttempt.count({ where: { userId: user.id, examId, status: { in: COMPLETED_UNIT_ATTEMPT_STATUSES }, createdAt: { gte: EXAM_ATTEMPT_POLICY_SINCE } } })
       : 0
 
     const allowedQuestionIds = new Set(exam.questions.map((q) => q.id))
