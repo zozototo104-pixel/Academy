@@ -4,17 +4,10 @@ import { getCurrentUser } from '@/lib/auth'
 import { getSettingNum, nextInvoiceNo } from '@/lib/settings'
 import { notify, audit } from '@/lib/notify'
 import { emailAdmissionSubmitted, emailServiceRequestSubmitted } from '@/lib/mailer'
-import { buildServiceAdmissionDefaults, getServiceDocumentOptions, getServiceFlow } from '@/lib/service-flows'
-import { resolveRules } from '@/lib/admission-ai'
+import { getServiceFlow } from '@/lib/service-flows'
+import { resolveAdmissionRequiredDocuments } from '@/lib/admission-required-documents'
 import { verifyAdmissionUploadToken } from '@/lib/admission-upload-token'
 import { extractAdmissionDocumentReplacement, stripAdmissionDocumentReplacement } from '@/lib/admission-document-replacement'
-
-const REQUIRED_DOCS: { type: string; label: string }[] = [
-  { type: 'DEGREE', label: 'صورة عن الشهادة الجامعية وكشف العلامات (أو الثانوية للدبلومات)' },
-  { type: 'ID', label: 'صورة عن الهوية الشخصية أو جواز السفر' },
-  { type: 'PHOTO', label: 'صورة شخصية حديثة' },
-  { type: 'CV', label: 'صورة عن السيرة الذاتية (C.V)' },
-]
 
 export async function POST(req: NextRequest) {
   try {
