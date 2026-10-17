@@ -27,6 +27,19 @@ let deletedSessions = 0
 let updatedUsers = 0
 let googleRequests = 0
 
+function hashSessionToken(token: string) {
+  return createHash('sha256').update(String(token || '')).digest('hex')
+}
+
+function sessionMatchesWhere(token: string, session: FakeSession, where: any): boolean {
+  if (!where) return true
+  if (Array.isArray(where.OR)) return where.OR.some((branch: any) => sessionMatchesWhere(token, session, branch))
+  if (where.token && token !== where.token) return false
+  if (where.id && session.id !== where.id) return false
+  if (where.userId && session.userId !== where.userId) return false
+  return true
+}
+
 const cookieJar = {
   get: (name: string) => cookieValues.has(name) ? { name, value: cookieValues.get(name)! } : undefined,
   set: (name: string, value: string, options?: Record<string, unknown>) => {
