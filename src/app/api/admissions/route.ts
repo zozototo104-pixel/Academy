@@ -78,6 +78,7 @@ export const STATUS_LABEL: Record<string, string> = {
   CERTIFIED: 'تم إصدار الشهادة',
   REJECTED: 'غير مقبول',
   UPLOADING_DOCUMENTS: 'جاري رفع المستندات',
+  STAGED: 'جاري رفع المستندات',
   PENDING: 'تم التقديم',
 }
 
