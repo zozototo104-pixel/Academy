@@ -95,20 +95,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: storageErrorMessage(error) }, { status: 500 })
     }
 
-    await db.admissionDocument.deleteMany({ where: { admissionId: app.id, docType } })
-    const saved = await db.admissionDocument.create({
-      data: {
-        admissionId: app.id,
-        docType,
-        fileName: file.name.slice(0, 180),
-        mimeType: stored.mimeType || signature.mimeType,
-        size: stored.size || file.size,
-        data: null,
-        storageProvider: stored.provider,
-        storageKey: stored.key,
-        fileUrl: stored.url,
-      },
-      select: { id: true, docType: true, fileName: true, size: true, storageProvider: true },
+    const saved = await db.$transaction(async (tx) => {
+      const created = await tx.admissionDocument.create({
+        data: {
+          admissionId: app.id,
+          docType,
+          fileName: file.name.slice(0, 180),
+          mimeType: stored.mimeType || signature.mimeType,
+          size: stored.size || file.size,
+          data: null,
+          storageProvider: stored.provider,
+          storageKey: stored.key,
+          fileUrl: stored.url,
+        },
+        select: { id: true, docType: true, fileName: true, size: true, storageProvider: true },
+      })
+      await tx.admissionDocument.deleteMany({ where: { admissionId: app.id, docType, id: { not: created.id } } })
+      return created
     })
 
     const docs = await db.admissionDocument.findMany({
