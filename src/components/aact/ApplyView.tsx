@@ -166,7 +166,7 @@ const ALLOWED_FILE_MIME = [
   'application/vnd.ms-excel',
   'text/plain', 'text/csv', 'application/csv',
 ]
-const ALLOWED_FILE_RE = /\.(jpe?g|png|webp|heic|heif|pdf|docx|xlsx|xls|txt|csv)$/i
+const ALLOWED_FILE_RE = /\.(jpe?g|png|webp|heic|heif|pdf|doc|docx|xlsx|xls|txt|csv)$/i
 
 export function ApplyView() {
   const { toast } = useToast()
