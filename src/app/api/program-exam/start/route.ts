@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
       await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${user.id} FOR UPDATE`
       const maxAttempts = await getExamMaxAttempts('PROGRAM', tx)
       const completedAttempts = await tx.programExamAttempt.count({
-        where: { userId: user.id, examId, status: { in: COMPLETED_PROGRAM_ATTEMPT_STATUSES } },
+        where: { userId: user.id, examId, status: { in: COMPLETED_PROGRAM_ATTEMPT_STATUSES }, createdAt: { gte: EXAM_ATTEMPT_POLICY_SINCE } },
       })
       if (completedAttempts >= maxAttempts) {
         return { blocked: 'MAX_ATTEMPTS' as const, attempt: null, maxAttempts, completedAttempts }
