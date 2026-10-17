@@ -15,7 +15,7 @@ function parseOne(question: Record<string, unknown>) {
 }
 
 describe('question bank generated candidate normalization', () => {
-  test('TF options [] passes with normalized options and answer index', () => {
+  test('TF options [] passes with normalized options and Arabic answer alias', () => {
     const result = parseOne({ type: 'TF', options: [], correctAnswer: 'صح' })
 
     expect(result.rejected).toBe(0)
