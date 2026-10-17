@@ -203,8 +203,14 @@ export async function POST(req: NextRequest) {
       where: { userId: user.id, examId, status: 'STARTED' },
       orderBy: { createdAt: 'desc' },
     })
+    if (!startedAttempt && completedAttemptsBeforeSubmit >= maxAttempts) {
+      return NextResponse.json({ error: 'استنفدت عدد محاولات هذا الاختبار', code: 'MAX_ATTEMPTS_REACHED', maxAttempts, attemptsUsed: completedAttemptsBeforeSubmit }, { status: 403 })
+    }
     if (!startedAttempt && expiredAttempt) return NextResponse.json({ error: 'انتهت المحاولة وحُسبت صفر — انتهى وقت هذه المحاولة', code: 'ATTEMPT_EXPIRED' }, { status: 409 })
     if (!startedAttempt?.startedAt) return NextResponse.json({ error: 'يجب فتح الاختبار أولاً قبل التسليم' }, { status: 400 })
+    if (completedAttemptsBeforeSubmit >= maxAttempts) {
+      return NextResponse.json({ error: 'استنفدت عدد محاولات هذا الاختبار', code: 'MAX_ATTEMPTS_REACHED', maxAttempts, attemptsUsed: completedAttemptsBeforeSubmit }, { status: 403 })
+    }
     const elapsedMs = Date.now() - startedAttempt.startedAt.getTime()
     const allowedMs = (exam.durationMin + 2) * 60 * 1000
     if (elapsedMs > allowedMs) {
