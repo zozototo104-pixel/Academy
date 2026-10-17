@@ -220,6 +220,29 @@ describe('Admin Gemini Live minutes and classified errors', () => {
     expect(operations.usageWrites).toBe(0)
   })
 
+  test('student without supervisor AI access can start discussion voice when latest thesis is scheduled', async () => {
+    studentAiAllowed = false
+    latestThesisStatus = 'SCHEDULED'
+
+    const response = await POST(new NextRequest('http://localhost/api/ai/gemini-live/session', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ purpose: 'DISCUSSION', testOnly: true }),
+    }))
+
+    expect(response.status).not.toBe(403)
+  })
+
+  test('student whose latest thesis is not scheduled cannot start discussion voice', async () => {
+    latestThesisStatus = 'DRAFT'
+
+    const response = await POST(new NextRequest('http://localhost/api/ai/gemini-live/session', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ purpose: 'DISCUSSION' }),
+    }))
+    const payload = await response.json()
+
+    expect(response.status).toBe(403)
+    expect(payload.code).toBe('DEFENSE_NOT_SCHEDULED')
+  })
+
   test('other Gemini failures do not classify as a minutes purchase case', () => {
     expect(isLiveMinutesExhausted({ status: 402 })).toBe(true)
     expect(isLiveMinutesExhausted({ code: 'LIVE_MINUTES_EXHAUSTED' })).toBe(true)
