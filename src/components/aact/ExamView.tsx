@@ -458,7 +458,8 @@ export function ExamView() {
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
       } catch {
-        toast({ title: 'تعذر تشغيل الكاميرا', description: 'سيمرّ الامتحان بمراقبة تبديل النوافذ فقط', variant: 'destructive' })
+        toast({ title: 'تعذر تشغيل الكاميرا', description: 'ألغِ خيار المراقبة أو اسمح للكاميرا ثم ابدأ الامتحان.', variant: 'destructive' })
+        return
       }
     }
 
