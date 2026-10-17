@@ -286,7 +286,7 @@ export function ExamView() {
         }
       })
       .finally(() => setLoading(false))
-  }, [activeExamId, activeExamKind])
+  }, [activeExamId, activeExamKind, configureCountdown, navigate, toast])
 
   const answeredCount = useMemo(() => {
     if (!data) return 0
