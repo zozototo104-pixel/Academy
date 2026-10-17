@@ -6,6 +6,10 @@ export { hashPassword, verifyPassword } from '@/lib/password'
 const SESSION_COOKIE = 'aact_session'
 const SESSION_DAYS = 30
 
+function hashSessionToken(token: string) {
+  return createHash('sha256').update(String(token || '')).digest('hex')
+}
+
 export async function createSession(userId: string) {
   const account = await db.user.findUnique({ where: { id: userId }, select: { status: true } })
   if (account?.status !== 'ACTIVE') throw new Error('ACCOUNT_DISABLED')
