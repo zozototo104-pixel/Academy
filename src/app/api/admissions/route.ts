@@ -353,7 +353,7 @@ export async function POST(req: NextRequest) {
       },
     }))
     if (duplicateOpen) {
-      const canResumeUpload = duplicateOpen.status === 'UPLOADING_DOCUMENTS'
+      const canResumeUpload = duplicateOpen.status === 'UPLOADING_DOCUMENTS' || duplicateOpen.status === 'STAGED'
       return NextResponse.json({
         message: canResumeUpload ? 'أكمل رفع ملفاتك' : 'لديك طلب مفتوح لهذا البرنامج. أعدنا الطلب الحالي بدون إنشاء فاتورة جديدة.',
         reference: duplicateOpen.reference,
