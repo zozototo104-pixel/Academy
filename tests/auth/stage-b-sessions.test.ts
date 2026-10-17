@@ -92,10 +92,16 @@ const db = {
       const session = sessions.get(where.token)
       return session ? { ...session, user: users.get(session.userId) } : null
     },
-    deleteMany: async ({ where }: { where: { token?: string; id?: string; userId?: string } }) => {
+    findFirst: async ({ where }: { where: any }) => {
+      for (const [token, session] of sessions) {
+        if (sessionMatchesWhere(token, session, where)) return { ...session, user: users.get(session.userId) }
+      }
+      return null
+    },
+    deleteMany: async ({ where }: { where: any }) => {
       let count = 0
       for (const [token, session] of sessions) {
-        if ((where.token && token === where.token) || (where.id && session.id === where.id) || (where.userId && session.userId === where.userId)) {
+        if (sessionMatchesWhere(token, session, where)) {
           sessions.delete(token)
           count++
         }
