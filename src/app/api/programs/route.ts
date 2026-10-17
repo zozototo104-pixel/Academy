@@ -210,6 +210,7 @@ export async function GET(req: NextRequest) {
           credentialType: row.credentialType || null,
           trademarkNotice: row.trademarkNotice || null,
           disclosureConsentText: row.disclosureConsentText || null,
+          registrationStatus: row.registrationStatus || 'OPEN',
           categoryLabel: PROGRAM_CATEGORY_AR[row.category] || row.category,
           specialty: programSpecialtyLabel(row),
           hours: row.hours,
