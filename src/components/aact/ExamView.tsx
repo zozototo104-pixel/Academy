@@ -39,10 +39,14 @@ interface ExamData {
     programTitle: string
     totalPoints?: number
     durationMin?: number
+    startedAt?: string
+    maxAttempts?: number
+    attemptsUsed?: number
     booksCount?: number
     programCategory?: string
     books?: { id: string; title: string; author?: string | null }[]
   }
+  serverNow?: string
   questions: Question[]
   previousAttempts: {
     id: string
