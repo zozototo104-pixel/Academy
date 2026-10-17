@@ -27,6 +27,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     const body = await req.json().catch(() => ({}))
     const action = cleanText(body.action, 40).toUpperCase()
     const reason = cleanText(body.reason, 700)
+    const confirmUnderpayment = body.confirmUnderpayment === true || body.confirmUnderpayment === 'true'
     if (!id) return NextResponse.json({ error: 'معرّف إثبات الدفع مطلوب' }, { status: 400 })
     if (!['ACCEPT', 'REJECT'].includes(action)) return NextResponse.json({ error: 'الإجراء غير معروف' }, { status: 400 })
     if (action === 'REJECT' && reason.length < 6) {
