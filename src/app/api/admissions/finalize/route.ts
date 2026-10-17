@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
     const missing = requiredDocList.filter((d) => !uploadedTypes.has(d.type))
     if (missing.length > 0) {
       return NextResponse.json({
-        error: isServiceRequest ? 'لا يمكن إكمال طلب الخدمة: مرفقات الخدمة المطلوبة غير مكتملة' : 'لا يمكن إكمال الطلب: المستندات المطلوبة غير مكتملة. ارفع المستندات الناقصة أولاً',
+        error: isServiceRequest ? 'لا يمكن إكمال طلب الخدمة: مرفقات الخدمة المطلوبة غير مكتملة' : 'لا يمكن إكمال الطلب: المستندات المطلوبة غير مكتملة',
         missing: missing.map((m) => m.label),
       }, { status: 400 })
     }
@@ -146,8 +146,8 @@ export async function POST(req: NextRequest) {
         isDocumentReplacement
           ? `تم استلام المرفقات المعدّلة لطلبك (${app.reference}) وإعادته إلى مرحلة المتابعة مع الإدارة.`
           : isServiceRequest
-            ? `طلبك (${app.reference}) لخدمة «${selectedTitle}» وصل للإدارة مع ${(app.files || []).length} ملف/مرفق. ستصلك تعليمات المتابعة أو التسعير أو الموعد بعد المراجعة.`
-            : `طلبك (${app.reference}) ببرنامج «${selectedTitle}» مكتمل بالبيانات والمستندات (${(app.files || []).length}/${requiredDocList.length}) والإقرار. سدد رسوم التقديم وحجز المقعد ${appFee}$ (غير مستردة) ليُحوَّل ملفك للإدارة للدراسة.`,
+            ? `طلبك (${app.reference}) لخدمة «${selectedTitle}» وصل للإدارة مع ${(app.files || []).length} ملف/مرفق. ستصلك تعليمات المتابعة أو التسعير.`
+            : `طلبك (${app.reference}) ببرنامج «${selectedTitle}» مكتمل بالبيانات والمستندات (${(app.files || []).length}/${requiredDocList.length}) والإقرار.`,
         'apply'
       )
     }
@@ -177,7 +177,7 @@ export async function POST(req: NextRequest) {
         ? `تم استلام المرفقات المعدّلة لطلبك ${app.reference} وإعادتها للإدارة للمراجعة.`
         : isServiceRequest
           ? `تم استلام طلب الخدمة! كود التتبع: ${app.reference} — ستقوم الإدارة بمراجعة الطلب وتحديد الخطوة التالية`
-          : `تم استلام طلبك مع البيانات الكاملة والمستندات (${(app.files || []).length}/${requiredDocList.length}) والإقرار! كود تتبع طلبك: ${app.reference} — سدد رسوم التقديم (${appFee}$) ليُحوَّل ملفك للإدارة`,
+          : `تم استلام طلبك مع البيانات الكاملة والمستندات (${(app.files || []).length}/${requiredDocList.length}) والإقرار! كود تتبع طلبك: ${app.reference}.`,
       reference: app.reference,
       applicationFee: appFee,
       documentsCount: (app.files || []).length,
