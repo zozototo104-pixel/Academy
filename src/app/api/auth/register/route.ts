@@ -4,6 +4,7 @@ import { destroySession, hashPassword } from '@/lib/auth'
 import { emailVerifyAccount } from '@/lib/mailer'
 import { createEmailVerificationToken, emailVerificationUrl } from '@/lib/email-verification'
 import { checkDatabaseRateLimit, clientIpFromHeaders, rateLimitHeaders } from '@/lib/rate-limit'
+import { normalizePhone, validatePhone } from '@/lib/admission-validation'
 
 function sameSiteRequest(req: NextRequest) {
   const host = req.headers.get('host') || ''
