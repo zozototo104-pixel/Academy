@@ -16,7 +16,7 @@ const ALLOWED_MIME = [
   'application/vnd.ms-excel',
   'text/plain', 'text/csv', 'application/csv',
 ]
-const ALLOWED_FILE_RE = /\.(jpe?g|png|webp|heic|heif|pdf|docx|xlsx|xls|txt|csv)$/i
+const ALLOWED_FILE_RE = /\.(jpe?g|png|webp|heic|heif|pdf|doc|docx|xlsx|xls|txt|csv)$/i
 
 function normalizeDocType(key: string) {
   return key.replace(/^doc_/, '').toUpperCase().slice(0, 40)
