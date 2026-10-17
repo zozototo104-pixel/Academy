@@ -406,6 +406,11 @@ export async function POST(req: NextRequest) {
       ? await completeEnrollmentIfEligible({ enrollmentId: enrollment.id })
       : null
     const certificateNo = completion?.ok ? completion.certificate?.serial || null : null
+    const completedAttempts = completedAttemptsBeforeSubmit + 1
+    const revealCorrectAnswers = shouldRevealCorrectAnswers({ passed, completedAttempts, maxAttempts })
+    const results = revealCorrectAnswers
+      ? gradedResults.sort((a, b) => a.order - b.order)
+      : gradedResults.sort((a, b) => a.order - b.order).map(({ correctAnswerText, ...result }) => result)
 
     return NextResponse.json({
       ok: true,
@@ -417,7 +422,9 @@ export async function POST(req: NextRequest) {
       passed,
       overall,
       certificateNo,
-      results: gradedResults.sort((a, b) => a.order - b.order),
+      maxAttempts,
+      attemptsUsed: completedAttempts,
+      results,
     })
   } catch (e: any) {
     if (claimedUnitAttemptId) {
