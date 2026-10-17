@@ -453,6 +453,12 @@ export async function POST(req: NextRequest) {
     await db.examDraft.deleteMany({ where: { userId: user.id, examId, examType: 'PROGRAM' } }).catch(() => {})
 
     const completion = passed ? await completeEnrollmentIfEligible({ enrollmentId: enrollment.id }) : null
+    const completedAttempts = completedAttemptsBeforeSubmit + 1
+    const revealCorrectAnswers = shouldRevealCorrectAnswers({ passed, completedAttempts, maxAttempts })
+    const sortedResults = [...objectiveResults, ...essayResults, ...gradedEssayResults].sort((a, b) => a.order - b.order)
+    const results = revealCorrectAnswers
+      ? sortedResults
+      : sortedResults.map(({ correctAnswerText, correctRationale, wrongOptionRationale, ...result }) => result)
 
     return NextResponse.json({
       ok: true,
@@ -467,7 +473,9 @@ export async function POST(req: NextRequest) {
       courseworkCapApplied: readiness.maxExamScore < 100,
       overall,
       certificateNo: completion?.ok ? completion.certificate?.serial || null : null,
-      results: [...objectiveResults, ...essayResults, ...gradedEssayResults].sort((a, b) => a.order - b.order),
+      maxAttempts,
+      attemptsUsed: completedAttempts,
+      results,
     })
     } catch (postCreateError: any) {
       const reviewState = { code: 'POST_SUBMIT_FAILURE', reason: String(postCreateError?.message || postCreateError).slice(0, 500) }
