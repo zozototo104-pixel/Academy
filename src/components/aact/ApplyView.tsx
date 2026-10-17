@@ -47,6 +47,7 @@ interface ProgramLite {
   categoryLabel?: string
   specialty?: string
   price?: number | null
+  registrationStatus?: string | null
   admissionRules?: {
     minEducation?: string
     minAge?: number
