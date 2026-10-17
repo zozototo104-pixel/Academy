@@ -93,18 +93,24 @@ export async function POST(req: NextRequest) {
     let user
     try {
       user = await db.user.create({
-      data: {
-        name: normalizeOptionalText(name, 120),
-        email: emailNorm,
-        password: hashPassword(password),
-        phone: normalizeOptionalText(phone, 40) || null,
-        country: normalizeOptionalText(country, 80) || null,
-        role: 'STUDENT',
-        emailVerificationTokenHash: verification.tokenHash,
-        emailVerificationExpiresAt: verification.expiresAt,
-        emailVerificationSentAt: new Date(),
-      },
-    })
+        data: {
+          name: normalizeOptionalText(name, 120),
+          email: emailNorm,
+          password: hashPassword(password),
+          phone: normalizePhone(phone) || null,
+          country: normalizeOptionalText(country, 80) || null,
+          role: 'STUDENT',
+          emailVerificationTokenHash: verification.tokenHash,
+          emailVerificationExpiresAt: verification.expiresAt,
+          emailVerificationSentAt: new Date(),
+        },
+      })
+    } catch (e: any) {
+      if (e?.code === 'P2002') {
+        return NextResponse.json({ error: 'الإيميل مسجل مسبقاً' }, { status: 409 })
+      }
+      throw e
+    }
 
     const verificationSent = await emailVerifyAccount(user.email, user.name, emailVerificationUrl(req, verification.token)).catch(() => false)
 
