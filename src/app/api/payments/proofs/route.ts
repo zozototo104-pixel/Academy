@@ -121,6 +121,8 @@ export async function POST(req: NextRequest) {
         proofType,
         status: 'PENDING',
         note,
+        declaredAmount,
+        declaredAmountCents: dollarsToCents(declaredAmount),
         fileName: file.name || `${payment.invoiceNo}-payment-proof`,
         mimeType: signature.mimeType,
         fileSize: buffer.byteLength,
