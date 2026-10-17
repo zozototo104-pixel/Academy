@@ -2,9 +2,13 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test'
 import { NextRequest } from 'next/server'
 
+let supervisorAccessLocked = false
+let reserveUsageCalls = 0
+
 const db: any = {
   auditLog: { create: async () => ({}) },
   enrollment: { count: async () => 0 },
+  thesisSubmission: { findFirst: async () => null },
   setting: {
     findMany: async () => [],
     findUnique: async () => null,
