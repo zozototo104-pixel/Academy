@@ -381,7 +381,8 @@ export async function POST(req: NextRequest) {
         return created
       })
       claimedUnitAttemptId = null
-      const reviewResults = responseResults.sort((a, b) => a.order - b.order)
+      const results = responseResults.sort((a, b) => a.order - b.order)
+      const reviewResults = revealCorrectAnswers ? results : results.map(({ correctAnswerText, ...result }) => result)
       return NextResponse.json({ ok: true, status: 'NEEDS_REVIEW', attemptId: attempt.id, message: 'تم حفظ إجاباتك، التصحيح قيد المراجعة', maxAttempts, attemptsUsed: completedAttemptsBeforeSubmit + 1, results: reviewResults }, { status: 202 })
     }
 
