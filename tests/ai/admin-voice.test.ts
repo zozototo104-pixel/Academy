@@ -237,6 +237,10 @@ describe('Admin Gemini Live minutes and classified errors', () => {
     }))
 
     expect(response.status).not.toBe(403)
+    const payload = await response.json().catch(() => ({}))
+    expect(payload.code).not.toBe('DEFENSE_NOT_SCHEDULED')
+    expect(payload.code).not.toBe('AI_SUPERVISOR_LOCKED')
+    expect(sessions.size).toBe(0)
   })
 
   test('student whose latest thesis is not scheduled cannot start discussion voice', async () => {
