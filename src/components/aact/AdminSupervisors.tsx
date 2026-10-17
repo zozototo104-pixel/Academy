@@ -151,6 +151,7 @@ export function AdminSupervisorsTab() {
           )}
         </CardContent>
       </Card>
+      {actionDialog}
     </div>
   )
 }
