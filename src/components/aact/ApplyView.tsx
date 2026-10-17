@@ -160,6 +160,7 @@ const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
 const ALLOWED_FILE_MIME = [
   'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif',
   'application/pdf',
+  'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/vnd.ms-excel',
