@@ -47,6 +47,8 @@ function proofPayload(proof: any) {
     status: proof.status,
     note: proof.note,
     adminNote: proof.adminNote,
+    declaredAmount: proof.declaredAmount,
+    declaredAmountCents: proof.declaredAmountCents,
     fileName: proof.fileName,
     mimeType: proof.mimeType,
     fileSize: proof.fileSize,
