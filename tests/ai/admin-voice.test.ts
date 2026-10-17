@@ -49,6 +49,8 @@ const db: any = {
   $transaction: async (work: (tx: any) => Promise<any>) => work(db),
   enrollment: { count: async () => 0 },
   thesisSubmission: { findFirst: async () => latestThesisStatus ? { id: 'thesis-1', status: latestThesisStatus, createdAt: new Date() } : null },
+  setting: { findUnique: async () => null, findMany: async () => [] },
+  auditLog: { create: async () => ({}) },
   aiLiveUsage: {
     findUnique: async ({ where }: any) => {
       operations.usageReads++
