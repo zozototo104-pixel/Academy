@@ -65,8 +65,8 @@ function normalizeCognitiveSkill(value: unknown): z.infer<typeof cognitiveSkillS
 
 function normalizeTfAnswerText(value: unknown): 'صح' | 'خطأ' | null {
   const normalized = normalizeArabicText(value)
-  if (['صح', 'صحيح', 'true', 'yes', 'y'].includes(normalized)) return 'صح'
-  if (['خطا', 'خطأ', 'غير صحيح', 'false', 'no', 'n'].includes(normalized)) return 'خطأ'
+  if (['صح', 'صحيح', 'true', 'yes', 'y', 'ا'].includes(normalized)) return 'صح'
+  if (['خطا', 'خطأ', 'غير صحيح', 'false', 'no', 'n', 'ب'].includes(normalized)) return 'خطأ'
   return null
 }
 
