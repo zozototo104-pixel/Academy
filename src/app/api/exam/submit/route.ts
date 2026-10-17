@@ -135,6 +135,11 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    const maxAttempts = await getExamMaxAttempts('UNIT')
+    const completedAttemptsBeforeSubmit = await db.examAttempt.count({
+      where: { userId: user.id, examId, status: { in: COMPLETED_UNIT_ATTEMPT_STATUSES } },
+    })
+
     const allowedQuestionIds = new Set(exam.questions.map((q) => q.id))
     if (answers.some((a) => !allowedQuestionIds.has(a.questionId))) {
       return NextResponse.json({ error: 'توجد إجابات لأسئلة لا تنتمي لهذا الاختبار' }, { status: 400 })
