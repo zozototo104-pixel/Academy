@@ -4,6 +4,10 @@ import { checkDatabaseRateLimit, clientIpFromHeaders, rateLimitHeaders } from '@
 import { issueEmailVerificationToken, emailVerificationUrl, shouldRequireEmailVerification, shouldIssueNewVerification } from '@/lib/email-verification'
 import { emailVerifyAccount } from '@/lib/mailer'
 
+function genericResponse() {
+  return NextResponse.json({ ok: true, message: 'إذا كان البريد مسجلاً ستصلك رسالة خلال دقائق' })
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}))
