@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { checkDatabaseRateLimit, clientIpFromHeaders, rateLimitHeaders } from '@/lib/rate-limit'
+import { checkDatabaseRateLimit, clientIpFromHeaders } from '@/lib/rate-limit'
 import { createPasswordResetToken, passwordResetUrl } from '@/lib/password-reset'
 import { emailPasswordReset } from '@/lib/mailer'
 
