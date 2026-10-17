@@ -507,6 +507,7 @@ export function AdminQualityTab() {
   const [selectedExamId, setSelectedExamId] = useState('')
   const [selectedExamQuestionIds, setSelectedExamQuestionIds] = useState<string[]>([])
   const [examImportApproveNow, setExamImportApproveNow] = useState(false)
+  const [examGenerationDialog, setExamGenerationDialog] = useState<ExamGenerationDialogState | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
