@@ -208,6 +208,7 @@ export function PaymentsTab() {
   const [appealReason, setAppealReason] = useState('')
   const [appealSchedule, setAppealSchedule] = useState('')
   const [partialAmount, setPartialAmount] = useState<Record<string, string>>({})
+  const [transferAmounts, setTransferAmounts] = useState<Record<string, string>>({})
   const [usdtHashes, setUsdtHashes] = useState<Record<string, string>>({})
   const [waiverCodes, setWaiverCodes] = useState<Record<string, string>>({})
   const [verifyingWaiver, setVerifyingWaiver] = useState<string | null>(null)
