@@ -4225,6 +4225,7 @@ export function AdminBooksTab() {
           onPublished={() => programId && loadProgramData(programId, true)}
         />
       )}
+      {actionDialog}
     </div>
   )
 }
