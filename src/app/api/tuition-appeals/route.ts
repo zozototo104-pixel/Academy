@@ -78,6 +78,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, appeal })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'يجب تسجيل الدخول أولاً' }, { status: 401 })
+    if (e?.message === 'INSTALLMENT_APPEAL_APPROVED_EXISTS') return NextResponse.json({ error: 'يوجد طلب تقسيط معتمد بالفعل' }, { status: 409 })
+    if (e?.message === 'INSTALLMENT_APPEAL_PENDING_EXISTS') return NextResponse.json({ error: 'يوجد التماس تقسيط قيد الدراسة بالفعل' }, { status: 409 })
     console.error('tuition appeals POST error:', e)
     return NextResponse.json({ error: 'تعذر إرسال الالتماس' }, { status: 500 })
   }
