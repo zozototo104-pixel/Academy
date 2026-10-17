@@ -184,7 +184,7 @@ export async function markInvoicePaid(
   const receiptNo = await nextReceiptNo()
   const paidAt = new Date()
   const settled = await db.payment.updateMany({
-    where: { id: payment.id, status: { not: 'PAID' } },
+    where: { id: payment.id, status: 'UNPAID' },
     data: {
       status: 'PAID',
       method: String(method),
