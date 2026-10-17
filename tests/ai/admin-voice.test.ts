@@ -35,6 +35,7 @@ const sessions = new Map<string, SessionRow>()
 let credits: CreditRow[] = []
 let currentUser = { id: 'student-1', role: 'STUDENT' }
 let studentAiAllowed = true
+let latestThesisStatus: string | null = null
 const operations = { usageReads: 0, usageWrites: 0, creditReads: 0, creditWrites: 0 }
 
 function updateNumber(current: number, change: any): number {
