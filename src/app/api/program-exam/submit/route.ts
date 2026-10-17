@@ -175,7 +175,7 @@ export async function POST(req: NextRequest) {
 
     const maxAttempts = await getExamMaxAttempts('PROGRAM')
     const completedAttemptsBeforeSubmit = typeof db.programExamAttempt.count === 'function'
-      ? await db.programExamAttempt.count({ where: { userId: user.id, examId, status: { in: COMPLETED_PROGRAM_ATTEMPT_STATUSES } } })
+      ? await db.programExamAttempt.count({ where: { userId: user.id, examId, status: { in: COMPLETED_PROGRAM_ATTEMPT_STATUSES }, createdAt: { gte: EXAM_ATTEMPT_POLICY_SINCE } } })
       : 0
 
     const ragContext = await buildSupervisorContext(user.id).catch(() => '')
