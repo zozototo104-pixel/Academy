@@ -109,19 +109,16 @@ export async function POST(req: NextRequest) {
       await tx.$queryRaw`SELECT id FROM "AdmissionApplication" WHERE id = ${app.id} FOR UPDATE`
       const duplicate = await tx.payment.findFirst({ where: { admissionId: app.id, purpose: 'APPLICATION_FEE' } })
       if (duplicate) return duplicate
-      return tx.payment.create({
-        data: {
-          admissionId: app.id,
-          userId: owner?.id || null,
-          invoiceNo: await nextInvoiceNo(),
-          purpose: 'APPLICATION_FEE',
-          description: `رسوم التقديم وحجز المقعد (غير مستردة) — ${selectedTitle}`,
-          amount: appFee,
-          payerName: app.fullName,
-          payerEmail: app.email,
-          payerCountry: app.country,
-        },
-      })
+      return createPaymentWithInvoiceNo({
+        admissionId: app.id,
+        userId: owner?.id || null,
+        purpose: 'APPLICATION_FEE',
+        description: `رسوم التقديم وحجز المقعد (غير مستردة) — ${selectedTitle}`,
+        amount: appFee,
+        payerName: app.fullName,
+        payerEmail: app.email,
+        payerCountry: app.country,
+      }, tx, 5)
     }))
 
     const updateData: any = {
