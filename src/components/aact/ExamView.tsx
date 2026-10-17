@@ -139,6 +139,8 @@ export function ExamView() {
   const draftLoadedRef = useRef(false)
   const lastDraftPayloadRef = useRef('')
   const submittedRef = useRef(false)
+  const serverOffsetMsRef = useRef(0)
+  const countdownRef = useRef<{ startedAtMs: number; durationMin: number } | null>(null)
 
   // ===== 12.2: المراقبة الإلكترونية الاختيارية (AI Proctoring) =====
   const [proctorConsent, setProctorConsent] = useState(false)
