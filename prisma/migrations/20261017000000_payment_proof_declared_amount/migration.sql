@@ -1,0 +1,3 @@
+ALTER TABLE "PaymentProof"
+  ADD COLUMN IF NOT EXISTS "declaredAmount" DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS "declaredAmountCents" INTEGER;
