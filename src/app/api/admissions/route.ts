@@ -452,20 +452,19 @@ export async function POST(req: NextRequest) {
 
     // البرامج الدراسية لها فاتورة رسوم تقديم، أما الخدمات المهنية فتدخل مباشرة للمراجعة.
     const appFee = isServiceRequest ? 0 : await withTiming('db_admissions_application_fee_setting', () => getSettingNum('FEE_APPLICATION'))
-    const invoiceNo = isServiceRequest ? null : await withTiming('db_admissions_next_invoice_no', () => nextInvoiceNo())
-    const feeInvoice = isServiceRequest ? null : await withTiming('db_admissions_payment_create', () => db.payment.create({
-      data: {
-        admissionId: app.id,
-        userId: owner?.id || null,
-        invoiceNo: invoiceNo!,
-        purpose: 'APPLICATION_FEE',
-        description: `رسوم التقديم وحجز المقعد (غير مستردة) — ${selectedTitle}`,
-        amount: appFee,
-        amountCents: dollarsToCents(appFee),
-        payerName: fullName.trim(),
-        payerEmail: submittedEmail,
-        payerCountry: country.trim(),
-      },
+    if (!isServiceRequest && appFee <= 0) {
+      return NextResponse.json({ error: 'رسوم التقديم غير مضبوطة بقيمة صالحة أكبر من صفر.' }, { status: 500 })
+    }
+    const feeInvoice = isServiceRequest ? null : await withTiming('db_admissions_payment_create', () => createApplicationFeeInvoiceWithRetry({
+      admissionId: app.id,
+      userId: owner?.id || null,
+      purpose: 'APPLICATION_FEE',
+      description: `رسوم التقديم وحجز المقعد (غير مستردة) — ${selectedTitle}`,
+      amount: appFee,
+      amountCents: dollarsToCents(appFee),
+      payerName: fullName.trim(),
+      payerEmail: submittedEmail,
+      payerCountry: country.trim(),
     }))
 
     if (owner) {
