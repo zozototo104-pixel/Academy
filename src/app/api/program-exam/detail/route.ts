@@ -132,6 +132,10 @@ export async function GET(req: NextRequest) {
       }),
     ])
 
+    if (lastAttemptNotice?.code === 'ATTEMPT_EXPIRED' && completedAttempts >= maxAttempts) {
+      return NextResponse.json({ error: 'انتهت المحاولة وحُسبت صفر — انتهى الوقت دون تسليم', code: 'ATTEMPT_EXPIRED' }, { status: 409 })
+    }
+
     return NextResponse.json({
       serverNow: new Date().toISOString(),
       exam: {
