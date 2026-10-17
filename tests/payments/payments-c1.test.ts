@@ -207,6 +207,30 @@ describe('payments C1 safety', () => {
     expect(calls).toContain('markInvoicePaid:INV-1:BANK_TRANSFER')
   })
 
+  test('underpaid transfer proof requires explicit admin confirmation before settlement', async () => {
+    proofDeclaredAmount = 20
+    const blocked = await proofReviewRoute.PATCH(new NextRequest('https://academy.test/api/admin/payments/proofs/proof-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ action: 'ACCEPT' }),
+      headers: { 'content-type': 'application/json' },
+    }), { params: { id: 'proof-1' } } as any)
+    const blockedPayload = await json(blocked as any)
+    expect(blocked.status).toBe(409)
+    expect(blockedPayload.code).toBe('UNDERPAYMENT_CONFIRMATION_REQUIRED')
+    expect(blockedPayload.expectedAmount).toBe(100)
+    expect(blockedPayload.declaredAmount).toBe(20)
+    expect(calls.some((call) => call.startsWith('markInvoicePaid'))).toBe(false)
+
+    const accepted = await proofReviewRoute.PATCH(new NextRequest('https://academy.test/api/admin/payments/proofs/proof-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ action: 'ACCEPT', confirmUnderpayment: true }),
+      headers: { 'content-type': 'application/json' },
+    }), { params: { id: 'proof-1' } } as any)
+    expect(accepted.status).toBe(200)
+    expect(calls).toContain('proof.updateMany:PENDING:ACCEPTED')
+    expect(calls).toContain('markInvoicePaid:INV-1:BANK_TRANSFER')
+  })
+
   test('failed settlement after accepting proof reverts it to pending so admin can retry', async () => {
     markInvoicePaidOk = false
     const failed = await proofReviewRoute.PATCH(new NextRequest('https://academy.test/api/admin/payments/proofs/proof-1', {
