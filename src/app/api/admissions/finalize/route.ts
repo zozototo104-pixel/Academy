@@ -55,18 +55,12 @@ export async function POST(req: NextRequest) {
     const serviceFlow = getServiceFlow(app.programRef?.slug)
     const isServiceRequest = serviceFlow ? !serviceFlow.isStudyProgram : app.programRef?.category === 'SERVICE'
     const uploadedTypes = new Set((app.files || []).map((f) => f.docType))
-    const rules = app.programRef?.admissionRules
-      ? resolveRules(app.programRef?.category || 'DIPLOMA', app.programRef.admissionRules, !isServiceRequest)
-      : (buildServiceAdmissionDefaults(serviceFlow) || resolveRules(app.programRef?.category || 'DIPLOMA', app.programRef?.admissionRules, !isServiceRequest))
-    const defaultDocMap = new Map(REQUIRED_DOCS.map((d) => [d.type, d.label]))
-    const serviceDocMap = new Map(getServiceDocumentOptions(serviceFlow).map((d) => [d.type, d.label]))
-    const ruleRequiredDocuments = Array.isArray(rules.requiredDocuments) && rules.requiredDocuments.length > 0
-      ? rules.requiredDocuments
-      : REQUIRED_DOCS.map((d) => d.type)
-    const requiredDocList = ruleRequiredDocuments.map((type) => ({
-      type,
-      label: serviceDocMap.get(type) || defaultDocMap.get(type) || type,
-    }))
+    const { requiredDocs: requiredDocList } = resolveAdmissionRequiredDocuments({
+      slug: app.programRef?.slug,
+      category: app.programRef?.category,
+      admissionRules: (app.programRef?.admissionRules as any) || null,
+      isServiceRequest,
+    })
     const missing = requiredDocList.filter((d) => !uploadedTypes.has(d.type))
     if (missing.length > 0) {
       return NextResponse.json({
