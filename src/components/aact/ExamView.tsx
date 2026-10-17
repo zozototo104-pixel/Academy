@@ -414,7 +414,7 @@ export function ExamView() {
         window.scrollTo({ top: 0, behavior: 'smooth' })
       } catch (e: any) {
         const err = e as ApiError
-        if ((err.status === 409 || err.status === 403) && ['ATTEMPT_EXPIRED', 'UNIT_EXAM_EXPIRED', 'ATTEMPT_ALREADY_CLAIMED', 'SUBMITTED', 'ATTEMPT_SUBMITTED', 'PASSED_ALREADY', 'ALREADY_PASSED', 'EXAM_HAS_NO_QUESTIONS'].includes(String(err.code || ''))) {
+        if ((err.status === 409 || err.status === 403) && ['ATTEMPT_EXPIRED', 'UNIT_EXAM_EXPIRED', 'ATTEMPT_ALREADY_CLAIMED', 'SUBMITTED', 'ATTEMPT_SUBMITTED', 'PASSED_ALREADY', 'ALREADY_PASSED', 'MAX_ATTEMPTS_REACHED', 'EXAM_HAS_NO_QUESTIONS'].includes(String(err.code || ''))) {
           submittedRef.current = true
           setSecondsLeft(null)
           setSubmitting(false)
