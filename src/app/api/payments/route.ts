@@ -97,6 +97,9 @@ export async function POST(req: NextRequest) {
     if (payment.status === 'PAID') {
       return NextResponse.json({ error: 'الفاتورة مسددة بالفعل' }, { status: 400 })
     }
+    if (payment.status === 'WAIVED') {
+      return NextResponse.json({ error: 'الفاتورة معفاة ولا يمكن تحويلها إلى مدفوعة' }, { status: 400 })
+    }
 
     // تحقق ملكية صارم: الطالب يملك الفاتورة فقط إذا كان بريد الطلب/الفاتورة يطابق بريده المؤكد.
     const email = user.email.toLowerCase()
