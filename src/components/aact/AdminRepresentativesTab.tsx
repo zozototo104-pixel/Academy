@@ -314,7 +314,9 @@ export default function AdminRepresentativesTab() {
     let note = ''
     if (action === 'REJECT') {
       if (!(await confirmAction({ title: 'تأكيد رفض ملف الممثل', description: 'سيبقى الملف محفوظاً في السجل لكنه لن يعتمد للعرض العام.', confirmLabel: 'متابعة الرفض', tone: 'warning' }))) return
-      note = (await promptAction({ title: 'سبب رفض ملف الممثل', description: 'اكتب سبب رفض هذا التعديل/الملف ليظهر في سجل المراجعة.', fieldLabel: 'سبب الرفض', defaultValue: '', multiline: true, confirmLabel: 'اعتماد السبب', tone: 'info' })) || ''
+      const noteInput = await promptAction({ title: 'سبب رفض ملف الممثل', description: 'اكتب سبب رفض هذا التعديل/الملف ليظهر في سجل المراجعة.', fieldLabel: 'سبب الرفض', defaultValue: '', multiline: true, confirmLabel: 'اعتماد السبب', tone: 'info' })
+      if (noteInput === null) return
+      note = noteInput
       if (!note.trim() && !(await confirmAction({ title: 'رفض بدون سبب', description: 'لم تكتب سبباً للرفض. هل تريد الرفض بدون سبب؟', confirmLabel: 'رفض بدون سبب', tone: 'warning' }))) return
     }
     setUploading(true)
