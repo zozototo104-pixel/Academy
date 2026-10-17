@@ -439,9 +439,14 @@ export function ExamView() {
       submit(true)
       return
     }
-    const t = setTimeout(() => setSecondsLeft((s) => (s !== null ? s - 1 : null)), 1000)
-    return () => clearTimeout(t)
-  }, [secondsLeft, result, submitting, submit])
+    const tick = () => syncCountdown()
+    const t = window.setInterval(tick, 1000)
+    document.addEventListener('visibilitychange', tick)
+    return () => {
+      window.clearInterval(t)
+      document.removeEventListener('visibilitychange', tick)
+    }
+  }, [secondsLeft, result, submitting, submit, syncCountdown])
 
   // ===== 12.2: بدء الامتحان (بعد شاشة الموافقة على المراقبة) =====
   const startExam = async () => {
