@@ -19,6 +19,17 @@ const db: any = {
 
 mock.module('@/lib/db', () => ({ db }))
 mock.module('@/lib/auth', () => ({ requireUser: async () => ({ id: 'student-1', role: 'STUDENT' }) }))
+mock.module('@/lib/student-ai-access', () => ({
+  requireStudentAiSupervisorAccess: async () => {
+    if (supervisorAccessLocked) {
+      const err: any = new Error('locked')
+      err.code = 'AI_SUPERVISOR_LOCKED'
+      err.reason = 'المشرف الذكي غير متاح لهذا الطالب حالياً'
+      throw err
+    }
+    return { ok: true }
+  },
+}))
 mock.module('@/lib/rate-limit', () => ({ enforceApiRateLimit: () => null }))
 mock.module('@/lib/settings', () => ({ getSetting: async () => 'ar-PS' }))
 mock.module('@/lib/supervisor-ai', () => ({
