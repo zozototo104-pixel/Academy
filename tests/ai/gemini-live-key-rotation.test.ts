@@ -39,7 +39,10 @@ mock.module('@/lib/supervisor-ai', () => ({
 mock.module('@/lib/voicePrompt', () => ({ buildVoiceSystemPrompt: (context: string) => `voice:${context}` }))
 mock.module('@/lib/live-usage-guard', () => ({
   getGeminiLiveAllowance: async () => ({ ok: true, status: 200, sessionLimitMinutes: 10, totalRemainingMinutes: 10, message: 'ok' }),
-  reserveGeminiLiveUsage: async () => ({ ok: true, status: 200, sessionId: 'live-session-1', sessionLimitMinutes: 10, totalRemainingMinutes: 8, message: 'ok' }),
+  reserveGeminiLiveUsage: async () => {
+    reserveUsageCalls++
+    return { ok: true, status: 200, sessionId: 'live-session-1', sessionLimitMinutes: 10, totalRemainingMinutes: 8, message: 'ok' }
+  },
 }))
 
 const realGemini = await import('../../src/lib/gemini')
