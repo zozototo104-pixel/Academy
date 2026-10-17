@@ -380,7 +380,7 @@ export function ExamView() {
           selectedOption: q.type === 'MCQ' || q.type === 'TF' ? mcqAnswers[q.id] : undefined,
           answerText: q.type === 'SHORT' || q.type === 'ESSAY' ? (essayAnswers[q.id] || '') : undefined,
         }))
-        const durationUsedMin = Math.max(1, Math.round((Date.now() - startedAt) / 60000))
+        const durationUsedMin = Math.max(1, Math.round(((Date.now() + serverOffsetMsRef.current) - startedAt) / 60000))
         const isFinal = activeExamKind === 'final'
         const d = await api<any>(
           isFinal ? '/api/program-exam/submit' : '/api/exam/submit',
