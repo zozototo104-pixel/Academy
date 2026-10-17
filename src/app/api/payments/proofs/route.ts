@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
 
     const admins = await db.user.findMany({ where: { role: 'ADMIN', status: 'ACTIVE' }, select: { id: true }, take: 20 }).catch(() => [])
     await Promise.all(admins.map((admin) => notify(admin.id, 'PAYMENT_PROOF_UPLOADED', 'إثبات دفع جديد', `تم رفع إثبات دفع للفاتورة ${payment.invoiceNo}`, '/admin?tab=finance')))
-    await audit({ id: user.id, name: user.name }, 'UPLOAD_PAYMENT_PROOF', 'Payment', payment.id, `${payment.invoiceNo} — ${payment.amount}$ — ${proof.fileName}`)
+    await audit({ id: user.id, name: user.name }, 'UPLOAD_PAYMENT_PROOF', 'Payment', payment.id, `${payment.invoiceNo} — المطلوب ${expectedAmount}$ — المحوّل ${declaredAmount}$ — ${proof.fileName}`)
 
     return NextResponse.json({ ok: true, proof: proofPayload(proof) })
   } catch (e: any) {
