@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     const app = await db.admissionApplication.findFirst({
       where: applicationId ? { id: applicationId } : { reference },
       include: {
-        programRef: { select: { id: true, titleAr: true, category: true, slug: true, admissionRules: true } },
+        programRef: { select: { id: true, titleAr: true, category: true, slug: true, registrationStatus: true, admissionRules: true } },
         files: { select: { id: true, docType: true, fileName: true, size: true, createdAt: true } },
         payments: { select: { id: true, invoiceNo: true, purpose: true, amount: true, status: true, description: true } },
         user: { select: { id: true, name: true, email: true, role: true } },
