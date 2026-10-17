@@ -216,53 +216,61 @@ export function ExamView() {
     api<ExamData>(url)
       .then(async (d) => {
         setData(d)
+        if (activeExamKind !== 'final' && d.exam.startedAt && d.exam.durationMin) {
+          configureCountdown(d.exam.startedAt, d.exam.durationMin, d.serverNow)
+        }
         const examType = activeExamKind === 'final' ? 'PROGRAM' : 'UNIT'
+        const localKey = `aact-exam-draft:${examType}:${activeExamId}`
+        const restoreDraft = (draft: any, source: 'cloud' | 'local') => {
+          if (!draft?.answers?.length) return false
+          const nextMcq: Record<string, number> = {}
+          const nextEssay: Record<string, string> = {}
+          const questionIds = new Set(d.questions.map((qq) => qq.id))
+          for (const ans of draft.answers) {
+            if (!questionIds.has(ans.questionId)) continue
+            const qq = d.questions.find((x) => x.id === ans.questionId)
+            if (!qq) continue
+            if ((qq.type === 'MCQ' || qq.type === 'TF') && typeof ans.selectedOption === 'number') nextMcq[qq.id] = ans.selectedOption
+            if ((qq.type === 'SHORT' || qq.type === 'ESSAY') && typeof ans.answerText === 'string') nextEssay[qq.id] = ans.answerText
+          }
+          setMcqAnswers(nextMcq)
+          setEssayAnswers(nextEssay)
+          const restoredCurrent = Math.max(0, Math.min(Number(draft.current || 0), d.questions.length - 1))
+          setCurrent(restoredCurrent)
+          if (draft.startedAtMs && Number.isFinite(Number(draft.startedAtMs)) && !countdownRef.current) {
+            setStartedAt(Number(draft.startedAtMs))
+          }
+          const restoredPayload = JSON.stringify({
+            examId: d.exam.id,
+            examType,
+            current: restoredCurrent,
+            startedAtMs: String(draft.startedAtMs || (d.exam.startedAt ? new Date(d.exam.startedAt).getTime() : Date.now())),
+            answers: d.questions.map((qq) => ({
+              questionId: qq.id,
+              selectedOption: qq.type === 'MCQ' || qq.type === 'TF' ? nextMcq[qq.id] : undefined,
+              answerText: qq.type === 'SHORT' || qq.type === 'ESSAY' ? (nextEssay[qq.id] || '') : undefined,
+            })),
+          })
+          lastDraftPayloadRef.current = restoredPayload
+          setDraftUpdatedAt(source === 'cloud' ? (draft.updatedAt || null) : null)
+          setDraftStatus('saved')
+          if (source === 'cloud') toast({ title: 'تم استعادة مسودة الاختبار', description: 'أُعيدت إجاباتك المحفوظة سحابياً' })
+          return true
+        }
         try {
           const draftRes = await api<any>(`/api/exam-draft?examId=${activeExamId}&examType=${examType}`)
-          const draft = draftRes?.draft
-          if (draft?.answers?.length) {
-            const nextMcq: Record<string, number> = {}
-            const nextEssay: Record<string, string> = {}
-            const questionIds = new Set(d.questions.map((qq) => qq.id))
-            for (const ans of draft.answers) {
-              if (!questionIds.has(ans.questionId)) continue
-              const qq = d.questions.find((x) => x.id === ans.questionId)
-              if (!qq) continue
-              if ((qq.type === 'MCQ' || qq.type === 'TF') && typeof ans.selectedOption === 'number') nextMcq[qq.id] = ans.selectedOption
-              if ((qq.type === 'SHORT' || qq.type === 'ESSAY') && typeof ans.answerText === 'string') nextEssay[qq.id] = ans.answerText
-            }
-            setMcqAnswers(nextMcq)
-            setEssayAnswers(nextEssay)
-            setCurrent(Math.max(0, Math.min(Number(draft.current || 0), d.questions.length - 1)))
-            if (draft.startedAtMs && Number.isFinite(Number(draft.startedAtMs))) {
-              const restoredStartedAt = Number(draft.startedAtMs)
-              setStartedAt(restoredStartedAt)
-              if (activeExamKind === 'final' && d.exam.durationMin) {
-                const elapsedSec = Math.max(0, Math.floor((Date.now() - restoredStartedAt) / 1000))
-                setSecondsLeft(Math.max(0, d.exam.durationMin * 60 - elapsedSec))
-                setExamStarted(true)
-              }
-            }
-            const restoredPayload = JSON.stringify({
-              examId: d.exam.id,
-              examType,
-              current: Math.max(0, Math.min(Number(draft.current || 0), d.questions.length - 1)),
-              startedAtMs: String(draft.startedAtMs || startedAt),
-              answers: d.questions.map((qq) => ({
-                questionId: qq.id,
-                selectedOption: qq.type === 'MCQ' || qq.type === 'TF' ? nextMcq[qq.id] : undefined,
-                answerText: qq.type === 'SHORT' || qq.type === 'ESSAY' ? (nextEssay[qq.id] || '') : undefined,
-              })),
-            })
-            lastDraftPayloadRef.current = restoredPayload
-            setDraftUpdatedAt(draft.updatedAt || null)
-            setDraftStatus('saved')
-            toast({ title: 'تم استعادة مسودة الاختبار', description: 'أُعيدت إجاباتك المحفوظة سحابياً' })
-          } else {
-            setDraftStatus('idle')
+          const restored = restoreDraft(draftRes?.draft, 'cloud')
+          if (!restored) {
+            const localDraft = JSON.parse(window.localStorage.getItem(localKey) || 'null')
+            setDraftStatus(restoreDraft(localDraft, 'local') ? 'saved' : 'idle')
           }
         } catch {
-          setDraftStatus('error')
+          try {
+            const localDraft = JSON.parse(window.localStorage.getItem(localKey) || 'null')
+            setDraftStatus(restoreDraft(localDraft, 'local') ? 'saved' : 'error')
+          } catch {
+            setDraftStatus('error')
+          }
         } finally {
           draftLoadedRef.current = true
         }
