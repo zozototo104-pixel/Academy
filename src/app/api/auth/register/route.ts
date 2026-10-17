@@ -87,8 +87,12 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    await destroySession().catch(() => null)
+
     const verification = createEmailVerificationToken()
-    const user = await db.user.create({
+    let user
+    try {
+      user = await db.user.create({
       data: {
         name: normalizeOptionalText(name, 120),
         email: emailNorm,
