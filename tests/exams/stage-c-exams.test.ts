@@ -9,6 +9,7 @@ const source = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf
 const unitDetail = source('src/app/api/exam/detail/route.ts')
 const unitSubmit = source('src/app/api/exam/submit/route.ts')
 const programDetail = source('src/app/api/program-exam/detail/route.ts')
+const programStart = source('src/app/api/program-exam/start/route.ts')
 const programSubmit = source('src/app/api/program-exam/submit/route.ts')
 
 describe('Stage C exam security invariants (static regression)', () => {
