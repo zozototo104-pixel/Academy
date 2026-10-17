@@ -822,7 +822,6 @@ export function AdminAppealsSection() {
             )}
           </DialogContent>
         </Dialog>
-        {actionDialog}
       </CardContent>
     </Card>
   )
