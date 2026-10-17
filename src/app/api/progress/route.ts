@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
-import { nextCertSerial } from '@/lib/settings'
 import { notify } from '@/lib/notify'
 import { getExamsGate } from '@/lib/exam-gate'
 import { academicProfileFromRules } from '@/lib/program-tracks'
 import { calculateSemesterReadiness, markSemesterReady } from '@/lib/semester-readiness'
 import { enforceSemesterTuitionGate, getStudentTuitionPlan } from '@/lib/tuition-installments'
-import { randomBytes } from 'crypto'
+import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
 
 // GET /api/progress?programId=xxx — تفاصيل البرنامج مع وحداته وتقدم الطالب
 export async function GET(req: NextRequest) {
