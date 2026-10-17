@@ -164,12 +164,21 @@ export async function POST(req: NextRequest) {
       const answer = String(text || '').trim()
       if (!answer) return NextResponse.json({ error: 'اكتب إجابتك أو تحدث صوتياً' }, { status: 400 })
 
-      const history = await db.defenseMessage.findMany({
-        where: { thesisId: thesis.id, role: { in: ['AI_EXPERT', 'STUDENT'] } },
-        orderBy: { createdAt: 'asc' },
+      const answerState = await db.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT "id" FROM "ThesisSubmission" WHERE "id" = ${thesis.id} FOR UPDATE`
+        const history = await tx.defenseMessage.findMany({
+          where: { thesisId: thesis.id, role: { in: ['AI_EXPERT', 'STUDENT'] } },
+          orderBy: { createdAt: 'asc' },
+        })
+        const lastQuestion = [...history].reverse().find((m) => m.role === 'AI_EXPERT')
+        const answeredCount = history.filter((m) => m.role === 'STUDENT').length
+        const studentMessage = await tx.defenseMessage.create({
+          data: { thesisId: thesis.id, role: 'STUDENT', content: answer, score: null },
+          select: { id: true },
+        })
+        return { history, lastQuestion, answeredCount, studentMessageId: studentMessage.id }
       })
-      const lastQuestion = [...history].reverse().find((m) => m.role === 'AI_EXPERT')
-      const answeredCount = history.filter((m) => m.role === 'STUDENT').length
+      const { history, lastQuestion, answeredCount } = answerState
 
       const criterion = DEFENSE_CRITERIA[Math.min(answeredCount, DEFENSE_CRITERIA.length - 1)]
       const digest = legacyDefense ? null : await getThesisDigest(thesis.id)
