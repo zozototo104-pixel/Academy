@@ -6,6 +6,7 @@ import { validateAdmissionFileSignature } from '@/lib/file-signature'
 import { storeFileBuffer, storageErrorMessage } from '@/lib/storage'
 import { audit, notify } from '@/lib/notify'
 import { repairVerifiedStudentRecordOwnership, studentPaymentOwnershipWhere } from '@/lib/student-record-ownership'
+import { dollarsToCents, paymentAmountDollars } from '@/lib/money'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
