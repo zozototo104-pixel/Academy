@@ -428,11 +428,7 @@ export async function POST(req: NextRequest) {
       ? await completeEnrollmentIfEligible({ enrollmentId: enrollment.id })
       : null
     const certificateNo = completion?.ok ? completion.certificate?.serial || null : null
-    const completedAttempts = completedAttemptsBeforeSubmit + 1
-    const revealCorrectAnswers = shouldRevealCorrectAnswers({ passed, completedAttempts, maxAttempts })
-    const results = revealCorrectAnswers
-      ? gradedResults.sort((a, b) => a.order - b.order)
-      : gradedResults.sort((a, b) => a.order - b.order).map(({ correctAnswerText, ...result }) => result)
+    const results = responseResults.sort((a, b) => a.order - b.order)
 
     return NextResponse.json({
       ok: true,
