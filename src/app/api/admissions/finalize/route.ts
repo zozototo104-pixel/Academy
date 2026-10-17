@@ -45,7 +45,10 @@ export async function POST(req: NextRequest) {
 
     const isDocumentReplacement = app.status === 'DOCUMENTS_NEED_REPLACEMENT'
     const replacementRequest = isDocumentReplacement ? extractAdmissionDocumentReplacement(app.notes) : null
-    if (!['UPLOADING_DOCUMENTS', 'PENDING', 'AWAITING_FEE', 'UNDER_REVIEW', 'DOCUMENTS_NEED_REPLACEMENT'].includes(app.status)) {
+    if (!isDocumentReplacement && app.programRef?.registrationStatus && app.programRef.registrationStatus !== 'OPEN') {
+      return NextResponse.json({ error: 'التسجيل في هذا البرنامج غير مفتوح حالياً. لا يمكن إكمال الطلب.', code: 'REGISTRATION_CLOSED' }, { status: 403 })
+    }
+    if (!['UPLOADING_DOCUMENTS', 'STAGED', 'PENDING', 'AWAITING_FEE', 'UNDER_REVIEW', 'DOCUMENTS_NEED_REPLACEMENT'].includes(app.status)) {
       return NextResponse.json({ error: 'لا يمكن إكمال هذا الطلب لأنه انتقل إلى مرحلة لاحقة' }, { status: 400 })
     }
     if (isDocumentReplacement && !replacementRequest) {
