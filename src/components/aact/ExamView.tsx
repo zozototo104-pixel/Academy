@@ -196,6 +196,8 @@ export function ExamView() {
     draftLoadedRef.current = false
     lastDraftPayloadRef.current = ''
     submittedRef.current = false
+    serverOffsetMsRef.current = 0
+    countdownRef.current = null
     // تصفير حالة المراقبة والاعتراض لكل امتحان جديد
     setProctorConsent(false)
     setProctorEnabled(false)
