@@ -637,7 +637,17 @@ export function PaymentsTab() {
                           )}
                         </div>
                       ) : <p className='mt-1 text-emerald-800'>ارفع صورة أو PDF لإثبات التحويل حتى تراجعه الإدارة داخل الفاتورة.</p>}
-                      <div className='mt-2'>
+                      <div className='mt-2 space-y-2'>
+                        <Input
+                          type='number'
+                          inputMode='decimal'
+                          min='0.01'
+                          step='0.01'
+                          value={transferAmounts[p.id] ?? String(p.amount)}
+                          onChange={(event) => setTransferAmounts((prev) => ({ ...prev, [p.id]: event.target.value }))}
+                          placeholder='المبلغ المحوّل ($)'
+                          className='bg-white text-[11px]'
+                        />
                         <Input
                           type='file'
                           accept='image/jpeg,image/png,image/webp,image/heic,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain'
