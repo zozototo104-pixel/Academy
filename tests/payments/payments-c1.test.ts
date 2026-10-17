@@ -24,7 +24,7 @@ const db: any = {
   $transaction: async (work: (tx: any) => Promise<any>) => work(db),
   $queryRaw: async () => { calls.push('lock') },
   paymentProof: {
-    findUnique: async ({ where }: any) => ({ id: where.id, paymentId: 'payment-1', status: proofStatus, declaredAmount: 100, payment: proofPayment, fileName: 'receipt.pdf' }),
+    findUnique: async ({ where }: any) => ({ id: where.id, paymentId: 'payment-1', status: proofStatus, declaredAmount: proofDeclaredAmount, payment: proofPayment, fileName: 'receipt.pdf' }),
     findFirst: async () => null,
     updateMany: async ({ where, data }: any) => {
       calls.push(`proof.updateMany:${where.status}:${data.status}`)
