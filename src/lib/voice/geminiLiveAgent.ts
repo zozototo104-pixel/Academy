@@ -17,6 +17,7 @@ export interface AgentCallbacks {
   voice?: string
   /** لهجة التفريغ/التعرّف على الصوت المطلوبة مثل ar-PS أو ar-EG. */
   dialect?: string
+  purpose?: 'SUPERVISOR' | 'DISCUSSION'
   /** endpoint بديل لحفظ تفريغ الدور؛ الدردشة تحفظ في /api/ai/gemini-live/log، والمناقشة تحفظ في /api/defense. */
   logEndpoint?: string
   /** حقول إضافية ترسل مع حفظ الدور، مثل action: live-turn. */
