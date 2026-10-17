@@ -3072,6 +3072,112 @@ export function AdminQualityTab() {
           )}
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!examGenerationDialog} onOpenChange={(open) => { if (!open && !examGenerationDialog?.submitting) setExamGenerationDialog(null) }}>
+        <DialogContent className="max-h-[90dvh] max-w-2xl overflow-y-auto rounded-[2rem]" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="font-black text-[#0f2b46]">توليد امتحان من بنك الأسئلة</DialogTitle>
+            <DialogDescription>
+              اضبط عدد الأسئلة والتوزيع مرة واحدة. زر الإلغاء يغلق النافذة دون إنشاء امتحان.
+            </DialogDescription>
+          </DialogHeader>
+          {examGenerationDialog && (
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-[#c9a227]/30 bg-[#fffaf0] p-3 text-xs font-bold leading-6 text-[#0f2b46]">
+                <p className="font-black">{examGenerationDialog.program.titleAr}</p>
+                <p className="text-slate-600">الفصل {examGenerationDialog.semester}</p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="space-y-1 text-xs font-black text-slate-600">
+                  <span>عدد الأسئلة</span>
+                  <input
+                    type="number"
+                    min={5}
+                    max={80}
+                    value={examGenerationDialog.values.count}
+                    onChange={(e) => updateExamGenerationValue('count', e.target.value)}
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-[#0f2b46]"
+                  />
+                </label>
+                <label className="space-y-1 text-xs font-black text-slate-600">
+                  <span>الوحدة</span>
+                  <select
+                    value={examGenerationDialog.values.unitId}
+                    onChange={(e) => updateExamGenerationValue('unitId', e.target.value)}
+                    disabled={examGenerationDialog.loadingUnits}
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-[#0f2b46]"
+                  >
+                    <option value="">كل وحدات البرنامج</option>
+                    {examGenerationDialog.units.map((unit) => <option key={unit.id} value={unit.id}>{unit.title}</option>)}
+                  </select>
+                </label>
+              </div>
+
+              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                <h4 className="mb-3 text-sm font-black text-[#0f2b46]">توزيع الصعوبة</h4>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {([
+                    ['easy', 'سهل'],
+                    ['medium', 'متوسط'],
+                    ['advanced', 'متقدم'],
+                  ] as const).map(([key, label]) => (
+                    <label key={key} className="space-y-1 text-xs font-black text-slate-600">
+                      <span>{label}</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={examGenerationDialog.values[key]}
+                        onChange={(e) => updateExamGenerationValue(key, e.target.value)}
+                        className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-[#0f2b46]"
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                <h4 className="mb-3 text-sm font-black text-[#0f2b46]">توزيع أنواع الأسئلة</h4>
+                <div className="grid gap-3 sm:grid-cols-4">
+                  {([
+                    ['mcq', 'اختيار متعدد'],
+                    ['tf', 'صح وخطأ'],
+                    ['short', 'قصير'],
+                    ['essay', 'مقالي'],
+                  ] as const).map(([key, label]) => (
+                    <label key={key} className="space-y-1 text-xs font-black text-slate-600">
+                      <span>{label}</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={examGenerationDialog.values[key]}
+                        onChange={(e) => updateExamGenerationValue(key, e.target.value)}
+                        className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-[#0f2b46]"
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {examGenerationDialog.loadingUnits && (
+                <div className="flex items-center gap-2 rounded-2xl bg-slate-50 p-3 text-xs font-bold text-slate-500">
+                  <Loader2 className="h-4 w-4 animate-spin" /> جاري تحميل الوحدات...
+                </div>
+              )}
+
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <Button variant="outline" disabled={examGenerationDialog.submitting} onClick={() => setExamGenerationDialog(null)} className="font-black">إلغاء</Button>
+                <Button disabled={examGenerationDialog.submitting} onClick={submitExamGenerationForm} className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">
+                  {examGenerationDialog.submitting ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null}
+                  توليد الامتحان
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
       {actionDialog}
     </div>
   )
