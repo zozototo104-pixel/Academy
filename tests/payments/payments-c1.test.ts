@@ -4,6 +4,7 @@ import { NextRequest } from 'next/server'
 
 const calls: string[] = []
 let proofStatus: 'PENDING' | 'ACCEPTED' | 'REJECTED' = 'PENDING'
+let proofDeclaredAmount = 100
 let duplicateInstallmentInvoice: string | null = null
 let markInvoicePaidOk = true
 
