@@ -267,11 +267,12 @@ export async function POST(req: NextRequest) {
     }
   }
   if (user.role === 'STUDENT' && purpose === 'DISCUSSION') {
-    const scheduledThesis = await db.thesisSubmission.findFirst({
-      where: { userId: user.id, status: 'SCHEDULED' },
-      select: { id: true },
+    const latestThesis = await db.thesisSubmission.findFirst({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, status: true },
     })
-    if (!scheduledThesis) {
+    if (latestThesis?.status !== 'SCHEDULED') {
       return NextResponse.json({ error: 'قاعة المناقشة متاحة فقط بعد جدولة مناقشتك', code: 'DEFENSE_NOT_SCHEDULED' }, { status: 403 })
     }
   }
