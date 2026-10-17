@@ -160,6 +160,56 @@ function testSchemaAndMigrationSafety() {
   assert(migration.includes('ON DELETE RESTRICT'), 'migration must apply restrictive foreign keys')
 }
 
+function testProgramExamStartContract() {
+  const detail = file('src/app/api/program-exam/detail/route.ts')
+  const start = file('src/app/api/program-exam/start/route.ts')
+  assert(!detail.includes('programExamAttempt.create'), 'program exam detail GET must not create attempts')
+  assert(!detail.includes('FOR UPDATE'), 'program exam detail GET must remain read-only and avoid start locks')
+  assert(detail.includes('serverNow'), 'program exam detail must return serverNow for client clock alignment')
+  assert(start.includes('export async function POST'), 'program exam start endpoint must be POST-only')
+  assert(start.includes('programExamAttempt.create'), 'program exam start endpoint must create the STARTED attempt')
+  assert(start.includes("status: 'STARTED'"), 'program exam start endpoint must create or restore only STARTED attempts')
+  assert(start.includes('FOR UPDATE'), 'program exam start endpoint must serialize concurrent starts with the existing user lock')
+  assert(start.includes('getExamMaxAttempts(\'PROGRAM\''), 'program exam start must enforce max attempts before creating a new attempt')
+}
+
+function testMaxAttemptsAndAnswerKeyDisclosure() {
+  const policy = file('src/lib/exam-attempt-policy.ts')
+  assert(policy.includes('DEFAULT_EXAM_MAX_ATTEMPTS = 3'), 'exam maxAttempts default must be 3')
+  assert(policy.includes("['PROGRAM_EXAM_MAX_ATTEMPTS', 'EXAM_MAX_ATTEMPTS']"), 'program exams must read program-specific maxAttempts setting first')
+  assert(policy.includes("['UNIT_EXAM_MAX_ATTEMPTS', 'EXAM_MAX_ATTEMPTS']"), 'unit exams must read unit-specific maxAttempts setting first')
+  assert(policy.includes('return input.passed || input.completedAttempts >= input.maxAttempts'), 'correct answers must reveal only after passing or exhausting attempts')
+
+  const unitDetail = file('src/app/api/exam/detail/route.ts')
+  const programStart = file('src/app/api/program-exam/start/route.ts')
+  const unitSubmit = file('src/app/api/exam/submit/route.ts')
+  const programSubmit = file('src/app/api/program-exam/submit/route.ts')
+  assert(unitDetail.includes('MAX_ATTEMPTS_REACHED'), 'unit exam detail must block attempts after maxAttempts')
+  assert(programStart.includes('MAX_ATTEMPTS_REACHED'), 'program exam start must block attempts after maxAttempts')
+  assert(unitSubmit.includes('shouldRevealCorrectAnswers'), 'unit exam submit must apply answer-key disclosure policy')
+  assert(programSubmit.includes('shouldRevealCorrectAnswers'), 'program exam submit must apply answer-key disclosure policy')
+  assert(unitSubmit.includes('correctAnswerText, ...result'), 'unit exam submit must strip correctAnswerText before pass/exhaustion')
+  assert(programSubmit.includes('correctAnswerText, correctRationale, wrongOptionRationale, ...result'), 'program exam submit must strip detailed answer keys before pass/exhaustion')
+}
+
+function testProgressCertificateUsesCentralServiceAndFullTuition() {
+  const progress = file('src/app/api/progress/route.ts')
+  assert(progress.includes('completeEnrollmentIfEligible({ enrollmentId: enrollment.id })'), 'progress POST must delegate PROGRAM_COMPLETION issuance to the central completion service')
+  assert(progress.includes('getStudentTuitionPlan(user.id, programId)'), 'progress POST must check the student tuition plan before certificate issuance')
+  assert(progress.includes('tuitionPlan.paidTuition >= tuitionPlan.totalTuition'), 'progress POST must require full tuition before issuing PROGRAM_COMPLETION')
+  assert(!progress.includes('db.certificate.create'), 'progress POST must not create PROGRAM_COMPLETION certificates directly')
+  assert(!progress.includes('nextCertSerial'), 'progress POST must not mint certificate serials directly')
+  assert(!progress.includes('randomBytes(16).toString'), 'progress POST must not generate certificate tokens directly')
+}
+
+function testDefenseAnsweredCountIsSerialized() {
+  const defense = file('src/app/api/defense/route.ts')
+  assert(defense.includes('SELECT "id" FROM "ThesisSubmission" WHERE "id" = ${thesis.id} FOR UPDATE'), 'defense answer flow must lock the thesis row before counting answers')
+  assert(defense.includes('const answeredCount = history.filter((m) => m.role === \'STUDENT\').length'), 'defense answer flow must compute answeredCount inside the locked transaction')
+  assert(defense.includes('studentMessageId'), 'defense answer flow must reserve the student message inside the locked transaction')
+  assert(defense.includes('where: { id: answerState.studentMessageId }'), 'defense answer score must update the reserved message rather than creating a second answer')
+}
+
 function testQuestionBankMethodologyUntouched() {
   const generation = file('src/app/api/admin/program-exams/generate/route.ts')
   assert(generation.includes('advanceProgramExamFromVerifiedBank'), 'program exam generation must still use the verified question-bank assembly path')
