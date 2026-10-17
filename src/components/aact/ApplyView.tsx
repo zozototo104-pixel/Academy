@@ -495,7 +495,13 @@ export function ApplyView() {
 
       // لا نرسل كل المرفقات دفعة واحدة حتى لا يصطدم الطلب بحد Vercel ويرجع HTTP 413.
       // ننشئ الطلب أولاً، ثم نرفع كل ملف في طلب مستقل، ثم نكمل التقديم ونصدر الفاتورة.
-      const staged = await api<{ reference: string; applicationId: string; uploadToken: string; staged: boolean }>('/api/admissions', { method: 'POST', body: fd })
+      const staged = await api<{ reference: string; applicationId: string; uploadToken: string | null; staged: boolean; existingOpen?: boolean; invoice?: any; message?: string }>('/api/admissions', { method: 'POST', body: fd })
+      if (staged.existingOpen && !staged.staged) {
+        setDone({ reference: staged.reference, invoice: staged.invoice || null })
+        toast({ title: 'لديك طلب مفتوح', description: staged.message || 'أعدنا الطلب الحالي بدون إنشاء فاتورة جديدة.' })
+        return
+      }
+      if (!staged.uploadToken) throw new Error('رابط رفع الملفات غير متاح حالياً. حاول مرة أخرى أو تواصل مع الإدارة.')
       const docsToUpload = activeDocs.filter((d) => files[d.type])
       for (let i = 0; i < docsToUpload.length; i++) {
         const d = docsToUpload[i]
