@@ -33,6 +33,12 @@ function checksum(buffer: Buffer) {
   return createHash('sha256').update(buffer).digest('hex')
 }
 
+function parseDeclaredAmount(value: unknown) {
+  const raw = String(value || '').replace(/,/g, '').trim()
+  const amount = Number(raw)
+  return Number.isFinite(amount) && amount > 0 ? Math.round(amount * 100) / 100 : null
+}
+
 function proofPayload(proof: any) {
   return {
     id: proof.id,
