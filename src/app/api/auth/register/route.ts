@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
           name: normalizeOptionalText(name, 120),
           email: emailNorm,
           password: hashPassword(password),
-          phone: normalizePhone(phone) || null,
+          phone: phoneValue ? normalizePhone(phoneValue) || null : null,
           country: normalizeOptionalText(country, 80) || null,
           role: 'STUDENT',
           emailVerificationTokenHash: verification.tokenHash,
