@@ -160,6 +160,7 @@ async function json(res: Response) {
 beforeEach(() => {
   calls.splice(0, calls.length)
   proofStatus = 'PENDING'
+  proofDeclaredAmount = 100
   duplicateInstallmentInvoice = null
   markInvoicePaidOk = true
 })
