@@ -44,6 +44,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'بيانات غير صحيحة' }, { status: 400 })
     }
     const changed: string[] = []
+    const invalidFeeLabels: string[] = []
     for (const [key, val] of Object.entries(values)) {
       const def = DEFAULT_SETTINGS.find((d) => d.key === key)
       if (!def) continue
@@ -55,7 +56,8 @@ export async function PUT(req: NextRequest) {
         if (v === '' || isNaN(parseFloat(v))) continue
         const numericValue = parseFloat(v)
         if (key.startsWith('FEE_') && numericValue <= 0) {
-          return NextResponse.json({ error: `قيمة ${def.label} يجب أن تكون أكبر من صفر` }, { status: 400 })
+          invalidFeeLabels.push(def.label)
+          continue
         }
         v = String(numericValue)
       }
