@@ -438,6 +438,19 @@ export async function POST(req: NextRequest) {
 
     if (admissionState.duplicateOpen) {
       const duplicateOpen = admissionState.duplicateOpen
+      const canClaimOpenRequest = Boolean(
+        me?.id &&
+        (me as any).emailVerifiedAt &&
+        duplicateOpen.userId === null &&
+        String(me.email || '').trim().toLowerCase() === submittedEmail
+      )
+      if (canClaimOpenRequest) {
+        await db.admissionApplication.updateMany({
+          where: { id: duplicateOpen.id, userId: null },
+          data: { userId: me!.id },
+        })
+        duplicateOpen.userId = me!.id
+      }
       if (!me || duplicateOpen.userId !== me.id) {
         return NextResponse.json({ existingOpen: true, message: 'لديك طلب مفتوح لهذا البرنامج — سجّل الدخول بنفس الإيميل لإكماله' })
       }
