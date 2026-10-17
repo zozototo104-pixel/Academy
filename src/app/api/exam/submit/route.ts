@@ -407,10 +407,7 @@ export async function POST(req: NextRequest) {
       try {
         // A failed grading operation must not strand a student in SUBMITTED.
         // Only the request that claimed this attempt may release an unpersisted claim.
-        await db.examAttempt.updateMany({
-          where: { id: claimedUnitAttemptId, status: 'SUBMITTED' },
-          data: { status: 'STARTED' },
-        })
+        await db.examAttempt.updateMany({ where: { id: claimedUnitAttemptId, status: 'SUBMITTED' }, data: { status: 'STARTED' } })
       } catch (recoveryError) {
         console.error('Failed to release unsuccessful unit exam claim:', recoveryError)
       }
