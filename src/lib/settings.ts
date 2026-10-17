@@ -243,6 +243,20 @@ export async function nextInvoiceNo(): Promise<string> {
   throw new Error('INVOICE_SEQUENCE_EXHAUSTED')
 }
 
+export async function createPaymentWithInvoiceNo(data: Record<string, any>, client: any = db, maxAttempts = 5) {
+  let lastError: any = null
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const invoiceNo = await nextInvoiceNo()
+    try {
+      return await client.payment.create({ data: { ...data, invoiceNo } })
+    } catch (error: any) {
+      if (!isUniqueConstraintError(error)) throw error
+      lastError = error
+    }
+  }
+  throw lastError || new Error('INVOICE_SEQUENCE_RETRY_EXHAUSTED')
+}
+
 export async function nextReceiptNo(): Promise<string> {
   const rows = await db.$queryRaw<Array<{ n: bigint | number }>>`SELECT nextval('payment_receipt_no_seq') AS n`
   const n = Number(rows[0]?.n || 1)
