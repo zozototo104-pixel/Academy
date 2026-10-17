@@ -272,7 +272,7 @@ export async function POST(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
       select: { id: true, status: true },
     })
-    if (latestThesis?.status !== 'SCHEDULED') {
+    if (!latestThesis || latestThesis.status !== 'SCHEDULED') {
       return NextResponse.json({ error: 'قاعة المناقشة متاحة فقط بعد جدولة مناقشتك', code: 'DEFENSE_NOT_SCHEDULED' }, { status: 403 })
     }
   }
