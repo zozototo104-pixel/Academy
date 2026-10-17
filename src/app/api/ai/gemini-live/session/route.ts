@@ -338,7 +338,8 @@ export async function POST(req: NextRequest) {
   try {
     const liveKeys = await geminiKeysForLive()
     if (!liveKeys.length) {
-      return NextResponse.json({ error: 'أدخل مفتاح Gemini API أولاً من لوحة الإدارة أو انتظر انتهاء تبريد مفاتيح Gemini الحالية', details: [] }, { status: 400 })
+      const e = Object.assign(new Error('GEMINI_LIVE_NO_AVAILABLE_KEY'), { status: 400 })
+      return geminiLiveTokenFailureResponse(user, e, [])
     }
 
     const failures: LiveKeyFailureDetail[] = []
