@@ -145,6 +145,7 @@ beforeEach(() => {
   credits = []
   currentUser = { id: 'student-1', role: 'STUDENT' }
   studentAiAllowed = true
+  latestThesisStatus = null
   operations.usageReads = 0
   operations.usageWrites = 0
   operations.creditReads = 0
