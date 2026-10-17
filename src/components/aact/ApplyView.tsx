@@ -456,6 +456,10 @@ export function ApplyView() {
       toast({ title: 'تنبيه', description: isServiceRequest ? 'يرجى اختيار الخدمة المطلوبة' : 'يرجى اختيار التخصص أو البرنامج المرغوب', variant: 'destructive' })
       return
     }
+    if (selectedProgram?.registrationStatus && selectedProgram.registrationStatus !== 'OPEN') {
+      toast({ title: 'التسجيل مغلق', description: 'التسجيل في هذا البرنامج غير مفتوح حالياً. يرجى اختيار برنامج آخر أو متابعة الإعلانات الرسمية عند إعادة فتح التسجيل.', variant: 'destructive' })
+      return
+    }
     const validationError = validateApplicantFullName(form.fullName, 3)
       || validatePhone(form.phone)
       || (!SUPPORTED_COUNTRIES.includes(form.country) ? 'يرجى اختيار الدولة من القائمة المعتمدة بدلاً من كتابتها يدوياً.' : null)
