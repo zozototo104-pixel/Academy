@@ -98,6 +98,7 @@ function representativeAssetPreviewUrl(rep: Representative | null | undefined, a
 }
 
 export default function AdminRepresentativesTab() {
+  const { confirmAction, promptAction, dialog: actionDialog } = useAdminActionDialog()
   const [rows, setRows] = useState<Representative[]>([])
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [selectedId, setSelectedId] = useState('')
