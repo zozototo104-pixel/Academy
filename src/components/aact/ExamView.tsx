@@ -401,6 +401,7 @@ export function ExamView() {
         setSecondsLeft(null)
         const examType = isFinal ? 'PROGRAM' : 'UNIT'
         api(`/api/exam-draft?examId=${data.exam.id}&examType=${examType}`, { method: 'DELETE' }).catch((error) => { console.warn('Failed to delete submitted exam draft.', error) })
+        try { window.localStorage.removeItem(`aact-exam-draft:${examType}:${data.exam.id}`) } catch (error) { console.warn('Failed to clear local exam draft backup.', error) }
         setDraftStatus('idle')
         setDraftUpdatedAt(null)
         if (d?.status === 'NEEDS_REVIEW') {
