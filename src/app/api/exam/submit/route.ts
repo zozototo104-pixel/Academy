@@ -444,7 +444,7 @@ export async function POST(req: NextRequest) {
       certificateNo,
       maxAttempts,
       attemptsUsed: completedAttempts,
-      results,
+      results: finalResults,
     })
   } catch (e: any) {
     if (claimedUnitAttemptId) {
