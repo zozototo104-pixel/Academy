@@ -43,6 +43,10 @@ function signPayload(payload: string) {
   return createHmac('sha256', tokenSecret()).update(payload).digest('base64url')
 }
 
+export function ensureAdmissionUploadTokenSecretConfigured() {
+  tokenSecret()
+}
+
 function safeEqual(a: string, b: string) {
   const ab = Buffer.from(a)
   const bb = Buffer.from(b)
