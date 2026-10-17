@@ -143,6 +143,7 @@ beforeEach(() => {
   sessions.clear()
   credits = []
   currentUser = { id: 'student-1', role: 'STUDENT' }
+  studentAiAllowed = true
   operations.usageReads = 0
   operations.usageWrites = 0
   operations.creditReads = 0
