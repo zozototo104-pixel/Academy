@@ -68,8 +68,8 @@ export async function getCurrentUser() {
   try {
     const token = await getSessionToken()
     if (!token) return null
-    const session = await db.session.findUnique({
-      where: { token },
+    const session = await db.session.findFirst({
+      where: { OR: [{ token }, { token: hashSessionToken(token) }] },
       include: { user: true },
     })
     if (!session) return null
