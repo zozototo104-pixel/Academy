@@ -450,14 +450,26 @@ export function ExamView() {
 
   // ===== 12.2: بدء الامتحان (بعد شاشة الموافقة على المراقبة) =====
   const startExam = async () => {
+    if (!data) return
     const enable = activeExamKind === 'final' && proctorConsent
-    setProctorEnabled(enable)
-    setExamStarted(true)
-    setStartedAt(Date.now())
-    if (data?.exam.durationMin) setSecondsLeft(data.exam.durationMin * 60)
+    let stream: MediaStream | null = null
     if (enable) {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+      } catch {
+        toast({ title: 'تعذر تشغيل الكاميرا', description: 'سيمرّ الامتحان بمراقبة تبديل النوافذ فقط', variant: 'destructive' })
+      }
+    }
+
+    try {
+      const started = await api<any>('/api/program-exam/start', {
+        method: 'POST',
+        body: JSON.stringify({ examId: data.exam.id, proctoringRequested: enable }),
+      })
+      configureCountdown(started?.attempt?.startedAt, started?.durationMin || data.exam.durationMin, started?.serverNow)
+      setProctorEnabled(enable)
+      setExamStarted(true)
+      if (stream) {
         proctorStreamRef.current = stream
         setProctorActive(true)
         setTimeout(() => {
@@ -479,8 +491,13 @@ export function ExamView() {
             }
           }
         }, 300)
-      } catch {
-        toast({ title: 'تعذر تشغيل الكاميرا', description: 'سيمرّ الامتحان بمراقبة تبديل النوافذ فقط', variant: 'destructive' })
+      }
+    } catch (e: any) {
+      stream?.getTracks().forEach((track) => track.stop())
+      const err = e as ApiError
+      toast({ title: 'تنبيه الاختبار', description: examErrorMessage(err), variant: 'destructive' })
+      if ((err.status === 403 || err.status === 409) && ['ALREADY_PASSED', 'PASSED_ALREADY', 'SUBMITTED', 'ATTEMPT_SUBMITTED', 'ATTEMPT_EXPIRED', 'MAX_ATTEMPTS_REACHED'].includes(String(err.code || ''))) {
+        navigate('dashboard', { programId: data.exam.programId, tab: 'results' })
       }
     }
   }
