@@ -7,6 +7,9 @@ import { buildSupervisorContext, mergeContext, updateStudentAcademicMemory } fro
 import { calculateSemesterReadiness } from '@/lib/semester-readiness'
 import { enforceSemesterTuitionGate } from '@/lib/tuition-installments'
 import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
+import { getExamMaxAttempts, shouldRevealCorrectAnswers } from '@/lib/exam-attempt-policy'
+
+const COMPLETED_PROGRAM_ATTEMPT_STATUSES = ['GRADED', 'EXPIRED', 'NEEDS_REVIEW']
 
 interface SubmitAnswer {
   questionId: string
