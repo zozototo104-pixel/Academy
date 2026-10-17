@@ -74,7 +74,7 @@ export function AdminSupervisorsTab() {
 
   const revoke = async (id: string) => {
     const supervisor = supervisors.find((item) => item.id === id)
-    if (!window.confirm(`تأكيد إلغاء صلاحية المشرف ${supervisor?.name || ''}؟ لن يُسمح بذلك إذا كان لديه طلاب مرتبطون.`)) return
+    if (!(await confirmAction({ title: 'إلغاء صلاحية مشرف', description: `تأكيد إلغاء صلاحية المشرف ${supervisor?.name || ''}؟ لن يُسمح بذلك إذا كان لديه طلاب مرتبطون.`, confirmLabel: 'إلغاء الصلاحية', tone: 'danger' }))) return
     setSaving(true)
     try {
       await api('/api/admin/supervisors', { method: 'PATCH', body: JSON.stringify({ action: 'revoke-supervisor', id }) })
