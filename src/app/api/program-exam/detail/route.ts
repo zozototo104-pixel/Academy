@@ -97,9 +97,14 @@ export async function GET(req: NextRequest) {
     ])
     if (passedAttempt) return NextResponse.json({ error: 'لقد اجتزت هذا الاختبار سابقاً، لا يمكن بدء محاولة جديدة', code: 'ALREADY_PASSED' }, { status: 403 })
     if (submittedAttempt) return NextResponse.json({ error: 'هذه المحاولة قيد التصحيح', code: 'SUBMITTED' }, { status: 409 })
+    let currentActiveAttempt = activeAttempt
     const activeStartedAt = activeAttempt?.startedAt || activeAttempt?.createdAt || null
     if (activeAttempt && activeStartedAt && activeStartedAt.getTime() + (exam.durationMin + 2) * 60 * 1000 < Date.now()) {
-      return NextResponse.json({ error: 'انتهت المحاولة وحُسبت صفر — انتهى الوقت دون تسليم', code: 'ATTEMPT_EXPIRED' }, { status: 409 })
+      await db.programExamAttempt.updateMany({
+        where: { id: activeAttempt.id, userId: user.id, examId, status: 'STARTED' },
+        data: { status: 'EXPIRED', score: 0, finalScore: 0, passed: false, durationUsedMin: exam.durationMin + 2, submittedAt: new Date() },
+      })
+      currentActiveAttempt = null
     }
 
     const [books, previousAttempts, maxAttempts, completedAttempts] = await Promise.all([
