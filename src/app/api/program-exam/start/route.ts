@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { calculateSemesterReadiness } from '@/lib/semester-readiness'
 import { enforceSemesterTuitionGate } from '@/lib/tuition-installments'
-import { getExamMaxAttempts } from '@/lib/exam-attempt-policy'
+import { EXAM_ATTEMPT_POLICY_SINCE, getExamMaxAttempts } from '@/lib/exam-attempt-policy'
 
 const COMPLETED_PROGRAM_ATTEMPT_STATUSES = ['GRADED', 'EXPIRED', 'NEEDS_REVIEW']
 
