@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
+import { useAdminActionDialog } from './AdminActionDialog'
 import {
   AlertTriangle,
   Award,
@@ -217,6 +218,27 @@ interface StorageSafetyReport {
     externallyStoredDefenseRecordings: { id: string; recordingMime?: string | null; recordingSize?: number | null; storageProvider?: string | null; storageKey?: string | null; recordingUrl?: string | null; updatedAt: string }[]
     heavyDbFiles: { key: string; label: string; table: string; column: string; rows: number; chars: number; approxBytes: number; status: 'SAFE' | 'WATCH' | 'WARNING' | 'HIGH_RISK'; note: string }[]
   }
+}
+
+type ExamGenerationValues = {
+  count: string
+  easy: string
+  medium: string
+  advanced: string
+  mcq: string
+  tf: string
+  short: string
+  essay: string
+  unitId: string
+}
+
+type ExamGenerationDialogState = {
+  program: ProgramReadinessItem
+  semester: number
+  values: ExamGenerationValues
+  units: { id: string; title: string }[]
+  loadingUnits: boolean
+  submitting: boolean
 }
 
 interface ProgramReadinessItem {
@@ -467,6 +489,7 @@ export function AdminQualityTab() {
   const [unitSuggestionModeBusy, setUnitSuggestionModeBusy] = useState<'append' | null>(null)
   const [unitRegenerateDrafts, setUnitRegenerateDrafts] = useState<Record<string, boolean>>({})
   const [unitGenerationResult, setUnitGenerationResult] = useState<any | null>(null)
+  const { alertAction, confirmAction, promptAction, dialog: actionDialog } = useAdminActionDialog()
   const [questionBankOpen, setQuestionBankOpen] = useState(false)
   const [questionBankProgram, setQuestionBankProgram] = useState<ProgramReadinessItem | null>(null)
   const [questionBankItems, setQuestionBankItems] = useState<QuestionBankReviewItem[]>([])
@@ -484,6 +507,7 @@ export function AdminQualityTab() {
   const [selectedExamId, setSelectedExamId] = useState('')
   const [selectedExamQuestionIds, setSelectedExamQuestionIds] = useState<string[]>([])
   const [examImportApproveNow, setExamImportApproveNow] = useState(false)
+  const [examGenerationDialog, setExamGenerationDialog] = useState<ExamGenerationDialogState | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -537,7 +561,7 @@ export function AdminQualityTab() {
       a.remove()
       URL.revokeObjectURL(url)
     } catch (e: any) {
-      alert(e?.message || 'تعذر تصدير كتالوج البرامج')
+      await alertAction({ title: 'تعذر تصدير كتالوج البرامج', description: e?.message || 'حاول مرة أخرى أو راجع صلاحيات الإدارة.', tone: 'danger' })
     } finally {
       setCatalogBusy(null)
     }
@@ -545,7 +569,7 @@ export function AdminQualityTab() {
 
   const importProgramCatalog = async () => {
     if (!catalogImportText.trim()) return
-    if (!confirm('سيتم استيراد كتالوج البرامج إلى قاعدة البيانات الحالية. الطلاب والمدفوعات والمحاولات ليست ضمن هذا الملف. هل تريد المتابعة؟')) return
+    if (!(await confirmAction({ title: 'استيراد كتالوج البرامج', description: 'سيتم استيراد كتالوج البرامج إلى قاعدة البيانات الحالية. الطلاب والمدفوعات والمحاولات ليست ضمن هذا الملف.', confirmLabel: 'استيراد الكتالوج', tone: 'warning' }))) return
     setCatalogBusy('import')
     try {
       const catalog = JSON.parse(catalogImportText)
@@ -553,12 +577,12 @@ export function AdminQualityTab() {
         method: 'POST',
         body: JSON.stringify({ catalog, confirmRestore: 'YES' }),
       })
-      alert(`تم الاستيراد بنجاح. البرامج: ${res.stats.programs || 0}، الوحدات: ${res.stats.units || 0}، الكتب: ${res.stats.books || 0}`)
+      await alertAction({ title: 'تم الاستيراد بنجاح', description: `البرامج: ${res.stats.programs || 0}، الوحدات: ${res.stats.units || 0}، الكتب: ${res.stats.books || 0}`, confirmLabel: 'حسناً', tone: 'success' })
       setCatalogImportOpen(false)
       setCatalogImportText('')
       await load()
     } catch (e: any) {
-      alert(e?.message || 'تعذر استيراد كتالوج البرامج')
+      await alertAction({ title: 'تعذر استيراد كتالوج البرامج', description: e?.message || 'راجع ملف JSON وحاول مرة أخرى.', tone: 'danger' })
     } finally {
       setCatalogBusy(null)
     }
@@ -599,7 +623,7 @@ export function AdminQualityTab() {
     setReadinessItems(refreshedItems)
     setUnitGenerationResult({ ...result, programId: program.id })
     setUnitSuggestionConflict(null)
-    if (result.warnings?.length) alert(result.warnings.join('\n'))
+    if (result.warnings?.length) await alertAction({ title: 'ملاحظات توليد الوحدات', description: result.warnings.join('\n'), tone: 'warning' })
     await openUnitReview(refreshedProgram)
   }
 
@@ -611,7 +635,7 @@ export function AdminQualityTab() {
       } catch (e: any) {
         if (String(e?.data?.code || '').includes('LEGACY_UNIT_GENERATION_CONFIRMATION_REQUIRED')) {
           const skippedBooks = Array.isArray(e?.data?.skippedBooks) ? e.data.skippedBooks.map((book: any) => book?.reason).filter(Boolean).join('\n') : ''
-          const ok = confirm(`${skippedBooks || e.message}\n\nلا يوجد فهرس معتمد لأي كتاب في هذا البرنامج. سيُستخدم التوليد القديم من نص الكتاب وبنك المعرفة. هل تريد المتابعة؟`)
+          const ok = await confirmAction({ title: 'تأكيد التوليد القديم للوحدات', description: `${skippedBooks || e.message}\n\nلا يوجد فهرس معتمد لأي كتاب في هذا البرنامج. سيُستخدم التوليد القديم من نص الكتاب وبنك المعرفة.`, confirmLabel: 'استخدم التوليد القديم', tone: 'warning' })
           if (ok) await runSuggestedUnits(program, { legacyConfirmed: true })
         } else if (String(e?.message || '').includes('توجد وحدات')) {
           setUnitSuggestionConflict({ program, existingUnits: Number(e?.data?.existingUnits || program.counts?.units || 0) })
@@ -823,49 +847,69 @@ export function AdminQualityTab() {
   }
 
   const generateExamFromQuestionBank = async (program: ProgramReadinessItem, semester: number) => {
-    const rawCount = window.prompt('كم عدد الأسئلة المطلوب في الامتحان؟', '30')
-    if (rawCount === null) return
-    const count = Math.max(5, Math.min(80, Number(rawCount || 30)))
-    const easy = Number(window.prompt('نسبة/وزن الأسئلة السهلة؟', '25') || 25)
-    const medium = Number(window.prompt('نسبة/وزن الأسئلة المتوسطة؟', '50') || 50)
-    const advanced = Number(window.prompt('نسبة/وزن الأسئلة المتقدمة؟', '25') || 25)
-    const mcq = Number(window.prompt('نسبة/وزن أسئلة الاختيار المتعدد؟', '50') || 50)
-    const tf = Number(window.prompt('نسبة/وزن أسئلة الصح والخطأ؟', '20') || 20)
-    const short = Number(window.prompt('نسبة/وزن الأسئلة القصيرة؟', '20') || 20)
-    const essay = Number(window.prompt('نسبة/وزن الأسئلة المقالية؟', '10') || 10)
-    let unitId: string | null = null
-    if (confirm('هل تريد تقييد الامتحان بوحدة محددة؟')) {
-      try {
-        const res = await api<{ units: { id: string; title: string }[] }>(`/api/admin/program-units?programId=${program.id}`)
-        const units = res.units || []
-        if (units.length > 0) {
-          const choice = window.prompt(`اختر رقم الوحدة:\n${units.map((u, i) => `${i + 1}. ${u.title}`).join('\n')}`, '1')
-          unitId = units[Number(choice || 0) - 1]?.id || null
-        }
-      } catch (error) {
-        console.warn('Failed to load program units for exam generation picker.', error)
-      }
+    const initialValues: ExamGenerationValues = {
+      count: '30',
+      easy: '25',
+      medium: '50',
+      advanced: '25',
+      mcq: '50',
+      tf: '20',
+      short: '20',
+      essay: '10',
+      unitId: '',
     }
-    const payloadBase = { programId: program.id, semester, count, unitId, difficultyPlan: { EASY: easy, MEDIUM: medium, ADVANCED: advanced }, typePlan: { MCQ: mcq, TF: tf, SHORT: short, ESSAY: essay } }
+    setExamGenerationDialog({ program, semester, values: initialValues, units: [], loadingUnits: true, submitting: false })
+    try {
+      const res = await api<{ units: { id: string; title: string }[] }>(`/api/admin/program-units?programId=${program.id}`)
+      setExamGenerationDialog((current) => current && current.program.id === program.id && current.semester === semester
+        ? { ...current, units: res.units || [], loadingUnits: false }
+        : current)
+    } catch (error) {
+      console.warn('Failed to load program units for exam generation picker.', error)
+      setExamGenerationDialog((current) => current && current.program.id === program.id && current.semester === semester
+        ? { ...current, units: [], loadingUnits: false }
+        : current)
+    }
+  }
+
+  const updateExamGenerationValue = (key: keyof ExamGenerationValues, value: string) => {
+    setExamGenerationDialog((current) => current ? { ...current, values: { ...current.values, [key]: value } } : current)
+  }
+
+  const submitExamGenerationForm = async () => {
+    if (!examGenerationDialog) return
+    const { program, semester, values } = examGenerationDialog
+    const count = Math.max(5, Math.min(80, Number(values.count || 30)))
+    const easy = Number(values.easy || 25)
+    const medium = Number(values.medium || 50)
+    const advanced = Number(values.advanced || 25)
+    const mcq = Number(values.mcq || 50)
+    const tf = Number(values.tf || 20)
+    const short = Number(values.short || 20)
+    const essay = Number(values.essay || 10)
+    const payloadBase = { programId: program.id, semester, count, unitId: values.unitId || null, difficultyPlan: { EASY: easy, MEDIUM: medium, ADVANCED: advanced }, typePlan: { MCQ: mcq, TF: tf, SHORT: short, ESSAY: essay } }
     const doGenerate = async (replaceExistingReview = false) => api('/api/admin/program-exams/from-question-bank', {
       method: 'POST',
       body: JSON.stringify({ ...payloadBase, replaceExistingReview }),
     })
 
+    setExamGenerationDialog((current) => current ? { ...current, submitting: true } : current)
     setReadinessBusyId(program.id)
     try {
       try {
         await doGenerate(false)
       } catch (e: any) {
-        if (String(e?.message || '').includes('بانتظار المراجعة') && confirm('يوجد امتحان بانتظار المراجعة لهذا الفصل. هل تريد استبداله بامتحان جديد من بنك الأسئلة؟')) {
+        if (String(e?.message || '').includes('بانتظار المراجعة') && await confirmAction({ title: 'استبدال امتحان قيد المراجعة', description: 'يوجد امتحان بانتظار المراجعة لهذا الفصل. هل تريد استبداله بامتحان جديد من بنك الأسئلة؟', confirmLabel: 'استبدال الامتحان', tone: 'danger' })) {
           await doGenerate(true)
         } else {
           throw e
         }
       }
+      setExamGenerationDialog(null)
       window.dispatchEvent(new CustomEvent('aact-admin-tab', { detail: { tab: 'books', programId: program.id, section: 'exams' } }))
     } finally {
       setReadinessBusyId(null)
+      setExamGenerationDialog((current) => current ? { ...current, submitting: false } : current)
     }
   }
 
@@ -931,7 +975,7 @@ export function AdminQualityTab() {
       const res = await api<{ students: any[] }>(`/api/admin/students?${params.toString()}`)
       setStudents(res.students || [])
     } catch (e: any) {
-      alert(e?.message || 'تعذر تحميل الطلاب')
+      await alertAction({ title: 'تعذر تحميل الطلاب', description: e?.message || 'حاول تحديث القائمة مرة أخرى.', tone: 'danger' })
     } finally {
       setStudentsLoading(false)
     }
@@ -943,7 +987,7 @@ export function AdminQualityTab() {
       const res = await api<{ student: any }>(`/api/admin/students?userId=${encodeURIComponent(studentId)}`)
       setSelectedStudent(res.student)
     } catch (e: any) {
-      alert(e?.message || 'تعذر تحميل تفاصيل الطالب')
+      await alertAction({ title: 'تعذر تحميل تفاصيل الطالب', description: e?.message || 'لم يتم فتح ملف الطالب.', tone: 'danger' })
     } finally {
       setStudentBusyId(null)
     }
@@ -956,7 +1000,7 @@ export function AdminQualityTab() {
       await loadStudents()
       if (selectedStudent?.id === studentId) await loadStudentDetails(studentId)
     } catch (e: any) {
-      alert(e?.message || 'تعذر تنفيذ الإجراء')
+      await alertAction({ title: 'تعذر تنفيذ الإجراء', description: e?.message || 'لم يتم تحديث سجل الطالب.', tone: 'danger' })
     } finally {
       setStudentBusyId(null)
     }
@@ -1028,7 +1072,7 @@ export function AdminQualityTab() {
       const selectedId = res.preview?.program?.id || programId || res.programs?.[0]?.id || ''
       setStudentPreviewProgramId(selectedId)
     } catch (e: any) {
-      alert(e?.message || 'تعذر تحميل معاينة الطالب')
+      await alertAction({ title: 'تعذر تحميل معاينة الطالب', description: e?.message || 'لم يتم تجهيز المعاينة.', tone: 'danger' })
     } finally {
       setStudentPreviewLoading(false)
     }
@@ -1045,7 +1089,7 @@ export function AdminQualityTab() {
       const res = await api<any>('/api/admin/mail-status')
       setMailStatus(res)
     } catch (e: any) {
-      alert(e?.message || 'تعذر تحميل حالة البريد')
+      await alertAction({ title: 'تعذر تحميل حالة البريد', description: e?.message || 'لم تصل حالة البريد.', tone: 'danger' })
     } finally {
       setMailStatusLoading(false)
     }
@@ -1062,7 +1106,7 @@ export function AdminQualityTab() {
       const res = await api<any>('/api/admin/launch-health')
       setLaunchHealth(res)
     } catch (e: any) {
-      alert(e?.message || 'تعذر تحميل مراقبة الإطلاق')
+      await alertAction({ title: 'تعذر تحميل مراقبة الإطلاق', description: e?.message || 'لم يتم تحميل الفحص التشغيلي.', tone: 'danger' })
     } finally {
       setLaunchHealthLoading(false)
     }
@@ -1079,7 +1123,7 @@ export function AdminQualityTab() {
       const res = await api<any>('/api/admin/daily-tasks')
       setDailyTasks(res)
     } catch (e: any) {
-      alert(e?.message || 'تعذر تحميل مهام الإدارة اليوم')
+      await alertAction({ title: 'تعذر تحميل مهام الإدارة اليوم', description: e?.message || 'لم يتم تحميل قائمة المهام.', tone: 'danger' })
     } finally {
       setDailyTasksLoading(false)
     }
@@ -1109,17 +1153,20 @@ export function AdminQualityTab() {
 
   const sendMailTest = async () => {
     const to = mailTestEmail.trim()
-    if (!to || !to.includes('@')) return alert('اكتب بريدًا صحيحًا لإرسال رسالة الاختبار')
+    if (!to || !to.includes('@')) {
+      await alertAction({ title: 'بريد غير صحيح', description: 'اكتب بريدًا صحيحًا لإرسال رسالة الاختبار.', tone: 'warning' })
+      return
+    }
     setMailTestSending(true)
     try {
       const res = await api<{ ok: boolean; to: string }>('/api/admin/mail-status', {
         method: 'POST',
         body: JSON.stringify({ to }),
       })
-      alert(res.ok ? `تم إرسال رسالة اختبار إلى ${res.to}` : 'تمت محاولة الإرسال، راجع حالة البريد والسجل')
+      await alertAction({ title: res.ok ? 'تم إرسال رسالة الاختبار' : 'تمت محاولة الإرسال', description: res.ok ? `تم إرسال رسالة اختبار إلى ${res.to}` : 'راجع حالة البريد والسجل للتأكد من النتيجة.', tone: res.ok ? 'success' : 'warning' })
       await loadMailStatus()
     } catch (e: any) {
-      alert(e?.message || 'تعذر إرسال رسالة الاختبار')
+      await alertAction({ title: 'تعذر إرسال رسالة الاختبار', description: e?.message || 'راجع إعدادات البريد وحاول مرة أخرى.', tone: 'danger' })
     } finally {
       setMailTestSending(false)
     }
@@ -1149,14 +1196,19 @@ export function AdminQualityTab() {
       })
       await loadThesisTopics()
     } catch (e: any) {
-      alert(e?.message || 'تعذر تحديث حالة العنوان')
+      await alertAction({ title: 'تعذر تحديث حالة العنوان', description: e?.message || 'لم يتم تحديث عنوان البحث.', tone: 'danger' })
     } finally {
       setThesisTopicBusy(false)
     }
   }
 
   const updateThesisTopicRequestStatus = async (requestId: string, status: string) => {
-    const adminNote = status === 'NEEDS_REVISION' || status === 'REJECTED' ? window.prompt('اكتب ملاحظة للطالب', '') || '' : ''
+    let adminNote = ''
+    if (status === 'NEEDS_REVISION' || status === 'REJECTED') {
+      const noteInput = await promptAction({ title: 'ملاحظة للطالب', description: 'اكتب الملاحظة التي ستظهر للطالب مع قرار الطلب.', fieldLabel: 'الملاحظة', defaultValue: '', multiline: true, confirmLabel: 'اعتماد الملاحظة', tone: 'info' })
+      if (noteInput === null) return
+      adminNote = noteInput
+    }
     setThesisTopicBusy(true)
     try {
       await api('/api/admin/thesis-topics', {
@@ -1165,7 +1217,7 @@ export function AdminQualityTab() {
       })
       await loadThesisTopics()
     } catch (e: any) {
-      alert(e?.message || 'تعذر تحديث طلب الطالب')
+      await alertAction({ title: 'تعذر تحديث طلب الطالب', description: e?.message || 'لم يتم حفظ قرار الطلب.', tone: 'danger' })
     } finally {
       setThesisTopicBusy(false)
     }
@@ -1183,7 +1235,10 @@ export function AdminQualityTab() {
   }
 
   const submitThesisTopicAction = async () => {
-    if (!thesisProgramId) return alert('اختر البرنامج أولًا')
+    if (!thesisProgramId) {
+      await alertAction({ title: 'اختر البرنامج أولًا', description: 'يجب اختيار برنامج قبل توليد أو إضافة عنوان بحث.', tone: 'warning' })
+      return
+    }
     setThesisTopicBusy(true)
     try {
       if (thesisTopicMode === 'generate') {
@@ -1192,19 +1247,22 @@ export function AdminQualityTab() {
           body: JSON.stringify({ action: 'generate', programId: thesisProgramId, count: thesisGenerateCount }),
         })
         setThesisTopicList(res.created || [])
-        alert(`تم توليد ${res.created?.length || 0} مقترح عنوان. راجعها أسفل النافذة واعتمد المناسب قبل ظهورها للطلاب.`)
+        await alertAction({ title: 'تم توليد عناوين بحث التخرج', description: `تم توليد ${res.created?.length || 0} مقترح عنوان. راجعها أسفل النافذة واعتمد المناسب قبل ظهورها للطلاب.`, tone: 'success' })
       } else {
-        if (!thesisTopicTitle.trim()) return alert('اكتب عنوان البحث')
+        if (!thesisTopicTitle.trim()) {
+          await alertAction({ title: 'اكتب عنوان البحث', description: 'عنوان البحث مطلوب قبل اعتماده للطلاب.', tone: 'warning' })
+          return
+        }
         await api('/api/admin/thesis-topics', {
           method: 'POST',
           body: JSON.stringify({ action: 'create', programId: thesisProgramId, title: thesisTopicTitle, description: thesisTopicDescription, status: 'APPROVED' }),
         })
-        alert('تمت إضافة عنوان بحث التخرج واعتماده للطلاب.')
+        await alertAction({ title: 'تمت إضافة عنوان بحث التخرج', description: 'تم اعتماد العنوان للطلاب ويمكنهم اختياره الآن.', tone: 'success' })
         await loadThesisTopics(thesisProgramId)
         setThesisTopicDialogOpen(false)
       }
     } catch (e: any) {
-      alert(e?.message || 'تعذر تنفيذ العملية')
+      await alertAction({ title: 'تعذر تنفيذ العملية', description: e?.message || 'لم تكتمل عملية عناوين البحث.', tone: 'danger' })
     } finally {
       setThesisTopicBusy(false)
     }
@@ -2298,8 +2356,8 @@ export function AdminQualityTab() {
                     {selectedStudent.status !== 'DISABLED' ? <Button size="sm" variant="outline" disabled={studentBusyId === selectedStudent.id} onClick={() => updateStudentAction(selectedStudent.id, 'setStatus', { status: 'DISABLED' })} className="text-xs font-black">تعطيل</Button> : null}
                     {selectedStudent.status !== 'ARCHIVED' ? <Button size="sm" variant="outline" disabled={studentBusyId === selectedStudent.id} onClick={() => updateStudentAction(selectedStudent.id, 'setStatus', { status: 'ARCHIVED' })} className="text-xs font-black">أرشفة</Button> : null}
                     <Button size="sm" variant="outline" disabled={studentBusyId === selectedStudent.id} onClick={exportSelectedStudent} className="border-[#c9a227]/40 text-xs font-black text-[#a8841a]">تصدير JSON</Button>
-                    <Button size="sm" variant="outline" disabled={studentBusyId === selectedStudent.id} onClick={() => {
-                      if (confirm('سيتم حذف الطالب فقط إذا لم يكن لديه سجلات حقيقية. هل تريد المتابعة؟')) updateStudentAction(selectedStudent.id, 'safeDelete').then(() => setSelectedStudent(null))
+                    <Button size="sm" variant="outline" disabled={studentBusyId === selectedStudent.id} onClick={async () => {
+                      if (await confirmAction({ title: 'حذف آمن للطالب', description: 'سيتم حذف الطالب فقط إذا لم يكن لديه سجلات حقيقية.', confirmLabel: 'متابعة الحذف الآمن', tone: 'danger' })) updateStudentAction(selectedStudent.id, 'safeDelete').then(() => setSelectedStudent(null))
                     }} className="border-red-200 text-xs font-black text-red-700">حذف آمن</Button>
                     <Button size="sm" variant="outline" onClick={() => setSelectedStudent(null)} className="text-xs font-black">إغلاق التفاصيل</Button>
                   </div>
@@ -2362,7 +2420,9 @@ export function AdminQualityTab() {
                       {s.status !== 'ACTIVE' ? <Button size="sm" disabled={studentBusyId === s.id} onClick={() => updateStudentAction(s.id, 'setStatus', { status: 'ACTIVE' })} className="bg-emerald-600 text-xs font-black text-white">تفعيل</Button> : null}
                       {s.status !== 'DISABLED' ? <Button size="sm" variant="outline" disabled={studentBusyId === s.id} onClick={() => updateStudentAction(s.id, 'setStatus', { status: 'DISABLED' })} className="text-xs font-black">تعطيل</Button> : null}
                       {s.status !== 'ARCHIVED' ? <Button size="sm" variant="outline" disabled={studentBusyId === s.id} onClick={() => updateStudentAction(s.id, 'setStatus', { status: 'ARCHIVED' })} className="text-xs font-black">أرشفة</Button> : null}
-                      <Button size="sm" variant="outline" disabled={studentBusyId === s.id} onClick={() => confirm('الحذف الآمن يعمل فقط للطالب التجريبي بلا مدفوعات أو شهادات أو سجلات أكاديمية. متابعة؟') && updateStudentAction(s.id, 'safeDelete')} className="border-red-200 text-xs font-black text-red-700">حذف آمن</Button>
+                      <Button size="sm" variant="outline" disabled={studentBusyId === s.id} onClick={async () => {
+                        if (await confirmAction({ title: 'حذف آمن للطالب', description: 'الحذف الآمن يعمل فقط للطالب التجريبي بلا مدفوعات أو شهادات أو سجلات أكاديمية.', confirmLabel: 'متابعة الحذف الآمن', tone: 'danger' })) await updateStudentAction(s.id, 'safeDelete')
+                      }} className="border-red-200 text-xs font-black text-red-700">حذف آمن</Button>
                     </div>
                   </div>
                   {s.enrollments?.length ? (
@@ -2370,7 +2430,9 @@ export function AdminQualityTab() {
                       {s.enrollments.map((e: any) => (
                         <div key={e.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 p-2 text-[11px] font-bold text-slate-600">
                           <span>{e.program?.titleAr || 'برنامج'} · {e.status}</span>
-                          <Button size="sm" variant="outline" disabled={studentBusyId === s.id} onClick={() => confirm('إلغاء التسجيل متاح فقط إذا لا توجد مدفوعات مدفوعة مرتبطة. متابعة؟') && updateStudentAction(s.id, 'cancelEnrollment', { enrollmentId: e.id })} className="h-7 px-2 text-[10px] font-black">إلغاء التسجيل</Button>
+                          <Button size="sm" variant="outline" disabled={studentBusyId === s.id} onClick={async () => {
+                            if (await confirmAction({ title: 'إلغاء تسجيل الطالب', description: 'إلغاء التسجيل متاح فقط إذا لا توجد مدفوعات مدفوعة مرتبطة.', confirmLabel: 'إلغاء التسجيل', tone: 'warning' })) await updateStudentAction(s.id, 'cancelEnrollment', { enrollmentId: e.id })
+                          }} className="h-7 px-2 text-[10px] font-black">إلغاء التسجيل</Button>
                         </div>
                       ))}
                     </div>
@@ -3013,6 +3075,113 @@ export function AdminQualityTab() {
           )}
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!examGenerationDialog} onOpenChange={(open) => { if (!open && !examGenerationDialog?.submitting) setExamGenerationDialog(null) }}>
+        <DialogContent className="max-h-[90dvh] max-w-2xl overflow-y-auto rounded-[2rem]" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="font-black text-[#0f2b46]">توليد امتحان من بنك الأسئلة</DialogTitle>
+            <DialogDescription>
+              اضبط عدد الأسئلة والتوزيع مرة واحدة. زر الإلغاء يغلق النافذة دون إنشاء امتحان.
+            </DialogDescription>
+          </DialogHeader>
+          {examGenerationDialog && (
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-[#c9a227]/30 bg-[#fffaf0] p-3 text-xs font-bold leading-6 text-[#0f2b46]">
+                <p className="font-black">{examGenerationDialog.program.titleAr}</p>
+                <p className="text-slate-600">الفصل {examGenerationDialog.semester}</p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="space-y-1 text-xs font-black text-slate-600">
+                  <span>عدد الأسئلة</span>
+                  <input
+                    type="number"
+                    min={5}
+                    max={80}
+                    value={examGenerationDialog.values.count}
+                    onChange={(e) => updateExamGenerationValue('count', e.target.value)}
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-[#0f2b46]"
+                  />
+                </label>
+                <label className="space-y-1 text-xs font-black text-slate-600">
+                  <span>الوحدة</span>
+                  <select
+                    value={examGenerationDialog.values.unitId}
+                    onChange={(e) => updateExamGenerationValue('unitId', e.target.value)}
+                    disabled={examGenerationDialog.loadingUnits}
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-[#0f2b46]"
+                  >
+                    <option value="">كل وحدات البرنامج</option>
+                    {examGenerationDialog.units.map((unit) => <option key={unit.id} value={unit.id}>{unit.title}</option>)}
+                  </select>
+                </label>
+              </div>
+
+              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                <h4 className="mb-3 text-sm font-black text-[#0f2b46]">توزيع الصعوبة</h4>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {([
+                    ['easy', 'سهل'],
+                    ['medium', 'متوسط'],
+                    ['advanced', 'متقدم'],
+                  ] as const).map(([key, label]) => (
+                    <label key={key} className="space-y-1 text-xs font-black text-slate-600">
+                      <span>{label}</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={examGenerationDialog.values[key]}
+                        onChange={(e) => updateExamGenerationValue(key, e.target.value)}
+                        className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-[#0f2b46]"
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                <h4 className="mb-3 text-sm font-black text-[#0f2b46]">توزيع أنواع الأسئلة</h4>
+                <div className="grid gap-3 sm:grid-cols-4">
+                  {([
+                    ['mcq', 'اختيار متعدد'],
+                    ['tf', 'صح وخطأ'],
+                    ['short', 'قصير'],
+                    ['essay', 'مقالي'],
+                  ] as const).map(([key, label]) => (
+                    <label key={key} className="space-y-1 text-xs font-black text-slate-600">
+                      <span>{label}</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={examGenerationDialog.values[key]}
+                        onChange={(e) => updateExamGenerationValue(key, e.target.value)}
+                        className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-[#0f2b46]"
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {examGenerationDialog.loadingUnits && (
+                <div className="flex items-center gap-2 rounded-2xl bg-slate-50 p-3 text-xs font-bold text-slate-500">
+                  <Loader2 className="h-4 w-4 animate-spin" /> جاري تحميل الوحدات...
+                </div>
+              )}
+
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <Button variant="outline" disabled={examGenerationDialog.submitting} onClick={() => setExamGenerationDialog(null)} className="font-black">إلغاء</Button>
+                <Button disabled={examGenerationDialog.submitting} onClick={submitExamGenerationForm} className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">
+                  {examGenerationDialog.submitting ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null}
+                  توليد الامتحان
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+      {actionDialog}
     </div>
   )
 }

@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useAdminActionDialog } from './AdminActionDialog'
 import {
   Loader2, CheckCircle2, XCircle, Pencil, ShieldAlert, Camera, Bot,
   MessageSquareWarning, ClipboardCheck, AlertTriangle, Trash2, RefreshCw,
@@ -93,6 +94,7 @@ export function QuestionReviewDialog({
   const [filter, setFilter] = useState<'ALL' | 'PENDING_REVIEW' | 'PUBLISHED' | 'REJECTED'>('ALL')
   const [cognitiveOverrideDialog, setCognitiveOverrideDialog] = useState<null | { message: string; details: string[]; reason: string }>(null)
   const cognitiveOverrideResolveRef = useRef<((reason: string | null) => void) | null>(null)
+  const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
 
   const load = useCallback(async () => {
     if (!examId) return
@@ -226,7 +228,7 @@ export function QuestionReviewDialog({
   }
 
   const deleteQuestion = async (q: ReviewQuestion) => {
-    if (!confirm(`حذف السؤال رقم ${q.order} نهائياً من الامتحان؟`)) return
+    if (!(await confirmAction({ title: 'حذف سؤال من الامتحان', description: `سيتم حذف السؤال رقم ${q.order} نهائياً من هذا الامتحان.`, confirmLabel: 'حذف السؤال', tone: 'danger' }))) return
     setBusy(true)
     try {
       await api('/api/admin/program-exam-questions', {
@@ -243,7 +245,7 @@ export function QuestionReviewDialog({
   }
 
   const continueGeneration = async () => {
-    if (!confirm(`هذا الامتحان فيه ${questions.length} سؤالاً فقط من ${FULL_EXAM_TARGET}. سيتم استكمال بقية الأسئلة من محتوى الكتب دون حذف الحالي. متابعة؟`)) return
+    if (!(await confirmAction({ title: 'استكمال أسئلة الامتحان', description: `هذا الامتحان فيه ${questions.length} سؤالاً فقط من ${FULL_EXAM_TARGET}. سيتم استكمال بقية الأسئلة من محتوى الكتب دون حذف الحالي.`, confirmLabel: 'متابعة الاستكمال', tone: 'warning' }))) return
     setBusy(true)
     try {
       const d = await api<{ ok?: boolean; error?: string; questionCount?: number; inserted?: number; status?: string }>('/api/admin/program-exams/generate', {
@@ -274,7 +276,7 @@ export function QuestionReviewDialog({
       })
       return
     }
-    if (!confirm('سيتم اعتماد كل الأسئلة المعلّقة ونشر الامتحان للطلاب المتسجلين مع إشعارهم. متابعة؟')) return
+    if (!(await confirmAction({ title: 'نشر الامتحان للطلاب', description: 'سيتم اعتماد كل الأسئلة المعلّقة ونشر الامتحان للطلاب المتسجلين مع إشعارهم.', confirmLabel: 'نشر الامتحان', tone: 'success' }))) return
     setBusy(true)
     try {
       const publishRequest = (overrideReason?: string) => api<{ published: number }>('/api/admin/program-exam-questions', {
@@ -311,6 +313,7 @@ export function QuestionReviewDialog({
   const shown = filter === 'ALL' ? questions : questions.filter((q) => q.status === filter)
 
   return (
+    <>
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-h-[92vh] max-w-3xl overflow-y-auto" dir="rtl">
         <DialogHeader>
@@ -592,6 +595,8 @@ export function QuestionReviewDialog({
         </Dialog>
       </DialogContent>
     </Dialog>
+    {actionDialog}
+    </>
   )
 }
 

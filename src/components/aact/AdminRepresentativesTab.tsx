@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useAdminActionDialog } from './AdminActionDialog'
 
 const REPRESENTATIVE_COUNTRIES = [
   'فلسطين', 'الأردن', 'مصر', 'السعودية', 'الإمارات', 'قطر', 'الكويت', 'البحرين', 'عُمان', 'العراق', 'سوريا', 'لبنان', 'اليمن',
@@ -97,6 +98,7 @@ function representativeAssetPreviewUrl(rep: Representative | null | undefined, a
 }
 
 export default function AdminRepresentativesTab() {
+  const { confirmAction, promptAction, dialog: actionDialog } = useAdminActionDialog()
   const [rows, setRows] = useState<Representative[]>([])
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [selectedId, setSelectedId] = useState('')
@@ -184,7 +186,7 @@ export default function AdminRepresentativesTab() {
 
   async function remove() {
     if (!form.id) return
-    if (!window.confirm('هل تريد حذف هذا الممثل من العرض العام؟')) return
+    if (!(await confirmAction({ title: 'حذف ممثل الأكاديمية', description: 'هل تريد حذف هذا الممثل من العرض العام؟', confirmLabel: 'حذف الممثل', tone: 'danger' }))) return
     setSaving(true)
     try {
       const res = await fetch(`/api/admin/representatives/${form.id}`, { method: 'DELETE' })
@@ -244,7 +246,7 @@ export default function AdminRepresentativesTab() {
 
   async function deleteFile(fileId: string) {
     if (!form.id) return
-    if (!window.confirm('تأكيد حذف ملف الممثل؟ سيتم حذف السجل من لوحة المراجعة ولا يظهر للممثل أو للعامة.')) return
+    if (!(await confirmAction({ title: 'تأكيد حذف ملف الممثل', description: 'سيتم حذف السجل من لوحة المراجعة ولا يظهر للممثل أو للعامة.', confirmLabel: 'حذف الملف', tone: 'danger' }))) return
     setUploading(true)
     try {
       const res = await fetch(`/api/admin/representatives/${form.id}/files/${fileId}`, { method: 'DELETE' })
@@ -311,9 +313,11 @@ export default function AdminRepresentativesTab() {
     if (!form.id) return
     let note = ''
     if (action === 'REJECT') {
-      if (!window.confirm('تأكيد رفض ملف الممثل؟ سيبقى محفوظاً في السجل لكنه لن يعتمد للعرض العام.')) return
-      note = window.prompt('اكتب سبب رفض هذا التعديل/الملف ليظهر في سجل المراجعة:', '') || ''
-      if (!note.trim() && !window.confirm('لم تكتب سبباً للرفض. هل تريد الرفض بدون سبب؟')) return
+      if (!(await confirmAction({ title: 'تأكيد رفض ملف الممثل', description: 'سيبقى الملف محفوظاً في السجل لكنه لن يعتمد للعرض العام.', confirmLabel: 'متابعة الرفض', tone: 'warning' }))) return
+      const noteInput = await promptAction({ title: 'سبب رفض ملف الممثل', description: 'اكتب سبب رفض هذا التعديل/الملف ليظهر في سجل المراجعة.', fieldLabel: 'سبب الرفض', defaultValue: '', multiline: true, confirmLabel: 'اعتماد السبب', tone: 'info' })
+      if (noteInput === null) return
+      note = noteInput
+      if (!note.trim() && !(await confirmAction({ title: 'رفض بدون سبب', description: 'لم تكتب سبباً للرفض. هل تريد الرفض بدون سبب؟', confirmLabel: 'رفض بدون سبب', tone: 'warning' }))) return
     }
     setUploading(true)
     try {
@@ -516,6 +520,7 @@ export default function AdminRepresentativesTab() {
             </CardContent>
           </Card>
       </div>
+      {actionDialog}
     </div>
   )
 }

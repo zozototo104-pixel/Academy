@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Loader2, UserCheck, KeyRound, UserPlus, ShieldCheck, RefreshCcw } from 'lucide-react'
+import { useAdminActionDialog } from './AdminActionDialog'
 
 interface SupervisorRow {
   id: string
@@ -21,6 +22,7 @@ interface SupervisorRow {
 
 export function AdminSupervisorsTab() {
   const { toast } = useToast()
+  const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [supervisors, setSupervisors] = useState<SupervisorRow[]>([])
@@ -72,7 +74,7 @@ export function AdminSupervisorsTab() {
 
   const revoke = async (id: string) => {
     const supervisor = supervisors.find((item) => item.id === id)
-    if (!window.confirm(`تأكيد إلغاء صلاحية المشرف ${supervisor?.name || ''}؟ لن يُسمح بذلك إذا كان لديه طلاب مرتبطون.`)) return
+    if (!(await confirmAction({ title: 'إلغاء صلاحية مشرف', description: `تأكيد إلغاء صلاحية المشرف ${supervisor?.name || ''}؟ لن يُسمح بذلك إذا كان لديه طلاب مرتبطون.`, confirmLabel: 'إلغاء الصلاحية', tone: 'danger' }))) return
     setSaving(true)
     try {
       await api('/api/admin/supervisors', { method: 'PATCH', body: JSON.stringify({ action: 'revoke-supervisor', id }) })
@@ -149,6 +151,7 @@ export function AdminSupervisorsTab() {
           )}
         </CardContent>
       </Card>
+      {actionDialog}
     </div>
   )
 }

@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 
-type DialogKind = 'confirm' | 'prompt'
+type DialogKind = 'alert' | 'confirm' | 'prompt'
 type DialogTone = 'danger' | 'warning' | 'info' | 'success'
 
 interface BaseOptions {
@@ -32,11 +32,11 @@ interface DialogState extends PromptOptions {
   kind: DialogKind
 }
 
-const toneStyles: Record<DialogTone, { header: string; button: string; icon: any }> = {
-  danger: { header: 'from-red-700 to-[#0f2b46]', button: 'bg-red-700 text-white hover:bg-red-800', icon: Trash2 },
-  warning: { header: 'from-amber-600 to-[#0f2b46]', button: 'bg-[#c9a227] text-[#0f2b46] hover:bg-[#e0b83a]', icon: AlertTriangle },
-  info: { header: 'from-[#12365c] to-[#0f2b46]', button: 'bg-[#0f2b46] text-[#f5f0e1] hover:bg-[#12365c]', icon: MessageSquareText },
-  success: { header: 'from-emerald-700 to-[#0f2b46]', button: 'bg-emerald-700 text-white hover:bg-emerald-800', icon: CheckCircle2 },
+const toneStyles: Record<DialogTone, { shell: string; ring: string; button: string; icon: any }> = {
+  danger: { shell: 'from-red-50 via-white to-red-100', ring: 'bg-red-600 text-white shadow-red-200', button: 'bg-red-700 text-white hover:bg-red-800', icon: Trash2 },
+  warning: { shell: 'from-amber-50 via-white to-[#f7edd0]', ring: 'bg-[#c9a227] text-[#0f2b46] shadow-amber-200', button: 'bg-[#c9a227] text-[#0f2b46] hover:bg-[#e0b83a]', icon: AlertTriangle },
+  info: { shell: 'from-[#f6f8fb] via-white to-[#edf4ff]', ring: 'bg-[#0f2b46] text-[#f5f0e1] shadow-slate-300', button: 'bg-[#0f2b46] text-[#f5f0e1] hover:bg-[#12365c]', icon: MessageSquareText },
+  success: { shell: 'from-emerald-50 via-white to-emerald-100', ring: 'bg-emerald-700 text-white shadow-emerald-200', button: 'bg-emerald-700 text-white hover:bg-emerald-800', icon: CheckCircle2 },
 }
 
 export function useAdminActionDialog() {
@@ -52,6 +52,13 @@ export function useAdminActionDialog() {
     setError('')
     if (resolver) resolver(result)
   }, [])
+
+  const alertAction = useCallback((options: BaseOptions) => new Promise<void>((resolve) => {
+    resolverRef.current = () => resolve()
+    setValue('')
+    setError('')
+    setState({ kind: 'alert', tone: 'info', confirmLabel: 'حسناً', ...options })
+  }), [])
 
   const confirmAction = useCallback((options: BaseOptions) => new Promise<boolean>((resolve) => {
     resolverRef.current = (result) => resolve(result === true)
@@ -69,6 +76,7 @@ export function useAdminActionDialog() {
 
   const submit = useCallback(() => {
     if (!state) return
+    if (state.kind === 'alert') return close(true)
     if (state.kind === 'confirm') return close(true)
     const trimmed = value.trim()
     if (state.required && !trimmed) {
@@ -87,16 +95,20 @@ export function useAdminActionDialog() {
     const Icon = tone.icon
     return (
       <Dialog open={!!state} onOpenChange={(open) => { if (!open) close(state.kind === 'confirm' ? false : null) }}>
-        <DialogContent className="max-w-md rounded-[2rem] border border-[#0f2b46]/10 bg-white p-0" dir="rtl">
-          <div className={`rounded-t-[2rem] bg-gradient-to-l ${tone.header} px-5 py-5 text-[#f5f0e1]`}>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-lg font-black">
-                <Icon className="h-5 w-5" /> {state.title}
+        <DialogContent className={`max-w-md overflow-hidden rounded-[2rem] border border-[#0f2b46]/10 bg-gradient-to-br ${tone.shell} p-0 shadow-2xl shadow-[#0f2b46]/20`} dir="rtl">
+          <div className="relative px-5 pb-3 pt-5">
+            <div className="absolute inset-x-8 top-0 h-1 rounded-b-full bg-gradient-to-l from-[#c9a227] via-[#0f2b46] to-[#e0b83a]" />
+            <DialogHeader className="items-center text-center">
+              <div className={`mb-3 flex h-14 w-14 items-center justify-center rounded-2xl ${tone.ring} shadow-lg`}>
+                <Icon className="h-7 w-7" />
+              </div>
+              <DialogTitle className="text-2xl font-black leading-9 text-[#0f2b46]">
+                {state.title}
               </DialogTitle>
-              {state.description && <DialogDescription className="text-xs font-bold leading-6 text-[#f5f0e1]/80">{state.description}</DialogDescription>}
+              {state.description && <DialogDescription className="max-w-sm whitespace-pre-line text-center text-sm font-bold leading-8 text-slate-600">{state.description}</DialogDescription>}
             </DialogHeader>
           </div>
-          <div className="space-y-4 p-5">
+          <div className="space-y-4 px-5 pb-5">
             {state.kind === 'prompt' && (
               <div className="space-y-2">
                 <Label className="text-xs font-black text-[#0f2b46]">{state.fieldLabel || 'الملاحظة'}</Label>
@@ -108,12 +120,9 @@ export function useAdminActionDialog() {
                 {error && <p className="text-[11px] font-bold text-red-600">{error}</p>}
               </div>
             )}
-            {state.kind === 'confirm' && state.description && (
-              <div className="rounded-2xl border border-[#0f2b46]/10 bg-slate-50 p-4 text-sm font-bold leading-7 text-[#0f2b46]">{state.description}</div>
-            )}
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <Button type="button" variant="outline" onClick={() => close(state.kind === 'confirm' ? false : null)} className="font-black">{state.cancelLabel || 'إلغاء'}</Button>
-              <Button type="button" onClick={submit} className={`font-black ${tone.button}`}>{state.confirmLabel || 'تأكيد'}</Button>
+              {state.kind !== 'alert' && <Button type="button" variant="outline" onClick={() => close(state.kind === 'confirm' ? false : null)} className="rounded-2xl font-black">{state.cancelLabel || 'إلغاء'}</Button>}
+              <Button type="button" onClick={submit} className={`rounded-2xl font-black ${tone.button}`}>{state.confirmLabel || 'تأكيد'}</Button>
             </div>
           </div>
         </DialogContent>
@@ -121,5 +130,5 @@ export function useAdminActionDialog() {
     )
   })() : null
 
-  return { confirmAction, promptAction, dialog: DialogNode }
+  return { alertAction, confirmAction, promptAction, dialog: DialogNode }
 }
