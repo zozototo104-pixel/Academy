@@ -20,7 +20,7 @@ describe('question bank generated candidate normalization', () => {
 
     expect(result.rejected).toBe(0)
     expect(result.accepted[0].options).toEqual(['صح', 'خطأ'])
-    expect(result.accepted[0].correctAnswer).toBe('0')
+    expect(result.accepted[0].correctAnswer).toBe('صح')
     expect(result.accepted[0].qualityFlags).toContain('NORMALIZED_TF_OPTIONS')
   })
 
