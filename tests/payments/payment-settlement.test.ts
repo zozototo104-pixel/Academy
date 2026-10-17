@@ -290,6 +290,28 @@ describe('payment waiver verification attempts', () => {
 })
 
 describe('invoice settlement admission finalization', () => {
+  test('waived invoice cannot be converted to paid settlement', async () => {
+    payments.set('payment-waived', {
+      id: 'payment-waived',
+      invoiceNo: 'INV-WAIVED-1',
+      admissionId: 'admission-1',
+      userId: 'student-1',
+      status: 'WAIVED',
+      purpose: 'TUITION',
+      description: 'رسوم دراسية معفاة',
+      amount: 100,
+      amountCents: 10_000,
+    })
+
+    const result = await markInvoicePaid('INV-WAIVED-1', 'BANK_TRANSFER', { actor: { id: 'admin-1', name: 'Admin' } })
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain('فاتورة معفاة')
+    expect(payments.get('payment-waived')?.status).toBe('WAIVED')
+    expect(receiptEmails).toHaveLength(0)
+    expect(notifications).toHaveLength(0)
+  })
+
   test('normal admission payment finalizes once and emits one payment notification', async () => {
     users.set('student-1', { id: 'student-1', email: 'student@example.test', name: 'Student', role: 'STUDENT' })
     admissions.set('admission-1', {
