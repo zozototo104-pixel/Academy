@@ -1,7 +1,7 @@
 /// <reference types="bun-types" />
 import { afterAll, afterEach, beforeEach, describe, expect, mock, test } from 'bun:test'
 import { NextRequest } from 'next/server'
-import { createHmac } from 'node:crypto'
+import { createHash, createHmac } from 'node:crypto'
 
 type FakeUser = {
   id: string
