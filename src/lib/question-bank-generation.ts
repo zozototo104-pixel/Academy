@@ -11,6 +11,7 @@ const commonQuestionFields = {
   sourceIndex: z.number().int().positive(),
   correctRationale: z.string().min(4).max(1000).optional(),
   distractorRationales: z.array(z.string().max(500)).max(6).default([]),
+  qualityFlags: z.array(z.string().max(120)).max(20).default([]),
 }
 const optionSchema = z.string().min(1).max(260)
 const generatedQuestionSchema = z.discriminatedUnion('type', [
