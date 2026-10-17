@@ -47,11 +47,14 @@ export async function PATCH(req: NextRequest) {
     const firstSemesterRequiredAmount = roundMoney(Number(body?.firstSemesterRequiredAmount || plan.totalTuition / 2))
     const finalRequiredAmount = roundMoney(Number(body?.finalRequiredAmount || plan.totalTuition))
     if (approvedInitialAmount <= 0) return NextResponse.json({ error: 'حدد الدفعة الأولى المقبولة' }, { status: 400 })
+    if (approvedInitialAmount > plan.totalTuition) return NextResponse.json({ error: 'الدفعة الأولى لا يجوز أن تتجاوز إجمالي الرسوم' }, { status: 400 })
     if (firstSemesterRequiredAmount < approvedInitialAmount) return NextResponse.json({ error: 'مبلغ فتح امتحان الفصل الأول يجب ألا يقل عن الدفعة الأولى' }, { status: 400 })
+    if (firstSemesterRequiredAmount > plan.totalTuition) return NextResponse.json({ error: 'مبلغ فتح امتحان الفصل الأول لا يجوز أن يتجاوز إجمالي الرسوم' }, { status: 400 })
     if (finalRequiredAmount < firstSemesterRequiredAmount) return NextResponse.json({ error: 'مبلغ فتح الفصل الثاني يجب ألا يقل عن متطلب الفصل الأول' }, { status: 400 })
+    if (finalRequiredAmount > plan.totalTuition) return NextResponse.json({ error: 'مبلغ فتح الفصل الثاني لا يجوز أن يتجاوز إجمالي الرسوم' }, { status: 400 })
 
-    const approved = await db.tuitionInstallmentAppeal.update({
-      where: { id },
+    const approvedRows = await db.tuitionInstallmentAppeal.updateMany({
+      where: { id, status: 'PENDING' },
       data: {
         status: 'APPROVED',
         approvedInitialAmount,
@@ -62,6 +65,9 @@ export async function PATCH(req: NextRequest) {
         decidedAt: new Date(),
       },
     })
+    if (approvedRows.count !== 1) return NextResponse.json({ error: 'تم اتخاذ قرار على هذا الالتماس من جلسة أخرى' }, { status: 409 })
+    const approved = await db.tuitionInstallmentAppeal.findUnique({ where: { id } })
+    if (!approved) return NextResponse.json({ error: 'الالتماس غير موجود' }, { status: 404 })
 
     if (app.userId) {
       await notify(
