@@ -60,6 +60,7 @@ model User {
 
   @@index([emailVerificationTokenHash])
   @@index([emailVerifiedAt])
+  @@index([passwordResetTokenHash])
 }
 
 model Session {
