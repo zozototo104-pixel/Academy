@@ -369,19 +369,19 @@ export async function POST(req: NextRequest) {
     }
 
     if (needsReview) {
+      const revealCorrectAnswers = shouldRevealCorrectAnswers({ passed: false, completedAttempts: completedAttemptsBeforeSubmit + 1, maxAttempts })
+      const persistedAnswers = revealCorrectAnswers ? answersToPersist : sanitizePreparedAnswersForHiddenAnswers(answersToPersist)
+      const responseResults = revealCorrectAnswers ? gradedResults : sanitizeUnitFeedbackForHiddenAnswers(gradedResults)
       const attempt = await db.$transaction(async (tx) => {
         const created = await tx.examAttempt.update({ where: { id: activeAttempt.id }, data: { status: 'NEEDS_REVIEW', feedback: JSON.stringify({ summary: 'تم حفظ الإجابات، التصحيح قيد المراجعة.' }) } })
-        for (const prepared of answersToPersist) {
+        for (const prepared of persistedAnswers) {
           await persistPreparedAnswer(tx, created.id, prepared, prePersistedEssayQuestionIds.has(prepared.questionId))
         }
         await tx.examDraft.deleteMany({ where: { userId: user.id, examId, examType: 'UNIT' } })
         return created
       })
       claimedUnitAttemptId = null
-      const revealCorrectAnswers = shouldRevealCorrectAnswers({ passed: false, completedAttempts: completedAttemptsBeforeSubmit + 1, maxAttempts })
-      const reviewResults = revealCorrectAnswers
-        ? gradedResults.sort((a, b) => a.order - b.order)
-        : gradedResults.sort((a, b) => a.order - b.order).map(({ correctAnswerText, ...result }) => result)
+      const reviewResults = responseResults.sort((a, b) => a.order - b.order)
       return NextResponse.json({ ok: true, status: 'NEEDS_REVIEW', attemptId: attempt.id, message: 'تم حفظ إجاباتك، التصحيح قيد المراجعة', maxAttempts, attemptsUsed: completedAttemptsBeforeSubmit + 1, results: reviewResults }, { status: 202 })
     }
 
