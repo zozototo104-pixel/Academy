@@ -518,6 +518,7 @@ export default function AdminRepresentativesTab() {
             </CardContent>
           </Card>
       </div>
+      {actionDialog}
     </div>
   )
 }
