@@ -359,10 +359,7 @@ export async function POST(req: NextRequest) {
         failures.push(failureDetail(keyIndex, key, err))
         await reportGeminiLiveKeyFailure(keyIndex, err)
         if (shouldTryNextGeminiLiveKey(err)) continue
-        return NextResponse.json(
-          { error: arabicErrorForGemini(err), details: failures },
-          { status: httpStatusForGeminiError(err) }
-        )
+        return geminiLiveTokenFailureResponse(user, err, failures)
       }
     }
 
