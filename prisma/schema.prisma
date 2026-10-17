@@ -17,6 +17,9 @@ model User {
   emailVerificationTokenHash String?
   emailVerificationExpiresAt DateTime?
   emailVerificationSentAt DateTime?
+  passwordResetTokenHash String?
+  passwordResetExpiresAt DateTime?
+  passwordResetUsedAt DateTime?
   password       String
   name           String
   phone          String?
