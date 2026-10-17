@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit, notify } from '@/lib/notify'
 import { markInvoicePaid } from '@/lib/settle-payment'
+import { paymentAmountDollars } from '@/lib/money'
 
 type RouteContext = { params: Promise<{ id: string }> | { id: string } }
 
