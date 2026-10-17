@@ -281,10 +281,10 @@ export async function POST(req: NextRequest) {
 
     const serviceFlow = getServiceFlow(programRec.slug)
     const isServiceRequest = serviceFlow ? !serviceFlow.isStudyProgram : programRec?.category === 'SERVICE'
-    const appFee = (!stagedUpload && !isServiceRequest)
+    const appFee = !isServiceRequest
       ? await withTiming('db_admissions_application_fee_setting', () => getSettingNum('FEE_APPLICATION'))
       : 0
-    if (!stagedUpload && !isServiceRequest && appFee <= 0) {
+    if (!isServiceRequest && appFee <= 0) {
       return NextResponse.json({ error: 'رسوم التقديم غير مضبوطة بقيمة صالحة أكبر من صفر.' }, { status: 500 })
     }
     const programRules = programRec?.admissionRules
