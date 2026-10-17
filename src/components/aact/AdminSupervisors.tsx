@@ -22,6 +22,7 @@ interface SupervisorRow {
 
 export function AdminSupervisorsTab() {
   const { toast } = useToast()
+  const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [supervisors, setSupervisors] = useState<SupervisorRow[]>([])
