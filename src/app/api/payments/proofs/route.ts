@@ -67,6 +67,7 @@ export async function POST(req: NextRequest) {
     const paymentId = cleanText(form.get('paymentId'), 120)
     const proofType = cleanText(form.get('proofType'), 60) || 'TRANSFER_RECEIPT'
     const note = cleanText(form.get('note'), 700) || null
+    const declaredAmount = parseDeclaredAmount(form.get('amount') || form.get('declaredAmount'))
     const file = form.get('file')
 
     if (!paymentId) return NextResponse.json({ error: 'معرّف الفاتورة مطلوب' }, { status: 400 })
