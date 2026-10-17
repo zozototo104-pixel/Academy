@@ -51,10 +51,45 @@ export async function PATCH(req: NextRequest) {
 
     if (action === 'REJECT' || action === 'CANCEL') {
       const status = action === 'REJECT' ? 'REJECTED' : 'CANCELLED'
-      const waiver = await db.paymentWaiverCode.update({ where: { id: waiverId }, data: { status } })
-      await db.payment.updateMany({ where: { id: waiver.paymentId, waiverStatus: { in: ['REQUESTED', 'VERIFIED'] } }, data: { waiverStatus: status } })
-      await audit({ id: admin.id, name: admin.name || admin.email || 'Admin' }, `PAYMENT_WAIVER_${status}`, 'Payment', waiver.paymentId, `${waiver.codePreview} — ${waiver.waiverType}`)
-      return NextResponse.json({ waiver })
+      const waiver = await db.paymentWaiverCode.findUnique({ where: { id: waiverId }, include: { payment: true } })
+      if (!waiver) return NextResponse.json({ error: 'كود الإعفاء غير موجود' }, { status: 404 })
+      if (action === 'REJECT' && waiver.status === 'APPROVED') {
+        return NextResponse.json({ error: 'لا يمكن رفض إعفاء معتمد. استخدم إلغاء الإعفاء لإعادة الفاتورة لحالتها.' }, { status: 400 })
+      }
+      const result = await db.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "Payment" WHERE id = ${waiver.paymentId} FOR UPDATE`
+        const updatedWaiver = await tx.paymentWaiverCode.update({ where: { id: waiverId }, data: { status } })
+        let updatedPayment: any = null
+        if (action === 'CANCEL' && waiver.status === 'APPROVED') {
+          const originalCents = Math.max(Number(waiver.payment.originalAmountCents || 0), Number(waiver.payment.amountCents || 0) + Number(waiver.payment.waivedAmountCents || 0))
+          const originalAmount = originalCents > 0 ? originalCents / 100 : Number(waiver.payment.originalAmount || waiver.payment.amount || 0)
+          updatedPayment = await tx.payment.update({
+            where: { id: waiver.paymentId },
+            data: {
+              status: 'UNPAID',
+              amount: originalAmount,
+              amountCents: Math.round(originalAmount * 100),
+              waivedAmount: 0,
+              waivedAmountCents: 0,
+              waiverStatus: 'CANCELLED',
+              waiverReason: waiver.payment.waiverReason ? `${waiver.payment.waiverReason} — تم إلغاء الإعفاء المعتمد` : 'تم إلغاء الإعفاء المعتمد',
+              waiverApprovedById: null,
+              waiverApprovedAt: null,
+              paidAt: null,
+              method: null,
+              receiptNo: null,
+            },
+          })
+          if (waiver.waiverType === 'FULL_SCHOLARSHIP' && waiver.payment.admissionId) {
+            await tx.admissionApplication.update({ where: { id: waiver.payment.admissionId }, data: { scholarshipFull: false } }).catch(() => null)
+          }
+        } else {
+          updatedPayment = await tx.payment.updateMany({ where: { id: waiver.paymentId, waiverStatus: { in: ['REQUESTED', 'VERIFIED'] } }, data: { waiverStatus: status } })
+        }
+        return { waiver: updatedWaiver, payment: updatedPayment }
+      })
+      await audit({ id: admin.id, name: admin.name || admin.email || 'Admin' }, `PAYMENT_WAIVER_${status}`, 'Payment', waiver.paymentId, `${waiver.codePreview} — ${waiver.waiverType}${waiver.status === 'APPROVED' ? ' — إعادة الفاتورة إلى UNPAID' : ''}`)
+      return NextResponse.json(result)
     }
 
     return NextResponse.json({ error: 'إجراء غير مدعوم' }, { status: 400 })
