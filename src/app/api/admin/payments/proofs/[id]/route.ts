@@ -52,6 +52,12 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     if (proof.status !== 'PENDING') {
       return NextResponse.json({ error: 'تمت مراجعة هذا الإثبات مسبقاً ولا يمكن تغيير القرار.' }, { status: 409 })
     }
+    if (proof.payment?.status === 'PAID') {
+      return NextResponse.json({ error: 'الفاتورة مسددة بالفعل ولا يمكن قبول إثبات دفع ثانٍ لها.' }, { status: 409 })
+    }
+    if (proof.payment?.status === 'WAIVED') {
+      return NextResponse.json({ error: 'الفاتورة معفاة ولا يمكن قبول إثبات دفع لها.' }, { status: 409 })
+    }
 
     if (action === 'REJECT') {
       const updatedRows = await db.paymentProof.updateMany({
