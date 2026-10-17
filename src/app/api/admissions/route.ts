@@ -381,7 +381,17 @@ export async function POST(req: NextRequest) {
           },
         },
       })
-      if (duplicateOpen) return { duplicateOpen, app: null }
+      if (duplicateOpen) {
+        const tokenExpiredAt = new Date(duplicateOpen.createdAt).getTime() + 24 * 60 * 60 * 1000
+        if (duplicateOpen.status === 'UPLOADING_DOCUMENTS' && !duplicateOpen.userId && tokenExpiredAt < Date.now()) {
+          await tx.admissionApplication.updateMany({
+            where: { id: duplicateOpen.id, userId: null, status: 'UPLOADING_DOCUMENTS' },
+            data: { status: 'ABANDONED' },
+          })
+        } else {
+          return { duplicateOpen, app: null }
+        }
+      }
 
       let reference = ''
       for (let i = 0; i < 5; i++) {
