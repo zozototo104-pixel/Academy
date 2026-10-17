@@ -396,11 +396,15 @@ export async function POST(req: NextRequest) {
       overall = buildAnswerKeyFeedback(exam.unit.program.titleAr, percentage, passed, weakPoints)
     }
     const feedbackJson = JSON.stringify(overall)
+    const completedAttempts = completedAttemptsBeforeSubmit + 1
+    const revealCorrectAnswers = shouldRevealCorrectAnswers({ passed, completedAttempts, maxAttempts })
+    const persistedAnswers = revealCorrectAnswers ? answersToPersist : sanitizePreparedAnswersForHiddenAnswers(answersToPersist)
+    const responseResults = revealCorrectAnswers ? gradedResults : sanitizeUnitFeedbackForHiddenAnswers(gradedResults)
 
     const attempt = await db.$transaction(async (tx) => {
       const created = activeAttempt
 
-      for (const prepared of answersToPersist) {
+      for (const prepared of persistedAnswers) {
         await persistPreparedAnswer(tx, created.id, prepared, prePersistedEssayQuestionIds.has(prepared.questionId))
       }
 
