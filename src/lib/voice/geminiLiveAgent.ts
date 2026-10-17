@@ -327,6 +327,7 @@ export class GeminiLiveAgent {
     if (model) body.model = model
     if (this.cb.voice) body.voice = this.cb.voice
     if (this.cb.dialect) body.dialect = this.cb.dialect
+    if (this.cb.purpose) body.purpose = this.cb.purpose
     if (this.cb.context) body.context = this.cb.context
     const sessionRes = await fetch('/api/ai/gemini-live/session', {
       method: 'POST',
