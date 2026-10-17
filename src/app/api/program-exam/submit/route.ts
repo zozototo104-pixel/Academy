@@ -475,10 +475,11 @@ export async function POST(req: NextRequest) {
     const completion = passed ? await completeEnrollmentIfEligible({ enrollmentId: enrollment.id }) : null
     const completedAttempts = completedAttemptsBeforeSubmit + 1
     const revealCorrectAnswers = shouldRevealCorrectAnswers({ passed, completedAttempts, maxAttempts })
+    if (!revealCorrectAnswers) await hidePersistedProgramAnswerFeedback(attempt.id)
     const sortedResults = [...objectiveResults, ...essayResults, ...gradedEssayResults].sort((a, b) => a.order - b.order)
     const results = revealCorrectAnswers
       ? sortedResults
-      : sortedResults.map(({ correctAnswerText, correctRationale, wrongOptionRationale, ...result }) => result)
+      : sanitizeProgramResultsForHiddenAnswers(sortedResults)
 
     return NextResponse.json({
       ok: true,
