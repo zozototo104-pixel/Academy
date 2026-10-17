@@ -61,7 +61,7 @@ describe('question bank generated candidate normalization', () => {
   })
 
   test('literal evidence not found in source is still rejected by evidence validation', () => {
-    const result = parseOne({ type: 'TF', options: [], correctAnswer: 'صح', sourceEvidence: 'هذا الاقتباس غير موجود في المصدر إطلاقاً.' })
+    const result = parseOne({ type: 'TF', options: [], correctAnswer: 'صح', sourceEvidence: 'هذا الاقتباس غير موجود في المصدر إطلاقاً ولا تظهر عبارته داخل النص الأصلي المعتمد للسؤال.' })
     const evidence = validateQuestionBatchAgainstKnowledge(result.accepted, [{ text: 'المصدر يتحدث عن موضوع مختلف تماماً ولا يحتوي الاقتباس المطلوب.' }])
 
     expect(result.rejected).toBe(0)
