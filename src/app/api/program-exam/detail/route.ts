@@ -163,6 +163,7 @@ export async function GET(req: NextRequest) {
         options: q.options ? JSON.parse(q.options) : null,
         points: q.points,
       })),
+      lastAttemptNotice,
       previousAttempts: previousAttempts.map((attempt) => ({
         ...attempt,
         score: attempt.status === 'NEEDS_REVIEW' ? null : attempt.score,
