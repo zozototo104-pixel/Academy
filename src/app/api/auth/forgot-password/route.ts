@@ -4,7 +4,7 @@ import { checkDatabaseRateLimit, clientIpFromHeaders, rateLimitHeaders } from '@
 import { createPasswordResetToken, passwordResetUrl } from '@/lib/password-reset'
 import { emailPasswordReset } from '@/lib/mailer'
 
-function genericResponse() {
+function genericResponse(_sent?: boolean) {
   return NextResponse.json({ ok: true, message: 'إذا كان البريد مسجلاً ستصلك رسالة خلال دقائق' })
 }
 
