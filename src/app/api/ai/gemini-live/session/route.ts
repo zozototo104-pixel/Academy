@@ -24,6 +24,7 @@ import { getSetting } from '@/lib/settings'
 import { redactSecrets } from '@/lib/secret-crypto'
 import { getGeminiLiveAllowance, reserveGeminiLiveUsage, type LivePurpose } from '@/lib/live-usage-guard'
 import { dialectInstruction, normalizeVoiceDialect, VOICE_DEFAULT_DIALECT } from '@/lib/voice-dialect'
+import { requireStudentAiSupervisorAccess } from '@/lib/student-ai-access'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
