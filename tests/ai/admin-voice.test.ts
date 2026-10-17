@@ -204,6 +204,20 @@ describe('Admin Gemini Live minutes and classified errors', () => {
     expect(await response.json()).toMatchObject({ code: 'LIVE_MINUTES_EXHAUSTED', liveUsage: { ok: false, status: 402 } })
   })
 
+  test('student without supervisor AI access is blocked before reserving live minutes', async () => {
+    studentAiAllowed = false
+
+    const response = await POST(new NextRequest('http://localhost/api/ai/gemini-live/session', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ purpose: 'SUPERVISOR' }),
+    }))
+    const payload = await response.json()
+
+    expect(response.status).toBe(403)
+    expect(payload.code).toBe('AI_SUPERVISOR_LOCKED')
+    expect(sessions.size).toBe(0)
+    expect(operations.usageWrites).toBe(0)
+  })
+
   test('other Gemini failures do not classify as a minutes purchase case', () => {
     expect(isLiveMinutesExhausted({ status: 402 })).toBe(true)
     expect(isLiveMinutesExhausted({ code: 'LIVE_MINUTES_EXHAUSTED' })).toBe(true)
