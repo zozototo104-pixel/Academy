@@ -194,8 +194,9 @@ export async function POST(req: NextRequest) {
       )
       const result = await aiEvaluate(thesis.title, thesisContextForEval.slice(0, 2000), lastQuestion?.content || '', answer, answeredCount + 1, QUESTIONS_COUNT, defenseAcademicContext, criterion)
 
-      await db.defenseMessage.create({
-        data: { thesisId: thesis.id, role: 'STUDENT', content: answer, score: result.score },
+      await db.defenseMessage.update({
+        where: { id: answerState.studentMessageId },
+        data: { score: result.score },
       })
 
       if (answeredCount + 1 >= QUESTIONS_COUNT) {
