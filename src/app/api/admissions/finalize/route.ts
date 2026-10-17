@@ -93,6 +93,9 @@ export async function POST(req: NextRequest) {
       : 'UNDER_REVIEW'
     const nextStatus = isDocumentReplacement ? replacementPreviousStatus : (isServiceRequest ? 'UNDER_REVIEW' : 'AWAITING_FEE')
     const appFee = isServiceRequest ? 0 : await getSettingNum('FEE_APPLICATION')
+    if (!isServiceRequest && appFee <= 0) {
+      return NextResponse.json({ error: 'رسوم التقديم غير مضبوطة بقيمة صالحة أكبر من صفر.' }, { status: 500 })
+    }
 
     const existingFee = app.payments.find((p) => p.purpose === 'APPLICATION_FEE') || null
     const feeInvoice = isServiceRequest ? null : (existingFee || await db.$transaction(async (tx) => {
