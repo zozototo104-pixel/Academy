@@ -186,7 +186,7 @@ export default function AdminRepresentativesTab() {
 
   async function remove() {
     if (!form.id) return
-    if (!window.confirm('هل تريد حذف هذا الممثل من العرض العام؟')) return
+    if (!(await confirmAction({ title: 'حذف ممثل الأكاديمية', description: 'هل تريد حذف هذا الممثل من العرض العام؟', confirmLabel: 'حذف الممثل', tone: 'danger' }))) return
     setSaving(true)
     try {
       const res = await fetch(`/api/admin/representatives/${form.id}`, { method: 'DELETE' })
