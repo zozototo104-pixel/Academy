@@ -4,6 +4,7 @@ import { NextRequest } from 'next/server'
 
 const calls: string[] = []
 let proofStatus: 'PENDING' | 'ACCEPTED' | 'REJECTED' = 'PENDING'
+let proofDeclaredAmount = 100
 let duplicateInstallmentInvoice: string | null = null
 let markInvoicePaidOk = true
 
@@ -23,7 +24,8 @@ const db: any = {
   $transaction: async (work: (tx: any) => Promise<any>) => work(db),
   $queryRaw: async () => { calls.push('lock') },
   paymentProof: {
-    findUnique: async ({ where }: any) => ({ id: where.id, status: proofStatus, payment: proofPayment, fileName: 'receipt.pdf' }),
+    findUnique: async ({ where }: any) => ({ id: where.id, paymentId: 'payment-1', status: proofStatus, declaredAmount: proofDeclaredAmount, payment: proofPayment, fileName: 'receipt.pdf' }),
+    findFirst: async () => null,
     updateMany: async ({ where, data }: any) => {
       calls.push(`proof.updateMany:${where.status}:${data.status}`)
       if (proofStatus !== where.status) return { count: 0 }
@@ -158,6 +160,7 @@ async function json(res: Response) {
 beforeEach(() => {
   calls.splice(0, calls.length)
   proofStatus = 'PENDING'
+  proofDeclaredAmount = 100
   duplicateInstallmentInvoice = null
   markInvoicePaidOk = true
 })
@@ -197,6 +200,30 @@ describe('payments C1 safety', () => {
     const accepted = await proofReviewRoute.PATCH(new NextRequest('https://academy.test/api/admin/payments/proofs/proof-1', {
       method: 'PATCH',
       body: JSON.stringify({ action: 'ACCEPT' }),
+      headers: { 'content-type': 'application/json' },
+    }), { params: { id: 'proof-1' } } as any)
+    expect(accepted.status).toBe(200)
+    expect(calls).toContain('proof.updateMany:PENDING:ACCEPTED')
+    expect(calls).toContain('markInvoicePaid:INV-1:BANK_TRANSFER')
+  })
+
+  test('underpaid transfer proof requires explicit admin confirmation before settlement', async () => {
+    proofDeclaredAmount = 20
+    const blocked = await proofReviewRoute.PATCH(new NextRequest('https://academy.test/api/admin/payments/proofs/proof-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ action: 'ACCEPT' }),
+      headers: { 'content-type': 'application/json' },
+    }), { params: { id: 'proof-1' } } as any)
+    const blockedPayload = await json(blocked as any)
+    expect(blocked.status).toBe(409)
+    expect(blockedPayload.code).toBe('UNDERPAYMENT_CONFIRMATION_REQUIRED')
+    expect(blockedPayload.expectedAmount).toBe(100)
+    expect(blockedPayload.declaredAmount).toBe(20)
+    expect(calls.some((call) => call.startsWith('markInvoicePaid'))).toBe(false)
+
+    const accepted = await proofReviewRoute.PATCH(new NextRequest('https://academy.test/api/admin/payments/proofs/proof-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ action: 'ACCEPT', confirmUnderpayment: true }),
       headers: { 'content-type': 'application/json' },
     }), { params: { id: 'proof-1' } } as any)
     expect(accepted.status).toBe(200)

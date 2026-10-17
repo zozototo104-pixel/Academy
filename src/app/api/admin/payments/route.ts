@@ -266,6 +266,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (payment.status === 'PAID') return NextResponse.json({ ok: true, payment })
+    if (payment.status === 'WAIVED') return NextResponse.json({ error: 'الفاتورة معفاة ولا يمكن تحويلها إلى مدفوعة. ألغِ الإعفاء أولاً إذا أردت إعادة فتح الفاتورة.' }, { status: 400 })
     if (!payment.method) {
       return NextResponse.json({ error: 'لا يمكن تأكيد الفاتورة قبل أن يختار الطالب طريقة الدفع من بوابة الطالب.' }, { status: 400 })
     }

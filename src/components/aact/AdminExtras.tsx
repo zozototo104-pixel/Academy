@@ -662,6 +662,8 @@ interface PaymentProofRow {
   status: string
   note?: string | null
   adminNote?: string | null
+  declaredAmount?: number | null
+  declaredAmountCents?: number | null
   fileName: string
   mimeType: string
   fileSize: number
@@ -849,7 +851,21 @@ export function AdminFinanceTab() {
       toast({ title: action === 'ACCEPT' ? 'تم قبول الإثبات' : 'تم رفض الإثبات', description: action === 'ACCEPT' ? 'سُويت الفاتورة بعد قبول الإثبات.' : 'وصل سبب الرفض للطالب.' })
       load()
     } catch (e: any) {
-      toast({ title: 'تعذر مراجعة الإثبات', description: e.message, variant: 'destructive' })
+      if (action === 'ACCEPT' && e?.code === 'UNDERPAYMENT_CONFIRMATION_REQUIRED') {
+        const ok = await confirmAction({
+          title: 'تأكيد قبول دفع ناقص',
+          description: `المبلغ المحوّل ${e.declaredAmount}$ أقل من المبلغ المطلوب ${e.expectedAmount}$. هل تريد قبول هذا الإثبات وتسوية الفاتورة رغم الفرق؟`,
+          confirmLabel: 'قبول الدفع الناقص',
+          tone: 'warning',
+        })
+        if (ok) {
+          await api(`/api/admin/payments/proofs/${encodeURIComponent(proof.id)}`, { method: 'PATCH', body: JSON.stringify({ action: 'ACCEPT', confirmUnderpayment: true }) })
+          toast({ title: 'تم قبول الإثبات', description: 'سُويت الفاتورة بعد تأكيد قبول الدفع الناقص.' })
+          load()
+        }
+      } else {
+        toast({ title: 'تعذر مراجعة الإثبات', description: e.message, variant: 'destructive' })
+      }
     } finally {
       setProofReviewBusy(null)
     }
@@ -1237,6 +1253,7 @@ export function AdminFinanceTab() {
                                   فتح الإيصال: {proof.fileName}
                                 </a>
                                 {proof.uploadedBy?.name ? <div className="text-emerald-700">رفعه: {proof.uploadedBy.name}</div> : null}
+                                <div className="text-emerald-700">المبلغ المحوّل: {proof.declaredAmount ?? (proof.declaredAmountCents ? proof.declaredAmountCents / 100 : 0)}$ — المطلوب: {p.amount}$</div>
                                 {proof.adminNote ? <div className="text-slate-500">ملاحظة الإدارة: {proof.adminNote}</div> : null}
                                 {proof.status === 'PENDING' && (
                                   <div className="flex flex-wrap gap-1 pt-1">

@@ -489,6 +489,8 @@ model PaymentProof {
   status      String   @default("PENDING") // PENDING | ACCEPTED | REJECTED
   note        String?
   adminNote   String?
+  declaredAmount      Float?
+  declaredAmountCents Int?
   fileName    String
   mimeType    String
   fileSize    Int

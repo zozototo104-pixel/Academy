@@ -6,6 +6,7 @@ import { validateAdmissionFileSignature } from '@/lib/file-signature'
 import { storeFileBuffer, storageErrorMessage } from '@/lib/storage'
 import { audit, notify } from '@/lib/notify'
 import { repairVerifiedStudentRecordOwnership, studentPaymentOwnershipWhere } from '@/lib/student-record-ownership'
+import { dollarsToCents, paymentAmountDollars } from '@/lib/money'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -32,6 +33,12 @@ function checksum(buffer: Buffer) {
   return createHash('sha256').update(buffer).digest('hex')
 }
 
+function parseDeclaredAmount(value: unknown) {
+  const raw = String(value || '').replace(/,/g, '').trim()
+  const amount = Number(raw)
+  return Number.isFinite(amount) && amount > 0 ? Math.round(amount * 100) / 100 : null
+}
+
 function proofPayload(proof: any) {
   return {
     id: proof.id,
@@ -40,6 +47,8 @@ function proofPayload(proof: any) {
     status: proof.status,
     note: proof.note,
     adminNote: proof.adminNote,
+    declaredAmount: proof.declaredAmount,
+    declaredAmountCents: proof.declaredAmountCents,
     fileName: proof.fileName,
     mimeType: proof.mimeType,
     fileSize: proof.fileSize,
@@ -58,6 +67,7 @@ export async function POST(req: NextRequest) {
     const paymentId = cleanText(form.get('paymentId'), 120)
     const proofType = cleanText(form.get('proofType'), 60) || 'TRANSFER_RECEIPT'
     const note = cleanText(form.get('note'), 700) || null
+    const declaredAmount = parseDeclaredAmount(form.get('amount') || form.get('declaredAmount'))
     const file = form.get('file')
 
     if (!paymentId) return NextResponse.json({ error: 'معرّف الفاتورة مطلوب' }, { status: 400 })
@@ -73,6 +83,11 @@ export async function POST(req: NextRequest) {
     })
     if (!payment) return NextResponse.json({ error: 'الفاتورة غير موجودة أو غير مرتبطة بحسابك' }, { status: 404 })
     if (payment.status === 'PAID') return NextResponse.json({ error: 'الفاتورة مسددة بالفعل ولا تحتاج إثبات دفع جديد' }, { status: 400 })
+    if (payment.status === 'WAIVED') return NextResponse.json({ error: 'الفاتورة معفاة ولا تحتاج إثبات دفع' }, { status: 400 })
+    if (declaredAmount === null) return NextResponse.json({ error: 'يرجى إدخال مبلغ التحويل الظاهر في إثبات الدفع حتى تتمكن الإدارة من مطابقته.' }, { status: 400 })
+
+    const expectedAmount = paymentAmountDollars(payment)
+    if (declaredAmount <= 0) return NextResponse.json({ error: 'مبلغ التحويل يجب أن يكون أكبر من صفر' }, { status: 400 })
 
     const manualMethod = String(payment.method || payment.provider || '').toUpperCase()
     if (!MANUAL_METHODS.has(manualMethod)) {
@@ -106,6 +121,8 @@ export async function POST(req: NextRequest) {
         proofType,
         status: 'PENDING',
         note,
+        declaredAmount,
+        declaredAmountCents: dollarsToCents(declaredAmount),
         fileName: file.name || `${payment.invoiceNo}-payment-proof`,
         mimeType: signature.mimeType,
         fileSize: buffer.byteLength,
@@ -118,7 +135,7 @@ export async function POST(req: NextRequest) {
 
     const admins = await db.user.findMany({ where: { role: 'ADMIN', status: 'ACTIVE' }, select: { id: true }, take: 20 }).catch(() => [])
     await Promise.all(admins.map((admin) => notify(admin.id, 'PAYMENT_PROOF_UPLOADED', 'إثبات دفع جديد', `تم رفع إثبات دفع للفاتورة ${payment.invoiceNo}`, '/admin?tab=finance')))
-    await audit({ id: user.id, name: user.name }, 'UPLOAD_PAYMENT_PROOF', 'Payment', payment.id, `${payment.invoiceNo} — ${payment.amount}$ — ${proof.fileName}`)
+    await audit({ id: user.id, name: user.name }, 'UPLOAD_PAYMENT_PROOF', 'Payment', payment.id, `${payment.invoiceNo} — المطلوب ${expectedAmount}$ — المحوّل ${declaredAmount}$ — ${proof.fileName}`)
 
     return NextResponse.json({ ok: true, proof: proofPayload(proof) })
   } catch (e: any) {

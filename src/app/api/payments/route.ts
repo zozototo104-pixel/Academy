@@ -31,6 +31,8 @@ export async function GET() {
             status: true,
             note: true,
             adminNote: true,
+            declaredAmount: true,
+            declaredAmountCents: true,
             fileName: true,
             mimeType: true,
             fileSize: true,
@@ -94,6 +96,9 @@ export async function POST(req: NextRequest) {
     if (!payment) return NextResponse.json({ error: 'الفاتورة غير موجودة' }, { status: 404 })
     if (payment.status === 'PAID') {
       return NextResponse.json({ error: 'الفاتورة مسددة بالفعل' }, { status: 400 })
+    }
+    if (payment.status === 'WAIVED') {
+      return NextResponse.json({ error: 'الفاتورة معفاة ولا يمكن تحويلها إلى مدفوعة' }, { status: 400 })
     }
 
     // تحقق ملكية صارم: الطالب يملك الفاتورة فقط إذا كان بريد الطلب/الفاتورة يطابق بريده المؤكد.

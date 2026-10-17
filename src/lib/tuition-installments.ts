@@ -56,6 +56,18 @@ export function roundMoney(n: number): number {
   return Math.max(0, Math.round((Number(n) || 0) * 100) / 100)
 }
 
+function clampMoney(value: number, min: number, max: number) {
+  const normalizedMax = Math.max(min, max)
+  return roundMoney(Math.min(normalizedMax, Math.max(min, Number(value) || 0)))
+}
+
+function installmentThresholds(totalTuition: number, appeal?: { firstSemesterRequiredAmount?: number | null; finalRequiredAmount?: number | null } | null) {
+  if (totalTuition <= 0) return { halfRequired: 0, finalRequired: 0 }
+  const first = clampMoney(Math.max(totalTuition / 2, Number(appeal?.firstSemesterRequiredAmount ?? 0)), 0, totalTuition)
+  const second = clampMoney(Math.max(first, Number(appeal?.finalRequiredAmount ?? totalTuition)), first, totalTuition)
+  return { halfRequired: first, finalRequired: second }
+}
+
 const INSTALLMENT_APPEAL_ALLOWED_STATUSES = new Set(['AWAITING_TUITION', 'SUPERVISOR_ASSIGNED', 'THESIS'])
 
 function applicationFeePaid(payments: TuitionPayment[]): boolean {
@@ -140,8 +152,7 @@ export async function getAdmissionTuitionPlan(admissionId: string): Promise<Tuit
   const totalTuition = inferTotalTuition(app.payments, fallbackTuition)
   const paidTuition = tuitionPaidTotal(app.payments)
   const remainingTuition = roundMoney(Math.max(0, totalTuition - paidTuition))
-  const halfRequired = roundMoney(Math.max(totalTuition / 2, Number(appeal?.firstSemesterRequiredAmount ?? 0)))
-  const finalRequired = roundMoney(Math.max(totalTuition, Number(appeal?.finalRequiredAmount ?? 0)))
+  const { halfRequired, finalRequired } = installmentThresholds(totalTuition, appeal)
   const feePaid = applicationFeePaid(app.payments)
   const eligibility = installmentAppealEligibility({
     admissionStatus: app.status,
@@ -187,8 +198,7 @@ export async function getStudentTuitionPlan(userId: string, programId: string): 
   const totalTuition = inferTotalTuition(app.payments, fallbackTuition)
   const paidTuition = tuitionPaidTotal(app.payments)
   const remainingTuition = roundMoney(Math.max(0, totalTuition - paidTuition))
-  const halfRequired = roundMoney(Math.max(totalTuition / 2, Number(appeal?.firstSemesterRequiredAmount ?? 0)))
-  const finalRequired = roundMoney(Math.max(totalTuition, Number(appeal?.finalRequiredAmount ?? 0)))
+  const { halfRequired, finalRequired } = installmentThresholds(totalTuition, appeal)
   const feePaid = applicationFeePaid(app.payments)
   const eligibility = installmentAppealEligibility({
     admissionStatus: app.status,

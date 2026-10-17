@@ -43,6 +43,17 @@ export async function PUT(req: NextRequest) {
     if (!values || typeof values !== 'object') {
       return NextResponse.json({ error: 'بيانات غير صحيحة' }, { status: 400 })
     }
+    const invalidFeeLabels = Object.entries(values).flatMap(([key, val]) => {
+      const def = DEFAULT_SETTINGS.find((d) => d.key === key)
+      if (!def || !key.startsWith('FEE_') || (def.inputType || 'number') !== 'number') return []
+      const raw = typeof val === 'string' ? val.trim() : String(val)
+      const numericValue = Number(raw)
+      return Number.isFinite(numericValue) && numericValue <= 0 ? [def.label] : []
+    })
+    if (invalidFeeLabels.length) {
+      return NextResponse.json({ error: `قيم الرسوم التالية يجب أن تكون أكبر من صفر: ${invalidFeeLabels.join('، ')}`, invalidFees: invalidFeeLabels }, { status: 400 })
+    }
+
     const changed: string[] = []
     for (const [key, val] of Object.entries(values)) {
       const def = DEFAULT_SETTINGS.find((d) => d.key === key)
@@ -53,7 +64,8 @@ export async function PUT(req: NextRequest) {
       if (inputType !== 'textarea') v = v.trim()
       if (inputType === 'number') {
         if (v === '' || isNaN(parseFloat(v))) continue
-        v = String(parseFloat(v))
+        const numericValue = parseFloat(v)
+        v = String(numericValue)
       }
       if (inputType === 'json') {
         try {

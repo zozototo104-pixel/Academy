@@ -219,6 +219,10 @@ export async function nextSerial(prefix: string): Promise<string> {
   return `${base}${pad(count)}`
 }
 
+function isUniqueConstraintError(error: any) {
+  return error?.code === 'P2002'
+}
+
 export async function nextInvoiceNo(): Promise<string> {
   const year = new Date().getFullYear()
   const prefix = `AACT-INV-${year}-`
@@ -237,6 +241,22 @@ export async function nextInvoiceNo(): Promise<string> {
   }
 
   throw new Error('INVOICE_SEQUENCE_EXHAUSTED')
+}
+
+// nextInvoiceNo يولد المرشح، أما سباق P2002 فلا يظهر إلا عند create.
+// لذلك أي إنشاء فاتورة جديد يجب أن يمر عبر هذا helper ليعيد المحاولة حتى 5 مرات.
+export async function createPaymentWithInvoiceNo(data: Record<string, any>, client: any = db, maxAttempts = 5) {
+  let lastError: any = null
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const invoiceNo = await nextInvoiceNo()
+    try {
+      return await client.payment.create({ data: { ...data, invoiceNo } })
+    } catch (error: any) {
+      if (!isUniqueConstraintError(error)) throw error
+      lastError = error
+    }
+  }
+  throw lastError || new Error('INVOICE_SEQUENCE_RETRY_EXHAUSTED')
 }
 
 export async function nextReceiptNo(): Promise<string> {

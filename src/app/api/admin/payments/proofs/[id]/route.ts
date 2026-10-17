@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit, notify } from '@/lib/notify'
 import { markInvoicePaid } from '@/lib/settle-payment'
+import { paymentAmountDollars } from '@/lib/money'
 
 type RouteContext = { params: Promise<{ id: string }> | { id: string } }
 
@@ -26,6 +27,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     const body = await req.json().catch(() => ({}))
     const action = cleanText(body.action, 40).toUpperCase()
     const reason = cleanText(body.reason, 700)
+    const confirmUnderpayment = body.confirmUnderpayment === true || body.confirmUnderpayment === 'true'
     if (!id) return NextResponse.json({ error: 'معرّف إثبات الدفع مطلوب' }, { status: 400 })
     if (!['ACCEPT', 'REJECT'].includes(action)) return NextResponse.json({ error: 'الإجراء غير معروف' }, { status: 400 })
     if (action === 'REJECT' && reason.length < 6) {
@@ -50,6 +52,12 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     if (proof.status !== 'PENDING') {
       return NextResponse.json({ error: 'تمت مراجعة هذا الإثبات مسبقاً ولا يمكن تغيير القرار.' }, { status: 409 })
     }
+    if (proof.payment?.status === 'PAID') {
+      return NextResponse.json({ error: 'الفاتورة مسددة بالفعل ولا يمكن قبول إثبات دفع ثانٍ لها.' }, { status: 409 })
+    }
+    if (proof.payment?.status === 'WAIVED') {
+      return NextResponse.json({ error: 'الفاتورة معفاة ولا يمكن قبول إثبات دفع لها.' }, { status: 409 })
+    }
 
     if (action === 'REJECT') {
       const updatedRows = await db.paymentProof.updateMany({
@@ -70,9 +78,28 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       return NextResponse.json({ ok: true, proof: updated })
     }
 
+    const expectedAmount = paymentAmountDollars(proof.payment)
+    const declaredAmount = Number(proof.declaredAmount || 0)
+    if (!declaredAmount || declaredAmount <= 0) {
+      return NextResponse.json({ error: 'لا يمكن قبول الإثبات قبل إدخال مبلغ التحويل في طلب الرفع.' }, { status: 400 })
+    }
+    if (declaredAmount + 0.005 < expectedAmount && !confirmUnderpayment) {
+      return NextResponse.json({
+        error: 'مبلغ التحويل أقل من المستحق. أكّد القبول الصريح للدفع الناقص إن كان هذا مقصوداً.',
+        code: 'UNDERPAYMENT_CONFIRMATION_REQUIRED',
+        expectedAmount,
+        declaredAmount,
+      }, { status: 409 })
+    }
+    const alreadyAccepted = await db.paymentProof.findFirst({
+      where: { paymentId: proof.paymentId, status: 'ACCEPTED', id: { not: proof.id } },
+      select: { id: true },
+    })
+    if (alreadyAccepted) return NextResponse.json({ error: 'يوجد إثبات دفع مقبول بالفعل لهذه الفاتورة.' }, { status: 409 })
+
     const accepted = await db.paymentProof.updateMany({
       where: { id: proof.id, status: 'PENDING' },
-      data: { status: 'ACCEPTED', adminNote: reason || 'تم قبول إثبات الدفع ومطابقة المبلغ.', reviewedById: admin.id, reviewedAt: new Date() },
+      data: { status: 'ACCEPTED', adminNote: reason || `تم قبول إثبات الدفع ومطابقة المبلغ. المبلغ المحوّل ${declaredAmount}$ والمستحق ${expectedAmount}$.`, reviewedById: admin.id, reviewedAt: new Date() },
     })
     if (accepted.count !== 1) return NextResponse.json({ error: 'تمت مراجعة هذا الإثبات من جلسة أخرى.' }, { status: 409 })
 

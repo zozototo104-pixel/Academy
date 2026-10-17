@@ -44,22 +44,24 @@ export async function POST(req: NextRequest) {
     }
     if (requestedInitialAmount >= plan.remainingTuition) return NextResponse.json({ error: 'المبلغ المقترح يساوي أو يتجاوز المتبقي؛ يمكنك سداد الفاتورة مباشرة' }, { status: 400 })
 
-    const existing = await db.tuitionInstallmentAppeal.findFirst({
-      where: { admissionId: app.id, status: { in: ['PENDING', 'APPROVED'] } },
-      orderBy: { createdAt: 'desc' },
-    })
-    if (existing) return NextResponse.json({ error: existing.status === 'APPROVED' ? 'يوجد طلب تقسيط معتمد بالفعل' : 'يوجد التماس تقسيط قيد الدراسة بالفعل' }, { status: 400 })
-
-    const appeal = await db.tuitionInstallmentAppeal.create({
-      data: {
-        admissionId: app.id,
-        userId: user.id,
-        programId: app.programId || null,
-        enrollmentId: null,
-        requestedInitialAmount,
-        proposedSchedule: proposedSchedule || null,
-        reason: reason || null,
-      },
+    const appeal = await db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "AdmissionApplication" WHERE id = ${app.id} FOR UPDATE`
+      const existing = await tx.tuitionInstallmentAppeal.findFirst({
+        where: { admissionId: app.id, status: { in: ['PENDING', 'APPROVED'] } },
+        orderBy: { createdAt: 'desc' },
+      })
+      if (existing) throw new Error(existing.status === 'APPROVED' ? 'INSTALLMENT_APPEAL_APPROVED_EXISTS' : 'INSTALLMENT_APPEAL_PENDING_EXISTS')
+      return tx.tuitionInstallmentAppeal.create({
+        data: {
+          admissionId: app.id,
+          userId: user.id,
+          programId: app.programId || null,
+          enrollmentId: null,
+          requestedInitialAmount,
+          proposedSchedule: proposedSchedule || null,
+          reason: reason || null,
+        },
+      })
     })
 
     const admins = await db.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } })
@@ -76,6 +78,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, appeal })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'يجب تسجيل الدخول أولاً' }, { status: 401 })
+    if (e?.message === 'INSTALLMENT_APPEAL_APPROVED_EXISTS') return NextResponse.json({ error: 'يوجد طلب تقسيط معتمد بالفعل' }, { status: 409 })
+    if (e?.message === 'INSTALLMENT_APPEAL_PENDING_EXISTS') return NextResponse.json({ error: 'يوجد التماس تقسيط قيد الدراسة بالفعل' }, { status: 409 })
     console.error('tuition appeals POST error:', e)
     return NextResponse.json({ error: 'تعذر إرسال الالتماس' }, { status: 500 })
   }

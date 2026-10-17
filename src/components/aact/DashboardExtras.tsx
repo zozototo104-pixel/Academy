@@ -208,6 +208,7 @@ export function PaymentsTab() {
   const [appealReason, setAppealReason] = useState('')
   const [appealSchedule, setAppealSchedule] = useState('')
   const [partialAmount, setPartialAmount] = useState<Record<string, string>>({})
+  const [transferAmounts, setTransferAmounts] = useState<Record<string, string>>({})
   const [usdtHashes, setUsdtHashes] = useState<Record<string, string>>({})
   const [waiverCodes, setWaiverCodes] = useState<Record<string, string>>({})
   const [verifyingWaiver, setVerifyingWaiver] = useState<string | null>(null)
@@ -355,6 +356,11 @@ export function PaymentsTab() {
 
   const uploadPaymentProof = async (payment: Payment, file?: File | null) => {
     if (!file) return
+    const declaredAmount = Number(transferAmounts[payment.id] || payment.amount || 0)
+    if (!Number.isFinite(declaredAmount) || declaredAmount <= 0) {
+      toast({ title: 'أدخل مبلغ التحويل', description: 'قيمة المبلغ المحوّل يجب أن تكون أكبر من صفر.', variant: 'destructive' })
+      return
+    }
     if (file.size > 8 * 1024 * 1024) {
       toast({ title: 'الملف كبير جداً', description: 'حجم إثبات الدفع يجب ألا يتجاوز 8MB.', variant: 'destructive' })
       return
@@ -364,6 +370,7 @@ export function PaymentsTab() {
       const form = new FormData()
       form.set('paymentId', payment.id)
       form.set('proofType', payment.method === 'USDT' ? 'USDT_RECEIPT' : 'TRANSFER_RECEIPT')
+      form.set('amount', String(declaredAmount))
       form.set('file', file)
       const token = getToken()
       const res = await fetch('/api/payments/proofs', {
@@ -630,7 +637,17 @@ export function PaymentsTab() {
                           )}
                         </div>
                       ) : <p className='mt-1 text-emerald-800'>ارفع صورة أو PDF لإثبات التحويل حتى تراجعه الإدارة داخل الفاتورة.</p>}
-                      <div className='mt-2'>
+                      <div className='mt-2 space-y-2'>
+                        <Input
+                          type='number'
+                          inputMode='decimal'
+                          min='0.01'
+                          step='0.01'
+                          value={transferAmounts[p.id] ?? String(p.amount)}
+                          onChange={(event) => setTransferAmounts((prev) => ({ ...prev, [p.id]: event.target.value }))}
+                          placeholder='المبلغ المحوّل ($)'
+                          className='bg-white text-[11px]'
+                        />
                         <Input
                           type='file'
                           accept='image/jpeg,image/png,image/webp,image/heic,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain'
