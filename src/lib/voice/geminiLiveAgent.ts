@@ -310,7 +310,7 @@ export class GeminiLiveAgent {
           return
         } catch (e) {
           const msg = String((e as any)?.message || e)
-          if (isLiveMinutesExhausted(e as LiveSessionError)) throw e
+          if (isLiveMinutesExhausted(e as LiveSessionError) || isLiveAccessDenied(e as LiveSessionError)) throw e
           failures.push(`WS/${variant}/${model || 'saved'}: ${msg.slice(0, 160)}`)
           this.closeConnectionOnly()
         }
