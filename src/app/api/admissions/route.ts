@@ -346,27 +346,85 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const duplicateOpen = await withTiming('db_admissions_existing_open_application', () => db.admissionApplication.findFirst({
-      where: {
-        programId: programRec.id,
-        status: { in: OPEN_APPLICATION_STATUSES },
-        OR: [
-          ...(owner?.id ? [{ userId: owner.id }] : []),
-          { email: submittedEmail },
-        ],
-      },
-      orderBy: { createdAt: 'desc' },
-      include: {
-        payments: {
-          where: { status: { not: 'PAID' } },
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-          select: { invoiceNo: true, amount: true, purpose: true, description: true },
+    let birth: Date | null = null
+    if (birthDate) {
+      const d = new Date(birthDate)
+      if (!isNaN(d.getTime())) birth = d
+    }
+
+    const selectedTitle = programRec?.titleAr || program.trim()
+    const admissionState = await withTiming('db_admissions_duplicate_or_create_application', () => db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${submittedEmail} || ':' || ${programRec.id}))`
+      const duplicateOpen = await tx.admissionApplication.findFirst({
+        where: {
+          programId: programRec.id,
+          status: { in: OPEN_APPLICATION_STATUSES },
+          OR: [
+            ...(owner?.id ? [{ userId: owner.id }] : []),
+            { email: submittedEmail },
+          ],
         },
-      },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          payments: {
+            where: { status: { not: 'PAID' } },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            select: { invoiceNo: true, amount: true, purpose: true, description: true },
+          },
+        },
+      })
+      if (duplicateOpen) return { duplicateOpen, app: null }
+
+      let reference = ''
+      for (let i = 0; i < 5; i++) {
+        reference = strongAdmissionReference()
+        const exists = await tx.admissionApplication.findUnique({ where: { reference } })
+        if (!exists) break
+      }
+
+      const app = await tx.admissionApplication.create({
+        data: {
+          reference,
+          fullName: fullName.trim(),
+          email: submittedEmail,
+          phone: normalizePhone(phone),
+          country: country.trim(),
+          nationalId: String(nationalId || '').trim() ? String(nationalId).trim().slice(0, 40) : null,
+          birthDate: birth,
+          address: address?.trim().slice(0, 300) || null,
+          education: String(education || 'OTHER'),
+          program: selectedTitle,
+          programId: programRec?.id || null,
+          documents: JSON.stringify(uniqueFiles.map((f) => f.docType)),
+          notes: notes?.trim() ? String(notes).slice(0, 2000) : null,
+          acknowledged: true,
+          acknowledgedAt: new Date(),
+          userId: owner?.id || null,
+          status: stagedUpload ? 'UPLOADING_DOCUMENTS' : (isServiceRequest ? 'UNDER_REVIEW' : 'AWAITING_FEE'),
+          files: {
+            create: uniqueFiles.map((f) => ({
+              docType: f.docType,
+              fileName: f.fileName,
+              mimeType: f.mimeType,
+              size: f.size,
+              data: f.data,
+              storageProvider: f.storageProvider,
+              storageKey: f.storageKey,
+              fileUrl: f.fileUrl,
+            })),
+          },
+        },
+      })
+      return { duplicateOpen: null, app }
     }))
-    if (duplicateOpen) {
-      const canResumeUpload = duplicateOpen.status === 'UPLOADING_DOCUMENTS' || duplicateOpen.status === 'STAGED'
+
+    if (admissionState.duplicateOpen) {
+      const duplicateOpen = admissionState.duplicateOpen
+      if (!me || duplicateOpen.userId !== me.id) {
+        return NextResponse.json({ existingOpen: true, message: 'لديك طلب مفتوح لهذا البرنامج — سجّل الدخول بنفس الإيميل لإكماله' })
+      }
+      const canResumeUpload = duplicateOpen.status === 'UPLOADING_DOCUMENTS'
       return NextResponse.json({
         message: canResumeUpload ? 'أكمل رفع ملفاتك' : 'لديك طلب مفتوح لهذا البرنامج. أعدنا الطلب الحالي بدون إنشاء فاتورة جديدة.',
         reference: duplicateOpen.reference,
@@ -379,54 +437,7 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // كود تتبع قوي؛ الأكواد القديمة ذات 4 أرقام تبقى صالحة للتتبع، لكن الطلبات الجديدة لم تعد قابلة للتخمين عملياً.
-    let reference = ''
-    for (let i = 0; i < 5; i++) {
-      reference = strongAdmissionReference()
-      const exists = await withTiming('db_admissions_reference_exists', () => db.admissionApplication.findUnique({ where: { reference } }))
-      if (!exists) break
-    }
-
-    let birth: Date | null = null
-    if (birthDate) {
-      const d = new Date(birthDate)
-      if (!isNaN(d.getTime())) birth = d
-    }
-
-    const selectedTitle = programRec?.titleAr || program.trim()
-    const app = await withTiming('db_admissions_application_create', () => db.admissionApplication.create({
-      data: {
-        reference,
-        fullName: fullName.trim(),
-        email: submittedEmail,
-        phone: normalizePhone(phone),
-        country: country.trim(),
-        nationalId: String(nationalId || '').trim() ? String(nationalId).trim().slice(0, 40) : null,
-        birthDate: birth,
-        address: address?.trim().slice(0, 300) || null,
-        education: String(education || 'OTHER'),
-        program: selectedTitle,
-        programId: programRec?.id || null,
-        documents: JSON.stringify(uniqueFiles.map((f) => f.docType)),
-        notes: notes?.trim() ? String(notes).slice(0, 2000) : null,
-        acknowledged: true,
-        acknowledgedAt: new Date(),
-        userId: owner?.id || null,
-        status: stagedUpload ? 'UPLOADING_DOCUMENTS' : (isServiceRequest ? 'UNDER_REVIEW' : 'AWAITING_FEE'),
-        files: {
-          create: uniqueFiles.map((f) => ({
-            docType: f.docType,
-            fileName: f.fileName,
-            mimeType: f.mimeType,
-            size: f.size,
-            data: f.data,
-            storageProvider: f.storageProvider,
-            storageKey: f.storageKey,
-            fileUrl: f.fileUrl,
-          })),
-        },
-      },
-    }))
+    const app = admissionState.app!
 
     if (stagedUpload) {
       return NextResponse.json({
