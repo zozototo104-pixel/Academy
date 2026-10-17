@@ -34,6 +34,8 @@ const usages = new Map<string, UsageRow>()
 const sessions = new Map<string, SessionRow>()
 let credits: CreditRow[] = []
 let currentUser = { id: 'student-1', role: 'STUDENT' }
+let studentAiAllowed = true
+let latestThesisStatus: string | null = null
 const operations = { usageReads: 0, usageWrites: 0, creditReads: 0, creditWrites: 0 }
 
 function updateNumber(current: number, change: any): number {
@@ -46,6 +48,9 @@ function updateNumber(current: number, change: any): number {
 const db: any = {
   $transaction: async (work: (tx: any) => Promise<any>) => work(db),
   enrollment: { count: async () => 0 },
+  thesisSubmission: { findFirst: async () => latestThesisStatus ? { id: 'thesis-1', status: latestThesisStatus, createdAt: new Date() } : null },
+  setting: { findUnique: async () => null, findMany: async () => [] },
+  auditLog: { create: async () => ({}) },
   aiLiveUsage: {
     findUnique: async ({ where }: any) => {
       operations.usageReads++
@@ -117,8 +122,27 @@ mock.module('@/lib/gemini', () => ({ ...realGemini, ensureGeminiKey: async () =>
 const realRateLimit = await import('../../src/lib/rate-limit')
 mock.module('@/lib/rate-limit', () => ({ ...realRateLimit, enforceApiRateLimit: () => null }))
 
+const realAccess = await import('../../src/lib/student-ai-access')
+mock.module('@/lib/student-ai-access', () => ({
+  ...realAccess,
+  requireStudentAiSupervisorAccess: async (user: any) => {
+    if (user.role !== 'STUDENT' || studentAiAllowed) return { allowed: true, reason: null, admissionId: 'adm-1' }
+    const err: any = new Error('AI_SUPERVISOR_LOCKED')
+    err.status = 403
+    err.code = 'AI_SUPERVISOR_LOCKED'
+    err.reason = 'يتاح المشرف الذكي بعد قبول الإدارة للطلب'
+    throw err
+  },
+}))
+
 const { getGeminiLiveAllowance, liveSessionLimitMinutes, reserveGeminiLiveUsage, settleGeminiLiveUsage } = await import('../../src/lib/live-usage-guard')
 const { isLiveMinutesExhausted } = await import('../../src/lib/voice/geminiLiveAgent')
+
+const realSupervisorAi = await import('../../src/lib/supervisor-ai')
+mock.module('@/lib/supervisor-ai', () => ({ ...realSupervisorAi, buildSupervisorContext: async () => '' }))
+const realTextAi = await import('../../src/lib/text-ai')
+mock.module('@/lib/text-ai', () => ({ ...realTextAi, geminiKeysForLive: async () => [], reportGeminiLiveKeyFailure: async () => {}, reportGeminiLiveKeySuccess: () => {} }))
+
 const { POST } = await import('../../src/app/api/ai/gemini-live/session/route')
 
 const previousStudentLimit = process.env.AACT_LIVE_FREE_MONTHLY_MINUTES_STUDENT
@@ -128,6 +152,8 @@ beforeEach(() => {
   sessions.clear()
   credits = []
   currentUser = { id: 'student-1', role: 'STUDENT' }
+  studentAiAllowed = true
+  latestThesisStatus = null
   operations.usageReads = 0
   operations.usageWrites = 0
   operations.creditReads = 0
@@ -186,6 +212,47 @@ describe('Admin Gemini Live minutes and classified errors', () => {
     }))
     expect(response.status).toBe(402)
     expect(await response.json()).toMatchObject({ code: 'LIVE_MINUTES_EXHAUSTED', liveUsage: { ok: false, status: 402 } })
+  })
+
+  test('student without supervisor AI access is blocked before reserving live minutes', async () => {
+    studentAiAllowed = false
+
+    const response = await POST(new NextRequest('http://localhost/api/ai/gemini-live/session', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ purpose: 'SUPERVISOR' }),
+    }))
+    const payload = await response.json()
+
+    expect(response.status).toBe(403)
+    expect(payload.code).toBe('AI_SUPERVISOR_LOCKED')
+    expect(sessions.size).toBe(0)
+    expect(operations.usageWrites).toBe(0)
+  })
+
+  test('student without supervisor AI access can start discussion voice when latest thesis is scheduled', async () => {
+    studentAiAllowed = false
+    latestThesisStatus = 'SCHEDULED'
+
+    const response = await POST(new NextRequest('http://localhost/api/ai/gemini-live/session', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ purpose: 'DISCUSSION', testOnly: true }),
+    }))
+
+    expect(response.status).not.toBe(403)
+    const payload = await response.json().catch(() => ({}))
+    expect(payload.code).not.toBe('DEFENSE_NOT_SCHEDULED')
+    expect(payload.code).not.toBe('AI_SUPERVISOR_LOCKED')
+    expect(sessions.size).toBe(0)
+  })
+
+  test('student whose latest thesis is not scheduled cannot start discussion voice', async () => {
+    latestThesisStatus = 'DRAFT'
+
+    const response = await POST(new NextRequest('http://localhost/api/ai/gemini-live/session', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ purpose: 'DISCUSSION' }),
+    }))
+    const payload = await response.json()
+
+    expect(response.status).toBe(403)
+    expect(payload.code).toBe('DEFENSE_NOT_SCHEDULED')
   })
 
   test('other Gemini failures do not classify as a minutes purchase case', () => {

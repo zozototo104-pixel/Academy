@@ -462,6 +462,7 @@ ${recent || 'بدأت الجلسة للتو.'}
     }
     const agent = new VoiceAgent({
       context: buildDefenseVoiceContext(initialMessages, processedContext),
+      purpose: 'DISCUSSION',
       // صوت أخف من Charon الافتراضي حتى لا يظهر صوت الرجل الفصيح داخل المناقشة.
       voice: 'Aoede',
       logEndpoint: '/api/defense',

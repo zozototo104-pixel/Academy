@@ -17,6 +17,7 @@ export interface AgentCallbacks {
   voice?: string
   /** لهجة التفريغ/التعرّف على الصوت المطلوبة مثل ar-PS أو ar-EG. */
   dialect?: string
+  purpose?: 'SUPERVISOR' | 'DISCUSSION'
   /** endpoint بديل لحفظ تفريغ الدور؛ الدردشة تحفظ في /api/ai/gemini-live/log، والمناقشة تحفظ في /api/defense. */
   logEndpoint?: string
   /** حقول إضافية ترسل مع حفظ الدور، مثل action: live-turn. */
@@ -42,6 +43,10 @@ type LiveSessionError = Error & { code?: string; status?: number }
 
 export function isLiveMinutesExhausted(error: { code?: string; status?: number } | null | undefined): boolean {
   return error?.status === 402 || error?.code === 'LIVE_MINUTES_EXHAUSTED'
+}
+
+export function isLiveAccessDenied(error: { code?: string; status?: number } | null | undefined): boolean {
+  return error?.status === 403 && (error?.code === 'AI_SUPERVISOR_LOCKED' || error?.code === 'DEFENSE_NOT_SCHEDULED')
 }
 
 function getToken(): string {
@@ -290,7 +295,7 @@ export class GeminiLiveAgent {
         return
       } catch (e) {
         const msg = String((e as any)?.message || e)
-        if (isLiveMinutesExhausted(e as LiveSessionError)) throw e
+        if (isLiveMinutesExhausted(e as LiveSessionError) || isLiveAccessDenied(e as LiveSessionError)) throw e
         failures.push(`SDK/${model || 'saved'}: ${msg.slice(0, 160)}`)
         this.closeConnectionOnly()
       }
@@ -306,7 +311,7 @@ export class GeminiLiveAgent {
           return
         } catch (e) {
           const msg = String((e as any)?.message || e)
-          if (isLiveMinutesExhausted(e as LiveSessionError)) throw e
+          if (isLiveMinutesExhausted(e as LiveSessionError) || isLiveAccessDenied(e as LiveSessionError)) throw e
           failures.push(`WS/${variant}/${model || 'saved'}: ${msg.slice(0, 160)}`)
           this.closeConnectionOnly()
         }
@@ -322,6 +327,7 @@ export class GeminiLiveAgent {
     if (model) body.model = model
     if (this.cb.voice) body.voice = this.cb.voice
     if (this.cb.dialect) body.dialect = this.cb.dialect
+    if (this.cb.purpose) body.purpose = this.cb.purpose
     if (this.cb.context) body.context = this.cb.context
     const sessionRes = await fetch('/api/ai/gemini-live/session', {
       method: 'POST',

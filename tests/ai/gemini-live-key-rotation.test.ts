@@ -2,9 +2,13 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test'
 import { NextRequest } from 'next/server'
 
+let supervisorAccessLocked = false
+let reserveUsageCalls = 0
+
 const db: any = {
   auditLog: { create: async () => ({}) },
   enrollment: { count: async () => 0 },
+  thesisSubmission: { findFirst: async () => null },
   setting: {
     findMany: async () => [],
     findUnique: async () => null,
@@ -15,6 +19,17 @@ const db: any = {
 
 mock.module('@/lib/db', () => ({ db }))
 mock.module('@/lib/auth', () => ({ requireUser: async () => ({ id: 'student-1', role: 'STUDENT' }) }))
+mock.module('@/lib/student-ai-access', () => ({
+  requireStudentAiSupervisorAccess: async () => {
+    if (supervisorAccessLocked) {
+      const err: any = new Error('locked')
+      err.code = 'AI_SUPERVISOR_LOCKED'
+      err.reason = 'المشرف الذكي غير متاح لهذا الطالب حالياً'
+      throw err
+    }
+    return { ok: true }
+  },
+}))
 mock.module('@/lib/rate-limit', () => ({ enforceApiRateLimit: () => null }))
 mock.module('@/lib/settings', () => ({ getSetting: async () => 'ar-PS' }))
 mock.module('@/lib/supervisor-ai', () => ({
@@ -24,7 +39,10 @@ mock.module('@/lib/supervisor-ai', () => ({
 mock.module('@/lib/voicePrompt', () => ({ buildVoiceSystemPrompt: (context: string) => `voice:${context}` }))
 mock.module('@/lib/live-usage-guard', () => ({
   getGeminiLiveAllowance: async () => ({ ok: true, status: 200, sessionLimitMinutes: 10, totalRemainingMinutes: 10, message: 'ok' }),
-  reserveGeminiLiveUsage: async () => ({ ok: true, status: 200, sessionId: 'live-session-1', sessionLimitMinutes: 10, totalRemainingMinutes: 8, message: 'ok' }),
+  reserveGeminiLiveUsage: async () => {
+    reserveUsageCalls++
+    return { ok: true, status: 200, sessionId: 'live-session-1', sessionLimitMinutes: 10, totalRemainingMinutes: 8, message: 'ok' }
+  },
 }))
 
 const realGemini = await import('../../src/lib/gemini')
@@ -87,6 +105,8 @@ function mockTokenFetch(handler: (key: string) => { status: number; body: unknow
 beforeEach(() => {
   values.clear()
   fetchKeys = []
+  supervisorAccessLocked = false
+  reserveUsageCalls = 0
   delete process.env.GEMINI_API_KEY
   delete process.env.GEMINI_API_KEYS
   textAi.__resetTextAiStateForTests()
@@ -152,6 +172,24 @@ describe('Gemini Live raw setup shape', () => {
 })
 
 describe('Gemini Live key rotation uses the text AI router state', () => {
+  test('student without supervisor AI access receives 403 before minutes are reserved', async () => {
+    supervisorAccessLocked = true
+    configureGeminiKeys('AIzaGOOD2222')
+    mockTokenFetch(() => ({ status: 200, body: { name: 'live-token' } }))
+
+    const response = await POST(new NextRequest('http://localhost/api/ai/gemini-live/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ purpose: 'SUPERVISOR', model: 'gemini-3.1-flash-live-preview' }),
+    }))
+    const payload = await response.json()
+
+    expect(response.status).toBe(403)
+    expect(payload).toEqual({ error: 'المشرف الذكي غير متاح لهذا الطالب حالياً', code: 'AI_SUPERVISOR_LOCKED' })
+    expect(fetchKeys).toEqual([])
+    expect(reserveUsageCalls).toBe(0)
+  })
+
   test('key 1 returns 403 and key 2 succeeds, while key 1 receives router cooldown', async () => {
     configureGeminiKeys('AIzaBAD1111', 'AIzaGOOD2222')
     mockTokenFetch((key) => key === 'AIzaBAD1111'
@@ -228,7 +266,7 @@ describe('Gemini Live key rotation uses the text AI router state', () => {
     expect(fetchKeys).toEqual(['text:AIzaRATE1111', 'AIzaRATE1111'])
   })
 
-  test('all key failures return 401 with masked key details only', async () => {
+  test('all key failures return a generic message without details to students', async () => {
     configureGeminiKeys('AIzaBAD1111', 'AIzaBAD2222')
     mockTokenFetch(() => ({ status: 401, body: { error: { message: 'UNAUTHENTICATED: invalid Live key' } } }))
 
@@ -237,13 +275,11 @@ describe('Gemini Live key rotation uses the text AI router state', () => {
     const serialized = JSON.stringify(payload)
 
     expect(response.status).toBe(401)
-    expect(payload.details).toEqual([
-      { keyIndex: 1, maskedKey: 'AIza…1111', status: 401, message: 'UNAUTHENTICATED: invalid Live key' },
-      { keyIndex: 2, maskedKey: 'AIza…2222', status: 401, message: 'UNAUTHENTICATED: invalid Live key' },
-    ])
+    expect(payload).toEqual({ error: 'الصوت غير متاح حالياً، استخدم المحادثة النصية' })
+    expect(serialized).not.toContain('details')
     expect(serialized).not.toContain('AIzaBAD1111')
     expect(serialized).not.toContain('AIzaBAD2222')
-    expect(serialized).toContain('AIza…1111')
-    expect(serialized).toContain('AIza…2222')
+    expect(serialized).not.toContain('AIza…1111')
+    expect(serialized).not.toContain('AIza…2222')
   })
 })

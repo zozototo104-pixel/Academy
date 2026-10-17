@@ -24,6 +24,7 @@ import { getSetting } from '@/lib/settings'
 import { redactSecrets } from '@/lib/secret-crypto'
 import { getGeminiLiveAllowance, reserveGeminiLiveUsage, type LivePurpose } from '@/lib/live-usage-guard'
 import { dialectInstruction, normalizeVoiceDialect, VOICE_DEFAULT_DIALECT } from '@/lib/voice-dialect'
+import { requireStudentAiSupervisorAccess } from '@/lib/student-ai-access'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
@@ -152,6 +153,15 @@ function failureDetail(keyIndex: number, key: string, e: any): LiveKeyFailureDet
   }
 }
 
+function geminiLiveTokenFailureResponse(user: any, e: any, details: LiveKeyFailureDetail[]) {
+  const status = httpStatusForGeminiError(e)
+  if (user?.role === 'ADMIN') {
+    return NextResponse.json({ error: arabicErrorForGemini(e), details }, { status })
+  }
+  console.error('gemini-live token failure:', JSON.stringify(details).slice(0, 2000))
+  return NextResponse.json({ error: 'الصوت غير متاح حالياً، استخدم المحادثة النصية' }, { status })
+}
+
 function liveTokenError(message: string, status: number, model: string, ms: number): Error & { status: number; model: string; ms: number; googleMessage: string } {
   const err = new Error(message) as Error & { status: number; model: string; ms: number; googleMessage: string }
   err.status = status
@@ -246,6 +256,26 @@ export async function POST(req: NextRequest) {
   }
 
   const purpose = cleanPurpose(body.purpose)
+  if (user.role === 'STUDENT' && purpose === 'SUPERVISOR') {
+    try {
+      await requireStudentAiSupervisorAccess(user)
+    } catch (err: any) {
+      if (err?.code === 'AI_SUPERVISOR_LOCKED') {
+        return NextResponse.json({ error: err.reason, code: 'AI_SUPERVISOR_LOCKED' }, { status: 403 })
+      }
+      throw err
+    }
+  }
+  if (user.role === 'STUDENT' && purpose === 'DISCUSSION') {
+    const latestThesis = await db.thesisSubmission.findFirst({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, status: true },
+    })
+    if (!latestThesis || latestThesis.status !== 'SCHEDULED') {
+      return NextResponse.json({ error: 'قاعة المناقشة متاحة فقط بعد جدولة مناقشتك', code: 'DEFENSE_NOT_SCHEDULED' }, { status: 403 })
+    }
+  }
   const allowance = body.testOnly
     ? null
     : await getGeminiLiveAllowance({ userId: user.id, role: user.role, purpose })
@@ -309,7 +339,8 @@ export async function POST(req: NextRequest) {
   try {
     const liveKeys = await geminiKeysForLive()
     if (!liveKeys.length) {
-      return NextResponse.json({ error: 'أدخل مفتاح Gemini API أولاً من لوحة الإدارة أو انتظر انتهاء تبريد مفاتيح Gemini الحالية', details: [] }, { status: 400 })
+      const e = Object.assign(new Error('GEMINI_LIVE_NO_AVAILABLE_KEY'), { status: 400 })
+      return geminiLiveTokenFailureResponse(user, e, [])
     }
 
     const failures: LiveKeyFailureDetail[] = []
@@ -329,19 +360,13 @@ export async function POST(req: NextRequest) {
         failures.push(failureDetail(keyIndex, key, err))
         await reportGeminiLiveKeyFailure(keyIndex, err)
         if (shouldTryNextGeminiLiveKey(err)) continue
-        return NextResponse.json(
-          { error: arabicErrorForGemini(err), details: failures },
-          { status: httpStatusForGeminiError(err) }
-        )
+        return geminiLiveTokenFailureResponse(user, err, failures)
       }
     }
 
     if (!token) {
       const e = lastError || new Error('GEMINI_LIVE_NO_AVAILABLE_KEY')
-      return NextResponse.json(
-        { error: arabicErrorForGemini(e), details: failures },
-        { status: httpStatusForGeminiError(e) }
-      )
+      return geminiLiveTokenFailureResponse(user, e, failures)
     }
 
     if (body.testOnly) {
