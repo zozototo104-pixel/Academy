@@ -119,6 +119,19 @@ mock.module('@/lib/gemini', () => ({ ...realGemini, ensureGeminiKey: async () =>
 const realRateLimit = await import('../../src/lib/rate-limit')
 mock.module('@/lib/rate-limit', () => ({ ...realRateLimit, enforceApiRateLimit: () => null }))
 
+const realAccess = await import('../../src/lib/student-ai-access')
+mock.module('@/lib/student-ai-access', () => ({
+  ...realAccess,
+  requireStudentAiSupervisorAccess: async (user: any) => {
+    if (user.role !== 'STUDENT' || studentAiAllowed) return { allowed: true, reason: null, admissionId: 'adm-1' }
+    const err: any = new Error('AI_SUPERVISOR_LOCKED')
+    err.status = 403
+    err.code = 'AI_SUPERVISOR_LOCKED'
+    err.reason = 'يتاح المشرف الذكي بعد قبول الإدارة للطلب'
+    throw err
+  },
+}))
+
 const { getGeminiLiveAllowance, liveSessionLimitMinutes, reserveGeminiLiveUsage, settleGeminiLiveUsage } = await import('../../src/lib/live-usage-guard')
 const { isLiveMinutesExhausted } = await import('../../src/lib/voice/geminiLiveAgent')
 const { POST } = await import('../../src/app/api/ai/gemini-live/session/route')
