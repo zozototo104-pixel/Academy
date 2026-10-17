@@ -85,7 +85,7 @@ function normalizeTfCorrectAnswer(value: unknown, options: unknown): unknown {
 function normalizeCandidate(candidate: unknown): unknown {
   if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return candidate
   const q: Record<string, unknown> = { ...(candidate as Record<string, unknown>) }
-  const qualityFlags = new Set<string>(Array.isArray(q.qualityFlags) ? q.qualityFlags.filter((flag: unknown): flag is string => typeof flag === 'string') : [])
+  const qualityFlags = new Set<string>()
   const type = String(q.type || '').trim().toLowerCase()
   const aliases: Record<string, string> = { essay: 'ESSAY', 'مقالي': 'ESSAY', short_answer: 'SHORT', 'قصير': 'SHORT', true_false: 'TF', 'صح وخطأ': 'TF', 'صح/خطأ': 'TF', multiple_choice: 'MCQ', 'اختيار من متعدد': 'MCQ' }
   q.type = aliases[type] || type.toUpperCase()
