@@ -266,7 +266,7 @@ describe('Gemini Live key rotation uses the text AI router state', () => {
     expect(fetchKeys).toEqual(['text:AIzaRATE1111', 'AIzaRATE1111'])
   })
 
-  test('all key failures return 401 with masked key details only', async () => {
+  test('all key failures return a generic message without details to students', async () => {
     configureGeminiKeys('AIzaBAD1111', 'AIzaBAD2222')
     mockTokenFetch(() => ({ status: 401, body: { error: { message: 'UNAUTHENTICATED: invalid Live key' } } }))
 
@@ -275,13 +275,11 @@ describe('Gemini Live key rotation uses the text AI router state', () => {
     const serialized = JSON.stringify(payload)
 
     expect(response.status).toBe(401)
-    expect(payload.details).toEqual([
-      { keyIndex: 1, maskedKey: 'AIza…1111', status: 401, message: 'UNAUTHENTICATED: invalid Live key' },
-      { keyIndex: 2, maskedKey: 'AIza…2222', status: 401, message: 'UNAUTHENTICATED: invalid Live key' },
-    ])
+    expect(payload).toEqual({ error: 'الصوت غير متاح حالياً، استخدم المحادثة النصية' })
+    expect(serialized).not.toContain('details')
     expect(serialized).not.toContain('AIzaBAD1111')
     expect(serialized).not.toContain('AIzaBAD2222')
-    expect(serialized).toContain('AIza…1111')
-    expect(serialized).toContain('AIza…2222')
+    expect(serialized).not.toContain('AIza…1111')
+    expect(serialized).not.toContain('AIza…2222')
   })
 })
