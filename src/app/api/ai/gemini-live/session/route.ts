@@ -247,6 +247,25 @@ export async function POST(req: NextRequest) {
   }
 
   const purpose = cleanPurpose(body.purpose)
+  if (user.role === 'STUDENT' && purpose === 'SUPERVISOR') {
+    try {
+      await requireStudentAiSupervisorAccess(user)
+    } catch (err: any) {
+      if (err?.code === 'AI_SUPERVISOR_LOCKED') {
+        return NextResponse.json({ error: err.reason, code: 'AI_SUPERVISOR_LOCKED' }, { status: 403 })
+      }
+      throw err
+    }
+  }
+  if (user.role === 'STUDENT' && purpose === 'DISCUSSION') {
+    const scheduledThesis = await db.thesisSubmission.findFirst({
+      where: { userId: user.id, status: 'SCHEDULED' },
+      select: { id: true },
+    })
+    if (!scheduledThesis) {
+      return NextResponse.json({ error: 'قاعة المناقشة متاحة فقط بعد جدولة مناقشتك', code: 'DEFENSE_NOT_SCHEDULED' }, { status: 403 })
+    }
+  }
   const allowance = body.testOnly
     ? null
     : await getGeminiLiveAllowance({ userId: user.id, role: user.role, purpose })
