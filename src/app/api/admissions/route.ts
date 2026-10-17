@@ -449,7 +449,7 @@ export async function POST(req: NextRequest) {
     if (stagedUpload) {
       return NextResponse.json({
         message: 'تم إنشاء الطلب المؤقت. ارفع المستندات الآن ملفاً ملفاً ثم أكمل التقديم.',
-        reference: app.reference,
+        reference,
         applicationId: app.id,
         uploadToken: createAdmissionUploadToken(app),
         staged: true,
