@@ -444,6 +444,7 @@ export async function POST(req: NextRequest) {
     }
 
     const app = admissionState.app!
+    const reference = app.reference
 
     if (stagedUpload) {
       return NextResponse.json({
