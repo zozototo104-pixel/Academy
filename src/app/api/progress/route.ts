@@ -296,30 +296,23 @@ export async function POST(req: NextRequest) {
           'dashboard'
         )
       } else {
-        const serial = await nextCertSerial()
-        certificate = await db.certificate.create({
-          data: {
-            serial,
-            qrToken: randomBytes(16).toString('hex'),
-            type: 'PROGRAM_COMPLETION',
-            holderName: user.name,
-            program: program?.titleAr || 'برنامج تدريبي',
-            grade: finalScore != null ? `${finalScore}%` : null,
-            userId: user.id,
-            enrollmentId: enrollment.id,
-          },
-        })
-        await db.enrollment.update({
-          where: { id: enrollment.id },
-          data: { certificateNo: certificate.serial },
-        })
-        await notify(
-          user.id,
-          'CERTIFICATE',
-          'تم إصدار شهادتك المعتمدة',
-          `مبروك! أُصدرت شهادتك لبرنامج «${program?.titleAr}» برقم ${certificate.serial} — يمكنك تحميلها وطباعتها من بوابة الطالب.`,
-          'dashboard'
-        )
+        const tuitionPlan = await getStudentTuitionPlan(user.id, programId)
+        const tuitionFullyPaid = !tuitionPlan || tuitionPlan.totalTuition <= 0 || tuitionPlan.paidTuition >= tuitionPlan.totalTuition
+        if (tuitionFullyPaid) {
+          const completion = await completeEnrollmentIfEligible({ enrollmentId: enrollment.id })
+          if (completion.ok && completion.certificate) {
+            certificate = { serial: completion.certificate.serial }
+            if (completion.certificateIssued) {
+              await notify(
+                user.id,
+                'CERTIFICATE',
+                'تم إصدار شهادتك المعتمدة',
+                `مبروك! أُصدرت شهادتك لبرنامج «${program?.titleAr}» برقم ${certificate.serial} — يمكنك تحميلها وطباعتها من بوابة الطالب.`,
+                'dashboard'
+              )
+            }
+          }
+        }
       }
     }
 
