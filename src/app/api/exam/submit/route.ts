@@ -61,6 +61,23 @@ function buildAnswerKeyFeedback(programTitle: string, percentage: number, passed
   }
 }
 
+function sanitizeUnitFeedbackForHiddenAnswers<T extends { isCorrect: boolean | null; aiFeedback: string; correctAnswerText?: string }>(items: T[]): T[] {
+  return items.map((item) => {
+    const { correctAnswerText: _correctAnswerText, ...rest } = item
+    return {
+      ...rest,
+      aiFeedback: item.isCorrect === true ? item.aiFeedback : HIDDEN_CORRECT_ANSWER_FEEDBACK,
+    } as T
+  })
+}
+
+function sanitizePreparedAnswersForHiddenAnswers(items: PreparedAnswer[]): PreparedAnswer[] {
+  return items.map((item) => ({
+    ...item,
+    aiFeedback: item.isCorrect === true ? item.aiFeedback : HIDDEN_CORRECT_ANSWER_FEEDBACK,
+  }))
+}
+
 function answerData(attemptId: string, prepared: PreparedAnswer) {
   return {
     attemptId,
