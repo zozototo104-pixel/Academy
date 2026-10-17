@@ -847,39 +847,53 @@ export function AdminQualityTab() {
   }
 
   const generateExamFromQuestionBank = async (program: ProgramReadinessItem, semester: number) => {
-    const askNumber = async (title: string, defaultValue: string) => {
-      const value = await promptAction({ title, defaultValue, fieldLabel: title, confirmLabel: 'اعتماد القيمة', tone: 'info' })
-      return value
+    const initialValues: ExamGenerationValues = {
+      count: '30',
+      easy: '25',
+      medium: '50',
+      advanced: '25',
+      mcq: '50',
+      tf: '20',
+      short: '20',
+      essay: '10',
+      unitId: '',
     }
-    const rawCount = await askNumber('كم عدد الأسئلة المطلوب في الامتحان؟', '30')
-    if (rawCount === null) return
-    const count = Math.max(5, Math.min(80, Number(rawCount || 30)))
-    const easy = Number((await askNumber('نسبة/وزن الأسئلة السهلة؟', '25')) || 25)
-    const medium = Number((await askNumber('نسبة/وزن الأسئلة المتوسطة؟', '50')) || 50)
-    const advanced = Number((await askNumber('نسبة/وزن الأسئلة المتقدمة؟', '25')) || 25)
-    const mcq = Number((await askNumber('نسبة/وزن أسئلة الاختيار المتعدد؟', '50')) || 50)
-    const tf = Number((await askNumber('نسبة/وزن أسئلة الصح والخطأ؟', '20')) || 20)
-    const short = Number((await askNumber('نسبة/وزن الأسئلة القصيرة؟', '20')) || 20)
-    const essay = Number((await askNumber('نسبة/وزن الأسئلة المقالية؟', '10')) || 10)
-    let unitId: string | null = null
-    if (await confirmAction({ title: 'تقييد الامتحان بوحدة', description: 'هل تريد تقييد الامتحان بوحدة محددة من وحدات البرنامج؟', confirmLabel: 'اختيار وحدة', tone: 'info' })) {
-      try {
-        const res = await api<{ units: { id: string; title: string }[] }>(`/api/admin/program-units?programId=${program.id}`)
-        const units = res.units || []
-        if (units.length > 0) {
-          const choice = await promptAction({ title: 'اختيار وحدة الامتحان', description: units.map((u, i) => `${i + 1}. ${u.title}`).join('\n'), fieldLabel: 'رقم الوحدة', defaultValue: '1', confirmLabel: 'اختيار الوحدة', tone: 'info' })
-          unitId = units[Number(choice || 0) - 1]?.id || null
-        }
-      } catch (error) {
-        console.warn('Failed to load program units for exam generation picker.', error)
-      }
+    setExamGenerationDialog({ program, semester, values: initialValues, units: [], loadingUnits: true, submitting: false })
+    try {
+      const res = await api<{ units: { id: string; title: string }[] }>(`/api/admin/program-units?programId=${program.id}`)
+      setExamGenerationDialog((current) => current && current.program.id === program.id && current.semester === semester
+        ? { ...current, units: res.units || [], loadingUnits: false }
+        : current)
+    } catch (error) {
+      console.warn('Failed to load program units for exam generation picker.', error)
+      setExamGenerationDialog((current) => current && current.program.id === program.id && current.semester === semester
+        ? { ...current, units: [], loadingUnits: false }
+        : current)
     }
-    const payloadBase = { programId: program.id, semester, count, unitId, difficultyPlan: { EASY: easy, MEDIUM: medium, ADVANCED: advanced }, typePlan: { MCQ: mcq, TF: tf, SHORT: short, ESSAY: essay } }
+  }
+
+  const updateExamGenerationValue = (key: keyof ExamGenerationValues, value: string) => {
+    setExamGenerationDialog((current) => current ? { ...current, values: { ...current.values, [key]: value } } : current)
+  }
+
+  const submitExamGenerationForm = async () => {
+    if (!examGenerationDialog) return
+    const { program, semester, values } = examGenerationDialog
+    const count = Math.max(5, Math.min(80, Number(values.count || 30)))
+    const easy = Number(values.easy || 25)
+    const medium = Number(values.medium || 50)
+    const advanced = Number(values.advanced || 25)
+    const mcq = Number(values.mcq || 50)
+    const tf = Number(values.tf || 20)
+    const short = Number(values.short || 20)
+    const essay = Number(values.essay || 10)
+    const payloadBase = { programId: program.id, semester, count, unitId: values.unitId || null, difficultyPlan: { EASY: easy, MEDIUM: medium, ADVANCED: advanced }, typePlan: { MCQ: mcq, TF: tf, SHORT: short, ESSAY: essay } }
     const doGenerate = async (replaceExistingReview = false) => api('/api/admin/program-exams/from-question-bank', {
       method: 'POST',
       body: JSON.stringify({ ...payloadBase, replaceExistingReview }),
     })
 
+    setExamGenerationDialog((current) => current ? { ...current, submitting: true } : current)
     setReadinessBusyId(program.id)
     try {
       try {
@@ -891,9 +905,11 @@ export function AdminQualityTab() {
           throw e
         }
       }
+      setExamGenerationDialog(null)
       window.dispatchEvent(new CustomEvent('aact-admin-tab', { detail: { tab: 'books', programId: program.id, section: 'exams' } }))
     } finally {
       setReadinessBusyId(null)
+      setExamGenerationDialog((current) => current ? { ...current, submitting: false } : current)
     }
   }
 
