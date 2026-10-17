@@ -458,10 +458,6 @@ export async function POST(req: NextRequest) {
     }
 
     // البرامج الدراسية لها فاتورة رسوم تقديم، أما الخدمات المهنية فتدخل مباشرة للمراجعة.
-    const appFee = isServiceRequest ? 0 : await withTiming('db_admissions_application_fee_setting', () => getSettingNum('FEE_APPLICATION'))
-    if (!isServiceRequest && appFee <= 0) {
-      return NextResponse.json({ error: 'رسوم التقديم غير مضبوطة بقيمة صالحة أكبر من صفر.' }, { status: 500 })
-    }
     const feeInvoice = isServiceRequest ? null : await withTiming('db_admissions_payment_create', () => createApplicationFeeInvoiceWithRetry({
       admissionId: app.id,
       userId: owner?.id || null,
