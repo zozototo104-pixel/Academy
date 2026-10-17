@@ -1253,6 +1253,7 @@ export function AdminFinanceTab() {
                                   فتح الإيصال: {proof.fileName}
                                 </a>
                                 {proof.uploadedBy?.name ? <div className="text-emerald-700">رفعه: {proof.uploadedBy.name}</div> : null}
+                                <div className="text-emerald-700">المبلغ المحوّل: {proof.declaredAmount ?? (proof.declaredAmountCents ? proof.declaredAmountCents / 100 : 0)}$ — المطلوب: {p.amount}$</div>
                                 {proof.adminNote ? <div className="text-slate-500">ملاحظة الإدارة: {proof.adminNote}</div> : null}
                                 {proof.status === 'PENDING' && (
                                   <div className="flex flex-wrap gap-1 pt-1">
