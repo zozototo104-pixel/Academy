@@ -145,7 +145,7 @@ export async function GET(req: NextRequest) {
         readiness,
         maxAttempts,
         attemptsUsed: completedAttempts,
-        hasActiveAttempt: !!activeAttempt,
+        hasActiveAttempt: !!currentActiveAttempt,
       },
       questions: exam.questions.map((q) => ({
         id: q.id,
