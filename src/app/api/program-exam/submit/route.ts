@@ -7,6 +7,10 @@ import { buildSupervisorContext, mergeContext, updateStudentAcademicMemory } fro
 import { calculateSemesterReadiness } from '@/lib/semester-readiness'
 import { enforceSemesterTuitionGate } from '@/lib/tuition-installments'
 import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
+import { EXAM_ATTEMPT_POLICY_SINCE, getExamMaxAttempts, shouldRevealCorrectAnswers } from '@/lib/exam-attempt-policy'
+
+const COMPLETED_PROGRAM_ATTEMPT_STATUSES = ['GRADED', 'EXPIRED', 'NEEDS_REVIEW']
+const HIDDEN_CORRECT_ANSWER_FEEDBACK = 'إجابة غير صحيحة — راجع هذا المفهوم في الوحدة'
 
 interface SubmitAnswer {
   questionId: string
@@ -56,6 +60,26 @@ function buildObjectiveFeedback(q: any, isCorrect: boolean, options: string[], s
   const wrongWhy = !isCorrect ? selectedOptionRationale(q, selected) : null
   if (isCorrect) return `إجابة صحيحة. ${correctWhy}${sourceBits ? ` ${sourceBits}.` : ''}`.trim()
   return `إجابة غير صحيحة. الإجابة الصحيحة: «${correctText}».${correctWhy}${wrongWhy ? ` سبب خطأ اختيارك: ${wrongWhy}` : ''}${sourceBits ? ` ${sourceBits}.` : ''}`.trim()
+}
+
+function sanitizeProgramResultsForHiddenAnswers<T extends { isCorrect: boolean | null; aiFeedback: string; correctAnswerText?: string; correctRationale?: string | null; wrongOptionRationale?: string | null }>(items: T[]): T[] {
+  return items.map((item) => {
+    const { correctAnswerText, correctRationale, wrongOptionRationale, ...result } = item
+    void correctAnswerText
+    void correctRationale
+    void wrongOptionRationale
+    return {
+      ...result,
+      aiFeedback: item.isCorrect === true ? item.aiFeedback : HIDDEN_CORRECT_ANSWER_FEEDBACK,
+    } as T
+  })
+}
+
+async function hidePersistedProgramAnswerFeedback(attemptId: string) {
+  await db.programAnswer.updateMany({
+    where: { attemptId, OR: [{ isCorrect: false }, { isCorrect: null }] },
+    data: { aiFeedback: HIDDEN_CORRECT_ANSWER_FEEDBACK },
+  })
 }
 
 function resultMetadata(q: any) {
@@ -170,6 +194,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'اضغط أولاً زر «جاهز للامتحان» من بوابة الطالب قبل بدء الامتحان النهائي للفصل', code: 'EXAM_NOT_READY_MARKED' }, { status: 403 })
     }
 
+    const maxAttempts = await getExamMaxAttempts('PROGRAM')
+    const completedAttemptsBeforeSubmit = typeof db.programExamAttempt.count === 'function'
+      ? await db.programExamAttempt.count({ where: { userId: user.id, examId, status: { in: COMPLETED_PROGRAM_ATTEMPT_STATUSES }, createdAt: { gte: EXAM_ATTEMPT_POLICY_SINCE } } })
+      : 0
+
     const ragContext = await buildSupervisorContext(user.id).catch(() => '')
     const examAcademicContext = mergeContext(
       ragContext,
@@ -195,8 +224,14 @@ export async function POST(req: NextRequest) {
       where: { userId: user.id, examId, status: 'STARTED' },
       orderBy: { createdAt: 'desc' },
     })
+    if (!startedAttempt && completedAttemptsBeforeSubmit >= maxAttempts) {
+      return NextResponse.json({ error: 'استنفدت عدد محاولات هذا الاختبار', code: 'MAX_ATTEMPTS_REACHED', maxAttempts, attemptsUsed: completedAttemptsBeforeSubmit }, { status: 403 })
+    }
     if (!startedAttempt && expiredAttempt) return NextResponse.json({ error: 'انتهت المحاولة وحُسبت صفر — انتهى وقت هذه المحاولة', code: 'ATTEMPT_EXPIRED' }, { status: 409 })
     if (!startedAttempt?.startedAt) return NextResponse.json({ error: 'يجب فتح الاختبار أولاً قبل التسليم' }, { status: 400 })
+    if (completedAttemptsBeforeSubmit >= maxAttempts) {
+      return NextResponse.json({ error: 'استنفدت عدد محاولات هذا الاختبار', code: 'MAX_ATTEMPTS_REACHED', maxAttempts, attemptsUsed: completedAttemptsBeforeSubmit }, { status: 403 })
+    }
     const elapsedMs = Date.now() - startedAttempt.startedAt.getTime()
     const allowedMs = (exam.durationMin + 2) * 60 * 1000
     if (elapsedMs > allowedMs) {
@@ -393,6 +428,8 @@ export async function POST(req: NextRequest) {
         where: { id: attempt.id },
         data: { status: 'NEEDS_REVIEW', score: null, passed: null, feedback: JSON.stringify(reviewState), submittedAt: new Date() },
       })
+      const revealCorrectAnswers = shouldRevealCorrectAnswers({ passed: false, completedAttempts: completedAttemptsBeforeSubmit + 1, maxAttempts })
+      if (!revealCorrectAnswers) await hidePersistedProgramAnswerFeedback(attempt.id)
       return NextResponse.json({ ok: true, status: 'NEEDS_REVIEW', attemptId: attempt.id, message: 'تم حفظ المحاولة كاملة للمراجعة دون اعتماد نتيجة جزئية.', ...reviewState }, { status: 202 })
     }
 
@@ -439,6 +476,13 @@ export async function POST(req: NextRequest) {
     await db.examDraft.deleteMany({ where: { userId: user.id, examId, examType: 'PROGRAM' } }).catch(() => {})
 
     const completion = passed ? await completeEnrollmentIfEligible({ enrollmentId: enrollment.id }) : null
+    const completedAttempts = completedAttemptsBeforeSubmit + 1
+    const revealCorrectAnswers = shouldRevealCorrectAnswers({ passed, completedAttempts, maxAttempts })
+    if (!revealCorrectAnswers) await hidePersistedProgramAnswerFeedback(attempt.id)
+    const sortedResults = [...objectiveResults, ...essayResults, ...gradedEssayResults].sort((a, b) => a.order - b.order)
+    const results = revealCorrectAnswers
+      ? sortedResults
+      : sanitizeProgramResultsForHiddenAnswers(sortedResults)
 
     return NextResponse.json({
       ok: true,
@@ -453,7 +497,9 @@ export async function POST(req: NextRequest) {
       courseworkCapApplied: readiness.maxExamScore < 100,
       overall,
       certificateNo: completion?.ok ? completion.certificate?.serial || null : null,
-      results: [...objectiveResults, ...essayResults, ...gradedEssayResults].sort((a, b) => a.order - b.order),
+      maxAttempts,
+      attemptsUsed: completedAttempts,
+      results,
     })
     } catch (postCreateError: any) {
       const reviewState = { code: 'POST_SUBMIT_FAILURE', reason: String(postCreateError?.message || postCreateError).slice(0, 500) }

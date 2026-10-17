@@ -39,10 +39,14 @@ interface ExamData {
     programTitle: string
     totalPoints?: number
     durationMin?: number
+    startedAt?: string
+    maxAttempts?: number
+    attemptsUsed?: number
     booksCount?: number
     programCategory?: string
     books?: { id: string; title: string; author?: string | null }[]
   }
+  serverNow?: string
   questions: Question[]
   previousAttempts: {
     id: string
@@ -113,6 +117,7 @@ function examErrorMessage(error: ApiError) {
   if (error.code === 'SUBMITTED' || error.code === 'ATTEMPT_SUBMITTED') return 'محاولتك محفوظة وقيد التصحيح. سيتم توجيهك للنتائج.'
   if (error.code === 'ATTEMPT_EXPIRED' || error.code === 'UNIT_EXAM_EXPIRED') return 'انتهت المحاولة وحُسبت صفر'
   if (error.code === 'ATTEMPT_ALREADY_CLAIMED') return 'تم تسليم هذه المحاولة أو يجري تصحيحها بالفعل. سيتم توجيهك للنتائج.'
+  if (error.code === 'MAX_ATTEMPTS_REACHED') return 'استنفدت عدد محاولات هذا الاختبار'
   if (error.code === 'EXAM_HAS_NO_QUESTIONS') return 'هذا الاختبار غير جاهز للنشر لأنه لا يحتوي أسئلة منشورة صالحة بعد.'
   return error.message
 }
@@ -134,6 +139,8 @@ export function ExamView() {
   const draftLoadedRef = useRef(false)
   const lastDraftPayloadRef = useRef('')
   const submittedRef = useRef(false)
+  const serverOffsetMsRef = useRef(0)
+  const countdownRef = useRef<{ startedAtMs: number; durationMin: number } | null>(null)
 
   // ===== 12.2: المراقبة الإلكترونية الاختيارية (AI Proctoring) =====
   const [proctorConsent, setProctorConsent] = useState(false)
@@ -152,6 +159,29 @@ export function ExamView() {
   const [appealSent, setAppealSent] = useState(false)
   const [appealBusy, setAppealBusy] = useState(false)
 
+  const syncCountdown = useCallback(() => {
+    const countdown = countdownRef.current
+    if (!countdown) return
+    const serverNowMs = Date.now() + serverOffsetMsRef.current
+    const elapsedSec = Math.max(0, Math.floor((serverNowMs - countdown.startedAtMs) / 1000))
+    setSecondsLeft(Math.max(0, countdown.durationMin * 60 - elapsedSec))
+  }, [])
+
+  const configureCountdown = useCallback((startedAtValue: string | number | Date | null | undefined, durationMin?: number | null, serverNow?: string | null) => {
+    if (!startedAtValue || !durationMin) {
+      countdownRef.current = null
+      setSecondsLeft(null)
+      return
+    }
+    const parsedStartedAt = new Date(startedAtValue).getTime()
+    if (!Number.isFinite(parsedStartedAt)) return
+    const parsedServerNow = serverNow ? new Date(serverNow).getTime() : NaN
+    if (Number.isFinite(parsedServerNow)) serverOffsetMsRef.current = parsedServerNow - Date.now()
+    countdownRef.current = { startedAtMs: parsedStartedAt, durationMin }
+    setStartedAt(parsedStartedAt)
+    syncCountdown()
+  }, [syncCountdown])
+
   useEffect(() => {
     if (!activeExamId) return
     setLoading(true)
@@ -166,6 +196,8 @@ export function ExamView() {
     draftLoadedRef.current = false
     lastDraftPayloadRef.current = ''
     submittedRef.current = false
+    serverOffsetMsRef.current = 0
+    countdownRef.current = null
     // تصفير حالة المراقبة والاعتراض لكل امتحان جديد
     setProctorConsent(false)
     setProctorEnabled(false)
@@ -184,53 +216,61 @@ export function ExamView() {
     api<ExamData>(url)
       .then(async (d) => {
         setData(d)
+        if (activeExamKind !== 'final' && d.exam.startedAt && d.exam.durationMin) {
+          configureCountdown(d.exam.startedAt, d.exam.durationMin, d.serverNow)
+        }
         const examType = activeExamKind === 'final' ? 'PROGRAM' : 'UNIT'
+        const localKey = `aact-exam-draft:${examType}:${activeExamId}`
+        const restoreDraft = (draft: any, source: 'cloud' | 'local') => {
+          if (!draft?.answers?.length) return false
+          const nextMcq: Record<string, number> = {}
+          const nextEssay: Record<string, string> = {}
+          const questionIds = new Set(d.questions.map((qq) => qq.id))
+          for (const ans of draft.answers) {
+            if (!questionIds.has(ans.questionId)) continue
+            const qq = d.questions.find((x) => x.id === ans.questionId)
+            if (!qq) continue
+            if ((qq.type === 'MCQ' || qq.type === 'TF') && typeof ans.selectedOption === 'number') nextMcq[qq.id] = ans.selectedOption
+            if ((qq.type === 'SHORT' || qq.type === 'ESSAY') && typeof ans.answerText === 'string') nextEssay[qq.id] = ans.answerText
+          }
+          setMcqAnswers(nextMcq)
+          setEssayAnswers(nextEssay)
+          const restoredCurrent = Math.max(0, Math.min(Number(draft.current || 0), d.questions.length - 1))
+          setCurrent(restoredCurrent)
+          if (draft.startedAtMs && Number.isFinite(Number(draft.startedAtMs)) && !countdownRef.current) {
+            setStartedAt(Number(draft.startedAtMs))
+          }
+          const restoredPayload = JSON.stringify({
+            examId: d.exam.id,
+            examType,
+            current: restoredCurrent,
+            startedAtMs: String(draft.startedAtMs || (d.exam.startedAt ? new Date(d.exam.startedAt).getTime() : Date.now())),
+            answers: d.questions.map((qq) => ({
+              questionId: qq.id,
+              selectedOption: qq.type === 'MCQ' || qq.type === 'TF' ? nextMcq[qq.id] : undefined,
+              answerText: qq.type === 'SHORT' || qq.type === 'ESSAY' ? (nextEssay[qq.id] || '') : undefined,
+            })),
+          })
+          lastDraftPayloadRef.current = restoredPayload
+          setDraftUpdatedAt(source === 'cloud' ? (draft.updatedAt || null) : null)
+          setDraftStatus('saved')
+          if (source === 'cloud') toast({ title: 'تم استعادة مسودة الاختبار', description: 'أُعيدت إجاباتك المحفوظة سحابياً' })
+          return true
+        }
         try {
           const draftRes = await api<any>(`/api/exam-draft?examId=${activeExamId}&examType=${examType}`)
-          const draft = draftRes?.draft
-          if (draft?.answers?.length) {
-            const nextMcq: Record<string, number> = {}
-            const nextEssay: Record<string, string> = {}
-            const questionIds = new Set(d.questions.map((qq) => qq.id))
-            for (const ans of draft.answers) {
-              if (!questionIds.has(ans.questionId)) continue
-              const qq = d.questions.find((x) => x.id === ans.questionId)
-              if (!qq) continue
-              if ((qq.type === 'MCQ' || qq.type === 'TF') && typeof ans.selectedOption === 'number') nextMcq[qq.id] = ans.selectedOption
-              if ((qq.type === 'SHORT' || qq.type === 'ESSAY') && typeof ans.answerText === 'string') nextEssay[qq.id] = ans.answerText
-            }
-            setMcqAnswers(nextMcq)
-            setEssayAnswers(nextEssay)
-            setCurrent(Math.max(0, Math.min(Number(draft.current || 0), d.questions.length - 1)))
-            if (draft.startedAtMs && Number.isFinite(Number(draft.startedAtMs))) {
-              const restoredStartedAt = Number(draft.startedAtMs)
-              setStartedAt(restoredStartedAt)
-              if (activeExamKind === 'final' && d.exam.durationMin) {
-                const elapsedSec = Math.max(0, Math.floor((Date.now() - restoredStartedAt) / 1000))
-                setSecondsLeft(Math.max(0, d.exam.durationMin * 60 - elapsedSec))
-                setExamStarted(true)
-              }
-            }
-            const restoredPayload = JSON.stringify({
-              examId: d.exam.id,
-              examType,
-              current: Math.max(0, Math.min(Number(draft.current || 0), d.questions.length - 1)),
-              startedAtMs: String(draft.startedAtMs || startedAt),
-              answers: d.questions.map((qq) => ({
-                questionId: qq.id,
-                selectedOption: qq.type === 'MCQ' || qq.type === 'TF' ? nextMcq[qq.id] : undefined,
-                answerText: qq.type === 'SHORT' || qq.type === 'ESSAY' ? (nextEssay[qq.id] || '') : undefined,
-              })),
-            })
-            lastDraftPayloadRef.current = restoredPayload
-            setDraftUpdatedAt(draft.updatedAt || null)
-            setDraftStatus('saved')
-            toast({ title: 'تم استعادة مسودة الاختبار', description: 'أُعيدت إجاباتك المحفوظة سحابياً' })
-          } else {
-            setDraftStatus('idle')
+          const restored = restoreDraft(draftRes?.draft, 'cloud')
+          if (!restored) {
+            const localDraft = JSON.parse(window.localStorage.getItem(localKey) || 'null')
+            setDraftStatus(restoreDraft(localDraft, 'local') ? 'saved' : 'idle')
           }
         } catch {
-          setDraftStatus('error')
+          try {
+            const localDraft = JSON.parse(window.localStorage.getItem(localKey) || 'null')
+            setDraftStatus(restoreDraft(localDraft, 'local') ? 'saved' : 'error')
+          } catch {
+            setDraftStatus('error')
+          }
         } finally {
           draftLoadedRef.current = true
         }
@@ -239,14 +279,14 @@ export function ExamView() {
         const message = examErrorMessage(e)
         toast({ title: 'تنبيه الاختبار', description: message, variant: 'destructive' })
         if (e.status === 402 || e.code === 'PENDING_PAYMENT' || e.code === 'ENROLLMENT_NOT_ACTIVE') navigate('dashboard', { programId: String(e.data?.programId || ''), tab: 'payments' })
-        else if ((e.status === 403 || e.status === 409) && ['ALREADY_PASSED', 'PASSED_ALREADY', 'SUBMITTED', 'ATTEMPT_SUBMITTED', 'ATTEMPT_EXPIRED', 'UNIT_EXAM_EXPIRED', 'ATTEMPT_ALREADY_CLAIMED', 'EXAM_HAS_NO_QUESTIONS'].includes(String(e.code || ''))) {
+        else if ((e.status === 403 || e.status === 409) && ['ALREADY_PASSED', 'PASSED_ALREADY', 'SUBMITTED', 'ATTEMPT_SUBMITTED', 'ATTEMPT_EXPIRED', 'UNIT_EXAM_EXPIRED', 'ATTEMPT_ALREADY_CLAIMED', 'MAX_ATTEMPTS_REACHED', 'EXAM_HAS_NO_QUESTIONS'].includes(String(e.code || ''))) {
           submittedRef.current = true
           setSecondsLeft(null)
           navigate('dashboard', { programId: String(e.data?.programId || ''), tab: 'results' })
         }
       })
       .finally(() => setLoading(false))
-  }, [activeExamId, activeExamKind])
+  }, [activeExamId, activeExamKind, configureCountdown, navigate, toast])
 
   const answeredCount = useMemo(() => {
     if (!data) return 0
@@ -273,29 +313,40 @@ export function ExamView() {
     if (!hasAnyAnswer) return
 
     const examType = activeExamKind === 'final' ? 'PROGRAM' : 'UNIT'
-    const payload = JSON.stringify({
+    const draftPayload = {
       examId: data.exam.id,
       examType,
       current,
       startedAtMs: String(startedAt),
       answers: draftAnswers,
-    })
+    }
+    const payload = JSON.stringify(draftPayload)
     if (payload === lastDraftPayloadRef.current) return
+
+    try {
+      window.localStorage.setItem(`aact-exam-draft:${examType}:${data.exam.id}`, JSON.stringify({ ...draftPayload, updatedAt: draftUpdatedAt || new Date().toISOString() }))
+    } catch (error) {
+      console.warn('Failed to save local exam draft backup.', error)
+    }
 
     setDraftStatus('saving')
     const t = window.setTimeout(async () => {
       try {
-        const saved = await api<any>('/api/exam-draft', { method: 'POST', body: payload })
+        const saved = await api<any>('/api/exam-draft', { method: 'POST', body: JSON.stringify({ ...draftPayload, expectedUpdatedAt: draftUpdatedAt }) })
         lastDraftPayloadRef.current = payload
         setDraftUpdatedAt(saved?.updatedAt || new Date().toISOString())
         setDraftStatus('saved')
-      } catch {
+      } catch (error: any) {
+        if (error?.code === 'DRAFT_CONFLICT') {
+          setDraftStatus('error')
+          return
+        }
         setDraftStatus('error')
       }
     }, 1800)
 
     return () => window.clearTimeout(t)
-  }, [data, result, submitting, activeExamKind, examStarted, answeredCount, draftAnswers, current, startedAt])
+  }, [data, result, submitting, activeExamKind, examStarted, answeredCount, draftAnswers, current, startedAt, draftUpdatedAt])
 
   const submit = useCallback(
     async (auto: boolean = false) => {
@@ -329,7 +380,7 @@ export function ExamView() {
           selectedOption: q.type === 'MCQ' || q.type === 'TF' ? mcqAnswers[q.id] : undefined,
           answerText: q.type === 'SHORT' || q.type === 'ESSAY' ? (essayAnswers[q.id] || '') : undefined,
         }))
-        const durationUsedMin = Math.max(1, Math.round((Date.now() - startedAt) / 60000))
+        const durationUsedMin = Math.max(1, Math.round(((Date.now() + serverOffsetMsRef.current) - startedAt) / 60000))
         const isFinal = activeExamKind === 'final'
         const d = await api<any>(
           isFinal ? '/api/program-exam/submit' : '/api/exam/submit',
@@ -350,6 +401,7 @@ export function ExamView() {
         setSecondsLeft(null)
         const examType = isFinal ? 'PROGRAM' : 'UNIT'
         api(`/api/exam-draft?examId=${data.exam.id}&examType=${examType}`, { method: 'DELETE' }).catch((error) => { console.warn('Failed to delete submitted exam draft.', error) })
+        try { window.localStorage.removeItem(`aact-exam-draft:${examType}:${data.exam.id}`) } catch (error) { console.warn('Failed to clear local exam draft backup.', error) }
         setDraftStatus('idle')
         setDraftUpdatedAt(null)
         if (d?.status === 'NEEDS_REVIEW') {
@@ -363,7 +415,7 @@ export function ExamView() {
         window.scrollTo({ top: 0, behavior: 'smooth' })
       } catch (e: any) {
         const err = e as ApiError
-        if ((err.status === 409 || err.status === 403) && ['ATTEMPT_EXPIRED', 'UNIT_EXAM_EXPIRED', 'ATTEMPT_ALREADY_CLAIMED', 'SUBMITTED', 'ATTEMPT_SUBMITTED', 'PASSED_ALREADY', 'ALREADY_PASSED', 'EXAM_HAS_NO_QUESTIONS'].includes(String(err.code || ''))) {
+        if ((err.status === 409 || err.status === 403) && ['ATTEMPT_EXPIRED', 'UNIT_EXAM_EXPIRED', 'ATTEMPT_ALREADY_CLAIMED', 'SUBMITTED', 'ATTEMPT_SUBMITTED', 'PASSED_ALREADY', 'ALREADY_PASSED', 'MAX_ATTEMPTS_REACHED', 'EXAM_HAS_NO_QUESTIONS'].includes(String(err.code || ''))) {
           submittedRef.current = true
           setSecondsLeft(null)
           setSubmitting(false)
@@ -388,25 +440,44 @@ export function ExamView() {
       submit(true)
       return
     }
-    const t = setTimeout(() => setSecondsLeft((s) => (s !== null ? s - 1 : null)), 1000)
-    return () => clearTimeout(t)
-  }, [secondsLeft, result, submitting, submit])
+    const tick = () => syncCountdown()
+    const t = window.setInterval(tick, 1000)
+    document.addEventListener('visibilitychange', tick)
+    return () => {
+      window.clearInterval(t)
+      document.removeEventListener('visibilitychange', tick)
+    }
+  }, [secondsLeft, result, submitting, submit, syncCountdown])
 
   // ===== 12.2: بدء الامتحان (بعد شاشة الموافقة على المراقبة) =====
   const startExam = async () => {
+    if (!data) return
     const enable = activeExamKind === 'final' && proctorConsent
-    setProctorEnabled(enable)
-    setExamStarted(true)
-    setStartedAt(Date.now())
-    if (data?.exam.durationMin) setSecondsLeft(data.exam.durationMin * 60)
+    let stream: MediaStream | null = null
     if (enable) {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-        proctorStreamRef.current = stream
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+      } catch {
+        toast({ title: 'تعذر تشغيل الكاميرا', description: 'ألغِ خيار المراقبة أو اسمح للكاميرا ثم ابدأ الامتحان.', variant: 'destructive' })
+        return
+      }
+    }
+
+    try {
+      const started = await api<any>('/api/program-exam/start', {
+        method: 'POST',
+        body: JSON.stringify({ examId: data.exam.id, proctoringRequested: enable }),
+      })
+      configureCountdown(started?.attempt?.startedAt, started?.durationMin || data.exam.durationMin, started?.serverNow)
+      setProctorEnabled(enable)
+      setExamStarted(true)
+      if (stream) {
+        const activeStream = stream
+        proctorStreamRef.current = activeStream
         setProctorActive(true)
         setTimeout(() => {
           if (proctorVideoRef.current) {
-            proctorVideoRef.current.srcObject = stream
+            proctorVideoRef.current.srcObject = activeStream
             proctorVideoRef.current.play().catch((error) => { console.warn('Failed to start proctoring video playback.', error) })
             // لقطة أولى لتوثيق هوية الممتحن
             try {
@@ -423,8 +494,13 @@ export function ExamView() {
             }
           }
         }, 300)
-      } catch {
-        toast({ title: 'تعذر تشغيل الكاميرا', description: 'سيمرّ الامتحان بمراقبة تبديل النوافذ فقط', variant: 'destructive' })
+      }
+    } catch (e: any) {
+      stream?.getTracks().forEach((track) => track.stop())
+      const err = e as ApiError
+      toast({ title: 'تنبيه الاختبار', description: examErrorMessage(err), variant: 'destructive' })
+      if ((err.status === 403 || err.status === 409) && ['ALREADY_PASSED', 'PASSED_ALREADY', 'SUBMITTED', 'ATTEMPT_SUBMITTED', 'ATTEMPT_EXPIRED', 'MAX_ATTEMPTS_REACHED'].includes(String(err.code || ''))) {
+        navigate('dashboard', { programId: data.exam.programId, tab: 'results' })
       }
     }
   }
