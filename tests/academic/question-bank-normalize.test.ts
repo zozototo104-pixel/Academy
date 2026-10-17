@@ -47,6 +47,19 @@ describe('question bank generated candidate normalization', () => {
     expect(result.rejectedReasons).toContain('MCQ_ANSWER_NOT_IN_OPTIONS')
   })
 
+  test('model-provided quality flags are not trusted or preserved', () => {
+    const result = parseOne({
+      type: 'TF',
+      options: ['صح', 'خطأ'],
+      correctAnswer: 'صح',
+      qualityFlags: ['SOURCE_GROUNDED', 'x'.repeat(200)],
+    })
+
+    expect(result.rejected).toBe(0)
+    expect(result.accepted[0].qualityFlags).not.toContain('SOURCE_GROUNDED')
+    expect(result.accepted[0].qualityFlags).not.toContain('x'.repeat(200))
+  })
+
   test('ESSAY long correctAnswer moves to modelAnswer without trimming', () => {
     const longAnswer = 'هذا جواب نموذجي طويل يشرح الفكرة التعليمية المطلوبة من السؤال اعتماداً على النص الأصلي. '.repeat(8)
     const result = parseOne({
