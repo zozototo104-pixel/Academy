@@ -85,6 +85,7 @@ function normalizeTfCorrectAnswer(value: unknown, options: unknown): unknown {
 function normalizeCandidate(candidate: unknown): unknown {
   if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return candidate
   const q: Record<string, unknown> = { ...(candidate as Record<string, unknown>) }
+  const qualityFlags = new Set<string>(Array.isArray(q.qualityFlags) ? q.qualityFlags.filter((flag: unknown): flag is string => typeof flag === 'string') : [])
   const type = String(q.type || '').trim().toLowerCase()
   const aliases: Record<string, string> = { essay: 'ESSAY', 'مقالي': 'ESSAY', short_answer: 'SHORT', 'قصير': 'SHORT', true_false: 'TF', 'صح وخطأ': 'TF', 'صح/خطأ': 'TF', multiple_choice: 'MCQ', 'اختيار من متعدد': 'MCQ' }
   q.type = aliases[type] || type.toUpperCase()
@@ -97,8 +98,32 @@ function normalizeCandidate(candidate: unknown): unknown {
     if (q[key] == null) q[key] = key === 'options' && q.type === 'TF' ? ['صح', 'خطأ'] : []
     else if (Array.isArray(q[key])) q[key] = q[key].map((v: unknown) => typeof v === 'string' ? v.trim() : v)
   }
+  if (q.type === 'TF' && (!Array.isArray(q.options) || q.options.length < 2)) {
+    q.options = ['صح', 'خطأ']
+    qualityFlags.add('NORMALIZED_TF_OPTIONS')
+  }
   if (typeof q.correctAnswer === 'number') q.correctAnswer = String(q.correctAnswer)
-  if (q.type === 'TF' && q.correctAnswer != null) q.correctAnswer = normalizeTfCorrectAnswer(q.correctAnswer, q.options)
+  if (q.type === 'TF' && q.correctAnswer != null) {
+    const normalizedTf = normalizeTfCorrectAnswer(q.correctAnswer, q.options)
+    if (normalizedTf === 'صح') q.correctAnswer = '0'
+    else if (normalizedTf === 'خطأ') q.correctAnswer = '1'
+    else q.correctAnswer = normalizedTf
+  }
+  if (q.type === 'MCQ' && typeof q.correctAnswer === 'string') {
+    const answerText = q.correctAnswer.trim()
+    const letterIndex: Record<string, number> = { 'أ': 0, 'ا': 0, 'ب': 1, 'ج': 2, 'د': 3, 'هـ': 4, 'ه': 4, A: 0, a: 0, B: 1, b: 1, C: 2, c: 2, D: 3, d: 3, E: 4, e: 4 }
+    const idx = letterIndex[answerText]
+    if ((answerText.length === 1 || answerText === 'هـ') && typeof idx === 'number' && Array.isArray(q.options) && idx < q.options.length) {
+      q.correctAnswer = String(idx)
+      qualityFlags.add('NORMALIZED_MCQ_LETTER')
+    }
+  }
+  if ((q.type === 'SHORT' || q.type === 'ESSAY') && typeof q.correctAnswer === 'string' && q.correctAnswer.trim() && !String(q.modelAnswer || '').trim()) {
+    q.modelAnswer = q.correctAnswer
+    q.correctAnswer = null
+    qualityFlags.add('MOVED_ESSAY_ANSWER')
+  }
+  q.qualityFlags = Array.from(qualityFlags)
   return q
 }
 
