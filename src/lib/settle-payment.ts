@@ -179,6 +179,7 @@ export async function markInvoicePaid(
   const payment = await db.payment.findUnique({ where: { invoiceNo } })
   if (!payment) return { ok: false, error: 'الفاتورة غير موجودة' }
   if (payment.status === 'PAID') return { ok: true, payment, receiptNo: payment.receiptNo || '' }
+  if (payment.status === 'WAIVED') return { ok: false, error: 'لا يمكن تحويل فاتورة معفاة إلى مدفوعة. ألغِ الإعفاء أولاً إذا أردت إعادة فتح الفاتورة.' }
 
   const receiptNo = await nextReceiptNo()
   const paidAt = new Date()
