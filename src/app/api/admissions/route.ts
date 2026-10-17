@@ -586,7 +586,7 @@ export async function GET(req: NextRequest) {
       theses: app.theses || [],
       nextAction: app.status === 'DOCUMENTS_NEED_REPLACEMENT'
         ? 'راجعت الإدارة مرفقاتك وتحتاج إلى استبدال بعض المستندات. ارفع المرفقات المطلوبة من نفس صفحة التتبع ثم أعد إرسالها للمراجعة.'
-        : app.status === 'UPLOADING_DOCUMENTS'
+        : app.status === 'UPLOADING_DOCUMENTS' || app.status === 'STAGED'
           ? 'أكمل رفع ملفاتك ثم أرسل الطلب للمراجعة.'
           : !isStudyProgram && serviceWorkflow
             ? serviceWorkflow.clientNextAction
