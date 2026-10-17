@@ -107,6 +107,7 @@ export async function GET(req: NextRequest) {
           credentialType: true,
           trademarkNotice: true,
           disclosureConsentText: true,
+          registrationStatus: true,
           admissionRules: true,
         },
       })
