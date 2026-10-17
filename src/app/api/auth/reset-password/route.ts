@@ -19,18 +19,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'رابط إعادة تعيين كلمة المرور غير صالح أو انتهت صلاحيته' }, { status: 400 })
     }
 
-    await db.$transaction([
-      db.user.update({
-        where: { id: user.id },
+    const updated = await db.$transaction(async (tx) => {
+      const changed = await tx.user.updateMany({
+        where: { id: user.id, passwordResetTokenHash: tokenHash, passwordResetUsedAt: null, passwordResetExpiresAt: { gt: new Date() }, status: 'ACTIVE' },
         data: {
           password: hashPassword(password),
           passwordResetUsedAt: new Date(),
           passwordResetTokenHash: null,
           passwordResetExpiresAt: null,
         },
-      }),
-      db.session.deleteMany({ where: { userId: user.id } }),
-    ])
+      })
+      if (changed.count !== 1) return false
+      await tx.session.deleteMany({ where: { userId: user.id } })
+      return true
+    })
+    if (!updated) {
+      return NextResponse.json({ error: 'رابط إعادة تعيين كلمة المرور غير صالح أو انتهت صلاحيته' }, { status: 400 })
+    }
 
     return NextResponse.json({ ok: true, message: 'تم تحديث كلمة المرور. سجّل الدخول بكلمة المرور الجديدة.' })
   } catch (error) {
