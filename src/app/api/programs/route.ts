@@ -56,6 +56,7 @@ function buildCatalogVersion(programs: any[]) {
       p.credentialType,
       p.trademarkNotice,
       p.disclosureConsentText,
+      p.registrationStatus,
       JSON.stringify(p.admissionRules || null),
     ].join('|'))
     .sort()
