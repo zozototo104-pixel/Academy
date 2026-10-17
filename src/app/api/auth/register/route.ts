@@ -62,8 +62,11 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       )
     }
-    const phoneError = validatePhone(phone)
-    if (phoneError) return NextResponse.json({ error: phoneError }, { status: 400 })
+    const phoneValue = typeof phone === 'string' && phone.trim() ? phone.trim() : null
+    if (phoneValue) {
+      const phoneError = validatePhone(phoneValue)
+      if (phoneError) return NextResponse.json({ error: phoneError }, { status: 400 })
+    }
 
     const emailNorm = email.trim().toLowerCase()
     const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
