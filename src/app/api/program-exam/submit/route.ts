@@ -62,6 +62,23 @@ function buildObjectiveFeedback(q: any, isCorrect: boolean, options: string[], s
   return `إجابة غير صحيحة. الإجابة الصحيحة: «${correctText}».${correctWhy}${wrongWhy ? ` سبب خطأ اختيارك: ${wrongWhy}` : ''}${sourceBits ? ` ${sourceBits}.` : ''}`.trim()
 }
 
+function sanitizeProgramResultsForHiddenAnswers<T extends { isCorrect: boolean | null; aiFeedback: string; correctAnswerText?: string; correctRationale?: string | null; wrongOptionRationale?: string | null }>(items: T[]): T[] {
+  return items.map((item) => {
+    const { correctAnswerText: _correctAnswerText, correctRationale: _correctRationale, wrongOptionRationale: _wrongOptionRationale, ...rest } = item
+    return {
+      ...rest,
+      aiFeedback: item.isCorrect === true ? item.aiFeedback : HIDDEN_CORRECT_ANSWER_FEEDBACK,
+    } as T
+  })
+}
+
+async function hidePersistedProgramAnswerFeedback(attemptId: string) {
+  await db.programAnswer.updateMany({
+    where: { attemptId, OR: [{ isCorrect: false }, { isCorrect: null }] },
+    data: { aiFeedback: HIDDEN_CORRECT_ANSWER_FEEDBACK },
+  })
+}
+
 function resultMetadata(q: any) {
   return {
     sourceBookTitle: q.sourceBookTitle || null,
