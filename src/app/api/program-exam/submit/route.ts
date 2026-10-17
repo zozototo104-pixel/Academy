@@ -173,6 +173,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'اضغط أولاً زر «جاهز للامتحان» من بوابة الطالب قبل بدء الامتحان النهائي للفصل', code: 'EXAM_NOT_READY_MARKED' }, { status: 403 })
     }
 
+    const maxAttempts = await getExamMaxAttempts('PROGRAM')
+    const completedAttemptsBeforeSubmit = await db.programExamAttempt.count({
+      where: { userId: user.id, examId, status: { in: COMPLETED_PROGRAM_ATTEMPT_STATUSES } },
+    })
+
     const ragContext = await buildSupervisorContext(user.id).catch(() => '')
     const examAcademicContext = mergeContext(
       ragContext,
