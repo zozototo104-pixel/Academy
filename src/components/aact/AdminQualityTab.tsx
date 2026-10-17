@@ -220,6 +220,27 @@ interface StorageSafetyReport {
   }
 }
 
+type ExamGenerationValues = {
+  count: string
+  easy: string
+  medium: string
+  advanced: string
+  mcq: string
+  tf: string
+  short: string
+  essay: string
+  unitId: string
+}
+
+type ExamGenerationDialogState = {
+  program: ProgramReadinessItem
+  semester: number
+  values: ExamGenerationValues
+  units: { id: string; title: string }[]
+  loadingUnits: boolean
+  submitting: boolean
+}
+
 interface ProgramReadinessItem {
   id: string
   titleAr: string
