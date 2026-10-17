@@ -243,6 +243,8 @@ export async function nextInvoiceNo(): Promise<string> {
   throw new Error('INVOICE_SEQUENCE_EXHAUSTED')
 }
 
+// nextInvoiceNo يولد المرشح، أما سباق P2002 فلا يظهر إلا عند create.
+// لذلك أي إنشاء فاتورة جديد يجب أن يمر عبر هذا helper ليعيد المحاولة حتى 5 مرات.
 export async function createPaymentWithInvoiceNo(data: Record<string, any>, client: any = db, maxAttempts = 5) {
   let lastError: any = null
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
