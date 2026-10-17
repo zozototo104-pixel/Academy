@@ -11,13 +11,14 @@ const commonQuestionFields = {
   sourceIndex: z.number().int().positive(),
   correctRationale: z.string().min(4).max(1000).optional(),
   distractorRationales: z.array(z.string().max(500)).max(6).default([]),
+  qualityFlags: z.array(z.string().max(120)).max(20).default([]),
 }
 const optionSchema = z.string().min(1).max(260)
 const generatedQuestionSchema = z.discriminatedUnion('type', [
   z.object({ ...commonQuestionFields, type: z.literal('MCQ'), options: z.array(optionSchema).min(3).max(6), correctAnswer: z.string().min(1).max(260), modelAnswer: z.string().max(1800).optional() }),
   z.object({ ...commonQuestionFields, type: z.literal('TF'), options: z.array(optionSchema).length(2), correctAnswer: z.enum(['صح', 'خطأ', '0', '1']), modelAnswer: z.string().max(1800).optional() }),
-  z.object({ ...commonQuestionFields, type: z.literal('SHORT'), options: z.array(optionSchema).default([]), correctAnswer: z.string().max(260).optional(), modelAnswer: z.string().min(2).max(1800), rubric: z.unknown().optional() }),
-  z.object({ ...commonQuestionFields, type: z.literal('ESSAY'), options: z.array(optionSchema).default([]), correctAnswer: z.string().max(260).optional(), modelAnswer: z.string().min(40).max(1800), rubric: z.unknown().optional() }),
+  z.object({ ...commonQuestionFields, type: z.literal('SHORT'), options: z.array(optionSchema).default([]), correctAnswer: z.string().max(260).nullable().optional(), modelAnswer: z.string().min(2).max(1800), rubric: z.unknown().optional() }),
+  z.object({ ...commonQuestionFields, type: z.literal('ESSAY'), options: z.array(optionSchema).default([]), correctAnswer: z.string().max(260).nullable().optional(), modelAnswer: z.string().min(40).max(1800), rubric: z.unknown().optional() }),
 ]).superRefine((q, ctx) => {
   if (q.type !== 'MCQ') return
   const normalizedOptions = q.options.map((option) => option.replace(/\s+/g, ' ').trim())
@@ -64,8 +65,8 @@ function normalizeCognitiveSkill(value: unknown): z.infer<typeof cognitiveSkillS
 
 function normalizeTfAnswerText(value: unknown): 'صح' | 'خطأ' | null {
   const normalized = normalizeArabicText(value)
-  if (['صح', 'صحيح', 'true', 'yes', 'y'].includes(normalized)) return 'صح'
-  if (['خطا', 'خطأ', 'غير صحيح', 'false', 'no', 'n'].includes(normalized)) return 'خطأ'
+  if (['صح', 'صحيح', 'true', 'yes', 'y', 'ا'].includes(normalized)) return 'صح'
+  if (['خطا', 'خطأ', 'غير صحيح', 'false', 'no', 'n', 'ب'].includes(normalized)) return 'خطأ'
   return null
 }
 
@@ -84,6 +85,7 @@ function normalizeTfCorrectAnswer(value: unknown, options: unknown): unknown {
 function normalizeCandidate(candidate: unknown): unknown {
   if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return candidate
   const q: Record<string, unknown> = { ...(candidate as Record<string, unknown>) }
+  const qualityFlags = new Set<string>()
   const type = String(q.type || '').trim().toLowerCase()
   const aliases: Record<string, string> = { essay: 'ESSAY', 'مقالي': 'ESSAY', short_answer: 'SHORT', 'قصير': 'SHORT', true_false: 'TF', 'صح وخطأ': 'TF', 'صح/خطأ': 'TF', multiple_choice: 'MCQ', 'اختيار من متعدد': 'MCQ' }
   q.type = aliases[type] || type.toUpperCase()
@@ -96,8 +98,27 @@ function normalizeCandidate(candidate: unknown): unknown {
     if (q[key] == null) q[key] = key === 'options' && q.type === 'TF' ? ['صح', 'خطأ'] : []
     else if (Array.isArray(q[key])) q[key] = q[key].map((v: unknown) => typeof v === 'string' ? v.trim() : v)
   }
+  if (q.type === 'TF' && (!Array.isArray(q.options) || q.options.length < 2)) {
+    q.options = ['صح', 'خطأ']
+    qualityFlags.add('NORMALIZED_TF_OPTIONS')
+  }
   if (typeof q.correctAnswer === 'number') q.correctAnswer = String(q.correctAnswer)
   if (q.type === 'TF' && q.correctAnswer != null) q.correctAnswer = normalizeTfCorrectAnswer(q.correctAnswer, q.options)
+  if (q.type === 'MCQ' && typeof q.correctAnswer === 'string') {
+    const answerText = q.correctAnswer.trim()
+    const letterIndex: Record<string, number> = { 'أ': 0, 'ا': 0, 'ب': 1, 'ج': 2, 'د': 3, 'هـ': 4, 'ه': 4, A: 0, a: 0, B: 1, b: 1, C: 2, c: 2, D: 3, d: 3, E: 4, e: 4 }
+    const idx = letterIndex[answerText]
+    if ((answerText.length === 1 || answerText === 'هـ') && typeof idx === 'number' && Array.isArray(q.options) && idx < q.options.length) {
+      q.correctAnswer = String(idx)
+      qualityFlags.add('NORMALIZED_MCQ_LETTER')
+    }
+  }
+  if ((q.type === 'SHORT' || q.type === 'ESSAY') && typeof q.correctAnswer === 'string' && q.correctAnswer.trim() && !String(q.modelAnswer || '').trim()) {
+    q.modelAnswer = q.correctAnswer
+    q.correctAnswer = null
+    qualityFlags.add('MOVED_ESSAY_ANSWER')
+  }
+  q.qualityFlags = Array.from(qualityFlags)
   return q
 }
 
