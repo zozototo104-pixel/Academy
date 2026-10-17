@@ -44,6 +44,10 @@ export function isLiveMinutesExhausted(error: { code?: string; status?: number }
   return error?.status === 402 || error?.code === 'LIVE_MINUTES_EXHAUSTED'
 }
 
+export function isLiveAccessDenied(error: { code?: string; status?: number } | null | undefined): boolean {
+  return error?.status === 403 && (error?.code === 'AI_SUPERVISOR_LOCKED' || error?.code === 'DEFENSE_NOT_SCHEDULED')
+}
+
 function getToken(): string {
   try { return localStorage.getItem('aact_token') || '' } catch { return '' }
 }
