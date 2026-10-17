@@ -662,6 +662,8 @@ interface PaymentProofRow {
   status: string
   note?: string | null
   adminNote?: string | null
+  declaredAmount?: number | null
+  declaredAmountCents?: number | null
   fileName: string
   mimeType: string
   fileSize: number
