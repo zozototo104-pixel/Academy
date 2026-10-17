@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { parseGeneratedQuestionCandidates } from '@/lib/question-bank-generation'
-import { validateQuestionBatchAgainstKnowledge } from '@/lib/question-bank-evidence'
+import { parseGeneratedQuestionCandidates } from '../../src/lib/question-bank-generation'
+import { validateQuestionBatchAgainstKnowledge } from '../../src/lib/question-bank-evidence'
 
 const base = {
   text: 'ما الفكرة التعليمية الأساسية التي يوضحها هذا السؤال وفق المصدر؟',
