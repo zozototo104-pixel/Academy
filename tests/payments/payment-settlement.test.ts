@@ -34,6 +34,7 @@ function paymentMatches(payment: Record<string, any>, where: Record<string, any>
   if (where.id && payment.id !== where.id) return false
   if (where.invoiceNo && payment.invoiceNo !== where.invoiceNo) return false
   if (where.admissionId && payment.admissionId !== where.admissionId) return false
+  if (typeof where.status === 'string' && payment.status !== where.status) return false
   if (where.status?.not && payment.status === where.status.not) return false
   if (where.status?.notIn && where.status.notIn.includes(payment.status)) return false
   if (where.purpose?.in && !where.purpose.in.includes(payment.purpose)) return false
