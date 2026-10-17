@@ -172,6 +172,24 @@ describe('Gemini Live raw setup shape', () => {
 })
 
 describe('Gemini Live key rotation uses the text AI router state', () => {
+  test('student without supervisor AI access receives 403 before minutes are reserved', async () => {
+    supervisorAccessLocked = true
+    configureGeminiKeys('AIzaGOOD2222')
+    mockTokenFetch(() => ({ status: 200, body: { name: 'live-token' } }))
+
+    const response = await POST(new NextRequest('http://localhost/api/ai/gemini-live/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ purpose: 'SUPERVISOR', model: 'gemini-3.1-flash-live-preview' }),
+    }))
+    const payload = await response.json()
+
+    expect(response.status).toBe(403)
+    expect(payload).toEqual({ error: 'المشرف الذكي غير متاح لهذا الطالب حالياً', code: 'AI_SUPERVISOR_LOCKED' })
+    expect(fetchKeys).toEqual([])
+    expect(reserveUsageCalls).toBe(0)
+  })
+
   test('key 1 returns 403 and key 2 succeeds, while key 1 receives router cooldown', async () => {
     configureGeminiKeys('AIzaBAD1111', 'AIzaGOOD2222')
     mockTokenFetch((key) => key === 'AIzaBAD1111'
