@@ -53,7 +53,11 @@ export async function PUT(req: NextRequest) {
       if (inputType !== 'textarea') v = v.trim()
       if (inputType === 'number') {
         if (v === '' || isNaN(parseFloat(v))) continue
-        v = String(parseFloat(v))
+        const numericValue = parseFloat(v)
+        if (key.startsWith('FEE_') && numericValue <= 0) {
+          return NextResponse.json({ error: `قيمة ${def.label} يجب أن تكون أكبر من صفر` }, { status: 400 })
+        }
+        v = String(numericValue)
       }
       if (inputType === 'json') {
         try {
