@@ -216,6 +216,19 @@ function serializeExistingInvoice(payment: any) {
   } : null
 }
 
+async function createApplicationFeeInvoiceWithRetry(data: any) {
+  let lastError: any = null
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try {
+      return await db.payment.create({ data: { ...data, invoiceNo: await nextInvoiceNo() } })
+    } catch (error: any) {
+      lastError = error
+      if (error?.code !== 'P2002' || attempt === 5) throw error
+    }
+  }
+  throw lastError || new Error('INVOICE_CREATE_FAILED')
+}
+
 // POST /api/admissions — تقديم طلب التحاق أو طلب خدمة مهنية (multipart/form-data)
 export async function POST(req: NextRequest) {
   return withTimedResponse(async () => {
