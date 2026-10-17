@@ -313,29 +313,40 @@ export function ExamView() {
     if (!hasAnyAnswer) return
 
     const examType = activeExamKind === 'final' ? 'PROGRAM' : 'UNIT'
-    const payload = JSON.stringify({
+    const draftPayload = {
       examId: data.exam.id,
       examType,
       current,
       startedAtMs: String(startedAt),
       answers: draftAnswers,
-    })
+    }
+    const payload = JSON.stringify(draftPayload)
     if (payload === lastDraftPayloadRef.current) return
+
+    try {
+      window.localStorage.setItem(`aact-exam-draft:${examType}:${data.exam.id}`, JSON.stringify({ ...draftPayload, updatedAt: draftUpdatedAt || new Date().toISOString() }))
+    } catch (error) {
+      console.warn('Failed to save local exam draft backup.', error)
+    }
 
     setDraftStatus('saving')
     const t = window.setTimeout(async () => {
       try {
-        const saved = await api<any>('/api/exam-draft', { method: 'POST', body: payload })
+        const saved = await api<any>('/api/exam-draft', { method: 'POST', body: JSON.stringify({ ...draftPayload, expectedUpdatedAt: draftUpdatedAt }) })
         lastDraftPayloadRef.current = payload
         setDraftUpdatedAt(saved?.updatedAt || new Date().toISOString())
         setDraftStatus('saved')
-      } catch {
+      } catch (error: any) {
+        if (error?.code === 'DRAFT_CONFLICT') {
+          setDraftStatus('error')
+          return
+        }
         setDraftStatus('error')
       }
     }, 1800)
 
     return () => window.clearTimeout(t)
-  }, [data, result, submitting, activeExamKind, examStarted, answeredCount, draftAnswers, current, startedAt])
+  }, [data, result, submitting, activeExamKind, examStarted, answeredCount, draftAnswers, current, startedAt, draftUpdatedAt])
 
   const submit = useCallback(
     async (auto: boolean = false) => {
