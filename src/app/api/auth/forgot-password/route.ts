@@ -4,8 +4,8 @@ import { checkDatabaseRateLimit, clientIpFromHeaders, rateLimitHeaders } from '@
 import { createPasswordResetToken, passwordResetUrl } from '@/lib/password-reset'
 import { emailPasswordReset } from '@/lib/mailer'
 
-function genericResponse(sent = false) {
-  return NextResponse.json({ ok: true, sent, message: 'إذا كان البريد مسجلاً، سنرسل رابط إعادة تعيين كلمة المرور.' })
+function genericResponse() {
+  return NextResponse.json({ ok: true, message: 'إذا كان البريد مسجلاً ستصلك رسالة خلال دقائق' })
 }
 
 export async function POST(req: NextRequest) {
