@@ -313,6 +313,7 @@ export function QuestionReviewDialog({
   const shown = filter === 'ALL' ? questions : questions.filter((q) => q.status === filter)
 
   return (
+    <>
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-h-[92vh] max-w-3xl overflow-y-auto" dir="rtl">
         <DialogHeader>
