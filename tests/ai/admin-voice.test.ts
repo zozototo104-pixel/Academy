@@ -137,6 +137,12 @@ mock.module('@/lib/student-ai-access', () => ({
 
 const { getGeminiLiveAllowance, liveSessionLimitMinutes, reserveGeminiLiveUsage, settleGeminiLiveUsage } = await import('../../src/lib/live-usage-guard')
 const { isLiveMinutesExhausted } = await import('../../src/lib/voice/geminiLiveAgent')
+
+const realSupervisorAi = await import('../../src/lib/supervisor-ai')
+mock.module('@/lib/supervisor-ai', () => ({ ...realSupervisorAi, buildSupervisorContext: async () => '' }))
+const realTextAi = await import('../../src/lib/text-ai')
+mock.module('@/lib/text-ai', () => ({ ...realTextAi, geminiKeysForLive: async () => [], reportGeminiLiveKeyFailure: async () => {}, reportGeminiLiveKeySuccess: () => {} }))
+
 const { POST } = await import('../../src/app/api/ai/gemini-live/session/route')
 
 const previousStudentLimit = process.env.AACT_LIVE_FREE_MONTHLY_MINUTES_STUDENT
