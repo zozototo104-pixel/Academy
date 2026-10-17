@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Loader2, UserCheck, KeyRound, UserPlus, ShieldCheck, RefreshCcw } from 'lucide-react'
+import { useAdminActionDialog } from './AdminActionDialog'
 
 interface SupervisorRow {
   id: string
