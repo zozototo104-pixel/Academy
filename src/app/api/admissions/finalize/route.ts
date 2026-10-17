@@ -4,17 +4,10 @@ import { getCurrentUser } from '@/lib/auth'
 import { getSettingNum, nextInvoiceNo } from '@/lib/settings'
 import { notify, audit } from '@/lib/notify'
 import { emailAdmissionSubmitted, emailServiceRequestSubmitted } from '@/lib/mailer'
-import { buildServiceAdmissionDefaults, getServiceDocumentOptions, getServiceFlow } from '@/lib/service-flows'
-import { resolveRules } from '@/lib/admission-ai'
+import { getServiceFlow } from '@/lib/service-flows'
+import { resolveAdmissionRequiredDocuments } from '@/lib/admission-required-documents'
 import { verifyAdmissionUploadToken } from '@/lib/admission-upload-token'
 import { extractAdmissionDocumentReplacement, stripAdmissionDocumentReplacement } from '@/lib/admission-document-replacement'
-
-const REQUIRED_DOCS: { type: string; label: string }[] = [
-  { type: 'DEGREE', label: 'صورة عن الشهادة الجامعية وكشف العلامات (أو الثانوية للدبلومات)' },
-  { type: 'ID', label: 'صورة عن الهوية الشخصية أو جواز السفر' },
-  { type: 'PHOTO', label: 'صورة شخصية حديثة' },
-  { type: 'CV', label: 'صورة عن السيرة الذاتية (C.V)' },
-]
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,7 +22,7 @@ export async function POST(req: NextRequest) {
     const app = await db.admissionApplication.findFirst({
       where: applicationId ? { id: applicationId } : { reference },
       include: {
-        programRef: { select: { id: true, titleAr: true, category: true, slug: true, admissionRules: true } },
+        programRef: { select: { id: true, titleAr: true, category: true, slug: true, registrationStatus: true, admissionRules: true } },
         files: { select: { id: true, docType: true, fileName: true, size: true, createdAt: true } },
         payments: { select: { id: true, invoiceNo: true, purpose: true, amount: true, status: true, description: true } },
         user: { select: { id: true, name: true, email: true, role: true } },
@@ -52,7 +45,10 @@ export async function POST(req: NextRequest) {
 
     const isDocumentReplacement = app.status === 'DOCUMENTS_NEED_REPLACEMENT'
     const replacementRequest = isDocumentReplacement ? extractAdmissionDocumentReplacement(app.notes) : null
-    if (!['UPLOADING_DOCUMENTS', 'PENDING', 'AWAITING_FEE', 'UNDER_REVIEW', 'DOCUMENTS_NEED_REPLACEMENT'].includes(app.status)) {
+    if (!isDocumentReplacement && app.programRef?.registrationStatus && app.programRef.registrationStatus !== 'OPEN') {
+      return NextResponse.json({ error: 'التسجيل في هذا البرنامج غير مفتوح حالياً. لا يمكن إكمال الطلب.', code: 'REGISTRATION_CLOSED' }, { status: 403 })
+    }
+    if (!['UPLOADING_DOCUMENTS', 'STAGED', 'PENDING', 'AWAITING_FEE', 'UNDER_REVIEW', 'DOCUMENTS_NEED_REPLACEMENT'].includes(app.status)) {
       return NextResponse.json({ error: 'لا يمكن إكمال هذا الطلب لأنه انتقل إلى مرحلة لاحقة' }, { status: 400 })
     }
     if (isDocumentReplacement && !replacementRequest) {
@@ -62,18 +58,12 @@ export async function POST(req: NextRequest) {
     const serviceFlow = getServiceFlow(app.programRef?.slug)
     const isServiceRequest = serviceFlow ? !serviceFlow.isStudyProgram : app.programRef?.category === 'SERVICE'
     const uploadedTypes = new Set((app.files || []).map((f) => f.docType))
-    const rules = app.programRef?.admissionRules
-      ? resolveRules(app.programRef?.category || 'DIPLOMA', app.programRef.admissionRules, !isServiceRequest)
-      : (buildServiceAdmissionDefaults(serviceFlow) || resolveRules(app.programRef?.category || 'DIPLOMA', app.programRef?.admissionRules, !isServiceRequest))
-    const defaultDocMap = new Map(REQUIRED_DOCS.map((d) => [d.type, d.label]))
-    const serviceDocMap = new Map(getServiceDocumentOptions(serviceFlow).map((d) => [d.type, d.label]))
-    const ruleRequiredDocuments = Array.isArray(rules.requiredDocuments) && rules.requiredDocuments.length > 0
-      ? rules.requiredDocuments
-      : REQUIRED_DOCS.map((d) => d.type)
-    const requiredDocList = ruleRequiredDocuments.map((type) => ({
-      type,
-      label: serviceDocMap.get(type) || defaultDocMap.get(type) || type,
-    }))
+    const { requiredDocs: requiredDocList } = resolveAdmissionRequiredDocuments({
+      slug: app.programRef?.slug,
+      category: app.programRef?.category,
+      admissionRules: (app.programRef?.admissionRules as any) || null,
+      isServiceRequest,
+    })
     const missing = requiredDocList.filter((d) => !uploadedTypes.has(d.type))
     if (missing.length > 0) {
       return NextResponse.json({
@@ -103,6 +93,9 @@ export async function POST(req: NextRequest) {
       : 'UNDER_REVIEW'
     const nextStatus = isDocumentReplacement ? replacementPreviousStatus : (isServiceRequest ? 'UNDER_REVIEW' : 'AWAITING_FEE')
     const appFee = isServiceRequest ? 0 : await getSettingNum('FEE_APPLICATION')
+    if (!isServiceRequest && appFee <= 0) {
+      return NextResponse.json({ error: 'رسوم التقديم غير مضبوطة بقيمة صالحة أكبر من صفر.' }, { status: 500 })
+    }
 
     const existingFee = app.payments.find((p) => p.purpose === 'APPLICATION_FEE') || null
     const feeInvoice = isServiceRequest ? null : (existingFee || await db.$transaction(async (tx) => {

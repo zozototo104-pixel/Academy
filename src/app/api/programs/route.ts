@@ -56,6 +56,7 @@ function buildCatalogVersion(programs: any[]) {
       p.credentialType,
       p.trademarkNotice,
       p.disclosureConsentText,
+      p.registrationStatus,
       JSON.stringify(p.admissionRules || null),
     ].join('|'))
     .sort()
@@ -106,6 +107,7 @@ export async function GET(req: NextRequest) {
           credentialType: true,
           trademarkNotice: true,
           disclosureConsentText: true,
+          registrationStatus: true,
           admissionRules: true,
         },
       })
@@ -145,6 +147,7 @@ export async function GET(req: NextRequest) {
             credentialType: true,
             trademarkNotice: true,
             disclosureConsentText: true,
+            registrationStatus: true,
             admissionRules: true,
             _count: { select: { units: true } },
           },
@@ -207,6 +210,7 @@ export async function GET(req: NextRequest) {
           credentialType: row.credentialType || null,
           trademarkNotice: row.trademarkNotice || null,
           disclosureConsentText: row.disclosureConsentText || null,
+          registrationStatus: row.registrationStatus || 'OPEN',
           categoryLabel: PROGRAM_CATEGORY_AR[row.category] || row.category,
           specialty: programSpecialtyLabel(row),
           hours: row.hours,

@@ -10,12 +10,13 @@ const MAX_FILE_SIZE = 4 * 1024 * 1024 // 4MB لكل ملف — نرفع كل م�
 const ALLOWED_MIME = [
   'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif',
   'application/pdf',
+  'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/vnd.ms-excel',
   'text/plain', 'text/csv', 'application/csv',
 ]
-const ALLOWED_FILE_RE = /\.(jpe?g|png|webp|heic|heif|pdf|docx|xlsx|xls|txt|csv)$/i
+const ALLOWED_FILE_RE = /\.(jpe?g|png|webp|heic|heif|pdf|doc|docx|xlsx|xls|txt|csv)$/i
 
 function normalizeDocType(key: string) {
   return key.replace(/^doc_/, '').toUpperCase().slice(0, 40)
@@ -94,20 +95,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: storageErrorMessage(error) }, { status: 500 })
     }
 
-    await db.admissionDocument.deleteMany({ where: { admissionId: app.id, docType } })
-    const saved = await db.admissionDocument.create({
-      data: {
-        admissionId: app.id,
-        docType,
-        fileName: file.name.slice(0, 180),
-        mimeType: stored.mimeType || signature.mimeType,
-        size: stored.size || file.size,
-        data: null,
-        storageProvider: stored.provider,
-        storageKey: stored.key,
-        fileUrl: stored.url,
-      },
-      select: { id: true, docType: true, fileName: true, size: true, storageProvider: true },
+    const saved = await db.$transaction(async (tx) => {
+      const created = await tx.admissionDocument.create({
+        data: {
+          admissionId: app.id,
+          docType,
+          fileName: file.name.slice(0, 180),
+          mimeType: stored.mimeType || signature.mimeType,
+          size: stored.size || file.size,
+          data: null,
+          storageProvider: stored.provider,
+          storageKey: stored.key,
+          fileUrl: stored.url,
+        },
+        select: { id: true, docType: true, fileName: true, size: true, storageProvider: true },
+      })
+      await tx.admissionDocument.deleteMany({ where: { admissionId: app.id, docType, id: { not: created.id } } })
+      return created
     })
 
     const docs = await db.admissionDocument.findMany({

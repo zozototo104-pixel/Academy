@@ -19,7 +19,7 @@ export async function GET(
     })
     if (!doc) return NextResponse.json({ error: 'المستند غير موجود' }, { status: 404 })
 
-    const isOwner = doc.admission.userId === user.id || doc.admission.email === user.email
+    const isOwner = doc.admission.userId === user.id || String(doc.admission.email || '').trim().toLowerCase() === String(user.email || '').trim().toLowerCase()
     const isAdmin = user.role === 'ADMIN'
     if (!isAdmin && !isOwner) {
       return NextResponse.json({ error: 'غير مصرح لك بعرض هذا المستند' }, { status: 403 })
