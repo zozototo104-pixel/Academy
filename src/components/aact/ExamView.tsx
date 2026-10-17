@@ -159,6 +159,29 @@ export function ExamView() {
   const [appealSent, setAppealSent] = useState(false)
   const [appealBusy, setAppealBusy] = useState(false)
 
+  const syncCountdown = useCallback(() => {
+    const countdown = countdownRef.current
+    if (!countdown) return
+    const serverNowMs = Date.now() + serverOffsetMsRef.current
+    const elapsedSec = Math.max(0, Math.floor((serverNowMs - countdown.startedAtMs) / 1000))
+    setSecondsLeft(Math.max(0, countdown.durationMin * 60 - elapsedSec))
+  }, [])
+
+  const configureCountdown = useCallback((startedAtValue: string | number | Date | null | undefined, durationMin?: number | null, serverNow?: string | null) => {
+    if (!startedAtValue || !durationMin) {
+      countdownRef.current = null
+      setSecondsLeft(null)
+      return
+    }
+    const parsedStartedAt = new Date(startedAtValue).getTime()
+    if (!Number.isFinite(parsedStartedAt)) return
+    const parsedServerNow = serverNow ? new Date(serverNow).getTime() : NaN
+    if (Number.isFinite(parsedServerNow)) serverOffsetMsRef.current = parsedServerNow - Date.now()
+    countdownRef.current = { startedAtMs: parsedStartedAt, durationMin }
+    setStartedAt(parsedStartedAt)
+    syncCountdown()
+  }, [syncCountdown])
+
   useEffect(() => {
     if (!activeExamId) return
     setLoading(true)
