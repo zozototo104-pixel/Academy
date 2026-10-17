@@ -31,6 +31,8 @@ export async function GET() {
             status: true,
             note: true,
             adminNote: true,
+            declaredAmount: true,
+            declaredAmountCents: true,
             fileName: true,
             mimeType: true,
             fileSize: true,
