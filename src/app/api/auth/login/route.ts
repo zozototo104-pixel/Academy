@@ -23,9 +23,10 @@ export async function POST(req: NextRequest) {
 
       const ip = clientIpFromHeaders(req.headers)
       const ipLimit = await checkDatabaseRateLimit(`login:ip:${ip}`, 40, 15 * 60 * 1000)
-      const accountLimit = await checkDatabaseRateLimit(`login:account:${normalizedEmail}:${ip}`, 8, 15 * 60 * 1000)
-      if (!ipLimit.ok || !accountLimit.ok) {
-        const limited = !accountLimit.ok ? accountLimit : ipLimit
+      const accountIpLimit = await checkDatabaseRateLimit(`login:account:${normalizedEmail}:${ip}`, 8, 15 * 60 * 1000)
+      const accountLimit = await checkDatabaseRateLimit(`login:account:${normalizedEmail}`, 50, 15 * 60 * 1000)
+      if (!ipLimit.ok || !accountIpLimit.ok || !accountLimit.ok) {
+        const limited = !accountIpLimit.ok ? accountIpLimit : !accountLimit.ok ? accountLimit : ipLimit
         return NextResponse.json(
           { error: 'محاولات تسجيل دخول كثيرة. انتظر قليلاً ثم حاول مرة أخرى.' },
           { status: 429, headers: rateLimitHeaders(limited) }
