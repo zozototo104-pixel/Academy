@@ -48,7 +48,7 @@ function updateNumber(current: number, change: any): number {
 const db: any = {
   $transaction: async (work: (tx: any) => Promise<any>) => work(db),
   enrollment: { count: async () => 0 },
-  thesisSubmission: { findFirst: async () => null },
+  thesisSubmission: { findFirst: async () => latestThesisStatus ? { id: 'thesis-1', status: latestThesisStatus, createdAt: new Date() } : null },
   aiLiveUsage: {
     findUnique: async ({ where }: any) => {
       operations.usageReads++
