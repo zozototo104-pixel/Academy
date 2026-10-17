@@ -64,9 +64,12 @@ function buildObjectiveFeedback(q: any, isCorrect: boolean, options: string[], s
 
 function sanitizeProgramResultsForHiddenAnswers<T extends { isCorrect: boolean | null; aiFeedback: string; correctAnswerText?: string; correctRationale?: string | null; wrongOptionRationale?: string | null }>(items: T[]): T[] {
   return items.map((item) => {
-    const { correctAnswerText: _correctAnswerText, correctRationale: _correctRationale, wrongOptionRationale: _wrongOptionRationale, ...rest } = item
+    const { correctAnswerText, correctRationale, wrongOptionRationale, ...result } = item
+    void correctAnswerText
+    void correctRationale
+    void wrongOptionRationale
     return {
-      ...rest,
+      ...result,
       aiFeedback: item.isCorrect === true ? item.aiFeedback : HIDDEN_CORRECT_ANSWER_FEEDBACK,
     } as T
   })
