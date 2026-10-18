@@ -1196,25 +1196,26 @@ export function AdminBooksTab() {
   const refreshCurriculumUnits = useCallback(async (pid = programId) => {
     if (!pid) return
     const res = await api<{ units: CurriculumUnitReviewItem[] }>(`/api/admin/program-units?programId=${pid}`)
-    setCurriculumUnits(res.units || [])
+    if (Array.isArray(res.units)) setCurriculumUnits(res.units)
   }, [programId])
 
+  const activeQuestionBankJobIdsKey = useMemo(() => curriculumUnits
+    .map((unit) => unit.questionBankJob)
+    .filter((job): job is NonNullable<CurriculumUnitReviewItem['questionBankJob']> => Boolean(job && ['QUEUED', 'RUNNING', 'PAUSED'].includes(job.status)))
+    .map((job) => job.id)
+    .sort()
+    .join(','), [curriculumUnits])
+
   useEffect(() => {
-    if (workspaceTab !== 'units' || !programId) return
-    const activeJobIds = curriculumUnits
-      .map((unit) => unit.questionBankJob)
-      .filter((job): job is NonNullable<CurriculumUnitReviewItem['questionBankJob']> => Boolean(job && ['QUEUED', 'RUNNING', 'PAUSED'].includes(job.status)))
-      .map((job) => job.id)
-    if (!activeJobIds.length) return
+    if (workspaceTab !== 'units' || !programId || !activeQuestionBankJobIdsKey) return
     const pollJobs = async () => {
       if (document.visibilityState !== 'visible') return
       const res = await api<{ units: CurriculumUnitReviewItem[] }>(`/api/admin/program-units?programId=${programId}`)
-      setCurriculumUnits(res.units || [])
+      if (Array.isArray(res.units)) setCurriculumUnits(res.units)
     }
     const timer = setInterval(() => { void pollJobs().catch(() => null) }, 10_000)
-    void pollJobs().catch(() => null)
     return () => clearInterval(timer)
-  }, [workspaceTab, programId, curriculumUnits])
+  }, [workspaceTab, programId, activeQuestionBankJobIdsKey])
 
   const generateCurriculumUnits = async () => {
     if (!programId) return
