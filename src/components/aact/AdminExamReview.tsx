@@ -375,7 +375,14 @@ export function QuestionReviewDialog({
                   استكمال بقية الامتحان ({questions.length}/{FULL_EXAM_TARGET})
                 </Button>
               )}
+              {academicMissingCount > 0 && (
+                <Button size="sm" variant="outline" onClick={runAcademicBackfill} disabled={busy} className="border-blue-300 text-[10px] font-black text-blue-700 hover:bg-blue-100">
+                  {busy ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="ml-1 h-3.5 w-3.5" />}
+                  استكمال البيانات الأكاديمية
+                </Button>
+              )}
             </div>
+            {academicBackfillMessage && <p className="mt-2 text-[11px] font-bold text-blue-700">{academicBackfillMessage}</p>}
           </div>
         </DialogHeader>
 
