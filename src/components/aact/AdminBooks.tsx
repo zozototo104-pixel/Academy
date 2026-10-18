@@ -4310,7 +4310,12 @@ export function AdminBooksTab() {
           open={!!reviewingExam}
           onClose={() => setReviewingExam(null)}
           onPublished={async (exam) => {
-            if (exam) setExams((prev) => prev.map((item) => item.id === exam.id ? { ...item, ...exam } : item))
+            if (exam) setExams((prev) => prev.map((item) => item.id === exam.id ? {
+              ...item,
+              status: exam.status,
+              totalPoints: Number(exam.totalPoints ?? item.totalPoints),
+              durationMin: Number(exam.durationMin ?? item.durationMin),
+            } : item))
             if (programId) {
               await loadProgramData(programId, true)
               await loadExamProgress(programId).catch(() => null)
