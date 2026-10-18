@@ -182,6 +182,7 @@ describe('AI D2 behavior', () => {
       { id: 'whisper-large-v3' },
       { id: 'playai-tts' },
       { id: 'llama-guard-4-12b' },
+      { id: 'canopylabs/orpheus-v1-english' },
       { id: 'groq/compound' },
       { id: 'compound-mini' },
       { id: 'text-embedding-3-small' },
