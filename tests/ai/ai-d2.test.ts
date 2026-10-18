@@ -169,6 +169,12 @@ describe('AI D2 behavior', () => {
     expect(messages.every((message: any) => message.level > 0 && message.peak > 0)).toBe(true)
   })
 
+  test('provider keys sanitize hidden characters before routing', () => {
+    expect(textAiRouter.__testParseTextAiKeysForTests('\u200esk-test\u200f\u00a0-key\ufeff')).toEqual(['sk-test-key'])
+    expect(textAiRouter.__testParseTextAiKeysForTests('gsk_abc \n gsk_def\u200b')).toEqual(['gsk_abc', 'gsk_def'])
+    expect(textAiRouter.__testParseTextAiKeysForTests('\u200esk-test', 'sk-test\ufeff')).toEqual(['sk-test'])
+  })
+
   test('selected dialect reaches ASR and does not default to ar-SA', async () => {
     const res = await asrRoute.POST(new NextRequest('https://academy.test/api/ai/asr', {
       method: 'POST',

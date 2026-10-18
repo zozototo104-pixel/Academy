@@ -305,18 +305,29 @@ export function parseAcademicAllowlist(value: unknown): Array<{ provider: Concre
   return parseProviderModelList(value, DEFAULT_ACADEMIC_ALLOWLIST)
 }
 
+function sanitizeProviderKey(raw: string): string {
+  return String(raw || '')
+    .replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF\u00A0]/g, '')
+    .replace(/[^\x21-\x7E]/g, '')
+    .trim()
+}
+
 function parseKeys(...values: string[]): string[] {
   const seen = new Set<string>()
   const out: string[] = []
   for (const value of values) {
     for (const raw of String(value || '').split(/[\n,]+/)) {
-      const key = raw.trim()
+      const key = sanitizeProviderKey(raw)
       if (!key || seen.has(key)) continue
       seen.add(key)
       out.push(key)
     }
   }
   return out
+}
+
+export function __testParseTextAiKeysForTests(...values: string[]): string[] {
+  return parseKeys(...values)
 }
 
 function keyHash(key: string): string {
@@ -1005,13 +1016,13 @@ function modelHealthKey(provider: string, model: string): string {
   return `AI_MODEL_HEALTH:${provider}:${model}`
 }
 
-type ModelHealth = { ok: boolean; latencyMs?: number; checkedAt?: string; error?: string }
+type ModelHealth = { ok: boolean; latencyMs?: number; checkedAt?: string; status?: number; error?: string }
 
 function parseModelHealth(raw: unknown): ModelHealth | null {
   try {
     const parsed = JSON.parse(String(raw || '{}'))
     if (typeof parsed.ok !== 'boolean') return null
-    return { ok: parsed.ok, latencyMs: Number(parsed.latencyMs || 0) || undefined, checkedAt: String(parsed.checkedAt || ''), error: String(parsed.error || '').slice(0, 240) }
+    return { ok: parsed.ok, latencyMs: Number(parsed.latencyMs || 0) || undefined, checkedAt: String(parsed.checkedAt || ''), status: Number(parsed.status || 0) || undefined, error: String(parsed.error || '').slice(0, 240) }
   } catch {
     return null
   }
@@ -1289,7 +1300,10 @@ export async function textAiCheckAllModelHealth(opts: { maxMs?: number } = {}): 
         results.push(result)
         await settingStore().write(modelHealthKey(provider, model), JSON.stringify({ ...result, checkedAt: new Date().toISOString() }))
       } catch (e: any) {
-        const result = { provider, model, ok: false, latencyMs: Date.now() - started, error: redactSecrets(e?.message || e).slice(0, 240) }
+        const status = Number(e?.status || e?.code || 0) || undefined
+        const error = redactSecrets(e?.message || e).slice(0, 240)
+        console.warn('[ai-health] check failed', { provider, model, status, error: error.slice(0, 120) })
+        const result = { provider, model, ok: false, latencyMs: Date.now() - started, status, error }
         results.push(result)
         await settingStore().write(modelHealthKey(provider, model), JSON.stringify({ ...result, checkedAt: new Date().toISOString() }))
       }
