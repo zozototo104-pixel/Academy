@@ -120,9 +120,14 @@ export function QuestionReviewDialog({
     if (open) load()
   }, [open, load])
 
+  useEffect(() => {
+    if (open && initialCognitiveOverride) showCognitiveOverride(initialCognitiveOverride.message, initialCognitiveOverride.details || [])
+  }, [open, initialCognitiveOverride])
+
   const showCognitiveOverride = (message: string, details: string[]) => {
     setCognitiveOverride((prev) => ({ message, details, reason: prev?.reason || '' }))
-    window.setTimeout(() => cognitiveOverrideRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50)
+    toast({ title: 'مطلوب سبب تجاوز', description: 'توزيع المهارات لا يطابق السياسة. اكتب سبب التجاوز في أعلى نافذة المراجعة ثم اضغط تأكيد التجاوز والنشر.' })
+    window.setTimeout(() => { if (dialogContentRef.current) dialogContentRef.current.scrollTop = 0 }, 50)
   }
 
   const startEdit = (q: ReviewQuestion) => {
