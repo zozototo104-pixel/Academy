@@ -112,8 +112,10 @@ export function balanceQuestionBankExamSelection<T extends BankExamBalanceCandid
   const selected: T[] = []
   const selectedKeys = new Set<string>()
   const keyOf = (q: T) => normalizeQuestionText(q.text || q.id).slice(0, 180)
-  const highTarget = Math.ceil(targetCount * (Number.isFinite(opts.highMinPercent) ? Number(opts.highMinPercent) : 20) / 100)
-  const lowLimit = Math.floor(targetCount * (Number.isFinite(opts.lowMaxPercent) ? Number(opts.lowMaxPercent) : 50) / 100)
+  const highPercent = typeof opts.highMinPercent === 'number' && Number.isFinite(opts.highMinPercent) ? opts.highMinPercent : 20
+  const lowPercent = typeof opts.lowMaxPercent === 'number' && Number.isFinite(opts.lowMaxPercent) ? opts.lowMaxPercent : 50
+  const highTarget = Math.ceil(targetCount * highPercent / 100)
+  const lowLimit = Math.floor(targetCount * lowPercent / 100)
   const lowCount = () => selected.filter((x) => isLowSkill(x.cognitiveSkill)).length
   const highCount = () => selected.filter((x) => isHighSkill(x.cognitiveSkill)).length
   const add = (q: T, enforceLowLimit = false) => {
