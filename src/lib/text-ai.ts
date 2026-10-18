@@ -299,6 +299,10 @@ export function parseProviderModelList(value: unknown, fallback = ''): TextAiPre
   return out
 }
 
+export function parseAcademicAllowlist(value: unknown): Array<{ provider: ConcreteProvider; model: string }> {
+  return parseProviderModelList(value, DEFAULT_ACADEMIC_ALLOWLIST)
+}
+
 function parseKeys(...values: string[]): string[] {
   const seen = new Set<string>()
   const out: string[] = []
