@@ -353,6 +353,11 @@ function questionGroundingFlags(question: QuestionBankItemRow): string[] {
 }
 
 function isSourceGroundedQuestion(question: QuestionBankItemRow): boolean {
+  const flags = questionGroundingFlags(question)
+  return flags.includes('SOURCE_GROUNDED') && !flags.includes('OCR_DERIVED_SOURCE') && !flags.includes('NEEDS_HUMAN_REVIEW')
+}
+
+function isDocumentedQuestion(question: QuestionBankItemRow): boolean {
   return Boolean(String(question.sourceBookTitle || '').trim() && String(question.sourceLocator || '').trim() && String(question.sourceEvidence || '').trim())
 }
 
