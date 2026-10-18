@@ -42,11 +42,12 @@ export async function POST(_req: NextRequest, context: any) {
 
     if (await activeBackfillLock(examId)) {
       const counts = await academicCounts(examId)
-      return NextResponse.json({ filled: 0, ...counts, done: counts.remaining === 0, locked: true })
+      return NextResponse.json({ filled: 0, aiFailed: 0, ...counts, done: counts.remaining === 0, locked: true })
     }
 
     const startedAt = Date.now()
     let filled = await syncProgramExamQuestionsFromBank(examId)
+    let aiFailed = 0
     let counts = await academicCounts(examId)
 
     while (counts.remaining > 0 && Date.now() - startedAt < 45_000) {
