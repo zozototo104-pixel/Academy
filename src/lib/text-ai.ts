@@ -23,6 +23,7 @@ export type TextAiTaskLevel = 'GENERAL' | 'ACADEMIC_DRAFT' | 'ACADEMIC_CRITICAL'
 export type TextAiProviderTier = 'FREE' | 'PAID'
 export type TextAiPaidUsageMode = 'off' | 'last_resort' | 'critical_first'
 export type TextAiPurpose = 'CHAT' | 'ANALYSIS' | 'GENERATION' | 'GRADING' | 'VISION' | 'LONG_CONTEXT' | 'REVIEW'
+export type TextAiPreferredModel = { provider: Exclude<TextAiProvider, 'AUTO'>; model: string }
 
 export interface TextAiTurn {
   role: 'user' | 'model'
