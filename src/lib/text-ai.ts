@@ -377,8 +377,16 @@ async function loadPersistentCooldowns(): Promise<Record<string, string>> {
   }
 }
 
+function persistentModelCooldown(values: Record<string, string>, provider: string, keyIndex: number, model: string): { until: number; reason: string; status?: number } | null {
+  return parseCooldown(values[persistentCooldownKey(provider, keyIndex, model)])
+}
+
+function persistentKeyCooldown(values: Record<string, string>, provider: string, keyIndex: number): { until: number; reason: string; status?: number } | null {
+  return parseCooldown(values[persistentCooldownKey(provider, keyIndex)])
+}
+
 function persistentCooldown(values: Record<string, string>, provider: string, keyIndex: number, model: string): { until: number; reason: string; status?: number } | null {
-  return parseCooldown(values[persistentCooldownKey(provider, keyIndex, model)]) || parseCooldown(values[persistentCooldownKey(provider, keyIndex)])
+  return persistentModelCooldown(values, provider, keyIndex, model) || persistentKeyCooldown(values, provider, keyIndex)
 }
 
 function isPersistentCooling(values: Record<string, string>, provider: string, keyIndex: number, model: string): boolean {
