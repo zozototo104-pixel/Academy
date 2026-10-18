@@ -2027,14 +2027,24 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
       }
       for (const key of candidateKeys(provider, s)) {
         const keyIndex = Math.max(1, providerKeys(s, provider).indexOf(key) + 1)
-        const persistedCooldown = persistentCooldown(persistentCooldowns, provider, keyIndex, model)
+        const persistedKeyCooldown = persistentKeyCooldown(persistentCooldowns, provider, keyIndex)
+        const persistedModelCooldown = persistentModelCooldown(persistentCooldowns, provider, keyIndex, model)
+        const memoryKeyCooldown = activeMemoryCooldown(provider, key)
+        const memoryModelCooldown = activeMemoryModelCooldown(provider, key, model)
         if (isPersistentNoBalance(persistentCooldowns, provider, keyIndex)) {
           noteNoCandidate(provider, model, 'NO_BALANCE')
           continue
         }
-        if (isCooling(provider, key) || persistedCooldown) {
-          if (persistedCooldown) skippedCooldownUntil = skippedCooldownUntil == null ? persistedCooldown.until : Math.min(skippedCooldownUntil, persistedCooldown.until)
-          noteNoCandidate(provider, model, `COOLDOWN(${new Date((persistedCooldown?.until || Date.now())).toISOString()})`)
+        if (memoryKeyCooldown || persistedKeyCooldown) {
+          const cooldown = persistedKeyCooldown || memoryKeyCooldown
+          if (cooldown) skippedCooldownUntil = skippedCooldownUntil == null ? cooldown.until : Math.min(skippedCooldownUntil, cooldown.until)
+          noteNoCandidate(provider, model, `COOLDOWN(key ${new Date((cooldown?.until || Date.now())).toISOString()})`)
+          continue
+        }
+        if (memoryModelCooldown || persistedModelCooldown) {
+          const cooldown = persistedModelCooldown || memoryModelCooldown
+          if (cooldown) skippedCooldownUntil = skippedCooldownUntil == null ? cooldown.until : Math.min(skippedCooldownUntil, cooldown.until)
+          noteNoCandidate(provider, model, `COOLDOWN(model ${new Date((cooldown?.until || Date.now())).toISOString()})`)
           continue
         }
         if (!(await keyRateAllowed(provider, key))) {
