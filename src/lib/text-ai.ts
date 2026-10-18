@@ -50,6 +50,7 @@ export interface TextAiCallOpts {
   preferredModels?: TextAiPreferredModel[]
   excludeModelFamilies?: string[]
   deadlineMs?: number
+  timeoutMs?: number
   stickyScope?: string
   userId?: string | null
   taskType?: string
