@@ -166,7 +166,7 @@ async function syncProgramExamQuestionsFromBank(examId: string) {
     const bank = bankId ? bankById.get(bankId) : null
     if (!bank) continue
     const knowledgeItem = bank.knowledgeItemId ? knowledgeById.get(bank.knowledgeItemId) : null
-    const data: Record<string, string> = {}
+    const data: Record<string, unknown> = {}
     if (isMissing(question.sourceEvidence) && bank.sourceEvidence) data.sourceEvidence = bank.sourceEvidence
     if (isMissing(question.sourceBookTitle)) {
       const title = bank.sourceBookTitle || bookTitles.get(knowledgeItem?.bookId || '') || ''
