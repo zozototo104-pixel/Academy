@@ -497,6 +497,27 @@ function testApprovedQuestionBankFlagsRemoveReviewMarkers() {
   assert(!flags.includes('NEEDS_HUMAN_REVIEW') && !flags.includes('LEGACY_GROUNDING_UNVERIFIED'), 'اعتماد سؤال البنك يجب أن يزيل أعلام المراجعة القديمة')
 }
 
+function testBankExamCognitiveBalancePassesPolicy() {
+  const rows = [
+    ...Array.from({ length: 30 }, (_, i) => ({ id: `low-${i}`, text: `low ${i}`, cognitiveSkill: 'UNDERSTAND', difficulty: 'MEDIUM', type: 'MCQ' })),
+    ...Array.from({ length: 10 }, (_, i) => ({ id: `mid-${i}`, text: `mid ${i}`, cognitiveSkill: 'APPLY', difficulty: 'MEDIUM', type: 'MCQ' })),
+    ...Array.from({ length: 10 }, (_, i) => ({ id: `high-${i}`, text: `high ${i}`, cognitiveSkill: i % 2 ? 'ANALYZE' : 'EVALUATE', difficulty: 'ADVANCED', type: 'MCQ' })),
+  ]
+  const result = balanceQuestionBankExamSelection(rows, 40, { lowMaxPercent: 50, highMinPercent: 20 })
+  assert(result.selected.length === 40, 'موازن بنك الأسئلة يجب أن يختار العدد المطلوب')
+  assert(validateCognitiveDistribution(result.selected, 'PROGRAM', { lowMaxPercent: 50, programHighMinPercent: 20 }).ok, 'موازن بنك الأسئلة يجب أن يختار توزيعاً معرفياً صالحاً عند توفر الأسئلة')
+}
+
+function testBankExamCognitiveBalanceWarnsWithoutHighQuestions() {
+  const rows = [
+    ...Array.from({ length: 30 }, (_, i) => ({ id: `low-only-${i}`, text: `low only ${i}`, cognitiveSkill: 'UNDERSTAND', difficulty: 'MEDIUM', type: 'MCQ' })),
+    ...Array.from({ length: 10 }, (_, i) => ({ id: `mid-only-${i}`, text: `mid only ${i}`, cognitiveSkill: 'APPLY', difficulty: 'MEDIUM', type: 'MCQ' })),
+  ]
+  const result = balanceQuestionBankExamSelection(rows, 40, { lowMaxPercent: 50, highMinPercent: 20 })
+  assert(result.selected.length === 40, 'موازن بنك الأسئلة لا يجب أن يفشل إذا لم تتوفر أسئلة عالية كفاية')
+  assert(!!result.cognitiveWarning, 'موازن بنك الأسئلة يجب أن يرجع تحذيراً إذا لم تتوفر أسئلة تحليل/تقييم كافية')
+}
+
 function testAdminStudentsEnrollmentWhereBuilder() {
   const all = buildAdminStudentsEnrollmentRelationFilter('ALL', null) as any
   assert(JSON.stringify(all.some.status.in) === JSON.stringify([...OPEN_ENROLLMENT_STATUSES]), 'فلتر كل الطلاب يجب أن يعرض فقط أصحاب برنامج مفتوح')
