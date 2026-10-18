@@ -205,6 +205,7 @@ describe('AI D2 behavior', () => {
       status: 429,
     })
     expect(decision).toEqual({ scope: 'model', escalates: false })
+    expect(textAiRouter.classifyRateLimitScope('qwen-sea-lion-v4-32b-it:free', 'api_key account rate limit: 1 request every 1 min per account on qwen-sea-lion-v4-32b-it:free', 429)).toBe('model')
   })
 
   test('router keeps Gemini model quota isolated from other Gemini models', () => {
