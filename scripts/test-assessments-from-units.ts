@@ -459,6 +459,13 @@ function testProgramExamAcademicMissingCounts() {
   assert(counts.unsourceable === 1, 'السؤال بلا QUESTION_BANK_ITEM_ID ولا knowledgeItemId يجب أن يظهر كغير قابل للإسناد')
 }
 
+function testQuestionBankDocumentationPassesProgramExamPublicationSourceCheck() {
+  const documented = __testDocumentedBankQuestionForPublicationForTests({ bookTitle: 'كتاب الإدارة', knowledgeTitle: 'التخطيط', pageStart: 11, pageEnd: 12, excerpt: 'الدليل الحرفي من عنصر المعرفة' })
+  const questions = Array.from({ length: 5 }, (_, index) => ({ ...documented, text: `سؤال بنك موثق ${index + 1}` }))
+  const errors = validateProgramExamPublicationReadiness(questions, 'DIPLOMA', 'QUESTION_BANK')
+  assert(!errors.some((error) => error.includes('مصدر أكاديمي')), 'سؤال بنك فيه knowledgeItemId فقط بعد تعبئة التوثيق يجب أن يمر شرط المصدر الأكاديمي')
+}
+
 const tests = [
   testUnitExamDoesNotFixCorrectAnswer,
   testUnitExamScopedToUnitQuestionBank,
