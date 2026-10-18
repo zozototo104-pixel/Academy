@@ -480,6 +480,21 @@ function testProgramExamAutoStatusUpdateDoesNotTouchReady() {
   assert(where.status?.not === 'READY', 'أي مسار تلقائي لتحديث حالة الامتحان يجب ألا يلمس امتحاناً جاهزاً')
 }
 
+function testQuestionBankPendingReviewOrdersFirst() {
+  const ordered = __testOrderQuestionBankItemsForReviewForTests([
+    { id: 'approved-new', status: 'APPROVED', createdAt: new Date('2026-01-03T00:00:00Z') },
+    { id: 'pending-old', status: 'PENDING_REVIEW', createdAt: new Date('2026-01-01T00:00:00Z') },
+    { id: 'pending-new', status: 'PENDING_REVIEW', createdAt: new Date('2026-01-02T00:00:00Z') },
+  ])
+  assert(ordered[0]?.id === 'pending-new' && ordered[1]?.id === 'pending-old', 'قائمة بنك الأسئلة يجب أن تعرض المعلقة أولاً بترتيب الأحدث')
+}
+
+function testApprovedQuestionBankFlagsRemoveReviewMarkers() {
+  const flags = JSON.parse(__testApproveQuestionBankQualityFlagsForTests(JSON.stringify(['SOURCE_GROUNDED', 'NEEDS_HUMAN_REVIEW', 'LEGACY_GROUNDING_UNVERIFIED'])))
+  assert(flags.includes('SOURCE_GROUNDED'), 'اعتماد سؤال البنك يجب أن يحافظ على الأعلام الأخرى')
+  assert(!flags.includes('NEEDS_HUMAN_REVIEW') && !flags.includes('LEGACY_GROUNDING_UNVERIFIED'), 'اعتماد سؤال البنك يجب أن يزيل أعلام المراجعة القديمة')
+}
+
 function testAdminStudentsEnrollmentWhereBuilder() {
   const all = buildAdminStudentsEnrollmentRelationFilter('ALL', null) as any
   assert(JSON.stringify(all.some.status.in) === JSON.stringify([...OPEN_ENROLLMENT_STATUSES]), 'فلتر كل الطلاب يجب أن يعرض فقط أصحاب برنامج مفتوح')
