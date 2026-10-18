@@ -282,7 +282,7 @@ export async function POST(req: NextRequest) {
       error: backgroundJob.lastError || undefined,
       message: 'تم تشغيل وظيفة بنك الأسئلة في الخلفية. ستُستكمل من after() والـ cron.',
       stats: await questionStats(programId),
-      items: await listQuestions(programId),
+      ...(await listQuestions(programId)),
     }, { status: 202 })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
