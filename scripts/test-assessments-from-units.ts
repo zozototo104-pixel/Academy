@@ -426,6 +426,28 @@ function testProgramExamTfWithoutDistractorRationalesStillQualified() {
   assert(__testQualifiedQuestionBankItemForProgramExamForTests({ type: 'TF', distractorRationales: null }), 'سؤال TF من البنك يجب أن يظل مؤهلاً حتى لو لم تكن أسباب عكس الإجابة موجودة قبل الـ backfill')
 }
 
+function testSyncedProgramExamQuestionPassesPublicationSourceCheck() {
+  const copied = __testProgramQuestionAcademicCopyForTests({
+    bookTitle: 'كتاب إدارة الأزمات',
+    knowledgeTitle: 'تحليل المخاطر',
+    pageStart: 8,
+    pageEnd: 8,
+    bank: {
+      sourceEvidence: 'النص الحرفي المعتمد من المصدر الأكاديمي',
+      cognitiveSkill: 'UNDERSTAND',
+      difficulty: 'EASY',
+      correctRationale: 'الدليل يثبت صحة الإجابة',
+      distractorRationales: '["سبب عكس الإجابة"]',
+    },
+  })
+  const questions = Array.from({ length: 5 }, (_, index) => ({
+    status: 'PUBLISHED', type: 'TF', text: `سؤال موثق رقم ${index + 1}`, correctAnswer: '0', ...copied,
+  }))
+  const errors = validateProgramExamPublicationReadiness(questions, 'DIPLOMA', 'QUESTION_BANK')
+  assert(!errors.some((error) => error.includes('مصدر أكاديمي')), 'السؤال المعبأ من sync يجب أن يمر شرط المصدر الأكاديمي نفسه في فحص النشر')
+  assert(errors.length === 0, `السؤال المعبأ من sync يجب أن يمر فحص النشر: ${errors.join(' | ')}`)
+}
+
 const tests = [
   testUnitExamDoesNotFixCorrectAnswer,
   testUnitExamScopedToUnitQuestionBank,
