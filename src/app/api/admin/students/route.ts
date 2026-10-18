@@ -86,7 +86,7 @@ export async function GET(req: NextRequest) {
     const thesisStatus = clean(req.nextUrl.searchParams.get('thesisStatus'), 60)
     const enrollmentWhere: any = {}
     if (programId && programId !== 'ALL') enrollmentWhere.programId = programId
-    if (status && status !== 'ALL' && status !== 'INCOMPLETE_ADMISSIONS') enrollmentWhere.status = status
+    if (status && status !== 'ALL' && status !== 'INCOMPLETE_ADMISSIONS' && status !== REGISTERED_ONLY_STATUS) enrollmentWhere.status = status
 
     if (status === 'INCOMPLETE_ADMISSIONS') {
       const incompleteWhere: any = {
