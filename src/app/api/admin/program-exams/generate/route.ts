@@ -80,7 +80,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true, done: true, examId: exam.id, status: 'REVIEW', questionCount: count, requiredQuestions: PROGRAM_EXAM_TARGET, resumed, unitBreakdown })
       }
     }
-    if (exam.status !== 'GENERATING') await db.programExam.update({ where: { id: exam.id }, data: { status: 'GENERATING', errorNote: null } })
+    if (exam.status === 'READY') {
+      const count = await db.programQuestion.count({ where: { examId: exam.id, status: { not: 'REJECTED' } } })
+      return NextResponse.json({ ok: true, done: true, examId: exam.id, status: 'READY', questionCount: count, requiredQuestions: PROGRAM_EXAM_TARGET, resumed, unitBreakdown })
+    }
+    if (exam.status !== 'GENERATING') await db.programExam.update({ where: { id: exam.id, status: { not: 'READY' } }, data: { status: 'GENERATING', errorNote: null } })
     const result = await advanceProgramExamFromVerifiedBank(exam.id, { manual: action !== 'kick' })
     await audit({ id: admin.id, name: admin.name }, resumed ? 'RESUME_PROGRAM_EXAM_FROM_VERIFIED_BANK' : 'GENERATE_PROGRAM_EXAM_FROM_VERIFIED_BANK', 'ProgramExam', exam.id, `استكمال تراكمي من بنك المعرفة V2: ${result.questionCount}/${PROGRAM_EXAM_TARGET}`)
     return NextResponse.json({ ...result, resumed, existingQuestions: result.questionCount - result.inserted, booksCount: null, unitBreakdown })
