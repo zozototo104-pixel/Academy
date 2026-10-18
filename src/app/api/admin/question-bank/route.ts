@@ -306,7 +306,7 @@ export async function PATCH(req: NextRequest) {
       const status = cleanText(body.status, 40)
       if (!STATUSES.has(status)) return NextResponse.json({ error: 'حالة السؤال غير صحيحة' }, { status: 400 })
       data.status = status
-      if (status === 'APPROVED') { data.approvedBy = admin.id; data.approvedAt = new Date(); data.rejectedReason = null }
+      if (status === 'APPROVED') { data.approvedBy = admin.id; data.approvedAt = new Date(); data.rejectedReason = null; data.qualityFlags = cleanApprovedQualityFlags(existing.qualityFlags) }
       if (status === 'REJECTED') { data.approvedBy = null; data.approvedAt = null; data.rejectedReason = cleanText(body?.rejectedReason, 500) || 'رفضته الإدارة أثناء المراجعة' }
     }
     for (const field of ['text', 'modelAnswer', 'sourceEvidence', 'sourceBookTitle', 'sourceLocator', 'cognitiveSkill', 'difficulty', 'correctRationale', 'reviewNotes']) {
