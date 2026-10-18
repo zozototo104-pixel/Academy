@@ -23,7 +23,10 @@ function safeJsonArray(value: string | null | undefined): string[] {
 function parseAiRows(raw: string): Array<{ id: string; difficulty?: string; cognitiveSkill?: string; correctRationale?: string; distractorRationales?: string[] }> {
   try {
     const parsed: unknown = JSON.parse(raw)
-    const rows = Array.isArray(parsed) ? parsed : Array.isArray((parsed as { items?: unknown[] })?.items) ? (parsed as { items: unknown[] }).items : []
+    const objectRows = parsed && typeof parsed === 'object'
+      ? ((parsed as { items?: unknown[]; questions?: unknown[]; results?: unknown[] }).items || (parsed as { questions?: unknown[] }).questions || (parsed as { results?: unknown[] }).results)
+      : undefined
+    const rows = Array.isArray(parsed) ? parsed : Array.isArray(objectRows) ? objectRows : []
     return rows.flatMap((row) => {
       if (!row || typeof row !== 'object') return []
       const item = row as Record<string, unknown>
