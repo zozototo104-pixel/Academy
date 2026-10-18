@@ -333,7 +333,7 @@ export function QuestionReviewDialog({
       }
       if (!d) throw new Error('لم يكتمل نشر الامتحان')
       toast({ title: 'نُشر الامتحان', description: `${d.published} سؤالاً معتمداً — وصل إشعار للطلاب المتسجلين` })
-      onPublished()
+      await onPublished(d.exam)
       onClose()
     } catch (e: any) {
       const details = Array.isArray(e?.data?.details) ? `\n${e.data.details.join('\n')}` : ''
