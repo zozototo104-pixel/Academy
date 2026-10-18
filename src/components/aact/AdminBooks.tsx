@@ -3676,7 +3676,7 @@ export function AdminBooksTab() {
                                 <Loader2 className="ml-1 h-3 w-3 animate-spin" /> جاري التوليد والتحليل ({e.questionCount} سؤالاً حتى الآن)...
                               </Badge>
                             )}
-                            {e.status === 'GENERATING' && <p className="w-full text-[10px] font-bold leading-5 text-slate-500">بنك الأسئلة: معتمد {e.bankApproved || 0} · بانتظار المراجعة {e.bankPendingReview || 0} (الامتحان يسحب المعتمد فقط)</p>}
+                            {['GENERATING', 'PAUSED'].includes(e.status) && <p className="w-full text-[10px] font-bold leading-5 text-slate-500">بنك الأسئلة: معتمد {e.bankApproved || 0} · بانتظار المراجعة {e.bankPendingReview || 0} (الامتحان يسحب المعتمد فقط)</p>}
                             {e.status === 'REVIEW' && (
                               <Badge className="bg-[#f7edd0] text-[#a8841a] hover:bg-[#f7edd0]">
                                 <FileCheck2 className="ml-1 h-3 w-3" /> بانتظار مراجعتك واعتماد الأسئلة ({e.pendingReview} سؤالاً)
