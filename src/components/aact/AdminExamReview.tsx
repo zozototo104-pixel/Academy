@@ -356,7 +356,7 @@ export function QuestionReviewDialog({
   return (
     <>
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-h-[92vh] max-w-3xl overflow-y-auto" dir="rtl">
+      <DialogContent ref={dialogContentRef} className="max-h-[92vh] max-w-3xl overflow-y-auto" dir="rtl">
         <DialogHeader>
           <DialogTitle className="flex flex-wrap items-center gap-2 font-black text-[#0f2b46]">
             <ClipboardCheck className="h-5 w-5 text-[#a8841a]" /> مراجعة أسئلة الامتحان قبل النشر
