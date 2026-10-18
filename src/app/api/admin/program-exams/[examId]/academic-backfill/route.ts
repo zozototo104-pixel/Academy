@@ -32,10 +32,11 @@ async function activeBackfillLock(examId: string) {
   return Number.isFinite(until) && until > Date.now()
 }
 
-export async function POST(_req: NextRequest, { params }: { params: { examId: string } }) {
+export async function POST(_req: NextRequest, context: any) {
   try {
     await requireAdmin()
-    const examId = params.examId
+    const params = await context?.params
+    const examId = String(params?.examId || '')
     const exam = await db.programExam.findUnique({ where: { id: examId }, select: { id: true } })
     if (!exam) return NextResponse.json({ error: 'الامتحان غير موجود' }, { status: 404 })
 
