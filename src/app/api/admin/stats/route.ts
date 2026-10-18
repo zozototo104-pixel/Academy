@@ -11,7 +11,7 @@ export async function GET() {
 
     const [totalStudents, totalEnrollments, totalAttempts, totalChats, pendingAgents, pendingAdmissionApps, incompleteAdmissionApps, serviceDeliveryApps, passedAttempts, recentAttempts, programCounts] =
       await Promise.all([
-        db.user.count({ where: { role: 'STUDENT', enrollments: { some: {} } } }),
+        db.user.count({ where: { role: 'STUDENT', enrollments: { some: { status: { in: [...OPEN_ENROLLMENT_STATUSES] } } } } }),
         db.enrollment.count(),
         db.examAttempt.count(),
         db.chatMessage.count({ where: { role: 'user' } }),
