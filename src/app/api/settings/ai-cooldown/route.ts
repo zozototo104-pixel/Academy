@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 import { audit } from '@/lib/notify'
 
-const PROVIDERS = new Set(['OPENAI', 'ANTHROPIC', 'GOOGLE', 'DEEPSEEK', 'OPENROUTER', 'OPENAI_COMPAT', 'TOPTOOLS'])
+const PROVIDERS = new Set(['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT'])
 
 export async function POST(req: NextRequest) {
   try {
