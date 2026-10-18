@@ -3,10 +3,11 @@ import { join } from 'path'
 import { canPublishUnitExamFromQuestions, selectUnitExamQuestionsApprovedFirst } from '../src/lib/unit-exam-policy'
 import { assertGeneratedBatchHasAcceptedCandidates, hasSourceGroundedFlag, nextQuestionBankRetryAt, planQuestionBankJobManualReactivation, planQuestionBankSourceWindow, prepareMcqOptionsForStorage } from '../src/lib/question-bank-job'
 import { parseGeneratedQuestionCandidates } from '../src/lib/question-bank-generation'
-import { __testAcademicBackfillDataForTests, __testProgramQuestionAcademicCopyForTests, __testQualifiedQuestionBankItemForProgramExamForTests } from '../src/lib/program-exam-assembly'
+import { __testAcademicBackfillDataForTests, __testProgramExamAutoStatusUpdateWhereForTests, __testProgramQuestionAcademicCopyForTests, __testQualifiedQuestionBankItemForProgramExamForTests } from '../src/lib/program-exam-assembly'
 import { calculateProgramExamAcademicMissingCounts, validateProgramExamPublicationReadiness } from '../src/lib/program-exam-publication-readiness'
 import { __testDocumentedBankQuestionForPublicationForTests, __testParseBankDocAiRowsForTests } from '../src/lib/question-bank-documentation'
 import { buildAdminStudentsEnrollmentRelationFilter, OPEN_ENROLLMENT_STATUSES } from '../src/lib/enrollment-status'
+import { __testApproveQuestionBankQualityFlagsForTests, __testOrderQuestionBankItemsForReviewForTests } from '../src/app/api/admin/question-bank/route'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
@@ -473,6 +474,27 @@ function testQuestionBankDocumentationParserAcceptsQuestionsKey() {
   assert(rows[0]?.id === 'q1' && rows[0]?.difficulty === 'EASY', 'محلل توثيق بنك الأسئلة يجب أن يرجع صف q1 بالصعوبة')
 }
 
+function testProgramExamAutoStatusUpdateDoesNotTouchReady() {
+  const where = __testProgramExamAutoStatusUpdateWhereForTests('exam-1') as any
+  assert(where.id === 'exam-1', 'حماية تحديث حالة الامتحان يجب أن تبقى محصورة بالامتحان نفسه')
+  assert(where.status?.not === 'READY', 'أي مسار تلقائي لتحديث حالة الامتحان يجب ألا يلمس امتحاناً جاهزاً')
+}
+
+function testQuestionBankPendingReviewOrdersFirst() {
+  const ordered = __testOrderQuestionBankItemsForReviewForTests([
+    { id: 'approved-new', status: 'APPROVED', createdAt: new Date('2026-01-03T00:00:00Z') },
+    { id: 'pending-old', status: 'PENDING_REVIEW', createdAt: new Date('2026-01-01T00:00:00Z') },
+    { id: 'pending-new', status: 'PENDING_REVIEW', createdAt: new Date('2026-01-02T00:00:00Z') },
+  ])
+  assert(ordered[0]?.id === 'pending-new' && ordered[1]?.id === 'pending-old', 'قائمة بنك الأسئلة يجب أن تعرض المعلقة أولاً بترتيب الأحدث')
+}
+
+function testApprovedQuestionBankFlagsRemoveReviewMarkers() {
+  const flags = JSON.parse(__testApproveQuestionBankQualityFlagsForTests(JSON.stringify(['SOURCE_GROUNDED', 'NEEDS_HUMAN_REVIEW', 'LEGACY_GROUNDING_UNVERIFIED'])))
+  assert(flags.includes('SOURCE_GROUNDED'), 'اعتماد سؤال البنك يجب أن يحافظ على الأعلام الأخرى')
+  assert(!flags.includes('NEEDS_HUMAN_REVIEW') && !flags.includes('LEGACY_GROUNDING_UNVERIFIED'), 'اعتماد سؤال البنك يجب أن يزيل أعلام المراجعة القديمة')
+}
+
 function testAdminStudentsEnrollmentWhereBuilder() {
   const all = buildAdminStudentsEnrollmentRelationFilter('ALL', null) as any
   assert(JSON.stringify(all.some.status.in) === JSON.stringify([...OPEN_ENROLLMENT_STATUSES]), 'فلتر كل الطلاب يجب أن يعرض فقط أصحاب برنامج مفتوح')
@@ -530,6 +552,9 @@ const tests = [
   testProgramExamAcademicMissingCounts,
   testQuestionBankDocumentationPassesProgramExamPublicationSourceCheck,
   testQuestionBankDocumentationParserAcceptsQuestionsKey,
+  testProgramExamAutoStatusUpdateDoesNotTouchReady,
+  testQuestionBankPendingReviewOrdersFirst,
+  testApprovedQuestionBankFlagsRemoveReviewMarkers,
   testAdminStudentsEnrollmentWhereBuilder,
 ]
 

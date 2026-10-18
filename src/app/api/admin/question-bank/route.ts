@@ -27,6 +27,26 @@ function safeJson(value: unknown, fallback: any = null) {
   }
 }
 
+const APPROVAL_CLEARED_FLAGS = new Set(['NEEDS_HUMAN_REVIEW', 'LEGACY_GROUNDING_UNVERIFIED'])
+
+function cleanApprovedQualityFlags(value: unknown) {
+  const flags = safeJson(value, [])
+  const clean = Array.isArray(flags) ? flags.map(String).filter((flag) => !APPROVAL_CLEARED_FLAGS.has(flag)) : []
+  return JSON.stringify(Array.from(new Set(clean)))
+}
+
+export function __testApproveQuestionBankQualityFlagsForTests(value: unknown) {
+  return cleanApprovedQualityFlags(value)
+}
+
+export function __testOrderQuestionBankItemsForReviewForTests(items: Array<{ id: string; status: string; createdAt: Date | string }>) {
+  return [...items].sort((a, b) => {
+    if (a.status === 'PENDING_REVIEW' && b.status !== 'PENDING_REVIEW') return -1
+    if (a.status !== 'PENDING_REVIEW' && b.status === 'PENDING_REVIEW') return 1
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  })
+}
+
 function norm(value: unknown) {
   return String(value || '')
     .toLowerCase()
@@ -134,43 +154,54 @@ async function questionStats(programId: string) {
 }
 
 async function listQuestions(programId: string, status?: string | null) {
-  const items = await withTiming('db_question_bank_items', () => db.questionBankItem.findMany({
-    where: { programId, ...(status && STATUSES.has(status) ? { status } : {}) },
-    orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
-    take: 120,
-    select: {
-      id: true,
-      type: true,
-      text: true,
-      options: true,
-      correctAnswer: true,
-      modelAnswer: true,
-      sourceEvidence: true,
-      sourceLocator: true,
-      sourceBookTitle: true,
-      knowledgeItemId: true,
-      cognitiveSkill: true,
-      difficulty: true,
-      status: true,
-      qualityFlags: true,
-      reviewNotes: true,
-      generatedBy: true,
-      rejectedReason: true,
-      createdAt: true,
-    },
-  }))
+  const select = {
+    id: true,
+    type: true,
+    text: true,
+    options: true,
+    correctAnswer: true,
+    modelAnswer: true,
+    sourceEvidence: true,
+    sourceLocator: true,
+    sourceBookTitle: true,
+    knowledgeItemId: true,
+    cognitiveSkill: true,
+    difficulty: true,
+    status: true,
+    qualityFlags: true,
+    reviewNotes: true,
+    generatedBy: true,
+    rejectedReason: true,
+    createdAt: true,
+  } as const
+  const statusFilter = status && STATUSES.has(status) ? status : null
+  const baseWhere = { programId, ...(statusFilter ? { status: statusFilter } : {}) }
+  const total = await withTiming('db_question_bank_items_count', () => db.questionBankItem.count({ where: baseWhere }))
+  const items = await withTiming('db_question_bank_items', async () => {
+    if (statusFilter) {
+      return db.questionBankItem.findMany({ where: baseWhere, orderBy: { createdAt: 'desc' }, take: 300, select })
+    }
+    const pending = await db.questionBankItem.findMany({ where: { programId, status: 'PENDING_REVIEW' }, orderBy: { createdAt: 'desc' }, take: 300, select })
+    const remaining = Math.max(0, 300 - pending.length)
+    if (!remaining) return pending
+    const rest = await db.questionBankItem.findMany({ where: { programId, status: { not: 'PENDING_REVIEW' } }, orderBy: { createdAt: 'desc' }, take: remaining, select })
+    return [...pending, ...rest]
+  })
   const preview = (value?: string | null) => {
     const text = String(value || '').trim()
     return text ? text.slice(0, 200) : null
   }
-  return items.map((item) => ({
-    ...item,
-    modelAnswer: preview(item.modelAnswer),
-    sourceEvidence: preview(item.sourceEvidence),
-    rejectedReason: preview(item.rejectedReason),
-    verifierReason: preview(item.reviewNotes),
-    reviewNotes: undefined,
-  }))
+  return {
+    items: items.map((item) => ({
+      ...item,
+      modelAnswer: preview(item.modelAnswer),
+      sourceEvidence: preview(item.sourceEvidence),
+      rejectedReason: preview(item.rejectedReason),
+      verifierReason: preview(item.reviewNotes),
+      reviewNotes: undefined,
+    })),
+    itemsTruncated: total > items.length,
+  }
 }
 
 export async function GET(req: NextRequest) {
@@ -186,7 +217,8 @@ export async function GET(req: NextRequest) {
     const paused = pauseSetting?.value ? safeJson(pauseSetting.value, null) : null
     const progress = await withTiming('db_question_bank_progress', () => getAiGenerationProgress('QUESTION_BANK', programId, 'ALL'))
     const jobs = await withTiming('db_question_bank_jobs', () => db.questionBankGenerationJob.findMany({ where: { programId }, orderBy: { createdAt: 'desc' }, take: 5 }))
-    return NextResponse.json({ program, stats: await questionStats(programId), items: await listQuestions(programId, status), paused, progress, jobs })
+    const listed = await listQuestions(programId, status)
+    return NextResponse.json({ program, stats: await questionStats(programId), ...listed, paused, progress, jobs })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('question bank GET error:', e)
@@ -213,7 +245,7 @@ export async function POST(req: NextRequest) {
       const result = await insertBankQuestions(programId, [body?.question || body], { generatedBy: 'MANUAL', status: body?.approveNow ? 'APPROVED' : 'PENDING_REVIEW' })
       if (!result.inserted) return NextResponse.json({ error: 'لم يتم حفظ السؤال؛ قد يكون مكررًا أو غير مكتمل', skippedDuplicates: result.skippedDuplicates }, { status: 409 })
       await withTiming('db_audit_question_bank_manual', () => audit({ id: admin.id, name: admin.name }, 'ADD_QUESTION_BANK_ITEM', 'Program', programId, `إضافة ${result.inserted} سؤال يدوي إلى بنك أسئلة ${program.titleAr}`))
-      return NextResponse.json({ ok: true, ...result, stats: await questionStats(programId), items: await listQuestions(programId) })
+      return NextResponse.json({ ok: true, ...result, stats: await questionStats(programId), ...(await listQuestions(programId)) })
     }
 
     if (source === 'REVIEW_LEGACY_GROUNDING') {
@@ -222,7 +254,7 @@ export async function POST(req: NextRequest) {
         await withTiming('db_question_bank_legacy_update_many', () => db.questionBankItem.updateMany({ where: { id: { in: legacy.map((item) => item.id) } }, data: { status: 'PENDING_REVIEW', approvedBy: null, approvedAt: null, qualityFlags: JSON.stringify(['LEGACY_GROUNDING_UNVERIFIED', 'NEEDS_HUMAN_REVIEW']) } }))
       }
       await withTiming('db_audit_question_bank_legacy', () => audit({ id: admin.id, name: admin.name }, 'REVIEW_LEGACY_QUESTION_GROUNDING', 'Program', programId, `إعادة ${legacy.length} سؤال AI قديم إلى المراجعة دون حذف`))
-      return NextResponse.json({ ok: true, marked: legacy.length, stats: await questionStats(programId), items: await listQuestions(programId) })
+      return NextResponse.json({ ok: true, marked: legacy.length, stats: await questionStats(programId), ...(await listQuestions(programId)) })
     }
 
     if (source === 'IMPORT') {
@@ -230,7 +262,7 @@ export async function POST(req: NextRequest) {
       const result = await insertBankQuestions(programId, imported, { generatedBy: 'IMPORT', status: body?.approveNow ? 'APPROVED' : 'PENDING_REVIEW' })
       if (!result.inserted) return NextResponse.json({ error: 'لم يتم استيراد أسئلة جديدة؛ تحقق من التنسيق أو التكرار', skippedDuplicates: result.skippedDuplicates }, { status: 409 })
       await withTiming('db_audit_question_bank_import', () => audit({ id: admin.id, name: admin.name }, 'IMPORT_QUESTION_BANK', 'Program', programId, `استيراد ${result.inserted} سؤال إلى بنك أسئلة ${program.titleAr} وتجاوز ${result.skippedDuplicates} مكرر`))
-      return NextResponse.json({ ok: true, ...result, stats: await questionStats(programId), items: await listQuestions(programId) })
+      return NextResponse.json({ ok: true, ...result, stats: await questionStats(programId), ...(await listQuestions(programId)) })
     }
 
     const unitId = cleanText(body?.unitId, 80) || null
@@ -250,7 +282,7 @@ export async function POST(req: NextRequest) {
       error: backgroundJob.lastError || undefined,
       message: 'تم تشغيل وظيفة بنك الأسئلة في الخلفية. ستُستكمل من after() والـ cron.',
       stats: await questionStats(programId),
-      items: await listQuestions(programId),
+      ...(await listQuestions(programId)),
     }, { status: 202 })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
@@ -267,14 +299,14 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json()
     const id = cleanText(body?.id, 80)
     if (!id) return NextResponse.json({ error: 'معرف السؤال مطلوب' }, { status: 400 })
-    const existing = await withTiming('db_question_bank_item_for_patch', () => db.questionBankItem.findUnique({ where: { id }, select: { type: true, options: true, correctAnswer: true } }))
+    const existing = await withTiming('db_question_bank_item_for_patch', () => db.questionBankItem.findUnique({ where: { id }, select: { type: true, options: true, correctAnswer: true, qualityFlags: true } }))
     if (!existing) return NextResponse.json({ error: 'السؤال غير موجود' }, { status: 404 })
     const data: any = {}
     if (body?.status !== undefined) {
       const status = cleanText(body.status, 40)
       if (!STATUSES.has(status)) return NextResponse.json({ error: 'حالة السؤال غير صحيحة' }, { status: 400 })
       data.status = status
-      if (status === 'APPROVED') { data.approvedBy = admin.id; data.approvedAt = new Date(); data.rejectedReason = null }
+      if (status === 'APPROVED') { data.approvedBy = admin.id; data.approvedAt = new Date(); data.rejectedReason = null; data.qualityFlags = cleanApprovedQualityFlags(existing.qualityFlags) }
       if (status === 'REJECTED') { data.approvedBy = null; data.approvedAt = null; data.rejectedReason = cleanText(body?.rejectedReason, 500) || 'رفضته الإدارة أثناء المراجعة' }
     }
     for (const field of ['text', 'modelAnswer', 'sourceEvidence', 'sourceBookTitle', 'sourceLocator', 'cognitiveSkill', 'difficulty', 'correctRationale', 'reviewNotes']) {

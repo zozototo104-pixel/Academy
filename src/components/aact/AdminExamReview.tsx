@@ -84,7 +84,7 @@ export function QuestionReviewDialog({
   examTitle: string
   open: boolean
   onClose: () => void
-  onPublished: () => void
+  onPublished: (exam?: { id: string; status: string; totalPoints?: number | null; durationMin?: number | null }) => void | Promise<void>
 }) {
   const { toast } = useToast()
   const [questions, setQuestions] = useState<ReviewQuestion[]>([])
@@ -278,12 +278,13 @@ export function QuestionReviewDialog({
       let stagnant = 0
       for (let attempt = 0; attempt < 30; attempt++) {
         setAcademicBackfillMessage(`جارٍ الاستكمال... المتبقي: ${remaining}`)
-        const d = await api<{ filled: number; remaining: number; done: boolean; locked?: boolean; unsourceable?: number; error?: string }>(`/api/admin/program-exams/${examId}/academic-backfill`, { method: 'POST' })
+        const d = await api<{ filled: number; remaining: number; done: boolean; locked?: boolean; unsourceable?: number; aiFailed?: number; error?: string }>(`/api/admin/program-exams/${examId}/academic-backfill`, { method: 'POST' })
         if (d.locked) throw new Error('استكمال البيانات الأكاديمية قيد التشغيل حالياً')
         stagnant = d.remaining >= remaining ? stagnant + 1 : 0
         remaining = d.remaining
         setAcademicBackfillSourceMessage(Number(d.unsourceable || 0) > 0 ? `${d.unsourceable} سؤال بلا مصدر قابل للربط، أعد سحب الامتحان من البنك` : '')
         setAcademicBackfillMessage(d.done || d.remaining === 0 ? 'اكتمل الاستكمال' : `جارٍ الاستكمال... المتبقي: ${d.remaining}`)
+        if (stagnant >= 2 && !d.done && d.remaining > 0) setAcademicBackfillMessage(`توقف الاستكمال: ${d.unsourceable || 0} سؤال بلا مصدر قابل للربط، و ${d.aiFailed || 0} فشل الذكاء الاصطناعي بتعبئتها`)
         if (d.done || d.remaining === 0 || stagnant >= 2) {
           await load()
           onPublished()
@@ -313,11 +314,11 @@ export function QuestionReviewDialog({
     if (!(await confirmAction({ title: 'نشر الامتحان للطلاب', description: 'سيتم اعتماد كل الأسئلة المعلّقة ونشر الامتحان للطلاب المتسجلين مع إشعارهم.', confirmLabel: 'نشر الامتحان', tone: 'success' }))) return
     setBusy(true)
     try {
-      const publishRequest = (overrideReason?: string) => api<{ published: number }>('/api/admin/program-exam-questions', {
+      const publishRequest = (overrideReason?: string) => api<{ published: number; exam?: { id: string; status: string; totalPoints?: number | null; durationMin?: number | null } }>('/api/admin/program-exam-questions', {
         method: 'POST',
         body: JSON.stringify({ examId, action: 'APPROVE_ALL', ...(overrideReason ? { overrideCognitivePolicy: true, overrideReason } : {}) }),
       })
-      let d: { published: number } | null = null
+      let d: { published: number; exam?: { id: string; status: string; totalPoints?: number | null; durationMin?: number | null } } | null = null
       try {
         d = await publishRequest()
       } catch (e: any) {
@@ -333,7 +334,7 @@ export function QuestionReviewDialog({
       }
       if (!d) throw new Error('لم يكتمل نشر الامتحان')
       toast({ title: 'نُشر الامتحان', description: `${d.published} سؤالاً معتمداً — وصل إشعار للطلاب المتسجلين` })
-      onPublished()
+      await onPublished(d.exam)
       onClose()
     } catch (e: any) {
       const details = Array.isArray(e?.data?.details) ? `\n${e.data.details.join('\n')}` : ''

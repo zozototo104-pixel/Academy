@@ -325,6 +325,10 @@ export async function POST(req: NextRequest) {
         durationMin: Math.max(120, Math.min(240, Math.round(totalQ * 2))),
       },
     })
+    const publishedExam = await db.programExam.findUnique({
+      where: { id: examId },
+      select: { id: true, status: true, totalPoints: true, durationMin: true },
+    })
 
     await audit(
       { id: admin.id, name: admin.name },
@@ -363,7 +367,7 @@ export async function POST(req: NextRequest) {
       console.error('exam publish notification lookup failed:', notifyErr)
     }
 
-    return NextResponse.json({ ok: true, published: totalQ, approvedNow: result.count, notified })
+    return NextResponse.json({ ok: true, published: totalQ, approvedNow: result.count, notified, exam: publishedExam })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('admin exam questions POST error:', e)

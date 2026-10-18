@@ -121,6 +121,14 @@ function safeJsonArray(value: string | null | undefined): string[] {
   try { const parsed: unknown = JSON.parse(value || '[]'); return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [] } catch { return [] }
 }
 
+export function programExamAutoStatusUpdateWhere(examId: string) {
+  return { id: examId, status: { not: 'READY' } }
+}
+
+export function __testProgramExamAutoStatusUpdateWhereForTests(examId: string) {
+  return programExamAutoStatusUpdateWhere(examId)
+}
+
 export function sourceLocatorFromKnowledge(item: { title?: string | null; pageStart?: number | null; pageEnd?: number | null } | null | undefined, fallback?: string | null) {
   const page = item?.pageStart == null ? '' : `صفحة ${item.pageStart}${item.pageEnd != null && item.pageEnd !== item.pageStart ? `–${item.pageEnd}` : ''}`
   return [fallback, page, item?.title ? `مقطع ${item.title}` : ''].filter(Boolean).join(' — ').slice(0, 240)
@@ -252,13 +260,14 @@ export async function backfillProgramExamAcademicFields(examId: string, options:
   const activeUntil = Date.parse(activeLock?.value || '')
   if (Number.isFinite(activeUntil) && activeUntil > Date.now()) {
     const remaining = await remainingAcademicBackfillCount(examId)
-    console.info('[program-exam] academic-backfill', { examId, filled: 0, remaining, batchesRun: 0, skipped: 'LOCKED' })
-    return { filled: 0, remaining, skipped: 'LOCKED' as const, batchesRun: 0 }
+    console.info('[program-exam] academic-backfill', { examId, filled: 0, remaining, batchesRun: 0, aiFailed: 0, skipped: 'LOCKED' })
+    return { filled: 0, remaining, skipped: 'LOCKED' as const, batchesRun: 0, aiFailed: 0 }
   }
   const lockUntil = new Date(Date.now() + 4 * 60_000).toISOString()
   await db.setting.upsert({ where: { key: lockKey }, create: { key: lockKey, value: lockUntil }, update: { value: lockUntil } })
   let filled = 0
   let batchesRun = 0
+  let aiFailed = 0
   try {
     filled += await syncProgramExamQuestionsFromBank(examId)
     const maxBatches = Math.max(1, Math.floor(options.maxBatches ?? 2))
@@ -283,22 +292,27 @@ export async function backfillProgramExamAcademicFields(examId: string, options:
           maxOutputTokens: 3500,
         })
         const rows = new Map(parseAiBackfill(raw).map((row) => [row.id, row]))
+        let batchFilled = 0
         for (const question of batch) {
           const row = rows.get(question.id)
-          if (!row) continue
+          if (!row) { aiFailed += 1; continue }
           const data = academicBackfillData(question, row)
           if (Object.keys(data).length) {
+            batchFilled += Object.keys(data).length
             filled += Object.keys(data).length
             await db.programQuestion.update({ where: { id: question.id }, data })
-          }
+          } else aiFailed += 1
         }
+        console.info('[exam-backfill]', { examId, batch: batchesRun, filled: batchFilled, remaining: await remainingAcademicBackfillCount(examId) })
       } catch (error) {
+        aiFailed += batch.length
         console.warn('[program-exam] academic-backfill batch failed', { examId, error: error instanceof Error ? error.message : String(error) })
+        console.info('[exam-backfill]', { examId, batch: batchesRun, filled: 0, remaining: await remainingAcademicBackfillCount(examId) })
       }
     }
     const remaining = await remainingAcademicBackfillCount(examId)
-    console.info('[program-exam] academic-backfill', { examId, filled, remaining, batchesRun })
-    return { filled, remaining, batchesRun }
+    console.info('[program-exam] academic-backfill', { examId, filled, remaining, batchesRun, aiFailed })
+    return { filled, remaining, batchesRun, aiFailed }
   } finally {
     await db.setting.deleteMany({ where: { key: lockKey, value: lockUntil } }).catch(() => {})
   }
@@ -385,7 +399,7 @@ export async function advanceProgramExamFromVerifiedBank(examId: string, options
       ? `تم حفظ ${questionCount} سؤالًا، لكن ${legacyUnverified} من الأسئلة القديمة لا يمكن مطابقة دليلها حرفيًا مع الكتب وبنك المعرفة V2. راجعها أو ارفض غير الموثق منها ثم استكمل، دون حذف تلقائي.`
       : `مستمر: ${questionCount}/${PROGRAM_EXAM_TARGET} سؤال معتمد؛ بانتظار أسئلة موثقة إضافية من بنك المعرفة V2. ${pendingReviewNote} ${pools.filter((p) => !p.scopeReady).map((p) => p.unit.title).slice(0, 3).join('، ')}`.slice(0, 1000)
     const points = active.reduce((total, q) => total + q.points, 0) + taken.length * 2
-    await tx.programExam.update({ where: { id: examId }, data: { status, errorNote: note, totalPoints: points, durationMin: Math.max(120, Math.min(240, questionCount * 2)), booksUsed: 'بنك الأسئلة الموثق من نصوص الكتب وبنك المعرفة V2' } })
+    await tx.programExam.updateMany({ where: programExamAutoStatusUpdateWhere(examId), data: { status, errorNote: note, totalPoints: points, durationMin: Math.max(120, Math.min(240, questionCount * 2)), booksUsed: 'بنك الأسئلة الموثق من نصوص الكتب وبنك المعرفة V2' } })
     return { questionCount, inserted: taken.length, done: complete, status, byType, byUnit }
   }, { maxWait: 15_000, timeout: 20_000 })
 

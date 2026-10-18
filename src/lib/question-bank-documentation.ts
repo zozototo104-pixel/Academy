@@ -20,6 +20,21 @@ function safeJsonArray(value: string | null | undefined): string[] {
   }
 }
 
+const APPROVAL_CLEARED_FLAGS = new Set(['NEEDS_HUMAN_REVIEW', 'LEGACY_GROUNDING_UNVERIFIED'])
+
+function cleanApprovedQualityFlags(value: string | null | undefined) {
+  return JSON.stringify(Array.from(new Set(safeJsonArray(value).filter((flag) => !APPROVAL_CLEARED_FLAGS.has(flag)))))
+}
+
+async function cleanApprovedQuestionBankReviewFlags(programId: string) {
+  const items = await db.questionBankItem.findMany({
+    where: { programId, status: 'APPROVED', OR: [{ qualityFlags: { contains: 'NEEDS_HUMAN_REVIEW' } }, { qualityFlags: { contains: 'LEGACY_GROUNDING_UNVERIFIED' } }] },
+    select: { id: true, qualityFlags: true },
+  })
+  for (const item of items) await db.questionBankItem.update({ where: { id: item.id }, data: { qualityFlags: cleanApprovedQualityFlags(item.qualityFlags) } })
+  return items.length
+}
+
 function parseAiRows(raw: string): Array<{ id: string; difficulty?: string; cognitiveSkill?: string; correctRationale?: string; distractorRationales?: string[] }> {
   try {
     const parsed: unknown = JSON.parse(raw)
@@ -124,6 +139,7 @@ export async function backfillQuestionBankAcademicFields(programId: string, time
   let filled = 0
   try {
     filled += await syncQuestionBankDocumentationFromKnowledge(programId)
+    filled += await cleanApprovedQuestionBankReviewFlags(programId)
     const skippedAiIds = new Set<string>()
     while (Date.now() - startedAt < timeBudgetMs) {
       const batch = await db.questionBankItem.findMany({

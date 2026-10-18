@@ -42,25 +42,27 @@ export async function POST(_req: NextRequest, context: any) {
 
     if (await activeBackfillLock(examId)) {
       const counts = await academicCounts(examId)
-      return NextResponse.json({ filled: 0, ...counts, done: counts.remaining === 0, locked: true })
+      return NextResponse.json({ filled: 0, aiFailed: 0, ...counts, done: counts.remaining === 0, locked: true })
     }
 
     const startedAt = Date.now()
     let filled = await syncProgramExamQuestionsFromBank(examId)
+    let aiFailed = 0
     let counts = await academicCounts(examId)
 
     while (counts.remaining > 0 && Date.now() - startedAt < 45_000) {
       const result = await backfillProgramExamAcademicFields(examId, { maxBatches: 2 })
       if (result.skipped === 'LOCKED') {
         counts = await academicCounts(examId)
-        return NextResponse.json({ filled, ...counts, done: counts.remaining === 0, locked: true })
+        return NextResponse.json({ filled, aiFailed, ...counts, done: counts.remaining === 0, locked: true })
       }
       filled += result.filled || 0
+      aiFailed += result.aiFailed || 0
       counts = await academicCounts(examId)
       if (result.batchesRun === 0 && (result.filled || 0) === 0) break
     }
 
-    return NextResponse.json({ filled, ...counts, done: counts.remaining === 0 })
+    return NextResponse.json({ filled, aiFailed, ...counts, done: counts.remaining === 0 })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('program exam academic backfill error:', e)

@@ -312,6 +312,7 @@ interface QuestionBankItemRow {
   options?: string | null
   correctAnswer?: string | null
   modelAnswer?: string | null
+  sourceBookTitle?: string | null
   sourceEvidence?: string | null
   sourceLocator?: string | null
   knowledgeItemId?: string | null
@@ -354,6 +355,10 @@ function questionGroundingFlags(question: QuestionBankItemRow): string[] {
 function isSourceGroundedQuestion(question: QuestionBankItemRow): boolean {
   const flags = questionGroundingFlags(question)
   return flags.includes('SOURCE_GROUNDED') && !flags.includes('OCR_DERIVED_SOURCE') && !flags.includes('NEEDS_HUMAN_REVIEW')
+}
+
+function isDocumentedQuestion(question: QuestionBankItemRow): boolean {
+  return Boolean(String(question.sourceBookTitle || '').trim() && String(question.sourceLocator || '').trim() && String(question.sourceEvidence || '').trim())
 }
 
 function bankQuestionOptions(question: QuestionBankItemRow): string[] {
@@ -4034,13 +4039,11 @@ export function AdminBooksTab() {
                     <div className="flex flex-wrap gap-2">
                       <Badge className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">{q.type}</Badge>
                       <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">{q.difficulty || 'MEDIUM'}</Badge>
-                      {isSourceGroundedQuestion(q) ? (
-                        <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">مُثبت من المصدر</Badge>
-                      ) : questionGroundingFlags(q).includes('OCR_DERIVED_SOURCE') ? (
-                        <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100" title={q.verifierReason || undefined}>مصدر OCR – يحتاج مراجعة</Badge>
-                      ) : (
-                        <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100" title={q.verifierReason || undefined}>يحتاج تدقيق</Badge>
-                      )}
+                      {isDocumentedQuestion(q) ? (
+                        <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">موثق</Badge>
+                      ) : q.status === 'PENDING_REVIEW' ? (
+                        <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100" title={q.verifierReason || undefined}>بحاجة لمراجعة</Badge>
+                      ) : null}
                       {q.verifierModel?.includes(':free') && <Badge className="bg-violet-100 text-violet-700 hover:bg-violet-100" title={q.verifierModel}>تحقق بموديل مجاني</Badge>}
                       <Badge className={q.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : q.status === 'REJECTED' ? 'bg-red-100 text-red-700 hover:bg-red-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>
                         {q.status === 'APPROVED' ? 'معتمد' : q.status === 'REJECTED' ? 'مرفوض' : 'بانتظار المراجعة'}
@@ -4309,7 +4312,18 @@ export function AdminBooksTab() {
           examTitle={reviewingExam.title}
           open={!!reviewingExam}
           onClose={() => setReviewingExam(null)}
-          onPublished={() => programId && loadProgramData(programId, true)}
+          onPublished={async (exam) => {
+            if (exam) setExams((prev) => prev.map((item) => item.id === exam.id ? {
+              ...item,
+              status: exam.status,
+              totalPoints: Number(exam.totalPoints ?? item.totalPoints),
+              durationMin: Number(exam.durationMin ?? item.durationMin),
+            } : item))
+            if (programId) {
+              await loadProgramData(programId, true)
+              await loadExamProgress(programId).catch(() => null)
+            }
+          }}
         />
       )}
       {actionDialog}
