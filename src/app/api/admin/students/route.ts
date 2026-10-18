@@ -179,8 +179,13 @@ export async function GET(req: NextRequest) {
     }
 
     const where: any = { role: 'STUDENT' }
-    const hasEnrollmentFilter = Object.keys(enrollmentWhere).length > 0
-    if (hasEnrollmentFilter) where.enrollments = { some: enrollmentWhere }
+    if (status === REGISTERED_ONLY_STATUS) where.enrollments = buildAdminStudentsEnrollmentRelationFilter(status, programId)
+    else {
+      const hasExplicitEnrollmentFilter = status && status !== 'ALL' && status !== 'INCOMPLETE_ADMISSIONS'
+      where.enrollments = hasExplicitEnrollmentFilter
+        ? { some: enrollmentWhere }
+        : buildAdminStudentsEnrollmentRelationFilter(status || 'ALL', programId)
+    }
     if (q) {
       where.OR = [
         { name: { contains: q, mode: 'insensitive' } },
