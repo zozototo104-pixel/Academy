@@ -98,7 +98,7 @@ export function QuestionReviewDialog({
   const [academicBackfillSourceMessage, setAcademicBackfillSourceMessage] = useState('')
   const [filter, setFilter] = useState<'ALL' | 'PENDING_REVIEW' | 'PUBLISHED' | 'REJECTED'>('ALL')
   const [examGeneratedBy, setExamGeneratedBy] = useState<string | null>(null)
-  const [cognitiveOverride, setCognitiveOverride] = useState<null | { message: string; details: string[]; reason: string }>(null)
+  const [cognitiveOverride, setCognitiveOverride] = useState<null | { message: string; details: string[]; reason: string }>(() => initialCognitiveOverride ? { message: initialCognitiveOverride.message, details: initialCognitiveOverride.details || [], reason: '' } : null)
   const dialogContentRef = useRef<HTMLDivElement | null>(null)
   const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
 
