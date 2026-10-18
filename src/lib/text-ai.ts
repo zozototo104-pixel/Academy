@@ -555,6 +555,34 @@ function isQuotaLike(e: any): boolean {
   return status === 429 || /quota|rate.?limit|resource exhausted|too many requests|insufficient_quota|insufficient balance|no resource package/i.test(msg)
 }
 
+export function classifyRateLimitScope(model: string, message: unknown, status?: number): 'model' | 'key' {
+  const msg = String(message || '').toLowerCase()
+  const safeModel = String(model || '').toLowerCase()
+  if (Number(status || 0) === 402 || /insufficient_quota|billing|organization|account limit|free-models-per-day|credit/i.test(msg) || (/per day/i.test(msg) && /account/i.test(msg))) return 'key'
+  if ((safeModel && msg.includes(safeModel)) || /per model|model:|per minute|every\s+\d+\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes)|\brpm\b|\btpm\b/i.test(msg)) return 'model'
+  return 'model'
+}
+
+function rateLimitCooldownMinutes(e: any, message: string): number {
+  const retryDelay = Number(e?.retryDelay || e?.retry_after || e?.retryAfter || 0)
+  if (Number.isFinite(retryDelay) && retryDelay > 0) return Math.max(1, Math.ceil(retryDelay / (retryDelay > 1000 ? 60_000 : 60)))
+  const msg = String(message || '')
+  const seconds = msg.match(/retry\s+in\s+(\d+)\s*s/i)
+  if (seconds) return Math.max(1, Math.ceil(Number(seconds[1]) / 60))
+  const minutes = msg.match(/retry\s+in\s+(\d+)\s*m/i)
+  if (minutes) return Math.max(1, Number(minutes[1]))
+  return 2
+}
+
+function shouldEscalateModelRateLimit(provider: string, key: string, model: string): boolean {
+  const id = cooldownId(provider, key)
+  const now = Date.now()
+  const recent = (modelRateLimitHits.get(id) || []).filter((hit) => now - hit.at <= 60_000)
+  recent.push({ model, at: now })
+  modelRateLimitHits.set(id, recent)
+  return new Set(recent.map((hit) => hit.model)).size >= 2
+}
+
 function isAuthLike(e: any): boolean {
   const msg = String(e?.message || e || '').toLowerCase()
   const status = Number(e?.status || e?.code || 0)
