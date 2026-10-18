@@ -2782,7 +2782,7 @@ export function AdminBooksTab() {
                             <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-sky-700">{questionBankProgressCounts(unit).percent}%</span>
                           </div>
                           <div className="mt-2 h-2 overflow-hidden rounded-full bg-sky-100">
-                            <div className="h-full rounded-full bg-sky-500 transition-all" style={{ width: `${Math.min(100, Math.round(((unit.questionBankJob.currentQuestions || unit.questionBankJob.saved || 0) / Math.max(1, unit.questionBankJob.requested || 1)) * 100))}%` }} />
+                            <div className="h-full rounded-full bg-sky-500 transition-all" style={{ width: `${questionBankProgressCounts(unit).percent}%` }} />
                           </div>
                           <p className="mt-2">الأسئلة المؤهلة: {unit.questionBankJob.currentQuestions} من {unit.questionBankJob.requested} · محفوظة job: {unit.questionBankJob.saved} · معتمدة: {unit.questionBankJob.approvedQuestions} · تحتاج مراجعة: {unit.questionBankJob.pendingReviewQuestions}</p>
                           {unit.questionBankJob.trace && <p>آخر دفعة: مولّدة {unit.questionBankJob.trace.generated} · محفوظة {unit.questionBankJob.trace.saved} · رفض verifier {unit.questionBankJob.trace.verifierRejected} · رفض إجمالي {unit.questionBankJob.trace.rejected}</p>}
