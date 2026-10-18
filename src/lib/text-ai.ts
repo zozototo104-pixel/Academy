@@ -2235,8 +2235,13 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           }
           if (isHighDemandLike(e)) {
             skipModelsThisRequest.add(`${provider}:${model}`)
-            markCooldown(provider, key, msg, 1, status)
-            await markPersistentCooldown(provider, keyIndex, model, msg, status, 1)
+            if (highDemandCooldownScope(model, msg, status) === 'model') {
+              markModelCooldown(provider, key, model, msg, 2, status)
+              await markPersistentCooldown(provider, keyIndex, model, msg, status, 2)
+            } else {
+              markCooldown(provider, key, msg, 1, status)
+              await markPersistentCooldown(provider, keyIndex, model, msg, status, 1)
+            }
             break
           }
           if (isTimeoutLike(e)) {
