@@ -55,6 +55,8 @@ export async function GET(req: NextRequest) {
         totalPoints,
         pendingReview,
         rejectedCount,
+        bankApproved,
+        bankPendingReview,
         createdAt: exam.createdAt,
       }
     })
