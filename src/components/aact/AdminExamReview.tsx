@@ -100,7 +100,7 @@ export function QuestionReviewDialog({
   const [examGeneratedBy, setExamGeneratedBy] = useState<string | null>(null)
   const [cognitiveOverride, setCognitiveOverride] = useState<null | { message: string; details: string[]; reason: string }>(() => initialCognitiveOverride ? { message: initialCognitiveOverride.message, details: initialCognitiveOverride.details || [], reason: '' } : null)
   const dialogContentRef = useRef<HTMLDivElement | null>(null)
-  const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
+  const { confirmAction, promptAction, dialog: actionDialog } = useAdminActionDialog()
 
   const load = useCallback(async () => {
     if (!examId) return
