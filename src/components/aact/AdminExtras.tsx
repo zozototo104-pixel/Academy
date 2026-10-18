@@ -2118,8 +2118,13 @@ export function AdminSettingsTab() {
   const save = async () => {
     setSaving(true)
     try {
-      const res = await api<{ values?: Record<string, string> }>('/api/settings', { method: 'PUT', body: JSON.stringify({ values }) })
-      if (res.values) setValues((prev) => ({ ...prev, ...res.values }))
+      const currentValues = { ...values }
+      for (const d of defs) {
+        const input = document.getElementById(d.key) as HTMLInputElement | HTMLTextAreaElement | null
+        if (input && 'value' in input) currentValues[d.key] = input.value
+      }
+      const res = await api<{ values?: Record<string, string> }>('/api/settings', { method: 'PUT', body: JSON.stringify({ values: currentValues }) })
+      if (res.values) setValues((prev) => ({ ...prev, ...currentValues, ...res.values }))
       toast({ title: 'حُفظت الإعدادات العامة', description: 'تُطبق القيم الجديدة فوراً — سُجل الإجراء في سجل التدقيق' })
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
