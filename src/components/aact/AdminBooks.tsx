@@ -3679,6 +3679,7 @@ export function AdminBooksTab() {
                 <Button size="sm" variant="outline" disabled={questionBankBusy === 'units-load' || questionBankBusy === 'exam-1'} onClick={() => openBankExamDialog(1)} className="bg-white text-xs font-black">امتحان فصل 1 من البنك</Button>
                 <Button size="sm" variant="outline" disabled={questionBankBusy === 'units-load' || questionBankBusy === 'exam-2'} onClick={() => openBankExamDialog(2)} className="bg-white text-xs font-black">امتحان فصل 2 من البنك</Button>
               </div>
+              {questionBankDocumentationMessage && <p className="mt-2 text-[11px] font-black text-blue-700">{questionBankDocumentationMessage}</p>}
               {questionBankProgress && questionBankProgress.requested > 0 ? (
                 <div className="mt-4 rounded-2xl border border-[#c9a227]/20 bg-white p-3">
                   <div className="mb-2 flex items-center justify-between text-[11px] font-black text-slate-600">
