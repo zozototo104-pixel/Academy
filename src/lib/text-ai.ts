@@ -909,6 +909,47 @@ async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseU
   }
 }
 
+function isGroqTextChatModel(row: any): boolean {
+  const id = modelId(row).toLowerCase()
+  const haystack = `${id} ${row?.type || ''} ${row?.owned_by || ''} ${row?.object || ''}`.toLowerCase()
+  if (!id) return false
+  if (/whisper|tts|guard|embed|embedding|audio|speech|image|vision|moderation|rerank|transcribe|stt/.test(haystack)) return false
+  return true
+}
+
+async function fetchGroqTextModels(baseUrl: string, key?: string): Promise<string[]> {
+  if (!baseUrl) return []
+  try {
+    const response = await fetchWithTimeout('GROQ', `${baseUrl.replace(/\/$/, '')}/models`, {
+      cache: 'no-store',
+      headers: key ? { Authorization: `Bearer ${key}` } : undefined,
+    }, aiDiscoveryTimeoutMs())
+    if (!response.ok) return []
+    const data = await response.json().catch(() => ({}))
+    const rows = rowsFromModelPayload(data)
+      .filter((m) => m?.online !== false)
+      .filter(isGroqTextChatModel)
+      .map((m) => ({ raw: m, id: modelId(m) }))
+      .filter(({ id }) => validModelName(id))
+    const models = rows.map(({ id }) => id)
+    const capabilities = Object.fromEntries(rows.map(({ raw, id }) => [id, capabilityFromModelRow(raw)]))
+    freeModelsCache.set(cacheKeyForFreeModels('GROQ', baseUrl, key), { at: Date.now(), models, capabilities })
+    console.info('[text-ai-router] groq models discovered', { count: models.length })
+    return models
+  } catch {
+    return []
+  }
+}
+
+export async function __testDiscoverGroqTextModelsForTests(baseUrl: string, key?: string): Promise<string[]> {
+  return fetchGroqTextModels(baseUrl, key)
+}
+
+export async function __testGroqTextModelsWithFallbackForTests(baseUrl: string, key?: string): Promise<string[]> {
+  const models = await fetchGroqTextModels(baseUrl, key)
+  return models.length ? models : GROQ_TEXT_MODELS
+}
+
 async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<string[]> {
   const baseUrl = baseFor(s, provider)
   const key = providerKeys(s, provider)[0]
