@@ -262,7 +262,7 @@ export async function POST(req: NextRequest) {
       const result = await insertBankQuestions(programId, imported, { generatedBy: 'IMPORT', status: body?.approveNow ? 'APPROVED' : 'PENDING_REVIEW' })
       if (!result.inserted) return NextResponse.json({ error: 'لم يتم استيراد أسئلة جديدة؛ تحقق من التنسيق أو التكرار', skippedDuplicates: result.skippedDuplicates }, { status: 409 })
       await withTiming('db_audit_question_bank_import', () => audit({ id: admin.id, name: admin.name }, 'IMPORT_QUESTION_BANK', 'Program', programId, `استيراد ${result.inserted} سؤال إلى بنك أسئلة ${program.titleAr} وتجاوز ${result.skippedDuplicates} مكرر`))
-      return NextResponse.json({ ok: true, ...result, stats: await questionStats(programId), items: await listQuestions(programId) })
+      return NextResponse.json({ ok: true, ...result, stats: await questionStats(programId), ...(await listQuestions(programId)) })
     }
 
     const unitId = cleanText(body?.unitId, 80) || null
