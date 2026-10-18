@@ -1548,6 +1548,32 @@ export function AdminBooksTab() {
     }
   }
 
+  const runQuestionBankDocumentationBackfill = async () => {
+    if (!programId) return
+    setQuestionBankBusy('documentation')
+    setQuestionBankDocumentationMessage('المتبقي: ...')
+    try {
+      let previousRemaining: number | null = null
+      let stagnant = 0
+      for (let attempt = 0; attempt < 40; attempt++) {
+        const res = await api<{ filled: number; remaining: number; locked?: boolean; done?: boolean }>('/api/admin/question-bank/documentation-backfill', { method: 'POST', body: JSON.stringify({ programId }) })
+        if (res.locked) throw new Error('استكمال توثيق البنك قيد التشغيل حالياً')
+        if (previousRemaining !== null && res.remaining >= previousRemaining) stagnant += 1
+        else stagnant = 0
+        previousRemaining = res.remaining
+        setQuestionBankDocumentationMessage(res.remaining <= 0 || res.done ? 'اكتمل التوثيق' : `المتبقي: ${res.remaining}`)
+        if (res.remaining <= 0 || res.done || stagnant >= 2) break
+        await wait(2000)
+      }
+      await refreshQuestionBank(programId)
+    } catch (e: any) {
+      setQuestionBankDocumentationMessage(e.message || 'تعذر استكمال توثيق البنك')
+      toast({ title: 'تعذر استكمال توثيق البنك', description: e.message, variant: 'destructive' })
+    } finally {
+      setQuestionBankBusy(null)
+    }
+  }
+
   const markLegacyQuestionGroundingForReview = async () => {
     if (!programId) return
     setQuestionBankBusy('legacy-review')
