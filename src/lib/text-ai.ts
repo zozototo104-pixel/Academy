@@ -1358,7 +1358,7 @@ function healthCheckMaxOutputTokens(provider: ConcreteProvider, model: string): 
   return provider === 'OPENAI' ? 64 : 8
 }
 
-export function __testHealthCheckMaxOutputTokensForTests(provider: ConcreteProvider, model: string): number {
+export function __testHealthCheckMaxOutputTokensForTests(provider: Exclude<TextAiProvider, 'AUTO'>, model: string): number {
   return healthCheckMaxOutputTokens(provider, model)
 }
 
