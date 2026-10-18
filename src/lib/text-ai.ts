@@ -1921,6 +1921,10 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
       }
     }
     const providerPreferredModels = preferredModels.filter((item) => item.provider === provider).map((item) => item.model)
+    if (isVerifierCall(effectiveOpts) && taskLevel !== 'GENERAL') {
+      const selectedModel = modelFor(s, provider)
+      if (selectedModel && !academicModelAllowed(provider, selectedModel) && !providerPreferredModels.includes(selectedModel)) noteNoCandidate(provider, selectedModel, 'NOT_IN_ALLOWLIST')
+    }
     const fallbackModels = await modelFallbacks(s, provider, taskLevel, exploreModels, effectiveOpts.purpose)
     const candidateModels = [...new Set([...providerPreferredModels, ...fallbackModels])]
     for (const model of candidateModels) {
