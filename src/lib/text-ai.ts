@@ -2150,7 +2150,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
             } else {
               markModelCooldown(provider, key, model, msg, minutes, status)
               await markPersistentCooldown(provider, keyIndex, model, msg, status, minutes)
-              if (shouldEscalateModelRateLimit(provider, key, model)) {
+              if (shouldEscalateModelRateLimit(provider, key, model, msg)) {
                 markCooldown(provider, key, msg, undefined, status)
                 await markPersistentCooldown(provider, keyIndex, undefined, msg, status)
               }
