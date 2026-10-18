@@ -1474,13 +1474,13 @@ export function AdminBooksTab() {
     await loadUnitQuestions(unitQuestionsUnit.id)
   }
 
-  const refreshQuestionBank = async (pid = programId) => {
+  const refreshQuestionBank = useCallback(async (pid = programId) => {
     if (!pid) return
     const res = await api<{ items?: QuestionBankItemRow[]; stats?: QuestionBankStats; progress?: AiGenerationProgressRow }>(`/api/admin/question-bank?programId=${pid}`)
     if (Array.isArray(res.items)) setQuestionBankItems(res.items)
     if (res.stats) setQuestionBankStats(res.stats)
     if ('progress' in res) setQuestionBankProgress(res.progress || null)
-  }
+  }, [programId])
 
   useEffect(() => {
     if (workspaceTab !== 'exams' || !programId || !questionBankProgressPollingKey) return
@@ -1489,7 +1489,7 @@ export function AdminBooksTab() {
       void refreshQuestionBank(programId).catch(() => null)
     }, 10_000)
     return () => clearInterval(timer)
-  }, [workspaceTab, programId, questionBankProgressPollingKey])
+  }, [workspaceTab, programId, questionBankProgressPollingKey, refreshQuestionBank])
 
   const refreshProgramReadiness = async () => {
     if (!programId) return
