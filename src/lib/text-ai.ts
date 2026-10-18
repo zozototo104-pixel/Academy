@@ -2143,7 +2143,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           }
           if (isQuotaLike(e)) {
             const scope = classifyRateLimitScope(model, msg, status)
-            const minutes = rateLimitCooldownMinutes(e, msg)
+            const minutes = rateLimitCooldownMinutes(e, msg, model)
             if (scope === 'key') {
               markCooldown(provider, key, msg, undefined, status)
               await markPersistentCooldown(provider, keyIndex, undefined, msg, status)
