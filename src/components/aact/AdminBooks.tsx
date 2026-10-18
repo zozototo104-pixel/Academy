@@ -1203,20 +1203,15 @@ export function AdminBooksTab() {
     if (workspaceTab !== 'units' || !programId) return
     const activeJobIds = curriculumUnits
       .map((unit) => unit.questionBankJob)
-      .filter((job): job is NonNullable<CurriculumUnitReviewItem['questionBankJob']> => {
-        if (!job) return false
-        return (job.currentQuestions < job.requested && ['QUEUED', 'RUNNING', 'PAUSED'].includes(job.status)) || job.status === 'RUNNING'
-      })
+      .filter((job): job is NonNullable<CurriculumUnitReviewItem['questionBankJob']> => Boolean(job && ['QUEUED', 'RUNNING', 'PAUSED'].includes(job.status)))
       .map((job) => job.id)
     if (!activeJobIds.length) return
     const pollJobs = async () => {
       if (document.visibilityState !== 'visible') return
-      const updates = await Promise.all(activeJobIds.map((id) => api<{ job: NonNullable<CurriculumUnitReviewItem['questionBankJob']> }>(`/api/admin/question-bank-jobs/${id}`).catch(() => null)))
-      const byId = new Map(updates.filter((item): item is { job: NonNullable<CurriculumUnitReviewItem['questionBankJob']> } => Boolean(item?.job)).map((item) => [item.job.id, item.job] as const))
-      if (!byId.size) return
-      setCurriculumUnits((prev) => prev.map((unit) => unit.questionBankJob && byId.has(unit.questionBankJob.id) ? { ...unit, questionBankJob: byId.get(unit.questionBankJob.id)! } : unit))
+      const res = await api<{ units: CurriculumUnitReviewItem[] }>(`/api/admin/program-units?programId=${programId}`)
+      setCurriculumUnits(res.units || [])
     }
-    const timer = setInterval(() => { void pollJobs().catch(() => null) }, 5_000)
+    const timer = setInterval(() => { void pollJobs().catch(() => null) }, 10_000)
     void pollJobs().catch(() => null)
     return () => clearInterval(timer)
   }, [workspaceTab, programId, curriculumUnits])
