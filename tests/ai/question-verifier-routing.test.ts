@@ -21,10 +21,10 @@ describe('question verifier preferred routing', () => {
 
   test('all preferred verifiers on cooldown fall back to normal candidates', () => {
     const preferred = parseProviderModelList('OPENAI:gpt-5.1,ANTHROPIC:claude-sonnet-4-5-20250929')
-    const fallback = parseProviderModelList('GOOGLE:gemini-2.5-pro')
+    const fallback = parseProviderModelList('GEMINI:gemini-2.5-pro')
     const plan = __testQuestionVerifierCandidatePlan({ preferred, fallback, cooldown: ['OPENAI:gpt-5.1', 'ANTHROPIC:claude-sonnet-4-5-20250929'] })
 
-    expect(plan.ordered[0]).toEqual({ provider: 'GOOGLE', model: 'gemini-2.5-pro' })
+    expect(plan.ordered[0]).toEqual({ provider: 'GEMINI', model: 'gemini-2.5-pro' })
     expect(plan.diagnostics.filter((line) => line.includes('COOLDOWN')).length).toBe(2)
   })
 
