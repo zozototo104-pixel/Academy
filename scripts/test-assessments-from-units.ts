@@ -7,6 +7,7 @@ import { __testAcademicBackfillDataForTests, __testProgramExamAutoStatusUpdateWh
 import { calculateProgramExamAcademicMissingCounts, validateProgramExamPublicationReadiness } from '../src/lib/program-exam-publication-readiness'
 import { __testDocumentedBankQuestionForPublicationForTests, __testParseBankDocAiRowsForTests } from '../src/lib/question-bank-documentation'
 import { buildAdminStudentsEnrollmentRelationFilter, OPEN_ENROLLMENT_STATUSES } from '../src/lib/enrollment-status'
+import { __testApproveQuestionBankQualityFlagsForTests, __testOrderQuestionBankItemsForReviewForTests } from '../src/app/api/admin/question-bank/route'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
