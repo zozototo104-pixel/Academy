@@ -588,6 +588,11 @@ export function AdminBooksTab() {
   const [questionBankStats, setQuestionBankStats] = useState<QuestionBankStats | null>(null)
   const [questionBankProgress, setQuestionBankProgress] = useState<AiGenerationProgressRow>(null)
   const [questionBankItems, setQuestionBankItems] = useState<QuestionBankItemRow[]>([])
+  const questionBankProgressPollingKey = useMemo(() => {
+    const status = questionBankProgress?.status
+    if (!programId || !questionBankProgress?.jobId || !status || !['QUEUED', 'RUNNING', 'PAUSED'].includes(status)) return ''
+    return `${programId}:${questionBankProgress.jobId}:${status}`
+  }, [programId, questionBankProgress?.jobId, questionBankProgress?.status])
   const [questionBankBusy, setQuestionBankBusy] = useState<string | null>(null)
   const [questionBankOpen, setQuestionBankOpen] = useState(false)
   const [unitQuestionsOpen, setUnitQuestionsOpen] = useState(false)
