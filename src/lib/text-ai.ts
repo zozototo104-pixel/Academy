@@ -1349,6 +1349,19 @@ export async function textAiFreeModelsForProvider(providerValue: unknown): Promi
   }
 }
 
+function isReasoningHealthModel(model: string): boolean {
+  return /gpt-oss|qwen3|qwq|deepseek-r1|reasoning|thinking|gemini-3\.8|\bpro\b|gpt-5/i.test(model)
+}
+
+function healthCheckMaxOutputTokens(provider: ConcreteProvider, model: string): number {
+  if (isReasoningHealthModel(model)) return 256
+  return provider === 'OPENAI' ? 64 : 8
+}
+
+export function __testHealthCheckMaxOutputTokensForTests(provider: ConcreteProvider, model: string): number {
+  return healthCheckMaxOutputTokens(provider, model)
+}
+
 export async function textAiCheckAllModelHealth(opts: { maxMs?: number } = {}): Promise<{ checked: number; results: Array<{ provider: string; model: string; ok: boolean; latencyMs?: number; error?: string }> }> {
   const s = await settings()
   const deadlineMs = Date.now() + Math.max(5_000, Math.min(120_000, opts.maxMs || 120_000))
