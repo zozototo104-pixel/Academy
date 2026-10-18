@@ -560,7 +560,18 @@ function isNoBalanceLike(e: any): boolean {
 function isHighDemandLike(e: any): boolean {
   const msg = String(e?.message || e || '').toLowerCase()
   const status = Number(e?.status || e?.code || 0)
-  return status === 503 || /high demand|overloaded|temporarily unavailable|server busy|try again later|capacity/i.test(msg)
+  return status === 503 || /busy|high demand|overloaded|temporarily unavailable|server busy|try again later|capacity/i.test(msg)
+}
+
+function highDemandCooldownScope(model: string, message: unknown, status?: number): 'model' | 'key' {
+  if (Number(status || 0) === 503 && rateLimitMessageMentionsSpecificModel(model, message)) return 'model'
+  const msg = String(message || '').toLowerCase()
+  if (/(busy|high demand)/i.test(msg) && rateLimitMessageMentionsSpecificModel(model, msg)) return 'model'
+  return 'key'
+}
+
+export function __testHighDemandCooldownDecisionForTests(model: string, message: string, status?: number): 'model' | 'key' {
+  return highDemandCooldownScope(model, message, status)
 }
 
 function isQuotaLike(e: any): boolean {
@@ -915,7 +926,7 @@ function isGroqTextChatModel(row: any): boolean {
   const id = modelId(row).toLowerCase()
   const haystack = `${id} ${row?.type || ''} ${row?.owned_by || ''} ${row?.object || ''}`.toLowerCase()
   if (!id) return false
-  if (/whisper|tts|guard|compound|embed|embedding|audio|speech|image|vision|moderation|rerank|transcribe|stt/.test(haystack)) return false
+  if (/whisper|tts|orpheus|playai|guard|compound|embed|embedding|audio|speech|image|vision|moderation|rerank|transcribe|stt/.test(haystack)) return false
   return true
 }
 
@@ -1008,7 +1019,7 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<
 function academicModelAllowed(provider: ConcreteProvider, model: string): boolean {
   const id = model.toLowerCase()
   if (!id || /(^|\/|-)auto$/i.test(id) || id === 'auto') return false
-  if (/dall-e|image|embedding|rerank|whisper|tts|stt|audio|moderation/.test(id)) return false
+  if (/dall-e|image|embedding|rerank|whisper|tts|orpheus|playai|stt|audio|moderation/.test(id)) return false
   if (/\b(?:7b|8b|9b|11b|13b|14b|20b|22b|24b|27b)\b/i.test(id)) return false
   if (/gpt-3\.5/.test(id)) return false
   if (provider === 'TOPTOOLS' && topToolsModelRank(model) > 2) return false
@@ -1025,7 +1036,7 @@ function academicModelRank(model: string): number {
 
 function modelCapabilityAllowed(model: string): boolean {
   const id = model.toLowerCase()
-  if (/image|vision-only|audio|tts|whisper|embed|embedding|moderation|guard|rerank|ocr-only/.test(id)) return false
+  if (/image|vision-only|audio|tts|whisper|orpheus|playai|embed|embedding|moderation|guard|rerank|ocr-only/.test(id)) return false
   return true
 }
 
@@ -1076,7 +1087,17 @@ function parseModelHealth(raw: unknown): ModelHealth | null {
 function recentFailedHealth(health: ModelHealth | null): boolean {
   if (!health || health.ok) return false
   const checkedAt = Date.parse(String(health.checkedAt || ''))
-  return Number.isFinite(checkedAt) && Date.now() - checkedAt < 30 * 60 * 1000
+  if (!Number.isFinite(checkedAt) || Date.now() - checkedAt >= 30 * 60 * 1000) return false
+  const status = Number(health.status || 0)
+  const error = String(health.error || '').toLowerCase()
+  if (/empty_response|timeout|deadline|provider_timeout|timed out/.test(error)) return false
+  if (status === 401 || status === 403 || status === 404) return true
+  if (status === 400 && /terms|acceptance|does not exist|do not have access|not found|invalid model|model.*not/.test(error)) return true
+  return /dead model|does not exist|do not have access|not found|model_not_found|invalid model/.test(error)
+}
+
+export function __testRecentFailedHealthSkipForTests(health: ModelHealth | null): boolean {
+  return recentFailedHealth(health)
 }
 
 export function __testApplyRecentFailedHealthSkip(models: string[], failedModels: string[]): string[] {
@@ -1328,6 +1349,19 @@ export async function textAiFreeModelsForProvider(providerValue: unknown): Promi
   }
 }
 
+function isReasoningHealthModel(model: string): boolean {
+  return /gpt-oss|qwen3|qwq|deepseek-r1|reasoning|thinking|gemini-3\.8|\bpro\b|gpt-5/i.test(model)
+}
+
+function healthCheckMaxOutputTokens(provider: ConcreteProvider, model: string): number {
+  if (isReasoningHealthModel(model)) return 256
+  return provider === 'OPENAI' ? 64 : 8
+}
+
+export function __testHealthCheckMaxOutputTokensForTests(provider: Exclude<TextAiProvider, 'AUTO'>, model: string): number {
+  return healthCheckMaxOutputTokens(provider, model)
+}
+
 export async function textAiCheckAllModelHealth(opts: { maxMs?: number } = {}): Promise<{ checked: number; results: Array<{ provider: string; model: string; ok: boolean; latencyMs?: number; error?: string }> }> {
   const s = await settings()
   const deadlineMs = Date.now() + Math.max(5_000, Math.min(120_000, opts.maxMs || 120_000))
@@ -1341,7 +1375,7 @@ export async function textAiCheckAllModelHealth(opts: { maxMs?: number } = {}): 
       const started = Date.now()
       try {
         const healthTimeoutMs = provider === 'GEMINI' && /(?:3\.8|pro)/i.test(model) ? 30_000 : 15_000
-        await callProvider(provider, s, key, model, { system: 'أجب بكلمة واحدة.', history: [{ role: 'user', text: 'اكتب: ok' }], maxOutputTokens: provider === 'OPENAI' ? 64 : 8, timeoutMs: healthTimeoutMs, deadlineMs: Math.min(Date.now() + healthTimeoutMs, deadlineMs) })
+        await callProvider(provider, s, key, model, { system: 'أجب بكلمة واحدة.', history: [{ role: 'user', text: 'اكتب: ok' }], maxOutputTokens: healthCheckMaxOutputTokens(provider, model), timeoutMs: healthTimeoutMs, deadlineMs: Math.min(Date.now() + healthTimeoutMs, deadlineMs) })
         const result = { provider, model, ok: true, latencyMs: Date.now() - started }
         results.push(result)
         await settingStore().write(modelHealthKey(provider, model), JSON.stringify({ ...result, checkedAt: new Date().toISOString() }))
@@ -2201,8 +2235,13 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           }
           if (isHighDemandLike(e)) {
             skipModelsThisRequest.add(`${provider}:${model}`)
-            markCooldown(provider, key, msg, 1, status)
-            await markPersistentCooldown(provider, keyIndex, model, msg, status, 1)
+            if (highDemandCooldownScope(model, msg, status) === 'model') {
+              markModelCooldown(provider, key, model, msg, 2, status)
+              await markPersistentCooldown(provider, keyIndex, model, msg, status, 2)
+            } else {
+              markCooldown(provider, key, msg, 1, status)
+              await markPersistentCooldown(provider, keyIndex, model, msg, status, 1)
+            }
             break
           }
           if (isTimeoutLike(e)) {
