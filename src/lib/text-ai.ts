@@ -1774,6 +1774,7 @@ function routerReasonBucket(attempt: TextAiAttemptDiagnostics): string {
   const msg = String(attempt.error || '').toLowerCase()
   if (attempt.status === 404 && /no longer available|does not exist|not found/.test(msg)) return 'dead_model'
   if (attempt.status === 402 || /balance|recharge|top.?up|payment required/.test(msg)) return 'no_balance'
+  if (attempt.status === 429 || /rate.?limit|too many requests|resource exhausted|quota/.test(msg)) return 'rate_limit'
   if (attempt.status === 504 || /timeout|deadline|abort/.test(msg)) return 'timeout'
   if (attempt.status === 503 || /high demand|overloaded|capacity/.test(msg)) return 'high_demand'
   if (/validation_rejected|invalid_json|invalid json|invalid_type|empty_batch_after_structural_validation|schema|zod/.test(msg)) return 'schemaFail'
