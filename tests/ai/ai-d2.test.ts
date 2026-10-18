@@ -171,11 +171,11 @@ describe('AI D2 behavior', () => {
 
   test('provider keys with invisible characters are sent clean in Authorization header', async () => {
     const originalFetch = globalThis.fetch
+    const originalGroqKey = process.env.GROQ_API_KEY
     let authorization = ''
     const hiddenKey = '\u200esk-test\u200f\u00a0-key\ufeff'
     const values = new Map<string, string>([
       ['AI_TEXT_PROVIDER', 'GROQ'],
-      ['GROQ_API_KEY', hiddenKey],
       ['GROQ_TEXT_MODEL', 'llama-3.3-70b-versatile'],
     ])
     textAiRouter.__setTextAiSettingStoreForTests({
@@ -183,6 +183,7 @@ describe('AI D2 behavior', () => {
       write: async () => {},
       scan: async () => ({}),
     })
+    process.env.GROQ_API_KEY = hiddenKey
     globalThis.fetch = (async (_url: any, init: any) => {
       authorization = String(init?.headers?.Authorization || '')
       return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), { status: 200, headers: { 'content-type': 'application/json' } })
@@ -193,6 +194,8 @@ describe('AI D2 behavior', () => {
       expect(authorization).toBe('Bearer sk-test-key')
     } finally {
       globalThis.fetch = originalFetch
+      if (originalGroqKey === undefined) delete process.env.GROQ_API_KEY
+      else process.env.GROQ_API_KEY = originalGroqKey
       textAiRouter.__setTextAiSettingStoreForTests(null)
     }
   })
