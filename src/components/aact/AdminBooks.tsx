@@ -1476,11 +1476,20 @@ export function AdminBooksTab() {
 
   const refreshQuestionBank = async (pid = programId) => {
     if (!pid) return
-    const res = await api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats; progress?: AiGenerationProgressRow }>(`/api/admin/question-bank?programId=${pid}`)
-    setQuestionBankItems(res.items || [])
-    setQuestionBankStats(res.stats || null)
-    setQuestionBankProgress(res.progress || null)
+    const res = await api<{ items?: QuestionBankItemRow[]; stats?: QuestionBankStats; progress?: AiGenerationProgressRow }>(`/api/admin/question-bank?programId=${pid}`)
+    if (Array.isArray(res.items)) setQuestionBankItems(res.items)
+    if (res.stats) setQuestionBankStats(res.stats)
+    if ('progress' in res) setQuestionBankProgress(res.progress || null)
   }
+
+  useEffect(() => {
+    if (workspaceTab !== 'exams' || !programId || !questionBankProgressPollingKey) return
+    const timer = setInterval(() => {
+      if (document.visibilityState !== 'visible') return
+      void refreshQuestionBank(programId).catch(() => null)
+    }, 10_000)
+    return () => clearInterval(timer)
+  }, [workspaceTab, programId, questionBankProgressPollingKey])
 
   const refreshProgramReadiness = async () => {
     if (!programId) return
