@@ -397,6 +397,8 @@ const tests = [
   testUnitExamExcludesRejectedAndPrioritizesApproved,
   testPausedFutureRetryManualReactivation,
   testEmptyBatchAdvancesQuestionBankCursor,
+  testQuestionBankCompletedJobDoesNotBlockQueue,
+  testQuestionBankLockedJobDoesNotBlockQueue,
   testVerifierRejectedQuestionIsNotSaved,
   testIncompleteMcqOptionsAreRejected,
   testMcqThreeOptionsAccepted,
