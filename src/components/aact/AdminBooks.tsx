@@ -4039,7 +4039,7 @@ export function AdminBooksTab() {
                     <div className="flex flex-wrap gap-2">
                       <Badge className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">{q.type}</Badge>
                       <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">{q.difficulty || 'MEDIUM'}</Badge>
-                      {isSourceGroundedQuestion(q) ? (
+                      {isDocumentedQuestion(q) ? (
                         <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">موثق</Badge>
                       ) : q.status === 'PENDING_REVIEW' ? (
                         <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100" title={q.verifierReason || undefined}>بحاجة لمراجعة</Badge>
