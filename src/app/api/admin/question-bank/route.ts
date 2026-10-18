@@ -254,7 +254,7 @@ export async function POST(req: NextRequest) {
         await withTiming('db_question_bank_legacy_update_many', () => db.questionBankItem.updateMany({ where: { id: { in: legacy.map((item) => item.id) } }, data: { status: 'PENDING_REVIEW', approvedBy: null, approvedAt: null, qualityFlags: JSON.stringify(['LEGACY_GROUNDING_UNVERIFIED', 'NEEDS_HUMAN_REVIEW']) } }))
       }
       await withTiming('db_audit_question_bank_legacy', () => audit({ id: admin.id, name: admin.name }, 'REVIEW_LEGACY_QUESTION_GROUNDING', 'Program', programId, `إعادة ${legacy.length} سؤال AI قديم إلى المراجعة دون حذف`))
-      return NextResponse.json({ ok: true, marked: legacy.length, stats: await questionStats(programId), items: await listQuestions(programId) })
+      return NextResponse.json({ ok: true, marked: legacy.length, stats: await questionStats(programId), ...(await listQuestions(programId)) })
     }
 
     if (source === 'IMPORT') {
