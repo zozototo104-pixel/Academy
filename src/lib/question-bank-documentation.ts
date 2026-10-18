@@ -139,6 +139,7 @@ export async function backfillQuestionBankAcademicFields(programId: string, time
   let filled = 0
   try {
     filled += await syncQuestionBankDocumentationFromKnowledge(programId)
+    filled += await cleanApprovedQuestionBankReviewFlags(programId)
     const skippedAiIds = new Set<string>()
     while (Date.now() - startedAt < timeBudgetMs) {
       const batch = await db.questionBankItem.findMany({
