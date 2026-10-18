@@ -2069,6 +2069,8 @@ export function AdminSettingsTab() {
   const [accreditationUploadBusy, setAccreditationUploadBusy] = useState(false)
   const [accreditationUploadFile, setAccreditationUploadFile] = useState<File | null>(null)
   const [accreditationUpload, setAccreditationUpload] = useState({ title: '', kind: 'LICENSE', description: '', verifyUrl: '', partnershipId: '' })
+  const [aiCooldownProvider, setAiCooldownProvider] = useState('OPENAI')
+  const [aiCooldownBusy, setAiCooldownBusy] = useState(false)
   const [adminForm, setAdminForm] = useState({
     name: 'QA Admin',
     email: 'qa-admin@aactacademy.com',
