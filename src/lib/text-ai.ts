@@ -560,7 +560,18 @@ function isNoBalanceLike(e: any): boolean {
 function isHighDemandLike(e: any): boolean {
   const msg = String(e?.message || e || '').toLowerCase()
   const status = Number(e?.status || e?.code || 0)
-  return status === 503 || /high demand|overloaded|temporarily unavailable|server busy|try again later|capacity/i.test(msg)
+  return status === 503 || /busy|high demand|overloaded|temporarily unavailable|server busy|try again later|capacity/i.test(msg)
+}
+
+function highDemandCooldownScope(model: string, message: unknown, status?: number): 'model' | 'key' {
+  if (Number(status || 0) === 503 && rateLimitMessageMentionsSpecificModel(model, message)) return 'model'
+  const msg = String(message || '').toLowerCase()
+  if (/(busy|high demand)/i.test(msg) && rateLimitMessageMentionsSpecificModel(model, msg)) return 'model'
+  return 'key'
+}
+
+export function __testHighDemandCooldownDecisionForTests(model: string, message: string, status?: number): 'model' | 'key' {
+  return highDemandCooldownScope(model, message, status)
 }
 
 function isQuotaLike(e: any): boolean {
