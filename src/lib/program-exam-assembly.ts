@@ -126,7 +126,11 @@ function sourceLocatorFromKnowledge(item: { title?: string | null; pageStart?: n
   return [fallback, page, item?.title ? `مقطع ${item.title}` : ''].filter(Boolean).join(' — ').slice(0, 240)
 }
 
-function parseAiBackfill(raw: string): Array<{ id: string; difficulty?: string; cognitiveSkill?: string; correctRationale?: string; distractorRationales?: string[] }> {
+type AcademicBackfillRow = { id: string; difficulty?: string; cognitiveSkill?: string; correctRationale?: string; distractorRationales?: string[] }
+
+type AcademicQuestionPatchTarget = { type: string; difficulty?: string | null; cognitiveSkill?: string | null; correctRationale?: string | null; distractorRationales?: string | null }
+
+function parseAiBackfill(raw: string): AcademicBackfillRow[] {
   try {
     const parsed: unknown = JSON.parse(raw)
     const rows = Array.isArray(parsed) ? parsed : Array.isArray((parsed as { items?: unknown[] })?.items) ? (parsed as { items: unknown[] }).items : []
