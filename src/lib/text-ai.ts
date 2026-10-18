@@ -1933,6 +1933,9 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
       ? [sticky.model, ...baseModels.filter((model) => model !== sticky.model)]
       : baseModels
     const health = await readModelHealth(provider, orderedModels)
+    for (const model of orderedModels) {
+      if (recentFailedHealth(health.get(model) || null)) noteNoCandidate(provider, model, 'HEALTH_SKIP')
+    }
     const healthFilteredModels = orderedModels.filter((model) => !recentFailedHealth(health.get(model) || null))
     const models = healthFilteredModels.length ? healthFilteredModels : orderedModels
     if (isVerifierCall(effectiveOpts) && candidateModels.length > 0 && models.length === 0) onlySameFamilyModelsExcluded = true
