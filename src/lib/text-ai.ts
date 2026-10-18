@@ -274,9 +274,9 @@ function normalizeModel(value: unknown, defaults: string[]): string {
 
 const DEFAULT_ACADEMIC_ALLOWLIST = 'GEMINI:gemini-3.5-flash,GEMINI:gemini-3.8-flash'
 
-export function parseAcademicAllowlist(value: unknown): Array<{ provider: ConcreteProvider; model: string }> {
-  const out: Array<{ provider: ConcreteProvider; model: string }> = []
-  for (const raw of String(value || DEFAULT_ACADEMIC_ALLOWLIST).split(',')) {
+export function parseProviderModelList(value: unknown, fallback = ''): TextAiPreferredModel[] {
+  const out: TextAiPreferredModel[] = []
+  for (const raw of String(value || fallback).split(',')) {
     const item = raw.trim()
     const separator = item.indexOf(':')
     if (separator <= 0) {
