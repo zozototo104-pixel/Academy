@@ -308,7 +308,6 @@ export function QuestionReviewDialog({
       })
       return
     }
-    if (!overrideReason && !(await confirmAction({ title: 'نشر الامتحان للطلاب', description: 'سيتم اعتماد كل الأسئلة المعلّقة ونشر الامتحان للطلاب المتسجلين مع إشعارهم.', confirmLabel: 'نشر الامتحان', tone: 'success' }))) return
     setBusy(true)
     try {
       const d = await api<{ published: number; exam?: { id: string; status: string; totalPoints?: number | null; durationMin?: number | null } }>('/api/admin/program-exam-questions', {
