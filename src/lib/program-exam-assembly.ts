@@ -189,7 +189,7 @@ export function __testQualifiedQuestionBankItemForProgramExamForTests(overrides:
   return qualified({ ...base, ...overrides } as QuestionBankItem, { excerpt: evidence, bookId: 'book-1', chunkText: `تمهيد. ${evidence}. خاتمة.` })
 }
 
-async function syncProgramExamQuestionsFromBank(examId: string) {
+export async function syncProgramExamQuestionsFromBank(examId: string) {
   const questions = await db.programQuestion.findMany({ where: { examId, status: { not: 'REJECTED' } }, select: { id: true, qualityFlags: true, knowledgeItemId: true, sourceBookTitle: true, sourceLocator: true, sourceEvidence: true, cognitiveSkill: true, difficulty: true, correctRationale: true, distractorRationales: true } })
   const bankIds = [...new Set(questions.map((q) => bankIdFromFlags(q.qualityFlags)).filter((id): id is string => Boolean(id)))]
   const bankItems = bankIds.length ? await db.questionBankItem.findMany({ where: { id: { in: bankIds } } }) : []
