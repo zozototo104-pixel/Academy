@@ -154,43 +154,54 @@ async function questionStats(programId: string) {
 }
 
 async function listQuestions(programId: string, status?: string | null) {
-  const items = await withTiming('db_question_bank_items', () => db.questionBankItem.findMany({
-    where: { programId, ...(status && STATUSES.has(status) ? { status } : {}) },
-    orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
-    take: 120,
-    select: {
-      id: true,
-      type: true,
-      text: true,
-      options: true,
-      correctAnswer: true,
-      modelAnswer: true,
-      sourceEvidence: true,
-      sourceLocator: true,
-      sourceBookTitle: true,
-      knowledgeItemId: true,
-      cognitiveSkill: true,
-      difficulty: true,
-      status: true,
-      qualityFlags: true,
-      reviewNotes: true,
-      generatedBy: true,
-      rejectedReason: true,
-      createdAt: true,
-    },
-  }))
+  const select = {
+    id: true,
+    type: true,
+    text: true,
+    options: true,
+    correctAnswer: true,
+    modelAnswer: true,
+    sourceEvidence: true,
+    sourceLocator: true,
+    sourceBookTitle: true,
+    knowledgeItemId: true,
+    cognitiveSkill: true,
+    difficulty: true,
+    status: true,
+    qualityFlags: true,
+    reviewNotes: true,
+    generatedBy: true,
+    rejectedReason: true,
+    createdAt: true,
+  }
+  const statusFilter = status && STATUSES.has(status) ? status : null
+  const baseWhere = { programId, ...(statusFilter ? { status: statusFilter } : {}) }
+  const total = await withTiming('db_question_bank_items_count', () => db.questionBankItem.count({ where: baseWhere }))
+  const items = await withTiming('db_question_bank_items', async () => {
+    if (statusFilter) {
+      return db.questionBankItem.findMany({ where: baseWhere, orderBy: { createdAt: 'desc' }, take: 300, select })
+    }
+    const pending = await db.questionBankItem.findMany({ where: { programId, status: 'PENDING_REVIEW' }, orderBy: { createdAt: 'desc' }, take: 300, select })
+    const remaining = Math.max(0, 300 - pending.length)
+    if (!remaining) return pending
+    const rest = await db.questionBankItem.findMany({ where: { programId, status: { not: 'PENDING_REVIEW' } }, orderBy: { createdAt: 'desc' }, take: remaining, select })
+    return [...pending, ...rest]
+  })
   const preview = (value?: string | null) => {
     const text = String(value || '').trim()
     return text ? text.slice(0, 200) : null
   }
-  return items.map((item) => ({
-    ...item,
-    modelAnswer: preview(item.modelAnswer),
-    sourceEvidence: preview(item.sourceEvidence),
-    rejectedReason: preview(item.rejectedReason),
-    verifierReason: preview(item.reviewNotes),
-    reviewNotes: undefined,
-  }))
+  return {
+    items: items.map((item) => ({
+      ...item,
+      modelAnswer: preview(item.modelAnswer),
+      sourceEvidence: preview(item.sourceEvidence),
+      rejectedReason: preview(item.rejectedReason),
+      verifierReason: preview(item.reviewNotes),
+      reviewNotes: undefined,
+    })),
+    itemsTruncated: total > items.length,
+  }
 }
 
 export async function GET(req: NextRequest) {
