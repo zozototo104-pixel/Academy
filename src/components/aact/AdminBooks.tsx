@@ -28,6 +28,7 @@ const MAX_BOOK_FILE_SIZE = 10 * 1024 * 1024
 // أي ملف أكبر من هذا الحد يرفع مجزأ حتى لا يصطدم بحد Vercel 4.5MB لطلبات Functions.
 const DIRECT_BOOK_UPLOAD_LIMIT = 850 * 1024
 const BOOK_UPLOAD_CHUNK_SIZE = 384 * 1024
+const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
 
 function makeUploadId() {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
