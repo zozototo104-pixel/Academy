@@ -153,8 +153,8 @@ function parseAiBackfill(raw: string): AcademicBackfillRow[] {
   } catch { return [] }
 }
 
-function academicBackfillData(question: AcademicQuestionPatchTarget, row: AcademicBackfillRow): Record<string, unknown> {
-  const data: Record<string, unknown> = {}
+function academicBackfillData(question: AcademicQuestionPatchTarget, row: AcademicBackfillRow): Record<string, any> {
+  const data: Record<string, any> = {}
   if (isMissing(question.difficulty) && row.difficulty) data.difficulty = row.difficulty
   if (isMissing(question.cognitiveSkill) && row.cognitiveSkill) data.cognitiveSkill = row.cognitiveSkill
   if (isMissing(question.correctRationale) && row.correctRationale) data.correctRationale = row.correctRationale
