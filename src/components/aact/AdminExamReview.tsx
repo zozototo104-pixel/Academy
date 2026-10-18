@@ -84,7 +84,7 @@ export function QuestionReviewDialog({
   examTitle: string
   open: boolean
   onClose: () => void
-  onPublished: () => void
+  onPublished: (exam?: { id: string; status: string; totalPoints?: number | null; durationMin?: number | null }) => void | Promise<void>
 }) {
   const { toast } = useToast()
   const [questions, setQuestions] = useState<ReviewQuestion[]>([])
