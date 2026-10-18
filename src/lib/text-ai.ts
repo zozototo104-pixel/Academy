@@ -926,7 +926,7 @@ function isGroqTextChatModel(row: any): boolean {
   const id = modelId(row).toLowerCase()
   const haystack = `${id} ${row?.type || ''} ${row?.owned_by || ''} ${row?.object || ''}`.toLowerCase()
   if (!id) return false
-  if (/whisper|tts|guard|compound|embed|embedding|audio|speech|image|vision|moderation|rerank|transcribe|stt/.test(haystack)) return false
+  if (/whisper|tts|orpheus|playai|guard|compound|embed|embedding|audio|speech|image|vision|moderation|rerank|transcribe|stt/.test(haystack)) return false
   return true
 }
 
