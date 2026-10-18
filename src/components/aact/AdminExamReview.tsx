@@ -120,15 +120,15 @@ export function QuestionReviewDialog({
     if (open) load()
   }, [open, load])
 
-  useEffect(() => {
-    if (open && initialCognitiveOverride) showCognitiveOverride(initialCognitiveOverride.message, initialCognitiveOverride.details || [])
-  }, [open, initialCognitiveOverride])
-
-  const showCognitiveOverride = (message: string, details: string[]) => {
+  const showCognitiveOverride = useCallback((message: string, details: string[]) => {
     setCognitiveOverride((prev) => ({ message, details, reason: prev?.reason || '' }))
     toast({ title: 'مطلوب سبب تجاوز', description: 'توزيع المهارات لا يطابق السياسة. اكتب سبب التجاوز في أعلى نافذة المراجعة ثم اضغط تأكيد التجاوز والنشر.' })
     window.setTimeout(() => { if (dialogContentRef.current) dialogContentRef.current.scrollTop = 0 }, 50)
-  }
+  }, [toast])
+
+  useEffect(() => {
+    if (open && initialCognitiveOverride) showCognitiveOverride(initialCognitiveOverride.message, initialCognitiveOverride.details || [])
+  }, [open, initialCognitiveOverride, showCognitiveOverride])
 
   const startEdit = (q: ReviewQuestion) => {
     const options = q.options || (q.type === 'TF' ? ['صح', 'خطأ'] : ['', '', '', ''])
