@@ -390,6 +390,37 @@ function testQuestionBankRetryAtNotBeyondOneHour() {
   assert(retry.getTime() - now <= 60 * 60 * 1000, 'retryAt لوظيفة بنك الأسئلة لا يجب أن يتجاوز ساعة')
 }
 
+function testProgramExamCopiesAcademicSourceFields() {
+  const copied = __testProgramQuestionAcademicCopyForTests({
+    bookTitle: 'كتاب إدارة الأزمات',
+    knowledgeTitle: 'التخطيط للأزمات',
+    pageStart: 12,
+    pageEnd: 14,
+    bank: {
+      sourceLocator: 'مقطع 3',
+      sourceEvidence: 'النص الحرفي المعتمد من الكتاب',
+      cognitiveSkill: 'ANALYZE',
+      difficulty: 'ADVANCED',
+      correctRationale: 'لأن الدليل يربط التخطيط بالاستجابة',
+      distractorRationales: '["سبب خطأ الخيار"]',
+    },
+  })
+  assert(copied.sourceBookTitle === 'كتاب إدارة الأزمات', 'نسخ امتحان البرنامج يجب أن يعبئ عنوان الكتاب من عنصر المعرفة')
+  assert(String(copied.sourceLocator).includes('صفحة 12–14') && String(copied.sourceLocator).includes('مقطع 3'), 'نسخ امتحان البرنامج يجب أن يعبئ موضع/صفحة المصدر')
+  assert(copied.sourceEvidence === 'النص الحرفي المعتمد من الكتاب', 'نسخ امتحان البرنامج يجب أن يحتفظ بالدليل الحرفي')
+  assert(copied.cognitiveSkill === 'ANALYZE' && copied.difficulty === 'ADVANCED', 'نسخ امتحان البرنامج يجب أن يحتفظ بالمهارة والصعوبة')
+}
+
+function testProgramExamBackfillDoesNotTouchQuestionTextOrAnswer() {
+  const data = __testAcademicBackfillDataForTests(
+    { type: 'MCQ', difficulty: null, cognitiveSkill: null, correctRationale: null, distractorRationales: null },
+    { id: 'q1', difficulty: 'MEDIUM', cognitiveSkill: 'UNDERSTAND', correctRationale: 'تعليل من الدليل', distractorRationales: ['سبب خطأ'] },
+  )
+  assert(data.difficulty === 'MEDIUM' && data.cognitiveSkill === 'UNDERSTAND', 'backfill يجب أن يعبئ الصعوبة والمهارة فقط عند النقص')
+  assert(!Object.prototype.hasOwnProperty.call(data, 'text'), 'backfill ممنوع أن يغير نص السؤال')
+  assert(!Object.prototype.hasOwnProperty.call(data, 'correctAnswer'), 'backfill ممنوع أن يغير الإجابة الصحيحة')
+}
+
 const tests = [
   testUnitExamDoesNotFixCorrectAnswer,
   testUnitExamScopedToUnitQuestionBank,
