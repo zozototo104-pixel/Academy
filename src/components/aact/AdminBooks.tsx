@@ -1515,13 +1515,14 @@ export function AdminBooksTab() {
     if (!programId) return
     setQuestionBankBusy('generate')
     try {
-      const res = await api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats; progress?: AiGenerationProgressRow; message?: string }>('/api/admin/question-bank', {
+      const res = await api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats; progress?: AiGenerationProgressRow; job?: QuestionBankJobRow; message?: string }>('/api/admin/question-bank', {
         method: 'POST',
         body: JSON.stringify({ programId, count: 10, resume: mode === 'resume', startNew: mode === 'new' }),
       })
       setQuestionBankItems(res.items || [])
       setQuestionBankStats(res.stats || null)
       setQuestionBankProgress(res.progress || null)
+      if (res.job) setQuestionBankActiveJob({ id: res.job.id, status: res.job.status })
       await refreshCurriculumUnits(programId)
       toast({ title: 'تم توليد أسئلة للبنك', description: res.message || 'تمت إضافة أسئلة بانتظار المراجعة من بنك المعرفة.' })
     } catch (e: any) {
