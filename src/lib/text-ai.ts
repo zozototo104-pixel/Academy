@@ -584,6 +584,11 @@ function shouldEscalateModelRateLimit(provider: string, key: string, model: stri
   return new Set(recent.map((hit) => hit.model)).size >= 2
 }
 
+export function __testRateLimitCooldownDecision(args: { provider: string; key: string; model: string; message: string; status?: number }) {
+  const scope = classifyRateLimitScope(args.model, args.message, args.status)
+  return { scope, escalates: scope === 'model' ? shouldEscalateModelRateLimit(args.provider, args.key, args.model) : false }
+}
+
 function isAuthLike(e: any): boolean {
   const msg = String(e?.message || e || '').toLowerCase()
   const status = Number(e?.status || e?.code || 0)
