@@ -224,6 +224,7 @@ describe('AI D2 behavior', () => {
   test('router treats free-models-per-day and insufficient_quota as key-wide limits', () => {
     expect(textAiRouter.__testRateLimitCooldownDecision({ provider: 'OPENROUTER', key: 'k1', model: 'poolside/laguna-xs-2.1:free', message: 'Rate limit exceeded: free-models-per-day. Add 10 credits.', status: 429 })).toEqual({ scope: 'key', escalates: false })
     expect(textAiRouter.__testRateLimitCooldownDecision({ provider: 'OPENAI', key: 'k1', model: 'gpt-5.1', message: 'insufficient_quota: please check your billing details', status: 429 })).toEqual({ scope: 'key', escalates: false })
+    expect(textAiRouter.classifyRateLimitScope('gemini-3.8-flash', 'rate limit for api_key:AIzaRATE1111', 429)).toBe('key')
   })
 
   test('router escalates two different model 429s on the same key within a minute', () => {
