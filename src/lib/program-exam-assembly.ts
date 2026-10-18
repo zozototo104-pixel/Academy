@@ -178,6 +178,15 @@ export function __testProgramQuestionAcademicCopyForTests(input: { bookTitle: st
   }
 }
 
+export function __testQualifiedQuestionBankItemForProgramExamForTests(overrides: Partial<QuestionBankItem> = {}) {
+  const base = {
+    id: 'qb-1', programId: 'p1', unitId: 'u1', bookId: 'book-1', knowledgeItemId: 'ki-1', type: 'TF', text: 'السؤال موثق بالدليل؟', options: '["صح","خطأ"]', correctAnswer: '0', modelAnswer: null,
+    sourceEvidence: 'الدليل الحرفي من الكتاب', sourceBookTitle: 'كتاب', sourceLocator: 'مقطع 1', cognitiveSkill: 'UNDERSTAND', difficulty: 'EASY', correctRationale: 'الدليل يثبت الإجابة', distractorRationales: null,
+    qualityFlags: '["SOURCE_GROUNDED"]', reviewNotes: '{"verifier":{"provider":"GROQ","model":"m","verifiedAt":"2026-01-01T00:00:00.000Z","pending":false}}', status: 'APPROVED', generatedBy: 'AI', usageCount: 0, createdAt: new Date(), updatedAt: new Date(), reviewerId: null, rejectedAt: null, approvedAt: null,
+  } as unknown as QuestionBankItem
+  return qualified({ ...base, ...overrides } as QuestionBankItem, { excerpt: 'الدليل الحرفي من الكتاب', bookId: 'book-1', chunkText: 'تمهيد. الدليل الحرفي من الكتاب. خاتمة.' })
+}
+
 async function syncProgramExamQuestionsFromBank(examId: string) {
   const questions = await db.programQuestion.findMany({ where: { examId, status: { not: 'REJECTED' } }, select: { id: true, qualityFlags: true, sourceBookTitle: true, sourceLocator: true, sourceEvidence: true, cognitiveSkill: true, difficulty: true, correctRationale: true, distractorRationales: true } })
   const bankIds = [...new Set(questions.map((q) => bankIdFromFlags(q.qualityFlags)).filter((id): id is string => Boolean(id)))]
