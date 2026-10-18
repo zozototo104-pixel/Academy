@@ -229,7 +229,8 @@ export async function backfillProgramExamAcademicFields(examId: string) {
   }
   const remaining = await db.programQuestion.count({
     where: { examId, status: { not: 'REJECTED' }, OR: [
-      { correctRationale: null }, { correctRationale: '' }, { difficulty: null }, { difficulty: '' }, { cognitiveSkill: null }, { cognitiveSkill: '' }, { distractorRationales: null }, { distractorRationales: '' },
+      { correctRationale: null }, { correctRationale: '' }, { difficulty: null }, { difficulty: '' }, { cognitiveSkill: null }, { cognitiveSkill: '' },
+      { AND: [{ type: { in: ['MCQ', 'TF'] } }, { OR: [{ distractorRationales: null }, { distractorRationales: '' }] }] },
     ] },
   })
   console.info('[program-exam] academic-backfill', { examId, filled, remaining })
