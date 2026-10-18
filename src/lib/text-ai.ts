@@ -1016,13 +1016,13 @@ function modelHealthKey(provider: string, model: string): string {
   return `AI_MODEL_HEALTH:${provider}:${model}`
 }
 
-type ModelHealth = { ok: boolean; latencyMs?: number; checkedAt?: string; error?: string }
+type ModelHealth = { ok: boolean; latencyMs?: number; checkedAt?: string; status?: number; error?: string }
 
 function parseModelHealth(raw: unknown): ModelHealth | null {
   try {
     const parsed = JSON.parse(String(raw || '{}'))
     if (typeof parsed.ok !== 'boolean') return null
-    return { ok: parsed.ok, latencyMs: Number(parsed.latencyMs || 0) || undefined, checkedAt: String(parsed.checkedAt || ''), error: String(parsed.error || '').slice(0, 240) }
+    return { ok: parsed.ok, latencyMs: Number(parsed.latencyMs || 0) || undefined, checkedAt: String(parsed.checkedAt || ''), status: Number(parsed.status || 0) || undefined, error: String(parsed.error || '').slice(0, 240) }
   } catch {
     return null
   }
