@@ -282,8 +282,8 @@ export function QuestionReviewDialog({
         if (d.locked) throw new Error('استكمال البيانات الأكاديمية قيد التشغيل حالياً')
         stagnant = d.remaining >= remaining ? stagnant + 1 : 0
         remaining = d.remaining
-        const blocked = Number(d.unsourceable || 0) > 0 ? ` — ${d.unsourceable} سؤال بلا مصدر قابل للربط، أعد سحب الامتحان من البنك` : ''
-        setAcademicBackfillMessage(d.done || d.remaining === 0 ? 'اكتمل الاستكمال' : `جارٍ الاستكمال... المتبقي: ${d.remaining}${blocked}`)
+        setAcademicBackfillSourceMessage(Number(d.unsourceable || 0) > 0 ? `${d.unsourceable} سؤال بلا مصدر قابل للربط، أعد سحب الامتحان من البنك` : '')
+        setAcademicBackfillMessage(d.done || d.remaining === 0 ? 'اكتمل الاستكمال' : `جارٍ الاستكمال... المتبقي: ${d.remaining}`)
         if (d.done || d.remaining === 0 || stagnant >= 2) {
           await load()
           onPublished()
