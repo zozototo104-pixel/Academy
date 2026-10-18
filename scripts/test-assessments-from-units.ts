@@ -153,8 +153,9 @@ function testQuestionBankCompletedJobDoesNotBlockQueue() {
 function testQuestionBankLockedJobDoesNotBlockQueue() {
   const code = src('src/lib/question-bank-job.ts')
   assert(code.includes('lockedUntil: { lt: now }'), 'اختيار job التالي يجب أن يستبعد jobs المقفلة حتى المستقبل')
-  assert(code.includes('retryAt: { lte: now }'), 'اختيار job التالي يجب أن يستبعد jobs المؤجلة retryAt في المستقبل')
-  assert(code.includes('result.saved === job.saved') && code.includes('questionBankJobHasActiveLock(result)') && code.includes('continue'), 'فشل claim أو عدم التقدم يجب ألا يرجع نفس الوظيفة ويجب أن يتخطاها')
+  assert(code.includes("{ status: 'PAUSED', retryAt: { lte: now } }") && code.includes("{ status: 'PAUSED', OR: runnableRetry }"), 'PAUSED بلا retryAt يجب ألا تعمل مع queuedOnly وأن تبقى مسموحة يدوياً بدون queuedOnly')
+  assert(code.includes('new Date(result.updatedAt).getTime() === new Date(job.updatedAt).getTime()') && code.includes('questionBankJobHasActiveLock(result)') && code.includes('continue'), 'فشل claim أو القفل الفعال فقط يجب أن يتخطى الوظيفة')
+  assert(!code.includes('result.saved === job.saved && (result.status === job.status'), 'بعد خطوة فعلية يجب إرجاع النتيجة حتى لو لم يزد saved')
 }
 
 function testVerifierRejectedQuestionIsNotSaved() {
