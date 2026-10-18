@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
+import { syncProgramExamQuestionsFromBank } from '@/lib/program-exam-assembly'
 
 export const runtime = 'nodejs'
 
