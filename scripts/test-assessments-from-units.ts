@@ -578,6 +578,8 @@ const tests = [
   testProgramExamAutoStatusUpdateDoesNotTouchReady,
   testQuestionBankPendingReviewOrdersFirst,
   testApprovedQuestionBankFlagsRemoveReviewMarkers,
+  testBankExamCognitiveBalancePassesPolicy,
+  testBankExamCognitiveBalanceWarnsWithoutHighQuestions,
   testAdminStudentsEnrollmentWhereBuilder,
 ]
 
