@@ -325,6 +325,7 @@ export function QuestionReviewDialog({
       await onPublished(d.exam)
       onClose()
     } catch (e: any) {
+      console.warn('[exam-publish-409]', e?.status, e?.code, e?.data)
       const code = e?.code || e?.data?.code
       if (e?.status === 409 && code === 'COGNITIVE_DISTRIBUTION_FAILED') {
         const details = Array.isArray(e?.data?.details) ? e.data.details : []
