@@ -490,6 +490,7 @@ function aiProviderTimeoutMs(taskLevel: TextAiTaskLevel = 'GENERAL'): number {
 }
 
 function providerAttemptTimeoutMs(opts: TextAiCallOpts): number {
+  if (Number.isFinite(opts.timeoutMs || NaN) && Number(opts.timeoutMs) > 0) return Math.floor(Number(opts.timeoutMs))
   return hasVisionAttachments(opts) ? VISION_ATTEMPT_TIMEOUT_MS : aiProviderTimeoutMs(opts.taskLevel || 'GENERAL')
 }
 
