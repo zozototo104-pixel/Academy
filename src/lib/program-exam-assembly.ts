@@ -133,7 +133,10 @@ type AcademicQuestionPatchTarget = { type: string; difficulty?: string | null; c
 function parseAiBackfill(raw: string): AcademicBackfillRow[] {
   try {
     const parsed: unknown = JSON.parse(raw)
-    const rows = Array.isArray(parsed) ? parsed : Array.isArray((parsed as { items?: unknown[] })?.items) ? (parsed as { items: unknown[] }).items : []
+    const objectRows = parsed && typeof parsed === 'object'
+      ? ((parsed as { items?: unknown[]; questions?: unknown[]; results?: unknown[] }).items || (parsed as { questions?: unknown[] }).questions || (parsed as { results?: unknown[] }).results)
+      : undefined
+    const rows = Array.isArray(parsed) ? parsed : Array.isArray(objectRows) ? objectRows : []
     return rows.flatMap((row) => {
       if (!row || typeof row !== 'object') return []
       const item = row as Record<string, unknown>
