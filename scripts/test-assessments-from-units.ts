@@ -492,6 +492,7 @@ const tests = [
   testProgramExamCopiesAcademicSourceFields,
   testProgramExamBackfillDoesNotTouchQuestionTextOrAnswer,
   testProgramExamTfWithoutDistractorRationalesStillQualified,
+  testSyncedProgramExamQuestionPassesPublicationSourceCheck,
 ]
 
 for (const test of tests) {
