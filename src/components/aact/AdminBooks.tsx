@@ -3666,6 +3666,10 @@ export function AdminBooksTab() {
                   {questionBankBusy === 'legacy-review' ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
                   تعليم الأسئلة القديمة للمراجعة
                 </Button>
+                <Button size="sm" variant="outline" disabled={questionBankBusy === 'documentation'} onClick={runQuestionBankDocumentationBackfill} className="bg-white text-xs font-black">
+                  {questionBankBusy === 'documentation' ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
+                  استكمال توثيق البنك
+                </Button>
                 <Button size="sm" variant="outline" className="bg-white text-xs font-black" onClick={() => setManualQuestionOpen(true)}>إضافة سؤال يدوي</Button>
                 <Button size="sm" variant="outline" className="bg-white text-xs font-black" onClick={() => setImportQuestionsOpen(true)}>استيراد أسئلة</Button>
                 <Button size="sm" variant="outline" className="bg-white text-xs font-black" disabled={questionBankBusy === 'exam-load'} onClick={openExamImport}>
