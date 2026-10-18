@@ -27,6 +27,26 @@ function safeJson(value: unknown, fallback: any = null) {
   }
 }
 
+const APPROVAL_CLEARED_FLAGS = new Set(['NEEDS_HUMAN_REVIEW', 'LEGACY_GROUNDING_UNVERIFIED'])
+
+function cleanApprovedQualityFlags(value: unknown) {
+  const flags = safeJson(value, [])
+  const clean = Array.isArray(flags) ? flags.map(String).filter((flag) => !APPROVAL_CLEARED_FLAGS.has(flag)) : []
+  return JSON.stringify(Array.from(new Set(clean)))
+}
+
+export function __testApproveQuestionBankQualityFlagsForTests(value: unknown) {
+  return cleanApprovedQualityFlags(value)
+}
+
+export function __testOrderQuestionBankItemsForReviewForTests(items: Array<{ id: string; status: string; createdAt: Date | string }>) {
+  return [...items].sort((a, b) => {
+    if (a.status === 'PENDING_REVIEW' && b.status !== 'PENDING_REVIEW') return -1
+    if (a.status !== 'PENDING_REVIEW' && b.status === 'PENDING_REVIEW') return 1
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  })
+}
+
 function norm(value: unknown) {
   return String(value || '')
     .toLowerCase()
