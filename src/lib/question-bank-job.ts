@@ -620,7 +620,7 @@ export async function runNextQuestionBankGenerationJobStep(programId?: string, o
       continue
     }
     const result = await runQuestionBankGenerationJobStep(job.id)
-    if (result?.id === job.id && result.saved === job.saved && result.status === job.status) continue
+    if (result?.id === job.id && result.saved === job.saved && (result.status === job.status || questionBankJobHasActiveLock(result))) continue
     return result
   }
   return null
