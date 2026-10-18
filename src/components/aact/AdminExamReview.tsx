@@ -118,17 +118,9 @@ export function QuestionReviewDialog({
     if (open) load()
   }, [open, load])
 
-  const askCognitiveOverride = useCallback((message: string, details: string[]) => {
-    return new Promise<string | null>((resolve) => {
-      cognitiveOverrideResolveRef.current = resolve
-      setCognitiveOverrideDialog({ message, details, reason: '' })
-    })
-  }, [])
-
-  const closeCognitiveOverride = (reason: string | null) => {
-    cognitiveOverrideResolveRef.current?.(reason)
-    cognitiveOverrideResolveRef.current = null
-    setCognitiveOverrideDialog(null)
+  const showCognitiveOverride = (message: string, details: string[]) => {
+    setCognitiveOverride((prev) => ({ message, details, reason: prev?.reason || '' }))
+    window.setTimeout(() => cognitiveOverrideRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50)
   }
 
   const startEdit = (q: ReviewQuestion) => {
