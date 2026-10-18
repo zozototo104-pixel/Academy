@@ -11,20 +11,25 @@ export async function GET(req: NextRequest) {
     const programId = req.nextUrl.searchParams.get('programId')?.trim()
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
 
-    const exams = await db.programExam.findMany({
-      where: { programId },
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        status: true,
-        errorNote: true,
-        durationMin: true,
-        passScore: true,
-        booksUsed: true,
-        createdAt: true,
-        questions: { select: { type: true, points: true, status: true } },
-      },
-    })
+    const [exams, bankCounts] = await Promise.all([
+      db.programExam.findMany({
+        where: { programId },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          status: true,
+          errorNote: true,
+          durationMin: true,
+          passScore: true,
+          booksUsed: true,
+          createdAt: true,
+          questions: { select: { type: true, points: true, status: true } },
+        },
+      }),
+      db.questionBankItem.groupBy({ by: ['status'], where: { programId }, _count: { _all: true } }),
+    ])
+    const bankApproved = bankCounts.find((row) => row.status === 'APPROVED')?._count._all || 0
+    const bankPendingReview = bankCounts.find((row) => row.status === 'PENDING_REVIEW')?._count._all || 0
 
     const progress = exams.map((exam) => {
       const byType: Record<string, number> = {}
