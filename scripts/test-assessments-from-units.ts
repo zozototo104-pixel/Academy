@@ -503,6 +503,7 @@ const tests = [
   testProgramExamBackfillDoesNotTouchQuestionTextOrAnswer,
   testProgramExamTfWithoutDistractorRationalesStillQualified,
   testSyncedProgramExamQuestionPassesPublicationSourceCheck,
+  testProgramExamAcademicMissingCounts,
 ]
 
 for (const test of tests) {
