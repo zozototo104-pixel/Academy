@@ -4309,7 +4309,13 @@ export function AdminBooksTab() {
           examTitle={reviewingExam.title}
           open={!!reviewingExam}
           onClose={() => setReviewingExam(null)}
-          onPublished={() => programId && loadProgramData(programId, true)}
+          onPublished={async (exam) => {
+            if (exam) setExams((prev) => prev.map((item) => item.id === exam.id ? { ...item, ...exam } : item))
+            if (programId) {
+              await loadProgramData(programId, true)
+              await loadExamProgress(programId).catch(() => null)
+            }
+          }}
         />
       )}
       {actionDialog}
