@@ -1479,10 +1479,14 @@ export function AdminBooksTab() {
 
   const refreshQuestionBank = useCallback(async (pid = programId) => {
     if (!pid) return
-    const res = await api<{ items?: QuestionBankItemRow[]; stats?: QuestionBankStats; progress?: AiGenerationProgressRow }>(`/api/admin/question-bank?programId=${pid}`)
+    const res = await api<{ items?: QuestionBankItemRow[]; stats?: QuestionBankStats; progress?: AiGenerationProgressRow; jobs?: QuestionBankJobRow[] }>(`/api/admin/question-bank?programId=${pid}`)
     if (Array.isArray(res.items)) setQuestionBankItems(res.items)
     if (res.stats) setQuestionBankStats(res.stats)
     if ('progress' in res) setQuestionBankProgress(res.progress || null)
+    if (Array.isArray(res.jobs)) {
+      const job = res.jobs[0]
+      setQuestionBankActiveJob(job ? { id: job.id, status: job.status } : null)
+    }
   }, [programId])
 
   useEffect(() => {
