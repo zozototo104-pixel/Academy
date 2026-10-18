@@ -121,7 +121,7 @@ export async function backfillQuestionBankAcademicFields(programId: string, time
       const batch = await db.questionBankItem.findMany({
         where: { programId },
         orderBy: { createdAt: 'asc' },
-        take: 80,
+        take: 1000,
       })
       const needs = batch.filter((item) => needsAiDocumentation(item) && !isMissing(item.sourceEvidence)).slice(0, 10)
       if (!needs.length) break
