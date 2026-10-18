@@ -1915,7 +1915,10 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   for (const provider of providers) {
     if (provider === 'OPENAI_COMPAT' && s.openaiCompatTier === 'PAID') {
       if (paidAvailable == null) paidAvailable = await paidBudgetAvailable(s, estimatedPaidCost)
-      if (!paidAvailable) continue
+      if (!paidAvailable) {
+        noteNoCandidate(provider, modelFor(s, provider), 'NO_BALANCE')
+        continue
+      }
     }
     const providerPreferredModels = preferredModels.filter((item) => item.provider === provider).map((item) => item.model)
     const fallbackModels = await modelFallbacks(s, provider, taskLevel, exploreModels, effectiveOpts.purpose)
