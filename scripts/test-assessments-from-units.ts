@@ -421,6 +421,10 @@ function testProgramExamBackfillDoesNotTouchQuestionTextOrAnswer() {
   assert(!Object.prototype.hasOwnProperty.call(data, 'correctAnswer'), 'backfill ممنوع أن يغير الإجابة الصحيحة')
 }
 
+function testProgramExamTfWithoutDistractorRationalesStillQualified() {
+  assert(__testQualifiedQuestionBankItemForProgramExamForTests({ type: 'TF', distractorRationales: null }), 'سؤال TF من البنك يجب أن يظل مؤهلاً حتى لو لم تكن أسباب عكس الإجابة موجودة قبل الـ backfill')
+}
+
 const tests = [
   testUnitExamDoesNotFixCorrectAnswer,
   testUnitExamScopedToUnitQuestionBank,
