@@ -49,7 +49,7 @@ function qualified(item: QuestionBankItem, source: { excerpt: string | null; boo
     if (item.correctAnswer == null || !/^\d+$/.test(item.correctAnswer)) return false
     const correct = Number(item.correctAnswer)
     if (!Number.isInteger(correct) || correct < 0 || correct >= options.length || (item.type === 'MCQ' && options.length < 3) || (item.type === 'TF' && options.length !== 2)) return false
-    if (item.type === 'MCQ' || item.type === 'TF') {
+    if (item.type === 'MCQ') {
       try { const reasons: unknown = JSON.parse(item.distractorRationales || '[]'); if (!Array.isArray(reasons) || !reasons.length) return false } catch { return false }
     }
   } else if (!item.modelAnswer?.trim()) return false
