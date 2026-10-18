@@ -312,6 +312,7 @@ interface QuestionBankItemRow {
   options?: string | null
   correctAnswer?: string | null
   modelAnswer?: string | null
+  sourceBookTitle?: string | null
   sourceEvidence?: string | null
   sourceLocator?: string | null
   knowledgeItemId?: string | null
