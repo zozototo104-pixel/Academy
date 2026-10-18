@@ -1923,6 +1923,9 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     const providerPreferredModels = preferredModels.filter((item) => item.provider === provider).map((item) => item.model)
     const fallbackModels = await modelFallbacks(s, provider, taskLevel, exploreModels, effectiveOpts.purpose)
     const candidateModels = [...new Set([...providerPreferredModels, ...fallbackModels])]
+    for (const model of candidateModels) {
+      if (!modelFamilyAllowed(model, excludedFamilies)) noteNoCandidate(provider, model, 'SAME_FAMILY_AS_GENERATOR')
+    }
     const baseModels = candidateModels
       .filter((model) => modelFamilyAllowed(model, excludedFamilies))
       .filter((model) => modelSupportsVisionAttachment(provider, model, modelCapabilitiesFor(provider, s, model), attachments))
