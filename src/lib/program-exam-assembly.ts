@@ -213,7 +213,7 @@ export async function backfillProgramExamAcademicFields(examId: string) {
       for (const question of batch) {
         const row = rows.get(question.id)
         if (!row) continue
-        const data: Record<string, string> = {}
+        const data: Record<string, unknown> = {}
         if (isMissing(question.difficulty) && row.difficulty) data.difficulty = row.difficulty
         if (isMissing(question.cognitiveSkill) && row.cognitiveSkill) data.cognitiveSkill = row.cognitiveSkill
         if (isMissing(question.correctRationale) && row.correctRationale) data.correctRationale = row.correctRationale
