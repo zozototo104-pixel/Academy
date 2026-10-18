@@ -1773,6 +1773,24 @@ function modelFamilyAllowed(model: string, excludedFamilies: Set<string>): boole
   return !excludedFamilies.has(modelFamily(model))
 }
 
+export function __testQuestionVerifierCandidatePlan(args: { preferred?: TextAiPreferredModel[]; fallback?: TextAiPreferredModel[]; generatorProvider?: TextAiProvider; generatorModel?: string; cooldown?: string[]; noBalance?: string[] }) {
+  const excludedProvider = args.generatorProvider && args.generatorProvider !== 'AUTO' ? args.generatorProvider : null
+  const excludedFamily = modelFamily(args.generatorModel || '')
+  const cooldown = new Set(args.cooldown || [])
+  const noBalance = new Set(args.noBalance || [])
+  const diagnostics: string[] = []
+  const ordered: TextAiPreferredModel[] = []
+  for (const item of [...(args.preferred || []), ...(args.fallback || [])]) {
+    const key = `${item.provider}:${item.model}`
+    if (excludedProvider && item.provider === excludedProvider) diagnostics.push(`${key} SAME_PROVIDER_AS_GENERATOR`)
+    else if (excludedFamily && modelFamily(item.model) === excludedFamily) diagnostics.push(`${key} SAME_FAMILY_AS_GENERATOR`)
+    else if (cooldown.has(key) || cooldown.has(item.provider)) diagnostics.push(`${key} COOLDOWN`)
+    else if (noBalance.has(key) || noBalance.has(item.provider)) diagnostics.push(`${key} NO_BALANCE`)
+    else ordered.push(item)
+  }
+  return { ordered, diagnostics }
+}
+
 function isVerifierCall(opts: TextAiCallOpts): boolean {
   return (opts.excludeProviders || []).some((provider) => provider !== 'AUTO')
 }
