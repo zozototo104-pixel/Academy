@@ -121,7 +121,7 @@ function safeJsonArray(value: string | null | undefined): string[] {
   try { const parsed: unknown = JSON.parse(value || '[]'); return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [] } catch { return [] }
 }
 
-function sourceLocatorFromKnowledge(item: { title?: string | null; pageStart?: number | null; pageEnd?: number | null } | null | undefined, fallback?: string | null) {
+export function sourceLocatorFromKnowledge(item: { title?: string | null; pageStart?: number | null; pageEnd?: number | null } | null | undefined, fallback?: string | null) {
   const page = item?.pageStart == null ? '' : `صفحة ${item.pageStart}${item.pageEnd != null && item.pageEnd !== item.pageStart ? `–${item.pageEnd}` : ''}`
   return [fallback, page, item?.title ? `مقطع ${item.title}` : ''].filter(Boolean).join(' — ').slice(0, 240)
 }

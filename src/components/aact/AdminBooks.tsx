@@ -28,6 +28,7 @@ const MAX_BOOK_FILE_SIZE = 10 * 1024 * 1024
 // أي ملف أكبر من هذا الحد يرفع مجزأ حتى لا يصطدم بحد Vercel 4.5MB لطلبات Functions.
 const DIRECT_BOOK_UPLOAD_LIMIT = 850 * 1024
 const BOOK_UPLOAD_CHUNK_SIZE = 384 * 1024
+const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
 
 function makeUploadId() {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
@@ -610,6 +611,7 @@ export function AdminBooksTab() {
     return `${programId}:${questionBankActiveJob.id}:${status}`
   }, [programId, questionBankActiveJob?.id, questionBankActiveJob?.status])
   const [questionBankBusy, setQuestionBankBusy] = useState<string | null>(null)
+  const [questionBankDocumentationMessage, setQuestionBankDocumentationMessage] = useState('')
   const [questionBankOpen, setQuestionBankOpen] = useState(false)
   const [unitQuestionsOpen, setUnitQuestionsOpen] = useState(false)
   const [unitQuestionsUnit, setUnitQuestionsUnit] = useState<CurriculumUnitReviewItem | null>(null)
@@ -1541,6 +1543,32 @@ export function AdminBooksTab() {
       toast({ title: 'تم توليد أسئلة للبنك', description: res.message || 'تمت إضافة أسئلة بانتظار المراجعة من بنك المعرفة.' })
     } catch (e: any) {
       toast({ title: 'تعذر توليد أسئلة للبنك', description: e.message, variant: 'destructive' })
+    } finally {
+      setQuestionBankBusy(null)
+    }
+  }
+
+  const runQuestionBankDocumentationBackfill = async () => {
+    if (!programId) return
+    setQuestionBankBusy('documentation')
+    setQuestionBankDocumentationMessage('المتبقي: ...')
+    try {
+      let previousRemaining: number | null = null
+      let stagnant = 0
+      for (let attempt = 0; attempt < 40; attempt++) {
+        const res = await api<{ filled: number; remaining: number; locked?: boolean; done?: boolean }>('/api/admin/question-bank/documentation-backfill', { method: 'POST', body: JSON.stringify({ programId }) })
+        if (res.locked) throw new Error('استكمال توثيق البنك قيد التشغيل حالياً')
+        if (previousRemaining !== null && res.remaining >= previousRemaining) stagnant += 1
+        else stagnant = 0
+        previousRemaining = res.remaining
+        setQuestionBankDocumentationMessage(res.remaining <= 0 || res.done ? 'اكتمل التوثيق' : `المتبقي: ${res.remaining}`)
+        if (res.remaining <= 0 || res.done || stagnant >= 2) break
+        await wait(2000)
+      }
+      await refreshQuestionBank(programId)
+    } catch (e: any) {
+      setQuestionBankDocumentationMessage(e.message || 'تعذر استكمال توثيق البنك')
+      toast({ title: 'تعذر استكمال توثيق البنك', description: e.message, variant: 'destructive' })
     } finally {
       setQuestionBankBusy(null)
     }
@@ -3638,6 +3666,10 @@ export function AdminBooksTab() {
                   {questionBankBusy === 'legacy-review' ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
                   تعليم الأسئلة القديمة للمراجعة
                 </Button>
+                <Button size="sm" variant="outline" disabled={questionBankBusy === 'documentation'} onClick={runQuestionBankDocumentationBackfill} className="bg-white text-xs font-black">
+                  {questionBankBusy === 'documentation' ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
+                  استكمال توثيق البنك
+                </Button>
                 <Button size="sm" variant="outline" className="bg-white text-xs font-black" onClick={() => setManualQuestionOpen(true)}>إضافة سؤال يدوي</Button>
                 <Button size="sm" variant="outline" className="bg-white text-xs font-black" onClick={() => setImportQuestionsOpen(true)}>استيراد أسئلة</Button>
                 <Button size="sm" variant="outline" className="bg-white text-xs font-black" disabled={questionBankBusy === 'exam-load'} onClick={openExamImport}>
@@ -3647,6 +3679,7 @@ export function AdminBooksTab() {
                 <Button size="sm" variant="outline" disabled={questionBankBusy === 'units-load' || questionBankBusy === 'exam-1'} onClick={() => openBankExamDialog(1)} className="bg-white text-xs font-black">امتحان فصل 1 من البنك</Button>
                 <Button size="sm" variant="outline" disabled={questionBankBusy === 'units-load' || questionBankBusy === 'exam-2'} onClick={() => openBankExamDialog(2)} className="bg-white text-xs font-black">امتحان فصل 2 من البنك</Button>
               </div>
+              {questionBankDocumentationMessage && <p className="mt-2 text-[11px] font-black text-blue-700">{questionBankDocumentationMessage}</p>}
               {questionBankProgress && questionBankProgress.requested > 0 ? (
                 <div className="mt-4 rounded-2xl border border-[#c9a227]/20 bg-white p-3">
                   <div className="mb-2 flex items-center justify-between text-[11px] font-black text-slate-600">

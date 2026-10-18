@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
+import { syncProgramExamQuestionsFromBank } from '@/lib/program-exam-assembly'
 
 export const runtime = 'nodejs'
 
@@ -79,6 +80,17 @@ function pointsForType(type: string) {
   if (type === 'ESSAY') return 5
   if (type === 'SHORT') return 3
   return 2
+}
+
+function withQuestionBankItemFlag(value: string | null | undefined, id: string) {
+  const flag = `QUESTION_BANK_ITEM_ID:${id}`
+  try {
+    const parsed: unknown = JSON.parse(value || '[]')
+    const arr = Array.isArray(parsed) ? parsed.map(String) : []
+    return JSON.stringify(Array.from(new Set([...arr, flag])))
+  } catch {
+    return JSON.stringify([flag])
+  }
 }
 
 // POST /api/admin/program-exams/from-question-bank
@@ -168,7 +180,7 @@ export async function POST(req: NextRequest) {
         difficulty: q.difficulty,
         correctRationale: q.correctRationale,
         distractorRationales: q.distractorRationales,
-        qualityFlags: q.qualityFlags,
+        qualityFlags: withQuestionBankItemFlag(q.qualityFlags, q.id),
         points: pointsForType(q.type),
         status: 'PENDING_REVIEW',
       })),
@@ -176,6 +188,11 @@ export async function POST(req: NextRequest) {
 
     const totalPoints = selected.reduce((sum, q) => sum + pointsForType(q.type), 0)
     await db.programExam.update({ where: { id: exam.id }, data: { totalPoints } })
+    try {
+      await syncProgramExamQuestionsFromBank(exam.id)
+    } catch (error) {
+      console.warn('program exam question bank source sync failed', { examId: exam.id, error: error instanceof Error ? error.message : String(error) })
+    }
     await db.questionBankItem.updateMany({ where: { id: { in: selected.map((q) => q.id) } }, data: { usageCount: { increment: 1 } } })
 
     await audit(

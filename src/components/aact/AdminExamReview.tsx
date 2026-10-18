@@ -93,6 +93,7 @@ export function QuestionReviewDialog({
   const [draft, setDraft] = useState<QuestionDraft | null>(null)
   const [busy, setBusy] = useState(false)
   const [academicBackfillMessage, setAcademicBackfillMessage] = useState('')
+  const [academicBackfillSourceMessage, setAcademicBackfillSourceMessage] = useState('')
   const [filter, setFilter] = useState<'ALL' | 'PENDING_REVIEW' | 'PUBLISHED' | 'REJECTED'>('ALL')
   const [cognitiveOverrideDialog, setCognitiveOverrideDialog] = useState<null | { message: string; details: string[]; reason: string }>(null)
   const cognitiveOverrideResolveRef = useRef<((reason: string | null) => void) | null>(null)
@@ -272,14 +273,18 @@ export function QuestionReviewDialog({
   const runAcademicBackfill = async () => {
     setBusy(true)
     try {
+      setAcademicBackfillSourceMessage('')
       let remaining = questions.length
+      let stagnant = 0
       for (let attempt = 0; attempt < 30; attempt++) {
         setAcademicBackfillMessage(`جارٍ الاستكمال... المتبقي: ${remaining}`)
-        const d = await api<{ filled: number; remaining: number; done: boolean; locked?: boolean; error?: string }>(`/api/admin/program-exams/${examId}/academic-backfill`, { method: 'POST' })
+        const d = await api<{ filled: number; remaining: number; done: boolean; locked?: boolean; unsourceable?: number; error?: string }>(`/api/admin/program-exams/${examId}/academic-backfill`, { method: 'POST' })
         if (d.locked) throw new Error('استكمال البيانات الأكاديمية قيد التشغيل حالياً')
+        stagnant = d.remaining >= remaining ? stagnant + 1 : 0
         remaining = d.remaining
+        setAcademicBackfillSourceMessage(Number(d.unsourceable || 0) > 0 ? `${d.unsourceable} سؤال بلا مصدر قابل للربط، أعد سحب الامتحان من البنك` : '')
         setAcademicBackfillMessage(d.done || d.remaining === 0 ? 'اكتمل الاستكمال' : `جارٍ الاستكمال... المتبقي: ${d.remaining}`)
-        if (d.done || d.remaining === 0) {
+        if (d.done || d.remaining === 0 || stagnant >= 2) {
           await load()
           onPublished()
           return
@@ -383,6 +388,7 @@ export function QuestionReviewDialog({
               )}
             </div>
             {academicBackfillMessage && <p className="mt-2 text-[11px] font-bold text-blue-700">{academicBackfillMessage}</p>}
+            {academicBackfillSourceMessage && <p className="mt-1 text-[11px] font-bold text-red-700">{academicBackfillSourceMessage}</p>}
           </div>
         </DialogHeader>
 
