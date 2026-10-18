@@ -99,7 +99,7 @@ export function QuestionReviewDialog({
   const [filter, setFilter] = useState<'ALL' | 'PENDING_REVIEW' | 'PUBLISHED' | 'REJECTED'>('ALL')
   const [examGeneratedBy, setExamGeneratedBy] = useState<string | null>(null)
   const [cognitiveOverride, setCognitiveOverride] = useState<null | { message: string; details: string[]; reason: string }>(null)
-  const cognitiveOverrideRef = useRef<HTMLDivElement | null>(null)
+  const dialogContentRef = useRef<HTMLDivElement | null>(null)
   const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
 
   const load = useCallback(async () => {
