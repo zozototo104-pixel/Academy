@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     const programId = req.nextUrl.searchParams.get('programId')?.trim()
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
 
-    const [exams, bankCounts] = await Promise.all([
+    const [exams, bankCounts, units] = await Promise.all([
       db.programExam.findMany({
         where: { programId },
         orderBy: { createdAt: 'desc' },
@@ -22,14 +22,21 @@ export async function GET(req: NextRequest) {
           durationMin: true,
           passScore: true,
           booksUsed: true,
+          semester: true,
           createdAt: true,
           questions: { select: { type: true, points: true, status: true } },
         },
       }),
-      db.questionBankItem.groupBy({ by: ['status'], where: { programId }, _count: { _all: true } }),
+      db.questionBankItem.groupBy({ by: ['unitId', 'status'], where: { programId }, _count: { _all: true } }),
+      db.unit.findMany({ where: { programId }, select: { id: true, semester: true } }),
     ])
-    const bankApproved = bankCounts.find((row) => row.status === 'APPROVED')?._count._all || 0
-    const bankPendingReview = bankCounts.find((row) => row.status === 'PENDING_REVIEW')?._count._all || 0
+    const unitSemester = new Map(units.map((unit) => [unit.id, unit.semester] as const))
+    const countBankForExam = (semester: number, status: string) => bankCounts.reduce((sum, row) => {
+      if (row.status !== status || !row.unitId) return sum
+      const rowSemester = unitSemester.get(row.unitId)
+      if (!rowSemester) return sum
+      return semester === 3 || rowSemester === semester ? sum + row._count._all : sum
+    }, 0)
 
     const progress = exams.map((exam) => {
       const byType: Record<string, number> = {}
