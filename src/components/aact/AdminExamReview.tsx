@@ -127,7 +127,9 @@ export function QuestionReviewDialog({
   }, [toast])
 
   useEffect(() => {
-    if (open && initialCognitiveOverride) showCognitiveOverride(initialCognitiveOverride.message, initialCognitiveOverride.details || [])
+    if (!open || !initialCognitiveOverride) return
+    const timer = window.setTimeout(() => showCognitiveOverride(initialCognitiveOverride.message, initialCognitiveOverride.details || []), 0)
+    return () => window.clearTimeout(timer)
   }, [open, initialCognitiveOverride, showCognitiveOverride])
 
   const startEdit = (q: ReviewQuestion) => {
