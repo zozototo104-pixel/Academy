@@ -143,6 +143,20 @@ function testEmptyBatchAdvancesQuestionBankCursor() {
   assert(code.indexOf('await saveJobCursor(job.id, window.nextCursor)') < code.indexOf("if (!rows.length) throw new Error('QUESTION_BANK_JOB_EMPTY_BATCH')"), 'يجب حفظ cursor قبل فشل الدفعة الفارغة')
 }
 
+function testQuestionBankCompletedJobDoesNotBlockQueue() {
+  const code = src('src/lib/question-bank-job.ts')
+  assert(code.includes('questionBankJobRequestedTarget'), 'تشغيل بنك الأسئلة يجب أن يحسب المطلوب الفعلي للوحدة')
+  assert(code.includes('if (job.saved >= requested)'), 'job مكتمل saved >= requested يجب أن يعالج قبل تشغيل خطوة جديدة')
+  assert(code.includes("status: 'COMPLETED'") && code.includes('continue'), 'job مكتمل يجب أن يتحول إلى COMPLETED ثم يتخطى للوظيفة التالية')
+}
+
+function testQuestionBankLockedJobDoesNotBlockQueue() {
+  const code = src('src/lib/question-bank-job.ts')
+  assert(code.includes('lockedUntil: { lt: now }'), 'اختيار job التالي يجب أن يستبعد jobs المقفلة حتى المستقبل')
+  assert(code.includes('retryAt: { lte: now }'), 'اختيار job التالي يجب أن يستبعد jobs المؤجلة retryAt في المستقبل')
+  assert(code.includes('result.saved === job.saved && result.status === job.status') && code.includes('continue'), 'فشل claim أو عدم التقدم يجب ألا يرجع نفس الوظيفة ويجب أن يتخطاها')
+}
+
 function testVerifierRejectedQuestionIsNotSaved() {
   assert(!hasSourceGroundedFlag({ qualityFlags: ['NEEDS_REVIEW'] }), 'السؤال المرفوض من المحقق لا يجب اعتباره SOURCE_GROUNDED')
   assert(hasSourceGroundedFlag({ qualityFlags: ['SOURCE_GROUNDED'] }), 'السؤال المثبت فقط يحفظ كـ SOURCE_GROUNDED')
