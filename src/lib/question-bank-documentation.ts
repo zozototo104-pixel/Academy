@@ -72,7 +72,7 @@ export async function countQuestionBankDocumentationRemaining(programId: string)
 
 export async function syncQuestionBankDocumentationFromKnowledge(programId: string) {
   const items = await db.questionBankItem.findMany({
-    where: { programId },
+    where: { programId, status: { not: 'REJECTED' } },
     select: { id: true, knowledgeItemId: true, sourceBookTitle: true, sourceLocator: true, sourceEvidence: true },
   })
   const knowledgeIds = [...new Set(items.map((item) => item.knowledgeItemId).filter((id): id is string => Boolean(id)))]
