@@ -104,7 +104,8 @@ export function QuestionReviewDialog({
     if (!examId) return
     setLoading(true)
     try {
-      const d = await api<{ questions: ReviewQuestion[] }>(`/api/admin/program-exam-questions?examId=${examId}`)
+      const d = await api<{ exam?: { generatedBy?: string | null }; questions: ReviewQuestion[] }>(`/api/admin/program-exam-questions?examId=${examId}`)
+      setExamGeneratedBy(d.exam?.generatedBy || null)
       setQuestions(d.questions)
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
