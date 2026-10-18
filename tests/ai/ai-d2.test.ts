@@ -148,6 +148,7 @@ beforeEach(() => {
   capturedAsrOptions = null
   unitKnowledgeCount = 3
   programOverrideAudit = false
+  textAiRouter.__resetTextAiStateForTests()
 })
 
 describe('AI D2 behavior', () => {
