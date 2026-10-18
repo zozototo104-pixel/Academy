@@ -242,11 +242,7 @@ export async function backfillProgramExamAcademicFields(examId: string) {
       for (const question of batch) {
         const row = rows.get(question.id)
         if (!row) continue
-        const data: Record<string, unknown> = {}
-        if (isMissing(question.difficulty) && row.difficulty) data.difficulty = row.difficulty
-        if (isMissing(question.cognitiveSkill) && row.cognitiveSkill) data.cognitiveSkill = row.cognitiveSkill
-        if (isMissing(question.correctRationale) && row.correctRationale) data.correctRationale = row.correctRationale
-        if ((question.type === 'MCQ' || question.type === 'TF') && isMissing(question.distractorRationales) && row.distractorRationales?.length) data.distractorRationales = JSON.stringify(row.distractorRationales).slice(0, 1800)
+        const data = academicBackfillData(question, row)
         if (Object.keys(data).length) {
           filled += Object.keys(data).length
           await db.programQuestion.update({ where: { id: question.id }, data })
