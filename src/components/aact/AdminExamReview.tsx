@@ -637,23 +637,6 @@ export function QuestionReviewDialog({
                 اعتماد المعلّق ونشر الامتحان للطلاب
               </Button>
             </div>
-            {cognitiveOverride && (
-              <div ref={cognitiveOverrideRef} className="mt-3 space-y-4 rounded-xl border border-amber-200 bg-amber-50 p-3">
-                <div>
-                  <h3 className="flex items-center gap-2 font-black text-[#0f2b46]"><AlertTriangle className="h-5 w-5 text-amber-500" />تجاوز توزيع المهارات المعرفية</h3>
-                  <p className="mt-1 text-sm font-bold leading-7 text-slate-600">{cognitiveOverride.message}</p>
-                </div>
-                {cognitiveOverride.details.length > 0 && <div className="rounded-xl bg-white/70 p-3 text-xs font-bold leading-6 text-amber-800">{cognitiveOverride.details.map((detail, index) => <p key={index}>• {detail}</p>)}</div>}
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-black text-slate-700">سبب التجاوز الإداري</Label>
-                  <Textarea value={cognitiveOverride.reason} onChange={(e) => setCognitiveOverride((prev) => prev ? { ...prev, reason: e.target.value } : prev)} className="min-h-24 text-xs" placeholder="اكتب سبباً واضحاً لا يقل عن 8 أحرف..." />
-                </div>
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <Button variant="outline" onClick={() => setCognitiveOverride(null)} className="flex-1 font-black">إلغاء</Button>
-                  <Button onClick={() => publish(cognitiveOverride.reason.trim())} disabled={busy || cognitiveOverride.reason.trim().length < 8} className="flex-1 bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">تأكيد التجاوز والنشر</Button>
-                </div>
-              </div>
-            )}
           </>
         )}
       </DialogContent>
