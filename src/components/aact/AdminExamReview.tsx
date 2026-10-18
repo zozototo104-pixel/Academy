@@ -273,13 +273,16 @@ export function QuestionReviewDialog({
     setBusy(true)
     try {
       let remaining = questions.length
+      let stagnant = 0
       for (let attempt = 0; attempt < 30; attempt++) {
         setAcademicBackfillMessage(`جارٍ الاستكمال... المتبقي: ${remaining}`)
-        const d = await api<{ filled: number; remaining: number; done: boolean; locked?: boolean; error?: string }>(`/api/admin/program-exams/${examId}/academic-backfill`, { method: 'POST' })
+        const d = await api<{ filled: number; remaining: number; done: boolean; locked?: boolean; unsourceable?: number; error?: string }>(`/api/admin/program-exams/${examId}/academic-backfill`, { method: 'POST' })
         if (d.locked) throw new Error('استكمال البيانات الأكاديمية قيد التشغيل حالياً')
+        stagnant = d.remaining >= remaining ? stagnant + 1 : 0
         remaining = d.remaining
-        setAcademicBackfillMessage(d.done || d.remaining === 0 ? 'اكتمل الاستكمال' : `جارٍ الاستكمال... المتبقي: ${d.remaining}`)
-        if (d.done || d.remaining === 0) {
+        const blocked = Number(d.unsourceable || 0) > 0 ? ` — ${d.unsourceable} سؤال بلا مصدر قابل للربط، أعد سحب الامتحان من البنك` : ''
+        setAcademicBackfillMessage(d.done || d.remaining === 0 ? 'اكتمل الاستكمال' : `جارٍ الاستكمال... المتبقي: ${d.remaining}${blocked}`)
+        if (d.done || d.remaining === 0 || stagnant >= 2) {
           await load()
           onPublished()
           return
