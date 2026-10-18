@@ -443,6 +443,17 @@ function activeMemoryCooldown(provider: string, key: string): { until: number; r
   return item
 }
 
+function activeMemoryModelCooldown(provider: string, key: string, model: string): { until: number; reason: string; status?: number; model?: string } | null {
+  const id = modelCooldownId(provider, key, model)
+  const item = cooldowns.get(id)
+  if (!item) return null
+  if (item.until <= Date.now()) {
+    cooldowns.delete(id)
+    return null
+  }
+  return item
+}
+
 function isCooling(provider: string, key: string): boolean {
   return !!activeMemoryCooldown(provider, key)
 }
@@ -451,6 +462,11 @@ function markCooldown(provider: string, key: string, reason: string, minutes?: n
   const fallback = Number(env('AI_ROUTER_COOLDOWN_MINUTES')) || 15
   const ttl = Math.max(1, Math.floor(minutes || fallback))
   cooldowns.set(cooldownId(provider, key), { until: Date.now() + ttl * 60 * 1000, reason: reason.slice(0, 180), status })
+}
+
+function markModelCooldown(provider: string, key: string, model: string, reason: string, minutes?: number, status?: number) {
+  const ttl = Math.max(1, Math.floor(minutes || 2))
+  cooldowns.set(modelCooldownId(provider, key, model), { until: Date.now() + ttl * 60 * 1000, reason: reason.slice(0, 180), status, model })
 }
 
 function aiProviderTimeoutMs(taskLevel: TextAiTaskLevel = 'GENERAL'): number {
