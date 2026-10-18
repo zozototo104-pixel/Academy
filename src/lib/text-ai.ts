@@ -50,6 +50,7 @@ export interface TextAiCallOpts {
   preferredModels?: TextAiPreferredModel[]
   excludeModelFamilies?: string[]
   deadlineMs?: number
+  timeoutMs?: number
   stickyScope?: string
   userId?: string | null
   taskType?: string
@@ -489,6 +490,7 @@ function aiProviderTimeoutMs(taskLevel: TextAiTaskLevel = 'GENERAL'): number {
 }
 
 function providerAttemptTimeoutMs(opts: TextAiCallOpts): number {
+  if (Number.isFinite(opts.timeoutMs || NaN) && Number(opts.timeoutMs) > 0) return Math.floor(Number(opts.timeoutMs))
   return hasVisionAttachments(opts) ? VISION_ATTEMPT_TIMEOUT_MS : aiProviderTimeoutMs(opts.taskLevel || 'GENERAL')
 }
 
@@ -909,6 +911,47 @@ async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseU
   }
 }
 
+function isGroqTextChatModel(row: any): boolean {
+  const id = modelId(row).toLowerCase()
+  const haystack = `${id} ${row?.type || ''} ${row?.owned_by || ''} ${row?.object || ''}`.toLowerCase()
+  if (!id) return false
+  if (/whisper|tts|guard|compound|embed|embedding|audio|speech|image|vision|moderation|rerank|transcribe|stt/.test(haystack)) return false
+  return true
+}
+
+async function fetchGroqTextModels(baseUrl: string, key?: string): Promise<string[]> {
+  if (!baseUrl) return []
+  try {
+    const response = await fetchWithTimeout('GROQ', `${baseUrl.replace(/\/$/, '')}/models`, {
+      cache: 'no-store',
+      headers: key ? { Authorization: `Bearer ${key}` } : undefined,
+    }, aiDiscoveryTimeoutMs())
+    if (!response.ok) return []
+    const data = await response.json().catch(() => ({}))
+    const rows = rowsFromModelPayload(data)
+      .filter((m) => m?.online !== false)
+      .filter(isGroqTextChatModel)
+      .map((m) => ({ raw: m, id: modelId(m) }))
+      .filter(({ id }) => validModelName(id))
+    const models = rows.map(({ id }) => id)
+    const capabilities = Object.fromEntries(rows.map(({ raw, id }) => [id, capabilityFromModelRow(raw)]))
+    freeModelsCache.set(cacheKeyForFreeModels('GROQ', baseUrl, key), { at: Date.now(), models, capabilities })
+    console.info('[text-ai-router] groq models discovered', { count: models.length })
+    return models
+  } catch {
+    return []
+  }
+}
+
+export async function __testDiscoverGroqTextModelsForTests(baseUrl: string, key?: string): Promise<string[]> {
+  return fetchGroqTextModels(baseUrl, key)
+}
+
+export async function __testGroqTextModelsWithFallbackForTests(baseUrl: string, key?: string): Promise<string[]> {
+  const models = await fetchGroqTextModels(baseUrl, key)
+  return models.length ? models : GROQ_TEXT_MODELS
+}
+
 async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<string[]> {
   const baseUrl = baseFor(s, provider)
   const key = providerKeys(s, provider)[0]
@@ -946,7 +989,9 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<
     } catch {
       models = []
     }
-  } else if (['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'GROQ', 'ZAI'].includes(provider)) {
+  } else if (provider === 'GROQ') {
+    models = await fetchGroqTextModels(baseUrl, key)
+  } else if (['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ZAI'].includes(provider)) {
     models = await fetchOpenAiCompatibleFreeModels(provider, baseUrl, key)
   }
 
@@ -1295,7 +1340,8 @@ export async function textAiCheckAllModelHealth(opts: { maxMs?: number } = {}): 
       if (Date.now() >= deadlineMs - 1000) break
       const started = Date.now()
       try {
-        await callProvider(provider, s, key, model, { system: 'أجب بكلمة واحدة.', history: [{ role: 'user', text: 'اكتب: ok' }], maxOutputTokens: 8, deadlineMs: Math.min(Date.now() + 15_000, deadlineMs) })
+        const healthTimeoutMs = provider === 'GEMINI' && /(?:3\.8|pro)/i.test(model) ? 30_000 : 15_000
+        await callProvider(provider, s, key, model, { system: 'أجب بكلمة واحدة.', history: [{ role: 'user', text: 'اكتب: ok' }], maxOutputTokens: provider === 'OPENAI' ? 64 : 8, timeoutMs: healthTimeoutMs, deadlineMs: Math.min(Date.now() + healthTimeoutMs, deadlineMs) })
         const result = { provider, model, ok: true, latencyMs: Date.now() - started }
         results.push(result)
         await settingStore().write(modelHealthKey(provider, model), JSON.stringify({ ...result, checkedAt: new Date().toISOString() }))
@@ -1655,11 +1701,19 @@ function extractOpenAiText(data: any): string {
   return chunks.join('\n').trim()
 }
 
+function openAiResponsesBody(model: string, opts: TextAiCallOpts) {
+  return { model, input: toOpenAiResponsesInput(opts), max_output_tokens: Math.max(16, Number(opts.maxOutputTokens ?? (opts.json ? 4096 : 2048))) }
+}
+
+export function __testOpenAiResponsesBodyForTests(model: string, opts: TextAiCallOpts) {
+  return openAiResponsesBody(model, opts)
+}
+
 async function callOpenAIResponses(s: Settings, key: string, model: string, opts: TextAiCallOpts): Promise<string> {
   const response = await fetchWithTimeout('OpenAI', `${s.openaiBaseUrl}/responses`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, input: toOpenAiResponsesInput(opts), max_output_tokens: opts.maxOutputTokens ?? (opts.json ? 4096 : 2048) }),
+    body: JSON.stringify(openAiResponsesBody(model, opts)),
   }, providerAttemptTimeoutMs(opts), opts.deadlineMs)
   const data = await parseResponse(response)
   if (!response.ok) throwHttp('OpenAI', response.status, data)

@@ -175,6 +175,45 @@ describe('AI D2 behavior', () => {
     expect(textAiRouter.__testParseTextAiKeysForTests('\u200esk-test', 'sk-test\ufeff')).toEqual(['sk-test'])
   })
 
+  test('Groq model discovery filters non-chat models and keeps text models', async () => {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (async () => new Response(JSON.stringify({ data: [
+      { id: 'llama-4-scout-17b-16e-instruct' },
+      { id: 'whisper-large-v3' },
+      { id: 'playai-tts' },
+      { id: 'llama-guard-4-12b' },
+      { id: 'groq/compound' },
+      { id: 'compound-mini' },
+      { id: 'text-embedding-3-small' },
+      { id: 'qwen/qwen3-32b' },
+    ] }), { status: 200, headers: { 'content-type': 'application/json' } })) as any
+    try {
+      const models = await textAiRouter.__testDiscoverGroqTextModelsForTests('https://api.groq.com/openai/v1', 'gsk-test')
+      expect(models).toEqual(['llama-4-scout-17b-16e-instruct', 'qwen/qwen3-32b'])
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  test('Groq model discovery failure falls back to static models', async () => {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (async () => new Response('server error', { status: 500 })) as any
+    try {
+      const models = await textAiRouter.__testGroqTextModelsWithFallbackForTests('https://api.groq.com/openai/v1', 'gsk-test')
+      expect(models).toContain('llama-3.3-70b-versatile')
+      expect(models).toContain('llama-3.1-8b-instant')
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  test('OpenAI Responses body clamps max_output_tokens without running the router', () => {
+    expect(textAiRouter.__testOpenAiResponsesBodyForTests('gpt-5.1', { system: 'اختبار', history: [], maxOutputTokens: 8 }).max_output_tokens).toBe(16)
+    expect(textAiRouter.__testOpenAiResponsesBodyForTests('gpt-5.1', { system: 'اختبار', history: [] }).max_output_tokens).toBe(2048)
+    expect(textAiRouter.__testOpenAiResponsesBodyForTests('gpt-5.1', { system: 'اختبار', history: [], json: true }).max_output_tokens).toBe(4096)
+    expect(textAiRouter.__testOpenAiResponsesBodyForTests('gpt-5.1', { system: 'اختبار', history: [], maxOutputTokens: 3000 }).max_output_tokens).toBe(3000)
+  })
+
   test('selected dialect reaches ASR and does not default to ar-SA', async () => {
     const res = await asrRoute.POST(new NextRequest('https://academy.test/api/ai/asr', {
       method: 'POST',
