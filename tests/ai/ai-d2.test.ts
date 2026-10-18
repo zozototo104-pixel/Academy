@@ -207,31 +207,11 @@ describe('AI D2 behavior', () => {
     }
   })
 
-  test('OpenAI Responses raises too-small max_output_tokens to 16', async () => {
-    const originalFetch = globalThis.fetch
-    let body: any = null
-    const values = new Map<string, string>([
-      ['AI_TEXT_PROVIDER', 'OPENAI'],
-      ['OPENAI_API_KEY', 'sk-openai'],
-      ['OPENAI_TEXT_MODEL', 'gpt-5.1'],
-    ])
-    textAiRouter.__setTextAiSettingStoreForTests({
-      read: async (keys: string[]) => Object.fromEntries(keys.map((key) => [key, values.get(key) || ''])),
-      write: async () => {},
-      scan: async () => ({}),
-    })
-    globalThis.fetch = (async (_url: any, init: any) => {
-      body = JSON.parse(String(init?.body || '{}'))
-      return new Response(JSON.stringify({ output_text: 'ok' }), { status: 200, headers: { 'content-type': 'application/json' } })
-    }) as any
-    try {
-      const text = await textAiRouter.textAiComplete({ system: 'اختبار', history: [{ role: 'user', text: 'ok' }], maxOutputTokens: 8 })
-      expect(text).toBe('ok')
-      expect(body.max_output_tokens).toBe(16)
-    } finally {
-      globalThis.fetch = originalFetch
-      textAiRouter.__setTextAiSettingStoreForTests(null)
-    }
+  test('OpenAI Responses body clamps max_output_tokens without running the router', () => {
+    expect(textAiRouter.__testOpenAiResponsesBodyForTests('gpt-5.1', { system: 'اختبار', history: [], maxOutputTokens: 8 }).max_output_tokens).toBe(16)
+    expect(textAiRouter.__testOpenAiResponsesBodyForTests('gpt-5.1', { system: 'اختبار', history: [] }).max_output_tokens).toBe(2048)
+    expect(textAiRouter.__testOpenAiResponsesBodyForTests('gpt-5.1', { system: 'اختبار', history: [], json: true }).max_output_tokens).toBe(4096)
+    expect(textAiRouter.__testOpenAiResponsesBodyForTests('gpt-5.1', { system: 'اختبار', history: [], maxOutputTokens: 3000 }).max_output_tokens).toBe(3000)
   })
 
   test('selected dialect reaches ASR and does not default to ar-SA', async () => {
