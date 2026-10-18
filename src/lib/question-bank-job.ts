@@ -598,13 +598,23 @@ function questionBankJobRequestedTarget(job: { requested: number; unitId?: strin
 
 export async function runNextQuestionBankGenerationJobStep(programId?: string, options: { queuedOnly?: boolean } = {}) {
   const now = new Date()
+  const runnableRetry = [{ retryAt: null }, { retryAt: { lte: now } }]
   const jobs = await db.questionBankGenerationJob.findMany({
     where: {
       ...(programId ? { programId } : {}),
       AND: [
         { OR: [{ lockedUntil: null }, { lockedUntil: { lt: now } }] },
-        { OR: [{ retryAt: null }, { retryAt: { lte: now } }] },
-        { OR: options.queuedOnly ? [{ status: 'QUEUED' }, { status: 'RUNNING' }, { status: 'PAUSED' }] : [{ status: 'QUEUED' }, { status: 'RUNNING' }, { status: 'PAUSED' }] },
+        {
+          OR: options.queuedOnly ? [
+            { status: 'QUEUED', OR: runnableRetry },
+            { status: 'RUNNING', OR: runnableRetry },
+            { status: 'PAUSED', retryAt: { lte: now } },
+          ] : [
+            { status: 'QUEUED', OR: runnableRetry },
+            { status: 'RUNNING', OR: runnableRetry },
+            { status: 'PAUSED', OR: runnableRetry },
+          ],
+        },
       ],
     },
     orderBy: [{ createdAt: 'asc' }],
