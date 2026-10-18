@@ -529,6 +529,7 @@ const tests = [
   testSyncedProgramExamQuestionPassesPublicationSourceCheck,
   testProgramExamAcademicMissingCounts,
   testQuestionBankDocumentationPassesProgramExamPublicationSourceCheck,
+  testQuestionBankDocumentationParserAcceptsQuestionsKey,
   testAdminStudentsEnrollmentWhereBuilder,
 ]
 
