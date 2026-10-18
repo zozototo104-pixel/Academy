@@ -1484,7 +1484,7 @@ export function AdminBooksTab() {
     if (res.stats) setQuestionBankStats(res.stats)
     if ('progress' in res) setQuestionBankProgress(res.progress || null)
     if (Array.isArray(res.jobs)) {
-      const job = res.jobs[0]
+      const job = res.jobs.find((item) => ['QUEUED', 'RUNNING', 'PAUSED'].includes(item.status)) || res.jobs[0]
       setQuestionBankActiveJob(job ? { id: job.id, status: job.status } : null)
     }
   }, [programId])
