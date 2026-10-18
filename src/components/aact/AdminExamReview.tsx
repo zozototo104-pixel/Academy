@@ -2,7 +2,7 @@
 
 import { api } from '@/lib/store'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { toast, useToast } from '@/hooks/use-toast'
+import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
