@@ -553,6 +553,8 @@ const tests = [
   testQuestionBankDocumentationPassesProgramExamPublicationSourceCheck,
   testQuestionBankDocumentationParserAcceptsQuestionsKey,
   testProgramExamAutoStatusUpdateDoesNotTouchReady,
+  testQuestionBankPendingReviewOrdersFirst,
+  testApprovedQuestionBankFlagsRemoveReviewMarkers,
   testAdminStudentsEnrollmentWhereBuilder,
 ]
 
