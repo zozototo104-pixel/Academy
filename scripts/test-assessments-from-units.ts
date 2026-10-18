@@ -5,6 +5,7 @@ import { assertGeneratedBatchHasAcceptedCandidates, hasSourceGroundedFlag, nextQ
 import { parseGeneratedQuestionCandidates } from '../src/lib/question-bank-generation'
 import { __testAcademicBackfillDataForTests, __testProgramQuestionAcademicCopyForTests, __testQualifiedQuestionBankItemForProgramExamForTests } from '../src/lib/program-exam-assembly'
 import { calculateProgramExamAcademicMissingCounts, validateProgramExamPublicationReadiness } from '../src/lib/program-exam-publication-readiness'
+import { __testDocumentedBankQuestionForPublicationForTests } from '../src/lib/question-bank-documentation'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
