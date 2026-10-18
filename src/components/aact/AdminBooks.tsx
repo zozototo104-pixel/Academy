@@ -424,6 +424,22 @@ interface CurriculumUnitReviewItem {
   } | null
 }
 
+function questionBankProgressCounts(unit: CurriculumUnitReviewItem) {
+  const approved = Number(unit.questionBankJob?.approvedQuestions ?? unit.questionBankSummary?.approved ?? 0) || 0
+  const pendingReview = Number(unit.questionBankJob?.pendingReviewQuestions ?? unit.questionBankSummary?.pendingReview ?? 0) || 0
+  const rejected = Number(unit.questionBankSummary?.rejected ?? unit.questionBankJob?.trace?.rejected ?? 0) || 0
+  const generated = approved + pendingReview
+  const requested = Math.max(1, Number(unit.questionBankJob?.requested || 1) || 1)
+  const percent = Math.min(100, Math.round((generated / requested) * 100))
+  return { approved, pendingReview, rejected, generated, requested, percent }
+}
+
+function topRejectionReason(unit: CurriculumUnitReviewItem): string {
+  const reasons = unit.questionBankJob?.trace?.rejectionReasons || []
+  const top = [...reasons].sort((a, b) => Number(b.count || 0) - Number(a.count || 0))[0]
+  return top?.reason ? `${top.reason} (${top.count})` : ''
+}
+
 interface UnitQuestionReviewPayload {
   unit: { id: string; title: string; programId: string }
   requiredQuestions: number
