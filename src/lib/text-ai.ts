@@ -1701,12 +1701,19 @@ function extractOpenAiText(data: any): string {
   return chunks.join('\n').trim()
 }
 
+function openAiResponsesBody(model: string, opts: TextAiCallOpts) {
+  return { model, input: toOpenAiResponsesInput(opts), max_output_tokens: Math.max(16, Number(opts.maxOutputTokens ?? (opts.json ? 4096 : 2048))) }
+}
+
+export function __testOpenAiResponsesBodyForTests(model: string, opts: TextAiCallOpts) {
+  return openAiResponsesBody(model, opts)
+}
+
 async function callOpenAIResponses(s: Settings, key: string, model: string, opts: TextAiCallOpts): Promise<string> {
-  const maxOutputTokens = Math.max(16, Number(opts.maxOutputTokens ?? (opts.json ? 4096 : 2048)))
   const response = await fetchWithTimeout('OpenAI', `${s.openaiBaseUrl}/responses`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, input: toOpenAiResponsesInput(opts), max_output_tokens: maxOutputTokens }),
+    body: JSON.stringify(openAiResponsesBody(model, opts)),
   }, providerAttemptTimeoutMs(opts), opts.deadlineMs)
   const data = await parseResponse(response)
   if (!response.ok) throwHttp('OpenAI', response.status, data)
