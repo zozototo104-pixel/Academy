@@ -108,6 +108,8 @@ mock.module('@/lib/asr', () => ({ ...realAsr, transcribeAudioBase64: async (_aud
 const realSettings = await import('../../src/lib/settings')
 mock.module('@/lib/settings', () => ({ ...realSettings, getSetting: async (key: string) => key === 'VOICE_DEFAULT_DIALECT' ? 'ar-PS' : key === 'UNIT_MIN_KNOWLEDGE_ITEMS' ? '15' : '' }))
 
+const textAiRouter = await import('../../src/lib/text-ai')
+
 const realQuestionBankJob = await import('../../src/lib/question-bank-job')
 mock.module('@/lib/question-bank-job', () => ({ ...realQuestionBankJob, ensureQuestionBankGenerationJob: async () => ({ id: 'job-1', status: 'QUEUED', saved: 0, requested: 5 }), runQuestionBankGenerationJobStepsUntil: async () => null }))
 
