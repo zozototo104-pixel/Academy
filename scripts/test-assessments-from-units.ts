@@ -468,6 +468,7 @@ const tests = [
   testQuestionBankRetryAtNotBeyondOneHour,
   testProgramExamCopiesAcademicSourceFields,
   testProgramExamBackfillDoesNotTouchQuestionTextOrAnswer,
+  testProgramExamTfWithoutDistractorRationalesStillQualified,
 ]
 
 for (const test of tests) {
