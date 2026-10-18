@@ -188,6 +188,11 @@ export async function POST(req: NextRequest) {
 
     const totalPoints = selected.reduce((sum, q) => sum + pointsForType(q.type), 0)
     await db.programExam.update({ where: { id: exam.id }, data: { totalPoints } })
+    try {
+      await syncProgramExamQuestionsFromBank(exam.id)
+    } catch (error) {
+      console.warn('program exam question bank source sync failed', { examId: exam.id, error: error instanceof Error ? error.message : String(error) })
+    }
     await db.questionBankItem.updateMany({ where: { id: { in: selected.map((q) => q.id) } }, data: { usageCount: { increment: 1 } } })
 
     await audit(
