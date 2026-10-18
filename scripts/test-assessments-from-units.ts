@@ -5,7 +5,7 @@ import { assertGeneratedBatchHasAcceptedCandidates, hasSourceGroundedFlag, nextQ
 import { parseGeneratedQuestionCandidates } from '../src/lib/question-bank-generation'
 import { __testAcademicBackfillDataForTests, __testProgramQuestionAcademicCopyForTests, __testQualifiedQuestionBankItemForProgramExamForTests } from '../src/lib/program-exam-assembly'
 import { calculateProgramExamAcademicMissingCounts, validateProgramExamPublicationReadiness } from '../src/lib/program-exam-publication-readiness'
-import { __testDocumentedBankQuestionForPublicationForTests } from '../src/lib/question-bank-documentation'
+import { __testDocumentedBankQuestionForPublicationForTests, __testParseBankDocAiRowsForTests } from '../src/lib/question-bank-documentation'
 import { buildAdminStudentsEnrollmentRelationFilter, OPEN_ENROLLMENT_STATUSES } from '../src/lib/enrollment-status'
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -467,6 +467,12 @@ function testQuestionBankDocumentationPassesProgramExamPublicationSourceCheck() 
   assert(!errors.some((error) => error.includes('مصدر أكاديمي')), 'سؤال بنك فيه knowledgeItemId فقط بعد تعبئة التوثيق يجب أن يمر شرط المصدر الأكاديمي')
 }
 
+function testQuestionBankDocumentationParserAcceptsQuestionsKey() {
+  const rows = __testParseBankDocAiRowsForTests('{"questions":[{"id":"q1","difficulty":"EASY"}]}')
+  assert(rows.length === 1, 'محلل توثيق بنك الأسئلة يجب أن يقبل questions كمصفوفة')
+  assert(rows[0]?.id === 'q1' && rows[0]?.difficulty === 'EASY', 'محلل توثيق بنك الأسئلة يجب أن يرجع صف q1 بالصعوبة')
+}
+
 function testAdminStudentsEnrollmentWhereBuilder() {
   const all = buildAdminStudentsEnrollmentRelationFilter('ALL', null) as any
   assert(JSON.stringify(all.some.status.in) === JSON.stringify([...OPEN_ENROLLMENT_STATUSES]), 'فلتر كل الطلاب يجب أن يعرض فقط أصحاب برنامج مفتوح')
@@ -523,6 +529,7 @@ const tests = [
   testSyncedProgramExamQuestionPassesPublicationSourceCheck,
   testProgramExamAcademicMissingCounts,
   testQuestionBankDocumentationPassesProgramExamPublicationSourceCheck,
+  testQuestionBankDocumentationParserAcceptsQuestionsKey,
   testAdminStudentsEnrollmentWhereBuilder,
 ]
 
