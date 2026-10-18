@@ -1498,6 +1498,7 @@ export function AdminBooksTab() {
       setQuestionBankItems(res.items || [])
       setQuestionBankStats(res.stats || null)
       setQuestionBankProgress(res.progress || null)
+      await refreshCurriculumUnits(programId)
       toast({ title: 'تم توليد أسئلة للبنك', description: res.message || 'تمت إضافة أسئلة بانتظار المراجعة من بنك المعرفة.' })
     } catch (e: any) {
       toast({ title: 'تعذر توليد أسئلة للبنك', description: e.message, variant: 'destructive' })
