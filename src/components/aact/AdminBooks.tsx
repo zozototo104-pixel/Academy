@@ -1535,7 +1535,7 @@ export function AdminBooksTab() {
       })
       setQuestionBankItems(res.items || [])
       setQuestionBankStats(res.stats || null)
-      setQuestionBankProgress(res.progress || null)
+      setQuestionBankProgress(res.progress || questionBankProgressFromJob(res.job))
       if (res.job) setQuestionBankActiveJob({ id: res.job.id, status: res.job.status })
       await refreshCurriculumUnits(programId)
       toast({ title: 'تم توليد أسئلة للبنك', description: res.message || 'تمت إضافة أسئلة بانتظار المراجعة من بنك المعرفة.' })
