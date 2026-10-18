@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { audit } from '@/lib/notify'
-import { advanceProgramExamFromVerifiedBank, PROGRAM_EXAM_TARGET } from '@/lib/program-exam-assembly'
+import { advanceProgramExamFromVerifiedBank, backfillProgramExamAcademicFields, PROGRAM_EXAM_TARGET } from '@/lib/program-exam-assembly'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -75,7 +75,10 @@ export async function POST(req: NextRequest) {
     const unitBreakdown = unitsForExam.map((unit) => ({ unitId: unit.id, title: unit.title, semester: unit.semester, order: unit.order }))
     if (exam.status === 'REVIEW') {
       const count = await db.programQuestion.count({ where: { examId: exam.id, status: { not: 'REJECTED' } } })
-      if (count >= PROGRAM_EXAM_TARGET) return NextResponse.json({ ok: true, done: true, examId: exam.id, status: 'REVIEW', questionCount: count, requiredQuestions: PROGRAM_EXAM_TARGET, resumed, unitBreakdown })
+      if (count >= PROGRAM_EXAM_TARGET) {
+        await backfillProgramExamAcademicFields(exam.id)
+        return NextResponse.json({ ok: true, done: true, examId: exam.id, status: 'REVIEW', questionCount: count, requiredQuestions: PROGRAM_EXAM_TARGET, resumed, unitBreakdown })
+      }
     }
     if (exam.status !== 'GENERATING') await db.programExam.update({ where: { id: exam.id }, data: { status: 'GENERATING', errorNote: null } })
     const result = await advanceProgramExamFromVerifiedBank(exam.id, { manual: action !== 'kick' })

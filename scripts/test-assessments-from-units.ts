@@ -3,6 +3,8 @@ import { join } from 'path'
 import { canPublishUnitExamFromQuestions, selectUnitExamQuestionsApprovedFirst } from '../src/lib/unit-exam-policy'
 import { assertGeneratedBatchHasAcceptedCandidates, hasSourceGroundedFlag, nextQuestionBankRetryAt, planQuestionBankJobManualReactivation, planQuestionBankSourceWindow, prepareMcqOptionsForStorage } from '../src/lib/question-bank-job'
 import { parseGeneratedQuestionCandidates } from '../src/lib/question-bank-generation'
+import { __testAcademicBackfillDataForTests, __testProgramQuestionAcademicCopyForTests, __testQualifiedQuestionBankItemForProgramExamForTests } from '../src/lib/program-exam-assembly'
+import { validateProgramExamPublicationReadiness } from '../src/lib/program-exam-publication-readiness'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
@@ -389,6 +391,63 @@ function testQuestionBankRetryAtNotBeyondOneHour() {
   assert(retry.getTime() - now <= 60 * 60 * 1000, 'retryAt لوظيفة بنك الأسئلة لا يجب أن يتجاوز ساعة')
 }
 
+function testProgramExamCopiesAcademicSourceFields() {
+  const copied = __testProgramQuestionAcademicCopyForTests({
+    bookTitle: 'كتاب إدارة الأزمات',
+    knowledgeTitle: 'التخطيط للأزمات',
+    pageStart: 12,
+    pageEnd: 14,
+    bank: {
+      sourceLocator: 'مقطع 3',
+      sourceEvidence: 'النص الحرفي المعتمد من الكتاب',
+      cognitiveSkill: 'ANALYZE',
+      difficulty: 'ADVANCED',
+      correctRationale: 'لأن الدليل يربط التخطيط بالاستجابة',
+      distractorRationales: '["سبب خطأ الخيار"]',
+    },
+  })
+  assert(copied.sourceBookTitle === 'كتاب إدارة الأزمات', 'نسخ امتحان البرنامج يجب أن يعبئ عنوان الكتاب من عنصر المعرفة')
+  assert(String(copied.sourceLocator).includes('صفحة 12–14') && String(copied.sourceLocator).includes('مقطع 3'), 'نسخ امتحان البرنامج يجب أن يعبئ موضع/صفحة المصدر')
+  assert(copied.sourceEvidence === 'النص الحرفي المعتمد من الكتاب', 'نسخ امتحان البرنامج يجب أن يحتفظ بالدليل الحرفي')
+  assert(copied.cognitiveSkill === 'ANALYZE' && copied.difficulty === 'ADVANCED', 'نسخ امتحان البرنامج يجب أن يحتفظ بالمهارة والصعوبة')
+}
+
+function testProgramExamBackfillDoesNotTouchQuestionTextOrAnswer() {
+  const data = __testAcademicBackfillDataForTests(
+    { type: 'MCQ', difficulty: null, cognitiveSkill: null, correctRationale: null, distractorRationales: null },
+    { id: 'q1', difficulty: 'MEDIUM', cognitiveSkill: 'UNDERSTAND', correctRationale: 'تعليل من الدليل', distractorRationales: ['سبب خطأ'] },
+  )
+  assert(data.difficulty === 'MEDIUM' && data.cognitiveSkill === 'UNDERSTAND', 'backfill يجب أن يعبئ الصعوبة والمهارة فقط عند النقص')
+  assert(!Object.prototype.hasOwnProperty.call(data, 'text'), 'backfill ممنوع أن يغير نص السؤال')
+  assert(!Object.prototype.hasOwnProperty.call(data, 'correctAnswer'), 'backfill ممنوع أن يغير الإجابة الصحيحة')
+}
+
+function testProgramExamTfWithoutDistractorRationalesStillQualified() {
+  assert(__testQualifiedQuestionBankItemForProgramExamForTests({ type: 'TF', distractorRationales: null }), 'سؤال TF من البنك يجب أن يظل مؤهلاً حتى لو لم تكن أسباب عكس الإجابة موجودة قبل الـ backfill')
+}
+
+function testSyncedProgramExamQuestionPassesPublicationSourceCheck() {
+  const copied = __testProgramQuestionAcademicCopyForTests({
+    bookTitle: 'كتاب إدارة الأزمات',
+    knowledgeTitle: 'تحليل المخاطر',
+    pageStart: 8,
+    pageEnd: 8,
+    bank: {
+      sourceEvidence: 'النص الحرفي المعتمد من المصدر الأكاديمي',
+      cognitiveSkill: 'UNDERSTAND',
+      difficulty: 'EASY',
+      correctRationale: 'الدليل يثبت صحة الإجابة',
+      distractorRationales: '["سبب عكس الإجابة"]',
+    },
+  })
+  const questions = Array.from({ length: 5 }, (_, index) => ({
+    status: 'PUBLISHED', type: 'TF', text: `سؤال موثق رقم ${index + 1}`, correctAnswer: '0', ...copied,
+  }))
+  const errors = validateProgramExamPublicationReadiness(questions, 'DIPLOMA', 'QUESTION_BANK')
+  assert(!errors.some((error) => error.includes('مصدر أكاديمي')), 'السؤال المعبأ من sync يجب أن يمر شرط المصدر الأكاديمي نفسه في فحص النشر')
+  assert(errors.length === 0, `السؤال المعبأ من sync يجب أن يمر فحص النشر: ${errors.join(' | ')}`)
+}
+
 const tests = [
   testUnitExamDoesNotFixCorrectAnswer,
   testUnitExamScopedToUnitQuestionBank,
@@ -430,6 +489,10 @@ const tests = [
   testBookReplacementProtectedWhenUnitsLinked,
   testQuestionBankPatchValidatesCorrectAnswer,
   testQuestionBankRetryAtNotBeyondOneHour,
+  testProgramExamCopiesAcademicSourceFields,
+  testProgramExamBackfillDoesNotTouchQuestionTextOrAnswer,
+  testProgramExamTfWithoutDistractorRationalesStillQualified,
+  testSyncedProgramExamQuestionPassesPublicationSourceCheck,
 ]
 
 for (const test of tests) {
