@@ -518,6 +518,25 @@ function testBankExamCognitiveBalanceWarnsWithoutHighQuestions() {
   assert(!!result.cognitiveWarning, 'موازن بنك الأسئلة يجب أن يرجع تحذيراً إذا لم تتوفر أسئلة تحليل/تقييم كافية')
 }
 
+function testBankExamCognitiveBalanceRespectsTypePlanWhenPossible() {
+  const rows = [
+    ...Array.from({ length: 20 }, (_, i) => ({ id: `mcq-low-${i}`, text: `mcq low ${i}`, cognitiveSkill: 'UNDERSTAND', difficulty: 'MEDIUM', type: 'MCQ' })),
+    ...Array.from({ length: 10 }, (_, i) => ({ id: `mcq-high-${i}`, text: `mcq high ${i}`, cognitiveSkill: i % 2 ? 'ANALYZE' : 'EVALUATE', difficulty: 'ADVANCED', type: 'MCQ' })),
+    ...Array.from({ length: 10 }, (_, i) => ({ id: `essay-low-${i}`, text: `essay low ${i}`, cognitiveSkill: 'UNDERSTAND', difficulty: 'MEDIUM', type: 'ESSAY' })),
+    ...Array.from({ length: 5 }, (_, i) => ({ id: `essay-high-${i}`, text: `essay high ${i}`, cognitiveSkill: i % 2 ? 'ANALYZE' : 'EVALUATE', difficulty: 'ADVANCED', type: 'ESSAY' })),
+  ]
+  const result = balanceQuestionBankExamSelection(rows, 20, { lowMaxPercent: 50, highMinPercent: 20, typePlan: { MCQ: 75, ESSAY: 25 } })
+  assert(result.selected.filter((q) => q.type === 'MCQ').length === 15, 'موازن البنك يجب أن يحترم حصة MCQ عند توفرها')
+  assert(result.selected.filter((q) => q.type === 'ESSAY').length === 5, 'موازن البنك يجب أن يحترم حصة ESSAY عند توفرها')
+  assert(validateCognitiveDistribution(result.selected, 'PROGRAM', { lowMaxPercent: 50, programHighMinPercent: 20 }).ok, 'توزيع الأنواع يجب ألا يكسر سياسة المهارات عند توفر البدائل')
+}
+
+function testBankExamCognitiveBalanceCompletesMissingTypeFromAvailableTypes() {
+  const rows = Array.from({ length: 10 }, (_, i) => ({ id: `mcq-only-${i}`, text: `mcq only ${i}`, cognitiveSkill: i < 4 ? 'ANALYZE' : 'APPLY', difficulty: 'MEDIUM', type: 'MCQ' }))
+  const result = balanceQuestionBankExamSelection(rows, 10, { lowMaxPercent: 50, highMinPercent: 20, typePlan: { MCQ: 50, ESSAY: 50 } })
+  assert(result.selected.length === 10, 'موازن البنك يجب أن يكمل العدد من الأنواع المتاحة إذا غاب نوع مطلوب')
+}
+
 function testAdminStudentsEnrollmentWhereBuilder() {
   const all = buildAdminStudentsEnrollmentRelationFilter('ALL', null) as any
   assert(JSON.stringify(all.some.status.in) === JSON.stringify([...OPEN_ENROLLMENT_STATUSES]), 'فلتر كل الطلاب يجب أن يعرض فقط أصحاب برنامج مفتوح')
