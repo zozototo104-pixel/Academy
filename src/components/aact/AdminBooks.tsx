@@ -289,7 +289,20 @@ type AiGenerationProgressRow = {
   updatedAt?: string
 } | null
 
-type QuestionBankJobRow = { id: string; status: string }
+type QuestionBankJobRow = { id: string; status: string; requested?: number; saved?: number; failedBatches?: number; lastError?: string | null; updatedAt?: string }
+
+function questionBankProgressFromJob(job?: QuestionBankJobRow | null): AiGenerationProgressRow {
+  if (!job) return null
+  return {
+    jobId: job.id,
+    status: job.status as NonNullable<AiGenerationProgressRow>['status'],
+    requested: Number(job.requested || 0),
+    saved: Number(job.saved || 0),
+    failedBatches: Number(job.failedBatches || 0),
+    lastError: job.lastError || null,
+    updatedAt: job.updatedAt,
+  }
+}
 
 interface QuestionBankItemRow {
   id: string
