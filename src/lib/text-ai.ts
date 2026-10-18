@@ -1906,7 +1906,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     if (isVerifierCall(effectiveOpts)) verifierNoCandidate.push(`${provider}:${model || '-'} ${redactSecrets(reason).slice(0, 220)}`)
   }
   if (isVerifierCall(effectiveOpts)) {
-    for (const provider of baseOrder(s, taskLevel)) {
+    for (const provider of baseOrder(s)) {
       if (excluded.has(provider)) noteNoCandidate(provider, modelFor(s, provider), 'SAME_PROVIDER_AS_GENERATOR')
       else if (!providerKeys(s, provider).length) noteNoCandidate(provider, modelFor(s, provider), 'NOT_CONFIGURED')
     }
