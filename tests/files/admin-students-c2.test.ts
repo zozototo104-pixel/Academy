@@ -1,6 +1,7 @@
 /// <reference types="bun-types" />
 import { describe, expect, mock, test } from 'bun:test'
 import { NextRequest } from 'next/server'
+import { OPEN_ENROLLMENT_STATUSES } from '../../src/lib/enrollment-status'
 
 let capturedUserWhere: any = null
 const db = {
