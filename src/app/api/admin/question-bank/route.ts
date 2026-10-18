@@ -173,7 +173,7 @@ async function listQuestions(programId: string, status?: string | null) {
     generatedBy: true,
     rejectedReason: true,
     createdAt: true,
-  }
+  } as const
   const statusFilter = status && STATUSES.has(status) ? status : null
   const baseWhere = { programId, ...(statusFilter ? { status: statusFilter } : {}) }
   const total = await withTiming('db_question_bank_items_count', () => db.questionBankItem.count({ where: baseWhere }))
