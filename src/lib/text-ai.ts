@@ -1340,7 +1340,8 @@ export async function textAiCheckAllModelHealth(opts: { maxMs?: number } = {}): 
       if (Date.now() >= deadlineMs - 1000) break
       const started = Date.now()
       try {
-        await callProvider(provider, s, key, model, { system: 'أجب بكلمة واحدة.', history: [{ role: 'user', text: 'اكتب: ok' }], maxOutputTokens: 8, deadlineMs: Math.min(Date.now() + 15_000, deadlineMs) })
+        const healthTimeoutMs = provider === 'GEMINI' && /(?:3\.8|pro)/i.test(model) ? 30_000 : 15_000
+        await callProvider(provider, s, key, model, { system: 'أجب بكلمة واحدة.', history: [{ role: 'user', text: 'اكتب: ok' }], maxOutputTokens: provider === 'OPENAI' ? 64 : 8, timeoutMs: healthTimeoutMs, deadlineMs: Math.min(Date.now() + healthTimeoutMs, deadlineMs) })
         const result = { provider, model, ok: true, latencyMs: Date.now() - started }
         results.push(result)
         await settingStore().write(modelHealthKey(provider, model), JSON.stringify({ ...result, checkedAt: new Date().toISOString() }))
