@@ -226,49 +226,70 @@ async function syncProgramExamQuestionsFromBank(examId: string) {
   return filled
 }
 
-export async function backfillProgramExamAcademicFields(examId: string) {
-  let filled = await syncProgramExamQuestionsFromBank(examId)
+async function remainingAcademicBackfillCount(examId: string) {
   const questions = await db.programQuestion.findMany({
     where: { examId, status: { not: 'REJECTED' } },
-    select: { id: true, type: true, text: true, options: true, correctAnswer: true, sourceEvidence: true, cognitiveSkill: true, difficulty: true, correctRationale: true, distractorRationales: true },
-    orderBy: { order: 'asc' },
+    select: { type: true, cognitiveSkill: true, difficulty: true, correctRationale: true, distractorRationales: true },
   })
-  const needs = questions.filter((q) =>
+  return questions.filter((q) =>
     isMissing(q.correctRationale) || isMissing(q.difficulty) || isMissing(q.cognitiveSkill) || ((q.type === 'MCQ' || q.type === 'TF') && !safeJsonArray(q.distractorRationales).length),
-  )
-  for (let i = 0; i < needs.length; i += 10) {
-    const batch = needs.slice(i, i + 10).filter((q) => q.sourceEvidence)
-    if (!batch.length) continue
-    try {
-      const payload = batch.map((q) => ({ id: q.id, type: q.type, question: q.text, options: safeJsonArray(q.options), correctAnswer: q.correctAnswer, evidence: q.sourceEvidence }))
-      const raw = await textAiCompleteJson({
-        taskLevel: 'ACADEMIC_CRITICAL',
-        system: 'أنت مدقق أكاديمي. أعد JSON فقط. لا تغير نص السؤال أو الخيارات أو الإجابة الصحيحة. املأ فقط difficulty من EASY/MEDIUM/ADVANCED و cognitiveSkill من UNDERSTAND/APPLY/ANALYZE/EVALUATE و correctRationale من الدليل. للأسئلة الموضوعية أعط distractorRationales مختصرة لكل خيار خاطئ، وفي صح/خطأ سبباً واحداً لعكس الإجابة.',
-        history: [{ role: 'user', text: JSON.stringify({ questions: payload }) }],
-        maxOutputTokens: 3500,
-      })
-      const rows = new Map(parseAiBackfill(raw).map((row) => [row.id, row]))
-      for (const question of batch) {
-        const row = rows.get(question.id)
-        if (!row) continue
-        const data = academicBackfillData(question, row)
-        if (Object.keys(data).length) {
-          filled += Object.keys(data).length
-          await db.programQuestion.update({ where: { id: question.id }, data })
-        }
-      }
-    } catch (error) {
-      console.warn('[program-exam] academic-backfill batch failed', { examId, error: error instanceof Error ? error.message : String(error) })
-    }
+  ).length
+}
+
+export async function backfillProgramExamAcademicFields(examId: string, options: { maxBatches?: number } = {}) {
+  const lockKey = `PROGRAM_EXAM_BACKFILL_LOCK:${examId}`
+  const activeLock = await db.setting.findUnique({ where: { key: lockKey }, select: { value: true } })
+  const activeUntil = Date.parse(activeLock?.value || '')
+  if (Number.isFinite(activeUntil) && activeUntil > Date.now()) {
+    return { filled: 0, remaining: await remainingAcademicBackfillCount(examId), skipped: 'LOCKED' as const, batchesRun: 0 }
   }
-  const remaining = await db.programQuestion.count({
-    where: { examId, status: { not: 'REJECTED' }, OR: [
-      { correctRationale: null }, { correctRationale: '' }, { difficulty: null }, { difficulty: '' }, { cognitiveSkill: null }, { cognitiveSkill: '' },
-      { AND: [{ type: { in: ['MCQ', 'TF'] } }, { OR: [{ distractorRationales: null }, { distractorRationales: '' }] }] },
-    ] },
-  })
-  console.info('[program-exam] academic-backfill', { examId, filled, remaining })
-  return { filled, remaining }
+  const lockUntil = new Date(Date.now() + 4 * 60_000).toISOString()
+  await db.setting.upsert({ where: { key: lockKey }, create: { key: lockKey, value: lockUntil }, update: { value: lockUntil } })
+  let filled = 0
+  let batchesRun = 0
+  try {
+    filled += await syncProgramExamQuestionsFromBank(examId)
+    const maxBatches = Math.max(1, Math.floor(options.maxBatches ?? 2))
+    const questions = await db.programQuestion.findMany({
+      where: { examId, status: { not: 'REJECTED' } },
+      select: { id: true, type: true, text: true, options: true, correctAnswer: true, sourceEvidence: true, cognitiveSkill: true, difficulty: true, correctRationale: true, distractorRationales: true },
+      orderBy: { order: 'asc' },
+    })
+    const needs = questions.filter((q) =>
+      isMissing(q.correctRationale) || isMissing(q.difficulty) || isMissing(q.cognitiveSkill) || ((q.type === 'MCQ' || q.type === 'TF') && !safeJsonArray(q.distractorRationales).length),
+    )
+    for (let i = 0; i < needs.length && batchesRun < maxBatches; i += 10) {
+      const batch = needs.slice(i, i + 10).filter((q) => q.sourceEvidence)
+      if (!batch.length) continue
+      try {
+        const payload = batch.map((q) => ({ id: q.id, type: q.type, question: q.text, options: safeJsonArray(q.options), correctAnswer: q.correctAnswer, evidence: q.sourceEvidence }))
+        batchesRun += 1
+        const raw = await textAiCompleteJson({
+          taskLevel: 'ACADEMIC_CRITICAL',
+          system: 'أنت مدقق أكاديمي. أعد JSON فقط. لا تغير نص السؤال أو الخيارات أو الإجابة الصحيحة. املأ فقط difficulty من EASY/MEDIUM/ADVANCED و cognitiveSkill من UNDERSTAND/APPLY/ANALYZE/EVALUATE و correctRationale من الدليل. للأسئلة الموضوعية أعط distractorRationales مختصرة لكل خيار خاطئ، وفي صح/خطأ سبباً واحداً لعكس الإجابة.',
+          history: [{ role: 'user', text: JSON.stringify({ questions: payload }) }],
+          maxOutputTokens: 3500,
+        })
+        const rows = new Map(parseAiBackfill(raw).map((row) => [row.id, row]))
+        for (const question of batch) {
+          const row = rows.get(question.id)
+          if (!row) continue
+          const data = academicBackfillData(question, row)
+          if (Object.keys(data).length) {
+            filled += Object.keys(data).length
+            await db.programQuestion.update({ where: { id: question.id }, data })
+          }
+        }
+      } catch (error) {
+        console.warn('[program-exam] academic-backfill batch failed', { examId, error: error instanceof Error ? error.message : String(error) })
+      }
+    }
+    const remaining = await remainingAcademicBackfillCount(examId)
+    console.info('[program-exam] academic-backfill', { examId, filled, remaining, batchesRun })
+    return { filled, remaining, batchesRun }
+  } finally {
+    await db.setting.deleteMany({ where: { key: lockKey, value: lockUntil } }).catch(() => {})
+  }
 }
 
 export async function advanceProgramExamFromVerifiedBank(examId: string, options: { manual?: boolean } = {}) {
