@@ -215,6 +215,17 @@ describe('AI D2 behavior', () => {
     expect(textAiRouter.__testOpenAiResponsesBodyForTests('gpt-5.1', { system: 'اختبار', history: [], maxOutputTokens: 3000 }).max_output_tokens).toBe(3000)
   })
 
+  test('health checks use larger probes for reasoning models and skip only durable failures', () => {
+    const now = new Date().toISOString()
+    expect(textAiRouter.__testHealthCheckMaxOutputTokensForTests('GROQ', 'openai/gpt-oss-120b')).toBe(256)
+    expect(textAiRouter.__testRecentFailedHealthSkipForTests({ ok: false, checkedAt: now, error: 'GROQ_EMPTY_RESPONSE' })).toBe(false)
+    expect(textAiRouter.__testRecentFailedHealthSkipForTests({ ok: false, checkedAt: now, status: 404, error: 'model does not exist' })).toBe(true)
+  })
+
+  test('model-specific 503 busy cooldowns stay scoped to that model', () => {
+    expect(textAiRouter.__testHighDemandCooldownDecisionForTests('glm-5.3-flash-think-search:free', 'All providers for model "glm-5.3-flash-think-search:free" are busy', 503)).toBe('model')
+  })
+
   test('selected dialect reaches ASR and does not default to ar-SA', async () => {
     const res = await asrRoute.POST(new NextRequest('https://academy.test/api/ai/asr', {
       method: 'POST',
