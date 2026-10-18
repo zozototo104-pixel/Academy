@@ -142,6 +142,7 @@ export function balanceQuestionBankExamSelection<T extends BankExamBalanceCandid
       addFrom(bySkillPriority((rows || []).filter((q) => String(q.type || '').toUpperCase() === t.key), opts.difficultyPlan), Math.min(targetCount, desiredTotal))
     }
     addFrom(bySkillPriority(rows || [], opts.difficultyPlan))
+    if (selected.length < targetCount) for (const q of bySkillPriority(rows || [], opts.difficultyPlan)) add(q)
     for (const t of typeTargets.map((x) => x.key)) {
       while (highCount() < highTarget) {
         const lowIndex = selected.findIndex((q) => String(q.type || '').toUpperCase() === t && isLowSkill(q.cognitiveSkill))
