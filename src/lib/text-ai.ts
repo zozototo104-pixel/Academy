@@ -565,25 +565,27 @@ function rateLimitMessageMentionsSpecificModel(model: string, message: unknown):
 export function classifyRateLimitScope(model: string, message: unknown, status?: number): 'model' | 'key' {
   const msg = String(message || '').toLowerCase()
   const mentionsSpecificModel = rateLimitMessageMentionsSpecificModel(model, msg)
-  if (Number(status || 0) === 402) return 'key'
+  if (Number(status || 0) === 402 || /free-models-per-day|insufficient_quota|billing|credit|insufficient balance/i.test(msg)) return 'key'
   if (mentionsSpecificModel) return 'model'
-  if (/insufficient_quota|billing|organization|account limit|free-models-per-day|credit|api[_ -]?key|\bkey\b/i.test(msg) || (/per day/i.test(msg) && /account/i.test(msg))) return 'key'
-  if (/per minute|every\s+\d+\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes)|\brpm\b|\btpm\b/i.test(msg)) return 'model'
+  if (/organization|account limit|api[_ -]?key|\bkey\b/i.test(msg) || (/per day/i.test(msg) && /account/i.test(msg))) return 'key'
+  if (/per minute|every\s+\d+(?:\.\d+)?\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes)|\brpm\b|\btpm\b/i.test(msg)) return 'model'
   return 'model'
 }
 
-function rateLimitCooldownMinutes(e: any, message: string): number {
+function rateLimitCooldownMinutes(e: any, message: string, model?: string): number {
   const retryDelay = Number(e?.retryDelay || e?.retry_after || e?.retryAfter || 0)
   if (Number.isFinite(retryDelay) && retryDelay > 0) return Math.max(1, Math.ceil(retryDelay / (retryDelay > 1000 ? 60_000 : 60)))
   const msg = String(message || '')
-  const seconds = msg.match(/retry\s+in\s+(\d+)\s*s/i)
+  const seconds = msg.match(/retry\s+in\s+(\d+(?:\.\d+)?)\s*s/i)
   if (seconds) return Math.max(1, Math.ceil(Number(seconds[1]) / 60))
-  const minutes = msg.match(/retry\s+in\s+(\d+)\s*m/i)
-  if (minutes) return Math.max(1, Number(minutes[1]))
+  const minutes = msg.match(/retry\s+in\s+(\d+(?:\.\d+)?)\s*m/i)
+  if (minutes) return Math.max(1, Math.ceil(Number(minutes[1])))
+  if (model && rateLimitMessageMentionsSpecificModel(model, msg) && /per\s*day|perday|daily/i.test(msg)) return 60
   return 2
 }
 
-function shouldEscalateModelRateLimit(provider: string, key: string, model: string): boolean {
+function shouldEscalateModelRateLimit(provider: string, key: string, model: string, message: string): boolean {
+  if (rateLimitMessageMentionsSpecificModel(model, message)) return false
   const id = cooldownId(provider, key)
   const now = Date.now()
   const recent = (modelRateLimitHits.get(id) || []).filter((hit) => now - hit.at <= 60_000)
@@ -594,7 +596,7 @@ function shouldEscalateModelRateLimit(provider: string, key: string, model: stri
 
 export function __testRateLimitCooldownDecision(args: { provider: string; key: string; model: string; message: string; status?: number }) {
   const scope = classifyRateLimitScope(args.model, args.message, args.status)
-  return { scope, escalates: scope === 'model' ? shouldEscalateModelRateLimit(args.provider, args.key, args.model) : false }
+  return { scope, escalates: scope === 'model' ? shouldEscalateModelRateLimit(args.provider, args.key, args.model, args.message) : false }
 }
 
 export function __testMarkModelCooldownForTests(provider: string, key: string, model: string, reason = 'test model cooldown') {
