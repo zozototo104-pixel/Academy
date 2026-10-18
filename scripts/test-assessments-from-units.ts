@@ -3,6 +3,7 @@ import { join } from 'path'
 import { canPublishUnitExamFromQuestions, selectUnitExamQuestionsApprovedFirst } from '../src/lib/unit-exam-policy'
 import { assertGeneratedBatchHasAcceptedCandidates, hasSourceGroundedFlag, nextQuestionBankRetryAt, planQuestionBankJobManualReactivation, planQuestionBankSourceWindow, prepareMcqOptionsForStorage } from '../src/lib/question-bank-job'
 import { parseGeneratedQuestionCandidates } from '../src/lib/question-bank-generation'
+import { __testAcademicBackfillDataForTests, __testProgramQuestionAcademicCopyForTests } from '../src/lib/program-exam-assembly'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
