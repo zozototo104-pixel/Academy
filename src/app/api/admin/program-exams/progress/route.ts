@@ -62,8 +62,8 @@ export async function GET(req: NextRequest) {
         totalPoints,
         pendingReview,
         rejectedCount,
-        bankApproved,
-        bankPendingReview,
+        bankApproved: countBankForExam(exam.semester, 'APPROVED'),
+        bankPendingReview: countBankForExam(exam.semester, 'PENDING_REVIEW'),
         createdAt: exam.createdAt,
       }
     })
