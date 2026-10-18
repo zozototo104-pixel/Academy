@@ -592,23 +592,36 @@ export async function runQuestionBankGenerationJobStepsUntil(jobId: string, opti
   return current
 }
 
+function questionBankJobRequestedTarget(job: { requested: number; unitId?: string | null }) {
+  return job.unitId ? unitExamRequiredQuestions(job.requested) : Math.max(1, Number(job.requested || 1))
+}
+
 export async function runNextQuestionBankGenerationJobStep(programId?: string, options: { queuedOnly?: boolean } = {}) {
   const now = new Date()
-  const job = await db.questionBankGenerationJob.findFirst({
+  const jobs = await db.questionBankGenerationJob.findMany({
     where: {
       ...(programId ? { programId } : {}),
-      OR: options.queuedOnly ? [
-        { status: 'QUEUED' },
-        { status: 'RUNNING', lockedUntil: { lt: now } },
-        { status: 'PAUSED', retryAt: { lte: now } },
-      ] : [
-        { status: 'QUEUED' },
-        { status: 'RUNNING', lockedUntil: { lt: now } },
-        { status: 'PAUSED', retryAt: null },
-        { status: 'PAUSED', retryAt: { lte: now } },
+      AND: [
+        { OR: [{ lockedUntil: null }, { lockedUntil: { lt: now } }] },
+        { OR: [{ retryAt: null }, { retryAt: { lte: now } }] },
+        { OR: options.queuedOnly ? [{ status: 'QUEUED' }, { status: 'RUNNING' }, { status: 'PAUSED' }] : [{ status: 'QUEUED' }, { status: 'RUNNING' }, { status: 'PAUSED' }] },
       ],
     },
     orderBy: [{ createdAt: 'asc' }],
+    take: 8,
   })
-  return job ? runQuestionBankGenerationJobStep(job.id) : null
+  for (const job of jobs) {
+    const requested = questionBankJobRequestedTarget(job)
+    if (job.saved >= requested) {
+      await db.questionBankGenerationJob.updateMany({
+        where: { id: job.id, status: { not: 'COMPLETED' } },
+        data: { requested, status: 'COMPLETED', lockedUntil: null, retryAt: null, lastError: null, finishedAt: new Date() },
+      })
+      continue
+    }
+    const result = await runQuestionBankGenerationJobStep(job.id)
+    if (result?.id === job.id && result.saved === job.saved && result.status === job.status) continue
+    return result
+  }
+  return null
 }
