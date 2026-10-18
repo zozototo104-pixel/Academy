@@ -2049,7 +2049,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
         if (memoryModelCooldown || persistedModelCooldown) {
           const cooldown = persistedModelCooldown || memoryModelCooldown
           if (cooldown) skippedCooldownUntil = skippedCooldownUntil == null ? cooldown.until : Math.min(skippedCooldownUntil, cooldown.until)
-          noteNoCandidate(provider, model, `COOLDOWN(model ${new Date((cooldown?.until || Date.now())).toISOString()})`)
+          noteNoCandidate(provider, model, `COOLDOWN(model)(${new Date((cooldown?.until || Date.now())).toISOString()})`)
           continue
         }
         if (!(await keyRateAllowed(provider, key))) {
