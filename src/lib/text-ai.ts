@@ -2038,6 +2038,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
 
   logRouterSummary(attempts, false)
   if (Number.isFinite(effectiveOpts.deadlineMs || NaN) && Date.now() >= Number(effectiveOpts.deadlineMs)) throw deadlineExceeded()
+  if (isVerifierCall(effectiveOpts)) await recordQuestionVerifierNoCandidate(verifierNoCandidate)
   if (isVerifierCall(effectiveOpts) && attempts.length === 0 && onlySameFamilyModelsExcluded) throw verifierSameFamilyUnavailable(attempts)
   if (isVerifierCall(effectiveOpts)) throw verifierUnavailable(attempts)
   if (taskLevel === 'ACADEMIC_CRITICAL') {
