@@ -246,7 +246,7 @@ export async function POST(req: NextRequest) {
     const publicationCandidates = await db.programQuestion.findMany({ where: { examId, status: { not: 'REJECTED' } } })
     const missingOpenAnswers = publicationCandidates.filter((q) => ['ESSAY', 'SHORT'].includes(q.type) && !String(q.modelAnswer || '').trim()).length
     if (missingOpenAnswers > 0) return NextResponse.json({ error: `لا يمكن نشر الامتحان: ${missingOpenAnswers} سؤالاً مقالي/قصير بلا إجابة نموذجية.` }, { status: 400 })
-    const readinessErrors = validatePublicationReadiness(publicationCandidates, exam.program?.category, exam.generatedBy)
+    const readinessErrors = validateProgramExamPublicationReadiness(publicationCandidates, exam.program?.category, exam.generatedBy)
     if (readinessErrors.length > 0) {
       return NextResponse.json(
         {
