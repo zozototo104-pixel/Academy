@@ -292,22 +292,27 @@ export async function backfillProgramExamAcademicFields(examId: string, options:
           maxOutputTokens: 3500,
         })
         const rows = new Map(parseAiBackfill(raw).map((row) => [row.id, row]))
+        let batchFilled = 0
         for (const question of batch) {
           const row = rows.get(question.id)
-          if (!row) continue
+          if (!row) { aiFailed += 1; continue }
           const data = academicBackfillData(question, row)
           if (Object.keys(data).length) {
+            batchFilled += Object.keys(data).length
             filled += Object.keys(data).length
             await db.programQuestion.update({ where: { id: question.id }, data })
-          }
+          } else aiFailed += 1
         }
+        console.info('[exam-backfill]', { examId, batch: batchesRun, filled: batchFilled, remaining: await remainingAcademicBackfillCount(examId) })
       } catch (error) {
+        aiFailed += batch.length
         console.warn('[program-exam] academic-backfill batch failed', { examId, error: error instanceof Error ? error.message : String(error) })
+        console.info('[exam-backfill]', { examId, batch: batchesRun, filled: 0, remaining: await remainingAcademicBackfillCount(examId) })
       }
     }
     const remaining = await remainingAcademicBackfillCount(examId)
-    console.info('[program-exam] academic-backfill', { examId, filled, remaining, batchesRun })
-    return { filled, remaining, batchesRun }
+    console.info('[program-exam] academic-backfill', { examId, filled, remaining, batchesRun, aiFailed })
+    return { filled, remaining, batchesRun, aiFailed }
   } finally {
     await db.setting.deleteMany({ where: { key: lockKey, value: lockUntil } }).catch(() => {})
   }
