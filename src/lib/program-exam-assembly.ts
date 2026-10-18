@@ -171,6 +171,7 @@ export function __testProgramQuestionAcademicCopyForTests(input: { bookTitle: st
     sourceBookTitle: input.bookTitle,
     sourceLocator: sourceLocatorFromKnowledge({ title: input.knowledgeTitle || null, pageStart: input.pageStart ?? null, pageEnd: input.pageEnd ?? null }, input.bank.sourceLocator || null),
     sourceEvidence: input.bank.sourceEvidence || null,
+    sourceChapter: input.knowledgeTitle || null,
     cognitiveSkill: input.bank.cognitiveSkill || null,
     difficulty: input.bank.difficulty || null,
     correctRationale: input.bank.correctRationale || null,
