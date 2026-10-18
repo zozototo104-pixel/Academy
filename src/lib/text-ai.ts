@@ -326,6 +326,10 @@ function cooldownId(provider: string, key: string): string {
   return `${provider}:${keyHash(key)}`
 }
 
+function modelCooldownId(provider: string, key: string, model: string): string {
+  return `${cooldownId(provider, key)}:${model}`
+}
+
 function persistentCooldownKey(provider: string, keyIndex: number, model?: string): string {
   return `AI_COOLDOWN:${provider}:${keyIndex}${model ? `:${model}` : ''}`
 }
