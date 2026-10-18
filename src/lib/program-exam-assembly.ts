@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { validateLiteralEvidence } from '@/lib/evidence-validator'
 import { isDuplicateQuestionIdea } from '@/lib/question-bank-diversity'
 import { ensureQuestionBankGenerationJob, runQuestionBankGenerationJobStep } from '@/lib/question-bank-job'
+import { textAiCompleteJson } from '@/lib/text-ai'
 
 export const PROGRAM_EXAM_TARGET = 80
 export type ExamQuestionType = 'MCQ' | 'TF' | 'SHORT' | 'ESSAY'
