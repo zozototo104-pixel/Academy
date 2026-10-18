@@ -388,6 +388,7 @@ export function QuestionReviewDialog({
               )}
             </div>
             {academicBackfillMessage && <p className="mt-2 text-[11px] font-bold text-blue-700">{academicBackfillMessage}</p>}
+            {academicBackfillSourceMessage && <p className="mt-1 text-[11px] font-bold text-red-700">{academicBackfillSourceMessage}</p>}
           </div>
         </DialogHeader>
 
