@@ -154,7 +154,7 @@ function testQuestionBankLockedJobDoesNotBlockQueue() {
   const code = src('src/lib/question-bank-job.ts')
   assert(code.includes('lockedUntil: { lt: now }'), 'اختيار job التالي يجب أن يستبعد jobs المقفلة حتى المستقبل')
   assert(code.includes('retryAt: { lte: now }'), 'اختيار job التالي يجب أن يستبعد jobs المؤجلة retryAt في المستقبل')
-  assert(code.includes('result.saved === job.saved && result.status === job.status') && code.includes('continue'), 'فشل claim أو عدم التقدم يجب ألا يرجع نفس الوظيفة ويجب أن يتخطاها')
+  assert(code.includes('result.saved === job.saved') && code.includes('questionBankJobHasActiveLock(result)') && code.includes('continue'), 'فشل claim أو عدم التقدم يجب ألا يرجع نفس الوظيفة ويجب أن يتخطاها')
 }
 
 function testVerifierRejectedQuestionIsNotSaved() {
