@@ -8,6 +8,8 @@ import { calculateProgramExamAcademicMissingCounts, validateProgramExamPublicati
 import { __testDocumentedBankQuestionForPublicationForTests, __testParseBankDocAiRowsForTests } from '../src/lib/question-bank-documentation'
 import { buildAdminStudentsEnrollmentRelationFilter, OPEN_ENROLLMENT_STATUSES } from '../src/lib/enrollment-status'
 import { __testApproveQuestionBankQualityFlagsForTests, __testOrderQuestionBankItemsForReviewForTests } from '../src/app/api/admin/question-bank/route'
+import { validateCognitiveDistribution } from '../src/lib/exam-cognitive-policy'
+import { balanceQuestionBankExamSelection } from '../src/lib/question-bank-exam-balance'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
