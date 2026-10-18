@@ -289,7 +289,20 @@ type AiGenerationProgressRow = {
   updatedAt?: string
 } | null
 
-type QuestionBankJobRow = { id: string; status: string }
+type QuestionBankJobRow = { id: string; status: string; requested?: number; saved?: number; failedBatches?: number; lastError?: string | null; updatedAt?: string }
+
+function questionBankProgressFromJob(job?: QuestionBankJobRow | null): AiGenerationProgressRow {
+  if (!job) return null
+  return {
+    jobId: job.id,
+    status: job.status as NonNullable<AiGenerationProgressRow>['status'],
+    requested: Number(job.requested || 0),
+    saved: Number(job.saved || 0),
+    failedBatches: Number(job.failedBatches || 0),
+    lastError: job.lastError || null,
+    updatedAt: job.updatedAt,
+  }
+}
 
 interface QuestionBankItemRow {
   id: string
@@ -1486,6 +1499,7 @@ export function AdminBooksTab() {
     if (Array.isArray(res.jobs)) {
       const job = res.jobs.find((item) => ['QUEUED', 'RUNNING', 'PAUSED'].includes(item.status)) || res.jobs[0]
       setQuestionBankActiveJob(job ? { id: job.id, status: job.status } : null)
+      if (!res.progress && job) setQuestionBankProgress(questionBankProgressFromJob(job))
     }
   }, [programId])
 
@@ -1521,7 +1535,7 @@ export function AdminBooksTab() {
       })
       setQuestionBankItems(res.items || [])
       setQuestionBankStats(res.stats || null)
-      setQuestionBankProgress(res.progress || null)
+      setQuestionBankProgress(res.progress || questionBankProgressFromJob(res.job))
       if (res.job) setQuestionBankActiveJob({ id: res.job.id, status: res.job.status })
       await refreshCurriculumUnits(programId)
       toast({ title: 'تم توليد أسئلة للبنك', description: res.message || 'تمت إضافة أسئلة بانتظار المراجعة من بنك المعرفة.' })
