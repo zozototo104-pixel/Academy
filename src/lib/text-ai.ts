@@ -559,8 +559,11 @@ function isQuotaLike(e: any): boolean {
 export function classifyRateLimitScope(model: string, message: unknown, status?: number): 'model' | 'key' {
   const msg = String(message || '').toLowerCase()
   const safeModel = String(model || '').toLowerCase()
-  if (Number(status || 0) === 402 || /insufficient_quota|billing|organization|account limit|free-models-per-day|credit/i.test(msg) || (/per day/i.test(msg) && /account/i.test(msg))) return 'key'
-  if ((safeModel && msg.includes(safeModel)) || /per model|model:|per minute|every\s+\d+\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes)|\brpm\b|\btpm\b/i.test(msg)) return 'model'
+  const mentionsSpecificModel = (safeModel && msg.includes(safeModel)) || /per model|model:|for\s+(the\s+)?model\b|on\s+[a-z0-9][a-z0-9_.\/:\-]*[:/.\-][a-z0-9_.\/:\-]*/i.test(msg)
+  if (Number(status || 0) === 402) return 'key'
+  if (mentionsSpecificModel) return 'model'
+  if (/insufficient_quota|billing|organization|account limit|free-models-per-day|credit/i.test(msg) || (/per day/i.test(msg) && /account/i.test(msg))) return 'key'
+  if (/per minute|every\s+\d+\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes)|\brpm\b|\btpm\b/i.test(msg)) return 'model'
   return 'model'
 }
 
