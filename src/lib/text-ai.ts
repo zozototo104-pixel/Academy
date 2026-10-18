@@ -47,6 +47,7 @@ export interface TextAiCallOpts {
   attachments?: TextAiAttachment[]
   excludeProviders?: TextAiProvider[]
   preferredProviders?: TextAiProvider[]
+  preferredModels?: TextAiPreferredModel[]
   excludeModelFamilies?: string[]
   deadlineMs?: number
   stickyScope?: string
