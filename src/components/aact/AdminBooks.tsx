@@ -610,6 +610,7 @@ export function AdminBooksTab() {
     return `${programId}:${questionBankActiveJob.id}:${status}`
   }, [programId, questionBankActiveJob?.id, questionBankActiveJob?.status])
   const [questionBankBusy, setQuestionBankBusy] = useState<string | null>(null)
+  const [questionBankDocumentationMessage, setQuestionBankDocumentationMessage] = useState('')
   const [questionBankOpen, setQuestionBankOpen] = useState(false)
   const [unitQuestionsOpen, setUnitQuestionsOpen] = useState(false)
   const [unitQuestionsUnit, setUnitQuestionsUnit] = useState<CurriculumUnitReviewItem | null>(null)
