@@ -1948,12 +1948,19 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
       for (const key of candidateKeys(provider, s)) {
         const keyIndex = Math.max(1, providerKeys(s, provider).indexOf(key) + 1)
         const persistedCooldown = persistentCooldown(persistentCooldowns, provider, keyIndex, model)
-        if (isPersistentNoBalance(persistentCooldowns, provider, keyIndex)) continue
-        if (isCooling(provider, key) || persistedCooldown) {
-          if (persistedCooldown) skippedCooldownUntil = skippedCooldownUntil == null ? persistedCooldown.until : Math.min(skippedCooldownUntil, persistedCooldown.until)
+        if (isPersistentNoBalance(persistentCooldowns, provider, keyIndex)) {
+          noteNoCandidate(provider, model, 'NO_BALANCE')
           continue
         }
-        if (!(await keyRateAllowed(provider, key))) continue
+        if (isCooling(provider, key) || persistedCooldown) {
+          if (persistedCooldown) skippedCooldownUntil = skippedCooldownUntil == null ? persistedCooldown.until : Math.min(skippedCooldownUntil, persistedCooldown.until)
+          noteNoCandidate(provider, model, `COOLDOWN(${new Date((persistedCooldown?.until || Date.now())).toISOString()})`)
+          continue
+        }
+        if (!(await keyRateAllowed(provider, key))) {
+          noteNoCandidate(provider, model, 'REQUEST_FAILED(rate_limit)')
+          continue
+        }
         if (Number.isFinite(effectiveOpts.deadlineMs || NaN) && Date.now() >= Number(effectiveOpts.deadlineMs)) throw deadlineExceeded()
         const started = Date.now()
         try {
