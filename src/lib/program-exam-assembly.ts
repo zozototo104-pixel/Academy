@@ -214,7 +214,7 @@ async function syncProgramExamQuestionsFromBank(examId: string) {
       if (evidence) data.sourceEvidence = evidence
     }
     if (isMissing(question.sourceBookTitle)) {
-      const title = bank?.sourceBookTitle || bookTitles.get(knowledgeItem?.bookId || '') || ''
+      const title = String(bank?.sourceBookTitle || '').trim() || bookTitles.get(knowledgeItem?.bookId || '') || ''
       if (title) data.sourceBookTitle = title
     }
     if (isMissing(question.sourceLocator)) {
