@@ -305,18 +305,29 @@ export function parseAcademicAllowlist(value: unknown): Array<{ provider: Concre
   return parseProviderModelList(value, DEFAULT_ACADEMIC_ALLOWLIST)
 }
 
+function sanitizeProviderKey(raw: string): string {
+  return String(raw || '')
+    .replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF\u00A0]/g, '')
+    .replace(/[^\x21-\x7E]/g, '')
+    .trim()
+}
+
 function parseKeys(...values: string[]): string[] {
   const seen = new Set<string>()
   const out: string[] = []
   for (const value of values) {
     for (const raw of String(value || '').split(/[\n,]+/)) {
-      const key = raw.trim()
+      const key = sanitizeProviderKey(raw)
       if (!key || seen.has(key)) continue
       seen.add(key)
       out.push(key)
     }
   }
   return out
+}
+
+export function __testParseTextAiKeysForTests(...values: string[]): string[] {
+  return parseKeys(...values)
 }
 
 function keyHash(key: string): string {
