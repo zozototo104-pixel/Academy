@@ -325,6 +325,10 @@ export async function POST(req: NextRequest) {
         durationMin: Math.max(120, Math.min(240, Math.round(totalQ * 2))),
       },
     })
+    const publishedExam = await db.programExam.findUnique({
+      where: { id: examId },
+      select: { id: true, status: true, totalPoints: true, durationMin: true },
+    })
 
     await audit(
       { id: admin.id, name: admin.name },
