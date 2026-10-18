@@ -47,6 +47,10 @@ function parseAiRows(raw: string): Array<{ id: string; difficulty?: string; cogn
   }
 }
 
+export function __testParseBankDocAiRowsForTests(raw: string) {
+  return parseAiRows(raw)
+}
+
 function needsAiDocumentation(item: Pick<QuestionBankItem, 'type' | 'cognitiveSkill' | 'difficulty' | 'correctRationale' | 'distractorRationales'>) {
   return isMissing(item.cognitiveSkill) || !SKILLS.has(String(item.cognitiveSkill || '')) ||
     isMissing(item.difficulty) || !DIFFICULTIES.has(String(item.difficulty || '')) ||
