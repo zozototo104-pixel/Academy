@@ -180,7 +180,7 @@ export async function POST(req: NextRequest) {
         difficulty: q.difficulty,
         correctRationale: q.correctRationale,
         distractorRationales: q.distractorRationales,
-        qualityFlags: q.qualityFlags,
+        qualityFlags: withQuestionBankItemFlag(q.qualityFlags, q.id),
         points: pointsForType(q.type),
         status: 'PENDING_REVIEW',
       })),
