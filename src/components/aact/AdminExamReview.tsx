@@ -269,6 +269,33 @@ export function QuestionReviewDialog({
     }
   }
 
+  const runAcademicBackfill = async () => {
+    setBusy(true)
+    try {
+      let remaining = questions.length
+      for (let attempt = 0; attempt < 30; attempt++) {
+        setAcademicBackfillMessage(`جارٍ الاستكمال... المتبقي: ${remaining}`)
+        const d = await api<{ filled: number; remaining: number; done: boolean; locked?: boolean; error?: string }>(`/api/admin/program-exams/${examId}/academic-backfill`, { method: 'POST' })
+        if (d.locked) throw new Error('استكمال البيانات الأكاديمية قيد التشغيل حالياً')
+        remaining = d.remaining
+        setAcademicBackfillMessage(d.done || d.remaining === 0 ? 'اكتمل الاستكمال' : `جارٍ الاستكمال... المتبقي: ${d.remaining}`)
+        if (d.done || d.remaining === 0) {
+          await load()
+          onPublished()
+          return
+        }
+        await wait(2000)
+      }
+      await load()
+      onPublished()
+    } catch (e: any) {
+      setAcademicBackfillMessage(e.message || 'تعذر استكمال البيانات الأكاديمية')
+      toast({ title: 'خطأ', description: e.message || 'تعذر استكمال البيانات الأكاديمية', variant: 'destructive' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const publish = async () => {
     if (questions.length < FULL_EXAM_TARGET) {
       toast({
