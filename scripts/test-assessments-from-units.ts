@@ -523,6 +523,7 @@ const tests = [
   testSyncedProgramExamQuestionPassesPublicationSourceCheck,
   testProgramExamAcademicMissingCounts,
   testQuestionBankDocumentationPassesProgramExamPublicationSourceCheck,
+  testAdminStudentsEnrollmentWhereBuilder,
 ]
 
 for (const test of tests) {
