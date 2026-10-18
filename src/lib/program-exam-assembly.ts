@@ -109,6 +109,133 @@ function toQuestion(examId: string, order: number, candidate: Candidate) {
   }
 }
 
+function bankIdFromFlags(value: string | null | undefined): string | null {
+  return array(value).find((flag) => flag.startsWith('QUESTION_BANK_ITEM_ID:'))?.slice('QUESTION_BANK_ITEM_ID:'.length) || null
+}
+
+function isMissing(value: string | null | undefined) {
+  return !String(value || '').trim()
+}
+
+function safeJsonArray(value: string | null | undefined): string[] {
+  try { const parsed: unknown = JSON.parse(value || '[]'); return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [] } catch { return [] }
+}
+
+function sourceLocatorFromKnowledge(item: { title?: string | null; pageStart?: number | null; pageEnd?: number | null } | null | undefined, fallback?: string | null) {
+  const page = item?.pageStart == null ? '' : `صفحة ${item.pageStart}${item.pageEnd != null && item.pageEnd !== item.pageStart ? `–${item.pageEnd}` : ''}`
+  return [fallback, page, item?.title ? `مقطع ${item.title}` : ''].filter(Boolean).join(' — ').slice(0, 240)
+}
+
+function parseAiBackfill(raw: string): Array<{ id: string; difficulty?: string; cognitiveSkill?: string; correctRationale?: string; distractorRationales?: string[] }> {
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    const rows = Array.isArray(parsed) ? parsed : Array.isArray((parsed as { items?: unknown[] })?.items) ? (parsed as { items: unknown[] }).items : []
+    return rows.flatMap((row) => {
+      if (!row || typeof row !== 'object') return []
+      const item = row as Record<string, unknown>
+      const id = String(item.id || '').trim()
+      if (!id) return []
+      const difficulty = String(item.difficulty || '').toUpperCase()
+      const cognitiveSkill = String(item.cognitiveSkill || '').toUpperCase()
+      const distractorRationales = Array.isArray(item.distractorRationales) ? item.distractorRationales.map(String).map((x) => x.trim()).filter(Boolean).slice(0, 6) : undefined
+      return [{
+        id,
+        difficulty: DIFFICULTIES.has(difficulty) ? difficulty : undefined,
+        cognitiveSkill: SKILLS.has(cognitiveSkill) ? cognitiveSkill : undefined,
+        correctRationale: String(item.correctRationale || '').trim().slice(0, 1000) || undefined,
+        distractorRationales,
+      }]
+    })
+  } catch { return [] }
+}
+
+async function syncProgramExamQuestionsFromBank(examId: string) {
+  const questions = await db.programQuestion.findMany({ where: { examId, status: { not: 'REJECTED' } }, select: { id: true, qualityFlags: true, sourceBookTitle: true, sourceLocator: true, sourceEvidence: true, cognitiveSkill: true, difficulty: true, correctRationale: true, distractorRationales: true } })
+  const bankIds = [...new Set(questions.map((q) => bankIdFromFlags(q.qualityFlags)).filter((id): id is string => Boolean(id)))]
+  if (!bankIds.length) return 0
+  const bankItems = await db.questionBankItem.findMany({ where: { id: { in: bankIds } } })
+  const bankById = new Map(bankItems.map((item) => [item.id, item]))
+  const knowledgeIds = [...new Set(bankItems.map((item) => item.knowledgeItemId).filter((id): id is string => Boolean(id)))]
+  const knowledge = knowledgeIds.length ? await db.bookKnowledgeItem.findMany({ where: { id: { in: knowledgeIds } }, select: { id: true, bookId: true, title: true, pageStart: true, pageEnd: true } }) : []
+  const knowledgeById = new Map(knowledge.map((item) => [item.id, item]))
+  const books = await db.book.findMany({ where: { id: { in: [...new Set(knowledge.map((item) => item.bookId).filter((id): id is string => Boolean(id)))] } }, select: { id: true, title: true } })
+  const bookTitles = new Map(books.map((book) => [book.id, book.title]))
+  let filled = 0
+  for (const question of questions) {
+    const bankId = bankIdFromFlags(question.qualityFlags)
+    const bank = bankId ? bankById.get(bankId) : null
+    if (!bank) continue
+    const knowledgeItem = bank.knowledgeItemId ? knowledgeById.get(bank.knowledgeItemId) : null
+    const data: Record<string, string> = {}
+    if (isMissing(question.sourceEvidence) && bank.sourceEvidence) data.sourceEvidence = bank.sourceEvidence
+    if (isMissing(question.sourceBookTitle)) {
+      const title = bank.sourceBookTitle || bookTitles.get(knowledgeItem?.bookId || '') || ''
+      if (title) data.sourceBookTitle = title
+    }
+    if (isMissing(question.sourceLocator)) {
+      const locator = sourceLocatorFromKnowledge(knowledgeItem, bank.sourceLocator)
+      if (locator) data.sourceLocator = locator
+    }
+    if (isMissing(question.cognitiveSkill) && bank.cognitiveSkill) data.cognitiveSkill = bank.cognitiveSkill
+    if (isMissing(question.difficulty) && bank.difficulty) data.difficulty = bank.difficulty
+    if (isMissing(question.correctRationale) && bank.correctRationale) data.correctRationale = bank.correctRationale
+    if (isMissing(question.distractorRationales) && bank.distractorRationales) data.distractorRationales = bank.distractorRationales
+    if (Object.keys(data).length) {
+      filled += Object.keys(data).length
+      await db.programQuestion.update({ where: { id: question.id }, data })
+    }
+  }
+  return filled
+}
+
+export async function backfillProgramExamAcademicFields(examId: string) {
+  let filled = await syncProgramExamQuestionsFromBank(examId)
+  const questions = await db.programQuestion.findMany({
+    where: { examId, status: { not: 'REJECTED' } },
+    select: { id: true, type: true, text: true, options: true, correctAnswer: true, sourceEvidence: true, cognitiveSkill: true, difficulty: true, correctRationale: true, distractorRationales: true },
+    orderBy: { order: 'asc' },
+  })
+  const needs = questions.filter((q) =>
+    isMissing(q.correctRationale) || isMissing(q.difficulty) || isMissing(q.cognitiveSkill) || ((q.type === 'MCQ' || q.type === 'TF') && !safeJsonArray(q.distractorRationales).length),
+  )
+  for (let i = 0; i < needs.length; i += 10) {
+    const batch = needs.slice(i, i + 10).filter((q) => q.sourceEvidence)
+    if (!batch.length) continue
+    try {
+      const payload = batch.map((q) => ({ id: q.id, type: q.type, question: q.text, options: safeJsonArray(q.options), correctAnswer: q.correctAnswer, evidence: q.sourceEvidence }))
+      const raw = await textAiCompleteJson({
+        taskLevel: 'ACADEMIC_CRITICAL',
+        system: 'أنت مدقق أكاديمي. أعد JSON فقط. لا تغير نص السؤال أو الخيارات أو الإجابة الصحيحة. املأ فقط difficulty من EASY/MEDIUM/ADVANCED و cognitiveSkill من UNDERSTAND/APPLY/ANALYZE/EVALUATE و correctRationale من الدليل. للأسئلة الموضوعية أعط distractorRationales مختصرة لكل خيار خاطئ، وفي صح/خطأ سبباً واحداً لعكس الإجابة.',
+        history: [{ role: 'user', text: JSON.stringify({ questions: payload }) }],
+        maxOutputTokens: 3500,
+      })
+      const rows = new Map(parseAiBackfill(raw).map((row) => [row.id, row]))
+      for (const question of batch) {
+        const row = rows.get(question.id)
+        if (!row) continue
+        const data: Record<string, string> = {}
+        if (isMissing(question.difficulty) && row.difficulty) data.difficulty = row.difficulty
+        if (isMissing(question.cognitiveSkill) && row.cognitiveSkill) data.cognitiveSkill = row.cognitiveSkill
+        if (isMissing(question.correctRationale) && row.correctRationale) data.correctRationale = row.correctRationale
+        if ((question.type === 'MCQ' || question.type === 'TF') && isMissing(question.distractorRationales) && row.distractorRationales?.length) data.distractorRationales = JSON.stringify(row.distractorRationales).slice(0, 1800)
+        if (Object.keys(data).length) {
+          filled += Object.keys(data).length
+          await db.programQuestion.update({ where: { id: question.id }, data })
+        }
+      }
+    } catch (error) {
+      console.warn('[program-exam] academic-backfill batch failed', { examId, error: error instanceof Error ? error.message : String(error) })
+    }
+  }
+  const remaining = await db.programQuestion.count({
+    where: { examId, status: { not: 'REJECTED' }, OR: [
+      { correctRationale: null }, { correctRationale: '' }, { difficulty: null }, { difficulty: '' }, { cognitiveSkill: null }, { cognitiveSkill: '' }, { distractorRationales: null }, { distractorRationales: '' },
+    ] },
+  })
+  console.info('[program-exam] academic-backfill', { examId, filled, remaining })
+  return { filled, remaining }
+}
+
 export async function advanceProgramExamFromVerifiedBank(examId: string, options: { manual?: boolean } = {}) {
   const exam = await db.programExam.findUnique({ where: { id: examId }, include: { program: { select: { category: true } }, _count: { select: { attempts: true } } } })
   if (!exam) throw new Error('EXAM_NOT_FOUND')
