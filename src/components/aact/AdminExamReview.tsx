@@ -296,8 +296,8 @@ export function QuestionReviewDialog({
     }
   }
 
-  const publish = async () => {
-    if (questions.length < FULL_EXAM_TARGET) {
+  const publish = async (overrideReason?: string) => {
+    if (examGeneratedBy !== 'QUESTION_BANK' && questions.length < FULL_EXAM_TARGET) {
       toast({
         title: 'الامتحان غير مكتمل',
         description: `لا يمكن النشر الآن: الموجود ${questions.length} من ${FULL_EXAM_TARGET} سؤال. استخدم استكمال التوليد أو إعادة البناء أولاً.`,
@@ -305,32 +305,25 @@ export function QuestionReviewDialog({
       })
       return
     }
-    if (!(await confirmAction({ title: 'نشر الامتحان للطلاب', description: 'سيتم اعتماد كل الأسئلة المعلّقة ونشر الامتحان للطلاب المتسجلين مع إشعارهم.', confirmLabel: 'نشر الامتحان', tone: 'success' }))) return
+    if (!overrideReason && !(await confirmAction({ title: 'نشر الامتحان للطلاب', description: 'سيتم اعتماد كل الأسئلة المعلّقة ونشر الامتحان للطلاب المتسجلين مع إشعارهم.', confirmLabel: 'نشر الامتحان', tone: 'success' }))) return
     setBusy(true)
     try {
-      const publishRequest = (overrideReason?: string) => api<{ published: number; exam?: { id: string; status: string; totalPoints?: number | null; durationMin?: number | null } }>('/api/admin/program-exam-questions', {
+      const d = await api<{ published: number; exam?: { id: string; status: string; totalPoints?: number | null; durationMin?: number | null } }>('/api/admin/program-exam-questions', {
         method: 'POST',
         body: JSON.stringify({ examId, action: 'APPROVE_ALL', ...(overrideReason ? { overrideCognitivePolicy: true, overrideReason } : {}) }),
       })
-      let d: { published: number; exam?: { id: string; status: string; totalPoints?: number | null; durationMin?: number | null } } | null = null
-      try {
-        d = await publishRequest()
-      } catch (e: any) {
-        const code = e?.code || e?.data?.code
-        if (e?.status === 409 && code === 'COGNITIVE_DISTRIBUTION_FAILED') {
-          const details = Array.isArray(e?.data?.details) ? e.data.details : []
-          const reason = await askCognitiveOverride(e.message || 'توزيع المستويات المعرفية غير مناسب للنشر.', details)
-          if (!reason || reason.trim().length < 8) throw new Error('يجب كتابة سبب واضح لتجاوز توزيع المهارات المعرفية.')
-          d = await publishRequest(reason.trim())
-        } else {
-          throw e
-        }
-      }
       if (!d) throw new Error('لم يكتمل نشر الامتحان')
+      setCognitiveOverride(null)
       toast({ title: 'نُشر الامتحان', description: `${d.published} سؤالاً معتمداً — وصل إشعار للطلاب المتسجلين` })
       await onPublished(d.exam)
       onClose()
     } catch (e: any) {
+      const code = e?.code || e?.data?.code
+      if (e?.status === 409 && code === 'COGNITIVE_DISTRIBUTION_FAILED') {
+        const details = Array.isArray(e?.data?.details) ? e.data.details : []
+        showCognitiveOverride(e.message || 'توزيع المستويات المعرفية غير مناسب للنشر.', details)
+        return
+      }
       const details = Array.isArray(e?.data?.details) ? `\n${e.data.details.join('\n')}` : ''
       toast({ title: 'خطأ', description: `${e.message}${details}`.slice(0, 900), variant: 'destructive' })
     } finally {
