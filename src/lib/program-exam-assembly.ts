@@ -190,13 +190,15 @@ export function __testQualifiedQuestionBankItemForProgramExamForTests(overrides:
 }
 
 async function syncProgramExamQuestionsFromBank(examId: string) {
-  const questions = await db.programQuestion.findMany({ where: { examId, status: { not: 'REJECTED' } }, select: { id: true, qualityFlags: true, sourceBookTitle: true, sourceLocator: true, sourceEvidence: true, cognitiveSkill: true, difficulty: true, correctRationale: true, distractorRationales: true } })
+  const questions = await db.programQuestion.findMany({ where: { examId, status: { not: 'REJECTED' } }, select: { id: true, qualityFlags: true, knowledgeItemId: true, sourceBookTitle: true, sourceLocator: true, sourceEvidence: true, cognitiveSkill: true, difficulty: true, correctRationale: true, distractorRationales: true } })
   const bankIds = [...new Set(questions.map((q) => bankIdFromFlags(q.qualityFlags)).filter((id): id is string => Boolean(id)))]
-  if (!bankIds.length) return 0
-  const bankItems = await db.questionBankItem.findMany({ where: { id: { in: bankIds } } })
+  const bankItems = bankIds.length ? await db.questionBankItem.findMany({ where: { id: { in: bankIds } } }) : []
   const bankById = new Map(bankItems.map((item) => [item.id, item]))
-  const knowledgeIds = [...new Set(bankItems.map((item) => item.knowledgeItemId).filter((id): id is string => Boolean(id)))]
-  const knowledge = knowledgeIds.length ? await db.bookKnowledgeItem.findMany({ where: { id: { in: knowledgeIds } }, select: { id: true, bookId: true, title: true, pageStart: true, pageEnd: true } }) : []
+  const knowledgeIds = [...new Set([
+    ...bankItems.map((item) => item.knowledgeItemId),
+    ...questions.map((question) => question.knowledgeItemId),
+  ].filter((id): id is string => Boolean(id)))]
+  const knowledge = knowledgeIds.length ? await db.bookKnowledgeItem.findMany({ where: { id: { in: knowledgeIds } }, select: { id: true, bookId: true, title: true, excerpt: true, pageStart: true, pageEnd: true } }) : []
   const knowledgeById = new Map(knowledge.map((item) => [item.id, item]))
   const books = await db.book.findMany({ where: { id: { in: [...new Set(knowledge.map((item) => item.bookId).filter((id): id is string => Boolean(id)))] } }, select: { id: true, title: true } })
   const bookTitles = new Map(books.map((book) => [book.id, book.title]))
@@ -204,22 +206,25 @@ async function syncProgramExamQuestionsFromBank(examId: string) {
   for (const question of questions) {
     const bankId = bankIdFromFlags(question.qualityFlags)
     const bank = bankId ? bankById.get(bankId) : null
-    if (!bank) continue
-    const knowledgeItem = bank.knowledgeItemId ? knowledgeById.get(bank.knowledgeItemId) : null
+    const knowledgeId = bank?.knowledgeItemId || question.knowledgeItemId
+    const knowledgeItem = knowledgeId ? knowledgeById.get(knowledgeId) : null
     const data: Record<string, any> = {}
-    if (isMissing(question.sourceEvidence) && bank.sourceEvidence) data.sourceEvidence = bank.sourceEvidence
+    if (isMissing(question.sourceEvidence)) {
+      const evidence = bank?.sourceEvidence || knowledgeItem?.excerpt || ''
+      if (evidence) data.sourceEvidence = evidence
+    }
     if (isMissing(question.sourceBookTitle)) {
-      const title = bank.sourceBookTitle || bookTitles.get(knowledgeItem?.bookId || '') || ''
+      const title = bank?.sourceBookTitle || bookTitles.get(knowledgeItem?.bookId || '') || ''
       if (title) data.sourceBookTitle = title
     }
     if (isMissing(question.sourceLocator)) {
-      const locator = sourceLocatorFromKnowledge(knowledgeItem, bank.sourceLocator)
+      const locator = sourceLocatorFromKnowledge(knowledgeItem, bank?.sourceLocator)
       if (locator) data.sourceLocator = locator
     }
-    if (isMissing(question.cognitiveSkill) && bank.cognitiveSkill) data.cognitiveSkill = bank.cognitiveSkill
-    if (isMissing(question.difficulty) && bank.difficulty) data.difficulty = bank.difficulty
-    if (isMissing(question.correctRationale) && bank.correctRationale) data.correctRationale = bank.correctRationale
-    if (isMissing(question.distractorRationales) && bank.distractorRationales) data.distractorRationales = bank.distractorRationales
+    if (isMissing(question.cognitiveSkill) && bank?.cognitiveSkill) data.cognitiveSkill = bank.cognitiveSkill
+    if (isMissing(question.difficulty) && bank?.difficulty) data.difficulty = bank.difficulty
+    if (isMissing(question.correctRationale) && bank?.correctRationale) data.correctRationale = bank.correctRationale
+    if (isMissing(question.distractorRationales) && bank?.distractorRationales) data.distractorRationales = bank.distractorRationales
     if (Object.keys(data).length) {
       filled += Object.keys(data).length
       await db.programQuestion.update({ where: { id: question.id }, data })
