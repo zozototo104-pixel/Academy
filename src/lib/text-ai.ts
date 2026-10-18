@@ -1940,7 +1940,11 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     const models = healthFilteredModels.length ? healthFilteredModels : orderedModels
     if (isVerifierCall(effectiveOpts) && candidateModels.length > 0 && models.length === 0) onlySameFamilyModelsExcluded = true
     for (const model of models) {
-      if (skipModelsThisRequest.has(`${provider}:${model}`) || isPersistentModelDead(persistentCooldowns, provider, model)) continue
+      if (skipModelsThisRequest.has(`${provider}:${model}`)) continue
+      if (isPersistentModelDead(persistentCooldowns, provider, model)) {
+        noteNoCandidate(provider, model, 'MODEL_DEAD')
+        continue
+      }
       for (const key of candidateKeys(provider, s)) {
         const keyIndex = Math.max(1, providerKeys(s, provider).indexOf(key) + 1)
         const persistedCooldown = persistentCooldown(persistentCooldowns, provider, keyIndex, model)
