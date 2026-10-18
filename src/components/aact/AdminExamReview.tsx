@@ -278,7 +278,7 @@ export function QuestionReviewDialog({
       let stagnant = 0
       for (let attempt = 0; attempt < 30; attempt++) {
         setAcademicBackfillMessage(`جارٍ الاستكمال... المتبقي: ${remaining}`)
-        const d = await api<{ filled: number; remaining: number; done: boolean; locked?: boolean; unsourceable?: number; error?: string }>(`/api/admin/program-exams/${examId}/academic-backfill`, { method: 'POST' })
+        const d = await api<{ filled: number; remaining: number; done: boolean; locked?: boolean; unsourceable?: number; aiFailed?: number; error?: string }>(`/api/admin/program-exams/${examId}/academic-backfill`, { method: 'POST' })
         if (d.locked) throw new Error('استكمال البيانات الأكاديمية قيد التشغيل حالياً')
         stagnant = d.remaining >= remaining ? stagnant + 1 : 0
         remaining = d.remaining
