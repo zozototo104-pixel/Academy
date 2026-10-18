@@ -79,12 +79,14 @@ export function QuestionReviewDialog({
   open,
   onClose,
   onPublished,
+  initialCognitiveOverride,
 }: {
   examId: string
   examTitle: string
   open: boolean
   onClose: () => void
   onPublished: (exam?: { id: string; status: string; totalPoints?: number | null; durationMin?: number | null }) => void | Promise<void>
+  initialCognitiveOverride?: { message: string; details?: string[] }
 }) {
   const { toast } = useToast()
   const [questions, setQuestions] = useState<ReviewQuestion[]>([])
