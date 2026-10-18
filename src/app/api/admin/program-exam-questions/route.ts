@@ -6,9 +6,9 @@ import { notify } from '@/lib/notify'
 import { emailExamPublished } from '@/lib/mailer'
 import { getSetting } from '@/lib/settings'
 import { cognitivePolicyArabicMessage, validateCognitiveDistribution } from '@/lib/exam-cognitive-policy'
+import { validateProgramExamPublicationReadiness } from '@/lib/program-exam-publication-readiness'
 
 const REQUIRED_PUBLISHED_QUESTIONS = 80
-const DEFAULT_MIN_TYPE_DISTRIBUTION: Record<string, number> = { MCQ: 20, TF: 12, SHORT: 10, ESSAY: 8 }
 const VALID_SKILLS = new Set(['UNDERSTAND', 'APPLY', 'ANALYZE', 'EVALUATE'])
 const VALID_DIFFICULTIES = new Set(['EASY', 'MEDIUM', 'ADVANCED'])
 
