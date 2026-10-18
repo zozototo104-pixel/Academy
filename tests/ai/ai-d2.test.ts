@@ -175,6 +175,63 @@ describe('AI D2 behavior', () => {
     expect(textAiRouter.__testParseTextAiKeysForTests('\u200esk-test', 'sk-test\ufeff')).toEqual(['sk-test'])
   })
 
+  test('Groq model discovery filters non-chat models and keeps text models', async () => {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (async () => new Response(JSON.stringify({ data: [
+      { id: 'llama-4-scout-17b-16e-instruct' },
+      { id: 'whisper-large-v3' },
+      { id: 'playai-tts' },
+      { id: 'llama-guard-4-12b' },
+      { id: 'text-embedding-3-small' },
+      { id: 'qwen/qwen3-32b' },
+    ] }), { status: 200, headers: { 'content-type': 'application/json' } })) as any
+    try {
+      const models = await textAiRouter.__testDiscoverGroqTextModelsForTests('https://api.groq.com/openai/v1', 'gsk-test')
+      expect(models).toEqual(['llama-4-scout-17b-16e-instruct', 'qwen/qwen3-32b'])
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  test('Groq model discovery failure falls back to static models', async () => {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (async () => new Response('server error', { status: 500 })) as any
+    try {
+      const models = await textAiRouter.__testGroqTextModelsWithFallbackForTests('https://api.groq.com/openai/v1', 'gsk-test')
+      expect(models).toContain('llama-3.3-70b-versatile')
+      expect(models).toContain('llama-3.1-8b-instant')
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  test('OpenAI Responses raises too-small max_output_tokens to 16', async () => {
+    const originalFetch = globalThis.fetch
+    let body: any = null
+    const values = new Map<string, string>([
+      ['AI_TEXT_PROVIDER', 'OPENAI'],
+      ['OPENAI_API_KEY', 'sk-openai'],
+      ['OPENAI_TEXT_MODEL', 'gpt-5.1'],
+    ])
+    textAiRouter.__setTextAiSettingStoreForTests({
+      read: async (keys: string[]) => Object.fromEntries(keys.map((key) => [key, values.get(key) || ''])),
+      write: async () => {},
+      scan: async () => ({}),
+    })
+    globalThis.fetch = (async (_url: any, init: any) => {
+      body = JSON.parse(String(init?.body || '{}'))
+      return new Response(JSON.stringify({ output_text: 'ok' }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }) as any
+    try {
+      const text = await textAiRouter.textAiComplete({ system: 'اختبار', history: [{ role: 'user', text: 'ok' }], maxOutputTokens: 8 })
+      expect(text).toBe('ok')
+      expect(body.max_output_tokens).toBe(16)
+    } finally {
+      globalThis.fetch = originalFetch
+      textAiRouter.__setTextAiSettingStoreForTests(null)
+    }
+  })
+
   test('selected dialect reaches ASR and does not default to ar-SA', async () => {
     const res = await asrRoute.POST(new NextRequest('https://academy.test/api/ai/asr', {
       method: 'POST',
