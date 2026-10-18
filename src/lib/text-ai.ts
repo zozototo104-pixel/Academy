@@ -1300,7 +1300,10 @@ export async function textAiCheckAllModelHealth(opts: { maxMs?: number } = {}): 
         results.push(result)
         await settingStore().write(modelHealthKey(provider, model), JSON.stringify({ ...result, checkedAt: new Date().toISOString() }))
       } catch (e: any) {
-        const result = { provider, model, ok: false, latencyMs: Date.now() - started, error: redactSecrets(e?.message || e).slice(0, 240) }
+        const status = Number(e?.status || e?.code || 0) || undefined
+        const error = redactSecrets(e?.message || e).slice(0, 240)
+        console.warn('[ai-health] check failed', { provider, model, status, error: error.slice(0, 120) })
+        const result = { provider, model, ok: false, latencyMs: Date.now() - started, status, error }
         results.push(result)
         await settingStore().write(modelHealthKey(provider, model), JSON.stringify({ ...result, checkedAt: new Date().toISOString() }))
       }
