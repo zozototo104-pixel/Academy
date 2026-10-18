@@ -88,8 +88,10 @@ function planOrdered<T extends BankExamBalanceCandidate>(rows: T[], difficultyPl
     return true
   }
   const typeTargets = typePlan ? normalizePlan(typePlan, rows.length, { MCQ: 50, TF: 20, SHORT: 20, ESSAY: 10 }) : []
-  for (const t of typeTargets) for (const q of bySkillPriority(rows.filter((item) => String(item.type || '').toUpperCase() === t.key), difficultyPlan).slice(0, t.count)) add(q)
-  for (const q of bySkillPriority(rows, difficultyPlan)) add(q)
+  for (const t of typeTargets) for (const q of rows.filter((item) => String(item.type || '').toUpperCase() === t.key).slice(0, t.count)) add(q)
+  const diffTargets = normalizePlan(difficultyPlan, rows.length, { MEDIUM: 50, EASY: 25, ADVANCED: 25 })
+  for (const t of diffTargets) for (const q of rows.filter((item) => String(item.difficulty || 'MEDIUM').toUpperCase() === t.key).slice(0, t.count)) add(q)
+  for (const q of rows) add(q)
   return selected
 }
 
