@@ -124,7 +124,7 @@ export async function backfillQuestionBankAcademicFields(programId: string, time
         orderBy: { createdAt: 'asc' },
         take: 1000,
       })
-      const needs = batch.filter((item) => needsAiDocumentation(item) && !isMissing(item.sourceEvidence)).slice(0, 10)
+      const needs = batch.filter((item) => needsAiDocumentation(item) && !isMissing(item.sourceEvidence) && !skippedAiIds.has(item.id)).slice(0, 10)
       if (!needs.length) break
       try {
         const raw = await textAiCompleteJson({
