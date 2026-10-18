@@ -326,18 +326,6 @@ export function QuestionReviewDialog({
         const details = Array.isArray(e?.data?.details) ? e.data.details : []
         const message = e.message || 'توزيع المستويات المعرفية غير مناسب للنشر.'
         showCognitiveOverride(message, details)
-        const reason = await promptAction({
-          title: 'مطلوب سبب تجاوز',
-          description: `${message}${details.length ? `\n${details.map((detail: string) => `• ${detail}`).join('\n')}` : ''}`,
-          fieldLabel: 'سبب التجاوز الإداري',
-          placeholder: 'اكتب سبباً واضحاً لا يقل عن 8 أحرف...',
-          multiline: true,
-          required: true,
-          minLength: 8,
-          confirmLabel: 'تأكيد التجاوز والنشر',
-          tone: 'warning',
-        })
-        if (reason && reason.trim().length >= 8) await publish(reason.trim())
         return
       }
       const details = Array.isArray(e?.data?.details) ? `\n${e.data.details.join('\n')}` : ''
