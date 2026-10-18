@@ -377,7 +377,8 @@ export async function advanceProgramExamFromVerifiedBank(examId: string, options
     return { questionCount, inserted: taken.length, done: complete, status, byType, byUnit }
   }, { maxWait: 15_000, timeout: 20_000 })
 
-  await backfillProgramExamAcademicFields(examId)
+  await syncProgramExamQuestionsFromBank(examId)
+  if (result.done || result.questionCount >= PROGRAM_EXAM_TARGET) await backfillProgramExamAcademicFields(examId)
 
   let jobId: string | null = null
   let errorNote: string | null = null
