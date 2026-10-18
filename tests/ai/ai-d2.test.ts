@@ -169,35 +169,10 @@ describe('AI D2 behavior', () => {
     expect(messages.every((message: any) => message.level > 0 && message.peak > 0)).toBe(true)
   })
 
-  test('provider keys with invisible characters are sent clean in Authorization header', async () => {
-    const originalFetch = globalThis.fetch
-    const originalGroqKey = process.env.GROQ_API_KEY
-    let authorization = ''
-    const hiddenKey = '\u200esk-test\u200f\u00a0-key\ufeff'
-    const values = new Map<string, string>([
-      ['AI_TEXT_PROVIDER', 'GROQ'],
-      ['GROQ_TEXT_MODEL', 'llama-3.3-70b-versatile'],
-    ])
-    textAiRouter.__setTextAiSettingStoreForTests({
-      read: async (keys: string[]) => Object.fromEntries(keys.map((key) => [key, values.get(key) || ''])),
-      write: async () => {},
-      scan: async () => ({}),
-    })
-    process.env.GROQ_API_KEY = hiddenKey
-    globalThis.fetch = (async (_url: any, init: any) => {
-      authorization = String(init?.headers?.Authorization || '')
-      return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), { status: 200, headers: { 'content-type': 'application/json' } })
-    }) as any
-    try {
-      const text = await textAiRouter.textAiComplete({ system: 'اختبار', history: [{ role: 'user', text: 'ok' }], maxOutputTokens: 4 })
-      expect(text).toBe('ok')
-      expect(authorization).toBe('Bearer sk-test-key')
-    } finally {
-      globalThis.fetch = originalFetch
-      if (originalGroqKey === undefined) delete process.env.GROQ_API_KEY
-      else process.env.GROQ_API_KEY = originalGroqKey
-      textAiRouter.__setTextAiSettingStoreForTests(null)
-    }
+  test('provider keys sanitize hidden characters before routing', () => {
+    expect(textAiRouter.__testParseTextAiKeysForTests('\u200esk-test\u200f\u00a0-key\ufeff')).toEqual(['sk-test-key'])
+    expect(textAiRouter.__testParseTextAiKeysForTests('gsk_abc \n gsk_def\u200b')).toEqual(['gsk_abc', 'gsk_def'])
+    expect(textAiRouter.__testParseTextAiKeysForTests('\u200esk-test', 'sk-test\ufeff')).toEqual(['sk-test'])
   })
 
   test('selected dialect reaches ASR and does not default to ar-SA', async () => {
