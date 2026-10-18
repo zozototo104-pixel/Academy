@@ -1081,6 +1081,7 @@ export function AdminSystemTab() {
             {SelectF('AI_TEXT_PROVIDER', 'مزود النصوص', TEXT_PROVIDER_CHOICES, 'اختر GEMINI لاستخدام مفاتيح Gemini في Router، أو AUTO للتنقل بين كل المزودات.')}
             {SelectF('AI_ROUTER_POLICY', 'سياسة التوجيه', ROUTER_POLICY_CHOICES, 'primary_first هو الأكثر وضوحاً. cost_saver يبدأ بالمزودات الأرخص/المفتوحة.')}
             {F('AI_ACADEMIC_ALLOWLIST', 'قائمة المهام الحساسة AI_ACADEMIC_ALLOWLIST', 'GEMINI:gemini-3.5-flash,GEMINI:gemini-3.8-flash', 'text', 'اكتب provider:model فقط، مفصولة بفواصل. ممنوع auto.')}
+            {F('AI_VERIFIER_PREFERRED', 'نماذج مدقق الأسئلة المفضلة AI_VERIFIER_PREFERRED', 'OPENAI:gpt-5.1,ANTHROPIC:claude-sonnet-4-5-20250929', 'text', 'تُجرّب كمدققين أولاً بنفس صيغة provider:model، مفصولة بفواصل. ممنوع auto.')}
             <div className="flex items-center justify-between rounded-xl border border-indigo-100 bg-white px-4 py-3 sm:col-span-2">
               <div>
                 <p className="text-xs font-black text-indigo-900">السماح بالبوابات العامة كاحتياط</p>
