@@ -150,8 +150,10 @@ export async function backfillQuestionBankAcademicFields(programId: string, time
           }
         }
       } catch (error) {
-        for (const item of needs) console.warn('[question-bank-doc] item backfill failed', { programId, id: item.id, error: error instanceof Error ? error.message : String(error) })
-        break
+        for (const item of needs) {
+          skippedAiIds.add(item.id)
+          console.warn('[question-bank-doc] item backfill failed', { programId, id: item.id, error: error instanceof Error ? error.message : String(error) })
+        }
       }
     }
     const remaining = await countQuestionBankDocumentationRemaining(programId)
