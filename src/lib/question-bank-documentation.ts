@@ -120,11 +120,11 @@ export async function backfillQuestionBankAcademicFields(programId: string, time
     const skippedAiIds = new Set<string>()
     while (Date.now() - startedAt < timeBudgetMs) {
       const batch = await db.questionBankItem.findMany({
-        where: { programId },
+        where: { programId, status: { not: 'REJECTED' }, id: { notIn: [...skippedAiIds] } },
         orderBy: { createdAt: 'asc' },
-        take: 1000,
+        take: 200,
       })
-      const needs = batch.filter((item) => needsAiDocumentation(item) && !isMissing(item.sourceEvidence) && !skippedAiIds.has(item.id)).slice(0, 10)
+      const needs = batch.filter((item) => needsAiDocumentation(item) && !isMissing(item.sourceEvidence)).slice(0, 10)
       if (!needs.length) break
       try {
         const raw = await textAiCompleteJson({
