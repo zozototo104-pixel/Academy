@@ -1901,6 +1901,16 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   let skippedCooldownUntil: number | null = null
   let onlySameFamilyModelsExcluded = false
   const skipModelsThisRequest = new Set<string>()
+  const verifierNoCandidate: string[] = []
+  const noteNoCandidate = (provider: string, model: string, reason: string) => {
+    if (isVerifierCall(effectiveOpts)) verifierNoCandidate.push(`${provider}:${model || '-'} ${redactSecrets(reason).slice(0, 220)}`)
+  }
+  if (isVerifierCall(effectiveOpts)) {
+    for (const provider of baseOrder(s, taskLevel)) {
+      if (excluded.has(provider)) noteNoCandidate(provider, modelFor(s, provider), 'SAME_PROVIDER_AS_GENERATOR')
+      else if (!providerKeys(s, provider).length) noteNoCandidate(provider, modelFor(s, provider), 'NOT_CONFIGURED')
+    }
+  }
 
   for (const provider of providers) {
     if (provider === 'OPENAI_COMPAT' && s.openaiCompatTier === 'PAID') {
