@@ -153,6 +153,31 @@ function parseAiBackfill(raw: string): AcademicBackfillRow[] {
   } catch { return [] }
 }
 
+function academicBackfillData(question: AcademicQuestionPatchTarget, row: AcademicBackfillRow): Record<string, unknown> {
+  const data: Record<string, unknown> = {}
+  if (isMissing(question.difficulty) && row.difficulty) data.difficulty = row.difficulty
+  if (isMissing(question.cognitiveSkill) && row.cognitiveSkill) data.cognitiveSkill = row.cognitiveSkill
+  if (isMissing(question.correctRationale) && row.correctRationale) data.correctRationale = row.correctRationale
+  if ((question.type === 'MCQ' || question.type === 'TF') && isMissing(question.distractorRationales) && row.distractorRationales?.length) data.distractorRationales = JSON.stringify(row.distractorRationales).slice(0, 1800)
+  return data
+}
+
+export function __testAcademicBackfillDataForTests(question: AcademicQuestionPatchTarget, row: AcademicBackfillRow) {
+  return academicBackfillData(question, row)
+}
+
+export function __testProgramQuestionAcademicCopyForTests(input: { bookTitle: string; knowledgeTitle?: string | null; pageStart?: number | null; pageEnd?: number | null; bank: { sourceLocator?: string | null; sourceEvidence?: string | null; cognitiveSkill?: string | null; difficulty?: string | null; correctRationale?: string | null; distractorRationales?: string | null } }) {
+  return {
+    sourceBookTitle: input.bookTitle,
+    sourceLocator: sourceLocatorFromKnowledge({ title: input.knowledgeTitle || null, pageStart: input.pageStart ?? null, pageEnd: input.pageEnd ?? null }, input.bank.sourceLocator || null),
+    sourceEvidence: input.bank.sourceEvidence || null,
+    cognitiveSkill: input.bank.cognitiveSkill || null,
+    difficulty: input.bank.difficulty || null,
+    correctRationale: input.bank.correctRationale || null,
+    distractorRationales: input.bank.distractorRationales || null,
+  }
+}
+
 async function syncProgramExamQuestionsFromBank(examId: string) {
   const questions = await db.programQuestion.findMany({ where: { examId, status: { not: 'REJECTED' } }, select: { id: true, qualityFlags: true, sourceBookTitle: true, sourceLocator: true, sourceEvidence: true, cognitiveSkill: true, difficulty: true, correctRationale: true, distractorRationales: true } })
   const bankIds = [...new Set(questions.map((q) => bankIdFromFlags(q.qualityFlags)).filter((id): id is string => Boolean(id)))]
