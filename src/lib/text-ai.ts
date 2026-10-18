@@ -592,6 +592,10 @@ export function __testRateLimitCooldownDecision(args: { provider: string; key: s
   return { scope, escalates: scope === 'model' ? shouldEscalateModelRateLimit(args.provider, args.key, args.model) : false }
 }
 
+export function __testMarkModelCooldownForTests(provider: string, key: string, model: string, reason = 'test model cooldown') {
+  markModelCooldown(provider, key, model, reason, 2, 429)
+}
+
 function isAuthLike(e: any): boolean {
   const msg = String(e?.message || e || '').toLowerCase()
   const status = Number(e?.status || e?.code || 0)
