@@ -4,7 +4,7 @@ import { canPublishUnitExamFromQuestions, selectUnitExamQuestionsApprovedFirst }
 import { assertGeneratedBatchHasAcceptedCandidates, hasSourceGroundedFlag, nextQuestionBankRetryAt, planQuestionBankJobManualReactivation, planQuestionBankSourceWindow, prepareMcqOptionsForStorage } from '../src/lib/question-bank-job'
 import { parseGeneratedQuestionCandidates } from '../src/lib/question-bank-generation'
 import { __testAcademicBackfillDataForTests, __testProgramQuestionAcademicCopyForTests, __testQualifiedQuestionBankItemForProgramExamForTests } from '../src/lib/program-exam-assembly'
-import { validateProgramExamPublicationReadiness } from '../src/lib/program-exam-publication-readiness'
+import { calculateProgramExamAcademicMissingCounts, validateProgramExamPublicationReadiness } from '../src/lib/program-exam-publication-readiness'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
@@ -448,6 +448,16 @@ function testSyncedProgramExamQuestionPassesPublicationSourceCheck() {
   assert(errors.length === 0, `السؤال المعبأ من sync يجب أن يمر فحص النشر: ${errors.join(' | ')}`)
 }
 
+function testProgramExamAcademicMissingCounts() {
+  const counts = calculateProgramExamAcademicMissingCounts([
+    { status: 'PENDING_REVIEW', type: 'MCQ', sourceEvidence: '', sourceBookTitle: '', sourceLocator: '', cognitiveSkill: '', difficulty: '', correctRationale: '', distractorRationales: '[]', qualityFlags: '[]', knowledgeItemId: '' },
+    { status: 'PENDING_REVIEW', type: 'TF', sourceEvidence: 'دليل', sourceBookTitle: 'كتاب', sourceLocator: 'صفحة 1', cognitiveSkill: 'UNDERSTAND', difficulty: 'EASY', correctRationale: 'تعليل', distractorRationales: '["سبب"]', qualityFlags: '["QUESTION_BANK_ITEM_ID:qb1"]', knowledgeItemId: '' },
+  ])
+  assert(counts.remaining === 1, 'عداد البيانات الأكاديمية الناقصة يجب أن يحسب سؤالاً ناقصاً واحداً')
+  assert(counts.missingSource === 1 && counts.missingSkill === 1 && counts.missingDistractors === 1, 'عدادات المصدر والمهارة وأسباب الخطأ يجب أن تطابق النقص')
+  assert(counts.unsourceable === 1, 'السؤال بلا QUESTION_BANK_ITEM_ID ولا knowledgeItemId يجب أن يظهر كغير قابل للإسناد')
+}
+
 const tests = [
   testUnitExamDoesNotFixCorrectAnswer,
   testUnitExamScopedToUnitQuestionBank,
@@ -493,6 +503,7 @@ const tests = [
   testProgramExamBackfillDoesNotTouchQuestionTextOrAnswer,
   testProgramExamTfWithoutDistractorRationalesStillQualified,
   testSyncedProgramExamQuestionPassesPublicationSourceCheck,
+  testProgramExamAcademicMissingCounts,
 ]
 
 for (const test of tests) {

@@ -21,6 +21,7 @@ const TYPE_AR: Record<string, string> = { MCQ: 'اختيار', TF: 'صح/خطأ'
 const SKILL_AR: Record<string, string> = { UNDERSTAND: 'فهم', APPLY: 'تطبيق', ANALYZE: 'تحليل', EVALUATE: 'تقييم' }
 const DIFFICULTY_AR: Record<string, string> = { EASY: 'سهل', MEDIUM: 'متوسط', ADVANCED: 'متقدم' }
 const FULL_EXAM_TARGET = 80
+const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
 
 // ============================================================
 // 12.2 — حوار المراجعة البشرية للأسئلة المولدة (Human-in-the-loop)
@@ -91,6 +92,7 @@ export function QuestionReviewDialog({
   const [editing, setEditing] = useState<string | null>(null)
   const [draft, setDraft] = useState<QuestionDraft | null>(null)
   const [busy, setBusy] = useState(false)
+  const [academicBackfillMessage, setAcademicBackfillMessage] = useState('')
   const [filter, setFilter] = useState<'ALL' | 'PENDING_REVIEW' | 'PUBLISHED' | 'REJECTED'>('ALL')
   const [cognitiveOverrideDialog, setCognitiveOverrideDialog] = useState<null | { message: string; details: string[]; reason: string }>(null)
   const cognitiveOverrideResolveRef = useRef<((reason: string | null) => void) | null>(null)
@@ -267,6 +269,33 @@ export function QuestionReviewDialog({
     }
   }
 
+  const runAcademicBackfill = async () => {
+    setBusy(true)
+    try {
+      let remaining = questions.length
+      for (let attempt = 0; attempt < 30; attempt++) {
+        setAcademicBackfillMessage(`جارٍ الاستكمال... المتبقي: ${remaining}`)
+        const d = await api<{ filled: number; remaining: number; done: boolean; locked?: boolean; error?: string }>(`/api/admin/program-exams/${examId}/academic-backfill`, { method: 'POST' })
+        if (d.locked) throw new Error('استكمال البيانات الأكاديمية قيد التشغيل حالياً')
+        remaining = d.remaining
+        setAcademicBackfillMessage(d.done || d.remaining === 0 ? 'اكتمل الاستكمال' : `جارٍ الاستكمال... المتبقي: ${d.remaining}`)
+        if (d.done || d.remaining === 0) {
+          await load()
+          onPublished()
+          return
+        }
+        await wait(2000)
+      }
+      await load()
+      onPublished()
+    } catch (e: any) {
+      setAcademicBackfillMessage(e.message || 'تعذر استكمال البيانات الأكاديمية')
+      toast({ title: 'خطأ', description: e.message || 'تعذر استكمال البيانات الأكاديمية', variant: 'destructive' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const publish = async () => {
     if (questions.length < FULL_EXAM_TARGET) {
       toast({
@@ -310,6 +339,17 @@ export function QuestionReviewDialog({
   }
 
   const pendingCount = questions.filter((q) => q.status === 'PENDING_REVIEW').length
+  const academicMissingCount = questions.filter((q) =>
+    q.status !== 'REJECTED' && (
+      !String(q.sourceEvidence || '').trim() ||
+      !String(q.sourceBookTitle || '').trim() ||
+      !String(q.sourceLocator || '').trim() ||
+      !String(q.cognitiveSkill || '').trim() ||
+      !String(q.difficulty || '').trim() ||
+      !String(q.correctRationale || '').trim() ||
+      ((q.type === 'MCQ' || q.type === 'TF') && !(q.distractorRationales || []).length)
+    ),
+  ).length
   const shown = filter === 'ALL' ? questions : questions.filter((q) => q.status === filter)
 
   return (
@@ -335,7 +375,14 @@ export function QuestionReviewDialog({
                   استكمال بقية الامتحان ({questions.length}/{FULL_EXAM_TARGET})
                 </Button>
               )}
+              {academicMissingCount > 0 && (
+                <Button size="sm" variant="outline" onClick={runAcademicBackfill} disabled={busy} className="border-blue-300 text-[10px] font-black text-blue-700 hover:bg-blue-100">
+                  {busy ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="ml-1 h-3.5 w-3.5" />}
+                  استكمال البيانات الأكاديمية
+                </Button>
+              )}
             </div>
+            {academicBackfillMessage && <p className="mt-2 text-[11px] font-bold text-blue-700">{academicBackfillMessage}</p>}
           </div>
         </DialogHeader>
 

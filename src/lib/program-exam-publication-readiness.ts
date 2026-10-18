@@ -13,6 +13,38 @@ function parseJsonArray(value: string | null | undefined): any[] {
   }
 }
 
+function hasQuestionBankMarker(value: string | null | undefined): boolean {
+  return parseJsonArray(value).some((flag) => String(flag).startsWith('QUESTION_BANK_ITEM_ID:'))
+}
+
+export function calculateProgramExamAcademicMissingCounts(questions: any[]) {
+  const candidates = questions.filter((q) => q.status !== 'REJECTED')
+  const missingSource = candidates.filter((q) =>
+    !String(q.sourceEvidence || '').trim() ||
+    !String(q.sourceBookTitle || '').trim() ||
+    !String(q.sourceLocator || '').trim()
+  ).length
+  const missingSkill = candidates.filter((q) =>
+    !VALID_SKILLS.has(String(q.cognitiveSkill || '')) ||
+    !VALID_DIFFICULTIES.has(String(q.difficulty || '')) ||
+    !String(q.correctRationale || '').trim()
+  ).length
+  const missingDistractors = candidates.filter((q) =>
+    (q.type === 'MCQ' || q.type === 'TF') && parseJsonArray(q.distractorRationales).length === 0
+  ).length
+  const remaining = candidates.filter((q) =>
+    !String(q.sourceEvidence || '').trim() ||
+    !String(q.sourceBookTitle || '').trim() ||
+    !String(q.sourceLocator || '').trim() ||
+    !VALID_SKILLS.has(String(q.cognitiveSkill || '')) ||
+    !VALID_DIFFICULTIES.has(String(q.difficulty || '')) ||
+    !String(q.correctRationale || '').trim() ||
+    ((q.type === 'MCQ' || q.type === 'TF') && parseJsonArray(q.distractorRationales).length === 0)
+  ).length
+  const unsourceable = candidates.filter((q) => !hasQuestionBankMarker(q.qualityFlags) && !String(q.knowledgeItemId || '').trim()).length
+  return { remaining, missingSource, missingSkill, missingDistractors, unsourceable }
+}
+
 function normalizeQuestionText(value: unknown): string {
   return String(value || '')
     .toLowerCase()
