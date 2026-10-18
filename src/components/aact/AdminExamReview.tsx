@@ -100,7 +100,7 @@ export function QuestionReviewDialog({
   const [examGeneratedBy, setExamGeneratedBy] = useState<string | null>(null)
   const [cognitiveOverride, setCognitiveOverride] = useState<null | { message: string; details: string[]; reason: string }>(() => initialCognitiveOverride ? { message: initialCognitiveOverride.message, details: initialCognitiveOverride.details || [], reason: '' } : null)
   const dialogContentRef = useRef<HTMLDivElement | null>(null)
-  const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
+  const { confirmAction, promptAction, dialog: actionDialog } = useAdminActionDialog()
 
   const load = useCallback(async () => {
     if (!examId) return
@@ -325,7 +325,20 @@ export function QuestionReviewDialog({
       const code = e?.code || e?.data?.code
       if (e?.status === 409 && code === 'COGNITIVE_DISTRIBUTION_FAILED') {
         const details = Array.isArray(e?.data?.details) ? e.data.details : []
-        showCognitiveOverride(e.message || 'توزيع المستويات المعرفية غير مناسب للنشر.', details)
+        const message = e.message || 'توزيع المستويات المعرفية غير مناسب للنشر.'
+        showCognitiveOverride(message, details)
+        const reason = await promptAction({
+          title: 'مطلوب سبب تجاوز',
+          description: `${message}${details.length ? `\n${details.map((detail: string) => `• ${detail}`).join('\n')}` : ''}`,
+          fieldLabel: 'سبب التجاوز الإداري',
+          placeholder: 'اكتب سبباً واضحاً لا يقل عن 8 أحرف...',
+          multiline: true,
+          required: true,
+          minLength: 8,
+          confirmLabel: 'تأكيد التجاوز والنشر',
+          tone: 'warning',
+        })
+        if (reason && reason.trim().length >= 8) await publish(reason.trim())
         return
       }
       const details = Array.isArray(e?.data?.details) ? `\n${e.data.details.join('\n')}` : ''
