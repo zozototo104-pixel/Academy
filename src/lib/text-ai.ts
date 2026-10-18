@@ -1997,6 +1997,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           attempts.push(attempt)
           recordAttempt(attempt)
           errors.push(`${provider}/${model}/key#${keyIndex}: ${msg}`)
+          noteNoCandidate(provider, model, `REQUEST_FAILED(${status || 'unknown'}, ${msg})`)
           await recordModelStats(provider, model, { ok: false, reason: routerReasonBucket(attempt), ms, jsonOk: effectiveOpts.json ? false : undefined, evidenceOk: e?.code === 'VALIDATION_REJECTED' ? false : undefined }, effectiveOpts.purpose)
           if (isSchemaFailureLike(e)) {
             skipModelsThisRequest.add(`${provider}:${model}`)
