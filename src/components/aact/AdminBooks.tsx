@@ -173,6 +173,8 @@ interface ExamRow {
   totalPoints: number
   pendingReview: number
   rejectedCount: number
+  bankApproved?: number
+  bankPendingReview?: number
   attemptsCount: number
   createdAt: string
 }
