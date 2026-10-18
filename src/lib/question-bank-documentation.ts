@@ -62,7 +62,7 @@ function documentationPatch(item: QuestionBankItem, row: ReturnType<typeof parse
 
 export async function countQuestionBankDocumentationRemaining(programId: string) {
   const items = await db.questionBankItem.findMany({
-    where: { programId },
+    where: { programId, status: { not: 'REJECTED' } },
     select: { type: true, sourceEvidence: true, sourceBookTitle: true, sourceLocator: true, cognitiveSkill: true, difficulty: true, correctRationale: true, distractorRationales: true },
   })
   return items.filter((item) =>
