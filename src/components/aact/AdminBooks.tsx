@@ -173,6 +173,8 @@ interface ExamRow {
   totalPoints: number
   pendingReview: number
   rejectedCount: number
+  bankApproved?: number
+  bankPendingReview?: number
   attemptsCount: number
   createdAt: string
 }
@@ -422,6 +424,22 @@ interface CurriculumUnitReviewItem {
     attemptsCount: number
     reviewQuestionsCount?: number
   } | null
+}
+
+function questionBankProgressCounts(unit: CurriculumUnitReviewItem) {
+  const approved = Number(unit.questionBankJob?.approvedQuestions ?? unit.questionBankSummary?.approved ?? 0) || 0
+  const pendingReview = Number(unit.questionBankJob?.pendingReviewQuestions ?? unit.questionBankSummary?.pendingReview ?? 0) || 0
+  const rejected = Number(unit.questionBankSummary?.rejected ?? unit.questionBankJob?.trace?.rejected ?? 0) || 0
+  const generated = approved + pendingReview
+  const requested = Math.max(1, Number(unit.questionBankJob?.requested || 1) || 1)
+  const percent = Math.min(100, Math.round((generated / requested) * 100))
+  return { approved, pendingReview, rejected, generated, requested, percent }
+}
+
+function topRejectionReason(unit: CurriculumUnitReviewItem): string {
+  const reasons = unit.questionBankJob?.trace?.rejectionReasons || []
+  const top = [...reasons].sort((a, b) => Number(b.count || 0) - Number(a.count || 0))[0]
+  return top?.reason ? `${top.reason} (${top.count})` : ''
 }
 
 interface UnitQuestionReviewPayload {
@@ -1180,30 +1198,26 @@ export function AdminBooksTab() {
   const refreshCurriculumUnits = useCallback(async (pid = programId) => {
     if (!pid) return
     const res = await api<{ units: CurriculumUnitReviewItem[] }>(`/api/admin/program-units?programId=${pid}`)
-    setCurriculumUnits(res.units || [])
+    if (Array.isArray(res.units)) setCurriculumUnits(res.units)
   }, [programId])
 
+  const activeQuestionBankJobIdsKey = useMemo(() => curriculumUnits
+    .map((unit) => unit.questionBankJob)
+    .filter((job): job is NonNullable<CurriculumUnitReviewItem['questionBankJob']> => Boolean(job && ['QUEUED', 'RUNNING', 'PAUSED'].includes(job.status)))
+    .map((job) => job.id)
+    .sort()
+    .join(','), [curriculumUnits])
+
   useEffect(() => {
-    if (workspaceTab !== 'units' || !programId) return
-    const activeJobIds = curriculumUnits
-      .map((unit) => unit.questionBankJob)
-      .filter((job): job is NonNullable<CurriculumUnitReviewItem['questionBankJob']> => {
-        if (!job) return false
-        return (job.currentQuestions < job.requested && ['QUEUED', 'RUNNING', 'PAUSED'].includes(job.status)) || job.status === 'RUNNING'
-      })
-      .map((job) => job.id)
-    if (!activeJobIds.length) return
+    if (workspaceTab !== 'units' || !programId || !activeQuestionBankJobIdsKey) return
     const pollJobs = async () => {
       if (document.visibilityState !== 'visible') return
-      const updates = await Promise.all(activeJobIds.map((id) => api<{ job: NonNullable<CurriculumUnitReviewItem['questionBankJob']> }>(`/api/admin/question-bank-jobs/${id}`).catch(() => null)))
-      const byId = new Map(updates.filter((item): item is { job: NonNullable<CurriculumUnitReviewItem['questionBankJob']> } => Boolean(item?.job)).map((item) => [item.job.id, item.job] as const))
-      if (!byId.size) return
-      setCurriculumUnits((prev) => prev.map((unit) => unit.questionBankJob && byId.has(unit.questionBankJob.id) ? { ...unit, questionBankJob: byId.get(unit.questionBankJob.id)! } : unit))
+      const res = await api<{ units: CurriculumUnitReviewItem[] }>(`/api/admin/program-units?programId=${programId}`)
+      if (Array.isArray(res.units)) setCurriculumUnits(res.units)
     }
-    const timer = setInterval(() => { void pollJobs().catch(() => null) }, 5_000)
-    void pollJobs().catch(() => null)
+    const timer = setInterval(() => { void pollJobs().catch(() => null) }, 10_000)
     return () => clearInterval(timer)
-  }, [workspaceTab, programId, curriculumUnits])
+  }, [workspaceTab, programId, activeQuestionBankJobIdsKey])
 
   const generateCurriculumUnits = async () => {
     if (!programId) return
@@ -1487,6 +1501,7 @@ export function AdminBooksTab() {
       setQuestionBankItems(res.items || [])
       setQuestionBankStats(res.stats || null)
       setQuestionBankProgress(res.progress || null)
+      await refreshCurriculumUnits(programId)
       toast({ title: 'تم توليد أسئلة للبنك', description: res.message || 'تمت إضافة أسئلة بانتظار المراجعة من بنك المعرفة.' })
     } catch (e: any) {
       toast({ title: 'تعذر توليد أسئلة للبنك', description: e.message, variant: 'destructive' })
@@ -2716,7 +2731,7 @@ export function AdminBooksTab() {
                             {unit.source && <Badge className="bg-blue-50 text-blue-700 hover:bg-blue-50">{unit.source.sectionTitle || 'من الفهرس'}{unit.source.pageStart != null ? ` · صفحات ${unit.source.pageStart}–${unit.source.pageEnd ?? unit.source.pageStart}` : ''}</Badge>}
                             {unit.generationJob && <Badge className={unit.generationJob.status === 'PAUSED' ? 'bg-amber-100 text-amber-700 hover:bg-amber-100' : unit.generationJob.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : unit.generationJob.status === 'FAILED' ? 'bg-red-100 text-red-700 hover:bg-red-100' : 'bg-slate-100 text-slate-600 hover:bg-slate-100'}>توليد المحتوى: {unit.generationJob.status === 'PAUSED' ? 'متوقف' : unit.generationJob.status === 'COMPLETED' ? 'مكتمل' : unit.generationJob.status === 'FAILED' ? 'فشل' : 'قيد العمل'}</Badge>}
                             {unit.studyGuide && <Badge className="bg-purple-50 text-purple-700 hover:bg-purple-50">دليل وحدة: {unit.studyGuide.status === 'PUBLISHED' ? 'منشور' : 'مسودة'}</Badge>}
-                            {unit.questionBankJob && unit.questionBankJob.currentQuestions < unit.questionBankJob.requested && <Badge className="bg-sky-100 text-sky-700 hover:bg-sky-100">جارٍ تجهيز بنك الأسئلة: {unit.questionBankJob.currentQuestions} من {unit.questionBankJob.requested}</Badge>}
+                            {unit.questionBankJob && questionBankProgressCounts(unit).generated < questionBankProgressCounts(unit).requested && <Badge className="bg-sky-100 text-sky-700 hover:bg-sky-100">جارٍ تجهيز بنك الأسئلة: {questionBankProgressCounts(unit).generated} من {questionBankProgressCounts(unit).requested} · معتمد {questionBankProgressCounts(unit).approved} · مراجعة {questionBankProgressCounts(unit).pendingReview} · مرفوض {questionBankProgressCounts(unit).rejected}</Badge>}
                             <Badge className={unit.exam?.id ? unit.exam.status === 'DRAFT' ? 'bg-amber-100 text-amber-700 hover:bg-amber-100' : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-100' : 'bg-slate-100 text-slate-500 hover:bg-slate-100'}>
                               {unit.exam?.id ? `اختبار وحدة: ${unit.exam.questionsCount} سؤال${unit.exam.status === 'DRAFT' ? ` · بانتظار اعتماد ${unit.exam.reviewQuestionsCount || 0} سؤال` : ''}` : 'لا يوجد اختبار وحدة'}
                             </Badge>
@@ -2767,12 +2782,14 @@ export function AdminBooksTab() {
                         {unit.questionBankJob && <div className="mt-3 rounded-xl border border-sky-100 bg-sky-50/70 p-3 text-[11px] font-bold leading-5 text-sky-900">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <p className="font-black">حالة بنك أسئلة الوحدة: {unit.questionBankJob.status}</p>
-                            <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-sky-700">{Math.min(100, Math.round(((unit.questionBankJob.currentQuestions || unit.questionBankJob.saved || 0) / Math.max(1, unit.questionBankJob.requested || 1)) * 100))}%</span>
+                            <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-sky-700">{questionBankProgressCounts(unit).percent}%</span>
                           </div>
                           <div className="mt-2 h-2 overflow-hidden rounded-full bg-sky-100">
-                            <div className="h-full rounded-full bg-sky-500 transition-all" style={{ width: `${Math.min(100, Math.round(((unit.questionBankJob.currentQuestions || unit.questionBankJob.saved || 0) / Math.max(1, unit.questionBankJob.requested || 1)) * 100))}%` }} />
+                            <div className="h-full rounded-full bg-sky-500 transition-all" style={{ width: `${questionBankProgressCounts(unit).percent}%` }} />
                           </div>
-                          <p className="mt-2">الأسئلة المؤهلة: {unit.questionBankJob.currentQuestions} من {unit.questionBankJob.requested} · محفوظة job: {unit.questionBankJob.saved} · معتمدة: {unit.questionBankJob.approvedQuestions} · تحتاج مراجعة: {unit.questionBankJob.pendingReviewQuestions}</p>
+                          <p className="mt-2">الأسئلة المؤهلة: {questionBankProgressCounts(unit).generated} من {questionBankProgressCounts(unit).requested} · محفوظة job: {unit.questionBankJob.saved} · معتمدة: {questionBankProgressCounts(unit).approved} · مراجعة: {questionBankProgressCounts(unit).pendingReview} · مرفوض: {questionBankProgressCounts(unit).rejected}</p>
+                          {questionBankProgressCounts(unit).pendingReview > 0 && questionBankProgressCounts(unit).approved === 0 ? <p className="mt-1 text-sky-700">تولّدت أسئلة وتنتظر التحقق أو المراجعة</p> : null}
+                          {topRejectionReason(unit) ? <p className="mt-1 text-sky-700">أكثر سبب رفض: {topRejectionReason(unit)}</p> : null}
                           {unit.questionBankJob.trace && <p>آخر دفعة: مولّدة {unit.questionBankJob.trace.generated} · محفوظة {unit.questionBankJob.trace.saved} · رفض verifier {unit.questionBankJob.trace.verifierRejected} · رفض إجمالي {unit.questionBankJob.trace.rejected}</p>}
                           {unit.questionBankJob.trace?.rejectionReasons?.length ? <p>أسباب الرفض: {unit.questionBankJob.trace.rejectionReasons.map((reason) => `${reason.reason} (${reason.count})`).join(' · ')}</p> : null}
                           {unit.questionBankJob.trace?.aiTrace && <p>AI trace: مولّد {unit.questionBankJob.trace.aiTrace.generatorProvider || '؟'} / {unit.questionBankJob.trace.aiTrace.generatorModel || '؟'} · تحقق {unit.questionBankJob.trace.aiTrace.verifierProvider || '؟'} / {unit.questionBankJob.trace.aiTrace.verifierModel || '؟'}{unit.questionBankJob.trace.aiTrace.sameProviderVerifierFallback ? ' · تحقق OpenAI fallback' : ''}</p>}
@@ -3659,6 +3676,7 @@ export function AdminBooksTab() {
                                 <Loader2 className="ml-1 h-3 w-3 animate-spin" /> جاري التوليد والتحليل ({e.questionCount} سؤالاً حتى الآن)...
                               </Badge>
                             )}
+                            {['GENERATING', 'PAUSED'].includes(e.status) && <p className="w-full text-[10px] font-bold leading-5 text-slate-500">بنك الأسئلة: معتمد {e.bankApproved || 0} · بانتظار المراجعة {e.bankPendingReview || 0} (الامتحان يسحب المعتمد فقط)</p>}
                             {e.status === 'REVIEW' && (
                               <Badge className="bg-[#f7edd0] text-[#a8841a] hover:bg-[#f7edd0]">
                                 <FileCheck2 className="ml-1 h-3 w-3" /> بانتظار مراجعتك واعتماد الأسئلة ({e.pendingReview} سؤالاً)

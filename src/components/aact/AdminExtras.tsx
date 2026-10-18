@@ -2069,6 +2069,8 @@ export function AdminSettingsTab() {
   const [accreditationUploadBusy, setAccreditationUploadBusy] = useState(false)
   const [accreditationUploadFile, setAccreditationUploadFile] = useState<File | null>(null)
   const [accreditationUpload, setAccreditationUpload] = useState({ title: '', kind: 'LICENSE', description: '', verifyUrl: '', partnershipId: '' })
+  const [aiCooldownProvider, setAiCooldownProvider] = useState('OPENAI')
+  const [aiCooldownBusy, setAiCooldownBusy] = useState(false)
   const [adminForm, setAdminForm] = useState({
     name: 'QA Admin',
     email: 'qa-admin@aactacademy.com',
@@ -2100,6 +2102,18 @@ export function AdminSettingsTab() {
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
+
+  const clearAiCooldown = async () => {
+    setAiCooldownBusy(true)
+    try {
+      const res = await api<{ count: number }>('/api/settings/ai-cooldown', { method: 'POST', body: JSON.stringify({ provider: aiCooldownProvider }) })
+      toast({ title: 'تم مسح تبريد المزود', description: `أزيلت ${res.count || 0} حالة تبريد أو نفاد رصيد.` })
+    } catch (e: any) {
+      toast({ title: 'تعذر مسح تبريد المزود', description: e.message, variant: 'destructive' })
+    } finally {
+      setAiCooldownBusy(false)
+    }
+  }
 
   const save = async () => {
     setSaving(true)
@@ -2572,6 +2586,13 @@ export function AdminSettingsTab() {
             </h3>
             {g.note && <p className="mb-4 text-xs font-bold leading-6 text-slate-500">{g.note}</p>}
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {g.key === 'AI' && <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
+                <Label className="text-[11px] font-bold leading-snug text-slate-600">مسح تبريد مزود الذكاء</Label>
+                <div className="mt-2 flex gap-2">
+                  <Select value={aiCooldownProvider} onValueChange={setAiCooldownProvider}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT'].map((provider) => <SelectItem key={provider} value={provider}>{provider}</SelectItem>)}</SelectContent></Select>
+                  <Button type="button" variant="outline" disabled={aiCooldownBusy} onClick={clearAiCooldown} className="font-black">{aiCooldownBusy ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="ml-1 h-3.5 w-3.5" />} مسح</Button>
+                </div>
+              </div>}
               {defs.filter((d) => d.group === g.key).map((d) => {
                 const inputType = d.inputType || 'number'
                 const wide = inputType === 'textarea' || inputType === 'json'
@@ -2824,6 +2845,7 @@ const ACTION_L: Record<string, string> = {
   SUBMIT_THESIS: 'تسليم بحث', UPDATE_SETTINGS: 'تحديث الرسوم/الإعدادات',
   CREATE_ADMIN_ACCOUNT: 'إنشاء حساب إدارة', UPDATE_ADMIN_ACCOUNT: 'تحديث حساب إدارة',
   DISABLE_ADMIN_ACCOUNT: 'تعطيل حساب إدارة',
+  CLEAR_AI_PROVIDER_COOLDOWN: 'مسح تبريد مزود ذكاء',
   ADD_REVENUE_SHARE: 'تسجيل مستحق وكيل', MARK_SHARE_PAID: 'تأكيد تحويل مستحقات',
   RESOLVE_MESSAGE: 'معالجة رسالة',
   GENERATE_CURRICULUM_UNITS: 'اقتراح وحدات المنهج من الكتب',

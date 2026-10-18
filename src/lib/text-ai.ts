@@ -23,6 +23,7 @@ export type TextAiTaskLevel = 'GENERAL' | 'ACADEMIC_DRAFT' | 'ACADEMIC_CRITICAL'
 export type TextAiProviderTier = 'FREE' | 'PAID'
 export type TextAiPaidUsageMode = 'off' | 'last_resort' | 'critical_first'
 export type TextAiPurpose = 'CHAT' | 'ANALYSIS' | 'GENERATION' | 'GRADING' | 'VISION' | 'LONG_CONTEXT' | 'REVIEW'
+export type TextAiPreferredModel = { provider: Exclude<TextAiProvider, 'AUTO'>; model: string }
 
 export interface TextAiTurn {
   role: 'user' | 'model'
@@ -46,6 +47,7 @@ export interface TextAiCallOpts {
   attachments?: TextAiAttachment[]
   excludeProviders?: TextAiProvider[]
   preferredProviders?: TextAiProvider[]
+  preferredModels?: TextAiPreferredModel[]
   excludeModelFamilies?: string[]
   deadlineMs?: number
   stickyScope?: string
@@ -272,9 +274,9 @@ function normalizeModel(value: unknown, defaults: string[]): string {
 
 const DEFAULT_ACADEMIC_ALLOWLIST = 'GEMINI:gemini-3.5-flash,GEMINI:gemini-3.8-flash'
 
-export function parseAcademicAllowlist(value: unknown): Array<{ provider: ConcreteProvider; model: string }> {
-  const out: Array<{ provider: ConcreteProvider; model: string }> = []
-  for (const raw of String(value || DEFAULT_ACADEMIC_ALLOWLIST).split(',')) {
+export function parseProviderModelList(value: unknown, fallback = ''): TextAiPreferredModel[] {
+  const out: TextAiPreferredModel[] = []
+  for (const raw of String(value || fallback).split(',')) {
     const item = raw.trim()
     const separator = item.indexOf(':')
     if (separator <= 0) {
@@ -295,6 +297,10 @@ export function parseAcademicAllowlist(value: unknown): Array<{ provider: Concre
     out.push({ provider: provider as ConcreteProvider, model })
   }
   return out
+}
+
+export function parseAcademicAllowlist(value: unknown): Array<{ provider: ConcreteProvider; model: string }> {
+  return parseProviderModelList(value, DEFAULT_ACADEMIC_ALLOWLIST)
 }
 
 function parseKeys(...values: string[]): string[] {
@@ -575,7 +581,7 @@ async function readSettings(keys: string[]): Promise<Record<string, string>> {
 
 async function settings() {
   const rows = await readSettings([
-    'AI_TEXT_PROVIDER', 'AI_ROUTER_POLICY', 'AI_ROUTER_ALLOW_PUBLIC_GATEWAYS', 'AI_ACADEMIC_ALLOWLIST',
+    'AI_TEXT_PROVIDER', 'AI_ROUTER_POLICY', 'AI_ROUTER_ALLOW_PUBLIC_GATEWAYS', 'AI_ACADEMIC_ALLOWLIST', 'AI_VERIFIER_PREFERRED',
     'AI_PAID_USAGE_MODE', 'AI_PAID_MODELS', 'AI_PAID_DAILY_LIMIT_USD', 'AI_PAID_MONTHLY_LIMIT_USD', 'AI_PROVIDER_TIER_OPENAI_COMPAT',
     'GEMINI_API_KEY', 'GEMINI_API_KEYS', 'GEMINI_TEXT_MODEL',
     'OPENAI_API_KEY', 'OPENAI_API_KEYS', 'OPENAI_TEXT_MODEL', 'OPENAI_BASE_URL',
@@ -597,6 +603,7 @@ async function settings() {
     policy,
     allowPublicGateways: ['1', 'true', 'yes', 'on'].includes(String(rows.AI_ROUTER_ALLOW_PUBLIC_GATEWAYS || env('AI_ROUTER_ALLOW_PUBLIC_GATEWAYS') || '').toLowerCase()),
     academicAllowlist: parseAcademicAllowlist(rows.AI_ACADEMIC_ALLOWLIST || env('AI_ACADEMIC_ALLOWLIST') || DEFAULT_ACADEMIC_ALLOWLIST),
+    verifierPreferred: parseProviderModelList(rows.AI_VERIFIER_PREFERRED || env('AI_VERIFIER_PREFERRED') || ''),
     paidUsageMode: (['last_resort', 'critical_first'].includes(String(rows.AI_PAID_USAGE_MODE || env('AI_PAID_USAGE_MODE')).toLowerCase()) ? String(rows.AI_PAID_USAGE_MODE || env('AI_PAID_USAGE_MODE')).toLowerCase() : 'off') as TextAiPaidUsageMode,
     paidModels: parseKeys(rows.AI_PAID_MODELS || env('AI_PAID_MODELS')).filter((model) => validModelName(model) && academicModelAllowed('OPENAI_COMPAT', model)),
     paidDailyLimitUsd: Math.max(0, Number(rows.AI_PAID_DAILY_LIMIT_USD || env('AI_PAID_DAILY_LIMIT_USD') || 0) || 0),
@@ -1124,6 +1131,13 @@ function providerOrder(s: Settings, taskLevel: TextAiTaskLevel = 'GENERAL'): Con
 export async function hasExternalTextAi(): Promise<boolean> {
   const s = await settings()
   return providerOrder(s).length > 0
+}
+
+async function recordQuestionVerifierNoCandidate(lines: string[]) {
+  if (!lines.length) return
+  const summary = lines.slice(0, 80).join('\n').slice(0, 5000)
+  console.warn(`[question-verifier] no-candidate\n${summary}`)
+  try { await settingStore().write('QUESTION_VERIFIER_LAST_NO_CANDIDATE', summary) } catch {}
 }
 
 function cooldownList() {
@@ -1759,6 +1773,24 @@ function modelFamilyAllowed(model: string, excludedFamilies: Set<string>): boole
   return !excludedFamilies.has(modelFamily(model))
 }
 
+export function __testQuestionVerifierCandidatePlan(args: { preferred?: TextAiPreferredModel[]; fallback?: TextAiPreferredModel[]; generatorProvider?: TextAiProvider; generatorModel?: string; cooldown?: string[]; noBalance?: string[] }) {
+  const excludedProvider = args.generatorProvider && args.generatorProvider !== 'AUTO' ? args.generatorProvider : null
+  const excludedFamily = modelFamily(args.generatorModel || '')
+  const cooldown = new Set(args.cooldown || [])
+  const noBalance = new Set(args.noBalance || [])
+  const diagnostics: string[] = []
+  const ordered: TextAiPreferredModel[] = []
+  for (const item of [...(args.preferred || []), ...(args.fallback || [])]) {
+    const key = `${item.provider}:${item.model}`
+    if (excludedProvider && item.provider === excludedProvider) diagnostics.push(`${key} SAME_PROVIDER_AS_GENERATOR`)
+    else if (excludedFamily && modelFamily(item.model) === excludedFamily) diagnostics.push(`${key} SAME_FAMILY_AS_GENERATOR`)
+    else if (cooldown.has(key) || cooldown.has(item.provider)) diagnostics.push(`${key} COOLDOWN`)
+    else if (noBalance.has(key) || noBalance.has(item.provider)) diagnostics.push(`${key} NO_BALANCE`)
+    else ordered.push(item)
+  }
+  return { ordered, diagnostics }
+}
+
 function isVerifierCall(opts: TextAiCallOpts): boolean {
   return (opts.excludeProviders || []).some((provider) => provider !== 'AUTO')
 }
@@ -1848,7 +1880,9 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const excluded = excludedConcreteProviders(effectiveOpts.excludeProviders)
   const excludedFamilies = excludedModelFamilies(effectiveOpts.excludeModelFamilies)
   const sticky = effectiveOpts.stickyScope ? stickyModels.get(effectiveOpts.stickyScope) : null
-  const preferredProviders = (effectiveOpts.preferredProviders || []).filter(Boolean)
+  const preferredModels = isVerifierCall(effectiveOpts) ? [...(effectiveOpts.preferredModels || []), ...s.verifierPreferred] : (effectiveOpts.preferredModels || [])
+  const preferredModelProviders = preferredModels.map((item) => item.provider).filter(Boolean)
+  const preferredProviders = [...new Set([...(effectiveOpts.preferredProviders || []).filter(Boolean), ...preferredModelProviders])]
   const baseOrderedProviders = providerOrder(s, taskLevel)
     .filter((provider) => !excluded.has(provider))
     .filter((provider) => !visionCall || providerSupportsVisionAttachments(provider))
@@ -1885,13 +1919,35 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   let skippedCooldownUntil: number | null = null
   let onlySameFamilyModelsExcluded = false
   const skipModelsThisRequest = new Set<string>()
+  const verifierNoCandidate: string[] = []
+  const noteNoCandidate = (provider: string, model: string, reason: string) => {
+    if (isVerifierCall(effectiveOpts)) verifierNoCandidate.push(`${provider}:${model || '-'} ${redactSecrets(reason).slice(0, 220)}`)
+  }
+  if (isVerifierCall(effectiveOpts)) {
+    for (const provider of baseOrder(s)) {
+      if (excluded.has(provider)) noteNoCandidate(provider, modelFor(s, provider), 'SAME_PROVIDER_AS_GENERATOR')
+      else if (!providerKeys(s, provider).length) noteNoCandidate(provider, modelFor(s, provider), 'NOT_CONFIGURED')
+    }
+  }
 
   for (const provider of providers) {
     if (provider === 'OPENAI_COMPAT' && s.openaiCompatTier === 'PAID') {
       if (paidAvailable == null) paidAvailable = await paidBudgetAvailable(s, estimatedPaidCost)
-      if (!paidAvailable) continue
+      if (!paidAvailable) {
+        noteNoCandidate(provider, modelFor(s, provider), 'NO_BALANCE')
+        continue
+      }
     }
-    const candidateModels = await modelFallbacks(s, provider, taskLevel, exploreModels, effectiveOpts.purpose)
+    const providerPreferredModels = preferredModels.filter((item) => item.provider === provider).map((item) => item.model)
+    if (isVerifierCall(effectiveOpts) && taskLevel !== 'GENERAL') {
+      const selectedModel = modelFor(s, provider)
+      if (selectedModel && !academicModelAllowed(provider, selectedModel) && !providerPreferredModels.includes(selectedModel)) noteNoCandidate(provider, selectedModel, 'NOT_IN_ALLOWLIST')
+    }
+    const fallbackModels = await modelFallbacks(s, provider, taskLevel, exploreModels, effectiveOpts.purpose)
+    const candidateModels = [...new Set([...providerPreferredModels, ...fallbackModels])]
+    for (const model of candidateModels) {
+      if (!modelFamilyAllowed(model, excludedFamilies)) noteNoCandidate(provider, model, 'SAME_FAMILY_AS_GENERATOR')
+    }
     const baseModels = candidateModels
       .filter((model) => modelFamilyAllowed(model, excludedFamilies))
       .filter((model) => modelSupportsVisionAttachment(provider, model, modelCapabilitiesFor(provider, s, model), attachments))
@@ -1899,20 +1955,34 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
       ? [sticky.model, ...baseModels.filter((model) => model !== sticky.model)]
       : baseModels
     const health = await readModelHealth(provider, orderedModels)
+    for (const model of orderedModels) {
+      if (recentFailedHealth(health.get(model) || null)) noteNoCandidate(provider, model, 'HEALTH_SKIP')
+    }
     const healthFilteredModels = orderedModels.filter((model) => !recentFailedHealth(health.get(model) || null))
     const models = healthFilteredModels.length ? healthFilteredModels : orderedModels
     if (isVerifierCall(effectiveOpts) && candidateModels.length > 0 && models.length === 0) onlySameFamilyModelsExcluded = true
     for (const model of models) {
-      if (skipModelsThisRequest.has(`${provider}:${model}`) || isPersistentModelDead(persistentCooldowns, provider, model)) continue
+      if (skipModelsThisRequest.has(`${provider}:${model}`)) continue
+      if (isPersistentModelDead(persistentCooldowns, provider, model)) {
+        noteNoCandidate(provider, model, 'MODEL_DEAD')
+        continue
+      }
       for (const key of candidateKeys(provider, s)) {
         const keyIndex = Math.max(1, providerKeys(s, provider).indexOf(key) + 1)
         const persistedCooldown = persistentCooldown(persistentCooldowns, provider, keyIndex, model)
-        if (isPersistentNoBalance(persistentCooldowns, provider, keyIndex)) continue
-        if (isCooling(provider, key) || persistedCooldown) {
-          if (persistedCooldown) skippedCooldownUntil = skippedCooldownUntil == null ? persistedCooldown.until : Math.min(skippedCooldownUntil, persistedCooldown.until)
+        if (isPersistentNoBalance(persistentCooldowns, provider, keyIndex)) {
+          noteNoCandidate(provider, model, 'NO_BALANCE')
           continue
         }
-        if (!(await keyRateAllowed(provider, key))) continue
+        if (isCooling(provider, key) || persistedCooldown) {
+          if (persistedCooldown) skippedCooldownUntil = skippedCooldownUntil == null ? persistedCooldown.until : Math.min(skippedCooldownUntil, persistedCooldown.until)
+          noteNoCandidate(provider, model, `COOLDOWN(${new Date((persistedCooldown?.until || Date.now())).toISOString()})`)
+          continue
+        }
+        if (!(await keyRateAllowed(provider, key))) {
+          noteNoCandidate(provider, model, 'REQUEST_FAILED(rate_limit)')
+          continue
+        }
         if (Number.isFinite(effectiveOpts.deadlineMs || NaN) && Date.now() >= Number(effectiveOpts.deadlineMs)) throw deadlineExceeded()
         const started = Date.now()
         try {
@@ -1949,6 +2019,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           attempts.push(attempt)
           recordAttempt(attempt)
           errors.push(`${provider}/${model}/key#${keyIndex}: ${msg}`)
+          noteNoCandidate(provider, model, `REQUEST_FAILED(${status || 'unknown'}, ${msg})`)
           await recordModelStats(provider, model, { ok: false, reason: routerReasonBucket(attempt), ms, jsonOk: effectiveOpts.json ? false : undefined, evidenceOk: e?.code === 'VALIDATION_REJECTED' ? false : undefined }, effectiveOpts.purpose)
           if (isSchemaFailureLike(e)) {
             skipModelsThisRequest.add(`${provider}:${model}`)
@@ -1989,6 +2060,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
 
   logRouterSummary(attempts, false)
   if (Number.isFinite(effectiveOpts.deadlineMs || NaN) && Date.now() >= Number(effectiveOpts.deadlineMs)) throw deadlineExceeded()
+  if (isVerifierCall(effectiveOpts)) await recordQuestionVerifierNoCandidate(verifierNoCandidate)
   if (isVerifierCall(effectiveOpts) && attempts.length === 0 && onlySameFamilyModelsExcluded) throw verifierSameFamilyUnavailable(attempts)
   if (isVerifierCall(effectiveOpts)) throw verifierUnavailable(attempts)
   if (taskLevel === 'ACADEMIC_CRITICAL') {

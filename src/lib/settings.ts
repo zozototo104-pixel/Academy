@@ -141,6 +141,7 @@ export const DEFAULT_SETTINGS: SettingDef[] = [
   { key: 'EXAM_LOW_SKILL_MAX_PERCENT', value: '50', label: 'الحد الأعلى لنسبة أسئلة الحفظ/الفهم قبل نشر الاختبارات', group: 'AI', suffix: '%', inputType: 'number' },
   { key: 'PROGRAM_EXAM_HIGH_SKILL_MIN_PERCENT', value: '20', label: 'الحد الأدنى للتحليل والتقييم في الامتحان الشامل', group: 'AI', suffix: '%', inputType: 'number' },
   { key: 'VOICE_DEFAULT_DIALECT', value: VOICE_DEFAULT_DIALECT, label: 'اللهجة الافتراضية للتعرّف على الصوت', group: 'AI', suffix: '', inputType: 'text' },
+  { key: 'AI_VERIFIER_PREFERRED', value: '', label: 'نماذج مدقق الأسئلة المفضلة', group: 'AI', suffix: '', inputType: 'text', help: 'صيغة: OPENAI:gpt-5.1,ANTHROPIC:claude-sonnet-4-5-20250929' },
 
   // القواعد والمهل الزمنية
   { key: 'AGENT_COMMISSION_RATE', value: '25', label: 'نسبة عمولة الوكيل من إيرادات البرامج', group: 'RULES', suffix: '%', inputType: 'number' },

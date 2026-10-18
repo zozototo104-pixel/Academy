@@ -11,20 +11,32 @@ export async function GET(req: NextRequest) {
     const programId = req.nextUrl.searchParams.get('programId')?.trim()
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
 
-    const exams = await db.programExam.findMany({
-      where: { programId },
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        status: true,
-        errorNote: true,
-        durationMin: true,
-        passScore: true,
-        booksUsed: true,
-        createdAt: true,
-        questions: { select: { type: true, points: true, status: true } },
-      },
-    })
+    const [exams, bankCounts, units] = await Promise.all([
+      db.programExam.findMany({
+        where: { programId },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          status: true,
+          errorNote: true,
+          durationMin: true,
+          passScore: true,
+          booksUsed: true,
+          semester: true,
+          createdAt: true,
+          questions: { select: { type: true, points: true, status: true } },
+        },
+      }),
+      db.questionBankItem.groupBy({ by: ['unitId', 'status'], where: { programId }, _count: { _all: true } }),
+      db.unit.findMany({ where: { programId }, select: { id: true, semester: true } }),
+    ])
+    const unitSemester = new Map(units.map((unit) => [unit.id, unit.semester] as const))
+    const countBankForExam = (semester: number, status: string) => bankCounts.reduce((sum, row) => {
+      if (row.status !== status || !row.unitId) return sum
+      const rowSemester = unitSemester.get(row.unitId)
+      if (!rowSemester) return sum
+      return semester === 3 || rowSemester === semester ? sum + row._count._all : sum
+    }, 0)
 
     const progress = exams.map((exam) => {
       const byType: Record<string, number> = {}
@@ -50,6 +62,8 @@ export async function GET(req: NextRequest) {
         totalPoints,
         pendingReview,
         rejectedCount,
+        bankApproved: countBankForExam(exam.semester, 'APPROVED'),
+        bankPendingReview: countBankForExam(exam.semester, 'PENDING_REVIEW'),
         createdAt: exam.createdAt,
       }
     })
