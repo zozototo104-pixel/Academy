@@ -536,6 +536,7 @@ const tests = [
   testProgramExamAcademicMissingCounts,
   testQuestionBankDocumentationPassesProgramExamPublicationSourceCheck,
   testQuestionBankDocumentationParserAcceptsQuestionsKey,
+  testProgramExamAutoStatusUpdateDoesNotTouchReady,
   testAdminStudentsEnrollmentWhereBuilder,
 ]
 
