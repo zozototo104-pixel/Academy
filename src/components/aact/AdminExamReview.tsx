@@ -284,6 +284,7 @@ export function QuestionReviewDialog({
         remaining = d.remaining
         setAcademicBackfillSourceMessage(Number(d.unsourceable || 0) > 0 ? `${d.unsourceable} سؤال بلا مصدر قابل للربط، أعد سحب الامتحان من البنك` : '')
         setAcademicBackfillMessage(d.done || d.remaining === 0 ? 'اكتمل الاستكمال' : `جارٍ الاستكمال... المتبقي: ${d.remaining}`)
+        if (stagnant >= 2 && !d.done && d.remaining > 0) setAcademicBackfillMessage(`توقف الاستكمال: ${d.unsourceable || 0} سؤال بلا مصدر قابل للربط، و ${d.aiFailed || 0} فشل الذكاء الاصطناعي بتعبئتها`)
         if (d.done || d.remaining === 0 || stagnant >= 2) {
           await load()
           onPublished()
