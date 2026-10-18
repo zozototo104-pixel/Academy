@@ -133,6 +133,7 @@ export async function backfillQuestionBankAcademicFields(programId: string, time
           history: [{ role: 'user', text: JSON.stringify({ questions: needs.map((q) => ({ id: q.id, type: q.type, question: q.text, options: safeJsonArray(q.options), correctAnswer: q.correctAnswer, evidence: q.sourceEvidence })) }) }],
           maxOutputTokens: 3500,
         })
+        for (const item of needs) skippedAiIds.add(item.id)
         const rows = new Map(parseAiRows(raw).map((row) => [row.id, row]))
         for (const item of needs) {
           try {
