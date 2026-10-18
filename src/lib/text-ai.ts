@@ -1036,7 +1036,7 @@ function academicModelRank(model: string): number {
 
 function modelCapabilityAllowed(model: string): boolean {
   const id = model.toLowerCase()
-  if (/image|vision-only|audio|tts|whisper|embed|embedding|moderation|guard|rerank|ocr-only/.test(id)) return false
+  if (/image|vision-only|audio|tts|whisper|orpheus|playai|embed|embedding|moderation|guard|rerank|ocr-only/.test(id)) return false
   return true
 }
 
