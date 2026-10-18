@@ -12,18 +12,6 @@ function cleanText(value: unknown, max = 1000) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
 }
 
-function normalizeQuestionText(value: unknown): string {
-  return String(value || '')
-    .toLowerCase()
-    .replace(/[إأآا]/g, 'ا')
-    .replace(/[ة]/g, 'ه')
-    .replace(/[ىي]/g, 'ي')
-    .replace(/[\u064B-\u065F\u0670]/g, '')
-    .replace(/[^\p{L}\p{N}]+/gu, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
 function safeQuestionCount(value: unknown) {
   return Math.max(5, Math.min(80, Number(value || 30)))
 }
