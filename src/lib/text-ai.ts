@@ -419,7 +419,7 @@ async function markPersistentNoBalance(provider: string, keyIndex: number, reaso
   }
 }
 
-async function markPersistentCooldown(provider: string, keyIndex: number, model: string, reason: string, status?: number, minutes?: number): Promise<void> {
+async function markPersistentCooldown(provider: string, keyIndex: number, model: string | undefined, reason: string, status?: number, minutes?: number): Promise<void> {
   const fallback = Number(env('AI_ROUTER_COOLDOWN_MINUTES')) || 15
   const ttl = Math.max(1, Math.floor(minutes || fallback))
   const until = Date.now() + ttl * 60 * 1000
