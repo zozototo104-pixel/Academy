@@ -339,6 +339,17 @@ export function QuestionReviewDialog({
   }
 
   const pendingCount = questions.filter((q) => q.status === 'PENDING_REVIEW').length
+  const academicMissingCount = questions.filter((q) =>
+    q.status !== 'REJECTED' && (
+      !String(q.sourceEvidence || '').trim() ||
+      !String(q.sourceBookTitle || '').trim() ||
+      !String(q.sourceLocator || '').trim() ||
+      !String(q.cognitiveSkill || '').trim() ||
+      !String(q.difficulty || '').trim() ||
+      !String(q.correctRationale || '').trim() ||
+      ((q.type === 'MCQ' || q.type === 'TF') && !(q.distractorRationales || []).length)
+    ),
+  ).length
   const shown = filter === 'ALL' ? questions : questions.filter((q) => q.status === filter)
 
   return (
