@@ -260,13 +260,14 @@ export async function backfillProgramExamAcademicFields(examId: string, options:
   const activeUntil = Date.parse(activeLock?.value || '')
   if (Number.isFinite(activeUntil) && activeUntil > Date.now()) {
     const remaining = await remainingAcademicBackfillCount(examId)
-    console.info('[program-exam] academic-backfill', { examId, filled: 0, remaining, batchesRun: 0, skipped: 'LOCKED' })
-    return { filled: 0, remaining, skipped: 'LOCKED' as const, batchesRun: 0 }
+    console.info('[program-exam] academic-backfill', { examId, filled: 0, remaining, batchesRun: 0, aiFailed: 0, skipped: 'LOCKED' })
+    return { filled: 0, remaining, skipped: 'LOCKED' as const, batchesRun: 0, aiFailed: 0 }
   }
   const lockUntil = new Date(Date.now() + 4 * 60_000).toISOString()
   await db.setting.upsert({ where: { key: lockKey }, create: { key: lockKey, value: lockUntil }, update: { value: lockUntil } })
   let filled = 0
   let batchesRun = 0
+  let aiFailed = 0
   try {
     filled += await syncProgramExamQuestionsFromBank(examId)
     const maxBatches = Math.max(1, Math.floor(options.maxBatches ?? 2))
