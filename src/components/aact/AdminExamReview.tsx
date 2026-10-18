@@ -313,11 +313,11 @@ export function QuestionReviewDialog({
     if (!(await confirmAction({ title: 'نشر الامتحان للطلاب', description: 'سيتم اعتماد كل الأسئلة المعلّقة ونشر الامتحان للطلاب المتسجلين مع إشعارهم.', confirmLabel: 'نشر الامتحان', tone: 'success' }))) return
     setBusy(true)
     try {
-      const publishRequest = (overrideReason?: string) => api<{ published: number }>('/api/admin/program-exam-questions', {
+      const publishRequest = (overrideReason?: string) => api<{ published: number; exam?: { id: string; status: string; totalPoints?: number | null; durationMin?: number | null } }>('/api/admin/program-exam-questions', {
         method: 'POST',
         body: JSON.stringify({ examId, action: 'APPROVE_ALL', ...(overrideReason ? { overrideCognitivePolicy: true, overrideReason } : {}) }),
       })
-      let d: { published: number } | null = null
+      let d: { published: number; exam?: { id: string; status: string; totalPoints?: number | null; durationMin?: number | null } } | null = null
       try {
         d = await publishRequest()
       } catch (e: any) {
