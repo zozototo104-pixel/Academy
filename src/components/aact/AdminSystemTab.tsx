@@ -89,7 +89,7 @@ interface TextAiModelHealth {
   available: string[]
   excluded: Array<{ key: string; kind: string; reason: string; status?: number | null; until: string }>
   top: Array<{ provider: string; model: string; score: number; success: number; failCount: number; avgMs: number }>
-  health?: Array<{ provider: string; model: string; status: string; purposeScores?: Record<string, number>; health?: { ok: boolean; latencyMs?: number; checkedAt?: string; error?: string } | null }>
+  health?: Array<{ provider: string; model: string; status: string; purposeScores?: Record<string, number>; health?: { ok: boolean; latencyMs?: number; checkedAt?: string; status?: number; error?: string } | null }>
 }
 
 interface BackupInspectResult {
