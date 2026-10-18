@@ -1087,7 +1087,17 @@ function parseModelHealth(raw: unknown): ModelHealth | null {
 function recentFailedHealth(health: ModelHealth | null): boolean {
   if (!health || health.ok) return false
   const checkedAt = Date.parse(String(health.checkedAt || ''))
-  return Number.isFinite(checkedAt) && Date.now() - checkedAt < 30 * 60 * 1000
+  if (!Number.isFinite(checkedAt) || Date.now() - checkedAt >= 30 * 60 * 1000) return false
+  const status = Number(health.status || 0)
+  const error = String(health.error || '').toLowerCase()
+  if (/empty_response|timeout|deadline|provider_timeout|timed out/.test(error)) return false
+  if (status === 401 || status === 403 || status === 404) return true
+  if (status === 400 && /terms|acceptance|does not exist|do not have access|not found|invalid model|model.*not/.test(error)) return true
+  return /dead model|does not exist|do not have access|not found|model_not_found|invalid model/.test(error)
+}
+
+export function __testRecentFailedHealthSkipForTests(health: ModelHealth | null): boolean {
+  return recentFailedHealth(health)
 }
 
 export function __testApplyRecentFailedHealthSkip(models: string[], failedModels: string[]): string[] {
