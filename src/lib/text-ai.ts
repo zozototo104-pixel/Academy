@@ -1019,7 +1019,7 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<
 function academicModelAllowed(provider: ConcreteProvider, model: string): boolean {
   const id = model.toLowerCase()
   if (!id || /(^|\/|-)auto$/i.test(id) || id === 'auto') return false
-  if (/dall-e|image|embedding|rerank|whisper|tts|stt|audio|moderation/.test(id)) return false
+  if (/dall-e|image|embedding|rerank|whisper|tts|orpheus|playai|stt|audio|moderation/.test(id)) return false
   if (/\b(?:7b|8b|9b|11b|13b|14b|20b|22b|24b|27b)\b/i.test(id)) return false
   if (/gpt-3\.5/.test(id)) return false
   if (provider === 'TOPTOOLS' && topToolsModelRank(model) > 2) return false
