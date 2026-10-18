@@ -462,6 +462,8 @@ const tests = [
   testBookReplacementProtectedWhenUnitsLinked,
   testQuestionBankPatchValidatesCorrectAnswer,
   testQuestionBankRetryAtNotBeyondOneHour,
+  testProgramExamCopiesAcademicSourceFields,
+  testProgramExamBackfillDoesNotTouchQuestionTextOrAnswer,
 ]
 
 for (const test of tests) {
