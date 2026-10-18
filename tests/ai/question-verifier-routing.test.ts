@@ -30,7 +30,7 @@ describe('question verifier preferred routing', () => {
 
   test('empty preferred verifier setting does not change fallback behavior', () => {
     const preferred = parseProviderModelList('')
-    const fallback = parseProviderModelList('GOOGLE:gemini-2.5-pro,OPENAI:gpt-5.1')
+    const fallback = parseProviderModelList('GEMINI:gemini-2.5-pro,OPENAI:gpt-5.1')
     const plan = __testQuestionVerifierCandidatePlan({ preferred, fallback })
 
     expect(plan.ordered).toEqual(fallback)
