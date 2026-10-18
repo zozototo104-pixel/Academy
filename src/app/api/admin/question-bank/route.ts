@@ -217,7 +217,8 @@ export async function GET(req: NextRequest) {
     const paused = pauseSetting?.value ? safeJson(pauseSetting.value, null) : null
     const progress = await withTiming('db_question_bank_progress', () => getAiGenerationProgress('QUESTION_BANK', programId, 'ALL'))
     const jobs = await withTiming('db_question_bank_jobs', () => db.questionBankGenerationJob.findMany({ where: { programId }, orderBy: { createdAt: 'desc' }, take: 5 }))
-    return NextResponse.json({ program, stats: await questionStats(programId), items: await listQuestions(programId, status), paused, progress, jobs })
+    const listed = await listQuestions(programId, status)
+    return NextResponse.json({ program, stats: await questionStats(programId), ...listed, paused, progress, jobs })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('question bank GET error:', e)
