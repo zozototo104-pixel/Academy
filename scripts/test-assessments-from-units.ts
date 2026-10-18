@@ -4,7 +4,7 @@ import { canPublishUnitExamFromQuestions, selectUnitExamQuestionsApprovedFirst }
 import { assertGeneratedBatchHasAcceptedCandidates, hasSourceGroundedFlag, nextQuestionBankRetryAt, planQuestionBankJobManualReactivation, planQuestionBankSourceWindow, prepareMcqOptionsForStorage } from '../src/lib/question-bank-job'
 import { parseGeneratedQuestionCandidates } from '../src/lib/question-bank-generation'
 import { __testAcademicBackfillDataForTests, __testProgramQuestionAcademicCopyForTests, __testQualifiedQuestionBankItemForProgramExamForTests } from '../src/lib/program-exam-assembly'
-import { validateProgramExamPublicationReadiness } from '../src/lib/program-exam-publication-readiness'
+import { calculateProgramExamAcademicMissingCounts, validateProgramExamPublicationReadiness } from '../src/lib/program-exam-publication-readiness'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
