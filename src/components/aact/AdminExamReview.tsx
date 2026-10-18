@@ -126,12 +126,6 @@ export function QuestionReviewDialog({
     window.setTimeout(() => { if (dialogContentRef.current) dialogContentRef.current.scrollTop = 0 }, 50)
   }, [toast])
 
-  useEffect(() => {
-    if (!open || !initialCognitiveOverride) return
-    const timer = window.setTimeout(() => showCognitiveOverride(initialCognitiveOverride.message, initialCognitiveOverride.details || []), 0)
-    return () => window.clearTimeout(timer)
-  }, [open, initialCognitiveOverride, showCognitiveOverride])
-
   const startEdit = (q: ReviewQuestion) => {
     const options = q.options || (q.type === 'TF' ? ['صح', 'خطأ'] : ['', '', '', ''])
     const correctAnswer = q.correctAnswer || '0'
