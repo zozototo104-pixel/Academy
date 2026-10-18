@@ -196,6 +196,42 @@ describe('AI D2 behavior', () => {
     expect(calls.filter((call) => call.startsWith('unit.question.create:')).length).toBe(5)
   })
 
+  test('router keeps per-model 429 cooldown scoped to the model when message names it', () => {
+    const decision = textAiRouter.__testRateLimitCooldownDecision({
+      provider: 'UNOROUTER',
+      key: 'k1',
+      model: 'qwen-sea-lion-v4-32b-it:free',
+      message: 'Too many requests. The free tier allows 1 request(s) every 1 min per account on qwen-sea-lion-v4-32b-it:free - retry in 60s.',
+      status: 429,
+    })
+    expect(decision).toEqual({ scope: 'model', escalates: false })
+  })
+
+  test('router keeps Gemini model quota isolated from other Gemini models', () => {
+    const decision = textAiRouter.__testRateLimitCooldownDecision({
+      provider: 'GEMINI',
+      key: 'gemini-key',
+      model: 'gemini-3.5-flash-lite',
+      message: 'Resource exhausted: quota exceeded on gemini-3.5-flash-lite per minute.',
+      status: 429,
+    })
+    expect(decision.scope).toBe('model')
+    expect(decision.escalates).toBe(false)
+    expect(textAiRouter.classifyRateLimitScope('gemini-3.8-flash', 'Resource exhausted: quota exceeded on gemini-3.5-flash-lite per minute.', 429)).toBe('model')
+  })
+
+  test('router treats free-models-per-day and insufficient_quota as key-wide limits', () => {
+    expect(textAiRouter.__testRateLimitCooldownDecision({ provider: 'OPENROUTER', key: 'k1', model: 'poolside/laguna-xs-2.1:free', message: 'Rate limit exceeded: free-models-per-day. Add 10 credits.', status: 429 })).toEqual({ scope: 'key', escalates: false })
+    expect(textAiRouter.__testRateLimitCooldownDecision({ provider: 'OPENAI', key: 'k1', model: 'gpt-5.1', message: 'insufficient_quota: please check your billing details', status: 429 })).toEqual({ scope: 'key', escalates: false })
+  })
+
+  test('router escalates two different model 429s on the same key within a minute', () => {
+    const first = textAiRouter.__testRateLimitCooldownDecision({ provider: 'UNOROUTER', key: 'k1', model: 'model-a:free', message: 'Too many requests on model-a:free, retry in 60s', status: 429 })
+    const second = textAiRouter.__testRateLimitCooldownDecision({ provider: 'UNOROUTER', key: 'k1', model: 'model-b:free', message: 'Too many requests on model-b:free, retry in 60s', status: 429 })
+    expect(first).toEqual({ scope: 'model', escalates: false })
+    expect(second).toEqual({ scope: 'model', escalates: true })
+  })
+
   test('all-rote comprehensive exam returns 409 without override and override with reason passes with audit', async () => {
     const rejected = await programExamQuestionsRoute.POST(new NextRequest('https://academy.test/api/admin/program-exam-questions', {
       method: 'POST',
