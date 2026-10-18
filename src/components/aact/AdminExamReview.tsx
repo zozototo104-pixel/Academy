@@ -95,15 +95,17 @@ export function QuestionReviewDialog({
   const [academicBackfillMessage, setAcademicBackfillMessage] = useState('')
   const [academicBackfillSourceMessage, setAcademicBackfillSourceMessage] = useState('')
   const [filter, setFilter] = useState<'ALL' | 'PENDING_REVIEW' | 'PUBLISHED' | 'REJECTED'>('ALL')
-  const [cognitiveOverrideDialog, setCognitiveOverrideDialog] = useState<null | { message: string; details: string[]; reason: string }>(null)
-  const cognitiveOverrideResolveRef = useRef<((reason: string | null) => void) | null>(null)
+  const [examGeneratedBy, setExamGeneratedBy] = useState<string | null>(null)
+  const [cognitiveOverride, setCognitiveOverride] = useState<null | { message: string; details: string[]; reason: string }>(null)
+  const cognitiveOverrideRef = useRef<HTMLDivElement | null>(null)
   const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
 
   const load = useCallback(async () => {
     if (!examId) return
     setLoading(true)
     try {
-      const d = await api<{ questions: ReviewQuestion[] }>(`/api/admin/program-exam-questions?examId=${examId}`)
+      const d = await api<{ exam?: { generatedBy?: string | null }; questions: ReviewQuestion[] }>(`/api/admin/program-exam-questions?examId=${examId}`)
+      setExamGeneratedBy(d.exam?.generatedBy || null)
       setQuestions(d.questions)
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
@@ -116,17 +118,9 @@ export function QuestionReviewDialog({
     if (open) load()
   }, [open, load])
 
-  const askCognitiveOverride = useCallback((message: string, details: string[]) => {
-    return new Promise<string | null>((resolve) => {
-      cognitiveOverrideResolveRef.current = resolve
-      setCognitiveOverrideDialog({ message, details, reason: '' })
-    })
-  }, [])
-
-  const closeCognitiveOverride = (reason: string | null) => {
-    cognitiveOverrideResolveRef.current?.(reason)
-    cognitiveOverrideResolveRef.current = null
-    setCognitiveOverrideDialog(null)
+  const showCognitiveOverride = (message: string, details: string[]) => {
+    setCognitiveOverride((prev) => ({ message, details, reason: prev?.reason || '' }))
+    window.setTimeout(() => cognitiveOverrideRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50)
   }
 
   const startEdit = (q: ReviewQuestion) => {
@@ -302,8 +296,8 @@ export function QuestionReviewDialog({
     }
   }
 
-  const publish = async () => {
-    if (questions.length < FULL_EXAM_TARGET) {
+  const publish = async (overrideReason?: string) => {
+    if (examGeneratedBy !== 'QUESTION_BANK' && questions.length < FULL_EXAM_TARGET) {
       toast({
         title: 'الامتحان غير مكتمل',
         description: `لا يمكن النشر الآن: الموجود ${questions.length} من ${FULL_EXAM_TARGET} سؤال. استخدم استكمال التوليد أو إعادة البناء أولاً.`,
@@ -311,32 +305,25 @@ export function QuestionReviewDialog({
       })
       return
     }
-    if (!(await confirmAction({ title: 'نشر الامتحان للطلاب', description: 'سيتم اعتماد كل الأسئلة المعلّقة ونشر الامتحان للطلاب المتسجلين مع إشعارهم.', confirmLabel: 'نشر الامتحان', tone: 'success' }))) return
+    if (!overrideReason && !(await confirmAction({ title: 'نشر الامتحان للطلاب', description: 'سيتم اعتماد كل الأسئلة المعلّقة ونشر الامتحان للطلاب المتسجلين مع إشعارهم.', confirmLabel: 'نشر الامتحان', tone: 'success' }))) return
     setBusy(true)
     try {
-      const publishRequest = (overrideReason?: string) => api<{ published: number; exam?: { id: string; status: string; totalPoints?: number | null; durationMin?: number | null } }>('/api/admin/program-exam-questions', {
+      const d = await api<{ published: number; exam?: { id: string; status: string; totalPoints?: number | null; durationMin?: number | null } }>('/api/admin/program-exam-questions', {
         method: 'POST',
         body: JSON.stringify({ examId, action: 'APPROVE_ALL', ...(overrideReason ? { overrideCognitivePolicy: true, overrideReason } : {}) }),
       })
-      let d: { published: number; exam?: { id: string; status: string; totalPoints?: number | null; durationMin?: number | null } } | null = null
-      try {
-        d = await publishRequest()
-      } catch (e: any) {
-        const code = e?.code || e?.data?.code
-        if (e?.status === 409 && code === 'COGNITIVE_DISTRIBUTION_FAILED') {
-          const details = Array.isArray(e?.data?.details) ? e.data.details : []
-          const reason = await askCognitiveOverride(e.message || 'توزيع المستويات المعرفية غير مناسب للنشر.', details)
-          if (!reason || reason.trim().length < 8) throw new Error('يجب كتابة سبب واضح لتجاوز توزيع المهارات المعرفية.')
-          d = await publishRequest(reason.trim())
-        } else {
-          throw e
-        }
-      }
       if (!d) throw new Error('لم يكتمل نشر الامتحان')
+      setCognitiveOverride(null)
       toast({ title: 'نُشر الامتحان', description: `${d.published} سؤالاً معتمداً — وصل إشعار للطلاب المتسجلين` })
       await onPublished(d.exam)
       onClose()
     } catch (e: any) {
+      const code = e?.code || e?.data?.code
+      if (e?.status === 409 && code === 'COGNITIVE_DISTRIBUTION_FAILED') {
+        const details = Array.isArray(e?.data?.details) ? e.data.details : []
+        showCognitiveOverride(e.message || 'توزيع المستويات المعرفية غير مناسب للنشر.', details)
+        return
+      }
       const details = Array.isArray(e?.data?.details) ? `\n${e.data.details.join('\n')}` : ''
       toast({ title: 'خطأ', description: `${e.message}${details}`.slice(0, 900), variant: 'destructive' })
     } finally {
@@ -619,34 +606,30 @@ export function QuestionReviewDialog({
               <p className="text-[10px] font-bold text-slate-500">
                 المعتمد: {questions.filter((q) => q.status === 'PUBLISHED').length} من {questions.length} — النشر يتطلب 80 سؤالاً موثقاً ومتنوعاً مع مهارة وصعوبة وتعليلات
               </p>
-              <Button onClick={publish} disabled={busy} className="bg-emerald-600 font-extrabold text-white hover:bg-emerald-700">
+              <Button onClick={() => publish()} disabled={busy} className="bg-emerald-600 font-extrabold text-white hover:bg-emerald-700">
                 {busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="ml-2 h-4 w-4" />}
                 اعتماد المعلّق ونشر الامتحان للطلاب
               </Button>
             </div>
-          </>
-        )}
-        <Dialog open={!!cognitiveOverrideDialog} onOpenChange={(v) => { if (!v) closeCognitiveOverride(null) }}>
-          <DialogContent className="max-w-xl" dir="rtl">
-            {cognitiveOverrideDialog && (
-              <div className="space-y-4">
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2 font-black text-[#0f2b46]"><AlertTriangle className="h-5 w-5 text-amber-500" />تجاوز توزيع المهارات المعرفية</DialogTitle>
-                  <DialogDescription className="text-sm font-bold leading-7 text-slate-600">{cognitiveOverrideDialog.message}</DialogDescription>
-                </DialogHeader>
-                {cognitiveOverrideDialog.details.length > 0 && <div className="rounded-xl bg-amber-50 p-3 text-xs font-bold leading-6 text-amber-800">{cognitiveOverrideDialog.details.map((detail, index) => <p key={index}>• {detail}</p>)}</div>}
+            {cognitiveOverride && (
+              <div ref={cognitiveOverrideRef} className="mt-3 space-y-4 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                <div>
+                  <h3 className="flex items-center gap-2 font-black text-[#0f2b46]"><AlertTriangle className="h-5 w-5 text-amber-500" />تجاوز توزيع المهارات المعرفية</h3>
+                  <p className="mt-1 text-sm font-bold leading-7 text-slate-600">{cognitiveOverride.message}</p>
+                </div>
+                {cognitiveOverride.details.length > 0 && <div className="rounded-xl bg-white/70 p-3 text-xs font-bold leading-6 text-amber-800">{cognitiveOverride.details.map((detail, index) => <p key={index}>• {detail}</p>)}</div>}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-black text-slate-700">سبب التجاوز الإداري</Label>
-                  <Textarea value={cognitiveOverrideDialog.reason} onChange={(e) => setCognitiveOverrideDialog((prev) => prev ? { ...prev, reason: e.target.value } : prev)} className="min-h-24 text-xs" placeholder="اكتب سبباً واضحاً لا يقل عن 8 أحرف..." />
+                  <Textarea value={cognitiveOverride.reason} onChange={(e) => setCognitiveOverride((prev) => prev ? { ...prev, reason: e.target.value } : prev)} className="min-h-24 text-xs" placeholder="اكتب سبباً واضحاً لا يقل عن 8 أحرف..." />
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row">
-                  <Button variant="outline" onClick={() => closeCognitiveOverride(null)} className="flex-1 font-black">إلغاء</Button>
-                  <Button onClick={() => closeCognitiveOverride(cognitiveOverrideDialog.reason.trim())} disabled={cognitiveOverrideDialog.reason.trim().length < 8} className="flex-1 bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">تجاوز وتسجيل السبب</Button>
+                  <Button variant="outline" onClick={() => setCognitiveOverride(null)} className="flex-1 font-black">إلغاء</Button>
+                  <Button onClick={() => publish(cognitiveOverride.reason.trim())} disabled={busy || cognitiveOverride.reason.trim().length < 8} className="flex-1 bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">تأكيد التجاوز والنشر</Button>
                 </div>
               </div>
             )}
-          </DialogContent>
-        </Dialog>
+          </>
+        )}
       </DialogContent>
     </Dialog>
     {actionDialog}

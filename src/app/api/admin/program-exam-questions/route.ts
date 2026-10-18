@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
     if (!exam) return NextResponse.json({ error: 'الاختبار غير موجود' }, { status: 404 })
 
     return NextResponse.json({
-      exam: { id: exam.id, title: exam.title, status: exam.status, semester: exam.semester },
+      exam: { id: exam.id, title: exam.title, status: exam.status, semester: exam.semester, generatedBy: exam.generatedBy },
       questions: exam.questions.map((q) => ({
         id: q.id,
         order: q.order,

@@ -1788,14 +1788,15 @@ export function AdminBooksTab() {
         ESSAY: Number(bankExamForm.essay || 10),
       },
     }
-    const createExam = (replaceExistingReview = false) => api('/api/admin/program-exams/from-question-bank', { method: 'POST', body: JSON.stringify({ ...payloadBase, replaceExistingReview }) })
+    const createExam = (replaceExistingReview = false) => api<{ cognitiveWarning?: { lowPercent: number; highPercent: number } | null }>('/api/admin/program-exams/from-question-bank', { method: 'POST', body: JSON.stringify({ ...payloadBase, replaceExistingReview }) })
     setQuestionBankBusy(`exam-${semester}`)
     try {
+      let created: { cognitiveWarning?: { lowPercent: number; highPercent: number } | null } | null = null
       try {
-        await createExam(false)
+        created = await createExam(false)
       } catch (e: any) {
         if (String(e?.message || '').includes('بانتظار المراجعة') && await askAdminConfirm({ title: 'استبدال اختبار قيد المراجعة', description: 'يوجد امتحان بانتظار المراجعة لهذا الفصل. هل تريد استبداله وإنشاء نسخة جديدة من بنك الأسئلة؟', confirmLabel: 'استبدال الاختبار', danger: true })) {
-          await createExam(true)
+          created = await createExam(true)
         } else {
           throw e
         }
@@ -1803,7 +1804,8 @@ export function AdminBooksTab() {
       setBankExamDialogOpen(false)
       setWorkspaceTab('exams')
       await loadProgramData(programId, true)
-      toast({ title: 'تم إنشاء امتحان من بنك الأسئلة', description: 'الامتحان الآن بانتظار المراجعة قبل النشر.' })
+      if (created?.cognitiveWarning) toast({ title: 'تنبيه توزيع المهارات', description: `البنك لا يحتوي أسئلة تحليل/تقييم كافية. نسبة الحفظ/الفهم ${created.cognitiveWarning.lowPercent}% ونسبة التحليل/التقييم ${created.cognitiveWarning.highPercent}%. أضف أسئلة تحليل وتقييم للبنك أو ستحتاج سبب تجاوز عند النشر.`, duration: 12000 })
+      else toast({ title: 'تم إنشاء امتحان من بنك الأسئلة', description: 'الامتحان الآن بانتظار المراجعة قبل النشر.' })
     } catch (e: any) {
       toast({ title: 'تعذر إنشاء امتحان من البنك', description: e.message, variant: 'destructive' })
     } finally {
