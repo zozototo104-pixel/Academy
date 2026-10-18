@@ -93,6 +93,7 @@ export function QuestionReviewDialog({
   const [draft, setDraft] = useState<QuestionDraft | null>(null)
   const [busy, setBusy] = useState(false)
   const [academicBackfillMessage, setAcademicBackfillMessage] = useState('')
+  const [academicBackfillSourceMessage, setAcademicBackfillSourceMessage] = useState('')
   const [filter, setFilter] = useState<'ALL' | 'PENDING_REVIEW' | 'PUBLISHED' | 'REJECTED'>('ALL')
   const [cognitiveOverrideDialog, setCognitiveOverrideDialog] = useState<null | { message: string; details: string[]; reason: string }>(null)
   const cognitiveOverrideResolveRef = useRef<((reason: string | null) => void) | null>(null)
