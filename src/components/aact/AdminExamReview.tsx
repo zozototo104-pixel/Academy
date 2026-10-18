@@ -100,7 +100,7 @@ export function QuestionReviewDialog({
   const [examGeneratedBy, setExamGeneratedBy] = useState<string | null>(null)
   const [cognitiveOverride, setCognitiveOverride] = useState<null | { message: string; details: string[]; reason: string }>(() => initialCognitiveOverride ? { message: initialCognitiveOverride.message, details: initialCognitiveOverride.details || [], reason: '' } : null)
   const dialogContentRef = useRef<HTMLDivElement | null>(null)
-  const { confirmAction, promptAction, dialog: actionDialog } = useAdminActionDialog()
+  const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
 
   const load = useCallback(async () => {
     if (!examId) return
@@ -308,7 +308,6 @@ export function QuestionReviewDialog({
       })
       return
     }
-    if (!overrideReason && !(await confirmAction({ title: 'نشر الامتحان للطلاب', description: 'سيتم اعتماد كل الأسئلة المعلّقة ونشر الامتحان للطلاب المتسجلين مع إشعارهم.', confirmLabel: 'نشر الامتحان', tone: 'success' }))) return
     setBusy(true)
     try {
       const d = await api<{ published: number; exam?: { id: string; status: string; totalPoints?: number | null; durationMin?: number | null } }>('/api/admin/program-exam-questions', {
@@ -327,18 +326,6 @@ export function QuestionReviewDialog({
         const details = Array.isArray(e?.data?.details) ? e.data.details : []
         const message = e.message || 'توزيع المستويات المعرفية غير مناسب للنشر.'
         showCognitiveOverride(message, details)
-        const reason = await promptAction({
-          title: 'مطلوب سبب تجاوز',
-          description: `${message}${details.length ? `\n${details.map((detail: string) => `• ${detail}`).join('\n')}` : ''}`,
-          fieldLabel: 'سبب التجاوز الإداري',
-          placeholder: 'اكتب سبباً واضحاً لا يقل عن 8 أحرف...',
-          multiline: true,
-          required: true,
-          minLength: 8,
-          confirmLabel: 'تأكيد التجاوز والنشر',
-          tone: 'warning',
-        })
-        if (reason && reason.trim().length >= 8) await publish(reason.trim())
         return
       }
       const details = Array.isArray(e?.data?.details) ? `\n${e.data.details.join('\n')}` : ''
