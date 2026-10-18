@@ -321,6 +321,8 @@ export async function advanceProgramExamFromVerifiedBank(examId: string, options
     return { questionCount, inserted: taken.length, done: complete, status, byType, byUnit }
   }, { maxWait: 15_000, timeout: 20_000 })
 
+  await backfillProgramExamAcademicFields(examId)
+
   let jobId: string | null = null
   let errorNote: string | null = null
   if (!result.done && result.status === 'GENERATING') {
