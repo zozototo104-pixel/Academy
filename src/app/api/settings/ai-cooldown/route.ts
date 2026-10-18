@@ -13,12 +13,13 @@ export async function POST(req: NextRequest) {
     const provider = String(body.provider || '').trim().toUpperCase()
     if (!PROVIDERS.has(provider)) return NextResponse.json({ error: 'مزود غير معروف' }, { status: 400 })
 
-    const [cooldown, noBalance] = await Promise.all([
+    const [cooldown, noBalance, modelDead] = await Promise.all([
       db.setting.deleteMany({ where: { key: { startsWith: `AI_COOLDOWN:${provider}:` } } }),
       db.setting.deleteMany({ where: { key: { startsWith: `AI_NO_BALANCE:${provider}:` } } }),
+      db.setting.deleteMany({ where: { key: { startsWith: `AI_MODEL_DEAD:${provider}:` } } }),
     ])
-    const count = (cooldown.count || 0) + (noBalance.count || 0)
-    await audit(user, 'CLEAR_AI_PROVIDER_COOLDOWN', 'Setting', null, `${provider} — deleted ${count} AI_COOLDOWN/AI_NO_BALANCE entries`)
+    const count = (cooldown.count || 0) + (noBalance.count || 0) + (modelDead.count || 0)
+    await audit(user, 'CLEAR_AI_PROVIDER_COOLDOWN', 'Setting', null, `${provider} — deleted ${count} AI_COOLDOWN/AI_NO_BALANCE/AI_MODEL_DEAD entries`)
     return NextResponse.json({ ok: true, provider, count })
   } catch (error) {
     console.error('clear ai provider cooldown error:', error)
