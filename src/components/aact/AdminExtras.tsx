@@ -2586,6 +2586,13 @@ export function AdminSettingsTab() {
             </h3>
             {g.note && <p className="mb-4 text-xs font-bold leading-6 text-slate-500">{g.note}</p>}
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {g.key === 'AI' && <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
+                <Label className="text-[11px] font-bold leading-snug text-slate-600">مسح تبريد مزود الذكاء</Label>
+                <div className="mt-2 flex gap-2">
+                  <Select value={aiCooldownProvider} onValueChange={setAiCooldownProvider}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{['OPENAI', 'ANTHROPIC', 'GOOGLE', 'DEEPSEEK', 'OPENROUTER', 'OPENAI_COMPAT', 'TOPTOOLS'].map((provider) => <SelectItem key={provider} value={provider}>{provider}</SelectItem>)}</SelectContent></Select>
+                  <Button type="button" variant="outline" disabled={aiCooldownBusy} onClick={clearAiCooldown} className="font-black">{aiCooldownBusy ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="ml-1 h-3.5 w-3.5" />} مسح</Button>
+                </div>
+              </div>}
               {defs.filter((d) => d.group === g.key).map((d) => {
                 const inputType = d.inputType || 'number'
                 const wide = inputType === 'textarea' || inputType === 'json'
