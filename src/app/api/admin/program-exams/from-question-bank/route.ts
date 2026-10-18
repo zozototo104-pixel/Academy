@@ -82,6 +82,17 @@ function pointsForType(type: string) {
   return 2
 }
 
+function withQuestionBankItemFlag(value: string | null | undefined, id: string) {
+  const flag = `QUESTION_BANK_ITEM_ID:${id}`
+  try {
+    const parsed: unknown = JSON.parse(value || '[]')
+    const arr = Array.isArray(parsed) ? parsed.map(String) : []
+    return JSON.stringify(Array.from(new Set([...arr, flag])))
+  } catch {
+    return JSON.stringify([flag])
+  }
+}
+
 // POST /api/admin/program-exams/from-question-bank
 // ينشئ امتحاناً جديداً من الأسئلة المعتمدة في بنك الأسئلة المركزي لنفس البرنامج فقط.
 export async function POST(req: NextRequest) {
