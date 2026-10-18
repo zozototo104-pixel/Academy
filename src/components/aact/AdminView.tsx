@@ -724,7 +724,7 @@ export function AdminView() {
   const studyAdmissions = activeTab === 'service-requests' ? [] : admissions
   const serviceRequests = activeTab === 'service-requests' ? admissions : []
   const visibleAdmissionRows = admissions
-  const academicStudents = students.filter((s) => s.rowKind === 'INCOMPLETE_ADMISSION' || (s.enrollments?.length || 0) > 0)
+  const academicStudents = students.filter((s) => studentStatusFilter === 'REGISTERED_ONLY' || s.rowKind === 'INCOMPLETE_ADMISSION' || (s.enrollments?.length || 0) > 0)
   const filteredAdmissionRows = admissions
   const pagedAdmissionRows = admissions
   const currentAdmissionPage = admissionPage
