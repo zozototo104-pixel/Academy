@@ -512,6 +512,7 @@ const tests = [
   testProgramExamTfWithoutDistractorRationalesStillQualified,
   testSyncedProgramExamQuestionPassesPublicationSourceCheck,
   testProgramExamAcademicMissingCounts,
+  testQuestionBankDocumentationPassesProgramExamPublicationSourceCheck,
 ]
 
 for (const test of tests) {
