@@ -2114,8 +2114,19 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
             if (status === 503 || status === 504) await markPersistentCooldown(provider, keyIndex, model, msg, status, 2)
           }
           if (isQuotaLike(e)) {
-            markCooldown(provider, key, msg, undefined, status)
-            await markPersistentCooldown(provider, keyIndex, model, msg, status)
+            const scope = classifyRateLimitScope(model, msg, status)
+            const minutes = rateLimitCooldownMinutes(e, msg)
+            if (scope === 'key') {
+              markCooldown(provider, key, msg, undefined, status)
+              await markPersistentCooldown(provider, keyIndex, undefined, msg, status)
+            } else {
+              markModelCooldown(provider, key, model, msg, minutes, status)
+              await markPersistentCooldown(provider, keyIndex, model, msg, status, minutes)
+              if (shouldEscalateModelRateLimit(provider, key, model)) {
+                markCooldown(provider, key, msg, undefined, status)
+                await markPersistentCooldown(provider, keyIndex, undefined, msg, status)
+              }
+            }
           }
           if (isAuthLike(e)) {
             markCooldown(provider, key, msg, 60, status)
