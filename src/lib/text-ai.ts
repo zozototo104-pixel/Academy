@@ -1899,7 +1899,9 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
       if (paidAvailable == null) paidAvailable = await paidBudgetAvailable(s, estimatedPaidCost)
       if (!paidAvailable) continue
     }
-    const candidateModels = await modelFallbacks(s, provider, taskLevel, exploreModels, effectiveOpts.purpose)
+    const providerPreferredModels = (effectiveOpts.preferredModels || []).filter((item) => item.provider === provider).map((item) => item.model)
+    const fallbackModels = await modelFallbacks(s, provider, taskLevel, exploreModels, effectiveOpts.purpose)
+    const candidateModels = [...new Set([...providerPreferredModels, ...fallbackModels])]
     const baseModels = candidateModels
       .filter((model) => modelFamilyAllowed(model, excludedFamilies))
       .filter((model) => modelSupportsVisionAttachment(provider, model, modelCapabilitiesFor(provider, s, model), attachments))
