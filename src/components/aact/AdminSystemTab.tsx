@@ -1160,7 +1160,7 @@ export function AdminSystemTab() {
                       <p className="mb-1 font-black">فحوص الصحة والغرض</p>
                       {textModelHealth.health.slice(0, 10).map((item) => (
                         <div key={`${item.provider}:${item.model}`} className="flex items-center justify-between gap-2 text-[10px]">
-                          <span dir="ltr" className="truncate">{item.provider}/{item.model} — {item.status} — {item.health?.latencyMs ? `${Math.round(item.health.latencyMs)}ms` : 'no-check'} — {Object.entries(item.purposeScores || {}).map(([p, s]) => `${p}:${Number(s).toFixed(2)}`).join(' ')}</span>
+                          <span dir="ltr" className="truncate">{item.provider}/{item.model} — {item.status} — {item.health?.latencyMs ? `${Math.round(item.health.latencyMs)}ms` : 'no-check'} — {Object.entries(item.purposeScores || {}).map(([p, s]) => `${p}:${Number(s).toFixed(2)}`).join(' ')}{item.health && item.health.ok === false ? ` — ${item.health.status || 'ERR'} ${String(item.health.error || '').slice(0, 120)}` : ''}</span>
                           <div className="flex shrink-0 gap-1">
                             <Button type="button" size="sm" variant="outline" disabled={textModelHealthLoading} onClick={() => addAcademicAllowlistModel(item.provider, item.model)} className="h-6 px-2 text-[10px]">أضف للمهام الحساسة</Button>
                             <Button type="button" size="sm" variant="outline" disabled={textModelHealthLoading} onClick={() => toggleAiModel(item.provider, item.model)} className="h-6 px-2 text-[10px]">{item.status === 'ميت' ? 'تفعيل' : 'تعطيل'}</Button>
