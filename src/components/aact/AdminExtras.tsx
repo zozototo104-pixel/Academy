@@ -2845,6 +2845,7 @@ const ACTION_L: Record<string, string> = {
   SUBMIT_THESIS: 'تسليم بحث', UPDATE_SETTINGS: 'تحديث الرسوم/الإعدادات',
   CREATE_ADMIN_ACCOUNT: 'إنشاء حساب إدارة', UPDATE_ADMIN_ACCOUNT: 'تحديث حساب إدارة',
   DISABLE_ADMIN_ACCOUNT: 'تعطيل حساب إدارة',
+  CLEAR_AI_PROVIDER_COOLDOWN: 'مسح تبريد مزود ذكاء',
   ADD_REVENUE_SHARE: 'تسجيل مستحق وكيل', MARK_SHARE_PAID: 'تأكيد تحويل مستحقات',
   RESOLVE_MESSAGE: 'معالجة رسالة',
   GENERATE_CURRICULUM_UNITS: 'اقتراح وحدات المنهج من الكتب',
