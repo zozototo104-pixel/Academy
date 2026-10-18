@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { getServiceFlow } from '@/lib/service-flows'
+import { OPEN_ENROLLMENT_STATUSES } from '@/lib/enrollment-status'
 
 // GET /api/admin/stats — إحصائيات لوحة الإدارة
 export async function GET() {
@@ -10,7 +11,7 @@ export async function GET() {
 
     const [totalStudents, totalEnrollments, totalAttempts, totalChats, pendingAgents, pendingAdmissionApps, incompleteAdmissionApps, serviceDeliveryApps, passedAttempts, recentAttempts, programCounts] =
       await Promise.all([
-        db.user.count({ where: { role: 'STUDENT', enrollments: { some: {} } } }),
+        db.user.count({ where: { role: 'STUDENT', enrollments: { some: { status: { in: [...OPEN_ENROLLMENT_STATUSES] } } } } }),
         db.enrollment.count(),
         db.examAttempt.count(),
         db.chatMessage.count({ where: { role: 'user' } }),

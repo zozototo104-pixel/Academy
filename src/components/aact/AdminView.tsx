@@ -1806,6 +1806,7 @@ export function AdminView() {
                 onStatusChange={(v) => { setStudentStatusFilter(v); setStudentPage(1) }}
                 statusOptions={[
                   { value: 'ALL', label: 'كل الطلاب' },
+                  { value: 'REGISTERED_ONLY', label: 'مسجّلون بلا برنامج مفتوح' },
                   { value: 'INCOMPLETE_ADMISSIONS', label: 'طلبات غير مستكملة' },
                   { value: 'ACTIVE', label: 'تسجيل نشط' },
                   { value: 'COMPLETED', label: 'مكتمل' },

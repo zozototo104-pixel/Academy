@@ -6,6 +6,7 @@ import { parseGeneratedQuestionCandidates } from '../src/lib/question-bank-gener
 import { __testAcademicBackfillDataForTests, __testProgramQuestionAcademicCopyForTests, __testQualifiedQuestionBankItemForProgramExamForTests } from '../src/lib/program-exam-assembly'
 import { calculateProgramExamAcademicMissingCounts, validateProgramExamPublicationReadiness } from '../src/lib/program-exam-publication-readiness'
 import { __testDocumentedBankQuestionForPublicationForTests } from '../src/lib/question-bank-documentation'
+import { buildAdminStudentsEnrollmentRelationFilter, OPEN_ENROLLMENT_STATUSES } from '../src/lib/enrollment-status'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
@@ -466,6 +467,15 @@ function testQuestionBankDocumentationPassesProgramExamPublicationSourceCheck() 
   assert(!errors.some((error) => error.includes('مصدر أكاديمي')), 'سؤال بنك فيه knowledgeItemId فقط بعد تعبئة التوثيق يجب أن يمر شرط المصدر الأكاديمي')
 }
 
+function testAdminStudentsEnrollmentWhereBuilder() {
+  const all = buildAdminStudentsEnrollmentRelationFilter('ALL', null) as any
+  assert(JSON.stringify(all.some.status.in) === JSON.stringify([...OPEN_ENROLLMENT_STATUSES]), 'فلتر كل الطلاب يجب أن يعرض فقط أصحاب برنامج مفتوح')
+  const registeredOnly = buildAdminStudentsEnrollmentRelationFilter('REGISTERED_ONLY', null) as any
+  assert(JSON.stringify(registeredOnly.none.status.in) === JSON.stringify([...OPEN_ENROLLMENT_STATUSES]), 'فلتر المسجلين بلا برنامج مفتوح يجب أن يستبعد أي تسجيل مفتوح')
+  const active = buildAdminStudentsEnrollmentRelationFilter('ACTIVE', 'program-1') as any
+  assert(active.some.status === 'ACTIVE' && active.some.programId === 'program-1', 'فلتر حالة تسجيل محددة يجب أن يبقي السلوك الحالي مع programId')
+}
+
 const tests = [
   testUnitExamDoesNotFixCorrectAnswer,
   testUnitExamScopedToUnitQuestionBank,
@@ -513,6 +523,7 @@ const tests = [
   testSyncedProgramExamQuestionPassesPublicationSourceCheck,
   testProgramExamAcademicMissingCounts,
   testQuestionBankDocumentationPassesProgramExamPublicationSourceCheck,
+  testAdminStudentsEnrollmentWhereBuilder,
 ]
 
 for (const test of tests) {

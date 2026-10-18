@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { adminPaginationMeta, parseAdminPagination } from '@/lib/admin-query'
+import { buildAdminStudentsEnrollmentRelationFilter, REGISTERED_ONLY_STATUS } from '@/lib/enrollment-status'
 
 export const runtime = 'nodejs'
 
@@ -85,7 +86,7 @@ export async function GET(req: NextRequest) {
     const thesisStatus = clean(req.nextUrl.searchParams.get('thesisStatus'), 60)
     const enrollmentWhere: any = {}
     if (programId && programId !== 'ALL') enrollmentWhere.programId = programId
-    if (status && status !== 'ALL' && status !== 'INCOMPLETE_ADMISSIONS') enrollmentWhere.status = status
+    if (status && status !== 'ALL' && status !== 'INCOMPLETE_ADMISSIONS' && status !== REGISTERED_ONLY_STATUS) enrollmentWhere.status = status
 
     if (status === 'INCOMPLETE_ADMISSIONS') {
       const incompleteWhere: any = {
@@ -178,8 +179,13 @@ export async function GET(req: NextRequest) {
     }
 
     const where: any = { role: 'STUDENT' }
-    const hasEnrollmentFilter = Object.keys(enrollmentWhere).length > 0
-    if (hasEnrollmentFilter) where.enrollments = { some: enrollmentWhere }
+    if (status === REGISTERED_ONLY_STATUS) where.enrollments = buildAdminStudentsEnrollmentRelationFilter(status, programId)
+    else {
+      const hasExplicitEnrollmentFilter = status && status !== 'ALL' && status !== 'INCOMPLETE_ADMISSIONS'
+      where.enrollments = hasExplicitEnrollmentFilter
+        ? { some: enrollmentWhere }
+        : buildAdminStudentsEnrollmentRelationFilter(status || 'ALL', programId)
+    }
     if (q) {
       where.OR = [
         { name: { contains: q, mode: 'insensitive' } },

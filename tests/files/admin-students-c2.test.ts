@@ -1,6 +1,7 @@
 /// <reference types="bun-types" />
 import { describe, expect, mock, test } from 'bun:test'
 import { NextRequest } from 'next/server'
+import { OPEN_ENROLLMENT_STATUSES } from '../../src/lib/enrollment-status'
 
 let capturedUserWhere: any = null
 const db = {
@@ -31,12 +32,23 @@ mock.module('@/lib/auth', () => ({ ...realAuth, requireAdmin: async () => ({ id:
 const adminStudentsRoute = await import('../../src/app/api/admin/students/route')
 
 describe('files C2 admin student listing', () => {
-  test('student list includes STUDENT users even if they have no enrollments', async () => {
+  test('default student list only includes students with open enrollments', async () => {
+    capturedUserWhere = null
     const res = await adminStudentsRoute.GET(new NextRequest('https://academy.test/api/admin/students'))
     const payload = await res.json()
     expect(res.status).toBe(200)
     expect(capturedUserWhere).toMatchObject({ role: 'STUDENT' })
-    expect(capturedUserWhere.enrollments).toBeUndefined()
+    expect(capturedUserWhere.enrollments).toEqual({ some: { status: { in: [...OPEN_ENROLLMENT_STATUSES] } } })
+    expect(payload.students[0]).toMatchObject({ id: 'student-no-enrollment', enrollments: [] })
+  })
+
+  test('registered-only student list includes students without open enrollments', async () => {
+    capturedUserWhere = null
+    const res = await adminStudentsRoute.GET(new NextRequest('https://academy.test/api/admin/students?status=REGISTERED_ONLY'))
+    const payload = await res.json()
+    expect(res.status).toBe(200)
+    expect(capturedUserWhere).toMatchObject({ role: 'STUDENT' })
+    expect(capturedUserWhere.enrollments).toEqual({ none: { status: { in: [...OPEN_ENROLLMENT_STATUSES] } } })
     expect(payload.students[0]).toMatchObject({ id: 'student-no-enrollment', enrollments: [] })
   })
 })
