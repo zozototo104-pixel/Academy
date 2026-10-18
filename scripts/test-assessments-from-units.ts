@@ -473,6 +473,12 @@ function testQuestionBankDocumentationParserAcceptsQuestionsKey() {
   assert(rows[0]?.id === 'q1' && rows[0]?.difficulty === 'EASY', 'محلل توثيق بنك الأسئلة يجب أن يرجع صف q1 بالصعوبة')
 }
 
+function testProgramExamAutoStatusUpdateDoesNotTouchReady() {
+  const where = __testProgramExamAutoStatusUpdateWhereForTests('exam-1') as any
+  assert(where.id === 'exam-1', 'حماية تحديث حالة الامتحان يجب أن تبقى محصورة بالامتحان نفسه')
+  assert(where.status?.not === 'READY', 'أي مسار تلقائي لتحديث حالة الامتحان يجب ألا يلمس امتحاناً جاهزاً')
+}
+
 function testAdminStudentsEnrollmentWhereBuilder() {
   const all = buildAdminStudentsEnrollmentRelationFilter('ALL', null) as any
   assert(JSON.stringify(all.some.status.in) === JSON.stringify([...OPEN_ENROLLMENT_STATUSES]), 'فلتر كل الطلاب يجب أن يعرض فقط أصحاب برنامج مفتوح')
