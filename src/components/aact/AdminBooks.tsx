@@ -289,6 +289,8 @@ type AiGenerationProgressRow = {
   updatedAt?: string
 } | null
 
+type QuestionBankJobRow = { id: string; status: string }
+
 interface QuestionBankItemRow {
   id: string
   type: string
