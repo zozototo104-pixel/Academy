@@ -158,6 +158,7 @@ const VISION_OPENAI_COMPAT_PROVIDERS = new Set<TextAiProvider>(['OPENAI', 'OPENR
 const VISION_NATIVE_PROVIDERS = new Set<TextAiProvider>(['GEMINI', 'ANTHROPIC', 'ZAI'])
 
 const cooldowns = new Map<string, { until: number; reason: string; status?: number; model?: string }>()
+const modelRateLimitHits = new Map<string, Array<{ model: string; at: number }>>()
 let roundRobin = 0
 let lastResult: TextAiDiagnostics['lastResult'] = null
 let recentAttempts: TextAiAttemptDiagnostics[] = []
@@ -229,6 +230,7 @@ export function __setTextAiSettingStoreForTests(store: TextAiSettingStore | null
 
 export function __resetTextAiStateForTests() {
   cooldowns.clear()
+  modelRateLimitHits.clear()
   roundRobin = 0
   lastResult = null
   recentAttempts = []
@@ -325,6 +327,10 @@ function cooldownId(provider: string, key: string): string {
   return `${provider}:${keyHash(key)}`
 }
 
+function modelCooldownId(provider: string, key: string, model: string): string {
+  return `${cooldownId(provider, key)}:${model}`
+}
+
 function persistentCooldownKey(provider: string, keyIndex: number, model?: string): string {
   return `AI_COOLDOWN:${provider}:${keyIndex}${model ? `:${model}` : ''}`
 }
@@ -372,8 +378,16 @@ async function loadPersistentCooldowns(): Promise<Record<string, string>> {
   }
 }
 
+function persistentModelCooldown(values: Record<string, string>, provider: string, keyIndex: number, model: string): { until: number; reason: string; status?: number } | null {
+  return parseCooldown(values[persistentCooldownKey(provider, keyIndex, model)])
+}
+
+function persistentKeyCooldown(values: Record<string, string>, provider: string, keyIndex: number): { until: number; reason: string; status?: number } | null {
+  return parseCooldown(values[persistentCooldownKey(provider, keyIndex)])
+}
+
 function persistentCooldown(values: Record<string, string>, provider: string, keyIndex: number, model: string): { until: number; reason: string; status?: number } | null {
-  return parseCooldown(values[persistentCooldownKey(provider, keyIndex, model)]) || parseCooldown(values[persistentCooldownKey(provider, keyIndex)])
+  return persistentModelCooldown(values, provider, keyIndex, model) || persistentKeyCooldown(values, provider, keyIndex)
 }
 
 function isPersistentCooling(values: Record<string, string>, provider: string, keyIndex: number, model: string): boolean {
@@ -406,7 +420,7 @@ async function markPersistentNoBalance(provider: string, keyIndex: number, reaso
   }
 }
 
-async function markPersistentCooldown(provider: string, keyIndex: number, model: string, reason: string, status?: number, minutes?: number): Promise<void> {
+async function markPersistentCooldown(provider: string, keyIndex: number, model: string | undefined, reason: string, status?: number, minutes?: number): Promise<void> {
   const fallback = Number(env('AI_ROUTER_COOLDOWN_MINUTES')) || 15
   const ttl = Math.max(1, Math.floor(minutes || fallback))
   const until = Date.now() + ttl * 60 * 1000
@@ -430,6 +444,17 @@ function activeMemoryCooldown(provider: string, key: string): { until: number; r
   return item
 }
 
+function activeMemoryModelCooldown(provider: string, key: string, model: string): { until: number; reason: string; status?: number; model?: string } | null {
+  const id = modelCooldownId(provider, key, model)
+  const item = cooldowns.get(id)
+  if (!item) return null
+  if (item.until <= Date.now()) {
+    cooldowns.delete(id)
+    return null
+  }
+  return item
+}
+
 function isCooling(provider: string, key: string): boolean {
   return !!activeMemoryCooldown(provider, key)
 }
@@ -438,6 +463,11 @@ function markCooldown(provider: string, key: string, reason: string, minutes?: n
   const fallback = Number(env('AI_ROUTER_COOLDOWN_MINUTES')) || 15
   const ttl = Math.max(1, Math.floor(minutes || fallback))
   cooldowns.set(cooldownId(provider, key), { until: Date.now() + ttl * 60 * 1000, reason: reason.slice(0, 180), status })
+}
+
+function markModelCooldown(provider: string, key: string, model: string, reason: string, minutes?: number, status?: number) {
+  const ttl = Math.max(1, Math.floor(minutes || 2))
+  cooldowns.set(modelCooldownId(provider, key, model), { until: Date.now() + ttl * 60 * 1000, reason: reason.slice(0, 180), status, model })
 }
 
 function aiProviderTimeoutMs(taskLevel: TextAiTaskLevel = 'GENERAL'): number {
@@ -524,6 +554,53 @@ function isQuotaLike(e: any): boolean {
   const msg = String(e?.message || e || '').toLowerCase()
   const status = Number(e?.status || e?.code || 0)
   return status === 429 || /quota|rate.?limit|resource exhausted|too many requests|insufficient_quota|insufficient balance|no resource package/i.test(msg)
+}
+
+function rateLimitMessageMentionsSpecificModel(model: string, message: unknown): boolean {
+  const msg = String(message || '').toLowerCase()
+  const safeModel = String(model || '').toLowerCase()
+  return !!((safeModel && msg.includes(safeModel)) || /per model|model:\s*[a-z0-9][a-z0-9_.\/:\-]*|for\s+(the\s+)?model\s+[a-z0-9][a-z0-9_.\/:\-]*|on\s+[a-z0-9][a-z0-9_.\/:\-]*[:/.\-][a-z0-9_.\/:\-]*/i.test(msg))
+}
+
+export function classifyRateLimitScope(model: string, message: unknown, status?: number): 'model' | 'key' {
+  const msg = String(message || '').toLowerCase()
+  const mentionsSpecificModel = rateLimitMessageMentionsSpecificModel(model, msg)
+  if (Number(status || 0) === 402 || /free-models-per-day|insufficient_quota|billing|credit|insufficient balance/i.test(msg)) return 'key'
+  if (mentionsSpecificModel) return 'model'
+  if (/organization|account limit|api[_ -]?key|\bkey\b/i.test(msg) || (/per day/i.test(msg) && /account/i.test(msg))) return 'key'
+  if (/per minute|every\s+\d+(?:\.\d+)?\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes)|\brpm\b|\btpm\b/i.test(msg)) return 'model'
+  return 'model'
+}
+
+function rateLimitCooldownMinutes(e: any, message: string, model?: string): number {
+  const retryDelay = Number(e?.retryDelay || e?.retry_after || e?.retryAfter || 0)
+  if (Number.isFinite(retryDelay) && retryDelay > 0) return Math.max(1, Math.ceil(retryDelay / (retryDelay > 1000 ? 60_000 : 60)))
+  const msg = String(message || '')
+  const seconds = msg.match(/retry\s+in\s+(\d+(?:\.\d+)?)\s*s/i)
+  if (seconds) return Math.max(1, Math.ceil(Number(seconds[1]) / 60))
+  const minutes = msg.match(/retry\s+in\s+(\d+(?:\.\d+)?)\s*m/i)
+  if (minutes) return Math.max(1, Math.ceil(Number(minutes[1])))
+  if (model && rateLimitMessageMentionsSpecificModel(model, msg) && /per\s*day|perday|daily/i.test(msg)) return 60
+  return 2
+}
+
+function shouldEscalateModelRateLimit(provider: string, key: string, model: string, message: string): boolean {
+  if (rateLimitMessageMentionsSpecificModel(model, message)) return false
+  const id = cooldownId(provider, key)
+  const now = Date.now()
+  const recent = (modelRateLimitHits.get(id) || []).filter((hit) => now - hit.at <= 60_000)
+  recent.push({ model, at: now })
+  modelRateLimitHits.set(id, recent)
+  return new Set(recent.map((hit) => hit.model)).size >= 2
+}
+
+export function __testRateLimitCooldownDecision(args: { provider: string; key: string; model: string; message: string; status?: number }) {
+  const scope = classifyRateLimitScope(args.model, args.message, args.status)
+  return { scope, escalates: scope === 'model' ? shouldEscalateModelRateLimit(args.provider, args.key, args.model, args.message) : false }
+}
+
+export function __testMarkModelCooldownForTests(provider: string, key: string, model: string, reason = 'test model cooldown') {
+  markModelCooldown(provider, key, model, reason, 2, 429)
 }
 
 function isAuthLike(e: any): boolean {
@@ -1482,12 +1559,20 @@ function isAuthOrNoBalanceMemoryCooling(provider: string, key: string): boolean 
   return /AUTH|UNAUTHENTICATED|PERMISSION_DENIED|API_KEY|NO_BALANCE|INSUFFICIENT|BILLING|PAYMENT_REQUIRED/i.test(item.reason)
 }
 
+function isGeminiLivePersistentCooling(values: Record<string, string>, keyIndex: number): boolean {
+  if (persistentModelCooldown(values, 'GEMINI', keyIndex, GEMINI_LIVE_ROUTER_MODEL)) return true
+  const keyCooldown = persistentKeyCooldown(values, 'GEMINI', keyIndex)
+  if (!keyCooldown) return false
+  const status = Number(keyCooldown.status || 0)
+  return status === 401 || status === 402 || status === 403
+}
+
 export async function geminiKeysForLive(): Promise<GeminiLiveRouterKey[]> {
   const s = await settings()
   const persistentCooldowns = await loadPersistentCooldowns()
   return providerKeys(s, 'GEMINI')
     .map((key, index) => ({ key, keyIndex: index + 1 }))
-    .filter(({ key, keyIndex }) => !isAuthOrNoBalanceMemoryCooling('GEMINI', key) && !isPersistentNoBalance(persistentCooldowns, 'GEMINI', keyIndex) && !isPersistentCooling(persistentCooldowns, 'GEMINI', keyIndex, GEMINI_LIVE_ROUTER_MODEL))
+    .filter(({ key, keyIndex }) => !isAuthOrNoBalanceMemoryCooling('GEMINI', key) && !isPersistentNoBalance(persistentCooldowns, 'GEMINI', keyIndex) && !isGeminiLivePersistentCooling(persistentCooldowns, keyIndex))
 }
 
 export function reportGeminiLiveKeySuccess(keyIndex: number, model: string, ms = 0): void {
@@ -1691,6 +1776,7 @@ function routerReasonBucket(attempt: TextAiAttemptDiagnostics): string {
   const msg = String(attempt.error || '').toLowerCase()
   if (attempt.status === 404 && /no longer available|does not exist|not found/.test(msg)) return 'dead_model'
   if (attempt.status === 402 || /balance|recharge|top.?up|payment required/.test(msg)) return 'no_balance'
+  if (attempt.status === 429 || /rate.?limit|too many requests|resource exhausted|quota/.test(msg)) return 'rate_limit'
   if (attempt.status === 504 || /timeout|deadline|abort/.test(msg)) return 'timeout'
   if (attempt.status === 503 || /high demand|overloaded|capacity/.test(msg)) return 'high_demand'
   if (/validation_rejected|invalid_json|invalid json|invalid_type|empty_batch_after_structural_validation|schema|zod/.test(msg)) return 'schemaFail'
@@ -1969,14 +2055,24 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
       }
       for (const key of candidateKeys(provider, s)) {
         const keyIndex = Math.max(1, providerKeys(s, provider).indexOf(key) + 1)
-        const persistedCooldown = persistentCooldown(persistentCooldowns, provider, keyIndex, model)
+        const persistedKeyCooldown = persistentKeyCooldown(persistentCooldowns, provider, keyIndex)
+        const persistedModelCooldown = persistentModelCooldown(persistentCooldowns, provider, keyIndex, model)
+        const memoryKeyCooldown = activeMemoryCooldown(provider, key)
+        const memoryModelCooldown = activeMemoryModelCooldown(provider, key, model)
         if (isPersistentNoBalance(persistentCooldowns, provider, keyIndex)) {
           noteNoCandidate(provider, model, 'NO_BALANCE')
           continue
         }
-        if (isCooling(provider, key) || persistedCooldown) {
-          if (persistedCooldown) skippedCooldownUntil = skippedCooldownUntil == null ? persistedCooldown.until : Math.min(skippedCooldownUntil, persistedCooldown.until)
-          noteNoCandidate(provider, model, `COOLDOWN(${new Date((persistedCooldown?.until || Date.now())).toISOString()})`)
+        if (memoryKeyCooldown || persistedKeyCooldown) {
+          const cooldown = persistedKeyCooldown || memoryKeyCooldown
+          if (cooldown) skippedCooldownUntil = skippedCooldownUntil == null ? cooldown.until : Math.min(skippedCooldownUntil, cooldown.until)
+          noteNoCandidate(provider, model, `COOLDOWN(key)(${new Date((cooldown?.until || Date.now())).toISOString()})`)
+          continue
+        }
+        if (memoryModelCooldown || persistedModelCooldown) {
+          const cooldown = persistedModelCooldown || memoryModelCooldown
+          if (cooldown) skippedCooldownUntil = skippedCooldownUntil == null ? cooldown.until : Math.min(skippedCooldownUntil, cooldown.until)
+          noteNoCandidate(provider, model, `COOLDOWN(model)(${new Date((cooldown?.until || Date.now())).toISOString()})`)
           continue
         }
         if (!(await keyRateAllowed(provider, key))) {
@@ -2046,8 +2142,19 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
             if (status === 503 || status === 504) await markPersistentCooldown(provider, keyIndex, model, msg, status, 2)
           }
           if (isQuotaLike(e)) {
-            markCooldown(provider, key, msg, undefined, status)
-            await markPersistentCooldown(provider, keyIndex, model, msg, status)
+            const scope = classifyRateLimitScope(model, msg, status)
+            const minutes = rateLimitCooldownMinutes(e, msg, model)
+            if (scope === 'key') {
+              markCooldown(provider, key, msg, undefined, status)
+              await markPersistentCooldown(provider, keyIndex, undefined, msg, status)
+            } else {
+              markModelCooldown(provider, key, model, msg, minutes, status)
+              await markPersistentCooldown(provider, keyIndex, model, msg, status, minutes)
+              if (shouldEscalateModelRateLimit(provider, key, model, msg)) {
+                markCooldown(provider, key, msg, undefined, status)
+                await markPersistentCooldown(provider, keyIndex, undefined, msg, status)
+              }
+            }
           }
           if (isAuthLike(e)) {
             markCooldown(provider, key, msg, 60, status)

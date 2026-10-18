@@ -108,6 +108,8 @@ mock.module('@/lib/asr', () => ({ ...realAsr, transcribeAudioBase64: async (_aud
 const realSettings = await import('../../src/lib/settings')
 mock.module('@/lib/settings', () => ({ ...realSettings, getSetting: async (key: string) => key === 'VOICE_DEFAULT_DIALECT' ? 'ar-PS' : key === 'UNIT_MIN_KNOWLEDGE_ITEMS' ? '15' : '' }))
 
+const textAiRouter = await import('../../src/lib/text-ai')
+
 const realQuestionBankJob = await import('../../src/lib/question-bank-job')
 mock.module('@/lib/question-bank-job', () => ({ ...realQuestionBankJob, ensureQuestionBankGenerationJob: async () => ({ id: 'job-1', status: 'QUEUED', saved: 0, requested: 5 }), runQuestionBankGenerationJobStepsUntil: async () => null }))
 
@@ -146,6 +148,7 @@ beforeEach(() => {
   capturedAsrOptions = null
   unitKnowledgeCount = 3
   programOverrideAudit = false
+  textAiRouter.__resetTextAiStateForTests()
 })
 
 describe('AI D2 behavior', () => {
@@ -191,6 +194,52 @@ describe('AI D2 behavior', () => {
     expect(payload.exam.title).not.toContain('LIMITED_KNOWLEDGE')
     expect(payload.exam.generationWarning).toBe('LIMITED_KNOWLEDGE')
     expect(calls.filter((call) => call.startsWith('unit.question.create:')).length).toBe(5)
+  })
+
+  test('router keeps per-model 429 cooldown scoped to the model when message names it', () => {
+    const decision = textAiRouter.__testRateLimitCooldownDecision({
+      provider: 'UNOROUTER',
+      key: 'k1',
+      model: 'qwen-sea-lion-v4-32b-it:free',
+      message: 'Too many requests. The free tier allows 1 request(s) every 1 min per account on qwen-sea-lion-v4-32b-it:free - retry in 60s.',
+      status: 429,
+    })
+    expect(decision).toEqual({ scope: 'model', escalates: false })
+    expect(textAiRouter.classifyRateLimitScope('qwen-sea-lion-v4-32b-it:free', 'api_key account rate limit: 1 request every 1 min per account on qwen-sea-lion-v4-32b-it:free', 429)).toBe('model')
+  })
+
+  test('router keeps Gemini model quota isolated from other Gemini models', () => {
+    const decision = textAiRouter.__testRateLimitCooldownDecision({
+      provider: 'GEMINI',
+      key: 'gemini-key',
+      model: 'gemini-3.5-flash-lite',
+      message: 'Resource exhausted: quota exceeded on gemini-3.5-flash-lite per minute.',
+      status: 429,
+    })
+    expect(decision.scope).toBe('model')
+    expect(decision.escalates).toBe(false)
+    expect(textAiRouter.classifyRateLimitScope('gemini-3.8-flash', 'Resource exhausted: quota exceeded on gemini-3.5-flash-lite per minute.', 429)).toBe('model')
+  })
+
+  test('router treats free-models-per-day and insufficient_quota as key-wide limits', () => {
+    expect(textAiRouter.__testRateLimitCooldownDecision({ provider: 'OPENROUTER', key: 'k1', model: 'poolside/laguna-xs-2.1:free', message: 'Rate limit exceeded: free-models-per-day. Add 10 credits.', status: 429 })).toEqual({ scope: 'key', escalates: false })
+    expect(textAiRouter.__testRateLimitCooldownDecision({ provider: 'OPENAI', key: 'k1', model: 'gpt-5.1', message: 'insufficient_quota: please check your billing details', status: 429 })).toEqual({ scope: 'key', escalates: false })
+    expect(textAiRouter.classifyRateLimitScope('gpt-5.1', 'insufficient_quota for model gpt-5.1', 429)).toBe('key')
+    expect(textAiRouter.classifyRateLimitScope('gemini-3.8-flash', 'rate limit for api_key:AIzaRATE1111', 429)).toBe('key')
+  })
+
+  test('router escalates two different model 429s on the same key within a minute', () => {
+    const first = textAiRouter.__testRateLimitCooldownDecision({ provider: 'UNOROUTER', key: 'k1', model: 'model-a:free', message: 'Too many requests', status: 429 })
+    const second = textAiRouter.__testRateLimitCooldownDecision({ provider: 'UNOROUTER', key: 'k1', model: 'model-b:free', message: 'Too many requests', status: 429 })
+    expect(first).toEqual({ scope: 'model', escalates: false })
+    expect(second).toEqual({ scope: 'model', escalates: true })
+  })
+
+  test('router does not escalate explicit per-model 429s across models', () => {
+    const first = textAiRouter.__testRateLimitCooldownDecision({ provider: 'UNOROUTER', key: 'k1', model: 'model-a:free', message: 'Too many requests per account on model-a:free', status: 429 })
+    const second = textAiRouter.__testRateLimitCooldownDecision({ provider: 'UNOROUTER', key: 'k1', model: 'model-b:free', message: 'Too many requests per account on model-b:free', status: 429 })
+    expect(first).toEqual({ scope: 'model', escalates: false })
+    expect(second).toEqual({ scope: 'model', escalates: false })
   })
 
   test('all-rote comprehensive exam returns 409 without override and override with reason passes with audit', async () => {

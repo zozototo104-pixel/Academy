@@ -233,6 +233,17 @@ describe('Gemini Live key rotation uses the text AI router state', () => {
     expect(fetchKeys).toEqual(['AIzaTEXT1111'])
   })
 
+  test('a memory cooldown for a text model remains available for Live', async () => {
+    configureGeminiKeys('AIzaMODEL1111')
+    textAi.__testMarkModelCooldownForTests('GEMINI', 'AIzaMODEL1111', 'gemini-3.5-flash-lite')
+    mockTokenFetch(() => ({ status: 200, body: { name: 'live-token-from-model-cooled-key' } }))
+
+    const response = await POST(liveRequest())
+
+    expect(response.status).toBe(200)
+    expect(fetchKeys).toEqual(['AIzaMODEL1111'])
+  })
+
   test('a memory cooldown with status 429 and api_key in the reason remains available for Live', async () => {
     configureGeminiKeys('AIzaRATE1111')
     globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
