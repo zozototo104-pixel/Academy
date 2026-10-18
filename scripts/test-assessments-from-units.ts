@@ -6,6 +6,7 @@ import { parseGeneratedQuestionCandidates } from '../src/lib/question-bank-gener
 import { __testAcademicBackfillDataForTests, __testProgramQuestionAcademicCopyForTests, __testQualifiedQuestionBankItemForProgramExamForTests } from '../src/lib/program-exam-assembly'
 import { calculateProgramExamAcademicMissingCounts, validateProgramExamPublicationReadiness } from '../src/lib/program-exam-publication-readiness'
 import { __testDocumentedBankQuestionForPublicationForTests } from '../src/lib/question-bank-documentation'
+import { buildAdminStudentsEnrollmentRelationFilter, OPEN_ENROLLMENT_STATUSES } from '../src/lib/enrollment-status'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
