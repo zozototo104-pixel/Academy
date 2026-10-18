@@ -2103,6 +2103,18 @@ export function AdminSettingsTab() {
       .finally(() => setLoading(false))
   }, [])
 
+  const clearAiCooldown = async () => {
+    setAiCooldownBusy(true)
+    try {
+      const res = await api<{ count: number }>('/api/settings/ai-cooldown', { method: 'POST', body: JSON.stringify({ provider: aiCooldownProvider }) })
+      toast({ title: 'تم مسح تبريد المزود', description: `أزيلت ${res.count || 0} حالة تبريد أو نفاد رصيد.` })
+    } catch (e: any) {
+      toast({ title: 'تعذر مسح تبريد المزود', description: e.message, variant: 'destructive' })
+    } finally {
+      setAiCooldownBusy(false)
+    }
+  }
+
   const save = async () => {
     setSaving(true)
     try {
