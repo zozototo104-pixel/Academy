@@ -599,6 +599,8 @@ const tests = [
   testApprovedQuestionBankFlagsRemoveReviewMarkers,
   testBankExamCognitiveBalancePassesPolicy,
   testBankExamCognitiveBalanceWarnsWithoutHighQuestions,
+  testBankExamCognitiveBalanceRespectsTypePlanWhenPossible,
+  testBankExamCognitiveBalanceCompletesMissingTypeFromAvailableTypes,
   testAdminStudentsEnrollmentWhereBuilder,
 ]
 
