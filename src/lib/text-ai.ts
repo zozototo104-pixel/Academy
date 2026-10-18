@@ -603,6 +603,7 @@ async function settings() {
     policy,
     allowPublicGateways: ['1', 'true', 'yes', 'on'].includes(String(rows.AI_ROUTER_ALLOW_PUBLIC_GATEWAYS || env('AI_ROUTER_ALLOW_PUBLIC_GATEWAYS') || '').toLowerCase()),
     academicAllowlist: parseAcademicAllowlist(rows.AI_ACADEMIC_ALLOWLIST || env('AI_ACADEMIC_ALLOWLIST') || DEFAULT_ACADEMIC_ALLOWLIST),
+    verifierPreferred: parseProviderModelList(rows.AI_VERIFIER_PREFERRED || env('AI_VERIFIER_PREFERRED') || ''),
     paidUsageMode: (['last_resort', 'critical_first'].includes(String(rows.AI_PAID_USAGE_MODE || env('AI_PAID_USAGE_MODE')).toLowerCase()) ? String(rows.AI_PAID_USAGE_MODE || env('AI_PAID_USAGE_MODE')).toLowerCase() : 'off') as TextAiPaidUsageMode,
     paidModels: parseKeys(rows.AI_PAID_MODELS || env('AI_PAID_MODELS')).filter((model) => validModelName(model) && academicModelAllowed('OPENAI_COMPAT', model)),
     paidDailyLimitUsd: Math.max(0, Number(rows.AI_PAID_DAILY_LIMIT_USD || env('AI_PAID_DAILY_LIMIT_USD') || 0) || 0),
