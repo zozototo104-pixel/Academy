@@ -221,6 +221,7 @@ export async function POST(req: NextRequest) {
       questionCount: selected.length,
       totalPoints,
       availableApproved: bankQuestions.length,
+      cognitiveWarning,
     })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
