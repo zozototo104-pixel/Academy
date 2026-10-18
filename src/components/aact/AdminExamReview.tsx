@@ -273,6 +273,7 @@ export function QuestionReviewDialog({
   const runAcademicBackfill = async () => {
     setBusy(true)
     try {
+      setAcademicBackfillSourceMessage('')
       let remaining = questions.length
       let stagnant = 0
       for (let attempt = 0; attempt < 30; attempt++) {
