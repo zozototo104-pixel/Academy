@@ -230,6 +230,7 @@ export function __setTextAiSettingStoreForTests(store: TextAiSettingStore | null
 
 export function __resetTextAiStateForTests() {
   cooldowns.clear()
+  modelRateLimitHits.clear()
   roundRobin = 0
   lastResult = null
   recentAttempts = []
