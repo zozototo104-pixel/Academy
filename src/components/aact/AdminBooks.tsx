@@ -281,7 +281,7 @@ type QuestionBankStats = {
 
 type AiGenerationProgressRow = {
   jobId?: string
-  status?: 'RUNNING' | 'PARTIAL' | 'COMPLETED'
+  status?: 'QUEUED' | 'RUNNING' | 'PAUSED' | 'PARTIAL' | 'COMPLETED' | 'FAILED'
   requested: number
   saved: number
   failedBatches: number
