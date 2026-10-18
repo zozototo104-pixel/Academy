@@ -281,13 +281,15 @@ type QuestionBankStats = {
 
 type AiGenerationProgressRow = {
   jobId?: string
-  status?: 'RUNNING' | 'PARTIAL' | 'COMPLETED'
+  status?: 'QUEUED' | 'RUNNING' | 'PAUSED' | 'PARTIAL' | 'COMPLETED' | 'FAILED'
   requested: number
   saved: number
   failedBatches: number
   lastError?: string | null
   updatedAt?: string
 } | null
+
+type QuestionBankJobRow = { id: string; status: string }
 
 interface QuestionBankItemRow {
   id: string
@@ -588,6 +590,12 @@ export function AdminBooksTab() {
   const [questionBankStats, setQuestionBankStats] = useState<QuestionBankStats | null>(null)
   const [questionBankProgress, setQuestionBankProgress] = useState<AiGenerationProgressRow>(null)
   const [questionBankItems, setQuestionBankItems] = useState<QuestionBankItemRow[]>([])
+  const [questionBankActiveJob, setQuestionBankActiveJob] = useState<{ id: string; status: string } | null>(null)
+  const questionBankProgressPollingKey = useMemo(() => {
+    const status = questionBankActiveJob?.status
+    if (!programId || !questionBankActiveJob?.id || !status || !['QUEUED', 'RUNNING', 'PAUSED'].includes(status)) return ''
+    return `${programId}:${questionBankActiveJob.id}:${status}`
+  }, [programId, questionBankActiveJob?.id, questionBankActiveJob?.status])
   const [questionBankBusy, setQuestionBankBusy] = useState<string | null>(null)
   const [questionBankOpen, setQuestionBankOpen] = useState(false)
   const [unitQuestionsOpen, setUnitQuestionsOpen] = useState(false)
@@ -1469,13 +1477,26 @@ export function AdminBooksTab() {
     await loadUnitQuestions(unitQuestionsUnit.id)
   }
 
-  const refreshQuestionBank = async (pid = programId) => {
+  const refreshQuestionBank = useCallback(async (pid = programId) => {
     if (!pid) return
-    const res = await api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats; progress?: AiGenerationProgressRow }>(`/api/admin/question-bank?programId=${pid}`)
-    setQuestionBankItems(res.items || [])
-    setQuestionBankStats(res.stats || null)
-    setQuestionBankProgress(res.progress || null)
-  }
+    const res = await api<{ items?: QuestionBankItemRow[]; stats?: QuestionBankStats; progress?: AiGenerationProgressRow; jobs?: QuestionBankJobRow[] }>(`/api/admin/question-bank?programId=${pid}`)
+    if (Array.isArray(res.items)) setQuestionBankItems(res.items)
+    if (res.stats) setQuestionBankStats(res.stats)
+    if ('progress' in res) setQuestionBankProgress(res.progress || null)
+    if (Array.isArray(res.jobs)) {
+      const job = res.jobs.find((item) => ['QUEUED', 'RUNNING', 'PAUSED'].includes(item.status)) || res.jobs[0]
+      setQuestionBankActiveJob(job ? { id: job.id, status: job.status } : null)
+    }
+  }, [programId])
+
+  useEffect(() => {
+    if (workspaceTab !== 'exams' || !programId || !questionBankProgressPollingKey) return
+    const timer = setInterval(() => {
+      if (document.visibilityState !== 'visible') return
+      void refreshQuestionBank(programId).catch(() => null)
+    }, 10_000)
+    return () => clearInterval(timer)
+  }, [workspaceTab, programId, questionBankProgressPollingKey, refreshQuestionBank])
 
   const refreshProgramReadiness = async () => {
     if (!programId) return
@@ -1494,13 +1515,14 @@ export function AdminBooksTab() {
     if (!programId) return
     setQuestionBankBusy('generate')
     try {
-      const res = await api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats; progress?: AiGenerationProgressRow; message?: string }>('/api/admin/question-bank', {
+      const res = await api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats; progress?: AiGenerationProgressRow; job?: QuestionBankJobRow; message?: string }>('/api/admin/question-bank', {
         method: 'POST',
         body: JSON.stringify({ programId, count: 10, resume: mode === 'resume', startNew: mode === 'new' }),
       })
       setQuestionBankItems(res.items || [])
       setQuestionBankStats(res.stats || null)
       setQuestionBankProgress(res.progress || null)
+      if (res.job) setQuestionBankActiveJob({ id: res.job.id, status: res.job.status })
       await refreshCurriculumUnits(programId)
       toast({ title: 'تم توليد أسئلة للبنك', description: res.message || 'تمت إضافة أسئلة بانتظار المراجعة من بنك المعرفة.' })
     } catch (e: any) {
