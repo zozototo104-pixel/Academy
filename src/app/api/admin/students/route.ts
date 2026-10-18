@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { adminPaginationMeta, parseAdminPagination } from '@/lib/admin-query'
+import { buildAdminStudentsEnrollmentRelationFilter, REGISTERED_ONLY_STATUS } from '@/lib/enrollment-status'
 
 export const runtime = 'nodejs'
 
