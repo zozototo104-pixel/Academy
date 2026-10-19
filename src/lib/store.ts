@@ -77,6 +77,7 @@ interface AppState {
   setUser: (u: AppUser | null) => void
   setAuthChecked: (v: boolean) => void
   navigate: (view: View, params?: Record<string, string | null | undefined>) => void
+  goBack: (fallbackView?: View, params?: Record<string, string | null | undefined>) => void
   openPrograms: (filter?: string) => void
   openProgram: (id: string) => void
   openProgramDetails: (id: string) => void
