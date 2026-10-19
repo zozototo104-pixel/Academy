@@ -123,7 +123,16 @@ export const useAppStore = create<AppState>((set) => ({
       return
     }
     updateBrowserRoute(fallbackView, params)
-    set({ view: fallbackView, mobileMenuOpen: false })
+    set({
+      view: fallbackView,
+      mobileMenuOpen: false,
+      activeProgramId: params.programId || null,
+      activeUnitId: params.unitId || null,
+      activeExamId: params.examId || null,
+      activeExamKind: params.kind === 'final' ? 'final' : 'unit',
+      programDetailsId: params.program || null,
+      programsFilter: params.filter || null,
+    })
   },
   openPrograms: (filter) => {
     updateBrowserRoute('programs', filter ? { filter } : {})
