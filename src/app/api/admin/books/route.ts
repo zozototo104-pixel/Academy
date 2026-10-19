@@ -524,6 +524,7 @@ export async function PATCH(req: NextRequest) {
       bookId,
       `تحديث مصدر قراءة كتاب مقرر: ${book.title} — ${linkReadStatus}`
     )
+    await notifyProgramNeedsQualityApproval(book.programId, 'تحديث مصدر كتاب مقرر')
 
     return NextResponse.json({
       ok: true,
