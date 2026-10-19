@@ -2699,7 +2699,7 @@ export async function textAiTestConnection(): Promise<{ ok: boolean; provider?: 
           const ms = Date.now() - started
           lastResult = { provider, model, ok: true, at }
           recordAttempt({ provider, model, keyIndex, ok: true, ms, at })
-          return { ok: true, provider, model, reply }
+          return { ok: true, provider, model, reply, ...(nvidiaDiscovery ? { nvidiaDiscovery } : {}) }
         } catch (e: any) {
           const at = new Date().toISOString()
           const ms = Date.now() - started
