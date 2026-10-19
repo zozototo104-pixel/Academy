@@ -2296,6 +2296,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
             if (status === 503 || status === 504) await markPersistentCooldown(provider, keyIndex, model, msg, status, 2)
           }
           if (isQuotaLike(e)) {
+            recordProviderRateLimitAndMaybeCooldown(provider, effectiveOpts, msg, status)
             const scope = classifyRateLimitScope(model, msg, status)
             const minutes = rateLimitCooldownMinutes(e, msg, model)
             if (scope === 'key') {
