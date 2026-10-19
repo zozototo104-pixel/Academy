@@ -245,6 +245,24 @@ interface StudentStudyGuide {
   updatedAt: string
 }
 
+interface StudentStudyScheduleItem {
+  id: string
+  programId: string
+  semester: number
+  week: number
+  dayOffset?: number | null
+  title: string
+  description?: string | null
+  type: 'READING' | 'UNIT' | 'STUDY_GUIDE' | 'ASSIGNMENT' | 'EXAM' | 'REVIEW'
+  unitId?: string | null
+  studyGuideId?: string | null
+  assignmentId?: string | null
+  examId?: string | null
+  durationMin?: number | null
+  order: number
+  targetDate?: string | null
+}
+
 interface ChatMsg { id: string; role: string; content: string; createdAt: string }
 
 interface AcademicMemorySnapshot {
