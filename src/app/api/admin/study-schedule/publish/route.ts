@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     })
     return NextResponse.json({ published: result.count })
   } catch (error: any) {
-    if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
+    if (isAdminAuthError(error)) return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
     if (error?.name === 'ZodError') return NextResponse.json({ error: 'بيانات النشر غير صالحة' }, { status: 400 })
     return NextResponse.json({ error: 'تعذر نشر جدول الدراسة' }, { status: 500 })
   }
