@@ -170,7 +170,7 @@ mock.module('@/lib/pdf/official', () => ({
   },
 }))
 
-const { createLegacyGraduate, sendLegacyGraduatePasswordSetup } = await import('../../src/lib/legacy-graduates')
+const { createLegacyGraduate } = await import('../../src/lib/legacy-graduates')
 const { parseLegacyGraduateWorkbook, validateLegacyGraduateImportRows } = await import('../../src/lib/legacy-graduates-import')
 const { sniffLegacyCertificateMime } = await import('../../src/lib/legacy-certificate-files')
 const adminLegacyRoute = await import('../../src/app/api/admin/legacy-graduates/route')
