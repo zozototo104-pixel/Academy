@@ -2177,13 +2177,13 @@ export function __testNvidiaCompatSmartFilterSmokeForTests(): { models: string[]
     { id: 'openai/gpt-oss-120b' },
     { id: 'moonshotai/kimi-k2-instruct-0905' },
     { id: 'qwen/qwen3-235b-a22b' },
-    { id: 'deepseek/deepseek-v3.2' },
+    { id: 'deepseek-ai/deepseek-v3.2' },
     { id: 'nvidia/nemotron-3-super-120b-a12b' },
     { id: 'mistralai/mistral-large-3-675b-instruct-2512' },
   ]
   const models = nvidiaDiscoveredTextModelsFromRows(rows)
   const expected = [
-    'deepseek/deepseek-v3.2',
+    'deepseek-ai/deepseek-v3.2',
     'qwen/qwen3-235b-a22b',
     'moonshotai/kimi-k2-instruct-0905',
     'openai/gpt-oss-120b',
@@ -2196,6 +2196,14 @@ export function __testNvidiaCompatSmartFilterSmokeForTests(): { models: string[]
   if (firstWindow.length !== 4 || secondWindow.length !== 4 || firstWindow[0] === secondWindow[0]) throw new Error('NVIDIA_ROUND_ROBIN_TEST_FAILED')
   const repaired = tryRepairJsonText('<think>internal reasoning</think>{"ok":true}')
   if (!repaired.ok || repaired.text !== '{"ok":true}') throw new Error('NVIDIA_THINK_STRIP_TEST_FAILED')
+  const nemotronBody = __testOpenAiChatCompletionsBodyForTests('OPENAI_COMPAT', 'https://integrate.api.nvidia.com/v1', 'nvidia/nemotron-3-super-120b-a12b', { system: 'sys', history: [], maxOutputTokens: 32 }) as any
+  if (nemotronBody?.chat_template_kwargs?.enable_thinking !== false || nemotronBody.max_tokens !== 1024) throw new Error('NVIDIA_NEMOTRON_BODY_TEST_FAILED')
+  const gptOssBody = __testOpenAiChatCompletionsBodyForTests('OPENAI_COMPAT', 'https://integrate.api.nvidia.com/v1', 'openai/gpt-oss-20b', { system: 'sys', history: [], maxOutputTokens: 32 }) as any
+  if (gptOssBody.reasoning_effort !== 'low' || gptOssBody.max_tokens !== 1024) throw new Error('NVIDIA_GPT_OSS_BODY_TEST_FAILED')
+  const otherBody = __testOpenAiChatCompletionsBodyForTests('GROQ', 'https://api.groq.com/openai/v1', 'llama-3.3-70b-versatile', { system: 'sys', history: [], maxOutputTokens: 32 }) as any
+  if (otherBody.chat_template_kwargs || otherBody.reasoning_effort || otherBody.max_tokens !== 32) throw new Error('NON_NVIDIA_BODY_CHANGED')
+  const intersected = __testNvidiaStaticIntersectionForTests(['openai/gpt-oss-120b'])
+  if (JSON.stringify(intersected) !== JSON.stringify(['openai/gpt-oss-120b'])) throw new Error('NVIDIA_STATIC_INTERSECTION_TEST_FAILED')
   return { models, firstWindow, secondWindow, repairedJson: repaired.text }
 }
 
