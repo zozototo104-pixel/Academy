@@ -349,7 +349,7 @@ describe('legacy graduate creation', () => {
 
   test('duplicate legacySerial is rejected', async () => {
     certificates.set('cert-existing', { id: 'cert-existing', legacy: true, legacySerial: 'DUP-1', serial: 'AACT-C-2026-99999', qrToken: 'token-old', type: 'PROGRAM_COMPLETION', holderName: 'Old', program: 'دبلوم القيادة', valid: true })
-    await expect(createLegacyGraduate({ name: 'سامر', email: 'samer@example.com', programId: 'program-1', issuedAt: new Date(), legacySerial: 'DUP-1' }, currentAdmin as any)).rejects.toThrow('رقم الشهادة الورقية مستخدم مسبقاً')
+    await expect(createLegacyGraduate({ name: 'سامر', email: 'samer@example.com', programId: 'program-1', issuedAt: new Date(), legacySerial: 'DUP-1' }, currentAdmin as any)).rejects.toThrow('رقم الشهادة القديم مستخدم مسبقاً')
   })
 })
 
