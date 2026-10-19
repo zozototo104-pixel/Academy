@@ -314,7 +314,7 @@ async function buildVerifyPayload(cert: any, verificationMode: 'QR_TOKEN' | 'SER
 
 async function findCertificateForVerify(serial?: string | null, token?: string | null) {
   if (token) return db.certificate.findFirst({ where: { qrToken: token } })
-  if (serial) return db.certificate.findFirst({ where: { serial } })
+  if (serial) return db.certificate.findFirst({ where: { OR: [{ serial }, { legacySerial: serial }] } })
   return null
 }
 

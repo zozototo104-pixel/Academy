@@ -1,7 +1,7 @@
-import { randomBytes } from 'crypto'
 import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { certificateGradeLabel, evaluateProgramCertificateEligibility, type ProgramCertificateEligibility } from '@/lib/certificate-eligibility'
+import { createCertificateQrToken, nextCertificateSerial } from '@/lib/certificate-identity'
 import { inferTotalTuition, roundMoney, tuitionPaidTotal } from '@/lib/tuition-installments'
 
 type Tx = Prisma.TransactionClient
@@ -42,10 +42,6 @@ export interface CompleteEnrollmentResult {
   admissionId?: string | null
   certificate?: any
   eligibility?: ProgramCertificateEligibility
-}
-
-function pad(n: number, width = 5) {
-  return String(n).padStart(width, '0')
 }
 
 function isSettled(status: string) {
@@ -122,13 +118,6 @@ async function resolveCompletionContext(tx: Tx, input: CompleteEnrollmentInput) 
   return { admission, enrollment, userId: enrollment.userId, programId: enrollment.programId, program, matchedAdmission }
 }
 
-async function nextCertificateSerial(tx: Tx) {
-  const rows = await tx.$queryRaw<Array<{ value: bigint | number }>>`SELECT nextval('"Certificate_serial_seq"') AS value`
-  const next = Number(rows[0]?.value || 0)
-  if (!Number.isFinite(next) || next <= 0) throw new Error('CERTIFICATE_SERIAL_SEQUENCE_UNAVAILABLE')
-  return `AACT-C-${new Date().getFullYear()}-${pad(next, 5)}`
-}
-
 type ProgramCompletionCertificateCreateData = Omit<Prisma.CertificateUncheckedCreateInput, 'serial'>
 
 function isCertificateSerialUniqueConflict(error: unknown) {
@@ -196,7 +185,7 @@ export async function completeEnrollmentIfEligibleInTransaction(tx: Tx, input: C
   }
 
   const certificate = existing || await createProgramCompletionCertificate(tx, {
-    qrToken: randomBytes(16).toString('hex'),
+    qrToken: createCertificateQrToken(),
     type: 'PROGRAM_COMPLETION',
     holderName,
     program: programTitle,

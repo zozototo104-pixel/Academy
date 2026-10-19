@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 import { pdfDate, pdfResponse, pdfSafeText, renderOfficialPdf } from '@/lib/pdf/official'
 import { certificateVerificationUrl, certificateCredentialUrl } from '@/lib/w3c/certificate-credential'
+import { readLegacyCertificateStoredFile } from '@/lib/legacy-certificate-files'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -25,7 +26,7 @@ export async function GET(_req: NextRequest, context: RouteContext) {
     if (!id) return NextResponse.json({ error: 'معرّف الشهادة مطلوب' }, { status: 400 })
 
     const certificate = await db.certificate.findFirst({
-      where: { OR: [{ id }, { serial: id }, { qrToken: id }] },
+      where: { OR: [{ id }, { serial: id }, { qrToken: id }, { legacySerial: id }] },
       include: {
         admission: { select: { id: true, userId: true, reference: true, fullName: true, email: true, country: true, program: true, programRef: { select: { titleAr: true, titleEn: true } } } },
         agent: { select: { id: true, userId: true, orgName: true, repName: true, email: true, country: true, territory: true, kind: true } },
@@ -44,6 +45,11 @@ export async function GET(_req: NextRequest, context: RouteContext) {
       certificate.agent?.userId === user?.id
 
     if (!canView) return NextResponse.json({ error: 'صلاحيات غير كافية لعرض الشهادة' }, { status: 403 })
+
+    if (certificate.stampedFileKey) {
+      const stamped = await readLegacyCertificateStoredFile(certificate.stampedFileKey, 'application/pdf')
+      if (stamped) return pdfResponse(stamped.buffer, `${certificate.serial}.pdf`)
+    }
 
     const holder = pdfSafeText(certificate.holderName || certificate.admission?.fullName || certificate.agent?.repName || certificate.agent?.orgName, 'Certificate Holder')
     const program = pdfSafeText(certificate.program || certificate.admission?.programRef?.titleAr || certificate.admission?.program || certificate.agent?.orgName, 'AACT Program')

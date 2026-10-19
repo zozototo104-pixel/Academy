@@ -44,6 +44,7 @@ const loadAdminWhatsAppInboxModule = () => import('@/components/aact/AdminWhatsA
 const loadAdminRepresentativesModule = () => import('@/components/aact/AdminRepresentativesTab')
 const loadAdminGradingReviewModule = () => import('@/components/aact/AdminGradingReviewTab')
 const loadAdminStudyScheduleModule = () => import('@/components/aact/AdminStudyScheduleTab')
+const loadAdminLegacyGraduatesModule = () => import('@/components/aact/AdminLegacyGraduatesTab')
 
 const AdminThesisTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminThesisTab), { ssr: false, loading: AdminTabLoader })
 const AdminFinanceTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminFinanceTab), { ssr: false, loading: AdminTabLoader })
@@ -62,6 +63,7 @@ const AdminWhatsAppInboxTab = dynamic(() => loadAdminWhatsAppInboxModule().then(
 const AdminRepresentativesTab = dynamic(() => loadAdminRepresentativesModule(), { ssr: false, loading: AdminTabLoader })
 const AdminGradingReviewTab = dynamic(() => loadAdminGradingReviewModule(), { ssr: false, loading: AdminTabLoader })
 const AdminStudyScheduleTab = dynamic(() => loadAdminStudyScheduleModule(), { ssr: false, loading: AdminTabLoader })
+const AdminLegacyGraduatesTab = dynamic(() => loadAdminLegacyGraduatesModule(), { ssr: false, loading: AdminTabLoader })
 
 interface Stats {
   stats: {
@@ -1061,6 +1063,7 @@ export function AdminView() {
             <TabsList className="flex h-auto w-full flex-wrap gap-1 bg-transparent p-0">
               <TabsTrigger value="finance" className="gap-1 text-[10px] font-bold sm:text-xs">المالية والفواتير</TabsTrigger>
               <TabsTrigger value="certs" className="gap-1 text-[10px] font-bold sm:text-xs">الشهادات</TabsTrigger>
+              <TabsTrigger value="legacy-graduates" className="gap-1 text-[10px] font-bold sm:text-xs">الخريجون السابقون</TabsTrigger>
             </TabsList>
           </div>
           <div className="border-t border-dashed border-slate-100 pt-2.5">
@@ -2166,6 +2169,11 @@ export function AdminView() {
         {/* الشهادات */}
         <TabsContent value="certs">
           <AdminCertificatesTab />
+        </TabsContent>
+
+        {/* الخريجون السابقون */}
+        <TabsContent value="legacy-graduates">
+          <AdminLegacyGraduatesTab />
         </TabsContent>
 
         {/* الرسوم والإعدادات */}

@@ -36,7 +36,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
     if (limited) return limited
 
     const cert = await db.certificate.findFirst({
-      where: { OR: [{ qrToken: clean }, { serial: clean }] },
+      where: { OR: [{ qrToken: clean }, { serial: clean }, { legacySerial: clean }] },
       select: {
         id: true,
         serial: true,

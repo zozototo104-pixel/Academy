@@ -1,0 +1,2 @@
+-- Superseded by prisma/migrations/20261019195000_legacy_certificate_fields/migration.sql.
+-- Intentionally empty to avoid duplicate ALTER TABLE statements in existing PR history.
