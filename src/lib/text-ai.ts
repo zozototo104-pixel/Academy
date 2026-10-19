@@ -2002,6 +2002,7 @@ async function callZaiVision(model: string, opts: TextAiCallOpts): Promise<strin
 }
 
 async function callChatCompletions(provider: string, baseUrl: string, key: string, model: string, opts: TextAiCallOpts): Promise<string> {
+  const providerOpts = withNvidiaNoThinkDirective(provider, baseUrl, model, opts)
   const response = await fetchWithTimeout(provider, `${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -2011,13 +2012,13 @@ async function callChatCompletions(provider: string, baseUrl: string, key: strin
     },
     body: JSON.stringify({
       model,
-      messages: toOpenAiChatMessages(opts),
-      max_tokens: opts.maxOutputTokens ?? (opts.json ? 4096 : 2048),
-      temperature: opts.temperature ?? (opts.json ? 0.2 : 0.6),
-      ...(opts.json ? { response_format: { type: 'json_object' } } : {}),
+      messages: toOpenAiChatMessages(providerOpts),
+      max_tokens: providerOpts.maxOutputTokens ?? (providerOpts.json ? 4096 : 2048),
+      temperature: providerOpts.temperature ?? (providerOpts.json ? 0.2 : 0.6),
+      ...(providerOpts.json ? { response_format: { type: 'json_object' } } : {}),
       ...(provider === 'ZAI' ? { thinking: { type: model.startsWith('glm-4.5') ? 'enabled' : 'disabled' }, reasoning_effort: model.startsWith('glm-4.5') ? 'max' : undefined } : {}),
     }),
-  }, providerAttemptTimeoutMs(opts), opts.deadlineMs)
+  }, providerAttemptTimeoutMs(providerOpts), providerOpts.deadlineMs)
   const data = await parseResponse(response)
   if (!response.ok) throwHttp(provider, response.status, data)
   const text = String(data?.choices?.[0]?.message?.content || '').trim()
