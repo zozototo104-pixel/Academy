@@ -2099,23 +2099,24 @@ export function __testNvidiaCompatSmartFilterSmokeForTests(): { models: string[]
     { id: 'meta/llama-3.3-70b-coder' },
     { id: 'qwen/qwen3-8b-instruct' },
     { id: 'nvidia/vila-vlm' },
-    { id: 'openai/gpt-oss-120b' },
-    { id: 'moonshotai/kimi-k2-instruct' },
-    { id: 'qwen/qwen3-235b-a22b-instruct-2507' },
-    { id: 'deepseek/deepseek-v3.2' },
-    { id: 'meta/llama-3.3-70b-instruct' },
+    { id: 'moonshotai/kimi-k2.6' },
     { id: 'mistralai/mistral-large' },
     { id: 'nvidia/llama-3.1-nemotron-ultra-253b-v1' },
+    { id: 'openai/gpt-oss-120b' },
+    { id: 'moonshotai/kimi-k2-instruct-0905' },
+    { id: 'qwen/qwen3-235b-a22b' },
+    { id: 'deepseek/deepseek-v3.2' },
+    { id: 'nvidia/nemotron-3-super-120b-a12b' },
+    { id: 'mistralai/mistral-large-3-675b-instruct-2512' },
   ]
   const models = nvidiaDiscoveredTextModelsFromRows(rows)
   const expected = [
     'deepseek/deepseek-v3.2',
-    'qwen/qwen3-235b-a22b-instruct-2507',
-    'moonshotai/kimi-k2-instruct',
+    'qwen/qwen3-235b-a22b',
+    'moonshotai/kimi-k2-instruct-0905',
     'openai/gpt-oss-120b',
-    'meta/llama-3.3-70b-instruct',
-    'mistralai/mistral-large',
-    'nvidia/llama-3.1-nemotron-ultra-253b-v1',
+    'mistralai/mistral-large-3-675b-instruct-2512',
+    'nvidia/nemotron-3-super-120b-a12b',
   ]
   if (JSON.stringify(models) !== JSON.stringify(expected)) throw new Error('NVIDIA_SMART_FILTER_TEST_FAILED')
   const firstWindow = __testNvidiaRoundRobinProviderModelsForTests(models, 1)
