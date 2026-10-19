@@ -210,12 +210,8 @@ export async function getAdmissionTuitionPlan(admissionId: string): Promise<Tuit
   })
   if (!app) return null
   const appeal = await findActiveAppeal(app.id)
-  const localTotalTuition = inferTotalTuition(app.payments, Number(app.programRef?.price || 0))
-  const coverage = app.userId && app.programId
-    ? await computeTuitionCoverage(app.userId, app.programId)
-    : null
-  const totalTuition = coverage?.due ?? localTotalTuition
-  const paidTuition = coverage?.covered ?? tuitionPaidTotal(app.payments)
+  const totalTuition = inferTotalTuition(app.payments, Number(app.programRef?.price || 0))
+  const paidTuition = tuitionPaidTotal(app.payments)
   const remainingTuition = roundMoney(Math.max(0, totalTuition - paidTuition))
   const { halfRequired, finalRequired } = installmentThresholds(totalTuition, appeal)
   const feePaid = applicationFeePaid(app.payments)
