@@ -331,7 +331,7 @@ export function UnitView() {
 
       {/* Nav footer */}
       <div className="mt-6 flex justify-between">
-        <Button variant="ghost" onClick={() => navigate('dashboard')} className="text-[#0f2b46]">
+        <Button variant="ghost" onClick={() => goBack('dashboard')} className="text-[#0f2b46]">
           <ArrowRight className="ml-1 h-4 w-4" /> عودة للبوابة
         </Button>
       </div>
