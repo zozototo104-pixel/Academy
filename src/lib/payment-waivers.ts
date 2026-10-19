@@ -280,7 +280,7 @@ export async function createPaymentWaiverCode(params: {
 
   await audit(params.actor || { name: 'Admin' }, 'PAYMENT_WAIVER_CODE_CREATED', 'Payment', payment.id, `${payment.invoiceNo} — ${params.waiverType} — ${waiver.codePreview}`)
   const recipient = await resolveWaiverEmailRecipient(payment.id).catch((error) => { console.warn('Failed to resolve waiver code recipient.', error); return null })
-  const waiverLink = `/?view=dashboard&tab=payments&invoice=${encodeURIComponent(payment.invoiceNo)}`
+  const waiverLink = `/?view=dashboard&tab=payments&invoice=${encodeURIComponent(payment.invoiceNo)}&waiver=1`
   const emailConfigured = await isEmailDeliveryConfigured().catch(() => false)
   let emailStatus: 'SENT' | 'FAILED' | 'SKIPPED' = recipient?.email && emailConfigured ? 'FAILED' : 'SKIPPED'
   if (recipient?.email && emailConfigured) {
