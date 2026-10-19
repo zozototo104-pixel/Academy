@@ -120,8 +120,17 @@ export default function AdminLegacyGraduatesTab() {
     }
   }
 
+  async function loadProgramOptions() {
+    try {
+      const data = await jsonOrThrow(await fetch('/api/admin/program-catalog?lite=1', { cache: 'no-store' }), 'تعذر تحميل البرامج')
+      setProgramOptions(data.programs || [])
+    } catch (error: any) {
+      toast({ title: 'تعذر تحميل قائمة البرامج', description: String(error?.message || error), variant: 'destructive' })
+    }
+  }
+
   useEffect(() => {
-    const timer = window.setTimeout(() => { void load() }, 0)
+    const timer = window.setTimeout(() => { void load(); void loadProgramOptions() }, 0)
     return () => window.clearTimeout(timer)
     // Keep the initial fetch tied to mount only; search is refreshed by the explicit search button/Enter.
     // eslint-disable-next-line react-hooks/exhaustive-deps
