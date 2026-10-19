@@ -693,6 +693,29 @@ function isSchemaFailureLike(e: any): boolean {
     || /invalid_json|invalid json|invalid_type|empty_batch_after_structural_validation|schema|zod|questions\.|correctanswer/i.test(msg)
 }
 
+function isNvidiaHardModelFailure(e: any, message: string, status?: number): boolean {
+  const msg = String(message || e?.message || e || '').toLowerCase()
+  return isSchemaFailureLike(e)
+    || Number(status || 0) === 404
+    || /not found|not available|no longer available|does not exist|model_not_found|invalid model/.test(msg)
+}
+
+async function recordNvidiaHardFailureAndMaybeDead(provider: ConcreteProvider, model: string, message: string, status?: number): Promise<boolean> {
+  const id = `${provider}:${model}`
+  const now = Date.now()
+  const recent = (nvidiaHardModelFailureHits.get(id) || []).filter((at) => now - at <= NVIDIA_OPENAI_COMPAT_HARD_FAILURE_WINDOW_MS)
+  recent.push(now)
+  nvidiaHardModelFailureHits.set(id, recent)
+  if (recent.length < 2) return false
+  await markPersistentModelDead(provider, model, message, status, NVIDIA_OPENAI_COMPAT_DEAD_MODEL_MS)
+  nvidiaHardModelFailureHits.delete(id)
+  return true
+}
+
+export function __testNvidiaHardFailureThresholdForTests(timestamps: number[], now = Date.now()): boolean {
+  return timestamps.filter((at) => Number.isFinite(at) && at <= now && now - at <= NVIDIA_OPENAI_COMPAT_HARD_FAILURE_WINDOW_MS).length >= 2
+}
+
 const STRICT_ENCRYPTED_SETTING_PROVIDERS = new Set(['GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT'])
 const LEGACY_PLAINTEXT_SETTING_PROVIDERS = new Set(['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI'])
 
