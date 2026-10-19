@@ -298,7 +298,7 @@ export async function getStudentTuitionPlan(userId: string, programId: string): 
 export async function enforceSemesterTuitionGate(userId: string, programId: string, semester: number) {
   const [plan, program] = await Promise.all([
     getStudentTuitionPlan(userId, programId),
-    db.program.findUnique({ where: { id: programId }, select: { semestersCount: true } }).catch(() => null),
+    db.program.findUnique({ where: { id: programId }, select: { semestersCount: true } }),
   ])
   const coverage = plan
     ? { due: plan.totalTuition, covered: plan.paidTuition, ratio: plan.totalTuition <= 0 ? 1 : Math.max(0, Math.min(1, plan.paidTuition / plan.totalTuition)) }
