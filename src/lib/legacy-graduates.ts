@@ -5,7 +5,10 @@ import { db } from '@/lib/db'
 import { hashPassword } from '@/lib/password'
 import { createCertificateQrToken, nextCertificateSerial } from '@/lib/certificate-identity'
 import { createPasswordResetToken, passwordResetUrl } from '@/lib/password-reset'
-import { emailPasswordResetDetailed, type EmailDeliveryStatus } from '@/lib/mailer'
+import { emailLegacyGraduateWelcome, type EmailDeliveryStatus } from '@/lib/mailer'
+import { notify } from '@/lib/notify'
+
+const LEGACY_GRADUATE_SETUP_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
 type Tx = Prisma.TransactionClient
 
