@@ -156,6 +156,18 @@ function uniquePayments(payments: TuitionPayment[]): TuitionPayment[] {
   return result
 }
 
+async function hasEnrollmentTuitionInvoice(userId: string, programId: string): Promise<boolean> {
+  const payments = await db.payment.findMany({
+    where: {
+      enrollment: { is: { userId, programId } },
+      purpose: { in: TUITION_PURPOSES },
+    },
+    select: { id: true },
+    take: 1,
+  })
+  return payments.length > 0
+}
+
 export async function computeTuitionCoverage(userId: string, programId: string): Promise<TuitionCoverage> {
   const [program, app, enrollmentPayments] = await Promise.all([
     db.program.findUnique({ where: { id: programId }, select: { price: true } }),
