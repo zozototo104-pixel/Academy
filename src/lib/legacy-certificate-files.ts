@@ -145,6 +145,19 @@ export function parseZipEntries(buffer: Buffer) {
     const fileName = buffer.subarray(offset + 46, offset + 46 + fileNameLength).toString('utf8')
     offset += 46 + fileNameLength + extraLength + commentLength
     if (!fileName || fileName.endsWith('/') || fileName.includes('__MACOSX/')) continue
+    acceptedFileCount += 1
+    if (acceptedFileCount > LEGACY_CERTIFICATE_ZIP_MAX_FILES) {
+      entries.push({ fileName, error: 'ZIP_TOO_MANY_FILES' })
+      continue
+    }
+    if (uncompressedSize > LEGACY_CERTIFICATE_UPLOAD_MAX_BYTES) {
+      entries.push({ fileName, error: 'FILE_TOO_LARGE' })
+      continue
+    }
+    if (totalUncompressedBytes + uncompressedSize > LEGACY_CERTIFICATE_ZIP_MAX_UNCOMPRESSED_BYTES) {
+      entries.push({ fileName, error: 'ZIP_TOTAL_TOO_LARGE' })
+      continue
+    }
     if (readUInt32(buffer, localHeaderOffset) !== 0x04034b50) throw new Error('INVALID_ZIP_LOCAL_HEADER')
     const localNameLength = readUInt16(buffer, localHeaderOffset + 26)
     const localExtraLength = readUInt16(buffer, localHeaderOffset + 28)
