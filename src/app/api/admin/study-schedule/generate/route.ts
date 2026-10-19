@@ -55,6 +55,10 @@ function assertKnownReferences(items: z.infer<typeof generatedItemSchema>[], set
   }
 }
 
+function isAdminAuthError(error: any) {
+  return ['UNAUTHORIZED', 'FORBIDDEN'].includes(String(error?.message || error || '').toUpperCase())
+}
+
 export async function POST(req: NextRequest) {
   try {
     await requireAdmin()
