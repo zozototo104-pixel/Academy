@@ -554,6 +554,30 @@ function testUnitQuestionBankStatusResolverKeepsFailedWhenApprovedBelowTarget() 
   assert(status === 'FAILED', 'حالة بنك أسئلة الوحدة FAILED يجب أن تبقى FAILED إذا لم يصل المعتمد للمطلوب')
 }
 
+function testTransientBookReadErrorsClassifyRetryableProviderPressure() {
+  assert(isTransientBookReadError('GEMINI/gemini-3.5-flash-lite/key#3: This model is currently experiencing high demand'), 'high demand provider errors must pause and retry book reading')
+}
+
+function testTransientBookReadErrorsClassifyDeadline() {
+  assert(isTransientBookReadError('AI_DEADLINE_EXCEEDED'), 'AI_DEADLINE_EXCEEDED must pause and retry book reading')
+}
+
+function testTransientBookReadErrorsDoNotClassifyPermanentPdfError() {
+  assert(!isTransientBookReadError('BOOK_PDF_REQUIRED'), 'BOOK_PDF_REQUIRED must stay a permanent book read error')
+}
+
+function testBookReadJobResumePlansFailedAnalyze() {
+  assert(planBookReadJobResume({ status: 'FAILED', phase: 'ANALYZE' }, false) === 'RESUME', 'failed analyze book read jobs should resume without restart')
+}
+
+function testBookReadJobResumeRestartCreatesNewJob() {
+  assert(planBookReadJobResume({ status: 'FAILED', phase: 'ANALYZE' }, true) === 'CREATE', 'explicit restart should create a new book read job')
+}
+
+function testBookReadJobResumeCompletedCreatesNewJob() {
+  assert(planBookReadJobResume({ status: 'COMPLETED', phase: 'DONE' }, false) === 'CREATE', 'completed book read jobs should not resume')
+}
+
 function testAdminStudentsEnrollmentWhereBuilder() {
   const all = buildAdminStudentsEnrollmentRelationFilter('ALL', null) as any
   assert(JSON.stringify(all.some.status.in) === JSON.stringify([...OPEN_ENROLLMENT_STATUSES]), 'فلتر كل الطلاب يجب أن يعرض فقط أصحاب برنامج مفتوح')
