@@ -209,7 +209,7 @@ export async function sendLegacyGraduatePasswordSetup(req: NextRequest, userId: 
       },
     })
     const url = passwordResetUrl(req, reset.token)
-    return await emailPasswordResetDetailed(user.email, user.name, url)
+    return await emailLegacyGraduateWelcome(user.email, user.name, url)
   } catch (error) {
     console.warn('legacy graduate password setup email failed:', error)
     return 'FAILED'
