@@ -55,6 +55,24 @@ function getToken(): string {
   try { return localStorage.getItem('aact_token') || '' } catch { return '' }
 }
 
+function liveFunctionArgs(value: unknown): Record<string, unknown> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {}
+    } catch {
+      return {}
+    }
+  }
+  return {}
+}
+
+function liveBookSearchQuery(call: LiveFunctionCall): string {
+  const args = liveFunctionArgs(call.args)
+  return String(args.query || '').trim().slice(0, 300)
+}
+
 function friendlyClientError(e: unknown): string {
   const raw = String((e as any)?.message || e || '').trim()
   if (!raw) return 'تعذر بدء المحادثة الصوتية.'
