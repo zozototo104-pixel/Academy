@@ -12,6 +12,7 @@ import { validateCognitiveDistribution } from '../src/lib/exam-cognitive-policy'
 import { balanceQuestionBankExamSelection } from '../src/lib/question-bank-exam-balance'
 import { resolveUnitQuestionBankJobStatus } from '../src/lib/unit-question-bank-status'
 import { isTransientBookReadError, planBookReadJobResume } from '../src/lib/book-read-job-control'
+import { pagesNeedingOcr } from '../src/lib/book-reader'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
