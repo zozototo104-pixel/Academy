@@ -1041,11 +1041,13 @@ function hasSmallExplicitModelSize(text: string): boolean {
 
 function isNvidiaFreeTrialTextModel(row: any, id: string): boolean {
   const haystack = nvidiaModelHaystack(row, id)
+  const normalizedId = String(id || '').toLowerCase()
   if (!id || hasSmallExplicitModelSize(haystack)) return false
   if (/embed|embedding|rerank|retriev|guard|safety|reward|moderation|vision-only|\bvlm\b|\bvila\b|\bneva\b|paligemma|\bcode\b|coder|starcoder|codellama|codegemma|audio|speech|\basr\b|\btts\b|\bstt\b|translate|parse|\bocr\b|ocr-only|nv-clip|whisper/.test(haystack)) return false
   if (/\bbase\b/.test(haystack) && !/\binstruct\b/.test(haystack)) return false
+  if (!NVIDIA_OPENAI_COMPAT_CALLABLE_MODEL_IDS.has(normalizedId)) return false
   if (/deepseek/.test(haystack)) return true
-  if (/qwen(?:2\.5|3)/.test(haystack) && /\binstruct\b/.test(haystack)) return true
+  if (/qwen(?:2\.5|3)/.test(haystack)) return true
   if (/llama-(?:3\.1|3\.3|4)/.test(haystack) && /\binstruct\b/.test(haystack)) return true
   if (/mistral-(?:large|medium|small-3)/.test(haystack)) return true
   if (/mixtral-8x22b/.test(haystack)) return true
