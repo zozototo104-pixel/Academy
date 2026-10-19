@@ -94,6 +94,19 @@ export default function AdminStudyScheduleTab() {
   const sortedItems = useMemo(() => [...items].sort((a, b) => a.semester - b.semester || a.week - b.week || (a.dayOffset || 0) - (b.dayOffset || 0) || a.order - b.order), [items])
   const weeks = useMemo(() => Object.entries(groupByWeek(sortedItems)).map(([week, weekItems]) => ({ week: Number(week), items: weekItems })).sort((a, b) => a.week - b.week), [sortedItems])
 
+  const loadItems = useCallback(async () => {
+    if (!programId) return
+    setLoading(true)
+    try {
+      const data = await api<{ items: StudyScheduleItem[] }>(`/api/admin/study-schedule?programId=${encodeURIComponent(programId)}&semester=${encodeURIComponent(semester)}`)
+      setItems(data.items || [])
+    } catch (error: any) {
+      toast({ title: 'تعذر تحميل جدول الدراسة', description: String(error?.message || error), variant: 'destructive' })
+    } finally {
+      setLoading(false)
+    }
+  }, [programId, semester, toast])
+
   useEffect(() => {
     let alive = true
     api<{ programs: ProgramOption[] }>('/api/programs?summary=1')
@@ -105,24 +118,11 @@ export default function AdminStudyScheduleTab() {
       })
       .catch((error) => toast({ title: 'تعذر تحميل البرامج', description: String(error?.message || error), variant: 'destructive' }))
     return () => { alive = false }
-  }, [])
+  }, [programId, toast])
 
   useEffect(() => {
     if (programId) loadItems()
-  }, [programId, semester])
-
-  async function loadItems() {
-    if (!programId) return
-    setLoading(true)
-    try {
-      const data = await api<{ items: StudyScheduleItem[] }>(`/api/admin/study-schedule?programId=${encodeURIComponent(programId)}&semester=${encodeURIComponent(semester)}`)
-      setItems(data.items || [])
-    } catch (error: any) {
-      toast({ title: 'تعذر تحميل جدول الدراسة', description: String(error?.message || error), variant: 'destructive' })
-    } finally {
-      setLoading(false)
-    }
-  }
+  }, [programId, loadItems])
 
   function editItem(item: StudyScheduleItem) {
     setForm({
