@@ -179,6 +179,10 @@ export function parseZipEntries(buffer: Buffer) {
       entries.push({ fileName, error: 'FILE_TOO_LARGE' })
       continue
     }
+    if (totalUncompressedBytes + data.byteLength > LEGACY_CERTIFICATE_ZIP_MAX_UNCOMPRESSED_BYTES) {
+      entries.push({ fileName, error: 'ZIP_TOTAL_TOO_LARGE' })
+      continue
+    }
     if (data.byteLength !== uncompressedSize && uncompressedSize > 0) throw new Error('ZIP_SIZE_MISMATCH')
     totalUncompressedBytes += data.byteLength
     entries.push({ fileName, buffer: Buffer.from(data) })
