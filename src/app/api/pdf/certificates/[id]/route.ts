@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 import { pdfDate, pdfResponse, pdfSafeText, renderOfficialPdf } from '@/lib/pdf/official'
 import { certificateVerificationUrl, certificateCredentialUrl } from '@/lib/w3c/certificate-credential'
+import { readLegacyCertificateStoredFile } from '@/lib/legacy-certificate-files'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
