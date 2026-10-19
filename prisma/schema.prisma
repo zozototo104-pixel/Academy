@@ -182,6 +182,7 @@ model Program {
   studyGuides ProgramStudyGuide[]
   assignments ProgramAssignment[]
   programExams ProgramExam[]
+  studyScheduleItems StudyScheduleItem[]
   admissions  AdmissionApplication[]
   microCredentials MicroCredential[]
   thesisTopics ThesisTopic[]
