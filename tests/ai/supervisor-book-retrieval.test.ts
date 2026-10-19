@@ -109,6 +109,7 @@ beforeEach(() => {
   knowledgeItems = []
   requestedChunkProgramIds = []
   requestedKnowledgeProgramIds = []
+  lastBookChunkFindManyArgs = null
 })
 
 describe('supervisor enrolled book retrieval', () => {
