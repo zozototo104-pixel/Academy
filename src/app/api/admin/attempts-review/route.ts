@@ -59,8 +59,8 @@ async function listReviewAttempts(statusFilter: string = 'NEEDS_REVIEW') {
     }),
   ])
   return [
-    ...unitAttempts.map((a) => ({ type: 'UNIT', id: a.id, submittedAt: a.submittedAt, student: a.user, exam: { id: a.exam.id, title: a.exam.title, programTitle: a.exam.unit.program.titleAr, unitTitle: a.exam.unit.title } })),
-    ...programAttempts.map((a) => ({ type: 'PROGRAM', id: a.id, submittedAt: a.submittedAt, student: a.user, exam: { id: a.exam.id, title: a.exam.title, programTitle: a.exam.program.titleAr } })),
+    ...unitAttempts.map((a) => ({ type: 'UNIT', id: a.id, status: a.status, submittedAt: a.submittedAt, student: a.user, exam: { id: a.exam.id, title: a.exam.title, programTitle: a.exam.unit.program.titleAr, unitTitle: a.exam.unit.title } })),
+    ...programAttempts.map((a) => ({ type: 'PROGRAM', id: a.id, status: a.status, submittedAt: a.submittedAt, student: a.user, exam: { id: a.exam.id, title: a.exam.title, programTitle: a.exam.program.titleAr } })),
   ].sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime())
 }
 
