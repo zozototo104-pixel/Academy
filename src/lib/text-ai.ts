@@ -810,8 +810,27 @@ function limitProviderModels(provider: Exclude<TextAiProvider, 'AUTO'>, models: 
   return limit > 0 ? models.slice(0, limit) : models
 }
 
+function rotateModelStart(models: string[], requestSeq: number): string[] {
+  if (models.length <= 1) return models
+  const start = Math.max(0, Math.floor(Number(requestSeq || 0))) % models.length
+  return [...models.slice(start), ...models.slice(0, start)]
+}
+
+function providerModelsForRequest(provider: ConcreteProvider, s: Settings, models: string[], requestSeq: number, maxProviderModels?: Partial<Record<Exclude<TextAiProvider, 'AUTO'>, number>>): string[] {
+  const nvidiaCompat = provider === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl)
+  const ordered = nvidiaCompat ? rotateModelStart(models, Math.max(0, requestSeq - 1)) : models
+  const limits = nvidiaCompat
+    ? { OPENAI_COMPAT: NVIDIA_OPENAI_COMPAT_MODEL_LIMIT, ...(maxProviderModels || {}) }
+    : maxProviderModels
+  return limitProviderModels(provider, ordered, limits)
+}
+
 export function __testLimitProviderModelsForTests(provider: Exclude<TextAiProvider, 'AUTO'>, models: string[], maxProviderModels?: Partial<Record<Exclude<TextAiProvider, 'AUTO'>, number>>) {
   return limitProviderModels(provider, models, maxProviderModels)
+}
+
+export function __testNvidiaRoundRobinProviderModelsForTests(models: string[], requestSeq: number, maxProviderModels?: Partial<Record<Exclude<TextAiProvider, 'AUTO'>, number>>): string[] {
+  return providerModelsForRequest('OPENAI_COMPAT', { openaiCompatBaseUrl: 'https://integrate.api.nvidia.com/v1' } as Settings, models, requestSeq, maxProviderModels)
 }
 
 export function __testProviderRateLimitCooldownForTests(timestamps: number[], now = Date.now(), threshold = 3, windowMs = 60_000) {
