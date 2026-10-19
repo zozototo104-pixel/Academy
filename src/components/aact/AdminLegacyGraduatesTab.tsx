@@ -437,7 +437,7 @@ export default function AdminLegacyGraduatesTab() {
               <div><Label>التقدير</Label><Input value={form.grade} onChange={(e) => setForm({ ...form, grade: e.target.value })} /></div>
               <div><Label>المعدل</Label><Input value={form.finalScore} onChange={(e) => setForm({ ...form, finalScore: e.target.value })} dir="ltr" /></div>
               <div><Label>تاريخ التخرج</Label><Input type="date" value={form.issuedAt} onChange={(e) => setForm({ ...form, issuedAt: e.target.value })} required /></div>
-              <div><Label>رقم الشهادة الورقية</Label><Input value={form.legacySerial} onChange={(e) => setForm({ ...form, legacySerial: e.target.value })} dir="ltr" /></div>
+              <div><Label>رقم الشهادة القديم</Label><Input value={form.legacySerial} onChange={(e) => setForm({ ...form, legacySerial: e.target.value })} dir="ltr" /></div>
             </div>
             <DialogFooter className="gap-2"><Button type="button" variant="outline" onClick={() => setFormOpen(false)}>إلغاء</Button><Button type="submit" disabled={busy === 'form'}>{busy === 'form' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'حفظ'}</Button></DialogFooter>
           </form>
