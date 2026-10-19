@@ -29,6 +29,7 @@
     "test:question-bank-normalize": "bun test tests/academic/question-bank-normalize.test.ts",
     "test:question-verifier-routing": "bun test tests/ai/question-verifier-routing.test.ts",
     "test:files-c2": "bun test tests/files/files-c2.test.ts && bun test tests/files/admin-students-c2.test.ts",
+    "test:legacy-graduates": "bun test tests/legacy-graduates/legacy-graduates.test.ts",
     "test:ai-d1": "bun test tests/ai/ai-d1.test.ts",
     "test:ai-d2": "bun test tests/ai/ai-d2.test.ts",
     "test:admin-voice": "bun test tests/ai/admin-voice.test.ts",
