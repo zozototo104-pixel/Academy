@@ -105,7 +105,7 @@ export default function AdminStudyScheduleTab() {
     } finally {
       setLoading(false)
     }
-  }, [programId, semester, toast])
+  }, [programId, semester])
 
   useEffect(() => {
     let alive = true
