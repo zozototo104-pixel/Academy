@@ -977,10 +977,68 @@ function isFreeModel(row: any, id: string): boolean {
   return (prompt !== undefined || completion !== undefined) && zeroish(prompt) && zeroish(completion)
 }
 
+function nvidiaModelHaystack(row: any, id: string): string {
+  return `${id} ${row?.name || ''} ${row?.type || ''} ${row?.modality || ''} ${row?.task || ''} ${row?.description || ''} ${row?.owned_by || ''} ${row?.provider || ''}`.toLowerCase()
+}
+
+function explicitModelSizesB(text: string): number[] {
+  const sizes: number[] = []
+  const re = /(?:^|[-_/])(\d+(?:\.\d+)?)b(?=$|[-_/.])/gi
+  let match: RegExpExecArray | null = null
+  while ((match = re.exec(text))) {
+    const value = Number(match[1])
+    if (Number.isFinite(value)) sizes.push(value)
+  }
+  return sizes
+}
+
+function hasSmallExplicitModelSize(text: string): boolean {
+  return explicitModelSizesB(text).some((size) => size < 20)
+}
+
 function isNvidiaFreeTrialTextModel(row: any, id: string): boolean {
-  const haystack = `${id} ${row?.name || ''} ${row?.type || ''} ${row?.modality || ''} ${row?.task || ''} ${row?.description || ''}`.toLowerCase()
-  if (/embed|embedding|rerank|retriev|guard|safety|moderation|whisper|audio|speech|tts|stt|asr|ocr-only/.test(haystack)) return false
-  return true
+  const haystack = nvidiaModelHaystack(row, id)
+  if (!id || hasSmallExplicitModelSize(haystack)) return false
+  if (/embed|embedding|rerank|retriev|guard|safety|reward|moderation|vision-only|\bvlm\b|\bvila\b|\bneva\b|paligemma|\bcode\b|coder|starcoder|codellama|codegemma|audio|speech|\basr\b|\btts\b|\bstt\b|translate|parse|\bocr\b|ocr-only|nv-clip|whisper/.test(haystack)) return false
+  if (/\bbase\b/.test(haystack) && !/\binstruct\b/.test(haystack)) return false
+  if (/deepseek/.test(haystack)) return true
+  if (/qwen(?:2\.5|3)/.test(haystack) && /\binstruct\b/.test(haystack)) return true
+  if (/llama-(?:3\.1|3\.3|4)/.test(haystack) && /\binstruct\b/.test(haystack)) return true
+  if (/mistral-(?:large|medium|small-3)/.test(haystack)) return true
+  if (/mixtral-8x22b/.test(haystack)) return true
+  if (/gpt[-_]?oss/.test(haystack)) return true
+  if (/nemotron/.test(haystack) && /(?:super|ultra)/.test(haystack)) return true
+  if (/kimi|moonshot/.test(haystack)) return true
+  if (/gemma-[23].*27b/.test(haystack)) return true
+  if (/\bglm\b|glm[-_\d.]/.test(haystack)) return true
+  if (/minimax/.test(haystack)) return true
+  return false
+}
+
+function nvidiaOpenAiCompatModelRank(id: string): number {
+  const n = id.toLowerCase()
+  if (/deepseek.*(?:^|[-_/])v3(?:$|[-_/.\d])|deepseek[-_/]v3/.test(n)) return 1
+  if (/qwen3.*235b/.test(n)) return 2
+  if (/kimi|moonshot/.test(n)) return 3
+  if (/gpt[-_]?oss.*120b/.test(n)) return 4
+  if (/llama-3\.3.*70b/.test(n)) return 5
+  if (/mistral-large/.test(n)) return 6
+  if (/nemotron.*ultra/.test(n)) return 7
+  return 20 + academicModelRank(id)
+}
+
+function nvidiaDiscoveredTextModelsFromRows(rows: any[]): string[] {
+  return rows
+    .filter((m) => m?.online !== false)
+    .filter(isTextLikeModel)
+    .map((m) => ({ raw: m, id: normalizeFreeModelName('OPENAI_COMPAT', modelId(m)) }))
+    .filter(({ raw, id }) => validModelName(id) && isNvidiaFreeTrialTextModel(raw, id))
+    .sort((a, b) => nvidiaOpenAiCompatModelRank(a.id) - nvidiaOpenAiCompatModelRank(b.id) || a.id.localeCompare(b.id))
+    .map(({ id }) => id)
+}
+
+export function __testFilterNvidiaFreeTrialTextModelsForTests(rows: any[]): string[] {
+  return nvidiaDiscoveredTextModelsFromRows(rows)
 }
 
 function isStrongTopToolsTextModel(row: any, id: string): boolean {
