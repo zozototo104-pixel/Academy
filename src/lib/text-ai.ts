@@ -1437,7 +1437,11 @@ export async function textAiFreeModelsForProvider(providerValue: unknown): Promi
   const selected = modelFor(s, concrete)
   const selectedPart = selected && !/(^|\/|-)auto$/i.test(selected) && selected !== 'auto' ? [selected] : []
   const models = [...new Set([...selectedPart, ...discovered, ...staticDefaults].filter(Boolean))]
-  const catalogLabel = concrete === 'TOPTOOLS' ? 'نموذج متاح' : 'نموذج مجاني'
+  const catalogLabel = concrete === 'TOPTOOLS'
+    ? 'نموذج متاح'
+    : concrete === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl)
+      ? 'نموذج متاح بتجربة مجانية'
+      : 'نموذج مجاني'
   return {
     provider: concrete,
     models,
