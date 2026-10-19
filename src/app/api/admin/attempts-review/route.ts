@@ -52,7 +52,7 @@ async function listReviewAttempts(statusFilter: string = 'NEEDS_REVIEW') {
       select: { id: true, submittedAt: true, user: { select: { id: true, name: true, email: true } }, exam: { select: { id: true, title: true, unit: { select: { title: true, program: { select: { titleAr: true } } } } } } },
     }),
     db.programExamAttempt.findMany({
-      where: { status: 'NEEDS_REVIEW' },
+      where: { status: { in: statuses } },
       orderBy: { submittedAt: 'desc' },
       take: 100,
       select: { id: true, submittedAt: true, user: { select: { id: true, name: true, email: true } }, exam: { select: { id: true, title: true, program: { select: { titleAr: true } } } } },
