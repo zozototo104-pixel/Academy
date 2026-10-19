@@ -586,6 +586,12 @@ export async function buildSupervisorContext(userId: string, options?: { scope?:
       parts.push(`بحث التخرج: «${thesis.title || 'غير محدد'}» — الحالة: ${thesis.status || 'غير محددة'}${thesis.resultScore != null ? ` — النتيجة ${thesis.resultScore}` : ''}${thesis.aiScore != null ? ` — تقييم الذكاء ${thesis.aiScore}/100` : ''}`)
     }
 
+    const enrolledProgramIds = Array.isArray(enrollments)
+      ? enrollments.map((enr: any) => enr?.programId || enr?.program?.id).filter(Boolean)
+      : []
+    const relevantBookSnippets = await buildRelevantSupervisorBookSnippets(enrolledProgramIds, options?.query, 1500)
+    if (relevantBookSnippets) parts.push(relevantBookSnippets)
+
     if (Array.isArray(enrollments) && enrollments.length) {
       const enrollmentLines = enrollments.map((enr: any, index: number) => {
         const program = enr.program || {}
