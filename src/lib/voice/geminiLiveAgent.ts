@@ -40,6 +40,8 @@ type LiveSessionPayload = {
 }
 
 type LiveSessionError = Error & { code?: string; status?: number }
+type LiveFunctionCall = { id?: string; name?: string; args?: unknown }
+type LiveFunctionResponse = { id: string; name: string; response: { snippets: string } }
 
 export function isLiveMinutesExhausted(error: { code?: string; status?: number } | null | undefined): boolean {
   return error?.status === 402 || error?.code === 'LIVE_MINUTES_EXHAUSTED'
@@ -51,6 +53,24 @@ export function isLiveAccessDenied(error: { code?: string; status?: number } | n
 
 function getToken(): string {
   try { return localStorage.getItem('aact_token') || '' } catch { return '' }
+}
+
+function liveFunctionArgs(value: unknown): Record<string, unknown> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {}
+    } catch {
+      return {}
+    }
+  }
+  return {}
+}
+
+function liveBookSearchQuery(call: LiveFunctionCall): string {
+  const args = liveFunctionArgs(call.args)
+  return String(args.query || '').trim().slice(0, 300)
 }
 
 function friendlyClientError(e: unknown): string {
@@ -502,6 +522,58 @@ export class GeminiLiveAgent {
     return this.handleServerMessage(msg)
   }
 
+  private async fetchBookSnippetsForTool(query: string): Promise<string> {
+    if (!query) return ''
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => controller.abort(), 3_000)
+    try {
+      const response = await fetch('/api/ai/book-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}) },
+        body: JSON.stringify({ query }),
+        signal: controller.signal,
+      })
+      if (!response.ok) return ''
+      const payload = await response.json().catch(() => ({} as any))
+      return String(payload?.snippets || '').slice(0, 4000)
+    } catch {
+      return ''
+    } finally {
+      window.clearTimeout(timer)
+    }
+  }
+
+  private sendBookSearchToolResponses(functionResponses: LiveFunctionResponse[]) {
+    if (!functionResponses.length) return
+    try {
+      if (this.usingSdk && this.sdkSession?.sendToolResponse) {
+        this.sdkSession.sendToolResponse({ functionResponses })
+        return
+      }
+      if (this.usingSdk && this.sdkSession?.send_tool_response) {
+        this.sdkSession.send_tool_response({ functionResponses })
+        return
+      }
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ toolResponse: { functionResponses } }))
+      }
+    } catch {
+      // لا نوقف المحادثة الصوتية إذا تعذر تسليم نتيجة البحث.
+    }
+  }
+
+  private async handleBookSearchToolCall(toolCall: any) {
+    const functionCalls: LiveFunctionCall[] = Array.isArray(toolCall?.functionCalls) ? toolCall.functionCalls : []
+    const searchCalls = functionCalls.filter((call) => call?.name === 'search_course_books')
+    if (!searchCalls.length) return
+    const functionResponses = await Promise.all(searchCalls.map(async (call) => ({
+      id: String(call.id || ''),
+      name: 'search_course_books',
+      response: { snippets: await this.fetchBookSnippetsForTool(liveBookSearchQuery(call)) },
+    })))
+    this.sendBookSearchToolResponses(functionResponses)
+  }
+
   private handleServerMessage(msg: any): boolean {
     if (!msg) return false
     if (msg.error) {
@@ -514,6 +586,10 @@ export class GeminiLiveAgent {
       return false
     }
     if (msg.setupComplete) return true
+    if (msg.toolCall) {
+      void this.handleBookSearchToolCall(msg.toolCall)
+      return false
+    }
 
     const sc = msg.serverContent || msg
     if (sc.interrupted) {

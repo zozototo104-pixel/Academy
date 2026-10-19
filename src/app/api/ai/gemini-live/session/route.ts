@@ -32,6 +32,28 @@ export const maxDuration = 30
 const LIVE_WS_BASE =
   'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained'
 
+const BOOK_SEARCH_SYSTEM_INSTRUCTION =
+  'عندما يسأل الطالب عن مفهوم أو محتوى من كتبه المقررة، استدعِ search_course_books بسؤاله قبل الإجابة، واعتمد على المقاطع واذكر اسم الكتاب.'
+
+const BOOK_SEARCH_TOOL_DECLARATION = {
+  name: 'search_course_books',
+  description: 'ابحث في الكتب المقررة للطالب عن مقاطع تجيب سؤاله',
+  parameters: {
+    type: 'OBJECT',
+    properties: {
+      query: {
+        type: 'STRING',
+        description: 'سؤال الطالب أو المفهوم المطلوب البحث عنه في الكتب المقررة',
+      },
+    },
+    required: ['query'],
+  },
+}
+
+const GEMINI_LIVE_BOOK_SEARCH_TOOLS = [
+  { functionDeclarations: [BOOK_SEARCH_TOOL_DECLARATION] },
+]
+
 type SetupVariant = 'minimal' | 'generationConfig' | 'bare'
 
 function cleanModel(model: unknown): string {
@@ -207,26 +229,33 @@ function speechConfigForVoice(voice: string) {
   }
 }
 
-function withDialectInstruction(systemInstruction: string, dialect: string) {
-  return `${dialectInstruction(dialect)}\n\n${String(systemInstruction || '')}`.slice(0, 32000)
+function withBookSearchInstruction(systemInstruction: string) {
+  const text = String(systemInstruction || '')
+  return text.includes(BOOK_SEARCH_SYSTEM_INSTRUCTION)
+    ? text
+    : `${text}\n${BOOK_SEARCH_SYSTEM_INSTRUCTION}`
 }
 
-export function buildGeminiLiveSetup(_variant: SetupVariant, model: string, systemInstruction: string, voice: string, dialect: string) {
+function withDialectInstruction(systemInstruction: string, dialect: string) {
+  return `${dialectInstruction(dialect)}\n\n${withBookSearchInstruction(systemInstruction)}`.slice(0, 32000)
+}
+
+export function buildGeminiLiveSetup(variant: SetupVariant, model: string, systemInstruction: string, voice: string, dialect: string) {
   const instruction = withDialectInstruction(systemInstruction, dialect)
-  return {
-    setup: {
-      model: `models/${model}`,
-      generationConfig: {
-        responseModalities: ['AUDIO'],
-        speechConfig: speechConfigForVoice(voice),
-      },
-      systemInstruction: {
-        parts: [{ text: instruction }],
-      },
-      inputAudioTranscription: {},
-      outputAudioTranscription: {},
+  const setup: Record<string, unknown> = {
+    model: `models/${model}`,
+    generationConfig: {
+      responseModalities: ['AUDIO'],
+      speechConfig: speechConfigForVoice(voice),
     },
+    systemInstruction: {
+      parts: [{ text: instruction }],
+    },
+    inputAudioTranscription: {},
+    outputAudioTranscription: {},
   }
+  if (variant !== 'bare') setup.tools = GEMINI_LIVE_BOOK_SEARCH_TOOLS
+  return { setup }
 }
 
 export function buildGeminiLiveSdkConfig(systemInstruction: string, voice: string, dialect: string) {
@@ -236,6 +265,7 @@ export function buildGeminiLiveSdkConfig(systemInstruction: string, voice: strin
     inputAudioTranscription: {},
     outputAudioTranscription: {},
     systemInstruction: withDialectInstruction(systemInstruction, dialect),
+    tools: GEMINI_LIVE_BOOK_SEARCH_TOOLS,
   }
 }
 
@@ -305,9 +335,9 @@ export async function POST(req: NextRequest) {
   const extra =
     'هذه جلسة Gemini Live صوت إلى صوت حقيقية عبر WebSocket. ' +
     'استجب بصوت طبيعي قصير، وتوقف بعد فكرة أو سؤال واحد حتى تمنح الطالب فرصة المقاطعة والرد.'
-  const systemInstruction = buildVoiceSystemPrompt(
+  const systemInstruction = withBookSearchInstruction(buildVoiceSystemPrompt(
     mergeContext(ragContext, [body.context, extra].filter(Boolean).join('\n'))
-  )
+  ))
 
   await auditLiveKnowledgeSession({
     userId: user.id,
