@@ -46,6 +46,11 @@ export async function GET(_req: NextRequest, context: RouteContext) {
 
     if (!canView) return NextResponse.json({ error: 'صلاحيات غير كافية لعرض الشهادة' }, { status: 403 })
 
+    if (certificate.stampedFileKey) {
+      const stamped = await readLegacyCertificateStoredFile(certificate.stampedFileKey, 'application/pdf')
+      if (stamped) return pdfResponse(stamped.buffer, `${certificate.serial}.pdf`)
+    }
+
     const holder = pdfSafeText(certificate.holderName || certificate.admission?.fullName || certificate.agent?.repName || certificate.agent?.orgName, 'Certificate Holder')
     const program = pdfSafeText(certificate.program || certificate.admission?.programRef?.titleAr || certificate.admission?.program || certificate.agent?.orgName, 'AACT Program')
     const verificationUrl = certificateVerificationUrl(certificate)
