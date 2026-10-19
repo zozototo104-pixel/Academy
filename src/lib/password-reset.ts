@@ -7,12 +7,12 @@ export function hashPasswordResetToken(token: string) {
   return createHash('sha256').update(String(token || '')).digest('hex')
 }
 
-export function createPasswordResetToken() {
+export function createPasswordResetToken(ttlMs = PASSWORD_RESET_TTL_MS) {
   const token = randomBytes(32).toString('base64url')
   return {
     token,
     tokenHash: hashPasswordResetToken(token),
-    expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MS),
+    expiresAt: new Date(Date.now() + ttlMs),
   }
 }
 
