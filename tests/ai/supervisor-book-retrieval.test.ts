@@ -138,7 +138,7 @@ describe('supervisor enrolled book retrieval', () => {
     expect(context).toContain('علم النفس المعرفي')
     expect(context).toContain('الفصل الثالث، ص 12-14')
     expect(context).toContain('عملية تنظيم المعلومات')
-    expect(context).toContain('الإدراك المعرفي يربط الانتباه')
+    expect(context).toContain('استقبال المعلومات وتفسيرها')
   })
 
   test('an unrelated question keeps the relevant book excerpt block out of context', async () => {
