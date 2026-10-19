@@ -322,6 +322,14 @@ export function questionBankJobCanRunStep(job: { status: string; lockedUntil?: D
   return ['QUEUED', 'RUNNING', 'PAUSED'].includes(job.status)
 }
 
+export function questionBankJobMatchesResumableRunner(job: { status: string; lockedUntil?: Date | string | null; retryAt?: Date | string | null; saved: number; requested: number; unitId?: string | null }, now = Date.now()) {
+  if (!questionBankJobCanRunStep(job, now)) return false
+  if (job.status === 'QUEUED') return true
+  if (job.status === 'PAUSED') return !job.retryAt || new Date(job.retryAt).getTime() <= now
+  if (job.status === 'RUNNING') return Boolean(job.lockedUntil) && new Date(job.lockedUntil as Date | string).getTime() < now
+  return false
+}
+
 async function countApprovedUnitQuestionBankItems(job: { programId: string; unitId: string | null }) {
   if (!job.unitId) return 0
   return db.questionBankItem.count({ where: { programId: job.programId, unitId: job.unitId, status: 'APPROVED' } })
