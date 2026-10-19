@@ -666,6 +666,8 @@ const tests = [
   testBookReadJobResumePlansFailedAnalyze,
   testBookReadJobResumeRestartCreatesNewJob,
   testBookReadJobResumeCompletedCreatesNewJob,
+  testPagesNeedingOcrSplitsEightBlankPagesIntoTwoBatches,
+  testPagesNeedingOcrKeepsOnlyBlankPagesInSingleBatch,
   testAdminStudentsEnrollmentWhereBuilder,
 ]
 
