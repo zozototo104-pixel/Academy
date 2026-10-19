@@ -300,6 +300,27 @@ describe('legacy graduate creation', () => {
     expect(users.size).toBe(1)
   })
 
+  test('admin email is rejected without enrollment or certificate', async () => {
+    users.set('admin-existing', { id: 'admin-existing', email: 'admin-user@example.com', name: 'Admin User', role: 'ADMIN', status: 'ACTIVE' })
+    const res = await adminLegacyRoute.POST(jsonReq({ name: 'Admin User', email: 'admin-user@example.com', programId: 'program-1', issuedAt: '2024-06-30' }))
+    const data = await responseJson(res)
+    expect(res.status).toBe(409)
+    expect(data.error).toBe('هذا البريد مرتبط بحساب إداري ولا يمكن تسجيله كخريج')
+    expect(enrollments.size).toBe(0)
+    expect(certificates.size).toBe(0)
+  })
+
+  test('existing student links certificate and skips password setup email', async () => {
+    users.set('user-existing', { id: 'user-existing', email: 'student@example.com', name: 'Student', role: 'STUDENT', status: 'ACTIVE' })
+    const res = await adminLegacyRoute.POST(jsonReq({ name: 'Student', email: 'student@example.com', programId: 'program-1', issuedAt: '2024-06-30' }))
+    const data = await responseJson(res)
+    expect(res.status).toBe(200)
+    expect(data.emailStatus).toBe('SKIPPED_EXISTING_USER')
+    expect(legacyWelcomeCalls).toBe(0)
+    expect(certificates.size).toBe(1)
+    expect([...certificates.values()][0].userId).toBe('user-existing')
+  })
+
   test('email failure does not roll back the created graduate operation', async () => {
     emailStatus = 'FAILED'
     const res = await adminLegacyRoute.POST(jsonReq({ name: 'مها', email: 'maha@example.com', programId: 'program-1', issuedAt: '2024-06-30' }))
