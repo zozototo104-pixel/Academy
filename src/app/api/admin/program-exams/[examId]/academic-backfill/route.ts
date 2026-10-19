@@ -51,8 +51,8 @@ export async function POST(_req: NextRequest, context: any) {
     let aiFailed = 0
     let counts = await academicCounts(examId)
 
-    while (counts.remaining > 0 && Date.now() - startedAt < 45_000) {
-      const result = await backfillProgramExamAcademicFields(examId, { maxBatches: 2 })
+    while (counts.remaining > 0 && deadlineMs - Date.now() > 20_000) {
+      const result = await backfillProgramExamAcademicFields(examId, { maxBatches: 1, deadlineMs })
       if (result.skipped === 'LOCKED') {
         counts = await academicCounts(examId)
         return NextResponse.json({ filled, aiFailed, ...counts, done: counts.remaining === 0, locked: true })
