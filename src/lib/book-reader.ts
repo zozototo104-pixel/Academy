@@ -11,7 +11,7 @@ export type PlannedBookChunk = { index: number; pageStart: number; pageEnd: numb
 export function pagesNeedingOcr(pages: readonly { page: number; text: string }[]): number[][] {
   const missing = pages.filter((page) => page.text.trim().length < 80).map((page) => page.page)
   const batches: number[][] = []
-  for (let i = 0; i < missing.length; i += 8) batches.push(missing.slice(i, i + 8))
+  for (let i = 0; i < missing.length; i += 4) batches.push(missing.slice(i, i + 4))
   return batches
 }
 export function nextExtractionPage(pagesDone: number, totalPages: number): number | null {
