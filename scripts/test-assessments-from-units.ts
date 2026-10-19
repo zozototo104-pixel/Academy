@@ -645,6 +645,12 @@ const tests = [
   testUnitQuestionBankStatusResolverCompletesFailedWhenApprovedTargetMet,
   testUnitQuestionBankStatusResolverKeepsRunningWhenApprovedBelowTarget,
   testUnitQuestionBankStatusResolverKeepsFailedWhenApprovedBelowTarget,
+  testTransientBookReadErrorsClassifyRetryableProviderPressure,
+  testTransientBookReadErrorsClassifyDeadline,
+  testTransientBookReadErrorsDoNotClassifyPermanentPdfError,
+  testBookReadJobResumePlansFailedAnalyze,
+  testBookReadJobResumeRestartCreatesNewJob,
+  testBookReadJobResumeCompletedCreatesNewJob,
   testAdminStudentsEnrollmentWhereBuilder,
 ]
 
