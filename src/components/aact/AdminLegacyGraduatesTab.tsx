@@ -208,6 +208,7 @@ export default function AdminLegacyGraduatesTab() {
   function onExcelChange(e: ChangeEvent<HTMLInputElement>) {
     setExcelFile(e.target.files?.[0] || null)
     setImportRows([])
+    setImportProgress(null)
   }
 
   async function runImport(dryRun: boolean) {
