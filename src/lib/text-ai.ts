@@ -776,6 +776,15 @@ async function settings() {
 type Settings = Awaited<ReturnType<typeof settings>>
 type ConcreteProvider = Exclude<TextAiProvider, 'AUTO'>
 
+export function __testLimitProviderModelsForTests(provider: Exclude<TextAiProvider, 'AUTO'>, models: string[], maxProviderModels?: Partial<Record<Exclude<TextAiProvider, 'AUTO'>, number>>) {
+  const limit = Math.max(0, Math.floor(Number(maxProviderModels?.[provider] || 0)))
+  return limit > 0 ? models.slice(0, limit) : models
+}
+
+export function __testProviderRateLimitCooldownForTests(timestamps: number[], now = Date.now(), threshold = 3, windowMs = 60_000) {
+  return timestamps.filter((value) => Number.isFinite(value) && now - value <= windowMs).length >= threshold
+}
+
 function providerKeys(s: Settings, provider: ConcreteProvider): string[] {
   switch (provider) {
     case 'GEMINI': return s.geminiKeys
