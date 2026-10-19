@@ -254,7 +254,7 @@ async function remainingAcademicBackfillCount(examId: string) {
   ).length
 }
 
-export async function backfillProgramExamAcademicFields(examId: string, options: { maxBatches?: number } = {}) {
+export async function backfillProgramExamAcademicFields(examId: string, options: { maxBatches?: number; deadlineMs?: number } = {}) {
   const lockKey = `PROGRAM_EXAM_BACKFILL_LOCK:${examId}`
   const activeLock = await db.setting.findUnique({ where: { key: lockKey }, select: { value: true } })
   const activeUntil = Date.parse(activeLock?.value || '')
