@@ -361,7 +361,7 @@ async function expandSupervisorBookQueryTerms(query: string | null | undefined, 
       temperature: 0,
       maxOutputTokens: 200,
       timeoutMs,
-      deadlineMs: timeoutMs,
+      deadlineMs: Date.now() + timeoutMs,
       purpose: 'ANALYSIS',
       taskLevel: 'GENERAL',
     }).catch(() => '')
