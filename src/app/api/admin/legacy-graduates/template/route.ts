@@ -7,7 +7,8 @@ export async function GET(_req: NextRequest) {
   try {
     await requireAdmin()
     const buffer = createLegacyGraduatesTemplateBuffer()
-    return new NextResponse(buffer, {
+    const body = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer
+    return new NextResponse(body, {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'Content-Disposition': 'attachment; filename="legacy-graduates-template.xlsx"',
