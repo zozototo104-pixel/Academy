@@ -29,7 +29,7 @@ export async function getStudentAiSupervisorAccess(userId: string): Promise<{ al
     where: {
       userId,
       status: { in: ['ACTIVE', 'COMPLETED'] },
-      program: { is: { category: { not: 'SERVICE' } } },
+      program: { category: { not: 'SERVICE' } },
     },
     select: { id: true },
   }).catch(() => null)
