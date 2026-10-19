@@ -114,10 +114,15 @@ export async function POST(req: NextRequest) {
       status: 'DRAFT' as const,
       source: 'IMPORT' as const,
     }))
-    if (data.length) await db.studyScheduleItem.createMany({ data })
+    if (data.length) {
+      await db.$transaction([
+        ...(replace ? [db.studyScheduleItem.deleteMany({ where: { programId, semester: { in: semesters }, status: 'DRAFT', source: 'IMPORT' } })] : []),
+        db.studyScheduleItem.createMany({ data }),
+      ])
+    }
     return NextResponse.json({ imported: data.length })
   } catch (error: any) {
-    if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
+    if (isAdminAuthError(error)) return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
     if (error?.name === 'ZodError') return NextResponse.json({ error: 'ملف الاستيراد غير صالح' }, { status: 400 })
     return NextResponse.json({ error: 'تعذر استيراد جدول الدراسة' }, { status: 500 })
   }
