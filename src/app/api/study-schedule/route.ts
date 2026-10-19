@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
     const enrollment = await db.enrollment.findUnique({ where: { userId_programId: { userId: user.id, programId } }, select: { id: true, createdAt: true, status: true } })
     if (!enrollment) return NextResponse.json({ error: 'التسجيل غير موجود' }, { status: 404 })
+    if (!['ACTIVE', 'COMPLETED'].includes(enrollment.status)) return NextResponse.json({ enrollmentCreatedAt: enrollment.createdAt, items: [] })
     const items = await db.studyScheduleItem.findMany({
       where: { programId, status: 'PUBLISHED', ...(Number.isFinite(semester) ? { semester } : {}) },
       orderBy: [{ semester: 'asc' }, { week: 'asc' }, { dayOffset: 'asc' }, { order: 'asc' }, { createdAt: 'asc' }],
