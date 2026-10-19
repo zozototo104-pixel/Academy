@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
           finalScore: row.finalScore,
           issuedAt: row.issuedAt,
           legacySerial: row.legacySerial,
-        }, admin)
+        }, admin, { source: 'IMPORT' })
         const emailStatus = saved.userCreated
           ? await sendLegacyGraduatePasswordSetup(req, saved.user.id)
           : 'SKIPPED_EXISTING_USER'
