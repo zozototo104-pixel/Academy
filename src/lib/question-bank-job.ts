@@ -661,6 +661,7 @@ export async function runNextQuestionBankGenerationJobStep(programId?: string, o
       })
       continue
     }
+    if (options.resumable && !questionBankJobMatchesResumableRunner(job, now.getTime())) continue
     const result = await runQuestionBankGenerationJobStep(job.id)
     if (result?.id === job.id && (questionBankJobHasActiveLock(result) || new Date(result.updatedAt).getTime() === new Date(job.updatedAt).getTime())) continue
     return result
