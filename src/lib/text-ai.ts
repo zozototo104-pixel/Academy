@@ -503,6 +503,18 @@ function markProviderCooldown(provider: string, reason: string, minutes?: number
   cooldowns.set(providerCooldownId(provider), { until: Date.now() + ttl * 60 * 1000, reason: reason.slice(0, 180), status })
 }
 
+function recordProviderRateLimitAndMaybeCooldown(provider: ConcreteProvider, opts: TextAiCallOpts, reason: string, status?: number) {
+  const rule = opts.providerRateLimitCooldown
+  if (!rule || rule.provider !== provider) return
+  const now = Date.now()
+  const windowMs = Math.max(1000, Number(rule.windowMs || 60_000))
+  const threshold = Math.max(1, Math.floor(Number(rule.threshold || 3)))
+  const hits = (providerRateLimitHits.get(provider) || []).filter((at) => now - at <= windowMs)
+  hits.push(now)
+  providerRateLimitHits.set(provider, hits)
+  if (__testProviderRateLimitCooldownForTests(hits, now, threshold, windowMs)) markProviderCooldown(provider, reason, rule.cooldownMinutes, status)
+}
+
 function markModelCooldown(provider: string, key: string, model: string, reason: string, minutes?: number, status?: number) {
   const ttl = Math.max(1, Math.floor(minutes || 2))
   cooldowns.set(modelCooldownId(provider, key, model), { until: Date.now() + ttl * 60 * 1000, reason: reason.slice(0, 180), status, model })
