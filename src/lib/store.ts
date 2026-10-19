@@ -44,7 +44,7 @@ function updateBrowserRoute(view: View, params: Record<string, string | null | u
   try {
     const next = pathForView(view, params)
     const current = `${window.location.pathname}${window.location.search}${window.location.hash}`
-    if (next !== current) window.history.pushState(null, '', next)
+    if (next !== current) window.history.pushState({ aact: true }, '', next)
   } catch (error) {
     console.warn('Failed to update browser route for application navigation.', error)
   }
