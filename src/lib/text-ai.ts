@@ -1556,7 +1556,7 @@ async function recordQuestionVerifierNoCandidate(lines: string[]) {
   if (!lines.length) return
   const summary = lines.slice(0, 80).join('\n').slice(0, 5000)
   console.warn(`[question-verifier] no-candidate\n${summary}`)
-  try { await settingStore().write('QUESTION_VERIFIER_LAST_NO_CANDIDATE', summary) } catch {}
+  try { await settingStore().write('QUESTION_VERIFIER_LAST_NO_CANDIDATE', summary) } catch { /* best-effort diagnostic persistence */ }
 }
 
 function cooldownList() {

@@ -245,7 +245,34 @@ interface StudentStudyGuide {
   updatedAt: string
 }
 
+interface StudentStudyScheduleItem {
+  id: string
+  programId: string
+  semester: number
+  week: number
+  dayOffset?: number | null
+  title: string
+  description?: string | null
+  type: 'READING' | 'UNIT' | 'STUDY_GUIDE' | 'ASSIGNMENT' | 'EXAM' | 'REVIEW'
+  unitId?: string | null
+  studyGuideId?: string | null
+  assignmentId?: string | null
+  examId?: string | null
+  durationMin?: number | null
+  order: number
+  targetDate?: string | null
+}
+
 interface ChatMsg { id: string; role: string; content: string; createdAt: string }
+
+const STUDY_SCHEDULE_TYPE_LABEL: Record<StudentStudyScheduleItem['type'], string> = {
+  READING: 'قراءة',
+  UNIT: 'وحدة',
+  STUDY_GUIDE: 'دليل دراسة',
+  ASSIGNMENT: 'واجب',
+  EXAM: 'امتحان',
+  REVIEW: 'مراجعة',
+}
 
 interface AcademicMemorySnapshot {
   exists: boolean
@@ -324,6 +351,7 @@ export function DashboardView() {
   const [programs, setPrograms] = useState<any[]>([])
   const [active, setActive] = useState<ProgressData | null>(null)
   const [studyGuides, setStudyGuides] = useState<StudentStudyGuide[]>([])
+  const [studyScheduleItems, setStudyScheduleItems] = useState<StudentStudyScheduleItem[]>([])
   const [assignments, setAssignments] = useState<StudentAssignment[]>([])
   const [assignmentDrafts, setAssignmentDrafts] = useState<Record<string, string>>({})
   const [assignmentFiles, setAssignmentFiles] = useState<Record<string, File | null>>({})
@@ -415,14 +443,17 @@ export function DashboardView() {
       setActive(d)
       setAssignments([])
       setStudyGuides([])
+      setStudyScheduleItems([])
       setProgramSection('academic')
       Promise.all([
         api<{ assignments: StudentAssignment[] }>(`/api/assignments?programId=${programId}`).catch(() => ({ assignments: [] as StudentAssignment[] })),
         api<{ guides: StudentStudyGuide[] }>(`/api/study-guides?programId=${programId}`).catch(() => ({ guides: [] as StudentStudyGuide[] })),
+        api<{ items: StudentStudyScheduleItem[] }>(`/api/study-schedule?programId=${programId}`).catch(() => ({ items: [] as StudentStudyScheduleItem[] })),
       ])
-        .then(([a, g]) => {
+        .then(([a, g, schedule]) => {
           setAssignments(a.assignments || [])
           setStudyGuides(g.guides || [])
+          setStudyScheduleItems(schedule.items || [])
         })
         .catch(() => null)
     } catch (e: any) {
@@ -558,6 +589,48 @@ export function DashboardView() {
     const revisionHours = Math.max(2, hours - booksHours - unitsHours - assignmentsHours)
     return { semester, exam, semesterBooks, semesterUnits, semesterAssignments, hours, booksHours, unitsHours, assignmentsHours, revisionHours }
   }) || []
+
+  const publishedScheduleGrouped = studyScheduleItems.reduce<Record<number, StudentStudyScheduleItem[]>>((acc, item) => {
+    acc[item.week] = acc[item.week] || []
+    acc[item.week].push(item)
+    return acc
+  }, {})
+  const publishedScheduleWeeks = Object.entries(publishedScheduleGrouped)
+    .map(([week, weekItems]) => ({ week: Number(week), items: weekItems.sort((a, b) => (a.dayOffset || 0) - (b.dayOffset || 0) || a.order - b.order) }))
+    .sort((a, b) => a.week - b.week)
+
+  const formatScheduleDate = (value?: string | null) => {
+    if (!value) return ''
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('ar-EG')
+  }
+
+  const handleSemesterExamAction = (exam: any) => {
+    if (!active) return
+    const sem1 = (active.semesterExams || []).find((e: any) => e.semester === 1)
+    const readiness = exam.readiness
+    const tuitionGate = exam.tuitionGate
+    const tuitionLocked = Boolean(tuitionGate && !tuitionGate.allowed)
+    const prereqLocked = exam.semester === 2 && sem1 && !sem1.passed
+    const locked = prereqLocked || tuitionLocked || !readiness?.readyMarked
+    if (locked) return
+    return openExam(exam.id, 'final')
+  }
+
+  const openStudyScheduleItem = (item: StudentStudyScheduleItem) => {
+    if (item.unitId) return openUnit(item.unitId)
+    if (item.examId) {
+      const exam = (active?.semesterExams || []).find((candidate: any) => candidate.id === item.examId)
+      if (exam) return handleSemesterExamAction(exam)
+      setProgramSection('content')
+      toast({ title: 'هذا الامتحان غير متاح بعد' })
+      return
+    }
+    if (item.assignmentId || item.studyGuideId) {
+      setProgramSection('content')
+      return
+    }
+  }
 
   const aiSupervisorAccess = studentSummary?.aiSupervisorAccess
   const aiSupervisorAllowed = !!aiSupervisorAccess?.allowed
@@ -856,8 +929,49 @@ export function DashboardView() {
                   </section>
                 )}
 
-                {programSection === 'schedule' && semesterStudyPlans.length > 0 && (
-                  <section className="mt-4 rounded-2xl border border-[#0f2b46]/10 bg-white p-4 shadow-sm">
+                {programSection === 'schedule' && (
+                  publishedScheduleWeeks.length > 0 ? (
+                    <section className="mt-4 rounded-2xl border border-[#0f2b46]/10 bg-white p-4 shadow-sm">
+                      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                        <h3 className="text-sm font-black text-[#0f2b46]">جدول الدراسة المنشور</h3>
+                        <Badge className="bg-[#f7edd0] text-[#0f2b46] hover:bg-[#f7edd0]">حسب تاريخ التسجيل</Badge>
+                      </div>
+                      <div className="space-y-3">
+                        {publishedScheduleWeeks.map((week) => (
+                          <div key={week.week} className="rounded-2xl border border-slate-100 bg-[#f8fafc] p-3">
+                            <p className="mb-2 text-xs font-black text-[#0f2b46]">الأسبوع {week.week}</p>
+                            <div className="space-y-2">
+                              {week.items.map((item) => {
+                                const canOpen = Boolean(item.unitId || item.examId || item.assignmentId || item.studyGuideId)
+                                const itemDate = formatScheduleDate(item.targetDate)
+                                return (
+                                  <div key={item.id} className="rounded-xl bg-white p-3 text-[11px] font-bold leading-5 text-slate-600">
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <Badge className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">{STUDY_SCHEDULE_TYPE_LABEL[item.type] || item.type}</Badge>
+                                          {item.durationMin ? <Badge variant="outline">{item.durationMin} دقيقة</Badge> : null}
+                                          {itemDate ? <Badge variant="outline">{itemDate}</Badge> : null}
+                                        </div>
+                                        <p className="mt-2 font-black text-[#0f2b46]">{item.title}</p>
+                                        {item.description && <p className="mt-1 leading-6 text-slate-500">{item.description}</p>}
+                                      </div>
+                                      {canOpen && (
+                                        <Button type="button" size="sm" variant="outline" onClick={() => openStudyScheduleItem(item)} className="h-9 shrink-0 border-[#c9a227]/40 text-[11px] font-black text-[#a8841a]">
+                                          فتح العنصر
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  ) : semesterStudyPlans.length > 0 ? (
+                    <section className="mt-4 rounded-2xl border border-[#0f2b46]/10 bg-white p-4 shadow-sm">
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                       <h3 className="text-sm font-black text-[#0f2b46]">جدول الدراسة للفصول والمواد المطلوبة</h3>
                       <Badge className="bg-[#f7edd0] text-[#0f2b46] hover:bg-[#f7edd0]">بعد التسجيل مباشرة</Badge>
@@ -907,6 +1021,11 @@ export function DashboardView() {
                       ))}
                     </div>
                   </section>
+                  ) : (
+                    <section className="mt-4 rounded-2xl border border-[#0f2b46]/10 bg-white p-6 text-center text-sm font-bold text-slate-500 shadow-sm">
+                      جدول الدراسة قيد التجهيز وسيظهر هنا قريباً
+                    </section>
+                  )
                 )}
 
                 {programSection === 'progress' && (activeAcademicProfile?.termPlans?.length || 0) > 0 && (
@@ -1211,7 +1330,7 @@ export function DashboardView() {
                           </Button>
                         ) : null}
                         <Button
-                          onClick={() => (locked ? null : openExam(exam.id, 'final'))}
+                          onClick={() => handleSemesterExamAction(exam)}
                           disabled={locked}
                           className="bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a] disabled:opacity-50"
                         >

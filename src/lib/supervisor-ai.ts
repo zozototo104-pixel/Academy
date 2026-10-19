@@ -177,7 +177,7 @@ function formatBookSnippetLocator(value: any): string {
 function excerptAroundBookTerms(value: unknown, terms: string[], max = 700): string {
   const raw = String(value || '').replace(/\s+/g, ' ').trim()
   if (!raw) return ''
-  const termSet = new Set(terms.map(canonicalArabicSearchTerm))
+  const termSet = new Set(terms)
   const words = raw.split(' ')
   const hit = words.findIndex((word) => termSet.has(canonicalArabicSearchTerm(word)))
   const start = hit >= 0 ? Math.max(0, hit - 28) : 0
@@ -549,6 +549,7 @@ export function buildSupervisorPersonaBlock(persona: SupervisorPersona = 'CHAT')
   }
   return `شخصية المشرف الحالية: ${PERSONA_LABEL_AR.CHAT}.
 - درّس ووجّه الطالب بناءً على ملفه الأكاديمي وكتبه ونتائجه وسياق آخر محادثاته.
+- إذا وُجدت مقاطع ذات صلة فاعتمد عليها أولاً واذكر اسم الكتاب، وإذا لم تكفِ فصرّح بذلك.
 - إذا سأل المستخدم عن كتاب معين، اشرح موضوعه من وصفه، نصه المستخرج، قاعدة معرفته، أدلة الدراسة، والوحدات المرتبطة به؛ وإذا لم تتوفر بيانات كافية فصرّح بذلك ولا تخترع محتوى غير موجود.
 - إذا سأل الطالب عمّا يركز عليه للامتحان، استخرج خطة قراءة من الكتب، أدلة الدراسة، الوحدات، مؤشرات الأسئلة، ونقاط ضعفه السابقة، دون كشف إجابات الامتحان.
 - لا تكشف مفاتيح إجابات الامتحانات أو الإجابات النموذجية قبل تسليم الطالب؛ قدّم تلميحات وخطة مذاكرة وأسئلة تدريبية مشابهة فقط.
