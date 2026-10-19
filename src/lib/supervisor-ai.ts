@@ -77,6 +77,336 @@ function normalizeArabic(value?: string | null): string {
     .trim()
 }
 
+const RELEVANT_BOOK_SNIPPETS_TITLE = 'مقاطع من الكتب المقررة ذات صلة بسؤال الطالب'
+const QUERY_EXPANSION_CACHE_TTL_MS = 60 * 60 * 1000
+const QUERY_EXPANSION_CACHE_MAX = 500
+const queryExpansionCache = new Map<string, { terms: string[]; expiresAt: number }>()
+
+function canonicalArabicSearchTerm(value?: string | null): string {
+  let word = normalizeArabic(value)
+  word = word.replace(/^(?:وال|فال|بال|كال|لل|ال)(?=.{3,}$)/u, '')
+  return word
+}
+
+function cleanOriginalBookSearchTerm(value?: string | null): string {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function stripOriginalArabicCompoundPrefix(value: string): string {
+  return value.replace(/^(?:وال|فال|بال|كال|لل|ال)(?=.{3,}$)/u, '')
+}
+
+const SUPERVISOR_BOOK_SEARCH_FILLER_WORDS = new Set([
+  'ما', 'ماذا', 'من', 'عن', 'على', 'في', 'الى', 'إلى', 'هل', 'كيف', 'لماذا', 'هذا', 'هذه', 'ذلك', 'تلك',
+  'الذي', 'التي', 'الذين', 'هو', 'هي', 'هم', 'انا', 'أريد', 'اريد', 'اعطني', 'أعطني', 'اشرح', 'وضح', 'بين', 'اذكر', 'اخبرني',
+  'يعني', 'عند', 'عندما', 'حول', 'خلال', 'بعد', 'قبل', 'ايضا', 'لكن', 'حتى', 'كان', 'كانت', 'يكون', 'تكون',
+  'هناك', 'هنا', 'شي', 'شيء', 'شو', 'ايش', 'ماهو', 'ماهي', 'اي', 'أي', 'كل', 'مع', 'او', 'أو', 'ثم', 'قد', 'لقد', 'بس', 'لو', 'اذا',
+  'السؤال', 'سؤال', 'مفهوم', 'تعريف', 'شرح', 'بشكل', 'مختصر', 'تفصيلي', 'كيفية', 'طريقة', 'موضوع', 'الفصل', 'الوحدة',
+  'المقرر', 'المقرره', 'الكتاب', 'كتب',
+].map(canonicalArabicSearchTerm).filter(Boolean))
+
+function supervisorBookSearchTerms(query?: string | null): string[] {
+  const seen = new Set<string>()
+  for (const word of normalizeArabic(query).split(' ')) {
+    const term = canonicalArabicSearchTerm(word)
+    if (term.length < 3 || SUPERVISOR_BOOK_SEARCH_FILLER_WORDS.has(term)) continue
+    seen.add(term)
+    if (seen.size >= 16) break
+  }
+  return [...seen]
+}
+
+function supervisorBookDbSearchTerms(query: string | null | undefined, normalizedTerms: string[]): string[] {
+  const seen = new Set<string>()
+  const add = (value?: string | null) => {
+    const term = String(value || '').trim()
+    const normalized = canonicalArabicSearchTerm(term)
+    if (term.length >= 3 && normalized.length >= 3 && !SUPERVISOR_BOOK_SEARCH_FILLER_WORDS.has(normalized)) seen.add(term)
+  }
+
+  for (const term of normalizedTerms) add(term)
+  for (const word of cleanOriginalBookSearchTerm(query).split(' ')) {
+    add(word)
+    add(stripOriginalArabicCompoundPrefix(word))
+    if (seen.size >= 40) break
+  }
+  return [...seen]
+}
+
+type SupervisorBookSnippetCandidate = {
+  id: string
+  score: number
+  order: number
+  bookTitle: string
+  locator: string
+  text: string
+}
+
+function supervisorBookWordSet(value: unknown): Set<string> {
+  const words = new Set<string>()
+  for (const word of normalizeArabic(String(value || '')).split(' ')) {
+    const term = canonicalArabicSearchTerm(word)
+    if (term.length >= 3 && !SUPERVISOR_BOOK_SEARCH_FILLER_WORDS.has(term)) words.add(term)
+  }
+  return words
+}
+
+function countMatchingBookTerms(value: unknown, terms: string[]): number {
+  const words = supervisorBookWordSet(value)
+  return terms.reduce((count, term) => count + (words.has(canonicalArabicSearchTerm(term)) ? 1 : 0), 0)
+}
+
+function formatBookSnippetLocator(value: any): string {
+  const heading = safeContextText(value?.headingPath || value?.sourceNote, 140)
+  const pageStart = value?.pageStart != null && Number.isFinite(Number(value.pageStart)) ? Number(value.pageStart) : null
+  const pageEnd = value?.pageEnd != null && Number.isFinite(Number(value.pageEnd)) ? Number(value.pageEnd) : null
+  const page = pageStart && pageStart > 0
+    ? `ص ${pageStart}${pageEnd && pageEnd !== pageStart ? `-${pageEnd}` : ''}`
+    : ''
+  if (heading && page) return `${heading}، ${page}`
+  if (heading) return heading
+  if (page) return page
+  if (value?.index != null && Number.isFinite(Number(value.index))) return `جزء ${Number(value.index) + 1}`
+  return 'موضع غير محدد'
+}
+
+function excerptAroundBookTerms(value: unknown, terms: string[], max = 700): string {
+  const raw = String(value || '').replace(/\s+/g, ' ').trim()
+  if (!raw) return ''
+  const termSet = new Set(terms.map(canonicalArabicSearchTerm))
+  const words = raw.split(' ')
+  const hit = words.findIndex((word) => termSet.has(canonicalArabicSearchTerm(word)))
+  const start = hit >= 0 ? Math.max(0, hit - 28) : 0
+  const prefix = start > 0 ? '…' : ''
+  let excerpt = ''
+  let end = start
+  for (let i = start; i < words.length; i += 1) {
+    const next = excerpt ? `${excerpt} ${words[i]}` : words[i]
+    if ((prefix + next).length > max - 1) break
+    excerpt = next
+    end = i + 1
+  }
+  const suffix = end < words.length ? '…' : ''
+  return safeContextText(`${prefix}${excerpt}${suffix}`, max)
+}
+
+function buildBookSnippetBlock(chunks: any[], knowledgeItems: any[], terms: string[], startedAt: number, timeoutMs: number): string {
+  const deadline = startedAt + timeoutMs
+  const candidates: SupervisorBookSnippetCandidate[] = []
+  const seen = new Set<string>()
+  let order = 0
+
+  for (const chunk of chunks) {
+    if (Date.now() > deadline) return ''
+    const text = String(chunk?.text || '')
+    if (!text) continue
+    const score = countMatchingBookTerms([chunk?.headingPath, chunk?.book?.title, text].filter(Boolean).join(' '), terms)
+    if (score <= 0) continue
+    const bookTitle = safeContextText(chunk?.book?.title || 'كتاب غير محدد', 140)
+    const locator = formatBookSnippetLocator(chunk)
+    const excerpt = excerptAroundBookTerms(text, terms, 700)
+    const key = `${bookTitle}:${locator}:${excerpt.slice(0, 160)}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    candidates.push({ id: String(chunk?.id || `chunk-${order}`), score, order: order++, bookTitle, locator, text: excerpt })
+  }
+
+  for (const item of knowledgeItems) {
+    if (Date.now() > deadline) return ''
+    const text = [item?.title, item?.summary, item?.excerpt, item?.keywords].filter(Boolean).join(' ')
+    if (!text) continue
+    const score = countMatchingBookTerms([item?.book?.title, item?.sourceNote, text].filter(Boolean).join(' '), terms)
+    if (score <= 0) continue
+    const bookTitle = safeContextText(item?.book?.title || 'كتاب غير محدد', 140)
+    const locator = formatBookSnippetLocator(item)
+    const excerpt = excerptAroundBookTerms(item?.excerpt || item?.summary || item?.title, terms, 700)
+    const key = `${bookTitle}:${locator}:${excerpt.slice(0, 160)}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    candidates.push({ id: String(item?.id || `knowledge-${order}`), score, order: order++, bookTitle, locator, text: excerpt })
+  }
+
+  const top = candidates
+    .sort((a, b) => (b.score - a.score) || (a.order - b.order))
+    .slice(0, 6)
+
+  if (!top.length) return ''
+  return `${RELEVANT_BOOK_SNIPPETS_TITLE}:\n${top.map((item, index) => `${index + 1}. الكتاب: «${item.bookTitle}» — الموضع: ${item.locator}\n   النص: ${item.text}`).join('\n')}`
+}
+
+async function fetchSupervisorBookSnippetSources(programIds: string[], dbTerms: string[]): Promise<{ chunks: any[]; knowledgeItems: any[] }> {
+  const bookChunkStore = (db as any).bookChunk
+  const knowledgeStore = (db as any).bookKnowledgeItem
+  if (!dbTerms.length || (!bookChunkStore?.findMany && !knowledgeStore?.findMany)) return { chunks: [], knowledgeItems: [] }
+
+  const [chunks, knowledgeItems] = await Promise.all([
+    bookChunkStore?.findMany
+      ? bookChunkStore.findMany({
+          where: {
+            programId: { in: programIds },
+            OR: dbTerms.map((term) => ({ text: { contains: term, mode: 'insensitive' } })),
+          },
+          orderBy: [{ bookId: 'asc' }, { index: 'asc' }],
+          take: 40,
+          select: {
+            id: true,
+            bookId: true,
+            programId: true,
+            index: true,
+            pageStart: true,
+            pageEnd: true,
+            headingPath: true,
+            text: true,
+            book: { select: { title: true } },
+          },
+        }).catch(() => [])
+      : Promise.resolve([]),
+    knowledgeStore?.findMany
+      ? knowledgeStore.findMany({
+          where: {
+            programId: { in: programIds },
+            OR: dbTerms.flatMap((term) => [
+              { title: { contains: term, mode: 'insensitive' } },
+              { summary: { contains: term, mode: 'insensitive' } },
+              { excerpt: { contains: term, mode: 'insensitive' } },
+            ]),
+          },
+          orderBy: [{ importance: 'desc' }, { updatedAt: 'desc' }],
+          take: 30,
+          select: {
+            id: true,
+            programId: true,
+            bookId: true,
+            title: true,
+            summary: true,
+            excerpt: true,
+            keywords: true,
+            sourceNote: true,
+            pageStart: true,
+            pageEnd: true,
+            book: { select: { title: true } },
+          },
+        }).catch(() => [])
+      : Promise.resolve([]),
+  ])
+
+  return { chunks: chunks || [], knowledgeItems: knowledgeItems || [] }
+}
+
+function uniqueBookTitles(values: unknown[]): string[] {
+  const seen = new Set<string>()
+  for (const value of values) {
+    const title = safeContextText(value, 120)
+    if (title && !seen.has(title.toLowerCase())) seen.add(title.toLowerCase())
+  }
+  return [...seen].map((lower) => values.map((value) => safeContextText(value, 120)).find((title) => title.toLowerCase() === lower) || lower).slice(0, 24)
+}
+
+function readQueryExpansionCache(cacheKey: string): string[] | null {
+  const cached = queryExpansionCache.get(cacheKey)
+  if (!cached) return null
+  if (cached.expiresAt <= Date.now()) {
+    queryExpansionCache.delete(cacheKey)
+    return null
+  }
+  return cached.terms
+}
+
+function writeQueryExpansionCache(cacheKey: string, terms: string[]): void {
+  if (!cacheKey) return
+  if (queryExpansionCache.size >= QUERY_EXPANSION_CACHE_MAX && !queryExpansionCache.has(cacheKey)) {
+    const first = queryExpansionCache.keys().next().value
+    if (first) queryExpansionCache.delete(first)
+  }
+  queryExpansionCache.set(cacheKey, { terms, expiresAt: Date.now() + QUERY_EXPANSION_CACHE_TTL_MS })
+}
+
+function cleanExpandedBookTerms(values: unknown[]): string[] {
+  const seen = new Set<string>()
+  for (const value of values) {
+    for (const word of cleanOriginalBookSearchTerm(String(value || '')).split(' ')) {
+      const normalized = canonicalArabicSearchTerm(word)
+      if (word.length >= 3 && normalized.length >= 3 && !SUPERVISOR_BOOK_SEARCH_FILLER_WORDS.has(normalized)) {
+        seen.add(normalized)
+        seen.add(word)
+      }
+      if (seen.size >= 24) break
+    }
+    if (seen.size >= 24) break
+  }
+  return [...seen].slice(0, 24)
+}
+
+async function expandSupervisorBookQueryTerms(query: string | null | undefined, bookTitles: string[], timeoutMs = 2500): Promise<string[]> {
+  const cacheKey = normalizeArabic(query)
+  const cached = readQueryExpansionCache(cacheKey)
+  if (cached) return cached
+  if (!cacheKey || !bookTitles.length) {
+    writeQueryExpansionCache(cacheKey, [])
+    return []
+  }
+
+  let timer: ReturnType<typeof setTimeout> | null = null
+  try {
+    const timeout = new Promise<string>((resolve) => {
+      timer = setTimeout(() => resolve(''), Math.max(1, timeoutMs))
+    })
+    const request = textAiCompleteJson({
+      system: 'أنت مساعد أكاديمي يستخرج مصطلحات بحث قصيرة فقط. أعد JSON صالحاً فقط بالشكل {"terms":[...]} دون شرح.',
+      history: [{
+        role: 'user',
+        text: `سؤال الطالب:\n${safeContextText(query, 500)}\n\nعناوين كتب برنامج الطالب:\n${bookTitles.slice(0, 24).join('\n')}\n\nاستخرج حتى 12 مصطلح بحث مناسبة للعثور على مقاطع في كتب أكاديمية. استخدم مرادفات عربية، والمصطلح الإنجليزي المقابل عند وجوده، والجذر أو الصيغة الأقرب لصياغة كتاب أكاديمي.`,
+      }],
+      temperature: 0,
+      maxOutputTokens: 200,
+      timeoutMs,
+      deadlineMs: timeoutMs,
+      purpose: 'ANALYSIS',
+      taskLevel: 'GENERAL',
+    }).catch(() => '')
+    const raw = await Promise.race([request, timeout])
+    const parsed = raw ? JSON.parse(raw) : null
+    const terms = cleanExpandedBookTerms(Array.isArray(parsed?.terms) ? parsed.terms.slice(0, 12) : [])
+    writeQueryExpansionCache(cacheKey, terms)
+    return terms
+  } catch {
+    writeQueryExpansionCache(cacheKey, [])
+    return []
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
+export async function buildRelevantSupervisorBookSnippets(enrolledProgramIds: string[], query?: string | null, bookTitles: string[] = [], timeoutMs = 1500): Promise<string> {
+  const terms = supervisorBookSearchTerms(query)
+  const dbTerms = supervisorBookDbSearchTerms(query, terms)
+  const programIds = [...new Set((enrolledProgramIds || []).map((id) => String(id || '').trim()).filter(Boolean))]
+  if (!terms.length || !dbTerms.length || !programIds.length) return ''
+
+  const startedAt = Date.now()
+  const cappedTimeoutMs = Math.max(1, timeoutMs)
+  try {
+    const initialSources = await fetchSupervisorBookSnippetSources(programIds, dbTerms)
+    const initialBlock = buildBookSnippetBlock(initialSources.chunks, initialSources.knowledgeItems, terms, startedAt, cappedTimeoutMs)
+    if (initialBlock) return initialBlock
+
+    const expandedTerms = await expandSupervisorBookQueryTerms(query, uniqueBookTitles(bookTitles), 2500)
+    const combinedTerms = [...new Set([...terms, ...expandedTerms.map(canonicalArabicSearchTerm)].filter((term) => term.length >= 3 && !SUPERVISOR_BOOK_SEARCH_FILLER_WORDS.has(term)))]
+    const combinedDbTerms = [...new Set([...dbTerms, ...expandedTerms])]
+    if (combinedTerms.length <= terms.length || !combinedDbTerms.length) return ''
+
+    const expandedStartedAt = Date.now()
+    const expandedSources = await fetchSupervisorBookSnippetSources(programIds, combinedDbTerms)
+    return buildBookSnippetBlock(expandedSources.chunks, expandedSources.knowledgeItems, combinedTerms, expandedStartedAt, cappedTimeoutMs)
+  } catch {
+    return ''
+  }
+}
+
 function supervisorAskedForOtherPrograms(query?: string | null) {
   const n = normalizeArabic(query || '')
   return ['برامج اخرى', 'برامج ثانية', 'غير برنامجي', 'غير تخصصي', 'كل البرامج', 'البرامج المتاحه', 'شو البرامج', 'ما هي البرامج', 'قائمه البرامج'].some((phrase) => n.includes(normalizeArabic(phrase)))
