@@ -296,6 +296,15 @@ function testAactBackNavigationStaysInsideApp() {
   assert(store.includes('window.history.state.aact === true'), 'goBack must only call browser back for internal app history entries')
 }
 
+function testDocumentationBackfillsUseDeadlineAndLargeOutputBudget() {
+  const bankDoc = file('src/lib/question-bank-documentation.ts')
+  const examAssembly = file('src/lib/program-exam-assembly.ts')
+  assert(!bankDoc.includes('maxOutputTokens: 3500'), 'question bank documentation backfill must not use the old 3500 token budget')
+  assert(!examAssembly.includes('maxOutputTokens: 3500'), 'program exam academic backfill must not use the old 3500 token budget')
+  assert(bankDoc.includes('deadlineMs') && bankDoc.includes('textAiCompleteJson({'), 'question bank documentation backfill must pass deadlineMs to AI calls')
+  assert(examAssembly.includes('deadlineMs') && examAssembly.includes('textAiCompleteJson({'), 'program exam academic backfill must pass deadlineMs to AI calls')
+}
+
 function testSecurityBatchAFollowup() {
   const waiverLib = file('src/lib/payment-waivers.ts')
   assert(waiverLib.includes('class ActivePaymentWaiverExistsError') && waiverLib.includes("code = 'ACTIVE_WAIVER_EXISTS'") && waiverLib.includes('status = 409'), 'payment waivers must expose a 409 ACTIVE_WAIVER_EXISTS error')
@@ -436,6 +445,7 @@ async function main() {
   testPrismaDeployPreviewPushSkips()
   testAdmissionAdvisoryLockUsesExecuteRaw()
   testAactBackNavigationStaysInsideApp()
+  testDocumentationBackfillsUseDeadlineAndLargeOutputBudget()
   testSecurityBatchAFollowup()
   testSecurityBatchA()
   console.log('✓ production safety behavioral checks passed')

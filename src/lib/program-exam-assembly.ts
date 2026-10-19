@@ -254,7 +254,7 @@ async function remainingAcademicBackfillCount(examId: string) {
   ).length
 }
 
-export async function backfillProgramExamAcademicFields(examId: string, options: { maxBatches?: number } = {}) {
+export async function backfillProgramExamAcademicFields(examId: string, options: { maxBatches?: number; deadlineMs?: number } = {}) {
   const lockKey = `PROGRAM_EXAM_BACKFILL_LOCK:${examId}`
   const activeLock = await db.setting.findUnique({ where: { key: lockKey }, select: { value: true } })
   const activeUntil = Date.parse(activeLock?.value || '')
@@ -271,6 +271,7 @@ export async function backfillProgramExamAcademicFields(examId: string, options:
   try {
     filled += await syncProgramExamQuestionsFromBank(examId)
     const maxBatches = Math.max(1, Math.floor(options.maxBatches ?? 2))
+    const deadlineMs = options.deadlineMs ?? Date.now() + 45_000
     const questions = await db.programQuestion.findMany({
       where: { examId, status: { not: 'REJECTED' } },
       select: { id: true, type: true, text: true, options: true, correctAnswer: true, sourceEvidence: true, cognitiveSkill: true, difficulty: true, correctRationale: true, distractorRationales: true },
@@ -279,8 +280,9 @@ export async function backfillProgramExamAcademicFields(examId: string, options:
     const needs = questions.filter((q) =>
       isMissing(q.correctRationale) || isMissing(q.difficulty) || isMissing(q.cognitiveSkill) || ((q.type === 'MCQ' || q.type === 'TF') && !safeJsonArray(q.distractorRationales).length),
     )
-    for (let i = 0; i < needs.length && batchesRun < maxBatches; i += 10) {
-      const batch = needs.slice(i, i + 10).filter((q) => q.sourceEvidence)
+    for (let i = 0; i < needs.length && batchesRun < maxBatches; i += 5) {
+      if (deadlineMs - Date.now() < 20_000) break
+      const batch = needs.slice(i, i + 5).filter((q) => q.sourceEvidence)
       if (!batch.length) continue
       try {
         const payload = batch.map((q) => ({ id: q.id, type: q.type, question: q.text, options: safeJsonArray(q.options), correctAnswer: q.correctAnswer, evidence: q.sourceEvidence }))
@@ -289,7 +291,8 @@ export async function backfillProgramExamAcademicFields(examId: string, options:
           taskLevel: 'ACADEMIC_CRITICAL',
           system: 'أنت مدقق أكاديمي. أعد JSON فقط. لا تغير نص السؤال أو الخيارات أو الإجابة الصحيحة. املأ فقط difficulty من EASY/MEDIUM/ADVANCED و cognitiveSkill من UNDERSTAND/APPLY/ANALYZE/EVALUATE و correctRationale من الدليل. للأسئلة الموضوعية أعط distractorRationales مختصرة لكل خيار خاطئ، وفي صح/خطأ سبباً واحداً لعكس الإجابة.',
           history: [{ role: 'user', text: JSON.stringify({ questions: payload }) }],
-          maxOutputTokens: 3500,
+          maxOutputTokens: 6000,
+          deadlineMs,
         })
         const rows = new Map(parseAiBackfill(raw).map((row) => [row.id, row]))
         let batchFilled = 0
