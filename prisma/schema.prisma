@@ -567,6 +567,14 @@ model Certificate {
   revokedAt   DateTime?
   revokedReason String?
   revokedById String?
+  legacy      Boolean  @default(false)
+  legacySerial String? @unique
+  uploadedFileKey String?
+  uploadedFileName String?
+  uploadedMime String?
+  stampedFileKey String?
+  qrPosition String?
+  qrSize     String?
   userId      String?  // إن كان صاحبه مستخدماً مسجلاً
   user        User?    @relation(fields: [userId], references: [id], onDelete: Restrict)
   enrollmentId String?
