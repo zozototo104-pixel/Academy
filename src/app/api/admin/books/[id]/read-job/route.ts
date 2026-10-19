@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
+import { planBookReadJobResume } from '@/lib/book-read-job-control'
 
 export const runtime = 'nodejs'
 type Context = { params: Promise<{ id: string }> }
