@@ -1046,6 +1046,7 @@ export function AdminView() {
             </p>
             <TabsList className="flex h-auto w-full flex-wrap gap-1 bg-transparent p-0">
               <TabsTrigger value="books" className="gap-1 text-[10px] font-bold sm:text-xs">الكتب والاختبارات</TabsTrigger>
+              <TabsTrigger value="study-schedule" className="gap-1 text-[10px] font-bold sm:text-xs">جدول الدراسة</TabsTrigger>
               <TabsTrigger value="quality" className="gap-1 text-[10px] font-bold sm:text-xs">مركز الجودة</TabsTrigger>
               <TabsTrigger value="attempts" className="gap-1 text-[10px] font-bold sm:text-xs">نتائج الامتحانات</TabsTrigger>
               <TabsTrigger value="grading-review" className="gap-1 text-[10px] font-bold sm:text-xs">مراجعة التصحيح</TabsTrigger>
