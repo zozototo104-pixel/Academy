@@ -283,7 +283,7 @@ export function PaymentsTab() {
     } else {
       toast({ title: 'الفاتورة مسددة', description: `الفاتورة ${initialInvoiceNo} لا تحتاج إلى دفع جديد.` })
     }
-  }, [initialInvoiceNo, autoOpenedInvoiceNo, loading, payments, payConfig, toast, initialWaiverMode])
+  }, [initialInvoiceNo, autoOpenedInvoiceNo, loading, payments, payConfig, toast])
 
   const approvedInitialRemaining = (plan: TuitionPlan) =>
     plan.appealStatus === 'APPROVED' && plan.approvedInitialAmount !== null && plan.paidTuition < plan.approvedInitialAmount
