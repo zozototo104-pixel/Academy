@@ -151,6 +151,8 @@ async function listProgramUnits(programId: string) {
     const qJob = questionBankJobByUnit.get(u.id)
     const requiredQuestions = unitExamRequiredQuestions(qJob?.requested)
     const qSelection = selectUnitExamQuestionsApprovedFirst(questionBankCandidatesByUnit.get(u.id) || [], requiredQuestions)
+    const approvedQuestions = questionBankCountsByUnit.get(u.id)?.approved || 0
+    const qJobStatus = qJob ? resolveUnitQuestionBankJobStatus({ jobStatus: qJob.status, approved: approvedQuestions, required: requiredQuestions }) : null
     return {
       id: u.id,
       title: u.title,
