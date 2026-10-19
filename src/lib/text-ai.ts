@@ -1546,9 +1546,11 @@ export async function textAiFreeModelsForProvider(providerValue: unknown): Promi
   }
   const concrete = provider as ConcreteProvider
   const staticDefaults = staticTextModelsForProvider(concrete, s)
-  const discovered = await liveFreeModels(concrete, s)
+  const discoveredRaw = await liveFreeModels(concrete, s)
+  const nvidiaCompat = concrete === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl)
+  const discovered = discoveredRaw.filter((model) => !nvidiaCompat || NVIDIA_OPENAI_COMPAT_CALLABLE_MODEL_IDS.has(model.toLowerCase()))
   const selected = modelFor(s, concrete)
-  const selectedPart = selected && !/(^|\/|-)auto$/i.test(selected) && selected !== 'auto' ? [selected] : []
+  const selectedPart = selected && !/(^|\/|-)auto$/i.test(selected) && selected !== 'auto' && (!nvidiaCompat || NVIDIA_OPENAI_COMPAT_CALLABLE_MODEL_IDS.has(selected.toLowerCase())) ? [selected] : []
   const models = [...new Set([...selectedPart, ...discovered, ...staticDefaults].filter(Boolean))]
   const catalogLabel = concrete === 'TOPTOOLS'
     ? 'نموذج متاح'
