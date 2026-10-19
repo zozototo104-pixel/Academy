@@ -434,14 +434,17 @@ export function DashboardView() {
       setActive(d)
       setAssignments([])
       setStudyGuides([])
+      setStudyScheduleItems([])
       setProgramSection('academic')
       Promise.all([
         api<{ assignments: StudentAssignment[] }>(`/api/assignments?programId=${programId}`).catch(() => ({ assignments: [] as StudentAssignment[] })),
         api<{ guides: StudentStudyGuide[] }>(`/api/study-guides?programId=${programId}`).catch(() => ({ guides: [] as StudentStudyGuide[] })),
+        api<{ items: StudentStudyScheduleItem[] }>(`/api/study-schedule?programId=${programId}`).catch(() => ({ items: [] as StudentStudyScheduleItem[] })),
       ])
-        .then(([a, g]) => {
+        .then(([a, g, schedule]) => {
           setAssignments(a.assignments || [])
           setStudyGuides(g.guides || [])
+          setStudyScheduleItems(schedule.items || [])
         })
         .catch(() => null)
     } catch (e: any) {
