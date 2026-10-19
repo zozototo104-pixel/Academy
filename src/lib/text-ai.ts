@@ -1095,7 +1095,7 @@ async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseU
     const orderedRows = provider === 'TOPTOOLS'
       ? rows.sort((a, b) => topToolsModelRank(a.id) - topToolsModelRank(b.id) || a.id.localeCompare(b.id))
       : nvidiaCompat
-        ? rows.sort((a, b) => academicModelRank(a.id) - academicModelRank(b.id) || a.id.localeCompare(b.id))
+        ? rows.sort((a, b) => nvidiaOpenAiCompatModelRank(a.id) - nvidiaOpenAiCompatModelRank(b.id) || a.id.localeCompare(b.id))
         : rows
     const models = orderedRows.map(({ id }) => id)
     const capabilities = Object.fromEntries(orderedRows.map(({ raw, id }) => [id, capabilityFromModelRow(raw)]))
