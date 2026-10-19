@@ -637,6 +637,8 @@ const tests = [
   testEmptyBatchAdvancesQuestionBankCursor,
   testQuestionBankCompletedJobDoesNotBlockQueue,
   testQuestionBankLockedJobDoesNotBlockQueue,
+  testQuestionBankResumableRunnerSelector,
+  testQuestionBankGenerateButtonRequestsSixtyNotTen,
   testVerifierRejectedQuestionIsNotSaved,
   testIncompleteMcqOptionsAreRejected,
   testMcqThreeOptionsAccepted,
