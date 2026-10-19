@@ -284,6 +284,7 @@ async function buildVerifyPayload(cert: any, verificationMode: 'QR_TOKEN' | 'SER
     detailsUnlocked: includeDetails,
     certificate: {
       serial: cert.serial,
+      legacySerial: cert.legacySerial || null,
       qrToken: includeDetails ? cert.qrToken : null,
       type: cert.type,
       holderName: cert.holderName,
