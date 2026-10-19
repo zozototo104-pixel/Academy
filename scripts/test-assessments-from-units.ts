@@ -11,6 +11,8 @@ import { __testApproveQuestionBankQualityFlagsForTests, __testOrderQuestionBankI
 import { validateCognitiveDistribution } from '../src/lib/exam-cognitive-policy'
 import { balanceQuestionBankExamSelection } from '../src/lib/question-bank-exam-balance'
 import { resolveUnitQuestionBankJobStatus } from '../src/lib/unit-question-bank-status'
+import { isTransientBookReadError, planBookReadJobResume } from '../src/lib/book-read-job-control'
+import { pagesNeedingOcr } from '../src/lib/book-reader'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
@@ -553,6 +555,44 @@ function testUnitQuestionBankStatusResolverKeepsFailedWhenApprovedBelowTarget() 
   assert(status === 'FAILED', 'حالة بنك أسئلة الوحدة FAILED يجب أن تبقى FAILED إذا لم يصل المعتمد للمطلوب')
 }
 
+function testTransientBookReadErrorsClassifyRetryableProviderPressure() {
+  assert(isTransientBookReadError('GEMINI/gemini-3.5-flash-lite/key#3: This model is currently experiencing high demand'), 'high demand provider errors must pause and retry book reading')
+}
+
+function testTransientBookReadErrorsClassifyDeadline() {
+  assert(isTransientBookReadError('AI_DEADLINE_EXCEEDED'), 'AI_DEADLINE_EXCEEDED must pause and retry book reading')
+}
+
+function testTransientBookReadErrorsDoNotClassifyPermanentPdfError() {
+  assert(!isTransientBookReadError('BOOK_PDF_REQUIRED'), 'BOOK_PDF_REQUIRED must stay a permanent book read error')
+}
+
+function testBookReadJobResumePlansFailedAnalyze() {
+  assert(planBookReadJobResume({ status: 'FAILED', phase: 'ANALYZE' }, false) === 'RESUME', 'failed analyze book read jobs should resume without restart')
+}
+
+function testBookReadJobResumeRestartCreatesNewJob() {
+  assert(planBookReadJobResume({ status: 'FAILED', phase: 'ANALYZE' }, true) === 'CREATE', 'explicit restart should create a new book read job')
+}
+
+function testBookReadJobResumeCompletedCreatesNewJob() {
+  assert(planBookReadJobResume({ status: 'COMPLETED', phase: 'DONE' }, false) === 'CREATE', 'completed book read jobs should not resume')
+}
+
+function testPagesNeedingOcrSplitsEightBlankPagesIntoTwoBatches() {
+  const batches = pagesNeedingOcr(Array.from({ length: 8 }, (_, i) => ({ page: i + 1, text: '' })))
+  assert(batches.length === 2, 'OCR pages should split 8 blank pages into two batches')
+  assert(JSON.stringify(batches[0]) === JSON.stringify([1, 2, 3, 4]), 'first OCR batch should contain 4 pages')
+  assert(JSON.stringify(batches[1]) === JSON.stringify([5, 6, 7, 8]), 'second OCR batch should contain 4 pages')
+}
+
+function testPagesNeedingOcrKeepsOnlyBlankPagesInSingleBatch() {
+  const pages = Array.from({ length: 8 }, (_, i) => ({ page: i + 1, text: i === 2 || i === 6 ? '' : 'x'.repeat(120) }))
+  const batches = pagesNeedingOcr(pages)
+  assert(batches.length === 1, 'OCR pages should keep two blank pages in one batch')
+  assert(JSON.stringify(batches[0]) === JSON.stringify([3, 7]), 'OCR batch should include only blank page numbers')
+}
+
 function testAdminStudentsEnrollmentWhereBuilder() {
   const all = buildAdminStudentsEnrollmentRelationFilter('ALL', null) as any
   assert(JSON.stringify(all.some.status.in) === JSON.stringify([...OPEN_ENROLLMENT_STATUSES]), 'فلتر كل الطلاب يجب أن يعرض فقط أصحاب برنامج مفتوح')
@@ -620,6 +660,14 @@ const tests = [
   testUnitQuestionBankStatusResolverCompletesFailedWhenApprovedTargetMet,
   testUnitQuestionBankStatusResolverKeepsRunningWhenApprovedBelowTarget,
   testUnitQuestionBankStatusResolverKeepsFailedWhenApprovedBelowTarget,
+  testTransientBookReadErrorsClassifyRetryableProviderPressure,
+  testTransientBookReadErrorsClassifyDeadline,
+  testTransientBookReadErrorsDoNotClassifyPermanentPdfError,
+  testBookReadJobResumePlansFailedAnalyze,
+  testBookReadJobResumeRestartCreatesNewJob,
+  testBookReadJobResumeCompletedCreatesNewJob,
+  testPagesNeedingOcrSplitsEightBlankPagesIntoTwoBatches,
+  testPagesNeedingOcrKeepsOnlyBlankPagesInSingleBatch,
   testAdminStudentsEnrollmentWhereBuilder,
 ]
 

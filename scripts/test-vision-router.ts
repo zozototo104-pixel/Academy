@@ -17,7 +17,7 @@ const gemini = file('src/lib/gemini.ts')
 assert(textAi.includes('export interface TextAiAttachment'), 'TextAiCallOpts must define attachment payloads')
 assert(textAi.includes('attachments?: TextAiAttachment[]'), 'TextAiCallOpts must accept optional attachments')
 assert(textAi.includes('MAX_VISION_ATTACHMENT_BYTES = 15 * 1024 * 1024'), 'vision attachments must be limited to 15MB')
-assert(textAi.includes('VISION_ATTEMPT_TIMEOUT_MS = 25_000'), 'vision provider attempts must timeout after 25 seconds')
+assert(textAi.includes('VISION_ATTEMPT_TIMEOUT_MS = 75_000'), 'vision provider attempts must timeout after 75 seconds')
 
 assert(textAi.includes('modelSupportsVisionAttachment') && textAi.includes('capability?.vision === true'), 'router must select only vision-capable models for attachments')
 assert(textAi.includes("providerSupportsVisionAttachments(provider)"), 'router must skip providers that do not support vision attachments')

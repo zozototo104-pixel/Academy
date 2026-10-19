@@ -11,7 +11,7 @@ export type PlannedBookChunk = { index: number; pageStart: number; pageEnd: numb
 export function pagesNeedingOcr(pages: readonly { page: number; text: string }[]): number[][] {
   const missing = pages.filter((page) => page.text.trim().length < 80).map((page) => page.page)
   const batches: number[][] = []
-  for (let i = 0; i < missing.length; i += 8) batches.push(missing.slice(i, i + 8))
+  for (let i = 0; i < missing.length; i += 4) batches.push(missing.slice(i, i + 4))
   return batches
 }
 export function nextExtractionPage(pagesDone: number, totalPages: number): number | null {
@@ -80,7 +80,7 @@ export async function transcribeScannedDocumentWithVision(buffer: Buffer, pageNu
     purpose: 'VISION',
     routerPolicy: 'primary_first',
     maxOutputTokens: 16000,
-    deadlineMs: Math.min(deadlineMs - 10_000, Date.now() + 25_000),
+    deadlineMs: Math.min(deadlineMs - 10_000, Date.now() + 90_000),
     attachments: [{ mimeType: 'application/pdf', base64: data.toString('base64') }],
   })
   const parsed = JSON.parse(result.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim())
@@ -138,6 +138,8 @@ export async function runExtractStep(jobId: string, deadlineMs: number) {
   if (job.pagesDone > totalPages) throw new Error('BOOK_PROGRESS_EXCEEDS_PDF')
   const store: ExtractStepStore = {
     upsertChunk: async (chunk, bookId, programId) => {
+      const existing = await db.bookChunk.findUnique({ where: { bookId_index: { bookId, index: chunk.index } }, select: { status: true, contentHash: true } })
+      if (existing?.status === 'ANALYZED' && existing.contentHash === chunk.contentHash) return
       await db.bookChunk.upsert({
         where: { bookId_index: { bookId, index: chunk.index } },
         create: { ...chunk, bookId, programId, status: 'EXTRACTED' },

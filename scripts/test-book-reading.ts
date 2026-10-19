@@ -12,7 +12,7 @@ assert.ok(chunks.every((chunk) => chunk.text.endsWith('.')))
 assert.equal(nextExtractionPage(4, 10), 5)
 assert.equal(nextExtractionPage(10, 10), null)
 const ocr = pagesNeedingOcr(Array.from({ length: 19 }, (_, index) => ({ page: index + 1, text: '' })))
-assert.deepEqual(ocr.map((batch) => batch.length), [8, 8, 3])
+assert.deepEqual(ocr.map((batch) => batch.length), [4, 4, 4, 4, 3])
 const source = 'تعتمد النظرية العلمية على الملاحظة الدقيقة والتجريب المنهجي والتحقق المستمر من النتائج وتوثيق جميع الخطوات بصورة واضحة ومحددة.'
 const candidate = { category: 'THEORY', title: 'المنهج العلمي', summary: 'تفسير منهجي للتجريب والملاحظة', excerpt: source, importance: 80 }
 assert.ok(validateBookKnowledgeCandidate(candidate, source))

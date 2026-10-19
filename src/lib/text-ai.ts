@@ -154,7 +154,7 @@ const RELAYROUTER_TEXT_MODELS = ['relayrouter/auto', 'claude-opus-4-8', 'gpt-5.5
 const TOPTOOLS_TEXT_MODELS = ['top-tools-ai']
 const OPENAI_COMPAT_TEXT_MODELS = ['auto']
 const MAX_VISION_ATTACHMENT_BYTES = 15 * 1024 * 1024
-const VISION_ATTEMPT_TIMEOUT_MS = 25_000
+const VISION_ATTEMPT_TIMEOUT_MS = 75_000
 const VISION_OPENAI_COMPAT_PROVIDERS = new Set<TextAiProvider>(['OPENAI', 'OPENROUTER', 'OPENAI_COMPAT'])
 const VISION_NATIVE_PROVIDERS = new Set<TextAiProvider>(['GEMINI', 'ANTHROPIC', 'ZAI'])
 
@@ -491,7 +491,7 @@ function aiProviderTimeoutMs(taskLevel: TextAiTaskLevel = 'GENERAL'): number {
 
 function providerAttemptTimeoutMs(opts: TextAiCallOpts): number {
   if (Number.isFinite(opts.timeoutMs || NaN) && Number(opts.timeoutMs) > 0) return Math.floor(Number(opts.timeoutMs))
-  return hasVisionAttachments(opts) ? VISION_ATTEMPT_TIMEOUT_MS : aiProviderTimeoutMs(opts.taskLevel || 'GENERAL')
+  return opts.purpose === 'VISION' || hasVisionAttachments(opts) ? VISION_ATTEMPT_TIMEOUT_MS : aiProviderTimeoutMs(opts.taskLevel || 'GENERAL')
 }
 
 function aiDiscoveryTimeoutMs(): number {
