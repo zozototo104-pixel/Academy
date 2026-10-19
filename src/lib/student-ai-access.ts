@@ -54,6 +54,7 @@ export async function getStudentAiSupervisorAccess(userId: string): Promise<{ al
       certificate.enrollmentId === enrollment.id || certificate.program === enrollment.program.titleAr
     )))
     if (completedWithoutCertificate) return { allowed: true, reason: null, admissionId: null }
+    return { allowed: false, reason: 'المشرف الذكي متاح أثناء الدراسة وحتى إصدار الشهادة، وقد أُغلقت صلاحية المشرف بعد التخرج.', admissionId: null }
   }
 
   const app = await db.admissionApplication.findFirst({
