@@ -628,7 +628,7 @@ function questionBankJobRequestedTarget(job: { requested: number; unitId?: strin
 export async function runNextQuestionBankGenerationJobStep(programId?: string, options: { queuedOnly?: boolean; resumable?: boolean } = {}) {
   const now = new Date()
   const runnableRetry = [{ retryAt: null }, { retryAt: { lte: now } }]
-  const statusFilter = options.resumable ? [
+  const statusFilter: any[] = options.resumable ? [
     { status: 'QUEUED' },
     { status: 'PAUSED', OR: runnableRetry },
     { status: 'RUNNING', lockedUntil: { lt: now } },
