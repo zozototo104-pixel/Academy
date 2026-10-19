@@ -374,7 +374,7 @@ export default function AdminLegacyGraduatesTab() {
           {importRows.length > 0 && (
             <div className="max-h-72 overflow-auto rounded-xl border border-slate-200">
               <table className="w-full min-w-[760px] text-right text-xs">
-                <thead className="bg-slate-50 text-slate-600"><tr><th className="p-2">السطر</th><th className="p-2">الاسم</th><th className="p-2">الإيميل</th><th className="p-2">البرنامج</th><th className="p-2">رقم قديم</th><th className="p-2">الأخطاء</th></tr></thead>
+                <thead className="bg-slate-50 text-slate-600"><tr><th className="p-2">السطر</th><th className="p-2">الاسم</th><th className="p-2">الإيميل</th><th className="p-2">البرنامج</th><th className="p-2">رقم الشهادة القديم</th><th className="p-2">الأخطاء</th></tr></thead>
                 <tbody>{importRows.map((row) => <tr key={row.rowNumber} className="border-t"><td className="p-2 font-bold">{row.rowNumber}</td><td className="p-2">{row.name || '—'}</td><td className="p-2 ltr:text-left">{row.email || '—'}</td><td className="p-2">{row.program || '—'}{row.programSuggestion ? <div className="text-[10px] text-amber-700">اقتراح: {row.programSuggestion}</div> : null}</td><td className="p-2">{row.legacySerial || '—'}</td><td className="p-2"><span className={row.errors.length ? 'text-red-600' : 'text-emerald-700'}>{row.errors.length ? row.errors.join('، ') : 'صالح'}</span></td></tr>)}</tbody>
               </table>
             </div>
