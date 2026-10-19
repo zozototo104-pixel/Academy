@@ -183,7 +183,7 @@ export async function GET(req: NextRequest) {
     const id = clean(req.nextUrl.searchParams.get('id'), 100)
     if (id && type === 'UNIT') return NextResponse.json({ attempt: await unitDetail(id) })
     if (id && type === 'PROGRAM') return NextResponse.json({ attempt: await programDetail(id) })
-    return NextResponse.json({ attempts: await listReviewAttempts() })
+    return NextResponse.json({ attempts: await listReviewAttempts(clean(req.nextUrl.searchParams.get('status'), 30).toUpperCase()) })
   } catch (error: any) {
     if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('attempts-review GET error:', error)
