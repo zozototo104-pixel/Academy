@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
   let previous: { jobId: string; status: string; saved: number } | null = null
 
   while (Date.now() < endAt - 5_000) {
-    const job = await runNextQuestionBankGenerationJobStep(undefined, { queuedOnly: true })
+    const job = await runNextQuestionBankGenerationJobStep(undefined, { resumable: true })
     if (!job) { reason = 'no-job'; break }
     console.log('[question-bank-cron] step', { jobId: job.id, status: job.status, saved: job.saved, requested: job.requested, lockedUntil: job.lockedUntil, retryAt: job.retryAt, lastError: job.lastError })
     if (previous && previous.jobId === job.id && previous.saved === job.saved && previous.status === job.status) { reason = 'no-progress'; break }
