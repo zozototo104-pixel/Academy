@@ -309,6 +309,8 @@ export async function enforceSemesterTuitionGate(userId: string, programId: stri
     getStudentTuitionPlan(userId, programId),
     db.program.findUnique({ where: { id: programId }, select: { semestersCount: true } }),
   ])
+  if (!plan && !(await hasEnrollmentTuitionInvoice(userId, programId))) return { ok: true as const, plan }
+
   const coverage = plan
     ? { due: plan.totalTuition, covered: plan.paidTuition, ratio: plan.totalTuition <= 0 ? 1 : Math.max(0, Math.min(1, plan.paidTuition / plan.totalTuition)) }
     : await computeTuitionCoverage(userId, programId)
