@@ -234,8 +234,9 @@ function buildBookSnippetBlock(chunks: any[], knowledgeItems: any[], terms: stri
 
 export async function buildRelevantSupervisorBookSnippets(enrolledProgramIds: string[], query?: string | null, timeoutMs = 1500): Promise<string> {
   const terms = supervisorBookSearchTerms(query)
+  const dbTerms = supervisorBookDbSearchTerms(query, terms)
   const programIds = [...new Set((enrolledProgramIds || []).map((id) => String(id || '').trim()).filter(Boolean))]
-  if (!terms.length || !programIds.length) return ''
+  if (!terms.length || !dbTerms.length || !programIds.length) return ''
 
   const bookChunkStore = (db as any).bookChunk
   const knowledgeStore = (db as any).bookKnowledgeItem
