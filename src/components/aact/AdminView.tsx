@@ -44,6 +44,7 @@ const loadAdminWhatsAppInboxModule = () => import('@/components/aact/AdminWhatsA
 const loadAdminRepresentativesModule = () => import('@/components/aact/AdminRepresentativesTab')
 const loadAdminGradingReviewModule = () => import('@/components/aact/AdminGradingReviewTab')
 const loadAdminStudyScheduleModule = () => import('@/components/aact/AdminStudyScheduleTab')
+const loadAdminLegacyGraduatesModule = () => import('@/components/aact/AdminLegacyGraduatesTab')
 
 const AdminThesisTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminThesisTab), { ssr: false, loading: AdminTabLoader })
 const AdminFinanceTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminFinanceTab), { ssr: false, loading: AdminTabLoader })
