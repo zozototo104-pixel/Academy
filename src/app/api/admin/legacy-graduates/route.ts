@@ -199,7 +199,7 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
     }
     if (isUniqueConflict(error, 'legacySerial')) {
-      return NextResponse.json({ error: 'رقم الشهادة الورقية مستخدم مسبقاً', code: 'LEGACY_SERIAL_DUPLICATE' }, { status: 409 })
+      return NextResponse.json({ error: 'رقم الشهادة القديم مستخدم مسبقاً', code: 'LEGACY_SERIAL_DUPLICATE' }, { status: 409 })
     }
     console.error('admin legacy-graduates PATCH error:', error)
     return NextResponse.json({ error: 'تعذر تعديل شهادة الخريج السابق' }, { status: 500 })
