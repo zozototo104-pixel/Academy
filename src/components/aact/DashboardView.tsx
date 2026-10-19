@@ -342,6 +342,7 @@ export function DashboardView() {
   const [programs, setPrograms] = useState<any[]>([])
   const [active, setActive] = useState<ProgressData | null>(null)
   const [studyGuides, setStudyGuides] = useState<StudentStudyGuide[]>([])
+  const [studyScheduleItems, setStudyScheduleItems] = useState<StudentStudyScheduleItem[]>([])
   const [assignments, setAssignments] = useState<StudentAssignment[]>([])
   const [assignmentDrafts, setAssignmentDrafts] = useState<Record<string, string>>({})
   const [assignmentFiles, setAssignmentFiles] = useState<Record<string, File | null>>({})
