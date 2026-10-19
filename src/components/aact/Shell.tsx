@@ -374,6 +374,26 @@ function NotificationBell() {
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState<Notif[]>([])
   const [unread, setUnread] = useState(0)
+  const unreadRef = useRef(0)
+  const loadedOnceRef = useRef(false)
+
+  const playNotificationSound = () => {
+    try {
+      const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext
+      if (!AudioCtx) return
+      const ctx = new AudioCtx()
+      const oscillator = ctx.createOscillator()
+      const gain = ctx.createGain()
+      oscillator.type = 'sine'
+      oscillator.frequency.value = 880
+      gain.gain.value = 0.05
+      oscillator.connect(gain)
+      gain.connect(ctx.destination)
+      oscillator.start()
+      oscillator.stop(ctx.currentTime + 0.18)
+      window.setTimeout(() => ctx.close().catch(() => {}), 300)
+    } catch {}
+  }
 
   const load = () => {
     if (!user) return
