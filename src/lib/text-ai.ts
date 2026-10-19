@@ -2677,14 +2677,19 @@ export async function* textAiStreamText(opts: TextAiCallOpts): AsyncGenerator<st
   yield await textAiComplete(opts)
 }
 
-export async function textAiTestConnection(): Promise<{ ok: boolean; provider?: string; model?: string; reply?: string; error?: string }> {
+export async function textAiTestConnection(): Promise<{ ok: boolean; provider?: string; model?: string; reply?: string; error?: string; nvidiaDiscovery?: { count: number; selected: string[] } }> {
   const s = await settings()
   const providers = providerOrder(s)
   if (!providers.length) return { ok: false, error: 'TEXT_AI_ROUTER_NOT_CONFIGURED' }
   const errors: string[] = []
+  let nvidiaDiscovery: { count: number; selected: string[] } | undefined
   const requestSeq = ++routerRequestSeq
   for (const provider of providers) {
-    for (const model of providerModelsForRequest(provider, s, await modelFallbacks(s, provider), requestSeq)) {
+    const providerModels = providerModelsForRequest(provider, s, await modelFallbacks(s, provider), requestSeq)
+    if (provider === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl)) {
+      nvidiaDiscovery = { count: nvidiaDiscoverySourceCount(s), selected: providerModels.slice(0, 4) }
+    }
+    for (const model of providerModels) {
       for (const key of candidateKeys(provider, s).slice(0, 2)) {
         const started = Date.now()
         const keyIndex = Math.max(1, providerKeys(s, provider).indexOf(key) + 1)
