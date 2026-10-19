@@ -40,6 +40,8 @@ type LiveSessionPayload = {
 }
 
 type LiveSessionError = Error & { code?: string; status?: number }
+type LiveFunctionCall = { id?: string; name?: string; args?: unknown }
+type LiveFunctionResponse = { id: string; name: string; response: { snippets: string } }
 
 export function isLiveMinutesExhausted(error: { code?: string; status?: number } | null | undefined): boolean {
   return error?.status === 402 || error?.code === 'LIVE_MINUTES_EXHAUSTED'
