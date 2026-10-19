@@ -74,6 +74,17 @@ export async function POST(req: NextRequest) {
 
     const results: LegacyCertificateZipImportResult[] = []
     for (const entry of entries) {
+      if (entry.error) {
+        const error = entry.error === 'FILE_TOO_LARGE'
+          ? 'حجم الملف بعد فك الضغط يتجاوز 10MB'
+          : entry.error === 'ZIP_TOTAL_TOO_LARGE'
+            ? 'تجاوز مجموع الملفات بعد فك الضغط 200MB'
+            : entry.error === 'ZIP_TOO_MANY_FILES'
+              ? 'تجاوز ملف ZIP الحد الأقصى 300 ملف'
+              : 'تعذر قبول الملف داخل ZIP'
+        results.push({ fileName: entry.fileName, ok: false, status: 'REJECTED_FORMAT', error })
+        continue
+      }
       const identifier = baseIdentifier(entry.fileName)
       const mime = sniffLegacyCertificateMime(entry.buffer)
       if (!mime) {
