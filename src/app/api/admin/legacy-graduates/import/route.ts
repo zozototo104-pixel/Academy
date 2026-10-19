@@ -36,6 +36,11 @@ function errorMessage(error: unknown) {
   return 'تعذر حفظ السطر'
 }
 
+function parseBatchNumber(value: unknown, fallback: number) {
+  const parsed = Number(String(value ?? '').trim())
+  return Number.isFinite(parsed) ? Math.floor(parsed) : fallback
+}
+
 type LegacyGraduateImportResult = {
   rowNumber: number
   ok: boolean
