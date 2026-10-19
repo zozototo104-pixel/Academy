@@ -322,6 +322,24 @@ export function questionBankJobCanRunStep(job: { status: string; lockedUntil?: D
   return ['QUEUED', 'RUNNING', 'PAUSED'].includes(job.status)
 }
 
+async function countApprovedUnitQuestionBankItems(job: { programId: string; unitId: string | null }) {
+  if (!job.unitId) return 0
+  return db.questionBankItem.count({ where: { programId: job.programId, unitId: job.unitId, status: 'APPROVED' } })
+}
+
+async function completeUnitQuestionBankJobIfReady(job: { id: string; programId: string; unitId: string | null; requested: number; saved?: number | null }) {
+  if (!job.unitId) return false
+  const required = unitExamRequiredQuestions(job.requested)
+  const approved = await countApprovedUnitQuestionBankItems(job)
+  if (resolveUnitQuestionBankJobStatus({ jobStatus: 'RUNNING', approved, required }) !== 'COMPLETED') return false
+  await db.questionBankGenerationJob.updateMany({
+    where: { id: job.id },
+    data: { status: 'COMPLETED', saved: Math.max(Number(job.saved || 0), approved), lockedUntil: null, retryAt: null, lastError: null, finishedAt: new Date() },
+  })
+  await resetJobFailureState(job.id)
+  return true
+}
+
 async function generateBatch(job: { id: string; programId: string; unitId: string | null; requested: number; saved: number; batchSize: number }, deadlineMs?: number) {
   const program = await db.program.findUnique({ where: { id: job.programId }, select: { id: true, titleAr: true, category: true, description: true } })
   if (!program) throw new Error('PROGRAM_NOT_FOUND')
