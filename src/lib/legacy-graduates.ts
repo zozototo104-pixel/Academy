@@ -172,7 +172,7 @@ export async function createLegacyGraduate(input: LegacyGraduateInput, admin: Ad
       data: {
         actorId: admin.id,
         actorName: admin.name || 'Admin',
-        action: existingCertificate ? 'UPDATE_LEGACY_GRADUATE' : 'CREATE_LEGACY_GRADUATE',
+        action: options?.source === 'IMPORT' ? 'IMPORT_LEGACY_GRADUATE' : existingCertificate ? 'UPDATE_LEGACY_GRADUATE' : 'CREATE_LEGACY_GRADUATE',
         entity: 'Certificate',
         entityId: certificate.id,
         details: `${certificate.serial} — ${holderName} — ${email}${legacySerial ? ` — legacySerial=${legacySerial}` : ''}`,
