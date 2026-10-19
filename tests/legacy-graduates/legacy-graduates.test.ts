@@ -193,6 +193,7 @@ function resetState() {
   currentAdmin = { id: 'admin-1', name: 'Admin', role: 'ADMIN' }
   currentUser = { id: 'admin-1', name: 'Admin', role: 'ADMIN', email: 'admin@example.com' }
   emailStatus = 'SENT'
+  legacyWelcomeCalls = 0
   programs.set('program-1', { id: 'program-1', slug: 'leadership', titleAr: 'دبلوم القيادة', titleEn: 'Leadership Diploma', active: false })
 }
 
