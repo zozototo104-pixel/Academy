@@ -795,7 +795,7 @@ export function __testLimitProviderModelsForTests(provider: Exclude<TextAiProvid
 }
 
 export function __testProviderRateLimitCooldownForTests(timestamps: number[], now = Date.now(), threshold = 3, windowMs = 60_000) {
-  return timestamps.filter((value) => Number.isFinite(value) && now - value <= windowMs).length >= threshold
+  return timestamps.filter((value) => Number.isFinite(value) && value <= now && now - value <= windowMs).length >= threshold
 }
 
 function providerKeys(s: Settings, provider: ConcreteProvider): string[] {
