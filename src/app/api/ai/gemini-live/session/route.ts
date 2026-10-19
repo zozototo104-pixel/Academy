@@ -335,9 +335,9 @@ export async function POST(req: NextRequest) {
   const extra =
     'هذه جلسة Gemini Live صوت إلى صوت حقيقية عبر WebSocket. ' +
     'استجب بصوت طبيعي قصير، وتوقف بعد فكرة أو سؤال واحد حتى تمنح الطالب فرصة المقاطعة والرد.'
-  const systemInstruction = buildVoiceSystemPrompt(
+  const systemInstruction = withBookSearchInstruction(buildVoiceSystemPrompt(
     mergeContext(ragContext, [body.context, extra].filter(Boolean).join('\n'))
-  )
+  ))
 
   await auditLiveKnowledgeSession({
     userId: user.id,
