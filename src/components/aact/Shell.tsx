@@ -420,6 +420,7 @@ function NotificationBell() {
 
   const markAll = async () => {
     await api('/api/notifications', { method: 'PATCH', body: JSON.stringify({}) }).catch(() => {})
+    unreadRef.current = 0
     setUnread(0)
     setItems((prev) => prev.map((n) => ({ ...n, read: true })))
   }
