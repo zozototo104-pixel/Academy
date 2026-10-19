@@ -32,7 +32,7 @@ export async function getStudentAiSupervisorAccess(userId: string): Promise<{ al
       program: { is: { category: { not: 'SERVICE' } } },
     },
     select: { id: true },
-  }).catch(() => null)
+  })
   if (activeAcademicEnrollment) return { allowed: true, reason: null, admissionId: null }
 
   const app = await db.admissionApplication.findFirst({
