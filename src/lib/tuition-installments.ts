@@ -158,16 +158,16 @@ function uniquePayments(payments: TuitionPayment[]): TuitionPayment[] {
 
 export async function computeTuitionCoverage(userId: string, programId: string): Promise<TuitionCoverage> {
   const [program, apps, enrollmentPayments] = await Promise.all([
-    db.program.findUnique({ where: { id: programId }, select: { price: true } }).catch(() => null),
+    db.program.findUnique({ where: { id: programId }, select: { price: true } }),
     db.admissionApplication.findMany({
       where: { userId, programId },
       include: { payments: { select: TUITION_PAYMENT_SELECT } },
       orderBy: { createdAt: 'desc' },
-    }).catch(() => []),
+    }),
     db.payment.findMany({
       where: { enrollment: { is: { userId, programId } } },
       select: TUITION_PAYMENT_SELECT,
-    }).catch(() => []),
+    }),
   ])
   const payments = uniquePayments([
     ...apps.flatMap((app: any) => Array.isArray(app.payments) ? app.payments : []),
