@@ -35,6 +35,10 @@ function nullIfBlank(value: unknown) {
   return text ? text : null
 }
 
+function isAdminAuthError(error: any) {
+  return ['UNAUTHORIZED', 'FORBIDDEN'].includes(String(error?.message || error || '').toUpperCase())
+}
+
 function mapItem(item: any) {
   return {
     id: item.id,
