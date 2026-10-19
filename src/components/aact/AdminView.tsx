@@ -61,6 +61,7 @@ const AdminSupervisorsTab = dynamic(() => loadAdminSupervisorsModule().then((m) 
 const AdminWhatsAppInboxTab = dynamic(() => loadAdminWhatsAppInboxModule().then((m) => m.AdminWhatsAppInboxTab), { ssr: false, loading: AdminTabLoader })
 const AdminRepresentativesTab = dynamic(() => loadAdminRepresentativesModule(), { ssr: false, loading: AdminTabLoader })
 const AdminGradingReviewTab = dynamic(() => loadAdminGradingReviewModule(), { ssr: false, loading: AdminTabLoader })
+const AdminStudyScheduleTab = dynamic(() => loadAdminStudyScheduleModule(), { ssr: false, loading: AdminTabLoader })
 
 interface Stats {
   stats: {
