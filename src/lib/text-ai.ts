@@ -1310,7 +1310,10 @@ function nvidiaDiscoverySucceeded(s: Settings): boolean {
 }
 
 function nvidiaDiscoverySourceCount(s: Settings): number {
-  return Math.max(0, Math.floor(Number(freeModelDiscoveryEntry('OPENAI_COMPAT', s)?.sourceCount || 0)))
+  const entry = freeModelDiscoveryEntry('OPENAI_COMPAT', s)
+  const sourceCount = Number(entry?.sourceCount ?? NaN)
+  if (Number.isFinite(sourceCount) && sourceCount > 0) return Math.max(0, Math.floor(sourceCount))
+  return entry?.discoveryOk ? entry.models.length : 0
 }
 
 export function modelAllowedForPurpose(model: string, purpose?: TextAiPurpose, capability?: ModelCapability | null): boolean {
