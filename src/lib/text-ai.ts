@@ -896,6 +896,7 @@ function apiRootFromBase(baseUrl: string, fallback: string): string {
 function normalizeOpenAiCompatibleBaseUrl(baseUrl: string): string {
   return String(baseUrl || '')
     .trim()
+    .replace(/[?#].*$/, '')
     .replace(/\/+$/, '')
     .replace(/\/chat\/completions$/i, '')
     .replace(/\/responses$/i, '')
