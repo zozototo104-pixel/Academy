@@ -8,6 +8,7 @@ import { verifyQuestionsWithCrossProvider } from '@/lib/question-verifier'
 import { questionDuplicateKey } from '@/lib/ai-generation-progress'
 import { isDuplicateQuestionIdea } from '@/lib/question-bank-diversity'
 import { selectUnitExamQuestionsApprovedFirst, unitExamRequiredQuestions } from '@/lib/unit-exam-policy'
+import { resolveUnitQuestionBankJobStatus } from '@/lib/unit-question-bank-status'
 
 const TYPES = new Set(['MCQ', 'TF', 'SHORT', 'ESSAY'])
 const DIFFICULTIES = new Set(['EASY', 'MEDIUM', 'ADVANCED'])
