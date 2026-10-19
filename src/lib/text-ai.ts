@@ -1218,7 +1218,9 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<
     if (Array.isArray(parsed?.models) && Number(parsed.at || 0) > 0 && now - Number(parsed.at) < 24 * 60 * 60 * 1000) {
       const models = parsed.models.map(String).filter(validModelName)
       const capabilities = parsed.capabilities && typeof parsed.capabilities === 'object' ? parsed.capabilities as Record<string, ModelCapability> : undefined
-      freeModelsCache.set(cacheKey, { at: now, models, capabilities })
+      const discoveryOk = parsed.discoveryOk === true || models.length > 0
+      const sourceCount = Number(parsed.sourceCount ?? parsed.discoveredCount ?? NaN)
+      freeModelsCache.set(cacheKey, { at: now, models, capabilities, discoveryOk, sourceCount: Number.isFinite(sourceCount) ? sourceCount : undefined })
       return models
     }
   } catch {
