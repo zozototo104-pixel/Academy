@@ -21,8 +21,12 @@ export async function POST(req: NextRequest, context: RouteContext) {
       where: { id: cert.userId },
       select: { role: true, passwordResetTokenHash: true, passwordResetUsedAt: true },
     })
-    if (!user || user.role !== 'STUDENT' || user.passwordResetUsedAt || !user.passwordResetTokenHash) {
-      return NextResponse.json({ error: 'إعادة إرسال التفعيل متاحة فقط لحساب خريج سابق جديد لم يختر كلمة المرور بعد' }, { status: 409 })
+    const importAudit = await db.auditLog.findFirst({
+      where: { action: 'IMPORT_LEGACY_GRADUATE', entity: 'Certificate', entityId: cert.id },
+      select: { id: true },
+    })
+    if (!user || user.role !== 'STUDENT' || user.passwordResetUsedAt || !user.passwordResetTokenHash || !importAudit) {
+      return NextResponse.json({ error: 'إعادة إرسال التفعيل متاحة فقط لحساب خريج سابق جديد من الاستيراد لم يختر كلمة المرور بعد' }, { status: 409 })
     }
 
     const emailStatus = await sendLegacyGraduatePasswordSetup(req, cert.userId)
