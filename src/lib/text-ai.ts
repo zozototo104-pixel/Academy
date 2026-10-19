@@ -1670,6 +1670,31 @@ function promptWithJsonInstruction(opts: TextAiCallOpts): string {
   return opts.json ? `${opts.system}\n\nأعد الناتج بصيغة JSON صالحة فقط بدون Markdown وبدون أي شرح خارج JSON.` : opts.system
 }
 
+function stripThinkBlocks(text: string): string {
+  return String(text || '').replace(/<think\b[^>]*>[\s\S]*?<\/think>/gi, '').trim()
+}
+
+function nvidiaNeedsNoThinkDirective(provider: string, baseUrl: string, model: string): boolean {
+  return provider === 'OPENAI_COMPAT'
+    && isNvidiaOpenAiCompatibleBaseUrl(baseUrl)
+    && /nemotron|qwen3|deepseek[-_/]?r1/i.test(model)
+}
+
+function withNvidiaNoThinkDirective(provider: string, baseUrl: string, model: string, opts: TextAiCallOpts): TextAiCallOpts {
+  if (!nvidiaNeedsNoThinkDirective(provider, baseUrl, model)) return opts
+  const system = String(opts.system || '')
+  if (system.trimStart().startsWith('/no_think')) return opts
+  return { ...opts, system: `/no_think\n${system}` }
+}
+
+export function __testStripThinkBlocksForTests(text: string): string {
+  return stripThinkBlocks(text)
+}
+
+export function __testNvidiaSystemPromptForTests(baseUrl: string, model: string, system: string): string {
+  return withNvidiaNoThinkDirective('OPENAI_COMPAT', baseUrl, model, { system, history: [] }).system
+}
+
 function normalizedAttachments(opts: TextAiCallOpts): TextAiAttachment[] {
   const out: TextAiAttachment[] = []
   for (const attachment of opts.attachments || []) {
