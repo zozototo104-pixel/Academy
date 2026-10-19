@@ -18,11 +18,12 @@ export default function AdminGradingReviewTab() {
   const [scores, setScores] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const [busy, setBusy] = useState<'regrade' | 'approve' | null>(null)
+  const [statusFilter, setStatusFilter] = useState<'NEEDS_REVIEW' | 'GRADED' | 'ALL'>('NEEDS_REVIEW')
 
   const load = async () => {
     setLoading(true)
     try {
-      const res = await api<{ attempts: ReviewAttempt[] }>('/api/admin/attempts-review')
+      const res = await api<{ attempts: ReviewAttempt[] }>(`/api/admin/attempts-review?status=${statusFilter}`)
       setAttempts(res.attempts || [])
     } finally { setLoading(false) }
   }
