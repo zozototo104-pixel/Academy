@@ -125,7 +125,7 @@ async function buildProgramReadiness(programId: string, aiDiag?: any) {
   const semestersCount = Math.max(1, Number(program.semestersCount || 2))
   const booksBySemester = Array.from({ length: semestersCount }, (_, i) => i + 1).map((semester) => ({
     semester,
-    count: program.books.filter((b) => Number(b.semester || 1) === semester).length,
+    count: program.books.filter((b) => b.semester == null || Number(b.semester || 0) <= 0 || Number(b.semester) === semester).length,
   }))
   const knowledgeItems = await db.bookKnowledgeItem.count({ where: { programId } })
   const readableBooks = program.books.filter((book) => readableTextLength(book.textContent) >= 800).length
