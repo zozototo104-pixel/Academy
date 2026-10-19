@@ -158,7 +158,7 @@ export async function DELETE(req: NextRequest) {
     await db.studyScheduleItem.delete({ where: { id } })
     return NextResponse.json({ ok: true })
   } catch (error: any) {
-    if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
+    if (isAdminAuthError(error)) return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
     return NextResponse.json({ error: 'تعذر حذف عنصر جدول الدراسة' }, { status: 500 })
   }
 }
