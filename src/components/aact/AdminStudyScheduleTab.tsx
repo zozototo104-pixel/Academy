@@ -118,7 +118,7 @@ export default function AdminStudyScheduleTab() {
       })
       .catch((error) => toast({ title: 'تعذر تحميل البرامج', description: String(error?.message || error), variant: 'destructive' }))
     return () => { alive = false }
-  }, [toast])
+  }, [])
 
   useEffect(() => {
     if (!programId) return
