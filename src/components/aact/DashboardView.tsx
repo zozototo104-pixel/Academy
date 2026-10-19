@@ -265,6 +265,15 @@ interface StudentStudyScheduleItem {
 
 interface ChatMsg { id: string; role: string; content: string; createdAt: string }
 
+const STUDY_SCHEDULE_TYPE_LABEL: Record<StudentStudyScheduleItem['type'], string> = {
+  READING: 'قراءة',
+  UNIT: 'وحدة',
+  STUDY_GUIDE: 'دليل دراسة',
+  ASSIGNMENT: 'واجب',
+  EXAM: 'امتحان',
+  REVIEW: 'مراجعة',
+}
+
 interface AcademicMemorySnapshot {
   exists: boolean
   profileDigest: string | null
