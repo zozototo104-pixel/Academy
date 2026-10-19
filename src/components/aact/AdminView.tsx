@@ -2171,6 +2171,11 @@ export function AdminView() {
           <AdminCertificatesTab />
         </TabsContent>
 
+        {/* الخريجون السابقون */}
+        <TabsContent value="legacy-graduates">
+          <AdminLegacyGraduatesTab />
+        </TabsContent>
+
         {/* الرسوم والإعدادات */}
         <TabsContent value="settings">
           <AdminSettingsTab />
