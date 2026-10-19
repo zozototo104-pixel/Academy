@@ -590,6 +590,30 @@ export function DashboardView() {
     return { semester, exam, semesterBooks, semesterUnits, semesterAssignments, hours, booksHours, unitsHours, assignmentsHours, revisionHours }
   }) || []
 
+  const publishedScheduleWeeks = useMemo(() => {
+    const grouped = studyScheduleItems.reduce<Record<number, StudentStudyScheduleItem[]>>((acc, item) => {
+      acc[item.week] = acc[item.week] || []
+      acc[item.week].push(item)
+      return acc
+    }, {})
+    return Object.entries(grouped).map(([week, weekItems]) => ({ week: Number(week), items: weekItems.sort((a, b) => (a.dayOffset || 0) - (b.dayOffset || 0) || a.order - b.order) })).sort((a, b) => a.week - b.week)
+  }, [studyScheduleItems])
+
+  const formatScheduleDate = (value?: string | null) => {
+    if (!value) return ''
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('ar-EG')
+  }
+
+  const openStudyScheduleItem = (item: StudentStudyScheduleItem) => {
+    if (item.unitId) return openUnit(item.unitId)
+    if (item.examId) return openExam(item.examId, 'final')
+    if (item.assignmentId || item.studyGuideId) {
+      setProgramSection('content')
+      return
+    }
+  }
+
   const aiSupervisorAccess = studentSummary?.aiSupervisorAccess
   const aiSupervisorAllowed = !!aiSupervisorAccess?.allowed
   const aiSupervisorBlockedReason = aiSupervisorAccess?.reason || 'يتاح المشرف الذكي بعد سداد رسوم التقديم وتفعيل الإشراف من الإدارة.'
