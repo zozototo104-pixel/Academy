@@ -31,7 +31,7 @@ function isUniqueConflict(error: unknown, field: string) {
 
 function errorMessage(error: unknown) {
   if (error instanceof LegacyGraduateError) return error.message
-  if (isUniqueConflict(error, 'legacySerial')) return 'legacySerial مكرر'
+  if (isUniqueConflict(error, 'legacySerial')) return 'رقم الشهادة القديم مستخدم مسبقاً'
   if (error instanceof Error) return error.message
   return 'تعذر حفظ السطر'
 }
