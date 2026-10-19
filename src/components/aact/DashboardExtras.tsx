@@ -271,13 +271,21 @@ export function PaymentsTab() {
     if (!target) return
     setAutoOpenedInvoiceNo(initialInvoiceNo)
     if (target.status === 'UNPAID') {
+      if (initialWaiverMode) {
+        window.setTimeout(() => {
+          const card = Array.from(document.querySelectorAll<HTMLElement>('[data-waiver-invoice]')).find((el) => el.dataset.waiverInvoice === initialInvoiceNo)
+          card?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          card?.querySelector<HTMLInputElement>('[data-waiver-code-input="1"]')?.focus()
+        }, 100)
+        return
+      }
       const firstEnabled = visiblePaymentMethods(payConfig?.methods).find((m) => m.enabled)?.id
       if (firstEnabled) setMethod(firstEnabled)
       setPayTarget(target)
     } else {
       toast({ title: 'الفاتورة مسددة', description: `الفاتورة ${initialInvoiceNo} لا تحتاج إلى دفع جديد.` })
     }
-  }, [initialInvoiceNo, autoOpenedInvoiceNo, loading, payments, payConfig, toast])
+  }, [initialInvoiceNo, autoOpenedInvoiceNo, loading, payments, payConfig, toast, initialWaiverMode])
 
   const approvedInitialRemaining = (plan: TuitionPlan) =>
     plan.appealStatus === 'APPROVED' && plan.approvedInitialAmount !== null && plan.paidTuition < plan.approvedInitialAmount
