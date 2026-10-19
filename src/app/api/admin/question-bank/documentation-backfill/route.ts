@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}))
     const programId = String(body?.programId || '').trim()
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
-    const result = await backfillQuestionBankAcademicFields(programId, 45_000)
+    const result = await backfillQuestionBankAcademicFields(programId, 48_000)
     return NextResponse.json(result)
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
