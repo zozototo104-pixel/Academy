@@ -391,8 +391,10 @@ function NotificationBell() {
       gain.connect(ctx.destination)
       oscillator.start()
       oscillator.stop(ctx.currentTime + 0.18)
-      window.setTimeout(() => ctx.close().catch(() => {}), 300)
-    } catch {}
+      window.setTimeout(() => ctx.close().catch((error: unknown) => { console.warn('Failed to close notification audio context.', error) }), 300)
+    } catch (error) {
+      console.warn('Failed to play notification sound.', error)
+    }
   }
 
   const load = () => {
