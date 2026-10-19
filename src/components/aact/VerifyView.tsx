@@ -201,6 +201,7 @@ export function VerifyView() {
                   <div>
                     <span className="font-bold text-slate-400">الرقم التسلسلي: </span>
                     <span className="font-mono font-black text-[#0f2b46]" dir="ltr">{result.certificate.serial}</span>
+                    {result.certificate.legacySerial ? <span className="mr-2 font-bold text-slate-500">· الرقم القديم: <span className="font-mono text-[#0f2b46]" dir="ltr">{result.certificate.legacySerial}</span></span> : null}
                   </div>
                   <div className="sm:col-span-2">
                     <span className="font-bold text-slate-400">البرنامج / الاعتماد: </span>
