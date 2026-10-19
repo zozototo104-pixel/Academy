@@ -871,6 +871,25 @@ function apiRootFromBase(baseUrl: string, fallback: string): string {
   return (baseUrl || fallback).replace(/\/$/, '').replace(/\/v1$/, '')
 }
 
+function normalizeOpenAiCompatibleBaseUrl(baseUrl: string): string {
+  return String(baseUrl || '')
+    .trim()
+    .replace(/\/+$/, '')
+    .replace(/\/chat\/completions$/i, '')
+    .replace(/\/responses$/i, '')
+    .replace(/\/models$/i, '')
+}
+
+function isNvidiaOpenAiCompatibleBaseUrl(baseUrl: string): boolean {
+  const normalized = normalizeOpenAiCompatibleBaseUrl(baseUrl)
+  try {
+    const host = new URL(normalized).hostname.toLowerCase()
+    return host === 'integrate.api.nvidia.com'
+  } catch {
+    return /(^|\/\/)integrate\.api\.nvidia\.com(?:\/|$)/i.test(normalized)
+  }
+}
+
 function validModelName(name: string): boolean {
   return /^[a-z0-9][a-z0-9_.\/:-]{1,180}$/i.test(name)
 }
