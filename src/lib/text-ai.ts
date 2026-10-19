@@ -2063,6 +2063,10 @@ function tryRepairJsonText(raw: string): { ok: true; text: string } | { ok: fals
   return { ok: false, reason: 'INVALID_JSON_RESPONSE' }
 }
 
+export function __testTryRepairJsonTextForTests(raw: string): { ok: true; text: string } | { ok: false; reason: string } {
+  return tryRepairJsonText(raw)
+}
+
 async function callProviderWithJsonRepair(provider: ConcreteProvider, s: Settings, key: string, model: string, opts: TextAiCallOpts): Promise<{ text: string; jsonOk?: boolean; retriedJson?: boolean }> {
   const first = await callProvider(provider, s, key, model, opts)
   if (!opts.json) return { text: first }
