@@ -241,6 +241,7 @@ export function PaymentsTab() {
       .catch(() => {})
 
     const q = new URLSearchParams(window.location.search)
+    initialWaiverModeRef.current = q.get('waiver') === '1'
     const invoice = q.get('invoice')
     if (invoice) setInitialInvoiceNo(invoice)
     const paid = q.get('paid')
