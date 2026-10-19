@@ -1086,6 +1086,14 @@ function nvidiaDiscoveredTextModelsFromRows(rows: any[]): string[] {
     .map(({ id }) => id)
 }
 
+function nvidiaModelsAfterDiscovery(discovered: string[], staticDefaults: string[], discoveryOk: boolean): string[] {
+  return discoveryOk ? discovered : (discovered.length ? discovered : staticDefaults)
+}
+
+export function __testNvidiaStaticIntersectionForTests(discovered: string[], discoveryOk = true): string[] {
+  return nvidiaModelsAfterDiscovery(discovered, NVIDIA_OPENAI_COMPAT_TEXT_MODELS, discoveryOk)
+}
+
 export function __testFilterNvidiaFreeTrialTextModelsForTests(rows: any[]): string[] {
   return nvidiaDiscoveredTextModelsFromRows(rows)
 }
