@@ -8,8 +8,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 
-type ReviewAttempt = { type: 'UNIT' | 'PROGRAM'; id: string; submittedAt: string; student: { name: string; email: string }; exam: { title: string; programTitle?: string; unitTitle?: string } }
-type ReviewDetail = { type: 'UNIT' | 'PROGRAM'; id: string; answers: Array<{ answerId: string; order: number; question: string; studentAnswer: string; modelAnswer: string; source: string; points: number | null; maxPoints: number; aiFeedback: string | null }> }
+type ReviewAttempt = { type: 'UNIT' | 'PROGRAM'; id: string; status?: string; submittedAt: string; student: { name: string; email: string }; exam: { title: string; programTitle?: string; unitTitle?: string } }
+type ReviewDetail = { type: 'UNIT' | 'PROGRAM'; id: string; status?: string; answers: Array<{ answerId: string; order: number; question: string; studentAnswer: string; modelAnswer: string; source: string; points: number | null; maxPoints: number; aiFeedback: string | null }> }
 
 export default function AdminGradingReviewTab() {
   const { toast } = useToast()
