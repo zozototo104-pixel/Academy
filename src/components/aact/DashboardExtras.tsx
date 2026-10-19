@@ -609,7 +609,7 @@ export function PaymentsTab() {
       ) : (
         <div className='space-y-3'>
           {displayPayments.map((p) => (
-            <Card key={p.id} className={`border ${p.status === 'PAID' ? 'border-emerald-100 bg-emerald-50/30' : 'border-amber-200 bg-amber-50/30'}`}>
+            <Card key={p.id} data-waiver-invoice={p.invoiceNo} className={`border ${p.status === 'PAID' ? 'border-emerald-100 bg-emerald-50/30' : 'border-amber-200 bg-amber-50/30'}`}>
               <CardContent className='grid gap-3 p-4 sm:flex sm:flex-wrap sm:items-center sm:justify-between'>
                 <div className='min-w-0 w-full sm:flex-1'>
                   <div className='flex flex-wrap items-center gap-2'>
