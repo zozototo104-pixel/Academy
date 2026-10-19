@@ -359,6 +359,29 @@ describe('legacy graduate spreadsheet import helpers', () => {
     expect(rows[1].programSuggestion).toContain('leadership')
     expect(users.size).toBe(beforeUsers)
   })
+
+  test('import offset and limit process only the requested slice and return nextOffset', async () => {
+    const XLSX = await import('xlsx')
+    const sheet = XLSX.utils.aoa_to_sheet([
+      ['name', 'email', 'program', 'issuedAt'],
+      ['One', 'one@example.com', 'leadership', '2024-06-01'],
+      ['Two', 'two@example.com', 'leadership', '2024-06-02'],
+      ['Three', 'three@example.com', 'leadership', '2024-06-03'],
+    ])
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Sheet1')
+    const fd = new FormData()
+    fd.append('file', new File([Buffer.from(XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer)], 'legacy.xlsx'))
+    const res = await importRoute.POST(formReq(fd, 'https://aactacademy.test/api/admin/legacy-graduates/import?offset=1&limit=1'))
+    const data = await responseJson(res)
+    expect(res.status).toBe(200)
+    expect(data.totalRows).toBe(3)
+    expect(data.processed).toBe(1)
+    expect(data.nextOffset).toBe(2)
+    expect(data.results[0].rowNumber).toBe(3)
+    expect(users.size).toBe(1)
+    expect([...users.values()][0].email).toBe('two@example.com')
+  })
 })
 
 describe('legacy certificate file upload stamping and download', () => {
