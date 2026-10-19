@@ -925,6 +925,7 @@ export function DashboardView() {
                             <div className="space-y-2">
                               {week.items.map((item) => {
                                 const canOpen = Boolean(item.unitId || item.examId || item.assignmentId || item.studyGuideId)
+                                const itemDate = formatScheduleDate(item.targetDate)
                                 return (
                                   <div key={item.id} className="rounded-xl bg-white p-3 text-[11px] font-bold leading-5 text-slate-600">
                                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
