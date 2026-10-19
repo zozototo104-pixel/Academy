@@ -10,6 +10,10 @@ const requestSchema = z.object({
   semester: z.coerce.number().int().min(1).max(12),
 })
 
+function isAdminAuthError(error: any) {
+  return ['UNAUTHORIZED', 'FORBIDDEN'].includes(String(error?.message || error || '').toUpperCase())
+}
+
 export async function POST(req: NextRequest) {
   try {
     await requireAdmin()
