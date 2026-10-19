@@ -41,6 +41,11 @@ export function __testVerifierExcludedProviders(generatorProvider: TextAiProvide
   return [generatorProvider]
 }
 
+export function __testVerifierPreferredProvidersForTests(generatorProvider?: TextAiProvider | null): TextAiProvider[] {
+  const preferred: TextAiProvider[] = ['GROQ', 'GEMINI', 'UNOROUTER']
+  return preferred.filter((provider) => provider !== generatorProvider)
+}
+
 const verifierItemSchema = z.object({
   index: z.number().int().nonnegative(),
   valid: z.boolean(),
