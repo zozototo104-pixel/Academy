@@ -58,7 +58,7 @@ function randomUnknownPassword() {
   return randomBytes(32).toString('base64url')
 }
 
-export async function createLegacyGraduate(input: LegacyGraduateInput, admin: AdminActor) {
+export async function createLegacyGraduate(input: LegacyGraduateInput, admin: AdminActor, options?: { source?: 'MANUAL' | 'IMPORT' }) {
   const email = normalizeLegacyGraduateEmail(input.email)
   if (!email || !isValidLegacyGraduateEmail(email)) {
     throw new LegacyGraduateError(400, 'INVALID_EMAIL', 'البريد الإلكتروني غير صالح')
