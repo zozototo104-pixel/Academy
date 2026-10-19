@@ -79,7 +79,9 @@ const db: any = {
       .map((row) => ({ ...row, program: programs[row.programId] })),
   },
   bookChunk: {
-    findMany: async ({ where }: any) => {
+    findMany: async (args: any) => {
+      lastBookChunkFindManyArgs = args
+      const where = args?.where || {}
       requestedChunkProgramIds = [...(where?.programId?.in || [])]
       return chunks
         .filter((row) => requestedChunkProgramIds.includes(row.programId))
