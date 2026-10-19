@@ -176,7 +176,7 @@ export async function validateLegacyGraduateImportRows(parsedRows: { rowNumber: 
     if (programText && !resolved.programId) errors.push('برنامج مش موجود')
     if (!issuedAt) errors.push('تاريخ غلط')
     if (Number.isNaN(finalScore)) errors.push('المعدل غير صالح')
-    if (legacySerial && existingSerials.has(legacySerial)) errors.push('legacySerial مكرر')
+    if (legacySerial && existingSerials.has(legacySerial)) errors.push('رقم الشهادة القديم مستخدم مسبقاً')
     if (legacySerial) {
       const firstRow = seenLegacySerial.get(legacySerial)
       if (firstRow) errors.push(`رقم الشهادة مكرر داخل الملف مع السطر ${firstRow}`)
