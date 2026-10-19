@@ -283,6 +283,12 @@ function testPrismaDeployPreviewPushSkips() {
   assert(output.includes('skipped'), 'prisma-deploy --push in preview must print skipped')
 }
 
+function testAdmissionAdvisoryLockUsesExecuteRaw() {
+  const admissionsRoute = file('src/app/api/admissions/route.ts')
+  assert(!admissionsRoute.includes('tx.$queryRaw`SELECT pg_advisory_xact_lock'), 'admissions POST must not read pg_advisory_xact_lock with queryRaw because it returns void')
+  assert(admissionsRoute.includes('tx.$executeRaw`SELECT pg_advisory_xact_lock'), 'admissions POST must execute pg_advisory_xact_lock with executeRaw')
+}
+
 function testSecurityBatchAFollowup() {
   const waiverLib = file('src/lib/payment-waivers.ts')
   assert(waiverLib.includes('class ActivePaymentWaiverExistsError') && waiverLib.includes("code = 'ACTIVE_WAIVER_EXISTS'") && waiverLib.includes('status = 409'), 'payment waivers must expose a 409 ACTIVE_WAIVER_EXISTS error')
@@ -421,6 +427,7 @@ async function main() {
   testAactTestRecipientBlocks()
   testDependencyPins()
   testPrismaDeployPreviewPushSkips()
+  testAdmissionAdvisoryLockUsesExecuteRaw()
   testSecurityBatchAFollowup()
   testSecurityBatchA()
   console.log('✓ production safety behavioral checks passed')
