@@ -64,6 +64,10 @@ async function readImportRows(req: NextRequest) {
   return parseCsv(await req.text())
 }
 
+function isAdminAuthError(error: any) {
+  return ['UNAUTHORIZED', 'FORBIDDEN'].includes(String(error?.message || error || '').toUpperCase())
+}
+
 export async function GET(req: NextRequest) {
   try {
     await requireAdmin()
