@@ -145,6 +145,32 @@ describe('supervisor enrolled book retrieval', () => {
     expect(context).toContain('استقبال المعلومات وتفسيرها')
   })
 
+  test('book chunk retrieval uses text OR with capped take and filters filler words', async () => {
+    chunks = [{
+      id: 'chunk-filter',
+      bookId: 'book-a',
+      programId: 'program-a',
+      index: 1,
+      pageStart: 8,
+      pageEnd: 8,
+      headingPath: 'الفصل الثاني',
+      text: 'الإدراك المعرفي يساعد الطالب على فهم المعالجة الذهنية للمعلومات.',
+    }]
+
+    await buildSupervisorContext('student-1', { query: 'الذي حول خلال الفصل الوحدة الإدراك المعرفي' })
+
+    const chunkWhere = lastBookChunkFindManyArgs?.where
+    const chunkTerms = (chunkWhere?.OR || []).map((entry: any) => entry?.text?.contains).filter(Boolean)
+    expect(lastBookChunkFindManyArgs?.take).toBeLessThanOrEqual(40)
+    expect(Array.isArray(chunkWhere?.OR)).toBe(true)
+    expect(chunkTerms.length).toBeGreaterThan(0)
+    expect(chunkWhere.OR.every((entry: any) => entry?.text?.mode === 'insensitive')).toBe(true)
+    expect(chunkTerms).toContain('ادراك')
+    for (const filler of ['الذي', 'حول', 'خلال', 'الفصل', 'الوحدة', 'فصل', 'وحده']) {
+      expect(chunkTerms).not.toContain(filler)
+    }
+  })
+
   test('an unrelated question keeps the relevant book excerpt block out of context', async () => {
     chunks = [{
       id: 'chunk-1',
