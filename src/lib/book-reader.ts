@@ -80,7 +80,7 @@ export async function transcribeScannedDocumentWithVision(buffer: Buffer, pageNu
     purpose: 'VISION',
     routerPolicy: 'primary_first',
     maxOutputTokens: 16000,
-    deadlineMs: Math.min(deadlineMs - 10_000, Date.now() + 25_000),
+    deadlineMs: Math.min(deadlineMs - 10_000, Date.now() + 90_000),
     attachments: [{ mimeType: 'application/pdf', base64: data.toString('base64') }],
   })
   const parsed = JSON.parse(result.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim())
