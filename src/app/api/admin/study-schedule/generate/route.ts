@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
     await requireAdmin()
     const parsed = requestSchema.parse(await req.json().catch(() => ({})))
     const [program, units, guides, assignments, exams] = await Promise.all([
-      db.program.findUnique({ where: { id: parsed.programId }, select: { id: true, title: true, hours: true } }),
+      db.program.findUnique({ where: { id: parsed.programId }, select: { id: true, titleAr: true, titleEn: true, hours: true } }),
       db.unit.findMany({ where: { programId: parsed.programId, semester: parsed.semester, status: 'APPROVED' }, orderBy: { order: 'asc' }, select: { id: true, title: true, semester: true, order: true, status: true } }),
       db.programStudyGuide.findMany({ where: { programId: parsed.programId, semester: parsed.semester, status: 'PUBLISHED' }, orderBy: { createdAt: 'asc' }, select: { id: true, title: true, semester: true, status: true } }),
       db.programAssignment.findMany({ where: { programId: parsed.programId, semester: parsed.semester, status: 'PUBLISHED' }, orderBy: { createdAt: 'asc' }, select: { id: true, title: true, semester: true, status: true } }),
