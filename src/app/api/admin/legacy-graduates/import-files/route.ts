@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'تعذر قراءة ملف ZIP' }, { status: 400 })
     }
 
-    const results = []
+    const results: LegacyCertificateZipImportResult[] = []
     for (const entry of entries) {
       const identifier = baseIdentifier(entry.fileName)
       const mime = sniffLegacyCertificateMime(entry.buffer)
