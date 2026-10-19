@@ -216,6 +216,15 @@ export async function emailPasswordReset(to: string, name: string, resetUrl: str
   return (await emailPasswordResetDetailed(to, name, resetUrl)) === 'SENT'
 }
 
+export async function emailLegacyGraduateWelcome(to: string, name: string, setupUrl: string): Promise<EmailDeliveryStatus> {
+  return sendEmailDetailed({
+    to,
+    event: 'LEGACY_GRADUATE_WELCOME',
+    subject: 'تم ربط شهادتك بمنصة الأكاديمية الأمريكية',
+    html: emailTemplate('تم إنشاء حسابك وربط شهادتك 🎓', `<p>${greeting(name)}،</p><p>تم إنشاء حسابك في منصة الأكاديمية الأمريكية وربط شهادتك بسجلك الأكاديمي.</p><p>اضغط على الزر التالي لاختيار كلمة المرور والدخول إلى حسابك. الرابط صالح لمدة 7 أيام ويُستخدم مرة واحدة فقط.</p>${infoRows([{ label: 'البريد', value: to }, { label: 'صلاحية الرابط', value: '7 أيام من وقت الإرسال' }])}`, { label: 'اختيار كلمة المرور', url: setupUrl }),
+  })
+}
+
 export async function emailWelcome(to: string, name: string) {
   await sendEmail({
     to,
