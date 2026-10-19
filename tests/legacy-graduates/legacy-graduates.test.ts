@@ -376,6 +376,21 @@ describe('legacy graduate spreadsheet import helpers', () => {
     expect(users.size).toBe(beforeUsers)
   })
 
+  test('dry run rejects duplicate old certificate number clearly', async () => {
+    certificates.set('cert-existing', { id: 'cert-existing', legacy: true, legacySerial: 'OLD-DUP-1', serial: 'AACT-C-2026-99999', qrToken: 'token-old', type: 'PROGRAM_COMPLETION', holderName: 'Old', program: 'دبلوم القيادة', valid: true })
+    const XLSX = await import('xlsx')
+    const sheet = XLSX.utils.aoa_to_sheet([
+      ['الاسم', 'الإيميل', 'البرنامج', 'تاريخ التخرج', 'رقم الشهادة القديم'],
+      ['أحمد', 'ahmad@example.com', 'leadership', '2024-06-30', 'OLD-DUP-1'],
+    ])
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Sheet1')
+    const parsed = parseLegacyGraduateWorkbook(Buffer.from(XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer), 'legacy.xlsx')
+    const rows = await validateLegacyGraduateImportRows(parsed)
+    expect(rows[0].legacySerial).toBe('OLD-DUP-1')
+    expect(rows[0].errors).toContain('رقم الشهادة القديم مستخدم مسبقاً')
+  })
+
   test('import offset and limit process only the requested slice and return nextOffset', async () => {
     const XLSX = await import('xlsx')
     const sheet = XLSX.utils.aoa_to_sheet([
