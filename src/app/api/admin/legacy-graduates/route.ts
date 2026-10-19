@@ -239,7 +239,9 @@ export async function POST(req: NextRequest) {
       legacySerial: cleanOptional(body.legacySerial),
     }, admin)
 
-    const emailStatus = await sendLegacyGraduatePasswordSetup(req, result.user.id)
+    const emailStatus = result.userCreated
+      ? await sendLegacyGraduatePasswordSetup(req, result.user.id)
+      : 'SKIPPED_EXISTING_USER'
     return NextResponse.json({
       ok: true,
       emailStatus,
