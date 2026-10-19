@@ -103,8 +103,8 @@ function enroll(programId = 'program-a', status = 'ACTIVE', userId = 'student-1'
   enrollments = [{ userId, programId, status }]
 }
 
-function admit(payments: PaymentRow[], programId = 'program-a', userId = 'student-1') {
-  admissions = [{ id: 'adm-1', userId, programId, status: 'AWAITING_TUITION', payments }]
+function admit(payments: PaymentRow[], programId = 'program-a', userId = 'student-1', scholarshipFull = false) {
+  admissions = [{ id: 'adm-1', userId, programId, status: 'AWAITING_TUITION', payments, scholarshipFull }]
 }
 
 function tuitionPayment(partial: Partial<PaymentRow>): PaymentRow {
