@@ -118,7 +118,7 @@ export const useAppStore = create<AppState>((set) => ({
     })
   },
   goBack: (fallbackView = 'home', params = {}) => {
-    if (typeof window !== 'undefined' && window.history.length > 1) {
+    if (typeof window !== 'undefined' && window.history.state && window.history.state.aact === true) {
       window.history.back()
       return
     }
