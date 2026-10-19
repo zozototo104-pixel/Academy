@@ -62,6 +62,9 @@ export async function POST(req: NextRequest) {
     const file = form.get('file')
     const dryRunFromForm = String(form.get('dryRun') || '').toLowerCase() === 'true'
     const shouldDryRun = dryRun || dryRunFromForm
+    const offset = Math.max(0, parseBatchNumber(form.get('offset') ?? req.nextUrl.searchParams.get('offset'), 0))
+    const requestedLimit = parseBatchNumber(form.get('limit') ?? req.nextUrl.searchParams.get('limit'), DEFAULT_BATCH_LIMIT)
+    const limit = Math.min(MAX_BATCH_LIMIT, Math.max(1, requestedLimit))
 
     if (!(file instanceof File)) {
       return NextResponse.json({ error: 'ملف Excel أو CSV مطلوب' }, { status: 400 })
