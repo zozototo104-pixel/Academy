@@ -605,9 +605,27 @@ export function DashboardView() {
     return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('ar-EG')
   }
 
+  const handleSemesterExamAction = (exam: any) => {
+    if (!active) return
+    const sem1 = (active.semesterExams || []).find((e: any) => e.semester === 1)
+    const readiness = exam.readiness
+    const tuitionGate = exam.tuitionGate
+    const tuitionLocked = Boolean(tuitionGate && !tuitionGate.allowed)
+    const prereqLocked = exam.semester === 2 && sem1 && !sem1.passed
+    const locked = prereqLocked || tuitionLocked || !readiness?.readyMarked
+    if (locked) return
+    return openExam(exam.id, 'final')
+  }
+
   const openStudyScheduleItem = (item: StudentStudyScheduleItem) => {
     if (item.unitId) return openUnit(item.unitId)
-    if (item.examId) return openExam(item.examId, 'final')
+    if (item.examId) {
+      const exam = (active?.semesterExams || []).find((candidate: any) => candidate.id === item.examId)
+      if (exam) return handleSemesterExamAction(exam)
+      setProgramSection('content')
+      toast({ title: 'هذا الامتحان غير متاح بعد' })
+      return
+    }
     if (item.assignmentId || item.studyGuideId) {
       setProgramSection('content')
       return
