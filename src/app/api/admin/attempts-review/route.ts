@@ -46,7 +46,7 @@ async function listReviewAttempts(statusFilter: string = 'NEEDS_REVIEW') {
   const statuses = statusFilter === 'ALL' ? ['NEEDS_REVIEW', 'GRADED'] : statusFilter === 'GRADED' ? ['GRADED'] : ['NEEDS_REVIEW']
   const [unitAttempts, programAttempts] = await Promise.all([
     db.examAttempt.findMany({
-      where: { status: { in: statuses } },
+      where: { status: { in: statuses as any } },
       orderBy: { submittedAt: 'desc' },
       take: 100,
       select: { id: true, status: true, submittedAt: true, user: { select: { id: true, name: true, email: true } }, exam: { select: { id: true, title: true, unit: { select: { title: true, program: { select: { titleAr: true } } } } } } },
