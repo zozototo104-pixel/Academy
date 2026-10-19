@@ -174,7 +174,8 @@ export async function backfillQuestionBankAcademicFields(programId: string, time
   const activeUntil = Date.parse(activeLock?.value || '')
   if (Number.isFinite(activeUntil) && activeUntil > Date.now()) {
     const remaining = await countQuestionBankDocumentationRemaining(programId)
-    return { filled: 0, remaining, locked: true, done: remaining === 0 }
+    const blockedNoEvidence = await countQuestionBankDocumentationBlockedNoEvidence(programId)
+    return { filled: 0, remaining, locked: true, done: remaining === 0, blockedNoEvidence }
   }
   const lockUntil = new Date(Date.now() + 4 * 60_000).toISOString()
   await db.setting.upsert({ where: { key: lockKey }, create: { key: lockKey, value: lockUntil }, update: { value: lockUntil } })
