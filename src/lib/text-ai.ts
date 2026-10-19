@@ -1481,7 +1481,7 @@ async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel
   const selectedPart = selected && !selectedIsAuto && (!nvidiaDiscovered || discoveredSet.has(selected.toLowerCase())) ? [selected] : []
   const academicPreferred = (taskLevel === 'GENERAL' ? [] : s.academicAllowlist.filter((item) => item.provider === provider).map((item) => item.model))
     .filter((model) => !nvidiaDiscovered || discoveredSet.has(model.toLowerCase()))
-  const discoveredOrFallback = nvidiaDiscovered ? discoveredFree : (discoveredFree.length ? discoveredFree : staticDefaults)
+  const discoveredOrFallback = nvidiaCompat ? nvidiaModelsAfterDiscovery(discoveredFree, staticDefaults, nvidiaDiscovered) : (discoveredFree.length ? discoveredFree : staticDefaults)
   const models = [...new Set([...academicPreferred, ...selectedPart, ...discoveredOrFallback].filter(Boolean))]
     .filter((model) => !nvidiaCompat || NVIDIA_OPENAI_COMPAT_CALLABLE_MODEL_IDS.has(model.toLowerCase()))
     .filter((model) => !nvidiaDiscovered || discoveredSet.has(model.toLowerCase()))
