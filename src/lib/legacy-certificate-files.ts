@@ -11,6 +11,10 @@ export type QrSize = 'S' | 'M' | 'L'
 
 export const LEGACY_CERTIFICATE_UPLOAD_MAX_BYTES = 10 * 1024 * 1024
 export const LEGACY_CERTIFICATE_ZIP_MAX_BYTES = 50 * 1024 * 1024
+export const LEGACY_CERTIFICATE_ZIP_MAX_FILES = 300
+export const LEGACY_CERTIFICATE_ZIP_MAX_UNCOMPRESSED_BYTES = 200 * 1024 * 1024
+
+type ParsedZipEntry = { fileName: string; buffer: Buffer; error?: undefined } | { fileName: string; buffer?: undefined; error: string }
 
 export function sniffLegacyCertificateMime(buffer: Buffer): LegacyCertificateMime | null {
   if (buffer.length >= 5 && buffer.subarray(0, 5).toString('ascii') === '%PDF-') return 'application/pdf'
