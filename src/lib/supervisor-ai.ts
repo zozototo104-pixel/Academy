@@ -368,10 +368,9 @@ async function expandSupervisorBookQueryTerms(query: string | null | undefined, 
     const raw = await Promise.race([request, timeout])
     const parsed = raw ? JSON.parse(raw) : null
     const terms = cleanExpandedBookTerms(Array.isArray(parsed?.terms) ? parsed.terms.slice(0, 12) : [])
-    writeQueryExpansionCache(cacheKey, terms)
+    if (terms.length) writeQueryExpansionCache(cacheKey, terms)
     return terms
   } catch {
-    writeQueryExpansionCache(cacheKey, [])
     return []
   } finally {
     if (timer) clearTimeout(timer)
