@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth'
 import { hasUnitExamAttempts } from '@/lib/outline-units'
 import { selectUnitExamQuestionsApprovedFirst, unitExamRequiredQuestions, UNIT_EXAM_REVIEW_LABEL } from '@/lib/unit-exam-policy'
 import { collectTimings, withServerTiming, withTiming } from '@/lib/timing'
+import { resolveUnitQuestionBankJobStatus } from '@/lib/unit-question-bank-status'
 
 const QUESTION_BANK_TRACE_PREFIX = 'QUESTION_BANK_JOB_TRACE:'
 
