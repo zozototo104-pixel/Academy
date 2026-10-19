@@ -397,7 +397,7 @@ export function ProgramDetailsView() {
       <section className="relative border-b border-white/10 px-4 py-9 sm:py-12">
         <div className="mx-auto max-w-6xl">
           <button
-            onClick={() => navigate('programs')}
+            onClick={() => goBack('programs')}
             className="mb-7 inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.06] px-4 py-2 text-xs font-black text-white/78 backdrop-blur transition hover:bg-white/10 hover:text-white"
           >
             <ArrowRight className="h-4 w-4" />
