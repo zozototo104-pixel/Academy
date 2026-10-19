@@ -291,7 +291,8 @@ export async function backfillProgramExamAcademicFields(examId: string, options:
           taskLevel: 'ACADEMIC_CRITICAL',
           system: 'أنت مدقق أكاديمي. أعد JSON فقط. لا تغير نص السؤال أو الخيارات أو الإجابة الصحيحة. املأ فقط difficulty من EASY/MEDIUM/ADVANCED و cognitiveSkill من UNDERSTAND/APPLY/ANALYZE/EVALUATE و correctRationale من الدليل. للأسئلة الموضوعية أعط distractorRationales مختصرة لكل خيار خاطئ، وفي صح/خطأ سبباً واحداً لعكس الإجابة.',
           history: [{ role: 'user', text: JSON.stringify({ questions: payload }) }],
-          maxOutputTokens: 3500,
+          maxOutputTokens: 6000,
+          deadlineMs,
         })
         const rows = new Map(parseAiBackfill(raw).map((row) => [row.id, row]))
         let batchFilled = 0
