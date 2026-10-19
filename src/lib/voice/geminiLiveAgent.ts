@@ -522,6 +522,58 @@ export class GeminiLiveAgent {
     return this.handleServerMessage(msg)
   }
 
+  private async fetchBookSnippetsForTool(query: string): Promise<string> {
+    if (!query) return ''
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => controller.abort(), 3_000)
+    try {
+      const response = await fetch('/api/ai/book-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}) },
+        body: JSON.stringify({ query }),
+        signal: controller.signal,
+      })
+      if (!response.ok) return ''
+      const payload = await response.json().catch(() => ({} as any))
+      return String(payload?.snippets || '').slice(0, 4000)
+    } catch {
+      return ''
+    } finally {
+      window.clearTimeout(timer)
+    }
+  }
+
+  private sendBookSearchToolResponses(functionResponses: LiveFunctionResponse[]) {
+    if (!functionResponses.length) return
+    try {
+      if (this.usingSdk && this.sdkSession?.sendToolResponse) {
+        this.sdkSession.sendToolResponse({ functionResponses })
+        return
+      }
+      if (this.usingSdk && this.sdkSession?.send_tool_response) {
+        this.sdkSession.send_tool_response({ functionResponses })
+        return
+      }
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ toolResponse: { functionResponses } }))
+      }
+    } catch {
+      // لا نوقف المحادثة الصوتية إذا تعذر تسليم نتيجة البحث.
+    }
+  }
+
+  private async handleBookSearchToolCall(toolCall: any) {
+    const functionCalls: LiveFunctionCall[] = Array.isArray(toolCall?.functionCalls) ? toolCall.functionCalls : []
+    const searchCalls = functionCalls.filter((call) => call?.name === 'search_course_books')
+    if (!searchCalls.length) return
+    const functionResponses = await Promise.all(searchCalls.map(async (call) => ({
+      id: String(call.id || ''),
+      name: 'search_course_books',
+      response: { snippets: await this.fetchBookSnippetsForTool(liveBookSearchQuery(call)) },
+    })))
+    this.sendBookSearchToolResponses(functionResponses)
+  }
+
   private handleServerMessage(msg: any): boolean {
     if (!msg) return false
     if (msg.error) {
