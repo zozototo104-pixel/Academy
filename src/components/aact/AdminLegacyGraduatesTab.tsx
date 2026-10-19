@@ -328,7 +328,7 @@ export default function AdminLegacyGraduatesTab() {
           <div className="flex flex-col gap-2 md:flex-row md:items-center">
             <Input type="file" accept=".xlsx,.xls,.csv" onChange={onExcelChange} />
             <Button variant="outline" onClick={() => runImport(true)} disabled={busy === 'dryRun'}>{busy === 'dryRun' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'معاينة الأخطاء'}</Button>
-            <Button onClick={() => runImport(false)} disabled={!excelFile || invalidImportRows.length > 0 || busy === 'import'}>{busy === 'import' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'حفظ الاستيراد'}</Button>
+            <Button onClick={() => runImport(false)} disabled={!excelFile || importRows.length === 0 || invalidImportRows.length > 0 || busy === 'import'}>{busy === 'import' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'حفظ الاستيراد'}</Button>
           </div>
           {importRows.length > 0 && (
             <div className="max-h-72 overflow-auto rounded-xl border border-slate-200">
