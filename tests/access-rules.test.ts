@@ -18,7 +18,7 @@ type PaymentRow = {
   enrollmentUserId?: string | null
   enrollmentProgramId?: string | null
 }
-type AdmissionRow = { id: string; userId: string; programId: string; status: string; payments: PaymentRow[] }
+type AdmissionRow = { id: string; userId: string; programId: string; status: string; payments: PaymentRow[]; scholarshipFull?: boolean }
 
 let programs: ProgramRow[] = []
 let enrollments: EnrollmentRow[] = []
