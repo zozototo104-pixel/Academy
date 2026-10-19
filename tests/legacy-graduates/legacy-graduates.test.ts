@@ -303,6 +303,19 @@ describe('legacy graduate creation', () => {
     expect(users.size).toBe(1)
   })
 
+  test('manual legacy graduate with unused password setup can resend invite', async () => {
+    const created = await adminLegacyRoute.POST(jsonReq({ name: 'Manual Graduate', email: 'manual@example.com', programId: 'program-1', issuedAt: '2024-06-30' }))
+    const createdData = await responseJson(created)
+    expect(created.status).toBe(201)
+    expect(legacyWelcomeCalls).toBe(1)
+
+    const resent = await resendRoute.POST(jsonReq({}, `https://aactacademy.test/api/admin/legacy-graduates/${createdData.certificate.id}/resend-invite`), { params: { certificateId: createdData.certificate.id } } as any)
+    const resentData = await responseJson(resent)
+    expect(resent.status).toBe(200)
+    expect(resentData.emailStatus).toBe('SENT')
+    expect(legacyWelcomeCalls).toBe(2)
+  })
+
   test('admin email is rejected without enrollment or certificate', async () => {
     users.set('admin-existing', { id: 'admin-existing', email: 'admin-user@example.com', name: 'Admin User', role: 'ADMIN', status: 'ACTIVE' })
     const res = await adminLegacyRoute.POST(jsonReq({ name: 'Admin User', email: 'admin-user@example.com', programId: 'program-1', issuedAt: '2024-06-30' }))
