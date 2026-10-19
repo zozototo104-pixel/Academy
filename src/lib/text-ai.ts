@@ -161,6 +161,7 @@ const NVIDIA_OPENAI_COMPAT_TEXT_MODELS = [
   'moonshotai/kimi-k2-instruct-0905',
   'openai/gpt-oss-120b',
   'nvidia/nemotron-3-super-120b-a12b',
+  'nvidia/llama-3.3-nemotron-super-49b-v1.5',
   'mistralai/mistral-large-3-675b-instruct-2512',
   'openai/gpt-oss-20b',
 ]
