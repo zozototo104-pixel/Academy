@@ -182,10 +182,55 @@ model Program {
   studyGuides ProgramStudyGuide[]
   assignments ProgramAssignment[]
   programExams ProgramExam[]
+  studyScheduleItems StudyScheduleItem[]
   admissions  AdmissionApplication[]
   microCredentials MicroCredential[]
   thesisTopics ThesisTopic[]
   thesisTopicRequests ThesisTopicRequest[]
+}
+
+enum StudyScheduleItemType {
+  READING
+  UNIT
+  STUDY_GUIDE
+  ASSIGNMENT
+  EXAM
+  REVIEW
+}
+
+enum StudyScheduleItemStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum StudyScheduleItemSource {
+  AI
+  MANUAL
+  IMPORT
+}
+
+model StudyScheduleItem {
+  id             String                  @id @default(cuid())
+  programId      String
+  program        Program                 @relation(fields: [programId], references: [id], onDelete: Cascade)
+  semester       Int
+  week           Int
+  dayOffset      Int?
+  title          String
+  description    String?
+  type           StudyScheduleItemType
+  unitId         String?
+  studyGuideId   String?
+  assignmentId   String?
+  examId         String?
+  durationMin    Int?
+  order          Int                     @default(0)
+  status         StudyScheduleItemStatus @default(DRAFT)
+  source         StudyScheduleItemSource @default(MANUAL)
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+
+  @@index([programId, semester, status])
 }
 
 model Unit {

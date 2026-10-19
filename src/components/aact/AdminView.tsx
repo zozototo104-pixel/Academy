@@ -43,6 +43,7 @@ const loadAdminSupervisorsModule = () => import('@/components/aact/AdminSupervis
 const loadAdminWhatsAppInboxModule = () => import('@/components/aact/AdminWhatsAppInbox')
 const loadAdminRepresentativesModule = () => import('@/components/aact/AdminRepresentativesTab')
 const loadAdminGradingReviewModule = () => import('@/components/aact/AdminGradingReviewTab')
+const loadAdminStudyScheduleModule = () => import('@/components/aact/AdminStudyScheduleTab')
 
 const AdminThesisTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminThesisTab), { ssr: false, loading: AdminTabLoader })
 const AdminFinanceTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminFinanceTab), { ssr: false, loading: AdminTabLoader })
@@ -60,6 +61,7 @@ const AdminSupervisorsTab = dynamic(() => loadAdminSupervisorsModule().then((m) 
 const AdminWhatsAppInboxTab = dynamic(() => loadAdminWhatsAppInboxModule().then((m) => m.AdminWhatsAppInboxTab), { ssr: false, loading: AdminTabLoader })
 const AdminRepresentativesTab = dynamic(() => loadAdminRepresentativesModule(), { ssr: false, loading: AdminTabLoader })
 const AdminGradingReviewTab = dynamic(() => loadAdminGradingReviewModule(), { ssr: false, loading: AdminTabLoader })
+const AdminStudyScheduleTab = dynamic(() => loadAdminStudyScheduleModule(), { ssr: false, loading: AdminTabLoader })
 
 interface Stats {
   stats: {
@@ -1044,6 +1046,7 @@ export function AdminView() {
             </p>
             <TabsList className="flex h-auto w-full flex-wrap gap-1 bg-transparent p-0">
               <TabsTrigger value="books" className="gap-1 text-[10px] font-bold sm:text-xs">الكتب والاختبارات</TabsTrigger>
+              <TabsTrigger value="study-schedule" className="gap-1 text-[10px] font-bold sm:text-xs">جدول الدراسة</TabsTrigger>
               <TabsTrigger value="quality" className="gap-1 text-[10px] font-bold sm:text-xs">مركز الجودة</TabsTrigger>
               <TabsTrigger value="attempts" className="gap-1 text-[10px] font-bold sm:text-xs">نتائج الامتحانات</TabsTrigger>
               <TabsTrigger value="grading-review" className="gap-1 text-[10px] font-bold sm:text-xs">مراجعة التصحيح</TabsTrigger>
@@ -2138,6 +2141,11 @@ export function AdminView() {
         {/* الكتب المقررة والاختبارات الشاملة */}
         <TabsContent value="books">
           <AdminBooksTab />
+        </TabsContent>
+
+        {/* جدول الدراسة */}
+        <TabsContent value="study-schedule">
+          <AdminStudyScheduleTab />
         </TabsContent>
 
         {/* مركز الجودة الأكاديمي الداخلي */}
