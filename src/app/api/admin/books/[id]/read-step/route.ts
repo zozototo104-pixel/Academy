@@ -65,15 +65,16 @@ export async function POST(_request: NextRequest, context: Context) {
   } catch (error: any) {
     const message = String(error?.message || error)
     const providerUnavailable = message.includes('AI_ACADEMIC_PROVIDER_UNAVAILABLE')
+    const transient = isTransientBookReadError(message)
     const updated = await db.bookReadJob.update({
       where: { id: job.id },
       data: {
-        status: providerUnavailable ? 'PAUSED' : 'FAILED',
-        retryAt: providerUnavailable ? new Date(Date.now() + BOOK_READ_RETRY_MS) : null,
+        status: transient ? 'PAUSED' : 'FAILED',
+        retryAt: transient ? new Date(Date.now() + (providerUnavailable ? BOOK_READ_RETRY_MS : BOOK_READ_TRANSIENT_RETRY_MS)) : null,
         lastError: message.slice(0, 2000),
         lockedUntil: null,
       },
     })
-    return NextResponse.json({ ok: false, error: message, job: updated }, { status: providerUnavailable ? 503 : 500 })
+    return NextResponse.json({ ok: false, error: message, job: updated }, { status: transient ? 503 : 500 })
   }
 }
