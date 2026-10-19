@@ -123,7 +123,7 @@ function examErrorMessage(error: ApiError) {
 }
 
 export function ExamView() {
-  const { activeExamId, activeExamKind, navigate, openProgram } = useAppStore()
+  const { activeExamId, activeExamKind, navigate, goBack, openProgram } = useAppStore()
   const { toast } = useToast()
   const [data, setData] = useState<ExamData | null>(null)
   const [loading, setLoading] = useState(true)
