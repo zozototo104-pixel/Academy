@@ -296,11 +296,13 @@ export async function getStudentTuitionPlan(userId: string, programId: string): 
 }
 
 export async function enforceSemesterTuitionGate(userId: string, programId: string, semester: number) {
-  const [plan, coverage, program] = await Promise.all([
+  const [plan, program] = await Promise.all([
     getStudentTuitionPlan(userId, programId),
-    computeTuitionCoverage(userId, programId),
     db.program.findUnique({ where: { id: programId }, select: { semestersCount: true } }).catch(() => null),
   ])
+  const coverage = plan
+    ? { due: plan.totalTuition, covered: plan.paidTuition, ratio: plan.totalTuition <= 0 ? 1 : Math.max(0, Math.min(1, plan.paidTuition / plan.totalTuition)) }
+    : await computeTuitionCoverage(userId, programId)
   if (coverage.due <= 0) return { ok: true as const, plan }
 
   const requiredRatio = requiredCoverageRatioForSemester(semester, program?.semestersCount)
