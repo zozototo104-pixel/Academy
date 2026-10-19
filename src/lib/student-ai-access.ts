@@ -25,6 +25,16 @@ function reasonForBlockedStudentAi(app?: AdmissionForAiAccess | null): string {
 }
 
 export async function getStudentAiSupervisorAccess(userId: string): Promise<{ allowed: boolean; reason: string | null; admissionId: string | null }> {
+  const activeAcademicEnrollment = await db.enrollment.findFirst({
+    where: {
+      userId,
+      status: { in: ['ACTIVE', 'COMPLETED'] },
+      program: { is: { category: { not: 'SERVICE' } } },
+    },
+    select: { id: true },
+  })
+  if (activeAcademicEnrollment) return { allowed: true, reason: null, admissionId: null }
+
   const app = await db.admissionApplication.findFirst({
     where: {
       userId,
