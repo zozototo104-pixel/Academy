@@ -345,10 +345,7 @@ async function expandSupervisorBookQueryTerms(query: string | null | undefined, 
   const cacheKey = normalizeArabic(query)
   const cached = readQueryExpansionCache(cacheKey)
   if (cached) return cached
-  if (!cacheKey || !bookTitles.length) {
-    writeQueryExpansionCache(cacheKey, [])
-    return []
-  }
+  if (!cacheKey || !bookTitles.length) return []
 
   let timer: ReturnType<typeof setTimeout> | null = null
   try {
