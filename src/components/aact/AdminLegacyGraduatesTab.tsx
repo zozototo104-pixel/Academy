@@ -116,7 +116,12 @@ export default function AdminLegacyGraduatesTab() {
     }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void load() }, 0)
+    return () => window.clearTimeout(timer)
+    // Keep the initial fetch tied to mount only; search is refreshed by the explicit search button/Enter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function openAdd() {
     setForm(blankForm())
