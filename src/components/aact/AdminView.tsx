@@ -2143,6 +2143,11 @@ export function AdminView() {
           <AdminBooksTab />
         </TabsContent>
 
+        {/* جدول الدراسة */}
+        <TabsContent value="study-schedule">
+          <AdminStudyScheduleTab />
+        </TabsContent>
+
         {/* مركز الجودة الأكاديمي الداخلي */}
         <TabsContent value="quality">
           <AdminQualityTab />
