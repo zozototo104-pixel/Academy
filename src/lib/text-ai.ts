@@ -879,7 +879,10 @@ function staticTextModelsForProvider(provider: ConcreteProvider, s?: Settings): 
 
 function cacheKeyForFreeModels(provider: ConcreteProvider, baseUrl: string, key?: string): string {
   const keyHash = key ? createHash('sha256').update(key).digest('hex').slice(0, 12) : 'anonymous'
-  return `${provider}:${(baseUrl || '').replace(/\/$/, '')}:${keyHash}`
+  const normalizedBaseUrl = provider === 'OPENAI_COMPAT'
+    ? normalizeOpenAiCompatibleBaseUrl(baseUrl)
+    : (baseUrl || '').replace(/\/$/, '')
+  return `${provider}:${normalizedBaseUrl}:${keyHash}`
 }
 
 function persistentModelsCacheKey(cacheKey: string): string {
