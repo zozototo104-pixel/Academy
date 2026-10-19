@@ -579,6 +579,20 @@ function testBookReadJobResumeCompletedCreatesNewJob() {
   assert(planBookReadJobResume({ status: 'COMPLETED', phase: 'DONE' }, false) === 'CREATE', 'completed book read jobs should not resume')
 }
 
+function testPagesNeedingOcrSplitsEightBlankPagesIntoTwoBatches() {
+  const batches = pagesNeedingOcr(Array.from({ length: 8 }, (_, i) => ({ page: i + 1, text: '' })))
+  assert(batches.length === 2, 'OCR pages should split 8 blank pages into two batches')
+  assert(JSON.stringify(batches[0]) === JSON.stringify([1, 2, 3, 4]), 'first OCR batch should contain 4 pages')
+  assert(JSON.stringify(batches[1]) === JSON.stringify([5, 6, 7, 8]), 'second OCR batch should contain 4 pages')
+}
+
+function testPagesNeedingOcrKeepsOnlyBlankPagesInSingleBatch() {
+  const pages = Array.from({ length: 8 }, (_, i) => ({ page: i + 1, text: i === 2 || i === 6 ? '' : 'x'.repeat(120) }))
+  const batches = pagesNeedingOcr(pages)
+  assert(batches.length === 1, 'OCR pages should keep two blank pages in one batch')
+  assert(JSON.stringify(batches[0]) === JSON.stringify([3, 7]), 'OCR batch should include only blank page numbers')
+}
+
 function testAdminStudentsEnrollmentWhereBuilder() {
   const all = buildAdminStudentsEnrollmentRelationFilter('ALL', null) as any
   assert(JSON.stringify(all.some.status.in) === JSON.stringify([...OPEN_ENROLLMENT_STATUSES]), 'فلتر كل الطلاب يجب أن يعرض فقط أصحاب برنامج مفتوح')
