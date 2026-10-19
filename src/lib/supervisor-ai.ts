@@ -1,6 +1,7 @@
 import { buildScopedProgramCatalogSnapshot } from '@/lib/ai-context-builder'
 import type { AiKnowledgeScope } from '@/lib/ai-knowledge-policy'
 import { db } from '@/lib/db'
+import { textAiCompleteJson } from '@/lib/text-ai'
 
 export type SupervisorPersona = 'CHAT' | 'EXAM' | 'DEFENSE'
 
