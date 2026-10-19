@@ -92,6 +92,49 @@ export async function countQuestionBankDocumentationRemaining(programId: string)
   ).length
 }
 
+type BankDocumentationTarget = Pick<QuestionBankItem, 'id' | 'type' | 'text' | 'options' | 'correctAnswer' | 'sourceEvidence' | 'cognitiveSkill' | 'difficulty' | 'correctRationale' | 'distractorRationales'>
+
+export function selectBankItemsNeedingDocumentation<T extends BankDocumentationTarget>(items: T[], skippedAiIds: Set<string> = new Set()) {
+  return items.filter((item) => !skippedAiIds.has(item.id) && needsAiDocumentation(item) && !isMissing(item.sourceEvidence))
+}
+
+async function countQuestionBankDocumentationBlockedNoEvidence(programId: string) {
+  const items = await db.questionBankItem.findMany({
+    where: { programId, status: { not: 'REJECTED' } },
+    select: { type: true, sourceEvidence: true, cognitiveSkill: true, difficulty: true, correctRationale: true, distractorRationales: true },
+  })
+  return items.filter((item) => needsAiDocumentation(item as any) && isMissing(item.sourceEvidence)).length
+}
+
+function buildQuestionBankDocumentationUpdates(needs: BankDocumentationTarget[], raw: string) {
+  const rows = new Map(parseAiRows(raw).map((row) => [row.id, row]))
+  return needs.map((item) => {
+    const row = rows.get(item.id)
+    if (!row) throw new Error('QUESTION_BANK_DOC_AI_ROWS_MISSING')
+    const data = documentationPatch(item as QuestionBankItem, row)
+    if (!Object.keys(data).length && needsAiDocumentation(item)) throw new Error('QUESTION_BANK_DOC_AI_ROW_INCOMPLETE')
+    return { item, data }
+  })
+}
+
+async function runQuestionBankDocumentationAiBatch(programId: string, needs: BankDocumentationTarget[], deadlineMs: number) {
+  const raw = await textAiCompleteJson({
+    taskLevel: 'ACADEMIC_CRITICAL',
+    system: 'أنت مدقق أكاديمي. أعد JSON فقط. لا تغير نص السؤال أو الخيارات أو الإجابة الصحيحة أو حالة السؤال أو أعلام الجودة. املأ فقط difficulty من EASY/MEDIUM/ADVANCED و cognitiveSkill من UNDERSTAND/APPLY/ANALYZE/EVALUATE و correctRationale من الدليل. للأسئلة الموضوعية أعط distractorRationales مختصرة لكل خيار خاطئ، وفي صح/خطأ سبباً واحداً لعكس الإجابة.',
+    history: [{ role: 'user', text: JSON.stringify({ questions: needs.map((q) => ({ id: q.id, type: q.type, question: q.text, options: safeJsonArray(q.options), correctAnswer: q.correctAnswer, evidence: q.sourceEvidence })) }) }],
+    maxOutputTokens: 6000,
+    deadlineMs,
+  })
+  const updates = buildQuestionBankDocumentationUpdates(needs, raw)
+  let filled = 0
+  for (const { item, data } of updates) {
+    if (!Object.keys(data).length) continue
+    filled += Object.keys(data).length
+    await db.questionBankItem.update({ where: { id: item.id }, data })
+  }
+  return filled
+}
+
 export async function syncQuestionBankDocumentationFromKnowledge(programId: string) {
   const items = await db.questionBankItem.findMany({
     where: { programId, status: { not: 'REJECTED' } },
