@@ -36,6 +36,15 @@ export async function GET(req: NextRequest) {
     await requireAdmin()
     const includeLargeText = req.nextUrl.searchParams.get('includeLargeText') === '1'
     const includeLegacyData = req.nextUrl.searchParams.get('includeLegacyData') === '1'
+    const lite = req.nextUrl.searchParams.get('lite') === '1'
+
+    if (lite) {
+      const programs = await db.program.findMany({
+        orderBy: [{ category: 'asc' }, { order: 'asc' }, { titleAr: 'asc' }],
+        select: { id: true, titleAr: true, titleEn: true, slug: true, active: true, category: true },
+      })
+      return NextResponse.json({ ok: true, programs }, { headers: { 'Cache-Control': 'no-store' } })
+    }
 
     const programs = await db.program.findMany({
       orderBy: [{ category: 'asc' }, { order: 'asc' }, { titleAr: 'asc' }],
