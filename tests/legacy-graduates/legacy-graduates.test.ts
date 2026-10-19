@@ -164,7 +164,10 @@ mock.module('@/lib/pdf/official', () => ({
   pdfDate: (value: Date | string | null | undefined) => value ? new Date(value).toISOString().slice(0, 10) : '—',
   pdfSafeText: (value: unknown, fallback = '—') => String(value ?? '').trim() || fallback,
   renderOfficialPdf: async () => new Uint8Array(Buffer.from('%PDF-generated-template')),
-  pdfResponse: (pdf: Uint8Array, filename: string) => new Response(pdf, { status: 200, headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${filename}"` } }),
+  pdfResponse: (pdf: Uint8Array, filename: string) => {
+    const body = pdf.buffer.slice(pdf.byteOffset, pdf.byteOffset + pdf.byteLength) as ArrayBuffer
+    return new Response(body, { status: 200, headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${filename}"` } })
+  },
 }))
 
 const { createLegacyGraduate, sendLegacyGraduatePasswordSetup } = await import('../../src/lib/legacy-graduates')
