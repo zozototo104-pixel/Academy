@@ -358,7 +358,7 @@ describe('legacy graduate spreadsheet import helpers', () => {
     const XLSX = await import('xlsx')
     const excelSerial = Math.floor(Date.UTC(2024, 5, 30) / 86400000) + 25569
     const sheet = XLSX.utils.aoa_to_sheet([
-      ['الاسم', 'الإيميل', 'الجوال', 'الدولة', 'البرنامج', 'التقدير', 'المعدل', 'تاريخ التخرج', 'رقم الشهادة'],
+      ['الاسم', 'الإيميل', 'الجوال', 'الدولة', 'البرنامج', 'التقدير', 'المعدل', 'تاريخ التخرج', 'رقم الشهادة القديم'],
       ['أحمد', 'ahmad@example.com', '0599000000', 'فلسطين', 'leadership', 'امتياز', 95, excelSerial, 'OLD-XLSX-1'],
       ['خطأ', 'bad-email', '', '', 'leadership typo', '', '', '31/13/2024', 'OLD-XLSX-2'],
     ])
