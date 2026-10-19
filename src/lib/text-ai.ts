@@ -155,6 +155,18 @@ const UNOROUTER_TEXT_MODELS = [
 const RELAYROUTER_TEXT_MODELS = ['relayrouter/auto', 'claude-opus-4-8', 'gpt-5.5', 'gemini-3.5-flash']
 const TOPTOOLS_TEXT_MODELS = ['top-tools-ai']
 const OPENAI_COMPAT_TEXT_MODELS = ['auto']
+const NVIDIA_OPENAI_COMPAT_TEXT_MODELS = [
+  'deepseek/deepseek-v3.2',
+  'qwen/qwen3-235b-a22b-instruct-2507',
+  'moonshotai/kimi-k2-instruct',
+  'openai/gpt-oss-120b',
+  'meta/llama-3.3-70b-instruct',
+  'mistralai/mistral-large',
+  'nvidia/llama-3.1-nemotron-ultra-253b-v1',
+]
+const NVIDIA_OPENAI_COMPAT_MODEL_LIMIT = 4
+const NVIDIA_OPENAI_COMPAT_DEAD_MODEL_MS = 24 * 60 * 60 * 1000
+const NVIDIA_OPENAI_COMPAT_HARD_FAILURE_WINDOW_MS = 60 * 60 * 1000
 const MAX_VISION_ATTACHMENT_BYTES = 15 * 1024 * 1024
 const VISION_ATTEMPT_TIMEOUT_MS = 75_000
 const VISION_OPENAI_COMPAT_PROVIDERS = new Set<TextAiProvider>(['OPENAI', 'OPENROUTER', 'OPENAI_COMPAT'])
@@ -163,6 +175,7 @@ const VISION_NATIVE_PROVIDERS = new Set<TextAiProvider>(['GEMINI', 'ANTHROPIC', 
 const cooldowns = new Map<string, { until: number; reason: string; status?: number; model?: string }>()
 const providerRateLimitHits = new Map<string, number[]>()
 const modelRateLimitHits = new Map<string, Array<{ model: string; at: number }>>()
+const nvidiaHardModelFailureHits = new Map<string, number[]>()
 let roundRobin = 0
 let lastResult: TextAiDiagnostics['lastResult'] = null
 let recentAttempts: TextAiAttemptDiagnostics[] = []
@@ -235,6 +248,7 @@ export function __setTextAiSettingStoreForTests(store: TextAiSettingStore | null
 export function __resetTextAiStateForTests() {
   cooldowns.clear()
   modelRateLimitHits.clear()
+  nvidiaHardModelFailureHits.clear()
   roundRobin = 0
   lastResult = null
   recentAttempts = []
@@ -421,9 +435,9 @@ function isPersistentNoBalance(values: Record<string, string>, provider: string,
   return !!parseCooldown(values[noBalanceKey(provider, keyIndex)])
 }
 
-async function markPersistentModelDead(provider: string, model: string, reason: string, status?: number): Promise<void> {
+async function markPersistentModelDead(provider: string, model: string, reason: string, status?: number, ttlDaysOrMs = 7): Promise<void> {
   try {
-    await settingStore().write(modelDeadKey(provider, model), routerStatePayload(7, reason, status))
+    await settingStore().write(modelDeadKey(provider, model), routerStatePayload(ttlDaysOrMs, reason, status))
     persistentCooldownCache = null
   } catch {
     // Persistent dead-model state is best-effort.
@@ -679,6 +693,29 @@ function isSchemaFailureLike(e: any): boolean {
     || /invalid_json|invalid json|invalid_type|empty_batch_after_structural_validation|schema|zod|questions\.|correctanswer/i.test(msg)
 }
 
+function isNvidiaHardModelFailure(e: any, message: string, status?: number): boolean {
+  const msg = String(message || e?.message || e || '').toLowerCase()
+  return isSchemaFailureLike(e)
+    || Number(status || 0) === 404
+    || /not found|not available|no longer available|does not exist|model_not_found|invalid model/.test(msg)
+}
+
+async function recordNvidiaHardFailureAndMaybeDead(provider: ConcreteProvider, model: string, message: string, status?: number): Promise<boolean> {
+  const id = `${provider}:${model}`
+  const now = Date.now()
+  const recent = (nvidiaHardModelFailureHits.get(id) || []).filter((at) => now - at <= NVIDIA_OPENAI_COMPAT_HARD_FAILURE_WINDOW_MS)
+  recent.push(now)
+  nvidiaHardModelFailureHits.set(id, recent)
+  if (recent.length < 2) return false
+  await markPersistentModelDead(provider, model, message, status, NVIDIA_OPENAI_COMPAT_DEAD_MODEL_MS)
+  nvidiaHardModelFailureHits.delete(id)
+  return true
+}
+
+export function __testNvidiaHardFailureThresholdForTests(timestamps: number[], now = Date.now()): boolean {
+  return timestamps.filter((at) => Number.isFinite(at) && at <= now && now - at <= NVIDIA_OPENAI_COMPAT_HARD_FAILURE_WINDOW_MS).length >= 2
+}
+
 const STRICT_ENCRYPTED_SETTING_PROVIDERS = new Set(['GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT'])
 const LEGACY_PLAINTEXT_SETTING_PROVIDERS = new Set(['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI'])
 
@@ -737,6 +774,8 @@ async function settings() {
   ])
   const provider = normalizeProvider(rows.AI_TEXT_PROVIDER || env('AI_TEXT_PROVIDER') || 'GEMINI')
   const policy = normalizePolicy(rows.AI_ROUTER_POLICY || env('AI_ROUTER_POLICY') || 'primary_first')
+  const openaiCompatBaseUrl = normalizeOpenAiCompatibleBaseUrl(rows.OPENAI_COMPAT_BASE_URL || env('OPENAI_COMPAT_BASE_URL') || '')
+  const openaiCompatDefaults = isNvidiaOpenAiCompatibleBaseUrl(openaiCompatBaseUrl) ? NVIDIA_OPENAI_COMPAT_TEXT_MODELS : OPENAI_COMPAT_TEXT_MODELS
   return {
     provider,
     policy,
@@ -781,8 +820,8 @@ async function settings() {
     topToolsModel: normalizeModel(rows.TOPTOOLS_TEXT_MODEL || env('TOPTOOLS_TEXT_MODEL'), TOPTOOLS_TEXT_MODELS),
     topToolsBaseUrl: (rows.TOPTOOLS_BASE_URL || env('TOPTOOLS_BASE_URL') || 'https://top-tools-ai.com/v1').replace(/\/$/, ''),
     openaiCompatKeys: parseKeys(rows.OPENAI_COMPAT_API_KEY, rows.OPENAI_COMPAT_API_KEYS, env('OPENAI_COMPAT_API_KEY'), env('OPENAI_COMPAT_API_KEYS')),
-    openaiCompatModel: normalizeModel(rows.OPENAI_COMPAT_TEXT_MODEL || env('OPENAI_COMPAT_TEXT_MODEL'), OPENAI_COMPAT_TEXT_MODELS),
-    openaiCompatBaseUrl: (rows.OPENAI_COMPAT_BASE_URL || env('OPENAI_COMPAT_BASE_URL') || '').replace(/\/$/, ''),
+    openaiCompatModel: normalizeModel(rows.OPENAI_COMPAT_TEXT_MODEL || env('OPENAI_COMPAT_TEXT_MODEL'), openaiCompatDefaults),
+    openaiCompatBaseUrl,
   }
 }
 
@@ -794,8 +833,27 @@ function limitProviderModels(provider: Exclude<TextAiProvider, 'AUTO'>, models: 
   return limit > 0 ? models.slice(0, limit) : models
 }
 
+function rotateModelStart(models: string[], requestSeq: number): string[] {
+  if (models.length <= 1) return models
+  const start = Math.max(0, Math.floor(Number(requestSeq || 0))) % models.length
+  return [...models.slice(start), ...models.slice(0, start)]
+}
+
+function providerModelsForRequest(provider: ConcreteProvider, s: Settings, models: string[], requestSeq: number, maxProviderModels?: Partial<Record<Exclude<TextAiProvider, 'AUTO'>, number>>): string[] {
+  const nvidiaCompat = provider === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl)
+  const ordered = nvidiaCompat ? rotateModelStart(models, Math.max(0, requestSeq - 1)) : models
+  const limits = nvidiaCompat
+    ? { OPENAI_COMPAT: NVIDIA_OPENAI_COMPAT_MODEL_LIMIT, ...(maxProviderModels || {}) }
+    : maxProviderModels
+  return limitProviderModels(provider, ordered, limits)
+}
+
 export function __testLimitProviderModelsForTests(provider: Exclude<TextAiProvider, 'AUTO'>, models: string[], maxProviderModels?: Partial<Record<Exclude<TextAiProvider, 'AUTO'>, number>>) {
   return limitProviderModels(provider, models, maxProviderModels)
+}
+
+export function __testNvidiaRoundRobinProviderModelsForTests(models: string[], requestSeq: number, maxProviderModels?: Partial<Record<Exclude<TextAiProvider, 'AUTO'>, number>>): string[] {
+  return providerModelsForRequest('OPENAI_COMPAT', { openaiCompatBaseUrl: 'https://integrate.api.nvidia.com/v1' } as Settings, models, requestSeq, maxProviderModels)
 }
 
 export function __testProviderRateLimitCooldownForTests(timestamps: number[], now = Date.now(), threshold = 3, windowMs = 60_000) {
@@ -852,9 +910,29 @@ function baseFor(s: Settings, provider: ConcreteProvider): string {
   }
 }
 
+function staticTextModelsForProvider(provider: ConcreteProvider, s?: Settings): string[] {
+  switch (provider) {
+    case 'GEMINI': return GEMINI_TEXT_MODELS
+    case 'OPENAI': return OPENAI_TEXT_MODELS
+    case 'ANTHROPIC': return ANTHROPIC_TEXT_MODELS
+    case 'ZAI': return ZAI_TEXT_MODELS
+    case 'GROQ': return GROQ_TEXT_MODELS
+    case 'OPENROUTER': return OPENROUTER_TEXT_MODELS
+    case 'DEEPINFRA': return DEEPINFRA_TEXT_MODELS
+    case 'TOGETHER': return TOGETHER_TEXT_MODELS
+    case 'UNOROUTER': return UNOROUTER_TEXT_MODELS
+    case 'RELAYROUTER': return RELAYROUTER_TEXT_MODELS
+    case 'TOPTOOLS': return TOPTOOLS_TEXT_MODELS
+    case 'OPENAI_COMPAT': return s && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl) ? NVIDIA_OPENAI_COMPAT_TEXT_MODELS : OPENAI_COMPAT_TEXT_MODELS
+  }
+}
+
 function cacheKeyForFreeModels(provider: ConcreteProvider, baseUrl: string, key?: string): string {
   const keyHash = key ? createHash('sha256').update(key).digest('hex').slice(0, 12) : 'anonymous'
-  return `${provider}:${(baseUrl || '').replace(/\/$/, '')}:${keyHash}`
+  const normalizedBaseUrl = provider === 'OPENAI_COMPAT'
+    ? normalizeOpenAiCompatibleBaseUrl(baseUrl)
+    : (baseUrl || '').replace(/\/$/, '')
+  return `${provider}:${normalizedBaseUrl}:${keyHash}`
 }
 
 function persistentModelsCacheKey(cacheKey: string): string {
@@ -863,6 +941,26 @@ function persistentModelsCacheKey(cacheKey: string): string {
 
 function apiRootFromBase(baseUrl: string, fallback: string): string {
   return (baseUrl || fallback).replace(/\/$/, '').replace(/\/v1$/, '')
+}
+
+function normalizeOpenAiCompatibleBaseUrl(baseUrl: string): string {
+  return String(baseUrl || '')
+    .trim()
+    .replace(/[?#].*$/, '')
+    .replace(/\/+$/, '')
+    .replace(/\/chat\/completions$/i, '')
+    .replace(/\/responses$/i, '')
+    .replace(/\/models$/i, '')
+}
+
+function isNvidiaOpenAiCompatibleBaseUrl(baseUrl: string): boolean {
+  const normalized = normalizeOpenAiCompatibleBaseUrl(baseUrl)
+  try {
+    const host = new URL(normalized).hostname.toLowerCase()
+    return host === 'integrate.api.nvidia.com'
+  } catch {
+    return /(^|\/\/)integrate\.api\.nvidia\.com(?:\/|$)/i.test(normalized)
+  }
 }
 
 function validModelName(name: string): boolean {
@@ -921,6 +1019,70 @@ function isFreeModel(row: any, id: string): boolean {
   return (prompt !== undefined || completion !== undefined) && zeroish(prompt) && zeroish(completion)
 }
 
+function nvidiaModelHaystack(row: any, id: string): string {
+  return `${id} ${row?.name || ''} ${row?.type || ''} ${row?.modality || ''} ${row?.task || ''} ${row?.description || ''} ${row?.owned_by || ''} ${row?.provider || ''}`.toLowerCase()
+}
+
+function explicitModelSizesB(text: string): number[] {
+  const sizes: number[] = []
+  const re = /(?:^|[-_/])(\d+(?:\.\d+)?)b(?=$|[-_/.])/gi
+  let match: RegExpExecArray | null = null
+  while ((match = re.exec(text))) {
+    const value = Number(match[1])
+    if (Number.isFinite(value)) sizes.push(value)
+  }
+  return sizes
+}
+
+function hasSmallExplicitModelSize(text: string): boolean {
+  return explicitModelSizesB(text).some((size) => size < 20)
+}
+
+function isNvidiaFreeTrialTextModel(row: any, id: string): boolean {
+  const haystack = nvidiaModelHaystack(row, id)
+  if (!id || hasSmallExplicitModelSize(haystack)) return false
+  if (/embed|embedding|rerank|retriev|guard|safety|reward|moderation|vision-only|\bvlm\b|\bvila\b|\bneva\b|paligemma|\bcode\b|coder|starcoder|codellama|codegemma|audio|speech|\basr\b|\btts\b|\bstt\b|translate|parse|\bocr\b|ocr-only|nv-clip|whisper/.test(haystack)) return false
+  if (/\bbase\b/.test(haystack) && !/\binstruct\b/.test(haystack)) return false
+  if (/deepseek/.test(haystack)) return true
+  if (/qwen(?:2\.5|3)/.test(haystack) && /\binstruct\b/.test(haystack)) return true
+  if (/llama-(?:3\.1|3\.3|4)/.test(haystack) && /\binstruct\b/.test(haystack)) return true
+  if (/mistral-(?:large|medium|small-3)/.test(haystack)) return true
+  if (/mixtral-8x22b/.test(haystack)) return true
+  if (/gpt[-_]?oss/.test(haystack)) return true
+  if (/nemotron/.test(haystack) && /(?:super|ultra)/.test(haystack)) return true
+  if (/kimi|moonshot/.test(haystack)) return true
+  if (/gemma-[23].*27b/.test(haystack)) return true
+  if (/\bglm\b|glm[-_\d.]/.test(haystack)) return true
+  if (/minimax/.test(haystack)) return true
+  return false
+}
+
+function nvidiaOpenAiCompatModelRank(id: string): number {
+  const n = id.toLowerCase()
+  if (/deepseek.*(?:^|[-_/])v3(?:$|[-_/.\d])|deepseek[-_/]v3/.test(n)) return 1
+  if (/qwen3.*235b/.test(n)) return 2
+  if (/kimi|moonshot/.test(n)) return 3
+  if (/gpt[-_]?oss.*120b/.test(n)) return 4
+  if (/llama-3\.3.*70b/.test(n)) return 5
+  if (/mistral-large/.test(n)) return 6
+  if (/nemotron.*ultra/.test(n)) return 7
+  return 20 + academicModelRank(id)
+}
+
+function nvidiaDiscoveredTextModelsFromRows(rows: any[]): string[] {
+  return rows
+    .filter((m) => m?.online !== false)
+    .filter(isTextLikeModel)
+    .map((m) => ({ raw: m, id: normalizeFreeModelName('OPENAI_COMPAT', modelId(m)) }))
+    .filter(({ raw, id }) => validModelName(id) && isNvidiaFreeTrialTextModel(raw, id))
+    .sort((a, b) => nvidiaOpenAiCompatModelRank(a.id) - nvidiaOpenAiCompatModelRank(b.id) || a.id.localeCompare(b.id))
+    .map(({ id }) => id)
+}
+
+export function __testFilterNvidiaFreeTrialTextModelsForTests(rows: any[]): string[] {
+  return nvidiaDiscoveredTextModelsFromRows(rows)
+}
+
 function isStrongTopToolsTextModel(row: any, id: string): boolean {
   const haystack = `${id} ${row?.name || ''} ${row?.owned_by || ''} ${row?.provider || ''}`.toLowerCase()
   if (/embedding|moderation|rerank|whisper|tts|stt|audio|image|vision|dall|sdxl|stable-diffusion/.test(haystack)) return false
@@ -949,28 +1111,49 @@ function normalizeFreeModelName(provider: ConcreteProvider, name: string): strin
 }
 
 async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseUrl: string, key?: string): Promise<string[]> {
-  if (!baseUrl) return []
+  const normalizedBaseUrl = provider === 'OPENAI_COMPAT'
+    ? normalizeOpenAiCompatibleBaseUrl(baseUrl)
+    : (baseUrl || '').replace(/\/$/, '')
+  if (!normalizedBaseUrl) return []
+  const nvidiaCompat = provider === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(normalizedBaseUrl)
   try {
-    const response = await fetchWithTimeout(provider, `${baseUrl.replace(/\/$/, '')}/models`, {
+    const response = await fetchWithTimeout(provider, `${normalizedBaseUrl}/models`, {
       cache: 'no-store',
       headers: key ? { Authorization: `Bearer ${key}` } : undefined,
     }, aiDiscoveryTimeoutMs())
+    if (!response.ok) return []
     const data = await response.json().catch(() => ({}))
     const rows = rowsFromModelPayload(data)
       .filter((m) => m?.online !== false)
       .filter(isTextLikeModel)
       .map((m) => ({ raw: m, id: normalizeFreeModelName(provider, modelId(m)) }))
-      .filter(({ raw, id }) => validModelName(id) && (provider === 'TOPTOOLS' ? isStrongTopToolsTextModel(raw, id) : isFreeModel(raw, id)))
+      .filter(({ raw, id }) => validModelName(id) && (
+        provider === 'TOPTOOLS'
+          ? isStrongTopToolsTextModel(raw, id)
+          : nvidiaCompat
+            ? isNvidiaFreeTrialTextModel(raw, id)
+            : isFreeModel(raw, id)
+      ))
     const orderedRows = provider === 'TOPTOOLS'
       ? rows.sort((a, b) => topToolsModelRank(a.id) - topToolsModelRank(b.id) || a.id.localeCompare(b.id))
-      : rows
+      : nvidiaCompat
+        ? rows.sort((a, b) => nvidiaOpenAiCompatModelRank(a.id) - nvidiaOpenAiCompatModelRank(b.id) || a.id.localeCompare(b.id))
+        : rows
     const models = orderedRows.map(({ id }) => id)
     const capabilities = Object.fromEntries(orderedRows.map(({ raw, id }) => [id, capabilityFromModelRow(raw)]))
-    freeModelsCache.set(cacheKeyForFreeModels(provider, baseUrl, key), { at: Date.now(), models, capabilities })
+    freeModelsCache.set(cacheKeyForFreeModels(provider, normalizedBaseUrl, key), { at: Date.now(), models, capabilities })
     return models
   } catch {
     return []
   }
+}
+
+export async function __testDiscoverOpenAiCompatibleFreeModelsForTests(baseUrl: string, key?: string): Promise<string[]> {
+  return fetchOpenAiCompatibleFreeModels('OPENAI_COMPAT', baseUrl, key)
+}
+
+export function __testNormalizeOpenAiCompatibleBaseUrlForTests(baseUrl: string): string {
+  return normalizeOpenAiCompatibleBaseUrl(baseUrl)
 }
 
 function isGroqTextChatModel(row: any): boolean {
@@ -1257,19 +1440,7 @@ async function orderModelsByHealth(provider: ConcreteProvider, models: string[],
 
 async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel: TextAiTaskLevel = 'GENERAL', explore = false, purpose?: TextAiPurpose): Promise<string[]> {
   const selected = modelFor(s, provider)
-  const staticDefaults: string[] =
-    provider === 'GEMINI' ? GEMINI_TEXT_MODELS :
-    provider === 'OPENAI' ? OPENAI_TEXT_MODELS :
-    provider === 'ANTHROPIC' ? ANTHROPIC_TEXT_MODELS :
-    provider === 'ZAI' ? ZAI_TEXT_MODELS :
-    provider === 'GROQ' ? GROQ_TEXT_MODELS :
-    provider === 'OPENROUTER' ? OPENROUTER_TEXT_MODELS :
-    provider === 'DEEPINFRA' ? DEEPINFRA_TEXT_MODELS :
-    provider === 'TOGETHER' ? TOGETHER_TEXT_MODELS :
-    provider === 'UNOROUTER' ? UNOROUTER_TEXT_MODELS :
-    provider === 'RELAYROUTER' ? RELAYROUTER_TEXT_MODELS :
-    provider === 'TOPTOOLS' ? TOPTOOLS_TEXT_MODELS :
-    OPENAI_COMPAT_TEXT_MODELS
+  const staticDefaults = staticTextModelsForProvider(provider, s)
   const discoveredFree = await liveFreeModels(provider, s)
   const selectedIsAuto = /(^|\/|-)auto$/i.test(selected) || selected === 'auto'
   const selectedPart = selected && !selectedIsAuto ? [selected] : []
@@ -1369,24 +1540,16 @@ export async function textAiFreeModelsForProvider(providerValue: unknown): Promi
     }
   }
   const concrete = provider as ConcreteProvider
-  const staticDefaults: string[] =
-    concrete === 'GEMINI' ? GEMINI_TEXT_MODELS :
-    concrete === 'OPENAI' ? OPENAI_TEXT_MODELS :
-    concrete === 'ANTHROPIC' ? ANTHROPIC_TEXT_MODELS :
-    concrete === 'ZAI' ? ZAI_TEXT_MODELS :
-    concrete === 'GROQ' ? GROQ_TEXT_MODELS :
-    concrete === 'OPENROUTER' ? OPENROUTER_TEXT_MODELS :
-    concrete === 'DEEPINFRA' ? DEEPINFRA_TEXT_MODELS :
-    concrete === 'TOGETHER' ? TOGETHER_TEXT_MODELS :
-    concrete === 'UNOROUTER' ? UNOROUTER_TEXT_MODELS :
-    concrete === 'RELAYROUTER' ? RELAYROUTER_TEXT_MODELS :
-    concrete === 'TOPTOOLS' ? TOPTOOLS_TEXT_MODELS :
-    OPENAI_COMPAT_TEXT_MODELS
+  const staticDefaults = staticTextModelsForProvider(concrete, s)
   const discovered = await liveFreeModels(concrete, s)
   const selected = modelFor(s, concrete)
   const selectedPart = selected && !/(^|\/|-)auto$/i.test(selected) && selected !== 'auto' ? [selected] : []
   const models = [...new Set([...selectedPart, ...discovered, ...staticDefaults].filter(Boolean))]
-  const catalogLabel = concrete === 'TOPTOOLS' ? 'نموذج متاح' : 'نموذج مجاني'
+  const catalogLabel = concrete === 'TOPTOOLS'
+    ? 'نموذج متاح'
+    : concrete === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl)
+      ? 'نموذج متاح بتجربة مجانية'
+      : 'نموذج مجاني'
   return {
     provider: concrete,
     models,
@@ -1528,6 +1691,31 @@ export async function textAiDiagnostics(): Promise<TextAiDiagnostics> {
 
 function promptWithJsonInstruction(opts: TextAiCallOpts): string {
   return opts.json ? `${opts.system}\n\nأعد الناتج بصيغة JSON صالحة فقط بدون Markdown وبدون أي شرح خارج JSON.` : opts.system
+}
+
+function stripThinkBlocks(text: string): string {
+  return String(text || '').replace(/<think\b[^>]*>[\s\S]*?<\/think>/gi, '').trim()
+}
+
+function nvidiaNeedsNoThinkDirective(provider: string, baseUrl: string, model: string): boolean {
+  return provider === 'OPENAI_COMPAT'
+    && isNvidiaOpenAiCompatibleBaseUrl(baseUrl)
+    && /nemotron|qwen3|deepseek[-_/]?r1/i.test(model)
+}
+
+function withNvidiaNoThinkDirective(provider: string, baseUrl: string, model: string, opts: TextAiCallOpts): TextAiCallOpts {
+  if (!nvidiaNeedsNoThinkDirective(provider, baseUrl, model)) return opts
+  const system = String(opts.system || '')
+  if (system.trimStart().startsWith('/no_think')) return opts
+  return { ...opts, system: `/no_think\n${system}` }
+}
+
+export function __testStripThinkBlocksForTests(text: string): string {
+  return stripThinkBlocks(text)
+}
+
+export function __testNvidiaSystemPromptForTests(baseUrl: string, model: string, system: string): string {
+  return withNvidiaNoThinkDirective('OPENAI_COMPAT', baseUrl, model, { system, history: [] }).system
 }
 
 function normalizedAttachments(opts: TextAiCallOpts): TextAiAttachment[] {
@@ -1837,6 +2025,7 @@ async function callZaiVision(model: string, opts: TextAiCallOpts): Promise<strin
 }
 
 async function callChatCompletions(provider: string, baseUrl: string, key: string, model: string, opts: TextAiCallOpts): Promise<string> {
+  const providerOpts = withNvidiaNoThinkDirective(provider, baseUrl, model, opts)
   const response = await fetchWithTimeout(provider, `${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -1846,13 +2035,13 @@ async function callChatCompletions(provider: string, baseUrl: string, key: strin
     },
     body: JSON.stringify({
       model,
-      messages: toOpenAiChatMessages(opts),
-      max_tokens: opts.maxOutputTokens ?? (opts.json ? 4096 : 2048),
-      temperature: opts.temperature ?? (opts.json ? 0.2 : 0.6),
-      ...(opts.json ? { response_format: { type: 'json_object' } } : {}),
+      messages: toOpenAiChatMessages(providerOpts),
+      max_tokens: providerOpts.maxOutputTokens ?? (providerOpts.json ? 4096 : 2048),
+      temperature: providerOpts.temperature ?? (providerOpts.json ? 0.2 : 0.6),
+      ...(providerOpts.json ? { response_format: { type: 'json_object' } } : {}),
       ...(provider === 'ZAI' ? { thinking: { type: model.startsWith('glm-4.5') ? 'enabled' : 'disabled' }, reasoning_effort: model.startsWith('glm-4.5') ? 'max' : undefined } : {}),
     }),
-  }, providerAttemptTimeoutMs(opts), opts.deadlineMs)
+  }, providerAttemptTimeoutMs(providerOpts), providerOpts.deadlineMs)
   const data = await parseResponse(response)
   if (!response.ok) throwHttp(provider, response.status, data)
   const text = String(data?.choices?.[0]?.message?.content || '').trim()
@@ -1869,7 +2058,7 @@ async function callProvider(provider: ConcreteProvider, s: Settings, key: string
 }
 
 function tryRepairJsonText(raw: string): { ok: true; text: string } | { ok: false; reason: string } {
-  const source = String(raw || '').trim()
+  const source = stripThinkBlocks(String(raw || '')).trim()
   const candidates: string[] = []
   const stripped = source
     .replace(/^```(?:json)?\s*/i, '')
@@ -1895,6 +2084,43 @@ function tryRepairJsonText(raw: string): { ok: true; text: string } | { ok: fals
     }
   }
   return { ok: false, reason: 'INVALID_JSON_RESPONSE' }
+}
+
+export function __testTryRepairJsonTextForTests(raw: string): { ok: true; text: string } | { ok: false; reason: string } {
+  return tryRepairJsonText(raw)
+}
+
+export function __testNvidiaCompatSmartFilterSmokeForTests(): { models: string[]; firstWindow: string[]; secondWindow: string[]; repairedJson: string } {
+  const rows = [
+    { id: 'nvidia/embed-qa' },
+    { id: 'meta/llama-3.3-70b-coder' },
+    { id: 'qwen/qwen3-8b-instruct' },
+    { id: 'nvidia/vila-vlm' },
+    { id: 'openai/gpt-oss-120b' },
+    { id: 'moonshotai/kimi-k2-instruct' },
+    { id: 'qwen/qwen3-235b-a22b-instruct-2507' },
+    { id: 'deepseek/deepseek-v3.2' },
+    { id: 'meta/llama-3.3-70b-instruct' },
+    { id: 'mistralai/mistral-large' },
+    { id: 'nvidia/llama-3.1-nemotron-ultra-253b-v1' },
+  ]
+  const models = nvidiaDiscoveredTextModelsFromRows(rows)
+  const expected = [
+    'deepseek/deepseek-v3.2',
+    'qwen/qwen3-235b-a22b-instruct-2507',
+    'moonshotai/kimi-k2-instruct',
+    'openai/gpt-oss-120b',
+    'meta/llama-3.3-70b-instruct',
+    'mistralai/mistral-large',
+    'nvidia/llama-3.1-nemotron-ultra-253b-v1',
+  ]
+  if (JSON.stringify(models) !== JSON.stringify(expected)) throw new Error('NVIDIA_SMART_FILTER_TEST_FAILED')
+  const firstWindow = __testNvidiaRoundRobinProviderModelsForTests(models, 1)
+  const secondWindow = __testNvidiaRoundRobinProviderModelsForTests(models, 2)
+  if (firstWindow.length !== 4 || secondWindow.length !== 4 || firstWindow[0] === secondWindow[0]) throw new Error('NVIDIA_ROUND_ROBIN_TEST_FAILED')
+  const repaired = tryRepairJsonText('<think>internal reasoning</think>{"ok":true}')
+  if (!repaired.ok || repaired.text !== '{"ok":true}') throw new Error('NVIDIA_THINK_STRIP_TEST_FAILED')
+  return { models, firstWindow, secondWindow, repairedJson: repaired.text }
 }
 
 async function callProviderWithJsonRepair(provider: ConcreteProvider, s: Settings, key: string, model: string, opts: TextAiCallOpts): Promise<{ text: string; jsonOk?: boolean; retriedJson?: boolean }> {
@@ -2198,7 +2424,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
       if (recentFailedHealth(health.get(model) || null)) noteNoCandidate(provider, model, 'HEALTH_SKIP')
     }
     const healthFilteredModels = orderedModels.filter((model) => !recentFailedHealth(health.get(model) || null))
-    const models = limitProviderModels(provider, healthFilteredModels.length ? healthFilteredModels : orderedModels, effectiveOpts.maxProviderModels)
+    const models = providerModelsForRequest(provider, s, healthFilteredModels.length ? healthFilteredModels : orderedModels, routerRequestSeq, effectiveOpts.maxProviderModels)
     if (isVerifierCall(effectiveOpts) && candidateModels.length > 0 && models.length === 0) onlySameFamilyModelsExcluded = true
     for (const model of models) {
       if (skipModelsThisRequest.has(`${provider}:${model}`)) continue
@@ -2270,6 +2496,11 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           errors.push(`${provider}/${model}/key#${keyIndex}: ${msg}`)
           noteNoCandidate(provider, model, `REQUEST_FAILED(${status || 'unknown'}, ${msg})`)
           await recordModelStats(provider, model, { ok: false, reason: routerReasonBucket(attempt), ms, jsonOk: effectiveOpts.json ? false : undefined, evidenceOk: e?.code === 'VALIDATION_REJECTED' ? false : undefined }, effectiveOpts.purpose)
+          if (provider === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl) && isNvidiaHardModelFailure(e, msg, status)) {
+            skipModelsThisRequest.add(`${provider}:${model}`)
+            await recordNvidiaHardFailureAndMaybeDead(provider, model, msg, status)
+            break
+          }
           if (isSchemaFailureLike(e)) {
             skipModelsThisRequest.add(`${provider}:${model}`)
             break
@@ -2367,8 +2598,9 @@ export async function textAiTestConnection(): Promise<{ ok: boolean; provider?: 
   const providers = providerOrder(s)
   if (!providers.length) return { ok: false, error: 'TEXT_AI_ROUTER_NOT_CONFIGURED' }
   const errors: string[] = []
+  const requestSeq = ++routerRequestSeq
   for (const provider of providers) {
-    for (const model of await modelFallbacks(s, provider)) {
+    for (const model of providerModelsForRequest(provider, s, await modelFallbacks(s, provider), requestSeq)) {
       for (const key of candidateKeys(provider, s).slice(0, 2)) {
         const started = Date.now()
         const keyIndex = Math.max(1, providerKeys(s, provider).indexOf(key) + 1)

@@ -175,6 +175,26 @@ describe('AI D2 behavior', () => {
     expect(textAiRouter.__testParseTextAiKeysForTests('\u200esk-test', 'sk-test\ufeff')).toEqual(['sk-test'])
   })
 
+  test('NVIDIA OpenAI-compatible discovery normalizes chat endpoint and keeps free-trial text models', async () => {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (async (url: RequestInfo | URL) => {
+      expect(String(url)).toBe('https://integrate.api.nvidia.com/v1/models')
+      return new Response(JSON.stringify({ data: [
+        { id: 'nvidia/llama-3.3-nemotron-super-49b-v1.5' },
+        { id: 'nvidia/nemotron-3-super-120b-a12b' },
+        { id: 'nvidia/embed-qa', type: 'embedding' },
+        { id: 'nvidia/audio-flamingo', type: 'audio' },
+      ] }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }) as any
+    try {
+      expect(textAiRouter.__testNormalizeOpenAiCompatibleBaseUrlForTests('https://integrate.api.nvidia.com/v1/chat/completions')).toBe('https://integrate.api.nvidia.com/v1')
+      const models = await textAiRouter.__testDiscoverOpenAiCompatibleFreeModelsForTests('https://integrate.api.nvidia.com/v1/chat/completions', 'nvapi-test')
+      expect(models).toEqual(['nvidia/nemotron-3-super-120b-a12b', 'nvidia/llama-3.3-nemotron-super-49b-v1.5'])
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
   test('Groq model discovery filters non-chat models and keeps text models', async () => {
     const originalFetch = globalThis.fetch
     globalThis.fetch = (async () => new Response(JSON.stringify({ data: [
