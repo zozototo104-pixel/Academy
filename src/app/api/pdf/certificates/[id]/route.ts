@@ -26,7 +26,7 @@ export async function GET(_req: NextRequest, context: RouteContext) {
     if (!id) return NextResponse.json({ error: 'معرّف الشهادة مطلوب' }, { status: 400 })
 
     const certificate = await db.certificate.findFirst({
-      where: { OR: [{ id }, { serial: id }, { qrToken: id }] },
+      where: { OR: [{ id }, { serial: id }, { qrToken: id }, { legacySerial: id }] },
       include: {
         admission: { select: { id: true, userId: true, reference: true, fullName: true, email: true, country: true, program: true, programRef: { select: { titleAr: true, titleEn: true } } } },
         agent: { select: { id: true, userId: true, orgName: true, repName: true, email: true, country: true, territory: true, kind: true } },
