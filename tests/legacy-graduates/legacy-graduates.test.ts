@@ -145,6 +145,11 @@ mock.module('@/lib/auth', () => ({
 }))
 mock.module('@/lib/mailer', () => ({
   emailPasswordResetDetailed: async () => emailStatus,
+  emailLegacyGraduateWelcome: async () => { legacyWelcomeCalls += 1; return emailStatus },
+}))
+mock.module('@/lib/notify', () => ({
+  notify: async () => null,
+  audit: async () => null,
 }))
 mock.module('@/lib/storage', () => ({
   storeFileBuffer: async (input: { buffer: Buffer; fileName: string; mimeType?: string | null; namespace: string }) => {
