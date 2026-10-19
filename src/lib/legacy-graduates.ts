@@ -129,7 +129,7 @@ export async function createLegacyGraduate(input: LegacyGraduateInput, admin: Ad
     if (legacySerial) {
       const duplicate = await tx.certificate.findUnique({ where: { legacySerial } })
       if (duplicate && duplicate.id !== existingCertificate?.id) {
-        throw new LegacyGraduateError(409, 'LEGACY_SERIAL_DUPLICATE', 'رقم الشهادة الورقية مستخدم مسبقاً')
+        throw new LegacyGraduateError(409, 'LEGACY_SERIAL_DUPLICATE', 'رقم الشهادة القديم مستخدم مسبقاً')
       }
     }
 
