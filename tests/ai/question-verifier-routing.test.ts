@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { __testQuestionVerifierCandidatePlan, parseProviderModelList } from '../../src/lib/text-ai'
+import { __testLimitProviderModelsForTests, __testProviderRateLimitCooldownForTests, __testQuestionVerifierCandidatePlan, parseProviderModelList } from '../../src/lib/text-ai'
+import { __testVerifierPreferredProvidersForTests } from '../../src/lib/question-verifier'
 
 describe('question verifier preferred routing', () => {
   test('preferred verifier is used first when available', () => {
