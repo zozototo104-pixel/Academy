@@ -192,9 +192,14 @@ export async function evaluateCertificateRecordEligibility(cert: {
   enrollmentId?: string | null
   serial?: string | null
   program?: string | null
+  grade?: string | null
+  legacy?: boolean | null
 }): Promise<ProgramCertificateEligibility> {
   if (cert.type && cert.type !== 'PROGRAM_COMPLETION') {
     return { ok: true, score: null, gradeLabel: null, missing: [], components: [] }
+  }
+  if (cert.legacy) {
+    return { ok: true, score: null, gradeLabel: cert.grade || null, missing: [], components: [] }
   }
 
   let userId = cert.userId || null
