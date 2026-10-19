@@ -334,7 +334,7 @@ function uniqueBookTitles(values: unknown[]): string[] {
 function readQueryExpansionCache(cacheKey: string): string[] | null {
   const cached = queryExpansionCache.get(cacheKey)
   if (!cached) return null
-  if (cached.expiresAt <= Date.now()) {
+  if (cached.expiresAt <= Date.now() || !cached.terms.length) {
     queryExpansionCache.delete(cacheKey)
     return null
   }
