@@ -61,6 +61,10 @@ export async function POST(req: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'ارفع ملف شهادة أولاً' }, { status: 400 })
     }
 
+    if (!originalBuffer || !originalMime) {
+      return NextResponse.json({ error: 'تعذر تجهيز الملف الأصلي للختم' }, { status: 400 })
+    }
+
     const stampedBuffer = await stampLegacyCertificatePdf({
       buffer: originalBuffer,
       mime: originalMime,
