@@ -269,7 +269,7 @@ export function PaymentsTab() {
     if (!target) return
     setAutoOpenedInvoiceNo(initialInvoiceNo)
     if (target.status === 'UNPAID') {
-      if (initialWaiverMode) {
+      if (initialWaiverModeRef.current) {
         window.setTimeout(() => {
           const card = Array.from(document.querySelectorAll<HTMLElement>('[data-waiver-invoice]')).find((el) => el.dataset.waiverInvoice === initialInvoiceNo)
           card?.scrollIntoView({ behavior: 'smooth', block: 'center' })
