@@ -199,7 +199,7 @@ export async function sendLegacyGraduatePasswordSetup(req: NextRequest, userId: 
   try {
     const user = await db.user.findUnique({ where: { id: userId }, select: { id: true, email: true, name: true } })
     if (!user) return 'FAILED'
-    const reset = createPasswordResetToken()
+    const reset = createPasswordResetToken(LEGACY_GRADUATE_SETUP_TTL_MS)
     await db.user.update({
       where: { id: user.id },
       data: {
