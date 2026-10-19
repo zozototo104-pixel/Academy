@@ -1,5 +1,5 @@
 import { randomBytes } from 'crypto'
-import { NextRequest } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { Prisma, type User } from '@prisma/client'
 import { db } from '@/lib/db'
 import { hashPassword } from '@/lib/password'
