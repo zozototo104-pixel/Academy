@@ -8,6 +8,7 @@ import { verifyQuestionsWithCrossProvider } from '@/lib/question-verifier'
 import { questionDuplicateKey } from '@/lib/ai-generation-progress'
 import { isDuplicateQuestionIdea } from '@/lib/question-bank-diversity'
 import { selectUnitExamQuestionsApprovedFirst, unitExamRequiredQuestions } from '@/lib/unit-exam-policy'
+import { resolveUnitQuestionBankJobStatus } from '@/lib/unit-question-bank-status'
 
 const TYPES = new Set(['MCQ', 'TF', 'SHORT', 'ESSAY'])
 const DIFFICULTIES = new Set(['EASY', 'MEDIUM', 'ADVANCED'])
@@ -321,6 +322,24 @@ export function questionBankJobCanRunStep(job: { status: string; lockedUntil?: D
   return ['QUEUED', 'RUNNING', 'PAUSED'].includes(job.status)
 }
 
+async function countApprovedUnitQuestionBankItems(job: { programId: string; unitId: string | null }) {
+  if (!job.unitId) return 0
+  return db.questionBankItem.count({ where: { programId: job.programId, unitId: job.unitId, status: 'APPROVED' } })
+}
+
+async function completeUnitQuestionBankJobIfReady(job: { id: string; programId: string; unitId: string | null; requested: number; saved?: number | null }) {
+  if (!job.unitId) return false
+  const required = unitExamRequiredQuestions(job.requested)
+  const approved = await countApprovedUnitQuestionBankItems(job)
+  if (resolveUnitQuestionBankJobStatus({ jobStatus: 'RUNNING', approved, required }) !== 'COMPLETED') return false
+  await db.questionBankGenerationJob.updateMany({
+    where: { id: job.id },
+    data: { status: 'COMPLETED', saved: Math.max(Number(job.saved || 0), approved), lockedUntil: null, retryAt: null, lastError: null, finishedAt: new Date() },
+  })
+  await resetJobFailureState(job.id)
+  return true
+}
+
 async function generateBatch(job: { id: string; programId: string; unitId: string | null; requested: number; saved: number; batchSize: number }, deadlineMs?: number) {
   const program = await db.program.findUnique({ where: { id: job.programId }, select: { id: true, titleAr: true, category: true, description: true } })
   if (!program) throw new Error('PROGRAM_NOT_FOUND')
@@ -537,6 +556,7 @@ export async function runQuestionBankGenerationJobStep(jobId: string, deadlineMs
   let job = await db.questionBankGenerationJob.findUnique({ where: { id: jobId } })
   if (!job) return null
   try {
+    if (await completeUnitQuestionBankJobIfReady(job)) return db.questionBankGenerationJob.findUnique({ where: { id: jobId } })
     const inserted = await generateBatch(job, stepDeadlineAt - 2_000)
     await resetJobFailureState(jobId)
     let readyToBuild = false
@@ -558,6 +578,7 @@ export async function runQuestionBankGenerationJobStep(jobId: string, deadlineMs
     return db.questionBankGenerationJob.findUnique({ where: { id: jobId } })
   } catch (error: unknown) {
     const message = cleanText(await normalizeProviderError(error instanceof Error ? error.message : String(error)), 1000)
+    if (message === 'QUESTION_BANK_JOB_EMPTY_BATCH' && job.unitId && await completeUnitQuestionBankJobIfReady(job)) return db.questionBankGenerationJob.findUnique({ where: { id: jobId } })
     const failure = await recordJobFailure(jobId, message)
     await saveJobTrace(jobId, { generated: 0, saved: 0, verifierRejected: 0, rejected: 1, rejectionReasons: reasonCounts([message]) })
     const paused = /AI_ACADEMIC_PROVIDER_UNAVAILABLE|TEXT_AI_ROUTER|DEADLINE|TIMEOUT|NO_PROVIDER|NOT_CONFIGURED|OPENAI_API_KEYS/i.test(message)

@@ -10,6 +10,7 @@ import { buildAdminStudentsEnrollmentRelationFilter, OPEN_ENROLLMENT_STATUSES } 
 import { __testApproveQuestionBankQualityFlagsForTests, __testOrderQuestionBankItemsForReviewForTests } from '../src/app/api/admin/question-bank/route'
 import { validateCognitiveDistribution } from '../src/lib/exam-cognitive-policy'
 import { balanceQuestionBankExamSelection } from '../src/lib/question-bank-exam-balance'
+import { resolveUnitQuestionBankJobStatus } from '../src/lib/unit-question-bank-status'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
@@ -537,6 +538,21 @@ function testBankExamCognitiveBalanceCompletesMissingTypeFromAvailableTypes() {
   assert(result.selected.length === 10, 'موازن البنك يجب أن يكمل العدد من الأنواع المتاحة إذا غاب نوع مطلوب')
 }
 
+function testUnitQuestionBankStatusResolverCompletesFailedWhenApprovedTargetMet() {
+  const status = resolveUnitQuestionBankJobStatus({ jobStatus: 'FAILED', approved: 20, required: 20 })
+  assert(status === 'COMPLETED', 'حالة بنك أسئلة الوحدة يجب أن تصبح COMPLETED إذا وصل المعتمد للمطلوب حتى لو job FAILED')
+}
+
+function testUnitQuestionBankStatusResolverKeepsRunningWhenApprovedBelowTarget() {
+  const status = resolveUnitQuestionBankJobStatus({ jobStatus: 'RUNNING', approved: 12, required: 20 })
+  assert(status === 'RUNNING', 'حالة بنك أسئلة الوحدة RUNNING يجب أن تبقى RUNNING إذا لم يصل المعتمد للمطلوب')
+}
+
+function testUnitQuestionBankStatusResolverKeepsFailedWhenApprovedBelowTarget() {
+  const status = resolveUnitQuestionBankJobStatus({ jobStatus: 'FAILED', approved: 5, required: 20 })
+  assert(status === 'FAILED', 'حالة بنك أسئلة الوحدة FAILED يجب أن تبقى FAILED إذا لم يصل المعتمد للمطلوب')
+}
+
 function testAdminStudentsEnrollmentWhereBuilder() {
   const all = buildAdminStudentsEnrollmentRelationFilter('ALL', null) as any
   assert(JSON.stringify(all.some.status.in) === JSON.stringify([...OPEN_ENROLLMENT_STATUSES]), 'فلتر كل الطلاب يجب أن يعرض فقط أصحاب برنامج مفتوح')
@@ -601,6 +617,9 @@ const tests = [
   testBankExamCognitiveBalanceWarnsWithoutHighQuestions,
   testBankExamCognitiveBalanceRespectsTypePlanWhenPossible,
   testBankExamCognitiveBalanceCompletesMissingTypeFromAvailableTypes,
+  testUnitQuestionBankStatusResolverCompletesFailedWhenApprovedTargetMet,
+  testUnitQuestionBankStatusResolverKeepsRunningWhenApprovedBelowTarget,
+  testUnitQuestionBankStatusResolverKeepsFailedWhenApprovedBelowTarget,
   testAdminStudentsEnrollmentWhereBuilder,
 ]
 

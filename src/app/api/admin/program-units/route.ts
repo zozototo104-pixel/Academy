@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth'
 import { hasUnitExamAttempts } from '@/lib/outline-units'
 import { selectUnitExamQuestionsApprovedFirst, unitExamRequiredQuestions, UNIT_EXAM_REVIEW_LABEL } from '@/lib/unit-exam-policy'
 import { collectTimings, withServerTiming, withTiming } from '@/lib/timing'
+import { resolveUnitQuestionBankJobStatus } from '@/lib/unit-question-bank-status'
 
 const QUESTION_BANK_TRACE_PREFIX = 'QUESTION_BANK_JOB_TRACE:'
 
@@ -150,6 +151,8 @@ async function listProgramUnits(programId: string) {
     const qJob = questionBankJobByUnit.get(u.id)
     const requiredQuestions = unitExamRequiredQuestions(qJob?.requested)
     const qSelection = selectUnitExamQuestionsApprovedFirst(questionBankCandidatesByUnit.get(u.id) || [], requiredQuestions)
+    const approvedQuestions = questionBankCountsByUnit.get(u.id)?.approved || 0
+    const qJobStatus = qJob ? resolveUnitQuestionBankJobStatus({ jobStatus: qJob.status, approved: approvedQuestions, required: requiredQuestions }) : null
     return {
       id: u.id,
       title: u.title,
@@ -190,14 +193,14 @@ async function listProgramUnits(programId: string) {
       },
       questionBankJob: qJob ? {
         id: qJob.id,
-        status: qJob.status,
+        status: qJobStatus,
         requested: requiredQuestions,
         saved: qJob.saved,
         readyToBuild: qSelection.readyToBuild,
-        approvedQuestions: questionBankCountsByUnit.get(u.id)?.approved || 0,
+        approvedQuestions,
         pendingReviewQuestions: questionBankCountsByUnit.get(u.id)?.pendingReview || 0,
         currentQuestions: qSelection.currentEligibleCount,
-        lastError: qJob.lastError,
+        lastError: qJobStatus === 'COMPLETED' ? null : qJob.lastError,
         retryAt: qJob.retryAt,
         updatedAt: qJob.updatedAt,
         trace: questionBankTraceByJob.get(qJob.id) || null,
