@@ -1,6 +1,7 @@
 import { buildScopedProgramCatalogSnapshot } from '@/lib/ai-context-builder'
 import type { AiKnowledgeScope } from '@/lib/ai-knowledge-policy'
 import { db } from '@/lib/db'
+import { textAiCompleteJson } from '@/lib/text-ai'
 
 export type SupervisorPersona = 'CHAT' | 'EXAM' | 'DEFENSE'
 
@@ -77,6 +78,9 @@ function normalizeArabic(value?: string | null): string {
 }
 
 const RELEVANT_BOOK_SNIPPETS_TITLE = 'مقاطع من الكتب المقررة ذات صلة بسؤال الطالب'
+const QUERY_EXPANSION_CACHE_TTL_MS = 60 * 60 * 1000
+const QUERY_EXPANSION_CACHE_MAX = 500
+const queryExpansionCache = new Map<string, { terms: string[]; expiresAt: number }>()
 
 function canonicalArabicSearchTerm(value?: string | null): string {
   let word = normalizeArabic(value)
@@ -234,16 +238,66 @@ function buildBookSnippetBlock(chunks: any[], knowledgeItems: any[], terms: stri
   return `${RELEVANT_BOOK_SNIPPETS_TITLE}:\n${top.map((item, index) => `${index + 1}. الكتاب: «${item.bookTitle}» — الموضع: ${item.locator}\n   النص: ${item.text}`).join('\n')}`
 }
 
-export async function buildRelevantSupervisorBookSnippets(enrolledProgramIds: string[], query?: string | null, timeoutMs = 1500): Promise<string> {
-  const terms = supervisorBookSearchTerms(query)
-  const dbTerms = supervisorBookDbSearchTerms(query, terms)
-  const programIds = [...new Set((enrolledProgramIds || []).map((id) => String(id || '').trim()).filter(Boolean))]
-  if (!terms.length || !dbTerms.length || !programIds.length) return ''
-
+async function fetchSupervisorBookSnippetSources(programIds: string[], dbTerms: string[]): Promise<{ chunks: any[]; knowledgeItems: any[] }> {
   const bookChunkStore = (db as any).bookChunk
   const knowledgeStore = (db as any).bookKnowledgeItem
-  if (!bookChunkStore?.findMany && !knowledgeStore?.findMany) return ''
+  if (!dbTerms.length || (!bookChunkStore?.findMany && !knowledgeStore?.findMany)) return { chunks: [], knowledgeItems: [] }
 
+  const [chunks, knowledgeItems] = await Promise.all([
+    bookChunkStore?.findMany
+      ? bookChunkStore.findMany({
+          where: {
+            programId: { in: programIds },
+            OR: dbTerms.map((term) => ({ text: { contains: term, mode: 'insensitive' } })),
+          },
+          orderBy: [{ bookId: 'asc' }, { index: 'asc' }],
+          take: 40,
+          select: {
+            id: true,
+            bookId: true,
+            programId: true,
+            index: true,
+            pageStart: true,
+            pageEnd: true,
+            headingPath: true,
+            text: true,
+            book: { select: { title: true } },
+          },
+        }).catch(() => [])
+      : Promise.resolve([]),
+    knowledgeStore?.findMany
+      ? knowledgeStore.findMany({
+          where: {
+            programId: { in: programIds },
+            OR: dbTerms.flatMap((term) => [
+              { title: { contains: term, mode: 'insensitive' } },
+              { summary: { contains: term, mode: 'insensitive' } },
+              { excerpt: { contains: term, mode: 'insensitive' } },
+            ]),
+          },
+          orderBy: [{ importance: 'desc' }, { updatedAt: 'desc' }],
+          take: 30,
+          select: {
+            id: true,
+            programId: true,
+            bookId: true,
+            title: true,
+            summary: true,
+            excerpt: true,
+            keywords: true,
+            sourceNote: true,
+            pageStart: true,
+            pageEnd: true,
+            book: { select: { title: true } },
+          },
+        }).catch(() => [])
+      : Promise.resolve([]),
+  ])
+
+  return { chunks: chunks || [], knowledgeItems: knowledgeItems || [] }
+}
+
+async function runSupervisorBookSnippetSearch(programIds: string[], dbTerms: string[], terms: string[], timeoutMs: number): Promise<string> {
   const startedAt = Date.now()
   const cappedTimeoutMs = Math.max(1, timeoutMs)
   let timer: ReturnType<typeof setTimeout> | null = null
@@ -256,61 +310,9 @@ export async function buildRelevantSupervisorBookSnippets(enrolledProgramIds: st
         resolve('')
       }, cappedTimeoutMs)
     })
-
-    const search = (async () => {
-      const [chunks, knowledgeItems] = await Promise.all([
-        bookChunkStore?.findMany
-          ? bookChunkStore.findMany({
-              where: {
-                programId: { in: programIds },
-                OR: dbTerms.map((term) => ({ text: { contains: term, mode: 'insensitive' } })),
-              },
-              orderBy: [{ bookId: 'asc' }, { index: 'asc' }],
-              take: 40,
-              select: {
-                id: true,
-                bookId: true,
-                programId: true,
-                index: true,
-                pageStart: true,
-                pageEnd: true,
-                headingPath: true,
-                text: true,
-                book: { select: { title: true } },
-              },
-            }).catch(() => [])
-          : Promise.resolve([]),
-        knowledgeStore?.findMany
-          ? knowledgeStore.findMany({
-              where: {
-                programId: { in: programIds },
-                OR: dbTerms.flatMap((term) => [
-                  { title: { contains: term, mode: 'insensitive' } },
-                  { summary: { contains: term, mode: 'insensitive' } },
-                  { excerpt: { contains: term, mode: 'insensitive' } },
-                ]),
-              },
-              orderBy: [{ importance: 'desc' }, { updatedAt: 'desc' }],
-              take: 30,
-              select: {
-                id: true,
-                programId: true,
-                bookId: true,
-                title: true,
-                summary: true,
-                excerpt: true,
-                keywords: true,
-                sourceNote: true,
-                pageStart: true,
-                pageEnd: true,
-                book: { select: { title: true } },
-              },
-            }).catch(() => [])
-          : Promise.resolve([]),
-      ])
-      if (timedOut) return ''
-      return buildBookSnippetBlock(chunks || [], knowledgeItems || [], terms, startedAt, cappedTimeoutMs)
-    })().catch(() => '')
+    const search = fetchSupervisorBookSnippetSources(programIds, dbTerms)
+      .then(({ chunks, knowledgeItems }) => timedOut ? '' : buildBookSnippetBlock(chunks, knowledgeItems, terms, startedAt, cappedTimeoutMs))
+      .catch(() => '')
 
     return await Promise.race([search, timeout])
   } catch {
@@ -318,6 +320,106 @@ export async function buildRelevantSupervisorBookSnippets(enrolledProgramIds: st
   } finally {
     if (timer) clearTimeout(timer)
   }
+}
+
+function uniqueBookTitles(values: unknown[]): string[] {
+  const seen = new Set<string>()
+  for (const value of values) {
+    const title = safeContextText(value, 120)
+    if (title && !seen.has(title.toLowerCase())) seen.add(title.toLowerCase())
+  }
+  return [...seen].map((lower) => values.map((value) => safeContextText(value, 120)).find((title) => title.toLowerCase() === lower) || lower).slice(0, 24)
+}
+
+function readQueryExpansionCache(cacheKey: string): string[] | null {
+  const cached = queryExpansionCache.get(cacheKey)
+  if (!cached) return null
+  if (cached.expiresAt <= Date.now() || !cached.terms.length) {
+    queryExpansionCache.delete(cacheKey)
+    return null
+  }
+  return cached.terms
+}
+
+function writeQueryExpansionCache(cacheKey: string, terms: string[]): void {
+  if (!cacheKey || !terms.length) return
+  if (queryExpansionCache.size >= QUERY_EXPANSION_CACHE_MAX && !queryExpansionCache.has(cacheKey)) {
+    const first = queryExpansionCache.keys().next().value
+    if (first) queryExpansionCache.delete(first)
+  }
+  queryExpansionCache.set(cacheKey, { terms, expiresAt: Date.now() + QUERY_EXPANSION_CACHE_TTL_MS })
+}
+
+function cleanExpandedBookTerms(values: unknown[]): string[] {
+  const seen = new Set<string>()
+  for (const value of values) {
+    for (const word of cleanOriginalBookSearchTerm(String(value || '')).split(' ')) {
+      const normalized = canonicalArabicSearchTerm(word)
+      if (word.length >= 3 && normalized.length >= 3 && !SUPERVISOR_BOOK_SEARCH_FILLER_WORDS.has(normalized)) {
+        seen.add(normalized)
+        seen.add(word)
+      }
+      if (seen.size >= 24) break
+    }
+    if (seen.size >= 24) break
+  }
+  return [...seen].slice(0, 24)
+}
+
+async function expandSupervisorBookQueryTerms(query: string | null | undefined, bookTitles: string[], timeoutMs = 2500): Promise<string[]> {
+  const cacheKey = normalizeArabic(query)
+  const cached = readQueryExpansionCache(cacheKey)
+  if (cached) return cached
+  if (!cacheKey || !bookTitles.length) return []
+
+  let timer: ReturnType<typeof setTimeout> | null = null
+  try {
+    const timeout = new Promise<string>((resolve) => {
+      timer = setTimeout(() => resolve(''), Math.max(1, timeoutMs))
+    })
+    const request = textAiCompleteJson({
+      system: 'أنت مساعد أكاديمي يستخرج مصطلحات بحث قصيرة فقط. أعد JSON صالحاً فقط بالشكل {"terms":[...]} دون شرح.',
+      history: [{
+        role: 'user',
+        text: `سؤال الطالب:\n${safeContextText(query, 500)}\n\nعناوين كتب برنامج الطالب:\n${bookTitles.slice(0, 24).join('\n')}\n\nاستخرج حتى 12 مصطلح بحث مناسبة للعثور على مقاطع في كتب أكاديمية. استخدم مرادفات عربية، والمصطلح الإنجليزي المقابل عند وجوده، والجذر أو الصيغة الأقرب لصياغة كتاب أكاديمي.`,
+      }],
+      temperature: 0,
+      maxOutputTokens: 200,
+      timeoutMs,
+      deadlineMs: Date.now() + timeoutMs,
+      purpose: 'ANALYSIS',
+      taskLevel: 'GENERAL',
+    }).catch(() => '')
+    const raw = await Promise.race([request, timeout])
+    const parsed = raw ? JSON.parse(raw) : null
+    const terms = cleanExpandedBookTerms(Array.isArray(parsed?.terms) ? parsed.terms.slice(0, 12) : [])
+    if (terms.length) writeQueryExpansionCache(cacheKey, terms)
+    return terms
+  } catch {
+    return []
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
+export async function buildRelevantSupervisorBookSnippets(enrolledProgramIds: string[], query?: string | null, timeoutMs = 1500, options?: { bookTitles?: string[] }): Promise<string> {
+  const terms = supervisorBookSearchTerms(query)
+  const dbTerms = supervisorBookDbSearchTerms(query, terms)
+  const programIds = [...new Set((enrolledProgramIds || []).map((id) => String(id || '').trim()).filter(Boolean))]
+  if (!terms.length || !dbTerms.length || !programIds.length) return ''
+
+  const cappedTimeoutMs = Math.max(1, timeoutMs)
+  const initialBlock = await runSupervisorBookSnippetSearch(programIds, dbTerms, terms, cappedTimeoutMs)
+  if (initialBlock) return initialBlock
+
+  const expandedTerms = await expandSupervisorBookQueryTerms(query, uniqueBookTitles(options?.bookTitles || []), 2500)
+  if (!expandedTerms.length) return ''
+
+  const combinedTerms = [...new Set([...terms, ...expandedTerms.map(canonicalArabicSearchTerm)].filter((term) => term.length >= 3 && !SUPERVISOR_BOOK_SEARCH_FILLER_WORDS.has(term)))]
+  const combinedDbTerms = [...new Set([...dbTerms, ...expandedTerms])]
+  if (combinedTerms.length <= terms.length || !combinedDbTerms.length) return ''
+
+  return runSupervisorBookSnippetSearch(programIds, combinedDbTerms, combinedTerms, cappedTimeoutMs)
 }
 
 function supervisorAskedForOtherPrograms(query?: string | null) {
@@ -630,7 +732,11 @@ export async function buildSupervisorContext(userId: string, options?: { scope?:
     const enrolledProgramIds = Array.isArray(enrollments)
       ? enrollments.map((enr: any) => enr?.programId || enr?.program?.id).filter(Boolean)
       : []
-    const relevantBookSnippets = await buildRelevantSupervisorBookSnippets(enrolledProgramIds, options?.query, 1500)
+    const enrolledBookTitles = Array.isArray(enrollments)
+      ? enrollments.flatMap((enr: any) => (Array.isArray(enr?.program?.books) ? enr.program.books : [])
+          .flatMap((book: any) => [book?.title, book?.titleEn]).filter(Boolean))
+      : []
+    const relevantBookSnippets = await buildRelevantSupervisorBookSnippets(enrolledProgramIds, options?.query, 1500, { bookTitles: enrolledBookTitles })
     if (relevantBookSnippets) parts.push(relevantBookSnippets)
 
     if (Array.isArray(enrollments) && enrollments.length) {
