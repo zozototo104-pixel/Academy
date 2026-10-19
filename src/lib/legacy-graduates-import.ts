@@ -23,7 +23,7 @@ export type LegacyImportRow = {
 
 type ProgramOption = { id: string; slug: string; titleAr: string; titleEn: string | null }
 
-const HEADER_ALIASES: Record<keyof Omit<LegacyImportRow, 'rowNumber' | 'programId' | 'issuedAt' | 'errors' | 'programSuggestion'> | 'issuedAtText' | 'finalScoreText', string[]> = {
+const HEADER_ALIASES: Record<string, string[]> = {
   name: ['name', 'full name', 'holder name', 'الاسم', 'اسم', 'اسم الخريج'],
   email: ['email', 'e-mail', 'mail', 'البريد', 'الإيميل', 'ايميل', 'البريد الإلكتروني'],
   phone: ['phone', 'mobile', 'الجوال', 'الهاتف', 'رقم الجوال'],
