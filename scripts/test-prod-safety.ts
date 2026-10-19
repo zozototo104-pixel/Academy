@@ -445,6 +445,7 @@ async function main() {
   testPrismaDeployPreviewPushSkips()
   testAdmissionAdvisoryLockUsesExecuteRaw()
   testAactBackNavigationStaysInsideApp()
+  testDocumentationBackfillsUseDeadlineAndLargeOutputBudget()
   testSecurityBatchAFollowup()
   testSecurityBatchA()
   console.log('✓ production safety behavioral checks passed')
