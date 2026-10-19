@@ -144,6 +144,8 @@ export async function runExtractStep(jobId: string, deadlineMs: number) {
   if (job.pagesDone > totalPages) throw new Error('BOOK_PROGRESS_EXCEEDS_PDF')
   const store: ExtractStepStore = {
     upsertChunk: async (chunk, bookId, programId) => {
+      const existing = await db.bookChunk.findUnique({ where: { bookId_index: { bookId, index: chunk.index } }, select: { status: true, contentHash: true } })
+      if (existing?.status === 'ANALYZED' && existing.contentHash === chunk.contentHash) return
       await db.bookChunk.upsert({
         where: { bookId_index: { bookId, index: chunk.index } },
         create: { ...chunk, bookId, programId, status: 'EXTRACTED' },
