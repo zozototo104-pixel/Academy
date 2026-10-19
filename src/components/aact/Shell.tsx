@@ -399,6 +399,9 @@ function NotificationBell() {
     if (!user) return
     api<{ notifications: Notif[]; unread: number }>('/api/notifications')
       .then((d) => {
+        if (loadedOnceRef.current && d.unread > unreadRef.current) playNotificationSound()
+        loadedOnceRef.current = true
+        unreadRef.current = d.unread
         setItems(d.notifications)
         setUnread(d.unread)
       })
