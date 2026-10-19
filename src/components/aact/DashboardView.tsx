@@ -1330,7 +1330,7 @@ export function DashboardView() {
                           </Button>
                         ) : null}
                         <Button
-                          onClick={() => (locked ? null : openExam(exam.id, 'final'))}
+                          onClick={() => handleSemesterExamAction(exam)}
                           disabled={locked}
                           className="bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a] disabled:opacity-50"
                         >
