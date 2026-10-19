@@ -968,6 +968,12 @@ function isFreeModel(row: any, id: string): boolean {
   return (prompt !== undefined || completion !== undefined) && zeroish(prompt) && zeroish(completion)
 }
 
+function isNvidiaFreeTrialTextModel(row: any, id: string): boolean {
+  const haystack = `${id} ${row?.name || ''} ${row?.type || ''} ${row?.modality || ''} ${row?.task || ''} ${row?.description || ''}`.toLowerCase()
+  if (/embed|embedding|rerank|retriev|guard|safety|moderation|whisper|audio|speech|tts|stt|asr|ocr-only/.test(haystack)) return false
+  return true
+}
+
 function isStrongTopToolsTextModel(row: any, id: string): boolean {
   const haystack = `${id} ${row?.name || ''} ${row?.owned_by || ''} ${row?.provider || ''}`.toLowerCase()
   if (/embedding|moderation|rerank|whisper|tts|stt|audio|image|vision|dall|sdxl|stable-diffusion/.test(haystack)) return false
