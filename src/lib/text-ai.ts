@@ -156,14 +156,15 @@ const RELAYROUTER_TEXT_MODELS = ['relayrouter/auto', 'claude-opus-4-8', 'gpt-5.5
 const TOPTOOLS_TEXT_MODELS = ['top-tools-ai']
 const OPENAI_COMPAT_TEXT_MODELS = ['auto']
 const NVIDIA_OPENAI_COMPAT_TEXT_MODELS = [
-  'deepseek/deepseek-v3.2',
-  'qwen/qwen3-235b-a22b-instruct-2507',
-  'moonshotai/kimi-k2-instruct',
+  'openai/gpt-oss-20b',
   'openai/gpt-oss-120b',
-  'meta/llama-3.3-70b-instruct',
-  'mistralai/mistral-large',
-  'nvidia/llama-3.1-nemotron-ultra-253b-v1',
+  'nvidia/nemotron-3-super-120b-a12b',
+  'qwen/qwen3-235b-a22b',
+  'moonshotai/kimi-k2-instruct-0905',
+  'mistralai/mistral-large-3-675b-instruct-2512',
+  'deepseek/deepseek-v3.2',
 ]
+const NVIDIA_OPENAI_COMPAT_CALLABLE_MODEL_IDS = new Set(NVIDIA_OPENAI_COMPAT_TEXT_MODELS.map((model) => model.toLowerCase()))
 const NVIDIA_OPENAI_COMPAT_MODEL_LIMIT = 4
 const NVIDIA_OPENAI_COMPAT_DEAD_MODEL_MS = 24 * 60 * 60 * 1000
 const NVIDIA_OPENAI_COMPAT_HARD_FAILURE_WINDOW_MS = 60 * 60 * 1000
