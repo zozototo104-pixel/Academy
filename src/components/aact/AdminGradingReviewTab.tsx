@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { api } from '@/lib/store'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -8,8 +8,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 
-type ReviewAttempt = { type: 'UNIT' | 'PROGRAM'; id: string; submittedAt: string; student: { name: string; email: string }; exam: { title: string; programTitle?: string; unitTitle?: string } }
-type ReviewDetail = { type: 'UNIT' | 'PROGRAM'; id: string; answers: Array<{ answerId: string; order: number; question: string; studentAnswer: string; modelAnswer: string; source: string; points: number | null; maxPoints: number; aiFeedback: string | null }> }
+type ReviewAttempt = { type: 'UNIT' | 'PROGRAM'; id: string; status?: string; submittedAt: string; student: { name: string; email: string }; exam: { title: string; programTitle?: string; unitTitle?: string } }
+type ReviewDetail = { type: 'UNIT' | 'PROGRAM'; id: string; status?: string; answers: Array<{ answerId: string; order: number; question: string; studentAnswer: string; modelAnswer: string; source: string; points: number | null; maxPoints: number; aiFeedback: string | null }> }
 
 export default function AdminGradingReviewTab() {
   const { toast } = useToast()
@@ -18,14 +18,15 @@ export default function AdminGradingReviewTab() {
   const [scores, setScores] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const [busy, setBusy] = useState<'regrade' | 'approve' | null>(null)
+  const [statusFilter, setStatusFilter] = useState<'NEEDS_REVIEW' | 'GRADED' | 'ALL'>('NEEDS_REVIEW')
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await api<{ attempts: ReviewAttempt[] }>('/api/admin/attempts-review')
+      const res = await api<{ attempts: ReviewAttempt[] }>(`/api/admin/attempts-review?status=${statusFilter}`)
       setAttempts(res.attempts || [])
     } finally { setLoading(false) }
-  }
+  }, [statusFilter])
 
   const open = async (item: ReviewAttempt) => {
     const res = await api<{ attempt: ReviewDetail }>(`/api/admin/attempts-review?type=${item.type}&id=${item.id}`)
@@ -71,20 +72,25 @@ export default function AdminGradingReviewTab() {
     }
   }
 
-  useEffect(() => { void load() }, [])
+  useEffect(() => { void load() }, [load])
 
   return (
     <div className="mt-4 grid gap-4 lg:grid-cols-[360px_1fr]" dir="rtl">
       <Card className="border-amber-200">
         <CardContent className="p-4">
-          <div className="mb-3 flex items-center justify-between"><h3 className="font-black text-[#0f2b46]">مراجعة التصحيح</h3><Badge>{attempts.length} معلقة</Badge></div>
-          {loading ? <p className="text-sm text-slate-500">جاري التحميل...</p> : attempts.length === 0 ? <p className="text-sm font-bold text-emerald-700">لا توجد محاولات معلقة.</p> : <div className="space-y-2">{attempts.map((a) => <button key={`${a.type}:${a.id}`} onClick={() => open(a)} className="w-full rounded-xl border bg-white p-3 text-right text-xs hover:bg-amber-50"><p className="font-black text-[#0f2b46]">{a.student.name}</p><p className="text-slate-500">{a.exam.title}</p><p className="text-slate-400">{a.type === 'UNIT' ? 'اختبار وحدة' : 'امتحان برنامج'} · {new Date(a.submittedAt).toLocaleString('ar')}</p></button>)}</div>}
+          <div className="mb-3 flex items-center justify-between"><h3 className="font-black text-[#0f2b46]">مراجعة التصحيح</h3><Badge>{attempts.length} محاولة</Badge></div>
+          <select value={statusFilter} onChange={(e) => { setSelected(null); setStatusFilter(e.target.value as any) }} className="mb-3 w-full rounded-xl border bg-white p-2 text-xs font-bold text-[#0f2b46]">
+            <option value="NEEDS_REVIEW">قيد المراجعة</option>
+            <option value="GRADED">مصححة/مجتازة</option>
+            <option value="ALL">الكل</option>
+          </select>
+          {loading ? <p className="text-sm text-slate-500">جاري التحميل...</p> : attempts.length === 0 ? <p className="text-sm font-bold text-emerald-700">لا توجد محاولات ضمن هذا الفلتر.</p> : <div className="space-y-2">{attempts.map((a) => <button key={`${a.type}:${a.id}`} onClick={() => open(a)} className="w-full rounded-xl border bg-white p-3 text-right text-xs hover:bg-amber-50"><p className="font-black text-[#0f2b46]">{a.student.name}</p><p className="text-slate-500">{a.exam.title}</p><p className="text-slate-400">{a.type === 'UNIT' ? 'اختبار وحدة' : 'امتحان برنامج'} · {a.status === 'GRADED' ? 'مصححة' : 'قيد المراجعة'} · {new Date(a.submittedAt).toLocaleString('ar')}</p></button>)}</div>}
         </CardContent>
       </Card>
       <Card>
         <CardContent className="p-4">
           {!selected ? <p className="text-sm font-bold text-slate-500">اختر محاولة لعرض الأسئلة المقالية وإقرار النتيجة.</p> : <div className="space-y-4">
-            <div className="flex flex-wrap gap-2"><Button onClick={regrade} variant="outline" disabled={busy !== null}>{busy === 'regrade' ? 'جارٍ التصحيح...' : 'إعادة التصحيح الآلي'}</Button><Button onClick={approve} disabled={busy !== null} className="bg-[#0f2b46] text-[#f5f0e1]">{busy === 'approve' ? 'جارٍ الاعتماد...' : 'اعتماد النتيجة'}</Button></div>
+            {selected.status === 'NEEDS_REVIEW' ? <div className="flex flex-wrap gap-2"><Button onClick={regrade} variant="outline" disabled={busy !== null}>{busy === 'regrade' ? 'جارٍ التصحيح...' : 'إعادة التصحيح الآلي'}</Button><Button onClick={approve} disabled={busy !== null} className="bg-[#0f2b46] text-[#f5f0e1]">{busy === 'approve' ? 'جارٍ الاعتماد...' : 'اعتماد النتيجة'}</Button></div> : <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">محاولة مصححة</Badge>}
             {selected.answers.map((a) => <div key={a.answerId} className="rounded-2xl border p-3 text-sm">
               <p className="font-black text-[#0f2b46]">سؤال {a.order}: {a.question}</p>
               <p className="mt-2 whitespace-pre-wrap rounded-xl bg-slate-50 p-2"><b>إجابة الطالب:</b> {a.studentAnswer || '—'}</p>

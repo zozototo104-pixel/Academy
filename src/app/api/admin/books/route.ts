@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
-import { audit, notify } from '@/lib/notify'
+import { audit, notify, notifyProgramNeedsQualityApproval } from '@/lib/notify'
 import { extractDocumentText } from '@/lib/document-extract'
 import { validateAdmissionFileSignature } from '@/lib/file-signature'
 import { isPrivateIp, storageErrorMessage, storeFileBuffer } from '@/lib/storage'
@@ -330,6 +330,7 @@ export async function POST(req: NextRequest) {
     })
 
     await audit({ id: admin.id, name: admin.name }, 'ADD_BOOK', 'Book', book.id, `إضافة كتاب مقرر: ${title} إلى ${program.titleAr}`)
+    await notifyProgramNeedsQualityApproval(programId, 'إضافة كتاب مقرر')
 
     // مهم: لا نبني بنك المعرفة داخل طلب الرفع نفسه؛ لأن التحليل بالذكاء الاصطناعي قد يستغرق وقتاً
     // ويتسبب بتأخير أو 403/timeout على Vercel. الرفع يحفظ الكتاب فوراً، ثم تستخدم الإدارة زر بناء/تحديث بنك المعرفة.
@@ -523,6 +524,7 @@ export async function PATCH(req: NextRequest) {
       bookId,
       `تحديث مصدر قراءة كتاب مقرر: ${book.title} — ${linkReadStatus}`
     )
+    await notifyProgramNeedsQualityApproval(book.programId, 'تحديث مصدر كتاب مقرر')
 
     return NextResponse.json({
       ok: true,
@@ -570,6 +572,7 @@ export async function DELETE(req: NextRequest) {
     if (!bookId) return NextResponse.json({ error: 'معرف الكتاب مطلوب' }, { status: 400 })
     const book = await db.book.delete({ where: { id: bookId } })
     await audit({ id: admin.id, name: admin.name }, 'DELETE_BOOK', 'Book', bookId, `حذف كتاب مقرر: ${book.title}`)
+    await notifyProgramNeedsQualityApproval(book.programId, 'حذف كتاب مقرر')
     return NextResponse.json({ ok: true })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })

@@ -60,7 +60,7 @@ interface UnitData {
 }
 
 export function UnitView() {
-  const { activeUnitId, navigate, openExam, openProgram } = useAppStore()
+  const { activeUnitId, navigate, goBack, openExam, openProgram } = useAppStore()
   const { toast } = useToast()
   const [data, setData] = useState<UnitData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -141,7 +141,7 @@ export function UnitView() {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16 text-center text-slate-500">
         الوحدة غير متاحة —{' '}
-        <button className="font-bold text-[#a8841a] underline" onClick={() => navigate('dashboard')}>
+        <button className="font-bold text-[#a8841a] underline" onClick={() => goBack('dashboard')}>
           العودة للبوابة
         </button>
       </div>
@@ -331,7 +331,7 @@ export function UnitView() {
 
       {/* Nav footer */}
       <div className="mt-6 flex justify-between">
-        <Button variant="ghost" onClick={() => navigate('dashboard')} className="text-[#0f2b46]">
+        <Button variant="ghost" onClick={() => goBack('dashboard')} className="text-[#0f2b46]">
           <ArrowRight className="ml-1 h-4 w-4" /> عودة للبوابة
         </Button>
       </div>

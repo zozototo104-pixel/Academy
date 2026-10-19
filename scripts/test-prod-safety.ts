@@ -289,6 +289,13 @@ function testAdmissionAdvisoryLockUsesExecuteRaw() {
   assert(admissionsRoute.includes('tx.$executeRaw`SELECT pg_advisory_xact_lock'), 'admissions POST must execute pg_advisory_xact_lock with executeRaw')
 }
 
+function testAactBackNavigationStaysInsideApp() {
+  const store = file('src/lib/store.ts')
+  assert(store.includes('aact: true'), 'app navigation history entries must be marked as internal')
+  assert(!store.includes('history.length > 1'), 'goBack must not use history.length because that can leave the site')
+  assert(store.includes('window.history.state.aact === true'), 'goBack must only call browser back for internal app history entries')
+}
+
 function testSecurityBatchAFollowup() {
   const waiverLib = file('src/lib/payment-waivers.ts')
   assert(waiverLib.includes('class ActivePaymentWaiverExistsError') && waiverLib.includes("code = 'ACTIVE_WAIVER_EXISTS'") && waiverLib.includes('status = 409'), 'payment waivers must expose a 409 ACTIVE_WAIVER_EXISTS error')
@@ -428,6 +435,7 @@ async function main() {
   testDependencyPins()
   testPrismaDeployPreviewPushSkips()
   testAdmissionAdvisoryLockUsesExecuteRaw()
+  testAactBackNavigationStaysInsideApp()
   testSecurityBatchAFollowup()
   testSecurityBatchA()
   console.log('✓ production safety behavioral checks passed')

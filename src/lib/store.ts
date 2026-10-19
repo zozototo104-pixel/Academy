@@ -44,7 +44,7 @@ function updateBrowserRoute(view: View, params: Record<string, string | null | u
   try {
     const next = pathForView(view, params)
     const current = `${window.location.pathname}${window.location.search}${window.location.hash}`
-    if (next !== current) window.history.pushState(null, '', next)
+    if (next !== current) window.history.pushState({ aact: true }, '', next)
   } catch (error) {
     console.warn('Failed to update browser route for application navigation.', error)
   }
@@ -77,6 +77,7 @@ interface AppState {
   setUser: (u: AppUser | null) => void
   setAuthChecked: (v: boolean) => void
   navigate: (view: View, params?: Record<string, string | null | undefined>) => void
+  goBack: (fallbackView?: View, params?: Record<string, string | null | undefined>) => void
   openPrograms: (filter?: string) => void
   openProgram: (id: string) => void
   openProgramDetails: (id: string) => void
@@ -114,6 +115,23 @@ export const useAppStore = create<AppState>((set) => ({
       ...(view !== 'program-detail' ? { programDetailsId: null } : {}),
       ...(view !== 'student-preview' ? { studentPreviewId: null } : {}),
       ...(view !== 'agent-preview' ? { agentPreviewId: null } : {}),
+    })
+  },
+  goBack: (fallbackView = 'home', params = {}) => {
+    if (typeof window !== 'undefined' && window.history.state && window.history.state.aact === true) {
+      window.history.back()
+      return
+    }
+    updateBrowserRoute(fallbackView, params)
+    set({
+      view: fallbackView,
+      mobileMenuOpen: false,
+      activeProgramId: params.programId || null,
+      activeUnitId: params.unitId || null,
+      activeExamId: params.examId || null,
+      activeExamKind: params.kind === 'final' ? 'final' : 'unit',
+      programDetailsId: params.program || null,
+      programsFilter: params.filter || null,
     })
   },
   openPrograms: (filter) => {

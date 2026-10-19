@@ -20,6 +20,32 @@ export async function notify(
   }
 }
 
+export async function notifyAdmins(type: string, title: string, body: string, link?: string) {
+  try {
+    const admins = await db.user.findMany({ where: { role: 'ADMIN', status: 'ACTIVE' }, select: { id: true, email: true } })
+    const targets = admins.filter((admin) => !isAactTestEmail(admin.email))
+    if (!targets.length) return
+    await db.notification.createMany({ data: targets.map((admin) => ({ userId: admin.id, type, title, body, link })) })
+  } catch (e) {
+    console.error('notifyAdmins error', e)
+  }
+}
+
+export async function notifyProgramNeedsQualityApproval(programId: string, reason: string) {
+  try {
+    const program = await db.program.findUnique({ where: { id: programId }, select: { titleAr: true } })
+    const title = program?.titleAr || 'برنامج'
+    await notifyAdmins(
+      'GENERAL',
+      'برنامج يحتاج اعتماد الإدارة',
+      `تم تعديل «${title}» ويحتاج مراجعة واعتماداً من مركز الجودة قبل ظهوره كجاهز للطلاب. السبب: ${reason}`,
+      `/?view=admin&tab=quality&programId=${encodeURIComponent(programId)}`
+    )
+  } catch (e) {
+    console.error('notifyProgramNeedsQualityApproval error', e)
+  }
+}
+
 export async function audit(
   actor: { id?: string | null; name: string } | null,
   action: string,

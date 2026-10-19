@@ -42,24 +42,25 @@ async function buildExcerptMap(ids: Array<string | null | undefined>) {
   return new Map(rows.map((row) => [row.id, row.excerpt || ''] as const))
 }
 
-async function listReviewAttempts() {
+async function listReviewAttempts(statusFilter: string = 'NEEDS_REVIEW') {
+  const statuses = statusFilter === 'ALL' ? ['NEEDS_REVIEW', 'GRADED'] : statusFilter === 'GRADED' ? ['GRADED'] : ['NEEDS_REVIEW']
   const [unitAttempts, programAttempts] = await Promise.all([
     db.examAttempt.findMany({
-      where: { status: 'NEEDS_REVIEW' },
+      where: { status: { in: statuses as any } },
       orderBy: { submittedAt: 'desc' },
       take: 100,
-      select: { id: true, submittedAt: true, user: { select: { id: true, name: true, email: true } }, exam: { select: { id: true, title: true, unit: { select: { title: true, program: { select: { titleAr: true } } } } } } },
+      select: { id: true, status: true, submittedAt: true, user: { select: { id: true, name: true, email: true } }, exam: { select: { id: true, title: true, unit: { select: { title: true, program: { select: { titleAr: true } } } } } } },
     }),
     db.programExamAttempt.findMany({
-      where: { status: 'NEEDS_REVIEW' },
+      where: { status: { in: statuses as any } },
       orderBy: { submittedAt: 'desc' },
       take: 100,
-      select: { id: true, submittedAt: true, user: { select: { id: true, name: true, email: true } }, exam: { select: { id: true, title: true, program: { select: { titleAr: true } } } } },
+      select: { id: true, status: true, submittedAt: true, user: { select: { id: true, name: true, email: true } }, exam: { select: { id: true, title: true, program: { select: { titleAr: true } } } } },
     }),
   ])
   return [
-    ...unitAttempts.map((a) => ({ type: 'UNIT', id: a.id, submittedAt: a.submittedAt, student: a.user, exam: { id: a.exam.id, title: a.exam.title, programTitle: a.exam.unit.program.titleAr, unitTitle: a.exam.unit.title } })),
-    ...programAttempts.map((a) => ({ type: 'PROGRAM', id: a.id, submittedAt: a.submittedAt, student: a.user, exam: { id: a.exam.id, title: a.exam.title, programTitle: a.exam.program.titleAr } })),
+    ...unitAttempts.map((a) => ({ type: 'UNIT', id: a.id, status: a.status, submittedAt: a.submittedAt, student: a.user, exam: { id: a.exam.id, title: a.exam.title, programTitle: a.exam.unit.program.titleAr, unitTitle: a.exam.unit.title } })),
+    ...programAttempts.map((a) => ({ type: 'PROGRAM', id: a.id, status: a.status, submittedAt: a.submittedAt, student: a.user, exam: { id: a.exam.id, title: a.exam.title, programTitle: a.exam.program.titleAr } })),
   ].sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime())
 }
 
@@ -182,7 +183,7 @@ export async function GET(req: NextRequest) {
     const id = clean(req.nextUrl.searchParams.get('id'), 100)
     if (id && type === 'UNIT') return NextResponse.json({ attempt: await unitDetail(id) })
     if (id && type === 'PROGRAM') return NextResponse.json({ attempt: await programDetail(id) })
-    return NextResponse.json({ attempts: await listReviewAttempts() })
+    return NextResponse.json({ attempts: await listReviewAttempts(clean(req.nextUrl.searchParams.get('status'), 30).toUpperCase()) })
   } catch (error: any) {
     if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('attempts-review GET error:', error)

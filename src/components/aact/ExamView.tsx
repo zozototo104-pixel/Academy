@@ -123,7 +123,7 @@ function examErrorMessage(error: ApiError) {
 }
 
 export function ExamView() {
-  const { activeExamId, activeExamKind, navigate, openProgram } = useAppStore()
+  const { activeExamId, activeExamKind, navigate, goBack, openProgram } = useAppStore()
   const { toast } = useToast()
   const [data, setData] = useState<ExamData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -565,7 +565,7 @@ export function ExamView() {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16 text-center text-slate-500">
         الاختبار غير متاح —{' '}
-        <button className="font-bold text-[#a8841a] underline" onClick={() => navigate('dashboard')}>
+        <button className="font-bold text-[#a8841a] underline" onClick={() => goBack('dashboard')}>
           العودة للبوابة
         </button>
       </div>

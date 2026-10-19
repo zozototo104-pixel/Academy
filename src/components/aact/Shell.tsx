@@ -374,11 +374,36 @@ function NotificationBell() {
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState<Notif[]>([])
   const [unread, setUnread] = useState(0)
+  const unreadRef = useRef(0)
+  const loadedOnceRef = useRef(false)
+
+  const playNotificationSound = () => {
+    try {
+      const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext
+      if (!AudioCtx) return
+      const ctx = new AudioCtx()
+      const oscillator = ctx.createOscillator()
+      const gain = ctx.createGain()
+      oscillator.type = 'sine'
+      oscillator.frequency.value = 880
+      gain.gain.value = 0.05
+      oscillator.connect(gain)
+      gain.connect(ctx.destination)
+      oscillator.start()
+      oscillator.stop(ctx.currentTime + 0.18)
+      window.setTimeout(() => ctx.close().catch((error: unknown) => { console.warn('Failed to close notification audio context.', error) }), 300)
+    } catch (error) {
+      console.warn('Failed to play notification sound.', error)
+    }
+  }
 
   const load = () => {
     if (!user) return
     api<{ notifications: Notif[]; unread: number }>('/api/notifications')
       .then((d) => {
+        if (loadedOnceRef.current && d.unread > unreadRef.current) playNotificationSound()
+        loadedOnceRef.current = true
+        unreadRef.current = d.unread
         setItems(d.notifications)
         setUnread(d.unread)
       })
@@ -395,6 +420,7 @@ function NotificationBell() {
 
   const markAll = async () => {
     await api('/api/notifications', { method: 'PATCH', body: JSON.stringify({}) }).catch(() => {})
+    unreadRef.current = 0
     setUnread(0)
     setItems((prev) => prev.map((n) => ({ ...n, read: true })))
   }
@@ -493,6 +519,7 @@ function NotificationBell() {
   const openNotification = async (n: Notif) => {
     setOpen(false)
     if (!n.read) {
+      unreadRef.current = Math.max(0, unreadRef.current - 1)
       setUnread((v) => Math.max(0, v - 1))
       setItems((prev) => prev.map((item) => item.id === n.id ? { ...item, read: true } : item))
       api('/api/notifications', { method: 'PATCH', body: JSON.stringify({ id: n.id }) }).then(load).catch((error) => { console.warn('Failed to mark notification as read.', error) })
