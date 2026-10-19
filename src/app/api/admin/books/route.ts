@@ -330,6 +330,7 @@ export async function POST(req: NextRequest) {
     })
 
     await audit({ id: admin.id, name: admin.name }, 'ADD_BOOK', 'Book', book.id, `إضافة كتاب مقرر: ${title} إلى ${program.titleAr}`)
+    await notifyProgramNeedsQualityApproval(programId, 'إضافة كتاب مقرر')
 
     // مهم: لا نبني بنك المعرفة داخل طلب الرفع نفسه؛ لأن التحليل بالذكاء الاصطناعي قد يستغرق وقتاً
     // ويتسبب بتأخير أو 403/timeout على Vercel. الرفع يحفظ الكتاب فوراً، ثم تستخدم الإدارة زر بناء/تحديث بنك المعرفة.
