@@ -181,6 +181,18 @@ export async function createLegacyGraduate(input: LegacyGraduateInput, admin: Ad
 
     return { user, userCreated, enrollment, certificate }
   })
+
+  if (!result.userCreated) {
+    await notify(
+      result.user.id,
+      'CERTIFICATE_ISSUED',
+      'تمت إضافة شهادة إلى حسابك',
+      `تم ربط شهادة ${result.certificate.serial} بحسابك في منصة الأكاديمية الأمريكية.`,
+      '/?view=dashboard&tab=certs'
+    )
+  }
+
+  return result
 }
 
 export async function sendLegacyGraduatePasswordSetup(req: NextRequest, userId: string): Promise<EmailDeliveryStatus> {
