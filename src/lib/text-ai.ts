@@ -156,13 +156,13 @@ const RELAYROUTER_TEXT_MODELS = ['relayrouter/auto', 'claude-opus-4-8', 'gpt-5.5
 const TOPTOOLS_TEXT_MODELS = ['top-tools-ai']
 const OPENAI_COMPAT_TEXT_MODELS = ['auto']
 const NVIDIA_OPENAI_COMPAT_TEXT_MODELS = [
-  'openai/gpt-oss-20b',
-  'openai/gpt-oss-120b',
-  'nvidia/nemotron-3-super-120b-a12b',
+  'deepseek/deepseek-v3.2',
   'qwen/qwen3-235b-a22b',
   'moonshotai/kimi-k2-instruct-0905',
+  'openai/gpt-oss-120b',
+  'nvidia/nemotron-3-super-120b-a12b',
   'mistralai/mistral-large-3-675b-instruct-2512',
-  'deepseek/deepseek-v3.2',
+  'openai/gpt-oss-20b',
 ]
 const NVIDIA_OPENAI_COMPAT_CALLABLE_MODEL_IDS = new Set(NVIDIA_OPENAI_COMPAT_TEXT_MODELS.map((model) => model.toLowerCase()))
 const NVIDIA_OPENAI_COMPAT_MODEL_LIMIT = 4
