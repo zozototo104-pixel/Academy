@@ -105,7 +105,7 @@ export async function GET(req: NextRequest) {
     })
     return NextResponse.json({ items: items.map(mapItem) })
   } catch (error: any) {
-    if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
+    if (isAdminAuthError(error)) return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
     return NextResponse.json({ error: 'تعذر تحميل جدول الدراسة' }, { status: 500 })
   }
 }
