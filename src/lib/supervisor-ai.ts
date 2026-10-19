@@ -81,8 +81,19 @@ const RELEVANT_BOOK_SNIPPETS_TITLE = 'مقاطع من الكتب المقررة 
 function canonicalArabicSearchTerm(value?: string | null): string {
   let word = normalizeArabic(value)
   word = word.replace(/^(?:وال|فال|بال|كال|لل|ال)(?=.{3,}$)/u, '')
-  word = word.replace(/^[وفبكل](?=.{3,}$)/u, '')
   return word
+}
+
+function cleanOriginalBookSearchTerm(value?: string | null): string {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function stripOriginalArabicCompoundPrefix(value: string): string {
+  return value.replace(/^(?:وال|فال|بال|كال|لل|ال)(?=.{3,}$)/u, '')
 }
 
 const SUPERVISOR_BOOK_SEARCH_FILLER_WORDS = new Set([
