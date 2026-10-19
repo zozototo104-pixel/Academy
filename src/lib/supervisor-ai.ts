@@ -735,7 +735,7 @@ export async function buildSupervisorContext(userId: string, options?: { scope?:
       ? enrollments.flatMap((enr: any) => (Array.isArray(enr?.program?.books) ? enr.program.books : [])
           .flatMap((book: any) => [book?.title, book?.titleEn]).filter(Boolean))
       : []
-    const relevantBookSnippets = await buildRelevantSupervisorBookSnippets(enrolledProgramIds, options?.query, enrolledBookTitles, 1500)
+    const relevantBookSnippets = await buildRelevantSupervisorBookSnippets(enrolledProgramIds, options?.query, 1500, { bookTitles: enrolledBookTitles })
     if (relevantBookSnippets) parts.push(relevantBookSnippets)
 
     if (Array.isArray(enrollments) && enrollments.length) {
