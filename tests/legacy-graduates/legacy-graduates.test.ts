@@ -19,6 +19,7 @@ let storageSeq = 0
 let currentAdmin: AnyRecord | null = { id: 'admin-1', name: 'Admin', role: 'ADMIN' }
 let currentUser: AnyRecord | null = { id: 'admin-1', name: 'Admin', role: 'ADMIN', email: 'admin@example.com' }
 let emailStatus: 'SENT' | 'SKIPPED' | 'FAILED' = 'SENT'
+let legacyWelcomeCalls = 0
 
 function clone<T extends AnyRecord>(item: T | null | undefined): T | null {
   return item ? ({ ...item } as T) : null
