@@ -1149,7 +1149,7 @@ async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseU
         : rows
     const models = orderedRows.map(({ id }) => id)
     const capabilities = Object.fromEntries(orderedRows.map(({ raw, id }) => [id, capabilityFromModelRow(raw)]))
-    freeModelsCache.set(cacheKeyForFreeModels(provider, normalizedBaseUrl, key), { at: Date.now(), models, capabilities })
+    freeModelsCache.set(cacheKeyForFreeModels(provider, normalizedBaseUrl, key), { at: Date.now(), models, capabilities, discoveryOk: true, sourceCount: nvidiaCompat ? sourceRows.length : undefined })
     return models
   } catch {
     return []
