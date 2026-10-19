@@ -32,6 +32,28 @@ export const maxDuration = 30
 const LIVE_WS_BASE =
   'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained'
 
+const BOOK_SEARCH_SYSTEM_INSTRUCTION =
+  'عندما يسأل الطالب عن مفهوم أو محتوى من كتبه المقررة، استدعِ search_course_books بسؤاله قبل الإجابة، واعتمد على المقاطع واذكر اسم الكتاب.'
+
+const BOOK_SEARCH_TOOL_DECLARATION = {
+  name: 'search_course_books',
+  description: 'ابحث في الكتب المقررة للطالب عن مقاطع تجيب سؤاله',
+  parameters: {
+    type: 'OBJECT',
+    properties: {
+      query: {
+        type: 'STRING',
+        description: 'سؤال الطالب أو المفهوم المطلوب البحث عنه في الكتب المقررة',
+      },
+    },
+    required: ['query'],
+  },
+}
+
+const GEMINI_LIVE_BOOK_SEARCH_TOOLS = [
+  { functionDeclarations: [BOOK_SEARCH_TOOL_DECLARATION] },
+]
+
 type SetupVariant = 'minimal' | 'generationConfig' | 'bare'
 
 function cleanModel(model: unknown): string {
