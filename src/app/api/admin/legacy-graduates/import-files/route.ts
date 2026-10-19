@@ -41,6 +41,15 @@ async function findCertificateByFileIdentifier(identifier: string) {
   return { certificate: null, status: 'NOT_FOUND' as const }
 }
 
+type LegacyCertificateZipImportResult = {
+  fileName: string
+  ok: boolean
+  status: 'SUCCESS' | 'NOT_FOUND' | 'AMBIGUOUS' | 'REJECTED_FORMAT' | 'FAILED'
+  error?: string
+  certificateId?: string
+  serial?: string
+}
+
 // POST /api/admin/legacy-graduates/import-files — ربط وختم شهادات جاهزة من ZIP
 export async function POST(req: NextRequest) {
   try {
