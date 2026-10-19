@@ -48,6 +48,8 @@ export interface TextAiCallOpts {
   excludeProviders?: TextAiProvider[]
   preferredProviders?: TextAiProvider[]
   preferredModels?: TextAiPreferredModel[]
+  maxProviderModels?: Partial<Record<Exclude<TextAiProvider, 'AUTO'>, number>>
+  providerRateLimitCooldown?: { provider: Exclude<TextAiProvider, 'AUTO'>; threshold: number; windowMs: number; cooldownMinutes: number }
   excludeModelFamilies?: string[]
   deadlineMs?: number
   timeoutMs?: number
@@ -159,6 +161,7 @@ const VISION_OPENAI_COMPAT_PROVIDERS = new Set<TextAiProvider>(['OPENAI', 'OPENR
 const VISION_NATIVE_PROVIDERS = new Set<TextAiProvider>(['GEMINI', 'ANTHROPIC', 'ZAI'])
 
 const cooldowns = new Map<string, { until: number; reason: string; status?: number; model?: string }>()
+const providerRateLimitHits = new Map<string, number[]>()
 const modelRateLimitHits = new Map<string, Array<{ model: string; at: number }>>()
 let roundRobin = 0
 let lastResult: TextAiDiagnostics['lastResult'] = null
@@ -335,6 +338,10 @@ function keyHash(key: string): string {
   return createHash('sha256').update(key).digest('hex').slice(0, 10)
 }
 
+function providerCooldownId(provider: string): string {
+  return `${provider}:provider`
+}
+
 function cooldownId(provider: string, key: string): string {
   return `${provider}:${keyHash(key)}`
 }
@@ -445,7 +452,20 @@ async function markPersistentCooldown(provider: string, keyIndex: number, model:
   }
 }
 
+function activeProviderCooldown(provider: string): { until: number; reason: string; status?: number; model?: string } | null {
+  const id = providerCooldownId(provider)
+  const item = cooldowns.get(id)
+  if (!item) return null
+  if (item.until <= Date.now()) {
+    cooldowns.delete(id)
+    return null
+  }
+  return item
+}
+
 function activeMemoryCooldown(provider: string, key: string): { until: number; reason: string; status?: number; model?: string } | null {
+  const providerItem = activeProviderCooldown(provider)
+  if (providerItem) return providerItem
   const id = cooldownId(provider, key)
   const item = cooldowns.get(id)
   if (!item) return null
@@ -475,6 +495,24 @@ function markCooldown(provider: string, key: string, reason: string, minutes?: n
   const fallback = Number(env('AI_ROUTER_COOLDOWN_MINUTES')) || 15
   const ttl = Math.max(1, Math.floor(minutes || fallback))
   cooldowns.set(cooldownId(provider, key), { until: Date.now() + ttl * 60 * 1000, reason: reason.slice(0, 180), status })
+}
+
+function markProviderCooldown(provider: string, reason: string, minutes?: number, status?: number) {
+  const fallback = Number(env('AI_ROUTER_COOLDOWN_MINUTES')) || 15
+  const ttl = Math.max(1, Math.floor(minutes || fallback))
+  cooldowns.set(providerCooldownId(provider), { until: Date.now() + ttl * 60 * 1000, reason: reason.slice(0, 180), status })
+}
+
+function recordProviderRateLimitAndMaybeCooldown(provider: ConcreteProvider, opts: TextAiCallOpts, reason: string, status?: number) {
+  const rule = opts.providerRateLimitCooldown
+  if (!rule || rule.provider !== provider) return
+  const now = Date.now()
+  const windowMs = Math.max(1000, Number(rule.windowMs || 60_000))
+  const threshold = Math.max(1, Math.floor(Number(rule.threshold || 3)))
+  const hits = (providerRateLimitHits.get(provider) || []).filter((at) => now - at <= windowMs)
+  hits.push(now)
+  providerRateLimitHits.set(provider, hits)
+  if (__testProviderRateLimitCooldownForTests(hits, now, threshold, windowMs)) markProviderCooldown(provider, reason, rule.cooldownMinutes, status)
 }
 
 function markModelCooldown(provider: string, key: string, model: string, reason: string, minutes?: number, status?: number) {
@@ -750,6 +788,19 @@ async function settings() {
 
 type Settings = Awaited<ReturnType<typeof settings>>
 type ConcreteProvider = Exclude<TextAiProvider, 'AUTO'>
+
+function limitProviderModels(provider: Exclude<TextAiProvider, 'AUTO'>, models: string[], maxProviderModels?: Partial<Record<Exclude<TextAiProvider, 'AUTO'>, number>>) {
+  const limit = Math.max(0, Math.floor(Number(maxProviderModels?.[provider] || 0)))
+  return limit > 0 ? models.slice(0, limit) : models
+}
+
+export function __testLimitProviderModelsForTests(provider: Exclude<TextAiProvider, 'AUTO'>, models: string[], maxProviderModels?: Partial<Record<Exclude<TextAiProvider, 'AUTO'>, number>>) {
+  return limitProviderModels(provider, models, maxProviderModels)
+}
+
+export function __testProviderRateLimitCooldownForTests(timestamps: number[], now = Date.now(), threshold = 3, windowMs = 60_000) {
+  return timestamps.filter((value) => Number.isFinite(value) && value <= now && now - value <= windowMs).length >= threshold
+}
 
 function providerKeys(s: Settings, provider: ConcreteProvider): string[] {
   switch (provider) {
@@ -2147,7 +2198,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
       if (recentFailedHealth(health.get(model) || null)) noteNoCandidate(provider, model, 'HEALTH_SKIP')
     }
     const healthFilteredModels = orderedModels.filter((model) => !recentFailedHealth(health.get(model) || null))
-    const models = healthFilteredModels.length ? healthFilteredModels : orderedModels
+    const models = limitProviderModels(provider, healthFilteredModels.length ? healthFilteredModels : orderedModels, effectiveOpts.maxProviderModels)
     if (isVerifierCall(effectiveOpts) && candidateModels.length > 0 && models.length === 0) onlySameFamilyModelsExcluded = true
     for (const model of models) {
       if (skipModelsThisRequest.has(`${provider}:${model}`)) continue
@@ -2249,6 +2300,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
             if (status === 503 || status === 504) await markPersistentCooldown(provider, keyIndex, model, msg, status, 2)
           }
           if (isQuotaLike(e)) {
+            recordProviderRateLimitAndMaybeCooldown(provider, effectiveOpts, msg, status)
             const scope = classifyRateLimitScope(model, msg, status)
             const minutes = rateLimitCooldownMinutes(e, msg, model)
             if (scope === 'key') {

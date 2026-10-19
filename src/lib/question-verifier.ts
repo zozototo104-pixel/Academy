@@ -41,6 +41,11 @@ export function __testVerifierExcludedProviders(generatorProvider: TextAiProvide
   return [generatorProvider]
 }
 
+export function __testVerifierPreferredProvidersForTests(generatorProvider?: TextAiProvider | null): TextAiProvider[] {
+  const preferred: TextAiProvider[] = ['GROQ', 'GEMINI', 'UNOROUTER']
+  return preferred.filter((provider) => provider !== generatorProvider)
+}
+
 const verifierItemSchema = z.object({
   index: z.number().int().nonnegative(),
   valid: z.boolean(),
@@ -307,8 +312,11 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
         maxOutputTokens: 3000,
         taskLevel: 'ACADEMIC_CRITICAL',
         purpose: 'REVIEW',
+        preferredProviders: __testVerifierPreferredProvidersForTests(opts.generatorProvider as TextAiProvider),
         excludeProviders,
         excludeModelFamilies,
+        maxProviderModels: { UNOROUTER: 3 },
+        providerRateLimitCooldown: { provider: 'UNOROUTER', threshold: 3, windowMs: 60_000, cooldownMinutes: 10 },
         deadlineMs: deadline,
         validate: (text, context) => {
           verifierContext = context || {}
