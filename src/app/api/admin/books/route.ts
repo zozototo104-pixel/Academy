@@ -572,6 +572,7 @@ export async function DELETE(req: NextRequest) {
     if (!bookId) return NextResponse.json({ error: 'معرف الكتاب مطلوب' }, { status: 400 })
     const book = await db.book.delete({ where: { id: bookId } })
     await audit({ id: admin.id, name: admin.name }, 'DELETE_BOOK', 'Book', bookId, `حذف كتاب مقرر: ${book.title}`)
+    await notifyProgramNeedsQualityApproval(book.programId, 'حذف كتاب مقرر')
     return NextResponse.json({ ok: true })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
