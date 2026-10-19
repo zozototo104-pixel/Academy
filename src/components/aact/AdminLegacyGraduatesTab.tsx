@@ -42,6 +42,8 @@ type ImportPreviewRow = {
   programSuggestion?: string | null
 }
 
+type LegacyProgramOption = { id: string; titleAr: string; titleEn?: string | null; slug?: string | null; active?: boolean | null; category?: string | null }
+
 type AddEditForm = {
   id?: string
   name: string
