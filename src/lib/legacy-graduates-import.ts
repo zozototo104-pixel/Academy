@@ -32,7 +32,7 @@ const HEADER_ALIASES: Record<string, string[]> = {
   grade: ['grade', 'التقدير', 'تقدير'],
   finalScoreText: ['finalscore', 'final score', 'score', 'المعدل', 'الدرجة', 'النسبة'],
   issuedAtText: ['issuedat', 'issued at', 'graduation date', 'تاريخ التخرج', 'تاريخ الشهادة'],
-  legacySerial: ['legacyserial', 'legacy serial', 'certificate no', 'certificate number', 'رقم الشهادة', 'رقم الشهادة الورقية'],
+  legacySerial: ['legacyserial', 'legacy serial', 'certificate no', 'certificate number', 'old certificate number', 'رقم الشهادة', 'رقم الشهادة الورقية', 'رقم الشهادة القديم'],
 }
 
 function cleanString(value: unknown) {
