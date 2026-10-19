@@ -156,7 +156,7 @@ const RELAYROUTER_TEXT_MODELS = ['relayrouter/auto', 'claude-opus-4-8', 'gpt-5.5
 const TOPTOOLS_TEXT_MODELS = ['top-tools-ai']
 const OPENAI_COMPAT_TEXT_MODELS = ['auto']
 const NVIDIA_OPENAI_COMPAT_TEXT_MODELS = [
-  'deepseek/deepseek-v3.2',
+  'deepseek-ai/deepseek-v3.2',
   'qwen/qwen3-235b-a22b',
   'moonshotai/kimi-k2-instruct-0905',
   'openai/gpt-oss-120b',
