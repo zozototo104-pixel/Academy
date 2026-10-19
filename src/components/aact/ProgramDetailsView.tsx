@@ -246,7 +246,7 @@ function NumberedDisplayList({ items, columns = 'md:grid-cols-1' }: { items: str
 }
 
 export function ProgramDetailsView() {
-  const { programDetailsId, user, navigate, openApply, openProgram } = useAppStore()
+  const { programDetailsId, user, navigate, goBack, openApply, openProgram } = useAppStore()
   const [programs, setPrograms] = useState<Program[]>(() => readCachedPrograms())
   const [loading, setLoading] = useState(true)
   const { toast } = useToast()
