@@ -646,17 +646,7 @@ export async function runNextQuestionBankGenerationJobStep(programId?: string, o
       ...(programId ? { programId } : {}),
       AND: [
         { OR: [{ lockedUntil: null }, { lockedUntil: { lt: now } }] },
-        {
-          OR: options.queuedOnly ? [
-            { status: 'QUEUED', OR: runnableRetry },
-            { status: 'RUNNING', OR: runnableRetry },
-            { status: 'PAUSED', retryAt: { lte: now } },
-          ] : [
-            { status: 'QUEUED', OR: runnableRetry },
-            { status: 'RUNNING', OR: runnableRetry },
-            { status: 'PAUSED', OR: runnableRetry },
-          ],
-        },
+        { OR: statusFilter },
       ],
     },
     orderBy: [{ createdAt: 'asc' }],
