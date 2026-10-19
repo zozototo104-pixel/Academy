@@ -361,7 +361,7 @@ export async function POST(req: NextRequest) {
 
     const selectedTitle = programRec?.titleAr || program.trim()
     const admissionState = await withTiming('db_admissions_duplicate_or_create_application', () => db.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${submittedEmail} || ':' || ${programRec.id}))`
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${submittedEmail} || ':' || ${programRec.id}))`
       const duplicateOpen = await tx.admissionApplication.findFirst({
         where: {
           programId: programRec.id,
