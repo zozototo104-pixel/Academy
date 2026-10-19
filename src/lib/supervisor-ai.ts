@@ -157,7 +157,7 @@ function supervisorBookWordSet(value: unknown): Set<string> {
 
 function countMatchingBookTerms(value: unknown, terms: string[]): number {
   const words = supervisorBookWordSet(value)
-  return terms.reduce((count, term) => count + (words.has(canonicalArabicSearchTerm(term)) ? 1 : 0), 0)
+  return terms.reduce((count, term) => count + (words.has(term) ? 1 : 0), 0)
 }
 
 function formatBookSnippetLocator(value: any): string {
