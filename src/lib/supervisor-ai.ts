@@ -114,6 +114,23 @@ function supervisorBookSearchTerms(query?: string | null): string[] {
   return [...seen]
 }
 
+function supervisorBookDbSearchTerms(query: string | null | undefined, normalizedTerms: string[]): string[] {
+  const seen = new Set<string>()
+  const add = (value?: string | null) => {
+    const term = String(value || '').trim()
+    const normalized = canonicalArabicSearchTerm(term)
+    if (term.length >= 3 && normalized.length >= 3 && !SUPERVISOR_BOOK_SEARCH_FILLER_WORDS.has(normalized)) seen.add(term)
+  }
+
+  for (const term of normalizedTerms) add(term)
+  for (const word of cleanOriginalBookSearchTerm(query).split(' ')) {
+    add(word)
+    add(stripOriginalArabicCompoundPrefix(word))
+    if (seen.size >= 40) break
+  }
+  return [...seen]
+}
+
 type SupervisorBookSnippetCandidate = {
   id: string
   score: number
