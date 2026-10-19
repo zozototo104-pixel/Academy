@@ -2102,19 +2102,17 @@ async function callChatCompletions(provider: string, baseUrl: string, key: strin
       'Content-Type': 'application/json',
       ...(provider === 'OPENROUTER' ? { 'HTTP-Referer': env('NEXT_PUBLIC_APP_URL') || 'https://academy.local', 'X-Title': 'AACT Academy' } : {}),
     },
-    body: JSON.stringify({
-      model,
-      messages: toOpenAiChatMessages(providerOpts),
-      max_tokens: providerOpts.maxOutputTokens ?? (providerOpts.json ? 4096 : 2048),
-      temperature: providerOpts.temperature ?? (providerOpts.json ? 0.2 : 0.6),
-      ...(providerOpts.json ? { response_format: { type: 'json_object' } } : {}),
-      ...(provider === 'ZAI' ? { thinking: { type: model.startsWith('glm-4.5') ? 'enabled' : 'disabled' }, reasoning_effort: model.startsWith('glm-4.5') ? 'max' : undefined } : {}),
-    }),
+    body: JSON.stringify(openAiChatCompletionsBody(provider, baseUrl, model, providerOpts)),
   }, providerAttemptTimeoutMs(providerOpts), providerOpts.deadlineMs)
   const data = await parseResponse(response)
   if (!response.ok) throwHttp(provider, response.status, data)
-  const text = String(data?.choices?.[0]?.message?.content || '').trim()
-  if (!text) throw new Error(`${provider}_EMPTY_RESPONSE`)
+  const message = data?.choices?.[0]?.message || {}
+  const text = String(message?.content || '').trim()
+  if (!text) {
+    const err: any = new Error(`${provider}_EMPTY_RESPONSE`)
+    if (isNvidiaChatCompletionsRequest(provider, baseUrl) && message?.reasoning_content) err.code = 'EMPTY_RESPONSE'
+    throw err
+  }
   return text
 }
 
