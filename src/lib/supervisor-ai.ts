@@ -259,9 +259,12 @@ export async function buildRelevantSupervisorBookSnippets(enrolledProgramIds: st
       const [chunks, knowledgeItems] = await Promise.all([
         bookChunkStore?.findMany
           ? bookChunkStore.findMany({
-              where: { programId: { in: programIds } },
+              where: {
+                programId: { in: programIds },
+                OR: dbTerms.map((term) => ({ text: { contains: term, mode: 'insensitive' } })),
+              },
               orderBy: [{ bookId: 'asc' }, { index: 'asc' }],
-              take: 2000,
+              take: 40,
               select: {
                 id: true,
                 bookId: true,
@@ -277,9 +280,16 @@ export async function buildRelevantSupervisorBookSnippets(enrolledProgramIds: st
           : Promise.resolve([]),
         knowledgeStore?.findMany
           ? knowledgeStore.findMany({
-              where: { programId: { in: programIds } },
+              where: {
+                programId: { in: programIds },
+                OR: dbTerms.flatMap((term) => [
+                  { title: { contains: term, mode: 'insensitive' } },
+                  { summary: { contains: term, mode: 'insensitive' } },
+                  { excerpt: { contains: term, mode: 'insensitive' } },
+                ]),
+              },
               orderBy: [{ importance: 'desc' }, { updatedAt: 'desc' }],
-              take: 1000,
+              take: 30,
               select: {
                 id: true,
                 programId: true,
