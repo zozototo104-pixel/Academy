@@ -337,6 +337,10 @@ function keyHash(key: string): string {
   return createHash('sha256').update(key).digest('hex').slice(0, 10)
 }
 
+function providerCooldownId(provider: string): string {
+  return `${provider}:provider`
+}
+
 function cooldownId(provider: string, key: string): string {
   return `${provider}:${keyHash(key)}`
 }
