@@ -120,7 +120,9 @@ export async function POST(req: NextRequest) {
           issuedAt: row.issuedAt,
           legacySerial: row.legacySerial,
         }, admin)
-        const emailStatus = await sendLegacyGraduatePasswordSetup(req, saved.user.id)
+        const emailStatus = saved.userCreated
+          ? await sendLegacyGraduatePasswordSetup(req, saved.user.id)
+          : 'SKIPPED_EXISTING_USER'
         results.push({
           rowNumber: row.rowNumber,
           ok: true,
