@@ -22,7 +22,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
       select: { role: true, passwordResetTokenHash: true, passwordResetUsedAt: true },
     })
     const importAudit = await db.auditLog.findFirst({
-      where: { action: 'IMPORT_LEGACY_GRADUATE', entity: 'Certificate', entityId: cert.id },
+      where: { action: { in: ['IMPORT_LEGACY_GRADUATE', 'CREATE_LEGACY_GRADUATE'] }, entity: 'Certificate', entityId: cert.id },
       select: { id: true },
     })
     if (!user || user.role !== 'STUDENT' || user.passwordResetUsedAt || !user.passwordResetTokenHash || !importAudit) {
