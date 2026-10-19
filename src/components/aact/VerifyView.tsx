@@ -29,6 +29,7 @@ interface VerifyResult {
   verificationMode?: 'QR_TOKEN' | 'SERIAL'
   detailsUnlocked?: boolean
   certificate?: CertificateData & {
+    legacySerial?: string | null
     valid: boolean
     detailsAvailable?: boolean
     academicProfile?: {
