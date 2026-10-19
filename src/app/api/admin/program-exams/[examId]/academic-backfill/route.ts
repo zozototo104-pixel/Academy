@@ -46,6 +46,7 @@ export async function POST(_req: NextRequest, context: any) {
     }
 
     const startedAt = Date.now()
+    const deadlineMs = startedAt + 48_000
     let filled = await syncProgramExamQuestionsFromBank(examId)
     let aiFailed = 0
     let counts = await academicCounts(examId)
