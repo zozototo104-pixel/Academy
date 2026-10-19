@@ -2090,6 +2090,39 @@ export function __testTryRepairJsonTextForTests(raw: string): { ok: true; text: 
   return tryRepairJsonText(raw)
 }
 
+export function __testNvidiaCompatSmartFilterSmokeForTests(): { models: string[]; firstWindow: string[]; secondWindow: string[]; repairedJson: string } {
+  const rows = [
+    { id: 'nvidia/embed-qa' },
+    { id: 'meta/llama-3.3-70b-coder' },
+    { id: 'qwen/qwen3-8b-instruct' },
+    { id: 'nvidia/vila-vlm' },
+    { id: 'openai/gpt-oss-120b' },
+    { id: 'moonshotai/kimi-k2-instruct' },
+    { id: 'qwen/qwen3-235b-a22b-instruct-2507' },
+    { id: 'deepseek/deepseek-v3.2' },
+    { id: 'meta/llama-3.3-70b-instruct' },
+    { id: 'mistralai/mistral-large' },
+    { id: 'nvidia/llama-3.1-nemotron-ultra-253b-v1' },
+  ]
+  const models = nvidiaDiscoveredTextModelsFromRows(rows)
+  const expected = [
+    'deepseek/deepseek-v3.2',
+    'qwen/qwen3-235b-a22b-instruct-2507',
+    'moonshotai/kimi-k2-instruct',
+    'openai/gpt-oss-120b',
+    'meta/llama-3.3-70b-instruct',
+    'mistralai/mistral-large',
+    'nvidia/llama-3.1-nemotron-ultra-253b-v1',
+  ]
+  if (JSON.stringify(models) !== JSON.stringify(expected)) throw new Error('NVIDIA_SMART_FILTER_TEST_FAILED')
+  const firstWindow = __testNvidiaRoundRobinProviderModelsForTests(models, 1)
+  const secondWindow = __testNvidiaRoundRobinProviderModelsForTests(models, 2)
+  if (firstWindow.length !== 4 || secondWindow.length !== 4 || firstWindow[0] === secondWindow[0]) throw new Error('NVIDIA_ROUND_ROBIN_TEST_FAILED')
+  const repaired = tryRepairJsonText('<think>internal reasoning</think>{"ok":true}')
+  if (!repaired.ok || repaired.text !== '{"ok":true}') throw new Error('NVIDIA_THINK_STRIP_TEST_FAILED')
+  return { models, firstWindow, secondWindow, repairedJson: repaired.text }
+}
+
 async function callProviderWithJsonRepair(provider: ConcreteProvider, s: Settings, key: string, model: string, opts: TextAiCallOpts): Promise<{ text: string; jsonOk?: boolean; retriedJson?: boolean }> {
   const first = await callProvider(provider, s, key, model, opts)
   if (!opts.json) return { text: first }
