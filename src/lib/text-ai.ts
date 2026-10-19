@@ -1752,6 +1752,41 @@ export function __testNvidiaSystemPromptForTests(baseUrl: string, model: string,
   return withNvidiaNoThinkDirective('OPENAI_COMPAT', baseUrl, model, { system, history: [] }).system
 }
 
+function isNvidiaChatCompletionsRequest(provider: string, baseUrl: string): boolean {
+  return provider === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(baseUrl)
+}
+
+function nvidiaChatBodyExtras(provider: string, baseUrl: string, model: string): Record<string, unknown> {
+  if (!isNvidiaChatCompletionsRequest(provider, baseUrl)) return {}
+  const id = model.toLowerCase()
+  return {
+    ...(/nemotron|qwen3/.test(id) ? { chat_template_kwargs: { enable_thinking: false } } : {}),
+    ...(/gpt[-_]?oss/.test(id) ? { reasoning_effort: 'low' } : {}),
+  }
+}
+
+function chatCompletionsMaxTokens(provider: string, baseUrl: string, opts: TextAiCallOpts): number {
+  const requested = Number(opts.maxOutputTokens ?? (opts.json ? 4096 : 2048))
+  const safe = Math.max(16, Number.isFinite(requested) ? requested : (opts.json ? 4096 : 2048))
+  return isNvidiaChatCompletionsRequest(provider, baseUrl) ? Math.max(1024, safe) : safe
+}
+
+function openAiChatCompletionsBody(provider: string, baseUrl: string, model: string, opts: TextAiCallOpts): Record<string, unknown> {
+  return {
+    model,
+    messages: toOpenAiChatMessages(opts),
+    max_tokens: chatCompletionsMaxTokens(provider, baseUrl, opts),
+    temperature: opts.temperature ?? (opts.json ? 0.2 : 0.6),
+    ...(opts.json ? { response_format: { type: 'json_object' } } : {}),
+    ...(provider === 'ZAI' ? { thinking: { type: model.startsWith('glm-4.5') ? 'enabled' : 'disabled' }, reasoning_effort: model.startsWith('glm-4.5') ? 'max' : undefined } : {}),
+    ...nvidiaChatBodyExtras(provider, baseUrl, model),
+  }
+}
+
+export function __testOpenAiChatCompletionsBodyForTests(provider: string, baseUrl: string, model: string, opts: TextAiCallOpts): Record<string, unknown> {
+  return openAiChatCompletionsBody(provider, baseUrl, model, withNvidiaNoThinkDirective(provider, baseUrl, model, opts))
+}
+
 function normalizedAttachments(opts: TextAiCallOpts): TextAiAttachment[] {
   const out: TextAiAttachment[] = []
   for (const attachment of opts.attachments || []) {
