@@ -1431,19 +1431,7 @@ export async function textAiFreeModelsForProvider(providerValue: unknown): Promi
     }
   }
   const concrete = provider as ConcreteProvider
-  const staticDefaults: string[] =
-    concrete === 'GEMINI' ? GEMINI_TEXT_MODELS :
-    concrete === 'OPENAI' ? OPENAI_TEXT_MODELS :
-    concrete === 'ANTHROPIC' ? ANTHROPIC_TEXT_MODELS :
-    concrete === 'ZAI' ? ZAI_TEXT_MODELS :
-    concrete === 'GROQ' ? GROQ_TEXT_MODELS :
-    concrete === 'OPENROUTER' ? OPENROUTER_TEXT_MODELS :
-    concrete === 'DEEPINFRA' ? DEEPINFRA_TEXT_MODELS :
-    concrete === 'TOGETHER' ? TOGETHER_TEXT_MODELS :
-    concrete === 'UNOROUTER' ? UNOROUTER_TEXT_MODELS :
-    concrete === 'RELAYROUTER' ? RELAYROUTER_TEXT_MODELS :
-    concrete === 'TOPTOOLS' ? TOPTOOLS_TEXT_MODELS :
-    OPENAI_COMPAT_TEXT_MODELS
+  const staticDefaults = staticTextModelsForProvider(concrete, s)
   const discovered = await liveFreeModels(concrete, s)
   const selected = modelFor(s, concrete)
   const selectedPart = selected && !/(^|\/|-)auto$/i.test(selected) && selected !== 'auto' ? [selected] : []
