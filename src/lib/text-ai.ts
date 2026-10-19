@@ -156,7 +156,7 @@ const RELAYROUTER_TEXT_MODELS = ['relayrouter/auto', 'claude-opus-4-8', 'gpt-5.5
 const TOPTOOLS_TEXT_MODELS = ['top-tools-ai']
 const OPENAI_COMPAT_TEXT_MODELS = ['auto']
 const NVIDIA_OPENAI_COMPAT_TEXT_MODELS = [
-  'deepseek/deepseek-v3.2',
+  'deepseek-ai/deepseek-v3.2',
   'qwen/qwen3-235b-a22b',
   'moonshotai/kimi-k2-instruct-0905',
   'openai/gpt-oss-120b',
@@ -182,7 +182,8 @@ let roundRobin = 0
 let lastResult: TextAiDiagnostics['lastResult'] = null
 let recentAttempts: TextAiAttemptDiagnostics[] = []
 type ModelCapability = { contextLength?: number; vision?: boolean; modalities?: string[]; supportedParameters?: string[] }
-const freeModelsCache = new Map<string, { at: number; models: string[]; capabilities?: Record<string, ModelCapability> }>()
+type FreeModelsCacheEntry = { at: number; models: string[]; capabilities?: Record<string, ModelCapability>; discoveryOk?: boolean; sourceCount?: number }
+const freeModelsCache = new Map<string, FreeModelsCacheEntry>()
 
 type TextAiSettingStore = {
   read(keys: string[]): Promise<Record<string, string>>
@@ -1070,6 +1071,10 @@ function nvidiaOpenAiCompatModelRank(id: string): number {
   if (/llama-3\.3.*70b/.test(n)) return 5
   if (/mistral-large/.test(n)) return 6
   if (/nemotron.*ultra/.test(n)) return 7
+  if (/nemotron-3-super-120b|nemotron.*120b/.test(n)) return 8
+  if (/llama-3\.3.*nemotron-super/.test(n)) return 9
+  if (/nemotron.*super/.test(n)) return 10
+  if (/gpt[-_]?oss.*20b/.test(n)) return 19
   return 20 + academicModelRank(id)
 }
 
@@ -1081,6 +1086,14 @@ function nvidiaDiscoveredTextModelsFromRows(rows: any[]): string[] {
     .filter(({ raw, id }) => validModelName(id) && isNvidiaFreeTrialTextModel(raw, id))
     .sort((a, b) => nvidiaOpenAiCompatModelRank(a.id) - nvidiaOpenAiCompatModelRank(b.id) || a.id.localeCompare(b.id))
     .map(({ id }) => id)
+}
+
+function nvidiaModelsAfterDiscovery(discovered: string[], staticDefaults: string[], discoveryOk: boolean): string[] {
+  return discoveryOk ? discovered : (discovered.length ? discovered : staticDefaults)
+}
+
+export function __testNvidiaStaticIntersectionForTests(discovered: string[], discoveryOk = true): string[] {
+  return nvidiaModelsAfterDiscovery(discovered, NVIDIA_OPENAI_COMPAT_TEXT_MODELS, discoveryOk)
 }
 
 export function __testFilterNvidiaFreeTrialTextModelsForTests(rows: any[]): string[] {
@@ -1127,7 +1140,8 @@ async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseU
     }, aiDiscoveryTimeoutMs())
     if (!response.ok) return []
     const data = await response.json().catch(() => ({}))
-    const rows = rowsFromModelPayload(data)
+    const sourceRows = rowsFromModelPayload(data)
+    const rows = sourceRows
       .filter((m) => m?.online !== false)
       .filter(isTextLikeModel)
       .map((m) => ({ raw: m, id: normalizeFreeModelName(provider, modelId(m)) }))
@@ -1145,7 +1159,7 @@ async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseU
         : rows
     const models = orderedRows.map(({ id }) => id)
     const capabilities = Object.fromEntries(orderedRows.map(({ raw, id }) => [id, capabilityFromModelRow(raw)]))
-    freeModelsCache.set(cacheKeyForFreeModels(provider, normalizedBaseUrl, key), { at: Date.now(), models, capabilities })
+    freeModelsCache.set(cacheKeyForFreeModels(provider, normalizedBaseUrl, key), { at: Date.now(), models, capabilities, discoveryOk: true, sourceCount: nvidiaCompat ? sourceRows.length : undefined })
     return models
   } catch {
     return []
@@ -1214,7 +1228,9 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<
     if (Array.isArray(parsed?.models) && Number(parsed.at || 0) > 0 && now - Number(parsed.at) < 24 * 60 * 60 * 1000) {
       const models = parsed.models.map(String).filter(validModelName)
       const capabilities = parsed.capabilities && typeof parsed.capabilities === 'object' ? parsed.capabilities as Record<string, ModelCapability> : undefined
-      freeModelsCache.set(cacheKey, { at: now, models, capabilities })
+      const discoveryOk = parsed.discoveryOk === true || models.length > 0
+      const sourceCount = Number(parsed.sourceCount ?? parsed.discoveredCount ?? NaN)
+      freeModelsCache.set(cacheKey, { at: now, models, capabilities, discoveryOk, sourceCount: Number.isFinite(sourceCount) ? sourceCount : undefined })
       return models
     }
   } catch {
@@ -1247,9 +1263,11 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<
   models = [...new Set(models)]
   const cachedWithCapabilities = freeModelsCache.get(cacheKey)
   const capabilities = cachedWithCapabilities?.capabilities
-  freeModelsCache.set(cacheKey, { at: now, models, capabilities })
-  if (models.length) {
-    settingStore().write(persistentModelsCacheKey(cacheKey), JSON.stringify({ at: now, models, capabilities })).catch(() => {})
+  const discoveryOk = cachedWithCapabilities?.discoveryOk
+  const sourceCount = cachedWithCapabilities?.sourceCount
+  freeModelsCache.set(cacheKey, { at: now, models, capabilities, discoveryOk, sourceCount })
+  if (models.length || discoveryOk) {
+    settingStore().write(persistentModelsCacheKey(cacheKey), JSON.stringify({ at: now, models, capabilities, discoveryOk, sourceCount })).catch(() => {})
   }
   return models
 }
@@ -1281,6 +1299,21 @@ function modelCapabilityAllowed(model: string): boolean {
 function modelCapabilitiesFor(provider: ConcreteProvider, s: Settings, model: string): ModelCapability | null {
   const cacheKey = cacheKeyForFreeModels(provider, baseFor(s, provider), providerKeys(s, provider)[0])
   return freeModelsCache.get(cacheKey)?.capabilities?.[model] || null
+}
+
+function freeModelDiscoveryEntry(provider: ConcreteProvider, s: Settings): FreeModelsCacheEntry | null {
+  return freeModelsCache.get(cacheKeyForFreeModels(provider, baseFor(s, provider), providerKeys(s, provider)[0])) || null
+}
+
+function nvidiaDiscoverySucceeded(s: Settings): boolean {
+  return freeModelDiscoveryEntry('OPENAI_COMPAT', s)?.discoveryOk === true
+}
+
+function nvidiaDiscoverySourceCount(s: Settings): number {
+  const entry = freeModelDiscoveryEntry('OPENAI_COMPAT', s)
+  const sourceCount = Number(entry?.sourceCount ?? NaN)
+  if (Number.isFinite(sourceCount) && sourceCount > 0) return Math.max(0, Math.floor(sourceCount))
+  return entry?.discoveryOk ? entry.models.length : 0
 }
 
 export function modelAllowedForPurpose(model: string, purpose?: TextAiPurpose, capability?: ModelCapability | null): boolean {
@@ -1446,13 +1479,17 @@ async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel
   const selected = modelFor(s, provider)
   const staticDefaults = staticTextModelsForProvider(provider, s)
   const discoveredFree = await liveFreeModels(provider, s)
-  const selectedIsAuto = /(^|\/|-)auto$/i.test(selected) || selected === 'auto'
-  const selectedPart = selected && !selectedIsAuto ? [selected] : []
-  const academicPreferred = taskLevel === 'GENERAL' ? [] : s.academicAllowlist.filter((item) => item.provider === provider).map((item) => item.model)
-  const discoveredOrFallback = discoveredFree.length ? discoveredFree : staticDefaults
   const nvidiaCompat = provider === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl)
+  const nvidiaDiscovered = nvidiaCompat && nvidiaDiscoverySucceeded(s)
+  const discoveredSet = new Set(discoveredFree.map((model) => model.toLowerCase()))
+  const selectedIsAuto = /(^|\/|-)auto$/i.test(selected) || selected === 'auto'
+  const selectedPart = selected && !selectedIsAuto && (!nvidiaDiscovered || discoveredSet.has(selected.toLowerCase())) ? [selected] : []
+  const academicPreferred = (taskLevel === 'GENERAL' ? [] : s.academicAllowlist.filter((item) => item.provider === provider).map((item) => item.model))
+    .filter((model) => !nvidiaDiscovered || discoveredSet.has(model.toLowerCase()))
+  const discoveredOrFallback = nvidiaCompat ? nvidiaModelsAfterDiscovery(discoveredFree, staticDefaults, nvidiaDiscovered) : (discoveredFree.length ? discoveredFree : staticDefaults)
   const models = [...new Set([...academicPreferred, ...selectedPart, ...discoveredOrFallback].filter(Boolean))]
     .filter((model) => !nvidiaCompat || NVIDIA_OPENAI_COMPAT_CALLABLE_MODEL_IDS.has(model.toLowerCase()))
+    .filter((model) => !nvidiaDiscovered || discoveredSet.has(model.toLowerCase()))
     .filter(modelCapabilityAllowed)
     .filter((model) => modelAllowedForPurpose(model, purpose, modelCapabilitiesFor(provider, s, model)))
   const allowed = taskLevel === 'GENERAL' ? models : models.filter((model) => academicModelAllowed(provider, model))
@@ -1549,10 +1586,12 @@ export async function textAiFreeModelsForProvider(providerValue: unknown): Promi
   const staticDefaults = staticTextModelsForProvider(concrete, s)
   const discoveredRaw = await liveFreeModels(concrete, s)
   const nvidiaCompat = concrete === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl)
+  const nvidiaDiscovered = nvidiaCompat && nvidiaDiscoverySucceeded(s)
   const discovered = discoveredRaw.filter((model) => !nvidiaCompat || NVIDIA_OPENAI_COMPAT_CALLABLE_MODEL_IDS.has(model.toLowerCase()))
+  const discoveredSet = new Set(discovered.map((model) => model.toLowerCase()))
   const selected = modelFor(s, concrete)
-  const selectedPart = selected && !/(^|\/|-)auto$/i.test(selected) && selected !== 'auto' && (!nvidiaCompat || NVIDIA_OPENAI_COMPAT_CALLABLE_MODEL_IDS.has(selected.toLowerCase())) ? [selected] : []
-  const models = [...new Set([...selectedPart, ...discovered, ...staticDefaults].filter(Boolean))]
+  const selectedPart = selected && !/(^|\/|-)auto$/i.test(selected) && selected !== 'auto' && (!nvidiaCompat || NVIDIA_OPENAI_COMPAT_CALLABLE_MODEL_IDS.has(selected.toLowerCase())) && (!nvidiaDiscovered || discoveredSet.has(selected.toLowerCase())) ? [selected] : []
+  const models = [...new Set([...selectedPart, ...discovered, ...(nvidiaDiscovered ? [] : staticDefaults)].filter(Boolean))]
   const catalogLabel = concrete === 'TOPTOOLS'
     ? 'نموذج متاح'
     : concrete === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl)
@@ -1724,6 +1763,41 @@ export function __testStripThinkBlocksForTests(text: string): string {
 
 export function __testNvidiaSystemPromptForTests(baseUrl: string, model: string, system: string): string {
   return withNvidiaNoThinkDirective('OPENAI_COMPAT', baseUrl, model, { system, history: [] }).system
+}
+
+function isNvidiaChatCompletionsRequest(provider: string, baseUrl: string): boolean {
+  return provider === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(baseUrl)
+}
+
+function nvidiaChatBodyExtras(provider: string, baseUrl: string, model: string): Record<string, unknown> {
+  if (!isNvidiaChatCompletionsRequest(provider, baseUrl)) return {}
+  const id = model.toLowerCase()
+  return {
+    ...(/nemotron|qwen3/.test(id) ? { chat_template_kwargs: { enable_thinking: false } } : {}),
+    ...(/gpt[-_]?oss/.test(id) ? { reasoning_effort: 'low' } : {}),
+  }
+}
+
+function chatCompletionsMaxTokens(provider: string, baseUrl: string, opts: TextAiCallOpts): number {
+  const requested = Number(opts.maxOutputTokens ?? (opts.json ? 4096 : 2048))
+  const safe = Math.max(16, Number.isFinite(requested) ? requested : (opts.json ? 4096 : 2048))
+  return isNvidiaChatCompletionsRequest(provider, baseUrl) ? Math.max(1024, safe) : safe
+}
+
+function openAiChatCompletionsBody(provider: string, baseUrl: string, model: string, opts: TextAiCallOpts): Record<string, unknown> {
+  return {
+    model,
+    messages: toOpenAiChatMessages(opts),
+    max_tokens: chatCompletionsMaxTokens(provider, baseUrl, opts),
+    temperature: opts.temperature ?? (opts.json ? 0.2 : 0.6),
+    ...(opts.json ? { response_format: { type: 'json_object' } } : {}),
+    ...(provider === 'ZAI' ? { thinking: { type: model.startsWith('glm-4.5') ? 'enabled' : 'disabled' }, reasoning_effort: model.startsWith('glm-4.5') ? 'max' : undefined } : {}),
+    ...nvidiaChatBodyExtras(provider, baseUrl, model),
+  }
+}
+
+export function __testOpenAiChatCompletionsBodyForTests(provider: string, baseUrl: string, model: string, opts: TextAiCallOpts): Record<string, unknown> {
+  return openAiChatCompletionsBody(provider, baseUrl, model, withNvidiaNoThinkDirective(provider, baseUrl, model, opts))
 }
 
 function normalizedAttachments(opts: TextAiCallOpts): TextAiAttachment[] {
@@ -2041,19 +2115,17 @@ async function callChatCompletions(provider: string, baseUrl: string, key: strin
       'Content-Type': 'application/json',
       ...(provider === 'OPENROUTER' ? { 'HTTP-Referer': env('NEXT_PUBLIC_APP_URL') || 'https://academy.local', 'X-Title': 'AACT Academy' } : {}),
     },
-    body: JSON.stringify({
-      model,
-      messages: toOpenAiChatMessages(providerOpts),
-      max_tokens: providerOpts.maxOutputTokens ?? (providerOpts.json ? 4096 : 2048),
-      temperature: providerOpts.temperature ?? (providerOpts.json ? 0.2 : 0.6),
-      ...(providerOpts.json ? { response_format: { type: 'json_object' } } : {}),
-      ...(provider === 'ZAI' ? { thinking: { type: model.startsWith('glm-4.5') ? 'enabled' : 'disabled' }, reasoning_effort: model.startsWith('glm-4.5') ? 'max' : undefined } : {}),
-    }),
+    body: JSON.stringify(openAiChatCompletionsBody(provider, baseUrl, model, providerOpts)),
   }, providerAttemptTimeoutMs(providerOpts), providerOpts.deadlineMs)
   const data = await parseResponse(response)
   if (!response.ok) throwHttp(provider, response.status, data)
-  const text = String(data?.choices?.[0]?.message?.content || '').trim()
-  if (!text) throw new Error(`${provider}_EMPTY_RESPONSE`)
+  const message = data?.choices?.[0]?.message || {}
+  const text = String(message?.content || '').trim()
+  if (!text) {
+    const err: any = new Error(`${provider}_EMPTY_RESPONSE`)
+    if (isNvidiaChatCompletionsRequest(provider, baseUrl) && message?.reasoning_content) err.code = 'EMPTY_RESPONSE'
+    throw err
+  }
   return text
 }
 
@@ -2110,13 +2182,13 @@ export function __testNvidiaCompatSmartFilterSmokeForTests(): { models: string[]
     { id: 'openai/gpt-oss-120b' },
     { id: 'moonshotai/kimi-k2-instruct-0905' },
     { id: 'qwen/qwen3-235b-a22b' },
-    { id: 'deepseek/deepseek-v3.2' },
+    { id: 'deepseek-ai/deepseek-v3.2' },
     { id: 'nvidia/nemotron-3-super-120b-a12b' },
     { id: 'mistralai/mistral-large-3-675b-instruct-2512' },
   ]
   const models = nvidiaDiscoveredTextModelsFromRows(rows)
   const expected = [
-    'deepseek/deepseek-v3.2',
+    'deepseek-ai/deepseek-v3.2',
     'qwen/qwen3-235b-a22b',
     'moonshotai/kimi-k2-instruct-0905',
     'openai/gpt-oss-120b',
@@ -2129,6 +2201,14 @@ export function __testNvidiaCompatSmartFilterSmokeForTests(): { models: string[]
   if (firstWindow.length !== 4 || secondWindow.length !== 4 || firstWindow[0] === secondWindow[0]) throw new Error('NVIDIA_ROUND_ROBIN_TEST_FAILED')
   const repaired = tryRepairJsonText('<think>internal reasoning</think>{"ok":true}')
   if (!repaired.ok || repaired.text !== '{"ok":true}') throw new Error('NVIDIA_THINK_STRIP_TEST_FAILED')
+  const nemotronBody = __testOpenAiChatCompletionsBodyForTests('OPENAI_COMPAT', 'https://integrate.api.nvidia.com/v1', 'nvidia/nemotron-3-super-120b-a12b', { system: 'sys', history: [], maxOutputTokens: 32 }) as any
+  if (nemotronBody?.chat_template_kwargs?.enable_thinking !== false || nemotronBody.max_tokens !== 1024) throw new Error('NVIDIA_NEMOTRON_BODY_TEST_FAILED')
+  const gptOssBody = __testOpenAiChatCompletionsBodyForTests('OPENAI_COMPAT', 'https://integrate.api.nvidia.com/v1', 'openai/gpt-oss-20b', { system: 'sys', history: [], maxOutputTokens: 32 }) as any
+  if (gptOssBody.reasoning_effort !== 'low' || gptOssBody.max_tokens !== 1024) throw new Error('NVIDIA_GPT_OSS_BODY_TEST_FAILED')
+  const otherBody = __testOpenAiChatCompletionsBodyForTests('GROQ', 'https://api.groq.com/openai/v1', 'llama-3.3-70b-versatile', { system: 'sys', history: [], maxOutputTokens: 32 }) as any
+  if (otherBody.chat_template_kwargs || otherBody.reasoning_effort || otherBody.max_tokens !== 32) throw new Error('NON_NVIDIA_BODY_CHANGED')
+  const intersected = __testNvidiaStaticIntersectionForTests(['openai/gpt-oss-120b'])
+  if (JSON.stringify(intersected) !== JSON.stringify(['openai/gpt-oss-120b'])) throw new Error('NVIDIA_STATIC_INTERSECTION_TEST_FAILED')
   return { models, firstWindow, secondWindow, repairedJson: repaired.text }
 }
 
@@ -2602,14 +2682,19 @@ export async function* textAiStreamText(opts: TextAiCallOpts): AsyncGenerator<st
   yield await textAiComplete(opts)
 }
 
-export async function textAiTestConnection(): Promise<{ ok: boolean; provider?: string; model?: string; reply?: string; error?: string }> {
+export async function textAiTestConnection(): Promise<{ ok: boolean; provider?: string; model?: string; reply?: string; error?: string; nvidiaDiscovery?: { count: number; selected: string[] } }> {
   const s = await settings()
   const providers = providerOrder(s)
   if (!providers.length) return { ok: false, error: 'TEXT_AI_ROUTER_NOT_CONFIGURED' }
   const errors: string[] = []
+  let nvidiaDiscovery: { count: number; selected: string[] } | undefined
   const requestSeq = ++routerRequestSeq
   for (const provider of providers) {
-    for (const model of providerModelsForRequest(provider, s, await modelFallbacks(s, provider), requestSeq)) {
+    const providerModels = providerModelsForRequest(provider, s, await modelFallbacks(s, provider), requestSeq)
+    if (provider === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl)) {
+      nvidiaDiscovery = { count: nvidiaDiscoverySourceCount(s), selected: providerModels.slice(0, 4) }
+    }
+    for (const model of providerModels) {
       for (const key of candidateKeys(provider, s).slice(0, 2)) {
         const started = Date.now()
         const keyIndex = Math.max(1, providerKeys(s, provider).indexOf(key) + 1)
@@ -2619,7 +2704,7 @@ export async function textAiTestConnection(): Promise<{ ok: boolean; provider?: 
           const ms = Date.now() - started
           lastResult = { provider, model, ok: true, at }
           recordAttempt({ provider, model, keyIndex, ok: true, ms, at })
-          return { ok: true, provider, model, reply }
+          return { ok: true, provider, model, reply, ...(nvidiaDiscovery ? { nvidiaDiscovery } : {}) }
         } catch (e: any) {
           const at = new Date().toISOString()
           const ms = Date.now() - started
@@ -2639,5 +2724,5 @@ export async function textAiTestConnection(): Promise<{ ok: boolean; provider?: 
       }
     }
   }
-  return { ok: false, error: errors.slice(0, 4).join(' | ') || 'تعذر اختبار أي مزود نصوص متاح. راجع المفاتيح أو النماذج أو حالة cooldown.' }
+  return { ok: false, error: errors.slice(0, 4).join(' | ') || 'تعذر اختبار أي مزود نصوص متاح. راجع المفاتيح أو النماذج أو حالة cooldown.', ...(nvidiaDiscovery ? { nvidiaDiscovery } : {}) }
 }
