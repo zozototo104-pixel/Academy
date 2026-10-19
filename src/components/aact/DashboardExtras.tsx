@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api, getToken } from '@/lib/store'
 import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
@@ -217,6 +217,7 @@ export function PaymentsTab() {
   const [pdfBusy, setPdfBusy] = useState<string | null>(null)
   const [initialInvoiceNo, setInitialInvoiceNo] = useState<string | null>(null)
   const [autoOpenedInvoiceNo, setAutoOpenedInvoiceNo] = useState<string | null>(null)
+  const initialWaiverModeRef = useRef(false)
 
   const load = () => {
     api<{ payments: Payment[]; tuitionPlans?: TuitionPlan[] }>('/api/payments')
@@ -240,6 +241,7 @@ export function PaymentsTab() {
       .catch(() => {})
 
     const q = new URLSearchParams(window.location.search)
+    initialWaiverModeRef.current = q.get('waiver') === '1'
     const invoice = q.get('invoice')
     if (invoice) setInitialInvoiceNo(invoice)
     const paid = q.get('paid')
@@ -267,6 +269,14 @@ export function PaymentsTab() {
     if (!target) return
     setAutoOpenedInvoiceNo(initialInvoiceNo)
     if (target.status === 'UNPAID') {
+      if (initialWaiverModeRef.current) {
+        window.setTimeout(() => {
+          const card = Array.from(document.querySelectorAll<HTMLElement>('[data-waiver-invoice]')).find((el) => el.dataset.waiverInvoice === initialInvoiceNo)
+          card?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          card?.querySelector<HTMLInputElement>('[data-waiver-code-input="1"]')?.focus()
+        }, 100)
+        return
+      }
       const firstEnabled = visiblePaymentMethods(payConfig?.methods).find((m) => m.enabled)?.id
       if (firstEnabled) setMethod(firstEnabled)
       setPayTarget(target)
@@ -597,7 +607,7 @@ export function PaymentsTab() {
       ) : (
         <div className='space-y-3'>
           {displayPayments.map((p) => (
-            <Card key={p.id} className={`border ${p.status === 'PAID' ? 'border-emerald-100 bg-emerald-50/30' : 'border-amber-200 bg-amber-50/30'}`}>
+            <Card key={p.id} data-waiver-invoice={p.invoiceNo} className={`border ${p.status === 'PAID' ? 'border-emerald-100 bg-emerald-50/30' : 'border-amber-200 bg-amber-50/30'}`}>
               <CardContent className='grid gap-3 p-4 sm:flex sm:flex-wrap sm:items-center sm:justify-between'>
                 <div className='min-w-0 w-full sm:flex-1'>
                   <div className='flex flex-wrap items-center gap-2'>
@@ -670,7 +680,7 @@ export function PaymentsTab() {
                         {p.waiverCodes?.[0] ? <Badge className='bg-white text-blue-700 hover:bg-white'>{p.waiverCodes[0].status === 'VERIFIED' ? 'تم التحقق — بانتظار الاعتماد' : p.waiverCodes[0].status}</Badge> : null}
                       </div>
                       <div className='mt-2 flex flex-col gap-2 sm:flex-row'>
-                        <Input dir='ltr' value={waiverCodes[p.id] || ''} onChange={(e) => setWaiverCodes((prev) => ({ ...prev, [p.id]: e.target.value.toUpperCase() }))} placeholder='AACT-WV-XXXX-XXXX-XXXX-XXXXXXXX' className='bg-white font-mono text-xs' />
+                        <Input data-waiver-code-input='1' dir='ltr' value={waiverCodes[p.id] || ''} onChange={(e) => setWaiverCodes((prev) => ({ ...prev, [p.id]: e.target.value.toUpperCase() }))} placeholder='AACT-WV-XXXX-XXXX-XXXX-XXXXXXXX' className='bg-white font-mono text-xs' />
                         <Button size='sm' disabled={verifyingWaiver === p.id} onClick={() => submitWaiverCode(p)} className='bg-blue-700 font-black text-white hover:bg-blue-800'>
                           {verifyingWaiver === p.id ? <Loader2 className='ml-1 h-3.5 w-3.5 animate-spin' /> : null}
                           تحقق من الكود
