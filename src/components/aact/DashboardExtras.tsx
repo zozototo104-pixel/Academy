@@ -682,7 +682,7 @@ export function PaymentsTab() {
                         {p.waiverCodes?.[0] ? <Badge className='bg-white text-blue-700 hover:bg-white'>{p.waiverCodes[0].status === 'VERIFIED' ? 'تم التحقق — بانتظار الاعتماد' : p.waiverCodes[0].status}</Badge> : null}
                       </div>
                       <div className='mt-2 flex flex-col gap-2 sm:flex-row'>
-                        <Input dir='ltr' value={waiverCodes[p.id] || ''} onChange={(e) => setWaiverCodes((prev) => ({ ...prev, [p.id]: e.target.value.toUpperCase() }))} placeholder='AACT-WV-XXXX-XXXX-XXXX-XXXXXXXX' className='bg-white font-mono text-xs' />
+                        <Input data-waiver-code-input='1' dir='ltr' value={waiverCodes[p.id] || ''} onChange={(e) => setWaiverCodes((prev) => ({ ...prev, [p.id]: e.target.value.toUpperCase() }))} placeholder='AACT-WV-XXXX-XXXX-XXXX-XXXXXXXX' className='bg-white font-mono text-xs' />
                         <Button size='sm' disabled={verifyingWaiver === p.id} onClick={() => submitWaiverCode(p)} className='bg-blue-700 font-black text-white hover:bg-blue-800'>
                           {verifyingWaiver === p.id ? <Loader2 className='ml-1 h-3.5 w-3.5 animate-spin' /> : null}
                           تحقق من الكود
