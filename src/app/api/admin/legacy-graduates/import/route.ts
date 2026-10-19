@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    const results = []
+    const results: LegacyGraduateImportResult[] = []
     for (const row of rows) {
       if (row.errors.length > 0 || !row.email || !row.programId || !row.issuedAt) {
         results.push({ rowNumber: row.rowNumber, ok: false, errors: row.errors.length ? row.errors : ['بيانات ناقصة'] })
