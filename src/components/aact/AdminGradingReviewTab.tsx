@@ -72,7 +72,7 @@ export default function AdminGradingReviewTab() {
     }
   }
 
-  useEffect(() => { void load() }, [])
+  useEffect(() => { void load() }, [statusFilter])
 
   return (
     <div className="mt-4 grid gap-4 lg:grid-cols-[360px_1fr]" dir="rtl">
