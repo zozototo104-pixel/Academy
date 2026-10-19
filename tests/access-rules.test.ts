@@ -134,6 +134,7 @@ beforeEach(resetRows)
 describe('student supervisor access by enrollment', () => {
   test('ACTIVE academic enrollment opens supervisor even with no payment, but exams stay locked', async () => {
     enroll('program-a', 'ACTIVE')
+    admit([tuitionPayment({ status: 'UNPAID', amount: 100, originalAmount: 100 })])
 
     const access = await getStudentAiSupervisorAccess('student-1')
     const gate = await semesterGate(1)
