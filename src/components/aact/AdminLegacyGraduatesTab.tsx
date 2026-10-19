@@ -214,19 +214,40 @@ export default function AdminLegacyGraduatesTab() {
   async function runImport(dryRun: boolean) {
     if (!excelFile) return toast({ title: 'اختر ملف Excel أولاً', variant: 'destructive' })
     setBusy(dryRun ? 'dryRun' : 'import')
+    setImportProgress(null)
     try {
-      const fd = new FormData()
-      fd.append('file', excelFile)
-      fd.append('dryRun', String(dryRun))
-      const data = await jsonOrThrow(await fetch(`/api/admin/legacy-graduates/import?dryRun=${dryRun}`, { method: 'POST', body: fd }), dryRun ? 'تعذر فحص الملف' : 'تعذر حفظ الاستيراد')
       if (dryRun) {
+        const fd = new FormData()
+        fd.append('file', excelFile)
+        fd.append('dryRun', 'true')
+        const data = await jsonOrThrow(await fetch('/api/admin/legacy-graduates/import?dryRun=true', { method: 'POST', body: fd }), 'تعذر فحص الملف')
         setImportRows(data.rows || [])
         toast({ title: 'تمت معاينة ملف Excel', description: `صالح: ${data.validRows} / أخطاء: ${data.invalidRows}` })
-      } else {
-        toast({ title: 'تم استيراد الملف', description: `نجح: ${data.successful} / فشل: ${data.failed}` })
-        setImportRows([])
-        await load()
+        return
       }
+
+      let offset = 0
+      let total = importRows.length || 0
+      let successful = 0
+      let failed = 0
+      setImportProgress({ done: 0, total })
+      while (true) {
+        const fd = new FormData()
+        fd.append('file', excelFile)
+        fd.append('dryRun', 'false')
+        fd.append('offset', String(offset))
+        fd.append('limit', '50')
+        const data = await jsonOrThrow(await fetch('/api/admin/legacy-graduates/import?dryRun=false', { method: 'POST', body: fd }), 'تعذر حفظ الاستيراد')
+        total = Number(data.totalRows || total || 0)
+        successful += Number(data.successful || 0)
+        failed += Number(data.failed || 0)
+        offset = data.nextOffset == null ? total : Number(data.nextOffset)
+        setImportProgress({ done: Math.min(offset, total), total })
+        if (data.nextOffset == null) break
+      }
+      toast({ title: 'تم استيراد الملف', description: `نجح: ${successful} / فشل: ${failed}` })
+      setImportRows([])
+      await load()
     } catch (error: any) {
       toast({ title: dryRun ? 'فشل فحص الملف' : 'فشل الاستيراد', description: String(error?.message || error), variant: 'destructive' })
     } finally {
