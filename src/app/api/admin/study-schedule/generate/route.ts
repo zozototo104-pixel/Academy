@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
     })
     return NextResponse.json({ items, generated: data.length })
   } catch (error: any) {
-    if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
+    if (isAdminAuthError(error)) return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
     if (error?.name === 'ZodError') return NextResponse.json({ error: 'استجابة جدول الدراسة غير صالحة' }, { status: 400 })
     if (String(error?.message || '').startsWith('INVALID_')) return NextResponse.json({ error: 'استجابة الذكاء تحتوي معرفاً غير موجود في مصادر الفصل' }, { status: 400 })
     return NextResponse.json({ error: 'تعذر توليد جدول الدراسة' }, { status: 500 })
