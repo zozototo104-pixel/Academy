@@ -556,6 +556,7 @@ export async function runQuestionBankGenerationJobStep(jobId: string, deadlineMs
   let job = await db.questionBankGenerationJob.findUnique({ where: { id: jobId } })
   if (!job) return null
   try {
+    if (await completeUnitQuestionBankJobIfReady(job)) return db.questionBankGenerationJob.findUnique({ where: { id: jobId } })
     const inserted = await generateBatch(job, stepDeadlineAt - 2_000)
     await resetJobFailureState(jobId)
     let readyToBuild = false
