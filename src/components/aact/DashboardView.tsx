@@ -590,14 +590,14 @@ export function DashboardView() {
     return { semester, exam, semesterBooks, semesterUnits, semesterAssignments, hours, booksHours, unitsHours, assignmentsHours, revisionHours }
   }) || []
 
-  const publishedScheduleWeeks = useMemo(() => {
-    const grouped = studyScheduleItems.reduce<Record<number, StudentStudyScheduleItem[]>>((acc, item) => {
-      acc[item.week] = acc[item.week] || []
-      acc[item.week].push(item)
-      return acc
-    }, {})
-    return Object.entries(grouped).map(([week, weekItems]) => ({ week: Number(week), items: weekItems.sort((a, b) => (a.dayOffset || 0) - (b.dayOffset || 0) || a.order - b.order) })).sort((a, b) => a.week - b.week)
-  }, [studyScheduleItems])
+  const publishedScheduleGrouped = studyScheduleItems.reduce<Record<number, StudentStudyScheduleItem[]>>((acc, item) => {
+    acc[item.week] = acc[item.week] || []
+    acc[item.week].push(item)
+    return acc
+  }, {})
+  const publishedScheduleWeeks = Object.entries(publishedScheduleGrouped)
+    .map(([week, weekItems]) => ({ week: Number(week), items: weekItems.sort((a, b) => (a.dayOffset || 0) - (b.dayOffset || 0) || a.order - b.order) }))
+    .sort((a, b) => a.week - b.week)
 
   const formatScheduleDate = (value?: string | null) => {
     if (!value) return ''
