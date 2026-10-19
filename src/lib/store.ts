@@ -117,6 +117,14 @@ export const useAppStore = create<AppState>((set) => ({
       ...(view !== 'agent-preview' ? { agentPreviewId: null } : {}),
     })
   },
+  goBack: (fallbackView = 'home', params = {}) => {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      window.history.back()
+      return
+    }
+    updateBrowserRoute(fallbackView, params)
+    set({ view: fallbackView, mobileMenuOpen: false })
+  },
   openPrograms: (filter) => {
     updateBrowserRoute('programs', filter ? { filter } : {})
     set({
