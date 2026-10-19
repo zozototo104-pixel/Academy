@@ -2035,7 +2035,7 @@ async function callProvider(provider: ConcreteProvider, s: Settings, key: string
 }
 
 function tryRepairJsonText(raw: string): { ok: true; text: string } | { ok: false; reason: string } {
-  const source = String(raw || '').trim()
+  const source = stripThinkBlocks(String(raw || '')).trim()
   const candidates: string[] = []
   const stripped = source
     .replace(/^```(?:json)?\s*/i, '')
