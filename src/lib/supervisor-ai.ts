@@ -402,30 +402,24 @@ async function expandSupervisorBookQueryTerms(query: string | null | undefined, 
   }
 }
 
-export async function buildRelevantSupervisorBookSnippets(enrolledProgramIds: string[], query?: string | null, bookTitles: string[] = [], timeoutMs = 1500): Promise<string> {
+export async function buildRelevantSupervisorBookSnippets(enrolledProgramIds: string[], query?: string | null, timeoutMs = 1500, options?: { bookTitles?: string[] }): Promise<string> {
   const terms = supervisorBookSearchTerms(query)
   const dbTerms = supervisorBookDbSearchTerms(query, terms)
   const programIds = [...new Set((enrolledProgramIds || []).map((id) => String(id || '').trim()).filter(Boolean))]
   if (!terms.length || !dbTerms.length || !programIds.length) return ''
 
-  const startedAt = Date.now()
   const cappedTimeoutMs = Math.max(1, timeoutMs)
-  try {
-    const initialSources = await fetchSupervisorBookSnippetSources(programIds, dbTerms)
-    const initialBlock = buildBookSnippetBlock(initialSources.chunks, initialSources.knowledgeItems, terms, startedAt, cappedTimeoutMs)
-    if (initialBlock) return initialBlock
+  const initialBlock = await runSupervisorBookSnippetSearch(programIds, dbTerms, terms, cappedTimeoutMs)
+  if (initialBlock) return initialBlock
 
-    const expandedTerms = await expandSupervisorBookQueryTerms(query, uniqueBookTitles(bookTitles), 2500)
-    const combinedTerms = [...new Set([...terms, ...expandedTerms.map(canonicalArabicSearchTerm)].filter((term) => term.length >= 3 && !SUPERVISOR_BOOK_SEARCH_FILLER_WORDS.has(term)))]
-    const combinedDbTerms = [...new Set([...dbTerms, ...expandedTerms])]
-    if (combinedTerms.length <= terms.length || !combinedDbTerms.length) return ''
+  const expandedTerms = await expandSupervisorBookQueryTerms(query, uniqueBookTitles(options?.bookTitles || []), 2500)
+  if (!expandedTerms.length) return ''
 
-    const expandedStartedAt = Date.now()
-    const expandedSources = await fetchSupervisorBookSnippetSources(programIds, combinedDbTerms)
-    return buildBookSnippetBlock(expandedSources.chunks, expandedSources.knowledgeItems, combinedTerms, expandedStartedAt, cappedTimeoutMs)
-  } catch {
-    return ''
-  }
+  const combinedTerms = [...new Set([...terms, ...expandedTerms.map(canonicalArabicSearchTerm)].filter((term) => term.length >= 3 && !SUPERVISOR_BOOK_SEARCH_FILLER_WORDS.has(term)))]
+  const combinedDbTerms = [...new Set([...dbTerms, ...expandedTerms])]
+  if (combinedTerms.length <= terms.length || !combinedDbTerms.length) return ''
+
+  return runSupervisorBookSnippetSearch(programIds, combinedDbTerms, combinedTerms, cappedTimeoutMs)
 }
 
 function supervisorAskedForOtherPrograms(query?: string | null) {
