@@ -186,6 +186,7 @@ export async function computeTuitionCoverage(userId: string, programId: string):
     ...enrollmentPayments,
   ])
   const due = inferTotalTuition(payments, Number(program?.price || 0))
+  if ((app as any)?.scholarshipFull === true) return { due, covered: due, ratio: 1 }
   const rawCovered = tuitionPaidTotal(payments)
   const covered = due > 0 ? roundMoney(Math.min(due, rawCovered)) : rawCovered
   const ratio = due <= 0 ? 1 : Math.max(0, Math.min(1, covered / due))
