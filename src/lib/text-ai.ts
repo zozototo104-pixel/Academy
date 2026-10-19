@@ -182,7 +182,8 @@ let roundRobin = 0
 let lastResult: TextAiDiagnostics['lastResult'] = null
 let recentAttempts: TextAiAttemptDiagnostics[] = []
 type ModelCapability = { contextLength?: number; vision?: boolean; modalities?: string[]; supportedParameters?: string[] }
-const freeModelsCache = new Map<string, { at: number; models: string[]; capabilities?: Record<string, ModelCapability> }>()
+type FreeModelsCacheEntry = { at: number; models: string[]; capabilities?: Record<string, ModelCapability>; discoveryOk?: boolean; sourceCount?: number }
+const freeModelsCache = new Map<string, FreeModelsCacheEntry>()
 
 type TextAiSettingStore = {
   read(keys: string[]): Promise<Record<string, string>>
