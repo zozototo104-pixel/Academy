@@ -185,7 +185,7 @@ export async function completeEnrollmentIfEligibleInTransaction(tx: Tx, input: C
   }
 
   const certificate = existing || await createProgramCompletionCertificate(tx, {
-    qrToken: randomBytes(16).toString('hex'),
+    qrToken: createCertificateQrToken(),
     type: 'PROGRAM_COMPLETION',
     holderName,
     program: programTitle,
