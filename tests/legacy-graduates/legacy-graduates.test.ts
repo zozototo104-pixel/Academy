@@ -132,7 +132,10 @@ const db: any = {
   programExamAttempt: { findMany: async () => [] },
   assignmentSubmission: { findMany: async () => [] },
   agentApplication: { findUnique: async () => null },
-  auditLog: { create: async ({ data }: { data: AnyRecord }) => { const audit = { id: `audit-${audits.length + 1}`, ...data }; audits.push(audit); return audit } },
+  auditLog: {
+    create: async ({ data }: { data: AnyRecord }) => { const audit = { id: `audit-${audits.length + 1}`, ...data }; audits.push(audit); return audit },
+    findFirst: async ({ where }: { where: AnyRecord }) => clone(audits.find((audit) => (!where.action || audit.action === where.action) && (!where.entity || audit.entity === where.entity) && (!where.entityId || audit.entityId === where.entityId))),
+  },
 }
 
 mock.module('@/lib/db', () => ({ db }))
