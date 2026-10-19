@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
     }
 
     const source = {
-      program: { id: program.id, title: program.title, hours: program.hours },
+      program: { id: program.id, title: program.titleAr || program.titleEn || program.id, hours: program.hours },
       semester: parsed.semester,
       units: units.map(compactItem),
       studyGuides: guides.map(compactItem),
