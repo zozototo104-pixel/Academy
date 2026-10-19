@@ -195,7 +195,7 @@ export async function backfillQuestionBankAcademicFields(programId: string, time
       const needs = selectBankItemsNeedingDocumentation(candidates, skippedAiIds).slice(0, 5)
       if (!needs.length) break
       try {
-        filled += await runQuestionBankDocumentationAiBatch(programId, needs, deadlineMs)
+        filled += await runQuestionBankDocumentationAiBatch(needs, deadlineMs)
         for (const item of needs) skippedAiIds.add(item.id)
       } catch (error) {
         console.warn('[question-bank-doc] batch backfill failed', { programId, ids: needs.map((item) => item.id), error: error instanceof Error ? error.message : String(error) })
