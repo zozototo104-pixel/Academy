@@ -48,6 +48,8 @@ export interface TextAiCallOpts {
   excludeProviders?: TextAiProvider[]
   preferredProviders?: TextAiProvider[]
   preferredModels?: TextAiPreferredModel[]
+  maxProviderModels?: Partial<Record<Exclude<TextAiProvider, 'AUTO'>, number>>
+  providerRateLimitCooldown?: { provider: Exclude<TextAiProvider, 'AUTO'>; threshold: number; windowMs: number; cooldownMinutes: number }
   excludeModelFamilies?: string[]
   deadlineMs?: number
   timeoutMs?: number
