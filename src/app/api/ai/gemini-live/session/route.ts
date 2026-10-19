@@ -229,26 +229,33 @@ function speechConfigForVoice(voice: string) {
   }
 }
 
-function withDialectInstruction(systemInstruction: string, dialect: string) {
-  return `${dialectInstruction(dialect)}\n\n${String(systemInstruction || '')}`.slice(0, 32000)
+function withBookSearchInstruction(systemInstruction: string) {
+  const text = String(systemInstruction || '')
+  return text.includes(BOOK_SEARCH_SYSTEM_INSTRUCTION)
+    ? text
+    : `${text}\n${BOOK_SEARCH_SYSTEM_INSTRUCTION}`
 }
 
-export function buildGeminiLiveSetup(_variant: SetupVariant, model: string, systemInstruction: string, voice: string, dialect: string) {
+function withDialectInstruction(systemInstruction: string, dialect: string) {
+  return `${dialectInstruction(dialect)}\n\n${withBookSearchInstruction(systemInstruction)}`.slice(0, 32000)
+}
+
+export function buildGeminiLiveSetup(variant: SetupVariant, model: string, systemInstruction: string, voice: string, dialect: string) {
   const instruction = withDialectInstruction(systemInstruction, dialect)
-  return {
-    setup: {
-      model: `models/${model}`,
-      generationConfig: {
-        responseModalities: ['AUDIO'],
-        speechConfig: speechConfigForVoice(voice),
-      },
-      systemInstruction: {
-        parts: [{ text: instruction }],
-      },
-      inputAudioTranscription: {},
-      outputAudioTranscription: {},
+  const setup: Record<string, unknown> = {
+    model: `models/${model}`,
+    generationConfig: {
+      responseModalities: ['AUDIO'],
+      speechConfig: speechConfigForVoice(voice),
     },
+    systemInstruction: {
+      parts: [{ text: instruction }],
+    },
+    inputAudioTranscription: {},
+    outputAudioTranscription: {},
   }
+  if (variant !== 'bare') setup.tools = GEMINI_LIVE_BOOK_SEARCH_TOOLS
+  return { setup }
 }
 
 export function buildGeminiLiveSdkConfig(systemInstruction: string, voice: string, dialect: string) {
@@ -258,6 +265,7 @@ export function buildGeminiLiveSdkConfig(systemInstruction: string, voice: strin
     inputAudioTranscription: {},
     outputAudioTranscription: {},
     systemInstruction: withDialectInstruction(systemInstruction, dialect),
+    tools: GEMINI_LIVE_BOOK_SEARCH_TOOLS,
   }
 }
 
