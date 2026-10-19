@@ -259,7 +259,7 @@ export async function getStudentTuitionPlan(userId: string, programId: string): 
   })
   if (!app) return null
   const appeal = await findActiveAppeal(app.id)
-  const coverage = await computeTuitionCoverage(userId, programId).catch(() => null)
+  const coverage = await computeTuitionCoverage(userId, programId)
   const fallbackTuition = Number(app.programRef?.price || 0)
   const totalTuition = coverage?.due ?? inferTotalTuition(app.payments, fallbackTuition)
   const paidTuition = coverage?.covered ?? tuitionPaidTotal(app.payments)
