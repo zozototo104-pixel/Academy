@@ -911,8 +911,48 @@ export function DashboardView() {
                   </section>
                 )}
 
-                {programSection === 'schedule' && semesterStudyPlans.length > 0 && (
-                  <section className="mt-4 rounded-2xl border border-[#0f2b46]/10 bg-white p-4 shadow-sm">
+                {programSection === 'schedule' && (
+                  publishedScheduleWeeks.length > 0 ? (
+                    <section className="mt-4 rounded-2xl border border-[#0f2b46]/10 bg-white p-4 shadow-sm">
+                      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                        <h3 className="text-sm font-black text-[#0f2b46]">جدول الدراسة المنشور</h3>
+                        <Badge className="bg-[#f7edd0] text-[#0f2b46] hover:bg-[#f7edd0]">حسب تاريخ التسجيل</Badge>
+                      </div>
+                      <div className="space-y-3">
+                        {publishedScheduleWeeks.map((week) => (
+                          <div key={week.week} className="rounded-2xl border border-slate-100 bg-[#f8fafc] p-3">
+                            <p className="mb-2 text-xs font-black text-[#0f2b46]">الأسبوع {week.week}</p>
+                            <div className="space-y-2">
+                              {week.items.map((item) => {
+                                const canOpen = Boolean(item.unitId || item.examId || item.assignmentId || item.studyGuideId)
+                                return (
+                                  <div key={item.id} className="rounded-xl bg-white p-3 text-[11px] font-bold leading-5 text-slate-600">
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <Badge className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">{STUDY_SCHEDULE_TYPE_LABEL[item.type] || item.type}</Badge>
+                                          {item.durationMin ? <Badge variant="outline">{item.durationMin} دقيقة</Badge> : null}
+                                          {formatScheduleDate(item.targetDate) ? <Badge variant="outline">{formatScheduleDate(item.targetDate)}</Badge> : null}
+                                        </div>
+                                        <p className="mt-2 font-black text-[#0f2b46]">{item.title}</p>
+                                        {item.description && <p className="mt-1 leading-6 text-slate-500">{item.description}</p>}
+                                      </div>
+                                      {canOpen && (
+                                        <Button type="button" size="sm" variant="outline" onClick={() => openStudyScheduleItem(item)} className="h-9 shrink-0 border-[#c9a227]/40 text-[11px] font-black text-[#a8841a]">
+                                          فتح العنصر
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  ) : semesterStudyPlans.length > 0 ? (
+                    <section className="mt-4 rounded-2xl border border-[#0f2b46]/10 bg-white p-4 shadow-sm">
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                       <h3 className="text-sm font-black text-[#0f2b46]">جدول الدراسة للفصول والمواد المطلوبة</h3>
                       <Badge className="bg-[#f7edd0] text-[#0f2b46] hover:bg-[#f7edd0]">بعد التسجيل مباشرة</Badge>
@@ -962,6 +1002,11 @@ export function DashboardView() {
                       ))}
                     </div>
                   </section>
+                  ) : (
+                    <section className="mt-4 rounded-2xl border border-[#0f2b46]/10 bg-white p-6 text-center text-sm font-bold text-slate-500 shadow-sm">
+                      جدول الدراسة قيد التجهيز وسيظهر هنا قريباً
+                    </section>
+                  )
                 )}
 
                 {programSection === 'progress' && (activeAcademicProfile?.termPlans?.length || 0) > 0 && (
