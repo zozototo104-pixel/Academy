@@ -1063,6 +1063,7 @@ export function AdminView() {
             <TabsList className="flex h-auto w-full flex-wrap gap-1 bg-transparent p-0">
               <TabsTrigger value="finance" className="gap-1 text-[10px] font-bold sm:text-xs">المالية والفواتير</TabsTrigger>
               <TabsTrigger value="certs" className="gap-1 text-[10px] font-bold sm:text-xs">الشهادات</TabsTrigger>
+              <TabsTrigger value="legacy-graduates" className="gap-1 text-[10px] font-bold sm:text-xs">الخريجون السابقون</TabsTrigger>
             </TabsList>
           </div>
           <div className="border-t border-dashed border-slate-100 pt-2.5">
