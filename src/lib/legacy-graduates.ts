@@ -73,7 +73,7 @@ export async function createLegacyGraduate(input: LegacyGraduateInput, admin: Ad
     throw new LegacyGraduateError(400, 'INVALID_FINAL_SCORE', 'المعدل يجب أن يكون رقماً بين 0 و 100')
   }
 
-  return db.$transaction(async (tx: Tx) => {
+  const result = await db.$transaction(async (tx: Tx) => {
     const program = await tx.program.findUnique({
       where: { id: programId },
       select: { id: true, titleAr: true, titleEn: true },
