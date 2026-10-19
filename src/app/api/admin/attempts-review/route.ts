@@ -42,10 +42,11 @@ async function buildExcerptMap(ids: Array<string | null | undefined>) {
   return new Map(rows.map((row) => [row.id, row.excerpt || ''] as const))
 }
 
-async function listReviewAttempts() {
+async function listReviewAttempts(statusFilter: string = 'NEEDS_REVIEW') {
+  const statuses = statusFilter === 'ALL' ? ['NEEDS_REVIEW', 'GRADED'] : statusFilter === 'GRADED' ? ['GRADED'] : ['NEEDS_REVIEW']
   const [unitAttempts, programAttempts] = await Promise.all([
     db.examAttempt.findMany({
-      where: { status: 'NEEDS_REVIEW' },
+      where: { status: { in: statuses } },
       orderBy: { submittedAt: 'desc' },
       take: 100,
       select: { id: true, submittedAt: true, user: { select: { id: true, name: true, email: true } }, exam: { select: { id: true, title: true, unit: { select: { title: true, program: { select: { titleAr: true } } } } } } },
