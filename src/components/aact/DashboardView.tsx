@@ -933,7 +933,7 @@ export function DashboardView() {
                                         <div className="flex flex-wrap items-center gap-2">
                                           <Badge className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">{STUDY_SCHEDULE_TYPE_LABEL[item.type] || item.type}</Badge>
                                           {item.durationMin ? <Badge variant="outline">{item.durationMin} دقيقة</Badge> : null}
-                                          {formatScheduleDate(item.targetDate) ? <Badge variant="outline">{formatScheduleDate(item.targetDate)}</Badge> : null}
+                                          {itemDate ? <Badge variant="outline">{itemDate}</Badge> : null}
                                         </div>
                                         <p className="mt-2 font-black text-[#0f2b46]">{item.title}</p>
                                         {item.description && <p className="mt-1 leading-6 text-slate-500">{item.description}</p>}
