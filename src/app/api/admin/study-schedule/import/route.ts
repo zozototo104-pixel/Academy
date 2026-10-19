@@ -86,7 +86,7 @@ export async function GET(req: NextRequest) {
     const rows = items.map((item) => [item.semester, item.week, item.title, item.type, item.description || '', item.durationMin || ''].map(csvEscape).join(',')).join('\n')
     return new NextResponse(`${header}${rows}${rows ? '\n' : ''}`, { headers: { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': 'attachment; filename="study-schedule.csv"' } })
   } catch (error: any) {
-    if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
+    if (isAdminAuthError(error)) return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
     return NextResponse.json({ error: 'تعذر تصدير جدول الدراسة' }, { status: 500 })
   }
 }
