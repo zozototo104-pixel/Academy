@@ -12,7 +12,11 @@ import {
   validateLegacyGraduateImportRows,
 } from '@/lib/legacy-graduates-import'
 
+export const maxDuration = 60
+
 const ALLOWED_EXTENSIONS = new Set(['.xlsx', '.xls', '.csv'])
+const DEFAULT_BATCH_LIMIT = 50
+const MAX_BATCH_LIMIT = 50
 
 function extensionOf(fileName: string) {
   const i = fileName.lastIndexOf('.')
