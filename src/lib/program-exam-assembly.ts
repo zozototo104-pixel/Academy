@@ -280,8 +280,9 @@ export async function backfillProgramExamAcademicFields(examId: string, options:
     const needs = questions.filter((q) =>
       isMissing(q.correctRationale) || isMissing(q.difficulty) || isMissing(q.cognitiveSkill) || ((q.type === 'MCQ' || q.type === 'TF') && !safeJsonArray(q.distractorRationales).length),
     )
-    for (let i = 0; i < needs.length && batchesRun < maxBatches; i += 10) {
-      const batch = needs.slice(i, i + 10).filter((q) => q.sourceEvidence)
+    for (let i = 0; i < needs.length && batchesRun < maxBatches; i += 5) {
+      if (deadlineMs - Date.now() < 20_000) break
+      const batch = needs.slice(i, i + 5).filter((q) => q.sourceEvidence)
       if (!batch.length) continue
       try {
         const payload = batch.map((q) => ({ id: q.id, type: q.type, question: q.text, options: safeJsonArray(q.options), correctAnswer: q.correctAnswer, evidence: q.sourceEvidence }))
