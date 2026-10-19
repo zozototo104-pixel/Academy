@@ -20,13 +20,13 @@ export default function AdminGradingReviewTab() {
   const [busy, setBusy] = useState<'regrade' | 'approve' | null>(null)
   const [statusFilter, setStatusFilter] = useState<'NEEDS_REVIEW' | 'GRADED' | 'ALL'>('NEEDS_REVIEW')
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true)
     try {
       const res = await api<{ attempts: ReviewAttempt[] }>(`/api/admin/attempts-review?status=${statusFilter}`)
       setAttempts(res.attempts || [])
     } finally { setLoading(false) }
-  }
+  }, [statusFilter])
 
   const open = async (item: ReviewAttempt) => {
     const res = await api<{ attempt: ReviewDetail }>(`/api/admin/attempts-review?type=${item.type}&id=${item.id}`)
