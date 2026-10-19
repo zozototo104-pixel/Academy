@@ -860,6 +860,23 @@ function baseFor(s: Settings, provider: ConcreteProvider): string {
   }
 }
 
+function staticTextModelsForProvider(provider: ConcreteProvider, s?: Settings): string[] {
+  switch (provider) {
+    case 'GEMINI': return GEMINI_TEXT_MODELS
+    case 'OPENAI': return OPENAI_TEXT_MODELS
+    case 'ANTHROPIC': return ANTHROPIC_TEXT_MODELS
+    case 'ZAI': return ZAI_TEXT_MODELS
+    case 'GROQ': return GROQ_TEXT_MODELS
+    case 'OPENROUTER': return OPENROUTER_TEXT_MODELS
+    case 'DEEPINFRA': return DEEPINFRA_TEXT_MODELS
+    case 'TOGETHER': return TOGETHER_TEXT_MODELS
+    case 'UNOROUTER': return UNOROUTER_TEXT_MODELS
+    case 'RELAYROUTER': return RELAYROUTER_TEXT_MODELS
+    case 'TOPTOOLS': return TOPTOOLS_TEXT_MODELS
+    case 'OPENAI_COMPAT': return s && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl) ? NVIDIA_OPENAI_COMPAT_TEXT_MODELS : OPENAI_COMPAT_TEXT_MODELS
+  }
+}
+
 function cacheKeyForFreeModels(provider: ConcreteProvider, baseUrl: string, key?: string): string {
   const keyHash = key ? createHash('sha256').update(key).digest('hex').slice(0, 12) : 'anonymous'
   return `${provider}:${(baseUrl || '').replace(/\/$/, '')}:${keyHash}`
