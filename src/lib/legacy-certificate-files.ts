@@ -168,7 +168,7 @@ export function parseZipEntries(buffer: Buffer) {
       data = method === 0
         ? compressed
         : method === 8
-          ? inflateRawSync(compressed, { maxOutputLength: LEGACY_CERTIFICATE_UPLOAD_MAX_BYTES })
+          ? inflateRawSync(compressed, { maxOutputLength: LEGACY_CERTIFICATE_UPLOAD_MAX_BYTES } as any)
           : null
     } catch {
       entries.push({ fileName, error: 'FILE_TOO_LARGE' })
