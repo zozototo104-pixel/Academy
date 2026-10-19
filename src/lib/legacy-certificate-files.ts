@@ -129,7 +129,9 @@ export function parseZipEntries(buffer: Buffer) {
   if (eocd < 0) throw new Error('INVALID_ZIP')
   const entriesCount = readUInt16(buffer, eocd + 10)
   const centralOffset = readUInt32(buffer, eocd + 16)
-  const entries: Array<{ fileName: string; buffer: Buffer }> = []
+  const entries: ParsedZipEntry[] = []
+  let acceptedFileCount = 0
+  let totalUncompressedBytes = 0
   let offset = centralOffset
   for (let index = 0; index < entriesCount; index++) {
     if (readUInt32(buffer, offset) !== 0x02014b50) throw new Error('INVALID_ZIP_CENTRAL_DIRECTORY')
