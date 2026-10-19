@@ -150,10 +150,11 @@ describe('student supervisor access by enrollment', () => {
 })
 
 describe('tuition coverage exam gates', () => {
-  test('approved full scholarship gives 100% coverage and opens both exams', async () => {
+  test('approved full scholarship gives 100% coverage and opens supervisor plus both exams', async () => {
     enroll()
     admit([tuitionPayment({ status: 'WAIVED', amount: 0, originalAmount: 100, waivedAmount: 100, waiverType: 'FULL_SCHOLARSHIP', waiverStatus: 'APPROVED' })])
 
+    expect((await getStudentAiSupervisorAccess('student-1')).allowed).toBe(true)
     expect((await semesterGate(1)).ok).toBe(true)
     expect((await semesterGate(2)).ok).toBe(true)
   })
