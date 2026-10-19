@@ -479,6 +479,13 @@ function testQuestionBankDocumentationParserAcceptsQuestionsKey() {
   assert(rows[0]?.id === 'q1' && rows[0]?.difficulty === 'EASY', 'محلل توثيق بنك الأسئلة يجب أن يرجع صف q1 بالصعوبة')
 }
 
+function testQuestionBankDocumentationSelectionReachesItemAfterFirstTwoHundred() {
+  const documented = Array.from({ length: 200 }, (_, index) => ({ id: `ok-${index}`, type: 'MCQ', text: 'سؤال موثق', options: '["أ","ب"]', correctAnswer: 'أ', sourceEvidence: 'دليل موثق', cognitiveSkill: 'UNDERSTAND', difficulty: 'EASY', correctRationale: 'تعليل', distractorRationales: '["سبب"]' }))
+  const target = { id: 'q-201', type: 'MCQ', text: 'سؤال ناقص', options: '["أ","ب"]', correctAnswer: 'أ', sourceEvidence: 'دليل موثق', cognitiveSkill: '', difficulty: '', correctRationale: '', distractorRationales: '[]' }
+  const selected = selectBankItemsNeedingDocumentation([...documented, target] as any[])
+  assert(selected.length === 1 && selected[0]?.id === 'q-201', 'انتقاء توثيق بنك الأسئلة يجب أن يصل للسؤال 201 إذا أول 200 موثقين')
+}
+
 function testProgramExamAutoStatusUpdateDoesNotTouchReady() {
   const where = __testProgramExamAutoStatusUpdateWhereForTests('exam-1') as any
   assert(where.id === 'exam-1', 'حماية تحديث حالة الامتحان يجب أن تبقى محصورة بالامتحان نفسه')
