@@ -435,9 +435,9 @@ function isPersistentNoBalance(values: Record<string, string>, provider: string,
   return !!parseCooldown(values[noBalanceKey(provider, keyIndex)])
 }
 
-async function markPersistentModelDead(provider: string, model: string, reason: string, status?: number): Promise<void> {
+async function markPersistentModelDead(provider: string, model: string, reason: string, status?: number, ttlDaysOrMs = 7): Promise<void> {
   try {
-    await settingStore().write(modelDeadKey(provider, model), routerStatePayload(7, reason, status))
+    await settingStore().write(modelDeadKey(provider, model), routerStatePayload(ttlDaysOrMs, reason, status))
     persistentCooldownCache = null
   } catch {
     // Persistent dead-model state is best-effort.
