@@ -32,6 +32,18 @@ function errorMessage(error: unknown) {
   return 'تعذر حفظ السطر'
 }
 
+type LegacyGraduateImportResult = {
+  rowNumber: number
+  ok: boolean
+  errors?: string[]
+  emailStatus?: string
+  userCreated?: boolean
+  userId?: string
+  enrollmentId?: string
+  certificateId?: string
+  serial?: string
+}
+
 // POST /api/admin/legacy-graduates/import — استيراد دفعة من Excel/CSV
 export async function POST(req: NextRequest) {
   try {
