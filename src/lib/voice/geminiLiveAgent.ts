@@ -586,6 +586,10 @@ export class GeminiLiveAgent {
       return false
     }
     if (msg.setupComplete) return true
+    if (msg.toolCall) {
+      void this.handleBookSearchToolCall(msg.toolCall)
+      return false
+    }
 
     const sc = msg.serverContent || msg
     if (sc.interrupted) {
