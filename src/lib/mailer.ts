@@ -203,13 +203,17 @@ export async function emailVerifyAccount(to: string, name: string, verifyUrl: st
   })
 }
 
-export async function emailPasswordReset(to: string, name: string, resetUrl: string) {
-  return sendEmail({
+export async function emailPasswordResetDetailed(to: string, name: string, resetUrl: string): Promise<EmailDeliveryStatus> {
+  return sendEmailDetailed({
     to,
     event: 'PASSWORD_RESET',
     subject: 'إعادة تعيين كلمة المرور في منصة الأكاديمية الأمريكية',
     html: emailTemplate('إعادة تعيين كلمة المرور 🔐', `<p>${greeting(name)}،</p><p>وصلنا طلب لإعادة تعيين كلمة مرور حسابك. الرابط صالح لمدة ساعة واحدة ويُستخدم مرة واحدة فقط.</p>${infoRows([{ label: 'البريد', value: to }, { label: 'صلاحية الرابط', value: 'ساعة واحدة من وقت الإرسال' }])}`, { label: 'إعادة تعيين كلمة المرور', url: resetUrl }),
   })
+}
+
+export async function emailPasswordReset(to: string, name: string, resetUrl: string) {
+  return (await emailPasswordResetDetailed(to, name, resetUrl)) === 'SENT'
 }
 
 export async function emailWelcome(to: string, name: string) {
