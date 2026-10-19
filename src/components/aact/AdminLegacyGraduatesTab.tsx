@@ -101,6 +101,8 @@ export default function AdminLegacyGraduatesTab() {
   const [importRows, setImportRows] = useState<ImportPreviewRow[]>([])
   const [zipFile, setZipFile] = useState<File | null>(null)
   const [zipReport, setZipReport] = useState<any>(null)
+  const [programOptions, setProgramOptions] = useState<LegacyProgramOption[]>([])
+  const [importProgress, setImportProgress] = useState<{ done: number; total: number } | null>(null)
 
   const invalidImportRows = useMemo(() => importRows.filter((row) => row.errors?.length), [importRows])
 
