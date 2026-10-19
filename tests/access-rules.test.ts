@@ -40,7 +40,7 @@ function matchesStatus(status: string, where: any) {
 
 function isNonServiceEnrollment(row: EnrollmentRow, where: any) {
   const program = programs.find((item) => item.id === row.programId)
-  const notCategory = where?.program?.category?.not
+  const notCategory = where?.program?.is?.category?.not
   return !notCategory || program?.category !== notCategory
 }
 
