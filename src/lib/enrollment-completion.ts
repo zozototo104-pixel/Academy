@@ -44,10 +44,6 @@ export interface CompleteEnrollmentResult {
   eligibility?: ProgramCertificateEligibility
 }
 
-function pad(n: number, width = 5) {
-  return String(n).padStart(width, '0')
-}
-
 function isSettled(status: string) {
   return status === 'PAID' || status === 'WAIVED'
 }
