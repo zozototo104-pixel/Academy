@@ -322,6 +322,14 @@ export function questionBankJobCanRunStep(job: { status: string; lockedUntil?: D
   return ['QUEUED', 'RUNNING', 'PAUSED'].includes(job.status)
 }
 
+export function questionBankJobMatchesResumableRunner(job: { status: string; lockedUntil?: Date | string | null; retryAt?: Date | string | null; saved: number; requested: number; unitId?: string | null }, now = Date.now()) {
+  if (!questionBankJobCanRunStep(job, now)) return false
+  if (job.status === 'QUEUED') return true
+  if (job.status === 'PAUSED') return !job.retryAt || new Date(job.retryAt).getTime() <= now
+  if (job.status === 'RUNNING') return Boolean(job.lockedUntil) && new Date(job.lockedUntil as Date | string).getTime() < now
+  return false
+}
+
 async function countApprovedUnitQuestionBankItems(job: { programId: string; unitId: string | null }) {
   if (!job.unitId) return 0
   return db.questionBankItem.count({ where: { programId: job.programId, unitId: job.unitId, status: 'APPROVED' } })
@@ -617,25 +625,28 @@ function questionBankJobRequestedTarget(job: { requested: number; unitId?: strin
   return job.unitId ? unitExamRequiredQuestions(job.requested) : Math.max(1, Number(job.requested || 1))
 }
 
-export async function runNextQuestionBankGenerationJobStep(programId?: string, options: { queuedOnly?: boolean } = {}) {
+export async function runNextQuestionBankGenerationJobStep(programId?: string, options: { queuedOnly?: boolean; resumable?: boolean } = {}) {
   const now = new Date()
   const runnableRetry = [{ retryAt: null }, { retryAt: { lte: now } }]
+  const statusFilter: any[] = options.resumable ? [
+    { status: 'QUEUED' },
+    { status: 'PAUSED', OR: runnableRetry },
+    { status: 'RUNNING', lockedUntil: { lt: now } },
+  ] : options.queuedOnly ? [
+    { status: 'QUEUED', OR: runnableRetry },
+    { status: 'RUNNING', OR: runnableRetry },
+    { status: 'PAUSED', retryAt: { lte: now } },
+  ] : [
+    { status: 'QUEUED', OR: runnableRetry },
+    { status: 'RUNNING', OR: runnableRetry },
+    { status: 'PAUSED', OR: runnableRetry },
+  ]
   const jobs = await db.questionBankGenerationJob.findMany({
     where: {
       ...(programId ? { programId } : {}),
       AND: [
         { OR: [{ lockedUntil: null }, { lockedUntil: { lt: now } }] },
-        {
-          OR: options.queuedOnly ? [
-            { status: 'QUEUED', OR: runnableRetry },
-            { status: 'RUNNING', OR: runnableRetry },
-            { status: 'PAUSED', retryAt: { lte: now } },
-          ] : [
-            { status: 'QUEUED', OR: runnableRetry },
-            { status: 'RUNNING', OR: runnableRetry },
-            { status: 'PAUSED', OR: runnableRetry },
-          ],
-        },
+        { OR: statusFilter },
       ],
     },
     orderBy: [{ createdAt: 'asc' }],
@@ -650,6 +661,7 @@ export async function runNextQuestionBankGenerationJobStep(programId?: string, o
       })
       continue
     }
+    if (options.resumable && !questionBankJobMatchesResumableRunner(job, now.getTime())) continue
     const result = await runQuestionBankGenerationJobStep(job.id)
     if (result?.id === job.id && (questionBankJobHasActiveLock(result) || new Date(result.updatedAt).getTime() === new Date(job.updatedAt).getTime())) continue
     return result

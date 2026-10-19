@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync, statSync } from 'fs'
 import { join } from 'path'
 import { canPublishUnitExamFromQuestions, selectUnitExamQuestionsApprovedFirst } from '../src/lib/unit-exam-policy'
-import { assertGeneratedBatchHasAcceptedCandidates, hasSourceGroundedFlag, nextQuestionBankRetryAt, planQuestionBankJobManualReactivation, planQuestionBankSourceWindow, prepareMcqOptionsForStorage } from '../src/lib/question-bank-job'
+import { assertGeneratedBatchHasAcceptedCandidates, hasSourceGroundedFlag, nextQuestionBankRetryAt, planQuestionBankJobManualReactivation, planQuestionBankSourceWindow, prepareMcqOptionsForStorage, questionBankJobMatchesResumableRunner } from '../src/lib/question-bank-job'
 import { parseGeneratedQuestionCandidates } from '../src/lib/question-bank-generation'
 import { __testAcademicBackfillDataForTests, __testProgramExamAutoStatusUpdateWhereForTests, __testProgramQuestionAcademicCopyForTests, __testQualifiedQuestionBankItemForProgramExamForTests } from '../src/lib/program-exam-assembly'
 import { calculateProgramExamAcademicMissingCounts, validateProgramExamPublicationReadiness } from '../src/lib/program-exam-publication-readiness'
@@ -166,6 +166,23 @@ function testQuestionBankLockedJobDoesNotBlockQueue() {
   assert(code.includes("{ status: 'PAUSED', retryAt: { lte: now } }") && code.includes("{ status: 'PAUSED', OR: runnableRetry }"), 'PAUSED بلا retryAt يجب ألا تعمل مع queuedOnly وأن تبقى مسموحة يدوياً بدون queuedOnly')
   assert(code.includes('new Date(result.updatedAt).getTime() === new Date(job.updatedAt).getTime()') && code.includes('questionBankJobHasActiveLock(result)') && code.includes('continue'), 'فشل claim أو القفل الفعال فقط يجب أن يتخطى الوظيفة')
   assert(!code.includes('result.saved === job.saved && (result.status === job.status'), 'بعد خطوة فعلية يجب إرجاع النتيجة حتى لو لم يزد saved')
+}
+
+function testQuestionBankResumableRunnerSelector() {
+  const now = Date.now()
+  const base = { saved: 0, requested: 10 }
+  assert(questionBankJobMatchesResumableRunner({ ...base, status: 'PAUSED', retryAt: new Date(now - 1_000), lockedUntil: null }, now), 'cron يجب أن يختار PAUSED إذا retryAt في الماضي')
+  assert(!questionBankJobMatchesResumableRunner({ ...base, status: 'PAUSED', retryAt: new Date(now + 60_000), lockedUntil: null }, now), 'cron يجب ألا يختار PAUSED إذا retryAt في المستقبل')
+  assert(questionBankJobMatchesResumableRunner({ ...base, status: 'RUNNING', retryAt: null, lockedUntil: new Date(now - 1_000) }, now), 'cron يجب أن يختار RUNNING إذا انتهى قفله')
+  assert(!questionBankJobMatchesResumableRunner({ ...base, status: 'RUNNING', retryAt: null, lockedUntil: new Date(now + 60_000) }, now), 'cron يجب ألا يختار RUNNING إذا كان قفله فعالاً')
+  assert(!questionBankJobMatchesResumableRunner({ ...base, status: 'COMPLETED', retryAt: null, lockedUntil: null }, now), 'cron يجب ألا يختار COMPLETED')
+  assert(!questionBankJobMatchesResumableRunner({ ...base, status: 'FAILED', retryAt: null, lockedUntil: null }, now), 'cron يجب ألا يختار FAILED')
+}
+
+function testQuestionBankGenerateButtonRequestsSixtyNotTen() {
+  const ui = src('src/components/aact/AdminBooks.tsx')
+  assert(ui.includes('count: 60'), 'زر توليد بنك المعرفة يجب أن يطلب 60 سؤالاً')
+  assert(!ui.includes('count: 10'), 'زر توليد بنك المعرفة يجب ألا يبقى على count: 10')
 }
 
 function testVerifierRejectedQuestionIsNotSaved() {
@@ -620,6 +637,8 @@ const tests = [
   testEmptyBatchAdvancesQuestionBankCursor,
   testQuestionBankCompletedJobDoesNotBlockQueue,
   testQuestionBankLockedJobDoesNotBlockQueue,
+  testQuestionBankResumableRunnerSelector,
+  testQuestionBankGenerateButtonRequestsSixtyNotTen,
   testVerifierRejectedQuestionIsNotSaved,
   testIncompleteMcqOptionsAreRejected,
   testMcqThreeOptionsAccepted,

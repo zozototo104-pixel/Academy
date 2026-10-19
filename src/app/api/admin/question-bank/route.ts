@@ -236,7 +236,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const programId = cleanText(body?.programId, 80)
     const source = cleanText(body?.source, 40) || 'AI'
-    const requestedTotal = Math.max(1, Math.min(60, Number(body?.count || 12)))
+    const requestedTotal = Math.max(1, Math.min(200, Number(body?.count || 12)))
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
     const program = await withTiming('db_question_bank_program', () => db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true } }))
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
