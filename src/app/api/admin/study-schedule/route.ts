@@ -143,7 +143,7 @@ export async function PATCH(req: NextRequest) {
     const item = await db.studyScheduleItem.update({ where: { id: parsed.id }, data })
     return NextResponse.json({ item: mapItem(item) })
   } catch (error: any) {
-    if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
+    if (isAdminAuthError(error)) return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
     if (error?.name === 'ZodError') return NextResponse.json({ error: 'بيانات جدول الدراسة غير صالحة' }, { status: 400 })
     if (String(error?.message || '').startsWith('INVALID_REFERENCE')) return NextResponse.json({ error: 'يوجد ارتباط غير صحيح داخل عنصر الجدول' }, { status: 400 })
     return NextResponse.json({ error: 'تعذر تحديث عنصر جدول الدراسة' }, { status: 500 })
