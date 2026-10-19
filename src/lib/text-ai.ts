@@ -157,13 +157,15 @@ const TOPTOOLS_TEXT_MODELS = ['top-tools-ai']
 const OPENAI_COMPAT_TEXT_MODELS = ['auto']
 const NVIDIA_OPENAI_COMPAT_TEXT_MODELS = [
   'deepseek/deepseek-v3.2',
-  'qwen/qwen3-235b-a22b-instruct-2507',
-  'moonshotai/kimi-k2-instruct',
+  'qwen/qwen3-235b-a22b',
+  'moonshotai/kimi-k2-instruct-0905',
   'openai/gpt-oss-120b',
-  'meta/llama-3.3-70b-instruct',
-  'mistralai/mistral-large',
-  'nvidia/llama-3.1-nemotron-ultra-253b-v1',
+  'nvidia/nemotron-3-super-120b-a12b',
+  'nvidia/llama-3.3-nemotron-super-49b-v1.5',
+  'mistralai/mistral-large-3-675b-instruct-2512',
+  'openai/gpt-oss-20b',
 ]
+const NVIDIA_OPENAI_COMPAT_CALLABLE_MODEL_IDS = new Set(NVIDIA_OPENAI_COMPAT_TEXT_MODELS.map((model) => model.toLowerCase()))
 const NVIDIA_OPENAI_COMPAT_MODEL_LIMIT = 4
 const NVIDIA_OPENAI_COMPAT_DEAD_MODEL_MS = 24 * 60 * 60 * 1000
 const NVIDIA_OPENAI_COMPAT_HARD_FAILURE_WINDOW_MS = 60 * 60 * 1000
@@ -1040,11 +1042,13 @@ function hasSmallExplicitModelSize(text: string): boolean {
 
 function isNvidiaFreeTrialTextModel(row: any, id: string): boolean {
   const haystack = nvidiaModelHaystack(row, id)
+  const normalizedId = String(id || '').toLowerCase()
   if (!id || hasSmallExplicitModelSize(haystack)) return false
   if (/embed|embedding|rerank|retriev|guard|safety|reward|moderation|vision-only|\bvlm\b|\bvila\b|\bneva\b|paligemma|\bcode\b|coder|starcoder|codellama|codegemma|audio|speech|\basr\b|\btts\b|\bstt\b|translate|parse|\bocr\b|ocr-only|nv-clip|whisper/.test(haystack)) return false
   if (/\bbase\b/.test(haystack) && !/\binstruct\b/.test(haystack)) return false
+  if (!NVIDIA_OPENAI_COMPAT_CALLABLE_MODEL_IDS.has(normalizedId)) return false
   if (/deepseek/.test(haystack)) return true
-  if (/qwen(?:2\.5|3)/.test(haystack) && /\binstruct\b/.test(haystack)) return true
+  if (/qwen(?:2\.5|3)/.test(haystack)) return true
   if (/llama-(?:3\.1|3\.3|4)/.test(haystack) && /\binstruct\b/.test(haystack)) return true
   if (/mistral-(?:large|medium|small-3)/.test(haystack)) return true
   if (/mixtral-8x22b/.test(haystack)) return true
@@ -1446,7 +1450,9 @@ async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel
   const selectedPart = selected && !selectedIsAuto ? [selected] : []
   const academicPreferred = taskLevel === 'GENERAL' ? [] : s.academicAllowlist.filter((item) => item.provider === provider).map((item) => item.model)
   const discoveredOrFallback = discoveredFree.length ? discoveredFree : staticDefaults
+  const nvidiaCompat = provider === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl)
   const models = [...new Set([...academicPreferred, ...selectedPart, ...discoveredOrFallback].filter(Boolean))]
+    .filter((model) => !nvidiaCompat || NVIDIA_OPENAI_COMPAT_CALLABLE_MODEL_IDS.has(model.toLowerCase()))
     .filter(modelCapabilityAllowed)
     .filter((model) => modelAllowedForPurpose(model, purpose, modelCapabilitiesFor(provider, s, model)))
   const allowed = taskLevel === 'GENERAL' ? models : models.filter((model) => academicModelAllowed(provider, model))
@@ -1541,9 +1547,11 @@ export async function textAiFreeModelsForProvider(providerValue: unknown): Promi
   }
   const concrete = provider as ConcreteProvider
   const staticDefaults = staticTextModelsForProvider(concrete, s)
-  const discovered = await liveFreeModels(concrete, s)
+  const discoveredRaw = await liveFreeModels(concrete, s)
+  const nvidiaCompat = concrete === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl)
+  const discovered = discoveredRaw.filter((model) => !nvidiaCompat || NVIDIA_OPENAI_COMPAT_CALLABLE_MODEL_IDS.has(model.toLowerCase()))
   const selected = modelFor(s, concrete)
-  const selectedPart = selected && !/(^|\/|-)auto$/i.test(selected) && selected !== 'auto' ? [selected] : []
+  const selectedPart = selected && !/(^|\/|-)auto$/i.test(selected) && selected !== 'auto' && (!nvidiaCompat || NVIDIA_OPENAI_COMPAT_CALLABLE_MODEL_IDS.has(selected.toLowerCase())) ? [selected] : []
   const models = [...new Set([...selectedPart, ...discovered, ...staticDefaults].filter(Boolean))]
   const catalogLabel = concrete === 'TOPTOOLS'
     ? 'نموذج متاح'
@@ -2096,23 +2104,24 @@ export function __testNvidiaCompatSmartFilterSmokeForTests(): { models: string[]
     { id: 'meta/llama-3.3-70b-coder' },
     { id: 'qwen/qwen3-8b-instruct' },
     { id: 'nvidia/vila-vlm' },
-    { id: 'openai/gpt-oss-120b' },
-    { id: 'moonshotai/kimi-k2-instruct' },
-    { id: 'qwen/qwen3-235b-a22b-instruct-2507' },
-    { id: 'deepseek/deepseek-v3.2' },
-    { id: 'meta/llama-3.3-70b-instruct' },
+    { id: 'moonshotai/kimi-k2.6' },
     { id: 'mistralai/mistral-large' },
     { id: 'nvidia/llama-3.1-nemotron-ultra-253b-v1' },
+    { id: 'openai/gpt-oss-120b' },
+    { id: 'moonshotai/kimi-k2-instruct-0905' },
+    { id: 'qwen/qwen3-235b-a22b' },
+    { id: 'deepseek/deepseek-v3.2' },
+    { id: 'nvidia/nemotron-3-super-120b-a12b' },
+    { id: 'mistralai/mistral-large-3-675b-instruct-2512' },
   ]
   const models = nvidiaDiscoveredTextModelsFromRows(rows)
   const expected = [
     'deepseek/deepseek-v3.2',
-    'qwen/qwen3-235b-a22b-instruct-2507',
-    'moonshotai/kimi-k2-instruct',
+    'qwen/qwen3-235b-a22b',
+    'moonshotai/kimi-k2-instruct-0905',
     'openai/gpt-oss-120b',
-    'meta/llama-3.3-70b-instruct',
-    'mistralai/mistral-large',
-    'nvidia/llama-3.1-nemotron-ultra-253b-v1',
+    'mistralai/mistral-large-3-675b-instruct-2512',
+    'nvidia/nemotron-3-super-120b-a12b',
   ]
   if (JSON.stringify(models) !== JSON.stringify(expected)) throw new Error('NVIDIA_SMART_FILTER_TEST_FAILED')
   const firstWindow = __testNvidiaRoundRobinProviderModelsForTests(models, 1)
@@ -2619,6 +2628,10 @@ export async function textAiTestConnection(): Promise<{ ok: boolean; provider?: 
           lastResult = { provider, model, ok: false, error: msg, at }
           recordAttempt({ provider, model, keyIndex, ok: false, ms, status, error: msg, at })
           errors.push(`${provider}/${model}/key#${keyIndex}: ${msg}`)
+          if (provider === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl) && isNvidiaHardModelFailure(e, msg, status)) {
+            await recordNvidiaHardFailureAndMaybeDead(provider, model, msg, status)
+            break
+          }
           if (isTimeoutLike(e)) markCooldown(provider, key, msg, 2, status)
           if (isQuotaLike(e)) markCooldown(provider, key, msg, undefined, status)
           if (isAuthLike(e)) markCooldown(provider, key, msg, 60, status)
