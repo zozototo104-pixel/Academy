@@ -370,6 +370,7 @@ export default function AdminLegacyGraduatesTab() {
             <Button variant="outline" onClick={() => runImport(true)} disabled={busy === 'dryRun'}>{busy === 'dryRun' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'معاينة الأخطاء'}</Button>
             <Button onClick={() => runImport(false)} disabled={!excelFile || importRows.length === 0 || invalidImportRows.length > 0 || busy === 'import'}>{busy === 'import' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'حفظ الاستيراد'}</Button>
           </div>
+          {importProgress ? <p className="text-xs font-bold text-[#0f2b46]">تم {importProgress.done} من {importProgress.total}</p> : null}
           {importRows.length > 0 && (
             <div className="max-h-72 overflow-auto rounded-xl border border-slate-200">
               <table className="w-full min-w-[760px] text-right text-xs">
