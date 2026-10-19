@@ -2719,5 +2719,5 @@ export async function textAiTestConnection(): Promise<{ ok: boolean; provider?: 
       }
     }
   }
-  return { ok: false, error: errors.slice(0, 4).join(' | ') || 'تعذر اختبار أي مزود نصوص متاح. راجع المفاتيح أو النماذج أو حالة cooldown.' }
+  return { ok: false, error: errors.slice(0, 4).join(' | ') || 'تعذر اختبار أي مزود نصوص متاح. راجع المفاتيح أو النماذج أو حالة cooldown.', ...(nvidiaDiscovery ? { nvidiaDiscovery } : {}) }
 }
