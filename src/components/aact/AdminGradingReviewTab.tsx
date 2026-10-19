@@ -78,8 +78,13 @@ export default function AdminGradingReviewTab() {
     <div className="mt-4 grid gap-4 lg:grid-cols-[360px_1fr]" dir="rtl">
       <Card className="border-amber-200">
         <CardContent className="p-4">
-          <div className="mb-3 flex items-center justify-between"><h3 className="font-black text-[#0f2b46]">مراجعة التصحيح</h3><Badge>{attempts.length} معلقة</Badge></div>
-          {loading ? <p className="text-sm text-slate-500">جاري التحميل...</p> : attempts.length === 0 ? <p className="text-sm font-bold text-emerald-700">لا توجد محاولات معلقة.</p> : <div className="space-y-2">{attempts.map((a) => <button key={`${a.type}:${a.id}`} onClick={() => open(a)} className="w-full rounded-xl border bg-white p-3 text-right text-xs hover:bg-amber-50"><p className="font-black text-[#0f2b46]">{a.student.name}</p><p className="text-slate-500">{a.exam.title}</p><p className="text-slate-400">{a.type === 'UNIT' ? 'اختبار وحدة' : 'امتحان برنامج'} · {new Date(a.submittedAt).toLocaleString('ar')}</p></button>)}</div>}
+          <div className="mb-3 flex items-center justify-between"><h3 className="font-black text-[#0f2b46]">مراجعة التصحيح</h3><Badge>{attempts.length} محاولة</Badge></div>
+          <select value={statusFilter} onChange={(e) => { setSelected(null); setStatusFilter(e.target.value as any) }} className="mb-3 w-full rounded-xl border bg-white p-2 text-xs font-bold text-[#0f2b46]">
+            <option value="NEEDS_REVIEW">قيد المراجعة</option>
+            <option value="GRADED">مصححة/مجتازة</option>
+            <option value="ALL">الكل</option>
+          </select>
+          {loading ? <p className="text-sm text-slate-500">جاري التحميل...</p> : attempts.length === 0 ? <p className="text-sm font-bold text-emerald-700">لا توجد محاولات ضمن هذا الفلتر.</p> : <div className="space-y-2">{attempts.map((a) => <button key={`${a.type}:${a.id}`} onClick={() => open(a)} className="w-full rounded-xl border bg-white p-3 text-right text-xs hover:bg-amber-50"><p className="font-black text-[#0f2b46]">{a.student.name}</p><p className="text-slate-500">{a.exam.title}</p><p className="text-slate-400">{a.type === 'UNIT' ? 'اختبار وحدة' : 'امتحان برنامج'} · {a.status === 'GRADED' ? 'مصححة' : 'قيد المراجعة'} · {new Date(a.submittedAt).toLocaleString('ar')}</p></button>)}</div>}
         </CardContent>
       </Card>
       <Card>
