@@ -3,7 +3,21 @@ import { paymentAmountDollars } from '@/lib/money'
 
 export const TUITION_PURPOSES = ['TUITION', 'TUITION_INSTALLMENT']
 
-type TuitionPayment = { purpose: string; status: string; amount: number; amountCents?: number | null; waiverType?: string | null; waivedAmount?: number | null; waivedAmountCents?: number | null; originalAmount?: number | null; originalAmountCents?: number | null }
+type TuitionPayment = { id?: string; purpose: string; status: string; amount: number; amountCents?: number | null; waiverType?: string | null; waiverStatus?: string | null; waivedAmount?: number | null; waivedAmountCents?: number | null; originalAmount?: number | null; originalAmountCents?: number | null }
+
+const TUITION_PAYMENT_SELECT = {
+  id: true,
+  purpose: true,
+  status: true,
+  amount: true,
+  amountCents: true,
+  waiverType: true,
+  waiverStatus: true,
+  waivedAmount: true,
+  waivedAmountCents: true,
+  originalAmount: true,
+  originalAmountCents: true,
+}
 
 function amountOf(payment: TuitionPayment): number {
   return paymentAmountDollars(payment)
@@ -23,11 +37,24 @@ function waivedAmountOf(payment: TuitionPayment): number {
   return roundMoney(Number(payment.waivedAmount || 0))
 }
 
+function isTuitionPayment(payment: TuitionPayment): boolean {
+  return TUITION_PURPOSES.includes(payment.purpose)
+}
+
+function actualPaidAmountOf(payment: TuitionPayment): number {
+  return payment.status === 'PAID' ? amountOf(payment) : 0
+}
+
+function approvedWaiverCreditOf(payment: TuitionPayment): number {
+  if (payment.waiverStatus !== 'APPROVED') return 0
+  if (!['PARTIAL_TUITION', 'FULL_SCHOLARSHIP'].includes(String(payment.waiverType || ''))) return 0
+  const waived = waivedAmountOf(payment)
+  if (waived > 0) return waived
+  return payment.status === 'WAIVED' ? originalAmountOf(payment) : 0
+}
+
 function settledAmountOf(payment: TuitionPayment): number {
-  if (payment.status === 'PAID') return amountOf(payment)
-  if (payment.waiverType === 'PARTIAL_TUITION') return waivedAmountOf(payment)
-  if (payment.status === 'WAIVED') return originalAmountOf(payment)
-  return waivedAmountOf(payment)
+  return roundMoney(actualPaidAmountOf(payment) + approvedWaiverCreditOf(payment))
 }
 
 export interface TuitionPlanSummary {
@@ -50,6 +77,12 @@ export interface TuitionPlanSummary {
   applicationFeePaid: boolean
   canRequestInstallmentAppeal: boolean
   installmentAppealBlockedReason: string | null
+}
+
+export interface TuitionCoverage {
+  due: number
+  covered: number
+  ratio: number
 }
 
 export function roundMoney(n: number): number {
@@ -89,21 +122,7 @@ function installmentAppealEligibility(args: {
 }
 
 export function tuitionPaidTotal(payments: TuitionPayment[]): number {
-  const settledFullTuition = Math.max(
-    0,
-    ...payments
-      .filter((p) => p.purpose === 'TUITION' && (p.status === 'PAID' || p.status === 'WAIVED'))
-      .map(settledAmountOf)
-  )
-  const settledInstallments = payments
-    .filter((p) => p.purpose === 'TUITION_INSTALLMENT')
-    .reduce((sum, p) => sum + settledAmountOf(p), 0)
-  const settledOtherTuition = payments
-    .filter((p) => !['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && TUITION_PURPOSES.includes(p.purpose))
-    .reduce((sum, p) => sum + settledAmountOf(p), 0)
-
-  // إذا وُجدت فاتورة رسوم كاملة مسددة أو معفاة فلا نضيف فوقها أقساطاً لنفس الرسوم.
-  return roundMoney(Math.max(settledFullTuition, settledInstallments + settledOtherTuition))
+  return roundMoney(payments.filter(isTuitionPayment).reduce((sum, payment) => sum + settledAmountOf(payment), 0))
 }
 
 export function inferTotalTuition(payments: TuitionPayment[], fallback = 0): number {
@@ -121,8 +140,51 @@ export function inferTotalTuition(payments: TuitionPayment[], fallback = 0): num
 
   const installmentsOnly = payments
     .filter((p) => p.purpose === 'TUITION_INSTALLMENT')
-    .reduce((sum, p) => sum + amountOf(p), 0)
+    .reduce((sum, p) => sum + originalAmountOf(p), 0)
   return roundMoney(installmentsOnly)
+}
+
+function uniquePayments(payments: TuitionPayment[]): TuitionPayment[] {
+  const seen = new Set<string>()
+  const result: TuitionPayment[] = []
+  for (const payment of payments) {
+    const key = payment.id || `${payment.purpose}:${payment.status}:${payment.amount}:${payment.originalAmount}:${payment.waivedAmount}:${result.length}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    result.push(payment)
+  }
+  return result
+}
+
+export async function computeTuitionCoverage(userId: string, programId: string): Promise<TuitionCoverage> {
+  const [program, apps, enrollmentPayments] = await Promise.all([
+    db.program.findUnique({ where: { id: programId }, select: { price: true } }).catch(() => null),
+    db.admissionApplication.findMany({
+      where: { userId, programId },
+      include: { payments: { select: TUITION_PAYMENT_SELECT } },
+      orderBy: { createdAt: 'desc' },
+    }).catch(() => []),
+    db.payment.findMany({
+      where: { enrollment: { is: { userId, programId } } },
+      select: TUITION_PAYMENT_SELECT,
+    }).catch(() => []),
+  ])
+  const payments = uniquePayments([
+    ...apps.flatMap((app: any) => Array.isArray(app.payments) ? app.payments : []),
+    ...enrollmentPayments,
+  ])
+  const due = inferTotalTuition(payments, Number(program?.price || 0))
+  const rawCovered = tuitionPaidTotal(payments)
+  const covered = due > 0 ? roundMoney(Math.min(due, rawCovered)) : rawCovered
+  const ratio = due <= 0 ? 1 : Math.max(0, Math.min(1, covered / due))
+  return { due, covered, ratio }
+}
+
+function requiredCoverageRatioForSemester(semester: number, semestersCount?: number | null): number {
+  const normalizedSemester = Math.max(1, Number(semester) || 1)
+  const totalSemesters = Math.max(2, Number(semestersCount || 2) || 2)
+  if (totalSemesters > 2) return Math.min(1, Math.max(0.5, normalizedSemester / totalSemesters))
+  return normalizedSemester <= 1 ? 0.5 : 1
 }
 
 async function findActiveAppeal(admissionId: string) {
@@ -142,15 +204,18 @@ export async function getAdmissionTuitionPlan(admissionId: string): Promise<Tuit
   const app = await db.admissionApplication.findUnique({
     where: { id: admissionId },
     include: {
-      payments: { select: { purpose: true, status: true, amount: true, amountCents: true, waiverType: true, waivedAmount: true, waivedAmountCents: true, originalAmount: true, originalAmountCents: true } },
+      payments: { select: TUITION_PAYMENT_SELECT },
       programRef: { select: { price: true } },
     },
   })
   if (!app) return null
   const appeal = await findActiveAppeal(app.id)
-  const fallbackTuition = Number(app.programRef?.price || 0)
-  const totalTuition = inferTotalTuition(app.payments, fallbackTuition)
-  const paidTuition = tuitionPaidTotal(app.payments)
+  const localTotalTuition = inferTotalTuition(app.payments, Number(app.programRef?.price || 0))
+  const coverage = app.userId && app.programId
+    ? await computeTuitionCoverage(app.userId, app.programId).catch(() => null)
+    : null
+  const totalTuition = coverage?.due ?? localTotalTuition
+  const paidTuition = coverage?.covered ?? tuitionPaidTotal(app.payments)
   const remainingTuition = roundMoney(Math.max(0, totalTuition - paidTuition))
   const { halfRequired, finalRequired } = installmentThresholds(totalTuition, appeal)
   const feePaid = applicationFeePaid(app.payments)
@@ -188,15 +253,16 @@ export async function getStudentTuitionPlan(userId: string, programId: string): 
     where: { userId, programId },
     orderBy: { createdAt: 'desc' },
     include: {
-      payments: { select: { purpose: true, status: true, amount: true, amountCents: true, waiverType: true, waivedAmount: true, waivedAmountCents: true, originalAmount: true, originalAmountCents: true } },
+      payments: { select: TUITION_PAYMENT_SELECT },
       programRef: { select: { price: true } },
     },
   })
   if (!app) return null
   const appeal = await findActiveAppeal(app.id)
+  const coverage = await computeTuitionCoverage(userId, programId).catch(() => null)
   const fallbackTuition = Number(app.programRef?.price || 0)
-  const totalTuition = inferTotalTuition(app.payments, fallbackTuition)
-  const paidTuition = tuitionPaidTotal(app.payments)
+  const totalTuition = coverage?.due ?? inferTotalTuition(app.payments, fallbackTuition)
+  const paidTuition = coverage?.covered ?? tuitionPaidTotal(app.payments)
   const remainingTuition = roundMoney(Math.max(0, totalTuition - paidTuition))
   const { halfRequired, finalRequired } = installmentThresholds(totalTuition, appeal)
   const feePaid = applicationFeePaid(app.payments)
@@ -230,38 +296,58 @@ export async function getStudentTuitionPlan(userId: string, programId: string): 
 }
 
 export async function enforceSemesterTuitionGate(userId: string, programId: string, semester: number) {
-  const plan = await getStudentTuitionPlan(userId, programId)
-  if (!plan) return { ok: true as const, plan: null }
-  if (semester === 1 && !plan.firstSemesterAllowed) {
-    return {
-      ok: false as const,
-      code: 'TUITION_HALF_REQUIRED',
-      totalTuition: plan.totalTuition,
-      paidTuition: plan.paidTuition,
-      requiredAmount: plan.halfRequired,
-      remainingTuition: plan.remainingTuition,
-      plan,
-      error: `لا يمكن فتح امتحان الفصل الأول قبل سداد نصف الرسوم الدراسية على الأقل. المسدد حالياً ${plan.paidTuition}$ والمطلوب ${plan.halfRequired}$.`,
+  const [plan, coverage, program] = await Promise.all([
+    getStudentTuitionPlan(userId, programId),
+    computeTuitionCoverage(userId, programId),
+    db.program.findUnique({ where: { id: programId }, select: { semestersCount: true } }).catch(() => null),
+  ])
+  if (coverage.due <= 0) return { ok: true as const, plan }
+
+  const requiredRatio = requiredCoverageRatioForSemester(semester, program?.semestersCount)
+  const requiredAmount = roundMoney(coverage.due * requiredRatio)
+  const gatePlan = plan
+    ? {
+        ...plan,
+        totalTuition: coverage.due,
+        paidTuition: coverage.covered,
+        remainingTuition: roundMoney(Math.max(0, coverage.due - coverage.covered)),
+        halfRequired: roundMoney(coverage.due * 0.5),
+        finalRequired: coverage.due,
+        firstSemesterAllowed: coverage.ratio >= 0.5,
+        secondSemesterAllowed: coverage.ratio >= 1,
+      }
+    : plan
+
+  if (coverage.ratio + 0.000001 < requiredRatio) {
+    if (semester === 1) {
+      return {
+        ok: false as const,
+        code: 'TUITION_HALF_REQUIRED',
+        totalTuition: coverage.due,
+        paidTuition: coverage.covered,
+        requiredAmount,
+        remainingTuition: roundMoney(Math.max(0, coverage.due - coverage.covered)),
+        plan: gatePlan,
+        error: `لا يمكن فتح امتحان الفصل الأول قبل سداد نصف الرسوم الدراسية على الأقل. المسدد حالياً ${coverage.covered}$ والمطلوب ${requiredAmount}$.`,
+      }
     }
-  }
-  if (semester >= 2 && !plan.secondSemesterAllowed) {
     return {
       ok: false as const,
       code: 'TUITION_FULL_REQUIRED',
-      totalTuition: plan.totalTuition,
-      paidTuition: plan.paidTuition,
-      requiredAmount: plan.finalRequired,
-      remainingTuition: plan.remainingTuition,
-      plan,
-      error: `لا يمكن فتح امتحان الفصل الثاني قبل سداد بقية الرسوم الدراسية كاملة. المسدد حالياً ${plan.paidTuition}$ والمطلوب ${plan.finalRequired}$.`,
+      totalTuition: coverage.due,
+      paidTuition: coverage.covered,
+      requiredAmount,
+      remainingTuition: roundMoney(Math.max(0, coverage.due - coverage.covered)),
+      plan: gatePlan,
+      error: `لا يمكن فتح امتحان الفصل الثاني قبل سداد بقية الرسوم الدراسية كاملة. المسدد حالياً ${coverage.covered}$ والمطلوب ${requiredAmount}$.`,
     }
   }
   return {
     ok: true as const,
-    totalTuition: plan.totalTuition,
-    paidTuition: plan.paidTuition,
-    requiredAmount: semester >= 2 ? plan.finalRequired : plan.halfRequired,
-    remainingTuition: plan.remainingTuition,
-    plan,
+    totalTuition: coverage.due,
+    paidTuition: coverage.covered,
+    requiredAmount,
+    remainingTuition: roundMoney(Math.max(0, coverage.due - coverage.covered)),
+    plan: gatePlan,
   }
 }
