@@ -96,8 +96,12 @@ export async function POST(req: NextRequest) {
     await requireAdmin()
     const programId = String(req.nextUrl.searchParams.get('programId') || '').trim()
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
+    const program = await db.program.findUnique({ where: { id: programId }, select: { id: true } })
+    if (!program) return NextResponse.json({ error: 'البرنامج غير موجود ولا يمكن استيراد جدول الدراسة له' }, { status: 404 })
     const rows = await readImportRows(req)
     const parsed = z.array(importItemSchema).max(200).parse(rows)
+    const replace = req.nextUrl.searchParams.get('replace') === '1'
+    const semesters = [...new Set(parsed.map((item) => item.semester))]
     const data = parsed.map((item, index) => ({
       programId,
       semester: item.semester,
