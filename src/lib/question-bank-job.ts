@@ -653,7 +653,6 @@ export async function runNextQuestionBankGenerationJobStep(programId?: string, o
     take: 8,
   })
   for (const job of jobs) {
-    if (options.resumable && !questionBankJobMatchesResumableRunner(job, now.getTime())) continue
     const requested = questionBankJobRequestedTarget(job)
     if (job.saved >= requested) {
       await db.questionBankGenerationJob.updateMany({
