@@ -217,6 +217,10 @@ export function PaymentsTab() {
   const [pdfBusy, setPdfBusy] = useState<string | null>(null)
   const [initialInvoiceNo, setInitialInvoiceNo] = useState<string | null>(null)
   const [autoOpenedInvoiceNo, setAutoOpenedInvoiceNo] = useState<string | null>(null)
+  const [initialWaiverMode] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return new URLSearchParams(window.location.search).get('waiver') === '1'
+  })
 
   const load = () => {
     api<{ payments: Payment[]; tuitionPlans?: TuitionPlan[] }>('/api/payments')
