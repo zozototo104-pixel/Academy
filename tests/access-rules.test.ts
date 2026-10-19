@@ -154,6 +154,25 @@ describe('student supervisor access by enrollment', () => {
 })
 
 describe('tuition coverage exam gates', () => {
+  test('ACTIVE enrollment without admission or enrollment tuition invoices opens both exams', async () => {
+    enroll()
+
+    expect((await semesterGate(1)).ok).toBe(true)
+    expect((await semesterGate(2)).ok).toBe(true)
+  })
+
+  test('admission scholarshipFull without tuition invoices opens both exams', async () => {
+    enroll()
+    admit([], 'program-a', 'student-1', true)
+
+    const coverage = await computeTuitionCoverage('student-1', 'program-a')
+    expect(coverage.due).toBe(100)
+    expect(coverage.covered).toBe(100)
+    expect(coverage.ratio).toBe(1)
+    expect((await semesterGate(1)).ok).toBe(true)
+    expect((await semesterGate(2)).ok).toBe(true)
+  })
+
   test('approved full scholarship gives 100% coverage and opens supervisor plus both exams', async () => {
     enroll()
     admit([tuitionPayment({ status: 'WAIVED', amount: 0, originalAmount: 100, waivedAmount: 100, waiverType: 'FULL_SCHOLARSHIP', waiverStatus: 'APPROVED' })])
