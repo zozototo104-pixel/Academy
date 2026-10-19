@@ -168,6 +168,23 @@ function testQuestionBankLockedJobDoesNotBlockQueue() {
   assert(!code.includes('result.saved === job.saved && (result.status === job.status'), 'بعد خطوة فعلية يجب إرجاع النتيجة حتى لو لم يزد saved')
 }
 
+function testQuestionBankResumableRunnerSelector() {
+  const now = Date.now()
+  const base = { saved: 0, requested: 10 }
+  assert(questionBankJobMatchesResumableRunner({ ...base, status: 'PAUSED', retryAt: new Date(now - 1_000), lockedUntil: null }, now), 'cron يجب أن يختار PAUSED إذا retryAt في الماضي')
+  assert(!questionBankJobMatchesResumableRunner({ ...base, status: 'PAUSED', retryAt: new Date(now + 60_000), lockedUntil: null }, now), 'cron يجب ألا يختار PAUSED إذا retryAt في المستقبل')
+  assert(questionBankJobMatchesResumableRunner({ ...base, status: 'RUNNING', retryAt: null, lockedUntil: new Date(now - 1_000) }, now), 'cron يجب أن يختار RUNNING إذا انتهى قفله')
+  assert(!questionBankJobMatchesResumableRunner({ ...base, status: 'RUNNING', retryAt: null, lockedUntil: new Date(now + 60_000) }, now), 'cron يجب ألا يختار RUNNING إذا كان قفله فعالاً')
+  assert(!questionBankJobMatchesResumableRunner({ ...base, status: 'COMPLETED', retryAt: null, lockedUntil: null }, now), 'cron يجب ألا يختار COMPLETED')
+  assert(!questionBankJobMatchesResumableRunner({ ...base, status: 'FAILED', retryAt: null, lockedUntil: null }, now), 'cron يجب ألا يختار FAILED')
+}
+
+function testQuestionBankGenerateButtonRequestsSixtyNotTen() {
+  const ui = src('src/components/aact/AdminBooks.tsx')
+  assert(ui.includes('count: 60'), 'زر توليد بنك المعرفة يجب أن يطلب 60 سؤالاً')
+  assert(!ui.includes('count: 10'), 'زر توليد بنك المعرفة يجب ألا يبقى على count: 10')
+}
+
 function testVerifierRejectedQuestionIsNotSaved() {
   assert(!hasSourceGroundedFlag({ qualityFlags: ['NEEDS_REVIEW'] }), 'السؤال المرفوض من المحقق لا يجب اعتباره SOURCE_GROUNDED')
   assert(hasSourceGroundedFlag({ qualityFlags: ['SOURCE_GROUNDED'] }), 'السؤال المثبت فقط يحفظ كـ SOURCE_GROUNDED')
