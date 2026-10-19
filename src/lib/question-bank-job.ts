@@ -625,9 +625,22 @@ function questionBankJobRequestedTarget(job: { requested: number; unitId?: strin
   return job.unitId ? unitExamRequiredQuestions(job.requested) : Math.max(1, Number(job.requested || 1))
 }
 
-export async function runNextQuestionBankGenerationJobStep(programId?: string, options: { queuedOnly?: boolean } = {}) {
+export async function runNextQuestionBankGenerationJobStep(programId?: string, options: { queuedOnly?: boolean; resumable?: boolean } = {}) {
   const now = new Date()
   const runnableRetry = [{ retryAt: null }, { retryAt: { lte: now } }]
+  const statusFilter = options.resumable ? [
+    { status: 'QUEUED' },
+    { status: 'PAUSED', OR: runnableRetry },
+    { status: 'RUNNING', lockedUntil: { lt: now } },
+  ] : options.queuedOnly ? [
+    { status: 'QUEUED', OR: runnableRetry },
+    { status: 'RUNNING', OR: runnableRetry },
+    { status: 'PAUSED', retryAt: { lte: now } },
+  ] : [
+    { status: 'QUEUED', OR: runnableRetry },
+    { status: 'RUNNING', OR: runnableRetry },
+    { status: 'PAUSED', OR: runnableRetry },
+  ]
   const jobs = await db.questionBankGenerationJob.findMany({
     where: {
       ...(programId ? { programId } : {}),
