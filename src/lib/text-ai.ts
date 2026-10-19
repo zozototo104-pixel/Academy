@@ -2565,8 +2565,9 @@ export async function textAiTestConnection(): Promise<{ ok: boolean; provider?: 
   const providers = providerOrder(s)
   if (!providers.length) return { ok: false, error: 'TEXT_AI_ROUTER_NOT_CONFIGURED' }
   const errors: string[] = []
+  const requestSeq = ++routerRequestSeq
   for (const provider of providers) {
-    for (const model of await modelFallbacks(s, provider)) {
+    for (const model of providerModelsForRequest(provider, s, await modelFallbacks(s, provider), requestSeq)) {
       for (const key of candidateKeys(provider, s).slice(0, 2)) {
         const started = Date.now()
         const keyIndex = Math.max(1, providerKeys(s, provider).indexOf(key) + 1)
