@@ -1002,28 +1002,49 @@ function normalizeFreeModelName(provider: ConcreteProvider, name: string): strin
 }
 
 async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseUrl: string, key?: string): Promise<string[]> {
-  if (!baseUrl) return []
+  const normalizedBaseUrl = provider === 'OPENAI_COMPAT'
+    ? normalizeOpenAiCompatibleBaseUrl(baseUrl)
+    : (baseUrl || '').replace(/\/$/, '')
+  if (!normalizedBaseUrl) return []
+  const nvidiaCompat = provider === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(normalizedBaseUrl)
   try {
-    const response = await fetchWithTimeout(provider, `${baseUrl.replace(/\/$/, '')}/models`, {
+    const response = await fetchWithTimeout(provider, `${normalizedBaseUrl}/models`, {
       cache: 'no-store',
       headers: key ? { Authorization: `Bearer ${key}` } : undefined,
     }, aiDiscoveryTimeoutMs())
+    if (!response.ok) return []
     const data = await response.json().catch(() => ({}))
     const rows = rowsFromModelPayload(data)
       .filter((m) => m?.online !== false)
       .filter(isTextLikeModel)
       .map((m) => ({ raw: m, id: normalizeFreeModelName(provider, modelId(m)) }))
-      .filter(({ raw, id }) => validModelName(id) && (provider === 'TOPTOOLS' ? isStrongTopToolsTextModel(raw, id) : isFreeModel(raw, id)))
+      .filter(({ raw, id }) => validModelName(id) && (
+        provider === 'TOPTOOLS'
+          ? isStrongTopToolsTextModel(raw, id)
+          : nvidiaCompat
+            ? isNvidiaFreeTrialTextModel(raw, id)
+            : isFreeModel(raw, id)
+      ))
     const orderedRows = provider === 'TOPTOOLS'
       ? rows.sort((a, b) => topToolsModelRank(a.id) - topToolsModelRank(b.id) || a.id.localeCompare(b.id))
-      : rows
+      : nvidiaCompat
+        ? rows.sort((a, b) => academicModelRank(a.id) - academicModelRank(b.id) || a.id.localeCompare(b.id))
+        : rows
     const models = orderedRows.map(({ id }) => id)
     const capabilities = Object.fromEntries(orderedRows.map(({ raw, id }) => [id, capabilityFromModelRow(raw)]))
-    freeModelsCache.set(cacheKeyForFreeModels(provider, baseUrl, key), { at: Date.now(), models, capabilities })
+    freeModelsCache.set(cacheKeyForFreeModels(provider, normalizedBaseUrl, key), { at: Date.now(), models, capabilities })
     return models
   } catch {
     return []
   }
+}
+
+export async function __testDiscoverOpenAiCompatibleFreeModelsForTests(baseUrl: string, key?: string): Promise<string[]> {
+  return fetchOpenAiCompatibleFreeModels('OPENAI_COMPAT', baseUrl, key)
+}
+
+export function __testNormalizeOpenAiCompatibleBaseUrlForTests(baseUrl: string): string {
+  return normalizeOpenAiCompatibleBaseUrl(baseUrl)
 }
 
 function isGroqTextChatModel(row: any): boolean {
