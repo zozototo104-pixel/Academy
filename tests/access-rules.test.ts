@@ -71,10 +71,13 @@ const db: any = {
     findMany: async ({ where }: any) => admissions.filter((row) => row.userId === where?.userId && row.programId === where?.programId),
   },
   payment: {
-    findMany: async ({ where }: any) => enrollmentPayments.filter((row) =>
-      row.enrollmentUserId === where?.enrollment?.is?.userId
-      && row.enrollmentProgramId === where?.enrollment?.is?.programId
-    ),
+    findMany: async ({ where, take }: any) => {
+      const purposeIn = Array.isArray(where?.purpose?.in) ? where.purpose.in : null
+      const rows = enrollmentPayments
+        .filter((row) => row.enrollmentUserId === where?.enrollment?.is?.userId && row.enrollmentProgramId === where?.enrollment?.is?.programId)
+        .filter((row) => !purposeIn || purposeIn.includes(row.purpose))
+      return typeof take === 'number' ? rows.slice(0, take) : rows
+    },
   },
   tuitionInstallmentAppeal: {
     findFirst: async () => null,
