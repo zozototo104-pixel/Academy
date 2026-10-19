@@ -486,6 +486,12 @@ describe('legacy certificate verification', () => {
     const ok = await responseJson(okRes)
     expect(ok.valid).toBe(true)
     expect(ok.certificate.serial).toBe('AACT-C-2026-00001')
+    expect(ok.certificate.legacySerial).toBe('OLD-VERIFY-1')
+    const oldSerialRes = await verifyRoute.GET(jsonReq({}, 'https://aactacademy.test/api/certificates/verify?serial=OLD-VERIFY-1'))
+    const oldSerial = await responseJson(oldSerialRes)
+    expect(oldSerial.valid).toBe(true)
+    expect(oldSerial.certificate.serial).toBe('AACT-C-2026-00001')
+    expect(oldSerial.certificate.legacySerial).toBe('OLD-VERIFY-1')
     const cert = certificates.get('cert-1')!
     cert.valid = false
     cert.revokedAt = new Date('2026-01-01T00:00:00Z')
