@@ -155,6 +155,12 @@ const UNOROUTER_TEXT_MODELS = [
 const RELAYROUTER_TEXT_MODELS = ['relayrouter/auto', 'claude-opus-4-8', 'gpt-5.5', 'gemini-3.5-flash']
 const TOPTOOLS_TEXT_MODELS = ['top-tools-ai']
 const OPENAI_COMPAT_TEXT_MODELS = ['auto']
+const NVIDIA_OPENAI_COMPAT_TEXT_MODELS = [
+  'openai/gpt-oss-20b',
+  'nvidia/llama-3.3-nemotron-super-49b-v1.5',
+  'nvidia/nemotron-3-super-120b-a12b',
+  'nvidia/llama-3.1-nemotron-ultra-253b-v1',
+]
 const MAX_VISION_ATTACHMENT_BYTES = 15 * 1024 * 1024
 const VISION_ATTEMPT_TIMEOUT_MS = 75_000
 const VISION_OPENAI_COMPAT_PROVIDERS = new Set<TextAiProvider>(['OPENAI', 'OPENROUTER', 'OPENAI_COMPAT'])
