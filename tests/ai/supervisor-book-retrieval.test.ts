@@ -30,6 +30,7 @@ let chunks: BookChunkRow[] = []
 let knowledgeItems: KnowledgeRow[] = []
 let requestedChunkProgramIds: string[] = []
 let requestedKnowledgeProgramIds: string[] = []
+let lastBookChunkFindManyArgs: any = null
 
 const books: Record<string, { title: string }> = {
   'book-a': { title: 'علم النفس المعرفي' },
