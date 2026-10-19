@@ -451,7 +451,20 @@ async function markPersistentCooldown(provider: string, keyIndex: number, model:
   }
 }
 
+function activeProviderCooldown(provider: string): { until: number; reason: string; status?: number; model?: string } | null {
+  const id = providerCooldownId(provider)
+  const item = cooldowns.get(id)
+  if (!item) return null
+  if (item.until <= Date.now()) {
+    cooldowns.delete(id)
+    return null
+  }
+  return item
+}
+
 function activeMemoryCooldown(provider: string, key: string): { until: number; reason: string; status?: number; model?: string } | null {
+  const providerItem = activeProviderCooldown(provider)
+  if (providerItem) return providerItem
   const id = cooldownId(provider, key)
   const item = cooldowns.get(id)
   if (!item) return null
