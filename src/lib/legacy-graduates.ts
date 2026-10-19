@@ -82,6 +82,9 @@ export async function createLegacyGraduate(input: LegacyGraduateInput, admin: Ad
 
     const legacySerial = cleanOptional(input.legacySerial)
     let user = await tx.user.findUnique({ where: { email } })
+    if (user && user.role !== 'STUDENT') {
+      throw new LegacyGraduateError(409, 'NON_STUDENT_ACCOUNT', 'هذا البريد مرتبط بحساب إداري ولا يمكن تسجيله كخريج')
+    }
     const userCreated = !user
     if (!user) {
       const holderName = cleanOptional(input.name)
