@@ -185,47 +185,35 @@ export async function backfillQuestionBankAcademicFields(programId: string, time
     filled += await syncQuestionBankDocumentationFromKnowledge(programId)
     filled += await cleanApprovedQuestionBankReviewFlags(programId)
     const skippedAiIds = new Set<string>()
-    while (Date.now() - startedAt < timeBudgetMs) {
-      const batch = await db.questionBankItem.findMany({
-        where: { programId, status: { not: 'REJECTED' }, id: { notIn: [...skippedAiIds] } },
-        orderBy: { createdAt: 'asc' },
-        take: 200,
-      })
-      const needs = batch.filter((item) => needsAiDocumentation(item) && !isMissing(item.sourceEvidence)).slice(0, 10)
+    const deadlineMs = startedAt + timeBudgetMs
+    const candidates = await db.questionBankItem.findMany({
+      where: { programId, status: { not: 'REJECTED' } },
+      select: { id: true, type: true, text: true, options: true, correctAnswer: true, sourceEvidence: true, cognitiveSkill: true, difficulty: true, correctRationale: true, distractorRationales: true },
+      orderBy: { createdAt: 'asc' },
+    })
+    while (deadlineMs - Date.now() >= 20_000) {
+      const needs = selectBankItemsNeedingDocumentation(candidates, skippedAiIds).slice(0, 5)
       if (!needs.length) break
       try {
-        const raw = await textAiCompleteJson({
-          taskLevel: 'ACADEMIC_CRITICAL',
-          system: 'أنت مدقق أكاديمي. أعد JSON فقط. لا تغير نص السؤال أو الخيارات أو الإجابة الصحيحة أو حالة السؤال أو أعلام الجودة. املأ فقط difficulty من EASY/MEDIUM/ADVANCED و cognitiveSkill من UNDERSTAND/APPLY/ANALYZE/EVALUATE و correctRationale من الدليل. للأسئلة الموضوعية أعط distractorRationales مختصرة لكل خيار خاطئ، وفي صح/خطأ سبباً واحداً لعكس الإجابة.',
-          history: [{ role: 'user', text: JSON.stringify({ questions: needs.map((q) => ({ id: q.id, type: q.type, question: q.text, options: safeJsonArray(q.options), correctAnswer: q.correctAnswer, evidence: q.sourceEvidence })) }) }],
-          maxOutputTokens: 3500,
-        })
+        filled += await runQuestionBankDocumentationAiBatch(programId, needs, deadlineMs)
         for (const item of needs) skippedAiIds.add(item.id)
-        const rows = new Map(parseAiRows(raw).map((row) => [row.id, row]))
-        for (const item of needs) {
-          try {
-            const row = rows.get(item.id)
-            if (!row) {
-              console.warn('[question-bank-doc] skipped item without AI row', { programId, id: item.id })
-              continue
-            }
-            const data = documentationPatch(item, row)
-            if (!Object.keys(data).length) continue
-            filled += Object.keys(data).length
-            await db.questionBankItem.update({ where: { id: item.id }, data })
-          } catch (error) {
-            console.warn('[question-bank-doc] item backfill failed', { programId, id: item.id, error: error instanceof Error ? error.message : String(error) })
-          }
-        }
       } catch (error) {
-        for (const item of needs) {
-          skippedAiIds.add(item.id)
-          console.warn('[question-bank-doc] item backfill failed', { programId, id: item.id, error: error instanceof Error ? error.message : String(error) })
+        console.warn('[question-bank-doc] batch backfill failed', { programId, ids: needs.map((item) => item.id), error: error instanceof Error ? error.message : String(error) })
+        for (let i = 0; i < needs.length && deadlineMs - Date.now() >= 20_000; i += 2) {
+          const retry = needs.slice(i, i + 2)
+          try {
+            filled += await runQuestionBankDocumentationAiBatch(programId, retry, deadlineMs)
+          } catch (retryError) {
+            for (const item of retry) console.warn('[question-bank-doc] item backfill failed', { programId, id: item.id, error: retryError instanceof Error ? retryError.message : String(retryError) })
+          } finally {
+            for (const item of retry) skippedAiIds.add(item.id)
+          }
         }
       }
     }
     const remaining = await countQuestionBankDocumentationRemaining(programId)
-    return { filled, remaining, locked: false, done: remaining === 0 }
+    const blockedNoEvidence = await countQuestionBankDocumentationBlockedNoEvidence(programId)
+    return { filled, remaining, locked: false, done: remaining === 0, blockedNoEvidence }
   } finally {
     await db.setting.deleteMany({ where: { key: lockKey, value: lockUntil } }).catch(() => {})
   }
