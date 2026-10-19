@@ -429,6 +429,23 @@ describe('legacy certificate file upload stamping and download', () => {
     expect(data.notFound).toBe(1)
     expect(data.results[0].status).toBe('NOT_FOUND')
   })
+
+  test('ZIP import rejects files larger than 10MB after extraction without stopping the rest', async () => {
+    const zip = makeStoredZipEntries([
+      { fileName: 'huge@example.com.pdf', data: Buffer.alloc(10 * 1024 * 1024 + 1, 0x41) },
+      { fileName: 'missing@example.com.pdf', data: await minimalPdf() },
+    ])
+    const fd = new FormData()
+    fd.append('file', new File([zip], 'legacy.zip', { type: 'application/zip' }))
+    const res = await importFilesRoute.POST(formReq(fd, 'https://aactacademy.test/api/admin/legacy-graduates/import-files'))
+    const data = await responseJson(res)
+    expect(res.status).toBe(200)
+    expect(data.rejected).toBe(1)
+    expect(data.notFound).toBe(1)
+    expect(data.results[0].status).toBe('REJECTED_FORMAT')
+    expect(data.results[0].error).toContain('10MB')
+    expect(data.results[1].status).toBe('NOT_FOUND')
+  })
 })
 
 describe('legacy certificate verification', () => {
