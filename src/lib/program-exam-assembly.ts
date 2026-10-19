@@ -271,6 +271,7 @@ export async function backfillProgramExamAcademicFields(examId: string, options:
   try {
     filled += await syncProgramExamQuestionsFromBank(examId)
     const maxBatches = Math.max(1, Math.floor(options.maxBatches ?? 2))
+    const deadlineMs = options.deadlineMs ?? Date.now() + 45_000
     const questions = await db.programQuestion.findMany({
       where: { examId, status: { not: 'REJECTED' } },
       select: { id: true, type: true, text: true, options: true, correctAnswer: true, sourceEvidence: true, cognitiveSkill: true, difficulty: true, correctRationale: true, distractorRationales: true },
