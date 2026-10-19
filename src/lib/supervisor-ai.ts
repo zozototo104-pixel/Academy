@@ -297,6 +297,31 @@ async function fetchSupervisorBookSnippetSources(programIds: string[], dbTerms: 
   return { chunks: chunks || [], knowledgeItems: knowledgeItems || [] }
 }
 
+async function runSupervisorBookSnippetSearch(programIds: string[], dbTerms: string[], terms: string[], timeoutMs: number): Promise<string> {
+  const startedAt = Date.now()
+  const cappedTimeoutMs = Math.max(1, timeoutMs)
+  let timer: ReturnType<typeof setTimeout> | null = null
+  let timedOut = false
+
+  try {
+    const timeout = new Promise<string>((resolve) => {
+      timer = setTimeout(() => {
+        timedOut = true
+        resolve('')
+      }, cappedTimeoutMs)
+    })
+    const search = fetchSupervisorBookSnippetSources(programIds, dbTerms)
+      .then(({ chunks, knowledgeItems }) => timedOut ? '' : buildBookSnippetBlock(chunks, knowledgeItems, terms, startedAt, cappedTimeoutMs))
+      .catch(() => '')
+
+    return await Promise.race([search, timeout])
+  } catch {
+    return ''
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
 function uniqueBookTitles(values: unknown[]): string[] {
   const seen = new Set<string>()
   for (const value of values) {
