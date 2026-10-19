@@ -1071,7 +1071,9 @@ function nvidiaOpenAiCompatModelRank(id: string): number {
   if (/llama-3\.3.*70b/.test(n)) return 5
   if (/mistral-large/.test(n)) return 6
   if (/nemotron.*ultra/.test(n)) return 7
-  if (/nemotron.*(?:120b|super)/.test(n)) return 8
+  if (/nemotron-3-super-120b|nemotron.*120b/.test(n)) return 8
+  if (/llama-3\.3.*nemotron-super/.test(n)) return 9
+  if (/nemotron.*super/.test(n)) return 10
   if (/gpt[-_]?oss.*20b/.test(n)) return 19
   return 20 + academicModelRank(id)
 }
