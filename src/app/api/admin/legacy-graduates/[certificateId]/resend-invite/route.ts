@@ -17,6 +17,14 @@ export async function POST(req: NextRequest, context: RouteContext) {
     if (!cert || !cert.legacy) return NextResponse.json({ error: 'شهادة الخريج السابق غير موجودة' }, { status: 404 })
     if (!cert.userId) return NextResponse.json({ error: 'الشهادة غير مربوطة بحساب طالب' }, { status: 400 })
 
+    const user = await db.user.findUnique({
+      where: { id: cert.userId },
+      select: { role: true, passwordResetTokenHash: true, passwordResetUsedAt: true },
+    })
+    if (!user || user.role !== 'STUDENT' || user.passwordResetUsedAt || !user.passwordResetTokenHash) {
+      return NextResponse.json({ error: 'إعادة إرسال التفعيل متاحة فقط لحساب خريج سابق جديد لم يختر كلمة المرور بعد' }, { status: 409 })
+    }
+
     const emailStatus = await sendLegacyGraduatePasswordSetup(req, cert.userId)
     await db.auditLog.create({
       data: {
