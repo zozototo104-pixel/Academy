@@ -657,6 +657,7 @@ const tests = [
   testProgramExamAcademicMissingCounts,
   testQuestionBankDocumentationPassesProgramExamPublicationSourceCheck,
   testQuestionBankDocumentationParserAcceptsQuestionsKey,
+  testQuestionBankDocumentationSelectionReachesItemAfterFirstTwoHundred,
   testProgramExamAutoStatusUpdateDoesNotTouchReady,
   testQuestionBankPendingReviewOrdersFirst,
   testApprovedQuestionBankFlagsRemoveReviewMarkers,
