@@ -203,6 +203,37 @@ describe('supervisor query expansion retrieval', () => {
     expect(context).toContain('برامج المستخدم المسجل بها ومراجعها المعتمدة')
   })
 
+  test('does not cache failed expansion and still keeps ordinary retrieval working', async () => {
+    const query = 'اشرح الرمز غير الموجود'
+    chunks = [{
+      id: 'chunk-cache',
+      bookId: 'book-a',
+      programId: 'program-a',
+      index: 3,
+      pageStart: 16,
+      pageEnd: 16,
+      headingPath: 'الفصل الرابع',
+      text: 'تشرح الفقرة الذاكرة العاملة باعتبارها مساحة مؤقتة لمعالجة المعلومات.',
+    }]
+
+    textAiMode = 'throw'
+    const failedContext = await buildSupervisorContext('student-1', { query })
+    expect(textAiCalls).toBe(1)
+    expect(failedContext).not.toContain('مقاطع من الكتب المقررة ذات صلة بسؤال الطالب')
+
+    textAiMode = 'success'
+    textAiTerms = ['الذاكرة العاملة']
+    const expandedContext = await buildSupervisorContext('student-1', { query })
+    expect(textAiCalls).toBe(2)
+    expect(expandedContext).toContain('مقاطع من الكتب المقررة ذات صلة بسؤال الطالب')
+    expect(expandedContext).toContain('الذاكرة العاملة')
+
+    textAiMode = 'throw'
+    const directContext = await buildSupervisorContext('student-1', { query: 'ما هي الذاكرة العاملة؟' })
+    expect(textAiCalls).toBe(2)
+    expect(directContext).toContain('مقاطع من الكتب المقررة ذات صلة بسؤال الطالب')
+  })
+
   test('does not expose another program book even when expanded terms match it', async () => {
     textAiMode = 'success'
     textAiTerms = ['الأمن السيبراني']
