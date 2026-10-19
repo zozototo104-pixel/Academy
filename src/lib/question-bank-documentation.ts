@@ -117,7 +117,7 @@ function buildQuestionBankDocumentationUpdates(needs: BankDocumentationTarget[],
   })
 }
 
-async function runQuestionBankDocumentationAiBatch(programId: string, needs: BankDocumentationTarget[], deadlineMs: number) {
+async function runQuestionBankDocumentationAiBatch(needs: BankDocumentationTarget[], deadlineMs: number) {
   const raw = await textAiCompleteJson({
     taskLevel: 'ACADEMIC_CRITICAL',
     system: 'أنت مدقق أكاديمي. أعد JSON فقط. لا تغير نص السؤال أو الخيارات أو الإجابة الصحيحة أو حالة السؤال أو أعلام الجودة. املأ فقط difficulty من EASY/MEDIUM/ADVANCED و cognitiveSkill من UNDERSTAND/APPLY/ANALYZE/EVALUATE و correctRationale من الدليل. للأسئلة الموضوعية أعط distractorRationales مختصرة لكل خيار خاطئ، وفي صح/خطأ سبباً واحداً لعكس الإجابة.',
