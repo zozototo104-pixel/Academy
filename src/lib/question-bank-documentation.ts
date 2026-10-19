@@ -202,7 +202,7 @@ export async function backfillQuestionBankAcademicFields(programId: string, time
         for (let i = 0; i < needs.length && deadlineMs - Date.now() >= 20_000; i += 2) {
           const retry = needs.slice(i, i + 2)
           try {
-            filled += await runQuestionBankDocumentationAiBatch(programId, retry, deadlineMs)
+            filled += await runQuestionBankDocumentationAiBatch(retry, deadlineMs)
           } catch (retryError) {
             for (const item of retry) console.warn('[question-bank-doc] item backfill failed', { programId, id: item.id, error: retryError instanceof Error ? retryError.message : String(retryError) })
           } finally {
