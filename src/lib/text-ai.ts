@@ -1130,7 +1130,8 @@ async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseU
     }, aiDiscoveryTimeoutMs())
     if (!response.ok) return []
     const data = await response.json().catch(() => ({}))
-    const rows = rowsFromModelPayload(data)
+    const sourceRows = rowsFromModelPayload(data)
+    const rows = sourceRows
       .filter((m) => m?.online !== false)
       .filter(isTextLikeModel)
       .map((m) => ({ raw: m, id: normalizeFreeModelName(provider, modelId(m)) }))
