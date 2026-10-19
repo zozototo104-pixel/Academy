@@ -1291,6 +1291,18 @@ function modelCapabilitiesFor(provider: ConcreteProvider, s: Settings, model: st
   return freeModelsCache.get(cacheKey)?.capabilities?.[model] || null
 }
 
+function freeModelDiscoveryEntry(provider: ConcreteProvider, s: Settings): FreeModelsCacheEntry | null {
+  return freeModelsCache.get(cacheKeyForFreeModels(provider, baseFor(s, provider), providerKeys(s, provider)[0])) || null
+}
+
+function nvidiaDiscoverySucceeded(s: Settings): boolean {
+  return freeModelDiscoveryEntry('OPENAI_COMPAT', s)?.discoveryOk === true
+}
+
+function nvidiaDiscoverySourceCount(s: Settings): number {
+  return Math.max(0, Math.floor(Number(freeModelDiscoveryEntry('OPENAI_COMPAT', s)?.sourceCount || 0)))
+}
+
 export function modelAllowedForPurpose(model: string, purpose?: TextAiPurpose, capability?: ModelCapability | null): boolean {
   if (!purpose) return true
   if (purpose === 'VISION') {
