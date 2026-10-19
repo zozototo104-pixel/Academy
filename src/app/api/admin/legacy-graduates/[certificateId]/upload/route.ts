@@ -16,11 +16,16 @@ function isPreview(value: unknown) {
   return String(value || '').toLowerCase() === 'true'
 }
 
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
+type RouteContext = { params: Promise<{ certificateId: string }> | { certificateId: string } }
+
 function stampedFileName(serial: string) {
   return `${String(serial || 'certificate').replace(/[^a-zA-Z0-9._-]+/g, '-')}-stamped.pdf`
 }
 
-export async function POST(req: NextRequest, context: { params: Promise<{ certificateId: string }> }) {
+export async function POST(req: NextRequest, context: RouteContext) {
   try {
     const admin = await requireAdmin()
     const { certificateId } = await context.params
