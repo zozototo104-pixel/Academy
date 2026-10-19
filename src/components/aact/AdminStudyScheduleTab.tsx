@@ -114,14 +114,16 @@ export default function AdminStudyScheduleTab() {
         if (!alive) return
         const list = data.programs || []
         setPrograms(list)
-        if (!programId && list[0]) setProgramId(list[0].id)
+        if (list[0]) setProgramId((current) => current || list[0].id)
       })
       .catch((error) => toast({ title: 'تعذر تحميل البرامج', description: String(error?.message || error), variant: 'destructive' }))
     return () => { alive = false }
-  }, [programId, toast])
+  }, [toast])
 
   useEffect(() => {
-    if (programId) loadItems()
+    if (!programId) return
+    const timer = window.setTimeout(() => { void loadItems() }, 0)
+    return () => window.clearTimeout(timer)
   }, [programId, loadItems])
 
   function editItem(item: StudyScheduleItem) {
