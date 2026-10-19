@@ -163,9 +163,24 @@ export function parseZipEntries(buffer: Buffer) {
     const localExtraLength = readUInt16(buffer, localHeaderOffset + 28)
     const dataOffset = localHeaderOffset + 30 + localNameLength + localExtraLength
     const compressed = buffer.subarray(dataOffset, dataOffset + compressedSize)
-    const data = method === 0 ? compressed : method === 8 ? inflateRawSync(compressed) : null
+    let data: Buffer | null = null
+    try {
+      data = method === 0
+        ? compressed
+        : method === 8
+          ? inflateRawSync(compressed, { maxOutputLength: LEGACY_CERTIFICATE_UPLOAD_MAX_BYTES })
+          : null
+    } catch {
+      entries.push({ fileName, error: 'FILE_TOO_LARGE' })
+      continue
+    }
     if (!data) continue
+    if (data.byteLength > LEGACY_CERTIFICATE_UPLOAD_MAX_BYTES) {
+      entries.push({ fileName, error: 'FILE_TOO_LARGE' })
+      continue
+    }
     if (data.byteLength !== uncompressedSize && uncompressedSize > 0) throw new Error('ZIP_SIZE_MISMATCH')
+    totalUncompressedBytes += data.byteLength
     entries.push({ fileName, buffer: Buffer.from(data) })
   }
   return entries
