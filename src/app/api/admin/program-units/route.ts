@@ -335,6 +335,7 @@ export async function DELETE(req: NextRequest) {
     }
     await db.unit.deleteMany({ where: { id: unitId, programId } })
     await db.program.update({ where: { id: programId }, data: { academicReadinessStatus: 'READY_FOR_REVIEW', academicApproved: false, academicApprovedAt: null, academicApprovedById: null } })
+    await notifyProgramNeedsQualityApproval(programId, 'حذف وحدة منهج')
     return NextResponse.json({ ok: true, units: await listProgramUnits(programId) })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
