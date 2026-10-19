@@ -258,7 +258,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message, code: error.code }, { status: error.status })
     }
     if (isUniqueConflict(error, 'legacySerial')) {
-      return NextResponse.json({ error: 'رقم الشهادة الورقية مستخدم مسبقاً', code: 'LEGACY_SERIAL_DUPLICATE' }, { status: 409 })
+      return NextResponse.json({ error: 'رقم الشهادة القديم مستخدم مسبقاً', code: 'LEGACY_SERIAL_DUPLICATE' }, { status: 409 })
     }
     console.error('admin legacy-graduates POST error:', error)
     return NextResponse.json({ error: 'تعذر إضافة الخريج السابق' }, { status: 500 })
