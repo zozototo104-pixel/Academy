@@ -45,6 +45,13 @@ export async function POST(request: NextRequest, context: Context) {
     }
     const existing = await db.bookReadJob.findFirst({ where: { bookId: id, status: { in: ['QUEUED', 'RUNNING', 'PAUSED'] } }, orderBy: { createdAt: 'desc' } })
     if (existing) return NextResponse.json({ ok: true, job: existing, resumed: true })
+    if (mode === 'EXTRACT') {
+      const lastJob = await db.bookReadJob.findFirst({ where: { bookId: id }, orderBy: { createdAt: 'desc' } })
+      if (planBookReadJobResume(lastJob, body?.restart === true) === 'RESUME') {
+        const resumed = await db.bookReadJob.update({ where: { id: lastJob!.id }, data: { status: 'QUEUED', lastError: null, retryAt: null, lockedUntil: null } })
+        return NextResponse.json({ ok: true, job: resumed, resumed: true })
+      }
+    }
     try {
       const job = await db.bookReadJob.create({ data: { bookId: id, programId: book.programId, phase: mode, status: 'QUEUED' } })
       return NextResponse.json({ ok: true, job, resumed: false })
