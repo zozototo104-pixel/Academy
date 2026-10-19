@@ -317,7 +317,7 @@ function readQueryExpansionCache(cacheKey: string): string[] | null {
 }
 
 function writeQueryExpansionCache(cacheKey: string, terms: string[]): void {
-  if (!cacheKey) return
+  if (!cacheKey || !terms.length) return
   if (queryExpansionCache.size >= QUERY_EXPANSION_CACHE_MAX && !queryExpansionCache.has(cacheKey)) {
     const first = queryExpansionCache.keys().next().value
     if (first) queryExpansionCache.delete(first)
