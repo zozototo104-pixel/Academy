@@ -70,15 +70,21 @@ function excelSerialToDate(serial: number) {
   return new Date(Date.UTC(dateInfo.getUTCFullYear(), dateInfo.getUTCMonth(), dateInfo.getUTCDate()))
 }
 
+function utcDateOrNull(year: number, month: number, day: number) {
+  const date = new Date(Date.UTC(year, month - 1, day))
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null
+  return date
+}
+
 export function parseLegacyGraduateDate(value: unknown) {
   if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value
   if (typeof value === 'number' && Number.isFinite(value)) return excelSerialToDate(value)
   const text = cleanString(value)
   if (!text) return null
   const iso = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
-  if (iso) return new Date(Date.UTC(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3])))
+  if (iso) return utcDateOrNull(Number(iso[1]), Number(iso[2]), Number(iso[3]))
   const dmy = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
-  if (dmy) return new Date(Date.UTC(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1])))
+  if (dmy) return utcDateOrNull(Number(dmy[3]), Number(dmy[2]), Number(dmy[1]))
   const parsed = new Date(text)
   return Number.isNaN(parsed.getTime()) ? null : parsed
 }
