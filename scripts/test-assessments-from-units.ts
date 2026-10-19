@@ -617,6 +617,9 @@ const tests = [
   testBankExamCognitiveBalanceWarnsWithoutHighQuestions,
   testBankExamCognitiveBalanceRespectsTypePlanWhenPossible,
   testBankExamCognitiveBalanceCompletesMissingTypeFromAvailableTypes,
+  testUnitQuestionBankStatusResolverCompletesFailedWhenApprovedTargetMet,
+  testUnitQuestionBankStatusResolverKeepsRunningWhenApprovedBelowTarget,
+  testUnitQuestionBankStatusResolverKeepsFailedWhenApprovedBelowTarget,
   testAdminStudentsEnrollmentWhereBuilder,
 ]
 
