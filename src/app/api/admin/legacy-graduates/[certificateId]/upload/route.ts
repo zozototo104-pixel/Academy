@@ -74,6 +74,16 @@ export async function POST(req: NextRequest, context: RouteContext) {
       qrToken: cert.qrToken,
       stampLayout,
       qrSize,
+      values: {
+        holderName: cert.holderName,
+        holderNameEn: cert.holderNameEn,
+        program: cert.program,
+        programEn: cert.programEn,
+        grade: cert.grade,
+        gradeEn: cert.gradeEn,
+        issuedAt: cert.issuedAt,
+        serial: cert.serial,
+      },
     })
 
     if (preview) {
