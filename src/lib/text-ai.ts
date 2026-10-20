@@ -1325,7 +1325,7 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<
     }
   } else if (provider === 'GROQ') {
     models = await fetchGroqTextModels(baseUrl, key)
-  } else if (['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'ALBORIHI', 'OPENAI_COMPAT', 'ZAI'].includes(provider)) {
+  } else if (['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ZAI', 'ALBORIHI'].includes(provider)) {
     models = await fetchOpenAiCompatibleFreeModels(provider, baseUrl, key)
   }
 
