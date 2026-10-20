@@ -120,7 +120,12 @@ export function CertificateDialog({
             <>
               <img src={template.imageUrl} alt={template.name} className="block h-auto w-full select-none" />
               <div className="absolute inset-0 text-center text-[#0f2b46]">
-                {layout.serial?.visible !== false && <div dir="ltr" style={fieldStyle(layout.serial)}>{certificate.serial}</div>}
+                {(['holderName', 'program', 'grade', 'issuedAt', 'serial'] as const).map((field) => {
+                  const cfg = layout[field]
+                  const value = valueFor(field)
+                  if (cfg?.visible === false || !value) return null
+                  return <div key={field} dir={cfg?.lang === 'ar' ? 'rtl' : 'ltr'} style={fieldStyle(cfg)}>{value}</div>
+                })}
                 {qr && layout.qr?.visible !== false && (
                   <img
                     src={qr}
