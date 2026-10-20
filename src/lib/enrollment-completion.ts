@@ -190,7 +190,8 @@ export async function completeEnrollmentIfEligibleInTransaction(tx: Tx, input: C
   }
 
   const grade = eligibility.gradeLabel || (typeof eligibility.score === 'number' ? certificateGradeLabel(eligibility.score) : null)
-  const holderNameEn = /^[A-Za-z .'-]+$/.test(holderName) ? holderName : null
+  const holderNameEn = matchedAdmission?.fullNameEn?.trim() || (/^[A-Za-z .'-]+$/.test(holderName) ? holderName : null)
+  const gradeEn = typeof eligibility.score === 'number' ? certificateGradeLabelEn(eligibility.score) : null
   const certificate = existing || await createProgramCompletionCertificate(tx, {
     qrToken: createCertificateQrToken(),
     type: 'PROGRAM_COMPLETION',
