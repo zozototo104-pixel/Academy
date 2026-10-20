@@ -13,8 +13,11 @@ export interface CertificateData {
   qrToken?: string | null
   type: string
   holderName: string
+  holderNameEn?: string | null
   program: string
+  programEn?: string | null
   grade?: string | null
+  gradeEn?: string | null
   country?: string | null
   issuedAt: string
   valid?: boolean
