@@ -175,6 +175,36 @@ function stampValue(field: typeof TEXT_FIELDS[number], cfg: StampTextField, valu
   return values.serial || ''
 }
 
+export function certificateStampOverlayScale(width: number, height: number) {
+  return width < 2000 || height < 2000 ? 4 : 1
+}
+
+export async function renderCertificateStampTextOverlayPng(input: {
+  width: number
+  height: number
+  layout: LegacyStampLayout
+  values: StampValues
+}) {
+  const { width, height, layout, values } = input
+  const minDimension = Math.min(width, height)
+  const textNodes = TEXT_FIELDS.map((field) => {
+    const cfg = layout[field]
+    const value = stampValue(field, cfg, values)
+    if (cfg.visible === false || !value) return ''
+    const fontSize = Math.max(6, Math.min(90, minDimension * (cfg.fontSize / 100)))
+    const x = width * (cfg.x / 100)
+    const y = height * (cfg.y / 100)
+    const maxWidth = width * (cfg.width / 100)
+    const dir = cfg.lang === 'ar' ? 'rtl' : 'ltr'
+    const family = cfg.fontFamily || (dir === 'rtl' ? 'Noto Naskh Arabic' : 'Arial')
+    return `<text x="${x}" y="${y}" text-anchor="${cssAnchor(cfg.align)}" direction="${dir}" unicode-bidi="plaintext" style="font-family:${escXml(family)},Arial,sans-serif;font-size:${fontSize}px;font-weight:900;fill:${escXml(cfg.color || '#0f2b46')};dominant-baseline:middle">${escXml(value)}</text><rect x="${x - maxWidth / 2}" y="${y - fontSize}" width="0" height="0" fill="none"/>`
+  }).join('')
+  if (!textNodes) return null
+  const scale = certificateStampOverlayScale(width, height)
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width * scale}" height="${height * scale}" viewBox="0 0 ${width} ${height}">${textNodes}</svg>`
+  return sharp(Buffer.from(svg)).png().toBuffer()
+}
+
 async function createPdfFromImage(buffer: Buffer, mime: LegacyCertificateMime) {
   const metadata = await sharp(buffer).metadata()
   const width = Number(metadata.width || 0)
