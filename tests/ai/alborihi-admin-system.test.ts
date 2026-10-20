@@ -114,7 +114,7 @@ describe('admin system Alborihi settings validation', () => {
   })
 
   test('POST add-academic-allowlist accepts ALBORIHI provider items', async () => {
-    const response = await POST(request({ action: 'add-academic-allowlist', allowlistItem: 'ALBORIHI:claude-sonnet-5' }))
+    const response = await POST(request({ action: 'add-academic-allowlist', allowlistItem: 'ALBORIHI:claude-sonnet-5' }, 'POST'))
     expect(response.status).toBe(200)
     const payload = await response.json()
     expect(payload.allowlist).toContain('ALBORIHI:claude-sonnet-5')
