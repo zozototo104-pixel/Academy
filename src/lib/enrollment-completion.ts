@@ -56,6 +56,7 @@ function paymentRows(payments: PaymentRow[]) {
     amount: p.amount,
     amountCents: p.amountCents,
     waiverType: p.waiverType,
+    waiverStatus: p.waiverStatus,
     waivedAmount: p.waivedAmount,
     waivedAmountCents: p.waivedAmountCents,
     originalAmount: p.originalAmount,
