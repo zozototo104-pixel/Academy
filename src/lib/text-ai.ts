@@ -15,8 +15,8 @@ export type TextAiProvider =
   | 'UNOROUTER'
   | 'RELAYROUTER'
   | 'TOPTOOLS'
-  | 'ALBORIHI'
   | 'OPENAI_COMPAT'
+  | 'ALBORIHI'
   | 'AUTO'
 
 export type TextAiRouterPolicy = 'primary_first' | 'balanced' | 'quality_first' | 'cost_saver' | 'fallback_only'
