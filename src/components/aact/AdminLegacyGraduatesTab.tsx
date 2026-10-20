@@ -346,8 +346,8 @@ export default function AdminLegacyGraduatesTab() {
   function openUpload(cert: LegacyGraduateCertificate) {
     setUploadFor(cert)
     setUploadFile(null)
-    setQrPosition(cert.qrPosition || 'BOTTOM_LEFT')
-    setQrSize(cert.qrSize || 'M')
+    setSelectedStampField('qr')
+    setStampLayout(parseStampLayout(cert.qrPosition, cert.qrSize))
   }
 
   async function stampUpload(preview: boolean) {
@@ -357,8 +357,7 @@ export default function AdminLegacyGraduatesTab() {
     try {
       const fd = new FormData()
       if (uploadFile) fd.append('file', uploadFile)
-      fd.append('qrPosition', qrPosition)
-      fd.append('qrSize', qrSize)
+      fd.append('stampLayout', JSON.stringify(stampLayout))
       const res = await fetch(`/api/admin/legacy-graduates/${uploadFor.id}/upload${preview ? '?preview=true' : ''}`, { method: 'POST', body: fd })
       if (preview) {
         if (!res.ok) throw new Error(apiErrorMessage(await res.json().catch(() => ({})), 'تعذر إنشاء المعاينة'))
