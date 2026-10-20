@@ -146,9 +146,13 @@ function testAlborihiProviderWiring() {
   assert(textAi.includes("provider === 'ALBORIHI'"), 'Alborihi must have provider-specific catalog handling')
   assert(textAi.includes("case 'ALBORIHI': return s.alborihiBaseUrl ? s.alborihiKeys : []"), 'Alborihi keys must be routed through providerKeys with a base URL guard')
 
+  const systemRoute = file('src/app/api/admin/system/route.ts')
+  assert(systemRoute.includes('ALBORIHI_API_KEYS'), 'Admin system route must expose Alborihi API keys')
+  assert(systemRoute.includes('ALBORIHI_BASE_URL'), 'Admin system route must expose Alborihi base URL')
+
   const settings = file('src/lib/settings.ts')
-  assert(settings.includes('ALBORIHI_API_KEYS'), 'Admin settings must expose Alborihi API keys')
-  assert(settings.includes('ALBORIHI_BASE_URL'), 'Admin settings must expose Alborihi base URL')
+  assert(!settings.includes('AI_TEXT_PROVIDER'), 'Default public settings must not include AI_TEXT_PROVIDER')
+  assert(!settings.includes('AI_ROUTER_POLICY'), 'Default public settings must not include AI_ROUTER_POLICY')
 
   const env = file('.env.example')
   assert(env.includes('AACT_SECRETS_KEY'), '.env.example must document the admin-secret encryption key')
