@@ -239,7 +239,7 @@ export async function POST(req: NextRequest) {
 
     const { fields, files } = await readAdmissionPayload(req)
     const {
-      fullName, email, phone, country, nationalId, birthDate, address,
+      fullName, fullNameEn, email, phone, country, nationalId, birthDate, address,
       education, program, programId, notes, acknowledged,
     } = fields
     const stagedUpload = fields.stagedUpload === 'true' || fields.stagedUpload === '1'
