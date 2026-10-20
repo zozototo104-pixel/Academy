@@ -74,6 +74,12 @@ function legacySizePercent(size: QrSize) {
   return 16
 }
 
+const TEXT_FIELDS = ['holderName', 'program', 'grade', 'issuedAt', 'serial'] as const
+
+function textField(x: number, y: number, width = 70, fontSize = 2.2, extra: Partial<StampTextField> = {}): StampTextField {
+  return { x, y, width, fontSize, color: '#0f2b46', align: 'center', fontFamily: 'Arial', lang: 'en', visible: true, ...extra }
+}
+
 function legacyLayoutFromPosition(positionValue: unknown, sizeValue: unknown): LegacyStampLayout {
   const position = normalizeQrPosition(positionValue)
   const size = normalizeQrSize(sizeValue)
@@ -84,8 +90,28 @@ function legacyLayoutFromPosition(positionValue: unknown, sizeValue: unknown): L
   const qrY = isTop ? 7 + qrSize / 2 : 100 - (10 + qrSize / 2)
   const serialY = isTop ? Math.min(96, qrY + qrSize / 2 + 4) : 95
   return {
+    holderName: textField(50, 36, 72, 4.2, { visible: false }),
+    program: textField(50, 51, 76, 2.5, { color: '#a8841a', visible: false }),
+    grade: textField(50, 62, 44, 1.7, { visible: false }),
+    issuedAt: textField(18, 90, 26, 1.15, { align: 'left', visible: false }),
+    serial: textField(x, serialY, Math.max(20, qrSize * 1.8), size === 'L' ? 1.6 : size === 'S' ? 1.0 : 1.25),
     qr: { x, y: qrY, size: qrSize, visible: true },
-    serial: { x, y: serialY, width: Math.max(20, qrSize * 1.8), fontSize: size === 'L' ? 1.6 : size === 'S' ? 1.0 : 1.25, visible: true },
+  }
+}
+
+function normalizeTextField(raw: any, fallback: StampTextField): StampTextField {
+  const lang = raw?.lang === 'ar' ? 'ar' : 'en'
+  const align = raw?.align === 'left' || raw?.align === 'right' ? raw.align : 'center'
+  return {
+    x: clampNumber(raw?.x, 1, 99, fallback.x),
+    y: clampNumber(raw?.y, 1, 99, fallback.y),
+    width: clampNumber(raw?.width, 6, 95, fallback.width),
+    fontSize: clampNumber(raw?.fontSize, 0.5, 8, fallback.fontSize),
+    color: String(raw?.color || fallback.color || '#0f2b46'),
+    align,
+    fontFamily: String(raw?.fontFamily || (lang === 'ar' ? 'Noto Naskh Arabic' : 'Arial')),
+    lang,
+    visible: raw?.visible !== false,
   }
 }
 
@@ -98,26 +124,49 @@ export function normalizeStampLayout(value: unknown, sizeValue: unknown = 'M'): 
     }
   }
   const fallback = legacyLayoutFromPosition(typeof value === 'string' ? value : 'BOTTOM_LEFT', sizeValue)
-  if (!raw || typeof raw !== 'object' || !raw.qr || !raw.serial) return fallback
+  if (!raw || typeof raw !== 'object') return fallback
   return {
+    holderName: normalizeTextField(raw.holderName, fallback.holderName),
+    program: normalizeTextField(raw.program, fallback.program),
+    grade: normalizeTextField(raw.grade, fallback.grade),
+    issuedAt: normalizeTextField(raw.issuedAt, fallback.issuedAt),
+    serial: normalizeTextField(raw.serial, fallback.serial),
     qr: {
       x: clampNumber(raw.qr?.x, 1, 99, fallback.qr.x),
       y: clampNumber(raw.qr?.y, 1, 99, fallback.qr.y),
       size: clampNumber(raw.qr?.size, 4, 45, fallback.qr.size),
       visible: raw.qr?.visible !== false,
     },
-    serial: {
-      x: clampNumber(raw.serial?.x, 1, 99, fallback.serial.x),
-      y: clampNumber(raw.serial?.y, 1, 99, fallback.serial.y),
-      width: clampNumber(raw.serial?.width, 6, 95, fallback.serial.width),
-      fontSize: clampNumber(raw.serial?.fontSize, 0.5, 8, fallback.serial.fontSize),
-      visible: raw.serial?.visible !== false,
-    },
   }
 }
 
 export function serializeStampLayout(layout: LegacyStampLayout) {
   return JSON.stringify(normalizeStampLayout(layout))
+}
+
+function escXml(value: unknown) {
+  return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;')
+}
+
+function cssAnchor(align?: string) {
+  if (align === 'left') return 'start'
+  if (align === 'right') return 'end'
+  return 'middle'
+}
+
+function stampDate(value: Date | string | null | undefined, lang: StampLang) {
+  const d = value ? new Date(value) : new Date()
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+}
+
+function stampValue(field: typeof TEXT_FIELDS[number], cfg: StampTextField, values: StampValues) {
+  const lang = cfg.lang === 'ar' ? 'ar' : 'en'
+  if (field === 'holderName') return lang === 'en' ? (values.holderNameEn || values.holderName || '') : (values.holderName || '')
+  if (field === 'program') return lang === 'en' ? (values.programEn || values.program || '') : (values.program || '')
+  if (field === 'grade') return lang === 'en' ? (values.gradeEn || values.grade || '') : (values.grade || '')
+  if (field === 'issuedAt') return stampDate(values.issuedAt, lang)
+  return values.serial || ''
 }
 
 async function createPdfFromImage(buffer: Buffer, mime: LegacyCertificateMime) {
