@@ -52,13 +52,16 @@ export async function GET(_req: NextRequest, context: RouteContext) {
       if (stamped) return pdfResponse(stamped.buffer, `${certificate.serial}.pdf`)
     }
 
-    const activeTemplate = await db.certificateTemplate.findFirst({
-      where: { certificateType: certificate.type, active: true },
-      orderBy: { createdAt: 'desc' },
-    }) || await db.certificateTemplate.findFirst({
-      where: { active: true },
-      orderBy: { createdAt: 'desc' },
-    })
+    const templateStore = (db as any).certificateTemplate
+    const activeTemplate = templateStore?.findFirst
+      ? await templateStore.findFirst({
+        where: { certificateType: certificate.type, active: true },
+        orderBy: { createdAt: 'desc' },
+      }) || await templateStore.findFirst({
+        where: { active: true },
+        orderBy: { createdAt: 'desc' },
+      })
+      : null
     if (activeTemplate) {
       const storedTemplate = await readStoredFile({
         provider: activeTemplate.storageProvider,
