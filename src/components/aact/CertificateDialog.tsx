@@ -93,16 +93,12 @@ export function CertificateDialog({
           {TYPE_LABEL[certificate.type] || 'شهادة رسمية'} برقم {certificate.serial}
         </DialogDescription>
         {/* قالب الشهادة الرسمي */}
-        <div id="aact-certificate" className={template ? `relative ${templateAspectClass} overflow-hidden bg-white` : 'relative overflow-hidden bg-[#fffdf5] p-6 sm:p-10'}>
+        <div id="aact-certificate" className={template ? 'relative overflow-hidden bg-white' : 'relative overflow-hidden bg-[#fffdf5] p-6 sm:p-10'}>
           {template && (
             <>
-              <img src={template.imageUrl} alt={template.name} className="absolute inset-0 h-full w-full object-cover" />
+              <img src={template.imageUrl} alt={template.name} className="block h-auto w-full select-none" />
               <div className="absolute inset-0 text-center text-[#0f2b46]">
-                {layout.holderName?.visible !== false && <div style={fieldStyle(layout.holderName)}>{certificate.holderName}</div>}
-                {layout.program?.visible !== false && <div style={fieldStyle(layout.program)}>{certificate.program}</div>}
-                {certificate.grade && layout.grade?.visible !== false && <div style={fieldStyle(layout.grade)}>{certificate.grade}</div>}
                 {layout.serial?.visible !== false && <div dir="ltr" style={fieldStyle(layout.serial)}>{certificate.serial}</div>}
-                {layout.issuedAt?.visible !== false && <div style={fieldStyle(layout.issuedAt)}>{date}</div>}
                 {qr && layout.qr?.visible !== false && (
                   <img
                     src={qr}
