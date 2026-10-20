@@ -38,8 +38,8 @@ export type VerificationSource = { text: string; textProvenance?: TextProvenance
 export const QUESTION_VERIFIER_TIME_BUDGET_MS = 90_000
 
 export function __testVerifierExcludedProviders(generatorProvider: TextAiProvider): TextAiProvider[] {
-  // Alborihi alone may review its own output, provided the model family differs.
-  return generatorProvider === 'ALBORIHI' ? [] : [generatorProvider]
+  // Preserve verifier-mode diagnostics; the router selectively permits Alborihi cross-family review.
+  return [generatorProvider]
 }
 
 export function __testVerifierPreferredProvidersForTests(generatorProvider?: TextAiProvider | null): TextAiProvider[] {
