@@ -141,11 +141,6 @@ export const DEFAULT_SETTINGS: SettingDef[] = [
   { key: 'EXAM_LOW_SKILL_MAX_PERCENT', value: '50', label: 'الحد الأعلى لنسبة أسئلة الحفظ/الفهم قبل نشر الاختبارات', group: 'AI', suffix: '%', inputType: 'number' },
   { key: 'PROGRAM_EXAM_HIGH_SKILL_MIN_PERCENT', value: '20', label: 'الحد الأدنى للتحليل والتقييم في الامتحان الشامل', group: 'AI', suffix: '%', inputType: 'number' },
   { key: 'VOICE_DEFAULT_DIALECT', value: VOICE_DEFAULT_DIALECT, label: 'اللهجة الافتراضية للتعرّف على الصوت', group: 'AI', suffix: '', inputType: 'text' },
-  { key: 'AI_TEXT_PROVIDER', value: 'GEMINI', label: 'مزود النصوص الذكية الافتراضي', group: 'AI', suffix: '', inputType: 'text', help: 'القيم: GEMINI | AUTO | OPENAI | ANTHROPIC | ZAI | GROQ | OPENROUTER | DEEPINFRA | TOGETHER | UNOROUTER | RELAYROUTER | TOPTOOLS | ALBORIHI | OPENAI_COMPAT' },
-  { key: 'AI_ROUTER_POLICY', value: 'primary_first', label: 'سياسة توجيه مزودات النصوص', group: 'AI', suffix: '', inputType: 'text', help: 'primary_first أو balanced أو quality_first أو cost_saver أو fallback_only.' },
-  { key: 'ALBORIHI_API_KEYS', value: '', label: 'مفاتيح Alborihi AI API', group: 'AI', suffix: '', inputType: 'textarea', help: 'ضع كل مفتاح alb_dev_ في سطر مستقل. تُخزن كمعلومة سرية ولا تظهر في الواجهة العامة.', secret: true },
-  { key: 'ALBORIHI_TEXT_MODEL', value: 'claude-sonnet-5', label: 'نموذج Alborihi الافتراضي', group: 'AI', suffix: '', inputType: 'text', help: 'اتركه على نموذج مسموح لمفتاحك، وسيحمّل النظام تلقائياً باقي النماذج من /models.' },
-  { key: 'ALBORIHI_BASE_URL', value: 'https://alborihi-ai.com/api/public/dev/v1', label: 'رابط Alborihi API الأساسي', group: 'AI', suffix: '', inputType: 'text', help: 'الرابط الرسمي المتوافق مع OpenAI Chat Completions.' },
 
   // القواعد والمهل الزمنية
   { key: 'AGENT_COMMISSION_RATE', value: '25', label: 'نسبة عمولة الوكيل من إيرادات البرامج', group: 'RULES', suffix: '%', inputType: 'number' },
