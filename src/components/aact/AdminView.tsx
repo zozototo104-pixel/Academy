@@ -798,6 +798,18 @@ export function AdminView() {
     }
   }
 
+  const editAdmissionEnglishName = async (app: AdmissionApp) => {
+    const fullNameEn = window.prompt('الاسم بالإنجليزي كما سيظهر على الشهادة', app.fullNameEn || '')
+    if (fullNameEn === null) return
+    try {
+      const d = await api<{ application: AdmissionApp }>('/api/admin/admissions', { method: 'PATCH', body: JSON.stringify({ id: app.id, fullNameEn }) })
+      setAdmissions((prev) => prev.map((item) => (item.id === app.id ? { ...item, fullNameEn: d.application.fullNameEn || null } : item)))
+      toast({ title: 'تم حفظ الاسم الإنجليزي', description: app.reference })
+    } catch (e: any) {
+      toast({ title: 'تعذر حفظ الاسم الإنجليزي', description: e.message, variant: 'destructive' })
+    }
+  }
+
   const setAdmissionStatus = async (id: string, status: string) => {
     try {
       await api('/api/admin/admissions', { method: 'PATCH', body: JSON.stringify({ id, status }) })
