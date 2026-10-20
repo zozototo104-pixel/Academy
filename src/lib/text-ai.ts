@@ -1620,11 +1620,13 @@ export async function textAiFreeModelsForProvider(providerValue: unknown): Promi
   const discoveredRaw = await liveFreeModels(concrete, s)
   const nvidiaCompat = concrete === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl)
   const nvidiaDiscovered = nvidiaCompat && nvidiaDiscoverySucceeded(s)
+  const alborihiDiscovered = concrete === 'ALBORIHI' && freeModelDiscoveryEntry(concrete, s)?.discoveryOk === true && discoveredRaw.length > 0
+  const strictDiscovered = nvidiaDiscovered || alborihiDiscovered
   const discovered = discoveredRaw.filter((model) => !nvidiaCompat || NVIDIA_OPENAI_COMPAT_CALLABLE_MODEL_IDS.has(model.toLowerCase()))
   const discoveredSet = new Set(discovered.map((model) => model.toLowerCase()))
   const selected = modelFor(s, concrete)
-  const selectedPart = selected && !/(^|\/|-)auto$/i.test(selected) && selected !== 'auto' && (!nvidiaCompat || NVIDIA_OPENAI_COMPAT_CALLABLE_MODEL_IDS.has(selected.toLowerCase())) && (!nvidiaDiscovered || discoveredSet.has(selected.toLowerCase())) ? [selected] : []
-  const models = [...new Set([...selectedPart, ...discovered, ...(nvidiaDiscovered ? [] : staticDefaults)].filter(Boolean))]
+  const selectedPart = selected && !/(^|\/|-)auto$/i.test(selected) && selected !== 'auto' && (!nvidiaCompat || NVIDIA_OPENAI_COMPAT_CALLABLE_MODEL_IDS.has(selected.toLowerCase())) && (!strictDiscovered || discoveredSet.has(selected.toLowerCase())) ? [selected] : []
+  const models = [...new Set([...selectedPart, ...discovered, ...(strictDiscovered ? [] : staticDefaults)].filter(Boolean))]
   const catalogLabel = concrete === 'ALBORIHI'
     ? 'نموذج مسموح للمفتاح'
     : concrete === 'TOPTOOLS'
