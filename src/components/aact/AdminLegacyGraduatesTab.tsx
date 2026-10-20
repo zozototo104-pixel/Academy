@@ -94,15 +94,27 @@ async function jsonOrThrow(res: Response, fallback: string) {
   return data
 }
 
-type StampField = 'qr' | 'serial'
+type StampField = 'holderName' | 'program' | 'grade' | 'issuedAt' | 'serial' | 'qr'
+type StampTextField = { x: number; y: number; width: number; fontSize: number; color?: string; align?: 'left' | 'center' | 'right'; fontFamily?: string; lang?: 'en' | 'ar'; visible?: boolean }
 type StampLayout = {
+  holderName: StampTextField
+  program: StampTextField
+  grade: StampTextField
+  issuedAt: StampTextField
   qr: { x: number; y: number; size: number; visible?: boolean }
-  serial: { x: number; y: number; width: number; fontSize: number; visible?: boolean }
+  serial: StampTextField
 }
 
+const LEGACY_STAMP_LABELS: Record<StampField, string> = { holderName: 'اسم الطالب', program: 'البرنامج', grade: 'التقدير', issuedAt: 'تاريخ الإصدار', serial: 'الرقم التسلسلي', qr: 'رمز QR' }
+const LEGACY_TEXT_FIELDS: StampField[] = ['holderName', 'program', 'grade', 'issuedAt', 'serial']
+const DEFAULT_TEXT_STAMP: Omit<StampTextField, 'x' | 'y'> = { width: 70, fontSize: 2.2, color: '#0f2b46', align: 'center', fontFamily: 'Arial', lang: 'en', visible: true }
 const DEFAULT_STAMP_LAYOUT: StampLayout = {
+  holderName: { ...DEFAULT_TEXT_STAMP, x: 50, y: 36, width: 72, fontSize: 4.2, visible: false },
+  program: { ...DEFAULT_TEXT_STAMP, x: 50, y: 51, width: 76, fontSize: 2.5, color: '#a8841a', visible: false },
+  grade: { ...DEFAULT_TEXT_STAMP, x: 50, y: 62, width: 44, fontSize: 1.7, visible: false },
+  issuedAt: { ...DEFAULT_TEXT_STAMP, x: 18, y: 90, width: 26, fontSize: 1.15, align: 'left', visible: false },
   qr: { x: 15, y: 80, size: 16, visible: true },
-  serial: { x: 15, y: 95, width: 30, fontSize: 1.25, visible: true },
+  serial: { ...DEFAULT_TEXT_STAMP, x: 15, y: 95, width: 30, fontSize: 1.25, visible: true },
 }
 
 function clampNumber(value: unknown, min: number, max: number, fallback: number) {
