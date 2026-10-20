@@ -311,7 +311,7 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
     })
     if (!prepared.length) continue
 
-    let verifierContext: { provider?: string; model?: string } = {}
+    let verifierContext: { provider?: string; model?: string; family?: string } = {}
     let parsed: { results: QuestionVerifierResult[] } | null = null
     try {
       const raw = await textAiCompleteJson({
