@@ -226,8 +226,8 @@ export async function validateLegacyGraduateImportRows(parsedRows: { rowNumber: 
 
 export function createLegacyGraduatesTemplateBuffer() {
   const rows = [
-    ['الاسم', 'الإيميل', 'الجوال', 'الدولة', 'البرنامج', 'التقدير', 'المعدل', 'تاريخ التخرج', 'رقم الشهادة القديم'],
-    ['أحمد محمد', 'ahmad@example.com', '+970599000000', 'فلسطين', 'program-slug-or-titleAr', 'امتياز', 95, '2024-06-30', 'OLD-2024-001'],
+    ['الاسم', 'الاسم بالإنجليزي', 'الإيميل', 'الجوال', 'الدولة', 'البرنامج', 'البرنامج بالإنجليزي', 'التقدير', 'التقدير بالإنجليزي', 'المعدل', 'تاريخ التخرج', 'رقم الشهادة القديم'],
+    ['أحمد محمد', 'Ahmad Mohammad', 'ahmad@example.com', '+970599000000', 'فلسطين', 'program-slug-or-titleAr', 'Professional Master in Business Administration', 'امتياز', 'Excellent', 95, '2024-06-30', 'OLD-2024-001'],
   ]
   const worksheet = XLSX.utils.aoa_to_sheet(rows)
   const workbook = XLSX.utils.book_new()
