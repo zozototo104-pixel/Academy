@@ -637,8 +637,7 @@ export default function AdminLegacyGraduatesTab() {
                   <Select value={selectedStampField} onValueChange={(v) => setSelectedStampField(v as StampField)}>
                     <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="qr">رمز QR</SelectItem>
-                      <SelectItem value="serial">الرقم التسلسلي</SelectItem>
+                      {(Object.keys(LEGACY_STAMP_LABELS) as StampField[]).map((field) => <SelectItem key={field} value={field}>{LEGACY_STAMP_LABELS[field]}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
