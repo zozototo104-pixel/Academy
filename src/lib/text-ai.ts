@@ -1732,6 +1732,7 @@ export async function textAiDiagnostics(): Promise<TextAiDiagnostics> {
     UNOROUTER: s.unorouterKeys.length,
     RELAYROUTER: s.relayrouterKeys.length,
     TOPTOOLS: s.topToolsKeys.length,
+    ALBORIHI: s.alborihiKeys.length,
     OPENAI_COMPAT: s.openaiCompatKeys.length,
   }
   return {
