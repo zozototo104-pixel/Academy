@@ -93,8 +93,10 @@ export async function GET(_req: NextRequest, context: RouteContext) {
       }
     }
 
-    const holder = pdfSafeText(certificate.holderName || certificate.admission?.fullName || certificate.agent?.repName || certificate.agent?.orgName, 'Certificate Holder')
-    const program = pdfSafeText(certificate.program || certificate.admission?.programRef?.titleAr || certificate.admission?.program || certificate.agent?.orgName, 'AACT Program')
+    const holder = pdfSafeText(certificate.holderNameEn || certificate.holderName || certificate.admission?.fullName || certificate.agent?.repName || certificate.agent?.orgName, 'Certificate Holder')
+    const program = pdfSafeText(certificate.programEn || certificate.enrollment?.program?.titleEn || certificate.admission?.programRef?.titleEn || certificate.program || certificate.admission?.programRef?.titleAr || certificate.admission?.program || certificate.agent?.orgName, 'AACT Program')
+    const grade = pdfSafeText(certificate.gradeEn || certificate.grade, '—')
+    const englishFallback = certificate.type === 'PROGRAM_COMPLETION'
     const verificationUrl = certificateVerificationUrl(certificate)
     const credentialUrl = certificateCredentialUrl(certificate)
 
