@@ -251,8 +251,11 @@ export default function AdminLegacyGraduatesTab() {
           body: JSON.stringify({
             id: form.id,
             holderName: form.name,
+            holderNameEn: form.nameEn,
             program: form.program,
+            programEn: form.programEn,
             grade: form.grade,
+            gradeEn: form.gradeEn,
             country: form.country,
             finalScore: form.finalScore,
             issuedAt: form.issuedAt,
