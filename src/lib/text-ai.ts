@@ -900,6 +900,7 @@ function providerKeys(s: Settings, provider: ConcreteProvider): string[] {
     case 'UNOROUTER': return s.unorouterKeys
     case 'RELAYROUTER': return s.relayrouterKeys
     case 'TOPTOOLS': return s.topToolsKeys
+    case 'ALBORIHI': return s.alborihiBaseUrl ? s.alborihiKeys : []
     case 'OPENAI_COMPAT': return s.openaiCompatBaseUrl ? s.openaiCompatKeys : []
   }
 }
@@ -917,6 +918,7 @@ function modelFor(s: Settings, provider: ConcreteProvider): string {
     case 'UNOROUTER': return s.unorouterModel
     case 'RELAYROUTER': return s.relayrouterModel
     case 'TOPTOOLS': return s.topToolsModel
+    case 'ALBORIHI': return s.alborihiModel
     case 'OPENAI_COMPAT': return s.openaiCompatModel
   }
 }
@@ -932,6 +934,7 @@ function baseFor(s: Settings, provider: ConcreteProvider): string {
     case 'UNOROUTER': return s.unorouterBaseUrl
     case 'RELAYROUTER': return s.relayrouterBaseUrl
     case 'TOPTOOLS': return s.topToolsBaseUrl
+    case 'ALBORIHI': return s.alborihiBaseUrl
     case 'OPENAI_COMPAT': return s.openaiCompatBaseUrl
     default: return ''
   }
@@ -950,6 +953,7 @@ function staticTextModelsForProvider(provider: ConcreteProvider, s?: Settings): 
     case 'UNOROUTER': return UNOROUTER_TEXT_MODELS
     case 'RELAYROUTER': return RELAYROUTER_TEXT_MODELS
     case 'TOPTOOLS': return TOPTOOLS_TEXT_MODELS
+    case 'ALBORIHI': return ALBORIHI_TEXT_MODELS
     case 'OPENAI_COMPAT': return s && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl) ? NVIDIA_OPENAI_COMPAT_TEXT_MODELS : OPENAI_COMPAT_TEXT_MODELS
   }
 }
