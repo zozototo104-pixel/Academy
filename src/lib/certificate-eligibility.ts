@@ -57,9 +57,12 @@ function isSettledPayment(status: string) {
   return status === 'PAID' || status === 'WAIVED'
 }
 
-function paymentEligibilityError(payments: Array<{ purpose: string; status: string; amount: number; amountCents?: number | null; waiverType?: string | null; waivedAmount?: number | null; waivedAmountCents?: number | null; originalAmount?: number | null; originalAmountCents?: number | null }>, programPrice?: number | null) {
-  const nonTuitionUnpaid = payments.filter((p) => !['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && !isSettledPayment(p.status))
+function paymentEligibilityError(payments: Array<{ purpose: string; status: string; amount: number; amountCents?: number | null; waiverType?: string | null; waiverStatus?: string | null; waivedAmount?: number | null; waivedAmountCents?: number | null; originalAmount?: number | null; originalAmountCents?: number | null }>, programPrice?: number | null, scholarshipFull?: boolean | null) {
+  if (scholarshipFull === true) return null
+  const tuitionRows = payments.filter((p) => TUITION_PURPOSES.includes(p.purpose))
+  const nonTuitionUnpaid = payments.filter((p) => !TUITION_PURPOSES.includes(p.purpose) && !isSettledPayment(p.status))
   if (nonTuitionUnpaid.length) return 'لا يمكن إصدار الشهادة قبل سداد جميع فواتير الطلب غير الدراسية.'
+  if (tuitionRows.length === 0) return null
   const total = roundMoney(inferTotalTuition(payments, Number(programPrice || 0)))
   const paid = roundMoney(tuitionPaidTotal(payments))
   if (total > 0 && paid < total) return `لا يمكن إصدار الشهادة قبل استكمال الرسوم الدراسية. المسدد ${paid}$ من ${total}$.`
