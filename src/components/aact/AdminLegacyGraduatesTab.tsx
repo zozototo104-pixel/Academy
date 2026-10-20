@@ -174,12 +174,7 @@ function parseStampLayout(positionValue?: string | null, sizeValue?: string | nu
       program: normalizeTextStamp(raw?.program, fallback.program),
       grade: normalizeTextStamp(raw?.grade, fallback.grade),
       issuedAt: normalizeTextStamp(raw?.issuedAt, fallback.issuedAt),
-      qr: {
-        x: clampNumber(raw?.qr?.x, 1, 99, fallback.qr.x),
-        y: clampNumber(raw?.qr?.y, 1, 99, fallback.qr.y),
-        size: clampNumber(raw?.qr?.size, 4, 45, fallback.qr.size),
-        visible: raw?.qr?.visible !== false,
-      },
+      qr: normalizeQrStamp(raw?.qr, fallback.qr),
       serial: normalizeTextStamp(raw?.serial, fallback.serial),
     }
   } catch {
