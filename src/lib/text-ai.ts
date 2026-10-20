@@ -1920,6 +1920,7 @@ function providerSupportsVisionAttachments(provider: ConcreteProvider) {
 function modelSupportsVisionAttachment(provider: ConcreteProvider, model: string, capability: ModelCapability | null, attachments: TextAiAttachment[]): boolean {
   if (!attachments.length) return true
   if (!providerSupportsVisionAttachments(provider)) return false
+  if (provider === 'ALBORIHI' && !capability) return false
   const id = model.toLowerCase()
   const modalities = (capability?.modalities || []).join(' ').toLowerCase()
   const vision = capability?.vision === true || /vision|image|multimodal|input_image|image_url|gemini|claude|gpt-4o|gpt-5|glm-4\.5|glm-5v|auto/.test(`${id} ${modalities}`)
