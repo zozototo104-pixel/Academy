@@ -242,9 +242,10 @@ function familyAliases(family: string): string[] {
   return aliases[family] || [family]
 }
 
-function verifierFamilyAllowed(context: { provider?: string; model?: string }, generatorProvider: string, generatorFamily: string): { ok: true } | { ok: false; reason: string } {
+function verifierFamilyAllowed(context: { provider?: string; model?: string; family?: string }, generatorProvider: string, generatorFamily: string): { ok: true } | { ok: false; reason: string } {
   if (!context.model) return { ok: false, reason: 'VERIFIER_MODEL_UNKNOWN' }
-  const verifierFamily = modelFamily(context.model)
+  const declaredFamily = context.provider === 'ALBORIHI' ? modelFamily(context.family || '') : 'unknown'
+  const verifierFamily = declaredFamily !== 'unknown' ? declaredFamily : modelFamily(context.model)
   if (verifierFamily === generatorFamily) return { ok: false, reason: 'VERIFIER_SAME_FAMILY' }
   if (verifierFamily !== 'unknown') return { ok: true }
   if (!context.provider || context.provider === generatorProvider) return { ok: false, reason: 'VERIFIER_SAME_FAMILY_OR_UNKNOWN' }
