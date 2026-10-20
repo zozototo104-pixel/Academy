@@ -189,6 +189,7 @@ export async function stampLegacyCertificatePdf(input: {
   qrPosition?: QrPosition | string | null
   qrSize?: QrSize | string | null
   stampLayout?: LegacyStampLayout | string | null
+  values?: StampValues
 }) {
   const pdf = input.mime === 'application/pdf'
     ? await PDFDocument.load(input.buffer)
@@ -199,30 +200,42 @@ export async function stampLegacyCertificatePdf(input: {
   const { width, height } = page.getSize()
   const minDimension = Math.min(width, height)
   const layout = normalizeStampLayout(input.stampLayout || input.qrPosition || 'BOTTOM_LEFT', input.qrSize || 'M')
-  const effectiveQrSize = Math.max(28, Math.min(minDimension * 0.45, minDimension * (layout.qr.size / 100)))
-  const qrPng = await QRCode.toBuffer(certificateVerificationUrl({ qrToken: input.qrToken }), {
-    type: 'png',
-    width: Math.round(effectiveQrSize * 3),
-    margin: 1,
-    errorCorrectionLevel: 'M',
-  })
-  const qrImage = await pdf.embedPng(qrPng)
-  const font = await pdf.embedFont(StandardFonts.Helvetica)
+  const values: StampValues = { serial: input.serial, ...(input.values || {}) }
   const margin = 4
-  const qrCenterX = width * (layout.qr.x / 100)
-  const qrCenterY = height * ((100 - layout.qr.y) / 100)
-  const qrX = Math.max(margin, Math.min(width - effectiveQrSize - margin, qrCenterX - effectiveQrSize / 2))
-  const qrY = Math.max(margin, Math.min(height - effectiveQrSize - margin, qrCenterY - effectiveQrSize / 2))
-  const serial = String(input.serial || '').trim()
-  const textSize = Math.max(6, Math.min(72, minDimension * (layout.serial.fontSize / 100)))
-  const textWidth = font.widthOfTextAtSize(serial, textSize)
-  const serialCenterX = width * (layout.serial.x / 100)
-  const serialCenterY = height * ((100 - layout.serial.y) / 100)
-  const textX = Math.max(margin, Math.min(width - textWidth - margin, serialCenterX - textWidth / 2))
-  const textY = Math.max(margin, Math.min(height - textSize - margin, serialCenterY - textSize / 2))
+  if (layout.qr.visible !== false) {
+    const effectiveQrSize = Math.max(28, Math.min(minDimension * 0.45, minDimension * (layout.qr.size / 100)))
+    const qrPng = await QRCode.toBuffer(certificateVerificationUrl({ qrToken: input.qrToken }), {
+      type: 'png',
+      width: Math.round(effectiveQrSize * 3),
+      margin: 1,
+      errorCorrectionLevel: 'M',
+    })
+    const qrImage = await pdf.embedPng(qrPng)
+    const qrCenterX = width * (layout.qr.x / 100)
+    const qrCenterY = height * ((100 - layout.qr.y) / 100)
+    const qrX = Math.max(margin, Math.min(width - effectiveQrSize - margin, qrCenterX - effectiveQrSize / 2))
+    const qrY = Math.max(margin, Math.min(height - effectiveQrSize - margin, qrCenterY - effectiveQrSize / 2))
+    page.drawImage(qrImage, { x: qrX, y: qrY, width: effectiveQrSize, height: effectiveQrSize })
+  }
 
-  if (layout.qr.visible !== false) page.drawImage(qrImage, { x: qrX, y: qrY, width: effectiveQrSize, height: effectiveQrSize })
-  if (layout.serial.visible !== false && serial) page.drawText(serial, { x: textX, y: textY, size: textSize, font, color: rgb(0.05, 0.05, 0.05) })
+  const textNodes = TEXT_FIELDS.map((field) => {
+    const cfg = layout[field]
+    const value = stampValue(field, cfg, values)
+    if (cfg.visible === false || !value) return ''
+    const fontSize = Math.max(6, Math.min(90, minDimension * (cfg.fontSize / 100)))
+    const x = width * (cfg.x / 100)
+    const y = height * (cfg.y / 100)
+    const maxWidth = width * (cfg.width / 100)
+    const dir = cfg.lang === 'ar' ? 'rtl' : 'ltr'
+    const family = cfg.fontFamily || (dir === 'rtl' ? 'Noto Naskh Arabic' : 'Arial')
+    return `<text x="${x}" y="${y}" text-anchor="${cssAnchor(cfg.align)}" direction="${dir}" unicode-bidi="plaintext" style="font-family:${escXml(family)},Arial,sans-serif;font-size:${fontSize}px;font-weight:900;fill:${escXml(cfg.color || '#0f2b46')};dominant-baseline:middle">${escXml(value)}</text><rect x="${x - maxWidth / 2}" y="${y - fontSize}" width="0" height="0" fill="none"/>`
+  }).join('')
+  if (textNodes) {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${textNodes}</svg>`
+    const overlay = await sharp(Buffer.from(svg)).png().toBuffer()
+    const overlayImage = await pdf.embedPng(overlay)
+    page.drawImage(overlayImage, { x: 0, y: 0, width, height })
+  }
   return Buffer.from(await pdf.save())
 }
 
