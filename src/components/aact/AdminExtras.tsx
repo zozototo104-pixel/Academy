@@ -1871,7 +1871,7 @@ export function AdminCertificatesTab() {
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h5 className="text-sm font-black text-[#0f2b46]">محرر أماكن الحقول على القالب</h5>
-                  <p className="text-[11px] font-bold text-slate-500">اختر القالب، ثم اسحب أي حقل فوق الصورة إلى مكانه الصحيح. بعد الضبط اضغط حفظ التخطيط.</p>
+                  <p className="text-[11px] font-bold text-slate-500">اختر القالب، ثم اسحب QR أو الرقم التسلسلي فوق الصورة إلى مكانه الصحيح. بعد الضبط اضغط حفظ التخطيط.</p>
                 </div>
                 <Button type="button" onClick={() => saveTemplateLayout(selectedTemplate)} disabled={templateBusy} className="bg-[#c9a227] font-black text-[#0f2b46] hover:bg-[#e0b83a]">
                   {templateBusy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Settings2 className="ml-2 h-4 w-4" />} حفظ تخطيط القالب
