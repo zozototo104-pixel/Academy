@@ -72,7 +72,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
       mime: originalMime,
       serial: cert.serial,
       qrToken: cert.qrToken,
-      qrPosition,
+      stampLayout,
       qrSize,
     })
 
