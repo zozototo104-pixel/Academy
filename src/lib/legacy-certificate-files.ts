@@ -166,11 +166,22 @@ function stampDate(value: Date | string | null | undefined, lang: StampLang) {
   return d.toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { year: 'numeric', month: 'long', day: 'numeric' })
 }
 
-function stampValue(field: typeof TEXT_FIELDS[number], cfg: StampTextField, values: StampValues) {
+function gradeArabicToEnglish(value?: string | null) {
+  const text = String(value || '').replace(/[٪%]/g, '').trim()
+  if (!text) return ''
+  if (text.includes('امتياز')) return text.replace(/امتياز/g, 'Excellent').replace(/—\s*Excellent/, '— Excellent')
+  if (text.includes('جيد جداً') || text.includes('جيد جدا')) return text.replace(/جيد جداً|جيد جدا/g, 'Very Good').replace(/—\s*Very Good/, '— Very Good')
+  if (text.includes('جيد')) return text.replace(/جيد/g, 'Good').replace(/—\s*Good/, '— Good')
+  if (text.includes('ناجح') || text.includes('مقبول')) return text.replace(/ناجح|مقبول/g, 'Pass').replace(/—\s*Pass/, '— Pass')
+  if (text.includes('غير مجتاز')) return text.replace(/غير مجتاز/g, 'Not Passed').replace(/—\s*Not Passed/, '— Not Passed')
+  return text
+}
+
+export function stampValue(field: typeof TEXT_FIELDS[number], cfg: StampTextField, values: StampValues) {
   const lang = cfg.lang === 'ar' ? 'ar' : 'en'
   if (field === 'holderName') return lang === 'en' ? (values.holderNameEn || values.holderName || '') : (values.holderName || '')
   if (field === 'program') return lang === 'en' ? (values.programEn || values.program || '') : (values.program || '')
-  if (field === 'grade') return lang === 'en' ? (values.gradeEn || values.grade || '') : (values.grade || '')
+  if (field === 'grade') return lang === 'en' ? (values.gradeEn || gradeArabicToEnglish(values.grade) || '') : (values.grade || '')
   if (field === 'issuedAt') return stampDate(values.issuedAt, lang)
   return values.serial || ''
 }
