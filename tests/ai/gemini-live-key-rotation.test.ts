@@ -75,6 +75,8 @@ const store = {
 const originalFetch = globalThis.fetch
 const originalGeminiApiKey = process.env.GEMINI_API_KEY
 const originalGeminiApiKeys = process.env.GEMINI_API_KEYS
+const originalAlborihiApiKey = process.env.ALBORIHI_API_KEY
+const originalAlborihiApiKeys = process.env.ALBORIHI_API_KEYS
 let fetchKeys: string[] = []
 
 function configureGeminiKeys(...keys: string[]) {
