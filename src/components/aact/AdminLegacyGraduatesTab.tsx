@@ -562,7 +562,14 @@ export default function AdminLegacyGraduatesTab() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!uploadFor} onOpenChange={(open) => { if (!open) setUploadFor(null) }}>
+      <Dialog open={!!uploadFor} onOpenChange={(open) => {
+        if (!open) {
+          setUploadFor(null)
+          setUploadFile(null)
+          stampDragRef.current = null
+          stampResizeRef.current = null
+        }
+      }}>
         <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto" dir="rtl">
           <DialogHeader>
             <DialogTitle>رفع شهادة جاهزة وختم QR والرقم</DialogTitle>
