@@ -46,7 +46,7 @@ const store = {
 
 function configureAlborihi() {
   values.set('AI_TEXT_PROVIDER', 'ALBORIHI')
-  process.env.ALBORIHI_API_KEYS = TEST_ALBORIHI_KEY
+  process.env.ALBORIHI_API_KEYS = MOCK_ALBORIHI_TOKEN
   values.set('ALBORIHI_TEXT_MODEL', 'claude-sonnet-5')
   values.set('ALBORIHI_BASE_URL', 'https://alborihi-ai.com/api/public/dev/v1')
 }
