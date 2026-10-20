@@ -86,6 +86,63 @@ async function jsonOrThrow(res: Response, fallback: string) {
   return data
 }
 
+type StampField = 'qr' | 'serial'
+type StampLayout = {
+  qr: { x: number; y: number; size: number; visible?: boolean }
+  serial: { x: number; y: number; width: number; fontSize: number; visible?: boolean }
+}
+
+const DEFAULT_STAMP_LAYOUT: StampLayout = {
+  qr: { x: 15, y: 80, size: 16, visible: true },
+  serial: { x: 15, y: 95, width: 30, fontSize: 1.25, visible: true },
+}
+
+function clampNumber(value: unknown, min: number, max: number, fallback: number) {
+  const n = Number(value)
+  return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback
+}
+
+function legacyStampLayout(positionValue?: string | null, sizeValue?: string | null): StampLayout {
+  const position = String(positionValue || 'BOTTOM_LEFT').toUpperCase()
+  const size = String(sizeValue || 'M').toUpperCase()
+  const qrSize = size === 'L' ? 20 : size === 'S' ? 12 : 16
+  const isRight = position.endsWith('RIGHT')
+  const isTop = position.startsWith('TOP')
+  const x = isRight ? 100 - (7 + qrSize / 2) : 7 + qrSize / 2
+  const qrY = isTop ? 7 + qrSize / 2 : 100 - (10 + qrSize / 2)
+  const serialY = isTop ? Math.min(96, qrY + qrSize / 2 + 4) : 95
+  return {
+    qr: { x, y: qrY, size: qrSize, visible: true },
+    serial: { x, y: serialY, width: Math.max(20, qrSize * 1.8), fontSize: size === 'L' ? 1.6 : size === 'S' ? 1.0 : 1.25, visible: true },
+  }
+}
+
+function parseStampLayout(positionValue?: string | null, sizeValue?: string | null): StampLayout {
+  const fallback = legacyStampLayout(positionValue, sizeValue)
+  const rawText = String(positionValue || '').trim()
+  if (!rawText.startsWith('{')) return fallback
+  try {
+    const raw = JSON.parse(rawText)
+    return {
+      qr: {
+        x: clampNumber(raw?.qr?.x, 1, 99, fallback.qr.x),
+        y: clampNumber(raw?.qr?.y, 1, 99, fallback.qr.y),
+        size: clampNumber(raw?.qr?.size, 4, 45, fallback.qr.size),
+        visible: raw?.qr?.visible !== false,
+      },
+      serial: {
+        x: clampNumber(raw?.serial?.x, 1, 99, fallback.serial.x),
+        y: clampNumber(raw?.serial?.y, 1, 99, fallback.serial.y),
+        width: clampNumber(raw?.serial?.width, 6, 95, fallback.serial.width),
+        fontSize: clampNumber(raw?.serial?.fontSize, 0.5, 8, fallback.serial.fontSize),
+        visible: raw?.serial?.visible !== false,
+      },
+    }
+  } catch {
+    return fallback
+  }
+}
+
 export default function AdminLegacyGraduatesTab() {
   const [items, setItems] = useState<LegacyGraduateCertificate[]>([])
   const [search, setSearch] = useState('')
