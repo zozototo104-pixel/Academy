@@ -74,6 +74,7 @@ export interface TextAiAttemptDiagnostics {
   ms: number
   status?: number
   error?: string
+  requestId?: string
   at: string
 }
 
