@@ -1,8 +1,8 @@
 import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
-import { certificateGradeLabel, evaluateProgramCertificateEligibility, type ProgramCertificateEligibility } from '@/lib/certificate-eligibility'
+import { certificateGradeLabel, certificateGradeLabelEn, evaluateProgramCertificateEligibility, type ProgramCertificateEligibility } from '@/lib/certificate-eligibility'
 import { createCertificateQrToken, nextCertificateSerial } from '@/lib/certificate-identity'
-import { inferTotalTuition, roundMoney, tuitionPaidTotal } from '@/lib/tuition-installments'
+import { TUITION_PURPOSES, inferTotalTuition, roundMoney, tuitionPaidTotal } from '@/lib/tuition-installments'
 
 type Tx = Prisma.TransactionClient
 
