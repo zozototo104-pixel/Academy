@@ -412,7 +412,7 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
     preferredProviders: QUESTION_BANK_GENERATION_PROVIDER_ORDER,
     temperature: rescueMode ? 0.35 : 0.2,
     maxOutputTokens: 5200,
-    stickyScope: `QUESTION_BANK_JOB:${job.programId}:${job.unitId || 'PROGRAM'}`,
+    // Do not pin a previous fallback ahead of the configured generation priority.
     deadlineMs: Math.min(deadlineMs || Date.now() + QUESTION_BANK_STEP_MS, Date.now() + QUESTION_BANK_STEP_MS),
     validate: (text) => {
       const parsedForRouter = parseGeneratedQuestionCandidates(text)
