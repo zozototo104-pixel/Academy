@@ -641,8 +641,17 @@ export default function AdminLegacyGraduatesTab() {
                     </SelectContent>
                   </Select>
                 </div>
+                <Button type="button" variant="outline" className="w-full bg-white text-xs font-black" onClick={() => setStampLayout((prev) => ({ ...prev, [selectedStampField]: { ...prev[selectedStampField], visible: prev[selectedStampField]?.visible === false } }))}>
+                  {stampLayout[selectedStampField]?.visible === false ? 'إظهار العنصر' : 'إخفاء العنصر'}
+                </Button>
+                {LEGACY_TEXT_FIELDS.includes(selectedStampField) && (
+                  <div className="grid grid-cols-2 gap-2 rounded-xl bg-white p-3">
+                    <div className="space-y-1"><Label className="text-[10px] font-bold">حجم الخط</Label><Input type="number" step="0.1" min="0.5" max="8" value={(stampLayout[selectedStampField] as StampTextField).fontSize ?? 1.2} onChange={(e) => setStampLayout((prev) => ({ ...prev, [selectedStampField]: { ...(prev[selectedStampField] as StampTextField), fontSize: Number(e.target.value || 1.2) } }))} /></div>
+                    <div className="space-y-1"><Label className="text-[10px] font-bold">العرض %</Label><Input type="number" min="6" max="95" value={(stampLayout[selectedStampField] as StampTextField).width ?? 30} onChange={(e) => setStampLayout((prev) => ({ ...prev, [selectedStampField]: { ...(prev[selectedStampField] as StampTextField), width: Number(e.target.value || 30) } }))} /></div>
+                  </div>
+                )}
                 <div className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-[11px] font-bold leading-5 text-amber-900">
-                  اسحب QR أو الرقم لتحريكه، واسحب المقبض الذهبي الصغير لتكبيره أو تصغيره. بعدها اضغط معاينة للتأكد من موضعه على PDF النهائي.
+                  اسحب أي عنصر لتحريكه، واسحب المقبض الذهبي الصغير لتكبيره أو تصغيره. الافتراضي يخفي الاسم والبرنامج والتقدير والتاريخ للشهادات الجاهزة.
                 </div>
               </div>
               <div
