@@ -112,7 +112,7 @@ async function resolveCompletionContext(tx: Tx, input: CompleteEnrollmentInput) 
   const matchedAdmission = admission || await tx.admissionApplication.findFirst({
     where: { userId: enrollment.userId, programId: enrollment.programId },
     orderBy: { createdAt: 'desc' },
-    select: { id: true, userId: true, programId: true, fullName: true, program: true, country: true, email: true, status: true },
+    select: { id: true, userId: true, programId: true, fullName: true, fullNameEn: true, program: true, country: true, email: true, status: true, scholarshipFull: true },
   })
 
   const program = await tx.program.findUnique({
