@@ -324,15 +324,16 @@ describe('academic B1 safety', () => {
   })
 
   test('certificate English labels and admission English name are used on issuance', async () => {
-    expect(certificateGradeLabelEn(95)).toBe('Excellent')
+    expect(certificateGradeLabelEn(95)).toBe('95% — Excellent')
     const issued = await completionResult({ payments: [], fullNameEn: 'John Smith' })
     expect(issued.result.ok).toBe(true)
     expect(issued.certificate.holderNameEn).toBe('John Smith')
-    expect(issued.certificate.gradeEn).toBe('Excellent')
+    expect(issued.certificate.gradeEn).toBe('95% — Excellent')
   })
 
   test('English stamp grade falls back from known Arabic grade label', () => {
     expect(stampValue('grade', { x: 50, y: 50, width: 40, fontSize: 2, lang: 'en' }, { grade: 'امتياز' })).toBe('Excellent')
+    expect(stampValue('grade', { x: 50, y: 50, width: 40, fontSize: 2, lang: 'en' }, { grade: '95% — امتياز' })).toBe('95% — Excellent')
   })
 
   test('certificate verification details expose program exam finalScore instead of raw score', async () => {
