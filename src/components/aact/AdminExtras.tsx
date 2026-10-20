@@ -1889,14 +1889,7 @@ export function AdminCertificatesTab() {
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-[11px] font-black text-slate-600">اتجاه الشهادة</Label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button type="button" variant={isPortraitTemplate ? 'outline' : 'default'} onClick={() => setTemplateOrientation(selectedTemplate, 'landscape')} className={isPortraitTemplate ? 'bg-white font-black' : 'bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]'}>عرضي</Button>
-                      <Button type="button" variant={isPortraitTemplate ? 'default' : 'outline'} onClick={() => setTemplateOrientation(selectedTemplate, 'portrait')} className={isPortraitTemplate ? 'bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]' : 'bg-white font-black'}>طولي</Button>
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-[11px] font-black text-slate-600">الحقل المحدد</Label>
+                    <Label className="text-[11px] font-black text-slate-600">العنصر المحدد</Label>
                     <Select value={selectedTemplateField} onValueChange={setSelectedTemplateField}>
                       <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -1904,17 +1897,10 @@ export function AdminCertificatesTab() {
                       </SelectContent>
                     </Select>
                   </div>
-                  {selectedTemplateField !== 'qr' ? (
-                    <div className="grid grid-cols-2 gap-2 rounded-xl bg-white p-3">
-                      <div className="space-y-1"><Label className="text-[10px] font-bold">حجم الخط</Label><Input type="number" step="0.1" min="0.8" max="8" value={selectedLayout[selectedTemplateField]?.fontSize ?? 2} onChange={(e) => patchTemplateLayout(selectedTemplate, selectedTemplateField, { fontSize: Number(e.target.value || 2) })} /></div>
-                      <div className="space-y-1"><Label className="text-[10px] font-bold">العرض %</Label><Input type="number" min="10" max="95" value={selectedLayout[selectedTemplateField]?.width ?? 50} onChange={(e) => patchTemplateLayout(selectedTemplate, selectedTemplateField, { width: Number(e.target.value || 50) })} /></div>
-                      <div className="space-y-1"><Label className="text-[10px] font-bold">اللون</Label><Input type="color" value={selectedLayout[selectedTemplateField]?.color || '#0f2b46'} onChange={(e) => patchTemplateLayout(selectedTemplate, selectedTemplateField, { color: e.target.value })} /></div>
-                      <div className="space-y-1"><Label className="text-[10px] font-bold">المحاذاة</Label><Select value={selectedLayout[selectedTemplateField]?.align || 'center'} onValueChange={(v) => patchTemplateLayout(selectedTemplate, selectedTemplateField, { align: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="right">يمين</SelectItem><SelectItem value="center">وسط</SelectItem><SelectItem value="left">يسار</SelectItem></SelectContent></Select></div>
-                    </div>
-                  ) : (
-                    <div className="rounded-xl bg-white p-3"><Label className="text-[10px] font-bold">حجم QR %</Label><Input type="number" min="5" max="30" value={selectedLayout.qr?.size ?? 12} onChange={(e) => patchTemplateLayout(selectedTemplate, 'qr', { size: Number(e.target.value || 12) })} /></div>
-                  )}
-                  <div className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-[11px] font-bold leading-5 text-amber-900">اسحب الحقل من داخل الصورة. القيم تُحفظ كنسب مئوية حتى يبقى التخطيط صحيحاً مهما تغيّر حجم القالب.</div>
+                  <div className="rounded-xl border border-emerald-100 bg-white p-3 text-[11px] font-bold leading-5 text-emerald-900">
+                    الصورة تُعرض بنسبة أبعادها الأصلية كما رُفعت. لا يضيف النظام أي اسم أو برنامج فوقها؛ فقط QR والرقم التسلسلي.
+                  </div>
+                  <div className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-[11px] font-bold leading-5 text-amber-900">اسحب QR أو الرقم لتحريكه، واسحب المقبض الذهبي الصغير لتكبيره أو تصغيره. الحفظ يتم كنسب مئوية حتى يبقى التخطيط ثابتاً على كل الأحجام.</div>
                 </div>
                 <div
                   ref={templateCanvasRef}
