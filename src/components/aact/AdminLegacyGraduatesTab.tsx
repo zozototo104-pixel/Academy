@@ -438,7 +438,7 @@ export default function AdminLegacyGraduatesTab() {
     }
     const width = Math.max(6, Math.min(95, active.startWidth + delta))
     const fontSize = Math.max(0.5, Math.min(8, active.startFontSize + delta * 0.08))
-    setStampLayout((prev) => ({ ...prev, serial: { ...prev.serial, width: Number(width.toFixed(1)), fontSize: Number(fontSize.toFixed(1)) } }))
+    setStampLayout((prev) => ({ ...prev, [active.field]: { ...(prev[active.field] as StampTextField), width: Number(width.toFixed(1)), fontSize: Number(fontSize.toFixed(1)) } }))
   }
 
   function stampFieldStyle(field: StampField) {
