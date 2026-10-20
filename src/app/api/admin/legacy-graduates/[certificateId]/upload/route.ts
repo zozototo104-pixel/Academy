@@ -111,7 +111,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
         action: hasNewFile ? 'UPLOAD_LEGACY_CERTIFICATE_FILE' : 'RESTAMP_LEGACY_CERTIFICATE_FILE',
         entity: 'Certificate',
         entityId: cert.id,
-        details: `${cert.serial} — ${cert.holderName} — ${qrPosition}/${qrSize}`,
+        details: `${cert.serial} — ${cert.holderName} — custom-stamp-layout`, 
       },
     })
 
