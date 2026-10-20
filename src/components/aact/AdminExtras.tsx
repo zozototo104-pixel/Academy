@@ -1639,6 +1639,21 @@ export function AdminCertificatesTab() {
     patchTemplateLayout(template, field, { x: Number(x.toFixed(1)), y: Number(y.toFixed(1)) })
   }
 
+  const resizeTemplateField = (template: CertificateTemplateItem, clientX: number, clientY: number) => {
+    const active = templateResizeRef.current
+    const rect = templateCanvasRef.current?.getBoundingClientRect()
+    if (!active || !rect) return
+    const delta = (((clientX - active.startX) / rect.width) + ((clientY - active.startY) / rect.height)) * 50
+    if (active.field === 'qr') {
+      const size = Math.max(4, Math.min(45, active.startSize + delta))
+      patchTemplateLayout(template, 'qr', { size: Number(size.toFixed(1)) })
+      return
+    }
+    const width = Math.max(6, Math.min(95, active.startWidth + delta))
+    const fontSize = Math.max(0.6, Math.min(8, active.startFontSize + delta * 0.08))
+    patchTemplateLayout(template, active.field, { width: Number(width.toFixed(1)), fontSize: Number(fontSize.toFixed(1)) })
+  }
+
   const saveTemplateLayout = async (template: CertificateTemplateItem) => {
     setTemplateBusy(true)
     try {
