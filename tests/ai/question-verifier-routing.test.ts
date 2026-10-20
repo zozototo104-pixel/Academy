@@ -61,8 +61,8 @@ describe('question verifier preferred routing', () => {
     expect(__testVerifierPreferredProvidersForTests('GROQ')).toEqual(['GEMINI', 'UNOROUTER'])
   })
 
-  test('Alborihi alone may verify with its own provider and is attempted before existing fallbacks', () => {
-    expect(__testVerifierExcludedProviders('ALBORIHI')).toEqual([])
+  test('Alborihi self-review requires the explicit router exception and is preferred before fallbacks', () => {
+    expect(__testVerifierExcludedProviders('ALBORIHI')).toEqual(['ALBORIHI'])
     expect(__testVerifierPreferredProvidersForTests('ALBORIHI')).toEqual(['ALBORIHI', 'GROQ', 'GEMINI', 'UNOROUTER'])
     expect(__testVerifierExcludedProviders('GEMINI')).toEqual(['GEMINI'])
     expect(__testVerifierExcludedProviders('GROQ')).toEqual(['GROQ'])
