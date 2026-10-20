@@ -112,7 +112,7 @@ describe('ALBORIHI text provider', () => {
     expect(reply).toBe('ok')
     expect(chatRequests).toHaveLength(1)
     expect(chatRequests[0].url).toBe('https://alborihi-ai.com/api/public/dev/v1/chat/completions')
-    expect(chatRequests[0].auth).toBe(`Bearer ${TEST_ALBORIHI_KEY}`)
+    expect(chatRequests[0].auth).toBe(`Bearer ${MOCK_ALBORIHI_TOKEN}`)
     expect(chatRequests[0].body.model).toBe('gpt-5.6-luna')
     expect(chatRequests[0].body.messages[1].content.some((part: any) => part?.type === 'image_url')).toBe(true)
   })
