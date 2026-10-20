@@ -103,6 +103,9 @@ export async function PATCH(req: NextRequest) {
     if (e?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
     }
+    if (e?.message === 'INVALID_ENGLISH_NAME') {
+      return NextResponse.json({ error: "الاسم بالإنجليزي يجب أن يحتوي على حروف لاتينية ومسافات و . - ' فقط" }, { status: 400 })
+    }
     console.error('admin certificates PATCH error:', e)
     return NextResponse.json({ error: 'تعذر إلغاء الشهادة' }, { status: 500 })
   }
