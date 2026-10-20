@@ -17,8 +17,11 @@ type LegacyGraduateCertificate = {
   serial: string
   qrToken: string
   holderName: string
+  holderNameEn?: string | null
   program: string
+  programEn?: string | null
   grade?: string | null
+  gradeEn?: string | null
   country?: string | null
   issuedAt: string
   valid: boolean
