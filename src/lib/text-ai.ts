@@ -2072,6 +2072,52 @@ function retryAfterCooldownMinutes(e: any, fallbackMinutes = 15): number {
   return Math.max(1, Math.floor(fallbackMinutes))
 }
 
+type ProviderFailureAction = 'continue' | 'break' | 'unhandled'
+
+async function handleAlborihiFailure(args: { key: string; keyIndex: number; model: string; error: any; message: string; status?: number }): Promise<ProviderFailureAction> {
+  const status = Number(args.status || 0)
+  const code = providerErrorCode(args.error)
+  const reason = args.message || code || `ALBORIHI_HTTP_${status || 'ERROR'}`
+
+  if (status === 401 && (!code || code === 'invalid_api_key' || code === 'missing_api_key')) {
+    markCooldown('ALBORIHI', args.key, reason, 60, status)
+    await markPersistentCooldown('ALBORIHI', args.keyIndex, undefined, reason, status, 60)
+    return 'continue'
+  }
+
+  if (status === 402 && ['subscription_inactive', 'free_credit_exhausted', 'free_not_eligible'].includes(code)) {
+    markCooldown('ALBORIHI', args.key, reason, 24 * 60, status)
+    await markPersistentNoBalance('ALBORIHI', args.keyIndex, reason, status)
+    return 'continue'
+  }
+
+  if (status === 403 && ['key_pending_approval', 'key_disabled', 'key_expired', 'account_suspended'].includes(code)) {
+    markCooldown('ALBORIHI', args.key, reason, 60, status)
+    await markPersistentCooldown('ALBORIHI', args.keyIndex, undefined, reason, status, 60)
+    return 'continue'
+  }
+
+  if ((status === 403 && code === 'model_not_allowed') || (status === 404 && code === 'model_not_found')) {
+    await markPersistentModelDead('ALBORIHI', args.model, reason, status)
+    return 'break'
+  }
+
+  if (status === 429) {
+    const minutes = retryAfterCooldownMinutes(args.error, 15)
+    if (['daily_token_cap', 'plan_quota_exhausted', 'key_budget_exhausted'].includes(code)) {
+      markCooldown('ALBORIHI', args.key, reason, 24 * 60, status)
+      await markPersistentNoBalance('ALBORIHI', args.keyIndex, reason, status)
+      return 'continue'
+    }
+    markCooldown('ALBORIHI', args.key, reason, minutes, status)
+    await markPersistentCooldown('ALBORIHI', args.keyIndex, undefined, reason, status, minutes)
+    return 'continue'
+  }
+
+  if (status === 503 && ['provider_unavailable', 'service_paused'].includes(code)) return 'unhandled'
+  return 'unhandled'
+}
+
 function recordAttempt(attempt: TextAiAttemptDiagnostics) {
   recentAttempts = [...recentAttempts, attempt].slice(-50)
   const label = attempt.ok ? 'ok' : 'failed'
