@@ -104,6 +104,7 @@ function mockTokenFetch(handler: (key: string) => { status: number; body: unknow
 
 beforeEach(() => {
   values.clear()
+  globalThis.fetch = originalFetch
   fetchKeys = []
   supervisorAccessLocked = false
   reserveUsageCalls = 0
