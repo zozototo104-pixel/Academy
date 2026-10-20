@@ -1581,7 +1581,7 @@ export function AdminCertificatesTab() {
       formData.append('name', templateForm.name)
       formData.append('certificateType', templateForm.certificateType)
       await api('/api/admin/certificates/templates', { method: 'POST', body: formData })
-      toast({ title: 'تم رفع قالب الشهادة', description: 'سيظهر القالب في نافذة الشهادة ويضع النظام البيانات فوقه تلقائياً.' })
+      toast({ title: 'تم رفع قالب الشهادة', description: 'سيظهر القالب كما رُفع، ويضيف النظام QR والرقم التسلسلي فقط.' })
       setTemplateFile(null)
       setTemplateForm({ name: '', certificateType: 'PROGRAM_COMPLETION' })
       loadTemplates()
