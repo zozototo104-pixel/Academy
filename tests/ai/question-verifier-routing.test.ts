@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { __testLimitProviderModelsForTests, __testProviderRateLimitCooldownForTests, __testQuestionVerifierCandidatePlan, modelFamily, parseProviderModelList } from '../../src/lib/text-ai'
+import { __testLimitProviderModelsForTests, __testProviderRateLimitCooldownForTests, __testQuestionVerifierCandidatePlan, __testResolvedAlborihiFamilyForTests, modelFamily, parseProviderModelList } from '../../src/lib/text-ai'
 import { __testVerifierExcludedProviders, __testVerifierFamilyAllowedForTests, __testVerifierPreferredProvidersForTests } from '../../src/lib/question-verifier'
 
 describe('question verifier preferred routing', () => {
