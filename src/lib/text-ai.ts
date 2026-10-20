@@ -1552,14 +1552,14 @@ function selectedFirst(selected: ConcreteProvider | null, order: ConcreteProvide
 
 function baseOrder(s: Settings): ConcreteProvider[] {
   const selected = s.provider === 'AUTO' ? null : s.provider
-  const quality: ConcreteProvider[] = ['ANTHROPIC', 'OPENAI', 'GEMINI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'TOPTOOLS', 'ZAI', 'GROQ', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT']
-  const cost: ConcreteProvider[] = ['GROQ', 'ZAI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'TOPTOOLS', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'GEMINI', 'OPENAI', 'ANTHROPIC']
+  const quality: ConcreteProvider[] = ['ANTHROPIC', 'OPENAI', 'GEMINI', 'ALBORIHI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'TOPTOOLS', 'ZAI', 'GROQ', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT']
+  const cost: ConcreteProvider[] = ['GROQ', 'ZAI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'TOPTOOLS', 'ALBORIHI', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'GEMINI', 'OPENAI', 'ANTHROPIC']
   const primary: ConcreteProvider[] = ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER
-  if (s.policy === 'quality_first') return quality
-  if (s.policy === 'cost_saver') return cost
+  if (s.policy === 'quality_first') return selectedFirst(selected, quality)
+  if (s.policy === 'cost_saver') return selectedFirst(selected, cost)
   if (s.policy === 'fallback_only' && selected) return [selected]
   if (s.policy === 'balanced') return primary.slice(roundRobin++ % Math.max(1, primary.length)).concat(primary.slice(0, (roundRobin - 1) % Math.max(1, primary.length)))
-  return primary
+  return selectedFirst(selected, primary)
 }
 
 function providerOrder(s: Settings, taskLevel: TextAiTaskLevel = 'GENERAL'): ConcreteProvider[] {
