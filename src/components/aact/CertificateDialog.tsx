@@ -13,8 +13,11 @@ export interface CertificateData {
   qrToken?: string | null
   type: string
   holderName: string
+  holderNameEn?: string | null
   program: string
+  programEn?: string | null
   grade?: string | null
+  gradeEn?: string | null
   country?: string | null
   issuedAt: string
   valid?: boolean
@@ -28,13 +31,13 @@ const TYPE_LABEL: Record<string, string> = {
   AGENCY: 'شهادة وكالة وتمثيل دولي',
 }
 
+const DEFAULT_TEXT_FIELD = { width: 70, fontSize: 2.2, align: 'center', color: '#0f2b46', fontFamily: 'Arial', lang: 'en', visible: true }
 const DEFAULT_TEMPLATE_LAYOUT: any = {
-  orientation: 'landscape',
-  holderName: { x: 50, y: 38, width: 72, fontSize: 4.8, align: 'center', color: '#0f2b46', visible: true },
-  program: { x: 50, y: 52, width: 76, fontSize: 2.6, align: 'center', color: '#a8841a', visible: true },
-  grade: { x: 50, y: 64, width: 44, fontSize: 1.7, align: 'center', color: '#0f2b46', visible: true },
-  serial: { x: 84, y: 90, width: 22, fontSize: 1.2, align: 'right', color: '#0f2b46', visible: true },
-  issuedAt: { x: 16, y: 90, width: 24, fontSize: 1.2, align: 'left', color: '#0f2b46', visible: true },
+  holderName: { ...DEFAULT_TEXT_FIELD, x: 50, y: 36, width: 72, fontSize: 4.2 },
+  program: { ...DEFAULT_TEXT_FIELD, x: 50, y: 51, width: 76, fontSize: 2.5, color: '#a8841a' },
+  grade: { ...DEFAULT_TEXT_FIELD, x: 50, y: 62, width: 44, fontSize: 1.7 },
+  issuedAt: { ...DEFAULT_TEXT_FIELD, x: 18, y: 90, width: 26, fontSize: 1.15, align: 'left' },
+  serial: { ...DEFAULT_TEXT_FIELD, x: 84, y: 90, width: 24, fontSize: 1.2, align: 'right' },
   qr: { x: 50, y: 86, size: 12, visible: true },
 }
 
@@ -51,6 +54,8 @@ function fieldStyle(field: any) {
     transform: 'translate(-50%, -50%)',
     textAlign: field?.align || 'center',
     color: field?.color || '#0f2b46',
+    direction: field?.lang === 'ar' ? 'rtl' as const : 'ltr' as const,
+    fontFamily: field?.fontFamily || (field?.lang === 'ar' ? 'Noto Naskh Arabic, Arial, sans-serif' : 'Arial, sans-serif'),
     fontSize: `clamp(10px, ${Number(field?.fontSize ?? 2)}vw, 58px)`,
     fontWeight: 900,
     lineHeight: 1.25,
@@ -85,11 +90,22 @@ export function CertificateDialog({
   }, [certificate, open])
 
   if (!certificate) return null
-  const date = new Date(certificate.issuedAt).toLocaleDateString('ar-EG', {
+  const dateAr = new Date(certificate.issuedAt).toLocaleDateString('ar-EG', {
+    year: 'numeric', month: 'long', day: 'numeric',
+  })
+  const dateEn = new Date(certificate.issuedAt).toLocaleDateString('en-US', {
     year: 'numeric', month: 'long', day: 'numeric',
   })
   const layout = layoutOf(template?.layoutJson)
-  const templateAspectClass = layout.orientation === 'portrait' ? 'aspect-[1/1.414]' : 'aspect-[1.414/1]'
+  const valueFor = (field: string) => {
+    const lang = layout[field]?.lang === 'ar' ? 'ar' : 'en'
+    if (field === 'holderName') return lang === 'en' ? (certificate.holderNameEn || certificate.holderName) : certificate.holderName
+    if (field === 'program') return lang === 'en' ? (certificate.programEn || certificate.program) : certificate.program
+    if (field === 'grade') return lang === 'en' ? (certificate.gradeEn || certificate.grade || '') : (certificate.grade || '')
+    if (field === 'issuedAt') return lang === 'en' ? dateEn : dateAr
+    if (field === 'serial') return certificate.serial
+    return ''
+  }
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -99,16 +115,17 @@ export function CertificateDialog({
           {TYPE_LABEL[certificate.type] || 'شهادة رسمية'} برقم {certificate.serial}
         </DialogDescription>
         {/* قالب الشهادة الرسمي */}
-        <div id="aact-certificate" className={template ? `relative ${templateAspectClass} overflow-hidden bg-white` : 'relative overflow-hidden bg-[#fffdf5] p-6 sm:p-10'}>
+        <div id="aact-certificate" className={template ? 'relative overflow-hidden bg-white' : 'relative overflow-hidden bg-[#fffdf5] p-6 sm:p-10'}>
           {template && (
             <>
-              <img src={template.imageUrl} alt={template.name} className="absolute inset-0 h-full w-full object-cover" />
+              <img src={template.imageUrl} alt={template.name} className="block h-auto w-full select-none" />
               <div className="absolute inset-0 text-center text-[#0f2b46]">
-                {layout.holderName?.visible !== false && <div style={fieldStyle(layout.holderName)}>{certificate.holderName}</div>}
-                {layout.program?.visible !== false && <div style={fieldStyle(layout.program)}>{certificate.program}</div>}
-                {certificate.grade && layout.grade?.visible !== false && <div style={fieldStyle(layout.grade)}>{certificate.grade}</div>}
-                {layout.serial?.visible !== false && <div dir="ltr" style={fieldStyle(layout.serial)}>{certificate.serial}</div>}
-                {layout.issuedAt?.visible !== false && <div style={fieldStyle(layout.issuedAt)}>{date}</div>}
+                {(['holderName', 'program', 'grade', 'issuedAt', 'serial'] as const).map((field) => {
+                  const cfg = layout[field]
+                  const value = valueFor(field)
+                  if (cfg?.visible === false || !value) return null
+                  return <div key={field} dir={cfg?.lang === 'ar' ? 'rtl' : 'ltr'} style={fieldStyle(cfg)}>{value}</div>
+                })}
                 {qr && layout.qr?.visible !== false && (
                   <img
                     src={qr}
@@ -189,7 +206,7 @@ export function CertificateDialog({
             </div>
 
             <p className="mt-5 text-[10px] text-slate-400">
-              تاريخ الإصدار: {date} {certificate.country ? `— ${certificate.country}` : ''}
+              تاريخ الإصدار: {dateAr} {certificate.country ? `— ${certificate.country}` : ''}
             </p>
           </div>
         </div>

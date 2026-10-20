@@ -4,13 +4,13 @@ import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
 import { storeFileBuffer, storageErrorMessage } from '@/lib/storage'
 
+const DEFAULT_TEXT_FIELD = { width: 70, fontSize: 2.2, align: 'center', color: '#0f2b46', fontFamily: 'Arial', lang: 'en', visible: true }
 const DEFAULT_CERTIFICATE_TEMPLATE_LAYOUT = {
-  orientation: 'landscape',
-  holderName: { x: 50, y: 38, width: 72, fontSize: 4.8, align: 'center', color: '#0f2b46', visible: true },
-  program: { x: 50, y: 52, width: 76, fontSize: 2.6, align: 'center', color: '#a8841a', visible: true },
-  grade: { x: 50, y: 64, width: 44, fontSize: 1.7, align: 'center', color: '#0f2b46', visible: true },
-  serial: { x: 84, y: 90, width: 22, fontSize: 1.2, align: 'right', color: '#0f2b46', visible: true },
-  issuedAt: { x: 16, y: 90, width: 24, fontSize: 1.2, align: 'left', color: '#0f2b46', visible: true },
+  holderName: { ...DEFAULT_TEXT_FIELD, x: 50, y: 36, width: 72, fontSize: 4.2 },
+  program: { ...DEFAULT_TEXT_FIELD, x: 50, y: 51, width: 76, fontSize: 2.5, color: '#a8841a' },
+  grade: { ...DEFAULT_TEXT_FIELD, x: 50, y: 62, width: 44, fontSize: 1.7 },
+  issuedAt: { ...DEFAULT_TEXT_FIELD, x: 18, y: 90, width: 26, fontSize: 1.15, align: 'left' },
+  serial: { ...DEFAULT_TEXT_FIELD, x: 84, y: 90, width: 24, fontSize: 1.2, align: 'right' },
   qr: { x: 50, y: 86, size: 12, visible: true },
 }
 

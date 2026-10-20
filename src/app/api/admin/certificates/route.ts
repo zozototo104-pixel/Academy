@@ -6,6 +6,18 @@ import { emailCertificateIssued } from '@/lib/mailer'
 import { adminPaginationMeta, cleanAdminQuery, parseAdminPagination } from '@/lib/admin-query'
 import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
 
+function cleanOptional(value: unknown) {
+  const text = String(value ?? '').trim().replace(/\s+/g, ' ')
+  return text || null
+}
+
+function cleanEnglishName(value: unknown) {
+  const text = cleanOptional(value)
+  if (!text) return null
+  if (!/^[A-Za-z .'-]+$/.test(text)) throw new Error('INVALID_ENGLISH_NAME')
+  return text
+}
+
 // GET /api/admin/certificates — كل الشهادات الصادرة
 export async function GET(req: NextRequest) {
   try {
@@ -54,14 +66,29 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const admin = await requireAdmin()
-    const { id, reason } = await req.json().catch(() => ({}))
+    const body = await req.json().catch(() => ({}))
+    const { id, reason } = body
     const certId = String(id || '').trim()
     const revocationReason = String(reason || '').trim().slice(0, 1000)
     if (!certId) return NextResponse.json({ error: 'معرّف الشهادة مطلوب' }, { status: 400 })
-    if (!revocationReason) return NextResponse.json({ error: 'سبب إلغاء الشهادة إلزامي' }, { status: 400 })
 
     const cert = await db.certificate.findUnique({ where: { id: certId } })
     if (!cert) return NextResponse.json({ error: 'الشهادة غير موجودة' }, { status: 404 })
+
+    if (body.action === 'update') {
+      const updated = await db.certificate.update({
+        where: { id: certId },
+        data: {
+          holderNameEn: cleanEnglishName(body.holderNameEn),
+          programEn: cleanOptional(body.programEn),
+          gradeEn: cleanOptional(body.gradeEn),
+        },
+      })
+      await audit(admin, 'UPDATE_CERTIFICATE_ENGLISH_FIELDS', 'Certificate', certId, `${cert.serial} — ${cert.holderName}`)
+      return NextResponse.json({ ok: true, certificate: updated })
+    }
+
+    if (!revocationReason) return NextResponse.json({ error: 'سبب إلغاء الشهادة إلزامي' }, { status: 400 })
     if (!cert.valid) return NextResponse.json({ error: 'الشهادة ملغاة مسبقاً' }, { status: 409 })
 
     const revokedAt = new Date()
@@ -75,6 +102,9 @@ export async function PATCH(req: NextRequest) {
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
+    }
+    if (e?.message === 'INVALID_ENGLISH_NAME') {
+      return NextResponse.json({ error: "الاسم بالإنجليزي يجب أن يحتوي على حروف لاتينية ومسافات و . - ' فقط" }, { status: 400 })
     }
     console.error('admin certificates PATCH error:', e)
     return NextResponse.json({ error: 'تعذر إلغاء الشهادة' }, { status: 500 })

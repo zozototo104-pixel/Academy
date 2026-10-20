@@ -20,6 +20,13 @@ function cleanOptional(value: unknown) {
   return text || null
 }
 
+function cleanEnglishName(value: unknown) {
+  const text = cleanOptional(value)
+  if (!text) return null
+  if (!/^[A-Za-z .'-]+$/.test(text)) throw new LegacyGraduateError(400, 'INVALID_ENGLISH_NAME', 'الاسم بالإنجليزي يجب أن يحتوي على حروف لاتينية ومسافات و . - \' فقط')
+  return text
+}
+
 function parseScore(value: unknown) {
   if (value == null || value === '') return null
   const n = typeof value === 'number' ? value : Number(String(value).replace(',', '.'))
@@ -149,8 +156,11 @@ export async function PATCH(req: NextRequest) {
     const data: Prisma.CertificateUncheckedUpdateInput = {}
     const holderName = cleanOptional(body.holderName || body.name)
     if (holderName) data.holderName = holderName
+    if (hasOwn(body, 'holderNameEn') || hasOwn(body, 'nameEn')) data.holderNameEn = cleanEnglishName(body.holderNameEn || body.nameEn)
     if (hasOwn(body, 'program')) data.program = cleanString(body.program)
+    if (hasOwn(body, 'programEn')) data.programEn = cleanOptional(body.programEn)
     if (hasOwn(body, 'grade')) data.grade = cleanOptional(body.grade)
+    if (hasOwn(body, 'gradeEn')) data.gradeEn = cleanOptional(body.gradeEn)
     if (hasOwn(body, 'country')) data.country = cleanOptional(body.country)
     if (hasOwn(body, 'issuedAt')) {
       const issuedAt = parseIssuedAt(body.issuedAt)
@@ -229,11 +239,14 @@ export async function POST(req: NextRequest) {
 
     const result = await createLegacyGraduate({
       name: cleanOptional(body.name),
+      nameEn: cleanEnglishName(body.nameEn || body.holderNameEn || body['الاسم بالإنجليزي']),
       email,
       phone: cleanOptional(body.phone),
       country: cleanOptional(body.country),
       programId: cleanString(body.programId),
+      programEn: cleanOptional(body.programEn || body['البرنامج بالإنجليزي']),
       grade: cleanOptional(body.grade),
+      gradeEn: cleanOptional(body.gradeEn || body['التقدير بالإنجليزي']),
       finalScore,
       issuedAt,
       legacySerial: cleanOptional(body.legacySerial),

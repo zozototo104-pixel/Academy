@@ -16,11 +16,14 @@ type AdminActor = Pick<User, 'id' | 'name'>
 
 export interface LegacyGraduateInput {
   name?: string | null
+  nameEn?: string | null
   email: string
   phone?: string | null
   country?: string | null
   programId: string
+  programEn?: string | null
   grade?: string | null
+  gradeEn?: string | null
   finalScore?: number | null
   issuedAt: Date
   legacySerial?: string | null
@@ -138,8 +141,11 @@ export async function createLegacyGraduate(input: LegacyGraduateInput, admin: Ad
       legacy: true,
       legacySerial,
       holderName,
+      holderNameEn: cleanOptional(input.nameEn),
       program: cleanOptional(program.titleAr) || cleanOptional(program.titleEn) || program.id,
+      programEn: cleanOptional(input.programEn) || cleanOptional(program.titleEn),
       grade: cleanOptional(input.grade),
+      gradeEn: cleanOptional(input.gradeEn),
       country: cleanOptional(input.country) || user.country || null,
       issuedAt: input.issuedAt,
       userId: user.id,

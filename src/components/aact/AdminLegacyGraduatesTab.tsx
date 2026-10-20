@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
 import { toast } from '@/hooks/use-toast'
 import { Badge } from '@/components/ui/badge'
@@ -10,7 +10,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
 import { Award, Download, FileArchive, FileSpreadsheet, Loader2, Mail, PenLine, Plus, Search, ShieldOff, Upload } from 'lucide-react'
 
 type LegacyGraduateCertificate = {
@@ -18,8 +17,11 @@ type LegacyGraduateCertificate = {
   serial: string
   qrToken: string
   holderName: string
+  holderNameEn?: string | null
   program: string
+  programEn?: string | null
   grade?: string | null
+  gradeEn?: string | null
   country?: string | null
   issuedAt: string
   valid: boolean
@@ -47,12 +49,15 @@ type LegacyProgramOption = { id: string; titleAr: string; titleEn?: string | nul
 type AddEditForm = {
   id?: string
   name: string
+  nameEn: string
   email: string
   phone: string
   country: string
   programId: string
   program: string
+  programEn: string
   grade: string
+  gradeEn: string
   finalScore: string
   issuedAt: string
   legacySerial: string
@@ -60,12 +65,15 @@ type AddEditForm = {
 
 const blankForm = (): AddEditForm => ({
   name: '',
+  nameEn: '',
   email: '',
   phone: '',
   country: '',
   programId: '',
   program: '',
+  programEn: '',
   grade: '',
+  gradeEn: '',
   finalScore: '',
   issuedAt: '',
   legacySerial: '',
@@ -86,6 +94,94 @@ async function jsonOrThrow(res: Response, fallback: string) {
   return data
 }
 
+type StampField = 'holderName' | 'program' | 'grade' | 'issuedAt' | 'serial' | 'qr'
+type StampTextField = { x: number; y: number; width: number; fontSize: number; color?: string; align?: 'left' | 'center' | 'right'; fontFamily?: string; lang?: 'en' | 'ar'; visible?: boolean }
+type StampLayout = {
+  holderName: StampTextField
+  program: StampTextField
+  grade: StampTextField
+  issuedAt: StampTextField
+  qr: { x: number; y: number; size: number; visible?: boolean }
+  serial: StampTextField
+}
+
+const LEGACY_STAMP_LABELS: Record<StampField, string> = { holderName: 'اسم الطالب', program: 'البرنامج', grade: 'التقدير', issuedAt: 'تاريخ الإصدار', serial: 'الرقم التسلسلي', qr: 'رمز QR' }
+const LEGACY_TEXT_FIELDS: StampField[] = ['holderName', 'program', 'grade', 'issuedAt', 'serial']
+const DEFAULT_TEXT_STAMP: Omit<StampTextField, 'x' | 'y'> = { width: 70, fontSize: 2.2, color: '#0f2b46', align: 'center', fontFamily: 'Arial', lang: 'en', visible: true }
+const DEFAULT_STAMP_LAYOUT: StampLayout = {
+  holderName: { ...DEFAULT_TEXT_STAMP, x: 50, y: 36, width: 72, fontSize: 4.2, visible: false },
+  program: { ...DEFAULT_TEXT_STAMP, x: 50, y: 51, width: 76, fontSize: 2.5, color: '#a8841a', visible: false },
+  grade: { ...DEFAULT_TEXT_STAMP, x: 50, y: 62, width: 44, fontSize: 1.7, visible: false },
+  issuedAt: { ...DEFAULT_TEXT_STAMP, x: 18, y: 90, width: 26, fontSize: 1.15, align: 'left', visible: false },
+  qr: { x: 15, y: 80, size: 16, visible: true },
+  serial: { ...DEFAULT_TEXT_STAMP, x: 15, y: 95, width: 30, fontSize: 1.25, visible: true },
+}
+
+function clampNumber(value: unknown, min: number, max: number, fallback: number) {
+  const n = Number(value)
+  return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback
+}
+
+function legacyStampLayout(positionValue?: string | null, sizeValue?: string | null): StampLayout {
+  const position = String(positionValue || 'BOTTOM_LEFT').toUpperCase()
+  const size = String(sizeValue || 'M').toUpperCase()
+  const qrSize = size === 'L' ? 20 : size === 'S' ? 12 : 16
+  const isRight = position.endsWith('RIGHT')
+  const isTop = position.startsWith('TOP')
+  const x = isRight ? 100 - (7 + qrSize / 2) : 7 + qrSize / 2
+  const qrY = isTop ? 7 + qrSize / 2 : 100 - (10 + qrSize / 2)
+  const serialY = isTop ? Math.min(96, qrY + qrSize / 2 + 4) : 95
+  return {
+    ...DEFAULT_STAMP_LAYOUT,
+    qr: { x, y: qrY, size: qrSize, visible: true },
+    serial: { ...DEFAULT_TEXT_STAMP, x, y: serialY, width: Math.max(20, qrSize * 1.8), fontSize: size === 'L' ? 1.6 : size === 'S' ? 1.0 : 1.25, visible: true },
+  }
+}
+
+function normalizeTextStamp(raw: any, fallback: StampTextField): StampTextField {
+  if (!raw || typeof raw !== 'object') return { ...fallback }
+  return {
+    x: clampNumber(raw.x, 1, 99, fallback.x),
+    y: clampNumber(raw.y, 1, 99, fallback.y),
+    width: clampNumber(raw.width, 6, 95, fallback.width),
+    fontSize: clampNumber(raw.fontSize, 0.5, 8, fallback.fontSize),
+    color: String(raw.color || fallback.color || '#0f2b46'),
+    align: raw.align === 'left' || raw.align === 'right' || raw.align === 'center' ? raw.align : fallback.align || 'center',
+    fontFamily: String(raw.fontFamily || fallback.fontFamily || 'Arial'),
+    lang: raw.lang === 'ar' ? 'ar' : fallback.lang || 'en',
+    visible: typeof raw.visible === 'boolean' ? raw.visible : fallback.visible,
+  }
+}
+
+function normalizeQrStamp(raw: any, fallback: StampLayout['qr']): StampLayout['qr'] {
+  if (!raw || typeof raw !== 'object') return { ...fallback }
+  return {
+    x: clampNumber(raw.x, 1, 99, fallback.x),
+    y: clampNumber(raw.y, 1, 99, fallback.y),
+    size: clampNumber(raw.size, 4, 45, fallback.size),
+    visible: typeof raw.visible === 'boolean' ? raw.visible : fallback.visible,
+  }
+}
+
+function parseStampLayout(positionValue?: string | null, sizeValue?: string | null): StampLayout {
+  const fallback = legacyStampLayout(positionValue, sizeValue)
+  const rawText = String(positionValue || '').trim()
+  if (!rawText.startsWith('{')) return fallback
+  try {
+    const raw = JSON.parse(rawText)
+    return {
+      holderName: normalizeTextStamp(raw?.holderName, fallback.holderName),
+      program: normalizeTextStamp(raw?.program, fallback.program),
+      grade: normalizeTextStamp(raw?.grade, fallback.grade),
+      issuedAt: normalizeTextStamp(raw?.issuedAt, fallback.issuedAt),
+      qr: normalizeQrStamp(raw?.qr, fallback.qr),
+      serial: normalizeTextStamp(raw?.serial, fallback.serial),
+    }
+  } catch {
+    return fallback
+  }
+}
+
 export default function AdminLegacyGraduatesTab() {
   const [items, setItems] = useState<LegacyGraduateCertificate[]>([])
   const [search, setSearch] = useState('')
@@ -95,8 +191,12 @@ export default function AdminLegacyGraduatesTab() {
   const [form, setForm] = useState<AddEditForm>(blankForm)
   const [uploadFor, setUploadFor] = useState<LegacyGraduateCertificate | null>(null)
   const [uploadFile, setUploadFile] = useState<File | null>(null)
-  const [qrPosition, setQrPosition] = useState('BOTTOM_LEFT')
-  const [qrSize, setQrSize] = useState('M')
+  const [uploadPreviewUrl, setUploadPreviewUrl] = useState<string | null>(null)
+  const [stampLayout, setStampLayout] = useState<StampLayout>(DEFAULT_STAMP_LAYOUT)
+  const [selectedStampField, setSelectedStampField] = useState<StampField>('qr')
+  const stampCanvasRef = useRef<HTMLDivElement | null>(null)
+  const stampDragRef = useRef<StampField | null>(null)
+  const stampResizeRef = useRef<{ field: StampField; startX: number; startY: number; startSize: number; startWidth: number; startFontSize: number } | null>(null)
   const [excelFile, setExcelFile] = useState<File | null>(null)
   const [importRows, setImportRows] = useState<ImportPreviewRow[]>([])
   const [zipFile, setZipFile] = useState<File | null>(null)
@@ -136,6 +236,16 @@ export default function AdminLegacyGraduatesTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  useEffect(() => {
+    if (!uploadFile || !uploadFile.type.startsWith('image/')) {
+      setUploadPreviewUrl(null)
+      return
+    }
+    const url = URL.createObjectURL(uploadFile)
+    setUploadPreviewUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [uploadFile])
+
   function openAdd() {
     setForm(blankForm())
     setFormOpen(true)
@@ -145,12 +255,15 @@ export default function AdminLegacyGraduatesTab() {
     setForm({
       id: cert.id,
       name: cert.holderName || cert.user?.name || '',
+      nameEn: cert.holderNameEn || '',
       email: cert.user?.email || '',
       phone: cert.user?.phone || '',
       country: cert.country || cert.user?.country || '',
       programId: cert.enrollment?.programId || '',
       program: cert.program || '',
+      programEn: cert.programEn || '',
       grade: cert.grade || '',
+      gradeEn: cert.gradeEn || '',
       finalScore: cert.enrollment?.finalScore != null ? String(cert.enrollment.finalScore) : '',
       issuedAt: dateOnly(cert.issuedAt),
       legacySerial: cert.legacySerial || '',
@@ -169,8 +282,11 @@ export default function AdminLegacyGraduatesTab() {
           body: JSON.stringify({
             id: form.id,
             holderName: form.name,
+            holderNameEn: form.nameEn,
             program: form.program,
+            programEn: form.programEn,
             grade: form.grade,
+            gradeEn: form.gradeEn,
             country: form.country,
             finalScore: form.finalScore,
             issuedAt: form.issuedAt,
@@ -184,11 +300,14 @@ export default function AdminLegacyGraduatesTab() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             name: form.name,
+            nameEn: form.nameEn,
             email: form.email,
             phone: form.phone,
             country: form.country,
             programId: form.programId,
+            programEn: form.programEn,
             grade: form.grade,
+            gradeEn: form.gradeEn,
             finalScore: form.finalScore,
             issuedAt: form.issuedAt,
             legacySerial: form.legacySerial,
@@ -275,8 +394,8 @@ export default function AdminLegacyGraduatesTab() {
   function openUpload(cert: LegacyGraduateCertificate) {
     setUploadFor(cert)
     setUploadFile(null)
-    setQrPosition(cert.qrPosition || 'BOTTOM_LEFT')
-    setQrSize(cert.qrSize || 'M')
+    setSelectedStampField('qr')
+    setStampLayout(parseStampLayout(cert.qrPosition, cert.qrSize))
   }
 
   async function stampUpload(preview: boolean) {
@@ -286,8 +405,7 @@ export default function AdminLegacyGraduatesTab() {
     try {
       const fd = new FormData()
       if (uploadFile) fd.append('file', uploadFile)
-      fd.append('qrPosition', qrPosition)
-      fd.append('qrSize', qrSize)
+      fd.append('stampLayout', JSON.stringify(stampLayout))
       const res = await fetch(`/api/admin/legacy-graduates/${uploadFor.id}/upload${preview ? '?preview=true' : ''}`, { method: 'POST', body: fd })
       if (preview) {
         if (!res.ok) throw new Error(apiErrorMessage(await res.json().catch(() => ({})), 'تعذر إنشاء المعاينة'))
@@ -303,6 +421,58 @@ export default function AdminLegacyGraduatesTab() {
       toast({ title: preview ? 'فشل إنشاء المعاينة' : 'فشل حفظ الملف المختوم', description: String(error?.message || error), variant: 'destructive' })
     } finally {
       setBusy(null)
+    }
+  }
+
+  function moveStampField(field: StampField, clientX: number, clientY: number) {
+    const rect = stampCanvasRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const x = Math.max(1, Math.min(99, ((clientX - rect.left) / rect.width) * 100))
+    const y = Math.max(1, Math.min(99, ((clientY - rect.top) / rect.height) * 100))
+    setStampLayout((prev) => ({ ...prev, [field]: { ...prev[field], x: Number(x.toFixed(1)), y: Number(y.toFixed(1)) } }))
+  }
+
+  function resizeStampField(clientX: number, clientY: number) {
+    const active = stampResizeRef.current
+    const rect = stampCanvasRef.current?.getBoundingClientRect()
+    if (!active || !rect) return
+    const delta = (((clientX - active.startX) / rect.width) + ((clientY - active.startY) / rect.height)) * 50
+    if (active.field === 'qr') {
+      const size = Math.max(4, Math.min(45, active.startSize + delta))
+      setStampLayout((prev) => ({ ...prev, qr: { ...prev.qr, size: Number(size.toFixed(1)) } }))
+      return
+    }
+    const width = Math.max(6, Math.min(95, active.startWidth + delta))
+    const fontSize = Math.max(0.5, Math.min(8, active.startFontSize + delta * 0.08))
+    setStampLayout((prev) => ({ ...prev, [active.field]: { ...(prev[active.field] as StampTextField), width: Number(width.toFixed(1)), fontSize: Number(fontSize.toFixed(1)) } }))
+  }
+
+  function stampFieldStyle(field: StampField) {
+    const cfg = stampLayout[field]
+    const isQr = field === 'qr'
+    const textCfg = isQr ? null : cfg as StampTextField
+    return {
+      position: 'absolute' as const,
+      left: `${cfg.x}%`,
+      top: `${cfg.y}%`,
+      width: isQr ? `${stampLayout.qr.size}%` : `${textCfg?.width ?? 30}%`,
+      aspectRatio: isQr ? '1 / 1' : undefined,
+      minHeight: isQr ? undefined : '22px',
+      transform: 'translate(-50%, -50%)',
+      textAlign: (textCfg?.align || 'center') as any,
+      direction: isQr ? undefined : (textCfg?.lang === 'ar' ? 'rtl' as const : 'ltr' as const),
+      fontFamily: isQr ? undefined : (textCfg?.fontFamily || 'Arial'),
+      fontSize: isQr ? undefined : `clamp(10px, ${textCfg?.fontSize ?? 1.2}vw, 42px)`,
+      fontWeight: 900,
+      lineHeight: 1.2,
+      cursor: 'move',
+      touchAction: 'none' as const,
+      overflow: 'visible' as const,
+      border: selectedStampField === field ? '2px solid #c9a227' : '1px dashed rgba(15,43,70,.35)',
+      background: isQr ? 'white' : 'rgba(255,255,255,.78)',
+      borderRadius: '10px',
+      padding: isQr ? '4px' : '4px 8px',
+      color: textCfg?.color || '#0f2b46',
     }
   }
 
@@ -403,6 +573,7 @@ export default function AdminLegacyGraduatesTab() {
                     <h4 className="text-base font-black text-[#0f2b46]">{cert.holderName}</h4>
                     <Badge variant={cert.valid ? 'default' : 'destructive'}>{cert.valid ? 'صالحة' : 'ملغاة'}</Badge>
                     {cert.stampedFileKey ? <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">ملف مختوم</Badge> : <Badge variant="outline">PDF من القالب</Badge>}
+                    {!cert.holderNameEn ? <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">الاسم الإنجليزي ناقص</Badge> : null}
                   </div>
                   <p className="text-xs font-bold text-slate-600">{cert.user?.email || 'بدون إيميل'} · {cert.program}</p>
                   <p className="text-xs text-slate-500">الرقم: <span dir="ltr">{cert.serial}</span>{cert.legacySerial ? <> · الرقم القديم: <span dir="ltr">{cert.legacySerial}</span></> : null} · تاريخ التخرج: {dateOnly(cert.issuedAt)}</p>
@@ -430,11 +601,14 @@ export default function AdminLegacyGraduatesTab() {
           <form onSubmit={saveForm} className="space-y-4">
             <div className="grid gap-3 md:grid-cols-2">
               <div><Label>الاسم</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
+              <div><Label>الاسم بالإنجليزي</Label><Input value={form.nameEn} onChange={(e) => setForm({ ...form, nameEn: e.target.value })} dir="ltr" placeholder="John Smith" /></div>
               <div><Label>الإيميل</Label><Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required={!form.id} disabled={!!form.id} dir="ltr" /></div>
               <div><Label>الجوال</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} disabled={!!form.id} dir="ltr" /></div>
               <div><Label>الدولة</Label><Input value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} /></div>
-              {!form.id ? <div><Label>البرنامج</Label><Select value={form.programId} onValueChange={(programId) => { const p = programOptions.find((item) => item.id === programId); setForm({ ...form, programId, program: p?.titleAr || p?.titleEn || '' }) }}><SelectTrigger><SelectValue placeholder="اختر البرنامج" /></SelectTrigger><SelectContent>{programOptions.map((program) => <SelectItem key={program.id} value={program.id}>{program.titleAr || program.titleEn || program.slug || program.id}{program.active === false ? ' — مخفي' : ''}</SelectItem>)}</SelectContent></Select></div> : <div><Label>اسم البرنامج على الشهادة</Label><Input value={form.program} onChange={(e) => setForm({ ...form, program: e.target.value })} required /></div>}
+              {!form.id ? <div><Label>البرنامج</Label><Select value={form.programId} onValueChange={(programId) => { const p = programOptions.find((item) => item.id === programId); setForm({ ...form, programId, program: p?.titleAr || p?.titleEn || '', programEn: p?.titleEn || '' }) }}><SelectTrigger><SelectValue placeholder="اختر البرنامج" /></SelectTrigger><SelectContent>{programOptions.map((program) => <SelectItem key={program.id} value={program.id}>{program.titleAr || program.titleEn || program.slug || program.id}{program.active === false ? ' — مخفي' : ''}</SelectItem>)}</SelectContent></Select></div> : <div><Label>اسم البرنامج على الشهادة</Label><Input value={form.program} onChange={(e) => setForm({ ...form, program: e.target.value })} required /></div>}
+              <div><Label>البرنامج بالإنجليزي</Label><Input value={form.programEn} onChange={(e) => setForm({ ...form, programEn: e.target.value })} dir="ltr" /></div>
               <div><Label>التقدير</Label><Input value={form.grade} onChange={(e) => setForm({ ...form, grade: e.target.value })} /></div>
+              <div><Label>التقدير بالإنجليزي</Label><Input value={form.gradeEn} onChange={(e) => setForm({ ...form, gradeEn: e.target.value })} dir="ltr" /></div>
               <div><Label>المعدل</Label><Input value={form.finalScore} onChange={(e) => setForm({ ...form, finalScore: e.target.value })} dir="ltr" /></div>
               <div><Label>تاريخ التخرج</Label><Input type="date" value={form.issuedAt} onChange={(e) => setForm({ ...form, issuedAt: e.target.value })} required /></div>
               <div><Label>رقم الشهادة القديم</Label><Input value={form.legacySerial} onChange={(e) => setForm({ ...form, legacySerial: e.target.value })} dir="ltr" /></div>
@@ -444,21 +618,109 @@ export default function AdminLegacyGraduatesTab() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!uploadFor} onOpenChange={(open) => { if (!open) setUploadFor(null) }}>
-        <DialogContent className="max-w-2xl" dir="rtl">
+      <Dialog open={!!uploadFor} onOpenChange={(open) => {
+        if (!open) {
+          setUploadFor(null)
+          setUploadFile(null)
+          stampDragRef.current = null
+          stampResizeRef.current = null
+        }
+      }}>
+        <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto" dir="rtl">
           <DialogHeader>
-            <DialogTitle>رفع شهادة جاهزة وختم QR</DialogTitle>
+            <DialogTitle>رفع شهادة جاهزة وختم QR والرقم</DialogTitle>
             <DialogDescription>{uploadFor ? `${uploadFor.holderName} — ${uploadFor.serial}` : ''}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <Input type="file" accept="application/pdf,image/png,image/jpeg" onChange={(e) => setUploadFile(e.target.files?.[0] || null)} />
-            <div className="grid gap-3 md:grid-cols-2">
-              <div><Label>مكان QR</Label><Select value={qrPosition} onValueChange={setQrPosition}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="BOTTOM_LEFT">أسفل يسار</SelectItem><SelectItem value="BOTTOM_RIGHT">أسفل يمين</SelectItem><SelectItem value="TOP_LEFT">أعلى يسار</SelectItem><SelectItem value="TOP_RIGHT">أعلى يمين</SelectItem></SelectContent></Select></div>
-              <div><Label>حجم QR</Label><Select value={qrSize} onValueChange={setQrSize}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="S">صغير</SelectItem><SelectItem value="M">متوسط</SelectItem><SelectItem value="L">كبير</SelectItem></SelectContent></Select></div>
+            <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
+              <div className="space-y-3">
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-[11px] font-bold leading-5 text-emerald-900">
+                  الشهادة الأصلية لا يُعاد رسمها. يتم فقط إضافة QR والرقم التسلسلي فوق الملف كما رفعته.
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-black text-slate-600">العنصر المحدد</Label>
+                  <Select value={selectedStampField} onValueChange={(v) => setSelectedStampField(v as StampField)}>
+                    <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {(Object.keys(LEGACY_STAMP_LABELS) as StampField[]).map((field) => <SelectItem key={field} value={field}>{LEGACY_STAMP_LABELS[field]}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button type="button" variant="outline" className="w-full bg-white text-xs font-black" onClick={() => setStampLayout((prev) => ({ ...prev, [selectedStampField]: { ...prev[selectedStampField], visible: prev[selectedStampField]?.visible === false } }))}>
+                  {stampLayout[selectedStampField]?.visible === false ? 'إظهار العنصر' : 'إخفاء العنصر'}
+                </Button>
+                {LEGACY_TEXT_FIELDS.includes(selectedStampField) && (
+                  <div className="grid grid-cols-2 gap-2 rounded-xl bg-white p-3">
+                    <div className="space-y-1"><Label className="text-[10px] font-bold">حجم الخط</Label><Input type="number" step="0.1" min="0.5" max="8" value={(stampLayout[selectedStampField] as StampTextField).fontSize ?? 1.2} onChange={(e) => setStampLayout((prev) => ({ ...prev, [selectedStampField]: { ...(prev[selectedStampField] as StampTextField), fontSize: Number(e.target.value || 1.2) } }))} /></div>
+                    <div className="space-y-1"><Label className="text-[10px] font-bold">العرض %</Label><Input type="number" min="6" max="95" value={(stampLayout[selectedStampField] as StampTextField).width ?? 30} onChange={(e) => setStampLayout((prev) => ({ ...prev, [selectedStampField]: { ...(prev[selectedStampField] as StampTextField), width: Number(e.target.value || 30) } }))} /></div>
+                  </div>
+                )}
+                <div className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-[11px] font-bold leading-5 text-amber-900">
+                  اسحب أي عنصر لتحريكه، واسحب المقبض الذهبي الصغير لتكبيره أو تصغيره. الافتراضي يخفي الاسم والبرنامج والتقدير والتاريخ للشهادات الجاهزة.
+                </div>
+              </div>
+              <div
+                ref={stampCanvasRef}
+                className={`relative overflow-hidden rounded-2xl border border-[#0f2b46]/10 bg-white shadow-inner ${uploadPreviewUrl ? '' : 'aspect-[1.414/1]'}`}
+                onPointerMove={(e) => {
+                  if (stampResizeRef.current) {
+                    resizeStampField(e.clientX, e.clientY)
+                    return
+                  }
+                  if (e.buttons !== 1) return
+                  moveStampField(stampDragRef.current || selectedStampField, e.clientX, e.clientY)
+                }}
+                onPointerDown={(e) => {
+                  stampDragRef.current = selectedStampField
+                  moveStampField(selectedStampField, e.clientX, e.clientY)
+                }}
+                onPointerUp={() => { stampDragRef.current = null; stampResizeRef.current = null }}
+                onPointerLeave={() => { stampDragRef.current = null; stampResizeRef.current = null }}
+              >
+                {uploadPreviewUrl ? (
+                  <img src={uploadPreviewUrl} alt="معاينة الشهادة المرفوعة" className="block h-auto w-full select-none" draggable={false} />
+                ) : (
+                  <div className="flex h-full min-h-[260px] items-center justify-center bg-slate-50 p-6 text-center text-xs font-bold leading-6 text-slate-500">
+                    ارفع صورة للشهادة لعرضها هنا مباشرة، أو استخدم هذه المساحة لضبط الموضع ثم اضغط معاينة عند رفع PDF.
+                  </div>
+                )}
+                {(Object.keys(LEGACY_STAMP_LABELS) as StampField[]).filter((field) => stampLayout[field]?.visible !== false).map((field) => (
+                  <button
+                    key={field}
+                    type="button"
+                    onPointerDown={(e) => {
+                      e.stopPropagation()
+                      stampDragRef.current = field
+                      setSelectedStampField(field)
+                      moveStampField(field, e.clientX, e.clientY)
+                    }}
+                    style={stampFieldStyle(field)}
+                    className="select-none touch-none"
+                  >
+                    {field === 'qr' ? 'QR' : field === 'holderName' ? (uploadFor?.holderNameEn || uploadFor?.holderName || 'John Smith') : field === 'program' ? (uploadFor?.programEn || uploadFor?.program || 'Professional Master in Business Administration') : field === 'grade' ? (uploadFor?.gradeEn || uploadFor?.grade || 'Excellent') : field === 'issuedAt' ? 'June 30, 2024' : uploadFor?.serial || 'AACT-C-2026-00001'}
+                    <span
+                      aria-hidden="true"
+                      className="absolute -bottom-2 -left-2 h-5 w-5 cursor-nwse-resize rounded-full border-2 border-white bg-[#c9a227] shadow"
+                      onPointerDown={(e) => {
+                        e.stopPropagation()
+                        setSelectedStampField(field)
+                        stampResizeRef.current = {
+                          field,
+                          startX: e.clientX,
+                          startY: e.clientY,
+                          startSize: stampLayout.qr.size,
+                          startWidth: field === 'qr' ? stampLayout.serial.width : (stampLayout[field] as StampTextField).width,
+                          startFontSize: field === 'qr' ? stampLayout.serial.fontSize : (stampLayout[field] as StampTextField).fontSize,
+                        }
+                      }}
+                    />
+                  </button>
+                ))}
+              </div>
             </div>
-            <Textarea readOnly value="تغيير مكان أو حجم QR يعيد الختم من الملف الأصلي عند عدم رفع ملف جديد." />
           </div>
-          <DialogFooter className="gap-2"><Button variant="outline" onClick={() => stampUpload(true)} disabled={busy === 'preview'}>معاينة</Button><Button onClick={() => stampUpload(false)} disabled={busy === 'upload'}>{busy === 'upload' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'حفظ المختوم'}</Button></DialogFooter>
+          <DialogFooter className="gap-2"><Button variant="outline" onClick={() => stampUpload(true)} disabled={busy === 'preview'}>{busy === 'preview' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'معاينة'}</Button><Button onClick={() => stampUpload(false)} disabled={busy === 'upload'}>{busy === 'upload' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'حفظ المختوم'}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

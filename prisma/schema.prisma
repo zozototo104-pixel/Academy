@@ -559,8 +559,11 @@ model Certificate {
   qrToken     String   @unique // رمز التحقق داخل QR
   type        String   // PROGRAM_COMPLETION | ACCREDITATION | AGENCY
   holderName  String
+  holderNameEn String?
   program     String   // اسم البرنامج أو نوع الاعتماد
+  programEn   String?
   grade       String?  // التقدير أو النتيجة
+  gradeEn     String?
   country     String?
   issuedAt    DateTime @default(now())
   valid       Boolean  @default(true)

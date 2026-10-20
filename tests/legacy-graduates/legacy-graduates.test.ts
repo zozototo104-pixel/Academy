@@ -181,7 +181,7 @@ mock.module('@/lib/pdf/official', () => ({
 
 const { createLegacyGraduate } = await import('../../src/lib/legacy-graduates')
 const { parseLegacyGraduateWorkbook, validateLegacyGraduateImportRows } = await import('../../src/lib/legacy-graduates-import')
-const { sniffLegacyCertificateMime } = await import('../../src/lib/legacy-certificate-files')
+const { normalizeStampLayout, renderCertificateStampTextOverlayPng, sniffLegacyCertificateMime } = await import('../../src/lib/legacy-certificate-files')
 const adminLegacyRoute = await import('../../src/app/api/admin/legacy-graduates/route')
 const importRoute = await import('../../src/app/api/admin/legacy-graduates/import/route')
 const uploadRoute = await import('../../src/app/api/admin/legacy-graduates/[certificateId]/upload/route')
@@ -195,6 +195,7 @@ function resetState() {
   userSeq = 0; enrollmentSeq = 0; certificateSeq = 0; serialSeq = 0; storageSeq = 0
   currentAdmin = { id: 'admin-1', name: 'Admin', role: 'ADMIN' }
   currentUser = { id: 'admin-1', name: 'Admin', role: 'ADMIN', email: 'admin@example.com' }
+  delete db.certificateTemplate
   emailStatus = 'SENT'
   legacyWelcomeCalls = 0
   programs.set('program-1', { id: 'program-1', slug: 'leadership', titleAr: 'دبلوم القيادة', titleEn: 'Leadership Diploma', active: false })
@@ -448,6 +449,42 @@ describe('legacy certificate file upload stamping and download', () => {
     const res = await pdfRoute.GET(jsonReq({}, 'https://aactacademy.test/api/pdf/certificates/AACT-C-2026-00001'), { params: { id: 'AACT-C-2026-00001' } } as any)
     expect(res.status).toBe(200)
     expect(res.headers.get('Content-Type')).toBe('application/pdf')
+  })
+
+  test('platform certificate PDF falls back to renderOfficialPdf when template stamping throws', async () => {
+    certificates.set('cert-1', { id: 'cert-1', legacy: false, serial: 'AACT-C-2026-00001', qrToken: 'qr-1', type: 'PROGRAM_COMPLETION', holderName: 'Grad', program: 'دبلوم القيادة', valid: true, issuedAt: new Date() })
+    storedFiles.set('templates/bad.pdf', { buffer: Buffer.from('%PDF-bad-template'), mimeType: 'application/pdf' })
+    db.certificateTemplate = {
+      findFirst: async () => ({ id: 'tpl-1', certificateType: 'PROGRAM_COMPLETION', active: true, storageProvider: 'local', storageKey: 'templates/bad.pdf', fileUrl: null, mimeType: 'application/pdf', layoutJson: {} }),
+    }
+    const res = await pdfRoute.GET(jsonReq({}, 'https://aactacademy.test/api/pdf/certificates/AACT-C-2026-00001'), { params: { id: 'AACT-C-2026-00001' } } as any)
+    expect(res.status).toBe(200)
+    expect(res.headers.get('Content-Type')).toBe('application/pdf')
+    expect(Buffer.from(await res.arrayBuffer()).toString()).toContain('%PDF-generated-template')
+  })
+
+  test('partial legacy stamp layout keeps default hidden text fields hidden', () => {
+    const layout = normalizeStampLayout(JSON.stringify({
+      qr: { x: 50, y: 80, size: 12 },
+      serial: { x: 50, y: 92, width: 30, fontSize: 1.2 },
+    }))
+    expect(layout.holderName.visible).toBe(false)
+    expect(layout.program.visible).toBe(false)
+    expect(layout.grade.visible).toBe(false)
+    expect(layout.issuedAt.visible).toBe(false)
+    expect(layout.serial.visible).toBe(true)
+    expect(layout.qr.visible).toBe(true)
+  })
+
+  test('text overlay rasterizes at 4x width for small certificate pages', async () => {
+    const sharp = (await import('sharp')).default
+    const layout = normalizeStampLayout(JSON.stringify({
+      qr: { x: 10, y: 10, size: 5, visible: false },
+      serial: { x: 50, y: 50, width: 40, fontSize: 2, visible: true },
+    }))
+    const overlay = await renderCertificateStampTextOverlayPng({ width: 842, height: 595, layout, values: { serial: 'AACT-C-2026-00001' } })
+    const metadata = await sharp(overlay!).metadata()
+    expect(metadata.width).toBe(3368)
   })
 
   test('ZIP import reports missing owner without stopping other files', async () => {

@@ -1,0 +1,3 @@
+ALTER TABLE "Certificate" ADD COLUMN IF NOT EXISTS "holderNameEn" TEXT;
+ALTER TABLE "Certificate" ADD COLUMN IF NOT EXISTS "programEn" TEXT;
+ALTER TABLE "Certificate" ADD COLUMN IF NOT EXISTS "gradeEn" TEXT;

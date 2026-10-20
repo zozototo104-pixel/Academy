@@ -3,9 +3,10 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import {
   LEGACY_CERTIFICATE_UPLOAD_MAX_BYTES,
-  normalizeQrPosition,
   normalizeQrSize,
+  normalizeStampLayout,
   readLegacyCertificateStoredFile,
+  serializeStampLayout,
   sniffLegacyCertificateMime,
   stampLegacyCertificatePdf,
   storeLegacyCertificateOriginal,
@@ -35,8 +36,9 @@ export async function POST(req: NextRequest, context: RouteContext) {
     const form = await req.formData()
     const file = form.get('file')
     const preview = isPreview(req.nextUrl.searchParams.get('preview')) || isPreview(form.get('preview'))
-    const qrPosition = normalizeQrPosition(form.get('qrPosition') || cert.qrPosition || 'BOTTOM_LEFT')
     const qrSize = normalizeQrSize(form.get('qrSize') || cert.qrSize || 'M')
+    const stampLayout = normalizeStampLayout(form.get('stampLayout') || form.get('qrPosition') || cert.qrPosition || 'BOTTOM_LEFT', qrSize)
+    const serializedStampLayout = serializeStampLayout(stampLayout)
 
     let originalBuffer: Buffer | null = null
     let originalFileName = cert.uploadedFileName || stampedFileName(cert.serial)
@@ -70,8 +72,18 @@ export async function POST(req: NextRequest, context: RouteContext) {
       mime: originalMime,
       serial: cert.serial,
       qrToken: cert.qrToken,
-      qrPosition,
+      stampLayout,
       qrSize,
+      values: {
+        holderName: cert.holderName,
+        holderNameEn: cert.holderNameEn,
+        program: cert.program,
+        programEn: cert.programEn,
+        grade: cert.grade,
+        gradeEn: cert.gradeEn,
+        issuedAt: cert.issuedAt,
+        serial: cert.serial,
+      },
     })
 
     if (preview) {
@@ -97,8 +109,8 @@ export async function POST(req: NextRequest, context: RouteContext) {
           uploadedMime: originalMime,
         } : {}),
         stampedFileKey: stampedStored.key,
-        qrPosition,
-        qrSize,
+        qrPosition: serializedStampLayout,
+        qrSize: 'CUSTOM',
       },
     })
 
@@ -109,7 +121,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
         action: hasNewFile ? 'UPLOAD_LEGACY_CERTIFICATE_FILE' : 'RESTAMP_LEGACY_CERTIFICATE_FILE',
         entity: 'Certificate',
         entityId: cert.id,
-        details: `${cert.serial} — ${cert.holderName} — ${qrPosition}/${qrSize}`,
+        details: `${cert.serial} — ${cert.holderName} — custom-stamp-layout`,
       },
     })
 

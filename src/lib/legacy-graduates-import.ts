@@ -8,12 +8,15 @@ export const LEGACY_GRADUATE_IMPORT_MAX_ROWS = 2000
 export type LegacyImportRow = {
   rowNumber: number
   name?: string | null
+  nameEn?: string | null
   email?: string | null
   phone?: string | null
   country?: string | null
   program?: string | null
   programId?: string | null
+  programEn?: string | null
   grade?: string | null
+  gradeEn?: string | null
   finalScore?: number | null
   issuedAt?: Date | null
   legacySerial?: string | null
@@ -25,11 +28,14 @@ type ProgramOption = { id: string; slug: string; titleAr: string; titleEn: strin
 
 const HEADER_ALIASES: Record<string, string[]> = {
   name: ['name', 'full name', 'holder name', 'الاسم', 'اسم', 'اسم الخريج'],
+  nameEn: ['name en', 'english name', 'holder name en', 'الاسم بالإنجليزي'],
   email: ['email', 'e-mail', 'mail', 'البريد', 'الإيميل', 'ايميل', 'البريد الإلكتروني'],
   phone: ['phone', 'mobile', 'الجوال', 'الهاتف', 'رقم الجوال'],
   country: ['country', 'الدولة', 'البلد'],
   program: ['program', 'program slug', 'program title', 'البرنامج', 'اسم البرنامج'],
+  programEn: ['program en', 'english program', 'program english', 'البرنامج بالإنجليزي'],
   grade: ['grade', 'التقدير', 'تقدير'],
+  gradeEn: ['grade en', 'english grade', 'grade english', 'التقدير بالإنجليزي'],
   finalScoreText: ['finalscore', 'final score', 'score', 'المعدل', 'الدرجة', 'النسبة'],
   issuedAtText: ['issuedat', 'issued at', 'graduation date', 'تاريخ التخرج', 'تاريخ الشهادة'],
   legacySerial: ['legacyserial', 'legacy serial', 'certificate no', 'certificate number', 'old certificate number', 'رقم الشهادة', 'رقم الشهادة الورقية', 'رقم الشهادة القديم'],
@@ -42,6 +48,12 @@ function cleanString(value: unknown) {
 function cleanOptional(value: unknown) {
   const text = cleanString(value)
   return text || null
+}
+
+function cleanEnglishName(value: unknown) {
+  const text = cleanOptional(value)
+  if (!text) return null
+  return /^[A-Za-z .'-]+$/.test(text) ? text : '__INVALID_ENGLISH_NAME__'
 }
 
 function normalizeHeader(value: unknown) {
@@ -169,8 +181,10 @@ export async function validateLegacyGraduateImportRows(parsedRows: { rowNumber: 
     const finalScore = parseLegacyGraduateFinalScore(raw.finalScoreText)
     const issuedAt = parseLegacyGraduateDate(raw.issuedAtText)
     const legacySerial = cleanOptional(raw.legacySerial)
+    const nameEn = cleanEnglishName(raw.nameEn)
     const errors: string[] = []
 
+    if (nameEn === '__INVALID_ENGLISH_NAME__') errors.push("الاسم بالإنجليزي يجب أن يحتوي على حروف لاتينية ومسافات و . - ' فقط")
     if (!email || !isValidLegacyGraduateEmail(email)) errors.push('إيميل غلط')
     if (!programText) errors.push('البرنامج مطلوب')
     if (programText && !resolved.programId) errors.push('برنامج مش موجود')
@@ -192,12 +206,15 @@ export async function validateLegacyGraduateImportRows(parsedRows: { rowNumber: 
     return {
       rowNumber: parsed.rowNumber,
       name: cleanOptional(raw.name),
+      nameEn: nameEn === '__INVALID_ENGLISH_NAME__' ? null : nameEn,
       email,
       phone: cleanOptional(raw.phone),
       country: cleanOptional(raw.country),
       program: programText,
       programId: resolved.programId,
+      programEn: cleanOptional(raw.programEn),
       grade: cleanOptional(raw.grade),
+      gradeEn: cleanOptional(raw.gradeEn),
       finalScore,
       issuedAt,
       legacySerial,
@@ -209,8 +226,8 @@ export async function validateLegacyGraduateImportRows(parsedRows: { rowNumber: 
 
 export function createLegacyGraduatesTemplateBuffer() {
   const rows = [
-    ['الاسم', 'الإيميل', 'الجوال', 'الدولة', 'البرنامج', 'التقدير', 'المعدل', 'تاريخ التخرج', 'رقم الشهادة القديم'],
-    ['أحمد محمد', 'ahmad@example.com', '+970599000000', 'فلسطين', 'program-slug-or-titleAr', 'امتياز', 95, '2024-06-30', 'OLD-2024-001'],
+    ['الاسم', 'الاسم بالإنجليزي', 'الإيميل', 'الجوال', 'الدولة', 'البرنامج', 'البرنامج بالإنجليزي', 'التقدير', 'التقدير بالإنجليزي', 'المعدل', 'تاريخ التخرج', 'رقم الشهادة القديم'],
+    ['أحمد محمد', 'Ahmad Mohammad', 'ahmad@example.com', '+970599000000', 'فلسطين', 'program-slug-or-titleAr', 'Professional Master in Business Administration', 'امتياز', 'Excellent', 95, '2024-06-30', 'OLD-2024-001'],
   ]
   const worksheet = XLSX.utils.aoa_to_sheet(rows)
   const workbook = XLSX.utils.book_new()

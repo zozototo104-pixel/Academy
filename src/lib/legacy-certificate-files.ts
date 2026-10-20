@@ -1,5 +1,5 @@
 import { inflateRawSync } from 'zlib'
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
+import { PDFDocument } from 'pdf-lib'
 import QRCode from 'qrcode'
 import sharp from 'sharp'
 import { certificateVerificationUrl } from '@/lib/w3c/certificate-credential'
@@ -8,6 +8,36 @@ import { readStoredFile, storeFileBuffer } from '@/lib/storage'
 export type LegacyCertificateMime = 'application/pdf' | 'image/png' | 'image/jpeg'
 export type QrPosition = 'BOTTOM_LEFT' | 'BOTTOM_RIGHT' | 'TOP_LEFT' | 'TOP_RIGHT'
 export type QrSize = 'S' | 'M' | 'L'
+export type StampLang = 'en' | 'ar'
+export type StampTextField = {
+  x: number
+  y: number
+  width: number
+  fontSize: number
+  color?: string
+  align?: 'left' | 'center' | 'right'
+  fontFamily?: string
+  lang?: StampLang
+  visible?: boolean
+}
+export type LegacyStampLayout = {
+  holderName: StampTextField
+  program: StampTextField
+  grade: StampTextField
+  issuedAt: StampTextField
+  serial: StampTextField
+  qr: { x: number; y: number; size: number; visible?: boolean }
+}
+export type StampValues = {
+  holderName?: string | null
+  holderNameEn?: string | null
+  program?: string | null
+  programEn?: string | null
+  grade?: string | null
+  gradeEn?: string | null
+  issuedAt?: Date | string | null
+  serial?: string | null
+}
 
 export const LEGACY_CERTIFICATE_UPLOAD_MAX_BYTES = 10 * 1024 * 1024
 export const LEGACY_CERTIFICATE_ZIP_MAX_BYTES = 50 * 1024 * 1024
@@ -33,20 +63,146 @@ export function normalizeQrSize(value: unknown): QrSize {
   return v === 'S' || v === 'L' ? v : 'M'
 }
 
-function qrPointSize(size: QrSize) {
-  if (size === 'S') return 92
-  if (size === 'L') return 156
-  return 124
+function clampNumber(value: unknown, min: number, max: number, fallback: number) {
+  const n = Number(value)
+  return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback
 }
 
-function placement(pageWidth: number, pageHeight: number, size: number, position: QrPosition) {
-  const margin = Math.max(28, Math.round(size * 0.22))
-  const textSize = Math.max(8, Math.round(size * 0.09))
-  const gap = Math.max(4, Math.round(size * 0.04))
-  const x = position.endsWith('RIGHT') ? pageWidth - margin - size : margin
-  const qrY = position.startsWith('TOP') ? pageHeight - margin - size : margin + textSize + gap
-  const textY = position.startsWith('TOP') ? qrY - gap - textSize : margin
-  return { x, qrY, textY, textSize }
+function legacySizePercent(size: QrSize) {
+  if (size === 'S') return 12
+  if (size === 'L') return 20
+  return 16
+}
+
+const TEXT_FIELDS = ['holderName', 'program', 'grade', 'issuedAt', 'serial'] as const
+
+function textField(x: number, y: number, width = 70, fontSize = 2.2, extra: Partial<StampTextField> = {}): StampTextField {
+  return { x, y, width, fontSize, color: '#0f2b46', align: 'center', fontFamily: 'Arial', lang: 'en', visible: true, ...extra }
+}
+
+function legacyLayoutFromPosition(positionValue: unknown, sizeValue: unknown): LegacyStampLayout {
+  const position = normalizeQrPosition(positionValue)
+  const size = normalizeQrSize(sizeValue)
+  const qrSize = legacySizePercent(size)
+  const isRight = position.endsWith('RIGHT')
+  const isTop = position.startsWith('TOP')
+  const x = isRight ? 100 - (7 + qrSize / 2) : 7 + qrSize / 2
+  const qrY = isTop ? 7 + qrSize / 2 : 100 - (10 + qrSize / 2)
+  const serialY = isTop ? Math.min(96, qrY + qrSize / 2 + 4) : 95
+  return {
+    holderName: textField(50, 36, 72, 4.2, { visible: false }),
+    program: textField(50, 51, 76, 2.5, { color: '#a8841a', visible: false }),
+    grade: textField(50, 62, 44, 1.7, { visible: false }),
+    issuedAt: textField(18, 90, 26, 1.15, { align: 'left', visible: false }),
+    serial: textField(x, serialY, Math.max(20, qrSize * 1.8), size === 'L' ? 1.6 : size === 'S' ? 1.0 : 1.25),
+    qr: { x, y: qrY, size: qrSize, visible: true },
+  }
+}
+
+function normalizeTextField(raw: any, fallback: StampTextField): StampTextField {
+  if (!raw || typeof raw !== 'object') return { ...fallback }
+  const lang = raw.lang === 'ar' ? 'ar' : fallback.lang || 'en'
+  const align = raw.align === 'left' || raw.align === 'right' || raw.align === 'center' ? raw.align : fallback.align || 'center'
+  return {
+    x: clampNumber(raw.x, 1, 99, fallback.x),
+    y: clampNumber(raw.y, 1, 99, fallback.y),
+    width: clampNumber(raw.width, 6, 95, fallback.width),
+    fontSize: clampNumber(raw.fontSize, 0.5, 8, fallback.fontSize),
+    color: String(raw.color || fallback.color || '#0f2b46'),
+    align,
+    fontFamily: String(raw.fontFamily || fallback.fontFamily || (lang === 'ar' ? 'Noto Naskh Arabic' : 'Arial')),
+    lang,
+    visible: typeof raw.visible === 'boolean' ? raw.visible : fallback.visible,
+  }
+}
+
+function normalizeQrField(raw: any, fallback: LegacyStampLayout['qr']): LegacyStampLayout['qr'] {
+  if (!raw || typeof raw !== 'object') return { ...fallback }
+  return {
+    x: clampNumber(raw.x, 1, 99, fallback.x),
+    y: clampNumber(raw.y, 1, 99, fallback.y),
+    size: clampNumber(raw.size, 4, 45, fallback.size),
+    visible: typeof raw.visible === 'boolean' ? raw.visible : fallback.visible,
+  }
+}
+
+export function normalizeStampLayout(value: unknown, sizeValue: unknown = 'M'): LegacyStampLayout {
+  let raw: any = value
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (trimmed.startsWith('{')) {
+      try { raw = JSON.parse(trimmed) } catch { raw = null }
+    }
+  }
+  const fallback = legacyLayoutFromPosition(typeof value === 'string' ? value : 'BOTTOM_LEFT', sizeValue)
+  if (!raw || typeof raw !== 'object') return fallback
+  return {
+    holderName: normalizeTextField(raw.holderName, fallback.holderName),
+    program: normalizeTextField(raw.program, fallback.program),
+    grade: normalizeTextField(raw.grade, fallback.grade),
+    issuedAt: normalizeTextField(raw.issuedAt, fallback.issuedAt),
+    serial: normalizeTextField(raw.serial, fallback.serial),
+    qr: normalizeQrField(raw.qr, fallback.qr),
+  }
+}
+
+export function serializeStampLayout(layout: LegacyStampLayout) {
+  return JSON.stringify(normalizeStampLayout(layout))
+}
+
+function escXml(value: unknown) {
+  return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;')
+}
+
+function cssAnchor(align?: string) {
+  if (align === 'left') return 'start'
+  if (align === 'right') return 'end'
+  return 'middle'
+}
+
+function stampDate(value: Date | string | null | undefined, lang: StampLang) {
+  const d = value ? new Date(value) : new Date()
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+}
+
+function stampValue(field: typeof TEXT_FIELDS[number], cfg: StampTextField, values: StampValues) {
+  const lang = cfg.lang === 'ar' ? 'ar' : 'en'
+  if (field === 'holderName') return lang === 'en' ? (values.holderNameEn || values.holderName || '') : (values.holderName || '')
+  if (field === 'program') return lang === 'en' ? (values.programEn || values.program || '') : (values.program || '')
+  if (field === 'grade') return lang === 'en' ? (values.gradeEn || values.grade || '') : (values.grade || '')
+  if (field === 'issuedAt') return stampDate(values.issuedAt, lang)
+  return values.serial || ''
+}
+
+export function certificateStampOverlayScale(width: number, height: number) {
+  return width < 2000 || height < 2000 ? 4 : 1
+}
+
+export async function renderCertificateStampTextOverlayPng(input: {
+  width: number
+  height: number
+  layout: LegacyStampLayout
+  values: StampValues
+}) {
+  const { width, height, layout, values } = input
+  const minDimension = Math.min(width, height)
+  const textNodes = TEXT_FIELDS.map((field) => {
+    const cfg = layout[field]
+    const value = stampValue(field, cfg, values)
+    if (cfg.visible === false || !value) return ''
+    const fontSize = Math.max(6, Math.min(90, minDimension * (cfg.fontSize / 100)))
+    const x = width * (cfg.x / 100)
+    const y = height * (cfg.y / 100)
+    const maxWidth = width * (cfg.width / 100)
+    const dir = cfg.lang === 'ar' ? 'rtl' : 'ltr'
+    const family = cfg.fontFamily || (dir === 'rtl' ? 'Noto Naskh Arabic' : 'Arial')
+    return `<text x="${x}" y="${y}" text-anchor="${cssAnchor(cfg.align)}" direction="${dir}" unicode-bidi="plaintext" style="font-family:${escXml(family)},Arial,sans-serif;font-size:${fontSize}px;font-weight:900;fill:${escXml(cfg.color || '#0f2b46')};dominant-baseline:middle">${escXml(value)}</text><rect x="${x - maxWidth / 2}" y="${y - fontSize}" width="0" height="0" fill="none"/>`
+  }).join('')
+  if (!textNodes) return null
+  const scale = certificateStampOverlayScale(width, height)
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width * scale}" height="${height * scale}" viewBox="0 0 ${width} ${height}">${textNodes}</svg>`
+  return sharp(Buffer.from(svg)).png().toBuffer()
 }
 
 async function createPdfFromImage(buffer: Buffer, mime: LegacyCertificateMime) {
@@ -66,8 +222,10 @@ export async function stampLegacyCertificatePdf(input: {
   mime: LegacyCertificateMime
   serial: string
   qrToken: string
-  qrPosition?: QrPosition | null
-  qrSize?: QrSize | null
+  qrPosition?: QrPosition | string | null
+  qrSize?: QrSize | string | null
+  stampLayout?: LegacyStampLayout | string | null
+  values?: StampValues
 }) {
   const pdf = input.mime === 'application/pdf'
     ? await PDFDocument.load(input.buffer)
@@ -75,26 +233,32 @@ export async function stampLegacyCertificatePdf(input: {
   const [page] = pdf.getPages()
   if (!page) throw new Error('EMPTY_PDF')
 
-  const position = normalizeQrPosition(input.qrPosition)
-  const size = normalizeQrSize(input.qrSize)
-  const qrSize = qrPointSize(size)
   const { width, height } = page.getSize()
-  const effectiveQrSize = Math.min(qrSize, Math.max(64, Math.min(width, height) * 0.28))
-  const qrPng = await QRCode.toBuffer(certificateVerificationUrl({ qrToken: input.qrToken }), {
-    type: 'png',
-    width: Math.round(effectiveQrSize * 3),
-    margin: 1,
-    errorCorrectionLevel: 'M',
-  })
-  const qrImage = await pdf.embedPng(qrPng)
-  const font = await pdf.embedFont(StandardFonts.Helvetica)
-  const place = placement(width, height, effectiveQrSize, position)
-  const serial = String(input.serial || '').trim()
-  const textWidth = font.widthOfTextAtSize(serial, place.textSize)
-  const textX = Math.min(Math.max(8, place.x + (effectiveQrSize - textWidth) / 2), Math.max(8, width - textWidth - 8))
+  const minDimension = Math.min(width, height)
+  const layout = normalizeStampLayout(input.stampLayout || input.qrPosition || 'BOTTOM_LEFT', input.qrSize || 'M')
+  const values: StampValues = { serial: input.serial, ...(input.values || {}) }
+  const margin = 4
+  if (layout.qr.visible !== false) {
+    const effectiveQrSize = Math.max(28, Math.min(minDimension * 0.45, minDimension * (layout.qr.size / 100)))
+    const qrPng = await QRCode.toBuffer(certificateVerificationUrl({ qrToken: input.qrToken }), {
+      type: 'png',
+      width: Math.round(effectiveQrSize * 3),
+      margin: 1,
+      errorCorrectionLevel: 'M',
+    })
+    const qrImage = await pdf.embedPng(qrPng)
+    const qrCenterX = width * (layout.qr.x / 100)
+    const qrCenterY = height * ((100 - layout.qr.y) / 100)
+    const qrX = Math.max(margin, Math.min(width - effectiveQrSize - margin, qrCenterX - effectiveQrSize / 2))
+    const qrY = Math.max(margin, Math.min(height - effectiveQrSize - margin, qrCenterY - effectiveQrSize / 2))
+    page.drawImage(qrImage, { x: qrX, y: qrY, width: effectiveQrSize, height: effectiveQrSize })
+  }
 
-  page.drawImage(qrImage, { x: place.x, y: place.qrY, width: effectiveQrSize, height: effectiveQrSize })
-  page.drawText(serial, { x: textX, y: place.textY, size: place.textSize, font, color: rgb(0.05, 0.05, 0.05) })
+  const overlay = await renderCertificateStampTextOverlayPng({ width, height, layout, values })
+  if (overlay) {
+    const overlayImage = await pdf.embedPng(overlay)
+    page.drawImage(overlayImage, { x: 0, y: 0, width, height })
+  }
   return Buffer.from(await pdf.save())
 }
 

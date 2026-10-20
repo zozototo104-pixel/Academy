@@ -1390,20 +1390,23 @@ interface CertificateTemplateItem {
 
 const TEMPLATE_FIELD_LABELS: Record<string, string> = {
   holderName: 'اسم الطالب',
-  program: 'اسم البرنامج',
+  program: 'البرنامج',
   grade: 'التقدير',
-  serial: 'الرقم التسلسلي',
   issuedAt: 'تاريخ الإصدار',
+  serial: 'الرقم التسلسلي',
   qr: 'رمز QR',
 }
+const TEMPLATE_TEXT_FIELDS = ['holderName', 'program', 'grade', 'issuedAt', 'serial']
+const TEMPLATE_LATIN_FONTS = ['Arial', 'Helvetica', 'TimesRoman', 'Courier']
+const TEMPLATE_ARABIC_FONTS = ['Noto Naskh Arabic', 'DejaVu Sans', 'Arial']
 
+const TEMPLATE_TEXT_DEFAULT = { width: 70, fontSize: 2.2, align: 'center', color: '#0f2b46', fontFamily: 'Arial', lang: 'en', visible: true }
 const TEMPLATE_DEFAULT_LAYOUT: any = {
-  orientation: 'landscape',
-  holderName: { x: 50, y: 38, width: 72, fontSize: 4.8, align: 'center', color: '#0f2b46', visible: true },
-  program: { x: 50, y: 52, width: 76, fontSize: 2.6, align: 'center', color: '#a8841a', visible: true },
-  grade: { x: 50, y: 64, width: 44, fontSize: 1.7, align: 'center', color: '#0f2b46', visible: true },
-  serial: { x: 84, y: 90, width: 22, fontSize: 1.2, align: 'right', color: '#0f2b46', visible: true },
-  issuedAt: { x: 16, y: 90, width: 24, fontSize: 1.2, align: 'left', color: '#0f2b46', visible: true },
+  holderName: { ...TEMPLATE_TEXT_DEFAULT, x: 50, y: 36, width: 72, fontSize: 4.2 },
+  program: { ...TEMPLATE_TEXT_DEFAULT, x: 50, y: 51, width: 76, fontSize: 2.5, color: '#a8841a' },
+  grade: { ...TEMPLATE_TEXT_DEFAULT, x: 50, y: 62, width: 44, fontSize: 1.7 },
+  issuedAt: { ...TEMPLATE_TEXT_DEFAULT, x: 18, y: 90, width: 26, fontSize: 1.15, align: 'left' },
+  serial: { ...TEMPLATE_TEXT_DEFAULT, x: 84, y: 90, width: 24, fontSize: 1.2, align: 'right' },
   qr: { x: 50, y: 86, size: 12, visible: true },
 }
 
@@ -1431,8 +1434,10 @@ export function AdminCertificatesTab() {
   const [templateForm, setTemplateForm] = useState({ name: '', certificateType: 'PROGRAM_COMPLETION' })
   const [templatePendingDelete, setTemplatePendingDelete] = useState<CertificateTemplateItem | null>(null)
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
-  const [selectedTemplateField, setSelectedTemplateField] = useState('holderName')
+  const [selectedTemplateField, setSelectedTemplateField] = useState('serial')
   const templateCanvasRef = useRef<HTMLDivElement | null>(null)
+  const templateDragFieldRef = useRef<string | null>(null)
+  const templateResizeRef = useRef<{ field: string; startX: number; startY: number; startSize: number; startWidth: number; startFontSize: number } | null>(null)
   const [form, setForm] = useState({ holderName: '', program: '', grade: '', country: '' })
   const [certSearch, setCertSearch] = useState('')
   const [certPage, setCertPage] = useState(1)
@@ -1524,6 +1529,27 @@ export function AdminCertificatesTab() {
     }
   }
 
+  const editCertificateEnglishFields = async (certificate: CertificateData) => {
+    const id = certificate.id
+    if (!id) return toast({ title: 'تعذر التعديل', description: 'معرّف الشهادة غير متوفر.', variant: 'destructive' })
+    const holderNameEn = window.prompt('الاسم بالإنجليزي', certificate.holderNameEn || '')
+    if (holderNameEn === null) return
+    const programEn = window.prompt('البرنامج بالإنجليزي', certificate.programEn || '')
+    if (programEn === null) return
+    const gradeEn = window.prompt('التقدير بالإنجليزي', certificate.gradeEn || '')
+    if (gradeEn === null) return
+    setBusy(true)
+    try {
+      await api('/api/admin/certificates', { method: 'PATCH', body: JSON.stringify({ action: 'update', id, holderNameEn, programEn, gradeEn }) })
+      toast({ title: 'تم حفظ الحقول الإنجليزية', description: certificate.serial })
+      load()
+    } catch (e: any) {
+      toast({ title: 'تعذر حفظ الحقول الإنجليزية', description: e.message, variant: 'destructive' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const revokeCertificate = async (certificate: CertificateData) => {
     const id = certificate.id
     if (!id) {
@@ -1588,7 +1614,7 @@ export function AdminCertificatesTab() {
       formData.append('name', templateForm.name)
       formData.append('certificateType', templateForm.certificateType)
       await api('/api/admin/certificates/templates', { method: 'POST', body: formData })
-      toast({ title: 'تم رفع قالب الشهادة', description: 'سيظهر القالب في نافذة الشهادة ويضع النظام البيانات فوقه تلقائياً.' })
+      toast({ title: 'تم رفع قالب الشهادة', description: 'سيظهر القالب كما رُفع، ويضيف النظام QR والرقم التسلسلي فقط.' })
       setTemplateFile(null)
       setTemplateForm({ name: '', certificateType: 'PROGRAM_COMPLETION' })
       loadTemplates()
@@ -1633,17 +1659,27 @@ export function AdminCertificatesTab() {
     setTemplates((prev) => prev.map((t) => t.id === template.id ? { ...t, layoutJson: { ...nextLayout, [field]: updated } } : t))
   }
 
-  const setTemplateOrientation = (template: CertificateTemplateItem, orientation: 'landscape' | 'portrait') => {
-    const nextLayout = templateLayout(template.layoutJson)
-    setTemplates((prev) => prev.map((t) => t.id === template.id ? { ...t, layoutJson: { ...nextLayout, orientation } } : t))
-  }
-
   const moveTemplateField = (template: CertificateTemplateItem, field: string, clientX: number, clientY: number) => {
     const rect = templateCanvasRef.current?.getBoundingClientRect()
     if (!rect) return
     const x = Math.max(2, Math.min(98, ((clientX - rect.left) / rect.width) * 100))
     const y = Math.max(2, Math.min(98, ((clientY - rect.top) / rect.height) * 100))
     patchTemplateLayout(template, field, { x: Number(x.toFixed(1)), y: Number(y.toFixed(1)) })
+  }
+
+  const resizeTemplateField = (template: CertificateTemplateItem, clientX: number, clientY: number) => {
+    const active = templateResizeRef.current
+    const rect = templateCanvasRef.current?.getBoundingClientRect()
+    if (!active || !rect) return
+    const delta = (((clientX - active.startX) / rect.width) + ((clientY - active.startY) / rect.height)) * 50
+    if (active.field === 'qr') {
+      const size = Math.max(4, Math.min(45, active.startSize + delta))
+      patchTemplateLayout(template, 'qr', { size: Number(size.toFixed(1)) })
+      return
+    }
+    const width = Math.max(6, Math.min(95, active.startWidth + delta))
+    const fontSize = Math.max(0.6, Math.min(8, active.startFontSize + delta * 0.08))
+    patchTemplateLayout(template, active.field, { width: Number(width.toFixed(1)), fontSize: Number(fontSize.toFixed(1)) })
   }
 
   const saveTemplateLayout = async (template: CertificateTemplateItem) => {
@@ -1666,14 +1702,12 @@ export function AdminCertificatesTab() {
   const currentCertPage = certPage
   const selectedTemplate = templates.find((t) => t.id === selectedTemplateId) || templates[0] || null
   const selectedLayout = selectedTemplate ? templateLayout(selectedTemplate.layoutJson) : TEMPLATE_DEFAULT_LAYOUT
-  const isPortraitTemplate = selectedLayout.orientation === 'portrait'
-  const templateAspectClass = isPortraitTemplate ? 'aspect-[1/1.414]' : 'aspect-[1.414/1]'
   const sampleValues: Record<string, string> = {
-    holderName: 'محمد أحمد',
-    program: 'الماجستير المهني في إدارة الأعمال',
-    grade: 'امتياز',
+    holderName: 'John Smith',
+    program: 'Professional Master in Business Administration',
+    grade: 'Excellent',
     serial: 'AACT-C-2026-00001',
-    issuedAt: '05/10/2026',
+    issuedAt: 'June 30, 2024',
     qr: 'QR',
   }
   const designerFieldStyle = (field: string) => {
@@ -1685,13 +1719,18 @@ export function AdminCertificatesTab() {
       top: `${Number(cfg.y ?? 50)}%`,
       width: isQr ? `${Number(cfg.size ?? 12)}%` : `${Number(cfg.width ?? 50)}%`,
       minHeight: isQr ? undefined : '22px',
+      aspectRatio: isQr ? '1 / 1' : undefined,
       transform: 'translate(-50%, -50%)',
       textAlign: cfg.align || 'center',
       color: cfg.color || '#0f2b46',
+      fontFamily: isQr ? undefined : (cfg.fontFamily || (cfg.lang === 'ar' ? 'Noto Naskh Arabic, Arial, sans-serif' : 'Arial, sans-serif')),
+      direction: isQr ? undefined : (cfg.lang === 'ar' ? 'rtl' as const : 'ltr' as const),
       fontSize: isQr ? undefined : `clamp(10px, ${Number(cfg.fontSize ?? 2)}vw, 42px)`,
       lineHeight: 1.2,
       fontWeight: 900,
       cursor: 'move',
+      touchAction: 'none' as const,
+      overflow: 'visible' as const,
       border: selectedTemplateField === field ? '2px solid #c9a227' : '1px dashed rgba(15,43,70,.35)',
       background: isQr ? 'white' : 'rgba(255,255,255,.72)',
       padding: isQr ? '4px' : '4px 8px',
@@ -1800,10 +1839,14 @@ export function AdminCertificatesTab() {
                   <div className="flex items-start justify-between"><Award className={`h-5 w-5 ${c.valid === false ? 'text-red-500' : 'text-[#a8841a]'}`} /><span className="font-mono text-[10px] text-slate-400" dir="ltr">{c.serial}</span></div>
                   <h4 className="mt-2 text-xs font-black text-[#0f2b46]">{c.holderName}</h4>
                   <p className="mt-0.5 line-clamp-1 text-[11px] font-bold text-slate-500">{c.program}</p>
-                  {c.valid === false && <Badge className="mt-2 bg-red-100 text-red-700">ملغاة {c.revokedAt ? new Date(c.revokedAt).toLocaleDateString('ar') : ''}</Badge>}
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {c.valid === false && <Badge className="bg-red-100 text-red-700">ملغاة {c.revokedAt ? new Date(c.revokedAt).toLocaleDateString('ar') : ''}</Badge>}
+                    {!c.holderNameEn && <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">الاسم الإنجليزي ناقص</Badge>}
+                  </div>
                   {c.revokedReason && <p className="mt-1 line-clamp-2 text-[10px] font-bold text-red-600">سبب الإلغاء: {c.revokedReason}</p>}
                   <div className="mt-3 grid gap-2">
                     <Button size="sm" variant="outline" className="w-full border-[#c9a227] font-bold text-[#a8841a]" onClick={() => { setSelected(c); setOpen(true) }}><FileDown className="ml-1 h-3.5 w-3.5" /> عرض / طباعة</Button>
+                    <Button size="sm" variant="outline" disabled={busy} className="w-full border-slate-200 font-bold text-[#0f2b46]" onClick={() => editCertificateEnglishFields(c)}>تعديل الحقول الإنجليزية</Button>
                     {c.valid !== false && <Button size="sm" variant="outline" disabled={busy} className="w-full border-red-200 font-bold text-red-600" onClick={() => revokeCertificate(c)}><XCircle className="ml-1 h-3.5 w-3.5" /> إلغاء الشهادة</Button>}
                   </div>
                 </CardContent>
@@ -1819,7 +1862,7 @@ export function AdminCertificatesTab() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h4 className="text-sm font-black text-[#0f2b46]">قوالب الشهادات الرسمية</h4>
-              <p className="text-xs font-bold text-slate-500">ارفع صورة قالب شهادة فارغ، والنظام يضع الاسم والبرنامج والرقم وQR فوقها في نافذة الشهادة.</p>
+              <p className="text-xs font-bold text-slate-500">ارفع صورة الشهادة كما تريد ظهورها، والنظام يضيف فوقها رقم الشهادة وQR فقط.</p>
             </div>
             <Badge className="bg-[#c9a227]/15 text-[#a8841a]">{templates.length} قالب</Badge>
           </div>
@@ -1867,7 +1910,7 @@ export function AdminCertificatesTab() {
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h5 className="text-sm font-black text-[#0f2b46]">محرر أماكن الحقول على القالب</h5>
-                  <p className="text-[11px] font-bold text-slate-500">اختر القالب، ثم اسحب أي حقل فوق الصورة إلى مكانه الصحيح. بعد الضبط اضغط حفظ التخطيط.</p>
+                  <p className="text-[11px] font-bold text-slate-500">اختر القالب، ثم اسحب QR أو الرقم التسلسلي فوق الصورة إلى مكانه الصحيح. بعد الضبط اضغط حفظ التخطيط.</p>
                 </div>
                 <Button type="button" onClick={() => saveTemplateLayout(selectedTemplate)} disabled={templateBusy} className="bg-[#c9a227] font-black text-[#0f2b46] hover:bg-[#e0b83a]">
                   {templateBusy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Settings2 className="ml-2 h-4 w-4" />} حفظ تخطيط القالب
@@ -1885,14 +1928,7 @@ export function AdminCertificatesTab() {
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-[11px] font-black text-slate-600">اتجاه الشهادة</Label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button type="button" variant={isPortraitTemplate ? 'outline' : 'default'} onClick={() => setTemplateOrientation(selectedTemplate, 'landscape')} className={isPortraitTemplate ? 'bg-white font-black' : 'bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]'}>عرضي</Button>
-                      <Button type="button" variant={isPortraitTemplate ? 'default' : 'outline'} onClick={() => setTemplateOrientation(selectedTemplate, 'portrait')} className={isPortraitTemplate ? 'bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]' : 'bg-white font-black'}>طولي</Button>
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-[11px] font-black text-slate-600">الحقل المحدد</Label>
+                    <Label className="text-[11px] font-black text-slate-600">العنصر المحدد</Label>
                     <Select value={selectedTemplateField} onValueChange={setSelectedTemplateField}>
                       <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -1900,31 +1936,45 @@ export function AdminCertificatesTab() {
                       </SelectContent>
                     </Select>
                   </div>
-                  {selectedTemplateField !== 'qr' ? (
+                  <Button type="button" variant="outline" className="w-full bg-white text-xs font-black" onClick={() => patchTemplateLayout(selectedTemplate, selectedTemplateField, { visible: selectedLayout[selectedTemplateField]?.visible === false })}>
+                    {selectedLayout[selectedTemplateField]?.visible === false ? 'إظهار العنصر' : 'إخفاء العنصر'}
+                  </Button>
+                  {TEMPLATE_TEXT_FIELDS.includes(selectedTemplateField) && (
                     <div className="grid grid-cols-2 gap-2 rounded-xl bg-white p-3">
-                      <div className="space-y-1"><Label className="text-[10px] font-bold">حجم الخط</Label><Input type="number" step="0.1" min="0.8" max="8" value={selectedLayout[selectedTemplateField]?.fontSize ?? 2} onChange={(e) => patchTemplateLayout(selectedTemplate, selectedTemplateField, { fontSize: Number(e.target.value || 2) })} /></div>
-                      <div className="space-y-1"><Label className="text-[10px] font-bold">العرض %</Label><Input type="number" min="10" max="95" value={selectedLayout[selectedTemplateField]?.width ?? 50} onChange={(e) => patchTemplateLayout(selectedTemplate, selectedTemplateField, { width: Number(e.target.value || 50) })} /></div>
+                      <div className="space-y-1"><Label className="text-[10px] font-bold">حجم الخط</Label><Input type="number" step="0.1" min="0.5" max="8" value={selectedLayout[selectedTemplateField]?.fontSize ?? 2} onChange={(e) => patchTemplateLayout(selectedTemplate, selectedTemplateField, { fontSize: Number(e.target.value || 2) })} /></div>
+                      <div className="space-y-1"><Label className="text-[10px] font-bold">العرض %</Label><Input type="number" min="6" max="95" value={selectedLayout[selectedTemplateField]?.width ?? 50} onChange={(e) => patchTemplateLayout(selectedTemplate, selectedTemplateField, { width: Number(e.target.value || 50) })} /></div>
                       <div className="space-y-1"><Label className="text-[10px] font-bold">اللون</Label><Input type="color" value={selectedLayout[selectedTemplateField]?.color || '#0f2b46'} onChange={(e) => patchTemplateLayout(selectedTemplate, selectedTemplateField, { color: e.target.value })} /></div>
-                      <div className="space-y-1"><Label className="text-[10px] font-bold">المحاذاة</Label><Select value={selectedLayout[selectedTemplateField]?.align || 'center'} onValueChange={(v) => patchTemplateLayout(selectedTemplate, selectedTemplateField, { align: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="right">يمين</SelectItem><SelectItem value="center">وسط</SelectItem><SelectItem value="left">يسار</SelectItem></SelectContent></Select></div>
+                      <div className="space-y-1"><Label className="text-[10px] font-bold">اللغة</Label><Select value={selectedLayout[selectedTemplateField]?.lang || 'en'} onValueChange={(v) => patchTemplateLayout(selectedTemplate, selectedTemplateField, { lang: v, fontFamily: v === 'ar' ? TEMPLATE_ARABIC_FONTS[0] : TEMPLATE_LATIN_FONTS[0] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="en">English</SelectItem><SelectItem value="ar">عربي</SelectItem></SelectContent></Select></div>
+                      <div className="space-y-1"><Label className="text-[10px] font-bold">المحاذاة</Label><Select value={selectedLayout[selectedTemplateField]?.align || 'center'} onValueChange={(v) => patchTemplateLayout(selectedTemplate, selectedTemplateField, { align: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="left">Left</SelectItem><SelectItem value="center">Center</SelectItem><SelectItem value="right">Right</SelectItem></SelectContent></Select></div>
+                      <div className="space-y-1"><Label className="text-[10px] font-bold">الخط</Label><Select value={selectedLayout[selectedTemplateField]?.fontFamily || 'Arial'} onValueChange={(v) => patchTemplateLayout(selectedTemplate, selectedTemplateField, { fontFamily: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{(selectedLayout[selectedTemplateField]?.lang === 'ar' ? TEMPLATE_ARABIC_FONTS : TEMPLATE_LATIN_FONTS).map((font) => <SelectItem key={font} value={font}>{font}</SelectItem>)}</SelectContent></Select></div>
                     </div>
-                  ) : (
-                    <div className="rounded-xl bg-white p-3"><Label className="text-[10px] font-bold">حجم QR %</Label><Input type="number" min="5" max="30" value={selectedLayout.qr?.size ?? 12} onChange={(e) => patchTemplateLayout(selectedTemplate, 'qr', { size: Number(e.target.value || 12) })} /></div>
                   )}
-                  <div className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-[11px] font-bold leading-5 text-amber-900">اسحب الحقل من داخل الصورة. القيم تُحفظ كنسب مئوية حتى يبقى التخطيط صحيحاً مهما تغيّر حجم القالب.</div>
+                  <div className="rounded-xl border border-emerald-100 bg-white p-3 text-[11px] font-bold leading-5 text-emerald-900">
+                    الصورة تُعرض بنسبة أبعادها الأصلية كما رُفعت. كل عنصر يمكن إظهاره أو إخفاؤه، والإنجليزي هو الافتراضي.
+                  </div>
+                  <div className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-[11px] font-bold leading-5 text-amber-900">اسحب أي عنصر لتحريكه، واسحب المقبض الذهبي الصغير لتكبيره أو تصغيره.</div>
                 </div>
                 <div
                   ref={templateCanvasRef}
-                  className={`relative ${templateAspectClass} overflow-hidden rounded-2xl border border-[#0f2b46]/10 bg-white shadow-inner`}
+                  className="relative overflow-hidden rounded-2xl border border-[#0f2b46]/10 bg-white shadow-inner"
                   onPointerMove={(e) => {
-                    if (e.buttons !== 1 || !selectedTemplate) return
-                    moveTemplateField(selectedTemplate, selectedTemplateField, e.clientX, e.clientY)
+                    if (!selectedTemplate) return
+                    if (templateResizeRef.current) {
+                      resizeTemplateField(selectedTemplate, e.clientX, e.clientY)
+                      return
+                    }
+                    if (e.buttons !== 1) return
+                    moveTemplateField(selectedTemplate, templateDragFieldRef.current || selectedTemplateField, e.clientX, e.clientY)
                   }}
                   onPointerDown={(e) => {
                     if (!selectedTemplate) return
+                    templateDragFieldRef.current = selectedTemplateField
                     moveTemplateField(selectedTemplate, selectedTemplateField, e.clientX, e.clientY)
                   }}
+                  onPointerUp={() => { templateDragFieldRef.current = null; templateResizeRef.current = null }}
+                  onPointerLeave={() => { templateDragFieldRef.current = null; templateResizeRef.current = null }}
                 >
-                  <img src={selectedTemplate.imageUrl} alt={selectedTemplate.name} className="absolute inset-0 h-full w-full object-cover" />
+                  <img src={selectedTemplate.imageUrl} alt={selectedTemplate.name} className="block h-auto w-full select-none" draggable={false} />
                   {Object.keys(TEMPLATE_FIELD_LABELS).map((field) => {
                     const cfg = selectedLayout[field]
                     if (cfg?.visible === false) return null
@@ -1932,11 +1982,32 @@ export function AdminCertificatesTab() {
                       <button
                         key={field}
                         type="button"
-                        onPointerDown={(e) => { e.stopPropagation(); setSelectedTemplateField(field); if (selectedTemplate) moveTemplateField(selectedTemplate, field, e.clientX, e.clientY) }}
+                        onPointerDown={(e) => {
+                          e.stopPropagation()
+                          templateDragFieldRef.current = field
+                          setSelectedTemplateField(field)
+                          if (selectedTemplate) moveTemplateField(selectedTemplate, field, e.clientX, e.clientY)
+                        }}
                         style={designerFieldStyle(field)}
-                        className="select-none"
+                        className="select-none touch-none"
                       >
                         {field === 'qr' ? 'QR' : sampleValues[field]}
+                        <span
+                          aria-hidden="true"
+                          className="absolute -bottom-2 -left-2 h-5 w-5 cursor-nwse-resize rounded-full border-2 border-white bg-[#c9a227] shadow"
+                          onPointerDown={(e) => {
+                            e.stopPropagation()
+                            setSelectedTemplateField(field)
+                            templateResizeRef.current = {
+                              field,
+                              startX: e.clientX,
+                              startY: e.clientY,
+                              startSize: Number(selectedLayout[field]?.size ?? 12),
+                              startWidth: Number(selectedLayout[field]?.width ?? 22),
+                              startFontSize: Number(selectedLayout[field]?.fontSize ?? 1.2),
+                            }
+                          }}
+                        />
                       </button>
                     )
                   })}
