@@ -320,7 +320,7 @@ export async function POST(req: NextRequest) {
   const model = cleanModel(body.model) || await geminiActiveLiveModel(purpose)
   if (!isValidGeminiLiveModel(model)) {
     return NextResponse.json(
-      { error: 'اسم نموذج Gemini Live غير صحيح، استخدم gemini-3.1-flash-live-preview.', model },
+      { error: 'اسم نموذج Gemini Live غير صحيح، استخدم gemini-3.8-live أو gemini-2.5-flash-native-audio-preview-12-2025.', model },
       { status: 400 }
     )
   }
