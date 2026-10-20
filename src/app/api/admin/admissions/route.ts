@@ -42,6 +42,13 @@ export const STATUS_LABEL: Record<string, string> = {
   PENDING: 'تم التقديم',
 }
 
+function normalizeEnglishCertificateName(value: unknown) {
+  const text = String(value ?? '').trim().replace(/\s+/g, ' ')
+  if (!text) return null
+  if (!/^[A-Za-z .'-]+$/.test(text)) throw new Error('INVALID_ENGLISH_NAME')
+  return text
+}
+
 // GET /api/admin/admissions — قائمة طلبات الالتحاق (للإدارة فقط)
 export async function GET(req: NextRequest) {
   try {
