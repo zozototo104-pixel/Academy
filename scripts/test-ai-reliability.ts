@@ -34,6 +34,7 @@ function testProviderOrderUnchanged() {
     'DEEPINFRA',
     'TOGETHER',
     'OPENAI_COMPAT',
+    'ALBORIHI',
   ])
 }
 
