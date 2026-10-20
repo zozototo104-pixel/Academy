@@ -892,6 +892,11 @@ export function ApplyView() {
                           <Label htmlFor="ad-name">الاسم الكامل *</Label>
                           <Input id="ad-name" required value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} placeholder="الاسم الثلاثي على الأقل كما في الوثائق" />
                           <p className="text-[10px] font-bold text-slate-400">يجب أن يحتوي الاسم على 3 مقاطع على الأقل دون اختصارات.</p>
+                          <div className="pt-2">
+                            <Label htmlFor="ad-name-en">الاسم بالإنجليزي كما سيظهر على الشهادة (اختياري)</Label>
+                            <Input id="ad-name-en" dir="ltr" className="mt-1 text-left" value={form.fullNameEn} onChange={(e) => setForm({ ...form, fullNameEn: e.target.value })} placeholder="John Smith" />
+                            <p className="mt-1 text-[10px] font-bold text-slate-400">حروف لاتينية ومسافات و . - ' فقط.</p>
+                          </div>
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="ad-nid" className="flex items-center gap-1"><IdCard className="h-3.5 w-3.5 text-[#a8841a]" /> رقم الهوية / جواز السفر {isServiceRequest ? '(اختياري)' : '*'}</Label>
