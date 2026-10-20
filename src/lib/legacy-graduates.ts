@@ -16,11 +16,14 @@ type AdminActor = Pick<User, 'id' | 'name'>
 
 export interface LegacyGraduateInput {
   name?: string | null
+  nameEn?: string | null
   email: string
   phone?: string | null
   country?: string | null
   programId: string
+  programEn?: string | null
   grade?: string | null
+  gradeEn?: string | null
   finalScore?: number | null
   issuedAt: Date
   legacySerial?: string | null
