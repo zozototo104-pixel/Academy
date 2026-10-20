@@ -83,7 +83,7 @@ function financialFailure(payments: PaymentRow[], programPrice: number | null | 
 
 async function resolveCompletionContext(tx: Tx, input: CompleteEnrollmentInput) {
   const admission = input.admissionId
-    ? await tx.admissionApplication.findUnique({ where: { id: input.admissionId }, select: { id: true, userId: true, programId: true, fullName: true, program: true, country: true, email: true, status: true } })
+    ? await tx.admissionApplication.findUnique({ where: { id: input.admissionId }, select: { id: true, userId: true, programId: true, fullName: true, fullNameEn: true, program: true, country: true, email: true, status: true, scholarshipFull: true } })
     : null
 
   let enrollment = input.enrollmentId
