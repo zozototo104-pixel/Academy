@@ -1174,11 +1174,13 @@ async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseU
       .filter(isTextLikeModel)
       .map((m) => ({ raw: m, id: normalizeFreeModelName(provider, modelId(m)) }))
       .filter(({ raw, id }) => validModelName(id) && (
-        provider === 'TOPTOOLS'
-          ? isStrongTopToolsTextModel(raw, id)
-          : nvidiaCompat
-            ? isNvidiaFreeTrialTextModel(raw, id)
-            : isFreeModel(raw, id)
+        provider === 'ALBORIHI'
+          ? true
+          : provider === 'TOPTOOLS'
+            ? isStrongTopToolsTextModel(raw, id)
+            : nvidiaCompat
+              ? isNvidiaFreeTrialTextModel(raw, id)
+              : isFreeModel(raw, id)
       ))
     const orderedRows = provider === 'TOPTOOLS'
       ? rows.sort((a, b) => topToolsModelRank(a.id) - topToolsModelRank(b.id) || a.id.localeCompare(b.id))
