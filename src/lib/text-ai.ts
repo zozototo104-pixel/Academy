@@ -1751,6 +1751,7 @@ export async function textAiDiagnostics(): Promise<TextAiDiagnostics> {
     unorouterConfigured: counts.UNOROUTER > 0,
     relayrouterConfigured: counts.RELAYROUTER > 0,
     topToolsConfigured: counts.TOPTOOLS > 0,
+    alborihiConfigured: counts.ALBORIHI > 0,
     openaiCompatConfigured: counts.OPENAI_COMPAT > 0,
     geminiModel: s.geminiModel,
     openaiModel: s.openaiModel,
