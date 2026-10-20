@@ -8,9 +8,35 @@ import { readStoredFile, storeFileBuffer } from '@/lib/storage'
 export type LegacyCertificateMime = 'application/pdf' | 'image/png' | 'image/jpeg'
 export type QrPosition = 'BOTTOM_LEFT' | 'BOTTOM_RIGHT' | 'TOP_LEFT' | 'TOP_RIGHT'
 export type QrSize = 'S' | 'M' | 'L'
+export type StampLang = 'en' | 'ar'
+export type StampTextField = {
+  x: number
+  y: number
+  width: number
+  fontSize: number
+  color?: string
+  align?: 'left' | 'center' | 'right'
+  fontFamily?: string
+  lang?: StampLang
+  visible?: boolean
+}
 export type LegacyStampLayout = {
+  holderName: StampTextField
+  program: StampTextField
+  grade: StampTextField
+  issuedAt: StampTextField
+  serial: StampTextField
   qr: { x: number; y: number; size: number; visible?: boolean }
-  serial: { x: number; y: number; width: number; fontSize: number; visible?: boolean }
+}
+export type StampValues = {
+  holderName?: string | null
+  holderNameEn?: string | null
+  program?: string | null
+  programEn?: string | null
+  grade?: string | null
+  gradeEn?: string | null
+  issuedAt?: Date | string | null
+  serial?: string | null
 }
 
 export const LEGACY_CERTIFICATE_UPLOAD_MAX_BYTES = 10 * 1024 * 1024
