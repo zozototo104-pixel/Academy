@@ -167,7 +167,7 @@ export async function completeEnrollmentIfEligibleInTransaction(tx: Tx, input: C
     },
     select: { purpose: true, status: true, amount: true, amountCents: true, waiverType: true, waiverStatus: true, waivedAmount: true, waivedAmountCents: true, originalAmount: true, originalAmountCents: true },
   })
-  const financeError = financialFailure(payments, program.price)
+  const financeError = financialFailure(payments, program.price, matchedAdmission?.scholarshipFull)
   if (financeError) {
     return { ok: false, completed: false, certificateIssued: false, status: 'NOT_ELIGIBLE', httpStatus: 422, code: 'PAYMENT_REQUIRED', error: financeError, enrollmentId: enrollment.id, admissionId: matchedAdmission?.id || null }
   }
