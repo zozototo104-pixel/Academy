@@ -99,8 +99,8 @@ export async function POST(req: NextRequest, context: RouteContext) {
           uploadedMime: originalMime,
         } : {}),
         stampedFileKey: stampedStored.key,
-        qrPosition,
-        qrSize,
+        qrPosition: serializedStampLayout,
+        qrSize: 'CUSTOM',
       },
     })
 
