@@ -40,6 +40,10 @@ function mockDiplomaClient(programAttemptScores: number[]) {
     enrollment: {
       findUnique: async () => ({ id: 'enrollment-1' }),
     },
+    admissionApplication: {
+      findFirst: async () => null,
+      findUnique: async () => null,
+    },
     payment: {
       findMany: async () => [{ purpose: 'TUITION', status: 'WAIVED', amount: 0, amountCents: 0 }],
     },
