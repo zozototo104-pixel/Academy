@@ -294,6 +294,11 @@ function normalizePolicy(value: unknown): TextAiRouterPolicy {
   return 'primary_first'
 }
 
+function normalizeGeminiModelAlias(value: unknown): string {
+  const v = clean(value).replace(/^models\//, '').toLowerCase()
+  return GEMINI_MODEL_ALIASES[v] || v
+}
+
 function normalizeModel(value: unknown, defaults: string[]): string {
   const v = clean(value)
   if (!v || v === 'auto') return defaults[0]
@@ -301,7 +306,11 @@ function normalizeModel(value: unknown, defaults: string[]): string {
   return /^[a-z0-9][a-z0-9_./:-]{1,160}$/i.test(v) ? v : defaults[0]
 }
 
-const DEFAULT_ACADEMIC_ALLOWLIST = 'GEMINI:gemini-3.5-flash,GEMINI:gemini-3.8-flash'
+function normalizeGeminiTextModel(value: unknown): string {
+  return normalizeModel(normalizeGeminiModelAlias(value), GEMINI_TEXT_MODELS)
+}
+
+const DEFAULT_ACADEMIC_ALLOWLIST = 'GEMINI:gemini-3.8-flash,GEMINI:gemini-3.5-flash-lite'
 
 export function parseProviderModelList(value: unknown, fallback = ''): TextAiPreferredModel[] {
   const out: TextAiPreferredModel[] = []
