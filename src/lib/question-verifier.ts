@@ -253,6 +253,8 @@ function verifierFamilyAllowed(context: { provider?: string; model?: string }, g
   return { ok: true }
 }
 
+export const __testVerifierFamilyAllowedForTests = verifierFamilyAllowed
+
 export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuestion>(opts: {
   questions: readonly T[]
   sources: readonly VerificationSource[]
