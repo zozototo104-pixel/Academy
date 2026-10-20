@@ -84,9 +84,9 @@ mock.module('@/lib/secret-crypto', () => ({
 
 const { PATCH, POST } = await import('../../src/app/api/admin/system/route')
 
-function request(body: Record<string, unknown>) {
+function request(body: Record<string, unknown>, method: 'PATCH' | 'POST' = 'PATCH') {
   return new NextRequest('http://localhost/api/admin/system', {
-    method: 'POST',
+    method,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
