@@ -100,18 +100,29 @@ function legacyLayoutFromPosition(positionValue: unknown, sizeValue: unknown): L
 }
 
 function normalizeTextField(raw: any, fallback: StampTextField): StampTextField {
-  const lang = raw?.lang === 'ar' ? 'ar' : 'en'
-  const align = raw?.align === 'left' || raw?.align === 'right' ? raw.align : 'center'
+  if (!raw || typeof raw !== 'object') return { ...fallback }
+  const lang = raw.lang === 'ar' ? 'ar' : fallback.lang || 'en'
+  const align = raw.align === 'left' || raw.align === 'right' || raw.align === 'center' ? raw.align : fallback.align || 'center'
   return {
-    x: clampNumber(raw?.x, 1, 99, fallback.x),
-    y: clampNumber(raw?.y, 1, 99, fallback.y),
-    width: clampNumber(raw?.width, 6, 95, fallback.width),
-    fontSize: clampNumber(raw?.fontSize, 0.5, 8, fallback.fontSize),
-    color: String(raw?.color || fallback.color || '#0f2b46'),
+    x: clampNumber(raw.x, 1, 99, fallback.x),
+    y: clampNumber(raw.y, 1, 99, fallback.y),
+    width: clampNumber(raw.width, 6, 95, fallback.width),
+    fontSize: clampNumber(raw.fontSize, 0.5, 8, fallback.fontSize),
+    color: String(raw.color || fallback.color || '#0f2b46'),
     align,
-    fontFamily: String(raw?.fontFamily || (lang === 'ar' ? 'Noto Naskh Arabic' : 'Arial')),
+    fontFamily: String(raw.fontFamily || fallback.fontFamily || (lang === 'ar' ? 'Noto Naskh Arabic' : 'Arial')),
     lang,
-    visible: raw?.visible !== false,
+    visible: typeof raw.visible === 'boolean' ? raw.visible : fallback.visible,
+  }
+}
+
+function normalizeQrField(raw: any, fallback: LegacyStampLayout['qr']): LegacyStampLayout['qr'] {
+  if (!raw || typeof raw !== 'object') return { ...fallback }
+  return {
+    x: clampNumber(raw.x, 1, 99, fallback.x),
+    y: clampNumber(raw.y, 1, 99, fallback.y),
+    size: clampNumber(raw.size, 4, 45, fallback.size),
+    visible: typeof raw.visible === 'boolean' ? raw.visible : fallback.visible,
   }
 }
 
