@@ -227,7 +227,7 @@ async function buildCertificateAcademicProfile(cert: { program: string }) {
   })
 }
 
-async function resolveCertificateOwnerContact(cert: { userId?: string | null; admissionId?: string | null; agentId?: string | null }) {
+async function resolveCertificateOwnerContact(cert: { userId?: string | null; admissionId?: string | null; enrollmentId?: string | null; agentId?: string | null }) {
   const contacts: Array<{ email?: string | null; phone?: string | null }> = []
 
   if (cert.admissionId) {
@@ -239,6 +239,14 @@ async function resolveCertificateOwnerContact(cert: { userId?: string | null; ad
       contacts.push({ email: admission.email, phone: admission.phone })
       contacts.push({ email: admission.user?.email, phone: admission.user?.phone })
     }
+  }
+
+  if (cert.enrollmentId) {
+    const enrollment = await db.enrollment.findUnique({
+      where: { id: cert.enrollmentId },
+      select: { user: { select: { email: true, phone: true } } },
+    }).catch(() => null)
+    if (enrollment?.user) contacts.push(enrollment.user)
   }
 
   if (cert.userId) {
@@ -260,15 +268,17 @@ async function resolveCertificateOwnerContact(cert: { userId?: string | null; ad
     }
   }
 
-  return contacts.filter((c) => normalizeEmail(c.email) && phoneLast4(c.phone).length === 4)
+  return contacts.filter((c) => normalizeEmail(c.email) || phoneLast4(c.phone).length === 4)
 }
 
-async function certificateOwnerMatches(cert: { userId?: string | null; admissionId?: string | null; agentId?: string | null }, email: string, last4: string) {
+async function certificateOwnerMatches(cert: { userId?: string | null; admissionId?: string | null; enrollmentId?: string | null; agentId?: string | null }, email: string, last4: string) {
   const normalizedEmail = normalizeEmail(email)
   const normalizedLast4 = normalizeDigits(last4).slice(-4)
   if (!normalizedEmail || normalizedLast4.length !== 4) return false
   const contacts = await resolveCertificateOwnerContact(cert)
-  return contacts.some((contact) => normalizeEmail(contact.email) === normalizedEmail && phoneLast4(contact.phone) === normalizedLast4)
+  const linkedEmails = new Set(contacts.map((contact) => normalizeEmail(contact.email)).filter(Boolean))
+  const linkedPhoneLast4 = new Set(contacts.map((contact) => phoneLast4(contact.phone)).filter((value) => value.length === 4))
+  return linkedEmails.has(normalizedEmail) && linkedPhoneLast4.has(normalizedLast4)
 }
 
 async function buildVerifyPayload(cert: any, verificationMode: 'QR_TOKEN' | 'SERIAL', includeDetails: boolean) {
