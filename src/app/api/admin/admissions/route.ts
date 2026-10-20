@@ -9,7 +9,7 @@ import { getServiceFlow } from '@/lib/service-flows'
 import { deriveServiceWorkflowState } from '@/lib/service-workflows'
 import { inferTotalTuition, tuitionPaidTotal, roundMoney } from '@/lib/tuition-installments'
 import { adminPaginationMeta, cleanAdminQuery, parseAdminPagination } from '@/lib/admin-query'
-import { evaluateProgramCertificateEligibility } from '@/lib/certificate-eligibility'
+import { certificateGradeLabelEn, evaluateProgramCertificateEligibility } from '@/lib/certificate-eligibility'
 import { dollarsToCents } from '@/lib/money'
 import { applyScholarshipToNewInvoiceData } from '@/lib/payment-waivers'
 import {
