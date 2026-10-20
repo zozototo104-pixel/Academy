@@ -257,6 +257,10 @@ export async function POST(req: NextRequest) {
     }
     const nameError = validateApplicantFullName(fullName, 3)
     if (nameError) return NextResponse.json({ error: nameError }, { status: 400 })
+    const normalizedFullNameEn = String(fullNameEn || '').trim().replace(/\s+/g, ' ')
+    if (normalizedFullNameEn && !/^[A-Za-z .'-]+$/.test(normalizedFullNameEn)) {
+      return NextResponse.json({ error: "الاسم بالإنجليزي يجب أن يحتوي على حروف لاتينية ومسافات و . - ' فقط" }, { status: 400 })
+    }
     const phoneError = validatePhone(phone)
     if (phoneError) return NextResponse.json({ error: phoneError }, { status: 400 })
     if (!isSupportedCountry(country)) {
