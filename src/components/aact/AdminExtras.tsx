@@ -1682,11 +1682,11 @@ export function AdminCertificatesTab() {
   const selectedTemplate = templates.find((t) => t.id === selectedTemplateId) || templates[0] || null
   const selectedLayout = selectedTemplate ? templateLayout(selectedTemplate.layoutJson) : TEMPLATE_DEFAULT_LAYOUT
   const sampleValues: Record<string, string> = {
-    holderName: 'محمد أحمد',
-    program: 'الماجستير المهني في إدارة الأعمال',
-    grade: 'امتياز',
+    holderName: 'John Smith',
+    program: 'Professional Master in Business Administration',
+    grade: 'Excellent',
     serial: 'AACT-C-2026-00001',
-    issuedAt: '05/10/2026',
+    issuedAt: 'June 30, 2024',
     qr: 'QR',
   }
   const designerFieldStyle = (field: string) => {
