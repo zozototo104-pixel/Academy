@@ -322,6 +322,12 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
         providerRateLimitCooldown: { provider: 'UNOROUTER', threshold: 3, windowMs: 60_000, cooldownMinutes: 10 },
         deadlineMs: deadline,
         validate: (text, context) => {
+          // A same-provider Alborihi verifier must have a known, different family.
+          // Reject an unsuitable response inside the router so it can try another model/provider.
+          if (opts.generatorProvider === 'ALBORIHI' && context?.provider === 'ALBORIHI') {
+            const familyCheck = verifierFamilyAllowed(context, 'ALBORIHI', generatorFamily)
+            if (!familyCheck.ok) validationRejected(familyCheck.reason)
+          }
           verifierContext = context || {}
           assertVerifierCoverage(text, prepared.map((item) => item.index))
         },
