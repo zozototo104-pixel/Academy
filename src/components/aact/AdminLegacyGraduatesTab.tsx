@@ -595,6 +595,7 @@ export default function AdminLegacyGraduatesTab() {
           <form onSubmit={saveForm} className="space-y-4">
             <div className="grid gap-3 md:grid-cols-2">
               <div><Label>الاسم</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
+              <div><Label>الاسم بالإنجليزي</Label><Input value={form.nameEn} onChange={(e) => setForm({ ...form, nameEn: e.target.value })} dir="ltr" placeholder="John Smith" /></div>
               <div><Label>الإيميل</Label><Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required={!form.id} disabled={!!form.id} dir="ltr" /></div>
               <div><Label>الجوال</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} disabled={!!form.id} dir="ltr" /></div>
               <div><Label>الدولة</Label><Input value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} /></div>
