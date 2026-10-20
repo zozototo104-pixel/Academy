@@ -54,6 +54,8 @@ function fieldStyle(field: any) {
     transform: 'translate(-50%, -50%)',
     textAlign: field?.align || 'center',
     color: field?.color || '#0f2b46',
+    direction: field?.lang === 'ar' ? 'rtl' as const : 'ltr' as const,
+    fontFamily: field?.fontFamily || (field?.lang === 'ar' ? 'Noto Naskh Arabic, Arial, sans-serif' : 'Arial, sans-serif'),
     fontSize: `clamp(10px, ${Number(field?.fontSize ?? 2)}vw, 58px)`,
     fontWeight: 900,
     lineHeight: 1.25,
