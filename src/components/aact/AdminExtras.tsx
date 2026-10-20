@@ -2665,7 +2665,7 @@ export function AdminSettingsTab() {
               {g.key === 'AI' && <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
                 <Label className="text-[11px] font-bold leading-snug text-slate-600">مسح تبريد مزود الذكاء</Label>
                 <div className="mt-2 flex gap-2">
-                  <Select value={aiCooldownProvider} onValueChange={setAiCooldownProvider}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT'].map((provider) => <SelectItem key={provider} value={provider}>{provider}</SelectItem>)}</SelectContent></Select>
+                  <Select value={aiCooldownProvider} onValueChange={setAiCooldownProvider}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'ALBORIHI', 'OPENAI_COMPAT'].map((provider) => <SelectItem key={provider} value={provider}>{provider}</SelectItem>)}</SelectContent></Select>
                   <Button type="button" variant="outline" disabled={aiCooldownBusy} onClick={clearAiCooldown} className="font-black">{aiCooldownBusy ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="ml-1 h-3.5 w-3.5" />} مسح</Button>
                 </div>
               </div>}
