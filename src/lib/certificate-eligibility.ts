@@ -35,11 +35,12 @@ export function certificateGradeLabel(score: number) {
 }
 
 export function certificateGradeLabelEn(score: number) {
-  if (score >= 90) return 'Excellent'
-  if (score >= 80) return 'Very Good'
-  if (score >= 70) return 'Good'
-  if (score >= CERTIFICATE_PASS_SCORE) return 'Pass'
-  return 'Not Passed'
+  const p = percent(score)
+  if (score >= 90) return `${p}% — Excellent`
+  if (score >= 80) return `${p}% — Very Good`
+  if (score >= 70) return `${p}% — Good`
+  if (score >= CERTIFICATE_PASS_SCORE) return `${p}% — Pass`
+  return `${p}% — Not Passed`
 }
 
 function missingError(missing: string[]) {
