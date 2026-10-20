@@ -1013,6 +1013,26 @@ function isTextLikeModel(row: any): boolean {
   return endpoints.length === 0 || endpoints.includes('openai') || endpoints.includes('chat') || endpoints.includes('chat/completions')
 }
 
+function isAlborihiChatCapableModel(row: any): boolean {
+  const id = modelId(row).toLowerCase()
+  if (!id) return false
+  const modalities = [
+    ...(Array.isArray(row?.modalities) ? row.modalities : []),
+    ...(Array.isArray(row?.input_modalities) ? row.input_modalities : []),
+    ...(Array.isArray(row?.supported_modalities) ? row.supported_modalities : []),
+    row?.architecture?.input_modalities,
+    row?.architecture?.output_modalities,
+    row?.architecture?.modality,
+    row?.modality,
+    row?.type,
+  ].flat().filter(Boolean).map((v: unknown) => String(v).toLowerCase())
+  const haystack = `${id} ${row?.name || ''} ${row?.owned_by || ''} ${row?.provider || ''} ${modalities.join(' ')}`.toLowerCase()
+  if (/embedding|embed|moderation|guard|rerank|ocr-only|tts|stt|whisper|audio-only|image-only|video-only/.test(haystack)) return false
+  const endpoints = Array.isArray(row?.supported_endpoint_types) ? row.supported_endpoint_types : []
+  if (endpoints.length && !endpoints.some((endpoint: unknown) => /openai|chat|chat\/completions/i.test(String(endpoint)))) return false
+  return !modalities.length || modalities.some((modality) => /text|image|vision|multimodal/.test(modality)) || /gpt|claude|gemini|grok|deepseek|qwen|llama|mistral|glm|kimi|sonar|command|nova|minimax|nemotron|phi|yi/.test(id)
+}
+
 function capabilityFromModelRow(row: any): ModelCapability {
   const contextLength = Number(row?.context_length ?? row?.contextLength ?? row?.context_window ?? row?.max_context_length ?? row?.max_tokens ?? NaN)
   const modalities = [
