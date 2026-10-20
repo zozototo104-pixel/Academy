@@ -60,4 +60,22 @@ describe('question verifier preferred routing', () => {
     expect(__testVerifierPreferredProvidersForTests('GEMINI')).toEqual(['GROQ', 'UNOROUTER'])
     expect(__testVerifierPreferredProvidersForTests('GROQ')).toEqual(['GEMINI', 'UNOROUTER'])
   })
+
+  test('Alborihi alone may verify with its own provider and is attempted before existing fallbacks', () => {
+    expect(__testVerifierExcludedProviders('ALBORIHI')).toEqual([])
+    expect(__testVerifierPreferredProvidersForTests('ALBORIHI')).toEqual(['ALBORIHI', 'GROQ', 'GEMINI', 'UNOROUTER'])
+    expect(__testVerifierExcludedProviders('GEMINI')).toEqual(['GEMINI'])
+    expect(__testVerifierExcludedProviders('GROQ')).toEqual(['GROQ'])
+  })
+
+  test('Alborihi cross-family self-review accepts GPT after Claude but never Claude after Claude', () => {
+    const generatorFamily = modelFamily('claude-sonnet-5')
+    expect(__testVerifierFamilyAllowedForTests({ provider: 'ALBORIHI', model: 'gpt-5.6-luna' }, 'ALBORIHI', generatorFamily)).toEqual({ ok: true })
+    expect(__testVerifierFamilyAllowedForTests({ provider: 'ALBORIHI', model: 'claude-opus-4-6' }, 'ALBORIHI', generatorFamily)).toEqual({ ok: false, reason: 'VERIFIER_SAME_FAMILY' })
+    expect(__testVerifierFamilyAllowedForTests({ provider: 'ALBORIHI', model: 'unknown-experimental-model' }, 'ALBORIHI', generatorFamily)).toEqual({ ok: false, reason: 'VERIFIER_SAME_FAMILY_OR_UNKNOWN' })
+  })
+
+  test('Alborihi can fall back to a different provider with a different known model family', () => {
+    expect(__testVerifierFamilyAllowedForTests({ provider: 'GROQ', model: 'llama-3.3-70b-versatile' }, 'ALBORIHI', modelFamily('claude-sonnet-5'))).toEqual({ ok: true })
+  })
 })
