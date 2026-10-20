@@ -93,6 +93,7 @@ export interface TextAiDiagnostics {
   unorouterConfigured: boolean
   relayrouterConfigured: boolean
   topToolsConfigured: boolean
+  alborihiConfigured: boolean
   openaiCompatConfigured: boolean
   geminiModel: string
   openaiModel: string
@@ -105,6 +106,7 @@ export interface TextAiDiagnostics {
   unorouterModel: string
   relayrouterModel: string
   topToolsModel: string
+  alborihiModel: string
   openaiCompatModel: string
   keyCounts: Record<string, number>
   cooldowns: Array<{ provider: string; key: string; until: string; reason: string }>
