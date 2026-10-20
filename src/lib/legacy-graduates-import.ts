@@ -50,6 +50,12 @@ function cleanOptional(value: unknown) {
   return text || null
 }
 
+function cleanEnglishName(value: unknown) {
+  const text = cleanOptional(value)
+  if (!text) return null
+  return /^[A-Za-z .'-]+$/.test(text) ? text : '__INVALID_ENGLISH_NAME__'
+}
+
 function normalizeHeader(value: unknown) {
   return cleanString(value).toLowerCase().replace(/[\s_\-.]+/g, '')
 }
