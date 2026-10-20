@@ -1904,17 +1904,25 @@ export function AdminCertificatesTab() {
                 </div>
                 <div
                   ref={templateCanvasRef}
-                  className={`relative ${templateAspectClass} overflow-hidden rounded-2xl border border-[#0f2b46]/10 bg-white shadow-inner`}
+                  className="relative overflow-hidden rounded-2xl border border-[#0f2b46]/10 bg-white shadow-inner"
                   onPointerMove={(e) => {
-                    if (e.buttons !== 1 || !selectedTemplate) return
-                    moveTemplateField(selectedTemplate, selectedTemplateField, e.clientX, e.clientY)
+                    if (!selectedTemplate) return
+                    if (templateResizeRef.current) {
+                      resizeTemplateField(selectedTemplate, e.clientX, e.clientY)
+                      return
+                    }
+                    if (e.buttons !== 1) return
+                    moveTemplateField(selectedTemplate, templateDragFieldRef.current || selectedTemplateField, e.clientX, e.clientY)
                   }}
                   onPointerDown={(e) => {
                     if (!selectedTemplate) return
+                    templateDragFieldRef.current = selectedTemplateField
                     moveTemplateField(selectedTemplate, selectedTemplateField, e.clientX, e.clientY)
                   }}
+                  onPointerUp={() => { templateDragFieldRef.current = null; templateResizeRef.current = null }}
+                  onPointerLeave={() => { templateDragFieldRef.current = null; templateResizeRef.current = null }}
                 >
-                  <img src={selectedTemplate.imageUrl} alt={selectedTemplate.name} className="absolute inset-0 h-full w-full object-cover" />
+                  <img src={selectedTemplate.imageUrl} alt={selectedTemplate.name} className="block h-auto w-full select-none" draggable={false} />
                   {Object.keys(TEMPLATE_FIELD_LABELS).map((field) => {
                     const cfg = selectedLayout[field]
                     if (cfg?.visible === false) return null
@@ -1922,11 +1930,32 @@ export function AdminCertificatesTab() {
                       <button
                         key={field}
                         type="button"
-                        onPointerDown={(e) => { e.stopPropagation(); setSelectedTemplateField(field); if (selectedTemplate) moveTemplateField(selectedTemplate, field, e.clientX, e.clientY) }}
+                        onPointerDown={(e) => {
+                          e.stopPropagation()
+                          templateDragFieldRef.current = field
+                          setSelectedTemplateField(field)
+                          if (selectedTemplate) moveTemplateField(selectedTemplate, field, e.clientX, e.clientY)
+                        }}
                         style={designerFieldStyle(field)}
-                        className="select-none"
+                        className="select-none touch-none"
                       >
                         {field === 'qr' ? 'QR' : sampleValues[field]}
+                        <span
+                          aria-hidden="true"
+                          className="absolute -bottom-2 -left-2 h-5 w-5 cursor-nwse-resize rounded-full border-2 border-white bg-[#c9a227] shadow"
+                          onPointerDown={(e) => {
+                            e.stopPropagation()
+                            setSelectedTemplateField(field)
+                            templateResizeRef.current = {
+                              field,
+                              startX: e.clientX,
+                              startY: e.clientY,
+                              startSize: Number(selectedLayout[field]?.size ?? 12),
+                              startWidth: Number(selectedLayout[field]?.width ?? 22),
+                              startFontSize: Number(selectedLayout[field]?.fontSize ?? 1.2),
+                            }
+                          }}
+                        />
                       </button>
                     )
                   })}
