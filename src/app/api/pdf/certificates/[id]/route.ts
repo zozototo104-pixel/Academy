@@ -101,8 +101,8 @@ export async function GET(_req: NextRequest, context: RouteContext) {
     const credentialUrl = certificateCredentialUrl(certificate)
 
     const pdf = await renderOfficialPdf({
-      title: 'شهادة رسمية',
-      subtitle: 'Official Certificate',
+      title: englishFallback ? 'Official Certificate' : 'شهادة رسمية',
+      subtitle: englishFallback ? 'Program Completion Certificate' : 'Official Certificate',
       documentLabel: 'OFFICIAL CERTIFICATE',
       reference: certificate.serial,
       issuedAt: certificate.issuedAt,
