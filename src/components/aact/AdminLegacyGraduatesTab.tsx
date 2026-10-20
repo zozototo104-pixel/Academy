@@ -49,12 +49,15 @@ type LegacyProgramOption = { id: string; titleAr: string; titleEn?: string | nul
 type AddEditForm = {
   id?: string
   name: string
+  nameEn: string
   email: string
   phone: string
   country: string
   programId: string
   program: string
+  programEn: string
   grade: string
+  gradeEn: string
   finalScore: string
   issuedAt: string
   legacySerial: string
