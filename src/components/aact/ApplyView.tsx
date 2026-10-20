@@ -191,6 +191,7 @@ export function ApplyView() {
 
   const [form, setForm] = useState({
     fullName: '',
+    fullNameEn: '',
     email: '',
     phone: '',
     country: '',
