@@ -8,6 +8,10 @@ import { readStoredFile, storeFileBuffer } from '@/lib/storage'
 export type LegacyCertificateMime = 'application/pdf' | 'image/png' | 'image/jpeg'
 export type QrPosition = 'BOTTOM_LEFT' | 'BOTTOM_RIGHT' | 'TOP_LEFT' | 'TOP_RIGHT'
 export type QrSize = 'S' | 'M' | 'L'
+export type LegacyStampLayout = {
+  qr: { x: number; y: number; size: number; visible?: boolean }
+  serial: { x: number; y: number; width: number; fontSize: number; visible?: boolean }
+}
 
 export const LEGACY_CERTIFICATE_UPLOAD_MAX_BYTES = 10 * 1024 * 1024
 export const LEGACY_CERTIFICATE_ZIP_MAX_BYTES = 50 * 1024 * 1024
