@@ -128,7 +128,7 @@ interface ServiceWorkflowView {
 }
 
 interface AdmissionApp {
-  id: string; reference: string; fullName: string; email: string; phone: string
+  id: string; reference: string; fullName: string; fullNameEn?: string | null; email: string; phone: string
   country: string; education: string; program: string; documents: string; notes?: string | null
   documentReplacementRequest?: { note: string; docTypes: string[]; previousStatus: string; requestedAt: string; requestedByName?: string | null } | null
   files?: { id: string; docType: string; fileName: string; size: number; mimeType: string }[]
@@ -798,6 +798,18 @@ export function AdminView() {
     }
   }
 
+  const editAdmissionEnglishName = async (app: AdmissionApp) => {
+    const fullNameEn = window.prompt('الاسم بالإنجليزي كما سيظهر على الشهادة', app.fullNameEn || '')
+    if (fullNameEn === null) return
+    try {
+      const d = await api<{ application: AdmissionApp }>('/api/admin/admissions', { method: 'PATCH', body: JSON.stringify({ id: app.id, fullNameEn }) })
+      setAdmissions((prev) => prev.map((item) => (item.id === app.id ? { ...item, fullNameEn: d.application.fullNameEn || null } : item)))
+      toast({ title: 'تم حفظ الاسم الإنجليزي', description: app.reference })
+    } catch (e: any) {
+      toast({ title: 'تعذر حفظ الاسم الإنجليزي', description: e.message, variant: 'destructive' })
+    }
+  }
+
   const setAdmissionStatus = async (id: string, status: string) => {
     try {
       await api('/api/admin/admissions', { method: 'PATCH', body: JSON.stringify({ id, status }) })
@@ -1171,6 +1183,10 @@ export function AdminView() {
                             {isStudyAdmission ? 'البرنامج' : 'الخدمة'}: {a.program} — {isStudyAdmission ? `المؤهل: ${EDUCATION_LABEL[a.education] || a.education}` : `نوع المسار: ${a.requestKind || 'خدمة'}`} — {a.country}
                           </p>
                           <p className="mt-0.5 text-[11px] text-slate-400" dir="ltr">{a.email} · {a.phone}</p>
+                          <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-bold text-slate-500">
+                            <span dir="ltr">English certificate name: {a.fullNameEn || '—'}</span>
+                            <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-[10px] font-black" onClick={() => editAdmissionEnglishName(a)}>تعديل اسم الشهادة الإنجليزي</Button>
+                          </div>
                           {ownerNameDiffers && (
                             <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold leading-6 text-amber-800">
                               <span className="font-black">تنبيه مطابقة الحساب:</span> اسم الطلب/المستندات هو <span className="font-black">{applicantName}</span>، بينما اسم صاحب الحساب المرتبط بهذا البريد هو <span className="font-black">{ownerName}</span>. لا يتم تغيير اسم الطلب تلقائياً حفاظاً على بيانات المستندات.

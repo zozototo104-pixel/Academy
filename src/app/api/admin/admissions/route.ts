@@ -7,9 +7,9 @@ import { randomBytes } from 'crypto'
 import { emailAdmissionDecision, emailCertificateIssued } from '@/lib/mailer'
 import { getServiceFlow } from '@/lib/service-flows'
 import { deriveServiceWorkflowState } from '@/lib/service-workflows'
-import { inferTotalTuition, tuitionPaidTotal, roundMoney } from '@/lib/tuition-installments'
+import { TUITION_PURPOSES, inferTotalTuition, tuitionPaidTotal, roundMoney } from '@/lib/tuition-installments'
 import { adminPaginationMeta, cleanAdminQuery, parseAdminPagination } from '@/lib/admin-query'
-import { evaluateProgramCertificateEligibility } from '@/lib/certificate-eligibility'
+import { certificateGradeLabelEn, evaluateProgramCertificateEligibility } from '@/lib/certificate-eligibility'
 import { dollarsToCents } from '@/lib/money'
 import { applyScholarshipToNewInvoiceData } from '@/lib/payment-waivers'
 import {
@@ -40,6 +40,13 @@ export const STATUS_LABEL: Record<string, string> = {
   CERTIFIED: 'تم إصدار الشهادة',
   REJECTED: 'غير مقبول',
   PENDING: 'تم التقديم',
+}
+
+function normalizeEnglishCertificateName(value: unknown) {
+  const text = String(value ?? '').trim().replace(/\s+/g, ' ')
+  if (!text) return null
+  if (!/^[A-Za-z .'-]+$/.test(text)) throw new Error('INVALID_ENGLISH_NAME')
+  return text
 }
 
 // GET /api/admin/admissions — قائمة طلبات الالتحاق (للإدارة فقط)
@@ -198,6 +205,13 @@ export async function PATCH(req: NextRequest) {
       : await db.program.findFirst({ where: { titleAr: { contains: app.program.split(' — ')[0] } }, select: { id: true, slug: true, category: true, price: true } })
     const serviceFlow = getServiceFlow(programForFlow?.slug)
     const isStudyRequest = serviceFlow ? serviceFlow.isStudyProgram : programForFlow?.category !== 'SERVICE'
+
+    if (Object.prototype.hasOwnProperty.call(body, 'fullNameEn')) {
+      const fullNameEn = normalizeEnglishCertificateName(body.fullNameEn)
+      const updated = await db.admissionApplication.update({ where: { id }, data: { fullNameEn } })
+      await audit(user, 'UPDATE_ADMISSION_ENGLISH_NAME', 'AdmissionApplication', id, `${app.reference} — ${app.fullName}`)
+      return NextResponse.json({ ok: true, application: updated })
+    }
 
     if (!isStudyRequest && supervisorId !== undefined) {
       return NextResponse.json({ error: 'طلبات الخدمات العابرة لا تحتاج مشرفاً أكاديمياً. استخدم قسم تنفيذ وتسليم الخدمة بدلاً من مسار الطلاب.' }, { status: 400 })
@@ -414,26 +428,30 @@ export async function PATCH(req: NextRequest) {
     // لا نحدّث حالة الطلب إلى CERTIFIED قبل إثبات الاستحقاق الأكاديمي والمالي حتى لا تظهر شهادة لطالب غير مستحق.
     if (status === 'CERTIFIED') {
       const allPayments = await db.payment.findMany({ where: { admissionId: id } })
-      const nonTuitionUnpaid = allPayments.filter((p) => !['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && !['PAID', 'WAIVED'].includes(p.status))
-      const paymentRows = allPayments.map((p) => ({
-        purpose: p.purpose,
-        status: p.status,
-        amount: p.amount,
-        amountCents: p.amountCents,
-        waiverType: p.waiverType,
-        waivedAmount: p.waivedAmount,
-        waivedAmountCents: p.waivedAmountCents,
-        originalAmount: p.originalAmount,
-        originalAmountCents: p.originalAmountCents,
-      }))
-      const tuitionTotal = inferTotalTuition(paymentRows)
-      const tuitionPaid = tuitionPaidTotal(paymentRows)
-      const tuitionOk = tuitionTotal <= 0 || roundMoney(tuitionPaid) >= roundMoney(tuitionTotal)
-      if (nonTuitionUnpaid.length > 0 || !tuitionOk) {
-        return NextResponse.json(
-          { error: !tuitionOk ? `لا يمكن إصدار الشهادة قبل استكمال الرسوم الدراسية. المسدد ${roundMoney(tuitionPaid)}$ من ${roundMoney(tuitionTotal)}$.` : 'لا يمكن إصدار الشهادة قبل سداد جميع فواتير الطلب غير الدراسية.' },
-          { status: 400 }
-        )
+      if (app.scholarshipFull !== true) {
+        const nonTuitionUnpaid = allPayments.filter((p) => !TUITION_PURPOSES.includes(p.purpose) && !['PAID', 'WAIVED'].includes(p.status))
+        const paymentRows = allPayments.map((p) => ({
+          purpose: p.purpose,
+          status: p.status,
+          amount: p.amount,
+          amountCents: p.amountCents,
+          waiverType: p.waiverType,
+          waiverStatus: p.waiverStatus,
+          waivedAmount: p.waivedAmount,
+          waivedAmountCents: p.waivedAmountCents,
+          originalAmount: p.originalAmount,
+          originalAmountCents: p.originalAmountCents,
+        }))
+        const tuitionRows = paymentRows.filter((p) => TUITION_PURPOSES.includes(p.purpose))
+        const tuitionTotal = tuitionRows.length ? inferTotalTuition(paymentRows) : 0
+        const tuitionPaid = tuitionPaidTotal(paymentRows)
+        const tuitionOk = tuitionTotal <= 0 || roundMoney(tuitionPaid) >= roundMoney(tuitionTotal)
+        if (nonTuitionUnpaid.length > 0 || !tuitionOk) {
+          return NextResponse.json(
+            { error: !tuitionOk ? `لا يمكن إصدار الشهادة قبل استكمال الرسوم الدراسية. المسدد ${roundMoney(tuitionPaid)}$ من ${roundMoney(tuitionTotal)}$.` : 'لا يمكن إصدار الشهادة قبل سداد جميع فواتير الطلب غير الدراسية.' },
+            { status: 400 }
+          )
+        }
       }
 
       const eligibility = await evaluateProgramCertificateEligibility({ userId: app.userId, programId: app.programId, admissionId: id })
@@ -451,8 +469,11 @@ export async function PATCH(req: NextRequest) {
           qrToken: randomBytes(16).toString('hex'),
           type: 'PROGRAM_COMPLETION',
           holderName: app.fullName,
+          holderNameEn: app.fullNameEn || null,
           program: app.program,
+          programEn: programForFlow?.id ? (await db.program.findUnique({ where: { id: programForFlow.id }, select: { titleEn: true } }))?.titleEn || null : null,
           grade: eligibility.gradeLabel,
+          gradeEn: typeof eligibility.score === 'number' ? certificateGradeLabelEn(eligibility.score) : null,
           country: app.country,
           userId: app.userId,
           admissionId: id,
@@ -498,6 +519,9 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json({ ok: true, application: updated })
   } catch (e: any) {
+    if (e?.message === 'INVALID_ENGLISH_NAME') {
+      return NextResponse.json({ error: "الاسم بالإنجليزي يجب أن يحتوي على حروف لاتينية ومسافات و . - ' فقط" }, { status: 400 })
+    }
     console.error('admin admissions PATCH error:', e)
     return NextResponse.json({ error: 'تعذر تحديث الطلب' }, { status: 500 })
   }

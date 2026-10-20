@@ -126,7 +126,8 @@ const db: any = {
     findFirst: async () => ({ id: 'cert-1', serial: 'AACT-C-1', qrToken: 'qr-1', type: 'PROGRAM_COMPLETION', holderName: 'طالب', program: 'برنامج عربي للاختبار', country: 'فلسطين', issuedAt: new Date(), valid: true, userId: 'user-1', admissionId: 'admission-1', enrollmentId: 'enrollment-1' }),
   },
   admissionApplication: {
-    findUnique: async () => ({ userId: 'user-1', programId: 'program-1', email: 'student@example.test', phone: '+970 59 123 4567', user: { email: 'student@example.test', phone: '+970 59 123 4567' } }),
+    findUnique: async () => ({ userId: 'user-1', programId: 'program-1', email: 'student@example.test', phone: '+970 59 123 4567', scholarshipFull: false, user: { email: 'student@example.test', phone: '+970 59 123 4567' } }),
+    findFirst: async () => ({ userId: 'user-1', programId: 'program-1', scholarshipFull: false }),
   },
   user: {
     findUnique: async () => ({ id: 'user-1', email: 'student@example.test', phone: '+970 59 123 4567' }),
@@ -154,9 +155,7 @@ const realTuitionInstallments = await import('../../src/lib/tuition-installments
 mock.module('@/lib/tuition-installments', () => ({
   ...realTuitionInstallments,
   enforceSemesterTuitionGate: async () => ({ ok: true }),
-  inferTotalTuition: () => 0,
-  roundMoney: (value: number) => Math.round(value * 100) / 100,
-  tuitionPaidTotal: () => 0,
+  TUITION_PURPOSES: ['TUITION', 'TUITION_INSTALLMENT'],
 }))
 
 const realTextAi = await import('../../src/lib/text-ai')
@@ -194,11 +193,51 @@ const programExamSubmitRoute = await import('../../src/app/api/program-exam/subm
 const defenseRoute = await import('../../src/app/api/defense/route')
 const { canPublishUnitExamFromQuestions } = await import('../../src/lib/unit-exam-policy')
 const { calculateFinalGrade } = await import('../../src/lib/final-grade')
-const { evaluateProgramCertificateEligibility } = await import('../../src/lib/certificate-eligibility')
+const { certificateGradeLabelEn, evaluateProgramCertificateEligibility } = await import('../../src/lib/certificate-eligibility')
+const { completeEnrollmentIfEligibleInTransaction } = await import('../../src/lib/enrollment-completion')
+const { stampValue } = await import('../../src/lib/legacy-certificate-files')
 const certVerifyRoute = await import('../../src/app/api/certificates/verify/route')
 
 async function body(response: Response) {
   return response.json() as Promise<any>
+}
+
+function completionTx(options: { payments: any[]; scholarshipFull?: boolean; fullNameEn?: string | null }) {
+  let createdCertificate: any = null
+  const tx: any = {
+    $queryRaw: async () => [{ value: 1 }],
+    admissionApplication: {
+      findUnique: async () => ({ id: 'admission-1', userId: 'user-1', programId: 'program-1', fullName: 'طالب عربي', fullNameEn: options.fullNameEn || null, program: 'برنامج عربي للاختبار', country: 'فلسطين', email: 'student@example.test', status: 'RESULT_APPROVED', scholarshipFull: options.scholarshipFull === true }),
+      findFirst: async () => ({ id: 'admission-1', userId: 'user-1', programId: 'program-1', fullName: 'طالب عربي', fullNameEn: options.fullNameEn || null, program: 'برنامج عربي للاختبار', country: 'فلسطين', email: 'student@example.test', status: 'RESULT_APPROVED', scholarshipFull: options.scholarshipFull === true }),
+      update: async ({ data }: any) => ({ id: 'admission-1', ...data }),
+    },
+    enrollment: {
+      findUnique: async () => ({ id: 'enrollment-1', userId: 'user-1', programId: 'program-1', status: 'ACTIVE', certificateNo: null }),
+      update: async ({ data }: any) => ({ id: 'enrollment-1', ...data }),
+    },
+    program: {
+      findUnique: async () => ({ id: 'program-1', titleAr: 'برنامج عربي للاختبار', titleEn: 'Arabic Test Program', price: 1000, category: 'DIPLOMA' }),
+    },
+    payment: { findMany: async () => options.payments },
+    certificate: {
+      findFirst: async () => null,
+      create: async ({ data }: any) => { createdCertificate = { id: 'cert-new', ...data }; return createdCertificate },
+    },
+    exam: { findMany: async () => [{ id: 'unit-empty', title: 'اختبار فارغ', passScore: 51, unit: { title: 'وحدة' }, _count: { questions: 0 } }] },
+    examAttempt: { findMany: async () => [] },
+    programExam: { findMany: async () => [{ id: 'program-exam-1', title: 'اختبار نهائي', semester: 1, passScore: 51 }] },
+    programExamAttempt: { findMany: async () => [{ score: 95, finalScore: 95, appealStatus: 'REVIEWED', passed: true, answers: [{ points: 95, maxPoints: 100 }] }] },
+    programAssignment: { findMany: async () => [{ id: 'assignment-1', title: 'واجب', points: 100 }] },
+    assignmentSubmission: { findUnique: async () => ({ status: 'GRADED', score: 95 }) },
+    thesisSubmission: { findFirst: async () => null },
+  }
+  return { tx, certificate: () => createdCertificate }
+}
+
+async function completionResult(options: { payments: any[]; scholarshipFull?: boolean; fullNameEn?: string | null }) {
+  const ctx = completionTx(options)
+  const result = await completeEnrollmentIfEligibleInTransaction(ctx.tx, { enrollmentId: 'enrollment-1', admissionId: 'admission-1' })
+  return { result, certificate: ctx.certificate() }
 }
 
 beforeEach(() => {
@@ -259,6 +298,42 @@ describe('academic B1 safety', () => {
     expect(eligibility.ok).toBe(true)
     expect(eligibility.score).toBe(86)
     expect(eligibility.missing.some((item) => item.includes('اختبار وحدة'))).toBe(false)
+  })
+
+  test('certificate issuance finance rules match tuition gate cases', async () => {
+    expect((await completionResult({ payments: [] })).result.ok).toBe(true)
+    expect((await completionResult({ payments: [], scholarshipFull: true })).result.ok).toBe(true)
+    expect((await completionResult({ scholarshipFull: true, payments: [{ purpose: 'APPLICATION_FEE', status: 'UNPAID', amount: 30 }] })).result.ok).toBe(true)
+
+    const halfPaid = await completionResult({ payments: [{ purpose: 'TUITION', status: 'PAID', amount: 500, originalAmount: 1000 }] })
+    expect(halfPaid.result.ok).toBe(false)
+    expect(halfPaid.result.code).toBe('PAYMENT_REQUIRED')
+
+    const unpaidSeat = await completionResult({ payments: [
+      { purpose: 'APPLICATION_FEE', status: 'UNPAID', amount: 30 },
+      { purpose: 'TUITION', status: 'PAID', amount: 1000, originalAmount: 1000 },
+    ] })
+    expect(unpaidSeat.result.ok).toBe(false)
+    expect(unpaidSeat.result.code).toBe('PAYMENT_REQUIRED')
+
+    const fullyPaid = await completionResult({ payments: [
+      { purpose: 'APPLICATION_FEE', status: 'PAID', amount: 30 },
+      { purpose: 'TUITION', status: 'PAID', amount: 1000, originalAmount: 1000 },
+    ] })
+    expect(fullyPaid.result.ok).toBe(true)
+  })
+
+  test('certificate English labels and admission English name are used on issuance', async () => {
+    expect(certificateGradeLabelEn(95)).toBe('95% — Excellent')
+    const issued = await completionResult({ payments: [], fullNameEn: 'John Smith' })
+    expect(issued.result.ok).toBe(true)
+    expect(issued.certificate.holderNameEn).toBe('John Smith')
+    expect(issued.certificate.gradeEn).toBe('95% — Excellent')
+  })
+
+  test('English stamp grade falls back from known Arabic grade label', () => {
+    expect(stampValue('grade', { x: 50, y: 50, width: 40, fontSize: 2, lang: 'en' }, { grade: 'امتياز' })).toBe('Excellent')
+    expect(stampValue('grade', { x: 50, y: 50, width: 40, fontSize: 2, lang: 'en' }, { grade: '95% — امتياز' })).toBe('95% — Excellent')
   })
 
   test('certificate verification details expose program exam finalScore instead of raw score', async () => {

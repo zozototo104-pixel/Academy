@@ -1,8 +1,8 @@
 import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
-import { certificateGradeLabel, evaluateProgramCertificateEligibility, type ProgramCertificateEligibility } from '@/lib/certificate-eligibility'
+import { certificateGradeLabel, certificateGradeLabelEn, evaluateProgramCertificateEligibility, type ProgramCertificateEligibility } from '@/lib/certificate-eligibility'
 import { createCertificateQrToken, nextCertificateSerial } from '@/lib/certificate-identity'
-import { inferTotalTuition, roundMoney, tuitionPaidTotal } from '@/lib/tuition-installments'
+import { TUITION_PURPOSES, inferTotalTuition, roundMoney, tuitionPaidTotal } from '@/lib/tuition-installments'
 
 type Tx = Prisma.TransactionClient
 
@@ -12,6 +12,7 @@ type PaymentRow = {
   amount: number
   amountCents?: number | null
   waiverType?: string | null
+  waiverStatus?: string | null
   waivedAmount?: number | null
   waivedAmountCents?: number | null
   originalAmount?: number | null
@@ -55,6 +56,7 @@ function paymentRows(payments: PaymentRow[]) {
     amount: p.amount,
     amountCents: p.amountCents,
     waiverType: p.waiverType,
+    waiverStatus: p.waiverStatus,
     waivedAmount: p.waivedAmount,
     waivedAmountCents: p.waivedAmountCents,
     originalAmount: p.originalAmount,
@@ -62,12 +64,15 @@ function paymentRows(payments: PaymentRow[]) {
   }))
 }
 
-function financialFailure(payments: PaymentRow[], programPrice: number | null | undefined) {
+function financialFailure(payments: PaymentRow[], programPrice: number | null | undefined, scholarshipFull?: boolean | null) {
+  if (scholarshipFull === true) return null
   const rows = paymentRows(payments)
-  const nonTuitionUnpaid = rows.filter((p) => !['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && !isSettled(p.status))
+  const tuitionRows = rows.filter((p) => TUITION_PURPOSES.includes(p.purpose))
+  const nonTuitionUnpaid = rows.filter((p) => !TUITION_PURPOSES.includes(p.purpose) && !isSettled(p.status))
   if (nonTuitionUnpaid.length > 0) {
     return 'لا يمكن إكمال التسجيل أو إصدار الشهادة قبل سداد جميع فواتير الطلب غير الدراسية.'
   }
+  if (tuitionRows.length === 0) return null
   const total = roundMoney(inferTotalTuition(rows, Number(programPrice || 0)))
   const paid = roundMoney(tuitionPaidTotal(rows))
   if (total > 0 && paid < total) {
@@ -78,7 +83,7 @@ function financialFailure(payments: PaymentRow[], programPrice: number | null | 
 
 async function resolveCompletionContext(tx: Tx, input: CompleteEnrollmentInput) {
   const admission = input.admissionId
-    ? await tx.admissionApplication.findUnique({ where: { id: input.admissionId }, select: { id: true, userId: true, programId: true, fullName: true, program: true, country: true, email: true, status: true } })
+    ? await tx.admissionApplication.findUnique({ where: { id: input.admissionId }, select: { id: true, userId: true, programId: true, fullName: true, fullNameEn: true, program: true, country: true, email: true, status: true, scholarshipFull: true } })
     : null
 
   let enrollment = input.enrollmentId
@@ -107,7 +112,7 @@ async function resolveCompletionContext(tx: Tx, input: CompleteEnrollmentInput) 
   const matchedAdmission = admission || await tx.admissionApplication.findFirst({
     where: { userId: enrollment.userId, programId: enrollment.programId },
     orderBy: { createdAt: 'desc' },
-    select: { id: true, userId: true, programId: true, fullName: true, program: true, country: true, email: true, status: true },
+    select: { id: true, userId: true, programId: true, fullName: true, fullNameEn: true, program: true, country: true, email: true, status: true, scholarshipFull: true },
   })
 
   const program = await tx.program.findUnique({
@@ -160,9 +165,9 @@ export async function completeEnrollmentIfEligibleInTransaction(tx: Tx, input: C
         ...(matchedAdmission?.id ? [{ admissionId: matchedAdmission.id }] : []),
       ],
     },
-    select: { purpose: true, status: true, amount: true, amountCents: true, waiverType: true, waivedAmount: true, waivedAmountCents: true, originalAmount: true, originalAmountCents: true },
+    select: { purpose: true, status: true, amount: true, amountCents: true, waiverType: true, waiverStatus: true, waivedAmount: true, waivedAmountCents: true, originalAmount: true, originalAmountCents: true },
   })
-  const financeError = financialFailure(payments, program.price)
+  const financeError = financialFailure(payments, program.price, matchedAdmission?.scholarshipFull)
   if (financeError) {
     return { ok: false, completed: false, certificateIssued: false, status: 'NOT_ELIGIBLE', httpStatus: 422, code: 'PAYMENT_REQUIRED', error: financeError, enrollmentId: enrollment.id, admissionId: matchedAdmission?.id || null }
   }
@@ -185,7 +190,8 @@ export async function completeEnrollmentIfEligibleInTransaction(tx: Tx, input: C
   }
 
   const grade = eligibility.gradeLabel || (typeof eligibility.score === 'number' ? certificateGradeLabel(eligibility.score) : null)
-  const holderNameEn = /^[A-Za-z .'-]+$/.test(holderName) ? holderName : null
+  const holderNameEn = matchedAdmission?.fullNameEn?.trim() || (/^[A-Za-z .'-]+$/.test(holderName) ? holderName : null)
+  const gradeEn = typeof eligibility.score === 'number' ? certificateGradeLabelEn(eligibility.score) : null
   const certificate = existing || await createProgramCompletionCertificate(tx, {
     qrToken: createCertificateQrToken(),
     type: 'PROGRAM_COMPLETION',
@@ -194,7 +200,7 @@ export async function completeEnrollmentIfEligibleInTransaction(tx: Tx, input: C
     program: programTitle,
     programEn: program.titleEn || null,
     grade,
-    gradeEn: grade && /^[A-Za-z .'-]+$/.test(grade) ? grade : null,
+    gradeEn,
     country: (input.country || matchedAdmission?.country || '').trim() || null,
     userId: enrollment.userId,
     enrollmentId: enrollment.id,

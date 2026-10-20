@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { calculateFinalGrade, type FinalGradeResult } from '@/lib/final-grade'
-import { inferTotalTuition, roundMoney, tuitionPaidTotal } from '@/lib/tuition-installments'
+import { TUITION_PURPOSES, inferTotalTuition, roundMoney, tuitionPaidTotal } from '@/lib/tuition-installments'
 
 export type CertificateEligibilityDbClient = typeof db | Prisma.TransactionClient
 
@@ -34,6 +34,15 @@ export function certificateGradeLabel(score: number) {
   return `${p}% — غير مجتاز`
 }
 
+export function certificateGradeLabelEn(score: number) {
+  const p = percent(score)
+  if (score >= 90) return `${p}% — Excellent`
+  if (score >= 80) return `${p}% — Very Good`
+  if (score >= 70) return `${p}% — Good`
+  if (score >= CERTIFICATE_PASS_SCORE) return `${p}% — Pass`
+  return `${p}% — Not Passed`
+}
+
 function missingError(missing: string[]) {
   return `لا يمكن إصدار شهادة البرنامج قبل اكتمال عناصر الدرجة النهائية: ${missing.length ? missing.join('، ') : 'عناصر التقييم غير مكتملة'}.`
 }
@@ -48,9 +57,12 @@ function isSettledPayment(status: string) {
   return status === 'PAID' || status === 'WAIVED'
 }
 
-function paymentEligibilityError(payments: Array<{ purpose: string; status: string; amount: number; amountCents?: number | null; waiverType?: string | null; waivedAmount?: number | null; waivedAmountCents?: number | null; originalAmount?: number | null; originalAmountCents?: number | null }>, programPrice?: number | null) {
-  const nonTuitionUnpaid = payments.filter((p) => !['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && !isSettledPayment(p.status))
+function paymentEligibilityError(payments: Array<{ purpose: string; status: string; amount: number; amountCents?: number | null; waiverType?: string | null; waiverStatus?: string | null; waivedAmount?: number | null; waivedAmountCents?: number | null; originalAmount?: number | null; originalAmountCents?: number | null }>, programPrice?: number | null, scholarshipFull?: boolean | null) {
+  if (scholarshipFull === true) return null
+  const tuitionRows = payments.filter((p) => TUITION_PURPOSES.includes(p.purpose))
+  const nonTuitionUnpaid = payments.filter((p) => !TUITION_PURPOSES.includes(p.purpose) && !isSettledPayment(p.status))
   if (nonTuitionUnpaid.length) return 'لا يمكن إصدار الشهادة قبل سداد جميع فواتير الطلب غير الدراسية.'
+  if (tuitionRows.length === 0) return null
   const total = roundMoney(inferTotalTuition(payments, Number(programPrice || 0)))
   const paid = roundMoney(tuitionPaidTotal(payments))
   if (total > 0 && paid < total) return `لا يمكن إصدار الشهادة قبل استكمال الرسوم الدراسية. المسدد ${paid}$ من ${total}$.`
@@ -117,6 +129,9 @@ export async function evaluateProgramCertificateEligibility(input: {
     where: { userId_programId: { userId: resolvedUserId, programId: resolvedProgramId } },
     select: { id: true },
   })
+  const admission = admissionId
+    ? await client.admissionApplication.findUnique({ where: { id: admissionId }, select: { scholarshipFull: true } })
+    : await client.admissionApplication.findFirst({ where: { userId: resolvedUserId, programId: resolvedProgramId }, orderBy: { createdAt: 'desc' }, select: { scholarshipFull: true } })
   const paymentFilters = [
     ...(enrollment?.id ? [{ enrollmentId: enrollment.id }] : []),
     ...(admissionId ? [{ admissionId }] : []),
@@ -124,10 +139,10 @@ export async function evaluateProgramCertificateEligibility(input: {
   const payments = paymentFilters.length
     ? await client.payment.findMany({
         where: { OR: paymentFilters },
-        select: { purpose: true, status: true, amount: true, amountCents: true, waiverType: true, waivedAmount: true, waivedAmountCents: true, originalAmount: true, originalAmountCents: true },
+        select: { purpose: true, status: true, amount: true, amountCents: true, waiverType: true, waiverStatus: true, waivedAmount: true, waivedAmountCents: true, originalAmount: true, originalAmountCents: true },
       })
     : []
-  const financeError = paymentEligibilityError(payments, program?.price)
+  const financeError = paymentEligibilityError(payments, program?.price, admission?.scholarshipFull)
   if (financeError) {
     return {
       ok: false,
