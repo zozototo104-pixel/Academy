@@ -60,6 +60,8 @@ function alborihiModelsBody(rows = [
 beforeEach(() => {
   values.clear()
   globalThis.fetch = originalFetch
+  delete process.env.ALBORIHI_API_KEYS
+  delete process.env.ALBORIHI_API_KEY
   textAi.__resetTextAiStateForTests()
   textAi.__setTextAiSettingStoreForTests(store)
 })
@@ -67,6 +69,10 @@ beforeEach(() => {
 afterAll(() => {
   globalThis.fetch = originalFetch
   textAi.__setTextAiSettingStoreForTests(null)
+  if (originalAlborihiApiKeys === undefined) delete process.env.ALBORIHI_API_KEYS
+  else process.env.ALBORIHI_API_KEYS = originalAlborihiApiKeys
+  if (originalAlborihiApiKey === undefined) delete process.env.ALBORIHI_API_KEY
+  else process.env.ALBORIHI_API_KEY = originalAlborihiApiKey
 })
 
 describe('ALBORIHI text provider', () => {
