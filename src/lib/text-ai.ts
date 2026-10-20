@@ -2211,7 +2211,7 @@ async function callAnthropic(key: string, model: string, opts: TextAiCallOpts): 
     body: JSON.stringify({ model, system: promptWithJsonInstruction(opts), messages, max_tokens: opts.maxOutputTokens ?? (opts.json ? 4096 : 2048) }),
   }, providerAttemptTimeoutMs(opts), opts.deadlineMs)
   const data = await parseResponse(response)
-  if (!response.ok) throwHttp('Anthropic', response.status, data)
+  if (!response.ok) throwHttp('Anthropic', response.status, data, response)
   const text = (data?.content || []).map((p: any) => p?.text || '').join('\n').trim()
   if (!text) throw new Error('ANTHROPIC_EMPTY_RESPONSE')
   return text
