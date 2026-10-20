@@ -670,7 +670,7 @@ export default function AdminLegacyGraduatesTab() {
                     ارفع صورة للشهادة لعرضها هنا مباشرة، أو استخدم هذه المساحة لضبط الموضع ثم اضغط معاينة عند رفع PDF.
                   </div>
                 )}
-                {(['qr', 'serial'] as StampField[]).map((field) => (
+                {(Object.keys(LEGACY_STAMP_LABELS) as StampField[]).filter((field) => stampLayout[field]?.visible !== false).map((field) => (
                   <button
                     key={field}
                     type="button"
