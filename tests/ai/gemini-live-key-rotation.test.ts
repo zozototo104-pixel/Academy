@@ -151,8 +151,8 @@ describe('Gemini Live raw setup shape', () => {
     }) as any
 
     const catalog = await textAi.textAiFreeModelsForProvider('ALBORIHI')
-    expect(catalog.models).toEqual(['claude-sonnet-5', 'gpt-5.6-luna'])
-    expect(catalog.discoveredCount).toBe(2)
+    expect(catalog.models).toEqual(['claude-sonnet-5', 'gpt-5.6-luna', 'small-context-chat'])
+    expect(catalog.discoveredCount).toBe(3)
     expect(catalog.message).toContain('مسموح')
   })
 
