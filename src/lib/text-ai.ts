@@ -1511,15 +1511,17 @@ async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel
   const discoveredFree = await liveFreeModels(provider, s)
   const nvidiaCompat = provider === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl)
   const nvidiaDiscovered = nvidiaCompat && nvidiaDiscoverySucceeded(s)
+  const alborihiDiscovered = provider === 'ALBORIHI' && freeModelDiscoveryEntry(provider, s)?.discoveryOk === true && discoveredFree.length > 0
+  const strictDiscovered = nvidiaDiscovered || alborihiDiscovered
   const discoveredSet = new Set(discoveredFree.map((model) => model.toLowerCase()))
   const selectedIsAuto = /(^|\/|-)auto$/i.test(selected) || selected === 'auto'
-  const selectedPart = selected && !selectedIsAuto && (!nvidiaDiscovered || discoveredSet.has(selected.toLowerCase())) ? [selected] : []
+  const selectedPart = selected && !selectedIsAuto && (!strictDiscovered || discoveredSet.has(selected.toLowerCase())) ? [selected] : []
   const academicPreferred = (taskLevel === 'GENERAL' ? [] : s.academicAllowlist.filter((item) => item.provider === provider).map((item) => item.model))
-    .filter((model) => !nvidiaDiscovered || discoveredSet.has(model.toLowerCase()))
+    .filter((model) => !strictDiscovered || discoveredSet.has(model.toLowerCase()))
   const discoveredOrFallback = nvidiaCompat ? nvidiaModelsAfterDiscovery(discoveredFree, staticDefaults, nvidiaDiscovered) : (discoveredFree.length ? discoveredFree : staticDefaults)
   const models = [...new Set([...academicPreferred, ...selectedPart, ...discoveredOrFallback].filter(Boolean))]
     .filter((model) => !nvidiaCompat || NVIDIA_OPENAI_COMPAT_CALLABLE_MODEL_IDS.has(model.toLowerCase()))
-    .filter((model) => !nvidiaDiscovered || discoveredSet.has(model.toLowerCase()))
+    .filter((model) => !strictDiscovered || discoveredSet.has(model.toLowerCase()))
     .filter(modelCapabilityAllowed)
     .filter((model) => modelAllowedForPurpose(model, purpose, modelCapabilitiesFor(provider, s, model)))
   const allowed = taskLevel === 'GENERAL' ? models : models.filter((model) => academicModelAllowed(provider, model))
