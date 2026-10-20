@@ -156,8 +156,11 @@ export async function PATCH(req: NextRequest) {
     const data: Prisma.CertificateUncheckedUpdateInput = {}
     const holderName = cleanOptional(body.holderName || body.name)
     if (holderName) data.holderName = holderName
+    if (hasOwn(body, 'holderNameEn') || hasOwn(body, 'nameEn')) data.holderNameEn = cleanEnglishName(body.holderNameEn || body.nameEn)
     if (hasOwn(body, 'program')) data.program = cleanString(body.program)
+    if (hasOwn(body, 'programEn')) data.programEn = cleanOptional(body.programEn)
     if (hasOwn(body, 'grade')) data.grade = cleanOptional(body.grade)
+    if (hasOwn(body, 'gradeEn')) data.gradeEn = cleanOptional(body.gradeEn)
     if (hasOwn(body, 'country')) data.country = cleanOptional(body.country)
     if (hasOwn(body, 'issuedAt')) {
       const issuedAt = parseIssuedAt(body.issuedAt)
