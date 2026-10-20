@@ -1529,6 +1529,27 @@ export function AdminCertificatesTab() {
     }
   }
 
+  const editCertificateEnglishFields = async (certificate: CertificateData) => {
+    const id = certificate.id
+    if (!id) return toast({ title: 'تعذر التعديل', description: 'معرّف الشهادة غير متوفر.', variant: 'destructive' })
+    const holderNameEn = window.prompt('الاسم بالإنجليزي', certificate.holderNameEn || '')
+    if (holderNameEn === null) return
+    const programEn = window.prompt('البرنامج بالإنجليزي', certificate.programEn || '')
+    if (programEn === null) return
+    const gradeEn = window.prompt('التقدير بالإنجليزي', certificate.gradeEn || '')
+    if (gradeEn === null) return
+    setBusy(true)
+    try {
+      await api('/api/admin/certificates', { method: 'PATCH', body: JSON.stringify({ action: 'update', id, holderNameEn, programEn, gradeEn }) })
+      toast({ title: 'تم حفظ الحقول الإنجليزية', description: certificate.serial })
+      load()
+    } catch (e: any) {
+      toast({ title: 'تعذر حفظ الحقول الإنجليزية', description: e.message, variant: 'destructive' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const revokeCertificate = async (certificate: CertificateData) => {
     const id = certificate.id
     if (!id) {
