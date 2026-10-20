@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { validateLiteralEvidence } from './evidence-validator'
 import { applyOcrDerivedFlags, type TextProvenance } from './text-provenance'
-import { modelFamily, textAiCompleteJson, type TextAiProvider } from './text-ai'
+import { modelFamily, resolvedTextAiModelFamily, textAiCompleteJson, type TextAiProvider } from './text-ai'
 
 export type QuestionVerifierResult = {
   index: number
@@ -38,12 +38,15 @@ export type VerificationSource = { text: string; textProvenance?: TextProvenance
 export const QUESTION_VERIFIER_TIME_BUDGET_MS = 90_000
 
 export function __testVerifierExcludedProviders(generatorProvider: TextAiProvider): TextAiProvider[] {
+  // Preserve verifier-mode diagnostics; the router selectively permits Alborihi cross-family review.
   return [generatorProvider]
 }
 
 export function __testVerifierPreferredProvidersForTests(generatorProvider?: TextAiProvider | null): TextAiProvider[] {
   const preferred: TextAiProvider[] = ['GROQ', 'GEMINI', 'UNOROUTER']
-  return preferred.filter((provider) => provider !== generatorProvider)
+  return generatorProvider === 'ALBORIHI'
+    ? ['ALBORIHI', ...preferred]
+    : preferred.filter((provider) => provider !== generatorProvider)
 }
 
 const verifierItemSchema = z.object({
@@ -239,9 +242,10 @@ function familyAliases(family: string): string[] {
   return aliases[family] || [family]
 }
 
-function verifierFamilyAllowed(context: { provider?: string; model?: string }, generatorProvider: string, generatorFamily: string): { ok: true } | { ok: false; reason: string } {
+function verifierFamilyAllowed(context: { provider?: string; model?: string; family?: string }, generatorProvider: string, generatorFamily: string): { ok: true } | { ok: false; reason: string } {
   if (!context.model) return { ok: false, reason: 'VERIFIER_MODEL_UNKNOWN' }
-  const verifierFamily = modelFamily(context.model)
+  const declaredFamily = context.provider === 'ALBORIHI' ? modelFamily(context.family || '') : 'unknown'
+  const verifierFamily = declaredFamily !== 'unknown' ? declaredFamily : modelFamily(context.model)
   if (verifierFamily === generatorFamily) return { ok: false, reason: 'VERIFIER_SAME_FAMILY' }
   if (verifierFamily !== 'unknown') return { ok: true }
   if (!context.provider || context.provider === generatorProvider) return { ok: false, reason: 'VERIFIER_SAME_FAMILY_OR_UNKNOWN' }
@@ -249,6 +253,8 @@ function verifierFamilyAllowed(context: { provider?: string; model?: string }, g
   if (familyAliases(generatorFamily).some((alias) => lower.includes(alias))) return { ok: false, reason: 'VERIFIER_SAME_FAMILY' }
   return { ok: true }
 }
+
+export const __testVerifierFamilyAllowedForTests = verifierFamilyAllowed
 
 export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuestion>(opts: {
   questions: readonly T[]
@@ -266,7 +272,10 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
   if (!String(opts.generatorModel || '').trim()) {
     return output.map((question) => applyPending(question, 'GENERATOR_MODEL_UNKNOWN')) as T[]
   }
-  const generatorFamily = modelFamily(opts.generatorModel || '')
+  const alborihiGenerator = String(opts.generatorProvider).trim().toUpperCase() === 'ALBORIHI'
+  const generatorFamily = alborihiGenerator
+    ? await resolvedTextAiModelFamily('ALBORIHI', opts.generatorModel || '')
+    : modelFamily(opts.generatorModel || '')
   if (generatorFamily === 'unknown') {
     return output.map((question) => applyPending(question, 'GENERATOR_FAMILY_UNKNOWN')) as T[]
   }
@@ -302,7 +311,7 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
     })
     if (!prepared.length) continue
 
-    let verifierContext: { provider?: string; model?: string } = {}
+    let verifierContext: { provider?: string; model?: string; family?: string } = {}
     let parsed: { results: QuestionVerifierResult[] } | null = null
     try {
       const raw = await textAiCompleteJson({
@@ -312,13 +321,20 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
         maxOutputTokens: 3000,
         taskLevel: 'ACADEMIC_CRITICAL',
         purpose: 'REVIEW',
-        preferredProviders: __testVerifierPreferredProvidersForTests(opts.generatorProvider as TextAiProvider),
+        preferredProviders: __testVerifierPreferredProvidersForTests(alborihiGenerator ? 'ALBORIHI' : opts.generatorProvider as TextAiProvider),
         excludeProviders,
         excludeModelFamilies,
+        allowAlborihiCrossFamilyVerifier: alborihiGenerator,
         maxProviderModels: { UNOROUTER: 3 },
         providerRateLimitCooldown: { provider: 'UNOROUTER', threshold: 3, windowMs: 60_000, cooldownMinutes: 10 },
         deadlineMs: deadline,
         validate: (text, context) => {
+          // A same-provider Alborihi verifier must have a known, different family.
+          // Reject an unsuitable response inside the router so it can try another model/provider.
+          if (alborihiGenerator && context?.provider === 'ALBORIHI') {
+            const familyCheck = verifierFamilyAllowed(context, 'ALBORIHI', generatorFamily)
+            if (!familyCheck.ok) validationRejected(familyCheck.reason)
+          }
           verifierContext = context || {}
           assertVerifierCoverage(text, prepared.map((item) => item.index))
         },
