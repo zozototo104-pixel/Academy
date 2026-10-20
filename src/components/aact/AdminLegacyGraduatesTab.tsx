@@ -564,20 +564,93 @@ export default function AdminLegacyGraduatesTab() {
       </Dialog>
 
       <Dialog open={!!uploadFor} onOpenChange={(open) => { if (!open) setUploadFor(null) }}>
-        <DialogContent className="max-w-2xl" dir="rtl">
+        <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto" dir="rtl">
           <DialogHeader>
-            <DialogTitle>رفع شهادة جاهزة وختم QR</DialogTitle>
+            <DialogTitle>رفع شهادة جاهزة وختم QR والرقم</DialogTitle>
             <DialogDescription>{uploadFor ? `${uploadFor.holderName} — ${uploadFor.serial}` : ''}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <Input type="file" accept="application/pdf,image/png,image/jpeg" onChange={(e) => setUploadFile(e.target.files?.[0] || null)} />
-            <div className="grid gap-3 md:grid-cols-2">
-              <div><Label>مكان QR</Label><Select value={qrPosition} onValueChange={setQrPosition}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="BOTTOM_LEFT">أسفل يسار</SelectItem><SelectItem value="BOTTOM_RIGHT">أسفل يمين</SelectItem><SelectItem value="TOP_LEFT">أعلى يسار</SelectItem><SelectItem value="TOP_RIGHT">أعلى يمين</SelectItem></SelectContent></Select></div>
-              <div><Label>حجم QR</Label><Select value={qrSize} onValueChange={setQrSize}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="S">صغير</SelectItem><SelectItem value="M">متوسط</SelectItem><SelectItem value="L">كبير</SelectItem></SelectContent></Select></div>
+            <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
+              <div className="space-y-3">
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-[11px] font-bold leading-5 text-emerald-900">
+                  الشهادة الأصلية لا يُعاد رسمها. يتم فقط إضافة QR والرقم التسلسلي فوق الملف كما رفعته.
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-black text-slate-600">العنصر المحدد</Label>
+                  <Select value={selectedStampField} onValueChange={(v) => setSelectedStampField(v as StampField)}>
+                    <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="qr">رمز QR</SelectItem>
+                      <SelectItem value="serial">الرقم التسلسلي</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-[11px] font-bold leading-5 text-amber-900">
+                  اسحب QR أو الرقم لتحريكه، واسحب المقبض الذهبي الصغير لتكبيره أو تصغيره. بعدها اضغط معاينة للتأكد من موضعه على PDF النهائي.
+                </div>
+              </div>
+              <div
+                ref={stampCanvasRef}
+                className={`relative overflow-hidden rounded-2xl border border-[#0f2b46]/10 bg-white shadow-inner ${uploadPreviewUrl ? '' : 'aspect-[1.414/1]'}`}
+                onPointerMove={(e) => {
+                  if (stampResizeRef.current) {
+                    resizeStampField(e.clientX, e.clientY)
+                    return
+                  }
+                  if (e.buttons !== 1) return
+                  moveStampField(stampDragRef.current || selectedStampField, e.clientX, e.clientY)
+                }}
+                onPointerDown={(e) => {
+                  stampDragRef.current = selectedStampField
+                  moveStampField(selectedStampField, e.clientX, e.clientY)
+                }}
+                onPointerUp={() => { stampDragRef.current = null; stampResizeRef.current = null }}
+                onPointerLeave={() => { stampDragRef.current = null; stampResizeRef.current = null }}
+              >
+                {uploadPreviewUrl ? (
+                  <img src={uploadPreviewUrl} alt="معاينة الشهادة المرفوعة" className="block h-auto w-full select-none" draggable={false} />
+                ) : (
+                  <div className="flex h-full min-h-[260px] items-center justify-center bg-slate-50 p-6 text-center text-xs font-bold leading-6 text-slate-500">
+                    ارفع صورة للشهادة لعرضها هنا مباشرة، أو استخدم هذه المساحة لضبط الموضع ثم اضغط معاينة عند رفع PDF.
+                  </div>
+                )}
+                {(['qr', 'serial'] as StampField[]).map((field) => (
+                  <button
+                    key={field}
+                    type="button"
+                    onPointerDown={(e) => {
+                      e.stopPropagation()
+                      stampDragRef.current = field
+                      setSelectedStampField(field)
+                      moveStampField(field, e.clientX, e.clientY)
+                    }}
+                    style={stampFieldStyle(field)}
+                    className="select-none touch-none"
+                  >
+                    {field === 'qr' ? 'QR' : uploadFor?.serial || 'AACT-C-2026-00001'}
+                    <span
+                      aria-hidden="true"
+                      className="absolute -bottom-2 -left-2 h-5 w-5 cursor-nwse-resize rounded-full border-2 border-white bg-[#c9a227] shadow"
+                      onPointerDown={(e) => {
+                        e.stopPropagation()
+                        setSelectedStampField(field)
+                        stampResizeRef.current = {
+                          field,
+                          startX: e.clientX,
+                          startY: e.clientY,
+                          startSize: stampLayout.qr.size,
+                          startWidth: stampLayout.serial.width,
+                          startFontSize: stampLayout.serial.fontSize,
+                        }
+                      }}
+                    />
+                  </button>
+                ))}
+              </div>
             </div>
-            <Textarea readOnly value="تغيير مكان أو حجم QR يعيد الختم من الملف الأصلي عند عدم رفع ملف جديد." />
           </div>
-          <DialogFooter className="gap-2"><Button variant="outline" onClick={() => stampUpload(true)} disabled={busy === 'preview'}>معاينة</Button><Button onClick={() => stampUpload(false)} disabled={busy === 'upload'}>{busy === 'upload' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'حفظ المختوم'}</Button></DialogFooter>
+          <DialogFooter className="gap-2"><Button variant="outline" onClick={() => stampUpload(true)} disabled={busy === 'preview'}>{busy === 'preview' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'معاينة'}</Button><Button onClick={() => stampUpload(false)} disabled={busy === 'upload'}>{busy === 'upload' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'حفظ المختوم'}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
