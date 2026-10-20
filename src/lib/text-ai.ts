@@ -2763,7 +2763,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
         try {
           const providerResult = await callProviderWithJsonRepair(provider, s, key, model, effectiveOpts)
           const text = providerResult.text
-          effectiveOpts.validate?.(text, { provider, model })
+          effectiveOpts.validate?.(text, { provider, model, ...(provider === 'ALBORIHI' && allowAlborihiCrossFamilyVerifier ? { family: alborihiModelFamily(s, model) } : {}) })
           const at = new Date().toISOString()
           const ms = Date.now() - started
           await recordModelStats(provider, model, { ok: true, ms, jsonOk: providerResult.jsonOk, evidenceOk: true }, effectiveOpts.purpose)
