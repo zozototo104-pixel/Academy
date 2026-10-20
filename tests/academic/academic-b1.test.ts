@@ -203,6 +203,44 @@ async function body(response: Response) {
   return response.json() as Promise<any>
 }
 
+function completionTx(options: { payments: any[]; scholarshipFull?: boolean; fullNameEn?: string | null }) {
+  let createdCertificate: any = null
+  const tx: any = {
+    $queryRaw: async () => [{ value: 1 }],
+    admissionApplication: {
+      findUnique: async () => ({ id: 'admission-1', userId: 'user-1', programId: 'program-1', fullName: 'طالب عربي', fullNameEn: options.fullNameEn || null, program: 'برنامج عربي للاختبار', country: 'فلسطين', email: 'student@example.test', status: 'RESULT_APPROVED', scholarshipFull: options.scholarshipFull === true }),
+      findFirst: async () => ({ id: 'admission-1', userId: 'user-1', programId: 'program-1', fullName: 'طالب عربي', fullNameEn: options.fullNameEn || null, program: 'برنامج عربي للاختبار', country: 'فلسطين', email: 'student@example.test', status: 'RESULT_APPROVED', scholarshipFull: options.scholarshipFull === true }),
+      update: async ({ data }: any) => ({ id: 'admission-1', ...data }),
+    },
+    enrollment: {
+      findUnique: async () => ({ id: 'enrollment-1', userId: 'user-1', programId: 'program-1', status: 'ACTIVE', certificateNo: null }),
+      update: async ({ data }: any) => ({ id: 'enrollment-1', ...data }),
+    },
+    program: {
+      findUnique: async () => ({ id: 'program-1', titleAr: 'برنامج عربي للاختبار', titleEn: 'Arabic Test Program', price: 1000, category: 'DIPLOMA' }),
+    },
+    payment: { findMany: async () => options.payments },
+    certificate: {
+      findFirst: async () => null,
+      create: async ({ data }: any) => { createdCertificate = { id: 'cert-new', ...data }; return createdCertificate },
+    },
+    exam: { findMany: async () => [{ id: 'unit-empty', title: 'اختبار فارغ', passScore: 51, unit: { title: 'وحدة' }, _count: { questions: 0 } }] },
+    examAttempt: { findMany: async () => [] },
+    programExam: { findMany: async () => [{ id: 'program-exam-1', title: 'اختبار نهائي', semester: 1, passScore: 51 }] },
+    programExamAttempt: { findMany: async () => [{ score: 95, finalScore: 95, appealStatus: 'REVIEWED', passed: true, answers: [{ points: 95, maxPoints: 100 }] }] },
+    programAssignment: { findMany: async () => [{ id: 'assignment-1', title: 'واجب', points: 100 }] },
+    assignmentSubmission: { findUnique: async () => ({ status: 'GRADED', score: 95 }) },
+    thesisSubmission: { findFirst: async () => null },
+  }
+  return { tx, certificate: () => createdCertificate }
+}
+
+async function completionResult(options: { payments: any[]; scholarshipFull?: boolean; fullNameEn?: string | null }) {
+  const ctx = completionTx(options)
+  const result = await completeEnrollmentIfEligibleInTransaction(ctx.tx, { enrollmentId: 'enrollment-1', admissionId: 'admission-1' })
+  return { result, certificate: ctx.certificate() }
+}
+
 beforeEach(() => {
   calls.splice(0, calls.length)
   answers.splice(0, answers.length)
