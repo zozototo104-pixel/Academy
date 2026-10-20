@@ -570,6 +570,14 @@ function providerAttemptTimeoutMs(opts: TextAiCallOpts): number {
   return opts.purpose === 'VISION' || hasVisionAttachments(opts) ? VISION_ATTEMPT_TIMEOUT_MS : aiProviderTimeoutMs(opts.taskLevel || 'GENERAL')
 }
 
+function providerRequestTimeoutMs(provider: string, opts: TextAiCallOpts): number {
+  const base = providerAttemptTimeoutMs(opts)
+  if (provider !== 'ALBORIHI') return base
+  const configured = Number(env('ALBORIHI_PROVIDER_TIMEOUT_MS'))
+  const alborihi = Number.isFinite(configured) && configured >= 3000 ? Math.floor(configured) : 120_000
+  return Math.max(base, Math.min(alborihi, 180_000))
+}
+
 function aiDiscoveryTimeoutMs(): number {
   const configured = Number(env('AI_DISCOVERY_TIMEOUT_MS'))
   if (Number.isFinite(configured) && configured >= 1500) return Math.min(Math.floor(configured), 15000)
