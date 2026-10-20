@@ -75,6 +75,13 @@ describe('question verifier preferred routing', () => {
     expect(__testVerifierFamilyAllowedForTests({ provider: 'ALBORIHI', model: 'unknown-experimental-model' }, 'ALBORIHI', generatorFamily)).toEqual({ ok: false, reason: 'VERIFIER_SAME_FAMILY_OR_UNKNOWN' })
   })
 
+  test('Alborihi uses recognizable catalog family metadata before the model-name heuristic', () => {
+    expect(__testResolvedAlborihiFamilyForTests('model-without-recognizable-name', 'claude')).toBe('claude')
+    expect(__testResolvedAlborihiFamilyForTests('gpt-5.6-luna', 'claude')).toBe('claude')
+    expect(__testResolvedAlborihiFamilyForTests('unknown-experimental-model', 'unknown')).toBe('unknown')
+    expect(__testVerifierFamilyAllowedForTests({ provider: 'ALBORIHI', model: 'gpt-5.6-luna', family: 'claude' }, 'ALBORIHI', 'claude')).toEqual({ ok: false, reason: 'VERIFIER_SAME_FAMILY' })
+  })
+
   test('Alborihi can fall back to a different provider with a different known model family', () => {
     expect(__testVerifierFamilyAllowedForTests({ provider: 'GROQ', model: 'llama-3.3-70b-versatile' }, 'ALBORIHI', modelFamily('claude-sonnet-5'))).toEqual({ ok: true })
   })
