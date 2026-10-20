@@ -408,6 +408,7 @@ export async function POST(req: NextRequest) {
         data: {
           reference,
           fullName: fullName.trim(),
+          fullNameEn: normalizedFullNameEn || null,
           email: submittedEmail,
           phone: normalizePhone(phone),
           country: country.trim(),
