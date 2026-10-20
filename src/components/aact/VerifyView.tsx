@@ -197,6 +197,7 @@ export function VerifyView() {
                   <div>
                     <span className="font-bold text-slate-400">صاحب الشهادة: </span>
                     <span className="font-black text-[#0f2b46]">{result.certificate.holderName}</span>
+                    {result.certificate.holderNameEn ? <span className="mr-2 font-bold text-slate-500" dir="ltr">/ {result.certificate.holderNameEn}</span> : null}
                   </div>
                   <div>
                     <span className="font-bold text-slate-400">الرقم التسلسلي: </span>
