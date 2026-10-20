@@ -111,11 +111,14 @@ export async function POST(req: NextRequest) {
       try {
         const saved = await createLegacyGraduate({
           name: row.name,
+          nameEn: row.nameEn,
           email: row.email,
           phone: row.phone,
           country: row.country,
           programId: row.programId,
+          programEn: row.programEn,
           grade: row.grade,
+          gradeEn: row.gradeEn,
           finalScore: row.finalScore,
           issuedAt: row.issuedAt,
           legacySerial: row.legacySerial,
