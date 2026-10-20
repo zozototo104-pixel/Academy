@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import QRCode from 'qrcode'
 import { db } from '@/lib/db'
-import { buildCertificateCredential, certificateCredentialUrl, certificateVerificationUrl, verifyCertificateCredential } from '@/lib/w3c/certificate-credential'
+import { buildCertificateCredential, certificateVerificationUrl, verifyCertificateCredential } from '@/lib/w3c/certificate-credential'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -60,9 +60,8 @@ export default async function CertificateVerifyPage({ params }: PageProps) {
   }
 
   const credential = buildCertificateCredential(cert)
-  const credentialUrl = certificateCredentialUrl(cert)
   const verificationUrl = certificateVerificationUrl(cert)
-  const qr = await QRCode.toDataURL(credentialUrl, { width: 180, margin: 1 }).catch(() => '')
+  const qr = await QRCode.toDataURL(verificationUrl, { width: 180, margin: 1 }).catch(() => '')
   const proofOk = verifyCertificateCredential(credential)
 
   return (
@@ -93,7 +92,6 @@ export default async function CertificateVerifyPage({ params }: PageProps) {
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-sm font-black text-[#0f2b46]">روابط التحقق</p>
               <div className="mt-3 space-y-2 text-xs font-bold">
-                <a className="block rounded-lg bg-white p-3 text-[#0f2b46] ring-1 ring-slate-200" href={credentialUrl} target="_blank" rel="noreferrer" dir="ltr">{credentialUrl}</a>
                 <a className="block rounded-lg bg-white p-3 text-[#0f2b46] ring-1 ring-slate-200" href={verificationUrl} dir="ltr">{verificationUrl}</a>
               </div>
             </div>
@@ -101,7 +99,7 @@ export default async function CertificateVerifyPage({ params }: PageProps) {
 
           <aside className="rounded-3xl border border-[#c9a227]/30 bg-[#fffaf0] p-5 text-center">
             {qr ? <img src={qr} alt="QR JSON-LD" className="mx-auto h-44 w-44 rounded-xl bg-white p-2 ring-1 ring-[#c9a227]/30" /> : null}
-            <p className="mt-3 text-xs font-black text-[#0f2b46]">QR إلى ملف JSON القابل للتحقق</p>
+            <p className="mt-3 text-xs font-black text-[#0f2b46]">QR إلى صفحة التحقق الرسمية</p>
             <p className="mt-2 font-mono text-[11px] font-bold text-slate-500" dir="ltr">{cert.qrToken}</p>
             <a href={`/api/pdf/certificates/${encodeURIComponent(cert.qrToken)}`} className="mt-4 inline-flex w-full justify-center rounded-xl border border-[#c9a227] bg-white px-4 py-2 text-xs font-black text-[#a8841a]">PDF الشهادة</a>
           </aside>

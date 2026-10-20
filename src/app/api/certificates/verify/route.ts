@@ -227,51 +227,69 @@ async function buildCertificateAcademicProfile(cert: { program: string }) {
   })
 }
 
-async function resolveCertificateOwnerContact(cert: { userId?: string | null; admissionId?: string | null; enrollmentId?: string | null; agentId?: string | null }) {
+async function resolveCertificateOwnerContact(cert: { userId?: string | null; admissionId?: string | null; enrollmentId?: string | null; agentId?: string | null; program?: string | null }) {
   const contacts: Array<{ email?: string | null; phone?: string | null }> = []
+  const relatedUserIds = new Set<string>()
+
+  const pushContact = (contact?: { email?: string | null; phone?: string | null } | null) => {
+    if (contact) contacts.push({ email: contact.email, phone: contact.phone })
+  }
+  const pushAdmission = (admission?: { email?: string | null; phone?: string | null; userId?: string | null; user?: { email?: string | null; phone?: string | null } | null } | null) => {
+    if (!admission) return
+    pushContact({ email: admission.email, phone: admission.phone })
+    pushContact(admission.user)
+    if (admission.userId) relatedUserIds.add(admission.userId)
+  }
 
   if (cert.admissionId) {
     const admission = await db.admissionApplication.findUnique({
       where: { id: cert.admissionId },
-      select: { email: true, phone: true, user: { select: { email: true, phone: true } } },
+      select: { email: true, phone: true, userId: true, user: { select: { email: true, phone: true } } },
     }).catch(() => null)
-    if (admission) {
-      contacts.push({ email: admission.email, phone: admission.phone })
-      contacts.push({ email: admission.user?.email, phone: admission.user?.phone })
-    }
+    pushAdmission(admission)
   }
 
   if (cert.enrollmentId) {
     const enrollment = await db.enrollment.findUnique({
       where: { id: cert.enrollmentId },
-      select: { user: { select: { email: true, phone: true } } },
+      select: { userId: true, user: { select: { email: true, phone: true } } },
     }).catch(() => null)
-    if (enrollment?.user) contacts.push(enrollment.user)
+    if (enrollment?.userId) relatedUserIds.add(enrollment.userId)
+    pushContact(enrollment?.user)
   }
 
   if (cert.userId) {
+    relatedUserIds.add(cert.userId)
     const user = await db.user.findUnique({
       where: { id: cert.userId },
       select: { email: true, phone: true },
     }).catch(() => null)
-    if (user) contacts.push(user)
+    pushContact(user)
   }
 
   if (cert.agentId) {
     const agent = await db.agentApplication.findUnique({
       where: { id: cert.agentId },
-      select: { email: true, phone: true, user: { select: { email: true, phone: true } } },
+      select: { email: true, phone: true, userId: true, user: { select: { email: true, phone: true } } },
     }).catch(() => null)
-    if (agent) {
-      contacts.push({ email: agent.email, phone: agent.phone })
-      contacts.push({ email: agent.user?.email, phone: agent.user?.phone })
-    }
+    pushContact({ email: agent?.email, phone: agent?.phone })
+    pushContact(agent?.user)
+    if (agent?.userId) relatedUserIds.add(agent.userId)
+  }
+
+  const admissionStore = (db as any).admissionApplication
+  if (relatedUserIds.size > 0 && typeof admissionStore?.findMany === 'function') {
+    const linkedAdmissions = await admissionStore.findMany({
+      where: { userId: { in: Array.from(relatedUserIds) } },
+      select: { email: true, phone: true, userId: true, user: { select: { email: true, phone: true } } },
+    }).catch(() => [])
+    for (const admission of linkedAdmissions) pushAdmission(admission)
   }
 
   return contacts.filter((c) => normalizeEmail(c.email) || phoneLast4(c.phone).length === 4)
 }
 
-async function certificateOwnerMatches(cert: { userId?: string | null; admissionId?: string | null; enrollmentId?: string | null; agentId?: string | null }, email: string, last4: string) {
+async function certificateOwnerMatches(cert: { userId?: string | null; admissionId?: string | null; enrollmentId?: string | null; agentId?: string | null; program?: string | null }, email: string, last4: string) {
   const normalizedEmail = normalizeEmail(email)
   const normalizedLast4 = normalizeDigits(last4).slice(-4)
   if (!normalizedEmail || normalizedLast4.length !== 4) return false
