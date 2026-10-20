@@ -32,7 +32,7 @@ const HEADER_ALIASES: Record<string, string[]> = {
   grade: ['grade', 'التقدير', 'تقدير'],
   finalScoreText: ['finalscore', 'final score', 'score', 'المعدل', 'الدرجة', 'النسبة'],
   issuedAtText: ['issuedat', 'issued at', 'graduation date', 'تاريخ التخرج', 'تاريخ الشهادة'],
-  legacySerial: ['legacyserial', 'legacy serial', 'certificate no', 'certificate number', 'رقم الشهادة', 'رقم الشهادة الورقية'],
+  legacySerial: ['legacyserial', 'legacy serial', 'certificate no', 'certificate number', 'old certificate number', 'رقم الشهادة', 'رقم الشهادة الورقية', 'رقم الشهادة القديم'],
 }
 
 function cleanString(value: unknown) {
@@ -176,7 +176,7 @@ export async function validateLegacyGraduateImportRows(parsedRows: { rowNumber: 
     if (programText && !resolved.programId) errors.push('برنامج مش موجود')
     if (!issuedAt) errors.push('تاريخ غلط')
     if (Number.isNaN(finalScore)) errors.push('المعدل غير صالح')
-    if (legacySerial && existingSerials.has(legacySerial)) errors.push('legacySerial مكرر')
+    if (legacySerial && existingSerials.has(legacySerial)) errors.push('رقم الشهادة القديم مستخدم مسبقاً')
     if (legacySerial) {
       const firstRow = seenLegacySerial.get(legacySerial)
       if (firstRow) errors.push(`رقم الشهادة مكرر داخل الملف مع السطر ${firstRow}`)
@@ -209,7 +209,7 @@ export async function validateLegacyGraduateImportRows(parsedRows: { rowNumber: 
 
 export function createLegacyGraduatesTemplateBuffer() {
   const rows = [
-    ['الاسم', 'الإيميل', 'الجوال', 'الدولة', 'البرنامج', 'التقدير', 'المعدل', 'تاريخ التخرج', 'رقم الشهادة'],
+    ['الاسم', 'الإيميل', 'الجوال', 'الدولة', 'البرنامج', 'التقدير', 'المعدل', 'تاريخ التخرج', 'رقم الشهادة القديم'],
     ['أحمد محمد', 'ahmad@example.com', '+970599000000', 'فلسطين', 'program-slug-or-titleAr', 'امتياز', 95, '2024-06-30', 'OLD-2024-001'],
   ]
   const worksheet = XLSX.utils.aoa_to_sheet(rows)

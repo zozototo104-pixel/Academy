@@ -25,15 +25,37 @@ function reasonForBlockedStudentAi(app?: AdmissionForAiAccess | null): string {
 }
 
 export async function getStudentAiSupervisorAccess(userId: string): Promise<{ allowed: boolean; reason: string | null; admissionId: string | null }> {
-  const activeAcademicEnrollment = await db.enrollment.findFirst({
+  const academicEnrollments = await db.enrollment.findMany({
     where: {
       userId,
       status: { in: ['ACTIVE', 'COMPLETED'] },
       program: { is: { category: { not: 'SERVICE' } } },
     },
-    select: { id: true },
+    select: { id: true, status: true, program: { select: { titleAr: true } } },
   })
-  if (activeAcademicEnrollment) return { allowed: true, reason: null, admissionId: null }
+  if (academicEnrollments.some((enrollment) => enrollment.status === 'ACTIVE')) return { allowed: true, reason: null, admissionId: null }
+
+  const completedAcademicEnrollments = academicEnrollments.filter((enrollment) => enrollment.status === 'COMPLETED')
+  if (completedAcademicEnrollments.length) {
+    const completedIds = completedAcademicEnrollments.map((enrollment) => enrollment.id)
+    const completedProgramTitles = completedAcademicEnrollments.map((enrollment) => enrollment.program.titleAr).filter(Boolean)
+    const issuedCertificates = await db.certificate.findMany({
+      where: {
+        userId,
+        type: 'PROGRAM_COMPLETION',
+        OR: [
+          { enrollmentId: { in: completedIds } },
+          ...(completedProgramTitles.length ? [{ program: { in: completedProgramTitles } }] : []),
+        ],
+      },
+      select: { enrollmentId: true, program: true },
+    })
+    const completedWithoutCertificate = completedAcademicEnrollments.some((enrollment) => !issuedCertificates.some((certificate) => (
+      certificate.enrollmentId === enrollment.id || certificate.program === enrollment.program.titleAr
+    )))
+    if (completedWithoutCertificate) return { allowed: true, reason: null, admissionId: null }
+    return { allowed: false, reason: 'المشرف الذكي متاح أثناء الدراسة وحتى إصدار الشهادة، وقد أُغلقت صلاحية المشرف بعد التخرج.', admissionId: null }
+  }
 
   const app = await db.admissionApplication.findFirst({
     where: {

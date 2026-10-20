@@ -374,7 +374,7 @@ export default function AdminLegacyGraduatesTab() {
           {importRows.length > 0 && (
             <div className="max-h-72 overflow-auto rounded-xl border border-slate-200">
               <table className="w-full min-w-[760px] text-right text-xs">
-                <thead className="bg-slate-50 text-slate-600"><tr><th className="p-2">السطر</th><th className="p-2">الاسم</th><th className="p-2">الإيميل</th><th className="p-2">البرنامج</th><th className="p-2">رقم قديم</th><th className="p-2">الأخطاء</th></tr></thead>
+                <thead className="bg-slate-50 text-slate-600"><tr><th className="p-2">السطر</th><th className="p-2">الاسم</th><th className="p-2">الإيميل</th><th className="p-2">البرنامج</th><th className="p-2">رقم الشهادة القديم</th><th className="p-2">الأخطاء</th></tr></thead>
                 <tbody>{importRows.map((row) => <tr key={row.rowNumber} className="border-t"><td className="p-2 font-bold">{row.rowNumber}</td><td className="p-2">{row.name || '—'}</td><td className="p-2 ltr:text-left">{row.email || '—'}</td><td className="p-2">{row.program || '—'}{row.programSuggestion ? <div className="text-[10px] text-amber-700">اقتراح: {row.programSuggestion}</div> : null}</td><td className="p-2">{row.legacySerial || '—'}</td><td className="p-2"><span className={row.errors.length ? 'text-red-600' : 'text-emerald-700'}>{row.errors.length ? row.errors.join('، ') : 'صالح'}</span></td></tr>)}</tbody>
               </table>
             </div>
@@ -437,7 +437,7 @@ export default function AdminLegacyGraduatesTab() {
               <div><Label>التقدير</Label><Input value={form.grade} onChange={(e) => setForm({ ...form, grade: e.target.value })} /></div>
               <div><Label>المعدل</Label><Input value={form.finalScore} onChange={(e) => setForm({ ...form, finalScore: e.target.value })} dir="ltr" /></div>
               <div><Label>تاريخ التخرج</Label><Input type="date" value={form.issuedAt} onChange={(e) => setForm({ ...form, issuedAt: e.target.value })} required /></div>
-              <div><Label>رقم الشهادة الورقية</Label><Input value={form.legacySerial} onChange={(e) => setForm({ ...form, legacySerial: e.target.value })} dir="ltr" /></div>
+              <div><Label>رقم الشهادة القديم</Label><Input value={form.legacySerial} onChange={(e) => setForm({ ...form, legacySerial: e.target.value })} dir="ltr" /></div>
             </div>
             <DialogFooter className="gap-2"><Button type="button" variant="outline" onClick={() => setFormOpen(false)}>إلغاء</Button><Button type="submit" disabled={busy === 'form'}>{busy === 'form' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'حفظ'}</Button></DialogFooter>
           </form>

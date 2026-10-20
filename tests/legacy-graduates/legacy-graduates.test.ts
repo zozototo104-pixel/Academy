@@ -349,7 +349,7 @@ describe('legacy graduate creation', () => {
 
   test('duplicate legacySerial is rejected', async () => {
     certificates.set('cert-existing', { id: 'cert-existing', legacy: true, legacySerial: 'DUP-1', serial: 'AACT-C-2026-99999', qrToken: 'token-old', type: 'PROGRAM_COMPLETION', holderName: 'Old', program: 'دبلوم القيادة', valid: true })
-    await expect(createLegacyGraduate({ name: 'سامر', email: 'samer@example.com', programId: 'program-1', issuedAt: new Date(), legacySerial: 'DUP-1' }, currentAdmin as any)).rejects.toThrow('رقم الشهادة الورقية مستخدم مسبقاً')
+    await expect(createLegacyGraduate({ name: 'سامر', email: 'samer@example.com', programId: 'program-1', issuedAt: new Date(), legacySerial: 'DUP-1' }, currentAdmin as any)).rejects.toThrow('رقم الشهادة القديم مستخدم مسبقاً')
   })
 })
 
@@ -358,7 +358,7 @@ describe('legacy graduate spreadsheet import helpers', () => {
     const XLSX = await import('xlsx')
     const excelSerial = Math.floor(Date.UTC(2024, 5, 30) / 86400000) + 25569
     const sheet = XLSX.utils.aoa_to_sheet([
-      ['الاسم', 'الإيميل', 'الجوال', 'الدولة', 'البرنامج', 'التقدير', 'المعدل', 'تاريخ التخرج', 'رقم الشهادة'],
+      ['الاسم', 'الإيميل', 'الجوال', 'الدولة', 'البرنامج', 'التقدير', 'المعدل', 'تاريخ التخرج', 'رقم الشهادة القديم'],
       ['أحمد', 'ahmad@example.com', '0599000000', 'فلسطين', 'leadership', 'امتياز', 95, excelSerial, 'OLD-XLSX-1'],
       ['خطأ', 'bad-email', '', '', 'leadership typo', '', '', '31/13/2024', 'OLD-XLSX-2'],
     ])
@@ -374,6 +374,21 @@ describe('legacy graduate spreadsheet import helpers', () => {
     expect(rows[1].errors).toContain('برنامج مش موجود')
     expect(rows[1].programSuggestion).toContain('leadership')
     expect(users.size).toBe(beforeUsers)
+  })
+
+  test('dry run rejects duplicate old certificate number clearly', async () => {
+    certificates.set('cert-existing', { id: 'cert-existing', legacy: true, legacySerial: 'OLD-DUP-1', serial: 'AACT-C-2026-99999', qrToken: 'token-old', type: 'PROGRAM_COMPLETION', holderName: 'Old', program: 'دبلوم القيادة', valid: true })
+    const XLSX = await import('xlsx')
+    const sheet = XLSX.utils.aoa_to_sheet([
+      ['الاسم', 'الإيميل', 'البرنامج', 'تاريخ التخرج', 'رقم الشهادة القديم'],
+      ['أحمد', 'ahmad@example.com', 'leadership', '2024-06-30', 'OLD-DUP-1'],
+    ])
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Sheet1')
+    const parsed = parseLegacyGraduateWorkbook(Buffer.from(XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer), 'legacy.xlsx')
+    const rows = await validateLegacyGraduateImportRows(parsed)
+    expect(rows[0].legacySerial).toBe('OLD-DUP-1')
+    expect(rows[0].errors).toContain('رقم الشهادة القديم مستخدم مسبقاً')
   })
 
   test('import offset and limit process only the requested slice and return nextOffset', async () => {
@@ -471,6 +486,12 @@ describe('legacy certificate verification', () => {
     const ok = await responseJson(okRes)
     expect(ok.valid).toBe(true)
     expect(ok.certificate.serial).toBe('AACT-C-2026-00001')
+    expect(ok.certificate.legacySerial).toBe('OLD-VERIFY-1')
+    const oldSerialRes = await verifyRoute.GET(jsonReq({}, 'https://aactacademy.test/api/certificates/verify?serial=OLD-VERIFY-1'))
+    const oldSerial = await responseJson(oldSerialRes)
+    expect(oldSerial.valid).toBe(true)
+    expect(oldSerial.certificate.serial).toBe('AACT-C-2026-00001')
+    expect(oldSerial.certificate.legacySerial).toBe('OLD-VERIFY-1')
     const cert = certificates.get('cert-1')!
     cert.valid = false
     cert.revokedAt = new Date('2026-01-01T00:00:00Z')
