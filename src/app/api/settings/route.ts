@@ -4,6 +4,9 @@ import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 import { DEFAULT_SETTINGS, adminSettingDefs, getSettings, isMaskedSecretValue, isSecretSettingKey, maskSettingsForAdmin, sanitizePublicSettings } from '@/lib/settings'
 import { audit } from '@/lib/notify'
+import { encryptSecret, hasSecretEncryptionKey, isEncryptedSecret } from '@/lib/secret-crypto'
+
+const ENCRYPTED_TEXT_AI_SECRET_SETTING_RE = /^(GROQ|OPENROUTER|DEEPINFRA|TOGETHER|UNOROUTER|RELAYROUTER|TOPTOOLS|ALBORIHI|OPENAI_COMPAT)_(?:API_KEY|API_KEYS)$/
 
 function revalidatePublicSettingsSurfaces() {
   const paths = ['/', '/programs', '/apply', '/about', '/contact', '/accreditation', '/sitemap.xml']
