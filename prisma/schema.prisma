@@ -1200,6 +1200,7 @@ model AdmissionApplication {
   id         String   @id @default(cuid())
   reference  String   @unique // كود تتبع حالة الطلب AACT-2026-XXXX
   fullName   String
+  fullNameEn String?
   email      String
   phone      String
   country    String
