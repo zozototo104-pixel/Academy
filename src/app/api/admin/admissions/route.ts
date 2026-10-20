@@ -206,6 +206,13 @@ export async function PATCH(req: NextRequest) {
     const serviceFlow = getServiceFlow(programForFlow?.slug)
     const isStudyRequest = serviceFlow ? serviceFlow.isStudyProgram : programForFlow?.category !== 'SERVICE'
 
+    if (Object.prototype.hasOwnProperty.call(body, 'fullNameEn')) {
+      const fullNameEn = normalizeEnglishCertificateName(body.fullNameEn)
+      const updated = await db.admissionApplication.update({ where: { id }, data: { fullNameEn } })
+      await audit(user, 'UPDATE_ADMISSION_ENGLISH_NAME', 'AdmissionApplication', id, `${app.reference} — ${app.fullName}`)
+      return NextResponse.json({ ok: true, application: updated })
+    }
+
     if (!isStudyRequest && supervisorId !== undefined) {
       return NextResponse.json({ error: 'طلبات الخدمات العابرة لا تحتاج مشرفاً أكاديمياً. استخدم قسم تنفيذ وتسليم الخدمة بدلاً من مسار الطلاب.' }, { status: 400 })
     }
