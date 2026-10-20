@@ -64,12 +64,15 @@ function paymentRows(payments: PaymentRow[]) {
   }))
 }
 
-function financialFailure(payments: PaymentRow[], programPrice: number | null | undefined) {
+function financialFailure(payments: PaymentRow[], programPrice: number | null | undefined, scholarshipFull?: boolean | null) {
+  if (scholarshipFull === true) return null
   const rows = paymentRows(payments)
-  const nonTuitionUnpaid = rows.filter((p) => !['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && !isSettled(p.status))
+  const tuitionRows = rows.filter((p) => TUITION_PURPOSES.includes(p.purpose))
+  const nonTuitionUnpaid = rows.filter((p) => !TUITION_PURPOSES.includes(p.purpose) && !isSettled(p.status))
   if (nonTuitionUnpaid.length > 0) {
     return 'لا يمكن إكمال التسجيل أو إصدار الشهادة قبل سداد جميع فواتير الطلب غير الدراسية.'
   }
+  if (tuitionRows.length === 0) return null
   const total = roundMoney(inferTotalTuition(rows, Number(programPrice || 0)))
   const paid = roundMoney(tuitionPaidTotal(rows))
   if (total > 0 && paid < total) {
