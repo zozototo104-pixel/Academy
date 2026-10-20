@@ -20,6 +20,13 @@ function cleanOptional(value: unknown) {
   return text || null
 }
 
+function cleanEnglishName(value: unknown) {
+  const text = cleanOptional(value)
+  if (!text) return null
+  if (!/^[A-Za-z .'-]+$/.test(text)) throw new LegacyGraduateError(400, 'INVALID_ENGLISH_NAME', 'الاسم بالإنجليزي يجب أن يحتوي على حروف لاتينية ومسافات و . - \' فقط')
+  return text
+}
+
 function parseScore(value: unknown) {
   if (value == null || value === '') return null
   const n = typeof value === 'number' ? value : Number(String(value).replace(',', '.'))
