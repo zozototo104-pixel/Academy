@@ -31,6 +31,7 @@ export async function GET(_req: NextRequest, context: RouteContext) {
       include: {
         admission: { select: { id: true, userId: true, reference: true, fullName: true, email: true, country: true, program: true, programRef: { select: { titleAr: true, titleEn: true } } } },
         agent: { select: { id: true, userId: true, orgName: true, repName: true, email: true, country: true, territory: true, kind: true } },
+        enrollment: { select: { program: { select: { titleAr: true, titleEn: true } } } },
       },
     })
 
