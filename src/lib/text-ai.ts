@@ -323,7 +323,7 @@ export function parseProviderModelList(value: unknown, fallback = ''): TextAiPre
     }
     const providerText = clean(item.slice(0, separator)).toUpperCase()
     const provider = normalizeProvider(providerText)
-    const model = clean(item.slice(separator + 1))
+    const model = provider === 'GEMINI' ? normalizeGeminiModelAlias(item.slice(separator + 1)) : clean(item.slice(separator + 1))
     if (!providerText || provider === 'AUTO' || provider !== providerText || !model) {
       console.warn('[text-ai-router] ignoring invalid academic allowlist item', { item, reason: 'INVALID_PROVIDER_OR_MODEL' })
       continue
