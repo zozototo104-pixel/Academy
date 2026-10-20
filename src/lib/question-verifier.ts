@@ -331,7 +331,7 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
         validate: (text, context) => {
           // A same-provider Alborihi verifier must have a known, different family.
           // Reject an unsuitable response inside the router so it can try another model/provider.
-          if (opts.generatorProvider === 'ALBORIHI' && context?.provider === 'ALBORIHI') {
+          if (alborihiGenerator && context?.provider === 'ALBORIHI') {
             const familyCheck = verifierFamilyAllowed(context, 'ALBORIHI', generatorFamily)
             if (!familyCheck.ok) validationRejected(familyCheck.reason)
           }
