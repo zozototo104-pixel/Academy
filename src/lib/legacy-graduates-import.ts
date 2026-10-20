@@ -181,8 +181,10 @@ export async function validateLegacyGraduateImportRows(parsedRows: { rowNumber: 
     const finalScore = parseLegacyGraduateFinalScore(raw.finalScoreText)
     const issuedAt = parseLegacyGraduateDate(raw.issuedAtText)
     const legacySerial = cleanOptional(raw.legacySerial)
+    const nameEn = cleanEnglishName(raw.nameEn)
     const errors: string[] = []
 
+    if (nameEn === '__INVALID_ENGLISH_NAME__') errors.push("الاسم بالإنجليزي يجب أن يحتوي على حروف لاتينية ومسافات و . - ' فقط")
     if (!email || !isValidLegacyGraduateEmail(email)) errors.push('إيميل غلط')
     if (!programText) errors.push('البرنامج مطلوب')
     if (programText && !resolved.programId) errors.push('برنامج مش موجود')
