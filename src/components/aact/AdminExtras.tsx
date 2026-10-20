@@ -1702,6 +1702,8 @@ export function AdminCertificatesTab() {
       transform: 'translate(-50%, -50%)',
       textAlign: cfg.align || 'center',
       color: cfg.color || '#0f2b46',
+      fontFamily: isQr ? undefined : (cfg.fontFamily || (cfg.lang === 'ar' ? 'Noto Naskh Arabic, Arial, sans-serif' : 'Arial, sans-serif')),
+      direction: isQr ? undefined : (cfg.lang === 'ar' ? 'rtl' : 'ltr'),
       fontSize: isQr ? undefined : `clamp(10px, ${Number(cfg.fontSize ?? 2)}vw, 42px)`,
       lineHeight: 1.2,
       fontWeight: 900,
