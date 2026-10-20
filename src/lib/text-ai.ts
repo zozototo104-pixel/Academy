@@ -1230,6 +1230,10 @@ export async function __testDiscoverOpenAiCompatibleFreeModelsForTests(baseUrl: 
   return fetchOpenAiCompatibleFreeModels('OPENAI_COMPAT', baseUrl, key)
 }
 
+export async function __testDiscoverAlborihiModelsForTests(baseUrl = ALBORIHI_DEFAULT_BASE_URL, key?: string): Promise<string[]> {
+  return fetchOpenAiCompatibleFreeModels('ALBORIHI', baseUrl, key)
+}
+
 export function __testNormalizeOpenAiCompatibleBaseUrlForTests(baseUrl: string): string {
   return normalizeOpenAiCompatibleBaseUrl(baseUrl)
 }
