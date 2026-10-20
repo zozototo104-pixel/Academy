@@ -154,6 +154,8 @@ export async function GET() {
         RELAYROUTER_API_KEYS: !!(await db.setting.findUnique({ where: { key: 'RELAYROUTER_API_KEYS' } }))?.value,
         TOPTOOLS_API_KEY: !!(await db.setting.findUnique({ where: { key: 'TOPTOOLS_API_KEY' } }))?.value,
         TOPTOOLS_API_KEYS: !!(await db.setting.findUnique({ where: { key: 'TOPTOOLS_API_KEYS' } }))?.value,
+        ALBORIHI_API_KEY: !!(await db.setting.findUnique({ where: { key: 'ALBORIHI_API_KEY' } }))?.value,
+        ALBORIHI_API_KEYS: !!(await db.setting.findUnique({ where: { key: 'ALBORIHI_API_KEYS' } }))?.value,
         OPENAI_COMPAT_API_KEY: !!(await db.setting.findUnique({ where: { key: 'OPENAI_COMPAT_API_KEY' } }))?.value,
         OPENAI_COMPAT_API_KEYS: !!(await db.setting.findUnique({ where: { key: 'OPENAI_COMPAT_API_KEYS' } }))?.value,
         AI_AGENT_API_KEY: !!(await db.setting.findUnique({ where: { key: 'AI_AGENT_API_KEY' } }))?.value,
