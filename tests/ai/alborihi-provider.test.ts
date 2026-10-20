@@ -3,6 +3,8 @@ import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test'
 
 const values = new Map<string, string>()
 const originalFetch = globalThis.fetch
+const originalAlborihiApiKeys = process.env.ALBORIHI_API_KEYS
+const originalAlborihiApiKey = process.env.ALBORIHI_API_KEY
 const TEST_ALBORIHI_KEY = 'test-alborihi-key'
 
 const db: any = {
