@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { calculateFinalGrade, type FinalGradeResult } from '@/lib/final-grade'
-import { inferTotalTuition, roundMoney, tuitionPaidTotal } from '@/lib/tuition-installments'
+import { TUITION_PURPOSES, inferTotalTuition, roundMoney, tuitionPaidTotal } from '@/lib/tuition-installments'
 
 export type CertificateEligibilityDbClient = typeof db | Prisma.TransactionClient
 
