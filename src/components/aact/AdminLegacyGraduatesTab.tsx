@@ -197,6 +197,16 @@ export default function AdminLegacyGraduatesTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  useEffect(() => {
+    if (!uploadFile || !uploadFile.type.startsWith('image/')) {
+      setUploadPreviewUrl(null)
+      return
+    }
+    const url = URL.createObjectURL(uploadFile)
+    setUploadPreviewUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [uploadFile])
+
   function openAdd() {
     setForm(blankForm())
     setFormOpen(true)
