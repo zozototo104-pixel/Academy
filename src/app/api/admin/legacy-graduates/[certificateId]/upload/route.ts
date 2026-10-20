@@ -36,8 +36,9 @@ export async function POST(req: NextRequest, context: RouteContext) {
     const form = await req.formData()
     const file = form.get('file')
     const preview = isPreview(req.nextUrl.searchParams.get('preview')) || isPreview(form.get('preview'))
-    const qrPosition = normalizeQrPosition(form.get('qrPosition') || cert.qrPosition || 'BOTTOM_LEFT')
     const qrSize = normalizeQrSize(form.get('qrSize') || cert.qrSize || 'M')
+    const stampLayout = normalizeStampLayout(form.get('stampLayout') || form.get('qrPosition') || cert.qrPosition || 'BOTTOM_LEFT', qrSize)
+    const serializedStampLayout = serializeStampLayout(stampLayout)
 
     let originalBuffer: Buffer | null = null
     let originalFileName = cert.uploadedFileName || stampedFileName(cert.serial)
