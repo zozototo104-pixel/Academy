@@ -26,23 +26,29 @@ mock.module('@/lib/settings', () => ({ getSetting: async (key: string) => values
 
 const textAi = await import('../../src/lib/text-ai')
 
-const store = {
-  async read(keys: string[]) {
-    return Object.fromEntries(keys.map((key) => [key, values.get(key) || '']))
-  },
-  async write(key: string, value: string) {
-    values.set(key, value)
-  },
-  async delete(key: string) {
-    values.delete(key)
-  },
-  async scan(prefix: string) {
-    return Object.fromEntries([...values.entries()].filter(([key]) => key.startsWith(prefix)))
-  },
-  async increment(key: string, amount: number) {
-    values.set(key, String((Number(values.get(key) || 0) || 0) + amount))
-  },
+function makeStore(backing: Map<string, string>) {
+  return {
+    async read(keys: string[]) {
+      return Object.fromEntries(keys.map((key) => [key, backing.get(key) || '']))
+    },
+    async write(key: string, value: string) {
+      backing.set(key, value)
+    },
+    async delete(key: string) {
+      backing.delete(key)
+    },
+    async scan(prefix: string) {
+      return Object.fromEntries([...backing.entries()].filter(([key]) => key.startsWith(prefix)))
+    },
+    async increment(key: string, amount: number) {
+      const next = (Number(backing.get(key) || 0) || 0) + amount
+      backing.set(key, String(next))
+      return next
+    },
+  }
 }
+
+const store = makeStore(values)
 
 function configureAlborihi() {
   values.set('AI_TEXT_PROVIDER', 'ALBORIHI')
