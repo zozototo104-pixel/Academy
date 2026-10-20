@@ -695,8 +695,8 @@ export default function AdminLegacyGraduatesTab() {
                           startX: e.clientX,
                           startY: e.clientY,
                           startSize: stampLayout.qr.size,
-                          startWidth: stampLayout.serial.width,
-                          startFontSize: stampLayout.serial.fontSize,
+                          startWidth: field === 'qr' ? stampLayout.serial.width : (stampLayout[field] as StampTextField).width,
+                          startFontSize: field === 'qr' ? stampLayout.serial.fontSize : (stampLayout[field] as StampTextField).fontSize,
                         }
                       }}
                     />
