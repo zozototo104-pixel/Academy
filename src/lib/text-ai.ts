@@ -2197,7 +2197,7 @@ async function callOpenAIResponses(s: Settings, key: string, model: string, opts
     body: JSON.stringify(openAiResponsesBody(model, opts)),
   }, providerAttemptTimeoutMs(opts), opts.deadlineMs)
   const data = await parseResponse(response)
-  if (!response.ok) throwHttp('OpenAI', response.status, data)
+  if (!response.ok) throwHttp('OpenAI', response.status, data, response)
   const text = extractOpenAiText(data)
   if (!text) throw new Error('OPENAI_EMPTY_RESPONSE')
   return text
