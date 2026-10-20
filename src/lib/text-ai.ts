@@ -1376,6 +1376,26 @@ function modelCapabilitiesFor(provider: ConcreteProvider, s: Settings, model: st
   return freeModelsCache.get(cacheKey)?.capabilities?.[model] || null
 }
 
+function resolvedFamilyFromCatalog(model: string, declaredFamily?: string): string {
+  const family = modelFamily(declaredFamily || '')
+  return family !== 'unknown' ? family : modelFamily(model)
+}
+
+export function __testResolvedAlborihiFamilyForTests(model: string, declaredFamily?: string): string {
+  return resolvedFamilyFromCatalog(model, declaredFamily)
+}
+
+function alborihiModelFamily(s: Settings, model: string): string {
+  return resolvedFamilyFromCatalog(model, modelCapabilitiesFor('ALBORIHI', s, model)?.family)
+}
+
+export async function resolvedTextAiModelFamily(provider: string, model: string): Promise<string> {
+  if (String(provider).trim().toUpperCase() !== 'ALBORIHI') return modelFamily(model)
+  const s = await settings()
+  if (!freeModelDiscoveryEntry('ALBORIHI', s)) await liveFreeModels('ALBORIHI', s)
+  return alborihiModelFamily(s, model)
+}
+
 function freeModelDiscoveryEntry(provider: ConcreteProvider, s: Settings): FreeModelsCacheEntry | null {
   return freeModelsCache.get(cacheKeyForFreeModels(provider, baseFor(s, provider), providerKeys(s, provider)[0])) || null
 }
