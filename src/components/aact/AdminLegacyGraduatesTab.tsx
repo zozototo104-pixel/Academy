@@ -132,8 +132,23 @@ function legacyStampLayout(positionValue?: string | null, sizeValue?: string | n
   const qrY = isTop ? 7 + qrSize / 2 : 100 - (10 + qrSize / 2)
   const serialY = isTop ? Math.min(96, qrY + qrSize / 2 + 4) : 95
   return {
+    ...DEFAULT_STAMP_LAYOUT,
     qr: { x, y: qrY, size: qrSize, visible: true },
-    serial: { x, y: serialY, width: Math.max(20, qrSize * 1.8), fontSize: size === 'L' ? 1.6 : size === 'S' ? 1.0 : 1.25, visible: true },
+    serial: { ...DEFAULT_TEXT_STAMP, x, y: serialY, width: Math.max(20, qrSize * 1.8), fontSize: size === 'L' ? 1.6 : size === 'S' ? 1.0 : 1.25, visible: true },
+  }
+}
+
+function normalizeTextStamp(raw: any, fallback: StampTextField): StampTextField {
+  return {
+    x: clampNumber(raw?.x, 1, 99, fallback.x),
+    y: clampNumber(raw?.y, 1, 99, fallback.y),
+    width: clampNumber(raw?.width, 6, 95, fallback.width),
+    fontSize: clampNumber(raw?.fontSize, 0.5, 8, fallback.fontSize),
+    color: String(raw?.color || fallback.color || '#0f2b46'),
+    align: raw?.align === 'left' || raw?.align === 'right' ? raw.align : 'center',
+    fontFamily: String(raw?.fontFamily || fallback.fontFamily || 'Arial'),
+    lang: raw?.lang === 'ar' ? 'ar' : 'en',
+    visible: raw?.visible !== false,
   }
 }
 
@@ -144,19 +159,17 @@ function parseStampLayout(positionValue?: string | null, sizeValue?: string | nu
   try {
     const raw = JSON.parse(rawText)
     return {
+      holderName: normalizeTextStamp(raw?.holderName, fallback.holderName),
+      program: normalizeTextStamp(raw?.program, fallback.program),
+      grade: normalizeTextStamp(raw?.grade, fallback.grade),
+      issuedAt: normalizeTextStamp(raw?.issuedAt, fallback.issuedAt),
       qr: {
         x: clampNumber(raw?.qr?.x, 1, 99, fallback.qr.x),
         y: clampNumber(raw?.qr?.y, 1, 99, fallback.qr.y),
         size: clampNumber(raw?.qr?.size, 4, 45, fallback.qr.size),
         visible: raw?.qr?.visible !== false,
       },
-      serial: {
-        x: clampNumber(raw?.serial?.x, 1, 99, fallback.serial.x),
-        y: clampNumber(raw?.serial?.y, 1, 99, fallback.serial.y),
-        width: clampNumber(raw?.serial?.width, 6, 95, fallback.serial.width),
-        fontSize: clampNumber(raw?.serial?.fontSize, 0.5, 8, fallback.serial.fontSize),
-        visible: raw?.serial?.visible !== false,
-      },
+      serial: normalizeTextStamp(raw?.serial, fallback.serial),
     }
   } catch {
     return fallback
