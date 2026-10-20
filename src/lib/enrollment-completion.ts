@@ -200,7 +200,7 @@ export async function completeEnrollmentIfEligibleInTransaction(tx: Tx, input: C
     program: programTitle,
     programEn: program.titleEn || null,
     grade,
-    gradeEn: grade && /^[A-Za-z .'-]+$/.test(grade) ? grade : null,
+    gradeEn,
     country: (input.country || matchedAdmission?.country || '').trim() || null,
     userId: enrollment.userId,
     enrollmentId: enrollment.id,
