@@ -1876,6 +1876,7 @@ function modelSupportsVisionAttachment(provider: ConcreteProvider, model: string
   const vision = capability?.vision === true || /vision|image|multimodal|input_image|image_url|gemini|claude|gpt-4o|gpt-5|glm-4\.5|glm-5v|auto/.test(`${id} ${modalities}`)
   if (!vision) return false
   if (attachmentIncludesPdf(attachments)) {
+    if (provider === 'ALBORIHI') return false
     return /pdf|document|file|gemini|claude|gpt-4o|gpt-5|auto/.test(`${id} ${modalities}`)
   }
   return true
