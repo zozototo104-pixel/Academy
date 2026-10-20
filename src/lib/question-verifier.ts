@@ -272,7 +272,10 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
   if (!String(opts.generatorModel || '').trim()) {
     return output.map((question) => applyPending(question, 'GENERATOR_MODEL_UNKNOWN')) as T[]
   }
-  const generatorFamily = modelFamily(opts.generatorModel || '')
+  const alborihiGenerator = String(opts.generatorProvider).trim().toUpperCase() === 'ALBORIHI'
+  const generatorFamily = alborihiGenerator
+    ? await resolvedTextAiModelFamily('ALBORIHI', opts.generatorModel || '')
+    : modelFamily(opts.generatorModel || '')
   if (generatorFamily === 'unknown') {
     return output.map((question) => applyPending(question, 'GENERATOR_FAMILY_UNKNOWN')) as T[]
   }
