@@ -78,6 +78,16 @@ export async function GET(_req: NextRequest, context: RouteContext) {
           serial: certificate.serial,
           qrToken: certificate.qrToken,
           stampLayout: activeTemplate.layoutJson as any,
+          values: {
+            holderName: certificate.holderName || certificate.admission?.fullName,
+            holderNameEn: certificate.holderNameEn,
+            program: certificate.program || certificate.enrollment?.program?.titleAr || certificate.admission?.program,
+            programEn: certificate.programEn || certificate.enrollment?.program?.titleEn || certificate.admission?.programRef?.titleEn,
+            grade: certificate.grade,
+            gradeEn: certificate.gradeEn,
+            issuedAt: certificate.issuedAt,
+            serial: certificate.serial,
+          },
         })
         return pdfResponse(templatedPdf, `${certificate.serial}.pdf`)
       }
