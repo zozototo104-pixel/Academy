@@ -3,9 +3,10 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import {
   LEGACY_CERTIFICATE_UPLOAD_MAX_BYTES,
-  normalizeQrPosition,
   normalizeQrSize,
+  normalizeStampLayout,
   readLegacyCertificateStoredFile,
+  serializeStampLayout,
   sniffLegacyCertificateMime,
   stampLegacyCertificatePdf,
   storeLegacyCertificateOriginal,
