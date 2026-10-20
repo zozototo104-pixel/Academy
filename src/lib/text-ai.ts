@@ -2751,13 +2751,22 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           const ms = Date.now() - started
           const msg = redactSecrets(e?.message || e).slice(0, 240)
           const status = statusFromError(e)
+          const requestId = requestIdFromError(e)
           lastResult = { provider, model, ok: false, error: msg, at }
-          const attempt = { provider, model, keyIndex, ok: false, ms, status, error: msg, at }
+          const attempt = { provider, model, keyIndex, ok: false, ms, status, error: msg, ...(requestId ? { requestId } : {}), at }
           attempts.push(attempt)
           recordAttempt(attempt)
           errors.push(`${provider}/${model}/key#${keyIndex}: ${msg}`)
           noteNoCandidate(provider, model, `REQUEST_FAILED(${status || 'unknown'}, ${msg})`)
           await recordModelStats(provider, model, { ok: false, reason: routerReasonBucket(attempt), ms, jsonOk: effectiveOpts.json ? false : undefined, evidenceOk: e?.code === 'VALIDATION_REJECTED' ? false : undefined }, effectiveOpts.purpose)
+          if (provider === 'ALBORIHI') {
+            const action = await handleAlborihiFailure({ key, keyIndex, model, error: e, message: msg, status })
+            if (action === 'break') {
+              skipModelsThisRequest.add(`${provider}:${model}`)
+              break
+            }
+            if (action === 'continue') continue
+          }
           if (provider === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl) && isNvidiaHardModelFailure(e, msg, status)) {
             skipModelsThisRequest.add(`${provider}:${model}`)
             await recordNvidiaHardFailureAndMaybeDead(provider, model, msg, status)
