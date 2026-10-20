@@ -34,6 +34,15 @@ export function certificateGradeLabel(score: number) {
   return `${p}% — غير مجتاز`
 }
 
+export function certificateGradeLabelEn(score: number) {
+  const p = percent(score)
+  if (score >= 90) return `${p}% — Excellent`
+  if (score >= 80) return `${p}% — Very Good`
+  if (score >= 70) return `${p}% — Good`
+  if (score >= CERTIFICATE_PASS_SCORE) return `${p}% — Pass`
+  return `${p}% — Not Passed`
+}
+
 function missingError(missing: string[]) {
   return `لا يمكن إصدار شهادة البرنامج قبل اكتمال عناصر الدرجة النهائية: ${missing.length ? missing.join('، ') : 'عناصر التقييم غير مكتملة'}.`
 }
