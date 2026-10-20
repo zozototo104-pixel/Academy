@@ -236,11 +236,14 @@ export async function POST(req: NextRequest) {
 
     const result = await createLegacyGraduate({
       name: cleanOptional(body.name),
+      nameEn: cleanEnglishName(body.nameEn || body.holderNameEn || body['الاسم بالإنجليزي']),
       email,
       phone: cleanOptional(body.phone),
       country: cleanOptional(body.country),
       programId: cleanString(body.programId),
+      programEn: cleanOptional(body.programEn || body['البرنامج بالإنجليزي']),
       grade: cleanOptional(body.grade),
+      gradeEn: cleanOptional(body.gradeEn || body['التقدير بالإنجليزي']),
       finalScore,
       issuedAt,
       legacySerial: cleanOptional(body.legacySerial),
