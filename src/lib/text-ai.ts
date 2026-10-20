@@ -2166,7 +2166,7 @@ async function callGemini(key: string, model: string, opts: TextAiCallOpts): Pro
     }),
   }, providerAttemptTimeoutMs(opts), opts.deadlineMs)
   const data = await parseResponse(response)
-  if (!response.ok) throwHttp('Gemini', response.status, data)
+  if (!response.ok) throwHttp('Gemini', response.status, data, response)
   const text = (data?.candidates?.[0]?.content?.parts || []).map((p: any) => p?.text || '').join('\n').trim()
   if (!text) throw new Error('GEMINI_EMPTY_RESPONSE')
   return text
