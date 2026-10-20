@@ -683,7 +683,7 @@ export default function AdminLegacyGraduatesTab() {
                     style={stampFieldStyle(field)}
                     className="select-none touch-none"
                   >
-                    {field === 'qr' ? 'QR' : uploadFor?.serial || 'AACT-C-2026-00001'}
+                    {field === 'qr' ? 'QR' : field === 'holderName' ? (uploadFor?.holderNameEn || uploadFor?.holderName || 'John Smith') : field === 'program' ? (uploadFor?.programEn || uploadFor?.program || 'Professional Master in Business Administration') : field === 'grade' ? (uploadFor?.gradeEn || uploadFor?.grade || 'Excellent') : field === 'issuedAt' ? 'June 30, 2024' : uploadFor?.serial || 'AACT-C-2026-00001'}
                     <span
                       aria-hidden="true"
                       className="absolute -bottom-2 -left-2 h-5 w-5 cursor-nwse-resize rounded-full border-2 border-white bg-[#c9a227] shadow"
