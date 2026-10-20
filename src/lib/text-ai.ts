@@ -1279,6 +1279,14 @@ export async function __testGroqTextModelsWithFallbackForTests(baseUrl: string, 
   return models.length ? models : GROQ_TEXT_MODELS
 }
 
+function freeModelsMemoryCacheMs(provider: ConcreteProvider): number {
+  return provider === 'ALBORIHI' ? ALBORIHI_MODEL_DISCOVERY_CACHE_MS : 30 * 60 * 1000
+}
+
+function freeModelsPersistentCacheMs(provider: ConcreteProvider): number {
+  return provider === 'ALBORIHI' ? ALBORIHI_MODEL_DISCOVERY_CACHE_MS : 24 * 60 * 60 * 1000
+}
+
 async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<string[]> {
   const baseUrl = baseFor(s, provider)
   const key = providerKeys(s, provider)[0]
