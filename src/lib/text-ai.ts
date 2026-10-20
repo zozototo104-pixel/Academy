@@ -1293,11 +1293,11 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<
   const cacheKey = cacheKeyForFreeModels(provider, baseUrl, key)
   const now = Date.now()
   const cached = freeModelsCache.get(cacheKey)
-  if (cached && now - cached.at < 30 * 60 * 1000) return cached.models
+  if (cached && now - cached.at < freeModelsMemoryCacheMs(provider)) return cached.models
   try {
     const persisted = (await settingStore().read([persistentModelsCacheKey(cacheKey)]))[persistentModelsCacheKey(cacheKey)]
     const parsed = persisted ? JSON.parse(persisted) : null
-    if (Array.isArray(parsed?.models) && Number(parsed.at || 0) > 0 && now - Number(parsed.at) < 24 * 60 * 60 * 1000) {
+    if (Array.isArray(parsed?.models) && Number(parsed.at || 0) > 0 && now - Number(parsed.at) < freeModelsPersistentCacheMs(provider)) {
       const models = parsed.models.map(String).filter(validModelName)
       const capabilities = parsed.capabilities && typeof parsed.capabilities === 'object' ? parsed.capabilities as Record<string, ModelCapability> : undefined
       const discoveryOk = parsed.discoveryOk === true || models.length > 0
