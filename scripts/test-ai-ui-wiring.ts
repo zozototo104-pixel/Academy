@@ -139,6 +139,22 @@ function testFailedBookReadRetry() {
   assert(books.includes('retry-failed-chunks'), 'failed chunk retry path must remain available')
 }
 
+function testAlborihiProviderWiring() {
+  const textAi = file('src/lib/text-ai.ts')
+  assert(textAi.includes("| 'ALBORIHI'"), 'Text AI provider union must include Alborihi')
+  assert(textAi.includes("ALBORIHI_DEFAULT_BASE_URL = 'https://alborihi-ai.com/api/public/dev/v1'"), 'Alborihi default base URL must match the documented public dev API')
+  assert(textAi.includes("provider === 'ALBORIHI'"), 'Alborihi must have provider-specific catalog handling')
+  assert(textAi.includes("case 'ALBORIHI': return s.alborihiKeys"), 'Alborihi keys must be routed through providerKeys')
+
+  const settings = file('src/lib/settings.ts')
+  assert(settings.includes('ALBORIHI_API_KEYS'), 'Admin settings must expose Alborihi API keys')
+  assert(settings.includes('ALBORIHI_BASE_URL'), 'Admin settings must expose Alborihi base URL')
+
+  const env = file('.env.example')
+  assert(env.includes('ALBORIHI_API_KEYS'), '.env.example must document Alborihi keys')
+  assert(env.includes('ALBORIHI_BASE_URL="https://alborihi-ai.com/api/public/dev/v1"'), '.env.example must document Alborihi base URL')
+}
+
 testSupervisorsApiAndUi()
 testApprovedOnlyExamAssembly()
 testQuestionVerifierUsesOriginalBookChunk()
