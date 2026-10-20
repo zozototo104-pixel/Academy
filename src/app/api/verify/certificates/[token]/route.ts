@@ -14,6 +14,10 @@ export async function GET(req: NextRequest, context: RouteContext) {
     const clean = decodeURIComponent(token || '').trim()
     if (!clean) return NextResponse.json({ error: 'رمز التحقق مطلوب' }, { status: 400 })
 
+    if (req.headers.get('accept')?.includes('text/html')) {
+      return NextResponse.redirect(certificateVerificationUrl({ qrToken: clean }), 307)
+    }
+
     if (clean === '__route_probe__') {
       return new NextResponse(
         JSON.stringify({
