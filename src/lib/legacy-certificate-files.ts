@@ -1,5 +1,5 @@
 import { inflateRawSync } from 'zlib'
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
+import { PDFDocument } from 'pdf-lib'
 import QRCode from 'qrcode'
 import sharp from 'sharp'
 import { certificateVerificationUrl } from '@/lib/w3c/certificate-credential'
