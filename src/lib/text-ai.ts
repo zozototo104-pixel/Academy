@@ -1063,6 +1063,7 @@ function capabilityFromModelRow(row: any): ModelCapability {
     vision: /vision|image|multimodal|input_image|image_url/.test(haystack),
     modalities,
     supportedParameters,
+    family: typeof row?.family === 'string' ? row.family : undefined,
   }
 }
 
