@@ -444,16 +444,19 @@ export default function AdminLegacyGraduatesTab() {
   function stampFieldStyle(field: StampField) {
     const cfg = stampLayout[field]
     const isQr = field === 'qr'
+    const textCfg = isQr ? null : cfg as StampTextField
     return {
       position: 'absolute' as const,
       left: `${cfg.x}%`,
       top: `${cfg.y}%`,
-      width: isQr ? `${stampLayout.qr.size}%` : `${stampLayout.serial.width}%`,
+      width: isQr ? `${stampLayout.qr.size}%` : `${textCfg?.width ?? 30}%`,
       aspectRatio: isQr ? '1 / 1' : undefined,
       minHeight: isQr ? undefined : '22px',
       transform: 'translate(-50%, -50%)',
-      textAlign: 'center' as const,
-      fontSize: isQr ? undefined : `clamp(10px, ${stampLayout.serial.fontSize}vw, 42px)`,
+      textAlign: (textCfg?.align || 'center') as any,
+      direction: isQr ? undefined : (textCfg?.lang === 'ar' ? 'rtl' : 'ltr'),
+      fontFamily: isQr ? undefined : (textCfg?.fontFamily || 'Arial'),
+      fontSize: isQr ? undefined : `clamp(10px, ${textCfg?.fontSize ?? 1.2}vw, 42px)`,
       fontWeight: 900,
       lineHeight: 1.2,
       cursor: 'move',
