@@ -123,6 +123,16 @@ afterAll(() => {
 })
 
 describe('Gemini Live raw setup shape', () => {
+  test('normalizes legacy Gemini model aliases before routing', () => {
+    expect(realGemini.normalizeGeminiModelName('models/gemini-3.5-flash')).toBe('gemini-3.5-flash-lite')
+    expect(realGemini.normalizeGeminiModelName('gemini-3.7-flash')).toBe('gemini-3.8-flash')
+    expect(realGemini.normalizeGeminiModelName('gemini-2.0-flash')).toBe('gemini-3.8-flash')
+    expect(realGemini.normalizeGeminiModelName('gemini-2.5-flash-live-preview')).toBe('gemini-2.5-flash-native-audio-preview-12-2025')
+    expect(textAi.parseAcademicAllowlist('GEMINI:gemini-3.5-flash')).toEqual([
+      { provider: 'GEMINI', model: 'gemini-3.5-flash-lite' },
+    ])
+  })
+
   test('uses generationConfig for response modalities and keeps transcription directly under setup', () => {
     const variants = ['minimal', 'generationConfig', 'bare'] as const
     const palestinianInstruction = dialectInstruction('ar-PS')
