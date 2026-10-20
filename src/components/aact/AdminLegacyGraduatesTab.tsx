@@ -139,16 +139,27 @@ function legacyStampLayout(positionValue?: string | null, sizeValue?: string | n
 }
 
 function normalizeTextStamp(raw: any, fallback: StampTextField): StampTextField {
+  if (!raw || typeof raw !== 'object') return { ...fallback }
   return {
-    x: clampNumber(raw?.x, 1, 99, fallback.x),
-    y: clampNumber(raw?.y, 1, 99, fallback.y),
-    width: clampNumber(raw?.width, 6, 95, fallback.width),
-    fontSize: clampNumber(raw?.fontSize, 0.5, 8, fallback.fontSize),
-    color: String(raw?.color || fallback.color || '#0f2b46'),
-    align: raw?.align === 'left' || raw?.align === 'right' ? raw.align : 'center',
-    fontFamily: String(raw?.fontFamily || fallback.fontFamily || 'Arial'),
-    lang: raw?.lang === 'ar' ? 'ar' : 'en',
-    visible: raw?.visible !== false,
+    x: clampNumber(raw.x, 1, 99, fallback.x),
+    y: clampNumber(raw.y, 1, 99, fallback.y),
+    width: clampNumber(raw.width, 6, 95, fallback.width),
+    fontSize: clampNumber(raw.fontSize, 0.5, 8, fallback.fontSize),
+    color: String(raw.color || fallback.color || '#0f2b46'),
+    align: raw.align === 'left' || raw.align === 'right' || raw.align === 'center' ? raw.align : fallback.align || 'center',
+    fontFamily: String(raw.fontFamily || fallback.fontFamily || 'Arial'),
+    lang: raw.lang === 'ar' ? 'ar' : fallback.lang || 'en',
+    visible: typeof raw.visible === 'boolean' ? raw.visible : fallback.visible,
+  }
+}
+
+function normalizeQrStamp(raw: any, fallback: StampLayout['qr']): StampLayout['qr'] {
+  if (!raw || typeof raw !== 'object') return { ...fallback }
+  return {
+    x: clampNumber(raw.x, 1, 99, fallback.x),
+    y: clampNumber(raw.y, 1, 99, fallback.y),
+    size: clampNumber(raw.size, 4, 45, fallback.size),
+    visible: typeof raw.visible === 'boolean' ? raw.visible : fallback.visible,
   }
 }
 
