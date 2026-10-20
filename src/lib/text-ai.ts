@@ -2188,7 +2188,7 @@ async function callChatCompletions(provider: string, baseUrl: string, key: strin
       ...(provider === 'OPENROUTER' ? { 'HTTP-Referer': env('NEXT_PUBLIC_APP_URL') || 'https://academy.local', 'X-Title': 'AACT Academy' } : {}),
     },
     body: JSON.stringify(openAiChatCompletionsBody(provider, baseUrl, model, providerOpts)),
-  }, providerAttemptTimeoutMs(providerOpts), providerOpts.deadlineMs)
+  }, providerRequestTimeoutMs(provider, providerOpts), providerOpts.deadlineMs)
   const data = await parseResponse(response)
   if (!response.ok) throwHttp(provider, response.status, data)
   const message = data?.choices?.[0]?.message || {}
