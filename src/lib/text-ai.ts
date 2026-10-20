@@ -1192,7 +1192,7 @@ async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseU
     const sourceRows = rowsFromModelPayload(data)
     const rows = sourceRows
       .filter((m) => m?.online !== false)
-      .filter(isTextLikeModel)
+      .filter((m) => provider === 'ALBORIHI' ? isAlborihiChatCapableModel(m) : isTextLikeModel(m))
       .map((m) => ({ raw: m, id: normalizeFreeModelName(provider, modelId(m)) }))
       .filter(({ raw, id }) => validModelName(id) && (
         provider === 'ALBORIHI'
