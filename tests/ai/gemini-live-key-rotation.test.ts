@@ -144,7 +144,7 @@ describe('Gemini Live raw setup shape', () => {
 
   test('discovers all allowed Alborihi text models from /models', async () => {
     values.set('AI_TEXT_PROVIDER', 'ALBORIHI')
-    values.set('ALBORIHI_API_KEYS', 'alb_dev_test')
+    process.env.ALBORIHI_API_KEYS = 'alb_dev_test'
     globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
       expect(String(url)).toBe('https://alborihi-ai.com/api/public/dev/v1/models')
       expect((init?.headers as Record<string, string> | undefined)?.Authorization).toBe('Bearer alb_dev_test')
