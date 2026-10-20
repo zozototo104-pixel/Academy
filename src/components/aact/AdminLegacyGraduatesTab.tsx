@@ -10,7 +10,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
 import { Award, Download, FileArchive, FileSpreadsheet, Loader2, Mail, PenLine, Plus, Search, ShieldOff, Upload } from 'lucide-react'
 
 type LegacyGraduateCertificate = {
