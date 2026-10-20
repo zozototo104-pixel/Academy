@@ -167,7 +167,7 @@ function stampDate(value: Date | string | null | undefined, lang: StampLang) {
 }
 
 function gradeArabicToEnglish(value?: string | null) {
-  const text = String(value || '').replace(/[٪%]/g, '').trim()
+  const text = String(value || '').trim()
   if (!text) return ''
   if (text.includes('امتياز')) return text.replace(/امتياز/g, 'Excellent').replace(/—\s*Excellent/, '— Excellent')
   if (text.includes('جيد جداً') || text.includes('جيد جدا')) return text.replace(/جيد جداً|جيد جدا/g, 'Very Good').replace(/—\s*Very Good/, '— Very Good')
