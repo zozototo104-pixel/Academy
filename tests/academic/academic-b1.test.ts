@@ -126,7 +126,8 @@ const db: any = {
     findFirst: async () => ({ id: 'cert-1', serial: 'AACT-C-1', qrToken: 'qr-1', type: 'PROGRAM_COMPLETION', holderName: 'طالب', program: 'برنامج عربي للاختبار', country: 'فلسطين', issuedAt: new Date(), valid: true, userId: 'user-1', admissionId: 'admission-1', enrollmentId: 'enrollment-1' }),
   },
   admissionApplication: {
-    findUnique: async () => ({ userId: 'user-1', programId: 'program-1', email: 'student@example.test', phone: '+970 59 123 4567', user: { email: 'student@example.test', phone: '+970 59 123 4567' } }),
+    findUnique: async () => ({ userId: 'user-1', programId: 'program-1', email: 'student@example.test', phone: '+970 59 123 4567', scholarshipFull: false, user: { email: 'student@example.test', phone: '+970 59 123 4567' } }),
+    findFirst: async () => ({ userId: 'user-1', programId: 'program-1', scholarshipFull: false }),
   },
   user: {
     findUnique: async () => ({ id: 'user-1', email: 'student@example.test', phone: '+970 59 123 4567' }),
