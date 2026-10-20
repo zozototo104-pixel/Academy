@@ -2701,12 +2701,20 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
       if (selectedModel && !academicModelAllowed(provider, selectedModel) && !providerPreferredModels.includes(selectedModel)) noteNoCandidate(provider, selectedModel, 'NOT_IN_ALLOWLIST')
     }
     const fallbackModels = await modelFallbacks(s, provider, taskLevel, exploreModels, effectiveOpts.purpose)
+    const sameProviderAlborihiReview = allowAlborihiCrossFamilyVerifier && provider === 'ALBORIHI'
+    const discoveredAlborihiModels = sameProviderAlborihiReview ? freeModelDiscoveryEntry('ALBORIHI', s) : null
     const candidateModels = [...new Set([...providerPreferredModels, ...fallbackModels])]
+      .filter((model) => !discoveredAlborihiModels?.discoveryOk || discoveredAlborihiModels.models.some((id) => id.toLowerCase() === model.toLowerCase()))
+    const eligibleFamily = (model: string) => {
+      if (!sameProviderAlborihiReview) return modelFamilyAllowed(model, excludedFamilies)
+      const family = alborihiModelFamily(s, model)
+      return family !== 'unknown' && !excludedFamilies.has(family)
+    }
     for (const model of candidateModels) {
-      if (!modelFamilyAllowed(model, excludedFamilies)) noteNoCandidate(provider, model, 'SAME_FAMILY_AS_GENERATOR')
+      if (!eligibleFamily(model)) noteNoCandidate(provider, model, sameProviderAlborihiReview && alborihiModelFamily(s, model) === 'unknown' ? 'FAMILY_UNKNOWN' : 'SAME_FAMILY_AS_GENERATOR')
     }
     const baseModels = candidateModels
-      .filter((model) => modelFamilyAllowed(model, excludedFamilies))
+      .filter(eligibleFamily)
       .filter((model) => modelSupportsVisionAttachment(provider, model, modelCapabilitiesFor(provider, s, model), attachments))
     const orderedModels = sticky && sticky.provider === provider && baseModels.includes(sticky.model)
       ? [sticky.model, ...baseModels.filter((model) => model !== sticky.model)]
