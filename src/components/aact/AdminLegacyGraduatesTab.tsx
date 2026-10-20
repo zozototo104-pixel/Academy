@@ -466,7 +466,7 @@ export default function AdminLegacyGraduatesTab() {
       background: isQr ? 'white' : 'rgba(255,255,255,.78)',
       borderRadius: '10px',
       padding: isQr ? '4px' : '4px 8px',
-      color: '#0f2b46',
+      color: textCfg?.color || '#0f2b46',
     }
   }
 
