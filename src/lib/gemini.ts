@@ -26,16 +26,17 @@ interface GeminiCallOpts {
 }
 
 const TEXT_MODELS = [
-  'gemini-3.5-flash-lite',
-  'gemini-3.5-flash',
   'gemini-3.8-flash',
-  'gemini-3.7-flash',
   'gemini-3.6-flash',
+  'gemini-3.5-flash-lite',
   'gemini-flash-latest',
   'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
 ]
 
 const TTS_MODELS = [
+  'gemini-3.8-flash-lite-tts',
+  'gemini-3.8-flash-tts',
   'gemini-3.1-flash-tts-preview',
   'gemini-2.5-flash-preview-tts',
   'gemini-2.5-pro-preview-tts',
@@ -49,7 +50,6 @@ const SUPERVISOR_LIVE_MODELS = [
   'gemini-3.8-live',
   'gemini-3.1-flash-live-preview',
   'gemini-2.5-flash-native-audio-preview-12-2025',
-  'gemini-2.5-flash-live-preview',
 ]
 
 const DISCUSSION_LIVE_MODELS = [
@@ -61,8 +61,9 @@ const DISCUSSION_LIVE_MODELS = [
 ]
 
 const VISION_MODELS = [
-  process.env.GEMINI_TEXT_MODEL || 'gemini-3.5-flash-lite',
-  'gemini-3.5-flash',
+  'gemini-3.8-flash',
+  'gemini-3.6-flash',
+  'gemini-3.5-flash-lite',
   'gemini-2.5-flash',
 ]
 
