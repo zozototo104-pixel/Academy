@@ -1828,7 +1828,7 @@ export function AdminCertificatesTab() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h4 className="text-sm font-black text-[#0f2b46]">قوالب الشهادات الرسمية</h4>
-              <p className="text-xs font-bold text-slate-500">ارفع صورة قالب شهادة فارغ، والنظام يضع الاسم والبرنامج والرقم وQR فوقها في نافذة الشهادة.</p>
+              <p className="text-xs font-bold text-slate-500">ارفع صورة الشهادة كما تريد ظهورها، والنظام يضيف فوقها رقم الشهادة وQR فقط.</p>
             </div>
             <Badge className="bg-[#c9a227]/15 text-[#a8841a]">{templates.length} قالب</Badge>
           </div>
