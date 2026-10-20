@@ -128,7 +128,7 @@ interface ServiceWorkflowView {
 }
 
 interface AdmissionApp {
-  id: string; reference: string; fullName: string; email: string; phone: string
+  id: string; reference: string; fullName: string; fullNameEn?: string | null; email: string; phone: string
   country: string; education: string; program: string; documents: string; notes?: string | null
   documentReplacementRequest?: { note: string; docTypes: string[]; previousStatus: string; requestedAt: string; requestedByName?: string | null } | null
   files?: { id: string; docType: string; fileName: string; size: number; mimeType: string }[]
