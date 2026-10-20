@@ -65,12 +65,15 @@ type AddEditForm = {
 
 const blankForm = (): AddEditForm => ({
   name: '',
+  nameEn: '',
   email: '',
   phone: '',
   country: '',
   programId: '',
   program: '',
+  programEn: '',
   grade: '',
+  gradeEn: '',
   finalScore: '',
   issuedAt: '',
   legacySerial: '',
