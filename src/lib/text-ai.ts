@@ -1623,11 +1623,13 @@ export async function textAiFreeModelsForProvider(providerValue: unknown): Promi
   const selected = modelFor(s, concrete)
   const selectedPart = selected && !/(^|\/|-)auto$/i.test(selected) && selected !== 'auto' && (!nvidiaCompat || NVIDIA_OPENAI_COMPAT_CALLABLE_MODEL_IDS.has(selected.toLowerCase())) && (!nvidiaDiscovered || discoveredSet.has(selected.toLowerCase())) ? [selected] : []
   const models = [...new Set([...selectedPart, ...discovered, ...(nvidiaDiscovered ? [] : staticDefaults)].filter(Boolean))]
-  const catalogLabel = concrete === 'TOPTOOLS'
-    ? 'نموذج متاح'
-    : concrete === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl)
-      ? 'نموذج متاح بتجربة مجانية'
-      : 'نموذج مجاني'
+  const catalogLabel = concrete === 'ALBORIHI'
+    ? 'نموذج مسموح للمفتاح'
+    : concrete === 'TOPTOOLS'
+      ? 'نموذج متاح'
+      : concrete === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl)
+        ? 'نموذج متاح بتجربة مجانية'
+        : 'نموذج مجاني'
   return {
     provider: concrete,
     models,
@@ -1635,9 +1637,11 @@ export async function textAiFreeModelsForProvider(providerValue: unknown): Promi
     staticCount: staticDefaults.length,
     message: discovered.length
       ? `تم اكتشاف ${discovered.length} ${catalogLabel} من المزود.`
-      : concrete === 'TOPTOOLS'
-        ? 'لم يعرض Top Tools AI نماذج عبر /models، لذلك يظهر النموذج الاحتياطي فقط.'
-        : 'لم يعرض المزود نماذج مجانية عبر API، لذلك تظهر القائمة الاحتياطية الثابتة فقط.',
+      : concrete === 'ALBORIHI'
+        ? 'لم يعرض Alborihi AI نماذج مسموحة عبر /models، لذلك تظهر القائمة الاحتياطية الثابتة فقط.'
+        : concrete === 'TOPTOOLS'
+          ? 'لم يعرض Top Tools AI نماذج عبر /models، لذلك يظهر النموذج الاحتياطي فقط.'
+          : 'لم يعرض المزود نماذج مجانية عبر API، لذلك تظهر القائمة الاحتياطية الثابتة فقط.',
   }
 }
 
