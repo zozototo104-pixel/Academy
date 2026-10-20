@@ -1846,6 +1846,7 @@ export function AdminCertificatesTab() {
                   {c.revokedReason && <p className="mt-1 line-clamp-2 text-[10px] font-bold text-red-600">سبب الإلغاء: {c.revokedReason}</p>}
                   <div className="mt-3 grid gap-2">
                     <Button size="sm" variant="outline" className="w-full border-[#c9a227] font-bold text-[#a8841a]" onClick={() => { setSelected(c); setOpen(true) }}><FileDown className="ml-1 h-3.5 w-3.5" /> عرض / طباعة</Button>
+                    <Button size="sm" variant="outline" disabled={busy} className="w-full border-slate-200 font-bold text-[#0f2b46]" onClick={() => editCertificateEnglishFields(c)}>تعديل الحقول الإنجليزية</Button>
                     {c.valid !== false && <Button size="sm" variant="outline" disabled={busy} className="w-full border-red-200 font-bold text-red-600" onClick={() => revokeCertificate(c)}><XCircle className="ml-1 h-3.5 w-3.5" /> إلغاء الشهادة</Button>}
                   </div>
                 </CardContent>
