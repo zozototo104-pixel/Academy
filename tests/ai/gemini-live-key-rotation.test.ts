@@ -144,6 +144,7 @@ describe('Gemini Live raw setup shape', () => {
         data: [
           { id: 'claude-sonnet-5', context_length: 200000, architecture: { input_modalities: ['text'], modality: 'text' } },
           { id: 'gpt-5.6-luna', context_length: 128000, architecture: { input_modalities: ['text', 'image'], modality: 'text' } },
+          { id: 'small-context-chat', context_length: 8000, architecture: { input_modalities: ['text'], modality: 'text' } },
           { id: 'text-embedding-3-large', type: 'embedding' },
         ],
       }), { status: 200, headers: { 'Content-Type': 'application/json' } })
