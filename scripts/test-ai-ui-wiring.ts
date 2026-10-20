@@ -163,5 +163,6 @@ testIncompleteDefenseNeedsReview()
 testExamErrorWiring()
 testAdminAndApplyWiring()
 testFailedBookReadRetry()
+testAlborihiProviderWiring()
 
 console.log('✓ ai/ui wiring behavioral checks passed')
