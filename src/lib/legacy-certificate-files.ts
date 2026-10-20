@@ -37,20 +37,61 @@ export function normalizeQrSize(value: unknown): QrSize {
   return v === 'S' || v === 'L' ? v : 'M'
 }
 
-function qrPointSize(size: QrSize) {
-  if (size === 'S') return 92
-  if (size === 'L') return 156
-  return 124
+function clampNumber(value: unknown, min: number, max: number, fallback: number) {
+  const n = Number(value)
+  return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback
 }
 
-function placement(pageWidth: number, pageHeight: number, size: number, position: QrPosition) {
-  const margin = Math.max(28, Math.round(size * 0.22))
-  const textSize = Math.max(8, Math.round(size * 0.09))
-  const gap = Math.max(4, Math.round(size * 0.04))
-  const x = position.endsWith('RIGHT') ? pageWidth - margin - size : margin
-  const qrY = position.startsWith('TOP') ? pageHeight - margin - size : margin + textSize + gap
-  const textY = position.startsWith('TOP') ? qrY - gap - textSize : margin
-  return { x, qrY, textY, textSize }
+function legacySizePercent(size: QrSize) {
+  if (size === 'S') return 12
+  if (size === 'L') return 20
+  return 16
+}
+
+function legacyLayoutFromPosition(positionValue: unknown, sizeValue: unknown): LegacyStampLayout {
+  const position = normalizeQrPosition(positionValue)
+  const size = normalizeQrSize(sizeValue)
+  const qrSize = legacySizePercent(size)
+  const isRight = position.endsWith('RIGHT')
+  const isTop = position.startsWith('TOP')
+  const x = isRight ? 100 - (7 + qrSize / 2) : 7 + qrSize / 2
+  const qrY = isTop ? 7 + qrSize / 2 : 100 - (10 + qrSize / 2)
+  const serialY = isTop ? Math.min(96, qrY + qrSize / 2 + 4) : 95
+  return {
+    qr: { x, y: qrY, size: qrSize, visible: true },
+    serial: { x, y: serialY, width: Math.max(20, qrSize * 1.8), fontSize: size === 'L' ? 1.6 : size === 'S' ? 1.0 : 1.25, visible: true },
+  }
+}
+
+export function normalizeStampLayout(value: unknown, sizeValue: unknown = 'M'): LegacyStampLayout {
+  let raw: any = value
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (trimmed.startsWith('{')) {
+      try { raw = JSON.parse(trimmed) } catch { raw = null }
+    }
+  }
+  const fallback = legacyLayoutFromPosition(typeof value === 'string' ? value : 'BOTTOM_LEFT', sizeValue)
+  if (!raw || typeof raw !== 'object' || !raw.qr || !raw.serial) return fallback
+  return {
+    qr: {
+      x: clampNumber(raw.qr?.x, 1, 99, fallback.qr.x),
+      y: clampNumber(raw.qr?.y, 1, 99, fallback.qr.y),
+      size: clampNumber(raw.qr?.size, 4, 45, fallback.qr.size),
+      visible: raw.qr?.visible !== false,
+    },
+    serial: {
+      x: clampNumber(raw.serial?.x, 1, 99, fallback.serial.x),
+      y: clampNumber(raw.serial?.y, 1, 99, fallback.serial.y),
+      width: clampNumber(raw.serial?.width, 6, 95, fallback.serial.width),
+      fontSize: clampNumber(raw.serial?.fontSize, 0.5, 8, fallback.serial.fontSize),
+      visible: raw.serial?.visible !== false,
+    },
+  }
+}
+
+export function serializeStampLayout(layout: LegacyStampLayout) {
+  return JSON.stringify(normalizeStampLayout(layout))
 }
 
 async function createPdfFromImage(buffer: Buffer, mime: LegacyCertificateMime) {
