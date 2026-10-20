@@ -154,6 +154,7 @@ const realTuitionInstallments = await import('../../src/lib/tuition-installments
 mock.module('@/lib/tuition-installments', () => ({
   ...realTuitionInstallments,
   enforceSemesterTuitionGate: async () => ({ ok: true }),
+  TUITION_PURPOSES: ['TUITION', 'TUITION_INSTALLMENT'],
   inferTotalTuition: () => 0,
   roundMoney: (value: number) => Math.round(value * 100) / 100,
   tuitionPaidTotal: () => 0,
