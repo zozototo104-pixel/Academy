@@ -134,6 +134,27 @@ describe('Gemini Live raw setup shape', () => {
     ])
   })
 
+  test('discovers all allowed Alborihi text models from /models', async () => {
+    values.set('AI_TEXT_PROVIDER', 'ALBORIHI')
+    values.set('ALBORIHI_API_KEYS', 'alb_dev_test')
+    globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+      expect(String(url)).toBe('https://alborihi-ai.com/api/public/dev/v1/models')
+      expect((init?.headers as Record<string, string> | undefined)?.Authorization).toBe('Bearer alb_dev_test')
+      return new Response(JSON.stringify({
+        data: [
+          { id: 'claude-sonnet-5', context_length: 200000, architecture: { input_modalities: ['text'], modality: 'text' } },
+          { id: 'gpt-5.6-luna', context_length: 128000, architecture: { input_modalities: ['text', 'image'], modality: 'text' } },
+          { id: 'text-embedding-3-large', type: 'embedding' },
+        ],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }) as any
+
+    const catalog = await textAi.textAiFreeModelsForProvider('ALBORIHI')
+    expect(catalog.models).toEqual(['claude-sonnet-5', 'gpt-5.6-luna'])
+    expect(catalog.discoveredCount).toBe(2)
+    expect(catalog.message).toContain('مسموح')
+  })
+
   test('uses generationConfig for response modalities and keeps transcription directly under setup', () => {
     const variants = ['minimal', 'generationConfig', 'bare'] as const
     const palestinianInstruction = dialectInstruction('ar-PS')
