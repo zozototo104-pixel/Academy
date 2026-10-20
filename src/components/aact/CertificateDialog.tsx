@@ -90,10 +90,22 @@ export function CertificateDialog({
   }, [certificate, open])
 
   if (!certificate) return null
-  const date = new Date(certificate.issuedAt).toLocaleDateString('ar-EG', {
+  const dateAr = new Date(certificate.issuedAt).toLocaleDateString('ar-EG', {
+    year: 'numeric', month: 'long', day: 'numeric',
+  })
+  const dateEn = new Date(certificate.issuedAt).toLocaleDateString('en-US', {
     year: 'numeric', month: 'long', day: 'numeric',
   })
   const layout = layoutOf(template?.layoutJson)
+  const valueFor = (field: string) => {
+    const lang = layout[field]?.lang === 'ar' ? 'ar' : 'en'
+    if (field === 'holderName') return lang === 'en' ? (certificate.holderNameEn || certificate.holderName) : certificate.holderName
+    if (field === 'program') return lang === 'en' ? (certificate.programEn || certificate.program) : certificate.program
+    if (field === 'grade') return lang === 'en' ? (certificate.gradeEn || certificate.grade || '') : (certificate.grade || '')
+    if (field === 'issuedAt') return lang === 'en' ? dateEn : dateAr
+    if (field === 'serial') return certificate.serial
+    return ''
+  }
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
