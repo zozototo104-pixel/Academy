@@ -52,6 +52,33 @@ export async function GET(_req: NextRequest, context: RouteContext) {
       if (stamped) return pdfResponse(stamped.buffer, `${certificate.serial}.pdf`)
     }
 
+    const activeTemplate = await db.certificateTemplate.findFirst({
+      where: { certificateType: certificate.type, active: true },
+      orderBy: { createdAt: 'desc' },
+    }) || await db.certificateTemplate.findFirst({
+      where: { active: true },
+      orderBy: { createdAt: 'desc' },
+    })
+    if (activeTemplate) {
+      const storedTemplate = await readStoredFile({
+        provider: activeTemplate.storageProvider,
+        key: activeTemplate.storageKey,
+        url: activeTemplate.fileUrl,
+        mimeType: activeTemplate.mimeType,
+      }).catch(() => null)
+      const templateMime = storedTemplate ? sniffLegacyCertificateMime(storedTemplate.buffer) : null
+      if (storedTemplate && templateMime) {
+        const templatedPdf = await stampLegacyCertificatePdf({
+          buffer: storedTemplate.buffer,
+          mime: templateMime,
+          serial: certificate.serial,
+          qrToken: certificate.qrToken,
+          stampLayout: activeTemplate.layoutJson as any,
+        })
+        return pdfResponse(templatedPdf, `${certificate.serial}.pdf`)
+      }
+    }
+
     const holder = pdfSafeText(certificate.holderName || certificate.admission?.fullName || certificate.agent?.repName || certificate.agent?.orgName, 'Certificate Holder')
     const program = pdfSafeText(certificate.program || certificate.admission?.programRef?.titleAr || certificate.admission?.program || certificate.agent?.orgName, 'AACT Program')
     const verificationUrl = certificateVerificationUrl(certificate)
