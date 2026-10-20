@@ -301,6 +301,41 @@ describe('academic B1 safety', () => {
     expect(eligibility.missing.some((item) => item.includes('اختبار وحدة'))).toBe(false)
   })
 
+  test('certificate issuance finance rules match tuition gate cases', async () => {
+    expect((await completionResult({ payments: [] })).result.ok).toBe(true)
+    expect((await completionResult({ payments: [], scholarshipFull: true })).result.ok).toBe(true)
+    expect((await completionResult({ scholarshipFull: true, payments: [{ purpose: 'APPLICATION_FEE', status: 'UNPAID', amount: 30 }] })).result.ok).toBe(true)
+
+    const halfPaid = await completionResult({ payments: [{ purpose: 'TUITION', status: 'PAID', amount: 500, originalAmount: 1000 }] })
+    expect(halfPaid.result.ok).toBe(false)
+    expect(halfPaid.result.code).toBe('PAYMENT_REQUIRED')
+
+    const unpaidSeat = await completionResult({ payments: [
+      { purpose: 'APPLICATION_FEE', status: 'UNPAID', amount: 30 },
+      { purpose: 'TUITION', status: 'PAID', amount: 1000, originalAmount: 1000 },
+    ] })
+    expect(unpaidSeat.result.ok).toBe(false)
+    expect(unpaidSeat.result.code).toBe('PAYMENT_REQUIRED')
+
+    const fullyPaid = await completionResult({ payments: [
+      { purpose: 'APPLICATION_FEE', status: 'PAID', amount: 30 },
+      { purpose: 'TUITION', status: 'PAID', amount: 1000, originalAmount: 1000 },
+    ] })
+    expect(fullyPaid.result.ok).toBe(true)
+  })
+
+  test('certificate English labels and admission English name are used on issuance', async () => {
+    expect(certificateGradeLabelEn(95)).toBe('Excellent')
+    const issued = await completionResult({ payments: [], fullNameEn: 'John Smith' })
+    expect(issued.result.ok).toBe(true)
+    expect(issued.certificate.holderNameEn).toBe('John Smith')
+    expect(issued.certificate.gradeEn).toBe('Excellent')
+  })
+
+  test('English stamp grade falls back from known Arabic grade label', () => {
+    expect(stampValue('grade', { x: 50, y: 50, width: 40, fontSize: 2, lang: 'en' }, { grade: 'امتياز' })).toBe('Excellent')
+  })
+
   test('certificate verification details expose program exam finalScore instead of raw score', async () => {
     const res = await certVerifyRoute.POST(new NextRequest('https://academy.test/api/certificates/verify', {
       method: 'POST',
