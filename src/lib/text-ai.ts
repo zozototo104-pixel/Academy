@@ -2244,7 +2244,7 @@ async function callChatCompletions(provider: string, baseUrl: string, key: strin
     body: JSON.stringify(openAiChatCompletionsBody(provider, baseUrl, model, providerOpts)),
   }, providerRequestTimeoutMs(provider, providerOpts), providerOpts.deadlineMs)
   const data = await parseResponse(response)
-  if (!response.ok) throwHttp(provider, response.status, data)
+  if (!response.ok) throwHttp(provider, response.status, data, response)
   const message = data?.choices?.[0]?.message || {}
   const text = String(message?.content || '').trim()
   if (!text) {
