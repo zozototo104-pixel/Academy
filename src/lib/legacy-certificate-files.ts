@@ -111,8 +111,9 @@ export async function stampLegacyCertificatePdf(input: {
   mime: LegacyCertificateMime
   serial: string
   qrToken: string
-  qrPosition?: QrPosition | null
-  qrSize?: QrSize | null
+  qrPosition?: QrPosition | string | null
+  qrSize?: QrSize | string | null
+  stampLayout?: LegacyStampLayout | string | null
 }) {
   const pdf = input.mime === 'application/pdf'
     ? await PDFDocument.load(input.buffer)
@@ -120,11 +121,10 @@ export async function stampLegacyCertificatePdf(input: {
   const [page] = pdf.getPages()
   if (!page) throw new Error('EMPTY_PDF')
 
-  const position = normalizeQrPosition(input.qrPosition)
-  const size = normalizeQrSize(input.qrSize)
-  const qrSize = qrPointSize(size)
   const { width, height } = page.getSize()
-  const effectiveQrSize = Math.min(qrSize, Math.max(64, Math.min(width, height) * 0.28))
+  const minDimension = Math.min(width, height)
+  const layout = normalizeStampLayout(input.stampLayout || input.qrPosition || 'BOTTOM_LEFT', input.qrSize || 'M')
+  const effectiveQrSize = Math.max(28, Math.min(minDimension * 0.45, minDimension * (layout.qr.size / 100)))
   const qrPng = await QRCode.toBuffer(certificateVerificationUrl({ qrToken: input.qrToken }), {
     type: 'png',
     width: Math.round(effectiveQrSize * 3),
@@ -133,13 +133,21 @@ export async function stampLegacyCertificatePdf(input: {
   })
   const qrImage = await pdf.embedPng(qrPng)
   const font = await pdf.embedFont(StandardFonts.Helvetica)
-  const place = placement(width, height, effectiveQrSize, position)
+  const margin = 4
+  const qrCenterX = width * (layout.qr.x / 100)
+  const qrCenterY = height * ((100 - layout.qr.y) / 100)
+  const qrX = Math.max(margin, Math.min(width - effectiveQrSize - margin, qrCenterX - effectiveQrSize / 2))
+  const qrY = Math.max(margin, Math.min(height - effectiveQrSize - margin, qrCenterY - effectiveQrSize / 2))
   const serial = String(input.serial || '').trim()
-  const textWidth = font.widthOfTextAtSize(serial, place.textSize)
-  const textX = Math.min(Math.max(8, place.x + (effectiveQrSize - textWidth) / 2), Math.max(8, width - textWidth - 8))
+  const textSize = Math.max(6, Math.min(72, minDimension * (layout.serial.fontSize / 100)))
+  const textWidth = font.widthOfTextAtSize(serial, textSize)
+  const serialCenterX = width * (layout.serial.x / 100)
+  const serialCenterY = height * ((100 - layout.serial.y) / 100)
+  const textX = Math.max(margin, Math.min(width - textWidth - margin, serialCenterX - textWidth / 2))
+  const textY = Math.max(margin, Math.min(height - textSize - margin, serialCenterY - textSize / 2))
 
-  page.drawImage(qrImage, { x: place.x, y: place.qrY, width: effectiveQrSize, height: effectiveQrSize })
-  page.drawText(serial, { x: textX, y: place.textY, size: place.textSize, font, color: rgb(0.05, 0.05, 0.05) })
+  if (layout.qr.visible !== false) page.drawImage(qrImage, { x: qrX, y: qrY, width: effectiveQrSize, height: effectiveQrSize })
+  if (layout.serial.visible !== false && serial) page.drawText(serial, { x: textX, y: textY, size: textSize, font, color: rgb(0.05, 0.05, 0.05) })
   return Buffer.from(await pdf.save())
 }
 
