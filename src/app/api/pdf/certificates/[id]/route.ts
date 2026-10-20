@@ -53,44 +53,48 @@ export async function GET(_req: NextRequest, context: RouteContext) {
       if (stamped) return pdfResponse(stamped.buffer, `${certificate.serial}.pdf`)
     }
 
-    const templateStore = (db as any).certificateTemplate
-    const activeTemplate = templateStore?.findFirst
-      ? await templateStore.findFirst({
-        where: { certificateType: certificate.type, active: true },
-        orderBy: { createdAt: 'desc' },
-      }) || await templateStore.findFirst({
-        where: { active: true },
-        orderBy: { createdAt: 'desc' },
-      })
-      : null
-    if (activeTemplate) {
-      const storedTemplate = await readStoredFile({
-        provider: activeTemplate.storageProvider,
-        key: activeTemplate.storageKey,
-        url: activeTemplate.fileUrl,
-        mimeType: activeTemplate.mimeType,
-      }).catch(() => null)
-      const templateMime = storedTemplate ? sniffLegacyCertificateMime(storedTemplate.buffer) : null
-      if (storedTemplate && templateMime) {
-        const templatedPdf = await stampLegacyCertificatePdf({
-          buffer: storedTemplate.buffer,
-          mime: templateMime,
-          serial: certificate.serial,
-          qrToken: certificate.qrToken,
-          stampLayout: activeTemplate.layoutJson as any,
-          values: {
-            holderName: certificate.holderName || certificate.admission?.fullName,
-            holderNameEn: certificate.holderNameEn,
-            program: certificate.program || certificate.enrollment?.program?.titleAr || certificate.admission?.program,
-            programEn: certificate.programEn || certificate.enrollment?.program?.titleEn || certificate.admission?.programRef?.titleEn,
-            grade: certificate.grade,
-            gradeEn: certificate.gradeEn,
-            issuedAt: certificate.issuedAt,
-            serial: certificate.serial,
-          },
+    try {
+      const templateStore = (db as any).certificateTemplate
+      const activeTemplate = templateStore?.findFirst
+        ? await templateStore.findFirst({
+          where: { certificateType: certificate.type, active: true },
+          orderBy: { createdAt: 'desc' },
+        }) || await templateStore.findFirst({
+          where: { active: true },
+          orderBy: { createdAt: 'desc' },
         })
-        return pdfResponse(templatedPdf, `${certificate.serial}.pdf`)
+        : null
+      if (activeTemplate) {
+        const storedTemplate = await readStoredFile({
+          provider: activeTemplate.storageProvider,
+          key: activeTemplate.storageKey,
+          url: activeTemplate.fileUrl,
+          mimeType: activeTemplate.mimeType,
+        }).catch(() => null)
+        const templateMime = storedTemplate ? sniffLegacyCertificateMime(storedTemplate.buffer) : null
+        if (storedTemplate && templateMime) {
+          const templatedPdf = await stampLegacyCertificatePdf({
+            buffer: storedTemplate.buffer,
+            mime: templateMime,
+            serial: certificate.serial,
+            qrToken: certificate.qrToken,
+            stampLayout: activeTemplate.layoutJson as any,
+            values: {
+              holderName: certificate.holderName || certificate.admission?.fullName,
+              holderNameEn: certificate.holderNameEn,
+              program: certificate.program || certificate.enrollment?.program?.titleAr || certificate.admission?.program,
+              programEn: certificate.programEn || certificate.enrollment?.program?.titleEn || certificate.admission?.programRef?.titleEn,
+              grade: certificate.grade,
+              gradeEn: certificate.gradeEn,
+              issuedAt: certificate.issuedAt,
+              serial: certificate.serial,
+            },
+          })
+          return pdfResponse(templatedPdf, `${certificate.serial}.pdf`)
+        }
       }
+    } catch (templateError) {
+      console.error('certificate template PDF stamping failed; falling back to official PDF:', templateError)
     }
 
     const holder = pdfSafeText(certificate.holderNameEn || certificate.holderName || certificate.admission?.fullName || certificate.agent?.repName || certificate.agent?.orgName, 'Certificate Holder')
