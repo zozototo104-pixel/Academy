@@ -454,7 +454,7 @@ export default function AdminLegacyGraduatesTab() {
       minHeight: isQr ? undefined : '22px',
       transform: 'translate(-50%, -50%)',
       textAlign: (textCfg?.align || 'center') as any,
-      direction: isQr ? undefined : (textCfg?.lang === 'ar' ? 'rtl' : 'ltr'),
+      direction: isQr ? undefined : (textCfg?.lang === 'ar' ? 'rtl' as const : 'ltr' as const),
       fontFamily: isQr ? undefined : (textCfg?.fontFamily || 'Arial'),
       fontSize: isQr ? undefined : `clamp(10px, ${textCfg?.fontSize ?? 1.2}vw, 42px)`,
       fontWeight: 900,
