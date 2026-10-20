@@ -24,5 +24,11 @@
       "path": "/api/cron/ai-retention",
       "schedule": "15 3 * * *"
     }
-  ]
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "main": true,
+      "*": false
+    }
+  }
 }
