@@ -512,6 +512,9 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json({ ok: true, application: updated })
   } catch (e: any) {
+    if (e?.message === 'INVALID_ENGLISH_NAME') {
+      return NextResponse.json({ error: "الاسم بالإنجليزي يجب أن يحتوي على حروف لاتينية ومسافات و . - ' فقط" }, { status: 400 })
+    }
     console.error('admin admissions PATCH error:', e)
     return NextResponse.json({ error: 'تعذر تحديث الطلب' }, { status: 500 })
   }
