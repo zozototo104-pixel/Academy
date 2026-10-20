@@ -2892,8 +2892,9 @@ export async function textAiTestConnection(): Promise<{ ok: boolean; provider?: 
           const ms = Date.now() - started
           const msg = String(e?.message || e).slice(0, 260)
           const status = statusFromError(e)
+          const requestId = requestIdFromError(e)
           lastResult = { provider, model, ok: false, error: msg, at }
-          recordAttempt({ provider, model, keyIndex, ok: false, ms, status, error: msg, at })
+          recordAttempt({ provider, model, keyIndex, ok: false, ms, status, error: msg, ...(requestId ? { requestId } : {}), at })
           errors.push(`${provider}/${model}/key#${keyIndex}: ${msg}`)
           if (provider === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl) && isNvidiaHardModelFailure(e, msg, status)) {
             await recordNvidiaHardFailureAndMaybeDead(provider, model, msg, status)
