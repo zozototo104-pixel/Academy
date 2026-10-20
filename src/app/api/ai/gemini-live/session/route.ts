@@ -128,7 +128,7 @@ function arabicErrorForGemini(e: any): string {
   if (isQuotaError(e)) return 'وصل Gemini Live إلى حد الحصة الحالية لهذا المشروع — فعّل Billing أو انتظر إعادة الضبط'
   if (isModelUnavailableError(e)) return 'نموذج Gemini Live المختار غير متاح لهذا المشروع'
   if (isInvalidArgumentError(e)) {
-    return 'إعدادات Gemini Live غير مقبولة. استخدم gemini-3.1-flash-live-preview، أو جرّب gemini-2.5-flash-live-preview إذا لم تكن 3.1 متاحة لمشروعك'
+    return 'إعدادات Gemini Live غير مقبولة. استخدم gemini-3.8-live، أو gemini-3.1-flash-live-preview، أو gemini-2.5-flash-native-audio-preview-12-2025 إذا لم تكن النماذج الأحدث متاحة لمشروعك'
   }
   return redactSecrets(raw).slice(0, 220) || 'تعذر إنشاء جلسة Gemini Live'
 }
@@ -320,7 +320,7 @@ export async function POST(req: NextRequest) {
   const model = cleanModel(body.model) || await geminiActiveLiveModel(purpose)
   if (!isValidGeminiLiveModel(model)) {
     return NextResponse.json(
-      { error: 'اسم نموذج Gemini Live غير صحيح، استخدم gemini-3.1-flash-live-preview.', model },
+      { error: 'اسم نموذج Gemini Live غير صحيح، استخدم gemini-3.8-live أو gemini-2.5-flash-native-audio-preview-12-2025.', model },
       { status: 400 }
     )
   }

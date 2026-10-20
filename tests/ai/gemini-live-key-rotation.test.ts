@@ -75,6 +75,8 @@ const store = {
 const originalFetch = globalThis.fetch
 const originalGeminiApiKey = process.env.GEMINI_API_KEY
 const originalGeminiApiKeys = process.env.GEMINI_API_KEYS
+const originalAlborihiApiKey = process.env.ALBORIHI_API_KEY
+const originalAlborihiApiKeys = process.env.ALBORIHI_API_KEYS
 let fetchKeys: string[] = []
 
 function configureGeminiKeys(...keys: string[]) {
@@ -104,11 +106,14 @@ function mockTokenFetch(handler: (key: string) => { status: number; body: unknow
 
 beforeEach(() => {
   values.clear()
+  globalThis.fetch = originalFetch
   fetchKeys = []
   supervisorAccessLocked = false
   reserveUsageCalls = 0
   delete process.env.GEMINI_API_KEY
   delete process.env.GEMINI_API_KEYS
+  delete process.env.ALBORIHI_API_KEY
+  delete process.env.ALBORIHI_API_KEYS
   textAi.__resetTextAiStateForTests()
   textAi.__setTextAiSettingStoreForTests(store)
 })
@@ -120,9 +125,45 @@ afterAll(() => {
   else process.env.GEMINI_API_KEY = originalGeminiApiKey
   if (originalGeminiApiKeys === undefined) delete process.env.GEMINI_API_KEYS
   else process.env.GEMINI_API_KEYS = originalGeminiApiKeys
+  if (originalAlborihiApiKey === undefined) delete process.env.ALBORIHI_API_KEY
+  else process.env.ALBORIHI_API_KEY = originalAlborihiApiKey
+  if (originalAlborihiApiKeys === undefined) delete process.env.ALBORIHI_API_KEYS
+  else process.env.ALBORIHI_API_KEYS = originalAlborihiApiKeys
 })
 
 describe('Gemini Live raw setup shape', () => {
+  test('normalizes legacy Gemini model aliases before routing', () => {
+    expect(realGemini.normalizeGeminiModelName('models/gemini-3.5-flash')).toBe('gemini-3.5-flash-lite')
+    expect(realGemini.normalizeGeminiModelName('gemini-3.7-flash')).toBe('gemini-3.8-flash')
+    expect(realGemini.normalizeGeminiModelName('gemini-2.0-flash')).toBe('gemini-3.8-flash')
+    expect(realGemini.normalizeGeminiModelName('gemini-2.5-flash-live-preview')).toBe('gemini-2.5-flash-native-audio-preview-12-2025')
+    expect(textAi.parseAcademicAllowlist('GEMINI:gemini-3.5-flash')).toEqual([
+      { provider: 'GEMINI', model: 'gemini-3.5-flash-lite' },
+    ])
+  })
+
+  test('discovers all allowed Alborihi text models from /models', async () => {
+    values.set('AI_TEXT_PROVIDER', 'ALBORIHI')
+    process.env.ALBORIHI_API_KEYS = 'alb_dev_test'
+    globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+      expect(String(url)).toBe('https://alborihi-ai.com/api/public/dev/v1/models')
+      expect((init?.headers as Record<string, string> | undefined)?.Authorization).toBe('Bearer alb_dev_test')
+      return new Response(JSON.stringify({
+        data: [
+          { id: 'claude-sonnet-5', context_length: 200000, architecture: { input_modalities: ['text'], modality: 'text' } },
+          { id: 'gpt-5.6-luna', context_length: 128000, architecture: { input_modalities: ['text', 'image'], modality: 'text' } },
+          { id: 'small-context-chat', context_length: 8000, architecture: { input_modalities: ['text'], modality: 'text' } },
+          { id: 'text-embedding-3-large', type: 'embedding' },
+        ],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }) as any
+
+    const catalog = await textAi.textAiFreeModelsForProvider('ALBORIHI')
+    expect(catalog.models).toEqual(['claude-sonnet-5', 'gpt-5.6-luna', 'small-context-chat'])
+    expect(catalog.discoveredCount).toBe(3)
+    expect(catalog.message).toContain('مسموح')
+  })
+
   test('uses generationConfig for response modalities and keeps transcription directly under setup', () => {
     const variants = ['minimal', 'generationConfig', 'bare'] as const
     const palestinianInstruction = dialectInstruction('ar-PS')

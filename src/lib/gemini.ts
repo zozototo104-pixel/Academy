@@ -26,13 +26,12 @@ interface GeminiCallOpts {
 }
 
 const TEXT_MODELS = [
-  'gemini-3.5-flash-lite',
-  'gemini-3.5-flash',
   'gemini-3.8-flash',
-  'gemini-3.7-flash',
   'gemini-3.6-flash',
+  'gemini-3.5-flash-lite',
   'gemini-flash-latest',
   'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
 ]
 
 const TTS_MODELS = [
@@ -49,7 +48,6 @@ const SUPERVISOR_LIVE_MODELS = [
   'gemini-3.8-live',
   'gemini-3.1-flash-live-preview',
   'gemini-2.5-flash-native-audio-preview-12-2025',
-  'gemini-2.5-flash-live-preview',
 ]
 
 const DISCUSSION_LIVE_MODELS = [
@@ -61,8 +59,9 @@ const DISCUSSION_LIVE_MODELS = [
 ]
 
 const VISION_MODELS = [
-  process.env.GEMINI_TEXT_MODEL || 'gemini-3.5-flash-lite',
-  'gemini-3.5-flash',
+  'gemini-3.8-flash',
+  'gemini-3.6-flash',
+  'gemini-3.5-flash-lite',
   'gemini-2.5-flash',
 ]
 
@@ -161,7 +160,9 @@ export function normalizeGeminiModelName(value: unknown): string {
     .replace(/[?&#].*$/, '')
     .trim()
   if (!v || v === 'auto') return ''
-  if (v === 'gemini-2.5-flash-lite') return 'gemini-3.5-flash-lite'
+  if (v === 'gemini-3.5-flash') return 'gemini-3.5-flash-lite'
+  if (v === 'gemini-3.7-flash') return 'gemini-3.8-flash'
+  if (v === 'gemini-2.0-flash') return 'gemini-3.8-flash'
   if (v === 'gemini-2.5-flash-live-preview') return 'gemini-2.5-flash-native-audio-preview-12-2025'
   const known = [...TEXT_MODELS, ...TTS_MODELS, ...SUPERVISOR_LIVE_MODELS, ...DISCUSSION_LIVE_MODELS, ...VISION_MODELS]
   if (known.includes(v)) return v

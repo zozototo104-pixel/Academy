@@ -16,6 +16,7 @@ export type TextAiProvider =
   | 'RELAYROUTER'
   | 'TOPTOOLS'
   | 'OPENAI_COMPAT'
+  | 'ALBORIHI'
   | 'AUTO'
 
 export type TextAiRouterPolicy = 'primary_first' | 'balanced' | 'quality_first' | 'cost_saver' | 'fallback_only'
@@ -73,6 +74,7 @@ export interface TextAiAttemptDiagnostics {
   ms: number
   status?: number
   error?: string
+  requestId?: string
   at: string
 }
 
@@ -92,6 +94,7 @@ export interface TextAiDiagnostics {
   unorouterConfigured: boolean
   relayrouterConfigured: boolean
   topToolsConfigured: boolean
+  alborihiConfigured: boolean
   openaiCompatConfigured: boolean
   geminiModel: string
   openaiModel: string
@@ -104,6 +107,7 @@ export interface TextAiDiagnostics {
   unorouterModel: string
   relayrouterModel: string
   topToolsModel: string
+  alborihiModel: string
   openaiCompatModel: string
   keyCounts: Record<string, number>
   cooldowns: Array<{ provider: string; key: string; until: string; reason: string }>
@@ -115,7 +119,13 @@ export interface TextAiDiagnostics {
 const OPENAI_TEXT_MODELS = ['gpt-5.1', 'gpt-5', 'gpt-5-mini']
 const ANTHROPIC_TEXT_MODELS = ['claude-sonnet-4-5-20250929', 'claude-opus-4-1-20250805', 'claude-sonnet-4-20250514', 'claude-3-7-sonnet-20250219', 'claude-3-5-haiku-20241022']
 const ZAI_TEXT_MODELS = ['glm-4.5', 'glm-4.5-air', 'glm-4.5-x', 'glm-4.5-airx']
-const GEMINI_TEXT_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash']
+const GEMINI_TEXT_MODELS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.5-flash-lite']
+const GEMINI_MODEL_ALIASES: Record<string, string> = {
+  'gemini-3.5-flash': 'gemini-3.5-flash-lite',
+  'gemini-3.7-flash': 'gemini-3.8-flash',
+  'gemini-2.0-flash': 'gemini-3.8-flash',
+  'gemini-2.5-flash-live-preview': 'gemini-2.5-flash-native-audio-preview-12-2025',
+}
 const GROQ_TEXT_MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant']
 const OPENROUTER_TEXT_MODELS = ['openrouter/auto', 'meta-llama/llama-3.1-8b-instruct:free']
 const DEEPINFRA_TEXT_MODELS = ['meta-llama/Llama-3.3-70B-Instruct', 'meta-llama/Meta-Llama-3.1-8B-Instruct']
@@ -154,6 +164,9 @@ const UNOROUTER_TEXT_MODELS = [
 ]
 const RELAYROUTER_TEXT_MODELS = ['relayrouter/auto', 'claude-opus-4-8', 'gpt-5.5', 'gemini-3.5-flash']
 const TOPTOOLS_TEXT_MODELS = ['top-tools-ai']
+const ALBORIHI_TEXT_MODELS = ['claude-sonnet-5', 'claude-opus-4-6', 'gpt-5.6-luna']
+const ALBORIHI_DEFAULT_BASE_URL = 'https://alborihi-ai.com/api/public/dev/v1'
+const ALBORIHI_MODEL_DISCOVERY_CACHE_MS = 6 * 60 * 60 * 1000
 const OPENAI_COMPAT_TEXT_MODELS = ['auto']
 const NVIDIA_OPENAI_COMPAT_TEXT_MODELS = [
   'deepseek-ai/deepseek-v3.2',
@@ -171,7 +184,7 @@ const NVIDIA_OPENAI_COMPAT_DEAD_MODEL_MS = 24 * 60 * 60 * 1000
 const NVIDIA_OPENAI_COMPAT_HARD_FAILURE_WINDOW_MS = 60 * 60 * 1000
 const MAX_VISION_ATTACHMENT_BYTES = 15 * 1024 * 1024
 const VISION_ATTEMPT_TIMEOUT_MS = 75_000
-const VISION_OPENAI_COMPAT_PROVIDERS = new Set<TextAiProvider>(['OPENAI', 'OPENROUTER', 'OPENAI_COMPAT'])
+const VISION_OPENAI_COMPAT_PROVIDERS = new Set<TextAiProvider>(['OPENAI', 'OPENROUTER', 'OPENAI_COMPAT', 'ALBORIHI'])
 const VISION_NATIVE_PROVIDERS = new Set<TextAiProvider>(['GEMINI', 'ANTHROPIC', 'ZAI'])
 
 const cooldowns = new Map<string, { until: number; reason: string; status?: number; model?: string }>()
@@ -278,7 +291,7 @@ function clean(value: unknown): string {
 
 function normalizeProvider(value: unknown): TextAiProvider {
   const v = clean(value).toUpperCase()
-  const allowed: TextAiProvider[] = ['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'AUTO']
+  const allowed: TextAiProvider[] = ['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI', 'AUTO']
   return allowed.includes(v as TextAiProvider) ? (v as TextAiProvider) : 'GEMINI'
 }
 
@@ -288,6 +301,11 @@ function normalizePolicy(value: unknown): TextAiRouterPolicy {
   return 'primary_first'
 }
 
+function normalizeGeminiModelAlias(value: unknown): string {
+  const v = clean(value).replace(/^models\//, '').toLowerCase()
+  return GEMINI_MODEL_ALIASES[v] || v
+}
+
 function normalizeModel(value: unknown, defaults: string[]): string {
   const v = clean(value)
   if (!v || v === 'auto') return defaults[0]
@@ -295,7 +313,11 @@ function normalizeModel(value: unknown, defaults: string[]): string {
   return /^[a-z0-9][a-z0-9_./:-]{1,160}$/i.test(v) ? v : defaults[0]
 }
 
-const DEFAULT_ACADEMIC_ALLOWLIST = 'GEMINI:gemini-3.5-flash,GEMINI:gemini-3.8-flash'
+function normalizeGeminiTextModel(value: unknown): string {
+  return normalizeModel(normalizeGeminiModelAlias(value), GEMINI_TEXT_MODELS)
+}
+
+const DEFAULT_ACADEMIC_ALLOWLIST = 'GEMINI:gemini-3.8-flash,GEMINI:gemini-3.5-flash-lite'
 
 export function parseProviderModelList(value: unknown, fallback = ''): TextAiPreferredModel[] {
   const out: TextAiPreferredModel[] = []
@@ -308,7 +330,7 @@ export function parseProviderModelList(value: unknown, fallback = ''): TextAiPre
     }
     const providerText = clean(item.slice(0, separator)).toUpperCase()
     const provider = normalizeProvider(providerText)
-    const model = clean(item.slice(separator + 1))
+    const model = provider === 'GEMINI' ? normalizeGeminiModelAlias(item.slice(separator + 1)) : clean(item.slice(separator + 1))
     if (!providerText || provider === 'AUTO' || provider !== providerText || !model) {
       console.warn('[text-ai-router] ignoring invalid academic allowlist item', { item, reason: 'INVALID_PROVIDER_OR_MODEL' })
       continue
@@ -549,6 +571,14 @@ function providerAttemptTimeoutMs(opts: TextAiCallOpts): number {
   return opts.purpose === 'VISION' || hasVisionAttachments(opts) ? VISION_ATTEMPT_TIMEOUT_MS : aiProviderTimeoutMs(opts.taskLevel || 'GENERAL')
 }
 
+function providerRequestTimeoutMs(provider: string, opts: TextAiCallOpts): number {
+  const base = providerAttemptTimeoutMs(opts)
+  if (provider !== 'ALBORIHI') return base
+  const configured = Number(env('ALBORIHI_PROVIDER_TIMEOUT_MS'))
+  const alborihiTimeout = Number.isFinite(configured) && configured > 0 ? Math.floor(configured) : 120_000
+  return Math.max(base, 120_000, alborihiTimeout)
+}
+
 function aiDiscoveryTimeoutMs(): number {
   const configured = Number(env('AI_DISCOVERY_TIMEOUT_MS'))
   if (Number.isFinite(configured) && configured >= 1500) return Math.min(Math.floor(configured), 15000)
@@ -719,7 +749,7 @@ export function __testNvidiaHardFailureThresholdForTests(timestamps: number[], n
   return timestamps.filter((at) => Number.isFinite(at) && at <= now && now - at <= NVIDIA_OPENAI_COMPAT_HARD_FAILURE_WINDOW_MS).length >= 2
 }
 
-const STRICT_ENCRYPTED_SETTING_PROVIDERS = new Set(['GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT'])
+const STRICT_ENCRYPTED_SETTING_PROVIDERS = new Set(['GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI'])
 const LEGACY_PLAINTEXT_SETTING_PROVIDERS = new Set(['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI'])
 
 function providerFromSettingKey(key: string): string {
@@ -774,6 +804,7 @@ async function settings() {
     'RELAYROUTER_API_KEY', 'RELAYROUTER_API_KEYS', 'RELAYROUTER_TEXT_MODEL', 'RELAYROUTER_BASE_URL',
     'TOPTOOLS_API_KEY', 'TOPTOOLS_API_KEYS', 'TOPTOOLS_TEXT_MODEL', 'TOPTOOLS_BASE_URL',
     'OPENAI_COMPAT_API_KEY', 'OPENAI_COMPAT_API_KEYS', 'OPENAI_COMPAT_TEXT_MODEL', 'OPENAI_COMPAT_BASE_URL',
+    'ALBORIHI_API_KEY', 'ALBORIHI_API_KEYS', 'ALBORIHI_TEXT_MODEL', 'ALBORIHI_BASE_URL',
   ])
   const provider = normalizeProvider(rows.AI_TEXT_PROVIDER || env('AI_TEXT_PROVIDER') || 'GEMINI')
   const policy = normalizePolicy(rows.AI_ROUTER_POLICY || env('AI_ROUTER_POLICY') || 'primary_first')
@@ -792,7 +823,7 @@ async function settings() {
     openaiCompatTier: String(rows.AI_PROVIDER_TIER_OPENAI_COMPAT || env('AI_PROVIDER_TIER_OPENAI_COMPAT') || 'FREE').toUpperCase() === 'PAID' ? 'PAID' as TextAiProviderTier : 'FREE' as TextAiProviderTier,
     // Vision/text routing: env Gemini key first, then all configured DB keys with the existing key rotation/cooldown policy.
     geminiKeys: parseKeys(env('GEMINI_API_KEY'), env('GEMINI_API_KEYS'), rows.GEMINI_API_KEY, rows.GEMINI_API_KEYS),
-    geminiModel: normalizeModel(rows.GEMINI_TEXT_MODEL || env('GEMINI_TEXT_MODEL'), GEMINI_TEXT_MODELS),
+    geminiModel: normalizeGeminiTextModel(rows.GEMINI_TEXT_MODEL || env('GEMINI_TEXT_MODEL')),
     openaiKeys: parseKeys(rows.OPENAI_API_KEY, rows.OPENAI_API_KEYS, env('OPENAI_API_KEY'), env('OPENAI_API_KEYS')),
     openaiModel: normalizeModel(rows.OPENAI_TEXT_MODEL || env('OPENAI_TEXT_MODEL'), OPENAI_TEXT_MODELS),
     openaiBaseUrl: (rows.OPENAI_BASE_URL || env('OPENAI_BASE_URL') || 'https://api.openai.com/v1').replace(/\/$/, ''),
@@ -822,6 +853,9 @@ async function settings() {
     topToolsKeys: parseKeys(rows.TOPTOOLS_API_KEY, rows.TOPTOOLS_API_KEYS, env('TOPTOOLS_API_KEY'), env('TOPTOOLS_API_KEYS')),
     topToolsModel: normalizeModel(rows.TOPTOOLS_TEXT_MODEL || env('TOPTOOLS_TEXT_MODEL'), TOPTOOLS_TEXT_MODELS),
     topToolsBaseUrl: (rows.TOPTOOLS_BASE_URL || env('TOPTOOLS_BASE_URL') || 'https://top-tools-ai.com/v1').replace(/\/$/, ''),
+    alborihiKeys: parseKeys(rows.ALBORIHI_API_KEY, rows.ALBORIHI_API_KEYS, env('ALBORIHI_API_KEY'), env('ALBORIHI_API_KEYS')),
+    alborihiModel: normalizeModel(rows.ALBORIHI_TEXT_MODEL || env('ALBORIHI_TEXT_MODEL'), ALBORIHI_TEXT_MODELS),
+    alborihiBaseUrl: normalizeOpenAiCompatibleBaseUrl(rows.ALBORIHI_BASE_URL || env('ALBORIHI_BASE_URL') || ALBORIHI_DEFAULT_BASE_URL),
     openaiCompatKeys: parseKeys(rows.OPENAI_COMPAT_API_KEY, rows.OPENAI_COMPAT_API_KEYS, env('OPENAI_COMPAT_API_KEY'), env('OPENAI_COMPAT_API_KEYS')),
     openaiCompatModel: normalizeModel(rows.OPENAI_COMPAT_TEXT_MODEL || env('OPENAI_COMPAT_TEXT_MODEL'), openaiCompatDefaults),
     openaiCompatBaseUrl,
@@ -876,6 +910,7 @@ function providerKeys(s: Settings, provider: ConcreteProvider): string[] {
     case 'UNOROUTER': return s.unorouterKeys
     case 'RELAYROUTER': return s.relayrouterKeys
     case 'TOPTOOLS': return s.topToolsKeys
+    case 'ALBORIHI': return s.alborihiBaseUrl ? s.alborihiKeys : []
     case 'OPENAI_COMPAT': return s.openaiCompatBaseUrl ? s.openaiCompatKeys : []
   }
 }
@@ -893,6 +928,7 @@ function modelFor(s: Settings, provider: ConcreteProvider): string {
     case 'UNOROUTER': return s.unorouterModel
     case 'RELAYROUTER': return s.relayrouterModel
     case 'TOPTOOLS': return s.topToolsModel
+    case 'ALBORIHI': return s.alborihiModel
     case 'OPENAI_COMPAT': return s.openaiCompatModel
   }
 }
@@ -908,6 +944,7 @@ function baseFor(s: Settings, provider: ConcreteProvider): string {
     case 'UNOROUTER': return s.unorouterBaseUrl
     case 'RELAYROUTER': return s.relayrouterBaseUrl
     case 'TOPTOOLS': return s.topToolsBaseUrl
+    case 'ALBORIHI': return s.alborihiBaseUrl
     case 'OPENAI_COMPAT': return s.openaiCompatBaseUrl
     default: return ''
   }
@@ -926,6 +963,7 @@ function staticTextModelsForProvider(provider: ConcreteProvider, s?: Settings): 
     case 'UNOROUTER': return UNOROUTER_TEXT_MODELS
     case 'RELAYROUTER': return RELAYROUTER_TEXT_MODELS
     case 'TOPTOOLS': return TOPTOOLS_TEXT_MODELS
+    case 'ALBORIHI': return ALBORIHI_TEXT_MODELS
     case 'OPENAI_COMPAT': return s && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl) ? NVIDIA_OPENAI_COMPAT_TEXT_MODELS : OPENAI_COMPAT_TEXT_MODELS
   }
 }
@@ -982,6 +1020,26 @@ function isTextLikeModel(row: any): boolean {
   if (Number.isFinite(contextLength) && contextLength > 0 && contextLength < 32000) return false
   const endpoints = Array.isArray(row?.supported_endpoint_types) ? row.supported_endpoint_types : []
   return endpoints.length === 0 || endpoints.includes('openai') || endpoints.includes('chat') || endpoints.includes('chat/completions')
+}
+
+function isAlborihiChatCapableModel(row: any): boolean {
+  const id = modelId(row).toLowerCase()
+  if (!id) return false
+  const modalities = [
+    ...(Array.isArray(row?.modalities) ? row.modalities : []),
+    ...(Array.isArray(row?.input_modalities) ? row.input_modalities : []),
+    ...(Array.isArray(row?.supported_modalities) ? row.supported_modalities : []),
+    row?.architecture?.input_modalities,
+    row?.architecture?.output_modalities,
+    row?.architecture?.modality,
+    row?.modality,
+    row?.type,
+  ].flat().filter(Boolean).map((v: unknown) => String(v).toLowerCase())
+  const haystack = `${id} ${row?.name || ''} ${row?.owned_by || ''} ${row?.provider || ''} ${modalities.join(' ')}`.toLowerCase()
+  if (/embedding|embed|moderation|guard|rerank|ocr-only|tts|stt|whisper|audio-only|image-only|video-only/.test(haystack)) return false
+  const endpoints = Array.isArray(row?.supported_endpoint_types) ? row.supported_endpoint_types : []
+  if (endpoints.length && !endpoints.some((endpoint: unknown) => /openai|chat|chat\/completions/i.test(String(endpoint)))) return false
+  return !modalities.length || modalities.some((modality) => /text|image|vision|multimodal/.test(modality)) || /gpt|claude|gemini|grok|deepseek|qwen|llama|mistral|glm|kimi|sonar|command|nova|minimax|nemotron|phi|yi/.test(id)
 }
 
 function capabilityFromModelRow(row: any): ModelCapability {
@@ -1143,14 +1201,16 @@ async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseU
     const sourceRows = rowsFromModelPayload(data)
     const rows = sourceRows
       .filter((m) => m?.online !== false)
-      .filter(isTextLikeModel)
+      .filter((m) => provider === 'ALBORIHI' ? isAlborihiChatCapableModel(m) : isTextLikeModel(m))
       .map((m) => ({ raw: m, id: normalizeFreeModelName(provider, modelId(m)) }))
       .filter(({ raw, id }) => validModelName(id) && (
-        provider === 'TOPTOOLS'
-          ? isStrongTopToolsTextModel(raw, id)
-          : nvidiaCompat
-            ? isNvidiaFreeTrialTextModel(raw, id)
-            : isFreeModel(raw, id)
+        provider === 'ALBORIHI'
+          ? true
+          : provider === 'TOPTOOLS'
+            ? isStrongTopToolsTextModel(raw, id)
+            : nvidiaCompat
+              ? isNvidiaFreeTrialTextModel(raw, id)
+              : isFreeModel(raw, id)
       ))
     const orderedRows = provider === 'TOPTOOLS'
       ? rows.sort((a, b) => topToolsModelRank(a.id) - topToolsModelRank(b.id) || a.id.localeCompare(b.id))
@@ -1168,6 +1228,10 @@ async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseU
 
 export async function __testDiscoverOpenAiCompatibleFreeModelsForTests(baseUrl: string, key?: string): Promise<string[]> {
   return fetchOpenAiCompatibleFreeModels('OPENAI_COMPAT', baseUrl, key)
+}
+
+export async function __testDiscoverAlborihiModelsForTests(baseUrl = ALBORIHI_DEFAULT_BASE_URL, key?: string): Promise<string[]> {
+  return fetchOpenAiCompatibleFreeModels('ALBORIHI', baseUrl, key)
 }
 
 export function __testNormalizeOpenAiCompatibleBaseUrlForTests(baseUrl: string): string {
@@ -1215,17 +1279,25 @@ export async function __testGroqTextModelsWithFallbackForTests(baseUrl: string, 
   return models.length ? models : GROQ_TEXT_MODELS
 }
 
+function freeModelsMemoryCacheMs(provider: ConcreteProvider): number {
+  return provider === 'ALBORIHI' ? ALBORIHI_MODEL_DISCOVERY_CACHE_MS : 30 * 60 * 1000
+}
+
+function freeModelsPersistentCacheMs(provider: ConcreteProvider): number {
+  return provider === 'ALBORIHI' ? ALBORIHI_MODEL_DISCOVERY_CACHE_MS : 24 * 60 * 60 * 1000
+}
+
 async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<string[]> {
   const baseUrl = baseFor(s, provider)
   const key = providerKeys(s, provider)[0]
   const cacheKey = cacheKeyForFreeModels(provider, baseUrl, key)
   const now = Date.now()
   const cached = freeModelsCache.get(cacheKey)
-  if (cached && now - cached.at < 30 * 60 * 1000) return cached.models
+  if (cached && now - cached.at < freeModelsMemoryCacheMs(provider)) return cached.models
   try {
     const persisted = (await settingStore().read([persistentModelsCacheKey(cacheKey)]))[persistentModelsCacheKey(cacheKey)]
     const parsed = persisted ? JSON.parse(persisted) : null
-    if (Array.isArray(parsed?.models) && Number(parsed.at || 0) > 0 && now - Number(parsed.at) < 24 * 60 * 60 * 1000) {
+    if (Array.isArray(parsed?.models) && Number(parsed.at || 0) > 0 && now - Number(parsed.at) < freeModelsPersistentCacheMs(provider)) {
       const models = parsed.models.map(String).filter(validModelName)
       const capabilities = parsed.capabilities && typeof parsed.capabilities === 'object' ? parsed.capabilities as Record<string, ModelCapability> : undefined
       const discoveryOk = parsed.discoveryOk === true || models.length > 0
@@ -1256,7 +1328,7 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<
     }
   } else if (provider === 'GROQ') {
     models = await fetchGroqTextModels(baseUrl, key)
-  } else if (['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ZAI'].includes(provider)) {
+  } else if (['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ZAI', 'ALBORIHI'].includes(provider)) {
     models = await fetchOpenAiCompatibleFreeModels(provider, baseUrl, key)
   }
 
@@ -1481,15 +1553,17 @@ async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel
   const discoveredFree = await liveFreeModels(provider, s)
   const nvidiaCompat = provider === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl)
   const nvidiaDiscovered = nvidiaCompat && nvidiaDiscoverySucceeded(s)
+  const alborihiDiscovered = provider === 'ALBORIHI' && freeModelDiscoveryEntry(provider, s)?.discoveryOk === true && discoveredFree.length > 0
+  const strictDiscovered = nvidiaDiscovered || alborihiDiscovered
   const discoveredSet = new Set(discoveredFree.map((model) => model.toLowerCase()))
   const selectedIsAuto = /(^|\/|-)auto$/i.test(selected) || selected === 'auto'
-  const selectedPart = selected && !selectedIsAuto && (!nvidiaDiscovered || discoveredSet.has(selected.toLowerCase())) ? [selected] : []
+  const selectedPart = selected && !selectedIsAuto && (!strictDiscovered || discoveredSet.has(selected.toLowerCase())) ? [selected] : []
   const academicPreferred = (taskLevel === 'GENERAL' ? [] : s.academicAllowlist.filter((item) => item.provider === provider).map((item) => item.model))
-    .filter((model) => !nvidiaDiscovered || discoveredSet.has(model.toLowerCase()))
+    .filter((model) => !strictDiscovered || discoveredSet.has(model.toLowerCase()))
   const discoveredOrFallback = nvidiaCompat ? nvidiaModelsAfterDiscovery(discoveredFree, staticDefaults, nvidiaDiscovered) : (discoveredFree.length ? discoveredFree : staticDefaults)
   const models = [...new Set([...academicPreferred, ...selectedPart, ...discoveredOrFallback].filter(Boolean))]
     .filter((model) => !nvidiaCompat || NVIDIA_OPENAI_COMPAT_CALLABLE_MODEL_IDS.has(model.toLowerCase()))
-    .filter((model) => !nvidiaDiscovered || discoveredSet.has(model.toLowerCase()))
+    .filter((model) => !strictDiscovered || discoveredSet.has(model.toLowerCase()))
     .filter(modelCapabilityAllowed)
     .filter((model) => modelAllowedForPurpose(model, purpose, modelCapabilitiesFor(provider, s, model)))
   const allowed = taskLevel === 'GENERAL' ? models : models.filter((model) => academicModelAllowed(provider, model))
@@ -1509,6 +1583,7 @@ const ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER: ConcreteProvider[] = [
   'DEEPINFRA',
   'TOGETHER',
   'OPENAI_COMPAT',
+  'ALBORIHI',
 ]
 
 export function __testPrimaryProviderOrder(): string[] {
@@ -1521,14 +1596,14 @@ function selectedFirst(selected: ConcreteProvider | null, order: ConcreteProvide
 
 function baseOrder(s: Settings): ConcreteProvider[] {
   const selected = s.provider === 'AUTO' ? null : s.provider
-  const quality: ConcreteProvider[] = ['ANTHROPIC', 'OPENAI', 'GEMINI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'TOPTOOLS', 'ZAI', 'GROQ', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT']
-  const cost: ConcreteProvider[] = ['GROQ', 'ZAI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'TOPTOOLS', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'GEMINI', 'OPENAI', 'ANTHROPIC']
+  const quality: ConcreteProvider[] = ['ANTHROPIC', 'OPENAI', 'GEMINI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'TOPTOOLS', 'ZAI', 'GROQ', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'ALBORIHI']
+  const cost: ConcreteProvider[] = ['GROQ', 'ZAI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'TOPTOOLS', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'GEMINI', 'OPENAI', 'ANTHROPIC', 'ALBORIHI']
   const primary: ConcreteProvider[] = ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER
-  if (s.policy === 'quality_first') return quality
-  if (s.policy === 'cost_saver') return cost
+  if (s.policy === 'quality_first') return selectedFirst(selected, quality)
+  if (s.policy === 'cost_saver') return selectedFirst(selected, cost)
   if (s.policy === 'fallback_only' && selected) return [selected]
   if (s.policy === 'balanced') return primary.slice(roundRobin++ % Math.max(1, primary.length)).concat(primary.slice(0, (roundRobin - 1) % Math.max(1, primary.length)))
-  return primary
+  return selectedFirst(selected, primary)
 }
 
 function providerOrder(s: Settings, taskLevel: TextAiTaskLevel = 'GENERAL'): ConcreteProvider[] {
@@ -1587,16 +1662,20 @@ export async function textAiFreeModelsForProvider(providerValue: unknown): Promi
   const discoveredRaw = await liveFreeModels(concrete, s)
   const nvidiaCompat = concrete === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl)
   const nvidiaDiscovered = nvidiaCompat && nvidiaDiscoverySucceeded(s)
+  const alborihiDiscovered = concrete === 'ALBORIHI' && freeModelDiscoveryEntry(concrete, s)?.discoveryOk === true && discoveredRaw.length > 0
+  const strictDiscovered = nvidiaDiscovered || alborihiDiscovered
   const discovered = discoveredRaw.filter((model) => !nvidiaCompat || NVIDIA_OPENAI_COMPAT_CALLABLE_MODEL_IDS.has(model.toLowerCase()))
   const discoveredSet = new Set(discovered.map((model) => model.toLowerCase()))
   const selected = modelFor(s, concrete)
-  const selectedPart = selected && !/(^|\/|-)auto$/i.test(selected) && selected !== 'auto' && (!nvidiaCompat || NVIDIA_OPENAI_COMPAT_CALLABLE_MODEL_IDS.has(selected.toLowerCase())) && (!nvidiaDiscovered || discoveredSet.has(selected.toLowerCase())) ? [selected] : []
-  const models = [...new Set([...selectedPart, ...discovered, ...(nvidiaDiscovered ? [] : staticDefaults)].filter(Boolean))]
-  const catalogLabel = concrete === 'TOPTOOLS'
-    ? 'نموذج متاح'
-    : concrete === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl)
-      ? 'نموذج متاح بتجربة مجانية'
-      : 'نموذج مجاني'
+  const selectedPart = selected && !/(^|\/|-)auto$/i.test(selected) && selected !== 'auto' && (!nvidiaCompat || NVIDIA_OPENAI_COMPAT_CALLABLE_MODEL_IDS.has(selected.toLowerCase())) && (!strictDiscovered || discoveredSet.has(selected.toLowerCase())) ? [selected] : []
+  const models = [...new Set([...selectedPart, ...discovered, ...(strictDiscovered ? [] : staticDefaults)].filter(Boolean))]
+  const catalogLabel = concrete === 'ALBORIHI'
+    ? 'نموذج مسموح للمفتاح'
+    : concrete === 'TOPTOOLS'
+      ? 'نموذج متاح'
+      : concrete === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl)
+        ? 'نموذج متاح بتجربة مجانية'
+        : 'نموذج مجاني'
   return {
     provider: concrete,
     models,
@@ -1604,9 +1683,11 @@ export async function textAiFreeModelsForProvider(providerValue: unknown): Promi
     staticCount: staticDefaults.length,
     message: discovered.length
       ? `تم اكتشاف ${discovered.length} ${catalogLabel} من المزود.`
-      : concrete === 'TOPTOOLS'
-        ? 'لم يعرض Top Tools AI نماذج عبر /models، لذلك يظهر النموذج الاحتياطي فقط.'
-        : 'لم يعرض المزود نماذج مجانية عبر API، لذلك تظهر القائمة الاحتياطية الثابتة فقط.',
+      : concrete === 'ALBORIHI'
+        ? 'لم يعرض Alborihi AI نماذج مسموحة عبر /models، لذلك تظهر القائمة الاحتياطية الثابتة فقط.'
+        : concrete === 'TOPTOOLS'
+          ? 'لم يعرض Top Tools AI نماذج عبر /models، لذلك يظهر النموذج الاحتياطي فقط.'
+          : 'لم يعرض المزود نماذج مجانية عبر API، لذلك تظهر القائمة الاحتياطية الثابتة فقط.',
   }
 }
 
@@ -1697,6 +1778,7 @@ export async function textAiDiagnostics(): Promise<TextAiDiagnostics> {
     UNOROUTER: s.unorouterKeys.length,
     RELAYROUTER: s.relayrouterKeys.length,
     TOPTOOLS: s.topToolsKeys.length,
+    ALBORIHI: s.alborihiKeys.length,
     OPENAI_COMPAT: s.openaiCompatKeys.length,
   }
   return {
@@ -1715,6 +1797,7 @@ export async function textAiDiagnostics(): Promise<TextAiDiagnostics> {
     unorouterConfigured: counts.UNOROUTER > 0,
     relayrouterConfigured: counts.RELAYROUTER > 0,
     topToolsConfigured: counts.TOPTOOLS > 0,
+    alborihiConfigured: counts.ALBORIHI > 0,
     openaiCompatConfigured: counts.OPENAI_COMPAT > 0,
     geminiModel: s.geminiModel,
     openaiModel: s.openaiModel,
@@ -1727,6 +1810,7 @@ export async function textAiDiagnostics(): Promise<TextAiDiagnostics> {
     unorouterModel: s.unorouterModel,
     relayrouterModel: s.relayrouterModel,
     topToolsModel: s.topToolsModel,
+    alborihiModel: s.alborihiModel,
     openaiCompatModel: s.openaiCompatModel,
     keyCounts: counts,
     cooldowns: cooldownList(),
@@ -1836,11 +1920,13 @@ function providerSupportsVisionAttachments(provider: ConcreteProvider) {
 function modelSupportsVisionAttachment(provider: ConcreteProvider, model: string, capability: ModelCapability | null, attachments: TextAiAttachment[]): boolean {
   if (!attachments.length) return true
   if (!providerSupportsVisionAttachments(provider)) return false
+  if (provider === 'ALBORIHI' && !capability) return false
   const id = model.toLowerCase()
   const modalities = (capability?.modalities || []).join(' ').toLowerCase()
   const vision = capability?.vision === true || /vision|image|multimodal|input_image|image_url|gemini|claude|gpt-4o|gpt-5|glm-4\.5|glm-5v|auto/.test(`${id} ${modalities}`)
   if (!vision) return false
   if (attachmentIncludesPdf(attachments)) {
+    if (provider === 'ALBORIHI') return false
     return /pdf|document|file|gemini|claude|gpt-4o|gpt-5|auto/.test(`${id} ${modalities}`)
   }
   return true
@@ -1935,15 +2021,101 @@ async function parseResponse(response: Response): Promise<any> {
   }
 }
 
-function throwHttp(provider: string, status: number, data: any): never {
+function responseHeader(response: Response | undefined, name: string): string {
+  try {
+    return response?.headers?.get(name)?.trim() || ''
+  } catch {
+    return ''
+  }
+}
+
+function providerErrorCodeFromPayload(data: any): string {
+  return String(data?.error?.code || data?.error?.type || data?.code || data?.type || '').trim().toLowerCase()
+}
+
+function requestIdFromPayload(data: any, response?: Response): string {
+  return String(responseHeader(response, 'x-request-id') || data?.error?.request_id || data?.request_id || data?.requestId || '').trim().slice(0, 120)
+}
+
+function throwHttp(provider: string, status: number, data: any, response?: Response): never {
   const err: any = new Error(data?.error?.message || data?.message || data?.raw || `${provider} HTTP ${status}`)
   err.status = status
+  const code = providerErrorCodeFromPayload(data)
+  if (code) err.providerErrorCode = code
+  const requestId = requestIdFromPayload(data, response)
+  if (requestId) err.requestId = requestId
+  const retryAfter = responseHeader(response, 'retry-after')
+  if (retryAfter) err.retryAfter = retryAfter
   throw err
 }
 
 function statusFromError(e: any): number | undefined {
   const status = Number(e?.status || e?.code || 0)
   return Number.isFinite(status) && status >= 100 && status <= 599 ? status : undefined
+}
+
+function requestIdFromError(e: any): string | undefined {
+  const value = String(e?.requestId || e?.request_id || e?.headers?.['x-request-id'] || '').trim().slice(0, 120)
+  return value || undefined
+}
+
+function providerErrorCode(e: any): string {
+  return String(e?.providerErrorCode || e?.error?.code || e?.code || '').trim().toLowerCase()
+}
+
+function retryAfterCooldownMinutes(e: any, fallbackMinutes = 15): number {
+  const raw = String(e?.retryAfter || e?.retry_after || e?.retryDelay || '').trim()
+  const seconds = Number(raw)
+  if (Number.isFinite(seconds) && seconds > 0) return Math.max(1, Math.ceil(seconds / (seconds > 1000 ? 60_000 : 60)))
+  const dateMs = Date.parse(raw)
+  if (Number.isFinite(dateMs) && dateMs > Date.now()) return Math.max(1, Math.ceil((dateMs - Date.now()) / 60_000))
+  return Math.max(1, Math.floor(fallbackMinutes))
+}
+
+type ProviderFailureAction = 'continue' | 'break' | 'unhandled'
+
+async function handleAlborihiFailure(args: { key: string; keyIndex: number; model: string; error: any; message: string; status?: number }): Promise<ProviderFailureAction> {
+  const status = Number(args.status || 0)
+  const code = providerErrorCode(args.error)
+  const reason = args.message || code || `ALBORIHI_HTTP_${status || 'ERROR'}`
+
+  if (status === 401 && (!code || code === 'invalid_api_key' || code === 'missing_api_key')) {
+    markCooldown('ALBORIHI', args.key, reason, 60, status)
+    await markPersistentCooldown('ALBORIHI', args.keyIndex, undefined, reason, status, 60)
+    return 'continue'
+  }
+
+  if (status === 402 && ['subscription_inactive', 'free_credit_exhausted', 'free_not_eligible'].includes(code)) {
+    markCooldown('ALBORIHI', args.key, reason, 24 * 60, status)
+    await markPersistentNoBalance('ALBORIHI', args.keyIndex, reason, status)
+    return 'continue'
+  }
+
+  if (status === 403 && ['key_pending_approval', 'key_disabled', 'key_expired', 'account_suspended'].includes(code)) {
+    markCooldown('ALBORIHI', args.key, reason, 60, status)
+    await markPersistentCooldown('ALBORIHI', args.keyIndex, undefined, reason, status, 60)
+    return 'continue'
+  }
+
+  if ((status === 403 && code === 'model_not_allowed') || (status === 404 && code === 'model_not_found')) {
+    await markPersistentModelDead('ALBORIHI', args.model, reason, status)
+    return 'break'
+  }
+
+  if (status === 429) {
+    const minutes = retryAfterCooldownMinutes(args.error, 15)
+    if (['daily_token_cap', 'plan_quota_exhausted', 'key_budget_exhausted'].includes(code)) {
+      markCooldown('ALBORIHI', args.key, reason, 24 * 60, status)
+      await markPersistentNoBalance('ALBORIHI', args.keyIndex, reason, status)
+      return 'continue'
+    }
+    markCooldown('ALBORIHI', args.key, reason, minutes, status)
+    await markPersistentCooldown('ALBORIHI', args.keyIndex, undefined, reason, status, minutes)
+    return 'continue'
+  }
+
+  if (status === 503 && ['provider_unavailable', 'service_paused'].includes(code)) return 'unhandled'
+  return 'unhandled'
 }
 
 function recordAttempt(attempt: TextAiAttemptDiagnostics) {
@@ -1956,6 +2128,7 @@ function recordAttempt(attempt: TextAiAttemptDiagnostics) {
     keyIndex: attempt.keyIndex,
     ms: attempt.ms,
     status: attempt.status,
+    requestId: attempt.requestId,
     error,
   })
 }
@@ -2040,7 +2213,7 @@ async function callGemini(key: string, model: string, opts: TextAiCallOpts): Pro
     }),
   }, providerAttemptTimeoutMs(opts), opts.deadlineMs)
   const data = await parseResponse(response)
-  if (!response.ok) throwHttp('Gemini', response.status, data)
+  if (!response.ok) throwHttp('Gemini', response.status, data, response)
   const text = (data?.candidates?.[0]?.content?.parts || []).map((p: any) => p?.text || '').join('\n').trim()
   if (!text) throw new Error('GEMINI_EMPTY_RESPONSE')
   return text
@@ -2071,7 +2244,7 @@ async function callOpenAIResponses(s: Settings, key: string, model: string, opts
     body: JSON.stringify(openAiResponsesBody(model, opts)),
   }, providerAttemptTimeoutMs(opts), opts.deadlineMs)
   const data = await parseResponse(response)
-  if (!response.ok) throwHttp('OpenAI', response.status, data)
+  if (!response.ok) throwHttp('OpenAI', response.status, data, response)
   const text = extractOpenAiText(data)
   if (!text) throw new Error('OPENAI_EMPTY_RESPONSE')
   return text
@@ -2085,7 +2258,7 @@ async function callAnthropic(key: string, model: string, opts: TextAiCallOpts): 
     body: JSON.stringify({ model, system: promptWithJsonInstruction(opts), messages, max_tokens: opts.maxOutputTokens ?? (opts.json ? 4096 : 2048) }),
   }, providerAttemptTimeoutMs(opts), opts.deadlineMs)
   const data = await parseResponse(response)
-  if (!response.ok) throwHttp('Anthropic', response.status, data)
+  if (!response.ok) throwHttp('Anthropic', response.status, data, response)
   const text = (data?.content || []).map((p: any) => p?.text || '').join('\n').trim()
   if (!text) throw new Error('ANTHROPIC_EMPTY_RESPONSE')
   return text
@@ -2116,9 +2289,9 @@ async function callChatCompletions(provider: string, baseUrl: string, key: strin
       ...(provider === 'OPENROUTER' ? { 'HTTP-Referer': env('NEXT_PUBLIC_APP_URL') || 'https://academy.local', 'X-Title': 'AACT Academy' } : {}),
     },
     body: JSON.stringify(openAiChatCompletionsBody(provider, baseUrl, model, providerOpts)),
-  }, providerAttemptTimeoutMs(providerOpts), providerOpts.deadlineMs)
+  }, providerRequestTimeoutMs(provider, providerOpts), providerOpts.deadlineMs)
   const data = await parseResponse(response)
-  if (!response.ok) throwHttp(provider, response.status, data)
+  if (!response.ok) throwHttp(provider, response.status, data, response)
   const message = data?.choices?.[0]?.message || {}
   const text = String(message?.content || '').trim()
   if (!text) {
@@ -2578,13 +2751,22 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           const ms = Date.now() - started
           const msg = redactSecrets(e?.message || e).slice(0, 240)
           const status = statusFromError(e)
+          const requestId = requestIdFromError(e)
           lastResult = { provider, model, ok: false, error: msg, at }
-          const attempt = { provider, model, keyIndex, ok: false, ms, status, error: msg, at }
+          const attempt = { provider, model, keyIndex, ok: false, ms, status, error: msg, ...(requestId ? { requestId } : {}), at }
           attempts.push(attempt)
           recordAttempt(attempt)
           errors.push(`${provider}/${model}/key#${keyIndex}: ${msg}`)
           noteNoCandidate(provider, model, `REQUEST_FAILED(${status || 'unknown'}, ${msg})`)
           await recordModelStats(provider, model, { ok: false, reason: routerReasonBucket(attempt), ms, jsonOk: effectiveOpts.json ? false : undefined, evidenceOk: e?.code === 'VALIDATION_REJECTED' ? false : undefined }, effectiveOpts.purpose)
+          if (provider === 'ALBORIHI') {
+            const action = await handleAlborihiFailure({ key, keyIndex, model, error: e, message: msg, status })
+            if (action === 'break') {
+              skipModelsThisRequest.add(`${provider}:${model}`)
+              break
+            }
+            if (action === 'continue') continue
+          }
           if (provider === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl) && isNvidiaHardModelFailure(e, msg, status)) {
             skipModelsThisRequest.add(`${provider}:${model}`)
             await recordNvidiaHardFailureAndMaybeDead(provider, model, msg, status)
@@ -2710,8 +2892,9 @@ export async function textAiTestConnection(): Promise<{ ok: boolean; provider?: 
           const ms = Date.now() - started
           const msg = String(e?.message || e).slice(0, 260)
           const status = statusFromError(e)
+          const requestId = requestIdFromError(e)
           lastResult = { provider, model, ok: false, error: msg, at }
-          recordAttempt({ provider, model, keyIndex, ok: false, ms, status, error: msg, at })
+          recordAttempt({ provider, model, keyIndex, ok: false, ms, status, error: msg, ...(requestId ? { requestId } : {}), at })
           errors.push(`${provider}/${model}/key#${keyIndex}: ${msg}`)
           if (provider === 'OPENAI_COMPAT' && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl) && isNvidiaHardModelFailure(e, msg, status)) {
             await recordNvidiaHardFailureAndMaybeDead(provider, model, msg, status)

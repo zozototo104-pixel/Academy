@@ -2665,7 +2665,7 @@ export function AdminSettingsTab() {
               {g.key === 'AI' && <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
                 <Label className="text-[11px] font-bold leading-snug text-slate-600">مسح تبريد مزود الذكاء</Label>
                 <div className="mt-2 flex gap-2">
-                  <Select value={aiCooldownProvider} onValueChange={setAiCooldownProvider}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT'].map((provider) => <SelectItem key={provider} value={provider}>{provider}</SelectItem>)}</SelectContent></Select>
+                  <Select value={aiCooldownProvider} onValueChange={setAiCooldownProvider}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'ALBORIHI', 'OPENAI_COMPAT'].map((provider) => <SelectItem key={provider} value={provider}>{provider}</SelectItem>)}</SelectContent></Select>
                   <Button type="button" variant="outline" disabled={aiCooldownBusy} onClick={clearAiCooldown} className="font-black">{aiCooldownBusy ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="ml-1 h-3.5 w-3.5" />} مسح</Button>
                 </div>
               </div>}
@@ -3155,6 +3155,7 @@ const SETTING_KEY_LABELS: Record<string, string> = {
   TURN_URL: 'خادم TURN', TURN_TCP_URL: 'خادم TURN TCP', TURN_USERNAME: 'مستخدم TURN', TURN_CREDENTIAL: 'كلمة مرور TURN', STUN_URLS: 'خوادم STUN',
   GEMINI_API_KEY: 'مفتاح Gemini', GEMINI_TEXT_MODEL: 'نموذج النص', GEMINI_TTS_MODEL: 'نموذج الصوت', GEMINI_LIVE_MODEL: 'نموذج المحادثة الصوتية', GEMINI_SUPERVISOR_LIVE_MODEL: 'نموذج المشرف الصوتي', GEMINI_DISCUSSION_LIVE_MODEL: 'نموذج المناقشة الصوتية', GEMINI_DISCUSSION_THINKING_LEVEL: 'مستوى تفكير المناقشة', GEMINI_TTS_VOICE: 'صوت Gemini',
   TOPTOOLS_API_KEY: 'مفتاح Top Tools AI', TOPTOOLS_API_KEYS: 'مفاتيح Top Tools AI', TOPTOOLS_TEXT_MODEL: 'نموذج Top Tools AI', TOPTOOLS_BASE_URL: 'رابط Top Tools AI',
+  ALBORIHI_API_KEY: 'مفتاح Alborihi AI', ALBORIHI_API_KEYS: 'مفاتيح Alborihi AI', ALBORIHI_TEXT_MODEL: 'نموذج Alborihi AI', ALBORIHI_BASE_URL: 'رابط Alborihi AI',
   AI_TEXT_PROVIDER: 'مزود النص الذكي', AI_ROUTER_POLICY: 'سياسة توجيه الذكاء',
 }
 
@@ -3162,7 +3163,7 @@ function settingGroupLabel(key: string) {
   if (/^(SMTP_|RESEND_|MAIL_)/.test(key)) return 'إعدادات البريد'
   if (/^(PAYMENT_|PAYPAL_|STRIPE_|USDT_)/.test(key)) return 'إعدادات الدفع'
   if (/^(TURN_|STUN_)/.test(key)) return 'إعدادات الفيديو والمحادثة'
-  if (/^(GEMINI_|AI_|OPENAI_|ANTHROPIC_|ZAI_|GROQ_|OPENROUTER_|DEEPINFRA_|TOGETHER_|UNOROUTER_|RELAYROUTER_|TOPTOOLS_)/.test(key)) return 'إعدادات الذكاء الاصطناعي'
+  if (/^(GEMINI_|AI_|OPENAI_|ANTHROPIC_|ZAI_|GROQ_|OPENROUTER_|DEEPINFRA_|TOGETHER_|UNOROUTER_|RELAYROUTER_|TOPTOOLS_|ALBORIHI_)/.test(key)) return 'إعدادات الذكاء الاصطناعي'
   if (/^(AACT_BACKUP_|CRON_)/.test(key)) return 'إعدادات النسخ الاحتياطي'
   return 'إعدادات النظام'
 }

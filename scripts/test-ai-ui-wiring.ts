@@ -139,6 +139,32 @@ function testFailedBookReadRetry() {
   assert(books.includes('retry-failed-chunks'), 'failed chunk retry path must remain available')
 }
 
+function testAlborihiProviderWiring() {
+  const textAi = file('src/lib/text-ai.ts')
+  assert(textAi.includes("| 'ALBORIHI'"), 'Text AI provider union must include Alborihi')
+  assert(textAi.includes("ALBORIHI_DEFAULT_BASE_URL = 'https://alborihi-ai.com/api/public/dev/v1'"), 'Alborihi default base URL must match the documented public dev API')
+  assert(textAi.includes("provider === 'ALBORIHI'"), 'Alborihi must have provider-specific catalog handling')
+  assert(textAi.includes("case 'ALBORIHI': return s.alborihiBaseUrl ? s.alborihiKeys : []"), 'Alborihi keys must be routed through providerKeys with a base URL guard')
+
+  const systemRoute = file('src/app/api/admin/system/route.ts')
+  assert(systemRoute.includes('ALBORIHI_API_KEYS'), 'Admin system route must expose Alborihi API keys')
+  assert(systemRoute.includes('ALBORIHI_BASE_URL'), 'Admin system route must expose Alborihi base URL')
+
+  const settings = file('src/lib/settings.ts')
+  assert(!settings.includes('AI_TEXT_PROVIDER'), 'Default public settings must not include AI_TEXT_PROVIDER')
+  assert(!settings.includes('AI_ROUTER_POLICY'), 'Default public settings must not include AI_ROUTER_POLICY')
+
+  const env = file('.env.example')
+  assert(env.includes('AACT_SECRETS_KEY'), '.env.example must document the admin-secret encryption key')
+  assert(env.includes('ALBORIHI_API_KEYS'), '.env.example must document Alborihi keys')
+  assert(env.includes('ALBORIHI_BASE_URL="https://alborihi-ai.com/api/public/dev/v1"'), '.env.example must document Alborihi base URL')
+  assert(env.includes('ALBORIHI_PROVIDER_TIMEOUT_MS="120000"'), '.env.example must document Alborihi timeout')
+
+  const settingsRoute = file('src/app/api/settings/route.ts')
+  assert(settingsRoute.includes('ENCRYPTED_TEXT_AI_SECRET_SETTING_RE'), 'settings route must encrypt external AI secrets saved from the admin UI')
+  assert(settingsRoute.includes('ALBORIHI'), 'settings route encryption allowlist must include Alborihi')
+}
+
 testSupervisorsApiAndUi()
 testApprovedOnlyExamAssembly()
 testQuestionVerifierUsesOriginalBookChunk()
@@ -147,5 +173,6 @@ testIncompleteDefenseNeedsReview()
 testExamErrorWiring()
 testAdminAndApplyWiring()
 testFailedBookReadRetry()
+testAlborihiProviderWiring()
 
 console.log('✓ ai/ui wiring behavioral checks passed')

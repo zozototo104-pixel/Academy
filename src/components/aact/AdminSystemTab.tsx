@@ -148,8 +148,8 @@ interface SystemData {
     activeMask: string
   }
   textAi?: {
-    selectedProvider: 'GEMINI' | 'OPENAI' | 'ANTHROPIC' | 'ZAI' | 'GROQ' | 'OPENROUTER' | 'DEEPINFRA' | 'TOGETHER' | 'UNOROUTER' | 'RELAYROUTER' | 'TOPTOOLS' | 'OPENAI_COMPAT' | 'AUTO'
-    activeProvider: 'GEMINI' | 'OPENAI' | 'ANTHROPIC' | 'ZAI' | 'GROQ' | 'OPENROUTER' | 'DEEPINFRA' | 'TOGETHER' | 'UNOROUTER' | 'RELAYROUTER' | 'TOPTOOLS' | 'OPENAI_COMPAT' | null
+    selectedProvider: 'GEMINI' | 'OPENAI' | 'ANTHROPIC' | 'ZAI' | 'GROQ' | 'OPENROUTER' | 'DEEPINFRA' | 'TOGETHER' | 'UNOROUTER' | 'RELAYROUTER' | 'TOPTOOLS' | 'ALBORIHI' | 'OPENAI_COMPAT' | 'AUTO'
+    activeProvider: 'GEMINI' | 'OPENAI' | 'ANTHROPIC' | 'ZAI' | 'GROQ' | 'OPENROUTER' | 'DEEPINFRA' | 'TOGETHER' | 'UNOROUTER' | 'RELAYROUTER' | 'TOPTOOLS' | 'ALBORIHI' | 'OPENAI_COMPAT' | null
     policy?: 'primary_first' | 'balanced' | 'quality_first' | 'cost_saver' | 'fallback_only'
     externalConfigured: boolean
     keyCounts?: Record<string, number>
@@ -202,6 +202,7 @@ const TEXT_PROVIDER_CHOICES = [
   { value: 'DEEPINFRA', label: 'DeepInfra — نماذج مفتوحة' },
   { value: 'TOGETHER', label: 'Together AI — نماذج مفتوحة' },
   { value: 'UNOROUTER', label: 'UnoRouter — خط احتياطي أخير' },
+  { value: 'ALBORIHI', label: 'Alborihi AI — بوابة OpenAI-compatible مدفوعة' },
   { value: 'RELAYROUTER', label: 'RelayRouter — بوابة نماذج متعددة مدفوعة' },
   { value: 'TOPTOOLS', label: 'Top Tools AI — بوابة OpenAI-compatible' },
   { value: 'OPENAI_COMPAT', label: 'OpenAI-compatible Gateway — Relay/LiteLLM/خاص' },
@@ -296,6 +297,12 @@ const RELAYROUTER_TEXT_MODEL_CHOICES = [
 
 const TOPTOOLS_TEXT_MODEL_CHOICES = [
   { value: 'top-tools-ai', label: 'top-tools-ai — احتياطي إذا تعذر تحميل كتالوج /models' },
+]
+
+const ALBORIHI_TEXT_MODEL_CHOICES = [
+  { value: 'claude-sonnet-5', label: 'claude-sonnet-5 — افتراضي Alborihi' },
+  { value: 'claude-opus-4-6', label: 'claude-opus-4-6 — احتياطي Alborihi' },
+  { value: 'gpt-5.6-luna', label: 'gpt-5.6-luna — احتياطي Alborihi' },
 ]
 
 const GEMINI_VOICE_CHOICES = [
@@ -785,7 +792,7 @@ export function AdminSystemTab() {
       ? 'مفتاح Vercel الافتراضي'
       : 'لا يوجد مفتاح فعّال'
   const textAiDiag = data.textAi
-  const currentTextProvider = (form.AI_TEXT_PROVIDER || textAiDiag?.selectedProvider || 'GEMINI') as 'GEMINI' | 'OPENAI' | 'ANTHROPIC' | 'ZAI' | 'GROQ' | 'OPENROUTER' | 'DEEPINFRA' | 'TOGETHER' | 'UNOROUTER' | 'RELAYROUTER' | 'TOPTOOLS' | 'OPENAI_COMPAT' | 'AUTO'
+  const currentTextProvider = (form.AI_TEXT_PROVIDER || textAiDiag?.selectedProvider || 'GEMINI') as 'GEMINI' | 'OPENAI' | 'ANTHROPIC' | 'ZAI' | 'GROQ' | 'OPENROUTER' | 'DEEPINFRA' | 'TOGETHER' | 'UNOROUTER' | 'RELAYROUTER' | 'TOPTOOLS' | 'ALBORIHI' | 'OPENAI_COMPAT' | 'AUTO'
   const agentDiag = data.agent
   const agentSourceLabel = agentDiag?.source === 'settings'
     ? 'إعدادات لوحة الإدارة'
@@ -1236,6 +1243,13 @@ export function AdminSystemTab() {
                 {F('UNOROUTER_API_KEYS', 'UnoRouter API Keys', data.secretsSet.UNOROUTER_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'key1,key2', 'password', 'خط دفاع أخير عند توفره.')}
                 {SelectF('UNOROUTER_TEXT_MODEL', 'نموذج UnoRouter', modelOptions('UNOROUTER', UNOROUTER_TEXT_MODEL_CHOICES), modelHint('UNOROUTER', 'استخدم النماذج المجانية فقط عندما تكون متاحة في حسابك.'))}
                 {F('UNOROUTER_BASE_URL', 'UnoRouter Base URL', 'https://api.unorouter.com/v1', 'text')}
+              </>
+            ) : null}
+            {currentTextProvider === 'ALBORIHI' || currentTextProvider === 'AUTO' ? (
+              <>
+                {F('ALBORIHI_API_KEYS', 'Alborihi AI API Keys', data.secretsSet.ALBORIHI_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'key1,key2', 'password', 'مفتاح أو أكثر من Alborihi AI مفصول بفاصلة. لا تضع المفتاح داخل الكود.')}
+                {SelectF('ALBORIHI_TEXT_MODEL', 'نموذج Alborihi AI', modelOptions('ALBORIHI', ALBORIHI_TEXT_MODEL_CHOICES), modelHint('ALBORIHI', 'يتم تحميل نماذج حسابك تلقائياً من /models، والقائمة الثابتة هنا احتياط فقط.'))}
+                {F('ALBORIHI_BASE_URL', 'Alborihi AI Base URL', 'https://alborihi-ai.com/api/public/dev/v1', 'text', 'يجب أن يدعم /chat/completions بنمط OpenAI-compatible.')}
               </>
             ) : null}
             {currentTextProvider === 'RELAYROUTER' || currentTextProvider === 'AUTO' ? (

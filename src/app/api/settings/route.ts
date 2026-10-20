@@ -4,6 +4,9 @@ import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 import { DEFAULT_SETTINGS, adminSettingDefs, getSettings, isMaskedSecretValue, isSecretSettingKey, maskSettingsForAdmin, sanitizePublicSettings } from '@/lib/settings'
 import { audit } from '@/lib/notify'
+import { encryptSecret, hasSecretEncryptionKey, isEncryptedSecret } from '@/lib/secret-crypto'
+
+const ENCRYPTED_TEXT_AI_SECRET_SETTING_RE = /^(GROQ|OPENROUTER|DEEPINFRA|TOGETHER|UNOROUTER|RELAYROUTER|TOPTOOLS|ALBORIHI|OPENAI_COMPAT)_(?:API_KEY|API_KEYS)$/
 
 function revalidatePublicSettingsSurfaces() {
   const paths = ['/', '/programs', '/apply', '/about', '/contact', '/accreditation', '/sitemap.xml']
@@ -79,6 +82,12 @@ export async function PUT(req: NextRequest) {
         return NextResponse.json({ error: `قيمة ${def.label} طويلة جداً` }, { status: 400 })
       }
       if (v === '') continue
+      if (ENCRYPTED_TEXT_AI_SECRET_SETTING_RE.test(key) && isSecretSettingKey(key) && !isEncryptedSecret(v)) {
+        if (!hasSecretEncryptionKey()) {
+          return NextResponse.json({ error: `لا يمكن حفظ ${def.label} بدون ضبط AACT_SECRETS_KEY في البيئة لحماية مفاتيح مزودات الذكاء.` }, { status: 500 })
+        }
+        v = encryptSecret(v)
+      }
       const existing = await db.setting.findUnique({ where: { key } })
       if (!existing || existing.value !== v) {
         const before = isSecretSettingKey(key) ? '••••' : (existing?.value || def.value)

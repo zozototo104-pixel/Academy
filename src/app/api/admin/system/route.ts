@@ -32,6 +32,7 @@ const SYSTEM_KEYS = [
   'UNOROUTER_API_KEY', 'UNOROUTER_API_KEYS', 'UNOROUTER_TEXT_MODEL', 'UNOROUTER_BASE_URL',
   'RELAYROUTER_API_KEY', 'RELAYROUTER_API_KEYS', 'RELAYROUTER_TEXT_MODEL', 'RELAYROUTER_BASE_URL',
   'TOPTOOLS_API_KEY', 'TOPTOOLS_API_KEYS', 'TOPTOOLS_TEXT_MODEL', 'TOPTOOLS_BASE_URL',
+  'ALBORIHI_API_KEY', 'ALBORIHI_API_KEYS', 'ALBORIHI_TEXT_MODEL', 'ALBORIHI_BASE_URL',
   'OPENAI_COMPAT_API_KEY', 'OPENAI_COMPAT_API_KEYS', 'OPENAI_COMPAT_TEXT_MODEL', 'OPENAI_COMPAT_BASE_URL',
   'AI_AGENT_PROVIDER', 'AI_AGENT_BASE_URL', 'AI_AGENT_MODEL', 'AI_AGENT_API_KEY',
 ]
@@ -49,6 +50,7 @@ const SECRET_KEYS = new Set([
   'UNOROUTER_API_KEY', 'UNOROUTER_API_KEYS',
   'RELAYROUTER_API_KEY', 'RELAYROUTER_API_KEYS',
   'TOPTOOLS_API_KEY', 'TOPTOOLS_API_KEYS',
+  'ALBORIHI_API_KEY', 'ALBORIHI_API_KEYS',
   'OPENAI_COMPAT_API_KEY', 'OPENAI_COMPAT_API_KEYS',
   'AI_AGENT_API_KEY',
 ])
@@ -72,6 +74,13 @@ function settingSecretMeta(key: string, value: string | undefined, envValue = ''
 
 function shouldEncryptSystemKey(key: string) {
   return SECRET_KEYS.has(key) || isSecretKeyName(key)
+}
+
+const TEXT_AI_MODEL_SETTING_PROVIDERS = new Set(['GEMINI', 'UNOROUTER', 'OPENROUTER', 'TOPTOOLS', 'ALBORIHI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'RELAYROUTER', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT'])
+
+function isValidTextAiProviderModelSettingItem(item: string): boolean {
+  const [provider, model] = item.split(/:(.+)/).filter(Boolean)
+  return !!(provider && model && TEXT_AI_MODEL_SETTING_PROVIDERS.has(provider.toUpperCase()) && /^[A-Z_]+:[a-z0-9][a-z0-9_.\/:\-]{1,180}$/i.test(item) && !/(^|:)auto$/i.test(item))
 }
 
 // GET /api/admin/system — إعدادات النظام: البريد + الدفع + TURN (الأسرار مقنعة) + سجل البريد
@@ -145,6 +154,8 @@ export async function GET() {
         RELAYROUTER_API_KEYS: !!(await db.setting.findUnique({ where: { key: 'RELAYROUTER_API_KEYS' } }))?.value,
         TOPTOOLS_API_KEY: !!(await db.setting.findUnique({ where: { key: 'TOPTOOLS_API_KEY' } }))?.value,
         TOPTOOLS_API_KEYS: !!(await db.setting.findUnique({ where: { key: 'TOPTOOLS_API_KEYS' } }))?.value,
+        ALBORIHI_API_KEY: !!(await db.setting.findUnique({ where: { key: 'ALBORIHI_API_KEY' } }))?.value,
+        ALBORIHI_API_KEYS: !!(await db.setting.findUnique({ where: { key: 'ALBORIHI_API_KEYS' } }))?.value,
         OPENAI_COMPAT_API_KEY: !!(await db.setting.findUnique({ where: { key: 'OPENAI_COMPAT_API_KEY' } }))?.value,
         OPENAI_COMPAT_API_KEYS: !!(await db.setting.findUnique({ where: { key: 'OPENAI_COMPAT_API_KEYS' } }))?.value,
         AI_AGENT_API_KEY: !!(await db.setting.findUnique({ where: { key: 'AI_AGENT_API_KEY' } }))?.value,
@@ -185,12 +196,8 @@ export async function PATCH(req: NextRequest) {
         await audit(admin, 'AI_KEY_UPDATED', 'Setting', key, `${key}:${last4}`)
       }
       if (key === 'AI_ACADEMIC_ALLOWLIST' || key === 'AI_VERIFIER_PREFERRED') {
-        const allowedProviders = new Set(['GEMINI', 'UNOROUTER', 'OPENROUTER', 'TOPTOOLS', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'RELAYROUTER', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT'])
         const items = value.split(',').map((item) => item.trim()).filter(Boolean)
-        const ok = items.every((item) => {
-          const [provider, model] = item.split(/:(.+)/).filter(Boolean)
-          return provider && model && allowedProviders.has(provider.toUpperCase()) && /^[A-Z_]+:[a-z0-9][a-z0-9_.\/:\-]{1,180}$/i.test(item) && !/(^|:)auto$/i.test(item)
-        })
+        const ok = items.every(isValidTextAiProviderModelSettingItem)
         if (!ok) return NextResponse.json({ error: key === 'AI_ACADEMIC_ALLOWLIST' ? 'قائمة المهام الحساسة يجب أن تحتوي provider:model فقط وبدون auto' : 'نماذج مدقق الأسئلة يجب أن تحتوي provider:model فقط وبدون auto' }, { status: 400 })
         value = items.join(',')
       }
@@ -246,9 +253,7 @@ export async function POST(req: NextRequest) {
     }
     if (action === 'add-academic-allowlist') {
       const item = String(allowlistItem || '').trim()
-      const allowedProviders = new Set(['GEMINI', 'UNOROUTER', 'OPENROUTER', 'TOPTOOLS', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'RELAYROUTER', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT'])
-      const [provider, model] = item.split(/:(.+)/).filter(Boolean)
-      if (!provider || !model || !allowedProviders.has(provider.toUpperCase()) || !/^[A-Z_]+:[a-z0-9][a-z0-9_.\/:\-]{1,180}$/i.test(item) || /(^|:)auto$/i.test(item)) return NextResponse.json({ error: 'صيغة النموذج غير صالحة' }, { status: 400 })
+      if (!isValidTextAiProviderModelSettingItem(item)) return NextResponse.json({ error: 'صيغة النموذج غير صالحة' }, { status: 400 })
       const row = await db.setting.findUnique({ where: { key: 'AI_ACADEMIC_ALLOWLIST' } })
       const current = String(row?.value || 'GEMINI:gemini-3.5-flash,GEMINI:gemini-3.8-flash').split(',').map((x) => x.trim()).filter(Boolean)
       if (!current.includes(item)) current.push(item)
