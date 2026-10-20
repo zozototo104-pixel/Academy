@@ -6,6 +6,18 @@ import { emailCertificateIssued } from '@/lib/mailer'
 import { adminPaginationMeta, cleanAdminQuery, parseAdminPagination } from '@/lib/admin-query'
 import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
 
+function cleanOptional(value: unknown) {
+  const text = String(value ?? '').trim().replace(/\s+/g, ' ')
+  return text || null
+}
+
+function cleanEnglishName(value: unknown) {
+  const text = cleanOptional(value)
+  if (!text) return null
+  if (!/^[A-Za-z .'-]+$/.test(text)) throw new Error('INVALID_ENGLISH_NAME')
+  return text
+}
+
 // GET /api/admin/certificates — كل الشهادات الصادرة
 export async function GET(req: NextRequest) {
   try {
