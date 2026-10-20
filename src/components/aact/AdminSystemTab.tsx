@@ -1245,6 +1245,13 @@ export function AdminSystemTab() {
                 {F('UNOROUTER_BASE_URL', 'UnoRouter Base URL', 'https://api.unorouter.com/v1', 'text')}
               </>
             ) : null}
+            {currentTextProvider === 'ALBORIHI' || currentTextProvider === 'AUTO' ? (
+              <>
+                {F('ALBORIHI_API_KEYS', 'Alborihi AI API Keys', data.secretsSet.ALBORIHI_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'key1,key2', 'password', 'مفتاح أو أكثر من Alborihi AI مفصول بفاصلة. لا تضع المفتاح داخل الكود.')}
+                {SelectF('ALBORIHI_TEXT_MODEL', 'نموذج Alborihi AI', modelOptions('ALBORIHI', ALBORIHI_TEXT_MODEL_CHOICES), modelHint('ALBORIHI', 'يتم تحميل نماذج حسابك تلقائياً من /models، والقائمة الثابتة هنا احتياط فقط.'))}
+                {F('ALBORIHI_BASE_URL', 'Alborihi AI Base URL', 'https://alborihi-ai.com/api/public/dev/v1', 'text', 'يجب أن يدعم /chat/completions بنمط OpenAI-compatible.')}
+              </>
+            ) : null}
             {currentTextProvider === 'RELAYROUTER' || currentTextProvider === 'AUTO' ? (
               <>
                 {F('RELAYROUTER_API_KEYS', 'RelayRouter API Keys', data.secretsSet.RELAYROUTER_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'rr_...,rr_...', 'password', 'مفتاح أو أكثر من RelayRouter مفصول بفاصلة.')}
