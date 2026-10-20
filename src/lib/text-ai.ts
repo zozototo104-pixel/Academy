@@ -2082,6 +2082,7 @@ function recordAttempt(attempt: TextAiAttemptDiagnostics) {
     keyIndex: attempt.keyIndex,
     ms: attempt.ms,
     status: attempt.status,
+    requestId: attempt.requestId,
     error,
   })
 }
