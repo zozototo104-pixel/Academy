@@ -567,6 +567,7 @@ export default function AdminLegacyGraduatesTab() {
                     <h4 className="text-base font-black text-[#0f2b46]">{cert.holderName}</h4>
                     <Badge variant={cert.valid ? 'default' : 'destructive'}>{cert.valid ? 'صالحة' : 'ملغاة'}</Badge>
                     {cert.stampedFileKey ? <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">ملف مختوم</Badge> : <Badge variant="outline">PDF من القالب</Badge>}
+                    {!cert.holderNameEn ? <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">الاسم الإنجليزي ناقص</Badge> : null}
                   </div>
                   <p className="text-xs font-bold text-slate-600">{cert.user?.email || 'بدون إيميل'} · {cert.program}</p>
                   <p className="text-xs text-slate-500">الرقم: <span dir="ltr">{cert.serial}</span>{cert.legacySerial ? <> · الرقم القديم: <span dir="ltr">{cert.legacySerial}</span></> : null} · تاريخ التخرج: {dateOnly(cert.issuedAt)}</p>
