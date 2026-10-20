@@ -376,6 +376,55 @@ export default function AdminLegacyGraduatesTab() {
     }
   }
 
+  function moveStampField(field: StampField, clientX: number, clientY: number) {
+    const rect = stampCanvasRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const x = Math.max(1, Math.min(99, ((clientX - rect.left) / rect.width) * 100))
+    const y = Math.max(1, Math.min(99, ((clientY - rect.top) / rect.height) * 100))
+    setStampLayout((prev) => ({ ...prev, [field]: { ...prev[field], x: Number(x.toFixed(1)), y: Number(y.toFixed(1)) } }))
+  }
+
+  function resizeStampField(clientX: number, clientY: number) {
+    const active = stampResizeRef.current
+    const rect = stampCanvasRef.current?.getBoundingClientRect()
+    if (!active || !rect) return
+    const delta = (((clientX - active.startX) / rect.width) + ((clientY - active.startY) / rect.height)) * 50
+    if (active.field === 'qr') {
+      const size = Math.max(4, Math.min(45, active.startSize + delta))
+      setStampLayout((prev) => ({ ...prev, qr: { ...prev.qr, size: Number(size.toFixed(1)) } }))
+      return
+    }
+    const width = Math.max(6, Math.min(95, active.startWidth + delta))
+    const fontSize = Math.max(0.5, Math.min(8, active.startFontSize + delta * 0.08))
+    setStampLayout((prev) => ({ ...prev, serial: { ...prev.serial, width: Number(width.toFixed(1)), fontSize: Number(fontSize.toFixed(1)) } }))
+  }
+
+  function stampFieldStyle(field: StampField) {
+    const cfg = stampLayout[field]
+    const isQr = field === 'qr'
+    return {
+      position: 'absolute' as const,
+      left: `${cfg.x}%`,
+      top: `${cfg.y}%`,
+      width: isQr ? `${stampLayout.qr.size}%` : `${stampLayout.serial.width}%`,
+      aspectRatio: isQr ? '1 / 1' : undefined,
+      minHeight: isQr ? undefined : '22px',
+      transform: 'translate(-50%, -50%)',
+      textAlign: 'center' as const,
+      fontSize: isQr ? undefined : `clamp(10px, ${stampLayout.serial.fontSize}vw, 42px)`,
+      fontWeight: 900,
+      lineHeight: 1.2,
+      cursor: 'move',
+      touchAction: 'none',
+      overflow: 'visible',
+      border: selectedStampField === field ? '2px solid #c9a227' : '1px dashed rgba(15,43,70,.35)',
+      background: isQr ? 'white' : 'rgba(255,255,255,.78)',
+      borderRadius: '10px',
+      padding: isQr ? '4px' : '4px 8px',
+      color: '#0f2b46',
+    }
+  }
+
   async function resendInvite(cert: LegacyGraduateCertificate) {
     setBusy(`invite:${cert.id}`)
     try {
