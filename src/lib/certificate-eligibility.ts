@@ -129,6 +129,9 @@ export async function evaluateProgramCertificateEligibility(input: {
     where: { userId_programId: { userId: resolvedUserId, programId: resolvedProgramId } },
     select: { id: true },
   })
+  const admission = admissionId
+    ? await client.admissionApplication.findUnique({ where: { id: admissionId }, select: { scholarshipFull: true } })
+    : await client.admissionApplication.findFirst({ where: { userId: resolvedUserId, programId: resolvedProgramId }, orderBy: { createdAt: 'desc' }, select: { scholarshipFull: true } })
   const paymentFilters = [
     ...(enrollment?.id ? [{ enrollmentId: enrollment.id }] : []),
     ...(admissionId ? [{ admissionId }] : []),
