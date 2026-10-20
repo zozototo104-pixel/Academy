@@ -125,6 +125,10 @@ afterAll(() => {
   else process.env.GEMINI_API_KEY = originalGeminiApiKey
   if (originalGeminiApiKeys === undefined) delete process.env.GEMINI_API_KEYS
   else process.env.GEMINI_API_KEYS = originalGeminiApiKeys
+  if (originalAlborihiApiKey === undefined) delete process.env.ALBORIHI_API_KEY
+  else process.env.ALBORIHI_API_KEY = originalAlborihiApiKey
+  if (originalAlborihiApiKeys === undefined) delete process.env.ALBORIHI_API_KEYS
+  else process.env.ALBORIHI_API_KEYS = originalAlborihiApiKeys
 })
 
 describe('Gemini Live raw setup shape', () => {
