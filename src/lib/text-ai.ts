@@ -196,7 +196,7 @@ const nvidiaHardModelFailureHits = new Map<string, number[]>()
 let roundRobin = 0
 let lastResult: TextAiDiagnostics['lastResult'] = null
 let recentAttempts: TextAiAttemptDiagnostics[] = []
-type ModelCapability = { contextLength?: number; vision?: boolean; modalities?: string[]; supportedParameters?: string[] }
+type ModelCapability = { contextLength?: number; vision?: boolean; modalities?: string[]; supportedParameters?: string[]; family?: string }
 type FreeModelsCacheEntry = { at: number; models: string[]; capabilities?: Record<string, ModelCapability>; discoveryOk?: boolean; sourceCount?: number }
 const freeModelsCache = new Map<string, FreeModelsCacheEntry>()
 
