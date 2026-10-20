@@ -84,7 +84,7 @@ describe('ALBORIHI text provider', () => {
       const auth = String((init?.headers as Record<string, string> | undefined)?.Authorization || '')
       if (urlText.endsWith('/models')) {
         expect(urlText).toBe('https://alborihi-ai.com/api/public/dev/v1/models')
-        expect(auth).toBe(`Bearer ${TEST_ALBORIHI_KEY}`)
+        expect(auth).toBe(`Bearer ${MOCK_ALBORIHI_TOKEN}`)
         return new Response(JSON.stringify(alborihiModelsBody([
           { id: 'claude-sonnet-5', context_length: 200000, architecture: { input_modalities: ['text'] } },
           { id: 'gpt-5.6-luna', context_length: 128000, architecture: { input_modalities: ['text', 'image'] } },
