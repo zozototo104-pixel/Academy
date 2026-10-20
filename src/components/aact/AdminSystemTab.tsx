@@ -299,6 +299,12 @@ const TOPTOOLS_TEXT_MODEL_CHOICES = [
   { value: 'top-tools-ai', label: 'top-tools-ai — احتياطي إذا تعذر تحميل كتالوج /models' },
 ]
 
+const ALBORIHI_TEXT_MODEL_CHOICES = [
+  { value: 'claude-sonnet-5', label: 'claude-sonnet-5 — افتراضي Alborihi' },
+  { value: 'claude-opus-4-6', label: 'claude-opus-4-6 — احتياطي Alborihi' },
+  { value: 'gpt-5.6-luna', label: 'gpt-5.6-luna — احتياطي Alborihi' },
+]
+
 const GEMINI_VOICE_CHOICES = [
   'Charon', 'Aoede', 'Puck', 'Kore', 'Fenrir', 'Leda', 'Orus', 'Zephyr', 'Achernar', 'Algenib', 'Callirrhoe', 'Despina', 'Erinome', 'Gacrux', 'Iapetus', 'Laomedeia', 'Pulcherrima', 'Rasalgethi', 'Sadachbia', 'Schedar', 'Sulafat', 'Umbriel', 'Vindemiatrix', 'Zubenelgenubi'
 ]
