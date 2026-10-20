@@ -428,26 +428,30 @@ export async function PATCH(req: NextRequest) {
     // لا نحدّث حالة الطلب إلى CERTIFIED قبل إثبات الاستحقاق الأكاديمي والمالي حتى لا تظهر شهادة لطالب غير مستحق.
     if (status === 'CERTIFIED') {
       const allPayments = await db.payment.findMany({ where: { admissionId: id } })
-      const nonTuitionUnpaid = allPayments.filter((p) => !['TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && !['PAID', 'WAIVED'].includes(p.status))
-      const paymentRows = allPayments.map((p) => ({
-        purpose: p.purpose,
-        status: p.status,
-        amount: p.amount,
-        amountCents: p.amountCents,
-        waiverType: p.waiverType,
-        waivedAmount: p.waivedAmount,
-        waivedAmountCents: p.waivedAmountCents,
-        originalAmount: p.originalAmount,
-        originalAmountCents: p.originalAmountCents,
-      }))
-      const tuitionTotal = inferTotalTuition(paymentRows)
-      const tuitionPaid = tuitionPaidTotal(paymentRows)
-      const tuitionOk = tuitionTotal <= 0 || roundMoney(tuitionPaid) >= roundMoney(tuitionTotal)
-      if (nonTuitionUnpaid.length > 0 || !tuitionOk) {
-        return NextResponse.json(
-          { error: !tuitionOk ? `لا يمكن إصدار الشهادة قبل استكمال الرسوم الدراسية. المسدد ${roundMoney(tuitionPaid)}$ من ${roundMoney(tuitionTotal)}$.` : 'لا يمكن إصدار الشهادة قبل سداد جميع فواتير الطلب غير الدراسية.' },
-          { status: 400 }
-        )
+      if (app.scholarshipFull !== true) {
+        const nonTuitionUnpaid = allPayments.filter((p) => !TUITION_PURPOSES.includes(p.purpose) && !['PAID', 'WAIVED'].includes(p.status))
+        const paymentRows = allPayments.map((p) => ({
+          purpose: p.purpose,
+          status: p.status,
+          amount: p.amount,
+          amountCents: p.amountCents,
+          waiverType: p.waiverType,
+          waiverStatus: p.waiverStatus,
+          waivedAmount: p.waivedAmount,
+          waivedAmountCents: p.waivedAmountCents,
+          originalAmount: p.originalAmount,
+          originalAmountCents: p.originalAmountCents,
+        }))
+        const tuitionRows = paymentRows.filter((p) => TUITION_PURPOSES.includes(p.purpose))
+        const tuitionTotal = tuitionRows.length ? inferTotalTuition(paymentRows) : 0
+        const tuitionPaid = tuitionPaidTotal(paymentRows)
+        const tuitionOk = tuitionTotal <= 0 || roundMoney(tuitionPaid) >= roundMoney(tuitionTotal)
+        if (nonTuitionUnpaid.length > 0 || !tuitionOk) {
+          return NextResponse.json(
+            { error: !tuitionOk ? `لا يمكن إصدار الشهادة قبل استكمال الرسوم الدراسية. المسدد ${roundMoney(tuitionPaid)}$ من ${roundMoney(tuitionTotal)}$.` : 'لا يمكن إصدار الشهادة قبل سداد جميع فواتير الطلب غير الدراسية.' },
+            { status: 400 }
+          )
+        }
       }
 
       const eligibility = await evaluateProgramCertificateEligibility({ userId: app.userId, programId: app.programId, admissionId: id })
