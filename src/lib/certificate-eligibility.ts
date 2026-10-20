@@ -139,7 +139,7 @@ export async function evaluateProgramCertificateEligibility(input: {
   const payments = paymentFilters.length
     ? await client.payment.findMany({
         where: { OR: paymentFilters },
-        select: { purpose: true, status: true, amount: true, amountCents: true, waiverType: true, waivedAmount: true, waivedAmountCents: true, originalAmount: true, originalAmountCents: true },
+        select: { purpose: true, status: true, amount: true, amountCents: true, waiverType: true, waiverStatus: true, waivedAmount: true, waivedAmountCents: true, originalAmount: true, originalAmountCents: true },
       })
     : []
   const financeError = paymentEligibilityError(payments, program?.price)
