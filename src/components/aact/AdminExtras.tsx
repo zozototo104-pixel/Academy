@@ -1389,12 +1389,24 @@ interface CertificateTemplateItem {
 }
 
 const TEMPLATE_FIELD_LABELS: Record<string, string> = {
+  holderName: 'اسم الطالب',
+  program: 'البرنامج',
+  grade: 'التقدير',
+  issuedAt: 'تاريخ الإصدار',
   serial: 'الرقم التسلسلي',
   qr: 'رمز QR',
 }
+const TEMPLATE_TEXT_FIELDS = ['holderName', 'program', 'grade', 'issuedAt', 'serial']
+const TEMPLATE_LATIN_FONTS = ['Arial', 'Helvetica', 'TimesRoman', 'Courier']
+const TEMPLATE_ARABIC_FONTS = ['Noto Naskh Arabic', 'DejaVu Sans', 'Arial']
 
+const TEMPLATE_TEXT_DEFAULT = { width: 70, fontSize: 2.2, align: 'center', color: '#0f2b46', fontFamily: 'Arial', lang: 'en', visible: true }
 const TEMPLATE_DEFAULT_LAYOUT: any = {
-  serial: { x: 84, y: 90, width: 22, fontSize: 1.2, align: 'right', color: '#0f2b46', visible: true },
+  holderName: { ...TEMPLATE_TEXT_DEFAULT, x: 50, y: 36, width: 72, fontSize: 4.2 },
+  program: { ...TEMPLATE_TEXT_DEFAULT, x: 50, y: 51, width: 76, fontSize: 2.5, color: '#a8841a' },
+  grade: { ...TEMPLATE_TEXT_DEFAULT, x: 50, y: 62, width: 44, fontSize: 1.7 },
+  issuedAt: { ...TEMPLATE_TEXT_DEFAULT, x: 18, y: 90, width: 26, fontSize: 1.15, align: 'left' },
+  serial: { ...TEMPLATE_TEXT_DEFAULT, x: 84, y: 90, width: 24, fontSize: 1.2, align: 'right' },
   qr: { x: 50, y: 86, size: 12, visible: true },
 }
 
