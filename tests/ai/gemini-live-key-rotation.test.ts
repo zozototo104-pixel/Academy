@@ -112,6 +112,8 @@ beforeEach(() => {
   reserveUsageCalls = 0
   delete process.env.GEMINI_API_KEY
   delete process.env.GEMINI_API_KEYS
+  delete process.env.ALBORIHI_API_KEY
+  delete process.env.ALBORIHI_API_KEYS
   textAi.__resetTextAiStateForTests()
   textAi.__setTextAiSettingStoreForTests(store)
 })
