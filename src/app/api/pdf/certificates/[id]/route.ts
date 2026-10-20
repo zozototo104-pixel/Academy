@@ -119,12 +119,12 @@ export async function GET(_req: NextRequest, context: RouteContext) {
           ],
         },
         {
-          title: 'بيانات المستفيد / Holder Details',
+          title: englishFallback ? 'Holder Details' : 'بيانات المستفيد / Holder Details',
           rows: [
-            { label: 'الاسم', value: holder },
-            { label: 'الدولة', value: certificate.country || certificate.admission?.country || certificate.agent?.country || '—' },
-            { label: 'البرنامج / الاعتماد', value: program },
-            { label: 'التقدير / النتيجة', value: certificate.grade || '—' },
+            { label: englishFallback ? 'Name' : 'الاسم', value: holder, dir: englishFallback ? 'ltr' : undefined },
+            { label: englishFallback ? 'Country' : 'الدولة', value: certificate.country || certificate.admission?.country || certificate.agent?.country || '—', dir: englishFallback ? 'ltr' : undefined },
+            { label: englishFallback ? 'Program' : 'البرنامج / الاعتماد', value: program, dir: englishFallback ? 'ltr' : undefined },
+            { label: englishFallback ? 'Grade' : 'التقدير / النتيجة', value: grade, dir: englishFallback ? 'ltr' : undefined },
           ],
         },
         {
