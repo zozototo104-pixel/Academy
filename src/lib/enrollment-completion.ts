@@ -184,12 +184,17 @@ export async function completeEnrollmentIfEligibleInTransaction(tx: Tx, input: C
     return { ok: false, completed: false, certificateIssued: false, status: 'NOT_ELIGIBLE', httpStatus: 422, code: 'CERTIFICATE_IDENTITY_REQUIRED', error: 'اسم صاحب الشهادة واسم البرنامج مطلوبان لإصدار الشهادة.', enrollmentId: enrollment.id, admissionId: matchedAdmission?.id || null, eligibility }
   }
 
+  const grade = eligibility.gradeLabel || (typeof eligibility.score === 'number' ? certificateGradeLabel(eligibility.score) : null)
+  const holderNameEn = /^[A-Za-z .'-]+$/.test(holderName) ? holderName : null
   const certificate = existing || await createProgramCompletionCertificate(tx, {
     qrToken: createCertificateQrToken(),
     type: 'PROGRAM_COMPLETION',
     holderName,
+    holderNameEn,
     program: programTitle,
-    grade: eligibility.gradeLabel || (typeof eligibility.score === 'number' ? certificateGradeLabel(eligibility.score) : null),
+    programEn: program.titleEn || null,
+    grade,
+    gradeEn: grade && /^[A-Za-z .'-]+$/.test(grade) ? grade : null,
     country: (input.country || matchedAdmission?.country || '').trim() || null,
     userId: enrollment.userId,
     enrollmentId: enrollment.id,
