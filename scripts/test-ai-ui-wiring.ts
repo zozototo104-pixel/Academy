@@ -151,8 +151,13 @@ function testAlborihiProviderWiring() {
   assert(settings.includes('ALBORIHI_BASE_URL'), 'Admin settings must expose Alborihi base URL')
 
   const env = file('.env.example')
+  assert(env.includes('AACT_SECRETS_KEY'), '.env.example must document the admin-secret encryption key')
   assert(env.includes('ALBORIHI_API_KEYS'), '.env.example must document Alborihi keys')
   assert(env.includes('ALBORIHI_BASE_URL="https://alborihi-ai.com/api/public/dev/v1"'), '.env.example must document Alborihi base URL')
+
+  const settingsRoute = file('src/app/api/settings/route.ts')
+  assert(settingsRoute.includes('ENCRYPTED_TEXT_AI_SECRET_SETTING_RE'), 'settings route must encrypt external AI secrets saved from the admin UI')
+  assert(settingsRoute.includes('ALBORIHI'), 'settings route encryption allowlist must include Alborihi')
 }
 
 testSupervisorsApiAndUi()
