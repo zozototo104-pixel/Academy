@@ -12,6 +12,7 @@ type PaymentRow = {
   amount: number
   amountCents?: number | null
   waiverType?: string | null
+  waiverStatus?: string | null
   waivedAmount?: number | null
   waivedAmountCents?: number | null
   originalAmount?: number | null
