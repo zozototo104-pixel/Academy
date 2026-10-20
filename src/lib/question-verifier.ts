@@ -38,12 +38,15 @@ export type VerificationSource = { text: string; textProvenance?: TextProvenance
 export const QUESTION_VERIFIER_TIME_BUDGET_MS = 90_000
 
 export function __testVerifierExcludedProviders(generatorProvider: TextAiProvider): TextAiProvider[] {
-  return [generatorProvider]
+  // Alborihi alone may review its own output, provided the model family differs.
+  return generatorProvider === 'ALBORIHI' ? [] : [generatorProvider]
 }
 
 export function __testVerifierPreferredProvidersForTests(generatorProvider?: TextAiProvider | null): TextAiProvider[] {
   const preferred: TextAiProvider[] = ['GROQ', 'GEMINI', 'UNOROUTER']
-  return preferred.filter((provider) => provider !== generatorProvider)
+  return generatorProvider === 'ALBORIHI'
+    ? ['ALBORIHI', ...preferred]
+    : preferred.filter((provider) => provider !== generatorProvider)
 }
 
 const verifierItemSchema = z.object({
