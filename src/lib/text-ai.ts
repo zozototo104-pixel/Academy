@@ -573,7 +573,10 @@ function providerAttemptTimeoutMs(opts: TextAiCallOpts): number {
 
 function providerRequestTimeoutMs(provider: string, opts: TextAiCallOpts): number {
   const base = providerAttemptTimeoutMs(opts)
-  return provider === 'ALBORIHI' ? Math.max(base, 120_000) : base
+  if (provider !== 'ALBORIHI') return base
+  const configured = Number(env('ALBORIHI_PROVIDER_TIMEOUT_MS'))
+  const alborihiTimeout = Number.isFinite(configured) && configured > 0 ? Math.floor(configured) : 120_000
+  return Math.max(base, 120_000, alborihiTimeout)
 }
 
 function aiDiscoveryTimeoutMs(): number {
