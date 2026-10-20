@@ -1818,7 +1818,10 @@ export function AdminCertificatesTab() {
                   <div className="flex items-start justify-between"><Award className={`h-5 w-5 ${c.valid === false ? 'text-red-500' : 'text-[#a8841a]'}`} /><span className="font-mono text-[10px] text-slate-400" dir="ltr">{c.serial}</span></div>
                   <h4 className="mt-2 text-xs font-black text-[#0f2b46]">{c.holderName}</h4>
                   <p className="mt-0.5 line-clamp-1 text-[11px] font-bold text-slate-500">{c.program}</p>
-                  {c.valid === false && <Badge className="mt-2 bg-red-100 text-red-700">ملغاة {c.revokedAt ? new Date(c.revokedAt).toLocaleDateString('ar') : ''}</Badge>}
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {c.valid === false && <Badge className="bg-red-100 text-red-700">ملغاة {c.revokedAt ? new Date(c.revokedAt).toLocaleDateString('ar') : ''}</Badge>}
+                    {!c.holderNameEn && <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">الاسم الإنجليزي ناقص</Badge>}
+                  </div>
                   {c.revokedReason && <p className="mt-1 line-clamp-2 text-[10px] font-bold text-red-600">سبب الإلغاء: {c.revokedReason}</p>}
                   <div className="mt-3 grid gap-2">
                     <Button size="sm" variant="outline" className="w-full border-[#c9a227] font-bold text-[#a8841a]" onClick={() => { setSelected(c); setOpen(true) }}><FileDown className="ml-1 h-3.5 w-3.5" /> عرض / طباعة</Button>
