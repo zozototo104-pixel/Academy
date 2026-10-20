@@ -194,7 +194,9 @@ const programExamSubmitRoute = await import('../../src/app/api/program-exam/subm
 const defenseRoute = await import('../../src/app/api/defense/route')
 const { canPublishUnitExamFromQuestions } = await import('../../src/lib/unit-exam-policy')
 const { calculateFinalGrade } = await import('../../src/lib/final-grade')
-const { evaluateProgramCertificateEligibility } = await import('../../src/lib/certificate-eligibility')
+const { certificateGradeLabelEn, evaluateProgramCertificateEligibility } = await import('../../src/lib/certificate-eligibility')
+const { completeEnrollmentIfEligibleInTransaction } = await import('../../src/lib/enrollment-completion')
+const { stampValue } = await import('../../src/lib/legacy-certificate-files')
 const certVerifyRoute = await import('../../src/app/api/certificates/verify/route')
 
 async function body(response: Response) {
