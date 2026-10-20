@@ -206,7 +206,7 @@ export function CertificateDialog({
             </div>
 
             <p className="mt-5 text-[10px] text-slate-400">
-              تاريخ الإصدار: {date} {certificate.country ? `— ${certificate.country}` : ''}
+              تاريخ الإصدار: {dateAr} {certificate.country ? `— ${certificate.country}` : ''}
             </p>
           </div>
         </div>
