@@ -2021,15 +2021,55 @@ async function parseResponse(response: Response): Promise<any> {
   }
 }
 
-function throwHttp(provider: string, status: number, data: any): never {
+function responseHeader(response: Response | undefined, name: string): string {
+  try {
+    return response?.headers?.get(name)?.trim() || ''
+  } catch {
+    return ''
+  }
+}
+
+function providerErrorCodeFromPayload(data: any): string {
+  return String(data?.error?.code || data?.error?.type || data?.code || data?.type || '').trim().toLowerCase()
+}
+
+function requestIdFromPayload(data: any, response?: Response): string {
+  return String(responseHeader(response, 'x-request-id') || data?.error?.request_id || data?.request_id || data?.requestId || '').trim().slice(0, 120)
+}
+
+function throwHttp(provider: string, status: number, data: any, response?: Response): never {
   const err: any = new Error(data?.error?.message || data?.message || data?.raw || `${provider} HTTP ${status}`)
   err.status = status
+  const code = providerErrorCodeFromPayload(data)
+  if (code) err.providerErrorCode = code
+  const requestId = requestIdFromPayload(data, response)
+  if (requestId) err.requestId = requestId
+  const retryAfter = responseHeader(response, 'retry-after')
+  if (retryAfter) err.retryAfter = retryAfter
   throw err
 }
 
 function statusFromError(e: any): number | undefined {
   const status = Number(e?.status || e?.code || 0)
   return Number.isFinite(status) && status >= 100 && status <= 599 ? status : undefined
+}
+
+function requestIdFromError(e: any): string | undefined {
+  const value = String(e?.requestId || e?.request_id || e?.headers?.['x-request-id'] || '').trim().slice(0, 120)
+  return value || undefined
+}
+
+function providerErrorCode(e: any): string {
+  return String(e?.providerErrorCode || e?.error?.code || e?.code || '').trim().toLowerCase()
+}
+
+function retryAfterCooldownMinutes(e: any, fallbackMinutes = 15): number {
+  const raw = String(e?.retryAfter || e?.retry_after || e?.retryDelay || '').trim()
+  const seconds = Number(raw)
+  if (Number.isFinite(seconds) && seconds > 0) return Math.max(1, Math.ceil(seconds / (seconds > 1000 ? 60_000 : 60)))
+  const dateMs = Date.parse(raw)
+  if (Number.isFinite(dateMs) && dateMs > Date.now()) return Math.max(1, Math.ceil((dateMs - Date.now()) / 60_000))
+  return Math.max(1, Math.floor(fallbackMinutes))
 }
 
 function recordAttempt(attempt: TextAiAttemptDiagnostics) {
