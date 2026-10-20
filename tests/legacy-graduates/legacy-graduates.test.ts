@@ -181,7 +181,7 @@ mock.module('@/lib/pdf/official', () => ({
 
 const { createLegacyGraduate } = await import('../../src/lib/legacy-graduates')
 const { parseLegacyGraduateWorkbook, validateLegacyGraduateImportRows } = await import('../../src/lib/legacy-graduates-import')
-const { sniffLegacyCertificateMime } = await import('../../src/lib/legacy-certificate-files')
+const { normalizeStampLayout, renderCertificateStampTextOverlayPng, sniffLegacyCertificateMime } = await import('../../src/lib/legacy-certificate-files')
 const adminLegacyRoute = await import('../../src/app/api/admin/legacy-graduates/route')
 const importRoute = await import('../../src/app/api/admin/legacy-graduates/import/route')
 const uploadRoute = await import('../../src/app/api/admin/legacy-graduates/[certificateId]/upload/route')
