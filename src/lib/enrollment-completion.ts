@@ -165,7 +165,7 @@ export async function completeEnrollmentIfEligibleInTransaction(tx: Tx, input: C
         ...(matchedAdmission?.id ? [{ admissionId: matchedAdmission.id }] : []),
       ],
     },
-    select: { purpose: true, status: true, amount: true, amountCents: true, waiverType: true, waivedAmount: true, waivedAmountCents: true, originalAmount: true, originalAmountCents: true },
+    select: { purpose: true, status: true, amount: true, amountCents: true, waiverType: true, waiverStatus: true, waivedAmount: true, waivedAmountCents: true, originalAmount: true, originalAmountCents: true },
   })
   const financeError = financialFailure(payments, program.price)
   if (financeError) {
