@@ -2629,6 +2629,13 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const taskLevel = effectiveOpts.taskLevel || 'GENERAL'
   const excluded = excludedConcreteProviders(effectiveOpts.excludeProviders)
   const excludedFamilies = excludedModelFamilies(effectiveOpts.excludeModelFamilies)
+  const allowAlborihiCrossFamilyVerifier = effectiveOpts.allowAlborihiCrossFamilyVerifier === true
+    && effectiveOpts.purpose === 'REVIEW'
+    && taskLevel === 'ACADEMIC_CRITICAL'
+    && excluded.has('ALBORIHI')
+    && [...excludedFamilies].some((family) => family !== 'unknown')
+  // Keep the verifier exclusion contract for all other providers and requests.
+  if (allowAlborihiCrossFamilyVerifier) excluded.delete('ALBORIHI')
   const sticky = effectiveOpts.stickyScope ? stickyModels.get(effectiveOpts.stickyScope) : null
   const preferredModels = isVerifierCall(effectiveOpts) ? [...(effectiveOpts.preferredModels || []), ...s.verifierPreferred] : (effectiveOpts.preferredModels || [])
   const preferredModelProviders = preferredModels.map((item) => item.provider).filter(Boolean)
