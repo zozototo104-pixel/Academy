@@ -196,12 +196,8 @@ export async function PATCH(req: NextRequest) {
         await audit(admin, 'AI_KEY_UPDATED', 'Setting', key, `${key}:${last4}`)
       }
       if (key === 'AI_ACADEMIC_ALLOWLIST' || key === 'AI_VERIFIER_PREFERRED') {
-        const allowedProviders = new Set(['GEMINI', 'UNOROUTER', 'OPENROUTER', 'TOPTOOLS', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'RELAYROUTER', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT'])
         const items = value.split(',').map((item) => item.trim()).filter(Boolean)
-        const ok = items.every((item) => {
-          const [provider, model] = item.split(/:(.+)/).filter(Boolean)
-          return provider && model && allowedProviders.has(provider.toUpperCase()) && /^[A-Z_]+:[a-z0-9][a-z0-9_.\/:\-]{1,180}$/i.test(item) && !/(^|:)auto$/i.test(item)
-        })
+        const ok = items.every(isValidTextAiProviderModelSettingItem)
         if (!ok) return NextResponse.json({ error: key === 'AI_ACADEMIC_ALLOWLIST' ? 'قائمة المهام الحساسة يجب أن تحتوي provider:model فقط وبدون auto' : 'نماذج مدقق الأسئلة يجب أن تحتوي provider:model فقط وبدون auto' }, { status: 400 })
         value = items.join(',')
       }
