@@ -1911,10 +1911,23 @@ export function AdminCertificatesTab() {
                       </SelectContent>
                     </Select>
                   </div>
+                  <Button type="button" variant="outline" className="w-full bg-white text-xs font-black" onClick={() => patchTemplateLayout(selectedTemplate, selectedTemplateField, { visible: selectedLayout[selectedTemplateField]?.visible === false })}>
+                    {selectedLayout[selectedTemplateField]?.visible === false ? 'إظهار العنصر' : 'إخفاء العنصر'}
+                  </Button>
+                  {TEMPLATE_TEXT_FIELDS.includes(selectedTemplateField) && (
+                    <div className="grid grid-cols-2 gap-2 rounded-xl bg-white p-3">
+                      <div className="space-y-1"><Label className="text-[10px] font-bold">حجم الخط</Label><Input type="number" step="0.1" min="0.5" max="8" value={selectedLayout[selectedTemplateField]?.fontSize ?? 2} onChange={(e) => patchTemplateLayout(selectedTemplate, selectedTemplateField, { fontSize: Number(e.target.value || 2) })} /></div>
+                      <div className="space-y-1"><Label className="text-[10px] font-bold">العرض %</Label><Input type="number" min="6" max="95" value={selectedLayout[selectedTemplateField]?.width ?? 50} onChange={(e) => patchTemplateLayout(selectedTemplate, selectedTemplateField, { width: Number(e.target.value || 50) })} /></div>
+                      <div className="space-y-1"><Label className="text-[10px] font-bold">اللون</Label><Input type="color" value={selectedLayout[selectedTemplateField]?.color || '#0f2b46'} onChange={(e) => patchTemplateLayout(selectedTemplate, selectedTemplateField, { color: e.target.value })} /></div>
+                      <div className="space-y-1"><Label className="text-[10px] font-bold">اللغة</Label><Select value={selectedLayout[selectedTemplateField]?.lang || 'en'} onValueChange={(v) => patchTemplateLayout(selectedTemplate, selectedTemplateField, { lang: v, fontFamily: v === 'ar' ? TEMPLATE_ARABIC_FONTS[0] : TEMPLATE_LATIN_FONTS[0] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="en">English</SelectItem><SelectItem value="ar">عربي</SelectItem></SelectContent></Select></div>
+                      <div className="space-y-1"><Label className="text-[10px] font-bold">المحاذاة</Label><Select value={selectedLayout[selectedTemplateField]?.align || 'center'} onValueChange={(v) => patchTemplateLayout(selectedTemplate, selectedTemplateField, { align: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="left">Left</SelectItem><SelectItem value="center">Center</SelectItem><SelectItem value="right">Right</SelectItem></SelectContent></Select></div>
+                      <div className="space-y-1"><Label className="text-[10px] font-bold">الخط</Label><Select value={selectedLayout[selectedTemplateField]?.fontFamily || 'Arial'} onValueChange={(v) => patchTemplateLayout(selectedTemplate, selectedTemplateField, { fontFamily: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{(selectedLayout[selectedTemplateField]?.lang === 'ar' ? TEMPLATE_ARABIC_FONTS : TEMPLATE_LATIN_FONTS).map((font) => <SelectItem key={font} value={font}>{font}</SelectItem>)}</SelectContent></Select></div>
+                    </div>
+                  )}
                   <div className="rounded-xl border border-emerald-100 bg-white p-3 text-[11px] font-bold leading-5 text-emerald-900">
-                    الصورة تُعرض بنسبة أبعادها الأصلية كما رُفعت. لا يضيف النظام أي اسم أو برنامج فوقها؛ فقط QR والرقم التسلسلي.
+                    الصورة تُعرض بنسبة أبعادها الأصلية كما رُفعت. كل عنصر يمكن إظهاره أو إخفاؤه، والإنجليزي هو الافتراضي.
                   </div>
-                  <div className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-[11px] font-bold leading-5 text-amber-900">اسحب QR أو الرقم لتحريكه، واسحب المقبض الذهبي الصغير لتكبيره أو تصغيره. الحفظ يتم كنسب مئوية حتى يبقى التخطيط ثابتاً على كل الأحجام.</div>
+                  <div className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-[11px] font-bold leading-5 text-amber-900">اسحب أي عنصر لتحريكه، واسحب المقبض الذهبي الصغير لتكبيره أو تصغيره.</div>
                 </div>
                 <div
                   ref={templateCanvasRef}
