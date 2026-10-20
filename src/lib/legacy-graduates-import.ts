@@ -8,12 +8,15 @@ export const LEGACY_GRADUATE_IMPORT_MAX_ROWS = 2000
 export type LegacyImportRow = {
   rowNumber: number
   name?: string | null
+  nameEn?: string | null
   email?: string | null
   phone?: string | null
   country?: string | null
   program?: string | null
   programId?: string | null
+  programEn?: string | null
   grade?: string | null
+  gradeEn?: string | null
   finalScore?: number | null
   issuedAt?: Date | null
   legacySerial?: string | null
