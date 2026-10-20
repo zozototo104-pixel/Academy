@@ -110,12 +110,12 @@ export async function GET(_req: NextRequest, context: RouteContext) {
       statusTone: certificate.valid ? 'success' : 'warning',
       sections: [
         {
-          title: 'بيانات الشهادة / Certificate Details',
+          title: englishFallback ? 'Certificate Details' : 'بيانات الشهادة / Certificate Details',
           rows: [
-            { label: 'الرقم التسلسلي', value: certificate.serial, dir: 'ltr' },
-            { label: 'نوع الشهادة', value: certificateTypeLabel(certificate.type) },
-            { label: 'تاريخ الإصدار', value: pdfDate(certificate.issuedAt), dir: 'ltr' },
-            { label: 'رمز التحقق', value: certificate.qrToken, dir: 'ltr' },
+            { label: englishFallback ? 'Serial Number' : 'الرقم التسلسلي', value: certificate.serial, dir: 'ltr' },
+            { label: englishFallback ? 'Certificate Type' : 'نوع الشهادة', value: englishFallback ? 'Program Completion Certificate' : certificateTypeLabel(certificate.type), dir: englishFallback ? 'ltr' : undefined },
+            { label: englishFallback ? 'Issued At' : 'تاريخ الإصدار', value: pdfDate(certificate.issuedAt), dir: 'ltr' },
+            { label: englishFallback ? 'Verification Token' : 'رمز التحقق', value: certificate.qrToken, dir: 'ltr' },
           ],
         },
         {
