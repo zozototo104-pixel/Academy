@@ -184,7 +184,7 @@ const NVIDIA_OPENAI_COMPAT_DEAD_MODEL_MS = 24 * 60 * 60 * 1000
 const NVIDIA_OPENAI_COMPAT_HARD_FAILURE_WINDOW_MS = 60 * 60 * 1000
 const MAX_VISION_ATTACHMENT_BYTES = 15 * 1024 * 1024
 const VISION_ATTEMPT_TIMEOUT_MS = 75_000
-const VISION_OPENAI_COMPAT_PROVIDERS = new Set<TextAiProvider>(['OPENAI', 'OPENROUTER', 'ALBORIHI', 'OPENAI_COMPAT'])
+const VISION_OPENAI_COMPAT_PROVIDERS = new Set<TextAiProvider>(['OPENAI', 'OPENROUTER', 'OPENAI_COMPAT', 'ALBORIHI'])
 const VISION_NATIVE_PROVIDERS = new Set<TextAiProvider>(['GEMINI', 'ANTHROPIC', 'ZAI'])
 
 const cooldowns = new Map<string, { until: number; reason: string; status?: number; model?: string }>()
