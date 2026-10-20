@@ -92,7 +92,6 @@ export default async function CertificateVerifyPage({ params }: PageProps) {
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-sm font-black text-[#0f2b46]">روابط التحقق</p>
               <div className="mt-3 space-y-2 text-xs font-bold">
-                <a className="block rounded-lg bg-white p-3 text-[#0f2b46] ring-1 ring-slate-200" href={credentialUrl} target="_blank" rel="noreferrer" dir="ltr">{credentialUrl}</a>
                 <a className="block rounded-lg bg-white p-3 text-[#0f2b46] ring-1 ring-slate-200" href={verificationUrl} dir="ltr">{verificationUrl}</a>
               </div>
             </div>
