@@ -2847,6 +2847,83 @@ export function __testStrictCandidateModelsForTests(args: { provider: TextAiProv
   return strictCandidateModelsForRequest(s, provider, args.models, args.taskLevel || 'GENERAL', args.verifierCall === true)
 }
 
+function stickyScopeForRequest(s: Settings, opts: TextAiCallOpts, verifierCall: boolean): string | null {
+  if (opts.stickyScope) return opts.stickyScope
+  if (!s.stickyOnSuccess) return null
+  const route = clean(opts.taskType || opts.purpose || 'CHAT') || 'CHAT'
+  return `${route}:${verifierCall ? 'verify' : 'gen'}`
+}
+
+function stickyVerifierFamilyBlocked(s: Settings, opts: TextAiCallOpts, sticky: StickyModel, excludedFamilies: Set<string>, allowAlborihiCrossFamilyVerifier: boolean): boolean {
+  if (!isVerifierCall(opts)) return false
+  const family = sticky.provider === 'ALBORIHI' && allowAlborihiCrossFamilyVerifier ? alborihiModelFamily(s, sticky.model) : modelFamily(sticky.model)
+  return family !== 'unknown' && excludedFamilies.has(family)
+}
+
+async function resolveUsableStickyModel(args: {
+  s: Settings
+  opts: TextAiCallOpts
+  scope: string | null
+  preferredModels: TextAiPreferredModel[]
+  orderedProviders: ConcreteProvider[]
+  taskLevel: TextAiTaskLevel
+  verifierCall: boolean
+  excludedFamilies: Set<string>
+  persistentCooldowns: Record<string, string>
+  attachments: TextAiAttachment[]
+  exploreModels: boolean
+  allowAlborihiCrossFamilyVerifier: boolean
+  estimatedPaidCost: number
+}): Promise<{ sticky: StickyModel | null; deleteSticky: boolean }> {
+  if (!args.scope) return { sticky: null, deleteSticky: false }
+  const sticky = stickyModels.get(args.scope)
+  if (!sticky || !args.orderedProviders.includes(sticky.provider)) return { sticky: null, deleteSticky: false }
+  if (stickyVerifierFamilyBlocked(args.s, args.opts, sticky, args.excludedFamilies, args.allowAlborihiCrossFamilyVerifier)) return { sticky: null, deleteSticky: false }
+  const keys = providerKeys(args.s, sticky.provider)
+  const keyIndex = keys.indexOf(sticky.key) + 1
+  if (keyIndex <= 0) return { sticky: null, deleteSticky: false }
+  if (isPersistentModelDead(args.persistentCooldowns, sticky.provider, sticky.model)) return { sticky: null, deleteSticky: true }
+  if (isPersistentNoBalance(args.persistentCooldowns, sticky.provider, keyIndex)) return { sticky: null, deleteSticky: true }
+  if (activeMemoryCooldown(sticky.provider, sticky.key) || activeMemoryModelCooldown(sticky.provider, sticky.key, sticky.model)) return { sticky: null, deleteSticky: false }
+  if (persistentKeyCooldown(args.persistentCooldowns, sticky.provider, keyIndex) || persistentModelCooldown(args.persistentCooldowns, sticky.provider, keyIndex, sticky.model)) return { sticky: null, deleteSticky: false }
+  if (sticky.provider === 'OPENAI_COMPAT' && args.s.openaiCompatTier === 'PAID' && !(await paidBudgetAvailable(args.s, args.estimatedPaidCost))) return { sticky: null, deleteSticky: true }
+
+  const providerPreferredModels = args.preferredModels.filter((item) => item.provider === sticky.provider).map((item) => item.model)
+  const fallbackModels = args.verifierCall && args.s.verifierStrict ? [] : await modelFallbacks(args.s, sticky.provider, args.taskLevel, args.exploreModels, args.opts.purpose)
+  const sameProviderAlborihiReview = args.allowAlborihiCrossFamilyVerifier && sticky.provider === 'ALBORIHI'
+  const discoveredAlborihiModels = sameProviderAlborihiReview ? freeModelDiscoveryEntry('ALBORIHI', args.s) : null
+  const candidateModels = strictCandidateModelsForRequest(args.s, sticky.provider, [...new Set([...providerPreferredModels, ...fallbackModels])], args.taskLevel, args.verifierCall)
+    .filter((model) => !discoveredAlborihiModels?.discoveryOk || discoveredAlborihiModels.models.some((id) => id.toLowerCase() === model.toLowerCase()))
+  const eligibleFamily = (model: string) => {
+    if (!sameProviderAlborihiReview) return modelFamilyAllowed(model, args.excludedFamilies)
+    const family = alborihiModelFamily(args.s, model)
+    return family !== 'unknown' && !args.excludedFamilies.has(family)
+  }
+  const baseModels = candidateModels
+    .filter(eligibleFamily)
+    .filter((model) => modelSupportsVisionAttachment(sticky.provider, model, modelCapabilitiesFor(sticky.provider, args.s, model), args.attachments))
+  return { sticky: baseModels.includes(sticky.model) ? sticky : null, deleteSticky: false }
+}
+
+export function __testStickyScopeForTests(args: { stickyOnSuccess?: boolean; stickyScope?: string; purpose?: TextAiPurpose; taskType?: string; verifierCall?: boolean }): string | null {
+  return stickyScopeForRequest({ stickyOnSuccess: args.stickyOnSuccess === true } as Settings, { system: '', history: [], stickyScope: args.stickyScope, purpose: args.purpose, taskType: args.taskType } as TextAiCallOpts, args.verifierCall === true)
+}
+
+export function __testStickyCandidateOrderForTests(args: { stickyOnSuccess?: boolean; scope?: string; provider?: TextAiProvider; model?: string; key?: string; candidates: string[]; verifierCall?: boolean; generatorModel?: string; cooldown?: boolean; strictCandidates?: string[] }): string[] {
+  __resetTextAiStateForTests()
+  const provider = normalizeProvider(args.provider || 'ALBORIHI')
+  if (provider === 'AUTO') return args.candidates
+  const scope = stickyScopeForRequest({ stickyOnSuccess: args.stickyOnSuccess === true } as Settings, { system: '', history: [], stickyScope: args.scope, purpose: 'GENERATION' } as TextAiCallOpts, args.verifierCall === true)
+  if (scope && args.model && args.key) stickyModels.set(scope, { provider, model: args.model, key: args.key, at: Date.now() })
+  const sticky = scope ? stickyModels.get(scope) : null
+  if (!sticky) return args.candidates
+  if (args.verifierCall && modelFamily(sticky.model) === modelFamily(args.generatorModel || '')) return args.candidates
+  if (args.cooldown) return args.candidates
+  const allowed = args.strictCandidates || args.candidates
+  if (!allowed.includes(sticky.model) || !args.candidates.includes(sticky.model)) return args.candidates
+  return [sticky.model, ...args.candidates.filter((model) => model !== sticky.model)]
+}
+
 function utcDateKey(): string {
   return new Date().toISOString().slice(0, 10)
 }
