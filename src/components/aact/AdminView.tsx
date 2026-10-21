@@ -619,6 +619,19 @@ export function AdminView() {
     }
   }
 
+  const reloadAnnouncements = async () => {
+    setAnnouncementsLoading(true)
+    try {
+      const data = await api<{ announcements: SiteAnnouncement[] }>('/api/admin/announcements')
+      setAnnouncements(Array.isArray(data.announcements) ? data.announcements : [])
+    } catch (e: any) {
+      setAnnouncements([])
+      toast({ title: 'تعذر تحميل الإعلانات', description: e.message, variant: 'destructive' })
+    } finally {
+      setAnnouncementsLoading(false)
+    }
+  }
+
   const load = async () => {
     setLoading(true)
     setAdmissionsLoading(activeTab === 'admissions' || activeTab === 'service-requests')
@@ -633,7 +646,7 @@ export function AdminView() {
       .catch((e: any) => toast({ title: 'تعذر تحميل مؤشرات الإدارة', description: e.message, variant: 'destructive' }))
       .finally(() => setLoading(false))
 
-    await statsPromise
+    await Promise.all([statsPromise, reloadAnnouncements()])
   }
 
   useEffect(() => {
