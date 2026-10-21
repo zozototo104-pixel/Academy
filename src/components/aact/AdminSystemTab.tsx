@@ -787,6 +787,24 @@ export function AdminSystemTab() {
   }
   if (!data) return null
 
+  const routerStateTypeLabels: Record<TextAiRouterStateItem['type'], string> = {
+    KEY_COOLDOWN: 'تبريد مفتاح',
+    MODEL_COOLDOWN: 'تبريد نموذج',
+    PROVIDER_COOLDOWN: 'تبريد مزوّد',
+    NO_BALANCE: 'بلا رصيد',
+    MODEL_DEAD: 'نموذج معطّل',
+  }
+  const routerStateByProvider = routerState.reduce((acc, item) => {
+    acc[item.provider] = acc[item.provider] || []
+    acc[item.provider].push(item)
+    return acc
+  }, {} as Record<string, TextAiRouterStateItem[]>)
+  const routerStateClearId = (item: TextAiRouterStateItem) => `${item.type}:${item.provider}:${item.keyIndex ?? ''}:${item.model || ''}`
+  const routerStateUntil = (value: string) => {
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
+  }
+
   const statusBadge = (s: string) => {
     if (s === 'SENT') return { cls: 'bg-emerald-100 text-emerald-700', icon: <CheckCircle2 className="h-3 w-3" />, label: 'أُرسل' }
     if (s === 'FAILED') return { cls: 'bg-red-100 text-red-600', icon: <XCircle className="h-3 w-3" />, label: 'فشل' }
