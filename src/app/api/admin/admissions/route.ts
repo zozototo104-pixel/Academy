@@ -129,7 +129,7 @@ export async function GET(req: NextRequest) {
 
     const programIds = [...new Set(apps.map((a) => a.programId).filter((id): id is string => Boolean(id)))]
     const programs = programIds.length
-      ? await db.program.findMany({ where: { id: { in: programIds } }, select: { id: true, slug: true, category: true, titleAr: true } })
+      ? await db.program.findMany({ where: { id: { in: programIds } }, select: { id: true, slug: true, category: true, titleAr: true, admissionRules: true } })
       : []
     const programMap = new Map(programs.map((p) => [p.id, p]))
     const enrichedApps = apps.map((app) => {
