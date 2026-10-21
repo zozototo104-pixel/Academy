@@ -17,6 +17,7 @@ import { verifyQuestionsWithCrossProvider } from '../../src/lib/question-verifie
 import { isPausableQuestionBankError } from '../../src/lib/question-bank-job'
 
 const originalFetch = globalThis.fetch
+const originalOpenAiCompatApiKeys = process.env.OPENAI_COMPAT_API_KEYS
 
 function fakeSettingStore(initial: Record<string, string> = {}) {
   const values = new Map<string, string>(Object.entries(initial))
