@@ -1963,7 +1963,7 @@ function candidateModelsForFamilyRanking(s: Settings, provider: ConcreteProvider
 }
 
 function sortProvidersByFamily(s: Settings, order: ConcreteProvider[], taskLevel: TextAiTaskLevel): ConcreteProvider[] {
-  if (s.policyRankBy !== 'family' || (s.policy !== 'quality_first' && s.policy !== 'cost_saver')) return order
+  if (taskLevel === 'GENERAL' || s.policyRankBy !== 'family' || (s.policy !== 'quality_first' && s.policy !== 'cost_saver')) return order
   const familyOrder = familyRankOrder(s)
   const tierRank = (provider: ConcreteProvider) => {
     if (!s.paidFirst || taskLevel === 'GENERAL') return 0
