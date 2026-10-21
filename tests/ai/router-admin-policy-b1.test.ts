@@ -243,8 +243,8 @@ describe('router admin policy B1', () => {
     }) as any
 
     await textAiComplete({ system: 's', history: [{ role: 'user', text: 'batch 2' }], taskLevel: 'ACADEMIC_CRITICAL', purpose: 'GENERATION', taskType: 'question-bank' })
-    expect(calls[0]).toBe('claude-sonnet-5')
-    expect(calls).toContain('claude-opus-4-6')
+    expect(calls[0]).toBe('gpt-5.1')
+    expect(calls).toContain('gpt-5')
 
     calls.length = 0
     globalThis.fetch = (async (_url: any, init: any) => {
