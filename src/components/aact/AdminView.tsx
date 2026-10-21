@@ -399,6 +399,7 @@ export function AdminView() {
   const [admissions, setAdmissions] = useState<AdmissionApp[]>([])
   const [supervisors, setSupervisors] = useState<SupervisorOption[]>([])
   const [students, setStudents] = useState<StudentRow[]>([])
+  const [announcements, setAnnouncements] = useState<SiteAnnouncement[]>([])
   const [loading, setLoading] = useState(true)
   const [admissionsLoading, setAdmissionsLoading] = useState(true)
   const [studentsLoading, setStudentsLoading] = useState(true)
