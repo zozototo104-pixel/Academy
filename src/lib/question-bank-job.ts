@@ -242,6 +242,8 @@ export async function readQuestionBankJobTrace(jobId: string): Promise<QuestionB
       return { reason: cleanText(entry.reason, 220) || 'UNKNOWN', count: Number(entry.count || 0) }
     }).filter((item) => item.count > 0).slice(0, 3),
     aiTrace: parsed.aiTrace && typeof parsed.aiTrace === 'object' ? parsed.aiTrace as QuestionBankJobTrace['aiTrace'] : undefined,
+    lastSuccess: parsed.lastSuccess && typeof parsed.lastSuccess === 'object' ? parsed.lastSuccess as QuestionBankJobTrace['lastSuccess'] : undefined,
+    lastError: parsed.lastError && typeof parsed.lastError === 'object' ? parsed.lastError as QuestionBankJobTrace['lastError'] : undefined,
   }
 }
 
