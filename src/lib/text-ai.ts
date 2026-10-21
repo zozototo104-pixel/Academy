@@ -3123,7 +3123,10 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
       if (recentFailedHealth(health.get(model) || null)) noteNoCandidate(provider, model, 'HEALTH_SKIP')
     }
     const healthFilteredModels = orderedModels.filter((model) => !recentFailedHealth(health.get(model) || null))
-    const models = providerModelsForRequest(provider, s, healthFilteredModels.length ? healthFilteredModels : orderedModels, routerRequestSeq, effectiveOpts.maxProviderModels)
+    const routedModels = providerModelsForRequest(provider, s, healthFilteredModels.length ? healthFilteredModels : orderedModels, routerRequestSeq, effectiveOpts.maxProviderModels)
+    const models = usableSticky && usableSticky.provider === provider && routedModels.includes(usableSticky.model)
+      ? [usableSticky.model, ...routedModels.filter((model) => model !== usableSticky.model)]
+      : routedModels
     if (isVerifierCall(effectiveOpts) && candidateModels.length > 0 && models.length === 0) onlySameFamilyModelsExcluded = true
     for (const model of models) {
       if (skipModelsThisRequest.has(`${provider}:${model}`)) continue
