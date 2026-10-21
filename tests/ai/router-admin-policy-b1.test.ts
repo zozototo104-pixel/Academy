@@ -117,5 +117,10 @@ describe('router admin policy B1', () => {
       'claude-sonnet-5',
       'claude-opus-4-6',
     ])).toEqual([false, false, true])
+
+    await __testApplyTransientModelFailureCooldownForTests('ALBORIHI', 'third-key', 1, 'gpt-5.6-luna', 'claude-sonnet-5', 'timeout', 504)
+    await __testApplyTransientModelFailureCooldownForTests('ALBORIHI', 'third-key', 1, 'claude-sonnet-5', 'gpt-5.6-luna', 'timeout', 504)
+    const thirdFailure = await __testApplyTransientModelFailureCooldownForTests('ALBORIHI', 'third-key', 1, 'claude-opus-4-6', 'gpt-5.6-luna', 'timeout', 504)
+    expect(thirdFailure.keyCooling).toBe(true)
   })
 })
