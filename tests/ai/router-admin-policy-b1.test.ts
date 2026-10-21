@@ -132,6 +132,7 @@ describe('router admin policy B1', () => {
   })
 
   test('503 and timeout cool known models before cooling the key', async () => {
+    __setTextAiSettingStoreForTests(fakeSettingStore())
     expect(__testHighDemandCooldownDecisionForTests('gpt-5.6-luna', 'upstream unavailable', 503)).toBe('model')
 
     const singleFailure = await __testApplyTransientModelFailureCooldownForTests('ALBORIHI', 'fake-key', 1, 'gpt-5.6-luna', 'claude-sonnet-5', 'upstream 503', 503)
