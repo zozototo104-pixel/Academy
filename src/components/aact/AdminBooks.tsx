@@ -3726,16 +3726,18 @@ export function AdminBooksTab() {
                 <Button size="sm" variant="outline" disabled={questionBankBusy === 'units-load' || questionBankBusy === 'exam-2'} onClick={() => openBankExamDialog(2)} className="bg-white text-xs font-black">امتحان فصل 2 من البنك</Button>
               </div>
               {questionBankDocumentationMessage && <p className="mt-2 text-[11px] font-black text-blue-700">{questionBankDocumentationMessage}</p>}
-              {questionBankProgress && questionBankProgress.requested > 0 ? (
+              {questionBankProgress ? (
                 <div className="mt-4 rounded-2xl border border-[#c9a227]/20 bg-white p-3">
                   <div className="mb-2 flex items-center justify-between text-[11px] font-black text-slate-600">
                     <span>تقدم توليد بنك الأسئلة</span>
-                    <span>{Math.min(questionBankProgress.saved, questionBankProgress.requested)} من {questionBankProgress.requested}</span>
+                    <span>{questionBankProgress.requested > 0 ? `${Math.min(questionBankProgress.saved, questionBankProgress.requested)} من ${questionBankProgress.requested}` : aiProgressLabel(questionBankProgress.saved, questionBankProgress.requested)}</span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                    <div className="h-full rounded-full bg-[#c9a227]" style={{ width: `${Math.max(0, Math.min(100, Math.round((questionBankProgress.saved / Math.max(1, questionBankProgress.requested)) * 100)))}%` }} />
+                    <div className="h-full rounded-full bg-[#c9a227]" style={{ width: `${aiProgressPercent(questionBankProgress.saved, questionBankProgress.requested) ?? 0}%` }} />
                   </div>
-                  {questionBankProgress.lastError ? <p className="mt-2 text-[10px] font-bold text-amber-700">آخر توقف: {questionBankProgress.lastError}</p> : null}
+                  {questionBankTraceLabel(questionBankProgress.trace) ? <p className="mt-2 text-[10px] font-bold text-slate-600">{questionBankTraceLabel(questionBankProgress.trace)}</p> : null}
+                  {aiStatusHelp(questionBankProgress.status, questionBankProgress.lastError) ? <p className="mt-2 text-[10px] font-bold text-amber-700">{aiStatusHelp(questionBankProgress.status, questionBankProgress.lastError)}</p> : null}
+                  {questionBankProgress.lastError && ['PAUSED', 'FAILED'].includes(String(questionBankProgress.status || '')) ? <p className="mt-1 break-words text-[9px] font-bold text-slate-500">الكود الأصلي: {questionBankProgress.lastError}</p> : null}
                 </div>
               ) : null}
             </CardContent>
