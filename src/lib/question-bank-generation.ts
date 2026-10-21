@@ -113,6 +113,11 @@ function normalizeCandidate(candidate: unknown): unknown {
       qualityFlags.add('NORMALIZED_MCQ_LETTER')
     }
   }
+  if (q.type === 'ESSAY' && typeof q.correctAnswer === 'string' && q.correctAnswer.trim().length > 260) {
+    q.modelAnswer = q.correctAnswer.trim()
+    q.correctAnswer = null
+    qualityFlags.add('MOVED_ESSAY_LONG_ANSWER')
+  }
   if ((q.type === 'SHORT' || q.type === 'ESSAY') && typeof q.correctAnswer === 'string' && q.correctAnswer.trim() && !String(q.modelAnswer || '').trim()) {
     q.modelAnswer = q.correctAnswer
     q.correctAnswer = null
