@@ -198,7 +198,7 @@ export async function PATCH(req: NextRequest) {
       if (key === 'AI_ROUTER_POLICY_SOURCE') {
         value = value === 'admin' ? 'admin' : 'legacy'
       }
-      if (key === 'AI_ACADEMIC_ALLOWLIST_STRICT' || key === 'AI_VERIFIER_STRICT') {
+      if (key === 'AI_ACADEMIC_ALLOWLIST_STRICT' || key === 'AI_VERIFIER_STRICT' || key === 'AI_STICKY_ON_SUCCESS') {
         value = ['1', 'true', 'yes', 'on'].includes(String(value || '').trim().toLowerCase()) ? 'true' : 'false'
       }
       if (key === 'AI_ROUTER_COOLDOWN_MINUTES') {
