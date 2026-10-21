@@ -400,7 +400,7 @@ export function ApplyView() {
     }
     const missing = docTypes.filter((type: string) => !replacementFiles[`${app.id}:${type}`])
     if (missing.length > 0) {
-      toast({ title: 'المرفقات المعدّلة غير مكتملة', description: `ارفع: ${missing.map(admissionDocLabel).join('، ')}`, variant: 'destructive' })
+      toast({ title: 'المرفقات المعدّلة غير مكتملة', description: `ارفع: ${missing.map((type: string) => admissionDocLabel(type, app)).join('، ')}`, variant: 'destructive' })
       return
     }
     setReplacementLoading(app.id)
