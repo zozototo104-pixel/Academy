@@ -2737,6 +2737,10 @@ function academicProviderUnavailable(attempts: TextAiAttemptDiagnostics[]): Erro
   return err
 }
 
+export function __testAcademicProviderUnavailableCodeForTests(): string {
+  return (academicProviderUnavailable([]) as any).code
+}
+
 function verifierUnavailable(attempts: TextAiAttemptDiagnostics[]): Error {
   const err: any = new Error('AI_VERIFIER_UNAVAILABLE')
   err.code = 'AI_VERIFIER_UNAVAILABLE'
