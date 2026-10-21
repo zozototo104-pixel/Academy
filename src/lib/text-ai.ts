@@ -1966,7 +1966,7 @@ function sortProvidersByFamily(s: Settings, order: ConcreteProvider[], taskLevel
   if (taskLevel === 'GENERAL' || s.policyRankBy !== 'family' || (s.policy !== 'quality_first' && s.policy !== 'cost_saver')) return order
   const familyOrder = familyRankOrder(s)
   const tierRank = (provider: ConcreteProvider) => {
-    if (!s.paidFirst || taskLevel === 'GENERAL') return 0
+    if (!s.paidFirst) return 0
     const tier = providerTierFor(s, provider)
     if (tier === 'PAID') return 0
     if (tier === 'FREE') return 1
