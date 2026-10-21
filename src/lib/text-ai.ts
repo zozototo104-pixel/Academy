@@ -3011,9 +3011,9 @@ export function __testStrictCandidateModelsForTests(args: { provider: TextAiProv
   return strictCandidateModelsForRequest(s, provider, args.models, args.taskLevel || 'GENERAL', args.verifierCall === true)
 }
 
-function stickyScopeForRequest(s: Settings, opts: TextAiCallOpts, verifierCall: boolean): string | null {
+function stickyScopeForRequest(s: Settings, opts: TextAiCallOpts, verifierCall: boolean, taskLevel: TextAiTaskLevel): string | null {
   if (opts.stickyScope) return opts.stickyScope
-  if (!s.stickyOnSuccess) return null
+  if (!s.stickyOnSuccess || (taskLevel === 'GENERAL' && !verifierCall)) return null
   const route = clean(opts.taskType || opts.purpose || 'CHAT') || 'CHAT'
   return `${route}:${verifierCall ? 'verify' : 'gen'}`
 }
