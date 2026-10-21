@@ -10,6 +10,12 @@ function missingTypes(requiredTypes: string[], uploadedTypes: string[]) {
   return requiredTypes.filter((type) => !uploaded.has(type))
 }
 
+function documentLabelsForRequest(result: ReturnType<typeof resolveProgramAdmissionDocumentRequirements>, docTypes: string[]) {
+  const docLabelByType = new Map(result.allKnownDocs.map((doc) => [doc.type, doc.label] as const))
+  for (const doc of result.requiredDocs) docLabelByType.set(doc.type, doc.label)
+  return docTypes.map((type) => docLabelByType.get(type) || type)
+}
+
 describe('admission required documents', () => {
   test('explicit required documents from object require every selected document', () => {
     const rules = parseAdmissionRules({ requiredDocuments: ['DEGREE', 'PHOTO'] })
