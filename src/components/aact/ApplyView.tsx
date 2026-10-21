@@ -475,7 +475,7 @@ export function ApplyView() {
       toast({ title: 'راجع الاسم الإنجليزي', description: "الاسم بالإنجليزي يجب أن يحتوي على حروف لاتينية ومسافات و . - ' فقط", variant: 'destructive' })
       return
     }
-    const missing = requiredDocs.filter((d) => !files[d.type])
+    const missing = missingRequiredDocs
     if (missing.length > 0) {
       setMissingDocs(missing.map((m) => m.label))
       toast({ title: 'المستندات غير مكتملة', description: `يرجى رفع: ${missing.map((m) => m.label).join('، ')}`, variant: 'destructive' })
