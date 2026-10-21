@@ -66,6 +66,7 @@ const AdminRepresentativesTab = dynamic(() => loadAdminRepresentativesModule(), 
 const AdminGradingReviewTab = dynamic(() => loadAdminGradingReviewModule(), { ssr: false, loading: AdminTabLoader })
 const AdminStudyScheduleTab = dynamic(() => loadAdminStudyScheduleModule(), { ssr: false, loading: AdminTabLoader })
 const AdminLegacyGraduatesTab = dynamic(() => loadAdminLegacyGraduatesModule(), { ssr: false, loading: AdminTabLoader })
+const AdminAnnouncementsTab = dynamic(() => loadAdminAnnouncementsModule().then((m) => m.AdminAnnouncementsTab), { ssr: false, loading: AdminTabLoader })
 
 interface Stats {
   stats: {
