@@ -458,7 +458,7 @@ interface CurriculumUnitReviewItem {
     lastError?: string | null
     retryAt?: string | null
     updatedAt?: string | null
-    trace?: { generated: number; saved: number; verifierRejected: number; rejected: number; rejectionReasons: { reason: string; count: number }[]; aiTrace?: { generatorProvider?: string | null; generatorModel?: string | null; verifierProvider?: string | null; verifierModel?: string | null; sameProviderVerifierFallback?: boolean } } | null
+    trace?: QuestionBankTrace | null
   } | null
   exam?: {
     id: string
