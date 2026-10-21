@@ -83,6 +83,18 @@ const EXTRA_DOCS = EXTRA_ADMISSION_DOCS
 
 const MAX_FILE_MB = 4
 const fmtSize = (b: number) => (b > 1024 * 1024 ? `${(b / 1048576).toFixed(1)} م.ب` : `${Math.ceil(b / 1024)} ك.ب`)
+const FALLBACK_DOC_LABEL: Record<string, string> = {
+  DEGREE: 'الشهادة وكشف العلامات',
+  ID: 'الهوية / الجواز',
+  PHOTO: 'صورة شخصية',
+  CV: 'السيرة الذاتية',
+  SERVICE_FILE: 'مرفق داعم للخدمة',
+  FLOW_DOC_1: 'مستند مسار الخدمة 1',
+  FLOW_DOC_2: 'مستند مسار الخدمة 2',
+  FLOW_DOC_3: 'مستند مسار الخدمة 3',
+  FLOW_DOC_4: 'مستند مسار الخدمة 4',
+  FLOW_DOC_5: 'مستند مسار الخدمة 5',
+}
 const invoiceTime = (p: TrackedInvoice) => new Date(p.paidAt || p.createdAt || 0).getTime() || 0
 const sortInvoicesNewest = (items: TrackedInvoice[]) => [...items].sort((a, b) => invoiceTime(b) - invoiceTime(a))
 
