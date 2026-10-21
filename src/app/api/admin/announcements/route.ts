@@ -34,7 +34,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const auth = await requireAnnouncementAdmin()
-    if (auth.error) return auth.error
+    if (auth.error || !auth.user) return auth.error || NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
     const body = await req.json()
     const announcements = await readSiteAnnouncements()
     const next = validateAnnouncementInput(body)
