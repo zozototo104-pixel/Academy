@@ -3134,7 +3134,11 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
         noteNoCandidate(provider, model, 'MODEL_DEAD')
         continue
       }
-      for (const key of candidateKeys(provider, s)) {
+      const routedKeys = candidateKeys(provider, s)
+      const keys = usableSticky && usableSticky.provider === provider && usableSticky.model === model && routedKeys.includes(usableSticky.key)
+        ? [usableSticky.key, ...routedKeys.filter((key) => key !== usableSticky.key)]
+        : routedKeys
+      for (const key of keys) {
         const keyIndex = Math.max(1, providerKeys(s, provider).indexOf(key) + 1)
         const persistedKeyCooldown = persistentKeyCooldown(persistentCooldowns, provider, keyIndex)
         const persistedModelCooldown = persistentModelCooldown(persistentCooldowns, provider, keyIndex, model)
