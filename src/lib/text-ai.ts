@@ -2810,6 +2810,28 @@ function isVerifierCall(opts: TextAiCallOpts): boolean {
   return (opts.excludeProviders || []).some((provider) => provider !== 'AUTO')
 }
 
+function providerModelListContains(list: readonly TextAiPreferredModel[], provider: ConcreteProvider, model: string): boolean {
+  return list.some((item) => item.provider === provider && item.model.toLowerCase() === model.toLowerCase())
+}
+
+function strictCandidateModelsForRequest(s: Settings, provider: ConcreteProvider, models: string[], taskLevel: TextAiTaskLevel, verifierCall: boolean): string[] {
+  if (verifierCall && s.verifierStrict) return models.filter((model) => providerModelListContains(s.verifierPreferred, provider, model))
+  if (taskLevel !== 'GENERAL' && s.academicAllowlistStrict) return models.filter((model) => providerModelListContains(s.academicAllowlist, provider, model))
+  return models
+}
+
+export function __testStrictCandidateModelsForTests(args: { provider: TextAiProvider; models: string[]; taskLevel?: TextAiTaskLevel; verifierCall?: boolean; academicAllowlist?: string; academicStrict?: boolean; verifierPreferred?: string; verifierStrict?: boolean }): string[] {
+  const provider = normalizeProvider(args.provider)
+  if (provider === 'AUTO') return []
+  const s = {
+    academicAllowlist: parseAcademicAllowlist(args.academicAllowlist || DEFAULT_ACADEMIC_ALLOWLIST),
+    academicAllowlistStrict: args.academicStrict === true,
+    verifierPreferred: parseProviderModelList(args.verifierPreferred || ''),
+    verifierStrict: args.verifierStrict === true,
+  } as Settings
+  return strictCandidateModelsForRequest(s, provider, args.models, args.taskLevel || 'GENERAL', args.verifierCall === true)
+}
+
 function utcDateKey(): string {
   return new Date().toISOString().slice(0, 10)
 }
