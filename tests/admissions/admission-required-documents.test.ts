@@ -3,6 +3,7 @@ import { resolveRules } from '@/lib/admission-ai'
 import { resolvePostReplacementAdmissionStatus, resolveProgramAdmissionDocumentRequirements } from '@/lib/admission-document-requirements'
 import { parseAdmissionRules, resolveAdmissionRequiredDocuments } from '@/lib/admission-required-documents'
 import { getDefaultRequiredServiceDocumentTypes, getServiceFlow } from '@/lib/service-flows'
+import { buildAdmissionDocumentsRequestedEmail } from '@/lib/mailer'
 
 function missingTypes(requiredTypes: string[], uploadedTypes: string[]) {
   const uploaded = new Set(uploadedTypes)
