@@ -3126,7 +3126,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     const stickyEligibleModels = healthFilteredModels.length ? healthFilteredModels : orderedModels
     const routedModels = providerModelsForRequest(provider, s, stickyEligibleModels, routerRequestSeq, effectiveOpts.maxProviderModels)
     const models = usableSticky && usableSticky.provider === provider && stickyEligibleModels.includes(usableSticky.model)
-      ? [usableSticky.model, ...routedModels.filter((model) => model !== usableSticky.model)].slice(0, Math.max(1, routedModels.length))
+      ? [usableSticky.model, ...routedModels.filter((model) => model !== usableSticky.model)].slice(0, routedModels.length)
       : routedModels
     if (isVerifierCall(effectiveOpts) && candidateModels.length > 0 && models.length === 0) onlySameFamilyModelsExcluded = true
     for (const model of models) {
