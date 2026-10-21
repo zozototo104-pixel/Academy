@@ -156,4 +156,119 @@ describe('router admin policy B1', () => {
     const thirdFailure = await __testApplyTransientModelFailureCooldownForTests('ALBORIHI', 'third-key', 1, 'claude-opus-4-6', 'gpt-5.6-luna', 'timeout', 504)
     expect(thirdFailure.keyCooling).toBe(true)
   })
+
+  test('sticky on success derives separate scopes and stays disabled by default', () => {
+    expect(__testStickyScopeForTests({ stickyOnSuccess: false, purpose: 'GENERATION' })).toBeNull()
+    expect(__testStickyScopeForTests({ stickyOnSuccess: false, stickyScope: 'manual-scope', purpose: 'GENERATION' })).toBe('manual-scope')
+    expect(__testStickyScopeForTests({ stickyOnSuccess: true, taskType: 'question-bank', verifierCall: false })).toBe('question-bank:gen')
+    expect(__testStickyScopeForTests({ stickyOnSuccess: true, taskType: 'question-bank', verifierCall: true })).toBe('question-bank:verify')
+  })
+
+  test('sticky candidate ordering respects success, cooldown, strict, no-balance, and verifier family isolation', () => {
+    expect(__testStickyCandidateOrderForTests({
+      stickyOnSuccess: true,
+      model: 'claude-sonnet-5',
+      key: 'key-a',
+      candidates: ['gpt-5.6-luna', 'claude-sonnet-5'],
+    })).toEqual(['claude-sonnet-5', 'gpt-5.6-luna'])
+
+    expect(__testStickyCandidateOrderForTests({
+      stickyOnSuccess: true,
+      model: 'claude-sonnet-5',
+      key: 'key-a',
+      candidates: ['gpt-5.6-luna', 'claude-sonnet-5'],
+      cooldown: true,
+    })).toEqual(['gpt-5.6-luna', 'claude-sonnet-5'])
+
+    expect(__testStickyCandidateOrderForTests({
+      stickyOnSuccess: true,
+      model: 'claude-sonnet-5',
+      key: 'key-a',
+      candidates: ['gpt-5.6-luna', 'claude-sonnet-5'],
+      noBalance: true,
+    })).toEqual(['gpt-5.6-luna', 'claude-sonnet-5'])
+
+    expect(__testStickyCandidateOrderForTests({
+      stickyOnSuccess: true,
+      model: 'claude-sonnet-5',
+      key: 'key-a',
+      candidates: ['gpt-5.6-luna', 'claude-sonnet-5'],
+      strictCandidates: ['gpt-5.6-luna'],
+    })).toEqual(['gpt-5.6-luna', 'claude-sonnet-5'])
+
+    expect(__testStickyCandidateOrderForTests({
+      stickyOnSuccess: true,
+      model: 'claude-sonnet-5',
+      key: 'key-a',
+      candidates: ['gpt-5.6-luna', 'claude-sonnet-5'],
+      verifierCall: true,
+      generatorModel: 'claude-opus-4-6',
+    })).toEqual(['gpt-5.6-luna', 'claude-sonnet-5'])
+
+    expect(__testStickyCandidateOrderForTests({
+      stickyOnSuccess: false,
+      model: 'claude-sonnet-5',
+      key: 'key-a',
+      candidates: ['gpt-5.6-luna', 'claude-sonnet-5'],
+    })).toEqual(['gpt-5.6-luna', 'claude-sonnet-5'])
+  })
+
+  test('sticky success is reused, failure moves to a new sticky model, and balanced does not override it', async () => {
+    __setTextAiSettingStoreForTests(fakeSettingStore({
+      AI_TEXT_PROVIDER: 'ALBORIHI',
+      AI_ROUTER_POLICY: 'balanced',
+      AI_STICKY_ON_SUCCESS: 'true',
+      AI_ACADEMIC_ALLOWLIST: 'ALBORIHI:claude-sonnet-5,ALBORIHI:claude-opus-4-6',
+      ALBORIHI_API_KEYS: 'key-a',
+      ALBORIHI_TEXT_MODEL: 'claude-sonnet-5',
+      ALBORIHI_BASE_URL: 'https://alborihi.test/v1',
+    }))
+
+    const calls: string[] = []
+    globalThis.fetch = (async (_url: any, init: any) => {
+      const model = JSON.parse(String(init?.body || '{}')).model
+      calls.push(model)
+      return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), { status: 200 })
+    }) as any
+
+    await textAiComplete({ system: 's', history: [{ role: 'user', text: 'batch 1' }], taskLevel: 'ACADEMIC_CRITICAL', purpose: 'GENERATION', taskType: 'question-bank' })
+    expect(calls[0]).toBe('claude-sonnet-5')
+
+    calls.length = 0
+    globalThis.fetch = (async (_url: any, init: any) => {
+      const model = JSON.parse(String(init?.body || '{}')).model
+      calls.push(model)
+      if (model === 'claude-sonnet-5') return new Response(JSON.stringify({ error: { message: 'upstream 503' } }), { status: 503 })
+      return new Response(JSON.stringify({ choices: [{ message: { content: 'ok-new' } }] }), { status: 200 })
+    }) as any
+
+    await textAiComplete({ system: 's', history: [{ role: 'user', text: 'batch 2' }], taskLevel: 'ACADEMIC_CRITICAL', purpose: 'GENERATION', taskType: 'question-bank' })
+    expect(calls[0]).toBe('claude-sonnet-5')
+    expect(calls).toContain('claude-opus-4-6')
+
+    calls.length = 0
+    globalThis.fetch = (async (_url: any, init: any) => {
+      const model = JSON.parse(String(init?.body || '{}')).model
+      calls.push(model)
+      return new Response(JSON.stringify({ choices: [{ message: { content: 'ok-again' } }] }), { status: 200 })
+    }) as any
+
+    await textAiComplete({ system: 's', history: [{ role: 'user', text: 'batch 3' }], taskLevel: 'ACADEMIC_CRITICAL', purpose: 'GENERATION', taskType: 'question-bank' })
+    expect(calls[0]).toBe('claude-opus-4-6')
+  })
+
+  test('strict academic allowlist 503 failures throw the pausable academic unavailable code', async () => {
+    __setTextAiSettingStoreForTests(fakeSettingStore({
+      AI_TEXT_PROVIDER: 'ALBORIHI',
+      AI_ACADEMIC_ALLOWLIST_STRICT: 'true',
+      AI_ACADEMIC_ALLOWLIST: 'ALBORIHI:gpt-5.6-luna',
+      ALBORIHI_API_KEYS: 'key-a',
+      ALBORIHI_TEXT_MODEL: 'gpt-5.6-luna',
+      ALBORIHI_BASE_URL: 'https://alborihi.test/v1',
+    }))
+    globalThis.fetch = (async () => new Response(JSON.stringify({ error: { message: 'upstream 503' } }), { status: 503 })) as any
+
+    await expect(textAiComplete({ system: 's', history: [{ role: 'user', text: 'strict batch' }], taskLevel: 'ACADEMIC_CRITICAL', purpose: 'GENERATION', taskType: 'question-bank' })).rejects.toMatchObject({ code: 'AI_ACADEMIC_PROVIDER_UNAVAILABLE' })
+    expect(isPausableQuestionBankError('AI_ACADEMIC_PROVIDER_UNAVAILABLE')).toBe(true)
+  })
 })
