@@ -350,13 +350,20 @@ export function AdminSystemTab() {
 
   const load = () => {
     setLoading(true)
+    setRouterStateLoading(true)
     api<SystemData>('/api/admin/system')
       .then((d) => {
         setData(d)
         setForm(d.values)
+        return api<{ ok: boolean; state: TextAiRouterStateItem[] }>('/api/admin/system', { method: 'POST', body: JSON.stringify({ action: 'router-state' }) })
+          .then((result) => setRouterState(result.state || []))
+          .catch((e) => toast({ title: 'تعذر تحميل حالة الراوتر', description: e.message, variant: 'destructive' }))
       })
       .catch((e) => toast({ title: 'خطأ', description: e.message, variant: 'destructive' }))
-      .finally(() => setLoading(false))
+      .finally(() => {
+        setLoading(false)
+        setRouterStateLoading(false)
+      })
   }
 
   const loadBackupStatus = () => {
