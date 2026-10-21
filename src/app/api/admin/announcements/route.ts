@@ -23,7 +23,7 @@ function jsonError(error: unknown, status = 400) {
 export async function GET() {
   try {
     const auth = await requireAnnouncementAdmin()
-    if (auth.error) return auth.error
+    if (auth.error || !auth.user) return auth.error || NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
     const announcements = await readSiteAnnouncements()
     return NextResponse.json({ announcements })
   } catch (error) {
