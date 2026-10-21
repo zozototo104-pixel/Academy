@@ -498,7 +498,7 @@ function questionBankProgressCounts(unit: CurriculumUnitReviewItem) {
 function questionBankTraceLabel(trace?: QuestionBankTrace | null): string {
   const generator = trace?.lastSuccess?.generation || (trace?.aiTrace?.generatorProvider && trace?.aiTrace?.generatorModel ? { provider: trace.aiTrace.generatorProvider, model: trace.aiTrace.generatorModel } : null)
   const verifier = trace?.lastSuccess?.verification || (trace?.aiTrace?.verifierProvider && trace?.aiTrace?.verifierModel ? { provider: trace.aiTrace.verifierProvider, model: trace.aiTrace.verifierModel } : null)
-  const parts = []
+  const parts: string[] = []
   if (generator?.provider && generator?.model) parts.push(`ولّد: ${generator.provider} · ${generator.model}`)
   if (verifier?.provider && verifier?.model) parts.push(`دقّق: ${verifier.provider} · ${verifier.model}`)
   return parts.join(' — ')
