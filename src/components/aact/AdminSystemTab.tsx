@@ -232,6 +232,14 @@ const ROUTER_POLICY_SOURCE_CHOICES = [
   { value: 'admin', label: 'سياسة لوحة الإدارة — تستخدم القائمة أعلاه في المسارات الأكاديمية' },
 ]
 
+const POLICY_RANK_BY_CHOICES = [
+  { value: 'provider', label: 'اسم المزوّد — الحالي' },
+  { value: 'family', label: 'عائلة النموذج' },
+]
+
+const DEFAULT_FAMILY_QUALITY_ORDER = 'claude,gpt,gemini,deepseek,qwen,kimi,glm,grok,gpt-oss,llama,other'
+const DEFAULT_FAMILY_COST_ORDER = 'gpt-oss,llama,qwen,glm,deepseek,gemini,kimi,grok,gpt,claude,other'
+
 const OPENAI_TEXT_MODEL_CHOICES = [
   { value: 'gpt-5.1', label: 'GPT-5.1 — تحليل وتوليد قوي' },
   { value: 'gpt-5', label: 'GPT-5 — احتياطي قوي' },
