@@ -1166,30 +1166,38 @@ export function AdminView() {
         <TabsContent value={activeTab === 'service-requests' ? 'service-requests' : 'admissions'}>
           <div className="mt-4 space-y-4">
             {!admissionsLoading && (
-              <AdminListToolbar
-                search={admissionSearch}
-                onSearchChange={(v) => { setAdmissionSearch(v); setAdmissionPage(1) }}
-                searchPlaceholder={activeTab === 'service-requests' ? 'ابحث في الخدمات بالاسم أو الكود أو البريد...' : 'ابحث في طلبات الالتحاق بالاسم أو الكود أو البرنامج...'}
-                status={admissionStatusFilter}
-                onStatusChange={(v) => { setAdmissionStatusFilter(v); setAdmissionPage(1) }}
-                statusOptions={[
-                  { value: 'ACTIVE', label: 'النشطة فقط' },
-                  { value: 'AWAITING_FEE', label: 'بانتظار الرسوم' },
-                  { value: 'PENDING', label: 'تم التقديم' },
-                  { value: 'UNDER_REVIEW', label: 'قيد المراجعة' },
-                  { value: 'AWAITING_TUITION', label: 'بانتظار الرسوم الدراسية' },
-                  { value: 'SUPERVISOR_ASSIGNED', label: 'مفعل/مشرف' },
-                  { value: 'RESULT_APPROVED', label: 'نتيجة/خدمة معتمدة' },
-                  { value: 'CERTIFIED', label: 'مكتمل/شهادة' },
-                  { value: 'REJECTED', label: 'مرفوض' },
-                  { value: 'ALL', label: 'كل الحالات' },
-                ]}
-                pageSize={admissionPageSize}
-                onPageSizeChange={(v) => { setAdmissionPageSize(v); setAdmissionPage(1) }}
-                total={admissionTotal}
-                filtered={admissionTotal}
-                label={activeTab === 'service-requests' ? 'طلب خدمة' : 'طلب التحاق'}
-              />
+              <>
+                <AdminListToolbar
+                  search={admissionSearch}
+                  onSearchChange={(v) => { setAdmissionSearch(v); setAdmissionPage(1) }}
+                  searchPlaceholder={activeTab === 'service-requests' ? 'ابحث في الخدمات بالاسم أو الكود أو البريد...' : 'ابحث في طلبات الالتحاق بالاسم أو الكود أو البرنامج...'}
+                  status={admissionStatusFilter}
+                  onStatusChange={(v) => { setAdmissionStatusFilter(v); setAdmissionPage(1) }}
+                  statusOptions={[
+                    { value: 'ACTIVE', label: 'النشطة فقط' },
+                    { value: 'AWAITING_FEE', label: 'بانتظار الرسوم' },
+                    { value: 'PENDING', label: 'تم التقديم' },
+                    { value: 'UNDER_REVIEW', label: 'قيد المراجعة' },
+                    { value: 'AWAITING_TUITION', label: 'بانتظار الرسوم الدراسية' },
+                    { value: 'SUPERVISOR_ASSIGNED', label: 'مفعل/مشرف' },
+                    { value: 'RESULT_APPROVED', label: 'نتيجة/خدمة معتمدة' },
+                    { value: 'CERTIFIED', label: 'مكتمل/شهادة' },
+                    { value: 'REJECTED', label: 'مرفوض' },
+                    { value: 'ALL', label: 'كل الحالات' },
+                  ]}
+                  pageSize={admissionPageSize}
+                  onPageSizeChange={(v) => { setAdmissionPageSize(v); setAdmissionPage(1) }}
+                  total={admissionTotal}
+                  filtered={admissionTotal}
+                  label={activeTab === 'service-requests' ? 'طلب خدمة' : 'طلب التحاق'}
+                />
+                <div className="flex flex-wrap justify-end gap-2">
+                  <Button size="sm" variant="outline" onClick={requestBulkMissingDocuments} disabled={bulkMissingDocsLoading} className="border-red-200 text-[11px] font-black text-red-700 hover:bg-red-50">
+                    {bulkMissingDocsLoading ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <FileWarning className="ml-1 h-3.5 w-3.5" />}
+                    طلب المرفقات الناقصة من كل الطلبات المفتوحة
+                  </Button>
+                </div>
+              </>
             )}
             {admissionsLoading ? (
               <Card className="border-[#0f2b46]/10">
