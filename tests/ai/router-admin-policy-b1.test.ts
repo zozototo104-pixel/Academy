@@ -266,7 +266,11 @@ describe('router admin policy B1', () => {
       OPENAI_TEXT_MODEL: 'gpt-5.1',
       OPENAI_BASE_URL: 'https://openai.test/v1',
     }))
-    globalThis.fetch = (async () => new Response(JSON.stringify({ error: { message: 'upstream 503' } }), { status: 503 })) as any
+    let strictCalls = 0
+    globalThis.fetch = (async () => {
+      strictCalls += 1
+      return new Response(JSON.stringify({ error: { message: 'upstream 503' } }), { status: 503 })
+    }) as any
 
     let code = ''
     try {
