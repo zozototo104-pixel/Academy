@@ -1098,6 +1098,9 @@ export async function clearTextAiRouterState(input: ClearTextAiRouterStateInput)
   const provider = validRouterStateProvider(input.provider)
   if (!provider) throw new Error('INVALID_ROUTER_STATE_PROVIDER')
   let cleared = clearMemoryRouterState(s, input)
+  if (input.type === 'PROVIDER_COOLDOWN') {
+    return { cleared, state: await textAiRouterStateSnapshot() }
+  }
   if (input.clearProvider || input.type === 'clear-provider') {
     const values = await loadPersistentCooldowns()
     for (const key of Object.keys(values)) {
