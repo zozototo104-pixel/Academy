@@ -2054,7 +2054,8 @@ export function __testB2ProviderOrderForTests(args: { policy?: TextAiRouterPolic
     geminiModel: args.geminiModel || 'gemini-3.8-flash', openaiModel: 'gpt-5.1', anthropicModel: 'claude-sonnet-4-5-20250929', zaiModel: 'glm-4.5', groqModel: args.groqModel || 'llama-3.3-70b-versatile', openrouterModel: 'openrouter/auto', deepinfraModel: 'meta-llama/Llama-3.3-70B-Instruct', togetherModel: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', unorouterModel: 'gpt-oss-120b:free', relayrouterModel: 'claude-opus-4-8', topToolsModel: args.topToolsModel || 'top-tools-ai', alborihiModel: args.alborihiModel || 'claude-sonnet-5', openaiCompatModel: 'auto',
     openaiCompatBaseUrl: 'https://compat.test/v1', alborihiBaseUrl: ALBORIHI_DEFAULT_BASE_URL, openaiCompatTier: args.openaiCompatTier || 'FREE',
   } as Settings
-  return providerOrder(s, args.taskLevel || 'GENERAL')
+  const taskLevel = args.taskLevel || (args.rankBy === 'family' ? 'ACADEMIC_CRITICAL' : 'GENERAL')
+  return providerOrder(s, taskLevel)
 }
 
 function resolveRouterPolicy(purpose: TextAiPurpose | undefined, s: Settings, hardcoded?: TextAiRouterPolicy): TextAiRouterPolicy {
