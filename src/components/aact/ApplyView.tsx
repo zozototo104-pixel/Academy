@@ -340,7 +340,8 @@ export function ApplyView() {
   })
   const activeDocs = resolvedDocs.activeDocs
   const requiredDocs = resolvedDocs.requiredDocs
-  const allDocsUploaded = requiredDocs.length === 0 || requiredDocs.every((d) => files[d.type])
+  const missingRequiredDocs = requiredDocs.filter((d) => !files[d.type])
+  const allDocsUploaded = missingRequiredDocs.length === 0
   const canSubmitStudentApplication = !user || user.role === 'STUDENT'
   const recentApplications = myApplications.slice(0, 5)
   const openStudentPayments = (invoiceNo?: string | null) => {
