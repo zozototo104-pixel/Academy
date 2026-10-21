@@ -291,9 +291,10 @@ export async function POST(req: NextRequest) {
     if (!isServiceRequest && appFee <= 0) {
       return NextResponse.json({ error: 'رسوم التقديم غير مضبوطة بقيمة صالحة أكبر من صفر.' }, { status: 500 })
     }
-    const programRules = programRec?.admissionRules
-      ? resolveRules(programRec?.category || 'DIPLOMA', programRec.admissionRules, !isServiceRequest)
-      : (buildServiceAdmissionDefaults(serviceFlow) || resolveRules(programRec?.category || 'DIPLOMA', programRec?.admissionRules, !isServiceRequest))
+    const parsedAdmissionRules = parseAdmissionRules(programRec?.admissionRules)
+    const programRules = parsedAdmissionRules
+      ? resolveRules(programRec?.category || 'DIPLOMA', parsedAdmissionRules, !isServiceRequest)
+      : (buildServiceAdmissionDefaults(serviceFlow) || resolveRules(programRec?.category || 'DIPLOMA', parsedAdmissionRules, !isServiceRequest))
 
     if (!isServiceRequest) {
       const nationalError = validateNationalIdOrPassport(String(nationalId || ''), country)
