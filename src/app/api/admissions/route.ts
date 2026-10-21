@@ -9,7 +9,7 @@ import { emailAdminNewAdmissionRequest, emailAdmissionSubmitted, emailServiceReq
 import { getStorageDownloadPathForKey, storageErrorMessage, storeFileBuffer } from '@/lib/storage'
 import { clientIpFromHeaders, enforceApiRateLimit } from '@/lib/rate-limit'
 import { buildServiceAdmissionDefaults, getServiceFlow } from '@/lib/service-flows'
-import { REQUIRED_ADMISSION_DOCS, resolveAdmissionRequiredDocuments } from '@/lib/admission-required-documents'
+import { parseAdmissionRules, REQUIRED_ADMISSION_DOCS, resolveAdmissionRequiredDocuments } from '@/lib/admission-required-documents'
 import { resolveRules } from '@/lib/admission-ai'
 import { deriveServiceWorkflowState } from '@/lib/service-workflows'
 import { createAdmissionUploadToken } from '@/lib/admission-upload-token'
