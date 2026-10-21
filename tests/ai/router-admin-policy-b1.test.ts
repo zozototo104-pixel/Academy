@@ -43,6 +43,7 @@ function fakeSettingStore(initial: Record<string, string> = {}) {
 
 describe('router admin policy B1', () => {
   afterEach(() => {
+    globalThis.fetch = originalFetch
     __setTextAiSettingStoreForTests(null)
     __resetTextAiStateForTests()
   })
