@@ -3115,8 +3115,8 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     const baseModels = candidateModels
       .filter(eligibleFamily)
       .filter((model) => modelSupportsVisionAttachment(provider, model, modelCapabilitiesFor(provider, s, model), attachments))
-    const orderedModels = sticky && sticky.provider === provider && baseModels.includes(sticky.model)
-      ? [sticky.model, ...baseModels.filter((model) => model !== sticky.model)]
+    const orderedModels = usableSticky && usableSticky.provider === provider && baseModels.includes(usableSticky.model)
+      ? [usableSticky.model, ...baseModels.filter((model) => model !== usableSticky.model)]
       : baseModels
     const health = await readModelHealth(provider, orderedModels)
     for (const model of orderedModels) {
