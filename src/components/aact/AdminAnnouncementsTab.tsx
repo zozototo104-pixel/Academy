@@ -134,7 +134,7 @@ export function AdminAnnouncementsTab({ announcements, loading, onRefresh }: { a
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-black text-[#0f2b46]">طريقة العرض</Label>
-                <Select value={form.display} onValueChange={(value: SiteAnnouncementDisplay) => updateForm({ display: value })}>
+                <Select value={form.display} onValueChange={(value) => updateForm({ display: value as SiteAnnouncementDisplay })}>
                   <SelectTrigger className="bg-white font-bold"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="TICKER">شريط متحرك</SelectItem>
