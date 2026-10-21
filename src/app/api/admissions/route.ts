@@ -580,7 +580,7 @@ export async function GET(req: NextRequest) {
     const trackingPhoneLast4 = req.nextUrl.searchParams.get('phoneLast4') || req.nextUrl.searchParams.get('phone')
     const include: any = {
       supervisor: { select: { name: true } },
-      programRef: { select: { slug: true, category: true, titleAr: true } },
+      programRef: { select: { slug: true, category: true, titleAr: true, admissionRules: true } },
       files: { select: { id: true, docType: true, fileName: true, size: true, storageKey: true } },
       payments: {
         select: {
