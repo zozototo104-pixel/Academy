@@ -313,7 +313,9 @@ function routerCooldownMinutesFallback(): number {
 }
 
 export function __testResolveRouterCooldownMinutesForTests(settingValue: unknown, envValue: unknown): number {
-  return normalizeRouterCooldownMinutesValue(settingValue) || normalizeRouterCooldownMinutesValue(envValue) || 15
+  const saved = String(settingValue ?? '').trim()
+  if (saved) return normalizeRouterCooldownMinutesValue(saved) || 15
+  return normalizeRouterCooldownMinutesValue(envValue) || 15
 }
 
 function clean(value: unknown): string {
