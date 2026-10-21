@@ -278,6 +278,7 @@ describe('router admin policy B1', () => {
     } catch (error: any) {
       code = String(error?.code || error?.message || '')
     }
+    expect(strictCalls).toBe(1)
     expect(code).toContain('AI_ACADEMIC_PROVIDER_UNAVAILABLE')
     expect(isPausableQuestionBankError('AI_ACADEMIC_PROVIDER_UNAVAILABLE')).toBe(true)
   })
