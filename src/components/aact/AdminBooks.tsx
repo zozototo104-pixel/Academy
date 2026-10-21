@@ -281,6 +281,28 @@ type QuestionBankStats = {
   byType?: Record<string, number>
 }
 
+type QuestionBankAiTrace = {
+  generatorProvider?: string | null
+  generatorModel?: string | null
+  verifierProvider?: string | null
+  verifierModel?: string | null
+  sameProviderVerifierFallback?: boolean
+}
+
+type QuestionBankTrace = {
+  generated?: number
+  saved?: number
+  verifierRejected?: number
+  rejected?: number
+  rejectionReasons?: { reason: string; count: number }[]
+  aiTrace?: QuestionBankAiTrace | null
+  lastSuccess?: {
+    generation?: { stage: 'generation'; provider: string; model: string; at: string }
+    verification?: { stage: 'verification'; provider: string; model: string; at: string }
+  }
+  lastError?: { code: string; at: string }
+}
+
 type AiGenerationProgressRow = {
   jobId?: string
   status?: 'QUEUED' | 'RUNNING' | 'PAUSED' | 'PARTIAL' | 'COMPLETED' | 'FAILED'
@@ -289,9 +311,10 @@ type AiGenerationProgressRow = {
   failedBatches: number
   lastError?: string | null
   updatedAt?: string
+  trace?: QuestionBankTrace | null
 } | null
 
-type QuestionBankJobRow = { id: string; status: string; requested?: number; saved?: number; failedBatches?: number; lastError?: string | null; updatedAt?: string }
+type QuestionBankJobRow = { id: string; status: string; requested?: number; saved?: number; failedBatches?: number; lastError?: string | null; updatedAt?: string; trace?: QuestionBankTrace | null }
 
 function questionBankProgressFromJob(job?: QuestionBankJobRow | null): AiGenerationProgressRow {
   if (!job) return null
