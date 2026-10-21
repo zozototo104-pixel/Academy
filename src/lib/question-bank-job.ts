@@ -237,6 +237,12 @@ export function buildQuestionBankJobSuccessTrace(args: {
   at?: string
 }): QuestionBankJobTrace {
   const at = args.at || new Date().toISOString()
+  const lastSuccess: NonNullable<QuestionBankJobTrace['lastSuccess']> = {
+    generation: { stage: 'generation', provider: args.generatorProvider, model: args.generatorModel, at },
+  }
+  if (args.verifierProvider && args.verifierModel) {
+    lastSuccess.verification = { stage: 'verification', provider: args.verifierProvider, model: args.verifierModel, at }
+  }
   return {
     generated: args.generated,
     saved: args.saved,
@@ -250,10 +256,7 @@ export function buildQuestionBankJobSuccessTrace(args: {
       verifierModel: args.verifierModel || null,
       sameProviderVerifierFallback: args.sameProviderVerifierFallback === true,
     },
-    lastSuccess: {
-      generation: { stage: 'generation', provider: args.generatorProvider, model: args.generatorModel, at },
-      ...(args.verifierProvider && args.verifierModel ? { verification: { stage: 'verification' as const, provider: args.verifierProvider, model: args.verifierModel, at } } : {}),
-    },
+    lastSuccess,
   }
 }
 
