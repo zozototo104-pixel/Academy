@@ -729,6 +729,15 @@ export function __testTransientModelFailureEscalationForTests(provider: Concrete
   return models.map((model, index) => recordTransientModelFailureAndShouldCoolKey(provider, key, model, now + index * 1000))
 }
 
+export async function __testApplyTransientModelFailureCooldownForTests(provider: ConcreteProvider, key: string, keyIndex: number, model: string, checkModel: string, message = 'provider timeout', status?: number) {
+  await applyTransientModelFailureCooldown(provider, key, keyIndex, model, message, status, 2)
+  return {
+    keyCooling: !!activeMemoryCooldown(provider, key),
+    modelCooling: !!activeMemoryModelCooldown(provider, key, model),
+    checkModelCooling: !!activeMemoryModelCooldown(provider, key, checkModel),
+  }
+}
+
 function isQuotaLike(e: any): boolean {
   const msg = String(e?.message || e || '').toLowerCase()
   const status = Number(e?.status || e?.code || 0)
