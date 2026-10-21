@@ -902,6 +902,7 @@ async function settings() {
     academicAllowlistStrict: booleanSetting(rows.AI_ACADEMIC_ALLOWLIST_STRICT || env('AI_ACADEMIC_ALLOWLIST_STRICT')),
     verifierPreferred: parseProviderModelList(rows.AI_VERIFIER_PREFERRED || env('AI_VERIFIER_PREFERRED') || ''),
     verifierStrict: booleanSetting(rows.AI_VERIFIER_STRICT || env('AI_VERIFIER_STRICT')),
+    stickyOnSuccess: booleanSetting(rows.AI_STICKY_ON_SUCCESS || env('AI_STICKY_ON_SUCCESS')),
     paidUsageMode: (['last_resort', 'critical_first'].includes(String(rows.AI_PAID_USAGE_MODE || env('AI_PAID_USAGE_MODE')).toLowerCase()) ? String(rows.AI_PAID_USAGE_MODE || env('AI_PAID_USAGE_MODE')).toLowerCase() : 'off') as TextAiPaidUsageMode,
     paidModels: parseKeys(rows.AI_PAID_MODELS || env('AI_PAID_MODELS')).filter((model) => validModelName(model) && academicModelAllowed('OPENAI_COMPAT', model)),
     paidDailyLimitUsd: Math.max(0, Number(rows.AI_PAID_DAILY_LIMIT_USD || env('AI_PAID_DAILY_LIMIT_USD') || 0) || 0),
