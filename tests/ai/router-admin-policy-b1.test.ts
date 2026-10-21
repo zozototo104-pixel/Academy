@@ -261,46 +261,38 @@ describe('router admin policy B1', () => {
   })
 
   test('sticky model survives provider model rotation and maxProviderModels limits', async () => {
-    const nvidiaModels = [
-      'deepseek-ai/deepseek-v3.2',
-      'qwen/qwen3-235b-a22b',
-      'moonshotai/kimi-k2-instruct-0905',
-      'openai/gpt-oss-120b',
-      'mistralai/mistral-large-3-675b-instruct-2512',
-      'nvidia/nemotron-3-super-120b-a12b',
+    const geminiModels = [
+      'gemini-3.8-flash',
+      'gemini-3.6-flash',
+      'gemini-3.5-flash-lite',
+      'gemini-flash-latest',
+      'gemini-2.5-flash',
+      'gemini-2.5-flash-lite',
     ]
-    const stickyModel = nvidiaModels[4]
-    const stickyScope = 'nvidia-max-provider-models-sticky'
-    process.env.OPENAI_COMPAT_API_KEYS = 'key-a'
+    const stickyModel = geminiModels[4]
+    const stickyScope = 'gemini-max-provider-models-sticky'
     __setTextAiSettingStoreForTests(fakeSettingStore({
-      AI_TEXT_PROVIDER: 'OPENAI_COMPAT',
+      AI_TEXT_PROVIDER: 'GEMINI',
       AI_ROUTER_POLICY: 'balanced',
       AI_STICKY_ON_SUCCESS: 'true',
-      OPENAI_COMPAT_API_KEYS: 'key-a',
-      OPENAI_COMPAT_TEXT_MODEL: nvidiaModels[0],
-      OPENAI_COMPAT_BASE_URL: 'https://integrate.api.nvidia.com/v1',
+      GEMINI_API_KEYS: 'key-a',
+      GEMINI_TEXT_MODEL: geminiModels[0],
     }))
     __testStickyCandidateOrderForTests({
       stickyOnSuccess: true,
       scope: stickyScope,
-      provider: 'OPENAI_COMPAT',
+      provider: 'GEMINI',
       model: stickyModel,
       key: 'key-a',
-      candidates: nvidiaModels,
+      candidates: geminiModels,
     })
 
     const attemptedByRequest: string[][] = []
     let currentAttempts: string[] = []
-    globalThis.fetch = (async (url: any, init: any) => {
-      const href = String(url)
-      if (href.endsWith('/models')) {
-        return new Response(JSON.stringify({
-          data: nvidiaModels.map((id) => ({ id, type: 'chat', context_length: 128000, supported_endpoint_types: ['chat/completions'] })),
-        }), { status: 200 })
-      }
-      const body = JSON.parse(String(init?.body || '{}'))
-      currentAttempts.push(String(body.model || ''))
-      return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), { status: 200 })
+    globalThis.fetch = (async (url: any) => {
+      const model = decodeURIComponent(String(url).match(/\/models\/([^:]+):/)?.[1] || '')
+      currentAttempts.push(model)
+      return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }), { status: 200 })
     }) as any
 
     for (let i = 0; i < 5; i += 1) {
@@ -310,7 +302,7 @@ describe('router admin policy B1', () => {
         history: [{ role: 'user', text: `sticky request ${i}` }],
         purpose: 'GENERATION',
         stickyScope,
-        maxProviderModels: { OPENAI_COMPAT: 2 },
+        maxProviderModels: { GEMINI: 2 },
       })
       attemptedByRequest.push([...currentAttempts])
     }
@@ -323,26 +315,21 @@ describe('router admin policy B1', () => {
   })
 
   test('sticky disabled preserves candidate key order across repeated requests', async () => {
-    process.env.OPENAI_COMPAT_API_KEYS = 'key-a,key-b,key-c'
     __setTextAiSettingStoreForTests(fakeSettingStore({
-      AI_TEXT_PROVIDER: 'OPENAI_COMPAT',
+      AI_TEXT_PROVIDER: 'GEMINI',
       AI_ROUTER_POLICY: 'balanced',
       AI_STICKY_ON_SUCCESS: 'false',
-      OPENAI_COMPAT_API_KEYS: 'key-a,key-b,key-c',
-      OPENAI_COMPAT_TEXT_MODEL: 'openai/gpt-oss-120b',
-      OPENAI_COMPAT_BASE_URL: 'https://compat.test/v1',
+      GEMINI_API_KEYS: 'key-a,key-b,key-c',
+      GEMINI_TEXT_MODEL: 'gemini-3.8-flash',
     }))
 
     const keyOrderByRequest: string[][] = []
     let currentKeys: string[] = []
-    globalThis.fetch = (async (url: any, init: any) => {
-      const href = String(url)
-      if (href.endsWith('/models')) return new Response(JSON.stringify({ data: [] }), { status: 200 })
-      const authorization = String((init?.headers as Record<string, string> | undefined)?.Authorization || '')
-      const key = authorization.replace(/^Bearer\s+/i, '')
+    globalThis.fetch = (async (url: any) => {
+      const key = new URL(String(url)).searchParams.get('key') || ''
       currentKeys.push(key)
       if (key !== 'key-c') return new Response(JSON.stringify({ error: { message: 'plain failure' } }), { status: 500 })
-      return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), { status: 200 })
+      return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }), { status: 200 })
     }) as any
 
     for (let i = 0; i < 3; i += 1) {
