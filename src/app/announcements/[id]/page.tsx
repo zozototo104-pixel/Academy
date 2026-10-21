@@ -2,8 +2,8 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getActiveSiteAnnouncementsCached } from '@/lib/site-announcements'
 
-export default async function AnnouncementDetailsPage({ params }: { params: Promise<{ id: string }> | { id: string } }) {
-  const resolved = await Promise.resolve(params)
+export default async function AnnouncementDetailsPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolved = await params
   const id = decodeURIComponent(resolved.id || '')
   const announcements = await getActiveSiteAnnouncementsCached()
   const announcement = announcements.find((item) => item.id === id)
