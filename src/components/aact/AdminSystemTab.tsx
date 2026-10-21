@@ -811,6 +811,14 @@ export function AdminSystemTab() {
     const date = new Date(value)
     return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
   }
+  const textProviderHelp = form.AI_ROUTER_POLICY_SOURCE === 'admin'
+    ? form.AI_ROUTER_POLICY === 'primary_first'
+      ? 'المزوّد المختار يُجرَّب أولاً، بعده قائمة المهام الحساسة، ثم الباقي (إذا القائمة غير صارمة).'
+      : 'الترتيب حسب سياسة التوجيه المختارة.'
+    : 'في المهام الأكاديمية تتقدّم قائمة المهام الحساسة على المزوّد المختار.'
+  const academicAllowlistHelp = form.AI_ACADEMIC_ALLOWLIST_STRICT === 'true' || form.AI_ACADEMIC_ALLOWLIST_STRICT === '1'
+    ? 'صارمة: لا تُجرَّب أي نماذج خارجها.'
+    : 'قائمة أولوية: تُجرّب أولاً بالترتيب، وقد يجرّب النظام نماذج أخرى بعدها.'
 
   const statusBadge = (s: string) => {
     if (s === 'SENT') return { cls: 'bg-emerald-100 text-emerald-700', icon: <CheckCircle2 className="h-3 w-3" />, label: 'أُرسل' }
