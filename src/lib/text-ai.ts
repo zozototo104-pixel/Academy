@@ -2824,7 +2824,7 @@ function providerModelListContains(list: readonly TextAiPreferredModel[], provid
 }
 
 function strictCandidateModelsForRequest(s: Settings, provider: ConcreteProvider, models: string[], taskLevel: TextAiTaskLevel, verifierCall: boolean): string[] {
-  if (verifierCall && s.verifierStrict) return models.filter((model) => providerModelListContains(s.verifierPreferred, provider, model))
+  if (verifierCall) return s.verifierStrict ? models.filter((model) => providerModelListContains(s.verifierPreferred, provider, model)) : models
   if (taskLevel !== 'GENERAL' && s.academicAllowlistStrict) return models.filter((model) => providerModelListContains(s.academicAllowlist, provider, model))
   return models
 }
