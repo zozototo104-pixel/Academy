@@ -11,6 +11,7 @@ export type AdmissionProgramRulesSource = {
 export type ResolvedAdmissionDocumentRequirements = {
   requiredDocs: AdmissionDocumentOption[]
   missingDocs: AdmissionDocumentOption[]
+  allKnownDocs: AdmissionDocumentOption[]
   isServiceRequest: boolean
   programRules: unknown
 }
