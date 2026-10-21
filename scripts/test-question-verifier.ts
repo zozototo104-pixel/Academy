@@ -391,6 +391,7 @@ async function runCase(name: string, test: () => Promise<void> | void) {
 
 async function main() {
   await runCase('modelFamilyClassifiesRealNames', modelFamilyClassifiesRealNames)
+  await runCase('gptOssGeneratorStillBlocksGptVerifierFamily', gptOssGeneratorStillBlocksGptVerifierFamily)
   await runCase('generatorProviderUnknownFailsClosed', generatorProviderUnknownFailsClosed)
   await runCase('generatorModelUnknownFailsClosed', generatorModelUnknownFailsClosed)
   await runCase('generatorFamilyUnknownFailsClosed', generatorFamilyUnknownFailsClosed)
