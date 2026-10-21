@@ -7,6 +7,7 @@ import {
   clearTextAiRouterState,
   textAiRouterStateSnapshot,
 } from '../../src/lib/text-ai'
+import { POST } from '../../src/app/api/admin/system/route'
 
 function fakeStore(initial: Record<string, string>) {
   const values = new Map<string, string>(Object.entries(initial))
