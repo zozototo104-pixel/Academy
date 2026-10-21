@@ -223,6 +223,40 @@ function reasonCounts(reasons: string[]): Array<{ reason: string; count: number 
   return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([reason, count]) => ({ reason, count }))
 }
 
+export function buildQuestionBankJobSuccessTrace(args: {
+  generated: number
+  saved: number
+  verifierRejected: number
+  rejected: number
+  rejectionReasons: Array<{ reason: string; count: number }>
+  generatorProvider: string
+  generatorModel: string
+  verifierProvider?: string | null
+  verifierModel?: string | null
+  sameProviderVerifierFallback?: boolean
+  at?: string
+}): QuestionBankJobTrace {
+  const at = args.at || new Date().toISOString()
+  return {
+    generated: args.generated,
+    saved: args.saved,
+    verifierRejected: args.verifierRejected,
+    rejected: args.rejected,
+    rejectionReasons: args.rejectionReasons,
+    aiTrace: {
+      generatorProvider: args.generatorProvider,
+      generatorModel: args.generatorModel,
+      verifierProvider: args.verifierProvider || null,
+      verifierModel: args.verifierModel || null,
+      sameProviderVerifierFallback: args.sameProviderVerifierFallback === true,
+    },
+    lastSuccess: {
+      generation: { stage: 'generation', provider: args.generatorProvider, model: args.generatorModel, at },
+      ...(args.verifierProvider && args.verifierModel ? { verification: { stage: 'verification' as const, provider: args.verifierProvider, model: args.verifierModel, at } } : {}),
+    },
+  }
+}
+
 async function saveJobTrace(jobId: string, trace: QuestionBankJobTrace) {
   await db.setting.upsert({ where: { key: traceKey(jobId) }, update: { value: JSON.stringify(trace) }, create: { key: traceKey(jobId), value: JSON.stringify(trace) } }).catch(() => null)
 }
