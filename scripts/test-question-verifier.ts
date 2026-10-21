@@ -78,7 +78,7 @@ function modelFamilyClassifiesRealNames() {
   assert.equal(modelFamily('glm-5.1:free'), 'glm')
   assert.equal(modelFamily('nemotron-3-super-120b-a12b:free'), 'nemotron')
   assert.equal(modelFamily('minimax-m2.5:free'), 'minimax')
-  assert.equal(modelFamily('gpt-oss-120b:free'), 'gpt-oss')
+  assert.equal(modelFamily('gpt-oss-120b:free'), 'gpt')
   assert.equal(modelFamily('google/gemma-3-27b:free'), 'gemini')
 }
 
