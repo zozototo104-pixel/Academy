@@ -1211,6 +1211,79 @@ export function AdminSystemTab() {
               </div>
             )}
             <div className="rounded-xl border border-indigo-100 bg-white p-3 text-[10px] font-bold leading-relaxed text-slate-600 ring-1 ring-indigo-100 sm:col-span-2">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-black text-indigo-900">حالة الراوتر</p>
+                  <p className="text-[10px] text-slate-500">تبريدات المفاتيح والنماذج، نقص الرصيد، والنماذج المعطلة. لا يتم عرض أي مفتاح API أو جزء منه.</p>
+                </div>
+                <Button type="button" size="sm" variant="outline" disabled={routerStateLoading} onClick={loadRouterState} className="border-indigo-200 text-[10px] font-black text-indigo-700">
+                  {routerStateLoading ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : <Clock3 className="ml-1 h-3 w-3" />} تحديث
+                </Button>
+              </div>
+              {!routerState.length ? (
+                <div className="rounded-lg bg-slate-50 p-3 text-slate-500">لا توجد حالات تبريد أو استبعاد فعالة حالياً.</div>
+              ) : (
+                <div className="space-y-3">
+                  {Object.entries(routerStateByProvider).map(([provider, items]) => (
+                    <div key={provider} className="rounded-xl border border-slate-100 bg-slate-50 p-2">
+                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-black text-indigo-900">{provider}</p>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={!!routerStateClearing}
+                          onClick={() => clearRouterProvider(provider)}
+                          className="h-7 border-amber-200 text-[10px] font-black text-amber-700"
+                        >
+                          {routerStateClearing === `clear-provider:${provider}` ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null} مسح كل تبريدات المزوّد
+                        </Button>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[680px] text-right text-[10px]">
+                          <thead className="text-slate-400">
+                            <tr>
+                              <th className="px-2 py-1">النوع</th>
+                              <th className="px-2 py-1">المفتاح</th>
+                              <th className="px-2 py-1">النموذج</th>
+                              <th className="px-2 py-1">حتى</th>
+                              <th className="px-2 py-1">السبب</th>
+                              <th className="px-2 py-1">الحالة</th>
+                              <th className="px-2 py-1">إجراء</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {items.map((item) => (
+                              <tr key={routerStateClearId(item)} className="border-t border-slate-100">
+                                <td className="px-2 py-1 font-black text-slate-700">{routerStateTypeLabels[item.type]}</td>
+                                <td className="px-2 py-1">{item.keyIndex === null ? '—' : `#${item.keyIndex + 1}`}</td>
+                                <td className="px-2 py-1" dir="ltr">{item.model || '—'}</td>
+                                <td className="px-2 py-1">{routerStateUntil(item.until)}</td>
+                                <td className="px-2 py-1">{item.reason || '—'}</td>
+                                <td className="px-2 py-1">{item.status || '—'}</td>
+                                <td className="px-2 py-1">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={!!routerStateClearing}
+                                    onClick={() => clearRouterStateItem(item)}
+                                    className="h-7 border-red-100 text-[10px] font-black text-red-600"
+                                  >
+                                    {routerStateClearing === routerStateClearId(item) ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null} مسح
+                                  </Button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="rounded-xl border border-indigo-100 bg-white p-3 text-[10px] font-bold leading-relaxed text-slate-600 ring-1 ring-indigo-100 sm:col-span-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="text-xs font-black text-indigo-900">صحة نماذج النصوص — {catalogProviderForModels}</p>
