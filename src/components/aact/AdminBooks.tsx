@@ -330,6 +330,19 @@ function questionBankProgressFromJob(job?: QuestionBankJobRow | null): AiGenerat
   }
 }
 
+function mergeQuestionBankProgress(progress?: AiGenerationProgressRow, job?: QuestionBankJobRow | null): AiGenerationProgressRow {
+  if (!progress) return questionBankProgressFromJob(job)
+  return {
+    ...progress,
+    status: (job?.status as NonNullable<AiGenerationProgressRow>['status'] | undefined) || progress.status,
+    requested: Number(job?.requested ?? progress.requested ?? 0),
+    saved: Number(job?.saved ?? progress.saved ?? 0),
+    lastError: job?.lastError || progress.lastError || null,
+    updatedAt: job?.updatedAt || progress.updatedAt,
+    trace: progress.trace || job?.trace || null,
+  }
+}
+
 interface QuestionBankItemRow {
   id: string
   type: string
