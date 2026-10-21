@@ -29,6 +29,10 @@ export type SiteAnnouncementInput = {
   endsAt?: unknown
 }
 
+export function canManageSiteAnnouncements(user: { role?: string | null } | null | undefined): boolean {
+  return user?.role === 'ADMIN'
+}
+
 const DISPLAY_VALUES = new Set<SiteAnnouncementDisplay>(['TICKER', 'PULSE'])
 
 function text(value: unknown): string {
