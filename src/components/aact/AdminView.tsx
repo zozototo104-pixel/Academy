@@ -1260,6 +1260,9 @@ export function AdminView() {
                             <Badge className={isStudyAdmission ? 'bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]' : 'bg-purple-100 text-purple-700 hover:bg-purple-100'}>
                               {a.requestLabel || (isStudyAdmission ? 'طلب التحاق دراسي' : 'طلب خدمة مهنية')}
                             </Badge>
+                            {missingDocumentLabels.length > 0 && (
+                              <Badge className="bg-red-100 text-red-700 hover:bg-red-100">ناقص: {missingDocumentLabels.join('، ')}</Badge>
+                            )}
                           </div>
                           <p className="mt-1.5 text-xs font-bold text-slate-600">
                             {isStudyAdmission ? 'البرنامج' : 'الخدمة'}: {a.program} — {isStudyAdmission ? `المؤهل: ${EDUCATION_LABEL[a.education] || a.education}` : `نوع المسار: ${a.requestKind || 'خدمة'}`} — {a.country}
