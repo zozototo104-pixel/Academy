@@ -1532,7 +1532,7 @@ export function AdminView() {
                           {a.documentReplacementRequest && (
                             <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-[11px] font-bold leading-6 text-red-700">
                               <FileWarning className="ml-1 inline h-3.5 w-3.5" />
-                              مطلوب من الطالب استبدال: {a.documentReplacementRequest.docTypes.map((type) => a.files?.find((f) => f.docType === type)?.fileName || type).join('، ')}
+                              مطلوب من الطالب رفع/استبدال: {a.documentReplacementRequest.docTypes.map((type) => a.requiredDocs?.find((doc) => doc.type === type)?.label || DOC_TYPE_AR[type] || a.files?.find((f) => f.docType === type)?.fileName || type).join('، ')}
                               <span className="block text-red-600">السبب: {a.documentReplacementRequest.note}</span>
                             </div>
                           )}
