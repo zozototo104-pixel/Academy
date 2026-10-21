@@ -1207,7 +1207,7 @@ export function AdminSystemTab() {
             )}
             {!!textAiDiag?.cooldowns?.length && (
               <div className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-[10px] font-bold leading-relaxed text-amber-700 sm:col-span-2">
-                مفاتيح في cooldown: {textAiDiag.cooldowns.map((c) => `${c.provider}/${c.key} حتى ${new Date(c.until).toLocaleTimeString('ar')}`).join('، ')}
+                مفاتيح في cooldown: {textAiDiag.cooldowns.map((c) => `${c.provider} حتى ${new Date(c.until).toLocaleTimeString('ar')}`).join('، ')}
               </div>
             )}
             <div className="rounded-xl border border-indigo-100 bg-white p-3 text-[10px] font-bold leading-relaxed text-slate-600 ring-1 ring-indigo-100 sm:col-span-2">
