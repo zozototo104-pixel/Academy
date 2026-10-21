@@ -477,9 +477,23 @@ function questionBankProgressCounts(unit: CurriculumUnitReviewItem) {
   const pendingReview = Number(unit.questionBankJob?.pendingReviewQuestions ?? unit.questionBankSummary?.pendingReview ?? 0) || 0
   const rejected = Number(unit.questionBankSummary?.rejected ?? unit.questionBankJob?.trace?.rejected ?? 0) || 0
   const generated = approved + pendingReview
-  const requested = Math.max(1, Number(unit.questionBankJob?.requested || 1) || 1)
-  const percent = Math.min(100, Math.round((generated / requested) * 100))
+  const requested = Math.max(0, Number(unit.questionBankJob?.requested || 0) || 0)
+  const percent = aiProgressPercent(generated, requested) ?? 0
   return { approved, pendingReview, rejected, generated, requested, percent }
+}
+
+function questionBankTraceLabel(trace?: QuestionBankTrace | null): string {
+  const generator = trace?.lastSuccess?.generation || (trace?.aiTrace?.generatorProvider && trace?.aiTrace?.generatorModel ? { provider: trace.aiTrace.generatorProvider, model: trace.aiTrace.generatorModel } : null)
+  const verifier = trace?.lastSuccess?.verification || (trace?.aiTrace?.verifierProvider && trace?.aiTrace?.verifierModel ? { provider: trace.aiTrace.verifierProvider, model: trace.aiTrace.verifierModel } : null)
+  const parts = []
+  if (generator?.provider && generator?.model) parts.push(`ولّد: ${generator.provider} · ${generator.model}`)
+  if (verifier?.provider && verifier?.model) parts.push(`دقّق: ${verifier.provider} · ${verifier.model}`)
+  return parts.join(' — ')
+}
+
+function aiStatusHelp(status?: string | null, error?: string | null): string {
+  if (!error || (status !== 'PAUSED' && status !== 'FAILED')) return ''
+  return arabicAiStatusMessage(error)
 }
 
 function topRejectionReason(unit: CurriculumUnitReviewItem): string {
