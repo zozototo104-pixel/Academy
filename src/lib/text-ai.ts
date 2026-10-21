@@ -3069,15 +3069,15 @@ async function resolveUsableStickyModel(args: {
   return { sticky: baseModels.includes(sticky.model) ? sticky : null, deleteSticky: false }
 }
 
-export function __testStickyScopeForTests(args: { stickyOnSuccess?: boolean; stickyScope?: string; purpose?: TextAiPurpose; taskType?: string; verifierCall?: boolean }): string | null {
-  return stickyScopeForRequest({ stickyOnSuccess: args.stickyOnSuccess === true } as Settings, { system: '', history: [], stickyScope: args.stickyScope, purpose: args.purpose, taskType: args.taskType } as TextAiCallOpts, args.verifierCall === true)
+export function __testStickyScopeForTests(args: { stickyOnSuccess?: boolean; stickyScope?: string; purpose?: TextAiPurpose; taskType?: string; verifierCall?: boolean; taskLevel?: TextAiTaskLevel }): string | null {
+  return stickyScopeForRequest({ stickyOnSuccess: args.stickyOnSuccess === true } as Settings, { system: '', history: [], stickyScope: args.stickyScope, purpose: args.purpose, taskType: args.taskType } as TextAiCallOpts, args.verifierCall === true, args.taskLevel || 'ACADEMIC_CRITICAL')
 }
 
-export function __testStickyCandidateOrderForTests(args: { stickyOnSuccess?: boolean; scope?: string; provider?: TextAiProvider; model?: string; key?: string; candidates: string[]; verifierCall?: boolean; generatorModel?: string; cooldown?: boolean; noBalance?: boolean; modelDead?: boolean; strictCandidates?: string[] }): string[] {
+export function __testStickyCandidateOrderForTests(args: { stickyOnSuccess?: boolean; scope?: string; provider?: TextAiProvider; model?: string; key?: string; candidates: string[]; verifierCall?: boolean; generatorModel?: string; cooldown?: boolean; noBalance?: boolean; modelDead?: boolean; strictCandidates?: string[]; taskLevel?: TextAiTaskLevel }): string[] {
   __resetTextAiStateForTests()
   const provider = normalizeProvider(args.provider || 'ALBORIHI')
   if (provider === 'AUTO') return args.candidates
-  const scope = stickyScopeForRequest({ stickyOnSuccess: args.stickyOnSuccess === true } as Settings, { system: '', history: [], stickyScope: args.scope, purpose: 'GENERATION' } as TextAiCallOpts, args.verifierCall === true)
+  const scope = stickyScopeForRequest({ stickyOnSuccess: args.stickyOnSuccess === true } as Settings, { system: '', history: [], stickyScope: args.scope, purpose: 'GENERATION' } as TextAiCallOpts, args.verifierCall === true, args.taskLevel || 'ACADEMIC_CRITICAL')
   if (scope && args.model && args.key) stickyModels.set(scope, { provider, model: args.model, key: args.key, at: Date.now() })
   const sticky = scope ? stickyModels.get(scope) : null
   if (!sticky) return args.candidates
