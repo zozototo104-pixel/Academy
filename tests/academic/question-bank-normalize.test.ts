@@ -73,6 +73,19 @@ describe('question bank generated candidate normalization', () => {
     expect(result.accepted[0].qualityFlags).toContain('MOVED_ESSAY_LONG_ANSWER')
   })
 
+  test('ESSAY medium correctAnswer moves to modelAnswer with legacy flag', () => {
+    const answer = 'هذا جواب مقالي متوسط يشرح الفكرة التعليمية المطلوبة اعتماداً على الدليل النصي المذكور في المصدر بوضوح.'
+    const result = parseOne({
+      type: 'ESSAY',
+      correctAnswer: answer,
+    })
+
+    expect(result.rejected).toBe(0)
+    expect(result.accepted[0].modelAnswer).toBe(answer)
+    expect(result.accepted[0].correctAnswer).toBeNull()
+    expect(result.accepted[0].qualityFlags).toContain('MOVED_ESSAY_ANSWER')
+  })
+
   test('ESSAY keeps a longer existing modelAnswer instead of overwriting it', () => {
     const longAnswer = 'هذا جواب طويل يصلح كنص منقول إلى الإجابة النموذجية إذا كانت فارغة فقط. '.repeat(5)
     const longerModelAnswer = 'هذه إجابة نموذجية موجودة أطول من جواب الحقل المختصر، ويجب ألا يتم استبدالها أثناء التطبيع. '.repeat(7)
