@@ -847,6 +847,7 @@ async function settings() {
   return {
     provider,
     policy,
+    routerCooldownMinutes,
     allowPublicGateways: ['1', 'true', 'yes', 'on'].includes(String(rows.AI_ROUTER_ALLOW_PUBLIC_GATEWAYS || env('AI_ROUTER_ALLOW_PUBLIC_GATEWAYS') || '').toLowerCase()),
     academicAllowlist: parseAcademicAllowlist(rows.AI_ACADEMIC_ALLOWLIST || env('AI_ACADEMIC_ALLOWLIST') || DEFAULT_ACADEMIC_ALLOWLIST),
     verifierPreferred: parseProviderModelList(rows.AI_VERIFIER_PREFERRED || env('AI_VERIFIER_PREFERRED') || ''),
