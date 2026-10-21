@@ -122,10 +122,10 @@ function normalizeCandidate(candidate: unknown): unknown {
       qualityFlags.add('MOVED_ESSAY_LONG_ANSWER')
     }
   }
-  if ((q.type === 'SHORT' || q.type === 'ESSAY') && typeof q.correctAnswer === 'string' && q.correctAnswer.trim() && !String(q.modelAnswer || '').trim()) {
+  if (q.type === 'SHORT' && typeof q.correctAnswer === 'string' && q.correctAnswer.trim() && !String(q.modelAnswer || '').trim()) {
     q.modelAnswer = q.correctAnswer
     q.correctAnswer = null
-    qualityFlags.add('MOVED_ESSAY_ANSWER')
+    qualityFlags.add('MOVED_SHORT_ANSWER')
   }
   q.qualityFlags = Array.from(qualityFlags)
   return q
