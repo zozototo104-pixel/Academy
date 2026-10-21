@@ -962,7 +962,7 @@ export function AdminBooksTab() {
           setQuestionBankItems(qb.items || [])
           setQuestionBankStats(qb.stats || null)
           const job = Array.isArray(qb.jobs) ? qb.jobs.find((item) => ['QUEUED', 'RUNNING', 'PAUSED'].includes(item.status)) || qb.jobs[0] : null
-          setQuestionBankProgress(qb.progress ? { ...qb.progress, trace: qb.progress.trace || job?.trace || null } : questionBankProgressFromJob(job))
+          setQuestionBankProgress(mergeQuestionBankProgress(qb.progress || null, job))
         })
         .catch(() => null)
       void api<{ guides: StudyGuideRow[] }>(`/api/admin/study-guides?programId=${pid}`)
