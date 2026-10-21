@@ -3161,14 +3161,14 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           noteNoCandidate(provider, model, `COOLDOWN(model)(${new Date((cooldown?.until || Date.now())).toISOString()})`)
           continue
         }
-        if (!(await keyRateAllowed(provider, key))) {
+        if (!(await keyRateAllowed(provider, currentKey))) {
           noteNoCandidate(provider, model, 'REQUEST_FAILED(rate_limit)')
           continue
         }
         if (Number.isFinite(effectiveOpts.deadlineMs || NaN) && Date.now() >= Number(effectiveOpts.deadlineMs)) throw deadlineExceeded()
         const started = Date.now()
         try {
-          const providerResult = await callProviderWithJsonRepair(provider, s, key, model, effectiveOpts)
+          const providerResult = await callProviderWithJsonRepair(provider, s, currentKey, model, effectiveOpts)
           const text = providerResult.text
           effectiveOpts.validate?.(text, { provider, model, ...(provider === 'ALBORIHI' && allowAlborihiCrossFamilyVerifier ? { family: alborihiModelFamily(s, model) } : {}) })
           const at = new Date().toISOString()
