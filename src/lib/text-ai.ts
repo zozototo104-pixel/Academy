@@ -563,13 +563,13 @@ function isCooling(provider: string, key: string): boolean {
 }
 
 function markCooldown(provider: string, key: string, reason: string, minutes?: number, status?: number) {
-  const fallback = Number(env('AI_ROUTER_COOLDOWN_MINUTES')) || 15
+  const fallback = routerCooldownMinutesFallback()
   const ttl = Math.max(1, Math.floor(minutes || fallback))
   cooldowns.set(cooldownId(provider, key), { until: Date.now() + ttl * 60 * 1000, reason: reason.slice(0, 180), status })
 }
 
 function markProviderCooldown(provider: string, reason: string, minutes?: number, status?: number) {
-  const fallback = Number(env('AI_ROUTER_COOLDOWN_MINUTES')) || 15
+  const fallback = routerCooldownMinutesFallback()
   const ttl = Math.max(1, Math.floor(minutes || fallback))
   cooldowns.set(providerCooldownId(provider), { until: Date.now() + ttl * 60 * 1000, reason: reason.slice(0, 180), status })
 }
