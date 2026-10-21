@@ -215,13 +215,13 @@ describe('router admin policy B1', () => {
 
   test('sticky success is reused, failure moves to a new sticky model, and balanced does not override it', async () => {
     __setTextAiSettingStoreForTests(fakeSettingStore({
-      AI_TEXT_PROVIDER: 'ALBORIHI',
+      AI_TEXT_PROVIDER: 'OPENAI',
       AI_ROUTER_POLICY: 'balanced',
       AI_STICKY_ON_SUCCESS: 'true',
-      AI_ACADEMIC_ALLOWLIST: 'ALBORIHI:claude-sonnet-5,ALBORIHI:claude-opus-4-6',
-      ALBORIHI_API_KEYS: 'key-a',
-      ALBORIHI_TEXT_MODEL: 'claude-sonnet-5',
-      ALBORIHI_BASE_URL: 'https://alborihi.test/v1',
+      AI_ACADEMIC_ALLOWLIST: 'OPENAI:gpt-5.1,OPENAI:gpt-5',
+      OPENAI_API_KEYS: 'key-a',
+      OPENAI_TEXT_MODEL: 'gpt-5.1',
+      OPENAI_BASE_URL: 'https://openai.test/v1',
     }))
 
     const calls: string[] = []
