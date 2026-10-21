@@ -1183,7 +1183,7 @@ export function AdminSystemTab() {
               </div>
               <Badge className={textAiDiag?.externalConfigured ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}>{textAiDiag?.externalConfigured ? `نشط: ${textAiDiag.activeProvider}` : 'Gemini / غير خارجي'}</Badge>
             </div>
-            {SelectF('AI_TEXT_PROVIDER', 'مزود النصوص', TEXT_PROVIDER_CHOICES, 'في المهام الأكاديمية تتقدّم المهام الحساسة على المزوّد المختار.')}
+            {SelectF('AI_TEXT_PROVIDER', 'مزود النصوص', TEXT_PROVIDER_CHOICES, textProviderHelp)}
             {SelectF('AI_ROUTER_POLICY', 'سياسة التوجيه', ROUTER_POLICY_CHOICES, 'الجودة والتكلفة ترتّب حسب المزوّد حالياً.')}
             {SelectF('AI_ROUTER_POLICY_SOURCE', 'مصدر سياسة الراوتر', ROUTER_POLICY_SOURCE_CHOICES, 'افتراضي النظام يحافظ على balanced/primary_first المكتوبة في الكود. سياسة لوحة الإدارة تجعل المسارات تستخدم AI_ROUTER_POLICY.')}
             {F('AI_ROUTER_COOLDOWN_MINUTES', 'مدة التبريد الافتراضية (دقائق)', '15', 'number', 'رقم من 1 إلى 120. إذا تُرك فارغاً أو خارج النطاق يعود إلى 15 دقيقة.')}
