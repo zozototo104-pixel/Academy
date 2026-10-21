@@ -2902,9 +2902,8 @@ function verifierSameFamilyUnavailable(attempts: TextAiAttemptDiagnostics[]): Er
   return err
 }
 
-export function modelFamily(model: string): string {
-  const raw = String(model || '').trim().toLowerCase()
-  const normalized = raw
+function normalizedFamilyInput(model: string): string {
+  return String(model || '').trim().toLowerCase()
     .replace(/^models\//, '')
     .replace(/^google\//, '')
     .replace(/^anthropic\//, '')
@@ -2915,9 +2914,12 @@ export function modelFamily(model: string): string {
     .replace(/^mistralai\//, '')
     .replace(/^moonshotai\//, '')
     .replace(/^cohere\//, '')
+}
+
+export function modelFamily(model: string): string {
+  const normalized = normalizedFamilyInput(model)
   if (/gemini|gemma/.test(normalized)) return 'gemini'
-  if (/gpt[-_]?oss/.test(normalized)) return 'gpt-oss'
-  if (/\bgpt[-_]?|o\d(?:[-_]|$)|chatgpt/.test(normalized)) return 'gpt'
+  if (/\bgpt[-_]?|gpt[-_]?oss|o\d(?:[-_]|$)|chatgpt/.test(normalized)) return 'gpt'
   if (/claude|sonnet|opus|haiku/.test(normalized)) return 'claude'
   if (/llama|codellama/.test(normalized)) return 'llama'
   if (/qwen/.test(normalized)) return 'qwen'
@@ -2935,6 +2937,21 @@ export function modelFamily(model: string): string {
   if (/hunyuan/.test(normalized)) return 'hunyuan'
   if (/\bling(?:[-_\d.]|$)/.test(normalized)) return 'ling'
   return 'unknown'
+}
+
+function rankFamily(model: string): string {
+  const normalized = normalizedFamilyInput(model)
+  if (/gpt[-_]?oss/.test(normalized)) return 'gpt-oss'
+  if (/claude|sonnet|opus|haiku/.test(normalized)) return 'claude'
+  if (/\bgpt[-_]?|o\d(?:[-_]|$)|chatgpt/.test(normalized)) return 'gpt'
+  if (/gemini|gemma/.test(normalized)) return 'gemini'
+  if (/deepseek/.test(normalized)) return 'deepseek'
+  if (/qwen/.test(normalized)) return 'qwen'
+  if (/glm/.test(normalized)) return 'glm'
+  if (/kimi|moonshot/.test(normalized)) return 'kimi'
+  if (/grok/.test(normalized)) return 'grok'
+  if (/llama|codellama/.test(normalized)) return 'llama'
+  return 'other'
 }
 
 function excludedConcreteProviders(excludeProviders?: readonly TextAiProvider[]): Set<ConcreteProvider> {
