@@ -227,6 +227,11 @@ const ROUTER_POLICY_CHOICES = [
   { value: 'fallback_only', label: 'Fallback Only — المزود المختار فقط' },
 ]
 
+const ROUTER_POLICY_SOURCE_CHOICES = [
+  { value: 'legacy', label: 'افتراضي النظام — يحافظ على السياسات المكتوبة بالكود' },
+  { value: 'admin', label: 'سياسة لوحة الإدارة — تستخدم القائمة أعلاه في المسارات الأكاديمية' },
+]
+
 const OPENAI_TEXT_MODEL_CHOICES = [
   { value: 'gpt-5.1', label: 'GPT-5.1 — تحليل وتوليد قوي' },
   { value: 'gpt-5', label: 'GPT-5 — احتياطي قوي' },
