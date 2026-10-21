@@ -2011,8 +2011,8 @@ function baseOrder(s: Settings, taskLevel: TextAiTaskLevel = 'GENERAL'): Concret
   const quality: ConcreteProvider[] = ['ANTHROPIC', 'OPENAI', 'GEMINI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'TOPTOOLS', 'ZAI', 'GROQ', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'ALBORIHI']
   const cost: ConcreteProvider[] = ['GROQ', 'ZAI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'TOPTOOLS', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'GEMINI', 'OPENAI', 'ANTHROPIC', 'ALBORIHI']
   const primary: ConcreteProvider[] = ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER
-  if (s.policy === 'quality_first') return selectedFirst(selected, sortProvidersByFamily(s, quality, taskLevel))
-  if (s.policy === 'cost_saver') return selectedFirst(selected, sortProvidersByFamily(s, cost, taskLevel))
+  if (s.policy === 'quality_first') return selectedFirst(selected, canRankProvidersByFamily(s, taskLevel) ? sortProvidersByFamily(s, quality, taskLevel) : quality)
+  if (s.policy === 'cost_saver') return selectedFirst(selected, canRankProvidersByFamily(s, taskLevel) ? sortProvidersByFamily(s, cost, taskLevel) : cost)
   if (s.policy === 'fallback_only' && selected) return [selected]
   if (s.policy === 'balanced') return primary.slice(roundRobin++ % Math.max(1, primary.length)).concat(primary.slice(0, (roundRobin - 1) % Math.max(1, primary.length)))
   return selectedFirst(selected, primary)
