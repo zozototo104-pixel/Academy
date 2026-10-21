@@ -323,6 +323,7 @@ describe('router admin policy B1', () => {
   })
 
   test('sticky disabled preserves candidate key order across repeated requests', async () => {
+    process.env.OPENAI_COMPAT_API_KEYS = 'key-a,key-b,key-c'
     __setTextAiSettingStoreForTests(fakeSettingStore({
       AI_TEXT_PROVIDER: 'OPENAI_COMPAT',
       AI_ROUTER_POLICY: 'balanced',
