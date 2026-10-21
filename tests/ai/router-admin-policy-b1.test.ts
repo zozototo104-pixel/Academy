@@ -349,6 +349,102 @@ describe('router admin policy B1', () => {
     ])
   })
 
+  test('sticky OPENAI_COMPAT model survives provider model rotation and maxProviderModels limits', async () => {
+    const compatModels = [
+      'deepseek-ai/deepseek-v3.2',
+      'qwen/qwen3-235b-a22b',
+      'moonshotai/kimi-k2-instruct-0905',
+      'openai/gpt-oss-120b',
+      'nvidia/nemotron-3-super-120b-a12b',
+      'nvidia/llama-3.3-nemotron-super-49b-v1.5',
+    ]
+    const stickyModel = compatModels[4]
+    const stickyScope = 'openai-compat-max-provider-models-sticky'
+    process.env.OPENAI_COMPAT_API_KEYS = 'compat-key'
+    __setTextAiSettingStoreForTests(fakeSettingStore({
+      AI_TEXT_PROVIDER: 'OPENAI_COMPAT',
+      AI_ROUTER_POLICY: 'balanced',
+      AI_STICKY_ON_SUCCESS: 'true',
+      OPENAI_COMPAT_BASE_URL: 'https://integrate.api.nvidia.com/v1',
+      OPENAI_COMPAT_TEXT_MODEL: compatModels[0],
+    }))
+    __testStickyCandidateOrderForTests({
+      stickyOnSuccess: true,
+      scope: stickyScope,
+      provider: 'OPENAI_COMPAT',
+      model: stickyModel,
+      key: 'compat-key',
+      candidates: compatModels,
+    })
+
+    const attemptedByRequest: string[][] = []
+    let currentAttempts: string[] = []
+    globalThis.fetch = (async (url: any, init: any) => {
+      if (String(url).endsWith('/models')) {
+        return new Response(JSON.stringify({ data: compatModels.map((id) => ({ id, online: true, type: 'text' })) }), { status: 200 })
+      }
+      const model = JSON.parse(String(init?.body || '{}')).model
+      currentAttempts.push(model)
+      return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), { status: 200 })
+    }) as any
+
+    for (let i = 0; i < 5; i += 1) {
+      currentAttempts = []
+      await textAiComplete({
+        system: 's',
+        history: [{ role: 'user', text: `compat sticky request ${i}` }],
+        purpose: 'GENERATION',
+        stickyScope,
+        maxProviderModels: { OPENAI_COMPAT: 2 },
+      })
+      attemptedByRequest.push([...currentAttempts])
+    }
+
+    expect(attemptedByRequest).toHaveLength(5)
+    for (const attempts of attemptedByRequest) {
+      expect(attempts[0]).toBe(stickyModel)
+      expect(attempts.length).toBeLessThanOrEqual(2)
+    }
+  })
+
+  test('sticky disabled preserves OPENAI_COMPAT candidate key order across repeated requests', async () => {
+    process.env.OPENAI_COMPAT_API_KEYS = 'key-a,key-b,key-c'
+    __setTextAiSettingStoreForTests(fakeSettingStore({
+      AI_TEXT_PROVIDER: 'OPENAI_COMPAT',
+      AI_ROUTER_POLICY: 'balanced',
+      AI_STICKY_ON_SUCCESS: 'false',
+      OPENAI_COMPAT_BASE_URL: 'https://compat.test/v1',
+      OPENAI_COMPAT_TEXT_MODEL: 'compat-model',
+    }))
+
+    const keyOrderByRequest: string[][] = []
+    let currentKeys: string[] = []
+    globalThis.fetch = (async (url: any, init: any) => {
+      if (String(url).endsWith('/models')) return new Response(JSON.stringify({ data: [] }), { status: 200 })
+      const auth = String(init?.headers?.Authorization || '')
+      const key = auth.replace(/^Bearer\s+/i, '')
+      currentKeys.push(key)
+      if (key !== 'key-c') return new Response(JSON.stringify({ error: { message: 'plain failure' } }), { status: 500 })
+      return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), { status: 200 })
+    }) as any
+
+    for (let i = 0; i < 3; i += 1) {
+      currentKeys = []
+      await textAiComplete({
+        system: 's',
+        history: [{ role: 'user', text: `compat key order ${i}` }],
+        purpose: 'GENERATION',
+      })
+      keyOrderByRequest.push([...currentKeys])
+    }
+
+    expect(keyOrderByRequest).toEqual([
+      ['key-a', 'key-b', 'key-c'],
+      ['key-a', 'key-b', 'key-c'],
+      ['key-a', 'key-b', 'key-c'],
+    ])
+  })
+
   test('strict academic allowlist 503 failures throw the pausable academic unavailable code', async () => {
     __setTextAiSettingStoreForTests(fakeSettingStore({
       AI_TEXT_PROVIDER: 'OPENAI',
