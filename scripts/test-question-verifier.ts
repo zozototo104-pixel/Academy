@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { __resetTextAiStateForTests, modelFamily } from '../src/lib/text-ai'
-import { verifyQuestionsWithCrossProvider, type VerifiableQuestion } from '../src/lib/question-verifier'
+import { __testVerifierFamilyAllowedForTests, verifyQuestionsWithCrossProvider, type VerifiableQuestion } from '../src/lib/question-verifier'
 
 const originalFetch = globalThis.fetch
 const originalEnv = { ...process.env }
