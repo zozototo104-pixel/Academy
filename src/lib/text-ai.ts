@@ -1947,7 +1947,8 @@ function familyRankIndex(order: string[], family: string): number {
 }
 
 function rankModelFamily(s: Settings, provider: ConcreteProvider, model: string): string {
-  const family = provider === 'ALBORIHI' ? alborihiModelFamily(s, model) : modelFamily(model)
+  const catalogFamily = provider === 'ALBORIHI' ? alborihiModelFamily(s, model) : 'unknown'
+  const family = catalogFamily !== 'unknown' ? catalogFamily : rankFamily(model)
   return KNOWN_MODEL_FAMILIES.has(family) ? family : 'other'
 }
 
