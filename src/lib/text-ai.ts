@@ -950,6 +950,176 @@ function providerKeys(s: Settings, provider: ConcreteProvider): string[] {
   }
 }
 
+const ROUTER_STATE_PROVIDERS: ConcreteProvider[] = ['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI']
+
+type ClearTextAiRouterStateInput = {
+  type?: string
+  provider?: string
+  keyIndex?: number | null
+  model?: string | null
+  clearProvider?: boolean
+}
+
+function persistentRouterStateItem(key: string, value: string): TextAiRouterStateItem | null {
+  const parsed = parseCooldown(value)
+  if (!parsed) return null
+  const parts = key.split(':')
+  if (parts[0] === 'AI_COOLDOWN') {
+    const provider = parts[1] || ''
+    const keyIndex = Number(parts[2])
+    if (!provider || !Number.isInteger(keyIndex) || keyIndex < 0) return null
+    const model = parts.length > 3 ? parts.slice(3).join(':') : null
+    return {
+      type: model ? 'MODEL_COOLDOWN' : 'KEY_COOLDOWN',
+      source: 'db',
+      provider,
+      keyIndex,
+      model,
+      until: new Date(parsed.until).toISOString(),
+      reason: parsed.reason,
+      status: parsed.status || null,
+    }
+  }
+  if (parts[0] === 'AI_MODEL_DEAD') {
+    const provider = parts[1] || ''
+    const model = parts.slice(2).join(':')
+    if (!provider || !model) return null
+    return { type: 'MODEL_DEAD', source: 'db', provider, keyIndex: null, model, until: new Date(parsed.until).toISOString(), reason: parsed.reason, status: parsed.status || null }
+  }
+  if (parts[0] === 'AI_NO_BALANCE') {
+    const provider = parts[1] || ''
+    const keyIndex = Number(parts[2])
+    if (!provider || !Number.isInteger(keyIndex) || keyIndex < 0) return null
+    return { type: 'NO_BALANCE', source: 'db', provider, keyIndex, model: null, until: new Date(parsed.until).toISOString(), reason: parsed.reason, status: parsed.status || null }
+  }
+  return null
+}
+
+function memoryKeyIndexLookup(s: Settings): Map<string, { provider: ConcreteProvider; keyIndex: number }> {
+  const lookup = new Map<string, { provider: ConcreteProvider; keyIndex: number }>()
+  for (const provider of ROUTER_STATE_PROVIDERS) {
+    providerKeys(s, provider).forEach((key, index) => lookup.set(cooldownId(provider, key), { provider, keyIndex: index }))
+  }
+  return lookup
+}
+
+function memoryRouterStateItems(s: Settings): TextAiRouterStateItem[] {
+  const now = Date.now()
+  const keyLookup = memoryKeyIndexLookup(s)
+  const out: TextAiRouterStateItem[] = []
+  for (const [id, item] of cooldowns.entries()) {
+    if (item.until <= now) {
+      cooldowns.delete(id)
+      continue
+    }
+    if (id.endsWith(':provider')) {
+      out.push({ type: 'PROVIDER_COOLDOWN', source: 'memory', provider: id.slice(0, -':provider'.length), keyIndex: null, model: item.model || null, until: new Date(item.until).toISOString(), reason: item.reason, status: item.status || null })
+      continue
+    }
+    const parts = id.split(':')
+    const baseId = parts.slice(0, 2).join(':')
+    const match = keyLookup.get(baseId)
+    if (!match) continue
+    const model = item.model || (parts.length > 2 ? parts.slice(2).join(':') : '')
+    out.push({
+      type: model ? 'MODEL_COOLDOWN' : 'KEY_COOLDOWN',
+      source: 'memory',
+      provider: match.provider,
+      keyIndex: match.keyIndex,
+      model: model || null,
+      until: new Date(item.until).toISOString(),
+      reason: item.reason,
+      status: item.status || null,
+    })
+  }
+  return out
+}
+
+export async function textAiRouterStateSnapshot(): Promise<TextAiRouterStateItem[]> {
+  const s = await settings()
+  const persistent = await loadPersistentCooldowns()
+  return [
+    ...Object.entries(persistent).map(([key, value]) => persistentRouterStateItem(key, value)).filter((item): item is TextAiRouterStateItem => Boolean(item)),
+    ...memoryRouterStateItems(s),
+  ].sort((a, b) => a.provider.localeCompare(b.provider) || a.type.localeCompare(b.type) || String(a.keyIndex ?? '').localeCompare(String(b.keyIndex ?? '')) || String(a.model || '').localeCompare(String(b.model || '')))
+}
+
+function validRouterStateProvider(value: unknown): ConcreteProvider | null {
+  const provider = normalizeProvider(value)
+  return provider === 'AUTO' ? null : provider
+}
+
+function routerStateKeyForInput(input: ClearTextAiRouterStateInput): string | null {
+  const provider = validRouterStateProvider(input.provider)
+  if (!provider) return null
+  const keyIndex = Number(input.keyIndex)
+  const model = clean(input.model || '')
+  if (input.type === 'MODEL_DEAD') return model ? modelDeadKey(provider, model) : null
+  if (input.type === 'NO_BALANCE') return Number.isInteger(keyIndex) && keyIndex >= 0 ? noBalanceKey(provider, keyIndex) : null
+  if (input.type === 'MODEL_COOLDOWN') return Number.isInteger(keyIndex) && keyIndex >= 0 && model ? persistentCooldownKey(provider, keyIndex, model) : null
+  if (input.type === 'KEY_COOLDOWN') return Number.isInteger(keyIndex) && keyIndex >= 0 ? persistentCooldownKey(provider, keyIndex) : null
+  return null
+}
+
+function clearMemoryRouterState(s: Settings, input: ClearTextAiRouterStateInput): number {
+  const provider = validRouterStateProvider(input.provider)
+  if (!provider) return 0
+  let cleared = 0
+  if (input.clearProvider || input.type === 'clear-provider') {
+    for (const id of Array.from(cooldowns.keys())) {
+      if (id === providerCooldownId(provider) || id.startsWith(`${provider}:`)) {
+        cooldowns.delete(id)
+        cleared += 1
+      }
+    }
+    return cleared
+  }
+  if (input.type === 'PROVIDER_COOLDOWN') {
+    const id = providerCooldownId(provider)
+    if (cooldowns.delete(id)) cleared += 1
+    return cleared
+  }
+  const keyIndex = Number(input.keyIndex)
+  if (!Number.isInteger(keyIndex) || keyIndex < 0) return cleared
+  const key = providerKeys(s, provider)[keyIndex]
+  if (!key) return cleared
+  const model = clean(input.model || '')
+  if (input.type === 'MODEL_COOLDOWN' && model) {
+    if (cooldowns.delete(modelCooldownId(provider, key, model))) cleared += 1
+  } else if (input.type === 'KEY_COOLDOWN' || input.type === 'NO_BALANCE') {
+    if (cooldowns.delete(cooldownId(provider, key))) cleared += 1
+  }
+  return cleared
+}
+
+export async function clearTextAiRouterState(input: ClearTextAiRouterStateInput): Promise<{ cleared: number; state: TextAiRouterStateItem[] }> {
+  const s = await settings()
+  const store = settingStore()
+  const provider = validRouterStateProvider(input.provider)
+  if (!provider) throw new Error('INVALID_ROUTER_STATE_PROVIDER')
+  let cleared = clearMemoryRouterState(s, input)
+  if (input.clearProvider || input.type === 'clear-provider') {
+    const values = await loadPersistentCooldowns()
+    for (const key of Object.keys(values)) {
+      if (key.startsWith(`AI_COOLDOWN:${provider}:`) || key.startsWith(`AI_NO_BALANCE:${provider}:`)) {
+        await store.delete?.(key)
+        cleared += 1
+      }
+    }
+  } else {
+    const key = routerStateKeyForInput(input)
+    if (!key) throw new Error('INVALID_ROUTER_STATE_KEY')
+    await store.delete?.(key)
+    cleared += 1
+  }
+  persistentCooldownCache = null
+  return { cleared, state: await textAiRouterStateSnapshot() }
+}
+
+export function __testTextAiRouterStatePayloadForTests(daysOrMs: number, reason: string, status?: number): string {
+  return routerStatePayload(daysOrMs, reason, status)
+}
+
 function modelFor(s: Settings, provider: ConcreteProvider): string {
   switch (provider) {
     case 'GEMINI': return s.geminiModel
