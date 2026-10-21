@@ -265,6 +265,31 @@ export async function POST(req: NextRequest) {
       await audit(admin, 'UPDATE_SETTINGS', 'Setting', 'AI_ACADEMIC_ALLOWLIST', `إضافة نموذج حساس: ${item}`)
       return NextResponse.json({ ok: true, allowlist: current.join(',') })
     }
+    if (action === 'router-state') {
+      const state = await textAiRouterStateSnapshot()
+      await audit(admin, 'AI_ROUTER_STATE_VIEWED', 'Setting', null, `حالة الراوتر: ${state.length} عناصر فعالة`)
+      return NextResponse.json({ ok: true, state })
+    }
+    if (action === 'clear-router-state') {
+      const clearProvider = body?.clearProvider === true || body?.type === 'clear-provider'
+      const result = await clearTextAiRouterState({
+        type: String(body?.type || ''),
+        provider: String(body?.provider || ''),
+        keyIndex: body?.keyIndex === null || body?.keyIndex === undefined ? null : Number(body.keyIndex),
+        model: body?.model === null || body?.model === undefined ? null : String(body.model),
+        clearProvider,
+      })
+      await audit(
+        admin,
+        clearProvider ? 'AI_ROUTER_PROVIDER_STATE_CLEARED' : 'AI_ROUTER_STATE_CLEARED',
+        'Setting',
+        null,
+        clearProvider
+          ? `مسح تبريدات ونقص رصيد المزود: ${String(body?.provider || '').toUpperCase()}`
+          : `مسح حالة الراوتر: ${String(body?.type || '')}:${String(body?.provider || '').toUpperCase()}:${body?.keyIndex ?? ''}:${String(body?.model || '')}`
+      )
+      return NextResponse.json({ ok: true, ...result })
+    }
     if (action === 'test-email') {
       const ok = await sendEmail({
         to: admin.email,
