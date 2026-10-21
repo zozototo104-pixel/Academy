@@ -39,7 +39,7 @@ export const EXTRA_ADMISSION_DOCS: AdmissionDocumentOption[] = [
 export function resolveAdmissionRequiredDocuments(input: {
   slug?: string | null
   category?: string | null
-  admissionRules?: { requiredDocuments?: string[] | null } | null
+  admissionRules?: unknown
   isServiceRequest?: boolean | null
 }) {
   const flow = getServiceFlow(input.slug || undefined)
