@@ -297,6 +297,23 @@ function env(name: string): string {
   }
 }
 
+function normalizeRouterCooldownMinutesValue(value: unknown): number | null {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return null
+  const minutes = Math.floor(n)
+  return minutes >= 1 && minutes <= 120 ? minutes : null
+}
+
+let cachedRouterCooldownMinutes = normalizeRouterCooldownMinutesValue(env('AI_ROUTER_COOLDOWN_MINUTES')) || 15
+
+function routerCooldownMinutesFallback(): number {
+  return normalizeRouterCooldownMinutesValue(cachedRouterCooldownMinutes) || normalizeRouterCooldownMinutesValue(env('AI_ROUTER_COOLDOWN_MINUTES')) || 15
+}
+
+export function __testResolveRouterCooldownMinutesForTests(settingValue: unknown, envValue: unknown): number {
+  return normalizeRouterCooldownMinutesValue(settingValue) || normalizeRouterCooldownMinutesValue(envValue) || 15
+}
+
 function clean(value: unknown): string {
   return String(value || '')
     .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')
