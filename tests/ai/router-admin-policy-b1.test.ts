@@ -259,12 +259,12 @@ describe('router admin policy B1', () => {
 
   test('strict academic allowlist 503 failures throw the pausable academic unavailable code', async () => {
     __setTextAiSettingStoreForTests(fakeSettingStore({
-      AI_TEXT_PROVIDER: 'ALBORIHI',
+      AI_TEXT_PROVIDER: 'OPENAI',
       AI_ACADEMIC_ALLOWLIST_STRICT: 'true',
-      AI_ACADEMIC_ALLOWLIST: 'ALBORIHI:gpt-5.6-luna',
-      ALBORIHI_API_KEYS: 'key-a',
-      ALBORIHI_TEXT_MODEL: 'gpt-5.6-luna',
-      ALBORIHI_BASE_URL: 'https://alborihi.test/v1',
+      AI_ACADEMIC_ALLOWLIST: 'OPENAI:gpt-5.1',
+      OPENAI_API_KEYS: 'key-a',
+      OPENAI_TEXT_MODEL: 'gpt-5.1',
+      OPENAI_BASE_URL: 'https://openai.test/v1',
     }))
     globalThis.fetch = (async () => new Response(JSON.stringify({ error: { message: 'upstream 503' } }), { status: 503 })) as any
 
