@@ -271,6 +271,7 @@ describe('router admin policy B1', () => {
     ]
     const stickyModel = nvidiaModels[4]
     const stickyScope = 'nvidia-max-provider-models-sticky'
+    process.env.OPENAI_COMPAT_API_KEYS = 'key-a'
     __setTextAiSettingStoreForTests(fakeSettingStore({
       AI_TEXT_PROVIDER: 'OPENAI_COMPAT',
       AI_ROUTER_POLICY: 'balanced',
