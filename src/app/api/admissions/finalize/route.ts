@@ -83,10 +83,9 @@ export async function POST(req: NextRequest) {
 
     const owner = app.user || (app.email ? await db.user.findUnique({ where: { email: app.email.trim().toLowerCase() } }) : null)
     const selectedTitle = app.programRef?.titleAr || app.program
-    const replacementPreviousStatus = replacementRequest?.previousStatus && !['DOCUMENTS_NEED_REPLACEMENT', 'CERTIFIED', 'REJECTED'].includes(replacementRequest.previousStatus)
-      ? replacementRequest.previousStatus
-      : 'UNDER_REVIEW'
-    const nextStatus = isDocumentReplacement ? replacementPreviousStatus : (isServiceRequest ? 'UNDER_REVIEW' : 'AWAITING_FEE')
+    const nextStatus = isDocumentReplacement
+      ? resolvePostReplacementAdmissionStatus(replacementRequest?.previousStatus, isServiceRequest)
+      : (isServiceRequest ? 'UNDER_REVIEW' : 'AWAITING_FEE')
     const appFee = isServiceRequest ? 0 : await getSettingNum('FEE_APPLICATION')
     if (!isServiceRequest && appFee <= 0) {
       return NextResponse.json({ error: 'رسوم التقديم غير مضبوطة بقيمة صالحة أكبر من صفر.' }, { status: 500 })
