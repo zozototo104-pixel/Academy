@@ -1203,6 +1203,13 @@ export function AdminSystemTab() {
               </div>
               <Switch checked={form.AI_VERIFIER_STRICT === 'true' || form.AI_VERIFIER_STRICT === '1'} onCheckedChange={(v) => set('AI_VERIFIER_STRICT', v ? 'true' : 'false')} />
             </div>
+            <div className="flex items-center justify-between rounded-xl border border-indigo-100 bg-white px-4 py-3">
+              <div>
+                <p className="text-xs font-black text-indigo-900">ثبّت على النموذج الناجح</p>
+                <p className="text-[10px] leading-relaxed text-indigo-700">عند التفعيل، كل مسار نصي يجرب آخر نموذج ناجح له أولاً ما دام متاحاً وضمن القيود.</p>
+              </div>
+              <Switch checked={form.AI_STICKY_ON_SUCCESS === 'true' || form.AI_STICKY_ON_SUCCESS === '1'} onCheckedChange={(v) => set('AI_STICKY_ON_SUCCESS', v ? 'true' : 'false')} />
+            </div>
             <div className="flex items-center justify-between rounded-xl border border-indigo-100 bg-white px-4 py-3 sm:col-span-2">
               <div>
                 <p className="text-xs font-black text-indigo-900">السماح بالبوابات العامة كاحتياط</p>
