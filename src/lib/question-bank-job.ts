@@ -263,6 +263,10 @@ async function recordJobFailure(jobId: string, message: string): Promise<JobFail
   return state
 }
 
+export function isPausableQuestionBankError(message: string): boolean {
+  return /AI_ACADEMIC_PROVIDER_UNAVAILABLE|TEXT_AI_ROUTER|DEADLINE|TIMEOUT|NO_PROVIDER|NOT_CONFIGURED|OPENAI_API_KEYS/i.test(message)
+}
+
 async function normalizeProviderError(message: string) {
   if (!/AI_ACADEMIC_PROVIDER_UNAVAILABLE|TEXT_AI_ROUTER|NO_PROVIDER|NOT_CONFIGURED|OPENAI_API_KEYS|OPENAI_API_KEY/i.test(message)) return message
   const diagnostics = await textAiDiagnostics().catch(() => null)
