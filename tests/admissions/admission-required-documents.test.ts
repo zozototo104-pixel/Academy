@@ -104,6 +104,27 @@ describe('admission required documents', () => {
     expect(resolvePostReplacementAdmissionStatus('UNDER_REVIEW', false)).toBe('UNDER_REVIEW')
   })
 
+  test('known admission document labels cover replacement requests outside required documents', () => {
+    const result = resolveProgramAdmissionDocumentRequirements(
+      { slug: 'mental-health-family-counseling', category: 'MASTERS', admissionRules: { requiredDocuments: ['PHOTO'] } },
+      []
+    )
+
+    expect(documentLabelsForRequest(result, ['PHOTO', 'TRANSCRIPT'])).toEqual(['صورة شخصية حديثة', 'كشف درجات منفصل'])
+  })
+
+  test('known service flow document labels cover replacement requests outside required documents', () => {
+    const slug = 'accreditation-membership-license'
+    const flow = getServiceFlow(slug)
+    if (!flow) throw new Error('missing accreditation-membership-license service flow')
+    const result = resolveProgramAdmissionDocumentRequirements(
+      { slug, category: 'SERVICE', admissionRules: resolveRules('SERVICE', { requiredDocuments: ['FLOW_DOC_1'] }, false) },
+      []
+    )
+
+    expect(documentLabelsForRequest(result, ['FLOW_DOC_2'])).toEqual([flow.requiredDocuments[1]])
+  })
+
   test('documents requested email includes reference and requested document labels', () => {
     const message = buildAdmissionDocumentsRequestedEmail({
       fullName: 'أحمد علي',
