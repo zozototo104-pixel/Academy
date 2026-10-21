@@ -943,12 +943,13 @@ export function AdminBooksTab() {
           setCurriculumUnits(units.units || [])
         })
         .catch(() => null)
-      void api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats; progress?: AiGenerationProgressRow }>(`/api/admin/question-bank?programId=${pid}`)
+      void api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats; progress?: AiGenerationProgressRow; jobs?: QuestionBankJobRow[] }>(`/api/admin/question-bank?programId=${pid}`)
         .then((qb) => {
           if (latestProgramLoadRef.current !== loadToken) return
           setQuestionBankItems(qb.items || [])
           setQuestionBankStats(qb.stats || null)
-          setQuestionBankProgress(qb.progress || null)
+          const job = Array.isArray(qb.jobs) ? qb.jobs.find((item) => ['QUEUED', 'RUNNING', 'PAUSED'].includes(item.status)) || qb.jobs[0] : null
+          setQuestionBankProgress(qb.progress || questionBankProgressFromJob(job))
         })
         .catch(() => null)
       void api<{ guides: StudyGuideRow[] }>(`/api/admin/study-guides?programId=${pid}`)
