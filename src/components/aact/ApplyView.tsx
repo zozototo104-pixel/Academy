@@ -360,8 +360,14 @@ export function ApplyView() {
     navigate('dashboard', { tab: 'payments', invoice: invoiceNo || undefined })
   }
 
-  const admissionDocLabel = (type: string) => {
-    return (resolvedDocs.allKnownDocs.find((d) => d.type === type)?.label || type)
+  const admissionDocLabel = (type: string, app?: any) => {
+    const serverDocs = [
+      ...(Array.isArray(app?.requiredDocs) ? app.requiredDocs : []),
+      ...(Array.isArray(app?.missingDocs) ? app.missingDocs : []),
+    ]
+    const fromServer = serverDocs.find((doc: any) => doc?.type === type)?.label
+    const uploaded = Array.isArray(app?.documents) ? app.documents.find((doc: any) => doc?.docType === type)?.fileName : null
+    return (fromServer || resolvedDocs.allKnownDocs.find((d) => d.type === type)?.label || uploaded || FALLBACK_DOC_LABEL[type] || type)
   }
 
   const pickReplacementFile = (applicationId: string, type: string, f: File | null) => {
