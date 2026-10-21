@@ -98,6 +98,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd()) }}
         />
         <PerformanceMonitor />
+        <SiteAnnouncements />
         {children}
         <Toaster />
       </body>
