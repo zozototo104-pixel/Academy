@@ -56,19 +56,10 @@ export async function POST(req: NextRequest) {
     }
 
     const serviceFlow = getServiceFlow(app.programRef?.slug)
-    const isServiceRequest = serviceFlow ? !serviceFlow.isStudyProgram : app.programRef?.category === 'SERVICE'
-    const parsedAdmissionRules = parseAdmissionRules(app.programRef?.admissionRules)
-    const programRules = parsedAdmissionRules
-      ? resolveRules(app.programRef?.category || 'DIPLOMA', parsedAdmissionRules, !isServiceRequest)
-      : (buildServiceAdmissionDefaults(serviceFlow) || resolveRules(app.programRef?.category || 'DIPLOMA', parsedAdmissionRules, !isServiceRequest))
-    const uploadedTypes = new Set((app.files || []).map((f) => f.docType))
-    const { requiredDocs: requiredDocList } = resolveAdmissionRequiredDocuments({
-      slug: app.programRef?.slug,
-      category: app.programRef?.category,
-      admissionRules: programRules,
-      isServiceRequest,
-    })
-    const missing = requiredDocList.filter((d) => !uploadedTypes.has(d.type))
+    const docRequirements = resolveProgramAdmissionDocumentRequirements(app.programRef, (app.files || []).map((f) => f.docType))
+    const isServiceRequest = docRequirements.isServiceRequest
+    const requiredDocList = docRequirements.requiredDocs
+    const missing = docRequirements.missingDocs
     if (missing.length > 0) {
       return NextResponse.json({
         error: isServiceRequest ? 'لا يمكن إكمال طلب الخدمة: مرفقات الخدمة المطلوبة غير مكتملة' : 'لا يمكن إكمال الطلب: المستندات المطلوبة غير مكتملة. ارفع المستندات الناقصة أولاً',
