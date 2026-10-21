@@ -1556,7 +1556,7 @@ export function AdminBooksTab() {
     if (Array.isArray(res.items)) setQuestionBankItems(res.items)
     if (res.stats) setQuestionBankStats(res.stats)
     const job = Array.isArray(res.jobs) ? res.jobs.find((item) => ['QUEUED', 'RUNNING', 'PAUSED'].includes(item.status)) || res.jobs[0] : null
-    if ('progress' in res) setQuestionBankProgress(res.progress ? { ...res.progress, trace: res.progress.trace || job?.trace || null } : questionBankProgressFromJob(job))
+    if ('progress' in res) setQuestionBankProgress(mergeQuestionBankProgress(res.progress || null, job))
     if (Array.isArray(res.jobs)) {
       setQuestionBankActiveJob(job ? { id: job.id, status: job.status } : null)
       if (!res.progress && job) setQuestionBankProgress(questionBankProgressFromJob(job))
