@@ -198,9 +198,10 @@ export async function GET(req: NextRequest) {
         const programExams = Array.isArray(row.programExams) ? row.programExams : []
         const flow = getServiceFlow(row.slug)
         const isStudyProgram = flow ? flow.isStudyProgram : row.category !== 'SERVICE'
-        const admissionRules = row.admissionRules
-          ? resolveRules(row.category, row.admissionRules, isStudyProgram)
-          : (buildServiceAdmissionDefaults(flow) || resolveRules(row.category, row.admissionRules, isStudyProgram))
+        const parsedAdmissionRules = parseAdmissionRules(row.admissionRules)
+        const admissionRules = parsedAdmissionRules
+          ? resolveRules(row.category, parsedAdmissionRules, isStudyProgram)
+          : (buildServiceAdmissionDefaults(flow) || resolveRules(row.category, parsedAdmissionRules, isStudyProgram))
         return {
           id: row.id,
           slug: row.slug,
