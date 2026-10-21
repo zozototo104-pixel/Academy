@@ -7,13 +7,19 @@ import {
   __testHighDemandCooldownDecisionForTests,
   __testPrimaryProviderOrder,
   __testResolveRouterPolicyForTests,
+  __testStickyCandidateOrderForTests,
+  __testStickyScopeForTests,
   __testStrictCandidateModelsForTests,
   __testTransientModelFailureEscalationForTests,
+  textAiComplete,
 } from '../../src/lib/text-ai'
 import { verifyQuestionsWithCrossProvider } from '../../src/lib/question-verifier'
+import { isPausableQuestionBankError } from '../../src/lib/question-bank-job'
 
-function fakeSettingStore() {
-  const values = new Map<string, string>()
+const originalFetch = globalThis.fetch
+
+function fakeSettingStore(initial: Record<string, string> = {}) {
+  const values = new Map<string, string>(Object.entries(initial))
   return {
     async read(keys: string[]) {
       return Object.fromEntries(keys.map((key) => [key, values.get(key) || '']))
