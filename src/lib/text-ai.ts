@@ -2918,7 +2918,7 @@ export function __testStickyCandidateOrderForTests(args: { stickyOnSuccess?: boo
   const sticky = scope ? stickyModels.get(scope) : null
   if (!sticky) return args.candidates
   if (args.verifierCall && modelFamily(sticky.model) === modelFamily(args.generatorModel || '')) return args.candidates
-  if (args.cooldown) return args.candidates
+  if (args.cooldown || args.noBalance || args.modelDead) return args.candidates
   const allowed = args.strictCandidates || args.candidates
   if (!allowed.includes(sticky.model) || !args.candidates.includes(sticky.model)) return args.candidates
   return [sticky.model, ...args.candidates.filter((model) => model !== sticky.model)]
