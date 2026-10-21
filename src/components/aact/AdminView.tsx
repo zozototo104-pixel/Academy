@@ -404,6 +404,7 @@ export function AdminView() {
   const [admissionsLoading, setAdmissionsLoading] = useState(true)
   const [studentsLoading, setStudentsLoading] = useState(true)
   const [appsLoading, setAppsLoading] = useState(true)
+  const [announcementsLoading, setAnnouncementsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('admissions')
   const [admissionSearch, setAdmissionSearch] = useState('')
   const [admissionStatusFilter, setAdmissionStatusFilter] = useState('ACTIVE')
