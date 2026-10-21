@@ -1,6 +1,7 @@
 'use client'
 
 import { useAppStore, api } from '@/lib/store'
+import type { SiteAnnouncement } from '@/lib/site-announcements'
 import { useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { toast, useToast } from '@/hooks/use-toast'
