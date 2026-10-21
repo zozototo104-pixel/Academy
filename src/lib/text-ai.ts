@@ -1964,8 +1964,15 @@ function candidateModelsForFamilyRanking(s: Settings, provider: ConcreteProvider
 function sortProvidersByFamily(s: Settings, order: ConcreteProvider[], taskLevel: TextAiTaskLevel): ConcreteProvider[] {
   if (s.policyRankBy !== 'family' || (s.policy !== 'quality_first' && s.policy !== 'cost_saver')) return order
   const familyOrder = familyRankOrder(s)
-  return order.map((provider, index) => ({ provider, index, rank: Math.min(...candidateModelsForFamilyRanking(s, provider, taskLevel).map((model) => familyRankIndex(familyOrder, rankModelFamily(s, provider, model))), familyOrder.length) }))
-    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+  const tierRank = (provider: ConcreteProvider) => {
+    if (!s.paidFirst || taskLevel === 'GENERAL') return 0
+    const tier = providerTierFor(s, provider)
+    if (tier === 'PAID') return 0
+    if (tier === 'FREE') return 1
+    return 2
+  }
+  return order.map((provider, index) => ({ provider, index, tier: tierRank(provider), rank: Math.min(...candidateModelsForFamilyRanking(s, provider, taskLevel).map((model) => familyRankIndex(familyOrder, rankModelFamily(s, provider, model))), familyOrder.length) }))
+    .sort((a, b) => a.tier - b.tier || a.rank - b.rank || a.index - b.index)
     .map((item) => item.provider)
 }
 
