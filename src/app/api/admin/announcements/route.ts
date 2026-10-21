@@ -70,7 +70,7 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const auth = await requireAnnouncementAdmin()
-    if (auth.error) return auth.error
+    if (auth.error || !auth.user) return auth.error || NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
     const url = new URL(req.url)
     const id = String(url.searchParams.get('id') || '').trim()
     if (!id) return NextResponse.json({ error: 'معرّف الإعلان مطلوب' }, { status: 400 })
