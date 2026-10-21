@@ -1,8 +1,11 @@
-import { describe, expect, test } from 'bun:test'
-import { __testB2ProviderOrderForTests, __testPrimaryProviderOrder, __testStickyCandidateOrderForTests, modelFamily } from '../../src/lib/text-ai'
+import { beforeEach, describe, expect, test } from 'bun:test'
+import { __resetTextAiStateForTests, __testB2ProviderOrderForTests, __testPrimaryProviderOrder, __testStickyCandidateOrderForTests, modelFamily } from '../../src/lib/text-ai'
 import { __testVerifierFamilyAllowedForTests } from '../../src/lib/question-verifier'
 
 describe('router admin policy B2', () => {
+  beforeEach(() => {
+    __resetTextAiStateForTests()
+  })
   test('RANK_BY=provider preserves quality_first and cost_saver provider snapshots', () => {
     expect(__testB2ProviderOrderForTests({ policy: 'quality_first', rankBy: 'provider' }).slice(0, 5)).toEqual([
       'ANTHROPIC',
