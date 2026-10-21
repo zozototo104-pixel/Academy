@@ -18,7 +18,7 @@ export async function writeSiteAnnouncements(items: SiteAnnouncement[]): Promise
     create: { key: SITE_ANNOUNCEMENTS_KEY, value: JSON.stringify(items) },
     update: { value: JSON.stringify(items) },
   })
-  revalidateTag(SITE_ANNOUNCEMENTS_CACHE_TAG)
+  revalidateTag(SITE_ANNOUNCEMENTS_CACHE_TAG, { expire: 0 })
 }
 
 export const getActiveSiteAnnouncementsCached = unstable_cache(
