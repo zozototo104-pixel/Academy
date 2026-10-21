@@ -1,6 +1,22 @@
 import { getDefaultRequiredServiceDocumentTypes, getServiceDocumentOptions, getServiceFlow } from '@/lib/service-flows'
 
 export type AdmissionDocumentOption = { type: string; label: string }
+export type AdmissionRulesLike = { requiredDocuments?: string[] | null }
+
+export function parseAdmissionRules(raw: unknown): AdmissionRulesLike | null {
+  if (!raw) return null
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim()
+    if (!trimmed) return null
+    try {
+      const parsed = JSON.parse(trimmed)
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as AdmissionRulesLike : null
+    } catch {
+      return null
+    }
+  }
+  return typeof raw === 'object' && !Array.isArray(raw) ? raw as AdmissionRulesLike : null
+}
 
 export const REQUIRED_ADMISSION_DOCS: AdmissionDocumentOption[] = [
   { type: 'DEGREE', label: 'صورة عن الشهادة الجامعية وكشف العلامات (أو الثانوية للدبلومات)' },
