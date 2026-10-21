@@ -661,7 +661,7 @@ export function ApplyView() {
                   const selected = replacementFiles[key]
                   return (
                     <div key={key} className="rounded-xl border border-red-100 bg-white p-3">
-                      <Label className="text-xs font-black text-[#0f2b46]">{admissionDocLabel(type)}</Label>
+                      <Label className="text-xs font-black text-[#0f2b46]">{admissionDocLabel(type, app)}</Label>
                       <Input
                         type="file"
                         className="mt-2 h-10 text-xs"
