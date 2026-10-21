@@ -58,6 +58,7 @@ describe('router admin policy B2', () => {
       providerTiers: 'ALBORIHI:PAID,GROQ:FREE',
       paidFirst: true,
     })
+    __resetTextAiStateForTests()
     const general = __testB2ProviderOrderForTests({
       policy: 'balanced',
       providerTiers: 'ALBORIHI:PAID,GROQ:FREE',
