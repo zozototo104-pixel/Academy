@@ -113,10 +113,14 @@ function normalizeCandidate(candidate: unknown): unknown {
       qualityFlags.add('NORMALIZED_MCQ_LETTER')
     }
   }
-  if (q.type === 'ESSAY' && typeof q.correctAnswer === 'string' && q.correctAnswer.trim().length > 260) {
-    q.modelAnswer = q.correctAnswer.trim()
-    q.correctAnswer = null
-    qualityFlags.add('MOVED_ESSAY_LONG_ANSWER')
+  if (q.type === 'ESSAY' && typeof q.correctAnswer === 'string') {
+    const answerText = q.correctAnswer.trim()
+    const currentModelAnswer = typeof q.modelAnswer === 'string' ? q.modelAnswer.trim() : ''
+    if (answerText.length > 260 && answerText.length >= 40 && answerText.length <= 1800 && (!currentModelAnswer || currentModelAnswer.length < answerText.length)) {
+      q.modelAnswer = answerText
+      q.correctAnswer = null
+      qualityFlags.add('MOVED_ESSAY_LONG_ANSWER')
+    }
   }
   if ((q.type === 'SHORT' || q.type === 'ESSAY') && typeof q.correctAnswer === 'string' && q.correctAnswer.trim() && !String(q.modelAnswer || '').trim()) {
     q.modelAnswer = q.correctAnswer
