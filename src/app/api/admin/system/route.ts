@@ -195,6 +195,10 @@ export async function PATCH(req: NextRequest) {
         value = encryptSecret(value)
         await audit(admin, 'AI_KEY_UPDATED', 'Setting', key, `${key}:${last4}`)
       }
+      if (key === 'AI_ROUTER_COOLDOWN_MINUTES') {
+        const minutes = Number(value)
+        value = Number.isFinite(minutes) && Math.floor(minutes) >= 1 && Math.floor(minutes) <= 120 ? String(Math.floor(minutes)) : '15'
+      }
       if (key === 'AI_ACADEMIC_ALLOWLIST' || key === 'AI_VERIFIER_PREFERRED') {
         const items = value.split(',').map((item) => item.trim()).filter(Boolean)
         const ok = items.every(isValidTextAiProviderModelSettingItem)
