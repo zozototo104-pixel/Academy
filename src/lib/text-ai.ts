@@ -1977,8 +1977,8 @@ function sortProvidersByFamily(s: Settings, order: ConcreteProvider[], taskLevel
     .map((item) => item.provider)
 }
 
-function sortModelsByFamily(s: Settings, provider: ConcreteProvider, models: string[]): string[] {
-  if (s.policyRankBy !== 'family' || (s.policy !== 'quality_first' && s.policy !== 'cost_saver')) return models
+function sortModelsByFamily(s: Settings, provider: ConcreteProvider, models: string[], taskLevel: TextAiTaskLevel): string[] {
+  if (taskLevel === 'GENERAL' || s.policyRankBy !== 'family' || (s.policy !== 'quality_first' && s.policy !== 'cost_saver')) return models
   const familyOrder = familyRankOrder(s)
   return models.map((model, index) => ({ model, index, rank: familyRankIndex(familyOrder, rankModelFamily(s, provider, model)) }))
     .sort((a, b) => a.rank - b.rank || a.index - b.index)
