@@ -415,7 +415,7 @@ export function ApplyView() {
         fd.append('uploadToken', app.replacementUploadToken)
         fd.append('docType', docType)
         fd.append('file', file)
-        toast({ title: 'جاري رفع المرفقات المعدّلة', description: `رفع ${i + 1} من ${docTypes.length}: ${admissionDocLabel(docType)}` })
+        toast({ title: 'جاري رفع المرفقات المعدّلة', description: `رفع ${i + 1} من ${docTypes.length}: ${admissionDocLabel(docType, app)}` })
         await api('/api/admissions/files', { method: 'POST', body: fd })
       }
       const finalized = await api<{ message: string }>('/api/admissions/finalize', {
