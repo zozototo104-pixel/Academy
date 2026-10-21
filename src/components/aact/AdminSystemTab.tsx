@@ -1195,8 +1195,19 @@ export function AdminSystemTab() {
               <Badge className={textAiDiag?.externalConfigured ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}>{textAiDiag?.externalConfigured ? `نشط: ${textAiDiag.activeProvider}` : 'Gemini / غير خارجي'}</Badge>
             </div>
             {SelectF('AI_TEXT_PROVIDER', 'مزود النصوص', TEXT_PROVIDER_CHOICES, textProviderHelp)}
-            {SelectF('AI_ROUTER_POLICY', 'سياسة التوجيه', ROUTER_POLICY_CHOICES, 'الجودة والتكلفة ترتّب حسب المزوّد حالياً.')}
+            {SelectF('AI_ROUTER_POLICY', 'سياسة التوجيه', ROUTER_POLICY_CHOICES, routerPolicyHelp)}
             {SelectF('AI_ROUTER_POLICY_SOURCE', 'مصدر سياسة الراوتر', ROUTER_POLICY_SOURCE_CHOICES, 'افتراضي النظام يحافظ على balanced/primary_first المكتوبة في الكود. سياسة لوحة الإدارة تجعل المسارات تستخدم AI_ROUTER_POLICY.')}
+            {SelectF('AI_POLICY_RANK_BY', 'ترتيب الجودة والتكلفة حسب', POLICY_RANK_BY_CHOICES, 'provider يحافظ على السلوك الحالي، وfamily يرتب quality_first/cost_saver حسب عائلة النموذج.')}
+            {F('AI_PROVIDER_TIERS', 'مستويات المزودين AI_PROVIDER_TIERS', 'ALBORIHI:PAID,GROQ:FREE,GEMINI:FREE', 'text', 'مثال: ALBORIHI:PAID,GROQ:FREE,GEMINI:FREE')}
+            <div className="flex items-center justify-between rounded-xl border border-indigo-100 bg-white px-4 py-3">
+              <div>
+                <p className="text-xs font-black text-indigo-900">المدفوع أولاً بالمهام الأكاديمية</p>
+                <p className="text-[10px] leading-relaxed text-indigo-700">عند التفعيل، المهام الأكاديمية والمدقق يجربون مزودي PAID قبل FREE ثم غير المصنّفين، ولا يؤثر على الشات العام.</p>
+              </div>
+              <Switch checked={form.AI_PAID_FIRST === 'true' || form.AI_PAID_FIRST === '1'} onCheckedChange={(v) => set('AI_PAID_FIRST', v ? 'true' : 'false')} />
+            </div>
+            {F('AI_FAMILY_QUALITY_ORDER', 'ترتيب عائلات الجودة AI_FAMILY_QUALITY_ORDER', DEFAULT_FAMILY_QUALITY_ORDER, 'text', 'اختياري. اتركه فارغاً لاستخدام الترتيب الافتراضي.')}
+            {F('AI_FAMILY_COST_ORDER', 'ترتيب عائلات التوفير AI_FAMILY_COST_ORDER', DEFAULT_FAMILY_COST_ORDER, 'text', 'اختياري. اتركه فارغاً لاستخدام الترتيب الافتراضي.')}
             {F('AI_ROUTER_COOLDOWN_MINUTES', 'مدة التبريد الافتراضية (دقائق)', '15', 'number', 'رقم من 1 إلى 120. إذا تُرك فارغاً أو خارج النطاق يعود إلى 15 دقيقة.')}
             {F('AI_ACADEMIC_ALLOWLIST', 'قائمة المهام الحساسة AI_ACADEMIC_ALLOWLIST', 'GEMINI:gemini-3.5-flash,GEMINI:gemini-3.8-flash', 'text', academicAllowlistHelp)}
             <div className="flex items-center justify-between rounded-xl border border-indigo-100 bg-white px-4 py-3">
