@@ -267,7 +267,6 @@ export async function POST(req: NextRequest) {
     }
     if (action === 'router-state') {
       const state = await textAiRouterStateSnapshot()
-      await audit(admin, 'AI_ROUTER_STATE_VIEWED', 'Setting', null, `حالة الراوتر: ${state.length} عناصر فعالة`)
       return NextResponse.json({ ok: true, state })
     }
     if (action === 'clear-router-state') {
