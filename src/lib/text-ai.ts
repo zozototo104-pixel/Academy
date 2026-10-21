@@ -3135,15 +3135,16 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
         continue
       }
       const routedKeys = candidateKeys(provider, s)
-      const keys = usableSticky && usableSticky.provider === provider && usableSticky.model === model && routedKeys.includes(usableSticky.key)
-        ? [usableSticky.key, ...routedKeys.filter((key) => key !== usableSticky.key)]
-        : routedKeys
-      for (const key of keys) {
-        const keyIndex = Math.max(1, providerKeys(s, provider).indexOf(key) + 1)
+      const stickyKeyQueue = usableSticky && usableSticky.provider === provider && usableSticky.model === model && routedKeys.includes(usableSticky.key)
+        ? [usableSticky.key, ...routedKeys.filter((candidateKey) => candidateKey !== usableSticky.key)]
+        : null
+      for (const key of candidateKeys(provider, s)) {
+        const currentKey = stickyKeyQueue ? (stickyKeyQueue.shift() || key) : key
+        const keyIndex = Math.max(1, providerKeys(s, provider).indexOf(currentKey) + 1)
         const persistedKeyCooldown = persistentKeyCooldown(persistentCooldowns, provider, keyIndex)
         const persistedModelCooldown = persistentModelCooldown(persistentCooldowns, provider, keyIndex, model)
-        const memoryKeyCooldown = activeMemoryCooldown(provider, key)
-        const memoryModelCooldown = activeMemoryModelCooldown(provider, key, model)
+        const memoryKeyCooldown = activeMemoryCooldown(provider, currentKey)
+        const memoryModelCooldown = activeMemoryModelCooldown(provider, currentKey, model)
         if (isPersistentNoBalance(persistentCooldowns, provider, keyIndex)) {
           noteNoCandidate(provider, model, 'NO_BALANCE')
           continue
