@@ -1188,6 +1188,13 @@ export function AdminSystemTab() {
               <Switch checked={form.AI_ACADEMIC_ALLOWLIST_STRICT === 'true' || form.AI_ACADEMIC_ALLOWLIST_STRICT === '1'} onCheckedChange={(v) => set('AI_ACADEMIC_ALLOWLIST_STRICT', v ? 'true' : 'false')} />
             </div>
             {F('AI_VERIFIER_PREFERRED', 'نماذج مدقق الأسئلة المفضلة AI_VERIFIER_PREFERRED', 'OPENAI:gpt-5.1,ANTHROPIC:claude-sonnet-4-5-20250929', 'text', 'تُجرّب كمدققين أولاً بنفس صيغة provider:model، مفصولة بفواصل. ممنوع auto.')}
+            <div className="flex items-center justify-between rounded-xl border border-indigo-100 bg-white px-4 py-3">
+              <div>
+                <p className="text-xs font-black text-indigo-900">مدقق صارم</p>
+                <p className="text-[10px] leading-relaxed text-indigo-700">عند التفعيل، مدقق الأسئلة يستخدم AI_VERIFIER_PREFERRED فقط، وإذا لم يتوفر مدقق يبقى السؤال بانتظار المراجعة.</p>
+              </div>
+              <Switch checked={form.AI_VERIFIER_STRICT === 'true' || form.AI_VERIFIER_STRICT === '1'} onCheckedChange={(v) => set('AI_VERIFIER_STRICT', v ? 'true' : 'false')} />
+            </div>
             <div className="flex items-center justify-between rounded-xl border border-indigo-100 bg-white px-4 py-3 sm:col-span-2">
               <div>
                 <p className="text-xs font-black text-indigo-900">السماح بالبوابات العامة كاحتياط</p>
