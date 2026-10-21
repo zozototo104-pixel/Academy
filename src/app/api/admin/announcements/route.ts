@@ -10,9 +10,9 @@ import {
 
 async function requireAnnouncementAdmin() {
   const user = await getCurrentUser()
-  if (!user) return { error: NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 }) }
-  if (!canManageSiteAnnouncements(user)) return { error: NextResponse.json({ error: 'FORBIDDEN' }, { status: 403 }) }
-  return { user }
+  if (!user) return { user: null, error: NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 }) }
+  if (!canManageSiteAnnouncements(user)) return { user: null, error: NextResponse.json({ error: 'FORBIDDEN' }, { status: 403 }) }
+  return { user, error: null }
 }
 
 function jsonError(error: unknown, status = 400) {
