@@ -618,6 +618,7 @@ export async function GET(req: NextRequest) {
         finalRequired: totalTuition,
       } : null
       const documentReplacementRequest = extractAdmissionDocumentReplacement(app.notes)
+      const docRequirements = resolveProgramAdmissionDocumentRequirements(app.programRef, (app.files || []).map((f: any) => f.docType))
       return {
       id: app.id,
       reference: app.reference,
