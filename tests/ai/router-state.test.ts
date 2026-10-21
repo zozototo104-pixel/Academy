@@ -96,7 +96,7 @@ describe('text AI router state transparency', () => {
   test('saved router cooldown minutes take precedence over env and invalid values fall back to 15', () => {
     expect(__testResolveRouterCooldownMinutesForTests('45', '7')).toBe(45)
     expect(__testResolveRouterCooldownMinutesForTests('', '7')).toBe(7)
-    expect(__testResolveRouterCooldownMinutesForTests('0', '7')).toBe(7)
+    expect(__testResolveRouterCooldownMinutesForTests('0', '7')).toBe(15)
     expect(__testResolveRouterCooldownMinutesForTests('999', '999')).toBe(15)
     expect(__testResolveRouterCooldownMinutesForTests('bad', '')).toBe(15)
   })
