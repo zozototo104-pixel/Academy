@@ -254,7 +254,7 @@ describe('router admin policy B1', () => {
     }) as any
 
     await textAiComplete({ system: 's', history: [{ role: 'user', text: 'batch 3' }], taskLevel: 'ACADEMIC_CRITICAL', purpose: 'GENERATION', taskType: 'question-bank' })
-    expect(calls[0]).toBe('claude-opus-4-6')
+    expect(calls[0]).toBe('gpt-5')
   })
 
   test('strict academic allowlist 503 failures throw the pausable academic unavailable code', async () => {
