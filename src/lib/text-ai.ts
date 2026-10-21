@@ -1962,8 +1962,12 @@ function candidateModelsForFamilyRanking(s: Settings, provider: ConcreteProvider
   return [...new Set(source.filter(Boolean))]
 }
 
-function sortProvidersByFamily(s: Settings, order: ConcreteProvider[], taskLevel: TextAiTaskLevel): ConcreteProvider[] {
-  if (taskLevel === 'GENERAL' || s.policyRankBy !== 'family' || (s.policy !== 'quality_first' && s.policy !== 'cost_saver')) return order
+function canRankProvidersByFamily(s: Settings, taskLevel: TextAiTaskLevel): taskLevel is Exclude<TextAiTaskLevel, 'GENERAL'> {
+  return taskLevel !== 'GENERAL' && s.policyRankBy === 'family' && (s.policy === 'quality_first' || s.policy === 'cost_saver')
+}
+
+function sortProvidersByFamily(s: Settings, order: ConcreteProvider[], taskLevel: Exclude<TextAiTaskLevel, 'GENERAL'>): ConcreteProvider[] {
+  if (s.policyRankBy !== 'family' || (s.policy !== 'quality_first' && s.policy !== 'cost_saver')) return order
   const familyOrder = familyRankOrder(s)
   const tierRank = (provider: ConcreteProvider) => {
     if (!s.paidFirst) return 0
