@@ -2885,7 +2885,12 @@ export function AdminBooksTab() {
                           <p className="font-black">مصدر الوحدة من الفهرس</p>
                           <p>{unit.source.bookTitle ? `الكتاب: ${unit.source.bookTitle} · ` : ''}{unit.source.sectionTitle || 'قسم من الفهرس'}{unit.source.pageStart != null ? ` · صفحات ${unit.source.pageStart}–${unit.source.pageEnd ?? unit.source.pageStart}` : ''}{unit.source.chunkStartIndex != null ? ` · مقاطع ${unit.source.chunkStartIndex}–${unit.source.chunkEndIndex ?? unit.source.chunkStartIndex}` : ''}</p>
                           {unit.generationVersion != null && <p>إصدار توليد الوحدة: {unit.generationVersion}</p>}
-                          {unit.generationJob?.lastError && <p className="text-red-700">آخر خطأ: {unit.generationJob.lastError}</p>}
+                          {unit.generationJob && <div className="mt-2 space-y-1">
+                            <p>تقدم توليد الوحدة: {unit.generationJob.unitsTotal > 0 ? `${Math.min(unit.generationJob.unitsDone, unit.generationJob.unitsTotal)} من ${unit.generationJob.unitsTotal}` : aiProgressLabel(unit.generationJob.unitsDone, unit.generationJob.unitsTotal)}</p>
+                            <div role="progressbar" aria-label="تقدم توليد الوحدة" aria-valuenow={unit.generationJob.unitsDone} aria-valuemin={0} aria-valuemax={Math.max(1, unit.generationJob.unitsTotal)} className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-indigo-500" style={{ width: `${aiProgressPercent(unit.generationJob.unitsDone, unit.generationJob.unitsTotal) ?? 0}%` }} /></div>
+                            {aiStatusHelp(unit.generationJob.status, unit.generationJob.lastError) ? <p className="text-red-700">{aiStatusHelp(unit.generationJob.status, unit.generationJob.lastError)}</p> : null}
+                            {unit.generationJob.lastError && ['PAUSED', 'FAILED'].includes(String(unit.generationJob.status || '')) ? <p className="break-words text-[10px] text-slate-500">الكود الأصلي: {unit.generationJob.lastError}</p> : null}
+                          </div>}
                         </div>}
                         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-indigo-100 bg-indigo-50/60 p-3 text-[11px] font-bold text-indigo-900">
                           <span>بنك أسئلة الوحدة: {unit.questionBankSummary?.approved || 0} معتمد · {unit.questionBankSummary?.pendingReview || 0} بانتظار المراجعة · {unit.questionBankSummary?.rejected || 0} مرفوض — الاختبار: {unit.exam?.id ? unit.exam.status === 'DRAFT' ? 'مسودة' : 'جاهز' : 'ما انبنى'}</span>
