@@ -408,7 +408,7 @@ export function ApplyView() {
       for (let i = 0; i < docTypes.length; i++) {
         const docType = docTypes[i]
         const file = replacementFiles[`${app.id}:${docType}`]
-        if (!file) throw new Error(`المرفق المطلوب غير مختار: ${admissionDocLabel(docType)}`)
+        if (!file) throw new Error(`المرفق المطلوب غير مختار: ${admissionDocLabel(docType, app)}`)
         const fd = new FormData()
         fd.append('applicationId', app.id)
         fd.append('reference', app.reference)
