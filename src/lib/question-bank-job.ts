@@ -50,6 +50,11 @@ export type QuestionBankJobTrace = {
     verifierModel?: string | null
     sameProviderVerifierFallback?: boolean
   }
+  lastSuccess?: {
+    generation?: { stage: 'generation'; provider: string; model: string; at: string }
+    verification?: { stage: 'verification'; provider: string; model: string; at: string }
+  }
+  lastError?: { code: string; at: string }
 }
 
 type JobFailureState = { lastError: string; count: number }
