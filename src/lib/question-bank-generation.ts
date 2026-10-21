@@ -125,7 +125,7 @@ function normalizeCandidate(candidate: unknown): unknown {
   if (q.type === 'SHORT' && typeof q.correctAnswer === 'string' && q.correctAnswer.trim() && !String(q.modelAnswer || '').trim()) {
     q.modelAnswer = q.correctAnswer
     q.correctAnswer = null
-    qualityFlags.add('MOVED_SHORT_ANSWER')
+    qualityFlags.add('MOVED_ESSAY_ANSWER')
   }
   q.qualityFlags = Array.from(qualityFlags)
   return q
