@@ -2344,6 +2344,11 @@ export function AdminView() {
           <AdminSystemTab />
         </TabsContent>
 
+        {/* الإعلانات */}
+        <TabsContent value="announcements">
+          <AdminAnnouncementsTab announcements={announcements} loading={announcementsLoading} onRefresh={reloadAnnouncements} />
+        </TabsContent>
+
         {/* سجل التدقيق */}
         <TabsContent value="audit">
           <AdminAuditTab />
