@@ -20,6 +20,7 @@ export type TextAiProvider =
   | 'AUTO'
 
 export type TextAiRouterPolicy = 'primary_first' | 'balanced' | 'quality_first' | 'cost_saver' | 'fallback_only'
+export type TextAiRouterPolicySource = 'legacy' | 'admin'
 export type TextAiTaskLevel = 'GENERAL' | 'ACADEMIC_DRAFT' | 'ACADEMIC_CRITICAL'
 export type TextAiProviderTier = 'FREE' | 'PAID'
 export type TextAiPaidUsageMode = 'off' | 'last_resort' | 'critical_first'
