@@ -1177,6 +1177,7 @@ export function AdminSystemTab() {
             </div>
             {SelectF('AI_TEXT_PROVIDER', 'مزود النصوص', TEXT_PROVIDER_CHOICES, 'في المهام الأكاديمية تتقدّم المهام الحساسة على المزوّد المختار.')}
             {SelectF('AI_ROUTER_POLICY', 'سياسة التوجيه', ROUTER_POLICY_CHOICES, 'الجودة والتكلفة ترتّب حسب المزوّد حالياً.')}
+            {SelectF('AI_ROUTER_POLICY_SOURCE', 'مصدر سياسة الراوتر', ROUTER_POLICY_SOURCE_CHOICES, 'افتراضي النظام يحافظ على balanced/primary_first المكتوبة في الكود. سياسة لوحة الإدارة تجعل المسارات تستخدم AI_ROUTER_POLICY.')}
             {F('AI_ROUTER_COOLDOWN_MINUTES', 'مدة التبريد الافتراضية (دقائق)', '15', 'number', 'رقم من 1 إلى 120. إذا تُرك فارغاً أو خارج النطاق يعود إلى 15 دقيقة.')}
             {F('AI_ACADEMIC_ALLOWLIST', 'قائمة المهام الحساسة AI_ACADEMIC_ALLOWLIST', 'GEMINI:gemini-3.5-flash,GEMINI:gemini-3.8-flash', 'text', 'قائمة أولوية: تُجرّب أولاً بالترتيب، وقد يجرّب النظام نماذج أخرى بعدها.')}
             {F('AI_VERIFIER_PREFERRED', 'نماذج مدقق الأسئلة المفضلة AI_VERIFIER_PREFERRED', 'OPENAI:gpt-5.1,ANTHROPIC:claude-sonnet-4-5-20250929', 'text', 'تُجرّب كمدققين أولاً بنفس صيغة provider:model، مفصولة بفواصل. ممنوع auto.')}
