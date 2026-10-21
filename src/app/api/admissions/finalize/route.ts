@@ -54,7 +54,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'طلب استبدال المرفقات غير مكتمل من جهة الإدارة. تواصل مع الإدارة لتجديد الطلب.' }, { status: 400 })
     }
 
-    const serviceFlow = getServiceFlow(app.programRef?.slug)
     const docRequirements = resolveProgramAdmissionDocumentRequirements(app.programRef, (app.files || []).map((f) => f.docType))
     const isServiceRequest = docRequirements.isServiceRequest
     const requiredDocList = docRequirements.requiredDocs
