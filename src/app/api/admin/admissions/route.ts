@@ -134,7 +134,7 @@ export async function GET(req: NextRequest) {
       : []
     const programMap = new Map(programs.map((p) => [p.id, p]))
     const enrichedApps = apps.map((app) => {
-      const program = app.programId ? programMap.get(app.programId) : null
+      const program = app.programRef || (app.programId ? programMap.get(app.programId) : null)
       const flow = getServiceFlow(program?.slug)
       const isStudyProgram = flow ? flow.isStudyProgram : program?.category !== 'SERVICE'
       const requestKind = flow?.kind || (isStudyProgram ? 'DEGREE_STUDY' : 'SERVICE_REQUEST')
