@@ -3118,17 +3118,17 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           if (isHighDemandLike(e)) {
             skipModelsThisRequest.add(`${provider}:${model}`)
             if (highDemandCooldownScope(model, msg, status) === 'model') {
-              markModelCooldown(provider, key, model, msg, 2, status)
-              await markPersistentCooldown(provider, keyIndex, model, msg, status, 2)
+              await applyTransientModelFailureCooldown(provider, key, keyIndex, model, msg, status, 1)
             } else {
               markCooldown(provider, key, msg, 1, status)
-              await markPersistentCooldown(provider, keyIndex, model, msg, status, 1)
+              await markPersistentCooldown(provider, keyIndex, undefined, msg, status, 1)
             }
             break
           }
           if (isTimeoutLike(e)) {
-            markCooldown(provider, key, msg, 2, status)
-            if (status === 503 || status === 504) await markPersistentCooldown(provider, keyIndex, model, msg, status, 2)
+            skipModelsThisRequest.add(`${provider}:${model}`)
+            await applyTransientModelFailureCooldown(provider, key, keyIndex, model, msg, status, 2)
+            break
           }
           if (isQuotaLike(e)) {
             recordProviderRateLimitAndMaybeCooldown(provider, effectiveOpts, msg, status)
