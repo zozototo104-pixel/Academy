@@ -286,6 +286,7 @@ export function __resetTextAiStateForTests() {
   recentAttempts = []
   freeModelsCache.clear()
   persistentCooldownCache = null
+  cachedRouterCooldownMinutes = normalizeRouterCooldownMinutesValue(env('AI_ROUTER_COOLDOWN_MINUTES')) || 15
   routerRequestSeq = 0
   stickyModels.clear()
 }
