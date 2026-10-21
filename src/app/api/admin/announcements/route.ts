@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const auth = await requireAnnouncementAdmin()
-    if (auth.error) return auth.error
+    if (auth.error || !auth.user) return auth.error || NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
     const body = await req.json()
     const id = String(body?.id || '').trim()
     if (!id) return NextResponse.json({ error: 'معرّف الإعلان مطلوب' }, { status: 400 })
