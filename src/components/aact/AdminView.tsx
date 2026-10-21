@@ -1241,6 +1241,7 @@ export function AdminView() {
                 const ownerName = a.user?.name?.trim() || ''
                 const applicantName = a.fullName?.trim() || ''
                 const ownerNameDiffers = !!ownerName && !!applicantName && ownerName !== applicantName
+                const missingDocumentLabels = (a.missingDocs || []).map((doc) => doc.label || DOC_TYPE_AR[doc.type] || doc.type)
                 return (
                   <Card
                     key={a.id}
