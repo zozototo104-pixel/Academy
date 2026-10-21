@@ -1175,6 +1175,7 @@ export function AdminView() {
             </p>
             <TabsList className="flex h-auto w-full flex-wrap gap-1 bg-transparent p-0">
               <TabsTrigger value="system" className="gap-1 text-[10px] font-bold sm:text-xs">البريد والدفع والفيديو</TabsTrigger>
+              <TabsTrigger value="announcements" className="gap-1 text-[10px] font-bold sm:text-xs">الإعلانات</TabsTrigger>
               <TabsTrigger value="settings" className="gap-1 text-[10px] font-bold sm:text-xs">الرسوم والقواعد</TabsTrigger>
               <TabsTrigger value="admins" className="gap-1 text-[10px] font-bold sm:text-xs">مدراء النظام</TabsTrigger>
               <TabsTrigger value="audit" className="gap-1 text-[10px] font-bold sm:text-xs">سجل التدقيق</TabsTrigger>
