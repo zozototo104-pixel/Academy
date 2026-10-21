@@ -2909,7 +2909,7 @@ export function __testStickyScopeForTests(args: { stickyOnSuccess?: boolean; sti
   return stickyScopeForRequest({ stickyOnSuccess: args.stickyOnSuccess === true } as Settings, { system: '', history: [], stickyScope: args.stickyScope, purpose: args.purpose, taskType: args.taskType } as TextAiCallOpts, args.verifierCall === true)
 }
 
-export function __testStickyCandidateOrderForTests(args: { stickyOnSuccess?: boolean; scope?: string; provider?: TextAiProvider; model?: string; key?: string; candidates: string[]; verifierCall?: boolean; generatorModel?: string; cooldown?: boolean; strictCandidates?: string[] }): string[] {
+export function __testStickyCandidateOrderForTests(args: { stickyOnSuccess?: boolean; scope?: string; provider?: TextAiProvider; model?: string; key?: string; candidates: string[]; verifierCall?: boolean; generatorModel?: string; cooldown?: boolean; noBalance?: boolean; modelDead?: boolean; strictCandidates?: string[] }): string[] {
   __resetTextAiStateForTests()
   const provider = normalizeProvider(args.provider || 'ALBORIHI')
   if (provider === 'AUTO') return args.candidates
