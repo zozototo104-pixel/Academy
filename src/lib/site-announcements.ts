@@ -1,6 +1,7 @@
 import { unstable_cache, revalidateTag } from 'next/cache'
 import { db } from '@/lib/db'
 import { filterActiveSiteAnnouncements, parseSiteAnnouncementsValue } from '@/lib/site-announcements-core'
+import type { SiteAnnouncement } from '@/lib/site-announcements-core'
 export * from '@/lib/site-announcements-core'
 
 export const SITE_ANNOUNCEMENTS_KEY = 'SITE_ANNOUNCEMENTS'
