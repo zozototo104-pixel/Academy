@@ -1900,6 +1900,16 @@ function providerOrder(s: Settings, taskLevel: TextAiTaskLevel = 'GENERAL'): Con
   })
 }
 
+function resolveRouterPolicy(purpose: TextAiPurpose | undefined, s: Settings, hardcoded?: TextAiRouterPolicy): TextAiRouterPolicy {
+  void purpose
+  return s.policySource === 'admin' ? s.policy : (hardcoded || s.policy)
+}
+
+export function __testResolveRouterPolicyForTests(policySource: TextAiRouterPolicySource, adminPolicy: TextAiRouterPolicy, hardcoded?: TextAiRouterPolicy): TextAiRouterPolicy {
+  const s = { policySource, policy: adminPolicy } as Settings
+  return resolveRouterPolicy(undefined, s, hardcoded)
+}
+
 export async function hasExternalTextAi(): Promise<boolean> {
   const s = await settings()
   return providerOrder(s).length > 0
