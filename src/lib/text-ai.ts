@@ -3047,6 +3047,24 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const persistentCooldowns = await loadPersistentCooldowns()
   const exploreModels = ++routerRequestSeq % 5 === 0
   const estimatedPaidCost = estimatedPaidCostUsd(effectiveOpts)
+  const stickyResolution = await resolveUsableStickyModel({
+    s,
+    opts: effectiveOpts,
+    scope: stickyScope,
+    preferredModels,
+    orderedProviders,
+    taskLevel,
+    verifierCall,
+    excludedFamilies,
+    persistentCooldowns,
+    attachments,
+    exploreModels,
+    allowAlborihiCrossFamilyVerifier,
+    estimatedPaidCost,
+  })
+  if (stickyScope && stickyResolution.deleteSticky) stickyModels.delete(stickyScope)
+  const usableSticky = stickyResolution.sticky
+  if (usableSticky) providers = [usableSticky.provider, ...providers.filter((provider) => provider !== usableSticky.provider)]
   const estimatedInputTokens = estimatePromptTokens(effectiveOpts.system, effectiveOpts.history)
   const estimatedOutputTokens = Number(effectiveOpts.maxOutputTokens || (effectiveOpts.json ? 4096 : 2048))
   await enforceAiUserDailyCostCap({
