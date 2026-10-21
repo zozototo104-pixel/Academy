@@ -100,7 +100,13 @@ function sanitizeTextAiProviderTiers(value: string): string | null {
 function sanitizeFamilyOrder(value: string): string {
   const allowed = new Set(['claude', 'gpt', 'gemini', 'deepseek', 'qwen', 'kimi', 'glm', 'grok', 'gpt-oss', 'llama', 'other'])
   const seen = new Set<string>()
-  const items = value.split(',').map((item) => item.trim().toLowerCase()).filter((item) => item && allowed.has(item) && !seen.has(item) && (seen.add(item) || true))
+  const items: string[] = []
+  for (const raw of value.split(',')) {
+    const item = raw.trim().toLowerCase()
+    if (!item || !allowed.has(item) || seen.has(item)) continue
+    seen.add(item)
+    items.push(item)
+  }
   return items.join(',')
 }
 
