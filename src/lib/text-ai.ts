@@ -118,6 +118,19 @@ export interface TextAiDiagnostics {
   message: string
 }
 
+export type TextAiRouterStateType = 'KEY_COOLDOWN' | 'MODEL_COOLDOWN' | 'PROVIDER_COOLDOWN' | 'NO_BALANCE' | 'MODEL_DEAD'
+
+export interface TextAiRouterStateItem {
+  type: TextAiRouterStateType
+  source: 'db' | 'memory'
+  provider: string
+  keyIndex: number | null
+  model: string | null
+  until: string
+  reason: string
+  status: number | null
+}
+
 const OPENAI_TEXT_MODELS = ['gpt-5.1', 'gpt-5', 'gpt-5-mini']
 const ANTHROPIC_TEXT_MODELS = ['claude-sonnet-4-5-20250929', 'claude-opus-4-1-20250805', 'claude-sonnet-4-20250514', 'claude-3-7-sonnet-20250219', 'claude-3-5-haiku-20241022']
 const ZAI_TEXT_MODELS = ['glm-4.5', 'glm-4.5-air', 'glm-4.5-x', 'glm-4.5-airx']
