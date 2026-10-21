@@ -697,14 +697,36 @@ function isHighDemandLike(e: any): boolean {
 }
 
 function highDemandCooldownScope(model: string, message: unknown, status?: number): 'model' | 'key' {
-  if (Number(status || 0) === 503 && rateLimitMessageMentionsSpecificModel(model, message)) return 'model'
+  if (String(model || '').trim() && Number(status || 0) === 503) return 'model'
   const msg = String(message || '').toLowerCase()
-  if (/(busy|high demand)/i.test(msg) && rateLimitMessageMentionsSpecificModel(model, msg)) return 'model'
+  if (String(model || '').trim() && /(busy|high demand|overloaded|temporarily unavailable|capacity)/i.test(msg)) return 'model'
   return 'key'
+}
+
+function recordTransientModelFailureAndShouldCoolKey(provider: ConcreteProvider, key: string, model: string, now = Date.now()): boolean {
+  const id = `${provider}:${key}`
+  const recent = (transientModelFailureHits.get(id) || [])
+    .filter((item) => now - item.at <= TRANSIENT_MODEL_FAILURE_WINDOW_MS)
+  recent.push({ model, at: now })
+  transientModelFailureHits.set(id, recent)
+  return new Set(recent.map((item) => item.model)).size >= 3
+}
+
+async function applyTransientModelFailureCooldown(provider: ConcreteProvider, key: string, keyIndex: number, model: string, message: string, status: number | undefined, keyCooldownMinutes: number): Promise<void> {
+  markModelCooldown(provider, key, model, message, 2, status)
+  await markPersistentCooldown(provider, keyIndex, model, message, status, 2)
+  if (recordTransientModelFailureAndShouldCoolKey(provider, key, model)) {
+    markCooldown(provider, key, message, keyCooldownMinutes, status)
+    await markPersistentCooldown(provider, keyIndex, undefined, message, status, keyCooldownMinutes)
+  }
 }
 
 export function __testHighDemandCooldownDecisionForTests(model: string, message: string, status?: number): 'model' | 'key' {
   return highDemandCooldownScope(model, message, status)
+}
+
+export function __testTransientModelFailureEscalationForTests(provider: ConcreteProvider, key: string, models: string[], now = Date.now()): boolean[] {
+  return models.map((model, index) => recordTransientModelFailureAndShouldCoolKey(provider, key, model, now + index * 1000))
 }
 
 function isQuotaLike(e: any): boolean {
