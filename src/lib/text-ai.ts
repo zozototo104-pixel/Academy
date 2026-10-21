@@ -1888,6 +1888,7 @@ function providerOrder(s: Settings, taskLevel: TextAiTaskLevel = 'GENERAL'): Con
       ? [selected, ...preferred.filter((provider) => provider !== selected), ...rest.filter((provider) => provider !== selected)]
       : [...preferred, ...rest]
     const ordered = academicOrder.filter((provider) => providerKeys(s, provider).length > 0)
+    if (s.policySource === 'admin' && s.policy === 'primary_first' && selected) return ordered
     return ordered.includes('OPENAI') ? [...ordered.filter((provider) => provider !== 'OPENAI'), 'OPENAI'] : ordered
   }
   const publicGateways = new Set<ConcreteProvider>(['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT'])
