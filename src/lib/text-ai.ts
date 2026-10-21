@@ -2829,8 +2829,9 @@ export function modelFamily(model: string): string {
     .replace(/^moonshotai\//, '')
     .replace(/^cohere\//, '')
   if (/gemini|gemma/.test(normalized)) return 'gemini'
-  if (/gpt[-_]?oss|\bgpt[-_]?|o\d(?:[-_]|$)|chatgpt/.test(normalized)) return 'gpt'
-  if (/claude/.test(normalized)) return 'claude'
+  if (/gpt[-_]?oss/.test(normalized)) return 'gpt-oss'
+  if (/\bgpt[-_]?|o\d(?:[-_]|$)|chatgpt/.test(normalized)) return 'gpt'
+  if (/claude|sonnet|opus|haiku/.test(normalized)) return 'claude'
   if (/llama|codellama/.test(normalized)) return 'llama'
   if (/qwen/.test(normalized)) return 'qwen'
   if (/deepseek/.test(normalized)) return 'deepseek'
