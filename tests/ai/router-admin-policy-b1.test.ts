@@ -54,6 +54,14 @@ describe('router admin policy B1', () => {
       academicStrict: true,
     })).toEqual(['claude-sonnet-5'])
 
+    expect(__testStrictCandidateModelsForTests({
+      provider: 'ALBORIHI',
+      models: ['gpt-5.6-luna', 'claude-opus-4-6'],
+      taskLevel: 'ACADEMIC_CRITICAL',
+      academicAllowlist: 'ALBORIHI:claude-sonnet-5',
+      academicStrict: true,
+    })).toEqual([])
+
     expect(__testAcademicProviderUnavailableCodeForTests()).toBe('AI_ACADEMIC_PROVIDER_UNAVAILABLE')
   })
 
