@@ -326,6 +326,7 @@ function questionBankProgressFromJob(job?: QuestionBankJobRow | null): AiGenerat
     failedBatches: Number(job.failedBatches || 0),
     lastError: job.lastError || null,
     updatedAt: job.updatedAt,
+    trace: job.trace || null,
   }
 }
 
