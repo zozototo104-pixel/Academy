@@ -1180,6 +1180,13 @@ export function AdminSystemTab() {
             {SelectF('AI_ROUTER_POLICY_SOURCE', 'مصدر سياسة الراوتر', ROUTER_POLICY_SOURCE_CHOICES, 'افتراضي النظام يحافظ على balanced/primary_first المكتوبة في الكود. سياسة لوحة الإدارة تجعل المسارات تستخدم AI_ROUTER_POLICY.')}
             {F('AI_ROUTER_COOLDOWN_MINUTES', 'مدة التبريد الافتراضية (دقائق)', '15', 'number', 'رقم من 1 إلى 120. إذا تُرك فارغاً أو خارج النطاق يعود إلى 15 دقيقة.')}
             {F('AI_ACADEMIC_ALLOWLIST', 'قائمة المهام الحساسة AI_ACADEMIC_ALLOWLIST', 'GEMINI:gemini-3.5-flash,GEMINI:gemini-3.8-flash', 'text', 'قائمة أولوية: تُجرّب أولاً بالترتيب، وقد يجرّب النظام نماذج أخرى بعدها.')}
+            <div className="flex items-center justify-between rounded-xl border border-indigo-100 bg-white px-4 py-3">
+              <div>
+                <p className="text-xs font-black text-indigo-900">قائمة صارمة للمهام الحساسة</p>
+                <p className="text-[10px] leading-relaxed text-indigo-700">عند التفعيل، المهام الأكاديمية تستخدم نماذج AI_ACADEMIC_ALLOWLIST فقط ولا تجرب نماذج مكتشفة خارجها.</p>
+              </div>
+              <Switch checked={form.AI_ACADEMIC_ALLOWLIST_STRICT === 'true' || form.AI_ACADEMIC_ALLOWLIST_STRICT === '1'} onCheckedChange={(v) => set('AI_ACADEMIC_ALLOWLIST_STRICT', v ? 'true' : 'false')} />
+            </div>
             {F('AI_VERIFIER_PREFERRED', 'نماذج مدقق الأسئلة المفضلة AI_VERIFIER_PREFERRED', 'OPENAI:gpt-5.1,ANTHROPIC:claude-sonnet-4-5-20250929', 'text', 'تُجرّب كمدققين أولاً بنفس صيغة provider:model، مفصولة بفواصل. ممنوع auto.')}
             <div className="flex items-center justify-between rounded-xl border border-indigo-100 bg-white px-4 py-3 sm:col-span-2">
               <div>
