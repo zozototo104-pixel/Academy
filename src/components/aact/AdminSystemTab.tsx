@@ -92,6 +92,17 @@ interface TextAiModelHealth {
   health?: Array<{ provider: string; model: string; status: string; purposeScores?: Record<string, number>; health?: { ok: boolean; latencyMs?: number; checkedAt?: string; status?: number; error?: string } | null }>
 }
 
+interface TextAiRouterStateItem {
+  type: 'KEY_COOLDOWN' | 'MODEL_COOLDOWN' | 'PROVIDER_COOLDOWN' | 'NO_BALANCE' | 'MODEL_DEAD'
+  source: 'db' | 'memory'
+  provider: string
+  keyIndex: number | null
+  model: string | null
+  until: string
+  reason: string
+  status: number | null
+}
+
 interface BackupInspectResult {
   ok: boolean
   mode: 'inspect' | 'restore'
