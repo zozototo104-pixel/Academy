@@ -3036,9 +3036,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
       return ai - bi
     })
     : baseOrderedProviders
-  const providers = sticky && orderedProviders.includes(sticky.provider)
-    ? [sticky.provider, ...orderedProviders.filter((provider) => provider !== sticky.provider)]
-    : orderedProviders
+  let providers = orderedProviders
   if (!providers.length) {
     if (isVerifierCall(effectiveOpts)) throw verifierUnavailable([])
     if (taskLevel === 'ACADEMIC_CRITICAL') throw academicProviderUnavailable([])
