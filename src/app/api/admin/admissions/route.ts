@@ -155,6 +155,8 @@ export async function GET(req: NextRequest) {
           downloadUrl: file.storageKey ? getStorageDownloadPathForKey(file.storageKey) : null,
         })),
         programSlug: program?.slug || null,
+        requiredDocs: docRequirements.requiredDocs,
+        missingDocs: docRequirements.missingDocs,
         requestKind,
         requestLabel: flow?.title || (isStudyProgram ? 'طلب التحاق دراسي' : 'طلب خدمة مهنية'),
         requestActionLabel: flow?.primaryAction || (isStudyProgram ? 'الإقرار بالقبول' : 'متابعة طلب الخدمة'),
