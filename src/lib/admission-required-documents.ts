@@ -47,10 +47,10 @@ export function resolveAdmissionRequiredDocuments(input: {
   const allKnownDocs = [...REQUIRED_ADMISSION_DOCS, ...SERVICE_REQUEST_DOCS, ...EXTRA_ADMISSION_DOCS, ...serviceDocs]
   const docLabelMap = new Map(allKnownDocs.map((doc) => [doc.type, doc] as const))
   const admissionRules = parseAdmissionRules(input.admissionRules)
-  const hasExplicitRequiredDocuments = Array.isArray(admissionRules?.requiredDocuments)
-  const explicitTypes = hasExplicitRequiredDocuments
-    ? admissionRules?.requiredDocuments?.filter(Boolean) || []
+  const explicitTypes = Array.isArray(admissionRules?.requiredDocuments)
+    ? admissionRules.requiredDocuments.filter(Boolean)
     : []
+  const hasExplicitRequiredDocuments = explicitTypes.length > 0
   const isServiceRequest = input.isServiceRequest ?? (flow ? !flow.isStudyProgram : input.category === 'SERVICE')
   const defaultServiceRequired = getDefaultRequiredServiceDocumentTypes(flow)
   const requiredTypes = hasExplicitRequiredDocuments
