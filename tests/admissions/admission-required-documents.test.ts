@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { resolveRules } from '@/lib/admission-ai'
+import { resolvePostReplacementAdmissionStatus, resolveProgramAdmissionDocumentRequirements } from '@/lib/admission-document-requirements'
 import { parseAdmissionRules, resolveAdmissionRequiredDocuments } from '@/lib/admission-required-documents'
 import { getDefaultRequiredServiceDocumentTypes, getServiceFlow } from '@/lib/service-flows'
 
@@ -77,5 +78,22 @@ describe('admission required documents', () => {
     })
 
     expect(requiredDocs.map((doc) => doc.type)).toEqual(['FLOW_DOC_1'])
+  })
+
+  test('missing document helper reports selected required documents that were not uploaded', () => {
+    const result = resolveProgramAdmissionDocumentRequirements(
+      { slug: 'mental-health-family-counseling', category: 'DIPLOMA', admissionRules: { requiredDocuments: ['DEGREE', 'PHOTO'] } },
+      ['DEGREE']
+    )
+
+    expect(result.requiredDocs.map((doc) => doc.type)).toEqual(['DEGREE', 'PHOTO'])
+    expect(result.missingDocs.map((doc) => doc.type)).toEqual(['PHOTO'])
+  })
+
+  test('replacement finalize status follows the normal application path for incomplete admissions', () => {
+    expect(resolvePostReplacementAdmissionStatus('UPLOADING_DOCUMENTS', false)).toBe('AWAITING_FEE')
+    expect(resolvePostReplacementAdmissionStatus('STAGED', false)).toBe('AWAITING_FEE')
+    expect(resolvePostReplacementAdmissionStatus('UPLOADING_DOCUMENTS', true)).toBe('UNDER_REVIEW')
+    expect(resolvePostReplacementAdmissionStatus('UNDER_REVIEW', false)).toBe('UNDER_REVIEW')
   })
 })
