@@ -2925,7 +2925,10 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   // Keep the verifier exclusion contract for all other providers and requests.
   if (allowAlborihiCrossFamilyVerifier) excluded.delete('ALBORIHI')
   const sticky = effectiveOpts.stickyScope ? stickyModels.get(effectiveOpts.stickyScope) : null
-  const preferredModels = isVerifierCall(effectiveOpts) ? [...(effectiveOpts.preferredModels || []), ...s.verifierPreferred] : (effectiveOpts.preferredModels || [])
+  const verifierCall = isVerifierCall(effectiveOpts)
+  const preferredModels = verifierCall
+    ? (s.verifierStrict ? s.verifierPreferred : [...(effectiveOpts.preferredModels || []), ...s.verifierPreferred])
+    : (effectiveOpts.preferredModels || [])
   const preferredModelProviders = preferredModels.map((item) => item.provider).filter(Boolean)
   const preferredProviders = [...new Set([...(effectiveOpts.preferredProviders || []).filter(Boolean), ...preferredModelProviders])]
   const baseOrderedProviders = providerOrder(s, taskLevel)
