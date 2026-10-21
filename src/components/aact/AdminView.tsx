@@ -1181,6 +1181,7 @@ export function AdminView() {
                     { value: 'ACTIVE', label: 'النشطة فقط' },
                     { value: 'AWAITING_FEE', label: 'بانتظار الرسوم' },
                     { value: 'PENDING', label: 'تم التقديم' },
+                    { value: 'UPLOADING_DOCUMENTS', label: 'بانتظار المرفقات' },
                     { value: 'UNDER_REVIEW', label: 'قيد المراجعة' },
                     { value: 'AWAITING_TUITION', label: 'بانتظار الرسوم الدراسية' },
                     { value: 'SUPERVISOR_ASSIGNED', label: 'مفعل/مشرف' },
