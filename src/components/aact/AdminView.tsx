@@ -892,13 +892,66 @@ export function AdminView() {
         method: 'PATCH',
         body: JSON.stringify({ id: app.id, status: 'DOCUMENTS_NEED_REPLACEMENT', documentReplacement: { note, docTypes: form.docTypes } }),
       })
-      toast({ title: 'تم طلب استبدال المرفقات', description: 'تم إشعار الطالب وفتح إعادة الرفع للمستندات المحددة فقط.' })
+      toast({ title: 'تم طلب استبدال أو رفع المرفقات', description: 'تم إشعار الطالب وفتح إعادة الرفع للمستندات المحددة فقط.' })
       setDocReplacementForms((prev) => ({ ...prev, [app.id]: { ...form, note, open: false } }))
       await load()
     } catch (e: any) {
-      toast({ title: 'تعذر طلب الاستبدال', description: e.message, variant: 'destructive' })
+      toast({ title: 'تعذر طلب المرفقات', description: e.message, variant: 'destructive' })
     } finally {
       setDocReplacementLoading(null)
+    }
+  }
+
+  const requestBulkMissingDocuments = async () => {
+    try {
+      setBulkMissingDocsLoading(true)
+      const kind = activeTab === 'service-requests' ? 'SERVICE' : 'STUDY'
+      const data = await api<{ applications: AdmissionApp[] }>(`/api/admin/admissions?page=1&pageSize=100&status=ACTIVE&kind=${kind}`)
+      const candidates = (data.applications || []).filter((app) =>
+        !['CERTIFIED', 'REJECTED'].includes(app.status) &&
+        !app.documentReplacementRequest &&
+        (app.missingDocs?.length || 0) > 0
+      )
+      if (!candidates.length) {
+        toast({ title: 'لا توجد طلبات ناقصة', description: 'لا يوجد ضمن أول 100 طلب مفتوح أي طلب تنقصه مرفقات بدون طلب قائم.' })
+        return
+      }
+      const programNames = Array.from(new Set(candidates.map((app) => app.program).filter(Boolean)))
+      const chosenProgram = programNames.length === 1
+        ? programNames[0]
+        : window.prompt(`اكتب اسم البرنامج/الخدمة المطلوب كما هو:\n${programNames.map((name) => `- ${name}`).join('\n')}`, programNames[0] || '')?.trim()
+      if (!chosenProgram) return
+      const affected = candidates.filter((app) => app.program === chosenProgram).slice(0, 100)
+      if (!affected.length) {
+        toast({ title: 'لا توجد طلبات لهذا البرنامج', description: chosenProgram, variant: 'destructive' })
+        return
+      }
+      const names = affected.map((app) => `${app.fullName} (${app.reference})`).join('\n')
+      const confirmed = window.confirm(`سيتم طلب المرفقات الناقصة من ${affected.length} طلب/طلبات لبرنامج:\n${chosenProgram}\n\nالأسماء:\n${names}\n\nمتابعة؟`)
+      if (!confirmed) return
+      let done = 0
+      for (const app of affected) {
+        const missing = app.missingDocs || []
+        const labels = missing.map((doc) => doc.label || DOC_TYPE_AR[doc.type] || doc.type)
+        await api('/api/admin/admissions', {
+          method: 'PATCH',
+          body: JSON.stringify({
+            id: app.id,
+            status: 'DOCUMENTS_NEED_REPLACEMENT',
+            documentReplacement: {
+              note: `يرجى رفع المرفقات الناقصة حتى نتمكن من متابعة الطلب: ${labels.join('، ')}`,
+              docTypes: missing.map((doc) => doc.type),
+            },
+          }),
+        })
+        done += 1
+      }
+      toast({ title: 'تم إرسال طلبات المرفقات الناقصة', description: `تم تحديث ${done} طلب/طلبات.` })
+      await load()
+    } catch (e: any) {
+      toast({ title: 'تعذر طلب المرفقات الناقصة جماعياً', description: e.message, variant: 'destructive' })
+    } finally {
+      setBulkMissingDocsLoading(false)
     }
   }
 
