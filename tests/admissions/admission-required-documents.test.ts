@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test'
+import { resolveRules } from '@/lib/admission-ai'
 import { parseAdmissionRules, resolveAdmissionRequiredDocuments } from '@/lib/admission-required-documents'
+import { getDefaultRequiredServiceDocumentTypes, getServiceFlow } from '@/lib/service-flows'
 
 function missingTypes(requiredTypes: string[], uploadedTypes: string[]) {
   const uploaded = new Set(uploadedTypes)
@@ -46,5 +48,34 @@ describe('admission required documents', () => {
     })
 
     expect(requiredDocs.map((doc) => doc.type)).toEqual(['DEGREE', 'ID', 'PHOTO', 'CV'])
+  })
+
+  test('service rules with empty requiredDocuments fall back to default service flow documents', () => {
+    const slug = 'accreditation-membership-license'
+    const flow = getServiceFlow(slug)
+    if (!flow) throw new Error('missing accreditation-membership-license service flow')
+    const rules = resolveRules('SERVICE', {}, false)
+    const { requiredDocs } = resolveAdmissionRequiredDocuments({
+      slug,
+      category: 'SERVICE',
+      admissionRules: rules,
+      isServiceRequest: true,
+    })
+
+    expect(requiredDocs.map((doc) => doc.type)).toEqual(getDefaultRequiredServiceDocumentTypes(flow))
+    expect(requiredDocs.map((doc) => doc.type)).not.toEqual([])
+  })
+
+  test('service rules with explicit requiredDocuments use only the selected service documents', () => {
+    const slug = 'accreditation-membership-license'
+    const rules = resolveRules('SERVICE', { requiredDocuments: ['FLOW_DOC_1'] }, false)
+    const { requiredDocs } = resolveAdmissionRequiredDocuments({
+      slug,
+      category: 'SERVICE',
+      admissionRules: rules,
+      isServiceRequest: true,
+    })
+
+    expect(requiredDocs.map((doc) => doc.type)).toEqual(['FLOW_DOC_1'])
   })
 })
