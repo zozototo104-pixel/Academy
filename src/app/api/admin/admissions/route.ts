@@ -103,6 +103,7 @@ export async function GET(req: NextRequest) {
         take,
         include: {
           user: { select: { id: true, name: true, email: true, role: true } },
+          programRef: { select: { id: true, slug: true, category: true, titleAr: true, admissionRules: true } },
           supervisor: { select: { id: true, name: true } },
           payments: { select: { id: true, invoiceNo: true, purpose: true, status: true, amount: true, amountCents: true, method: true, receiptNo: true, cryptoNetwork: true, cryptoWalletAddress: true, cryptoTxHash: true, cryptoVerificationStatus: true, cryptoVerificationNote: true, cryptoVerifiedAt: true } },
           theses: { orderBy: { createdAt: 'desc' }, take: 1, select: { id: true, status: true, title: true } },
