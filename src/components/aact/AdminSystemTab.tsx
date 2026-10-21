@@ -391,6 +391,52 @@ export function AdminSystemTab() {
       .finally(() => setTextModelHealthLoading(false))
   }
 
+  const loadRouterState = async () => {
+    setRouterStateLoading(true)
+    try {
+      const result = await api<{ ok: boolean; state: TextAiRouterStateItem[] }>('/api/admin/system', { method: 'POST', body: JSON.stringify({ action: 'router-state' }) })
+      setRouterState(result.state || [])
+    } catch (e: any) {
+      toast({ title: 'تعذر تحميل حالة الراوتر', description: e.message, variant: 'destructive' })
+    } finally {
+      setRouterStateLoading(false)
+    }
+  }
+
+  const clearRouterStateItem = async (item: TextAiRouterStateItem) => {
+    const clearId = `${item.type}:${item.provider}:${item.keyIndex ?? ''}:${item.model || ''}`
+    setRouterStateClearing(clearId)
+    try {
+      const result = await api<{ ok: boolean; state: TextAiRouterStateItem[] }>('/api/admin/system', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'clear-router-state', type: item.type, provider: item.provider, keyIndex: item.keyIndex, model: item.model }),
+      })
+      setRouterState(result.state || [])
+      toast({ title: 'تم مسح حالة الراوتر', description: `${item.provider}${item.model ? ` / ${item.model}` : ''}` })
+    } catch (e: any) {
+      toast({ title: 'تعذر مسح الحالة', description: e.message, variant: 'destructive' })
+    } finally {
+      setRouterStateClearing(null)
+    }
+  }
+
+  const clearRouterProvider = async (provider: string) => {
+    const clearId = `clear-provider:${provider}`
+    setRouterStateClearing(clearId)
+    try {
+      const result = await api<{ ok: boolean; state: TextAiRouterStateItem[] }>('/api/admin/system', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'clear-router-state', type: 'clear-provider', provider, clearProvider: true }),
+      })
+      setRouterState(result.state || [])
+      toast({ title: 'تم مسح تبريدات المزوّد', description: provider })
+    } catch (e: any) {
+      toast({ title: 'تعذر مسح تبريدات المزوّد', description: e.message, variant: 'destructive' })
+    } finally {
+      setRouterStateClearing(null)
+    }
+  }
+
   const checkAllTextModelsNow = async () => {
     setTextModelHealthLoading(true)
     try {
