@@ -100,4 +100,14 @@ describe('text AI router state transparency', () => {
     expect(__testResolveRouterCooldownMinutesForTests('999', '999')).toBe(15)
     expect(__testResolveRouterCooldownMinutesForTests('bad', '')).toBe(15)
   })
+
+  test('router-state action requires admin access', async () => {
+    const res = await POST(new Request('http://localhost/api/admin/system', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'router-state' }),
+    }) as any)
+
+    expect(res.status).toBe(401)
+  })
 })
