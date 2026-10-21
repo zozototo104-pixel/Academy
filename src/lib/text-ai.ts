@@ -340,6 +340,14 @@ function normalizePolicy(value: unknown): TextAiRouterPolicy {
   return 'primary_first'
 }
 
+function normalizePolicySource(value: unknown): TextAiRouterPolicySource {
+  return clean(value).toLowerCase() === 'admin' ? 'admin' : 'legacy'
+}
+
+function booleanSetting(value: unknown): boolean {
+  return ['1', 'true', 'yes', 'on'].includes(String(value || '').trim().toLowerCase())
+}
+
 function normalizeGeminiModelAlias(value: unknown): string {
   const v = clean(value).replace(/^models\//, '').toLowerCase()
   return GEMINI_MODEL_ALIASES[v] || v
