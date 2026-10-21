@@ -1909,7 +1909,7 @@ async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel
     .filter(modelCapabilityAllowed)
     .filter((model) => modelAllowedForPurpose(model, purpose, modelCapabilitiesFor(provider, s, model)))
   const allowed = taskLevel === 'GENERAL' ? models : models.filter((model) => academicModelAllowed(provider, model))
-  return orderModelsByHealth(provider, allowed, taskLevel, explore, purpose)
+  return orderModelsByHealth(provider, sortModelsByFamily(s, provider, allowed), taskLevel, explore, purpose)
 }
 
 const ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER: ConcreteProvider[] = [
