@@ -550,25 +550,18 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
   }
   const verifierProvider = cleanText(verified.find((item) => item.verifierProvider)?.verifierProvider, 80) || null
   const verifierModel = cleanText(verified.find((item) => item.verifierModel)?.verifierModel, 160) || null
-  const traceAt = new Date().toISOString()
-  await saveJobTrace(job.id, {
+  await saveJobTrace(job.id, buildQuestionBankJobSuccessTrace({
     generated: parsed.accepted.length + parsed.rejected,
     saved: rows.length,
     verifierRejected: verifierRejected.length,
     rejected: traceReasons.length,
     rejectionReasons: reasonCounts(traceReasons),
-    aiTrace: {
-      generatorProvider: raw.provider,
-      generatorModel: raw.model,
-      verifierProvider,
-      verifierModel,
-      sameProviderVerifierFallback: raw.provider === 'OPENAI' && verified.some((item) => item.verifierProvider === 'OPENAI'),
-    },
-    lastSuccess: {
-      generation: { stage: 'generation', provider: raw.provider, model: raw.model, at: traceAt },
-      ...(verifierProvider && verifierModel ? { verification: { stage: 'verification' as const, provider: verifierProvider, model: verifierModel, at: traceAt } } : {}),
-    },
-  })
+    generatorProvider: raw.provider,
+    generatorModel: raw.model,
+    verifierProvider,
+    verifierModel,
+    sameProviderVerifierFallback: raw.provider === 'OPENAI' && verified.some((item) => item.verifierProvider === 'OPENAI'),
+  }))
   if (!rows.length) throw new Error('QUESTION_BANK_JOB_EMPTY_BATCH')
   await db.questionBankItem.createMany({ data: rows })
   return rows.length
