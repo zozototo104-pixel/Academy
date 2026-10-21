@@ -238,8 +238,8 @@ describe('router admin policy B1', () => {
     globalThis.fetch = (async (_url: any, init: any) => {
       const model = JSON.parse(String(init?.body || '{}')).model
       calls.push(model)
-      if (model === 'claude-sonnet-5') return new Response(JSON.stringify({ error: { message: 'upstream 503' } }), { status: 503 })
-      return new Response(JSON.stringify({ choices: [{ message: { content: 'ok-new' } }] }), { status: 200 })
+      if (model === 'gpt-5.1') return new Response(JSON.stringify({ error: { message: 'upstream 503' } }), { status: 503 })
+      return new Response(JSON.stringify({ output_text: 'ok-new' }), { status: 200 })
     }) as any
 
     await textAiComplete({ system: 's', history: [{ role: 'user', text: 'batch 2' }], taskLevel: 'ACADEMIC_CRITICAL', purpose: 'GENERATION', taskType: 'question-bank' })
