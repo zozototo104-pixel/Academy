@@ -2892,7 +2892,7 @@ export function AdminBooksTab() {
                         {unit.questionBankJob && <div className="mt-3 rounded-xl border border-sky-100 bg-sky-50/70 p-3 text-[11px] font-bold leading-5 text-sky-900">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <p className="font-black">حالة بنك أسئلة الوحدة: {unit.questionBankJob.status}</p>
-                            <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-sky-700">{questionBankProgressCounts(unit).percent}%</span>
+                            <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-sky-700">{aiProgressLabel(questionBankProgressCounts(unit).generated, questionBankProgressCounts(unit).requested)}</span>
                           </div>
                           <div className="mt-2 h-2 overflow-hidden rounded-full bg-sky-100">
                             <div className="h-full rounded-full bg-sky-500 transition-all" style={{ width: `${questionBankProgressCounts(unit).percent}%` }} />
