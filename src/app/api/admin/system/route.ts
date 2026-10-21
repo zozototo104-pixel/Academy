@@ -83,6 +83,27 @@ function isValidTextAiProviderModelSettingItem(item: string): boolean {
   return !!(provider && model && TEXT_AI_MODEL_SETTING_PROVIDERS.has(provider.toUpperCase()) && /^[A-Z_]+:[a-z0-9][a-z0-9_.\/:\-]{1,180}$/i.test(item) && !/(^|:)auto$/i.test(item))
 }
 
+function sanitizeTextAiProviderTiers(value: string): string | null {
+  const items = value.split(',').map((item) => item.trim()).filter(Boolean)
+  for (const item of items) {
+    const parts = item.split(':')
+    const provider = (parts[0] || '').trim().toUpperCase()
+    const tier = (parts[1] || '').trim().toUpperCase()
+    if (parts.length !== 2 || !TEXT_AI_MODEL_SETTING_PROVIDERS.has(provider) || (tier !== 'PAID' && tier !== 'FREE')) return null
+  }
+  return items.map((item) => {
+    const [provider, tier] = item.split(':')
+    return `${provider.trim().toUpperCase()}:${tier.trim().toUpperCase()}`
+  }).join(',')
+}
+
+function sanitizeFamilyOrder(value: string): string {
+  const allowed = new Set(['claude', 'gpt', 'gemini', 'deepseek', 'qwen', 'kimi', 'glm', 'grok', 'gpt-oss', 'llama', 'other'])
+  const seen = new Set<string>()
+  const items = value.split(',').map((item) => item.trim().toLowerCase()).filter((item) => item && allowed.has(item) && !seen.has(item) && (seen.add(item) || true))
+  return items.join(',')
+}
+
 // GET /api/admin/system — إعدادات النظام: البريد + الدفع + TURN (الأسرار مقنعة) + سجل البريد
 export async function GET() {
   try {
