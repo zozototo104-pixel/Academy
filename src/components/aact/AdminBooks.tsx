@@ -2902,9 +2902,10 @@ export function AdminBooksTab() {
                           {topRejectionReason(unit) ? <p className="mt-1 text-sky-700">أكثر سبب رفض: {topRejectionReason(unit)}</p> : null}
                           {unit.questionBankJob.trace && <p>آخر دفعة: مولّدة {unit.questionBankJob.trace.generated} · محفوظة {unit.questionBankJob.trace.saved} · رفض verifier {unit.questionBankJob.trace.verifierRejected} · رفض إجمالي {unit.questionBankJob.trace.rejected}</p>}
                           {unit.questionBankJob.trace?.rejectionReasons?.length ? <p>أسباب الرفض: {unit.questionBankJob.trace.rejectionReasons.map((reason) => `${reason.reason} (${reason.count})`).join(' · ')}</p> : null}
-                          {unit.questionBankJob.trace?.aiTrace && <p>AI trace: مولّد {unit.questionBankJob.trace.aiTrace.generatorProvider || '؟'} / {unit.questionBankJob.trace.aiTrace.generatorModel || '؟'} · تحقق {unit.questionBankJob.trace.aiTrace.verifierProvider || '؟'} / {unit.questionBankJob.trace.aiTrace.verifierModel || '؟'}{unit.questionBankJob.trace.aiTrace.sameProviderVerifierFallback ? ' · تحقق OpenAI fallback' : ''}</p>}
+                          {questionBankTraceLabel(unit.questionBankJob.trace) ? <p className="mt-1 text-sky-700">{questionBankTraceLabel(unit.questionBankJob.trace)}</p> : null}
                           {unit.questionBankJob.retryAt && <p>موعد إعادة المحاولة: {new Date(unit.questionBankJob.retryAt).toLocaleString('ar-SA')}</p>}
-                          {unit.questionBankJob.lastError && <p className="whitespace-pre-wrap text-red-700">آخر خطأ كامل: {unit.questionBankJob.lastError}</p>}
+                          {aiStatusHelp(unit.questionBankJob.status, unit.questionBankJob.lastError) ? <p className="whitespace-pre-wrap text-red-700">{aiStatusHelp(unit.questionBankJob.status, unit.questionBankJob.lastError)}</p> : null}
+                          {unit.questionBankJob.lastError && ['PAUSED', 'FAILED'].includes(String(unit.questionBankJob.status || '')) ? <p className="break-words text-[10px] text-slate-500">الكود الأصلي: {unit.questionBankJob.lastError}</p> : null}
                         </div>}
                         <div className="mt-3 space-y-2">
                           <label className="text-xs font-black text-slate-500">ملخص الوحدة</label>
