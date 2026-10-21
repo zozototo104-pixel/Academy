@@ -1722,29 +1722,50 @@ export function AdminView() {
                               )}
                               {docReplacementForms[a.id]?.open && (
                                 <div className="w-full rounded-xl border border-red-200 bg-red-50 p-3 text-right sm:min-w-[420px]">
-                                  <p className="text-[11px] font-black text-red-700">حدد المرفقات غير الصحيحة واكتب سبباً واضحاً يظهر للطالب:</p>
-                                  <div className="mt-2 flex flex-wrap gap-2">
-                                    {(a.files || []).map((file) => {
-                                      const checked = !!docReplacementForms[a.id]?.docTypes?.includes(file.docType)
-                                      return (
-                                        <label key={file.id} className={`cursor-pointer rounded-lg border px-2 py-1 text-[10px] font-bold ${checked ? 'border-red-400 bg-white text-red-700' : 'border-red-100 bg-white/70 text-slate-600'}`}>
-                                          <input type="checkbox" className="ml-1" checked={checked} onChange={() => toggleReplacementDocType(a.id, file.docType)} />
-                                          {file.docType} — {file.fileName}
-                                        </label>
-                                      )
-                                    })}
-                                  </div>
+                                  <p className="text-[11px] font-black text-red-700">حدد المرفقات المطلوب استبدالها أو رفعها واكتب سبباً واضحاً يظهر للطالب:</p>
+                                  {(a.files?.length || 0) > 0 && (
+                                    <div className="mt-2 rounded-lg border border-red-100 bg-white/60 p-2">
+                                      <p className="mb-1.5 text-[10px] font-black text-red-700">مرفقات مرفوعة (استبدال)</p>
+                                      <div className="flex flex-wrap gap-2">
+                                        {(a.files || []).map((file) => {
+                                          const checked = !!docReplacementForms[a.id]?.docTypes?.includes(file.docType)
+                                          return (
+                                            <label key={file.id} className={`cursor-pointer rounded-lg border px-2 py-1 text-[10px] font-bold ${checked ? 'border-red-400 bg-white text-red-700' : 'border-red-100 bg-white/70 text-slate-600'}`}>
+                                              <input type="checkbox" className="ml-1" checked={checked} onChange={() => toggleReplacementDocType(a.id, file.docType)} />
+                                              {DOC_TYPE_AR[file.docType] || file.docType} — {file.fileName}
+                                            </label>
+                                          )
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {(a.missingDocs?.length || 0) > 0 && (
+                                    <div className="mt-2 rounded-lg border border-red-100 bg-white/60 p-2">
+                                      <p className="mb-1.5 text-[10px] font-black text-red-700">مرفقات ناقصة (طلب رفع)</p>
+                                      <div className="flex flex-wrap gap-2">
+                                        {(a.missingDocs || []).map((doc) => {
+                                          const checked = !!docReplacementForms[a.id]?.docTypes?.includes(doc.type)
+                                          return (
+                                            <label key={`${a.id}-missing-${doc.type}`} className={`cursor-pointer rounded-lg border px-2 py-1 text-[10px] font-bold ${checked ? 'border-red-400 bg-white text-red-700' : 'border-red-100 bg-white/70 text-slate-600'}`}>
+                                              <input type="checkbox" className="ml-1" checked={checked} onChange={() => toggleReplacementDocType(a.id, doc.type)} />
+                                              {doc.label || DOC_TYPE_AR[doc.type] || doc.type}
+                                            </label>
+                                          )
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
                                   <Textarea
                                     value={docReplacementForms[a.id]?.note || ''}
                                     onChange={(e) => setReplacementNote(a.id, e.currentTarget.value)}
-                                    placeholder="مثال: المرفق المرفوع لا يحتوي على شهادة التخرج أو غير واضح، يرجى رفع نسخة واضحة من الشهادة المطلوبة."
+                                    placeholder="مثال: يرجى رفع نسخة واضحة من المرفقات المطلوبة أو المرفقات الناقصة حتى نتمكن من متابعة الطلب."
                                     className="mt-2 min-h-[72px] border-red-100 bg-white text-xs font-bold"
                                   />
                                   <div className="mt-2 flex flex-wrap justify-end gap-2">
                                     <Button size="sm" variant="ghost" onClick={() => setReplacementFormOpen(a, false)} className="text-xs font-bold text-slate-500">إلغاء</Button>
                                     <Button size="sm" onClick={() => requestDocumentReplacement(a)} disabled={docReplacementLoading === a.id} className="bg-red-600 text-xs font-bold text-white hover:bg-red-700">
                                       {docReplacementLoading === a.id ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <Send className="ml-1 h-3.5 w-3.5" />}
-                                      إرسال طلب الاستبدال
+                                      إرسال طلب المرفقات
                                     </Button>
                                   </div>
                                 </div>
