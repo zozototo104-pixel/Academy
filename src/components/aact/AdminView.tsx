@@ -840,6 +840,19 @@ export function AdminView() {
     })
   }
 
+  const openMissingDocumentRequest = (app: AdmissionApp) => {
+    const missing = app.missingDocs || []
+    const labels = missing.map((doc) => doc.label || DOC_TYPE_AR[doc.type] || doc.type)
+    setDocReplacementForms((prev) => ({
+      ...prev,
+      [app.id]: {
+        open: true,
+        note: `يرجى رفع المرفقات الناقصة حتى نتمكن من متابعة الطلب: ${labels.join('، ')}`,
+        docTypes: missing.map((doc) => doc.type),
+      },
+    }))
+  }
+
   const toggleReplacementDocType = (appId: string, docType: string) => {
     setDocReplacementForms((prev) => {
       const form = prev[appId] || { open: true, note: '', docTypes: [] }
