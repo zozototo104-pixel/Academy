@@ -45,6 +45,8 @@ function fakeSettingStore(initial: Record<string, string> = {}) {
 describe('router admin policy B1', () => {
   afterEach(() => {
     globalThis.fetch = originalFetch
+    if (originalOpenAiCompatApiKeys === undefined) delete process.env.OPENAI_COMPAT_API_KEYS
+    else process.env.OPENAI_COMPAT_API_KEYS = originalOpenAiCompatApiKeys
     __setTextAiSettingStoreForTests(null)
     __resetTextAiStateForTests()
   })
