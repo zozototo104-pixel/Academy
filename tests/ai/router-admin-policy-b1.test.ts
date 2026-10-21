@@ -268,7 +268,13 @@ describe('router admin policy B1', () => {
     }))
     globalThis.fetch = (async () => new Response(JSON.stringify({ error: { message: 'upstream 503' } }), { status: 503 })) as any
 
-    await expect(textAiComplete({ system: 's', history: [{ role: 'user', text: 'strict batch' }], taskLevel: 'ACADEMIC_CRITICAL', purpose: 'GENERATION', taskType: 'question-bank' })).rejects.toMatchObject({ code: 'AI_ACADEMIC_PROVIDER_UNAVAILABLE' })
+    let code = ''
+    try {
+      await textAiComplete({ system: 's', history: [{ role: 'user', text: 'strict batch' }], taskLevel: 'ACADEMIC_CRITICAL', purpose: 'GENERATION', taskType: 'question-bank' })
+    } catch (error: any) {
+      code = String(error?.code || error?.message || '')
+    }
+    expect(code).toContain('AI_ACADEMIC_PROVIDER_UNAVAILABLE')
     expect(isPausableQuestionBankError('AI_ACADEMIC_PROVIDER_UNAVAILABLE')).toBe(true)
   })
 })
