@@ -405,6 +405,51 @@ export function parseAcademicAllowlist(value: unknown): Array<{ provider: Concre
   return parseProviderModelList(value, DEFAULT_ACADEMIC_ALLOWLIST)
 }
 
+export function parseProviderTiers(value: unknown): Partial<Record<ConcreteProvider, TextAiProviderTier>> {
+  const out: Partial<Record<ConcreteProvider, TextAiProviderTier>> = {}
+  for (const raw of String(value || '').split(',')) {
+    const item = raw.trim()
+    if (!item) continue
+    const [providerText, tierText, extra] = item.split(':')
+    const provider = normalizeProvider(providerText)
+    const tier = clean(tierText).toUpperCase()
+    if (extra !== undefined || provider === 'AUTO' || provider !== clean(providerText).toUpperCase() || (tier !== 'PAID' && tier !== 'FREE')) continue
+    out[provider as ConcreteProvider] = tier as TextAiProviderTier
+  }
+  return out
+}
+
+function parseFamilyOrder(value: unknown, fallback: string): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const raw of String(value || fallback).split(',')) {
+    const family = clean(raw).toLowerCase()
+    if (!family || seen.has(family)) continue
+    if (!KNOWN_MODEL_FAMILIES.has(family)) continue
+    seen.add(family)
+    out.push(family)
+  }
+  return out.length ? out : fallback.split(',')
+}
+
+function sanitizeProviderTiersValue(value: unknown): string | null {
+  const items = String(value || '').split(',').map((item) => item.trim()).filter(Boolean)
+  for (const item of items) {
+    const [providerText, tierText, extra] = item.split(':')
+    const provider = normalizeProvider(providerText)
+    const tier = clean(tierText).toUpperCase()
+    if (extra !== undefined || provider === 'AUTO' || provider !== clean(providerText).toUpperCase() || (tier !== 'PAID' && tier !== 'FREE')) return null
+  }
+  return items.map((item) => {
+    const [providerText, tierText] = item.split(':')
+    return `${clean(providerText).toUpperCase()}:${clean(tierText).toUpperCase()}`
+  }).join(',')
+}
+
+export function __testSanitizeProviderTiersForTests(value: unknown): string | null {
+  return sanitizeProviderTiersValue(value)
+}
+
 function sanitizeProviderKey(raw: string): string {
   return String(raw || '')
     .replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF\u00A0]/g, '')
