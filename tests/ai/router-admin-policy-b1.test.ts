@@ -228,7 +228,7 @@ describe('router admin policy B1', () => {
     globalThis.fetch = (async (_url: any, init: any) => {
       const model = JSON.parse(String(init?.body || '{}')).model
       calls.push(model)
-      return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), { status: 200 })
+      return new Response(JSON.stringify({ output_text: 'ok' }), { status: 200 })
     }) as any
 
     await textAiComplete({ system: 's', history: [{ role: 'user', text: 'batch 1' }], taskLevel: 'ACADEMIC_CRITICAL', purpose: 'GENERATION', taskType: 'question-bank' })
