@@ -1053,9 +1053,9 @@ export function ApplyView() {
                           )
                         })}
                       </div>
-                      {missingDocs.length > 0 && (
+                      {(!allDocsUploaded || missingDocs.length > 0) && (
                         <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-bold leading-relaxed text-red-600">
-                          <FileWarning className="ml-1 inline h-4 w-4" /> المستندات الناقصة: {missingDocs.join('، ')}
+                          <FileWarning className="ml-1 inline h-4 w-4" /> ناقص: {(missingDocs.length ? missingDocs : missingRequiredDocs.map((m) => m.label)).join('، ')}
                         </div>
                       )}
                     </div>
