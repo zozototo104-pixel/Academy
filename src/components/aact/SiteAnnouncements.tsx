@@ -6,7 +6,7 @@ function shortTitle(title: string) {
 }
 
 export async function SiteAnnouncements() {
-  const announcements = await getActiveSiteAnnouncementsCached()
+  const announcements = await getActiveSiteAnnouncementsCached().catch(() => [])
   if (!announcements.length) return null
 
   const ticker = announcements.filter((item) => item.display === 'TICKER')
