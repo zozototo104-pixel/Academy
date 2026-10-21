@@ -461,7 +461,7 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json({ error: 'إجراء غير معروف' }, { status: 400 })
   } catch (e: any) {
-    if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
+    if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     return NextResponse.json({ error: 'تعذر تنفيذ الإجراء' }, { status: 500 })
   }
 }
