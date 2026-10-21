@@ -1300,6 +1300,12 @@ export function AdminView() {
                           ) : (
                             <p className="mt-1 text-[11px] font-bold text-red-500">لا توجد مستندات مرفوعة (الطلبات القديمة قبل تفعيل الرفع الإلزامي)</p>
                           )}
+                          {missingDocumentLabels.length > 0 && (
+                            <div className="mt-2 rounded-xl border border-red-200 bg-red-50 p-2.5 text-[11px] font-bold leading-5 text-red-700">
+                              <FileWarning className="ml-1 inline h-3.5 w-3.5" />
+                              مرفقات مطلوبة ناقصة: {missingDocumentLabels.join('، ')}
+                            </div>
+                          )}
 
                           {!isStudyAdmission && !(a.payments?.length || 0) && (
                             <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-2.5 text-[10px] font-bold leading-5 text-amber-800">
