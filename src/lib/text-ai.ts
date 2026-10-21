@@ -3228,23 +3228,23 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
             break
           }
           if (isNoBalanceLike(e)) {
-            markCooldown(provider, key, msg, 24 * 60, status)
+            markCooldown(provider, currentKey, msg, 24 * 60, status)
             await markPersistentNoBalance(provider, keyIndex, msg, status)
             continue
           }
           if (isHighDemandLike(e)) {
             skipModelsThisRequest.add(`${provider}:${model}`)
             if (highDemandCooldownScope(model, msg, status) === 'model') {
-              await applyTransientModelFailureCooldown(provider, key, keyIndex, model, msg, status, 1)
+              await applyTransientModelFailureCooldown(provider, currentKey, keyIndex, model, msg, status, 1)
             } else {
-              markCooldown(provider, key, msg, 1, status)
+              markCooldown(provider, currentKey, msg, 1, status)
               await markPersistentCooldown(provider, keyIndex, undefined, msg, status, 1)
             }
             break
           }
           if (isTimeoutLike(e)) {
             skipModelsThisRequest.add(`${provider}:${model}`)
-            await applyTransientModelFailureCooldown(provider, key, keyIndex, model, msg, status, 2)
+            await applyTransientModelFailureCooldown(provider, currentKey, keyIndex, model, msg, status, 2)
             break
           }
           if (isQuotaLike(e)) {
