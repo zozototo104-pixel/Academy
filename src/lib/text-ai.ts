@@ -3123,9 +3123,10 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
       if (recentFailedHealth(health.get(model) || null)) noteNoCandidate(provider, model, 'HEALTH_SKIP')
     }
     const healthFilteredModels = orderedModels.filter((model) => !recentFailedHealth(health.get(model) || null))
-    const routedModels = providerModelsForRequest(provider, s, healthFilteredModels.length ? healthFilteredModels : orderedModels, routerRequestSeq, effectiveOpts.maxProviderModels)
-    const models = usableSticky && usableSticky.provider === provider && routedModels.includes(usableSticky.model)
-      ? [usableSticky.model, ...routedModels.filter((model) => model !== usableSticky.model)]
+    const stickyEligibleModels = healthFilteredModels.length ? healthFilteredModels : orderedModels
+    const routedModels = providerModelsForRequest(provider, s, stickyEligibleModels, routerRequestSeq, effectiveOpts.maxProviderModels)
+    const models = usableSticky && usableSticky.provider === provider && stickyEligibleModels.includes(usableSticky.model)
+      ? [usableSticky.model, ...routedModels.filter((model) => model !== usableSticky.model)].slice(0, Math.max(1, routedModels.length))
       : routedModels
     if (isVerifierCall(effectiveOpts) && candidateModels.length > 0 && models.length === 0) onlySameFamilyModelsExcluded = true
     for (const model of models) {
@@ -3134,10 +3135,13 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
         noteNoCandidate(provider, model, 'MODEL_DEAD')
         continue
       }
-      const routedKeys = candidateKeys(provider, s)
-      const stickyKeyQueue = usableSticky && usableSticky.provider === provider && usableSticky.model === model && routedKeys.includes(usableSticky.key)
-        ? [usableSticky.key, ...routedKeys.filter((candidateKey) => candidateKey !== usableSticky.key)]
-        : null
+      let stickyKeyQueue: string[] | null = null
+      if (usableSticky && usableSticky.provider === provider && usableSticky.model === model) {
+        const routedKeys = candidateKeys(provider, s)
+        stickyKeyQueue = routedKeys.includes(usableSticky.key)
+          ? [usableSticky.key, ...routedKeys.filter((candidateKey) => candidateKey !== usableSticky.key)]
+          : null
+      }
       for (const key of candidateKeys(provider, s)) {
         const currentKey = stickyKeyQueue ? (stickyKeyQueue.shift() || key) : key
         const keyIndex = Math.max(1, providerKeys(s, provider).indexOf(currentKey) + 1)
