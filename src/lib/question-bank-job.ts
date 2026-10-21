@@ -593,7 +593,7 @@ export async function runQuestionBankGenerationJobStep(jobId: string, deadlineMs
     if (message === 'QUESTION_BANK_JOB_EMPTY_BATCH' && job.unitId && await completeUnitQuestionBankJobIfReady(job)) return db.questionBankGenerationJob.findUnique({ where: { id: jobId } })
     const failure = await recordJobFailure(jobId, message)
     await saveJobTrace(jobId, { generated: 0, saved: 0, verifierRejected: 0, rejected: 1, rejectionReasons: reasonCounts([message]) })
-    const paused = /AI_ACADEMIC_PROVIDER_UNAVAILABLE|TEXT_AI_ROUTER|DEADLINE|TIMEOUT|NO_PROVIDER|NOT_CONFIGURED|OPENAI_API_KEYS/i.test(message)
+    const paused = isPausableQuestionBankError(message)
     const emptyBatch = message === 'QUESTION_BANK_JOB_EMPTY_BATCH'
     const repeatedLimitReached = failure.count >= 3
     await db.questionBankGenerationJob.updateMany({
