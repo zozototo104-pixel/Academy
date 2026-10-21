@@ -2991,10 +2991,10 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
       const selectedModel = modelFor(s, provider)
       if (selectedModel && !academicModelAllowed(provider, selectedModel) && !providerPreferredModels.includes(selectedModel)) noteNoCandidate(provider, selectedModel, 'NOT_IN_ALLOWLIST')
     }
-    const fallbackModels = await modelFallbacks(s, provider, taskLevel, exploreModels, effectiveOpts.purpose)
+    const fallbackModels = verifierCall && s.verifierStrict ? [] : await modelFallbacks(s, provider, taskLevel, exploreModels, effectiveOpts.purpose)
     const sameProviderAlborihiReview = allowAlborihiCrossFamilyVerifier && provider === 'ALBORIHI'
     const discoveredAlborihiModels = sameProviderAlborihiReview ? freeModelDiscoveryEntry('ALBORIHI', s) : null
-    const candidateModels = [...new Set([...providerPreferredModels, ...fallbackModels])]
+    const candidateModels = strictCandidateModelsForRequest(s, provider, [...new Set([...providerPreferredModels, ...fallbackModels])], taskLevel, verifierCall)
       .filter((model) => !discoveredAlborihiModels?.discoveryOk || discoveredAlborihiModels.models.some((id) => id.toLowerCase() === model.toLowerCase()))
     const eligibleFamily = (model: string) => {
       if (!sameProviderAlborihiReview) return modelFamilyAllowed(model, excludedFamilies)
