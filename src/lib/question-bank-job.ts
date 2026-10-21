@@ -514,6 +514,9 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
     } as Prisma.QuestionBankItemCreateManyInput)
     if (rows.length >= count) break
   }
+  const verifierProvider = cleanText(verified.find((item) => item.verifierProvider)?.verifierProvider, 80) || null
+  const verifierModel = cleanText(verified.find((item) => item.verifierModel)?.verifierModel, 160) || null
+  const traceAt = new Date().toISOString()
   await saveJobTrace(job.id, {
     generated: parsed.accepted.length + parsed.rejected,
     saved: rows.length,
@@ -523,9 +526,13 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
     aiTrace: {
       generatorProvider: raw.provider,
       generatorModel: raw.model,
-      verifierProvider: cleanText(verified.find((item) => item.verifierProvider)?.verifierProvider, 80) || null,
-      verifierModel: cleanText(verified.find((item) => item.verifierModel)?.verifierModel, 160) || null,
+      verifierProvider,
+      verifierModel,
       sameProviderVerifierFallback: raw.provider === 'OPENAI' && verified.some((item) => item.verifierProvider === 'OPENAI'),
+    },
+    lastSuccess: {
+      generation: { stage: 'generation', provider: raw.provider, model: raw.model, at: traceAt },
+      ...(verifierProvider && verifierModel ? { verification: { stage: 'verification' as const, provider: verifierProvider, model: verifierModel, at: traceAt } } : {}),
     },
   })
   if (!rows.length) throw new Error('QUESTION_BANK_JOB_EMPTY_BATCH')
