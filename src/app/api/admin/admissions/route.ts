@@ -208,8 +208,8 @@ export async function PATCH(req: NextRequest) {
     const owner = app.userId ? await db.user.findUnique({ where: { id: app.userId }, select: { id: true, role: true, name: true, email: true } }) : null
     const ownerIsStudent = !owner || owner.role === 'STUDENT'
     const programForFlow = app.programId
-      ? await db.program.findUnique({ where: { id: app.programId }, select: { id: true, slug: true, category: true, price: true } })
-      : await db.program.findFirst({ where: { titleAr: { contains: app.program.split(' — ')[0] } }, select: { id: true, slug: true, category: true, price: true } })
+      ? await db.program.findUnique({ where: { id: app.programId }, select: { id: true, slug: true, category: true, price: true, admissionRules: true } })
+      : await db.program.findFirst({ where: { titleAr: { contains: app.program.split(' — ')[0] } }, select: { id: true, slug: true, category: true, price: true, admissionRules: true } })
     const serviceFlow = getServiceFlow(programForFlow?.slug)
     const isStudyRequest = serviceFlow ? serviceFlow.isStudyProgram : programForFlow?.category !== 'SERVICE'
 
