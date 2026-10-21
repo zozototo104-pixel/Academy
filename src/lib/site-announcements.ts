@@ -12,7 +12,7 @@ export async function readSiteAnnouncements() {
   return parseSiteAnnouncementsValue(row?.value || '[]')
 }
 
-export async function writeSiteAnnouncements(items: import('@/lib/site-announcements-core').SiteAnnouncement[]): Promise<void> {
+export async function writeSiteAnnouncements(items: SiteAnnouncement[]): Promise<void> {
   await db.setting.upsert({
     where: { key: SITE_ANNOUNCEMENTS_KEY },
     create: { key: SITE_ANNOUNCEMENTS_KEY, value: JSON.stringify(items) },
