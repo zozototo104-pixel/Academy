@@ -368,6 +368,9 @@ function normalizeGeminiTextModel(value: unknown): string {
 }
 
 const DEFAULT_ACADEMIC_ALLOWLIST = 'GEMINI:gemini-3.8-flash,GEMINI:gemini-3.5-flash-lite'
+const DEFAULT_FAMILY_QUALITY_ORDER = 'claude,gpt,gemini,deepseek,qwen,kimi,glm,grok,gpt-oss,llama,other'
+const DEFAULT_FAMILY_COST_ORDER = 'gpt-oss,llama,qwen,glm,deepseek,gemini,kimi,grok,gpt,claude,other'
+const KNOWN_MODEL_FAMILIES = new Set(['claude', 'gpt', 'gemini', 'deepseek', 'qwen', 'kimi', 'glm', 'grok', 'gpt-oss', 'llama', 'other'])
 
 export function parseProviderModelList(value: unknown, fallback = ''): TextAiPreferredModel[] {
   const out: TextAiPreferredModel[] = []
