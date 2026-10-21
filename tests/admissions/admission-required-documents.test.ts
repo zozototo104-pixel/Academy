@@ -97,4 +97,19 @@ describe('admission required documents', () => {
     expect(resolvePostReplacementAdmissionStatus('UPLOADING_DOCUMENTS', true)).toBe('UNDER_REVIEW')
     expect(resolvePostReplacementAdmissionStatus('UNDER_REVIEW', false)).toBe('UNDER_REVIEW')
   })
+
+  test('documents requested email includes reference and requested document labels', () => {
+    const message = buildAdmissionDocumentsRequestedEmail({
+      fullName: 'أحمد علي',
+      reference: 'AACT-2026-1234',
+      programTitle: 'دبلوم الإرشاد الأسري',
+      note: 'يرجى استكمال الملفات الناقصة.',
+      docLabels: ['صورة شخصية حديثة', 'صورة عن الهوية الشخصية أو جواز السفر'],
+    })
+
+    expect(message.subject).toContain('AACT-2026-1234')
+    expect(message.html).toContain('صورة شخصية حديثة')
+    expect(message.html).toContain('صورة عن الهوية الشخصية أو جواز السفر')
+    expect(message.html).toContain('سجّل الدخول بنفس الإيميل')
+  })
 })
