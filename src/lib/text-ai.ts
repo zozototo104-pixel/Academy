@@ -1936,13 +1936,71 @@ function selectedFirst(selected: ConcreteProvider | null, order: ConcreteProvide
   return selected ? [selected, ...order.filter((provider) => provider !== selected)] : order
 }
 
-function baseOrder(s: Settings): ConcreteProvider[] {
+function familyRankOrder(s: Settings): string[] {
+  return s.policy === 'cost_saver' ? s.familyCostOrder : s.familyQualityOrder
+}
+
+function familyRankIndex(order: string[], family: string): number {
+  const normalized = KNOWN_MODEL_FAMILIES.has(family) ? family : 'other'
+  const idx = order.indexOf(normalized)
+  return idx >= 0 ? idx : order.length
+}
+
+function rankModelFamily(s: Settings, provider: ConcreteProvider, model: string): string {
+  const family = provider === 'ALBORIHI' ? alborihiModelFamily(s, model) : modelFamily(model)
+  return KNOWN_MODEL_FAMILIES.has(family) ? family : 'other'
+}
+
+function candidateModelsForFamilyRanking(s: Settings, provider: ConcreteProvider, taskLevel: TextAiTaskLevel): string[] {
+  const selected = modelFor(s, provider)
+  const selectedPart = selected && !/(^|\/|-)auto$/i.test(selected) && selected !== 'auto' ? [selected] : []
+  const academicPreferred = taskLevel === 'GENERAL' ? [] : s.academicAllowlist.filter((item) => item.provider === provider).map((item) => item.model)
+  const source = taskLevel !== 'GENERAL' && s.academicAllowlistStrict
+    ? academicPreferred
+    : [...academicPreferred, ...selectedPart, ...staticTextModelsForProvider(provider, s)]
+  return [...new Set(source.filter(Boolean))]
+}
+
+function sortProvidersByFamily(s: Settings, order: ConcreteProvider[], taskLevel: TextAiTaskLevel): ConcreteProvider[] {
+  if (s.policyRankBy !== 'family' || (s.policy !== 'quality_first' && s.policy !== 'cost_saver')) return order
+  const familyOrder = familyRankOrder(s)
+  return order.map((provider, index) => ({ provider, index, rank: Math.min(...candidateModelsForFamilyRanking(s, provider, taskLevel).map((model) => familyRankIndex(familyOrder, rankModelFamily(s, provider, model))), familyOrder.length) }))
+    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map((item) => item.provider)
+}
+
+function sortModelsByFamily(s: Settings, provider: ConcreteProvider, models: string[]): string[] {
+  if (s.policyRankBy !== 'family' || (s.policy !== 'quality_first' && s.policy !== 'cost_saver')) return models
+  const familyOrder = familyRankOrder(s)
+  return models.map((model, index) => ({ model, index, rank: familyRankIndex(familyOrder, rankModelFamily(s, provider, model)) }))
+    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map((item) => item.model)
+}
+
+function providerTierFor(s: Settings, provider: ConcreteProvider): TextAiProviderTier | null {
+  return s.providerTiers[provider] || (provider === 'OPENAI_COMPAT' ? s.openaiCompatTier : null)
+}
+
+function applyPaidFirst(s: Settings, order: ConcreteProvider[], taskLevel: TextAiTaskLevel): ConcreteProvider[] {
+  if (!s.paidFirst || taskLevel === 'GENERAL') return order
+  const rank = (provider: ConcreteProvider) => {
+    const tier = providerTierFor(s, provider)
+    if (tier === 'PAID') return 0
+    if (tier === 'FREE') return 1
+    return 2
+  }
+  return order.map((provider, index) => ({ provider, index, rank: rank(provider) }))
+    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map((item) => item.provider)
+}
+
+function baseOrder(s: Settings, taskLevel: TextAiTaskLevel = 'GENERAL'): ConcreteProvider[] {
   const selected = s.provider === 'AUTO' ? null : s.provider
   const quality: ConcreteProvider[] = ['ANTHROPIC', 'OPENAI', 'GEMINI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'TOPTOOLS', 'ZAI', 'GROQ', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'ALBORIHI']
   const cost: ConcreteProvider[] = ['GROQ', 'ZAI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'TOPTOOLS', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'GEMINI', 'OPENAI', 'ANTHROPIC', 'ALBORIHI']
   const primary: ConcreteProvider[] = ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER
-  if (s.policy === 'quality_first') return selectedFirst(selected, quality)
-  if (s.policy === 'cost_saver') return selectedFirst(selected, cost)
+  if (s.policy === 'quality_first') return selectedFirst(selected, sortProvidersByFamily(s, quality, taskLevel))
+  if (s.policy === 'cost_saver') return selectedFirst(selected, sortProvidersByFamily(s, cost, taskLevel))
   if (s.policy === 'fallback_only' && selected) return [selected]
   if (s.policy === 'balanced') return primary.slice(roundRobin++ % Math.max(1, primary.length)).concat(primary.slice(0, (roundRobin - 1) % Math.max(1, primary.length)))
   return selectedFirst(selected, primary)
@@ -1951,22 +2009,44 @@ function baseOrder(s: Settings): ConcreteProvider[] {
 function providerOrder(s: Settings, taskLevel: TextAiTaskLevel = 'GENERAL'): ConcreteProvider[] {
   if (taskLevel !== 'GENERAL') {
     const preferred = [...new Set(s.academicAllowlist.map((item) => item.provider))]
-    const rest = baseOrder(s).filter((provider) => !preferred.includes(provider))
+    const rest = baseOrder(s, taskLevel).filter((provider) => !preferred.includes(provider))
     const selected = s.provider === 'AUTO' ? null : s.provider
     const academicOrder = s.policySource === 'admin' && s.policy === 'primary_first' && selected
       ? [selected, ...preferred.filter((provider) => provider !== selected), ...rest.filter((provider) => provider !== selected)]
       : [...preferred, ...rest]
-    const ordered = academicOrder.filter((provider) => providerKeys(s, provider).length > 0)
+    const paidOrdered = applyPaidFirst(s, academicOrder, taskLevel)
+    const policyOrdered = sortProvidersByFamily(s, paidOrdered, taskLevel)
+    const ordered = policyOrdered.filter((provider) => providerKeys(s, provider).length > 0)
     if (s.policySource === 'admin' && s.policy === 'primary_first' && selected) return ordered
     return ordered.includes('OPENAI') ? [...ordered.filter((provider) => provider !== 'OPENAI'), 'OPENAI'] : ordered
   }
   const publicGateways = new Set<ConcreteProvider>(['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT'])
   const academyAlwaysAllowed = new Set<ConcreteProvider>(['UNOROUTER', 'OPENROUTER', 'TOPTOOLS'])
-  return baseOrder(s).filter((provider) => {
+  return baseOrder(s, taskLevel).filter((provider) => {
     if (!providerKeys(s, provider).length) return false
     if (publicGateways.has(provider) && !s.allowPublicGateways && s.provider !== provider && !academyAlwaysAllowed.has(provider)) return false
     return true
   })
+}
+
+export function __testB2ProviderOrderForTests(args: { policy?: TextAiRouterPolicy; rankBy?: TextAiPolicyRankBy; taskLevel?: TextAiTaskLevel; providerTiers?: string; paidFirst?: boolean; allowlist?: string; strict?: boolean; provider?: TextAiProvider; topToolsModel?: string; alborihiModel?: string; groqModel?: string; geminiModel?: string; openaiCompatTier?: TextAiProviderTier }): string[] {
+  const s = {
+    provider: normalizeProvider(args.provider || 'AUTO'),
+    policy: normalizePolicy(args.policy || 'primary_first'),
+    policySource: 'admin',
+    policyRankBy: normalizePolicyRankBy(args.rankBy || 'provider'),
+    familyQualityOrder: parseFamilyOrder('', DEFAULT_FAMILY_QUALITY_ORDER),
+    familyCostOrder: parseFamilyOrder('', DEFAULT_FAMILY_COST_ORDER),
+    providerTiers: parseProviderTiers(args.providerTiers || ''),
+    paidFirst: args.paidFirst === true,
+    academicAllowlist: parseAcademicAllowlist(args.allowlist || DEFAULT_ACADEMIC_ALLOWLIST),
+    academicAllowlistStrict: args.strict === true,
+    allowPublicGateways: true,
+    geminiKeys: ['k'], openaiKeys: ['k'], anthropicKeys: ['k'], zaiKeys: ['k'], groqKeys: ['k'], openrouterKeys: ['k'], deepinfraKeys: ['k'], togetherKeys: ['k'], unorouterKeys: ['k'], relayrouterKeys: ['k'], topToolsKeys: ['k'], alborihiKeys: ['k'], openaiCompatKeys: ['k'],
+    geminiModel: args.geminiModel || 'gemini-3.8-flash', openaiModel: 'gpt-5.1', anthropicModel: 'claude-sonnet-4-5-20250929', zaiModel: 'glm-4.5', groqModel: args.groqModel || 'llama-3.3-70b-versatile', openrouterModel: 'openrouter/auto', deepinfraModel: 'meta-llama/Llama-3.3-70B-Instruct', togetherModel: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', unorouterModel: 'gpt-oss-120b:free', relayrouterModel: 'claude-opus-4-8', topToolsModel: args.topToolsModel || 'top-tools-ai', alborihiModel: args.alborihiModel || 'claude-sonnet-5', openaiCompatModel: 'auto',
+    openaiCompatBaseUrl: 'https://compat.test/v1', alborihiBaseUrl: ALBORIHI_DEFAULT_BASE_URL, openaiCompatTier: args.openaiCompatTier || 'FREE',
+  } as Settings
+  return providerOrder(s, args.taskLevel || 'GENERAL')
 }
 
 function resolveRouterPolicy(purpose: TextAiPurpose | undefined, s: Settings, hardcoded?: TextAiRouterPolicy): TextAiRouterPolicy {
