@@ -26,7 +26,7 @@ export function resolveProgramAdmissionDocumentRequirements(
   const programRules = parsedAdmissionRules
     ? resolveRules(program?.category || 'DIPLOMA', parsedAdmissionRules, !isServiceRequest)
     : (buildServiceAdmissionDefaults(serviceFlow) || resolveRules(program?.category || 'DIPLOMA', parsedAdmissionRules, !isServiceRequest))
-  const { requiredDocs } = resolveAdmissionRequiredDocuments({
+  const { requiredDocs, allKnownDocs } = resolveAdmissionRequiredDocuments({
     slug: program?.slug,
     category: program?.category,
     admissionRules: programRules,
@@ -34,7 +34,7 @@ export function resolveProgramAdmissionDocumentRequirements(
   })
   const uploadedTypes = new Set(Array.from(uploadedTypesInput).filter(Boolean))
   const missingDocs = requiredDocs.filter((doc) => !uploadedTypes.has(doc.type))
-  return { requiredDocs, missingDocs, isServiceRequest, programRules }
+  return { requiredDocs, missingDocs, allKnownDocs, isServiceRequest, programRules }
 }
 
 const CLOSED_REPLACEMENT_PREVIOUS_STATUSES = new Set(['DOCUMENTS_NEED_REPLACEMENT', 'CERTIFIED', 'REJECTED'])
