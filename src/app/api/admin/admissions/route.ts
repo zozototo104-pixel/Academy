@@ -144,6 +144,7 @@ export async function GET(req: NextRequest) {
       const finalRequiredAmount = roundMoney(Math.max(totalTuition, Number(tuitionAppeal?.finalRequiredAmount ?? 0)))
       const documentReplacementRequest = extractAdmissionDocumentReplacement(app.notes)
       const cleanNotes = stripAdmissionDocumentReplacement(app.notes)
+      const docRequirements = resolveProgramAdmissionDocumentRequirements(program, app.files.map((file) => file.docType))
       return {
         ...app,
         notes: cleanNotes,
