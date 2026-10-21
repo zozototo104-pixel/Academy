@@ -82,6 +82,14 @@ function modelFamilyClassifiesRealNames() {
   assert.equal(modelFamily('google/gemma-3-27b:free'), 'gemini')
 }
 
+function gptOssGeneratorStillBlocksGptVerifierFamily() {
+  const generatorFamily = modelFamily('openai/gpt-oss-120b')
+  const result = __testVerifierFamilyAllowedForTests({ provider: 'ALBORIHI', model: 'gpt-5.6-luna', family: 'gpt' }, 'GROQ', generatorFamily)
+  assert.equal(generatorFamily, 'gpt')
+  assert.equal(result.ok, false)
+  if (!result.ok) assert.equal(result.reason, 'VERIFIER_SAME_FAMILY')
+}
+
 async function generatorProviderUnknownFailsClosed() {
   configureProviders()
   await withMockFetch(
