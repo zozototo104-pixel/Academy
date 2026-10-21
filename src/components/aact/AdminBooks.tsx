@@ -1,6 +1,7 @@
 'use client'
 
 import { api } from '@/lib/store'
+import { aiProgressLabel, aiProgressPercent, arabicAiStatusMessage } from '@/lib/ai-error-messages'
 import { buildAcademicProgramProfile } from '@/lib/program-tracks'
 import { cleanAcademicOutput, looksLikeBrokenGeneratedArabic, sanitizeAcademicList, sanitizeAcademicLabelList, conciseAcademicLabel } from '@/lib/academic-output-quality'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
