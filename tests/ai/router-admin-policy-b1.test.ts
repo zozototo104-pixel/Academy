@@ -232,7 +232,7 @@ describe('router admin policy B1', () => {
     }) as any
 
     await textAiComplete({ system: 's', history: [{ role: 'user', text: 'batch 1' }], taskLevel: 'ACADEMIC_CRITICAL', purpose: 'GENERATION', taskType: 'question-bank' })
-    expect(calls[0]).toBe('claude-sonnet-5')
+    expect(calls[0]).toBe('gpt-5.1')
 
     calls.length = 0
     globalThis.fetch = (async (_url: any, init: any) => {
