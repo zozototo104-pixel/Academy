@@ -3202,6 +3202,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           recordAttempt(attempt)
           errors.push(`${provider}/${model}/key#${keyIndex}: ${msg}`)
           noteNoCandidate(provider, model, `REQUEST_FAILED(${status || 'unknown'}, ${msg})`)
+          if (stickyScope && usableSticky && usableSticky.provider === provider && usableSticky.model === model && usableSticky.key === key) stickyModels.delete(stickyScope)
           await recordModelStats(provider, model, { ok: false, reason: routerReasonBucket(attempt), ms, jsonOk: effectiveOpts.json ? false : undefined, evidenceOk: e?.code === 'VALIDATION_REJECTED' ? false : undefined }, effectiveOpts.purpose)
           if (provider === 'ALBORIHI') {
             const action = await handleAlborihiFailure({ key, keyIndex, model, error: e, message: msg, status })
