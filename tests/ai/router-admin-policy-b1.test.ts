@@ -257,6 +257,106 @@ describe('router admin policy B1', () => {
     expect(calls[0]).toBe('gpt-5')
   })
 
+  test('sticky model survives provider model rotation and maxProviderModels limits', async () => {
+    const nvidiaModels = [
+      'deepseek-ai/deepseek-v3.2',
+      'qwen/qwen3-235b-a22b',
+      'moonshotai/kimi-k2-instruct-0905',
+      'openai/gpt-oss-120b',
+      'mistralai/mistral-large-3-675b-instruct-2512',
+      'nvidia/nemotron-3-super-120b-a12b',
+    ]
+    const stickyModel = nvidiaModels[4]
+    const stickyScope = 'nvidia-max-provider-models-sticky'
+    __setTextAiSettingStoreForTests(fakeSettingStore({
+      AI_TEXT_PROVIDER: 'OPENAI_COMPAT',
+      AI_ROUTER_POLICY: 'balanced',
+      AI_STICKY_ON_SUCCESS: 'true',
+      OPENAI_COMPAT_API_KEYS: 'key-a',
+      OPENAI_COMPAT_TEXT_MODEL: nvidiaModels[0],
+      OPENAI_COMPAT_BASE_URL: 'https://integrate.api.nvidia.com/v1',
+    }))
+    __testStickyCandidateOrderForTests({
+      stickyOnSuccess: true,
+      scope: stickyScope,
+      provider: 'OPENAI_COMPAT',
+      model: stickyModel,
+      key: 'key-a',
+      candidates: nvidiaModels,
+    })
+
+    const attemptedByRequest: string[][] = []
+    let currentAttempts: string[] = []
+    globalThis.fetch = (async (url: any, init: any) => {
+      const href = String(url)
+      if (href.endsWith('/models')) {
+        return new Response(JSON.stringify({
+          data: nvidiaModels.map((id) => ({ id, type: 'chat', context_length: 128000, supported_endpoint_types: ['chat/completions'] })),
+        }), { status: 200 })
+      }
+      const body = JSON.parse(String(init?.body || '{}'))
+      currentAttempts.push(String(body.model || ''))
+      return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), { status: 200 })
+    }) as any
+
+    for (let i = 0; i < 5; i += 1) {
+      currentAttempts = []
+      await textAiComplete({
+        system: 's',
+        history: [{ role: 'user', text: `sticky request ${i}` }],
+        purpose: 'GENERATION',
+        stickyScope,
+        maxProviderModels: { OPENAI_COMPAT: 2 },
+      })
+      attemptedByRequest.push([...currentAttempts])
+    }
+
+    expect(attemptedByRequest).toHaveLength(5)
+    for (const attempts of attemptedByRequest) {
+      expect(attempts[0]).toBe(stickyModel)
+      expect(attempts.length).toBeLessThanOrEqual(2)
+    }
+  })
+
+  test('sticky disabled preserves candidate key order across repeated requests', async () => {
+    __setTextAiSettingStoreForTests(fakeSettingStore({
+      AI_TEXT_PROVIDER: 'OPENAI_COMPAT',
+      AI_ROUTER_POLICY: 'balanced',
+      AI_STICKY_ON_SUCCESS: 'false',
+      OPENAI_COMPAT_API_KEYS: 'key-a,key-b,key-c',
+      OPENAI_COMPAT_TEXT_MODEL: 'openai/gpt-oss-120b',
+      OPENAI_COMPAT_BASE_URL: 'https://compat.test/v1',
+    }))
+
+    const keyOrderByRequest: string[][] = []
+    let currentKeys: string[] = []
+    globalThis.fetch = (async (url: any, init: any) => {
+      const href = String(url)
+      if (href.endsWith('/models')) return new Response(JSON.stringify({ data: [] }), { status: 200 })
+      const authorization = String((init?.headers as Record<string, string> | undefined)?.Authorization || '')
+      const key = authorization.replace(/^Bearer\s+/i, '')
+      currentKeys.push(key)
+      if (key !== 'key-c') return new Response(JSON.stringify({ error: { message: 'plain failure' } }), { status: 500 })
+      return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), { status: 200 })
+    }) as any
+
+    for (let i = 0; i < 3; i += 1) {
+      currentKeys = []
+      await textAiComplete({
+        system: 's',
+        history: [{ role: 'user', text: `key order ${i}` }],
+        purpose: 'GENERATION',
+      })
+      keyOrderByRequest.push([...currentKeys])
+    }
+
+    expect(keyOrderByRequest).toEqual([
+      ['key-a', 'key-b', 'key-c'],
+      ['key-a', 'key-b', 'key-c'],
+      ['key-a', 'key-b', 'key-c'],
+    ])
+  })
+
   test('strict academic allowlist 503 failures throw the pausable academic unavailable code', async () => {
     __setTextAiSettingStoreForTests(fakeSettingStore({
       AI_TEXT_PROVIDER: 'OPENAI',
