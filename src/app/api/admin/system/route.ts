@@ -219,8 +219,19 @@ export async function PATCH(req: NextRequest) {
       if (key === 'AI_ROUTER_POLICY_SOURCE') {
         value = value === 'admin' ? 'admin' : 'legacy'
       }
-      if (key === 'AI_ACADEMIC_ALLOWLIST_STRICT' || key === 'AI_VERIFIER_STRICT' || key === 'AI_STICKY_ON_SUCCESS') {
+      if (key === 'AI_POLICY_RANK_BY') {
+        value = value === 'family' ? 'family' : 'provider'
+      }
+      if (key === 'AI_ACADEMIC_ALLOWLIST_STRICT' || key === 'AI_VERIFIER_STRICT' || key === 'AI_STICKY_ON_SUCCESS' || key === 'AI_PAID_FIRST') {
         value = ['1', 'true', 'yes', 'on'].includes(String(value || '').trim().toLowerCase()) ? 'true' : 'false'
+      }
+      if (key === 'AI_FAMILY_QUALITY_ORDER' || key === 'AI_FAMILY_COST_ORDER') {
+        value = sanitizeFamilyOrder(value)
+      }
+      if (key === 'AI_PROVIDER_TIERS') {
+        const cleaned = sanitizeTextAiProviderTiers(value)
+        if (cleaned == null) return NextResponse.json({ error: 'مستويات المزودين يجب أن تكون بصيغة PROVIDER:PAID أو PROVIDER:FREE مثل ALBORIHI:PAID,GROQ:FREE' }, { status: 400 })
+        value = cleaned
       }
       if (key === 'AI_ROUTER_COOLDOWN_MINUTES') {
         const minutes = Number(value)
