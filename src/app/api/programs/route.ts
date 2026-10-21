@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { ensureCoreSeed } from '@/lib/bootstrap'
 import { academicProfileFromRules, isGenericAllSpecializationsProgram, PROGRAM_CATEGORY_ORDER, PROGRAM_CATEGORY_AR, programSpecialtyLabel } from '@/lib/program-tracks'
 import { resolveRules } from '@/lib/admission-ai'
+import { parseAdmissionRules } from '@/lib/admission-required-documents'
 import { buildServiceAdmissionDefaults, getServiceFlow } from '@/lib/service-flows'
 import { getPublicProgramsCountCache, getPublicProgramsSummaryCache, setPublicProgramsCountCache, setPublicProgramsSummaryCache } from '@/lib/programs-public-cache'
 
