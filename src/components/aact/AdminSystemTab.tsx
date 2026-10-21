@@ -475,6 +475,11 @@ export function AdminSystemTab() {
     }
   }
 
+  useEffect(() => {
+    if (!data) return
+    loadRouterState()
+  }, [data?.textAi?.selectedProvider])
+
   const encryptLegacySecrets = async () => {
     setSaving(true)
     try {
