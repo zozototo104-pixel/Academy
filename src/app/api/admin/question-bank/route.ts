@@ -4,7 +4,7 @@ import { requireAdmin } from '@/lib/auth'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { getAiGenerationProgress } from '@/lib/ai-generation-progress'
 import { audit } from '@/lib/notify'
-import { ensureQuestionBankGenerationJob, runQuestionBankGenerationJobStepsUntil } from '@/lib/question-bank-job'
+import { ensureQuestionBankGenerationJob, readQuestionBankJobTrace, runQuestionBankGenerationJobStepsUntil } from '@/lib/question-bank-job'
 import { withTimedResponse, withTiming } from '@/lib/timing'
 
 export const maxDuration = 300
@@ -217,8 +217,9 @@ export async function GET(req: NextRequest) {
     const paused = pauseSetting?.value ? safeJson(pauseSetting.value, null) : null
     const progress = await withTiming('db_question_bank_progress', () => getAiGenerationProgress('QUESTION_BANK', programId, 'ALL'))
     const jobs = await withTiming('db_question_bank_jobs', () => db.questionBankGenerationJob.findMany({ where: { programId }, orderBy: { createdAt: 'desc' }, take: 5 }))
+    const jobsWithTrace = await Promise.all(jobs.map(async (job) => ({ ...job, trace: await readQuestionBankJobTrace(job.id).catch(() => null) })))
     const listed = await listQuestions(programId, status)
-    return NextResponse.json({ program, stats: await questionStats(programId), ...listed, paused, progress, jobs })
+    return NextResponse.json({ program, stats: await questionStats(programId), ...listed, paused, progress, jobs: jobsWithTrace })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('question bank GET error:', e)

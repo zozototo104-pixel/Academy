@@ -4,8 +4,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { getSettingNum, nextInvoiceNo } from '@/lib/settings'
 import { notify, audit } from '@/lib/notify'
 import { emailAdmissionSubmitted, emailServiceRequestSubmitted } from '@/lib/mailer'
-import { getServiceFlow } from '@/lib/service-flows'
-import { resolveAdmissionRequiredDocuments } from '@/lib/admission-required-documents'
+import { resolvePostReplacementAdmissionStatus, resolveProgramAdmissionDocumentRequirements } from '@/lib/admission-document-requirements'
 import { verifyAdmissionUploadToken } from '@/lib/admission-upload-token'
 import { extractAdmissionDocumentReplacement, stripAdmissionDocumentReplacement } from '@/lib/admission-document-replacement'
 
@@ -55,16 +54,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'طلب استبدال المرفقات غير مكتمل من جهة الإدارة. تواصل مع الإدارة لتجديد الطلب.' }, { status: 400 })
     }
 
-    const serviceFlow = getServiceFlow(app.programRef?.slug)
-    const isServiceRequest = serviceFlow ? !serviceFlow.isStudyProgram : app.programRef?.category === 'SERVICE'
-    const uploadedTypes = new Set((app.files || []).map((f) => f.docType))
-    const { requiredDocs: requiredDocList } = resolveAdmissionRequiredDocuments({
-      slug: app.programRef?.slug,
-      category: app.programRef?.category,
-      admissionRules: (app.programRef?.admissionRules as any) || null,
-      isServiceRequest,
-    })
-    const missing = requiredDocList.filter((d) => !uploadedTypes.has(d.type))
+    const docRequirements = resolveProgramAdmissionDocumentRequirements(app.programRef, (app.files || []).map((f) => f.docType))
+    const isServiceRequest = docRequirements.isServiceRequest
+    const requiredDocList = docRequirements.requiredDocs
+    const missing = docRequirements.missingDocs
     if (missing.length > 0) {
       return NextResponse.json({
         error: isServiceRequest ? 'لا يمكن إكمال طلب الخدمة: مرفقات الخدمة المطلوبة غير مكتملة' : 'لا يمكن إكمال الطلب: المستندات المطلوبة غير مكتملة. ارفع المستندات الناقصة أولاً',
@@ -88,10 +81,9 @@ export async function POST(req: NextRequest) {
 
     const owner = app.user || (app.email ? await db.user.findUnique({ where: { email: app.email.trim().toLowerCase() } }) : null)
     const selectedTitle = app.programRef?.titleAr || app.program
-    const replacementPreviousStatus = replacementRequest?.previousStatus && !['DOCUMENTS_NEED_REPLACEMENT', 'CERTIFIED', 'REJECTED'].includes(replacementRequest.previousStatus)
-      ? replacementRequest.previousStatus
-      : 'UNDER_REVIEW'
-    const nextStatus = isDocumentReplacement ? replacementPreviousStatus : (isServiceRequest ? 'UNDER_REVIEW' : 'AWAITING_FEE')
+    const nextStatus = isDocumentReplacement
+      ? resolvePostReplacementAdmissionStatus(replacementRequest?.previousStatus, isServiceRequest)
+      : (isServiceRequest ? 'UNDER_REVIEW' : 'AWAITING_FEE')
     const appFee = isServiceRequest ? 0 : await getSettingNum('FEE_APPLICATION')
     if (!isServiceRequest && appFee <= 0) {
       return NextResponse.json({ error: 'رسوم التقديم غير مضبوطة بقيمة صالحة أكبر من صفر.' }, { status: 500 })

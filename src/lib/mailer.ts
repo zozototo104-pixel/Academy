@@ -328,6 +328,28 @@ export async function emailAdmissionDecision(to: string, name: string, reference
   })
 }
 
+export function buildAdmissionDocumentsRequestedEmail(input: { fullName: string; reference: string; programTitle: string; note?: string | null; docLabels: string[] }) {
+  const subject = `مطلوب استكمال/استبدال مرفقات طلبك — ${input.reference}`
+  const trackingUrl = appLink('/?view=apply')
+  const docs = input.docLabels.length ? input.docLabels : ['المرفقات المطلوبة']
+  const docList = `<ul style="margin:10px 0 0;padding:0 20px;">${docs.map((label) => `<li>${escapeHtml(label)}</li>`).join('')}</ul>`
+  const body = `<p>${greeting(input.fullName)}،</p><p>راجعت الإدارة طلبك، والمطلوب الآن استكمال أو استبدال المرفقات التالية حتى يمكن متابعة الطلب.</p>${infoRows([{ label: 'كود التتبع', value: input.reference }, { label: 'البرنامج / الخدمة', value: input.programTitle }, { label: 'ملاحظة الإدارة', value: input.note || 'يرجى رفع المرفقات المطلوبة من صفحة متابعة الطلب.' }])}<p><strong>المرفقات المطلوبة:</strong></p>${docList}<p>سجّل الدخول بنفس الإيميل أو افتح متابعة الطلب بكود التتبع وآخر 4 أرقام من هاتفك، ثم ارفع المرفقات واضغط إكمال.</p>`
+  return {
+    subject,
+    html: emailTemplate('مطلوب استكمال/استبدال مرفقات طلبك', body, { label: 'متابعة الطلب ورفع المرفقات', url: trackingUrl }),
+  }
+}
+
+export async function emailAdmissionDocumentsRequested(to: string, fullName: string, reference: string, programTitle: string, note: string | null | undefined, docLabels: string[]) {
+  const message = buildAdmissionDocumentsRequestedEmail({ fullName, reference, programTitle, note, docLabels })
+  await sendEmail({
+    to,
+    event: 'ADMISSION_DOCUMENTS_REQUESTED',
+    subject: message.subject,
+    html: message.html,
+  })
+}
+
 export async function emailFinalRegistration(to: string, name: string, program: string) {
   await sendEmail({ to, event: 'FINAL_REGISTRATION', subject: `تسجيلك النهائي في «${program}» فعّال 🎉`, html: emailTemplate('تسجيلك النهائي مكتمل — أهلاً بك في برنامجك 🎉', `<p>${greeting(name)}،</p><p>أصبح تسجيلك النهائي في <strong>${escapeHtml(program)}</strong> فعالاً، ويمكنك الآن بدء الدراسة من بوابة الطالب.</p>`, { label: 'ابدأ الدراسة الآن', url: appLink('/?view=dashboard') }) })
 }

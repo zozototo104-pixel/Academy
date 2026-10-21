@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { __resetTextAiStateForTests, modelFamily } from '../src/lib/text-ai'
-import { verifyQuestionsWithCrossProvider, type VerifiableQuestion } from '../src/lib/question-verifier'
+import { __testVerifierFamilyAllowedForTests, verifyQuestionsWithCrossProvider, type VerifiableQuestion } from '../src/lib/question-verifier'
 
 const originalFetch = globalThis.fetch
 const originalEnv = { ...process.env }
@@ -80,6 +80,14 @@ function modelFamilyClassifiesRealNames() {
   assert.equal(modelFamily('minimax-m2.5:free'), 'minimax')
   assert.equal(modelFamily('gpt-oss-120b:free'), 'gpt')
   assert.equal(modelFamily('google/gemma-3-27b:free'), 'gemini')
+}
+
+function gptOssGeneratorStillBlocksGptVerifierFamily() {
+  const generatorFamily = modelFamily('openai/gpt-oss-120b')
+  const result = __testVerifierFamilyAllowedForTests({ provider: 'ALBORIHI', model: 'gpt-5.6-luna', family: 'gpt' }, 'GROQ', generatorFamily)
+  assert.equal(generatorFamily, 'gpt')
+  assert.equal(result.ok, false)
+  if (!result.ok) assert.equal(result.reason, 'VERIFIER_SAME_FAMILY')
 }
 
 async function generatorProviderUnknownFailsClosed() {
@@ -383,6 +391,7 @@ async function runCase(name: string, test: () => Promise<void> | void) {
 
 async function main() {
   await runCase('modelFamilyClassifiesRealNames', modelFamilyClassifiesRealNames)
+  await runCase('gptOssGeneratorStillBlocksGptVerifierFamily', gptOssGeneratorStillBlocksGptVerifierFamily)
   await runCase('generatorProviderUnknownFailsClosed', generatorProviderUnknownFailsClosed)
   await runCase('generatorModelUnknownFailsClosed', generatorModelUnknownFailsClosed)
   await runCase('generatorFamilyUnknownFailsClosed', generatorFamilyUnknownFailsClosed)

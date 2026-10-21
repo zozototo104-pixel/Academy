@@ -50,6 +50,11 @@ export type QuestionBankJobTrace = {
     verifierModel?: string | null
     sameProviderVerifierFallback?: boolean
   }
+  lastSuccess?: {
+    generation?: { stage: 'generation'; provider: string; model: string; at: string }
+    verification?: { stage: 'verification'; provider: string; model: string; at: string }
+  }
+  lastError?: { code: string; at: string }
 }
 
 type JobFailureState = { lastError: string; count: number }
@@ -218,6 +223,43 @@ function reasonCounts(reasons: string[]): Array<{ reason: string; count: number 
   return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([reason, count]) => ({ reason, count }))
 }
 
+export function buildQuestionBankJobSuccessTrace(args: {
+  generated: number
+  saved: number
+  verifierRejected: number
+  rejected: number
+  rejectionReasons: Array<{ reason: string; count: number }>
+  generatorProvider: string
+  generatorModel: string
+  verifierProvider?: string | null
+  verifierModel?: string | null
+  sameProviderVerifierFallback?: boolean
+  at?: string
+}): QuestionBankJobTrace {
+  const at = args.at || new Date().toISOString()
+  const lastSuccess: NonNullable<QuestionBankJobTrace['lastSuccess']> = {
+    generation: { stage: 'generation', provider: args.generatorProvider, model: args.generatorModel, at },
+  }
+  if (args.verifierProvider && args.verifierModel) {
+    lastSuccess.verification = { stage: 'verification', provider: args.verifierProvider, model: args.verifierModel, at }
+  }
+  return {
+    generated: args.generated,
+    saved: args.saved,
+    verifierRejected: args.verifierRejected,
+    rejected: args.rejected,
+    rejectionReasons: args.rejectionReasons,
+    aiTrace: {
+      generatorProvider: args.generatorProvider,
+      generatorModel: args.generatorModel,
+      verifierProvider: args.verifierProvider || null,
+      verifierModel: args.verifierModel || null,
+      sameProviderVerifierFallback: args.sameProviderVerifierFallback === true,
+    },
+    lastSuccess,
+  }
+}
+
 async function saveJobTrace(jobId: string, trace: QuestionBankJobTrace) {
   await db.setting.upsert({ where: { key: traceKey(jobId) }, update: { value: JSON.stringify(trace) }, create: { key: traceKey(jobId), value: JSON.stringify(trace) } }).catch(() => null)
 }
@@ -237,6 +279,8 @@ export async function readQuestionBankJobTrace(jobId: string): Promise<QuestionB
       return { reason: cleanText(entry.reason, 220) || 'UNKNOWN', count: Number(entry.count || 0) }
     }).filter((item) => item.count > 0).slice(0, 3),
     aiTrace: parsed.aiTrace && typeof parsed.aiTrace === 'object' ? parsed.aiTrace as QuestionBankJobTrace['aiTrace'] : undefined,
+    lastSuccess: parsed.lastSuccess && typeof parsed.lastSuccess === 'object' ? parsed.lastSuccess as QuestionBankJobTrace['lastSuccess'] : undefined,
+    lastError: parsed.lastError && typeof parsed.lastError === 'object' ? parsed.lastError as QuestionBankJobTrace['lastError'] : undefined,
   }
 }
 
@@ -261,6 +305,10 @@ async function recordJobFailure(jobId: string, message: string): Promise<JobFail
   const state = { lastError: message, count }
   await db.setting.upsert({ where: { key: failureKey(jobId) }, update: { value: JSON.stringify(state) }, create: { key: failureKey(jobId), value: JSON.stringify(state) } }).catch(() => null)
   return state
+}
+
+export function isPausableQuestionBankError(message: string): boolean {
+  return /AI_ACADEMIC_PROVIDER_UNAVAILABLE|TEXT_AI_ROUTER|DEADLINE|TIMEOUT|NO_PROVIDER|NOT_CONFIGURED|OPENAI_API_KEYS/i.test(message)
 }
 
 async function normalizeProviderError(message: string) {
@@ -503,20 +551,20 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
     } as Prisma.QuestionBankItemCreateManyInput)
     if (rows.length >= count) break
   }
-  await saveJobTrace(job.id, {
+  const verifierProvider = cleanText(verified.find((item) => item.verifierProvider)?.verifierProvider, 80) || null
+  const verifierModel = cleanText(verified.find((item) => item.verifierModel)?.verifierModel, 160) || null
+  await saveJobTrace(job.id, buildQuestionBankJobSuccessTrace({
     generated: parsed.accepted.length + parsed.rejected,
     saved: rows.length,
     verifierRejected: verifierRejected.length,
     rejected: traceReasons.length,
     rejectionReasons: reasonCounts(traceReasons),
-    aiTrace: {
-      generatorProvider: raw.provider,
-      generatorModel: raw.model,
-      verifierProvider: cleanText(verified.find((item) => item.verifierProvider)?.verifierProvider, 80) || null,
-      verifierModel: cleanText(verified.find((item) => item.verifierModel)?.verifierModel, 160) || null,
-      sameProviderVerifierFallback: raw.provider === 'OPENAI' && verified.some((item) => item.verifierProvider === 'OPENAI'),
-    },
-  })
+    generatorProvider: raw.provider,
+    generatorModel: raw.model,
+    verifierProvider,
+    verifierModel,
+    sameProviderVerifierFallback: raw.provider === 'OPENAI' && verified.some((item) => item.verifierProvider === 'OPENAI'),
+  }))
   if (!rows.length) throw new Error('QUESTION_BANK_JOB_EMPTY_BATCH')
   await db.questionBankItem.createMany({ data: rows })
   return rows.length
@@ -588,8 +636,18 @@ export async function runQuestionBankGenerationJobStep(jobId: string, deadlineMs
     const message = cleanText(await normalizeProviderError(error instanceof Error ? error.message : String(error)), 1000)
     if (message === 'QUESTION_BANK_JOB_EMPTY_BATCH' && job.unitId && await completeUnitQuestionBankJobIfReady(job)) return db.questionBankGenerationJob.findUnique({ where: { id: jobId } })
     const failure = await recordJobFailure(jobId, message)
-    await saveJobTrace(jobId, { generated: 0, saved: 0, verifierRejected: 0, rejected: 1, rejectionReasons: reasonCounts([message]) })
-    const paused = /AI_ACADEMIC_PROVIDER_UNAVAILABLE|TEXT_AI_ROUTER|DEADLINE|TIMEOUT|NO_PROVIDER|NOT_CONFIGURED|OPENAI_API_KEYS/i.test(message)
+    const previousTrace = await readQuestionBankJobTrace(jobId).catch(() => null)
+    await saveJobTrace(jobId, {
+      generated: previousTrace?.generated || 0,
+      saved: previousTrace?.saved || 0,
+      verifierRejected: previousTrace?.verifierRejected || 0,
+      rejected: 1,
+      rejectionReasons: reasonCounts([message]),
+      aiTrace: previousTrace?.aiTrace,
+      lastSuccess: previousTrace?.lastSuccess,
+      lastError: { code: message, at: new Date().toISOString() },
+    })
+    const paused = isPausableQuestionBankError(message)
     const emptyBatch = message === 'QUESTION_BANK_JOB_EMPTY_BATCH'
     const repeatedLimitReached = failure.count >= 3
     await db.questionBankGenerationJob.updateMany({

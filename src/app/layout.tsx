@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { PerformanceMonitor } from "@/components/aact/PerformanceMonitor";
+import { SiteAnnouncements } from "@/components/aact/SiteAnnouncements";
 import { SITE_DESCRIPTION, SITE_NAME, organizationJsonLd, siteUrl, websiteJsonLd } from "@/lib/seo";
 
 export const metadata: Metadata = {
@@ -97,6 +98,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd()) }}
         />
         <PerformanceMonitor />
+        <SiteAnnouncements />
         {children}
         <Toaster />
       </body>

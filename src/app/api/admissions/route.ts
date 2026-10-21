@@ -9,12 +9,13 @@ import { emailAdminNewAdmissionRequest, emailAdmissionSubmitted, emailServiceReq
 import { getStorageDownloadPathForKey, storageErrorMessage, storeFileBuffer } from '@/lib/storage'
 import { clientIpFromHeaders, enforceApiRateLimit } from '@/lib/rate-limit'
 import { buildServiceAdmissionDefaults, getServiceFlow } from '@/lib/service-flows'
-import { REQUIRED_ADMISSION_DOCS, resolveAdmissionRequiredDocuments } from '@/lib/admission-required-documents'
+import { parseAdmissionRules, REQUIRED_ADMISSION_DOCS, resolveAdmissionRequiredDocuments } from '@/lib/admission-required-documents'
 import { resolveRules } from '@/lib/admission-ai'
 import { deriveServiceWorkflowState } from '@/lib/service-workflows'
 import { createAdmissionUploadToken } from '@/lib/admission-upload-token'
 import { normalizePhone, isSupportedCountry, validateApplicantFullName, validateBirthDateForMinAge, validateNationalIdOrPassport, validatePhone } from '@/lib/admission-validation'
 import { inferTotalTuition, roundMoney, tuitionPaidTotal } from '@/lib/tuition-installments'
+import { resolveProgramAdmissionDocumentRequirements } from '@/lib/admission-document-requirements'
 import { extractAdmissionDocumentReplacement } from '@/lib/admission-document-replacement'
 import { repairVerifiedStudentRecordOwnership, studentAdmissionOwnershipWhere, studentOwnsAdmission } from '@/lib/student-record-ownership'
 import { validateAdmissionFileSignature } from '@/lib/file-signature'
@@ -291,9 +292,10 @@ export async function POST(req: NextRequest) {
     if (!isServiceRequest && appFee <= 0) {
       return NextResponse.json({ error: 'رسوم التقديم غير مضبوطة بقيمة صالحة أكبر من صفر.' }, { status: 500 })
     }
-    const programRules = programRec?.admissionRules
-      ? resolveRules(programRec?.category || 'DIPLOMA', programRec.admissionRules, !isServiceRequest)
-      : (buildServiceAdmissionDefaults(serviceFlow) || resolveRules(programRec?.category || 'DIPLOMA', programRec?.admissionRules, !isServiceRequest))
+    const parsedAdmissionRules = parseAdmissionRules(programRec?.admissionRules)
+    const programRules = parsedAdmissionRules
+      ? resolveRules(programRec?.category || 'DIPLOMA', parsedAdmissionRules, !isServiceRequest)
+      : (buildServiceAdmissionDefaults(serviceFlow) || resolveRules(programRec?.category || 'DIPLOMA', parsedAdmissionRules, !isServiceRequest))
 
     if (!isServiceRequest) {
       const nationalError = validateNationalIdOrPassport(String(nationalId || ''), country)
@@ -578,7 +580,7 @@ export async function GET(req: NextRequest) {
     const trackingPhoneLast4 = req.nextUrl.searchParams.get('phoneLast4') || req.nextUrl.searchParams.get('phone')
     const include: any = {
       supervisor: { select: { name: true } },
-      programRef: { select: { slug: true, category: true, titleAr: true } },
+      programRef: { select: { slug: true, category: true, titleAr: true, admissionRules: true } },
       files: { select: { id: true, docType: true, fileName: true, size: true, storageKey: true } },
       payments: {
         select: {
@@ -616,6 +618,7 @@ export async function GET(req: NextRequest) {
         finalRequired: totalTuition,
       } : null
       const documentReplacementRequest = extractAdmissionDocumentReplacement(app.notes)
+      const docRequirements = resolveProgramAdmissionDocumentRequirements(app.programRef, (app.files || []).map((f: any) => f.docType))
       return {
       id: app.id,
       reference: app.reference,
@@ -634,6 +637,8 @@ export async function GET(req: NextRequest) {
       email: app.email,
       phone: app.phone,
       documents: (app.files || []).map((f: any) => ({ id: f.id, docType: f.docType, fileName: f.fileName, size: f.size, fileUrl: f.storageKey ? getStorageDownloadPathForKey(f.storageKey) : null, downloadUrl: f.storageKey ? getStorageDownloadPathForKey(f.storageKey) : null })),
+      requiredDocs: docRequirements.requiredDocs,
+      missingDocs: docRequirements.missingDocs,
       documentReplacementRequest,
       replacementUploadToken: app.status === 'DOCUMENTS_NEED_REPLACEMENT' && documentReplacementRequest ? createAdmissionUploadToken(app) : null,
       payments: app.payments || [],

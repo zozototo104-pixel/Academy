@@ -92,6 +92,17 @@ interface TextAiModelHealth {
   health?: Array<{ provider: string; model: string; status: string; purposeScores?: Record<string, number>; health?: { ok: boolean; latencyMs?: number; checkedAt?: string; status?: number; error?: string } | null }>
 }
 
+interface TextAiRouterStateItem {
+  type: 'KEY_COOLDOWN' | 'MODEL_COOLDOWN' | 'PROVIDER_COOLDOWN' | 'NO_BALANCE' | 'MODEL_DEAD'
+  source: 'db' | 'memory'
+  provider: string
+  keyIndex: number | null
+  model: string | null
+  until: string
+  reason: string
+  status: number | null
+}
+
 interface BackupInspectResult {
   ok: boolean
   mode: 'inspect' | 'restore'
@@ -216,6 +227,19 @@ const ROUTER_POLICY_CHOICES = [
   { value: 'fallback_only', label: 'Fallback Only — المزود المختار فقط' },
 ]
 
+const ROUTER_POLICY_SOURCE_CHOICES = [
+  { value: 'legacy', label: 'افتراضي النظام — يحافظ على السياسات المكتوبة بالكود' },
+  { value: 'admin', label: 'سياسة لوحة الإدارة — تستخدم القائمة أعلاه في المسارات الأكاديمية' },
+]
+
+const POLICY_RANK_BY_CHOICES = [
+  { value: 'provider', label: 'اسم المزوّد — الحالي' },
+  { value: 'family', label: 'عائلة النموذج' },
+]
+
+const DEFAULT_FAMILY_QUALITY_ORDER = 'claude,gpt,gemini,deepseek,qwen,kimi,glm,grok,gpt-oss,llama,other'
+const DEFAULT_FAMILY_COST_ORDER = 'gpt-oss,llama,qwen,glm,deepseek,gemini,kimi,grok,gpt,claude,other'
+
 const OPENAI_TEXT_MODEL_CHOICES = [
   { value: 'gpt-5.1', label: 'GPT-5.1 — تحليل وتوليد قوي' },
   { value: 'gpt-5', label: 'GPT-5 — احتياطي قوي' },
@@ -321,6 +345,9 @@ export function AdminSystemTab() {
   const [textModelCatalog, setTextModelCatalog] = useState<Record<string, { models: string[]; message: string; discoveredCount: number; staticCount: number }>>({})
   const [textModelHealth, setTextModelHealth] = useState<TextAiModelHealth | null>(null)
   const [textModelHealthLoading, setTextModelHealthLoading] = useState(false)
+  const [routerState, setRouterState] = useState<TextAiRouterStateItem[]>([])
+  const [routerStateLoading, setRouterStateLoading] = useState(false)
+  const [routerStateClearing, setRouterStateClearing] = useState<string | null>(null)
   const [backupStatus, setBackupStatus] = useState<BackupStatus | null>(null)
   const [backupBusy, setBackupBusy] = useState(false)
   const [lastBackup, setLastBackup] = useState<BackupRunResult | null>(null)
@@ -336,13 +363,20 @@ export function AdminSystemTab() {
 
   const load = () => {
     setLoading(true)
+    setRouterStateLoading(true)
     api<SystemData>('/api/admin/system')
       .then((d) => {
         setData(d)
         setForm(d.values)
+        return api<{ ok: boolean; state: TextAiRouterStateItem[] }>('/api/admin/system', { method: 'POST', body: JSON.stringify({ action: 'router-state' }) })
+          .then((result) => setRouterState(result.state || []))
+          .catch((e) => toast({ title: 'تعذر تحميل حالة الراوتر', description: e.message, variant: 'destructive' }))
       })
       .catch((e) => toast({ title: 'خطأ', description: e.message, variant: 'destructive' }))
-      .finally(() => setLoading(false))
+      .finally(() => {
+        setLoading(false)
+        setRouterStateLoading(false)
+      })
   }
 
   const loadBackupStatus = () => {
@@ -375,6 +409,52 @@ export function AdminSystemTab() {
       .then((r) => setTextModelHealth(r))
       .catch(() => setTextModelHealth(null))
       .finally(() => setTextModelHealthLoading(false))
+  }
+
+  const loadRouterState = async () => {
+    setRouterStateLoading(true)
+    try {
+      const result = await api<{ ok: boolean; state: TextAiRouterStateItem[] }>('/api/admin/system', { method: 'POST', body: JSON.stringify({ action: 'router-state' }) })
+      setRouterState(result.state || [])
+    } catch (e: any) {
+      toast({ title: 'تعذر تحميل حالة الراوتر', description: e.message, variant: 'destructive' })
+    } finally {
+      setRouterStateLoading(false)
+    }
+  }
+
+  const clearRouterStateItem = async (item: TextAiRouterStateItem) => {
+    const clearId = `${item.type}:${item.provider}:${item.keyIndex ?? ''}:${item.model || ''}`
+    setRouterStateClearing(clearId)
+    try {
+      const result = await api<{ ok: boolean; state: TextAiRouterStateItem[] }>('/api/admin/system', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'clear-router-state', type: item.type, provider: item.provider, keyIndex: item.keyIndex, model: item.model }),
+      })
+      setRouterState(result.state || [])
+      toast({ title: 'تم مسح حالة الراوتر', description: `${item.provider}${item.model ? ` / ${item.model}` : ''}` })
+    } catch (e: any) {
+      toast({ title: 'تعذر مسح الحالة', description: e.message, variant: 'destructive' })
+    } finally {
+      setRouterStateClearing(null)
+    }
+  }
+
+  const clearRouterProvider = async (provider: string) => {
+    const clearId = `clear-provider:${provider}`
+    setRouterStateClearing(clearId)
+    try {
+      const result = await api<{ ok: boolean; state: TextAiRouterStateItem[] }>('/api/admin/system', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'clear-router-state', type: 'clear-provider', provider, clearProvider: true }),
+      })
+      setRouterState(result.state || [])
+      toast({ title: 'تم مسح تبريدات المزوّد', description: provider })
+    } catch (e: any) {
+      toast({ title: 'تعذر مسح تبريدات المزوّد', description: e.message, variant: 'destructive' })
+    } finally {
+      setRouterStateClearing(null)
+    }
   }
 
   const checkAllTextModelsNow = async () => {
@@ -721,6 +801,35 @@ export function AdminSystemTab() {
     )
   }
   if (!data) return null
+
+  const routerStateTypeLabels: Record<TextAiRouterStateItem['type'], string> = {
+    KEY_COOLDOWN: 'تبريد مفتاح',
+    MODEL_COOLDOWN: 'تبريد نموذج',
+    PROVIDER_COOLDOWN: 'تبريد مزوّد',
+    NO_BALANCE: 'بلا رصيد',
+    MODEL_DEAD: 'نموذج معطّل',
+  }
+  const routerStateByProvider = routerState.reduce((acc, item) => {
+    acc[item.provider] = acc[item.provider] || []
+    acc[item.provider].push(item)
+    return acc
+  }, {} as Record<string, TextAiRouterStateItem[]>)
+  const routerStateClearId = (item: TextAiRouterStateItem) => `${item.source}:${item.type}:${item.provider}:${item.keyIndex ?? ''}:${item.model || ''}`
+  const routerStateUntil = (value: string) => {
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
+  }
+  const textProviderHelp = form.AI_ROUTER_POLICY_SOURCE === 'admin'
+    ? form.AI_ROUTER_POLICY === 'primary_first'
+      ? 'المزوّد المختار يُجرَّب أولاً، بعده قائمة المهام الحساسة، ثم الباقي (إذا القائمة غير صارمة).'
+      : 'الترتيب حسب سياسة التوجيه المختارة.'
+    : 'في المهام الأكاديمية تتقدّم قائمة المهام الحساسة على المزوّد المختار.'
+  const routerPolicyHelp = form.AI_POLICY_RANK_BY === 'family'
+    ? 'الجودة والتكلفة ترتّب حسب عائلة النموذج.'
+    : 'الجودة والتكلفة ترتّب حسب المزوّد حالياً.'
+  const academicAllowlistHelp = form.AI_ACADEMIC_ALLOWLIST_STRICT === 'true' || form.AI_ACADEMIC_ALLOWLIST_STRICT === '1'
+    ? 'صارمة: لا تُجرَّب أي نماذج خارجها.'
+    : 'قائمة أولوية: تُجرّب أولاً بالترتيب، وقد يجرّب النظام نماذج أخرى بعدها.'
 
   const statusBadge = (s: string) => {
     if (s === 'SENT') return { cls: 'bg-emerald-100 text-emerald-700', icon: <CheckCircle2 className="h-3 w-3" />, label: 'أُرسل' }
@@ -1085,10 +1194,44 @@ export function AdminSystemTab() {
               </div>
               <Badge className={textAiDiag?.externalConfigured ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}>{textAiDiag?.externalConfigured ? `نشط: ${textAiDiag.activeProvider}` : 'Gemini / غير خارجي'}</Badge>
             </div>
-            {SelectF('AI_TEXT_PROVIDER', 'مزود النصوص', TEXT_PROVIDER_CHOICES, 'اختر GEMINI لاستخدام مفاتيح Gemini في Router، أو AUTO للتنقل بين كل المزودات.')}
-            {SelectF('AI_ROUTER_POLICY', 'سياسة التوجيه', ROUTER_POLICY_CHOICES, 'primary_first هو الأكثر وضوحاً. cost_saver يبدأ بالمزودات الأرخص/المفتوحة.')}
-            {F('AI_ACADEMIC_ALLOWLIST', 'قائمة المهام الحساسة AI_ACADEMIC_ALLOWLIST', 'GEMINI:gemini-3.5-flash,GEMINI:gemini-3.8-flash', 'text', 'اكتب provider:model فقط، مفصولة بفواصل. ممنوع auto.')}
+            {SelectF('AI_TEXT_PROVIDER', 'مزود النصوص', TEXT_PROVIDER_CHOICES, textProviderHelp)}
+            {SelectF('AI_ROUTER_POLICY', 'سياسة التوجيه', ROUTER_POLICY_CHOICES, routerPolicyHelp)}
+            {SelectF('AI_ROUTER_POLICY_SOURCE', 'مصدر سياسة الراوتر', ROUTER_POLICY_SOURCE_CHOICES, 'افتراضي النظام يحافظ على balanced/primary_first المكتوبة في الكود. سياسة لوحة الإدارة تجعل المسارات تستخدم AI_ROUTER_POLICY.')}
+            {SelectF('AI_POLICY_RANK_BY', 'ترتيب الجودة والتكلفة حسب', POLICY_RANK_BY_CHOICES, 'provider يحافظ على السلوك الحالي، وfamily يرتب quality_first/cost_saver حسب عائلة النموذج.')}
+            {F('AI_PROVIDER_TIERS', 'مستويات المزودين AI_PROVIDER_TIERS', 'ALBORIHI:PAID,GROQ:FREE,GEMINI:FREE', 'text', 'مثال: ALBORIHI:PAID,GROQ:FREE,GEMINI:FREE')}
+            <div className="flex items-center justify-between rounded-xl border border-indigo-100 bg-white px-4 py-3">
+              <div>
+                <p className="text-xs font-black text-indigo-900">المدفوع أولاً بالمهام الأكاديمية</p>
+                <p className="text-[10px] leading-relaxed text-indigo-700">عند التفعيل، المهام الأكاديمية والمدقق يجربون مزودي PAID قبل FREE ثم غير المصنّفين، ولا يؤثر على الشات العام.</p>
+              </div>
+              <Switch checked={form.AI_PAID_FIRST === 'true' || form.AI_PAID_FIRST === '1'} onCheckedChange={(v) => set('AI_PAID_FIRST', v ? 'true' : 'false')} />
+            </div>
+            {F('AI_FAMILY_QUALITY_ORDER', 'ترتيب عائلات الجودة AI_FAMILY_QUALITY_ORDER', DEFAULT_FAMILY_QUALITY_ORDER, 'text', 'اختياري. اتركه فارغاً لاستخدام الترتيب الافتراضي.')}
+            {F('AI_FAMILY_COST_ORDER', 'ترتيب عائلات التوفير AI_FAMILY_COST_ORDER', DEFAULT_FAMILY_COST_ORDER, 'text', 'اختياري. اتركه فارغاً لاستخدام الترتيب الافتراضي.')}
+            {F('AI_ROUTER_COOLDOWN_MINUTES', 'مدة التبريد الافتراضية (دقائق)', '15', 'number', 'رقم من 1 إلى 120. إذا تُرك فارغاً أو خارج النطاق يعود إلى 15 دقيقة.')}
+            {F('AI_ACADEMIC_ALLOWLIST', 'قائمة المهام الحساسة AI_ACADEMIC_ALLOWLIST', 'GEMINI:gemini-3.5-flash,GEMINI:gemini-3.8-flash', 'text', academicAllowlistHelp)}
+            <div className="flex items-center justify-between rounded-xl border border-indigo-100 bg-white px-4 py-3">
+              <div>
+                <p className="text-xs font-black text-indigo-900">قائمة صارمة للمهام الحساسة</p>
+                <p className="text-[10px] leading-relaxed text-indigo-700">عند التفعيل، المهام الأكاديمية تستخدم نماذج AI_ACADEMIC_ALLOWLIST فقط ولا تجرب نماذج مكتشفة خارجها.</p>
+              </div>
+              <Switch checked={form.AI_ACADEMIC_ALLOWLIST_STRICT === 'true' || form.AI_ACADEMIC_ALLOWLIST_STRICT === '1'} onCheckedChange={(v) => set('AI_ACADEMIC_ALLOWLIST_STRICT', v ? 'true' : 'false')} />
+            </div>
             {F('AI_VERIFIER_PREFERRED', 'نماذج مدقق الأسئلة المفضلة AI_VERIFIER_PREFERRED', 'OPENAI:gpt-5.1,ANTHROPIC:claude-sonnet-4-5-20250929', 'text', 'تُجرّب كمدققين أولاً بنفس صيغة provider:model، مفصولة بفواصل. ممنوع auto.')}
+            <div className="flex items-center justify-between rounded-xl border border-indigo-100 bg-white px-4 py-3">
+              <div>
+                <p className="text-xs font-black text-indigo-900">مدقق صارم</p>
+                <p className="text-[10px] leading-relaxed text-indigo-700">عند التفعيل، مدقق الأسئلة يستخدم AI_VERIFIER_PREFERRED فقط، وإذا لم يتوفر مدقق يبقى السؤال بانتظار المراجعة.</p>
+              </div>
+              <Switch checked={form.AI_VERIFIER_STRICT === 'true' || form.AI_VERIFIER_STRICT === '1'} onCheckedChange={(v) => set('AI_VERIFIER_STRICT', v ? 'true' : 'false')} />
+            </div>
+            <div className="flex items-center justify-between rounded-xl border border-indigo-100 bg-white px-4 py-3">
+              <div>
+                <p className="text-xs font-black text-indigo-900">ثبّت على النموذج الناجح</p>
+                <p className="text-[10px] leading-relaxed text-indigo-700">عند التفعيل، كل مسار نصي يجرب آخر نموذج ناجح له أولاً ما دام متاحاً وضمن القيود.</p>
+              </div>
+              <Switch checked={form.AI_STICKY_ON_SUCCESS === 'true' || form.AI_STICKY_ON_SUCCESS === '1'} onCheckedChange={(v) => set('AI_STICKY_ON_SUCCESS', v ? 'true' : 'false')} />
+            </div>
             <div className="flex items-center justify-between rounded-xl border border-indigo-100 bg-white px-4 py-3 sm:col-span-2">
               <div>
                 <p className="text-xs font-black text-indigo-900">السماح بالبوابات العامة كاحتياط</p>
@@ -1123,9 +1266,82 @@ export function AdminSystemTab() {
             )}
             {!!textAiDiag?.cooldowns?.length && (
               <div className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-[10px] font-bold leading-relaxed text-amber-700 sm:col-span-2">
-                مفاتيح في cooldown: {textAiDiag.cooldowns.map((c) => `${c.provider}/${c.key} حتى ${new Date(c.until).toLocaleTimeString('ar')}`).join('، ')}
+                مفاتيح في cooldown: {textAiDiag.cooldowns.map((c) => `${c.provider} حتى ${new Date(c.until).toLocaleTimeString('ar')}`).join('، ')}
               </div>
             )}
+            <div className="rounded-xl border border-indigo-100 bg-white p-3 text-[10px] font-bold leading-relaxed text-slate-600 ring-1 ring-indigo-100 sm:col-span-2">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-black text-indigo-900">حالة الراوتر</p>
+                  <p className="text-[10px] text-slate-500">تبريدات المفاتيح والنماذج، نقص الرصيد، والنماذج المعطلة. لا يتم عرض أي مفتاح API أو جزء منه.</p>
+                </div>
+                <Button type="button" size="sm" variant="outline" disabled={routerStateLoading} onClick={loadRouterState} className="border-indigo-200 text-[10px] font-black text-indigo-700">
+                  {routerStateLoading ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : <Clock3 className="ml-1 h-3 w-3" />} تحديث
+                </Button>
+              </div>
+              {!routerState.length ? (
+                <div className="rounded-lg bg-slate-50 p-3 text-slate-500">لا توجد حالات تبريد أو استبعاد فعالة حالياً.</div>
+              ) : (
+                <div className="space-y-3">
+                  {Object.entries(routerStateByProvider).map(([provider, items]) => (
+                    <div key={provider} className="rounded-xl border border-slate-100 bg-slate-50 p-2">
+                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-black text-indigo-900">{provider}</p>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={!!routerStateClearing}
+                          onClick={() => clearRouterProvider(provider)}
+                          className="h-7 border-amber-200 text-[10px] font-black text-amber-700"
+                        >
+                          {routerStateClearing === `clear-provider:${provider}` ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null} مسح كل تبريدات المزوّد
+                        </Button>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[680px] text-right text-[10px]">
+                          <thead className="text-slate-400">
+                            <tr>
+                              <th className="px-2 py-1">النوع</th>
+                              <th className="px-2 py-1">المفتاح</th>
+                              <th className="px-2 py-1">النموذج</th>
+                              <th className="px-2 py-1">حتى</th>
+                              <th className="px-2 py-1">السبب</th>
+                              <th className="px-2 py-1">الحالة</th>
+                              <th className="px-2 py-1">إجراء</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {items.map((item) => (
+                              <tr key={routerStateClearId(item)} className="border-t border-slate-100">
+                                <td className="px-2 py-1 font-black text-slate-700">{routerStateTypeLabels[item.type]}</td>
+                                <td className="px-2 py-1">{item.keyIndex === null ? '—' : `#${item.keyIndex + 1}`}</td>
+                                <td className="px-2 py-1" dir="ltr">{item.model || '—'}</td>
+                                <td className="px-2 py-1">{routerStateUntil(item.until)}</td>
+                                <td className="px-2 py-1">{item.reason || '—'}</td>
+                                <td className="px-2 py-1">{item.status || '—'}</td>
+                                <td className="px-2 py-1">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={!!routerStateClearing}
+                                    onClick={() => clearRouterStateItem(item)}
+                                    className="h-7 border-red-100 text-[10px] font-black text-red-600"
+                                  >
+                                    {routerStateClearing === routerStateClearId(item) ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null} مسح
+                                  </Button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             <div className="rounded-xl border border-indigo-100 bg-white p-3 text-[10px] font-bold leading-relaxed text-slate-600 ring-1 ring-indigo-100 sm:col-span-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>

@@ -6,7 +6,7 @@ import { sendEmail, getSmtpConfig, emailTemplate } from '@/lib/mailer'
 import { ensureGeminiKey, hasGemini, invalidateGeminiKeyCache, normalizeGeminiModelName, geminiActiveLiveModel, isValidGeminiLiveModel, geminiApiKey, isQuotaError, isAuthError, isModelUnavailableError, isInvalidArgumentError, geminiKeyDiagnostics, geminiTestConnection } from '@/lib/gemini'
 import { localAgentDiagnostics, testLocalAgentConnection } from '@/lib/open-source-llm'
 import { getGatewayConfig, paymentDiagnostics } from '@/lib/payments'
-import { textAiCheckAllModelHealth, textAiDiagnostics, textAiFreeModelsForProvider, textAiModelHealthSnapshot, textAiTestConnection } from '@/lib/text-ai'
+import { clearTextAiRouterState, textAiCheckAllModelHealth, textAiDiagnostics, textAiFreeModelsForProvider, textAiModelHealthSnapshot, textAiRouterStateSnapshot, textAiTestConnection } from '@/lib/text-ai'
 import { clearSecretCache, decryptSecret, encryptSecret, hasSecretEncryptionKey, isEncryptedSecret, isMaskedSecret, isSecretKeyName, redactDeep, redactSecrets, secretLast4 } from '@/lib/secret-crypto'
 
 const NextResponse = {
@@ -21,7 +21,7 @@ const SYSTEM_KEYS = [
   'USDT_WALLET_ADDRESS', 'USDT_BINANCE_PAY_USER_ID', 'USDT_BINANCE_PAY_QR_IMAGE_URL', 'USDT_NETWORK', 'USDT_PAYMENT_INSTRUCTIONS',
   'TURN_URL', 'TURN_TCP_URL', 'TURN_USERNAME', 'TURN_CREDENTIAL', 'STUN_URLS',
   'GEMINI_API_KEY', 'GEMINI_API_KEYS', 'GEMINI_TEXT_MODEL', 'GEMINI_TTS_MODEL', 'GEMINI_LIVE_MODEL', 'GEMINI_SUPERVISOR_LIVE_MODEL', 'GEMINI_DISCUSSION_LIVE_MODEL', 'GEMINI_DISCUSSION_THINKING_LEVEL', 'GEMINI_TTS_VOICE',
-  'AI_TEXT_PROVIDER', 'AI_ROUTER_POLICY', 'AI_ROUTER_ALLOW_PUBLIC_GATEWAYS', 'AI_ACADEMIC_ALLOWLIST', 'AI_VERIFIER_PREFERRED',
+  'AI_TEXT_PROVIDER', 'AI_ROUTER_POLICY', 'AI_ROUTER_POLICY_SOURCE', 'AI_POLICY_RANK_BY', 'AI_FAMILY_QUALITY_ORDER', 'AI_FAMILY_COST_ORDER', 'AI_PROVIDER_TIERS', 'AI_PAID_FIRST', 'AI_ROUTER_ALLOW_PUBLIC_GATEWAYS', 'AI_ACADEMIC_ALLOWLIST', 'AI_ACADEMIC_ALLOWLIST_STRICT', 'AI_VERIFIER_PREFERRED', 'AI_VERIFIER_STRICT', 'AI_STICKY_ON_SUCCESS', 'AI_ROUTER_COOLDOWN_MINUTES',
   'OPENAI_API_KEY', 'OPENAI_API_KEYS', 'OPENAI_TEXT_MODEL', 'OPENAI_BASE_URL',
   'ANTHROPIC_API_KEY', 'ANTHROPIC_API_KEYS', 'ANTHROPIC_TEXT_MODEL',
   'ZAI_API_KEY', 'ZAI_API_KEYS', 'ZAI_TEXT_MODEL', 'ZAI_API_BASE',
@@ -81,6 +81,33 @@ const TEXT_AI_MODEL_SETTING_PROVIDERS = new Set(['GEMINI', 'UNOROUTER', 'OPENROU
 function isValidTextAiProviderModelSettingItem(item: string): boolean {
   const [provider, model] = item.split(/:(.+)/).filter(Boolean)
   return !!(provider && model && TEXT_AI_MODEL_SETTING_PROVIDERS.has(provider.toUpperCase()) && /^[A-Z_]+:[a-z0-9][a-z0-9_.\/:\-]{1,180}$/i.test(item) && !/(^|:)auto$/i.test(item))
+}
+
+function sanitizeTextAiProviderTiers(value: string): string | null {
+  const items = value.split(',').map((item) => item.trim()).filter(Boolean)
+  for (const item of items) {
+    const parts = item.split(':')
+    const provider = (parts[0] || '').trim().toUpperCase()
+    const tier = (parts[1] || '').trim().toUpperCase()
+    if (parts.length !== 2 || !TEXT_AI_MODEL_SETTING_PROVIDERS.has(provider) || (tier !== 'PAID' && tier !== 'FREE')) return null
+  }
+  return items.map((item) => {
+    const [provider, tier] = item.split(':')
+    return `${provider.trim().toUpperCase()}:${tier.trim().toUpperCase()}`
+  }).join(',')
+}
+
+function sanitizeFamilyOrder(value: string): string {
+  const allowed = new Set(['claude', 'gpt', 'gemini', 'deepseek', 'qwen', 'kimi', 'glm', 'grok', 'gpt-oss', 'llama', 'other'])
+  const seen = new Set<string>()
+  const items: string[] = []
+  for (const raw of value.split(',')) {
+    const item = raw.trim().toLowerCase()
+    if (!item || !allowed.has(item) || seen.has(item)) continue
+    seen.add(item)
+    items.push(item)
+  }
+  return items.join(',')
 }
 
 // GET /api/admin/system — إعدادات النظام: البريد + الدفع + TURN (الأسرار مقنعة) + سجل البريد
@@ -195,6 +222,27 @@ export async function PATCH(req: NextRequest) {
         value = encryptSecret(value)
         await audit(admin, 'AI_KEY_UPDATED', 'Setting', key, `${key}:${last4}`)
       }
+      if (key === 'AI_ROUTER_POLICY_SOURCE') {
+        value = value === 'admin' ? 'admin' : 'legacy'
+      }
+      if (key === 'AI_POLICY_RANK_BY') {
+        value = value === 'family' ? 'family' : 'provider'
+      }
+      if (key === 'AI_ACADEMIC_ALLOWLIST_STRICT' || key === 'AI_VERIFIER_STRICT' || key === 'AI_STICKY_ON_SUCCESS' || key === 'AI_PAID_FIRST') {
+        value = ['1', 'true', 'yes', 'on'].includes(String(value || '').trim().toLowerCase()) ? 'true' : 'false'
+      }
+      if (key === 'AI_FAMILY_QUALITY_ORDER' || key === 'AI_FAMILY_COST_ORDER') {
+        value = sanitizeFamilyOrder(value)
+      }
+      if (key === 'AI_PROVIDER_TIERS') {
+        const cleaned = sanitizeTextAiProviderTiers(value)
+        if (cleaned == null) return NextResponse.json({ error: 'مستويات المزودين يجب أن تكون بصيغة PROVIDER:PAID أو PROVIDER:FREE مثل ALBORIHI:PAID,GROQ:FREE' }, { status: 400 })
+        value = cleaned
+      }
+      if (key === 'AI_ROUTER_COOLDOWN_MINUTES') {
+        const minutes = Number(value)
+        value = Number.isFinite(minutes) && Math.floor(minutes) >= 1 && Math.floor(minutes) <= 120 ? String(Math.floor(minutes)) : '15'
+      }
       if (key === 'AI_ACADEMIC_ALLOWLIST' || key === 'AI_VERIFIER_PREFERRED') {
         const items = value.split(',').map((item) => item.trim()).filter(Boolean)
         const ok = items.every(isValidTextAiProviderModelSettingItem)
@@ -260,6 +308,30 @@ export async function POST(req: NextRequest) {
       await db.setting.upsert({ where: { key: 'AI_ACADEMIC_ALLOWLIST' }, create: { key: 'AI_ACADEMIC_ALLOWLIST', value: current.join(',') }, update: { value: current.join(',') } })
       await audit(admin, 'UPDATE_SETTINGS', 'Setting', 'AI_ACADEMIC_ALLOWLIST', `إضافة نموذج حساس: ${item}`)
       return NextResponse.json({ ok: true, allowlist: current.join(',') })
+    }
+    if (action === 'router-state') {
+      const state = await textAiRouterStateSnapshot()
+      return NextResponse.json({ ok: true, state })
+    }
+    if (action === 'clear-router-state') {
+      const clearProvider = body?.clearProvider === true || body?.type === 'clear-provider'
+      const result = await clearTextAiRouterState({
+        type: String(body?.type || ''),
+        provider: String(body?.provider || ''),
+        keyIndex: body?.keyIndex === null || body?.keyIndex === undefined ? null : Number(body.keyIndex),
+        model: body?.model === null || body?.model === undefined ? null : String(body.model),
+        clearProvider,
+      })
+      await audit(
+        admin,
+        clearProvider ? 'AI_ROUTER_PROVIDER_STATE_CLEARED' : 'AI_ROUTER_STATE_CLEARED',
+        'Setting',
+        null,
+        clearProvider
+          ? `مسح تبريدات ونقص رصيد المزود: ${String(body?.provider || '').toUpperCase()}`
+          : `مسح حالة الراوتر: ${String(body?.type || '')}:${String(body?.provider || '').toUpperCase()}:${body?.keyIndex ?? ''}:${String(body?.model || '')}`
+      )
+      return NextResponse.json({ ok: true, ...result })
     }
     if (action === 'test-email') {
       const ok = await sendEmail({
@@ -432,7 +504,7 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json({ error: 'إجراء غير معروف' }, { status: 400 })
   } catch (e: any) {
-    if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
+    if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     return NextResponse.json({ error: 'تعذر تنفيذ الإجراء' }, { status: 500 })
   }
 }

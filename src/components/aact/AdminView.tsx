@@ -1,6 +1,7 @@
 'use client'
 
 import { useAppStore, api } from '@/lib/store'
+import type { SiteAnnouncement } from '@/lib/site-announcements'
 import { useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { toast, useToast } from '@/hooks/use-toast'
@@ -45,6 +46,7 @@ const loadAdminRepresentativesModule = () => import('@/components/aact/AdminRepr
 const loadAdminGradingReviewModule = () => import('@/components/aact/AdminGradingReviewTab')
 const loadAdminStudyScheduleModule = () => import('@/components/aact/AdminStudyScheduleTab')
 const loadAdminLegacyGraduatesModule = () => import('@/components/aact/AdminLegacyGraduatesTab')
+const loadAdminAnnouncementsModule = () => import('@/components/aact/AdminAnnouncementsTab')
 
 const AdminThesisTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminThesisTab), { ssr: false, loading: AdminTabLoader })
 const AdminFinanceTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminFinanceTab), { ssr: false, loading: AdminTabLoader })
@@ -64,6 +66,7 @@ const AdminRepresentativesTab = dynamic(() => loadAdminRepresentativesModule(), 
 const AdminGradingReviewTab = dynamic(() => loadAdminGradingReviewModule(), { ssr: false, loading: AdminTabLoader })
 const AdminStudyScheduleTab = dynamic(() => loadAdminStudyScheduleModule(), { ssr: false, loading: AdminTabLoader })
 const AdminLegacyGraduatesTab = dynamic(() => loadAdminLegacyGraduatesModule(), { ssr: false, loading: AdminTabLoader })
+const AdminAnnouncementsTab = dynamic(() => loadAdminAnnouncementsModule().then((m) => m.AdminAnnouncementsTab), { ssr: false, loading: AdminTabLoader })
 
 interface Stats {
   stats: {
@@ -131,6 +134,8 @@ interface AdmissionApp {
   id: string; reference: string; fullName: string; fullNameEn?: string | null; email: string; phone: string
   country: string; education: string; program: string; documents: string; notes?: string | null
   documentReplacementRequest?: { note: string; docTypes: string[]; previousStatus: string; requestedAt: string; requestedByName?: string | null } | null
+  requiredDocs?: { type: string; label: string }[]
+  missingDocs?: { type: string; label: string }[]
   files?: { id: string; docType: string; fileName: string; size: number; mimeType: string }[]
   deliverables?: { id: string; type: string; status: string; title: string; description?: string | null; fileName?: string | null; mimeType?: string | null; size?: number | null; externalUrl?: string | null; certificateId?: string | null; verificationUrl?: string | null; meetingAt?: string | null; expiresAt?: string | null; visibleToStudent?: boolean; createdAt: string }[]
   serviceWorkflow?: ServiceWorkflowView | null
@@ -241,6 +246,8 @@ const STATUS_LABEL: Record<string, string> = {
   AWAITING_FEE: 'بانتظار سداد رسوم التقديم (30$)',
   UNDER_REVIEW: 'قيد دراسة الإدارة',
   DOCUMENTS_NEED_REPLACEMENT: 'مطلوب استبدال مستندات',
+  UPLOADING_DOCUMENTS: 'طلب غير مكتمل، بانتظار المرفقات',
+  STAGED: 'طلب غير مكتمل، بانتظار المرفقات',
   AWAITING_TUITION: 'مقبول — بانتظار سداد الرسوم الدراسية',
   SUPERVISOR_ASSIGNED: 'تم تعيين مشرف',
   THESIS: 'التسجيل النهائي — قيد إعداد بحث التخرج',
@@ -255,6 +262,8 @@ const STATUS_BADGE: Record<string, string> = {
   AWAITING_FEE: 'bg-amber-100 text-amber-700',
   UNDER_REVIEW: 'bg-blue-100 text-blue-700',
   DOCUMENTS_NEED_REPLACEMENT: 'bg-red-100 text-red-700',
+  UPLOADING_DOCUMENTS: 'bg-orange-100 text-orange-700',
+  STAGED: 'bg-orange-100 text-orange-700',
   AWAITING_TUITION: 'bg-[#c9a227]/20 text-[#a8841a]',
   SUPERVISOR_ASSIGNED: 'bg-purple-100 text-purple-700',
   THESIS: 'bg-[#f7edd0] text-[#a8841a]',
@@ -390,10 +399,12 @@ export function AdminView() {
   const [admissions, setAdmissions] = useState<AdmissionApp[]>([])
   const [supervisors, setSupervisors] = useState<SupervisorOption[]>([])
   const [students, setStudents] = useState<StudentRow[]>([])
+  const [announcements, setAnnouncements] = useState<SiteAnnouncement[]>([])
   const [loading, setLoading] = useState(true)
   const [admissionsLoading, setAdmissionsLoading] = useState(true)
   const [studentsLoading, setStudentsLoading] = useState(true)
   const [appsLoading, setAppsLoading] = useState(true)
+  const [announcementsLoading, setAnnouncementsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('admissions')
   const [admissionSearch, setAdmissionSearch] = useState('')
   const [admissionStatusFilter, setAdmissionStatusFilter] = useState('ACTIVE')
@@ -427,6 +438,7 @@ export function AdminView() {
   const [aiOpen, setAiOpen] = useState<Record<string, boolean>>({})
   const [docReplacementForms, setDocReplacementForms] = useState<Record<string, { open: boolean; note: string; docTypes: string[] }>>({})
   const [docReplacementLoading, setDocReplacementLoading] = useState<string | null>(null)
+  const [bulkMissingDocsLoading, setBulkMissingDocsLoading] = useState(false)
   const [deliverableForms, setDeliverableForms] = useState<Record<string, DeliverableFormState>>({})
   const [deliverableFiles, setDeliverableFiles] = useState<Record<string, File | null>>({})
   const [deliverableLoading, setDeliverableLoading] = useState<string | null>(null)
@@ -607,6 +619,19 @@ export function AdminView() {
     }
   }
 
+  const reloadAnnouncements = async () => {
+    setAnnouncementsLoading(true)
+    try {
+      const data = await api<{ announcements: SiteAnnouncement[] }>('/api/admin/announcements')
+      setAnnouncements(Array.isArray(data.announcements) ? data.announcements : [])
+    } catch (e: any) {
+      setAnnouncements([])
+      toast({ title: 'تعذر تحميل الإعلانات', description: e.message, variant: 'destructive' })
+    } finally {
+      setAnnouncementsLoading(false)
+    }
+  }
+
   const load = async () => {
     setLoading(true)
     setAdmissionsLoading(activeTab === 'admissions' || activeTab === 'service-requests')
@@ -621,7 +646,7 @@ export function AdminView() {
       .catch((e: any) => toast({ title: 'تعذر تحميل مؤشرات الإدارة', description: e.message, variant: 'destructive' }))
       .finally(() => setLoading(false))
 
-    await statsPromise
+    await Promise.all([statsPromise, reloadAnnouncements()])
   }
 
   useEffect(() => {
@@ -837,6 +862,19 @@ export function AdminView() {
     })
   }
 
+  const openMissingDocumentRequest = (app: AdmissionApp) => {
+    const missing = app.missingDocs || []
+    const labels = missing.map((doc) => doc.label || DOC_TYPE_AR[doc.type] || doc.type)
+    setDocReplacementForms((prev) => ({
+      ...prev,
+      [app.id]: {
+        open: true,
+        note: `يرجى رفع المرفقات الناقصة حتى نتمكن من متابعة الطلب: ${labels.join('، ')}`,
+        docTypes: missing.map((doc) => doc.type),
+      },
+    }))
+  }
+
   const toggleReplacementDocType = (appId: string, docType: string) => {
     setDocReplacementForms((prev) => {
       const form = prev[appId] || { open: true, note: '', docTypes: [] }
@@ -876,13 +914,66 @@ export function AdminView() {
         method: 'PATCH',
         body: JSON.stringify({ id: app.id, status: 'DOCUMENTS_NEED_REPLACEMENT', documentReplacement: { note, docTypes: form.docTypes } }),
       })
-      toast({ title: 'تم طلب استبدال المرفقات', description: 'تم إشعار الطالب وفتح إعادة الرفع للمستندات المحددة فقط.' })
+      toast({ title: 'تم طلب استبدال أو رفع المرفقات', description: 'تم إشعار الطالب وفتح إعادة الرفع للمستندات المحددة فقط.' })
       setDocReplacementForms((prev) => ({ ...prev, [app.id]: { ...form, note, open: false } }))
       await load()
     } catch (e: any) {
-      toast({ title: 'تعذر طلب الاستبدال', description: e.message, variant: 'destructive' })
+      toast({ title: 'تعذر طلب المرفقات', description: e.message, variant: 'destructive' })
     } finally {
       setDocReplacementLoading(null)
+    }
+  }
+
+  const requestBulkMissingDocuments = async () => {
+    try {
+      setBulkMissingDocsLoading(true)
+      const kind = activeTab === 'service-requests' ? 'SERVICE' : 'STUDY'
+      const data = await api<{ applications: AdmissionApp[] }>(`/api/admin/admissions?page=1&pageSize=100&status=ACTIVE&kind=${kind}`)
+      const candidates = (data.applications || []).filter((app) =>
+        !['CERTIFIED', 'REJECTED'].includes(app.status) &&
+        !app.documentReplacementRequest &&
+        (app.missingDocs?.length || 0) > 0
+      )
+      if (!candidates.length) {
+        toast({ title: 'لا توجد طلبات ناقصة', description: 'لا يوجد ضمن أول 100 طلب مفتوح أي طلب تنقصه مرفقات بدون طلب قائم.' })
+        return
+      }
+      const programNames = Array.from(new Set(candidates.map((app) => app.program).filter(Boolean)))
+      const chosenProgram = programNames.length === 1
+        ? programNames[0]
+        : window.prompt(`اكتب اسم البرنامج/الخدمة المطلوب كما هو:\n${programNames.map((name) => `- ${name}`).join('\n')}`, programNames[0] || '')?.trim()
+      if (!chosenProgram) return
+      const affected = candidates.filter((app) => app.program === chosenProgram).slice(0, 100)
+      if (!affected.length) {
+        toast({ title: 'لا توجد طلبات لهذا البرنامج', description: chosenProgram, variant: 'destructive' })
+        return
+      }
+      const names = affected.map((app) => `${app.fullName} (${app.reference})`).join('\n')
+      const confirmed = window.confirm(`سيتم طلب المرفقات الناقصة من ${affected.length} طلب/طلبات لبرنامج:\n${chosenProgram}\n\nالأسماء:\n${names}\n\nمتابعة؟`)
+      if (!confirmed) return
+      let done = 0
+      for (const app of affected) {
+        const missing = app.missingDocs || []
+        const labels = missing.map((doc) => doc.label || DOC_TYPE_AR[doc.type] || doc.type)
+        await api('/api/admin/admissions', {
+          method: 'PATCH',
+          body: JSON.stringify({
+            id: app.id,
+            status: 'DOCUMENTS_NEED_REPLACEMENT',
+            documentReplacement: {
+              note: `يرجى رفع المرفقات الناقصة حتى نتمكن من متابعة الطلب: ${labels.join('، ')}`,
+              docTypes: missing.map((doc) => doc.type),
+            },
+          }),
+        })
+        done += 1
+      }
+      toast({ title: 'تم إرسال طلبات المرفقات الناقصة', description: `تم تحديث ${done} طلب/طلبات.` })
+      await load()
+    } catch (e: any) {
+      toast({ title: 'تعذر طلب المرفقات الناقصة جماعياً', description: e.message, variant: 'destructive' })
+    } finally {
+      setBulkMissingDocsLoading(false)
     }
   }
 
@@ -995,7 +1086,7 @@ export function AdminView() {
     : []
 
   return (
-    <div className="aact-fade-in mx-auto max-w-7xl px-4 py-10">
+    <div data-aact-admin-view="true" className="aact-fade-in mx-auto max-w-7xl px-4 py-10">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-black text-[#0f2b46] sm:text-3xl">لوحة إدارة الأكاديمية</h1>
@@ -1084,6 +1175,7 @@ export function AdminView() {
             </p>
             <TabsList className="flex h-auto w-full flex-wrap gap-1 bg-transparent p-0">
               <TabsTrigger value="system" className="gap-1 text-[10px] font-bold sm:text-xs">البريد والدفع والفيديو</TabsTrigger>
+              <TabsTrigger value="announcements" className="gap-1 text-[10px] font-bold sm:text-xs">الإعلانات</TabsTrigger>
               <TabsTrigger value="settings" className="gap-1 text-[10px] font-bold sm:text-xs">الرسوم والقواعد</TabsTrigger>
               <TabsTrigger value="admins" className="gap-1 text-[10px] font-bold sm:text-xs">مدراء النظام</TabsTrigger>
               <TabsTrigger value="audit" className="gap-1 text-[10px] font-bold sm:text-xs">سجل التدقيق</TabsTrigger>
@@ -1097,30 +1189,39 @@ export function AdminView() {
         <TabsContent value={activeTab === 'service-requests' ? 'service-requests' : 'admissions'}>
           <div className="mt-4 space-y-4">
             {!admissionsLoading && (
-              <AdminListToolbar
-                search={admissionSearch}
-                onSearchChange={(v) => { setAdmissionSearch(v); setAdmissionPage(1) }}
-                searchPlaceholder={activeTab === 'service-requests' ? 'ابحث في الخدمات بالاسم أو الكود أو البريد...' : 'ابحث في طلبات الالتحاق بالاسم أو الكود أو البرنامج...'}
-                status={admissionStatusFilter}
-                onStatusChange={(v) => { setAdmissionStatusFilter(v); setAdmissionPage(1) }}
-                statusOptions={[
-                  { value: 'ACTIVE', label: 'النشطة فقط' },
-                  { value: 'AWAITING_FEE', label: 'بانتظار الرسوم' },
-                  { value: 'PENDING', label: 'تم التقديم' },
-                  { value: 'UNDER_REVIEW', label: 'قيد المراجعة' },
-                  { value: 'AWAITING_TUITION', label: 'بانتظار الرسوم الدراسية' },
-                  { value: 'SUPERVISOR_ASSIGNED', label: 'مفعل/مشرف' },
-                  { value: 'RESULT_APPROVED', label: 'نتيجة/خدمة معتمدة' },
-                  { value: 'CERTIFIED', label: 'مكتمل/شهادة' },
-                  { value: 'REJECTED', label: 'مرفوض' },
-                  { value: 'ALL', label: 'كل الحالات' },
-                ]}
-                pageSize={admissionPageSize}
-                onPageSizeChange={(v) => { setAdmissionPageSize(v); setAdmissionPage(1) }}
-                total={admissionTotal}
-                filtered={admissionTotal}
-                label={activeTab === 'service-requests' ? 'طلب خدمة' : 'طلب التحاق'}
-              />
+              <>
+                <AdminListToolbar
+                  search={admissionSearch}
+                  onSearchChange={(v) => { setAdmissionSearch(v); setAdmissionPage(1) }}
+                  searchPlaceholder={activeTab === 'service-requests' ? 'ابحث في الخدمات بالاسم أو الكود أو البريد...' : 'ابحث في طلبات الالتحاق بالاسم أو الكود أو البرنامج...'}
+                  status={admissionStatusFilter}
+                  onStatusChange={(v) => { setAdmissionStatusFilter(v); setAdmissionPage(1) }}
+                  statusOptions={[
+                    { value: 'ACTIVE', label: 'النشطة فقط' },
+                    { value: 'AWAITING_FEE', label: 'بانتظار الرسوم' },
+                    { value: 'PENDING', label: 'تم التقديم' },
+                    { value: 'UPLOADING_DOCUMENTS', label: 'بانتظار المرفقات' },
+                    { value: 'UNDER_REVIEW', label: 'قيد المراجعة' },
+                    { value: 'AWAITING_TUITION', label: 'بانتظار الرسوم الدراسية' },
+                    { value: 'SUPERVISOR_ASSIGNED', label: 'مفعل/مشرف' },
+                    { value: 'RESULT_APPROVED', label: 'نتيجة/خدمة معتمدة' },
+                    { value: 'CERTIFIED', label: 'مكتمل/شهادة' },
+                    { value: 'REJECTED', label: 'مرفوض' },
+                    { value: 'ALL', label: 'كل الحالات' },
+                  ]}
+                  pageSize={admissionPageSize}
+                  onPageSizeChange={(v) => { setAdmissionPageSize(v); setAdmissionPage(1) }}
+                  total={admissionTotal}
+                  filtered={admissionTotal}
+                  label={activeTab === 'service-requests' ? 'طلب خدمة' : 'طلب التحاق'}
+                />
+                <div className="flex flex-wrap justify-end gap-2">
+                  <Button size="sm" variant="outline" onClick={requestBulkMissingDocuments} disabled={bulkMissingDocsLoading} className="border-red-200 text-[11px] font-black text-red-700 hover:bg-red-50">
+                    {bulkMissingDocsLoading ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <FileWarning className="ml-1 h-3.5 w-3.5" />}
+                    طلب المرفقات الناقصة من كل الطلبات المفتوحة
+                  </Button>
+                </div>
+              </>
             )}
             {admissionsLoading ? (
               <Card className="border-[#0f2b46]/10">
@@ -1160,6 +1261,7 @@ export function AdminView() {
                 const ownerName = a.user?.name?.trim() || ''
                 const applicantName = a.fullName?.trim() || ''
                 const ownerNameDiffers = !!ownerName && !!applicantName && ownerName !== applicantName
+                const missingDocumentLabels = (a.missingDocs || []).map((doc) => doc.label || DOC_TYPE_AR[doc.type] || doc.type)
                 return (
                   <Card
                     key={a.id}
@@ -1178,6 +1280,9 @@ export function AdminView() {
                             <Badge className={isStudyAdmission ? 'bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]' : 'bg-purple-100 text-purple-700 hover:bg-purple-100'}>
                               {a.requestLabel || (isStudyAdmission ? 'طلب التحاق دراسي' : 'طلب خدمة مهنية')}
                             </Badge>
+                            {missingDocumentLabels.length > 0 && (
+                              <Badge className="bg-red-100 text-red-700 hover:bg-red-100">ناقص: {missingDocumentLabels.join('، ')}</Badge>
+                            )}
                           </div>
                           <p className="mt-1.5 text-xs font-bold text-slate-600">
                             {isStudyAdmission ? 'البرنامج' : 'الخدمة'}: {a.program} — {isStudyAdmission ? `المؤهل: ${EDUCATION_LABEL[a.education] || a.education}` : `نوع المسار: ${a.requestKind || 'خدمة'}`} — {a.country}
@@ -1214,6 +1319,12 @@ export function AdminView() {
                             </div>
                           ) : (
                             <p className="mt-1 text-[11px] font-bold text-red-500">لا توجد مستندات مرفوعة (الطلبات القديمة قبل تفعيل الرفع الإلزامي)</p>
+                          )}
+                          {missingDocumentLabels.length > 0 && (
+                            <div className="mt-2 rounded-xl border border-red-200 bg-red-50 p-2.5 text-[11px] font-bold leading-5 text-red-700">
+                              <FileWarning className="ml-1 inline h-3.5 w-3.5" />
+                              مرفقات مطلوبة ناقصة: {missingDocumentLabels.join('، ')}
+                            </div>
                           )}
 
                           {!isStudyAdmission && !(a.payments?.length || 0) && (
@@ -1441,7 +1552,7 @@ export function AdminView() {
                           {a.documentReplacementRequest && (
                             <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-[11px] font-bold leading-6 text-red-700">
                               <FileWarning className="ml-1 inline h-3.5 w-3.5" />
-                              مطلوب من الطالب استبدال: {a.documentReplacementRequest.docTypes.map((type) => a.files?.find((f) => f.docType === type)?.fileName || type).join('، ')}
+                              مطلوب من الطالب رفع/استبدال: {a.documentReplacementRequest.docTypes.map((type) => a.requiredDocs?.find((doc) => doc.type === type)?.label || DOC_TYPE_AR[type] || a.files?.find((f) => f.docType === type)?.fileName || type).join('، ')}
                               <span className="block text-red-600">السبب: {a.documentReplacementRequest.note}</span>
                             </div>
                           )}
@@ -1619,36 +1730,62 @@ export function AdminView() {
                                   لم يُحوَّل الملف للإدارة بعد — بانتظار سداد المتقدم رسوم التقديم (30$) من صفحة طلب الالتحاق أو التتبع
                                 </div>
                               )}
-                              {(a.files?.length || 0) > 0 && !['CERTIFIED', 'REJECTED'].includes(a.status) && (
+                              {((a.files?.length || 0) > 0 || missingDocumentLabels.length > 0) && !['CERTIFIED', 'REJECTED'].includes(a.status) && (
                                 <Button size="sm" variant="outline" onClick={() => setReplacementFormOpen(a, !docReplacementForms[a.id]?.open)} className="border-red-200 font-bold text-red-600 hover:bg-red-50">
-                                  <FileWarning className="ml-1 h-3.5 w-3.5" /> طلب استبدال مرفقات
+                                  <FileWarning className="ml-1 h-3.5 w-3.5" /> {missingDocumentLabels.length > 0 ? 'طلب استبدال/رفع مرفقات' : 'طلب استبدال مرفقات'}
+                                </Button>
+                              )}
+                              {missingDocumentLabels.length > 0 && !['CERTIFIED', 'REJECTED'].includes(a.status) && !a.documentReplacementRequest && (
+                                <Button size="sm" variant="outline" onClick={() => openMissingDocumentRequest(a)} className="border-red-200 font-bold text-red-700 hover:bg-red-50">
+                                  <FileWarning className="ml-1 h-3.5 w-3.5" /> طلب المرفقات الناقصة
                                 </Button>
                               )}
                               {docReplacementForms[a.id]?.open && (
                                 <div className="w-full rounded-xl border border-red-200 bg-red-50 p-3 text-right sm:min-w-[420px]">
-                                  <p className="text-[11px] font-black text-red-700">حدد المرفقات غير الصحيحة واكتب سبباً واضحاً يظهر للطالب:</p>
-                                  <div className="mt-2 flex flex-wrap gap-2">
-                                    {(a.files || []).map((file) => {
-                                      const checked = !!docReplacementForms[a.id]?.docTypes?.includes(file.docType)
-                                      return (
-                                        <label key={file.id} className={`cursor-pointer rounded-lg border px-2 py-1 text-[10px] font-bold ${checked ? 'border-red-400 bg-white text-red-700' : 'border-red-100 bg-white/70 text-slate-600'}`}>
-                                          <input type="checkbox" className="ml-1" checked={checked} onChange={() => toggleReplacementDocType(a.id, file.docType)} />
-                                          {file.docType} — {file.fileName}
-                                        </label>
-                                      )
-                                    })}
-                                  </div>
+                                  <p className="text-[11px] font-black text-red-700">حدد المرفقات المطلوب استبدالها أو رفعها واكتب سبباً واضحاً يظهر للطالب:</p>
+                                  {(a.files?.length || 0) > 0 && (
+                                    <div className="mt-2 rounded-lg border border-red-100 bg-white/60 p-2">
+                                      <p className="mb-1.5 text-[10px] font-black text-red-700">مرفقات مرفوعة (استبدال)</p>
+                                      <div className="flex flex-wrap gap-2">
+                                        {(a.files || []).map((file) => {
+                                          const checked = !!docReplacementForms[a.id]?.docTypes?.includes(file.docType)
+                                          return (
+                                            <label key={file.id} className={`cursor-pointer rounded-lg border px-2 py-1 text-[10px] font-bold ${checked ? 'border-red-400 bg-white text-red-700' : 'border-red-100 bg-white/70 text-slate-600'}`}>
+                                              <input type="checkbox" className="ml-1" checked={checked} onChange={() => toggleReplacementDocType(a.id, file.docType)} />
+                                              {DOC_TYPE_AR[file.docType] || file.docType} — {file.fileName}
+                                            </label>
+                                          )
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {(a.missingDocs?.length || 0) > 0 && (
+                                    <div className="mt-2 rounded-lg border border-red-100 bg-white/60 p-2">
+                                      <p className="mb-1.5 text-[10px] font-black text-red-700">مرفقات ناقصة (طلب رفع)</p>
+                                      <div className="flex flex-wrap gap-2">
+                                        {(a.missingDocs || []).map((doc) => {
+                                          const checked = !!docReplacementForms[a.id]?.docTypes?.includes(doc.type)
+                                          return (
+                                            <label key={`${a.id}-missing-${doc.type}`} className={`cursor-pointer rounded-lg border px-2 py-1 text-[10px] font-bold ${checked ? 'border-red-400 bg-white text-red-700' : 'border-red-100 bg-white/70 text-slate-600'}`}>
+                                              <input type="checkbox" className="ml-1" checked={checked} onChange={() => toggleReplacementDocType(a.id, doc.type)} />
+                                              {doc.label || DOC_TYPE_AR[doc.type] || doc.type}
+                                            </label>
+                                          )
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
                                   <Textarea
                                     value={docReplacementForms[a.id]?.note || ''}
                                     onChange={(e) => setReplacementNote(a.id, e.currentTarget.value)}
-                                    placeholder="مثال: المرفق المرفوع لا يحتوي على شهادة التخرج أو غير واضح، يرجى رفع نسخة واضحة من الشهادة المطلوبة."
+                                    placeholder="مثال: يرجى رفع نسخة واضحة من المرفقات المطلوبة أو المرفقات الناقصة حتى نتمكن من متابعة الطلب."
                                     className="mt-2 min-h-[72px] border-red-100 bg-white text-xs font-bold"
                                   />
                                   <div className="mt-2 flex flex-wrap justify-end gap-2">
                                     <Button size="sm" variant="ghost" onClick={() => setReplacementFormOpen(a, false)} className="text-xs font-bold text-slate-500">إلغاء</Button>
                                     <Button size="sm" onClick={() => requestDocumentReplacement(a)} disabled={docReplacementLoading === a.id} className="bg-red-600 text-xs font-bold text-white hover:bg-red-700">
                                       {docReplacementLoading === a.id ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <Send className="ml-1 h-3.5 w-3.5" />}
-                                      إرسال طلب الاستبدال
+                                      إرسال طلب المرفقات
                                     </Button>
                                   </div>
                                 </div>
@@ -2205,6 +2342,11 @@ export function AdminView() {
         {/* النظام: البريد + بوابات الدفع + TURN */}
         <TabsContent value="system">
           <AdminSystemTab />
+        </TabsContent>
+
+        {/* الإعلانات */}
+        <TabsContent value="announcements">
+          <AdminAnnouncementsTab announcements={announcements} loading={announcementsLoading} onRefresh={reloadAnnouncements} />
         </TabsContent>
 
         {/* سجل التدقيق */}

@@ -20,6 +20,8 @@ export type TextAiProvider =
   | 'AUTO'
 
 export type TextAiRouterPolicy = 'primary_first' | 'balanced' | 'quality_first' | 'cost_saver' | 'fallback_only'
+export type TextAiRouterPolicySource = 'legacy' | 'admin'
+export type TextAiPolicyRankBy = 'provider' | 'family'
 export type TextAiTaskLevel = 'GENERAL' | 'ACADEMIC_DRAFT' | 'ACADEMIC_CRITICAL'
 export type TextAiProviderTier = 'FREE' | 'PAID'
 export type TextAiPaidUsageMode = 'off' | 'last_resort' | 'critical_first'
@@ -118,6 +120,19 @@ export interface TextAiDiagnostics {
   message: string
 }
 
+export type TextAiRouterStateType = 'KEY_COOLDOWN' | 'MODEL_COOLDOWN' | 'PROVIDER_COOLDOWN' | 'NO_BALANCE' | 'MODEL_DEAD'
+
+export interface TextAiRouterStateItem {
+  type: TextAiRouterStateType
+  source: 'db' | 'memory'
+  provider: string
+  keyIndex: number | null
+  model: string | null
+  until: string
+  reason: string
+  status: number | null
+}
+
 const OPENAI_TEXT_MODELS = ['gpt-5.1', 'gpt-5', 'gpt-5-mini']
 const ANTHROPIC_TEXT_MODELS = ['claude-sonnet-4-5-20250929', 'claude-opus-4-1-20250805', 'claude-sonnet-4-20250514', 'claude-3-7-sonnet-20250219', 'claude-3-5-haiku-20241022']
 const ZAI_TEXT_MODELS = ['glm-4.5', 'glm-4.5-air', 'glm-4.5-x', 'glm-4.5-airx']
@@ -192,7 +207,9 @@ const VISION_NATIVE_PROVIDERS = new Set<TextAiProvider>(['GEMINI', 'ANTHROPIC', 
 const cooldowns = new Map<string, { until: number; reason: string; status?: number; model?: string }>()
 const providerRateLimitHits = new Map<string, number[]>()
 const modelRateLimitHits = new Map<string, Array<{ model: string; at: number }>>()
+const transientModelFailureHits = new Map<string, Array<{ model: string; at: number }>>()
 const nvidiaHardModelFailureHits = new Map<string, number[]>()
+const TRANSIENT_MODEL_FAILURE_WINDOW_MS = 2 * 60 * 1000
 let roundRobin = 0
 let lastResult: TextAiDiagnostics['lastResult'] = null
 let recentAttempts: TextAiAttemptDiagnostics[] = []
@@ -211,7 +228,8 @@ type TextAiSettingStore = {
 let injectedStore: TextAiSettingStore | null = null
 let persistentCooldownCache: { at: number; values: Record<string, string> } | null = null
 let routerRequestSeq = 0
-const stickyModels = new Map<string, { provider: ConcreteProvider; model: string; at: number }>()
+type StickyModel = { provider: ConcreteProvider; model: string; key: string; at: number }
+const stickyModels = new Map<string, StickyModel>()
 
 function hasDatabaseUrl(): boolean {
   return !!String(process.env.DATABASE_URL || '').trim()
@@ -261,17 +279,20 @@ function settingStore(): TextAiSettingStore {
 export function __setTextAiSettingStoreForTests(store: TextAiSettingStore | null) {
   injectedStore = store
   persistentCooldownCache = null
+  cachedRouterCooldownMinutes = normalizeRouterCooldownMinutesValue(env('AI_ROUTER_COOLDOWN_MINUTES')) || 15
 }
 
 export function __resetTextAiStateForTests() {
   cooldowns.clear()
   modelRateLimitHits.clear()
+  transientModelFailureHits.clear()
   nvidiaHardModelFailureHits.clear()
   roundRobin = 0
   lastResult = null
   recentAttempts = []
   freeModelsCache.clear()
   persistentCooldownCache = null
+  cachedRouterCooldownMinutes = normalizeRouterCooldownMinutesValue(env('AI_ROUTER_COOLDOWN_MINUTES')) || 15
   routerRequestSeq = 0
   stickyModels.clear()
 }
@@ -282,6 +303,25 @@ function env(name: string): string {
   } catch {
     return ''
   }
+}
+
+function normalizeRouterCooldownMinutesValue(value: unknown): number | null {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return null
+  const minutes = Math.floor(n)
+  return minutes >= 1 && minutes <= 120 ? minutes : null
+}
+
+let cachedRouterCooldownMinutes = normalizeRouterCooldownMinutesValue(env('AI_ROUTER_COOLDOWN_MINUTES')) || 15
+
+function routerCooldownMinutesFallback(): number {
+  return normalizeRouterCooldownMinutesValue(cachedRouterCooldownMinutes) || normalizeRouterCooldownMinutesValue(env('AI_ROUTER_COOLDOWN_MINUTES')) || 15
+}
+
+export function __testResolveRouterCooldownMinutesForTests(settingValue: unknown, envValue: unknown): number {
+  const saved = String(settingValue ?? '').trim()
+  if (saved) return normalizeRouterCooldownMinutesValue(saved) || 15
+  return normalizeRouterCooldownMinutesValue(envValue) || 15
 }
 
 function clean(value: unknown): string {
@@ -303,6 +343,18 @@ function normalizePolicy(value: unknown): TextAiRouterPolicy {
   return 'primary_first'
 }
 
+function normalizePolicySource(value: unknown): TextAiRouterPolicySource {
+  return clean(value).toLowerCase() === 'admin' ? 'admin' : 'legacy'
+}
+
+function normalizePolicyRankBy(value: unknown): TextAiPolicyRankBy {
+  return clean(value).toLowerCase() === 'family' ? 'family' : 'provider'
+}
+
+function booleanSetting(value: unknown): boolean {
+  return ['1', 'true', 'yes', 'on'].includes(String(value || '').trim().toLowerCase())
+}
+
 function normalizeGeminiModelAlias(value: unknown): string {
   const v = clean(value).replace(/^models\//, '').toLowerCase()
   return GEMINI_MODEL_ALIASES[v] || v
@@ -320,6 +372,9 @@ function normalizeGeminiTextModel(value: unknown): string {
 }
 
 const DEFAULT_ACADEMIC_ALLOWLIST = 'GEMINI:gemini-3.8-flash,GEMINI:gemini-3.5-flash-lite'
+const DEFAULT_FAMILY_QUALITY_ORDER = 'claude,gpt,gemini,deepseek,qwen,kimi,glm,grok,gpt-oss,llama,other'
+const DEFAULT_FAMILY_COST_ORDER = 'gpt-oss,llama,qwen,glm,deepseek,gemini,kimi,grok,gpt,claude,other'
+const KNOWN_MODEL_FAMILIES = new Set(['claude', 'gpt', 'gemini', 'deepseek', 'qwen', 'kimi', 'glm', 'grok', 'gpt-oss', 'llama', 'other'])
 
 export function parseProviderModelList(value: unknown, fallback = ''): TextAiPreferredModel[] {
   const out: TextAiPreferredModel[] = []
@@ -348,6 +403,51 @@ export function parseProviderModelList(value: unknown, fallback = ''): TextAiPre
 
 export function parseAcademicAllowlist(value: unknown): Array<{ provider: ConcreteProvider; model: string }> {
   return parseProviderModelList(value, DEFAULT_ACADEMIC_ALLOWLIST)
+}
+
+export function parseProviderTiers(value: unknown): Partial<Record<ConcreteProvider, TextAiProviderTier>> {
+  const out: Partial<Record<ConcreteProvider, TextAiProviderTier>> = {}
+  for (const raw of String(value || '').split(',')) {
+    const item = raw.trim()
+    if (!item) continue
+    const [providerText, tierText, extra] = item.split(':')
+    const provider = normalizeProvider(providerText)
+    const tier = clean(tierText).toUpperCase()
+    if (extra !== undefined || provider === 'AUTO' || provider !== clean(providerText).toUpperCase() || (tier !== 'PAID' && tier !== 'FREE')) continue
+    out[provider as ConcreteProvider] = tier as TextAiProviderTier
+  }
+  return out
+}
+
+function parseFamilyOrder(value: unknown, fallback: string): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const raw of String(value || fallback).split(',')) {
+    const family = clean(raw).toLowerCase()
+    if (!family || seen.has(family)) continue
+    if (!KNOWN_MODEL_FAMILIES.has(family)) continue
+    seen.add(family)
+    out.push(family)
+  }
+  return out.length ? out : fallback.split(',')
+}
+
+function sanitizeProviderTiersValue(value: unknown): string | null {
+  const items = String(value || '').split(',').map((item) => item.trim()).filter(Boolean)
+  for (const item of items) {
+    const [providerText, tierText, extra] = item.split(':')
+    const provider = normalizeProvider(providerText)
+    const tier = clean(tierText).toUpperCase()
+    if (extra !== undefined || provider === 'AUTO' || provider !== clean(providerText).toUpperCase() || (tier !== 'PAID' && tier !== 'FREE')) return null
+  }
+  return items.map((item) => {
+    const [providerText, tierText] = item.split(':')
+    return `${clean(providerText).toUpperCase()}:${clean(tierText).toUpperCase()}`
+  }).join(',')
+}
+
+export function __testSanitizeProviderTiersForTests(value: unknown): string | null {
+  return sanitizeProviderTiersValue(value)
 }
 
 function sanitizeProviderKey(raw: string): string {
@@ -481,7 +581,7 @@ async function markPersistentNoBalance(provider: string, keyIndex: number, reaso
 }
 
 async function markPersistentCooldown(provider: string, keyIndex: number, model: string | undefined, reason: string, status?: number, minutes?: number): Promise<void> {
-  const fallback = Number(env('AI_ROUTER_COOLDOWN_MINUTES')) || 15
+  const fallback = routerCooldownMinutesFallback()
   const ttl = Math.max(1, Math.floor(minutes || fallback))
   const until = Date.now() + ttl * 60 * 1000
   const payload = JSON.stringify({ until: new Date(until).toISOString(), reason: reason.slice(0, 180), status: status || null })
@@ -533,13 +633,13 @@ function isCooling(provider: string, key: string): boolean {
 }
 
 function markCooldown(provider: string, key: string, reason: string, minutes?: number, status?: number) {
-  const fallback = Number(env('AI_ROUTER_COOLDOWN_MINUTES')) || 15
+  const fallback = routerCooldownMinutesFallback()
   const ttl = Math.max(1, Math.floor(minutes || fallback))
   cooldowns.set(cooldownId(provider, key), { until: Date.now() + ttl * 60 * 1000, reason: reason.slice(0, 180), status })
 }
 
 function markProviderCooldown(provider: string, reason: string, minutes?: number, status?: number) {
-  const fallback = Number(env('AI_ROUTER_COOLDOWN_MINUTES')) || 15
+  const fallback = routerCooldownMinutesFallback()
   const ttl = Math.max(1, Math.floor(minutes || fallback))
   cooldowns.set(providerCooldownId(provider), { until: Date.now() + ttl * 60 * 1000, reason: reason.slice(0, 180), status })
 }
@@ -651,14 +751,45 @@ function isHighDemandLike(e: any): boolean {
 }
 
 function highDemandCooldownScope(model: string, message: unknown, status?: number): 'model' | 'key' {
-  if (Number(status || 0) === 503 && rateLimitMessageMentionsSpecificModel(model, message)) return 'model'
+  if (String(model || '').trim() && Number(status || 0) === 503) return 'model'
   const msg = String(message || '').toLowerCase()
-  if (/(busy|high demand)/i.test(msg) && rateLimitMessageMentionsSpecificModel(model, msg)) return 'model'
+  if (String(model || '').trim() && /(busy|high demand|overloaded|temporarily unavailable|capacity)/i.test(msg)) return 'model'
   return 'key'
+}
+
+function recordTransientModelFailureAndShouldCoolKey(provider: ConcreteProvider, key: string, model: string, now = Date.now()): boolean {
+  const id = `${provider}:${key}`
+  const recent = (transientModelFailureHits.get(id) || [])
+    .filter((item) => now - item.at <= TRANSIENT_MODEL_FAILURE_WINDOW_MS)
+  recent.push({ model, at: now })
+  transientModelFailureHits.set(id, recent)
+  return new Set(recent.map((item) => item.model)).size >= 3
+}
+
+async function applyTransientModelFailureCooldown(provider: ConcreteProvider, key: string, keyIndex: number, model: string, message: string, status: number | undefined, keyCooldownMinutes: number): Promise<void> {
+  markModelCooldown(provider, key, model, message, 2, status)
+  await markPersistentCooldown(provider, keyIndex, model, message, status, 2)
+  if (recordTransientModelFailureAndShouldCoolKey(provider, key, model)) {
+    markCooldown(provider, key, message, keyCooldownMinutes, status)
+    await markPersistentCooldown(provider, keyIndex, undefined, message, status, keyCooldownMinutes)
+  }
 }
 
 export function __testHighDemandCooldownDecisionForTests(model: string, message: string, status?: number): 'model' | 'key' {
   return highDemandCooldownScope(model, message, status)
+}
+
+export function __testTransientModelFailureEscalationForTests(provider: ConcreteProvider, key: string, models: string[], now = Date.now()): boolean[] {
+  return models.map((model, index) => recordTransientModelFailureAndShouldCoolKey(provider, key, model, now + index * 1000))
+}
+
+export async function __testApplyTransientModelFailureCooldownForTests(provider: ConcreteProvider, key: string, keyIndex: number, model: string, checkModel: string, message = 'provider timeout', status?: number) {
+  await applyTransientModelFailureCooldown(provider, key, keyIndex, model, message, status, 2)
+  return {
+    keyCooling: !!activeMemoryCooldown(provider, key),
+    modelCooling: !!activeMemoryModelCooldown(provider, key, model),
+    checkModelCooling: !!activeMemoryModelCooldown(provider, key, checkModel),
+  }
 }
 
 function isQuotaLike(e: any): boolean {
@@ -792,7 +923,7 @@ async function readSettings(keys: string[]): Promise<Record<string, string>> {
 
 async function settings() {
   const rows = await readSettings([
-    'AI_TEXT_PROVIDER', 'AI_ROUTER_POLICY', 'AI_ROUTER_ALLOW_PUBLIC_GATEWAYS', 'AI_ACADEMIC_ALLOWLIST', 'AI_VERIFIER_PREFERRED',
+    'AI_TEXT_PROVIDER', 'AI_ROUTER_POLICY', 'AI_ROUTER_POLICY_SOURCE', 'AI_POLICY_RANK_BY', 'AI_FAMILY_QUALITY_ORDER', 'AI_FAMILY_COST_ORDER', 'AI_PROVIDER_TIERS', 'AI_PAID_FIRST', 'AI_ROUTER_ALLOW_PUBLIC_GATEWAYS', 'AI_ACADEMIC_ALLOWLIST', 'AI_ACADEMIC_ALLOWLIST_STRICT', 'AI_VERIFIER_PREFERRED', 'AI_VERIFIER_STRICT', 'AI_STICKY_ON_SUCCESS', 'AI_ROUTER_COOLDOWN_MINUTES',
     'AI_PAID_USAGE_MODE', 'AI_PAID_MODELS', 'AI_PAID_DAILY_LIMIT_USD', 'AI_PAID_MONTHLY_LIMIT_USD', 'AI_PROVIDER_TIER_OPENAI_COMPAT',
     'GEMINI_API_KEY', 'GEMINI_API_KEYS', 'GEMINI_TEXT_MODEL',
     'OPENAI_API_KEY', 'OPENAI_API_KEYS', 'OPENAI_TEXT_MODEL', 'OPENAI_BASE_URL',
@@ -810,14 +941,26 @@ async function settings() {
   ])
   const provider = normalizeProvider(rows.AI_TEXT_PROVIDER || env('AI_TEXT_PROVIDER') || 'GEMINI')
   const policy = normalizePolicy(rows.AI_ROUTER_POLICY || env('AI_ROUTER_POLICY') || 'primary_first')
+  const routerCooldownMinutes = __testResolveRouterCooldownMinutesForTests(rows.AI_ROUTER_COOLDOWN_MINUTES, env('AI_ROUTER_COOLDOWN_MINUTES'))
+  cachedRouterCooldownMinutes = routerCooldownMinutes
   const openaiCompatBaseUrl = normalizeOpenAiCompatibleBaseUrl(rows.OPENAI_COMPAT_BASE_URL || env('OPENAI_COMPAT_BASE_URL') || '')
   const openaiCompatDefaults = isNvidiaOpenAiCompatibleBaseUrl(openaiCompatBaseUrl) ? NVIDIA_OPENAI_COMPAT_TEXT_MODELS : OPENAI_COMPAT_TEXT_MODELS
   return {
     provider,
     policy,
-    allowPublicGateways: ['1', 'true', 'yes', 'on'].includes(String(rows.AI_ROUTER_ALLOW_PUBLIC_GATEWAYS || env('AI_ROUTER_ALLOW_PUBLIC_GATEWAYS') || '').toLowerCase()),
+    policySource: normalizePolicySource(rows.AI_ROUTER_POLICY_SOURCE || env('AI_ROUTER_POLICY_SOURCE') || 'legacy'),
+    policyRankBy: normalizePolicyRankBy(rows.AI_POLICY_RANK_BY || env('AI_POLICY_RANK_BY') || 'provider'),
+    familyQualityOrder: parseFamilyOrder(rows.AI_FAMILY_QUALITY_ORDER || env('AI_FAMILY_QUALITY_ORDER'), DEFAULT_FAMILY_QUALITY_ORDER),
+    familyCostOrder: parseFamilyOrder(rows.AI_FAMILY_COST_ORDER || env('AI_FAMILY_COST_ORDER'), DEFAULT_FAMILY_COST_ORDER),
+    providerTiers: parseProviderTiers(rows.AI_PROVIDER_TIERS || env('AI_PROVIDER_TIERS') || ''),
+    paidFirst: booleanSetting(rows.AI_PAID_FIRST || env('AI_PAID_FIRST')),
+    routerCooldownMinutes,
+    allowPublicGateways: booleanSetting(rows.AI_ROUTER_ALLOW_PUBLIC_GATEWAYS || env('AI_ROUTER_ALLOW_PUBLIC_GATEWAYS')),
     academicAllowlist: parseAcademicAllowlist(rows.AI_ACADEMIC_ALLOWLIST || env('AI_ACADEMIC_ALLOWLIST') || DEFAULT_ACADEMIC_ALLOWLIST),
+    academicAllowlistStrict: booleanSetting(rows.AI_ACADEMIC_ALLOWLIST_STRICT || env('AI_ACADEMIC_ALLOWLIST_STRICT')),
     verifierPreferred: parseProviderModelList(rows.AI_VERIFIER_PREFERRED || env('AI_VERIFIER_PREFERRED') || ''),
+    verifierStrict: booleanSetting(rows.AI_VERIFIER_STRICT || env('AI_VERIFIER_STRICT')),
+    stickyOnSuccess: booleanSetting(rows.AI_STICKY_ON_SUCCESS || env('AI_STICKY_ON_SUCCESS')),
     paidUsageMode: (['last_resort', 'critical_first'].includes(String(rows.AI_PAID_USAGE_MODE || env('AI_PAID_USAGE_MODE')).toLowerCase()) ? String(rows.AI_PAID_USAGE_MODE || env('AI_PAID_USAGE_MODE')).toLowerCase() : 'off') as TextAiPaidUsageMode,
     paidModels: parseKeys(rows.AI_PAID_MODELS || env('AI_PAID_MODELS')).filter((model) => validModelName(model) && academicModelAllowed('OPENAI_COMPAT', model)),
     paidDailyLimitUsd: Math.max(0, Number(rows.AI_PAID_DAILY_LIMIT_USD || env('AI_PAID_DAILY_LIMIT_USD') || 0) || 0),
@@ -915,6 +1058,179 @@ function providerKeys(s: Settings, provider: ConcreteProvider): string[] {
     case 'ALBORIHI': return s.alborihiBaseUrl ? s.alborihiKeys : []
     case 'OPENAI_COMPAT': return s.openaiCompatBaseUrl ? s.openaiCompatKeys : []
   }
+}
+
+const ROUTER_STATE_PROVIDERS: ConcreteProvider[] = ['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI']
+
+type ClearTextAiRouterStateInput = {
+  type?: string
+  provider?: string
+  keyIndex?: number | null
+  model?: string | null
+  clearProvider?: boolean
+}
+
+function persistentRouterStateItem(key: string, value: string): TextAiRouterStateItem | null {
+  const parsed = parseCooldown(value)
+  if (!parsed) return null
+  const parts = key.split(':')
+  if (parts[0] === 'AI_COOLDOWN') {
+    const provider = parts[1] || ''
+    const keyIndex = Number(parts[2])
+    if (!provider || !Number.isInteger(keyIndex) || keyIndex < 0) return null
+    const model = parts.length > 3 ? parts.slice(3).join(':') : null
+    return {
+      type: model ? 'MODEL_COOLDOWN' : 'KEY_COOLDOWN',
+      source: 'db',
+      provider,
+      keyIndex,
+      model,
+      until: new Date(parsed.until).toISOString(),
+      reason: parsed.reason,
+      status: parsed.status || null,
+    }
+  }
+  if (parts[0] === 'AI_MODEL_DEAD') {
+    const provider = parts[1] || ''
+    const model = parts.slice(2).join(':')
+    if (!provider || !model) return null
+    return { type: 'MODEL_DEAD', source: 'db', provider, keyIndex: null, model, until: new Date(parsed.until).toISOString(), reason: parsed.reason, status: parsed.status || null }
+  }
+  if (parts[0] === 'AI_NO_BALANCE') {
+    const provider = parts[1] || ''
+    const keyIndex = Number(parts[2])
+    if (!provider || !Number.isInteger(keyIndex) || keyIndex < 0) return null
+    return { type: 'NO_BALANCE', source: 'db', provider, keyIndex, model: null, until: new Date(parsed.until).toISOString(), reason: parsed.reason, status: parsed.status || null }
+  }
+  return null
+}
+
+function memoryKeyIndexLookup(s: Settings): Map<string, { provider: ConcreteProvider; keyIndex: number }> {
+  const lookup = new Map<string, { provider: ConcreteProvider; keyIndex: number }>()
+  for (const provider of ROUTER_STATE_PROVIDERS) {
+    providerKeys(s, provider).forEach((key, index) => lookup.set(cooldownId(provider, key), { provider, keyIndex: index }))
+  }
+  return lookup
+}
+
+function memoryRouterStateItems(s: Settings): TextAiRouterStateItem[] {
+  const now = Date.now()
+  const keyLookup = memoryKeyIndexLookup(s)
+  const out: TextAiRouterStateItem[] = []
+  for (const [id, item] of cooldowns.entries()) {
+    if (item.until <= now) {
+      cooldowns.delete(id)
+      continue
+    }
+    if (id.endsWith(':provider')) {
+      out.push({ type: 'PROVIDER_COOLDOWN', source: 'memory', provider: id.slice(0, -':provider'.length), keyIndex: null, model: item.model || null, until: new Date(item.until).toISOString(), reason: item.reason, status: item.status || null })
+      continue
+    }
+    const parts = id.split(':')
+    const baseId = parts.slice(0, 2).join(':')
+    const match = keyLookup.get(baseId)
+    if (!match) continue
+    const model = item.model || (parts.length > 2 ? parts.slice(2).join(':') : '')
+    out.push({
+      type: model ? 'MODEL_COOLDOWN' : 'KEY_COOLDOWN',
+      source: 'memory',
+      provider: match.provider,
+      keyIndex: match.keyIndex,
+      model: model || null,
+      until: new Date(item.until).toISOString(),
+      reason: item.reason,
+      status: item.status || null,
+    })
+  }
+  return out
+}
+
+export async function textAiRouterStateSnapshot(): Promise<TextAiRouterStateItem[]> {
+  const s = await settings()
+  const persistent = await loadPersistentCooldowns()
+  return [
+    ...Object.entries(persistent).map(([key, value]) => persistentRouterStateItem(key, value)).filter((item): item is TextAiRouterStateItem => Boolean(item)),
+    ...memoryRouterStateItems(s),
+  ].sort((a, b) => a.provider.localeCompare(b.provider) || a.type.localeCompare(b.type) || String(a.keyIndex ?? '').localeCompare(String(b.keyIndex ?? '')) || String(a.model || '').localeCompare(String(b.model || '')))
+}
+
+function validRouterStateProvider(value: unknown): ConcreteProvider | null {
+  const provider = normalizeProvider(value)
+  return provider === 'AUTO' ? null : provider
+}
+
+function routerStateKeyForInput(input: ClearTextAiRouterStateInput): string | null {
+  const provider = validRouterStateProvider(input.provider)
+  if (!provider) return null
+  const keyIndex = Number(input.keyIndex)
+  const model = clean(input.model || '')
+  if (input.type === 'MODEL_DEAD') return model ? modelDeadKey(provider, model) : null
+  if (input.type === 'NO_BALANCE') return Number.isInteger(keyIndex) && keyIndex >= 0 ? noBalanceKey(provider, keyIndex) : null
+  if (input.type === 'MODEL_COOLDOWN') return Number.isInteger(keyIndex) && keyIndex >= 0 && model ? persistentCooldownKey(provider, keyIndex, model) : null
+  if (input.type === 'KEY_COOLDOWN') return Number.isInteger(keyIndex) && keyIndex >= 0 ? persistentCooldownKey(provider, keyIndex) : null
+  return null
+}
+
+function clearMemoryRouterState(s: Settings, input: ClearTextAiRouterStateInput): number {
+  const provider = validRouterStateProvider(input.provider)
+  if (!provider) return 0
+  let cleared = 0
+  if (input.clearProvider || input.type === 'clear-provider') {
+    for (const id of Array.from(cooldowns.keys())) {
+      if (id === providerCooldownId(provider) || id.startsWith(`${provider}:`)) {
+        cooldowns.delete(id)
+        cleared += 1
+      }
+    }
+    return cleared
+  }
+  if (input.type === 'PROVIDER_COOLDOWN') {
+    const id = providerCooldownId(provider)
+    if (cooldowns.delete(id)) cleared += 1
+    return cleared
+  }
+  const keyIndex = Number(input.keyIndex)
+  if (!Number.isInteger(keyIndex) || keyIndex < 0) return cleared
+  const key = providerKeys(s, provider)[keyIndex]
+  if (!key) return cleared
+  const model = clean(input.model || '')
+  if (input.type === 'MODEL_COOLDOWN' && model) {
+    if (cooldowns.delete(modelCooldownId(provider, key, model))) cleared += 1
+  } else if (input.type === 'KEY_COOLDOWN' || input.type === 'NO_BALANCE') {
+    if (cooldowns.delete(cooldownId(provider, key))) cleared += 1
+  }
+  return cleared
+}
+
+export async function clearTextAiRouterState(input: ClearTextAiRouterStateInput): Promise<{ cleared: number; state: TextAiRouterStateItem[] }> {
+  const s = await settings()
+  const store = settingStore()
+  const provider = validRouterStateProvider(input.provider)
+  if (!provider) throw new Error('INVALID_ROUTER_STATE_PROVIDER')
+  let cleared = clearMemoryRouterState(s, input)
+  if (input.type === 'PROVIDER_COOLDOWN') {
+    return { cleared, state: await textAiRouterStateSnapshot() }
+  }
+  if (input.clearProvider || input.type === 'clear-provider') {
+    const values = await loadPersistentCooldowns()
+    for (const key of Object.keys(values)) {
+      if (key.startsWith(`AI_COOLDOWN:${provider}:`) || key.startsWith(`AI_NO_BALANCE:${provider}:`)) {
+        await store.delete?.(key)
+        cleared += 1
+      }
+    }
+  } else {
+    const key = routerStateKeyForInput(input)
+    if (!key) throw new Error('INVALID_ROUTER_STATE_KEY')
+    await store.delete?.(key)
+    cleared += 1
+  }
+  persistentCooldownCache = null
+  return { cleared, state: await textAiRouterStateSnapshot() }
+}
+
+export function __testTextAiRouterStatePayloadForTests(daysOrMs: number, reason: string, status?: number): string {
+  return routerStatePayload(daysOrMs, reason, status)
 }
 
 function modelFor(s: Settings, provider: ConcreteProvider): string {
@@ -1584,13 +1900,16 @@ async function modelFallbacks(s: Settings, provider: ConcreteProvider, taskLevel
   const academicPreferred = (taskLevel === 'GENERAL' ? [] : s.academicAllowlist.filter((item) => item.provider === provider).map((item) => item.model))
     .filter((model) => !strictDiscovered || discoveredSet.has(model.toLowerCase()))
   const discoveredOrFallback = nvidiaCompat ? nvidiaModelsAfterDiscovery(discoveredFree, staticDefaults, nvidiaDiscovered) : (discoveredFree.length ? discoveredFree : staticDefaults)
-  const models = [...new Set([...academicPreferred, ...selectedPart, ...discoveredOrFallback].filter(Boolean))]
+  const sourceModels = taskLevel !== 'GENERAL' && s.academicAllowlistStrict
+    ? academicPreferred
+    : [...academicPreferred, ...selectedPart, ...discoveredOrFallback]
+  const models = [...new Set(sourceModels.filter(Boolean))]
     .filter((model) => !nvidiaCompat || NVIDIA_OPENAI_COMPAT_CALLABLE_MODEL_IDS.has(model.toLowerCase()))
     .filter((model) => !strictDiscovered || discoveredSet.has(model.toLowerCase()))
     .filter(modelCapabilityAllowed)
     .filter((model) => modelAllowedForPurpose(model, purpose, modelCapabilitiesFor(provider, s, model)))
   const allowed = taskLevel === 'GENERAL' ? models : models.filter((model) => academicModelAllowed(provider, model))
-  return orderModelsByHealth(provider, allowed, taskLevel, explore, purpose)
+  return orderModelsByHealth(provider, sortModelsByFamily(s, provider, allowed, taskLevel), taskLevel, explore, purpose)
 }
 
 const ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER: ConcreteProvider[] = [
@@ -1617,13 +1936,83 @@ function selectedFirst(selected: ConcreteProvider | null, order: ConcreteProvide
   return selected ? [selected, ...order.filter((provider) => provider !== selected)] : order
 }
 
-function baseOrder(s: Settings): ConcreteProvider[] {
+function familyRankOrder(s: Settings): string[] {
+  return s.policy === 'cost_saver' ? s.familyCostOrder : s.familyQualityOrder
+}
+
+function familyRankIndex(order: string[], family: string): number {
+  const normalized = KNOWN_MODEL_FAMILIES.has(family) ? family : 'other'
+  const idx = order.indexOf(normalized)
+  return idx >= 0 ? idx : order.length
+}
+
+function rankModelFamily(s: Settings, provider: ConcreteProvider, model: string): string {
+  const catalogFamily = provider === 'ALBORIHI' ? alborihiModelFamily(s, model) : 'unknown'
+  const family = catalogFamily !== 'unknown' ? catalogFamily : rankFamily(model)
+  return KNOWN_MODEL_FAMILIES.has(family) ? family : 'other'
+}
+
+function candidateModelsForFamilyRanking(s: Settings, provider: ConcreteProvider, taskLevel: TextAiTaskLevel): string[] {
+  const selected = modelFor(s, provider)
+  const selectedPart = selected && !/(^|\/|-)auto$/i.test(selected) && selected !== 'auto' ? [selected] : []
+  const academicPreferred = taskLevel === 'GENERAL' ? [] : s.academicAllowlist.filter((item) => item.provider === provider).map((item) => item.model)
+  const source = taskLevel !== 'GENERAL' && s.academicAllowlistStrict
+    ? academicPreferred
+    : [...academicPreferred, ...selectedPart, ...staticTextModelsForProvider(provider, s)]
+  return [...new Set(source.filter(Boolean))]
+}
+
+function canRankProvidersByFamily(s: Settings, taskLevel: TextAiTaskLevel): taskLevel is Exclude<TextAiTaskLevel, 'GENERAL'> {
+  return taskLevel !== 'GENERAL' && s.policyRankBy === 'family' && (s.policy === 'quality_first' || s.policy === 'cost_saver')
+}
+
+function sortProvidersByFamily(s: Settings, order: ConcreteProvider[], taskLevel: Exclude<TextAiTaskLevel, 'GENERAL'>): ConcreteProvider[] {
+  if (s.policyRankBy !== 'family' || (s.policy !== 'quality_first' && s.policy !== 'cost_saver')) return order
+  const familyOrder = familyRankOrder(s)
+  const tierRank = (provider: ConcreteProvider) => {
+    if (!s.paidFirst) return 0
+    const tier = providerTierFor(s, provider)
+    if (tier === 'PAID') return 0
+    if (tier === 'FREE') return 1
+    return 2
+  }
+  return order.map((provider, index) => ({ provider, index, tier: tierRank(provider), rank: Math.min(...candidateModelsForFamilyRanking(s, provider, taskLevel).map((model) => familyRankIndex(familyOrder, rankModelFamily(s, provider, model))), familyOrder.length) }))
+    .sort((a, b) => a.tier - b.tier || a.rank - b.rank || a.index - b.index)
+    .map((item) => item.provider)
+}
+
+function sortModelsByFamily(s: Settings, provider: ConcreteProvider, models: string[], taskLevel: TextAiTaskLevel): string[] {
+  if (taskLevel === 'GENERAL' || s.policyRankBy !== 'family' || (s.policy !== 'quality_first' && s.policy !== 'cost_saver')) return models
+  const familyOrder = familyRankOrder(s)
+  return models.map((model, index) => ({ model, index, rank: familyRankIndex(familyOrder, rankModelFamily(s, provider, model)) }))
+    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map((item) => item.model)
+}
+
+function providerTierFor(s: Settings, provider: ConcreteProvider): TextAiProviderTier | null {
+  return s.providerTiers[provider] || (provider === 'OPENAI_COMPAT' ? s.openaiCompatTier : null)
+}
+
+function applyPaidFirst(s: Settings, order: ConcreteProvider[], taskLevel: TextAiTaskLevel): ConcreteProvider[] {
+  if (!s.paidFirst || taskLevel === 'GENERAL') return order
+  const rank = (provider: ConcreteProvider) => {
+    const tier = providerTierFor(s, provider)
+    if (tier === 'PAID') return 0
+    if (tier === 'FREE') return 1
+    return 2
+  }
+  return order.map((provider, index) => ({ provider, index, rank: rank(provider) }))
+    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map((item) => item.provider)
+}
+
+function baseOrder(s: Settings, taskLevel: TextAiTaskLevel = 'GENERAL'): ConcreteProvider[] {
   const selected = s.provider === 'AUTO' ? null : s.provider
   const quality: ConcreteProvider[] = ['ANTHROPIC', 'OPENAI', 'GEMINI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'TOPTOOLS', 'ZAI', 'GROQ', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'ALBORIHI']
   const cost: ConcreteProvider[] = ['GROQ', 'ZAI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'TOPTOOLS', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'GEMINI', 'OPENAI', 'ANTHROPIC', 'ALBORIHI']
   const primary: ConcreteProvider[] = ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER
-  if (s.policy === 'quality_first') return selectedFirst(selected, quality)
-  if (s.policy === 'cost_saver') return selectedFirst(selected, cost)
+  if (s.policy === 'quality_first') return selectedFirst(selected, canRankProvidersByFamily(s, taskLevel) ? sortProvidersByFamily(s, quality, taskLevel) : quality)
+  if (s.policy === 'cost_saver') return selectedFirst(selected, canRankProvidersByFamily(s, taskLevel) ? sortProvidersByFamily(s, cost, taskLevel) : cost)
   if (s.policy === 'fallback_only' && selected) return [selected]
   if (s.policy === 'balanced') return primary.slice(roundRobin++ % Math.max(1, primary.length)).concat(primary.slice(0, (roundRobin - 1) % Math.max(1, primary.length)))
   return selectedFirst(selected, primary)
@@ -1632,17 +2021,55 @@ function baseOrder(s: Settings): ConcreteProvider[] {
 function providerOrder(s: Settings, taskLevel: TextAiTaskLevel = 'GENERAL'): ConcreteProvider[] {
   if (taskLevel !== 'GENERAL') {
     const preferred = [...new Set(s.academicAllowlist.map((item) => item.provider))]
-    const rest = baseOrder(s).filter((provider) => !preferred.includes(provider))
-    const ordered = [...preferred, ...rest].filter((provider) => providerKeys(s, provider).length > 0)
+    const rest = baseOrder(s, taskLevel).filter((provider) => !preferred.includes(provider))
+    const selected = s.provider === 'AUTO' ? null : s.provider
+    const academicOrder = s.policySource === 'admin' && s.policy === 'primary_first' && selected
+      ? [selected, ...preferred.filter((provider) => provider !== selected), ...rest.filter((provider) => provider !== selected)]
+      : [...preferred, ...rest]
+    const paidOrdered = applyPaidFirst(s, academicOrder, taskLevel)
+    const policyOrdered = sortProvidersByFamily(s, paidOrdered, taskLevel)
+    const ordered = policyOrdered.filter((provider) => providerKeys(s, provider).length > 0)
+    if (s.policySource === 'admin' && s.policy === 'primary_first' && selected) return ordered
     return ordered.includes('OPENAI') ? [...ordered.filter((provider) => provider !== 'OPENAI'), 'OPENAI'] : ordered
   }
   const publicGateways = new Set<ConcreteProvider>(['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT'])
   const academyAlwaysAllowed = new Set<ConcreteProvider>(['UNOROUTER', 'OPENROUTER', 'TOPTOOLS'])
-  return baseOrder(s).filter((provider) => {
+  return baseOrder(s, taskLevel).filter((provider) => {
     if (!providerKeys(s, provider).length) return false
     if (publicGateways.has(provider) && !s.allowPublicGateways && s.provider !== provider && !academyAlwaysAllowed.has(provider)) return false
     return true
   })
+}
+
+export function __testB2ProviderOrderForTests(args: { policy?: TextAiRouterPolicy; rankBy?: TextAiPolicyRankBy; taskLevel?: TextAiTaskLevel; providerTiers?: string; paidFirst?: boolean; allowlist?: string; strict?: boolean; provider?: TextAiProvider; topToolsModel?: string; alborihiModel?: string; groqModel?: string; geminiModel?: string; openaiCompatTier?: TextAiProviderTier }): string[] {
+  const s = {
+    provider: normalizeProvider(args.provider || 'AUTO'),
+    policy: normalizePolicy(args.policy || 'primary_first'),
+    policySource: 'admin',
+    policyRankBy: normalizePolicyRankBy(args.rankBy || 'provider'),
+    familyQualityOrder: parseFamilyOrder('', DEFAULT_FAMILY_QUALITY_ORDER),
+    familyCostOrder: parseFamilyOrder('', DEFAULT_FAMILY_COST_ORDER),
+    providerTiers: parseProviderTiers(args.providerTiers || ''),
+    paidFirst: args.paidFirst === true,
+    academicAllowlist: parseAcademicAllowlist(args.allowlist || DEFAULT_ACADEMIC_ALLOWLIST),
+    academicAllowlistStrict: args.strict === true,
+    allowPublicGateways: true,
+    geminiKeys: ['k'], openaiKeys: ['k'], anthropicKeys: ['k'], zaiKeys: ['k'], groqKeys: ['k'], openrouterKeys: ['k'], deepinfraKeys: ['k'], togetherKeys: ['k'], unorouterKeys: ['k'], relayrouterKeys: ['k'], topToolsKeys: ['k'], alborihiKeys: ['k'], openaiCompatKeys: ['k'],
+    geminiModel: args.geminiModel || 'gemini-3.8-flash', openaiModel: 'gpt-5.1', anthropicModel: 'claude-sonnet-4-5-20250929', zaiModel: 'glm-4.5', groqModel: args.groqModel || 'llama-3.3-70b-versatile', openrouterModel: 'openrouter/auto', deepinfraModel: 'meta-llama/Llama-3.3-70B-Instruct', togetherModel: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', unorouterModel: 'gpt-oss-120b:free', relayrouterModel: 'claude-opus-4-8', topToolsModel: args.topToolsModel || 'top-tools-ai', alborihiModel: args.alborihiModel || 'claude-sonnet-5', openaiCompatModel: 'auto',
+    openaiCompatBaseUrl: 'https://compat.test/v1', alborihiBaseUrl: ALBORIHI_DEFAULT_BASE_URL, openaiCompatTier: args.openaiCompatTier || 'FREE',
+  } as Settings
+  const taskLevel = args.taskLevel || (args.rankBy === 'family' ? 'ACADEMIC_CRITICAL' : 'GENERAL')
+  return providerOrder(s, taskLevel)
+}
+
+function resolveRouterPolicy(purpose: TextAiPurpose | undefined, s: Settings, hardcoded?: TextAiRouterPolicy): TextAiRouterPolicy {
+  void purpose
+  return s.policySource === 'admin' ? s.policy : (hardcoded || s.policy)
+}
+
+export function __testResolveRouterPolicyForTests(policySource: TextAiRouterPolicySource, adminPolicy: TextAiRouterPolicy, hardcoded?: TextAiRouterPolicy): TextAiRouterPolicy {
+  const s = { policySource, policy: adminPolicy } as Settings
+  return resolveRouterPolicy(undefined, s, hardcoded)
 }
 
 export async function hasExternalTextAi(): Promise<boolean> {
@@ -2463,6 +2890,10 @@ function academicProviderUnavailable(attempts: TextAiAttemptDiagnostics[]): Erro
   return err
 }
 
+export function __testAcademicProviderUnavailableCodeForTests(): string {
+  return (academicProviderUnavailable([]) as any).code
+}
+
 function verifierUnavailable(attempts: TextAiAttemptDiagnostics[]): Error {
   const err: any = new Error('AI_VERIFIER_UNAVAILABLE')
   err.code = 'AI_VERIFIER_UNAVAILABLE'
@@ -2477,9 +2908,8 @@ function verifierSameFamilyUnavailable(attempts: TextAiAttemptDiagnostics[]): Er
   return err
 }
 
-export function modelFamily(model: string): string {
-  const raw = String(model || '').trim().toLowerCase()
-  const normalized = raw
+function normalizedFamilyInput(model: string): string {
+  return String(model || '').trim().toLowerCase()
     .replace(/^models\//, '')
     .replace(/^google\//, '')
     .replace(/^anthropic\//, '')
@@ -2490,9 +2920,13 @@ export function modelFamily(model: string): string {
     .replace(/^mistralai\//, '')
     .replace(/^moonshotai\//, '')
     .replace(/^cohere\//, '')
+}
+
+export function modelFamily(model: string): string {
+  const normalized = normalizedFamilyInput(model)
   if (/gemini|gemma/.test(normalized)) return 'gemini'
-  if (/gpt[-_]?oss|\bgpt[-_]?|o\d(?:[-_]|$)|chatgpt/.test(normalized)) return 'gpt'
-  if (/claude/.test(normalized)) return 'claude'
+  if (/\bgpt[-_]?|gpt[-_]?oss|o\d(?:[-_]|$)|chatgpt/.test(normalized)) return 'gpt'
+  if (/claude|sonnet|opus|haiku/.test(normalized)) return 'claude'
   if (/llama|codellama/.test(normalized)) return 'llama'
   if (/qwen/.test(normalized)) return 'qwen'
   if (/deepseek/.test(normalized)) return 'deepseek'
@@ -2509,6 +2943,21 @@ export function modelFamily(model: string): string {
   if (/hunyuan/.test(normalized)) return 'hunyuan'
   if (/\bling(?:[-_\d.]|$)/.test(normalized)) return 'ling'
   return 'unknown'
+}
+
+function rankFamily(model: string): string {
+  const normalized = normalizedFamilyInput(model)
+  if (/gpt[-_]?oss/.test(normalized)) return 'gpt-oss'
+  if (/claude|sonnet|opus|haiku/.test(normalized)) return 'claude'
+  if (/\bgpt[-_]?|o\d(?:[-_]|$)|chatgpt/.test(normalized)) return 'gpt'
+  if (/gemini|gemma/.test(normalized)) return 'gemini'
+  if (/deepseek/.test(normalized)) return 'deepseek'
+  if (/qwen/.test(normalized)) return 'qwen'
+  if (/glm/.test(normalized)) return 'glm'
+  if (/kimi|moonshot/.test(normalized)) return 'kimi'
+  if (/grok/.test(normalized)) return 'grok'
+  if (/llama|codellama/.test(normalized)) return 'llama'
+  return 'other'
 }
 
 function excludedConcreteProviders(excludeProviders?: readonly TextAiProvider[]): Set<ConcreteProvider> {
@@ -2543,6 +2992,105 @@ export function __testQuestionVerifierCandidatePlan(args: { preferred?: TextAiPr
 
 function isVerifierCall(opts: TextAiCallOpts): boolean {
   return (opts.excludeProviders || []).some((provider) => provider !== 'AUTO')
+}
+
+function providerModelListContains(list: readonly TextAiPreferredModel[], provider: ConcreteProvider, model: string): boolean {
+  return list.some((item) => item.provider === provider && item.model.toLowerCase() === model.toLowerCase())
+}
+
+function strictCandidateModelsForRequest(s: Settings, provider: ConcreteProvider, models: string[], taskLevel: TextAiTaskLevel, verifierCall: boolean): string[] {
+  if (verifierCall) return s.verifierStrict ? models.filter((model) => providerModelListContains(s.verifierPreferred, provider, model)) : models
+  if (taskLevel !== 'GENERAL' && s.academicAllowlistStrict) return models.filter((model) => providerModelListContains(s.academicAllowlist, provider, model))
+  return models
+}
+
+export function __testStrictCandidateModelsForTests(args: { provider: TextAiProvider; models: string[]; taskLevel?: TextAiTaskLevel; verifierCall?: boolean; academicAllowlist?: string; academicStrict?: boolean; verifierPreferred?: string; verifierStrict?: boolean }): string[] {
+  const provider = normalizeProvider(args.provider)
+  if (provider === 'AUTO') return []
+  const s = {
+    academicAllowlist: parseAcademicAllowlist(args.academicAllowlist || DEFAULT_ACADEMIC_ALLOWLIST),
+    academicAllowlistStrict: args.academicStrict === true,
+    verifierPreferred: parseProviderModelList(args.verifierPreferred || ''),
+    verifierStrict: args.verifierStrict === true,
+  } as Settings
+  return strictCandidateModelsForRequest(s, provider, args.models, args.taskLevel || 'GENERAL', args.verifierCall === true)
+}
+
+function stickyScopeForRequest(s: Settings, opts: TextAiCallOpts, verifierCall: boolean, taskLevel: TextAiTaskLevel): string | null {
+  if (opts.stickyScope) return opts.stickyScope
+  if (!s.stickyOnSuccess || (taskLevel === 'GENERAL' && !verifierCall)) return null
+  const route = clean(opts.taskType || opts.purpose || 'CHAT') || 'CHAT'
+  return `${route}:${verifierCall ? 'verify' : 'gen'}`
+}
+
+function stickyVerifierFamilyBlocked(s: Settings, opts: TextAiCallOpts, sticky: StickyModel, excludedFamilies: Set<string>, allowAlborihiCrossFamilyVerifier: boolean): boolean {
+  if (!isVerifierCall(opts)) return false
+  const family = sticky.provider === 'ALBORIHI' && allowAlborihiCrossFamilyVerifier ? alborihiModelFamily(s, sticky.model) : modelFamily(sticky.model)
+  return family !== 'unknown' && excludedFamilies.has(family)
+}
+
+async function resolveUsableStickyModel(args: {
+  s: Settings
+  opts: TextAiCallOpts
+  scope: string | null
+  preferredModels: TextAiPreferredModel[]
+  orderedProviders: ConcreteProvider[]
+  taskLevel: TextAiTaskLevel
+  verifierCall: boolean
+  excludedFamilies: Set<string>
+  persistentCooldowns: Record<string, string>
+  attachments: TextAiAttachment[]
+  exploreModels: boolean
+  allowAlborihiCrossFamilyVerifier: boolean
+  estimatedPaidCost: number
+}): Promise<{ sticky: StickyModel | null; deleteSticky: boolean }> {
+  if (!args.scope) return { sticky: null, deleteSticky: false }
+  const sticky = stickyModels.get(args.scope)
+  if (!sticky || !args.orderedProviders.includes(sticky.provider)) return { sticky: null, deleteSticky: false }
+  if (stickyVerifierFamilyBlocked(args.s, args.opts, sticky, args.excludedFamilies, args.allowAlborihiCrossFamilyVerifier)) return { sticky: null, deleteSticky: false }
+  const keys = providerKeys(args.s, sticky.provider)
+  const keyIndex = keys.indexOf(sticky.key) + 1
+  if (keyIndex <= 0) return { sticky: null, deleteSticky: false }
+  if (isPersistentModelDead(args.persistentCooldowns, sticky.provider, sticky.model)) return { sticky: null, deleteSticky: true }
+  if (isPersistentNoBalance(args.persistentCooldowns, sticky.provider, keyIndex)) return { sticky: null, deleteSticky: true }
+  if (activeMemoryCooldown(sticky.provider, sticky.key) || activeMemoryModelCooldown(sticky.provider, sticky.key, sticky.model)) return { sticky: null, deleteSticky: false }
+  if (persistentKeyCooldown(args.persistentCooldowns, sticky.provider, keyIndex) || persistentModelCooldown(args.persistentCooldowns, sticky.provider, keyIndex, sticky.model)) return { sticky: null, deleteSticky: false }
+  if (sticky.provider === 'OPENAI_COMPAT' && args.s.openaiCompatTier === 'PAID' && !(await paidBudgetAvailable(args.s, args.estimatedPaidCost))) return { sticky: null, deleteSticky: true }
+
+  const providerPreferredModels = args.preferredModels.filter((item) => item.provider === sticky.provider).map((item) => item.model)
+  const fallbackModels = args.verifierCall && args.s.verifierStrict ? [] : await modelFallbacks(args.s, sticky.provider, args.taskLevel, args.exploreModels, args.opts.purpose)
+  const sameProviderAlborihiReview = args.allowAlborihiCrossFamilyVerifier && sticky.provider === 'ALBORIHI'
+  const discoveredAlborihiModels = sameProviderAlborihiReview ? freeModelDiscoveryEntry('ALBORIHI', args.s) : null
+  const candidateModels = strictCandidateModelsForRequest(args.s, sticky.provider, [...new Set([...providerPreferredModels, ...fallbackModels])], args.taskLevel, args.verifierCall)
+    .filter((model) => !discoveredAlborihiModels?.discoveryOk || discoveredAlborihiModels.models.some((id) => id.toLowerCase() === model.toLowerCase()))
+  const eligibleFamily = (model: string) => {
+    if (!sameProviderAlborihiReview) return modelFamilyAllowed(model, args.excludedFamilies)
+    const family = alborihiModelFamily(args.s, model)
+    return family !== 'unknown' && !args.excludedFamilies.has(family)
+  }
+  const baseModels = candidateModels
+    .filter(eligibleFamily)
+    .filter((model) => modelSupportsVisionAttachment(sticky.provider, model, modelCapabilitiesFor(sticky.provider, args.s, model), args.attachments))
+  return { sticky: baseModels.includes(sticky.model) ? sticky : null, deleteSticky: false }
+}
+
+export function __testStickyScopeForTests(args: { stickyOnSuccess?: boolean; stickyScope?: string; purpose?: TextAiPurpose; taskType?: string; verifierCall?: boolean; taskLevel?: TextAiTaskLevel }): string | null {
+  return stickyScopeForRequest({ stickyOnSuccess: args.stickyOnSuccess === true } as Settings, { system: '', history: [], stickyScope: args.stickyScope, purpose: args.purpose, taskType: args.taskType } as TextAiCallOpts, args.verifierCall === true, args.taskLevel || 'ACADEMIC_CRITICAL')
+}
+
+export function __testStickyCandidateOrderForTests(args: { stickyOnSuccess?: boolean; scope?: string; provider?: TextAiProvider; model?: string; key?: string; candidates: string[]; verifierCall?: boolean; generatorModel?: string; cooldown?: boolean; noBalance?: boolean; modelDead?: boolean; strictCandidates?: string[]; taskLevel?: TextAiTaskLevel }): string[] {
+  __resetTextAiStateForTests()
+  const provider = normalizeProvider(args.provider || 'ALBORIHI')
+  if (provider === 'AUTO') return args.candidates
+  const scope = stickyScopeForRequest({ stickyOnSuccess: args.stickyOnSuccess === true } as Settings, { system: '', history: [], stickyScope: args.scope, purpose: 'GENERATION' } as TextAiCallOpts, args.verifierCall === true, args.taskLevel || 'ACADEMIC_CRITICAL')
+  if (scope && args.model && args.key) stickyModels.set(scope, { provider, model: args.model, key: args.key, at: Date.now() })
+  const sticky = scope ? stickyModels.get(scope) : null
+  if (!sticky) return args.candidates
+  if (args.verifierCall && modelFamily(sticky.model) === modelFamily(args.generatorModel || '')) return args.candidates
+  if (args.cooldown || args.noBalance || args.modelDead) return args.candidates
+  const allowed = args.strictCandidates || args.candidates
+  if (!allowed.includes(sticky.model) || !args.candidates.includes(sticky.model)) return args.candidates
+  return [sticky.model, ...args.candidates.filter((model) => model !== sticky.model)]
 }
 
 function utcDateKey(): string {
@@ -2625,7 +3173,8 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const visionCall = attachments.length > 0
   const effectiveOpts = visionCall ? { ...opts, attachments, purpose: opts.purpose || 'VISION', deadlineMs: opts.deadlineMs || Date.now() + VISION_ATTEMPT_TIMEOUT_MS } : opts
   const baseSettings = await settings()
-  const s: Settings = effectiveOpts.routerPolicy ? { ...baseSettings, policy: effectiveOpts.routerPolicy } : baseSettings
+  const resolvedPolicy = resolveRouterPolicy(effectiveOpts.purpose, baseSettings, effectiveOpts.routerPolicy)
+  const s: Settings = resolvedPolicy === baseSettings.policy ? baseSettings : { ...baseSettings, policy: resolvedPolicy }
   const taskLevel = effectiveOpts.taskLevel || 'GENERAL'
   const excluded = excludedConcreteProviders(effectiveOpts.excludeProviders)
   const excludedFamilies = excludedModelFamilies(effectiveOpts.excludeModelFamilies)
@@ -2636,8 +3185,11 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     && [...excludedFamilies].some((family) => family !== 'unknown')
   // Keep the verifier exclusion contract for all other providers and requests.
   if (allowAlborihiCrossFamilyVerifier) excluded.delete('ALBORIHI')
-  const sticky = effectiveOpts.stickyScope ? stickyModels.get(effectiveOpts.stickyScope) : null
-  const preferredModels = isVerifierCall(effectiveOpts) ? [...(effectiveOpts.preferredModels || []), ...s.verifierPreferred] : (effectiveOpts.preferredModels || [])
+  const verifierCall = isVerifierCall(effectiveOpts)
+  const stickyScope = stickyScopeForRequest(s, effectiveOpts, verifierCall, taskLevel)
+  const preferredModels = verifierCall
+    ? (s.verifierStrict ? s.verifierPreferred : [...(effectiveOpts.preferredModels || []), ...s.verifierPreferred])
+    : (effectiveOpts.preferredModels || [])
   const preferredModelProviders = preferredModels.map((item) => item.provider).filter(Boolean)
   const preferredProviders = [...new Set([...(effectiveOpts.preferredProviders || []).filter(Boolean), ...preferredModelProviders])]
   const baseOrderedProviders = providerOrder(s, taskLevel)
@@ -2653,9 +3205,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
       return ai - bi
     })
     : baseOrderedProviders
-  const providers = sticky && orderedProviders.includes(sticky.provider)
-    ? [sticky.provider, ...orderedProviders.filter((provider) => provider !== sticky.provider)]
-    : orderedProviders
+  let providers = orderedProviders
   if (!providers.length) {
     if (isVerifierCall(effectiveOpts)) throw verifierUnavailable([])
     if (taskLevel === 'ACADEMIC_CRITICAL') throw academicProviderUnavailable([])
@@ -2666,6 +3216,24 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const persistentCooldowns = await loadPersistentCooldowns()
   const exploreModels = ++routerRequestSeq % 5 === 0
   const estimatedPaidCost = estimatedPaidCostUsd(effectiveOpts)
+  const stickyResolution = await resolveUsableStickyModel({
+    s,
+    opts: effectiveOpts,
+    scope: stickyScope,
+    preferredModels,
+    orderedProviders,
+    taskLevel,
+    verifierCall,
+    excludedFamilies,
+    persistentCooldowns,
+    attachments,
+    exploreModels,
+    allowAlborihiCrossFamilyVerifier,
+    estimatedPaidCost,
+  })
+  if (stickyScope && stickyResolution.deleteSticky) stickyModels.delete(stickyScope)
+  const usableSticky = stickyResolution.sticky
+  if (usableSticky) providers = [usableSticky.provider, ...providers.filter((provider) => provider !== usableSticky.provider)]
   const estimatedInputTokens = estimatePromptTokens(effectiveOpts.system, effectiveOpts.history)
   const estimatedOutputTokens = Number(effectiveOpts.maxOutputTokens || (effectiveOpts.json ? 4096 : 2048))
   await enforceAiUserDailyCostCap({
@@ -2700,10 +3268,10 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
       const selectedModel = modelFor(s, provider)
       if (selectedModel && !academicModelAllowed(provider, selectedModel) && !providerPreferredModels.includes(selectedModel)) noteNoCandidate(provider, selectedModel, 'NOT_IN_ALLOWLIST')
     }
-    const fallbackModels = await modelFallbacks(s, provider, taskLevel, exploreModels, effectiveOpts.purpose)
+    const fallbackModels = verifierCall && s.verifierStrict ? [] : await modelFallbacks(s, provider, taskLevel, exploreModels, effectiveOpts.purpose)
     const sameProviderAlborihiReview = allowAlborihiCrossFamilyVerifier && provider === 'ALBORIHI'
     const discoveredAlborihiModels = sameProviderAlborihiReview ? freeModelDiscoveryEntry('ALBORIHI', s) : null
-    const candidateModels = [...new Set([...providerPreferredModels, ...fallbackModels])]
+    const candidateModels = strictCandidateModelsForRequest(s, provider, [...new Set([...providerPreferredModels, ...fallbackModels])], taskLevel, verifierCall)
       .filter((model) => !discoveredAlborihiModels?.discoveryOk || discoveredAlborihiModels.models.some((id) => id.toLowerCase() === model.toLowerCase()))
     const eligibleFamily = (model: string) => {
       if (!sameProviderAlborihiReview) return modelFamilyAllowed(model, excludedFamilies)
@@ -2716,15 +3284,19 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     const baseModels = candidateModels
       .filter(eligibleFamily)
       .filter((model) => modelSupportsVisionAttachment(provider, model, modelCapabilitiesFor(provider, s, model), attachments))
-    const orderedModels = sticky && sticky.provider === provider && baseModels.includes(sticky.model)
-      ? [sticky.model, ...baseModels.filter((model) => model !== sticky.model)]
+    const orderedModels = usableSticky && usableSticky.provider === provider && baseModels.includes(usableSticky.model)
+      ? [usableSticky.model, ...baseModels.filter((model) => model !== usableSticky.model)]
       : baseModels
     const health = await readModelHealth(provider, orderedModels)
     for (const model of orderedModels) {
       if (recentFailedHealth(health.get(model) || null)) noteNoCandidate(provider, model, 'HEALTH_SKIP')
     }
     const healthFilteredModels = orderedModels.filter((model) => !recentFailedHealth(health.get(model) || null))
-    const models = providerModelsForRequest(provider, s, healthFilteredModels.length ? healthFilteredModels : orderedModels, routerRequestSeq, effectiveOpts.maxProviderModels)
+    const stickyEligibleModels = healthFilteredModels.length ? healthFilteredModels : orderedModels
+    const routedModels = providerModelsForRequest(provider, s, stickyEligibleModels, routerRequestSeq, effectiveOpts.maxProviderModels)
+    const models = usableSticky && usableSticky.provider === provider && stickyEligibleModels.includes(usableSticky.model)
+      ? [usableSticky.model, ...routedModels.filter((model) => model !== usableSticky.model)].slice(0, routedModels.length)
+      : routedModels
     if (isVerifierCall(effectiveOpts) && candidateModels.length > 0 && models.length === 0) onlySameFamilyModelsExcluded = true
     for (const model of models) {
       if (skipModelsThisRequest.has(`${provider}:${model}`)) continue
@@ -2732,12 +3304,20 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
         noteNoCandidate(provider, model, 'MODEL_DEAD')
         continue
       }
+      let stickyKeyQueue: string[] | null = null
+      if (usableSticky && usableSticky.provider === provider && usableSticky.model === model) {
+        const routedKeys = candidateKeys(provider, s)
+        stickyKeyQueue = routedKeys.includes(usableSticky.key)
+          ? [usableSticky.key, ...routedKeys.filter((candidateKey) => candidateKey !== usableSticky.key)]
+          : null
+      }
       for (const key of candidateKeys(provider, s)) {
-        const keyIndex = Math.max(1, providerKeys(s, provider).indexOf(key) + 1)
+        const currentKey = stickyKeyQueue ? (stickyKeyQueue.shift() || key) : key
+        const keyIndex = Math.max(1, providerKeys(s, provider).indexOf(currentKey) + 1)
         const persistedKeyCooldown = persistentKeyCooldown(persistentCooldowns, provider, keyIndex)
         const persistedModelCooldown = persistentModelCooldown(persistentCooldowns, provider, keyIndex, model)
-        const memoryKeyCooldown = activeMemoryCooldown(provider, key)
-        const memoryModelCooldown = activeMemoryModelCooldown(provider, key, model)
+        const memoryKeyCooldown = activeMemoryCooldown(provider, currentKey)
+        const memoryModelCooldown = activeMemoryModelCooldown(provider, currentKey, model)
         if (isPersistentNoBalance(persistentCooldowns, provider, keyIndex)) {
           noteNoCandidate(provider, model, 'NO_BALANCE')
           continue
@@ -2754,21 +3334,21 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           noteNoCandidate(provider, model, `COOLDOWN(model)(${new Date((cooldown?.until || Date.now())).toISOString()})`)
           continue
         }
-        if (!(await keyRateAllowed(provider, key))) {
+        if (!(await keyRateAllowed(provider, currentKey))) {
           noteNoCandidate(provider, model, 'REQUEST_FAILED(rate_limit)')
           continue
         }
         if (Number.isFinite(effectiveOpts.deadlineMs || NaN) && Date.now() >= Number(effectiveOpts.deadlineMs)) throw deadlineExceeded()
         const started = Date.now()
         try {
-          const providerResult = await callProviderWithJsonRepair(provider, s, key, model, effectiveOpts)
+          const providerResult = await callProviderWithJsonRepair(provider, s, currentKey, model, effectiveOpts)
           const text = providerResult.text
           effectiveOpts.validate?.(text, { provider, model, ...(provider === 'ALBORIHI' && allowAlborihiCrossFamilyVerifier ? { family: alborihiModelFamily(s, model) } : {}) })
           const at = new Date().toISOString()
           const ms = Date.now() - started
           await recordModelStats(provider, model, { ok: true, ms, jsonOk: providerResult.jsonOk, evidenceOk: true }, effectiveOpts.purpose)
           lastResult = { provider, model, ok: true, at }
-          if (effectiveOpts.stickyScope) stickyModels.set(effectiveOpts.stickyScope, { provider, model, at: Date.now() })
+          if (stickyScope) stickyModels.set(stickyScope, { provider, model, key: currentKey, at: Date.now() })
           const attempt = { provider, model, keyIndex, ok: true, ms, at }
           attempts.push(attempt)
           recordAttempt(attempt)
@@ -2796,9 +3376,10 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           recordAttempt(attempt)
           errors.push(`${provider}/${model}/key#${keyIndex}: ${msg}`)
           noteNoCandidate(provider, model, `REQUEST_FAILED(${status || 'unknown'}, ${msg})`)
+          if (stickyScope && usableSticky && usableSticky.provider === provider && usableSticky.model === model && usableSticky.key === currentKey) stickyModels.delete(stickyScope)
           await recordModelStats(provider, model, { ok: false, reason: routerReasonBucket(attempt), ms, jsonOk: effectiveOpts.json ? false : undefined, evidenceOk: e?.code === 'VALIDATION_REJECTED' ? false : undefined }, effectiveOpts.purpose)
           if (provider === 'ALBORIHI') {
-            const action = await handleAlborihiFailure({ key, keyIndex, model, error: e, message: msg, status })
+            const action = await handleAlborihiFailure({ key: currentKey, keyIndex, model, error: e, message: msg, status })
             if (action === 'break') {
               skipModelsThisRequest.add(`${provider}:${model}`)
               break
@@ -2820,43 +3401,43 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
             break
           }
           if (isNoBalanceLike(e)) {
-            markCooldown(provider, key, msg, 24 * 60, status)
+            markCooldown(provider, currentKey, msg, 24 * 60, status)
             await markPersistentNoBalance(provider, keyIndex, msg, status)
             continue
           }
           if (isHighDemandLike(e)) {
             skipModelsThisRequest.add(`${provider}:${model}`)
             if (highDemandCooldownScope(model, msg, status) === 'model') {
-              markModelCooldown(provider, key, model, msg, 2, status)
-              await markPersistentCooldown(provider, keyIndex, model, msg, status, 2)
+              await applyTransientModelFailureCooldown(provider, currentKey, keyIndex, model, msg, status, 1)
             } else {
-              markCooldown(provider, key, msg, 1, status)
-              await markPersistentCooldown(provider, keyIndex, model, msg, status, 1)
+              markCooldown(provider, currentKey, msg, 1, status)
+              await markPersistentCooldown(provider, keyIndex, undefined, msg, status, 1)
             }
             break
           }
           if (isTimeoutLike(e)) {
-            markCooldown(provider, key, msg, 2, status)
-            if (status === 503 || status === 504) await markPersistentCooldown(provider, keyIndex, model, msg, status, 2)
+            skipModelsThisRequest.add(`${provider}:${model}`)
+            await applyTransientModelFailureCooldown(provider, currentKey, keyIndex, model, msg, status, 2)
+            break
           }
           if (isQuotaLike(e)) {
             recordProviderRateLimitAndMaybeCooldown(provider, effectiveOpts, msg, status)
             const scope = classifyRateLimitScope(model, msg, status)
             const minutes = rateLimitCooldownMinutes(e, msg, model)
             if (scope === 'key') {
-              markCooldown(provider, key, msg, undefined, status)
+              markCooldown(provider, currentKey, msg, undefined, status)
               await markPersistentCooldown(provider, keyIndex, undefined, msg, status)
             } else {
-              markModelCooldown(provider, key, model, msg, minutes, status)
+              markModelCooldown(provider, currentKey, model, msg, minutes, status)
               await markPersistentCooldown(provider, keyIndex, model, msg, status, minutes)
-              if (shouldEscalateModelRateLimit(provider, key, model, msg)) {
-                markCooldown(provider, key, msg, undefined, status)
+              if (shouldEscalateModelRateLimit(provider, currentKey, model, msg)) {
+                markCooldown(provider, currentKey, msg, undefined, status)
                 await markPersistentCooldown(provider, keyIndex, undefined, msg, status)
               }
             }
           }
           if (isAuthLike(e)) {
-            markCooldown(provider, key, msg, 60, status)
+            markCooldown(provider, currentKey, msg, 60, status)
             await markPersistentCooldown(provider, keyIndex, model, msg, status, 60)
           }
         }

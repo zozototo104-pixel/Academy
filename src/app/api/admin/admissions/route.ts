@@ -4,7 +4,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { audit, notify, AUDIT_ACTIONS } from '@/lib/notify'
 import { getSettings, nextInvoiceNo, nextCertSerial } from '@/lib/settings'
 import { randomBytes } from 'crypto'
-import { emailAdmissionDecision, emailCertificateIssued } from '@/lib/mailer'
+import { emailAdmissionDecision, emailAdmissionDocumentsRequested, emailCertificateIssued } from '@/lib/mailer'
 import { getServiceFlow } from '@/lib/service-flows'
 import { deriveServiceWorkflowState } from '@/lib/service-workflows'
 import { TUITION_PURPOSES, inferTotalTuition, tuitionPaidTotal, roundMoney } from '@/lib/tuition-installments'
@@ -18,6 +18,7 @@ import {
   stripAdmissionDocumentReplacement,
 } from '@/lib/admission-document-replacement'
 import { getStorageDownloadPathForKey } from '@/lib/storage'
+import { resolveProgramAdmissionDocumentRequirements } from '@/lib/admission-document-requirements'
 
 // آلة الحالات الرسمية وفق دليل الإجراءات (الترتيب الصحيح):
 // AWAITING_FEE (بانتظار سداد رسوم التقديم 30$ عند التقديم) → UNDER_REVIEW (قيد دراسة الإدارة بعد السداد)
@@ -32,6 +33,8 @@ export const STATUS_LABEL: Record<string, string> = {
   AWAITING_FEE: 'بانتظار سداد رسوم التقديم (30$)',
   UNDER_REVIEW: 'قيد دراسة الإدارة',
   DOCUMENTS_NEED_REPLACEMENT: 'مطلوب استبدال مستندات',
+  UPLOADING_DOCUMENTS: 'طلب غير مكتمل، بانتظار المرفقات',
+  STAGED: 'طلب غير مكتمل، بانتظار المرفقات',
   AWAITING_TUITION: 'مقبول — بانتظار سداد الرسوم الدراسية',
   SUPERVISOR_ASSIGNED: 'تم تعيين مشرف',
   THESIS: 'التسجيل النهائي — قيد إعداد بحث التخرج',
@@ -100,6 +103,7 @@ export async function GET(req: NextRequest) {
         take,
         include: {
           user: { select: { id: true, name: true, email: true, role: true } },
+          programRef: { select: { id: true, slug: true, category: true, titleAr: true, admissionRules: true } },
           supervisor: { select: { id: true, name: true } },
           payments: { select: { id: true, invoiceNo: true, purpose: true, status: true, amount: true, amountCents: true, method: true, receiptNo: true, cryptoNetwork: true, cryptoWalletAddress: true, cryptoTxHash: true, cryptoVerificationStatus: true, cryptoVerificationNote: true, cryptoVerifiedAt: true } },
           theses: { orderBy: { createdAt: 'desc' }, take: 1, select: { id: true, status: true, title: true } },
@@ -126,11 +130,11 @@ export async function GET(req: NextRequest) {
 
     const programIds = [...new Set(apps.map((a) => a.programId).filter((id): id is string => Boolean(id)))]
     const programs = programIds.length
-      ? await db.program.findMany({ where: { id: { in: programIds } }, select: { id: true, slug: true, category: true, titleAr: true } })
+      ? await db.program.findMany({ where: { id: { in: programIds } }, select: { id: true, slug: true, category: true, titleAr: true, admissionRules: true } })
       : []
     const programMap = new Map(programs.map((p) => [p.id, p]))
     const enrichedApps = apps.map((app) => {
-      const program = app.programId ? programMap.get(app.programId) : null
+      const program = app.programRef || (app.programId ? programMap.get(app.programId) : null)
       const flow = getServiceFlow(program?.slug)
       const isStudyProgram = flow ? flow.isStudyProgram : program?.category !== 'SERVICE'
       const requestKind = flow?.kind || (isStudyProgram ? 'DEGREE_STUDY' : 'SERVICE_REQUEST')
@@ -141,6 +145,7 @@ export async function GET(req: NextRequest) {
       const finalRequiredAmount = roundMoney(Math.max(totalTuition, Number(tuitionAppeal?.finalRequiredAmount ?? 0)))
       const documentReplacementRequest = extractAdmissionDocumentReplacement(app.notes)
       const cleanNotes = stripAdmissionDocumentReplacement(app.notes)
+      const docRequirements = resolveProgramAdmissionDocumentRequirements(program, app.files.map((file) => file.docType))
       return {
         ...app,
         notes: cleanNotes,
@@ -151,6 +156,8 @@ export async function GET(req: NextRequest) {
           downloadUrl: file.storageKey ? getStorageDownloadPathForKey(file.storageKey) : null,
         })),
         programSlug: program?.slug || null,
+        requiredDocs: docRequirements.requiredDocs,
+        missingDocs: docRequirements.missingDocs,
         requestKind,
         requestLabel: flow?.title || (isStudyProgram ? 'طلب التحاق دراسي' : 'طلب خدمة مهنية'),
         requestActionLabel: flow?.primaryAction || (isStudyProgram ? 'الإقرار بالقبول' : 'متابعة طلب الخدمة'),
@@ -201,8 +208,8 @@ export async function PATCH(req: NextRequest) {
     const owner = app.userId ? await db.user.findUnique({ where: { id: app.userId }, select: { id: true, role: true, name: true, email: true } }) : null
     const ownerIsStudent = !owner || owner.role === 'STUDENT'
     const programForFlow = app.programId
-      ? await db.program.findUnique({ where: { id: app.programId }, select: { id: true, slug: true, category: true, price: true } })
-      : await db.program.findFirst({ where: { titleAr: { contains: app.program.split(' — ')[0] } }, select: { id: true, slug: true, category: true, price: true } })
+      ? await db.program.findUnique({ where: { id: app.programId }, select: { id: true, slug: true, category: true, price: true, admissionRules: true } })
+      : await db.program.findFirst({ where: { titleAr: { contains: app.program.split(' — ')[0] } }, select: { id: true, slug: true, category: true, price: true, admissionRules: true } })
     const serviceFlow = getServiceFlow(programForFlow?.slug)
     const isStudyRequest = serviceFlow ? serviceFlow.isStudyProgram : programForFlow?.category !== 'SERVICE'
 
@@ -261,7 +268,12 @@ export async function PATCH(req: NextRequest) {
         `راجعت الإدارة طلبك (${app.reference}) وتحتاج إلى استبدال بعض المرفقات قبل متابعة الدراسة: ${note}`,
         'apply'
       )
-      await audit(user, 'REQUEST_ADMISSION_DOCUMENT_REPLACEMENT', 'AdmissionApplication', id, `طلب استبدال مرفقات ${app.fullName} (${app.reference}): ${docTypes.join(', ')}`)
+      const { requiredDocs, allKnownDocs } = resolveProgramAdmissionDocumentRequirements(programForFlow, [])
+      const docLabelByType = new Map(allKnownDocs.map((doc) => [doc.type, doc.label] as const))
+      for (const doc of requiredDocs) docLabelByType.set(doc.type, doc.label)
+      const docLabels = docTypes.map((type: string) => docLabelByType.get(type) || type)
+      emailAdmissionDocumentsRequested(app.email, app.fullName, app.reference, app.program, note, docLabels).catch(() => {})
+      await audit(user, 'REQUEST_ADMISSION_DOCUMENT_REPLACEMENT', 'AdmissionApplication', id, `طلب استبدال مرفقات ${app.fullName} (${app.reference}): ${docTypes.join(', ')} — تمت جدولة بريد إلى ${app.email}`)
       return NextResponse.json({ ok: true, application: { ...updated, documentReplacementRequest: extractAdmissionDocumentReplacement(updated.notes), notes: stripAdmissionDocumentReplacement(updated.notes) } })
     }
 

@@ -83,6 +83,18 @@ const EXTRA_DOCS = EXTRA_ADMISSION_DOCS
 
 const MAX_FILE_MB = 4
 const fmtSize = (b: number) => (b > 1024 * 1024 ? `${(b / 1048576).toFixed(1)} م.ب` : `${Math.ceil(b / 1024)} ك.ب`)
+const FALLBACK_DOC_LABEL: Record<string, string> = {
+  DEGREE: 'الشهادة وكشف العلامات',
+  ID: 'الهوية / الجواز',
+  PHOTO: 'صورة شخصية',
+  CV: 'السيرة الذاتية',
+  SERVICE_FILE: 'مرفق داعم للخدمة',
+  FLOW_DOC_1: 'مستند مسار الخدمة 1',
+  FLOW_DOC_2: 'مستند مسار الخدمة 2',
+  FLOW_DOC_3: 'مستند مسار الخدمة 3',
+  FLOW_DOC_4: 'مستند مسار الخدمة 4',
+  FLOW_DOC_5: 'مستند مسار الخدمة 5',
+}
 const invoiceTime = (p: TrackedInvoice) => new Date(p.paidAt || p.createdAt || 0).getTime() || 0
 const sortInvoicesNewest = (items: TrackedInvoice[]) => [...items].sort((a, b) => invoiceTime(b) - invoiceTime(a))
 
@@ -340,15 +352,22 @@ export function ApplyView() {
   })
   const activeDocs = resolvedDocs.activeDocs
   const requiredDocs = resolvedDocs.requiredDocs
-  const allDocsUploaded = requiredDocs.length === 0 || requiredDocs.every((d) => files[d.type])
+  const missingRequiredDocs = requiredDocs.filter((d) => !files[d.type])
+  const allDocsUploaded = missingRequiredDocs.length === 0
   const canSubmitStudentApplication = !user || user.role === 'STUDENT'
   const recentApplications = myApplications.slice(0, 5)
   const openStudentPayments = (invoiceNo?: string | null) => {
     navigate('dashboard', { tab: 'payments', invoice: invoiceNo || undefined })
   }
 
-  const admissionDocLabel = (type: string) => {
-    return (resolvedDocs.allKnownDocs.find((d) => d.type === type)?.label || type)
+  const admissionDocLabel = (type: string, app?: any) => {
+    const serverDocs = [
+      ...(Array.isArray(app?.requiredDocs) ? app.requiredDocs : []),
+      ...(Array.isArray(app?.missingDocs) ? app.missingDocs : []),
+    ]
+    const fromServer = serverDocs.find((doc: any) => doc?.type === type)?.label
+    const uploaded = Array.isArray(app?.documents) ? app.documents.find((doc: any) => doc?.docType === type)?.fileName : null
+    return (fromServer || resolvedDocs.allKnownDocs.find((d) => d.type === type)?.label || uploaded || FALLBACK_DOC_LABEL[type] || type)
   }
 
   const pickReplacementFile = (applicationId: string, type: string, f: File | null) => {
@@ -381,7 +400,7 @@ export function ApplyView() {
     }
     const missing = docTypes.filter((type: string) => !replacementFiles[`${app.id}:${type}`])
     if (missing.length > 0) {
-      toast({ title: 'المرفقات المعدّلة غير مكتملة', description: `ارفع: ${missing.map(admissionDocLabel).join('، ')}`, variant: 'destructive' })
+      toast({ title: 'المرفقات المعدّلة غير مكتملة', description: `ارفع: ${missing.map((type: string) => admissionDocLabel(type, app)).join('، ')}`, variant: 'destructive' })
       return
     }
     setReplacementLoading(app.id)
@@ -389,14 +408,14 @@ export function ApplyView() {
       for (let i = 0; i < docTypes.length; i++) {
         const docType = docTypes[i]
         const file = replacementFiles[`${app.id}:${docType}`]
-        if (!file) throw new Error(`المرفق المطلوب غير مختار: ${admissionDocLabel(docType)}`)
+        if (!file) throw new Error(`المرفق المطلوب غير مختار: ${admissionDocLabel(docType, app)}`)
         const fd = new FormData()
         fd.append('applicationId', app.id)
         fd.append('reference', app.reference)
         fd.append('uploadToken', app.replacementUploadToken)
         fd.append('docType', docType)
         fd.append('file', file)
-        toast({ title: 'جاري رفع المرفقات المعدّلة', description: `رفع ${i + 1} من ${docTypes.length}: ${admissionDocLabel(docType)}` })
+        toast({ title: 'جاري رفع المرفقات المعدّلة', description: `رفع ${i + 1} من ${docTypes.length}: ${admissionDocLabel(docType, app)}` })
         await api('/api/admissions/files', { method: 'POST', body: fd })
       }
       const finalized = await api<{ message: string }>('/api/admissions/finalize', {
@@ -474,7 +493,7 @@ export function ApplyView() {
       toast({ title: 'راجع الاسم الإنجليزي', description: "الاسم بالإنجليزي يجب أن يحتوي على حروف لاتينية ومسافات و . - ' فقط", variant: 'destructive' })
       return
     }
-    const missing = requiredDocs.filter((d) => !files[d.type])
+    const missing = missingRequiredDocs
     if (missing.length > 0) {
       setMissingDocs(missing.map((m) => m.label))
       toast({ title: 'المستندات غير مكتملة', description: `يرجى رفع: ${missing.map((m) => m.label).join('، ')}`, variant: 'destructive' })
@@ -642,7 +661,7 @@ export function ApplyView() {
                   const selected = replacementFiles[key]
                   return (
                     <div key={key} className="rounded-xl border border-red-100 bg-white p-3">
-                      <Label className="text-xs font-black text-[#0f2b46]">{admissionDocLabel(type)}</Label>
+                      <Label className="text-xs font-black text-[#0f2b46]">{admissionDocLabel(type, app)}</Label>
                       <Input
                         type="file"
                         className="mt-2 h-10 text-xs"
@@ -1052,9 +1071,9 @@ export function ApplyView() {
                           )
                         })}
                       </div>
-                      {missingDocs.length > 0 && (
+                      {(!allDocsUploaded || missingDocs.length > 0) && (
                         <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-bold leading-relaxed text-red-600">
-                          <FileWarning className="ml-1 inline h-4 w-4" /> المستندات الناقصة: {missingDocs.join('، ')}
+                          <FileWarning className="ml-1 inline h-4 w-4" /> ناقص: {(missingDocs.length ? missingDocs : missingRequiredDocs.map((m) => m.label)).join('، ')}
                         </div>
                       )}
                     </div>
@@ -1079,7 +1098,7 @@ export function ApplyView() {
                     </label>
                   </section>
 
-                  <Button type="submit" disabled={loading || !canSubmitStudentApplication || !acknowledged} className="w-full bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a] disabled:opacity-60">
+                  <Button type="submit" disabled={loading || !canSubmitStudentApplication || !acknowledged || !allDocsUploaded} className="w-full bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a] disabled:opacity-60">
                     {loading ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Send className="ml-2 h-4 w-4 rotate-180" />}
                     {canSubmitStudentApplication ? (isServiceRequest ? 'تقديم طلب الخدمة للإدارة' : 'تقديم طلب الالتحاق وإصدار فاتورة رسوم التقديم') : 'يتطلب حساب طالب منفصل للتقديم'}
                   </Button>

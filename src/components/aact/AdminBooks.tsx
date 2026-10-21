@@ -1,6 +1,7 @@
 'use client'
 
 import { api } from '@/lib/store'
+import { aiProgressLabel, aiProgressPercent, arabicAiStatusMessage } from '@/lib/ai-error-messages'
 import { buildAcademicProgramProfile } from '@/lib/program-tracks'
 import { cleanAcademicOutput, looksLikeBrokenGeneratedArabic, sanitizeAcademicList, sanitizeAcademicLabelList, conciseAcademicLabel } from '@/lib/academic-output-quality'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -280,6 +281,28 @@ type QuestionBankStats = {
   byType?: Record<string, number>
 }
 
+type QuestionBankAiTrace = {
+  generatorProvider?: string | null
+  generatorModel?: string | null
+  verifierProvider?: string | null
+  verifierModel?: string | null
+  sameProviderVerifierFallback?: boolean
+}
+
+type QuestionBankTrace = {
+  generated?: number
+  saved?: number
+  verifierRejected?: number
+  rejected?: number
+  rejectionReasons?: { reason: string; count: number }[]
+  aiTrace?: QuestionBankAiTrace | null
+  lastSuccess?: {
+    generation?: { stage: 'generation'; provider: string; model: string; at: string }
+    verification?: { stage: 'verification'; provider: string; model: string; at: string }
+  }
+  lastError?: { code: string; at: string }
+}
+
 type AiGenerationProgressRow = {
   jobId?: string
   status?: 'QUEUED' | 'RUNNING' | 'PAUSED' | 'PARTIAL' | 'COMPLETED' | 'FAILED'
@@ -288,9 +311,10 @@ type AiGenerationProgressRow = {
   failedBatches: number
   lastError?: string | null
   updatedAt?: string
+  trace?: QuestionBankTrace | null
 } | null
 
-type QuestionBankJobRow = { id: string; status: string; requested?: number; saved?: number; failedBatches?: number; lastError?: string | null; updatedAt?: string }
+type QuestionBankJobRow = { id: string; status: string; requested?: number; saved?: number; failedBatches?: number; lastError?: string | null; updatedAt?: string; trace?: QuestionBankTrace | null }
 
 function questionBankProgressFromJob(job?: QuestionBankJobRow | null): AiGenerationProgressRow {
   if (!job) return null
@@ -302,6 +326,20 @@ function questionBankProgressFromJob(job?: QuestionBankJobRow | null): AiGenerat
     failedBatches: Number(job.failedBatches || 0),
     lastError: job.lastError || null,
     updatedAt: job.updatedAt,
+    trace: job.trace || null,
+  }
+}
+
+function mergeQuestionBankProgress(progress?: AiGenerationProgressRow, job?: QuestionBankJobRow | null): AiGenerationProgressRow {
+  if (!progress) return questionBankProgressFromJob(job)
+  return {
+    ...progress,
+    status: (job?.status as NonNullable<AiGenerationProgressRow>['status'] | undefined) || progress.status,
+    requested: Number(job?.requested ?? progress.requested ?? 0),
+    saved: Number(job?.saved ?? progress.saved ?? 0),
+    lastError: job?.lastError || progress.lastError || null,
+    updatedAt: job?.updatedAt || progress.updatedAt,
+    trace: progress.trace || job?.trace || null,
   }
 }
 
@@ -433,7 +471,7 @@ interface CurriculumUnitReviewItem {
     lastError?: string | null
     retryAt?: string | null
     updatedAt?: string | null
-    trace?: { generated: number; saved: number; verifierRejected: number; rejected: number; rejectionReasons: { reason: string; count: number }[]; aiTrace?: { generatorProvider?: string | null; generatorModel?: string | null; verifierProvider?: string | null; verifierModel?: string | null; sameProviderVerifierFallback?: boolean } } | null
+    trace?: QuestionBankTrace | null
   } | null
   exam?: {
     id: string
@@ -452,9 +490,23 @@ function questionBankProgressCounts(unit: CurriculumUnitReviewItem) {
   const pendingReview = Number(unit.questionBankJob?.pendingReviewQuestions ?? unit.questionBankSummary?.pendingReview ?? 0) || 0
   const rejected = Number(unit.questionBankSummary?.rejected ?? unit.questionBankJob?.trace?.rejected ?? 0) || 0
   const generated = approved + pendingReview
-  const requested = Math.max(1, Number(unit.questionBankJob?.requested || 1) || 1)
-  const percent = Math.min(100, Math.round((generated / requested) * 100))
+  const requested = Math.max(0, Number(unit.questionBankJob?.requested || 0) || 0)
+  const percent = aiProgressPercent(generated, requested) ?? 0
   return { approved, pendingReview, rejected, generated, requested, percent }
+}
+
+function questionBankTraceLabel(trace?: QuestionBankTrace | null): string {
+  const generator = trace?.lastSuccess?.generation || (trace?.aiTrace?.generatorProvider && trace?.aiTrace?.generatorModel ? { provider: trace.aiTrace.generatorProvider, model: trace.aiTrace.generatorModel } : null)
+  const verifier = trace?.lastSuccess?.verification || (trace?.aiTrace?.verifierProvider && trace?.aiTrace?.verifierModel ? { provider: trace.aiTrace.verifierProvider, model: trace.aiTrace.verifierModel } : null)
+  const parts: string[] = []
+  if (generator?.provider && generator?.model) parts.push(`ولّد: ${generator.provider} · ${generator.model}`)
+  if (verifier?.provider && verifier?.model) parts.push(`دقّق: ${verifier.provider} · ${verifier.model}`)
+  return parts.join(' — ')
+}
+
+function aiStatusHelp(status?: string | null, error?: string | null): string {
+  if (!error || (status !== 'PAUSED' && status !== 'FAILED')) return ''
+  return arabicAiStatusMessage(error)
 }
 
 function topRejectionReason(unit: CurriculumUnitReviewItem): string {
@@ -904,12 +956,13 @@ export function AdminBooksTab() {
           setCurriculumUnits(units.units || [])
         })
         .catch(() => null)
-      void api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats; progress?: AiGenerationProgressRow }>(`/api/admin/question-bank?programId=${pid}`)
+      void api<{ items: QuestionBankItemRow[]; stats: QuestionBankStats; progress?: AiGenerationProgressRow; jobs?: QuestionBankJobRow[] }>(`/api/admin/question-bank?programId=${pid}`)
         .then((qb) => {
           if (latestProgramLoadRef.current !== loadToken) return
           setQuestionBankItems(qb.items || [])
           setQuestionBankStats(qb.stats || null)
-          setQuestionBankProgress(qb.progress || null)
+          const job = Array.isArray(qb.jobs) ? qb.jobs.find((item) => ['QUEUED', 'RUNNING', 'PAUSED'].includes(item.status)) || qb.jobs[0] : null
+          setQuestionBankProgress(mergeQuestionBankProgress(qb.progress || null, job))
         })
         .catch(() => null)
       void api<{ guides: StudyGuideRow[] }>(`/api/admin/study-guides?programId=${pid}`)
@@ -1502,9 +1555,9 @@ export function AdminBooksTab() {
     const res = await api<{ items?: QuestionBankItemRow[]; stats?: QuestionBankStats; progress?: AiGenerationProgressRow; jobs?: QuestionBankJobRow[] }>(`/api/admin/question-bank?programId=${pid}`)
     if (Array.isArray(res.items)) setQuestionBankItems(res.items)
     if (res.stats) setQuestionBankStats(res.stats)
-    if ('progress' in res) setQuestionBankProgress(res.progress || null)
+    const job = Array.isArray(res.jobs) ? res.jobs.find((item) => ['QUEUED', 'RUNNING', 'PAUSED'].includes(item.status)) || res.jobs[0] : null
+    if ('progress' in res) setQuestionBankProgress(mergeQuestionBankProgress(res.progress || null, job))
     if (Array.isArray(res.jobs)) {
-      const job = res.jobs.find((item) => ['QUEUED', 'RUNNING', 'PAUSED'].includes(item.status)) || res.jobs[0]
       setQuestionBankActiveJob(job ? { id: job.id, status: job.status } : null)
       if (!res.progress && job) setQuestionBankProgress(questionBankProgressFromJob(job))
     }
@@ -2713,12 +2766,13 @@ export function AdminBooksTab() {
                             const phase = job.status === 'PAUSED' ? 'متوقف مؤقتاً' : job.status === 'COMPLETED' ? 'مكتمل' : job.phase === 'EXTRACT' ? 'قراءة' : job.phase === 'ANALYZE' ? 'تحليل' : job.status === 'FAILED' ? 'فشل' : 'مكتمل'
                             return <div className="mt-2 space-y-1 rounded-lg border border-slate-200 bg-white p-2">
                               <p className="text-[#0f2b46]">المرحلة: {phase}</p>
-                              <p>قراءة الصفحات {job.pagesDone} من {job.totalPages}</p>
-                              <div role="progressbar" aria-label="تقدم قراءة الصفحات" aria-valuenow={job.pagesDone} aria-valuemin={0} aria-valuemax={Math.max(1, job.totalPages)} className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-emerald-500" style={{ width: `${Math.min(100, job.totalPages ? (job.pagesDone / job.totalPages) * 100 : 0)}%` }} /></div>
-                              <p>تحليل المقاطع {job.chunksAnalyzed} من {job.totalChunks} · عناصر المعرفة v2: {v2CountsByBook[b.id] ?? 0}</p>
-                              <div role="progressbar" aria-label="تقدم تحليل المقاطع" aria-valuenow={job.chunksAnalyzed} aria-valuemin={0} aria-valuemax={Math.max(1, job.totalChunks)} className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-blue-500" style={{ width: `${Math.min(100, job.totalChunks ? (job.chunksAnalyzed / job.totalChunks) * 100 : 0)}%` }} /></div>
+                              <p>قراءة الصفحات {job.totalPages > 0 ? `${Math.min(job.pagesDone, job.totalPages)} من ${job.totalPages}` : aiProgressLabel(job.pagesDone, job.totalPages)}</p>
+                              <div role="progressbar" aria-label="تقدم قراءة الصفحات" aria-valuenow={job.pagesDone} aria-valuemin={0} aria-valuemax={Math.max(1, job.totalPages)} className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-emerald-500" style={{ width: `${aiProgressPercent(job.pagesDone, job.totalPages) ?? 0}%` }} /></div>
+                              <p>تحليل المقاطع {job.totalChunks > 0 ? `${Math.min(job.chunksAnalyzed, job.totalChunks)} من ${job.totalChunks}` : aiProgressLabel(job.chunksAnalyzed, job.totalChunks)} · عناصر المعرفة v2: {v2CountsByBook[b.id] ?? 0}</p>
+                              <div role="progressbar" aria-label="تقدم تحليل المقاطع" aria-valuenow={job.chunksAnalyzed} aria-valuemin={0} aria-valuemax={Math.max(1, job.totalChunks)} className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-blue-500" style={{ width: `${aiProgressPercent(job.chunksAnalyzed, job.totalChunks) ?? 0}%` }} /></div>
                               <p>فشل {job.chunksFailed}</p>
-                              {job.lastError && <p className="break-words text-red-700">آخر خطأ: {job.lastError}</p>}
+                              {aiStatusHelp(job.status, job.lastError) ? <p className="break-words text-red-700">{aiStatusHelp(job.status, job.lastError)}</p> : null}
+                              {job.lastError && ['PAUSED', 'FAILED'].includes(String(job.status || '')) ? <p className="break-words text-[10px] text-slate-500">الكود الأصلي: {job.lastError}</p> : null}
                               {job.status === 'PAUSED' && job.retryAt && <p>موعد الاستئناف: {new Date(job.retryAt).toLocaleString('ar')}</p>}
                               {job.status === 'PAUSED' && <Button size="sm" variant="outline" disabled={!!job.retryAt && new Date(job.retryAt).getTime() > Date.now()} onClick={() => advanceBookReadJob(b.id)}>استئناف</Button>}
                               {job.status === 'FAILED' && <Button size="sm" variant="outline" disabled={bookReadBusyId === b.id} onClick={() => job.chunksFailed > 0 ? retryFailedBookChunks(b.id) : startBookReadJob(b.id)}>{job.chunksFailed > 0 ? 'إعادة المحاولة للمقاطع الفاشلة' : 'إعادة محاولة قراءة الكتاب'}</Button>}
@@ -2844,7 +2898,12 @@ export function AdminBooksTab() {
                           <p className="font-black">مصدر الوحدة من الفهرس</p>
                           <p>{unit.source.bookTitle ? `الكتاب: ${unit.source.bookTitle} · ` : ''}{unit.source.sectionTitle || 'قسم من الفهرس'}{unit.source.pageStart != null ? ` · صفحات ${unit.source.pageStart}–${unit.source.pageEnd ?? unit.source.pageStart}` : ''}{unit.source.chunkStartIndex != null ? ` · مقاطع ${unit.source.chunkStartIndex}–${unit.source.chunkEndIndex ?? unit.source.chunkStartIndex}` : ''}</p>
                           {unit.generationVersion != null && <p>إصدار توليد الوحدة: {unit.generationVersion}</p>}
-                          {unit.generationJob?.lastError && <p className="text-red-700">آخر خطأ: {unit.generationJob.lastError}</p>}
+                          {unit.generationJob && <div className="mt-2 space-y-1">
+                            <p>تقدم توليد الوحدة: {unit.generationJob.unitsTotal > 0 ? `${Math.min(unit.generationJob.unitsDone, unit.generationJob.unitsTotal)} من ${unit.generationJob.unitsTotal}` : aiProgressLabel(unit.generationJob.unitsDone, unit.generationJob.unitsTotal)}</p>
+                            <div role="progressbar" aria-label="تقدم توليد الوحدة" aria-valuenow={unit.generationJob.unitsDone} aria-valuemin={0} aria-valuemax={Math.max(1, unit.generationJob.unitsTotal)} className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-indigo-500" style={{ width: `${aiProgressPercent(unit.generationJob.unitsDone, unit.generationJob.unitsTotal) ?? 0}%` }} /></div>
+                            {aiStatusHelp(unit.generationJob.status, unit.generationJob.lastError) ? <p className="text-red-700">{aiStatusHelp(unit.generationJob.status, unit.generationJob.lastError)}</p> : null}
+                            {unit.generationJob.lastError && ['PAUSED', 'FAILED'].includes(String(unit.generationJob.status || '')) ? <p className="break-words text-[10px] text-slate-500">الكود الأصلي: {unit.generationJob.lastError}</p> : null}
+                          </div>}
                         </div>}
                         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-indigo-100 bg-indigo-50/60 p-3 text-[11px] font-bold text-indigo-900">
                           <span>بنك أسئلة الوحدة: {unit.questionBankSummary?.approved || 0} معتمد · {unit.questionBankSummary?.pendingReview || 0} بانتظار المراجعة · {unit.questionBankSummary?.rejected || 0} مرفوض — الاختبار: {unit.exam?.id ? unit.exam.status === 'DRAFT' ? 'مسودة' : 'جاهز' : 'ما انبنى'}</span>
@@ -2853,7 +2912,7 @@ export function AdminBooksTab() {
                         {unit.questionBankJob && <div className="mt-3 rounded-xl border border-sky-100 bg-sky-50/70 p-3 text-[11px] font-bold leading-5 text-sky-900">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <p className="font-black">حالة بنك أسئلة الوحدة: {unit.questionBankJob.status}</p>
-                            <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-sky-700">{questionBankProgressCounts(unit).percent}%</span>
+                            <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-sky-700">{aiProgressLabel(questionBankProgressCounts(unit).generated, questionBankProgressCounts(unit).requested)}</span>
                           </div>
                           <div className="mt-2 h-2 overflow-hidden rounded-full bg-sky-100">
                             <div className="h-full rounded-full bg-sky-500 transition-all" style={{ width: `${questionBankProgressCounts(unit).percent}%` }} />
@@ -2863,9 +2922,10 @@ export function AdminBooksTab() {
                           {topRejectionReason(unit) ? <p className="mt-1 text-sky-700">أكثر سبب رفض: {topRejectionReason(unit)}</p> : null}
                           {unit.questionBankJob.trace && <p>آخر دفعة: مولّدة {unit.questionBankJob.trace.generated} · محفوظة {unit.questionBankJob.trace.saved} · رفض verifier {unit.questionBankJob.trace.verifierRejected} · رفض إجمالي {unit.questionBankJob.trace.rejected}</p>}
                           {unit.questionBankJob.trace?.rejectionReasons?.length ? <p>أسباب الرفض: {unit.questionBankJob.trace.rejectionReasons.map((reason) => `${reason.reason} (${reason.count})`).join(' · ')}</p> : null}
-                          {unit.questionBankJob.trace?.aiTrace && <p>AI trace: مولّد {unit.questionBankJob.trace.aiTrace.generatorProvider || '؟'} / {unit.questionBankJob.trace.aiTrace.generatorModel || '؟'} · تحقق {unit.questionBankJob.trace.aiTrace.verifierProvider || '؟'} / {unit.questionBankJob.trace.aiTrace.verifierModel || '؟'}{unit.questionBankJob.trace.aiTrace.sameProviderVerifierFallback ? ' · تحقق OpenAI fallback' : ''}</p>}
+                          {questionBankTraceLabel(unit.questionBankJob.trace) ? <p className="mt-1 text-sky-700">{questionBankTraceLabel(unit.questionBankJob.trace)}</p> : null}
                           {unit.questionBankJob.retryAt && <p>موعد إعادة المحاولة: {new Date(unit.questionBankJob.retryAt).toLocaleString('ar-SA')}</p>}
-                          {unit.questionBankJob.lastError && <p className="whitespace-pre-wrap text-red-700">آخر خطأ كامل: {unit.questionBankJob.lastError}</p>}
+                          {aiStatusHelp(unit.questionBankJob.status, unit.questionBankJob.lastError) ? <p className="whitespace-pre-wrap text-red-700">{aiStatusHelp(unit.questionBankJob.status, unit.questionBankJob.lastError)}</p> : null}
+                          {unit.questionBankJob.lastError && ['PAUSED', 'FAILED'].includes(String(unit.questionBankJob.status || '')) ? <p className="break-words text-[10px] text-slate-500">الكود الأصلي: {unit.questionBankJob.lastError}</p> : null}
                         </div>}
                         <div className="mt-3 space-y-2">
                           <label className="text-xs font-black text-slate-500">ملخص الوحدة</label>
@@ -3687,16 +3747,18 @@ export function AdminBooksTab() {
                 <Button size="sm" variant="outline" disabled={questionBankBusy === 'units-load' || questionBankBusy === 'exam-2'} onClick={() => openBankExamDialog(2)} className="bg-white text-xs font-black">امتحان فصل 2 من البنك</Button>
               </div>
               {questionBankDocumentationMessage && <p className="mt-2 text-[11px] font-black text-blue-700">{questionBankDocumentationMessage}</p>}
-              {questionBankProgress && questionBankProgress.requested > 0 ? (
+              {questionBankProgress ? (
                 <div className="mt-4 rounded-2xl border border-[#c9a227]/20 bg-white p-3">
                   <div className="mb-2 flex items-center justify-between text-[11px] font-black text-slate-600">
                     <span>تقدم توليد بنك الأسئلة</span>
-                    <span>{Math.min(questionBankProgress.saved, questionBankProgress.requested)} من {questionBankProgress.requested}</span>
+                    <span>{questionBankProgress.requested > 0 ? `${Math.min(questionBankProgress.saved, questionBankProgress.requested)} من ${questionBankProgress.requested}` : aiProgressLabel(questionBankProgress.saved, questionBankProgress.requested)}</span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                    <div className="h-full rounded-full bg-[#c9a227]" style={{ width: `${Math.max(0, Math.min(100, Math.round((questionBankProgress.saved / Math.max(1, questionBankProgress.requested)) * 100)))}%` }} />
+                    <div className="h-full rounded-full bg-[#c9a227]" style={{ width: `${aiProgressPercent(questionBankProgress.saved, questionBankProgress.requested) ?? 0}%` }} />
                   </div>
-                  {questionBankProgress.lastError ? <p className="mt-2 text-[10px] font-bold text-amber-700">آخر توقف: {questionBankProgress.lastError}</p> : null}
+                  {questionBankTraceLabel(questionBankProgress.trace) ? <p className="mt-2 text-[10px] font-bold text-slate-600">{questionBankTraceLabel(questionBankProgress.trace)}</p> : null}
+                  {aiStatusHelp(questionBankProgress.status, questionBankProgress.lastError) ? <p className="mt-2 text-[10px] font-bold text-amber-700">{aiStatusHelp(questionBankProgress.status, questionBankProgress.lastError)}</p> : null}
+                  {questionBankProgress.lastError && ['PAUSED', 'FAILED'].includes(String(questionBankProgress.status || '')) ? <p className="mt-1 break-words text-[9px] font-bold text-slate-500">الكود الأصلي: {questionBankProgress.lastError}</p> : null}
                 </div>
               ) : null}
             </CardContent>

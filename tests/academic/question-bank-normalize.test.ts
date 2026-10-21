@@ -60,7 +60,7 @@ describe('question bank generated candidate normalization', () => {
     expect(result.accepted[0].qualityFlags).not.toContain('x'.repeat(200))
   })
 
-  test('ESSAY long correctAnswer moves to modelAnswer without trimming', () => {
+  test('ESSAY long correctAnswer moves to empty modelAnswer and clears correctAnswer', () => {
     const longAnswer = 'هذا جواب نموذجي طويل يشرح الفكرة التعليمية المطلوبة من السؤال اعتماداً على النص الأصلي. '.repeat(8)
     const result = parseOne({
       type: 'ESSAY',
@@ -70,7 +70,61 @@ describe('question bank generated candidate normalization', () => {
     expect(result.rejected).toBe(0)
     expect(result.accepted[0].modelAnswer).toBe(longAnswer.trim())
     expect(result.accepted[0].correctAnswer).toBeNull()
+    expect(result.accepted[0].qualityFlags).toContain('MOVED_ESSAY_LONG_ANSWER')
+  })
+
+  test('ESSAY medium correctAnswer moves to modelAnswer with legacy flag', () => {
+    const answer = 'هذا جواب مقالي متوسط يشرح الفكرة التعليمية المطلوبة اعتماداً على الدليل النصي المذكور في المصدر بوضوح.'
+    const result = parseOne({
+      type: 'ESSAY',
+      correctAnswer: answer,
+    })
+
+    expect(result.rejected).toBe(0)
+    expect(result.accepted[0].modelAnswer).toBe(answer)
+    expect(result.accepted[0].correctAnswer).toBeNull()
     expect(result.accepted[0].qualityFlags).toContain('MOVED_ESSAY_ANSWER')
+  })
+
+  test('ESSAY keeps a longer existing modelAnswer instead of overwriting it', () => {
+    const longAnswer = 'هذا جواب طويل يصلح كنص منقول إلى الإجابة النموذجية إذا كانت فارغة فقط. '.repeat(5)
+    const longerModelAnswer = 'هذه إجابة نموذجية موجودة أطول من جواب الحقل المختصر، ويجب ألا يتم استبدالها أثناء التطبيع. '.repeat(7)
+    const result = parseOne({
+      type: 'ESSAY',
+      correctAnswer: longAnswer,
+      modelAnswer: longerModelAnswer,
+    })
+
+    expect(result.rejected).toBe(1)
+    expect(result.accepted).toHaveLength(0)
+  })
+
+  test('ESSAY short text without modelAnswer is still rejected structurally', () => {
+    const result = parseOne({
+      type: 'ESSAY',
+      correctAnswer: 'جواب قصير',
+    })
+
+    expect(result.rejected).toBe(1)
+    expect(result.accepted).toHaveLength(0)
+  })
+
+  test('MCQ long answer is not treated as an ESSAY modelAnswer', () => {
+    const result = parseOne({
+      type: 'MCQ',
+      options: ['الخيار الأول', 'الخيار الثاني', 'الخيار الثالث'],
+      correctAnswer: 'إجابة طويلة لا تطابق أي خيار ولا يجب نقلها إلى modelAnswer في سؤال اختيار من متعدد. '.repeat(5),
+    })
+
+    expect(result.rejected).toBe(1)
+    expect(result.accepted).toHaveLength(0)
+  })
+
+  test('question without source evidence is still rejected structurally', () => {
+    const result = parseOne({ type: 'TF', options: [], correctAnswer: 'صح', sourceEvidence: undefined })
+
+    expect(result.rejected).toBe(1)
+    expect(result.rejectedReasons).toContain('SOURCE_EVIDENCE_REQUIRED')
   })
 
   test('literal evidence not found in source is still rejected by evidence validation', () => {
