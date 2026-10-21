@@ -268,7 +268,11 @@ export async function PATCH(req: NextRequest) {
         `راجعت الإدارة طلبك (${app.reference}) وتحتاج إلى استبدال بعض المرفقات قبل متابعة الدراسة: ${note}`,
         'apply'
       )
-      await audit(user, 'REQUEST_ADMISSION_DOCUMENT_REPLACEMENT', 'AdmissionApplication', id, `طلب استبدال مرفقات ${app.fullName} (${app.reference}): ${docTypes.join(', ')}`)
+      const { requiredDocs } = resolveProgramAdmissionDocumentRequirements(programForFlow, [])
+      const requiredLabelByType = new Map(requiredDocs.map((doc) => [doc.type, doc.label] as const))
+      const docLabels = docTypes.map((type: string) => requiredLabelByType.get(type) || type)
+      emailAdmissionDocumentsRequested(app.email, app.fullName, app.reference, app.program, note, docLabels).catch(() => {})
+      await audit(user, 'REQUEST_ADMISSION_DOCUMENT_REPLACEMENT', 'AdmissionApplication', id, `طلب استبدال مرفقات ${app.fullName} (${app.reference}): ${docTypes.join(', ')} — تمت جدولة بريد إلى ${app.email}`)
       return NextResponse.json({ ok: true, application: { ...updated, documentReplacementRequest: extractAdmissionDocumentReplacement(updated.notes), notes: stripAdmissionDocumentReplacement(updated.notes) } })
     }
 
