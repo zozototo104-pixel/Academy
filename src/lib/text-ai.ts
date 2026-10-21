@@ -347,6 +347,10 @@ function normalizePolicySource(value: unknown): TextAiRouterPolicySource {
   return clean(value).toLowerCase() === 'admin' ? 'admin' : 'legacy'
 }
 
+function normalizePolicyRankBy(value: unknown): TextAiPolicyRankBy {
+  return clean(value).toLowerCase() === 'family' ? 'family' : 'provider'
+}
+
 function booleanSetting(value: unknown): boolean {
   return ['1', 'true', 'yes', 'on'].includes(String(value || '').trim().toLowerCase())
 }
