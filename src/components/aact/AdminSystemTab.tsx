@@ -799,7 +799,7 @@ export function AdminSystemTab() {
     acc[item.provider].push(item)
     return acc
   }, {} as Record<string, TextAiRouterStateItem[]>)
-  const routerStateClearId = (item: TextAiRouterStateItem) => `${item.type}:${item.provider}:${item.keyIndex ?? ''}:${item.model || ''}`
+  const routerStateClearId = (item: TextAiRouterStateItem) => `${item.source}:${item.type}:${item.provider}:${item.keyIndex ?? ''}:${item.model || ''}`
   const routerStateUntil = (value: string) => {
     const date = new Date(value)
     return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
