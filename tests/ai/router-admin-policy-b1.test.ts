@@ -12,8 +12,32 @@ import {
 } from '../../src/lib/text-ai'
 import { verifyQuestionsWithCrossProvider } from '../../src/lib/question-verifier'
 
+function fakeSettingStore() {
+  const values = new Map<string, string>()
+  return {
+    async read(keys: string[]) {
+      return Object.fromEntries(keys.map((key) => [key, values.get(key) || '']))
+    },
+    async write(key: string, value: string) {
+      values.set(key, value)
+    },
+    async delete(key: string) {
+      values.delete(key)
+    },
+    async increment(key: string, amount: number) {
+      const next = (Number(values.get(key) || 0) || 0) + amount
+      values.set(key, String(next))
+      return next
+    },
+    async scan(prefix: string) {
+      return Object.fromEntries(Array.from(values.entries()).filter(([key]) => key.startsWith(prefix)))
+    },
+  }
+}
+
 describe('router admin policy B1', () => {
   afterEach(() => {
+    __setTextAiSettingStoreForTests(null)
     __resetTextAiStateForTests()
   })
 
