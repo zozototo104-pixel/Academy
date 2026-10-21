@@ -274,6 +274,7 @@ function settingStore(): TextAiSettingStore {
 export function __setTextAiSettingStoreForTests(store: TextAiSettingStore | null) {
   injectedStore = store
   persistentCooldownCache = null
+  cachedRouterCooldownMinutes = normalizeRouterCooldownMinutesValue(env('AI_ROUTER_COOLDOWN_MINUTES')) || 15
 }
 
 export function __resetTextAiStateForTests() {
