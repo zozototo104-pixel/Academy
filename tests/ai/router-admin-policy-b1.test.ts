@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import {
   __resetTextAiStateForTests,
+  __setTextAiSettingStoreForTests,
   __testAcademicProviderUnavailableCodeForTests,
   __testApplyTransientModelFailureCooldownForTests,
   __testHighDemandCooldownDecisionForTests,
