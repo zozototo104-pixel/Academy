@@ -517,7 +517,7 @@ export function AdminAiStageProfiles() {
             </div>
             <Button variant="outline" size="sm" onClick={() => void requestAdvisorAdvice()} disabled={generatingAdvisorAdvice}>
               {generatingAdvisorAdvice ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : <RefreshCw className="ml-1 h-4 w-4" />}
-              توليد توصيات E1/E2
+              توليد توصيات E1/E2/E4
             </Button>
           </div>
 
