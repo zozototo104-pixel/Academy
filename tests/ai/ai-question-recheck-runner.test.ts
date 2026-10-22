@@ -21,6 +21,7 @@ queue.__setRecheckQueueStoreForTests({
   async createTask(data) {
     const row: Row = {
       id: `task-${++seq}`, questionId: data.questionId, reason: data.reason, status: 'PENDING',
+      activeDedupKey: data.activeDedupKey,
       profileVersion: data.profileVersion, recommendation: null, error: null,
       createdAt: new Date(), claimedAt: null, finishedAt: null,
     }
