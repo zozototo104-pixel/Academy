@@ -49,6 +49,7 @@
     "test:ai-recheck-queue": "bun test tests/ai/ai-question-recheck-queue.test.ts",
     "test:ai-recheck-runner": "bun test tests/ai/ai-question-recheck-runner.test.ts",
     "test:ai-question-length": "bun test tests/ai/ai-question-length.test.ts",
+    "test:ai-stage-profiles-admin": "bun test tests/ai/ai-stage-profiles-admin.test.ts",
     "test:vision-router": "tsx scripts/test-vision-router.ts",
     "audit:representative-private-files": "tsx scripts/audit-representative-private-files.ts",
     "storage:migrate-private-files:dry-run": "tsx scripts/migrate-private-file-storage.ts",
