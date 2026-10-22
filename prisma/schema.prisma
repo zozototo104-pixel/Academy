@@ -246,6 +246,10 @@ model QuestionRecheckTask {
   question       QuestionBankItem          @relation(fields: [questionId], references: [id], onDelete: Cascade)
   reason         QuestionRecheckReason
   status         QuestionRecheckTaskStatus @default(PENDING)
+  // Prisma-compatible replacement for the former raw partial unique index:
+  // active tasks store `${questionId}:${reason}` here; completed/failed/skipped
+  // tasks clear it to null so historical attempts can coexist.
+  activeDedupKey String?                   @unique
   profileVersion String?
   recommendation Json?
   error          String?
