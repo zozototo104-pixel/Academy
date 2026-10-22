@@ -197,6 +197,12 @@ function readinessBadge(stage: AdvisorStageReadiness) {
   return { label: 'بيانات غير كافية', className: 'bg-amber-100 text-amber-800' }
 }
 
+function adviceSeverityBadge(severity: string) {
+  if (severity === 'CRITICAL') return { label: 'حرجة', className: 'bg-red-100 text-red-800' }
+  if (severity === 'WARNING') return { label: 'تحذير', className: 'bg-amber-100 text-amber-800' }
+  return { label: 'معلومة', className: 'bg-blue-100 text-blue-800' }
+}
+
 function formsFromResponse(res: ResponseData): Record<Stage, FormState> {
   return Object.fromEntries(
     res.stages.map((stage) => [stage.stage, snapshotToForm(stage.current?.snapshot ?? null)]),
