@@ -552,7 +552,7 @@ export function AdminAiStageProfiles() {
                       <span>تشغيلات الموديل: <b>{String(advice.evidence?.['modelRuns'] ?? advice.evidence?.['totalRuns'] ?? '—')}</b></span>
                       <span>فشل الموديل: <b>{String(advice.evidence?.['modelFailureRatePct'] ?? advice.evidence?.['failureRatePct'] ?? '—')}%</b></span>
                       <span>رجوع الموديل: <b>{String(advice.evidence?.['modelFallbackRatePct'] ?? advice.evidence?.['fallbackRatePct'] ?? '—')}%</b></span>
-                      {advice.evidence?.['replacementProvider'] && (
+                      {!!advice.evidence?.['replacementProvider'] && (
                         <span>بديل مقترح: <b dir="ltr">{String(advice.evidence?.['replacementProvider'])}/{String(advice.evidence?.['replacementModel'])}</b></span>
                       )}
                       <span>تغطية الكلفة: <b>{String(advice.evidence?.['costCoveragePct'] ?? '—')}%</b></span>
