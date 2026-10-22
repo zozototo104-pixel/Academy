@@ -50,4 +50,13 @@ describe('lectures admin UI source guards', () => {
     expect(adminUi).toContain("'PRESENT'")
     expect(adminUi).toContain("'ABSENT'")
   })
+
+  test('supervisor portal mounts the same guarded lectures screen in supervisor scope', () => {
+    expect(supervisorUi).toContain('value="lectures"')
+    expect(supervisorUi).toContain('<AdminLectures surface="supervisor" />')
+    expect(adminUi).toContain("surface === 'supervisor'")
+    expect(adminUi).toContain('/api/admin/lectures/series')
+    expect(adminUi).toContain('showSupervisorSelect={surface === \'admin\'}')
+    expect(adminUi).toContain('إنشاء أول سلسلة في أي برنامج يبقى من صلاحيات الإدارة')
+  })
 })
