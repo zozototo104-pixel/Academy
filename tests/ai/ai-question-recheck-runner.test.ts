@@ -47,7 +47,13 @@ queue.__setRecheckQueueStoreForTests({
 
 // --- تبعيات المشغّل المحقونة ---
 const records = new Map<string, Rec>()
-const generations = new Map<string, { provider: string; model: string }>()
+const Q_TIME = new Date('2026-10-20T10:00:00.000Z')
+const BEFORE_Q = new Date('2026-10-19T10:00:00.000Z')
+const AFTER_Q = new Date('2026-10-21T10:00:00.000Z')
+const generationRows: { bookId: string; provider: string; model: string; createdAt: Date }[] = []
+function addGeneration(provider: string, model: string, createdAt: Date, bookId = 'book-1') {
+  generationRows.push({ bookId, provider, model, createdAt })
+}
 const verifyCalls: Record<string, unknown>[] = []
 let verifyImpl: (input: Record<string, unknown>) => Promise<Record<string, unknown>> = async () => ({
   verifierProvider: 'ANTHROPIC', verifierModel: 'claude-v', verifierReason: 'مدعوم بالمصدر',
@@ -56,7 +62,12 @@ const SEEDED_ROUTING = { preferredModels: [{ provider: 'ANTHROPIC', model: 'clau
 
 runner.__setRecheckRunnerDepsForTests({
   async loadQuestion(id) { return records.get(id) ?? null },
-  async findLatestGeneration(bookId) { return generations.get(bookId) ?? null },
+  async findLatestGeneration(bookId, _unitId, cutoff) {
+    const eligible = generationRows
+      .filter((r) => r.bookId === bookId && r.createdAt.getTime() <= cutoff.getTime())
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    return eligible[0] ? { provider: eligible[0].provider, model: eligible[0].model } : null
+  },
   async prepareReviewRouting() { return SEEDED_ROUTING },
   async verify(input) {
     verifyCalls.push(input as Record<string, unknown>)
@@ -76,6 +87,7 @@ function seedQuestion(id: string, overrides: Partial<Rec> = {}) {
     sourceEvidence: 'باريس هي عاصمة فرنسا وأكبر مدنها.',
     bookId: 'book-1',
     unitId: 'unit-1',
+    createdAt: Q_TIME,
     ...overrides,
   })
 }
@@ -84,7 +96,7 @@ async function reset() {
   tasks.length = 0
   seq = 0
   records.clear()
-  generations.clear()
+  generationRows.length = 0
   verifyCalls.length = 0
   verifyImpl = async () => ({ verifierProvider: 'ANTHROPIC', verifierModel: 'claude-v', verifierReason: 'مدعوم بالمصدر' })
 }
@@ -93,7 +105,7 @@ describe('D3.2b runner: bounded batch, identity from the D0 log, recommendation 
   test('a queued task is rechecked under the current REVIEW profile with the recovered generator identity', async () => {
     await reset()
     seedQuestion('q1')
-    generations.set('book-1', { provider: 'GEMINI', model: 'gem-1' })
+    addGeneration('GEMINI', 'gem-1', BEFORE_Q)
     await queue.enqueueQuestionRecheck({ questionId: 'q1', reason: 'REVIEW_PROFILE_CHANGED' })
 
     const summary = await runner.runQuestionRecheckBatch({ limit: 10 })
@@ -124,7 +136,7 @@ describe('D3.2b runner: bounded batch, identity from the D0 log, recommendation 
   test('missing source evidence and a vanished question fail clearly, per task', async () => {
     await reset()
     seedQuestion('q3', { sourceEvidence: '   ' })
-    generations.set('book-1', { provider: 'GEMINI', model: 'gem-1' })
+    addGeneration('GEMINI', 'gem-1', BEFORE_Q)
     eligibility.set('q4', { id: 'q4', status: 'PENDING_REVIEW' }) // بلا سجل سؤال
     await queue.enqueueQuestionRecheck({ questionId: 'q3', reason: 'REVIEW_PROFILE_CHANGED' })
     await queue.enqueueQuestionRecheck({ questionId: 'q4', reason: 'REVIEW_PROFILE_CHANGED' })
@@ -139,7 +151,7 @@ describe('D3.2b runner: bounded batch, identity from the D0 log, recommendation 
   test('a pending verifier outcome becomes a not-valid recommendation carrying its reason', async () => {
     await reset()
     seedQuestion('q5')
-    generations.set('book-1', { provider: 'GEMINI', model: 'gem-1' })
+    addGeneration('GEMINI', 'gem-1', BEFORE_Q)
     verifyImpl = async () => ({ verificationPending: true, verificationReason: 'VERIFIER_EQUALS_GENERATOR' })
     await queue.enqueueQuestionRecheck({ questionId: 'q5', reason: 'REVIEW_PROFILE_CHANGED' })
 
@@ -154,7 +166,7 @@ describe('D3.2b runner: bounded batch, identity from the D0 log, recommendation 
     seedQuestion('q6')
     seedQuestion('q7')
     seedQuestion('q8')
-    generations.set('book-1', { provider: 'GEMINI', model: 'gem-1' })
+    addGeneration('GEMINI', 'gem-1', BEFORE_Q)
     let calls = 0
     verifyImpl = async () => {
       calls++
@@ -177,5 +189,41 @@ describe('D3.2b scope guards', () => {
     expect(runnerSrc).not.toContain('questionBankItem.update')
     expect(runnerSrc).toContain('completeRecheckTask')
     expect(runnerSrc).toContain("stage: 'GENERATION'")
+  })
+})
+
+describe('D3.2c: generator identity never comes from a generation newer than the question', () => {
+  test('with an old and a new generation around the question, the OLD one is the identity', async () => {
+    await reset()
+    seedQuestion('q-old')
+    addGeneration('GEMINI', 'gem-old', BEFORE_Q)
+    addGeneration('OPENAI', 'gpt-new', AFTER_Q)
+    await queue.enqueueQuestionRecheck({ questionId: 'q-old', reason: 'REVIEW_PROFILE_CHANGED' })
+
+    const summary = await runner.runQuestionRecheckBatch({ limit: 10 })
+    expect(summary).toEqual({ claimed: 1, done: 1, failed: 0 })
+    expect(verifyCalls).toHaveLength(1)
+    expect((verifyCalls[0] as { generatorProvider: string }).generatorProvider).toBe('GEMINI')
+    expect((verifyCalls[0] as { generatorModel: string }).generatorModel).toBe('gem-old')
+    expect(tasks[0].status).toBe('DONE')
+  })
+
+  test('with only a generation NEWER than the question, identity is unknown and the verifier is never called', async () => {
+    await reset()
+    seedQuestion('q-new')
+    addGeneration('OPENAI', 'gpt-new', AFTER_Q)
+    await queue.enqueueQuestionRecheck({ questionId: 'q-new', reason: 'REVIEW_PROFILE_CHANGED' })
+
+    const summary = await runner.runQuestionRecheckBatch({ limit: 10 })
+    expect(summary).toEqual({ claimed: 1, done: 0, failed: 1 })
+    expect(verifyCalls).toHaveLength(0)
+    expect(tasks[0].status).toBe('FAILED')
+    expect(tasks[0].error).toBe('GENERATOR_IDENTITY_UNKNOWN')
+  })
+
+  test('the production lookup itself carries the time cutoff', () => {
+    const runnerSrc = readFileSync('src/lib/question-recheck-runner.ts', 'utf8')
+    expect(runnerSrc).toContain('createdAt: { lte: createdBeforeOrAt }')
+    expect(runnerSrc).toContain('question.createdAt')
   })
 })

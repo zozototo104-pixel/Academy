@@ -14,8 +14,10 @@ import { verifyQuestionsWithCrossProvider, type VerifiableQuestion } from '@/lib
 // المعلّقة (بسقف عددي)، يعيد تدقيق كل سؤال تحت بروفايل REVIEW الحالي،
 // ويكتب النتيجة توصيةً على المهمة فقط — لا يلمس حالة السؤال ولا
 // ينشر ولا يعتمد شيئًا. فشل مهمة لا يقتل الدفعة.
-// هوية المولّد تُسترجع من سجل D0 (أحدث صف توليد ناجح لنفس الكتاب/
-// الوحدة)؛ غياب هوية موثوقة = فشل واضح GENERATOR_IDENTITY_UNKNOWN
+// هوية المولّد تُسترجع من سجل D0: أحدث صف توليد ناجح لنفس الكتاب/
+// الوحدة بشرط ألا يكون أحدث من السؤال نفسه (createdAt <= سؤال.createdAt)
+// — توليد لاحق لإنشاء السؤال ليس مولّد هذا السؤال أبدًا (D3.2c).
+// غياب هوية موثوقة = فشل واضح GENERATOR_IDENTITY_UNKNOWN
 // بدل أي حكم مخترع.
 
 export interface RecheckQuestionRecord {
@@ -28,6 +30,7 @@ export interface RecheckQuestionRecord {
   sourceEvidence: string | null
   bookId: string | null
   unitId: string | null
+  createdAt: Date
 }
 
 interface RecheckRunnerDeps {
@@ -35,7 +38,7 @@ interface RecheckRunnerDeps {
   complete(taskId: string, recommendation: RecheckRecommendation): Promise<void>
   fail(taskId: string, error: string): Promise<void>
   loadQuestion(id: string): Promise<RecheckQuestionRecord | null>
-  findLatestGeneration(bookId: string, unitId: string | null): Promise<{ provider: string; model: string } | null>
+  findLatestGeneration(bookId: string, unitId: string | null, createdBeforeOrAt: Date): Promise<{ provider: string; model: string } | null>
   prepareReviewRouting(): Promise<StageRouting | null>
   verify(input: {
     question: VerifiableQuestion
@@ -55,18 +58,19 @@ const defaultDeps: RecheckRunnerDeps = {
       where: { id },
       select: {
         id: true, text: true, type: true, options: true, correctAnswer: true,
-        modelAnswer: true, sourceEvidence: true, bookId: true, unitId: true,
+        modelAnswer: true, sourceEvidence: true, bookId: true, unitId: true, createdAt: true,
       },
     })
     return row as RecheckQuestionRecord | null
   },
-  async findLatestGeneration(bookId, unitId) {
+  async findLatestGeneration(bookId, unitId, createdBeforeOrAt) {
     const row = await db.aiPipelineOperationLog.findFirst({
       where: {
         stage: 'GENERATION',
         success: true,
         bookId,
         ...(unitId ? { unitId } : {}),
+        createdAt: { lte: createdBeforeOrAt },
         provider: { not: null },
         model: { not: null },
       },
@@ -149,7 +153,7 @@ async function runOneTask(task: RecheckTaskRow): Promise<'done' | 'failed'> {
     await deps.fail(task.id, 'RECHECK_SOURCE_EVIDENCE_MISSING')
     return 'failed'
   }
-  const identity = question.bookId ? await deps.findLatestGeneration(question.bookId, question.unitId) : null
+  const identity = question.bookId ? await deps.findLatestGeneration(question.bookId, question.unitId, question.createdAt) : null
   if (!identity?.provider || !identity?.model) {
     await deps.fail(task.id, 'GENERATOR_IDENTITY_UNKNOWN')
     return 'failed'
