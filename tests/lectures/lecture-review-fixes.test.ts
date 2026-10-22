@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 
 const seriesRoute = readFileSync('src/app/api/admin/lectures/series/route.ts', 'utf8')
+const seriesPatchRoute = readFileSync('src/app/api/admin/lectures/series/[id]/route.ts', 'utf8')
 const postponeRoute = readFileSync('src/app/api/admin/lectures/sessions/[id]/postpone/route.ts', 'utf8')
 const sessionsList = readFileSync('src/app/api/admin/lectures/sessions/list/route.ts', 'utf8')
 const videosList = readFileSync('src/app/api/admin/lectures/videos/list/route.ts', 'utf8')
@@ -21,6 +22,18 @@ describe('R-01/R-04: series creation scope and supervisor role', () => {
     expect(seriesRoute).toContain("supervisor.role !== 'SUPERVISOR'")
     expect(seriesRoute).toContain("supervisor.role !== 'ADMIN'")
     expect(seriesRoute).toContain('select: { id: true, role: true }')
+  })
+
+  test('reassigning the supervisor on PATCH validates the role the same way', () => {
+    expect(seriesPatchRoute).toContain('select: { id: true, role: true }')
+    expect(seriesPatchRoute).toContain("supervisor.role !== 'SUPERVISOR'")
+    expect(seriesPatchRoute).toContain("supervisor.role !== 'ADMIN'")
+    expect(seriesPatchRoute).toContain('المستخدم المختار ليس مشرفًا')
+    // الرفض يسبق أي تحديث للسلسلة.
+    const roleCheck = seriesPatchRoute.indexOf("supervisor.role !== 'SUPERVISOR'")
+    const update = seriesPatchRoute.indexOf('db.lectureSeries.update')
+    expect(roleCheck).toBeGreaterThan(-1)
+    expect(roleCheck).toBeLessThan(update)
   })
 })
 

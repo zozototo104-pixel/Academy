@@ -36,8 +36,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       if (!isAdmin(actor)) {
         return NextResponse.json({ error: 'إعادة تعيين المشرف صلاحية الأدمن فقط' }, { status: 403 })
       }
-      const supervisor = await db.user.findUnique({ where: { id: input.supervisorId }, select: { id: true } })
+      // نفس فحص الإنشاء (R-04): المشرف المسند يجب أن يكون دوره فعليًا مشرفًا أو أدمن.
+      const supervisor = await db.user.findUnique({ where: { id: input.supervisorId }, select: { id: true, role: true } })
       if (!supervisor) return NextResponse.json({ error: 'المشرف غير موجود' }, { status: 400 })
+      if (supervisor.role !== 'SUPERVISOR' && supervisor.role !== 'ADMIN') {
+        return NextResponse.json({ error: 'المستخدم المختار ليس مشرفًا' }, { status: 400 })
+      }
     }
     if (input.unitId) {
       const unit = await db.unit.findFirst({
