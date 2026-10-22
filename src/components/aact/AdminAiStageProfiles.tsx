@@ -41,7 +41,31 @@ type StageData = {
     unitId: string | null
   }[]
 }
-type ResponseData = { stages: StageData[]; providers: string[]; policies: string[] }
+type AdvisorStageReadiness = {
+  stage: Stage
+  totalRuns: number
+  successRuns: number
+  failureRuns: number
+  fallbackRuns: number
+  windowDays: number
+  tokenCoverage: number
+  costCoverage: number
+  operationsGap: number
+  daysGap: number
+  costCoverageGap: number
+  readyForAdvice: boolean
+  gaps: string[]
+}
+type AdvisorReadiness = {
+  generatedAt: string
+  gates: { minDays: number; minStageRuns: number; costCoverageTarget: number }
+  stages: AdvisorStageReadiness[]
+  readyStages: Stage[]
+  blockedStages: Stage[]
+  allStagesReady: boolean
+  notes: string[]
+}
+type ResponseData = { stages: StageData[]; providers: string[]; policies: string[]; advisorReadiness?: AdvisorReadiness }
 type FormState = {
   enabled: boolean
   provider: string
