@@ -132,6 +132,7 @@ export async function enqueueQuestionRecheck(input: {
     const created = await store.createTask({
       questionId: input.questionId,
       reason: input.reason,
+      activeDedupKey: activeDedupKey(input.questionId, input.reason),
       profileVersion: input.profileVersion ?? null,
     })
     return { enqueued: true, taskId: created.id }
