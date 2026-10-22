@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 
 const cronRoute = readFileSync('src/app/api/cron/lecture-reminders/route.ts', 'utf8')
 const adminUi = readFileSync('src/components/aact/AdminLectures.tsx', 'utf8')
+const supervisorUi = readFileSync('src/components/aact/SupervisorView.tsx', 'utf8')
 const vercelJson = readFileSync('vercel.json', 'utf8')
 
 describe('lecture reminders cron route source guards', () => {
