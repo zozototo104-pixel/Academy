@@ -323,6 +323,7 @@ export function AdminAiStageProfiles() {
   const resetDraft = (stage: Stage) => {
     const current = stageByName.get(stage)?.current?.snapshot ?? null
     setForms((state) => (state ? { ...state, [stage]: snapshotToForm(current) } : state))
+    setLoadedAdvisorDraft((currentDraft) => (currentDraft?.stage === stage ? null : currentDraft))
   }
 
   const save = async (stage: Stage) => {
