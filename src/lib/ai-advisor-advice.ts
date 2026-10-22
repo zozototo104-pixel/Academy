@@ -261,7 +261,7 @@ function isUniqueConflict(error: unknown): boolean {
 
 export async function generateAdvisorAdvice(actorId?: string | null): Promise<{ created: number; skipped: number; advice: AdvisorAdviceRecord[] }> {
   const report = await getAiAdvisorReadiness()
-  const candidates = buildAdvisorAdviceCandidates(report)
+  const candidates = await attachAdvisorProposalDrafts(buildAdvisorAdviceCandidates(report))
   let created = 0
   let skipped = 0
 
