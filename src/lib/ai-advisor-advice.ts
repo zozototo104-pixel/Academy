@@ -459,7 +459,7 @@ function isUniqueConflict(error: unknown): boolean {
 async function supersedeExpiredDuplicate(activeDedupKey: string, now: Date): Promise<boolean> {
   const row = await db.aiAdvisorAdvice.findFirst({ where: { activeDedupKey } })
   if (!row) return false
-  if (row.status === 'OPEN' && row.expiresAt && row.expiresAt < now) {
+  if (row.status === 'OPEN' && (!row.expiresAt || row.expiresAt < now)) {
     await db.aiAdvisorAdvice.update({
       where: { id: row.id },
       data: { status: 'SUPERSEDED', activeDedupKey: null, dismissedAt: now },
