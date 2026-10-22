@@ -40,6 +40,7 @@ describe('D4 admin AI stage profiles surface', () => {
     expect(adminComponent).toContain('مسودة مستشار محمّلة')
     expect(adminComponent).toContain('لم تُطبّق بعد')
     expect(adminComponent).toContain('إلغاء المسودة')
+    expect(adminComponent).toContain('onClick={() => resetDraft(stageName)}')
     expect(adminComponent).toContain('تحميل المسودة للمراجعة اليدوية')
     expect(adminComponent).toContain('/api/admin/ai-advisor')
     expect(adminComponent).toContain('توليد توصيات E1')
