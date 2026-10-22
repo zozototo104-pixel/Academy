@@ -301,7 +301,17 @@ export function AdminAiStageProfiles() {
       {(['READING', 'ANALYSIS', 'GENERATION', 'REVIEW'] as Stage[]).map((stageName) => {
         const stage = stageByName.get(stageName)
         const form = forms?.[stageName] ?? snapshotToForm(stage?.current?.snapshot ?? null)
-        const disabled = savingStage === stageName
+        const currentSnapshot = stage?.current?.snapshot ?? emptySnapshot
+        let draftSnapshot: Snapshot | null = null
+        let draftError = ''
+        try {
+          draftSnapshot = formToSnapshot(stageName, form)
+        } catch (error: any) {
+          draftError = error?.message || 'صيغة الموديلات غير صالحة'
+        }
+        const diff = draftSnapshot ? describeSnapshotDiff(currentSnapshot, draftSnapshot, stageName) : []
+        const hasChanges = diff.length > 0
+        const disabled = savingStage === stageName || !!draftError || !hasChanges
         return (
           <Card key={stageName} className="overflow-hidden border-slate-200">
             <CardContent className="space-y-4 p-4">
