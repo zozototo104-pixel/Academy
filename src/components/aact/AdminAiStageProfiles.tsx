@@ -358,7 +358,11 @@ export function AdminAiStageProfiles() {
 
   const loadAdvisorDraftIntoForm = (advice: AdvisorAdvice) => {
     if (!advice.proposedSnapshot) return
-    setForms((current) => (current ? { ...current, [advice.stage]: snapshotToForm(advice.proposedSnapshot) } : current))
+    if (!forms) {
+      toast({ title: 'تعذر تحميل المسودة', description: 'أعد تحميل الصفحة بعد اكتمال بيانات البروفايلات.', variant: 'destructive' })
+      return
+    }
+    setForms({ ...forms, [advice.stage]: snapshotToForm(advice.proposedSnapshot) })
     toast({
       title: `تم تحميل مسودة ${STAGE_LABELS[advice.stage]} للمراجعة`,
       description: 'راجع نموذج المرحلة ثم استخدم حفظ نسخة جديدة فقط إذا أردت اعتماد المسودة يدويًا.',
