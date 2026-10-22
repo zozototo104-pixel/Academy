@@ -49,7 +49,12 @@ interface RecheckQueueStore {
   getQuestion(id: string): Promise<{ id: string; status: string } | null>
   countTasks(questionId: string): Promise<number>
   findActiveTask(questionId: string, reason: RecheckReason): Promise<{ id: string } | null>
-  createTask(data: { questionId: string; reason: RecheckReason; profileVersion: string | null }): Promise<{ id: string }>
+  createTask(data: {
+    questionId: string
+    reason: RecheckReason
+    activeDedupKey: string
+    profileVersion: string | null
+  }): Promise<{ id: string }>
   listPending(limit: number): Promise<RecheckTaskRow[]>
   markRunning(id: string, now: Date): Promise<boolean>
   finishTask(id: string, status: 'DONE' | 'FAILED', payload: { recommendation?: RecheckRecommendation; error?: string }, now: Date): Promise<void>
