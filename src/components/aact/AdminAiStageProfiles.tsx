@@ -323,14 +323,61 @@ export function AdminAiStageProfiles() {
         <div>
           <h2 className="text-lg font-black text-slate-800">بروفايلات مراحل الذكاء</h2>
           <p className="mt-1 max-w-3xl text-xs leading-6 text-slate-500">
-            هذه واجهة D4 الأولى: تتحكم بالقراءة والتحليل والتوليد والتدقيق، وتعرض آخر تشغيلات سجل D0. لا يوجد مستشار ولا
-            تطبيق تلقائي هنا.
+            تتحكم بالقراءة والتحليل والتوليد والتدقيق، وتعرض آخر تشغيلات سجل D0. قسم E0 أدناه قراءة جاهزية فقط: لا يكتب
+            ولا يغيّر البروفايلات ولا يعرض أزرار تطبيق.
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
           <RefreshCw className="ml-1 h-4 w-4" /> تحديث
         </Button>
       </div>
+
+      {data?.advisorReadiness && (
+        <Card className="border-blue-100 bg-blue-50/60">
+          <CardContent className="space-y-4 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="text-base font-black text-blue-950">E0 — تقرير جاهزية المستشار</h3>
+                <p className="mt-1 text-xs leading-6 text-blue-900/75">
+                  هذا التقرير يقرأ سجلات D0 فقط. العتبة: {data.advisorReadiness.gates.minStageRuns} تشغيل و{data.advisorReadiness.gates.minDays} يوم لكل مرحلة.
+                </p>
+              </div>
+              <Badge className={data.advisorReadiness.allStagesReady ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}>
+                {data.advisorReadiness.allStagesReady ? 'كل المراحل جاهزة' : 'يوجد نقص بيانات'}
+              </Badge>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {data.advisorReadiness.stages.map((stage) => {
+                const badge = readinessBadge(stage)
+                return (
+                  <div key={stage.stage} className="rounded-xl border border-blue-100 bg-white p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-black text-slate-800">{STAGE_LABELS[stage.stage]}</span>
+                      <Badge className={badge.className}>{badge.label}</Badge>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600">
+                      <span>التشغيلات: <b>{stage.totalRuns}</b></span>
+                      <span>الأيام: <b>{stage.windowDays}</b></span>
+                      <span>النجاح: <b>{formatPct(stage.totalRuns ? stage.successRuns / stage.totalRuns : null)}</b></span>
+                      <span>الرجوع: <b>{formatPct(stage.totalRuns ? stage.fallbackRuns / stage.totalRuns : null)}</b></span>
+                      <span>التوكنز: <b>{formatPct(stage.tokenCoverage)}</b></span>
+                      <span>الكلفة: <b>{formatPct(stage.costCoverage)}</b></span>
+                    </div>
+                    {!!stage.gaps.length && (
+                      <ul className="mt-3 list-disc space-y-1 pr-5 text-[11px] leading-5 text-amber-700">
+                        {stage.gaps.map((gap) => <li key={gap}>{gap}</li>)}
+                      </ul>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+            <div className="rounded-xl bg-white/80 p-3 text-xs leading-6 text-slate-600">
+              {data.advisorReadiness.notes.map((note) => <p key={note}>• {note}</p>)}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {(['READING', 'ANALYSIS', 'GENERATION', 'REVIEW'] as Stage[]).map((stageName) => {
         const stage = stageByName.get(stageName)
