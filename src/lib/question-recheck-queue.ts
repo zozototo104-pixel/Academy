@@ -33,6 +33,7 @@ export interface RecheckTaskRow {
   questionId: string
   reason: RecheckReason
   status: RecheckTaskStatus
+  activeDedupKey: string | null
   profileVersion: string | null
   recommendation: RecheckRecommendation | null
   error: string | null
