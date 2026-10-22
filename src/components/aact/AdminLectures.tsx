@@ -121,7 +121,7 @@ export function AdminLectures() {
       const [ses, vid, prog] = await Promise.all([
         api<{ sessions: SessionRow[] }>(`/api/admin/lectures/sessions/list?${params.toString()}`),
         api<{ videos: VideoRow[]; storageConfigured?: boolean; uploadMaxBytes?: number }>('/api/admin/lectures/videos/list'),
-        api<{ programs: ProgramOption[] }>('/api/programs?public=1').catch(() => ({ programs: [] as ProgramOption[] })),
+        api<{ programs: ProgramOption[] }>('/api/programs').catch(() => ({ programs: [] as ProgramOption[] })),
       ])
       setSessions(ses.sessions || [])
       setVideos(vid.videos || [])
