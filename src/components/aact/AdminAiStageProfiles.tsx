@@ -274,6 +274,7 @@ export function AdminAiStageProfiles() {
   const [savingStage, setSavingStage] = useState<Stage | null>(null)
   const [generatingAdvisorAdvice, setGeneratingAdvisorAdvice] = useState(false)
   const [dismissingAdvisorAdviceId, setDismissingAdvisorAdviceId] = useState<string | null>(null)
+  const [loadedAdvisorDraft, setLoadedAdvisorDraft] = useState<LoadedAdvisorDraft | null>(null)
   const [data, setData] = useState<ResponseData | null>(null)
   const [forms, setForms] = useState<Record<Stage, FormState> | null>(null)
 
