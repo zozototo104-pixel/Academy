@@ -1,5 +1,7 @@
 import { geminiCompleteJson } from '@/lib/gemini'
 import { withPipelineRun } from '@/lib/ai-pipeline-log'
+import { buildStageRoutingOverrides, resolveEffectiveStageProfile, type StageRoutingOverrides } from '@/lib/ai-stage-profiles'
+import type { TextAiPreferredModel, TextAiProvider, TextAiRouterPolicy } from '@/lib/text-ai'
 import { db } from '@/lib/db'
 import { normalizeArabic } from '@/lib/arabic-normalize'
 import { textContainsEvidenceAfterNormalization } from '@/lib/text-provenance'
@@ -37,10 +39,71 @@ export function validateBookKnowledgeCandidate(raw: unknown, chunkText: string):
   return { category: category as BookKnowledgeCandidate['category'], title, summary, excerpt, importance: Math.round(importance) }
 }
 
-async function analyzeBookChunkInner(input: { bookId: string; chunkText: string; deadlineMs: number; prior: readonly Pick<BookKnowledgeCandidate, 'title' | 'summary'>[] }): Promise<BookKnowledgeCandidate[]> {
+// D2.2: توصيل التحليل — نفس النمط الصارم للقراءة (D2.1b/D2.1c).
+// بروفايل التحليل الفعّال يقيد النداء بقائمته (الراوتر عبر
+// restrictToModels، والسلسلة الأصلية عبر ترشيح gemini.ts)، وفشل الكل
+// يرجع للعام مرة واحدة فقط إن سمح البروفايل، مع وسم قرار الرجوع لحظته.
+type AnalysisRouting = { preferredModels: { provider: string; model: string }[]; preferredProviders: string[]; policy: string | null; allowGlobalFallback: boolean } | null
+interface AnalysisUsage { provider: string | null; model: string | null; fallbackUsed: boolean; fallbackReason?: string }
+
+type AnalysisCallOpts = Parameters<typeof geminiCompleteJson>[0]
+
+function withUsageCapture(opts: AnalysisCallOpts, usage: AnalysisUsage): AnalysisCallOpts {
+  return {
+    ...opts,
+    validate: (text, ctx) => {
+      if (ctx?.provider) { usage.provider = ctx.provider; usage.model = ctx.model ?? usage.model }
+      opts.validate?.(text, ctx)
+    },
+  }
+}
+
+function withStageRouting(opts: AnalysisCallOpts, routing: NonNullable<AnalysisRouting>): AnalysisCallOpts {
+  const models = routing.preferredModels.map((m) => ({ provider: m.provider as TextAiPreferredModel['provider'], model: m.model }))
+  return {
+    ...opts,
+    preferredModels: models,
+    restrictToModels: models,
+    ...(routing.preferredProviders.length ? { preferredProviders: routing.preferredProviders as TextAiProvider[] } : {}),
+    ...(routing.policy ? { routerPolicy: routing.policy as TextAiRouterPolicy } : {}),
+  }
+}
+
+async function callAnalysisAi(baseOpts: AnalysisCallOpts, routing: AnalysisRouting, usage: AnalysisUsage): Promise<string> {
+  if (!routing) return geminiCompleteJson(withUsageCapture(baseOpts, usage))
+  try {
+    return await geminiCompleteJson(withStageRouting(withUsageCapture(baseOpts, usage), routing))
+  } catch (error) {
+    if (!routing.allowGlobalFallback) throw error
+    usage.fallbackUsed = true
+    usage.fallbackReason = 'all-stage-models-failed'
+    return geminiCompleteJson(withUsageCapture(baseOpts, usage))
+  }
+}
+
+async function prepareAnalysisRun(): Promise<{ routing: AnalysisRouting; profileStamp?: { profileId: string; profileVersion: string; policy: string | null; allowedModels: string[] }; isStage: boolean; detail: Record<string, unknown> }> {
+  let overrides: StageRoutingOverrides | { kind: 'resolution-error' }
+  try {
+    overrides = buildStageRoutingOverrides(await resolveEffectiveStageProfile('ANALYSIS'))
+  } catch {
+    overrides = { kind: 'resolution-error' }
+  }
+  const detail: Record<string, unknown> = { profileKind: overrides.kind }
+  if (overrides.kind === 'global') detail.fallbackReason = overrides.reason
+  if (overrides.kind === 'invalid') { detail.profileInvalid = true; detail.invalidReason = overrides.reason }
+  if (overrides.kind !== 'stage') return { routing: null, isStage: false, detail }
+  return {
+    routing: { preferredModels: overrides.preferredModels, preferredProviders: overrides.preferredProviders, policy: overrides.policy, allowGlobalFallback: overrides.allowGlobalFallback },
+    profileStamp: { profileId: overrides.profileId, profileVersion: String(overrides.version), policy: overrides.policy, allowedModels: overrides.preferredModels.map((m) => `${m.provider}:${m.model}`) },
+    isStage: true,
+    detail,
+  }
+}
+
+async function analyzeBookChunkInner(input: { bookId: string; chunkText: string; deadlineMs: number; prior: readonly Pick<BookKnowledgeCandidate, 'title' | 'summary'>[]; routing?: AnalysisRouting; aiUsage?: AnalysisUsage }): Promise<BookKnowledgeCandidate[]> {
   const remaining = input.deadlineMs - Date.now()
   if (remaining < 25_000) throw new Error('BOOK_READ_TIME_BUDGET_EXHAUSTED')
-  const result = await geminiCompleteJson({
+  const result = await callAnalysisAi({
     system: 'أنت محلل كتب أكاديمية. استخرج المعرفة من النص الحرفي فقط. أرجع JSON فقط.',
     history: [{ role: 'user', text: `استخرج من 3 إلى 12 عنصراً بحسب كثافة النص، لا تخترع معلومات، ولا تنشئ QUESTION_SEED. الأصناف المسموحة: CONCEPT, DEFINITION, THEORY, METHOD, CASE, PRINCIPLE, FACT. لكل عنصر: category,title,summary (صياغة أكاديمية عربية),excerpt (اقتباس حرفي من النص بين 60 و600 حرف),importance (0-100). أرجع {"items":[...]}. النص:\n${input.chunkText}` }],
     taskLevel: 'ACADEMIC_DRAFT',
@@ -51,7 +114,7 @@ async function analyzeBookChunkInner(input: { bookId: string; chunkText: string;
       const parsed = JSON.parse(raw)
       if (!Array.isArray(parsed?.items)) throw new Error('INVALID_BOOK_KNOWLEDGE_ENVELOPE')
     },
-  })
+  }, input.routing ?? null, input.aiUsage ?? { provider: null, model: null, fallbackUsed: false })
   const parsed = JSON.parse(result)
   const accepted: BookKnowledgeCandidate[] = []
   for (const raw of parsed.items || []) {
@@ -63,15 +126,15 @@ async function analyzeBookChunkInner(input: { bookId: string; chunkText: string;
   return accepted
 }
 
-async function enrichBookChunkInner(input: { bookId: string; chunkText: string; deadlineMs: number; existing: readonly Pick<BookKnowledgeCandidate, 'title' | 'summary'>[] }): Promise<BookKnowledgeCandidate[]> {
+async function enrichBookChunkInner(input: { bookId: string; chunkText: string; deadlineMs: number; existing: readonly Pick<BookKnowledgeCandidate, 'title' | 'summary'>[]; routing?: AnalysisRouting; aiUsage?: AnalysisUsage }): Promise<BookKnowledgeCandidate[]> {
   const remaining = input.deadlineMs - Date.now()
   if (remaining < 25_000) throw new Error('BOOK_READ_TIME_BUDGET_EXHAUSTED')
-  const result = await geminiCompleteJson({
+  const result = await callAnalysisAi({
     system: 'أنت محلل كتب أكاديمية. استخرج معرفة جديدة من النص الحرفي فقط. أرجع JSON فقط.',
     history: [{ role: 'user', text: `استخرج حتى 8 عناصر جديدة غير مذكورة في القائمة، مفاهيم وتعريفات وأمثلة ومبادئ وحقائق. لا تخترع معلومات ولا تنشئ أسئلة. الأصناف: CONCEPT, DEFINITION, THEORY, METHOD, CASE, PRINCIPLE, FACT. لكل عنصر category,title,summary,excerpt (اقتباس حرفي 60-600 حرف),importance (0-100). أرجع {"items":[...]}. العناصر الموجودة:\n${input.existing.map((item) => `${item.title}: ${item.summary}`).join('\n')}\nالنص:\n${input.chunkText}` }],
     taskLevel: 'ACADEMIC_DRAFT', stickyScope: `BOOK_READ:${input.bookId}`, deadlineMs: Math.min(input.deadlineMs, Date.now() + Math.min(120_000, remaining - 10_000)), temperature: 0.2,
     validate: (raw) => { if (!Array.isArray(JSON.parse(raw)?.items)) throw new Error('INVALID_BOOK_KNOWLEDGE_ENVELOPE') },
-  })
+  }, input.routing ?? null, input.aiUsage ?? { provider: null, model: null, fallbackUsed: false })
   const accepted: BookKnowledgeCandidate[] = []
   for (const raw of JSON.parse(result).items) {
     const candidate = validateBookKnowledgeCandidate(raw, input.chunkText)
@@ -90,21 +153,27 @@ export type EnrichStepStore = {
   finish: (jobId: string) => Promise<void>
 }
 
-// D0: تحليل/إثراء كل مقطع يُسجَّل كتشغيلة تحليل (المزوّد الفعلي داخل
-// geminiCompleteJson ولا يرجع لهذا المستوى — يُترك فارغًا بصدق).
+// D0+D2.2: تحليل/إثراء كل مقطع يُسجَّل كتشغيلة تحليل تحت بروفايل
+// التحليل الفعّال إن وُجد (ختم + حصر صارم)، وإلا بالإعداد العام كما
+// كان قبل D2.2 بالضبط. المزوّد/الموديل الحقيقيان يُلتقطان عبر خطاف
+// التحقق الذي يمرره geminiCompleteJson على مساريه كليهما.
 export async function analyzeBookChunk(input: Parameters<typeof analyzeBookChunkInner>[0]): ReturnType<typeof analyzeBookChunkInner> {
+  const run = await prepareAnalysisRun()
+  const usage: AnalysisUsage = { provider: null, model: null, fallbackUsed: false }
   return withPipelineRun(
-    { stage: 'ANALYSIS', bookId: input.bookId, inputText: input.chunkText },
-    () => analyzeBookChunkInner(input),
-    (r) => ({ outputCount: r.length }),
+    { stage: 'ANALYSIS', bookId: input.bookId, inputText: input.chunkText, profileStamp: run.profileStamp, fallbackUsed: !run.isStage, liveState: usage, detail: run.detail },
+    () => analyzeBookChunkInner({ ...input, routing: run.routing, aiUsage: usage }),
+    (r) => ({ provider: usage.provider, model: usage.model, outputCount: r.length, fallbackUsed: usage.fallbackUsed || undefined }),
   )
 }
 
 export async function enrichBookChunk(input: Parameters<typeof enrichBookChunkInner>[0]): ReturnType<typeof enrichBookChunkInner> {
+  const run = await prepareAnalysisRun()
+  const usage: AnalysisUsage = { provider: null, model: null, fallbackUsed: false }
   return withPipelineRun(
-    { stage: 'ANALYSIS', bookId: input.bookId, inputText: input.chunkText, detail: { enrich: true } },
-    () => enrichBookChunkInner(input),
-    (r) => ({ outputCount: r.length }),
+    { stage: 'ANALYSIS', bookId: input.bookId, inputText: input.chunkText, profileStamp: run.profileStamp, fallbackUsed: !run.isStage, liveState: usage, detail: { ...run.detail, enrich: true } },
+    () => enrichBookChunkInner({ ...input, routing: run.routing, aiUsage: usage }),
+    (r) => ({ provider: usage.provider, model: usage.model, outputCount: r.length, fallbackUsed: usage.fallbackUsed || undefined }),
   )
 }
 

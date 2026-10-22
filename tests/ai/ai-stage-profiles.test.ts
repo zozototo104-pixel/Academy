@@ -132,10 +132,11 @@ describe('D1 stage profiles: effective resolution falls back to global', () => {
 
 describe('D1 acceptance guard: storage cannot change model selection yet', () => {
   test('no routing or pipeline file imports the profile store', () => {
-    // D2.1 update: book-reader.ts is now the one sanctioned importer
-    // (reading wiring). Every other selection path must stay clean
-    // until its own D2 step wires it.
-    for (const file of ['src/lib/text-ai.ts', 'src/lib/gemini.ts', 'src/lib/ai.ts', 'src/lib/question-verifier.ts', 'src/lib/books-ai.ts', 'src/lib/question-bank-job.ts', 'src/lib/book-chunk-analyzer.ts', 'src/lib/ai-pipeline-log.ts']) {
+    // D2.1/D2.2 update: book-reader.ts (reading) and
+    // book-chunk-analyzer.ts (analysis) are the sanctioned importers so
+    // far. Every other selection path must stay clean until its own
+    // D2 step wires it.
+    for (const file of ['src/lib/text-ai.ts', 'src/lib/gemini.ts', 'src/lib/ai.ts', 'src/lib/question-verifier.ts', 'src/lib/books-ai.ts', 'src/lib/question-bank-job.ts', 'src/lib/ai-pipeline-log.ts']) {
       expect(readFileSync(file, 'utf8')).not.toContain('ai-stage-profiles')
     }
   })

@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { aiRetryDelayMs, wait } from '@/lib/ai-retry'
 import { STREAM_INTERRUPTED_RETRY_MESSAGE, streamWithNoFallbackAfterFirstChunk } from '@/lib/ai-stream-guard'
 import { decryptSecret, isEncryptedSecret, redactSecrets } from '@/lib/secret-crypto'
-import { hasExternalTextAi, textAiCompleteJson, textAiStreamText, type TextAiProvider, type TextAiTaskLevel } from '@/lib/text-ai'
+import { hasExternalTextAi, textAiCompleteJson, textAiStreamText, type TextAiPreferredModel, type TextAiProvider, type TextAiRouterPolicy, type TextAiTaskLevel } from '@/lib/text-ai'
 
 export interface GeminiTurn {
   role: 'user' | 'model'
@@ -18,6 +18,12 @@ interface GeminiCallOpts {
   thinkingLevel?: GeminiThinkingLevel
   maxOutputTokens?: number
   taskLevel?: TextAiTaskLevel
+  // D2.2: stage-profile pass-through — forwarded untouched to the
+  // text-ai router; restrictToModels also filters the native chain.
+  preferredModels?: TextAiPreferredModel[]
+  preferredProviders?: TextAiProvider[]
+  restrictToModels?: TextAiPreferredModel[]
+  routerPolicy?: TextAiRouterPolicy
   excludeProviders?: TextAiProvider[]
   excludeModelFamilies?: string[]
   deadlineMs?: number
@@ -513,11 +519,13 @@ export async function geminiComplete(opts: GeminiCallOpts): Promise<string> {
 
 export async function geminiCompleteJson(opts: GeminiCallOpts): Promise<string> {
   if (opts.taskLevel === 'ACADEMIC_CRITICAL') return textAiCompleteJson(opts)
+  let routerError: unknown = null
   if (await hasExternalTextAi()) {
     try {
       return await textAiCompleteJson(opts)
     } catch (e) {
       if (!hasGemini() || opts.excludeProviders?.includes('GEMINI')) throw e
+      routerError = e
     }
   }
 
@@ -531,7 +539,12 @@ export async function geminiCompleteJson(opts: GeminiCallOpts): Promise<string> 
   if (!ai) throw new Error('GEMINI_NOT_CONFIGURED')
   const contents = buildContents(opts.history)
   let lastErr: any
-  for (const model of await textModelChain()) {
+  const fullChain = await textModelChain()
+  const chain = opts.restrictToModels?.length
+    ? fullChain.filter((model) => opts.restrictToModels!.some((m) => m.provider === 'GEMINI' && m.model.toLowerCase() === model.toLowerCase()))
+    : fullChain
+  if (!chain.length) throw routerError ?? new Error('GEMINI_NO_ALLOWED_MODELS')
+  for (const model of chain) {
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
         const response = await ai.models.generateContent({ model, contents, config: { ...textConfig(opts, true, model), ...(opts.deadlineMs ? { httpOptions: { timeout: Math.max(1000, opts.deadlineMs - Date.now()) } } : {}) } })

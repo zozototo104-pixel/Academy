@@ -81,7 +81,9 @@ describe('D2.1 reading wiring: the D0 row carries the actual profile stamp', () 
 describe('D2.1 reading wiring: scope guards', () => {
   test('only the reading boundary resolves profiles in this step', () => {
     expect(readFileSync('src/lib/book-reader.ts', 'utf8')).toContain("resolveEffectiveStageProfile('READING')")
-    for (const file of ['src/lib/book-chunk-analyzer.ts', 'src/lib/question-bank-job.ts', 'src/lib/question-verifier.ts', 'src/lib/books-ai.ts']) {
+    // D2.2 update: the analyzer now resolves ANALYSIS itself; generation
+    // and review paths must still stay clean until their own D2 steps.
+    for (const file of ['src/lib/question-bank-job.ts', 'src/lib/question-verifier.ts', 'src/lib/books-ai.ts']) {
       expect(readFileSync(file, 'utf8')).not.toContain('resolveEffectiveStageProfile')
     }
   })
