@@ -276,6 +276,7 @@ export async function generateAdvisorAdvice(actorId?: string | null): Promise<{ 
           title: candidate.title,
           rationale: candidate.rationale,
           evidence: candidate.evidence as never,
+          ...(candidate.proposedSnapshot ? { proposedSnapshot: candidate.proposedSnapshot as never } : {}),
           signature: candidate.signature,
           activeDedupKey: candidate.activeDedupKey,
           createdBy: actorId ?? null,
