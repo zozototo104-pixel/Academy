@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { isAdmin, requireLectureManager } from '@/lib/lectures/manage'
+import { isLectureStorageConfigured, lectureVideoMaxBytes } from '@/lib/lectures/video-storage'
 
 // GET /api/admin/lectures/videos/list — فيديوهات الإدارة بكل حالاتها
 // (مسودة ومنشورة). المشرف يرى فيديوهات البرامج التي يدير سلاسل فيها.
@@ -31,6 +32,8 @@ export async function GET(req: NextRequest) {
       },
     })
     return NextResponse.json({
+      storageConfigured: isLectureStorageConfigured(),
+      uploadMaxBytes: lectureVideoMaxBytes(),
       videos: videos.map((v: (typeof videos)[number]) => ({
         ...v,
         sizeBytes: v.sizeBytes === null ? null : Number(v.sizeBytes),

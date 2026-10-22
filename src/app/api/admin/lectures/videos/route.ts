@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { isLecturesEnabled } from '@/lib/lectures/config'
 import { auditLecture, canManageProgram, programLecturesEnabled, requireLectureManager } from '@/lib/lectures/manage'
+import { parseVideoUrl } from '@/lib/lectures/video-embed'
 
 const VIDEO_SOURCES = [
   'YOUTUBE',
@@ -14,6 +15,7 @@ const VIDEO_SOURCES = [
   'BUNNY',
   'CLOUDFLARE',
   'MP4',
+  'WEBM',
   'HLS',
   'S3',
   'EXTERNAL',
@@ -26,7 +28,7 @@ const createVideoSchema = z
     sessionId: z.string().min(1).optional(),
     title: z.string().min(1).max(200),
     description: z.string().max(2000).optional(),
-    source: z.enum(VIDEO_SOURCES),
+    source: z.enum(VIDEO_SOURCES).optional(),
     url: z.string().url().max(2000).optional(),
     storageKey: z.string().min(1).max(500).optional(),
     provider: z.string().max(50).optional(),
@@ -40,9 +42,10 @@ const createVideoSchema = z
   })
   .refine((v) => Boolean(v.url || v.storageKey), { message: 'يلزم رابط أو مفتاح تخزين للفيديو' })
 
-// POST /api/admin/lectures/videos — إنشاء مورد فيديو كمسودة. التحليل
-// المتقدم للروابط والرفع المباشر مرحلة لاحقة (L6)؛ هنا يُحفظ ما يُدخله
-// الأدمن كما هو، ولا يظهر للطلاب قبل النشر.
+// POST /api/admin/lectures/videos — إنشاء مورد فيديو كمسودة. الرابط
+// يُحلَّل سيرفريًا (L6): يُكتشف المزود والمعرّف والصورة المصغرة تلقائيًا
+// ما لم يحدّدها الأدمن، والروابط غير الآمنة تُرفض. لا يظهر للطلاب قبل
+// النشر.
 export async function POST(req: NextRequest) {
   try {
     const actor = await requireLectureManager()
@@ -73,6 +76,14 @@ export async function POST(req: NextRequest) {
       })
       if (!session) return NextResponse.json({ error: 'اللقاء لا ينتمي لهذا البرنامج' }, { status: 400 })
     }
+    // تحليل الرابط سيرفريًا: الرفض عند عدم الأمان، والتعبئة التلقائية
+    // للمزود والمعرّف والمصغّرة عندما لا يحدّدها الأدمن صراحة.
+    const detected = input.url ? parseVideoUrl(input.url) : null
+    if (input.url && !detected) {
+      return NextResponse.json({ error: 'الرابط غير آمن أو غير صالح' }, { status: 400 })
+    }
+    const source = input.source ?? detected?.source ?? 'S3'
+    const fromDetected = detected && detected.source === source ? detected : null
     const video = await db.lectureVideoResource.create({
       data: {
         programId: input.programId,
@@ -80,13 +91,13 @@ export async function POST(req: NextRequest) {
         sessionId: input.sessionId ?? null,
         title: input.title,
         description: input.description ?? null,
-        source: input.source,
+        source,
         url: input.url ?? null,
         storageKey: input.storageKey ?? null,
         provider: input.provider ?? null,
-        embedId: input.embedId ?? null,
-        thumbnailUrl: input.thumbnailUrl ?? null,
-        originalUrl: input.originalUrl ?? null,
+        embedId: input.embedId ?? fromDetected?.embedId ?? null,
+        thumbnailUrl: input.thumbnailUrl ?? fromDetected?.thumbnailUrl ?? null,
+        originalUrl: input.originalUrl ?? input.url ?? null,
         mimeType: input.mimeType ?? null,
         sizeBytes: input.sizeBytes !== undefined ? BigInt(input.sizeBytes) : null,
         durationSec: input.durationSec ?? null,
@@ -96,7 +107,7 @@ export async function POST(req: NextRequest) {
     })
     await auditLecture(actor, 'LECTURE_VIDEO_CREATED', 'LectureVideoResource', video.id, {
       programId: input.programId,
-      source: input.source,
+      source,
     })
     return NextResponse.json(
       { video: { ...video, sizeBytes: video.sizeBytes === null ? null : Number(video.sizeBytes) } },

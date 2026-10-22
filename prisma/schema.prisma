@@ -277,6 +277,7 @@ enum LectureVideoSource {
   BUNNY
   CLOUDFLARE
   MP4
+  WEBM
   HLS
   S3
   EXTERNAL

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { auditLecture, canManageProgram, requireLectureManager } from '@/lib/lectures/manage'
+import { isUnconfirmedLectureUpload } from '@/lib/lectures/video-storage'
 
 const patchVideoSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -42,6 +43,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       if (!session) return NextResponse.json({ error: 'اللقاء لا ينتمي لبرنامج الفيديو' }, { status: 400 })
     }
 
+    // ملف رُفع ولم يؤكّد السيرفر وصوله لا يُنشر أبدًا.
+    if (input.status === 'PUBLISHED' && isUnconfirmedLectureUpload(video)) {
+      return NextResponse.json(
+        { error: 'لا يمكن نشر ملف لم يكتمل رفعه وتأكيده بعد' },
+        { status: 422 },
+      )
+    }
     const data: Record<string, unknown> = { ...input }
     if (input.status === 'PUBLISHED') data.publishedAt = video.publishedAt ?? new Date()
     if (input.status === 'DRAFT') data.publishedAt = null
