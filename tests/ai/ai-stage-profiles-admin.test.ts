@@ -26,9 +26,12 @@ describe('D4 admin AI stage profiles surface', () => {
     expect(adminComponent).not.toContain('طبّق النصيحة')
   })
 
-  test('saving a stage profile posts only the stage snapshot', () => {
+  test('saving a stage profile posts only the stage snapshot and is not blind', () => {
     expect(adminComponent).toContain("api<{ stage: StageData }>('/api/admin/ai-stage-profiles'")
     expect(adminComponent).toContain('JSON.stringify({ stage, snapshot })')
+    expect(adminComponent).toContain('snapshotKey(snapshot) === snapshotKey(currentSnapshot)')
+    expect(adminComponent).toContain('معاينة التغييرات قبل إنشاء نسخة جديدة')
+    expect(adminComponent).toContain('استرجاع الحالي')
     expect(adminComponent).not.toContain('allowGlobalFallback: false, //')
   })
 })
