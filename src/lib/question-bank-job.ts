@@ -1,11 +1,12 @@
 import type { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { BOOK_READ_RETRY_MS } from '@/lib/book-read-job-control'
-import { textAiCompleteJsonWithMetadata, textAiDiagnostics, type TextAiProvider } from '@/lib/text-ai'
+import { textAiCompleteJsonWithMetadata, textAiDiagnostics, type TextAiPreferredModel, type TextAiProvider, type TextAiRouterPolicy } from '@/lib/text-ai'
 import { parseGeneratedQuestionCandidates } from '@/lib/question-bank-generation'
 import { buildQuestionBankRecord, validateQuestionBatchAgainstKnowledge } from '@/lib/question-bank-evidence'
 import { verifyQuestionsWithCrossProvider } from '@/lib/question-verifier'
 import { withPipelineRun } from '@/lib/ai-pipeline-log'
+import { prepareStageRun, runStageAttempt, type StageUsage } from '@/lib/ai-stage-runner'
 import { questionDuplicateKey } from '@/lib/ai-generation-progress'
 import { isDuplicateQuestionIdea } from '@/lib/question-bank-diversity'
 import { selectUnitExamQuestionsApprovedFirst, unitExamRequiredQuestions } from '@/lib/unit-exam-policy'
@@ -452,15 +453,24 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
     : ''
   const tfBalanceInstruction = '\nإذا اخترت نوع TF فلا تجعل كل عبارات الصح/الخطأ صحيحة. وازن بين "صح" و"خطأ" عبر الدفعات. العبارة الخاطئة يجب أن تكون قابلة للتحقق من المصدر عبر نفي أو تغيير معلومة محددة، مع correctRationale يشرح لماذا هي خطأ اعتماداً على الاقتباس. لا تجعل عبارة TF الخاطئة ملتبسة أو رأياً عاماً.'
 
+  // D2.3: التوليد يعمل تحت بروفايل التوليد الفعّال إن وُجد — حصر صارم
+  // بقائمته، ورجوع عالمي واحد موسوم لحظة قراره إن سمح البروفايل.
+  // بدونه: نفس نداء اليوم حرفيًا. التدقيق بالأسفل لم يُلمس (D2.4).
+  const genPlan = await prepareStageRun('GENERATION')
+  const genUsage: StageUsage = { fallbackUsed: false }
   const raw = await withPipelineRun(
-    { stage: 'GENERATION', batchId: job.id, unitId: job.unitId ?? null, bookId: selected[0]?.bookId ?? null, inputText: knowledgeText, promptText: 'أنت مصمم أسئلة جامعية موثقة بالمصدر. أرجع JSON فقط.' },
-    () => textAiCompleteJsonWithMetadata({
+    { stage: 'GENERATION', batchId: job.id, unitId: job.unitId ?? null, bookId: selected[0]?.bookId ?? null, inputText: knowledgeText, promptText: 'أنت مصمم أسئلة جامعية موثقة بالمصدر. أرجع JSON فقط.', profileStamp: genPlan.profileStamp, fallbackUsed: !genPlan.isStage, liveState: genUsage, detail: genPlan.detail },
+    () => runStageAttempt(genPlan, genUsage, (routing) => {
+      const routingModels = routing ? routing.preferredModels.map((m) => ({ provider: m.provider as TextAiPreferredModel['provider'], model: m.model })) : []
+      const routingProviders = routing ? [...new Set([...routing.preferredProviders, ...routing.preferredModels.map((m) => m.provider)])] as TextAiProvider[] : QUESTION_BANK_GENERATION_PROVIDER_ORDER
+      return textAiCompleteJsonWithMetadata({
     system: 'أنت مصمم أسئلة جامعية موثقة بالمصدر. أرجع JSON فقط.',
     history: [{ role: 'user', text: `أنشئ ${count} سؤالاً موثقاً لبنك الأسئلة.\nالبرنامج: ${program.titleAr}\nالنطاق: ${scope.scopeLabel}\n\nمصادر المعرفة المسموحة فقط:\n${knowledgeText}\n\nأرجع {"questions":[...]} ويجب أن يحتوي كل سؤال على: type=MCQ|TF|SHORT|ESSAY, text, options, correctAnswer, modelAnswer, sourceEvidence اقتباس حرفي من نص المصدر, sourceIndex رقم المصدر, difficulty, cognitiveSkill, correctRationale, distractorRationales للأسئلة الموضوعية.\nاستخدم هالقيم بالإنجليزي بالضبط: cognitiveSkill واحدة من REMEMBER|UNDERSTAND|APPLY|ANALYZE|EVALUATE|CREATE، وdifficulty واحدة من EASY|MEDIUM|ADVANCED.\nلأسئلة TF استخدم correctAnswer كنص "صح" أو "خطأ" فقط، ولا تستخدم رقماً.\nلـ MCQ اكتب distractorRationales كمصفوفة أسباب قصيرة لكل خيار خاطئ، ولـ TF اكتب سبباً واحداً لعكس الإجابة.\nاجعل الدفعة متنوعة، واحرص على سؤال قصير أو صح/خطأ عند الإمكان. لا تكرر أي سؤال موجود أعلاه، ولا تستخدم أي مصدر خارج القائمة.${diversityInstruction}${rescueInstruction}${tfBalanceInstruction}` }],
     taskLevel: 'ACADEMIC_CRITICAL',
     purpose: 'GENERATION',
-    routerPolicy: 'balanced',
-    preferredProviders: QUESTION_BANK_GENERATION_PROVIDER_ORDER,
+    routerPolicy: (routing?.policy ?? 'balanced') as TextAiRouterPolicy,
+    preferredProviders: routingProviders,
+    ...(routing ? { preferredModels: routingModels, restrictToModels: routingModels } : {}),
     temperature: rescueMode ? 0.35 : 0.2,
     maxOutputTokens: 5200,
     // Do not pin a previous fallback ahead of the configured generation priority.
@@ -489,7 +499,8 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
         throw err
       }
     },
-  }),
+  })
+    }),
     (r) => ({ provider: r.provider, model: r.model, detail: { requestedCount: count, paidFallback: r.provider === 'OPENAI' } }),
   )
   if (raw.provider === 'OPENAI') console.warn('paid fallback used: OPENAI question bank generation')
