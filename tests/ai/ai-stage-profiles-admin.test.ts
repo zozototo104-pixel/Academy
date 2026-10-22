@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 
 const apiRoute = readFileSync('src/app/api/admin/ai-stage-profiles/route.ts', 'utf8')
+const advisorRoute = readFileSync('src/app/api/admin/ai-advisor/route.ts', 'utf8')
 const adminView = readFileSync('src/components/aact/AdminView.tsx', 'utf8')
 const adminComponent = readFileSync('src/components/aact/AdminAiStageProfiles.tsx', 'utf8')
 
