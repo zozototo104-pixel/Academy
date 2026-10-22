@@ -16,15 +16,16 @@ describe('D4 admin AI stage profiles surface', () => {
     expect(apiRoute).not.toContain('QuestionRecheck')
   })
 
-  test('the UI is wired as a D4 profile/log tab, not an E advisor surface', () => {
+  test('the UI is wired as a D4 profile/log tab with E0 readiness only', () => {
     expect(adminView).toContain('AdminAiStageProfiles')
     expect(adminView).toContain('value="ai-stage-profiles"')
     expect(adminComponent).toContain('بروفايلات مراحل الذكاء')
-    expect(adminComponent).toContain('لا يوجد مستشار')
+    expect(adminComponent).toContain('E0 — تقرير جاهزية المستشار')
+    expect(adminComponent).toContain('قراءة جاهزية فقط')
     expect(adminComponent).toContain('آخر تشغيلات هذه المرحلة')
     expect(adminComponent).not.toContain('advisor')
-    expect(adminComponent).not.toContain('نصيحة')
     expect(adminComponent).not.toContain('طبّق النصيحة')
+    expect(adminComponent).not.toContain('تطبيق النصيحة')
   })
 
   test('saving a stage profile posts only the stage snapshot and is not blind', () => {
