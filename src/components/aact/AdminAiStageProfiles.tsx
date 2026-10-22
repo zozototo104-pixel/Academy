@@ -336,16 +336,30 @@ export function AdminAiStageProfiles() {
         toast({ title: 'لا يوجد تغيير للحفظ', description: 'عدّل البروفايل أولًا حتى يتم إنشاء نسخة جديدة.' })
         return
       }
-      const res = await api<{ stage: StageData }>('/api/admin/ai-stage-profiles', {
+      const advisorDraftToApply = loadedAdvisorDraft?.stage === stage && loadedAdvisorDraft.snapshotKey === snapshotKey(snapshot)
+        ? loadedAdvisorDraft
+        : null
+      const res = await api<{ stage: StageData; advisorAdviceId?: string | null }>('/api/admin/ai-stage-profiles', {
         method: 'POST',
-        body: JSON.stringify({ stage, snapshot }),
+        body: JSON.stringify({
+          stage,
+          snapshot,
+          ...(advisorDraftToApply ? { advisorAdviceId: advisorDraftToApply.adviceId } : {}),
+        }),
       })
       setData((current) => {
         if (!current) return current
-        return { ...current, stages: current.stages.map((s) => (s.stage === stage ? res.stage : s)) }
+        return {
+          ...current,
+          stages: current.stages.map((s) => (s.stage === stage ? res.stage : s)),
+          advisorAdvice: advisorDraftToApply
+            ? (current.advisorAdvice ?? []).filter((item) => item.id !== advisorDraftToApply.adviceId)
+            : current.advisorAdvice,
+        }
       })
       setForms((current) => (current ? { ...current, [stage]: snapshotToForm(res.stage.current?.snapshot ?? snapshot) } : current))
-      toast({ title: `تم حفظ بروفايل ${STAGE_LABELS[stage]}` })
+      if (advisorDraftToApply) setLoadedAdvisorDraft(null)
+      toast({ title: advisorDraftToApply ? `تم اعتماد مسودة المستشار وحفظ بروفايل ${STAGE_LABELS[stage]}` : `تم حفظ بروفايل ${STAGE_LABELS[stage]}` })
     } catch (error: any) {
       toast({ title: 'تعذر الحفظ', description: error?.message || 'راجع البيانات وحاول مجددًا', variant: 'destructive' })
     } finally {
