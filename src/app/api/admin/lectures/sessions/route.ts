@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { auditLecture, canManageSeries, notifyProgramStudents, requireLectureManager } from '@/lib/lectures/manage'
+import { isLecturesEnabled } from '@/lib/lectures/config'
 import { isValidDateYmd, isValidTimeHm, zonedTimeToUtc } from '@/lib/lectures/recurrence'
 
 const createSessionSchema = z.object({
@@ -22,6 +23,9 @@ const createSessionSchema = z.object({
 export async function POST(req: NextRequest) {
   try {
     const actor = await requireLectureManager()
+    if (!isLecturesEnabled()) {
+      return NextResponse.json({ error: 'المحاضرات غير مفعّلة حاليًا' }, { status: 404 })
+    }
     const parsed = createSessionSchema.safeParse(await req.json().catch(() => null))
     if (!parsed.success) {
       return NextResponse.json({ error: 'بيانات غير صالحة', issues: parsed.error.issues }, { status: 400 })

@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { auditLecture, canManageSeries, notifyProgramStudents, requireLectureManager } from '@/lib/lectures/manage'
+import { isLecturesEnabled } from '@/lib/lectures/config'
 
 // POST /api/admin/lectures/sessions/[id]/cancel — إلغاء لقاء مع إشعار
 // الطلاب. الصف يبقى بحالة CANCELLED حتى يراه الطلاب ملغيًا لا مختفيًا.
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const actor = await requireLectureManager()
+    if (!isLecturesEnabled()) {
+      return NextResponse.json({ error: 'المحاضرات غير مفعّلة حاليًا' }, { status: 404 })
+    }
     const { id } = await params
     const session = await db.lectureSession.findUnique({
       where: { id },

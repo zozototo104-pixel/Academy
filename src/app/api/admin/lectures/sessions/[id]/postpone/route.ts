@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { auditLecture, canManageSeries, notifyProgramStudents, requireLectureManager } from '@/lib/lectures/manage'
+import { isLecturesEnabled } from '@/lib/lectures/config'
 
 const postponeSchema = z.object({
   startsAt: z.string().datetime(),
@@ -22,6 +23,9 @@ function formatWhen(date: Date, timeZone: string): string {
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const actor = await requireLectureManager()
+    if (!isLecturesEnabled()) {
+      return NextResponse.json({ error: 'المحاضرات غير مفعّلة حاليًا' }, { status: 404 })
+    }
     const { id } = await params
     const parsed = postponeSchema.safeParse(await req.json().catch(() => null))
     if (!parsed.success) {

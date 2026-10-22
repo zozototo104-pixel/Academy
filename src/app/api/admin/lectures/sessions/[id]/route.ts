@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { auditLecture, canManageSeries, requireLectureManager } from '@/lib/lectures/manage'
+import { isLecturesEnabled } from '@/lib/lectures/config'
 
 const patchSessionSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -18,6 +19,9 @@ const patchSessionSchema = z.object({
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const actor = await requireLectureManager()
+    if (!isLecturesEnabled()) {
+      return NextResponse.json({ error: 'المحاضرات غير مفعّلة حاليًا' }, { status: 404 })
+    }
     const { id } = await params
     const raw = await req.json().catch(() => null)
     if (raw && ('startsAt' in raw || 'endsAt' in raw)) {

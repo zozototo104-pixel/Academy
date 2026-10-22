@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { auditLecture, canManageProgram, requireLectureManager } from '@/lib/lectures/manage'
+import { isLecturesEnabled } from '@/lib/lectures/config'
 import { isUnconfirmedLectureUpload } from '@/lib/lectures/video-storage'
 
 const patchVideoSchema = z.object({
@@ -20,6 +21,9 @@ const patchVideoSchema = z.object({
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const actor = await requireLectureManager()
+    if (!isLecturesEnabled()) {
+      return NextResponse.json({ error: 'المحاضرات غير مفعّلة حاليًا' }, { status: 404 })
+    }
     const { id } = await params
     const video = await db.lectureVideoResource.findUnique({ where: { id } })
     if (!video) return NextResponse.json({ error: 'الفيديو غير موجود' }, { status: 404 })

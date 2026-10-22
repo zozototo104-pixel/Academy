@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { auditLecture, canManageProgram, requireLectureManager } from '@/lib/lectures/manage'
+import { isLecturesEnabled } from '@/lib/lectures/config'
 import { headLectureObject, lectureVideoMaxBytes, LECTURE_UPLOAD_TYPES } from '@/lib/lectures/video-storage'
 
 const confirmSchema = z.object({ videoId: z.string().min(1) })
@@ -12,6 +13,9 @@ const confirmSchema = z.object({ videoId: z.string().min(1) })
 export async function POST(req: NextRequest) {
   try {
     const actor = await requireLectureManager()
+    if (!isLecturesEnabled()) {
+      return NextResponse.json({ error: 'المحاضرات غير مفعّلة حاليًا' }, { status: 404 })
+    }
     const parsed = confirmSchema.safeParse(await req.json().catch(() => null))
     if (!parsed.success) {
       return NextResponse.json({ error: 'بيانات غير صالحة', issues: parsed.error.issues }, { status: 400 })

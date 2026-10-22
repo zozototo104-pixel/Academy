@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { auditLecture, canManageSeries, getProgramStudentIds, requireLectureManager } from '@/lib/lectures/manage'
+import { isLecturesEnabled } from '@/lib/lectures/config'
 
 async function loadManagedSession(actor: { id: string; name: string; role: string }, id: string) {
   const session = await db.lectureSession.findUnique({
@@ -20,6 +21,9 @@ async function loadManagedSession(actor: { id: string; name: string; role: strin
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const actor = await requireLectureManager()
+    if (!isLecturesEnabled()) {
+      return NextResponse.json({ error: 'المحاضرات غير مفعّلة حاليًا' }, { status: 404 })
+    }
     const { id } = await params
     const { session, error } = await loadManagedSession(actor, id)
     if (error) return error
@@ -51,6 +55,9 @@ const confirmSchema = z.object({
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const actor = await requireLectureManager()
+    if (!isLecturesEnabled()) {
+      return NextResponse.json({ error: 'المحاضرات غير مفعّلة حاليًا' }, { status: 404 })
+    }
     const { id } = await params
     const { session, error } = await loadManagedSession(actor, id)
     if (error) return error

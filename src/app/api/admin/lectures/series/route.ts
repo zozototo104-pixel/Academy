@@ -159,6 +159,9 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   try {
     const actor = await requireLectureManager()
+    if (!isLecturesEnabled()) {
+      return NextResponse.json({ error: 'المحاضرات غير مفعّلة حاليًا' }, { status: 404 })
+    }
     const programId = req.nextUrl.searchParams.get('programId') ?? undefined
     const series = await db.lectureSeries.findMany({
       where: {
