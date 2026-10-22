@@ -223,9 +223,9 @@ model AiStageProfileVersion {
   @@index([profileId, version])
 }
 
-// E1: advisor recommendations are persisted as reviewable suggestions only.
-// They never mutate AiStageProfile or AiStageProfileVersion; later stages may
-// add explicit human application, but E1 is generate/list/dismiss only.
+// E1/E4: advisor recommendations are persisted as reviewable suggestions only.
+// The advisor route never mutates AiStageProfile or AiStageProfileVersion;
+// exact draft adoption is recorded only after the normal D4 profile save path.
 model AiAdvisorAdvice {
   id                    String          @id @default(cuid())
   stage                 AiPipelineStage
