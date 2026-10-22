@@ -1,9 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { api, useAppStore } from '@/lib/store'
 import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
+import { LecturePlayer } from '@/components/aact/LecturePlayer'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -51,7 +52,11 @@ type WatchDescriptor = {
   kind: 'file' | 'embed' | 'external'
   url?: string | null
   source?: string
+  provider?: string | null
   embedId?: string | null
+  embedUrl?: string | null
+  mimeType?: string | null
+  expiresInSec?: number
   resumePositionSec?: number
 }
 
@@ -110,20 +115,6 @@ function fmtCountdown(ms: number): string {
   return days > 0 ? `${days} يوم و ${clock}` : clock
 }
 
-function embedUrl(watch: WatchDescriptor): string | null {
-  const start = Math.max(0, Math.floor(watch.resumePositionSec ?? 0))
-  if (watch.source === 'YOUTUBE' && watch.embedId) {
-    return `https://www.youtube.com/embed/${watch.embedId}${start ? `?start=${start}` : ''}`
-  }
-  if (watch.source === 'VIMEO' && watch.embedId) {
-    return `https://player.vimeo.com/video/${watch.embedId}${start ? `#t=${start}s` : ''}`
-  }
-  if (watch.source === 'LOOM' && watch.embedId) {
-    return `https://www.loom.com/embed/${watch.embedId}`
-  }
-  return watch.url ?? null
-}
-
 export function StudentLectures() {
   const { toast } = useToast()
   const user = useAppStore((s) => s.user)
@@ -135,8 +126,6 @@ export function StudentLectures() {
   const [joiningId, setJoiningId] = useState<string | null>(null)
   const [now, setNow] = useState(() => Date.now())
   const [activeWatch, setActiveWatch] = useState<{ video: VideoItem; watch: WatchDescriptor } | null>(null)
-  const videoRef = useRef<HTMLVideoElement | null>(null)
-  const lastSaveRef = useRef(0)
 
   const fetchAll = useCallback(async () => {
     const [lec, vid] = await Promise.all([
@@ -418,53 +407,28 @@ export function StudentLectures() {
           <h3 className="mb-3 text-base font-black text-slate-800">التسجيلات</h3>
           {activeWatch && (
             <div className="mb-4 space-y-2">
-              <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black">
-                {activeWatch.watch.kind === 'file' ? (
-                  <>
-                    <video
-                      ref={videoRef}
-                      className="h-full w-full"
-                      controls
-                      controlsList="nodownload"
-                      disablePictureInPicture
-                      src={activeWatch.watch.url ?? undefined}
-                      onLoadedMetadata={(e) => {
-                        const resume = activeWatch.watch.resumePositionSec ?? 0
-                        if (resume > 0) e.currentTarget.currentTime = resume
-                      }}
-                      onTimeUpdate={(e) => {
-                        const t = Date.now()
-                        if (t - lastSaveRef.current < 10_000) return
-                        lastSaveRef.current = t
-                        const el = e.currentTarget
-                        if (el.duration > 0) {
-                          void saveProgress(activeWatch.video.id, el.currentTime, (el.currentTime / el.duration) * 100)
-                        }
-                      }}
-                      onPause={(e) => {
-                        const el = e.currentTarget
-                        if (el.duration > 0) {
-                          void saveProgress(activeWatch.video.id, el.currentTime, (el.currentTime / el.duration) * 100)
-                        }
-                      }}
-                      onEnded={() => void markWatched(activeWatch.video)}
-                    />
-                    {(user?.name || user?.email) && (
-                      <span className="pointer-events-none absolute bottom-2 left-2 rounded bg-black/40 px-2 py-0.5 text-[10px] text-white/80">
-                        {user?.name} {user?.email ? `• ${user.email}` : ''}
-                      </span>
-                    )}
-                  </>
-                ) : (
-                  <iframe
-                    className="h-full w-full"
-                    src={embedUrl(activeWatch.watch) ?? undefined}
-                    title={activeWatch.video.title}
-                    allow="accelerometer; autoplay; encrypted-media; picture-in-picture"
-                    allowFullScreen
-                  />
-                )}
-              </div>
+              <LecturePlayer
+                descriptor={activeWatch.watch}
+                title={activeWatch.video.title}
+                watermark={
+                  user?.name || user?.email
+                    ? `${user?.name ?? ''}${user?.email ? ` • ${user.email}` : ''}`
+                    : null
+                }
+                onProgress={(positionSec, watchedPercent) => {
+                  void saveProgress(activeWatch.video.id, positionSec, watchedPercent)
+                }}
+                onEnded={() => void markWatched(activeWatch.video)}
+                onRenew={async () => {
+                  try {
+                    return await api<WatchDescriptor>(`/api/my/lecture-videos/${activeWatch.video.id}/watch`, {
+                      method: 'POST',
+                    })
+                  } catch {
+                    return null
+                  }
+                }}
+              />
               <div className="flex items-center justify-between">
                 <span className="text-sm font-bold text-slate-700">{activeWatch.video.title}</span>
                 <Button variant="outline" size="sm" onClick={() => void markWatched(activeWatch.video)}>
