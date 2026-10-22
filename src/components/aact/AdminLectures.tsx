@@ -634,17 +634,19 @@ function CreateSeriesDialog({
               ))}
             </select>
           </div>
-          <div>
-            <label className={labelClass}>المشرف المسؤول</label>
-            <select className={`${selectClass} w-full`} value={form.supervisorId} onChange={(e) => set('supervisorId', e.target.value)}>
-              <option value="">أنا (المستخدم الحالي)</option>
-              {supervisors.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {showSupervisorSelect && (
+            <div>
+              <label className={labelClass}>المشرف المسؤول</label>
+              <select className={`${selectClass} w-full`} value={form.supervisorId} onChange={(e) => set('supervisorId', e.target.value)}>
+                <option value="">أنا (المستخدم الحالي)</option>
+                {supervisors.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div>
             <label className={labelClass}>المنطقة الزمنية</label>
             <Input value={form.timezone} onChange={(e) => set('timezone', e.target.value)} dir="ltr" />
