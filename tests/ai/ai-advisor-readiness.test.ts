@@ -192,3 +192,18 @@ describe('E2 advisor proposal drafts', () => {
     expect(adminComponent).not.toContain('تطبيق النصيحة')
   })
 })
+
+describe('E3 advisor draft review bridge', () => {
+  test('loads an E2 draft into the existing stage form without adding an apply endpoint', () => {
+    expect(adminComponent).toContain('loadAdvisorDraftIntoForm')
+    expect(adminComponent).toContain('snapshotToForm(advice.proposedSnapshot)')
+    expect(adminComponent).toContain('تحميل المسودة للمراجعة اليدوية')
+    expect(adminComponent).toContain('راجع نموذج المرحلة ثم استخدم حفظ نسخة جديدة')
+    expect(adminComponent).toContain('حفظ نسخة جديدة')
+    expect(adminComponent).not.toContain('applyAdvice')
+    expect(adminComponent).not.toContain('approveAdvice')
+    expect(advisorRoute).not.toContain('proposedSnapshot')
+    expect(advisorRoute).not.toContain('saveStageProfile(')
+    expect(apiRoute).toContain('saveStageProfile(')
+  })
+})
