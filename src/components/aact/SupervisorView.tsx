@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Loader2, Users2, GraduationCap, FileText, Video, RefreshCcw, MessageCircle, Send, Mic, Square, ClipboardCheck, Bot, BookOpen, AlertTriangle, CheckCircle2, Sparkles, BarChart3, Brain, Headphones } from 'lucide-react'
 import { SupervisorLiveVoiceCall } from '@/components/aact/SupervisorLiveVoiceCall'
+import { AdminLectures } from '@/components/aact/AdminLectures'
 
 interface SupervisorMessage {
   id: string
