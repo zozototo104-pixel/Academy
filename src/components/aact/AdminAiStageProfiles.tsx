@@ -493,7 +493,7 @@ export function AdminAiStageProfiles() {
             </div>
           ) : (
             <p className="rounded-xl bg-white/80 p-4 text-center text-sm text-slate-500">
-              لا توجد توصيات مفتوحة. يمكن توليد توصيات E1 بعد اكتمال عتبات E0 للمراحل.
+              لا توجد توصيات مفتوحة. يمكن توليد توصيات E1/E2 بعد اكتمال عتبات E0 للمراحل.
             </p>
           )}
         </CardContent>
