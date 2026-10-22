@@ -148,6 +148,9 @@ export async function POST(req: NextRequest) {
     if (error instanceof StageProfileValidationError) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
+    if (error instanceof AdvisorAdviceApplicationError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
     return NextResponse.json({ error: 'تعذر حفظ بروفايل المرحلة' }, { status: 500 })
   }
 }
