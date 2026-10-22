@@ -76,6 +76,7 @@ describe('D3.2a queue layer: enqueue rules (eligibility, idempotency, cap)', () 
     expect(tasks[0].reason).toBe('REVIEW_PROFILE_CHANGED')
     expect(tasks[0].profileVersion).toBe('7')
     expect(tasks[0].status).toBe('PENDING')
+    expect(tasks[0].activeDedupKey).toBe('q-pending:REVIEW_PROFILE_CHANGED')
   })
 
   test('a duplicate active task for the same reason is refused (idempotent)', async () => {
