@@ -726,7 +726,7 @@ function CreateVideoDialog({
 }) {
   const { toast } = useToast()
   const [mode, setMode] = useState<'link' | 'upload'>('link')
-  const [form, setForm] = useState({ title: '', programId: '', source: '', url: '', storageKey: '' })
+  const [form, setForm] = useState({ title: '', programId: '', source: '', url: '' })
   const [file, setFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -841,10 +841,9 @@ function CreateVideoDialog({
                 </select>
               </div>
               {effectiveSource === 'S3' && (
-                <div>
-                  <label className={labelClass}>مفتاح التخزين (Storage Key) لملف مرفوع مسبقًا</label>
-                  <Input value={form.storageKey} onChange={(e) => set('storageKey', e.target.value)} dir="ltr" />
-                </div>
+                <p className="rounded-md bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+                  فيديوهات التخزين الخاص تُنشأ من وضع «رفع ملف» حصرًا — لا تُدخل مفاتيح تخزين يدويًا.
+                </p>
               )}
               <p className="text-[11px] text-slate-500">يُحفظ الفيديو مسودة لا يراها الطلاب حتى تنشره بعد المعاينة.</p>
               <div className="flex justify-end gap-2">
@@ -852,13 +851,15 @@ function CreateVideoDialog({
                   إلغاء
                 </Button>
                 <Button
-                  disabled={!form.title || !form.programId || (!form.url && !form.storageKey) || (Boolean(form.url) && !detected)}
+                  disabled={
+                    !form.title || !form.programId || !form.url || !detected || effectiveSource === 'S3'
+                  }
                   onClick={() =>
                     void onSubmit({
                       title: form.title,
                       programId: form.programId,
                       ...(effectiveSource ? { source: effectiveSource } : {}),
-                      ...(effectiveSource === 'S3' ? { storageKey: form.storageKey } : { url: form.url }),
+                      url: form.url,
                     })
                   }
                 >

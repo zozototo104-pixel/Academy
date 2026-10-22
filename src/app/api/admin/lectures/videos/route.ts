@@ -29,18 +29,15 @@ const createVideoSchema = z
     title: z.string().min(1).max(200),
     description: z.string().max(2000).optional(),
     source: z.enum(VIDEO_SOURCES).optional(),
-    url: z.string().url().max(2000).optional(),
-    storageKey: z.string().min(1).max(500).optional(),
+    url: z.string().url().max(2000),
     provider: z.string().max(50).optional(),
     embedId: z.string().max(200).optional(),
     thumbnailUrl: z.string().url().max(2000).optional(),
     originalUrl: z.string().url().max(2000).optional(),
     mimeType: z.string().max(100).optional(),
-    sizeBytes: z.number().int().min(0).optional(),
     durationSec: z.number().int().min(0).optional(),
     order: z.number().int().min(0).optional(),
   })
-  .refine((v) => Boolean(v.url || v.storageKey), { message: 'يلزم رابط أو مفتاح تخزين للفيديو' })
 
 // POST /api/admin/lectures/videos — إنشاء مورد فيديو كمسودة. الرابط
 // يُحلَّل سيرفريًا (L6): يُكتشف المزود والمعرّف والصورة المصغرة تلقائيًا
@@ -52,7 +49,21 @@ export async function POST(req: NextRequest) {
     if (!isLecturesEnabled()) {
       return NextResponse.json({ error: 'المحاضرات غير مفعّلة حاليًا' }, { status: 404 })
     }
-    const parsed = createVideoSchema.safeParse(await req.json().catch(() => null))
+    const rawBody: unknown = await req.json().catch(() => null)
+    // S-01L: مفاتيح التخزين والحجوم لا تُقبل يدويًا أبدًا — فيديوهات
+    // التخزين الخاص تولد حصرًا من الرفع المباشر (init ثم confirm)،
+    // وإلا أمكن الإشارة إلى أي ملف في التخزين وتزوير تأكيد رفعه.
+    if (
+      rawBody !== null &&
+      typeof rawBody === 'object' &&
+      ('storageKey' in rawBody || 'sizeBytes' in rawBody)
+    ) {
+      return NextResponse.json(
+        { error: 'لا تُقبل مفاتيح التخزين أو الأحجام يدويًا — فيديوهات التخزين تُنشأ من الرفع المباشر حصرًا' },
+        { status: 400 },
+      )
+    }
+    const parsed = createVideoSchema.safeParse(rawBody)
     if (!parsed.success) {
       return NextResponse.json({ error: 'بيانات غير صالحة', issues: parsed.error.issues }, { status: 400 })
     }
@@ -82,7 +93,13 @@ export async function POST(req: NextRequest) {
     if (input.url && !detected) {
       return NextResponse.json({ error: 'الرابط غير آمن أو غير صالح' }, { status: 400 })
     }
-    const source = input.source ?? detected?.source ?? 'S3'
+    const source = input.source ?? detected?.source ?? 'EXTERNAL'
+    if (source === 'S3') {
+      return NextResponse.json(
+        { error: 'فيديوهات التخزين الخاص تُنشأ من الرفع المباشر حصرًا' },
+        { status: 400 },
+      )
+    }
     const fromDetected = detected && detected.source === source ? detected : null
     const video = await db.lectureVideoResource.create({
       data: {
@@ -92,14 +109,14 @@ export async function POST(req: NextRequest) {
         title: input.title,
         description: input.description ?? null,
         source,
-        url: input.url ?? null,
-        storageKey: input.storageKey ?? null,
+        url: input.url,
+        storageKey: null,
         provider: input.provider ?? null,
         embedId: input.embedId ?? fromDetected?.embedId ?? null,
         thumbnailUrl: input.thumbnailUrl ?? fromDetected?.thumbnailUrl ?? null,
         originalUrl: input.originalUrl ?? input.url ?? null,
         mimeType: input.mimeType ?? null,
-        sizeBytes: input.sizeBytes !== undefined ? BigInt(input.sizeBytes) : null,
+        sizeBytes: null,
         durationSec: input.durationSec ?? null,
         order: input.order ?? 0,
         status: 'DRAFT',

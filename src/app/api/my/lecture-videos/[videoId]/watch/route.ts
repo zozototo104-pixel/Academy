@@ -4,7 +4,12 @@ import { requireUser } from '@/lib/auth'
 import { checkDatabaseRateLimit } from '@/lib/rate-limit'
 import { canStudentAccessProgram } from '@/lib/lectures/access'
 import { parseVideoUrl } from '@/lib/lectures/video-embed'
-import { createLectureVideoSignedUrl, isUnconfirmedLectureUpload, LECTURE_VIDEO_URL_TTL_SEC } from '@/lib/lectures/video-storage'
+import {
+  createLectureVideoSignedUrl,
+  isUnconfirmedLectureUpload,
+  LECTURE_UPLOAD_PREFIX,
+  LECTURE_VIDEO_URL_TTL_SEC,
+} from '@/lib/lectures/video-storage'
 
 const EMBED_SOURCES = new Set(['YOUTUBE', 'VIMEO', 'LOOM', 'BUNNY', 'CLOUDFLARE', 'DAILYMOTION', 'FACEBOOK', 'DRIVE'])
 
@@ -43,6 +48,11 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ vi
 
     if (video.source === 'S3') {
       if (!video.storageKey) return NextResponse.json({ error: 'ملف الفيديو غير متاح' }, { status: 404 })
+      // دفاع بالعمق (S-01L): لا يُوقَّع إلا ما وُلد من رفع المحاضرات
+      // نفسه تحت lectures/videos/ — أي مفتاح آخر مرفوض مهما كانت حالته.
+      if (!video.storageKey.startsWith(LECTURE_UPLOAD_PREFIX)) {
+        return NextResponse.json({ error: 'ملف الفيديو غير متاح' }, { status: 404 })
+      }
       if (isUnconfirmedLectureUpload(video)) {
         return NextResponse.json({ error: 'ملف الفيديو غير متاح' }, { status: 404 })
       }

@@ -24,11 +24,28 @@ export async function GET(req: NextRequest) {
       programScope = [...new Set(owned.map((s) => s.programId))]
     }
 
+    // S-03L: تقاطع صريح بين فلتر البرنامج ونطاق المشرف — كتابة المفتاح
+    // نفسه مرتين كانت تجعل النطاق يطغى على الفلتر المطلوب.
+    let programFilter: { programId?: string | { in: string[] } } = {}
+    if (programScope) {
+      if (programId) {
+        if (!programScope.includes(programId)) {
+          return NextResponse.json({
+            storageConfigured: isLectureStorageConfigured(),
+            uploadMaxBytes: lectureVideoMaxBytes(),
+            videos: [],
+          })
+        }
+        programFilter = { programId }
+      } else {
+        programFilter = { programId: { in: programScope } }
+      }
+    } else if (programId) {
+      programFilter = { programId }
+    }
+
     const videos = await db.lectureVideoResource.findMany({
-      where: {
-        ...(programId ? { programId } : {}),
-        ...(programScope ? { programId: { in: programScope } } : {}),
-      },
+      where: { ...programFilter },
       orderBy: [{ order: 'asc' }, { createdAt: 'desc' }],
       take: 200,
       include: {

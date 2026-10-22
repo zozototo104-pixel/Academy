@@ -33,9 +33,10 @@ export async function POST(req: NextRequest) {
     if (head.sizeBytes > lectureVideoMaxBytes()) {
       return NextResponse.json({ error: 'حجم الملف الفعلي يتجاوز الحد الأقصى المسموح' }, { status: 422 })
     }
-    // R-06: النوع الفعلي المخزّن يجب أن يكون من الأنواع المسموحة —
-    // رابط الرفع الموقّع لا يفرض وحده ما يصل إلى التخزين فعلًا.
-    if (head.contentType && !(head.contentType in LECTURE_UPLOAD_TYPES)) {
+    // R-06 + S-02L: النوع الفعلي المخزّن يجب أن يكون موجودًا ومن
+    // الأنواع المسموحة — غياب النوع مرفوض مثل خطئه، لأن الرفع النظامي
+    // يصرّح دائمًا بنوع صحيح ويُرسله فعليًا.
+    if (!head.contentType || !(head.contentType in LECTURE_UPLOAD_TYPES)) {
       return NextResponse.json(
         { error: 'نوع الملف الفعلي غير مسموح — المسموح: MP4 و WebM و MOV' },
         { status: 422 },
