@@ -559,12 +559,12 @@ export function AdminAiStageProfiles() {
                     </div>
                     {advice.proposedSnapshot && (
                       <div className="mt-3 rounded-lg border border-indigo-100 bg-indigo-50 p-3 text-[11px] leading-5 text-indigo-900">
-                        <p className="font-black">مسودة تغيير E2 محفوظة للمراجعة فقط</p>
+                        <p className="font-black">مسودة E2/E4 محفوظة للمراجعة فقط — تغيير قوائم موديلات لا أكثر</p>
                         <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                          <span>التفعيل: <b>{advice.proposedSnapshot.enabled ? 'مفعّل' : 'يرجع للعام'}</b></span>
-                          <span>السياسة: <b>{advice.proposedSnapshot.policy ?? 'افتراضي'}</b></span>
-                          <span>الرجوع للعام: <b>{advice.proposedSnapshot.allowGlobalFallback ? 'مسموح' : 'ممنوع'}</b></span>
-                          <span>الموديلات: <b>{advice.proposedSnapshot.models.length + (advice.proposedSnapshot.verifier?.preferred.length ?? 0)}</b></span>
+                          <span>نسخة الهدف: <b>{advice.targetProfileVersion ?? '—'}</b></span>
+                          <span>موديلات المرحلة: <b>{advice.proposedSnapshot.models.length}</b></span>
+                          <span>مفضّلات المدقق: <b>{advice.proposedSnapshot.verifier?.preferred.length ?? 0}</b></span>
+                          <span>تنتهي: <b>{fmtDate(advice.expiresAt)}</b></span>
                         </div>
                         <Button
                           className="mt-3"
