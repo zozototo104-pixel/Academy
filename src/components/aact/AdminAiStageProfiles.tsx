@@ -485,6 +485,16 @@ export function AdminAiStageProfiles() {
                         {stage.gaps.map((gap) => <li key={gap}>{gap}</li>)}
                       </ul>
                     )}
+                    {!!stage.modelStats?.length && (
+                      <div className="mt-3 rounded-lg bg-slate-50 p-2 text-[11px] leading-5 text-slate-600">
+                        <p className="font-black text-slate-700">إحصاء الموديلات</p>
+                        {stage.modelStats.slice(0, 3).map((model) => (
+                          <p key={`${model.provider}:${model.model}`} dir="ltr">
+                            {model.provider}/{model.model} · runs {model.runs} · fail {formatPct(model.failureRate)} · fallback {formatPct(model.fallbackRate)}
+                          </p>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )
               })}
