@@ -7,7 +7,7 @@ import {
   evaluateStageReadiness,
   type AdvisorReadinessReport,
 } from '@/lib/ai-advisor-readiness'
-import { buildAdvisorAdviceCandidates } from '@/lib/ai-advisor-advice'
+import { buildAdvisorAdviceCandidates, buildAdvisorProposedSnapshot } from '@/lib/ai-advisor-advice'
 
 const source = readFileSync('src/lib/ai-advisor-readiness.ts', 'utf8')
 const adviceSource = readFileSync('src/lib/ai-advisor-advice.ts', 'utf8')
