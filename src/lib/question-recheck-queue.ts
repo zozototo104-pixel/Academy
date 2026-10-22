@@ -96,6 +96,7 @@ const prismaStore: RecheckQueueStore = {
       where: { id, status: 'RUNNING' },
       data: {
         status,
+        activeDedupKey: null,
         finishedAt: now,
         ...(payload.recommendation ? { recommendation: payload.recommendation as never } : {}),
         ...(payload.error ? { error: payload.error } : {}),
