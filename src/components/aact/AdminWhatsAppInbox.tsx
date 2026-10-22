@@ -302,6 +302,26 @@ export function AdminWhatsAppInboxTab() {
                               <Mic className="h-3 w-3" /> رسالة صوتية مفرغة
                             </div>
                           )}
+                          {attachmentUrl && (attachmentType === 'image' || attachmentType === 'sticker') && (
+                            <a href={attachmentUrl} target="_blank" rel="noopener noreferrer" className="mb-2 block" aria-label="عرض الصورة المرفقة">
+                              <Image src={attachmentUrl} alt={m.meta?.mediaCaption || 'صورة مرسلة عبر واتساب'} width={320} height={240} unoptimized className="max-h-64 w-auto max-w-full rounded-xl object-contain" />
+                            </a>
+                          )}
+                          {attachmentUrl && attachmentType === 'video' && (
+                            <video src={attachmentUrl} controls preload="none" className="mb-2 max-h-72 w-full max-w-[320px] rounded-xl" aria-label="فيديو مرسل عبر واتساب" />
+                          )}
+                          {attachmentUrl && attachmentType === 'audio' && (
+                            <audio src={attachmentUrl} controls preload="none" className="mb-2 w-full max-w-[320px]" aria-label="تسجيل صوتي مرسل عبر واتساب" />
+                          )}
+                          {attachmentUrl && attachmentType === 'document' && (
+                            <a href={attachmentUrl} target="_blank" rel="noopener noreferrer" className="mb-2 block rounded-xl bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800 underline">
+                              📎 فتح المستند {m.meta?.mediaFilename || ''}
+                            </a>
+                          )}
+                          {attachmentType && !attachmentUrl && (
+                            <p className="mb-2 text-xs font-bold text-amber-700">المرفق غير متاح: لم يُحفظ معرّف الملف في الرسالة القديمة.</p>
+                          )}
+                          {m.meta?.mediaCaption && <p className="whitespace-pre-wrap text-sm font-bold leading-6 text-[#102a43]">{m.meta.mediaCaption}</p>}
                           <p className="whitespace-pre-wrap text-sm font-bold leading-7 text-[#102a43]">{m.text}</p>
                           <p className="mt-1 text-left text-[10px] font-bold text-slate-400">{m.sender === 'HUMAN' && m.sentByName ? `${m.sentByName} · ` : ''}{formatTime(m.createdAt)}</p>
                         </div>
