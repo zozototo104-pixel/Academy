@@ -2358,6 +2358,11 @@ export function AdminView() {
           <AdminLectures />
         </TabsContent>
 
+        {/* بروفايلات مراحل الذكاء */}
+        <TabsContent value="ai-stage-profiles">
+          <AdminAiStageProfiles />
+        </TabsContent>
+
         {/* سجل التدقيق */}
         <TabsContent value="audit">
           <AdminAuditTab />
