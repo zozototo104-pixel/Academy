@@ -138,8 +138,8 @@ export async function enqueueQuestionRecheck(input: {
     })
     return { enqueued: true, taskId: created.id }
   } catch (err) {
-    // سباق إدراج متزامن: الفهرس الفريد الجزئي على المهام النشطة
-    // (D3.2b) يرفض الثاني — نترجمه لنفس نتيجة الفحص المنطقي.
+    // سباق إدراج متزامن: مفتاح activeDedupKey الفريد على المهام النشطة
+    // يرفض الثاني — نترجمه لنفس نتيجة الفحص المنطقي.
     if ((err as { code?: string } | null)?.code === 'P2002') return { enqueued: false, reason: 'already-queued' }
     throw err
   }
