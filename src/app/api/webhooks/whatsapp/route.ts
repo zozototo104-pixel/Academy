@@ -147,6 +147,8 @@ function inboundEventPayload(message: WhatsAppInboundMessage) {
       mediaMimeType: message.mediaMimeType || null,
       mediaSha256: message.mediaSha256 || null,
       mediaFileSize: message.mediaFileSize || null,
+      mediaCaption: message.mediaCaption || null,
+      mediaFilename: message.mediaFilename || null,
       isVoice: Boolean(message.isVoice),
       originKind: message.originKind || (message.rawType === 'audio' ? 'VOICE' : 'TEXT'),
     },
