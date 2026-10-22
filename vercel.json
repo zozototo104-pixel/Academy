@@ -2,7 +2,9 @@
   "installCommand": "bun install",
   "buildCommand": "bun run build",
   "framework": "nextjs",
-  "regions": ["fra1"],
+  "regions": [
+    "fra1"
+  ],
   "crons": [
     {
       "path": "/api/cron/backup",
@@ -23,6 +25,10 @@
     {
       "path": "/api/cron/ai-retention",
       "schedule": "15 3 * * *"
+    },
+    {
+      "path": "/api/cron/lecture-reminders",
+      "schedule": "*/5 * * * *"
     }
   ],
   "git": {

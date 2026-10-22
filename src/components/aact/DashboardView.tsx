@@ -14,10 +14,11 @@ import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { PaymentsTab, ThesisTab, CertificatesTab, TranscriptTab } from '@/components/aact/DashboardExtras'
 import { StudentSupervisionTab } from '@/components/aact/StudentSupervisionTab'
+import { StudentLectures } from '@/components/aact/StudentLectures'
 import {
   BookOpen, ClipboardCheck, ChevronLeft, Loader2, Lock,
   Award, Bot, CheckCircle2, CircleDashed, Trophy, Banknote, FileText,
-  BookMarked, Hourglass, ScrollText, MessageCircle, Bell, ListChecks, Download, ExternalLink,
+  BookMarked, Hourglass, ScrollText, MessageCircle, Bell, ListChecks, Download, ExternalLink, Video,
 } from 'lucide-react'
 
 const STUDENT_STATUS_LABEL: Record<string, string> = {
@@ -365,12 +366,27 @@ export function DashboardView() {
   const [serviceDeliverables, setServiceDeliverables] = useState<ServiceDeliverableRow[]>([])
   const [serviceDeliverablesLoading, setServiceDeliverablesLoading] = useState(true)
   const [dashboardTab, setDashboardTab] = useState('programs')
+  const [lecturesVisible, setLecturesVisible] = useState(false)
   const [programSection, setProgramSection] = useState('academic')
 
   useEffect(() => {
     const requestedTab = new URLSearchParams(window.location.search).get('tab')
-    const allowedTabs = ['programs', 'supervision', 'payments', 'deliverables', 'notifications', 'thesis', 'transcript', 'certs']
+    const allowedTabs = ['programs', 'supervision', 'lectures', 'payments', 'deliverables', 'notifications', 'thesis', 'transcript', 'certs']
     if (requestedTab && allowedTabs.includes(requestedTab)) setDashboardTab(requestedTab)
+  }, [])
+
+  // تبويب المحاضرات يظهر فقط إذا كانت الميزة متاحة لبرامج الطالب فعليًا على
+  // السيرفر (القائمة ترجع 404 عند الإطفاء أو غياب برنامج مفعّل).
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/my/lectures', { cache: 'no-store' })
+      .then((res) => {
+        if (!cancelled) setLecturesVisible(res.ok)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const displayStudyGuides = useMemo(() => studyGuides.map((guide) => ({
@@ -723,7 +739,7 @@ export function DashboardView() {
         {/* Main: tabs */}
         <div>
           <Tabs value={dashboardTab} onValueChange={setDashboardTab} dir="rtl">
-            <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-4 lg:grid-cols-8">
+            <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-4 lg:grid-cols-9">
               {hasProgramDashboard && (
                 <TabsTrigger value="programs" className="text-[11px] font-bold sm:text-sm">
                   <BookOpen className="ml-1 hidden h-3.5 w-3.5 sm:inline" /> برامجي
@@ -732,6 +748,11 @@ export function DashboardView() {
               {hasProgramDashboard && (
                 <TabsTrigger value="supervision" className="text-[11px] font-bold sm:text-sm">
                   <MessageCircle className="ml-1 hidden h-3.5 w-3.5 sm:inline" /> إشرافي
+                </TabsTrigger>
+              )}
+              {hasProgramDashboard && lecturesVisible && (
+                <TabsTrigger value="lectures" className="text-[11px] font-bold sm:text-sm">
+                  <Video className="ml-1 hidden h-3.5 w-3.5 sm:inline" /> المحاضرات واللقاءات
                 </TabsTrigger>
               )}
               <TabsTrigger value="payments" className="text-[11px] font-bold sm:text-sm">
@@ -1378,6 +1399,10 @@ export function DashboardView() {
 
             <TabsContent value="supervision" className="mt-6">
               {dashboardTab === 'supervision' ? <StudentSupervisionTab /> : null}
+            </TabsContent>
+
+            <TabsContent value="lectures" className="mt-6">
+              {dashboardTab === 'lectures' ? <StudentLectures /> : null}
             </TabsContent>
 
             <TabsContent value="payments" className="mt-6">

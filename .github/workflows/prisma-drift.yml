@@ -1,0 +1,59 @@
+name: Prisma migration drift
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  prisma-drift:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: academy
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/academy?schema=public
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/academy?schema=public
+      SHADOW_URL: postgresql://postgres:postgres@localhost:5432/academy_shadow?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.3'
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Create shadow database
+        env:
+          PGPASSWORD: postgres
+        run: psql -h localhost -U postgres -d academy -v ON_ERROR_STOP=1 -c 'CREATE DATABASE academy_shadow;'
+      - name: Validate Prisma schema
+        run: bunx prisma validate
+      - name: Check migration drift
+        shell: bash
+        run: |
+          set +e
+          bunx prisma migrate diff --from-migrations prisma/migrations --to-schema-datamodel prisma/schema.prisma --shadow-database-url "$SHADOW_URL" --exit-code > /tmp/prisma-drift.sql 2> /tmp/prisma-drift.err
+          result=$?
+          set -e
+          cat /tmp/prisma-drift.err
+          if [ "$result" -eq 0 ]; then
+            echo 'No Prisma migration drift detected.'
+          elif [ "$result" -eq 2 ]; then
+            echo 'Prisma migration drift detected. SQL difference:'
+            cat /tmp/prisma-drift.sql
+            exit 1
+          else
+            echo "Prisma migrate diff failed with exit code $result"
+            cat /tmp/prisma-drift.sql
+            exit "$result"
+          fi
