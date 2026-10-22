@@ -93,11 +93,15 @@ async function stagePayload(stage: PipelineStageName) {
 export async function GET() {
   try {
     await requireAdmin()
-    const stages = await Promise.all(STAGES.map(stagePayload))
+    const [stages, advisorReadiness] = await Promise.all([
+      Promise.all(STAGES.map(stagePayload)),
+      getAiAdvisorReadiness(),
+    ])
     return NextResponse.json({
       stages,
       providers: KNOWN_AI_PROVIDERS,
       policies: KNOWN_ROUTER_POLICIES,
+      advisorReadiness,
     })
   } catch (error: any) {
     if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'غير مصرّح' }, { status: 401 })
