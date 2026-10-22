@@ -118,12 +118,19 @@ export async function enqueueQuestionRecheck(input: {
   if (active) return { enqueued: false, reason: 'already-queued' }
   const total = await store.countTasks(input.questionId)
   if (total >= MAX_AUTO_RECHECKS) return { enqueued: false, reason: 'cap-reached' }
-  const created = await store.createTask({
-    questionId: input.questionId,
-    reason: input.reason,
-    profileVersion: input.profileVersion ?? null,
-  })
-  return { enqueued: true, taskId: created.id }
+  try {
+    const created = await store.createTask({
+      questionId: input.questionId,
+      reason: input.reason,
+      profileVersion: input.profileVersion ?? null,
+    })
+    return { enqueued: true, taskId: created.id }
+  } catch (err) {
+    // سباق إدراج متزامن: الفهرس الفريد الجزئي على المهام النشطة
+    // (D3.2b) يرفض الثاني — نترجمه لنفس نتيجة الفحص المنطقي.
+    if ((err as { code?: string } | null)?.code === 'P2002') return { enqueued: false, reason: 'already-queued' }
+    throw err
+  }
 }
 
 // مطالبة المهام المعلّقة لتشغيلة محدودة (يستخدمها مشغّل D3.2b):

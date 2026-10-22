@@ -14,6 +14,7 @@ const questions = new Map<string, { id: string; status: string }>([
 ])
 const tasks: Row[] = []
 let seq = 0
+let throwP2002OnCreate = false
 
 queue.__setRecheckQueueStoreForTests({
   async getQuestion(id) { return questions.get(id) ?? null },
@@ -22,6 +23,10 @@ queue.__setRecheckQueueStoreForTests({
     return tasks.find((t) => t.questionId === questionId && t.reason === reason && (t.status === 'PENDING' || t.status === 'RUNNING')) ?? null
   },
   async createTask(data) {
+    if (throwP2002OnCreate) {
+      throwP2002OnCreate = false
+      throw Object.assign(new Error('Unique constraint failed'), { code: 'P2002' })
+    }
     const row: Row = {
       id: `task-${++seq}`,
       questionId: data.questionId,
@@ -149,10 +154,24 @@ describe('D3.2a scope guards: data layer only, no writers wired yet', () => {
     expect(lib).toContain('questionBankItem.findUnique')
   })
 
-  test('nothing in src consumes the queue yet (the bounded runner is D3.2b)', () => {
+  test('only the bounded runner consumes the queue inside src', () => {
     const out = execSync("grep -rl 'question-recheck-queue' src --include='*.ts' || true", { encoding: 'utf8' })
     const files = out.split('\n').filter(Boolean)
-    // لا مستورد ولا حتى ذكر للوحدة بأي ملف مصدري آخر بعد — الطبقة قائمة بذاتها
-    expect(files).toEqual([])
+    // المستهلك الوحيد المسموح هو مشغّل D3.2b — لا كاتب آخر في src
+    expect(files).toEqual(['src/lib/question-recheck-runner.ts'])
+  })
+})
+
+describe('D3.2b atomicity: the partial unique index conflict reads as already-queued', () => {
+  test('a P2002 from create (a lost enqueue race) is translated, never thrown at the caller', async () => {
+    reset()
+    throwP2002OnCreate = true
+    const out = await queue.enqueueQuestionRecheck({ questionId: 'q-pending', reason: 'REVIEW_PROFILE_CHANGED' })
+    expect(out).toEqual({ enqueued: false, reason: 'already-queued' })
+    expect(tasks).toHaveLength(0)
+    // والفهرس وحده لا يكفي: ملف الـmigration موجود فعلًا بالقيد الجزئي
+    const sql = readFileSync('prisma/migrations/20261022190000_question_recheck_active_unique/migration.sql', 'utf8')
+    expect(sql).toContain('CREATE UNIQUE INDEX')
+    expect(sql).toContain("WHERE \"status\" IN ('PENDING', 'RUNNING')")
   })
 })
