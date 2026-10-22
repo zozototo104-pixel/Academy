@@ -136,9 +136,9 @@ function distributeCorrectMcqPosition(options: string[], correctIndex: number, s
 
 export function prepareMcqOptionsForStorage(value: unknown, correctAnswer: unknown, seed = '') {
   const arr = Array.isArray(value) ? value : []
-  const options = arr.map((x) => cleanText(x, 260)).filter(Boolean).slice(0, 6)
+  const options = arr.map((x) => cleanText(x, 520)).filter(Boolean).slice(0, 6)
   if (options.length < 3) return { options: [] as string[], correctAnswer: null as string | null, reason: 'MCQ_REQUIRES_AT_LEAST_3_OPTIONS' }
-  const answerText = cleanText(correctAnswer, 260)
+  const answerText = cleanText(correctAnswer, 520)
   const answerIndex = /^\d+$/.test(answerText) ? Number(answerText) : options.findIndex((option) => option === answerText)
   if (!Number.isInteger(answerIndex) || answerIndex < 0 || answerIndex >= options.length) return { options: [] as string[], correctAnswer: null as string | null, reason: 'MCQ_ANSWER_NOT_IN_OPTIONS' }
   if (options.length <= 4) {
@@ -155,19 +155,21 @@ export function prepareMcqOptionsForStorage(value: unknown, correctAnswer: unkno
 
 function safeOptions(value: unknown, type: string) {
   const arr = Array.isArray(value) ? value : []
-  const options = arr.map((x) => cleanText(x, 260)).filter(Boolean).slice(0, 6)
+  const options = arr.map((x) => cleanText(x, 520)).filter(Boolean).slice(0, 6)
   if (type === 'TF') return ['صح', 'خطأ']
   if (type === 'MCQ') return options.length >= 3 ? options.slice(0, 4) : []
   return []
 }
 
+// D3.3: حدود القص هنا تطابق الحدود الصلبة في question-bank-generation
+// (ضعف الحدود الشكلية) — أي سؤال قبله المحلّل لا يُقصّ هنا بصمت أبدًا.
 function sanitizeQuestion(raw: GeneratedQuestionCandidate, fallback: Partial<QuestionBankSource> = {}) {
   const type = TYPES.has(String(raw.type || '').toUpperCase()) ? String(raw.type).toUpperCase() : 'MCQ'
   const rawDifficulty = String(raw.difficulty || '').toUpperCase()
   const difficulty = DIFFICULTIES.has(rawDifficulty) ? rawDifficulty : ''
-  const sourceEvidence = cleanText(raw.sourceEvidence, 1800)
+  const sourceEvidence = cleanText(raw.sourceEvidence, 3600)
   const cognitiveSkill = cleanText(raw.cognitiveSkill, 40)
-  const text = cleanText(raw.text || raw.question || fallback.title, 1200)
+  const text = cleanText(raw.text || raw.question || fallback.title, 2400)
   const mcq = type === 'MCQ' ? prepareMcqOptionsForStorage(raw.options, raw.correctAnswer, text) : null
   const options = mcq ? mcq.options : safeOptions(raw.options, type)
   let correctAnswer = mcq ? mcq.correctAnswer : raw.correctAnswer != null ? String(raw.correctAnswer).trim() : null
@@ -178,13 +180,13 @@ function sanitizeQuestion(raw: GeneratedQuestionCandidate, fallback: Partial<Que
     text,
     options: options.length ? JSON.stringify(options) : null,
     correctAnswer: type === 'MCQ' || type === 'TF' ? correctAnswer : null,
-    modelAnswer: type === 'SHORT' || type === 'ESSAY' ? cleanText(raw.modelAnswer || raw.answer || fallback.summary, 1800) : cleanText(raw.modelAnswer || '', 1200) || null,
+    modelAnswer: type === 'SHORT' || type === 'ESSAY' ? cleanText(raw.modelAnswer || raw.answer || fallback.summary, 3600) : cleanText(raw.modelAnswer || '', 3600) || null,
     sourceEvidence: sourceEvidence || null,
-    sourceBookTitle: cleanText(raw.sourceBookTitle || fallback.sourceNote, 220) || null,
-    sourceLocator: cleanText(raw.sourceLocator || fallback.title, 220) || null,
+    sourceBookTitle: cleanText(raw.sourceBookTitle || fallback.sourceNote, 440) || null,
+    sourceLocator: cleanText(raw.sourceLocator || fallback.title, 440) || null,
     cognitiveSkill: cognitiveSkill || null,
     difficulty,
-    correctRationale: cleanText(raw.correctRationale || raw.rationale, 1000) || null,
+    correctRationale: cleanText(raw.correctRationale || raw.rationale, 2000) || null,
     distractorRationales: raw.distractorRationales ? JSON.stringify(raw.distractorRationales).slice(0, 1800) : null,
     qualityFlags: Array.isArray(raw.qualityFlags) ? raw.qualityFlags.map(String).filter(Boolean) : [],
   }
