@@ -441,7 +441,7 @@ export function AdminAiStageProfiles() {
           <h2 className="text-lg font-black text-slate-800">بروفايلات مراحل الذكاء</h2>
           <p className="mt-1 max-w-3xl text-xs leading-6 text-slate-500">
             تتحكم بالقراءة والتحليل والتوليد والتدقيق، وتعرض آخر تشغيلات سجل D0. قسم E0 قراءة جاهزية فقط، وقسم E1
-            يحفظ توصيات مراجعة قابلة للإغلاق. قسم E2 يحفظ مسودة Snapshot داخل التوصية فقط دون أن يغيّر البروفايلات.
+            يحفظ توصيات مراجعة قابلة للإغلاق. قسم E2/E4 يحفظ مسودة تغيّر قوائم الموديلات فقط داخل التوصية دون تطبيق مباشر.
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
