@@ -118,11 +118,15 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
     setLoading(true)
     try {
       const params = new URLSearchParams()
-      if (filterProgram) params.set('programId', filterProgram)
+      const videoParams = new URLSearchParams()
+      if (filterProgram) {
+        params.set('programId', filterProgram)
+        videoParams.set('programId', filterProgram)
+      }
       if (filterStatus) params.set('status', filterStatus)
       const [ses, vid, prog, scopedSeries] = await Promise.all([
         api<{ sessions: SessionRow[] }>(`/api/admin/lectures/sessions/list?${params.toString()}`),
-        api<{ videos: VideoRow[]; storageConfigured?: boolean; uploadMaxBytes?: number }>('/api/admin/lectures/videos/list'),
+        api<{ videos: VideoRow[]; storageConfigured?: boolean; uploadMaxBytes?: number }>(`/api/admin/lectures/videos/list?${videoParams.toString()}`),
         api<{ programs: ProgramOption[] }>('/api/programs').catch(() => ({ programs: [] as ProgramOption[] })),
         surface === 'supervisor'
           ? api<{ series: SeriesScopeRow[] }>('/api/admin/lectures/series').catch(() => ({ series: [] as SeriesScopeRow[] }))
