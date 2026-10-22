@@ -372,7 +372,7 @@ export function AdminAiStageProfiles() {
     try {
       const res = await api<{ created: number; skipped: number; advice: AdvisorAdvice[] }>('/api/admin/ai-advisor', { method: 'POST' })
       setData((current) => (current ? { ...current, advisorAdvice: res.advice } : current))
-      toast({ title: 'تم توليد توصيات E1/E2', description: `جديد: ${res.created} · مكرر مفتوح: ${res.skipped}` })
+      toast({ title: 'تم توليد توصيات E1/E2/E4', description: `جديد: ${res.created} · مكرر مفتوح: ${res.skipped}` })
     } catch (error: any) {
       toast({ title: 'تعذر توليد توصيات المستشار', description: error?.message, variant: 'destructive' })
     } finally {
