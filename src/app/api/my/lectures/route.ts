@@ -16,7 +16,11 @@ export async function GET(req: NextRequest) {
     let programIds = await getActiveLectureProgramIds(user.id)
     const programId = req.nextUrl.searchParams.get('programId')
     if (programId) programIds = programIds.filter((id) => id === programId)
-    if (!programIds.length) return NextResponse.json({ sessions: [] })
+    // No lecture-enabled program for this student: the lectures tab stays
+    // hidden, so the list answers 404 exactly like a disabled feature.
+    if (!programIds.length) {
+      return NextResponse.json({ error: 'المحاضرات غير متاحة لبرامجك حاليًا' }, { status: 404 })
+    }
 
     const sessions = await db.lectureSession.findMany({
       where: { series: { programId: { in: programIds } } },
