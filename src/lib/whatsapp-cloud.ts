@@ -23,6 +23,8 @@ export type WhatsAppInboundMessage = {
   mediaMimeType?: string
   mediaSha256?: string
   mediaFileSize?: number
+  mediaCaption?: string
+  mediaFilename?: string
   isVoice?: boolean
   originKind?: 'TEXT' | 'VOICE'
 }
