@@ -62,6 +62,8 @@ type AttendanceData = {
   attendances: { id: string; status: string; joinedAt: string; user: { id: string; name: string; email: string } }[]
   enrolledStudents: { id: string; name: string; email: string }[]
 }
+type SeriesScopeRow = { id: string; programId: string; program: { titleAr: string } | null }
+type LecturesSurface = 'admin' | 'supervisor'
 
 const STATUS_META: Record<string, { label: string; className: string }> = {
   SCHEDULED: { label: 'مجدولة', className: 'bg-blue-100 text-blue-800' },
