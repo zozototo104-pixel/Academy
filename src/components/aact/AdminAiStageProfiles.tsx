@@ -74,6 +74,7 @@ type AdvisorAdvice = {
   title: string
   rationale: string
   evidence: Record<string, unknown>
+  proposedSnapshot: Snapshot | null
   createdAt: string
 }
 type ResponseData = { stages: StageData[]; providers: string[]; policies: string[]; advisorReadiness?: AdvisorReadiness; advisorAdvice?: AdvisorAdvice[] }
