@@ -255,6 +255,33 @@ function verifierFamilyAllowed(context: { provider?: string; model?: string; fam
   return { ok: true }
 }
 
+// D3.1: قاعدة المدقق ≠ المولّد على مستوى الزوج الفعلي (مزوّد + موديل).
+// تُزال من قائمة البروفايل أي خانة تطابق زوج التوليد لهذه الدفعة
+// بالضبط؛ نفس الموديل عند مزوّد آخر أو موديل آخر عند نفس المزوّد
+// يبقيان خاضعين لآلية العائلة الحالية دون تغيير.
+export function filterDistinctVerifierModels<T extends { provider: string; model: string }>(
+  models: readonly T[],
+  generatorProvider?: string | null,
+  generatorModel?: string | null,
+): T[] {
+  const provider = String(generatorProvider || '').trim().toUpperCase()
+  const model = String(generatorModel || '').trim().toLowerCase()
+  if (!provider || !model) return [...models]
+  return models.filter((m) => !(String(m.provider).trim().toUpperCase() === provider && String(m.model).trim().toLowerCase() === model))
+}
+
+export const __testFilterDistinctVerifierModelsForTests = filterDistinctVerifierModels
+
+export function verifierEqualsGenerator(
+  context: { provider?: string; model?: string },
+  generatorProvider?: string | null,
+  generatorModel?: string | null,
+): boolean {
+  if (!context.provider || !context.model) return false
+  return String(context.provider).trim().toUpperCase() === String(generatorProvider || '').trim().toUpperCase()
+    && String(context.model).trim().toLowerCase() === String(generatorModel || '').trim().toLowerCase()
+}
+
 export const __testVerifierFamilyAllowedForTests = verifierFamilyAllowed
 
 export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuestion>(opts: {
@@ -294,7 +321,15 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
   async function runPass(effectiveRouting: StageRouting | null): Promise<{ output: T[]; anyResponse: boolean }> {
     const output = opts.questions.map((question) => ({ ...question })) as T[]
     let anyResponse = false
-    const routingModels = effectiveRouting ? effectiveRouting.preferredModels.map((m) => ({ provider: m.provider as TextAiPreferredModel['provider'], model: m.model })) : []
+    const distinctRouting = effectiveRouting ? filterDistinctVerifierModels(effectiveRouting.preferredModels, opts.generatorProvider, opts.generatorModel) : []
+    const routingModels = distinctRouting.map((m) => ({ provider: m.provider as TextAiPreferredModel['provider'], model: m.model }))
+    if (effectiveRouting && !routingModels.length) {
+      // D3.1: بروفايل التدقيق لا يملك أي مدقق مختلف عن المولّد —
+      // لا نداء أصلًا، والأسئلة تبقى pending بسبب صريح، وتُعامل
+      // التمريرة كفشل مرحلة لأغراض قرار الرجوع العالمي.
+      for (let index = 0; index < output.length; index++) output[index] = applyPending(output[index], 'VERIFIER_EQUALS_GENERATOR')
+      return { output, anyResponse: false }
+    }
   for (let start = 0; start < output.length; start += batchSize) {
     if (Date.now() >= deadline) {
       for (let index = start; index < output.length; index++) output[index] = applyPending(output[index], 'VERIFIER_TIME_BUDGET_EXCEEDED')
@@ -333,7 +368,7 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
         taskLevel: 'ACADEMIC_CRITICAL',
         purpose: 'REVIEW',
         ...(effectiveRouting
-          ? { preferredProviders: [...new Set([...effectiveRouting.preferredProviders, ...effectiveRouting.preferredModels.map((m) => m.provider)])] as TextAiProvider[], preferredModels: routingModels, restrictToModels: routingModels, ...(effectiveRouting.policy ? { routerPolicy: effectiveRouting.policy as TextAiRouterPolicy } : {}) }
+          ? { preferredProviders: [...new Set([...effectiveRouting.preferredProviders, ...distinctRouting.map((m) => m.provider)])] as TextAiProvider[], preferredModels: routingModels, restrictToModels: routingModels, ...(effectiveRouting.policy ? { routerPolicy: effectiveRouting.policy as TextAiRouterPolicy } : {}) }
           : { preferredProviders: __testVerifierPreferredProvidersForTests(alborihiGenerator ? 'ALBORIHI' : opts.generatorProvider as TextAiProvider) }),
         excludeProviders,
         excludeModelFamilies,
@@ -373,6 +408,15 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
       for (const item of prepared) {
         output[item.index] = applyPending(item.question, 'VERIFIER_TIME_BUDGET_EXCEEDED')
         logVerifierVerdict({ questionIndex: item.index, question: output[item.index], result: null, verifierContext, generatorProvider: opts.generatorProvider, generatorModel: opts.generatorModel, literalEvidenceOk: item.literalPass, reason: 'VERIFIER_TIME_BUDGET_EXCEEDED' })
+      }
+      continue
+    }
+    // D3.1: تدقيق الزوج على الاستجابة الفعلية — أي رد من نفس زوج
+    // المولّد لا يقف أبدًا مهما قالت فحوصات العائلة المعلنة.
+    if (verifierEqualsGenerator(verifierContext, opts.generatorProvider, opts.generatorModel)) {
+      for (const item of prepared) {
+        output[item.index] = applyPending(item.question, 'VERIFIER_EQUALS_GENERATOR')
+        logVerifierVerdict({ questionIndex: item.index, question: output[item.index], result: null, verifierContext, generatorProvider: opts.generatorProvider, generatorModel: opts.generatorModel, literalEvidenceOk: item.literalPass, reason: 'VERIFIER_EQUALS_GENERATOR' })
       }
       continue
     }

@@ -4,6 +4,9 @@ import { readFileSync } from 'node:fs'
 mock.module('@/lib/db', () => ({ db: { aiPipelineOperationLog: { create: async () => ({}) } } }))
 
 const routerCalls: Record<string, unknown>[] = []
+let restrictedBehavior: 'throw' | 'respond' = 'throw'
+let responseContext: { provider: string; model: string; family?: string } = { provider: 'ANTHROPIC', model: 'claude-v' }
+let generatorFamilyOverride = 'gemini'
 mock.module('@/lib/text-ai', () => ({
   pipelineConfigSnapshot: async () => ({ policy: 'balanced', allowedModels: [], verifierPreferred: [] }),
   modelFamily: (model: string) => {
@@ -11,18 +14,20 @@ mock.module('@/lib/text-ai', () => ({
     if (m.includes('gemini') || m.includes('gemma')) return 'gemini'
     if (m.includes('claude')) return 'claude'
     if (m.includes('gpt')) return 'gpt'
+    if (m.includes('qwen')) return 'qwen'
+    if (m.includes('deepseek')) return 'deepseek'
     return 'unknown'
   },
-  resolvedTextAiModelFamily: async () => 'gemini',
+  resolvedTextAiModelFamily: async () => generatorFamilyOverride,
   textAiCompleteJson: async (opts: Record<string, unknown>) => {
     routerCalls.push(opts)
-    if (opts.restrictToModels) {
+    if (opts.restrictToModels && restrictedBehavior === 'throw') {
       const err: Error & { code?: string } = new Error('AI_VERIFIER_UNAVAILABLE')
       err.code = 'AI_VERIFIER_UNAVAILABLE'
       throw err
     }
     const text = JSON.stringify({ results: [{ index: 0, valid: true, answerSupported: true, evidenceSupportsQuestion: true, reason: 'مدعوم بالمصدر' }] })
-    ;(opts.validate as ((t: string, c: { provider: string; model: string }) => void) | undefined)?.(text, { provider: 'ANTHROPIC', model: 'claude-v' })
+    ;(opts.validate as ((t: string, c: { provider: string; model: string; family?: string }) => void) | undefined)?.(text, responseContext)
     return text
   },
 }))
@@ -32,7 +37,7 @@ import type { VerifiableQuestion } from '@/lib/question-verifier'
 
 const profiles = await import('@/lib/ai-stage-profiles')
 const { prepareStageRun } = await import('@/lib/ai-stage-runner')
-const { verifyQuestionsWithCrossProvider } = await import('@/lib/question-verifier')
+const { verifyQuestionsWithCrossProvider, __testFilterDistinctVerifierModelsForTests } = await import('@/lib/question-verifier')
 
 const memory = new Map<string, { profileId: string; version: number; snapshot: never }>()
 profiles.__setStageProfileStoreForTests({
@@ -171,5 +176,96 @@ describe('D2.4 scope guards', () => {
     const verifier = readFileSync('src/lib/question-verifier.ts', 'utf8')
     expect(verifier).toContain('NEEDS_HUMAN_REVIEW')
     expect(verifier).not.toContain('APPROVED')
+  })
+})
+
+describe('D3.1: the runtime verifier != generator rule (exact pair)', () => {
+  test('the pair filter removes only the exact generator pair', () => {
+    const models = [
+      { provider: 'GEMINI', model: 'gemini-2.5-pro' },
+      { provider: 'OPENAI', model: 'gemini-2.5-pro' },
+      { provider: 'GEMINI', model: 'gemini-other' },
+    ]
+    expect(__testFilterDistinctVerifierModelsForTests(models, 'GEMINI', 'gemini-2.5-pro'))
+      .toEqual([models[1], models[2]])
+    expect(__testFilterDistinctVerifierModelsForTests(models, 'gemini', 'GEMINI-2.5-PRO')).toHaveLength(2)
+    expect(__testFilterDistinctVerifierModelsForTests(models, null, null)).toHaveLength(3)
+  })
+
+  test('a profile whose only verifier is the generator pair never calls the router; questions pend with a clear reason', async () => {
+    routerCalls.length = 0
+    let fallbackMarks = 0
+    const out = await verifyQuestionsWithCrossProvider({
+      questions: [QUESTION],
+      sources: [{ text: SOURCE_TEXT }],
+      generatorProvider: 'GEMINI',
+      generatorModel: 'gemini-2.5-pro',
+      routing: { preferredModels: [{ provider: 'GEMINI', model: 'gemini-2.5-pro' }], preferredProviders: [], policy: null, allowGlobalFallback: false },
+      onFallbackAttempt: () => { fallbackMarks++ },
+    })
+    expect(routerCalls).toHaveLength(0)
+    expect(fallbackMarks).toBe(0)
+    expect(out[0].verificationPending).toBe(true)
+    expect(out[0].verificationReason).toBe('VERIFIER_EQUALS_GENERATOR')
+  })
+
+  test('the same profile with fallback allowed goes global once and verifies there', async () => {
+    routerCalls.length = 0
+    let fallbackMarks = 0
+    const out = await verifyQuestionsWithCrossProvider({
+      questions: [QUESTION],
+      sources: [{ text: SOURCE_TEXT }],
+      generatorProvider: 'GEMINI',
+      generatorModel: 'gemini-2.5-pro',
+      routing: { preferredModels: [{ provider: 'GEMINI', model: 'gemini-2.5-pro' }], preferredProviders: [], policy: null, allowGlobalFallback: true },
+      onFallbackAttempt: () => { fallbackMarks++ },
+    })
+    expect(routerCalls).toHaveLength(1)
+    expect(routerCalls[0].restrictToModels).toBeUndefined()
+    expect(fallbackMarks).toBe(1)
+    expect(out[0].verifierProvider).toBe('ANTHROPIC')
+  })
+
+  test('a partially overlapping profile runs restricted with only the distinct models', async () => {
+    routerCalls.length = 0
+    restrictedBehavior = 'respond'
+    let fallbackMarks = 0
+    try {
+      const out = await verifyQuestionsWithCrossProvider({
+        questions: [QUESTION],
+        sources: [{ text: SOURCE_TEXT }],
+        generatorProvider: 'GEMINI',
+        generatorModel: 'gemini-2.5-pro',
+        routing: { preferredModels: [{ provider: 'GEMINI', model: 'gemini-2.5-pro' }, { provider: 'OPENAI', model: 'ver-v' }], preferredProviders: [], policy: null, allowGlobalFallback: false },
+        onFallbackAttempt: () => { fallbackMarks++ },
+      })
+      expect(routerCalls).toHaveLength(1)
+      expect(routerCalls[0].restrictToModels).toEqual([{ provider: 'OPENAI', model: 'ver-v' }])
+      expect(fallbackMarks).toBe(0)
+      expect(out[0].verifierProvider).toBe('ANTHROPIC')
+    } finally {
+      restrictedBehavior = 'throw'
+    }
+  })
+
+  test('a response from the generator pair itself never stands, even when declared family games would pass it', async () => {
+    routerCalls.length = 0
+    generatorFamilyOverride = 'deepseek'
+    responseContext = { provider: 'ALBORIHI', model: 'acme-pro', family: 'qwen' }
+    try {
+      const out = await verifyQuestionsWithCrossProvider({
+        questions: [QUESTION],
+        sources: [{ text: SOURCE_TEXT }],
+        generatorProvider: 'ALBORIHI',
+        generatorModel: 'acme-pro',
+      })
+      expect(routerCalls).toHaveLength(1)
+      expect(out[0].verificationPending).toBe(true)
+      expect(out[0].verificationReason).toBe('VERIFIER_EQUALS_GENERATOR')
+      expect(out[0].qualityFlags).not.toContain('SOURCE_GROUNDED')
+    } finally {
+      generatorFamilyOverride = 'gemini'
+      responseContext = { provider: 'ANTHROPIC', model: 'claude-v' }
+    }
   })
 })
