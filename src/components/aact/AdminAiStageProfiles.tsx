@@ -469,10 +469,10 @@ export function AdminAiStageProfiles() {
                     </div>
                     <p className="mt-2 text-xs leading-6 text-slate-600">{advice.rationale}</p>
                     <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-slate-500 sm:grid-cols-4">
-                      <span>التشغيلات: <b>{String(advice.evidence?.totalRuns ?? '—')}</b></span>
-                      <span>الفشل: <b>{String(advice.evidence?.failureRatePct ?? '—')}%</b></span>
-                      <span>الرجوع: <b>{String(advice.evidence?.fallbackRatePct ?? '—')}%</b></span>
-                      <span>الكلفة: <b>{String(advice.evidence?.costCoveragePct ?? '—')}%</b></span>
+                      <span>التشغيلات: <b>{String(advice.evidence?.['totalRuns'] ?? '—')}</b></span>
+                      <span>الفشل: <b>{String(advice.evidence?.['failureRatePct'] ?? '—')}%</b></span>
+                      <span>الرجوع: <b>{String(advice.evidence?.['fallbackRatePct'] ?? '—')}%</b></span>
+                      <span>الكلفة: <b>{String(advice.evidence?.['costCoveragePct'] ?? '—')}%</b></span>
                     </div>
                     <p className="mt-2 text-[11px] text-slate-400">أُنشئت: {fmtDate(advice.createdAt)}</p>
                   </div>
