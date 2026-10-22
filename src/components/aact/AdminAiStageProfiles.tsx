@@ -41,6 +41,21 @@ type StageData = {
     unitId: string | null
   }[]
 }
+type AdvisorModelReadiness = {
+  provider: string
+  model: string
+  runs: number
+  successRuns: number
+  failureRuns: number
+  fallbackRuns: number
+  successRate: number | null
+  failureRate: number | null
+  fallbackRate: number | null
+  tokenCoverage: number
+  costCoverage: number
+  avgCostCents: number | null
+  readyForModelAdvice: boolean
+}
 type AdvisorStageReadiness = {
   stage: Stage
   totalRuns: number
@@ -55,10 +70,11 @@ type AdvisorStageReadiness = {
   costCoverageGap: number
   readyForAdvice: boolean
   gaps: string[]
+  modelStats: AdvisorModelReadiness[]
 }
 type AdvisorReadiness = {
   generatedAt: string
-  gates: { minDays: number; minStageRuns: number; costCoverageTarget: number }
+  gates: { minDays: number; minStageRuns: number; minModelRuns?: number; costCoverageTarget: number }
   stages: AdvisorStageReadiness[]
   readyStages: Stage[]
   blockedStages: Stage[]
@@ -75,6 +91,8 @@ type AdvisorAdvice = {
   rationale: string
   evidence: Record<string, unknown>
   proposedSnapshot: Snapshot | null
+  targetProfileVersion: number | null
+  expiresAt: string | null
   createdAt: string
 }
 type ResponseData = { stages: StageData[]; providers: string[]; policies: string[]; advisorReadiness?: AdvisorReadiness; advisorAdvice?: AdvisorAdvice[] }
