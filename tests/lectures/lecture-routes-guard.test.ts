@@ -75,7 +75,9 @@ describe('student lecture route guards', () => {
     const watch = readRoute('lecture-videos/[videoId]/watch/route.ts')
     const publishedCheck = watch.indexOf("video.status !== 'PUBLISHED'")
     const accessCheck = watch.indexOf('await canStudentAccessProgram')
-    const signing = watch.indexOf('createSignedStorageUrlForKey(video.storageKey)')
+    // L6: التوقيع صار بدالة المحاضرات المستقلة (ساعة) بقرار مالك المشروع،
+    // ونفس ترتيب الحراسة يبقى: النشر ثم الصلاحية ثم التوقيع.
+    const signing = watch.indexOf('createLectureVideoSignedUrl(video.storageKey)')
     expect(publishedCheck).toBeGreaterThan(-1)
     expect(accessCheck).toBeGreaterThan(publishedCheck)
     expect(signing).toBeGreaterThan(accessCheck)

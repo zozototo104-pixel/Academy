@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '@/lib/store'
 import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { zonedTimeToUtc } from '@/lib/lectures/recurrence'
+import { parseVideoUrl } from '@/lib/lectures/video-embed'
 import {
   AlarmClock,
   CalendarPlus,
@@ -52,6 +53,8 @@ type VideoRow = {
   programId: string
   sessionId: string | null
   order: number
+  storageKey: string | null
+  sizeBytes: number | null
   program: { titleAr: string } | null
   session: { title: string } | null
 }
@@ -95,6 +98,8 @@ export function AdminLectures() {
   const [error, setError] = useState<string | null>(null)
   const [sessions, setSessions] = useState<SessionRow[]>([])
   const [videos, setVideos] = useState<VideoRow[]>([])
+  const [storageConfigured, setStorageConfigured] = useState(false)
+  const [uploadMaxBytes, setUploadMaxBytes] = useState(0)
   const [programs, setPrograms] = useState<ProgramOption[]>([])
   const [supervisors, setSupervisors] = useState<SupervisorOption[]>([])
   const [filterProgram, setFilterProgram] = useState('')
@@ -115,11 +120,13 @@ export function AdminLectures() {
       if (filterStatus) params.set('status', filterStatus)
       const [ses, vid, prog] = await Promise.all([
         api<{ sessions: SessionRow[] }>(`/api/admin/lectures/sessions/list?${params.toString()}`),
-        api<{ videos: VideoRow[] }>('/api/admin/lectures/videos/list'),
+        api<{ videos: VideoRow[]; storageConfigured?: boolean; uploadMaxBytes?: number }>('/api/admin/lectures/videos/list'),
         api<{ programs: ProgramOption[] }>('/api/programs?public=1').catch(() => ({ programs: [] as ProgramOption[] })),
       ])
       setSessions(ses.sessions || [])
       setVideos(vid.videos || [])
+      setStorageConfigured(Boolean(vid.storageConfigured))
+      setUploadMaxBytes(vid.uploadMaxBytes ?? 0)
       setPrograms(prog.programs || [])
       setDisabled(false)
       setError(null)
@@ -310,7 +317,10 @@ export function AdminLectures() {
           {videos.length === 0 ? (
             <p className="py-4 text-center text-sm text-slate-500">لا توجد فيديوهات بعد.</p>
           ) : (
-            videos.map((v) => (
+            videos.map((v, idx) => {
+              const unconfirmedUpload =
+                v.source === 'S3' && Boolean(v.storageKey?.startsWith('lectures/videos/')) && v.sizeBytes == null
+              return (
               <div key={v.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 py-2.5 last:border-0">
                 <div>
                   <div className="flex items-center gap-2">
@@ -318,6 +328,7 @@ export function AdminLectures() {
                     <Badge className={v.status === 'PUBLISHED' ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600'}>
                       {v.status === 'PUBLISHED' ? 'منشور' : 'مسودة'}
                     </Badge>
+                    {unconfirmedUpload && <Badge className="bg-amber-100 text-amber-800">بانتظار اكتمال الرفع</Badge>}
                     <span className="text-[11px] text-slate-400">{v.source}</span>
                   </div>
                   <div className="mt-0.5 text-[11px] text-slate-500">
@@ -348,8 +359,40 @@ export function AdminLectures() {
                   </select>
                   <Button
                     size="sm"
+                    variant="outline"
+                    disabled={busy || idx === 0}
+                    title="نقل لأعلى"
+                    onClick={() => {
+                      const other = videos[idx - 1]
+                      if (!other) return
+                      void act(async () => {
+                        await api(`/api/admin/lectures/videos/${v.id}`, { method: 'PATCH', body: JSON.stringify({ order: other.order }) })
+                        await api(`/api/admin/lectures/videos/${other.id}`, { method: 'PATCH', body: JSON.stringify({ order: v.order }) })
+                      }, 'تمت إعادة الترتيب')
+                    }}
+                  >
+                    ↑
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy || idx === videos.length - 1}
+                    title="نقل لأسفل"
+                    onClick={() => {
+                      const other = videos[idx + 1]
+                      if (!other) return
+                      void act(async () => {
+                        await api(`/api/admin/lectures/videos/${v.id}`, { method: 'PATCH', body: JSON.stringify({ order: other.order }) })
+                        await api(`/api/admin/lectures/videos/${other.id}`, { method: 'PATCH', body: JSON.stringify({ order: v.order }) })
+                      }, 'تمت إعادة الترتيب')
+                    }}
+                  >
+                    ↓
+                  </Button>
+                  <Button
+                    size="sm"
                     variant={v.status === 'PUBLISHED' ? 'outline' : 'default'}
-                    disabled={busy}
+                    disabled={busy || (v.status !== 'PUBLISHED' && unconfirmedUpload)}
                     onClick={() =>
                       void act(
                         () =>
@@ -365,7 +408,8 @@ export function AdminLectures() {
                   </Button>
                 </div>
               </div>
-            ))
+              )
+            })
           )}
         </CardContent>
       </Card>
@@ -384,6 +428,9 @@ export function AdminLectures() {
         open={videoOpen}
         onClose={() => setVideoOpen(false)}
         programs={programs}
+        storageConfigured={storageConfigured}
+        uploadMaxBytes={uploadMaxBytes}
+        onUploaded={() => void load()}
         onSubmit={async (payload) => {
           await act(() => api('/api/admin/lectures/videos', { method: 'POST', body: JSON.stringify(payload) }), 'أُضيف الفيديو كمسودة')
           setVideoOpen(false)
@@ -664,15 +711,70 @@ function CreateVideoDialog({
   open,
   onClose,
   programs,
+  storageConfigured,
+  uploadMaxBytes,
   onSubmit,
+  onUploaded,
 }: {
   open: boolean
   onClose: () => void
   programs: ProgramOption[]
+  storageConfigured: boolean
+  uploadMaxBytes: number
   onSubmit: (payload: Record<string, unknown>) => Promise<void>
+  onUploaded: () => void
 }) {
-  const [form, setForm] = useState({ title: '', programId: '', source: 'YOUTUBE', url: '', storageKey: '' })
+  const { toast } = useToast()
+  const [mode, setMode] = useState<'link' | 'upload'>('link')
+  const [form, setForm] = useState({ title: '', programId: '', source: '', url: '', storageKey: '' })
+  const [file, setFile] = useState<File | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const xhrRef = useRef<XMLHttpRequest | null>(null)
   const set = (key: string, value: unknown) => setForm((f) => ({ ...f, [key]: value }))
+
+  const detected = useMemo(() => (form.url.trim() ? parseVideoUrl(form.url.trim()) : null), [form.url])
+  const effectiveSource = form.source || detected?.source || ''
+
+  const startUpload = async () => {
+    if (!file || !form.title || !form.programId) return
+    setUploading(true)
+    setProgress(0)
+    try {
+      const init = await api<{ video: { id: string }; uploadUrl: string }>('/api/admin/lectures/videos/upload/init', {
+        method: 'POST',
+        body: JSON.stringify({ title: form.title, programId: form.programId, mimeType: file.type, sizeBytes: file.size }),
+      })
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest()
+        xhrRef.current = xhr
+        xhr.open('PUT', init.uploadUrl)
+        xhr.setRequestHeader('Content-Type', file.type)
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100))
+        }
+        xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`HTTP ${xhr.status}`)))
+        xhr.onerror = () => reject(new Error('network'))
+        xhr.onabort = () => reject(new Error('aborted'))
+        xhr.send(file)
+      })
+      await api('/api/admin/lectures/videos/upload/confirm', {
+        method: 'POST',
+        body: JSON.stringify({ videoId: init.video.id }),
+      })
+      toast({ title: 'اكتمل الرفع وتم تأكيده — الفيديو مسودة بانتظار النشر' })
+      onUploaded()
+      onClose()
+    } catch (e: any) {
+      if (e?.message !== 'aborted') {
+        toast({ title: 'تعذر إكمال الرفع', description: e?.message || 'حاول مجددًا', variant: 'destructive' })
+      }
+    } finally {
+      setUploading(false)
+      xhrRef.current = null
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg">
@@ -695,46 +797,127 @@ function CreateVideoDialog({
               ))}
             </select>
           </div>
-          <div>
-            <label className={labelClass}>المصدر</label>
-            <select className={`${selectClass} w-full`} value={form.source} onChange={(e) => set('source', e.target.value)}>
-              {VIDEO_SOURCES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
+          <div className="flex gap-2">
+            <Button size="sm" variant={mode === 'link' ? 'default' : 'outline'} onClick={() => setMode('link')}>
+              برابط
+            </Button>
+            <Button size="sm" variant={mode === 'upload' ? 'default' : 'outline'} onClick={() => setMode('upload')}>
+              برفع ملف
+            </Button>
           </div>
-          {form.source === 'S3' ? (
-            <div>
-              <label className={labelClass}>مفتاح التخزين (Storage Key)</label>
-              <Input value={form.storageKey} onChange={(e) => set('storageKey', e.target.value)} dir="ltr" />
-            </div>
-          ) : (
-            <div>
-              <label className={labelClass}>رابط الفيديو</label>
-              <Input value={form.url} onChange={(e) => set('url', e.target.value)} dir="ltr" placeholder="https://..." />
-            </div>
+
+          {mode === 'link' && (
+            <>
+              <div>
+                <label className={labelClass}>رابط الفيديو — الصقه وسيُكتشف نوعه تلقائيًا</label>
+                <Input value={form.url} onChange={(e) => set('url', e.target.value)} dir="ltr" placeholder="https://..." />
+                {form.url.trim() &&
+                  (detected ? (
+                    <p className="mt-1 text-[11px] font-bold text-green-700">
+                      اكتُشف: {detected.source}
+                      {detected.embedId ? ` — ${detected.embedId}` : ''}
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-[11px] font-bold text-red-600">الرابط غير آمن أو غير صالح (https فقط، بلا بيانات دخول).</p>
+                  ))}
+              </div>
+              {detected?.thumbnailUrl && (
+                <img src={detected.thumbnailUrl} alt="معاينة" className="h-24 rounded-md border border-slate-200 object-cover" />
+              )}
+              {detected?.embedUrl && (
+                <div className="aspect-video w-full overflow-hidden rounded-md bg-black">
+                  <iframe className="h-full w-full" src={detected.embedUrl} title="معاينة الفيديو" allowFullScreen />
+                </div>
+              )}
+              <div>
+                <label className={labelClass}>المصدر (يُملأ تلقائيًا، ويمكن تجاوزه)</label>
+                <select className={`${selectClass} w-full`} value={effectiveSource} onChange={(e) => set('source', e.target.value)}>
+                  <option value="">تلقائي</option>
+                  {VIDEO_SOURCES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {effectiveSource === 'S3' && (
+                <div>
+                  <label className={labelClass}>مفتاح التخزين (Storage Key) لملف مرفوع مسبقًا</label>
+                  <Input value={form.storageKey} onChange={(e) => set('storageKey', e.target.value)} dir="ltr" />
+                </div>
+              )}
+              <p className="text-[11px] text-slate-500">يُحفظ الفيديو مسودة لا يراها الطلاب حتى تنشره بعد المعاينة.</p>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={onClose}>
+                  إلغاء
+                </Button>
+                <Button
+                  disabled={!form.title || !form.programId || (!form.url && !form.storageKey) || (Boolean(form.url) && !detected)}
+                  onClick={() =>
+                    void onSubmit({
+                      title: form.title,
+                      programId: form.programId,
+                      ...(effectiveSource ? { source: effectiveSource } : {}),
+                      ...(effectiveSource === 'S3' ? { storageKey: form.storageKey } : { url: form.url }),
+                    })
+                  }
+                >
+                  إضافة كمسودة
+                </Button>
+              </div>
+            </>
           )}
-          <p className="text-[11px] text-slate-500">يُحفظ الفيديو مسودة لا يراها الطلاب حتى تنشره بعد المعاينة.</p>
-        </div>
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={onClose}>
-            إلغاء
-          </Button>
-          <Button
-            disabled={!form.title || !form.programId || (!form.url && !form.storageKey)}
-            onClick={() =>
-              void onSubmit({
-                title: form.title,
-                programId: form.programId,
-                source: form.source,
-                ...(form.source === 'S3' ? { storageKey: form.storageKey } : { url: form.url }),
-              })
-            }
-          >
-            إضافة كمسودة
-          </Button>
+
+          {mode === 'upload' &&
+            (storageConfigured ? (
+              <>
+                <div>
+                  <label className={labelClass}>
+                    ملف الفيديو (MP4 أو WebM أو MOV — حتى {Math.floor(uploadMaxBytes / (1024 * 1024))} ميغابايت)
+                  </label>
+                  <Input
+                    type="file"
+                    accept="video/mp4,video/webm,video/quicktime"
+                    onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                    dir="ltr"
+                  />
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    يذهب الملف من متصفحك مباشرة إلى التخزين الخاص، ولا يُنشر إلا بعد أن يتحقق السيرفر من وصوله وسلامته.
+                  </p>
+                </div>
+                {uploading && (
+                  <div className="space-y-1">
+                    <div className="h-2 w-full overflow-hidden rounded bg-slate-200">
+                      <div className="h-full bg-blue-600 transition-all" style={{ width: `${progress}%` }} />
+                    </div>
+                    <p className="text-[11px] text-slate-500">جارٍ الرفع... {progress}%</p>
+                  </div>
+                )}
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={onClose} disabled={uploading}>
+                    إغلاق
+                  </Button>
+                  {uploading ? (
+                    <Button
+                      variant="destructive"
+                      onClick={() => {
+                        xhrRef.current?.abort()
+                      }}
+                    >
+                      إلغاء الرفع
+                    </Button>
+                  ) : (
+                    <Button disabled={!file || !form.title || !form.programId} onClick={() => void startUpload()}>
+                      بدء الرفع
+                    </Button>
+                  )}
+                </div>
+              </>
+            ) : (
+              <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                الرفع المباشر غير متاح: التخزين الخاص غير مهيأ على السيرفر. يمكنك إضافة الفيديوهات بروابط بدلًا من ذلك.
+              </p>
+            ))}
         </div>
       </DialogContent>
     </Dialog>
