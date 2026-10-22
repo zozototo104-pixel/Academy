@@ -292,6 +292,8 @@ export function AdminWhatsAppInboxTab() {
                   {detailLoading ? <div className="flex h-40 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-[#075e54]" /></div> : messages.map((m) => {
                     const outbound = m.direction === 'OUTBOUND'
                     const isVoice = m.rawType === 'audio' || m.meta?.kind === 'VOICE' || Boolean(m.meta?.isVoice)
+                    const attachmentType = m.direction === 'INBOUND' && ['image', 'video', 'audio', 'document', 'sticker'].includes(m.rawType || '') ? m.rawType : null
+                    const attachmentUrl = attachmentType && m.meta?.mediaId ? `/api/admin/whatsapp-conversations/media?messageId=${encodeURIComponent(m.id)}` : null
                     return (
                       <div key={m.id} className={`flex ${outbound ? 'justify-start' : 'justify-end'}`}>
                         <div className={`max-w-[82%] rounded-3xl px-4 py-3 shadow-sm ${outbound ? 'rounded-bl-md bg-[#dcf8c6]' : 'rounded-br-md bg-white'}`}>
