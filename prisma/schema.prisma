@@ -260,6 +260,8 @@ model Unit {
   exam       Exam?
   studyGuides ProgramStudyGuide[]
   generationJobs UnitGenerationJob[]
+  lectureSeries LectureSeries[]
+  lectureVideos LectureVideoResource[]
 
   @@index([programId, semester])
   @@index([outlineSectionId])
