@@ -100,13 +100,16 @@ function textFromWhatsAppMessage(message: any) {
 }
 
 function mediaFromWhatsAppMessage(message: any) {
-  if (message?.type !== 'audio') return {}
-  const audio = message?.audio || {}
+  const type = trim(message?.type)
+  if (!['audio', 'image', 'video', 'document', 'sticker'].includes(type)) return {}
+  const media = message?.[type] || {}
   return {
-    mediaId: trim(audio?.id),
-    mediaMimeType: trim(audio?.mime_type),
-    mediaSha256: trim(audio?.sha256),
-    isVoice: Boolean(audio?.voice),
+    mediaId: trim(media?.id),
+    mediaMimeType: trim(media?.mime_type),
+    mediaSha256: trim(media?.sha256),
+    mediaCaption: compactText(media?.caption, 1200),
+    mediaFilename: compactText(media?.filename, 240),
+    isVoice: type === 'audio' && Boolean(media?.voice),
   }
 }
 
