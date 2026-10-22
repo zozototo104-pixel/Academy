@@ -11,6 +11,10 @@ import { db } from '@/lib/db'
 
 export const MAX_AUTO_RECHECKS = 3
 
+function activeDedupKey(questionId: string, reason: RecheckReason): string {
+  return `${questionId}:${reason}`
+}
+
 export const RECHECK_REASONS = ['REVIEW_PROFILE_CHANGED', 'NEW_EVIDENCE_AVAILABLE', 'MANUAL_ADMIN_RECHECK'] as const
 export type RecheckReason = (typeof RECHECK_REASONS)[number]
 
