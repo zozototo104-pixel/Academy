@@ -5,10 +5,15 @@ import {
   ADVISOR_READINESS_MIN_DAYS,
   ADVISOR_READINESS_MIN_STAGE_RUNS,
   evaluateStageReadiness,
+  type AdvisorReadinessReport,
 } from '@/lib/ai-advisor-readiness'
+import { buildAdvisorAdviceCandidates } from '@/lib/ai-advisor-advice'
 
 const source = readFileSync('src/lib/ai-advisor-readiness.ts', 'utf8')
+const adviceSource = readFileSync('src/lib/ai-advisor-advice.ts', 'utf8')
 const apiRoute = readFileSync('src/app/api/admin/ai-stage-profiles/route.ts', 'utf8')
+const advisorRoute = readFileSync('src/app/api/admin/ai-advisor/route.ts', 'utf8')
+const schema = readFileSync('prisma/schema.prisma', 'utf8')
 const adminComponent = readFileSync('src/components/aact/AdminAiStageProfiles.tsx', 'utf8')
 
 const base = {
