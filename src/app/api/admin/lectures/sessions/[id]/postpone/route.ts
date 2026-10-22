@@ -49,23 +49,28 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'وقت النهاية يجب أن يكون بعد وقت البداية' }, { status: 400 })
     }
 
-    const replacement = await db.lectureSession.create({
-      data: {
-        seriesId: session.seriesId,
-        title: session.title,
-        description: session.description,
-        startsAt: newStartsAt,
-        endsAt: newEndsAt,
-        deliveryMode: session.deliveryMode,
-        provider: session.provider,
-        meetingUrl: session.meetingUrl,
-        meetingPasscode: session.meetingPasscode,
-        status: 'SCHEDULED',
-      },
-    })
-    await db.lectureSession.update({
-      where: { id },
-      data: { status: 'RESCHEDULED', updatedById: actor.id },
+    // R-07: إنشاء البديل ووسم الأصل في معاملة واحدة — لا لقاء مؤجل
+    // بلا بديل، ولا بديل مكرر عند فشل جزئي.
+    const replacement = await db.$transaction(async (tx) => {
+      const created = await tx.lectureSession.create({
+        data: {
+          seriesId: session.seriesId,
+          title: session.title,
+          description: session.description,
+          startsAt: newStartsAt,
+          endsAt: newEndsAt,
+          deliveryMode: session.deliveryMode,
+          provider: session.provider,
+          meetingUrl: session.meetingUrl,
+          meetingPasscode: session.meetingPasscode,
+          status: 'SCHEDULED',
+        },
+      })
+      await tx.lectureSession.update({
+        where: { id },
+        data: { status: 'RESCHEDULED', updatedById: actor.id },
+      })
+      return created
     })
 
     const tz = session.series.timezone

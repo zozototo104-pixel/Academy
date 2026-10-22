@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { auditLecture, canManageProgram, requireLectureManager } from '@/lib/lectures/manage'
-import { headLectureObject, lectureVideoMaxBytes } from '@/lib/lectures/video-storage'
+import { headLectureObject, lectureVideoMaxBytes, LECTURE_UPLOAD_TYPES } from '@/lib/lectures/video-storage'
 
 const confirmSchema = z.object({ videoId: z.string().min(1) })
 
@@ -32,6 +32,14 @@ export async function POST(req: NextRequest) {
     }
     if (head.sizeBytes > lectureVideoMaxBytes()) {
       return NextResponse.json({ error: 'حجم الملف الفعلي يتجاوز الحد الأقصى المسموح' }, { status: 422 })
+    }
+    // R-06: النوع الفعلي المخزّن يجب أن يكون من الأنواع المسموحة —
+    // رابط الرفع الموقّع لا يفرض وحده ما يصل إلى التخزين فعلًا.
+    if (head.contentType && !(head.contentType in LECTURE_UPLOAD_TYPES)) {
+      return NextResponse.json(
+        { error: 'نوع الملف الفعلي غير مسموح — المسموح: MP4 و WebM و MOV' },
+        { status: 422 },
+      )
     }
     const updated = await db.lectureVideoResource.update({
       where: { id: video.id },

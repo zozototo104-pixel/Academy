@@ -37,6 +37,24 @@ describe('youtube', () => {
   })
 })
 
+describe('spoofed look-alike hosts are not providers (R-05)', () => {
+  test('suffix-lookalike domains fall back to EXTERNAL', () => {
+    expect(parseVideoUrl('https://evilyoutube.com/watch?v=dQw4w9WgXcQ')?.source).toBe('EXTERNAL')
+    expect(parseVideoUrl('https://notyoutube.com/watch?v=dQw4w9WgXcQ')?.source).toBe('EXTERNAL')
+    expect(parseVideoUrl('https://badfacebook.com/page/videos/1234567890123/')?.source).toBe('EXTERNAL')
+    expect(parseVideoUrl('https://evilmediadelivery.net/embed/1/abc')?.source).toBe('EXTERNAL')
+    expect(parseVideoUrl('https://www.youtube.com.evil.com/watch?v=dQw4w9WgXcQ')?.source).toBe('EXTERNAL')
+    expect(parseVideoUrl('https://fakecloudflarestream.com/0123456789abcdef0123456789abcdef/iframe')?.source).toBe('EXTERNAL')
+  })
+
+  test('real subdomains still match', () => {
+    expect(parseVideoUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ')?.source).toBe('YOUTUBE')
+    expect(parseVideoUrl('https://m.youtube.com/watch?v=dQw4w9WgXcQ')?.source).toBe('YOUTUBE')
+    expect(parseVideoUrl('https://www.facebook.com/page/videos/1234567890123/')?.source).toBe('FACEBOOK')
+    expect(parseVideoUrl('https://customer-x.cloudflarestream.com/0123456789abcdef0123456789abcdef/iframe')?.source).toBe('CLOUDFLARE')
+  })
+})
+
 describe('other providers', () => {
   test('vimeo public and private-hash forms', () => {
     const v = parseVideoUrl('https://vimeo.com/123456789')

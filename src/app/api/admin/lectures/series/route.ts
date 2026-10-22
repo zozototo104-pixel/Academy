@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { isLecturesEnabled } from '@/lib/lectures/config'
 import {
   auditLecture,
+  canManageProgram,
   isAdmin,
   notifyProgramStudents,
   programLecturesEnabled,
@@ -61,8 +62,22 @@ export async function POST(req: NextRequest) {
     if (!isAdmin(actor) && supervisorId !== actor.id) {
       return NextResponse.json({ error: 'المشرف يستطيع إنشاء سلاسل لنفسه فقط' }, { status: 403 })
     }
-    const supervisor = await db.user.findUnique({ where: { id: supervisorId }, select: { id: true } })
+    // R-01: المشرف لا يمنح نفسه نطاقًا جديدًا — إنشاء سلسلة في برنامج
+    // يشترط صلاحية قائمة عليه أصلًا (أول سلسلة في أي برنامج ينشئها
+    // الأدمن ويعيّن المشرف عليها)، وإلا صار إنشاء سلسلة بوابة لتصعيد
+    // الصلاحيات لأن نطاق الإدارة يُشتق من ملكية السلاسل.
+    if (!isAdmin(actor) && !(await canManageProgram(actor, input.programId))) {
+      return NextResponse.json(
+        { error: 'لا تملك صلاحية إدارة محاضرات هذا البرنامج — إنشاء أول سلسلة في برنامج من صلاحيات الإدارة' },
+        { status: 403 },
+      )
+    }
+    // R-04: المشرف المسند يجب أن يكون دوره فعليًا مشرفًا أو أدمن.
+    const supervisor = await db.user.findUnique({ where: { id: supervisorId }, select: { id: true, role: true } })
     if (!supervisor) return NextResponse.json({ error: 'المشرف غير موجود' }, { status: 400 })
+    if (supervisor.role !== 'SUPERVISOR' && supervisor.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'المستخدم المختار ليس مشرفًا' }, { status: 400 })
+    }
 
     if (input.unitId) {
       const unit = await db.unit.findFirst({ where: { id: input.unitId, programId: input.programId }, select: { id: true } })
@@ -82,35 +97,40 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'لا توجد لقاءات ضمن النطاق المحدد' }, { status: 400 })
     }
 
-    const series = await db.lectureSeries.create({
-      data: {
-        programId: input.programId,
-        unitId: input.unitId ?? null,
-        supervisorId,
-        createdById: actor.id,
-        title: input.title,
-        description: input.description ?? null,
-        weekday: input.recurring ? weekdayOf(input.startDate) : null,
-        timeOfDay: input.timeOfDay,
-        timezone: input.timezone,
-        durationMin: input.durationMin,
-        recurring: input.recurring,
-        active: true,
-      },
-    })
-    await db.lectureSession.createMany({
-      data: startsList.map((startsAt) => ({
-        seriesId: series.id,
-        title: input.title,
-        description: input.description ?? null,
-        startsAt,
-        endsAt: new Date(startsAt.getTime() + input.durationMin * 60_000),
-        deliveryMode: input.deliveryMode,
-        provider: input.provider,
-        meetingUrl: input.meetingUrl ?? null,
-        meetingPasscode: input.meetingPasscode ?? null,
-        status: 'SCHEDULED' as const,
-      })),
+    // R-07: إنشاء السلسلة ولقاءاتها في معاملة واحدة — لا سلسلة يتيمة
+    // بلا لقاءات عند فشل جزئي.
+    const series = await db.$transaction(async (tx) => {
+      const created = await tx.lectureSeries.create({
+        data: {
+          programId: input.programId,
+          unitId: input.unitId ?? null,
+          supervisorId,
+          createdById: actor.id,
+          title: input.title,
+          description: input.description ?? null,
+          weekday: input.recurring ? weekdayOf(input.startDate) : null,
+          timeOfDay: input.timeOfDay,
+          timezone: input.timezone,
+          durationMin: input.durationMin,
+          recurring: input.recurring,
+          active: true,
+        },
+      })
+      await tx.lectureSession.createMany({
+        data: startsList.map((startsAt) => ({
+          seriesId: created.id,
+          title: input.title,
+          description: input.description ?? null,
+          startsAt,
+          endsAt: new Date(startsAt.getTime() + input.durationMin * 60_000),
+          deliveryMode: input.deliveryMode,
+          provider: input.provider,
+          meetingUrl: input.meetingUrl ?? null,
+          meetingPasscode: input.meetingPasscode ?? null,
+          status: 'SCHEDULED' as const,
+        })),
+      })
+      return created
     })
 
     const first = startsList[0]

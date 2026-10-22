@@ -40,6 +40,12 @@ function parseStartSeconds(value: string | null): number | null {
 
 const YT_ID = /^[A-Za-z0-9_-]{11}$/
 
+// R-05: مطابقة دومين صارمة — الدومين نفسه أو نطاق فرعي حقيقي منه فقط.
+// endsWith الخام كان يمرّر دومينات مزيفة مثل evilyoutube.com.
+function hostIs(host: string, domain: string): boolean {
+  return host === domain || host.endsWith(`.${domain}`)
+}
+
 function parseYouTube(url: URL, host: string): ParsedVideo | null {
   let id: string | null = null
   if (host === 'youtu.be') {
@@ -85,10 +91,10 @@ export function parseVideoUrl(raw: string): ParsedVideo | null {
     startSeconds: null,
   }
 
-  if (host === 'youtu.be' || host.endsWith('youtube.com') || host.endsWith('youtube-nocookie.com')) {
+  if (host === 'youtu.be' || hostIs(host, 'youtube.com') || hostIs(host, 'youtube-nocookie.com')) {
     return parseYouTube(url, host) ?? base
   }
-  if (host === 'vimeo.com' || host === 'www.vimeo.com') {
+  if (hostIs(host, 'vimeo.com') && host !== 'player.vimeo.com') {
     const m = /^\/(\d{6,})(?:\/([A-Za-z0-9]+))?/.exec(url.pathname)
     if (m) {
       const hash = m[2] ?? url.searchParams.get('h')
@@ -123,7 +129,7 @@ export function parseVideoUrl(raw: string): ParsedVideo | null {
       }
     }
   }
-  if (host.endsWith('facebook.com')) {
+  if (hostIs(host, 'facebook.com')) {
     const videoId = /\/videos\/(\d{5,})/.exec(url.pathname)?.[1] ?? url.searchParams.get('v')
     if (videoId || url.pathname.includes('/watch')) {
       return {
@@ -146,13 +152,13 @@ export function parseVideoUrl(raw: string): ParsedVideo | null {
     const m = /^\/(?:share|embed)\/([A-Za-z0-9]+)/.exec(url.pathname)
     if (m) return { ...base, source: 'LOOM', embedId: m[1], embedUrl: `https://www.loom.com/embed/${m[1]}` }
   }
-  if (host.endsWith('mediadelivery.net')) {
+  if (hostIs(host, 'mediadelivery.net')) {
     // Bunny Stream embed URLs are already iframes; keep the URL as-is.
     if (url.pathname.startsWith('/embed/') || url.pathname.startsWith('/play/')) {
       return { ...base, source: 'BUNNY', embedId: url.pathname.split('/').filter(Boolean).at(-1) ?? null, embedUrl: url.toString() }
     }
   }
-  if (host.endsWith('cloudflarestream.com') || host === 'iframe.videodelivery.net') {
+  if (hostIs(host, 'cloudflarestream.com') || host === 'iframe.videodelivery.net') {
     const parts = url.pathname.split('/').filter(Boolean)
     const id = parts.find((p) => /^[A-Za-z0-9]{16,}$/.test(p))
     if (id) {

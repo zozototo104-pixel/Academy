@@ -44,6 +44,12 @@ describe('join window', () => {
   test('cancelled sessions never open', () => {
     expect(isJoinWindowOpen({ ...base, status: 'CANCELLED' }, at('2026-10-23T10:15:00Z'))).toBe(false)
   })
+
+  test('rescheduled sessions never open either (R-02: history rows stay closed server-side)', () => {
+    expect(isJoinWindowOpen({ ...base, status: 'RESCHEDULED' }, at('2026-10-23T09:45:00Z'))).toBe(false)
+    expect(isJoinWindowOpen({ ...base, status: 'RESCHEDULED' }, at('2026-10-23T10:15:00Z'))).toBe(false)
+    expect(isJoinWindowOpen({ ...base, status: 'RESCHEDULED' }, at('2026-10-23T11:30:00Z'))).toBe(false)
+  })
 })
 
 describe('public session projection', () => {

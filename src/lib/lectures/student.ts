@@ -30,7 +30,9 @@ export function joinOpensAt(session: SessionTimes): Date {
 }
 
 export function isJoinWindowOpen(session: SessionTimes, now: Date = new Date()): boolean {
-  if (session.status === 'CANCELLED') return false
+  // R-02: الملغاة والمؤجلة (المُعاد جدولتها) لا تُفتح أبدًا — اللقاء
+  // المؤجل سجل تاريخي وبديله يحمل الرابط والموعد الجديدين.
+  if (session.status === 'CANCELLED' || session.status === 'RESCHEDULED') return false
   const t = now.getTime()
   return t >= joinOpensAt(session).getTime() && t <= session.endsAt.getTime()
 }

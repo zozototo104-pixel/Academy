@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { isLecturesEnabled } from '@/lib/lectures/config'
 import { isAdmin, requireLectureManager } from '@/lib/lectures/manage'
 import { isLectureStorageConfigured, lectureVideoMaxBytes } from '@/lib/lectures/video-storage'
 
@@ -8,6 +9,10 @@ import { isLectureStorageConfigured, lectureVideoMaxBytes } from '@/lib/lectures
 export async function GET(req: NextRequest) {
   try {
     const actor = await requireLectureManager()
+    // R-03: القوائم تحترم مفتاح الميزة مثل مسارات الإنشاء تمامًا.
+    if (!isLecturesEnabled()) {
+      return NextResponse.json({ error: 'المحاضرات غير مفعّلة حاليًا' }, { status: 404 })
+    }
     const programId = req.nextUrl.searchParams.get('programId') ?? undefined
 
     let programScope: string[] | undefined

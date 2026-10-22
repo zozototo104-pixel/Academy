@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { isLecturesEnabled } from '@/lib/lectures/config'
 import { isAdmin, requireLectureManager } from '@/lib/lectures/manage'
 
 // GET /api/admin/lectures/sessions/list — قائمة اللقاءات لشاشة الإدارة.
@@ -8,6 +9,10 @@ import { isAdmin, requireLectureManager } from '@/lib/lectures/manage'
 export async function GET(req: NextRequest) {
   try {
     const actor = await requireLectureManager()
+    // R-03: القوائم تحترم مفتاح الميزة مثل مسارات الإنشاء تمامًا.
+    if (!isLecturesEnabled()) {
+      return NextResponse.json({ error: 'المحاضرات غير مفعّلة حاليًا' }, { status: 404 })
+    }
     const q = req.nextUrl.searchParams
     const programId = q.get('programId') ?? undefined
     const status = q.get('status') ?? undefined
