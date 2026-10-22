@@ -166,25 +166,41 @@ export function AdminAiStageProfiles() {
   const [data, setData] = useState<ResponseData | null>(null)
   const [forms, setForms] = useState<Record<Stage, FormState> | null>(null)
 
+  const applyResponse = useCallback((res: ResponseData) => {
+    setData(res)
+    setForms(formsFromResponse(res))
+  }, [])
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
       const res = await api<ResponseData>('/api/admin/ai-stage-profiles')
-      setData(res)
-      const nextForms = Object.fromEntries(
-        res.stages.map((stage) => [stage.stage, snapshotToForm(stage.current?.snapshot ?? null)]),
-      ) as Record<Stage, FormState>
-      setForms(nextForms)
+      applyResponse(res)
     } catch (error: any) {
       toast({ title: 'تعذر تحميل بروفايلات الذكاء', description: error?.message, variant: 'destructive' })
     } finally {
       setLoading(false)
     }
-  }, [toast])
+  }, [applyResponse, toast])
 
   useEffect(() => {
-    void load()
-  }, [load])
+    let cancelled = false
+    api<ResponseData>('/api/admin/ai-stage-profiles')
+      .then((res) => {
+        if (!cancelled) applyResponse(res)
+      })
+      .catch((error: any) => {
+        if (!cancelled) {
+          toast({ title: 'تعذر تحميل بروفايلات الذكاء', description: error?.message, variant: 'destructive' })
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [applyResponse, toast])
 
   const stageByName = useMemo(() => new Map((data?.stages ?? []).map((stage) => [stage.stage, stage])), [data])
 
