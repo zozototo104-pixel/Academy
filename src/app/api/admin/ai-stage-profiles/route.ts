@@ -18,6 +18,31 @@ function isStage(value: unknown): value is PipelineStageName {
   return typeof value === 'string' && (STAGES as readonly string[]).includes(value)
 }
 
+function modelRefsKey(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .filter((item): item is { provider: unknown; model: unknown } => !!item && typeof item === 'object')
+    .map((item) => `${String(item.provider || '')}:${String(item.model || '')}`)
+}
+
+function snapshotKey(snapshot: unknown): string {
+  const value = (snapshot && typeof snapshot === 'object' ? snapshot : {}) as Record<string, any>
+  const verifier = value.verifier && typeof value.verifier === 'object' ? value.verifier as Record<string, any> : null
+  return JSON.stringify({
+    enabled: !!value.enabled,
+    provider: value.provider ?? null,
+    policy: value.policy ?? null,
+    models: modelRefsKey(value.models),
+    allowGlobalFallback: value.allowGlobalFallback !== false,
+    verifier: verifier
+      ? {
+          preferred: modelRefsKey(verifier.preferred),
+          strict: !!verifier.strict,
+        }
+      : null,
+  })
+}
+
 async function stageStats(stage: PipelineStageName) {
   const [runs, successes, failures, fallbacks] = await Promise.all([
     db.aiPipelineOperationLog.count({ where: { stage } }),
