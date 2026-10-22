@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
-import { Loader2, RefreshCw, Save } from 'lucide-react'
+import { Loader2, RefreshCw, RotateCcw, Save } from 'lucide-react'
 
 type Stage = 'READING' | 'ANALYSIS' | 'GENERATION' | 'REVIEW'
 type ModelRef = { provider: string; model: string }
