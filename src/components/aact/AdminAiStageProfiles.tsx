@@ -602,6 +602,8 @@ export function AdminAiStageProfiles() {
         }
         const diff = draftSnapshot ? describeSnapshotDiff(currentSnapshot, draftSnapshot, stageName) : []
         const hasChanges = diff.length > 0
+        const loadedDraftForStage = loadedAdvisorDraft?.stage === stageName ? loadedAdvisorDraft : null
+        const loadedDraftStillExact = !!loadedDraftForStage && !!draftSnapshot && loadedDraftForStage.snapshotKey === snapshotKey(draftSnapshot)
         const disabled = savingStage === stageName || !!draftError || !hasChanges
         return (
           <Card key={stageName} className="overflow-hidden border-slate-200">
