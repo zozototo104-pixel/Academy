@@ -456,7 +456,7 @@ export function AdminAiStageProfiles() {
               <div>
                 <h3 className="text-base font-black text-blue-950">E0 — تقرير جاهزية المستشار</h3>
                 <p className="mt-1 text-xs leading-6 text-blue-900/75">
-                  هذا التقرير يقرأ سجلات D0 فقط ولا يكتب أي توصية. العتبة: {data.advisorReadiness.gates.minStageRuns} تشغيل و{data.advisorReadiness.gates.minDays} يوم لكل مرحلة.
+                  هذا التقرير يقرأ سجلات D0 فقط ولا يكتب أي توصية. العتبة: {data.advisorReadiness.gates.minStageRuns} تشغيل و{data.advisorReadiness.gates.minDays} يوم لكل مرحلة، و{data.advisorReadiness.gates.minModelRuns ?? 30} تشغيل للموديل قبل نصيحته.
                 </p>
               </div>
               <Badge className={data.advisorReadiness.allStagesReady ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}>
