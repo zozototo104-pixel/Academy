@@ -34,7 +34,7 @@ export type AdvisorAdviceCandidate = {
   title: string
   rationale: string
   evidence: Record<string, unknown>
-  proposedSnapshot: null
+  proposedSnapshot: StageProfileSnapshot | null
 }
 
 export type AdvisorAdviceCandidateWithSignature = AdvisorAdviceCandidate & {
