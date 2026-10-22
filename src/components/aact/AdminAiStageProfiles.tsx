@@ -356,6 +356,21 @@ export function AdminAiStageProfiles() {
                 </div>
               </div>
 
+              {(draftError || hasChanges) && (
+                <div className={draftError ? 'rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700' : 'rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800'}>
+                  {draftError ? (
+                    <p className="font-bold">{draftError}</p>
+                  ) : (
+                    <>
+                      <p className="font-black">معاينة التغييرات قبل إنشاء نسخة جديدة:</p>
+                      <ul className="mt-2 list-disc space-y-1 pr-5 text-xs leading-6">
+                        {diff.map((item) => <li key={item}>{item}</li>)}
+                      </ul>
+                    </>
+                  )}
+                </div>
+              )}
+
               <div className="grid gap-4 lg:grid-cols-2">
                 <div className="space-y-3 rounded-xl border border-slate-100 p-3">
                   <div className="flex flex-wrap items-center gap-4">
