@@ -93,4 +93,22 @@ describe('D2.1 reading wiring: scope guards', () => {
     expect(reader).toContain('preferredModels')
     expect(reader).toContain('fallbackUsed: !isStage')
   })
+
+  test('D2.1b: a stage profile is a hard allowlist, not a hint', () => {
+    const reader = readFileSync('src/lib/book-reader.ts', 'utf8')
+    // the strict attempt restricts the router to the profile's models
+    expect(reader).toContain('restrictToModels')
+    // all-stage-models failure: one global retry only when the profile
+    // allows it, marked with the agreed reason; otherwise the run fails
+    expect(reader).toContain('all-stage-models-failed')
+    expect(reader).toContain('if (!overrides.allowGlobalFallback) throw error')
+    expect(reader).toContain('fellBack: true')
+  })
+
+  test('D2.1b: the router enforces restrictToModels on providers and candidates', () => {
+    const router = readFileSync('src/lib/text-ai.ts', 'utf8')
+    expect(router).toContain('restrictToModels?: TextAiPreferredModel[]')
+    expect(router).toContain('applyModelRestriction(')
+    expect(router).toContain('restrictSet.has(provider)')
+  })
 })

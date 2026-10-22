@@ -51,6 +51,10 @@ export interface TextAiCallOpts {
   excludeProviders?: TextAiProvider[]
   preferredProviders?: TextAiProvider[]
   preferredModels?: TextAiPreferredModel[]
+  // D2.1b: hard per-call restriction for stage profiles — when set, ONLY
+  // these provider/model pairs may be attempted (a true allowlist, not a
+  // preference). Unset (the default everywhere) = no effect at all.
+  restrictToModels?: TextAiPreferredModel[]
   maxProviderModels?: Partial<Record<Exclude<TextAiProvider, 'AUTO'>, number>>
   providerRateLimitCooldown?: { provider: Exclude<TextAiProvider, 'AUTO'>; threshold: number; windowMs: number; cooldownMinutes: number }
   excludeModelFamilies?: string[]
@@ -2998,6 +3002,19 @@ function providerModelListContains(list: readonly TextAiPreferredModel[], provid
   return list.some((item) => item.provider === provider && item.model.toLowerCase() === model.toLowerCase())
 }
 
+// D2.1b: per-call hard restriction (stage-profile allowlist). Returns the
+// subset of `models` allowed for `provider`, or the list unchanged when
+// no restriction was requested.
+function applyModelRestriction(models: string[], provider: string, restrictToModels?: readonly TextAiPreferredModel[]): string[] {
+  if (!restrictToModels?.length) return models
+  const allowed = new Set(restrictToModels.filter((m) => m.provider === provider).map((m) => m.model.toLowerCase()))
+  return models.filter((model) => allowed.has(model.toLowerCase()))
+}
+
+export function __testApplyModelRestrictionForTests(models: string[], provider: string, restrictToModels?: readonly TextAiPreferredModel[]): string[] {
+  return applyModelRestriction(models, provider, restrictToModels)
+}
+
 function strictCandidateModelsForRequest(s: Settings, provider: ConcreteProvider, models: string[], taskLevel: TextAiTaskLevel, verifierCall: boolean): string[] {
   if (verifierCall) return s.verifierStrict ? models.filter((model) => providerModelListContains(s.verifierPreferred, provider, model)) : models
   if (taskLevel !== 'GENERAL' && s.academicAllowlistStrict) return models.filter((model) => providerModelListContains(s.academicAllowlist, provider, model))
@@ -3206,6 +3223,10 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     })
     : baseOrderedProviders
   let providers = orderedProviders
+  const restrictSet = (effectiveOpts.restrictToModels?.length)
+    ? new Set(effectiveOpts.restrictToModels.map((m) => m.provider as string))
+    : null
+  if (restrictSet) providers = providers.filter((provider) => restrictSet.has(provider))
   if (!providers.length) {
     if (isVerifierCall(effectiveOpts)) throw verifierUnavailable([])
     if (taskLevel === 'ACADEMIC_CRITICAL') throw academicProviderUnavailable([])
@@ -3234,6 +3255,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   if (stickyScope && stickyResolution.deleteSticky) stickyModels.delete(stickyScope)
   const usableSticky = stickyResolution.sticky
   if (usableSticky) providers = [usableSticky.provider, ...providers.filter((provider) => provider !== usableSticky.provider)]
+  if (restrictSet) providers = providers.filter((provider) => restrictSet.has(provider))
   const estimatedInputTokens = estimatePromptTokens(effectiveOpts.system, effectiveOpts.history)
   const estimatedOutputTokens = Number(effectiveOpts.maxOutputTokens || (effectiveOpts.json ? 4096 : 2048))
   await enforceAiUserDailyCostCap({
@@ -3271,7 +3293,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     const fallbackModels = verifierCall && s.verifierStrict ? [] : await modelFallbacks(s, provider, taskLevel, exploreModels, effectiveOpts.purpose)
     const sameProviderAlborihiReview = allowAlborihiCrossFamilyVerifier && provider === 'ALBORIHI'
     const discoveredAlborihiModels = sameProviderAlborihiReview ? freeModelDiscoveryEntry('ALBORIHI', s) : null
-    const candidateModels = strictCandidateModelsForRequest(s, provider, [...new Set([...providerPreferredModels, ...fallbackModels])], taskLevel, verifierCall)
+    const candidateModels = applyModelRestriction(strictCandidateModelsForRequest(s, provider, [...new Set([...providerPreferredModels, ...fallbackModels])], taskLevel, verifierCall), provider, effectiveOpts.restrictToModels)
       .filter((model) => !discoveredAlborihiModels?.discoveryOk || discoveredAlborihiModels.models.some((id) => id.toLowerCase() === model.toLowerCase()))
     const eligibleFamily = (model: string) => {
       if (!sameProviderAlborihiReview) return modelFamilyAllowed(model, excludedFamilies)

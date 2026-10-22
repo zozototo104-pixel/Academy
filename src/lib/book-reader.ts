@@ -68,7 +68,7 @@ export async function extractNumberedPdfPages(buffer: Buffer, pageNumbers: reado
   }
 }
 
-async function transcribeWithMeta(buffer: Buffer, pageNumbers: readonly number[], deadlineMs: number, overrides: { preferredModels: { provider: string; model: string }[]; preferredProviders: string[]; policy: string | null } | null): Promise<{ pages: ExtractedBookPage[]; provider: string; model: string }> {
+async function transcribeOnce(buffer: Buffer, pageNumbers: readonly number[], deadlineMs: number, overrides: { preferredModels: { provider: string; model: string }[]; preferredProviders: string[]; policy: string | null } | null): Promise<{ pages: ExtractedBookPage[]; provider: string; model: string }> {
   if (!pageNumbers.length || pageNumbers.length > 8) throw new Error('OCR_PAGE_RANGE_INVALID')
   if (deadlineMs - Date.now() < 25_000) throw new Error('BOOK_READ_TIME_BUDGET_EXHAUSTED')
   const original = await PDFDocument.load(buffer)
@@ -81,7 +81,7 @@ async function transcribeWithMeta(buffer: Buffer, pageNumbers: readonly number[]
     history: [{ role: 'user', text: `الملف يحتوي ${pageNumbers.length} صفحات بالترتيب. أرجع JSON فقط بالشكل {"pages":[{"page":1,"text":"النص الحرفي"}]}، حيث page هو رقم الصفحة داخل الملف الفرعي من 1 إلى ${pageNumbers.length}. لا تخترع نصاً ولا تلخص.` }],
     purpose: 'VISION',
     routerPolicy: (overrides?.policy ?? 'primary_first') as TextAiRouterPolicy,
-    ...(overrides?.preferredModels.length ? { preferredModels: overrides.preferredModels.map((m) => ({ provider: m.provider as TextAiPreferredModel['provider'], model: m.model })) } : {}),
+    ...(overrides?.preferredModels.length ? { preferredModels: overrides.preferredModels.map((m) => ({ provider: m.provider as TextAiPreferredModel['provider'], model: m.model })), restrictToModels: overrides.preferredModels.map((m) => ({ provider: m.provider as TextAiPreferredModel['provider'], model: m.model })) } : {}),
     ...(overrides?.preferredProviders.length ? { preferredProviders: overrides.preferredProviders as TextAiProvider[] } : {}),
     maxOutputTokens: 16000,
     deadlineMs: Math.min(deadlineMs - 10_000, Date.now() + 90_000),
@@ -97,6 +97,19 @@ async function transcribeWithMeta(buffer: Buffer, pageNumbers: readonly number[]
   return { pages, provider: meta.provider, model: meta.model }
 }
 
+// D2.1b: مع بروفايل مرحلة، المحاولة الأولى محصورة بقائمته حصرًا صارمًا.
+// فشل الكل: رجوع واحد للعام إن سمح البروفايل (ويُعلَّم fellBack)،
+// وإلا يفشل النداء بوضوح كما فشل.
+async function transcribeWithMeta(buffer: Buffer, pageNumbers: readonly number[], deadlineMs: number, overrides: { preferredModels: { provider: string; model: string }[]; preferredProviders: string[]; policy: string | null; allowGlobalFallback: boolean } | null): Promise<{ pages: ExtractedBookPage[]; provider: string; model: string; fellBack: boolean }> {
+  if (!overrides) return { ...(await transcribeOnce(buffer, pageNumbers, deadlineMs, null)), fellBack: false }
+  try {
+    return { ...(await transcribeOnce(buffer, pageNumbers, deadlineMs, overrides)), fellBack: false }
+  } catch (error) {
+    if (!overrides.allowGlobalFallback) throw error
+    return { ...(await transcribeOnce(buffer, pageNumbers, deadlineMs, null)), fellBack: true }
+  }
+}
+
 export async function transcribeScannedDocumentWithVision(buffer: Buffer, pageNumbers: readonly number[], deadlineMs = Date.now() + 120_000): Promise<ExtractedBookPage[]> {
   return (await transcribeWithMeta(buffer, pageNumbers, deadlineMs, null)).pages
 }
@@ -107,7 +120,7 @@ export type ExtractStepStore = {
 }
 
 /** One durable batch is at most eight pages. Progress advances only after every chunk is saved. */
-async function extractPdfBatchInner(input: { buffer: Buffer; bookId: string; programId: string; jobId: string; pagesDone: number; totalPages: number; existingChunks: number; store: ExtractStepStore; deadlineMs: number; extractPages?: typeof extractNumberedPdfPages; ocrPages?: typeof transcribeScannedDocumentWithVision; routing?: { preferredModels: { provider: string; model: string }[]; preferredProviders: string[]; policy: string | null } | null; aiUsage?: { provider: string | null; model: string | null } }): Promise<{ pagesDone: number; totalPages: number; totalChunks: number; phase: 'EXTRACT' | 'ANALYZE' }> {
+async function extractPdfBatchInner(input: { buffer: Buffer; bookId: string; programId: string; jobId: string; pagesDone: number; totalPages: number; existingChunks: number; store: ExtractStepStore; deadlineMs: number; extractPages?: typeof extractNumberedPdfPages; ocrPages?: typeof transcribeScannedDocumentWithVision; routing?: { preferredModels: { provider: string; model: string }[]; preferredProviders: string[]; policy: string | null; allowGlobalFallback: boolean } | null; aiUsage?: { provider: string | null; model: string | null; fallbackUsed?: boolean } }): Promise<{ pagesDone: number; totalPages: number; totalChunks: number; phase: 'EXTRACT' | 'ANALYZE' }> {
   const { buffer, bookId, programId, jobId, store } = input
   if (Date.now() >= input.deadlineMs) throw new Error('BOOK_EXTRACT_DEADLINE')
   const lastPage = Math.min(input.totalPages, input.pagesDone + 8)
@@ -120,7 +133,7 @@ async function extractPdfBatchInner(input: { buffer: Buffer; bookId: string; pro
       ? await input.ocrPages(buffer, range, input.deadlineMs)
       : await (async () => {
           const meta = await transcribeWithMeta(buffer, range, input.deadlineMs, input.routing ?? null)
-          if (input.aiUsage) { input.aiUsage.provider = meta.provider; input.aiUsage.model = meta.model }
+          if (input.aiUsage) { input.aiUsage.provider = meta.provider; input.aiUsage.model = meta.model; if (meta.fellBack) input.aiUsage.fallbackUsed = true }
           return meta.pages
         })()
     for (const page of ocr) pageMap.set(page.page, page)
@@ -151,12 +164,12 @@ export async function extractPdfBatch(input: Parameters<typeof extractPdfBatchIn
   } catch {
     overrides = { kind: 'resolution-error' }
   }
-  const aiUsage = { provider: null as string | null, model: null as string | null }
+  const aiUsage = { provider: null as string | null, model: null as string | null, fallbackUsed: false }
   const isStage = overrides.kind === 'stage'
-  let routing: { preferredModels: { provider: string; model: string }[]; preferredProviders: string[]; policy: string | null } | null = null
+  let routing: { preferredModels: { provider: string; model: string }[]; preferredProviders: string[]; policy: string | null; allowGlobalFallback: boolean } | null = null
   let profileStamp: { profileId: string; profileVersion: string; policy: string | null; allowedModels: string[] } | undefined
   if (overrides.kind === 'stage') {
-    routing = { preferredModels: overrides.preferredModels, preferredProviders: overrides.preferredProviders, policy: overrides.policy }
+    routing = { preferredModels: overrides.preferredModels, preferredProviders: overrides.preferredProviders, policy: overrides.policy, allowGlobalFallback: overrides.allowGlobalFallback }
     profileStamp = {
       profileId: overrides.profileId,
       profileVersion: String(overrides.version),
@@ -170,7 +183,7 @@ export async function extractPdfBatch(input: Parameters<typeof extractPdfBatchIn
   return withPipelineRun(
     { stage: 'READING', bookId: input.bookId, batchId: input.jobId, inputData: input.buffer, profileStamp, fallbackUsed: !isStage, detail },
     () => extractPdfBatchInner({ ...input, routing, aiUsage }),
-    (r) => ({ provider: aiUsage.provider, model: aiUsage.model, outputCount: r.totalChunks, detail: { pagesDone: r.pagesDone, totalPages: r.totalPages, phase: r.phase } }),
+    (r) => ({ provider: aiUsage.provider, model: aiUsage.model, outputCount: r.totalChunks, fallbackUsed: aiUsage.fallbackUsed || undefined, detail: { pagesDone: r.pagesDone, totalPages: r.totalPages, phase: r.phase, ...(aiUsage.fallbackUsed ? { fallbackReason: 'all-stage-models-failed' } : {}) } }),
   )
 }
 
