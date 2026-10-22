@@ -145,6 +145,7 @@ describe('D3.2a queue layer: claim and completion are recommendation-only', () =
     const claimed = await queue.claimNextRecheckTasks(1)
     await queue.failRecheckTask(claimed[0].id, 'router unavailable')
     expect(tasks[0].status).toBe('FAILED')
+    expect(tasks[0].activeDedupKey).toBeNull()
     expect(tasks[0].error).toBe('router unavailable')
     expect(tasks[0].recommendation).toBeNull()
   })
