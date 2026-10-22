@@ -123,14 +123,26 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => null)
     const stage = (body as { stage?: unknown } | null)?.stage
     const snapshot = (body as { snapshot?: unknown } | null)?.snapshot
+    const advisorAdviceId = (body as { advisorAdviceId?: unknown } | null)?.advisorAdviceId
     if (!isStage(stage)) return NextResponse.json({ error: 'مرحلة غير صالحة' }, { status: 400 })
+    const validatedSnapshot = validateStageProfileSnapshot(stage, snapshot)
     const current = await getCurrentStageProfile(stage)
-    if (current && snapshotKey(current.snapshot) === snapshotKey(snapshot)) {
+    const currentProfileVersion = current?.version ?? 0
+    if (current && snapshotKey(current.snapshot) === snapshotKey(validatedSnapshot)) {
       return NextResponse.json({ error: 'لا يوجد تغيير للحفظ' }, { status: 409 })
     }
-    const saved = await saveStageProfile(stage, snapshot as StageProfileSnapshot, actor.id)
+    if (advisorAdviceId != null) {
+      if (typeof advisorAdviceId !== 'string' || !advisorAdviceId.trim()) {
+        return NextResponse.json({ error: 'معرّف توصية المستشار غير صالح' }, { status: 400 })
+      }
+      await validateAdvisorAdviceApplication(advisorAdviceId.trim(), stage, validatedSnapshot, currentProfileVersion)
+    }
+    const saved = await saveStageProfile(stage, validatedSnapshot, actor.id)
+    if (typeof advisorAdviceId === 'string' && advisorAdviceId.trim()) {
+      await markAdvisorAdviceApplied(advisorAdviceId.trim(), actor.id, saved.version)
+    }
     const payload = await stagePayload(stage)
-    return NextResponse.json({ saved, stage: payload })
+    return NextResponse.json({ saved, stage: payload, advisorAdviceId: typeof advisorAdviceId === 'string' ? advisorAdviceId.trim() : null })
   } catch (error: any) {
     if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'غير مصرّح' }, { status: 401 })
     if (error instanceof StageProfileValidationError) {
