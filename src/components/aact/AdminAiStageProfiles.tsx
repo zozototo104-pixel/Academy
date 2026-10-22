@@ -548,10 +548,14 @@ export function AdminAiStageProfiles() {
                     </div>
                     <p className="mt-2 text-xs leading-6 text-slate-600">{advice.rationale}</p>
                     <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-slate-500 sm:grid-cols-4">
-                      <span>التشغيلات: <b>{String(advice.evidence?.['totalRuns'] ?? '—')}</b></span>
-                      <span>الفشل: <b>{String(advice.evidence?.['failureRatePct'] ?? '—')}%</b></span>
-                      <span>الرجوع: <b>{String(advice.evidence?.['fallbackRatePct'] ?? '—')}%</b></span>
-                      <span>الكلفة: <b>{String(advice.evidence?.['costCoveragePct'] ?? '—')}%</b></span>
+                      <span>الموديل: <b dir="ltr">{advice.evidence?.['targetProvider'] ? `${String(advice.evidence?.['targetProvider'])}/${String(advice.evidence?.['targetModel'])}` : '—'}</b></span>
+                      <span>تشغيلات الموديل: <b>{String(advice.evidence?.['modelRuns'] ?? advice.evidence?.['totalRuns'] ?? '—')}</b></span>
+                      <span>فشل الموديل: <b>{String(advice.evidence?.['modelFailureRatePct'] ?? advice.evidence?.['failureRatePct'] ?? '—')}%</b></span>
+                      <span>رجوع الموديل: <b>{String(advice.evidence?.['modelFallbackRatePct'] ?? advice.evidence?.['fallbackRatePct'] ?? '—')}%</b></span>
+                      {advice.evidence?.['replacementProvider'] && (
+                        <span>بديل مقترح: <b dir="ltr">{String(advice.evidence?.['replacementProvider'])}/{String(advice.evidence?.['replacementModel'])}</b></span>
+                      )}
+                      <span>تغطية الكلفة: <b>{String(advice.evidence?.['costCoveragePct'] ?? '—')}%</b></span>
                     </div>
                     {advice.proposedSnapshot && (
                       <div className="mt-3 rounded-lg border border-indigo-100 bg-indigo-50 p-3 text-[11px] leading-5 text-indigo-900">
