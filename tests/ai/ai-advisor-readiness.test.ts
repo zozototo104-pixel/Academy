@@ -138,7 +138,7 @@ describe('E1 advisor advice', () => {
     expect(advisorRoute).toContain('generateAdvisorAdvice(')
     expect(advisorRoute).toContain('dismissAdvisorAdvice(')
     expect(advisorRoute).not.toContain('saveStageProfile(')
-    expect(adminComponent).toContain('E1 — توصيات المستشار')
+    expect(adminComponent).toContain('E1/E2 — توصيات المستشار')
     expect(adminComponent).toContain('توليد توصيات E1')
     expect(adminComponent).toContain('إغلاق التوصية')
     expect(adminComponent).not.toContain('applyAdvice')
