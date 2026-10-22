@@ -360,6 +360,7 @@ export function SupervisorView() {
                   <TabsTrigger value="chat" className="text-[11px] font-black"><MessageCircle className="ml-1 h-3.5 w-3.5" /> محادثة الطالب</TabsTrigger>
                   <TabsTrigger value="exams" className="text-[11px] font-black"><ClipboardCheck className="ml-1 h-3.5 w-3.5" /> اختبارات وواجبات</TabsTrigger>
                   <TabsTrigger value="private" className="text-[11px] font-black"><Sparkles className="ml-1 h-3.5 w-3.5" /> اختبار خاص</TabsTrigger>
+                  <TabsTrigger value="lectures" className="text-[11px] font-black"><Video className="ml-1 h-3.5 w-3.5" /> محاضراتي</TabsTrigger>
                   <TabsTrigger value="thesis" className="text-[11px] font-black"><FileText className="ml-1 h-3.5 w-3.5" /> بحث ومناقشة</TabsTrigger>
                 </TabsList>
 
