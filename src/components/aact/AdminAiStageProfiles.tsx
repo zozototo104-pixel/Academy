@@ -493,6 +493,14 @@ export function AdminAiStageProfiles() {
                           <span>الرجوع للعام: <b>{advice.proposedSnapshot.allowGlobalFallback ? 'مسموح' : 'ممنوع'}</b></span>
                           <span>الموديلات: <b>{advice.proposedSnapshot.models.length + (advice.proposedSnapshot.verifier?.preferred.length ?? 0)}</b></span>
                         </div>
+                        <Button
+                          className="mt-3"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => loadAdvisorDraftIntoForm(advice)}
+                        >
+                          تحميل المسودة للمراجعة اليدوية
+                        </Button>
                       </div>
                     )}
                     <p className="mt-2 text-[11px] text-slate-400">أُنشئت: {fmtDate(advice.createdAt)}</p>
