@@ -120,16 +120,37 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
       const params = new URLSearchParams()
       if (filterProgram) params.set('programId', filterProgram)
       if (filterStatus) params.set('status', filterStatus)
-      const [ses, vid, prog] = await Promise.all([
+      const [ses, vid, prog, scopedSeries] = await Promise.all([
         api<{ sessions: SessionRow[] }>(`/api/admin/lectures/sessions/list?${params.toString()}`),
         api<{ videos: VideoRow[]; storageConfigured?: boolean; uploadMaxBytes?: number }>('/api/admin/lectures/videos/list'),
         api<{ programs: ProgramOption[] }>('/api/programs').catch(() => ({ programs: [] as ProgramOption[] })),
+        surface === 'supervisor'
+          ? api<{ series: SeriesScopeRow[] }>('/api/admin/lectures/series').catch(() => ({ series: [] as SeriesScopeRow[] }))
+          : Promise.resolve({ series: [] as SeriesScopeRow[] }),
       ])
-      setSessions(ses.sessions || [])
-      setVideos(vid.videos || [])
+      const nextSessions = ses.sessions || []
+      const nextVideos = vid.videos || []
+      const allPrograms = prog.programs || []
+      let visiblePrograms = allPrograms
+      if (surface === 'supervisor') {
+        const allowedProgramIds = new Set<string>()
+        for (const series of scopedSeries.series || []) allowedProgramIds.add(series.programId)
+        for (const session of nextSessions) allowedProgramIds.add(session.series.programId)
+        for (const video of nextVideos) allowedProgramIds.add(video.programId)
+        visiblePrograms = allPrograms.filter((program) => allowedProgramIds.has(program.id))
+        const known = new Set(visiblePrograms.map((program) => program.id))
+        for (const series of scopedSeries.series || []) {
+          if (!known.has(series.programId)) {
+            visiblePrograms.push({ id: series.programId, titleAr: series.program?.titleAr || 'برنامج محاضرات', units: [] })
+            known.add(series.programId)
+          }
+        }
+      }
+      setSessions(nextSessions)
+      setVideos(nextVideos)
       setStorageConfigured(Boolean(vid.storageConfigured))
       setUploadMaxBytes(vid.uploadMaxBytes ?? 0)
-      setPrograms(prog.programs || [])
+      setPrograms(visiblePrograms)
       setDisabled(false)
       setError(null)
     } catch (e: any) {
@@ -138,17 +159,21 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
     } finally {
       setLoading(false)
     }
-  }, [filterProgram, filterStatus])
+  }, [filterProgram, filterStatus, surface])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
       void load()
     }, 0)
-    api<{ supervisors: SupervisorOption[] }>('/api/admin/supervisors')
-      .then((r) => setSupervisors(r.supervisors || []))
-      .catch(() => setSupervisors([]))
+    if (surface === 'admin') {
+      api<{ supervisors: SupervisorOption[] }>('/api/admin/supervisors')
+        .then((r) => setSupervisors(r.supervisors || []))
+        .catch(() => setSupervisors([]))
+    } else {
+      setSupervisors([])
+    }
     return () => window.clearTimeout(timer)
-  }, [load])
+  }, [load, surface])
 
   const act = useCallback(
     async (fn: () => Promise<unknown>, success: string) => {
