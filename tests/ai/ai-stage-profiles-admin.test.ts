@@ -11,6 +11,7 @@ describe('D4 admin AI stage profiles surface', () => {
     expect(apiRoute).toContain('saveStageProfile(')
     expect(apiRoute).toContain('getCurrentStageProfile(')
     expect(apiRoute).toContain('listStageProfileVersions(')
+    expect(apiRoute).toContain("return NextResponse.json({ error: 'لا يوجد تغيير للحفظ' }, { status: 409 })")
     expect(apiRoute).not.toContain('questionRecheckTask.create')
     expect(apiRoute).not.toContain('QuestionRecheck')
   })
