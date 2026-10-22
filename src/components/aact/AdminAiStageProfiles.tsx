@@ -326,10 +326,15 @@ export function AdminAiStageProfiles() {
                   </div>
                   <p className="mt-1 text-xs text-slate-500">{STAGE_DESCRIPTIONS[stageName]}</p>
                 </div>
-                <Button size="sm" disabled={disabled} onClick={() => void save(stageName)}>
-                  {disabled ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : <Save className="ml-1 h-4 w-4" />}
-                  حفظ نسخة جديدة
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" disabled={savingStage === stageName || !hasChanges} onClick={() => resetDraft(stageName)}>
+                    <RotateCcw className="ml-1 h-4 w-4" /> استرجاع الحالي
+                  </Button>
+                  <Button size="sm" disabled={disabled} onClick={() => void save(stageName)}>
+                    {savingStage === stageName ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : <Save className="ml-1 h-4 w-4" />}
+                    حفظ نسخة جديدة
+                  </Button>
+                </div>
               </div>
 
               <div className="grid gap-3 lg:grid-cols-4">
