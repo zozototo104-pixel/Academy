@@ -23,7 +23,7 @@ describe('D4 admin AI stage profiles surface', () => {
     expect(advisorRoute).not.toContain('saveStageProfile(')
   })
 
-  test('the UI is wired as a D4 profile/log tab with E0 readiness and E1/E2 review-only advice', () => {
+  test('the UI is wired as a D4 profile/log tab with E0 readiness and E1/E2/E3 review-only advice', () => {
     expect(adminView).toContain('AdminAiStageProfiles')
     expect(adminView).toContain('value="ai-stage-profiles"')
     expect(adminComponent).toContain('بروفايلات مراحل الذكاء')
