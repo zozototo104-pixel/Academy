@@ -169,8 +169,6 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
       api<{ supervisors: SupervisorOption[] }>('/api/admin/supervisors')
         .then((r) => setSupervisors(r.supervisors || []))
         .catch(() => setSupervisors([]))
-    } else {
-      setSupervisors([])
     }
     return () => window.clearTimeout(timer)
   }, [load, surface])
