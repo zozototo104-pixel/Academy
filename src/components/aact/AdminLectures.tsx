@@ -243,8 +243,17 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-black text-slate-800">المحاضرات واللقاءات</h2>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-black text-slate-800">
+            {surface === 'supervisor' ? 'محاضراتي ولقاءات طلابي' : 'المحاضرات واللقاءات'}
+          </h2>
+          {surface === 'supervisor' && (
+            <p className="mt-1 max-w-2xl text-xs font-bold leading-6 text-slate-500">
+              هذه الشاشة تعرض وتدير فقط محاضرات البرامج التي عيّنتك الإدارة عليها كمشرف. إنشاء أول سلسلة في أي برنامج يبقى من صلاحيات الإدارة.
+            </p>
+          )}
+        </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => void load()}>
             <RefreshCw className="ml-1 h-4 w-4" /> تحديث
