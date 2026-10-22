@@ -15,7 +15,7 @@ CREATE TABLE "AiAdvisorAdvice" (
     "activeDedupKey" TEXT,
     "createdBy" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
     "dismissedAt" TIMESTAMP(3),
     "dismissedBy" TEXT,
 
