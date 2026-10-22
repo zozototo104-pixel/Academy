@@ -1,4 +1,5 @@
 import { geminiCompleteJson } from '@/lib/gemini'
+import { withPipelineRun } from '@/lib/ai-pipeline-log'
 import { db } from '@/lib/db'
 import { normalizeArabic } from '@/lib/arabic-normalize'
 import { textContainsEvidenceAfterNormalization } from '@/lib/text-provenance'
@@ -36,7 +37,7 @@ export function validateBookKnowledgeCandidate(raw: unknown, chunkText: string):
   return { category: category as BookKnowledgeCandidate['category'], title, summary, excerpt, importance: Math.round(importance) }
 }
 
-export async function analyzeBookChunk(input: { bookId: string; chunkText: string; deadlineMs: number; prior: readonly Pick<BookKnowledgeCandidate, 'title' | 'summary'>[] }): Promise<BookKnowledgeCandidate[]> {
+async function analyzeBookChunkInner(input: { bookId: string; chunkText: string; deadlineMs: number; prior: readonly Pick<BookKnowledgeCandidate, 'title' | 'summary'>[] }): Promise<BookKnowledgeCandidate[]> {
   const remaining = input.deadlineMs - Date.now()
   if (remaining < 25_000) throw new Error('BOOK_READ_TIME_BUDGET_EXHAUSTED')
   const result = await geminiCompleteJson({
@@ -62,7 +63,7 @@ export async function analyzeBookChunk(input: { bookId: string; chunkText: strin
   return accepted
 }
 
-export async function enrichBookChunk(input: { bookId: string; chunkText: string; deadlineMs: number; existing: readonly Pick<BookKnowledgeCandidate, 'title' | 'summary'>[] }): Promise<BookKnowledgeCandidate[]> {
+async function enrichBookChunkInner(input: { bookId: string; chunkText: string; deadlineMs: number; existing: readonly Pick<BookKnowledgeCandidate, 'title' | 'summary'>[] }): Promise<BookKnowledgeCandidate[]> {
   const remaining = input.deadlineMs - Date.now()
   if (remaining < 25_000) throw new Error('BOOK_READ_TIME_BUDGET_EXHAUSTED')
   const result = await geminiCompleteJson({
@@ -87,6 +88,24 @@ export type EnrichStepStore = {
   existing: (bookId: string, chunkId: string, index: number) => Promise<{ local: Pick<BookKnowledgeCandidate, 'title' | 'summary'>[]; own: Pick<BookKnowledgeCandidate, 'title' | 'summary'>[] }>
   save: (chunk: { id: string; bookId: string; programId: string; pageStart: number; pageEnd: number; textProvenance: string }, items: BookKnowledgeCandidate[]) => Promise<void>
   finish: (jobId: string) => Promise<void>
+}
+
+// D0: تحليل/إثراء كل مقطع يُسجَّل كتشغيلة تحليل (المزوّد الفعلي داخل
+// geminiCompleteJson ولا يرجع لهذا المستوى — يُترك فارغًا بصدق).
+export async function analyzeBookChunk(input: Parameters<typeof analyzeBookChunkInner>[0]): ReturnType<typeof analyzeBookChunkInner> {
+  return withPipelineRun(
+    { stage: 'ANALYSIS', bookId: input.bookId, inputText: input.chunkText },
+    () => analyzeBookChunkInner(input),
+    (r) => ({ outputCount: r.length }),
+  )
+}
+
+export async function enrichBookChunk(input: Parameters<typeof enrichBookChunkInner>[0]): ReturnType<typeof enrichBookChunkInner> {
+  return withPipelineRun(
+    { stage: 'ANALYSIS', bookId: input.bookId, inputText: input.chunkText, detail: { enrich: true } },
+    () => enrichBookChunkInner(input),
+    (r) => ({ outputCount: r.length }),
+  )
 }
 
 export async function enrichStepWithStore(jobId: string, deadlineMs: number, store: EnrichStepStore, analyze: typeof enrichBookChunk = enrichBookChunk) {

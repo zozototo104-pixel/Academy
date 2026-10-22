@@ -3458,6 +3458,19 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   throw new Error(errors.join(' | ') || 'TEXT_AI_ROUTER_FAILED')
 }
 
+// D0 telemetry: the effective router configuration the academic pipeline
+// runs under, in a log-friendly shape. Read-only; used by
+// src/lib/ai-pipeline-log.ts to stamp every pipeline run with the exact
+// configuration (profile) version it executed under.
+export async function pipelineConfigSnapshot(): Promise<{ policy: string; allowedModels: string[]; verifierPreferred: string[] }> {
+  const s = await settings()
+  return {
+    policy: s.policy,
+    allowedModels: s.academicAllowlist.map((m) => `${m.provider}:${m.model}`),
+    verifierPreferred: s.verifierPreferred.map((m) => `${m.provider}:${m.model}`),
+  }
+}
+
 export async function textAiCompleteWithMetadata(opts: TextAiCallOpts): Promise<TextAiCompletionResult> {
   let context: { provider?: string; model?: string } = {}
   const text = await textAiComplete({

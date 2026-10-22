@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { getFileBufferFromStorageOrBase64 } from '@/lib/storage'
 import { fixArabicPdfText } from '@/lib/arabic-pdf-text'
 import { textAiCompleteJson } from '@/lib/text-ai'
+import { withPipelineRun } from '@/lib/ai-pipeline-log'
 
 export type ExtractedBookPage = { page: number; text: string; textProvenance: 'NATIVE_TEXT' | 'VISION_OCR' }
 export type PlannedBookChunk = { index: number; pageStart: number; pageEnd: number; headingPath: string | null; text: string; charCount: number; textProvenance: 'NATIVE_TEXT' | 'VISION_OCR'; contentHash: string }
@@ -98,7 +99,7 @@ export type ExtractStepStore = {
 }
 
 /** One durable batch is at most eight pages. Progress advances only after every chunk is saved. */
-export async function extractPdfBatch(input: { buffer: Buffer; bookId: string; programId: string; jobId: string; pagesDone: number; totalPages: number; existingChunks: number; store: ExtractStepStore; deadlineMs: number; extractPages?: typeof extractNumberedPdfPages; ocrPages?: typeof transcribeScannedDocumentWithVision }): Promise<{ pagesDone: number; totalPages: number; totalChunks: number; phase: 'EXTRACT' | 'ANALYZE' }> {
+async function extractPdfBatchInner(input: { buffer: Buffer; bookId: string; programId: string; jobId: string; pagesDone: number; totalPages: number; existingChunks: number; store: ExtractStepStore; deadlineMs: number; extractPages?: typeof extractNumberedPdfPages; ocrPages?: typeof transcribeScannedDocumentWithVision }): Promise<{ pagesDone: number; totalPages: number; totalChunks: number; phase: 'EXTRACT' | 'ANALYZE' }> {
   const { buffer, bookId, programId, jobId, store } = input
   if (Date.now() >= input.deadlineMs) throw new Error('BOOK_EXTRACT_DEADLINE')
   const lastPage = Math.min(input.totalPages, input.pagesDone + 8)
@@ -123,6 +124,16 @@ export async function extractPdfBatch(input: { buffer: Buffer; bookId: string; p
   const totalChunks = input.existingChunks + chunks.length
   await store.saveProgress(jobId, lastPage, input.totalPages, totalChunks, phase)
   return { pagesDone: lastPage, totalPages: input.totalPages, totalChunks, phase }
+}
+
+// D0: كل دفعة استخراج تُسجَّل كتشغيلة قراءة (المزوّد/الموديل غير معروفين
+// على هذا المستوى — الاستخراج مزيج محلي وOCR — فيُتركان فارغين بصدق).
+export async function extractPdfBatch(input: Parameters<typeof extractPdfBatchInner>[0]): ReturnType<typeof extractPdfBatchInner> {
+  return withPipelineRun(
+    { stage: 'READING', bookId: input.bookId, batchId: input.jobId, inputData: input.buffer },
+    () => extractPdfBatchInner(input),
+    (r) => ({ outputCount: r.totalChunks, detail: { pagesDone: r.pagesDone, totalPages: r.totalPages, phase: r.phase } }),
+  )
 }
 
 export async function runExtractStep(jobId: string, deadlineMs: number) {

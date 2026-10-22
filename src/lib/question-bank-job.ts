@@ -5,6 +5,7 @@ import { textAiCompleteJsonWithMetadata, textAiDiagnostics, type TextAiProvider 
 import { parseGeneratedQuestionCandidates } from '@/lib/question-bank-generation'
 import { buildQuestionBankRecord, validateQuestionBatchAgainstKnowledge } from '@/lib/question-bank-evidence'
 import { verifyQuestionsWithCrossProvider } from '@/lib/question-verifier'
+import { withPipelineRun } from '@/lib/ai-pipeline-log'
 import { questionDuplicateKey } from '@/lib/ai-generation-progress'
 import { isDuplicateQuestionIdea } from '@/lib/question-bank-diversity'
 import { selectUnitExamQuestionsApprovedFirst, unitExamRequiredQuestions } from '@/lib/unit-exam-policy'
@@ -451,7 +452,9 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
     : ''
   const tfBalanceInstruction = '\nإذا اخترت نوع TF فلا تجعل كل عبارات الصح/الخطأ صحيحة. وازن بين "صح" و"خطأ" عبر الدفعات. العبارة الخاطئة يجب أن تكون قابلة للتحقق من المصدر عبر نفي أو تغيير معلومة محددة، مع correctRationale يشرح لماذا هي خطأ اعتماداً على الاقتباس. لا تجعل عبارة TF الخاطئة ملتبسة أو رأياً عاماً.'
 
-  const raw = await textAiCompleteJsonWithMetadata({
+  const raw = await withPipelineRun(
+    { stage: 'GENERATION', batchId: job.id, unitId: job.unitId ?? null, bookId: selected[0]?.bookId ?? null, inputText: knowledgeText, promptText: 'أنت مصمم أسئلة جامعية موثقة بالمصدر. أرجع JSON فقط.' },
+    () => textAiCompleteJsonWithMetadata({
     system: 'أنت مصمم أسئلة جامعية موثقة بالمصدر. أرجع JSON فقط.',
     history: [{ role: 'user', text: `أنشئ ${count} سؤالاً موثقاً لبنك الأسئلة.\nالبرنامج: ${program.titleAr}\nالنطاق: ${scope.scopeLabel}\n\nمصادر المعرفة المسموحة فقط:\n${knowledgeText}\n\nأرجع {"questions":[...]} ويجب أن يحتوي كل سؤال على: type=MCQ|TF|SHORT|ESSAY, text, options, correctAnswer, modelAnswer, sourceEvidence اقتباس حرفي من نص المصدر, sourceIndex رقم المصدر, difficulty, cognitiveSkill, correctRationale, distractorRationales للأسئلة الموضوعية.\nاستخدم هالقيم بالإنجليزي بالضبط: cognitiveSkill واحدة من REMEMBER|UNDERSTAND|APPLY|ANALYZE|EVALUATE|CREATE، وdifficulty واحدة من EASY|MEDIUM|ADVANCED.\nلأسئلة TF استخدم correctAnswer كنص "صح" أو "خطأ" فقط، ولا تستخدم رقماً.\nلـ MCQ اكتب distractorRationales كمصفوفة أسباب قصيرة لكل خيار خاطئ، ولـ TF اكتب سبباً واحداً لعكس الإجابة.\nاجعل الدفعة متنوعة، واحرص على سؤال قصير أو صح/خطأ عند الإمكان. لا تكرر أي سؤال موجود أعلاه، ولا تستخدم أي مصدر خارج القائمة.${diversityInstruction}${rescueInstruction}${tfBalanceInstruction}` }],
     taskLevel: 'ACADEMIC_CRITICAL',
@@ -486,13 +489,19 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
         throw err
       }
     },
-  })
+  }),
+    (r) => ({ provider: r.provider, model: r.model, detail: { requestedCount: count, paidFallback: r.provider === 'OPENAI' } }),
+  )
   if (raw.provider === 'OPENAI') console.warn('paid fallback used: OPENAI question bank generation')
   const parsed = parseGeneratedQuestionCandidates(raw.text)
   assertGeneratedBatchHasAcceptedCandidates(parsed)
   const validation = validateQuestionBatchAgainstKnowledge(parsed.accepted, evidenceSources, { provider: raw.provider, model: raw.model })
   const verifierBudgetMs = Math.max(18_000, Math.min(45_000, (deadlineMs || Date.now() + QUESTION_BANK_STEP_MS) - Date.now() - 3_000))
-  const verified = await verifyQuestionsWithCrossProvider({ questions: validation.accepted, sources: evidenceSources, generatorProvider: raw.provider, generatorModel: raw.model, timeBudgetMs: verifierBudgetMs })
+  const verified = await withPipelineRun(
+    { stage: 'REVIEW', batchId: job.id, unitId: job.unitId ?? null, bookId: selected[0]?.bookId ?? null, inputText: validation.accepted.map((q) => q.text).join('\n') },
+    () => verifyQuestionsWithCrossProvider({ questions: validation.accepted, sources: evidenceSources, generatorProvider: raw.provider, generatorModel: raw.model, timeBudgetMs: verifierBudgetMs }),
+    (v) => ({ provider: v.find((q) => q.verifierProvider)?.verifierProvider ?? null, model: v.find((q) => q.verifierModel)?.verifierModel ?? null, outputCount: v.length, detail: { generatorProvider: raw.provider, generatorModel: raw.model, inputCount: validation.accepted.length } }),
+  )
   const traceReasons: string[] = [...(parsed.rejectedReasons || []), ...validation.rejected.map((item) => item.reason)]
   const verifierRejected = verified.filter((item) => !hasSourceGroundedFlag(item))
   for (const item of verifierRejected) traceReasons.push(cleanText(item.verificationReason || item.verifierReason || 'VERIFIER_REJECTED', 220))

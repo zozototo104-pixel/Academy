@@ -151,6 +151,50 @@ model AiUsageLog {
   @@index([provider, createdAt])
 }
 
+enum AiPipelineStage {
+  READING
+  ANALYSIS
+  GENERATION
+  REVIEW
+}
+
+// D0 telemetry: one row per run of a book→questions pipeline stage.
+// Written best-effort by src/lib/ai-pipeline-log.ts; logging never
+// changes pipeline behavior. profileId/profileVersion identify the
+// exact configuration a run executed under ('global' until per-stage
+// profiles land in D1).
+model AiPipelineOperationLog {
+  id                    String          @id @default(cuid())
+  stage                 AiPipelineStage
+  profileId             String          @default("global")
+  profileVersion        String
+  provider              String?
+  model                 String?
+  policy                String?
+  allowedModelsSnapshot Json?
+  bookId                String?
+  batchId               String?
+  unitId                String?
+  promptVersion         String?
+  promptHash            String?
+  inputHash             String
+  outputId              String?
+  outputCount           Int?
+  latencyMs             Int
+  inputTokens           Int?
+  outputTokens          Int?
+  costCents             Int?
+  success               Boolean
+  failureCategory       String?
+  fallbackUsed          Boolean         @default(false)
+  detail                Json?
+  createdAt             DateTime        @default(now())
+
+  @@index([stage, createdAt])
+  @@index([bookId, createdAt])
+  @@index([profileVersion, createdAt])
+}
+
 model Program {
   id          String       @id @default(cuid())
   slug        String       @unique
