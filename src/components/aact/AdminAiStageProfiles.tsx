@@ -633,11 +633,16 @@ export function AdminAiStageProfiles() {
               {loadedDraftForStage && (
                 <div className={loadedDraftStillExact ? 'rounded-xl border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-900' : 'rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900'}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="font-black">
-                      مسودة مستشار محمّلة لنسخة الهدف {loadedDraftForStage.targetProfileVersion}
-                      {!loadedDraftStillExact ? ' — تم تعديلها يدويًا ولن تُعلّم كتوصية معتمدة تلقائيًا' : ''}
-                    </p>
-                    <Button variant="outline" size="sm" onClick={() => setLoadedAdvisorDraft(null)}>إلغاء ربط المسودة</Button>
+                    <div className="space-y-1">
+                      <p className="font-black">
+                        مسودة مستشار محمّلة لنسخة الهدف {loadedDraftForStage.targetProfileVersion} — لم تُطبّق بعد
+                      </p>
+                      <p className="text-xs leading-6">
+                        راجع التغييرات ثم اضغط «حفظ نسخة جديدة»، أو ألغِ المسودة للرجوع إلى البروفايل الحالي.
+                        {!loadedDraftStillExact ? ' تم تعديل المسودة يدويًا، لذلك لن تُعلّم كتوصية معتمدة تلقائيًا.' : ''}
+                      </p>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => resetDraft(stageName)}>إلغاء المسودة</Button>
                   </div>
                 </div>
               )}
