@@ -68,6 +68,7 @@ const AdminStudyScheduleTab = dynamic(() => loadAdminStudyScheduleModule(), { ss
 const AdminLegacyGraduatesTab = dynamic(() => loadAdminLegacyGraduatesModule(), { ssr: false, loading: AdminTabLoader })
 const AdminAnnouncementsTab = dynamic(() => loadAdminAnnouncementsModule().then((m) => m.AdminAnnouncementsTab), { ssr: false, loading: AdminTabLoader })
 const AdminLectures = dynamic(() => import('@/components/aact/AdminLectures').then((m) => m.AdminLectures), { ssr: false, loading: AdminTabLoader })
+const AdminAiStageProfiles = dynamic(() => import('@/components/aact/AdminAiStageProfiles').then((m) => m.AdminAiStageProfiles), { ssr: false, loading: AdminTabLoader })
 
 interface Stats {
   stats: {
