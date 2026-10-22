@@ -508,9 +508,16 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
   assertGeneratedBatchHasAcceptedCandidates(parsed)
   const validation = validateQuestionBatchAgainstKnowledge(parsed.accepted, evidenceSources, { provider: raw.provider, model: raw.model })
   const verifierBudgetMs = Math.max(18_000, Math.min(45_000, (deadlineMs || Date.now() + QUESTION_BANK_STEP_MS) - Date.now() - 3_000))
+  // D2.4: التدقيق يعمل تحت بروفايل REVIEW (قائمة المدقق أولًا) بنفس
+  // الدلالات الصارمة؛ المدقق نفسه يدير محاولة الرجوع داخليًا لأنه لا
+  // يرمي عند فشل الموديلات بل يعلّم الأسئلة pending. قاعدة المدقق ≠
+  // المولّد لم تتغير هنا — تُبنى في D3 فوق generatorProvider/Model
+  // المسجلين أدناه كما كانوا منذ D0.
+  const reviewPlan = await prepareStageRun('REVIEW')
+  const reviewUsage: StageUsage = { fallbackUsed: false }
   const verified = await withPipelineRun(
-    { stage: 'REVIEW', batchId: job.id, unitId: job.unitId ?? null, bookId: selected[0]?.bookId ?? null, inputText: validation.accepted.map((q) => q.text).join('\n') },
-    () => verifyQuestionsWithCrossProvider({ questions: validation.accepted, sources: evidenceSources, generatorProvider: raw.provider, generatorModel: raw.model, timeBudgetMs: verifierBudgetMs }),
+    { stage: 'REVIEW', batchId: job.id, unitId: job.unitId ?? null, bookId: selected[0]?.bookId ?? null, inputText: validation.accepted.map((q) => q.text).join('\n'), profileStamp: reviewPlan.profileStamp, fallbackUsed: !reviewPlan.isStage, liveState: reviewUsage, detail: reviewPlan.detail },
+    () => verifyQuestionsWithCrossProvider({ questions: validation.accepted, sources: evidenceSources, generatorProvider: raw.provider, generatorModel: raw.model, timeBudgetMs: verifierBudgetMs, routing: reviewPlan.routing, onFallbackAttempt: () => { reviewUsage.fallbackUsed = true; reviewUsage.fallbackReason = 'all-stage-models-failed' } }),
     (v) => ({ provider: v.find((q) => q.verifierProvider)?.verifierProvider ?? null, model: v.find((q) => q.verifierModel)?.verifierModel ?? null, outputCount: v.length, detail: { generatorProvider: raw.provider, generatorModel: raw.model, inputCount: validation.accepted.length } }),
   )
   const traceReasons: string[] = [...(parsed.rejectedReasons || []), ...validation.rejected.map((item) => item.reason)]

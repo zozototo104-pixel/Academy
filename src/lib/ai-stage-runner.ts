@@ -39,9 +39,21 @@ export async function prepareStageRun(stage: PipelineStageName): Promise<StageRu
   if (overrides.kind === 'global') detail.fallbackReason = overrides.reason
   if (overrides.kind === 'invalid') { detail.profileInvalid = true; detail.invalidReason = overrides.reason }
   if (overrides.kind !== 'stage') return { routing: null, isStage: false, detail }
+  // D2.4: لمرحلة التدقيق، قائمة المدقق داخل البروفايل هي المصدر الأول
+  // للموديلات؛ إن غابت تُستخدم قائمة الموديلات العادية للمرحلة.
+  let effectiveModels = overrides.preferredModels
+  if (stage === 'REVIEW') {
+    const verifierModels = overrides.snapshot.verifier?.preferred ?? []
+    if (verifierModels.length) {
+      effectiveModels = verifierModels.map((m) => ({ ...m }))
+      detail.modelSource = 'verifier'
+    } else {
+      detail.modelSource = 'models'
+    }
+  }
   return {
     routing: {
-      preferredModels: overrides.preferredModels,
+      preferredModels: effectiveModels,
       preferredProviders: overrides.preferredProviders,
       policy: overrides.policy,
       allowGlobalFallback: overrides.allowGlobalFallback,
@@ -50,7 +62,7 @@ export async function prepareStageRun(stage: PipelineStageName): Promise<StageRu
       profileId: overrides.profileId,
       profileVersion: String(overrides.version),
       policy: overrides.policy,
-      allowedModels: overrides.preferredModels.map((m) => `${m.provider}:${m.model}`),
+      allowedModels: effectiveModels.map((m) => `${m.provider}:${m.model}`),
     },
     isStage: true,
     detail,

@@ -126,10 +126,10 @@ describe('D2.3 scope guards: both generation paths wired, review untouched', () 
     expect(booksAi).toContain('restrictToModels: routingModels')
   })
 
-  test('the verifier itself is still not wired (that is D2.4/D3)', () => {
+  test('the verifier itself does not resolve profiles (its wiring lands in D2.4 via the job)', () => {
     const verifier = readFileSync('src/lib/question-verifier.ts', 'utf8')
     expect(verifier).not.toContain('prepareStageRun')
     expect(verifier).not.toContain('resolveEffectiveStageProfile')
-    expect(verifier).not.toContain('ai-stage-runner')
+    expect(verifier).not.toContain('ai-stage-profiles')
   })
 })

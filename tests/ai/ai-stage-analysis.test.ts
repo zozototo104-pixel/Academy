@@ -80,10 +80,7 @@ describe('D2.2 analysis wiring: scope and strictness guards', () => {
     expect(gemini).toContain('GEMINI_NO_ALLOWED_MODELS')
   })
 
-  test('the review path still does not resolve profiles directly', () => {
-    // D2.3 update: generation now wires through the shared stage runner
-    // (prepareStageRun), not by resolving profiles itself; the verifier
-    // stays completely unwired until D2.4.
+  test('the verifier never resolves profiles itself (routing arrives from the job since D2.4)', () => {
     expect(readFileSync('src/lib/question-verifier.ts', 'utf8')).not.toContain('resolveEffectiveStageProfile')
     expect(readFileSync('src/lib/question-verifier.ts', 'utf8')).not.toContain('prepareStageRun')
   })

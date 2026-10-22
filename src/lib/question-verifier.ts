@@ -1,7 +1,8 @@
 import { z } from 'zod'
 import { validateLiteralEvidence } from './evidence-validator'
 import { applyOcrDerivedFlags, type TextProvenance } from './text-provenance'
-import { modelFamily, resolvedTextAiModelFamily, textAiCompleteJson, type TextAiProvider } from './text-ai'
+import { modelFamily, resolvedTextAiModelFamily, textAiCompleteJson, type TextAiPreferredModel, type TextAiProvider, type TextAiRouterPolicy } from './text-ai'
+import type { StageRouting } from './ai-stage-runner'
 
 export type QuestionVerifierResult = {
   index: number
@@ -263,27 +264,37 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
   generatorModel?: string | null
   batchSize?: number
   timeBudgetMs?: number
+  // D2.4: stage routing from the REVIEW profile (strict allowlist).
+  // Absent/null = today's behavior exactly. The verifier never throws
+  // on model failure (it marks questions pending), so "all stage
+  // models failed" is detected as zero parsed responses and retried
+  // once globally — inside this function — when the profile allows.
+  routing?: StageRouting | null
+  onFallbackAttempt?: () => void
 }): Promise<T[]> {
   const batchSize = Math.max(1, Math.min(10, Math.floor(opts.batchSize || 10)))
-  const output = opts.questions.map((question) => ({ ...question })) as T[]
   if (!String(opts.generatorProvider || '').trim()) {
-    return output.map((question) => applyPending(question, 'GENERATOR_PROVIDER_UNKNOWN')) as T[]
+    return opts.questions.map((question) => applyPending({ ...question }, 'GENERATOR_PROVIDER_UNKNOWN')) as T[]
   }
   if (!String(opts.generatorModel || '').trim()) {
-    return output.map((question) => applyPending(question, 'GENERATOR_MODEL_UNKNOWN')) as T[]
+    return opts.questions.map((question) => applyPending({ ...question }, 'GENERATOR_MODEL_UNKNOWN')) as T[]
   }
   const alborihiGenerator = String(opts.generatorProvider).trim().toUpperCase() === 'ALBORIHI'
   const generatorFamily = alborihiGenerator
     ? await resolvedTextAiModelFamily('ALBORIHI', opts.generatorModel || '')
     : modelFamily(opts.generatorModel || '')
   if (generatorFamily === 'unknown') {
-    return output.map((question) => applyPending(question, 'GENERATOR_FAMILY_UNKNOWN')) as T[]
+    return opts.questions.map((question) => applyPending({ ...question }, 'GENERATOR_FAMILY_UNKNOWN')) as T[]
   }
   const excludeProviders = __testVerifierExcludedProviders(opts.generatorProvider as TextAiProvider)
   const excludeModelFamilies = [generatorFamily]
   const budget = opts.timeBudgetMs == null ? QUESTION_VERIFIER_TIME_BUDGET_MS : Math.max(0, Math.floor(opts.timeBudgetMs))
   const deadline = Date.now() + budget
 
+  async function runPass(effectiveRouting: StageRouting | null): Promise<{ output: T[]; anyResponse: boolean }> {
+    const output = opts.questions.map((question) => ({ ...question })) as T[]
+    let anyResponse = false
+    const routingModels = effectiveRouting ? effectiveRouting.preferredModels.map((m) => ({ provider: m.provider as TextAiPreferredModel['provider'], model: m.model })) : []
   for (let start = 0; start < output.length; start += batchSize) {
     if (Date.now() >= deadline) {
       for (let index = start; index < output.length; index++) output[index] = applyPending(output[index], 'VERIFIER_TIME_BUDGET_EXCEEDED')
@@ -321,7 +332,9 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
         maxOutputTokens: 3000,
         taskLevel: 'ACADEMIC_CRITICAL',
         purpose: 'REVIEW',
-        preferredProviders: __testVerifierPreferredProvidersForTests(alborihiGenerator ? 'ALBORIHI' : opts.generatorProvider as TextAiProvider),
+        ...(effectiveRouting
+          ? { preferredProviders: [...new Set([...effectiveRouting.preferredProviders, ...effectiveRouting.preferredModels.map((m) => m.provider)])] as TextAiProvider[], preferredModels: routingModels, restrictToModels: routingModels, ...(effectiveRouting.policy ? { routerPolicy: effectiveRouting.policy as TextAiRouterPolicy } : {}) }
+          : { preferredProviders: __testVerifierPreferredProvidersForTests(alborihiGenerator ? 'ALBORIHI' : opts.generatorProvider as TextAiProvider) }),
         excludeProviders,
         excludeModelFamilies,
         allowAlborihiCrossFamilyVerifier: alborihiGenerator,
@@ -340,6 +353,7 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
         },
       })
       parsed = assertVerifierCoverage(raw, prepared.map((item) => item.index))
+      anyResponse = true
     } catch (error: any) {
       const reason = error?.code === 'AI_VERIFIER_UNAVAILABLE'
         ? 'AI_VERIFIER_UNAVAILABLE'
@@ -384,6 +398,14 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
       }
     }
   }
+    return { output, anyResponse }
+  }
 
-  return output
+  const routing = opts.routing ?? null
+  const first = await runPass(routing)
+  if (!routing || first.anyResponse) return first.output
+  if (!routing.allowGlobalFallback) return first.output
+  opts.onFallbackAttempt?.()
+  const second = await runPass(null)
+  return second.output
 }
