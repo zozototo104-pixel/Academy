@@ -65,7 +65,18 @@ type AdvisorReadiness = {
   allStagesReady: boolean
   notes: string[]
 }
-type ResponseData = { stages: StageData[]; providers: string[]; policies: string[]; advisorReadiness?: AdvisorReadiness }
+type AdvisorAdvice = {
+  id: string
+  stage: Stage
+  category: string
+  severity: string
+  status: string
+  title: string
+  rationale: string
+  evidence: Record<string, unknown>
+  createdAt: string
+}
+type ResponseData = { stages: StageData[]; providers: string[]; policies: string[]; advisorReadiness?: AdvisorReadiness; advisorAdvice?: AdvisorAdvice[] }
 type FormState = {
   enabled: boolean
   provider: string
