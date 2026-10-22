@@ -241,6 +241,168 @@ model StudyScheduleItem {
   @@index([programId, semester, status])
 }
 
+enum LectureDeliveryMode {
+  EXTERNAL_LINK
+  RECORDED_ONLY
+}
+
+enum LectureProvider {
+  ZOOM
+  MEET
+  TEAMS
+  OTHER
+}
+
+enum LectureSessionStatus {
+  SCHEDULED
+  LIVE
+  ENDED
+  CANCELLED
+  RESCHEDULED
+}
+
+enum LectureAttendanceStatus {
+  JOINED
+  PRESENT
+  ABSENT
+}
+
+enum LectureVideoSource {
+  YOUTUBE
+  VIMEO
+  DRIVE
+  FACEBOOK
+  DAILYMOTION
+  LOOM
+  BUNNY
+  CLOUDFLARE
+  MP4
+  HLS
+  S3
+  EXTERNAL
+}
+
+enum LectureVideoStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model LectureSeries {
+  id String @id @default(cuid())
+  programId String
+  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+  unitId String?
+  unit Unit? @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  supervisorId String
+  supervisor User @relation("LectureSeriesSupervisor", fields: [supervisorId], references: [id], onDelete: Restrict)
+  createdById String
+  createdBy User @relation("LectureSeriesCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  title String
+  description String?
+  weekday Int?
+  timeOfDay String?
+  timezone String @default("UTC")
+  durationMin Int
+  recurring Boolean @default(false)
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  sessions LectureSession[]
+
+  @@index([programId, active])
+  @@index([supervisorId])
+  @@index([unitId])
+}
+
+model LectureSession {
+  id String @id @default(cuid())
+  seriesId String
+  series LectureSeries @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  title String
+  description String?
+  startsAt DateTime
+  endsAt DateTime
+  deliveryMode LectureDeliveryMode @default(EXTERNAL_LINK)
+  provider LectureProvider @default(OTHER)
+  meetingUrl String?
+  meetingPasscode String?
+  status LectureSessionStatus @default(SCHEDULED)
+  updatedById String?
+  updatedBy User? @relation("LectureSessionUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+  reminder24hSentAt DateTime?
+  reminder15mSentAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  attendances LectureAttendance[]
+  videos LectureVideoResource[]
+
+  @@index([seriesId])
+  @@index([status, startsAt])
+}
+
+model LectureAttendance {
+  id String @id @default(cuid())
+  sessionId String
+  session LectureSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId String
+  user User @relation("LectureAttendanceStudent", fields: [userId], references: [id], onDelete: Cascade)
+  status LectureAttendanceStatus @default(JOINED)
+  joinedAt DateTime @default(now())
+  confirmedAt DateTime?
+  confirmedById String?
+  confirmedBy User? @relation("LectureAttendanceConfirmer", fields: [confirmedById], references: [id], onDelete: SetNull)
+
+  @@unique([sessionId, userId])
+  @@index([userId])
+}
+
+model LectureVideoResource {
+  id String @id @default(cuid())
+  programId String
+  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+  unitId String?
+  unit Unit? @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  sessionId String?
+  session LectureSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  title String
+  description String?
+  source LectureVideoSource
+  url String?
+  storageKey String?
+  provider String?
+  embedId String?
+  thumbnailUrl String?
+  originalUrl String?
+  status LectureVideoStatus @default(DRAFT)
+  mimeType String?
+  sizeBytes BigInt?
+  durationSec Int?
+  order Int @default(0)
+  publishedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  watchProgress LectureWatchProgress[]
+
+  @@index([programId, status, order])
+  @@index([sessionId])
+  @@index([unitId])
+}
+
+model LectureWatchProgress {
+  id String @id @default(cuid())
+  videoId String
+  video LectureVideoResource @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  userId String
+  user User @relation("LectureWatchStudent", fields: [userId], references: [id], onDelete: Cascade)
+  positionSec Int @default(0)
+  watchedPercent Int @default(0)
+  completedAt DateTime?
+  updatedAt DateTime @updatedAt
+
+  @@unique([videoId, userId])
+  @@index([userId])
+}
+
 model Unit {
   id         String    @id @default(cuid())
   programId  String
