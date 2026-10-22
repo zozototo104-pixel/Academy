@@ -475,6 +475,17 @@ export function AdminAiStageProfiles() {
                       <span>الرجوع: <b>{String(advice.evidence?.['fallbackRatePct'] ?? '—')}%</b></span>
                       <span>الكلفة: <b>{String(advice.evidence?.['costCoveragePct'] ?? '—')}%</b></span>
                     </div>
+                    {advice.proposedSnapshot && (
+                      <div className="mt-3 rounded-lg border border-indigo-100 bg-indigo-50 p-3 text-[11px] leading-5 text-indigo-900">
+                        <p className="font-black">مسودة تغيير E2 محفوظة للمراجعة فقط</p>
+                        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                          <span>التفعيل: <b>{advice.proposedSnapshot.enabled ? 'مفعّل' : 'يرجع للعام'}</b></span>
+                          <span>السياسة: <b>{advice.proposedSnapshot.policy ?? 'افتراضي'}</b></span>
+                          <span>الرجوع للعام: <b>{advice.proposedSnapshot.allowGlobalFallback ? 'مسموح' : 'ممنوع'}</b></span>
+                          <span>الموديلات: <b>{advice.proposedSnapshot.models.length + (advice.proposedSnapshot.verifier?.preferred.length ?? 0)}</b></span>
+                        </div>
+                      </div>
+                    )}
                     <p className="mt-2 text-[11px] text-slate-400">أُنشئت: {fmtDate(advice.createdAt)}</p>
                   </div>
                 )
