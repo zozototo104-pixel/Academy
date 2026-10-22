@@ -13,6 +13,8 @@ describe('D4 admin AI stage profiles surface', () => {
     expect(apiRoute).toContain('getCurrentStageProfile(')
     expect(apiRoute).toContain('listStageProfileVersions(')
     expect(apiRoute).toContain('getAiAdvisorReadiness()')
+    expect(apiRoute).toContain('validateAdvisorAdviceApplication')
+    expect(apiRoute).toContain('markAdvisorAdviceApplied')
     expect(apiRoute).toContain("return NextResponse.json({ error: 'لا يوجد تغيير للحفظ' }, { status: 409 })")
     expect(apiRoute).not.toContain('questionRecheckTask.create')
     expect(apiRoute).not.toContain('advisorAdvice.create')
@@ -23,16 +25,19 @@ describe('D4 admin AI stage profiles surface', () => {
     expect(advisorRoute).not.toContain('saveStageProfile(')
   })
 
-  test('the UI is wired as a D4 profile/log tab with E0 readiness and E1/E2/E3 review-only advice', () => {
+  test('the UI is wired as a D4 profile/log tab with E0 readiness and E1/E2/E3/E4 review-only advice', () => {
     expect(adminView).toContain('AdminAiStageProfiles')
     expect(adminView).toContain('value="ai-stage-profiles"')
     expect(adminComponent).toContain('بروفايلات مراحل الذكاء')
     expect(adminComponent).toContain('E0 — تقرير جاهزية المستشار')
     expect(adminComponent).toContain('قراءة جاهزية فقط')
     expect(adminComponent).toContain('advisorReadiness')
-    expect(adminComponent).toContain('E1/E2/E3 — توصيات المستشار')
+    expect(adminComponent).toContain('إحصاء الموديلات')
+    expect(adminComponent).toContain('E1/E2/E3/E4 — توصيات المستشار')
     expect(adminComponent).toContain('advisorAdvice')
-    expect(adminComponent).toContain('مسودة تغيير E2 محفوظة للمراجعة فقط')
+    expect(adminComponent).toContain('مسودة E2/E4 محفوظة للمراجعة فقط')
+    expect(adminComponent).toContain('targetProfileVersion')
+    expect(adminComponent).toContain('مسودة مستشار محمّلة')
     expect(adminComponent).toContain('تحميل المسودة للمراجعة اليدوية')
     expect(adminComponent).toContain('/api/admin/ai-advisor')
     expect(adminComponent).toContain('توليد توصيات E1')
@@ -43,10 +48,11 @@ describe('D4 admin AI stage profiles surface', () => {
     expect(adminComponent).not.toContain('تطبيق النصيحة')
   })
 
-  test('saving a stage profile posts only the stage snapshot and is not blind', () => {
-    expect(adminComponent).toContain("api<{ stage: StageData }>('/api/admin/ai-stage-profiles'")
-    expect(adminComponent).toContain('JSON.stringify({ stage, snapshot })')
+  test('saving a stage profile is still not blind, and advisor adoption is gated by target version', () => {
+    expect(adminComponent).toContain("api<{ stage: StageData; advisorAdviceId?: string | null }>('/api/admin/ai-stage-profiles'")
+    expect(adminComponent).toContain('advisorAdviceId: advisorDraftToApply.adviceId')
     expect(adminComponent).toContain('snapshotKey(snapshot) === snapshotKey(currentSnapshot)')
+    expect(adminComponent).toContain('loadedAdvisorDraft.snapshotKey === snapshotKey(snapshot)')
     expect(adminComponent).toContain('معاينة التغييرات قبل إنشاء نسخة جديدة')
     expect(adminComponent).toContain('استرجاع الحالي')
     expect(adminComponent).not.toContain('allowGlobalFallback: false, //')
