@@ -111,6 +111,10 @@ export async function POST(req: NextRequest) {
     const stage = (body as { stage?: unknown } | null)?.stage
     const snapshot = (body as { snapshot?: unknown } | null)?.snapshot
     if (!isStage(stage)) return NextResponse.json({ error: 'مرحلة غير صالحة' }, { status: 400 })
+    const current = await getCurrentStageProfile(stage)
+    if (current && snapshotKey(current.snapshot) === snapshotKey(snapshot)) {
+      return NextResponse.json({ error: 'لا يوجد تغيير للحفظ' }, { status: 409 })
+    }
     const saved = await saveStageProfile(stage, snapshot as StageProfileSnapshot, actor.id)
     const payload = await stagePayload(stage)
     return NextResponse.json({ saved, stage: payload })
