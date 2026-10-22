@@ -146,3 +146,49 @@ describe('E1 advisor advice', () => {
     expect(adminComponent).not.toContain('تطبيق النصيحة')
   })
 })
+
+describe('E2 advisor proposal drafts', () => {
+  const currentSnapshot = {
+    enabled: true,
+    provider: 'GEMINI',
+    policy: 'quality_first',
+    models: [{ provider: 'GEMINI', model: 'gemini-2.5-pro' }],
+    allowGlobalFallback: false,
+    verifier: null,
+  }
+
+  test('builds conservative validated drafts without mutating the current profile', () => {
+    const fallbackDraft = buildAdvisorProposedSnapshot(
+      { stage: 'GENERATION', category: 'FALLBACK', severity: 'WARNING' },
+      currentSnapshot,
+    )
+    expect(fallbackDraft).toEqual({ ...currentSnapshot, enabled: false, allowGlobalFallback: true })
+    expect(currentSnapshot.enabled).toBe(true)
+    expect(currentSnapshot.allowGlobalFallback).toBe(false)
+
+    const reliabilityDraft = buildAdvisorProposedSnapshot(
+      { stage: 'GENERATION', category: 'RELIABILITY', severity: 'WARNING' },
+      currentSnapshot,
+    )
+    expect(reliabilityDraft).toEqual({ ...currentSnapshot, allowGlobalFallback: true })
+
+    const costDraft = buildAdvisorProposedSnapshot(
+      { stage: 'GENERATION', category: 'COST_TELEMETRY', severity: 'INFO' },
+      currentSnapshot,
+    )
+    expect(costDraft).toBeNull()
+  })
+
+  test('E2 drafts are persisted inside advice only and have no apply path', () => {
+    expect(adviceSource).toContain('E2 — مسودة Snapshot')
+    expect(adviceSource).toContain('getCurrentStageProfile')
+    expect(adviceSource).toContain('validateStageProfileSnapshot')
+    expect(adviceSource).toContain('proposedSnapshot')
+    expect(adviceSource).not.toContain('saveStageProfile(')
+    expect(advisorRoute).not.toContain('saveStageProfile(')
+    expect(adminComponent).toContain('مسودة تغيير E2 محفوظة للمراجعة فقط')
+    expect(adminComponent).not.toContain('applyAdvice')
+    expect(adminComponent).not.toContain('طبّق النصيحة')
+    expect(adminComponent).not.toContain('تطبيق النصيحة')
+  })
+})
