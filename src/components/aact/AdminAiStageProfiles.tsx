@@ -247,6 +247,8 @@ export function AdminAiStageProfiles() {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [savingStage, setSavingStage] = useState<Stage | null>(null)
+  const [generatingAdvisorAdvice, setGeneratingAdvisorAdvice] = useState(false)
+  const [dismissingAdvisorAdviceId, setDismissingAdvisorAdviceId] = useState<string | null>(null)
   const [data, setData] = useState<ResponseData | null>(null)
   const [forms, setForms] = useState<Record<Stage, FormState> | null>(null)
 
