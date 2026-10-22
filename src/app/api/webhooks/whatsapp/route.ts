@@ -218,6 +218,8 @@ function inboundMessageFromEventPayload(payload: any): WhatsAppInboundMessage | 
     mediaMimeType: message?.mediaMimeType ? String(message.mediaMimeType) : undefined,
     mediaSha256: message?.mediaSha256 ? String(message.mediaSha256) : undefined,
     mediaFileSize: Number(message?.mediaFileSize || 0) || undefined,
+    mediaCaption: message?.mediaCaption ? String(message.mediaCaption) : undefined,
+    mediaFilename: message?.mediaFilename ? String(message.mediaFilename) : undefined,
     isVoice: Boolean(message?.isVoice),
     originKind: message?.originKind === 'VOICE' ? 'VOICE' : 'TEXT',
   }
