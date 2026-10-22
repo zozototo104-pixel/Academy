@@ -223,6 +223,31 @@ model AiStageProfileVersion {
   @@index([profileId, version])
 }
 
+// E1: advisor recommendations are persisted as reviewable suggestions only.
+// They never mutate AiStageProfile or AiStageProfileVersion; later stages may
+// add explicit human application, but E1 is generate/list/dismiss only.
+model AiAdvisorAdvice {
+  id               String          @id @default(cuid())
+  stage            AiPipelineStage
+  category         String
+  severity         String
+  status           String          @default("OPEN")
+  title            String
+  rationale        String
+  evidence         Json
+  proposedSnapshot Json?
+  signature        String
+  activeDedupKey   String?         @unique
+  createdBy        String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  dismissedAt      DateTime?
+  dismissedBy      String?
+
+  @@index([status, stage, createdAt])
+  @@index([category, createdAt])
+}
+
 enum QuestionRecheckReason {
   REVIEW_PROFILE_CHANGED
   NEW_EVIDENCE_AVAILABLE
