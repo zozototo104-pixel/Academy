@@ -437,7 +437,7 @@ function toRecord(row: any): AdvisorAdviceRecord {
 
 export async function expireOpenAdvisorAdvice(now = new Date()) {
   await db.aiAdvisorAdvice.updateMany({
-    where: { status: 'OPEN', expiresAt: { lt: now } },
+    where: { status: 'OPEN', OR: [{ expiresAt: { lt: now } }, { expiresAt: null }] },
     data: { status: 'SUPERSEDED', activeDedupKey: null, dismissedAt: now },
   })
 }
