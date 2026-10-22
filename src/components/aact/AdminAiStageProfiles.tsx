@@ -153,6 +153,12 @@ function fallbackRate(stats: StageData['stats']): string {
   return `${Math.round((stats.fallbacks / stats.runs) * 100)}%`
 }
 
+function formsFromResponse(res: ResponseData): Record<Stage, FormState> {
+  return Object.fromEntries(
+    res.stages.map((stage) => [stage.stage, snapshotToForm(stage.current?.snapshot ?? null)]),
+  ) as Record<Stage, FormState>
+}
+
 export function AdminAiStageProfiles() {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
