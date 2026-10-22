@@ -8,6 +8,11 @@ import {
   type AdvisorStageReadiness,
 } from '@/lib/ai-advisor-readiness'
 import type { PipelineStageName } from '@/lib/ai-pipeline-log'
+import {
+  getCurrentStageProfile,
+  validateStageProfileSnapshot,
+  type StageProfileSnapshot,
+} from '@/lib/ai-stage-profiles'
 
 // E1 — توصيات مراجعة فقط:
 // - تُشتق من سجلات D0/تقرير E0 ولا تستدعي أي نموذج لغوي.
