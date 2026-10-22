@@ -91,6 +91,63 @@ export function resolveEffectiveFromSnapshot(
   return { kind: 'stage', profileId: current.profileId, version: current.version, snapshot: current.snapshot }
 }
 
+// قيم التوجيه المعروفة لدى الراوتر — أي قيمة خارجها تجعل البروفايل
+// غير صالح للتوصيل (يُعامل كأنه غير موجود ويرجع التشغيل للعام).
+export const KNOWN_ROUTER_POLICIES = ['primary_first', 'balanced', 'quality_first', 'cost_saver', 'fallback_only'] as const
+export const KNOWN_AI_PROVIDERS = [
+  'GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA',
+  'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI',
+] as const
+
+export type StageRoutingOverrides =
+  | { kind: 'global'; reason: 'missing' | 'disabled' | 'empty-models' }
+  | { kind: 'invalid'; reason: string }
+  | {
+      kind: 'stage'
+      profileId: string
+      version: number
+      preferredModels: StageProfileModelRef[]
+      preferredProviders: string[]
+      policy: string | null
+      allowGlobalFallback: boolean
+      snapshot: StageProfileSnapshot
+    }
+
+// يحوّل حسم البروفايل الفعّال إلى تجاوزات توجيه جاهلة للنداء، مع تحقق
+// صارم: سياسة مجهولة أو مزوّد مجهول في أي موضع = بروفايل غير صالح.
+export function buildStageRoutingOverrides(resolution: EffectiveStageProfile): StageRoutingOverrides {
+  if (resolution.kind === 'global') return { kind: 'global', reason: resolution.reason }
+  const { snapshot } = resolution
+  if (snapshot.policy != null && !(KNOWN_ROUTER_POLICIES as readonly string[]).includes(snapshot.policy)) {
+    return { kind: 'invalid', reason: `unknown policy: ${snapshot.policy}` }
+  }
+  if (snapshot.provider != null && !(KNOWN_AI_PROVIDERS as readonly string[]).includes(snapshot.provider)) {
+    return { kind: 'invalid', reason: `unknown provider: ${snapshot.provider}` }
+  }
+  for (const ref of snapshot.models) {
+    if (!(KNOWN_AI_PROVIDERS as readonly string[]).includes(ref.provider)) {
+      return { kind: 'invalid', reason: `unknown provider in models: ${ref.provider}` }
+    }
+  }
+  if (snapshot.verifier) {
+    for (const ref of snapshot.verifier.preferred) {
+      if (!(KNOWN_AI_PROVIDERS as readonly string[]).includes(ref.provider)) {
+        return { kind: 'invalid', reason: `unknown provider in verifier: ${ref.provider}` }
+      }
+    }
+  }
+  return {
+    kind: 'stage',
+    profileId: resolution.profileId,
+    version: resolution.version,
+    preferredModels: snapshot.models.map((m) => ({ ...m })),
+    preferredProviders: snapshot.provider ? [snapshot.provider] : [],
+    policy: snapshot.policy,
+    allowGlobalFallback: snapshot.allowGlobalFallback,
+    snapshot,
+  }
+}
+
 interface StageProfileStore {
   loadCurrent(stage: PipelineStageName): Promise<{ profileId: string; version: number; snapshot: StageProfileSnapshot } | null>
   saveVersion(stage: PipelineStageName, snapshot: StageProfileSnapshot, createdBy: string | null): Promise<{ profileId: string; version: number }>

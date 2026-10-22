@@ -13,8 +13,18 @@ import { pipelineConfigSnapshot } from '@/lib/text-ai'
 
 export type PipelineStageName = 'READING' | 'ANALYSIS' | 'GENERATION' | 'REVIEW'
 
+export interface PipelineProfileStamp {
+  profileId: string
+  profileVersion: string
+  policy?: string | null
+  allowedModels?: string[]
+}
+
 export interface PipelineRunContext {
   stage: PipelineStageName
+  // عند توصيل مرحلة ببروفايلها (D2+) يُختم الصف بهوية البروفايل الفعلي
+  // بدل ختم الإعداد العام.
+  profileStamp?: PipelineProfileStamp
   bookId?: string | null
   batchId?: string | null
   unitId?: string | null
@@ -113,12 +123,22 @@ export async function recordPipelineOperation(
   ctx: PipelineRunContext & { latencyMs: number; success: boolean; failureCategory?: string | null; outcome?: PipelineRunOutcome },
 ): Promise<void> {
   try {
-    const stamp = await currentProfileStamp()
     const outcome = ctx.outcome ?? {}
     const detail = { ...(ctx.detail ?? {}), ...(outcome.detail ?? {}) }
+    // ختم البروفايل الفعلي إن وُجد (D2+)، وإلا ختم الإعداد العام الحي.
+    const stamp = ctx.profileStamp
+      ? {
+          profileId: ctx.profileStamp.profileId,
+          profileVersion: ctx.profileStamp.profileVersion,
+          policy: ctx.profileStamp.policy ?? null,
+          snapshot: ctx.profileStamp.allowedModels
+            ? { allowedModels: ctx.profileStamp.allowedModels, verifierPreferred: [] as string[] }
+            : null,
+        }
+      : { profileId: 'global', ...(await currentProfileStamp()) }
     const row: PipelineLogRow = {
       stage: ctx.stage,
-      profileId: 'global',
+      profileId: stamp.profileId,
       profileVersion: stamp.profileVersion,
       provider: outcome.provider ?? ctx.provider ?? null,
       model: outcome.model ?? ctx.model ?? null,
