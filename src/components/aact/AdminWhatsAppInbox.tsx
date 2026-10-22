@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import Image from 'next/image'
 import { api } from '@/lib/store'
 import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
@@ -17,7 +18,7 @@ type WaMessage = {
   sender: 'CUSTOMER' | 'BOT' | 'HUMAN' | 'SYSTEM'
   text: string
   rawType?: string | null
-  meta?: { kind?: string | null; isVoice?: boolean | null } | null
+  meta?: { kind?: string | null; isVoice?: boolean | null; mediaId?: string | null; mediaCaption?: string | null; mediaFilename?: string | null } | null
   sentByName?: string | null
   createdAt: string
 }
@@ -291,6 +292,8 @@ export function AdminWhatsAppInboxTab() {
                   {detailLoading ? <div className="flex h-40 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-[#075e54]" /></div> : messages.map((m) => {
                     const outbound = m.direction === 'OUTBOUND'
                     const isVoice = m.rawType === 'audio' || m.meta?.kind === 'VOICE' || Boolean(m.meta?.isVoice)
+                    const attachmentType = m.direction === 'INBOUND' && ['image', 'video', 'audio', 'document', 'sticker'].includes(m.rawType || '') ? m.rawType : null
+                    const attachmentUrl = attachmentType && m.meta?.mediaId ? `/api/admin/whatsapp-conversations/media?messageId=${encodeURIComponent(m.id)}` : null
                     return (
                       <div key={m.id} className={`flex ${outbound ? 'justify-start' : 'justify-end'}`}>
                         <div className={`max-w-[82%] rounded-3xl px-4 py-3 shadow-sm ${outbound ? 'rounded-bl-md bg-[#dcf8c6]' : 'rounded-br-md bg-white'}`}>
@@ -299,6 +302,26 @@ export function AdminWhatsAppInboxTab() {
                               <Mic className="h-3 w-3" /> رسالة صوتية مفرغة
                             </div>
                           )}
+                          {attachmentUrl && (attachmentType === 'image' || attachmentType === 'sticker') && (
+                            <a href={attachmentUrl} target="_blank" rel="noopener noreferrer" className="mb-2 block" aria-label="عرض الصورة المرفقة">
+                              <Image src={attachmentUrl} alt={m.meta?.mediaCaption || 'صورة مرسلة عبر واتساب'} width={320} height={240} unoptimized className="max-h-64 w-auto max-w-full rounded-xl object-contain" />
+                            </a>
+                          )}
+                          {attachmentUrl && attachmentType === 'video' && (
+                            <video src={attachmentUrl} controls preload="none" className="mb-2 max-h-72 w-full max-w-[320px] rounded-xl" aria-label="فيديو مرسل عبر واتساب" />
+                          )}
+                          {attachmentUrl && attachmentType === 'audio' && (
+                            <audio src={attachmentUrl} controls preload="none" className="mb-2 w-full max-w-[320px]" aria-label="تسجيل صوتي مرسل عبر واتساب" />
+                          )}
+                          {attachmentUrl && attachmentType === 'document' && (
+                            <a href={attachmentUrl} target="_blank" rel="noopener noreferrer" className="mb-2 block rounded-xl bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800 underline">
+                              📎 فتح المستند {m.meta?.mediaFilename || ''}
+                            </a>
+                          )}
+                          {attachmentType && !attachmentUrl && (
+                            <p className="mb-2 text-xs font-bold text-amber-700">المرفق غير متاح: لم يُحفظ معرّف الملف في الرسالة القديمة.</p>
+                          )}
+                          {m.meta?.mediaCaption && <p className="whitespace-pre-wrap text-sm font-bold leading-6 text-[#102a43]">{m.meta.mediaCaption}</p>}
                           <p className="whitespace-pre-wrap text-sm font-bold leading-7 text-[#102a43]">{m.text}</p>
                           <p className="mt-1 text-left text-[10px] font-bold text-slate-400">{m.sender === 'HUMAN' && m.sentByName ? `${m.sentByName} · ` : ''}{formatTime(m.createdAt)}</p>
                         </div>

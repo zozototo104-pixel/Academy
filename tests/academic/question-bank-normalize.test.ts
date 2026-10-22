@@ -95,8 +95,13 @@ describe('question bank generated candidate normalization', () => {
       modelAnswer: longerModelAnswer,
     })
 
-    expect(result.rejected).toBe(1)
-    expect(result.accepted).toHaveLength(0)
+    // D3.3: الجواب 354 حرفًا — فوق الشكلي (260) وتحت الصلب (520)، فلم يعد
+    // يُرفض بنيويًا؛ يُقبل بعلم LENGTH_FORMAL والإجابة النموذجية الأطول محفوظة.
+    expect(result.rejected).toBe(0)
+    expect(result.accepted).toHaveLength(1)
+    expect(result.accepted[0].modelAnswer).toBe(longerModelAnswer.trim())
+    expect(result.accepted[0].correctAnswer).toBe(longAnswer.trim())
+    expect(result.accepted[0].qualityFlags).toContain('LENGTH_FORMAL')
   })
 
   test('ESSAY short text without modelAnswer is still rejected structurally', () => {

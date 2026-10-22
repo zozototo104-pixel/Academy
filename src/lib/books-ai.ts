@@ -6,6 +6,9 @@ import { conciseAcademicLabel } from '@/lib/academic-output-quality'
 import { buildExamSourceChunks, selectExamSourceChunks, type ExamSourceChunk, type ExamSourceText } from '@/lib/exam-source-chunks'
 import { assertComprehensiveExamSourceSufficient, MAX_QUESTIONS_PER_SOURCE_CHUNK, minimumSourceChunksForComprehensiveExam, throwComprehensiveExamInsufficientSource, validateGeneratedExamQuestionsAgainstSelectedChunks, type ExamGenerationProviderContext } from '@/lib/comprehensive-exam-evidence'
 import { verifyQuestionsWithCrossProvider } from '@/lib/question-verifier'
+import { withPipelineRun } from '@/lib/ai-pipeline-log'
+import { prepareStageRun, runStageAttempt, type StageUsage } from '@/lib/ai-stage-runner'
+import type { TextAiPreferredModel, TextAiProvider, TextAiRouterPolicy } from '@/lib/text-ai'
 import type { TextProvenance } from '@/lib/text-provenance'
 
 // ===== خبير الذكاء الاصطناعي: اقتراح الكتب وتوليد الامتحانات الشاملة =====
@@ -700,6 +703,14 @@ async function completeJsonWithFallback(args: {
   deadlineMs?: number
   taskLevel?: 'GENERAL' | 'ACADEMIC_DRAFT' | 'ACADEMIC_CRITICAL'
   stickyScope?: string
+  // D2.3: stage-profile routing, forwarded to the router path. The
+  // comprehensive-exam caller runs ACADEMIC_CRITICAL, which never
+  // reaches the ZAI fallback below (it rethrows), so the allowlist
+  // cannot be escaped through this helper.
+  preferredModels?: TextAiPreferredModel[]
+  preferredProviders?: TextAiProvider[]
+  restrictToModels?: TextAiPreferredModel[]
+  routerPolicy?: TextAiRouterPolicy
   validate?: (text: string, context?: { provider: string; model: string }) => void
 }): Promise<string> {
   const errors: string[] = []
@@ -715,6 +726,10 @@ async function completeJsonWithFallback(args: {
         taskLevel: args.taskLevel,
         deadlineMs: args.deadlineMs,
         stickyScope: args.stickyScope,
+        ...(args.preferredModels ? { preferredModels: args.preferredModels } : {}),
+        ...(args.preferredProviders ? { preferredProviders: args.preferredProviders } : {}),
+        ...(args.restrictToModels ? { restrictToModels: args.restrictToModels } : {}),
+        ...(args.routerPolicy ? { routerPolicy: args.routerPolicy } : {}),
         validate: args.validate,
       }), timeoutMs, `${args.label}_Gemini`)
     } catch (e: any) {
@@ -1991,8 +2006,16 @@ ${plannedTypes}
 
   let raw = ''
   let generationContext: ExamGenerationProviderContext = {}
+  // D2.3: توليد الامتحان الشامل يدخل سجل D0 أخيرًا (كان خارجه)، ويعمل
+  // تحت بروفايل التوليد بنفس الدلالات الصارمة لبنك الأسئلة.
+  const genPlan = await prepareStageRun('GENERATION')
+  const genUsage: StageUsage = { fallbackUsed: false }
   try {
-    raw = await completeJsonWithFallback({
+    raw = await withPipelineRun(
+      { stage: 'GENERATION', bookId: books[0]?.id ?? null, batchId: `exam-batch-${batchIndex}`, inputText: prompt, promptText: 'أنت أستاذ امتحانات دراسات عليا يرجع JSON صالحاً فقط دون أي نص إضافي أو تعليقات.', profileStamp: genPlan.profileStamp, fallbackUsed: !genPlan.isStage, liveState: genUsage, detail: { ...genPlan.detail, source: 'comprehensive-exam' } },
+      () => runStageAttempt(genPlan, genUsage, (routing) => {
+        const routingModels = routing ? routing.preferredModels.map((m) => ({ provider: m.provider as TextAiPreferredModel['provider'], model: m.model })) : []
+        return completeJsonWithFallback({
       label: `exam question batch ${batchIndex + 1}`,
       system: 'أنت أستاذ امتحانات دراسات عليا يرجع JSON صالحاً فقط دون أي نص إضافي أو تعليقات.',
       prompt,
@@ -2012,7 +2035,11 @@ ${plannedTypes}
           acceptedQuestions: accepted.length,
         })
       },
-    })
+        ...(routing ? { preferredModels: routingModels, restrictToModels: routingModels, preferredProviders: [...new Set([...routing.preferredProviders, ...routing.preferredModels.map((m) => m.provider)])] as TextAiProvider[], ...(routing.policy ? { routerPolicy: routing.policy as TextAiRouterPolicy } : {}) } : {}),
+      })
+      }),
+      () => ({ provider: generationContext.provider ?? null, model: generationContext.model ?? null }),
+    )
   } catch (e: any) {
     if (e?.code === 'INSUFFICIENT_SOURCE') throw e
     const reason = String(e?.message || e).slice(0, 600)

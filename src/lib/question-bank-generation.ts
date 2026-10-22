@@ -1,24 +1,41 @@
 import { z } from 'zod'
 
 const cognitiveSkillSchema = z.enum(['REMEMBER', 'UNDERSTAND', 'APPLY', 'ANALYZE', 'EVALUATE', 'CREATE'])
+// D3.3: فصل الطول الشكلي عن الجوهري. حدود اليوم التاريخية صارت خط
+// التحذير الشكلي (SOFT): تجاوزها لا يقتل السؤال، بل يوسم بعلم
+// LENGTH_FORMAL ويصل للمراجع البشري. حدود المخطط هنا هي الصلبة
+// (HARD = ضعف الشكلية): تجاوزها طولٌ يفسد صلاحية السؤال امتحانيًا
+// ويُرفض بسبب محدد QUESTION_LENGTH_INVALID.
+export const FORMAL_LENGTH_CAPS = {
+  text: 1200,
+  sourceEvidence: 1800,
+  option: 260,
+  correctAnswer: 260,
+  modelAnswer: 1800,
+  correctRationale: 1000,
+  distractorRationale: 500,
+  sourceBookTitle: 220,
+  sourceLocator: 220,
+} as const
+
 const commonQuestionFields = {
-  text: z.string().min(12).max(1200),
-  sourceEvidence: z.string().min(8).max(1800),
-  sourceBookTitle: z.string().max(220).optional(),
-  sourceLocator: z.string().max(220).optional(),
+  text: z.string().min(12).max(2400),
+  sourceEvidence: z.string().min(8).max(3600),
+  sourceBookTitle: z.string().max(440).optional(),
+  sourceLocator: z.string().max(440).optional(),
   cognitiveSkill: cognitiveSkillSchema,
   difficulty: z.enum(['EASY', 'MEDIUM', 'ADVANCED']),
   sourceIndex: z.number().int().positive(),
-  correctRationale: z.string().min(4).max(1000).optional(),
-  distractorRationales: z.array(z.string().max(500)).max(6).default([]),
+  correctRationale: z.string().min(4).max(2000).optional(),
+  distractorRationales: z.array(z.string().max(1000)).max(6).default([]),
   qualityFlags: z.array(z.string().max(120)).max(20).default([]),
 }
-const optionSchema = z.string().min(1).max(260)
+const optionSchema = z.string().min(1).max(520)
 const generatedQuestionSchema = z.discriminatedUnion('type', [
-  z.object({ ...commonQuestionFields, type: z.literal('MCQ'), options: z.array(optionSchema).min(3).max(6), correctAnswer: z.string().min(1).max(260), modelAnswer: z.string().max(1800).optional() }),
-  z.object({ ...commonQuestionFields, type: z.literal('TF'), options: z.array(optionSchema).length(2), correctAnswer: z.enum(['صح', 'خطأ', '0', '1']), modelAnswer: z.string().max(1800).optional() }),
-  z.object({ ...commonQuestionFields, type: z.literal('SHORT'), options: z.array(optionSchema).default([]), correctAnswer: z.string().max(260).nullable().optional(), modelAnswer: z.string().min(2).max(1800), rubric: z.unknown().optional() }),
-  z.object({ ...commonQuestionFields, type: z.literal('ESSAY'), options: z.array(optionSchema).default([]), correctAnswer: z.string().max(260).nullable().optional(), modelAnswer: z.string().min(40).max(1800), rubric: z.unknown().optional() }),
+  z.object({ ...commonQuestionFields, type: z.literal('MCQ'), options: z.array(optionSchema).min(3).max(6), correctAnswer: z.string().min(1).max(520), modelAnswer: z.string().max(3600).optional() }),
+  z.object({ ...commonQuestionFields, type: z.literal('TF'), options: z.array(optionSchema).length(2), correctAnswer: z.enum(['صح', 'خطأ', '0', '1']), modelAnswer: z.string().max(3600).optional() }),
+  z.object({ ...commonQuestionFields, type: z.literal('SHORT'), options: z.array(optionSchema).default([]), correctAnswer: z.string().max(520).nullable().optional(), modelAnswer: z.string().min(2).max(3600), rubric: z.unknown().optional() }),
+  z.object({ ...commonQuestionFields, type: z.literal('ESSAY'), options: z.array(optionSchema).default([]), correctAnswer: z.string().max(520).nullable().optional(), modelAnswer: z.string().min(40).max(3600), rubric: z.unknown().optional() }),
 ]).superRefine((q, ctx) => {
   if (q.type !== 'MCQ') return
   const normalizedOptions = q.options.map((option) => option.replace(/\s+/g, ' ').trim())
@@ -183,6 +200,10 @@ function readableIssueSummary(candidate: unknown, index: number, issues: readonl
 
 function structuralReasonCode(issues: readonly z.ZodIssue[]): string {
   const issue = issues[0]
+  // D3.3: تجاوز الحد الصلب لطول نصّي = رفض جوهري بسبب طول مفسد،
+  // لا «خلل بنيوي» عام. (تجاوز عدد عناصر المصفوفات يبقى بنيويًا.)
+  const origin = (issue as { origin?: string; type?: string } | undefined)?.origin ?? (issue as { type?: string } | undefined)?.type
+  if (issue?.code === 'too_big' && origin === 'string') return 'QUESTION_LENGTH_INVALID'
   const field = (issue?.path || []).map(String).join('.')
   if (field === 'sourceEvidence') return 'SOURCE_EVIDENCE_REQUIRED'
   if (field === 'difficulty') return 'DIFFICULTY_REQUIRED'
@@ -193,6 +214,33 @@ function structuralReasonCode(issues: readonly z.ZodIssue[]): string {
   return `STRUCTURAL_${(field || 'QUESTION').toUpperCase()}`
 }
 
+// D3.3: هل يتجاوز السؤال المقبول أي حد طول شكلي؟ (نصّي فقط)
+export function formalLengthWarnings(q: {
+  text?: string
+  sourceEvidence?: string
+  options?: string[]
+  correctAnswer?: unknown
+  modelAnswer?: string | null
+  correctRationale?: string | null
+  distractorRationales?: string[]
+  sourceBookTitle?: string | null
+  sourceLocator?: string | null
+}): string[] {
+  const caps = FORMAL_LENGTH_CAPS
+  const over = (value: unknown, cap: number) => typeof value === 'string' && value.length > cap
+  const anyOver =
+    over(q.text, caps.text) ||
+    over(q.sourceEvidence, caps.sourceEvidence) ||
+    (q.options || []).some((option) => over(option, caps.option)) ||
+    over(q.correctAnswer, caps.correctAnswer) ||
+    over(q.modelAnswer, caps.modelAnswer) ||
+    over(q.correctRationale, caps.correctRationale) ||
+    (q.distractorRationales || []).some((item) => over(item, caps.distractorRationale)) ||
+    over(q.sourceBookTitle, caps.sourceBookTitle) ||
+    over(q.sourceLocator, caps.sourceLocator)
+  return anyOver ? ['LENGTH_FORMAL'] : []
+}
+
 export function parseGeneratedQuestionCandidates(raw: string): { accepted: any[]; rejected: number; rejectedReasons: string[] } {
   const parsed = parseQuestionBatchEnvelope(raw)
   const accepted: any[] = []
@@ -200,7 +248,14 @@ export function parseGeneratedQuestionCandidates(raw: string): { accepted: any[]
   for (let index = 0; index < parsed.questions.length; index++) {
     const candidate = parsed.questions[index]
     const result = generatedQuestionSchema.safeParse(normalizeCandidate(candidate))
-    if (result.success) accepted.push(result.data)
+    if (result.success) {
+      const warnings = formalLengthWarnings(result.data as never)
+      if (warnings.length) {
+        const data = result.data as { qualityFlags?: string[] }
+        data.qualityFlags = [...new Set([...(data.qualityFlags || []), ...warnings])]
+      }
+      accepted.push(result.data)
+    }
     else {
       rejectedReasons.push(structuralReasonCode(result.error.issues))
       console.warn(`question bank generated question rejected structurally: ${readableIssueSummary(candidate, index, result.error.issues)}`)

@@ -1,10 +1,12 @@
 import type { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { BOOK_READ_RETRY_MS } from '@/lib/book-read-job-control'
-import { textAiCompleteJsonWithMetadata, textAiDiagnostics, type TextAiProvider } from '@/lib/text-ai'
+import { textAiCompleteJsonWithMetadata, textAiDiagnostics, type TextAiPreferredModel, type TextAiProvider, type TextAiRouterPolicy } from '@/lib/text-ai'
 import { parseGeneratedQuestionCandidates } from '@/lib/question-bank-generation'
 import { buildQuestionBankRecord, validateQuestionBatchAgainstKnowledge } from '@/lib/question-bank-evidence'
 import { verifyQuestionsWithCrossProvider } from '@/lib/question-verifier'
+import { withPipelineRun } from '@/lib/ai-pipeline-log'
+import { prepareStageRun, runStageAttempt, type StageUsage } from '@/lib/ai-stage-runner'
 import { questionDuplicateKey } from '@/lib/ai-generation-progress'
 import { isDuplicateQuestionIdea } from '@/lib/question-bank-diversity'
 import { selectUnitExamQuestionsApprovedFirst, unitExamRequiredQuestions } from '@/lib/unit-exam-policy'
@@ -134,9 +136,9 @@ function distributeCorrectMcqPosition(options: string[], correctIndex: number, s
 
 export function prepareMcqOptionsForStorage(value: unknown, correctAnswer: unknown, seed = '') {
   const arr = Array.isArray(value) ? value : []
-  const options = arr.map((x) => cleanText(x, 260)).filter(Boolean).slice(0, 6)
+  const options = arr.map((x) => cleanText(x, 520)).filter(Boolean).slice(0, 6)
   if (options.length < 3) return { options: [] as string[], correctAnswer: null as string | null, reason: 'MCQ_REQUIRES_AT_LEAST_3_OPTIONS' }
-  const answerText = cleanText(correctAnswer, 260)
+  const answerText = cleanText(correctAnswer, 520)
   const answerIndex = /^\d+$/.test(answerText) ? Number(answerText) : options.findIndex((option) => option === answerText)
   if (!Number.isInteger(answerIndex) || answerIndex < 0 || answerIndex >= options.length) return { options: [] as string[], correctAnswer: null as string | null, reason: 'MCQ_ANSWER_NOT_IN_OPTIONS' }
   if (options.length <= 4) {
@@ -153,19 +155,21 @@ export function prepareMcqOptionsForStorage(value: unknown, correctAnswer: unkno
 
 function safeOptions(value: unknown, type: string) {
   const arr = Array.isArray(value) ? value : []
-  const options = arr.map((x) => cleanText(x, 260)).filter(Boolean).slice(0, 6)
+  const options = arr.map((x) => cleanText(x, 520)).filter(Boolean).slice(0, 6)
   if (type === 'TF') return ['صح', 'خطأ']
   if (type === 'MCQ') return options.length >= 3 ? options.slice(0, 4) : []
   return []
 }
 
+// D3.3: حدود القص هنا تطابق الحدود الصلبة في question-bank-generation
+// (ضعف الحدود الشكلية) — أي سؤال قبله المحلّل لا يُقصّ هنا بصمت أبدًا.
 function sanitizeQuestion(raw: GeneratedQuestionCandidate, fallback: Partial<QuestionBankSource> = {}) {
   const type = TYPES.has(String(raw.type || '').toUpperCase()) ? String(raw.type).toUpperCase() : 'MCQ'
   const rawDifficulty = String(raw.difficulty || '').toUpperCase()
   const difficulty = DIFFICULTIES.has(rawDifficulty) ? rawDifficulty : ''
-  const sourceEvidence = cleanText(raw.sourceEvidence, 1800)
+  const sourceEvidence = cleanText(raw.sourceEvidence, 3600)
   const cognitiveSkill = cleanText(raw.cognitiveSkill, 40)
-  const text = cleanText(raw.text || raw.question || fallback.title, 1200)
+  const text = cleanText(raw.text || raw.question || fallback.title, 2400)
   const mcq = type === 'MCQ' ? prepareMcqOptionsForStorage(raw.options, raw.correctAnswer, text) : null
   const options = mcq ? mcq.options : safeOptions(raw.options, type)
   let correctAnswer = mcq ? mcq.correctAnswer : raw.correctAnswer != null ? String(raw.correctAnswer).trim() : null
@@ -176,13 +180,13 @@ function sanitizeQuestion(raw: GeneratedQuestionCandidate, fallback: Partial<Que
     text,
     options: options.length ? JSON.stringify(options) : null,
     correctAnswer: type === 'MCQ' || type === 'TF' ? correctAnswer : null,
-    modelAnswer: type === 'SHORT' || type === 'ESSAY' ? cleanText(raw.modelAnswer || raw.answer || fallback.summary, 1800) : cleanText(raw.modelAnswer || '', 1200) || null,
+    modelAnswer: type === 'SHORT' || type === 'ESSAY' ? cleanText(raw.modelAnswer || raw.answer || fallback.summary, 3600) : cleanText(raw.modelAnswer || '', 3600) || null,
     sourceEvidence: sourceEvidence || null,
-    sourceBookTitle: cleanText(raw.sourceBookTitle || fallback.sourceNote, 220) || null,
-    sourceLocator: cleanText(raw.sourceLocator || fallback.title, 220) || null,
+    sourceBookTitle: cleanText(raw.sourceBookTitle || fallback.sourceNote, 440) || null,
+    sourceLocator: cleanText(raw.sourceLocator || fallback.title, 440) || null,
     cognitiveSkill: cognitiveSkill || null,
     difficulty,
-    correctRationale: cleanText(raw.correctRationale || raw.rationale, 1000) || null,
+    correctRationale: cleanText(raw.correctRationale || raw.rationale, 2000) || null,
     distractorRationales: raw.distractorRationales ? JSON.stringify(raw.distractorRationales).slice(0, 1800) : null,
     qualityFlags: Array.isArray(raw.qualityFlags) ? raw.qualityFlags.map(String).filter(Boolean) : [],
   }
@@ -451,13 +455,24 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
     : ''
   const tfBalanceInstruction = '\nإذا اخترت نوع TF فلا تجعل كل عبارات الصح/الخطأ صحيحة. وازن بين "صح" و"خطأ" عبر الدفعات. العبارة الخاطئة يجب أن تكون قابلة للتحقق من المصدر عبر نفي أو تغيير معلومة محددة، مع correctRationale يشرح لماذا هي خطأ اعتماداً على الاقتباس. لا تجعل عبارة TF الخاطئة ملتبسة أو رأياً عاماً.'
 
-  const raw = await textAiCompleteJsonWithMetadata({
+  // D2.3: التوليد يعمل تحت بروفايل التوليد الفعّال إن وُجد — حصر صارم
+  // بقائمته، ورجوع عالمي واحد موسوم لحظة قراره إن سمح البروفايل.
+  // بدونه: نفس نداء اليوم حرفيًا. التدقيق بالأسفل لم يُلمس (D2.4).
+  const genPlan = await prepareStageRun('GENERATION')
+  const genUsage: StageUsage = { fallbackUsed: false }
+  const raw = await withPipelineRun(
+    { stage: 'GENERATION', batchId: job.id, unitId: job.unitId ?? null, bookId: selected[0]?.bookId ?? null, inputText: knowledgeText, promptText: 'أنت مصمم أسئلة جامعية موثقة بالمصدر. أرجع JSON فقط.', profileStamp: genPlan.profileStamp, fallbackUsed: !genPlan.isStage, liveState: genUsage, detail: genPlan.detail },
+    () => runStageAttempt(genPlan, genUsage, (routing) => {
+      const routingModels = routing ? routing.preferredModels.map((m) => ({ provider: m.provider as TextAiPreferredModel['provider'], model: m.model })) : []
+      const routingProviders = routing ? [...new Set([...routing.preferredProviders, ...routing.preferredModels.map((m) => m.provider)])] as TextAiProvider[] : QUESTION_BANK_GENERATION_PROVIDER_ORDER
+      return textAiCompleteJsonWithMetadata({
     system: 'أنت مصمم أسئلة جامعية موثقة بالمصدر. أرجع JSON فقط.',
     history: [{ role: 'user', text: `أنشئ ${count} سؤالاً موثقاً لبنك الأسئلة.\nالبرنامج: ${program.titleAr}\nالنطاق: ${scope.scopeLabel}\n\nمصادر المعرفة المسموحة فقط:\n${knowledgeText}\n\nأرجع {"questions":[...]} ويجب أن يحتوي كل سؤال على: type=MCQ|TF|SHORT|ESSAY, text, options, correctAnswer, modelAnswer, sourceEvidence اقتباس حرفي من نص المصدر, sourceIndex رقم المصدر, difficulty, cognitiveSkill, correctRationale, distractorRationales للأسئلة الموضوعية.\nاستخدم هالقيم بالإنجليزي بالضبط: cognitiveSkill واحدة من REMEMBER|UNDERSTAND|APPLY|ANALYZE|EVALUATE|CREATE، وdifficulty واحدة من EASY|MEDIUM|ADVANCED.\nلأسئلة TF استخدم correctAnswer كنص "صح" أو "خطأ" فقط، ولا تستخدم رقماً.\nلـ MCQ اكتب distractorRationales كمصفوفة أسباب قصيرة لكل خيار خاطئ، ولـ TF اكتب سبباً واحداً لعكس الإجابة.\nاجعل الدفعة متنوعة، واحرص على سؤال قصير أو صح/خطأ عند الإمكان. لا تكرر أي سؤال موجود أعلاه، ولا تستخدم أي مصدر خارج القائمة.${diversityInstruction}${rescueInstruction}${tfBalanceInstruction}` }],
     taskLevel: 'ACADEMIC_CRITICAL',
     purpose: 'GENERATION',
-    routerPolicy: 'balanced',
-    preferredProviders: QUESTION_BANK_GENERATION_PROVIDER_ORDER,
+    routerPolicy: (routing?.policy ?? 'balanced') as TextAiRouterPolicy,
+    preferredProviders: routingProviders,
+    ...(routing ? { preferredModels: routingModels, restrictToModels: routingModels } : {}),
     temperature: rescueMode ? 0.35 : 0.2,
     maxOutputTokens: 5200,
     // Do not pin a previous fallback ahead of the configured generation priority.
@@ -487,12 +502,26 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
       }
     },
   })
+    }),
+    (r) => ({ provider: r.provider, model: r.model, detail: { requestedCount: count, paidFallback: r.provider === 'OPENAI' } }),
+  )
   if (raw.provider === 'OPENAI') console.warn('paid fallback used: OPENAI question bank generation')
   const parsed = parseGeneratedQuestionCandidates(raw.text)
   assertGeneratedBatchHasAcceptedCandidates(parsed)
   const validation = validateQuestionBatchAgainstKnowledge(parsed.accepted, evidenceSources, { provider: raw.provider, model: raw.model })
   const verifierBudgetMs = Math.max(18_000, Math.min(45_000, (deadlineMs || Date.now() + QUESTION_BANK_STEP_MS) - Date.now() - 3_000))
-  const verified = await verifyQuestionsWithCrossProvider({ questions: validation.accepted, sources: evidenceSources, generatorProvider: raw.provider, generatorModel: raw.model, timeBudgetMs: verifierBudgetMs })
+  // D2.4: التدقيق يعمل تحت بروفايل REVIEW (قائمة المدقق أولًا) بنفس
+  // الدلالات الصارمة؛ المدقق نفسه يدير محاولة الرجوع داخليًا لأنه لا
+  // يرمي عند فشل الموديلات بل يعلّم الأسئلة pending. قاعدة المدقق ≠
+  // المولّد لم تتغير هنا — تُبنى في D3 فوق generatorProvider/Model
+  // المسجلين أدناه كما كانوا منذ D0.
+  const reviewPlan = await prepareStageRun('REVIEW')
+  const reviewUsage: StageUsage = { fallbackUsed: false }
+  const verified = await withPipelineRun(
+    { stage: 'REVIEW', batchId: job.id, unitId: job.unitId ?? null, bookId: selected[0]?.bookId ?? null, inputText: validation.accepted.map((q) => q.text).join('\n'), profileStamp: reviewPlan.profileStamp, fallbackUsed: !reviewPlan.isStage, liveState: reviewUsage, detail: reviewPlan.detail },
+    () => verifyQuestionsWithCrossProvider({ questions: validation.accepted, sources: evidenceSources, generatorProvider: raw.provider, generatorModel: raw.model, timeBudgetMs: verifierBudgetMs, routing: reviewPlan.routing, onFallbackAttempt: () => { reviewUsage.fallbackUsed = true; reviewUsage.fallbackReason = 'all-stage-models-failed' } }),
+    (v) => ({ provider: v.find((q) => q.verifierProvider)?.verifierProvider ?? null, model: v.find((q) => q.verifierModel)?.verifierModel ?? null, outputCount: v.length, detail: { generatorProvider: raw.provider, generatorModel: raw.model, inputCount: validation.accepted.length } }),
+  )
   const traceReasons: string[] = [...(parsed.rejectedReasons || []), ...validation.rejected.map((item) => item.reason)]
   const verifierRejected = verified.filter((item) => !hasSourceGroundedFlag(item))
   for (const item of verifierRejected) traceReasons.push(cleanText(item.verificationReason || item.verifierReason || 'VERIFIER_REJECTED', 220))
@@ -519,7 +548,8 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
     rows.push({
       ...buildQuestionBankRecord({
         ...q,
-        qualityFlags: ['SOURCE_LINKED', 'NEEDS_HUMAN_REVIEW', 'ORIGINAL_CHUNK_MISSING'],
+        // D3.3a: أعلام السؤال الأصلية محفوظة (مثل LENGTH_FORMAL) — لا تُستبدل.
+        qualityFlags: [...new Set(['SOURCE_LINKED', 'NEEDS_HUMAN_REVIEW', 'ORIGINAL_CHUNK_MISSING', ...(Array.isArray(item.qualityFlags) ? item.qualityFlags : [])])],
         verificationPending: true,
         verificationReason: 'لا يوجد مقطع أصلي',
         verifierReason: 'لا يوجد مقطع أصلي',
