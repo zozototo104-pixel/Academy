@@ -560,6 +560,10 @@ export function SupervisorView() {
                   </CardContent></Card>
                 </TabsContent>
 
+                <TabsContent value="lectures" className="space-y-4">
+                  <AdminLectures surface="supervisor" />
+                </TabsContent>
+
                 <TabsContent value="thesis" className="space-y-3">
                   <Card><CardContent className="p-5">
                     <h3 className="mb-3 text-base font-black text-[#0f2b46]"><Video className="ml-1 inline h-4 w-4 text-[#a8841a]" /> بحث التخرج والمناقشة</h3>
