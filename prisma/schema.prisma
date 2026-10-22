@@ -227,24 +227,32 @@ model AiStageProfileVersion {
 // They never mutate AiStageProfile or AiStageProfileVersion; later stages may
 // add explicit human application, but E1 is generate/list/dismiss only.
 model AiAdvisorAdvice {
-  id               String          @id @default(cuid())
-  stage            AiPipelineStage
-  category         String
-  severity         String
-  status           String          @default("OPEN")
-  title            String
-  rationale        String
-  evidence         Json
-  proposedSnapshot Json?
-  signature        String
-  activeDedupKey   String?         @unique
-  createdBy        String?
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  dismissedAt      DateTime?
-  dismissedBy      String?
+  id                    String          @id @default(cuid())
+  stage                 AiPipelineStage
+  category              String
+  severity              String
+  status                String          @default("OPEN")
+  title                 String
+  rationale             String
+  evidence              Json
+  proposedSnapshot      Json?
+  targetProfileVersion  Int?
+  signature             String
+  evidenceSignature     String?
+  activeDedupKey        String?         @unique
+  expiresAt             DateTime?
+  createdBy             String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  dismissedAt           DateTime?
+  dismissedBy           String?
+  appliedAt             DateTime?
+  appliedBy             String?
+  appliedProfileVersion Int?
 
   @@index([status, stage, createdAt])
+  @@index([status, expiresAt])
+  @@index([signature, status, createdAt])
   @@index([category, createdAt])
 }
 
