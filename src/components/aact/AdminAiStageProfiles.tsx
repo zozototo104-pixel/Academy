@@ -326,6 +326,35 @@ export function AdminAiStageProfiles() {
     }
   }
 
+  const requestAdvisorAdvice = async () => {
+    setGeneratingAdvisorAdvice(true)
+    try {
+      const res = await api<{ created: number; skipped: number; advice: AdvisorAdvice[] }>('/api/admin/ai-advisor', { method: 'POST' })
+      setData((current) => (current ? { ...current, advisorAdvice: res.advice } : current))
+      toast({ title: 'تم توليد توصيات E1', description: `جديد: ${res.created} · مكرر مفتوح: ${res.skipped}` })
+    } catch (error: any) {
+      toast({ title: 'تعذر توليد توصيات المستشار', description: error?.message, variant: 'destructive' })
+    } finally {
+      setGeneratingAdvisorAdvice(false)
+    }
+  }
+
+  const dismissAdvisorAdvice = async (id: string) => {
+    setDismissingAdvisorAdviceId(id)
+    try {
+      await api<{ advice: AdvisorAdvice }>('/api/admin/ai-advisor', {
+        method: 'PATCH',
+        body: JSON.stringify({ id }),
+      })
+      setData((current) => (current ? { ...current, advisorAdvice: (current.advisorAdvice ?? []).filter((item) => item.id !== id) } : current))
+      toast({ title: 'تم إغلاق توصية المستشار' })
+    } catch (error: any) {
+      toast({ title: 'تعذر إغلاق التوصية', description: error?.message, variant: 'destructive' })
+    } finally {
+      setDismissingAdvisorAdviceId(null)
+    }
+  }
+
   if (loading && !data) {
     return (
       <Card>
