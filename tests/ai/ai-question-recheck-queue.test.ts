@@ -32,6 +32,7 @@ queue.__setRecheckQueueStoreForTests({
       questionId: data.questionId,
       reason: data.reason,
       status: 'PENDING',
+      activeDedupKey: data.activeDedupKey,
       profileVersion: data.profileVersion,
       recommendation: null,
       error: null,
