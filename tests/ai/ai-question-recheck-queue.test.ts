@@ -166,16 +166,17 @@ describe('D3.2a scope guards: data layer only, no writers wired yet', () => {
   })
 })
 
-describe('D3.2b atomicity: the partial unique index conflict reads as already-queued', () => {
+describe('D3.2b atomicity: the Prisma-compatible active dedup key conflict reads as already-queued', () => {
   test('a P2002 from create (a lost enqueue race) is translated, never thrown at the caller', async () => {
     reset()
     throwP2002OnCreate = true
     const out = await queue.enqueueQuestionRecheck({ questionId: 'q-pending', reason: 'REVIEW_PROFILE_CHANGED' })
     expect(out).toEqual({ enqueued: false, reason: 'already-queued' })
     expect(tasks).toHaveLength(0)
-    // والفهرس وحده لا يكفي: ملف الـmigration موجود فعلًا بالقيد الجزئي
-    const sql = readFileSync('prisma/migrations/20261022190000_question_recheck_active_unique/migration.sql', 'utf8')
-    expect(sql).toContain('CREATE UNIQUE INDEX')
-    expect(sql).toContain("WHERE \"status\" IN ('PENDING', 'RUNNING')")
+    // الحماية الذرية صارت ممثلة في Prisma schema بدل فهرس جزئي خام يكسر migrate diff.
+    const sql = readFileSync('prisma/migrations/20261022203000_question_recheck_active_dedup_key/migration.sql', 'utf8')
+    expect(sql).toContain('DROP INDEX IF EXISTS "QuestionRecheckTask_active_question_reason_key"')
+    expect(sql).toContain('"activeDedupKey"')
+    expect(sql).toContain('"QuestionRecheckTask_activeDedupKey_key"')
   })
 })
