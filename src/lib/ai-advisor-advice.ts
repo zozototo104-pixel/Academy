@@ -105,6 +105,72 @@ function severityForFallback(fallbackRate: number): AdvisorAdviceSeverity {
   return 'WARNING'
 }
 
+function cloneSnapshot(snapshot: StageProfileSnapshot): StageProfileSnapshot {
+  return {
+    enabled: snapshot.enabled,
+    provider: snapshot.provider,
+    policy: snapshot.policy,
+    models: snapshot.models.map((model) => ({ ...model })),
+    allowGlobalFallback: snapshot.allowGlobalFallback,
+    verifier: snapshot.verifier
+      ? { preferred: snapshot.verifier.preferred.map((model) => ({ ...model })), strict: snapshot.verifier.strict }
+      : null,
+  }
+}
+
+function snapshotKey(snapshot: StageProfileSnapshot): string {
+  return JSON.stringify({
+    enabled: snapshot.enabled,
+    provider: snapshot.provider ?? null,
+    policy: snapshot.policy ?? null,
+    models: snapshot.models.map((model) => `${model.provider}:${model.model}`),
+    allowGlobalFallback: snapshot.allowGlobalFallback,
+    verifier: snapshot.verifier
+      ? {
+          preferred: snapshot.verifier.preferred.map((model) => `${model.provider}:${model.model}`),
+          strict: snapshot.verifier.strict,
+        }
+      : null,
+  })
+}
+
+// E2 — مسودة Snapshot للمراجعة فقط: تحفظ داخل التوصية ولا تطبّق نفسها.
+// القاعدة المحافظة: الأعطال العالية لا تخترع موديلات ولا تغيّر مزوّدًا؛ إما
+// تضمن الرجوع للعام أو تقترح تعطيل بروفايل المرحلة مؤقتًا لصالح المسار العام.
+export function buildAdvisorProposedSnapshot(
+  candidate: Pick<AdvisorAdviceCandidateWithSignature, 'stage' | 'category' | 'severity'>,
+  currentSnapshot: StageProfileSnapshot | null,
+): StageProfileSnapshot | null {
+  if (!currentSnapshot || !currentSnapshot.enabled) return null
+  if (candidate.category === 'COST_TELEMETRY') return null
+
+  const draft = cloneSnapshot(currentSnapshot)
+  draft.allowGlobalFallback = true
+
+  if (candidate.category === 'FALLBACK' || candidate.severity === 'CRITICAL') {
+    draft.enabled = false
+  }
+
+  const validated = validateStageProfileSnapshot(candidate.stage, draft)
+  return snapshotKey(validated) === snapshotKey(currentSnapshot) ? null : validated
+}
+
+async function attachAdvisorProposalDrafts(
+  candidates: AdvisorAdviceCandidateWithSignature[],
+): Promise<AdvisorAdviceCandidateWithSignature[]> {
+  const currentByStage = new Map<PipelineStageName, StageProfileSnapshot | null>()
+  for (const candidate of candidates) {
+    if (!currentByStage.has(candidate.stage)) {
+      const current = await getCurrentStageProfile(candidate.stage)
+      currentByStage.set(candidate.stage, current?.snapshot ?? null)
+    }
+  }
+  return candidates.map((candidate) => ({
+    ...candidate,
+    proposedSnapshot: buildAdvisorProposedSnapshot(candidate, currentByStage.get(candidate.stage) ?? null),
+  }))
+}
+
 export function buildAdvisorAdviceCandidates(report: AdvisorReadinessReport): AdvisorAdviceCandidateWithSignature[] {
   const candidates: AdvisorAdviceCandidate[] = []
   const stages = new Map(report.stages.map((stage) => [stage.stage, stage]))
