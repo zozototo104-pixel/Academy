@@ -402,10 +402,25 @@ export function AdminAiStageProfiles() {
       toast({ title: 'تعذر تحميل المسودة', description: 'أعد تحميل الصفحة بعد اكتمال بيانات البروفايلات.', variant: 'destructive' })
       return
     }
+    if (advice.targetProfileVersion == null) {
+      toast({ title: 'المسودة قديمة', description: 'هذه التوصية لا تحمل نسخة هدف. أعد توليد التوصية قبل تحميلها.', variant: 'destructive' })
+      return
+    }
+    const currentVersion = stageByName.get(advice.stage)?.current?.version ?? 0
+    if (currentVersion !== advice.targetProfileVersion) {
+      toast({ title: 'المسودة قديمة', description: 'تم تعديل بروفايل المرحلة بعد إنشاء هذه التوصية. أعد توليد التوصية.', variant: 'destructive' })
+      return
+    }
     setForms({ ...forms, [advice.stage]: snapshotToForm(advice.proposedSnapshot) })
+    setLoadedAdvisorDraft({
+      stage: advice.stage,
+      adviceId: advice.id,
+      targetProfileVersion: advice.targetProfileVersion,
+      snapshotKey: snapshotKey(advice.proposedSnapshot),
+    })
     toast({
       title: `تم تحميل مسودة ${STAGE_LABELS[advice.stage]} للمراجعة`,
-      description: 'راجع نموذج المرحلة ثم استخدم حفظ نسخة جديدة فقط إذا أردت اعتماد المسودة يدويًا.',
+      description: 'راجع نموذج المرحلة ثم استخدم حفظ نسخة جديدة. إذا حفظتها كما هي ستُعلّم التوصية كمُعتمدة.',
     })
   }
 
