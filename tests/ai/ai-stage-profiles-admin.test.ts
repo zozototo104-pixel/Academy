@@ -17,6 +17,10 @@ describe('D4 admin AI stage profiles surface', () => {
     expect(apiRoute).not.toContain('questionRecheckTask.create')
     expect(apiRoute).not.toContain('advisorAdvice.create')
     expect(apiRoute).not.toContain('QuestionRecheck')
+    expect(advisorRoute).toContain('await requireAdmin()')
+    expect(advisorRoute).toContain('generateAdvisorAdvice(')
+    expect(advisorRoute).toContain('dismissAdvisorAdvice(')
+    expect(advisorRoute).not.toContain('saveStageProfile(')
   })
 
   test('the UI is wired as a D4 profile/log tab with E0 readiness and E1 review-only advice', () => {
