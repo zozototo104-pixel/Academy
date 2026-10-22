@@ -57,6 +57,12 @@ model User {
   aiUsageLogs   AiUsageLog[]
   humanHandoffRequests HumanHandoffRequest[] @relation("HumanHandoffRequester")
   certificates Certificate[]
+  lectureSeriesSupervised LectureSeries[] @relation("LectureSeriesSupervisor")
+  lectureSeriesCreated LectureSeries[] @relation("LectureSeriesCreator")
+  lectureSessionsUpdated LectureSession[] @relation("LectureSessionUpdater")
+  lectureAttendanceConfirmed LectureAttendance[] @relation("LectureAttendanceConfirmer")
+  lectureAttendances LectureAttendance[] @relation("LectureAttendanceStudent")
+  lectureWatchProgress LectureWatchProgress[] @relation("LectureWatchStudent")
 
   @@index([emailVerificationTokenHash])
   @@index([emailVerifiedAt])
