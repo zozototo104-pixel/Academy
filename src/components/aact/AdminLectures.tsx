@@ -571,12 +571,14 @@ function CreateSeriesDialog({
   onClose,
   programs,
   supervisors,
+  showSupervisorSelect,
   onSubmit,
 }: {
   open: boolean
   onClose: () => void
   programs: ProgramOption[]
   supervisors: SupervisorOption[]
+  showSupervisorSelect: boolean
   onSubmit: (payload: Record<string, unknown>) => Promise<void>
 }) {
   const [form, setForm] = useState({
