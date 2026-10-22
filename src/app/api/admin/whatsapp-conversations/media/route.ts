@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
     const sourceType = info.mimeType.toLowerCase()
     const allowedType = /^(image\/(jpeg|png|webp|gif)|video\/(mp4|webm|3gpp)|audio\/(ogg|mpeg|mp4|aac|amr|webm)|application\/pdf|text\/plain)$/.test(sourceType)
     const contentType = allowedType ? sourceType : 'application/octet-stream'
-    return new NextResponse(content, {
+    return new NextResponse(new Uint8Array(content), {
       headers: {
         'Content-Type': contentType,
         'Content-Length': String(content.length),
