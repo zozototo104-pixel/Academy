@@ -158,3 +158,31 @@ describe('D0 pipeline telemetry: schema and wiring guards', () => {
     expect(source).toContain('لا يكسر التشغيل أبدًا')
   })
 })
+
+describe('D2.1c: liveState marks a fallback attempt even when the fallback itself fails', () => {
+  test('a failed run whose liveState decided a global fallback records fallbackUsed + reason', async () => {
+    const rows: Record<string, unknown>[] = []
+    __setPipelineLogDepsForTests({
+      writer: async (row) => { rows.push(row as unknown as Record<string, unknown>) },
+      snapshot: async () => ({ policy: 'balanced', allowedModels: [], verifierPreferred: [] }),
+    })
+    const liveState: { fallbackUsed?: boolean; fallbackReason?: string } = {}
+    // لحظة اتخاذ قرار الرجوع — قبل معرفة نتيجة محاولة الرجوع
+    liveState.fallbackUsed = true
+    liveState.fallbackReason = 'all-stage-models-failed'
+    await recordPipelineOperation({
+      stage: 'READING',
+      bookId: 'book-1',
+      inputText: 'pdf',
+      latencyMs: 5,
+      success: false,
+      failureCategory: 'PROVIDER_ERROR',
+      fallbackUsed: false,
+      liveState,
+    })
+    expect(rows).toHaveLength(1)
+    expect(rows[0].success).toBe(false)
+    expect(rows[0].fallbackUsed).toBe(true)
+    expect((rows[0].detail as Record<string, unknown>).fallbackReason).toBe('all-stage-models-failed')
+  })
+})

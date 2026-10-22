@@ -100,12 +100,15 @@ async function transcribeOnce(buffer: Buffer, pageNumbers: readonly number[], de
 // D2.1b: مع بروفايل مرحلة، المحاولة الأولى محصورة بقائمته حصرًا صارمًا.
 // فشل الكل: رجوع واحد للعام إن سمح البروفايل (ويُعلَّم fellBack)،
 // وإلا يفشل النداء بوضوح كما فشل.
-async function transcribeWithMeta(buffer: Buffer, pageNumbers: readonly number[], deadlineMs: number, overrides: { preferredModels: { provider: string; model: string }[]; preferredProviders: string[]; policy: string | null; allowGlobalFallback: boolean } | null): Promise<{ pages: ExtractedBookPage[]; provider: string; model: string; fellBack: boolean }> {
+async function transcribeWithMeta(buffer: Buffer, pageNumbers: readonly number[], deadlineMs: number, overrides: { preferredModels: { provider: string; model: string }[]; preferredProviders: string[]; policy: string | null; allowGlobalFallback: boolean } | null, onFallbackAttempt?: () => void): Promise<{ pages: ExtractedBookPage[]; provider: string; model: string; fellBack: boolean }> {
   if (!overrides) return { ...(await transcribeOnce(buffer, pageNumbers, deadlineMs, null)), fellBack: false }
   try {
     return { ...(await transcribeOnce(buffer, pageNumbers, deadlineMs, overrides)), fellBack: false }
   } catch (error) {
     if (!overrides.allowGlobalFallback) throw error
+    // D2.1c: الوسم يُضبط لحظة اتخاذ قرار الرجوع — قبل المحاولة نفسها —
+    // حتى يظهر في سجل الفشل إن فشلت محاولة الرجوع أيضًا.
+    onFallbackAttempt?.()
     return { ...(await transcribeOnce(buffer, pageNumbers, deadlineMs, null)), fellBack: true }
   }
 }
@@ -120,7 +123,7 @@ export type ExtractStepStore = {
 }
 
 /** One durable batch is at most eight pages. Progress advances only after every chunk is saved. */
-async function extractPdfBatchInner(input: { buffer: Buffer; bookId: string; programId: string; jobId: string; pagesDone: number; totalPages: number; existingChunks: number; store: ExtractStepStore; deadlineMs: number; extractPages?: typeof extractNumberedPdfPages; ocrPages?: typeof transcribeScannedDocumentWithVision; routing?: { preferredModels: { provider: string; model: string }[]; preferredProviders: string[]; policy: string | null; allowGlobalFallback: boolean } | null; aiUsage?: { provider: string | null; model: string | null; fallbackUsed?: boolean } }): Promise<{ pagesDone: number; totalPages: number; totalChunks: number; phase: 'EXTRACT' | 'ANALYZE' }> {
+async function extractPdfBatchInner(input: { buffer: Buffer; bookId: string; programId: string; jobId: string; pagesDone: number; totalPages: number; existingChunks: number; store: ExtractStepStore; deadlineMs: number; extractPages?: typeof extractNumberedPdfPages; ocrPages?: typeof transcribeScannedDocumentWithVision; routing?: { preferredModels: { provider: string; model: string }[]; preferredProviders: string[]; policy: string | null; allowGlobalFallback: boolean } | null; aiUsage?: { provider: string | null; model: string | null; fallbackUsed?: boolean; fallbackReason?: string } }): Promise<{ pagesDone: number; totalPages: number; totalChunks: number; phase: 'EXTRACT' | 'ANALYZE' }> {
   const { buffer, bookId, programId, jobId, store } = input
   if (Date.now() >= input.deadlineMs) throw new Error('BOOK_EXTRACT_DEADLINE')
   const lastPage = Math.min(input.totalPages, input.pagesDone + 8)
@@ -132,7 +135,9 @@ async function extractPdfBatchInner(input: { buffer: Buffer; bookId: string; pro
     const ocr = input.ocrPages
       ? await input.ocrPages(buffer, range, input.deadlineMs)
       : await (async () => {
-          const meta = await transcribeWithMeta(buffer, range, input.deadlineMs, input.routing ?? null)
+          const meta = await transcribeWithMeta(buffer, range, input.deadlineMs, input.routing ?? null, () => {
+            if (input.aiUsage) { input.aiUsage.fallbackUsed = true; input.aiUsage.fallbackReason = 'all-stage-models-failed' }
+          })
           if (input.aiUsage) { input.aiUsage.provider = meta.provider; input.aiUsage.model = meta.model; if (meta.fellBack) input.aiUsage.fallbackUsed = true }
           return meta.pages
         })()
@@ -164,7 +169,7 @@ export async function extractPdfBatch(input: Parameters<typeof extractPdfBatchIn
   } catch {
     overrides = { kind: 'resolution-error' }
   }
-  const aiUsage = { provider: null as string | null, model: null as string | null, fallbackUsed: false }
+  const aiUsage: { provider: string | null; model: string | null; fallbackUsed: boolean; fallbackReason?: string } = { provider: null, model: null, fallbackUsed: false }
   const isStage = overrides.kind === 'stage'
   let routing: { preferredModels: { provider: string; model: string }[]; preferredProviders: string[]; policy: string | null; allowGlobalFallback: boolean } | null = null
   let profileStamp: { profileId: string; profileVersion: string; policy: string | null; allowedModels: string[] } | undefined
@@ -181,7 +186,7 @@ export async function extractPdfBatch(input: Parameters<typeof extractPdfBatchIn
   if (overrides.kind === 'global') detail.fallbackReason = overrides.reason
   if (overrides.kind === 'invalid') { detail.profileInvalid = true; detail.invalidReason = overrides.reason }
   return withPipelineRun(
-    { stage: 'READING', bookId: input.bookId, batchId: input.jobId, inputData: input.buffer, profileStamp, fallbackUsed: !isStage, detail },
+    { stage: 'READING', bookId: input.bookId, batchId: input.jobId, inputData: input.buffer, profileStamp, fallbackUsed: !isStage, liveState: aiUsage, detail },
     () => extractPdfBatchInner({ ...input, routing, aiUsage }),
     (r) => ({ provider: aiUsage.provider, model: aiUsage.model, outputCount: r.totalChunks, fallbackUsed: aiUsage.fallbackUsed || undefined, detail: { pagesDone: r.pagesDone, totalPages: r.totalPages, phase: r.phase, ...(aiUsage.fallbackUsed ? { fallbackReason: 'all-stage-models-failed' } : {}) } }),
   )

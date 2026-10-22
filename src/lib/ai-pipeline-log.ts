@@ -36,6 +36,10 @@ export interface PipelineRunContext {
   promptVersion?: string | null
   fallbackUsed?: boolean
   detail?: Record<string, unknown> | null
+  // D2.1c: حالة حية يملكها المستدعي ويحدّثها أثناء التشغيل؛ تُقرأ وقت
+  // التسجيل على مساري النجاح والفشل معًا، حتى يظهر قرار محاولة الرجوع
+  // للعام في الصف حتى لو فشلت محاولة الرجوع نفسها.
+  liveState?: { fallbackUsed?: boolean; fallbackReason?: string }
 }
 
 export interface PipelineRunOutcome {
@@ -125,6 +129,7 @@ export async function recordPipelineOperation(
   try {
     const outcome = ctx.outcome ?? {}
     const detail = { ...(ctx.detail ?? {}), ...(outcome.detail ?? {}) }
+    if (ctx.liveState?.fallbackReason && detail.fallbackReason === undefined) detail.fallbackReason = ctx.liveState.fallbackReason
     // ختم البروفايل الفعلي إن وُجد (D2+)، وإلا ختم الإعداد العام الحي.
     const stamp = ctx.profileStamp
       ? {
@@ -158,7 +163,7 @@ export async function recordPipelineOperation(
       costCents: outcome.costCents ?? null,
       success: ctx.success,
       failureCategory: ctx.success ? null : (ctx.failureCategory ?? 'UNKNOWN'),
-      fallbackUsed: outcome.fallbackUsed ?? ctx.fallbackUsed ?? false,
+      fallbackUsed: outcome.fallbackUsed ?? ctx.liveState?.fallbackUsed ?? ctx.fallbackUsed ?? false,
       detail: Object.keys(detail).length ? detail : null,
     }
     await writer(row)

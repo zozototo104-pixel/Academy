@@ -105,6 +105,14 @@ describe('D2.1 reading wiring: scope guards', () => {
     expect(reader).toContain('fellBack: true')
   })
 
+  test('D2.1c: the fallback mark is set at decision time and reaches failure rows', () => {
+    const reader = readFileSync('src/lib/book-reader.ts', 'utf8')
+    expect(reader).toContain('onFallbackAttempt?.()')
+    expect(reader).toContain('liveState: aiUsage')
+    const log = readFileSync('src/lib/ai-pipeline-log.ts', 'utf8')
+    expect(log).toContain('ctx.liveState?.fallbackUsed')
+  })
+
   test('D2.1b: the router enforces restrictToModels on providers and candidates', () => {
     const router = readFileSync('src/lib/text-ai.ts', 'utf8')
     expect(router).toContain('restrictToModels?: TextAiPreferredModel[]')
