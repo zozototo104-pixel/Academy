@@ -92,3 +92,57 @@ describe('E0 advisor readiness', () => {
     expect(adminComponent).not.toContain('تطبيق النصيحة')
   })
 })
+
+describe('E1 advisor advice', () => {
+  test('does not create advice candidates for stages that have not passed E0 readiness', () => {
+    const now = new Date('2026-10-22T00:00:00Z')
+    const stage = evaluateStageReadiness({
+      ...base,
+      totalRuns: ADVISOR_READINESS_MIN_STAGE_RUNS - 1,
+      firstRunAt: new Date(now.getTime() - ADVISOR_READINESS_MIN_DAYS * 86_400_000),
+      lastRunAt: now,
+    })
+
+    expect(buildAdvisorAdviceCandidates(reportWith(stage))).toEqual([])
+  })
+
+  test('creates deterministic review-only advice from ready D0 metrics and gates cost advice on coverage', () => {
+    const now = new Date('2026-10-22T00:00:00Z')
+    const stage = evaluateStageReadiness({
+      ...base,
+      totalRuns: ADVISOR_READINESS_MIN_STAGE_RUNS,
+      successRuns: 130,
+      failureRuns: 70,
+      fallbackRuns: 30,
+      tokenRows: ADVISOR_READINESS_MIN_STAGE_RUNS,
+      costRows: Math.floor(ADVISOR_READINESS_MIN_STAGE_RUNS * ADVISOR_COST_COVERAGE_TARGET) - 1,
+      firstRunAt: new Date(now.getTime() - ADVISOR_READINESS_MIN_DAYS * 86_400_000),
+      lastRunAt: now,
+    })
+
+    const advice = buildAdvisorAdviceCandidates(reportWith(stage))
+    expect(advice.map((item) => item.category)).toEqual(['RELIABILITY', 'FALLBACK', 'COST_TELEMETRY'])
+    expect(advice.every((item) => item.proposedSnapshot === null)).toBe(true)
+    expect(advice.every((item) => item.activeDedupKey.includes(item.stage))).toBe(true)
+    expect(advice[0].signature).toBe(buildAdvisorAdviceCandidates(reportWith(stage))[0].signature)
+  })
+
+  test('E1 persists recommendations only and never applies them to stage profiles', () => {
+    expect(schema).toContain('model AiAdvisorAdvice')
+    expect(schema).toContain('activeDedupKey')
+    expect(adviceSource).toContain('E1 — توصيات مراجعة فقط')
+    expect(adviceSource).toContain('buildAdvisorAdviceCandidates')
+    expect(adviceSource).toContain('db.aiAdvisorAdvice.create')
+    expect(adviceSource).toContain('dismissAdvisorAdvice')
+    expect(adviceSource).not.toContain('saveStageProfile(')
+    expect(advisorRoute).toContain('generateAdvisorAdvice(')
+    expect(advisorRoute).toContain('dismissAdvisorAdvice(')
+    expect(advisorRoute).not.toContain('saveStageProfile(')
+    expect(adminComponent).toContain('E1 — توصيات المستشار')
+    expect(adminComponent).toContain('توليد توصيات E1')
+    expect(adminComponent).toContain('إغلاق التوصية')
+    expect(adminComponent).not.toContain('applyAdvice')
+    expect(adminComponent).not.toContain('طبّق النصيحة')
+    expect(adminComponent).not.toContain('تطبيق النصيحة')
+  })
+})
