@@ -510,9 +510,9 @@ export function AdminAiStageProfiles() {
         <CardContent className="space-y-4 p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h3 className="text-base font-black text-indigo-950">E1/E2/E3 — توصيات المستشار</h3>
+              <h3 className="text-base font-black text-indigo-950">E1/E2/E3/E4 — توصيات المستشار</h3>
               <p className="mt-1 text-xs leading-6 text-indigo-900/75">
-                توليد توصيات مبنية على سجلات D0 الجاهزة فقط. E2 يحفظ مسودة تغيير داخل التوصية، وE3 يحمّلها إلى نموذج المرحلة للمراجعة اليدوية فقط.
+                توليد توصيات مبنية على سجلات D0 الجاهزة لكل موديل. E2/E4 يحفظ مسودة تغيير قوائم الموديلات فقط، وE3 يحمّلها إلى نموذج المرحلة للمراجعة اليدوية مع فحص نسخة الهدف.
               </p>
             </div>
             <Button variant="outline" size="sm" onClick={() => void requestAdvisorAdvice()} disabled={generatingAdvisorAdvice}>
