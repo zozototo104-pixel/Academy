@@ -630,6 +630,18 @@ export function AdminAiStageProfiles() {
                 </div>
               </div>
 
+              {loadedDraftForStage && (
+                <div className={loadedDraftStillExact ? 'rounded-xl border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-900' : 'rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900'}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-black">
+                      مسودة مستشار محمّلة لنسخة الهدف {loadedDraftForStage.targetProfileVersion}
+                      {!loadedDraftStillExact ? ' — تم تعديلها يدويًا ولن تُعلّم كتوصية معتمدة تلقائيًا' : ''}
+                    </p>
+                    <Button variant="outline" size="sm" onClick={() => setLoadedAdvisorDraft(null)}>إلغاء ربط المسودة</Button>
+                  </div>
+                </div>
+              )}
+
               <div className="grid gap-3 lg:grid-cols-4">
                 <div className="rounded-lg bg-slate-50 p-3 text-center">
                   <div className="text-[11px] font-bold text-slate-500">تشغيلات</div>
