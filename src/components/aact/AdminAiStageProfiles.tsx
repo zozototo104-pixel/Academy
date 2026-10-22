@@ -427,6 +427,66 @@ export function AdminAiStageProfiles() {
         </Card>
       )}
 
+      <Card className="border-indigo-100 bg-indigo-50/50">
+        <CardContent className="space-y-4 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="text-base font-black text-indigo-950">E1 — توصيات المستشار</h3>
+              <p className="mt-1 text-xs leading-6 text-indigo-900/75">
+                توليد توصيات مبنية على سجلات D0 الجاهزة فقط. هذه توصيات مراجعة: تُحفظ وتُعرض وتُغلق، ولا تكتب في البروفايلات.
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => void requestAdvisorAdvice()} disabled={generatingAdvisorAdvice}>
+              {generatingAdvisorAdvice ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : <RefreshCw className="ml-1 h-4 w-4" />}
+              توليد توصيات E1
+            </Button>
+          </div>
+
+          {(data?.advisorAdvice ?? []).length ? (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {(data?.advisorAdvice ?? []).map((advice) => {
+                const badge = adviceSeverityBadge(advice.severity)
+                return (
+                  <div key={advice.id} className="rounded-xl border border-indigo-100 bg-white p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge className="bg-slate-100 text-slate-700">{STAGE_LABELS[advice.stage]}</Badge>
+                          <Badge className={badge.className}>{badge.label}</Badge>
+                          <Badge className="bg-indigo-50 text-indigo-700">{advice.category}</Badge>
+                        </div>
+                        <h4 className="mt-2 text-sm font-black text-slate-800">{advice.title}</h4>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={dismissingAdvisorAdviceId === advice.id}
+                        onClick={() => void dismissAdvisorAdvice(advice.id)}
+                      >
+                        {dismissingAdvisorAdviceId === advice.id && <Loader2 className="ml-1 h-4 w-4 animate-spin" />}
+                        إغلاق التوصية
+                      </Button>
+                    </div>
+                    <p className="mt-2 text-xs leading-6 text-slate-600">{advice.rationale}</p>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-slate-500 sm:grid-cols-4">
+                      <span>التشغيلات: <b>{String(advice.evidence?.totalRuns ?? '—')}</b></span>
+                      <span>الفشل: <b>{String(advice.evidence?.failureRatePct ?? '—')}%</b></span>
+                      <span>الرجوع: <b>{String(advice.evidence?.fallbackRatePct ?? '—')}%</b></span>
+                      <span>الكلفة: <b>{String(advice.evidence?.costCoveragePct ?? '—')}%</b></span>
+                    </div>
+                    <p className="mt-2 text-[11px] text-slate-400">أُنشئت: {fmtDate(advice.createdAt)}</p>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <p className="rounded-xl bg-white/80 p-4 text-center text-sm text-slate-500">
+              لا توجد توصيات مفتوحة. يمكن توليد توصيات E1 بعد اكتمال عتبات E0 للمراحل.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
       {(['READING', 'ANALYSIS', 'GENERATION', 'REVIEW'] as Stage[]).map((stageName) => {
         const stage = stageByName.get(stageName)
         const form = forms?.[stageName] ?? snapshotToForm(stage?.current?.snapshot ?? null)
