@@ -223,6 +223,41 @@ model AiStageProfileVersion {
   @@index([profileId, version])
 }
 
+enum QuestionRecheckReason {
+  REVIEW_PROFILE_CHANGED
+  NEW_EVIDENCE_AVAILABLE
+  MANUAL_ADMIN_RECHECK
+}
+
+enum QuestionRecheckTaskStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+  SKIPPED
+}
+
+// D3.2a: bounded auto re-verification queue. A task NEVER writes back
+// to its question: completion stores a recommendation only, and the
+// final decision stays with the human reviewer.
+model QuestionRecheckTask {
+  id             String                    @id @default(cuid())
+  questionId     String
+  question       QuestionBankItem          @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  reason         QuestionRecheckReason
+  status         QuestionRecheckTaskStatus @default(PENDING)
+  profileVersion String?
+  recommendation Json?
+  error          String?
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+  claimedAt      DateTime?
+  finishedAt     DateTime?
+
+  @@index([status, createdAt])
+  @@index([questionId, createdAt])
+}
+
 model Program {
   id          String       @id @default(cuid())
   slug        String       @unique
@@ -1861,6 +1896,8 @@ model QuestionBankItem {
   rejectedReason String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  recheckTasks QuestionRecheckTask[]
 
   @@index([programId, status])
   @@index([programId, difficulty])
