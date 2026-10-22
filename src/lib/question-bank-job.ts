@@ -548,7 +548,8 @@ async function generateBatch(job: { id: string; programId: string; unitId: strin
     rows.push({
       ...buildQuestionBankRecord({
         ...q,
-        qualityFlags: ['SOURCE_LINKED', 'NEEDS_HUMAN_REVIEW', 'ORIGINAL_CHUNK_MISSING'],
+        // D3.3a: أعلام السؤال الأصلية محفوظة (مثل LENGTH_FORMAL) — لا تُستبدل.
+        qualityFlags: [...new Set(['SOURCE_LINKED', 'NEEDS_HUMAN_REVIEW', 'ORIGINAL_CHUNK_MISSING', ...(Array.isArray(item.qualityFlags) ? item.qualityFlags : [])])],
         verificationPending: true,
         verificationReason: 'لا يوجد مقطع أصلي',
         verifierReason: 'لا يوجد مقطع أصلي',

@@ -87,3 +87,26 @@ describe('D3.3 alignment guards: the sanitizer must never silently cut what the 
     expect(gen).toContain('LENGTH_FORMAL')
   })
 })
+
+describe('D3.3a: the missing-original branch preserves the question flags (LENGTH_FORMAL survives)', () => {
+  test('the branch merges item.qualityFlags with dedupe instead of replacing them', () => {
+    const job = readFileSync('src/lib/question-bank-job.ts', 'utf8')
+    const at = job.indexOf('ORIGINAL_CHUNK_MISSING')
+    expect(at).toBeGreaterThan(-1)
+    const window = job.slice(Math.max(0, at - 500), at + 200)
+    expect(window).toContain('item.qualityFlags')
+    expect(window).toContain('new Set')
+    // الصيغة القديمة المستبدِلة لم تعد موجودة كقيمة كاملة
+    expect(job).not.toContain("qualityFlags: ['SOURCE_LINKED', 'NEEDS_HUMAN_REVIEW', 'ORIGINAL_CHUNK_MISSING'],")
+  })
+
+  test('a formal-length question reaches that branch still carrying LENGTH_FORMAL from the parser', () => {
+    const out = parseGeneratedQuestionCandidates(batch({ text: 'س'.repeat(1300) }))
+    expect(out.accepted).toHaveLength(1)
+    // هذا هو العلم الذي كان سيضيع: الدمج في الفرع يبقيه بجانب ORIGINAL_CHUNK_MISSING
+    const merged = [...new Set(['SOURCE_LINKED', 'NEEDS_HUMAN_REVIEW', 'ORIGINAL_CHUNK_MISSING', ...(out.accepted[0].qualityFlags || [])])]
+    expect(merged).toContain('LENGTH_FORMAL')
+    expect(merged).toContain('ORIGINAL_CHUNK_MISSING')
+    expect(merged.filter((f) => f === 'NEEDS_HUMAN_REVIEW')).toHaveLength(1)
+  })
+})
