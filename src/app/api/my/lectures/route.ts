@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
       orderBy: { startsAt: 'asc' },
     })
     const now = new Date()
-    return NextResponse.json({ sessions: sessions.map((s: never) => toPublicSession(s, now)) })
+    return NextResponse.json({ sessions: sessions.map((s) => toPublicSession(s, now)) })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'يجب تسجيل الدخول أولاً' }, { status: 401 })
