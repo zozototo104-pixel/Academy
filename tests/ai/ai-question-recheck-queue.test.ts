@@ -55,6 +55,7 @@ queue.__setRecheckQueueStoreForTests({
     const row = tasks.find((t) => t.id === id)
     if (!row || row.status !== 'RUNNING') return
     row.status = status
+    row.activeDedupKey = null
     row.finishedAt = now
     if (payload.recommendation) row.recommendation = payload.recommendation
     if (payload.error) row.error = payload.error
