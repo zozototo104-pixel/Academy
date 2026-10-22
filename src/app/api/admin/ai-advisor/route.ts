@@ -35,6 +35,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ advice })
   } catch (error: any) {
     if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'غير مصرّح' }, { status: 401 })
+    if (error?.code === 'P2025') return NextResponse.json({ error: 'التوصية غير موجودة' }, { status: 404 })
     return NextResponse.json({ error: 'تعذر إغلاق توصية المستشار' }, { status: 500 })
   }
 }
