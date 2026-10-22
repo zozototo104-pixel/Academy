@@ -132,6 +132,7 @@ describe('D3.2a queue layer: claim and completion are recommendation-only', () =
       checkedAt: '2026-10-22T16:00:00.000Z',
     })
     expect(tasks[0].status).toBe('DONE')
+    expect(tasks[0].activeDedupKey).toBeNull()
     expect(tasks[0].recommendation?.valid).toBe(false)
     expect(tasks[0].finishedAt).not.toBeNull()
     // السؤال نفسه لم يُلمس: حالته كما هي وقراره بيد الإنسان
