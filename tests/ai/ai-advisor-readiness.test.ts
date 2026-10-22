@@ -29,6 +29,22 @@ const base = {
   totalCostCents: null,
 }
 
+function reportWith(stage: ReturnType<typeof evaluateStageReadiness>): AdvisorReadinessReport {
+  return {
+    generatedAt: '2026-10-22T00:00:00.000Z',
+    gates: {
+      minDays: ADVISOR_READINESS_MIN_DAYS,
+      minStageRuns: ADVISOR_READINESS_MIN_STAGE_RUNS,
+      costCoverageTarget: ADVISOR_COST_COVERAGE_TARGET,
+    },
+    stages: [stage],
+    readyStages: stage.readyForAdvice ? [stage.stage] : [],
+    blockedStages: stage.readyForAdvice ? [] : [stage.stage],
+    allStagesReady: stage.readyForAdvice,
+    notes: [],
+  }
+}
+
 describe('E0 advisor readiness', () => {
   test('blocks advice readiness until the stage has enough operations and days', () => {
     const now = new Date('2026-10-22T00:00:00Z')
