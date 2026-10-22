@@ -12,6 +12,7 @@ import {
 } from '@/lib/ai-stage-profiles'
 import type { PipelineStageName } from '@/lib/ai-pipeline-log'
 import { getAiAdvisorReadiness } from '@/lib/ai-advisor-readiness'
+import { listAdvisorAdvice } from '@/lib/ai-advisor-advice'
 
 const STAGES: PipelineStageName[] = ['READING', 'ANALYSIS', 'GENERATION', 'REVIEW']
 
