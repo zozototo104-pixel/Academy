@@ -189,6 +189,8 @@ model Program {
   assignments ProgramAssignment[]
   programExams ProgramExam[]
   studyScheduleItems StudyScheduleItem[]
+  lectureSeries LectureSeries[]
+  lectureVideos LectureVideoResource[]
   admissions  AdmissionApplication[]
   microCredentials MicroCredential[]
   thesisTopics ThesisTopic[]
