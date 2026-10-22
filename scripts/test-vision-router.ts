@@ -41,7 +41,7 @@ assert(ocr.includes("import { textAiCompleteJson } from '@/lib/text-ai'") && !oc
 assert(ocr.includes("purpose: 'VISION'") && ocr.includes('attachments: [{ mimeType: normalized.mimeType, base64: normalized.buffer.toString'), 'ocr.ts must pass normalized visual attachments to the router')
 assert(ocr.includes('لم تُقرأ الصورة آلياً') && ocr.includes('NEEDS_CLARIFICATION') === false, 'ocr.ts must keep the safe unreadable result instead of fabricating approval')
 
-assert(bookReader.includes("import { textAiCompleteJson } from '@/lib/text-ai'") && !bookReader.includes('geminiVisionJson'), 'book-reader.ts must route scanned PDF OCR through text AI router')
+assert((bookReader.includes("import { textAiCompleteJson } from '@/lib/text-ai'") || bookReader.includes('textAiCompleteJsonWithMetadata')) && !bookReader.includes('geminiVisionJson'), 'book-reader.ts must route scanned PDF OCR through text AI router')
 assert(bookReader.includes("purpose: 'VISION'") && bookReader.includes("attachments: [{ mimeType: 'application/pdf'"), 'book-reader.ts must pass scanned PDF subsets to the router')
 
 assert(!gemini.includes('gemini-1.5-flash') && !gemini.includes('gemini-1.5-pro'), 'deprecated hard-coded Gemini 1.5 vision fallbacks must be removed')
