@@ -105,6 +105,12 @@ type FormState = {
   verifierText: string
   verifierStrict: boolean
 }
+type LoadedAdvisorDraft = {
+  stage: Stage
+  adviceId: string
+  targetProfileVersion: number
+  snapshotKey: string
+}
 
 const STAGE_LABELS: Record<Stage, string> = {
   READING: 'القراءة',
