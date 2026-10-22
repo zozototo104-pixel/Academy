@@ -158,6 +158,40 @@ function formsFromResponse(res: ResponseData): Record<Stage, FormState> {
   ) as Record<Stage, FormState>
 }
 
+function snapshotKey(snapshot: Snapshot): string {
+  return JSON.stringify({
+    enabled: snapshot.enabled,
+    provider: snapshot.provider ?? null,
+    policy: snapshot.policy ?? null,
+    models: snapshot.models.map((m) => `${m.provider}:${m.model}`),
+    allowGlobalFallback: snapshot.allowGlobalFallback,
+    verifier: snapshot.verifier
+      ? {
+          preferred: snapshot.verifier.preferred.map((m) => `${m.provider}:${m.model}`),
+          strict: snapshot.verifier.strict,
+        }
+      : null,
+  })
+}
+
+function describeSnapshotDiff(before: Snapshot, after: Snapshot, stage: Stage): string[] {
+  const changes: string[] = []
+  if (before.enabled !== after.enabled) changes.push(`التفعيل: ${before.enabled ? 'مفعّل' : 'يرجع للعام'} ← ${after.enabled ? 'مفعّل' : 'يرجع للعام'}`)
+  if ((before.provider ?? '') !== (after.provider ?? '')) changes.push(`المزوّد: ${before.provider || 'بدون'} ← ${after.provider || 'بدون'}`)
+  if ((before.policy ?? '') !== (after.policy ?? '')) changes.push(`السياسة: ${before.policy || 'افتراضي'} ← ${after.policy || 'افتراضي'}`)
+  if (refsToText(before.models) !== refsToText(after.models)) changes.push(`موديلات المرحلة: ${before.models.length} ← ${after.models.length}`)
+  if (before.allowGlobalFallback !== after.allowGlobalFallback) changes.push(`الرجوع للعام: ${before.allowGlobalFallback ? 'مسموح' : 'ممنوع'} ← ${after.allowGlobalFallback ? 'مسموح' : 'ممنوع'}`)
+  if (stage === 'REVIEW') {
+    if (refsToText(before.verifier?.preferred ?? []) !== refsToText(after.verifier?.preferred ?? [])) {
+      changes.push(`قائمة المدقق: ${before.verifier?.preferred.length ?? 0} ← ${after.verifier?.preferred.length ?? 0}`)
+    }
+    if ((before.verifier?.strict ?? false) !== (after.verifier?.strict ?? false)) {
+      changes.push(`وضع التدقيق الصارم: ${before.verifier?.strict ? 'مفعّل' : 'معطّل'} ← ${after.verifier?.strict ? 'مفعّل' : 'معطّل'}`)
+    }
+  }
+  return changes
+}
+
 export function AdminAiStageProfiles() {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
