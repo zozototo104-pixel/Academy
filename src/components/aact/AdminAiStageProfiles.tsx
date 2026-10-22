@@ -241,11 +241,21 @@ export function AdminAiStageProfiles() {
     setForms((current) => (current ? { ...current, [stage]: { ...current[stage], ...patch } } : current))
   }
 
+  const resetDraft = (stage: Stage) => {
+    const current = stageByName.get(stage)?.current?.snapshot ?? null
+    setForms((state) => (state ? { ...state, [stage]: snapshotToForm(current) } : state))
+  }
+
   const save = async (stage: Stage) => {
     if (!forms) return
     setSavingStage(stage)
     try {
       const snapshot = formToSnapshot(stage, forms[stage])
+      const currentSnapshot = stageByName.get(stage)?.current?.snapshot ?? emptySnapshot
+      if (snapshotKey(snapshot) === snapshotKey(currentSnapshot)) {
+        toast({ title: 'لا يوجد تغيير للحفظ', description: 'عدّل البروفايل أولًا حتى يتم إنشاء نسخة جديدة.' })
+        return
+      }
       const res = await api<{ stage: StageData }>('/api/admin/ai-stage-profiles', {
         method: 'POST',
         body: JSON.stringify({ stage, snapshot }),
