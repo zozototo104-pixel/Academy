@@ -176,6 +176,16 @@ function fallbackRate(stats: StageData['stats']): string {
   return `${Math.round((stats.fallbacks / stats.runs) * 100)}%`
 }
 
+function formatPct(value: number | null | undefined): string {
+  if (value == null) return '—'
+  return `${Math.round(value * 100)}%`
+}
+
+function readinessBadge(stage: AdvisorStageReadiness) {
+  if (stage.readyForAdvice) return { label: 'جاهزة للمرحلة التالية', className: 'bg-green-100 text-green-800' }
+  return { label: 'بيانات غير كافية', className: 'bg-amber-100 text-amber-800' }
+}
+
 function formsFromResponse(res: ResponseData): Record<Stage, FormState> {
   return Object.fromEntries(
     res.stages.map((stage) => [stage.stage, snapshotToForm(stage.current?.snapshot ?? null)]),
