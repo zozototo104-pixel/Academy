@@ -455,6 +455,7 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
         onClose={() => setCreateOpen(false)}
         programs={programs}
         supervisors={supervisors}
+        showSupervisorSelect={surface === 'admin'}
         onSubmit={async (payload) => {
           await act(() => api('/api/admin/lectures/series', { method: 'POST', body: JSON.stringify(payload) }), 'أُنشئت المحاضرة')
           setCreateOpen(false)
