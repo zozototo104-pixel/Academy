@@ -1182,6 +1182,29 @@ export function AdminFinanceTab() {
         </Card>
       )}
 
+      <div className="grid gap-2 rounded-2xl border border-[#0f2b46]/10 bg-white p-3 sm:grid-cols-2" aria-label="مساحات عمل المالية والفواتير">
+        {([
+          ['payments', 'الفواتير والإثباتات والإعفاءات', `${paymentTotal} فاتورة ضمن الفلتر الحالي`],
+          ['reports', 'التقارير والتحليلات', report ? `${report.admissionStats.total} طلب · ${report.agentPerformance.length} وكيل` : 'التقارير غير محملة بعد'],
+        ] as const).map(([value, title, summary]) => {
+          const active = openFinanceSection === value
+          return (
+            <button
+              key={value}
+              type="button"
+              aria-expanded={active}
+              aria-controls={`finance-section-${value}`}
+              onClick={() => setOpenFinanceSection(value)}
+              className={`rounded-xl border px-3 py-2 text-right transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a227] focus-visible:ring-offset-2 ${active ? 'border-[#c9a227]/60 bg-[#fffaf0] text-[#0f2b46]' : 'border-slate-100 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+            >
+              <span className="block text-xs font-black">{title}</span>
+              <span className="mt-1 block truncate text-[10px] font-bold opacity-80">{summary}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      <div id="finance-section-reports" role="region" aria-label="التقارير والتحليلات المالية" hidden={openFinanceSection !== 'reports'} className="space-y-3">
       {/* معدلات القبول */}
       {report && (
         <div className="grid gap-3 sm:grid-cols-2">
