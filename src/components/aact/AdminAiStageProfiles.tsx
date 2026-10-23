@@ -723,7 +723,9 @@ export function AdminAiStageProfiles() {
           )}
         </CardContent>
       </Card>
+      </div>
 
+      <div id="ai-profiles-section-recheck" role="region" aria-label="إعادة تدقيق الأسئلة" hidden={openAiProfilesSection !== 'recheck'}>
       <Card className="border-purple-100 bg-purple-50/50">
         <CardContent className="space-y-4 p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
