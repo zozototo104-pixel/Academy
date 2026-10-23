@@ -395,6 +395,16 @@ export function DashboardView() {
   const dashboardContentRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
+    const onScrollRequest = () => {
+      window.setTimeout(() => {
+        dashboardContentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 0)
+    }
+    window.addEventListener('aact:scroll-dashboard-content', onScrollRequest)
+    return () => window.removeEventListener('aact:scroll-dashboard-content', onScrollRequest)
+  }, [])
+
+  useEffect(() => {
     const requestedTab = new URLSearchParams(window.location.search).get('tab')
     const allowedTabs = ['programs', 'supervision', 'lectures', 'payments', 'deliverables', 'notifications', 'thesis', 'transcript', 'certs']
     if (requestedTab && allowedTabs.includes(requestedTab)) setDashboardTab(requestedTab)
@@ -690,9 +700,7 @@ export function DashboardView() {
 
   const scrollToDashboardContent = () => {
     if (typeof window === 'undefined') return
-    window.setTimeout(() => {
-      dashboardContentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }, 0)
+    window.dispatchEvent(new CustomEvent('aact:scroll-dashboard-content'))
   }
 
   const selectDashboardTab = (tab: string) => {
