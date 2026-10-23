@@ -110,6 +110,7 @@ export default function AdminRepresentativesTab() {
   const [onboardingLink, setOnboardingLink] = useState('')
   const [onboardingResult, setOnboardingResult] = useState<{ emailStatus?: string; expiresAt?: string | null }>({})
   const [query, setQuery] = useState('')
+  const [openSection, setOpenSection] = useState<'basic' | 'bio' | 'uploads' | 'onboarding'>('basic')
   const selected = useMemo(() => rows.find((row) => row.id === selectedId) || null, [rows, selectedId])
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
