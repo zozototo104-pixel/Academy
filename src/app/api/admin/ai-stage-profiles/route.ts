@@ -18,6 +18,12 @@ import {
   markAdvisorAdviceApplied,
   validateAdvisorAdviceApplication,
 } from '@/lib/ai-advisor-advice'
+import {
+  enqueuePendingReviewQuestionsForProfileChange,
+  failedReviewRecheckEnqueueReport,
+  parseReviewRecheckEnqueueRequest,
+  type ReviewRecheckEnqueueReport,
+} from '@/lib/question-recheck-admin'
 
 const STAGES: PipelineStageName[] = ['READING', 'ANALYSIS', 'GENERATION', 'REVIEW']
 
