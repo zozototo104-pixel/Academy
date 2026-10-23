@@ -51,9 +51,14 @@ describe('student dashboard visual organization', () => {
     required(source, "const allowedTabs = ['programs', 'supervision', 'lectures', 'payments', 'deliverables', 'notifications', 'thesis', 'transcript', 'certs']")
   })
 
-  test('adds a clear student compass without removing the existing tabs', () => {
+  test('adds a polished student command center without removing the existing tabs', () => {
     required(source, 'بوصلتك الدراسية')
-    required(source, 'كل شيء أساسي أمامك بدون تدوير')
+    required(source, 'قائمة خدمات بوابة الطالب')
+    required(source, 'مرحبًا مجددًا')
+    required(source, 'المهام العاجلة')
+    required(source, 'الوحدات الأقرب لك')
+    required(source, 'نصيحة اليوم')
+    required(source, 'إشعارات مهمة')
     required(source, 'aria-label="القائمة الكاملة لتبويبات بوابة الطالب"')
     required(source, 'dashboardTabOptions.map')
     required(source, '<TabsList className="hidden">')
