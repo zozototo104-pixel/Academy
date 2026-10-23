@@ -2256,7 +2256,12 @@ export function AdminSettingsTab() {
     email: 'qa-admin@aactacademy.com',
     password: '',
   })
-  const [openSettingsSection, setOpenSettingsSection] = useState<'fees-ai' | 'rules' | 'content-contact' | 'admins'>('fees-ai')
+  const [openSettingsSection, setOpenSettingsSection] = useState<'fees-ai' | 'rules' | 'content-contact' | 'admins' | null>('fees-ai')
+  const toggleSettingsSection = (section: 'fees-ai' | 'rules' | 'content-contact' | 'admins') => {
+    const y = typeof window !== 'undefined' ? window.scrollY : 0
+    setOpenSettingsSection((current) => (current === section ? null : section))
+    if (typeof window !== 'undefined') window.setTimeout(() => window.scrollTo({ top: y, behavior: 'auto' }), 0)
+  }
 
   const loadSystemAdmins = () => {
     setAdminsLoading(true)
