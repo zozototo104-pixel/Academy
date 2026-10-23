@@ -1869,7 +1869,7 @@ export function AdminQualityTab() {
         </div>
       </section>
       <section aria-label="سلامة النظام والبيانات">
-        <button type="button" id="quality-ws-operations-header" aria-expanded={activeWorkspace === 'operations'} aria-controls="quality-ws-operations" onClick={() => setActiveWorkspace('operations')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
+        <button type="button" id="quality-ws-operations-header" aria-expanded={activeWorkspace === 'operations'} aria-controls="quality-ws-operations" onClick={() => toggleWorkspace('operations')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
           <span>
             <span className="block text-sm font-black text-[#0f2b46]">سلامة النظام والبيانات</span>
             <span className="mt-0.5 block text-[11px] font-bold text-slate-500">{storageReport ? `${storageReport.summary.suspiciousBooks} كتاب يحتاج مراجعة في التخزين` : 'تقرير التخزين غير محمّل'}</span>
