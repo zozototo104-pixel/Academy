@@ -62,6 +62,9 @@ describe('student dashboard visual organization', () => {
     required(source, 'aria-label="القائمة الكاملة لتبويبات بوابة الطالب"')
     required(source, 'dashboardTabOptions.map')
     required(source, '<TabsList className="hidden">')
+    required(source, 'const dashboardContentRef = useRef<HTMLDivElement | null>(null)')
+    required(source, 'id="student-dashboard-content"')
+    required(source, 'onValueChange={selectDashboardTab}')
   })
 
   test('keeps the polished layout responsive for mobile and desktop', () => {
