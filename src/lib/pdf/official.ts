@@ -28,12 +28,12 @@ function getOfficialArabicFontFace() {
   }
   const base64 = readFileSync(fontPath).toString('base64')
   officialArabicFontFace = `<defs><style><![CDATA[
-@font-face {
+${[400, 700, 800, 900].map((weight) => `@font-face {
   font-family: '${OFFICIAL_ARABIC_FONT_NAME}';
   src: url(data:font/truetype;charset=utf-8;base64,${base64}) format('truetype');
   font-style: normal;
-  font-weight: 400;
-}
+  font-weight: ${weight};
+}`).join('\n')}
 ]]></style></defs>`
   return officialArabicFontFace
 }
