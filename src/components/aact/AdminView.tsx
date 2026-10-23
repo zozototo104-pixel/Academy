@@ -1064,8 +1064,8 @@ export function AdminView() {
       return
     }
     setHighlightAdmissionId(linked.id)
-    // الطلب الكامل محمّل حاليًا: افتح عرضه التفصيلي مباشرة. مرجع جزئي وحده: تمييز فقط — لا بطاقة ناقصة ولا جلب جديد.
-    if (fullLinked) setSelectedAdmissionId(fullLinked.id)
+    // الطلب الكامل محمّل حاليًا: افتح عرضه التفصيلي مباشرة. مرجع جزئي وحده: امسح أي اختيار سابق وارجع للجدول — لا بطاقة ناقصة ولا جلب جديد ولا بقاء تفاصيل طالب آخر.
+    setSelectedAdmissionId(fullLinked?.id ?? null)
     if (openReplacement && fullLinked && (fullLinked.files?.length || 0) > 0 && !['CERTIFIED', 'REJECTED'].includes(fullLinked.status)) {
       setReplacementFormOpen(fullLinked, true)
     } else if (openReplacement) {
@@ -1902,7 +1902,7 @@ export function AdminView() {
                             const isStudyAdmission = a.isStudyProgram !== false
                             const missingCount = (a.missingDocs || []).length
                             return (
-                              <tr key={a.id} className={`border-t border-slate-100 transition-colors hover:bg-slate-50 ${highlightAdmissionId === a.id ? 'bg-[#f7edd0]/70' : ''}`}>
+                              <tr key={a.id} id={`admission-${a.id}`} className={`border-t border-slate-100 transition-colors hover:bg-slate-50 ${highlightAdmissionId === a.id ? 'bg-[#f7edd0]/70' : ''}`}>
                                 <td className="p-3">
                                   <button type="button" onClick={() => setSelectedAdmissionId(a.id)} className="font-black text-[#0f2b46] underline-offset-4 hover:text-[#a8841a] hover:underline">{a.fullName}</button>
                                 </td>

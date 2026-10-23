@@ -63,11 +63,20 @@ describe('admissions list table (presentation-only reorganization)', () => {
   })
 
   test('deep link opens the detail only for a fully loaded application', () => {
-    expect(adminView).toContain('if (fullLinked) setSelectedAdmissionId(fullLinked.id)')
-    // المرجع الجزئي وحده لا يفتح بطاقة ناقصة أبدًا.
+    expect(adminView).toContain('setSelectedAdmissionId(fullLinked?.id ?? null)')
+    // مرجع جزئي: يُمسح أي اختيار سابق ويظهر الجدول — لا تبقى تفاصيل طالب آخر، ولا يُفتح من المرجع وحده.
+    expect(adminView).not.toContain('if (fullLinked) setSelectedAdmissionId(fullLinked.id)')
     expect(adminView).not.toContain('setSelectedAdmissionId(linked.id)')
     expect(adminView).not.toContain('setSelectedAdmissionId(student.latestAdmission')
     expect(count('openStudentAdmission')).toBe(4)
+  })
+
+  test('table rows carry the admission anchor so auto-scroll works in table mode', () => {
+    const rowStart = adminView.indexOf('<tr key={a.id}')
+    expect(rowStart).toBeGreaterThan(-1)
+    expect(adminView.slice(rowStart, rowStart + 200)).toContain('id={`admission-${a.id}`}')
+    // المرساة موجودة مرتين فقط: بطاقة الطلب وصف الجدول.
+    expect(count('id={`admission-${a.id}`}')).toBe(2)
   })
 
   test('highlight stays visible in table mode', () => {
