@@ -861,7 +861,8 @@ export function DashboardView() {
               </Button>
             </div>
           </div>
-        </section>
+          </section>
+        </details>
       )}
 
       <section className="mb-6 grid gap-4 xl:grid-cols-[210px_minmax(0,1fr)_340px]">
