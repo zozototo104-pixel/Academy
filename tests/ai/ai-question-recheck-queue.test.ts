@@ -159,11 +159,11 @@ describe('D3.2a scope guards: data layer only, no writers wired yet', () => {
     expect(lib).toContain('questionBankItem.findUnique')
   })
 
-  test('only the bounded runner consumes the queue inside src', () => {
+  test('only the bounded runner and controlled admin policy consume the queue inside src', () => {
     const out = execSync("grep -rl 'question-recheck-queue' src --include='*.ts' || true", { encoding: 'utf8' })
-    const files = out.split('\n').filter(Boolean)
-    // المستهلك الوحيد المسموح هو مشغّل D3.2b — لا كاتب آخر في src
-    expect(files).toEqual(['src/lib/question-recheck-runner.ts'])
+    const files = out.split('\n').filter(Boolean).sort()
+    // المستهلكان المسموحان: مشغّل D3.2b، وسياسة إدخال إدارية لا تشغّل ولا تكتب على السؤال.
+    expect(files).toEqual(['src/lib/question-recheck-admin.ts', 'src/lib/question-recheck-runner.ts'])
   })
 })
 
