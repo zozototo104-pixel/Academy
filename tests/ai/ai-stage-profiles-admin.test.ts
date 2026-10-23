@@ -60,7 +60,7 @@ describe('D4 admin AI stage profiles surface', () => {
   })
 
   test('saving a stage profile is still not blind, and advisor adoption is gated by target version', () => {
-    expect(adminComponent).toContain("api<{ stage: StageData; advisorAdviceId?: string | null }>('/api/admin/ai-stage-profiles'")
+    expect(adminComponent).toContain("api<{ stage: StageData; advisorAdviceId?: string | null; recheckEnqueue?: RecheckEnqueueReport | null }>('/api/admin/ai-stage-profiles'")
     expect(adminComponent).toContain('advisorAdviceId: advisorDraftToApply.adviceId')
     expect(adminComponent).toContain('snapshotKey(snapshot) === snapshotKey(currentSnapshot)')
     expect(adminComponent).toContain('loadedAdvisorDraft.snapshotKey === snapshotKey(snapshot)')
