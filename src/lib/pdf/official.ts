@@ -11,6 +11,32 @@ const BRAND_GOLD = '#c9a227'
 const TEXT = '#1f2937'
 const MUTED = '#64748b'
 const SOFT_BG = '#f8fafc'
+const OFFICIAL_ARABIC_FONT_NAME = 'AACTOfficialArabic'
+const OFFICIAL_ARABIC_FONT_FILE = 'Amiri-Regular.ttf'
+const OFFICIAL_ARABIC_FONT_PATHS = [
+  join(process.cwd(), 'public', 'fonts', OFFICIAL_ARABIC_FONT_FILE),
+  join(process.cwd(), 'src', 'assets', 'fonts', OFFICIAL_ARABIC_FONT_FILE),
+]
+let officialArabicFontFace: string | null | undefined
+
+function getOfficialArabicFontFace() {
+  if (officialArabicFontFace !== undefined) return officialArabicFontFace
+  const fontPath = OFFICIAL_ARABIC_FONT_PATHS.find((candidate) => existsSync(candidate))
+  if (!fontPath) {
+    officialArabicFontFace = null
+    return officialArabicFontFace
+  }
+  const base64 = readFileSync(fontPath).toString('base64')
+  officialArabicFontFace = `<defs><style><![CDATA[
+@font-face {
+  font-family: '${OFFICIAL_ARABIC_FONT_NAME}';
+  src: url(data:font/truetype;charset=utf-8;base64,${base64}) format('truetype');
+  font-style: normal;
+  font-weight: 400;
+}
+]]></style></defs>`
+  return officialArabicFontFace
+}
 
 export type PdfDir = 'rtl' | 'ltr'
 export type OfficialPdfRow = { label: string; value: unknown; dir?: PdfDir }
