@@ -504,6 +504,38 @@ export default function AdminRepresentativesTab() {
                   </div>
                 </div>
               </div>
+                </div>
+              </div>
+            </section>
+            <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200">
+              <h3>
+                <button type="button" id="representatives-heading-onboarding" aria-controls="representatives-panel-onboarding" aria-expanded={openSection === 'onboarding'} onClick={() => setOpenSection('onboarding')} className="w-full min-w-0 bg-slate-50 p-4 text-right transition hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#c9a227]">
+                  <span className="flex items-center justify-between gap-3 text-sm font-black text-[#0f2b46]">الاستكمال وملفات الممثل <span aria-hidden="true">{openSection === 'onboarding' ? '−' : '+'}</span></span>
+                  <span data-testid="representatives-summary-onboarding" className="mt-1 block truncate text-xs font-bold text-slate-500">{(selected?.files || []).length} ملف — {(selected?.files || []).filter((file) => { const status = file.reviewStatus || 'APPROVED'; return status !== 'APPROVED' && status !== 'REJECTED' }).length} بانتظار المراجعة</span>
+                </button>
+              </h3>
+              <div id="representatives-panel-onboarding" data-testid="representatives-panel-onboarding" role="region" aria-labelledby="representatives-heading-onboarding" hidden={openSection !== 'onboarding'}>
+                <div className="space-y-5 border-t border-slate-100 p-4">
+              <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-4 text-xs font-bold leading-6 text-indigo-950">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <p className="text-sm font-black">رابط استكمال ملف الممثل</p>
+                    <p className="mt-1 text-indigo-800">أرسل هذا الرابط للممثل ليكمل بياناته ويرفع ملفاته بنفسه. الملفات المرفوعة عبر الرابط تبقى بانتظار مراجعتك قبل الظهور للعامة.</p>
+                    {selected?.onboardingStatus && <p className="mt-1 text-[11px] text-indigo-700">الحالة الحالية: {['SUBMITTED', 'SUBMITTED_REVIEW'].includes(selected.onboardingStatus) ? 'أرسل الملف للمراجعة' : selected.onboardingStatus === 'INVITED' ? 'تم إنشاء الرابط' : selected.onboardingStatus === 'WAITING_PROFILE' ? 'بدأ استكمال الملف' : selected.onboardingStatus === 'NOT_SENT' ? 'لم يُنشأ رابط' : selected.onboardingStatus}</p>}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" disabled={!form.id || onboardingBusy} onClick={createOnboardingLink} className="bg-indigo-700 text-white hover:bg-indigo-800">{onboardingBusy ? 'جاري التجهيز...' : onboardingLink ? 'إعادة عرض الرابط' : 'إنشاء رابط الاستكمال'}</Button>
+                    {onboardingLink && <Button type="button" variant="outline" onClick={copyOnboardingLink} className="border-indigo-200 bg-white text-indigo-700">نسخ الرابط</Button>}
+                    {onboardingLink && <a href={onboardingLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center rounded-xl border border-indigo-200 bg-white px-3 py-2 text-xs font-black text-indigo-700">فتح الرابط</a>}
+                    {form.id && <Button type="button" variant="outline" disabled={onboardingBusy} onClick={revokeOnboardingLink} className="border-red-200 bg-white text-red-700">إلغاء الرابط</Button>}
+                  </div>
+                </div>
+                {onboardingLink && <div className="mt-3 space-y-2 rounded-xl bg-white p-3 text-[11px] font-bold text-indigo-800">
+                  <p className="break-all">{onboardingLink}</p>
+                  <p>{onboardingResult.emailStatus === 'SENT' ? 'تم إرسال الرابط على بريد الممثل ✅' : onboardingResult.emailStatus === 'FAILED' ? 'فشل إرسال البريد، انسخ الرابط وأرسله يدوياً' : 'لم يتم إرسال بريد؛ انسخ الرابط وأرسله يدوياً'}</p>
+                  {onboardingResult.expiresAt && <p>ينتهي الرابط في: {new Date(onboardingResult.expiresAt).toLocaleString('ar')}</p>}
+                </div>}
+              </div>
               <div className="space-y-2">
                 <p className="text-sm font-black text-[#0f2b46]">الملفات والروابط</p>
                 {(selected?.files || []).map((file) => {
