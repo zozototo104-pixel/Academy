@@ -104,9 +104,14 @@ describe('student dashboard visual organization', () => {
   })
 
   test('keeps student navigation visual only without adding network calls', () => {
+    requireAll(functionBody('selectDashboardTab'), [
+      'setDashboardTab(tab)',
+      'scrollToDashboardContent()',
+    ])
     requireAll(functionBody('openProgramWorkspace'), [
       "setDashboardTab('programs')",
       'setProgramSection(section)',
+      'scrollToDashboardContent()',
     ])
     const navModel = source.slice(source.indexOf('const dashboardTabOptions'), source.indexOf('return ('))
     expect(navModel.includes('api<')).toBe(false)
