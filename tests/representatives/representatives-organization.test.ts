@@ -60,7 +60,10 @@ describe('representatives accordion structure', () => {
   })
 
   it('uses four exclusive, mounted panels with visible section summaries', () => {
-    assert.ok(code.includes("useState<'basic' | 'bio' | 'uploads' | 'onboarding'>('basic')"))
+    assert.ok(code.includes("useState<'basic' | 'bio' | 'uploads' | 'onboarding' | null>('basic')"))
+    assert.ok(code.includes('const toggleSection ='))
+    assert.ok(code.includes("setOpenSection((current) => (current === section ? null : section))"))
+    assert.ok(code.includes("window.scrollTo({ top: y, behavior: 'auto' })"))
     const headings = sections.map((section) => {
       const headingId = `id="representatives-heading-${section}"`
       assert.equal(code.split(headingId).length - 1, 1, `Heading ${section} must be unique`)
