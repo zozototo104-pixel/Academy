@@ -890,7 +890,7 @@ export function DashboardView() {
               <button
                 key={item.value}
                 type="button"
-                onClick={() => setDashboardTab(item.value)}
+                onClick={() => selectDashboardTab(item.value)
                 className={`flex w-full items-center justify-between rounded-2xl px-3 py-2.5 text-right text-[11px] font-black transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a227] ${dashboardTab === item.value ? 'bg-[#2f6df6] text-white shadow-sm' : 'text-[#0f2b46] hover:bg-slate-50'}`}
               >
                 <span>{item.label}</span>
