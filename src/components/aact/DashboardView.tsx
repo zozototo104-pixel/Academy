@@ -694,7 +694,7 @@ export function DashboardView() {
 
   const dashboardTabOptions = [
     { value: 'programs', label: 'الرئيسية والمقرر والكتاب', show: hasProgramDashboard },
-    { value: 'supervision', label: 'المشرف الذكي ونقاط القوة', show: hasProgramDashboard },
+    { value: 'supervision', label: 'المشرف الذكي وحواراته ونقاط القوة', show: hasProgramDashboard },
     { value: 'lectures', label: 'المحاضرات واللقاءات', show: hasProgramDashboard && lecturesVisible },
     { value: 'payments', label: 'المدفوعات والرسوم', show: true },
     { value: 'deliverables', label: 'المخرجات والخدمات', show: showDeliverablesTab },
