@@ -146,8 +146,8 @@ export const useAppStore = create<AppState>((set) => ({
       mobileMenuOpen: false,
     })
   },
-  openProgram: (id) => {
-    updateBrowserRoute('dashboard', { programId: id })
+  openProgram: (id, section) => {
+    updateBrowserRoute('dashboard', { programId: id, section })
     set({ activeProgramId: id, view: 'dashboard', mobileMenuOpen: false })
   },
   openProgramDetails: (id) => {
