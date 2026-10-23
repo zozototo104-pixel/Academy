@@ -344,6 +344,9 @@ export function AdminThesisTab() {
         filtered={filteredTheses.length}
         label="بحث"
       />
+      <p className="rounded-xl border border-[#0f2b46]/10 bg-white px-3 py-2 text-xs font-bold text-slate-500">
+        ضمن الأبحاث المحمّلة: {theses.length} إجماليًا · {filteredTheses.length} مطابقة للبحث/الفلتر · {pagedTheses.length} ظاهرة في الصفحة الحالية.
+      </p>
 
       {loadError ? (
         <Card className="border-red-100 bg-red-50">
