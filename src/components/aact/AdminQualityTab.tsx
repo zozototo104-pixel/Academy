@@ -1839,7 +1839,7 @@ export function AdminQualityTab() {
         </div>
       </section>
       <section aria-label="الطلاب الذين يحتاجون متابعة">
-        <button type="button" id="quality-ws-students-header" aria-expanded={activeWorkspace === 'students'} aria-controls="quality-ws-students" onClick={() => setActiveWorkspace('students')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
+        <button type="button" id="quality-ws-students-header" aria-expanded={activeWorkspace === 'students'} aria-controls="quality-ws-students" onClick={() => toggleWorkspace('students')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
           <span>
             <span className="block text-sm font-black text-[#0f2b46]">الطلاب الذين يحتاجون متابعة</span>
             <span className="mt-0.5 block text-[11px] font-bold text-slate-500">{`${data.atRiskStudents.length} طالب يحتاج متابعة`}</span>
