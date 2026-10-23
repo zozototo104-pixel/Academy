@@ -342,7 +342,12 @@ export function AdminSystemTab() {
   const [testing, setTesting] = useState(false)
   const [paymentQrUploading, setPaymentQrUploading] = useState(false)
   const [form, setForm] = useState<Record<string, string>>({})
-  const [openGeminiSection, setOpenGeminiSection] = useState<'core' | 'routing' | 'providers' | 'health' | 'cooldowns' | 'tests'>('core')
+  const [openGeminiSection, setOpenGeminiSection] = useState<'core' | 'routing' | 'providers' | 'health' | 'cooldowns' | 'tests' | null>('core')
+  const toggleGeminiSection = (section: 'core' | 'routing' | 'providers' | 'health' | 'cooldowns' | 'tests') => {
+    const y = typeof window !== 'undefined' ? window.scrollY : 0
+    setOpenGeminiSection((current) => (current === section ? null : section))
+    if (typeof window !== 'undefined') window.setTimeout(() => window.scrollTo({ top: y, behavior: 'auto' }), 0)
+  }
   const [textModelCatalog, setTextModelCatalog] = useState<Record<string, { models: string[]; message: string; discoveredCount: number; staticCount: number }>>({})
   const [textModelHealth, setTextModelHealth] = useState<TextAiModelHealth | null>(null)
   const [textModelHealthLoading, setTextModelHealthLoading] = useState(false)
