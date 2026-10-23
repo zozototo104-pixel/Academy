@@ -1793,7 +1793,7 @@ export function AdminQualityTab() {
         </div>
       </section>
       <section aria-label="سلامة المحتوى والتقييم">
-        <button type="button" id="quality-ws-content-header" aria-expanded={activeWorkspace === 'content'} aria-controls="quality-ws-content" onClick={() => setActiveWorkspace('content')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
+        <button type="button" id="quality-ws-content-header" aria-expanded={activeWorkspace === 'content'} aria-controls="quality-ws-content" onClick={() => toggleWorkspace('content')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
           <span>
             <span className="block text-sm font-black text-[#0f2b46]">سلامة المحتوى والتقييم</span>
             <span className="mt-0.5 block text-[11px] font-bold text-slate-500">{`${data.weakBooks.length} كتاب يحتاج تقوية · ${data.duplicateQuestions.length} مجموعة تكرار محتملة`}</span>
