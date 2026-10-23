@@ -448,6 +448,12 @@ export function AdminAiStageProfiles() {
         }
       })
       setForms((current) => (current ? { ...current, [stage]: snapshotToForm(res.stage.current?.snapshot ?? snapshot) } : current))
+      if (res.recheckEnqueue) {
+        setLastRecheckEnqueueReport(res.recheckEnqueue)
+        void refreshQuestionRecheckOverview(true)
+      } else if (stage === 'REVIEW') {
+        setLastRecheckEnqueueReport(null)
+      }
       if (advisorDraftToApply) setLoadedAdvisorDraft(null)
       toast({ title: advisorDraftToApply ? `تم اعتماد مسودة المستشار وحفظ بروفايل ${STAGE_LABELS[stage]}` : `تم حفظ بروفايل ${STAGE_LABELS[stage]}` })
     } catch (error: any) {
