@@ -1040,7 +1040,7 @@ export function DashboardView() {
             <select
               aria-label="القائمة الكاملة لتبويبات بوابة الطالب"
               value={dashboardTab}
-              onChange={(event) => setDashboardTab(event.target.value)}
+              onChange={(event) => selectDashboardTab(event.target.value)}
               className="h-11 w-full rounded-2xl border border-[#0f2b46]/15 bg-slate-50 px-3 text-xs font-black text-[#0f2b46] outline-none focus:border-[#c9a227] focus:ring-2 focus:ring-[#c9a227]/30"
             >
               {dashboardTabOptions.map((item) => (
