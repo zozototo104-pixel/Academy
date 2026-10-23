@@ -3,7 +3,7 @@
 import { useAppStore, api, getToken } from '@/lib/store'
 import { buildAcademicProgramProfile } from '@/lib/program-tracks'
 import { cleanAcademicOutput, looksLikeBrokenGeneratedArabic, sanitizeAcademicList } from '@/lib/academic-output-quality'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast, useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
