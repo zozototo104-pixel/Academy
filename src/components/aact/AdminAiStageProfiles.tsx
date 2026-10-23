@@ -337,6 +337,12 @@ export function AdminAiStageProfiles() {
   const [generatingAdvisorAdvice, setGeneratingAdvisorAdvice] = useState(false)
   const [dismissingAdvisorAdviceId, setDismissingAdvisorAdviceId] = useState<string | null>(null)
   const [loadedAdvisorDraft, setLoadedAdvisorDraft] = useState<LoadedAdvisorDraft | null>(null)
+  const [reviewRecheckEnqueueEnabled, setReviewRecheckEnqueueEnabled] = useState(false)
+  const [reviewRecheckEnqueueCap, setReviewRecheckEnqueueCap] = useState(50)
+  const [lastRecheckEnqueueReport, setLastRecheckEnqueueReport] = useState<RecheckEnqueueReport | null>(null)
+  const [questionRecheckOverview, setQuestionRecheckOverview] = useState<QuestionRecheckOverview | null>(null)
+  const [runningQuestionRecheck, setRunningQuestionRecheck] = useState(false)
+  const [lastRecheckBatch, setLastRecheckBatch] = useState<RecheckBatchSummary | null>(null)
   const [data, setData] = useState<ResponseData | null>(null)
   const [forms, setForms] = useState<Record<Stage, FormState> | null>(null)
 
