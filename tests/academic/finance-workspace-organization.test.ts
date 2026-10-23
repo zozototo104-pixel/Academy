@@ -130,16 +130,15 @@ describe('AdminFinanceTab workspace organization', () => {
 
   test('keeps protected finance action body contracts', () => {
     requireAll(functionBody('confirm'), [
-      "api('/api/admin/payments/confirm', { method: 'POST', body: JSON.stringify({ id: p.id, note }) })",
+      "await api('/api/admin/payments', { method: 'PATCH', body: JSON.stringify({ id: payment.id, approvalReference, approvalNote }) })",
       "toast({ title: 'تم التأكيد'",
       'load()',
     ])
 
     requireAll(functionBody('reviewPaymentProof'), [
-      "api<{ payment?: PaymentRow; emailStatus?: 'SENT' | 'FAILED' | 'SKIPPED' }>('/api/admin/payments/proofs', {",
-      "method: 'PATCH'",
-      'body: JSON.stringify({ proofId: proof.id, action, note })',
-      "toast({ title: 'تم رفض الإثبات'",
+      "await api(`/api/admin/payments/proofs/${encodeURIComponent(proof.id)}`, { method: 'PATCH', body: JSON.stringify({ action, reason }) })",
+      "await api(`/api/admin/payments/proofs/${encodeURIComponent(proof.id)}`, { method: 'PATCH', body: JSON.stringify({ action: 'ACCEPT', confirmUnderpayment: true }) })",
+      "toast({ title: action === 'ACCEPT' ? 'تم قبول الإثبات' : 'تم رفض الإثبات'",
       "toast({ title: 'تم قبول الإثبات'",
       'load()',
       'setProofReviewBusy(null)',
