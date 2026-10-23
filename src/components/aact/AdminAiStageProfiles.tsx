@@ -345,7 +345,12 @@ export function AdminAiStageProfiles() {
   const [lastRecheckBatch, setLastRecheckBatch] = useState<RecheckBatchSummary | null>(null)
   const [data, setData] = useState<ResponseData | null>(null)
   const [forms, setForms] = useState<Record<Stage, FormState> | null>(null)
-  const [openAiProfilesSection, setOpenAiProfilesSection] = useState<'advisor' | 'recheck' | 'profiles'>('advisor')
+  const [openAiProfilesSection, setOpenAiProfilesSection] = useState<'advisor' | 'recheck' | 'profiles' | null>('advisor')
+  const toggleAiProfilesSection = (section: 'advisor' | 'recheck' | 'profiles') => {
+    const y = typeof window !== 'undefined' ? window.scrollY : 0
+    setOpenAiProfilesSection((current) => (current === section ? null : section))
+    if (typeof window !== 'undefined') window.setTimeout(() => window.scrollTo({ top: y, behavior: 'auto' }), 0)
+  }
 
   const applyResponse = useCallback((res: ResponseData) => {
     setData(res)
