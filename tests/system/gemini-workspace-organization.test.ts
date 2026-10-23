@@ -254,6 +254,124 @@ describe('Gemini / AI workspace organization', () => {
     expect(geminiBlock.includes('setOpenGeminiSection(value); test')).toBe(false)
   })
 
+  test('keeps protected load and save function body contracts', () => {
+    requireAll(functionBody('load'), [
+      "setLoading(true)",
+      "setRouterStateLoading(true)",
+      "api<SystemData>('/api/admin/system')",
+      "setData(d)",
+      "setForm(d.values)",
+      "api<{ ok: boolean; state: TextAiRouterStateItem[] }>('/api/admin/system', { method: 'POST', body: JSON.stringify({ action: 'router-state' }) })",
+      "setRouterState(result.state || [])",
+      "setLoading(false)",
+      "setRouterStateLoading(false)",
+    ])
+
+    requireAll(functionBody('save'), [
+      "setSaving(true)",
+      "api<{ ok: boolean; values: Record<string, string>; gemini?: SystemData['gemini']; textAi?: SystemData['textAi']; agent?: SystemData['agent'] }>('/api/admin/system', {",
+      "method: 'PATCH'",
+      "body: JSON.stringify(form)",
+      "toast({ title: 'تم الحفظ'",
+      "setData((prev) => (prev ? { ...prev, values: d.values, gemini: d.gemini || prev.gemini, textAi: d.textAi || prev.textAi, agent: d.agent || prev.agent } : prev))",
+      "setForm(d.values)",
+      "load()",
+      "setSaving(false)",
+    ])
+  })
+
+  test('keeps protected Gemini and text AI test function body contracts', () => {
+    requireAll(functionBody('testGeminiText'), [
+      "setTesting(true)",
+      "api<{ ok: boolean; title?: string; message: string; gemini?: SystemData['gemini'] }>('/api/admin/system', {",
+      "method: 'POST'",
+      "body: JSON.stringify({ action: 'test-gemini-text' })",
+      "if (d.gemini) setData((prev) => (prev ? { ...prev, gemini: d.gemini } : prev))",
+      "toast({ title: d.title || (d.ok ? 'Gemini يعمل' : 'فشل Gemini')",
+      "setTesting(false)",
+    ])
+
+    requireAll(functionBody('testTextAi'), [
+      "setTesting(true)",
+      "api<{ ok: boolean; title?: string; message: string; textAi?: SystemData['textAi'] }>('/api/admin/system', {",
+      "method: 'POST'",
+      "body: JSON.stringify({ action: 'test-text-ai' })",
+      "if (d.textAi) setData((prev) => (prev ? { ...prev, textAi: d.textAi } : prev))",
+      "toast({ title: d.title || (d.ok ? 'مزود النصوص يعمل' : 'فشل مزود النصوص')",
+      "setTesting(false)",
+    ])
+
+    requireAll(functionBody('testGeminiLive'), [
+      "purpose: 'SUPERVISOR' | 'DISCUSSION' = 'SUPERVISOR'",
+      "setTesting(true)",
+      "body: JSON.stringify({",
+      "action: 'test-gemini-live'",
+      "purpose,",
+      "model: purpose === 'DISCUSSION' ? form.GEMINI_DISCUSSION_LIVE_MODEL : form.GEMINI_SUPERVISOR_LIVE_MODEL",
+      "voice: form.GEMINI_TTS_VOICE",
+      "toast({ title: d.title || (d.ok ? 'Gemini Live يعمل' : 'فشل Gemini Live')",
+      "setTesting(false)",
+    ])
+  })
+
+  test('keeps protected model-health and router-state function body contracts', () => {
+    requireAll(functionBody('loadTextModelHealth'), [
+      "if (!catalogProviderForModels) return",
+      "setTextModelHealthLoading(true)",
+      "api<TextAiModelHealth>('/api/admin/system', {",
+      "action: 'text-ai-model-health'",
+      "provider: catalogProviderForModels",
+      "setTextModelHealth(r)",
+      "setTextModelHealth(null)",
+      "setTextModelHealthLoading(false)",
+    ])
+
+    requireAll(functionBody('checkAllTextModelsNow'), [
+      "setTextModelHealthLoading(true)",
+      "api<{ ok: boolean; checked: number }>('/api/admin/system', { method: 'POST', body: JSON.stringify({ action: 'text-ai-check-all' }) })",
+      "loadTextModelHealth()",
+      "setTextModelHealthLoading(false)",
+    ])
+
+    requireAll(functionBody('toggleAiModel'), [
+      "api<{ ok: boolean; disabled: boolean }>('/api/admin/system', { method: 'POST', body: JSON.stringify({ action: 'toggle-ai-model-dead', provider, modelName: model }) })",
+      "loadTextModelHealth()",
+      "setTextModelHealthLoading(false)",
+    ])
+
+    requireAll(functionBody('addAcademicAllowlistModel'), [
+      "const allowlistItem = `${provider}:${model}`",
+      "api<{ ok: boolean; allowlist: string }>('/api/admin/system', { method: 'POST', body: JSON.stringify({ action: 'add-academic-allowlist', allowlistItem }) })",
+      "set('AI_ACADEMIC_ALLOWLIST', result.allowlist || allowlistItem)",
+      "setTextModelHealthLoading(false)",
+    ])
+  })
+
+  test('keeps protected router clearing function body contracts', () => {
+    requireAll(functionBody('loadRouterState'), [
+      "setRouterStateLoading(true)",
+      "api<{ ok: boolean; state: TextAiRouterStateItem[] }>('/api/admin/system', { method: 'POST', body: JSON.stringify({ action: 'router-state' }) })",
+      "setRouterState(result.state || [])",
+      "setRouterStateLoading(false)",
+    ])
+
+    requireAll(functionBody('clearRouterStateItem'), [
+      "const clearId = `${item.type}:${item.provider}:${item.keyIndex ?? ''}:${item.model || ''}`",
+      "setRouterStateClearing(clearId)",
+      "body: JSON.stringify({ action: 'clear-router-state', type: item.type, provider: item.provider, keyIndex: item.keyIndex, model: item.model })",
+      "setRouterState(result.state || [])",
+      "setRouterStateClearing(null)",
+    ])
+
+    requireAll(functionBody('clearRouterProvider'), [
+      "const clearId = `clear-provider:${provider}`",
+      "setRouterStateClearing(clearId)",
+      "body: JSON.stringify({ action: 'clear-router-state', type: 'clear-provider', provider, clearProvider: true })",
+      "setRouterState(result.state || [])",
+      "setRouterStateClearing(null)",
+    ])
+  })
+
   test('keeps F and SelectF helpers and does not expose secrets in summaries', () => {
     required(source, 'const F = (')
     required(source, 'const SelectF = (')
