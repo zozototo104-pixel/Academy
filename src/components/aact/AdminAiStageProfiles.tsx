@@ -1043,6 +1043,7 @@ export function AdminAiStageProfiles() {
           </Card>
         )
       })}
+      </div>
     </div>
   )
 }
