@@ -414,6 +414,7 @@ export function AdminView() {
   const [admissionPageSize, setAdmissionPageSize] = useState(10)
   const [admissionTotal, setAdmissionTotal] = useState(0)
   const [selectedAdmissionId, setSelectedAdmissionId] = useState<string | null>(null)
+  const [selectedAppId, setSelectedAppId] = useState<string | null>(null)
   const [admissionRefresh, setAdmissionRefresh] = useState(0)
   const [studentSearch, setStudentSearch] = useState('')
   const [studentStatusFilter, setStudentStatusFilter] = useState('ALL')
@@ -774,6 +775,7 @@ export function AdminView() {
 
   const filteredApps = apps
   const pagedApps = apps
+  const selectedApp = selectedAppId ? pagedApps.find((x) => x.id === selectedAppId) || null : null
   const currentAgentPage = agentPage
 
   if (!user) {
@@ -1707,6 +1709,135 @@ export function AdminView() {
     )
   }
 
+  // بطاقة طلب الوكالة/الاعتماد كاملة بكل أقسامها وأفعالها — منقولة حرفيًا من رسم القائمة كما هي.
+  const renderAgentCard = (a: AgentApp) => {
+                const submittedByStaff = !!a.submittedByStaff || (!!a.user && ['ADMIN', 'SUPERVISOR'].includes(a.user.role))
+                return (
+                <Card key={a.id} className="aact-responsive-card aact-readable border-[#0f2b46]/10">
+                  <CardContent className="p-4 sm:p-5">
+                    <div className="flex flex-col items-stretch gap-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0 w-full sm:flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-sm font-black text-[#0f2b46]">{a.orgName}</h3>
+                          {a.kind === 'ACCREDITATION' ? (
+                            <Badge variant="outline" className="border-[#c9a227]/60 text-[10px] text-[#a8841a]">
+                              {ACC_TYPE_LABEL[a.accreditationType || ''] || 'اعتماد'}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="border-[#0f2b46]/40 text-[10px] text-[#0f2b46]">وكالة دولية</Badge>
+                          )}
+                          {a.status === 'PENDING' && (
+                            <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100"><Clock3 className="ml-1 h-3 w-3" /> معلق</Badge>
+                          )}
+                          {a.status === 'APPROVED' && (
+                            <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100"><CheckCircle2 className="ml-1 h-3 w-3" /> مقبول</Badge>
+                          )}
+                          {a.status === 'REJECTED' && (
+                            <Badge className="bg-red-100 text-red-600 hover:bg-red-100"><XCircle className="ml-1 h-3 w-3" /> مرفوض</Badge>
+                          )}
+                          {a.status === 'REVOKED' && (
+                            <Badge className="bg-red-100 text-red-700 hover:bg-red-100"><AlertTriangle className="ml-1 h-3 w-3" /> اعتماد ملغى</Badge>
+                          )}
+                        </div>
+                        <p className="mt-1 text-xs font-bold text-slate-600">
+                          الممثل: {a.repName} — {a.country}{a.territory ? ` — نطاق التمثيل: ${a.territory}` : ''}
+                        </p>
+                        <p className="mt-0.5 text-[11px] text-slate-400" dir="ltr">{a.email} {a.phone ? `· ${a.phone}` : ''}</p>
+                        {submittedByStaff && (
+                          <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-[11px] font-bold leading-6 text-red-700">
+                            <AlertTriangle className="ml-1 inline h-3.5 w-3.5" />
+                            هذا الطلب مرتبط بحساب إدارة/مشرف ({a.user?.role || 'مطابق للبريد'}). لا يُعتمد كوكالة/اعتماد رسمي. الإجراء الصحيح: تقديم طلب جديد من حساب جهة/وكيل منفصل أو كزائر، ثم إغلاق هذا الطلب كتجريبي.
+                          </div>
+                        )}
+                        {a.contractNo && (
+                          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl bg-[#f7edd0]/50 p-2.5 text-[11px] font-bold text-[#0f2b46]">
+                            <span className="font-mono" dir="ltr">{a.contractNo}</span>
+                            <span>• عمولة {a.commissionRate}%</span>
+                            <span>• {a.exclusive ? 'حصري' : 'غير حصري'}</span>
+                            {a.endDate && <span>• ينتهي {new Date(a.endDate).toLocaleDateString('ar-EG')}</span>}
+                          </div>
+                        )}
+                        {a.experience && <p className="mt-2 max-w-2xl text-xs leading-relaxed text-slate-500">{a.experience}</p>}
+                        {a.status === 'REVOKED' && (
+                          <div className="mt-3 rounded-xl border border-red-100 bg-red-50 p-3 text-[11px] font-bold leading-6 text-red-700">
+                            <p className="font-black">تم سحب الاعتماد/الوكالة وفق قرار إداري موثق.</p>
+                            {a.revokedAt && <p>تاريخ السحب: {new Date(a.revokedAt).toLocaleDateString('ar-EG')}</p>}
+                            {a.revokedReason && <p>السبب: {a.revokedReason}</p>}
+                          </div>
+                        )}
+                        {/* وثائق الاعتماد الرسمية المرفوعة (وفق دليل الإجراءات) + فاتورة رسوم التقديم */}
+                        {a.kind === 'ACCREDITATION' && (
+                          <div className="mt-3 rounded-xl border bg-slate-50/70 p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-[11px] font-black text-[#0f2b46]">
+                                الوثائق الرسمية المرفوعة: {a.documents?.length || 0} / 4
+                              </p>
+                              {a.applicationFee && (
+                                <Badge className={a.applicationFee.status === 'PAID' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}>
+                                  رسوم التقديم {a.applicationFee.amount}$ — {a.applicationFee.status === 'PAID' ? 'مسددة' : 'غير مسددة'} ({a.applicationFee.invoiceNo})
+                                </Badge>
+                              )}
+                            </div>
+                            {!!a.documents?.length && (
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                {a.documents.map((doc) => (
+                                  <a
+                                    key={doc.id}
+                                    href={`/api/agent-docs/${doc.id}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="flex items-center gap-1 rounded-full border border-[#c9a227]/40 bg-white px-2.5 py-1 text-[10px] font-bold text-[#0f2b46] hover:bg-[#f7edd0]/60"
+                                  >
+                                    <Paperclip className="h-3 w-3 text-[#a8841a]" />
+                                    {AGENT_DOC_AR[doc.docType] || doc.docType} — {doc.fileName.slice(0, 20)}
+                                  </a>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      {a.status === 'PENDING' && (
+                        <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:grid-cols-2">
+                          {!submittedByStaff && (
+                            <Button size="sm" onClick={() => setAppStatus(a.id, 'APPROVED')} className="bg-emerald-600 font-bold text-white hover:bg-emerald-700">
+                              <CheckCircle2 className="ml-1 h-3.5 w-3.5" /> قبول
+                            </Button>
+                          )}
+                          <Button size="sm" variant="outline" onClick={() => setAppStatus(a.id, 'REJECTED')} className="border-red-200 font-bold text-red-500">
+                            <XCircle className="ml-1 h-3.5 w-3.5" /> {submittedByStaff ? 'إغلاق تجريبي' : 'رفض'}
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => openAgentPreview(a.id)} className="border-[#c9a227]/50 font-bold text-[#a8841a] hover:bg-[#fff7df]">
+                            <Eye className="ml-1 h-3.5 w-3.5" /> معاينة
+                          </Button>
+                        </div>
+                      )}
+                      {a.status === 'APPROVED' && (
+                        <div className="grid w-full grid-cols-1 gap-2 sm:w-56">
+                          <Button size="sm" variant="outline" onClick={() => openAgentPreview(a.id)} className="border-[#c9a227]/50 font-bold text-[#a8841a] hover:bg-[#fff7df]">
+                            <Eye className="ml-1 h-3.5 w-3.5" /> معاينة
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => revokeApp(a)} className="border-red-200 bg-red-50 font-bold text-red-600 hover:bg-red-100">
+                            <AlertTriangle className="ml-1 h-3.5 w-3.5" /> إلغاء الاعتماد
+                          </Button>
+                          <p className="rounded-lg bg-amber-50 p-2 text-[10px] font-bold leading-5 text-amber-700">
+                            يستخدم فقط عند إخلال عقدي/مهني موثق. سيعطل صفحة التحقق لأي شهادة مرتبطة.
+                          </p>
+                        </div>
+                      )}
+                      {a.status !== 'PENDING' && a.status !== 'APPROVED' && (
+                        <div className="grid w-full grid-cols-1 gap-2 sm:w-40">
+                          <Button size="sm" variant="outline" onClick={() => openAgentPreview(a.id)} className="border-[#c9a227]/50 font-bold text-[#a8841a] hover:bg-[#fff7df]">
+                            <Eye className="ml-1 h-3.5 w-3.5" /> معاينة
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                                </Card>
+                )
+  }
+
   return (
     <div data-aact-admin-view="true" className="aact-fade-in mx-auto max-w-7xl px-4 py-10">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -2225,132 +2356,89 @@ export function AdminView() {
               </Card>
             ) : (
               <>
-              {pagedApps.map((a) => {
-                const submittedByStaff = !!a.submittedByStaff || (!!a.user && ['ADMIN', 'SUPERVISOR'].includes(a.user.role))
-                return (
-                <Card key={a.id} className="aact-responsive-card aact-readable border-[#0f2b46]/10">
-                  <CardContent className="p-4 sm:p-5">
-                    <div className="flex flex-col items-stretch gap-4 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="min-w-0 w-full sm:flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-sm font-black text-[#0f2b46]">{a.orgName}</h3>
-                          {a.kind === 'ACCREDITATION' ? (
-                            <Badge variant="outline" className="border-[#c9a227]/60 text-[10px] text-[#a8841a]">
-                              {ACC_TYPE_LABEL[a.accreditationType || ''] || 'اعتماد'}
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="border-[#0f2b46]/40 text-[10px] text-[#0f2b46]">وكالة دولية</Badge>
-                          )}
-                          {a.status === 'PENDING' && (
-                            <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100"><Clock3 className="ml-1 h-3 w-3" /> معلق</Badge>
-                          )}
-                          {a.status === 'APPROVED' && (
-                            <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100"><CheckCircle2 className="ml-1 h-3 w-3" /> مقبول</Badge>
-                          )}
-                          {a.status === 'REJECTED' && (
-                            <Badge className="bg-red-100 text-red-600 hover:bg-red-100"><XCircle className="ml-1 h-3 w-3" /> مرفوض</Badge>
-                          )}
-                          {a.status === 'REVOKED' && (
-                            <Badge className="bg-red-100 text-red-700 hover:bg-red-100"><AlertTriangle className="ml-1 h-3 w-3" /> اعتماد ملغى</Badge>
-                          )}
-                        </div>
-                        <p className="mt-1 text-xs font-bold text-slate-600">
-                          الممثل: {a.repName} — {a.country}{a.territory ? ` — نطاق التمثيل: ${a.territory}` : ''}
-                        </p>
-                        <p className="mt-0.5 text-[11px] text-slate-400" dir="ltr">{a.email} {a.phone ? `· ${a.phone}` : ''}</p>
-                        {submittedByStaff && (
-                          <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-[11px] font-bold leading-6 text-red-700">
-                            <AlertTriangle className="ml-1 inline h-3.5 w-3.5" />
-                            هذا الطلب مرتبط بحساب إدارة/مشرف ({a.user?.role || 'مطابق للبريد'}). لا يُعتمد كوكالة/اعتماد رسمي. الإجراء الصحيح: تقديم طلب جديد من حساب جهة/وكيل منفصل أو كزائر، ثم إغلاق هذا الطلب كتجريبي.
-                          </div>
-                        )}
-                        {a.contractNo && (
-                          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl bg-[#f7edd0]/50 p-2.5 text-[11px] font-bold text-[#0f2b46]">
-                            <span className="font-mono" dir="ltr">{a.contractNo}</span>
-                            <span>• عمولة {a.commissionRate}%</span>
-                            <span>• {a.exclusive ? 'حصري' : 'غير حصري'}</span>
-                            {a.endDate && <span>• ينتهي {new Date(a.endDate).toLocaleDateString('ar-EG')}</span>}
-                          </div>
-                        )}
-                        {a.experience && <p className="mt-2 max-w-2xl text-xs leading-relaxed text-slate-500">{a.experience}</p>}
-                        {a.status === 'REVOKED' && (
-                          <div className="mt-3 rounded-xl border border-red-100 bg-red-50 p-3 text-[11px] font-bold leading-6 text-red-700">
-                            <p className="font-black">تم سحب الاعتماد/الوكالة وفق قرار إداري موثق.</p>
-                            {a.revokedAt && <p>تاريخ السحب: {new Date(a.revokedAt).toLocaleDateString('ar-EG')}</p>}
-                            {a.revokedReason && <p>السبب: {a.revokedReason}</p>}
-                          </div>
-                        )}
-                        {/* وثائق الاعتماد الرسمية المرفوعة (وفق دليل الإجراءات) + فاتورة رسوم التقديم */}
-                        {a.kind === 'ACCREDITATION' && (
-                          <div className="mt-3 rounded-xl border bg-slate-50/70 p-3">
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <p className="text-[11px] font-black text-[#0f2b46]">
-                                الوثائق الرسمية المرفوعة: {a.documents?.length || 0} / 4
-                              </p>
-                              {a.applicationFee && (
-                                <Badge className={a.applicationFee.status === 'PAID' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}>
-                                  رسوم التقديم {a.applicationFee.amount}$ — {a.applicationFee.status === 'PAID' ? 'مسددة' : 'غير مسددة'} ({a.applicationFee.invoiceNo})
-                                </Badge>
-                              )}
-                            </div>
-                            {!!a.documents?.length && (
-                              <div className="mt-2 flex flex-wrap gap-1.5">
-                                {a.documents.map((doc) => (
-                                  <a
-                                    key={doc.id}
-                                    href={`/api/agent-docs/${doc.id}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="flex items-center gap-1 rounded-full border border-[#c9a227]/40 bg-white px-2.5 py-1 text-[10px] font-bold text-[#0f2b46] hover:bg-[#f7edd0]/60"
-                                  >
-                                    <Paperclip className="h-3 w-3 text-[#a8841a]" />
-                                    {AGENT_DOC_AR[doc.docType] || doc.docType} — {doc.fileName.slice(0, 20)}
-                                  </a>
-                                ))}
+              {selectedApp ? (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button variant="outline" size="sm" onClick={() => setSelectedAppId(null)} className="font-bold">
+                      <ArrowRight className="ml-1 h-4 w-4" /> عودة إلى القائمة
+                    </Button>
+                    <span className="text-sm font-black text-[#0f2b46]">{selectedApp.orgName}</span>
+                    {selectedApp.kind === 'ACCREDITATION' ? (
+                      <Badge variant="outline" className="border-[#c9a227]/60 text-[10px] text-[#a8841a]">
+                        {ACC_TYPE_LABEL[selectedApp.accreditationType || ''] || 'اعتماد'}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="border-[#0f2b46]/40 text-[10px] text-[#0f2b46]">وكالة دولية</Badge>
+                    )}
+                  </div>
+                  {renderAgentCard(selectedApp)}
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-2xl border border-[#0f2b46]/10 bg-white shadow-sm">
+                  <table className="w-full min-w-[960px] border-collapse text-right text-xs">
+                    <thead>
+                      <tr className="bg-[#f7edd0] text-[#0f2b46]">
+                        <th className="px-3 py-2.5 font-black">الجهة</th>
+                        <th className="px-3 py-2.5 font-black">النوع</th>
+                        <th className="px-3 py-2.5 font-black">الممثل</th>
+                        <th className="px-3 py-2.5 font-black">البلد</th>
+                        <th className="px-3 py-2.5 font-black">الحالة</th>
+                        <th className="px-3 py-2.5 font-black">تاريخ التقديم</th>
+                        <th className="px-3 py-2.5 font-black">الوثائق والرسوم</th>
+                        <th className="px-3 py-2.5 font-black">التواصل</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pagedApps.map((a) => {
+                        const submittedByStaff = !!a.submittedByStaff || (!!a.user && ['ADMIN', 'SUPERVISOR'].includes(a.user.role))
+                        return (
+                          <tr key={a.id} className="border-t border-slate-100 transition-colors hover:bg-slate-50">
+                            <td className="px-3 py-3">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <button type="button" onClick={() => setSelectedAppId(a.id)} className="font-black text-[#0f2b46] underline decoration-[#c9a227]/60 decoration-2 underline-offset-4 hover:text-[#a8841a]">
+                                  {a.orgName}
+                                </button>
+                                {submittedByStaff && <Badge className="bg-red-100 text-[10px] text-red-700 hover:bg-red-100">طلب داخلي</Badge>}
                               </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      {a.status === 'PENDING' && (
-                        <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:grid-cols-2">
-                          {!submittedByStaff && (
-                            <Button size="sm" onClick={() => setAppStatus(a.id, 'APPROVED')} className="bg-emerald-600 font-bold text-white hover:bg-emerald-700">
-                              <CheckCircle2 className="ml-1 h-3.5 w-3.5" /> قبول
-                            </Button>
-                          )}
-                          <Button size="sm" variant="outline" onClick={() => setAppStatus(a.id, 'REJECTED')} className="border-red-200 font-bold text-red-500">
-                            <XCircle className="ml-1 h-3.5 w-3.5" /> {submittedByStaff ? 'إغلاق تجريبي' : 'رفض'}
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => openAgentPreview(a.id)} className="border-[#c9a227]/50 font-bold text-[#a8841a] hover:bg-[#fff7df]">
-                            <Eye className="ml-1 h-3.5 w-3.5" /> معاينة
-                          </Button>
-                        </div>
-                      )}
-                      {a.status === 'APPROVED' && (
-                        <div className="grid w-full grid-cols-1 gap-2 sm:w-56">
-                          <Button size="sm" variant="outline" onClick={() => openAgentPreview(a.id)} className="border-[#c9a227]/50 font-bold text-[#a8841a] hover:bg-[#fff7df]">
-                            <Eye className="ml-1 h-3.5 w-3.5" /> معاينة
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => revokeApp(a)} className="border-red-200 bg-red-50 font-bold text-red-600 hover:bg-red-100">
-                            <AlertTriangle className="ml-1 h-3.5 w-3.5" /> إلغاء الاعتماد
-                          </Button>
-                          <p className="rounded-lg bg-amber-50 p-2 text-[10px] font-bold leading-5 text-amber-700">
-                            يستخدم فقط عند إخلال عقدي/مهني موثق. سيعطل صفحة التحقق لأي شهادة مرتبطة.
-                          </p>
-                        </div>
-                      )}
-                      {a.status !== 'PENDING' && a.status !== 'APPROVED' && (
-                        <div className="grid w-full grid-cols-1 gap-2 sm:w-40">
-                          <Button size="sm" variant="outline" onClick={() => openAgentPreview(a.id)} className="border-[#c9a227]/50 font-bold text-[#a8841a] hover:bg-[#fff7df]">
-                            <Eye className="ml-1 h-3.5 w-3.5" /> معاينة
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              )})}
+                              {a.contractNo && <div className="mt-0.5 font-mono text-[10px] text-slate-400" dir="ltr">{a.contractNo}</div>}
+                            </td>
+                            <td className="px-3 py-3">
+                              {a.kind === 'ACCREDITATION' ? (
+                                <Badge variant="outline" className="border-[#c9a227]/60 text-[10px] text-[#a8841a]">
+                                  {ACC_TYPE_LABEL[a.accreditationType || ''] || 'اعتماد'}
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="border-[#0f2b46]/40 text-[10px] text-[#0f2b46]">وكالة دولية</Badge>
+                              )}
+                            </td>
+                            <td className="px-3 py-3 font-bold text-slate-600">{a.repName}</td>
+                            <td className="px-3 py-3 text-slate-600">{a.country}</td>
+                            <td className="px-3 py-3">
+                              {a.status === 'PENDING' && (<Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100"><Clock3 className="ml-1 h-3 w-3" /> معلق</Badge>)}
+                              {a.status === 'APPROVED' && (<Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100"><CheckCircle2 className="ml-1 h-3 w-3" /> مقبول</Badge>)}
+                              {a.status === 'REJECTED' && (<Badge className="bg-red-100 text-red-600 hover:bg-red-100"><XCircle className="ml-1 h-3 w-3" /> مرفوض</Badge>)}
+                              {a.status === 'REVOKED' && (<Badge className="bg-red-100 text-red-700 hover:bg-red-100"><AlertTriangle className="ml-1 h-3 w-3" /> اعتماد ملغى</Badge>)}
+                              {!['PENDING', 'APPROVED', 'REJECTED', 'REVOKED'].includes(a.status) && <span className="text-slate-300">—</span>}
+                            </td>
+                            <td className="px-3 py-3 text-slate-500">{new Date(a.createdAt).toLocaleDateString('ar-EG')}</td>
+                            <td className="px-3 py-3">
+                              {a.kind !== 'ACCREDITATION' || ((a.documents?.length || 0) >= 4 && (!a.applicationFee || a.applicationFee.status === 'PAID')) ? (
+                                <span className="text-slate-300">—</span>
+                              ) : (
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  {(a.documents?.length || 0) < 4 && <span className="font-bold text-slate-600">وثائق {a.documents?.length || 0}/4</span>}
+                                  {a.applicationFee && a.applicationFee.status !== 'PAID' && <Badge className="bg-amber-100 text-[10px] text-amber-700 hover:bg-amber-100">رسوم غير مسددة</Badge>}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-3 py-3 text-[11px] text-slate-400" dir="ltr">{a.email}{a.phone ? ` · ${a.phone}` : ''}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
               <AdminPager page={currentAgentPage} pageSize={agentPageSize} total={agentTotal} onPageChange={setAgentPage} label="طلب وكالة/اعتماد" />
               </>
             )}
