@@ -73,8 +73,11 @@ describe('Gemini / AI workspace organization', () => {
   })
 
   test('adds exactly one visual section state with core as the default', () => {
-    required(source, "const [openGeminiSection, setOpenGeminiSection] = useState<'core' | 'routing' | 'providers' | 'health' | 'cooldowns' | 'tests'>('core')")
-    expect(occurrences(source, "useState<'core' | 'routing' | 'providers' | 'health' | 'cooldowns' | 'tests'>")).toBe(1)
+    required(source, "const [openGeminiSection, setOpenGeminiSection] = useState<'core' | 'routing' | 'providers' | 'health' | 'cooldowns' | 'tests' | null>('core')")
+    required(source, 'const toggleGeminiSection =')
+    required(source, "setOpenGeminiSection((current) => (current === section ? null : section))")
+    required(source, "window.scrollTo({ top: y, behavior: 'auto' })")
+    expect(occurrences(source, "useState<'core' | 'routing' | 'providers' | 'health' | 'cooldowns' | 'tests' | null>")).toBe(1)
   })
 
   test('renders the six Gemini workspaces as buttons that only change visual state', () => {
