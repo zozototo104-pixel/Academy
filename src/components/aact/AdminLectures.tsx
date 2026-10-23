@@ -62,6 +62,8 @@ type AttendanceData = {
   attendances: { id: string; status: string; joinedAt: string; user: { id: string; name: string; email: string } }[]
   enrolledStudents: { id: string; name: string; email: string }[]
 }
+type SeriesScopeRow = { id: string; programId: string; program: { titleAr: string } | null }
+type LecturesSurface = 'admin' | 'supervisor'
 
 const STATUS_META: Record<string, { label: string; className: string }> = {
   SCHEDULED: { label: 'مجدولة', className: 'bg-blue-100 text-blue-800' },
@@ -91,7 +93,7 @@ function fmtWhen(iso: string, timeZone?: string): string {
 const selectClass = 'h-9 rounded-md border border-slate-300 bg-white px-2 text-sm'
 const labelClass = 'mb-1 block text-xs font-bold text-slate-600'
 
-export function AdminLectures() {
+export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface } = {}) {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [disabled, setDisabled] = useState(false)
@@ -116,18 +118,43 @@ export function AdminLectures() {
     setLoading(true)
     try {
       const params = new URLSearchParams()
-      if (filterProgram) params.set('programId', filterProgram)
+      const videoParams = new URLSearchParams()
+      if (filterProgram) {
+        params.set('programId', filterProgram)
+        videoParams.set('programId', filterProgram)
+      }
       if (filterStatus) params.set('status', filterStatus)
-      const [ses, vid, prog] = await Promise.all([
+      const [ses, vid, prog, scopedSeries] = await Promise.all([
         api<{ sessions: SessionRow[] }>(`/api/admin/lectures/sessions/list?${params.toString()}`),
-        api<{ videos: VideoRow[]; storageConfigured?: boolean; uploadMaxBytes?: number }>('/api/admin/lectures/videos/list'),
+        api<{ videos: VideoRow[]; storageConfigured?: boolean; uploadMaxBytes?: number }>(`/api/admin/lectures/videos/list?${videoParams.toString()}`),
         api<{ programs: ProgramOption[] }>('/api/programs').catch(() => ({ programs: [] as ProgramOption[] })),
+        surface === 'supervisor'
+          ? api<{ series: SeriesScopeRow[] }>('/api/admin/lectures/series').catch(() => ({ series: [] as SeriesScopeRow[] }))
+          : Promise.resolve({ series: [] as SeriesScopeRow[] }),
       ])
-      setSessions(ses.sessions || [])
-      setVideos(vid.videos || [])
+      const nextSessions = ses.sessions || []
+      const nextVideos = vid.videos || []
+      const allPrograms = prog.programs || []
+      let visiblePrograms = allPrograms
+      if (surface === 'supervisor') {
+        const allowedProgramIds = new Set<string>()
+        for (const series of scopedSeries.series || []) allowedProgramIds.add(series.programId)
+        for (const session of nextSessions) allowedProgramIds.add(session.series.programId)
+        for (const video of nextVideos) allowedProgramIds.add(video.programId)
+        visiblePrograms = allPrograms.filter((program) => allowedProgramIds.has(program.id))
+        const known = new Set(visiblePrograms.map((program) => program.id))
+        for (const series of scopedSeries.series || []) {
+          if (!known.has(series.programId)) {
+            visiblePrograms.push({ id: series.programId, titleAr: series.program?.titleAr || 'برنامج محاضرات', units: [] })
+            known.add(series.programId)
+          }
+        }
+      }
+      setSessions(nextSessions)
+      setVideos(nextVideos)
       setStorageConfigured(Boolean(vid.storageConfigured))
       setUploadMaxBytes(vid.uploadMaxBytes ?? 0)
-      setPrograms(prog.programs || [])
+      setPrograms(visiblePrograms)
       setDisabled(false)
       setError(null)
     } catch (e: any) {
@@ -136,17 +163,19 @@ export function AdminLectures() {
     } finally {
       setLoading(false)
     }
-  }, [filterProgram, filterStatus])
+  }, [filterProgram, filterStatus, surface])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
       void load()
     }, 0)
-    api<{ supervisors: SupervisorOption[] }>('/api/admin/supervisors')
-      .then((r) => setSupervisors(r.supervisors || []))
-      .catch(() => setSupervisors([]))
+    if (surface === 'admin') {
+      api<{ supervisors: SupervisorOption[] }>('/api/admin/supervisors')
+        .then((r) => setSupervisors(r.supervisors || []))
+        .catch(() => setSupervisors([]))
+    }
     return () => window.clearTimeout(timer)
-  }, [load])
+  }, [load, surface])
 
   const act = useCallback(
     async (fn: () => Promise<unknown>, success: string) => {
@@ -216,8 +245,17 @@ export function AdminLectures() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-black text-slate-800">المحاضرات واللقاءات</h2>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-black text-slate-800">
+            {surface === 'supervisor' ? 'محاضراتي ولقاءات طلابي' : 'المحاضرات واللقاءات'}
+          </h2>
+          {surface === 'supervisor' && (
+            <p className="mt-1 max-w-2xl text-xs font-bold leading-6 text-slate-500">
+              هذه الشاشة تعرض وتدير فقط محاضرات البرامج التي عيّنتك الإدارة عليها كمشرف. إنشاء أول سلسلة في أي برنامج يبقى من صلاحيات الإدارة.
+            </p>
+          )}
+        </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => void load()}>
             <RefreshCw className="ml-1 h-4 w-4" /> تحديث
@@ -419,6 +457,7 @@ export function AdminLectures() {
         onClose={() => setCreateOpen(false)}
         programs={programs}
         supervisors={supervisors}
+        showSupervisorSelect={surface === 'admin'}
         onSubmit={async (payload) => {
           await act(() => api('/api/admin/lectures/series', { method: 'POST', body: JSON.stringify(payload) }), 'أُنشئت المحاضرة')
           setCreateOpen(false)
@@ -534,12 +573,14 @@ function CreateSeriesDialog({
   onClose,
   programs,
   supervisors,
+  showSupervisorSelect,
   onSubmit,
 }: {
   open: boolean
   onClose: () => void
   programs: ProgramOption[]
   supervisors: SupervisorOption[]
+  showSupervisorSelect: boolean
   onSubmit: (payload: Record<string, unknown>) => Promise<void>
 }) {
   const [form, setForm] = useState({
@@ -595,17 +636,19 @@ function CreateSeriesDialog({
               ))}
             </select>
           </div>
-          <div>
-            <label className={labelClass}>المشرف المسؤول</label>
-            <select className={`${selectClass} w-full`} value={form.supervisorId} onChange={(e) => set('supervisorId', e.target.value)}>
-              <option value="">أنا (المستخدم الحالي)</option>
-              {supervisors.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {showSupervisorSelect && (
+            <div>
+              <label className={labelClass}>المشرف المسؤول</label>
+              <select className={`${selectClass} w-full`} value={form.supervisorId} onChange={(e) => set('supervisorId', e.target.value)}>
+                <option value="">أنا (المستخدم الحالي)</option>
+                {supervisors.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div>
             <label className={labelClass}>المنطقة الزمنية</label>
             <Input value={form.timezone} onChange={(e) => set('timezone', e.target.value)} dir="ltr" />

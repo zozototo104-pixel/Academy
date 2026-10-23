@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Loader2, Users2, GraduationCap, FileText, Video, RefreshCcw, MessageCircle, Send, Mic, Square, ClipboardCheck, Bot, BookOpen, AlertTriangle, CheckCircle2, Sparkles, BarChart3, Brain, Headphones } from 'lucide-react'
 import { SupervisorLiveVoiceCall } from '@/components/aact/SupervisorLiveVoiceCall'
+import { AdminLectures } from '@/components/aact/AdminLectures'
 
 interface SupervisorMessage {
   id: string
@@ -359,6 +360,7 @@ export function SupervisorView() {
                   <TabsTrigger value="chat" className="text-[11px] font-black"><MessageCircle className="ml-1 h-3.5 w-3.5" /> محادثة الطالب</TabsTrigger>
                   <TabsTrigger value="exams" className="text-[11px] font-black"><ClipboardCheck className="ml-1 h-3.5 w-3.5" /> اختبارات وواجبات</TabsTrigger>
                   <TabsTrigger value="private" className="text-[11px] font-black"><Sparkles className="ml-1 h-3.5 w-3.5" /> اختبار خاص</TabsTrigger>
+                  <TabsTrigger value="lectures" className="text-[11px] font-black"><Video className="ml-1 h-3.5 w-3.5" /> محاضراتي</TabsTrigger>
                   <TabsTrigger value="thesis" className="text-[11px] font-black"><FileText className="ml-1 h-3.5 w-3.5" /> بحث ومناقشة</TabsTrigger>
                 </TabsList>
 
@@ -556,6 +558,10 @@ export function SupervisorView() {
                       {creating ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Sparkles className="ml-2 h-4 w-4" />} توليد ونشر الاختبار للطالب
                     </Button>
                   </CardContent></Card>
+                </TabsContent>
+
+                <TabsContent value="lectures" className="space-y-4">
+                  <AdminLectures surface="supervisor" />
                 </TabsContent>
 
                 <TabsContent value="thesis" className="space-y-3">

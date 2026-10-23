@@ -223,6 +223,39 @@ model AiStageProfileVersion {
   @@index([profileId, version])
 }
 
+// E1/E4: advisor recommendations are persisted as reviewable suggestions only.
+// The advisor route never mutates AiStageProfile or AiStageProfileVersion;
+// exact draft adoption is recorded only after the normal D4 profile save path.
+model AiAdvisorAdvice {
+  id                    String          @id @default(cuid())
+  stage                 AiPipelineStage
+  category              String
+  severity              String
+  status                String          @default("OPEN")
+  title                 String
+  rationale             String
+  evidence              Json
+  proposedSnapshot      Json?
+  targetProfileVersion  Int?
+  signature             String
+  evidenceSignature     String?
+  activeDedupKey        String?         @unique
+  expiresAt             DateTime?
+  createdBy             String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  dismissedAt           DateTime?
+  dismissedBy           String?
+  appliedAt             DateTime?
+  appliedBy             String?
+  appliedProfileVersion Int?
+
+  @@index([status, stage, createdAt])
+  @@index([status, expiresAt])
+  @@index([signature, status, createdAt])
+  @@index([category, createdAt])
+}
+
 enum QuestionRecheckReason {
   REVIEW_PROFILE_CHANGED
   NEW_EVIDENCE_AVAILABLE

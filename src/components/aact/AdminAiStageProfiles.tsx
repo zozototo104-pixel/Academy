@@ -41,7 +41,93 @@ type StageData = {
     unitId: string | null
   }[]
 }
-type ResponseData = { stages: StageData[]; providers: string[]; policies: string[] }
+type AdvisorModelReadiness = {
+  provider: string
+  model: string
+  runs: number
+  successRuns: number
+  failureRuns: number
+  fallbackRuns: number
+  successRate: number | null
+  failureRate: number | null
+  fallbackRate: number | null
+  tokenCoverage: number
+  costCoverage: number
+  avgCostCents: number | null
+  readyForModelAdvice: boolean
+}
+type AdvisorStageReadiness = {
+  stage: Stage
+  totalRuns: number
+  successRuns: number
+  failureRuns: number
+  fallbackRuns: number
+  windowDays: number
+  tokenCoverage: number
+  costCoverage: number
+  operationsGap: number
+  daysGap: number
+  costCoverageGap: number
+  readyForAdvice: boolean
+  gaps: string[]
+  modelStats: AdvisorModelReadiness[]
+}
+type AdvisorReadiness = {
+  generatedAt: string
+  gates: { minDays: number; minStageRuns: number; minModelRuns?: number; costCoverageTarget: number }
+  stages: AdvisorStageReadiness[]
+  readyStages: Stage[]
+  blockedStages: Stage[]
+  allStagesReady: boolean
+  notes: string[]
+}
+type AdvisorAdvice = {
+  id: string
+  stage: Stage
+  category: string
+  severity: string
+  status: string
+  title: string
+  rationale: string
+  evidence: Record<string, unknown>
+  proposedSnapshot: Snapshot | null
+  targetProfileVersion: number | null
+  expiresAt: string | null
+  createdAt: string
+}
+type RecheckEnqueueReport = {
+  requestedCap: number
+  cohortTotal: number
+  enqueued: number
+  skippedAlreadyQueued: number
+  skippedCapReached: number
+  skippedIneligible: number
+  failed: number
+  errors: { questionId: string | null; error: string }[]
+}
+type RecheckRecommendation = {
+  valid?: boolean
+  reason?: string
+  verifierProvider?: string | null
+  verifierModel?: string | null
+  checkedAt?: string
+}
+type QuestionRecheckTask = {
+  id: string
+  questionId: string
+  reason: string
+  status: string
+  profileVersion: string | null
+  recommendation: RecheckRecommendation | null
+  error: string | null
+  createdAt: string
+  claimedAt: string | null
+  finishedAt: string | null
+  question: { id: string; text: string; status: string } | null
+}
+type QuestionRecheckOverview = { pendingCount: number; recentTasks: QuestionRecheckTask[] }
+type RecheckBatchSummary = { claimed: number; done: number; failed: number }
+type ResponseData = { stages: StageData[]; providers: string[]; policies: string[]; advisorReadiness?: AdvisorReadiness; advisorAdvice?: AdvisorAdvice[] }
 type FormState = {
   enabled: boolean
   provider: string
@@ -50,6 +136,12 @@ type FormState = {
   allowGlobalFallback: boolean
   verifierText: string
   verifierStrict: boolean
+}
+type LoadedAdvisorDraft = {
+  stage: Stage
+  adviceId: string
+  targetProfileVersion: number
+  snapshotKey: string
 }
 
 const STAGE_LABELS: Record<Stage, string> = {
@@ -152,6 +244,52 @@ function fallbackRate(stats: StageData['stats']): string {
   return `${Math.round((stats.fallbacks / stats.runs) * 100)}%`
 }
 
+function formatPct(value: number | null | undefined): string {
+  if (value == null) return '—'
+  return `${Math.round(value * 100)}%`
+}
+
+function readinessBadge(stage: AdvisorStageReadiness) {
+  if (stage.readyForAdvice) return { label: 'جاهزة للمرحلة التالية', className: 'bg-green-100 text-green-800' }
+  return { label: 'بيانات غير كافية', className: 'bg-amber-100 text-amber-800' }
+}
+
+function adviceSeverityBadge(severity: string) {
+  if (severity === 'CRITICAL') return { label: 'حرجة', className: 'bg-red-100 text-red-800' }
+  if (severity === 'WARNING') return { label: 'تحذير', className: 'bg-amber-100 text-amber-800' }
+  return { label: 'معلومة', className: 'bg-blue-100 text-blue-800' }
+}
+
+function shortText(value: string, max = 90): string {
+  const normalized = value.replace(/\s+/g, ' ').trim()
+  return normalized.length > max ? `${normalized.slice(0, max)}…` : normalized
+}
+
+function recheckReasonLabel(reason: string): string {
+  if (reason === 'REVIEW_PROFILE_CHANGED') return 'تغيير بروفايل التدقيق'
+  if (reason === 'NEW_EVIDENCE_AVAILABLE') return 'دليل جديد'
+  if (reason === 'MANUAL_ADMIN_RECHECK') return 'إعادة يدوية'
+  return reason
+}
+
+function recheckStatusLabel(status: string): string {
+  if (status === 'PENDING') return 'بالانتظار'
+  if (status === 'RUNNING') return 'قيد التشغيل'
+  if (status === 'DONE') return 'اكتملت'
+  if (status === 'FAILED') return 'فشلت'
+  if (status === 'SKIPPED') return 'تخطيت'
+  return status
+}
+
+function recommendationText(task: QuestionRecheckTask): string {
+  if (task.recommendation) {
+    const verdict = task.recommendation.valid ? 'توصية: مدعوم' : 'توصية: يحتاج مراجعة'
+    return `${verdict} — ${task.recommendation.reason || 'بلا سبب مفصل'}`
+  }
+  if (task.error) return `فشل: ${task.error}`
+  return 'لا توجد توصية بعد'
+}
+
 function formsFromResponse(res: ResponseData): Record<Stage, FormState> {
   return Object.fromEntries(
     res.stages.map((stage) => [stage.stage, snapshotToForm(stage.current?.snapshot ?? null)]),
@@ -196,6 +334,15 @@ export function AdminAiStageProfiles() {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [savingStage, setSavingStage] = useState<Stage | null>(null)
+  const [generatingAdvisorAdvice, setGeneratingAdvisorAdvice] = useState(false)
+  const [dismissingAdvisorAdviceId, setDismissingAdvisorAdviceId] = useState<string | null>(null)
+  const [loadedAdvisorDraft, setLoadedAdvisorDraft] = useState<LoadedAdvisorDraft | null>(null)
+  const [reviewRecheckEnqueueEnabled, setReviewRecheckEnqueueEnabled] = useState(false)
+  const [reviewRecheckEnqueueCap, setReviewRecheckEnqueueCap] = useState(50)
+  const [lastRecheckEnqueueReport, setLastRecheckEnqueueReport] = useState<RecheckEnqueueReport | null>(null)
+  const [questionRecheckOverview, setQuestionRecheckOverview] = useState<QuestionRecheckOverview | null>(null)
+  const [runningQuestionRecheck, setRunningQuestionRecheck] = useState(false)
+  const [lastRecheckBatch, setLastRecheckBatch] = useState<RecheckBatchSummary | null>(null)
   const [data, setData] = useState<ResponseData | null>(null)
   const [forms, setForms] = useState<Record<Stage, FormState> | null>(null)
 
@@ -204,11 +351,24 @@ export function AdminAiStageProfiles() {
     setForms(formsFromResponse(res))
   }, [])
 
+  const refreshQuestionRecheckOverview = useCallback(async (silent = false) => {
+    try {
+      const overview = await api<QuestionRecheckOverview>('/api/admin/question-recheck')
+      setQuestionRecheckOverview(overview)
+    } catch (error: any) {
+      if (!silent) toast({ title: 'تعذر تحميل إعادة التدقيق', description: error?.message, variant: 'destructive' })
+    }
+  }, [toast])
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await api<ResponseData>('/api/admin/ai-stage-profiles')
+      const [res, recheckOverview] = await Promise.all([
+        api<ResponseData>('/api/admin/ai-stage-profiles'),
+        api<QuestionRecheckOverview>('/api/admin/question-recheck').catch(() => null),
+      ])
       applyResponse(res)
+      if (recheckOverview) setQuestionRecheckOverview(recheckOverview)
     } catch (error: any) {
       toast({ title: 'تعذر تحميل بروفايلات الذكاء', description: error?.message, variant: 'destructive' })
     } finally {
@@ -218,9 +378,15 @@ export function AdminAiStageProfiles() {
 
   useEffect(() => {
     let cancelled = false
-    api<ResponseData>('/api/admin/ai-stage-profiles')
-      .then((res) => {
-        if (!cancelled) applyResponse(res)
+    Promise.all([
+      api<ResponseData>('/api/admin/ai-stage-profiles'),
+      api<QuestionRecheckOverview>('/api/admin/question-recheck').catch(() => null),
+    ])
+      .then(([res, recheckOverview]) => {
+        if (!cancelled) {
+          applyResponse(res)
+          if (recheckOverview) setQuestionRecheckOverview(recheckOverview)
+        }
       })
       .catch((error: any) => {
         if (!cancelled) {
@@ -244,6 +410,7 @@ export function AdminAiStageProfiles() {
   const resetDraft = (stage: Stage) => {
     const current = stageByName.get(stage)?.current?.snapshot ?? null
     setForms((state) => (state ? { ...state, [stage]: snapshotToForm(current) } : state))
+    setLoadedAdvisorDraft((currentDraft) => (currentDraft?.stage === stage ? null : currentDraft))
   }
 
   const save = async (stage: Stage) => {
@@ -256,21 +423,115 @@ export function AdminAiStageProfiles() {
         toast({ title: 'لا يوجد تغيير للحفظ', description: 'عدّل البروفايل أولًا حتى يتم إنشاء نسخة جديدة.' })
         return
       }
-      const res = await api<{ stage: StageData }>('/api/admin/ai-stage-profiles', {
+      const advisorDraftToApply = loadedAdvisorDraft?.stage === stage && loadedAdvisorDraft.snapshotKey === snapshotKey(snapshot)
+        ? loadedAdvisorDraft
+        : null
+      const res = await api<{ stage: StageData; advisorAdviceId?: string | null; recheckEnqueue?: RecheckEnqueueReport | null }>('/api/admin/ai-stage-profiles', {
         method: 'POST',
-        body: JSON.stringify({ stage, snapshot }),
+        body: JSON.stringify({
+          stage,
+          snapshot,
+          ...(advisorDraftToApply ? { advisorAdviceId: advisorDraftToApply.adviceId } : {}),
+          ...(stage === 'REVIEW'
+            ? { enqueueRecheck: { enabled: reviewRecheckEnqueueEnabled, cap: reviewRecheckEnqueueCap } }
+            : {}),
+        }),
       })
       setData((current) => {
         if (!current) return current
-        return { ...current, stages: current.stages.map((s) => (s.stage === stage ? res.stage : s)) }
+        return {
+          ...current,
+          stages: current.stages.map((s) => (s.stage === stage ? res.stage : s)),
+          advisorAdvice: advisorDraftToApply
+            ? (current.advisorAdvice ?? []).filter((item) => item.id !== advisorDraftToApply.adviceId)
+            : current.advisorAdvice,
+        }
       })
       setForms((current) => (current ? { ...current, [stage]: snapshotToForm(res.stage.current?.snapshot ?? snapshot) } : current))
-      toast({ title: `تم حفظ بروفايل ${STAGE_LABELS[stage]}` })
+      if (res.recheckEnqueue) {
+        setLastRecheckEnqueueReport(res.recheckEnqueue)
+        void refreshQuestionRecheckOverview(true)
+      } else if (stage === 'REVIEW') {
+        setLastRecheckEnqueueReport(null)
+      }
+      if (advisorDraftToApply) setLoadedAdvisorDraft(null)
+      toast({ title: advisorDraftToApply ? `تم اعتماد مسودة المستشار وحفظ بروفايل ${STAGE_LABELS[stage]}` : `تم حفظ بروفايل ${STAGE_LABELS[stage]}` })
     } catch (error: any) {
       toast({ title: 'تعذر الحفظ', description: error?.message || 'راجع البيانات وحاول مجددًا', variant: 'destructive' })
     } finally {
       setSavingStage(null)
     }
+  }
+
+  const runQuestionRecheck = async () => {
+    setRunningQuestionRecheck(true)
+    try {
+      const res = await api<{ batch: RecheckBatchSummary; overview: QuestionRecheckOverview }>('/api/admin/question-recheck', { method: 'POST' })
+      setLastRecheckBatch(res.batch)
+      setQuestionRecheckOverview(res.overview)
+      toast({ title: 'تم تشغيل دفعة إعادة التدقيق', description: `ادّعت ${res.batch.claimed} · اكتملت ${res.batch.done} · فشلت ${res.batch.failed}` })
+    } catch (error: any) {
+      toast({ title: 'تعذر تشغيل إعادة التدقيق', description: error?.message, variant: 'destructive' })
+    } finally {
+      setRunningQuestionRecheck(false)
+    }
+  }
+
+  const requestAdvisorAdvice = async () => {
+    setGeneratingAdvisorAdvice(true)
+    try {
+      const res = await api<{ created: number; skipped: number; advice: AdvisorAdvice[] }>('/api/admin/ai-advisor', { method: 'POST' })
+      setData((current) => (current ? { ...current, advisorAdvice: res.advice } : current))
+      toast({ title: 'تم توليد توصيات E1/E2/E4', description: `جديد: ${res.created} · مكرر مفتوح: ${res.skipped}` })
+    } catch (error: any) {
+      toast({ title: 'تعذر توليد توصيات المستشار', description: error?.message, variant: 'destructive' })
+    } finally {
+      setGeneratingAdvisorAdvice(false)
+    }
+  }
+
+  const dismissAdvisorAdvice = async (id: string) => {
+    setDismissingAdvisorAdviceId(id)
+    try {
+      await api<{ advice: AdvisorAdvice }>('/api/admin/ai-advisor', {
+        method: 'PATCH',
+        body: JSON.stringify({ id }),
+      })
+      setData((current) => (current ? { ...current, advisorAdvice: (current.advisorAdvice ?? []).filter((item) => item.id !== id) } : current))
+      toast({ title: 'تم إغلاق توصية المستشار' })
+    } catch (error: any) {
+      toast({ title: 'تعذر إغلاق التوصية', description: error?.message, variant: 'destructive' })
+    } finally {
+      setDismissingAdvisorAdviceId(null)
+    }
+  }
+
+  const loadAdvisorDraftIntoForm = (advice: AdvisorAdvice) => {
+    if (!advice.proposedSnapshot) return
+    if (!forms) {
+      toast({ title: 'تعذر تحميل المسودة', description: 'أعد تحميل الصفحة بعد اكتمال بيانات البروفايلات.', variant: 'destructive' })
+      return
+    }
+    if (advice.targetProfileVersion == null) {
+      toast({ title: 'المسودة قديمة', description: 'هذه التوصية لا تحمل نسخة هدف. أعد توليد التوصية قبل تحميلها.', variant: 'destructive' })
+      return
+    }
+    const currentVersion = stageByName.get(advice.stage)?.current?.version ?? 0
+    if (currentVersion !== advice.targetProfileVersion) {
+      toast({ title: 'المسودة قديمة', description: 'تم تعديل بروفايل المرحلة بعد إنشاء هذه التوصية. أعد توليد التوصية.', variant: 'destructive' })
+      return
+    }
+    setForms({ ...forms, [advice.stage]: snapshotToForm(advice.proposedSnapshot) })
+    setLoadedAdvisorDraft({
+      stage: advice.stage,
+      adviceId: advice.id,
+      targetProfileVersion: advice.targetProfileVersion,
+      snapshotKey: snapshotKey(advice.proposedSnapshot),
+    })
+    toast({
+      title: `تم تحميل مسودة ${STAGE_LABELS[advice.stage]} للمراجعة`,
+      description: 'راجع نموذج المرحلة ثم استخدم حفظ نسخة جديدة. إذا حفظتها كما هي ستُعلّم التوصية كمُعتمدة.',
+    })
   }
 
   if (loading && !data) {
@@ -289,14 +550,202 @@ export function AdminAiStageProfiles() {
         <div>
           <h2 className="text-lg font-black text-slate-800">بروفايلات مراحل الذكاء</h2>
           <p className="mt-1 max-w-3xl text-xs leading-6 text-slate-500">
-            هذه واجهة D4 الأولى: تتحكم بالقراءة والتحليل والتوليد والتدقيق، وتعرض آخر تشغيلات سجل D0. لا يوجد مستشار ولا
-            تطبيق تلقائي هنا.
+            تتحكم بالقراءة والتحليل والتوليد والتدقيق، وتعرض آخر تشغيلات سجل D0. قسم E0 قراءة جاهزية فقط، وقسم E1
+            يحفظ توصيات مراجعة قابلة للإغلاق. قسم E2/E4 يحفظ مسودة تغيّر قوائم الموديلات فقط داخل التوصية دون تطبيق مباشر.
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
           <RefreshCw className="ml-1 h-4 w-4" /> تحديث
         </Button>
       </div>
+
+      {data?.advisorReadiness && (
+        <Card className="border-blue-100 bg-blue-50/60">
+          <CardContent className="space-y-4 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="text-base font-black text-blue-950">E0 — تقرير جاهزية المستشار</h3>
+                <p className="mt-1 text-xs leading-6 text-blue-900/75">
+                  هذا التقرير يقرأ سجلات D0 فقط ولا يكتب أي توصية. العتبة: {data.advisorReadiness.gates.minStageRuns} تشغيل و{data.advisorReadiness.gates.minDays} يوم لكل مرحلة، و{data.advisorReadiness.gates.minModelRuns ?? 30} تشغيل للموديل قبل نصيحته.
+                </p>
+              </div>
+              <Badge className={data.advisorReadiness.allStagesReady ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}>
+                {data.advisorReadiness.allStagesReady ? 'كل المراحل جاهزة' : 'يوجد نقص بيانات'}
+              </Badge>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {data.advisorReadiness.stages.map((stage) => {
+                const badge = readinessBadge(stage)
+                return (
+                  <div key={stage.stage} className="rounded-xl border border-blue-100 bg-white p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-black text-slate-800">{STAGE_LABELS[stage.stage]}</span>
+                      <Badge className={badge.className}>{badge.label}</Badge>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600">
+                      <span>التشغيلات: <b>{stage.totalRuns}</b></span>
+                      <span>الأيام: <b>{stage.windowDays}</b></span>
+                      <span>النجاح: <b>{formatPct(stage.totalRuns ? stage.successRuns / stage.totalRuns : null)}</b></span>
+                      <span>الرجوع: <b>{formatPct(stage.totalRuns ? stage.fallbackRuns / stage.totalRuns : null)}</b></span>
+                      <span>التوكنز: <b>{formatPct(stage.tokenCoverage)}</b></span>
+                      <span>الكلفة: <b>{formatPct(stage.costCoverage)}</b></span>
+                    </div>
+                    {!!stage.gaps.length && (
+                      <ul className="mt-3 list-disc space-y-1 pr-5 text-[11px] leading-5 text-amber-700">
+                        {stage.gaps.map((gap) => <li key={gap}>{gap}</li>)}
+                      </ul>
+                    )}
+                    {!!stage.modelStats?.length && (
+                      <div className="mt-3 rounded-lg bg-slate-50 p-2 text-[11px] leading-5 text-slate-600">
+                        <p className="font-black text-slate-700">إحصاء الموديلات</p>
+                        {stage.modelStats.slice(0, 3).map((model) => (
+                          <p key={`${model.provider}:${model.model}`} dir="ltr">
+                            {model.provider}/{model.model} · runs {model.runs} · fail {formatPct(model.failureRate)} · fallback {formatPct(model.fallbackRate)}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+            <div className="rounded-xl bg-white/80 p-3 text-xs leading-6 text-slate-600">
+              {data.advisorReadiness.notes.map((note) => <p key={note}>• {note}</p>)}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="border-indigo-100 bg-indigo-50/50">
+        <CardContent className="space-y-4 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="text-base font-black text-indigo-950">E1/E2/E3/E4 — توصيات المستشار</h3>
+              <p className="mt-1 text-xs leading-6 text-indigo-900/75">
+                توليد توصيات مبنية على سجلات D0 الجاهزة لكل موديل. E2/E4 يحفظ مسودة تغيير قوائم الموديلات فقط، وE3 يحمّلها إلى نموذج المرحلة للمراجعة اليدوية مع فحص نسخة الهدف.
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => void requestAdvisorAdvice()} disabled={generatingAdvisorAdvice}>
+              {generatingAdvisorAdvice ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : <RefreshCw className="ml-1 h-4 w-4" />}
+              توليد توصيات E1/E2/E4
+            </Button>
+          </div>
+
+          {(data?.advisorAdvice ?? []).length ? (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {(data?.advisorAdvice ?? []).map((advice) => {
+                const badge = adviceSeverityBadge(advice.severity)
+                return (
+                  <div key={advice.id} className="rounded-xl border border-indigo-100 bg-white p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge className="bg-slate-100 text-slate-700">{STAGE_LABELS[advice.stage]}</Badge>
+                          <Badge className={badge.className}>{badge.label}</Badge>
+                          <Badge className="bg-indigo-50 text-indigo-700">{advice.category}</Badge>
+                        </div>
+                        <h4 className="mt-2 text-sm font-black text-slate-800">{advice.title}</h4>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={dismissingAdvisorAdviceId === advice.id}
+                        onClick={() => void dismissAdvisorAdvice(advice.id)}
+                      >
+                        {dismissingAdvisorAdviceId === advice.id && <Loader2 className="ml-1 h-4 w-4 animate-spin" />}
+                        إغلاق التوصية
+                      </Button>
+                    </div>
+                    <p className="mt-2 text-xs leading-6 text-slate-600">{advice.rationale}</p>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-slate-500 sm:grid-cols-4">
+                      <span>الموديل: <b dir="ltr">{advice.evidence?.['targetProvider'] ? `${String(advice.evidence?.['targetProvider'])}/${String(advice.evidence?.['targetModel'])}` : '—'}</b></span>
+                      <span>تشغيلات الموديل: <b>{String(advice.evidence?.['modelRuns'] ?? advice.evidence?.['totalRuns'] ?? '—')}</b></span>
+                      <span>فشل الموديل: <b>{String(advice.evidence?.['modelFailureRatePct'] ?? advice.evidence?.['failureRatePct'] ?? '—')}%</b></span>
+                      <span>رجوع الموديل: <b>{String(advice.evidence?.['modelFallbackRatePct'] ?? advice.evidence?.['fallbackRatePct'] ?? '—')}%</b></span>
+                      {!!advice.evidence?.['replacementProvider'] && (
+                        <span>بديل مقترح: <b dir="ltr">{String(advice.evidence?.['replacementProvider'])}/{String(advice.evidence?.['replacementModel'])}</b></span>
+                      )}
+                      <span>تغطية الكلفة: <b>{String(advice.evidence?.['costCoveragePct'] ?? '—')}%</b></span>
+                    </div>
+                    {advice.proposedSnapshot && (
+                      <div className="mt-3 rounded-lg border border-indigo-100 bg-indigo-50 p-3 text-[11px] leading-5 text-indigo-900">
+                        <p className="font-black">مسودة E2/E4 محفوظة للمراجعة فقط — تغيير قوائم موديلات لا أكثر</p>
+                        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                          <span>نسخة الهدف: <b>{advice.targetProfileVersion ?? '—'}</b></span>
+                          <span>موديلات المرحلة: <b>{advice.proposedSnapshot.models.length}</b></span>
+                          <span>مفضّلات المدقق: <b>{advice.proposedSnapshot.verifier?.preferred.length ?? 0}</b></span>
+                          <span>تنتهي: <b>{fmtDate(advice.expiresAt)}</b></span>
+                        </div>
+                        <Button
+                          className="mt-3"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => loadAdvisorDraftIntoForm(advice)}
+                        >
+                          تحميل المسودة للمراجعة اليدوية
+                        </Button>
+                      </div>
+                    )}
+                    <p className="mt-2 text-[11px] text-slate-400">أُنشئت: {fmtDate(advice.createdAt)}</p>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <p className="rounded-xl bg-white/80 p-4 text-center text-sm text-slate-500">
+              لا توجد توصيات مفتوحة. يمكن توليد توصيات E1/E2 بعد اكتمال عتبات E0 للمراحل.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-purple-100 bg-purple-50/50">
+        <CardContent className="space-y-4 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="text-base font-black text-purple-950">إعادة تدقيق الأسئلة</h3>
+              <p className="mt-1 text-xs leading-6 text-purple-900/75">
+                هذه منطقة قراءة وتشغيل فقط. الإدخال يحصل اختياريًا عند حفظ بروفايل REVIEW، والتشغيل هنا يعالج دفعة واحدة بحد 10 ولا يغيّر حالة أي سؤال.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge className="bg-white text-purple-800">بالانتظار: {questionRecheckOverview?.pendingCount ?? 0}</Badge>
+              <Button variant="outline" size="sm" onClick={() => void refreshQuestionRecheckOverview()}>
+                <RefreshCw className="ml-1 h-4 w-4" /> تحديث
+              </Button>
+              <Button size="sm" disabled={runningQuestionRecheck || !(questionRecheckOverview?.pendingCount ?? 0)} onClick={() => void runQuestionRecheck()}>
+                {runningQuestionRecheck ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : <RefreshCw className="ml-1 h-4 w-4" />}
+                تشغيل دفعة إعادة تدقيق
+              </Button>
+            </div>
+          </div>
+          {lastRecheckBatch && (
+            <div className="rounded-xl border border-purple-100 bg-white p-3 text-xs leading-6 text-purple-900">
+              آخر تشغيل: ادّعت <b>{lastRecheckBatch.claimed}</b> · اكتملت <b>{lastRecheckBatch.done}</b> · فشلت <b>{lastRecheckBatch.failed}</b>
+            </div>
+          )}
+          {questionRecheckOverview?.recentTasks?.length ? (
+            <div className="grid gap-2 lg:grid-cols-2">
+              {questionRecheckOverview.recentTasks.map((task) => (
+                <div key={task.id} className="rounded-xl border border-purple-100 bg-white p-3 text-xs leading-6 text-slate-600">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge className="bg-slate-100 text-slate-700">{recheckStatusLabel(task.status)}</Badge>
+                      <Badge className="bg-purple-50 text-purple-700">{recheckReasonLabel(task.reason)}</Badge>
+                    </div>
+                    <span className="text-[11px] text-slate-400">{fmtDate(task.finishedAt ?? task.createdAt)}</span>
+                  </div>
+                  <p className="mt-2 font-bold text-slate-800">{task.question ? shortText(task.question.text) : `سؤال ${task.questionId}`}</p>
+                  <p className="mt-1">{recommendationText(task)}</p>
+                  <p className="mt-1 text-[11px] text-slate-400">profile: {task.profileVersion ?? '—'} · الحالة: {task.question?.status ?? 'غير موجود'}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-xl bg-white/80 p-4 text-center text-sm text-slate-500">لا توجد مهام إعادة تدقيق حديثة.</p>
+          )}
+        </CardContent>
+      </Card>
 
       {(['READING', 'ANALYSIS', 'GENERATION', 'REVIEW'] as Stage[]).map((stageName) => {
         const stage = stageByName.get(stageName)
@@ -311,6 +760,8 @@ export function AdminAiStageProfiles() {
         }
         const diff = draftSnapshot ? describeSnapshotDiff(currentSnapshot, draftSnapshot, stageName) : []
         const hasChanges = diff.length > 0
+        const loadedDraftForStage = loadedAdvisorDraft?.stage === stageName ? loadedAdvisorDraft : null
+        const loadedDraftStillExact = !!loadedDraftForStage && !!draftSnapshot && loadedDraftForStage.snapshotKey === snapshotKey(draftSnapshot)
         const disabled = savingStage === stageName || !!draftError || !hasChanges
         return (
           <Card key={stageName} className="overflow-hidden border-slate-200">
@@ -336,6 +787,23 @@ export function AdminAiStageProfiles() {
                   </Button>
                 </div>
               </div>
+
+              {loadedDraftForStage && (
+                <div className={loadedDraftStillExact ? 'rounded-xl border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-900' : 'rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900'}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="space-y-1">
+                      <p className="font-black">
+                        مسودة مستشار محمّلة لنسخة الهدف {loadedDraftForStage.targetProfileVersion} — لم تُطبّق بعد
+                      </p>
+                      <p className="text-xs leading-6">
+                        راجع التغييرات ثم اضغط «حفظ نسخة جديدة»، أو ألغِ المسودة للرجوع إلى البروفايل الحالي.
+                        {!loadedDraftStillExact ? ' تم تعديل المسودة يدويًا، لذلك لن تُعلّم كتوصية معتمدة تلقائيًا.' : ''}
+                      </p>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => resetDraft(stageName)}>إلغاء المسودة</Button>
+                  </div>
+                </div>
+              )}
 
               <div className="grid gap-3 lg:grid-cols-4">
                 <div className="rounded-lg bg-slate-50 p-3 text-center">
@@ -367,6 +835,23 @@ export function AdminAiStageProfiles() {
                         {diff.map((item) => <li key={item}>{item}</li>)}
                       </ul>
                     </>
+                  )}
+                </div>
+              )}
+
+              {stageName === 'REVIEW' && lastRecheckEnqueueReport && (
+                <div className="rounded-xl border border-purple-200 bg-purple-50 p-3 text-sm text-purple-900">
+                  <p className="font-black">تقرير إدخال إعادة التدقيق بعد آخر حفظ REVIEW</p>
+                  <div className="mt-2 grid gap-2 text-xs leading-6 sm:grid-cols-3 lg:grid-cols-6">
+                    <span>السقف: <b>{lastRecheckEnqueueReport.requestedCap}</b></span>
+                    <span>المجموعة: <b>{lastRecheckEnqueueReport.cohortTotal}</b></span>
+                    <span>أُدخلت: <b>{lastRecheckEnqueueReport.enqueued}</b></span>
+                    <span>موجودة: <b>{lastRecheckEnqueueReport.skippedAlreadyQueued}</b></span>
+                    <span>حد مستنفد/سقف: <b>{lastRecheckEnqueueReport.skippedCapReached}</b></span>
+                    <span>غير مؤهلة/فشلت: <b>{lastRecheckEnqueueReport.skippedIneligible + lastRecheckEnqueueReport.failed}</b></span>
+                  </div>
+                  {!!lastRecheckEnqueueReport.errors.length && (
+                    <p className="mt-2 text-xs text-red-700">أخطاء الإدخال: {lastRecheckEnqueueReport.errors.map((item) => item.error).join('، ')}</p>
                   )}
                 </div>
               )}
@@ -436,24 +921,51 @@ export function AdminAiStageProfiles() {
                   </div>
 
                   {stageName === 'REVIEW' && (
-                    <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
-                      <label className="mb-1 block text-xs font-bold text-blue-800">قائمة المدقق الخاصة</label>
-                      <Textarea
-                        dir="ltr"
-                        className="min-h-24 font-mono text-xs"
-                        value={form.verifierText}
-                        placeholder={'GEMINI:gemini-2.5-pro\nOPENAI:gpt-5.1'}
-                        onChange={(event) => updateForm(stageName, { verifierText: event.target.value })}
-                      />
-                      <label className="mt-2 flex items-center gap-2 text-xs font-bold text-blue-800">
-                        <input
-                          type="checkbox"
-                          checked={form.verifierStrict}
-                          onChange={(event) => updateForm(stageName, { verifierStrict: event.target.checked })}
+                    <>
+                      <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
+                        <label className="mb-1 block text-xs font-bold text-blue-800">قائمة المدقق الخاصة</label>
+                        <Textarea
+                          dir="ltr"
+                          className="min-h-24 font-mono text-xs"
+                          value={form.verifierText}
+                          placeholder={'GEMINI:gemini-2.5-pro\nOPENAI:gpt-5.1'}
+                          onChange={(event) => updateForm(stageName, { verifierText: event.target.value })}
                         />
-                        وضع تدقيق صارم
-                      </label>
-                    </div>
+                        <label className="mt-2 flex items-center gap-2 text-xs font-bold text-blue-800">
+                          <input
+                            type="checkbox"
+                            checked={form.verifierStrict}
+                            onChange={(event) => updateForm(stageName, { verifierStrict: event.target.checked })}
+                          />
+                          وضع تدقيق صارم
+                        </label>
+                      </div>
+                      <div className="rounded-lg border border-purple-100 bg-purple-50 p-3">
+                        <label className="flex items-center gap-2 text-sm font-black text-purple-900">
+                          <input
+                            type="checkbox"
+                            checked={reviewRecheckEnqueueEnabled}
+                            onChange={(event) => setReviewRecheckEnqueueEnabled(event.target.checked)}
+                          />
+                          أدخل أسئلة معلّقة إلى طابور إعادة التدقيق بسبب تغيير البروفايل
+                        </label>
+                        <div className="mt-3 max-w-xs">
+                          <label className="mb-1 block text-xs font-bold text-purple-800">سقف الإدخال عند الحفظ</label>
+                          <input
+                            type="number"
+                            min={1}
+                            max={200}
+                            value={reviewRecheckEnqueueCap}
+                            onChange={(event) => setReviewRecheckEnqueueCap(Math.max(1, Math.min(200, Number(event.target.value) || 50)))}
+                            className="h-9 w-full rounded-md border border-purple-200 bg-white px-2 text-sm"
+                            disabled={!reviewRecheckEnqueueEnabled}
+                          />
+                        </div>
+                        <p className="mt-2 text-[11px] leading-5 text-purple-800">
+                          الخيار غير مفعّل افتراضيًا. الحفظ يُدخل للطابور فقط ولا يشغّل أي استدعاء ذكاء؛ التشغيل من قسم «إعادة تدقيق الأسئلة» أعلاه.
+                        </p>
+                      </div>
+                    </>
                   )}
                 </div>
 
