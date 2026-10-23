@@ -1384,7 +1384,7 @@ export function AdminSystemTab() {
           </div>
           </div>
 
-          <div hidden={openGeminiSection !== 'health'}>
+          <div id="gemini-section-health-models" role="region" aria-label="صحة النماذج النصية" hidden={openGeminiSection !== 'health'}>
           <div className="grid gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4 sm:grid-cols-2">
             <div className="rounded-xl border border-indigo-100 bg-white p-3 text-[10px] font-bold leading-relaxed text-slate-600 ring-1 ring-indigo-100 sm:col-span-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
