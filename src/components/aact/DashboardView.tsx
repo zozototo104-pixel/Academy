@@ -462,7 +462,9 @@ export function DashboardView() {
       setAssignments([])
       setStudyGuides([])
       setStudyScheduleItems([])
-      setProgramSection('academic')
+      const returningToSchedule = useAppStore.getState().activeProgramId === programId
+        && new URLSearchParams(window.location.search).get('section') === 'schedule'
+      setProgramSection(returningToSchedule ? 'schedule' : 'academic')
       Promise.all([
         api<{ assignments: StudentAssignment[] }>(`/api/assignments?programId=${programId}`).catch(() => ({ assignments: [] as StudentAssignment[] })),
         api<{ guides: StudentStudyGuide[] }>(`/api/study-guides?programId=${programId}`).catch(() => ({ guides: [] as StudentStudyGuide[] })),
