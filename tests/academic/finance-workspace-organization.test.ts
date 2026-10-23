@@ -120,8 +120,8 @@ describe('AdminFinanceTab workspace organization', () => {
 
   test('keeps load and query effects unchanged at contract level', () => {
     required(financeBlock, 'const load = () => setPaymentRefresh((v) => v + 1)')
-    required(financeBlock, "api<{ payments: PaymentRow[]; total: number; totals: any }>(`/api/admin/payments?${params.toString()}`)")
-    required(financeBlock, "api<{ report: any }>('/api/admin/reports')")
+    required(financeBlock, "api<{ payments: PaymentRow[]; totals: any; total: number }>(`/api/admin/payments?${params.toString()}`)")
+    required(financeBlock, "api<Report>('/api/admin/reports')")
     required(financeBlock, "params.set('search', paymentSearch.trim())")
     required(financeBlock, "params.set('status', paymentStatusFilter)")
     required(financeBlock, "params.set('page', String(paymentPage))")
