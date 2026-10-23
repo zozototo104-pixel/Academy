@@ -21,6 +21,28 @@ const required = (text: string, needle: string) => {
 
 const occurrences = (text: string, needle: string) => text.split(needle).length - 1
 
+const functionBody = (name: string) => {
+  const marker = `const ${name}`
+  const start = source.indexOf(marker)
+  expect(start, `Missing function: ${name}`).toBeGreaterThan(-1)
+  const firstBrace = source.indexOf('{', start)
+  expect(firstBrace, `Missing function body: ${name}`).toBeGreaterThan(start)
+  let depth = 0
+  for (let i = firstBrace; i < source.length; i += 1) {
+    const char = source[i]
+    if (char === '{') depth += 1
+    if (char === '}') {
+      depth -= 1
+      if (depth === 0) return source.slice(start, i + 1)
+    }
+  }
+  throw new Error(`Unclosed function body: ${name}`)
+}
+
+const requireAll = (text: string, needles: string[]) => {
+  for (const needle of needles) required(text, needle)
+}
+
 const geminiBlock = between('<TabsContent value="gemini"', '<TabsContent value="launch"')
 const mailBlock = between('<TabsContent value="mail"', '<TabsContent value="pay"')
 const payBlock = between('<TabsContent value="pay"', '<TabsContent value="gemini"')
