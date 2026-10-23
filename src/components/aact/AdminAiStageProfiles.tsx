@@ -921,24 +921,51 @@ export function AdminAiStageProfiles() {
                   </div>
 
                   {stageName === 'REVIEW' && (
-                    <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
-                      <label className="mb-1 block text-xs font-bold text-blue-800">قائمة المدقق الخاصة</label>
-                      <Textarea
-                        dir="ltr"
-                        className="min-h-24 font-mono text-xs"
-                        value={form.verifierText}
-                        placeholder={'GEMINI:gemini-2.5-pro\nOPENAI:gpt-5.1'}
-                        onChange={(event) => updateForm(stageName, { verifierText: event.target.value })}
-                      />
-                      <label className="mt-2 flex items-center gap-2 text-xs font-bold text-blue-800">
-                        <input
-                          type="checkbox"
-                          checked={form.verifierStrict}
-                          onChange={(event) => updateForm(stageName, { verifierStrict: event.target.checked })}
+                    <>
+                      <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
+                        <label className="mb-1 block text-xs font-bold text-blue-800">قائمة المدقق الخاصة</label>
+                        <Textarea
+                          dir="ltr"
+                          className="min-h-24 font-mono text-xs"
+                          value={form.verifierText}
+                          placeholder={'GEMINI:gemini-2.5-pro\nOPENAI:gpt-5.1'}
+                          onChange={(event) => updateForm(stageName, { verifierText: event.target.value })}
                         />
-                        وضع تدقيق صارم
-                      </label>
-                    </div>
+                        <label className="mt-2 flex items-center gap-2 text-xs font-bold text-blue-800">
+                          <input
+                            type="checkbox"
+                            checked={form.verifierStrict}
+                            onChange={(event) => updateForm(stageName, { verifierStrict: event.target.checked })}
+                          />
+                          وضع تدقيق صارم
+                        </label>
+                      </div>
+                      <div className="rounded-lg border border-purple-100 bg-purple-50 p-3">
+                        <label className="flex items-center gap-2 text-sm font-black text-purple-900">
+                          <input
+                            type="checkbox"
+                            checked={reviewRecheckEnqueueEnabled}
+                            onChange={(event) => setReviewRecheckEnqueueEnabled(event.target.checked)}
+                          />
+                          أدخل أسئلة معلّقة إلى طابور إعادة التدقيق بسبب تغيير البروفايل
+                        </label>
+                        <div className="mt-3 max-w-xs">
+                          <label className="mb-1 block text-xs font-bold text-purple-800">سقف الإدخال عند الحفظ</label>
+                          <input
+                            type="number"
+                            min={1}
+                            max={200}
+                            value={reviewRecheckEnqueueCap}
+                            onChange={(event) => setReviewRecheckEnqueueCap(Math.max(1, Math.min(200, Number(event.target.value) || 50)))}
+                            className="h-9 w-full rounded-md border border-purple-200 bg-white px-2 text-sm"
+                            disabled={!reviewRecheckEnqueueEnabled}
+                          />
+                        </div>
+                        <p className="mt-2 text-[11px] leading-5 text-purple-800">
+                          الخيار غير مفعّل افتراضيًا. الحفظ يُدخل للطابور فقط ولا يشغّل أي استدعاء ذكاء؛ التشغيل من قسم «إعادة تدقيق الأسئلة» أعلاه.
+                        </p>
+                      </div>
+                    </>
                   )}
                 </div>
 
