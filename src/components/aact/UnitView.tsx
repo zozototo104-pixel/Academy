@@ -152,6 +152,9 @@ export function UnitView() {
 
   return (
     <div className="aact-fade-in mx-auto max-w-4xl px-4 py-8">
+      <Button type="button" size="sm" variant="outline" onClick={() => openProgram(program.id, 'schedule')} className="mb-5 border-[#c9a227]/40 font-bold text-[#0f2b46]">
+        <ArrowRight className="ml-1 h-4 w-4" /> العودة إلى جدول الدراسة
+      </Button>
       {/* Breadcrumb */}
       <div className="mb-5 flex flex-wrap items-center gap-2 text-xs font-bold text-slate-400">
         <button onClick={() => openProgram(program.id)} className="hover:text-[#a8841a]">{program.titleAr}</button>
