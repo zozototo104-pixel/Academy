@@ -159,7 +159,10 @@ describe('quality workspace organization guard', () => {
   })
 
   it('has the seven workspaces in order with full aria wiring and one-open state', () => {
-    assert.ok(SOURCE.includes("useState<'curricula' | 'supervision' | 'programs' | 'content' | 'students' | 'operations' | 'thesis'>('curricula')"))
+    assert.ok(SOURCE.includes("useState<'curricula' | 'supervision' | 'programs' | 'content' | 'students' | 'operations' | 'thesis' | null>('curricula')"))
+    assert.ok(SOURCE.includes('const toggleWorkspace ='))
+    assert.ok(SOURCE.includes("setActiveWorkspace((current) => (current === workspace ? null : workspace))"))
+    assert.ok(SOURCE.includes("window.scrollTo({ top: y, behavior: 'auto' })"))
     let prev = -1
     for (const ws of WORKSPACES) {
       const regionIdx = SOURCE.indexOf(`id="quality-ws-${ws.id}"`)
