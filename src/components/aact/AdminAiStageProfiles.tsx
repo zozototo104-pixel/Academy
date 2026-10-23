@@ -699,6 +699,54 @@ export function AdminAiStageProfiles() {
         </CardContent>
       </Card>
 
+      <Card className="border-purple-100 bg-purple-50/50">
+        <CardContent className="space-y-4 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="text-base font-black text-purple-950">إعادة تدقيق الأسئلة</h3>
+              <p className="mt-1 text-xs leading-6 text-purple-900/75">
+                هذه منطقة قراءة وتشغيل فقط. الإدخال يحصل اختياريًا عند حفظ بروفايل REVIEW، والتشغيل هنا يعالج دفعة واحدة بحد 10 ولا يغيّر حالة أي سؤال.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge className="bg-white text-purple-800">بالانتظار: {questionRecheckOverview?.pendingCount ?? 0}</Badge>
+              <Button variant="outline" size="sm" onClick={() => void refreshQuestionRecheckOverview()}>
+                <RefreshCw className="ml-1 h-4 w-4" /> تحديث
+              </Button>
+              <Button size="sm" disabled={runningQuestionRecheck || !(questionRecheckOverview?.pendingCount ?? 0)} onClick={() => void runQuestionRecheck()}>
+                {runningQuestionRecheck ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : <RefreshCw className="ml-1 h-4 w-4" />}
+                تشغيل دفعة إعادة تدقيق
+              </Button>
+            </div>
+          </div>
+          {lastRecheckBatch && (
+            <div className="rounded-xl border border-purple-100 bg-white p-3 text-xs leading-6 text-purple-900">
+              آخر تشغيل: ادّعت <b>{lastRecheckBatch.claimed}</b> · اكتملت <b>{lastRecheckBatch.done}</b> · فشلت <b>{lastRecheckBatch.failed}</b>
+            </div>
+          )}
+          {questionRecheckOverview?.recentTasks?.length ? (
+            <div className="grid gap-2 lg:grid-cols-2">
+              {questionRecheckOverview.recentTasks.map((task) => (
+                <div key={task.id} className="rounded-xl border border-purple-100 bg-white p-3 text-xs leading-6 text-slate-600">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge className="bg-slate-100 text-slate-700">{recheckStatusLabel(task.status)}</Badge>
+                      <Badge className="bg-purple-50 text-purple-700">{recheckReasonLabel(task.reason)}</Badge>
+                    </div>
+                    <span className="text-[11px] text-slate-400">{fmtDate(task.finishedAt ?? task.createdAt)}</span>
+                  </div>
+                  <p className="mt-2 font-bold text-slate-800">{task.question ? shortText(task.question.text) : `سؤال ${task.questionId}`}</p>
+                  <p className="mt-1">{recommendationText(task)}</p>
+                  <p className="mt-1 text-[11px] text-slate-400">profile: {task.profileVersion ?? '—'} · الحالة: {task.question?.status ?? 'غير موجود'}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-xl bg-white/80 p-4 text-center text-sm text-slate-500">لا توجد مهام إعادة تدقيق حديثة.</p>
+          )}
+        </CardContent>
+      </Card>
+
       {(['READING', 'ANALYSIS', 'GENERATION', 'REVIEW'] as Stage[]).map((stageName) => {
         const stage = stageByName.get(stageName)
         const form = forms?.[stageName] ?? snapshotToForm(stage?.current?.snapshot ?? null)
