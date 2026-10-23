@@ -437,6 +437,18 @@ export default function AdminRepresentativesTab() {
               <div><Label>الترتيب</Label><Input type="number" value={form.sortOrder} onChange={(e) => update('sortOrder', Number(e.target.value) as any)} className="mt-2 rounded-2xl" /></div>
             </div>
             <label className="flex items-center gap-2 rounded-2xl bg-slate-50 p-3 text-sm font-bold"><input type="checkbox" checked={form.featured} onChange={(e) => update('featured', e.target.checked as any)} /> إظهار كممثل مميز</label>
+                </div>
+              </div>
+            </section>
+            <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200">
+              <h3>
+                <button type="button" id="representatives-heading-bio" aria-controls="representatives-panel-bio" aria-expanded={openSection === 'bio'} onClick={() => setOpenSection('bio')} className="w-full min-w-0 bg-slate-50 p-4 text-right transition hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#c9a227]">
+                  <span className="flex items-center justify-between gap-3 text-sm font-black text-[#0f2b46]">السيرة والنصوص <span aria-hidden="true">{openSection === 'bio' ? '−' : '+'}</span></span>
+                  <span data-testid="representatives-summary-bio" className="mt-1 block truncate text-xs font-bold text-slate-500">{[form.shortBio, form.publicContactNote, form.rawBio, form.professionalBio, form.worksSummary, form.achievements].filter((text) => String(text || '').trim()).length} من 6 نصوص مكتملة</span>
+                </button>
+              </h3>
+              <div id="representatives-panel-bio" data-testid="representatives-panel-bio" role="region" aria-labelledby="representatives-heading-bio" hidden={openSection !== 'bio'}>
+                <div className="space-y-5 border-t border-slate-100 p-4">
             <div className="grid gap-4 md:grid-cols-2">
               <div><Label>ملخص قصير</Label><Textarea value={form.shortBio} onChange={(e) => update('shortBio', e.target.value)} className="mt-2 min-h-28 rounded-2xl" /></div>
               <div><Label>ملاحظة تواصل عامة</Label><Textarea value={form.publicContactNote} onChange={(e) => update('publicContactNote', e.target.value)} className="mt-2 min-h-28 rounded-2xl" /></div>
