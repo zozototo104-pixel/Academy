@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from 'fs'
+import { join } from 'path'
 import { jsPDF } from 'jspdf'
 import sharp from 'sharp'
 
