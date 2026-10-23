@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import fs from 'node:fs'
 import path from 'node:path'
+import crypto from 'node:crypto'
 import ts from 'typescript'
 
 const root = process.cwd()
@@ -16,7 +17,43 @@ const required = (text: string, needle: string) => {
   expect(text.includes(needle), `Missing required text: ${needle}`).toBe(true)
 }
 
-const occurrences = (text: string, needle: string) => text.split(needle).length - 1
+// ===== بصمات الحماية (AST) — بنفس أسلوب حراس الكتب والجودة =====
+const norm = (s: string) => s.replace(/\s+/g, ' ').trim()
+const sha = (s: string) => crypto.createHash('sha256').update(s).digest('hex')
+const sf = ts.createSourceFile(sourcePath, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+
+let thesisFn: ts.FunctionDeclaration | undefined
+const helperHashes: Record<string, string> = {}
+const visitTop = (node: ts.Node) => {
+  if (ts.isFunctionDeclaration(node) && node.name) {
+    if (node.name.text === 'AdminThesisTab') thesisFn = node
+    if (['safeText', 'parseCommitteeNames', 'formatArabicDate'].includes(node.name.text)) {
+      helperHashes[node.name.text] = sha(norm(node.getText(sf)))
+    }
+  }
+  ts.forEachChild(node, visitTop)
+}
+visitTop(sf)
+
+const frozenHashes: Record<string, string> = {}
+const apiCalls: string[] = []
+if (thesisFn) {
+  const walk = (node: ts.Node) => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      ['load', 'schedule', 'reprocessThesis', 'thesisAction', 'recordResult'].includes(node.name.text) &&
+      node.initializer
+    ) {
+      frozenHashes[node.name.text] = sha(norm(node.initializer.getText(sf)))
+    }
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && (node.expression.text === 'api' || node.expression.text === 'fetch')) {
+      apiCalls.push(norm(node.getText(sf)))
+    }
+    ts.forEachChild(node, walk)
+  }
+  walk(thesisFn)
+}
 
 describe('AdminThesisTab workspace organization', () => {
   test('keeps AdminThesisTab bounded before the finance section', () => {
@@ -24,6 +61,10 @@ describe('AdminThesisTab workspace organization', () => {
     expect(financeStart).toBeGreaterThan(thesisStart)
     expect(financeAndAfter.includes('expandedThesisId')).toBe(false)
     expect(financeAndAfter.includes('thesis-details-')).toBe(false)
+  })
+
+  test('keeps everything from the finance marker onward byte-identical', () => {
+    expect(sha(financeAndAfter)).toBe('4fea6eeef61b71f570df5237a8ac89b3410e4f52e9c6cd35c2a8164e23525965')
   })
 
   test('keeps TSX parseable through the public TypeScript API', () => {
@@ -36,9 +77,34 @@ describe('AdminThesisTab workspace organization', () => {
     expect(errors).toEqual([])
   })
 
+  test('keeps the sensitive operation bodies hash-identical', () => {
+    expect(frozenHashes).toEqual({
+      load: 'e0b23d1979929ac4fd9bb184ef9d9a4504ef70c274be1f333e18c390a320f884',
+      schedule: 'ddf9c3470ce16a3e536095330a7253070405d4ce44b383027e7e3113f57d8d01',
+      reprocessThesis: '77a4d2b1e71c9763bc97d3e91f9c4a9d89f7f01eef5751fb0f6e621b87d8bdf9',
+      thesisAction: 'f2a48c0cc1498ed3b930de2736cf8d3924618be6c995e2ffbab1a679e02aa19b',
+      recordResult: '4d13bacb618c5701c2735ee1f4229c28519fc10a3fc3e8661107c6b2cc59f17f',
+    })
+  })
+
+  test('keeps the shared helpers hash-identical', () => {
+    expect(helperHashes).toEqual({
+      safeText: 'a6c953624e21eef8587a0308d07e116a067ee0aeec9cd568892081bd8f9b531d',
+      parseCommitteeNames: '27c02ff74d95daaf8a0ca3e359fc69c64b826c1f0715c799e5af9a14487b6d80',
+      formatArabicDate: '6a823d97904f292799fadcd28b4a132e4dc5f8a3c8abedb2ad1e96b384fdd910',
+    })
+  })
+
+  test('keeps the thesis API surface identical (full call expressions)', () => {
+    expect(apiCalls.length).toBe(5)
+    expect(sha([...apiCalls].sort().join('||'))).toBe('79ed6edf2b865091c447573fec37781fa89c6414501b421a1fbb0e827798f904')
+  })
+
   test('adds exactly one thesis detail selection state and no index-based selection', () => {
     required(thesisBlock, "const [expandedThesisId, setExpandedThesisId] = useState<string | null>(null)")
-    expect(occurrences(thesisBlock, 'expandedThesisId')).toBeGreaterThanOrEqual(5)
+    // مربوط فعليًا بالعرض والإنهاء، لا مجرد إعلان
+    required(thesisBlock, 'const isExpanded = expandedThesisId === t.id')
+    required(thesisBlock, 'if (expandedThesisId && !pagedTheses.some((t) => t.id === expandedThesisId))')
     expect(thesisBlock.includes('key={index}')).toBe(false)
     expect(thesisBlock.includes('expandedThesisIndex')).toBe(false)
   })
@@ -53,11 +119,18 @@ describe('AdminThesisTab workspace organization', () => {
     required(thesisBlock, 'onClick={() => setExpandedThesisId(isExpanded ? null : t.id)}')
   })
 
-  test('prevents stale details from reappearing after filtering, paging, or refresh', () => {
-    required(thesisBlock, 'if (!expandedThesisId) return')
-    required(thesisBlock, 'if (pagedTheses.some((t) => t.id === expandedThesisId)) return')
+  test('terminates the selection in-render when the open thesis leaves the current page', () => {
+    // النمط المعتمد من مرحلة الكتب: إنهاء مشروط أثناء الرسم — بلا useEffect وبلا تحذير set-state-in-effect
+    required(thesisBlock, 'if (expandedThesisId && !pagedTheses.some((t) => t.id === expandedThesisId))')
     required(thesisBlock, 'setExpandedThesisId(null)')
-    required(thesisBlock, '[expandedThesisId, pagedTheses]')
+    expect(thesisBlock.includes('}, [expandedThesisId, pagedTheses])')).toBe(false)
+  })
+
+  test('labels the four detail groups', () => {
+    required(thesisBlock, 'الخطة والملاحظات')
+    required(thesisBlock, 'الملف والمعالجة والتحليل')
+    required(thesisBlock, 'المناقشة واللجنة')
+    required(thesisBlock, 'الإجراءات والقرارات')
   })
 
   test('keeps the existing local search, filter, and paging contracts', () => {

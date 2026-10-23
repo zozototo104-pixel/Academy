@@ -262,11 +262,10 @@ export function AdminThesisTab() {
   const loadedScheduledCount = theses.filter((t) => t.status === 'SCHEDULED').length
   const loadedApprovedResultsCount = theses.filter((t) => t.status === 'RESULT_APPROVED').length
 
-  useEffect(() => {
-    if (!expandedThesisId) return
-    if (pagedTheses.some((t) => t.id === expandedThesisId)) return
+  // إنهاء اختيار البحث أثناء الرسم عندما يخرج من الصفحة الحالية (بحث/فلتر/ترقيم/تحديث) — النمط المعتمد من مرحلة الكتب، دون أثر جانبي أو تحذير lint
+  if (expandedThesisId && !pagedTheses.some((t) => t.id === expandedThesisId)) {
     setExpandedThesisId(null)
-  }, [expandedThesisId, pagedTheses])
+  }
 
   if (loading) return (
     <Card className="mt-4 border-[#0f2b46]/10">
@@ -455,15 +454,20 @@ export function AdminThesisTab() {
                       ))}
                     </div>
                     {t.status === 'SCHEDULED' && t.defenseDate && (
+                      <>
+                      <p className="mt-3 text-[11px] font-black text-[#0f2b46]">المناقشة واللجنة</p>
                       <p className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-bold text-blue-700">
                         <CalendarClock className="h-3.5 w-3.5" />
                         {formatArabicDate(t.defenseDate)}
                         — اللجنة: {committee.length ? committee.join('، ') : 'لم تُحفظ أسماء اللجنة'}
                         {t.agentMember ? ` + عضو الوكيل (${t.agentMember})` : ''}
                       </p>
+                      </>
                     )}
                     {/* نتيجة جلسة المناقشة المرئية وخبير الذكاء الاصطناعي */}
                     {t.aiScore != null && (
+                      <>
+                      <p className="mt-3 text-[11px] font-black text-[#0f2b46]">الملف والمعالجة والتحليل</p>
                       <div className="mt-2 rounded-xl border border-[#c9a227]/40 bg-[#f7edd0]/60 p-3">
                         <p className="flex flex-wrap items-center gap-2 text-xs font-black text-[#0f2b46]">
                           <Bot className="h-4 w-4 text-[#a8841a]" />
@@ -500,6 +504,7 @@ export function AdminThesisTab() {
                           )}
                         </div>
                       </div>
+                      </>
                     )}
                     {t.status === 'RESULT_APPROVED' && (
                       <p className={`mt-2 text-xs font-black ${t.passed ? 'text-emerald-600' : 'text-red-500'}`}>
@@ -512,6 +517,7 @@ export function AdminThesisTab() {
                   <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 xl:w-56 xl:grid-cols-1">
                     {isExpanded ? (
                       <>
+                    <p className="text-[11px] font-black text-[#0f2b46]">الإجراءات والقرارات</p>
                     {t.extractionStatus === 'FAILED' && (
                       <Button size="sm" variant="outline" disabled={busy} onClick={() => reprocessThesis(t)} className="w-full justify-center border-red-200 font-bold text-red-700 hover:bg-red-50">
                         إعادة المعالجة
