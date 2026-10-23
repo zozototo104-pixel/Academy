@@ -414,7 +414,7 @@ export default function AdminRepresentativesTab() {
             {/* Keep each panel mounted when folded to preserve draft fields and uploader state. */}
             <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200">
               <h3>
-                <button type="button" id="representatives-heading-basic" aria-controls="representatives-panel-basic" aria-expanded={openSection === 'basic'} onClick={() => setOpenSection('basic')} className="w-full min-w-0 bg-slate-50 p-4 text-right transition hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#c9a227]">
+                <button type="button" id="representatives-heading-basic" aria-controls="representatives-panel-basic" aria-expanded={openSection === 'basic'} onClick={() => toggleSection('basic')} className="w-full min-w-0 bg-slate-50 p-4 text-right transition hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#c9a227]">
                   <span className="flex items-center justify-between gap-3 text-sm font-black text-[#0f2b46]">البيانات الأساسية <span aria-hidden="true">{openSection === 'basic' ? '−' : '+'}</span></span>
                   <span data-testid="representatives-summary-basic" className="mt-1 block truncate text-xs font-bold text-slate-500">{form.fullName.trim() || 'ممثل جديد'} — {form.country.trim() || 'الدولة غير محددة'} — {form.status === 'ACTIVE' ? 'نشط' : form.status === 'DRAFT' ? 'مسودة' : form.status === 'HIDDEN' ? 'مخفي' : form.status === 'ARCHIVED' ? 'مؤرشف' : form.status}</span>
                 </button>
