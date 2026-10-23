@@ -95,7 +95,7 @@ describe('Gemini / AI workspace organization', () => {
     required(geminiBlock, 'type="button"')
     required(geminiBlock, 'aria-expanded={active}')
     required(geminiBlock, "aria-controls={value === 'health' ? 'gemini-section-health gemini-section-health-models' : `gemini-section-${value}`}")
-    required(geminiBlock, 'onClick={() => setOpenGeminiSection(value)}')
+    required(geminiBlock, 'onClick={() => toggleGeminiSection(value)}')
     expect(geminiBlock.includes('onClick={() => { setOpenGeminiSection')).toBe(false)
   })
 
