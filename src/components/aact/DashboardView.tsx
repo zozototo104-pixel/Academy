@@ -687,6 +687,86 @@ export function DashboardView() {
     navigate('chat')
   }
 
+  const openProgramWorkspace = (section: string) => {
+    setDashboardTab('programs')
+    setProgramSection(section)
+  }
+
+  const dashboardTabOptions = [
+    { value: 'programs', label: 'الرئيسية والمقرر والكتاب', show: hasProgramDashboard },
+    { value: 'supervision', label: 'المشرف الذكي ونقاط القوة', show: hasProgramDashboard },
+    { value: 'lectures', label: 'المحاضرات واللقاءات', show: hasProgramDashboard && lecturesVisible },
+    { value: 'payments', label: 'المدفوعات والرسوم', show: true },
+    { value: 'deliverables', label: 'المخرجات والخدمات', show: showDeliverablesTab },
+    { value: 'notifications', label: 'الإشعارات والتنبيهات', show: true },
+    { value: 'thesis', label: 'بحث التخرج والمناقشة', show: hasProgramDashboard },
+    { value: 'transcript', label: 'السجل الأكاديمي', show: hasProgramDashboard },
+    { value: 'certs', label: 'الشهادات', show: hasProgramDashboard },
+  ].filter((item) => item.show)
+
+  const primaryStudentCards = [
+    {
+      key: 'book',
+      title: 'المقرر والكتاب',
+      text: `${(active?.program.books || []).length} كتاب/مصدر · افتح المواد المقررة`,
+      icon: <BookOpen className="h-8 w-8 text-rose-500" />,
+      action: () => openProgramWorkspace('schedule'),
+      show: hasProgramDashboard,
+      tone: 'from-rose-50 to-white border-rose-100',
+    },
+    {
+      key: 'units',
+      title: 'الوحدات والواجبات',
+      text: `${active?.units.length || 0} وحدة · ${assignments.length} واجب`,
+      icon: <ClipboardCheck className="h-8 w-8 text-emerald-600" />,
+      action: () => openProgramWorkspace('content'),
+      show: hasProgramDashboard,
+      tone: 'from-emerald-50 to-white border-emerald-100',
+    },
+    {
+      key: 'lectures',
+      title: 'المحاضرات واللقاءات',
+      text: lecturesVisible ? 'افتح اللقاءات والمحاضرات من هنا' : 'تظهر عند تفعيل اللقاءات',
+      icon: <Video className="h-8 w-8 text-blue-600" />,
+      action: () => setDashboardTab('lectures'),
+      show: hasProgramDashboard && lecturesVisible,
+      tone: 'from-blue-50 to-white border-blue-100',
+    },
+    {
+      key: 'exams',
+      title: 'الامتحانات',
+      text: `${active?.semesterExams?.length || 0} امتحان نهائي · اختبارات الوحدات داخل الوحدات`,
+      icon: <ListChecks className="h-8 w-8 text-violet-600" />,
+      action: () => openProgramWorkspace('progress'),
+      show: hasProgramDashboard,
+      tone: 'from-violet-50 to-white border-violet-100',
+    },
+    {
+      key: 'schedule',
+      title: 'الجدول الدراسي',
+      text: publishedScheduleWeeks.length ? `${publishedScheduleWeeks.length} أسبوع منشور` : 'خطة الفصول والمواد',
+      icon: <ScrollText className="h-8 w-8 text-sky-600" />,
+      action: () => openProgramWorkspace('schedule'),
+      show: hasProgramDashboard,
+      tone: 'from-sky-50 to-white border-sky-100',
+    },
+    {
+      key: 'payments',
+      title: 'المدفوعات والرسوم',
+      text: `${studentSummary?.summary.unpaidPayments || 0} دفعة تحتاج متابعة`,
+      icon: <Banknote className="h-8 w-8 text-amber-600" />,
+      action: () => setDashboardTab('payments'),
+      show: true,
+      tone: 'from-amber-50 to-white border-amber-100',
+    },
+  ].filter((item) => item.show)
+
+  const pulseNotice = currentStudentAction || (studentSummary?.unread
+    ? { title: 'إشعارات جديدة تحتاج قراءة', text: `لديك ${studentSummary.unread} إشعار غير مقروء داخل المنصة.`, tab: 'notifications' }
+    : lecturesVisible && hasProgramDashboard
+      ? { title: 'تابع اللقاءات والمحاضرات', text: 'عند نشر لقاء مباشر أو محاضرة ستجدها في قسم المحاضرات واللقاءات.', tab: 'lectures' }
+      : null)
+
   return (
     <div className="aact-fade-in mx-auto max-w-7xl px-4 py-10">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
