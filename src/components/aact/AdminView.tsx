@@ -19,7 +19,7 @@ import {
   Users2, ClipboardCheck, Bot, Globe2, Loader2, TrendingUp,
   CheckCircle2, XCircle, Clock3, GraduationCap, BarChart3, ClipboardList, Search,
   Gavel, Banknote, Award, Settings2, ScrollText, Mail, UserCheck,
-  Paperclip, FileText, FileWarning, BookMarked, AlertTriangle, Sparkles, Eye, PackageCheck, Send,
+  Paperclip, FileText, FileWarning, BookMarked, AlertTriangle, Sparkles, Eye, PackageCheck, Send, ArrowRight,
 } from 'lucide-react'
 
 function AdminTabLoader() {
@@ -413,6 +413,7 @@ export function AdminView() {
   const [admissionPage, setAdmissionPage] = useState(1)
   const [admissionPageSize, setAdmissionPageSize] = useState(10)
   const [admissionTotal, setAdmissionTotal] = useState(0)
+  const [selectedAdmissionId, setSelectedAdmissionId] = useState<string | null>(null)
   const [admissionRefresh, setAdmissionRefresh] = useState(0)
   const [studentSearch, setStudentSearch] = useState('')
   const [studentStatusFilter, setStudentStatusFilter] = useState('ALL')
@@ -752,9 +753,11 @@ export function AdminView() {
     return () => clearTimeout(t)
   }, [activeTab, highlightAdmissionId, admissions.length])
 
+
   const studyAdmissions = activeTab === 'service-requests' ? [] : admissions
   const serviceRequests = activeTab === 'service-requests' ? admissions : []
   const visibleAdmissionRows = admissions
+  const selectedAdmission = selectedAdmissionId ? admissions.find((x) => x.id === selectedAdmissionId) || null : null
   const academicStudents = students.filter((s) => studentStatusFilter === 'REGISTERED_ONLY' || s.rowKind === 'INCOMPLETE_ADMISSION' || (s.enrollments?.length || 0) > 0)
   const filteredAdmissionRows = admissions
   const pagedAdmissionRows = admissions
@@ -1061,6 +1064,8 @@ export function AdminView() {
       return
     }
     setHighlightAdmissionId(linked.id)
+    // الطلب الكامل محمّل حاليًا: افتح عرضه التفصيلي مباشرة. مرجع جزئي وحده: تمييز فقط — لا بطاقة ناقصة ولا جلب جديد.
+    if (fullLinked) setSelectedAdmissionId(fullLinked.id)
     if (openReplacement && fullLinked && (fullLinked.files?.length || 0) > 0 && !['CERTIFIED', 'REJECTED'].includes(fullLinked.status)) {
       setReplacementFormOpen(fullLinked, true)
     } else if (openReplacement) {
@@ -1086,6 +1091,621 @@ export function AdminView() {
         { icon: Globe2, label: 'طلبات وكالة/اعتماد معلقة', value: data.stats.pendingAgents, color: 'bg-slate-600 text-white' },
       ]
     : []
+
+  // بطاقة طلب الالتحاق كاملة كما كانت — نُقلت كما هي حرفيًا؛ تُعرض في قائمة الخدمات العابرة وفي العرض التفصيلي للالتحاق الدراسي.
+  const renderAdmissionCard = (a: AdmissionApp) => {
+    const ownerIsStaffAccount = !!a.user && a.user.role !== 'STUDENT'
+    const isStudyAdmission = a.isStudyProgram !== false
+    const unpaid = (a.payments || []).filter((p) => {
+      if (p.status !== 'UNPAID') return false
+      // عند وجود خطة تقسيط أكاديمية، بطاقة الرسوم هي مصدر الحقيقة للمتبقي.
+      // لا نعرض فاتورة TUITION الأصلية كغير مسددة إذا كانت مغطاة بمدفوعات التقسيط.
+      if (isStudyAdmission && a.tuitionPlan && (p.purpose === 'TUITION' || p.purpose === 'TUITION_INSTALLMENT')) return false
+      return true
+    })
+    const visiblePayments = (a.payments || []).filter((p) => {
+      if (isStudyAdmission && a.tuitionPlan && p.status === 'UNPAID' && p.purpose === 'TUITION') return false
+      return true
+    })
+    const serviceHasInvoice = !isStudyAdmission && (a.payments || []).length > 0
+    const serviceDeliveryReady = !isStudyAdmission && a.status === 'RESULT_APPROVED' && serviceHasInvoice && unpaid.length === 0
+    const supervisorAssigned = a.status === 'SUPERVISOR_ASSIGNED' || a.status === 'THESIS' || a.status === 'SCHEDULED' || a.status === 'AWAITING_TUITION' || a.status === 'RESULT_APPROVED' || a.status === 'CERTIFIED'
+    const ownerName = a.user?.name?.trim() || ''
+    const applicantName = a.fullName?.trim() || ''
+    const ownerNameDiffers = !!ownerName && !!applicantName && ownerName !== applicantName
+    const missingDocumentLabels = (a.missingDocs || []).map((doc) => doc.label || DOC_TYPE_AR[doc.type] || doc.type)
+    return (
+      <Card
+        key={a.id}
+        id={`admission-${a.id}`}
+        className={`aact-responsive-card aact-readable transition-all ${highlightAdmissionId === a.id ? 'border-[#c9a227] shadow-lg shadow-[#c9a227]/20 ring-2 ring-[#c9a227]/40' : 'border-[#0f2b46]/10'}`}
+      >
+        <CardContent className="p-4 sm:p-5">
+          <div className="flex flex-col items-stretch gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 w-full sm:flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-md bg-[#0f2b46] px-2 py-0.5 font-mono text-[10px] font-bold text-[#e0b83a]" dir="ltr">{a.reference}</span>
+                <h3 className="text-sm font-black text-[#0f2b46]">{a.fullName}</h3>
+                <Badge className={`${STATUS_BADGE[a.status] || 'bg-slate-100 text-slate-600'} hover:bg-inherit`}>
+                  <Clock3 className="ml-1 h-3 w-3" /> {!isStudyAdmission && a.status === 'RESULT_APPROVED' ? 'تم اعتماد الخدمة' : STATUS_LABEL[a.status] || a.status}
+                </Badge>
+                <Badge className={isStudyAdmission ? 'bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]' : 'bg-purple-100 text-purple-700 hover:bg-purple-100'}>
+                  {a.requestLabel || (isStudyAdmission ? 'طلب التحاق دراسي' : 'طلب خدمة مهنية')}
+                </Badge>
+                {missingDocumentLabels.length > 0 && (
+                  <Badge className="bg-red-100 text-red-700 hover:bg-red-100">ناقص: {missingDocumentLabels.join('، ')}</Badge>
+                )}
+              </div>
+              <p className="mt-1.5 text-xs font-bold text-slate-600">
+                {isStudyAdmission ? 'البرنامج' : 'الخدمة'}: {a.program} — {isStudyAdmission ? `المؤهل: ${EDUCATION_LABEL[a.education] || a.education}` : `نوع المسار: ${a.requestKind || 'خدمة'}`} — {a.country}
+              </p>
+              <p className="mt-0.5 text-[11px] text-slate-400" dir="ltr">{a.email} · {a.phone}</p>
+              <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-bold text-slate-500">
+                <span dir="ltr">English certificate name: {a.fullNameEn || '—'}</span>
+                <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-[10px] font-black" onClick={() => editAdmissionEnglishName(a)}>تعديل اسم الشهادة الإنجليزي</Button>
+              </div>
+              {ownerNameDiffers && (
+                <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold leading-6 text-amber-800">
+                  <span className="font-black">تنبيه مطابقة الحساب:</span> اسم الطلب/المستندات هو <span className="font-black">{applicantName}</span>، بينما اسم صاحب الحساب المرتبط بهذا البريد هو <span className="font-black">{ownerName}</span>. لا يتم تغيير اسم الطلب تلقائياً حفاظاً على بيانات المستندات.
+                </div>
+              )}
+              {(a.files?.length || 0) > 0 ? (
+                <div className="mt-2 rounded-xl border border-emerald-100 bg-emerald-50/50 p-2.5">
+                  <p className="text-[11px] font-black text-emerald-700">
+                    <Paperclip className="ml-0.5 inline h-3.5 w-3.5" /> المستندات المرفوعة ({a.files!.length}{isStudyAdmission ? '/4' : ''}):
+                  </p>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {a.files!.map((f) => (
+                      <a
+                        key={f.id}
+                        href={`/api/admissions/docs/${f.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-lg border border-emerald-200 bg-white px-2.5 py-1 text-[10px] font-bold text-emerald-700 transition-colors hover:bg-emerald-100"
+                      >
+                        <FileText className="ml-1 inline h-3 w-3" />
+                        {DOC_TYPE_AR[f.docType] || f.docType} ({Math.ceil(f.size / 1024)}ك.ب)
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="mt-1 text-[11px] font-bold text-red-500">لا توجد مستندات مرفوعة (الطلبات القديمة قبل تفعيل الرفع الإلزامي)</p>
+              )}
+              {missingDocumentLabels.length > 0 && (
+                <div className="mt-2 rounded-xl border border-red-200 bg-red-50 p-2.5 text-[11px] font-bold leading-5 text-red-700">
+                  <FileWarning className="ml-1 inline h-3.5 w-3.5" />
+                  مرفقات مطلوبة ناقصة: {missingDocumentLabels.join('، ')}
+                </div>
+              )}
+
+              {!isStudyAdmission && !(a.payments?.length || 0) && (
+                <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-2.5 text-[10px] font-bold leading-5 text-amber-800">
+                  لا توجد فاتورة خدمة لهذا الطلب بعد. اضغط الزر لإصدار فاتورة الخدمة ثم اطلب من العميل اختيار «دفع مباشر» أو أي وسيلة متاحة.
+                  <Button size="sm" onClick={() => setAdmissionStatus(a.id, 'RESULT_APPROVED')} className="mt-2 h-7 bg-amber-600 px-2 text-[10px] font-black text-white hover:bg-amber-700">
+                    إصدار فاتورة الخدمة
+                  </Button>
+                </div>
+              )}
+
+              {!!visiblePayments.length && (
+                <div className="mt-2 rounded-xl border border-amber-100 bg-amber-50/40 p-2.5">
+                  <p className="mb-1.5 text-[11px] font-black text-amber-700"><Banknote className="ml-1 inline h-3.5 w-3.5" /> فواتير هذا الطلب</p>
+                  <div className="grid gap-1.5">
+                    {visiblePayments.map((p) => (
+                      <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white px-2.5 py-2 text-[10px]">
+                        <div className="min-w-0">
+                          <span className="font-mono font-black text-[#0f2b46]" dir="ltr">{p.invoiceNo || p.id}</span>
+                          <span className="mr-2 font-bold text-slate-500">{p.purpose} — {p.amount}$</span>
+                          {p.method && <span className="mr-2 text-slate-400">طريقة: {p.method === 'DIRECT_PAYMENT' ? 'دفع مباشر' : p.method === 'USDT' ? 'USDT' : p.method}</span>}
+                          {p.method === 'USDT' && (
+                            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-slate-500">
+                              <span>الشبكة: {p.cryptoNetwork || 'TRC20'}</span>
+                              {p.cryptoTxHash ? <span dir="ltr">TX: {String(p.cryptoTxHash).slice(0, 10)}…{String(p.cryptoTxHash).slice(-6)}</span> : <span className="text-amber-600">بانتظار TX Hash</span>}
+                              {p.cryptoVerificationStatus && (
+                                <Badge className={p.cryptoVerificationStatus === 'VERIFIED' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : p.cryptoVerificationStatus === 'FAILED' ? 'bg-red-100 text-red-700 hover:bg-red-100' : 'bg-slate-100 text-slate-600 hover:bg-slate-100'}>
+                                  {p.cryptoVerificationStatus === 'VERIFIED' ? 'تحقق آلي ناجح' : p.cryptoVerificationStatus === 'FAILED' ? 'فشل التحقق' : p.cryptoVerificationStatus}
+                                </Badge>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          {p.status === 'PAID' ? (
+                            <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">مدفوعة {p.receiptNo ? `(${p.receiptNo})` : ''}</Badge>
+                          ) : p.status === 'WAIVED' ? (
+                            <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">معفاة من الدفع</Badge>
+                          ) : (
+                            <>
+                              <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">بانتظار الدفع</Badge>
+                              {p.method === 'DIRECT_PAYMENT' || (p.method === 'USDT' && !!p.cryptoTxHash && p.cryptoVerificationStatus !== 'FAILED') ? (
+                                <Button size="sm" variant="outline" onClick={() => openPaymentConfirmDialog(p)} className="h-7 border-emerald-200 px-2 text-[10px] font-black text-emerald-700">
+                                  {p.method === 'USDT' ? 'تأكيد USDT بعد الإثبات' : 'تأكيد استلام الدفع المباشر'}
+                                </Button>
+                              ) : (
+                                <Badge className="bg-slate-100 text-slate-500 hover:bg-slate-100">
+                                  {p.method === 'USDT' ? 'بانتظار إثبات الطالب' : 'لم يبدأ الطالب الدفع'}
+                                </Badge>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {isStudyAdmission && a.tuitionPlan && (
+                <div className="mt-2 rounded-xl border border-blue-100 bg-blue-50/50 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-[11px] font-black text-blue-800"><Banknote className="ml-1 inline h-3.5 w-3.5" /> خطة الرسوم والتقسيط</p>
+                    <Badge className="bg-white text-blue-700 hover:bg-white">مدفوع {a.tuitionPlan.paidTuition}$ / {a.tuitionPlan.totalTuition}$</Badge>
+                  </div>
+                  <div className="mt-2 grid gap-2 text-[10px] font-bold text-blue-900 sm:grid-cols-3">
+                    <div className="rounded-lg bg-white p-2">المتبقي: {a.tuitionPlan.remainingTuition}$</div>
+                    <div className="rounded-lg bg-white p-2">شرط الفصل الأول: {a.tuitionPlan.firstSemesterRequiredAmount}$ {a.tuitionPlan.firstSemesterAllowed ? '✓' : '✕'}</div>
+                    <div className="rounded-lg bg-white p-2">شرط الفصل الثاني: {a.tuitionPlan.finalRequiredAmount}$ {a.tuitionPlan.secondSemesterAllowed ? '✓' : '✕'}</div>
+                  </div>
+                  {a.tuitionAppeal && (
+                    <div className="mt-2 rounded-lg border border-blue-100 bg-white p-2 text-[10px] font-bold leading-5 text-slate-600">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <span className="font-black text-[#0f2b46]">التماس تقسيط: </span>
+                          <Badge className={a.tuitionAppeal.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : a.tuitionAppeal.status === 'PENDING' ? 'bg-amber-100 text-amber-700 hover:bg-amber-100' : 'bg-red-100 text-red-700 hover:bg-red-100'}>{a.tuitionAppeal.status}</Badge>
+                          <span className="mr-2">الدفعة المقترحة: {a.tuitionAppeal.requestedInitialAmount}$</span>
+                        </div>
+                        {a.tuitionAppeal.status === 'PENDING' && (
+                          <div className="flex gap-1">
+                            <Button size="sm" onClick={() => openTuitionAppealDialog(a.tuitionAppeal!, 'APPROVE', a.tuitionPlan, a)} className="h-7 bg-emerald-600 px-2 text-[10px] font-black text-white hover:bg-emerald-700">قبول التقسيط</Button>
+                            <Button size="sm" variant="outline" onClick={() => openTuitionAppealDialog(a.tuitionAppeal!, 'REJECT', a.tuitionPlan, a)} className="h-7 border-red-200 px-2 text-[10px] font-black text-red-700">رفض</Button>
+                          </div>
+                        )}
+                      </div>
+                      {a.tuitionAppeal.reason && <p className="mt-1">سبب الطالب: {a.tuitionAppeal.reason}</p>}
+                      {a.tuitionAppeal.proposedSchedule && <p className="mt-1">جدول مقترح: {a.tuitionAppeal.proposedSchedule}</p>}
+                      {a.tuitionAppeal.adminNote && <p className="mt-1 text-blue-700">ملاحظة الإدارة: {a.tuitionAppeal.adminNote}</p>}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {!isStudyAdmission && (
+                <div className="mt-3 rounded-xl border border-purple-100 bg-purple-50/60 p-3">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-[11px] font-black text-purple-700"><Award className="ml-1 inline h-3.5 w-3.5" /> تنفيذ وتسليم الخدمة للعميل</p>
+                    <Badge className="bg-white text-purple-700 hover:bg-white">{a.deliverables?.filter((d) => d.status === 'PUBLISHED' && d.visibleToStudent !== false).length || 0} منشور</Badge>
+                  </div>
+                  {a.serviceWorkflow && (
+                    <div className="mb-3 rounded-xl border border-purple-100 bg-white p-3">
+                      <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <p className="text-[11px] font-black text-[#0f2b46]">{a.serviceWorkflow.workflow.title}</p>
+                          <p className="mt-1 text-[10px] font-bold leading-5 text-slate-500">{a.serviceWorkflow.workflow.summary}</p>
+                        </div>
+                        <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-100">المرحلة: {a.serviceWorkflow.activeStage.label}</Badge>
+                      </div>
+                      <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+                        {a.serviceWorkflow.stages.map((stage, idx) => (
+                          <div key={`${a.id}-${stage.id}`} className={`rounded-lg border p-2 text-[10px] ${stage.state === 'done' ? 'border-emerald-100 bg-emerald-50 text-emerald-800' : stage.state === 'active' ? 'border-purple-200 bg-purple-50 text-purple-800' : 'border-slate-100 bg-slate-50 text-slate-500'}`}>
+                            <p className="font-black">{stage.state === 'done' ? <CheckCircle2 className="ml-1 inline h-3.5 w-3.5" /> : stage.state === 'active' ? <Clock3 className="ml-1 inline h-3.5 w-3.5" /> : <span className="ml-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-slate-200 text-[8px]">{idx + 1}</span>}{stage.label}</p>
+                            <p className="mt-1 leading-5 opacity-80">{stage.description}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-2 rounded-lg bg-purple-50 px-2.5 py-2 text-[10px] font-bold leading-5 text-purple-800">
+                        الإجراء التالي: {a.serviceWorkflow.nextAction}
+                        {a.serviceWorkflow.expectedDeliverableTypes?.length ? <span className="block text-slate-500">المخرج المتوقع: {a.serviceWorkflow.expectedDeliverableTypes.map((t) => DELIVERABLE_TYPE_AR[t] || t).join(' / ')}</span> : null}
+                      </div>
+                    </div>
+                  )}
+                  {!serviceDeliveryReady && (
+                    <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-2 text-[10px] font-bold leading-5 text-amber-800">
+                      لا يمكن نشر أي مخرج للعميل قبل اعتماد طلب الخدمة وسداد فاتورتها. اضغط أولاً «اعتماد طلب الخدمة وتحديد المتابعة»، ثم أكد الدفع من تبويب الدفعات.
+                    </div>
+                  )}
+
+                  {!!a.deliverables?.length && (
+                    <div className="mb-3 grid gap-2">
+                      {a.deliverables.map((d) => (
+                        <div key={d.id} className="rounded-lg border border-purple-100 bg-white p-2 text-[10px]">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="font-black text-[#0f2b46]">{d.title}</p>
+                              <p className="mt-0.5 text-slate-500">{DELIVERABLE_TYPE_AR[d.type] || d.type} — {d.status === 'PUBLISHED' ? 'منشور' : d.status === 'REVOKED' ? 'ملغى' : 'مسودة'} {d.visibleToStudent === false ? '— مخفي عن العميل' : ''}</p>
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {d.status !== 'REVOKED' && (
+                                <Button size="sm" variant="outline" onClick={() => revokeDeliverable(d.id)} className="h-7 text-[10px] font-black text-red-600">إلغاء</Button>
+                              )}
+                            </div>
+                          </div>
+                          {d.externalUrl && <p className="mt-1 truncate text-slate-400" dir="ltr">{d.externalUrl}</p>}
+                          {d.fileName && <p className="mt-1 text-slate-400"><Paperclip className="ml-1 inline h-3 w-3" />{d.fileName}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <select
+                      value={deliverableForms[a.id]?.type || a.serviceWorkflow?.expectedDeliverableTypes?.[0] || 'PACKAGE_DOWNLOAD'}
+                      onChange={(e) => updateDeliverableForm(a.id, { type: e.currentTarget.value })}
+                      className="h-9 rounded-lg border border-purple-100 bg-white px-2 text-[11px] font-bold text-[#0f2b46]"
+                    >
+                      {DELIVERABLE_TYPE_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                    </select>
+                    <input
+                      value={deliverableForms[a.id]?.title || ''}
+                      onChange={(e) => updateDeliverableForm(a.id, { title: e.currentTarget.value })}
+                      placeholder="عنوان يظهر للعميل: شهادة معادلة / رابط تحميل / تقرير..."
+                      className="h-9 rounded-lg border border-purple-100 bg-white px-2 text-[11px] font-bold text-[#0f2b46]"
+                    />
+                    <input
+                      value={deliverableForms[a.id]?.externalUrl || ''}
+                      onChange={(e) => updateDeliverableForm(a.id, { externalUrl: e.currentTarget.value })}
+                      placeholder="رابط خارجي اختياري: تحميل، اجتماع، ملف..."
+                      dir="ltr"
+                      className="h-9 rounded-lg border border-purple-100 bg-white px-2 text-[11px] font-bold text-[#0f2b46]"
+                    />
+                    <input
+                      type="file"
+                      onChange={(e) => setDeliverableFiles((prev) => ({ ...prev, [a.id]: e.currentTarget.files?.[0] || null }))}
+                      className="h-9 rounded-lg border border-purple-100 bg-white px-2 py-1 text-[11px] font-bold text-[#0f2b46]"
+                    />
+                    <input
+                      value={deliverableForms[a.id]?.certificateId || ''}
+                      onChange={(e) => updateDeliverableForm(a.id, { certificateId: e.currentTarget.value })}
+                      placeholder="رقم شهادة/عضوية اختياري"
+                      className="h-9 rounded-lg border border-purple-100 bg-white px-2 text-[11px] font-bold text-[#0f2b46]"
+                    />
+                    <input
+                      value={deliverableForms[a.id]?.verificationUrl || ''}
+                      onChange={(e) => updateDeliverableForm(a.id, { verificationUrl: e.currentTarget.value })}
+                      placeholder="رابط تحقق اختياري"
+                      dir="ltr"
+                      className="h-9 rounded-lg border border-purple-100 bg-white px-2 text-[11px] font-bold text-[#0f2b46]"
+                    />
+                  </div>
+                  <textarea
+                    value={deliverableForms[a.id]?.description || ''}
+                    onChange={(e) => updateDeliverableForm(a.id, { description: e.currentTarget.value })}
+                    placeholder="وصف مختصر أو تعليمات للعميل..."
+                    className="mt-2 min-h-[58px] w-full rounded-lg border border-purple-100 bg-white px-2 py-2 text-[11px] font-bold text-[#0f2b46]"
+                  />
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                    <label className="flex items-center gap-2 text-[10px] font-bold text-slate-500">
+                      <input type="checkbox" checked={deliverableForms[a.id]?.visibleToStudent !== false} onChange={(e) => updateDeliverableForm(a.id, { visibleToStudent: e.currentTarget.checked })} />
+                      يظهر للعميل فوراً ويرسل إشعاراً بالبريد
+                    </label>
+                    <Button size="sm" disabled={deliverableLoading === a.id || !serviceDeliveryReady} onClick={() => submitDeliverable(a)} className="bg-purple-700 text-white hover:bg-purple-800 disabled:opacity-50">
+                      {deliverableLoading === a.id ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <Award className="ml-1 h-3.5 w-3.5" />}
+                      تسليم المخرج
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {a.thesisDeadline && (
+                <p className="mt-1 text-[11px] font-bold text-[#a8841a]">
+                  مهلة بحث التخرج حتى: {new Date(a.thesisDeadline).toLocaleDateString('ar-EG')} (6 أشهر من القبول)
+                </p>
+              )}
+              {a.supervisor && (
+                <p className="mt-1 text-[11px] font-bold text-purple-600">
+                  المشرف الأكاديمي: {a.supervisor.name}
+                </p>
+              )}
+              {unpaid.length > 0 && (
+                <p className="mt-1 text-[11px] font-bold text-amber-600">
+                  فواتير غير مسددة: {unpaid.map((p) => `${p.amount}$`).join(' + ')}
+                </p>
+              )}
+              {a.notes && <p className="mt-1.5 max-w-2xl text-[11px] leading-relaxed text-slate-500">ملاحظات: {a.notes}</p>}
+              {a.documentReplacementRequest && (
+                <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-[11px] font-bold leading-6 text-red-700">
+                  <FileWarning className="ml-1 inline h-3.5 w-3.5" />
+                  مطلوب من الطالب رفع/استبدال: {a.documentReplacementRequest.docTypes.map((type) => a.requiredDocs?.find((doc) => doc.type === type)?.label || DOC_TYPE_AR[type] || a.files?.find((f) => f.docType === type)?.fileName || type).join('، ')}
+                  <span className="block text-red-600">السبب: {a.documentReplacementRequest.note}</span>
+                </div>
+              )}
+              {ownerIsStaffAccount && (
+                <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-[11px] font-bold leading-6 text-red-700">
+                  <AlertTriangle className="ml-1 inline h-3.5 w-3.5" />
+                  هذا الطلب مرتبط بحساب إداري/غير طالب ({a.user?.role}). لا يُعتمد كقيد دراسة ولا تُصدر له فاتورة دراسية أو شهادة. الإجراء الصحيح: إنشاء حساب طالب منفصل ببريد الطالب الحقيقي ثم إعادة تقديم الطلب، أو رفض هذا الطلب كتجريبي.
+                </div>
+              )}
+
+              {/* ===== التقييم الذكي للطلب — يعرض قبل زر الاعتماد للمراجعة ===== */}
+              <div className={`mt-3 rounded-xl border p-3 ${(() => {
+                const v = aiReviews[a.id]?.verdict || a.aiVerdict
+                return v && AI_VERDICT_META[v] ? AI_VERDICT_META[v].border : 'border-[#c9a227]/40'
+              })()} bg-[#fdfaf3]`}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge className={`${AI_VERDICT_META[aiReviews[a.id]?.verdict || a.aiVerdict || '']?.cls || 'bg-[#c9a227] text-[#0f2b46]'} hover:bg-inherit text-[10px]`}>
+                      <Bot className="ml-1 h-3 w-3" />
+                      {aiReviews[a.id]?.verdict || a.aiVerdict
+                        ? AI_VERDICT_META[aiReviews[a.id]?.verdict || a.aiVerdict!]?.label || 'تقييم ذكي متوفر'
+                        : 'التقييم الذكي للطلب'}
+                    </Badge>
+                    {(aiReviews[a.id]?.fitScore ?? a.aiScore) != null && (
+                      <span className="rounded-lg bg-[#0f2b46] px-2 py-0.5 text-[10px] font-black text-[#e0b83a]">
+                        درجة توافق الملف: {aiReviews[a.id]?.fitScore ?? a.aiScore}%
+                      </span>
+                    )}
+                    {a.aiReviewedAt && !aiLoading && (
+                      <span className="text-[10px] font-bold text-slate-400">
+                        آخر تحليل: {new Date(a.aiReviewedAt).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex gap-1.5">
+                    {aiReviews[a.id] && (
+                      <Button size="sm" variant="ghost" onClick={() => setAiOpen((p) => ({ ...p, [a.id]: !p[a.id] }))} className="h-7 text-[10px] font-black text-[#0f2b46]">
+                        {aiOpen[a.id] ? 'إخفاء التفاصيل' : 'عرض التفاصيل'}
+                      </Button>
+                    )}
+                    <Button size="sm" variant="outline" disabled={aiLoading === a.id} onClick={() => runAIReview(a.id, !!(a.aiVerdict || aiReviews[a.id]))} className="h-7 border-[#c9a227] text-[10px] font-black text-[#a8841a] hover:bg-[#f7edd0]">
+                      {aiLoading === a.id ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : <Sparkles className="ml-1 h-3 w-3" />}
+                      {a.aiVerdict || aiReviews[a.id] ? 'إعادة التحليل' : 'تحليل ذكي للطلب'}
+                    </Button>
+                  </div>
+                </div>
+
+                {aiLoading === a.id && !aiReviews[a.id] && (
+                  <p className="mt-2 flex items-center gap-2 text-[11px] font-bold text-[#a8841a]">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> خبير الذكاء الاصطناعي يقرأ مدخلات الطالب ومرفقاته ويقارنها بمتطلبات البرنامج...
+                  </p>
+                )}
+
+                {aiOpen[a.id] && aiReviews[a.id] && (
+                  <div className="mt-3 space-y-3 border-t border-[#c9a227]/20 pt-3">
+                    <p className="text-[11px] leading-relaxed font-medium text-[#0f2b46]">{aiReviews[a.id]!.summaryForAdmin}</p>
+
+                    {/* قائمة المتطلبات: مكتمل / ناقص / غير قابل للتحقق / مشكلة */}
+                    <div>
+                      <p className="mb-1.5 text-[10px] font-black text-slate-500">مقارنة الملف بمتطلبات البرنامج:</p>
+                      <div className="grid gap-1.5 sm:grid-cols-2">
+                        {aiReviews[a.id]!.checklist.map((c, i) => {
+                          const meta = CHECK_STATUS_META[c.status] || CHECK_STATUS_META.UNVERIFIED
+                          return (
+                            <div key={i} className="flex items-start gap-1.5 rounded-lg bg-white p-2 text-[10px]">
+                              <meta.icon className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${meta.cls}`} />
+                              <div className="min-w-0">
+                                <p className="font-black text-[#0f2b46]">{c.requirement}</p>
+                                <p className="mt-0.5 leading-relaxed text-slate-500">{c.detail}</p>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    {(aiReviews[a.id]!.documentAnalyses?.length || 0) > 0 && (
+                      <div>
+                        <p className="mb-1.5 text-[10px] font-black text-slate-500">تحليل كل مرفق على حدة:</p>
+                        <div className="grid gap-1.5 lg:grid-cols-2">
+                          {aiReviews[a.id]!.documentAnalyses!.map((d, i) => (
+                            <div key={`${d.fileName}-${i}`} className="rounded-lg border border-slate-100 bg-white p-2 text-[10px]">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <Badge className={`${d.recommendation === 'ACCEPT_AS_EVIDENCE' ? 'bg-emerald-100 text-emerald-700' : d.recommendation === 'REQUEST_REPLACEMENT' || d.recommendation === 'IGNORE_AS_NON_ADMISSION' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'} hover:bg-inherit text-[9px]`}>
+                                  {DOC_RECOMMENDATION_AR[d.recommendation] || d.recommendation}
+                                </Badge>
+                                <span className="rounded bg-[#0f2b46] px-1.5 py-0.5 font-black text-[#e0b83a]">{d.coverage}%</span>
+                              </div>
+                              <p className="mt-1 font-black text-[#0f2b46]">{d.fileName}</p>
+                              <p className="mt-0.5 text-slate-500">المرفوع كـ {d.declaredLabel} — المكتشف: {d.detectedLabel}</p>
+                              {d.finalGradeExtracted && (
+                                <p className="mt-1 rounded-lg bg-[#f7edd0] px-2 py-1 text-[10px] font-black text-[#0f2b46]">
+                                  المعدل/التقدير النهائي المقروء من الشهادة: <span className="text-[#a8841a]">{d.finalGradeExtracted}</span>
+                                </p>
+                              )}
+                              <div className="mt-1 grid grid-cols-3 gap-1 text-[9px] font-bold text-slate-500">
+                                <span className="rounded bg-slate-50 p-1">واضح: {d.clearEnough ? 'نعم' : 'لا'}</span>
+                                <span className="rounded bg-slate-50 p-1">يخص الطالب: {TRI_STATE_AR[d.belongsToStudent] || d.belongsToStudent}</span>
+                                <span className="rounded bg-slate-50 p-1">مرتبط: {TRI_STATE_AR[d.relatedToProgram] || d.relatedToProgram}</span>
+                              </div>
+                              <p className="mt-1 leading-relaxed text-slate-600">{d.coverageReason}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {aiReviews[a.id]!.findings.length > 0 && (
+                      <div>
+                        <p className="mb-1.5 text-[10px] font-black text-slate-500">ملاحظات وتقييم خبير الذكاء الاصطناعي:</p>
+                        <div className="space-y-1.5">
+                          {aiReviews[a.id]!.findings.map((f, i) => {
+                            const sm = SEVERITY_META[f.severity] || SEVERITY_META.MEDIUM
+                            return (
+                              <div key={i} className="rounded-lg border border-slate-100 bg-white p-2 text-[10px]">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <Badge className={`${sm.cls} hover:bg-inherit text-[9px]`}>{sm.label}</Badge>
+                                  <p className="font-black text-[#0f2b46]">{f.title}</p>
+                                </div>
+                                <p className="mt-1 leading-relaxed text-slate-600">{f.detail}</p>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {aiReviews[a.id]!.strengths.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {aiReviews[a.id]!.strengths.map((s, i) => (
+                          <span key={i} className="rounded-lg bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">+ {s}</span>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="rounded-lg bg-[#0f2b46] p-2.5 text-[10px] font-bold leading-relaxed text-[#f5f0e1]">
+                      توصية خبير الذكاء الاصطناعي للإدارة: {aiReviews[a.id]!.recommendedAction}
+                      <span className="mt-0.5 block text-[9px] text-[#e0b83a]/70">
+                        ({aiReviews[a.id]!.engine === 'RULES_ONLY' ? 'فحص قواعدي — تعذر تحليل النموذج اللغوي' : 'تحليل ذكاء اصطناعي + قواعد مقارنة'} — القرار النهائي لكم أنتم)
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* تعيين المشرف الأكاديمي يخص مسارات الدراسة فقط، وليس الخدمات العابرة */}
+              {isStudyAdmission && !ownerIsStaffAccount && a.status !== 'REJECTED' && a.status !== 'CERTIFIED' && (
+                <div className="mt-3 flex max-w-md items-center gap-2 rounded-xl bg-[#f7edd0]/50 p-2.5">
+                  <UserCheck className="h-4 w-4 shrink-0 text-[#a8841a]" />
+                  <Select
+                    value={a.supervisor?.id || a.supervisorId || 'AI_ONLY'}
+                    onValueChange={(v) => assignSupervisor(a.id, v)}
+                  >
+                    <SelectTrigger className="h-8 flex-1 text-xs">
+                      <SelectValue placeholder="تعيين مشرف أكاديمي للطالب..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="AI_ONLY">المشرف الذكي فقط</SelectItem>
+                      {supervisors.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>{s.name} {s.role === 'ADMIN' ? '(إدارة)' : '(مشرف بشري)'}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+
+            {/* أزرار آلة الحالات وفق الترتيب الرسمي: سداد 30$ ← دراسة الإدارة والإقرار ← سداد الرسوم الدراسية ← تسجيل نهائي */}
+            {!ownerIsStaffAccount && a.status !== 'REJECTED' && a.status !== 'CERTIFIED' && (
+              <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:items-end">
+                <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-end">
+                  {a.status === 'AWAITING_FEE' && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold leading-relaxed text-amber-700">
+                      <Banknote className="ml-1 inline h-3.5 w-3.5" />
+                      لم يُحوَّل الملف للإدارة بعد — بانتظار سداد المتقدم رسوم التقديم (30$) من صفحة طلب الالتحاق أو التتبع
+                    </div>
+                  )}
+                  {((a.files?.length || 0) > 0 || missingDocumentLabels.length > 0) && !['CERTIFIED', 'REJECTED'].includes(a.status) && (
+                    <Button size="sm" variant="outline" onClick={() => setReplacementFormOpen(a, !docReplacementForms[a.id]?.open)} className="border-red-200 font-bold text-red-600 hover:bg-red-50">
+                      <FileWarning className="ml-1 h-3.5 w-3.5" /> {missingDocumentLabels.length > 0 ? 'طلب استبدال/رفع مرفقات' : 'طلب استبدال مرفقات'}
+                    </Button>
+                  )}
+                  {missingDocumentLabels.length > 0 && !['CERTIFIED', 'REJECTED'].includes(a.status) && !a.documentReplacementRequest && (
+                    <Button size="sm" variant="outline" onClick={() => openMissingDocumentRequest(a)} className="border-red-200 font-bold text-red-700 hover:bg-red-50">
+                      <FileWarning className="ml-1 h-3.5 w-3.5" /> طلب المرفقات الناقصة
+                    </Button>
+                  )}
+                  {docReplacementForms[a.id]?.open && (
+                    <div className="w-full rounded-xl border border-red-200 bg-red-50 p-3 text-right sm:min-w-[420px]">
+                      <p className="text-[11px] font-black text-red-700">حدد المرفقات المطلوب استبدالها أو رفعها واكتب سبباً واضحاً يظهر للطالب:</p>
+                      {(a.files?.length || 0) > 0 && (
+                        <div className="mt-2 rounded-lg border border-red-100 bg-white/60 p-2">
+                          <p className="mb-1.5 text-[10px] font-black text-red-700">مرفقات مرفوعة (استبدال)</p>
+                          <div className="flex flex-wrap gap-2">
+                            {(a.files || []).map((file) => {
+                              const checked = !!docReplacementForms[a.id]?.docTypes?.includes(file.docType)
+                              return (
+                                <label key={file.id} className={`cursor-pointer rounded-lg border px-2 py-1 text-[10px] font-bold ${checked ? 'border-red-400 bg-white text-red-700' : 'border-red-100 bg-white/70 text-slate-600'}`}>
+                                  <input type="checkbox" className="ml-1" checked={checked} onChange={() => toggleReplacementDocType(a.id, file.docType)} />
+                                  {DOC_TYPE_AR[file.docType] || file.docType} — {file.fileName}
+                                </label>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+                      {(a.missingDocs?.length || 0) > 0 && (
+                        <div className="mt-2 rounded-lg border border-red-100 bg-white/60 p-2">
+                          <p className="mb-1.5 text-[10px] font-black text-red-700">مرفقات ناقصة (طلب رفع)</p>
+                          <div className="flex flex-wrap gap-2">
+                            {(a.missingDocs || []).map((doc) => {
+                              const checked = !!docReplacementForms[a.id]?.docTypes?.includes(doc.type)
+                              return (
+                                <label key={`${a.id}-missing-${doc.type}`} className={`cursor-pointer rounded-lg border px-2 py-1 text-[10px] font-bold ${checked ? 'border-red-400 bg-white text-red-700' : 'border-red-100 bg-white/70 text-slate-600'}`}>
+                                  <input type="checkbox" className="ml-1" checked={checked} onChange={() => toggleReplacementDocType(a.id, doc.type)} />
+                                  {doc.label || DOC_TYPE_AR[doc.type] || doc.type}
+                                </label>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+                      <Textarea
+                        value={docReplacementForms[a.id]?.note || ''}
+                        onChange={(e) => setReplacementNote(a.id, e.currentTarget.value)}
+                        placeholder="مثال: يرجى رفع نسخة واضحة من المرفقات المطلوبة أو المرفقات الناقصة حتى نتمكن من متابعة الطلب."
+                        className="mt-2 min-h-[72px] border-red-100 bg-white text-xs font-bold"
+                      />
+                      <div className="mt-2 flex flex-wrap justify-end gap-2">
+                        <Button size="sm" variant="ghost" onClick={() => setReplacementFormOpen(a, false)} className="text-xs font-bold text-slate-500">إلغاء</Button>
+                        <Button size="sm" onClick={() => requestDocumentReplacement(a)} disabled={docReplacementLoading === a.id} className="bg-red-600 text-xs font-bold text-white hover:bg-red-700">
+                          {docReplacementLoading === a.id ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <Send className="ml-1 h-3.5 w-3.5" />}
+                          إرسال طلب المرفقات
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  {a.status === 'PENDING' && (
+                    <Button size="sm" variant="outline" onClick={() => setAdmissionStatus(a.id, 'UNDER_REVIEW')} className="border-blue-200 font-bold text-blue-600">
+                      <Search className="ml-1 h-3.5 w-3.5" /> {isStudyAdmission ? 'بدء الدراسة' : 'بدء مراجعة الخدمة'}
+                    </Button>
+                  )}
+                  {['UNDER_REVIEW', 'PENDING'].includes(a.status) && (
+                    <>
+                      {(() => {
+                        const v = aiReviews[a.id]?.verdict || a.aiVerdict
+                        if (!v || v === 'RECOMMEND_APPROVE') return null
+                        const vm = AI_VERDICT_META[v]
+                        if (!vm) return null
+                        return (
+                          <div className={`rounded-xl border ${vm.border} px-3 py-2 text-[11px] font-bold leading-relaxed ${v === 'RECOMMEND_REJECT' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
+                            <AlertTriangle className="ml-1 inline h-3.5 w-3.5" />
+                            {vm.label} — راجع ملاحظات خبير الذكاء الاصطناعي بالأعلى قبل المتابعة
+                          </div>
+                        )
+                      })()}
+                      {isStudyAdmission ? (
+                        <Button size="sm" onClick={() => setAdmissionStatus(a.id, 'AWAITING_TUITION')} className="bg-emerald-600 font-bold text-white hover:bg-emerald-700">
+                          <CheckCircle2 className="ml-1 h-3.5 w-3.5" /> الإقرار بالقبول وإصدار فاتورة الرسوم الدراسية
+                        </Button>
+                      ) : (
+                        <Button size="sm" onClick={() => setAdmissionStatus(a.id, 'RESULT_APPROVED')} className="bg-emerald-600 font-bold text-white hover:bg-emerald-700">
+                          <CheckCircle2 className="ml-1 h-3.5 w-3.5" /> اعتماد طلب الخدمة وتحديد المتابعة
+                        </Button>
+                      )}
+                    </>
+                  )}
+                  {a.status === 'AWAITING_TUITION' && (
+                    <div className="rounded-xl border border-[#c9a227]/40 bg-[#f7edd0]/60 px-3 py-2 text-[11px] font-bold leading-relaxed text-[#a8841a]">
+                      <Clock3 className="ml-1 inline h-3.5 w-3.5" />
+                      تم الإقرار بالقبول — بانتظار سداد المتقدم الرسوم الدراسية كاملة (يُفعَّل التسجيل النهائي تلقائياً فور السداد)
+                    </div>
+                  )}
+                  {isStudyAdmission && ['SUPERVISOR_ASSIGNED', 'THESIS', 'SCHEDULED', 'RESULT_APPROVED'].includes(a.status) && (
+                    <Button size="sm" variant="outline" onClick={() => setAdmissionStatus(a.id, 'CERTIFIED')} className="border-[#c9a227] font-bold text-[#a8841a] hover:bg-[#f7edd0]">
+                      <Award className="ml-1 h-3.5 w-3.5" /> إصدار الشهادة الدراسية
+                    </Button>
+                  )}
+                  <Button size="sm" variant="outline" onClick={() => setAdmissionStatus(a.id, 'REJECTED')} className="border-red-200 font-bold text-red-500">
+                    <XCircle className="ml-1 h-3.5 w-3.5" /> رفض
+                  </Button>
+                </div>
+              </div>
+            )}
+            {ownerIsStaffAccount && a.status !== 'REJECTED' && (
+              <div className="flex w-full flex-col items-stretch gap-2 sm:w-64">
+                <Button size="sm" variant="outline" onClick={() => setAdmissionStatus(a.id, 'REJECTED')} className="border-red-200 bg-red-50 font-bold text-red-600 hover:bg-red-100">
+                  <XCircle className="ml-1 h-3.5 w-3.5" /> إغلاقه كطلب تجريبي/إداري
+                </Button>
+              </div>
+            )}
+            {isStudyAdmission && a.status === 'CERTIFIED' && (
+              <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
+                <Award className="ml-1 h-3.5 w-3.5" /> شهادة دراسية صادرة — ظاهرة في تبويب الشهادات
+              </Badge>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
     <div data-aact-admin-view="true" className="aact-fade-in mx-auto max-w-7xl px-4 py-10">
@@ -1245,619 +1865,68 @@ export function AdminView() {
               </Card>
             ) : (
               <>
-              {pagedAdmissionRows.map((a) => {
-                const ownerIsStaffAccount = !!a.user && a.user.role !== 'STUDENT'
-                const isStudyAdmission = a.isStudyProgram !== false
-                const unpaid = (a.payments || []).filter((p) => {
-                  if (p.status !== 'UNPAID') return false
-                  // عند وجود خطة تقسيط أكاديمية، بطاقة الرسوم هي مصدر الحقيقة للمتبقي.
-                  // لا نعرض فاتورة TUITION الأصلية كغير مسددة إذا كانت مغطاة بمدفوعات التقسيط.
-                  if (isStudyAdmission && a.tuitionPlan && (p.purpose === 'TUITION' || p.purpose === 'TUITION_INSTALLMENT')) return false
-                  return true
-                })
-                const visiblePayments = (a.payments || []).filter((p) => {
-                  if (isStudyAdmission && a.tuitionPlan && p.status === 'UNPAID' && p.purpose === 'TUITION') return false
-                  return true
-                })
-                const serviceHasInvoice = !isStudyAdmission && (a.payments || []).length > 0
-                const serviceDeliveryReady = !isStudyAdmission && a.status === 'RESULT_APPROVED' && serviceHasInvoice && unpaid.length === 0
-                const supervisorAssigned = a.status === 'SUPERVISOR_ASSIGNED' || a.status === 'THESIS' || a.status === 'SCHEDULED' || a.status === 'AWAITING_TUITION' || a.status === 'RESULT_APPROVED' || a.status === 'CERTIFIED'
-                const ownerName = a.user?.name?.trim() || ''
-                const applicantName = a.fullName?.trim() || ''
-                const ownerNameDiffers = !!ownerName && !!applicantName && ownerName !== applicantName
-                const missingDocumentLabels = (a.missingDocs || []).map((doc) => doc.label || DOC_TYPE_AR[doc.type] || doc.type)
-                return (
-                  <Card
-                    key={a.id}
-                    id={`admission-${a.id}`}
-                    className={`aact-responsive-card aact-readable transition-all ${highlightAdmissionId === a.id ? 'border-[#c9a227] shadow-lg shadow-[#c9a227]/20 ring-2 ring-[#c9a227]/40' : 'border-[#0f2b46]/10'}`}
-                  >
-                    <CardContent className="p-4 sm:p-5">
-                      <div className="flex flex-col items-stretch gap-4 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="min-w-0 w-full sm:flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="rounded-md bg-[#0f2b46] px-2 py-0.5 font-mono text-[10px] font-bold text-[#e0b83a]" dir="ltr">{a.reference}</span>
-                            <h3 className="text-sm font-black text-[#0f2b46]">{a.fullName}</h3>
-                            <Badge className={`${STATUS_BADGE[a.status] || 'bg-slate-100 text-slate-600'} hover:bg-inherit`}>
-                              <Clock3 className="ml-1 h-3 w-3" /> {!isStudyAdmission && a.status === 'RESULT_APPROVED' ? 'تم اعتماد الخدمة' : STATUS_LABEL[a.status] || a.status}
-                            </Badge>
-                            <Badge className={isStudyAdmission ? 'bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]' : 'bg-purple-100 text-purple-700 hover:bg-purple-100'}>
-                              {a.requestLabel || (isStudyAdmission ? 'طلب التحاق دراسي' : 'طلب خدمة مهنية')}
-                            </Badge>
-                            {missingDocumentLabels.length > 0 && (
-                              <Badge className="bg-red-100 text-red-700 hover:bg-red-100">ناقص: {missingDocumentLabels.join('، ')}</Badge>
-                            )}
-                          </div>
-                          <p className="mt-1.5 text-xs font-bold text-slate-600">
-                            {isStudyAdmission ? 'البرنامج' : 'الخدمة'}: {a.program} — {isStudyAdmission ? `المؤهل: ${EDUCATION_LABEL[a.education] || a.education}` : `نوع المسار: ${a.requestKind || 'خدمة'}`} — {a.country}
-                          </p>
-                          <p className="mt-0.5 text-[11px] text-slate-400" dir="ltr">{a.email} · {a.phone}</p>
-                          <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-bold text-slate-500">
-                            <span dir="ltr">English certificate name: {a.fullNameEn || '—'}</span>
-                            <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-[10px] font-black" onClick={() => editAdmissionEnglishName(a)}>تعديل اسم الشهادة الإنجليزي</Button>
-                          </div>
-                          {ownerNameDiffers && (
-                            <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold leading-6 text-amber-800">
-                              <span className="font-black">تنبيه مطابقة الحساب:</span> اسم الطلب/المستندات هو <span className="font-black">{applicantName}</span>، بينما اسم صاحب الحساب المرتبط بهذا البريد هو <span className="font-black">{ownerName}</span>. لا يتم تغيير اسم الطلب تلقائياً حفاظاً على بيانات المستندات.
-                            </div>
-                          )}
-                          {(a.files?.length || 0) > 0 ? (
-                            <div className="mt-2 rounded-xl border border-emerald-100 bg-emerald-50/50 p-2.5">
-                              <p className="text-[11px] font-black text-emerald-700">
-                                <Paperclip className="ml-0.5 inline h-3.5 w-3.5" /> المستندات المرفوعة ({a.files!.length}{isStudyAdmission ? '/4' : ''}):
-                              </p>
-                              <div className="mt-1.5 flex flex-wrap gap-1.5">
-                                {a.files!.map((f) => (
-                                  <a
-                                    key={f.id}
-                                    href={`/api/admissions/docs/${f.id}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="rounded-lg border border-emerald-200 bg-white px-2.5 py-1 text-[10px] font-bold text-emerald-700 transition-colors hover:bg-emerald-100"
-                                  >
-                                    <FileText className="ml-1 inline h-3 w-3" />
-                                    {DOC_TYPE_AR[f.docType] || f.docType} ({Math.ceil(f.size / 1024)}ك.ب)
-                                  </a>
-                                ))}
-                              </div>
-                            </div>
-                          ) : (
-                            <p className="mt-1 text-[11px] font-bold text-red-500">لا توجد مستندات مرفوعة (الطلبات القديمة قبل تفعيل الرفع الإلزامي)</p>
-                          )}
-                          {missingDocumentLabels.length > 0 && (
-                            <div className="mt-2 rounded-xl border border-red-200 bg-red-50 p-2.5 text-[11px] font-bold leading-5 text-red-700">
-                              <FileWarning className="ml-1 inline h-3.5 w-3.5" />
-                              مرفقات مطلوبة ناقصة: {missingDocumentLabels.join('، ')}
-                            </div>
-                          )}
-
-                          {!isStudyAdmission && !(a.payments?.length || 0) && (
-                            <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-2.5 text-[10px] font-bold leading-5 text-amber-800">
-                              لا توجد فاتورة خدمة لهذا الطلب بعد. اضغط الزر لإصدار فاتورة الخدمة ثم اطلب من العميل اختيار «دفع مباشر» أو أي وسيلة متاحة.
-                              <Button size="sm" onClick={() => setAdmissionStatus(a.id, 'RESULT_APPROVED')} className="mt-2 h-7 bg-amber-600 px-2 text-[10px] font-black text-white hover:bg-amber-700">
-                                إصدار فاتورة الخدمة
-                              </Button>
-                            </div>
-                          )}
-
-                          {!!visiblePayments.length && (
-                            <div className="mt-2 rounded-xl border border-amber-100 bg-amber-50/40 p-2.5">
-                              <p className="mb-1.5 text-[11px] font-black text-amber-700"><Banknote className="ml-1 inline h-3.5 w-3.5" /> فواتير هذا الطلب</p>
-                              <div className="grid gap-1.5">
-                                {visiblePayments.map((p) => (
-                                  <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white px-2.5 py-2 text-[10px]">
-                                    <div className="min-w-0">
-                                      <span className="font-mono font-black text-[#0f2b46]" dir="ltr">{p.invoiceNo || p.id}</span>
-                                      <span className="mr-2 font-bold text-slate-500">{p.purpose} — {p.amount}$</span>
-                                      {p.method && <span className="mr-2 text-slate-400">طريقة: {p.method === 'DIRECT_PAYMENT' ? 'دفع مباشر' : p.method === 'USDT' ? 'USDT' : p.method}</span>}
-                                      {p.method === 'USDT' && (
-                                        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-slate-500">
-                                          <span>الشبكة: {p.cryptoNetwork || 'TRC20'}</span>
-                                          {p.cryptoTxHash ? <span dir="ltr">TX: {String(p.cryptoTxHash).slice(0, 10)}…{String(p.cryptoTxHash).slice(-6)}</span> : <span className="text-amber-600">بانتظار TX Hash</span>}
-                                          {p.cryptoVerificationStatus && (
-                                            <Badge className={p.cryptoVerificationStatus === 'VERIFIED' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : p.cryptoVerificationStatus === 'FAILED' ? 'bg-red-100 text-red-700 hover:bg-red-100' : 'bg-slate-100 text-slate-600 hover:bg-slate-100'}>
-                                              {p.cryptoVerificationStatus === 'VERIFIED' ? 'تحقق آلي ناجح' : p.cryptoVerificationStatus === 'FAILED' ? 'فشل التحقق' : p.cryptoVerificationStatus}
-                                            </Badge>
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
-                                    <div className="flex items-center gap-1.5">
-                                      {p.status === 'PAID' ? (
-                                        <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">مدفوعة {p.receiptNo ? `(${p.receiptNo})` : ''}</Badge>
-                                      ) : p.status === 'WAIVED' ? (
-                                        <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">معفاة من الدفع</Badge>
-                                      ) : (
-                                        <>
-                                          <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">بانتظار الدفع</Badge>
-                                          {p.method === 'DIRECT_PAYMENT' || (p.method === 'USDT' && !!p.cryptoTxHash && p.cryptoVerificationStatus !== 'FAILED') ? (
-                                            <Button size="sm" variant="outline" onClick={() => openPaymentConfirmDialog(p)} className="h-7 border-emerald-200 px-2 text-[10px] font-black text-emerald-700">
-                                              {p.method === 'USDT' ? 'تأكيد USDT بعد الإثبات' : 'تأكيد استلام الدفع المباشر'}
-                                            </Button>
-                                          ) : (
-                                            <Badge className="bg-slate-100 text-slate-500 hover:bg-slate-100">
-                                              {p.method === 'USDT' ? 'بانتظار إثبات الطالب' : 'لم يبدأ الطالب الدفع'}
-                                            </Badge>
-                                          )}
-                                        </>
-                                      )}
-                                    </div>
+              {activeTab === 'service-requests' ? (
+                pagedAdmissionRows.map((a) => renderAdmissionCard(a))
+              ) : selectedAdmission ? (
+                <>
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#0f2b46]/10 bg-white px-3 py-2">
+                    <Button type="button" size="sm" variant="outline" className="font-black" onClick={() => setSelectedAdmissionId(null)}>
+                      <ArrowRight className="ml-1 h-3.5 w-3.5" /> عودة إلى القائمة
+                    </Button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-black text-[#0f2b46]">{selectedAdmission.fullName}</span>
+                      <span className="rounded-md bg-[#0f2b46] px-2 py-0.5 font-mono text-[10px] font-bold text-[#e0b83a]" dir="ltr">{selectedAdmission.reference}</span>
+                    </div>
+                  </div>
+                  {renderAdmissionCard(selectedAdmission)}
+                </>
+              ) : (
+                <Card className="border-[#0f2b46]/10">
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[960px] text-right text-xs sm:text-sm">
+                        <thead className="bg-[#f7edd0] text-[#0f2b46]">
+                          <tr>
+                            <th className="p-3 font-black">الاسم</th>
+                            <th className="p-3 font-black">المرجع</th>
+                            <th className="p-3 font-black">البرنامج</th>
+                            <th className="p-3 font-black">الحالة</th>
+                            <th className="p-3 font-black">البلد</th>
+                            <th className="p-3 font-black">تاريخ التقديم</th>
+                            <th className="p-3 font-black">مستندات ناقصة</th>
+                            <th className="p-3 font-black">التواصل</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pagedAdmissionRows.map((a) => {
+                            const isStudyAdmission = a.isStudyProgram !== false
+                            const missingCount = (a.missingDocs || []).length
+                            return (
+                              <tr key={a.id} className={`border-t border-slate-100 transition-colors hover:bg-slate-50 ${highlightAdmissionId === a.id ? 'bg-[#f7edd0]/70' : ''}`}>
+                                <td className="p-3">
+                                  <button type="button" onClick={() => setSelectedAdmissionId(a.id)} className="font-black text-[#0f2b46] underline-offset-4 hover:text-[#a8841a] hover:underline">{a.fullName}</button>
+                                </td>
+                                <td className="p-3"><span className="font-mono text-[11px] font-bold text-slate-500" dir="ltr">{a.reference}</span></td>
+                                <td className="p-3">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="font-bold text-slate-700">{a.program}</span>
+                                    <Badge className={isStudyAdmission ? 'bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]' : 'bg-purple-100 text-purple-700 hover:bg-purple-100'}>{a.requestLabel || (isStudyAdmission ? 'طلب التحاق دراسي' : 'طلب خدمة مهنية')}</Badge>
                                   </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {isStudyAdmission && a.tuitionPlan && (
-                            <div className="mt-2 rounded-xl border border-blue-100 bg-blue-50/50 p-3">
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <p className="text-[11px] font-black text-blue-800"><Banknote className="ml-1 inline h-3.5 w-3.5" /> خطة الرسوم والتقسيط</p>
-                                <Badge className="bg-white text-blue-700 hover:bg-white">مدفوع {a.tuitionPlan.paidTuition}$ / {a.tuitionPlan.totalTuition}$</Badge>
-                              </div>
-                              <div className="mt-2 grid gap-2 text-[10px] font-bold text-blue-900 sm:grid-cols-3">
-                                <div className="rounded-lg bg-white p-2">المتبقي: {a.tuitionPlan.remainingTuition}$</div>
-                                <div className="rounded-lg bg-white p-2">شرط الفصل الأول: {a.tuitionPlan.firstSemesterRequiredAmount}$ {a.tuitionPlan.firstSemesterAllowed ? '✓' : '✕'}</div>
-                                <div className="rounded-lg bg-white p-2">شرط الفصل الثاني: {a.tuitionPlan.finalRequiredAmount}$ {a.tuitionPlan.secondSemesterAllowed ? '✓' : '✕'}</div>
-                              </div>
-                              {a.tuitionAppeal && (
-                                <div className="mt-2 rounded-lg border border-blue-100 bg-white p-2 text-[10px] font-bold leading-5 text-slate-600">
-                                  <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <div>
-                                      <span className="font-black text-[#0f2b46]">التماس تقسيط: </span>
-                                      <Badge className={a.tuitionAppeal.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : a.tuitionAppeal.status === 'PENDING' ? 'bg-amber-100 text-amber-700 hover:bg-amber-100' : 'bg-red-100 text-red-700 hover:bg-red-100'}>{a.tuitionAppeal.status}</Badge>
-                                      <span className="mr-2">الدفعة المقترحة: {a.tuitionAppeal.requestedInitialAmount}$</span>
-                                    </div>
-                                    {a.tuitionAppeal.status === 'PENDING' && (
-                                      <div className="flex gap-1">
-                                        <Button size="sm" onClick={() => openTuitionAppealDialog(a.tuitionAppeal!, 'APPROVE', a.tuitionPlan, a)} className="h-7 bg-emerald-600 px-2 text-[10px] font-black text-white hover:bg-emerald-700">قبول التقسيط</Button>
-                                        <Button size="sm" variant="outline" onClick={() => openTuitionAppealDialog(a.tuitionAppeal!, 'REJECT', a.tuitionPlan, a)} className="h-7 border-red-200 px-2 text-[10px] font-black text-red-700">رفض</Button>
-                                      </div>
-                                    )}
-                                  </div>
-                                  {a.tuitionAppeal.reason && <p className="mt-1">سبب الطالب: {a.tuitionAppeal.reason}</p>}
-                                  {a.tuitionAppeal.proposedSchedule && <p className="mt-1">جدول مقترح: {a.tuitionAppeal.proposedSchedule}</p>}
-                                  {a.tuitionAppeal.adminNote && <p className="mt-1 text-blue-700">ملاحظة الإدارة: {a.tuitionAppeal.adminNote}</p>}
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {!isStudyAdmission && (
-                            <div className="mt-3 rounded-xl border border-purple-100 bg-purple-50/60 p-3">
-                              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                                <p className="text-[11px] font-black text-purple-700"><Award className="ml-1 inline h-3.5 w-3.5" /> تنفيذ وتسليم الخدمة للعميل</p>
-                                <Badge className="bg-white text-purple-700 hover:bg-white">{a.deliverables?.filter((d) => d.status === 'PUBLISHED' && d.visibleToStudent !== false).length || 0} منشور</Badge>
-                              </div>
-                              {a.serviceWorkflow && (
-                                <div className="mb-3 rounded-xl border border-purple-100 bg-white p-3">
-                                  <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
-                                    <div>
-                                      <p className="text-[11px] font-black text-[#0f2b46]">{a.serviceWorkflow.workflow.title}</p>
-                                      <p className="mt-1 text-[10px] font-bold leading-5 text-slate-500">{a.serviceWorkflow.workflow.summary}</p>
-                                    </div>
-                                    <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-100">المرحلة: {a.serviceWorkflow.activeStage.label}</Badge>
-                                  </div>
-                                  <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
-                                    {a.serviceWorkflow.stages.map((stage, idx) => (
-                                      <div key={`${a.id}-${stage.id}`} className={`rounded-lg border p-2 text-[10px] ${stage.state === 'done' ? 'border-emerald-100 bg-emerald-50 text-emerald-800' : stage.state === 'active' ? 'border-purple-200 bg-purple-50 text-purple-800' : 'border-slate-100 bg-slate-50 text-slate-500'}`}>
-                                        <p className="font-black">{stage.state === 'done' ? <CheckCircle2 className="ml-1 inline h-3.5 w-3.5" /> : stage.state === 'active' ? <Clock3 className="ml-1 inline h-3.5 w-3.5" /> : <span className="ml-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-slate-200 text-[8px]">{idx + 1}</span>}{stage.label}</p>
-                                        <p className="mt-1 leading-5 opacity-80">{stage.description}</p>
-                                      </div>
-                                    ))}
-                                  </div>
-                                  <div className="mt-2 rounded-lg bg-purple-50 px-2.5 py-2 text-[10px] font-bold leading-5 text-purple-800">
-                                    الإجراء التالي: {a.serviceWorkflow.nextAction}
-                                    {a.serviceWorkflow.expectedDeliverableTypes?.length ? <span className="block text-slate-500">المخرج المتوقع: {a.serviceWorkflow.expectedDeliverableTypes.map((t) => DELIVERABLE_TYPE_AR[t] || t).join(' / ')}</span> : null}
-                                  </div>
-                                </div>
-                              )}
-                              {!serviceDeliveryReady && (
-                                <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-2 text-[10px] font-bold leading-5 text-amber-800">
-                                  لا يمكن نشر أي مخرج للعميل قبل اعتماد طلب الخدمة وسداد فاتورتها. اضغط أولاً «اعتماد طلب الخدمة وتحديد المتابعة»، ثم أكد الدفع من تبويب الدفعات.
-                                </div>
-                              )}
-
-                              {!!a.deliverables?.length && (
-                                <div className="mb-3 grid gap-2">
-                                  {a.deliverables.map((d) => (
-                                    <div key={d.id} className="rounded-lg border border-purple-100 bg-white p-2 text-[10px]">
-                                      <div className="flex flex-wrap items-center justify-between gap-2">
-                                        <div className="min-w-0">
-                                          <p className="font-black text-[#0f2b46]">{d.title}</p>
-                                          <p className="mt-0.5 text-slate-500">{DELIVERABLE_TYPE_AR[d.type] || d.type} — {d.status === 'PUBLISHED' ? 'منشور' : d.status === 'REVOKED' ? 'ملغى' : 'مسودة'} {d.visibleToStudent === false ? '— مخفي عن العميل' : ''}</p>
-                                        </div>
-                                        <div className="flex flex-wrap gap-1">
-                                          {d.status !== 'REVOKED' && (
-                                            <Button size="sm" variant="outline" onClick={() => revokeDeliverable(d.id)} className="h-7 text-[10px] font-black text-red-600">إلغاء</Button>
-                                          )}
-                                        </div>
-                                      </div>
-                                      {d.externalUrl && <p className="mt-1 truncate text-slate-400" dir="ltr">{d.externalUrl}</p>}
-                                      {d.fileName && <p className="mt-1 text-slate-400"><Paperclip className="ml-1 inline h-3 w-3" />{d.fileName}</p>}
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-
-                              <div className="grid gap-2 md:grid-cols-2">
-                                <select
-                                  value={deliverableForms[a.id]?.type || a.serviceWorkflow?.expectedDeliverableTypes?.[0] || 'PACKAGE_DOWNLOAD'}
-                                  onChange={(e) => updateDeliverableForm(a.id, { type: e.currentTarget.value })}
-                                  className="h-9 rounded-lg border border-purple-100 bg-white px-2 text-[11px] font-bold text-[#0f2b46]"
-                                >
-                                  {DELIVERABLE_TYPE_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                                </select>
-                                <input
-                                  value={deliverableForms[a.id]?.title || ''}
-                                  onChange={(e) => updateDeliverableForm(a.id, { title: e.currentTarget.value })}
-                                  placeholder="عنوان يظهر للعميل: شهادة معادلة / رابط تحميل / تقرير..."
-                                  className="h-9 rounded-lg border border-purple-100 bg-white px-2 text-[11px] font-bold text-[#0f2b46]"
-                                />
-                                <input
-                                  value={deliverableForms[a.id]?.externalUrl || ''}
-                                  onChange={(e) => updateDeliverableForm(a.id, { externalUrl: e.currentTarget.value })}
-                                  placeholder="رابط خارجي اختياري: تحميل، اجتماع، ملف..."
-                                  dir="ltr"
-                                  className="h-9 rounded-lg border border-purple-100 bg-white px-2 text-[11px] font-bold text-[#0f2b46]"
-                                />
-                                <input
-                                  type="file"
-                                  onChange={(e) => setDeliverableFiles((prev) => ({ ...prev, [a.id]: e.currentTarget.files?.[0] || null }))}
-                                  className="h-9 rounded-lg border border-purple-100 bg-white px-2 py-1 text-[11px] font-bold text-[#0f2b46]"
-                                />
-                                <input
-                                  value={deliverableForms[a.id]?.certificateId || ''}
-                                  onChange={(e) => updateDeliverableForm(a.id, { certificateId: e.currentTarget.value })}
-                                  placeholder="رقم شهادة/عضوية اختياري"
-                                  className="h-9 rounded-lg border border-purple-100 bg-white px-2 text-[11px] font-bold text-[#0f2b46]"
-                                />
-                                <input
-                                  value={deliverableForms[a.id]?.verificationUrl || ''}
-                                  onChange={(e) => updateDeliverableForm(a.id, { verificationUrl: e.currentTarget.value })}
-                                  placeholder="رابط تحقق اختياري"
-                                  dir="ltr"
-                                  className="h-9 rounded-lg border border-purple-100 bg-white px-2 text-[11px] font-bold text-[#0f2b46]"
-                                />
-                              </div>
-                              <textarea
-                                value={deliverableForms[a.id]?.description || ''}
-                                onChange={(e) => updateDeliverableForm(a.id, { description: e.currentTarget.value })}
-                                placeholder="وصف مختصر أو تعليمات للعميل..."
-                                className="mt-2 min-h-[58px] w-full rounded-lg border border-purple-100 bg-white px-2 py-2 text-[11px] font-bold text-[#0f2b46]"
-                              />
-                              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                                <label className="flex items-center gap-2 text-[10px] font-bold text-slate-500">
-                                  <input type="checkbox" checked={deliverableForms[a.id]?.visibleToStudent !== false} onChange={(e) => updateDeliverableForm(a.id, { visibleToStudent: e.currentTarget.checked })} />
-                                  يظهر للعميل فوراً ويرسل إشعاراً بالبريد
-                                </label>
-                                <Button size="sm" disabled={deliverableLoading === a.id || !serviceDeliveryReady} onClick={() => submitDeliverable(a)} className="bg-purple-700 text-white hover:bg-purple-800 disabled:opacity-50">
-                                  {deliverableLoading === a.id ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <Award className="ml-1 h-3.5 w-3.5" />}
-                                  تسليم المخرج
-                                </Button>
-                              </div>
-                            </div>
-                          )}
-                          {a.thesisDeadline && (
-                            <p className="mt-1 text-[11px] font-bold text-[#a8841a]">
-                              مهلة بحث التخرج حتى: {new Date(a.thesisDeadline).toLocaleDateString('ar-EG')} (6 أشهر من القبول)
-                            </p>
-                          )}
-                          {a.supervisor && (
-                            <p className="mt-1 text-[11px] font-bold text-purple-600">
-                              المشرف الأكاديمي: {a.supervisor.name}
-                            </p>
-                          )}
-                          {unpaid.length > 0 && (
-                            <p className="mt-1 text-[11px] font-bold text-amber-600">
-                              فواتير غير مسددة: {unpaid.map((p) => `${p.amount}$`).join(' + ')}
-                            </p>
-                          )}
-                          {a.notes && <p className="mt-1.5 max-w-2xl text-[11px] leading-relaxed text-slate-500">ملاحظات: {a.notes}</p>}
-                          {a.documentReplacementRequest && (
-                            <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-[11px] font-bold leading-6 text-red-700">
-                              <FileWarning className="ml-1 inline h-3.5 w-3.5" />
-                              مطلوب من الطالب رفع/استبدال: {a.documentReplacementRequest.docTypes.map((type) => a.requiredDocs?.find((doc) => doc.type === type)?.label || DOC_TYPE_AR[type] || a.files?.find((f) => f.docType === type)?.fileName || type).join('، ')}
-                              <span className="block text-red-600">السبب: {a.documentReplacementRequest.note}</span>
-                            </div>
-                          )}
-                          {ownerIsStaffAccount && (
-                            <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-[11px] font-bold leading-6 text-red-700">
-                              <AlertTriangle className="ml-1 inline h-3.5 w-3.5" />
-                              هذا الطلب مرتبط بحساب إداري/غير طالب ({a.user?.role}). لا يُعتمد كقيد دراسة ولا تُصدر له فاتورة دراسية أو شهادة. الإجراء الصحيح: إنشاء حساب طالب منفصل ببريد الطالب الحقيقي ثم إعادة تقديم الطلب، أو رفض هذا الطلب كتجريبي.
-                            </div>
-                          )}
-
-                          {/* ===== التقييم الذكي للطلب — يعرض قبل زر الاعتماد للمراجعة ===== */}
-                          <div className={`mt-3 rounded-xl border p-3 ${(() => {
-                            const v = aiReviews[a.id]?.verdict || a.aiVerdict
-                            return v && AI_VERDICT_META[v] ? AI_VERDICT_META[v].border : 'border-[#c9a227]/40'
-                          })()} bg-[#fdfaf3]`}>
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <Badge className={`${AI_VERDICT_META[aiReviews[a.id]?.verdict || a.aiVerdict || '']?.cls || 'bg-[#c9a227] text-[#0f2b46]'} hover:bg-inherit text-[10px]`}>
-                                  <Bot className="ml-1 h-3 w-3" />
-                                  {aiReviews[a.id]?.verdict || a.aiVerdict
-                                    ? AI_VERDICT_META[aiReviews[a.id]?.verdict || a.aiVerdict!]?.label || 'تقييم ذكي متوفر'
-                                    : 'التقييم الذكي للطلب'}
-                                </Badge>
-                                {(aiReviews[a.id]?.fitScore ?? a.aiScore) != null && (
-                                  <span className="rounded-lg bg-[#0f2b46] px-2 py-0.5 text-[10px] font-black text-[#e0b83a]">
-                                    درجة توافق الملف: {aiReviews[a.id]?.fitScore ?? a.aiScore}%
-                                  </span>
-                                )}
-                                {a.aiReviewedAt && !aiLoading && (
-                                  <span className="text-[10px] font-bold text-slate-400">
-                                    آخر تحليل: {new Date(a.aiReviewedAt).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex gap-1.5">
-                                {aiReviews[a.id] && (
-                                  <Button size="sm" variant="ghost" onClick={() => setAiOpen((p) => ({ ...p, [a.id]: !p[a.id] }))} className="h-7 text-[10px] font-black text-[#0f2b46]">
-                                    {aiOpen[a.id] ? 'إخفاء التفاصيل' : 'عرض التفاصيل'}
-                                  </Button>
-                                )}
-                                <Button size="sm" variant="outline" disabled={aiLoading === a.id} onClick={() => runAIReview(a.id, !!(a.aiVerdict || aiReviews[a.id]))} className="h-7 border-[#c9a227] text-[10px] font-black text-[#a8841a] hover:bg-[#f7edd0]">
-                                  {aiLoading === a.id ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : <Sparkles className="ml-1 h-3 w-3" />}
-                                  {a.aiVerdict || aiReviews[a.id] ? 'إعادة التحليل' : 'تحليل ذكي للطلب'}
-                                </Button>
-                              </div>
-                            </div>
-
-                            {aiLoading === a.id && !aiReviews[a.id] && (
-                              <p className="mt-2 flex items-center gap-2 text-[11px] font-bold text-[#a8841a]">
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" /> خبير الذكاء الاصطناعي يقرأ مدخلات الطالب ومرفقاته ويقارنها بمتطلبات البرنامج...
-                              </p>
-                            )}
-
-                            {aiOpen[a.id] && aiReviews[a.id] && (
-                              <div className="mt-3 space-y-3 border-t border-[#c9a227]/20 pt-3">
-                                <p className="text-[11px] leading-relaxed font-medium text-[#0f2b46]">{aiReviews[a.id]!.summaryForAdmin}</p>
-
-                                {/* قائمة المتطلبات: مكتمل / ناقص / غير قابل للتحقق / مشكلة */}
-                                <div>
-                                  <p className="mb-1.5 text-[10px] font-black text-slate-500">مقارنة الملف بمتطلبات البرنامج:</p>
-                                  <div className="grid gap-1.5 sm:grid-cols-2">
-                                    {aiReviews[a.id]!.checklist.map((c, i) => {
-                                      const meta = CHECK_STATUS_META[c.status] || CHECK_STATUS_META.UNVERIFIED
-                                      return (
-                                        <div key={i} className="flex items-start gap-1.5 rounded-lg bg-white p-2 text-[10px]">
-                                          <meta.icon className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${meta.cls}`} />
-                                          <div className="min-w-0">
-                                            <p className="font-black text-[#0f2b46]">{c.requirement}</p>
-                                            <p className="mt-0.5 leading-relaxed text-slate-500">{c.detail}</p>
-                                          </div>
-                                        </div>
-                                      )
-                                    })}
-                                  </div>
-                                </div>
-
-                                {(aiReviews[a.id]!.documentAnalyses?.length || 0) > 0 && (
-                                  <div>
-                                    <p className="mb-1.5 text-[10px] font-black text-slate-500">تحليل كل مرفق على حدة:</p>
-                                    <div className="grid gap-1.5 lg:grid-cols-2">
-                                      {aiReviews[a.id]!.documentAnalyses!.map((d, i) => (
-                                        <div key={`${d.fileName}-${i}`} className="rounded-lg border border-slate-100 bg-white p-2 text-[10px]">
-                                          <div className="flex flex-wrap items-center gap-1.5">
-                                            <Badge className={`${d.recommendation === 'ACCEPT_AS_EVIDENCE' ? 'bg-emerald-100 text-emerald-700' : d.recommendation === 'REQUEST_REPLACEMENT' || d.recommendation === 'IGNORE_AS_NON_ADMISSION' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'} hover:bg-inherit text-[9px]`}>
-                                              {DOC_RECOMMENDATION_AR[d.recommendation] || d.recommendation}
-                                            </Badge>
-                                            <span className="rounded bg-[#0f2b46] px-1.5 py-0.5 font-black text-[#e0b83a]">{d.coverage}%</span>
-                                          </div>
-                                          <p className="mt-1 font-black text-[#0f2b46]">{d.fileName}</p>
-                                          <p className="mt-0.5 text-slate-500">المرفوع كـ {d.declaredLabel} — المكتشف: {d.detectedLabel}</p>
-                                          {d.finalGradeExtracted && (
-                                            <p className="mt-1 rounded-lg bg-[#f7edd0] px-2 py-1 text-[10px] font-black text-[#0f2b46]">
-                                              المعدل/التقدير النهائي المقروء من الشهادة: <span className="text-[#a8841a]">{d.finalGradeExtracted}</span>
-                                            </p>
-                                          )}
-                                          <div className="mt-1 grid grid-cols-3 gap-1 text-[9px] font-bold text-slate-500">
-                                            <span className="rounded bg-slate-50 p-1">واضح: {d.clearEnough ? 'نعم' : 'لا'}</span>
-                                            <span className="rounded bg-slate-50 p-1">يخص الطالب: {TRI_STATE_AR[d.belongsToStudent] || d.belongsToStudent}</span>
-                                            <span className="rounded bg-slate-50 p-1">مرتبط: {TRI_STATE_AR[d.relatedToProgram] || d.relatedToProgram}</span>
-                                          </div>
-                                          <p className="mt-1 leading-relaxed text-slate-600">{d.coverageReason}</p>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {aiReviews[a.id]!.findings.length > 0 && (
-                                  <div>
-                                    <p className="mb-1.5 text-[10px] font-black text-slate-500">ملاحظات وتقييم خبير الذكاء الاصطناعي:</p>
-                                    <div className="space-y-1.5">
-                                      {aiReviews[a.id]!.findings.map((f, i) => {
-                                        const sm = SEVERITY_META[f.severity] || SEVERITY_META.MEDIUM
-                                        return (
-                                          <div key={i} className="rounded-lg border border-slate-100 bg-white p-2 text-[10px]">
-                                            <div className="flex flex-wrap items-center gap-1.5">
-                                              <Badge className={`${sm.cls} hover:bg-inherit text-[9px]`}>{sm.label}</Badge>
-                                              <p className="font-black text-[#0f2b46]">{f.title}</p>
-                                            </div>
-                                            <p className="mt-1 leading-relaxed text-slate-600">{f.detail}</p>
-                                          </div>
-                                        )
-                                      })}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {aiReviews[a.id]!.strengths.length > 0 && (
-                                  <div className="flex flex-wrap gap-1.5">
-                                    {aiReviews[a.id]!.strengths.map((s, i) => (
-                                      <span key={i} className="rounded-lg bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">+ {s}</span>
-                                    ))}
-                                  </div>
-                                )}
-
-                                <div className="rounded-lg bg-[#0f2b46] p-2.5 text-[10px] font-bold leading-relaxed text-[#f5f0e1]">
-                                  توصية خبير الذكاء الاصطناعي للإدارة: {aiReviews[a.id]!.recommendedAction}
-                                  <span className="mt-0.5 block text-[9px] text-[#e0b83a]/70">
-                                    ({aiReviews[a.id]!.engine === 'RULES_ONLY' ? 'فحص قواعدي — تعذر تحليل النموذج اللغوي' : 'تحليل ذكاء اصطناعي + قواعد مقارنة'} — القرار النهائي لكم أنتم)
-                                  </span>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* تعيين المشرف الأكاديمي يخص مسارات الدراسة فقط، وليس الخدمات العابرة */}
-                          {isStudyAdmission && !ownerIsStaffAccount && a.status !== 'REJECTED' && a.status !== 'CERTIFIED' && (
-                            <div className="mt-3 flex max-w-md items-center gap-2 rounded-xl bg-[#f7edd0]/50 p-2.5">
-                              <UserCheck className="h-4 w-4 shrink-0 text-[#a8841a]" />
-                              <Select
-                                value={a.supervisor?.id || a.supervisorId || 'AI_ONLY'}
-                                onValueChange={(v) => assignSupervisor(a.id, v)}
-                              >
-                                <SelectTrigger className="h-8 flex-1 text-xs">
-                                  <SelectValue placeholder="تعيين مشرف أكاديمي للطالب..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="AI_ONLY">المشرف الذكي فقط</SelectItem>
-                                  {supervisors.map((s) => (
-                                    <SelectItem key={s.id} value={s.id}>{s.name} {s.role === 'ADMIN' ? '(إدارة)' : '(مشرف بشري)'}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* أزرار آلة الحالات وفق الترتيب الرسمي: سداد 30$ ← دراسة الإدارة والإقرار ← سداد الرسوم الدراسية ← تسجيل نهائي */}
-                        {!ownerIsStaffAccount && a.status !== 'REJECTED' && a.status !== 'CERTIFIED' && (
-                          <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:items-end">
-                            <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-end">
-                              {a.status === 'AWAITING_FEE' && (
-                                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold leading-relaxed text-amber-700">
-                                  <Banknote className="ml-1 inline h-3.5 w-3.5" />
-                                  لم يُحوَّل الملف للإدارة بعد — بانتظار سداد المتقدم رسوم التقديم (30$) من صفحة طلب الالتحاق أو التتبع
-                                </div>
-                              )}
-                              {((a.files?.length || 0) > 0 || missingDocumentLabels.length > 0) && !['CERTIFIED', 'REJECTED'].includes(a.status) && (
-                                <Button size="sm" variant="outline" onClick={() => setReplacementFormOpen(a, !docReplacementForms[a.id]?.open)} className="border-red-200 font-bold text-red-600 hover:bg-red-50">
-                                  <FileWarning className="ml-1 h-3.5 w-3.5" /> {missingDocumentLabels.length > 0 ? 'طلب استبدال/رفع مرفقات' : 'طلب استبدال مرفقات'}
-                                </Button>
-                              )}
-                              {missingDocumentLabels.length > 0 && !['CERTIFIED', 'REJECTED'].includes(a.status) && !a.documentReplacementRequest && (
-                                <Button size="sm" variant="outline" onClick={() => openMissingDocumentRequest(a)} className="border-red-200 font-bold text-red-700 hover:bg-red-50">
-                                  <FileWarning className="ml-1 h-3.5 w-3.5" /> طلب المرفقات الناقصة
-                                </Button>
-                              )}
-                              {docReplacementForms[a.id]?.open && (
-                                <div className="w-full rounded-xl border border-red-200 bg-red-50 p-3 text-right sm:min-w-[420px]">
-                                  <p className="text-[11px] font-black text-red-700">حدد المرفقات المطلوب استبدالها أو رفعها واكتب سبباً واضحاً يظهر للطالب:</p>
-                                  {(a.files?.length || 0) > 0 && (
-                                    <div className="mt-2 rounded-lg border border-red-100 bg-white/60 p-2">
-                                      <p className="mb-1.5 text-[10px] font-black text-red-700">مرفقات مرفوعة (استبدال)</p>
-                                      <div className="flex flex-wrap gap-2">
-                                        {(a.files || []).map((file) => {
-                                          const checked = !!docReplacementForms[a.id]?.docTypes?.includes(file.docType)
-                                          return (
-                                            <label key={file.id} className={`cursor-pointer rounded-lg border px-2 py-1 text-[10px] font-bold ${checked ? 'border-red-400 bg-white text-red-700' : 'border-red-100 bg-white/70 text-slate-600'}`}>
-                                              <input type="checkbox" className="ml-1" checked={checked} onChange={() => toggleReplacementDocType(a.id, file.docType)} />
-                                              {DOC_TYPE_AR[file.docType] || file.docType} — {file.fileName}
-                                            </label>
-                                          )
-                                        })}
-                                      </div>
-                                    </div>
-                                  )}
-                                  {(a.missingDocs?.length || 0) > 0 && (
-                                    <div className="mt-2 rounded-lg border border-red-100 bg-white/60 p-2">
-                                      <p className="mb-1.5 text-[10px] font-black text-red-700">مرفقات ناقصة (طلب رفع)</p>
-                                      <div className="flex flex-wrap gap-2">
-                                        {(a.missingDocs || []).map((doc) => {
-                                          const checked = !!docReplacementForms[a.id]?.docTypes?.includes(doc.type)
-                                          return (
-                                            <label key={`${a.id}-missing-${doc.type}`} className={`cursor-pointer rounded-lg border px-2 py-1 text-[10px] font-bold ${checked ? 'border-red-400 bg-white text-red-700' : 'border-red-100 bg-white/70 text-slate-600'}`}>
-                                              <input type="checkbox" className="ml-1" checked={checked} onChange={() => toggleReplacementDocType(a.id, doc.type)} />
-                                              {doc.label || DOC_TYPE_AR[doc.type] || doc.type}
-                                            </label>
-                                          )
-                                        })}
-                                      </div>
-                                    </div>
-                                  )}
-                                  <Textarea
-                                    value={docReplacementForms[a.id]?.note || ''}
-                                    onChange={(e) => setReplacementNote(a.id, e.currentTarget.value)}
-                                    placeholder="مثال: يرجى رفع نسخة واضحة من المرفقات المطلوبة أو المرفقات الناقصة حتى نتمكن من متابعة الطلب."
-                                    className="mt-2 min-h-[72px] border-red-100 bg-white text-xs font-bold"
-                                  />
-                                  <div className="mt-2 flex flex-wrap justify-end gap-2">
-                                    <Button size="sm" variant="ghost" onClick={() => setReplacementFormOpen(a, false)} className="text-xs font-bold text-slate-500">إلغاء</Button>
-                                    <Button size="sm" onClick={() => requestDocumentReplacement(a)} disabled={docReplacementLoading === a.id} className="bg-red-600 text-xs font-bold text-white hover:bg-red-700">
-                                      {docReplacementLoading === a.id ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <Send className="ml-1 h-3.5 w-3.5" />}
-                                      إرسال طلب المرفقات
-                                    </Button>
-                                  </div>
-                                </div>
-                              )}
-                              {a.status === 'PENDING' && (
-                                <Button size="sm" variant="outline" onClick={() => setAdmissionStatus(a.id, 'UNDER_REVIEW')} className="border-blue-200 font-bold text-blue-600">
-                                  <Search className="ml-1 h-3.5 w-3.5" /> {isStudyAdmission ? 'بدء الدراسة' : 'بدء مراجعة الخدمة'}
-                                </Button>
-                              )}
-                              {['UNDER_REVIEW', 'PENDING'].includes(a.status) && (
-                                <>
-                                  {(() => {
-                                    const v = aiReviews[a.id]?.verdict || a.aiVerdict
-                                    if (!v || v === 'RECOMMEND_APPROVE') return null
-                                    const vm = AI_VERDICT_META[v]
-                                    if (!vm) return null
-                                    return (
-                                      <div className={`rounded-xl border ${vm.border} px-3 py-2 text-[11px] font-bold leading-relaxed ${v === 'RECOMMEND_REJECT' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
-                                        <AlertTriangle className="ml-1 inline h-3.5 w-3.5" />
-                                        {vm.label} — راجع ملاحظات خبير الذكاء الاصطناعي بالأعلى قبل المتابعة
-                                      </div>
-                                    )
-                                  })()}
-                                  {isStudyAdmission ? (
-                                    <Button size="sm" onClick={() => setAdmissionStatus(a.id, 'AWAITING_TUITION')} className="bg-emerald-600 font-bold text-white hover:bg-emerald-700">
-                                      <CheckCircle2 className="ml-1 h-3.5 w-3.5" /> الإقرار بالقبول وإصدار فاتورة الرسوم الدراسية
-                                    </Button>
-                                  ) : (
-                                    <Button size="sm" onClick={() => setAdmissionStatus(a.id, 'RESULT_APPROVED')} className="bg-emerald-600 font-bold text-white hover:bg-emerald-700">
-                                      <CheckCircle2 className="ml-1 h-3.5 w-3.5" /> اعتماد طلب الخدمة وتحديد المتابعة
-                                    </Button>
-                                  )}
-                                </>
-                              )}
-                              {a.status === 'AWAITING_TUITION' && (
-                                <div className="rounded-xl border border-[#c9a227]/40 bg-[#f7edd0]/60 px-3 py-2 text-[11px] font-bold leading-relaxed text-[#a8841a]">
-                                  <Clock3 className="ml-1 inline h-3.5 w-3.5" />
-                                  تم الإقرار بالقبول — بانتظار سداد المتقدم الرسوم الدراسية كاملة (يُفعَّل التسجيل النهائي تلقائياً فور السداد)
-                                </div>
-                              )}
-                              {isStudyAdmission && ['SUPERVISOR_ASSIGNED', 'THESIS', 'SCHEDULED', 'RESULT_APPROVED'].includes(a.status) && (
-                                <Button size="sm" variant="outline" onClick={() => setAdmissionStatus(a.id, 'CERTIFIED')} className="border-[#c9a227] font-bold text-[#a8841a] hover:bg-[#f7edd0]">
-                                  <Award className="ml-1 h-3.5 w-3.5" /> إصدار الشهادة الدراسية
-                                </Button>
-                              )}
-                              <Button size="sm" variant="outline" onClick={() => setAdmissionStatus(a.id, 'REJECTED')} className="border-red-200 font-bold text-red-500">
-                                <XCircle className="ml-1 h-3.5 w-3.5" /> رفض
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-                        {ownerIsStaffAccount && a.status !== 'REJECTED' && (
-                          <div className="flex w-full flex-col items-stretch gap-2 sm:w-64">
-                            <Button size="sm" variant="outline" onClick={() => setAdmissionStatus(a.id, 'REJECTED')} className="border-red-200 bg-red-50 font-bold text-red-600 hover:bg-red-100">
-                              <XCircle className="ml-1 h-3.5 w-3.5" /> إغلاقه كطلب تجريبي/إداري
-                            </Button>
-                          </div>
-                        )}
-                        {isStudyAdmission && a.status === 'CERTIFIED' && (
-                          <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
-                            <Award className="ml-1 h-3.5 w-3.5" /> شهادة دراسية صادرة — ظاهرة في تبويب الشهادات
-                          </Badge>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )
-              })}
+                                </td>
+                                <td className="p-3"><Badge className={`${STATUS_BADGE[a.status] || 'bg-slate-100 text-slate-600'} hover:bg-inherit`}>{!isStudyAdmission && a.status === 'RESULT_APPROVED' ? 'تم اعتماد الخدمة' : STATUS_LABEL[a.status] || a.status}</Badge></td>
+                                <td className="p-3 font-bold text-slate-600">{a.country}</td>
+                                <td className="p-3 font-bold text-slate-500">{new Date(a.createdAt).toLocaleDateString('ar-EG')}</td>
+                                <td className="p-3">{missingCount > 0 ? <Badge className="bg-red-100 text-red-700 hover:bg-red-100">ناقص: {missingCount}</Badge> : <span className="text-slate-300">—</span>}</td>
+                                <td className="p-3 text-[11px] text-slate-400" dir="ltr">{a.email} · {a.phone}</td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
               <AdminPager page={currentAdmissionPage} pageSize={admissionPageSize} total={admissionTotal} onPageChange={setAdmissionPage} label={activeTab === 'service-requests' ? 'طلب خدمة' : 'طلب التحاق'} />
               </>
             )}
