@@ -129,6 +129,7 @@ export function AdminThesisTab() {
   const [thesisStatusFilter, setThesisStatusFilter] = useState('ACTIVE')
   const [thesisPage, setThesisPage] = useState(1)
   const [thesisPageSize, setThesisPageSize] = useState(10)
+  const [expandedThesisId, setExpandedThesisId] = useState<string | null>(null)
 
   const load = () => {
     setLoading(true)
