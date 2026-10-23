@@ -96,9 +96,10 @@ describe('student dashboard visual organization', () => {
     for (const title of ['المقرر والكتاب', 'الوحدات والواجبات', 'المحاضرات واللقاءات', 'الامتحانات', 'الجدول الدراسي', 'المدفوعات والرسوم']) {
       required(source, `title: '${title}'`)
     }
-    required(source, "action: () => openProgramWorkspace('schedule')")
+    required(source, "action: () => openProgramWorkspace('content', 'books')")
     required(source, "action: () => openProgramWorkspace('content')")
-    required(source, "action: () => openProgramWorkspace('progress')")
+    required(source, "action: () => openProgramWorkspace('content', 'exams')")
+    required(source, "action: () => openProgramWorkspace('schedule')")
     required(source, "action: () => selectDashboardTab('lectures')")
     required(source, "action: () => selectDashboardTab('payments')")
   })
