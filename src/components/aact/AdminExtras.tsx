@@ -420,6 +420,8 @@ export function AdminThesisTab() {
                     </Button>
                     {isExpanded && (
                       <div id={detailsPanelId} className="mt-4 space-y-3 rounded-2xl border border-[#0f2b46]/10 bg-slate-50/60 p-3">
+                    <p className="text-[11px] font-black text-[#0f2b46]">الخطة والملاحظات</p>
+                    <p className="whitespace-pre-line rounded-xl bg-white p-3 text-[11px] font-bold leading-6 text-slate-600">{abstractText}</p>
                     {t.reviewNote ? (
                       <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] font-bold leading-6 text-amber-800">
                         <span className="font-black">ملاحظة الإدارة/المشرف:</span> {t.reviewNote}
