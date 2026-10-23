@@ -79,6 +79,9 @@ describe('agents tab — Pattern A table + detail (presentation only)', () => {
     expect(adminView).toContain('onClick={() => setSelectedAppId(a.id)}')
     expect(adminView).toContain('onClick={() => setSelectedAppId(null)}')
     expect(agentsSection).toContain('عودة إلى القائمة')
+    // الاختيار ينتهي فعليًا عند خروج الطلب من الصفحة المحمّلة — لا يبقى معرّفًا حيًا
+    // يسمح بعودة التفاصيل تلقائيًا إذا رجع الطلب إلى البيانات (درس مراجعة المرحلة الثانية).
+    expect(adminView).toContain('if (selectedAppId && !appsLoading && !selectedApp) setSelectedAppId(null)')
   })
 
   test('frozen surfaces: toolbar, fetch, actions and pager counts are unchanged', () => {

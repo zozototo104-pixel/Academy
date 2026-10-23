@@ -776,6 +776,9 @@ export function AdminView() {
   const filteredApps = apps
   const pagedApps = apps
   const selectedApp = selectedAppId ? pagedApps.find((x) => x.id === selectedAppId) || null : null
+  // انتهاء الاختيار فعليًا عند خروج الطلب من الصفحة المحمّلة (بحث/فلتر/صفحة/إعادة جلب):
+  // بلا هذا المسح يبقى المعرّف حيًا وتعود التفاصيل تلقائيًا إذا رجع الطلب للبيانات.
+  if (selectedAppId && !appsLoading && !selectedApp) setSelectedAppId(null)
   const currentAgentPage = agentPage
 
   if (!user) {
