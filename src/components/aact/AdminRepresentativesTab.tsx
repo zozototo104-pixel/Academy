@@ -447,7 +447,7 @@ export default function AdminRepresentativesTab() {
             </section>
             <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200">
               <h3>
-                <button type="button" id="representatives-heading-bio" aria-controls="representatives-panel-bio" aria-expanded={openSection === 'bio'} onClick={() => setOpenSection('bio')} className="w-full min-w-0 bg-slate-50 p-4 text-right transition hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#c9a227]">
+                <button type="button" id="representatives-heading-bio" aria-controls="representatives-panel-bio" aria-expanded={openSection === 'bio'} onClick={() => toggleSection('bio')} className="w-full min-w-0 bg-slate-50 p-4 text-right transition hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#c9a227]">
                   <span className="flex items-center justify-between gap-3 text-sm font-black text-[#0f2b46]">السيرة والنصوص <span aria-hidden="true">{openSection === 'bio' ? '−' : '+'}</span></span>
                   <span data-testid="representatives-summary-bio" className="mt-1 block truncate text-xs font-bold text-slate-500">{[form.shortBio, form.publicContactNote, form.rawBio, form.professionalBio, form.worksSummary, form.achievements].filter((text) => String(text || '').trim()).length} من 6 نصوص مكتملة</span>
                 </button>
