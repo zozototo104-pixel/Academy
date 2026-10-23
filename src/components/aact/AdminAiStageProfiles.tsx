@@ -345,6 +345,7 @@ export function AdminAiStageProfiles() {
   const [lastRecheckBatch, setLastRecheckBatch] = useState<RecheckBatchSummary | null>(null)
   const [data, setData] = useState<ResponseData | null>(null)
   const [forms, setForms] = useState<Record<Stage, FormState> | null>(null)
+  const [openAiProfilesSection, setOpenAiProfilesSection] = useState<'advisor' | 'recheck' | 'profiles'>('advisor')
 
   const applyResponse = useCallback((res: ResponseData) => {
     setData(res)
