@@ -768,15 +768,32 @@ export function DashboardView() {
       : null)
 
   return (
-    <div className="aact-fade-in mx-auto max-w-7xl px-4 py-10">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-black text-[#0f2b46] sm:text-3xl">{hasStudyIdentity ? 'بوابة الطالب' : 'بوابة العميل'}</h1>
-          <p className="mt-1 text-sm text-slate-500">أهلاً {user.name} — {hasStudyIdentity ? (hasProgramDashboard ? 'رحلتك التدريبية في مكان واحد' : 'طلبك الدراسي قيد المتابعة حتى تفعيل التسجيل') : 'طلباتك وخدماتك ومخرجاتك في مكان واحد'}</p>
+    <div className="aact-fade-in mx-auto max-w-[1600px] px-4 py-8">
+      <div className="mb-5 rounded-[2rem] border border-white/80 bg-white/90 p-3 shadow-sm backdrop-blur">
+        <div className="grid gap-3 lg:grid-cols-[1fr_520px_auto] lg:items-center">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#0f2b46] to-[#2f6df6] text-lg font-black text-white shadow-sm">
+              {(user.name || 'ط')[0]}
+            </div>
+            <div>
+              <h1 className="text-xl font-black text-[#0f2b46] sm:text-2xl">أهلاً {user.name}</h1>
+              <p className="mt-0.5 text-xs font-bold text-slate-500">{hasStudyIdentity ? (hasProgramDashboard ? `${active?.program.titleAr || 'رحلتك التدريبية'} في مكان واحد` : 'طلبك الدراسي قيد المتابعة حتى تفعيل التسجيل') : 'طلباتك وخدماتك ومخرجاتك في مكان واحد'}</p>
+            </div>
+          </div>
+          <div className="hidden rounded-2xl border border-[#0f2b46]/10 bg-slate-50 px-4 py-3 text-xs font-bold text-slate-400 lg:flex lg:items-center lg:justify-between">
+            <span>ابحث في محاضراتك وكتبك وواجباتك...</span>
+            <span className="rounded-lg border border-slate-200 bg-white px-2 py-1 font-mono text-[10px] text-slate-400">Ctrl + K</span>
+          </div>
+          <div className="flex flex-wrap justify-start gap-2 lg:justify-end">
+            <Button type="button" variant="outline" onClick={() => setDashboardTab('notifications')} className="relative h-11 rounded-2xl border-slate-200 bg-white px-3 text-[#0f2b46] hover:bg-slate-50">
+              <Bell className="h-4 w-4" />
+              {!!studentSummary?.unread && <span className="absolute -right-1 -top-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-black text-white">{studentSummary.unread}</span>}
+            </Button>
+            <Button type="button" variant="outline" onClick={openAiSupervisor} className="h-11 rounded-2xl border-[#c9a227]/40 bg-white px-3 text-xs font-black text-[#a8841a] hover:bg-[#fffaf0]">
+              <Bot className="ml-1.5 h-4 w-4" /> المشرف الذكي
+            </Button>
+          </div>
         </div>
-        <Button onClick={openAiSupervisor} variant={aiSupervisorAllowed ? 'default' : 'outline'} className={aiSupervisorAllowed ? 'bg-[#0f2b46] font-extrabold text-[#e0b83a] hover:bg-[#12365c]' : 'border-slate-200 bg-slate-100 font-extrabold text-slate-500 hover:bg-slate-100'}>
-          <Bot className="ml-2 h-4 w-4" /> {aiSupervisorAllowed ? 'اسأل المشرف الذكي' : 'المشرف الذكي غير مفعل'}
-        </Button>
       </div>
 
       {studentSummary && (
