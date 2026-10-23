@@ -342,7 +342,12 @@ export function AdminSystemTab() {
   const [testing, setTesting] = useState(false)
   const [paymentQrUploading, setPaymentQrUploading] = useState(false)
   const [form, setForm] = useState<Record<string, string>>({})
-  const [openGeminiSection, setOpenGeminiSection] = useState<'core' | 'routing' | 'providers' | 'health' | 'cooldowns' | 'tests'>('core')
+  const [openGeminiSection, setOpenGeminiSection] = useState<'core' | 'routing' | 'providers' | 'health' | 'cooldowns' | 'tests' | null>('core')
+  const toggleGeminiSection = (section: 'core' | 'routing' | 'providers' | 'health' | 'cooldowns' | 'tests') => {
+    const y = typeof window !== 'undefined' ? window.scrollY : 0
+    setOpenGeminiSection((current) => (current === section ? null : section))
+    if (typeof window !== 'undefined') window.setTimeout(() => window.scrollTo({ top: y, behavior: 'auto' }), 0)
+  }
   const [textModelCatalog, setTextModelCatalog] = useState<Record<string, { models: string[]; message: string; discoveredCount: number; staticCount: number }>>({})
   const [textModelHealth, setTextModelHealth] = useState<TextAiModelHealth | null>(null)
   const [textModelHealthLoading, setTextModelHealthLoading] = useState(false)
@@ -1190,7 +1195,7 @@ export function AdminSystemTab() {
                   type="button"
                   aria-expanded={active}
                   aria-controls={value === 'health' ? 'gemini-section-health gemini-section-health-models' : `gemini-section-${value}`}
-                  onClick={() => setOpenGeminiSection(value)}
+                  onClick={() => toggleGeminiSection(value)}
                   className={`rounded-xl border px-3 py-2 text-right transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a227] focus-visible:ring-offset-2 ${active ? 'border-[#c9a227]/60 bg-[#fffaf0] text-[#0f2b46]' : 'border-slate-100 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
                 >
                   <span className="block text-xs font-black">{title}</span>

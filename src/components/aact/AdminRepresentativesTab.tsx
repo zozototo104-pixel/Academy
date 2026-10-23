@@ -110,7 +110,12 @@ export default function AdminRepresentativesTab() {
   const [onboardingLink, setOnboardingLink] = useState('')
   const [onboardingResult, setOnboardingResult] = useState<{ emailStatus?: string; expiresAt?: string | null }>({})
   const [query, setQuery] = useState('')
-  const [openSection, setOpenSection] = useState<'basic' | 'bio' | 'uploads' | 'onboarding'>('basic')
+  const [openSection, setOpenSection] = useState<'basic' | 'bio' | 'uploads' | 'onboarding' | null>('basic')
+  const toggleSection = (section: 'basic' | 'bio' | 'uploads' | 'onboarding') => {
+    const y = typeof window !== 'undefined' ? window.scrollY : 0
+    setOpenSection((current) => (current === section ? null : section))
+    if (typeof window !== 'undefined') window.setTimeout(() => window.scrollTo({ top: y, behavior: 'auto' }), 0)
+  }
   const selected = useMemo(() => rows.find((row) => row.id === selectedId) || null, [rows, selectedId])
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -409,7 +414,7 @@ export default function AdminRepresentativesTab() {
             {/* Keep each panel mounted when folded to preserve draft fields and uploader state. */}
             <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200">
               <h3>
-                <button type="button" id="representatives-heading-basic" aria-controls="representatives-panel-basic" aria-expanded={openSection === 'basic'} onClick={() => setOpenSection('basic')} className="w-full min-w-0 bg-slate-50 p-4 text-right transition hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#c9a227]">
+                <button type="button" id="representatives-heading-basic" aria-controls="representatives-panel-basic" aria-expanded={openSection === 'basic'} onClick={() => toggleSection('basic')} className="w-full min-w-0 bg-slate-50 p-4 text-right transition hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#c9a227]">
                   <span className="flex items-center justify-between gap-3 text-sm font-black text-[#0f2b46]">البيانات الأساسية <span aria-hidden="true">{openSection === 'basic' ? '−' : '+'}</span></span>
                   <span data-testid="representatives-summary-basic" className="mt-1 block truncate text-xs font-bold text-slate-500">{form.fullName.trim() || 'ممثل جديد'} — {form.country.trim() || 'الدولة غير محددة'} — {form.status === 'ACTIVE' ? 'نشط' : form.status === 'DRAFT' ? 'مسودة' : form.status === 'HIDDEN' ? 'مخفي' : form.status === 'ARCHIVED' ? 'مؤرشف' : form.status}</span>
                 </button>
@@ -442,7 +447,7 @@ export default function AdminRepresentativesTab() {
             </section>
             <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200">
               <h3>
-                <button type="button" id="representatives-heading-bio" aria-controls="representatives-panel-bio" aria-expanded={openSection === 'bio'} onClick={() => setOpenSection('bio')} className="w-full min-w-0 bg-slate-50 p-4 text-right transition hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#c9a227]">
+                <button type="button" id="representatives-heading-bio" aria-controls="representatives-panel-bio" aria-expanded={openSection === 'bio'} onClick={() => toggleSection('bio')} className="w-full min-w-0 bg-slate-50 p-4 text-right transition hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#c9a227]">
                   <span className="flex items-center justify-between gap-3 text-sm font-black text-[#0f2b46]">السيرة والنصوص <span aria-hidden="true">{openSection === 'bio' ? '−' : '+'}</span></span>
                   <span data-testid="representatives-summary-bio" className="mt-1 block truncate text-xs font-bold text-slate-500">{[form.shortBio, form.publicContactNote, form.rawBio, form.professionalBio, form.worksSummary, form.achievements].filter((text) => String(text || '').trim()).length} من 6 نصوص مكتملة</span>
                 </button>
@@ -462,7 +467,7 @@ export default function AdminRepresentativesTab() {
             </section>
             <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200">
               <h3>
-                <button type="button" id="representatives-heading-uploads" aria-controls="representatives-panel-uploads" aria-expanded={openSection === 'uploads'} onClick={() => setOpenSection('uploads')} className="w-full min-w-0 bg-slate-50 p-4 text-right transition hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#c9a227]">
+                <button type="button" id="representatives-heading-uploads" aria-controls="representatives-panel-uploads" aria-expanded={openSection === 'uploads'} onClick={() => toggleSection('uploads')} className="w-full min-w-0 bg-slate-50 p-4 text-right transition hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#c9a227]">
                   <span className="flex items-center justify-between gap-3 text-sm font-black text-[#0f2b46]">الصور والكرنيه والرفع <span aria-hidden="true">{openSection === 'uploads' ? '−' : '+'}</span></span>
                   <span data-testid="representatives-summary-uploads" className="mt-1 block truncate text-xs font-bold text-slate-500">{selected ? `${selected.profilePhotoUrl ? 'الصورة متوفرة' : 'لا توجد صورة'} — ${selected.officialCardUrl ? 'الكرنيه متوفر' : 'لا يوجد كرنيه'}` : 'احفظ الممثل أولاً لتفعيل الرفع'}</span>
                 </button>
@@ -509,7 +514,7 @@ export default function AdminRepresentativesTab() {
             </section>
             <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200">
               <h3>
-                <button type="button" id="representatives-heading-onboarding" aria-controls="representatives-panel-onboarding" aria-expanded={openSection === 'onboarding'} onClick={() => setOpenSection('onboarding')} className="w-full min-w-0 bg-slate-50 p-4 text-right transition hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#c9a227]">
+                <button type="button" id="representatives-heading-onboarding" aria-controls="representatives-panel-onboarding" aria-expanded={openSection === 'onboarding'} onClick={() => toggleSection('onboarding')} className="w-full min-w-0 bg-slate-50 p-4 text-right transition hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#c9a227]">
                   <span className="flex items-center justify-between gap-3 text-sm font-black text-[#0f2b46]">الاستكمال وملفات الممثل <span aria-hidden="true">{openSection === 'onboarding' ? '−' : '+'}</span></span>
                   <span data-testid="representatives-summary-onboarding" className="mt-1 block truncate text-xs font-bold text-slate-500">{(selected?.files || []).length} ملف — {(selected?.files || []).filter((file) => { const status = file.reviewStatus || 'APPROVED'; return status !== 'APPROVED' && status !== 'REJECTED' }).length} بانتظار المراجعة</span>
                 </button>

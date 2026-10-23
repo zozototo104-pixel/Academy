@@ -3,7 +3,7 @@
 import { useAppStore, api, getToken } from '@/lib/store'
 import { buildAcademicProgramProfile } from '@/lib/program-tracks'
 import { cleanAcademicOutput, looksLikeBrokenGeneratedArabic, sanitizeAcademicList } from '@/lib/academic-output-quality'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast, useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -392,6 +392,17 @@ export function DashboardView() {
   const [dashboardTab, setDashboardTab] = useState('programs')
   const [lecturesVisible, setLecturesVisible] = useState(false)
   const [programSection, setProgramSection] = useState('academic')
+  const dashboardContentRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const onScrollRequest = () => {
+      window.setTimeout(() => {
+        dashboardContentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 0)
+    }
+    window.addEventListener('aact:scroll-dashboard-content', onScrollRequest)
+    return () => window.removeEventListener('aact:scroll-dashboard-content', onScrollRequest)
+  }, [])
 
   useEffect(() => {
     const requestedTab = new URLSearchParams(window.location.search).get('tab')
@@ -687,9 +698,20 @@ export function DashboardView() {
     navigate('chat')
   }
 
+  const scrollToDashboardContent = () => {
+    if (typeof window === 'undefined') return
+    window.dispatchEvent(new CustomEvent('aact:scroll-dashboard-content'))
+  }
+
+  const selectDashboardTab = (tab: string) => {
+    setDashboardTab(tab)
+    scrollToDashboardContent()
+  }
+
   const openProgramWorkspace = (section: string) => {
     setDashboardTab('programs')
     setProgramSection(section)
+    scrollToDashboardContent()
   }
 
   const dashboardTabOptions = [
@@ -728,7 +750,7 @@ export function DashboardView() {
       title: 'المحاضرات واللقاءات',
       text: lecturesVisible ? 'افتح اللقاءات والمحاضرات من هنا' : 'تظهر عند تفعيل اللقاءات',
       icon: <Video className="h-8 w-8 text-blue-600" />,
-      action: () => setDashboardTab('lectures'),
+      action: () => selectDashboardTab('lectures'),
       show: hasProgramDashboard && lecturesVisible,
       tone: 'from-blue-50 to-white border-blue-100',
     },
@@ -755,7 +777,7 @@ export function DashboardView() {
       title: 'المدفوعات والرسوم',
       text: `${studentSummary?.summary.unpaidPayments || 0} دفعة تحتاج متابعة`,
       icon: <Banknote className="h-8 w-8 text-amber-600" />,
-      action: () => setDashboardTab('payments'),
+      action: () => selectDashboardTab('payments'),
       show: true,
       tone: 'from-amber-50 to-white border-amber-100',
     },
@@ -785,7 +807,7 @@ export function DashboardView() {
             <span className="rounded-lg border border-slate-200 bg-white px-2 py-1 font-mono text-[10px] text-slate-400">Ctrl + K</span>
           </div>
           <div className="flex flex-wrap justify-start gap-2 lg:justify-end">
-            <Button type="button" variant="outline" onClick={() => setDashboardTab('notifications')} className="relative h-11 rounded-2xl border-slate-200 bg-white px-3 text-[#0f2b46] hover:bg-slate-50">
+            <Button type="button" variant="outline" onClick={() => selectDashboardTab('notifications')} className="relative h-11 rounded-2xl border-slate-200 bg-white px-3 text-[#0f2b46] hover:bg-slate-50">
               <Bell className="h-4 w-4" />
               {!!studentSummary?.unread && <span className="absolute -right-1 -top-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-black text-white">{studentSummary.unread}</span>}
             </Button>
@@ -810,7 +832,7 @@ export function DashboardView() {
                 <p className="mt-1 text-xs font-bold leading-6 text-slate-600">{hasStudyIdentity ? (currentStudentAction?.text || (hasProgramDashboard ? 'اختر برنامجك النشط وتابع الكتب والاختبارات والواجبات والإشعارات.' : 'بعد مراجعة الإدارة وسداد المتطلبات ستُفتح بوابة الدراسة والكتب والاختبارات.')) : 'هذه بوابة خدماتك العابرة: الدفعات، حالة الطلب، وروابط التحميل أو الشهادات التي تنشرها الإدارة.'}</p>
               </div>
               {currentStudentAction?.tab && currentStudentAction.tab !== dashboardTab ? (
-                <Button onClick={() => setDashboardTab(currentStudentAction.tab)} className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">
+                <Button onClick={() => selectDashboardTab(currentStudentAction.tab)} className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">
                   انتقل الآن
                 </Button>
               ) : null}
@@ -853,7 +875,7 @@ export function DashboardView() {
               </div>
             ) : null}
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <Button size="sm" variant="outline" onClick={() => setDashboardTab('payments')} className="border-[#c9a227] font-black text-[#a8841a] hover:bg-[#f7edd0]">
+              <Button size="sm" variant="outline" onClick={() => selectDashboardTab('payments')} className="border-[#c9a227] font-black text-[#a8841a] hover:bg-[#f7edd0]">
                 الدفعات
               </Button>
               <Button size="sm" onClick={() => navigate('apply')} className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">
@@ -876,7 +898,7 @@ export function DashboardView() {
               <button
                 key={item.value}
                 type="button"
-                onClick={() => setDashboardTab(item.value)}
+                onClick={() => selectDashboardTab(item.value)}
                 className={`flex w-full items-center justify-between rounded-2xl px-3 py-2.5 text-right text-[11px] font-black transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a227] ${dashboardTab === item.value ? 'bg-[#2f6df6] text-white shadow-sm' : 'text-[#0f2b46] hover:bg-slate-50'}`}
               >
                 <span>{item.label}</span>
@@ -943,7 +965,7 @@ export function DashboardView() {
                       <Bell className="ml-1 h-3.5 w-3.5" /> صوت التنبيه
                     </Button>
                     {pulseNotice.tab && (
-                      <Button type="button" size="sm" onClick={() => setDashboardTab(pulseNotice.tab)} className="bg-red-600 text-[11px] font-black text-white hover:bg-red-700">
+                      <Button type="button" size="sm" onClick={() => selectDashboardTab(pulseNotice.tab)} className="bg-red-600 text-[11px] font-black text-white hover:bg-red-700">
                         فتح المطلوب
                       </Button>
                     )}
@@ -1026,7 +1048,7 @@ export function DashboardView() {
             <select
               aria-label="القائمة الكاملة لتبويبات بوابة الطالب"
               value={dashboardTab}
-              onChange={(event) => setDashboardTab(event.target.value)}
+              onChange={(event) => selectDashboardTab(event.target.value)}
               className="h-11 w-full rounded-2xl border border-[#0f2b46]/15 bg-slate-50 px-3 text-xs font-black text-[#0f2b46] outline-none focus:border-[#c9a227] focus:ring-2 focus:ring-[#c9a227]/30"
             >
               {dashboardTabOptions.map((item) => (
@@ -1049,11 +1071,11 @@ export function DashboardView() {
           <div className="rounded-[2rem] border border-[#0f2b46]/10 bg-white p-4 shadow-sm">
             <h3 className="text-sm font-black text-[#0f2b46]">إشعارات مهمة</h3>
             <div className="mt-3 space-y-2 text-xs font-bold text-slate-600">
-              <button type="button" onClick={() => setDashboardTab('notifications')} className="flex w-full items-center justify-between rounded-2xl bg-slate-50 p-3 text-right hover:bg-slate-100">
+              <button type="button" onClick={() => selectDashboardTab('notifications')} className="flex w-full items-center justify-between rounded-2xl bg-slate-50 p-3 text-right hover:bg-slate-100">
                 <span>إشعارات غير مقروءة</span>
                 <Badge className="bg-red-100 text-red-700 hover:bg-red-100">{studentSummary?.unread || 0}</Badge>
               </button>
-              <button type="button" onClick={() => setDashboardTab('payments')} className="flex w-full items-center justify-between rounded-2xl bg-slate-50 p-3 text-right hover:bg-slate-100">
+              <button type="button" onClick={() => selectDashboardTab('payments')} className="flex w-full items-center justify-between rounded-2xl bg-slate-50 p-3 text-right hover:bg-slate-100">
                 <span>دفعات تحتاج متابعة</span>
                 <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">{studentSummary?.summary.unpaidPayments || 0}</Badge>
               </button>
@@ -1064,8 +1086,8 @@ export function DashboardView() {
 
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
         {/* Main: tabs */}
-        <div>
-          <Tabs value={dashboardTab} onValueChange={setDashboardTab} dir="rtl">
+        <div ref={dashboardContentRef} id="student-dashboard-content">
+          <Tabs value={dashboardTab} onValueChange={selectDashboardTab} dir="rtl">
             <TabsList className="hidden">
               {hasProgramDashboard && (
                 <TabsTrigger value="programs" className="text-[11px] font-bold sm:text-sm">
@@ -1184,7 +1206,7 @@ export function DashboardView() {
                     <h3 className="mt-1 text-base font-black text-[#0f2b46]">{currentStudentAction.title}</h3>
                     <p className="mt-1 text-xs font-bold leading-6 text-slate-600">{currentStudentAction.text}</p>
                     {currentStudentAction.tab !== dashboardTab && (
-                      <Button size="sm" onClick={() => setDashboardTab(currentStudentAction.tab)} className="mt-3 bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">
+                      <Button size="sm" onClick={() => selectDashboardTab(currentStudentAction.tab)} className="mt-3 bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">
                         انتقل للخطوة المطلوبة
                       </Button>
                     )}
@@ -1854,8 +1876,8 @@ export function DashboardView() {
                   <div className="rounded-xl bg-slate-50 p-3">طلبات الدراسة: <b className="text-[#0f2b46]">{studentSummary?.summary.studyRequests || 0}</b></div>
                   {!hasStudyIdentity && <div className="rounded-xl bg-slate-50 p-3">المخرجات المتاحة: <b className="text-[#0f2b46]">{serviceDeliverables.length}</b></div>}
                 </div>
-                <Button size="sm" onClick={() => setDashboardTab('payments')} className="mt-3 w-full bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">فتح الدفعات</Button>
-                {!hasStudyIdentity && <Button size="sm" variant="outline" onClick={() => setDashboardTab('deliverables')} className="mt-2 w-full border-[#c9a227] font-black text-[#a8841a] hover:bg-[#f7edd0]">فتح المخرجات</Button>}
+                <Button size="sm" onClick={() => selectDashboardTab('payments')} className="mt-3 w-full bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">فتح الدفعات</Button>
+                {!hasStudyIdentity && <Button size="sm" variant="outline" onClick={() => selectDashboardTab('deliverables')} className="mt-2 w-full border-[#c9a227] font-black text-[#a8841a] hover:bg-[#f7edd0]">فتح المخرجات</Button>}
                 <Button size="sm" variant="outline" onClick={() => navigate('apply')} className="mt-2 w-full border-[#0f2b46]/20 font-black text-[#0f2b46] hover:bg-slate-50">تقديم خدمة أو برنامج جديد</Button>
               </CardContent>
             </Card>

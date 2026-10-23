@@ -62,6 +62,9 @@ describe('student dashboard visual organization', () => {
     required(source, 'aria-label="القائمة الكاملة لتبويبات بوابة الطالب"')
     required(source, 'dashboardTabOptions.map')
     required(source, '<TabsList className="hidden">')
+    required(source, 'const dashboardContentRef = useRef<HTMLDivElement | null>(null)')
+    required(source, 'id="student-dashboard-content"')
+    required(source, 'onValueChange={selectDashboardTab}')
   })
 
   test('keeps the polished layout responsive for mobile and desktop', () => {
@@ -96,14 +99,19 @@ describe('student dashboard visual organization', () => {
     required(source, "action: () => openProgramWorkspace('schedule')")
     required(source, "action: () => openProgramWorkspace('content')")
     required(source, "action: () => openProgramWorkspace('progress')")
-    required(source, "action: () => setDashboardTab('lectures')")
-    required(source, "action: () => setDashboardTab('payments')")
+    required(source, "action: () => selectDashboardTab('lectures')")
+    required(source, "action: () => selectDashboardTab('payments')")
   })
 
   test('keeps student navigation visual only without adding network calls', () => {
+    requireAll(functionBody('selectDashboardTab'), [
+      'setDashboardTab(tab)',
+      'scrollToDashboardContent()',
+    ])
     requireAll(functionBody('openProgramWorkspace'), [
       "setDashboardTab('programs')",
       'setProgramSection(section)',
+      'scrollToDashboardContent()',
     ])
     const navModel = source.slice(source.indexOf('const dashboardTabOptions'), source.indexOf('return ('))
     expect(navModel.includes('api<')).toBe(false)

@@ -479,7 +479,12 @@ export function AdminQualityTab() {
   const [mailTestSending, setMailTestSending] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [activeWorkspace, setActiveWorkspace] = useState<'curricula' | 'supervision' | 'programs' | 'content' | 'students' | 'operations' | 'thesis'>('curricula')
+  const [activeWorkspace, setActiveWorkspace] = useState<'curricula' | 'supervision' | 'programs' | 'content' | 'students' | 'operations' | 'thesis' | null>('curricula')
+  const toggleWorkspace = (workspace: 'curricula' | 'supervision' | 'programs' | 'content' | 'students' | 'operations' | 'thesis') => {
+    const y = typeof window !== 'undefined' ? window.scrollY : 0
+    setActiveWorkspace((current) => (current === workspace ? null : workspace))
+    if (typeof window !== 'undefined') window.setTimeout(() => window.scrollTo({ top: y, behavior: 'auto' }), 0)
+  }
   const [showAllIndicators, setShowAllIndicators] = useState(false)
   const [recommendationsOpen, setRecommendationsOpen] = useState(true)
   const [secondaryLoaded, setSecondaryLoaded] = useState(false)
@@ -1369,7 +1374,7 @@ export function AdminQualityTab() {
       )}
 
       <section aria-label="جاهزية المناهج">
-        <button type="button" id="quality-ws-curricula-header" aria-expanded={activeWorkspace === 'curricula'} aria-controls="quality-ws-curricula" onClick={() => setActiveWorkspace('curricula')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
+        <button type="button" id="quality-ws-curricula-header" aria-expanded={activeWorkspace === 'curricula'} aria-controls="quality-ws-curricula" onClick={() => toggleWorkspace('curricula')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
           <span>
             <span className="block text-sm font-black text-[#0f2b46]">جاهزية المناهج</span>
             <span className="mt-0.5 block text-[11px] font-bold text-slate-500">{!secondaryLoaded ? 'جارٍ تحميل بيانات الجاهزية…' : secondaryFailed.readiness ? 'تعذّر تحميل بيانات الجاهزية' : `${readinessItems.length} برنامج · ${readinessItems.filter((i) => !i.isCurriculumReady).length} يحتاج متابعة`}</span>
@@ -1569,7 +1574,7 @@ export function AdminQualityTab() {
         </div>
       </section>
       <section aria-label="مراجعة المشرف الذكي">
-        <button type="button" id="quality-ws-supervision-header" aria-expanded={activeWorkspace === 'supervision'} aria-controls="quality-ws-supervision" onClick={() => setActiveWorkspace('supervision')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
+        <button type="button" id="quality-ws-supervision-header" aria-expanded={activeWorkspace === 'supervision'} aria-controls="quality-ws-supervision" onClick={() => toggleWorkspace('supervision')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
           <span>
             <span className="block text-sm font-black text-[#0f2b46]">مراجعة المشرف الذكي</span>
             <span className="mt-0.5 block text-[11px] font-bold text-slate-500">{!secondaryLoaded ? 'جارٍ تحميل البلاغات…' : secondaryFailed.reviews ? 'تعذّر تحميل البلاغات' : `${reviewItems.filter((i) => i.status !== 'REVIEWED' && i.status !== 'IGNORED').length} بلاغ مفتوح · ${data.overview.weakSupervisorReplies} رد ضعيف`}</span>
@@ -1679,7 +1684,7 @@ export function AdminQualityTab() {
         </div>
       </section>
       <section aria-label="تحليل البرامج">
-        <button type="button" id="quality-ws-programs-header" aria-expanded={activeWorkspace === 'programs'} aria-controls="quality-ws-programs" onClick={() => setActiveWorkspace('programs')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
+        <button type="button" id="quality-ws-programs-header" aria-expanded={activeWorkspace === 'programs'} aria-controls="quality-ws-programs" onClick={() => toggleWorkspace('programs')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
           <span>
             <span className="block text-sm font-black text-[#0f2b46]">تحليل البرامج</span>
             <span className="mt-0.5 block text-[11px] font-bold text-slate-500">{`${data.programs.length} برنامج في التقرير · ${data.overview.strongPrograms} برنامج قوي`}</span>
@@ -1788,7 +1793,7 @@ export function AdminQualityTab() {
         </div>
       </section>
       <section aria-label="سلامة المحتوى والتقييم">
-        <button type="button" id="quality-ws-content-header" aria-expanded={activeWorkspace === 'content'} aria-controls="quality-ws-content" onClick={() => setActiveWorkspace('content')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
+        <button type="button" id="quality-ws-content-header" aria-expanded={activeWorkspace === 'content'} aria-controls="quality-ws-content" onClick={() => toggleWorkspace('content')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
           <span>
             <span className="block text-sm font-black text-[#0f2b46]">سلامة المحتوى والتقييم</span>
             <span className="mt-0.5 block text-[11px] font-bold text-slate-500">{`${data.weakBooks.length} كتاب يحتاج تقوية · ${data.duplicateQuestions.length} مجموعة تكرار محتملة`}</span>
@@ -1834,7 +1839,7 @@ export function AdminQualityTab() {
         </div>
       </section>
       <section aria-label="الطلاب الذين يحتاجون متابعة">
-        <button type="button" id="quality-ws-students-header" aria-expanded={activeWorkspace === 'students'} aria-controls="quality-ws-students" onClick={() => setActiveWorkspace('students')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
+        <button type="button" id="quality-ws-students-header" aria-expanded={activeWorkspace === 'students'} aria-controls="quality-ws-students" onClick={() => toggleWorkspace('students')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
           <span>
             <span className="block text-sm font-black text-[#0f2b46]">الطلاب الذين يحتاجون متابعة</span>
             <span className="mt-0.5 block text-[11px] font-bold text-slate-500">{`${data.atRiskStudents.length} طالب يحتاج متابعة`}</span>
@@ -1864,7 +1869,7 @@ export function AdminQualityTab() {
         </div>
       </section>
       <section aria-label="سلامة النظام والبيانات">
-        <button type="button" id="quality-ws-operations-header" aria-expanded={activeWorkspace === 'operations'} aria-controls="quality-ws-operations" onClick={() => setActiveWorkspace('operations')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
+        <button type="button" id="quality-ws-operations-header" aria-expanded={activeWorkspace === 'operations'} aria-controls="quality-ws-operations" onClick={() => toggleWorkspace('operations')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
           <span>
             <span className="block text-sm font-black text-[#0f2b46]">سلامة النظام والبيانات</span>
             <span className="mt-0.5 block text-[11px] font-bold text-slate-500">{storageReport ? `${storageReport.summary.suspiciousBooks} كتاب يحتاج مراجعة في التخزين` : 'تقرير التخزين غير محمّل'}</span>
@@ -1972,7 +1977,7 @@ export function AdminQualityTab() {
         </div>
       </section>
       <section aria-label="عناوين أبحاث التخرج">
-        <button type="button" id="quality-ws-thesis-header" aria-expanded={activeWorkspace === 'thesis'} aria-controls="quality-ws-thesis" onClick={() => setActiveWorkspace('thesis')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
+        <button type="button" id="quality-ws-thesis-header" aria-expanded={activeWorkspace === 'thesis'} aria-controls="quality-ws-thesis" onClick={() => toggleWorkspace('thesis')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
           <span>
             <span className="block text-sm font-black text-[#0f2b46]">عناوين أبحاث التخرج</span>
             <span className="mt-0.5 block text-[11px] font-bold text-slate-500">إضافة وتوليد ومراجعة عناوين وطلبات الطلاب</span>

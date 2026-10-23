@@ -45,7 +45,10 @@ describe('AdminAiStageProfiles workspace organization', () => {
   })
 
   test('adds one visual workspace state with advisor as the default', () => {
-    required(source, "const [openAiProfilesSection, setOpenAiProfilesSection] = useState<'advisor' | 'recheck' | 'profiles'>('advisor')")
+    required(source, "const [openAiProfilesSection, setOpenAiProfilesSection] = useState<'advisor' | 'recheck' | 'profiles' | null>('advisor')")
+    required(source, 'const toggleAiProfilesSection =')
+    required(source, "setOpenAiProfilesSection((current) => (current === section ? null : section))")
+    required(source, "window.scrollTo({ top: y, behavior: 'auto' })")
   })
 
   test('renders the three AI profile workspaces without behavior on open', () => {
@@ -58,7 +61,7 @@ describe('AdminAiStageProfiles workspace organization', () => {
     required(source, 'type="button"')
     required(source, 'aria-expanded={active}')
     required(source, 'aria-controls={`ai-profiles-section-${value}`}')
-    required(source, 'onClick={() => setOpenAiProfilesSection(value)}')
+    required(source, 'onClick={() => toggleAiProfilesSection(value)}')
     expect(source.includes('setOpenAiProfilesSection(value); api')).toBe(false)
     expect(source.includes('setOpenAiProfilesSection(value); save')).toBe(false)
     expect(source.includes('setOpenAiProfilesSection(value); load')).toBe(false)

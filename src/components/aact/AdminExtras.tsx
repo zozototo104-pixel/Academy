@@ -821,7 +821,12 @@ export function AdminFinanceTab() {
   const [proofReviewBusy, setProofReviewBusy] = useState<string | null>(null)
   const [generatedWaiverCodes, setGeneratedWaiverCodes] = useState<Record<string, string>>({})
   const [copiedWaiverPaymentId, setCopiedWaiverPaymentId] = useState<string | null>(null)
-  const [openFinanceSection, setOpenFinanceSection] = useState<'payments' | 'reports'>('payments')
+  const [openFinanceSection, setOpenFinanceSection] = useState<'payments' | 'reports' | null>('payments')
+  const toggleFinanceSection = (section: 'payments' | 'reports') => {
+    const y = typeof window !== 'undefined' ? window.scrollY : 0
+    setOpenFinanceSection((current) => (current === section ? null : section))
+    if (typeof window !== 'undefined') window.setTimeout(() => window.scrollTo({ top: y, behavior: 'auto' }), 0)
+  }
 
   const load = () => setPaymentRefresh((v) => v + 1)
 
@@ -1194,7 +1199,7 @@ export function AdminFinanceTab() {
               type="button"
               aria-expanded={active}
               aria-controls={`finance-section-${value}`}
-              onClick={() => setOpenFinanceSection(value)}
+              onClick={() => toggleFinanceSection(value)}
               className={`rounded-xl border px-3 py-2 text-right transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a227] focus-visible:ring-offset-2 ${active ? 'border-[#c9a227]/60 bg-[#fffaf0] text-[#0f2b46]' : 'border-slate-100 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
             >
               <span className="block text-xs font-black">{title}</span>
@@ -2251,7 +2256,12 @@ export function AdminSettingsTab() {
     email: 'qa-admin@aactacademy.com',
     password: '',
   })
-  const [openSettingsSection, setOpenSettingsSection] = useState<'fees-ai' | 'rules' | 'content-contact' | 'admins'>('fees-ai')
+  const [openSettingsSection, setOpenSettingsSection] = useState<'fees-ai' | 'rules' | 'content-contact' | 'admins' | null>('fees-ai')
+  const toggleSettingsSection = (section: 'fees-ai' | 'rules' | 'content-contact' | 'admins') => {
+    const y = typeof window !== 'undefined' ? window.scrollY : 0
+    setOpenSettingsSection((current) => (current === section ? null : section))
+    if (typeof window !== 'undefined') window.setTimeout(() => window.scrollTo({ top: y, behavior: 'auto' }), 0)
+  }
 
   const loadSystemAdmins = () => {
     setAdminsLoading(true)
@@ -2687,7 +2697,7 @@ export function AdminSettingsTab() {
                         ? 'settings-group-CONTENT settings-group-CONTACT'
                         : `settings-section-${value}`
                 }
-                onClick={() => setOpenSettingsSection(value)}
+                onClick={() => toggleSettingsSection(value)}
                 className={`rounded-2xl border px-3 py-3 text-right transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a227] focus-visible:ring-offset-2 ${active ? 'border-[#c9a227]/60 bg-[#fffaf0] text-[#0f2b46]' : 'border-slate-100 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
               >
                 <span className="block text-xs font-black">{title}</span>

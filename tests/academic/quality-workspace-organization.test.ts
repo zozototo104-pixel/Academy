@@ -159,7 +159,10 @@ describe('quality workspace organization guard', () => {
   })
 
   it('has the seven workspaces in order with full aria wiring and one-open state', () => {
-    assert.ok(SOURCE.includes("useState<'curricula' | 'supervision' | 'programs' | 'content' | 'students' | 'operations' | 'thesis'>('curricula')"))
+    assert.ok(SOURCE.includes("useState<'curricula' | 'supervision' | 'programs' | 'content' | 'students' | 'operations' | 'thesis' | null>('curricula')"))
+    assert.ok(SOURCE.includes('const toggleWorkspace ='))
+    assert.ok(SOURCE.includes("setActiveWorkspace((current) => (current === workspace ? null : workspace))"))
+    assert.ok(SOURCE.includes("window.scrollTo({ top: y, behavior: 'auto' })"))
     let prev = -1
     for (const ws of WORKSPACES) {
       const regionIdx = SOURCE.indexOf(`id="quality-ws-${ws.id}"`)
@@ -169,7 +172,7 @@ describe('quality workspace organization guard', () => {
       assert.ok(SOURCE.includes(`aria-controls="quality-ws-${ws.id}"`), ws.id)
       assert.ok(SOURCE.includes(`aria-expanded={activeWorkspace === '${ws.id}'}`), ws.id)
       assert.ok(SOURCE.includes(`hidden={activeWorkspace !== '${ws.id}'}`), ws.id)
-      assert.ok(SOURCE.includes(`onClick={() => setActiveWorkspace('${ws.id}')}`), ws.id)
+      assert.ok(SOURCE.includes(`onClick={() => toggleWorkspace('${ws.id}')}`), ws.id)
       const headerIdx = SOURCE.indexOf(`id="quality-ws-${ws.id}-header"`)
       assert.ok(SOURCE.slice(headerIdx, regionIdx).includes(ws.title), `title of ${ws.id}`)
       // رأس القسم زر مستقل بلا أزرار إجراءات داخله: بين زر الرأس ومنطقته لا يوجد onClick آخر
@@ -245,10 +248,11 @@ describe('quality workspace organization guard', () => {
     assert.ok(SOURCE.includes("'تقرير التخزين غير محمّل'"))
   })
 
-  it('freezes all 52 non-component function bodies (load after its documented display-state additions)', () => {
+  it('freezes all 52 protected non-component function bodies (excluding the display-only workspace toggle)', () => {
     const { functions } = collect()
-    const names = [...functions.keys()].filter((n) => n !== 'AdminQualityTab')
+    const names = [...functions.keys()].filter((n) => !['AdminQualityTab', 'toggleWorkspace'].includes(n))
     assert.deepEqual(names.slice().sort(), Object.keys(BASELINE_FUNCTIONS).slice().sort())
+    assert.ok(functions.has('toggleWorkspace'), 'missing display-only mobile-safe workspace toggle')
     for (const [name, hash] of Object.entries(BASELINE_FUNCTIONS)) {
       assert.equal(functions.get(name), hash, `function body changed: ${name}`)
     }

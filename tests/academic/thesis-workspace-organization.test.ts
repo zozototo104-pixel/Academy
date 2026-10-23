@@ -63,9 +63,21 @@ describe('AdminThesisTab workspace organization', () => {
     expect(financeAndAfter.includes('thesis-details-')).toBe(false)
   })
 
-  test('keeps the approved finance-and-after snapshot protected', () => {
-    // تغيرت منطقة المالية وما بعدها بشكل مشروع في مراحل التنظيم، وهي محمية الآن بحراسها المستقلة.
-    expect(sha(financeAndAfter)).toBe('455b4000edc4e69822e5561a99794ab14d97f1862d2924808cd8394ba8ab9a78')
+  test('keeps the approved finance-and-after region delegated to its dedicated guards', () => {
+    // منطقة المالية وما بعدها تغيّرت بشكل مشروع في مراحل التنظيم اللاحقة.
+    // لا نجمد الذيل كله هنا حتى لا يكسر حارس الأبحاث كل تحسين بصري لاحق في AdminExtras.
+    // الحماية التفصيلية لهذه المنطقة موجودة في حراس المالية والرسوم والقواعد والشهادات.
+    for (const marker of [
+      'export function AdminFinanceTab()',
+      'export function AdminSettingsTab()',
+      'export function AdminCertificatesTab()',
+      'toggleFinanceSection',
+      'toggleSettingsSection',
+    ]) {
+      expect(financeAndAfter.includes(marker)).toBe(true)
+    }
+    expect(financeAndAfter.includes('expandedThesisId')).toBe(false)
+    expect(financeAndAfter.includes('thesis-details-')).toBe(false)
   })
 
   test('keeps TSX parseable through the public TypeScript API', () => {
