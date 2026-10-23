@@ -78,6 +78,30 @@ function openBookResource(book: { id?: string; title?: string; fileName?: string
   if (!popup) window.location.href = path
 }
 
+function playStudentPulseTone() {
+  if (typeof window === 'undefined') return
+  try {
+    const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext
+    if (!AudioContextCtor) return
+    const ctx = new AudioContextCtor()
+    const oscillator = ctx.createOscillator()
+    const gain = ctx.createGain()
+    oscillator.type = 'sine'
+    oscillator.frequency.setValueAtTime(880, ctx.currentTime)
+    oscillator.frequency.exponentialRampToValueAtTime(660, ctx.currentTime + 0.16)
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.08, ctx.currentTime + 0.02)
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.22)
+    oscillator.connect(gain)
+    gain.connect(ctx.destination)
+    oscillator.start()
+    oscillator.stop(ctx.currentTime + 0.24)
+    window.setTimeout(() => ctx.close().catch(() => {}), 360)
+  } catch {
+    // المتصفحات قد تمنع الصوت قبل أول تفاعل؛ التنبيه البصري يبقى هو الأساس.
+  }
+}
+
 interface UnitInfo {
   id: string
   order: number
