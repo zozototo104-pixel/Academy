@@ -581,6 +581,9 @@ export function ExamView() {
   if (!result && activeExamKind === 'final' && !examStarted) {
     return (
       <div className="aact-fade-in mx-auto max-w-2xl px-4 py-10">
+        <Button type="button" size="sm" variant="outline" onClick={() => openProgram(data.exam.programId, 'schedule')} className="mb-4 border-[#c9a227]/40 font-bold text-[#0f2b46]">
+          <ArrowRight className="ml-1 h-4 w-4" /> العودة إلى جدول الدراسة
+        </Button>
         <Card className="border-[#c9a227]/50 shadow-xl">
           <CardContent className="p-7">
             <div className="mb-4 flex items-center gap-2.5">
