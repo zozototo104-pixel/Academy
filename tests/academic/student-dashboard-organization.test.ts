@@ -112,8 +112,13 @@ describe('student dashboard visual organization', () => {
     requireAll(functionBody('openProgramWorkspace'), [
       "setDashboardTab('programs')",
       'setProgramSection(section)',
+      'if (contentTab) setProgramContentTab(contentTab)',
       'scrollToDashboardContent()',
     ])
+    required(source, "const [programContentTab, setProgramContentTab] = useState('guides')")
+    required(source, 'value={programContentTab} onValueChange={setProgramContentTab}')
+    required(source, 'value="books"')
+    required(source, 'value="exams"')
     const navModel = source.slice(source.indexOf('const dashboardTabOptions'), source.indexOf('return ('))
     expect(navModel.includes('api<')).toBe(false)
     expect(navModel.includes('fetch(')).toBe(false)
