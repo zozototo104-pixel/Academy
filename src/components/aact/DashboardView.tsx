@@ -1462,12 +1462,49 @@ export function DashboardView() {
                     <p className="mt-2 text-xs text-slate-400">سيتم إظهار الكتب، الوحدات، الواجبات والاختبارات هنا فور اعتماد الإدارة للمنهج.</p>
                   </section>
                 ) : (
-                <Tabs defaultValue="guides" dir="rtl" className="mt-5 space-y-4">
+                <Tabs value={programContentTab} onValueChange={setProgramContentTab} dir="rtl" className="mt-5 space-y-4">
                   <TabsList className="flex h-auto w-full flex-wrap gap-1 bg-slate-50 p-1">
+                    <TabsTrigger value="books" className="text-[10px] font-black sm:text-xs"><BookOpen className="ml-1 h-3.5 w-3.5" /> الكتب ({active.program.books?.length || 0})</TabsTrigger>
                     <TabsTrigger value="guides" className="text-[10px] font-black sm:text-xs"><BookMarked className="ml-1 h-3.5 w-3.5" /> أدلة الدراسة ({displayStudyGuides.length})</TabsTrigger>
                     <TabsTrigger value="assignments" className="text-[10px] font-black sm:text-xs"><ClipboardCheck className="ml-1 h-3.5 w-3.5" /> الواجبات ({assignments.length})</TabsTrigger>
                     <TabsTrigger value="units" className="text-[10px] font-black sm:text-xs"><BookOpen className="ml-1 h-3.5 w-3.5" /> الوحدات ({active.units.length})</TabsTrigger>
+                    <TabsTrigger value="exams" className="text-[10px] font-black sm:text-xs"><ListChecks className="ml-1 h-3.5 w-3.5" /> الامتحانات ({(active.semesterExams?.length || 0) + active.units.filter((u) => u.examId).length})</TabsTrigger>
                   </TabsList>
+
+                  <TabsContent value="books" className="mt-0">
+                    {(active.program.books || []).length > 0 ? (
+                      <section className="rounded-2xl border border-[#0f2b46]/10 bg-white p-4 shadow-sm">
+                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <h3 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]"><BookOpen className="h-4 w-4 text-[#a8841a]" /> المقرر والكتاب</h3>
+                            <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">كل الكتب والمصادر المقررة لهذا البرنامج في مكان واحد للتحميل أو الفتح.</p>
+                          </div>
+                          <Badge className="bg-[#f7edd0] text-[#0f2b46] hover:bg-[#f7edd0]">{active.program.books?.length || 0} مصدر</Badge>
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          {(active.program.books || []).map((book) => (
+                            <article key={book.id || book.title} className="rounded-2xl border border-slate-100 bg-[#f8fafc] p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="text-sm font-black leading-6 text-[#0f2b46]">{book.title || 'كتاب مقرر'}</p>
+                                  {book.titleEn ? <p className="mt-1 text-[11px] font-bold text-[#a8841a]">{book.titleEn}</p> : null}
+                                  <p className="mt-1 text-[11px] font-bold text-slate-500">{book.semester ? `الفصل ${book.semester}` : 'مصدر عام'}{book.source ? ` · ${book.source}` : ''}</p>
+                                </div>
+                                <BookOpen className="h-5 w-5 shrink-0 text-[#a8841a]" />
+                              </div>
+                              <Button type="button" onClick={() => openBookResource(book)} className="mt-3 w-full bg-[#0f2b46] text-xs font-black text-[#e0b83a] hover:bg-[#12365c]">
+                                فتح / تحميل الكتاب
+                              </Button>
+                            </article>
+                          ))}
+                        </div>
+                      </section>
+                    ) : (
+                      <section className="rounded-2xl border border-slate-100 bg-slate-50 p-6 text-center text-xs font-bold leading-6 text-slate-500">
+                        لا توجد كتب مقررة منشورة لهذا البرنامج بعد.
+                      </section>
+                    )}
+                  </TabsContent>
 
                   <TabsContent value="guides" className="mt-0">
                 {displayStudyGuides.length > 0 ? (
