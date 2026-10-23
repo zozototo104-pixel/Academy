@@ -769,7 +769,7 @@ export function DashboardView() {
       title: 'المدفوعات والرسوم',
       text: `${studentSummary?.summary.unpaidPayments || 0} دفعة تحتاج متابعة`,
       icon: <Banknote className="h-8 w-8 text-amber-600" />,
-      action: () => setDashboardTab('payments'),
+      action: () => selectDashboardTab('payments'),
       show: true,
       tone: 'from-amber-50 to-white border-amber-100',
     },
