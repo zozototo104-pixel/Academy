@@ -16,8 +16,10 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
 // قائمة السماح E2E_QA_HOSTS. طلبات الـAPI المباشرة في هذه المواصفة لا تتبع التحويلات
 // (maxRedirects: 0) فأي تحويل يظهر كفشل صريح بدل أن يُتبع بصمت — بما فيه طلب التحقق
 // الحامل لرمز الإدارة بعد الرفض، حتى لا يتسرب الرمز إلى مضيف آخر عبر تحويل.
-// وتنقّل المتصفح نفسه محمي: حقن رمز الجلسة لا يحدث إلا على أصل بيئة الاختبار المقصود،
-// وأي تنقّل رئيسي إلى أصل آخر يُجهض، ويُتحقق من بقاء الصفحة على الأصل بعد الفتح.
+// وتنقّل المتصفح نفسه محمي من التحويلات: حقن رمز الجلسة لا يحدث إلا على أصل بيئة
+// الاختبار المقصود، والتنقّلات الرئيسية تُجلب يدويًا قفزةً قفزة دون اتباع تلقائي
+// (لأن معالج الاعتراض لا يُستدعى لوجهات التحويل التالية)، فتُفحص كل قفزة قبل جلبها
+// ولا يصل أي طلب إلى أصل أجنبي، ثم يُتحقق من بقاء الصفحة على الأصل بعد الفتح.
 // حدود البوابة: هي تضبط عنوان الوجهة فقط — فصل قاعدة بيانات QA وخدمات الإرسال عن
 // الإنتاج شرط بيئي مستقل لا تستطيع هذه الدالة التحقق منه.
 // كل السيناريوهات تعمل على طلبات اختبار مخصصة معزولة تُنشأ عبر /api/agent-apply كزائر
@@ -111,23 +113,49 @@ const backButton = (page: Page) => page.getByRole('button', { name: /عودة إ
 const statusCombobox = (page: Page) => page.locator('button[role="combobox"]').first()
 
 async function openAgentsTab(page: Page) {
-  // حماية وجهة المتصفح: أي تنقّل رئيسي إلى أصل غير أصل الاختبار يُجهض قبل حدوثه.
+  // حماية وجهة المتصفح من التحويلات: معالج page.route يُستدعى للعنوان الأول فقط،
+  // والمتصفح يتبع التحويلات بعده دون إعادة فحص — لذلك يُجلب التنقّل يدويًا بلا اتباع
+  // تحويلات (route.fetch بـ maxRedirects: 0) وتُفحص كل قفزة قبل جلبها: أي قفزة إلى
+  // أصل غير أصل الاختبار تُجهض التنقّل قبل أن يصل أي طلب إلى الوجهة الأجنبية،
+  // ولا تُسلَّم للمتصفح إلا الاستجابة النهائية بعد التحقق من سلسلتها كاملة.
   await page.route('**/*', async (route) => {
     const req = route.request()
-    if (req.isNavigationRequest()) {
-      const target = req.url()
-      let targetOrigin = ''
+    if (!req.isNavigationRequest()) {
+      await route.continue()
+      return
+    }
+    let url = req.url()
+    let prevStatus = 0
+    for (let hop = 0; hop < 10; hop++) {
+      let hopOrigin = ''
       try {
-        targetOrigin = new URL(target).origin
+        hopOrigin = new URL(url).origin
       } catch {
-        targetOrigin = ''
+        hopOrigin = ''
       }
-      if (targetOrigin && targetOrigin !== 'null' && targetOrigin !== QA_ORIGIN) {
+      if (!hopOrigin || hopOrigin !== QA_ORIGIN) {
         await route.abort()
         return
       }
+      // قفزات 307/308 وحدها تحافظ على طريقة الطلب الأصلي وجسمه؛ غيرها يتحول إلى GET.
+      const preserveMethod = hop > 0 && (prevStatus === 307 || prevStatus === 308) && req.method() !== 'GET'
+      const res = hop === 0
+        ? await route.fetch({ maxRedirects: 0 })
+        : preserveMethod
+          ? await route.fetch({ url, method: req.method(), postData: req.postData() ?? undefined, maxRedirects: 0 })
+          : await route.fetch({ url, method: 'GET', maxRedirects: 0 })
+      const status = res.status()
+      const location = res.headers()['location']
+      if (status >= 300 && status < 400 && location) {
+        prevStatus = status
+        url = new URL(location, url).toString()
+        await res.dispose()
+        continue
+      }
+      await route.fulfill({ response: res })
+      return
     }
-    await route.continue()
+    await route.abort() // سلسلة تحويلات أطول من الحد — تُرفض
   })
   await page.goto('/admin', { waitUntil: 'domcontentloaded' })
   expect(new URL(page.url()).origin, 'the browser must stay on the gated QA origin').toBe(QA_ORIGIN)
