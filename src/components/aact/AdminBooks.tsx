@@ -820,6 +820,13 @@ export function AdminBooksTab() {
     if (bookSourceFilter === 'NEEDS_SOURCE' && !bookNeedsReadableSource(b)) return false
     return true
   }), [books, bookSearch, bookSemesterFilter, bookSourceFilter])
+  // تبديل البرنامج ينهي اختيار الكتاب المفتوح في نفس رسمة التبديل — قبل أي تحميل وبغض النظر عن نتيجته:
+  // لو فشل تحميل البرنامج الجديد وبقيت كتب القديم محمّلة (سلوك سابق في التحميل)، لا يجوز أن تظهر تفاصيلها تحت الجديد.
+  const [expandedBookProgramId, setExpandedBookProgramId] = useState(programId)
+  if (expandedBookProgramId !== programId) {
+    setExpandedBookProgramId(programId)
+    setExpandedBookId(null)
+  }
   // إنهاء فعلي لاختيار الكتاب المفتوح إذا خرج من النتائج المعروضة (فلترة تستبعده، أو حُذف، أو تغيّر البرنامج) —
   // مسح الفلاتر بعدها لا يعيد إظهار تفاصيله تلقائياً لأن المعرف نفسه صُفّر، لا مجرد إخفاء الاشتقاق.
   if (expandedBookId && !loadingBooks && !filteredBooks.some((b) => b.id === expandedBookId)) {

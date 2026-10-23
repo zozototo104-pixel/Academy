@@ -24,7 +24,9 @@ const ORIGINAL_FUNCTION_HASHES: Record<string, string> = {
   suggest: 'badc7e266c544800eb1267d3d21901d3e2490f13add7025389f8ab81b2cc671a',
 }
 const ORIGINAL_API_CALL_COUNT = 76
-const ORIGINAL_API_DIGEST = '47ca2d6aa3e436b34317f973537beb71c366524720145d0ac50aa444617eb214'
+// بصمة سطح النداءات من تعبير الاستدعاء الكامل (المسار + الخيارات: الطريقة والجسم والترويسات)،
+// لا من العنوان وحده — أي تغيير في عقد أي طلب يغيّر البصمة.
+const ORIGINAL_API_DIGEST = '19ff4e867fb726a8aa3df32bbd0108f316211832cf5c79ba9644f1527b4ff613'
 
 function parseSource() {
   return ts.createSourceFile('AdminBooks.tsx', SOURCE, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
@@ -60,8 +62,8 @@ function apiSurface(): { count: number; digest: string } {
   const visit = (node: ts.Node) => {
     if (ts.isCallExpression(node)) {
       const callee = node.expression.getText(sf)
-      if ((callee === 'api' || callee === 'fetch') && node.arguments[0]) {
-        calls.push(callee + ':' + node.arguments[0].getText(sf).replace(/\s+/g, ' ').slice(0, 120))
+      if (callee === 'api' || callee === 'fetch') {
+        calls.push(callee + ':' + node.getText(sf))
       }
     }
     ts.forEachChild(node, visit)
@@ -92,7 +94,7 @@ describe('books workspace organization guard', () => {
     assert.deepEqual(functionHashes(), ORIGINAL_FUNCTION_HASHES)
   })
 
-  it('the API/fetch call surface is unchanged (same calls, same count)', () => {
+  it('the API/fetch call surface is unchanged (full call expressions: path, method, body, headers)', () => {
     const surface = apiSurface()
     assert.equal(surface.count, ORIGINAL_API_CALL_COUNT)
     assert.equal(surface.digest, ORIGINAL_API_DIGEST)
@@ -184,5 +186,13 @@ describe('books workspace organization guard', () => {
   it('selection termination is real state clearing, not a hidden derivation', () => {
     assert.ok(SOURCE.includes('!filteredBooks.some((b) => b.id === expandedBookId)'))
     assert.ok(SOURCE.includes('setExpandedBookId(null)'))
+  })
+
+  it('switching the program terminates the open book immediately, before any load result', () => {
+    // يُصفّر الاختيار في رسمة التبديل نفسها (نمط ضبط الحالة أثناء الرسم)، لا بعد الاستجابة:
+    // حتى لو فشل تحميل البرنامج الجديد وبقيت كتب القديم محمّلة (سلوك سابق في
+    // loadProgramData)، لا يجوز أن يبقى تفصيل كتاب قديم مختارًا تحت البرنامج الجديد.
+    assert.ok(SOURCE.includes('if (expandedBookProgramId !== programId)'))
+    assert.ok(SOURCE.includes('setExpandedBookProgramId(programId)'))
   })
 })

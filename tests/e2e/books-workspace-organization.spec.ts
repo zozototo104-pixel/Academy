@@ -1,13 +1,16 @@
 import { expect, test, type Page } from '@playwright/test'
 
 // اختبار سلوك حقيقي لتبويب «الكتب والاختبارات» بعد تنظيمه (جاهزية قابلة للطي + قائمة كتب
-// مختصرة بتفصيل واحد مفتوح وفلاتر عرض محلية). ستة سيناريوهات على الواجهة — لا فحص نصوص:
+// مختصرة بتفصيل واحد مفتوح وفلاتر عرض محلية). سبعة سيناريوهات على الواجهة — لا فحص نصوص:
 // ١) التنقل: اختيار برنامج والمرور بمساحات العمل الثماني والعودة للكتب دون تغيّر السياق.
 // ٢) فتح كتاب وطيّه: البداية مختصرة، تفصيل واحد مفتوح كحد أقصى.
 // ٣) البحث ومنع الانبعاث: فتح كتاب ثم بحث يستبعده ينهي اختياره فعليًا، ومسح البحث لا يعيده.
 // ٤) مسودة غير محفوظة: رابط مصدر مكتوب وملف مختار دون حفظ ينجوان من الطي وإعادة الفتح.
-// ٥) تغيير البرنامج: اختيار الكتاب القديم ينتهي وكتب البرنامج الجديد فقط تظهر.
-// ٦) العرض المتجاوب: هاتف ومكتب بلا تمرير أفقي للصفحة.
+// ٥) تغيير البرنامج: اختيار الكتاب القديم ينتهي وكتب البرنامج الجديد فقط تظهر — يُفحص
+//    بعد اكتمال تحميل الجديد فعليًا، لا أثناء التحميل.
+// ٦) فشل تحميل البرنامج الجديد: تفاصيل كتاب البرنامج السابق لا تظهر تحته أبدًا، حتى مع
+//    بقاء كتبه القديمة محمّلة (سلوك تحميل سابق — الاختيار ينتهي عند التبديل نفسه).
+// ٧) العرض المتجاوب: هاتف ومكتب بلا تمرير أفقي للصفحة.
 //
 // أمان البيئة (إلزامي): هذه المواصفة قرائية بالكامل — لا إنشاء ولا حذف ولا رفع ولا توليد.
 // بوابة العناوين أدناه هي نفسها في tests/e2e/agents-table.spec.ts بنسختها الحالية الكاملة:
@@ -20,8 +23,9 @@ import { expect, test, type Page } from '@playwright/test'
 //
 // بيانات QA المطلوبة (معزولة ومجهزة مسبقًا، والفشل عند غيابها صريح لا تخطٍّ صامت):
 // حساب إدارة ببيانات E2E_ADMIN_EMAIL/E2E_ADMIN_PASSWORD (أو ADMIN_EMAIL/ADMIN_PASSWORD)،
-// ودرجة فيها برنامجان على الأقل، والأول فيه كتابان على الأقل أحدهما «يحتاج مصدر قراءة».
-// اختيار البرامج والكتب ديناميكي من بيانات البيئة نفسها — لا أسماء مفترضة من الإنتاج.
+// وبرنامج مؤهل في أي درجة: كتابان على الأقل وأحدهما «يحتاج مصدر قراءة»، ودرجة فيها
+// برنامجان على الأقل أولهما فيه كتاب. المواصفة تكتشف البرنامج المؤهل قرائيًا بمسح
+// الدرجات والبرامج بالترتيب بدل افتراض أن أول برنامج هو المؤهل.
 // حارس الكتابة: أي طلب كتابة من الصفحة نحو مسارات الكتب/الامتحانات/الأسئلة يُجهض ويُسجَّل،
 // ويُختم كل سيناريو بالتأكد أن شيئًا لم يُحاول الكتابة أصلًا.
 
@@ -199,6 +203,68 @@ async function gotoBooksCurrent(page: Page) {
 const bookToggles = (page: Page) => page.locator('button[id^="book-toggle-"]')
 const visibleDetails = (page: Page) => page.locator('[id^="book-details-"]:not([hidden])')
 
+// انتظار اكتمال تحميل كتب البرنامج الحالي فعليًا: قائمة الكتب (أو حالة الفراغ) ظاهرة
+// والشبكة هادئة. بلا هذا الانتظار قد «ينجح» فحص غياب التفاصيل أثناء التحميل نفسه،
+// حيث لا شيء مرسوم أصلًا — وهو نجاح زائف لا يثبت انتهاء الاختيار.
+async function waitForBooksSettled(page: Page) {
+  await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {})
+  await expect(
+    page.locator('.aact-scroll').or(page.getByText('لا توجد كتب مقررة لهذا التخصص بعد')).first()
+  ).toBeVisible({ timeout: 30_000 })
+}
+
+async function countOptions(page: Page, triggerIndex: number): Promise<number> {
+  await comboboxes(page).nth(triggerIndex).click()
+  const options = page.getByRole('option')
+  await expect(options.first()).toBeVisible({ timeout: 15_000 })
+  const count = await options.count()
+  await page.keyboard.press('Escape')
+  return count
+}
+
+// اكتشاف قرائي لبرنامج مؤهل (كتابان على الأقل وأحدهما يحتاج مصدر قراءة): يمسح الدرجات
+// والبرامج بالترتيب ويتوقف عند أول مؤهل؛ يفشل بصوت عالٍ إن لم يوجد أي مؤهل.
+async function findQualifyingProgram(page: Page) {
+  const categoryCount = await countOptions(page, 0)
+  let scanned = 0
+  for (let c = 0; c < categoryCount; c++) {
+    await pickOption(page, 0, c)
+    const programCount = await countOptions(page, 1)
+    for (let p = 0; p < programCount; p++) {
+      if (++scanned > 12) {
+        throw new Error('بيانات QA: مسح الاكتشاف تجاوز 12 برنامجًا دون العثور على برنامج مؤهل (كتابان على الأقل وأحدهما يحتاج مصدر قراءة).')
+      }
+      await pickOption(page, 1, p)
+      await expect(page.getByText(/الكتب والامتحانات ستُربط تحديداً بـ/)).toBeVisible({ timeout: 30_000 })
+      await gotoBooksCurrent(page)
+      await waitForBooksSettled(page)
+      const books = await bookToggles(page).count()
+      const needy = await page.getByText('يحتاج مصدر قراءة', { exact: true }).count()
+      if (books >= 2 && needy >= 1) return
+    }
+  }
+  throw new Error('بيانات QA غير كافية: لا يوجد برنامج مؤهل (كتابان على الأقل وأحدهما «يحتاج مصدر قراءة») في أي درجة — جهّز واحدًا كما في ترويسة المواصفة.')
+}
+
+// درجة فيها برنامجان على الأقل وأولهما فيه كتاب: يفتح تفاصيل أول كتاب في البرنامج الأول
+// ويترك المشهد جاهزًا لسيناريوَي التبديل (نجاح التحميل وفشله).
+async function openFirstBookInTwoProgramCategory(page: Page) {
+  const categoryCount = await countOptions(page, 0)
+  for (let c = 0; c < categoryCount; c++) {
+    await pickOption(page, 0, c)
+    if ((await countOptions(page, 1)) < 2) continue
+    await pickOption(page, 1, 0)
+    await expect(page.getByText(/الكتب والامتحانات ستُربط تحديداً بـ/)).toBeVisible({ timeout: 30_000 })
+    await gotoBooksCurrent(page)
+    await waitForBooksSettled(page)
+    if ((await bookToggles(page).count()) < 1) continue
+    await bookToggles(page).nth(0).click()
+    await expect(visibleDetails(page)).toHaveCount(1)
+    return
+  }
+  throw new Error('بيانات QA غير كافية: لا درجة فيها برنامجان أولهما فيه كتاب واحد على الأقل.')
+}
+
 async function expectNoWrites() {
   expect(attemptedWrites, `read-only spec attempted writes: ${attemptedWrites.join(' | ')}`).toEqual([])
 }
@@ -233,8 +299,7 @@ test.describe('books workspace organization (QA, read-only)', () => {
   })
 
   test('books start collapsed and only one detail opens at a time', async ({ page }) => {
-    await chooseFirstProgram(page)
-    await gotoBooksCurrent(page)
+    await findQualifyingProgram(page)
     const toggles = bookToggles(page)
     const count = await toggles.count()
     if (count < 2) throw new Error(`بيانات QA غير كافية: برنامج الاختبار فيه ${count} كتاب — يلزم كتابان على الأقل لهذا السيناريو.`)
@@ -251,8 +316,7 @@ test.describe('books workspace organization (QA, read-only)', () => {
   })
 
   test('search exclusion terminates the open book and clearing the search does not resurrect it', async ({ page }) => {
-    await chooseFirstProgram(page)
-    await gotoBooksCurrent(page)
+    await findQualifyingProgram(page)
     const toggles = bookToggles(page)
     if ((await toggles.count()) < 1) throw new Error('بيانات QA غير كافية: لا كتب في برنامج الاختبار.')
     await toggles.nth(0).click()
@@ -268,8 +332,7 @@ test.describe('books workspace organization (QA, read-only)', () => {
   })
 
   test('unsaved source link and picked file survive collapse and reopen', async ({ page }) => {
-    await chooseFirstProgram(page)
-    await gotoBooksCurrent(page)
+    await findQualifyingProgram(page)
     // كتاب يحتاج مصدر قراءة: شارته ظاهرة في الملخص حتى قبل الفتح.
     const needyCard = page.locator('div', { has: page.getByText('يحتاج مصدر قراءة', { exact: true }) }).filter({ has: page.locator('button[id^="book-toggle-"]') }).last()
     if ((await page.getByText('يحتاج مصدر قراءة', { exact: true }).count()) === 0) {
@@ -295,21 +358,38 @@ test.describe('books workspace organization (QA, read-only)', () => {
   })
 
   test('switching programs clears the previous book selection', async ({ page }) => {
-    await chooseFirstProgram(page)
-    await gotoBooksCurrent(page)
-    const toggles = bookToggles(page)
-    if ((await toggles.count()) < 1) throw new Error('بيانات QA غير كافية: لا كتب في البرنامج الأول.')
-    const firstProgramFirstTitle = await page.locator('h3').filter({ hasNotText: /جاهزية/ }).first().innerText().catch(() => '')
-    await toggles.nth(0).click()
-    await expect(visibleDetails(page)).toHaveCount(1)
-    // برنامج ثانٍ في نفس الدرجة (المحدد الثاني، الخيار الثاني).
+    await openFirstBookInTwoProgramCategory(page)
+    const openId = await bookToggles(page).nth(0).getAttribute('id')
+    // بدّل للبرنامج الثاني وانتظر اكتمال تحميله فعليًا قبل أي فحص — الفحص أثناء
+    // التحميل لا يثبت شيئًا لأن التفاصيل غير مرسومة أصلًا في تلك اللحظة.
     await pickOption(page, 1, 1)
     await expect(page.getByText(/الكتب والامتحانات ستُربط تحديداً بـ/)).toBeVisible({ timeout: 30_000 })
     await gotoBooksCurrent(page)
+    await waitForBooksSettled(page)
     await expect(visibleDetails(page)).toHaveCount(0)
+    // كتاب البرنامج الأول نفسه (بنفس معرّف الزر) لا وجود له في قائمة الجديد.
+    if (openId) await expect(page.locator(`button[id="${openId}"]`)).toHaveCount(0)
     const newToggles = bookToggles(page)
-    if ((await newToggles.count()) > 0 && firstProgramFirstTitle) {
+    if ((await newToggles.count()) > 0) {
       await expect(newToggles.nth(0)).toHaveAttribute('aria-expanded', 'false')
+    }
+  })
+
+  test('a failed load on program switch never shows the previous book detail', async ({ page }) => {
+    await openFirstBookInTwoProgramCategory(page)
+    const openId = await bookToggles(page).nth(0).getAttribute('id')
+    // أجهض طلب كتب البرنامج التالي فقط (طلب قراءة — حارس الكتابة لا علاقة له به):
+    // التحميل سيفشل، وستبقى كتب البرنامج الأول محمّلة كما هي (سلوك تحميل سابق).
+    await page.route('**/api/admin/books**', (route) => route.abort())
+    await pickOption(page, 1, 1)
+    await expect(page.getByText(/الكتب والامتحانات ستُربط تحديداً بـ/)).toBeVisible({ timeout: 30_000 })
+    await gotoBooksCurrent(page)
+    await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {})
+    // رغم بقاء القائمة القديمة مرسومة، لا تفصيل مفتوحًا، وزر الكتاب القديم نفسه
+    // (ما زال موجودًا في القائمة العتيقة) مطويّ — الاختيار مات لحظة التبديل.
+    await expect(visibleDetails(page)).toHaveCount(0)
+    if (openId) {
+      await expect(page.locator(`button[id="${openId}"]`)).toHaveAttribute('aria-expanded', 'false')
     }
   })
 
