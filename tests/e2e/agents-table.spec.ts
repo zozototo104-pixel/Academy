@@ -14,7 +14,10 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
 // (أحرف صغيرة وبلا نقطة نهائية — فالنقطة النهائية لا تصنع نطاقًا مختلفًا)، والإنتاج مرفوض
 // رفضًا صلبًا ولو ذُكر في قائمة السماح بالخطأ، والوجهة إما محلية أو مذكورة حرفيًا في
 // قائمة السماح E2E_QA_HOSTS. طلبات الـAPI المباشرة في هذه المواصفة لا تتبع التحويلات
-// (maxRedirects: 0) فأي تحويل يظهر كفشل صريح بدل أن يُتبع بصمت.
+// (maxRedirects: 0) فأي تحويل يظهر كفشل صريح بدل أن يُتبع بصمت — بما فيه طلب التحقق
+// الحامل لرمز الإدارة بعد الرفض، حتى لا يتسرب الرمز إلى مضيف آخر عبر تحويل.
+// وتنقّل المتصفح نفسه محمي: حقن رمز الجلسة لا يحدث إلا على أصل بيئة الاختبار المقصود،
+// وأي تنقّل رئيسي إلى أصل آخر يُجهض، ويُتحقق من بقاء الصفحة على الأصل بعد الفتح.
 // حدود البوابة: هي تضبط عنوان الوجهة فقط — فصل قاعدة بيانات QA وخدمات الإرسال عن
 // الإنتاج شرط بيئي مستقل لا تستطيع هذه الدالة التحقق منه.
 // كل السيناريوهات تعمل على طلبات اختبار مخصصة معزولة تُنشأ عبر /api/agent-apply كزائر
@@ -28,17 +31,23 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
 const PRODUCTION_HOSTS = ['academy-raqaba.vercel.app', 'www.aactacademy.com', 'aactacademy.com']
 
 function normalizeHost(host: string) {
-  return host.trim().toLowerCase().replace(/\.$/, '')
+  // توحيد: أحرف صغيرة، بلا نقطة نهائية، وبلا أقواس IPv6 (URL.hostname يعيد [::1] بأقواسها).
+  return host.trim().toLowerCase().replace(/\.$/, '').replace(/^\[/, '').replace(/\]$/, '')
 }
 
-function assertQaEnvironment() {
+// أصل بيئة الاختبار المعتمد (protocol//host[:port]) — يُضبط في beforeAll من البوابة،
+// ويُستخدم لتقييد حقن الرمز وتنقّل المتصفح بهذه الوجهة وحدها.
+let QA_ORIGIN = ''
+
+function assertQaEnvironment(): string {
   const raw = process.env.E2E_BASE_URL?.trim()
   if (!raw) {
     throw new Error(
       'E2E_BASE_URL غير مضبوط: مواصفة جدول الوكالة تُنشئ طلبات اختبار وترفضها، وتُمنع من العمل على الرابط الافتراضي (الإنتاج). اضبط E2E_BASE_URL على بيئة QA صراحةً.'
     )
   }
-  const host = normalizeHost(new URL(raw.startsWith('http') ? raw : `https://${raw}`).hostname)
+  const url = new URL(raw.startsWith('http') ? raw : `https://${raw}`)
+  const host = normalizeHost(url.hostname)
   if (PRODUCTION_HOSTS.map(normalizeHost).includes(host)) {
     throw new Error(`E2E_BASE_URL يشير إلى نطاق إنتاج (${host}) — تشغيل هذه المواصفة عليه ممنوع.`)
   }
@@ -49,6 +58,7 @@ function assertQaEnvironment() {
       `المضيف ${host} ليس محليًا وليس في قائمة سماح QA (E2E_QA_HOSTS) — أضفه صراحةً إن كان وجهة اختبار مقصودة، فلا يُفترض أي نطاق غير محظور بيئةَ اختبار.`
     )
   }
+  return url.origin
 }
 
 function requiredAnyEnv(names: string[]) {
@@ -73,11 +83,14 @@ async function loginAsAdmin(page: Page): Promise<string> {
   expect(body?.token, 'Login response must include a session token').toBeTruthy()
   expect(body?.user?.role, 'Test account must have ADMIN role').toBe('ADMIN')
 
-  await page.addInitScript((token: string) => {
-    localStorage.setItem('aact_token', token)
+  await page.addInitScript((arg: { token: string; origin: string }) => {
+    // لا حقن للرمز خارج أصل بيئة الاختبار المقصود — سكربتات التهيئة تعمل عند كل تنقّل،
+    // فلو انحرف المتصفح إلى أصل آخر لا يصله الرمز.
+    if (window.location.origin !== arg.origin) return
+    localStorage.setItem('aact_token', arg.token)
     localStorage.setItem('aact_startup_seen_v2', '1')
     sessionStorage.setItem('aact_skip_startup', '1')
-  }, body.token)
+  }, { token: String(body.token), origin: QA_ORIGIN })
 
   return String(body.token)
 }
@@ -98,7 +111,26 @@ const backButton = (page: Page) => page.getByRole('button', { name: /عودة إ
 const statusCombobox = (page: Page) => page.locator('button[role="combobox"]').first()
 
 async function openAgentsTab(page: Page) {
+  // حماية وجهة المتصفح: أي تنقّل رئيسي إلى أصل غير أصل الاختبار يُجهض قبل حدوثه.
+  await page.route('**/*', async (route) => {
+    const req = route.request()
+    if (req.isNavigationRequest()) {
+      const target = req.url()
+      let targetOrigin = ''
+      try {
+        targetOrigin = new URL(target).origin
+      } catch {
+        targetOrigin = ''
+      }
+      if (targetOrigin && targetOrigin !== 'null' && targetOrigin !== QA_ORIGIN) {
+        await route.abort()
+        return
+      }
+    }
+    await route.continue()
+  })
   await page.goto('/admin', { waitUntil: 'domcontentloaded' })
+  expect(new URL(page.url()).origin, 'the browser must stay on the gated QA origin').toBe(QA_ORIGIN)
   await waitForAdminReady(page)
   await page.getByRole('tab', { name: /الوكالة والاعتماد/ }).first().click()
   await expect(searchBox(page)).toBeVisible({ timeout: 30_000 })
@@ -144,7 +176,7 @@ async function openDedicatedRow(page: Page, orgName: string) {
 
 test.describe('agents tab — table + detail behavior (QA only, dedicated data)', () => {
   test.beforeAll(() => {
-    assertQaEnvironment()
+    QA_ORIGIN = assertQaEnvironment()
   })
 
   test.beforeEach(async ({ page }) => {
@@ -225,7 +257,10 @@ test.describe('agents tab — table + detail behavior (QA only, dedicated data)'
     const token = await page.evaluate(() => localStorage.getItem('aact_token'))
     const check = await page.request.get(
       `/api/admin/applications?search=${encodeURIComponent(created.orgName)}&status=ALL&page=1&pageSize=5`,
-      { headers: { Authorization: `Bearer ${token}` } }
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        maxRedirects: 0, // طلب يحمل رمز الإدارة: أي تحويل فشل صريح — لا يتسرب الرمز لمضيف آخر
+      }
     )
     expect(check.ok()).toBeTruthy()
     const checkBody = await check.json().catch(() => ({}))
