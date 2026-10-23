@@ -51,7 +51,11 @@ function panelText(section: (typeof sections)[number]): string {
 
 describe('representatives accordion structure', () => {
   it('parses as TSX without an unclosed JSX element', () => {
-    const diagnostics = (source as ts.SourceFile & { parseDiagnostics: readonly ts.Diagnostic[] }).parseDiagnostics
+    const { diagnostics = [] } = ts.transpileModule(code, {
+      fileName: 'AdminRepresentativesTab.tsx',
+      compilerOptions: { jsx: ts.JsxEmit.Preserve },
+      reportDiagnostics: true,
+    })
     assert.equal(diagnostics.length, 0, diagnostics.map((d) => ts.flattenDiagnosticMessageText(d.messageText, '\n')).join('\n'))
   })
 
