@@ -112,7 +112,7 @@ function text(x: number, y: number, content: unknown, opts: { size?: number; fil
   const anchor = opts.anchor || 'start'
   const dir = opts.dir || 'rtl'
   const weight = opts.weight || 700
-  const family = opts.family || "'DejaVu Sans','Noto Naskh Arabic','Arial','Tahoma',sans-serif"
+  const family = opts.family || `'${OFFICIAL_ARABIC_FONT_NAME}','Amiri','Noto Naskh Arabic','DejaVu Sans','Arial','Tahoma',sans-serif`
   return `<text x="${x}" y="${y}" text-anchor="${anchor}" direction="${dir}" unicode-bidi="plaintext" style="font-family:${family};font-size:${size}px;font-weight:${weight};fill:${fill};dominant-baseline:alphabetic">${esc(content)}</text>`
 }
 
