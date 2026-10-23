@@ -2653,6 +2653,43 @@ export function AdminSettingsTab() {
   return (
     <div className="mt-4 space-y-5">
       {actionDialog}
+      <div className="rounded-3xl border border-[#0f2b46]/10 bg-white p-4 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-[11px] font-black text-[#a8841a]">الرسوم والقواعد</p>
+            <h3 className="text-lg font-black text-[#0f2b46]">إعدادات النظام العامة بدون تكدس</h3>
+            <p className="mt-1 text-xs font-bold leading-6 text-slate-500">كل الخانات محفوظة كما هي؛ اختر مساحة العمل فقط لتسهيل التصفح، وزر الحفظ في الأسفل يحفظ نفس القيم بنفس دالة save الحالية.</p>
+          </div>
+          <Button onClick={save} disabled={saving} className="w-full bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a] lg:w-auto">
+            {saving ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Settings2 className="ml-2 h-4 w-4" />}
+            حفظ كل التعديلات
+          </Button>
+        </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4" aria-label="مساحات عمل الرسوم والقواعد">
+          {([
+            ['fees-ai', 'الرسوم وباقات الذكاء', 'الإعدادات المالية الافتراضية وباقات الصوت'],
+            ['rules', 'القواعد والمهل', 'المهل الزمنية والنسب والإجراءات'],
+            ['content-contact', 'النصوص والتواصل والاعتماد', 'النصوص العامة وبيانات التواصل والوثائق'],
+            ['admins', 'مدراء النظام', 'حسابات الإدارة الاختبارية والحالية'],
+          ] as const).map(([value, title, summary]) => {
+            const active = openSettingsSection === value
+            return (
+              <button
+                key={value}
+                type="button"
+                aria-expanded={active}
+                aria-controls={`settings-section-${value}`}
+                onClick={() => setOpenSettingsSection(value)}
+                className={`rounded-2xl border px-3 py-3 text-right transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a227] focus-visible:ring-offset-2 ${active ? 'border-[#c9a227]/60 bg-[#fffaf0] text-[#0f2b46]' : 'border-slate-100 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+              >
+                <span className="block text-xs font-black">{title}</span>
+                <span className="mt-1 block text-[10px] font-bold leading-5 opacity-80">{summary}</span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+      <div id="settings-section-admins" role="region" aria-label="مدراء النظام" hidden={openSettingsSection !== 'admins'}>
       <Card className="border-[#c9a227]/30 bg-[#fdf8e7]">
         <CardContent className="p-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
