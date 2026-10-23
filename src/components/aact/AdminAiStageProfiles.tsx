@@ -773,7 +773,9 @@ export function AdminAiStageProfiles() {
           )}
         </CardContent>
       </Card>
+      </div>
 
+      <div id="ai-profiles-section-profiles" role="region" aria-label="بروفايلات المراحل" hidden={openAiProfilesSection !== 'profiles'} className="space-y-5">
       {(['READING', 'ANALYSIS', 'GENERATION', 'REVIEW'] as Stage[]).map((stageName) => {
         const stage = stageByName.get(stageName)
         const form = forms?.[stageName] ?? snapshotToForm(stage?.current?.snapshot ?? null)
