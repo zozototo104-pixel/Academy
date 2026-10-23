@@ -64,6 +64,17 @@ describe('student dashboard visual organization', () => {
     required(source, '<TabsList className="hidden">')
   })
 
+  test('keeps the polished layout responsive for mobile and desktop', () => {
+    required(source, 'max-w-[1600px] px-3 py-5 sm:px-4 sm:py-8')
+    required(source, 'xl:grid-cols-[210px_minmax(0,1fr)_340px]')
+    required(source, 'lg:grid-cols-[minmax(0,1.35fr)_320px]')
+    required(source, 'md:grid-cols-[1fr_250px]')
+    required(source, 'sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-6')
+    required(source, 'xl:hidden')
+    required(source, 'hidden rounded-[2rem]')
+    required(source, 'from-[#0f2b46] via-[#2856d6] to-[#6d5dfc]')
+  })
+
   test('keeps all important student areas reachable from the dropdown', () => {
     for (const label of [
       'الرئيسية والمقرر والكتاب',
