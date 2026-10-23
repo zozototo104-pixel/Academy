@@ -1078,8 +1078,8 @@ export function DashboardView() {
 
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
         {/* Main: tabs */}
-        <div>
-          <Tabs value={dashboardTab} onValueChange={setDashboardTab} dir="rtl">
+        <div ref={dashboardContentRef} id="student-dashboard-content">
+          <Tabs value={dashboardTab} onValueChange={selectDashboardTab} dir="rtl">
             <TabsList className="hidden">
               {hasProgramDashboard && (
                 <TabsTrigger value="programs" className="text-[11px] font-bold sm:text-sm">
