@@ -71,7 +71,7 @@ describe('AdminSettingsTab workspace organization', () => {
     ]) required(settingsBlock, text)
     required(settingsBlock, 'type="button"')
     required(settingsBlock, 'aria-expanded={active}')
-    required(settingsBlock, 'onClick={() => setOpenSettingsSection(value)}')
+    required(settingsBlock, 'onClick={() => toggleSettingsSection(value)}')
     expect(settingsBlock.includes('setOpenSettingsSection(value); save')).toBe(false)
     expect(settingsBlock.includes('setOpenSettingsSection(value); api')).toBe(false)
     expect(settingsBlock.includes('setOpenSettingsSection(value); load')).toBe(false)
