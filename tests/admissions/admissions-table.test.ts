@@ -69,6 +69,9 @@ describe('admissions list table (presentation-only reorganization)', () => {
     expect(adminView).not.toContain('setSelectedAdmissionId(linked.id)')
     expect(adminView).not.toContain('setSelectedAdmissionId(student.latestAdmission')
     expect(count('openStudentAdmission')).toBe(4)
+    // والاختيار ينتهي فعليًا إذا خرج الطلب المفتوح من البيانات المحمّلة (بحث/فلتر/صفحة) —
+    // لا انبعاث للتفاصيل عند عودته للنتائج (درس مراجعة المرحلة الثانية، مطبّق هنا أيضًا).
+    expect(adminView).toContain('if (selectedAdmissionId && !admissionsLoading && !selectedAdmission) setSelectedAdmissionId(null)')
   })
 
   test('table rows carry the admission anchor so auto-scroll works in table mode', () => {

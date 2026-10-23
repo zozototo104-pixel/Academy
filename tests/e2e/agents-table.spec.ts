@@ -10,12 +10,26 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
 //
 // أمان البيئة (إلزامي): هذه المواصفة تُنشئ طلبات اختبار وترفض أحدها — تُمنع من العمل
 // خارج بيئة QA. إعداد Playwright يرجع افتراضيًا إلى رابط الإنتاج عند غياب E2E_BASE_URL،
-// لذلك تتحقق البوابة أدناه قبل أي خطوة: العنوان مضبوط صراحةً وليس أحد نطاقات الإنتاج.
+// لذلك تتحقق البوابة أدناه قبل أي خطوة: العنوان مضبوط صراحةً، واسم المضيف موحّد الصيغة
+// (أحرف صغيرة وبلا نقطة نهائية — فالنقطة النهائية لا تصنع نطاقًا مختلفًا)، والإنتاج مرفوض
+// رفضًا صلبًا ولو ذُكر في قائمة السماح بالخطأ، والوجهة إما محلية أو مذكورة حرفيًا في
+// قائمة السماح E2E_QA_HOSTS. طلبات الـAPI المباشرة في هذه المواصفة لا تتبع التحويلات
+// (maxRedirects: 0) فأي تحويل يظهر كفشل صريح بدل أن يُتبع بصمت.
+// حدود البوابة: هي تضبط عنوان الوجهة فقط — فصل قاعدة بيانات QA وخدمات الإرسال عن
+// الإنتاج شرط بيئي مستقل لا تستطيع هذه الدالة التحقق منه.
 // كل السيناريوهات تعمل على طلبات اختبار مخصصة معزولة تُنشأ عبر /api/agent-apply كزائر
-// بأسماء وبريد فريدة لكل تشغيلة (نطاق example.com — لا يصل أي إشعار لشخص حقيقي)،
-// ولا تلمس أي طلب حقيقي قائم. الطلب المرفوض يبقى في قاعدة QA وحده كسجل اختبار منتهٍ.
+// بأسماء وبريد فريدة لكل تشغيلة (RUN_ID داخل الاسم والبريد، ونطاق example.com — لا يصل
+// أي إشعار لشخص حقيقي)، ولا تلمس أي طلب حقيقي قائم.
+// سياسة البقايا: التشغيلة الكاملة تُنشئ ١٤ طلبًا (١ فتح + ١١ تصفّح + ١ رفض + ١ خروج)
+// تبقى كلها في قاعدة بيانات QA كسجلات اختبار منتهية قابلة للتتبع ببادئة التشغيلة؛
+// لا توجد واجهة حذف لطلبات الوكالة، فالتنظيف يكون بسياسة بيئة QA نفسها (تصفير/تدوير
+// قاعدة الاختبار)، وليس المرفوض وحده هو المتروك.
 
 const PRODUCTION_HOSTS = ['academy-raqaba.vercel.app', 'www.aactacademy.com', 'aactacademy.com']
+
+function normalizeHost(host: string) {
+  return host.trim().toLowerCase().replace(/\.$/, '')
+}
 
 function assertQaEnvironment() {
   const raw = process.env.E2E_BASE_URL?.trim()
@@ -24,9 +38,16 @@ function assertQaEnvironment() {
       'E2E_BASE_URL غير مضبوط: مواصفة جدول الوكالة تُنشئ طلبات اختبار وترفضها، وتُمنع من العمل على الرابط الافتراضي (الإنتاج). اضبط E2E_BASE_URL على بيئة QA صراحةً.'
     )
   }
-  const host = new URL(raw.startsWith('http') ? raw : `https://${raw}`).hostname
-  if (PRODUCTION_HOSTS.includes(host)) {
+  const host = normalizeHost(new URL(raw.startsWith('http') ? raw : `https://${raw}`).hostname)
+  if (PRODUCTION_HOSTS.map(normalizeHost).includes(host)) {
     throw new Error(`E2E_BASE_URL يشير إلى نطاق إنتاج (${host}) — تشغيل هذه المواصفة عليه ممنوع.`)
+  }
+  const allowlist = (process.env.E2E_QA_HOSTS || '').split(',').map(normalizeHost).filter(Boolean)
+  const isLocal = host === 'localhost' || host === '127.0.0.1' || host === '::1'
+  if (!isLocal && !allowlist.includes(host)) {
+    throw new Error(
+      `المضيف ${host} ليس محليًا وليس في قائمة سماح QA (E2E_QA_HOSTS) — أضفه صراحةً إن كان وجهة اختبار مقصودة، فلا يُفترض أي نطاق غير محظور بيئةَ اختبار.`
+    )
   }
 }
 
@@ -44,6 +65,7 @@ async function loginAsAdmin(page: Page): Promise<string> {
 
   const response = await page.request.post('/api/auth/login', {
     data: { email, password },
+    maxRedirects: 0, // لا اتباع تحويلات بصمت قبل أي كتابة
   })
   const body = await response.json().catch(() => ({}))
 
@@ -90,13 +112,15 @@ async function chooseStatusFilter(page: Page, label: string) {
 const RUN_ID = `QA-AGT-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`
 
 // إنشاء طلب وكالة اختبار معزول كزائر (بلا أي جلسة إدارة) عبر سياق طلب مستقل.
+// يعيد اسم الجهة ومعرّف السجل المنشأ حتى تثبت الاختبارات أن أفعالها استهدفت سجلّها هي.
 async function createDedicatedApplication(request: APIRequestContext, orgName: string, emailTag: string) {
   const res = await request.post('/api/agent-apply', {
+    maxRedirects: 0, // طلب كتابة: أي تحويل فشل صريح، لا اتباع صامت
     data: {
       kind: 'AGENCY',
       orgName,
       repName: 'ممثل اختبار آلي',
-      email: `qa-agents-${emailTag}@example.com`,
+      email: `qa-agents-${RUN_ID}-${emailTag}@example.com`,
       phone: '+970000000000',
       country: 'فلسطين',
       territory: 'نطاق اختبار آلي',
@@ -105,7 +129,9 @@ async function createDedicatedApplication(request: APIRequestContext, orgName: s
   })
   const body = await res.json().catch(() => ({}))
   expect(res.ok(), `creating the dedicated QA application failed with ${res.status()}: ${JSON.stringify(body)}`).toBeTruthy()
-  return orgName
+  const id = String(body?.id || '')
+  expect(id, 'agent-apply must return the created application id').toBeTruthy()
+  return { orgName, id }
 }
 
 // بحث + فلتر حتى يظهر صف الطلب المخصص تحديدًا، ثم إرجاع زر اسمه.
@@ -127,7 +153,7 @@ test.describe('agents tab — table + detail behavior (QA only, dedicated data)'
   })
 
   test('opening an application from the table shows its full card alone', async ({ page, request }) => {
-    const orgName = await createDedicatedApplication(request, `${RUN_ID}-OPEN`, 'open')
+    const { orgName } = await createDedicatedApplication(request, `${RUN_ID}-OPEN`, 'open')
     await chooseStatusFilter(page, 'كل الطلبات')
     const nameButton = await openDedicatedRow(page, orgName)
     await nameButton.click()
@@ -150,10 +176,14 @@ test.describe('agents tab — table + detail behavior (QA only, dedicated data)'
     await searchBox(page).fill(prefix)
     await expect(agentsRows(page)).toHaveCount(10, { timeout: 30_000 })
 
-    // الانتقال إلى الصفحة الثانية (شريحة المصفّح «1 / 2» ثم زر التالي).
-    const chip = page.locator('span', { hasText: /^\d+ \/ \d+$/ })
+    // الانتقال إلى الصفحة الثانية. المحدد محصور داخل المصفّح نفسه (جذر مكوّن التصفّح
+    // حول نص «عرض X–Y من Z») — عدّاد شريط الأدوات «N / N» عنصر آخر خارج هذا النطاق
+    // ولا يجوز أن يطابقه المحدد، ولا تُستخدم .first() لإخفاء التباس.
+    const pagerRoot = page.getByText(/عرض \d+–\d+ من \d+ طلب وكالة\/اعتماد/).locator('..')
+    const chip = pagerRoot.locator('span', { hasText: /^\d+ \/ \d+$/ })
+    await expect(chip).toHaveCount(1)
     await expect(chip).toContainText('1 / 2')
-    await chip.locator('..').locator('button').nth(2).click()
+    await pagerRoot.locator('button').nth(2).click()
     await expect(chip).toContainText('2 / 2')
     await expect(agentsRows(page)).toHaveCount(1)
 
@@ -178,9 +208,9 @@ test.describe('agents tab — table + detail behavior (QA only, dedicated data)'
   })
 
   test('the detail stays open and reflects the new status after rejecting a dedicated application', async ({ page, request }) => {
-    const orgName = await createDedicatedApplication(request, `${RUN_ID}-REJECT`, 'reject')
+    const created = await createDedicatedApplication(request, `${RUN_ID}-REJECT`, 'reject')
     await chooseStatusFilter(page, 'معلقة')
-    const nameButton = await openDedicatedRow(page, orgName)
+    const nameButton = await openDedicatedRow(page, created.orgName)
     await nameButton.click()
     await expect(backButton(page)).toBeVisible({ timeout: 15_000 })
 
@@ -190,10 +220,22 @@ test.describe('agents tab — table + detail behavior (QA only, dedicated data)'
     await expect(backButton(page)).toBeVisible({ timeout: 15_000 })
     await expect(page.getByText('مرفوض', { exact: true }).first()).toBeVisible({ timeout: 15_000 })
     await expect(agentsTable(page)).toHaveCount(0)
+
+    // إثبات بالمعرّف أن الرفض استهدف السجل الذي أنشأته هذه التشغيلة تحديدًا.
+    const token = await page.evaluate(() => localStorage.getItem('aact_token'))
+    const check = await page.request.get(
+      `/api/admin/applications?search=${encodeURIComponent(created.orgName)}&status=ALL&page=1&pageSize=5`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    expect(check.ok()).toBeTruthy()
+    const checkBody = await check.json().catch(() => ({}))
+    const record = (checkBody?.applications || []).find((a: { id: string }) => a.id === created.id)
+    expect(record, 'the created application must be findable by its id').toBeTruthy()
+    expect(record.status).toBe('REJECTED')
   })
 
   test('when the open application leaves the loaded data, the selection ends and never resurrects', async ({ page, request }) => {
-    const orgName = await createDedicatedApplication(request, `${RUN_ID}-EXIT`, 'exit')
+    const { orgName } = await createDedicatedApplication(request, `${RUN_ID}-EXIT`, 'exit')
     await chooseStatusFilter(page, 'كل الطلبات')
     const nameButton = await openDedicatedRow(page, orgName)
     await nameButton.click()

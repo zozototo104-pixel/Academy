@@ -759,6 +759,9 @@ export function AdminView() {
   const serviceRequests = activeTab === 'service-requests' ? admissions : []
   const visibleAdmissionRows = admissions
   const selectedAdmission = selectedAdmissionId ? admissions.find((x) => x.id === selectedAdmissionId) || null : null
+  // انتهاء الاختيار فعليًا عند خروج الطلب من البيانات المحمّلة بعد اكتمال الجلب (بحث/فلتر/صفحة):
+  // بلا هذا المسح يبقى المعرّف حيًا وتعود التفاصيل تلقائيًا إذا رجع الطلب للنتائج — نفس درس الوكالة.
+  if (selectedAdmissionId && !admissionsLoading && !selectedAdmission) setSelectedAdmissionId(null)
   const academicStudents = students.filter((s) => studentStatusFilter === 'REGISTERED_ONLY' || s.rowKind === 'INCOMPLETE_ADMISSION' || (s.enrollments?.length || 0) > 0)
   const filteredAdmissionRows = admissions
   const pagedAdmissionRows = admissions
