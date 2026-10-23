@@ -867,7 +867,7 @@ export function DashboardView() {
               </div>
             ) : null}
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <Button size="sm" variant="outline" onClick={() => setDashboardTab('payments')} className="border-[#c9a227] font-black text-[#a8841a] hover:bg-[#f7edd0]">
+              <Button size="sm" variant="outline" onClick={() => selectDashboardTab('payments')} className="border-[#c9a227] font-black text-[#a8841a] hover:bg-[#f7edd0]">
                 الدفعات
               </Button>
               <Button size="sm" onClick={() => navigate('apply')} className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">
