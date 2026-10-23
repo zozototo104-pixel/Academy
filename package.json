@@ -26,6 +26,7 @@
     "test:representative-onboarding": "bun test tests/representatives",
     "test:representatives-organization": "bun test tests/representatives/representatives-organization.test.ts",
     "test:books-workspace-organization": "bun test tests/academic/books-workspace-organization.test.ts",
+    "test:thesis-workspace-organization": "bun test tests/academic/thesis-workspace-organization.test.ts",
     "test:academic-b1": "bun test tests/academic/academic-b1.test.ts",
     "test:academic-b2": "bun test tests/academic/academic-b2.test.ts",
     "test:admission-required-documents": "bun test tests/admissions/admission-required-documents.test.ts",
