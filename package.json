@@ -48,6 +48,7 @@
     "test:ai-stage-review": "bun test tests/ai/ai-stage-review.test.ts",
     "test:ai-recheck-queue": "bun test tests/ai/ai-question-recheck-queue.test.ts",
     "test:ai-recheck-runner": "bun test tests/ai/ai-question-recheck-runner.test.ts",
+    "test:ai-recheck-admin": "bun test tests/ai/ai-question-recheck-admin.test.ts",
     "test:ai-question-length": "bun test tests/ai/ai-question-length.test.ts",
     "test:ai-stage-profiles-admin": "bun test tests/ai/ai-stage-profiles-admin.test.ts",
     "test:ai-advisor-readiness": "bun test tests/ai/ai-advisor-readiness.test.ts",
