@@ -504,6 +504,8 @@ export function AdminThesisTab() {
                         النتيجة: {t.resultScore} — {t.passed ? 'مجتاز' : 'غير مجتاز'}
                       </p>
                     )}
+                      </div>
+                    )}
                   </div>
                   <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 xl:w-56 xl:grid-cols-1">
                     {t.extractionStatus === 'FAILED' && (
