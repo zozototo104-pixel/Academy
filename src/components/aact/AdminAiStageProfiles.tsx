@@ -351,11 +351,24 @@ export function AdminAiStageProfiles() {
     setForms(formsFromResponse(res))
   }, [])
 
+  const refreshQuestionRecheckOverview = useCallback(async (silent = false) => {
+    try {
+      const overview = await api<QuestionRecheckOverview>('/api/admin/question-recheck')
+      setQuestionRecheckOverview(overview)
+    } catch (error: any) {
+      if (!silent) toast({ title: 'تعذر تحميل إعادة التدقيق', description: error?.message, variant: 'destructive' })
+    }
+  }, [toast])
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await api<ResponseData>('/api/admin/ai-stage-profiles')
+      const [res, recheckOverview] = await Promise.all([
+        api<ResponseData>('/api/admin/ai-stage-profiles'),
+        api<QuestionRecheckOverview>('/api/admin/question-recheck').catch(() => null),
+      ])
       applyResponse(res)
+      if (recheckOverview) setQuestionRecheckOverview(recheckOverview)
     } catch (error: any) {
       toast({ title: 'تعذر تحميل بروفايلات الذكاء', description: error?.message, variant: 'destructive' })
     } finally {
@@ -365,9 +378,15 @@ export function AdminAiStageProfiles() {
 
   useEffect(() => {
     let cancelled = false
-    api<ResponseData>('/api/admin/ai-stage-profiles')
-      .then((res) => {
-        if (!cancelled) applyResponse(res)
+    Promise.all([
+      api<ResponseData>('/api/admin/ai-stage-profiles'),
+      api<QuestionRecheckOverview>('/api/admin/question-recheck').catch(() => null),
+    ])
+      .then(([res, recheckOverview]) => {
+        if (!cancelled) {
+          applyResponse(res)
+          if (recheckOverview) setQuestionRecheckOverview(recheckOverview)
+        }
       })
       .catch((error: any) => {
         if (!cancelled) {
