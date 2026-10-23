@@ -77,9 +77,7 @@ describe('AdminSettingsTab workspace organization', () => {
   test('keeps all settings groups mounted and only hides wrappers/cards', () => {
     required(settingsBlock, 'id="settings-section-admins"')
     required(settingsBlock, "hidden={openSettingsSection !== 'admins'}")
-    for (const group of ['FEES', 'AI', 'RULES', 'CONTENT', 'CONTACT']) {
-      required(settingsBlock, `id={\`settings-group-${group}\`}`.replace('${group}', '${g.key}'))
-    }
+    required(settingsBlock, 'id={`settings-group-${g.key}`}')
     required(settingsBlock, "openSettingsSection === 'fees-ai'")
     required(settingsBlock, "!['FEES', 'AI'].includes(g.key)")
     required(settingsBlock, "g.key !== 'RULES'")
