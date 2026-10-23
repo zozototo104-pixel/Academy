@@ -228,6 +228,14 @@ describe('quality workspace organization guard', () => {
     assert.ok(SOURCE.indexOf('<Dialog open={dailyTasksOpen}') > SOURCE.indexOf('id="quality-ws-thesis"'))
   })
 
+  it('renders workspace summaries as expressions, never literal ${} text', () => {
+    // خطأ الجولة الأولى: ثلاث ملخصات كُتبت كنص حرفي يبدأ بـ ${ فظهرت علامة $ للمستخدم.
+    assert.ok(!/>\$\{/.test(SOURCE), 'a summary is rendered as literal ${} text')
+    assert.ok(SOURCE.includes('{`${data.programs.length} برنامج في التقرير'))
+    assert.ok(SOURCE.includes('{`${data.weakBooks.length} كتاب يحتاج تقوية'))
+    assert.ok(SOURCE.includes('{`${data.atRiskStudents.length} طالب يحتاج متابعة'))
+  })
+
   it('keeps secondary-load honesty: loading/failure display states gate the summaries', () => {
     assert.ok(SOURCE.includes('const [secondaryLoaded, setSecondaryLoaded] = useState(false)'))
     assert.ok(SOURCE.includes('جارٍ تحميل بيانات الجاهزية…'))

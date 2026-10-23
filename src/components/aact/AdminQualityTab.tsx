@@ -1682,7 +1682,7 @@ export function AdminQualityTab() {
         <button type="button" id="quality-ws-programs-header" aria-expanded={activeWorkspace === 'programs'} aria-controls="quality-ws-programs" onClick={() => setActiveWorkspace('programs')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
           <span>
             <span className="block text-sm font-black text-[#0f2b46]">تحليل البرامج</span>
-            <span className="mt-0.5 block text-[11px] font-bold text-slate-500">${data.programs.length} برنامج في التقرير · ${data.overview.strongPrograms} برنامج قوي</span>
+            <span className="mt-0.5 block text-[11px] font-bold text-slate-500">{`${data.programs.length} برنامج في التقرير · ${data.overview.strongPrograms} برنامج قوي`}</span>
           </span>
           <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${activeWorkspace === 'programs' ? 'rotate-180' : ''}`} />
         </button>
@@ -1791,7 +1791,7 @@ export function AdminQualityTab() {
         <button type="button" id="quality-ws-content-header" aria-expanded={activeWorkspace === 'content'} aria-controls="quality-ws-content" onClick={() => setActiveWorkspace('content')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
           <span>
             <span className="block text-sm font-black text-[#0f2b46]">سلامة المحتوى والتقييم</span>
-            <span className="mt-0.5 block text-[11px] font-bold text-slate-500">${data.weakBooks.length} كتاب يحتاج تقوية · ${data.duplicateQuestions.length} مجموعة تكرار محتملة</span>
+            <span className="mt-0.5 block text-[11px] font-bold text-slate-500">{`${data.weakBooks.length} كتاب يحتاج تقوية · ${data.duplicateQuestions.length} مجموعة تكرار محتملة`}</span>
           </span>
           <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${activeWorkspace === 'content' ? 'rotate-180' : ''}`} />
         </button>
@@ -1837,7 +1837,7 @@ export function AdminQualityTab() {
         <button type="button" id="quality-ws-students-header" aria-expanded={activeWorkspace === 'students'} aria-controls="quality-ws-students" onClick={() => setActiveWorkspace('students')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
           <span>
             <span className="block text-sm font-black text-[#0f2b46]">الطلاب الذين يحتاجون متابعة</span>
-            <span className="mt-0.5 block text-[11px] font-bold text-slate-500">${data.atRiskStudents.length} طالب يحتاج متابعة</span>
+            <span className="mt-0.5 block text-[11px] font-bold text-slate-500">{`${data.atRiskStudents.length} طالب يحتاج متابعة`}</span>
           </span>
           <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${activeWorkspace === 'students' ? 'rotate-180' : ''}`} />
         </button>
