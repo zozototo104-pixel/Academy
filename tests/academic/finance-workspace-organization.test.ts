@@ -68,7 +68,7 @@ describe('AdminFinanceTab workspace organization', () => {
     required(financeBlock, 'type="button"')
     required(financeBlock, 'aria-expanded={active}')
     required(financeBlock, 'aria-controls={`finance-section-${value}`}')
-    required(financeBlock, 'onClick={() => setOpenFinanceSection(value)}')
+    required(financeBlock, 'onClick={() => toggleFinanceSection(value)}')
     expect(financeBlock.includes('setOpenFinanceSection(value); load')).toBe(false)
     expect(financeBlock.includes('setOpenFinanceSection(value); api')).toBe(false)
   })
