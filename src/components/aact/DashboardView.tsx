@@ -1198,7 +1198,7 @@ export function DashboardView() {
                     <h3 className="mt-1 text-base font-black text-[#0f2b46]">{currentStudentAction.title}</h3>
                     <p className="mt-1 text-xs font-bold leading-6 text-slate-600">{currentStudentAction.text}</p>
                     {currentStudentAction.tab !== dashboardTab && (
-                      <Button size="sm" onClick={() => setDashboardTab(currentStudentAction.tab)} className="mt-3 bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">
+                      <Button size="sm" onClick={() => selectDashboardTab(currentStudentAction.tab)} className="mt-3 bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">
                         انتقل للخطوة المطلوبة
                       </Button>
                     )}
