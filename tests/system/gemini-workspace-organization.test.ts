@@ -52,7 +52,7 @@ describe('Gemini / AI workspace organization', () => {
 
   test('adds exactly one visual section state with core as the default', () => {
     required(source, "const [openGeminiSection, setOpenGeminiSection] = useState<'core' | 'routing' | 'providers' | 'health' | 'cooldowns' | 'tests'>('core')")
-    expect(occurrences(source, 'useState<\'core\' | \'routing\' | \'providers\' | \'health\' | \'cooldowns\' | \'tests\'>')).toBe(1)
+    expect(occurrences(source, "useState<'core' | 'routing' | 'providers' | 'health' | 'cooldowns' | 'tests'>")).toBe(1)
   })
 
   test('renders the six Gemini workspaces as buttons that only change visual state', () => {
