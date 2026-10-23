@@ -99,8 +99,8 @@ describe('student dashboard visual organization', () => {
     required(source, "action: () => openProgramWorkspace('schedule')")
     required(source, "action: () => openProgramWorkspace('content')")
     required(source, "action: () => openProgramWorkspace('progress')")
-    required(source, "action: () => setDashboardTab('lectures')")
-    required(source, "action: () => setDashboardTab('payments')")
+    required(source, "action: () => selectDashboardTab('lectures')")
+    required(source, "action: () => selectDashboardTab('payments')")
   })
 
   test('keeps student navigation visual only without adding network calls', () => {
