@@ -1260,6 +1260,9 @@ export function AdminFinanceTab() {
         </Card>
       )}
 
+      </div>
+
+      <div id="finance-section-payments" role="region" aria-label="الفواتير والإثباتات والإعفاءات" hidden={openFinanceSection !== 'payments'} className="space-y-3">
       {/* جدول الفواتير */}
       <div className="space-y-3">
         <AdminListToolbar
