@@ -141,7 +141,7 @@ export function UnitView() {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16 text-center text-slate-500">
         الوحدة غير متاحة —{' '}
-        <button className="font-bold text-[#a8841a] underline" onClick={() => goBack('dashboard')}>
+        <button className="font-bold text-[#a8841a] underline" onClick={() => navigate('dashboard')}>
           العودة للبوابة
         </button>
       </div>
