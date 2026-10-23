@@ -129,6 +129,7 @@ export function AdminThesisTab() {
   const [thesisStatusFilter, setThesisStatusFilter] = useState('ACTIVE')
   const [thesisPage, setThesisPage] = useState(1)
   const [thesisPageSize, setThesisPageSize] = useState(10)
+  const [expandedThesisId, setExpandedThesisId] = useState<string | null>(null)
 
   const load = () => {
     setLoading(true)
@@ -257,6 +258,14 @@ export function AdminThesisTab() {
   }), [theses, thesisSearch, thesisStatusFilter])
   const pagedTheses = pageItems(filteredTheses, thesisPage, thesisPageSize)
   const currentThesisPage = safePage(filteredTheses.length, thesisPageSize, thesisPage)
+  const loadedActiveCount = theses.filter((t) => !['RESULT_APPROVED'].includes(t.status)).length
+  const loadedScheduledCount = theses.filter((t) => t.status === 'SCHEDULED').length
+  const loadedApprovedResultsCount = theses.filter((t) => t.status === 'RESULT_APPROVED').length
+
+  // إنهاء اختيار البحث أثناء الرسم عندما يخرج من الصفحة الحالية (بحث/فلتر/ترقيم/تحديث) — النمط المعتمد من مرحلة الكتب، دون أثر جانبي أو تحذير lint
+  if (expandedThesisId && !pagedTheses.some((t) => t.id === expandedThesisId)) {
+    setExpandedThesisId(null)
+  }
 
   if (loading) return (
     <Card className="mt-4 border-[#0f2b46]/10">
@@ -282,16 +291,34 @@ export function AdminThesisTab() {
   return (
     <div className="mt-4 space-y-4">
       {actionDialog}
-      <div className="flex flex-col gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-base font-black text-[#0f2b46]">أبحاث التخرج والمناقشات</h2>
-          <p className="mt-1 text-xs font-bold leading-5 text-slate-500">
-            تعرض هذه القائمة ملخصات الأبحاث فقط لتفتح بسرعة، أما تسجيل الفيديو فيُحمّل عند الضغط على تشغيل التسجيل.
-          </p>
+      <div className="space-y-3 rounded-2xl border border-[#0f2b46]/10 bg-white p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-base font-black text-[#0f2b46]">أبحاث التخرج والمناقشات</h2>
+            <p className="mt-1 text-xs font-bold leading-5 text-slate-500">
+              تعرض هذه القائمة ملخصات الأبحاث فقط لتفتح بسرعة، أما تسجيل الفيديو فيُحمّل عند الضغط على تشغيل التسجيل.
+            </p>
+          </div>
+          <Button onClick={load} variant="outline" className="w-full border-[#c9a227]/50 text-xs font-black text-[#a8841a] hover:bg-[#fff7df] sm:w-auto">
+            <RefreshCw className="ml-1.5 h-4 w-4" /> تحديث القائمة
+          </Button>
         </div>
-        <Button onClick={load} variant="outline" className="w-full border-[#c9a227]/50 text-xs font-black text-[#a8841a] hover:bg-[#fff7df] sm:w-auto">
-          <RefreshCw className="ml-1.5 h-4 w-4" /> تحديث القائمة
-        </Button>
+        {!loadError && (
+          <div className="grid gap-2 sm:grid-cols-4" aria-label="ملخص الأبحاث المحملة">
+            {[
+              ['الأبحاث المحمّلة', theses.length],
+              ['النشطة ضمن المحمّل', loadedActiveCount],
+              ['المناقشات المجدولة', loadedScheduledCount],
+              ['النتائج المعتمدة', loadedApprovedResultsCount],
+            ].map(([label, value]) => (
+              <div key={String(label)} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                <p className="text-[10px] font-black text-slate-400">ضمن الأبحاث المحمّلة</p>
+                <p className="mt-1 text-lg font-black text-[#0f2b46]">{value}</p>
+                <p className="text-[11px] font-bold text-slate-500">{label}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <AdminListToolbar
@@ -316,6 +343,9 @@ export function AdminThesisTab() {
         filtered={filteredTheses.length}
         label="بحث"
       />
+      <p className="rounded-xl border border-[#0f2b46]/10 bg-white px-3 py-2 text-xs font-bold text-slate-500">
+        ضمن الأبحاث المحمّلة: {theses.length} إجماليًا · {filteredTheses.length} مطابقة للبحث/الفلتر · {pagedTheses.length} ظاهرة في الصفحة الحالية.
+      </p>
 
       {loadError ? (
         <Card className="border-red-100 bg-red-50">
@@ -346,6 +376,8 @@ export function AdminThesisTab() {
             { title: 'المناقشة', done: ['SCHEDULED', 'RESULT_APPROVED'].includes(t.status), active: t.status === 'SUBMITTED' },
             { title: 'النتيجة', done: t.status === 'RESULT_APPROVED', active: t.status === 'SCHEDULED' },
           ]
+          const isExpanded = expandedThesisId === t.id
+          const detailsPanelId = `thesis-details-${t.id}`
           return (
             <Card key={t.id} className="overflow-hidden border-[#0f2b46]/10">
               <CardContent className="p-4 sm:p-5">
@@ -362,6 +394,33 @@ export function AdminThesisTab() {
                       الباحث: {studentName} — {programName}
                     </p>
                     <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-slate-500">{abstractText}</p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-bold text-slate-500">
+                      {t.defenseDate && (
+                        <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-1 text-blue-700">
+                          <CalendarClock className="ml-1 h-3 w-3" /> {formatArabicDate(t.defenseDate)}
+                        </span>
+                      )}
+                      {t.status === 'RESULT_APPROVED' && (
+                        <span className={`inline-flex rounded-full px-2 py-1 ${t.passed ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>نتيجة معتمدة</span>
+                      )}
+                      {t.extractionStatus === 'FAILED' && (
+                        <span className="inline-flex rounded-full bg-red-50 px-2 py-1 text-red-600">تحذير: فشلت معالجة الملف</span>
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      aria-expanded={isExpanded}
+                      aria-controls={detailsPanelId}
+                      onClick={() => setExpandedThesisId(isExpanded ? null : t.id)}
+                      className="mt-3 border-[#0f2b46]/20 text-xs font-black text-[#0f2b46] focus-visible:ring-2 focus-visible:ring-[#c9a227] focus-visible:ring-offset-2"
+                    >
+                      {isExpanded ? 'إغلاق التفاصيل' : 'عرض تفاصيل البحث'}
+                    </Button>
+                    {isExpanded && (
+                      <div id={detailsPanelId} className="mt-4 space-y-3 rounded-2xl border border-[#0f2b46]/10 bg-slate-50/60 p-3">
+                    <p className="text-[11px] font-black text-[#0f2b46]">الخطة والملاحظات</p>
+                    <p className="whitespace-pre-line rounded-xl bg-white p-3 text-[11px] font-bold leading-6 text-slate-600">{abstractText}</p>
                     {t.reviewNote ? (
                       <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] font-bold leading-6 text-amber-800">
                         <span className="font-black">ملاحظة الإدارة/المشرف:</span> {t.reviewNote}
@@ -395,15 +454,20 @@ export function AdminThesisTab() {
                       ))}
                     </div>
                     {t.status === 'SCHEDULED' && t.defenseDate && (
+                      <>
+                      <p className="mt-3 text-[11px] font-black text-[#0f2b46]">المناقشة واللجنة</p>
                       <p className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-bold text-blue-700">
                         <CalendarClock className="h-3.5 w-3.5" />
                         {formatArabicDate(t.defenseDate)}
                         — اللجنة: {committee.length ? committee.join('، ') : 'لم تُحفظ أسماء اللجنة'}
                         {t.agentMember ? ` + عضو الوكيل (${t.agentMember})` : ''}
                       </p>
+                      </>
                     )}
                     {/* نتيجة جلسة المناقشة المرئية وخبير الذكاء الاصطناعي */}
                     {t.aiScore != null && (
+                      <>
+                      <p className="mt-3 text-[11px] font-black text-[#0f2b46]">الملف والمعالجة والتحليل</p>
                       <div className="mt-2 rounded-xl border border-[#c9a227]/40 bg-[#f7edd0]/60 p-3">
                         <p className="flex flex-wrap items-center gap-2 text-xs font-black text-[#0f2b46]">
                           <Bot className="h-4 w-4 text-[#a8841a]" />
@@ -440,14 +504,20 @@ export function AdminThesisTab() {
                           )}
                         </div>
                       </div>
+                      </>
                     )}
                     {t.status === 'RESULT_APPROVED' && (
                       <p className={`mt-2 text-xs font-black ${t.passed ? 'text-emerald-600' : 'text-red-500'}`}>
                         النتيجة: {t.resultScore} — {t.passed ? 'مجتاز' : 'غير مجتاز'}
                       </p>
                     )}
+                      </div>
+                    )}
                   </div>
                   <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 xl:w-56 xl:grid-cols-1">
+                    {isExpanded ? (
+                      <>
+                    <p className="text-[11px] font-black text-[#0f2b46]">الإجراءات والقرارات</p>
                     {t.extractionStatus === 'FAILED' && (
                       <Button size="sm" variant="outline" disabled={busy} onClick={() => reprocessThesis(t)} className="w-full justify-center border-red-200 font-bold text-red-700 hover:bg-red-50">
                         إعادة المعالجة
@@ -505,6 +575,12 @@ export function AdminThesisTab() {
                       <Button size="sm" variant="outline" disabled={busy} onClick={() => setMinutesThesis(t)} className="w-full justify-center border-[#c9a227]/40 text-[10px] font-bold text-[#a8841a]">
                         <FileSignature className="ml-1 h-3 w-3" /> محضر الجلسة
                       </Button>
+                    )}
+                      </>
+                    ) : (
+                      <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3 text-center text-[11px] font-bold text-slate-500">
+                        افتح تفاصيل البحث لإظهار إجراءات الاعتماد والجدولة والنتيجة.
+                      </div>
                     )}
                   </div>
                 </div>
@@ -745,6 +821,7 @@ export function AdminFinanceTab() {
   const [proofReviewBusy, setProofReviewBusy] = useState<string | null>(null)
   const [generatedWaiverCodes, setGeneratedWaiverCodes] = useState<Record<string, string>>({})
   const [copiedWaiverPaymentId, setCopiedWaiverPaymentId] = useState<string | null>(null)
+  const [openFinanceSection, setOpenFinanceSection] = useState<'payments' | 'reports'>('payments')
 
   const load = () => setPaymentRefresh((v) => v + 1)
 
@@ -1105,6 +1182,29 @@ export function AdminFinanceTab() {
         </Card>
       )}
 
+      <div className="grid gap-2 rounded-2xl border border-[#0f2b46]/10 bg-white p-3 sm:grid-cols-2" aria-label="مساحات عمل المالية والفواتير">
+        {([
+          ['payments', 'الفواتير والإثباتات والإعفاءات', `${paymentTotal} فاتورة ضمن الفلتر الحالي`],
+          ['reports', 'التقارير والتحليلات', report ? `${report.admissionStats.total} طلب · ${report.agentPerformance.length} وكيل` : 'التقارير غير محملة بعد'],
+        ] as const).map(([value, title, summary]) => {
+          const active = openFinanceSection === value
+          return (
+            <button
+              key={value}
+              type="button"
+              aria-expanded={active}
+              aria-controls={`finance-section-${value}`}
+              onClick={() => setOpenFinanceSection(value)}
+              className={`rounded-xl border px-3 py-2 text-right transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a227] focus-visible:ring-offset-2 ${active ? 'border-[#c9a227]/60 bg-[#fffaf0] text-[#0f2b46]' : 'border-slate-100 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+            >
+              <span className="block text-xs font-black">{title}</span>
+              <span className="mt-1 block truncate text-[10px] font-bold opacity-80">{summary}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      <div id="finance-section-reports" role="region" aria-label="التقارير والتحليلات المالية" hidden={openFinanceSection !== 'reports'} className="space-y-3">
       {/* معدلات القبول */}
       {report && (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -1160,6 +1260,9 @@ export function AdminFinanceTab() {
         </Card>
       )}
 
+      </div>
+
+      <div id="finance-section-payments" role="region" aria-label="الفواتير والإثباتات والإعفاءات" hidden={openFinanceSection !== 'payments'} className="space-y-3">
       {/* جدول الفواتير */}
       <div className="space-y-3">
         <AdminListToolbar
@@ -1354,6 +1457,7 @@ export function AdminFinanceTab() {
         </CardContent>
       </Card>
       <AdminPager page={currentPaymentPage} pageSize={paymentPageSize} total={paymentTotal} onPageChange={setPaymentPage} label="فاتورة" />
+      </div>
       </div>
     </div>
   )
@@ -2147,6 +2251,7 @@ export function AdminSettingsTab() {
     email: 'qa-admin@aactacademy.com',
     password: '',
   })
+  const [openSettingsSection, setOpenSettingsSection] = useState<'fees-ai' | 'rules' | 'content-contact' | 'admins'>('fees-ai')
 
   const loadSystemAdmins = () => {
     setAdminsLoading(true)
@@ -2548,6 +2653,51 @@ export function AdminSettingsTab() {
   return (
     <div className="mt-4 space-y-5">
       {actionDialog}
+      <div className="rounded-3xl border border-[#0f2b46]/10 bg-white p-4 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-[11px] font-black text-[#a8841a]">الرسوم والقواعد</p>
+            <h3 className="text-lg font-black text-[#0f2b46]">إعدادات النظام العامة بدون تكدس</h3>
+            <p className="mt-1 text-xs font-bold leading-6 text-slate-500">كل الخانات محفوظة كما هي؛ اختر مساحة العمل فقط لتسهيل التصفح، وزر الحفظ في الأسفل يحفظ نفس القيم بنفس دالة save الحالية.</p>
+          </div>
+          <Button onClick={save} disabled={saving} className="w-full bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a] lg:w-auto">
+            {saving ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Settings2 className="ml-2 h-4 w-4" />}
+            حفظ كل التعديلات
+          </Button>
+        </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4" aria-label="مساحات عمل الرسوم والقواعد">
+          {([
+            ['fees-ai', 'الرسوم وباقات الذكاء', 'الإعدادات المالية الافتراضية وباقات الصوت'],
+            ['rules', 'القواعد والمهل', 'المهل الزمنية والنسب والإجراءات'],
+            ['content-contact', 'النصوص والتواصل والاعتماد', 'النصوص العامة وبيانات التواصل والوثائق'],
+            ['admins', 'مدراء النظام', 'حسابات الإدارة الاختبارية والحالية'],
+          ] as const).map(([value, title, summary]) => {
+            const active = openSettingsSection === value
+            return (
+              <button
+                key={value}
+                type="button"
+                aria-expanded={active}
+                aria-controls={
+                  value === 'fees-ai'
+                    ? 'settings-group-FEES settings-group-AI'
+                    : value === 'rules'
+                      ? 'settings-group-RULES'
+                      : value === 'content-contact'
+                        ? 'settings-group-CONTENT settings-group-CONTACT'
+                        : `settings-section-${value}`
+                }
+                onClick={() => setOpenSettingsSection(value)}
+                className={`rounded-2xl border px-3 py-3 text-right transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a227] focus-visible:ring-offset-2 ${active ? 'border-[#c9a227]/60 bg-[#fffaf0] text-[#0f2b46]' : 'border-slate-100 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+              >
+                <span className="block text-xs font-black">{title}</span>
+                <span className="mt-1 block text-[10px] font-bold leading-5 opacity-80">{summary}</span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+      <div id="settings-section-admins" role="region" aria-label="مدراء النظام" hidden={openSettingsSection !== 'admins'}>
       <Card className="border-[#c9a227]/30 bg-[#fdf8e7]">
         <CardContent className="p-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -2653,9 +2803,23 @@ export function AdminSettingsTab() {
           </div>
         </CardContent>
       </Card>
+      </div>
 
       {groups.map((g) => (
-        <Card key={g.key} className="border-[#0f2b46]/10">
+        <Card
+          key={g.key}
+          id={`settings-group-${g.key}`}
+          hidden={
+            openSettingsSection === 'fees-ai'
+              ? !['FEES', 'AI'].includes(g.key)
+              : openSettingsSection === 'rules'
+                ? g.key !== 'RULES'
+                : openSettingsSection === 'content-contact'
+                  ? !['CONTENT', 'CONTACT'].includes(g.key)
+                  : true
+          }
+          className="border-[#0f2b46]/10"
+        >
           <CardContent className="p-5">
             <h3 className="mb-2 flex items-center gap-2 text-sm font-black text-[#0f2b46]">
               <Settings2 className="h-4.5 w-4.5 text-[#c9a227]" /> {g.label}

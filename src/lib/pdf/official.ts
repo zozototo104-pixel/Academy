@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from 'fs'
+import { join } from 'path'
 import { jsPDF } from 'jspdf'
 import sharp from 'sharp'
 
@@ -9,6 +11,32 @@ const BRAND_GOLD = '#c9a227'
 const TEXT = '#1f2937'
 const MUTED = '#64748b'
 const SOFT_BG = '#f8fafc'
+const OFFICIAL_ARABIC_FONT_NAME = 'AACTOfficialArabic'
+const OFFICIAL_ARABIC_FONT_FILE = 'Amiri-Regular.ttf'
+const OFFICIAL_ARABIC_FONT_PATHS = [
+  join(process.cwd(), 'public', 'fonts', OFFICIAL_ARABIC_FONT_FILE),
+  join(process.cwd(), 'src', 'assets', 'fonts', OFFICIAL_ARABIC_FONT_FILE),
+]
+let officialArabicFontFace: string | null | undefined
+
+function getOfficialArabicFontFace() {
+  if (officialArabicFontFace !== undefined) return officialArabicFontFace
+  const fontPath = OFFICIAL_ARABIC_FONT_PATHS.find((candidate) => existsSync(candidate))
+  if (!fontPath) {
+    officialArabicFontFace = null
+    return officialArabicFontFace
+  }
+  const base64 = readFileSync(fontPath).toString('base64')
+  officialArabicFontFace = `<defs><style><![CDATA[
+${[400, 700, 800, 900].map((weight) => `@font-face {
+  font-family: '${OFFICIAL_ARABIC_FONT_NAME}';
+  src: url(data:font/truetype;charset=utf-8;base64,${base64}) format('truetype');
+  font-style: normal;
+  font-weight: ${weight};
+}`).join('\n')}
+]]></style></defs>`
+  return officialArabicFontFace
+}
 
 export type PdfDir = 'rtl' | 'ltr'
 export type OfficialPdfRow = { label: string; value: unknown; dir?: PdfDir }
@@ -84,13 +112,14 @@ function text(x: number, y: number, content: unknown, opts: { size?: number; fil
   const anchor = opts.anchor || 'start'
   const dir = opts.dir || 'rtl'
   const weight = opts.weight || 700
-  const family = opts.family || "'DejaVu Sans','Noto Naskh Arabic','Arial','Tahoma',sans-serif"
+  const family = opts.family || `'${OFFICIAL_ARABIC_FONT_NAME}','Amiri','Noto Naskh Arabic','DejaVu Sans','Arial','Tahoma',sans-serif`
   return `<text x="${x}" y="${y}" text-anchor="${anchor}" direction="${dir}" unicode-bidi="plaintext" style="font-family:${family};font-size:${size}px;font-weight:${weight};fill:${fill};dominant-baseline:alphabetic">${esc(content)}</text>`
 }
 
 function pageShell(body: string, pageNo: number, totalPages: number, opts: OfficialPdfOptions) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${PDF_PAGE_W}" height="${PDF_PAGE_H}" viewBox="0 0 ${PDF_PAGE_W} ${PDF_PAGE_H}">
+  ${getOfficialArabicFontFace() || ''}
   <rect width="${PDF_PAGE_W}" height="${PDF_PAGE_H}" fill="#ffffff"/>
   <rect x="0" y="0" width="${PDF_PAGE_W}" height="132" fill="${BRAND_NAVY}"/>
   <rect x="0" y="132" width="${PDF_PAGE_W}" height="8" fill="${BRAND_GOLD}"/>

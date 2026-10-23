@@ -60,7 +60,7 @@ interface UnitData {
 }
 
 export function UnitView() {
-  const { activeUnitId, navigate, goBack, openExam, openProgram } = useAppStore()
+  const { activeUnitId, navigate, openExam, openProgram } = useAppStore()
   const { toast } = useToast()
   const [data, setData] = useState<UnitData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -141,7 +141,7 @@ export function UnitView() {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16 text-center text-slate-500">
         الوحدة غير متاحة —{' '}
-        <button className="font-bold text-[#a8841a] underline" onClick={() => goBack('dashboard')}>
+        <button className="font-bold text-[#a8841a] underline" onClick={() => navigate('dashboard')}>
           العودة للبوابة
         </button>
       </div>
@@ -152,6 +152,9 @@ export function UnitView() {
 
   return (
     <div className="aact-fade-in mx-auto max-w-4xl px-4 py-8">
+      <Button type="button" size="sm" variant="outline" onClick={() => openProgram(program.id, 'schedule')} className="mb-5 border-[#c9a227]/40 font-bold text-[#0f2b46]">
+        <ArrowRight className="ml-1 h-4 w-4" /> العودة إلى جدول الدراسة
+      </Button>
       {/* Breadcrumb */}
       <div className="mb-5 flex flex-wrap items-center gap-2 text-xs font-bold text-slate-400">
         <button onClick={() => openProgram(program.id)} className="hover:text-[#a8841a]">{program.titleAr}</button>
@@ -331,8 +334,8 @@ export function UnitView() {
 
       {/* Nav footer */}
       <div className="mt-6 flex justify-between">
-        <Button variant="ghost" onClick={() => goBack('dashboard')} className="text-[#0f2b46]">
-          <ArrowRight className="ml-1 h-4 w-4" /> عودة للبوابة
+        <Button variant="ghost" onClick={() => openProgram(program.id, 'schedule')} className="text-[#0f2b46]">
+          <ArrowRight className="ml-1 h-4 w-4" /> العودة إلى جدول الدراسة
         </Button>
       </div>
     </div>

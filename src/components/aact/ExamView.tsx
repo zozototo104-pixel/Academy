@@ -123,7 +123,7 @@ function examErrorMessage(error: ApiError) {
 }
 
 export function ExamView() {
-  const { activeExamId, activeExamKind, navigate, goBack, openProgram } = useAppStore()
+  const { activeExamId, activeExamKind, navigate, openProgram } = useAppStore()
   const { toast } = useToast()
   const [data, setData] = useState<ExamData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -565,7 +565,7 @@ export function ExamView() {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16 text-center text-slate-500">
         الاختبار غير متاح —{' '}
-        <button className="font-bold text-[#a8841a] underline" onClick={() => goBack('dashboard')}>
+        <button className="font-bold text-[#a8841a] underline" onClick={() => navigate('dashboard')}>
           العودة للبوابة
         </button>
       </div>
@@ -581,6 +581,9 @@ export function ExamView() {
   if (!result && activeExamKind === 'final' && !examStarted) {
     return (
       <div className="aact-fade-in mx-auto max-w-2xl px-4 py-10">
+        <Button type="button" size="sm" variant="outline" onClick={() => openProgram(data.exam.programId, 'schedule')} className="mb-4 border-[#c9a227]/40 font-bold text-[#0f2b46]">
+          <ArrowRight className="ml-1 h-4 w-4" /> العودة إلى جدول الدراسة
+        </Button>
         <Card className="border-[#c9a227]/50 shadow-xl">
           <CardContent className="p-7">
             <div className="mb-4 flex items-center gap-2.5">
@@ -810,6 +813,9 @@ export function ExamView() {
         </div>
 
         <div className="mt-8 flex flex-wrap justify-center gap-3">
+          <Button variant="outline" onClick={() => openProgram(data.exam.programId, 'schedule')} className="border-[#c9a227] font-extrabold text-[#0f2b46]">
+            <ArrowRight className="ml-1 h-4 w-4" /> العودة إلى جدول الدراسة
+          </Button>
           <Button onClick={() => openProgram(data.exam.programId)} className="bg-[#0f2b46] font-extrabold text-[#f5f0e1] hover:bg-[#12365c]">
             <ArrowRight className="ml-1 h-4 w-4" /> العودة للبرنامج
           </Button>

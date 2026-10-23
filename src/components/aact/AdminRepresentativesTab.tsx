@@ -110,6 +110,7 @@ export default function AdminRepresentativesTab() {
   const [onboardingLink, setOnboardingLink] = useState('')
   const [onboardingResult, setOnboardingResult] = useState<{ emailStatus?: string; expiresAt?: string | null }>({})
   const [query, setQuery] = useState('')
+  const [openSection, setOpenSection] = useState<'basic' | 'bio' | 'uploads' | 'onboarding'>('basic')
   const selected = useMemo(() => rows.find((row) => row.id === selectedId) || null, [rows, selectedId])
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -392,7 +393,7 @@ export default function AdminRepresentativesTab() {
         </CardContent>
       </Card>
 
-      <div className="min-w-0 space-y-5 overflow-hidden">
+      <div className="min-w-0 space-y-5 overflow-hidden" data-testid="representatives-workspace">
         <Card className="min-w-0 overflow-hidden border-[#0f2b46]/10">
           <CardHeader>
             <CardTitle className="text-xl font-black text-[#0f2b46]">{form.id ? 'تعديل ممثل الأكاديمية' : 'إضافة ممثل جديد'}</CardTitle>
@@ -405,6 +406,16 @@ export default function AdminRepresentativesTab() {
                 {selected.sourceAgentApplicationId ? ' — مرتبط بطلب وكالة/اعتماد.' : ''}
               </div>
             )}
+            {/* Keep each panel mounted when folded to preserve draft fields and uploader state. */}
+            <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200">
+              <h3>
+                <button type="button" id="representatives-heading-basic" aria-controls="representatives-panel-basic" aria-expanded={openSection === 'basic'} onClick={() => setOpenSection('basic')} className="w-full min-w-0 bg-slate-50 p-4 text-right transition hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#c9a227]">
+                  <span className="flex items-center justify-between gap-3 text-sm font-black text-[#0f2b46]">البيانات الأساسية <span aria-hidden="true">{openSection === 'basic' ? '−' : '+'}</span></span>
+                  <span data-testid="representatives-summary-basic" className="mt-1 block truncate text-xs font-bold text-slate-500">{form.fullName.trim() || 'ممثل جديد'} — {form.country.trim() || 'الدولة غير محددة'} — {form.status === 'ACTIVE' ? 'نشط' : form.status === 'DRAFT' ? 'مسودة' : form.status === 'HIDDEN' ? 'مخفي' : form.status === 'ARCHIVED' ? 'مؤرشف' : form.status}</span>
+                </button>
+              </h3>
+              <div id="representatives-panel-basic" data-testid="representatives-panel-basic" role="region" aria-labelledby="representatives-heading-basic" hidden={openSection !== 'basic'}>
+                <div className="space-y-5 border-t border-slate-100 p-4">
             <div className="grid gap-4 md:grid-cols-3">
               <div><Label>الاسم الكامل</Label><Input value={form.fullName} onChange={(e) => update('fullName', e.target.value)} className="mt-2 rounded-2xl" /></div>
               <CountryCombobox value={form.country} onChange={(value) => update('country', value)} />
@@ -426,6 +437,18 @@ export default function AdminRepresentativesTab() {
               <div><Label>الترتيب</Label><Input type="number" value={form.sortOrder} onChange={(e) => update('sortOrder', Number(e.target.value) as any)} className="mt-2 rounded-2xl" /></div>
             </div>
             <label className="flex items-center gap-2 rounded-2xl bg-slate-50 p-3 text-sm font-bold"><input type="checkbox" checked={form.featured} onChange={(e) => update('featured', e.target.checked as any)} /> إظهار كممثل مميز</label>
+                </div>
+              </div>
+            </section>
+            <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200">
+              <h3>
+                <button type="button" id="representatives-heading-bio" aria-controls="representatives-panel-bio" aria-expanded={openSection === 'bio'} onClick={() => setOpenSection('bio')} className="w-full min-w-0 bg-slate-50 p-4 text-right transition hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#c9a227]">
+                  <span className="flex items-center justify-between gap-3 text-sm font-black text-[#0f2b46]">السيرة والنصوص <span aria-hidden="true">{openSection === 'bio' ? '−' : '+'}</span></span>
+                  <span data-testid="representatives-summary-bio" className="mt-1 block truncate text-xs font-bold text-slate-500">{[form.shortBio, form.publicContactNote, form.rawBio, form.professionalBio, form.worksSummary, form.achievements].filter((text) => String(text || '').trim()).length} من 6 نصوص مكتملة</span>
+                </button>
+              </h3>
+              <div id="representatives-panel-bio" data-testid="representatives-panel-bio" role="region" aria-labelledby="representatives-heading-bio" hidden={openSection !== 'bio'}>
+                <div className="space-y-5 border-t border-slate-100 p-4">
             <div className="grid gap-4 md:grid-cols-2">
               <div><Label>ملخص قصير</Label><Textarea value={form.shortBio} onChange={(e) => update('shortBio', e.target.value)} className="mt-2 min-h-28 rounded-2xl" /></div>
               <div><Label>ملاحظة تواصل عامة</Label><Textarea value={form.publicContactNote} onChange={(e) => update('publicContactNote', e.target.value)} className="mt-2 min-h-28 rounded-2xl" /></div>
@@ -434,17 +457,18 @@ export default function AdminRepresentativesTab() {
               <div><Label>الأعمال</Label><Textarea value={form.worksSummary} onChange={(e) => update('worksSummary', e.target.value)} className="mt-2 min-h-32 rounded-2xl" /></div>
               <div><Label>الإنجازات</Label><Textarea value={form.achievements} onChange={(e) => update('achievements', e.target.value)} className="mt-2 min-h-32 rounded-2xl" /></div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={save} disabled={saving} className="gap-2 bg-[#0f2b46] text-white"><Save className="h-4 w-4" /> {saving ? 'جاري الحفظ...' : 'حفظ'}</Button>
-              <Button onClick={rewrite} disabled={!form.id || rewriting} variant="outline" className="gap-2 border-[#c9a227] text-[#8b6b12]"><Sparkles className="h-4 w-4" /> {rewriting ? 'يصيغ...' : 'إعادة صياغة بالذكاء'}</Button>
-              {form.id && <Button onClick={remove} disabled={saving} variant="outline" className="gap-2 border-red-200 text-red-700"><Trash2 className="h-4 w-4" /> حذف</Button>}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="min-w-0 overflow-hidden border-[#0f2b46]/10">
-            <CardHeader><CardTitle className="text-xl font-black text-[#0f2b46]">الصور والكرنيه والملفات</CardTitle></CardHeader>
-            <CardContent className="space-y-5">
+                </div>
+              </div>
+            </section>
+            <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200">
+              <h3>
+                <button type="button" id="representatives-heading-uploads" aria-controls="representatives-panel-uploads" aria-expanded={openSection === 'uploads'} onClick={() => setOpenSection('uploads')} className="w-full min-w-0 bg-slate-50 p-4 text-right transition hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#c9a227]">
+                  <span className="flex items-center justify-between gap-3 text-sm font-black text-[#0f2b46]">الصور والكرنيه والرفع <span aria-hidden="true">{openSection === 'uploads' ? '−' : '+'}</span></span>
+                  <span data-testid="representatives-summary-uploads" className="mt-1 block truncate text-xs font-bold text-slate-500">{selected ? `${selected.profilePhotoUrl ? 'الصورة متوفرة' : 'لا توجد صورة'} — ${selected.officialCardUrl ? 'الكرنيه متوفر' : 'لا يوجد كرنيه'}` : 'احفظ الممثل أولاً لتفعيل الرفع'}</span>
+                </button>
+              </h3>
+              <div id="representatives-panel-uploads" data-testid="representatives-panel-uploads" role="region" aria-labelledby="representatives-heading-uploads" hidden={openSection !== 'uploads'}>
+                <div className="space-y-5 border-t border-slate-100 p-4">
               {!form.id && (
                 <div className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs font-bold leading-6 text-amber-900 sm:flex-row sm:items-center sm:justify-between">
                   <span>احفظ بيانات الممثل أولاً ليتم إنشاء ملفه، ثم ستتفعّل أزرار رفع الصورة والكُرنيه والسيرة والكتب والأعمال والملفات.</span>
@@ -455,26 +479,6 @@ export default function AdminRepresentativesTab() {
               )}
               <div className="min-w-0 break-words rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-xs font-bold leading-6 text-[#0f2b46]">
                 يمكنك رفع ملفات الممثل بكل الصيغ الشائعة: PDF، Word، Excel، PowerPoint، صور، نصوص، ملفات مضغوطة، أو أي ملف داعم. المنصة ستحاول استخراج النص تلقائياً من الصيغ المقروءة ليستفيد منها الذكاء في صياغة السيرة.
-              </div>
-              <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-4 text-xs font-bold leading-6 text-indigo-950">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
-                    <p className="text-sm font-black">رابط استكمال ملف الممثل</p>
-                    <p className="mt-1 text-indigo-800">أرسل هذا الرابط للممثل ليكمل بياناته ويرفع ملفاته بنفسه. الملفات المرفوعة عبر الرابط تبقى بانتظار مراجعتك قبل الظهور للعامة.</p>
-                    {selected?.onboardingStatus && <p className="mt-1 text-[11px] text-indigo-700">الحالة الحالية: {['SUBMITTED', 'SUBMITTED_REVIEW'].includes(selected.onboardingStatus) ? 'أرسل الملف للمراجعة' : selected.onboardingStatus === 'INVITED' ? 'تم إنشاء الرابط' : selected.onboardingStatus === 'WAITING_PROFILE' ? 'بدأ استكمال الملف' : selected.onboardingStatus === 'NOT_SENT' ? 'لم يُنشأ رابط' : selected.onboardingStatus}</p>}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button type="button" disabled={!form.id || onboardingBusy} onClick={createOnboardingLink} className="bg-indigo-700 text-white hover:bg-indigo-800">{onboardingBusy ? 'جاري التجهيز...' : onboardingLink ? 'إعادة عرض الرابط' : 'إنشاء رابط الاستكمال'}</Button>
-                    {onboardingLink && <Button type="button" variant="outline" onClick={copyOnboardingLink} className="border-indigo-200 bg-white text-indigo-700">نسخ الرابط</Button>}
-                    {onboardingLink && <a href={onboardingLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center rounded-xl border border-indigo-200 bg-white px-3 py-2 text-xs font-black text-indigo-700">فتح الرابط</a>}
-                    {form.id && <Button type="button" variant="outline" disabled={onboardingBusy} onClick={revokeOnboardingLink} className="border-red-200 bg-white text-red-700">إلغاء الرابط</Button>}
-                  </div>
-                </div>
-                {onboardingLink && <div className="mt-3 space-y-2 rounded-xl bg-white p-3 text-[11px] font-bold text-indigo-800">
-                  <p className="break-all">{onboardingLink}</p>
-                  <p>{onboardingResult.emailStatus === 'SENT' ? 'تم إرسال الرابط على بريد الممثل ✅' : onboardingResult.emailStatus === 'FAILED' ? 'فشل إرسال البريد، انسخ الرابط وأرسله يدوياً' : 'لم يتم إرسال بريد؛ انسخ الرابط وأرسله يدوياً'}</p>
-                  {onboardingResult.expiresAt && <p>ينتهي الرابط في: {new Date(onboardingResult.expiresAt).toLocaleString('ar')}</p>}
-                </div>}
               </div>
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <AssetUploader label="الصورة الشخصية" hint="صورة واضحة للممثل" icon={<ImageIcon className="h-4 w-4" />} accept="image/*" onUpload={(file) => upload('profilePhoto', file)} uploading={uploading || !form.id} />
@@ -500,6 +504,38 @@ export default function AdminRepresentativesTab() {
                   </div>
                 </div>
               </div>
+                </div>
+              </div>
+            </section>
+            <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200">
+              <h3>
+                <button type="button" id="representatives-heading-onboarding" aria-controls="representatives-panel-onboarding" aria-expanded={openSection === 'onboarding'} onClick={() => setOpenSection('onboarding')} className="w-full min-w-0 bg-slate-50 p-4 text-right transition hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#c9a227]">
+                  <span className="flex items-center justify-between gap-3 text-sm font-black text-[#0f2b46]">الاستكمال وملفات الممثل <span aria-hidden="true">{openSection === 'onboarding' ? '−' : '+'}</span></span>
+                  <span data-testid="representatives-summary-onboarding" className="mt-1 block truncate text-xs font-bold text-slate-500">{(selected?.files || []).length} ملف — {(selected?.files || []).filter((file) => { const status = file.reviewStatus || 'APPROVED'; return status !== 'APPROVED' && status !== 'REJECTED' }).length} بانتظار المراجعة</span>
+                </button>
+              </h3>
+              <div id="representatives-panel-onboarding" data-testid="representatives-panel-onboarding" role="region" aria-labelledby="representatives-heading-onboarding" hidden={openSection !== 'onboarding'}>
+                <div className="space-y-5 border-t border-slate-100 p-4">
+              <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-4 text-xs font-bold leading-6 text-indigo-950">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <p className="text-sm font-black">رابط استكمال ملف الممثل</p>
+                    <p className="mt-1 text-indigo-800">أرسل هذا الرابط للممثل ليكمل بياناته ويرفع ملفاته بنفسه. الملفات المرفوعة عبر الرابط تبقى بانتظار مراجعتك قبل الظهور للعامة.</p>
+                    {selected?.onboardingStatus && <p className="mt-1 text-[11px] text-indigo-700">الحالة الحالية: {['SUBMITTED', 'SUBMITTED_REVIEW'].includes(selected.onboardingStatus) ? 'أرسل الملف للمراجعة' : selected.onboardingStatus === 'INVITED' ? 'تم إنشاء الرابط' : selected.onboardingStatus === 'WAITING_PROFILE' ? 'بدأ استكمال الملف' : selected.onboardingStatus === 'NOT_SENT' ? 'لم يُنشأ رابط' : selected.onboardingStatus}</p>}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" disabled={!form.id || onboardingBusy} onClick={createOnboardingLink} className="bg-indigo-700 text-white hover:bg-indigo-800">{onboardingBusy ? 'جاري التجهيز...' : onboardingLink ? 'إعادة عرض الرابط' : 'إنشاء رابط الاستكمال'}</Button>
+                    {onboardingLink && <Button type="button" variant="outline" onClick={copyOnboardingLink} className="border-indigo-200 bg-white text-indigo-700">نسخ الرابط</Button>}
+                    {onboardingLink && <a href={onboardingLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center rounded-xl border border-indigo-200 bg-white px-3 py-2 text-xs font-black text-indigo-700">فتح الرابط</a>}
+                    {form.id && <Button type="button" variant="outline" disabled={onboardingBusy} onClick={revokeOnboardingLink} className="border-red-200 bg-white text-red-700">إلغاء الرابط</Button>}
+                  </div>
+                </div>
+                {onboardingLink && <div className="mt-3 space-y-2 rounded-xl bg-white p-3 text-[11px] font-bold text-indigo-800">
+                  <p className="break-all">{onboardingLink}</p>
+                  <p>{onboardingResult.emailStatus === 'SENT' ? 'تم إرسال الرابط على بريد الممثل ✅' : onboardingResult.emailStatus === 'FAILED' ? 'فشل إرسال البريد، انسخ الرابط وأرسله يدوياً' : 'لم يتم إرسال بريد؛ انسخ الرابط وأرسله يدوياً'}</p>
+                  {onboardingResult.expiresAt && <p>ينتهي الرابط في: {new Date(onboardingResult.expiresAt).toLocaleString('ar')}</p>}
+                </div>}
+              </div>
               <div className="space-y-2">
                 <p className="text-sm font-black text-[#0f2b46]">الملفات والروابط</p>
                 {(selected?.files || []).map((file) => {
@@ -517,8 +553,16 @@ export default function AdminRepresentativesTab() {
                 })}
                 {!selected?.files?.length && <p className="rounded-2xl bg-slate-50 p-4 text-xs font-bold text-slate-500">لم تُضف ملفات بعد.</p>}
               </div>
-            </CardContent>
-          </Card>
+                </div>
+              </div>
+            </section>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={save} disabled={saving} className="gap-2 bg-[#0f2b46] text-white"><Save className="h-4 w-4" /> {saving ? 'جاري الحفظ...' : 'حفظ'}</Button>
+              <Button onClick={rewrite} disabled={!form.id || rewriting} variant="outline" className="gap-2 border-[#c9a227] text-[#8b6b12]"><Sparkles className="h-4 w-4" /> {rewriting ? 'يصيغ...' : 'إعادة صياغة بالذكاء'}</Button>
+              {form.id && <Button onClick={remove} disabled={saving} variant="outline" className="gap-2 border-red-200 text-red-700"><Trash2 className="h-4 w-4" /> حذف</Button>}
+            </div>
+          </CardContent>
+        </Card>
       </div>
       {actionDialog}
     </div>

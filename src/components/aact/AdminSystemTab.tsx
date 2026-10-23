@@ -342,6 +342,7 @@ export function AdminSystemTab() {
   const [testing, setTesting] = useState(false)
   const [paymentQrUploading, setPaymentQrUploading] = useState(false)
   const [form, setForm] = useState<Record<string, string>>({})
+  const [openGeminiSection, setOpenGeminiSection] = useState<'core' | 'routing' | 'providers' | 'health' | 'cooldowns' | 'tests'>('core')
   const [textModelCatalog, setTextModelCatalog] = useState<Record<string, { models: string[]; message: string; discoveredCount: number; staticCount: number }>>({})
   const [textModelHealth, setTextModelHealth] = useState<TextAiModelHealth | null>(null)
   const [textModelHealthLoading, setTextModelHealthLoading] = useState(false)
@@ -1173,6 +1174,32 @@ export function AdminSystemTab() {
               <p className={geminiDiag?.envKeySet ? 'mt-1 font-black text-emerald-700' : 'mt-1 font-black text-slate-400'}>{geminiDiag?.envKeySet ? 'موجود كاحتياطي' : 'غير موجود'}</p>
             </div>
           </div>
+          <div className="grid gap-2 rounded-2xl border border-[#0f2b46]/10 bg-white p-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="مساحات عمل Gemini / AI">
+            {([
+              ['core', 'Gemini الأساسي والصوت الحي', `${form.GEMINI_SUPERVISOR_LIVE_MODEL || 'Live المشرف'} · ${form.GEMINI_DISCUSSION_LIVE_MODEL || 'Live المناقشة'}`],
+              ['routing', 'سياسات توجيه الذكاء', `${currentTextProvider} · ${form.AI_ROUTER_POLICY || 'balanced'}`],
+              ['providers', 'مزوّدو النصوص والمفاتيح', 'حقول المزوّد المختار و AUTO'],
+              ['health', 'صحة النماذج وتشخيصها', textModelHealth ? `${textModelHealth.available?.length || 0} نموذج متاح في آخر فحص` : 'لم يتم تحميل فحص الصحة بعد'],
+              ['cooldowns', 'حالات الراوتر والتبريد', routerStateLoading ? 'تحميل حالات الراوتر' : `${routerState.length} حالة محمّلة`],
+              ['tests', 'اختبارات الاتصال', 'أزرار اختبار Text و Live فقط'],
+            ] as const).map(([value, title, summary]) => {
+              const active = openGeminiSection === value
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  aria-expanded={active}
+                  aria-controls={value === 'health' ? 'gemini-section-health gemini-section-health-models' : `gemini-section-${value}`}
+                  onClick={() => setOpenGeminiSection(value)}
+                  className={`rounded-xl border px-3 py-2 text-right transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a227] focus-visible:ring-offset-2 ${active ? 'border-[#c9a227]/60 bg-[#fffaf0] text-[#0f2b46]' : 'border-slate-100 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+                >
+                  <span className="block text-xs font-black">{title}</span>
+                  <span className="mt-1 block truncate text-[10px] font-bold opacity-80">{summary}</span>
+                </button>
+              )
+            })}
+          </div>
+          <div id="gemini-section-core" role="region" aria-label="Gemini الأساسي والصوت الحي" hidden={openGeminiSection !== 'core'}>
           <div className="grid gap-3 rounded-2xl border border-[#0f2b46]/10 bg-[#f8fafc] p-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <h4 className="mb-2 flex items-center gap-1.5 text-[11px] font-black text-[#a8841a]"><Bot className="h-3.5 w-3.5" /> Gemini الأساسي والصوت الحي</h4>
@@ -1185,7 +1212,9 @@ export function AdminSystemTab() {
             {SelectF('GEMINI_DISCUSSION_LIVE_MODEL', 'Live للمناقشة / الدفاع', GEMINI_DISCUSSION_LIVE_MODEL_CHOICES, 'الموصى به: gemini-3.8-live-extended-thinking للمناقشات والدفاع الأكاديمي.')}
             {SelectF('GEMINI_DISCUSSION_THINKING_LEVEL', 'مستوى التفكير للمناقشة', GEMINI_THINKING_CHOICES, 'يطبق على Live الحديث عند دعم النموذج.')}
           </div>
+          </div>
 
+          <div id="gemini-section-routing" role="region" aria-label="سياسات توجيه الذكاء" hidden={openGeminiSection !== 'routing'}>
           <div className="grid gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4 sm:grid-cols-2">
             <div className="sm:col-span-2 flex flex-wrap items-center justify-between gap-2">
               <div>
@@ -1247,6 +1276,11 @@ export function AdminSystemTab() {
                 )}
               </div>
             )}
+          </div>
+          </div>
+
+          <div id="gemini-section-health" role="region" aria-label="صحة النماذج وتشخيصها" hidden={openGeminiSection !== 'health'}>
+          <div className="grid gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4 sm:grid-cols-2">
             <div className="rounded-xl bg-white p-3 text-[10px] font-bold leading-relaxed text-indigo-700 ring-1 ring-indigo-100">
               {textAiDiag?.message || 'لم يتم تحميل تشخيص مزود النصوص بعد.'}
               {textAiDiag?.lastResult && (
@@ -1269,6 +1303,11 @@ export function AdminSystemTab() {
                 مفاتيح في cooldown: {textAiDiag.cooldowns.map((c) => `${c.provider} حتى ${new Date(c.until).toLocaleTimeString('ar')}`).join('، ')}
               </div>
             )}
+          </div>
+          </div>
+
+          <div id="gemini-section-cooldowns" role="region" aria-label="حالات الراوتر والتبريد" hidden={openGeminiSection !== 'cooldowns'}>
+          <div className="grid gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4 sm:grid-cols-2">
             <div className="rounded-xl border border-indigo-100 bg-white p-3 text-[10px] font-bold leading-relaxed text-slate-600 ring-1 ring-indigo-100 sm:col-span-2">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div>
@@ -1342,6 +1381,11 @@ export function AdminSystemTab() {
                 </div>
               )}
             </div>
+          </div>
+          </div>
+
+          <div id="gemini-section-health-models" role="region" aria-label="صحة النماذج النصية" hidden={openGeminiSection !== 'health'}>
+          <div className="grid gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4 sm:grid-cols-2">
             <div className="rounded-xl border border-indigo-100 bg-white p-3 text-[10px] font-bold leading-relaxed text-slate-600 ring-1 ring-indigo-100 sm:col-span-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
@@ -1396,6 +1440,14 @@ export function AdminSystemTab() {
               ) : (
                 <p className="mt-2 text-[10px] text-slate-400">اضغط تحديث لعرض صحة النماذج لهذا المزود.</p>
               )}
+            </div>
+          </div>
+          </div>
+
+          <div id="gemini-section-providers" role="region" aria-label="مزوّدو النصوص والمفاتيح" hidden={openGeminiSection !== 'providers'}>
+          <div className="grid gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4 sm:grid-cols-2">
+            <div className="sm:col-span-2 rounded-xl bg-white p-3 text-[10px] font-bold leading-relaxed text-indigo-700 ring-1 ring-indigo-100">
+              مزوّد النصوص الحالي: {currentTextProvider}. عند AUTO تبقى إعدادات المزوّدات كما يعرضها الكود الحالي، وفتح هذه المساحة لا يغيّر AI_TEXT_PROVIDER.
             </div>
             {currentTextProvider === 'GEMINI' || currentTextProvider === 'AUTO' ? (
               <>
@@ -1490,10 +1542,15 @@ export function AdminSystemTab() {
               </>
             ) : null}
           </div>
-          <div className="flex flex-wrap gap-2">
+          </div>
+          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white p-3">
             <Button onClick={save} disabled={saving} className="bg-[#0f2b46] font-extrabold text-[#f5f0e1] hover:bg-[#12365c]">
-              {saving ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Save className="ml-2 h-4 w-4" />} حفظ إعدادات Gemini
+              {saving ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Save className="ml-2 h-4 w-4" />} حفظ إعدادات النظام
             </Button>
+            <p className="text-[10px] font-bold leading-relaxed text-slate-500">الحفظ يستخدم نفس دالة save الحالية ويحفظ كائن إعدادات النظام كاملًا، وليس القسم المفتوح فقط.</p>
+          </div>
+          <div id="gemini-section-tests" role="region" aria-label="اختبارات الاتصال" hidden={openGeminiSection !== 'tests'}>
+          <div className="flex flex-wrap gap-2 rounded-2xl border border-[#0f2b46]/10 bg-white p-3">
             <Button onClick={testGeminiText} disabled={testing} variant="outline" className="border-[#c9a227] font-extrabold text-[#a8841a] hover:bg-[#fffaf0]">
               {testing ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Bot className="ml-2 h-4 w-4" />} اختبار Gemini Text
             </Button>
@@ -1506,6 +1563,7 @@ export function AdminSystemTab() {
             <Button onClick={() => testGeminiLive('DISCUSSION')} disabled={testing} variant="outline" className="border-emerald-300 font-extrabold text-emerald-700 hover:bg-emerald-50">
               {testing ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Radio className="ml-2 h-4 w-4" />} اختبار Live المناقشة
             </Button>
+          </div>
           </div>
           <div className="rounded-xl bg-[#f7edd0]/60 p-3 text-[10px] font-bold leading-relaxed text-[#5c4d1a]">
             إذا ظهر 429 فالمفتاح سليم لكن الحصة انتهت مؤقتاً. Live الحديث يستخدم للمشرف gemini-3.8-live وللمناقشة gemini-3.8-live-extended-thinking. مزودات OpenAI/Claude/GLM تخص النصوص فقط ولا تغيّر الصوت أو Live.

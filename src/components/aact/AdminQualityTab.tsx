@@ -15,6 +15,7 @@ import {
   BookMarked,
   Bot,
   CheckCircle2,
+  ChevronDown,
   ClipboardCheck,
   Clock,
   Loader2,
@@ -478,6 +479,11 @@ export function AdminQualityTab() {
   const [mailTestSending, setMailTestSending] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [activeWorkspace, setActiveWorkspace] = useState<'curricula' | 'supervision' | 'programs' | 'content' | 'students' | 'operations' | 'thesis'>('curricula')
+  const [showAllIndicators, setShowAllIndicators] = useState(false)
+  const [recommendationsOpen, setRecommendationsOpen] = useState(true)
+  const [secondaryLoaded, setSecondaryLoaded] = useState(false)
+  const [secondaryFailed, setSecondaryFailed] = useState<{ reviews?: boolean; readiness?: boolean }>({})
   const [reviewBusyId, setReviewBusyId] = useState<string | null>(null)
   const [readinessBusyId, setReadinessBusyId] = useState<string | null>(null)
   const [unitBusyId, setUnitBusyId] = useState<string | null>(null)
@@ -512,6 +518,8 @@ export function AdminQualityTab() {
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
+    setSecondaryLoaded(false)
+    setSecondaryFailed({})
     try {
       const res = await api<AcademicQualityData>('/api/admin/academic-quality')
       setData(res)
@@ -520,14 +528,15 @@ export function AdminQualityTab() {
       setStorageReport(null)
 
       Promise.all([
-        api<{ items: ChatReviewItem[] }>('/api/chat-feedback').catch(() => ({ items: [] })),
-        api<{ items: ProgramReadinessItem[] }>('/api/admin/program-readiness').catch(() => ({ items: [] })),
+        api<{ items: ChatReviewItem[] }>('/api/chat-feedback').catch(() => { setSecondaryFailed((p) => ({ ...p, reviews: true })); return { items: [] } }),
+        api<{ items: ProgramReadinessItem[] }>('/api/admin/program-readiness').catch(() => { setSecondaryFailed((p) => ({ ...p, readiness: true })); return { items: [] } }),
         api<StorageSafetyReport>('/api/admin/storage-safety').catch(() => null),
       ])
         .then(([reviews, readiness, storage]) => {
           setReviewItems(reviews.items || [])
           setReadinessItems(readiness.items || [])
           setStorageReport(storage)
+          setSecondaryLoaded(true)
         })
         .catch(() => null)
     } catch (e: any) {
@@ -1282,6 +1291,8 @@ export function AdminQualityTab() {
     { icon: Bot, label: 'تغطية ذاكرة المشرف', value: `${data.overview.supervisorMemoryCoverage}%`, hint: `${data.supervisor.studentsWithMemory} طالب` },
     { icon: Award, label: 'مهارات صغيرة', value: data.overview.microCredentials, hint: `${data.overview.microCredentialAwards} منحة` },
   ]
+  const DEFAULT_OVERVIEW_LABELS = ['برامج نشطة', 'تحتاج تحسين', 'توثيق مصادر الأسئلة', 'طلاب متعثرون']
+  const visibleOverviewCards = showAllIndicators ? overviewCards : overviewCards.filter((m) => DEFAULT_OVERVIEW_LABELS.includes(m.label))
 
   return (
     <div className="mt-4 space-y-5">
@@ -1314,25 +1325,8 @@ export function AdminQualityTab() {
         </div>
       </div>
 
-      <Card className="border-[#c9a227]/30 bg-[#fffaf0]">
-        <CardContent className="p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h3 className="text-sm font-black text-[#0f2b46]">إدارة عناوين بحث التخرج</h3>
-              <p className="mt-1 text-[11px] font-bold leading-6 text-slate-600">
-                أضف عناوين يدوية أو ولّد مقترحات بالذكاء حسب البرنامج والكتب والوحدات. الطالب يختار أو يقترح، والاعتماد يبقى للإدارة/المشرف.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={() => openThesisTopicDialog('manual')} className="bg-white text-xs font-black">إضافة عنوان يدوي</Button>
-              <Button size="sm" onClick={() => openThesisTopicDialog('generate')} className="bg-[#0f2b46] text-xs font-black text-[#f5f0e1] hover:bg-[#183c5f]">توليد عناوين بالذكاء</Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
-        {overviewCards.map((m) => (
+        {visibleOverviewCards.map((m) => (
           <Card key={m.label} className="border-[#0f2b46]/10">
             <CardContent className="p-4 text-center">
               <div className="mx-auto mb-2 w-fit rounded-xl bg-[#f7edd0] p-2 text-[#a8841a]">
@@ -1346,481 +1340,326 @@ export function AdminQualityTab() {
         ))}
       </div>
 
+      <div className="flex justify-center">
+        <Button type="button" variant="outline" size="sm" aria-expanded={showAllIndicators} onClick={() => setShowAllIndicators((v) => !v)} className="text-xs font-black">
+          {showAllIndicators ? 'إخفاء المؤشرات الإضافية' : 'عرض جميع المؤشرات'}
+        </Button>
+      </div>
+
       {data.recommendations.length > 0 && (
         <Card className="border-[#c9a227]/35 bg-[#fffaf0]">
           <CardContent className="p-4">
-            <h3 className="mb-2 flex items-center gap-2 text-sm font-black text-[#0f2b46]">
-              <CheckCircle2 className="h-4 w-4 text-[#a8841a]" /> توصيات تشغيل الجودة هذا الأسبوع
-            </h3>
-            <div className="grid gap-2 md:grid-cols-2">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]">
+                <CheckCircle2 className="h-4 w-4 text-[#a8841a]" /> توصيات تشغيل الجودة هذا الأسبوع
+              </h3>
+              <button type="button" aria-expanded={recommendationsOpen} aria-controls="quality-recommendations" onClick={() => setRecommendationsOpen((v) => !v)} className="text-[11px] font-black text-[#a8841a]">
+                {recommendationsOpen ? 'طيّ التوصيات' : `عرض التوصيات (${data.recommendations.length})`}
+              </button>
+            </div>
+            <div id="quality-recommendations" hidden={!recommendationsOpen}>
+              <div className="grid gap-2 md:grid-cols-2">
               {data.recommendations.map((r, i) => (
                 <p key={i} className="rounded-xl bg-white p-3 text-xs font-bold leading-6 text-slate-600">• {r}</p>
               ))}
+              </div>
             </div>
           </CardContent>
         </Card>
       )}
 
-      <Card className="border-[#c9a227]/30 bg-[#fffaf0]">
-        <CardContent className="p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h3 className="text-sm font-black text-[#0f2b46]">حفظ كتالوج البرامج قبل تنظيف قاعدة البيانات</h3>
-              <p className="mt-1 text-[11px] font-bold leading-6 text-slate-600">
-                هذه الأداة تحفظ تفاصيل البرامج والوحدات والكتب وبنك المعرفة وبنك الأسئلة والاختبارات، ولا تحفظ الطلاب أو الطلبات أو المدفوعات.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" disabled={catalogBusy === 'export'} onClick={exportProgramCatalog} className="bg-white text-xs font-black">
-                {catalogBusy === 'export' ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
-                تنزيل نسخة البرامج
-              </Button>
-              <Button size="sm" variant="outline" disabled={catalogBusy === 'import'} onClick={() => setCatalogImportOpen(true)} className="bg-white text-xs font-black">
-                استيراد نسخة محفوظة
-              </Button>
-            </div>
-          </div>
-          <div className="mt-3 rounded-xl bg-white/80 p-3 text-[11px] font-bold leading-6 text-[#8a6d16]">
-            استخدم زر التنزيل قبل تفريغ Neon. بعد التفريغ وإنشاء القاعدة النظيفة، تستطيع استيراد نفس الملف لإرجاع تفاصيل البرامج فقط.
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="border-blue-100 bg-blue-50/40">
-        <CardContent className="p-5">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h3 className="text-sm font-black text-[#0f2b46]">تقرير سلامة التخزين</h3>
-              <p className="mt-1 text-[11px] font-bold text-slate-500">مراقبة فقط: لا يحذف أي ملف ولا يمس الكتب أو بيانات الطلاب.</p>
-            </div>
-            <Button size="sm" variant="outline" disabled={storageReportLoading} onClick={refreshStorageReport} className="bg-white text-xs font-black">
-              {storageReportLoading ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
-              تحديث التقرير
-            </Button>
-          </div>
-
-          {!storageReport ? (
-            <p className="rounded-xl bg-white p-4 text-center text-xs font-bold text-slate-500">لم يتم تحميل تقرير التخزين بعد.</p>
-          ) : (
-            <div className="space-y-4">
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="rounded-xl bg-white p-3 text-xs font-black text-slate-600">كتب مرتبطة بـ R2<br /><span className="text-lg text-[#0f2b46]">{storageReport.summary.linkedR2Objects}</span></div>
-                <div className="rounded-xl bg-white p-3 text-xs font-black text-slate-600">حجم R2 المرتبط<br /><span className="text-lg text-[#0f2b46]">{Math.round(storageReport.summary.linkedR2Bytes / 1024 / 1024)}MB</span></div>
-                <div className="rounded-xl bg-white p-3 text-xs font-black text-amber-700">كتب تحتاج مراجعة<br /><span className="text-lg">{storageReport.summary.suspiciousBooks}</span></div>
-                <div className="rounded-xl bg-white p-3 text-xs font-black text-red-700">مسودات اختبار يتيمة<br /><span className="text-lg">{storageReport.summary.orphanExamDrafts}</span></div>
-              </div>
-
-              <div className="grid gap-2 md:grid-cols-3">
-                <div className="rounded-xl bg-white p-3 text-xs font-bold leading-6 text-slate-600">ملفات Base64 قديمة: <b>{storageReport.summary.legacyBase64Books}</b><br />الحجم التقريبي: {Math.round(storageReport.summary.legacyBase64Bytes / 1024 / 1024)}MB</div>
-                <div className="rounded-xl bg-white p-3 text-xs font-bold leading-6 text-slate-600">قطع رفع مؤقتة: <b>{storageReport.summary.uploadChunks}</b><br />حجمها التقريبي: {Math.round(storageReport.summary.uploadChunkBytes / 1024 / 1024)}MB</div>
-                <div className="rounded-xl bg-white p-3 text-xs font-bold leading-6 text-slate-600">ملفات طلاب داخل Neon: <b>{storageReport.summary.heavyDbFileRows}</b><br />حجمها التقريبي: {Math.round(storageReport.summary.heavyDbFileBytes / 1024 / 1024)}MB</div>
-                <div className="rounded-xl bg-white p-3 text-xs font-bold leading-6 text-emerald-700">واجبات محفوظة خارج Neon: <b>{storageReport.summary.externallyStoredAssignments}</b><br />حجمها التقريبي: {Math.round(storageReport.summary.externallyStoredAssignmentBytes / 1024 / 1024)}MB</div>
-                <div className="rounded-xl bg-white p-3 text-xs font-bold leading-6 text-emerald-700">تسجيلات محفوظة خارج Neon: <b>{storageReport.summary.externallyStoredDefenseRecordings}</b><br />حجمها التقريبي: {Math.round(storageReport.summary.externallyStoredDefenseRecordingBytes / 1024 / 1024)}MB</div>
-                <div className="rounded-xl bg-white p-3 text-xs font-bold leading-6 text-slate-600">اختبارات REVIEW محفوظة: <b>{storageReport.summary.reviewExams}</b><br />للمراقبة فقط، لا حذف تلقائي.</div>
-              </div>
-
-              {(storageReport.samples?.heavyDbFiles || []).length > 0 && (
-                <div className="rounded-2xl bg-white p-4">
-                  <h4 className="mb-2 text-xs font-black text-[#0f2b46]">فحص الملفات الثقيلة داخل قاعدة البيانات</h4>
-                  <div className="grid gap-2 md:grid-cols-2">
-                    {storageReport.samples.heavyDbFiles.map((item) => (
-                      <div key={item.key} className={`rounded-xl p-3 text-xs font-bold leading-6 ${item.status === 'SAFE' ? 'bg-emerald-50 text-emerald-700' : item.status === 'HIGH_RISK' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
-                        <b>{item.label}</b><br />
-                        السجلات: {item.rows} · الحجم التقريبي: {Math.round(item.approxBytes / 1024 / 1024)}MB<br />
-                        <span className="text-[11px]">{item.note}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="rounded-2xl bg-white p-4">
-                <h4 className="mb-2 text-xs font-black text-[#0f2b46]">توصيات التقرير</h4>
-                <div className="grid gap-2 md:grid-cols-2">
-                  {storageReport.recommendations.map((r, i) => <p key={i} className="rounded-xl bg-slate-50 p-3 text-xs font-bold leading-6 text-slate-600">• {r}</p>)}
-                </div>
-              </div>
-
-              {storageReport.samples.suspiciousBooks.length > 0 && (
-                <div className="rounded-2xl bg-white p-4">
-                  <h4 className="mb-2 text-xs font-black text-amber-700">نماذج كتب تحتاج مراجعة</h4>
-                  <div className="space-y-2">
-                    {storageReport.samples.suspiciousBooks.slice(0, 5).map((b) => (
-                      <p key={b.id} className="rounded-xl bg-amber-50 p-3 text-xs font-bold leading-6 text-amber-800">
-                        {b.title} — {b.program || 'بدون برنامج'} — المزود: {b.storageProvider || 'غير محدد'} — مفتاح التخزين: {b.storageKey ? 'موجود' : 'غير موجود'}
-                      </p>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <p className="rounded-xl bg-blue-50 p-3 text-[11px] font-bold leading-6 text-blue-700">{storageReport.storageConfig.note}</p>
-            </div>
+      <section aria-label="جاهزية المناهج">
+        <button type="button" id="quality-ws-curricula-header" aria-expanded={activeWorkspace === 'curricula'} aria-controls="quality-ws-curricula" onClick={() => setActiveWorkspace('curricula')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
+          <span>
+            <span className="block text-sm font-black text-[#0f2b46]">جاهزية المناهج</span>
+            <span className="mt-0.5 block text-[11px] font-bold text-slate-500">{!secondaryLoaded ? 'جارٍ تحميل بيانات الجاهزية…' : secondaryFailed.readiness ? 'تعذّر تحميل بيانات الجاهزية' : `${readinessItems.length} برنامج · ${readinessItems.filter((i) => !i.isCurriculumReady).length} يحتاج متابعة`}</span>
+          </span>
+          <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${activeWorkspace === 'curricula' ? 'rotate-180' : ''}`} />
+        </button>
+        <div id="quality-ws-curricula" role="region" aria-labelledby="quality-ws-curricula-header" hidden={activeWorkspace !== 'curricula'} className="mt-3 space-y-5">
+          {!secondaryLoaded && (
+            <p className="rounded-xl bg-amber-50 p-3 text-[11px] font-bold leading-6 text-amber-700">بيانات الجاهزية لم تُحمّل بعد — الأعداد داخل البطاقة التالية ليست حالة نهائية حتى يكتمل التحميل.</p>
           )}
-        </CardContent>
-      </Card>
+          {secondaryLoaded && secondaryFailed.readiness && (
+            <p className="rounded-xl bg-red-50 p-3 text-[11px] font-bold leading-6 text-red-700">تعذّر تحميل بيانات الجاهزية — ما يظهر داخل البطاقة التالية ليس حالة نهائية.</p>
+          )}
+          <Card className="border-amber-200 bg-amber-50/50">
+            <CardContent className="p-5">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-black text-[#0f2b46]">تجهيز واعتماد المناهج للبرامج المسجل بها</h3>
+                  <p className="mt-1 text-[11px] font-bold text-slate-500">تظهر هنا فقط البرامج التي عليها طلبات أو طلاب فعلياً وتحتاج تجهيزاً أو اعتماداً أكاديمياً.</p>
+                </div>
+                <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">{readinessItems.length} برنامج</Badge>
+              </div>
 
-      <Card className="border-amber-200 bg-amber-50/50">
-        <CardContent className="p-5">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h3 className="text-sm font-black text-[#0f2b46]">تجهيز واعتماد المناهج للبرامج المسجل بها</h3>
-              <p className="mt-1 text-[11px] font-bold text-slate-500">تظهر هنا فقط البرامج التي عليها طلبات أو طلاب فعلياً وتحتاج تجهيزاً أو اعتماداً أكاديمياً.</p>
-            </div>
-            <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">{readinessItems.length} برنامج</Badge>
-          </div>
-
-          {readinessItems.length === 0 ? (
-            <p className="rounded-xl bg-emerald-50 p-4 text-center text-xs font-bold text-emerald-700">لا توجد برامج مطلوبة تحتاج تجهيزاً حالياً.</p>
-          ) : (
-            <div className="space-y-4">
-              {readinessItems.map((item) => {
-                const busy = readinessBusyId === item.id
-                const due = item.curriculumDueAt ? new Date(item.curriculumDueAt) : null
-                return (
-                  <article key={item.id} className="rounded-2xl border border-amber-100 bg-white p-4 text-xs shadow-sm">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <h4 className="text-sm font-black text-[#0f2b46]">{item.titleAr}</h4>
-                        <p className="mt-1 font-bold text-slate-500">طلاب/طلبات: {item.demandCount} · تسجيلات {item.enrollments} · طلبات قبول {item.admissions}</p>
-                        {due && <p className="mt-1 font-bold text-amber-700">موعد التجهيز المتوقع: {due.toLocaleString('ar-EG')}</p>}
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Badge className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">{CURRICULUM_STATUS_LABEL[item.academicReadinessStatus]}</Badge>
-                        <Badge className={item.registrationStatus === 'OPEN' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'bg-slate-100 text-slate-700 hover:bg-slate-100'}>
-                          التسجيل: {item.registrationStatus === 'OPEN' ? 'مفتوح' : 'مغلق'}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                      <div className="rounded-xl bg-[#f8fafc] p-3 font-black text-slate-600">الكتب: {item.counts.books}/{item.targets.books}</div>
-                      <div className="rounded-xl bg-[#f8fafc] p-3 font-black text-slate-600">الوحدات: {item.counts.units}/{item.targets.units}</div>
-                      <div className="rounded-xl bg-[#f8fafc] p-3 font-black text-slate-600">بنك المعرفة: {item.counts.knowledgeItems > 0 ? 'جاهز' : 'غير جاهز'} ({item.counts.knowledgeItems})</div>
-                      <div className="rounded-xl bg-[#f8fafc] p-3 font-black text-slate-600">الاختبارات/الواجبات: {item.counts.assessments}/{item.targets.assessments}</div>
-                    </div>
-
-                    {item.sourceReadiness ? (
-                      <div className={`mt-3 rounded-2xl border p-3 ${item.sourceReadiness.ready ? 'border-emerald-100 bg-emerald-50' : 'border-red-100 bg-red-50'}`}>
-                        <div className="flex flex-wrap items-start justify-between gap-2">
+              {readinessItems.length === 0 ? (
+                <p className="rounded-xl bg-emerald-50 p-4 text-center text-xs font-bold text-emerald-700">لا توجد برامج مطلوبة تحتاج تجهيزاً حالياً.</p>
+              ) : (
+                <div className="space-y-4">
+                  {readinessItems.map((item) => {
+                    const busy = readinessBusyId === item.id
+                    const due = item.curriculumDueAt ? new Date(item.curriculumDueAt) : null
+                    return (
+                      <article key={item.id} className="rounded-2xl border border-amber-100 bg-white p-4 text-xs shadow-sm">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>
-                            <p className={`font-black ${item.sourceReadiness.ready ? 'text-emerald-800' : 'text-red-800'}`}>
-                              {item.sourceReadiness.ready ? 'مصادر التوليد جاهزة' : 'مصادر التوليد غير جاهزة'}
-                            </p>
-                            <p className="mt-1 text-[11px] font-bold leading-5 text-slate-600">{item.sourceReadiness.message}</p>
+                            <h4 className="text-sm font-black text-[#0f2b46]">{item.titleAr}</h4>
+                            <p className="mt-1 font-bold text-slate-500">طلاب/طلبات: {item.demandCount} · تسجيلات {item.enrollments} · طلبات قبول {item.admissions}</p>
+                            {due && <p className="mt-1 font-bold text-amber-700">موعد التجهيز المتوقع: {due.toLocaleString('ar-EG')}</p>}
                           </div>
-                          <div className="flex flex-col items-start gap-1 sm:items-end">
-                            <Badge className={`${item.sourceReadiness.aiProvider ? 'bg-[#0f2b46]' : 'bg-slate-500'} text-[#f5f0e1] hover:bg-[#0f2b46]`}>
-                              آخر تحليل فعلي: {item.sourceReadiness.aiProvider && item.sourceReadiness.aiModel
-                                ? `${item.sourceReadiness.aiProvider}/${item.sourceReadiness.aiModel}`
-                                : 'لم يتم توليد وحدات بعد'}
+                          <div className="flex flex-wrap gap-2">
+                            <Badge className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">{CURRICULUM_STATUS_LABEL[item.academicReadinessStatus]}</Badge>
+                            <Badge className={item.registrationStatus === 'OPEN' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'bg-slate-100 text-slate-700 hover:bg-slate-100'}>
+                              التسجيل: {item.registrationStatus === 'OPEN' ? 'مفتوح' : 'مغلق'}
                             </Badge>
-                            {item.sourceReadiness.aiGeneratedAt ? (
-                              <span className="text-[10px] font-bold text-slate-500">آخر تشغيل: {safeDateLabel(item.sourceReadiness.aiGeneratedAt) || 'غير محدد'}</span>
-                            ) : (
-                              <span className="text-[10px] font-bold text-slate-500">الإعداد الحالي: {item.sourceReadiness.configuredProvider}/{item.sourceReadiness.configuredModel}</span>
-                            )}
                           </div>
                         </div>
-                        <div className="mt-3 grid gap-2 sm:grid-cols-4">
-                          <div className="rounded-xl bg-white/80 p-2 font-black text-slate-600">كتب مقروءة: {item.sourceReadiness.readableBooks}/{item.counts.books}</div>
-                          <div className="rounded-xl bg-white/80 p-2 font-black text-slate-600">كتب محللة: {item.sourceReadiness.analyzedBooks}/{item.counts.books}</div>
-                          <div className="rounded-xl bg-white/80 p-2 font-black text-slate-600">معرفة الكتب: {item.sourceReadiness.booksWithKnowledge}/{item.counts.books}</div>
-                          <div className="rounded-xl bg-white/80 p-2 font-black text-slate-600">نصوص: {Math.round((item.sourceReadiness.extractedTextChars || 0) / 1000)} ألف حرف</div>
+
+                        <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                          <div className="rounded-xl bg-[#f8fafc] p-3 font-black text-slate-600">الكتب: {item.counts.books}/{item.targets.books}</div>
+                          <div className="rounded-xl bg-[#f8fafc] p-3 font-black text-slate-600">الوحدات: {item.counts.units}/{item.targets.units}</div>
+                          <div className="rounded-xl bg-[#f8fafc] p-3 font-black text-slate-600">بنك المعرفة: {item.counts.knowledgeItems > 0 ? 'جاهز' : 'غير جاهز'} ({item.counts.knowledgeItems})</div>
+                          <div className="rounded-xl bg-[#f8fafc] p-3 font-black text-slate-600">الاختبارات/الواجبات: {item.counts.assessments}/{item.targets.assessments}</div>
                         </div>
-                        {item.sourceReadiness.aiGeneratedAt ? (
-                          <div className="mt-3 rounded-2xl border border-emerald-100 bg-white/80 p-3 text-[11px] font-bold text-slate-700">
-                            <div className="flex flex-wrap gap-2">
-                              <Badge className="bg-emerald-700 text-white hover:bg-emerald-700">
-                                {item.sourceReadiness.generationMode === 'append' ? 'آخر عملية: إضافة إلى الموجود' : item.sourceReadiness.generationMode === 'replace' ? 'آخر عملية: استبدال الموجود' : 'آخر عملية: إنشاء جديد'}
-                              </Badge>
-                              <Badge className="bg-[#0f2b46] text-[#f5f0e1] hover:bg-[#0f2b46]">
-                                مصادر: {asObjectArray<{ bookTitle?: string }>(item.sourceReadiness.generationSourceBooks).length} كتاب
-                              </Badge>
-                            </div>
-                            {asObjectArray<{ stage?: string; ok?: boolean; provider?: string; model?: string }>(item.sourceReadiness.aiTrace).length ? (
-                              <p className="mt-2 leading-5">
-                                مراحل التشغيل: {asObjectArray<{ stage?: string; ok?: boolean; provider?: string; model?: string }>(item.sourceReadiness.aiTrace).filter((t) => t.ok).map((t) => `${t.stage || 'مرحلة'}${t.provider && t.model ? ` (${t.provider}/${t.model})` : ''}`).join(' ← ') || 'لا توجد مراحل ناجحة مسجلة'}
-                              </p>
-                            ) : null}
-                            {asObjectArray<{ bookTitle?: string }>(item.sourceReadiness.generationSourceBooks).length ? (
-                              <p className="mt-1 leading-5">
-                                الكتب المستخدمة: {asObjectArray<{ bookTitle?: string }>(item.sourceReadiness.generationSourceBooks).slice(0, 4).map((book) => book.bookTitle).filter(Boolean).join('، ')}
-                              </p>
-                            ) : null}
-                          </div>
-                        ) : null}
-                        {item.sourceReadiness.books?.length ? (
-                          <div className="mt-3 max-h-44 space-y-1 overflow-y-auto rounded-xl bg-white/70 p-2">
-                            {item.sourceReadiness.books.slice(0, 8).map((book) => (
-                              <div key={book.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-100 bg-white px-2 py-1.5 text-[10px] font-bold text-slate-600">
-                                <span className="max-w-[15rem] truncate font-black text-[#0f2b46]">{book.title}</span>
-                                <span>{book.readStatusLabel}</span>
-                                <span>{book.textChars >= 800 ? 'مقروء' : 'نص ناقص'} · {book.knowledgeItems} معرفة</span>
+
+                        {item.sourceReadiness ? (
+                          <div className={`mt-3 rounded-2xl border p-3 ${item.sourceReadiness.ready ? 'border-emerald-100 bg-emerald-50' : 'border-red-100 bg-red-50'}`}>
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div>
+                                <p className={`font-black ${item.sourceReadiness.ready ? 'text-emerald-800' : 'text-red-800'}`}>
+                                  {item.sourceReadiness.ready ? 'مصادر التوليد جاهزة' : 'مصادر التوليد غير جاهزة'}
+                                </p>
+                                <p className="mt-1 text-[11px] font-bold leading-5 text-slate-600">{item.sourceReadiness.message}</p>
                               </div>
-                            ))}
+                              <div className="flex flex-col items-start gap-1 sm:items-end">
+                                <Badge className={`${item.sourceReadiness.aiProvider ? 'bg-[#0f2b46]' : 'bg-slate-500'} text-[#f5f0e1] hover:bg-[#0f2b46]`}>
+                                  آخر تحليل فعلي: {item.sourceReadiness.aiProvider && item.sourceReadiness.aiModel
+                                    ? `${item.sourceReadiness.aiProvider}/${item.sourceReadiness.aiModel}`
+                                    : 'لم يتم توليد وحدات بعد'}
+                                </Badge>
+                                {item.sourceReadiness.aiGeneratedAt ? (
+                                  <span className="text-[10px] font-bold text-slate-500">آخر تشغيل: {safeDateLabel(item.sourceReadiness.aiGeneratedAt) || 'غير محدد'}</span>
+                                ) : (
+                                  <span className="text-[10px] font-bold text-slate-500">الإعداد الحالي: {item.sourceReadiness.configuredProvider}/{item.sourceReadiness.configuredModel}</span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="mt-3 grid gap-2 sm:grid-cols-4">
+                              <div className="rounded-xl bg-white/80 p-2 font-black text-slate-600">كتب مقروءة: {item.sourceReadiness.readableBooks}/{item.counts.books}</div>
+                              <div className="rounded-xl bg-white/80 p-2 font-black text-slate-600">كتب محللة: {item.sourceReadiness.analyzedBooks}/{item.counts.books}</div>
+                              <div className="rounded-xl bg-white/80 p-2 font-black text-slate-600">معرفة الكتب: {item.sourceReadiness.booksWithKnowledge}/{item.counts.books}</div>
+                              <div className="rounded-xl bg-white/80 p-2 font-black text-slate-600">نصوص: {Math.round((item.sourceReadiness.extractedTextChars || 0) / 1000)} ألف حرف</div>
+                            </div>
+                            {item.sourceReadiness.aiGeneratedAt ? (
+                              <div className="mt-3 rounded-2xl border border-emerald-100 bg-white/80 p-3 text-[11px] font-bold text-slate-700">
+                                <div className="flex flex-wrap gap-2">
+                                  <Badge className="bg-emerald-700 text-white hover:bg-emerald-700">
+                                    {item.sourceReadiness.generationMode === 'append' ? 'آخر عملية: إضافة إلى الموجود' : item.sourceReadiness.generationMode === 'replace' ? 'آخر عملية: استبدال الموجود' : 'آخر عملية: إنشاء جديد'}
+                                  </Badge>
+                                  <Badge className="bg-[#0f2b46] text-[#f5f0e1] hover:bg-[#0f2b46]">
+                                    مصادر: {asObjectArray<{ bookTitle?: string }>(item.sourceReadiness.generationSourceBooks).length} كتاب
+                                  </Badge>
+                                </div>
+                                {asObjectArray<{ stage?: string; ok?: boolean; provider?: string; model?: string }>(item.sourceReadiness.aiTrace).length ? (
+                                  <p className="mt-2 leading-5">
+                                    مراحل التشغيل: {asObjectArray<{ stage?: string; ok?: boolean; provider?: string; model?: string }>(item.sourceReadiness.aiTrace).filter((t) => t.ok).map((t) => `${t.stage || 'مرحلة'}${t.provider && t.model ? ` (${t.provider}/${t.model})` : ''}`).join(' ← ') || 'لا توجد مراحل ناجحة مسجلة'}
+                                  </p>
+                                ) : null}
+                                {asObjectArray<{ bookTitle?: string }>(item.sourceReadiness.generationSourceBooks).length ? (
+                                  <p className="mt-1 leading-5">
+                                    الكتب المستخدمة: {asObjectArray<{ bookTitle?: string }>(item.sourceReadiness.generationSourceBooks).slice(0, 4).map((book) => book.bookTitle).filter(Boolean).join('، ')}
+                                  </p>
+                                ) : null}
+                              </div>
+                            ) : null}
+                            {item.sourceReadiness.books?.length ? (
+                              <div className="mt-3 max-h-44 space-y-1 overflow-y-auto rounded-xl bg-white/70 p-2">
+                                {item.sourceReadiness.books.slice(0, 8).map((book) => (
+                                  <div key={book.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-100 bg-white px-2 py-1.5 text-[10px] font-bold text-slate-600">
+                                    <span className="max-w-[15rem] truncate font-black text-[#0f2b46]">{book.title}</span>
+                                    <span>{book.readStatusLabel}</span>
+                                    <span>{book.textChars >= 800 ? 'مقروء' : 'نص ناقص'} · {book.knowledgeItems} معرفة</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
                           </div>
                         ) : null}
-                      </div>
-                    ) : null}
 
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      {Object.entries(item.checks).map(([key, ok]) => (
-                        <span key={key} className={`rounded-full px-2 py-1 text-[10px] font-black ${ok ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                          {ok ? '✓' : '×'} {READINESS_CHECK_LABEL[key] || key}
-                        </span>
-                      ))}
-                    </div>
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {Object.entries(item.checks).map(([key, ok]) => (
+                            <span key={key} className={`rounded-full px-2 py-1 text-[10px] font-black ${ok ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                              {ok ? '✓' : '×'} {READINESS_CHECK_LABEL[key] || key}
+                            </span>
+                          ))}
+                        </div>
 
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <Button size="sm" variant="outline" className="border-[#c9a227] text-xs font-black text-[#a8841a]" onClick={() => window.dispatchEvent(new CustomEvent('aact-admin-tab', { detail: { tab: 'books', programId: item.id, section: 'books', subSection: 'add' } }))}>رفع كتب البرنامج</Button>
-                      <Button size="sm" variant="outline" className="border-[#c9a227] text-xs font-black text-[#a8841a]" onClick={() => window.dispatchEvent(new CustomEvent('aact-admin-tab', { detail: { tab: 'books', programId: item.id, section: 'knowledge' } }))}>بناء بنك المعرفة</Button>
-                      <Button size="sm" variant="outline" className="gap-2 text-xs font-black" disabled={busy} onClick={() => suggestUnits(item)}>
-                        {busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
-                        توليد الوحدات
-                        <span
-                          role="checkbox"
-                          aria-checked={Boolean(unitRegenerateDrafts[item.id])}
-                          tabIndex={0}
-                          onClick={(event) => { event.stopPropagation(); setUnitRegenerateDrafts((prev) => ({ ...prev, [item.id]: !prev[item.id] })) }}
-                          onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); setUnitRegenerateDrafts((prev) => ({ ...prev, [item.id]: !prev[item.id] })) } }}
-                          className={`inline-flex h-4 w-4 items-center justify-center rounded border text-[10px] ${unitRegenerateDrafts[item.id] ? 'border-[#a8841a] bg-[#c9a227] text-white' : 'border-slate-300 bg-white text-transparent'}`}
-                        >✓</span>
-                        <span className="text-[10px] text-slate-500">إعادة توليد المسودات</span>
-                      </Button>
-                      <Button size="sm" variant="outline" className="text-xs font-black" onClick={() => openUnitReview(item)}>مراجعة الوحدات</Button>
-                      <Button size="sm" variant="outline" className="text-xs font-black" disabled={questionBankBusyId === 'generate'} onClick={() => generateQuestionBank(item)}>
-                        {questionBankBusyId === 'generate' ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
-                        توليد أسئلة للبنك
-                      </Button>
-                      <Button size="sm" variant="outline" className="text-xs font-black" onClick={() => openQuestionBank(item)}>مراجعة بنك الأسئلة</Button>
-                      <Button size="sm" variant="outline" className="text-xs font-black" disabled={busy} onClick={() => generateExamFromQuestionBank(item, 1)}>
-                        {busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
-                        امتحان فصل 1 من البنك
-                      </Button>
-                      <Button size="sm" variant="outline" className="text-xs font-black" disabled={busy} onClick={() => generateExamFromQuestionBank(item, 2)}>
-                        {busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
-                        امتحان فصل 2 من البنك
-                      </Button>
-                      <Button size="sm" variant="outline" className="text-xs font-black" onClick={() => window.dispatchEvent(new CustomEvent('aact-admin-tab', { detail: { tab: 'books', programId: item.id, section: 'exams' } }))}>توليد/مراجعة الاختبارات</Button>
-                      <Button
-                        size="sm"
-                        disabled={busy || !item.readyWithoutManualApproval}
-                        onClick={() => updateProgramReadiness(item.id, { approve: true })}
-                        className="bg-emerald-700 text-xs font-black text-white hover:bg-emerald-800 disabled:opacity-50"
-                      >
-                        {busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : <CheckCircle2 className="ml-1 h-3 w-3" />}
-                        اعتماد المنهج
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={busy}
-                        onClick={() => updateProgramReadiness(item.id, { registrationStatus: item.registrationStatus === 'OPEN' ? 'CLOSED' : 'OPEN' })}
-                        className="text-xs font-black"
-                      >
-                        {item.registrationStatus === 'OPEN' ? 'إغلاق التسجيل' : 'فتح التسجيل'}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={busy}
-                        onClick={() => updateProgramReadiness(item.id, { reopenPreparation: true, setDue24h: true })}
-                        className="text-xs font-black"
-                      >
-                        بدء تجهيز 24 ساعة
-                      </Button>
-                    </div>
-                    {!item.readyWithoutManualApproval && (
-                      <p className="mt-3 rounded-xl bg-amber-50 p-3 font-bold leading-6 text-amber-700">
-                        لا يمكن اعتماد المنهج بعد: أكمل العناصر الناقصة أولاً، ثم عُد للاعتماد اليدوي.
-                      </p>
-                    )}
-                  </article>
-                )
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="border-red-100 bg-red-50/40">
-        <CardContent className="p-5">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h3 className="text-sm font-black text-[#0f2b46]">ردود المشرف الذكي التي تحتاج مراجعة</h3>
-              <p className="mt-1 text-[11px] font-bold text-slate-500">بلاغات الطلاب المباشرة على الردود غير المفيدة أو غير الدقيقة.</p>
-            </div>
-            <Badge className="bg-red-100 text-red-700 hover:bg-red-100">{reviewItems.filter((i) => i.status !== 'REVIEWED' && i.status !== 'IGNORED').length} مفتوحة</Badge>
-          </div>
-
-          {reviewItems.length === 0 ? (
-            <p className="rounded-xl bg-emerald-50 p-4 text-center text-xs font-bold text-emerald-700">لا توجد ردود مبلغ عنها من الطلاب حالياً.</p>
-          ) : (
-            <div className="space-y-3">
-              {reviewItems.slice(0, 8).map((item) => (
-                <article key={item.id} className="rounded-2xl border border-red-100 bg-white p-4 text-xs">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <p className="font-black text-[#0f2b46]">{item.student.name}</p>
-                      <p className="mt-0.5 text-[10px] text-slate-400" dir="ltr">{item.student.email}</p>
-                      {item.program && <p className="mt-1 font-bold text-slate-500">{item.program.titleAr}</p>}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge className="bg-red-100 text-red-700 hover:bg-red-100">{FEEDBACK_REASON_LABEL[item.reason || 'OTHER'] || 'يحتاج مراجعة'}</Badge>
-                      <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">{REVIEW_STATUS_LABEL[item.status]}</Badge>
-                    </div>
-                  </div>
-                  {item.question && (
-                    <div className="mt-3 rounded-xl bg-slate-50 p-3">
-                      <p className="mb-1 font-black text-slate-500">سؤال الطالب</p>
-                      <p className="line-clamp-3 leading-6 text-slate-700">{item.question}</p>
-                    </div>
-                  )}
-                  <div className="mt-2 rounded-xl bg-[#fffaf0] p-3">
-                    <p className="mb-1 font-black text-[#a8841a]">رد المشرف الذكي</p>
-                    <p className="line-clamp-4 leading-6 text-slate-700">{item.answer}</p>
-                  </div>
-                  {item.note && (
-                    <p className="mt-2 rounded-xl bg-red-50 p-3 font-bold leading-6 text-red-700">ملاحظة الطالب: {item.note}</p>
-                  )}
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {(['NEW', 'IN_REVIEW', 'REVIEWED', 'IGNORED'] as ChatReviewItem['status'][]).map((s) => (
-                      <Button
-                        key={s}
-                        size="sm"
-                        variant={item.status === s ? 'default' : 'outline'}
-                        disabled={reviewBusyId === item.id}
-                        onClick={() => updateReviewStatus(item.id, s)}
-                        className={item.status === s ? 'bg-[#0f2b46] text-[#f5f0e1] hover:bg-[#12365c]' : 'text-xs font-bold'}
-                      >
-                        {reviewBusyId === item.id && item.status !== s ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
-                        {REVIEW_STATUS_LABEL[s]}
-                      </Button>
-                    ))}
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-5 xl:grid-cols-3">
-        <Card className="border-[#0f2b46]/10">
-          <CardContent className="p-5">
-            <h3 className="mb-3 text-sm font-black text-[#0f2b46]">أي البرامج قوية؟</h3>
-            {data.strongPrograms.length === 0 ? (
-              <p className="rounded-xl bg-slate-50 p-4 text-center text-xs font-bold text-slate-500">لا يوجد برنامج وصل لمؤشر قوة كافٍ بعد.</p>
-            ) : (
-              <div className="space-y-2">
-                {data.strongPrograms.slice(0, 5).map((p) => {
-                  const meta = BAND_META[p.band]
-                  return (
-                    <div key={p.id} className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3 text-xs">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="font-black text-[#0f2b46]">{p.titleAr}</p>
-                        <Badge className={`${meta.cls} hover:bg-inherit text-[10px]`}>{p.qualityScore}/100</Badge>
-                      </div>
-                      <p className="mt-1 font-bold text-emerald-700">كتب {p.books} · امتحانات جاهزة {p.readyExams} · توثيق {p.sourceCoverage}% · قياس {p.metadataCoverage}%</p>
-                    </div>
-                  )
-                })}
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <Button size="sm" variant="outline" className="border-[#c9a227] text-xs font-black text-[#a8841a]" onClick={() => window.dispatchEvent(new CustomEvent('aact-admin-tab', { detail: { tab: 'books', programId: item.id, section: 'books', subSection: 'add' } }))}>رفع كتب البرنامج</Button>
+                          <Button size="sm" variant="outline" className="border-[#c9a227] text-xs font-black text-[#a8841a]" onClick={() => window.dispatchEvent(new CustomEvent('aact-admin-tab', { detail: { tab: 'books', programId: item.id, section: 'knowledge' } }))}>بناء بنك المعرفة</Button>
+                          <Button size="sm" variant="outline" className="gap-2 text-xs font-black" disabled={busy} onClick={() => suggestUnits(item)}>
+                            {busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
+                            توليد الوحدات
+                            <span
+                              role="checkbox"
+                              aria-checked={Boolean(unitRegenerateDrafts[item.id])}
+                              tabIndex={0}
+                              onClick={(event) => { event.stopPropagation(); setUnitRegenerateDrafts((prev) => ({ ...prev, [item.id]: !prev[item.id] })) }}
+                              onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); setUnitRegenerateDrafts((prev) => ({ ...prev, [item.id]: !prev[item.id] })) } }}
+                              className={`inline-flex h-4 w-4 items-center justify-center rounded border text-[10px] ${unitRegenerateDrafts[item.id] ? 'border-[#a8841a] bg-[#c9a227] text-white' : 'border-slate-300 bg-white text-transparent'}`}
+                            >✓</span>
+                            <span className="text-[10px] text-slate-500">إعادة توليد المسودات</span>
+                          </Button>
+                          <Button size="sm" variant="outline" className="text-xs font-black" onClick={() => openUnitReview(item)}>مراجعة الوحدات</Button>
+                          <Button size="sm" variant="outline" className="text-xs font-black" disabled={questionBankBusyId === 'generate'} onClick={() => generateQuestionBank(item)}>
+                            {questionBankBusyId === 'generate' ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
+                            توليد أسئلة للبنك
+                          </Button>
+                          <Button size="sm" variant="outline" className="text-xs font-black" onClick={() => openQuestionBank(item)}>مراجعة بنك الأسئلة</Button>
+                          <Button size="sm" variant="outline" className="text-xs font-black" disabled={busy} onClick={() => generateExamFromQuestionBank(item, 1)}>
+                            {busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
+                            امتحان فصل 1 من البنك
+                          </Button>
+                          <Button size="sm" variant="outline" className="text-xs font-black" disabled={busy} onClick={() => generateExamFromQuestionBank(item, 2)}>
+                            {busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
+                            امتحان فصل 2 من البنك
+                          </Button>
+                          <Button size="sm" variant="outline" className="text-xs font-black" onClick={() => window.dispatchEvent(new CustomEvent('aact-admin-tab', { detail: { tab: 'books', programId: item.id, section: 'exams' } }))}>توليد/مراجعة الاختبارات</Button>
+                          <Button
+                            size="sm"
+                            disabled={busy || !item.readyWithoutManualApproval}
+                            onClick={() => updateProgramReadiness(item.id, { approve: true })}
+                            className="bg-emerald-700 text-xs font-black text-white hover:bg-emerald-800 disabled:opacity-50"
+                          >
+                            {busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : <CheckCircle2 className="ml-1 h-3 w-3" />}
+                            اعتماد المنهج
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={busy}
+                            onClick={() => updateProgramReadiness(item.id, { registrationStatus: item.registrationStatus === 'OPEN' ? 'CLOSED' : 'OPEN' })}
+                            className="text-xs font-black"
+                          >
+                            {item.registrationStatus === 'OPEN' ? 'إغلاق التسجيل' : 'فتح التسجيل'}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={busy}
+                            onClick={() => updateProgramReadiness(item.id, { reopenPreparation: true, setDue24h: true })}
+                            className="text-xs font-black"
+                          >
+                            بدء تجهيز 24 ساعة
+                          </Button>
+                        </div>
+                        {!item.readyWithoutManualApproval && (
+                          <p className="mt-3 rounded-xl bg-amber-50 p-3 font-bold leading-6 text-amber-700">
+                            لا يمكن اعتماد المنهج بعد: أكمل العناصر الناقصة أولاً، ثم عُد للاعتماد اليدوي.
+                          </p>
+                        )}
+                      </article>
+                    )
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+      <section aria-label="مراجعة المشرف الذكي">
+        <button type="button" id="quality-ws-supervision-header" aria-expanded={activeWorkspace === 'supervision'} aria-controls="quality-ws-supervision" onClick={() => setActiveWorkspace('supervision')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
+          <span>
+            <span className="block text-sm font-black text-[#0f2b46]">مراجعة المشرف الذكي</span>
+            <span className="mt-0.5 block text-[11px] font-bold text-slate-500">{!secondaryLoaded ? 'جارٍ تحميل البلاغات…' : secondaryFailed.reviews ? 'تعذّر تحميل البلاغات' : `${reviewItems.filter((i) => i.status !== 'REVIEWED' && i.status !== 'IGNORED').length} بلاغ مفتوح · ${data.overview.weakSupervisorReplies} رد ضعيف`}</span>
+          </span>
+          <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${activeWorkspace === 'supervision' ? 'rotate-180' : ''}`} />
+        </button>
+        <div id="quality-ws-supervision" role="region" aria-labelledby="quality-ws-supervision-header" hidden={activeWorkspace !== 'supervision'} className="mt-3 space-y-5">
+          <Card className="border-red-100 bg-red-50/40">
+            <CardContent className="p-5">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-black text-[#0f2b46]">ردود المشرف الذكي التي تحتاج مراجعة</h3>
+                  <p className="mt-1 text-[11px] font-bold text-slate-500">بلاغات الطلاب المباشرة على الردود غير المفيدة أو غير الدقيقة.</p>
+                </div>
+                <Badge className="bg-red-100 text-red-700 hover:bg-red-100">{reviewItems.filter((i) => i.status !== 'REVIEWED' && i.status !== 'IGNORED').length} مفتوحة</Badge>
               </div>
-            )}
-          </CardContent>
-        </Card>
 
-        <Card className="border-[#0f2b46]/10">
-          <CardContent className="p-5">
-            <h3 className="mb-3 text-sm font-black text-[#0f2b46]">أي تخصص عليه طلب عالي؟</h3>
-            {data.topDemandSpecialties.length === 0 ? (
-              <p className="rounded-xl bg-slate-50 p-4 text-center text-xs font-bold text-slate-500">لا توجد طلبات أو تسجيلات كافية بعد.</p>
-            ) : (
-              <div className="space-y-2">
-                {data.topDemandSpecialties.slice(0, 5).map((p, index) => (
-                  <div key={p.id} className="rounded-xl border border-slate-100 bg-[#f8fafc] p-3 text-xs">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-black text-[#0f2b46]">{index + 1}. {p.titleAr}</p>
-                      <span className="rounded-full bg-[#0f2b46] px-2 py-1 text-[10px] font-black text-[#e0b83a]">{p.demandScore}</span>
-                    </div>
-                    <p className="mt-1 font-bold text-slate-500">طلبات قبول {p.admissions} · تسجيلات {p.enrollments}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="border-[#0f2b46]/10">
-          <CardContent className="p-5">
-            <h3 className="mb-3 text-sm font-black text-[#0f2b46]">أي مشرف ذكي أعطى إجابات ضعيفة؟</h3>
-            {data.weakSupervisorReplies.length === 0 ? (
-              <p className="rounded-xl bg-emerald-50 p-4 text-center text-xs font-bold text-emerald-700">لا توجد ردود ضعيفة مرصودة في آخر السجل.</p>
-            ) : (
-              <div className="space-y-2">
-                {data.weakSupervisorReplies.slice(0, 5).map((r) => (
-                  <div key={r.id} className="rounded-xl border border-amber-100 bg-amber-50/50 p-3 text-xs">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="font-black text-[#0f2b46]">{r.supervisor}</p>
-                      <Badge className="bg-amber-100 text-[10px] text-amber-700 hover:bg-amber-100">يحتاج مراجعة</Badge>
-                    </div>
-                    <p className="mt-1 font-bold text-amber-700">{r.reason}</p>
-                    <p className="mt-1 line-clamp-2 text-[10px] leading-5 text-slate-500">{r.excerpt}</p>
-                    <p className="mt-1 text-[10px] text-slate-400">الطالب: {r.student}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-5 xl:grid-cols-[1.4fr_1fr]">
-        <Card className="border-[#0f2b46]/10">
-          <CardContent className="p-5">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-sm font-black text-[#0f2b46]">جودة البرامج حسب المحتوى والتقييم والدعم</h3>
-              <Badge className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">الأضعف أولاً</Badge>
-            </div>
-            <div className="space-y-3">
-              {data.programs.slice(0, 12).map((p) => {
-                const meta = BAND_META[p.band]
-                return (
-                  <article key={p.id} className="rounded-2xl border border-slate-100 bg-[#f8fafc] p-3">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div>
-                        <h4 className="text-sm font-black text-[#0f2b46]">{p.titleAr}</h4>
-                        <p className="mt-1 text-[11px] font-bold text-slate-500">
-                          كتب {p.books} · معرفة {p.knowledgeItems} · أدلة {p.studyGuides} · امتحانات جاهزة {p.readyExams}/{p.exams}
-                        </p>
+              {reviewItems.length === 0 ? (
+                <p className="rounded-xl bg-emerald-50 p-4 text-center text-xs font-bold text-emerald-700">لا توجد ردود مبلغ عنها من الطلاب حالياً.</p>
+              ) : (
+                <div className="space-y-3">
+                  {reviewItems.slice(0, 8).map((item) => (
+                    <article key={item.id} className="rounded-2xl border border-red-100 bg-white p-4 text-xs">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <p className="font-black text-[#0f2b46]">{item.student.name}</p>
+                          <p className="mt-0.5 text-[10px] text-slate-400" dir="ltr">{item.student.email}</p>
+                          {item.program && <p className="mt-1 font-bold text-slate-500">{item.program.titleAr}</p>}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge className="bg-red-100 text-red-700 hover:bg-red-100">{FEEDBACK_REASON_LABEL[item.reason || 'OTHER'] || 'يحتاج مراجعة'}</Badge>
+                          <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">{REVIEW_STATUS_LABEL[item.status]}</Badge>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge className={`${meta.cls} hover:bg-inherit`}>{meta.label}</Badge>
-                        <span className="rounded-lg bg-white px-2 py-1 text-xs font-black text-[#0f2b46]">{p.qualityScore}/100</span>
+                      {item.question && (
+                        <div className="mt-3 rounded-xl bg-slate-50 p-3">
+                          <p className="mb-1 font-black text-slate-500">سؤال الطالب</p>
+                          <p className="line-clamp-3 leading-6 text-slate-700">{item.question}</p>
+                        </div>
+                      )}
+                      <div className="mt-2 rounded-xl bg-[#fffaf0] p-3">
+                        <p className="mb-1 font-black text-[#a8841a]">رد المشرف الذكي</p>
+                        <p className="line-clamp-4 leading-6 text-slate-700">{item.answer}</p>
                       </div>
-                    </div>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-4">
-                      <div className="rounded-xl bg-white p-2 text-[10px] font-black text-slate-500">توثيق الأسئلة: {p.sourceCoverage}%</div>
-                      <div className="rounded-xl bg-white p-2 text-[10px] font-black text-slate-500">اكتمال القياس: {p.metadataCoverage}%</div>
-                      <div className="rounded-xl bg-white p-2 text-[10px] font-black text-slate-500">نجاح الامتحانات: {p.examPassRate}%</div>
-                      <div className="rounded-xl bg-white p-2 text-[10px] font-black text-slate-500">طلب/تسجيل: {p.admissions + p.enrollments}</div>
-                    </div>
-                    {p.warnings.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {p.warnings.map((w, i) => (
-                          <span key={i} className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-black text-amber-700">{w}</span>
+                      {item.note && (
+                        <p className="mt-2 rounded-xl bg-red-50 p-3 font-bold leading-6 text-red-700">ملاحظة الطالب: {item.note}</p>
+                      )}
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {(['NEW', 'IN_REVIEW', 'REVIEWED', 'IGNORED'] as ChatReviewItem['status'][]).map((s) => (
+                          <Button
+                            key={s}
+                            size="sm"
+                            variant={item.status === s ? 'default' : 'outline'}
+                            disabled={reviewBusyId === item.id}
+                            onClick={() => updateReviewStatus(item.id, s)}
+                            className={item.status === s ? 'bg-[#0f2b46] text-[#f5f0e1] hover:bg-[#12365c]' : 'text-xs font-bold'}
+                          >
+                            {reviewBusyId === item.id && item.status !== s ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
+                            {REVIEW_STATUS_LABEL[s]}
+                          </Button>
                         ))}
                       </div>
-                    )}
-                  </article>
-                )
-              })}
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="space-y-5">
+                    </article>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          <Card className="border-[#0f2b46]/10">
+            <CardContent className="p-5">
+              <h3 className="mb-3 text-sm font-black text-[#0f2b46]">أي مشرف ذكي أعطى إجابات ضعيفة؟</h3>
+              {data.weakSupervisorReplies.length === 0 ? (
+                <p className="rounded-xl bg-emerald-50 p-4 text-center text-xs font-bold text-emerald-700">لا توجد ردود ضعيفة مرصودة في آخر السجل.</p>
+              ) : (
+                <div className="space-y-2">
+                  {data.weakSupervisorReplies.slice(0, 5).map((r) => (
+                    <div key={r.id} className="rounded-xl border border-amber-100 bg-amber-50/50 p-3 text-xs">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-black text-[#0f2b46]">{r.supervisor}</p>
+                        <Badge className="bg-amber-100 text-[10px] text-amber-700 hover:bg-amber-100">يحتاج مراجعة</Badge>
+                      </div>
+                      <p className="mt-1 font-bold text-amber-700">{r.reason}</p>
+                      <p className="mt-1 line-clamp-2 text-[10px] leading-5 text-slate-500">{r.excerpt}</p>
+                      <p className="mt-1 text-[10px] text-slate-400">الطالب: {r.student}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
           <Card className="border-[#0f2b46]/10">
             <CardContent className="p-5">
               <h3 className="mb-3 text-sm font-black text-[#0f2b46]">مؤشرات المشرف الذكي</h3>
@@ -1837,7 +1676,102 @@ export function AdminQualityTab() {
               </p>
             </CardContent>
           </Card>
-
+        </div>
+      </section>
+      <section aria-label="تحليل البرامج">
+        <button type="button" id="quality-ws-programs-header" aria-expanded={activeWorkspace === 'programs'} aria-controls="quality-ws-programs" onClick={() => setActiveWorkspace('programs')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
+          <span>
+            <span className="block text-sm font-black text-[#0f2b46]">تحليل البرامج</span>
+            <span className="mt-0.5 block text-[11px] font-bold text-slate-500">{`${data.programs.length} برنامج في التقرير · ${data.overview.strongPrograms} برنامج قوي`}</span>
+          </span>
+          <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${activeWorkspace === 'programs' ? 'rotate-180' : ''}`} />
+        </button>
+        <div id="quality-ws-programs" role="region" aria-labelledby="quality-ws-programs-header" hidden={activeWorkspace !== 'programs'} className="mt-3 space-y-5">
+          <Card className="border-[#0f2b46]/10">
+            <CardContent className="p-5">
+              <h3 className="mb-3 text-sm font-black text-[#0f2b46]">أي البرامج قوية؟</h3>
+              {data.strongPrograms.length === 0 ? (
+                <p className="rounded-xl bg-slate-50 p-4 text-center text-xs font-bold text-slate-500">لا يوجد برنامج وصل لمؤشر قوة كافٍ بعد.</p>
+              ) : (
+                <div className="space-y-2">
+                  {data.strongPrograms.slice(0, 5).map((p) => {
+                    const meta = BAND_META[p.band]
+                    return (
+                      <div key={p.id} className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3 text-xs">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-black text-[#0f2b46]">{p.titleAr}</p>
+                          <Badge className={`${meta.cls} hover:bg-inherit text-[10px]`}>{p.qualityScore}/100</Badge>
+                        </div>
+                        <p className="mt-1 font-bold text-emerald-700">كتب {p.books} · امتحانات جاهزة {p.readyExams} · توثيق {p.sourceCoverage}% · قياس {p.metadataCoverage}%</p>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          <Card className="border-[#0f2b46]/10">
+            <CardContent className="p-5">
+              <h3 className="mb-3 text-sm font-black text-[#0f2b46]">أي تخصص عليه طلب عالي؟</h3>
+              {data.topDemandSpecialties.length === 0 ? (
+                <p className="rounded-xl bg-slate-50 p-4 text-center text-xs font-bold text-slate-500">لا توجد طلبات أو تسجيلات كافية بعد.</p>
+              ) : (
+                <div className="space-y-2">
+                  {data.topDemandSpecialties.slice(0, 5).map((p, index) => (
+                    <div key={p.id} className="rounded-xl border border-slate-100 bg-[#f8fafc] p-3 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-black text-[#0f2b46]">{index + 1}. {p.titleAr}</p>
+                        <span className="rounded-full bg-[#0f2b46] px-2 py-1 text-[10px] font-black text-[#e0b83a]">{p.demandScore}</span>
+                      </div>
+                      <p className="mt-1 font-bold text-slate-500">طلبات قبول {p.admissions} · تسجيلات {p.enrollments}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          <Card className="border-[#0f2b46]/10">
+            <CardContent className="p-5">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-black text-[#0f2b46]">جودة البرامج حسب المحتوى والتقييم والدعم</h3>
+                <Badge className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#0f2b46]">الأضعف أولاً</Badge>
+              </div>
+              <div className="space-y-3">
+                {data.programs.slice(0, 12).map((p) => {
+                  const meta = BAND_META[p.band]
+                  return (
+                    <article key={p.id} className="rounded-2xl border border-slate-100 bg-[#f8fafc] p-3">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <h4 className="text-sm font-black text-[#0f2b46]">{p.titleAr}</h4>
+                          <p className="mt-1 text-[11px] font-bold text-slate-500">
+                            كتب {p.books} · معرفة {p.knowledgeItems} · أدلة {p.studyGuides} · امتحانات جاهزة {p.readyExams}/{p.exams}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge className={`${meta.cls} hover:bg-inherit`}>{meta.label}</Badge>
+                          <span className="rounded-lg bg-white px-2 py-1 text-xs font-black text-[#0f2b46]">{p.qualityScore}/100</span>
+                        </div>
+                      </div>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-4">
+                        <div className="rounded-xl bg-white p-2 text-[10px] font-black text-slate-500">توثيق الأسئلة: {p.sourceCoverage}%</div>
+                        <div className="rounded-xl bg-white p-2 text-[10px] font-black text-slate-500">اكتمال القياس: {p.metadataCoverage}%</div>
+                        <div className="rounded-xl bg-white p-2 text-[10px] font-black text-slate-500">نجاح الامتحانات: {p.examPassRate}%</div>
+                        <div className="rounded-xl bg-white p-2 text-[10px] font-black text-slate-500">طلب/تسجيل: {p.admissions + p.enrollments}</div>
+                      </div>
+                      {p.warnings.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {p.warnings.map((w, i) => (
+                            <span key={i} className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-black text-amber-700">{w}</span>
+                          ))}
+                        </div>
+                      )}
+                    </article>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
           <Card className="border-[#0f2b46]/10">
             <CardContent className="p-5">
               <h3 className="mb-3 text-sm font-black text-[#0f2b46]">متوسطات أكاديمية</h3>
@@ -1852,66 +1786,218 @@ export function AdminQualityTab() {
             </CardContent>
           </Card>
         </div>
-      </div>
-
-      <div className="grid gap-5 xl:grid-cols-3">
-        <Card className="border-[#0f2b46]/10">
-          <CardContent className="p-5">
-            <h3 className="mb-3 text-sm font-black text-[#0f2b46]">كتب تحتاج تقوية بنك المعرفة</h3>
-            {data.weakBooks.length === 0 ? (
-              <p className="rounded-xl bg-emerald-50 p-4 text-center text-xs font-bold text-emerald-700">كل الكتب المقروءة لديها معرفة كافية حالياً.</p>
-            ) : (
-              <div className="space-y-2">
-                {data.weakBooks.map((b) => (
-                  <div key={b.id} className="rounded-xl border border-slate-100 bg-[#f8fafc] p-3 text-xs">
-                    <p className="font-black text-[#0f2b46]">{b.title}</p>
-                    <p className="mt-1 font-bold text-slate-500">{b.program} · الفصل {b.semester || 'عام'}</p>
-                    <p className="mt-1 font-bold text-amber-700">{b.reason} — عناصر معرفة: {b.knowledgeItems}</p>
-                  </div>
-                ))}
+      </section>
+      <section aria-label="سلامة المحتوى والتقييم">
+        <button type="button" id="quality-ws-content-header" aria-expanded={activeWorkspace === 'content'} aria-controls="quality-ws-content" onClick={() => setActiveWorkspace('content')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
+          <span>
+            <span className="block text-sm font-black text-[#0f2b46]">سلامة المحتوى والتقييم</span>
+            <span className="mt-0.5 block text-[11px] font-bold text-slate-500">{`${data.weakBooks.length} كتاب يحتاج تقوية · ${data.duplicateQuestions.length} مجموعة تكرار محتملة`}</span>
+          </span>
+          <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${activeWorkspace === 'content' ? 'rotate-180' : ''}`} />
+        </button>
+        <div id="quality-ws-content" role="region" aria-labelledby="quality-ws-content-header" hidden={activeWorkspace !== 'content'} className="mt-3 space-y-5">
+          <Card className="border-[#0f2b46]/10">
+            <CardContent className="p-5">
+              <h3 className="mb-3 text-sm font-black text-[#0f2b46]">كتب تحتاج تقوية بنك المعرفة</h3>
+              {data.weakBooks.length === 0 ? (
+                <p className="rounded-xl bg-emerald-50 p-4 text-center text-xs font-bold text-emerald-700">كل الكتب المقروءة لديها معرفة كافية حالياً.</p>
+              ) : (
+                <div className="space-y-2">
+                  {data.weakBooks.map((b) => (
+                    <div key={b.id} className="rounded-xl border border-slate-100 bg-[#f8fafc] p-3 text-xs">
+                      <p className="font-black text-[#0f2b46]">{b.title}</p>
+                      <p className="mt-1 font-bold text-slate-500">{b.program} · الفصل {b.semester || 'عام'}</p>
+                      <p className="mt-1 font-bold text-amber-700">{b.reason} — عناصر معرفة: {b.knowledgeItems}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          <Card className="border-[#0f2b46]/10">
+            <CardContent className="p-5">
+              <h3 className="mb-3 text-sm font-black text-[#0f2b46]">تكرار محتمل في الأسئلة</h3>
+              {data.duplicateQuestions.length === 0 ? (
+                <p className="rounded-xl bg-emerald-50 p-4 text-center text-xs font-bold text-emerald-700">لا توجد مجموعات تكرار واضحة في آخر الأسئلة.</p>
+              ) : (
+                <div className="space-y-2">
+                  {data.duplicateQuestions.map((q, i) => (
+                    <div key={i} className="rounded-xl border border-amber-100 bg-amber-50/50 p-3 text-xs">
+                      <p className="font-bold leading-6 text-[#0f2b46]">{q.text}</p>
+                      <p className="mt-1 font-black text-amber-700">تكرر {q.count} مرات — {q.programs.join('، ') || q.exams.join('، ')}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+      <section aria-label="الطلاب الذين يحتاجون متابعة">
+        <button type="button" id="quality-ws-students-header" aria-expanded={activeWorkspace === 'students'} aria-controls="quality-ws-students" onClick={() => setActiveWorkspace('students')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
+          <span>
+            <span className="block text-sm font-black text-[#0f2b46]">الطلاب الذين يحتاجون متابعة</span>
+            <span className="mt-0.5 block text-[11px] font-bold text-slate-500">{`${data.atRiskStudents.length} طالب يحتاج متابعة`}</span>
+          </span>
+          <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${activeWorkspace === 'students' ? 'rotate-180' : ''}`} />
+        </button>
+        <div id="quality-ws-students" role="region" aria-labelledby="quality-ws-students-header" hidden={activeWorkspace !== 'students'} className="mt-3 space-y-5">
+          <Card className="border-[#0f2b46]/10">
+            <CardContent className="p-5">
+              <h3 className="mb-3 text-sm font-black text-[#0f2b46]">طلاب يحتاجون متابعة</h3>
+              {data.atRiskStudents.length === 0 ? (
+                <p className="rounded-xl bg-emerald-50 p-4 text-center text-xs font-bold text-emerald-700">لا توجد إشارات تعثر واضحة حالياً.</p>
+              ) : (
+                <div className="space-y-2">
+                  {data.atRiskStudents.map((s, i) => (
+                    <div key={`${s.userId}-${i}`} className="rounded-xl border border-slate-100 bg-[#f8fafc] p-3 text-xs">
+                      <p className="font-black text-[#0f2b46]">{s.student}</p>
+                      <p className="mt-0.5 text-[10px] text-slate-400" dir="ltr">{s.email}</p>
+                      <p className="mt-1 font-bold leading-5 text-amber-700">{s.reason}{s.score != null ? ` — ${s.score}%` : ''}</p>
+                      <p className="mt-1 font-bold leading-5 text-slate-600">الإجراء: {s.nextAction}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+      <section aria-label="سلامة النظام والبيانات">
+        <button type="button" id="quality-ws-operations-header" aria-expanded={activeWorkspace === 'operations'} aria-controls="quality-ws-operations" onClick={() => setActiveWorkspace('operations')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
+          <span>
+            <span className="block text-sm font-black text-[#0f2b46]">سلامة النظام والبيانات</span>
+            <span className="mt-0.5 block text-[11px] font-bold text-slate-500">{storageReport ? `${storageReport.summary.suspiciousBooks} كتاب يحتاج مراجعة في التخزين` : 'تقرير التخزين غير محمّل'}</span>
+          </span>
+          <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${activeWorkspace === 'operations' ? 'rotate-180' : ''}`} />
+        </button>
+        <div id="quality-ws-operations" role="region" aria-labelledby="quality-ws-operations-header" hidden={activeWorkspace !== 'operations'} className="mt-3 space-y-5">
+          <Card className="border-[#c9a227]/30 bg-[#fffaf0]">
+            <CardContent className="p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-black text-[#0f2b46]">حفظ كتالوج البرامج قبل تنظيف قاعدة البيانات</h3>
+                  <p className="mt-1 text-[11px] font-bold leading-6 text-slate-600">
+                    هذه الأداة تحفظ تفاصيل البرامج والوحدات والكتب وبنك المعرفة وبنك الأسئلة والاختبارات، ولا تحفظ الطلاب أو الطلبات أو المدفوعات.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" disabled={catalogBusy === 'export'} onClick={exportProgramCatalog} className="bg-white text-xs font-black">
+                    {catalogBusy === 'export' ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
+                    تنزيل نسخة البرامج
+                  </Button>
+                  <Button size="sm" variant="outline" disabled={catalogBusy === 'import'} onClick={() => setCatalogImportOpen(true)} className="bg-white text-xs font-black">
+                    استيراد نسخة محفوظة
+                  </Button>
+                </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="border-[#0f2b46]/10">
-          <CardContent className="p-5">
-            <h3 className="mb-3 text-sm font-black text-[#0f2b46]">تكرار محتمل في الأسئلة</h3>
-            {data.duplicateQuestions.length === 0 ? (
-              <p className="rounded-xl bg-emerald-50 p-4 text-center text-xs font-bold text-emerald-700">لا توجد مجموعات تكرار واضحة في آخر الأسئلة.</p>
-            ) : (
-              <div className="space-y-2">
-                {data.duplicateQuestions.map((q, i) => (
-                  <div key={i} className="rounded-xl border border-amber-100 bg-amber-50/50 p-3 text-xs">
-                    <p className="font-bold leading-6 text-[#0f2b46]">{q.text}</p>
-                    <p className="mt-1 font-black text-amber-700">تكرر {q.count} مرات — {q.programs.join('، ') || q.exams.join('، ')}</p>
-                  </div>
-                ))}
+              <div className="mt-3 rounded-xl bg-white/80 p-3 text-[11px] font-bold leading-6 text-[#8a6d16]">
+                استخدم زر التنزيل قبل تفريغ Neon. بعد التفريغ وإنشاء القاعدة النظيفة، تستطيع استيراد نفس الملف لإرجاع تفاصيل البرامج فقط.
               </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="border-[#0f2b46]/10">
-          <CardContent className="p-5">
-            <h3 className="mb-3 text-sm font-black text-[#0f2b46]">طلاب يحتاجون متابعة</h3>
-            {data.atRiskStudents.length === 0 ? (
-              <p className="rounded-xl bg-emerald-50 p-4 text-center text-xs font-bold text-emerald-700">لا توجد إشارات تعثر واضحة حالياً.</p>
-            ) : (
-              <div className="space-y-2">
-                {data.atRiskStudents.map((s, i) => (
-                  <div key={`${s.userId}-${i}`} className="rounded-xl border border-slate-100 bg-[#f8fafc] p-3 text-xs">
-                    <p className="font-black text-[#0f2b46]">{s.student}</p>
-                    <p className="mt-0.5 text-[10px] text-slate-400" dir="ltr">{s.email}</p>
-                    <p className="mt-1 font-bold leading-5 text-amber-700">{s.reason}{s.score != null ? ` — ${s.score}%` : ''}</p>
-                    <p className="mt-1 font-bold leading-5 text-slate-600">الإجراء: {s.nextAction}</p>
-                  </div>
-                ))}
+            </CardContent>
+          </Card>
+          <Card className="border-blue-100 bg-blue-50/40">
+            <CardContent className="p-5">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-black text-[#0f2b46]">تقرير سلامة التخزين</h3>
+                  <p className="mt-1 text-[11px] font-bold text-slate-500">مراقبة فقط: لا يحذف أي ملف ولا يمس الكتب أو بيانات الطلاب.</p>
+                </div>
+                <Button size="sm" variant="outline" disabled={storageReportLoading} onClick={refreshStorageReport} className="bg-white text-xs font-black">
+                  {storageReportLoading ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
+                  تحديث التقرير
+                </Button>
               </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+
+              {!storageReport ? (
+                <p className="rounded-xl bg-white p-4 text-center text-xs font-bold text-slate-500">لم يتم تحميل تقرير التخزين بعد.</p>
+              ) : (
+                <div className="space-y-4">
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="rounded-xl bg-white p-3 text-xs font-black text-slate-600">كتب مرتبطة بـ R2<br /><span className="text-lg text-[#0f2b46]">{storageReport.summary.linkedR2Objects}</span></div>
+                    <div className="rounded-xl bg-white p-3 text-xs font-black text-slate-600">حجم R2 المرتبط<br /><span className="text-lg text-[#0f2b46]">{Math.round(storageReport.summary.linkedR2Bytes / 1024 / 1024)}MB</span></div>
+                    <div className="rounded-xl bg-white p-3 text-xs font-black text-amber-700">كتب تحتاج مراجعة<br /><span className="text-lg">{storageReport.summary.suspiciousBooks}</span></div>
+                    <div className="rounded-xl bg-white p-3 text-xs font-black text-red-700">مسودات اختبار يتيمة<br /><span className="text-lg">{storageReport.summary.orphanExamDrafts}</span></div>
+                  </div>
+
+                  <div className="grid gap-2 md:grid-cols-3">
+                    <div className="rounded-xl bg-white p-3 text-xs font-bold leading-6 text-slate-600">ملفات Base64 قديمة: <b>{storageReport.summary.legacyBase64Books}</b><br />الحجم التقريبي: {Math.round(storageReport.summary.legacyBase64Bytes / 1024 / 1024)}MB</div>
+                    <div className="rounded-xl bg-white p-3 text-xs font-bold leading-6 text-slate-600">قطع رفع مؤقتة: <b>{storageReport.summary.uploadChunks}</b><br />حجمها التقريبي: {Math.round(storageReport.summary.uploadChunkBytes / 1024 / 1024)}MB</div>
+                    <div className="rounded-xl bg-white p-3 text-xs font-bold leading-6 text-slate-600">ملفات طلاب داخل Neon: <b>{storageReport.summary.heavyDbFileRows}</b><br />حجمها التقريبي: {Math.round(storageReport.summary.heavyDbFileBytes / 1024 / 1024)}MB</div>
+                    <div className="rounded-xl bg-white p-3 text-xs font-bold leading-6 text-emerald-700">واجبات محفوظة خارج Neon: <b>{storageReport.summary.externallyStoredAssignments}</b><br />حجمها التقريبي: {Math.round(storageReport.summary.externallyStoredAssignmentBytes / 1024 / 1024)}MB</div>
+                    <div className="rounded-xl bg-white p-3 text-xs font-bold leading-6 text-emerald-700">تسجيلات محفوظة خارج Neon: <b>{storageReport.summary.externallyStoredDefenseRecordings}</b><br />حجمها التقريبي: {Math.round(storageReport.summary.externallyStoredDefenseRecordingBytes / 1024 / 1024)}MB</div>
+                    <div className="rounded-xl bg-white p-3 text-xs font-bold leading-6 text-slate-600">اختبارات REVIEW محفوظة: <b>{storageReport.summary.reviewExams}</b><br />للمراقبة فقط، لا حذف تلقائي.</div>
+                  </div>
+
+                  {(storageReport.samples?.heavyDbFiles || []).length > 0 && (
+                    <div className="rounded-2xl bg-white p-4">
+                      <h4 className="mb-2 text-xs font-black text-[#0f2b46]">فحص الملفات الثقيلة داخل قاعدة البيانات</h4>
+                      <div className="grid gap-2 md:grid-cols-2">
+                        {storageReport.samples.heavyDbFiles.map((item) => (
+                          <div key={item.key} className={`rounded-xl p-3 text-xs font-bold leading-6 ${item.status === 'SAFE' ? 'bg-emerald-50 text-emerald-700' : item.status === 'HIGH_RISK' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
+                            <b>{item.label}</b><br />
+                            السجلات: {item.rows} · الحجم التقريبي: {Math.round(item.approxBytes / 1024 / 1024)}MB<br />
+                            <span className="text-[11px]">{item.note}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="rounded-2xl bg-white p-4">
+                    <h4 className="mb-2 text-xs font-black text-[#0f2b46]">توصيات التقرير</h4>
+                    <div className="grid gap-2 md:grid-cols-2">
+                      {storageReport.recommendations.map((r, i) => <p key={i} className="rounded-xl bg-slate-50 p-3 text-xs font-bold leading-6 text-slate-600">• {r}</p>)}
+                    </div>
+                  </div>
+
+                  {storageReport.samples.suspiciousBooks.length > 0 && (
+                    <div className="rounded-2xl bg-white p-4">
+                      <h4 className="mb-2 text-xs font-black text-amber-700">نماذج كتب تحتاج مراجعة</h4>
+                      <div className="space-y-2">
+                        {storageReport.samples.suspiciousBooks.slice(0, 5).map((b) => (
+                          <p key={b.id} className="rounded-xl bg-amber-50 p-3 text-xs font-bold leading-6 text-amber-800">
+                            {b.title} — {b.program || 'بدون برنامج'} — المزود: {b.storageProvider || 'غير محدد'} — مفتاح التخزين: {b.storageKey ? 'موجود' : 'غير موجود'}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <p className="rounded-xl bg-blue-50 p-3 text-[11px] font-bold leading-6 text-blue-700">{storageReport.storageConfig.note}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+      <section aria-label="عناوين أبحاث التخرج">
+        <button type="button" id="quality-ws-thesis-header" aria-expanded={activeWorkspace === 'thesis'} aria-controls="quality-ws-thesis" onClick={() => setActiveWorkspace('thesis')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
+          <span>
+            <span className="block text-sm font-black text-[#0f2b46]">عناوين أبحاث التخرج</span>
+            <span className="mt-0.5 block text-[11px] font-bold text-slate-500">إضافة وتوليد ومراجعة عناوين وطلبات الطلاب</span>
+          </span>
+          <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${activeWorkspace === 'thesis' ? 'rotate-180' : ''}`} />
+        </button>
+        <div id="quality-ws-thesis" role="region" aria-labelledby="quality-ws-thesis-header" hidden={activeWorkspace !== 'thesis'} className="mt-3 space-y-5">
+          <Card className="border-[#c9a227]/30 bg-[#fffaf0]">
+            <CardContent className="p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-black text-[#0f2b46]">إدارة عناوين بحث التخرج</h3>
+                  <p className="mt-1 text-[11px] font-bold leading-6 text-slate-600">
+                    أضف عناوين يدوية أو ولّد مقترحات بالذكاء حسب البرنامج والكتب والوحدات. الطالب يختار أو يقترح، والاعتماد يبقى للإدارة/المشرف.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" onClick={() => openThesisTopicDialog('manual')} className="bg-white text-xs font-black">إضافة عنوان يدوي</Button>
+                  <Button size="sm" onClick={() => openThesisTopicDialog('generate')} className="bg-[#0f2b46] text-xs font-black text-[#f5f0e1] hover:bg-[#183c5f]">توليد عناوين بالذكاء</Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
 
       <Dialog open={dailyTasksOpen} onOpenChange={setDailyTasksOpen}>
         <DialogContent className="max-h-[90dvh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-y-auto p-4 sm:max-w-5xl sm:p-6" dir="rtl">

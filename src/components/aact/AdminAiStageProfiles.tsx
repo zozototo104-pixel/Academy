@@ -345,6 +345,7 @@ export function AdminAiStageProfiles() {
   const [lastRecheckBatch, setLastRecheckBatch] = useState<RecheckBatchSummary | null>(null)
   const [data, setData] = useState<ResponseData | null>(null)
   const [forms, setForms] = useState<Record<Stage, FormState> | null>(null)
+  const [openAiProfilesSection, setOpenAiProfilesSection] = useState<'advisor' | 'recheck' | 'profiles'>('advisor')
 
   const applyResponse = useCallback((res: ResponseData) => {
     setData(res)
@@ -559,6 +560,30 @@ export function AdminAiStageProfiles() {
         </Button>
       </div>
 
+      <div className="grid gap-2 rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:grid-cols-3" aria-label="مساحات عمل بروفايلات الذكاء">
+        {([
+          ['advisor', 'المستشار والتوصيات', `${data?.advisorAdvice?.length ?? 0} توصية مفتوحة`],
+          ['recheck', 'إعادة تدقيق الأسئلة', `${questionRecheckOverview?.pendingCount ?? 0} مهمة بالانتظار`],
+          ['profiles', 'بروفايلات المراحل', 'القراءة والتحليل والتوليد والتدقيق'],
+        ] as const).map(([value, title, summary]) => {
+          const active = openAiProfilesSection === value
+          return (
+            <button
+              key={value}
+              type="button"
+              aria-expanded={active}
+              aria-controls={`ai-profiles-section-${value}`}
+              onClick={() => setOpenAiProfilesSection(value)}
+              className={`rounded-2xl border px-3 py-3 text-right transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 ${active ? 'border-indigo-200 bg-indigo-50 text-indigo-950' : 'border-slate-100 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+            >
+              <span className="block text-xs font-black">{title}</span>
+              <span className="mt-1 block text-[10px] font-bold leading-5 opacity-80">{summary}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      <div id="ai-profiles-section-advisor" role="region" aria-label="المستشار والتوصيات" hidden={openAiProfilesSection !== 'advisor'} className="space-y-5">
       {data?.advisorReadiness && (
         <Card className="border-blue-100 bg-blue-50/60">
           <CardContent className="space-y-4 p-4">
@@ -698,7 +723,9 @@ export function AdminAiStageProfiles() {
           )}
         </CardContent>
       </Card>
+      </div>
 
+      <div id="ai-profiles-section-recheck" role="region" aria-label="إعادة تدقيق الأسئلة" hidden={openAiProfilesSection !== 'recheck'}>
       <Card className="border-purple-100 bg-purple-50/50">
         <CardContent className="space-y-4 p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -746,7 +773,9 @@ export function AdminAiStageProfiles() {
           )}
         </CardContent>
       </Card>
+      </div>
 
+      <div id="ai-profiles-section-profiles" role="region" aria-label="بروفايلات المراحل" hidden={openAiProfilesSection !== 'profiles'} className="space-y-5">
       {(['READING', 'ANALYSIS', 'GENERATION', 'REVIEW'] as Stage[]).map((stageName) => {
         const stage = stageByName.get(stageName)
         const form = forms?.[stageName] ?? snapshotToForm(stage?.current?.snapshot ?? null)
@@ -1014,6 +1043,7 @@ export function AdminAiStageProfiles() {
           </Card>
         )
       })}
+      </div>
     </div>
   )
 }

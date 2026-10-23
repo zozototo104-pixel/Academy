@@ -78,6 +78,30 @@ function openBookResource(book: { id?: string; title?: string; fileName?: string
   if (!popup) window.location.href = path
 }
 
+function playStudentPulseTone() {
+  if (typeof window === 'undefined') return
+  try {
+    const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext
+    if (!AudioContextCtor) return
+    const ctx = new AudioContextCtor()
+    const oscillator = ctx.createOscillator()
+    const gain = ctx.createGain()
+    oscillator.type = 'sine'
+    oscillator.frequency.setValueAtTime(880, ctx.currentTime)
+    oscillator.frequency.exponentialRampToValueAtTime(660, ctx.currentTime + 0.16)
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.08, ctx.currentTime + 0.02)
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.22)
+    oscillator.connect(gain)
+    gain.connect(ctx.destination)
+    oscillator.start()
+    oscillator.stop(ctx.currentTime + 0.24)
+    window.setTimeout(() => ctx.close().catch(() => {}), 360)
+  } catch {
+    // المتصفحات قد تمنع الصوت قبل أول تفاعل؛ التنبيه البصري يبقى هو الأساس.
+  }
+}
+
 interface UnitInfo {
   id: string
   order: number
@@ -445,9 +469,11 @@ export function DashboardView() {
     ;(async () => {
       const enrolls = await loadList()
       if (cancelled) return
-      // Load first enrolled program details
-      const first = enrolls.find((x) => x.status !== 'PENDING_PAYMENT')
-      if (first) await open(first.programId)
+      // Prefer the requested enrolled program on return from a learning item.
+      const requestedProgramId = useAppStore.getState().activeProgramId
+      const selected = enrolls.find((x) => x.programId === requestedProgramId && x.status !== 'PENDING_PAYMENT')
+        || enrolls.find((x) => x.status !== 'PENDING_PAYMENT')
+      if (selected) await open(selected.programId)
     })()
     return () => { cancelled = true }
   }, [loadList])
@@ -460,7 +486,9 @@ export function DashboardView() {
       setAssignments([])
       setStudyGuides([])
       setStudyScheduleItems([])
-      setProgramSection('academic')
+      const returningToSchedule = useAppStore.getState().activeProgramId === programId
+        && new URLSearchParams(window.location.search).get('section') === 'schedule'
+      setProgramSection(returningToSchedule ? 'schedule' : 'academic')
       Promise.all([
         api<{ assignments: StudentAssignment[] }>(`/api/assignments?programId=${programId}`).catch(() => ({ assignments: [] as StudentAssignment[] })),
         api<{ guides: StudentStudyGuide[] }>(`/api/study-guides?programId=${programId}`).catch(() => ({ guides: [] as StudentStudyGuide[] })),
@@ -659,20 +687,121 @@ export function DashboardView() {
     navigate('chat')
   }
 
+  const openProgramWorkspace = (section: string) => {
+    setDashboardTab('programs')
+    setProgramSection(section)
+  }
+
+  const dashboardTabOptions = [
+    { value: 'programs', label: 'الرئيسية والمقرر والكتاب', show: hasProgramDashboard },
+    { value: 'supervision', label: 'المشرف الذكي وحواراته ونقاط القوة', show: hasProgramDashboard },
+    { value: 'lectures', label: 'المحاضرات واللقاءات', show: hasProgramDashboard && lecturesVisible },
+    { value: 'payments', label: 'المدفوعات والرسوم', show: true },
+    { value: 'deliverables', label: 'المخرجات والخدمات', show: showDeliverablesTab },
+    { value: 'notifications', label: 'الإشعارات والتنبيهات', show: true },
+    { value: 'thesis', label: 'بحث التخرج والمناقشة', show: hasProgramDashboard },
+    { value: 'transcript', label: 'السجل الأكاديمي', show: hasProgramDashboard },
+    { value: 'certs', label: 'الشهادات', show: hasProgramDashboard },
+  ].filter((item) => item.show)
+
+  const primaryStudentCards = [
+    {
+      key: 'book',
+      title: 'المقرر والكتاب',
+      text: `${(active?.program.books || []).length} كتاب/مصدر · افتح المواد المقررة`,
+      icon: <BookOpen className="h-8 w-8 text-rose-500" />,
+      action: () => openProgramWorkspace('schedule'),
+      show: hasProgramDashboard,
+      tone: 'from-rose-50 to-white border-rose-100',
+    },
+    {
+      key: 'units',
+      title: 'الوحدات والواجبات',
+      text: `${active?.units.length || 0} وحدة · ${assignments.length} واجب`,
+      icon: <ClipboardCheck className="h-8 w-8 text-emerald-600" />,
+      action: () => openProgramWorkspace('content'),
+      show: hasProgramDashboard,
+      tone: 'from-emerald-50 to-white border-emerald-100',
+    },
+    {
+      key: 'lectures',
+      title: 'المحاضرات واللقاءات',
+      text: lecturesVisible ? 'افتح اللقاءات والمحاضرات من هنا' : 'تظهر عند تفعيل اللقاءات',
+      icon: <Video className="h-8 w-8 text-blue-600" />,
+      action: () => setDashboardTab('lectures'),
+      show: hasProgramDashboard && lecturesVisible,
+      tone: 'from-blue-50 to-white border-blue-100',
+    },
+    {
+      key: 'exams',
+      title: 'الامتحانات',
+      text: `${active?.semesterExams?.length || 0} امتحان نهائي · اختبارات الوحدات داخل الوحدات`,
+      icon: <ListChecks className="h-8 w-8 text-violet-600" />,
+      action: () => openProgramWorkspace('progress'),
+      show: hasProgramDashboard,
+      tone: 'from-violet-50 to-white border-violet-100',
+    },
+    {
+      key: 'schedule',
+      title: 'الجدول الدراسي',
+      text: publishedScheduleWeeks.length ? `${publishedScheduleWeeks.length} أسبوع منشور` : 'خطة الفصول والمواد',
+      icon: <ScrollText className="h-8 w-8 text-sky-600" />,
+      action: () => openProgramWorkspace('schedule'),
+      show: hasProgramDashboard,
+      tone: 'from-sky-50 to-white border-sky-100',
+    },
+    {
+      key: 'payments',
+      title: 'المدفوعات والرسوم',
+      text: `${studentSummary?.summary.unpaidPayments || 0} دفعة تحتاج متابعة`,
+      icon: <Banknote className="h-8 w-8 text-amber-600" />,
+      action: () => setDashboardTab('payments'),
+      show: true,
+      tone: 'from-amber-50 to-white border-amber-100',
+    },
+  ].filter((item) => item.show)
+
+  const pulseNotice = currentStudentAction || (studentSummary?.unread
+    ? { title: 'إشعارات جديدة تحتاج قراءة', text: `لديك ${studentSummary.unread} إشعار غير مقروء داخل المنصة.`, tab: 'notifications' }
+    : lecturesVisible && hasProgramDashboard
+      ? { title: 'تابع اللقاءات والمحاضرات', text: 'عند نشر لقاء مباشر أو محاضرة ستجدها في قسم المحاضرات واللقاءات.', tab: 'lectures' }
+      : null)
+
   return (
-    <div className="aact-fade-in mx-auto max-w-7xl px-4 py-10">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-black text-[#0f2b46] sm:text-3xl">{hasStudyIdentity ? 'بوابة الطالب' : 'بوابة العميل'}</h1>
-          <p className="mt-1 text-sm text-slate-500">أهلاً {user.name} — {hasStudyIdentity ? (hasProgramDashboard ? 'رحلتك التدريبية في مكان واحد' : 'طلبك الدراسي قيد المتابعة حتى تفعيل التسجيل') : 'طلباتك وخدماتك ومخرجاتك في مكان واحد'}</p>
+    <div className="aact-fade-in mx-auto max-w-[1600px] px-3 py-5 sm:px-4 sm:py-8">
+      <div className="mb-5 rounded-[2rem] border border-white/80 bg-white/90 p-3 shadow-sm backdrop-blur">
+        <div className="grid gap-3 lg:grid-cols-[1fr_520px_auto] lg:items-center">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#0f2b46] via-[#1f4f86] to-[#2f6df6] text-lg font-black text-white shadow-sm">
+              {(user.name || 'ط')[0]}
+            </div>
+            <div>
+              <h1 className="text-xl font-black text-[#0f2b46] sm:text-2xl">أهلاً {user.name}</h1>
+              <p className="mt-0.5 text-xs font-bold text-slate-500">{hasStudyIdentity ? (hasProgramDashboard ? `${active?.program.titleAr || 'رحلتك التدريبية'} في مكان واحد` : 'طلبك الدراسي قيد المتابعة حتى تفعيل التسجيل') : 'طلباتك وخدماتك ومخرجاتك في مكان واحد'}</p>
+            </div>
+          </div>
+          <div className="hidden rounded-2xl border border-[#0f2b46]/10 bg-slate-50 px-4 py-3 text-xs font-bold text-slate-400 lg:flex lg:items-center lg:justify-between">
+            <span>ابحث في محاضراتك وكتبك وواجباتك...</span>
+            <span className="rounded-lg border border-slate-200 bg-white px-2 py-1 font-mono text-[10px] text-slate-400">Ctrl + K</span>
+          </div>
+          <div className="flex flex-wrap justify-start gap-2 lg:justify-end">
+            <Button type="button" variant="outline" onClick={() => setDashboardTab('notifications')} className="relative h-11 rounded-2xl border-slate-200 bg-white px-3 text-[#0f2b46] hover:bg-slate-50">
+              <Bell className="h-4 w-4" />
+              {!!studentSummary?.unread && <span className="absolute -right-1 -top-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-black text-white">{studentSummary.unread}</span>}
+            </Button>
+            <Button type="button" variant="outline" onClick={openAiSupervisor} className="h-11 rounded-2xl border-[#c9a227]/40 bg-white px-3 text-xs font-black text-[#a8841a] hover:bg-[#fffaf0]">
+              <Bot className="ml-1.5 h-4 w-4" /> المشرف الذكي
+            </Button>
+          </div>
         </div>
-        <Button onClick={openAiSupervisor} variant={aiSupervisorAllowed ? 'default' : 'outline'} className={aiSupervisorAllowed ? 'bg-[#0f2b46] font-extrabold text-[#e0b83a] hover:bg-[#12365c]' : 'border-slate-200 bg-slate-100 font-extrabold text-slate-500 hover:bg-slate-100'}>
-          <Bot className="ml-2 h-4 w-4" /> {aiSupervisorAllowed ? 'اسأل المشرف الذكي' : 'المشرف الذكي غير مفعل'}
-        </Button>
       </div>
 
       {studentSummary && (
-        <section className="mb-6 grid gap-3 lg:grid-cols-[1.4fr_1fr]">
+        <details className="mb-6 rounded-[2rem] border border-[#0f2b46]/10 bg-white/90 p-3 shadow-sm">
+          <summary className="cursor-pointer rounded-2xl px-2 py-1 text-sm font-black text-[#0f2b46] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a227]">
+            حالة الطلبات والدفع والوثائق — محفوظة هنا بدون تكدس
+          </summary>
+          <section className="mt-3 grid gap-3 lg:grid-cols-[1.4fr_1fr]">
           <div className="rounded-3xl border border-[#c9a227]/30 bg-[#fffaf0] p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -732,14 +861,212 @@ export function DashboardView() {
               </Button>
             </div>
           </div>
-        </section>
+          </section>
+        </details>
       )}
+
+      <section className="mb-6 grid gap-4 xl:grid-cols-[210px_minmax(0,1fr)_340px]">
+        <aside className="hidden rounded-[2rem] border border-[#0f2b46]/10 bg-white/95 p-3 shadow-sm xl:block" aria-label="قائمة خدمات بوابة الطالب">
+          <div className="mb-3 rounded-2xl bg-gradient-to-br from-[#f8fbff] to-[#eef4ff] p-3">
+            <p className="text-[10px] font-black text-slate-400">القائمة الكاملة</p>
+            <p className="mt-1 text-sm font-black text-[#0f2b46]">كل خدماتك محفوظة هنا</p>
+          </div>
+          <div className="space-y-1.5">
+            {dashboardTabOptions.map((item) => (
+              <button
+                key={item.value}
+                type="button"
+                onClick={() => setDashboardTab(item.value)}
+                className={`flex w-full items-center justify-between rounded-2xl px-3 py-2.5 text-right text-[11px] font-black transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a227] ${dashboardTab === item.value ? 'bg-[#2f6df6] text-white shadow-sm' : 'text-[#0f2b46] hover:bg-slate-50'}`}
+              >
+                <span>{item.label}</span>
+                <ChevronLeft className="h-3.5 w-3.5 opacity-70" />
+              </button>
+            ))}
+          </div>
+        </aside>
+
+        <div className="space-y-4">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_320px]">
+            <div className="relative overflow-hidden rounded-[2rem] border border-blue-100 bg-gradient-to-br from-[#0f2b46] via-[#2856d6] to-[#6d5dfc] p-5 text-white shadow-sm sm:p-6">
+              <div className="absolute -right-16 -top-16 h-44 w-44 rounded-full bg-white/10 blur-2xl" />
+              <div className="absolute -bottom-20 left-8 h-56 w-56 rounded-full bg-[#c9a227]/20 blur-3xl" />
+              <div className="relative grid gap-5 md:grid-cols-[1fr_250px] md:items-center">
+                <div>
+                  <p className="text-[11px] font-black text-white/70">بوصلتك الدراسية</p>
+                  <h2 className="mt-2 text-2xl font-black leading-10 sm:text-3xl">مرحبًا مجددًا {user.name}</h2>
+                  <p className="mt-2 text-sm font-bold leading-7 text-white/85">واصل رحلتك نحو التميز. أهم ما تحتاجه اليوم ظاهر أمامك: الكتاب، الوحدات، اللقاءات، الواجبات، الامتحانات والجدول.</p>
+                  <div className="mt-4 rounded-2xl border border-white/20 bg-white/10 p-3 text-xs font-bold leading-6 text-white/85 backdrop-blur">
+                    العلم لا يكتمل إلا بالعمل المستمر، وأنت تسير في الطريق الصحيح.
+                  </div>
+                </div>
+                <div className="rounded-3xl border border-white/30 bg-white/95 p-4 text-[#0f2b46] shadow-lg">
+                  <p className="text-[11px] font-black text-slate-500">مستواك الأكاديمي الحالي</p>
+                  <p className="mt-2 text-sm font-black">{active?.program.titleAr || 'برنامجك الدراسي'}</p>
+                  <div className="mt-4 flex items-center gap-4">
+                    <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-blue-100 to-violet-100 text-xl font-black text-[#2f6df6] ring-8 ring-blue-50">
+                      {active?.progress ?? 0}%
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <Progress value={active?.progress || 0} className="h-2 bg-slate-100" />
+                      <p className="mt-2 text-[11px] font-bold text-slate-500">{active ? `${active.completedUnits.length} وحدة مكتملة من ${active.units.length}` : 'يظهر التقدم بعد تفعيل البرنامج'}</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 grid grid-cols-3 divide-x divide-x-reverse divide-slate-100 rounded-2xl bg-slate-50 p-2 text-center text-[11px] font-black text-slate-500">
+                    <div><b className="block text-base text-[#0f2b46]">{active?.units.length || 0}</b>وحدات</div>
+                    <div><b className="block text-base text-[#0f2b46]">{assignments.length}</b>واجبات</div>
+                    <div><b className="block text-base text-[#0f2b46]">{active?.semesterExams?.length || 0}</b>امتحانات</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-[2rem] border border-red-100 bg-white p-4 shadow-sm">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h3 className="text-base font-black text-[#0f2b46]">المهام العاجلة</h3>
+                <span className="rounded-full bg-red-500 px-2 py-0.5 text-[11px] font-black text-white">{(pulseNotice ? 1 : 0) + assignments.filter((a) => !a.submitted).slice(0, 3).length}</span>
+              </div>
+              {pulseNotice ? (
+                <div className="mb-3 rounded-2xl border border-red-100 bg-red-50 p-3">
+                  <div className="flex items-start gap-3">
+                    <span className="relative mt-1 flex h-3 w-3">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-70" />
+                      <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-black text-[#0f2b46]">{pulseNotice.title}</p>
+                      <p className="mt-1 text-xs font-bold leading-6 text-red-700">{pulseNotice.text}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button type="button" size="sm" variant="outline" onClick={playStudentPulseTone} className="border-red-200 bg-white text-[11px] font-black text-red-600 hover:bg-red-50">
+                      <Bell className="ml-1 h-3.5 w-3.5" /> صوت التنبيه
+                    </Button>
+                    {pulseNotice.tab && (
+                      <Button type="button" size="sm" onClick={() => setDashboardTab(pulseNotice.tab)} className="bg-red-600 text-[11px] font-black text-white hover:bg-red-700">
+                        فتح المطلوب
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+              <div className="space-y-2">
+                {assignments.filter((a) => !a.submitted).slice(0, 3).map((assignment) => (
+                  <button key={assignment.id} type="button" onClick={() => openProgramWorkspace('content')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-3 text-right hover:bg-white">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-black text-[#0f2b46]">{assignment.title}</p>
+                      <p className="mt-0.5 text-[11px] font-bold text-slate-500">{assignment.dueAt ? `آخر موعد ${new Date(assignment.dueAt).toLocaleDateString('ar-EG')}` : 'واجب مطلوب'}</p>
+                    </div>
+                    <FileText className="h-4 w-4 shrink-0 text-rose-500" />
+                  </button>
+                ))}
+                {!pulseNotice && assignments.filter((a) => !a.submitted).length === 0 && (
+                  <div className="rounded-2xl bg-emerald-50 p-3 text-center text-xs font-black text-emerald-700">لا توجد مهام عاجلة الآن</div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-6">
+            {primaryStudentCards.map((card) => (
+              <button
+                key={card.key}
+                type="button"
+                onClick={card.action}
+                className={`group min-h-[150px] rounded-3xl border bg-gradient-to-br ${card.tone} p-4 text-right shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a227] focus-visible:ring-offset-2`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="rounded-2xl bg-white p-3 shadow-sm">{card.icon}</div>
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#2f6df6] shadow-sm transition group-hover:-translate-x-1">
+                    <ChevronLeft className="h-4 w-4" />
+                  </span>
+                </div>
+                <p className="mt-4 text-base font-black text-[#0f2b46]">{card.title}</p>
+                <p className="mt-1 text-xs font-bold leading-6 text-slate-600">{card.text}</p>
+              </button>
+            ))}
+          </div>
+
+          <div className="grid gap-3 lg:grid-cols-3">
+            <div className="rounded-[1.75rem] border border-[#0f2b46]/10 bg-white p-4 shadow-sm lg:col-span-2">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-sm font-black text-[#0f2b46]">الوحدات الأقرب لك</h3>
+                <Button type="button" variant="ghost" size="sm" onClick={() => openProgramWorkspace('content')} className="text-xs font-black text-[#2f6df6]">عرض الكل</Button>
+              </div>
+              <div className="space-y-2">
+                {(active?.units || []).slice(0, 4).map((unit, index) => {
+                  const done = active?.completedUnits.includes(unit.id)
+                  return (
+                    <button key={unit.id} type="button" onClick={() => openUnit(unit.id)} className="flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-3 text-right hover:bg-white">
+                      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-black ${done ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>{index + 1}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs font-black text-[#0f2b46]">{unit.title}</p>
+                        <Progress value={done ? 100 : 0} className="mt-2 h-1.5 bg-slate-200" />
+                      </div>
+                      {done ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <ChevronLeft className="h-4 w-4 text-slate-400" />}
+                    </button>
+                  )
+                })}
+                {!active?.units?.length && <p className="rounded-2xl bg-slate-50 p-4 text-center text-xs font-bold text-slate-500">تظهر الوحدات بعد تفعيل البرنامج.</p>}
+              </div>
+            </div>
+            <div className="rounded-[1.75rem] border border-[#0f2b46]/10 bg-white p-4 shadow-sm">
+              <h3 className="text-sm font-black text-[#0f2b46]">نصيحة اليوم</h3>
+              <p className="mt-3 rounded-2xl bg-[#fffaf0] p-3 text-xs font-bold leading-6 text-[#5c4d1a]">خصص وقتًا يوميًا للمراجعة. المعرفة تقوى بالممارسة المستمرة، والمشرف الذكي جاهز لمساعدتك عند الحاجة.</p>
+              <Button type="button" onClick={openAiSupervisor} className="mt-3 w-full rounded-2xl bg-[#2f6df6] text-xs font-black text-white hover:bg-[#1e55d6]">
+                ابدأ محادثة جديدة
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <aside className="space-y-4">
+          <div className="rounded-[2rem] border border-[#0f2b46]/10 bg-white p-4 shadow-sm xl:hidden">
+            <p className="mb-2 text-[11px] font-black text-[#a8841a]">كل التبويبات</p>
+            <select
+              aria-label="القائمة الكاملة لتبويبات بوابة الطالب"
+              value={dashboardTab}
+              onChange={(event) => setDashboardTab(event.target.value)}
+              className="h-11 w-full rounded-2xl border border-[#0f2b46]/15 bg-slate-50 px-3 text-xs font-black text-[#0f2b46] outline-none focus:border-[#c9a227] focus:ring-2 focus:ring-[#c9a227]/30"
+            >
+              {dashboardTabOptions.map((item) => (
+                <option key={item.value} value={item.value}>{item.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="rounded-[2rem] border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-black text-blue-500">المشرف الذكي</p>
+                <h3 className="mt-1 text-sm font-black text-[#0f2b46]">مساعدتك الفورية في دراستك</h3>
+              </div>
+              <Bot className="h-9 w-9 text-blue-600" />
+            </div>
+            <Button type="button" onClick={openAiSupervisor} className="mt-4 w-full rounded-2xl bg-[#2f6df6] text-xs font-black text-white hover:bg-[#1e55d6]">
+              ابدأ محادثة جديدة
+            </Button>
+          </div>
+          <div className="rounded-[2rem] border border-[#0f2b46]/10 bg-white p-4 shadow-sm">
+            <h3 className="text-sm font-black text-[#0f2b46]">إشعارات مهمة</h3>
+            <div className="mt-3 space-y-2 text-xs font-bold text-slate-600">
+              <button type="button" onClick={() => setDashboardTab('notifications')} className="flex w-full items-center justify-between rounded-2xl bg-slate-50 p-3 text-right hover:bg-slate-100">
+                <span>إشعارات غير مقروءة</span>
+                <Badge className="bg-red-100 text-red-700 hover:bg-red-100">{studentSummary?.unread || 0}</Badge>
+              </button>
+              <button type="button" onClick={() => setDashboardTab('payments')} className="flex w-full items-center justify-between rounded-2xl bg-slate-50 p-3 text-right hover:bg-slate-100">
+                <span>دفعات تحتاج متابعة</span>
+                <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">{studentSummary?.summary.unpaidPayments || 0}</Badge>
+              </button>
+            </div>
+          </div>
+        </aside>
+      </section>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
         {/* Main: tabs */}
         <div>
           <Tabs value={dashboardTab} onValueChange={setDashboardTab} dir="rtl">
-            <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-4 lg:grid-cols-9">
+            <TabsList className="hidden">
               {hasProgramDashboard && (
                 <TabsTrigger value="programs" className="text-[11px] font-bold sm:text-sm">
                   <BookOpen className="ml-1 hidden h-3.5 w-3.5 sm:inline" /> برامجي
@@ -1094,6 +1421,12 @@ export function DashboardView() {
                       })}
                     </div>
                   </section>
+                )}
+
+                {programSection === 'content' && (
+                  <Button type="button" size="sm" variant="outline" onClick={() => setProgramSection('schedule')} className="mt-4 border-[#c9a227]/40 font-bold text-[#0f2b46]">
+                    <ChevronLeft className="ml-1 h-4 w-4" /> العودة إلى جدول الدراسة
+                  </Button>
                 )}
 
                 {/* تنظيم محتوى البرنامج داخل تبويبات فرعية حتى لا تتكدس أدلة الدراسة والواجبات والوحدات في صفحة واحدة */}

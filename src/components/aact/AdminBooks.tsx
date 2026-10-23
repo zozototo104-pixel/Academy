@@ -18,7 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import {
   BookMarked, Loader2, Plus, Sparkles, Trash2, FileText, Bot,
   Hourglass, RefreshCw, Upload, CheckCircle2, AlertTriangle, XCircle, ClipboardList,
-  Layers, FileCheck2, Link2, StopCircle, Info,
+  Layers, FileCheck2, Link2, StopCircle, Info, ChevronDown,
 } from 'lucide-react'
 import { QuestionReviewDialog, AdminAppealsSection } from '@/components/aact/AdminExamReview'
 import { AdminPager, pageItems, safePage } from '@/components/aact/AdminListTools'
@@ -630,6 +630,11 @@ export function AdminBooksTab() {
   const [programId, setProgramId] = useState<string>('')
   const [workspaceTab, setWorkspaceTab] = useState('overview')
   const [booksSubTab, setBooksSubTab] = useState('current')
+  const [readinessOpen, setReadinessOpen] = useState(true)
+  const [expandedBookId, setExpandedBookId] = useState<string | null>(null)
+  const [bookSearch, setBookSearch] = useState('')
+  const [bookSemesterFilter, setBookSemesterFilter] = useState('ALL')
+  const [bookSourceFilter, setBookSourceFilter] = useState('ALL')
   const [books, setBooks] = useState<BookRow[]>([])
   const [exams, setExams] = useState<ExamRow[]>([])
   const [assignments, setAssignments] = useState<AssignmentRow[]>([])
@@ -805,6 +810,28 @@ export function AdminBooksTab() {
     () => programs.find((p) => p.id === programId) || null,
     [programs, programId]
   )
+
+  const filteredBooks = useMemo(() => books.filter((b) => {
+    const q = bookSearch.trim().toLowerCase()
+    if (q && !`${b.title || ''} ${b.titleEn || ''} ${b.author || ''}`.toLowerCase().includes(q)) return false
+    if (bookSemesterFilter === '1' && b.semester !== 1) return false
+    if (bookSemesterFilter === '2' && b.semester !== 2) return false
+    if (bookSemesterFilter === 'NONE' && b.semester) return false
+    if (bookSourceFilter === 'NEEDS_SOURCE' && !bookNeedsReadableSource(b)) return false
+    return true
+  }), [books, bookSearch, bookSemesterFilter, bookSourceFilter])
+  // تبديل البرنامج ينهي اختيار الكتاب المفتوح في نفس رسمة التبديل — قبل أي تحميل وبغض النظر عن نتيجته:
+  // لو فشل تحميل البرنامج الجديد وبقيت كتب القديم محمّلة (سلوك سابق في التحميل)، لا يجوز أن تظهر تفاصيلها تحت الجديد.
+  const [expandedBookProgramId, setExpandedBookProgramId] = useState(programId)
+  if (expandedBookProgramId !== programId) {
+    setExpandedBookProgramId(programId)
+    setExpandedBookId(null)
+  }
+  // إنهاء فعلي لاختيار الكتاب المفتوح إذا خرج من النتائج المعروضة (فلترة تستبعده، أو حُذف، أو تغيّر البرنامج) —
+  // مسح الفلاتر بعدها لا يعيد إظهار تفاصيله تلقائياً لأن المعرف نفسه صُفّر، لا مجرد إخفاء الاشتقاق.
+  if (expandedBookId && !loadingBooks && !filteredBooks.some((b) => b.id === expandedBookId)) {
+    setExpandedBookId(null)
+  }
 
   useEffect(() => {
     if (selectedProgram?.category && selectedCategory !== selectedProgram.category) {
@@ -2576,8 +2603,13 @@ export function AdminBooksTab() {
                     {readinessLoading ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
                     تحديث الجاهزية
                   </Button>
+                  <Button type="button" size="sm" variant="ghost" aria-expanded={readinessOpen} aria-controls="program-readiness-details" onClick={() => setReadinessOpen((v) => !v)} className="text-xs font-black text-[#0f2b46]">
+                    <ChevronDown className={`ml-1 h-3.5 w-3.5 transition-transform ${readinessOpen ? 'rotate-180' : ''}`} />
+                    {readinessOpen ? 'طي التفاصيل' : 'عرض التفاصيل'}
+                  </Button>
                 </div>
               </div>
+              <div id="program-readiness-details" hidden={!readinessOpen}>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
                 <div className="rounded-xl bg-white p-3 text-xs font-black text-slate-600 ring-1 ring-emerald-100">الكتب<br /><span className="text-lg text-[#0f2b46]">{programReadiness.counts.books}/{programReadiness.targets.books}</span></div>
                 <div className="rounded-xl bg-white p-3 text-xs font-black text-slate-600 ring-1 ring-emerald-100">الوحدات<br /><span className="text-lg text-[#0f2b46]">{programReadiness.counts.units}/{programReadiness.targets.units}</span></div>
@@ -2591,6 +2623,7 @@ export function AdminBooksTab() {
                     {ok ? '✓' : '×'} {key === 'description' ? 'الوصف الأكاديمي' : key === 'admissionRules' ? 'قواعد القبول' : key === 'semesters' ? 'عدد الفصول' : key === 'booksPerSemester' ? 'كتاب لكل فصل' : key === 'units' ? 'الوحدات' : key === 'unitObjectives' ? 'أهداف الوحدات' : key === 'knowledge' ? 'بنك المعرفة' : key === 'assessments' ? 'اختبار/واجب' : key === 'manualApproval' ? 'اعتماد الإدارة' : key}
                   </span>
                 ))}
+              </div>
               </div>
             </CardContent>
           </Card>
@@ -3411,16 +3444,56 @@ export function AdminBooksTab() {
                 </TabsList>
 
                 <TabsContent value="current" className="mt-0">
+              {/* أدوات عرض محلية فقط — بحث وفلاتر على البيانات المحمّلة أصلاً، بلا أي طلب شبكة */}
+              <div className="mb-3 flex flex-wrap items-end gap-2">
+                <div className="min-w-44 flex-1 space-y-1">
+                  <Label className="text-[10px] font-black text-slate-500">بحث بعنوان الكتاب أو المؤلف</Label>
+                  <Input value={bookSearch} onChange={(e) => setBookSearch(e.target.value)} placeholder="ابحث بالعربية أو الإنجليزية أو اسم المؤلف..." className="h-9 text-xs" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-black text-slate-500">الفصل الدراسي</Label>
+                  <Select value={bookSemesterFilter} onValueChange={setBookSemesterFilter}>
+                    <SelectTrigger className="h-9 w-36 text-xs font-bold"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">كل الفصول</SelectItem>
+                      <SelectItem value="1">الفصل الأول</SelectItem>
+                      <SelectItem value="2">الفصل الثاني</SelectItem>
+                      <SelectItem value="NONE">عام للبرنامج</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-black text-slate-500">مصدر القراءة</Label>
+                  <Select value={bookSourceFilter} onValueChange={setBookSourceFilter}>
+                    <SelectTrigger className="h-9 w-40 text-xs font-bold"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">كل الكتب</SelectItem>
+                      <SelectItem value="NEEDS_SOURCE">يحتاج مصدر قراءة</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {(bookSearch.trim() || bookSemesterFilter !== 'ALL' || bookSourceFilter !== 'ALL') && (
+                  <Button type="button" size="sm" variant="ghost" onClick={() => { setBookSearch(''); setBookSemesterFilter('ALL'); setBookSourceFilter('ALL') }} className="h-9 text-xs font-black text-slate-500">
+                    مسح الفلاتر
+                  </Button>
+                )}
+              </div>
+              <p className="mb-2 text-[10px] font-bold text-slate-400">عرض {filteredBooks.length} من أصل {books.length} كتاب</p>
               {loadingBooks ? (
                 <div className="flex h-24 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-[#c9a227]" /></div>
               ) : books.length === 0 ? (
                 <div className="rounded-xl bg-slate-50 p-6 text-center text-xs text-slate-500">
                   لا توجد كتب مقررة لهذا التخصص بعد — أضفها يدوياً بالأسفل أو اطلب اقتراحات خبير الذكاء الاصطناعي
                 </div>
+              ) : filteredBooks.length === 0 ? (
+                <div className="rounded-xl bg-slate-50 p-6 text-center text-xs text-slate-500">
+                  لا توجد نتائج مطابقة لعوامل العرض الحالية — جرّب تعديل البحث أو مسح الفلاتر
+                </div>
               ) : (
                 <div className="aact-scroll max-h-80 space-y-2.5 overflow-y-auto">
-                  {books.map((b, i) => (
-                    <div key={b.id} className="flex items-start gap-3 rounded-xl border border-slate-100 bg-white p-3.5">
+                  {filteredBooks.map((b, i) => (
+                    <div key={b.id} className="rounded-xl border border-slate-100 bg-white p-3.5">
+                      <div className="flex items-start gap-3">
                       <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#0f2b46] text-[10px] font-black text-[#e0b83a]">{i + 1}</span>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5">
@@ -3441,6 +3514,30 @@ export function AdminBooksTab() {
                         {(b.author || b.year) && (
                           <p className="mt-0.5 text-[10px] font-bold text-slate-500">{b.author}{b.year ? ` — ${b.year}` : ''}{b.titleEn ? ` · ${b.titleEn}` : ''}</p>
                         )}
+                        {(b.linkReadStatus || b.hasFile || bookNeedsReadableSource(b)) && (
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                          {b.linkReadStatus && (
+                            <Badge className={`${LINK_READ_META[b.linkReadStatus]?.cls || 'bg-slate-100 text-slate-600'} text-[9px] hover:bg-inherit`}>
+                              {LINK_READ_META[b.linkReadStatus]?.label || b.linkReadStatus}
+                            </Badge>
+                          )}
+                          {b.hasFile && (
+                            <Badge className="bg-emerald-100 text-[9px] text-emerald-700 hover:bg-emerald-100">
+                              <FileText className="ml-0.5 h-2.5 w-2.5" /> ملف مرفوع
+                            </Badge>
+                          )}
+                          {bookNeedsReadableSource(b) && (
+                            <Badge className="bg-amber-100 text-[9px] text-amber-700 hover:bg-amber-100">يحتاج مصدر قراءة</Badge>
+                          )}
+                        </div>
+                        )}
+                      </div>
+                      <Button type="button" size="sm" variant="outline" id={`book-toggle-${b.id}`} aria-expanded={expandedBookId === b.id} aria-controls={`book-details-${b.id}`} onClick={() => setExpandedBookId((cur) => (cur === b.id ? null : b.id))} className="shrink-0 text-[10px] font-black">
+                        <ChevronDown className={`ml-1 h-3 w-3 transition-transform ${expandedBookId === b.id ? 'rotate-180' : ''}`} />
+                        {expandedBookId === b.id ? 'إخفاء التفاصيل' : 'عرض التفاصيل'}
+                      </Button>
+                      </div>
+                      <div id={`book-details-${b.id}`} role="region" aria-labelledby={`book-toggle-${b.id}`} hidden={expandedBookId !== b.id} className="mt-3 border-t border-slate-100 pt-3">
                         {b.description && <p className="mt-1 text-[10px] leading-relaxed text-slate-500">{b.description}</p>}
                         {(b.levelPolicy || b.readingDepth || b.assessmentOrientation) && (
                           <div className="mt-2 rounded-xl bg-[#f8fafc] p-2 text-[10px] font-bold leading-5 text-slate-600">
@@ -3517,10 +3614,12 @@ export function AdminBooksTab() {
                             </p>
                           </div>
                         )}
+                        <div className="mt-3 flex justify-end">
+                          <Button size="sm" variant="ghost" onClick={() => deleteBook(b.id)} className="shrink-0 text-red-400 hover:bg-red-50 hover:text-red-600">
+                            <Trash2 className="ml-1 h-3.5 w-3.5" /> حذف الكتاب
+                          </Button>
+                        </div>
                       </div>
-                      <Button size="sm" variant="ghost" onClick={() => deleteBook(b.id)} className="shrink-0 text-red-400 hover:bg-red-50 hover:text-red-600">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
                     </div>
                   ))}
                 </div>
