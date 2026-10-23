@@ -797,7 +797,11 @@ export function DashboardView() {
       </div>
 
       {studentSummary && (
-        <section className="mb-6 grid gap-3 lg:grid-cols-[1.4fr_1fr]">
+        <details className="mb-6 rounded-[2rem] border border-[#0f2b46]/10 bg-white/90 p-3 shadow-sm">
+          <summary className="cursor-pointer rounded-2xl px-2 py-1 text-sm font-black text-[#0f2b46] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a227]">
+            حالة الطلبات والدفع والوثائق — محفوظة هنا بدون تكدس
+          </summary>
+          <section className="mt-3 grid gap-3 lg:grid-cols-[1.4fr_1fr]">
           <div className="rounded-3xl border border-[#c9a227]/30 bg-[#fffaf0] p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
