@@ -258,6 +258,15 @@ export function AdminThesisTab() {
   }), [theses, thesisSearch, thesisStatusFilter])
   const pagedTheses = pageItems(filteredTheses, thesisPage, thesisPageSize)
   const currentThesisPage = safePage(filteredTheses.length, thesisPageSize, thesisPage)
+  const loadedActiveCount = theses.filter((t) => !['RESULT_APPROVED'].includes(t.status)).length
+  const loadedScheduledCount = theses.filter((t) => t.status === 'SCHEDULED').length
+  const loadedApprovedResultsCount = theses.filter((t) => t.status === 'RESULT_APPROVED').length
+
+  useEffect(() => {
+    if (!expandedThesisId) return
+    if (pagedTheses.some((t) => t.id === expandedThesisId)) return
+    setExpandedThesisId(null)
+  }, [expandedThesisId, pagedTheses])
 
   if (loading) return (
     <Card className="mt-4 border-[#0f2b46]/10">
