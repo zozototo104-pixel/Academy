@@ -578,7 +578,7 @@ export function AdminAiStageProfiles() {
               type="button"
               aria-expanded={active}
               aria-controls={`ai-profiles-section-${value}`}
-              onClick={() => setOpenAiProfilesSection(value)}
+              onClick={() => toggleAiProfilesSection(value)}
               className={`rounded-2xl border px-3 py-3 text-right transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 ${active ? 'border-indigo-200 bg-indigo-50 text-indigo-950' : 'border-slate-100 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
             >
               <span className="block text-xs font-black">{title}</span>
