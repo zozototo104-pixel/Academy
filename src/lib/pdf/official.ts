@@ -119,6 +119,7 @@ function text(x: number, y: number, content: unknown, opts: { size?: number; fil
 function pageShell(body: string, pageNo: number, totalPages: number, opts: OfficialPdfOptions) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${PDF_PAGE_W}" height="${PDF_PAGE_H}" viewBox="0 0 ${PDF_PAGE_W} ${PDF_PAGE_H}">
+  ${getOfficialArabicFontFace() || ''}
   <rect width="${PDF_PAGE_W}" height="${PDF_PAGE_H}" fill="#ffffff"/>
   <rect x="0" y="0" width="${PDF_PAGE_W}" height="132" fill="${BRAND_NAVY}"/>
   <rect x="0" y="132" width="${PDF_PAGE_W}" height="8" fill="${BRAND_GOLD}"/>
