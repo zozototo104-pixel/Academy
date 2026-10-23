@@ -392,6 +392,7 @@ export function DashboardView() {
   const [dashboardTab, setDashboardTab] = useState('programs')
   const [lecturesVisible, setLecturesVisible] = useState(false)
   const [programSection, setProgramSection] = useState('academic')
+  const dashboardContentRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     const requestedTab = new URLSearchParams(window.location.search).get('tab')
