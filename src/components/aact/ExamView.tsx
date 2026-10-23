@@ -565,7 +565,7 @@ export function ExamView() {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16 text-center text-slate-500">
         الاختبار غير متاح —{' '}
-        <button className="font-bold text-[#a8841a] underline" onClick={() => goBack('dashboard')}>
+        <button className="font-bold text-[#a8841a] underline" onClick={() => navigate('dashboard')}>
           العودة للبوابة
         </button>
       </div>
