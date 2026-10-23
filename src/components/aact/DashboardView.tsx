@@ -445,9 +445,11 @@ export function DashboardView() {
     ;(async () => {
       const enrolls = await loadList()
       if (cancelled) return
-      // Load first enrolled program details
-      const first = enrolls.find((x) => x.status !== 'PENDING_PAYMENT')
-      if (first) await open(first.programId)
+      // Prefer the requested enrolled program on return from a learning item.
+      const requestedProgramId = useAppStore.getState().activeProgramId
+      const selected = enrolls.find((x) => x.programId === requestedProgramId && x.status !== 'PENDING_PAYMENT')
+        || enrolls.find((x) => x.status !== 'PENDING_PAYMENT')
+      if (selected) await open(selected.programId)
     })()
     return () => { cancelled = true }
   }, [loadList])
