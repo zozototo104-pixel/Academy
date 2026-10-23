@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
-import { pdfDate, pdfPercent, pdfResponse, pdfSafeText, renderOfficialPdf } from '@/lib/pdf/official'
+import { pdfDate, pdfPercent, pdfResponse, pdfSafeText } from '@/lib/pdf/official'
+import { buildTranscriptPdf } from '@/lib/transcript-pdf'
+import { loadArabicCanvas } from '@/lib/pdf-arabic'
 import { calculateFinalGrade } from '@/lib/final-grade'
 
 export const runtime = 'nodejs'
@@ -122,7 +124,8 @@ export async function GET(req: NextRequest) {
       ],
     })
 
-    const pdf = await renderOfficialPdf({
+    await loadArabicCanvas()
+    const pdf = buildTranscriptPdf({
       title: 'السجل الأكاديمي الرسمي',
       subtitle: 'Official Academic Transcript',
       documentLabel: 'ACADEMIC TRANSCRIPT',
