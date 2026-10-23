@@ -2806,7 +2806,20 @@ export function AdminSettingsTab() {
       </div>
 
       {groups.map((g) => (
-        <Card key={g.key} className="border-[#0f2b46]/10">
+        <Card
+          key={g.key}
+          id={`settings-group-${g.key}`}
+          hidden={
+            openSettingsSection === 'fees-ai'
+              ? !['FEES', 'AI'].includes(g.key)
+              : openSettingsSection === 'rules'
+                ? g.key !== 'RULES'
+                : openSettingsSection === 'content-contact'
+                  ? !['CONTENT', 'CONTACT'].includes(g.key)
+                  : true
+          }
+          className="border-[#0f2b46]/10"
+        >
           <CardContent className="p-5">
             <h3 className="mb-2 flex items-center gap-2 text-sm font-black text-[#0f2b46]">
               <Settings2 className="h-4.5 w-4.5 text-[#c9a227]" /> {g.label}
