@@ -1441,6 +1441,14 @@ export function AdminSystemTab() {
                 <p className="mt-2 text-[10px] text-slate-400">اضغط تحديث لعرض صحة النماذج لهذا المزود.</p>
               )}
             </div>
+          </div>
+          </div>
+
+          <div id="gemini-section-providers" role="region" aria-label="مزوّدو النصوص والمفاتيح" hidden={openGeminiSection !== 'providers'}>
+          <div className="grid gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4 sm:grid-cols-2">
+            <div className="sm:col-span-2 rounded-xl bg-white p-3 text-[10px] font-bold leading-relaxed text-indigo-700 ring-1 ring-indigo-100">
+              مزوّد النصوص الحالي: {currentTextProvider}. عند AUTO تبقى إعدادات المزوّدات كما يعرضها الكود الحالي، وفتح هذه المساحة لا يغيّر AI_TEXT_PROVIDER.
+            </div>
             {currentTextProvider === 'GEMINI' || currentTextProvider === 'AUTO' ? (
               <>
                 {F('GEMINI_API_KEYS', 'مفاتيح Gemini للنصوص — متعددة', data.secretsSet.GEMINI_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'key1,key2,key3', 'password', 'اكتب أكثر من مفتاح مفصولاً بفاصلة. الحصص غالباً على مستوى المشروع، لكن هذا يفيد عند وجود مشاريع/مفاتيح مستقلة.')}
