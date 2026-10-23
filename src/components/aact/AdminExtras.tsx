@@ -821,7 +821,12 @@ export function AdminFinanceTab() {
   const [proofReviewBusy, setProofReviewBusy] = useState<string | null>(null)
   const [generatedWaiverCodes, setGeneratedWaiverCodes] = useState<Record<string, string>>({})
   const [copiedWaiverPaymentId, setCopiedWaiverPaymentId] = useState<string | null>(null)
-  const [openFinanceSection, setOpenFinanceSection] = useState<'payments' | 'reports'>('payments')
+  const [openFinanceSection, setOpenFinanceSection] = useState<'payments' | 'reports' | null>('payments')
+  const toggleFinanceSection = (section: 'payments' | 'reports') => {
+    const y = typeof window !== 'undefined' ? window.scrollY : 0
+    setOpenFinanceSection((current) => (current === section ? null : section))
+    if (typeof window !== 'undefined') window.setTimeout(() => window.scrollTo({ top: y, behavior: 'auto' }), 0)
+  }
 
   const load = () => setPaymentRefresh((v) => v + 1)
 
