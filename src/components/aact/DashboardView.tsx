@@ -742,7 +742,7 @@ export function DashboardView() {
       title: 'المحاضرات واللقاءات',
       text: lecturesVisible ? 'افتح اللقاءات والمحاضرات من هنا' : 'تظهر عند تفعيل اللقاءات',
       icon: <Video className="h-8 w-8 text-blue-600" />,
-      action: () => setDashboardTab('lectures'),
+      action: () => selectDashboardTab('lectures'),
       show: hasProgramDashboard && lecturesVisible,
       tone: 'from-blue-50 to-white border-blue-100',
     },
