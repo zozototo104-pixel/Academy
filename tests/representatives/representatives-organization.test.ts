@@ -37,7 +37,7 @@ function panelText(section: (typeof sections)[number]): string {
   let result: string | null = null
   function visit(node: ts.Node) {
     if (ts.isJsxOpeningElement(node)) {
-      const prop = node.attributes.properties.find((attr) => ts.isJsxAttribute(attr) && attr.name.text === 'id')
+      const prop = node.attributes.properties.find((attr) => ts.isJsxAttribute(attr) && attr.name.getText(source) === 'id')
       if (prop && ts.isJsxAttribute(prop) && prop.initializer && ts.isStringLiteral(prop.initializer) && prop.initializer.text === id) {
         result = node.parent.getText(source)
       }
