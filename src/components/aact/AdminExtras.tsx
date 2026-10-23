@@ -377,6 +377,8 @@ export function AdminThesisTab() {
             { title: 'المناقشة', done: ['SCHEDULED', 'RESULT_APPROVED'].includes(t.status), active: t.status === 'SUBMITTED' },
             { title: 'النتيجة', done: t.status === 'RESULT_APPROVED', active: t.status === 'SCHEDULED' },
           ]
+          const isExpanded = expandedThesisId === t.id
+          const detailsPanelId = `thesis-details-${t.id}`
           return (
             <Card key={t.id} className="overflow-hidden border-[#0f2b46]/10">
               <CardContent className="p-4 sm:p-5">
