@@ -292,16 +292,34 @@ export function AdminThesisTab() {
   return (
     <div className="mt-4 space-y-4">
       {actionDialog}
-      <div className="flex flex-col gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-base font-black text-[#0f2b46]">أبحاث التخرج والمناقشات</h2>
-          <p className="mt-1 text-xs font-bold leading-5 text-slate-500">
-            تعرض هذه القائمة ملخصات الأبحاث فقط لتفتح بسرعة، أما تسجيل الفيديو فيُحمّل عند الضغط على تشغيل التسجيل.
-          </p>
+      <div className="space-y-3 rounded-2xl border border-[#0f2b46]/10 bg-white p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-base font-black text-[#0f2b46]">أبحاث التخرج والمناقشات</h2>
+            <p className="mt-1 text-xs font-bold leading-5 text-slate-500">
+              تعرض هذه القائمة ملخصات الأبحاث فقط لتفتح بسرعة، أما تسجيل الفيديو فيُحمّل عند الضغط على تشغيل التسجيل.
+            </p>
+          </div>
+          <Button onClick={load} variant="outline" className="w-full border-[#c9a227]/50 text-xs font-black text-[#a8841a] hover:bg-[#fff7df] sm:w-auto">
+            <RefreshCw className="ml-1.5 h-4 w-4" /> تحديث القائمة
+          </Button>
         </div>
-        <Button onClick={load} variant="outline" className="w-full border-[#c9a227]/50 text-xs font-black text-[#a8841a] hover:bg-[#fff7df] sm:w-auto">
-          <RefreshCw className="ml-1.5 h-4 w-4" /> تحديث القائمة
-        </Button>
+        {!loadError && (
+          <div className="grid gap-2 sm:grid-cols-4" aria-label="ملخص الأبحاث المحملة">
+            {[
+              ['الأبحاث المحمّلة', theses.length],
+              ['النشطة ضمن المحمّل', loadedActiveCount],
+              ['المناقشات المجدولة', loadedScheduledCount],
+              ['النتائج المعتمدة', loadedApprovedResultsCount],
+            ].map(([label, value]) => (
+              <div key={String(label)} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                <p className="text-[10px] font-black text-slate-400">ضمن الأبحاث المحمّلة</p>
+                <p className="mt-1 text-lg font-black text-[#0f2b46]">{value}</p>
+                <p className="text-[11px] font-bold text-slate-500">{label}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <AdminListToolbar
