@@ -53,7 +53,10 @@ describe('AdminSettingsTab workspace organization', () => {
   })
 
   test('confines the settings workspace state to AdminSettingsTab', () => {
-    required(settingsBlock, "const [openSettingsSection, setOpenSettingsSection] = useState<'fees-ai' | 'rules' | 'content-contact' | 'admins'>('fees-ai')")
+    required(settingsBlock, "const [openSettingsSection, setOpenSettingsSection] = useState<'fees-ai' | 'rules' | 'content-contact' | 'admins' | null>('fees-ai')")
+    required(settingsBlock, 'const toggleSettingsSection =')
+    required(settingsBlock, "setOpenSettingsSection((current) => (current === section ? null : section))")
+    required(settingsBlock, "window.scrollTo({ top: y, behavior: 'auto' })")
     expect(adminsAndAfter.includes('openSettingsSection')).toBe(false)
     expect(adminsAndAfter.includes('settings-group-')).toBe(false)
   })
