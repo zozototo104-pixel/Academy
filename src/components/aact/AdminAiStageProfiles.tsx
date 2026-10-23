@@ -426,12 +426,15 @@ export function AdminAiStageProfiles() {
       const advisorDraftToApply = loadedAdvisorDraft?.stage === stage && loadedAdvisorDraft.snapshotKey === snapshotKey(snapshot)
         ? loadedAdvisorDraft
         : null
-      const res = await api<{ stage: StageData; advisorAdviceId?: string | null }>('/api/admin/ai-stage-profiles', {
+      const res = await api<{ stage: StageData; advisorAdviceId?: string | null; recheckEnqueue?: RecheckEnqueueReport | null }>('/api/admin/ai-stage-profiles', {
         method: 'POST',
         body: JSON.stringify({
           stage,
           snapshot,
           ...(advisorDraftToApply ? { advisorAdviceId: advisorDraftToApply.adviceId } : {}),
+          ...(stage === 'REVIEW'
+            ? { enqueueRecheck: { enabled: reviewRecheckEnqueueEnabled, cap: reviewRecheckEnqueueCap } }
+            : {}),
         }),
       })
       setData((current) => {
