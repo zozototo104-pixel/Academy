@@ -2795,6 +2795,7 @@ export function AdminSettingsTab() {
           </div>
         </CardContent>
       </Card>
+      </div>
 
       {groups.map((g) => (
         <Card key={g.key} className="border-[#0f2b46]/10">
