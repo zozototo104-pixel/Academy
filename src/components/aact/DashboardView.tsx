@@ -957,7 +957,7 @@ export function DashboardView() {
                       <Bell className="ml-1 h-3.5 w-3.5" /> صوت التنبيه
                     </Button>
                     {pulseNotice.tab && (
-                      <Button type="button" size="sm" onClick={() => setDashboardTab(pulseNotice.tab)} className="bg-red-600 text-[11px] font-black text-white hover:bg-red-700">
+                      <Button type="button" size="sm" onClick={() => selectDashboardTab(pulseNotice.tab) className="bg-red-600 text-[11px] font-black text-white hover:bg-red-700">
                         فتح المطلوب
                       </Button>
                     )}
