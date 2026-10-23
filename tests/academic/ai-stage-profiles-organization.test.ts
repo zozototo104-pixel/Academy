@@ -61,7 +61,7 @@ describe('AdminAiStageProfiles workspace organization', () => {
     required(source, 'type="button"')
     required(source, 'aria-expanded={active}')
     required(source, 'aria-controls={`ai-profiles-section-${value}`}')
-    required(source, 'onClick={() => setOpenAiProfilesSection(value)}')
+    required(source, 'onClick={() => toggleAiProfilesSection(value)}')
     expect(source.includes('setOpenAiProfilesSection(value); api')).toBe(false)
     expect(source.includes('setOpenAiProfilesSection(value); save')).toBe(false)
     expect(source.includes('setOpenAiProfilesSection(value); load')).toBe(false)
