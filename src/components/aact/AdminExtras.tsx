@@ -2697,7 +2697,7 @@ export function AdminSettingsTab() {
                         ? 'settings-group-CONTENT settings-group-CONTACT'
                         : `settings-section-${value}`
                 }
-                onClick={() => setOpenSettingsSection(value)}
+                onClick={() => toggleSettingsSection(value)}
                 className={`rounded-2xl border px-3 py-3 text-right transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a227] focus-visible:ring-offset-2 ${active ? 'border-[#c9a227]/60 bg-[#fffaf0] text-[#0f2b46]' : 'border-slate-100 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
               >
                 <span className="block text-xs font-black">{title}</span>
