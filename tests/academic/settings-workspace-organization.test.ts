@@ -117,7 +117,7 @@ describe('AdminSettingsTab workspace organization', () => {
       "await api('/api/admin/system-admins', {",
       "method: 'POST'",
       'body: JSON.stringify({ ...adminForm, email })',
-      'setAdminForm((prev) => ({ ...prev, password: \'\' }))',
+      "setAdminForm((prev) => ({ ...prev, password: '' }))",
       'loadSystemAdmins()',
     ])
     requireAll(functionBody('disableSystemAdmin'), [
