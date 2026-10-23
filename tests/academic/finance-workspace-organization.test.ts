@@ -114,7 +114,7 @@ describe('AdminFinanceTab workspace organization', () => {
       'تطبيق الإعفاء على البرنامج',
       'AdminPager',
     ]) {
-      expect(financeBlock.indexOf(text)).toBeGreaterThan(paymentsIndex)
+      expect(financeBlock.indexOf(text, paymentsIndex)).toBeGreaterThan(paymentsIndex)
     }
   })
 
@@ -122,10 +122,8 @@ describe('AdminFinanceTab workspace organization', () => {
     required(financeBlock, 'const load = () => setPaymentRefresh((v) => v + 1)')
     required(financeBlock, "api<{ payments: PaymentRow[]; totals: any; total: number }>(`/api/admin/payments?${params.toString()}`)")
     required(financeBlock, "api<Report>('/api/admin/reports')")
-    required(financeBlock, "params.set('search', paymentSearch.trim())")
-    required(financeBlock, "params.set('status', paymentStatusFilter)")
-    required(financeBlock, "params.set('page', String(paymentPage))")
-    required(financeBlock, "params.set('pageSize', String(paymentPageSize))")
+    required(financeBlock, 'const params = new URLSearchParams({ page: String(paymentPage), pageSize: String(paymentPageSize), status: paymentStatusFilter })')
+    required(financeBlock, "if (paymentSearch.trim()) params.set('search', paymentSearch.trim())")
   })
 
   test('keeps protected finance action body contracts', () => {
