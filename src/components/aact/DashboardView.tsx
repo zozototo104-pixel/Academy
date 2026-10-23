@@ -1684,6 +1684,66 @@ export function DashboardView() {
                   ))}
                 </div>
                   </TabsContent>
+
+                  <TabsContent value="exams" className="mt-0">
+                    <section className="space-y-3 rounded-2xl border border-[#0f2b46]/10 bg-white p-4 shadow-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <h3 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]"><ListChecks className="h-4 w-4 text-[#a8841a]" /> الامتحانات والاختبارات</h3>
+                          <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">امتحانات الفصول واختبارات الوحدات المنشورة لهذا البرنامج.</p>
+                        </div>
+                        <Badge className="bg-[#f7edd0] text-[#0f2b46] hover:bg-[#f7edd0]">{(active.semesterExams?.length || 0) + active.units.filter((u) => u.examId).length} اختبار</Badge>
+                      </div>
+                      {(active.semesterExams?.length || 0) > 0 ? (
+                        <div className="space-y-3">
+                          {active.semesterExams!.map((exam: any) => {
+                            const sem1 = (active.semesterExams || []).find((e: any) => e.semester === 1)
+                            const tuitionGate = exam.tuitionGate
+                            const tuitionLocked = Boolean(tuitionGate && !tuitionGate.allowed)
+                            const prereqLocked = exam.semester === 2 && sem1 && !sem1.passed
+                            const locked = prereqLocked || tuitionLocked || !exam.readiness?.readyMarked
+                            return (
+                              <article key={exam.id} className="rounded-2xl border border-[#0f2b46]/10 bg-[#f8fafc] p-4">
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                  <div className="min-w-0 flex-1">
+                                    <h4 className="text-sm font-black text-[#0f2b46]">{exam.title}</h4>
+                                    <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">{exam.questionCount} سؤال · {exam.durationMin} دقيقة · حد النجاح {exam.passScore}%</p>
+                                    {exam.bestScore != null && <p className="mt-2 text-[11px] font-black text-[#a8841a]">أفضل نتيجة: {exam.bestScore}% {exam.passed ? '— ناجح' : ''}</p>}
+                                    {exam.readiness && <p className="mt-2 text-[11px] font-bold text-slate-500">اختبارات الوحدات: {exam.readiness.passedUnitExamsCount}/{exam.readiness.unitExamsCount} · الواجبات: {exam.readiness.passedAssignmentsCount}/{exam.readiness.assignmentsCount}</p>}
+                                    {tuitionLocked && tuitionGate?.message ? <p className="mt-2 rounded-xl bg-amber-50 p-2 text-[11px] font-bold text-amber-700">{tuitionGate.message}</p> : null}
+                                  </div>
+                                  <div className="flex shrink-0 flex-col gap-2">
+                                    {!prereqLocked && !tuitionLocked && !exam.readiness?.readyMarked ? (
+                                      <Button type="button" size="sm" onClick={() => markReadyForSemesterExam(exam.semester)} className="bg-emerald-600 text-xs font-black text-white hover:bg-emerald-700">
+                                        جاهز للامتحان
+                                      </Button>
+                                    ) : null}
+                                    <Button type="button" size="sm" onClick={() => handleSemesterExamAction(exam)} disabled={locked} className="bg-[#c9a227] text-xs font-black text-[#0f2b46] hover:bg-[#e0b83a] disabled:opacity-50">
+                                      {tuitionLocked ? 'مغلق لحين السداد' : exam.bestScore != null ? 'إعادة الامتحان' : 'ابدأ الامتحان'}
+                                    </Button>
+                                  </div>
+                                </div>
+                              </article>
+                            )
+                          })}
+                        </div>
+                      ) : null}
+                      {active.units.some((u) => u.examId) ? (
+                        <div className="space-y-2">
+                          <p className="text-xs font-black text-[#0f2b46]">اختبارات الوحدات</p>
+                          {active.units.filter((u) => u.examId).map((u) => (
+                            <button key={u.id} type="button" onClick={() => openExam(u.examId!)} className="flex w-full items-center justify-between rounded-2xl border border-slate-100 bg-white p-3 text-right hover:border-[#c9a227]/60">
+                              <span className="text-xs font-black text-[#0f2b46]">{u.title}</span>
+                              <span className="text-[11px] font-bold text-[#a8841a]">فتح الاختبار</span>
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                      {!(active.semesterExams?.length || 0) && !active.units.some((u) => u.examId) && (
+                        <p className="rounded-2xl bg-slate-50 p-5 text-center text-xs font-bold text-slate-500">لا توجد امتحانات منشورة لهذا البرنامج بعد.</p>
+                      )}
+                    </section>
+                  </TabsContent>
                 </Tabs>
                 ))}
               </CardContent>
