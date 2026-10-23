@@ -1542,10 +1542,15 @@ export function AdminSystemTab() {
               </>
             ) : null}
           </div>
-          <div className="flex flex-wrap gap-2">
+          </div>
+          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white p-3">
             <Button onClick={save} disabled={saving} className="bg-[#0f2b46] font-extrabold text-[#f5f0e1] hover:bg-[#12365c]">
-              {saving ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Save className="ml-2 h-4 w-4" />} حفظ إعدادات Gemini
+              {saving ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Save className="ml-2 h-4 w-4" />} حفظ إعدادات النظام
             </Button>
+            <p className="text-[10px] font-bold leading-relaxed text-slate-500">الحفظ يستخدم نفس دالة save الحالية ويحفظ كائن إعدادات النظام كاملًا، وليس القسم المفتوح فقط.</p>
+          </div>
+          <div id="gemini-section-tests" role="region" aria-label="اختبارات الاتصال" hidden={openGeminiSection !== 'tests'}>
+          <div className="flex flex-wrap gap-2 rounded-2xl border border-[#0f2b46]/10 bg-white p-3">
             <Button onClick={testGeminiText} disabled={testing} variant="outline" className="border-[#c9a227] font-extrabold text-[#a8841a] hover:bg-[#fffaf0]">
               {testing ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Bot className="ml-2 h-4 w-4" />} اختبار Gemini Text
             </Button>
@@ -1558,6 +1563,7 @@ export function AdminSystemTab() {
             <Button onClick={() => testGeminiLive('DISCUSSION')} disabled={testing} variant="outline" className="border-emerald-300 font-extrabold text-emerald-700 hover:bg-emerald-50">
               {testing ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Radio className="ml-2 h-4 w-4" />} اختبار Live المناقشة
             </Button>
+          </div>
           </div>
           <div className="rounded-xl bg-[#f7edd0]/60 p-3 text-[10px] font-bold leading-relaxed text-[#5c4d1a]">
             إذا ظهر 429 فالمفتاح سليم لكن الحصة انتهت مؤقتاً. Live الحديث يستخدم للمشرف gemini-3.8-live وللمناقشة gemini-3.8-live-extended-thinking. مزودات OpenAI/Claude/GLM تخص النصوص فقط ولا تغيّر الصوت أو Live.
