@@ -395,6 +395,31 @@ export function AdminThesisTab() {
                       الباحث: {studentName} — {programName}
                     </p>
                     <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-slate-500">{abstractText}</p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-bold text-slate-500">
+                      {t.defenseDate && (
+                        <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-1 text-blue-700">
+                          <CalendarClock className="ml-1 h-3 w-3" /> {formatArabicDate(t.defenseDate)}
+                        </span>
+                      )}
+                      {t.status === 'RESULT_APPROVED' && (
+                        <span className={`inline-flex rounded-full px-2 py-1 ${t.passed ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>نتيجة معتمدة</span>
+                      )}
+                      {t.extractionStatus === 'FAILED' && (
+                        <span className="inline-flex rounded-full bg-red-50 px-2 py-1 text-red-600">تحذير: فشلت معالجة الملف</span>
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      aria-expanded={isExpanded}
+                      aria-controls={detailsPanelId}
+                      onClick={() => setExpandedThesisId(isExpanded ? null : t.id)}
+                      className="mt-3 border-[#0f2b46]/20 text-xs font-black text-[#0f2b46] focus-visible:ring-2 focus-visible:ring-[#c9a227] focus-visible:ring-offset-2"
+                    >
+                      {isExpanded ? 'إغلاق التفاصيل' : 'عرض تفاصيل البحث'}
+                    </Button>
+                    {isExpanded && (
+                      <div id={detailsPanelId} className="mt-4 space-y-3 rounded-2xl border border-[#0f2b46]/10 bg-slate-50/60 p-3">
                     {t.reviewNote ? (
                       <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] font-bold leading-6 text-amber-800">
                         <span className="font-black">ملاحظة الإدارة/المشرف:</span> {t.reviewNote}
