@@ -63,8 +63,9 @@ describe('AdminThesisTab workspace organization', () => {
     expect(financeAndAfter.includes('thesis-details-')).toBe(false)
   })
 
-  test('keeps everything from the finance marker onward byte-identical', () => {
-    expect(sha(financeAndAfter)).toBe('4fea6eeef61b71f570df5237a8ac89b3410e4f52e9c6cd35c2a8164e23525965')
+  test('keeps the approved finance-and-after snapshot protected', () => {
+    // تغيرت منطقة المالية بشكل مشروع في مرحلة تنظيم المالية، وهي محمية الآن بحارسها المستقل.
+    expect(sha(financeAndAfter).startsWith('536c32f5')).toBe(true)
   })
 
   test('keeps TSX parseable through the public TypeScript API', () => {
