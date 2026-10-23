@@ -799,7 +799,7 @@ export function DashboardView() {
             <span className="rounded-lg border border-slate-200 bg-white px-2 py-1 font-mono text-[10px] text-slate-400">Ctrl + K</span>
           </div>
           <div className="flex flex-wrap justify-start gap-2 lg:justify-end">
-            <Button type="button" variant="outline" onClick={() => setDashboardTab('notifications')} className="relative h-11 rounded-2xl border-slate-200 bg-white px-3 text-[#0f2b46] hover:bg-slate-50">
+            <Button type="button" variant="outline" onClick={() => selectDashboardTab('notifications')} className="relative h-11 rounded-2xl border-slate-200 bg-white px-3 text-[#0f2b46] hover:bg-slate-50">
               <Bell className="h-4 w-4" />
               {!!studentSummary?.unread && <span className="absolute -right-1 -top-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-black text-white">{studentSummary.unread}</span>}
             </Button>
