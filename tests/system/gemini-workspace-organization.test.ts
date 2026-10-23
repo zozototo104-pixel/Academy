@@ -100,6 +100,8 @@ describe('Gemini / AI workspace organization', () => {
     for (const value of ['core', 'routing', 'providers', 'health', 'cooldowns', 'tests']) {
       required(geminiBlock, `hidden={openGeminiSection !== '${value}'}`)
     }
+    required(geminiBlock, 'id="gemini-section-health-models"')
+    required(geminiBlock, 'aria-label="صحة النماذج النصية"')
     expect(geminiBlock.includes("openGeminiSection === 'routing' &&")).toBe(false)
     expect(geminiBlock.includes("openGeminiSection === 'providers' &&")).toBe(false)
     expect(geminiBlock.includes("openGeminiSection === 'health' &&")).toBe(false)
