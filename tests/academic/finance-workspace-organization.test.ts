@@ -53,7 +53,10 @@ describe('AdminFinanceTab workspace organization', () => {
   })
 
   test('confines finance workspace state before certificates', () => {
-    required(financeBlock, "const [openFinanceSection, setOpenFinanceSection] = useState<'payments' | 'reports'>('payments')")
+    required(financeBlock, "const [openFinanceSection, setOpenFinanceSection] = useState<'payments' | 'reports' | null>('payments')")
+    required(financeBlock, 'const toggleFinanceSection =')
+    required(financeBlock, "setOpenFinanceSection((current) => (current === section ? null : section))")
+    required(financeBlock, "window.scrollTo({ top: y, behavior: 'auto' })")
     expect(certificatesAndAfter.includes('openFinanceSection')).toBe(false)
     expect(certificatesAndAfter.includes('finance-section-')).toBe(false)
   })
