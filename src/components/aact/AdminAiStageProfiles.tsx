@@ -95,6 +95,38 @@ type AdvisorAdvice = {
   expiresAt: string | null
   createdAt: string
 }
+type RecheckEnqueueReport = {
+  requestedCap: number
+  cohortTotal: number
+  enqueued: number
+  skippedAlreadyQueued: number
+  skippedCapReached: number
+  skippedIneligible: number
+  failed: number
+  errors: { questionId: string | null; error: string }[]
+}
+type RecheckRecommendation = {
+  valid?: boolean
+  reason?: string
+  verifierProvider?: string | null
+  verifierModel?: string | null
+  checkedAt?: string
+}
+type QuestionRecheckTask = {
+  id: string
+  questionId: string
+  reason: string
+  status: string
+  profileVersion: string | null
+  recommendation: RecheckRecommendation | null
+  error: string | null
+  createdAt: string
+  claimedAt: string | null
+  finishedAt: string | null
+  question: { id: string; text: string; status: string } | null
+}
+type QuestionRecheckOverview = { pendingCount: number; recentTasks: QuestionRecheckTask[] }
+type RecheckBatchSummary = { claimed: number; done: number; failed: number }
 type ResponseData = { stages: StageData[]; providers: string[]; policies: string[]; advisorReadiness?: AdvisorReadiness; advisorAdvice?: AdvisorAdvice[] }
 type FormState = {
   enabled: boolean
