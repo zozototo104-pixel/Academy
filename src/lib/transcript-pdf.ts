@@ -280,3 +280,6 @@ export function buildTranscriptPdf(opts: OfficialPdfOptions, options: Transcript
 
   return new Uint8Array(doc.output('arraybuffer'))
 }
+
+/** Generic official-document builder on the invoice-proven pipeline (embedded Amiri + canvas Arabic). */
+export const buildOfficialPdf = buildTranscriptPdf

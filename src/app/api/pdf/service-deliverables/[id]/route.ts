@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { deliverableStatusLabel, deliverableTypeLabel } from '@/lib/service-deliverables'
-import { pdfDate, pdfResponse, pdfSafeText, renderOfficialPdf } from '@/lib/pdf/official'
+import { pdfDate, pdfResponse, pdfSafeText } from '@/lib/pdf/official'
+import { buildOfficialPdf } from '@/lib/transcript-pdf'
+import { loadArabicCanvas } from '@/lib/pdf-arabic'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -53,7 +55,8 @@ export async function GET(_req: NextRequest, context: RouteContext) {
     const program = pdfSafeText(deliverable.admission.programRef?.titleAr || deliverable.admission.program, 'AACT Service')
     const accessValue = deliverable.externalUrl || deliverable.verificationUrl || deliverable.fileUrl || deliverable.fileName || 'متاح من بوابة الطالب'
 
-    const pdf = await renderOfficialPdf({
+    await loadArabicCanvas()
+    const pdf = buildOfficialPdf({
       title: 'مخرج خدمة رسمي',
       subtitle: 'Official Service Deliverable',
       documentLabel: 'SERVICE DELIVERABLE',

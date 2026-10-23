@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
-import { pdfDate, pdfPercent, pdfResponse, pdfSafeText, renderOfficialPdf } from '@/lib/pdf/official'
+import { pdfDate, pdfPercent, pdfResponse, pdfSafeText } from '@/lib/pdf/official'
+import { buildOfficialPdf } from '@/lib/transcript-pdf'
+import { loadArabicCanvas } from '@/lib/pdf-arabic'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -74,7 +76,8 @@ export async function GET(_req: NextRequest, context: RouteContext) {
     const part = isProgram ? `امتحان الفصل ${exam.semester === 2 ? 'الثاني' : 'الأول'}` : exam.unit?.title
     const submittedAt = isProgram ? ((attempt as any).submittedAt || (attempt as any).createdAt) : (attempt as any).submittedAt
 
-    const pdf = await renderOfficialPdf({
+    await loadArabicCanvas()
+    const pdf = buildOfficialPdf({
       title: 'نتيجة الطالب الرسمية',
       subtitle: 'Official Student Result',
       documentLabel: 'STUDENT RESULT',
