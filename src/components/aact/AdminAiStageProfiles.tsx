@@ -463,6 +463,20 @@ export function AdminAiStageProfiles() {
     }
   }
 
+  const runQuestionRecheck = async () => {
+    setRunningQuestionRecheck(true)
+    try {
+      const res = await api<{ batch: RecheckBatchSummary; overview: QuestionRecheckOverview }>('/api/admin/question-recheck', { method: 'POST' })
+      setLastRecheckBatch(res.batch)
+      setQuestionRecheckOverview(res.overview)
+      toast({ title: 'تم تشغيل دفعة إعادة التدقيق', description: `ادّعت ${res.batch.claimed} · اكتملت ${res.batch.done} · فشلت ${res.batch.failed}` })
+    } catch (error: any) {
+      toast({ title: 'تعذر تشغيل إعادة التدقيق', description: error?.message, variant: 'destructive' })
+    } finally {
+      setRunningQuestionRecheck(false)
+    }
+  }
+
   const requestAdvisorAdvice = async () => {
     setGeneratingAdvisorAdvice(true)
     try {
