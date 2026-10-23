@@ -1100,6 +1100,12 @@ export function DashboardView() {
                   </section>
                 )}
 
+                {programSection === 'content' && (
+                  <Button type="button" size="sm" variant="outline" onClick={() => setProgramSection('schedule')} className="mt-4 border-[#c9a227]/40 font-bold text-[#0f2b46]">
+                    <ChevronLeft className="ml-1 h-4 w-4" /> العودة إلى جدول الدراسة
+                  </Button>
+                )}
+
                 {/* تنظيم محتوى البرنامج داخل تبويبات فرعية حتى لا تتكدس أدلة الدراسة والواجبات والوحدات في صفحة واحدة */}
                 {programSection === 'content' && (!curriculumReady ? (
                   <section className="mt-5 rounded-2xl border border-amber-200 bg-white p-6 text-center text-sm font-bold leading-7 text-slate-600">
