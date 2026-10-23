@@ -172,7 +172,7 @@ describe('quality workspace organization guard', () => {
       assert.ok(SOURCE.includes(`aria-controls="quality-ws-${ws.id}"`), ws.id)
       assert.ok(SOURCE.includes(`aria-expanded={activeWorkspace === '${ws.id}'}`), ws.id)
       assert.ok(SOURCE.includes(`hidden={activeWorkspace !== '${ws.id}'}`), ws.id)
-      assert.ok(SOURCE.includes(`onClick={() => setActiveWorkspace('${ws.id}')}`), ws.id)
+      assert.ok(SOURCE.includes(`onClick={() => toggleWorkspace('${ws.id}')}`), ws.id)
       const headerIdx = SOURCE.indexOf(`id="quality-ws-${ws.id}-header"`)
       assert.ok(SOURCE.slice(headerIdx, regionIdx).includes(ws.title), `title of ${ws.id}`)
       // رأس القسم زر مستقل بلا أزرار إجراءات داخله: بين زر الرأس ومنطقته لا يوجد onClick آخر
