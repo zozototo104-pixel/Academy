@@ -260,6 +260,36 @@ function adviceSeverityBadge(severity: string) {
   return { label: 'معلومة', className: 'bg-blue-100 text-blue-800' }
 }
 
+function shortText(value: string, max = 90): string {
+  const normalized = value.replace(/\s+/g, ' ').trim()
+  return normalized.length > max ? `${normalized.slice(0, max)}…` : normalized
+}
+
+function recheckReasonLabel(reason: string): string {
+  if (reason === 'REVIEW_PROFILE_CHANGED') return 'تغيير بروفايل التدقيق'
+  if (reason === 'NEW_EVIDENCE_AVAILABLE') return 'دليل جديد'
+  if (reason === 'MANUAL_ADMIN_RECHECK') return 'إعادة يدوية'
+  return reason
+}
+
+function recheckStatusLabel(status: string): string {
+  if (status === 'PENDING') return 'بالانتظار'
+  if (status === 'RUNNING') return 'قيد التشغيل'
+  if (status === 'DONE') return 'اكتملت'
+  if (status === 'FAILED') return 'فشلت'
+  if (status === 'SKIPPED') return 'تخطيت'
+  return status
+}
+
+function recommendationText(task: QuestionRecheckTask): string {
+  if (task.recommendation) {
+    const verdict = task.recommendation.valid ? 'توصية: مدعوم' : 'توصية: يحتاج مراجعة'
+    return `${verdict} — ${task.recommendation.reason || 'بلا سبب مفصل'}`
+  }
+  if (task.error) return `فشل: ${task.error}`
+  return 'لا توجد توصية بعد'
+}
+
 function formsFromResponse(res: ResponseData): Record<Stage, FormState> {
   return Object.fromEntries(
     res.stages.map((stage) => [stage.stage, snapshotToForm(stage.current?.snapshot ?? null)]),
