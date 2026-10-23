@@ -568,6 +568,12 @@ export function AdminThesisTab() {
                         <FileSignature className="ml-1 h-3 w-3" /> محضر الجلسة
                       </Button>
                     )}
+                      </>
+                    ) : (
+                      <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3 text-center text-[11px] font-bold text-slate-500">
+                        افتح تفاصيل البحث لإظهار إجراءات الاعتماد والجدولة والنتيجة.
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>
