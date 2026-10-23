@@ -130,6 +130,7 @@ export async function POST(req: NextRequest) {
     const stage = (body as { stage?: unknown } | null)?.stage
     const snapshot = (body as { snapshot?: unknown } | null)?.snapshot
     const advisorAdviceId = (body as { advisorAdviceId?: unknown } | null)?.advisorAdviceId
+    const recheckRequest = parseReviewRecheckEnqueueRequest((body as { enqueueRecheck?: unknown } | null)?.enqueueRecheck)
     if (!isStage(stage)) return NextResponse.json({ error: 'مرحلة غير صالحة' }, { status: 400 })
     const validatedSnapshot = validateStageProfileSnapshot(stage, snapshot)
     const current = await getCurrentStageProfile(stage)
