@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
+import { pathToFileURL } from 'url'
 import { jsPDF } from 'jspdf'
 import sharp from 'sharp'
 
