@@ -1303,6 +1303,11 @@ export function AdminSystemTab() {
                 مفاتيح في cooldown: {textAiDiag.cooldowns.map((c) => `${c.provider} حتى ${new Date(c.until).toLocaleTimeString('ar')}`).join('، ')}
               </div>
             )}
+          </div>
+          </div>
+
+          <div id="gemini-section-cooldowns" role="region" aria-label="حالات الراوتر والتبريد" hidden={openGeminiSection !== 'cooldowns'}>
+          <div className="grid gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4 sm:grid-cols-2">
             <div className="rounded-xl border border-indigo-100 bg-white p-3 text-[10px] font-bold leading-relaxed text-slate-600 ring-1 ring-indigo-100 sm:col-span-2">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div>
