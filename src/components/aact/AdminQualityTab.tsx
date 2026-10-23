@@ -1977,7 +1977,7 @@ export function AdminQualityTab() {
         </div>
       </section>
       <section aria-label="عناوين أبحاث التخرج">
-        <button type="button" id="quality-ws-thesis-header" aria-expanded={activeWorkspace === 'thesis'} aria-controls="quality-ws-thesis" onClick={() => setActiveWorkspace('thesis')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
+        <button type="button" id="quality-ws-thesis-header" aria-expanded={activeWorkspace === 'thesis'} aria-controls="quality-ws-thesis" onClick={() => toggleWorkspace('thesis')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
           <span>
             <span className="block text-sm font-black text-[#0f2b46]">عناوين أبحاث التخرج</span>
             <span className="mt-0.5 block text-[11px] font-bold text-slate-500">إضافة وتوليد ومراجعة عناوين وطلبات الطلاب</span>
