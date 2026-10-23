@@ -824,7 +824,7 @@ export function DashboardView() {
                 <p className="mt-1 text-xs font-bold leading-6 text-slate-600">{hasStudyIdentity ? (currentStudentAction?.text || (hasProgramDashboard ? 'اختر برنامجك النشط وتابع الكتب والاختبارات والواجبات والإشعارات.' : 'بعد مراجعة الإدارة وسداد المتطلبات ستُفتح بوابة الدراسة والكتب والاختبارات.')) : 'هذه بوابة خدماتك العابرة: الدفعات، حالة الطلب، وروابط التحميل أو الشهادات التي تنشرها الإدارة.'}</p>
               </div>
               {currentStudentAction?.tab && currentStudentAction.tab !== dashboardTab ? (
-                <Button onClick={() => setDashboardTab(currentStudentAction.tab)} className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">
+                <Button onClick={() => selectDashboardTab(currentStudentAction.tab)} className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">
                   انتقل الآن
                 </Button>
               ) : null}
