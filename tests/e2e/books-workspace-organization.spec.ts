@@ -203,20 +203,39 @@ async function gotoBooksCurrent(page: Page) {
 const bookToggles = (page: Page) => page.locator('button[id^="book-toggle-"]')
 const visibleDetails = (page: Page) => page.locator('[id^="book-details-"]:not([hidden])')
 
-// انتظار اكتمال تحميل كتب البرنامج الحالي فعليًا: قائمة الكتب (أو حالة الفراغ) ظاهرة
-// والشبكة هادئة. بلا هذا الانتظار قد «ينجح» فحص غياب التفاصيل أثناء التحميل نفسه،
-// حيث لا شيء مرسوم أصلًا — وهو نجاح زائف لا يثبت انتهاء الاختيار.
+// هل هذا الرد هو رد طلب قائمة الكتب نفسه؟ (المسار الدقيق — يميّزه عن /readiness وغيره)
+function isBooksListUrl(raw: string): boolean {
+  try {
+    return new URL(raw).pathname.endsWith('/api/admin/books')
+  } catch {
+    return false
+  }
+}
+
+// يُسجَّل قبل فعل التبديل: ينتظر اكتمال طلب كتب البرنامج الجديد نفسه، لا هدوء الشبكة العام.
+function nextBooksListResponse(page: Page) {
+  return page.waitForResponse((res) => isBooksListUrl(res.url()) && res.request().method() === 'GET', { timeout: 30_000 })
+}
+
+// انتظار استقرار القائمة في الواجهة بعد اكتمال طلبها: حاوية الكتب (أو حالة الفراغ) ظاهرة.
+// طبقة واجهة ثانية فوق انتظار الرد — وحدها لا تكفي لأن رسمة انتقالية قد تُبقي القائمة القديمة لحظة.
 async function waitForBooksSettled(page: Page) {
-  await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {})
   await expect(
     page.locator('.aact-scroll').or(page.getByText('لا توجد كتب مقررة لهذا التخصص بعد')).first()
   ).toBeVisible({ timeout: 30_000 })
 }
 
 async function countOptions(page: Page, triggerIndex: number): Promise<number> {
-  await comboboxes(page).nth(triggerIndex).click()
+  const trigger = comboboxes(page).nth(triggerIndex)
+  if (await trigger.isDisabled().catch(() => false)) return 0
+  await trigger.click()
   const options = page.getByRole('option')
-  await expect(options.first()).toBeVisible({ timeout: 15_000 })
+  // قائمة فارغة (درجة بلا برامج مثلًا) ليست خطأً هنا: صفر خيارات، ويقرر المستدعي التخطي.
+  const anyVisible = await options.first().waitFor({ state: 'visible', timeout: 5_000 }).then(() => true).catch(() => false)
+  if (!anyVisible) {
+    await page.keyboard.press('Escape')
+    return 0
+  }
   const count = await options.count()
   await page.keyboard.press('Escape')
   return count
@@ -231,10 +250,12 @@ async function findQualifyingProgram(page: Page) {
     await pickOption(page, 0, c)
     const programCount = await countOptions(page, 1)
     for (let p = 0; p < programCount; p++) {
-      if (++scanned > 12) {
-        throw new Error('بيانات QA: مسح الاكتشاف تجاوز 12 برنامجًا دون العثور على برنامج مؤهل (كتابان على الأقل وأحدهما يحتاج مصدر قراءة).')
+      if (++scanned > 25) {
+        throw new Error('بيانات QA: مسح الاكتشاف بلغ حد 25 برنامجًا دون العثور على برنامج مؤهل (كتابان على الأقل وأحدهما يحتاج مصدر قراءة) — هذا حد مسح، وقد يوجد مؤهل بعده؛ ارفع الحد أو جهّز المؤهل مبكرًا في الترتيب.')
       }
+      const booksResponse = nextBooksListResponse(page)
       await pickOption(page, 1, p)
+      await booksResponse
       await expect(page.getByText(/الكتب والامتحانات ستُربط تحديداً بـ/)).toBeVisible({ timeout: 30_000 })
       await gotoBooksCurrent(page)
       await waitForBooksSettled(page)
@@ -253,7 +274,9 @@ async function openFirstBookInTwoProgramCategory(page: Page) {
   for (let c = 0; c < categoryCount; c++) {
     await pickOption(page, 0, c)
     if ((await countOptions(page, 1)) < 2) continue
+    const booksResponse = nextBooksListResponse(page)
     await pickOption(page, 1, 0)
+    await booksResponse
     await expect(page.getByText(/الكتب والامتحانات ستُربط تحديداً بـ/)).toBeVisible({ timeout: 30_000 })
     await gotoBooksCurrent(page)
     await waitForBooksSettled(page)
@@ -360,9 +383,11 @@ test.describe('books workspace organization (QA, read-only)', () => {
   test('switching programs clears the previous book selection', async ({ page }) => {
     await openFirstBookInTwoProgramCategory(page)
     const openId = await bookToggles(page).nth(0).getAttribute('id')
-    // بدّل للبرنامج الثاني وانتظر اكتمال تحميله فعليًا قبل أي فحص — الفحص أثناء
-    // التحميل لا يثبت شيئًا لأن التفاصيل غير مرسومة أصلًا في تلك اللحظة.
+    // بدّل للبرنامج الثاني وانتظر اكتمال طلب كتبه نفسه قبل أي فحص — الفحص أثناء
+    // التحميل أو على هدوء الشبكة العام لا يثبت شيئًا.
+    const booksResponse = nextBooksListResponse(page)
     await pickOption(page, 1, 1)
+    await booksResponse
     await expect(page.getByText(/الكتب والامتحانات ستُربط تحديداً بـ/)).toBeVisible({ timeout: 30_000 })
     await gotoBooksCurrent(page)
     await waitForBooksSettled(page)
@@ -381,10 +406,13 @@ test.describe('books workspace organization (QA, read-only)', () => {
     // أجهض طلب كتب البرنامج التالي فقط (طلب قراءة — حارس الكتابة لا علاقة له به):
     // التحميل سيفشل، وستبقى كتب البرنامج الأول محمّلة كما هي (سلوك تحميل سابق).
     await page.route('**/api/admin/books**', (route) => route.abort())
+    // إثبات الاستقرار هنا هو فشل طلب الكتب نفسه (حدث requestfailed لمساره)، لا هدوء الشبكة.
+    const booksFailed = page.waitForEvent('requestfailed', { predicate: (req) => isBooksListUrl(req.url()), timeout: 30_000 })
     await pickOption(page, 1, 1)
+    await booksFailed
     await expect(page.getByText(/الكتب والامتحانات ستُربط تحديداً بـ/)).toBeVisible({ timeout: 30_000 })
     await gotoBooksCurrent(page)
-    await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {})
+    await waitForBooksSettled(page)
     // رغم بقاء القائمة القديمة مرسومة، لا تفصيل مفتوحًا، وزر الكتاب القديم نفسه
     // (ما زال موجودًا في القائمة العتيقة) مطويّ — الاختيار مات لحظة التبديل.
     await expect(visibleDetails(page)).toHaveCount(0)
