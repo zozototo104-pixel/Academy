@@ -62,7 +62,7 @@ describe('student dashboard visual organization', () => {
   test('keeps all important student areas reachable from the dropdown', () => {
     for (const label of [
       'الرئيسية والمقرر والكتاب',
-      'المشرف الذكي ونقاط القوة',
+      'المشرف الذكي وحواراته ونقاط القوة',
       'المحاضرات واللقاءات',
       'المدفوعات والرسوم',
       'المخرجات والخدمات',
