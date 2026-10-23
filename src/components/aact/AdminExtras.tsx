@@ -2251,6 +2251,7 @@ export function AdminSettingsTab() {
     email: 'qa-admin@aactacademy.com',
     password: '',
   })
+  const [openSettingsSection, setOpenSettingsSection] = useState<'fees-ai' | 'rules' | 'content-contact' | 'admins'>('fees-ai')
 
   const loadSystemAdmins = () => {
     setAdminsLoading(true)
