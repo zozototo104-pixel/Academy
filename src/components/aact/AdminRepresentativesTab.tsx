@@ -521,8 +521,16 @@ export default function AdminRepresentativesTab() {
                 })}
                 {!selected?.files?.length && <p className="rounded-2xl bg-slate-50 p-4 text-xs font-bold text-slate-500">لم تُضف ملفات بعد.</p>}
               </div>
-            </CardContent>
-          </Card>
+                </div>
+              </div>
+            </section>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={save} disabled={saving} className="gap-2 bg-[#0f2b46] text-white"><Save className="h-4 w-4" /> {saving ? 'جاري الحفظ...' : 'حفظ'}</Button>
+              <Button onClick={rewrite} disabled={!form.id || rewriting} variant="outline" className="gap-2 border-[#c9a227] text-[#8b6b12]"><Sparkles className="h-4 w-4" /> {rewriting ? 'يصيغ...' : 'إعادة صياغة بالذكاء'}</Button>
+              {form.id && <Button onClick={remove} disabled={saving} variant="outline" className="gap-2 border-red-200 text-red-700"><Trash2 className="h-4 w-4" /> حذف</Button>}
+            </div>
+          </CardContent>
+        </Card>
       </div>
       {actionDialog}
     </div>
