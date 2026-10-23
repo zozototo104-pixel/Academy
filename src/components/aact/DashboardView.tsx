@@ -734,7 +734,7 @@ export function DashboardView() {
       title: 'المقرر والكتاب',
       text: `${(active?.program.books || []).length} كتاب/مصدر · افتح المواد المقررة`,
       icon: <BookOpen className="h-8 w-8 text-rose-500" />,
-      action: () => openProgramWorkspace('schedule'),
+      action: () => openProgramWorkspace('content', 'books'),
       show: hasProgramDashboard,
       tone: 'from-rose-50 to-white border-rose-100',
     },
