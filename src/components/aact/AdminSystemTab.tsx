@@ -1276,6 +1276,11 @@ export function AdminSystemTab() {
                 )}
               </div>
             )}
+          </div>
+          </div>
+
+          <div id="gemini-section-health" role="region" aria-label="صحة النماذج وتشخيصها" hidden={openGeminiSection !== 'health'}>
+          <div className="grid gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4 sm:grid-cols-2">
             <div className="rounded-xl bg-white p-3 text-[10px] font-bold leading-relaxed text-indigo-700 ring-1 ring-indigo-100">
               {textAiDiag?.message || 'لم يتم تحميل تشخيص مزود النصوص بعد.'}
               {textAiDiag?.lastResult && (
