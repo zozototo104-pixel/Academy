@@ -843,6 +843,76 @@ export function DashboardView() {
         </section>
       )}
 
+      <section className="mb-6 space-y-4 rounded-[2rem] border border-[#0f2b46]/10 bg-white/95 p-4 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-[11px] font-black text-[#a8841a]">بوصلتك الدراسية</p>
+            <h2 className="mt-1 text-lg font-black text-[#0f2b46]">كل شيء أساسي أمامك بدون تدوير</h2>
+            <p className="mt-1 text-xs font-bold leading-6 text-slate-500">المقرر، الكتاب، الوحدات، الواجبات، الامتحانات واللقاءات في بطاقات مباشرة، وباقي الخانات محفوظة في القائمة الكاملة.</p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-[1fr_auto] lg:min-w-[360px]">
+            <select
+              aria-label="القائمة الكاملة لتبويبات بوابة الطالب"
+              value={dashboardTab}
+              onChange={(event) => setDashboardTab(event.target.value)}
+              className="h-11 rounded-2xl border border-[#0f2b46]/15 bg-slate-50 px-3 text-xs font-black text-[#0f2b46] outline-none focus:border-[#c9a227] focus:ring-2 focus:ring-[#c9a227]/30"
+            >
+              {dashboardTabOptions.map((item) => (
+                <option key={item.value} value={item.value}>{item.label}</option>
+              ))}
+            </select>
+            <Button type="button" variant="outline" onClick={openAiSupervisor} className="h-11 border-[#c9a227]/50 text-xs font-black text-[#a8841a] hover:bg-[#fffaf0]">
+              <Bot className="ml-2 h-4 w-4" /> المشرف الذكي
+            </Button>
+          </div>
+        </div>
+
+        {pulseNotice && (
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-3">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-start gap-3">
+                <span className="relative mt-1 flex h-3 w-3">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-70" />
+                  <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500" />
+                </span>
+                <div>
+                  <p className="text-sm font-black text-[#0f2b46]">{pulseNotice.title}</p>
+                  <p className="mt-1 text-xs font-bold leading-6 text-red-700">{pulseNotice.text}</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" variant="outline" onClick={playStudentPulseTone} className="border-red-200 bg-white text-xs font-black text-red-600 hover:bg-red-50">
+                  <Bell className="ml-1 h-3.5 w-3.5" /> صوت التنبيه
+                </Button>
+                {pulseNotice.tab && (
+                  <Button type="button" size="sm" onClick={() => setDashboardTab(pulseNotice.tab)} className="bg-red-600 text-xs font-black text-white hover:bg-red-700">
+                    فتح المطلوب
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {primaryStudentCards.map((card) => (
+            <button
+              key={card.key}
+              type="button"
+              onClick={card.action}
+              className={`group rounded-3xl border bg-gradient-to-br ${card.tone} p-4 text-right shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a227] focus-visible:ring-offset-2`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="rounded-2xl bg-white p-3 shadow-sm">{card.icon}</div>
+                <ChevronLeft className="mt-3 h-4 w-4 text-slate-400 transition group-hover:-translate-x-1" />
+              </div>
+              <p className="mt-4 text-base font-black text-[#0f2b46]">{card.title}</p>
+              <p className="mt-1 text-xs font-bold leading-6 text-slate-600">{card.text}</p>
+            </button>
+          ))}
+        </div>
+      </section>
+
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
         {/* Main: tabs */}
         <div>
