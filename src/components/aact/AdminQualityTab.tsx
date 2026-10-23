@@ -1574,7 +1574,7 @@ export function AdminQualityTab() {
         </div>
       </section>
       <section aria-label="مراجعة المشرف الذكي">
-        <button type="button" id="quality-ws-supervision-header" aria-expanded={activeWorkspace === 'supervision'} aria-controls="quality-ws-supervision" onClick={() => setActiveWorkspace('supervision')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
+        <button type="button" id="quality-ws-supervision-header" aria-expanded={activeWorkspace === 'supervision'} aria-controls="quality-ws-supervision" onClick={() => toggleWorkspace('supervision')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
           <span>
             <span className="block text-sm font-black text-[#0f2b46]">مراجعة المشرف الذكي</span>
             <span className="mt-0.5 block text-[11px] font-bold text-slate-500">{!secondaryLoaded ? 'جارٍ تحميل البلاغات…' : secondaryFailed.reviews ? 'تعذّر تحميل البلاغات' : `${reviewItems.filter((i) => i.status !== 'REVIEWED' && i.status !== 'IGNORED').length} بلاغ مفتوح · ${data.overview.weakSupervisorReplies} رد ضعيف`}</span>
