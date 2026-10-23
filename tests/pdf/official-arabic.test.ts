@@ -17,7 +17,8 @@ describe('official Arabic PDF rendering', () => {
     expect(officialSource).toContain('getOfficialArabicFontFace()')
     expect(officialSource).toContain('@font-face')
     expect(officialSource).toContain('data:font/truetype;charset=utf-8;base64')
-    expect(officialSource).toContain("'AACTOfficialArabic','Amiri','Noto Naskh Arabic'")
+    expect(officialSource).toContain("const OFFICIAL_ARABIC_FONT_NAME = 'AACTOfficialArabic'")
+    expect(officialSource).toContain("'Amiri','Noto Naskh Arabic'")
   })
 
   test('renders an official document with Arabic content into a PDF buffer', async () => {
