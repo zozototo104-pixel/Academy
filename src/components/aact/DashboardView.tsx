@@ -688,9 +688,22 @@ export function DashboardView() {
     navigate('chat')
   }
 
+  const scrollToDashboardContent = () => {
+    if (typeof window === 'undefined') return
+    window.setTimeout(() => {
+      dashboardContentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 0)
+  }
+
+  const selectDashboardTab = (tab: string) => {
+    setDashboardTab(tab)
+    scrollToDashboardContent()
+  }
+
   const openProgramWorkspace = (section: string) => {
     setDashboardTab('programs')
     setProgramSection(section)
+    scrollToDashboardContent()
   }
 
   const dashboardTabOptions = [
