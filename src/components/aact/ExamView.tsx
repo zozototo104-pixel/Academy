@@ -813,6 +813,9 @@ export function ExamView() {
         </div>
 
         <div className="mt-8 flex flex-wrap justify-center gap-3">
+          <Button variant="outline" onClick={() => openProgram(data.exam.programId, 'schedule')} className="border-[#c9a227] font-extrabold text-[#0f2b46]">
+            <ArrowRight className="ml-1 h-4 w-4" /> العودة إلى جدول الدراسة
+          </Button>
           <Button onClick={() => openProgram(data.exam.programId)} className="bg-[#0f2b46] font-extrabold text-[#f5f0e1] hover:bg-[#12365c]">
             <ArrowRight className="ml-1 h-4 w-4" /> العودة للبرنامج
           </Button>
