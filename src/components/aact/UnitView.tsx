@@ -60,7 +60,7 @@ interface UnitData {
 }
 
 export function UnitView() {
-  const { activeUnitId, navigate, goBack, openExam, openProgram } = useAppStore()
+  const { activeUnitId, navigate, openExam, openProgram } = useAppStore()
   const { toast } = useToast()
   const [data, setData] = useState<UnitData | null>(null)
   const [loading, setLoading] = useState(true)
