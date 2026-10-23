@@ -1212,7 +1212,9 @@ export function AdminSystemTab() {
             {SelectF('GEMINI_DISCUSSION_LIVE_MODEL', 'Live للمناقشة / الدفاع', GEMINI_DISCUSSION_LIVE_MODEL_CHOICES, 'الموصى به: gemini-3.8-live-extended-thinking للمناقشات والدفاع الأكاديمي.')}
             {SelectF('GEMINI_DISCUSSION_THINKING_LEVEL', 'مستوى التفكير للمناقشة', GEMINI_THINKING_CHOICES, 'يطبق على Live الحديث عند دعم النموذج.')}
           </div>
+          </div>
 
+          <div id="gemini-section-routing" role="region" aria-label="سياسات توجيه الذكاء" hidden={openGeminiSection !== 'routing'}>
           <div className="grid gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4 sm:grid-cols-2">
             <div className="sm:col-span-2 flex flex-wrap items-center justify-between gap-2">
               <div>
