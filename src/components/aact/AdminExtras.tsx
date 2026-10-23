@@ -1458,6 +1458,7 @@ export function AdminFinanceTab() {
       </Card>
       <AdminPager page={currentPaymentPage} pageSize={paymentPageSize} total={paymentTotal} onPageChange={setPaymentPage} label="فاتورة" />
       </div>
+      </div>
     </div>
   )
 }
