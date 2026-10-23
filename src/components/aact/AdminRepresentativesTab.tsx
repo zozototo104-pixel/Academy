@@ -110,7 +110,12 @@ export default function AdminRepresentativesTab() {
   const [onboardingLink, setOnboardingLink] = useState('')
   const [onboardingResult, setOnboardingResult] = useState<{ emailStatus?: string; expiresAt?: string | null }>({})
   const [query, setQuery] = useState('')
-  const [openSection, setOpenSection] = useState<'basic' | 'bio' | 'uploads' | 'onboarding'>('basic')
+  const [openSection, setOpenSection] = useState<'basic' | 'bio' | 'uploads' | 'onboarding' | null>('basic')
+  const toggleSection = (section: 'basic' | 'bio' | 'uploads' | 'onboarding') => {
+    const y = typeof window !== 'undefined' ? window.scrollY : 0
+    setOpenSection((current) => (current === section ? null : section))
+    if (typeof window !== 'undefined') window.setTimeout(() => window.scrollTo({ top: y, behavior: 'auto' }), 0)
+  }
   const selected = useMemo(() => rows.find((row) => row.id === selectedId) || null, [rows, selectedId])
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
