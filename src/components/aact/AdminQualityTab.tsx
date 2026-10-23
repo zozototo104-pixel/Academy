@@ -1684,7 +1684,7 @@ export function AdminQualityTab() {
         </div>
       </section>
       <section aria-label="تحليل البرامج">
-        <button type="button" id="quality-ws-programs-header" aria-expanded={activeWorkspace === 'programs'} aria-controls="quality-ws-programs" onClick={() => setActiveWorkspace('programs')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
+        <button type="button" id="quality-ws-programs-header" aria-expanded={activeWorkspace === 'programs'} aria-controls="quality-ws-programs" onClick={() => toggleWorkspace('programs')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
           <span>
             <span className="block text-sm font-black text-[#0f2b46]">تحليل البرامج</span>
             <span className="mt-0.5 block text-[11px] font-bold text-slate-500">{`${data.programs.length} برنامج في التقرير · ${data.overview.strongPrograms} برنامج قوي`}</span>
