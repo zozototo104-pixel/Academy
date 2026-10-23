@@ -761,7 +761,7 @@ export function DashboardView() {
       title: 'الامتحانات',
       text: `${active?.semesterExams?.length || 0} امتحان نهائي · اختبارات الوحدات داخل الوحدات`,
       icon: <ListChecks className="h-8 w-8 text-violet-600" />,
-      action: () => openProgramWorkspace('progress'),
+      action: () => openProgramWorkspace('content', 'exams'),
       show: hasProgramDashboard,
       tone: 'from-violet-50 to-white border-violet-100',
     },
