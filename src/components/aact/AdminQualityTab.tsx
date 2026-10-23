@@ -479,7 +479,12 @@ export function AdminQualityTab() {
   const [mailTestSending, setMailTestSending] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [activeWorkspace, setActiveWorkspace] = useState<'curricula' | 'supervision' | 'programs' | 'content' | 'students' | 'operations' | 'thesis'>('curricula')
+  const [activeWorkspace, setActiveWorkspace] = useState<'curricula' | 'supervision' | 'programs' | 'content' | 'students' | 'operations' | 'thesis' | null>('curricula')
+  const toggleWorkspace = (workspace: 'curricula' | 'supervision' | 'programs' | 'content' | 'students' | 'operations' | 'thesis') => {
+    const y = typeof window !== 'undefined' ? window.scrollY : 0
+    setActiveWorkspace((current) => (current === workspace ? null : workspace))
+    if (typeof window !== 'undefined') window.setTimeout(() => window.scrollTo({ top: y, behavior: 'auto' }), 0)
+  }
   const [showAllIndicators, setShowAllIndicators] = useState(false)
   const [recommendationsOpen, setRecommendationsOpen] = useState(true)
   const [secondaryLoaded, setSecondaryLoaded] = useState(false)
