@@ -392,6 +392,7 @@ export function DashboardView() {
   const [dashboardTab, setDashboardTab] = useState('programs')
   const [lecturesVisible, setLecturesVisible] = useState(false)
   const [programSection, setProgramSection] = useState('academic')
+  const [programContentTab, setProgramContentTab] = useState('guides')
   const dashboardContentRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -708,9 +709,10 @@ export function DashboardView() {
     scrollToDashboardContent()
   }
 
-  const openProgramWorkspace = (section: string) => {
+  const openProgramWorkspace = (section: string, contentTab?: string) => {
     setDashboardTab('programs')
     setProgramSection(section)
+    if (contentTab) setProgramContentTab(contentTab)
     scrollToDashboardContent()
   }
 
@@ -732,7 +734,7 @@ export function DashboardView() {
       title: 'المقرر والكتاب',
       text: `${(active?.program.books || []).length} كتاب/مصدر · افتح المواد المقررة`,
       icon: <BookOpen className="h-8 w-8 text-rose-500" />,
-      action: () => openProgramWorkspace('schedule'),
+      action: () => openProgramWorkspace('content', 'books'),
       show: hasProgramDashboard,
       tone: 'from-rose-50 to-white border-rose-100',
     },
@@ -759,7 +761,7 @@ export function DashboardView() {
       title: 'الامتحانات',
       text: `${active?.semesterExams?.length || 0} امتحان نهائي · اختبارات الوحدات داخل الوحدات`,
       icon: <ListChecks className="h-8 w-8 text-violet-600" />,
-      action: () => openProgramWorkspace('progress'),
+      action: () => openProgramWorkspace('content', 'exams'),
       show: hasProgramDashboard,
       tone: 'from-violet-50 to-white border-violet-100',
     },
@@ -1460,12 +1462,49 @@ export function DashboardView() {
                     <p className="mt-2 text-xs text-slate-400">سيتم إظهار الكتب، الوحدات، الواجبات والاختبارات هنا فور اعتماد الإدارة للمنهج.</p>
                   </section>
                 ) : (
-                <Tabs defaultValue="guides" dir="rtl" className="mt-5 space-y-4">
+                <Tabs value={programContentTab} onValueChange={setProgramContentTab} dir="rtl" className="mt-5 space-y-4">
                   <TabsList className="flex h-auto w-full flex-wrap gap-1 bg-slate-50 p-1">
+                    <TabsTrigger value="books" className="text-[10px] font-black sm:text-xs"><BookOpen className="ml-1 h-3.5 w-3.5" /> الكتب ({active.program.books?.length || 0})</TabsTrigger>
                     <TabsTrigger value="guides" className="text-[10px] font-black sm:text-xs"><BookMarked className="ml-1 h-3.5 w-3.5" /> أدلة الدراسة ({displayStudyGuides.length})</TabsTrigger>
                     <TabsTrigger value="assignments" className="text-[10px] font-black sm:text-xs"><ClipboardCheck className="ml-1 h-3.5 w-3.5" /> الواجبات ({assignments.length})</TabsTrigger>
                     <TabsTrigger value="units" className="text-[10px] font-black sm:text-xs"><BookOpen className="ml-1 h-3.5 w-3.5" /> الوحدات ({active.units.length})</TabsTrigger>
+                    <TabsTrigger value="exams" className="text-[10px] font-black sm:text-xs"><ListChecks className="ml-1 h-3.5 w-3.5" /> الامتحانات ({(active.semesterExams?.length || 0) + active.units.filter((u) => u.examId).length})</TabsTrigger>
                   </TabsList>
+
+                  <TabsContent value="books" className="mt-0">
+                    {(active.program.books || []).length > 0 ? (
+                      <section className="rounded-2xl border border-[#0f2b46]/10 bg-white p-4 shadow-sm">
+                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <h3 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]"><BookOpen className="h-4 w-4 text-[#a8841a]" /> المقرر والكتاب</h3>
+                            <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">كل الكتب والمصادر المقررة لهذا البرنامج في مكان واحد للتحميل أو الفتح.</p>
+                          </div>
+                          <Badge className="bg-[#f7edd0] text-[#0f2b46] hover:bg-[#f7edd0]">{active.program.books?.length || 0} مصدر</Badge>
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          {(active.program.books || []).map((book) => (
+                            <article key={book.id || book.title} className="rounded-2xl border border-slate-100 bg-[#f8fafc] p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="text-sm font-black leading-6 text-[#0f2b46]">{book.title || 'كتاب مقرر'}</p>
+                                  {book.titleEn ? <p className="mt-1 text-[11px] font-bold text-[#a8841a]">{book.titleEn}</p> : null}
+                                  <p className="mt-1 text-[11px] font-bold text-slate-500">{book.semester ? `الفصل ${book.semester}` : 'مصدر عام'}{book.source ? ` · ${book.source}` : ''}</p>
+                                </div>
+                                <BookOpen className="h-5 w-5 shrink-0 text-[#a8841a]" />
+                              </div>
+                              <Button type="button" onClick={() => openBookResource(book)} className="mt-3 w-full bg-[#0f2b46] text-xs font-black text-[#e0b83a] hover:bg-[#12365c]">
+                                فتح / تحميل الكتاب
+                              </Button>
+                            </article>
+                          ))}
+                        </div>
+                      </section>
+                    ) : (
+                      <section className="rounded-2xl border border-slate-100 bg-slate-50 p-6 text-center text-xs font-bold leading-6 text-slate-500">
+                        لا توجد كتب مقررة منشورة لهذا البرنامج بعد.
+                      </section>
+                    )}
+                  </TabsContent>
 
                   <TabsContent value="guides" className="mt-0">
                 {displayStudyGuides.length > 0 ? (
@@ -1645,6 +1684,66 @@ export function DashboardView() {
                   ))}
                 </div>
                   </TabsContent>
+
+                  <TabsContent value="exams" className="mt-0">
+                    <section className="space-y-3 rounded-2xl border border-[#0f2b46]/10 bg-white p-4 shadow-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <h3 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]"><ListChecks className="h-4 w-4 text-[#a8841a]" /> الامتحانات والاختبارات</h3>
+                          <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">امتحانات الفصول واختبارات الوحدات المنشورة لهذا البرنامج.</p>
+                        </div>
+                        <Badge className="bg-[#f7edd0] text-[#0f2b46] hover:bg-[#f7edd0]">{(active.semesterExams?.length || 0) + active.units.filter((u) => u.examId).length} اختبار</Badge>
+                      </div>
+                      {(active.semesterExams?.length || 0) > 0 ? (
+                        <div className="space-y-3">
+                          {active.semesterExams!.map((exam: any) => {
+                            const sem1 = (active.semesterExams || []).find((e: any) => e.semester === 1)
+                            const tuitionGate = exam.tuitionGate
+                            const tuitionLocked = Boolean(tuitionGate && !tuitionGate.allowed)
+                            const prereqLocked = exam.semester === 2 && sem1 && !sem1.passed
+                            const locked = prereqLocked || tuitionLocked || !exam.readiness?.readyMarked
+                            return (
+                              <article key={exam.id} className="rounded-2xl border border-[#0f2b46]/10 bg-[#f8fafc] p-4">
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                  <div className="min-w-0 flex-1">
+                                    <h4 className="text-sm font-black text-[#0f2b46]">{exam.title}</h4>
+                                    <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">{exam.questionCount} سؤال · {exam.durationMin} دقيقة · حد النجاح {exam.passScore}%</p>
+                                    {exam.bestScore != null && <p className="mt-2 text-[11px] font-black text-[#a8841a]">أفضل نتيجة: {exam.bestScore}% {exam.passed ? '— ناجح' : ''}</p>}
+                                    {exam.readiness && <p className="mt-2 text-[11px] font-bold text-slate-500">اختبارات الوحدات: {exam.readiness.passedUnitExamsCount}/{exam.readiness.unitExamsCount} · الواجبات: {exam.readiness.passedAssignmentsCount}/{exam.readiness.assignmentsCount}</p>}
+                                    {tuitionLocked && tuitionGate?.message ? <p className="mt-2 rounded-xl bg-amber-50 p-2 text-[11px] font-bold text-amber-700">{tuitionGate.message}</p> : null}
+                                  </div>
+                                  <div className="flex shrink-0 flex-col gap-2">
+                                    {!prereqLocked && !tuitionLocked && !exam.readiness?.readyMarked ? (
+                                      <Button type="button" size="sm" onClick={() => markReadyForSemesterExam(exam.semester)} className="bg-emerald-600 text-xs font-black text-white hover:bg-emerald-700">
+                                        جاهز للامتحان
+                                      </Button>
+                                    ) : null}
+                                    <Button type="button" size="sm" onClick={() => handleSemesterExamAction(exam)} disabled={locked} className="bg-[#c9a227] text-xs font-black text-[#0f2b46] hover:bg-[#e0b83a] disabled:opacity-50">
+                                      {tuitionLocked ? 'مغلق لحين السداد' : exam.bestScore != null ? 'إعادة الامتحان' : 'ابدأ الامتحان'}
+                                    </Button>
+                                  </div>
+                                </div>
+                              </article>
+                            )
+                          })}
+                        </div>
+                      ) : null}
+                      {active.units.some((u) => u.examId) ? (
+                        <div className="space-y-2">
+                          <p className="text-xs font-black text-[#0f2b46]">اختبارات الوحدات</p>
+                          {active.units.filter((u) => u.examId).map((u) => (
+                            <button key={u.id} type="button" onClick={() => openExam(u.examId!)} className="flex w-full items-center justify-between rounded-2xl border border-slate-100 bg-white p-3 text-right hover:border-[#c9a227]/60">
+                              <span className="text-xs font-black text-[#0f2b46]">{u.title}</span>
+                              <span className="text-[11px] font-bold text-[#a8841a]">فتح الاختبار</span>
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                      {!(active.semesterExams?.length || 0) && !active.units.some((u) => u.examId) && (
+                        <p className="rounded-2xl bg-slate-50 p-5 text-center text-xs font-bold text-slate-500">لا توجد امتحانات منشورة لهذا البرنامج بعد.</p>
+                      )}
+                    </section>
+                  </TabsContent>
                 </Tabs>
                 ))}
               </CardContent>
@@ -1652,7 +1751,7 @@ export function DashboardView() {
           ) : null}
 
           {/* 12.2: امتحانا الفصلين من الكتب المقررة */}
-          {active?.semesterExams && active.semesterExams.length > 0 && curriculumReady && (
+          {programSection !== 'content' && active?.semesterExams && active.semesterExams.length > 0 && curriculumReady && (
             active.semesterExams.map((exam: any, idx: number) => {
               // بوابة التسلسل: امتحان الفصل الثاني يفتح بعد اجتياز الفصل الأول
               const sem1 = (active.semesterExams || []).find((e: any) => e.semester === 1)

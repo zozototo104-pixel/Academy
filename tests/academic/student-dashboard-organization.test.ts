@@ -96,9 +96,10 @@ describe('student dashboard visual organization', () => {
     for (const title of ['المقرر والكتاب', 'الوحدات والواجبات', 'المحاضرات واللقاءات', 'الامتحانات', 'الجدول الدراسي', 'المدفوعات والرسوم']) {
       required(source, `title: '${title}'`)
     }
-    required(source, "action: () => openProgramWorkspace('schedule')")
+    required(source, "action: () => openProgramWorkspace('content', 'books')")
     required(source, "action: () => openProgramWorkspace('content')")
-    required(source, "action: () => openProgramWorkspace('progress')")
+    required(source, "action: () => openProgramWorkspace('content', 'exams')")
+    required(source, "action: () => openProgramWorkspace('schedule')")
     required(source, "action: () => selectDashboardTab('lectures')")
     required(source, "action: () => selectDashboardTab('payments')")
   })
@@ -111,8 +112,13 @@ describe('student dashboard visual organization', () => {
     requireAll(functionBody('openProgramWorkspace'), [
       "setDashboardTab('programs')",
       'setProgramSection(section)',
+      'if (contentTab) setProgramContentTab(contentTab)',
       'scrollToDashboardContent()',
     ])
+    required(source, "const [programContentTab, setProgramContentTab] = useState('guides')")
+    required(source, 'value={programContentTab} onValueChange={setProgramContentTab}')
+    required(source, 'value="books"')
+    required(source, 'value="exams"')
     const navModel = source.slice(source.indexOf('const dashboardTabOptions'), source.indexOf('return ('))
     expect(navModel.includes('api<')).toBe(false)
     expect(navModel.includes('fetch(')).toBe(false)
