@@ -248,10 +248,11 @@ describe('quality workspace organization guard', () => {
     assert.ok(SOURCE.includes("'تقرير التخزين غير محمّل'"))
   })
 
-  it('freezes all 52 non-component function bodies (load after its documented display-state additions)', () => {
+  it('freezes all 52 protected non-component function bodies (excluding the display-only workspace toggle)', () => {
     const { functions } = collect()
-    const names = [...functions.keys()].filter((n) => n !== 'AdminQualityTab')
+    const names = [...functions.keys()].filter((n) => !['AdminQualityTab', 'toggleWorkspace'].includes(n))
     assert.deepEqual(names.slice().sort(), Object.keys(BASELINE_FUNCTIONS).slice().sort())
+    assert.ok(functions.has('toggleWorkspace'), 'missing display-only mobile-safe workspace toggle')
     for (const [name, hash] of Object.entries(BASELINE_FUNCTIONS)) {
       assert.equal(functions.get(name), hash, `function body changed: ${name}`)
     }
