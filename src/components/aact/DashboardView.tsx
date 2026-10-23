@@ -709,9 +709,10 @@ export function DashboardView() {
     scrollToDashboardContent()
   }
 
-  const openProgramWorkspace = (section: string) => {
+  const openProgramWorkspace = (section: string, contentTab?: string) => {
     setDashboardTab('programs')
     setProgramSection(section)
+    if (contentTab) setProgramContentTab(contentTab)
     scrollToDashboardContent()
   }
 
