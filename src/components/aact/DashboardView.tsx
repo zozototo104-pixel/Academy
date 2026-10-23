@@ -1067,7 +1067,7 @@ export function DashboardView() {
                 <span>إشعارات غير مقروءة</span>
                 <Badge className="bg-red-100 text-red-700 hover:bg-red-100">{studentSummary?.unread || 0}</Badge>
               </button>
-              <button type="button" onClick={() => setDashboardTab('payments')} className="flex w-full items-center justify-between rounded-2xl bg-slate-50 p-3 text-right hover:bg-slate-100">
+              <button type="button" onClick={() => selectDashboardTab('payments')} className="flex w-full items-center justify-between rounded-2xl bg-slate-50 p-3 text-right hover:bg-slate-100"} // again? Need JSON exact no extra. >
                 <span>دفعات تحتاج متابعة</span>
                 <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">{studentSummary?.summary.unpaidPayments || 0}</Badge>
               </button>
