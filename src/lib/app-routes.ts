@@ -63,6 +63,7 @@ export function pathForView(view: View, params: Record<string, string | null | u
       const id = params.programId || params.program
       const qs = new URLSearchParams()
       if (params.tab) qs.set('tab', params.tab)
+      if (params.section === 'schedule') qs.set('section', 'schedule')
       if (params.invoice) qs.set('invoice', params.invoice)
       const suffix = qs.toString() ? `?${qs.toString()}` : ''
       return id ? `/dashboard/program/${enc(id)}${suffix}` : `/dashboard${suffix}`
