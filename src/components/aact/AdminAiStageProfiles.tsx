@@ -839,6 +839,23 @@ export function AdminAiStageProfiles() {
                 </div>
               )}
 
+              {stageName === 'REVIEW' && lastRecheckEnqueueReport && (
+                <div className="rounded-xl border border-purple-200 bg-purple-50 p-3 text-sm text-purple-900">
+                  <p className="font-black">تقرير إدخال إعادة التدقيق بعد آخر حفظ REVIEW</p>
+                  <div className="mt-2 grid gap-2 text-xs leading-6 sm:grid-cols-3 lg:grid-cols-6">
+                    <span>السقف: <b>{lastRecheckEnqueueReport.requestedCap}</b></span>
+                    <span>المجموعة: <b>{lastRecheckEnqueueReport.cohortTotal}</b></span>
+                    <span>أُدخلت: <b>{lastRecheckEnqueueReport.enqueued}</b></span>
+                    <span>موجودة: <b>{lastRecheckEnqueueReport.skippedAlreadyQueued}</b></span>
+                    <span>حد مستنفد/سقف: <b>{lastRecheckEnqueueReport.skippedCapReached}</b></span>
+                    <span>غير مؤهلة/فشلت: <b>{lastRecheckEnqueueReport.skippedIneligible + lastRecheckEnqueueReport.failed}</b></span>
+                  </div>
+                  {!!lastRecheckEnqueueReport.errors.length && (
+                    <p className="mt-2 text-xs text-red-700">أخطاء الإدخال: {lastRecheckEnqueueReport.errors.map((item) => item.error).join('، ')}</p>
+                  )}
+                </div>
+              )}
+
               <div className="grid gap-4 lg:grid-cols-2">
                 <div className="space-y-3 rounded-xl border border-slate-100 p-3">
                   <div className="flex flex-wrap items-center gap-4">
