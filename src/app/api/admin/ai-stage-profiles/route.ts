@@ -148,8 +148,24 @@ export async function POST(req: NextRequest) {
     if (typeof advisorAdviceId === 'string' && advisorAdviceId.trim()) {
       await markAdvisorAdviceApplied(advisorAdviceId.trim(), actor.id, saved.version)
     }
+    let recheckEnqueue: ReviewRecheckEnqueueReport | null = null
+    if (stage === 'REVIEW' && recheckRequest.enabled) {
+      try {
+        recheckEnqueue = await enqueuePendingReviewQuestionsForProfileChange({
+          profileVersion: saved.version,
+          cap: recheckRequest.cap,
+        })
+      } catch (error) {
+        recheckEnqueue = failedReviewRecheckEnqueueReport(recheckRequest.cap, error)
+      }
+    }
     const payload = await stagePayload(stage)
-    return NextResponse.json({ saved, stage: payload, advisorAdviceId: typeof advisorAdviceId === 'string' ? advisorAdviceId.trim() : null })
+    return NextResponse.json({
+      saved,
+      stage: payload,
+      advisorAdviceId: typeof advisorAdviceId === 'string' ? advisorAdviceId.trim() : null,
+      recheckEnqueue,
+    })
   } catch (error: any) {
     if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'غير مصرّح' }, { status: 401 })
     if (error instanceof StageProfileValidationError) {
