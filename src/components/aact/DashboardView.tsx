@@ -768,7 +768,7 @@ export function DashboardView() {
       : null)
 
   return (
-    <div className="aact-fade-in mx-auto max-w-[1600px] px-4 py-8">
+    <div className="aact-fade-in mx-auto max-w-[1600px] px-3 py-5 sm:px-4 sm:py-8">
       <div className="mb-5 rounded-[2rem] border border-white/80 bg-white/90 p-3 shadow-sm backdrop-blur">
         <div className="grid gap-3 lg:grid-cols-[1fr_520px_auto] lg:items-center">
           <div className="flex items-center gap-3">
