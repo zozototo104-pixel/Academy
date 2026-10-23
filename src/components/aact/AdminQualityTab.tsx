@@ -1374,7 +1374,7 @@ export function AdminQualityTab() {
       )}
 
       <section aria-label="جاهزية المناهج">
-        <button type="button" id="quality-ws-curricula-header" aria-expanded={activeWorkspace === 'curricula'} aria-controls="quality-ws-curricula" onClick={() => setActiveWorkspace('curricula')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
+        <button type="button" id="quality-ws-curricula-header" aria-expanded={activeWorkspace === 'curricula'} aria-controls="quality-ws-curricula" onClick={() => toggleWorkspace('curricula')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#0f2b46]/10 bg-white px-4 py-3 text-right shadow-sm">
           <span>
             <span className="block text-sm font-black text-[#0f2b46]">جاهزية المناهج</span>
             <span className="mt-0.5 block text-[11px] font-bold text-slate-500">{!secondaryLoaded ? 'جارٍ تحميل بيانات الجاهزية…' : secondaryFailed.readiness ? 'تعذّر تحميل بيانات الجاهزية' : `${readinessItems.length} برنامج · ${readinessItems.filter((i) => !i.isCurriculumReady).length} يحتاج متابعة`}</span>
