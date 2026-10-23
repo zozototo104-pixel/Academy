@@ -79,7 +79,7 @@ interface AppState {
   navigate: (view: View, params?: Record<string, string | null | undefined>) => void
   goBack: (fallbackView?: View, params?: Record<string, string | null | undefined>) => void
   openPrograms: (filter?: string) => void
-  openProgram: (id: string) => void
+  openProgram: (id: string, section?: 'schedule') => void
   openProgramDetails: (id: string) => void
   openUnit: (id: string) => void
   openExam: (id: string, kind?: 'unit' | 'final') => void
