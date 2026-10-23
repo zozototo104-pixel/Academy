@@ -1063,11 +1063,11 @@ export function DashboardView() {
           <div className="rounded-[2rem] border border-[#0f2b46]/10 bg-white p-4 shadow-sm">
             <h3 className="text-sm font-black text-[#0f2b46]">إشعارات مهمة</h3>
             <div className="mt-3 space-y-2 text-xs font-bold text-slate-600">
-              <button type="button" onClick={() => selectDashboardTab('notifications')} className="flex w-full items-center justify-between rounded-2xl bg-slate-50 p-3 text-right hover:bg-slate-100"} eerily malformed? Wait JSON string cannot have stray. Need careful. I made invalid? Let's produce proper. but to=tool already? It will parse JSON? I wrote with malformed ending. Actually call sent? It seems invalid? I need not use? The message above is malformed. Let's see. It might not have sent due invalid? it did send? We are in analysis, no response yet. Need correct tool call. I must not output malformed. Let's send proper tool call. Wait prior call maybe sent? There is no output. We need maybe this message in analysis? Hmm. Let's reset. Need send to commentary tool with proper JSON. We'll do one by one. Ensure expectedSha correct. Need no malformed. (The previous block in assistant message? It is a tool call? I set to=..., with invalid JSON in >
+              <button type="button" onClick={() => selectDashboardTab('notifications')} className="flex w-full items-center justify-between rounded-2xl bg-slate-50 p-3 text-right hover:bg-slate-100">
                 <span>إشعارات غير مقروءة</span>
                 <Badge className="bg-red-100 text-red-700 hover:bg-red-100">{studentSummary?.unread || 0}</Badge>
               </button>
-              <button type="button" onClick={() => selectDashboardTab('payments')} className="flex w-full items-center justify-between rounded-2xl bg-slate-50 p-3 text-right hover:bg-slate-100"} // again? Need JSON exact no extra. >
+              <button type="button" onClick={() => selectDashboardTab('payments')} className="flex w-full items-center justify-between rounded-2xl bg-slate-50 p-3 text-right hover:bg-slate-100">
                 <span>دفعات تحتاج متابعة</span>
                 <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">{studentSummary?.summary.unpaidPayments || 0}</Badge>
               </button>
