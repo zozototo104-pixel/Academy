@@ -328,6 +328,7 @@ const ACC_TYPE_LABEL: Record<string, string> = {
 
 interface StudentRow {
   id: string; name: string; email: string; country?: string | null; createdAt: string
+  phone?: string | null; emailVerifiedAt?: string | null
   rowKind?: 'STUDENT' | 'INCOMPLETE_ADMISSION'
   enrollments: { program: string; status: string; certificateNo?: string | null; finalScore?: number | null }[]
   attemptsCount: number
@@ -370,6 +371,8 @@ function normalizeStudentRow(raw: any): StudentRow {
     name: studentText(raw?.name, 'طالب بدون اسم'),
     email: studentText(raw?.email, '—'),
     country: raw?.country == null ? null : studentText(raw.country, ''),
+    phone: raw?.phone == null ? null : studentText(raw.phone, ''),
+    emailVerifiedAt: raw?.emailVerifiedAt == null ? null : String(raw.emailVerifiedAt),
     createdAt: studentText(raw?.createdAt, new Date().toISOString()),
     enrollments: enrollmentsSource.map((e: any) => ({
       program: studentText(e?.program?.titleAr ?? e?.program, 'برنامج غير محدد'),
@@ -401,6 +404,22 @@ export function AdminView() {
   const [admissions, setAdmissions] = useState<AdmissionApp[]>([])
   const [supervisors, setSupervisors] = useState<SupervisorOption[]>([])
   const [students, setStudents] = useState<StudentRow[]>([])
+  const [waVerifyBusy, setWaVerifyBusy] = useState<string | null>(null)
+  const sendVerificationWhatsApp = async (s: StudentRow) => {
+    if (waVerifyBusy) return
+    setWaVerifyBusy(s.id)
+    try {
+      const d = await api<{ ok: boolean; sent?: string; message?: string }>('/api/admin/students/send-verification-whatsapp', { method: 'POST', body: JSON.stringify({ email: s.email }) })
+      toast({
+        title: d.sent === 'link' ? 'تم إرسال رابط التحقق' : 'تم إرسال الرسالة المعتمدة',
+        description: d.sent === 'link' ? 'وصل الرابط إلى واتساب الطالب.' : 'بيوصل الرابط لما الطالب يرد.',
+      })
+    } catch (e: any) {
+      toast({ title: 'تعذر الإرسال', description: e.message || 'حاول لاحقاً', variant: 'destructive' })
+    } finally {
+      setWaVerifyBusy(null)
+    }
+  }
   const [announcements, setAnnouncements] = useState<SiteAnnouncement[]>([])
   const [loading, setLoading] = useState(true)
   const [admissionsLoading, setAdmissionsLoading] = useState(true)
@@ -2301,6 +2320,19 @@ export function AdminView() {
                                   <FileWarning className="ml-1 h-3.5 w-3.5" /> استبدال مرفقات
                                 </Button>
                               )}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={waVerifyBusy === s.id || !s.phone || !!s.emailVerifiedAt}
+                                title={!s.phone ? 'لا يوجد رقم هاتف محفوظ' : s.emailVerifiedAt ? 'الإيميل موثّق أصلاً' : 'إرسال رابط التحقق عبر واتساب'}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  sendVerificationWhatsApp(s)
+                                }}
+                                className="border-emerald-200 text-[10px] font-black text-emerald-700 hover:bg-emerald-50"
+                              >
+                                <Send className="ml-1 h-3.5 w-3.5" /> إرسال رابط التحقق
+                              </Button>
                             </div>
                           </td>
                         </tr>
