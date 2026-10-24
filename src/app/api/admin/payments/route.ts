@@ -119,6 +119,8 @@ export async function GET(req: NextRequest) {
     const andFilters: any[] = []
     if (status && status !== 'ALL') {
       if (status === 'MANUAL_PENDING') andFilters.push(manualPendingWhere)
+      else if (status === 'WAIVER_AWAITING_ENTRY') andFilters.push({ waiverCodes: { some: { status: 'ISSUED' } } })
+      else if (status === 'WAIVER_AWAITING_APPROVAL') andFilters.push({ waiverCodes: { some: { status: 'VERIFIED' } } })
       else if (knownStatuses.has(status)) andFilters.push({ status })
       else if (knownPurposes.has(status)) andFilters.push({ purpose: status })
       else andFilters.push({ status })
