@@ -328,7 +328,7 @@ const ACC_TYPE_LABEL: Record<string, string> = {
 
 interface StudentRow {
   id: string; name: string; email: string; country?: string | null; createdAt: string
-  phone?: string | null; emailVerifiedAt?: string | null
+  phone?: string | null; emailVerifiedAt?: string | null; hasAccount?: boolean
   rowKind?: 'STUDENT' | 'INCOMPLETE_ADMISSION'
   enrollments: { program: string; status: string; certificateNo?: string | null; finalScore?: number | null }[]
   attemptsCount: number
@@ -357,6 +357,15 @@ function studentNumber(value: unknown): number | null {
   return null
 }
 
+// خيارات فلتر الطلاب التي هي في الحقيقة فلتر فرعي لسبب "غير مستكمل" —
+// تُرسل كـ status=INCOMPLETE_ADMISSIONS مع incompleteReason، من نفس عنصر الفلتر القائم.
+const INCOMPLETE_REASON_STATUS_MAP: Record<string, string> = {
+  INCOMPLETE_WITHOUT_ACCOUNT: 'WITHOUT_ACCOUNT',
+  INCOMPLETE_ACK_PENDING: 'ACK_PENDING',
+  INCOMPLETE_NO_FILES: 'NO_FILES',
+  INCOMPLETE_NEEDS_REPLACEMENT: 'NEEDS_REPLACEMENT',
+}
+
 function normalizeStudentRow(raw: any): StudentRow {
   const enrollmentsSource = Array.isArray(raw?.enrollments) ? raw.enrollments : []
   const ownedAdmissions = Array.isArray(raw?.ownedAdmissions) ? raw.ownedAdmissions : []
@@ -373,6 +382,8 @@ function normalizeStudentRow(raw: any): StudentRow {
     country: raw?.country == null ? null : studentText(raw.country, ''),
     phone: raw?.phone == null ? null : studentText(raw.phone, ''),
     emailVerifiedAt: raw?.emailVerifiedAt == null ? null : String(raw.emailVerifiedAt),
+    // صفوف الطلاب لها حساب حتماً؛ صفوف الطلبات يحددها الخادم (false الصريح فقط يعطّل الزر).
+    hasAccount: raw?.hasAccount ?? true,
     createdAt: studentText(raw?.createdAt, new Date().toISOString()),
     enrollments: enrollmentsSource.map((e: any) => ({
       program: studentText(e?.program?.titleAr ?? e?.program, 'برنامج غير محدد'),
@@ -730,7 +741,9 @@ export function AdminView() {
     let cancelled = false
     setStudentsLoading(true)
     const timer = window.setTimeout(() => {
-      const params = new URLSearchParams({ page: String(studentPage), pageSize: String(studentPageSize), status: studentStatusFilter })
+      const reasonParam = INCOMPLETE_REASON_STATUS_MAP[studentStatusFilter]
+      const params = new URLSearchParams({ page: String(studentPage), pageSize: String(studentPageSize), status: reasonParam ? 'INCOMPLETE_ADMISSIONS' : studentStatusFilter })
+      if (reasonParam) params.set('incompleteReason', reasonParam)
       if (studentSearch.trim()) params.set('search', studentSearch.trim())
       api<{ students: unknown[]; total: number }>(`/api/admin/students?${params.toString()}`)
         .then((st) => {
@@ -781,7 +794,9 @@ export function AdminView() {
   // انتهاء الاختيار فعليًا عند خروج الطلب من البيانات المحمّلة بعد اكتمال الجلب (بحث/فلتر/صفحة):
   // بلا هذا المسح يبقى المعرّف حيًا وتعود التفاصيل تلقائيًا إذا رجع الطلب للنتائج — نفس درس الوكالة.
   if (selectedAdmissionId && !admissionsLoading && !selectedAdmission) setSelectedAdmissionId(null)
-  const academicStudents = students.filter((s) => studentStatusFilter === 'REGISTERED_ONLY' || s.rowKind === 'INCOMPLETE_ADMISSION' || (s.enrollments?.length || 0) > 0)
+  const academicStudents = students.filter((s) => studentStatusFilter === 'REGISTERED_ONLY' || studentStatusFilter === 'AWAITING_VERIFICATION' || s.rowKind === 'INCOMPLETE_ADMISSION' || (s.enrollments?.length || 0) > 0)
+  // فلاتر تعرض صفوف طلبات لا صفوف طلاب — تسميتها في شريط الأدوات والترقيم "طلب غير مستكمل".
+  const isApplicationRowStudentsFilter = studentStatusFilter === 'INCOMPLETE_ADMISSIONS' || studentStatusFilter === 'NEEDS_DOCUMENTS' || studentStatusFilter in INCOMPLETE_REASON_STATUS_MAP
   const filteredAdmissionRows = admissions
   const pagedAdmissionRows = admissions
   const currentAdmissionPage = admissionPage
@@ -2196,6 +2211,12 @@ export function AdminView() {
                   { value: 'ALL', label: 'كل الطلاب' },
                   { value: 'REGISTERED_ONLY', label: 'مسجّلون بلا برنامج مفتوح' },
                   { value: 'INCOMPLETE_ADMISSIONS', label: 'طلبات غير مستكملة' },
+                  { value: 'AWAITING_VERIFICATION', label: 'بانتظار تحقق' },
+                  { value: 'NEEDS_DOCUMENTS', label: 'بده مرفقات' },
+                  { value: 'INCOMPLETE_WITHOUT_ACCOUNT', label: 'غير مستكمل: بدون حساب مرتبط' },
+                  { value: 'INCOMPLETE_ACK_PENDING', label: 'غير مستكمل: الإقرار غير مكتمل' },
+                  { value: 'INCOMPLETE_NO_FILES', label: 'غير مستكمل: لا توجد مرفقات' },
+                  { value: 'INCOMPLETE_NEEDS_REPLACEMENT', label: 'غير مستكمل: بانتظار استبدال مرفقات' },
                   { value: 'ACTIVE', label: 'تسجيل نشط' },
                   { value: 'COMPLETED', label: 'مكتمل' },
                   { value: 'SUPERVISOR_ASSIGNED', label: 'مفعل دراسياً' },
@@ -2206,7 +2227,7 @@ export function AdminView() {
                 onPageSizeChange={(v) => { setStudentPageSize(v); setStudentPage(1) }}
                 total={studentTotal}
                 filtered={studentTotal}
-                label={studentStatusFilter === 'INCOMPLETE_ADMISSIONS' ? 'طلب غير مستكمل' : 'طالب'}
+                label={isApplicationRowStudentsFilter ? 'طلب غير مستكمل' : 'طالب'}
               />
             )}
           <Card className="border-[#0f2b46]/10">
@@ -2323,8 +2344,8 @@ export function AdminView() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                disabled={waVerifyBusy === s.id || !s.phone || !!s.emailVerifiedAt}
-                                title={!s.phone ? 'لا يوجد رقم هاتف محفوظ' : s.emailVerifiedAt ? 'الإيميل موثّق أصلاً' : 'إرسال رابط التحقق عبر واتساب'}
+                                disabled={waVerifyBusy === s.id || !s.hasAccount || !!s.emailVerifiedAt || !s.phone}
+                                title={!s.hasAccount ? 'لا يوجد حساب مرتبط' : s.emailVerifiedAt ? 'الإيميل موثّق أصلاً' : !s.phone ? 'لا يوجد رقم هاتف محفوظ' : 'إرسال رابط التحقق عبر واتساب'}
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   sendVerificationWhatsApp(s)
@@ -2343,7 +2364,7 @@ export function AdminView() {
               </div>
             </CardContent>
           </Card>
-          <AdminPager page={currentStudentPage} pageSize={studentPageSize} total={studentTotal} onPageChange={setStudentPage} label={studentStatusFilter === 'INCOMPLETE_ADMISSIONS' ? 'طلب غير مستكمل' : 'طالب'} />
+          <AdminPager page={currentStudentPage} pageSize={studentPageSize} total={studentTotal} onPageChange={setStudentPage} label={isApplicationRowStudentsFilter ? 'طلب غير مستكمل' : 'طالب'} />
           </div>
         </TabsContent>
 
