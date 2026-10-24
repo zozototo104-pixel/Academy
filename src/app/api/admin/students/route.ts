@@ -12,6 +12,113 @@ function clean(value: unknown, max = 500) {
   return String(value || '').trim().slice(0, max)
 }
 
+// أسباب "غير مستكمل" — نفس الشروط التي تُحسب منها incompleteReasons لكل صف،
+// حتى يطابق الفلتر الفرعي السبب المعروض حرفياً (الفلاتر عدسات لا صناديق منفصلة).
+const INCOMPLETE_REASON_CONDITIONS: Record<string, Record<string, unknown>> = {
+  WITHOUT_ACCOUNT: { userId: null },
+  ACK_PENDING: { acknowledged: false },
+  NO_FILES: { files: { none: {} } },
+  NEEDS_REPLACEMENT: { status: 'DOCUMENTS_NEED_REPLACEMENT' },
+}
+const INCOMPLETE_REASON_OR = [
+  { userId: null },
+  { acknowledged: false },
+  { files: { none: {} } },
+  { status: 'DOCUMENTS_NEED_REPLACEMENT' },
+]
+
+const APPLICATION_ROW_SELECT = {
+  id: true,
+  reference: true,
+  fullName: true,
+  email: true,
+  country: true,
+  program: true,
+  status: true,
+  userId: true,
+  acknowledged: true,
+  createdAt: true,
+  phone: true,
+  programRef: { select: { titleAr: true } },
+  _count: { select: { files: true } },
+} as const
+
+const APPLICATION_SEARCH_OR = (q: string) => [
+  { fullName: { contains: q, mode: 'insensitive' } },
+  { email: { contains: q, mode: 'insensitive' } },
+  { phone: { contains: q, mode: 'insensitive' } },
+  { reference: { contains: q, mode: 'insensitive' } },
+  { program: { contains: q, mode: 'insensitive' } },
+  { programRef: { is: { titleAr: { contains: q, mode: 'insensitive' } } } },
+]
+
+// جلبة واحدة مجمّعة لحسابات الطلاب حسب الإيميل — حتى لا يظهر زر التحقق
+// مفعّلاً على صف طلب لا يملك حساباً (سبب رسائل الخطأ الحمراء).
+type ApplicationUserLookup = Map<string, { email: string; phone: string | null; emailVerifiedAt: Date | null }>
+
+async function resolveApplicationUsers(emails: string[]): Promise<ApplicationUserLookup> {
+  const unique = [...new Set(emails.map((e) => String(e || '').trim().toLowerCase()).filter(Boolean))]
+  if (unique.length === 0) return new Map()
+  const users = await db.user.findMany({
+    where: { email: { in: unique } },
+    select: { email: true, phone: true, emailVerifiedAt: true },
+  })
+  return new Map(users.map((u) => [String(u.email || '').trim().toLowerCase(), u]))
+}
+
+function mapApplicationRow(app: any, usersByEmail: ApplicationUserLookup) {
+  const linked = usersByEmail.get(String(app.email || '').trim().toLowerCase()) || null
+  const reasons = [
+    !app.userId ? 'بدون حساب مرتبط' : '',
+    !app.acknowledged ? 'الإقرار غير مكتمل' : '',
+    (app._count?.files || 0) === 0 ? 'لا توجد مرفقات' : '',
+    app.status === 'DOCUMENTS_NEED_REPLACEMENT' ? 'بانتظار استبدال مرفقات' : '',
+  ].filter(Boolean)
+  return {
+    id: `admission:${app.id}`,
+    rowKind: 'INCOMPLETE_ADMISSION',
+    name: app.fullName || 'طلب بدون اسم',
+    email: app.email,
+    country: app.country,
+    // الهاتف المُستخدم للإرسال هو هاتف الحساب عند وجوده؛ وإلا هاتف الطلب للعرض فقط
+    // (الزر معطّل أصلاً عند غياب الحساب، فلا يصل الإرسال أبداً إلى هاتف الطلب).
+    phone: linked ? (linked.phone ?? null) : (app.phone ?? null),
+    emailVerifiedAt: linked ? linked.emailVerifiedAt : null,
+    hasAccount: Boolean(linked),
+    status: app.status,
+    createdAt: app.createdAt,
+    enrollments: [],
+    attemptsCount: 0,
+    bestScore: null,
+    aiChats: 0,
+    incompleteReasons: reasons,
+    latestAdmission: {
+      id: app.id,
+      reference: app.reference,
+      status: app.status,
+      program: app.programRef?.titleAr || app.program || 'برنامج غير محدد',
+      createdAt: app.createdAt,
+    },
+  }
+}
+
+async function listApplicationRows(baseWhere: any, q: string, page: number, pageSize: number, skip: number, take: number) {
+  const where: any = { ...baseWhere, AND: [...(baseWhere.AND || [])] }
+  if (q) where.AND.push({ OR: APPLICATION_SEARCH_OR(q) })
+  const [applications, total] = await Promise.all([
+    db.admissionApplication.findMany({
+      where,
+      orderBy: [{ createdAt: 'desc' }],
+      skip,
+      take,
+      select: APPLICATION_ROW_SELECT,
+    }),
+    db.admissionApplication.count({ where }),
+  ])
+  const usersByEmail = await resolveApplicationUsers(applications.map((a: any) => a.email))
+  return { students: applications.map((app: any) => mapApplicationRow(app, usersByEmail)), total }
+}
+
 function isQaTestAccount(email: string | null | undefined) {
   return String(email || '').trim().toLowerCase().endsWith('@aact.test')
 }
@@ -81,108 +188,58 @@ export async function GET(req: NextRequest) {
     const { page, pageSize, skip, take } = parseAdminPagination(req.nextUrl.searchParams, { pageSize: 25, maxPageSize: 100 })
     const q = clean(req.nextUrl.searchParams.get('q') || req.nextUrl.searchParams.get('search'), 120)
     const status = clean(req.nextUrl.searchParams.get('status'), 40)
+    const incompleteReason = clean(req.nextUrl.searchParams.get('incompleteReason'), 40)
     const programId = clean(req.nextUrl.searchParams.get('programId'), 120)
     const paymentStatus = clean(req.nextUrl.searchParams.get('paymentStatus'), 40)
     const thesisStatus = clean(req.nextUrl.searchParams.get('thesisStatus'), 60)
     const enrollmentWhere: any = {}
     if (programId && programId !== 'ALL') enrollmentWhere.programId = programId
-    if (status && status !== 'ALL' && status !== 'INCOMPLETE_ADMISSIONS' && status !== REGISTERED_ONLY_STATUS) enrollmentWhere.status = status
+    if (status && status !== 'ALL' && status !== 'INCOMPLETE_ADMISSIONS' && status !== REGISTERED_ONLY_STATUS && status !== 'AWAITING_VERIFICATION') enrollmentWhere.status = status
+
+    const studyProgramFilter = {
+      OR: [
+        { programRef: { is: null } },
+        { programRef: { is: { category: { not: 'SERVICE' } } } },
+      ],
+    }
 
     if (status === 'INCOMPLETE_ADMISSIONS') {
-      const incompleteWhere: any = {
-        status: { notIn: ['REJECTED', 'CERTIFIED'] },
-        AND: [
-          {
-            OR: [
-              { programRef: { is: null } },
-              { programRef: { is: { category: { not: 'SERVICE' } } } },
-            ],
-          },
-          {
-            OR: [
-              { userId: null },
-              { acknowledged: false },
-              { files: { none: {} } },
-              { status: 'DOCUMENTS_NEED_REPLACEMENT' },
-            ],
-          },
-        ],
-      }
-      if (q) {
-        incompleteWhere.AND.push({
-          OR: [
-            { fullName: { contains: q, mode: 'insensitive' } },
-            { email: { contains: q, mode: 'insensitive' } },
-            { phone: { contains: q, mode: 'insensitive' } },
-            { reference: { contains: q, mode: 'insensitive' } },
-            { program: { contains: q, mode: 'insensitive' } },
-            { programRef: { is: { titleAr: { contains: q, mode: 'insensitive' } } } },
-          ],
-        })
-      }
+      const reasonCondition = INCOMPLETE_REASON_CONDITIONS[incompleteReason]
+      const { students, total } = await listApplicationRows(
+        {
+          status: { notIn: ['REJECTED', 'CERTIFIED'] },
+          AND: [studyProgramFilter, { OR: reasonCondition ? [reasonCondition] : INCOMPLETE_REASON_OR }],
+        },
+        q,
+        page,
+        pageSize,
+        skip,
+        take,
+      )
+      return NextResponse.json({ students, total, pagination: adminPaginationMeta(page, pageSize, total) })
+    }
 
-      const [applications, total] = await Promise.all([
-        db.admissionApplication.findMany({
-          where: incompleteWhere,
-          orderBy: [{ createdAt: 'desc' }],
-          skip,
-          take,
-          select: {
-            id: true,
-            reference: true,
-            fullName: true,
-            email: true,
-            country: true,
-            program: true,
-            status: true,
-            userId: true,
-            acknowledged: true,
-            createdAt: true,
-            phone: true,
-            programRef: { select: { titleAr: true } },
-            _count: { select: { files: true } },
-          },
-        }),
-        db.admissionApplication.count({ where: incompleteWhere }),
-      ])
-
-      const students = applications.map((app) => {
-        const reasons = [
-          !app.userId ? 'بدون حساب مرتبط' : '',
-          !app.acknowledged ? 'الإقرار غير مكتمل' : '',
-          (app._count.files || 0) === 0 ? 'لا توجد مرفقات' : '',
-          app.status === 'DOCUMENTS_NEED_REPLACEMENT' ? 'بانتظار استبدال مرفقات' : '',
-        ].filter(Boolean)
-        return {
-          id: `admission:${app.id}`,
-          rowKind: 'INCOMPLETE_ADMISSION',
-          name: app.fullName || 'طلب بدون اسم',
-          email: app.email,
-          country: app.country,
-          phone: app.phone ?? null,
-          emailVerifiedAt: null,
-          status: app.status,
-          createdAt: app.createdAt,
-          enrollments: [],
-          attemptsCount: 0,
-          bestScore: null,
-          aiChats: 0,
-          incompleteReasons: reasons,
-          latestAdmission: {
-            id: app.id,
-            reference: app.reference,
-            status: app.status,
-            program: app.programRef?.titleAr || app.program || 'برنامج غير محدد',
-            createdAt: app.createdAt,
-          },
-        }
-      })
-
+    if (status === 'NEEDS_DOCUMENTS') {
+      const { students, total } = await listApplicationRows(
+        {
+          status: 'DOCUMENTS_NEED_REPLACEMENT',
+          AND: [studyProgramFilter],
+        },
+        q,
+        page,
+        pageSize,
+        skip,
+        take,
+      )
       return NextResponse.json({ students, total, pagination: adminPaginationMeta(page, pageSize, total) })
     }
 
     const where: any = { role: 'STUDENT' }
-    if (status === REGISTERED_ONLY_STATUS) where.enrollments = buildAdminStudentsEnrollmentRelationFilter(status, programId)
+    if (status === 'AWAITING_VERIFICATION') {
+      // بانتظار تحقق: طلاب مسجّلون بلا إيميل موثّق، بلا قيد على الالتحاق —
+      // السكان هنا هو التحقق نفسه لا البرنامج، والزر يعمل صح على صفوف الطلاب أصلاً.
+      where.emailVerifiedAt = null
+    } else if (status === REGISTERED_ONLY_STATUS) where.enrollments = buildAdminStudentsEnrollmentRelationFilter(status, programId)
     else {
       const hasExplicitEnrollmentFilter = status && status !== 'ALL' && status !== 'INCOMPLETE_ADMISSIONS'
       where.enrollments = hasExplicitEnrollmentFilter
@@ -300,6 +357,7 @@ export async function GET(req: NextRequest) {
         createdAt: user.createdAt,
         phone: user.phone ?? null,
         emailVerifiedAt: user.emailVerifiedAt,
+        hasAccount: true,
         enrollments: userEnrollments.map((e) => ({
           program: e.program?.titleAr || 'برنامج غير محدد',
           status: e.status,
