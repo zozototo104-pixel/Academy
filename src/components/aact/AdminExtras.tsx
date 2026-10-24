@@ -1282,6 +1282,8 @@ export function AdminFinanceTab() {
             { value: 'PAID', label: 'مسددة' },
             { value: 'WAIVED', label: 'معفاة' },
             { value: 'MANUAL_PENDING', label: 'دفع مباشر بانتظار التأكيد' },
+            { value: 'WAIVER_AWAITING_ENTRY', label: 'بانتظار إدخال الطالب' },
+            { value: 'WAIVER_AWAITING_APPROVAL', label: 'بانتظار اعتمادك' },
             { value: 'APPLICATION_FEE', label: 'رسوم تقديم' },
             { value: 'TUITION', label: 'رسوم دراسية' },
             { value: 'TUITION_INSTALLMENT', label: 'دفعات تقسيط' },
