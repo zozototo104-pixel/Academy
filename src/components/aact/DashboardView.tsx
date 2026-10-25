@@ -1594,7 +1594,7 @@ export function DashboardView() {
                                 </div>
                                 <p className="mt-2 text-xs font-bold leading-6 text-slate-600">{a.description}</p>
                                 {a.rubric && <p className="mt-2 rounded-xl bg-slate-50 p-2 text-[11px] font-bold leading-5 text-slate-500">معايير التصحيح: {a.rubric}</p>}
-                                {a.dueAt && <p className="mt-1 text-[11px] font-bold text-amber-700">آخر موعد مقترح: {new Date(a.dueAt).toLocaleDateString('ar-EG')}</p>}
+                                {a.dueAt && <p className="mt-1 text-[11px] font-bold text-amber-700">آخر موعد: {new Date(a.dueAt).toLocaleDateString('ar-EG')}</p>}
                               </div>
                               <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${graded ? 'bg-emerald-100 text-emerald-700' : needsRevision ? 'bg-amber-100 text-amber-700' : submitted ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>
                                 {graded ? `مصحح ${submission?.score ?? '-'}/${a.points}` : needsRevision ? 'يحتاج تعديل' : submitted ? 'تم التسليم' : 'لم يسلّم بعد'}

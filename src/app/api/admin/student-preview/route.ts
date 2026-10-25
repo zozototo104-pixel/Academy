@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
       }),
       db.programAssignment.findMany({
         where: { programId: selectedProgramId, status: 'PUBLISHED' },
-        select: { id: true, title: true, description: true, dueDays: true, semester: true, createdAt: true },
+        select: { id: true, title: true, description: true, dueDays: true, dueAt: true, semester: true, createdAt: true },
         orderBy: [{ semester: 'asc' }, { createdAt: 'desc' }],
         take: 40,
       }),

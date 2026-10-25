@@ -281,6 +281,7 @@ export async function POST(req: NextRequest) {
             points: Number(a.points || 10),
             weight: Number(a.weight || 0),
             dueDays: a.dueDays ?? null,
+            dueAt: (a as any).dueAt ?? null,
             rubric: a.rubric ?? null,
             status: a.status || 'PUBLISHED',
             createdAt: asDate(a.createdAt) ?? undefined,

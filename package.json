@@ -100,6 +100,7 @@
     "test:waiver-code-filters": "bun test tests/finance/waiver-code-filters.test.ts",
     "test:supervisor-assignment-grading": "bun test tests/supervisor/supervisor-assignment-grading.test.ts",
     "test:duration-reminders": "bun test tests/duration"
+    "test:assignment-due-video": "bun test tests/assignments"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
