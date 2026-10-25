@@ -193,7 +193,7 @@ function applyAccepted<T extends VerifiableQuestion>(question: T, result: Questi
     // Default: OCR sources never carry SOURCE_GROUNDED, even on verifier
     // pass (OCR text can misread words). allowOcrGrounding lifts that
     // ONLY for the reverify flow (owner-approved 2026-10-25): reverify
-    // touches APPROVED items only, so a stamped OCR question has passed
+    // touches admin-approved items only, so a stamped OCR question has passed
     // both the AI verifier and human approval — and OCR_DERIVED_SOURCE
     // is KEPT alongside the stamp so provenance stays visible.
     qualityFlags: isOcr && !allowOcrGrounding
