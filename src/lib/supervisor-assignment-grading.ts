@@ -5,6 +5,14 @@ import { getFileBufferFromStorageOrBase64, getStorageDownloadPathForKey } from '
 import { notify, audit } from '@/lib/notify'
 import { emailAssignmentGraded } from '@/lib/mailer'
 import { cleanAcademicOutput, looksLikeBrokenGeneratedArabic } from '@/lib/academic-output-quality'
+// مسار قراءة الكتب نفسه (مرحلة READING): استخراج صفحة صفحة، OCR للصفحات
+// المصوّرة فقط، إصلاح نص العربية، وتقسيم لمقاطع — بلا كتابة أي شيء في بنك
+// المعرفة، لأن إجابة الطالب ليست كتاباً ولا تدخل بنك المعرفة أبداً.
+import { extractNumberedPdfPages, transcribeScannedDocumentWithVision, planBookChunks, pagesNeedingOcr } from '@/lib/book-reader'
+import { fixArabicPdfText } from '@/lib/arabic-pdf-text'
+// cleanAcademicOutput هو نفسه حارس مخرجات بنك المعرفة (knowledge-bank يعيد تصديره
+// باسم cleanAcademicGeneratedText) — نستورده من مصدره المباشر لتجنب سلسلة استيراد ثقيلة.
+import { PDFDocument } from 'pdf-lib'
 
 // ===== تحليل واجب طالب بمساعدة الذكاء، مع اعتماد بشري فقط =====
 // القاعدة الصارمة: هذه الطبقة لا تحفظ أي درجة ولا ترسل أي نتيجة للطالب.
@@ -52,6 +60,38 @@ export const DEFAULT_RUBRIC: RubricCriterion[] = [
 const MAX_ANSWER_CHARS = 20000
 const MAX_BOOK_CHARS = 8000
 const MAX_OCR_CHARS = 12000
+// دفعات الكتب نفسها: 8 صفحات للدفعة كحد أقصى، و3 دفعات كحد لملف واجب واحد.
+const MAX_PDF_PAGES = 24
+
+/** قراءة PDF بمسار الكتب: صفحات مرقّمة، OCR لصفحات بلا نص فقط، مقاطع 2500–4000 حرف. */
+export async function readPdfWithBookPath(buffer: Buffer): Promise<{ text: string; ocrPages: number; totalPages: number; truncated: boolean }> {
+  const doc = await PDFDocument.load(buffer)
+  const totalPages = doc.getPageCount()
+  const pagesToRead = Math.min(totalPages, MAX_PDF_PAGES)
+  const pages: { page: number; text: string; textProvenance: 'NATIVE_TEXT' | 'VISION_OCR' }[] = []
+  let ocrPages = 0
+  for (let start = 0; start < pagesToRead; start += 8) {
+    const numbers = Array.from({ length: Math.min(8, pagesToRead - start) }, (_, i) => start + i + 1)
+    const extracted = await extractNumberedPdfPages(buffer, numbers)
+    const pageMap = new Map(extracted.map((p) => [p.page, p]))
+    for (const range of pagesNeedingOcr(extracted)) {
+      const ocr = await transcribeScannedDocumentWithVision(buffer, range, Date.now() + 120_000)
+      for (const page of ocr) pageMap.set(page.page, page)
+    }
+    for (const number of numbers) {
+      const page = pageMap.get(number)
+      if (!page) continue
+      if (page.textProvenance === 'NATIVE_TEXT') {
+        pages.push({ page: page.page, text: fixArabicPdfText(page.text), textProvenance: 'NATIVE_TEXT' })
+      } else {
+        pages.push({ page: page.page, text: page.text, textProvenance: 'VISION_OCR' })
+        ocrPages += 1
+      }
+    }
+  }
+  const chunks = planBookChunks(pages)
+  return { text: chunks.map((c) => c.text).join('\n\n'), ocrPages, totalPages, truncated: totalPages > pagesToRead }
+}
 
 function cleanText(value: unknown, max: number): string {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
@@ -94,7 +134,8 @@ export function normalizeAiDraft(raw: any, points: number, criteria: RubricCrite
   const scoreRaw = Number((raw as any).score)
   if (!Number.isFinite(scoreRaw)) return null
   const score = Math.min(points, Math.max(0, Math.round(scoreRaw * 100) / 100))
-  const feedback = cleanParagraph((raw as any).feedback, 4000)
+  // صياغة الرد بنفس حارس مخرجات الكتب: تنظيف مخرجات أكاديمية، ثم حارس العربية المكسورة.
+  const feedback = cleanAcademicOutput((raw as any).feedback, 4000)
   if (feedback.length < 20 || looksLikeBrokenGeneratedArabic(feedback)) return null
 
   let breakdown: DraftCriterion[] | null = null
@@ -297,8 +338,9 @@ export async function loadAnswerContent(submission: any): Promise<AnswerContent>
   let fileText = ''
   let fileMime = String(submission.mimeType || '')
   let fileBuffer: Buffer | null = null
+  let stored: any = null
   try {
-    const stored = await getFileBufferFromStorageOrBase64({
+    stored = await getFileBufferFromStorageOrBase64({
       provider: submission.fileStorageProvider,
       key: submission.fileStorageKey,
       url: submission.fileUrl,
@@ -308,7 +350,51 @@ export async function loadAnswerContent(submission: any): Promise<AnswerContent>
     if (stored) {
       fileBuffer = stored.buffer
       fileMime = stored.mimeType || fileMime
-      const extracted = await extractDocumentText(stored.buffer, stored.mimeType, submission.fileName)
+    }
+  } catch {
+    fileText = ''
+  }
+
+  // PDF أولاً بمسار الكتب (صفحات + OCR صفحة صفحة). إذا نجح بنص كافٍ، هذا هو النص.
+  // إذا فشل المسار نفسه (ملف تالف مثلاً)، نسقط للمسار القديم أدناه، لا نفشل التصحيح كله.
+  if (fileBuffer && isPdfLike(fileMime, submission.fileName)) {
+    try {
+      const bookPath = await readPdfWithBookPath(fileBuffer)
+      if (bookPath.text.trim().length >= 40) {
+        const combined = [written, bookPath.text].filter(Boolean).join('\n\n[نص الملف المرفق — مقروء بمسار قراءة الكتب]\n')
+        const ocrPart = bookPath.ocrPages > 0 ? ` — منها ${bookPath.ocrPages} صفحة بالرؤية (OCR)` : ''
+        const truncPart = bookPath.truncated ? ` — قُرئت أول ${MAX_PDF_PAGES} صفحة من أصل ${bookPath.totalPages}` : ''
+        return {
+          combinedText: combined.slice(0, MAX_ANSWER_CHARS),
+          answerSource: written ? 'TEXT_AND_FILE' : bookPath.ocrPages > 0 ? 'FILE_OCR' : 'FILE_TEXT',
+          answerSourceLabel: written
+            ? `نص مكتوب + ملف PDF مقروء بمسار الكتب${ocrPart}`
+            : bookPath.ocrPages > 0
+              ? `ملف PDF مقروء بمسار الكتب (صفحات + OCR)${ocrPart}`
+              : 'ملف PDF مقروء بمسار الكتب (نص مدموج)',
+          ocrNote: bookPath.ocrPages > 0 || bookPath.truncated
+            ? `قراءة بمسار الكتب: ${bookPath.totalPages} صفحة${ocrPart}${truncPart} — راجع الملف الأصلي للتحقق من الأجزاء غير الواضحة.`
+            : null,
+          truncated: combined.length > MAX_ANSWER_CHARS,
+        }
+      }
+      // مسار الكتب لم يخرج نصاً كافياً رغم OCR الصفحات: الملف غير قابل للقراءة فعلاً.
+      return {
+        combinedText: written.slice(0, MAX_ANSWER_CHARS),
+        answerSource: written ? 'TEXT' : 'FILE_UNREADABLE',
+        answerSourceLabel: written ? 'نص مكتوب فقط — ملف PDF لم يُقرأ' : 'ملف PDF لم يُقرأ (لا نص مدموج ولا قراءة رؤية ناجحة)',
+        ocrNote: 'تعذرت قراءة ملف PDF بمسار الكتب رغم محاولة الرؤية؛ صحّح من الملف الأصلي يدوياً.',
+        truncated: written.length > MAX_ANSWER_CHARS,
+      }
+    } catch {
+      // سقوط آمن للمسار القديم أدناه.
+    }
+  }
+
+  // غير PDF، أو PDF فشل مسار الكتب فيه: استخراج عام ثم رؤية للملف المصوّر فقط.
+  try {
+    if (stored && fileBuffer) {
+      const extracted = await extractDocumentText(fileBuffer, stored.mimeType, submission.fileName)
       if (extracted.readable && extracted.text.trim().length >= 40) {
         fileText = extracted.text
       }
@@ -379,6 +465,7 @@ function gradingSystemPrompt(points: number, criteria: RubricCriterion[]): strin
 - وزّع الدرجة على المعايير التالية، ويجب أن يساوي مجموع درجات المعايير الدرجة الكلية:
 ${criteriaLines}
 - قارن الإجابة بمحتوى الكتاب المرفق كمرجع للفهم، لا كمطابقة حرفية: الطالب الذي يشرح بفهمه ويطبّق ويضرب أمثلة من واقعه يأخذ حقه كاملاً حتى لو لم يستخدم ألفاظ الكتاب نفسها. النسخ الحرفي الطويل من الكتاب بلا فهم أو تطبيق لا يأخذ علامة التحليل والتطبيق كاملة — اذكر ذلك بصراحة لكن بلا اتهام قطعي بالغش، وقل "يبدو منقولاً حرفياً" فقط عندما يكون التطابق واضحاً.
+- كل تبرير معيار يجب أن يستند إلى عبارة أو مثال موجود فعلاً في إجابة الطالب — لا تذكر دليلاً غير موجود فيها، ولا تنسب للطالب ما لم يكتبه.
 - قيّم الاجتهاد الشخصي صراحة: تحليل خاص، تطبيق مهني، أمثلة، ربط بالواقع، نقد — وليس طول الإجابة وحده.
 - إذا كان مصدر الإجابة قراءة رؤية (OCR) وظهرت أجزاء [غير واضح]، لا تعاقب الطالب على تلك الأجزاء ولا تخترع ما فيها؛ اذكر أن الجزء غير واضح ويحتاج مراجعة الملف الأصلي.
 - لا تخترع محتوى كتاب غير مرفق، ولا تعطِ تشخيصاً أو حكماً خارج الواجب.

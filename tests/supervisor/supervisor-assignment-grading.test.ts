@@ -12,6 +12,9 @@ const notifyCalls: any[] = []
 const emailCalls: any[] = []
 const auditCalls: any[] = []
 let textAiCalls = 0
+let fileBufferToReturn: Buffer | null = null
+let bookReaderCalls = 0
+let bookOcrCalls = 0
 
 const submission: any = {
   id: 'sub-1',
@@ -40,9 +43,21 @@ const submission: any = {
   user: { id: 'student-1', name: 'محمود', email: 'student@example.com' },
 }
 
+const submissionPdf: any = {
+  ...submission,
+  id: 'sub-pdf',
+  answerText: '',
+  fileName: 'answer.pdf',
+  fileStorageKey: 'answers/sub-pdf.pdf',
+  fileUrl: null,
+  data: null,
+  fileStorageProvider: 'LOCAL',
+  mimeType: 'application/pdf',
+}
+
 const db: any = {
   assignmentSubmission: {
-    findUnique: async () => submission,
+    findUnique: async (args: any) => (args?.where?.id === 'sub-pdf' ? submissionPdf : submission),
     update: async (_args: any) => {
       updateCalls.push(_args)
       return { ...submission, score: _args.data.score, feedback: _args.data.feedback, status: _args.data.status }
@@ -83,8 +98,29 @@ mock.module('@/lib/document-extract', () => ({
   isPdfLike: () => true,
 }))
 mock.module('@/lib/storage', () => ({
-  getFileBufferFromStorageOrBase64: async () => null,
+  getFileBufferFromStorageOrBase64: async () => (fileBufferToReturn ? { buffer: fileBufferToReturn, mimeType: 'application/pdf' } : null),
   getStorageDownloadPathForKey: (key: string) => `/api/files/${key}`,
+}))
+mock.module('@/lib/book-reader', () => ({
+  extractNumberedPdfPages: async (_buffer: Buffer, numbers: number[]) => {
+    bookReaderCalls += 1
+    return numbers.map((n) => ({
+      page: n,
+      text: n === 1 ? 'نص صفحة أولى من إجابة الطالب مكتوب بشكل واضح ومفصل ويشرح التحليل والتطبيق المهني.' : '',
+      textProvenance: 'NATIVE_TEXT' as const,
+    }))
+  },
+  pagesNeedingOcr: (pages: any[]) => {
+    const missing = pages.filter((p) => p.text.trim().length < 80).map((p) => p.page)
+    const batches: number[][] = []
+    for (let i = 0; i < missing.length; i += 4) batches.push(missing.slice(i, i + 4))
+    return batches
+  },
+  transcribeScannedDocumentWithVision: async (_buffer: Buffer, range: number[]) => {
+    bookOcrCalls += 1
+    return range.map((p) => ({ page: p, text: 'نص مقروء بالرؤية من الصفحة المصورة يشرح أمثلة من الواقع.', textProvenance: 'VISION_OCR' as const }))
+  },
+  planBookChunks: (pages: any[]) => [{ text: pages.map((p) => p.text).filter(Boolean).join(' ') }],
 }))
 mock.module('@/lib/notify', () => ({
   notify: async (...args: any[]) => {
@@ -171,6 +207,9 @@ describe('supervisor assignments route — scope is the gate, analyze never save
     admissionSupervisorId = 'sup-1'
     textAiResponse = validDraft()
     textAiCalls = 0
+    fileBufferToReturn = null
+    bookReaderCalls = 0
+    bookOcrCalls = 0
     updateCalls.length = 0
     notifyCalls.length = 0
     emailCalls.length = 0
@@ -213,6 +252,26 @@ describe('supervisor assignments route — scope is the gate, analyze never save
     expect(notifyCalls.length).toBe(1)
     expect(emailCalls.length).toBe(1)
     expect(auditCalls.length).toBe(1)
+  })
+
+  test('PDF answer is read through the book path: numbered pages, OCR only for empty pages, no single-vision call', async () => {
+    const { PDFDocument } = await import('pdf-lib')
+    const doc = await PDFDocument.create()
+    doc.addPage()
+    doc.addPage()
+    fileBufferToReturn = Buffer.from(await doc.save())
+    const route = await import('@/app/api/supervisor/assignments/route')
+    const res = await route.POST(postRequest({ action: 'analyze', submissionId: 'sub-pdf' }))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.saved).toBe(false)
+    expect(body.provenance.answerSourceLabel).toContain('مسار الكتب')
+    expect(body.provenance.ocrNote).toContain('OCR')
+    expect(bookReaderCalls).toBeGreaterThan(0)
+    expect(bookOcrCalls).toBe(1)
+    // نداء ذكاء واحد فقط هو التصحيح؛ قراءة PDF لم تمر بنداء رؤية منفرد.
+    expect(textAiCalls).toBe(1)
+    expect(updateCalls.length).toBe(0)
   })
 
   test('grade above assignment points is rejected without saving', async () => {

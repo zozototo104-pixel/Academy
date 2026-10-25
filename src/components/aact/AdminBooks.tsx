@@ -721,6 +721,8 @@ export function AdminBooksTab() {
   const [gradingPage, setGradingPage] = useState(1)
   const [gradingPageSize, setGradingPageSize] = useState(25)
   const [gradingDialog, setGradingDialog] = useState<null | { mode: 'GRADE' | 'REVISION'; submission: AssignmentSubmissionRow; assignment: AssignmentRow; score: string; feedback: string }>(null)
+  const [gradingAiDraft, setGradingAiDraft] = useState<any | null>(null)
+  const [gradingAiAnalyzing, setGradingAiAnalyzing] = useState(false)
   const [confirmDialog, setConfirmDialog] = useState<null | { title: string; description: string; confirmLabel?: string; danger?: boolean }>(null)
   const confirmResolveRef = useRef<((ok: boolean) => void) | null>(null)
   const [cognitiveOverrideDialog, setCognitiveOverrideDialog] = useState<null | { title: string; message: string; details: string[]; reason: string }>(null)
@@ -2302,6 +2304,7 @@ export function AdminBooksTab() {
   }
 
   const gradeSubmission = (submission: AssignmentSubmissionRow, assignment: AssignmentRow) => {
+    setGradingAiDraft(null)
     setGradingDialog({
       mode: 'GRADE',
       submission,
@@ -2314,6 +2317,7 @@ export function AdminBooksTab() {
   const requestAssignmentRevision = (submission: AssignmentSubmissionRow, assignment?: AssignmentRow) => {
     const ownerAssignment = assignment || assignments.find((a) => a.submissions.some((s) => s.id === submission.id))
     if (!ownerAssignment) return
+    setGradingAiDraft(null)
     setGradingDialog({
       mode: 'REVISION',
       submission,
@@ -2321,6 +2325,33 @@ export function AdminBooksTab() {
       score: submission.score != null ? String(submission.score) : '',
       feedback: submission.feedback || '',
     })
+  }
+
+  // تحليل الذكاء للأدمن: نفس نقطة التحليل التي يستخدمها المشرف البشري
+  // (مسودة فقط، لا حفظ ولا إرسال قبل اعتماد الأدمن عبر submitGradingDialog الحالي).
+  const analyzeGradingDialog = async () => {
+    if (!gradingDialog) return
+    setGradingAiAnalyzing(true)
+    try {
+      const data = await api('/api/supervisor/assignments', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'analyze', submissionId: gradingDialog.submission.id }),
+      })
+      setGradingAiDraft(data)
+      setGradingDialog((prev) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          score: prev.mode === 'GRADE' && data?.draft?.score != null ? String(data.draft.score) : prev.score,
+          feedback: data?.draft?.feedback || prev.feedback,
+        }
+      })
+      toast({ title: 'عُبئت المسودة بالذكاء', description: 'راجع الدرجة والملاحظة وعدّلهما قبل الاعتماد — لم يُحفظ شيء ولم يُرسل للطالب بعد.' })
+    } catch (error) {
+      toast({ title: 'تعذر التحليل بالذكاء', description: error instanceof Error ? error.message : 'حاول لاحقاً أو صحّح يدوياً.', variant: 'destructive' })
+    } finally {
+      setGradingAiAnalyzing(false)
+    }
   }
 
   const submitGradingDialog = async () => {
@@ -4408,7 +4439,7 @@ export function AdminBooksTab() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!gradingDialog} onOpenChange={(open) => { if (!open) setGradingDialog(null) }}>
+      <Dialog open={!!gradingDialog} onOpenChange={(open) => { if (!open) { setGradingDialog(null); setGradingAiDraft(null) } }}>
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-3xl" dir="rtl">
           {gradingDialog && (
             <div className="space-y-4">
@@ -4433,6 +4464,37 @@ export function AdminBooksTab() {
               {gradingDialog.assignment.rubric && (
                 <div className="rounded-2xl border border-[#c9a227]/20 bg-[#fffaf0] p-3 text-xs font-bold leading-6 text-[#7a5b13]">
                   <b>معايير التصحيح:</b> {gradingDialog.assignment.rubric}
+                </div>
+              )}
+              <div className="space-y-2">
+                <Button onClick={analyzeGradingDialog} disabled={gradingAiAnalyzing} className="w-full rounded-2xl bg-violet-600 font-black text-white hover:bg-violet-700">
+                  {gradingAiAnalyzing ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Bot className="ml-2 h-4 w-4" />}
+                  {gradingAiAnalyzing ? 'جارٍ تحليل الإجابة…' : 'تحليل إجابة الطالب بالذكاء'}
+                </Button>
+                <p className="text-center text-[11px] font-bold leading-5 text-slate-500">التحليل يعبّئ الدرجة والملاحظة كمسودة فقط — لا يُحفظ ولا يُرسل للطالب إلا بعد تعديلك واعتمادك. ويعمل للأدمن مع كل الطلاب، وبخاصة طلاب المشرف الذكي الذين لا مشرف بشري لهم.</p>
+              </div>
+              {gradingAiDraft?.draft && (
+                <div className="space-y-2 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold leading-6 text-amber-900">
+                  <b>مسودة ذكاء اصطناعي — غير معتمدة</b>
+                  <p>مصدر القراءة: {gradingAiDraft.provenance?.answerSourceLabel || 'نص مكتوب'}</p>
+                  {gradingAiDraft.provenance?.ocrNote && <p>{gradingAiDraft.provenance.ocrNote}</p>}
+                  <p>سياق الكتاب: {gradingAiDraft.provenance?.bookContextUsed ? `مستخدم (${(gradingAiDraft.provenance.bookTitles || []).join('، ') || 'كتاب الوحدة'})` : 'غير متوفر — اعتمد على نص الإجابة فقط'}</p>
+                  {Array.isArray(gradingAiDraft.draft.criteria) && gradingAiDraft.draft.criteria.length > 0 && (
+                    <ul className="list-disc pr-4">
+                      {gradingAiDraft.draft.criteria.map((c: any, i: number) => (
+                        <li key={i}>{c.label}: {c.points} — {c.justification}</li>
+                      ))}
+                    </ul>
+                  )}
+                  {(gradingAiDraft.draft.strengths?.length || gradingAiDraft.draft.gaps?.length || gradingAiDraft.draft.errors?.length || gradingAiDraft.draft.effortNote) && (
+                    <div className="rounded-xl border border-amber-200 bg-white/70 p-2">
+                      <b>تحليل للمراجع فقط — لا يُرسل للطالب كما هو:</b>
+                      {gradingAiDraft.draft.strengths?.length ? <p>نقاط قوة: {gradingAiDraft.draft.strengths.join('؛ ')}</p> : null}
+                      {gradingAiDraft.draft.gaps?.length ? <p>نواقص: {gradingAiDraft.draft.gaps.join('؛ ')}</p> : null}
+                      {gradingAiDraft.draft.errors?.length ? <p>أخطاء: {gradingAiDraft.draft.errors.join('؛ ')}</p> : null}
+                      {gradingAiDraft.draft.effortNote ? <p>الاجتهاد: {gradingAiDraft.draft.effortNote}</p> : null}
+                    </div>
+                  )}
                 </div>
               )}
               {gradingDialog.mode === 'GRADE' && (
