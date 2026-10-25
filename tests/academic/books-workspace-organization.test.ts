@@ -23,10 +23,13 @@ const ORIGINAL_FUNCTION_HASHES: Record<string, string> = {
   refreshProgramReadiness: '4bcfeaf821451def388c4916edb0936aea32d71c97d29a4d6e9752cbcbdd2fd8',
   suggest: 'badc7e266c544800eb1267d3d21901d3e2490f13add7025389f8ab81b2cc671a',
 }
-const ORIGINAL_API_CALL_COUNT = 76
+const ORIGINAL_API_CALL_COUNT = 77
 // بصمة سطح النداءات من تعبير الاستدعاء الكامل (المسار + الخيارات: الطريقة والجسم والترويسات)،
 // لا من العنوان وحده — أي تغيير في عقد أي طلب يغيّر البصمة.
-const ORIGINAL_API_DIGEST = '19ff4e867fb726a8aa3df32bbd0108f316211832cf5c79ba9644f1527b4ff613'
+// تحديث مقصود 2026-10-25 (PR #136): النداء 77 الوحيد المضاف هو تحليل الذكاء
+// للأدمن (POST /api/supervisor/assignments {action:'analyze'}) — مسودة فقط، بلا حفظ.
+// تم التحقق أن النداءات 76 القديمة لم تتغير ولم يُحذف منها شيء.
+const ORIGINAL_API_DIGEST = '98007af4debda1b38476d3c6d391ed836af74d1315f9e40cbed07684073ca9cc'
 
 function parseSource() {
   return ts.createSourceFile('AdminBooks.tsx', SOURCE, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)

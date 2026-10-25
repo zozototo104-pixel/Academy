@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
 import { Loader2, Users2, GraduationCap, FileText, Video, RefreshCcw, MessageCircle, Send, Mic, Square, ClipboardCheck, Bot, BookOpen, AlertTriangle, CheckCircle2, Sparkles, BarChart3, Brain, Headphones } from 'lucide-react'
 import { SupervisorLiveVoiceCall } from '@/components/aact/SupervisorLiveVoiceCall'
 import { AdminLectures } from '@/components/aact/AdminLectures'
@@ -272,6 +274,70 @@ export function SupervisorView() {
     }
   }
 
+  const [gradingDetail, setGradingDetail] = useState<any | null>(null)
+  const [gradingScore, setGradingScore] = useState('')
+  const [gradingFeedback, setGradingFeedback] = useState('')
+  const [gradingDraft, setGradingDraft] = useState<any | null>(null)
+  const [gradingLoading, setGradingLoading] = useState(false)
+  const [gradingAnalyzing, setGradingAnalyzing] = useState(false)
+  const [gradingSaving, setGradingSaving] = useState(false)
+
+  const openAssignmentGrading = async (submissionId: string) => {
+    setGradingLoading(true)
+    setGradingDraft(null)
+    try {
+      const d = await api<{ detail: any }>(`/api/supervisor/assignments?submissionId=${submissionId}`)
+      setGradingDetail(d.detail)
+      setGradingScore(d.detail.score != null ? String(d.detail.score) : '')
+      setGradingFeedback(d.detail.feedback || '')
+    } catch (e: any) {
+      toast({ title: 'تعذر فتح التسليم', description: e.message || 'حاول مرة أخرى', variant: 'destructive' })
+    } finally {
+      setGradingLoading(false)
+    }
+  }
+
+  const analyzeAssignmentGrading = async () => {
+    if (!gradingDetail) return
+    setGradingAnalyzing(true)
+    try {
+      const d = await api<any>('/api/supervisor/assignments', { method: 'POST', body: JSON.stringify({ action: 'analyze', submissionId: gradingDetail.submissionId }) })
+      setGradingDraft(d)
+      setGradingScore(String(d.draft.score))
+      setGradingFeedback(d.draft.feedback)
+      toast({ title: 'تم التحليل بالذكاء', description: 'عُبئت الدرجة والملاحظة كمسودة — راجعها وعدّلها قبل الاعتماد.' })
+    } catch (e: any) {
+      toast({ title: 'تعذر التحليل بالذكاء', description: e.message || 'صحّح يدوياً من الملف الأصلي', variant: 'destructive' })
+    } finally {
+      setGradingAnalyzing(false)
+    }
+  }
+
+  const submitSupervisorGrading = async (status: 'GRADED' | 'NEEDS_REVISION') => {
+    if (!gradingDetail) return
+    const parsedScore = Number(gradingScore)
+    if (!Number.isFinite(parsedScore) || parsedScore < 0 || parsedScore > gradingDetail.assignmentPoints) {
+      toast({ title: 'درجة غير صالحة', description: `أدخل درجة بين 0 و ${gradingDetail.assignmentPoints}.`, variant: 'destructive' })
+      return
+    }
+    if (status === 'NEEDS_REVISION' && gradingFeedback.trim().length < 8) {
+      toast({ title: 'ملاحظة التعديل مطلوبة', description: 'اكتب سبباً واضحاً للطالب قبل طلب التعديل.', variant: 'destructive' })
+      return
+    }
+    setGradingSaving(true)
+    try {
+      await api('/api/supervisor/assignments', { method: 'POST', body: JSON.stringify({ action: 'grade', submissionId: gradingDetail.submissionId, score: parsedScore, feedback: gradingFeedback.trim(), status }) })
+      toast({ title: status === 'GRADED' ? 'تم اعتماد التصحيح' : 'تم طلب تعديل الواجب' })
+      setGradingDetail(null)
+      setGradingDraft(null)
+      await load()
+    } catch (e: any) {
+      toast({ title: 'تعذر حفظ التصحيح', description: e.message || 'حاول مرة أخرى', variant: 'destructive' })
+    } finally {
+      setGradingSaving(false)
+    }
+  }
+
   const aiGradeAttempt = async (attemptId: string) => {
     if (!selected) return
     setCreating(true)
@@ -500,6 +566,7 @@ export function SupervisorView() {
                         <p>الفصل {a.semester} — النوع: {a.type} — النقاط: {a.points}</p>
                         {a.submitted ? <p>الحالة: {a.submissionStatus} — الدرجة: {a.score ?? 'لم تصحح'}/{a.points} — {dateAr(a.submittedAt)}</p> : <p className="rounded-xl bg-white/70 p-2">واجب منشور للطالب ولم يتم تسليمه حتى الآن.</p>}
                         {a.feedback && <p className="text-emerald-700">ملاحظة: {a.feedback}</p>}
+                        {a.submitted && a.submissionId ? <Button size="sm" onClick={() => openAssignmentGrading(a.submissionId)} disabled={gradingLoading} className="mt-2 bg-emerald-600 font-black text-white hover:bg-emerald-700">{gradingLoading ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <ClipboardCheck className="ml-1 h-3.5 w-3.5" />} {a.submissionStatus === 'GRADED' ? 'مراجعة التصحيح' : 'تصحيح'}</Button> : null}
                       </div>
                     ))}</div> : <p className="rounded-2xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">لا توجد واجبات منشورة لهذا الطالب حتى الآن.</p>}
                   </CardContent></Card>
@@ -581,6 +648,82 @@ export function SupervisorView() {
           )}
         </div>
       )}
+
+      <Dialog open={!!gradingDetail} onOpenChange={(open) => { if (!open) { setGradingDetail(null); setGradingDraft(null) } }}>
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-3xl" dir="rtl">
+          {gradingDetail && (
+            <div className="space-y-4">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 font-black text-[#0f2b46]">
+                  <ClipboardCheck className="h-5 w-5 text-[#a8841a]" /> تصحيح واجب
+                </DialogTitle>
+                <DialogDescription className="font-bold leading-6">
+                  {gradingDetail.assignmentTitle} — {gradingDetail.studentName}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 text-xs font-bold leading-6 text-slate-600">
+                {gradingDetail.answerText ? gradingDetail.answerText : 'لا يوجد نص مكتوب، راجع الملف المرفق إن وجد.'}
+                {gradingDetail.fileName && gradingDetail.fileUrl ? (
+                  <a href={gradingDetail.fileUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-[#1d4ed8] hover:bg-blue-100">
+                    <FileText className="ml-1 h-3 w-3" /> فتح الملف المرفق: {gradingDetail.fileName}
+                  </a>
+                ) : gradingDetail.fileName ? (
+                  <p className="mt-3">الملف المرفق: {gradingDetail.fileName} — يُقرأ نصه عند التحليل بالذكاء.</p>
+                ) : null}
+              </div>
+              {gradingDetail.assignmentRubric && (
+                <div className="rounded-2xl border border-[#c9a227]/20 bg-[#fffaf0] p-3 text-xs font-bold leading-6 text-[#7a5b13]">
+                  <b>معايير التصحيح:</b> {gradingDetail.assignmentRubric}
+                </div>
+              )}
+              <Button onClick={analyzeAssignmentGrading} disabled={gradingAnalyzing} className="w-full bg-[#0f2b46] font-black text-[#e0b83a] hover:bg-[#12365c]">
+                {gradingAnalyzing ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Bot className="ml-2 h-4 w-4" />} تحليل إجابة الطالب بالذكاء
+              </Button>
+              <p className="text-center text-[11px] font-bold text-slate-500">التحليل يعبّئ الدرجة والملاحظة كمسودة فقط — لا يُحفظ ولا يُرسل للطالب إلا بعد تعديلك واعتمادك.</p>
+              {gradingDraft && (
+                <div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-xs font-bold leading-6 text-slate-700">
+                  <p className="font-black text-amber-800">مسودة ذكاء اصطناعي — غير معتمدة</p>
+                  <p>مصدر قراءة الإجابة: {gradingDraft.provenance?.answerSourceLabel || 'غير محدد'}</p>
+                  {gradingDraft.provenance?.ocrNote && <p>ملاحظة القراءة: {gradingDraft.provenance.ocrNote}</p>}
+                  <p>سياق الكتاب: {gradingDraft.provenance?.bookContextUsed ? `مستخدم${gradingDraft.provenance.bookTitles?.length ? ` — ${gradingDraft.provenance.bookTitles.join('، ')}` : ''}` : 'غير متاح لهذه الوحدة؛ التقييم على أساس الفهم والتطبيق فقط'}</p>
+                  {gradingDraft.draft?.criteria?.length ? (
+                    <div>
+                      <p className="font-black text-[#0f2b46]">تفصيل الدرجة المقترحة:</p>
+                      {gradingDraft.draft.criteria.map((c: any, i: number) => (
+                        <p key={i}>{c.label}: {c.points}/{c.maxPoints}{c.justification ? ` — ${c.justification}` : ''}</p>
+                      ))}
+                    </div>
+                  ) : null}
+                  <div>
+                    <p className="font-black text-[#0f2b46]">تحليل للمشرف فقط — لا يُرسل للطالب كما هو:</p>
+                    {gradingDraft.draft?.strengths?.length ? <p>نقاط قوة: {gradingDraft.draft.strengths.join('؛ ')}</p> : null}
+                    {gradingDraft.draft?.gaps?.length ? <p>نقاط ضعف: {gradingDraft.draft.gaps.join('؛ ')}</p> : null}
+                    {gradingDraft.draft?.errors?.length ? <p>أخطاء جوهرية: {gradingDraft.draft.errors.join('؛ ')}</p> : null}
+                    {gradingDraft.draft?.effortNote ? <p>الاجتهاد الشخصي: {gradingDraft.draft.effortNote}</p> : null}
+                  </div>
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label className="text-xs font-black text-[#0f2b46]">الدرجة من {gradingDetail.assignmentPoints}</Label>
+                <Input value={gradingScore} onChange={(e) => setGradingScore(e.target.value)} inputMode="decimal" placeholder={`0 - ${gradingDetail.assignmentPoints}`} className="h-12 rounded-2xl text-center text-lg font-black" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-black text-[#0f2b46]">ملاحظة للطالب</Label>
+                <Textarea value={gradingFeedback} onChange={(e) => setGradingFeedback(e.target.value)} placeholder="اكتب تغذية راجعة مفصلة للطالب" className="min-h-28 rounded-2xl text-sm font-bold leading-7" />
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button variant="outline" onClick={() => { setGradingDetail(null); setGradingDraft(null) }} className="flex-1 rounded-2xl font-black">إلغاء</Button>
+                <Button onClick={() => submitSupervisorGrading('NEEDS_REVISION')} disabled={gradingSaving} className="flex-1 rounded-2xl bg-amber-600 font-black text-white hover:bg-amber-700">
+                  {gradingSaving ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null} طلب تعديل
+                </Button>
+                <Button onClick={() => submitSupervisorGrading('GRADED')} disabled={gradingSaving} className="flex-1 rounded-2xl bg-emerald-600 font-black text-white hover:bg-emerald-700">
+                  {gradingSaving ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null} اعتماد التصحيح
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
