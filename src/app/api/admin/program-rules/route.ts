@@ -36,6 +36,7 @@ const programPatchSchema = z.object({
   sortOrder: z.coerce.number().int().min(0).max(100000).optional(),
   price: z.coerce.number().min(0, 'السعر يجب أن يكون صفراً أو أكثر').nullable().optional(),
   hours: z.coerce.number().int().min(1, 'الساعات يجب أن تكون أكبر من صفر').max(10000).optional(),
+  maxStudyDays: z.coerce.number().int().min(1, 'المدة القصوى يجب أن تكون يومًا واحدًا على الأقل').max(3650).nullable().optional(),
   credentialType: z.enum(CREDENTIAL_TYPES).nullable().optional(),
   trademarkNotice: z.string().trim().max(1200).nullable().optional(),
   disclosureConsentText: z.string().trim().max(2000).nullable().optional(),
@@ -115,6 +116,7 @@ function programSnapshot(program: any) {
     sortOrder: program.order,
     price: program.price,
     hours: program.hours,
+    maxStudyDays: program.maxStudyDays ?? null,
     credentialType: program.credentialType || null,
     trademarkNotice: program.trademarkNotice || null,
     disclosureConsentText: program.disclosureConsentText || null,
@@ -152,6 +154,7 @@ export async function GET() {
       titleEn: true,
       category: true,
       hours: true,
+      maxStudyDays: true,
       price: true,
       active: true,
       order: true,
@@ -341,6 +344,7 @@ export async function PUT(req: NextRequest) {
         description: true,
         category: true,
         hours: true,
+        maxStudyDays: true,
         price: true,
         icon: true,
         features: true,
@@ -404,6 +408,7 @@ export async function PUT(req: NextRequest) {
       if (programPatch.sortOrder !== undefined) data.order = programPatch.sortOrder
       if (programPatch.price !== undefined) data.price = programPatch.price === null ? null : Number(programPatch.price)
       if (programPatch.hours !== undefined) data.hours = Number(programPatch.hours)
+      if (programPatch.maxStudyDays !== undefined) data.maxStudyDays = programPatch.maxStudyDays === null ? null : Number(programPatch.maxStudyDays)
       if (programPatch.credentialType !== undefined) data.credentialType = programPatch.credentialType || null
       if (programPatch.trademarkNotice !== undefined) data.trademarkNotice = programPatch.trademarkNotice || null
       if (programPatch.disclosureConsentText !== undefined) data.disclosureConsentText = programPatch.disclosureConsentText || null

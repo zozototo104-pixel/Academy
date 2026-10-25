@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { PaymentsTab, ThesisTab, CertificatesTab, TranscriptTab } from '@/components/aact/DashboardExtras'
 import { StudentSupervisionTab } from '@/components/aact/StudentSupervisionTab'
+import StudentReminderBanner from '@/components/aact/StudentReminderBanner'
 import { StudentLectures } from '@/components/aact/StudentLectures'
 import {
   BookOpen, ClipboardCheck, ChevronLeft, Loader2, Lock,
@@ -646,14 +647,20 @@ export function DashboardView() {
     return { semester, exam, semesterBooks, semesterUnits, semesterAssignments, hours, booksHours, unitsHours, assignmentsHours, revisionHours }
   }) || []
 
-  const publishedScheduleGrouped = studyScheduleItems.reduce<Record<number, StudentStudyScheduleItem[]>>((acc, item) => {
-    acc[item.week] = acc[item.week] || []
-    acc[item.week].push(item)
+  // التجميع بالفصل أولًا ثم الأسبوع — تجميع الأسبوع وحده كان يخلط
+  // أسبوع 1 من الفصل الأول مع أسبوع 1 من الفصل الثاني في مجموعة واحدة.
+  const publishedScheduleGrouped = studyScheduleItems.reduce<Record<string, StudentStudyScheduleItem[]>>((acc, item) => {
+    const key = `${item.semester}:${item.week}`
+    acc[key] = acc[key] || []
+    acc[key].push(item)
     return acc
   }, {})
   const publishedScheduleWeeks = Object.entries(publishedScheduleGrouped)
-    .map(([week, weekItems]) => ({ week: Number(week), items: weekItems.sort((a, b) => (a.dayOffset || 0) - (b.dayOffset || 0) || a.order - b.order) }))
-    .sort((a, b) => a.week - b.week)
+    .map(([key, weekItems]) => {
+      const [semester, week] = key.split(':').map(Number)
+      return { semester, week, items: weekItems.sort((a, b) => (a.dayOffset || 0) - (b.dayOffset || 0) || a.order - b.order) }
+    })
+    .sort((a, b) => a.semester - b.semester || a.week - b.week)
 
   const formatScheduleDate = (value?: string | null) => {
     if (!value) return ''
@@ -819,6 +826,8 @@ export function DashboardView() {
           </div>
         </div>
       </div>
+
+      <StudentReminderBanner />
 
       {studentSummary && (
         <details className="mb-6 rounded-[2rem] border border-[#0f2b46]/10 bg-white/90 p-3 shadow-sm">
@@ -1310,8 +1319,8 @@ export function DashboardView() {
                       </div>
                       <div className="space-y-3">
                         {publishedScheduleWeeks.map((week) => (
-                          <div key={week.week} className="rounded-2xl border border-slate-100 bg-[#f8fafc] p-3">
-                            <p className="mb-2 text-xs font-black text-[#0f2b46]">الأسبوع {week.week}</p>
+                          <div key={`${week.semester}-${week.week}`} className="rounded-2xl border border-slate-100 bg-[#f8fafc] p-3">
+                            <p className="mb-2 text-xs font-black text-[#0f2b46]">الفصل {week.semester} — الأسبوع {week.week}</p>
                             <div className="space-y-2">
                               {week.items.map((item) => {
                                 const canOpen = Boolean(item.unitId || item.examId || item.assignmentId || item.studyGuideId)

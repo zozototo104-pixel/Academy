@@ -30,6 +30,7 @@ model User {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   enrollments    Enrollment[]
+  extensionRequests ProgramExtensionRequest[]
   examAttempts   ExamAttempt[]
   examDrafts     ExamDraft[]
   chatMessages   ChatMessage[]
@@ -317,6 +318,7 @@ model Program {
   active      Boolean      @default(true)
   // جاهزية المنهج الأكاديمي: التسجيل قد يبقى مفتوحاً حتى لو كان المنهج قيد التجهيز
   semestersCount          Int?     // عدد الفصول المعتمد لإكمال البرنامج
+  maxStudyDays            Int?     // المدة القصوى للدراسة بالأيام، لكل برنامج لحاله (فارغ = الافتراضي حسب النوع: دبلوم 90، ماجستير/دكتوراه 180)
   academicReadinessStatus String   @default("NEEDS_PREPARATION") // NEEDS_PREPARATION | IN_PREPARATION | READY_FOR_REVIEW | APPROVED
   registrationStatus      String   @default("OPEN") // OPEN | CLOSED
   academicApproved        Boolean  @default(false)
@@ -326,6 +328,7 @@ model Program {
   curriculumPreparationNote String?
   units       Unit[]
   enrollments Enrollment[]
+  extensionRequests ProgramExtensionRequest[]
   books       Book[]
   knowledgeItems BookKnowledgeItem[]
   questionBankItems QuestionBankItem[]
@@ -603,6 +606,8 @@ model Enrollment {
   status         String    @default("ACTIVE") // ACTIVE | COMPLETED
   completedUnits String    @default("[]") // JSON array of unit ids
   examReadiness  String    @default("[]") // JSON array of semester numbers the student explicitly marked ready for
+  extensionDays  Int       @default(0) // مجموع أيام التمديد الممنوحة من الأدمن (تُضاف للمدة القصوى)
+  lastReminderAt DateTime? // آخر يوم أُرسل فيه تذكير يومي لهذا التسجيل (منع التكرار بنفس اليوم)
   finalScore     Float?
   certificateNo  String?
   createdAt      DateTime  @default(now())
@@ -611,6 +616,7 @@ model Enrollment {
   program        Program   @relation(fields: [programId], references: [id], onDelete: Restrict)
   payments       Payment[]
   certificates   Certificate[]
+  extensionRequests ProgramExtensionRequest[]
 
   @@unique([userId, programId])
 }
@@ -2216,4 +2222,26 @@ model ServiceDeliverable {
   @@index([type])
   @@index([visibleToStudent])
   @@index([storageProvider])
+}
+
+model ProgramExtensionRequest {
+  id           String     @id @default(cuid())
+  enrollmentId String
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Restrict)
+  programId    String
+  program      Program    @relation(fields: [programId], references: [id], onDelete: Restrict)
+  requestedDays Int
+  reason       String
+  status       String     @default("PENDING") // PENDING | APPROVED | REJECTED
+  grantedDays  Int?
+  adminNote    String?
+  decidedById  String?
+  decidedAt    DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([enrollmentId, status])
+  @@index([status, createdAt])
 }

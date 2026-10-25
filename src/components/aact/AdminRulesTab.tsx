@@ -88,6 +88,7 @@ interface ProgramDraft {
   sortOrder: number
   price?: number | null
   hours?: number | null
+  maxStudyDays?: number | null
   credentialType?: string | null
   trademarkNotice?: string | null
   disclosureConsentText?: string | null
@@ -101,6 +102,7 @@ interface ProgramRules {
   description?: string | null
   category: string
   hours?: number | null
+  maxStudyDays?: number | null
   price?: number | null
   icon?: string | null
   features?: string[]
@@ -176,6 +178,7 @@ function programDraftFromProgram(p: ProgramRules): ProgramDraft {
     sortOrder: p.program?.sortOrder ?? p.sortOrder ?? 0,
     price: p.program?.price ?? p.price ?? null,
     hours: p.program?.hours ?? p.hours ?? null,
+    maxStudyDays: p.program?.maxStudyDays ?? (p as any).maxStudyDays ?? null,
     credentialType: p.program?.credentialType ?? p.credentialType ?? null,
     trademarkNotice: p.program?.trademarkNotice ?? p.trademarkNotice ?? '',
     disclosureConsentText: p.program?.disclosureConsentText ?? p.disclosureConsentText ?? '',
@@ -931,6 +934,11 @@ export function AdminRulesTab() {
                         <div>
                           <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">عدد الساعات</label>
                           <Input type="number" min={1} className="text-xs" value={programDraft.hours ?? ''} onChange={(e) => patchProgramDraft({ hours: e.target.value === '' ? null : Number(e.target.value) })} />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[11px] font-black text-[#0f2b46]">المدة القصوى للدراسة (بالأيام) — لكل برنامج لحاله</label>
+                          <Input type="number" min={1} max={3650} className="text-xs" value={programDraft.maxStudyDays ?? ''} placeholder="فارغ = دبلوم 90، ماجستير/دكتوراه 180" onChange={(e) => patchProgramDraft({ maxStudyDays: e.target.value === '' ? null : Number(e.target.value) })} />
+                          <p className="mt-1 text-[10px] font-bold leading-5 text-slate-500">اتركه فارغًا لاستخدام الافتراضي حسب نوع البرنامج. عند انتهاء المدة يُغلق البرنامج ويُرصَّد الدرجة، إلا بتمديد من الأدمن.</p>
                         </div>
                         <div className="rounded-xl border bg-[#faf6ea] p-3 text-xs font-bold leading-6 text-[#0f2b46]">
                           سعر القسط المحسوب سيظهر هنا بعد ربط خطة الأقساط الخاصة بالبرنامج.
