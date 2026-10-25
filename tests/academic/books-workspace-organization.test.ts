@@ -23,7 +23,7 @@ const ORIGINAL_FUNCTION_HASHES: Record<string, string> = {
   refreshProgramReadiness: '4bcfeaf821451def388c4916edb0936aea32d71c97d29a4d6e9752cbcbdd2fd8',
   suggest: 'badc7e266c544800eb1267d3d21901d3e2490f13add7025389f8ab81b2cc671a',
 }
-const ORIGINAL_API_CALL_COUNT = 77
+const ORIGINAL_API_CALL_COUNT = 78
 // بصمة سطح النداءات من تعبير الاستدعاء الكامل (المسار + الخيارات: الطريقة والجسم والترويسات)،
 // لا من العنوان وحده — أي تغيير في عقد أي طلب يغيّر البصمة.
 // تحديث مقصود 2026-10-25 (PR #136): النداء 77 الوحيد المضاف هو تحليل الذكاء
@@ -32,7 +32,11 @@ const ORIGINAL_API_CALL_COUNT = 77
 // تحديث مقصود 2026-10-25-a (موعد الواجب الثابت + فيديوهات): العدد بقي 77،
 // ونداء واحد فقط تغيّر جسمه — إضافة واجب مقترح مباشرة (POST /api/admin/assignments)
 // صار يرسل dueDays: null و dueAt: null بدل موعد مقترح من الذكاء؛ باقي النداءات لم تُمسّ.
-const ORIGINAL_API_DIGEST = '5c270ef126c293fa4302c09984401fa9b9a558452d3eb9cb1892dd47ccde92f0'
+// تحديث مقصود 2026-10-25-f (PR #141 إعادة تحقق الختم): العدد صار 78،
+// والنداء الوحيد المضاف هو إعادة التحقق (POST /api/admin/units/[id]/questions/reverify-grounding)
+// — تم التحقق بمقارنة سطح النداءات مع main: إضافة واحدة فقط، ولا حذف ولا تعديل لأي نداء قديم،
+// وأجسام الدوال المحمية ما زالت مطابقة (الاختبار الأول ما زال ينجح).
+const ORIGINAL_API_DIGEST = '81b0d4bf8e94080da55ba5d2ed35af684b08a9a02d4cd7cb5dd1c7a2463650df'
 
 function parseSource() {
   return ts.createSourceFile('AdminBooks.tsx', SOURCE, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
