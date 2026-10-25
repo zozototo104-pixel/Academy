@@ -10,14 +10,27 @@ function addDays(date: Date, days: number) {
   return next
 }
 
+// إزاحة العنصر الفعالة بالأيام من بداية برنامجه.
+// يوم العنصر المخزن قد يكون تراكميًا من بداية البرنامج، أو يومًا داخل
+// أسبوعه فقط (التوليد يكتب 0..6 لكل أسبوع من جديد). إذا كان الرقم أصغر
+// من بداية أسبوعه فهو داخل-أسبوعي ونضيف قاعدة الأسبوع؛ وإلا فهو تراكمي
+// ونتركه كما هو حتى لا نضاعف حساب الجداول الصحيحة أصلًا. بدون هذا
+// التطبيع كان الأسبوع 2 وما بعده ينطبع على تواريخ الأسبوع 1 (لأن الكود
+// كان يأخذ dayOffset ويتجاهل رقم الأسبوع كليًا متى وُجد).
+function effectiveOffset(item: any): number {
+  const week = Number.isFinite(item.week) ? item.week : 1
+  const weekBase = Math.max(0, (week - 1) * 7)
+  if (item.dayOffset == null) return weekBase
+  return item.dayOffset < weekBase ? weekBase + item.dayOffset : item.dayOffset
+}
+
 // الفصول متتابعة، لا متداخلة: أسبوع 1 من الفصل الثاني يبدأ بعد انتهاء
 // الفصل الأول كاملًا، لا مع أسبوع 1 من الفصل الأول. مدة كل فصل = أقصى
-// إزاحة فيه + أسبوع (أسبوع العنصر الأخير نفسه).
+// إزاحة فعالة فيه + أسبوع (أسبوع العنصر الأخير نفسه).
 function semesterBaseOffsets(items: any[]): Map<number, number> {
   const bySemester = new Map<number, number>()
   for (const item of items) {
-    const offset = item.dayOffset ?? Math.max(0, (item.week - 1) * 7)
-    const span = offset + 7
+    const span = effectiveOffset(item) + 7
     bySemester.set(item.semester, Math.max(bySemester.get(item.semester) || 0, span))
   }
   const bases = new Map<number, number>()
@@ -30,7 +43,7 @@ function semesterBaseOffsets(items: any[]): Map<number, number> {
 }
 
 function mapItem(item: any, enrollmentCreatedAt: Date, semesterBase = 0) {
-  const offset = semesterBase + (item.dayOffset ?? Math.max(0, (item.week - 1) * 7))
+  const offset = semesterBase + effectiveOffset(item)
   return {
     id: item.id,
     programId: item.programId,
