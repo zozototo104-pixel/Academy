@@ -5,6 +5,7 @@ import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { notify } from '@/lib/notify'
 import { cleanAcademicOutput, looksLikeBrokenGeneratedArabic } from '@/lib/academic-output-quality'
 import { getStorageDownloadPathForKey, storeFileBuffer, storageErrorMessage } from '@/lib/storage'
+import { assignmentDueAt as dueDateFrom } from '@/lib/assignment-due-date'
 import { validateAdmissionFileSignature } from '@/lib/file-signature'
 
 const MAX_FILE_SIZE = 6 * 1024 * 1024
@@ -20,15 +21,8 @@ const ALLOWED_MIME = new Set([
 ])
 const ALLOWED_EXT = /\.(pdf|doc|docx|xls|xlsx|txt|png|jpe?g)$/i
 
-function dueDateFrom(enrolledAt: Date, dueDays?: number | null) {
-  if (!dueDays) return null
-  const d = new Date(enrolledAt)
-  d.setDate(d.getDate() + dueDays)
-  return d
-}
-
 function mapAssignment(a: any, enrollmentCreatedAt: Date) {
-  const dueAt = dueDateFrom(enrollmentCreatedAt, a.dueDays)
+  const dueAt = dueDateFrom(enrollmentCreatedAt, a.dueDays, a.dueAt)
   const submission = a.submissions?.[0] || null
   const title = cleanAcademicOutput(a.title, 220)
   const description = cleanAcademicOutput(a.description, 6000)
@@ -147,7 +141,7 @@ export async function POST(req: NextRequest) {
 
     const enrollment = await db.enrollment.findFirst({ where: { userId: user.id, programId: assignment.programId, status: { in: ['ACTIVE', 'COMPLETED'] } } })
     if (!enrollment) return NextResponse.json({ error: 'هذا الواجب خاص ببرنامج غير مسجل في حسابك' }, { status: 403 })
-    const dueAt = dueDateFrom(enrollment.createdAt, assignment.dueDays)
+    const dueAt = dueDateFrom(enrollment.createdAt, assignment.dueDays, (assignment as any).dueAt)
     if (dueAt && Date.now() > dueAt.getTime()) return NextResponse.json({ error: 'انتهى موعد التسليم' }, { status: 400 })
     const existingSubmission = await db.assignmentSubmission.findUnique({ where: { assignmentId_userId: { assignmentId, userId: user.id } }, select: { status: true } })
     if (existingSubmission?.status === 'GRADED') return NextResponse.json({ error: 'لا يمكن إعادة تسليم واجب تم تقييمه' }, { status: 409 })

@@ -2003,7 +2003,8 @@ model ProgramAssignment {
   type        String   @default("REPORT") // REPORT | CASE_STUDY | SUMMARY | PROJECT | REFLECTION
   points      Int      @default(10)
   weight      Int      @default(0)  // وزن الواجب داخل الدرجة النهائية إن قررت الإدارة احتسابه
-  dueDays     Int?     // عدد الأيام المتاحة من تاريخ تسجيل الطالب
+  dueDays     Int?     // عدد الأيام المتاحة من تاريخ تسجيل الطالب (قديم؛ يُستخدم فقط إذا لم يُحدد dueAt)
+  dueAt       DateTime? // آخر موعد تسليم ثابت بتاريخ التقويم، نفس التاريخ لكل الطلاب (يُقدَّم على dueDays)
   rubric      String?  // JSON array أو نص معايير التصحيح
   status      String   @default("PUBLISHED") // DRAFT | PUBLISHED | ARCHIVED
   createdAt   DateTime @default(now())

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
-import { auditLecture, canManageProgram, requireLectureManager } from '@/lib/lectures/manage'
+import { auditLecture, canManageProgram, isAdmin, requireLectureManager } from '@/lib/lectures/manage'
 import { isLecturesEnabled } from '@/lib/lectures/config'
 import { isUnconfirmedLectureUpload } from '@/lib/lectures/video-storage'
+import { deleteStoredFile } from '@/lib/storage'
 
 const patchVideoSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -74,5 +75,41 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: 'غير مصرّح' }, { status: 401 })
     }
     return NextResponse.json({ error: 'خطأ في تعديل الفيديو' }, { status: 500 })
+  }
+}
+
+// DELETE /api/admin/lectures/videos/[id] — حذف فيديو، للأدمن فقط.
+// سجل تقدم المشاهدة المرتبط بالفيديو يُحذف معه تلقائيًا (Cascade في المخطط).
+// ملف التخزين الخاص (S3/محلي) يُحذف بأفضل جهد؛ فشل حذف الملف لا يمنع حذف
+// السجل، لكنه يُسجَّل في التدقيق. روابط يوتيوب/خارجية لا تُمسّ أصلًا.
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const actor = await requireLectureManager()
+    if (!isLecturesEnabled()) {
+      return NextResponse.json({ error: 'المحاضرات غير مفعّلة حاليًا' }, { status: 404 })
+    }
+    if (!isAdmin(actor)) {
+      return NextResponse.json({ error: 'حذف الفيديو صلاحية الأدمن فقط' }, { status: 403 })
+    }
+    const { id } = await params
+    const video = await db.lectureVideoResource.findUnique({ where: { id } })
+    if (!video) return NextResponse.json({ error: 'الفيديو غير موجود' }, { status: 404 })
+    let storageDeleted: boolean | null = null
+    if (video.storageKey) {
+      storageDeleted = await deleteStoredFile(video.storageKey)
+    }
+    await db.lectureVideoResource.delete({ where: { id } })
+    await auditLecture(actor, 'LECTURE_VIDEO_DELETED', 'LectureVideoResource', id, {
+      title: video.title,
+      source: video.source,
+      status: video.status,
+      storageDeleted,
+    })
+    return NextResponse.json({ deleted: true, storageDeleted })
+  } catch (e: any) {
+    if (e?.message === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'غير مصرّح' }, { status: 401 })
+    }
+    return NextResponse.json({ error: 'خطأ في حذف الفيديو' }, { status: 500 })
   }
 }
