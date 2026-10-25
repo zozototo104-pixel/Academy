@@ -358,8 +358,13 @@ export async function emailExamPublished(to: string, name: string, program: stri
   await sendEmail({ to, event: 'EXAM_PUBLISHED', subject: `امتحان الفصل متاح الآن — ${program}`, html: emailTemplate('امتحان الفصل الدراسي أصبح متاحاً 📝', `<p>${greeting(name)}،</p>${infoRows([{ label: 'البرنامج', value: program }, { label: 'عدد الأسئلة', value: String(questionsCount) }, { label: 'مدة الامتحان', value: `${durationMin} دقيقة` }])}`, { label: 'دخول الامتحان', url: appLink('/?view=dashboard') }) })
 }
 
-export async function emailAssignmentPublished(to: string, name: string, program: string, assignmentTitle: string, dueDays?: number | null) {
-  await sendEmail({ to, event: 'ASSIGNMENT_PUBLISHED', subject: `واجب جديد متاح — ${assignmentTitle}`, html: emailTemplate('تم نشر واجب جديد 📌', `<p>${greeting(name)}،</p>${infoRows([{ label: 'البرنامج', value: program }, { label: 'عنوان الواجب', value: assignmentTitle }, { label: 'المهلة', value: dueDays ? `${dueDays} يوم من تاريخ النشر` : 'حسب تعليمات الإدارة داخل المنصة' }])}`, { label: 'فتح الواجبات', url: appLink('/?view=dashboard') }) })
+export async function emailAssignmentPublished(to: string, name: string, program: string, assignmentTitle: string, dueDays?: number | null, dueAt?: Date | string | null) {
+  const deadlineLabel = dueAt
+    ? `آخر موعد: ${new Date(dueAt).toLocaleDateString('ar-EG')}`
+    : dueDays
+      ? `${dueDays} يوم من تاريخ النشر`
+      : 'حسب تعليمات الإدارة داخل المنصة'
+  await sendEmail({ to, event: 'ASSIGNMENT_PUBLISHED', subject: `واجب جديد متاح — ${assignmentTitle}`, html: emailTemplate('تم نشر واجب جديد 📌', `<p>${greeting(name)}،</p>${infoRows([{ label: 'البرنامج', value: program }, { label: 'عنوان الواجب', value: assignmentTitle }, { label: 'المهلة', value: deadlineLabel }])}`, { label: 'فتح الواجبات', url: appLink('/?view=dashboard') }) })
 }
 
 export async function emailAssignmentGraded(to: string, name: string, assignmentTitle: string, status: string, score?: number | null, points?: number | null, feedback?: string | null) {

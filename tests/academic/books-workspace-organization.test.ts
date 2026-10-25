@@ -29,7 +29,10 @@ const ORIGINAL_API_CALL_COUNT = 77
 // تحديث مقصود 2026-10-25 (PR #136): النداء 77 الوحيد المضاف هو تحليل الذكاء
 // للأدمن (POST /api/supervisor/assignments {action:'analyze'}) — مسودة فقط، بلا حفظ.
 // تم التحقق أن النداءات 76 القديمة لم تتغير ولم يُحذف منها شيء.
-const ORIGINAL_API_DIGEST = '98007af4debda1b38476d3c6d391ed836af74d1315f9e40cbed07684073ca9cc'
+// تحديث مقصود 2026-10-25-a (موعد الواجب الثابت + فيديوهات): العدد بقي 77،
+// ونداء واحد فقط تغيّر جسمه — إضافة واجب مقترح مباشرة (POST /api/admin/assignments)
+// صار يرسل dueDays: null و dueAt: null بدل موعد مقترح من الذكاء؛ باقي النداءات لم تُمسّ.
+const ORIGINAL_API_DIGEST = '5c270ef126c293fa4302c09984401fa9b9a558452d3eb9cb1892dd47ccde92f0'
 
 function parseSource() {
   return ts.createSourceFile('AdminBooks.tsx', SOURCE, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)

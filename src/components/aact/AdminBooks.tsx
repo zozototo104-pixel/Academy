@@ -218,6 +218,7 @@ interface AssignmentRow {
   points: number
   weight: number
   dueDays?: number | null
+  dueAt?: string | null
   rubric?: string | null
   status: string
   submissionsCount: number
@@ -231,7 +232,8 @@ interface AssignmentSuggestion {
   semester: number
   points: number
   weight: number
-  dueDays: number
+  dueDays: number | null
+  dueAt?: string | null
   rubric: string
   sourceKnowledgeTitles: string[]
   added?: boolean
@@ -712,7 +714,7 @@ export function AdminBooksTab() {
   const [examKickFailures, setExamKickFailures] = useState<Record<string, { count: number; blocked: boolean; message: string }>>({})
   const examKickFailuresRef = useRef<Record<string, { count: number; blocked: boolean; message: string }>>({})
   const [form, setForm] = useState({ title: '', titleEn: '', author: '', year: '', description: '', semester: '', link: '' })
-  const [assignmentForm, setAssignmentForm] = useState({ id: '', title: '', description: '', semester: '1', type: 'REPORT', points: '10', weight: '0', dueDays: '', rubric: '', status: 'PUBLISHED' })
+  const [assignmentForm, setAssignmentForm] = useState({ id: '', title: '', description: '', semester: '1', type: 'REPORT', points: '10', weight: '0', dueDays: '', dueAt: '', rubric: '', status: 'PUBLISHED' })
   const [savingAssignment, setSavingAssignment] = useState(false)
   const [gradingSubmissionId, setGradingSubmissionId] = useState<string | null>(null)
   const [gradingStatusFilter, setGradingStatusFilter] = useState('PENDING')
@@ -2184,7 +2186,7 @@ export function AdminBooksTab() {
     }
   }
 
-  const resetAssignmentForm = () => setAssignmentForm({ id: '', title: '', description: '', semester: '1', type: 'REPORT', points: '10', weight: '0', dueDays: '', rubric: '', status: 'PUBLISHED' })
+  const resetAssignmentForm = () => setAssignmentForm({ id: '', title: '', description: '', semester: '1', type: 'REPORT', points: '10', weight: '0', dueDays: '', dueAt: '', rubric: '', status: 'PUBLISHED' })
 
   const suggestAssignments = async () => {
     if (!programId) return
@@ -2214,7 +2216,8 @@ export function AdminBooksTab() {
       type: s.type || 'CASE_STUDY',
       points: String(s.points || 15),
       weight: String(s.weight || 0),
-      dueDays: String(s.dueDays || ''),
+      dueDays: '',
+      dueAt: '',
       rubric: s.rubric || '',
       status: 'PUBLISHED',
     })
@@ -2234,7 +2237,8 @@ export function AdminBooksTab() {
           type: s.type,
           points: s.points,
           weight: s.weight,
-          dueDays: s.dueDays,
+          dueDays: null,
+          dueAt: null,
           rubric: s.rubric,
           status: 'PUBLISHED',
         }),
@@ -2265,6 +2269,7 @@ export function AdminBooksTab() {
       points: String(a.points || 10),
       weight: String(a.weight || 0),
       dueDays: a.dueDays ? String(a.dueDays) : '',
+      dueAt: a.dueAt ? String(a.dueAt).slice(0, 10) : '',
       rubric: a.rubric || '',
       status: a.status || 'PUBLISHED',
     })
@@ -3191,8 +3196,11 @@ export function AdminBooksTab() {
                   <Textarea rows={3} value={assignmentForm.description} onChange={(e) => setAssignmentForm({ ...assignmentForm, description: e.target.value })} placeholder="اكتب المطلوب من الطالب، طريقة التحليل، وعدد الكلمات أو شكل الملف المطلوب" className="mt-1 text-xs" />
                 </div>
                 <div>
-                  <Label className="text-[10px] font-black text-slate-500">مدة التسليم بالأيام</Label>
-                  <Input type="number" value={assignmentForm.dueDays} onChange={(e) => setAssignmentForm({ ...assignmentForm, dueDays: e.target.value })} placeholder="اختياري" className="mt-1 text-xs" />
+                  <Label className="text-[10px] font-black text-slate-500">آخر موعد تسليم الواجب (تاريخ ثابت لكل الطلاب)</Label>
+                  <Input type="date" value={assignmentForm.dueAt} onChange={(e) => setAssignmentForm({ ...assignmentForm, dueAt: e.target.value })} className="mt-1 text-xs" />
+                  {assignmentForm.id && !assignmentForm.dueAt && assignmentForm.dueDays ? (
+                    <p className="mt-1 text-[10px] font-bold text-amber-700">موعد قديم محسوب بالأيام: {assignmentForm.dueDays} يوم من تسجيل الطالب — حدّد تاريخًا أعلاه لاستبداله، أو اتركه فاضيًا ليبقى الحساب القديم.</p>
+                  ) : null}
                 </div>
                 <div>
                   <Label className="text-[10px] font-black text-slate-500">الحالة</Label>

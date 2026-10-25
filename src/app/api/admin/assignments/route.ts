@@ -41,6 +41,7 @@ function mapAssignment(a: any) {
     points: a.points,
     weight: a.weight,
     dueDays: a.dueDays,
+    dueAt: (a as any).dueAt || null,
     rubric,
     status: a.status,
     createdAt: a.createdAt,
@@ -122,6 +123,14 @@ export async function POST(req: NextRequest) {
       points: asInt(body.points, 10, 1, 100),
       weight: asInt(body.weight, 0, 0, 100),
       dueDays: body.dueDays === '' || body.dueDays == null ? null : asInt(body.dueDays, 14, 1, 365),
+      // تاريخ ثابت يحدده الأدمن؛ إذا وُضع، يُقدَّم على المدة بالأيام عند الطالب.
+      // تاريخ بدون وقت يُفسَّر على أنه نهاية ذلك اليوم (23:59:59 بتوقيت UTC)
+      // حتى لا يُحظر الطالب في بداية اليوم الذي اختاره الأدمن.
+      dueAt: body.dueAt === '' || body.dueAt == null ? null : (() => {
+        const raw = String(body.dueAt).trim()
+        const d = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? new Date(`${raw}T23:59:59.999Z`) : new Date(raw)
+        return Number.isNaN(d.getTime()) ? null : d
+      })(),
       rubric: asString(body.rubric, 4000) || null,
       status: asStatus(body.status),
     }
@@ -136,7 +145,7 @@ export async function POST(req: NextRequest) {
         const enrollments = await db.enrollment.findMany({ where: { programId, status: 'ACTIVE' }, select: { userId: true, user: { select: { name: true, email: true } } } })
         await Promise.all(enrollments.map(async (e) => {
           await notify(e.userId, 'ASSIGNMENT', 'واجب جديد منشور', `تم نشر واجب «${assignment.title}» في ${program.titleAr}`, 'dashboard')
-          if (e.user?.email) await emailAssignmentPublished(e.user.email, e.user.name || 'الطالب', program.titleAr, assignment.title, assignment.dueDays)
+          if (e.user?.email) await emailAssignmentPublished(e.user.email, e.user.name || 'الطالب', program.titleAr, assignment.title, assignment.dueDays, (assignment as any).dueAt)
         }))
       }
     } else {
@@ -146,7 +155,7 @@ export async function POST(req: NextRequest) {
         const enrollments = await db.enrollment.findMany({ where: { programId, status: 'ACTIVE' }, select: { userId: true, user: { select: { name: true, email: true } } } })
         await Promise.all(enrollments.map(async (e) => {
           await notify(e.userId, 'ASSIGNMENT', 'واجب جديد', `تم إضافة واجب «${assignment.title}» ضمن ${program.titleAr}`, 'dashboard')
-          if (e.user?.email) await emailAssignmentPublished(e.user.email, e.user.name || 'الطالب', program.titleAr, assignment.title, assignment.dueDays)
+          if (e.user?.email) await emailAssignmentPublished(e.user.email, e.user.name || 'الطالب', program.titleAr, assignment.title, assignment.dueDays, (assignment as any).dueAt)
         }))
       }
     }

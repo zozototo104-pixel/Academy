@@ -15,7 +15,9 @@ interface AssignmentSuggestion {
   semester: number
   points: number
   weight: number
-  dueDays: number
+  // لا موعد من الذكاء أبدًا: الأدمن يحدد تاريخ التسليم الثابت قبل النشر.
+  dueDays: number | null
+  dueAt: null
   rubric: string
   sourceKnowledgeTitles: string[]
   sourceKnowledgeIds: string[]
@@ -86,7 +88,8 @@ function normalizeSuggestions(raw: any[], semester: number, allowedIds: Set<stri
       semester: asInt(item?.semester, semester, 1, 3),
       points: asInt(item?.points, 15, 5, 100),
       weight: asInt(item?.weight, 0, 0, 100),
-      dueDays: asInt(item?.dueDays, 14, 1, 365),
+      dueDays: null,
+      dueAt: null,
       rubric: cleanAssignmentText(item?.rubric, '', 1600) || 'الاستناد إلى مصادر الوحدة 30%، جودة التحليل 30%، التطبيق المهني 25%، وضوح العرض 15%',
       sourceKnowledgeTitles: sourceTitles,
       sourceKnowledgeIds: Array.from(new Set<string>(ids)),
@@ -135,7 +138,7 @@ export async function POST(req: NextRequest) {
     const allowedIds = new Set<string>(knowledge.map((k) => String(k.id)))
     const knowledgeContext = knowledge.slice(0, 60).map((k, i) => `${i + 1}. id=${k.id}\nالوحدة: ${k.unitTitle}\nالعنوان: ${titleFromKnowledge(k)}\nالفئة: ${k.category}\nالصفحات: ${k.pageStart ?? '؟'}–${k.pageEnd ?? k.pageStart ?? '؟'}\nالملخص: ${cleanAssignmentText(k.summary, '', 520)}\nالمقتطف: ${cleanAssignmentText(k.excerpt, '', 520)}`).join('\n\n')
 
-    const prompt = `صمم 4 إلى 6 واجبات أكاديمية من عناصر معرفة v2 داخل نطاق الوحدات فقط.\n\nالبرنامج: ${program.titleAr}\nالفصل: ${semester === 2 ? 'الثاني' : semester === 3 ? 'بحث/مشروع' : 'الأول'}\nالواجبات الموجودة لتجنب التكرار: ${existingTitles || 'لا يوجد'}\n\nمصادر الوحدة المسموحة:\n${knowledgeContext}\n\nأرجع JSON array فقط. كل واجب يجب أن يحتوي title, description, type, semester, points, weight, dueDays, rubric, unitId, sourceKnowledgeIds, sourceKnowledgeTitles.\nقواعد إلزامية: sourceKnowledgeIds من ids أعلاه فقط، والوصف يذكر مراجع الصفحات، ولا تكتب واجباً عاماً أو قالبياً.`
+    const prompt = `صمم 4 إلى 6 واجبات أكاديمية من عناصر معرفة v2 داخل نطاق الوحدات فقط.\n\nالبرنامج: ${program.titleAr}\nالفصل: ${semester === 2 ? 'الثاني' : semester === 3 ? 'بحث/مشروع' : 'الأول'}\nالواجبات الموجودة لتجنب التكرار: ${existingTitles || 'لا يوجد'}\n\nمصادر الوحدة المسموحة:\n${knowledgeContext}\n\nأرجع JSON array فقط. كل واجب يجب أن يحتوي title, description, type, semester, points, weight, rubric, unitId, sourceKnowledgeIds, sourceKnowledgeTitles. لا تقترح أي موعد تسليم — الموعد يحدده الأدمن بتاريخ ثابت لاحقًا.\nقواعد إلزامية: sourceKnowledgeIds من ids أعلاه فقط، والوصف يذكر مراجع الصفحات، ولا تكتب واجباً عاماً أو قالبياً.`
 
     let raw = ''
     try {

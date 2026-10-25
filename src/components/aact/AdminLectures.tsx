@@ -20,6 +20,7 @@ import {
   Pencil,
   Plus,
   RefreshCw,
+  Trash2,
   Video,
   XCircle,
 } from 'lucide-react'
@@ -48,6 +49,7 @@ type SessionRow = {
 type VideoRow = {
   id: string
   title: string
+  description: string | null
   source: string
   status: string
   programId: string
@@ -109,6 +111,9 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
   const [createOpen, setCreateOpen] = useState(false)
   const [videoOpen, setVideoOpen] = useState(false)
   const [editSession, setEditSession] = useState<SessionRow | null>(null)
+  const [editVideo, setEditVideo] = useState<VideoRow | null>(null)
+  const [editVideoTitle, setEditVideoTitle] = useState('')
+  const [editVideoDescription, setEditVideoDescription] = useState('')
   const [postponeSession, setPostponeSession] = useState<SessionRow | null>(null)
   const [attendanceSession, setAttendanceSession] = useState<SessionRow | null>(null)
   const [attendance, setAttendance] = useState<AttendanceData | null>(null)
@@ -444,6 +449,36 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
                   >
                     {v.status === 'PUBLISHED' ? 'إلغاء النشر' : 'نشر'}
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => {
+                      setEditVideo(v)
+                      setEditVideoTitle(v.title)
+                      setEditVideoDescription(v.description || '')
+                    }}
+                  >
+                    <Pencil className="ml-1 h-4 w-4" /> تعديل
+                  </Button>
+                  {surface === 'admin' && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={busy}
+                      className="text-red-600"
+                      onClick={() => {
+                        if (window.confirm(`حذف فيديو «${v.title}» نهائيًا؟ سيختفي عن الطلاب، وسيُحذف سجل تقدم مشاهدته، وسيُحذف ملفه من التخزين إذا كان مرفوعًا عندنا. هذا الإجراء لا يمكن التراجع عنه.`)) {
+                          void act(
+                            () => api(`/api/admin/lectures/videos/${v.id}`, { method: 'DELETE' }),
+                            'حُذف الفيديو نهائيًا',
+                          )
+                        }
+                      }}
+                    >
+                      <Trash2 className="ml-1 h-4 w-4" /> حذف
+                    </Button>
+                  )}
                 </div>
               </div>
               )
@@ -487,6 +522,52 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
             setEditSession(null)
           }}
         />
+      )}
+      {editVideo && (
+        <Dialog open onOpenChange={(o) => !o && setEditVideo(null)}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>تعديل فيديو: {editVideo.title}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div>
+                <label className={labelClass}>العنوان</label>
+                <Input value={editVideoTitle} onChange={(e) => setEditVideoTitle(e.target.value)} />
+              </div>
+              <div>
+                <label className={labelClass}>الوصف</label>
+                <Textarea value={editVideoDescription} onChange={(e) => setEditVideoDescription(e.target.value)} />
+              </div>
+              <p className="text-[11px] text-slate-500">التعديل هنا للعنوان والوصف فقط — تغيير ملف الفيديو أو رابطه نفسه يتم بحذف الفيديو وإضافة فيديو جديد.</p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setEditVideo(null)}>
+                إلغاء
+              </Button>
+              <Button
+                disabled={busy || !editVideoTitle.trim()}
+                onClick={async () => {
+                  setBusy(true)
+                  try {
+                    await api(`/api/admin/lectures/videos/${editVideo.id}`, {
+                      method: 'PATCH',
+                      body: JSON.stringify({ title: editVideoTitle.trim(), description: editVideoDescription.trim() || null }),
+                    })
+                    toast({ title: 'حُدّث الفيديو' })
+                    setEditVideo(null)
+                    await load()
+                  } catch (e: any) {
+                    toast({ title: 'حدث خطأ', description: e?.message || 'حاول مجددًا', variant: 'destructive' })
+                  } finally {
+                    setBusy(false)
+                  }
+                }}
+              >
+                حفظ
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
       {postponeSession && (
         <PostponeDialog

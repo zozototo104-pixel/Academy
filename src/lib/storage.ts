@@ -220,7 +220,7 @@ function getS3Config() {
 }
 
 function signS3Request(args: {
-  method: 'GET' | 'PUT'
+  method: 'GET' | 'PUT' | 'DELETE'
   key: string
   payloadHash: string
   extraHeaders?: Record<string, string>
@@ -405,6 +405,42 @@ async function putToLocalStorage(input: { buffer: Buffer }, key: string, mimeTyp
     url: privateKey ? getStorageDownloadPathForKey(key) : `/uploads/${key}`,
     size: input.buffer.byteLength,
     mimeType,
+  }
+}
+
+/** حذف ملف مخزّن بأفضل جهد، بلا رمي أبدًا: يرجع true إذا حُذف أو لم يكن موجودًا أصلًا.
+ *  S3: طلب DELETE موقّع (حذف ملف غير موجود يرجع 404 ويُعامل كنجاح).
+ *  محلي: حذف من مجلدي الرفع الخاص والعام، مع تجاهل عدم الوجود. */
+export async function deleteStoredFile(keyInput: string): Promise<boolean> {
+  let key: string
+  try {
+    key = cleanStorageKey(keyInput)
+  } catch {
+    return false
+  }
+  try {
+    const signed = signS3Request({ method: 'DELETE', key, payloadHash: sha256Hex(Buffer.alloc(0)) })
+    if (signed) {
+      const res = await fetch(signed.url, { method: 'DELETE', headers: signed.headers })
+      return res.ok || res.status === 404
+    }
+  } catch {
+    // سقوط للمسار المحلي أدناه.
+  }
+  try {
+    const roots = [path.join(process.cwd(), '.data', 'private-uploads'), path.join(process.cwd(), 'public', 'uploads')]
+    let deleted = false
+    for (const root of roots) {
+      try {
+        await fs.unlink(path.join(root, key))
+        deleted = true
+      } catch (e: any) {
+        if (e?.code !== 'ENOENT') throw e
+      }
+    }
+    return deleted
+  } catch {
+    return false
   }
 }
 
