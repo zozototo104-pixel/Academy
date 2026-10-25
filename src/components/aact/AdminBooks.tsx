@@ -522,6 +522,7 @@ interface UnitQuestionReviewPayload {
   requiredQuestions: number
   readyToBuild: boolean
   publishable: boolean
+  ungroundedApproved?: number
   counts: { APPROVED: number; PENDING_REVIEW: number; REJECTED: number; total: number }
   questions: { APPROVED: QuestionBankItemRow[]; PENDING_REVIEW: QuestionBankItemRow[]; REJECTED: QuestionBankItemRow[] }
   exam: { id: string; title: string; status: string; generationWarning?: string | null; questionsCount: number } | null
@@ -678,6 +679,7 @@ export function AdminBooksTab() {
   const [questionBankDocumentationMessage, setQuestionBankDocumentationMessage] = useState('')
   const [questionBankOpen, setQuestionBankOpen] = useState(false)
   const [unitQuestionsOpen, setUnitQuestionsOpen] = useState(false)
+  const [unitReverifyBusy, setUnitReverifyBusy] = useState(false)
   const [unitQuestionsUnit, setUnitQuestionsUnit] = useState<CurriculumUnitReviewItem | null>(null)
   const [unitQuestions, setUnitQuestions] = useState<UnitQuestionReviewPayload | null>(null)
   const [unitQuestionsLoading, setUnitQuestionsLoading] = useState(false)
@@ -1534,6 +1536,21 @@ export function AdminBooksTab() {
       return null
     } finally {
       setUnitQuestionsLoading(false)
+    }
+  }
+
+  const reverifyUnitQuestions = async () => {
+    if (!unitQuestionsUnit || unitReverifyBusy) return
+    setUnitReverifyBusy(true)
+    try {
+      const res = await api<{ ok?: boolean; error?: string; stamped?: number; rejected?: number; pending?: number; skipped?: number; remaining?: number }>(`/api/admin/units/${unitQuestionsUnit.id}/questions/reverify-grounding`, { method: 'POST' })
+      toast({ title: `تم ختم ${res.stamped || 0} سؤال من أسئلة الوحدة المعتمدة`, description: `مرفوض: ${res.rejected || 0} · معلق: ${res.pending || 0} · متخطى: ${res.skipped || 0} · باقي: ${res.remaining || 0}` })
+      await loadUnitQuestions(unitQuestionsUnit.id)
+      if (programId) await refreshCurriculumUnits(programId)
+    } catch (e: any) {
+      toast({ title: 'تعذر إعادة التحقق', description: e.message, variant: 'destructive' })
+    } finally {
+      setUnitReverifyBusy(false)
     }
   }
 
@@ -4307,6 +4324,14 @@ export function AdminBooksTab() {
               </TabsContent>)}
             </Tabs>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-[#0f2b46]">
+              {(unitQuestions.ungroundedApproved || 0) > 0 && (
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <Button disabled={!unitQuestionsUnit || unitReverifyBusy} variant="outline" onClick={() => void reverifyUnitQuestions()} className="border-amber-200 bg-white text-amber-800">
+                    {unitReverifyBusy ? 'جارٍ التحقق...' : `إعادة تحقق من ${unitQuestions.ungroundedApproved} أسئلة معتمدة`}
+                  </Button>
+                  <span className="text-[11px] font-bold text-slate-500">يختم فقط الأسئلة المثبتة فعلًا من الكتاب؛ الباقي يبقى بدون ختم.</span>
+                </div>
+              )}
               {!unitQuestions.readyToBuild ? <div className="flex flex-wrap items-center gap-2">
                 <Button disabled={!unitQuestionsUnit || unitBusyId === unitQuestionsUnit?.id} onClick={() => runUnitQuestionPanelAction()} className="bg-[#0f2b46] text-[#f5f0e1]">توليد أسئلة إضافية (ناقص {unitQuestionMissing})</Button>
                 {unitQuestions.counts.total >= 3 && !unitQuestions.exam && <Button disabled={!unitQuestionsUnit || unitBusyId === unitQuestionsUnit?.id} variant="outline" onClick={() => runUnitQuestionPanelAction(unitQuestions.counts.total)} className="border-indigo-200 bg-white text-indigo-700">بناء مسودة من {unitQuestions.counts.total} أسئلة جاهزة</Button>}

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
-import { selectUnitExamQuestionsApprovedFirst, unitExamRequiredQuestions } from '@/lib/unit-exam-policy'
+import { selectUnitExamQuestionsApprovedFirst, unitExamQualityFlags, unitExamRequiredQuestions } from '@/lib/unit-exam-policy'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -94,11 +94,15 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     const candidates = questions.filter((item) => ['APPROVED', 'PENDING_REVIEW'].includes(item.status) && String(item.qualityFlags || '').includes('SOURCE_GROUNDED'))
     const selection = selectUnitExamQuestionsApprovedFirst(candidates.map((item) => ({ id: item.id, status: item.status, qualityFlags: item.qualityFlags })), requiredQuestions)
     const grouped = groupByStatus(questions)
+    const ungroundedApproved = items.filter(
+      (item) => item.status === 'APPROVED' && !unitExamQualityFlags(item.qualityFlags).includes('SOURCE_GROUNDED'),
+    ).length
     return NextResponse.json({
       unit: { id: unit.id, title: unit.title, programId: unit.programId },
       requiredQuestions,
       readyToBuild: selection.readyToBuild,
       publishable: selection.publishable,
+      ungroundedApproved,
       counts: {
         APPROVED: grouped.APPROVED.length,
         PENDING_REVIEW: grouped.PENDING_REVIEW.length,
