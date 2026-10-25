@@ -11,9 +11,23 @@ export const maxDuration = 300
 
 // Re-verify grounding for APPROVED unit questions that never received the
 // SOURCE_GROUNDED stamp (typically generated before the grounding gate
-// existed). Only questions the existing second-provider verifier confirms
-// against original book text get stamped; everything else is left untouched.
-// Bounded per call: the dialog button can be pressed again for the rest.
+// existed).
+//
+// HARD RULE (owner-confirmed 2026-10-25): the AI verifier is the SOLE
+// stamping authority. Nothing here stamps, un-stamps, or invents a verdict:
+// classification below only decides which items may even be SENT to the
+// existing second-provider verifier (verifyQuestionsWithCrossProvider, the
+// same mechanism the generation job uses, verifier != generator enforced
+// inside it). An item gets SOURCE_GROUNDED only when that verifier confirms
+// it against original book text.
+//
+// Progress fix (2026-10-25-g): the previous version took the FIRST 10
+// ungrounded items per press, so a batch of only-skipped items never
+// changed anything and every press repeated the same 10 forever. This
+// version classifies ALL ungrounded items first (cheap, no AI calls), then
+// sends up to 10 VERIFIABLE items per press — skipped items never consume
+// a batch slot. Items the verifier already rejected in an earlier reverify
+// press are terminal (marked in reviewNotes) and are not re-sent.
 const BATCH_CAP = 10
 
 function clean(value: unknown, max = 12000) {
@@ -56,9 +70,9 @@ function hasGroundedFlag(flags: string | null | undefined) {
 }
 
 // POST /api/admin/units/[id]/questions/reverify-grounding — admin only.
-// Body: {} — the unit id comes from the path. Re-runs the existing verifier
-// over the unit's APPROVED questions that lack SOURCE_GROUNDED and stamps
-// only the ones the verifier confirms against original book text.
+// Body: {} — the unit id comes from the path. Classifies every APPROVED
+// question lacking SOURCE_GROUNDED, sends up to 10 verifiable ones to the
+// existing AI verifier, and stamps only the ones it confirms.
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
     const admin = await requireAdmin()
@@ -85,10 +99,10 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       },
     })
     const candidates = items.filter((item) => !hasGroundedFlag(item.qualityFlags))
-    const take = candidates.slice(0, BATCH_CAP)
-    const remaining = candidates.length - take.length
 
-    const knowledgeIds = [...new Set(take.map((item) => item.knowledgeItemId).filter((v): v is string => Boolean(v)))]
+    // Classify ALL candidates first (no AI calls here): skipped items must
+    // never consume a batch slot, or the button loops on them forever.
+    const knowledgeIds = [...new Set(candidates.map((item) => item.knowledgeItemId).filter((v): v is string => Boolean(v)))]
     const knowledgeRows = knowledgeIds.length
       ? await db.bookKnowledgeItem.findMany({
           where: { id: { in: knowledgeIds } },
@@ -102,13 +116,22 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       : []
     const chunkById = new Map(chunkRows.map((row) => [row.id, row] as const))
 
-    type Prepared = { item: (typeof take)[number]; question: VerifiableQuestion; sourceText: string; provenance: { provider: string; model: string } }
-    const prepared: Prepared[] = []
+    type Prepared = { item: (typeof candidates)[number]; question: VerifiableQuestion; sourceText: string; provenance: { provider: string; model: string } }
+    const verifiable: Prepared[] = []
     let skippedNoSource = 0
     let skippedNoProvenance = 0
     let skippedOcr = 0
+    let alreadyRechecked = 0
 
-    for (const item of take) {
+    for (const item of candidates) {
+      const notes = parseNotes(item.reviewNotes)
+      // Terminal: the AI verifier already rejected this item in an earlier
+      // reverify press (marker written below on rejection). Do not re-send.
+      const verifierNote = notes.verifier
+      if (verifierNote && typeof verifierNote === 'object' && !Array.isArray(verifierNote) && (verifierNote as Record<string, unknown>).source === 'reverify') {
+        alreadyRechecked += 1
+        continue
+      }
       const knowledge = item.knowledgeItemId ? knowledgeById.get(item.knowledgeItemId) : null
       // OCR-derived sources can never carry SOURCE_GROUNDED by construction
       // (the verifier strips it for VISION_OCR), so do not burn AI calls on them.
@@ -128,7 +151,6 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
         skippedNoSource += 1
         continue
       }
-      const notes = parseNotes(item.reviewNotes)
       const provenance = provenanceOf(notes)
       // The verifier marks everything pending without a known generator, so
       // items without provenance cannot be stamped by this path at all.
@@ -136,7 +158,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
         skippedNoProvenance += 1
         continue
       }
-      prepared.push({
+      verifiable.push({
         item,
         question: {
           type: item.type,
@@ -153,9 +175,12 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       })
     }
 
+    // Only verifiable items reach the AI verifier, at most BATCH_CAP per press.
+    const batch = verifiable.slice(0, BATCH_CAP)
+
     // The verifier excludes the generator's provider, so group by generator.
     const groups = new Map<string, Prepared[]>()
-    for (const entry of prepared) {
+    for (const entry of batch) {
       const key = `${entry.provenance.provider}|||${entry.provenance.model}`
       const list = groups.get(key) || []
       list.push(entry)
@@ -205,7 +230,9 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
         } else if (result.verificationPending) {
           pending += 1
         } else {
-          // Explicit rejection: record the reason, but never stamp.
+          // Explicit AI rejection: record the reason AND mark it as
+          // reverify-decided, so later presses never re-send it. Still
+          // never stamped.
           const notes = parseNotes(entry.item.reviewNotes)
           await db.questionBankItem.update({
             where: { id: entry.item.id },
@@ -217,6 +244,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
                   model: result.verifierModel || null,
                   reason: result.verifierReason || null,
                   verifiedAt: result.verifiedAt || new Date().toISOString(),
+                  source: 'reverify',
                 },
               }),
             },
@@ -227,18 +255,23 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     }
 
     const skipped = skippedNoSource + skippedNoProvenance + skippedOcr
+    // Remaining = verifiable items still without a decisive outcome:
+    // not yet sent, plus ones that came back pending (they get retried).
+    // Stamped items left the set; rejected items are terminal via marker.
+    const verifiableRemaining = verifiable.length - batch.length + pending
     await audit(
       { id: admin.id, name: admin.name },
       'UNIT_QUESTIONS_REVERIFY_GROUNDING',
       'Unit',
       unit.id,
-      `stamped ${stamped} / rejected ${rejected} / pending ${pending} / skipped ${skipped} / remaining ${remaining}`,
+      `stamped ${stamped} / rejected ${rejected} / pending ${pending} / skipped ${skipped} / alreadyRechecked ${alreadyRechecked} / verifiableRemaining ${verifiableRemaining}`,
     )
     return NextResponse.json({
       ok: true,
       unitId: unit.id,
       total: candidates.length,
-      processed: take.length,
+      verifiableTotal: verifiable.length,
+      processed: batch.length,
       stamped,
       rejected,
       pending,
@@ -246,7 +279,9 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       skippedNoSource,
       skippedNoProvenance,
       skippedOcr,
-      remaining,
+      alreadyRechecked,
+      remaining: verifiableRemaining,
+      verifiableRemaining,
     })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'غير مصرّح' }, { status: 401 })

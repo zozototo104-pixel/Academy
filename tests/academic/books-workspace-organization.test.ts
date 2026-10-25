@@ -36,7 +36,11 @@ const ORIGINAL_API_CALL_COUNT = 78
 // والنداء الوحيد المضاف هو إعادة التحقق (POST /api/admin/units/[id]/questions/reverify-grounding)
 // — تم التحقق بمقارنة سطح النداءات مع main: إضافة واحدة فقط، ولا حذف ولا تعديل لأي نداء قديم،
 // وأجسام الدوال المحمية ما زالت مطابقة (الاختبار الأول ما زال ينجح).
-const ORIGINAL_API_DIGEST = '81b0d4bf8e94080da55ba5d2ed35af684b08a9a02d4cd7cb5dd1c7a2463650df'
+// تحديث مقصود 2026-10-25-g (إصلاح حلقة إعادة التحقق): العدد بقي 78،
+// وتعبير نداء واحد فقط تغيّر — نوع استجابة نداء إعادة التحقق نفسه (حقول التفصيل
+// الجديدة: skippedNoSource/skippedNoProvenance/skippedOcr/alreadyRechecked/verifiableRemaining)؛
+// المسار والطريقة والجسم لم تُمسّ، ولا نداء مضاف ولا محذوف.
+const ORIGINAL_API_DIGEST = '54f5a40111b0a933c8290282fb523177f6bc3697562ebe67f6c0708779a5eb14'
 
 function parseSource() {
   return ts.createSourceFile('AdminBooks.tsx', SOURCE, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
