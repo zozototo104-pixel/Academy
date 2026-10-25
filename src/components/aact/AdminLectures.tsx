@@ -432,6 +432,24 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
                   >
                     ↓
                   </Button>
+                  {unconfirmedUpload && (
+                    <Button
+                      size="sm"
+                      disabled={busy}
+                      onClick={() =>
+                        void act(
+                          () =>
+                            api('/api/admin/lectures/videos/upload/confirm', {
+                              method: 'POST',
+                              body: JSON.stringify({ videoId: v.id }),
+                            }),
+                          'تم تأكيد الرفع — الفيديو جاهز للنشر',
+                        )
+                      }
+                    >
+                      إعادة تأكيد
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant={v.status === 'PUBLISHED' ? 'outline' : 'default'}
@@ -891,7 +909,14 @@ function CreateVideoDialog({
       onClose()
     } catch (e: any) {
       if (e?.message !== 'aborted') {
-        toast({ title: 'تعذر إكمال الرفع', description: e?.message || 'حاول مجددًا', variant: 'destructive' })
+        toast({
+          title: 'تعذر إكمال الرفع',
+          description:
+            e?.message === 'network'
+              ? 'تعذر الاتصال بالتخزين لإتمام الرفع — إذا كان الملف وصل، استخدم زر «إعادة تأكيد» من قائمة الفيديوهات'
+              : e?.message || 'حاول مجددًا',
+          variant: 'destructive',
+        })
       }
     } finally {
       setUploading(false)
