@@ -680,6 +680,8 @@ export function AdminBooksTab() {
   const [questionBankOpen, setQuestionBankOpen] = useState(false)
   const [unitQuestionsOpen, setUnitQuestionsOpen] = useState(false)
   const [unitReverifyBusy, setUnitReverifyBusy] = useState(false)
+  const [unitReverifyExhausted, setUnitReverifyExhausted] = useState(false)
+  const [unitReverifyLast, setUnitReverifyLast] = useState<{ skippedNoSource: number; skippedNoProvenance: number; skippedOcr: number; alreadyRechecked: number } | null>(null)
   const [unitQuestionsUnit, setUnitQuestionsUnit] = useState<CurriculumUnitReviewItem | null>(null)
   const [unitQuestions, setUnitQuestions] = useState<UnitQuestionReviewPayload | null>(null)
   const [unitQuestionsLoading, setUnitQuestionsLoading] = useState(false)
@@ -1543,8 +1545,11 @@ export function AdminBooksTab() {
     if (!unitQuestionsUnit || unitReverifyBusy) return
     setUnitReverifyBusy(true)
     try {
-      const res = await api<{ ok?: boolean; error?: string; stamped?: number; rejected?: number; pending?: number; skipped?: number; remaining?: number }>(`/api/admin/units/${unitQuestionsUnit.id}/questions/reverify-grounding`, { method: 'POST' })
-      toast({ title: `تم ختم ${res.stamped || 0} سؤال من أسئلة الوحدة المعتمدة`, description: `مرفوض: ${res.rejected || 0} · معلق: ${res.pending || 0} · متخطى: ${res.skipped || 0} · باقي: ${res.remaining || 0}` })
+      const res = await api<{ ok?: boolean; error?: string; stamped?: number; rejected?: number; pending?: number; skipped?: number; skippedNoSource?: number; skippedNoProvenance?: number; skippedOcr?: number; alreadyRechecked?: number; remaining?: number; verifiableRemaining?: number }>(`/api/admin/units/${unitQuestionsUnit.id}/questions/reverify-grounding`, { method: 'POST' })
+      const breakdown = { skippedNoSource: res.skippedNoSource || 0, skippedNoProvenance: res.skippedNoProvenance || 0, skippedOcr: res.skippedOcr || 0, alreadyRechecked: res.alreadyRechecked || 0 }
+      toast({ title: `تم ختم ${res.stamped || 0} سؤال من أسئلة الوحدة المعتمدة`, description: `مرفوض: ${res.rejected || 0} · معلق: ${res.pending || 0} · متخطى: ${res.skipped || 0} (بلا مصدر: ${breakdown.skippedNoSource} · بلا مولّد: ${breakdown.skippedNoProvenance} · OCR: ${breakdown.skippedOcr} · سبق رفضه: ${breakdown.alreadyRechecked}) · باقي قابل للتحقق: ${res.verifiableRemaining ?? res.remaining ?? 0}` })
+      setUnitReverifyLast(breakdown)
+      if ((res.verifiableRemaining ?? res.remaining ?? 0) === 0) setUnitReverifyExhausted(true)
       await loadUnitQuestions(unitQuestionsUnit.id)
       if (programId) await refreshCurriculumUnits(programId)
     } catch (e: any) {
@@ -1555,6 +1560,8 @@ export function AdminBooksTab() {
   }
 
   const openUnitQuestionReview = async (unit: CurriculumUnitReviewItem) => {
+    setUnitReverifyExhausted(false)
+    setUnitReverifyLast(null)
     setUnitQuestionsUnit(unit)
     setUnitQuestionsTab('PENDING_REVIEW')
     setSelectedUnitQuestionIds([])
@@ -4324,12 +4331,19 @@ export function AdminBooksTab() {
               </TabsContent>)}
             </Tabs>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-[#0f2b46]">
-              {(unitQuestions.ungroundedApproved || 0) > 0 && (
+              {(unitQuestions.ungroundedApproved || 0) > 0 && !unitReverifyExhausted && (
                 <div className="mb-3 flex flex-wrap items-center gap-2">
                   <Button disabled={!unitQuestionsUnit || unitReverifyBusy} variant="outline" onClick={() => void reverifyUnitQuestions()} className="border-amber-200 bg-white text-amber-800">
                     {unitReverifyBusy ? 'جارٍ التحقق...' : `إعادة تحقق من ${unitQuestions.ungroundedApproved} أسئلة معتمدة`}
                   </Button>
-                  <span className="text-[11px] font-bold text-slate-500">يختم فقط الأسئلة المثبتة فعلًا من الكتاب؛ الباقي يبقى بدون ختم.</span>
+                  <span className="text-[11px] font-bold text-slate-500">يختم فقط الأسئلة المثبتة فعلًا من الكتاب عبر آلية التحقق بالذكاء؛ الباقي يبقى بدون ختم.</span>
+                </div>
+              )}
+              {unitReverifyExhausted && unitReverifyLast && (
+                <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-[12px] font-bold leading-6 text-amber-900">
+                  لا يوجد سؤال قابل للتحقق بالذكاء من الباقي — الختم يتم فقط عبر آلية التحقق بالذكاء ولا يُمنح لأي سؤال بدونها.
+                  <br />متخطى: بلا مصدر كتاب {unitReverifyLast.skippedNoSource} · بلا بيانات مولّد {unitReverifyLast.skippedNoProvenance} · OCR {unitReverifyLast.skippedOcr} · سبق رفضه بالتحقق {unitReverifyLast.alreadyRechecked}.
+                  <br />الحل: اعتمد الأسئلة الجديدة المولدة حديثًا (تحت بانتظار المراجعة) فهي مختومة من التوليد، ثم ابنِ الاختبار منها.
                 </div>
               )}
               {!unitQuestions.readyToBuild ? <div className="flex flex-wrap items-center gap-2">

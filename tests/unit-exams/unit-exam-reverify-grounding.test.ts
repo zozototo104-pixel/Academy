@@ -5,17 +5,30 @@ import { readFileSync } from 'node:fs'
 // Guard for the crisis-diploma stuck units (2026-10-25): 28 APPROVED
 // questions, 0 SOURCE_GROUNDED, so the exam builder refused with
 // "0 of 20" while the UI said complete. The reverify endpoint must stamp
-// ONLY the questions the existing verifier confirms against original book
-// text — never the ones without a source, without generator provenance,
-// or with OCR provenance (which can never carry the stamp by construction).
+// ONLY the questions the existing AI verifier confirms against original
+// book text — never the ones without a source, without generator
+// provenance, or with OCR provenance (which can never carry the stamp by
+// construction). The AI verifier is the sole stamping authority; the
+// classification here only decides what may be SENT to it.
+//
+// Regression (2026-10-25-g, production report): v1 took the FIRST 10
+// ungrounded items per press, so a batch of only-skipped items never
+// changed anything and every press repeated the same 10 forever
+// ("stamped 0 · skipped 10 · remaining 18", identical on re-press).
+// v2 classifies ALL ungrounded items first and sends up to 10 VERIFIABLE
+// items per press, so skipped items never consume a batch slot.
 
 const updateCalls: any[] = []
 const prov = JSON.stringify({ aiProvenance: { provider: 'GROQ', model: 'llama-3' } })
 const CHUNK_TEXT = 'original book chunk text that is long enough to pass the forty character threshold for verification'
 
-const bankItems = [
-  { id: 'q-pass', knowledgeItemId: 'k1', text: 'PASS question', type: 'MCQ', options: '["a","b"]', correctAnswer: '0', modelAnswer: null, sourceEvidence: 'evidence', qualityFlags: '["SOURCE_LINKED"]', reviewNotes: prov },
-  { id: 'q-reject', knowledgeItemId: 'k1', text: 'REJECT question', type: 'MCQ', options: '["a","b"]', correctAnswer: '0', modelAnswer: null, sourceEvidence: 'evidence', qualityFlags: '["SOURCE_LINKED"]', reviewNotes: prov },
+function verifiableItem(id: string, text: string) {
+  return { id, knowledgeItemId: 'k1', text, type: 'MCQ', options: '["a","b"]', correctAnswer: '0', modelAnswer: null, sourceEvidence: 'evidence', qualityFlags: '["SOURCE_LINKED"]', reviewNotes: prov }
+}
+
+let bankItems: any[] = [
+  verifiableItem('q-pass', 'PASS question'),
+  verifiableItem('q-reject', 'REJECT question'),
   { id: 'q-nosource', knowledgeItemId: null, text: 'NOSOURCE question', type: 'MCQ', options: '["a","b"]', correctAnswer: '0', modelAnswer: null, sourceEvidence: 'evidence', qualityFlags: null, reviewNotes: prov },
   { id: 'q-noprov', knowledgeItemId: 'k1', text: 'NOPROV question', type: 'MCQ', options: '["a","b"]', correctAnswer: '0', modelAnswer: null, sourceEvidence: 'evidence', qualityFlags: null, reviewNotes: '{}' },
   { id: 'q-ocr', knowledgeItemId: 'k2', text: 'OCR question', type: 'MCQ', options: '["a","b"]', correctAnswer: '0', modelAnswer: null, sourceEvidence: 'evidence', qualityFlags: null, reviewNotes: prov },
@@ -53,38 +66,91 @@ mock.module('@/lib/question-verifier', () => ({
     ),
 }))
 
+async function callReverify() {
+  const { POST } = await import('@/app/api/admin/units/[id]/questions/reverify-grounding/route')
+  const res = await POST(new NextRequest('http://localhost/api/admin/units/u1/questions/reverify-grounding', { method: 'POST' }), {
+    params: Promise.resolve({ id: 'u1' }),
+  })
+  expect(res.status).toBe(200)
+  return res.json()
+}
+
 describe('unit exam reverify grounding', () => {
   test('stamps only verifier-passed items; skips sourceless, provenance-less and OCR items', async () => {
-    const { POST } = await import('@/app/api/admin/units/[id]/questions/reverify-grounding/route')
-    const res = await POST(new NextRequest('http://localhost/api/admin/units/u1/questions/reverify-grounding', { method: 'POST' }), {
-      params: Promise.resolve({ id: 'u1' }),
-    })
-    expect(res.status).toBe(200)
-    const body = await res.json()
+    const mark = updateCalls.length
+    const body = await callReverify()
+    expect(body.total).toBe(5)
+    expect(body.verifiableTotal).toBe(2)
+    expect(body.processed).toBe(2)
     expect(body.stamped).toBe(1)
     expect(body.rejected).toBe(1)
     expect(body.skipped).toBe(3)
     expect(body.skippedNoSource).toBe(1)
     expect(body.skippedNoProvenance).toBe(1)
     expect(body.skippedOcr).toBe(1)
+    expect(body.alreadyRechecked).toBe(0)
+    expect(body.verifiableRemaining).toBe(0)
     expect(body.remaining).toBe(0)
-    const byId = new Map(updateCalls.map((call) => [call.where.id, call.data]))
+    const byId = new Map(updateCalls.slice(mark).map((call) => [call.where.id, call.data]))
     // Passed: stamped, other flags preserved.
     expect(String(byId.get('q-pass')?.qualityFlags || '')).toContain('SOURCE_GROUNDED')
     expect(String(byId.get('q-pass')?.qualityFlags || '')).toContain('SOURCE_LINKED')
-    // Rejected: reason recorded, but never stamped.
+    // Rejected: reason recorded + reverify marker, but never stamped.
     expect(String(byId.get('q-reject')?.qualityFlags || '')).not.toContain('SOURCE_GROUNDED')
     expect(String(byId.get('q-reject')?.reviewNotes || '')).toContain('not supported by source')
+    expect(String(byId.get('q-reject')?.reviewNotes || '')).toContain('reverify')
     // Skipped items are never written at all.
     expect(byId.has('q-nosource')).toBe(false)
     expect(byId.has('q-noprov')).toBe(false)
     expect(byId.has('q-ocr')).toBe(false)
   })
 
-  test('the admin UI offers reverify, gated on ungrounded approved questions', () => {
+  test('skipped items first must not starve verifiable items (the production loop)', async () => {
+    // 10 skipped items BEFORE the 2 verifiable ones: v1 processed only the
+    // first 10 (all skipped) and verified nothing, forever.
+    bankItems = [
+      ...Array.from({ length: 10 }, (_, i) => ({ id: `q-skip-${i}`, knowledgeItemId: 'k1', text: `SKIP question ${i}`, type: 'MCQ', options: '["a","b"]', correctAnswer: '0', modelAnswer: null, sourceEvidence: 'evidence', qualityFlags: null, reviewNotes: '{}' })),
+      verifiableItem('q-pass', 'PASS question'),
+      verifiableItem('q-reject', 'REJECT question'),
+    ]
+    const mark = updateCalls.length
+    const body = await callReverify()
+    expect(body.total).toBe(12)
+    expect(body.verifiableTotal).toBe(2)
+    expect(body.processed).toBe(2)
+    expect(body.stamped).toBe(1)
+    expect(body.rejected).toBe(1)
+    expect(body.skipped).toBe(10)
+    expect(body.skippedNoProvenance).toBe(10)
+    expect(body.verifiableRemaining).toBe(0)
+    const writtenIds = updateCalls.slice(mark).map((call) => call.where.id)
+    expect(writtenIds.sort()).toEqual(['q-pass', 'q-reject'])
+  })
+
+  test('items already rejected by an earlier reverify press are terminal, not re-sent', async () => {
+    bankItems = [
+      { id: 'q-old-reject', knowledgeItemId: 'k1', text: 'OLD question', type: 'MCQ', options: '["a","b"]', correctAnswer: '0', modelAnswer: null, sourceEvidence: 'evidence', qualityFlags: '["SOURCE_LINKED"]', reviewNotes: JSON.stringify({ aiProvenance: { provider: 'GROQ', model: 'llama-3' }, verifier: { source: 'reverify', reason: 'not supported by source' } }) },
+      verifiableItem('q-pass', 'PASS question'),
+    ]
+    const mark = updateCalls.length
+    const body = await callReverify()
+    expect(body.total).toBe(2)
+    expect(body.alreadyRechecked).toBe(1)
+    expect(body.verifiableTotal).toBe(1)
+    expect(body.processed).toBe(1)
+    expect(body.stamped).toBe(1)
+    expect(body.verifiableRemaining).toBe(0)
+    expect(updateCalls.slice(mark).map((call) => call.where.id)).toEqual(['q-pass'])
+  })
+
+  test('the admin UI offers reverify, shows the skip breakdown, and hides the button when nothing verifiable remains', () => {
     const adminUi = readFileSync('src/components/aact/AdminBooks.tsx', 'utf8')
     expect(adminUi).toContain('/questions/reverify-grounding')
     expect(adminUi).toContain('إعادة تحقق من')
     expect(adminUi).toContain('ungroundedApproved')
+    expect(adminUi).toContain('verifiableRemaining')
+    expect(adminUi).toContain('unitReverifyExhausted')
+    expect(adminUi).toContain('بلا مصدر')
+    expect(adminUi).toContain('سبق رفضه')
   })
 })
