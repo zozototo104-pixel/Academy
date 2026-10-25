@@ -10,8 +10,27 @@ function addDays(date: Date, days: number) {
   return next
 }
 
-function mapItem(item: any, enrollmentCreatedAt: Date) {
-  const offset = item.dayOffset ?? Math.max(0, (item.week - 1) * 7)
+// الفصول متتابعة، لا متداخلة: أسبوع 1 من الفصل الثاني يبدأ بعد انتهاء
+// الفصل الأول كاملًا، لا مع أسبوع 1 من الفصل الأول. مدة كل فصل = أقصى
+// إزاحة فيه + أسبوع (أسبوع العنصر الأخير نفسه).
+function semesterBaseOffsets(items: any[]): Map<number, number> {
+  const bySemester = new Map<number, number>()
+  for (const item of items) {
+    const offset = item.dayOffset ?? Math.max(0, (item.week - 1) * 7)
+    const span = offset + 7
+    bySemester.set(item.semester, Math.max(bySemester.get(item.semester) || 0, span))
+  }
+  const bases = new Map<number, number>()
+  let acc = 0
+  for (const semester of [...bySemester.keys()].sort((a, b) => a - b)) {
+    bases.set(semester, acc)
+    acc += bySemester.get(semester) || 0
+  }
+  return bases
+}
+
+function mapItem(item: any, enrollmentCreatedAt: Date, semesterBase = 0) {
+  const offset = semesterBase + (item.dayOffset ?? Math.max(0, (item.week - 1) * 7))
   return {
     id: item.id,
     programId: item.programId,
@@ -45,7 +64,8 @@ export async function GET(req: NextRequest) {
       where: { programId, status: 'PUBLISHED', ...(Number.isFinite(semester) ? { semester } : {}) },
       orderBy: [{ semester: 'asc' }, { week: 'asc' }, { dayOffset: 'asc' }, { order: 'asc' }, { createdAt: 'asc' }],
     })
-    return NextResponse.json({ enrollmentCreatedAt: enrollment.createdAt, items: items.map((item) => mapItem(item, enrollment.createdAt)) })
+    const bases = semesterBaseOffsets(items)
+    return NextResponse.json({ enrollmentCreatedAt: enrollment.createdAt, items: items.map((item) => mapItem(item, enrollment.createdAt, bases.get(item.semester) || 0)) })
   } catch (error: any) {
     if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'تسجيل الدخول مطلوب' }, { status: 401 })
     return NextResponse.json({ error: 'تعذر تحميل جدول الدراسة' }, { status: 500 })

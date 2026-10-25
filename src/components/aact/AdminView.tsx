@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { AdminListToolbar, AdminPager, matchesAdminSearch, pageItems, safePage } from '@/components/aact/AdminListTools'
+import AdminExtensionRequests from '@/components/aact/AdminExtensionRequests'
 import {
   Users2, ClipboardCheck, Bot, Globe2, Loader2, TrendingUp,
   CheckCircle2, XCircle, Clock3, GraduationCap, BarChart3, ClipboardList, Search,
@@ -2200,6 +2201,7 @@ export function AdminView() {
         {/* Students */}
         <TabsContent value="students">
           <div className="mt-4 space-y-3">
+            <AdminExtensionRequests />
             {!studentsLoading && (
               <AdminListToolbar
                 search={studentSearch}
