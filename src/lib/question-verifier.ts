@@ -181,19 +181,31 @@ function applyRejected<T extends VerifiableQuestion>(question: T, result: Questi
   }
 }
 
-function applyAccepted<T extends VerifiableQuestion>(question: T, result: QuestionVerifierResult, context: { provider?: string; model?: string }): T {
+function applyAccepted<T extends VerifiableQuestion>(question: T, result: QuestionVerifierResult, context: { provider?: string; model?: string }, allowOcrGrounding = false): T {
   const provenance = question.textProvenance || null
+  const isOcr = provenance === 'VISION_OCR'
   return {
     ...question,
     verifierProvider: context.provider,
     verifierModel: context.model,
     verifiedAt: new Date().toISOString(),
     verifierReason: result.reason,
-    qualityFlags: provenance === 'VISION_OCR'
+    // Default: OCR sources never carry SOURCE_GROUNDED, even on verifier
+    // pass (OCR text can misread words). allowOcrGrounding lifts that
+    // ONLY for the reverify flow (owner-approved 2026-10-25): reverify
+    // touches APPROVED items only, so a stamped OCR question has passed
+    // both the AI verifier and human approval — and OCR_DERIVED_SOURCE
+    // is KEPT alongside the stamp so provenance stays visible.
+    qualityFlags: isOcr && !allowOcrGrounding
       ? applyOcrDerivedFlags(question.qualityFlags || ['SOURCE_LINKED', 'NEEDS_HUMAN_REVIEW'], provenance)
-      : uniqueFlags(['SOURCE_LINKED', 'SOURCE_GROUNDED', ...(question.qualityFlags || []).filter((flag) => flag !== 'SOURCE_GROUNDED')]),
+      : uniqueFlags(['SOURCE_LINKED', 'SOURCE_GROUNDED', ...(isOcr ? ['OCR_DERIVED_SOURCE'] : []), ...(question.qualityFlags || []).filter((flag) => flag !== 'SOURCE_GROUNDED')]),
   }
 }
+
+// Test-only export of the accept path (same __test convention as the other
+// verifier helpers): lets the OCR-grounding branch be tested directly
+// without driving the full AI call flow.
+export const __testApplyAcceptedForTests = applyAccepted
 
 function finalQuestionStatus(question: VerifiableQuestion): string {
   const flags = question.qualityFlags || []
@@ -298,6 +310,11 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
   // once globally — inside this function — when the profile allows.
   routing?: StageRouting | null
   onFallbackAttempt?: () => void
+  // Owner-approved 2026-10-25, reverify-only: when true, a verifier
+  // PASS stamps VISION_OCR questions too (keeping OCR_DERIVED_SOURCE).
+  // Absent/false = today's behavior exactly (generation, books-ai and
+  // the recheck runner never pass it, so their OCR stripping is intact).
+  allowOcrGrounding?: boolean
 }): Promise<T[]> {
   const batchSize = Math.max(1, Math.min(10, Math.floor(opts.batchSize || 10)))
   if (!String(opts.generatorProvider || '').trim()) {
@@ -433,7 +450,7 @@ export async function verifyQuestionsWithCrossProvider<T extends VerifiableQuest
     for (const item of prepared) {
       const result = byIndex.get(item.index) || null
       if (item.literalPass && result?.valid) {
-        output[item.index] = applyAccepted(item.question, result, verifierContext)
+        output[item.index] = applyAccepted(item.question, result, verifierContext, opts.allowOcrGrounding === true)
         logVerifierVerdict({ questionIndex: item.index, question: output[item.index], result, verifierContext, generatorProvider: opts.generatorProvider, generatorModel: opts.generatorModel, literalEvidenceOk: item.literalPass, reason: result.reason })
       } else {
         const reason = item.literalPass ? 'VERIFIER_REJECTED' : 'LITERAL_EVIDENCE_FAILED'

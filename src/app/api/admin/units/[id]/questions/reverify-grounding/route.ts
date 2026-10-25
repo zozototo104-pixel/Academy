@@ -21,6 +21,13 @@ export const maxDuration = 300
 // inside it). An item gets SOURCE_GROUNDED only when that verifier confirms
 // it against original book text.
 //
+// OCR EXCEPTION (owner-approved 2026-10-25, reverify-only): this endpoint
+// passes allowOcrGrounding, so VISION_OCR items it sends are stamped when
+// the verifier confirms them — because reverify touches APPROVED items
+// only and is admin-activated after human review. Generation keeps the
+// default (OCR stripped). OCR_DERIVED_SOURCE is always kept next to the
+// stamp, so OCR provenance stays visible.
+//
 // Progress fix (2026-10-25-g): the previous version took the FIRST 10
 // ungrounded items per press, so a batch of only-skipped items never
 // changed anything and every press repeated the same 10 forever. This
@@ -116,11 +123,15 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       : []
     const chunkById = new Map(chunkRows.map((row) => [row.id, row] as const))
 
-    type Prepared = { item: (typeof candidates)[number]; question: VerifiableQuestion; sourceText: string; provenance: { provider: string; model: string } }
+    type Prepared = { item: (typeof candidates)[number]; question: VerifiableQuestion; sourceText: string; provenance: { provider: string; model: string }; textProvenance: VerifiableQuestion['textProvenance'] }
     const verifiable: Prepared[] = []
     let skippedNoSource = 0
     let skippedNoProvenance = 0
-    let skippedOcr = 0
+    // OCR items are NO LONGER skipped here: owner-approved 2026-10-25,
+    // reverify (APPROVED items only, admin-activated) may stamp them when
+    // the verifier confirms them (allowOcrGrounding below). Kept at 0 for
+    // response compatibility; the OCR marker is preserved on stamping.
+    const skippedOcr = 0
     let alreadyRechecked = 0
 
     for (const item of candidates) {
@@ -133,12 +144,8 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
         continue
       }
       const knowledge = item.knowledgeItemId ? knowledgeById.get(item.knowledgeItemId) : null
-      // OCR-derived sources can never carry SOURCE_GROUNDED by construction
-      // (the verifier strips it for VISION_OCR), so do not burn AI calls on them.
-      if (knowledge?.textProvenance === 'VISION_OCR') {
-        skippedOcr += 1
-        continue
-      }
+      const rawProvenance = knowledge?.textProvenance
+      const textProvenance = rawProvenance === 'VISION_OCR' || rawProvenance === 'NATIVE_TEXT' || rawProvenance === 'VISION_DESCRIPTION' ? rawProvenance : null
       const chunk = knowledge?.chunkId ? chunkById.get(knowledge.chunkId) : null
       let sourceText = ''
       if (chunk && clean(chunk.text, 40).length >= 40) {
@@ -169,9 +176,11 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
           sourceEvidence: item.sourceEvidence,
           qualityFlags: unitExamQualityFlags(item.qualityFlags),
           sourceIndex: 0, // set per group below
+          textProvenance,
         },
         sourceText,
         provenance,
+        textProvenance,
       })
     }
 
@@ -192,13 +201,16 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     let pending = 0
     for (const [, group] of groups) {
       const questions = group.map((entry, index) => ({ ...entry.question, sourceIndex: index + 1 }))
-      const sources = group.map((entry) => ({ text: entry.sourceText }))
+      const sources = group.map((entry) => ({ text: entry.sourceText, textProvenance: entry.textProvenance }))
       const verified = await verifyQuestionsWithCrossProvider({
         questions,
         sources,
         generatorProvider: group[0].provenance.provider,
         generatorModel: group[0].provenance.model,
         timeBudgetMs: 120_000,
+        // Reverify-only, owner-approved: the verifier may stamp OCR
+        // questions it confirms. Generation never passes this flag.
+        allowOcrGrounding: true,
       })
       for (let index = 0; index < group.length; index += 1) {
         const entry = group[index]
@@ -209,7 +221,9 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
         }
         const resultFlags = result.qualityFlags || []
         if (resultFlags.includes('SOURCE_GROUNDED')) {
-          const merged = [...new Set([...unitExamQualityFlags(entry.item.qualityFlags), 'SOURCE_GROUNDED'])]
+          // Keep OCR_DERIVED_SOURCE visible alongside the stamp: provenance
+          // is never erased, even when the verifier confirms the question.
+          const merged = [...new Set([...unitExamQualityFlags(entry.item.qualityFlags), 'SOURCE_GROUNDED', ...(entry.textProvenance === 'VISION_OCR' ? ['OCR_DERIVED_SOURCE'] : [])])]
           const notes = parseNotes(entry.item.reviewNotes)
           await db.questionBankItem.update({
             where: { id: entry.item.id },

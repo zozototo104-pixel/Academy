@@ -4342,8 +4342,8 @@ export function AdminBooksTab() {
               {unitReverifyExhausted && unitReverifyLast && (
                 <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-[12px] font-bold leading-6 text-amber-900">
                   لا يوجد سؤال قابل للتحقق بالذكاء من الباقي — الختم يتم فقط عبر آلية التحقق بالذكاء ولا يُمنح لأي سؤال بدونها.
-                  <br />متخطى: بلا مصدر كتاب {unitReverifyLast.skippedNoSource} · بلا بيانات مولّد {unitReverifyLast.skippedNoProvenance} · OCR {unitReverifyLast.skippedOcr} · سبق رفضه بالتحقق {unitReverifyLast.alreadyRechecked}.
-                  <br />الحل: اعتمد الأسئلة الجديدة المولدة حديثًا (تحت بانتظار المراجعة) فهي مختومة من التوليد، ثم ابنِ الاختبار منها.
+                  <br />متخطى: بلا مصدر كتاب {unitReverifyLast.skippedNoSource} · بلا بيانات مولّد {unitReverifyLast.skippedNoProvenance} · سبق رفضه بالتحقق {unitReverifyLast.alreadyRechecked}.
+                  <br />أسئلة OCR مشمولة بالتحقق عبر هذا الزر بعد اعتمادك؛ الباقي هنا بلا مصدر أو بلا مولّد أو مرفوض سابقًا فقط. وأي أسئلة معتمدة جديدة ستظهر عند إعادة فتح النافذة.
                 </div>
               )}
               {!unitQuestions.readyToBuild ? <div className="flex flex-wrap items-center gap-2">

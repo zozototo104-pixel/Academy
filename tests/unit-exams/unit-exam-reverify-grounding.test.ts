@@ -29,9 +29,9 @@ function verifiableItem(id: string, text: string) {
 let bankItems: any[] = [
   verifiableItem('q-pass', 'PASS question'),
   verifiableItem('q-reject', 'REJECT question'),
+  { id: 'q-ocr-pass', knowledgeItemId: 'k3', text: 'PASS OCR question', type: 'MCQ', options: '["a","b"]', correctAnswer: '0', modelAnswer: null, sourceEvidence: 'evidence', qualityFlags: '["SOURCE_LINKED","OCR_DERIVED_SOURCE","NEEDS_HUMAN_REVIEW"]', reviewNotes: prov },
   { id: 'q-nosource', knowledgeItemId: null, text: 'NOSOURCE question', type: 'MCQ', options: '["a","b"]', correctAnswer: '0', modelAnswer: null, sourceEvidence: 'evidence', qualityFlags: null, reviewNotes: prov },
   { id: 'q-noprov', knowledgeItemId: 'k1', text: 'NOPROV question', type: 'MCQ', options: '["a","b"]', correctAnswer: '0', modelAnswer: null, sourceEvidence: 'evidence', qualityFlags: null, reviewNotes: '{}' },
-  { id: 'q-ocr', knowledgeItemId: 'k2', text: 'OCR question', type: 'MCQ', options: '["a","b"]', correctAnswer: '0', modelAnswer: null, sourceEvidence: 'evidence', qualityFlags: null, reviewNotes: prov },
 ]
 
 mock.module('@/lib/db', () => ({
@@ -48,22 +48,33 @@ mock.module('@/lib/db', () => ({
       findMany: async () => [
         { id: 'k1', chunkId: 'c1', summary: 's', excerpt: 'e', textProvenance: null },
         { id: 'k2', chunkId: null, summary: 's', excerpt: 'e', textProvenance: 'VISION_OCR' },
+        { id: 'k3', chunkId: 'c3', summary: 's', excerpt: 'e', textProvenance: 'VISION_OCR' },
       ],
     },
     bookChunk: {
-      findMany: async () => [{ id: 'c1', index: 3, pageStart: 10, pageEnd: 10, text: CHUNK_TEXT }],
+      findMany: async () => [
+        { id: 'c1', index: 3, pageStart: 10, pageEnd: 10, text: CHUNK_TEXT },
+        { id: 'c3', index: 5, pageStart: 81, pageEnd: 87, text: CHUNK_TEXT },
+      ],
     },
   },
 }))
 mock.module('@/lib/auth', () => ({ requireAdmin: async () => ({ id: 'admin-1', name: 'Admin' }) }))
 mock.module('@/lib/notify', () => ({ audit: async () => undefined }))
+// Faithful mock of the real verifier's OCR branch: an OCR question is
+// stripped UNLESS the caller passes allowOcrGrounding (reverify only).
+let lastVerifierOpts: any = null
 mock.module('@/lib/question-verifier', () => ({
-  verifyQuestionsWithCrossProvider: async ({ questions }: any) =>
-    questions.map((q: any) =>
-      String(q.text || '').includes('PASS')
-        ? { ...q, qualityFlags: [...(q.qualityFlags || []), 'SOURCE_GROUNDED'], verifierProvider: 'GROQ', verifierModel: 'verifier-m', verifierReason: 'supported', verifiedAt: '2026-10-25T00:00:00.000Z' }
-        : { ...q, verifierReason: 'not supported by source' },
-    ),
+  verifyQuestionsWithCrossProvider: async (opts: any) => {
+    lastVerifierOpts = opts
+    return opts.questions.map((q: any) => {
+      if (!String(q.text || '').includes('PASS')) return { ...q, verifierReason: 'not supported by source' }
+      if (q.textProvenance === 'VISION_OCR' && !opts.allowOcrGrounding) {
+        return { ...q, qualityFlags: ['SOURCE_LINKED', 'OCR_DERIVED_SOURCE', 'NEEDS_HUMAN_REVIEW'], verifierProvider: 'GROQ', verifierModel: 'verifier-m', verifierReason: 'supported', verifiedAt: '2026-10-25T00:00:00.000Z' }
+      }
+      return { ...q, qualityFlags: [...(q.qualityFlags || []), 'SOURCE_GROUNDED', ...(q.textProvenance === 'VISION_OCR' ? ['OCR_DERIVED_SOURCE'] : [])], verifierProvider: 'GROQ', verifierModel: 'verifier-m', verifierReason: 'supported', verifiedAt: '2026-10-25T00:00:00.000Z' }
+    })
+  },
 }))
 
 async function callReverify() {
@@ -76,25 +87,32 @@ async function callReverify() {
 }
 
 describe('unit exam reverify grounding', () => {
-  test('stamps only verifier-passed items; skips sourceless, provenance-less and OCR items', async () => {
+  test('stamps only verifier-passed items; OCR items stamp only via the reverify allowance, marker kept', async () => {
     const mark = updateCalls.length
     const body = await callReverify()
     expect(body.total).toBe(5)
-    expect(body.verifiableTotal).toBe(2)
-    expect(body.processed).toBe(2)
-    expect(body.stamped).toBe(1)
+    expect(body.verifiableTotal).toBe(3)
+    expect(body.processed).toBe(3)
+    expect(body.stamped).toBe(2)
     expect(body.rejected).toBe(1)
-    expect(body.skipped).toBe(3)
+    expect(body.skipped).toBe(2)
     expect(body.skippedNoSource).toBe(1)
     expect(body.skippedNoProvenance).toBe(1)
-    expect(body.skippedOcr).toBe(1)
+    expect(body.skippedOcr).toBe(0)
     expect(body.alreadyRechecked).toBe(0)
     expect(body.verifiableRemaining).toBe(0)
     expect(body.remaining).toBe(0)
+    // The endpoint must pass the OCR allowance AND the source provenance
+    // to the verifier; without either, the OCR item would be stripped.
+    expect(lastVerifierOpts.allowOcrGrounding).toBe(true)
+    expect(lastVerifierOpts.questions.find((q: any) => String(q.text || '').includes('OCR'))?.textProvenance).toBe('VISION_OCR')
     const byId = new Map(updateCalls.slice(mark).map((call) => [call.where.id, call.data]))
     // Passed: stamped, other flags preserved.
     expect(String(byId.get('q-pass')?.qualityFlags || '')).toContain('SOURCE_GROUNDED')
     expect(String(byId.get('q-pass')?.qualityFlags || '')).toContain('SOURCE_LINKED')
+    // OCR passed: stamped AND the OCR marker kept next to the stamp.
+    expect(String(byId.get('q-ocr-pass')?.qualityFlags || '')).toContain('SOURCE_GROUNDED')
+    expect(String(byId.get('q-ocr-pass')?.qualityFlags || '')).toContain('OCR_DERIVED_SOURCE')
     // Rejected: reason recorded + reverify marker, but never stamped.
     expect(String(byId.get('q-reject')?.qualityFlags || '')).not.toContain('SOURCE_GROUNDED')
     expect(String(byId.get('q-reject')?.reviewNotes || '')).toContain('not supported by source')
@@ -102,7 +120,6 @@ describe('unit exam reverify grounding', () => {
     // Skipped items are never written at all.
     expect(byId.has('q-nosource')).toBe(false)
     expect(byId.has('q-noprov')).toBe(false)
-    expect(byId.has('q-ocr')).toBe(false)
   })
 
   test('skipped items first must not starve verifiable items (the production loop)', async () => {
@@ -152,5 +169,10 @@ describe('unit exam reverify grounding', () => {
     expect(adminUi).toContain('unitReverifyExhausted')
     expect(adminUi).toContain('بلا مصدر')
     expect(adminUi).toContain('سبق رفضه')
+    // The old "approve fresh questions, they are stamped" guidance was
+    // wrong for OCR books (fresh OCR questions are stripped too); the
+    // box must now say OCR is covered by this button after approval.
+    expect(adminUi).toContain('مشمولة بالتحقق')
+    expect(adminUi).not.toContain('فهي مختومة من التوليد')
   })
 })
