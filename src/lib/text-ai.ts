@@ -1074,22 +1074,26 @@ export function __testProviderRateLimitCooldownForTests(timestamps: number[], no
 }
 
 function providerKeys(s: Settings, provider: ConcreteProvider): string[] {
+  // A provider with no keys is absent from the order, never a crash: partial
+  // Settings objects (test helpers) omit fields, and the old switch returned
+  // undefined for them, which crashed callers on `.length`.
   switch (provider) {
-    case 'GEMINI': return s.geminiKeys
-    case 'OPENAI': return s.openaiKeys
-    case 'ANTHROPIC': return s.anthropicKeys
-    case 'ZAI': return s.zaiKeys
-    case 'GROQ': return s.groqKeys
-    case 'OPENROUTER': return s.openrouterKeys
-    case 'DEEPINFRA': return s.deepinfraKeys
-    case 'TOGETHER': return s.togetherKeys
-    case 'UNOROUTER': return s.unorouterKeys
-    case 'RELAYROUTER': return s.relayrouterKeys
-    case 'TOPTOOLS': return s.topToolsKeys
-    case 'ALBORIHI': return s.alborihiBaseUrl ? s.alborihiKeys : []
-    case 'MISTRAL': return s.mistralKeys
-    case 'CLOUDFLARE': return s.cloudflareBaseUrl ? s.cloudflareKeys : []
-    case 'OPENAI_COMPAT': return s.openaiCompatBaseUrl ? s.openaiCompatKeys : []
+    case 'GEMINI': return s.geminiKeys || []
+    case 'OPENAI': return s.openaiKeys || []
+    case 'ANTHROPIC': return s.anthropicKeys || []
+    case 'ZAI': return s.zaiKeys || []
+    case 'GROQ': return s.groqKeys || []
+    case 'OPENROUTER': return s.openrouterKeys || []
+    case 'DEEPINFRA': return s.deepinfraKeys || []
+    case 'TOGETHER': return s.togetherKeys || []
+    case 'UNOROUTER': return s.unorouterKeys || []
+    case 'RELAYROUTER': return s.relayrouterKeys || []
+    case 'TOPTOOLS': return s.topToolsKeys || []
+    case 'ALBORIHI': return s.alborihiBaseUrl ? (s.alborihiKeys || []) : []
+    case 'MISTRAL': return s.mistralKeys || []
+    case 'CLOUDFLARE': return s.cloudflareBaseUrl ? (s.cloudflareKeys || []) : []
+    case 'OPENAI_COMPAT': return s.openaiCompatBaseUrl ? (s.openaiCompatKeys || []) : []
+    default: return []
   }
 }
 
@@ -2137,9 +2141,9 @@ export function __testB2ProviderOrderForTests(args: { policy?: TextAiRouterPolic
     academicAllowlist: parseAcademicAllowlist(args.allowlist || DEFAULT_ACADEMIC_ALLOWLIST),
     academicAllowlistStrict: args.strict === true,
     allowPublicGateways: true,
-    geminiKeys: ['k'], openaiKeys: ['k'], anthropicKeys: ['k'], zaiKeys: ['k'], groqKeys: ['k'], openrouterKeys: ['k'], deepinfraKeys: ['k'], togetherKeys: ['k'], unorouterKeys: ['k'], relayrouterKeys: ['k'], topToolsKeys: ['k'], alborihiKeys: ['k'], openaiCompatKeys: ['k'],
-    geminiModel: args.geminiModel || 'gemini-3.8-flash', openaiModel: 'gpt-5.1', anthropicModel: 'claude-sonnet-4-5-20250929', zaiModel: 'glm-4.5', groqModel: args.groqModel || 'llama-3.3-70b-versatile', openrouterModel: 'openrouter/auto', deepinfraModel: 'meta-llama/Llama-3.3-70B-Instruct', togetherModel: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', unorouterModel: 'gpt-oss-120b:free', relayrouterModel: 'claude-opus-4-8', topToolsModel: args.topToolsModel || 'top-tools-ai', alborihiModel: args.alborihiModel || 'claude-sonnet-5', openaiCompatModel: 'auto',
-    openaiCompatBaseUrl: 'https://compat.test/v1', alborihiBaseUrl: ALBORIHI_DEFAULT_BASE_URL, openaiCompatTier: args.openaiCompatTier || 'FREE',
+    geminiKeys: ['k'], openaiKeys: ['k'], anthropicKeys: ['k'], zaiKeys: ['k'], groqKeys: ['k'], openrouterKeys: ['k'], deepinfraKeys: ['k'], togetherKeys: ['k'], unorouterKeys: ['k'], relayrouterKeys: ['k'], topToolsKeys: ['k'], alborihiKeys: ['k'], openaiCompatKeys: ['k'], mistralKeys: ['k'], cloudflareKeys: ['k'],
+    geminiModel: args.geminiModel || 'gemini-3.8-flash', openaiModel: 'gpt-5.1', anthropicModel: 'claude-sonnet-4-5-20250929', zaiModel: 'glm-4.5', groqModel: args.groqModel || 'llama-3.3-70b-versatile', openrouterModel: 'openrouter/auto', deepinfraModel: 'meta-llama/Llama-3.3-70B-Instruct', togetherModel: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', unorouterModel: 'gpt-oss-120b:free', relayrouterModel: 'claude-opus-4-8', topToolsModel: args.topToolsModel || 'top-tools-ai', alborihiModel: args.alborihiModel || 'claude-sonnet-5', openaiCompatModel: 'auto', mistralModel: 'mistral-large-latest', cloudflareModel: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+    openaiCompatBaseUrl: 'https://compat.test/v1', alborihiBaseUrl: ALBORIHI_DEFAULT_BASE_URL, mistralBaseUrl: MISTRAL_DEFAULT_BASE_URL, cloudflareBaseUrl: 'https://api.cloudflare.com/client/v4/accounts/test123/ai/v1', openaiCompatTier: args.openaiCompatTier || 'FREE',
   } as Settings
   const taskLevel = args.taskLevel || (args.rankBy === 'family' ? 'ACADEMIC_CRITICAL' : 'GENERAL')
   return providerOrder(s, taskLevel)
