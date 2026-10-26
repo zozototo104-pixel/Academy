@@ -17,6 +17,8 @@ export type TextAiProvider =
   | 'TOPTOOLS'
   | 'OPENAI_COMPAT'
   | 'ALBORIHI'
+  | 'MISTRAL'
+  | 'CLOUDFLARE'
   | 'AUTO'
 
 export type TextAiRouterPolicy = 'primary_first' | 'balanced' | 'quality_first' | 'cost_saver' | 'fallback_only'
@@ -103,6 +105,8 @@ export interface TextAiDiagnostics {
   relayrouterConfigured: boolean
   topToolsConfigured: boolean
   alborihiConfigured: boolean
+  mistralConfigured: boolean
+  cloudflareConfigured: boolean
   openaiCompatConfigured: boolean
   geminiModel: string
   openaiModel: string
@@ -116,6 +120,8 @@ export interface TextAiDiagnostics {
   relayrouterModel: string
   topToolsModel: string
   alborihiModel: string
+  mistralModel: string
+  cloudflareModel: string
   openaiCompatModel: string
   keyCounts: Record<string, number>
   cooldowns: Array<{ provider: string; key: string; until: string; reason: string }>
@@ -187,6 +193,17 @@ const RELAYROUTER_TEXT_MODELS = ['relayrouter/auto', 'claude-opus-4-8', 'gpt-5.5
 const TOPTOOLS_TEXT_MODELS = ['top-tools-ai']
 const ALBORIHI_TEXT_MODELS = ['claude-sonnet-5', 'claude-opus-4-6', 'gpt-5.6-luna']
 const ALBORIHI_DEFAULT_BASE_URL = 'https://alborihi-ai.com/api/public/dev/v1'
+// Mistral free plan is credit-based, not price-zero: every chat model on the
+// account is usable until credits/rate limits hit, so discovery (see
+// fetchMistralTextModels) takes all chat-family models instead of filtering
+// on a free-price marker like the gateway branch does.
+const MISTRAL_TEXT_MODELS = ['mistral-large-latest', 'mistral-medium-latest', 'mistral-small-latest', 'codestral-latest']
+const MISTRAL_DEFAULT_BASE_URL = 'https://api.mistral.ai/v1'
+// Workers AI publishes no OpenAI-style /models endpoint (only
+// /v1/chat/completions and /v1/embeddings), so Cloudflare discovery falls
+// back to this curated list of currently-free large models. The list is
+// re-checked against the Workers AI catalog at review time, not at runtime.
+const CLOUDFLARE_TEXT_MODELS = ['@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/openai/gpt-oss-120b', '@cf/nvidia/nemotron-3-120b-a12b', '@cf/ibm-granite/granite-4.0-h-micro']
 const ALBORIHI_MODEL_DISCOVERY_CACHE_MS = 6 * 60 * 60 * 1000
 const OPENAI_COMPAT_TEXT_MODELS = ['auto']
 const NVIDIA_OPENAI_COMPAT_TEXT_MODELS = [
@@ -337,7 +354,7 @@ function clean(value: unknown): string {
 
 function normalizeProvider(value: unknown): TextAiProvider {
   const v = clean(value).toUpperCase()
-  const allowed: TextAiProvider[] = ['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI', 'AUTO']
+  const allowed: TextAiProvider[] = ['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'AUTO']
   return allowed.includes(v as TextAiProvider) ? (v as TextAiProvider) : 'GEMINI'
 }
 
@@ -886,7 +903,7 @@ export function __testNvidiaHardFailureThresholdForTests(timestamps: number[], n
   return timestamps.filter((at) => Number.isFinite(at) && at <= now && now - at <= NVIDIA_OPENAI_COMPAT_HARD_FAILURE_WINDOW_MS).length >= 2
 }
 
-const STRICT_ENCRYPTED_SETTING_PROVIDERS = new Set(['GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI'])
+const STRICT_ENCRYPTED_SETTING_PROVIDERS = new Set(['GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE'])
 const LEGACY_PLAINTEXT_SETTING_PROVIDERS = new Set(['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI'])
 
 function providerFromSettingKey(key: string): string {
@@ -942,6 +959,8 @@ async function settings() {
     'TOPTOOLS_API_KEY', 'TOPTOOLS_API_KEYS', 'TOPTOOLS_TEXT_MODEL', 'TOPTOOLS_BASE_URL',
     'OPENAI_COMPAT_API_KEY', 'OPENAI_COMPAT_API_KEYS', 'OPENAI_COMPAT_TEXT_MODEL', 'OPENAI_COMPAT_BASE_URL',
     'ALBORIHI_API_KEY', 'ALBORIHI_API_KEYS', 'ALBORIHI_TEXT_MODEL', 'ALBORIHI_BASE_URL',
+    'MISTRAL_API_KEY', 'MISTRAL_API_KEYS', 'MISTRAL_TEXT_MODEL', 'MISTRAL_BASE_URL',
+    'CLOUDFLARE_API_KEY', 'CLOUDFLARE_API_KEYS', 'CLOUDFLARE_TEXT_MODEL', 'CLOUDFLARE_BASE_URL',
   ])
   const provider = normalizeProvider(rows.AI_TEXT_PROVIDER || env('AI_TEXT_PROVIDER') || 'GEMINI')
   const policy = normalizePolicy(rows.AI_ROUTER_POLICY || env('AI_ROUTER_POLICY') || 'primary_first')
@@ -1005,6 +1024,14 @@ async function settings() {
     alborihiKeys: parseKeys(rows.ALBORIHI_API_KEY, rows.ALBORIHI_API_KEYS, env('ALBORIHI_API_KEY'), env('ALBORIHI_API_KEYS')),
     alborihiModel: normalizeModel(rows.ALBORIHI_TEXT_MODEL || env('ALBORIHI_TEXT_MODEL'), ALBORIHI_TEXT_MODELS),
     alborihiBaseUrl: normalizeOpenAiCompatibleBaseUrl(rows.ALBORIHI_BASE_URL || env('ALBORIHI_BASE_URL') || ALBORIHI_DEFAULT_BASE_URL),
+    mistralKeys: parseKeys(rows.MISTRAL_API_KEY, rows.MISTRAL_API_KEYS, env('MISTRAL_API_KEY'), env('MISTRAL_API_KEYS')),
+    mistralModel: normalizeModel(rows.MISTRAL_TEXT_MODEL || env('MISTRAL_TEXT_MODEL'), MISTRAL_TEXT_MODELS),
+    mistralBaseUrl: (rows.MISTRAL_BASE_URL || env('MISTRAL_BASE_URL') || MISTRAL_DEFAULT_BASE_URL).replace(/\/$/, ''),
+    // No callable default: the base URL must contain the account id, so an
+    // unset URL keeps the provider inert instead of calling a placeholder.
+    cloudflareKeys: parseKeys(rows.CLOUDFLARE_API_KEY, rows.CLOUDFLARE_API_KEYS, env('CLOUDFLARE_API_KEY'), env('CLOUDFLARE_API_KEYS')),
+    cloudflareModel: normalizeModel(rows.CLOUDFLARE_TEXT_MODEL || env('CLOUDFLARE_TEXT_MODEL'), CLOUDFLARE_TEXT_MODELS),
+    cloudflareBaseUrl: (rows.CLOUDFLARE_BASE_URL || env('CLOUDFLARE_BASE_URL') || '').replace(/\/$/, ''),
     openaiCompatKeys: parseKeys(rows.OPENAI_COMPAT_API_KEY, rows.OPENAI_COMPAT_API_KEYS, env('OPENAI_COMPAT_API_KEY'), env('OPENAI_COMPAT_API_KEYS')),
     openaiCompatModel: normalizeModel(rows.OPENAI_COMPAT_TEXT_MODEL || env('OPENAI_COMPAT_TEXT_MODEL'), openaiCompatDefaults),
     openaiCompatBaseUrl,
@@ -1060,11 +1087,13 @@ function providerKeys(s: Settings, provider: ConcreteProvider): string[] {
     case 'RELAYROUTER': return s.relayrouterKeys
     case 'TOPTOOLS': return s.topToolsKeys
     case 'ALBORIHI': return s.alborihiBaseUrl ? s.alborihiKeys : []
+    case 'MISTRAL': return s.mistralKeys
+    case 'CLOUDFLARE': return s.cloudflareBaseUrl ? s.cloudflareKeys : []
     case 'OPENAI_COMPAT': return s.openaiCompatBaseUrl ? s.openaiCompatKeys : []
   }
 }
 
-const ROUTER_STATE_PROVIDERS: ConcreteProvider[] = ['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI']
+const ROUTER_STATE_PROVIDERS: ConcreteProvider[] = ['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE']
 
 type ClearTextAiRouterStateInput = {
   type?: string
@@ -1251,6 +1280,8 @@ function modelFor(s: Settings, provider: ConcreteProvider): string {
     case 'RELAYROUTER': return s.relayrouterModel
     case 'TOPTOOLS': return s.topToolsModel
     case 'ALBORIHI': return s.alborihiModel
+    case 'MISTRAL': return s.mistralModel
+    case 'CLOUDFLARE': return s.cloudflareModel
     case 'OPENAI_COMPAT': return s.openaiCompatModel
   }
 }
@@ -1267,6 +1298,8 @@ function baseFor(s: Settings, provider: ConcreteProvider): string {
     case 'RELAYROUTER': return s.relayrouterBaseUrl
     case 'TOPTOOLS': return s.topToolsBaseUrl
     case 'ALBORIHI': return s.alborihiBaseUrl
+    case 'MISTRAL': return s.mistralBaseUrl
+    case 'CLOUDFLARE': return s.cloudflareBaseUrl
     case 'OPENAI_COMPAT': return s.openaiCompatBaseUrl
     default: return ''
   }
@@ -1286,6 +1319,8 @@ function staticTextModelsForProvider(provider: ConcreteProvider, s?: Settings): 
     case 'RELAYROUTER': return RELAYROUTER_TEXT_MODELS
     case 'TOPTOOLS': return TOPTOOLS_TEXT_MODELS
     case 'ALBORIHI': return ALBORIHI_TEXT_MODELS
+    case 'MISTRAL': return MISTRAL_TEXT_MODELS
+    case 'CLOUDFLARE': return CLOUDFLARE_TEXT_MODELS
     case 'OPENAI_COMPAT': return s && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl) ? NVIDIA_OPENAI_COMPAT_TEXT_MODELS : OPENAI_COMPAT_TEXT_MODELS
   }
 }
@@ -1602,6 +1637,42 @@ export async function __testGroqTextModelsWithFallbackForTests(baseUrl: string, 
   return models.length ? models : GROQ_TEXT_MODELS
 }
 
+// Mistral's /models lists the whole catalog, including non-chat models
+// (embed, moderation, OCR, voice) that have no chat completions endpoint.
+// The chat-family allowlist below keeps discovery to chat models only;
+// pricing is deliberately NOT filtered, because the Mistral free plan is
+// credit-based rather than price-zero.
+const MISTRAL_CHAT_MODEL_PATTERN = /^(mistral-(large|medium|small)|codestral|ministral|open-mistral|open-mixtral)/
+
+async function fetchMistralTextModels(baseUrl: string, key?: string): Promise<string[]> {
+  if (!baseUrl) return []
+  try {
+    const response = await fetchWithTimeout('MISTRAL', `${baseUrl.replace(/\/$/, '')}/models`, {
+      cache: 'no-store',
+      headers: key ? { Authorization: `Bearer ${key}` } : undefined,
+    }, aiDiscoveryTimeoutMs())
+    if (!response.ok) return []
+    const data = await response.json().catch(() => ({}))
+    const rows = rowsFromModelPayload(data)
+      .filter((m) => m?.online !== false)
+      .filter(isTextLikeModel)
+      .filter((m) => MISTRAL_CHAT_MODEL_PATTERN.test(modelId(m).toLowerCase()))
+      .map((m) => ({ raw: m, id: modelId(m) }))
+      .filter(({ id }) => validModelName(id))
+    const models = rows.map(({ id }) => id)
+    const capabilities = Object.fromEntries(rows.map(({ raw, id }) => [id, capabilityFromModelRow(raw)]))
+    freeModelsCache.set(cacheKeyForFreeModels('MISTRAL', baseUrl, key), { at: Date.now(), models, capabilities, discoveryOk: true })
+    console.info('[text-ai-router] mistral models discovered', { count: models.length })
+    return models
+  } catch {
+    return []
+  }
+}
+
+export async function __testDiscoverMistralTextModelsForTests(baseUrl: string, key?: string): Promise<string[]> {
+  return fetchMistralTextModels(baseUrl, key)
+}
+
 function freeModelsMemoryCacheMs(provider: ConcreteProvider): number {
   return provider === 'ALBORIHI' ? ALBORIHI_MODEL_DISCOVERY_CACHE_MS : 30 * 60 * 1000
 }
@@ -1651,7 +1722,9 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<
     }
   } else if (provider === 'GROQ') {
     models = await fetchGroqTextModels(baseUrl, key)
-  } else if (['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ZAI', 'ALBORIHI'].includes(provider)) {
+  } else if (provider === 'MISTRAL') {
+    models = await fetchMistralTextModels(baseUrl, key)
+  } else if (['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ZAI', 'ALBORIHI', 'CLOUDFLARE'].includes(provider)) {
     models = await fetchOpenAiCompatibleFreeModels(provider, baseUrl, key)
   }
 
@@ -1930,10 +2003,16 @@ const ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER: ConcreteProvider[] = [
   'TOGETHER',
   'OPENAI_COMPAT',
   'ALBORIHI',
+  'MISTRAL',
+  'CLOUDFLARE',
 ]
 
 export function __testPrimaryProviderOrder(): string[] {
   return [...ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER]
+}
+
+export function __testAcademicModelAllowedForTests(provider: Exclude<TextAiProvider, 'AUTO'>, model: string): boolean {
+  return academicModelAllowed(provider, model)
 }
 
 function selectedFirst(selected: ConcreteProvider | null, order: ConcreteProvider[]): ConcreteProvider[] {
@@ -2012,8 +2091,8 @@ function applyPaidFirst(s: Settings, order: ConcreteProvider[], taskLevel: TextA
 
 function baseOrder(s: Settings, taskLevel: TextAiTaskLevel = 'GENERAL'): ConcreteProvider[] {
   const selected = s.provider === 'AUTO' ? null : s.provider
-  const quality: ConcreteProvider[] = ['ANTHROPIC', 'OPENAI', 'GEMINI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'TOPTOOLS', 'ZAI', 'GROQ', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'ALBORIHI']
-  const cost: ConcreteProvider[] = ['GROQ', 'ZAI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'TOPTOOLS', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'GEMINI', 'OPENAI', 'ANTHROPIC', 'ALBORIHI']
+  const quality: ConcreteProvider[] = ['ANTHROPIC', 'OPENAI', 'GEMINI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'TOPTOOLS', 'ZAI', 'GROQ', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE']
+  const cost: ConcreteProvider[] = ['GROQ', 'ZAI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'TOPTOOLS', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'GEMINI', 'OPENAI', 'ANTHROPIC', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE']
   const primary: ConcreteProvider[] = ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER
   if (s.policy === 'quality_first') return selectedFirst(selected, canRankProvidersByFamily(s, taskLevel) ? sortProvidersByFamily(s, quality, taskLevel) : quality)
   if (s.policy === 'cost_saver') return selectedFirst(selected, canRankProvidersByFamily(s, taskLevel) ? sortProvidersByFamily(s, cost, taskLevel) : cost)
@@ -2233,6 +2312,8 @@ export async function textAiDiagnostics(): Promise<TextAiDiagnostics> {
     RELAYROUTER: s.relayrouterKeys.length,
     TOPTOOLS: s.topToolsKeys.length,
     ALBORIHI: s.alborihiKeys.length,
+    MISTRAL: s.mistralKeys.length,
+    CLOUDFLARE: s.cloudflareKeys.length,
     OPENAI_COMPAT: s.openaiCompatKeys.length,
   }
   return {
@@ -2252,6 +2333,8 @@ export async function textAiDiagnostics(): Promise<TextAiDiagnostics> {
     relayrouterConfigured: counts.RELAYROUTER > 0,
     topToolsConfigured: counts.TOPTOOLS > 0,
     alborihiConfigured: counts.ALBORIHI > 0,
+    mistralConfigured: counts.MISTRAL > 0,
+    cloudflareConfigured: counts.CLOUDFLARE > 0,
     openaiCompatConfigured: counts.OPENAI_COMPAT > 0,
     geminiModel: s.geminiModel,
     openaiModel: s.openaiModel,
@@ -2265,6 +2348,8 @@ export async function textAiDiagnostics(): Promise<TextAiDiagnostics> {
     relayrouterModel: s.relayrouterModel,
     topToolsModel: s.topToolsModel,
     alborihiModel: s.alborihiModel,
+    mistralModel: s.mistralModel,
+    cloudflareModel: s.cloudflareModel,
     openaiCompatModel: s.openaiCompatModel,
     keyCounts: counts,
     cooldowns: cooldownList(),
