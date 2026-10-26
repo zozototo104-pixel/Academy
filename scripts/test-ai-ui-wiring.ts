@@ -144,7 +144,7 @@ function testAlborihiProviderWiring() {
   assert(textAi.includes("| 'ALBORIHI'"), 'Text AI provider union must include Alborihi')
   assert(textAi.includes("ALBORIHI_DEFAULT_BASE_URL = 'https://alborihi-ai.com/api/public/dev/v1'"), 'Alborihi default base URL must match the documented public dev API')
   assert(textAi.includes("provider === 'ALBORIHI'"), 'Alborihi must have provider-specific catalog handling')
-  assert(textAi.includes("case 'ALBORIHI': return s.alborihiBaseUrl ? s.alborihiKeys : []"), 'Alborihi keys must be routed through providerKeys with a base URL guard')
+  assert(textAi.includes("case 'ALBORIHI': return s.alborihiBaseUrl ? (s.alborihiKeys || []) : []"), 'Alborihi keys must be routed through providerKeys with a base URL guard')
 
   const systemRoute = file('src/app/api/admin/system/route.ts')
   assert(systemRoute.includes('ALBORIHI_API_KEYS'), 'Admin system route must expose Alborihi API keys')

@@ -66,6 +66,8 @@ describe('router admin policy B1', () => {
       'TOGETHER',
       'OPENAI_COMPAT',
       'ALBORIHI',
+      'MISTRAL',
+      'CLOUDFLARE',
     ])
   })
 

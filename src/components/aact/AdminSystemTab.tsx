@@ -159,7 +159,7 @@ interface SystemData {
     activeMask: string
   }
   textAi?: {
-    selectedProvider: 'GEMINI' | 'OPENAI' | 'ANTHROPIC' | 'ZAI' | 'GROQ' | 'OPENROUTER' | 'DEEPINFRA' | 'TOGETHER' | 'UNOROUTER' | 'RELAYROUTER' | 'TOPTOOLS' | 'ALBORIHI' | 'OPENAI_COMPAT' | 'AUTO'
+    selectedProvider: 'GEMINI' | 'OPENAI' | 'ANTHROPIC' | 'ZAI' | 'GROQ' | 'OPENROUTER' | 'DEEPINFRA' | 'TOGETHER' | 'UNOROUTER' | 'RELAYROUTER' | 'TOPTOOLS' | 'ALBORIHI' | 'OPENAI_COMPAT' | 'MISTRAL' | 'CLOUDFLARE' | 'AUTO'
     activeProvider: 'GEMINI' | 'OPENAI' | 'ANTHROPIC' | 'ZAI' | 'GROQ' | 'OPENROUTER' | 'DEEPINFRA' | 'TOGETHER' | 'UNOROUTER' | 'RELAYROUTER' | 'TOPTOOLS' | 'ALBORIHI' | 'OPENAI_COMPAT' | null
     policy?: 'primary_first' | 'balanced' | 'quality_first' | 'cost_saver' | 'fallback_only'
     externalConfigured: boolean
@@ -217,6 +217,8 @@ const TEXT_PROVIDER_CHOICES = [
   { value: 'RELAYROUTER', label: 'RelayRouter — بوابة نماذج متعددة مدفوعة' },
   { value: 'TOPTOOLS', label: 'Top Tools AI — بوابة OpenAI-compatible' },
   { value: 'OPENAI_COMPAT', label: 'OpenAI-compatible Gateway — Relay/LiteLLM/خاص' },
+  { value: 'MISTRAL', label: 'Mistral AI — نماذج كبيرة بخطة مجانية' },
+  { value: 'CLOUDFLARE', label: 'Cloudflare Workers AI — نماذج مفتوحة بحصة يومية' },
 ]
 
 const ROUTER_POLICY_CHOICES = [
@@ -327,6 +329,20 @@ const ALBORIHI_TEXT_MODEL_CHOICES = [
   { value: 'claude-sonnet-5', label: 'claude-sonnet-5 — افتراضي Alborihi' },
   { value: 'claude-opus-4-6', label: 'claude-opus-4-6 — احتياطي Alborihi' },
   { value: 'gpt-5.6-luna', label: 'gpt-5.6-luna — احتياطي Alborihi' },
+]
+
+const MISTRAL_TEXT_MODEL_CHOICES = [
+  { value: 'mistral-large-latest', label: 'mistral-large-latest — الأقوى، افتراضي Mistral' },
+  { value: 'mistral-medium-latest', label: 'mistral-medium-latest — توازن جودة وسرعة' },
+  { value: 'mistral-small-latest', label: 'mistral-small-latest — سريع واقتصادي' },
+  { value: 'codestral-latest', label: 'codestral-latest — متخصص بالكود' },
+]
+
+const CLOUDFLARE_TEXT_MODEL_CHOICES = [
+  { value: '@cf/meta/llama-3.3-70b-instruct-fp8-fast', label: 'Llama 3.3 70B — جودة أفضل' },
+  { value: '@cf/openai/gpt-oss-120b', label: 'GPT-OSS 120B — قوي ومفتوح' },
+  { value: '@cf/nvidia/nemotron-3-120b-a12b', label: 'Nemotron 3 120B — قوي ومفتوح' },
+  { value: '@cf/ibm-granite/granite-4.0-h-micro', label: 'Granite 4.0 H Micro — خفيف احتياطي' },
 ]
 
 const GEMINI_VOICE_CHOICES = [
@@ -907,7 +923,7 @@ export function AdminSystemTab() {
       ? 'مفتاح Vercel الافتراضي'
       : 'لا يوجد مفتاح فعّال'
   const textAiDiag = data.textAi
-  const currentTextProvider = (form.AI_TEXT_PROVIDER || textAiDiag?.selectedProvider || 'GEMINI') as 'GEMINI' | 'OPENAI' | 'ANTHROPIC' | 'ZAI' | 'GROQ' | 'OPENROUTER' | 'DEEPINFRA' | 'TOGETHER' | 'UNOROUTER' | 'RELAYROUTER' | 'TOPTOOLS' | 'ALBORIHI' | 'OPENAI_COMPAT' | 'AUTO'
+  const currentTextProvider = (form.AI_TEXT_PROVIDER || textAiDiag?.selectedProvider || 'GEMINI') as 'GEMINI' | 'OPENAI' | 'ANTHROPIC' | 'ZAI' | 'GROQ' | 'OPENROUTER' | 'DEEPINFRA' | 'TOGETHER' | 'UNOROUTER' | 'RELAYROUTER' | 'TOPTOOLS' | 'ALBORIHI' | 'OPENAI_COMPAT' | 'MISTRAL' | 'CLOUDFLARE' | 'AUTO'
   const agentDiag = data.agent
   const agentSourceLabel = agentDiag?.source === 'settings'
     ? 'إعدادات لوحة الإدارة'
@@ -1544,6 +1560,20 @@ export function AdminSystemTab() {
                 {F('OPENAI_COMPAT_API_KEYS', 'OpenAI-compatible API Keys', data.secretsSet.OPENAI_COMPAT_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'key1,key2', 'password', 'RelayFreeLLM / LiteLLM / Gateway خاص.')}
                 {SelectF('OPENAI_COMPAT_TEXT_MODEL', 'نموذج OpenAI-compatible', modelOptions('OPENAI_COMPAT', [{ value: 'auto', label: 'auto — يختار Gateway النموذج' }]), modelHint('OPENAI_COMPAT', 'إذا عرض Gateway نماذج مجانية عبر /models ستظهر هنا تلقائياً.'))}
                 {F('OPENAI_COMPAT_BASE_URL', 'OpenAI-compatible Base URL', 'https://your-gateway.example/v1', 'text', 'يجب أن يدعم /chat/completions.')}
+              </>
+            ) : null}
+            {currentTextProvider === 'MISTRAL' || currentTextProvider === 'AUTO' ? (
+              <>
+                {F('MISTRAL_API_KEYS', 'Mistral AI API Keys', data.secretsSet.MISTRAL_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'key1,key2', 'password', 'مفتاح أو أكثر من Mistral AI مفصول بفاصلة. لا تضع المفتاح داخل الكود.')}
+                {SelectF('MISTRAL_TEXT_MODEL', 'نموذج Mistral AI', modelOptions('MISTRAL', MISTRAL_TEXT_MODEL_CHOICES), modelHint('MISTRAL', 'يتم تحميل نماذج حسابك تلقائياً من /models، والقائمة الثابتة هنا احتياط فقط.'))}
+                {F('MISTRAL_BASE_URL', 'Mistral AI Base URL', 'https://api.mistral.ai/v1', 'text', 'يجب أن يدعم /chat/completions بنمط OpenAI-compatible.')}
+              </>
+            ) : null}
+            {currentTextProvider === 'CLOUDFLARE' || currentTextProvider === 'AUTO' ? (
+              <>
+                {F('CLOUDFLARE_API_KEYS', 'Cloudflare Workers AI API Keys', data.secretsSet.CLOUDFLARE_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'key1,key2', 'password', 'توكن API بحساب Cloudflare مع صلاحية Workers AI Read. لا تضع المفتاح داخل الكود.')}
+                {SelectF('CLOUDFLARE_TEXT_MODEL', 'نموذج Cloudflare Workers AI', modelOptions('CLOUDFLARE', CLOUDFLARE_TEXT_MODEL_CHOICES), modelHint('CLOUDFLARE', 'القائمة الثابتة هنا هي المصدر لأن Workers AI لا يعرض /models، والحصة اليومية 10,000 وحدة حساب مشتركة.'))}
+                {F('CLOUDFLARE_BASE_URL', 'Cloudflare Workers AI Base URL', 'https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1', 'text', 'ضع رقم حساب Cloudflare مكان {account_id}. يجب أن يدعم /chat/completions بنمط OpenAI-compatible.')}
               </>
             ) : null}
           </div>
