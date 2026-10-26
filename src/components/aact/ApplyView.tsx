@@ -59,6 +59,23 @@ interface ProgramLite {
   disclosureConsentText?: string | null
 }
 
+const APPLY_DRAFT_KEY = 'aact-apply-draft'
+
+// قراءة مسودة طلب الالتحاق/الخدمة المحفوظة قبل الدخول — null عند
+// غيابها أو فسادها، مع تسجيل التحذير بدل ابتلاع الخطأ بصمت.
+function readApplyDraft(): { form?: Record<string, string>; selectedCategory?: string; acknowledged?: boolean } | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = localStorage.getItem(APPLY_DRAFT_KEY)
+    if (!raw) return null
+    const draft = JSON.parse(raw)
+    return draft && typeof draft === 'object' ? draft : null
+  } catch (e) {
+    console.warn('Failed to read saved application draft.', e)
+    return null
+  }
+}
+
 interface TrackedInvoice {
   invoiceNo: string
   purpose: string
@@ -184,7 +201,7 @@ export function ApplyView() {
   const { toast } = useToast()
   const { user, applyProgramTitle, applyProgramId, navigate } = useAppStore()
   const [programs, setPrograms] = useState<ProgramLite[]>([])
-  const [selectedCategory, setSelectedCategory] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState(() => readApplyDraft()?.selectedCategory || '')
   const [generalDisclosureConsentText, setGeneralDisclosureConsentText] = useState('')
   const [activeTab, setActiveTab] = useState('apply')
   const [loading, setLoading] = useState(false)
@@ -201,7 +218,9 @@ export function ApplyView() {
   const [myApplications, setMyApplications] = useState<any[]>([])
   const [applicationFee, setApplicationFee] = useState(30)
 
-  const [form, setForm] = useState({
+  // المسودة تُقرأ في مُهيّئ الحالة لا في تأثير، حتى لا نستدعي setState
+  // داخل التأثير (تحذير react-hooks/set-state-in-effect).
+  const [form, setForm] = useState(() => ({
     fullName: '',
     fullNameEn: '',
     email: '',
@@ -213,8 +232,9 @@ export function ApplyView() {
     education: 'BACHELOR',
     program: '',
     notes: '',
-  })
-  const [acknowledged, setAcknowledged] = useState(false)
+    ...(readApplyDraft()?.form || {}),
+  }))
+  const [acknowledged, setAcknowledged] = useState(() => !!readApplyDraft()?.acknowledged)
   const [files, setFiles] = useState<Record<string, File>>({})
   const [missingDocs, setMissingDocs] = useState<string[]>([])
   const [replacementFiles, setReplacementFiles] = useState<Record<string, File>>({})
@@ -463,18 +483,6 @@ export function ApplyView() {
   }
 
   const [loginPrompt, setLoginPrompt] = useState(false)
-  const APPLY_DRAFT_KEY = 'aact-apply-draft'
-  // استعادة مسودة محفوظة قبل الذهاب لشاشة الدخول (نصوص فقط — الملفات تُعاد إرفاقاً).
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(APPLY_DRAFT_KEY)
-      if (!raw) return
-      const draft = JSON.parse(raw)
-      if (draft.form) setForm((f: any) => ({ ...f, ...draft.form }))
-      if (draft.selectedCategory) setSelectedCategory(draft.selectedCategory)
-      if (draft.acknowledged !== undefined) setAcknowledged(!!draft.acknowledged)
-    } catch {}
-  }, [])
 
   const submit = async (e?: React.FormEvent) => {
     e?.preventDefault()
@@ -484,7 +492,7 @@ export function ApplyView() {
     }
     if (!user) {
       // بوابة الدخول: حفظ المسودة نصوصاً ثم رسالة وزر لشاشة الدخول.
-      try { localStorage.setItem(APPLY_DRAFT_KEY, JSON.stringify({ form, selectedCategory, acknowledged })) } catch {}
+      try { localStorage.setItem(APPLY_DRAFT_KEY, JSON.stringify({ form, selectedCategory, acknowledged })) } catch (e) { console.warn('Failed to save application draft.', e) }
       setLoginPrompt(true)
       return
     }

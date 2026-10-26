@@ -73,6 +73,21 @@ type AgentRules = {
 const DOC_ICONS: Record<string, any> = { LICENSE: ScrollText, ID: IdCard, PHOTO: Camera, CV: FileText }
 const AGENT_DRAFT_KEY = 'aact-agent-draft'
 
+// قراءة مسودة نموذج الوكالة/الاعتماد المحفوظة قبل الدخول — null عند
+// غيابها أو فسادها، مع تسجيل التحذير بدل ابتلاع الخطأ بصمت.
+function readAgentDraft(): { form?: Record<string, string>; kind?: string; accreditationType?: string } | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = localStorage.getItem(AGENT_DRAFT_KEY)
+    if (!raw) return null
+    const draft = JSON.parse(raw)
+    return draft && typeof draft === 'object' ? draft : null
+  } catch (e) {
+    console.warn('Failed to read saved agent draft.', e)
+    return null
+  }
+}
+
 export function AgentView() {
   const { toast } = useToast()
   const { user, navigate } = useAppStore()
@@ -87,11 +102,18 @@ export function AgentView() {
   const [payMethod, setPayMethod] = useState('PAYMOB')
   const [paying, setPaying] = useState(false)
 
-  const [kind, setKind] = useState<'AGENCY' | 'ACCREDITATION'>('AGENCY')
-  const [accreditationType, setAccreditationType] = useState('CONSULTANT')
-  const [form, setForm] = useState({
-    orgName: '', repName: '', email: '', phone: '', country: '', territory: '', experience: '',
+  // مسودة محفوظة قبل الذهاب لشاشة الدخول (نصوص فقط — الملفات تُعاد إرفاقاً).
+  // تُقرأ في مُهيّئ الحالة لا في تأثير، حتى لا نستدعي setState داخل
+  // التأثير (تحذير react-hooks/set-state-in-effect) ولا نكسر العرض.
+  const [kind, setKind] = useState<'AGENCY' | 'ACCREDITATION'>(() => readAgentDraft()?.kind === 'ACCREDITATION' ? 'ACCREDITATION' : 'AGENCY')
+  const [accreditationType, setAccreditationType] = useState(() => {
+    const saved = readAgentDraft()?.accreditationType
+    return saved === 'CONSULTANT' || saved === 'TRAINER' || saved === 'QUALITY' ? saved : 'CONSULTANT'
   })
+  const [form, setForm] = useState(() => ({
+    orgName: '', repName: '', email: '', phone: '', country: '', territory: '', experience: '',
+    ...(readAgentDraft()?.form || {}),
+  }))
   const [agentRules, setAgentRules] = useState<AgentRules | null>(null)
   const canSubmitAgentApplication = !user || !['ADMIN', 'SUPERVISOR'].includes(user.role)
 
@@ -100,18 +122,7 @@ export function AgentView() {
   useEffect(() => {
     fetch('/api/agent-apply').then((r) => r.json()).then((d) => {
       if (Array.isArray(d.docs) && d.docs.length) setAgentRules(d)
-    }).catch(() => {})
-  }, [])
-  // استعادة مسودة محفوظة قبل الذهاب لشاشة الدخول (نصوص فقط — الملفات تُعاد إرفاقاً).
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(AGENT_DRAFT_KEY)
-      if (!raw) return
-      const draft = JSON.parse(raw)
-      if (draft.form) setForm((f) => ({ ...f, ...draft.form }))
-      if (draft.kind) setKind(draft.kind)
-      if (draft.accreditationType) setAccreditationType(draft.accreditationType)
-    } catch {}
+    }).catch((e) => console.warn('Failed to load agent rules, using defaults.', e))
   }, [])
   const displayDocs = (agentRules?.docs?.length ? agentRules.docs : AGENT_DOCS).map((d: any) => ({
     type: d.type,
@@ -138,7 +149,7 @@ export function AgentView() {
     e?.preventDefault()
     if (!user) {
       // بوابة الدخول: حفظ المسودة نصوصاً ثم رسالة وزر لشاشة الدخول.
-      try { localStorage.setItem(AGENT_DRAFT_KEY, JSON.stringify({ form, kind, accreditationType })) } catch {}
+      try { localStorage.setItem(AGENT_DRAFT_KEY, JSON.stringify({ form, kind, accreditationType })) } catch (e) { console.warn('Failed to save agent draft.', e) }
       setLoginPrompt(true)
       return
     }
@@ -178,7 +189,7 @@ export function AgentView() {
         if (d.code === 'LOGIN_REQUIRED') { setLoginPrompt(true); throw new Error(d.error || 'نرجو تسجيل الدخول لاستكمال الطلب') }
         throw new Error(d.error || d.message || 'تعذر إرسال الطلب')
       }
-      try { localStorage.removeItem(AGENT_DRAFT_KEY) } catch {}
+      try { localStorage.removeItem(AGENT_DRAFT_KEY) } catch (e) { console.warn('Failed to clear agent draft.', e) }
       setDone({ kind: kind === 'AGENCY' ? 'agency' : 'accreditation', invoice: d.invoice || null, email: d.email || null })
       toast({ title: 'تم الإرسال', description: d.message })
     } catch (e: any) {
