@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { __testLimitProviderModelsForTests, __testProviderRateLimitCooldownForTests, __testQuestionVerifierCandidatePlan, __testResolvedAlborihiFamilyForTests, modelFamily, parseProviderModelList } from '../../src/lib/text-ai'
-import { __testVerifierExcludedProviders, __testVerifierFamilyAllowedForTests, __testVerifierPreferredProvidersForTests } from '../../src/lib/question-verifier'
+import { __testApplyAcceptedForTests, __testVerifierExcludedProviders, __testVerifierFamilyAllowedForTests, __testVerifierPreferredProvidersForTests } from '../../src/lib/question-verifier'
 
 describe('question verifier preferred routing', () => {
   test('preferred verifier is used first when available', () => {
@@ -84,5 +84,35 @@ describe('question verifier preferred routing', () => {
 
   test('Alborihi can fall back to a different provider with a different known model family', () => {
     expect(__testVerifierFamilyAllowedForTests({ provider: 'GROQ', model: 'llama-3.3-70b-versatile' }, 'ALBORIHI', modelFamily('claude-sonnet-5'))).toEqual({ ok: true })
+  })
+})
+
+describe('question verifier OCR grounding', () => {
+  const ocrQuestion: any = {
+    type: 'MCQ', text: 'q', options: ['a', 'b'], correctAnswer: '0', modelAnswer: null,
+    sourceEvidence: 'e', qualityFlags: ['SOURCE_LINKED', 'OCR_DERIVED_SOURCE', 'NEEDS_HUMAN_REVIEW'],
+    sourceIndex: 1, textProvenance: 'VISION_OCR',
+  }
+  const nativeQuestion: any = { ...ocrQuestion, textProvenance: 'NATIVE_TEXT', qualityFlags: ['SOURCE_LINKED', 'NEEDS_HUMAN_REVIEW'] }
+  const result: any = { valid: true, answerSupported: true, evidenceSupportsQuestion: true, reason: 'supported' }
+  const ctx = { provider: 'GEMINI', model: 'gemini-2.5-pro' }
+
+  test('default strips the stamp from OCR questions even on verifier pass (generation behavior)', () => {
+    const out: any = __testApplyAcceptedForTests(ocrQuestion, result, ctx)
+    expect(out.qualityFlags).not.toContain('SOURCE_GROUNDED')
+    expect(out.qualityFlags).toContain('OCR_DERIVED_SOURCE')
+    expect(out.qualityFlags).toContain('NEEDS_HUMAN_REVIEW')
+  })
+
+  test('allowOcrGrounding stamps OCR questions and keeps the OCR marker (reverify only)', () => {
+    const out: any = __testApplyAcceptedForTests(ocrQuestion, result, ctx, true)
+    expect(out.qualityFlags).toContain('SOURCE_GROUNDED')
+    expect(out.qualityFlags).toContain('OCR_DERIVED_SOURCE')
+  })
+
+  test('native questions are unaffected by the flag', () => {
+    const out: any = __testApplyAcceptedForTests(nativeQuestion, result, ctx, true)
+    expect(out.qualityFlags).toContain('SOURCE_GROUNDED')
+    expect(out.qualityFlags).not.toContain('OCR_DERIVED_SOURCE')
   })
 })
