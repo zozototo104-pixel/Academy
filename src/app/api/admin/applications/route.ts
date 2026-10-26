@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit, notify } from '@/lib/notify'
-import { nextCertSerial, nextContractNo, nextInvoiceNo, getSettings } from '@/lib/settings'
+import { nextCertSerial, nextContractNo, nextInvoiceNo, getSettings, getSettingNum } from '@/lib/settings'
 import { adminPaginationMeta, cleanAdminQuery, parseAdminPagination } from '@/lib/admin-query'
 import { randomBytes } from 'crypto'
 import { createRepresentativeQrToken, hashRepresentativeVerifier, normalizeRepresentativeSlug } from '@/lib/academy-representatives'
-import { emailRepresentativeOnboardingInvitation } from '@/lib/mailer'
+import { emailAgentInvoice, emailRepresentativeOnboardingInvitation } from '@/lib/mailer'
 
 const ACC_TYPE_LABEL: Record<string, string> = {
   COMPANY: 'اعتماد هيئة تدريبية (شركة/مؤسسة/مركز)',
@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
     const agentIds = applications.map((a) => a.id)
     const fees = agentIds.length
       ? await db.payment.findMany({
-          where: { agentId: { in: agentIds }, purpose: 'ACCREDITATION_FEE' },
+          where: { agentId: { in: agentIds }, purpose: { in: ['ACCREDITATION_FEE', 'AGENCY_FEE'] } },
           select: { agentId: true, invoiceNo: true, amount: true, status: true },
         })
       : []
@@ -118,7 +118,10 @@ export async function GET(req: NextRequest) {
 }
 
 // PATCH /api/admin/applications — تحديث حالة الطلب
-// عند القبول: وكالة → إنشاء عقد سنة بعمولة 25% | اعتماد → إصدار شهادة اعتماد رقمية + فاتورة
+// عند القبول: وكالة → بعد سداد رسوم التقديم، عقد سنة بعمولة من الإعدادات |
+// اعتماد → بعد سداد رسوم التقديم، فاتورة رسوم فئة من الإعدادات فقط،
+// والشهادة لا تُصدر إلا عند سداد فاتورة الفئة (إصدار تلقائي في تسوية
+// الدفع) — إلا فئة الجودة بمبلغ 0 فشهادتها فورية لعدم وجود فاتورة.
 export async function PATCH(req: NextRequest) {
   try {
     const admin = await requireAdmin()
@@ -153,6 +156,7 @@ export async function PATCH(req: NextRequest) {
     const data: any = { status }
     let contractNo: string | null = null
     let certSerial: string | null = null
+    let categoryInvoice: { invoiceNo: string; amount: number } | null = null
     let revokedCertificates = 0
     let representativeOnboardingLink: string | null = null
 
@@ -178,7 +182,18 @@ export async function PATCH(req: NextRequest) {
 
     if (status === 'APPROVED' && !app.contractNo && !app.certificates?.length) {
       if (app.kind === 'AGENCY') {
-        // وفق عقد التمثيل والتفويض الدولي: مدة سنة قابلة للتجديد + عمولة 25%
+        // قاعدة رسمية: لا عقد وكالة قبل سداد رسوم تقديم الوكالة (من الإعدادات)
+        const agencyFeePaid = await db.payment.findFirst({
+          where: { agentId: app.id, purpose: 'AGENCY_FEE', status: 'PAID' },
+        })
+        if (!agencyFeePaid) {
+          const agencyFee = await getSettingNum('FEE_AGENCY_APPLICATION')
+          return NextResponse.json(
+            { error: `لا يمكن إصدار عقد الوكالة قبل سداد صاحب الطلب رسوم التقديم (${agencyFee}$) — راجع تبويب الطلبات للحالة` },
+            { status: 400 }
+          )
+        }
+        // وفق عقد التمثيل والتفويض الدولي: مدة سنة قابلة للتجديد + عمولة من الإعدادات
         const settings = await getSettings()
         const start = new Date()
         const end = new Date(start)
@@ -191,40 +206,31 @@ export async function PATCH(req: NextRequest) {
         data.startDate = start
         data.endDate = end
       } else {
-        // قاعدة رسمية: لا اعتماد قبل سداد رسوم تقديم الاعتماد (100$)
+        // قاعدة رسمية: لا قبول اعتماد قبل سداد رسوم تقديم الاعتماد (من الإعدادات)
         const feePaid = await db.payment.findFirst({
           where: { agentId: app.id, purpose: 'ACCREDITATION_FEE', status: 'PAID' },
         })
         if (!feePaid) {
+          const applicationFee = await getSettingNum('FEE_ACC_APPLICATION')
           return NextResponse.json(
-            { error: 'لا يمكن إصدار الاعتماد قبل سداد صاحب الطلب رسوم التقديم (100$) — راجع تبويب «طلبات الاعتماد» للحالة' },
+            { error: `لا يمكن إصدار الاعتماد قبل سداد صاحب الطلب رسوم التقديم (${applicationFee}$) — راجع تبويب «طلبات الاعتماد» للحالة` },
             { status: 400 }
           )
         }
-        // اعتماد: شهادة اعتماد رقمية + فاتورة رسوم الاعتماد حسب الفئة
+        // اعتماد: فاتورة رسوم الفئة من الإعدادات فقط — الشهادة لا تُصدر هنا،
+        // بل تلقائياً عند سداد فاتورة الفئة (تسوية الدفع). فئة بمبلغ 0
+        // (جودة افتراضياً) لا فاتورة لها فشهادتها فورية.
         const settings = await getSettings()
         const feeMap: Record<string, string> = {
           COMPANY: settings.FEE_ACC_COMPANY || '1000',
           CONSULTANT: settings.FEE_ACC_CONSULTANT || '350',
           TRAINER: settings.FEE_ACC_TRAINER || '200',
-          QUALITY: '0', // حسب الطلب — تُحدد يدوياً
+          QUALITY: settings.FEE_ACC_QUALITY || '0',
         }
         const amount = parseFloat(feeMap[app.accreditationType || ''] || '0')
-        certSerial = await nextCertSerial()
-        await db.certificate.create({
-          data: {
-            serial: certSerial,
-            qrToken: randomBytes(16).toString('hex'),
-            type: 'ACCREDITATION',
-            holderName: app.orgName,
-            program: ACC_TYPE_LABEL[app.accreditationType || ''] || 'اعتماد دولي',
-            country: app.country,
-            agentId: app.id,
-          },
-        })
         if (amount > 0) {
           const owner = await db.user.findUnique({ where: { email: app.email }, select: { id: true } })
-          await db.payment.create({
+          const categoryPayment = await db.payment.create({
             data: {
               agentId: app.id,
               userId: owner?.id || null,
@@ -235,6 +241,28 @@ export async function PATCH(req: NextRequest) {
               payerName: app.repName,
               payerEmail: app.email,
               payerCountry: app.country,
+            },
+          })
+          categoryInvoice = { invoiceNo: categoryPayment.invoiceNo, amount }
+          // إيميل فاتورة الفئة برابط الدفع — القبول وحده لا يكفي بلا تبليغ.
+          await emailAgentInvoice(app.email, {
+            name: app.repName,
+            kind: 'ACCREDITATION',
+            invoiceNo: categoryInvoice.invoiceNo,
+            amount: categoryInvoice.amount,
+            description: categoryPayment.description,
+          }).catch(() => false)
+        } else {
+          certSerial = await nextCertSerial()
+          await db.certificate.create({
+            data: {
+              serial: certSerial,
+              qrToken: randomBytes(16).toString('hex'),
+              type: 'ACCREDITATION',
+              holderName: app.orgName,
+              program: ACC_TYPE_LABEL[app.accreditationType || ''] || 'اعتماد دولي',
+              country: app.country,
+              agentId: app.id,
             },
           })
         }
@@ -309,10 +337,12 @@ export async function PATCH(req: NextRequest) {
         await notify(
           owner.id,
           'AGENT',
-          app.kind === 'AGENCY' ? 'تم اعتماد وكالتك الدولية' : 'تم إصدار شهادة اعتمادك',
+          app.kind === 'AGENCY' ? 'تم اعتماد وكالتك الدولية' : categoryInvoice ? 'تم قبول اعتمادك — بانتظار سداد رسوم الفئة' : 'تم إصدار شهادة اعتمادك',
           app.kind === 'AGENCY'
-            ? `تم اعتماد وكالتك بنطاق ${app.territory || app.country}. رقم العقد ${contractNo} — العمولة 25% ومستحقات اللجان 100$ لكل بحث. ${representativeOnboardingLink ? `يرجى استكمال ملف ممثل الأكاديمية ورفع السيرة والصورة والملفات عبر الرابط: ${representativeOnboardingLink}` : 'راجع بوابة الوكيل.'}`
-            : `تم إصدار شهادة الاعتماد رقم ${certSerial} باسم ${app.orgName}. راجع تبويب بوابتك أو صفحة التحقق.`,
+            ? `تم اعتماد وكالتك بنطاق ${app.territory || app.country}. رقم العقد ${contractNo} — العمولة ${updated.commissionRate ?? app.commissionRate}% ومستحقات اللجان ${updated.committeeFee ?? app.committeeFee}$ لكل بحث. ${representativeOnboardingLink ? `يرجى استكمال ملف ممثل الأكاديمية ورفع السيرة والصورة والملفات عبر الرابط: ${representativeOnboardingLink}` : 'راجع بوابة الوكيل.'}`
+            : categoryInvoice
+              ? `تم قبول اعتماد ${app.orgName}. سدد رسوم الفئة (${categoryInvoice.amount}$) — فاتورة ${categoryInvoice.invoiceNo} — لتُصدر شهادة الاعتماد تلقائياً بعد السداد.`
+              : `تم إصدار شهادة الاعتماد رقم ${certSerial} باسم ${app.orgName}. راجع تبويب بوابتك أو صفحة التحقق.`,
           'agent'
         )
       } else if (status === 'REJECTED') {
@@ -331,10 +361,10 @@ export async function PATCH(req: NextRequest) {
     const auditAction = status === 'APPROVED' ? 'APPROVE_AGENT' : status === 'REVOKED' ? 'REVOKE_AGENT_ACCREDITATION' : 'REJECT_AGENT'
     const auditDetails = status === 'REVOKED'
       ? `${app.orgName} — سحب اعتماد/وكالة — سبب: ${String(revokedReason || '').slice(0, 500)} — شهادات معطلة: ${revokedCertificates}`
-      : `${app.orgName} — ${app.kind === 'AGENCY' ? `عقد ${contractNo}` : `شهادة ${certSerial}`}`
+      : `${app.orgName} — ${app.kind === 'AGENCY' ? `عقد ${contractNo}` : categoryInvoice ? `فاتورة فئة ${categoryInvoice.invoiceNo} (${categoryInvoice.amount}$)` : `شهادة ${certSerial}`}`
     await audit(admin, auditAction, 'AgentApplication', id, auditDetails)
 
-    return NextResponse.json({ ok: true, application: updated, contractNo, certSerial, revokedCertificates })
+    return NextResponse.json({ ok: true, application: updated, contractNo, certSerial, categoryInvoice, revokedCertificates })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })

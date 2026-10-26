@@ -389,6 +389,12 @@ export async function PUT(req: NextRequest) {
       if (typeof r.allowExperienceEquivalency === 'boolean') clean.allowExperienceEquivalency = r.allowExperienceEquivalency
       if (Number.isFinite(Number(r.minYearsExperience))) clean.minYearsExperience = Math.max(0, Math.min(40, Math.round(Number(r.minYearsExperience))))
       if (Array.isArray(r.requiredDocuments)) clean.requiredDocuments = r.requiredDocuments.filter((d) => typeof d === 'string' && d.length <= 40).slice(0, 10)
+      if (Array.isArray((r as any).customDocuments)) {
+        clean.customDocuments = (r as any).customDocuments
+          .filter((d: any) => d && typeof d.type === 'string' && typeof d.label === 'string' && d.type.trim() && d.label.trim())
+          .map((d: any) => ({ type: d.type.trim().slice(0, 40), label: d.label.trim().slice(0, 120) }))
+          .slice(0, 10)
+      }
       if (Number.isFinite(Number(r.minAge))) clean.minAge = Math.max(12, Math.min(80, Math.round(Number(r.minAge))))
       if (typeof r.customRules === 'string') clean.customRules = r.customRules.slice(0, 3000)
       if (typeof r.displayNote === 'string') clean.displayNote = r.displayNote.slice(0, 600)

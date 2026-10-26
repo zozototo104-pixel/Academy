@@ -130,6 +130,8 @@ export const DEFAULT_SETTINGS: SettingDef[] = [
   { key: 'FEE_ACC_COMPANY', value: '1000', label: 'اعتماد هيئات تدريبية (شركات/مؤسسات/مراكز)', group: 'FEES', suffix: '$', inputType: 'number' },
   { key: 'FEE_ACC_CONSULTANT', value: '350', label: 'اعتماد المستشارين (بجميع التخصصات)', group: 'FEES', suffix: '$', inputType: 'number' },
   { key: 'FEE_ACC_TRAINER', value: '200', label: 'اعتماد مدرب دولي معتمد', group: 'FEES', suffix: '$', inputType: 'number' },
+  { key: 'FEE_ACC_QUALITY', value: '0', label: 'اعتماد الجودة (0 = تُحدد يدوياً عند القبول)', group: 'FEES', suffix: '$', inputType: 'number' },
+  { key: 'FEE_AGENCY_APPLICATION', value: '100', label: 'رسوم تقديم طلب الوكالة (غير مستردة)', group: 'FEES', suffix: '$', inputType: 'number' },
   { key: 'FEE_SERVICE_DEFAULT', value: '50', label: 'رسوم الخدمة المهنية الافتراضية (تُستخدم فقط للخدمات بدون سعر)', group: 'FEES', suffix: '$', inputType: 'number', help: 'سعر كل خدمة أو برنامج يُعدّل من قواعد القبول.' },
 
   // باقات الذكاء الاصطناعي — تبيع المنصة دقائق محادثة صوتية للطلاب بعد انتهاء الرصيد المجاني

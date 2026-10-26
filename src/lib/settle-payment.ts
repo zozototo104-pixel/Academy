@@ -1,10 +1,36 @@
 import { db } from '@/lib/db'
-import { nextReceiptNo } from '@/lib/settings'
+import { nextCertSerial, nextReceiptNo } from '@/lib/settings'
 import { notify, audit } from '@/lib/notify'
-import { emailPaymentReceipt, emailFinalRegistration } from '@/lib/mailer'
+import { emailCertificateIssued, emailPaymentReceipt, emailFinalRegistration } from '@/lib/mailer'
 import { getAdmissionTuitionPlan } from '@/lib/tuition-installments'
 import { grantGeminiLiveCredit } from '@/lib/live-usage-guard'
 import { paymentAmountDollars } from '@/lib/money'
+import { randomBytes } from 'crypto'
+
+const ACC_TYPE_LABEL_SETTLE: Record<string, string> = {
+  COMPANY: 'اعتماد هيئة تدريبية (شركة/مؤسسة/مركز)',
+  CONSULTANT: 'اعتماد مستشار دولي',
+  TRAINER: 'اعتماد مدرب دولي معتمد',
+  QUALITY: 'اعتماد الجودة',
+}
+
+// حارس نطاق إصدار الشهادة عند السداد — دالة نقية قابلة للاختبار:
+// الشهادة تُصدر فقط لفاتورة رسوم فئة اعتماد على طلب معتمد بلا شهادة.
+// مدفوعات الطلاب (تقديم/رسوم دراسية) ورسوم تقديم الاعتماد نفسها لا
+// تصدر شهادة أبداً؛ شهادات الطلاب من المسار الأكاديمي فقط.
+export function accreditationCertificateDue(
+  payment: { purpose?: string | null; agentId?: string | null },
+  agent: { status?: string | null; kind?: string | null; certificates?: unknown[] | null } | null,
+): boolean {
+  return (
+    payment.purpose === 'ACCREDITATION' &&
+    !!payment.agentId &&
+    !!agent &&
+    agent.status === 'APPROVED' &&
+    agent.kind === 'ACCREDITATION' &&
+    !(agent.certificates && agent.certificates.length > 0)
+  )
+}
 
 // ===== تسوية فاتورة: تُستخدم من تأكيد الدفع داخل المنصة ومن Webhook المزودين =====
 // تُطبق آثار السداد الكاملة: الإيصال + تحويل حالة طلب الالتحاق + تفعيل التسجيل + الإشعارات والبريد
@@ -260,19 +286,49 @@ export async function markInvoicePaid(
     ).catch(() => {})
   }
 
-  // آثار السداد على طلب اعتماد شركة/مؤسسة: إشعار صاحب الطلب + بريد الإيصال
+  // آثار السداد على طلب وكالة/اعتماد: إشعار صاحب الطلب + بريد الإيصال.
+  // (إصلاح: الإشعار كان يُمرَّر له مستخدم فارغ فلا يصل لأحد — الآن يُحل
+  // صاحب الطلب من بريده فيُرسل له فعلاً.)
   if (payment.agentId) {
-    const agent = await db.agentApplication.findUnique({ where: { id: payment.agentId } })
+    const agent = await db.agentApplication.findUnique({ where: { id: payment.agentId }, include: { certificates: true } })
     if (agent) {
+      const agentOwner = agent.email ? await db.user.findUnique({ where: { email: agent.email }, select: { id: true } }).catch(() => null) : null
       await notify(
-        null,
+        agentOwner?.id || null,
         'PAYMENT',
         'تم استلام دفعة اعتماد بنجاح',
-        `سُددت فاتورة «${payment.description}» بمبلغ ${amountLabel}$ — رقم الإيصال ${receiptNo} — لطلب اعتماد: ${agent.orgName}.`,
+        `سُددت فاتورة «${payment.description}» بمبلغ ${amountLabel}$ — رقم الإيصال ${receiptNo} — لطلب ${agent.kind === 'AGENCY' ? 'وكالة' : 'اعتماد'}: ${agent.orgName}.`,
         'agent'
       ).catch(() => {})
       if (agent.email) {
         await emailPaymentReceipt(agent.email, agent.repName, payment.invoiceNo, payment.description, amountDollars, receiptNo)
+      }
+      // إصدار شهادة الاعتماد عند سداد رسوم الفئة فقط — نطاق الحارس أعلاه.
+      if (accreditationCertificateDue(payment, agent)) {
+        const serial = await nextCertSerial()
+        await db.certificate.create({
+          data: {
+            serial,
+            qrToken: randomBytes(16).toString('hex'),
+            type: 'ACCREDITATION',
+            holderName: agent.orgName,
+            program: ACC_TYPE_LABEL_SETTLE[agent.accreditationType || ''] || 'اعتماد دولي',
+            country: agent.country,
+            agentId: agent.id,
+          },
+        })
+        if (agentOwner?.id) {
+          await notify(
+            agentOwner.id,
+            'AGENT',
+            'تم إصدار شهادة اعتمادك',
+            `تم إصدار شهادة الاعتماد رقم ${serial} باسم ${agent.orgName} بعد سداد رسوم الفئة. راجع بوابتك أو صفحة التحقق.`,
+            'agent'
+          ).catch(() => {})
+        }
+        if (agent.email) {
+          await emailCertificateIssued(agent.email, agent.repName, ACC_TYPE_LABEL_SETTLE[agent.accreditationType || ''] || 'اعتماد دولي', serial).catch(() => {})
+        }
       }
     }
   }

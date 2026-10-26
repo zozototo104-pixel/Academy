@@ -289,6 +289,17 @@ export async function emailServiceRequestSubmitted(to: string, name: string, ref
   await sendEmail({ to, event: 'SERVICE_REQUEST_SUBMITTED', subject: `استلمنا طلبك — كود التتبع ${reference}`, html: emailTemplate('تم استلام طلب الخدمة بنجاح ✅', `<p>${greeting(name)}،</p>${infoRows([{ label: 'كود تتبع الطلب', value: reference }, { label: 'الخدمة', value: service }])}`, { label: 'تتبع حالة الطلب', url: appLink('/?view=apply') }) })
 }
 
+// فاتورة طلب وكالة/اعتماد: رقم الفاتورة والمبلغ وزر دفع — تُرسل لحظة
+// إنشاء الفاتورة حتى لا يعتمد المتقدم على إشعار المنصة وحده.
+export async function emailAgentInvoice(to: string, input: { name: string; kind: 'AGENCY' | 'ACCREDITATION'; invoiceNo: string; amount: number; description: string }): Promise<boolean> {
+  try {
+    await sendEmail({ to, event: 'AGENT_INVOICE', subject: `فاتورة ${input.kind === 'AGENCY' ? 'تقديم طلب الوكالة' : 'تقديم طلب الاعتماد'} — ${input.invoiceNo}`, html: emailTemplate(`فاتورتك جاهزة للسداد 💳`, `<p>${greeting(input.name)}،</p>${infoRows([{ label: 'البند', value: input.description }, { label: 'رقم الفاتورة', value: input.invoiceNo }, { label: 'المبلغ', value: `${input.amount}$` }, { label: 'الخطوة التالية', value: 'سدد الفاتورة من فواتيرك ليُحوَّل طلبك للدراسة' }])}`, { label: 'فتح فواتيري وسداد الفاتورة', url: appLink('/?view=dashboard&tab=payments') }) })
+    return true
+  } catch {
+    return false
+  }
+}
+
 export async function emailAdmissionSubmitted(to: string, name: string, reference: string, program: string, fee: number) {
   await sendEmail({ to, event: 'ADMISSION_SUBMITTED', subject: `استلمنا طلب التحاقك — كود التتبع ${reference}`, html: emailTemplate('تم استلام طلب الالتحاق بنجاح ✅', `<p>${greeting(name)}،</p>${infoRows([{ label: 'كود تتبع الطلب', value: reference }, { label: 'البرنامج', value: program }, { label: 'الخطوة التالية', value: `سداد رسوم التقديم وحجز المقعد ${fee}$ (غير مستردة)` }])}`, { label: 'تتبع حالة الطلب', url: appLink('/?view=apply') }) })
 }

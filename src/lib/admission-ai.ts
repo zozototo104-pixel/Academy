@@ -13,6 +13,8 @@ export interface AdmissionRules {
   allowExperienceEquivalency?: boolean
   minYearsExperience?: number
   requiredDocuments?: string[]
+  /** مرفقات مخصصة يضيفها الأدمن من تبويب القواعد: {type, label} — تفعيل أحدها يجعله إجبارياً. */
+  customDocuments?: { type: string; label: string }[]
   minAge?: number
   customRules?: string
   displayNote?: string

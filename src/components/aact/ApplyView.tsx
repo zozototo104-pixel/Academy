@@ -59,6 +59,23 @@ interface ProgramLite {
   disclosureConsentText?: string | null
 }
 
+const APPLY_DRAFT_KEY = 'aact-apply-draft'
+
+// قراءة مسودة طلب الالتحاق/الخدمة المحفوظة قبل الدخول — null عند
+// غيابها أو فسادها، مع تسجيل التحذير بدل ابتلاع الخطأ بصمت.
+function readApplyDraft(): { form?: Record<string, string>; selectedCategory?: string; acknowledged?: boolean } | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = localStorage.getItem(APPLY_DRAFT_KEY)
+    if (!raw) return null
+    const draft = JSON.parse(raw)
+    return draft && typeof draft === 'object' ? draft : null
+  } catch (e) {
+    console.warn('Failed to read saved application draft.', e)
+    return null
+  }
+}
+
 interface TrackedInvoice {
   invoiceNo: string
   purpose: string
@@ -184,7 +201,7 @@ export function ApplyView() {
   const { toast } = useToast()
   const { user, applyProgramTitle, applyProgramId, navigate } = useAppStore()
   const [programs, setPrograms] = useState<ProgramLite[]>([])
-  const [selectedCategory, setSelectedCategory] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState(() => readApplyDraft()?.selectedCategory || '')
   const [generalDisclosureConsentText, setGeneralDisclosureConsentText] = useState('')
   const [activeTab, setActiveTab] = useState('apply')
   const [loading, setLoading] = useState(false)
@@ -201,7 +218,9 @@ export function ApplyView() {
   const [myApplications, setMyApplications] = useState<any[]>([])
   const [applicationFee, setApplicationFee] = useState(30)
 
-  const [form, setForm] = useState({
+  // المسودة تُقرأ في مُهيّئ الحالة لا في تأثير، حتى لا نستدعي setState
+  // داخل التأثير (تحذير react-hooks/set-state-in-effect).
+  const [form, setForm] = useState(() => ({
     fullName: '',
     fullNameEn: '',
     email: '',
@@ -213,8 +232,9 @@ export function ApplyView() {
     education: 'BACHELOR',
     program: '',
     notes: '',
-  })
-  const [acknowledged, setAcknowledged] = useState(false)
+    ...(readApplyDraft()?.form || {}),
+  }))
+  const [acknowledged, setAcknowledged] = useState(() => !!readApplyDraft()?.acknowledged)
   const [files, setFiles] = useState<Record<string, File>>({})
   const [missingDocs, setMissingDocs] = useState<string[]>([])
   const [replacementFiles, setReplacementFiles] = useState<Record<string, File>>({})
@@ -462,10 +482,18 @@ export function ApplyView() {
     setFiles((prev) => ({ ...prev, [type]: f }))
   }
 
+  const [loginPrompt, setLoginPrompt] = useState(false)
+
   const submit = async (e?: React.FormEvent) => {
     e?.preventDefault()
     if (!canSubmitStudentApplication) {
       toast({ title: 'حساب إداري غير مخصص للدراسة', description: 'استخدم حساب طالب منفصل لتقديم طلب الالتحاق والدفع، ويمكن للإدارة متابعة الطالب من صفحة معاينة طالب.', variant: 'destructive' })
+      return
+    }
+    if (!user) {
+      // بوابة الدخول: حفظ المسودة نصوصاً ثم رسالة وزر لشاشة الدخول.
+      try { localStorage.setItem(APPLY_DRAFT_KEY, JSON.stringify({ form, selectedCategory, acknowledged })) } catch (e) { console.warn('Failed to save application draft.', e) }
+      setLoginPrompt(true)
       return
     }
     if (!selectedCategory) {
@@ -554,6 +582,7 @@ export function ApplyView() {
       toast({ title: 'تم استلام الطلب', description: isServiceRequest ? 'تم تحويل طلب الخدمة للإدارة لتحديد المتطلبات والمتابعة' : 'سدد رسوم التقديم ليُحوَّل ملفك للإدارة للدراسة' })
     } catch (err: any) {
       if (err?.data?.missing?.length) setMissingDocs(err.data.missing)
+      if (String(err?.message || '').includes('تسجيل الدخول')) setLoginPrompt(true)
       toast({ title: 'تعذر تقديم الطلب', description: err.message || 'حدث خطأ غير متوقع', variant: 'destructive' })
     } finally {
       setLoading(false)
@@ -829,6 +858,9 @@ export function ApplyView() {
                   <div className="text-xs font-bold text-slate-500">كود تتبع حالة طلبك</div>
                   <div className="mt-1 font-mono text-2xl font-black tracking-wider text-[#0f2b46]" dir="ltr">{done.reference}</div>
                 </div>
+                <p className="mx-auto mt-4 max-w-md rounded-lg bg-white px-3 py-2 text-[11px] font-bold leading-relaxed text-[#0f2b46]">
+                  تم إرسال رسالة إلى بريدك {form.email} تتضمن كود التتبع {done.reference}{done.invoice ? ` وفاتورة رسوم التقديم ${done.invoice.invoiceNo} بمبلغ ${done.invoice.amount}$ ورابط الدفع` : ''} — تفقد بريدك (حتى صندوق الرسائل غير المرغوبة).
+                </p>
                 {done.invoice && (
                   <>
                     <p className="mx-auto mt-4 max-w-md text-xs font-bold leading-relaxed text-amber-700">
@@ -901,6 +933,13 @@ export function ApplyView() {
                 )}
 
                 <form onSubmit={submit} className="space-y-5">
+                  {loginPrompt && (
+                    <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-center">
+                      <p className="text-sm font-black text-[#0f2b46]">نرجو تسجيل الدخول لاستكمال الطلب</p>
+                      <p className="mt-1 text-[11px] font-bold text-slate-500">حُفظت بيانات النموذج — سجل دخولك ثم أرسل الطلب من جديد (الملفات تُعاد إرفاقاً).</p>
+                      <Button type="button" className="mt-3 bg-[#0f2b46] font-bold text-[#f5f0e1]" onClick={() => navigate('auth')}>تسجيل الدخول</Button>
+                    </div>
+                  )}
                   <section className="rounded-xl border border-[#c9a227]/40 bg-white">
                     <div className="border-b border-[#c9a227]/30 bg-[#f7edd0]/50 px-4 py-2.5">
                       <h3 className="text-sm font-black text-[#0f2b46]">1. البيانات الشخصية والبرنامج</h3>
