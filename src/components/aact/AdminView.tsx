@@ -834,7 +834,7 @@ export function AdminView() {
   }
   const setAppStatus = async (id: string, status: string, extra?: Record<string, any>) => {
     try {
-      const d = await api<{ application?: AgentApp; revokedCertificates?: number }>('/api/admin/applications', {
+      const d = await api<{ application?: AgentApp; revokedCertificates?: number; contractNo?: string | null; certSerial?: string | null; categoryInvoice?: { invoiceNo: string; amount: number } | null }>('/api/admin/applications', {
         method: 'PATCH',
         body: JSON.stringify({ id, status, ...(extra || {}) }),
       })
@@ -844,7 +844,13 @@ export function AdminView() {
         title: 'تم التحديث',
         description: status === 'REVOKED'
           ? `تم سحب الاعتماد وتعطيل ${d.revokedCertificates || 0} شهادة مرتبطة.`
-          : `حالة الطلب أصبحت: ${label}`,
+          : status === 'APPROVED' && d.contractNo
+            ? `حالة الطلب أصبحت: مقبول — أُرسل للمتقدم عقد رقم ${d.contractNo}.`
+            : status === 'APPROVED' && d.categoryInvoice
+              ? `حالة الطلب أصبحت: مقبول — أُرسلت للمتقدم فاتورة رسوم الفئة ${d.categoryInvoice.invoiceNo} (${d.categoryInvoice.amount}$) وتُصدر الشهادة عند سدادها.`
+              : status === 'APPROVED' && d.certSerial
+                ? `حالة الطلب أصبحت: مقبول — أُرسلت للمتقدم شهادة رقم ${d.certSerial}.`
+                : `حالة الطلب أصبحت: ${label}`,
       })
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })

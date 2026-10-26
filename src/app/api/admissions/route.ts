@@ -334,9 +334,16 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // ربط الطلب بحساب المستخدم إن كان مسجلاً بنفس البريد. حسابات الإدارة/المشرفين لا تقدم كطلاب.
+    // بوابة الدخول: لا تقديم من زائر — يضغط إرسال فيُطلب منه الدخول أولاً.
     const me = await withTiming('db_admissions_current_user', () => getCurrentUser())
-    if (me && me.role !== 'STUDENT') {
+    if (!me) {
+      return NextResponse.json(
+        { error: 'نرجو تسجيل الدخول لاستكمال الطلب', code: 'LOGIN_REQUIRED' },
+        { status: 401 }
+      )
+    }
+    // حسابات الإدارة/المشرفين لا تقدم كطلاب.
+    if (me.role !== 'STUDENT') {
       return NextResponse.json(
         { error: 'حساب الإدارة أو المشرف لا يقدم طلب التحاق كطالب. استخدم حساب طالب منفصل ببريد الطالب الحقيقي، ويمكن للإدارة متابعة الطالب من صفحة معاينة طالب.' },
         { status: 403 }

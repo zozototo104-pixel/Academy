@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api, useAppStore } from '@/lib/store'
 import { ACADEMY_INFO, ACCREDITATION_GUIDE, ADMISSION_FEES } from '@/lib/academyData'
 import { toast, useToast } from '@/hooks/use-toast'
@@ -63,25 +63,62 @@ const ACC_ICONS: Record<string, any> = {
   COMPANY: Building2, CONSULTANT: ShieldCheck, TRAINER: Award, QUALITY: BadgeCheck,
 }
 
+type AgentRules = {
+  docs: { type: string; label: string }[]
+  agencyFee: number
+  accreditationFee: number
+  categoryFees: Record<string, number>
+}
+
+const DOC_ICONS: Record<string, any> = { LICENSE: ScrollText, ID: IdCard, PHOTO: Camera, CV: FileText }
+const AGENT_DRAFT_KEY = 'aact-agent-draft'
+
 export function AgentView() {
   const { toast } = useToast()
-  const { user } = useAppStore()
+  const { user, navigate } = useAppStore()
   const [loading, setLoading] = useState(false)
-  // نتيجة التقديم: فاتورة رسوم التقديم لطلبات الاعتماد (سداد فوري)
-  const [done, setDone] = useState<{ kind: 'agency' | 'accreditation'; invoice?: { invoiceNo: string; amount: number } | null } | null>(null)
-  // الوثائق الرسمية المرفوعة (إلزامية لطلبات الاعتماد)
+  // نتيجة التقديم: فاتورة رسوم التقديم + ملخص رسالة البريد المرسلة
+  const [done, setDone] = useState<{ kind: 'agency' | 'accreditation'; invoice?: { invoiceNo: string; amount: number } | null; email?: { to: string; invoiceNo: string; amount: number } | null } | null>(null)
+  // الوثائق الرسمية المرفوعة (إلزامية لكلا النوعين، من قواعد الوكالة والاعتماد)
   const [files, setFiles] = useState<Record<string, File | null>>({})
   const [missingDocs, setMissingDocs] = useState<string[]>([])
+  const [loginPrompt, setLoginPrompt] = useState(false)
   // سداد رسوم التقديم
   const [payMethod, setPayMethod] = useState('PAYMOB')
   const [paying, setPaying] = useState(false)
 
   const [kind, setKind] = useState<'AGENCY' | 'ACCREDITATION'>('AGENCY')
-  const [accreditationType, setAccreditationType] = useState('COMPANY')
+  const [accreditationType, setAccreditationType] = useState('CONSULTANT')
   const [form, setForm] = useState({
     orgName: '', repName: '', email: '', phone: '', country: '', territory: '', experience: '',
   })
+  const [agentRules, setAgentRules] = useState<AgentRules | null>(null)
   const canSubmitAgentApplication = !user || !['ADMIN', 'SUPERVISOR'].includes(user.role)
+
+  // قواعد المرفقات والرسوم من الإعدادات (قائمة مشتركة للنوعين) — عند
+  // غيابها تُستخدم القائمة الابتدائية نفسها المعتمدة في الخادم.
+  useEffect(() => {
+    fetch('/api/agent-apply').then((r) => r.json()).then((d) => {
+      if (Array.isArray(d.docs) && d.docs.length) setAgentRules(d)
+    }).catch(() => {})
+  }, [])
+  // استعادة مسودة محفوظة قبل الذهاب لشاشة الدخول (نصوص فقط — الملفات تُعاد إرفاقاً).
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(AGENT_DRAFT_KEY)
+      if (!raw) return
+      const draft = JSON.parse(raw)
+      if (draft.form) setForm((f) => ({ ...f, ...draft.form }))
+      if (draft.kind) setKind(draft.kind)
+      if (draft.accreditationType) setAccreditationType(draft.accreditationType)
+    } catch {}
+  }, [])
+  const displayDocs = (agentRules?.docs?.length ? agentRules.docs : AGENT_DOCS).map((d: any) => ({
+    type: d.type,
+    label: d.label,
+    hint: (d as any).hint || '',
+    icon: DOC_ICONS[d.type] || FileText,
+  }))
 
   const setFile = (type: string, f: File | null) => {
     if (f && f.size > MAX_FILE_MB * 1024 * 1024) {
@@ -95,54 +132,54 @@ export function AgentView() {
     setFiles((prev) => ({ ...prev, [type]: f }))
   }
 
-  const allDocsUploaded = AGENT_DOCS.every((d) => files[d.type])
+  const allDocsUploaded = displayDocs.every((d) => files[d.type])
 
   const submit = async (e?: React.FormEvent) => {
     e?.preventDefault()
+    if (!user) {
+      // بوابة الدخول: حفظ المسودة نصوصاً ثم رسالة وزر لشاشة الدخول.
+      try { localStorage.setItem(AGENT_DRAFT_KEY, JSON.stringify({ form, kind, accreditationType })) } catch {}
+      setLoginPrompt(true)
+      return
+    }
     if (!canSubmitAgentApplication) {
       toast({
         title: 'حساب الإدارة لا يقدم طلب وكالة أو اعتماد',
-        description: 'استخدم حساب جهة/وكيل منفصل أو قدّم الطلب كزائر، ثم راجعه من لوحة الإدارة ومعاينة الوكيل.',
+        description: 'استخدم حساب جهة/وكيل منفصل، ثم راجعه من لوحة الإدارة ومعاينة الوكيل.',
         variant: 'destructive',
       })
       return
     }
-    // قاعدة الدليل الرسمي: طلبات الاعتماد لا تُقبل بدون الوثائق الأربع
-    if (kind === 'ACCREDITATION') {
-      const missing = AGENT_DOCS.filter((d) => !files[d.type])
-      if (missing.length > 0) {
-        setMissingDocs(missing.map((m) => m.label))
-        toast({ title: 'الوثائق الرسمية غير مكتملة', description: `يرجى رفع: ${missing.map((m) => m.label).join('، ')}`, variant: 'destructive' })
-        return
-      }
+    // المرفقات الإلزامية من قواعد الوكالة والاعتماد — لكلا النوعين.
+    const missing = displayDocs.filter((d) => !files[d.type])
+    if (missing.length > 0) {
+      setMissingDocs(missing.map((m) => m.label))
+      toast({ title: 'الوثائق الرسمية غير مكتملة', description: `يرجى رفع: ${missing.map((m) => m.label).join('، ')}`, variant: 'destructive' })
+      return
     }
     setMissingDocs([])
     setLoading(true)
     try {
-      let d: { message?: string; error?: string; invoice?: { invoiceNo: string; amount: number } | null }
-      if (kind === 'ACCREDITATION') {
-        const fd = new FormData()
-        fd.append('kind', kind)
-        fd.append('accreditationType', accreditationType)
-        Object.entries(form).forEach(([k, v]) => fd.append(k, v))
-        for (const doc of AGENT_DOCS) {
-          const f = files[doc.type]
-          if (f) fd.append(`doc_${doc.type}`, f)
-        }
-        const res = await fetch('/api/agent-apply', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${localStorage.getItem('aact_token') || ''}` },
-          body: fd,
-        })
-        d = await res.json().catch(() => ({}))
-        if (!res.ok) throw new Error(d.error || d.message || 'تعذر إرسال الطلب')
-      } else {
-        d = await api<{ message: string }>('/api/agent-apply', {
-          method: 'POST',
-          body: JSON.stringify({ ...form, kind }),
-        })
+      const fd = new FormData()
+      fd.append('kind', kind)
+      if (kind === 'ACCREDITATION') fd.append('accreditationType', accreditationType)
+      Object.entries(form).forEach(([k, v]) => fd.append(k, v))
+      for (const doc of displayDocs) {
+        const f = files[doc.type]
+        if (f) fd.append(`doc_${doc.type}`, f)
       }
-      setDone({ kind: kind === 'AGENCY' ? 'agency' : 'accreditation', invoice: d.invoice || null })
+      const res = await fetch('/api/agent-apply', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('aact_token') || ''}` },
+        body: fd,
+      })
+      const d: { message?: string; error?: string; code?: string; invoice?: { invoiceNo: string; amount: number } | null; email?: { to: string; invoiceNo: string; amount: number } | null } = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        if (d.code === 'LOGIN_REQUIRED') { setLoginPrompt(true); throw new Error(d.error || 'نرجو تسجيل الدخول لاستكمال الطلب') }
+        throw new Error(d.error || d.message || 'تعذر إرسال الطلب')
+      }
+      try { localStorage.removeItem(AGENT_DRAFT_KEY) } catch {}
+      setDone({ kind: kind === 'AGENCY' ? 'agency' : 'accreditation', invoice: d.invoice || null, email: d.email || null })
       toast({ title: 'تم الإرسال', description: d.message })
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
@@ -177,21 +214,21 @@ export function AgentView() {
     }
   }
 
-  // بطاقات رفع الوثائق الرسمية — تظهر في نموذج الاعتماد فقط
-  const docUploadSection = kind === 'ACCREDITATION' && (
+  // بطاقات رفع الوثائق الرسمية — لكلا النوعين، من قواعد الوكالة والاعتماد
+  const docUploadSection = (
     <div className="rounded-xl border border-[#c9a227]/40 bg-white">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#c9a227]/30 bg-[#f7edd0]/50 px-4 py-2.5">
         <div className="flex items-center gap-2">
           <span className="text-sm font-black text-[#0f2b46]">إرفاق الوثائق الرسمية المطلوبة (إلزامي — لا يُقبل الطلب بدونها)</span>
         </div>
         <Badge className={allDocsUploaded ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>
-          {AGENT_DOCS.filter((d) => files[d.type]).length} / {AGENT_DOCS.length} مكتملة
+          {displayDocs.filter((d) => files[d.type]).length} / {displayDocs.length} مكتملة
         </Badge>
       </div>
       <div className="p-4">
         <p className="mb-3 text-[11px] text-slate-500">الصيغ المسموحة: JPG / PNG / PDF — الحد الأقصى {MAX_FILE_MB} ميجابايت للملف</p>
         <div className="grid gap-2.5 sm:grid-cols-2">
-          {AGENT_DOCS.map((doc) => {
+          {displayDocs.map((doc) => {
             const f = files[doc.type]
             return (
               <div key={doc.type} className={`rounded-xl border p-3 transition-colors ${f ? 'border-emerald-300 bg-emerald-50/40' : 'border-slate-200 bg-slate-50/60'}`}>
@@ -229,16 +266,23 @@ export function AgentView() {
 
   const formFields = (
     <form onSubmit={submit} className="space-y-4">
+      {loginPrompt && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-center">
+          <p className="text-sm font-black text-[#0f2b46]">نرجو تسجيل الدخول لاستكمال الطلب</p>
+          <p className="mt-1 text-[11px] font-bold text-slate-500">حُفظت بيانات النموذج — سجل دخولك ثم أرسل الطلب من جديد (الملفات تُعاد إرفاقاً).</p>
+          <Button type="button" className="mt-3 bg-[#0f2b46] font-bold text-[#f5f0e1]" onClick={() => navigate('auth')}>تسجيل الدخول</Button>
+        </div>
+      )}
       {!canSubmitAgentApplication && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-bold leading-6 text-red-700">
           <FileWarning className="ml-1 inline h-4 w-4" />
-          أنت داخل بحساب إدارة/مشرف. لا يتم تقديم طلبات الوكالة أو الاعتماد من حساب الإدارة حتى لا تختلط صلاحية القرار بصاحب الطلب. استخدم حساب جهة/وكيل منفصل أو قدم الطلب كزائر، ثم تابعه من لوحة الإدارة.
+          أنت داخل بحساب إدارة/مشرف. لا يتم تقديم طلبات الوكالة أو الاعتماد من حساب الإدارة حتى لا تختلط صلاحية القرار بصاحب الطلب. استخدم حساب جهة/وكيل منفصل، ثم تابعه من لوحة الإدارة.
         </div>
       )}
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="agent-org">
-            {kind === 'ACCREDITATION' && accreditationType !== 'COMPANY' && accreditationType !== 'QUALITY' ? 'الاسم / اسم المكتب *' : 'اسم المؤسسة / المركز *'}
+            {kind === 'ACCREDITATION' && accreditationType !== 'QUALITY' ? 'الاسم / اسم المكتب *' : 'اسم المؤسسة / المركز *'}
           </Label>
           <Input id="agent-org" required placeholder={kind === 'AGENCY' ? 'مثال: مؤسسة يد بيد للتدريب' : 'اسم الجهة أو الفرد'}
             value={form.orgName} onChange={(e) => setForm({ ...form, orgName: e.target.value })} />
@@ -279,11 +323,14 @@ export function AgentView() {
             <Select value={accreditationType} onValueChange={setAccreditationType}>
               <SelectTrigger className="w-full"><SelectValue placeholder="اختر نوع الاعتماد" /></SelectTrigger>
               <SelectContent>
-                {ACCREDITATION_GUIDE.items.map((it) => (
-                  <SelectItem key={it.key} value={it.key}>
-                    {it.label} {it.fee ? `— ${it.fee}$` : '— حسب الطلب'}
-                  </SelectItem>
-                ))}
+                {ACCREDITATION_GUIDE.items.filter((it) => it.key !== 'COMPANY').map((it) => {
+                  const fee = agentRules?.categoryFees?.[it.key]
+                  return (
+                    <SelectItem key={it.key} value={it.key}>
+                      {it.label} {fee ? `— ${fee}$` : fee === 0 ? '— حسب الطلب' : it.fee ? `— ${it.fee}$` : '— حسب الطلب'}
+                    </SelectItem>
+                  )
+                })}
               </SelectContent>
             </Select>
           </div>
@@ -300,11 +347,12 @@ export function AgentView() {
           value={form.experience} onChange={(e) => setForm({ ...form, experience: e.target.value })} />
       </div>
       {docUploadSection}
-      {kind === 'ACCREDITATION' && (
-        <p className="rounded-lg bg-[#f7edd0]/70 px-3 py-2 text-[11px] font-bold leading-relaxed text-[#a8841a]">
-          رسوم تقديم طلب الاعتماد: {ACCREDITATION_GUIDE.applicationFee}$ (غير مستردة) — تُصدر فاتورة فور التقديم وتُسدد من نفس الصفحة، ثم تُدرس الإدارة الملف ويصدر الاعتماد وفق الدليل.
-        </p>
-      )}
+      <p className="rounded-lg bg-[#f7edd0]/70 px-3 py-2 text-[11px] font-bold leading-relaxed text-[#a8841a]">
+        {kind === 'ACCREDITATION'
+          ? `رسوم تقديم طلب الاعتماد: ${agentRules?.accreditationFee ?? ACCREDITATION_GUIDE.applicationFee}$ (غير مستردة) — تُصدر فاتورة فور التقديم وتُسدد من نفس الصفحة، ثم تُدرس الإدارة الملف، وبعد القبول تُصدر فاتورة رسوم الفئة وتُصدر الشهادة عند سدادها.`
+          : `رسوم تقديم طلب الوكالة: ${agentRules?.agencyFee ?? 100}$ (غير مستردة) — تُصدر فاتورة فور التقديم وتُسدد من نفس الصفحة، ثم تُدرس الإدارة الملف ويُصدر العقد بعد القبول.`
+        }
+      </p>
       <Button type="submit" disabled={loading || !canSubmitAgentApplication} className="w-full bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a] disabled:opacity-60">
         {loading ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Send className="ml-2 h-4 w-4 rotate-180" />}
         {canSubmitAgentApplication ? (kind === 'AGENCY' ? 'إرسال طلب الوكالة الدولية' : 'إرسال طلب الاعتماد') : 'يتطلب حساب جهة/وكيل منفصل'}
@@ -322,8 +370,8 @@ export function AgentView() {
           وكالة الأكاديمية واعتمادات الجهات والأفراد
         </h1>
         <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-slate-600">
-          نظام الاعتماد الدولي والعضوية الأمريكية: اعتماد شركات ومؤسسات ومراكز التدريب، اعتماد
-          المدربين والمستشارين، واعتماد الجودة وفق أفضل المنظومات الدولية — أو احصل على حق
+          نظام الاعتماد الدولي والعضوية الأمريكية: الوكالة للشركات والمؤسسات ومراكز التدريب،
+          والاعتماد للأفراد — المدربين والمستشارين واعتماد الجودة وفق أفضل المنظومات الدولية — أو احصل على حق
           التمثيل الحصري لتقديم البرامج في نطاقك الجغرافي.
         </p>
       </div>
@@ -331,10 +379,10 @@ export function AgentView() {
       <Tabs defaultValue="agency" dir="rtl" className="w-full">
         <TabsList className="mx-auto grid w-full max-w-lg grid-cols-3">
           <TabsTrigger value="agency" onClick={() => setKind('AGENCY')} className="text-xs font-bold sm:text-sm">
-            الوكالة الدولية
+            الوكالة الدولية (للشركات)
           </TabsTrigger>
           <TabsTrigger value="accreditation" onClick={() => setKind('ACCREDITATION')} className="text-xs font-bold sm:text-sm">
-            طلبات الاعتماد
+            طلبات الاعتماد (للأفراد)
           </TabsTrigger>
           <TabsTrigger value="portal" className="text-xs font-bold text-[#a8841a] sm:text-sm">
             بوابتي {user ? '' : '(دخول)'}
@@ -394,13 +442,37 @@ export function AgentView() {
                 <CheckCircle2 className="mx-auto mb-4 h-14 w-14 text-emerald-600" />
                 <h2 className="text-xl font-black text-emerald-700">تم استلام طلب الوكالة!</h2>
                 <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-emerald-800">
-                  ستتم مراجعة طلبكم من إدارة الأكاديمية، وسيتواصل فريق الاعتمادات معكم عبر البريد
-                  الإلكتروني خلال أيام العمل لاستكمال إجراءات توقيع اتفاقية التمثيل والتفويض الدولي.
+                  ستتم مراجعة طلبكم من إدارة الأكاديمية بعد سداد رسوم التقديم، ثم يُصدر العقد عند القبول.
                 </p>
+                {done.email && (
+                  <p className="mx-auto mt-3 max-w-md rounded-lg bg-white px-3 py-2 text-[11px] font-bold leading-relaxed text-[#0f2b46]">
+                    تم إرسال رسالة إلى بريدك {done.email.to} تتضمن فاتورة رسوم التقديم {done.email.invoiceNo} بمبلغ {done.email.amount}$ ورابط الدفع — تفقد بريدك (حتى صندوق الرسائل غير المرغوبة).
+                  </p>
+                )}
+                {done.invoice ? (
+                  <div className="mx-auto mt-5 max-w-md rounded-xl border border-[#c9a227]/40 bg-white p-4 text-right">
+                    <p className="text-xs font-black text-[#0f2b46]">فاتورة رسوم التقديم — {done.invoice.invoiceNo}</p>
+                    <p className="mt-1 text-2xl font-black text-[#a8841a]">{done.invoice.amount}$</p>
+                    <Select value={payMethod} onValueChange={setPayMethod}>
+                      <SelectTrigger className="mt-3 w-full text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {PAY_METHODS.map((m) => (
+                          <SelectItem key={m.value} value={m.value} className="text-xs">{m.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button onClick={payAccreditationFee} disabled={paying} className="mt-3 w-full bg-[#c9a227] font-extrabold text-[#0f2b46] hover:bg-[#e0b83a]">
+                      {paying ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <CreditCard className="ml-2 h-4 w-4" />}
+                      سداد رسوم التقديم الآن
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="mt-4 text-xs font-black text-emerald-700">سُددت رسوم التقديم — ملفكم قيد دراسة الإدارة</p>
+                )}
                 <p className="mt-4 text-xs font-bold text-emerald-600">
                   للاستفسار: {ACADEMY_INFO.email} — واتساب {ACADEMY_INFO.whatsappContactName}: {ACADEMY_INFO.whatsappDisplay}
                 </p>
-                <Button className="mt-6 bg-[#0f2b46] font-bold text-[#f5f0e1] hover:bg-[#12365c]" onClick={() => setDone(null)}>
+                <Button className="mt-6 bg-[#0f2b46] font-bold text-[#f5f0e1] hover:bg-[#12365c]" onClick={() => { setDone(null); setFiles({}) }}>
                   إرسال طلب آخر
                 </Button>
               </CardContent>
@@ -420,7 +492,7 @@ export function AgentView() {
         <TabsContent value="accreditation">
           {/* أنواع الاعتماد ورسومها */}
           <div className="mb-6 mt-6 grid gap-4 sm:grid-cols-2">
-            {ACCREDITATION_GUIDE.items.map((it) => {
+            {ACCREDITATION_GUIDE.items.filter((it) => it.key !== 'COMPANY').map((it) => {
               const Icon = ACC_ICONS[it.key] || ShieldCheck
               return (
                 <button
@@ -437,11 +509,11 @@ export function AgentView() {
                     <div className="rounded-xl bg-[#0f2b46] p-2.5 text-[#e0b83a]">
                       <Icon className="h-5 w-5" />
                     </div>
-                    {it.fee ? (
-                      <span className="rounded-full bg-[#c9a227]/15 px-3 py-1 text-sm font-black text-[#a8841a]">{it.fee}$</span>
+                    {(() => { const fee = agentRules?.categoryFees?.[it.key]; return fee ? (
+                      <span className="rounded-full bg-[#c9a227]/15 px-3 py-1 text-sm font-black text-[#a8841a]">{fee}$</span>
                     ) : (
                       <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-500">حسب الطلب</span>
-                    )}
+                    ) })()}
                   </div>
                   <h3 className="mt-3 text-sm font-black leading-relaxed text-[#0f2b46]">{it.label}</h3>
                 </button>
@@ -457,11 +529,10 @@ export function AgentView() {
                   <Banknote className="h-4.5 w-4.5 text-[#a8841a]" /> الرسوم المالية
                 </h3>
                 <ul className="space-y-2 text-xs leading-relaxed text-slate-700">
-                  <li>• رسوم تقديم طلب الاعتماد: <strong>{ACCREDITATION_GUIDE.applicationFee}$ غير مستردة</strong></li>
-                  <li>• الهيئات التدريبية (شركات/مؤسسات/مراكز): <strong>1000$</strong></li>
-                  <li>• المستشارون (إداري ومالي، تربوي، قانوني، نفسي، هندسي، ذكاء اصطناعي): <strong>350$</strong></li>
-                  <li>• المدرب الدولي المعتمد: <strong>200$</strong></li>
-                  <li>• اعتماد الجودة: <strong>حسب طبيعة الاعتماد</strong></li>
+                  <li>• رسوم تقديم طلب الاعتماد: <strong>{agentRules?.accreditationFee ?? ACCREDITATION_GUIDE.applicationFee}$ غير مستردة</strong></li>
+                  <li>• المستشارون (إداري ومالي، تربوي، قانوني، نفسي، هندسي، ذكاء اصطناعي): <strong>{agentRules?.categoryFees?.CONSULTANT ?? 350}$</strong></li>
+                  <li>• المدرب الدولي المعتمد: <strong>{agentRules?.categoryFees?.TRAINER ?? 200}$</strong></li>
+                  <li>• اعتماد الجودة: <strong>{agentRules?.categoryFees?.QUALITY ? `${agentRules.categoryFees.QUALITY}$` : 'حسب طبيعة الاعتماد'}</strong></li>
                 </ul>
               </CardContent>
             </Card>
@@ -488,9 +559,14 @@ export function AgentView() {
                 <CheckCircle2 className="mx-auto mb-4 h-14 w-14 text-emerald-600" />
                 <h2 className="text-xl font-black text-emerald-700">تم استلام طلب الاعتماد مع الوثائق كاملة!</h2>
                 <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-emerald-800">
-                  وُصلتنا الوثائق الرسمية الأربع (4/4). بعد دراسة ملف الطلب وسداد رسوم التقديم
-                  ({ACCREDITATION_GUIDE.applicationFee}$) سيتم إصدار شهادة الاعتماد والتمثيل ونشرها على الموقع الرسمي للأكاديمية.
+                  وُصلتنا الوثائق الرسمية كاملة ({displayDocs.filter((d) => files[d.type]).length}/{displayDocs.length}). بعد سداد رسوم التقديم
+                  ({done.invoice?.amount ?? agentRules?.accreditationFee ?? ACCREDITATION_GUIDE.applicationFee}$) تُدرس الإدارة الملف، وبعد القبول تُصدر فاتورة رسوم الفئة وتُصدر الشهادة عند سدادها.
                 </p>
+                {done.email && (
+                  <p className="mx-auto mt-3 max-w-md rounded-lg bg-white px-3 py-2 text-[11px] font-bold leading-relaxed text-[#0f2b46]">
+                    تم إرسال رسالة إلى بريدك {done.email.to} تتضمن فاتورة رسوم التقديم {done.email.invoiceNo} بمبلغ {done.email.amount}$ ورابط الدفع — تفقد بريدك (حتى صندوق الرسائل غير المرغوبة).
+                  </p>
+                )}
                 {done.invoice ? (
                   <div className="mx-auto mt-5 max-w-md rounded-xl border border-[#c9a227]/40 bg-white p-4 text-right">
                     <p className="text-xs font-black text-[#0f2b46]">فاتورة رسوم التقديم — {done.invoice.invoiceNo}</p>

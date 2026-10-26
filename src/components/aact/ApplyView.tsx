@@ -462,10 +462,30 @@ export function ApplyView() {
     setFiles((prev) => ({ ...prev, [type]: f }))
   }
 
+  const [loginPrompt, setLoginPrompt] = useState(false)
+  const APPLY_DRAFT_KEY = 'aact-apply-draft'
+  // استعادة مسودة محفوظة قبل الذهاب لشاشة الدخول (نصوص فقط — الملفات تُعاد إرفاقاً).
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(APPLY_DRAFT_KEY)
+      if (!raw) return
+      const draft = JSON.parse(raw)
+      if (draft.form) setForm((f: any) => ({ ...f, ...draft.form }))
+      if (draft.selectedCategory) setSelectedCategory(draft.selectedCategory)
+      if (draft.acknowledged !== undefined) setAcknowledged(!!draft.acknowledged)
+    } catch {}
+  }, [])
+
   const submit = async (e?: React.FormEvent) => {
     e?.preventDefault()
     if (!canSubmitStudentApplication) {
       toast({ title: 'حساب إداري غير مخصص للدراسة', description: 'استخدم حساب طالب منفصل لتقديم طلب الالتحاق والدفع، ويمكن للإدارة متابعة الطالب من صفحة معاينة طالب.', variant: 'destructive' })
+      return
+    }
+    if (!user) {
+      // بوابة الدخول: حفظ المسودة نصوصاً ثم رسالة وزر لشاشة الدخول.
+      try { localStorage.setItem(APPLY_DRAFT_KEY, JSON.stringify({ form, selectedCategory, acknowledged })) } catch {}
+      setLoginPrompt(true)
       return
     }
     if (!selectedCategory) {
@@ -554,6 +574,7 @@ export function ApplyView() {
       toast({ title: 'تم استلام الطلب', description: isServiceRequest ? 'تم تحويل طلب الخدمة للإدارة لتحديد المتطلبات والمتابعة' : 'سدد رسوم التقديم ليُحوَّل ملفك للإدارة للدراسة' })
     } catch (err: any) {
       if (err?.data?.missing?.length) setMissingDocs(err.data.missing)
+      if (String(err?.message || '').includes('تسجيل الدخول')) setLoginPrompt(true)
       toast({ title: 'تعذر تقديم الطلب', description: err.message || 'حدث خطأ غير متوقع', variant: 'destructive' })
     } finally {
       setLoading(false)
@@ -829,6 +850,9 @@ export function ApplyView() {
                   <div className="text-xs font-bold text-slate-500">كود تتبع حالة طلبك</div>
                   <div className="mt-1 font-mono text-2xl font-black tracking-wider text-[#0f2b46]" dir="ltr">{done.reference}</div>
                 </div>
+                <p className="mx-auto mt-4 max-w-md rounded-lg bg-white px-3 py-2 text-[11px] font-bold leading-relaxed text-[#0f2b46]">
+                  تم إرسال رسالة إلى بريدك {form.email} تتضمن كود التتبع {done.reference}{done.invoice ? ` وفاتورة رسوم التقديم ${done.invoice.invoiceNo} بمبلغ ${done.invoice.amount}$ ورابط الدفع` : ''} — تفقد بريدك (حتى صندوق الرسائل غير المرغوبة).
+                </p>
                 {done.invoice && (
                   <>
                     <p className="mx-auto mt-4 max-w-md text-xs font-bold leading-relaxed text-amber-700">
@@ -901,6 +925,13 @@ export function ApplyView() {
                 )}
 
                 <form onSubmit={submit} className="space-y-5">
+                  {loginPrompt && (
+                    <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-center">
+                      <p className="text-sm font-black text-[#0f2b46]">نرجو تسجيل الدخول لاستكمال الطلب</p>
+                      <p className="mt-1 text-[11px] font-bold text-slate-500">حُفظت بيانات النموذج — سجل دخولك ثم أرسل الطلب من جديد (الملفات تُعاد إرفاقاً).</p>
+                      <Button type="button" className="mt-3 bg-[#0f2b46] font-bold text-[#f5f0e1]" onClick={() => navigate('auth')}>تسجيل الدخول</Button>
+                    </div>
+                  )}
                   <section className="rounded-xl border border-[#c9a227]/40 bg-white">
                     <div className="border-b border-[#c9a227]/30 bg-[#f7edd0]/50 px-4 py-2.5">
                       <h3 className="text-sm font-black text-[#0f2b46]">1. البيانات الشخصية والبرنامج</h3>

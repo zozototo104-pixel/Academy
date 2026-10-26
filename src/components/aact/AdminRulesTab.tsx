@@ -71,10 +71,27 @@ interface Rules {
   allowExperienceEquivalency?: boolean
   minYearsExperience?: number
   requiredDocuments?: string[]
+  customDocuments?: { type: string; label: string }[]
   minAge?: number
   customRules?: string
   displayNote?: string
   academicProfile?: AcademicProfileDraft | null
+}
+
+// الوثائق الابتدائية للوكالة والاعتماد — تُستبدل بما يُحفظ في قواعد
+// الوكالة والاعتماد عند وجودها، وتُعرض في تبويب القواعد للضبط.
+const AGENT_DEFAULT_DOCS = [
+  { value: 'LICENSE', label: 'صورة عن شهادة الترخيص أو مزاولة المهنة', icon: FileText },
+  { value: 'ID', label: 'الهوية / الجواز', icon: FileText },
+  { value: 'PHOTO', label: 'الصورة الشخصية', icon: FileText },
+  { value: 'CV', label: 'السيرة الذاتية', icon: FileText },
+]
+
+function newCustomDocType(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  let suffix = ''
+  for (let i = 0; i < 6; i++) suffix += chars[Math.floor(Math.random() * chars.length)]
+  return `CUSTOM_${suffix}`
 }
 
 interface ProgramDraft {
@@ -257,6 +274,13 @@ export function AdminRulesTab() {
   const [programSearch, setProgramSearch] = useState('')
   const [programCategoryFilter, setProgramCategoryFilter] = useState('ALL')
   const [draft, setDraft] = useState<Rules>({})
+  // نطاق قواعد الوكالة والاعتماد (قائمة مرفقات مشتركة للنوعين)
+  const [agencyScope, setAgencyScope] = useState(false)
+  const [agentRules, setAgentRules] = useState<{ requiredDocuments: string[]; customDocuments: { type: string; label: string }[] }>({ requiredDocuments: [], customDocuments: [] })
+  const [agentRulesLoaded, setAgentRulesLoaded] = useState(false)
+  const [agentRulesSaving, setAgentRulesSaving] = useState(false)
+  const [newAgentDocLabel, setNewAgentDocLabel] = useState('')
+  const [newCustomDocLabel, setNewCustomDocLabel] = useState('')
   const [programDraft, setProgramDraft] = useState<ProgramDraft | null>(null)
   const [custom, setCustom] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -328,6 +352,73 @@ export function AdminRulesTab() {
     if (cur.has(doc)) cur.delete(doc)
     else cur.add(doc)
     setDraft({ ...draft, requiredDocuments: Array.from(cur) })
+  }
+
+  // إضافة مرفق مخصص للبرنامج/الخدمة: يُضاف لقائمة المرفقات ويُفعَّل
+  // فوراً (مفعّل = إجباري عند التقديم) — تسميته تظهر في النموذج ورسائل النقص.
+  const addCustomDoc = () => {
+    const label = newCustomDocLabel.trim()
+    if (!label) return
+    const type = newCustomDocType()
+    const customs = [...(draft.customDocuments || []), { type, label }]
+    setDraft({ ...draft, customDocuments: customs, requiredDocuments: [...new Set([...(draft.requiredDocuments || []), type])] })
+    setNewCustomDocLabel('')
+  }
+  const removeCustomDoc = (type: string) => {
+    setDraft({
+      ...draft,
+      customDocuments: (draft.customDocuments || []).filter((d) => d.type !== type),
+      requiredDocuments: (draft.requiredDocuments || []).filter((d) => d !== type),
+    })
+  }
+
+  // قواعد الوكالة والاعتماد: تحميل/حفظ من نقطة الإدارة المخصصة.
+  const loadAgentRules = useCallback(async () => {
+    try {
+      const d = await api<{ rules: { requiredDocuments: string[]; customDocuments: { type: string; label: string }[] } }>('/api/admin/agent-rules')
+      setAgentRules({ requiredDocuments: d.rules.requiredDocuments || [], customDocuments: d.rules.customDocuments || [] })
+    } catch (e: any) {
+      toast({ title: e?.message || 'تعذر تحميل قواعد الوكالة والاعتماد', variant: 'destructive' })
+    } finally {
+      setAgentRulesLoaded(true)
+    }
+  }, [])
+  const saveAgentRules = async () => {
+    setAgentRulesSaving(true)
+    try {
+      const d = await api<{ rules: { requiredDocuments: string[]; customDocuments: { type: string; label: string }[] } }>('/api/admin/agent-rules', {
+        method: 'POST',
+        body: JSON.stringify(agentRules),
+      })
+      setAgentRules({ requiredDocuments: d.rules.requiredDocuments || [], customDocuments: d.rules.customDocuments || [] })
+      toast({ title: 'تم حفظ قواعد الوكالة والاعتماد', description: 'تُطبق فوراً على طلبات الوكالة والاعتماد الجديدة.' })
+    } catch (e: any) {
+      toast({ title: e?.message || 'تعذر حفظ قواعد الوكالة والاعتماد', variant: 'destructive' })
+    } finally {
+      setAgentRulesSaving(false)
+    }
+  }
+  const toggleAgentDoc = (doc: string) => {
+    const cur = new Set(agentRules.requiredDocuments || [])
+    if (cur.has(doc)) cur.delete(doc)
+    else cur.add(doc)
+    setAgentRules({ ...agentRules, requiredDocuments: Array.from(cur) })
+  }
+  const addAgentCustomDoc = () => {
+    const label = newAgentDocLabel.trim()
+    if (!label) return
+    const type = newCustomDocType()
+    setAgentRules({
+      requiredDocuments: [...new Set([...(agentRules.requiredDocuments || []), type])],
+      customDocuments: [...(agentRules.customDocuments || []), { type, label }],
+    })
+    setNewAgentDocLabel('')
+  }
+  const removeAgentCustomDoc = (type: string) => {
+    setAgentRules({
+      requiredDocuments: (agentRules.requiredDocuments || []).filter((d) => d !== type),
+      customDocuments: (agentRules.customDocuments || []).filter((d) => d.type !== type),
+    })
   }
 
   const patchAcademic = (patch: AcademicProfileDraft) => {
@@ -782,7 +873,96 @@ export function AdminRulesTab() {
             </Button>
           </div>
 
-          <div className="mt-4 grid gap-4 lg:grid-cols-[320px_1fr]">
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={agencyScope ? 'outline' : 'default'}
+              className={agencyScope ? 'text-[11px] font-black' : 'bg-[#0f2b46] text-[11px] font-black text-[#e0b83a]'}
+              onClick={() => setAgencyScope(false)}
+            >
+              برنامج / خدمة
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={agencyScope ? 'default' : 'outline'}
+              className={agencyScope ? 'bg-[#0f2b46] text-[11px] font-black text-[#e0b83a]' : 'text-[11px] font-black'}
+              onClick={() => { setAgencyScope(true); if (!agentRulesLoaded) void loadAgentRules() }}
+            >
+              قواعد الوكالة والاعتماد
+            </Button>
+          </div>
+
+          {agencyScope && (
+            <div className="mt-4 rounded-2xl border bg-white p-5">
+              <h3 className="text-sm font-black text-[#0f2b46]">مرفقات الوكالة والاعتماد الإلزامية</h3>
+              <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+                قائمة مشتركة لنوعي الطلبات: الوكالة (للشركات والمؤسسات) والاعتماد (للأفراد). أي وثيقة مفعّلة هنا تصير إجبارية عند التقديم لكلا النوعين، وأي نقص يرفض الطلب مع ذكر الناقص. طريقة الرفع عند المتقدم لا تتغير.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {AGENT_DEFAULT_DOCS.map((d) => {
+                  const on = (agentRules.requiredDocuments || []).includes(d.value)
+                  return (
+                    <button
+                      key={d.value}
+                      onClick={() => toggleAgentDoc(d.value)}
+                      className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold transition-colors ${
+                        on ? 'border-[#0f2b46] bg-[#0f2b46] text-[#e0b83a]' : 'border-slate-200 bg-white text-slate-500 hover:border-[#c9a227]'
+                      }`}
+                    >
+                      <d.icon className="h-3.5 w-3.5" />
+                      {d.label}
+                    </button>
+                  )
+                })}
+                {(agentRules.customDocuments || []).map((d) => {
+                  const on = (agentRules.requiredDocuments || []).includes(d.type)
+                  return (
+                    <button
+                      key={d.type}
+                      onClick={() => toggleAgentDoc(d.type)}
+                      className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold transition-colors ${
+                        on ? 'border-[#0f2b46] bg-[#0f2b46] text-[#e0b83a]' : 'border-slate-200 bg-white text-slate-500 hover:border-[#c9a227]'
+                      }`}
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                      {d.label}
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => { e.stopPropagation(); removeAgentCustomDoc(d.type) }}
+                        className="mr-1 text-red-400 hover:text-red-600"
+                        title="حذف المرفق المخصص"
+                      >
+                        ×
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Input
+                  className="h-8 max-w-xs text-xs"
+                  placeholder="إضافة مرفق جديد — اكتب اسمه هنا"
+                  value={newAgentDocLabel}
+                  onChange={(e) => setNewAgentDocLabel(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addAgentCustomDoc() } }}
+                />
+                <Button type="button" size="sm" variant="outline" className="h-8 border-[#c9a227]/50 text-[11px] font-black text-[#0f2b46]" onClick={addAgentCustomDoc} disabled={!newAgentDocLabel.trim()}>
+                  إضافة مرفق
+                </Button>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2 border-t pt-3">
+                <Button onClick={saveAgentRules} disabled={agentRulesSaving} className="bg-[#0f2b46] text-[#e0b83a] hover:bg-[#12365c]">
+                  {agentRulesSaving ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : <Save className="ml-1 h-4 w-4" />}
+                  حفظ قواعد الوكالة والاعتماد
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {!agencyScope && (<div className="mt-4 grid gap-4 lg:grid-cols-[320px_1fr]">
             {/* قائمة البرامج */}
             <div className="rounded-xl border bg-[#faf6ea]/50 p-2">
               <div className="sticky top-0 z-10 space-y-2 rounded-lg bg-[#faf6ea] p-2 shadow-sm">
@@ -1106,8 +1286,44 @@ export function AdminRulesTab() {
                         </button>
                       )
                     })}
+                    {(draft.customDocuments || []).map((d) => {
+                      const on = (draft.requiredDocuments || []).includes(d.type)
+                      return (
+                        <button
+                          key={d.type}
+                          onClick={() => toggleDoc(d.type)}
+                          className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold transition-colors ${
+                            on ? 'border-[#0f2b46] bg-[#0f2b46] text-[#e0b83a]' : 'border-slate-200 bg-white text-slate-500 hover:border-[#c9a227]'
+                          }`}
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                          {d.label}
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            onClick={(e) => { e.stopPropagation(); removeCustomDoc(d.type) }}
+                            className="mr-1 text-red-400 hover:text-red-600"
+                            title="حذف المرفق المخصص"
+                          >
+                            ×
+                          </span>
+                        </button>
+                      )
+                    })}
                   </div>
-                  <p className="mt-1 text-[10px] text-slate-400">{isStudyProgram ? 'انقر لإضافة أو إزالة أي وثيقة — يرفض نموذج التقديم الطلب بنقصها، ويحاسب عليها خبير القبول الذكي.' : 'انقر لتحديد المرفقات المطلوبة لهذه الخدمة فقط. الخدمات العابرة لا تستخدم ملفاً أكاديمياً جامعياً إلا إذا أضفته هنا صراحة.'}</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <Input
+                      className="h-8 max-w-xs text-xs"
+                      placeholder="إضافة مرفق جديد — اكتب اسمه هنا (مثال: رخصة مزاولة المهنة)"
+                      value={newCustomDocLabel}
+                      onChange={(e) => setNewCustomDocLabel(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomDoc() } }}
+                    />
+                    <Button type="button" size="sm" variant="outline" className="h-8 border-[#c9a227]/50 text-[11px] font-black text-[#0f2b46]" onClick={addCustomDoc} disabled={!newCustomDocLabel.trim()}>
+                      إضافة مرفق
+                    </Button>
+                  </div>
+                  <p className="mt-1 text-[10px] text-slate-400">{isStudyProgram ? 'انقر لإضافة أو إزالة أي وثيقة — يرفض نموذج التقديم الطلب بنقصها، ويحاسب عليها خبير القبول الذكي. المرفق المضاف يُفعَّل فوراً فيصير إجبارياً.' : 'انقر لتحديد المرفقات المطلوبة لهذه الخدمة فقط. الخدمات العابرة لا تستخدم ملفاً أكاديمياً جامعياً إلا إذا أضفته هنا صراحة.'}</p>
                 </div>
 
                 {/* قواعد نصية حرة */}
@@ -1381,7 +1597,7 @@ export function AdminRulesTab() {
                 </div>
               </div>
             )}
-          </div>
+          </div>)}
         </CardContent>
       </Card>
     </div>
