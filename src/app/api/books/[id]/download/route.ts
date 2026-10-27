@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
-import { getFileBufferFromStorageOrBase64 } from '@/lib/storage'
+import { getFileStreamFromStorageOrBase64 } from '@/lib/storage'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -45,7 +45,7 @@ export async function GET(_req: NextRequest, context: RouteContext) {
       return NextResponse.redirect(book.link, { status: 302 })
     }
 
-    const stored = await getFileBufferFromStorageOrBase64({
+    const streamed = await getFileStreamFromStorageOrBase64({
       provider: book.storageProvider,
       key: book.storageKey,
       url: book.fileUrl,
@@ -53,24 +53,22 @@ export async function GET(_req: NextRequest, context: RouteContext) {
       mimeType: book.mimeType,
     })
 
-    if (!stored) {
+    if (!streamed) {
       if (book.link) return NextResponse.redirect(book.link, { status: 302 })
       return NextResponse.json({ error: 'لا يوجد ملف أو رابط متاح لهذا الكتاب' }, { status: 404 })
     }
 
     const filename = safeFileName(book.fileName || `${book.title || 'aact-book'}.pdf`)
-    const body = new ArrayBuffer(stored.buffer.byteLength)
-    new Uint8Array(body).set(stored.buffer)
+    const headers: Record<string, string> = {
+      'Content-Type': streamed.mimeType || book.mimeType || 'application/octet-stream',
+      'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(filename)}`,
+      'Cache-Control': 'private, no-store, max-age=0',
+    }
+    // Content-Length only when known without buffering; otherwise the
+    // response stays chunked so the first bytes flow immediately.
+    if (streamed.size !== null) headers['Content-Length'] = String(streamed.size)
 
-    return new NextResponse(body, {
-      status: 200,
-      headers: {
-        'Content-Type': stored.mimeType || book.mimeType || 'application/octet-stream',
-        'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(filename)}`,
-        'Cache-Control': 'private, no-store, max-age=0',
-        'Content-Length': String(stored.buffer.byteLength),
-      },
-    })
+    return new NextResponse(streamed.stream, { status: 200, headers })
   } catch (e) {
     console.error('book download error:', e)
     if (e instanceof Error && e.message === 'UNAUTHORIZED') {

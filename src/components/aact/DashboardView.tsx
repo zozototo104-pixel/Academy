@@ -71,10 +71,8 @@ async function openDashboardPdf(path: string, filename: string) {
 function openBookResource(book: { id?: string; title?: string; fileName?: string | null; hasFile?: boolean; hasLink?: boolean }) {
   if (!book.id) return
   const path = `/api/books/${encodeURIComponent(book.id)}/download`
-  if (book.hasFile) {
-    openDashboardPdf(path, book.fileName || `${book.title || 'aact-book'}.pdf`)
-    return
-  }
+  // Open the download URL directly so the browser streams the PDF natively
+  // instead of waiting on a fetched blob (which died on slow iOS connections).
   const popup = window.open(path, '_blank', 'noopener,noreferrer')
   if (!popup) window.location.href = path
 }
