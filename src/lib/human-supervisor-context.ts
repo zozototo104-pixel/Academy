@@ -116,7 +116,7 @@ async function loadSupervisorAssessments(studentIds: string[], supervisorId: str
 async function loadSupervisorMessages(studentIds: string[], supervisorId: string) {
   if (!studentIds.length) return []
   return db.supervisorChannelMessage.findMany({
-    where: { studentId: { in: studentIds }, OR: [{ supervisorId }, { supervisorId: null }] },
+    where: { studentId: { in: studentIds }, scope: 'SUPERVISION', OR: [{ supervisorId }, { supervisorId: null }] },
     orderBy: { createdAt: 'desc' },
     take: 30,
     select: { studentId: true, senderRole: true, mode: true, content: true, createdAt: true },

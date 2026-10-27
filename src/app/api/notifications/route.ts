@@ -26,9 +26,12 @@ export async function GET() {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireUser()
-    const { id } = await req.json().catch(() => ({ id: null }))
+    const { id, link } = await req.json().catch(() => ({ id: null, link: null }))
     if (id) {
       await db.notification.updateMany({ where: { id, userId: user.id }, data: { read: true } })
+    } else if (link) {
+      // Mark a whole thread's notifications read (used when opening an admin conversation).
+      await db.notification.updateMany({ where: { userId: user.id, link, read: false }, data: { read: true } })
     } else {
       await db.notification.updateMany({ where: { userId: user.id, read: false }, data: { read: true } })
     }

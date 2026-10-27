@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { PaymentsTab, ThesisTab, CertificatesTab, TranscriptTab } from '@/components/aact/DashboardExtras'
 import { StudentSupervisionTab } from '@/components/aact/StudentSupervisionTab'
+import { StudentAdminMessages } from '@/components/aact/StudentAdminMessages'
 import StudentReminderBanner from '@/components/aact/StudentReminderBanner'
 import { StudentLectures } from '@/components/aact/StudentLectures'
 import {
@@ -71,10 +72,8 @@ async function openDashboardPdf(path: string, filename: string) {
 function openBookResource(book: { id?: string; title?: string; fileName?: string | null; hasFile?: boolean; hasLink?: boolean }) {
   if (!book.id) return
   const path = `/api/books/${encodeURIComponent(book.id)}/download`
-  if (book.hasFile) {
-    openDashboardPdf(path, book.fileName || `${book.title || 'aact-book'}.pdf`)
-    return
-  }
+  // Open the download URL directly so the browser streams the PDF natively
+  // instead of waiting on a fetched blob (which died on slow iOS connections).
   const popup = window.open(path, '_blank', 'noopener,noreferrer')
   if (!popup) window.location.href = path
 }
@@ -391,6 +390,7 @@ export function DashboardView() {
   const [serviceDeliverables, setServiceDeliverables] = useState<ServiceDeliverableRow[]>([])
   const [serviceDeliverablesLoading, setServiceDeliverablesLoading] = useState(true)
   const [dashboardTab, setDashboardTab] = useState('programs')
+  const [adminMessagesAdmissionId, setAdminMessagesAdmissionId] = useState<string | null>(null)
   const [lecturesVisible, setLecturesVisible] = useState(false)
   const [programSection, setProgramSection] = useState('academic')
   const [programContentTab, setProgramContentTab] = useState('guides')
@@ -408,7 +408,7 @@ export function DashboardView() {
 
   useEffect(() => {
     const requestedTab = new URLSearchParams(window.location.search).get('tab')
-    const allowedTabs = ['programs', 'supervision', 'lectures', 'payments', 'deliverables', 'notifications', 'thesis', 'transcript', 'certs']
+    const allowedTabs = ['programs', 'supervision', 'lectures', 'payments', 'deliverables', 'notifications', 'messages', 'thesis', 'transcript', 'certs']
     if (requestedTab && allowedTabs.includes(requestedTab)) setDashboardTab(requestedTab)
   }, [])
 
@@ -716,6 +716,17 @@ export function DashboardView() {
     scrollToDashboardContent()
   }
 
+  // Clicking an admin-message notification opens that admin conversation and marks
+  // the notification read. Other notification types keep their current behavior.
+  const openAdminMessageNotification = (n: any) => {
+    if (n.type !== 'ADMIN_MESSAGE') return
+    const admissionId = String(n.link || '').replace('admin-messages:', '')
+    if (!admissionId) return
+    api('/api/notifications', { method: 'PATCH', body: JSON.stringify({ id: n.id }) }).catch(() => {})
+    setAdminMessagesAdmissionId(admissionId)
+    selectDashboardTab('messages')
+  }
+
   const openProgramWorkspace = (section: string, contentTab?: string) => {
     setDashboardTab('programs')
     setProgramSection(section)
@@ -730,6 +741,7 @@ export function DashboardView() {
     { value: 'payments', label: 'المدفوعات والرسوم', show: true },
     { value: 'deliverables', label: 'المخرجات والخدمات', show: showDeliverablesTab },
     { value: 'notifications', label: 'الإشعارات والتنبيهات', show: true },
+    { value: 'messages', label: 'رسائل الإدارة', show: true },
     { value: 'thesis', label: 'بحث التخرج والمناقشة', show: hasProgramDashboard },
     { value: 'transcript', label: 'السجل الأكاديمي', show: hasProgramDashboard },
     { value: 'certs', label: 'الشهادات', show: hasProgramDashboard },
@@ -1125,6 +1137,9 @@ export function DashboardView() {
               )}
               <TabsTrigger value="notifications" className="text-[11px] font-bold sm:text-sm">
                 <Bell className="ml-1 hidden h-3.5 w-3.5 sm:inline" /> الإشعارات {studentSummary?.unread ? `(${studentSummary.unread})` : ''}
+              </TabsTrigger>
+              <TabsTrigger value="messages" className="text-[11px] font-bold sm:text-sm">
+                <MessageCircle className="ml-1 hidden h-3.5 w-3.5 sm:inline" /> رسائل الإدارة
               </TabsTrigger>
               {hasProgramDashboard && (
                 <TabsTrigger value="thesis" className="text-[11px] font-bold sm:text-sm">
@@ -1938,7 +1953,7 @@ export function DashboardView() {
                   </div>
                   <div className="space-y-3">
                     {studentSummary?.notifications?.length ? studentSummary.notifications.map((n) => (
-                      <div key={n.id} className={`rounded-2xl border p-4 ${n.read ? 'border-slate-100 bg-slate-50' : 'border-[#c9a227]/40 bg-[#fffaf0]'}`}>
+                      <div key={n.id} onClick={() => openAdminMessageNotification(n)} className={`rounded-2xl border p-4 ${n.read ? 'border-slate-100 bg-slate-50' : 'border-[#c9a227]/40 bg-[#fffaf0]'} ${n.type === 'ADMIN_MESSAGE' ? 'cursor-pointer hover:bg-[#fff3d6]' : ''}`}>
                         <div className="flex flex-wrap items-start justify-between gap-2">
                           <div>
                             <p className="text-sm font-black text-[#0f2b46]">{n.title}</p>
@@ -1952,6 +1967,10 @@ export function DashboardView() {
                   </div>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            <TabsContent value="messages" className="mt-6">
+              {dashboardTab === 'messages' ? <StudentAdminMessages key={adminMessagesAdmissionId ?? 'none'} initialAdmissionId={adminMessagesAdmissionId} /> : null}
             </TabsContent>
 
             <TabsContent value="thesis" className="mt-6">

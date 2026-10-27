@@ -1,6 +1,8 @@
 import { createHash, createHmac, randomUUID } from 'crypto'
 import { promises as dns } from 'dns'
 import { promises as fs } from 'fs'
+import { createReadStream } from 'node:fs'
+import { Readable } from 'node:stream'
 import net from 'net'
 import path from 'path'
 import { isPrivateStorageKey } from '@/lib/prod-safety'
@@ -558,5 +560,94 @@ export async function getFileBufferFromStorageOrBase64(input: ReadStoredFileInpu
   if (input.data) {
     return { buffer: Buffer.from(input.data, 'base64'), mimeType: String(input.mimeType || 'application/octet-stream') }
   }
+  return null
+}
+
+export interface StoredFileStream {
+  stream: ReadableStream<Uint8Array>
+  mimeType: string
+  // Byte size when known without reading the body; null means chunked (no Content-Length).
+  size: number | null
+}
+
+function nodeReadableToWebStream(nodeStream: NodeJS.ReadableStream): ReadableStream<Uint8Array> {
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      nodeStream.on('data', (chunk: Buffer) => controller.enqueue(new Uint8Array(chunk)))
+      nodeStream.on('end', () => controller.close())
+      nodeStream.on('error', (error) => controller.error(error))
+    },
+    cancel() {
+      const destroyable = nodeStream as unknown as { destroy?: () => void }
+      if (typeof destroyable.destroy === 'function') destroyable.destroy()
+    },
+  })
+}
+
+function contentLengthSize(res: Response): number | null {
+  const length = Number(res.headers.get('content-length') || 0)
+  return Number.isFinite(length) && length > 0 ? length : null
+}
+
+// Streaming counterpart of getFileBufferFromStorageOrBase64, with the same
+// backend order and fallthrough: bytes start flowing immediately instead of
+// waiting for the whole file to be buffered first. maxBytes is only enforced
+// for local files (cheap stat check); streaming backends do not buffer, so
+// no byte limit applies there.
+export async function getFileStreamFromStorageOrBase64(input: ReadStoredFileInput): Promise<StoredFileStream | null> {
+  const mimeType = String(input.mimeType || 'application/octet-stream')
+  const provider = String(input.provider || '')
+  const key = String(input.key || '').trim()
+  const url = String(input.url || '').trim()
+
+  if (provider === 's3' && key) {
+    const signed = signS3Request({ method: 'GET', key, payloadHash: 'UNSIGNED-PAYLOAD' })
+    if (signed) {
+      const res = await fetch(signed.url, {
+        method: 'GET',
+        headers: signed.headers,
+        cache: 'no-store',
+      })
+      if (res.ok && res.body) {
+        return { stream: res.body, mimeType: res.headers.get('content-type') || mimeType, size: contentLengthSize(res) }
+      }
+      // Fall through to the other backends, mirroring readStoredFile.
+    }
+  }
+
+  if (provider === 'local' && key) {
+    const roots = isPrivateStorageKey(key)
+      ? [path.join(process.cwd(), '.data', 'private-uploads'), path.join(process.cwd(), 'public', 'uploads')]
+      : [path.join(process.cwd(), 'public', 'uploads')]
+    for (const root of roots) {
+      const absolutePath = path.join(root, key)
+      try {
+        const stat = await fs.stat(absolutePath)
+        if (Number(input.maxBytes || 0) > 0 && stat.size > Number(input.maxBytes)) throw new Error('STORAGE_FILE_TOO_LARGE')
+        return { stream: nodeReadableToWebStream(createReadStream(absolutePath)), mimeType, size: stat.size }
+      } catch (error: any) {
+        if (String(error?.message || error) === 'STORAGE_FILE_TOO_LARGE') throw error
+        // Try next legacy location.
+      }
+    }
+    return null
+  }
+
+  if (url && /^https?:\/\//i.test(url)) {
+    // Streamed directly: the abort timer in safeFetchStoredUrl exists to bound
+    // buffering, but a streamed download must live as long as the transfer
+    // takes, so the SSRF check runs without the timer here.
+    await assertSafeStorageFetchUrl(url, input.allowedHosts)
+    const res = await fetch(url, { cache: 'no-store', redirect: 'manual' })
+    if (res.status >= 300 && res.status < 400) throw new Error('STORAGE_REDIRECT_REJECTED')
+    if (!res.ok || !res.body) return null
+    return { stream: res.body, mimeType: res.headers.get('content-type') || mimeType, size: contentLengthSize(res) }
+  }
+
+  if (input.data) {
+    const buffer = Buffer.from(input.data, 'base64')
+    return { stream: nodeReadableToWebStream(Readable.from([buffer])), mimeType, size: buffer.byteLength }
+  }
+
   return null
 }

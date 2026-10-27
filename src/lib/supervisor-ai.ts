@@ -568,10 +568,11 @@ export async function buildSupervisorContext(userId: string, options?: { scope?:
     const programStore = (db as any).program
     const memoryStore = (db as any).studentAcademicMemory
     const chatStore = (db as any).chatMessage
+    const channelStore = (db as any).supervisorChannelMessage
     const admissionStore = (db as any).admissionApplication
     const thesisStore = (db as any).thesisSubmission
 
-    const [profile, memory, recentMessages, admission, thesis, enrollments, activePrograms] = await Promise.all([
+    const [profile, memory, recentMessages, channelMessages, admission, thesis, enrollments, activePrograms] = await Promise.all([
       userStore?.findUnique({
         where: { id: userId },
         select: { name: true, role: true, createdAt: true },
@@ -582,6 +583,15 @@ export async function buildSupervisorContext(userId: string, options?: { scope?:
         orderBy: { createdAt: 'desc' },
         take: 12,
         select: { role: true, content: true, mode: true, createdAt: true },
+      }).catch(() => []) || [],
+      // Shared supervision thread history (scope SUPERVISION only, any audience): the AI
+      // builds on human-supervisor guidance instead of contradicting it. Admin-scope
+      // messages are excluded by the scope filter and never enter AI context.
+      channelStore?.findMany({
+        where: { studentId: userId, scope: 'SUPERVISION' },
+        orderBy: { createdAt: 'desc' },
+        take: 25,
+        select: { senderRole: true, content: true, createdAt: true },
       }).catch(() => []) || [],
       admissionStore?.findFirst({
         where: { userId },
@@ -717,6 +727,17 @@ export async function buildSupervisorContext(userId: string, options?: { scope?:
           .slice()
           .reverse()
           .map((m: any) => `${m.role === 'assistant' ? 'المشرف' : 'المستخدم'}${m.mode === 'VOICE' ? ' (صوت)' : ''}: ${safeContextText(m.content, 180)}`)
+          .join('\n')}`
+      )
+    }
+
+    if (Array.isArray(channelMessages) && channelMessages.length) {
+      const channelLabel = (role: string) => role === 'STUDENT' ? 'الطالب' : role === 'AI' ? 'المشرف الذكي' : role === 'SUPERVISOR' ? 'المشرف البشري' : role === 'SYSTEM' ? 'النظام' : 'الإدارة'
+      parts.push(
+        `محادثات الإشراف المشتركة الأخيرة (ابنِ عليها ولا تناقض توجيه المشرف البشري فيها):\n${channelMessages
+          .slice()
+          .reverse()
+          .map((m: any) => `${channelLabel(m.senderRole)}: ${safeContextText(m.content, 180)}`)
           .join('\n')}`
       )
     }
