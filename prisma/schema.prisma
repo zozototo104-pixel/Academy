@@ -1604,6 +1604,8 @@ model SupervisorChannelMessage {
   supervisorId String?
   senderId     String?
   senderRole   String   // STUDENT | SUPERVISOR | AI | ADMIN | SYSTEM
+  scope        String   @default("SUPERVISION") // SUPERVISION | ADMIN — admin threads never enter supervision/AI context
+  audience     String   @default("ALL") // AI | HUMAN | ALL — addressee of student-sent supervision messages
   mode         String   @default("TEXT") // TEXT | VOICE
   content      String
   audioData    String?  // legacy فقط: base64 لملاحظة صوتية قصيرة
@@ -1612,9 +1614,11 @@ model SupervisorChannelMessage {
   audioUrl             String?
   audioMime    String?
   audioSize    Int?
+  emailSentAt  DateTime? // digest email sent for unread admin messages (admin scope only)
   createdAt    DateTime @default(now())
 
   @@index([admissionId])
+  @@index([admissionId, scope])
   @@index([studentId, createdAt])
   @@index([supervisorId, createdAt])
 }

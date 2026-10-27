@@ -28,7 +28,7 @@ export async function GET() {
     })
     const rows = await Promise.all(apps.map(async (app: any) => {
       const [messages, assessments] = await Promise.all([
-        db.supervisorChannelMessage.findMany({ where: { admissionId: app.id }, orderBy: { createdAt: 'asc' }, take: 100 }),
+        db.supervisorChannelMessage.findMany({ where: { admissionId: app.id, scope: 'SUPERVISION' }, orderBy: { createdAt: 'asc' }, take: 100 }),
         db.supervisorAssessment.findMany({
           where: { admissionId: app.id, studentId: user.id, status: { in: ['PUBLISHED', 'CLOSED'] } },
           orderBy: { createdAt: 'desc' },

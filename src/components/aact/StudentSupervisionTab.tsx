@@ -15,6 +15,7 @@ import { SupervisorLiveVoiceCall } from '@/components/aact/SupervisorLiveVoiceCa
 interface Message {
   id: string
   senderRole: string
+  audience?: string
   content: string
   mode: string
   audioData?: string | null
@@ -66,6 +67,10 @@ export function StudentSupervisionTab() {
   const [rows, setRows] = useState<SupervisionRow[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const [messageText, setMessageText] = useState('')
+  // Recipient selector (student-side only, shown only when a human supervisor is
+  // assigned — this card renders only then). Default ALL. It never filters the
+  // thread: all supervision messages stay visible to everyone.
+  const [audience, setAudience] = useState('ALL')
   const [sending, setSending] = useState(false)
   const [submitting, setSubmitting] = useState<string | null>(null)
   const [answers, setAnswers] = useState<Record<string, Record<string, any>>>({})
@@ -102,7 +107,7 @@ export function StudentSupervisionTab() {
     if (!content && !payload?.audioData) return
     setSending(true)
     try {
-      await api('/api/supervisor/messages', { method: 'POST', body: JSON.stringify({ admissionId: active.admission.id, content, mode: payload?.mode || 'TEXT', audioData: payload?.audioData, audioMime: payload?.audioMime }) })
+      await api('/api/supervisor/messages', { method: 'POST', body: JSON.stringify({ admissionId: active.admission.id, content, mode: payload?.mode || 'TEXT', audioData: payload?.audioData, audioMime: payload?.audioMime, audience }) })
       setMessageText('')
       await load()
     } catch (e: any) {
@@ -206,13 +211,22 @@ export function StudentSupervisionTab() {
               return (
                 <div key={m.id} className={`flex ${mine ? 'justify-start' : 'justify-end'}`}>
                   <div className={`max-w-[85%] rounded-2xl p-3 text-xs font-bold leading-6 shadow-sm ${mine ? 'bg-[#0f2b46] text-[#f5f0e1]' : 'bg-white text-[#0f2b46]'}`}>
-                    <p className="mb-1 text-[10px] opacity-70">{mine ? 'أنت' : m.senderRole === 'AI' ? 'المشرف الذكي' : 'المشرف'} — {dateAr(m.createdAt)}</p>
+                    <p className="mb-1 text-[10px] opacity-70">{mine ? 'أنت' : m.senderRole === 'AI' ? 'المشرف الذكي' : 'المشرف'}{mine ? ` — إلى: ${m.audience === 'AI' ? 'المشرف الذكي' : m.audience === 'HUMAN' ? 'المشرف البشري' : 'الاثنين'}` : ''} — {dateAr(m.createdAt)}</p>
                     <p>{m.content}</p>
                     {m.audioData && <audio className="mt-2 w-full" controls src={audioSrc(m)} />}
                   </div>
                 </div>
               )
             }) : <p className="p-8 text-center text-sm font-bold text-slate-500">لا توجد رسائل بعد. يمكنك بدء محادثة مع مشرفك.</p>}
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-bold">
+            <span>الرسالة موجّهة إلى:</span>
+            <select className="rounded-xl border px-3 py-2" value={audience} onChange={(e) => setAudience(e.target.value)}>
+              <option value="ALL">الكل (الذكي والبشري)</option>
+              <option value="AI">المشرف الذكي فقط</option>
+              <option value="HUMAN">المشرف البشري فقط</option>
+            </select>
+            <span className="text-slate-500">{audience === 'AI' ? 'يرد عليك المشرف الذكي فوراً داخل المحادثة ولا يُخطَر البشري.' : audience === 'HUMAN' ? 'تُرسل للبشري فقط ولا يرد الذكي.' : 'تصل للاثنين: رد فوري من الذكي وإخطار للبشري.'}</span>
           </div>
           <div className="mt-3 grid gap-2 md:grid-cols-[1fr_auto]">
             <Textarea rows={2} value={messageText} onChange={(e) => setMessageText(e.target.value)} placeholder="اكتب سؤالك أو أرسل توضيحاً للمشرف..." />
