@@ -68,7 +68,9 @@ describe('admissions list table (presentation-only reorganization)', () => {
     expect(adminView).not.toContain('if (fullLinked) setSelectedAdmissionId(fullLinked.id)')
     expect(adminView).not.toContain('setSelectedAdmissionId(linked.id)')
     expect(adminView).not.toContain('setSelectedAdmissionId(student.latestAdmission')
-    expect(count('openStudentAdmission')).toBe(4)
+    // صف الطالب نفسه لم يعد قابلاً للضغط (الضغط على الاسم كان ينقل للتبويب دون قصد)؛
+    // بقي التعريف + زرا «فتح الطلب» و«استبدال مرفقات» الصريحان فقط.
+    expect(count('openStudentAdmission')).toBe(3)
     // والاختيار ينتهي فعليًا إذا خرج الطلب المفتوح من البيانات المحمّلة (بحث/فلتر/صفحة) —
     // لا انبعاث للتفاصيل عند عودته للنتائج (درس مراجعة المرحلة الثانية، مطبّق هنا أيضًا).
     expect(adminView).toContain('if (selectedAdmissionId && !admissionsLoading && !selectedAdmission) setSelectedAdmissionId(null)')

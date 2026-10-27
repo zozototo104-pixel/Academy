@@ -310,7 +310,11 @@ function testSecurityBatchAFollowup() {
   assert(waiverLib.includes('class ActivePaymentWaiverExistsError') && waiverLib.includes("code = 'ACTIVE_WAIVER_EXISTS'") && waiverLib.includes('status = 409'), 'payment waivers must expose a 409 ACTIVE_WAIVER_EXISTS error')
   assert(waiverLib.includes('db.$transaction(async (tx)') && waiverLib.includes('SELECT id FROM "Payment" WHERE id = ${params.paymentId} FOR UPDATE'), 'payment waiver creation must lock the payment row inside a transaction')
   assert(waiverLib.includes("status: { in: ['ISSUED', 'VERIFIED'] }") && waiverLib.includes('throw new ActivePaymentWaiverExistsError(activeWaiver.codePreview)'), 'payment waiver transaction must reject existing active codes before create')
-  assert(!waiverLib.includes("data: { status: 'CANCELLED' }"), 'payment waiver creation must not cancel active codes to create a replacement')
+  const createFnStart = waiverLib.indexOf('export async function createPaymentWaiverCode')
+  const createFnEnd = waiverLib.indexOf('\nexport async function', createFnStart + 1)
+  const createFn = createFnStart === -1 ? '' : waiverLib.slice(createFnStart, createFnEnd === -1 ? undefined : createFnEnd)
+  assert(createFnStart !== -1 && !createFn.includes("data: { status: 'CANCELLED' }"), 'payment waiver creation must not cancel active codes to create a replacement')
+  assert(waiverLib.includes('PAYMENT_WAIVER_CODE_RESENT'), 'payment waiver resend must audit the rotation as a separate explicit action')
   assert(waiverLib.includes("PAYMENT_WAIVER_CODE_CREATED") && waiverLib.includes('waiver.codePreview'), 'payment waiver audit logs must use codePreview only')
 
   const waiverRoute = file('src/app/api/admin/payments/waivers/route.ts')

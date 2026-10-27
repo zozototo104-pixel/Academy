@@ -695,8 +695,8 @@ export function AdminView() {
     if (!user || user.role !== 'ADMIN') return
     if (activeTab !== 'admissions' && activeTab !== 'service-requests') return
     let cancelled = false
-    setAdmissionsLoading(true)
     const timer = window.setTimeout(() => {
+      setAdmissionsLoading(true)
       const kind = activeTab === 'service-requests' ? 'SERVICE' : 'STUDY'
       const params = new URLSearchParams({ page: String(admissionPage), pageSize: String(admissionPageSize), status: admissionStatusFilter, kind })
       if (admissionSearch.trim()) params.set('search', admissionSearch.trim())
@@ -742,8 +742,8 @@ export function AdminView() {
     if (!user || user.role !== 'ADMIN') return
     if (activeTab !== 'students') return
     let cancelled = false
-    setStudentsLoading(true)
     const timer = window.setTimeout(() => {
+      setStudentsLoading(true)
       const reasonParam = INCOMPLETE_REASON_STATUS_MAP[studentStatusFilter]
       const params = new URLSearchParams({ page: String(studentPage), pageSize: String(studentPageSize), status: reasonParam ? 'INCOMPLETE_ADMISSIONS' : studentStatusFilter })
       if (reasonParam) params.set('incompleteReason', reasonParam)
@@ -1993,8 +1993,7 @@ export function AdminView() {
         {/* Study admissions + transient service requests. نفس قالب البطاقة، لكن كل مسار في تبويب منفصل. */}
         <TabsContent value={activeTab === 'service-requests' ? 'service-requests' : 'admissions'}>
           <div className="mt-4 space-y-4">
-            {!admissionsLoading && (
-              <>
+
                 <AdminListToolbar
                   search={admissionSearch}
                   onSearchChange={(v) => { setAdmissionSearch(v); setAdmissionPage(1) }}
@@ -2026,8 +2025,6 @@ export function AdminView() {
                     طلب المرفقات الناقصة من كل الطلبات المفتوحة
                   </Button>
                 </div>
-              </>
-            )}
             {admissionsLoading ? (
               <Card className="border-[#0f2b46]/10">
                 <CardContent className="flex h-40 flex-col items-center justify-center gap-3 text-center">
@@ -2211,8 +2208,7 @@ export function AdminView() {
         <TabsContent value="students">
           <div className="mt-4 space-y-3">
             <AdminExtensionRequests />
-            {!studentsLoading && (
-              <AdminListToolbar
+            <AdminListToolbar
                 search={studentSearch}
                 onSearchChange={(v) => { setStudentSearch(v); setStudentPage(1) }}
                 searchPlaceholder="ابحث باسم الطالب أو البريد أو البرنامج أو كود الطلب..."
@@ -2240,7 +2236,6 @@ export function AdminView() {
                 filtered={studentTotal}
                 label={isApplicationRowStudentsFilter ? 'طلب غير مستكمل' : 'طالب'}
               />
-            )}
           <Card className="border-[#0f2b46]/10">
             <CardContent className="p-0">
               <div className="aact-scroll max-h-[520px] overflow-y-auto">
@@ -2271,9 +2266,7 @@ export function AdminView() {
                       {pagedStudents.map((s) => (
                         <tr
                           key={s.id}
-                          onClick={() => openStudentAdmission(s)}
-                          className="cursor-pointer border-t border-slate-100 transition hover:bg-[#fff8e6]"
-                          title="اضغط لفتح بطاقة طلب الالتحاق المرتبطة بهذا الطالب"
+                          className="border-t border-slate-100"
                         >
                           <td className="p-3">
                             <div className="flex flex-wrap items-center gap-1.5">
