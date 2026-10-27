@@ -1086,6 +1086,36 @@ export function AdminFinanceTab() {
     }
   }
 
+  const resendWaiver = async (payment: PaymentRow) => {
+    if (waiverBusy === payment.id) return
+    setWaiverBusy(payment.id)
+    try {
+      const result = await api<{ code: string; waiver: PaymentWaiverCodeRow; emailStatus?: 'SENT' | 'FAILED' | 'SKIPPED'; whatsapp?: string }>('/api/admin/payments/waivers', {
+        method: 'PATCH',
+        body: JSON.stringify({ action: 'RESEND', paymentId: payment.id }),
+      })
+      setGeneratedWaiverCodes((prev) => ({ ...prev, [payment.id]: result.code }))
+      const mailNote = result.emailStatus === 'SENT'
+        ? 'تم إرسال البريد ✅'
+        : result.emailStatus === 'FAILED'
+          ? 'فشل إرسال البريد'
+          : 'لم يتم إرسال بريد'
+      const waNote = result.whatsapp === 'sent'
+        ? 'تم إرسال واتساب ✅'
+        : result.whatsapp === 'template_pending'
+          ? 'واتساب: أُرسل قالب الموافقة، والكود يُرسل بعد رد الطالب'
+          : result.whatsapp === 'skipped'
+            ? 'لا يوجد رقم واتساب صالح'
+            : 'فشل إرسال واتساب'
+      toast({ title: 'تم إعادة إرسال التحقق', description: `الكود الجديد: ${result.code} — ${mailNote} — ${waNote}` })
+      load()
+    } catch (e: any) {
+      toast({ title: 'تعذر إعادة إرسال التحقق', description: e.message, variant: 'destructive' })
+    } finally {
+      setWaiverBusy((current) => (current === payment.id ? null : current))
+    }
+  }
+
   const openInvoicePdf = async (id: string) => {
     const popup = window.open('', '_blank')
     if (popup) {
@@ -1425,7 +1455,7 @@ export function AdminFinanceTab() {
                                   </Button>
                                 )
                               }
-                              if (activeWaiver) {
+                              if (activeWaiver?.status === 'ISSUED') {
                                 return (
                                   <div className="flex flex-col gap-1 rounded-lg border border-blue-100 bg-blue-50 p-2 text-[10px] font-black text-blue-800">
                                     <span>كود إعفاء نشط: {generatedCode || activeWaiver.codePreview}</span>
@@ -1437,6 +1467,10 @@ export function AdminFinanceTab() {
                                     ) : (
                                       <span className="text-[9px] text-blue-600">بعد التحديث يظهر رمز مختصر فقط، ولا يرجع الكود الخام.</span>
                                     )}
+                                    <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => resendWaiver(p)} className="h-7 border-blue-200 bg-white text-[10px] font-black text-blue-700">
+                                      {busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
+                                      إعادة إرسال تحقق
+                                    </Button>
                                   </div>
                                 )
                               }

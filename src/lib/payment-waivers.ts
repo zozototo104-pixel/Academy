@@ -5,6 +5,8 @@ import { dollarsToCents, paymentAmountCents, centsToDollars } from '@/lib/money'
 import { getSettings, nextInvoiceNo } from '@/lib/settings'
 import { emailPaymentWaiverCode, isEmailDeliveryConfigured } from '@/lib/mailer'
 import { finalizeAdmissionAfterSettlement } from '@/lib/settle-payment'
+import { sendOfficialWhatsAppHumanFollowup, sendOfficialWhatsAppText } from '@/lib/whatsapp-cloud'
+import { hashWhatsAppId, recordWhatsAppOutboundMessage } from '@/lib/whatsapp-conversations'
 
 export const PAYMENT_WAIVER_TYPES = ['APPLICATION_FEE', 'PARTIAL_TUITION', 'FULL_SCHOLARSHIP'] as const
 export type PaymentWaiverType = typeof PAYMENT_WAIVER_TYPES[number]
@@ -73,9 +75,9 @@ async function resolveWaiverEmailRecipient(paymentId: string) {
   const payment = await db.payment.findUnique({
     where: { id: paymentId },
     include: {
-      user: { select: { id: true, email: true, name: true } },
-      admission: { select: { id: true, userId: true, email: true, fullName: true } },
-      enrollment: { include: { user: { select: { id: true, email: true, name: true } } } },
+      user: { select: { id: true, email: true, name: true, phone: true } },
+      admission: { select: { id: true, userId: true, email: true, fullName: true, phone: true } },
+      enrollment: { include: { user: { select: { id: true, email: true, name: true, phone: true } } } },
       agent: { select: { email: true, repName: true, orgName: true } },
     },
   })
@@ -83,7 +85,8 @@ async function resolveWaiverEmailRecipient(paymentId: string) {
   const email = payment.payerEmail || payment.user?.email || payment.admission?.email || payment.enrollment?.user?.email || payment.agent?.email || ''
   const name = payment.payerName || payment.user?.name || payment.admission?.fullName || payment.enrollment?.user?.name || payment.agent?.repName || payment.agent?.orgName || 'الطالب'
   const userId = payment.user?.id || payment.admission?.userId || payment.enrollment?.user?.id || null
-  return { email: email && email.includes('@') ? email : '', name, userId, invoiceNo: payment.invoiceNo, description: payment.description }
+  const phone = payment.user?.phone || payment.enrollment?.user?.phone || payment.admission?.phone || ''
+  return { email: email && email.includes('@') ? email : '', name, userId, phone, invoiceNo: payment.invoiceNo, description: payment.description }
 }
 
 function addMonths(date: Date, months: number) {
@@ -205,6 +208,38 @@ export class UsedPaymentWaiverCodeError extends Error {
   }
 }
 
+async function deliverWaiverCode(params: { payment: any; waiverType: string; reason: string; code: string; isResend: boolean }) {
+  const recipient = await resolveWaiverEmailRecipient(params.payment.id).catch((error) => { console.warn('Failed to resolve waiver code recipient.', error); return null })
+  const waiverLink = `/?view=dashboard&tab=payments&invoice=${encodeURIComponent(params.payment.invoiceNo)}&waiver=1`
+  const emailConfigured = await isEmailDeliveryConfigured().catch(() => false)
+  let emailStatus: 'SENT' | 'FAILED' | 'SKIPPED' = recipient?.email && emailConfigured ? 'FAILED' : 'SKIPPED'
+  if (recipient?.email && emailConfigured) {
+    try {
+      const sent = await emailPaymentWaiverCode(recipient.email, {
+        name: recipient.name,
+        invoiceNo: recipient.invoiceNo,
+        description: recipient.description,
+        code: params.code,
+        waiverLabel: waiverTypeLabel(params.waiverType),
+        reason: params.reason,
+        link: waiverLink,
+      })
+      emailStatus = sent ? 'SENT' : 'FAILED'
+    } catch (error) {
+      emailStatus = 'FAILED'
+      console.warn('Failed to send payment waiver code email.', error)
+    }
+  }
+  await notify(
+    recipient?.userId || null,
+    'PAYMENT',
+    params.isResend ? 'لديك كود إعفاء جديد من الإدارة' : 'لديك كود إعفاء من الإدارة',
+    `${waiverTypeLabel(params.waiverType)} مرتبط بالفاتورة ${params.payment.invoiceNo}. افتح الدفعات وأدخل الكود المرسل إلى بريدك أو الذي زودتك به الإدارة.`,
+    waiverLink
+  )
+  return { emailStatus, waiverLink, recipient }
+}
+
 export async function createPaymentWaiverCode(params: {
   paymentId: string
   waiverType: PaymentWaiverType
@@ -279,39 +314,125 @@ export async function createPaymentWaiverCode(params: {
   })
 
   await audit(params.actor || { name: 'Admin' }, 'PAYMENT_WAIVER_CODE_CREATED', 'Payment', payment.id, `${payment.invoiceNo} — ${params.waiverType} — ${waiver.codePreview}`)
-  const recipient = await resolveWaiverEmailRecipient(payment.id).catch((error) => { console.warn('Failed to resolve waiver code recipient.', error); return null })
-  const waiverLink = `/?view=dashboard&tab=payments&invoice=${encodeURIComponent(payment.invoiceNo)}&waiver=1`
-  const emailConfigured = await isEmailDeliveryConfigured().catch(() => false)
-  let emailStatus: 'SENT' | 'FAILED' | 'SKIPPED' = recipient?.email && emailConfigured ? 'FAILED' : 'SKIPPED'
-  if (recipient?.email && emailConfigured) {
-    try {
-      const sent = await emailPaymentWaiverCode(recipient.email, {
-        name: recipient.name,
-        invoiceNo: recipient.invoiceNo,
-        description: recipient.description,
-        code,
-        waiverLabel: waiverTypeLabel(params.waiverType),
-        reason,
-        link: waiverLink,
-      })
-      emailStatus = sent ? 'SENT' : 'FAILED'
-    } catch (error) {
-      emailStatus = 'FAILED'
-      console.warn('Failed to send payment waiver code email.', error)
-    }
-  }
-  await notify(
-    recipient?.userId || null,
-    'PAYMENT',
-    'لديك كود إعفاء من الإدارة',
-    `${waiverTypeLabel(params.waiverType)} مرتبط بالفاتورة ${payment.invoiceNo}. افتح الدفعات وأدخل الكود المرسل إلى بريدك أو الذي زودتك به الإدارة.`,
-    waiverLink
-  )
+  const { emailStatus } = await deliverWaiverCode({ payment, waiverType: params.waiverType, reason, code, isResend: false })
   const savedWaiver = await db.paymentWaiverCode.update({
     where: { id: waiver.id },
     data: { emailStatus, emailSentAt: emailStatus === 'SENT' ? new Date() : null },
   })
   return { code, waiver: savedWaiver, emailStatus }
+}
+
+export type WaiverWhatsAppOutcome = 'sent' | 'template_pending' | 'skipped' | 'failed'
+
+const WHATSAPP_WINDOW_MS = 24 * 60 * 60 * 1000
+
+function waiverWhatsAppDigits(phone: unknown) {
+  const digits = String(phone || '').replace(/\D/g, '')
+  return digits.length >= 8 && digits.length <= 15 ? digits : ''
+}
+
+async function sendWaiverCodeWhatsApp(params: {
+  digits: string
+  name: string
+  code: string
+  invoiceNo: string
+  waiverLink: string
+  actor: { id?: string | null; name: string }
+}): Promise<WaiverWhatsAppOutcome> {
+  if (!params.digits) return 'skipped'
+  const conversation = await db.whatsAppConversation.findUnique({
+    where: { waIdHash: hashWhatsAppId(params.digits) },
+    select: { lastInboundAt: true },
+  }).catch(() => null)
+  const lastInboundAt = conversation?.lastInboundAt?.getTime() || 0
+  const windowOpen = Boolean(lastInboundAt && Date.now() - lastInboundAt >= 0 && Date.now() - lastInboundAt < WHATSAPP_WINDOW_MS)
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://aactacademy.com').replace(/\/$/, '')
+  const fullLink = params.waiverLink.startsWith('http') ? params.waiverLink : `${appUrl}${params.waiverLink}`
+  try {
+    if (windowOpen) {
+      const text = `مرحباً ${params.name}، كود الإعفاء الجديد الخاص بك في أكاديمية AACT: ${params.code} — أدخله من بوابة الطالب ضمن بطاقة الفاتورة ${params.invoiceNo}: ${fullLink} — الكود صالح لمدة 7 أيام.`
+      const result = await sendOfficialWhatsAppText(params.digits, text)
+      await recordWhatsAppOutboundMessage({
+        waId: params.digits,
+        phoneNumberId: null,
+        text,
+        sender: 'HUMAN',
+        whatsappMessageId: (result as any)?.messages?.[0]?.id || null,
+        sentById: params.actor.id || null,
+        sentByName: params.actor.name,
+      }).catch(() => null)
+      return 'sent'
+    }
+    const result = await sendOfficialWhatsAppHumanFollowup(params.digits, params.name)
+    await recordWhatsAppOutboundMessage({
+      waId: params.digits,
+      phoneNumberId: null,
+      text: `تم إرسال قالب المتابعة المعتمد human_followup_ar إلى ${params.name}. كود الإعفاء الجديد يُرسل عبر واتساب بعد أن يرد الطالب.`,
+      sender: 'HUMAN',
+      whatsappMessageId: (result as any)?.messages?.[0]?.id || null,
+      sentById: params.actor.id || null,
+      sentByName: params.actor.name,
+    }).catch(() => null)
+    return 'template_pending'
+  } catch (error) {
+    console.warn('Failed to send payment waiver code over WhatsApp.', error)
+    return 'failed'
+  }
+}
+
+export async function resendPaymentWaiverCode(params: {
+  paymentId: string
+  actor?: { id?: string | null; name: string } | null
+}) {
+  const payment = await db.payment.findUnique({ where: { id: params.paymentId } })
+  if (!payment) throw new Error('الفاتورة غير موجودة')
+  if (payment.status === 'PAID') throw new Error('لا يمكن إعادة إرسال إعفاء لفاتورة مسددة فعلياً')
+  if (payment.status === 'WAIVED') throw new Error('هذه الفاتورة معفاة مسبقاً')
+
+  const { oldWaiver, waiver, code } = await db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Payment" WHERE id = ${params.paymentId} FOR UPDATE`
+    const verified = await tx.paymentWaiverCode.findFirst({ where: { paymentId: params.paymentId, status: 'VERIFIED' } })
+    if (verified) throw new Error('الكود مدخل من الطالب وبانتظار الاعتماد — لا يمكن إعادة إرساله')
+    const issued = await tx.paymentWaiverCode.findFirst({ where: { paymentId: params.paymentId, status: 'ISSUED' }, orderBy: { createdAt: 'desc' } })
+    if (!issued) throw new Error('لا يوجد كود إعفاء نشط بانتظار إدخال الطالب لهذه الفاتورة')
+    const cancelled = await tx.paymentWaiverCode.updateMany({ where: { id: issued.id, status: 'ISSUED' }, data: { status: 'CANCELLED' } })
+    if (cancelled.count === 0) throw new Error('تغيرت حالة الكود أثناء المعالجة — حاول مرة أخرى')
+    const nextCode = generateWaiverCode()
+    const created = await tx.paymentWaiverCode.create({
+      data: {
+        paymentId: payment.id,
+        codeHash: hashWaiverCode(nextCode),
+        codePreview: codePreview(nextCode),
+        waiverType: issued.waiverType,
+        requestedAmount: issued.requestedAmount ?? null,
+        requestedAmountCents: issued.requestedAmountCents ?? null,
+        reason: issued.reason,
+        issuedById: params.actor?.id || null,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+    })
+    return { oldWaiver: issued, waiver: created, code: nextCode }
+  })
+
+  await db.payment.update({
+    where: { id: payment.id },
+    data: { waiverType: waiver.waiverType, waiverStatus: 'REQUESTED', waiverReason: waiver.reason },
+  })
+  await audit(params.actor || { name: 'Admin' }, 'PAYMENT_WAIVER_CODE_RESENT', 'Payment', payment.id, `${payment.invoiceNo} — ${oldWaiver.codePreview} → ${waiver.codePreview}`)
+  const { emailStatus, waiverLink, recipient } = await deliverWaiverCode({ payment, waiverType: waiver.waiverType, reason: waiver.reason, code, isResend: true })
+  const whatsapp = await sendWaiverCodeWhatsApp({
+    digits: waiverWhatsAppDigits(recipient?.phone),
+    name: recipient?.name || 'الطالب',
+    code,
+    invoiceNo: payment.invoiceNo,
+    waiverLink,
+    actor: params.actor || { name: 'Admin' },
+  })
+  const savedWaiver = await db.paymentWaiverCode.update({
+    where: { id: waiver.id },
+    data: { emailStatus, emailSentAt: emailStatus === 'SENT' ? new Date() : null },
+  })
+  return { code, waiver: savedWaiver, emailStatus, whatsapp }
 }
 
 type VerifyPaymentWaiverFailureReason = 'INVALID' | 'USED' | 'EXPIRED' | 'RATE_LIMIT'

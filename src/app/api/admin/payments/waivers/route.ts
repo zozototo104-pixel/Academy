@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
-import { ActivePaymentWaiverExistsError, approvePaymentWaiver, createPaymentWaiverCode, isPaymentWaiverType } from '@/lib/payment-waivers'
+import { ActivePaymentWaiverExistsError, approvePaymentWaiver, createPaymentWaiverCode, isPaymentWaiverType, resendPaymentWaiverCode } from '@/lib/payment-waivers'
 import { audit } from '@/lib/notify'
 
 function cleanText(value: unknown, max = 700) {
@@ -41,6 +41,12 @@ export async function PATCH(req: NextRequest) {
     const admin = await requireAdmin()
     const body = await req.json().catch(() => ({}))
     const action = cleanText(body.action, 40).toUpperCase()
+    if (action === 'RESEND') {
+      const paymentId = cleanText(body.paymentId, 80)
+      if (!paymentId) return NextResponse.json({ error: 'معرّف الفاتورة مطلوب' }, { status: 400 })
+      const result = await resendPaymentWaiverCode({ paymentId, actor: { id: admin.id, name: admin.name || admin.email || 'Admin' } })
+      return NextResponse.json({ code: result.code, waiver: result.waiver, emailStatus: result.emailStatus, whatsapp: result.whatsapp })
+    }
     const waiverId = cleanText(body.waiverId, 80)
     if (!waiverId) return NextResponse.json({ error: 'معرّف كود الإعفاء مطلوب' }, { status: 400 })
 
