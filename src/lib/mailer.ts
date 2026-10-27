@@ -411,3 +411,15 @@ export async function emailThesisTopicDecision(to: string, name: string, title: 
 export async function emailCertificateIssued(to: string, name: string, program: string, serial: string) {
   await sendEmail({ to, event: 'CERTIFICATE_ISSUED', subject: `شهادتك جاهزة — ${serial} 🏆`, html: emailTemplate('تم إصدار شهادتك الرسمية 🏆', `<p>تهانينا <strong>${escapeHtml(name)}</strong>!</p><p>صدرت شهادتك الرسمية من الأكاديمية الأمريكية للاستشارات والتدريب:</p>${infoRows([{ label: 'البرنامج', value: program }, { label: 'رقم الشهادة', value: serial }])}<p>يمكنك تحميل الشهادة من حسابك والتحقق منها عبر صفحة التحقق الرسمية.</p>`, { label: 'التحقق من الشهادة', url: appLink('/?view=verify') }) })
 }
+
+// Digest email for admin-scope messages left unread for over an hour (one email per
+// student per sweep run; the sweep marks emailSentAt only after a successful send).
+export async function emailAdminMessagesDigest(to: string, name: string, messages: { content: string }[]) {
+  const list = messages.map((m) => `<p style="margin:8px 0;padding:10px 12px;background:#f8fafc;border-radius:8px;">${escapeHtml(m.content)}</p>`).join('')
+  return sendEmail({
+    to,
+    event: 'ADMIN_MESSAGES_DIGEST',
+    subject: 'رسائل جديدة من الإدارة بانتظار قراءتها',
+    html: emailTemplate('رسائل من الإدارة بانتظار قراءتها ✉️', `<p>${greeting(name)}،</p><p>أرسلت لك الإدارة الرسائل التالية ولم تُقرأ بعد:</p>${list}<p>يمكنك قراءتها والرد عليها من حسابك على المنصة.</p>`, { label: 'فتح رسائل الإدارة', url: appLink('/?view=dashboard&tab=messages') }),
+  })
+}

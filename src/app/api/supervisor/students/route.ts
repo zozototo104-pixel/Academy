@@ -65,7 +65,7 @@ async function buildStudentCard(app: any) {
       include: { attempts: { where: { studentId: userId }, orderBy: { submittedAt: 'desc' }, take: 3 } },
     }) : [],
     userId ? db.supervisorChannelMessage.findMany({
-      where: { OR: [{ admissionId: app.id }, { studentId: userId }] },
+      where: { scope: 'SUPERVISION', OR: [{ admissionId: app.id }, { studentId: userId }] },
       orderBy: { createdAt: 'desc' },
       take: 3,
     }) : [],

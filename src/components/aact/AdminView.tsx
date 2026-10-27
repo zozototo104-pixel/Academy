@@ -56,6 +56,7 @@ const AdminSettingsTab = dynamic(() => loadAdminExtrasModule().then((m) => m.Adm
 const AdminAdminsTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminAdminsTab), { ssr: false, loading: AdminTabLoader })
 const AdminAuditTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminAuditTab), { ssr: false, loading: AdminTabLoader })
 const AdminMessagesTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminMessagesTab), { ssr: false, loading: AdminTabLoader })
+const AdminDirectMessagesTab = dynamic(() => import('@/components/aact/AdminDirectMessagesTab').then((m) => m.AdminDirectMessagesTab), { ssr: false, loading: AdminTabLoader })
 const AdminBooksTab = dynamic(() => loadAdminBooksModule().then((m) => m.AdminBooksTab), { ssr: false, loading: AdminTabLoader })
 const AdminAITab = dynamic(() => loadAdminAIModule().then((m) => m.AdminAITab), { ssr: false, loading: AdminTabLoader })
 const AdminSystemTab = dynamic(() => loadAdminSystemModule().then((m) => m.AdminSystemTab), { ssr: false, loading: AdminTabLoader })
@@ -445,6 +446,7 @@ export function AdminView() {
   const [admissionPageSize, setAdmissionPageSize] = useState(10)
   const [admissionTotal, setAdmissionTotal] = useState(0)
   const [selectedAdmissionId, setSelectedAdmissionId] = useState<string | null>(null)
+  const [directMessagesAdmissionId, setDirectMessagesAdmissionId] = useState<string | null>(null)
   const [selectedAppId, setSelectedAppId] = useState<string | null>(null)
   const [admissionRefresh, setAdmissionRefresh] = useState(0)
   const [studentSearch, setStudentSearch] = useState('')
@@ -1982,6 +1984,7 @@ export function AdminView() {
               <TabsTrigger value="admins" className="gap-1 text-[10px] font-bold sm:text-xs">مدراء النظام</TabsTrigger>
               <TabsTrigger value="audit" className="gap-1 text-[10px] font-bold sm:text-xs">سجل التدقيق</TabsTrigger>
               <TabsTrigger value="messages" className="gap-1 text-[10px] font-bold sm:text-xs">رسائل التواصل</TabsTrigger>
+              <TabsTrigger value="admin-messages" className="gap-1 text-[10px] font-bold sm:text-xs">مراسلة الادارة</TabsTrigger>
               <TabsTrigger value="whatsapp-inbox" className="gap-1 text-[10px] font-bold sm:text-xs">محادثات واتساب</TabsTrigger>
             </TabsList>
           </div>
@@ -2349,6 +2352,21 @@ export function AdminView() {
                                   <FileWarning className="ml-1 h-3.5 w-3.5" /> استبدال مرفقات
                                 </Button>
                               )}
+                              {s.latestAdmission && s.hasAccount && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    if (!s.latestAdmission) return
+                                    setDirectMessagesAdmissionId(s.latestAdmission.id)
+                                    setActiveTab('admin-messages')
+                                  }}
+                                  className="border-[#c9a227]/50 text-[10px] font-black text-[#0f2b46] hover:bg-[#fff7df]"
+                                >
+                                  مراسلة
+                                </Button>
+                              )}
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -2595,6 +2613,11 @@ export function AdminView() {
         {/* رسائل التواصل */}
         <TabsContent value="messages">
           <AdminMessagesTab />
+        </TabsContent>
+
+        {/* مراسلة الادارة — محادثات منفصلة عن الإشراف */}
+        <TabsContent value="admin-messages">
+          <AdminDirectMessagesTab key={directMessagesAdmissionId ?? 'none'} initialAdmissionId={directMessagesAdmissionId} />
         </TabsContent>
 
         {/* محادثات واتساب البشرية */}

@@ -48,7 +48,7 @@ describe('student dashboard visual organization', () => {
     for (const tab of ['programs', 'supervision', 'lectures', 'payments', 'deliverables', 'notifications', 'thesis', 'transcript', 'certs']) {
       required(source, `<TabsContent value="${tab}"`)
     }
-    required(source, "const allowedTabs = ['programs', 'supervision', 'lectures', 'payments', 'deliverables', 'notifications', 'thesis', 'transcript', 'certs']")
+    required(source, "const allowedTabs = ['programs', 'supervision', 'lectures', 'payments', 'deliverables', 'notifications', 'messages', 'thesis', 'transcript', 'certs']")
   })
 
   test('adds a polished student command center without removing the existing tabs', () => {
