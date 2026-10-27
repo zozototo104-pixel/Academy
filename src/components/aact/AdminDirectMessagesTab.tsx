@@ -71,6 +71,17 @@ export function AdminDirectMessagesTab({ initialAdmissionId }: { initialAdmissio
     }
   }, [toast])
 
+  const threadRef = useRef<HTMLDivElement>(null)
+  // فتح المحادثة يرسم بطاقتها أسفل القائمة، فبدون تمرير يبقى الشاشة على
+  // القائمة ويظن المسؤول أن الضغطة لم تعمل — ننزل مباشرة إلى المحادثة.
+  useEffect(() => {
+    if (!activeId) return
+    const t = setTimeout(() => {
+      threadRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 120)
+    return () => clearTimeout(t)
+  }, [activeId])
+
   const mountThreadLoadedRef = useRef(false)
   useEffect(() => {
     let cancelled = false
@@ -158,6 +169,7 @@ export function AdminDirectMessagesTab({ initialAdmissionId }: { initialAdmissio
       </Card>
 
       {activeId && (
+        <div ref={threadRef}>
         <Card>
           <CardContent className="space-y-3 p-4">
             <div className="flex items-center justify-between">
@@ -184,6 +196,7 @@ export function AdminDirectMessagesTab({ initialAdmissionId }: { initialAdmissio
             </div>
           </CardContent>
         </Card>
+        </div>
       )}
     </div>
   )
