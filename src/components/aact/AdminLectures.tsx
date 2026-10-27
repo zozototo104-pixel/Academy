@@ -379,7 +379,7 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
                     {v.session ? ` • مرتبط بلقاء: ${v.session.title}` : ''}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <select
                     className={selectClass}
                     value={v.sessionId ?? ''}
