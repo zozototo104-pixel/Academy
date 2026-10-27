@@ -561,6 +561,135 @@ export function buildSupervisorPersonaBlock(persona: SupervisorPersona = 'CHAT')
  * يبني سياق المشرف الذكي من قاعدة بيانات المنصة.
  * يشمل ملف المستخدم، ذاكرته الأكاديمية، آخر المحادثات، وفهرس البرامج النشطة مع الكتب المسجلة حرفياً.
  */
+const ATTEMPT_STATUS_AR: Record<string, string> = {
+  SUBMITTED: 'مسلّم',
+  GRADED: 'مصحح',
+  NEEDS_REVIEW: 'بانتظار المراجعة',
+  STARTED: 'بدأ ولم يسلّم',
+  EXPIRED: 'انتهت مدته',
+}
+
+function parseAttemptFeedback(feedback: unknown): string {
+  if (typeof feedback !== 'string' || !feedback.trim()) return ''
+  try {
+    const parsed = JSON.parse(feedback)
+    if (parsed && typeof parsed === 'object') {
+      const bits: string[] = []
+      if (typeof parsed.summary === 'string' && parsed.summary.trim()) bits.push(parsed.summary.trim())
+      if (Array.isArray(parsed.strengths) && parsed.strengths.length) bits.push(`نقاط قوة: ${parsed.strengths.filter(Boolean).join('، ')}`)
+      if (Array.isArray(parsed.improvements) && parsed.improvements.length) bits.push(`للتحسين: ${parsed.improvements.filter(Boolean).join('، ')}`)
+      if (bits.length) return compactText(bits.join(' — '), 220)
+    }
+  } catch {
+    // ليس JSON — يعامل كنص تغذية عادي أدناه
+  }
+  return compactText(feedback, 220)
+}
+
+function formatAttemptOutcome(attempt: any): string {
+  if (attempt?.passed === true) return 'ناجح'
+  if (attempt?.passed === false) return 'غير ناجح'
+  if (typeof attempt?.status === 'string' && ATTEMPT_STATUS_AR[attempt.status]) return ATTEMPT_STATUS_AR[attempt.status]
+  return 'بانتظار التصحيح'
+}
+
+function formatWrongQuestions(answers: any[]): { stems: string[]; topics: string[] } {
+  const stems: string[] = []
+  const topics: string[] = []
+  for (const answer of Array.isArray(answers) ? answers : []) {
+    const question = answer?.question || {}
+    if (typeof question.text === 'string' && question.text.trim()) stems.push(compactText(question.text, 120))
+    if (typeof question.sourceChapter === 'string' && question.sourceChapter.trim()) topics.push(question.sourceChapter.trim())
+    else if (typeof question.cognitiveSkill === 'string' && question.cognitiveSkill.trim()) topics.push(question.cognitiveSkill.trim())
+  }
+  return { stems, topics }
+}
+
+/**
+ * يلخّص أداء الطالب نفسه فقط: امتحاناته وواجباته المقررة، وآخر محاولاته
+ * مع علاماتها، وأسئلته الخاطئة، ومواضع ضعفه المتكررة — ليعرف المشرف الذكي
+ * بماذا أخطأ ويصححه، لا أن يتكلم عن المادة بشكل عام.
+ */
+function formatStudentPerformance(input: {
+  assignedUnitExams?: any[]
+  assignedProgramExams?: any[]
+  assignedAssignments?: any[]
+  unitAttempts?: any[]
+  programAttempts?: any[]
+  assignmentSubmissions?: any[]
+}): string {
+  const sections: string[] = []
+
+  const assignedLines: string[] = []
+  for (const exam of Array.isArray(input.assignedUnitExams) ? input.assignedUnitExams : []) {
+    assignedLines.push(`امتحان وحدة: «${exam?.title || 'امتحان'}» / وحدة «${exam?.unit?.title || 'غير محددة'}»${exam?.unit?.semester ? ` (فصل ${exam.unit.semester})` : ''}`)
+  }
+  for (const exam of Array.isArray(input.assignedProgramExams) ? input.assignedProgramExams : []) {
+    assignedLines.push(`امتحان برنامج: «${exam?.title || 'امتحان'}»${exam?.semester ? ` (فصل ${exam.semester})` : ''}`)
+  }
+  for (const assignment of Array.isArray(input.assignedAssignments) ? input.assignedAssignments : []) {
+    assignedLines.push(`واجب: «${assignment?.title || 'واجب'}» (${assignment?.type || 'عام'})${assignment?.semester ? ` (فصل ${assignment.semester})` : ''}`)
+  }
+  if (assignedLines.length) {
+    sections.push(`الامتحانات والواجبات المقررة عليه والظاهرة في صفحته:\n${assignedLines.join('\n')}`)
+  }
+
+  const weaknessCounts = new Map<string, number>()
+  const unitAttemptLines: string[] = []
+  for (const attempt of Array.isArray(input.unitAttempts) ? input.unitAttempts : []) {
+    const examTitle = attempt?.exam?.title || 'امتحان وحدة'
+    const unitTitle = attempt?.exam?.unit?.title || 'وحدة غير محددة'
+    const score = attempt?.score != null ? ` — العلامة ${attempt.score}` : ''
+    const feedback = parseAttemptFeedback(attempt?.feedback)
+    const { stems } = formatWrongQuestions(attempt?.answers)
+    if (stems.length) weaknessCounts.set(unitTitle, (weaknessCounts.get(unitTitle) || 0) + stems.length)
+    unitAttemptLines.push(
+      `«${examTitle}» / وحدة «${unitTitle}»${score} — ${formatAttemptOutcome(attempt)}${feedback ? ` — تغذية: ${feedback}` : ''}${stems.length ? `\n  أسئلة أخطأ فيها: ${stems.map((s) => `«${s}»`).join('؛ ')}` : ''}`,
+    )
+  }
+  if (unitAttemptLines.length) {
+    sections.push(`آخر محاولاته في امتحانات الوحدات:\n${unitAttemptLines.join('\n')}`)
+  }
+
+  const programAttemptLines: string[] = []
+  for (const attempt of Array.isArray(input.programAttempts) ? input.programAttempts : []) {
+    const examTitle = attempt?.exam?.title || 'امتحان برنامج'
+    const score = attempt?.finalScore != null ? attempt.finalScore : attempt?.score
+    const scoreText = score != null ? ` — العلامة ${score}` : ''
+    const feedback = parseAttemptFeedback(attempt?.feedback)
+    const { stems, topics } = formatWrongQuestions(attempt?.answers)
+    for (const topic of topics) weaknessCounts.set(topic, (weaknessCounts.get(topic) || 0) + 1)
+    if (stems.length && !topics.length) weaknessCounts.set(examTitle, (weaknessCounts.get(examTitle) || 0) + stems.length)
+    programAttemptLines.push(
+      `«${examTitle}»${attempt?.exam?.semester ? ` (فصل ${attempt.exam.semester})` : ''}${scoreText} — ${formatAttemptOutcome(attempt)}${feedback ? ` — تغذية: ${feedback}` : ''}${stems.length ? `\n  أسئلة أخطأ فيها: ${stems.map((s) => `«${s}»`).join('؛ ')}` : ''}`,
+    )
+  }
+  if (programAttemptLines.length) {
+    sections.push(`آخر محاولاته في امتحانات البرامج:\n${programAttemptLines.join('\n')}`)
+  }
+
+  const submissionLines: string[] = []
+  for (const submission of Array.isArray(input.assignmentSubmissions) ? input.assignmentSubmissions : []) {
+    const score = submission?.score != null ? ` — العلامة ${submission.score}` : ''
+    const feedback = parseAttemptFeedback(submission?.feedback)
+    const outcome = submission?.score != null ? 'مصحح' : submission?.status === 'NEEDS_REVISION' ? 'بحاجة لمراجعة' : 'بانتظار التصحيح'
+    submissionLines.push(
+      `«${submission?.assignment?.title || 'واجب'}» (${submission?.assignment?.type || 'عام'})${score} — ${outcome}${feedback ? ` — تغذية: ${feedback}` : ''}`,
+    )
+  }
+  if (submissionLines.length) {
+    sections.push(`آخر تسليمات واجباته:\n${submissionLines.join('\n')}`)
+  }
+
+  if (weaknessCounts.size) {
+    const ranked = [...weaknessCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6)
+    sections.push(`مواضع الضعف المتكررة من إجاباته الخاطئة (استخدمها لتوجيه المراجعة والتصحيح):\n${ranked.map(([topic, count]) => `- ${topic}: ${count} أخطاء`).join('\n')}`)
+  }
+
+  if (!sections.length) return ''
+  return `نتائج الطالب في الامتحانات والواجبات (بياناته هو فقط — اعتمد عليها لتعرف نقاط قوته وضعفه، وبماذا أخطأ، وصحح أخطاءه منها):\n${sections.join('\n')}`
+}
+
 export async function buildSupervisorContext(userId: string, options?: { scope?: AiKnowledgeScope; query?: string | null }): Promise<string> {
   try {
     const userStore = (db as any).user
@@ -571,8 +700,14 @@ export async function buildSupervisorContext(userId: string, options?: { scope?:
     const channelStore = (db as any).supervisorChannelMessage
     const admissionStore = (db as any).admissionApplication
     const thesisStore = (db as any).thesisSubmission
+    const unitAttemptStore = (db as any).examAttempt
+    const programAttemptStore = (db as any).programExamAttempt
+    const assignmentSubmissionStore = (db as any).assignmentSubmission
+    const unitExamStore = (db as any).exam
+    const programExamStore = (db as any).programExam
+    const programAssignmentStore = (db as any).programAssignment
 
-    const [profile, memory, recentMessages, channelMessages, admission, thesis, enrollments, activePrograms] = await Promise.all([
+    const [profile, memory, recentMessages, channelMessages, admission, thesis, enrollments, activePrograms, unitAttempts, programAttempts, assignmentSubmissions] = await Promise.all([
       userStore?.findUnique({
         where: { id: userId },
         select: { name: true, role: true, createdAt: true },
@@ -708,7 +843,71 @@ export async function buildSupervisorContext(userId: string, options?: { scope?:
           },
         },
       }).catch(() => []) || [],
+      unitAttemptStore?.findMany({
+        where: { userId, status: { in: ['SUBMITTED', 'GRADED', 'NEEDS_REVIEW'] } },
+        orderBy: { submittedAt: 'desc' },
+        take: 8,
+        select: {
+          score: true, passed: true, status: true, feedback: true, submittedAt: true,
+          exam: { select: { title: true, unit: { select: { title: true, semester: true } } } },
+          answers: {
+            where: { isCorrect: false },
+            take: 5,
+            select: { aiFeedback: true, question: { select: { text: true, type: true } } },
+          },
+        },
+      }).catch(() => []) || [],
+      programAttemptStore?.findMany({
+        where: { userId, status: { in: ['SUBMITTED', 'GRADED', 'NEEDS_REVIEW'] } },
+        orderBy: { submittedAt: 'desc' },
+        take: 6,
+        select: {
+          score: true, finalScore: true, passed: true, status: true, feedback: true, submittedAt: true,
+          exam: { select: { title: true, semester: true } },
+          answers: {
+            where: { isCorrect: false },
+            take: 5,
+            select: { aiFeedback: true, question: { select: { text: true, type: true, sourceChapter: true, cognitiveSkill: true } } },
+          },
+        },
+      }).catch(() => []) || [],
+      assignmentSubmissionStore?.findMany({
+        where: { userId },
+        orderBy: { submittedAt: 'desc' },
+        take: 6,
+        select: {
+          status: true, score: true, feedback: true, submittedAt: true,
+          assignment: { select: { title: true, type: true, semester: true } },
+        },
+      }).catch(() => []) || [],
     ])
+
+    const enrolledProgramIds = Array.isArray(enrollments)
+      ? enrollments.map((enr: any) => enr?.programId || enr?.program?.id).filter(Boolean)
+      : []
+    const assignedUnitExams = enrolledProgramIds.length
+      ? await unitExamStore?.findMany({
+          where: { unit: { programId: { in: enrolledProgramIds } }, status: 'READY' },
+          take: 20,
+          select: { title: true, unit: { select: { title: true, semester: true } } },
+        }).catch(() => []) || []
+      : []
+    const assignedProgramExams = enrolledProgramIds.length
+      ? await programExamStore?.findMany({
+          where: { programId: { in: enrolledProgramIds }, status: 'READY' },
+          orderBy: { semester: 'asc' },
+          take: 12,
+          select: { title: true, semester: true },
+        }).catch(() => []) || []
+      : []
+    const assignedAssignments = enrolledProgramIds.length
+      ? await programAssignmentStore?.findMany({
+          where: { programId: { in: enrolledProgramIds }, status: 'PUBLISHED' },
+          orderBy: { semester: 'asc' },
+          take: 12,
+          select: { title: true, type: true, semester: true },
+        }).catch(() => []) || []
+      : []
 
     const parts: string[] = []
 
@@ -750,9 +949,16 @@ export async function buildSupervisorContext(userId: string, options?: { scope?:
       parts.push(`بحث التخرج: «${thesis.title || 'غير محدد'}» — الحالة: ${thesis.status || 'غير محددة'}${thesis.resultScore != null ? ` — النتيجة ${thesis.resultScore}` : ''}${thesis.aiScore != null ? ` — تقييم الذكاء ${thesis.aiScore}/100` : ''}`)
     }
 
-    const enrolledProgramIds = Array.isArray(enrollments)
-      ? enrollments.map((enr: any) => enr?.programId || enr?.program?.id).filter(Boolean)
-      : []
+    const performanceBlock = formatStudentPerformance({
+      assignedUnitExams,
+      assignedProgramExams,
+      assignedAssignments,
+      unitAttempts,
+      programAttempts,
+      assignmentSubmissions,
+    })
+    if (performanceBlock) parts.push(performanceBlock)
+
     const enrolledBookTitles = Array.isArray(enrollments)
       ? enrollments.flatMap((enr: any) => (Array.isArray(enr?.program?.books) ? enr.program.books : [])
           .flatMap((book: any) => [book?.title, book?.titleEn]).filter(Boolean))
