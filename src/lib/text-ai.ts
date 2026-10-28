@@ -207,14 +207,14 @@ const MISTRAL_DEFAULT_BASE_URL = 'https://api.mistral.ai/v1'
 // back to this curated list of currently-free large models. The list is
 // re-checked against the Workers AI catalog at review time, not at runtime.
 const CLOUDFLARE_TEXT_MODELS = ['@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/openai/gpt-oss-120b', '@cf/nvidia/nemotron-3-120b-a12b', '@cf/ibm-granite/granite-4.0-h-micro']
-// APInex publishes an OpenAI-compatible /models endpoint, but its FREE
-// group mixes 9 subscription-only models (Claude 4.6 Sonnet/Opus, Qwen 3.8
-// MAX, Kimi K2.8, Gemini 3.1 Pro, ...) under the same FREE tag, so the
-// catalog below is a curated static list of the 12 genuinely-free models
-// only — discovery must NOT pull the subscription-only ones in. Free usage
-// is metered as (input + output) * weight (x2-x4 per model), so the
-// advertised 20M daily allowance is allowance tokens, not raw tokens.
-// Re-check the list against apinex.bond/models?group=free at review time.
+// APInex publishes an OpenAI-compatible /models endpoint. Discovery (see
+// fetchApinexTextModels) loads the free models automatically and drops the
+// 9 subscription-only models that wear the same FREE tag; the curated list
+// below is the fallback when discovery fails or returns nothing, and the
+// source for validating a saved model choice. Free usage is metered as
+// (input + output) * weight (x2-x4 per model), so the advertised 20M daily
+// allowance is allowance tokens, not raw tokens. Re-check the list against
+// apinex.bond/models?group=free at review time.
 const APINEX_TEXT_MODELS = ['free/deepseek-v4.1-flash', 'free/glm-5.3-flash', 'free/gpt-6-luna', 'free/minimax-m3.1-flash', 'free/gemini-3.8-flash', 'free/deepseek-v4-pro-0813', 'free/glm-5.3', 'free/glm-5.3-flashx', 'free/mimo-v2.6-pro', 'free/kimi-k3', 'free/muse-spark-1.3', 'free/jev-1.13']
 const APINEX_DEFAULT_BASE_URL = 'https://api.apinex.bond/v1'
 const ALBORIHI_MODEL_DISCOVERY_CACHE_MS = 6 * 60 * 60 * 1000
@@ -1698,6 +1698,54 @@ export async function __testDiscoverMistralTextModelsForTests(baseUrl: string, k
   return fetchMistralTextModels(baseUrl, key)
 }
 
+// APInex /v1/models lists the whole catalog, and its FREE group mixes 9
+// subscription-only models under the same FREE tag (verified on the live
+// models page 2026-10-28), so discovery keeps only free/ IDs that are NOT
+// in the subscription-only blocklist below. New genuinely-free models then
+// appear automatically; a future subscription-only model needs a blocklist
+// update here. The static APINEX_TEXT_MODELS list stays as the fallback
+// when discovery fails or returns nothing.
+const APINEX_SUBSCRIPTION_ONLY_MODELS = new Set([
+  'free/minimax-m3',
+  'free/qwen-3.8-max',
+  'free/deepseek-v4-flash-0731',
+  'free/mimo-v2.6-flash',
+  'free/claude-sonnet-4.6',
+  'free/hy4',
+  'free/claude-opus-4.6',
+  'free/gemini-3.1-pro',
+  'free/kimi-k2.8',
+])
+
+async function fetchApinexTextModels(baseUrl: string, key?: string): Promise<string[]> {
+  if (!baseUrl) return []
+  try {
+    const response = await fetchWithTimeout('APINEX', `${baseUrl.replace(/\/$/, '')}/models`, {
+      cache: 'no-store',
+      headers: key ? { Authorization: `Bearer ${key}` } : undefined,
+    }, aiDiscoveryTimeoutMs())
+    if (!response.ok) return []
+    const data = await response.json().catch(() => ({}))
+    const rows = rowsFromModelPayload(data)
+      .filter((m) => m?.online !== false)
+      .filter(isTextLikeModel)
+      .map((m) => ({ raw: m, id: modelId(m) }))
+      .filter(({ id }) => validModelName(id))
+      .filter(({ id }) => id.toLowerCase().startsWith('free/') && !APINEX_SUBSCRIPTION_ONLY_MODELS.has(id.toLowerCase()))
+    const models = rows.map(({ id }) => id)
+    const capabilities = Object.fromEntries(rows.map(({ raw, id }) => [id, capabilityFromModelRow(raw)]))
+    freeModelsCache.set(cacheKeyForFreeModels('APINEX', baseUrl, key), { at: Date.now(), models, capabilities, discoveryOk: true })
+    console.info('[text-ai-router] apinex models discovered', { count: models.length })
+    return models
+  } catch {
+    return []
+  }
+}
+
+export async function __testDiscoverApinexTextModelsForTests(baseUrl: string, key?: string): Promise<string[]> {
+  return fetchApinexTextModels(baseUrl, key)
+}
+
 function freeModelsMemoryCacheMs(provider: ConcreteProvider): number {
   return provider === 'ALBORIHI' ? ALBORIHI_MODEL_DISCOVERY_CACHE_MS : 30 * 60 * 1000
 }
@@ -1749,6 +1797,8 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<
     models = await fetchGroqTextModels(baseUrl, key)
   } else if (provider === 'MISTRAL') {
     models = await fetchMistralTextModels(baseUrl, key)
+  } else if (provider === 'APINEX') {
+    models = await fetchApinexTextModels(baseUrl, key)
   } else if (['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ZAI', 'ALBORIHI', 'CLOUDFLARE'].includes(provider)) {
     models = await fetchOpenAiCompatibleFreeModels(provider, baseUrl, key)
   }

@@ -139,6 +139,38 @@ describe('APINEX text provider', () => {
     expect(catalog.models).not.toContain('free/gemini-3.1-pro')
   })
 
+  test('discovers free models from /models and drops subscription-only ones', async () => {
+    configureApinex()
+    globalThis.fetch = mock(async (url: string | URL | Request) => {
+      const urlText = String(url)
+      if (urlText.endsWith('/models')) {
+        return new Response(JSON.stringify({ data: [
+          ...APINEX_FREE_MODELS.map((id) => ({ id, context_length: 1000000 })),
+          // Subscription-only models wear the same FREE tag on the website
+          // but must never enter the catalog.
+          { id: 'free/claude-sonnet-4.6', context_length: 1000000 },
+          { id: 'free/qwen-3.8-max', context_length: 1000000 },
+          // A paid model without the free/ prefix must not enter either.
+          { id: 'gpt-5-pro', context_length: 1000000 },
+          // A future genuinely-free model appears automatically.
+          { id: 'free/future-model-x', context_length: 1000000 },
+        ] }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      throw new Error(`unexpected fetch: ${urlText}`)
+    }) as any
+
+    const catalog = await textAi.textAiFreeModelsForProvider('APINEX')
+    expect(catalog.models).toHaveLength(APINEX_FREE_MODELS.length + 1)
+    expect(catalog.models).toContain('free/future-model-x')
+    for (const model of APINEX_FREE_MODELS) {
+      expect(catalog.models).toContain(model)
+    }
+    expect(catalog.models).not.toContain('free/claude-sonnet-4.6')
+    expect(catalog.models).not.toContain('free/qwen-3.8-max')
+    expect(catalog.models).not.toContain('gpt-5-pro')
+    expect(catalog.discoveredCount).toBe(APINEX_FREE_MODELS.length + 1)
+  })
+
   test('without keys the provider stays unconfigured and inert', async () => {
     const diagnostics = await textAi.textAiDiagnostics()
     expect(diagnostics.apinexConfigured).toBe(false)

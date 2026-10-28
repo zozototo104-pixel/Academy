@@ -1595,7 +1595,7 @@ export function AdminSystemTab() {
             {currentTextProvider === 'APINEX' || currentTextProvider === 'AUTO' ? (
               <>
                 {F('APINEX_API_KEYS', 'APInex API Keys', data.secretsSet.APINEX_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'sk-apx...', 'password', 'مفتاح أو أكثر من APInex مفصول بفاصلة، يبدأ بـ sk-apx. لا تضع المفتاح داخل الكود.')}
-                {SelectF('APINEX_TEXT_MODEL', 'نموذج APInex', modelOptions('APINEX', APINEX_TEXT_MODEL_CHOICES), modelHint('APINEX', 'القائمة الثابتة هنا هي النماذج المجانية فعلاً فقط — 9 نماذج تحمل وسم FREE لكنها باشتراك فقط وتم استبعادها. انتبه: الخصم من الحصة = الرموز × وزن (×2 إلى ×4)، فالـ 20 مليون حصة تعادل أقل بالرموز الخام.'))}
+                {SelectF('APINEX_TEXT_MODEL', 'نموذج APInex', modelOptions('APINEX', APINEX_TEXT_MODEL_CHOICES), modelHint('APINEX', 'يتم تحميل النماذج المجانية تلقائياً من /models، ونماذج الاشتراك فقط مستبعدة، والقائمة الثابتة احتياط إذا فشل التحميل. انتبه: الخصم من الحصة = الرموز × وزن (×2 إلى ×4)، فالـ 20 مليون حصة تعادل أقل بالرموز الخام.'))}
                 {F('APINEX_BASE_URL', 'APInex Base URL', 'https://api.apinex.bond/v1', 'text', 'يجب أن يدعم /chat/completions بنمط OpenAI-compatible. حد الطلبات منخفض (5–15 طلب/دقيقة حسب صفحة الموقع) — احتياط أخير، ليس خطاً رئيسياً.')}
               </>
             ) : null}
