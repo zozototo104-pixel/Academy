@@ -6,7 +6,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import sharp from 'sharp'
 import { describe, expect, test } from 'bun:test'
-import { stampFontsConfContent } from '@/lib/legacy-certificate-files'
+import { bundledStampFontsDir, stampFontsConfContent } from '@/lib/legacy-certificate-files'
 
 // Production previews rendered every stamp text field as tofu boxes because
 // the rendering server had no usable font. The app now bundles the fonts the
@@ -63,7 +63,7 @@ describe('legacy certificate stamp fonts', () => {
     'bundled fonts render like system fonts, and a fontless render is detectably different',
     async () => {
       const dir = mkdtempSync(path.join(os.tmpdir(), 'stamp-fonts-test-'))
-      const fontsDir = path.join(REPO_ROOT, 'src', 'lib', 'fonts')
+      const fontsDir = bundledStampFontsDir()
       const confs = {
         system: path.join(dir, 'system.conf'),
         bundled: path.join(dir, 'bundled.conf'),

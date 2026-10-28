@@ -7,38 +7,41 @@ import QRCode from 'qrcode'
 import sharp from 'sharp'
 import { certificateVerificationUrl } from '@/lib/w3c/certificate-credential'
 import { readStoredFile, storeFileBuffer } from '@/lib/storage'
+import { STAMP_FONT_BUNDLES } from './stamp-fonts-data'
 
-// Fonts bundled with the app so stamp text renders even on servers with no
-// system fonts (production previews rendered every stamp field as tofu boxes
-// when the renderer found no usable font). The SVG asks for Arial and
-// Noto Naskh Arabic; this config maps them onto the bundled files.
-const STAMP_FONT_FILES = [
-  'LiberationSans-Regular.ttf',
-  'LiberationSans-Bold.ttf',
-  'NotoNaskhArabic-Regular.ttf',
-  'NotoNaskhArabic-Bold.ttf',
-]
+// Fonts embedded with the app (see stamp-fonts-data.ts) so stamp text
+// renders even on servers with no system fonts (production previews
+// rendered every stamp field as tofu boxes when the renderer found no
+// usable font). The SVG asks for Arial and Noto Naskh Arabic; this config
+// maps them onto the embedded files.
 
-export function stampFontsDir() {
-  return path.join(process.cwd(), 'src', 'lib', 'fonts')
+// Decode the embedded fonts to a temp directory (once per container) and
+// return it. The directory is stable for the lifetime of the temp area, so
+// a later call reuses the decoded files instead of rewriting them.
+export function bundledStampFontsDir() {
+  const fontsDir = path.join(os.tmpdir(), 'aact-stamp-fonts', 'fonts')
+  mkdirSync(fontsDir, { recursive: true })
+  for (const bundle of STAMP_FONT_BUNDLES) {
+    const target = path.join(fontsDir, bundle.name)
+    if (!existsSync(target)) {
+      writeFileSync(target, Buffer.from(bundle.data, 'base64'))
+    }
+  }
+  return fontsDir
 }
 
 export function stampFontsConfContent(fontsDir: string) {
   return `<?xml version="1.0"?>\n<!DOCTYPE fontconfig SYSTEM "fonts.dtd">\n<fontconfig>\n  <dir>${escXml(fontsDir)}</dir>\n  <alias><family>Arial</family><prefer><family>Liberation Sans</family></prefer></alias>\n  <alias><family>sans-serif</family><prefer><family>Liberation Sans</family></prefer></alias>\n</fontconfig>\n`
 }
 
-// Point fontconfig at the bundled fonts before the first stamp render in this
-// process. Respects an explicitly configured FONTCONFIG_FILE (operator or
-// test isolation) and never throws: without the bundled fonts the renderer
-// falls back to its previous system-font behavior.
+// Point fontconfig at the embedded fonts before the first stamp render in
+// this process. Respects an explicitly configured FONTCONFIG_FILE (operator
+// or test isolation) and never throws: if setup fails the renderer falls
+// back to its previous system-font behavior.
 export function ensureStampFonts() {
   if (process.env.FONTCONFIG_FILE) return
-  const fontsDir = stampFontsDir()
   try {
-    if (!STAMP_FONT_FILES.every((file) => existsSync(path.join(fontsDir, file)))) {
-      console.warn('stamp fonts missing from bundle, using system fonts')
-      return
-    }
+    const fontsDir = bundledStampFontsDir()
     const confDir = path.join(os.tmpdir(), 'aact-stamp-fonts')
     mkdirSync(confDir, { recursive: true })
     const confPath = path.join(confDir, 'fonts.conf')
