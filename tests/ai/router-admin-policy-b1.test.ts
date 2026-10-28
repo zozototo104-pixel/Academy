@@ -52,6 +52,7 @@ describe('router admin policy B1', () => {
   })
 
   test('testProviderOrderUnchanged keeps the legacy primary provider order snapshot', () => {
+    // APINEX appended as the last rear reserve (PR #153); the rest untouched.
     expect(__testPrimaryProviderOrder()).toEqual([
       'GEMINI',
       'UNOROUTER',
@@ -68,6 +69,7 @@ describe('router admin policy B1', () => {
       'ALBORIHI',
       'MISTRAL',
       'CLOUDFLARE',
+      'APINEX',
     ])
   })
 
