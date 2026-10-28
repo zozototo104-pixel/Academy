@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { displayedCertificateSerial } from '@/lib/legacy-certificate-files'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { buildCertificateCredential, certificateVerificationUrl, verifyCertificateCredential } from '@/lib/w3c/certificate-credential'
 
@@ -44,6 +45,8 @@ export async function GET(req: NextRequest, context: RouteContext) {
       select: {
         id: true,
         serial: true,
+        legacySerial: true,
+        qrPosition: true,
         qrToken: true,
         type: true,
         holderName: true,
@@ -67,7 +70,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
 
     const revokedAt = cert.revokedAt ? new Date(cert.revokedAt).toISOString() : null
     const effectiveValid = cert.valid && !revokedAt
-    const credential = buildCertificateCredential({ ...cert, valid: effectiveValid })
+    const credential = buildCertificateCredential({ ...cert, serial: displayedCertificateSerial(cert), valid: effectiveValid })
     return new NextResponse(
       JSON.stringify({
         valid: effectiveValid,

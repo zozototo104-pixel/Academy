@@ -209,6 +209,31 @@ export function serializeStampLayout(layout: LegacyStampLayout) {
   return JSON.stringify(normalizeStampLayout(layout))
 }
 
+// الرقم التسلسلي الذي يظهر فعلاً على الشهادة — وهو نفسه الذي يجب أن
+// يظهر في صفحة التحقق. القاعدة تتبع ما اختاره الأدمن في نافذة الختم:
+// - إذا كانت الشهادة مختومة بتخطيط محفوظ (qrPosition بصيغة JSON):
+//   الرقم القديم إذا كان ظاهراً وموجوداً، وإلا الرقم التلقائي إذا كان
+//   ظاهراً، وإلا أيّهما موجود (حتى لا تبقى الخانة فارغة أبداً).
+// - إذا لم يكن هناك تخطيط محفوظ (شهادة من القالب) أو كان التخطيط
+//   بالصيغة القديمة (موضع فقط): القالب والختم القديم يعرضان الرقم
+//   التلقائي وحده، فيُعرض هو.
+export function displayedCertificateSerial(input: {
+  serial?: string | null
+  legacySerial?: string | null
+  qrPosition?: string | null
+}): string {
+  const serial = input.serial || ''
+  const legacy = input.legacySerial || ''
+  const raw = String(input.qrPosition || '').trim()
+  if (raw.startsWith('{')) {
+    const layout = normalizeStampLayout(raw)
+    if (layout.legacySerial?.visible !== false && legacy) return legacy
+    if (layout.serial?.visible !== false && serial) return serial
+    return legacy || serial
+  }
+  return serial
+}
+
 function escXml(value: unknown) {
   return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;')
 }
