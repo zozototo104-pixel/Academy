@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import QRCode from 'qrcode'
 import { db } from '@/lib/db'
+import { displayedCertificateSerial } from '@/lib/legacy-certificate-files'
 import { buildCertificateCredential, certificateVerificationUrl, verifyCertificateCredential } from '@/lib/w3c/certificate-credential'
 
 export const runtime = 'nodejs'
@@ -30,6 +31,8 @@ export default async function CertificateVerifyPage({ params }: PageProps) {
         select: {
           id: true,
           serial: true,
+          legacySerial: true,
+          qrPosition: true,
           qrToken: true,
           type: true,
           holderName: true,
@@ -59,7 +62,7 @@ export default async function CertificateVerifyPage({ params }: PageProps) {
     )
   }
 
-  const credential = buildCertificateCredential(cert)
+  const credential = buildCertificateCredential({ ...cert, serial: displayedCertificateSerial(cert) })
   const verificationUrl = certificateVerificationUrl(cert)
   const qr = await QRCode.toDataURL(verificationUrl, { width: 180, margin: 1 }).catch(() => '')
   const proofOk = verifyCertificateCredential(credential)
@@ -82,7 +85,7 @@ export default async function CertificateVerifyPage({ params }: PageProps) {
 
             <div className="grid gap-3 text-sm sm:grid-cols-2">
               <Info label="صاحب الشهادة" value={cert.holderName} />
-              <Info label="الرقم التسلسلي" value={cert.serial} ltr />
+              <Info label="الرقم التسلسلي" value={displayedCertificateSerial(cert)} ltr />
               <Info label="البرنامج / الاعتماد" value={cert.program} wide />
               <Info label="التقدير" value={cert.grade || '—'} />
               <Info label="الدولة" value={cert.country || '—'} />
