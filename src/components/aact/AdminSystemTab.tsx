@@ -159,7 +159,7 @@ interface SystemData {
     activeMask: string
   }
   textAi?: {
-    selectedProvider: 'GEMINI' | 'OPENAI' | 'ANTHROPIC' | 'ZAI' | 'GROQ' | 'OPENROUTER' | 'DEEPINFRA' | 'TOGETHER' | 'UNOROUTER' | 'RELAYROUTER' | 'TOPTOOLS' | 'ALBORIHI' | 'OPENAI_COMPAT' | 'MISTRAL' | 'CLOUDFLARE' | 'AUTO'
+    selectedProvider: 'GEMINI' | 'OPENAI' | 'ANTHROPIC' | 'ZAI' | 'GROQ' | 'OPENROUTER' | 'DEEPINFRA' | 'TOGETHER' | 'UNOROUTER' | 'RELAYROUTER' | 'TOPTOOLS' | 'ALBORIHI' | 'OPENAI_COMPAT' | 'MISTRAL' | 'CLOUDFLARE' | 'APINEX' | 'AUTO'
     activeProvider: 'GEMINI' | 'OPENAI' | 'ANTHROPIC' | 'ZAI' | 'GROQ' | 'OPENROUTER' | 'DEEPINFRA' | 'TOGETHER' | 'UNOROUTER' | 'RELAYROUTER' | 'TOPTOOLS' | 'ALBORIHI' | 'OPENAI_COMPAT' | null
     policy?: 'primary_first' | 'balanced' | 'quality_first' | 'cost_saver' | 'fallback_only'
     externalConfigured: boolean
@@ -219,6 +219,7 @@ const TEXT_PROVIDER_CHOICES = [
   { value: 'OPENAI_COMPAT', label: 'OpenAI-compatible Gateway — Relay/LiteLLM/خاص' },
   { value: 'MISTRAL', label: 'Mistral AI — نماذج كبيرة بخطة مجانية' },
   { value: 'CLOUDFLARE', label: 'Cloudflare Workers AI — نماذج مفتوحة بحصة يومية' },
+  { value: 'APINEX', label: 'APInex — بوابة مجانية بحصة يومية (احتياط أخير)' },
 ]
 
 const ROUTER_POLICY_CHOICES = [
@@ -343,6 +344,21 @@ const CLOUDFLARE_TEXT_MODEL_CHOICES = [
   { value: '@cf/openai/gpt-oss-120b', label: 'GPT-OSS 120B — قوي ومفتوح' },
   { value: '@cf/nvidia/nemotron-3-120b-a12b', label: 'Nemotron 3 120B — قوي ومفتوح' },
   { value: '@cf/ibm-granite/granite-4.0-h-micro', label: 'Granite 4.0 H Micro — خفيف احتياطي' },
+]
+
+const APINEX_TEXT_MODEL_CHOICES = [
+  { value: 'free/deepseek-v4.1-flash', label: 'DeepSeek V4.1 Flash — مجاني، سياق 1M' },
+  { value: 'free/glm-5.3-flash', label: 'GLM 5.3 Flash — مجاني، سياق 1M' },
+  { value: 'free/gpt-6-luna', label: 'GPT 6 Luna — مجاني، سياق 1M' },
+  { value: 'free/minimax-m3.1-flash', label: 'MiniMax M3.1 Flash — مجاني، وزن ×2' },
+  { value: 'free/gemini-3.8-flash', label: 'Gemini 3.8 Flash — مجاني، سياق 1M' },
+  { value: 'free/deepseek-v4-pro-0813', label: 'DeepSeek V4 Pro — مجاني، سياق 1M' },
+  { value: 'free/glm-5.3', label: 'GLM 5.3 — مجاني، وزن ×4' },
+  { value: 'free/glm-5.3-flashx', label: 'GLM 5.3 FlashX — مجاني، سياق 1M' },
+  { value: 'free/mimo-v2.6-pro', label: 'Mimo V2.6 Pro — مجاني، وزن ×2' },
+  { value: 'free/kimi-k3', label: 'Kimi K3 — مجاني، سياق 1M' },
+  { value: 'free/muse-spark-1.3', label: 'Muse Spark 1.3 — مجاني، سياق 1M' },
+  { value: 'free/jev-1.13', label: 'Jev 1.13 — مجاني، سياق 64K فقط' },
 ]
 
 const GEMINI_VOICE_CHOICES = [
@@ -923,7 +939,7 @@ export function AdminSystemTab() {
       ? 'مفتاح Vercel الافتراضي'
       : 'لا يوجد مفتاح فعّال'
   const textAiDiag = data.textAi
-  const currentTextProvider = (form.AI_TEXT_PROVIDER || textAiDiag?.selectedProvider || 'GEMINI') as 'GEMINI' | 'OPENAI' | 'ANTHROPIC' | 'ZAI' | 'GROQ' | 'OPENROUTER' | 'DEEPINFRA' | 'TOGETHER' | 'UNOROUTER' | 'RELAYROUTER' | 'TOPTOOLS' | 'ALBORIHI' | 'OPENAI_COMPAT' | 'MISTRAL' | 'CLOUDFLARE' | 'AUTO'
+  const currentTextProvider = (form.AI_TEXT_PROVIDER || textAiDiag?.selectedProvider || 'GEMINI') as 'GEMINI' | 'OPENAI' | 'ANTHROPIC' | 'ZAI' | 'GROQ' | 'OPENROUTER' | 'DEEPINFRA' | 'TOGETHER' | 'UNOROUTER' | 'RELAYROUTER' | 'TOPTOOLS' | 'ALBORIHI' | 'OPENAI_COMPAT' | 'MISTRAL' | 'CLOUDFLARE' | 'APINEX' | 'AUTO'
   const agentDiag = data.agent
   const agentSourceLabel = agentDiag?.source === 'settings'
     ? 'إعدادات لوحة الإدارة'
@@ -1574,6 +1590,13 @@ export function AdminSystemTab() {
                 {F('CLOUDFLARE_API_KEYS', 'Cloudflare Workers AI API Keys', data.secretsSet.CLOUDFLARE_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'key1,key2', 'password', 'توكن API بحساب Cloudflare مع صلاحية Workers AI Read. لا تضع المفتاح داخل الكود.')}
                 {SelectF('CLOUDFLARE_TEXT_MODEL', 'نموذج Cloudflare Workers AI', modelOptions('CLOUDFLARE', CLOUDFLARE_TEXT_MODEL_CHOICES), modelHint('CLOUDFLARE', 'القائمة الثابتة هنا هي المصدر لأن Workers AI لا يعرض /models، والحصة اليومية 10,000 وحدة حساب مشتركة.'))}
                 {F('CLOUDFLARE_BASE_URL', 'Cloudflare Workers AI Base URL', 'https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1', 'text', 'ضع رقم حساب Cloudflare مكان {account_id}. يجب أن يدعم /chat/completions بنمط OpenAI-compatible.')}
+              </>
+            ) : null}
+            {currentTextProvider === 'APINEX' || currentTextProvider === 'AUTO' ? (
+              <>
+                {F('APINEX_API_KEYS', 'APInex API Keys', data.secretsSet.APINEX_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'sk-apx...', 'password', 'مفتاح أو أكثر من APInex مفصول بفاصلة، يبدأ بـ sk-apx. لا تضع المفتاح داخل الكود.')}
+                {SelectF('APINEX_TEXT_MODEL', 'نموذج APInex', modelOptions('APINEX', APINEX_TEXT_MODEL_CHOICES), modelHint('APINEX', 'القائمة الثابتة هنا هي النماذج المجانية فعلاً فقط — 9 نماذج تحمل وسم FREE لكنها باشتراك فقط وتم استبعادها. انتبه: الخصم من الحصة = الرموز × وزن (×2 إلى ×4)، فالـ 20 مليون حصة تعادل أقل بالرموز الخام.'))}
+                {F('APINEX_BASE_URL', 'APInex Base URL', 'https://api.apinex.bond/v1', 'text', 'يجب أن يدعم /chat/completions بنمط OpenAI-compatible. حد الطلبات منخفض (5–15 طلب/دقيقة حسب صفحة الموقع) — احتياط أخير، ليس خطاً رئيسياً.')}
               </>
             ) : null}
           </div>

@@ -97,7 +97,7 @@ export const KNOWN_ROUTER_POLICIES = ['primary_first', 'balanced', 'quality_firs
 export const KNOWN_AI_PROVIDERS = [
   'GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA',
   'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI',
-  'MISTRAL', 'CLOUDFLARE',
+  'MISTRAL', 'CLOUDFLARE', 'APINEX',
 ] as const
 
 export type StageRoutingOverrides =

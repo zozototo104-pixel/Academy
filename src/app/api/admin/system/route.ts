@@ -35,6 +35,7 @@ const SYSTEM_KEYS = [
   'ALBORIHI_API_KEY', 'ALBORIHI_API_KEYS', 'ALBORIHI_TEXT_MODEL', 'ALBORIHI_BASE_URL',
   'MISTRAL_API_KEY', 'MISTRAL_API_KEYS', 'MISTRAL_TEXT_MODEL', 'MISTRAL_BASE_URL',
   'CLOUDFLARE_API_KEY', 'CLOUDFLARE_API_KEYS', 'CLOUDFLARE_TEXT_MODEL', 'CLOUDFLARE_BASE_URL',
+  'APINEX_API_KEY', 'APINEX_API_KEYS', 'APINEX_TEXT_MODEL', 'APINEX_BASE_URL',
   'OPENAI_COMPAT_API_KEY', 'OPENAI_COMPAT_API_KEYS', 'OPENAI_COMPAT_TEXT_MODEL', 'OPENAI_COMPAT_BASE_URL',
   'AI_AGENT_PROVIDER', 'AI_AGENT_BASE_URL', 'AI_AGENT_MODEL', 'AI_AGENT_API_KEY',
 ]
@@ -55,6 +56,7 @@ const SECRET_KEYS = new Set([
   'ALBORIHI_API_KEY', 'ALBORIHI_API_KEYS',
   'MISTRAL_API_KEY', 'MISTRAL_API_KEYS',
   'CLOUDFLARE_API_KEY', 'CLOUDFLARE_API_KEYS',
+  'APINEX_API_KEY', 'APINEX_API_KEYS',
   'OPENAI_COMPAT_API_KEY', 'OPENAI_COMPAT_API_KEYS',
   'AI_AGENT_API_KEY',
 ])
@@ -191,6 +193,8 @@ export async function GET() {
         MISTRAL_API_KEYS: !!(await db.setting.findUnique({ where: { key: 'MISTRAL_API_KEYS' } }))?.value,
         CLOUDFLARE_API_KEY: !!(await db.setting.findUnique({ where: { key: 'CLOUDFLARE_API_KEY' } }))?.value,
         CLOUDFLARE_API_KEYS: !!(await db.setting.findUnique({ where: { key: 'CLOUDFLARE_API_KEYS' } }))?.value,
+        APINEX_API_KEY: !!(await db.setting.findUnique({ where: { key: 'APINEX_API_KEY' } }))?.value,
+        APINEX_API_KEYS: !!(await db.setting.findUnique({ where: { key: 'APINEX_API_KEYS' } }))?.value,
         OPENAI_COMPAT_API_KEY: !!(await db.setting.findUnique({ where: { key: 'OPENAI_COMPAT_API_KEY' } }))?.value,
         OPENAI_COMPAT_API_KEYS: !!(await db.setting.findUnique({ where: { key: 'OPENAI_COMPAT_API_KEYS' } }))?.value,
         AI_AGENT_API_KEY: !!(await db.setting.findUnique({ where: { key: 'AI_AGENT_API_KEY' } }))?.value,
