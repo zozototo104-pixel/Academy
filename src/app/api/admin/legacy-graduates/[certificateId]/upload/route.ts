@@ -83,6 +83,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
         gradeEn: cert.gradeEn,
         issuedAt: cert.issuedAt,
         serial: cert.serial,
+        legacySerial: cert.legacySerial,
       },
     })
 

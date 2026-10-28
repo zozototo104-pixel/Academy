@@ -1,9 +1,60 @@
 import { inflateRawSync } from 'zlib'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import os from 'os'
+import path from 'path'
 import { PDFDocument } from 'pdf-lib'
 import QRCode from 'qrcode'
 import sharp from 'sharp'
 import { certificateVerificationUrl } from '@/lib/w3c/certificate-credential'
 import { readStoredFile, storeFileBuffer } from '@/lib/storage'
+import { STAMP_FONT_BUNDLES } from './stamp-fonts-data'
+
+// Fonts embedded with the app (see stamp-fonts-data.ts) so stamp text
+// renders even on servers with no system fonts (production previews
+// rendered every stamp field as tofu boxes when the renderer found no
+// usable font). The SVG asks for Arial and Noto Naskh Arabic; this config
+// maps them onto the embedded files.
+
+// Decode the embedded fonts to a temp directory (once per container) and
+// return it. The directory is stable for the lifetime of the temp area, so
+// a later call reuses the decoded files instead of rewriting them.
+export function bundledStampFontsDir() {
+  const fontsDir = path.join(os.tmpdir(), 'aact-stamp-fonts', 'fonts')
+  mkdirSync(fontsDir, { recursive: true })
+  for (const bundle of STAMP_FONT_BUNDLES) {
+    const target = path.join(fontsDir, bundle.name)
+    if (!existsSync(target)) {
+      writeFileSync(target, Buffer.from(bundle.data, 'base64'))
+    }
+  }
+  return fontsDir
+}
+
+export function stampFontsConfContent(fontsDir: string) {
+  return `<?xml version="1.0"?>\n<!DOCTYPE fontconfig SYSTEM "fonts.dtd">\n<fontconfig>\n  <dir>${escXml(fontsDir)}</dir>\n  <alias><family>Arial</family><prefer><family>Liberation Sans</family></prefer></alias>\n  <alias><family>sans-serif</family><prefer><family>Liberation Sans</family></prefer></alias>\n</fontconfig>\n`
+}
+
+// Point fontconfig at the embedded fonts before the first stamp render in
+// this process. Respects an explicitly configured FONTCONFIG_FILE (operator
+// or test isolation) and never throws: if setup fails the renderer falls
+// back to its previous system-font behavior.
+export function ensureStampFonts() {
+  if (process.env.FONTCONFIG_FILE) return
+  try {
+    const fontsDir = bundledStampFontsDir()
+    const confDir = path.join(os.tmpdir(), 'aact-stamp-fonts')
+    mkdirSync(confDir, { recursive: true })
+    const confPath = path.join(confDir, 'fonts.conf')
+    const content = stampFontsConfContent(fontsDir)
+    if (!existsSync(confPath) || readFileSync(confPath, 'utf8') !== content) {
+      writeFileSync(confPath, content)
+    }
+    process.env.FONTCONFIG_FILE = confPath
+    if (!process.env.XDG_CACHE_HOME) process.env.XDG_CACHE_HOME = path.join(confDir, 'cache')
+  } catch (error) {
+    console.warn('stamp fonts setup failed, using system fonts', error)
+  }
+}
 
 export type LegacyCertificateMime = 'application/pdf' | 'image/png' | 'image/jpeg'
 export type QrPosition = 'BOTTOM_LEFT' | 'BOTTOM_RIGHT' | 'TOP_LEFT' | 'TOP_RIGHT'
@@ -26,6 +77,7 @@ export type LegacyStampLayout = {
   grade: StampTextField
   issuedAt: StampTextField
   serial: StampTextField
+  legacySerial: StampTextField
   qr: { x: number; y: number; size: number; visible?: boolean }
 }
 export type StampValues = {
@@ -37,6 +89,7 @@ export type StampValues = {
   gradeEn?: string | null
   issuedAt?: Date | string | null
   serial?: string | null
+  legacySerial?: string | null
 }
 
 export const LEGACY_CERTIFICATE_UPLOAD_MAX_BYTES = 10 * 1024 * 1024
@@ -74,7 +127,7 @@ function legacySizePercent(size: QrSize) {
   return 16
 }
 
-const TEXT_FIELDS = ['holderName', 'program', 'grade', 'issuedAt', 'serial'] as const
+const TEXT_FIELDS = ['holderName', 'program', 'grade', 'issuedAt', 'serial', 'legacySerial'] as const
 
 function textField(x: number, y: number, width = 70, fontSize = 2.2, extra: Partial<StampTextField> = {}): StampTextField {
   return { x, y, width, fontSize, color: '#0f2b46', align: 'center', fontFamily: 'Arial', lang: 'en', visible: true, ...extra }
@@ -89,12 +142,17 @@ function legacyLayoutFromPosition(positionValue: unknown, sizeValue: unknown): L
   const x = isRight ? 100 - (7 + qrSize / 2) : 7 + qrSize / 2
   const qrY = isTop ? 7 + qrSize / 2 : 100 - (10 + qrSize / 2)
   const serialY = isTop ? Math.min(96, qrY + qrSize / 2 + 4) : 95
+  // The old number sits next to the new serial (above it on bottom layouts,
+  // below it on top layouts) so the two never overlap by default; the user
+  // can drag either field anywhere.
+  const legacySerialY = isTop ? Math.min(96, serialY + 4) : serialY - 3
   return {
     holderName: textField(50, 36, 72, 4.2, { visible: false }),
     program: textField(50, 51, 76, 2.5, { color: '#a8841a', visible: false }),
     grade: textField(50, 62, 44, 1.7, { visible: false }),
     issuedAt: textField(18, 90, 26, 1.15, { align: 'left', visible: false }),
     serial: textField(x, serialY, Math.max(20, qrSize * 1.8), size === 'L' ? 1.6 : size === 'S' ? 1.0 : 1.25),
+    legacySerial: textField(x, legacySerialY, Math.max(20, qrSize * 1.8), size === 'L' ? 1.6 : size === 'S' ? 1.0 : 1.25),
     qr: { x, y: qrY, size: qrSize, visible: true },
   }
 }
@@ -142,6 +200,7 @@ export function normalizeStampLayout(value: unknown, sizeValue: unknown = 'M'): 
     grade: normalizeTextField(raw.grade, fallback.grade),
     issuedAt: normalizeTextField(raw.issuedAt, fallback.issuedAt),
     serial: normalizeTextField(raw.serial, fallback.serial),
+    legacySerial: normalizeTextField(raw.legacySerial, fallback.legacySerial),
     qr: normalizeQrField(raw.qr, fallback.qr),
   }
 }
@@ -183,6 +242,7 @@ export function stampValue(field: typeof TEXT_FIELDS[number], cfg: StampTextFiel
   if (field === 'program') return lang === 'en' ? (values.programEn || values.program || '') : (values.program || '')
   if (field === 'grade') return lang === 'en' ? (values.gradeEn || gradeArabicToEnglish(values.grade) || '') : (values.grade || '')
   if (field === 'issuedAt') return stampDate(values.issuedAt, lang)
+  if (field === 'legacySerial') return values.legacySerial || ''
   return values.serial || ''
 }
 
@@ -196,6 +256,7 @@ export async function renderCertificateStampTextOverlayPng(input: {
   layout: LegacyStampLayout
   values: StampValues
 }) {
+  ensureStampFonts()
   const { width, height, layout, values } = input
   const minDimension = Math.min(width, height)
   const textNodes = TEXT_FIELDS.map((field) => {
