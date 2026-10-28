@@ -1,9 +1,57 @@
 import { inflateRawSync } from 'zlib'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import os from 'os'
+import path from 'path'
 import { PDFDocument } from 'pdf-lib'
 import QRCode from 'qrcode'
 import sharp from 'sharp'
 import { certificateVerificationUrl } from '@/lib/w3c/certificate-credential'
 import { readStoredFile, storeFileBuffer } from '@/lib/storage'
+
+// Fonts bundled with the app so stamp text renders even on servers with no
+// system fonts (production previews rendered every stamp field as tofu boxes
+// when the renderer found no usable font). The SVG asks for Arial and
+// Noto Naskh Arabic; this config maps them onto the bundled files.
+const STAMP_FONT_FILES = [
+  'LiberationSans-Regular.ttf',
+  'LiberationSans-Bold.ttf',
+  'NotoNaskhArabic-Regular.ttf',
+  'NotoNaskhArabic-Bold.ttf',
+]
+
+export function stampFontsDir() {
+  return path.join(process.cwd(), 'src', 'lib', 'fonts')
+}
+
+export function stampFontsConfContent(fontsDir: string) {
+  return `<?xml version="1.0"?>\n<!DOCTYPE fontconfig SYSTEM "fonts.dtd">\n<fontconfig>\n  <dir>${escXml(fontsDir)}</dir>\n  <alias><family>Arial</family><prefer><family>Liberation Sans</family></prefer></alias>\n  <alias><family>sans-serif</family><prefer><family>Liberation Sans</family></prefer></alias>\n</fontconfig>\n`
+}
+
+// Point fontconfig at the bundled fonts before the first stamp render in this
+// process. Respects an explicitly configured FONTCONFIG_FILE (operator or
+// test isolation) and never throws: without the bundled fonts the renderer
+// falls back to its previous system-font behavior.
+export function ensureStampFonts() {
+  if (process.env.FONTCONFIG_FILE) return
+  const fontsDir = stampFontsDir()
+  try {
+    if (!STAMP_FONT_FILES.every((file) => existsSync(path.join(fontsDir, file)))) {
+      console.warn('stamp fonts missing from bundle, using system fonts')
+      return
+    }
+    const confDir = path.join(os.tmpdir(), 'aact-stamp-fonts')
+    mkdirSync(confDir, { recursive: true })
+    const confPath = path.join(confDir, 'fonts.conf')
+    const content = stampFontsConfContent(fontsDir)
+    if (!existsSync(confPath) || readFileSync(confPath, 'utf8') !== content) {
+      writeFileSync(confPath, content)
+    }
+    process.env.FONTCONFIG_FILE = confPath
+    if (!process.env.XDG_CACHE_HOME) process.env.XDG_CACHE_HOME = path.join(confDir, 'cache')
+  } catch (error) {
+    console.warn('stamp fonts setup failed, using system fonts', error)
+  }
+}
 
 export type LegacyCertificateMime = 'application/pdf' | 'image/png' | 'image/jpeg'
 export type QrPosition = 'BOTTOM_LEFT' | 'BOTTOM_RIGHT' | 'TOP_LEFT' | 'TOP_RIGHT'
@@ -196,6 +244,7 @@ export async function renderCertificateStampTextOverlayPng(input: {
   layout: LegacyStampLayout
   values: StampValues
 }) {
+  ensureStampFonts()
   const { width, height, layout, values } = input
   const minDimension = Math.min(width, height)
   const textNodes = TEXT_FIELDS.map((field) => {
