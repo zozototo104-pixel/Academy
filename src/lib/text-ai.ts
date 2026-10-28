@@ -19,6 +19,7 @@ export type TextAiProvider =
   | 'ALBORIHI'
   | 'MISTRAL'
   | 'CLOUDFLARE'
+  | 'APINEX'
   | 'AUTO'
 
 export type TextAiRouterPolicy = 'primary_first' | 'balanced' | 'quality_first' | 'cost_saver' | 'fallback_only'
@@ -107,6 +108,7 @@ export interface TextAiDiagnostics {
   alborihiConfigured: boolean
   mistralConfigured: boolean
   cloudflareConfigured: boolean
+  apinexConfigured: boolean
   openaiCompatConfigured: boolean
   geminiModel: string
   openaiModel: string
@@ -122,6 +124,7 @@ export interface TextAiDiagnostics {
   alborihiModel: string
   mistralModel: string
   cloudflareModel: string
+  apinexModel: string
   openaiCompatModel: string
   keyCounts: Record<string, number>
   cooldowns: Array<{ provider: string; key: string; until: string; reason: string }>
@@ -204,6 +207,16 @@ const MISTRAL_DEFAULT_BASE_URL = 'https://api.mistral.ai/v1'
 // back to this curated list of currently-free large models. The list is
 // re-checked against the Workers AI catalog at review time, not at runtime.
 const CLOUDFLARE_TEXT_MODELS = ['@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/openai/gpt-oss-120b', '@cf/nvidia/nemotron-3-120b-a12b', '@cf/ibm-granite/granite-4.0-h-micro']
+// APInex publishes an OpenAI-compatible /models endpoint. Discovery (see
+// fetchApinexTextModels) loads the free models automatically and drops the
+// 9 subscription-only models that wear the same FREE tag; the curated list
+// below is the fallback when discovery fails or returns nothing, and the
+// source for validating a saved model choice. Free usage is metered as
+// (input + output) * weight (x2-x4 per model), so the advertised 20M daily
+// allowance is allowance tokens, not raw tokens. Re-check the list against
+// apinex.bond/models?group=free at review time.
+const APINEX_TEXT_MODELS = ['free/deepseek-v4.1-flash', 'free/glm-5.3-flash', 'free/gpt-6-luna', 'free/minimax-m3.1-flash', 'free/gemini-3.8-flash', 'free/deepseek-v4-pro-0813', 'free/glm-5.3', 'free/glm-5.3-flashx', 'free/mimo-v2.6-pro', 'free/kimi-k3', 'free/muse-spark-1.3', 'free/jev-1.13']
+const APINEX_DEFAULT_BASE_URL = 'https://api.apinex.bond/v1'
 const ALBORIHI_MODEL_DISCOVERY_CACHE_MS = 6 * 60 * 60 * 1000
 const OPENAI_COMPAT_TEXT_MODELS = ['auto']
 const NVIDIA_OPENAI_COMPAT_TEXT_MODELS = [
@@ -354,7 +367,7 @@ function clean(value: unknown): string {
 
 function normalizeProvider(value: unknown): TextAiProvider {
   const v = clean(value).toUpperCase()
-  const allowed: TextAiProvider[] = ['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'AUTO']
+  const allowed: TextAiProvider[] = ['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX', 'AUTO']
   return allowed.includes(v as TextAiProvider) ? (v as TextAiProvider) : 'GEMINI'
 }
 
@@ -903,7 +916,7 @@ export function __testNvidiaHardFailureThresholdForTests(timestamps: number[], n
   return timestamps.filter((at) => Number.isFinite(at) && at <= now && now - at <= NVIDIA_OPENAI_COMPAT_HARD_FAILURE_WINDOW_MS).length >= 2
 }
 
-const STRICT_ENCRYPTED_SETTING_PROVIDERS = new Set(['GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE'])
+const STRICT_ENCRYPTED_SETTING_PROVIDERS = new Set(['GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX'])
 const LEGACY_PLAINTEXT_SETTING_PROVIDERS = new Set(['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI'])
 
 function providerFromSettingKey(key: string): string {
@@ -961,6 +974,7 @@ async function settings() {
     'ALBORIHI_API_KEY', 'ALBORIHI_API_KEYS', 'ALBORIHI_TEXT_MODEL', 'ALBORIHI_BASE_URL',
     'MISTRAL_API_KEY', 'MISTRAL_API_KEYS', 'MISTRAL_TEXT_MODEL', 'MISTRAL_BASE_URL',
     'CLOUDFLARE_API_KEY', 'CLOUDFLARE_API_KEYS', 'CLOUDFLARE_TEXT_MODEL', 'CLOUDFLARE_BASE_URL',
+    'APINEX_API_KEY', 'APINEX_API_KEYS', 'APINEX_TEXT_MODEL', 'APINEX_BASE_URL',
   ])
   const provider = normalizeProvider(rows.AI_TEXT_PROVIDER || env('AI_TEXT_PROVIDER') || 'GEMINI')
   const policy = normalizePolicy(rows.AI_ROUTER_POLICY || env('AI_ROUTER_POLICY') || 'primary_first')
@@ -1032,6 +1046,9 @@ async function settings() {
     cloudflareKeys: parseKeys(rows.CLOUDFLARE_API_KEY, rows.CLOUDFLARE_API_KEYS, env('CLOUDFLARE_API_KEY'), env('CLOUDFLARE_API_KEYS')),
     cloudflareModel: normalizeModel(rows.CLOUDFLARE_TEXT_MODEL || env('CLOUDFLARE_TEXT_MODEL'), CLOUDFLARE_TEXT_MODELS),
     cloudflareBaseUrl: (rows.CLOUDFLARE_BASE_URL || env('CLOUDFLARE_BASE_URL') || '').replace(/\/$/, ''),
+    apinexKeys: parseKeys(rows.APINEX_API_KEY, rows.APINEX_API_KEYS, env('APINEX_API_KEY'), env('APINEX_API_KEYS')),
+    apinexModel: normalizeModel(rows.APINEX_TEXT_MODEL || env('APINEX_TEXT_MODEL'), APINEX_TEXT_MODELS),
+    apinexBaseUrl: (rows.APINEX_BASE_URL || env('APINEX_BASE_URL') || APINEX_DEFAULT_BASE_URL).replace(/\/$/, ''),
     openaiCompatKeys: parseKeys(rows.OPENAI_COMPAT_API_KEY, rows.OPENAI_COMPAT_API_KEYS, env('OPENAI_COMPAT_API_KEY'), env('OPENAI_COMPAT_API_KEYS')),
     openaiCompatModel: normalizeModel(rows.OPENAI_COMPAT_TEXT_MODEL || env('OPENAI_COMPAT_TEXT_MODEL'), openaiCompatDefaults),
     openaiCompatBaseUrl,
@@ -1092,12 +1109,13 @@ function providerKeys(s: Settings, provider: ConcreteProvider): string[] {
     case 'ALBORIHI': return s.alborihiBaseUrl ? (s.alborihiKeys || []) : []
     case 'MISTRAL': return s.mistralKeys || []
     case 'CLOUDFLARE': return s.cloudflareBaseUrl ? (s.cloudflareKeys || []) : []
+    case 'APINEX': return s.apinexKeys || []
     case 'OPENAI_COMPAT': return s.openaiCompatBaseUrl ? (s.openaiCompatKeys || []) : []
     default: return []
   }
 }
 
-const ROUTER_STATE_PROVIDERS: ConcreteProvider[] = ['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE']
+const ROUTER_STATE_PROVIDERS: ConcreteProvider[] = ['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX']
 
 type ClearTextAiRouterStateInput = {
   type?: string
@@ -1286,6 +1304,7 @@ function modelFor(s: Settings, provider: ConcreteProvider): string {
     case 'ALBORIHI': return s.alborihiModel
     case 'MISTRAL': return s.mistralModel
     case 'CLOUDFLARE': return s.cloudflareModel
+    case 'APINEX': return s.apinexModel
     case 'OPENAI_COMPAT': return s.openaiCompatModel
   }
 }
@@ -1304,6 +1323,7 @@ function baseFor(s: Settings, provider: ConcreteProvider): string {
     case 'ALBORIHI': return s.alborihiBaseUrl
     case 'MISTRAL': return s.mistralBaseUrl
     case 'CLOUDFLARE': return s.cloudflareBaseUrl
+    case 'APINEX': return s.apinexBaseUrl
     case 'OPENAI_COMPAT': return s.openaiCompatBaseUrl
     default: return ''
   }
@@ -1325,6 +1345,7 @@ function staticTextModelsForProvider(provider: ConcreteProvider, s?: Settings): 
     case 'ALBORIHI': return ALBORIHI_TEXT_MODELS
     case 'MISTRAL': return MISTRAL_TEXT_MODELS
     case 'CLOUDFLARE': return CLOUDFLARE_TEXT_MODELS
+    case 'APINEX': return APINEX_TEXT_MODELS
     case 'OPENAI_COMPAT': return s && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl) ? NVIDIA_OPENAI_COMPAT_TEXT_MODELS : OPENAI_COMPAT_TEXT_MODELS
   }
 }
@@ -1677,6 +1698,54 @@ export async function __testDiscoverMistralTextModelsForTests(baseUrl: string, k
   return fetchMistralTextModels(baseUrl, key)
 }
 
+// APInex /v1/models lists the whole catalog, and its FREE group mixes 9
+// subscription-only models under the same FREE tag (verified on the live
+// models page 2026-10-28), so discovery keeps only free/ IDs that are NOT
+// in the subscription-only blocklist below. New genuinely-free models then
+// appear automatically; a future subscription-only model needs a blocklist
+// update here. The static APINEX_TEXT_MODELS list stays as the fallback
+// when discovery fails or returns nothing.
+const APINEX_SUBSCRIPTION_ONLY_MODELS = new Set([
+  'free/minimax-m3',
+  'free/qwen-3.8-max',
+  'free/deepseek-v4-flash-0731',
+  'free/mimo-v2.6-flash',
+  'free/claude-sonnet-4.6',
+  'free/hy4',
+  'free/claude-opus-4.6',
+  'free/gemini-3.1-pro',
+  'free/kimi-k2.8',
+])
+
+async function fetchApinexTextModels(baseUrl: string, key?: string): Promise<string[]> {
+  if (!baseUrl) return []
+  try {
+    const response = await fetchWithTimeout('APINEX', `${baseUrl.replace(/\/$/, '')}/models`, {
+      cache: 'no-store',
+      headers: key ? { Authorization: `Bearer ${key}` } : undefined,
+    }, aiDiscoveryTimeoutMs())
+    if (!response.ok) return []
+    const data = await response.json().catch(() => ({}))
+    const rows = rowsFromModelPayload(data)
+      .filter((m) => m?.online !== false)
+      .filter(isTextLikeModel)
+      .map((m) => ({ raw: m, id: modelId(m) }))
+      .filter(({ id }) => validModelName(id))
+      .filter(({ id }) => id.toLowerCase().startsWith('free/') && !APINEX_SUBSCRIPTION_ONLY_MODELS.has(id.toLowerCase()))
+    const models = rows.map(({ id }) => id)
+    const capabilities = Object.fromEntries(rows.map(({ raw, id }) => [id, capabilityFromModelRow(raw)]))
+    freeModelsCache.set(cacheKeyForFreeModels('APINEX', baseUrl, key), { at: Date.now(), models, capabilities, discoveryOk: true })
+    console.info('[text-ai-router] apinex models discovered', { count: models.length })
+    return models
+  } catch {
+    return []
+  }
+}
+
+export async function __testDiscoverApinexTextModelsForTests(baseUrl: string, key?: string): Promise<string[]> {
+  return fetchApinexTextModels(baseUrl, key)
+}
+
 function freeModelsMemoryCacheMs(provider: ConcreteProvider): number {
   return provider === 'ALBORIHI' ? ALBORIHI_MODEL_DISCOVERY_CACHE_MS : 30 * 60 * 1000
 }
@@ -1728,6 +1797,8 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<
     models = await fetchGroqTextModels(baseUrl, key)
   } else if (provider === 'MISTRAL') {
     models = await fetchMistralTextModels(baseUrl, key)
+  } else if (provider === 'APINEX') {
+    models = await fetchApinexTextModels(baseUrl, key)
   } else if (['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ZAI', 'ALBORIHI', 'CLOUDFLARE'].includes(provider)) {
     models = await fetchOpenAiCompatibleFreeModels(provider, baseUrl, key)
   }
@@ -2009,6 +2080,7 @@ const ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER: ConcreteProvider[] = [
   'ALBORIHI',
   'MISTRAL',
   'CLOUDFLARE',
+  'APINEX',
 ]
 
 export function __testPrimaryProviderOrder(): string[] {
@@ -2095,8 +2167,8 @@ function applyPaidFirst(s: Settings, order: ConcreteProvider[], taskLevel: TextA
 
 function baseOrder(s: Settings, taskLevel: TextAiTaskLevel = 'GENERAL'): ConcreteProvider[] {
   const selected = s.provider === 'AUTO' ? null : s.provider
-  const quality: ConcreteProvider[] = ['ANTHROPIC', 'OPENAI', 'GEMINI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'TOPTOOLS', 'ZAI', 'GROQ', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE']
-  const cost: ConcreteProvider[] = ['GROQ', 'ZAI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'TOPTOOLS', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'GEMINI', 'OPENAI', 'ANTHROPIC', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE']
+  const quality: ConcreteProvider[] = ['ANTHROPIC', 'OPENAI', 'GEMINI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'TOPTOOLS', 'ZAI', 'GROQ', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX']
+  const cost: ConcreteProvider[] = ['GROQ', 'ZAI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'TOPTOOLS', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'GEMINI', 'OPENAI', 'ANTHROPIC', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX']
   const primary: ConcreteProvider[] = ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER
   if (s.policy === 'quality_first') return selectedFirst(selected, canRankProvidersByFamily(s, taskLevel) ? sortProvidersByFamily(s, quality, taskLevel) : quality)
   if (s.policy === 'cost_saver') return selectedFirst(selected, canRankProvidersByFamily(s, taskLevel) ? sortProvidersByFamily(s, cost, taskLevel) : cost)
@@ -2141,9 +2213,9 @@ export function __testB2ProviderOrderForTests(args: { policy?: TextAiRouterPolic
     academicAllowlist: parseAcademicAllowlist(args.allowlist || DEFAULT_ACADEMIC_ALLOWLIST),
     academicAllowlistStrict: args.strict === true,
     allowPublicGateways: true,
-    geminiKeys: ['k'], openaiKeys: ['k'], anthropicKeys: ['k'], zaiKeys: ['k'], groqKeys: ['k'], openrouterKeys: ['k'], deepinfraKeys: ['k'], togetherKeys: ['k'], unorouterKeys: ['k'], relayrouterKeys: ['k'], topToolsKeys: ['k'], alborihiKeys: ['k'], openaiCompatKeys: ['k'], mistralKeys: ['k'], cloudflareKeys: ['k'],
-    geminiModel: args.geminiModel || 'gemini-3.8-flash', openaiModel: 'gpt-5.1', anthropicModel: 'claude-sonnet-4-5-20250929', zaiModel: 'glm-4.5', groqModel: args.groqModel || 'llama-3.3-70b-versatile', openrouterModel: 'openrouter/auto', deepinfraModel: 'meta-llama/Llama-3.3-70B-Instruct', togetherModel: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', unorouterModel: 'gpt-oss-120b:free', relayrouterModel: 'claude-opus-4-8', topToolsModel: args.topToolsModel || 'top-tools-ai', alborihiModel: args.alborihiModel || 'claude-sonnet-5', openaiCompatModel: 'auto', mistralModel: 'mistral-large-latest', cloudflareModel: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
-    openaiCompatBaseUrl: 'https://compat.test/v1', alborihiBaseUrl: ALBORIHI_DEFAULT_BASE_URL, mistralBaseUrl: MISTRAL_DEFAULT_BASE_URL, cloudflareBaseUrl: 'https://api.cloudflare.com/client/v4/accounts/test123/ai/v1', openaiCompatTier: args.openaiCompatTier || 'FREE',
+    geminiKeys: ['k'], openaiKeys: ['k'], anthropicKeys: ['k'], zaiKeys: ['k'], groqKeys: ['k'], openrouterKeys: ['k'], deepinfraKeys: ['k'], togetherKeys: ['k'], unorouterKeys: ['k'], relayrouterKeys: ['k'], topToolsKeys: ['k'], alborihiKeys: ['k'], openaiCompatKeys: ['k'], mistralKeys: ['k'], cloudflareKeys: ['k'], apinexKeys: ['k'],
+    geminiModel: args.geminiModel || 'gemini-3.8-flash', openaiModel: 'gpt-5.1', anthropicModel: 'claude-sonnet-4-5-20250929', zaiModel: 'glm-4.5', groqModel: args.groqModel || 'llama-3.3-70b-versatile', openrouterModel: 'openrouter/auto', deepinfraModel: 'meta-llama/Llama-3.3-70B-Instruct', togetherModel: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', unorouterModel: 'gpt-oss-120b:free', relayrouterModel: 'claude-opus-4-8', topToolsModel: args.topToolsModel || 'top-tools-ai', alborihiModel: args.alborihiModel || 'claude-sonnet-5', openaiCompatModel: 'auto', mistralModel: 'mistral-large-latest', cloudflareModel: '@cf/meta/llama-3.3-70b-instruct-fp8-fast', apinexModel: 'free/deepseek-v4.1-flash',
+    openaiCompatBaseUrl: 'https://compat.test/v1', alborihiBaseUrl: ALBORIHI_DEFAULT_BASE_URL, mistralBaseUrl: MISTRAL_DEFAULT_BASE_URL, cloudflareBaseUrl: 'https://api.cloudflare.com/client/v4/accounts/test123/ai/v1', apinexBaseUrl: APINEX_DEFAULT_BASE_URL, openaiCompatTier: args.openaiCompatTier || 'FREE',
   } as Settings
   const taskLevel = args.taskLevel || (args.rankBy === 'family' ? 'ACADEMIC_CRITICAL' : 'GENERAL')
   return providerOrder(s, taskLevel)
@@ -2318,6 +2390,7 @@ export async function textAiDiagnostics(): Promise<TextAiDiagnostics> {
     ALBORIHI: s.alborihiKeys.length,
     MISTRAL: s.mistralKeys.length,
     CLOUDFLARE: s.cloudflareKeys.length,
+    APINEX: s.apinexKeys.length,
     OPENAI_COMPAT: s.openaiCompatKeys.length,
   }
   return {
@@ -2339,6 +2412,7 @@ export async function textAiDiagnostics(): Promise<TextAiDiagnostics> {
     alborihiConfigured: counts.ALBORIHI > 0,
     mistralConfigured: counts.MISTRAL > 0,
     cloudflareConfigured: counts.CLOUDFLARE > 0,
+    apinexConfigured: counts.APINEX > 0,
     openaiCompatConfigured: counts.OPENAI_COMPAT > 0,
     geminiModel: s.geminiModel,
     openaiModel: s.openaiModel,
@@ -2354,6 +2428,7 @@ export async function textAiDiagnostics(): Promise<TextAiDiagnostics> {
     alborihiModel: s.alborihiModel,
     mistralModel: s.mistralModel,
     cloudflareModel: s.cloudflareModel,
+    apinexModel: s.apinexModel,
     openaiCompatModel: s.openaiCompatModel,
     keyCounts: counts,
     cooldowns: cooldownList(),
