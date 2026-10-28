@@ -9,16 +9,25 @@ import { describe, expect, test } from 'bun:test'
 import { bundledStampFontsDir, stampFontsConfContent } from '@/lib/legacy-certificate-files'
 
 // Production previews rendered every stamp text field as tofu boxes because
-// the rendering server had no usable font. The app now bundles the fonts the
-// stamp SVG asks for. This test renders the real overlay in four isolated
-// environments (see render-stamp-overlay-fixture.ts) and compares pixels:
-// the bundled-font renders must match the system-font render, while the
-// fontless render must NOT match — so the test fails loudly if it ever
-// loses the ability to tell readable text from tofu.
+// the rendering server had no usable font. The app now embeds the fonts the
+// stamp SVG asks for. This test renders the real overlay in three isolated
+// environments (see render-stamp-overlay-fixture.ts) and compares pixels.
+//
+// Deliberately, NOTHING here is compared against the machine's own system
+// fonts: those differ between machines (CI's font set resolved the same
+// text very differently from this sandbox), so such a comparison is flaky
+// by construction. Instead the test asserts two environment-independent
+// facts, and only both together can pass:
+//   1. the production code path under Node (ensureStampFonts) renders
+//      exactly like the embedded-font render (same fonts, same config);
+//   2. the embedded-font render is real text, not tofu (it must differ
+//      sharply from the fontless render).
+// If the embedded fonts broke, (2) would fail (bundled render == tofu).
+// If ensureStampFonts broke, (1) would fail. A blank render fails both.
 //
 // Fontconfig is driven via the parent spawn environment on purpose: setting
 // FONTCONFIG_FILE inside a bun process does not reach fontconfig, while a
-// parent-provided environment does. The tsx/Node run additionally covers
+// parent-provided environment does. The tsx/Node run covers
 // ensureStampFonts() itself, which is the production (Node) code path.
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = path.resolve(HERE, '..', '..')
@@ -60,32 +69,23 @@ function confWithDirs(dirs: string[]): string {
 
 describe('legacy certificate stamp fonts', () => {
   test(
-    'bundled fonts render like system fonts, and a fontless render is detectably different',
+    'embedded fonts render real text, and the Node code path matches them',
     async () => {
       const dir = mkdtempSync(path.join(os.tmpdir(), 'stamp-fonts-test-'))
       const fontsDir = bundledStampFontsDir()
       const confs = {
-        system: path.join(dir, 'system.conf'),
         bundled: path.join(dir, 'bundled.conf'),
         empty: path.join(dir, 'empty.conf'),
       }
-      writeFileSync(confs.system, confWithDirs(['/usr/share/fonts']))
       writeFileSync(confs.bundled, stampFontsConfContent(fontsDir))
       writeFileSync(confs.empty, confWithDirs([]))
 
       const paths: Record<string, string> = {
-        system: path.join(dir, 'system.png'),
         bundled: path.join(dir, 'bundled.png'),
         empty: path.join(dir, 'empty.png'),
         node: path.join(dir, 'node.png'),
       }
       const runs: Array<{ name: string; cmd: string; args: string[]; env: Record<string, string | undefined> }> = [
-        {
-          name: 'system',
-          cmd: process.execPath,
-          args: [HELPER, paths.system],
-          env: { FONTCONFIG_FILE: confs.system, XDG_CACHE_HOME: path.join(dir, 'cache-system') },
-        },
         {
           name: 'bundled',
           cmd: process.execPath,
@@ -111,7 +111,7 @@ describe('legacy certificate stamp fonts', () => {
       }
 
       // Node path: no FONTCONFIG_FILE, so ensureStampFonts() itself must
-      // point fontconfig at the bundled fonts (the production code path).
+      // point fontconfig at the embedded fonts (the production code path).
       expect(existsSync(TSX)).toBe(true)
       const { FONTCONFIG_FILE: _dropped, ...envWithoutFontconfig } = process.env
       const nodeRes = spawnSync(TSX, [HELPER, paths.node], {
@@ -123,25 +123,21 @@ describe('legacy certificate stamp fonts', () => {
       expect(nodeRes.status).toBe(0)
       expect(existsSync(paths.node)).toBe(true)
 
-      const system = await inkMask(paths.system)
       const bundled = await inkMask(paths.bundled)
       const empty = await inkMask(paths.empty)
       const node = await inkMask(paths.node)
-      for (const img of [bundled, empty, node]) {
-        expect(img.width).toBe(system.width)
-        expect(img.height).toBe(system.height)
+      for (const img of [empty, node]) {
+        expect(img.width).toBe(bundled.width)
+        expect(img.height).toBe(bundled.height)
       }
 
-      // Bundled fonts must render like system fonts (same families).
-      expect(jaccard(bundled, system)).toBeGreaterThan(0.6)
-      // The production code path under Node must match too.
-      expect(jaccard(node, system)).toBeGreaterThan(0.6)
+      // The render must actually contain text ink (guards against a blank render).
+      expect(bundled.count).toBeGreaterThan(1000)
+      // The production code path under Node must match the embedded-font render.
       expect(jaccard(node, bundled)).toBeGreaterThan(0.9)
-      // The fontless render must NOT match: proves this test can see tofu.
-      expect(jaccard(empty, system)).toBeLessThan(0.3)
-      // Bundled ink volume must be sane relative to the system render.
-      expect(bundled.count).toBeGreaterThan(system.count * 0.7)
-      expect(bundled.count).toBeLessThan(system.count * 1.3)
+      // The embedded-font render must NOT be tofu: it must differ sharply
+      // from the fontless render.
+      expect(jaccard(bundled, empty)).toBeLessThan(0.3)
     },
     180000,
   )
