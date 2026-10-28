@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Award, Download, FileArchive, FileSpreadsheet, Loader2, Mail, PenLine, Plus, Search, ShieldOff, Upload } from 'lucide-react'
+import { Award, Download, FileArchive, FileSpreadsheet, Loader2, Mail, PenLine, Plus, Search, ShieldOff, Trash2, Upload } from 'lucide-react'
 
 type LegacyGraduateCertificate = {
   id: string
@@ -512,6 +512,23 @@ export default function AdminLegacyGraduatesTab() {
     }
   }
 
+  async function removeGraduate(cert: LegacyGraduateCertificate) {
+    const confirmed = window.confirm(`حذف ${cert.holderName} نهائياً؟\nسيتم حذف الشهادة وملفاتها، وحذف الحساب والتسجيل إذا لم يكونا مرتبطين بشيء آخر. لا يمكن التراجع.`)
+    if (!confirmed) return
+    setBusy(`delete:${cert.id}`)
+    try {
+      const data = await jsonOrThrow(await fetch(`/api/admin/legacy-graduates/${encodeURIComponent(cert.id)}`, {
+        method: 'DELETE',
+      }), 'تعذر حذف الخريج')
+      toast({ title: 'تم حذف الخريج', description: data?.deleted?.user ? `${cert.serial} — حُذفت الشهادة والحساب المرتبط` : `${cert.serial} — حُذفت الشهادة وبقي الحساب لأنه مرتبط بأشياء أخرى` })
+      await load()
+    } catch (error: any) {
+      toast({ title: 'فشل حذف الخريج', description: String(error?.message || error), variant: 'destructive' })
+    } finally {
+      setBusy(null)
+    }
+  }
+
   return (
     <div className="mt-4 space-y-4" dir="rtl">
       <Card className="border-[#0f2b46]/10">
@@ -589,6 +606,7 @@ export default function AdminLegacyGraduatesTab() {
                   <Button size="sm" variant="outline" onClick={() => resendInvite(cert)} disabled={busy === `invite:${cert.id}`} className="gap-1"><Mail className="h-3.5 w-3.5" /> إرسال التفعيل</Button>
                   <Button size="sm" variant="outline" onClick={() => openEdit(cert)} className="gap-1"><PenLine className="h-3.5 w-3.5" /> تعديل</Button>
                   {cert.valid ? <Button size="sm" variant="destructive" onClick={() => revoke(cert)} disabled={busy === `revoke:${cert.id}`} className="gap-1"><ShieldOff className="h-3.5 w-3.5" /> إلغاء</Button> : null}
+                  <Button size="sm" variant="outline" onClick={() => removeGraduate(cert)} disabled={busy === `delete:${cert.id}`} className="gap-1 border-red-200 text-red-700 hover:bg-red-50"><Trash2 className="h-3.5 w-3.5" /> حذف</Button>
                 </div>
               </div>
             </CardContent>
