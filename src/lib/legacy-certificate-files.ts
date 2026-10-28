@@ -77,6 +77,7 @@ export type LegacyStampLayout = {
   grade: StampTextField
   issuedAt: StampTextField
   serial: StampTextField
+  legacySerial: StampTextField
   qr: { x: number; y: number; size: number; visible?: boolean }
 }
 export type StampValues = {
@@ -88,6 +89,7 @@ export type StampValues = {
   gradeEn?: string | null
   issuedAt?: Date | string | null
   serial?: string | null
+  legacySerial?: string | null
 }
 
 export const LEGACY_CERTIFICATE_UPLOAD_MAX_BYTES = 10 * 1024 * 1024
@@ -125,7 +127,7 @@ function legacySizePercent(size: QrSize) {
   return 16
 }
 
-const TEXT_FIELDS = ['holderName', 'program', 'grade', 'issuedAt', 'serial'] as const
+const TEXT_FIELDS = ['holderName', 'program', 'grade', 'issuedAt', 'serial', 'legacySerial'] as const
 
 function textField(x: number, y: number, width = 70, fontSize = 2.2, extra: Partial<StampTextField> = {}): StampTextField {
   return { x, y, width, fontSize, color: '#0f2b46', align: 'center', fontFamily: 'Arial', lang: 'en', visible: true, ...extra }
@@ -140,12 +142,17 @@ function legacyLayoutFromPosition(positionValue: unknown, sizeValue: unknown): L
   const x = isRight ? 100 - (7 + qrSize / 2) : 7 + qrSize / 2
   const qrY = isTop ? 7 + qrSize / 2 : 100 - (10 + qrSize / 2)
   const serialY = isTop ? Math.min(96, qrY + qrSize / 2 + 4) : 95
+  // The old number sits next to the new serial (above it on bottom layouts,
+  // below it on top layouts) so the two never overlap by default; the user
+  // can drag either field anywhere.
+  const legacySerialY = isTop ? Math.min(96, serialY + 4) : serialY - 3
   return {
     holderName: textField(50, 36, 72, 4.2, { visible: false }),
     program: textField(50, 51, 76, 2.5, { color: '#a8841a', visible: false }),
     grade: textField(50, 62, 44, 1.7, { visible: false }),
     issuedAt: textField(18, 90, 26, 1.15, { align: 'left', visible: false }),
     serial: textField(x, serialY, Math.max(20, qrSize * 1.8), size === 'L' ? 1.6 : size === 'S' ? 1.0 : 1.25),
+    legacySerial: textField(x, legacySerialY, Math.max(20, qrSize * 1.8), size === 'L' ? 1.6 : size === 'S' ? 1.0 : 1.25),
     qr: { x, y: qrY, size: qrSize, visible: true },
   }
 }
@@ -193,6 +200,7 @@ export function normalizeStampLayout(value: unknown, sizeValue: unknown = 'M'): 
     grade: normalizeTextField(raw.grade, fallback.grade),
     issuedAt: normalizeTextField(raw.issuedAt, fallback.issuedAt),
     serial: normalizeTextField(raw.serial, fallback.serial),
+    legacySerial: normalizeTextField(raw.legacySerial, fallback.legacySerial),
     qr: normalizeQrField(raw.qr, fallback.qr),
   }
 }
@@ -234,6 +242,7 @@ export function stampValue(field: typeof TEXT_FIELDS[number], cfg: StampTextFiel
   if (field === 'program') return lang === 'en' ? (values.programEn || values.program || '') : (values.program || '')
   if (field === 'grade') return lang === 'en' ? (values.gradeEn || gradeArabicToEnglish(values.grade) || '') : (values.grade || '')
   if (field === 'issuedAt') return stampDate(values.issuedAt, lang)
+  if (field === 'legacySerial') return values.legacySerial || ''
   return values.serial || ''
 }
 

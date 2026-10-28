@@ -94,7 +94,7 @@ async function jsonOrThrow(res: Response, fallback: string) {
   return data
 }
 
-type StampField = 'holderName' | 'program' | 'grade' | 'issuedAt' | 'serial' | 'qr'
+type StampField = 'holderName' | 'program' | 'grade' | 'issuedAt' | 'serial' | 'legacySerial' | 'qr'
 type StampTextField = { x: number; y: number; width: number; fontSize: number; color?: string; align?: 'left' | 'center' | 'right'; fontFamily?: string; lang?: 'en' | 'ar'; visible?: boolean }
 type StampLayout = {
   holderName: StampTextField
@@ -103,10 +103,11 @@ type StampLayout = {
   issuedAt: StampTextField
   qr: { x: number; y: number; size: number; visible?: boolean }
   serial: StampTextField
+  legacySerial: StampTextField
 }
 
-const LEGACY_STAMP_LABELS: Record<StampField, string> = { holderName: 'اسم الطالب', program: 'البرنامج', grade: 'التقدير', issuedAt: 'تاريخ الإصدار', serial: 'الرقم التسلسلي', qr: 'رمز QR' }
-const LEGACY_TEXT_FIELDS: StampField[] = ['holderName', 'program', 'grade', 'issuedAt', 'serial']
+const LEGACY_STAMP_LABELS: Record<StampField, string> = { holderName: 'اسم الطالب', program: 'البرنامج', grade: 'التقدير', issuedAt: 'تاريخ الإصدار', serial: 'الرقم التسلسلي', legacySerial: 'الرقم القديم', qr: 'رمز QR' }
+const LEGACY_TEXT_FIELDS: StampField[] = ['holderName', 'program', 'grade', 'issuedAt', 'serial', 'legacySerial']
 const DEFAULT_TEXT_STAMP: Omit<StampTextField, 'x' | 'y'> = { width: 70, fontSize: 2.2, color: '#0f2b46', align: 'center', fontFamily: 'Arial', lang: 'en', visible: true }
 const DEFAULT_STAMP_LAYOUT: StampLayout = {
   holderName: { ...DEFAULT_TEXT_STAMP, x: 50, y: 36, width: 72, fontSize: 4.2, visible: false },
@@ -115,6 +116,7 @@ const DEFAULT_STAMP_LAYOUT: StampLayout = {
   issuedAt: { ...DEFAULT_TEXT_STAMP, x: 18, y: 90, width: 26, fontSize: 1.15, align: 'left', visible: false },
   qr: { x: 15, y: 80, size: 16, visible: true },
   serial: { ...DEFAULT_TEXT_STAMP, x: 15, y: 95, width: 30, fontSize: 1.25, visible: true },
+  legacySerial: { ...DEFAULT_TEXT_STAMP, x: 15, y: 92, width: 30, fontSize: 1.25, visible: true },
 }
 
 function clampNumber(value: unknown, min: number, max: number, fallback: number) {
@@ -131,10 +133,12 @@ function legacyStampLayout(positionValue?: string | null, sizeValue?: string | n
   const x = isRight ? 100 - (7 + qrSize / 2) : 7 + qrSize / 2
   const qrY = isTop ? 7 + qrSize / 2 : 100 - (10 + qrSize / 2)
   const serialY = isTop ? Math.min(96, qrY + qrSize / 2 + 4) : 95
+  const legacySerialY = isTop ? Math.min(96, serialY + 4) : serialY - 3
   return {
     ...DEFAULT_STAMP_LAYOUT,
     qr: { x, y: qrY, size: qrSize, visible: true },
     serial: { ...DEFAULT_TEXT_STAMP, x, y: serialY, width: Math.max(20, qrSize * 1.8), fontSize: size === 'L' ? 1.6 : size === 'S' ? 1.0 : 1.25, visible: true },
+    legacySerial: { ...DEFAULT_TEXT_STAMP, x, y: legacySerialY, width: Math.max(20, qrSize * 1.8), fontSize: size === 'L' ? 1.6 : size === 'S' ? 1.0 : 1.25, visible: true },
   }
 }
 
@@ -176,6 +180,7 @@ function parseStampLayout(positionValue?: string | null, sizeValue?: string | nu
       issuedAt: normalizeTextStamp(raw?.issuedAt, fallback.issuedAt),
       qr: normalizeQrStamp(raw?.qr, fallback.qr),
       serial: normalizeTextStamp(raw?.serial, fallback.serial),
+      legacySerial: normalizeTextStamp(raw?.legacySerial, fallback.legacySerial),
     }
   } catch {
     return fallback
@@ -698,7 +703,7 @@ export default function AdminLegacyGraduatesTab() {
                     style={stampFieldStyle(field)}
                     className="select-none touch-none"
                   >
-                    {field === 'qr' ? 'QR' : field === 'holderName' ? (uploadFor?.holderNameEn || uploadFor?.holderName || 'John Smith') : field === 'program' ? (uploadFor?.programEn || uploadFor?.program || 'Professional Master in Business Administration') : field === 'grade' ? (uploadFor?.gradeEn || uploadFor?.grade || 'Excellent') : field === 'issuedAt' ? 'June 30, 2024' : uploadFor?.serial || 'AACT-C-2026-00001'}
+                    {field === 'qr' ? 'QR' : field === 'holderName' ? (uploadFor?.holderNameEn || uploadFor?.holderName || 'John Smith') : field === 'program' ? (uploadFor?.programEn || uploadFor?.program || 'Professional Master in Business Administration') : field === 'grade' ? (uploadFor?.gradeEn || uploadFor?.grade || 'Excellent') : field === 'issuedAt' ? 'June 30, 2024' : field === 'legacySerial' ? (uploadFor?.legacySerial || 'الرقم القديم') : uploadFor?.serial || 'AACT-C-2026-00001'}
                     <span
                       aria-hidden="true"
                       className="absolute -bottom-2 -left-2 h-5 w-5 cursor-nwse-resize rounded-full border-2 border-white bg-[#c9a227] shadow"
