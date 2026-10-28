@@ -92,10 +92,13 @@ export async function POST(req: NextRequest) {
       const body = new ReadableStream<Uint8Array>({
         async start(controller) {
           let reply = ''
+          let streamedReply = ''
+          let savedDone = false
           let agentResult: { agent: any; engine: any } = { agent: 'SUPPORT', engine: 'LOCAL_RULE' }
           const emitChunk = async (chunk: string) => {
             if (!chunk) return
             writeEvent(controller, { type: 'chunk', text: chunk })
+            streamedReply += chunk
           }
 
           try {
@@ -137,6 +140,7 @@ export async function POST(req: NextRequest) {
             const saved = await db.chatMessage.create({
               data: { userId: user.id, role: 'assistant', content: reply, mode: chatMode },
             })
+            savedDone = true
             await recordAiUsage({ userId: user.id, provider: String(agentResult.engine || 'CHAT'), model: String(agentResult.agent || 'platform-agent'), taskType: 'CHAT', inputText: userText, outputText: reply })
 
             await updateStudentAcademicMemory(user.id, {
@@ -154,7 +158,22 @@ export async function POST(req: NextRequest) {
             const error = msg.includes('EMPTY_AI_RESPONSE') || msg.includes('AI_PROVIDER_UNAVAILABLE')
               ? 'تعذر توليد إجابة أكاديمية الآن بسبب فشل مزوّد الذكاء. أعد المحاولة بعد قليل.'
               : 'خطأ في المحادثة — أعد المحاولة'
-            writeEvent(controller, { type: 'error', error })
+            // A cut reply is kept, not lost: save what already reached the
+            // student so "continue" can resume from it. Best-effort only;
+            // a save failure must not mask the error event, and nothing is
+            // saved twice when the success save already ran.
+            let partialMessageId: string | null = null
+            if (!savedDone && streamedReply.trim()) {
+              try {
+                const savedPartial = await db.chatMessage.create({
+                  data: { userId: user.id, role: 'assistant', content: streamedReply, mode: chatMode },
+                })
+                partialMessageId = savedPartial.id
+              } catch {
+                partialMessageId = null
+              }
+            }
+            writeEvent(controller, { type: 'error', error, ...(partialMessageId ? { partialMessageId } : {}) })
           } finally {
             controller.close()
           }

@@ -31,6 +31,7 @@ interface Msg {
   agent?: string | null
   engine?: string | null
   time?: string
+  partial?: boolean
 }
 
 const AGENT_LABELS: Record<string, string> = {
@@ -291,6 +292,12 @@ export function AIChatView() {
     setInput('')
     setInterim('')
     const voice = !!opts?.voice
+    // Cut-stream bookkeeping (per send call): what reached the student
+    // before the error, so the error handler can keep it instead of
+    // deleting it. Voice sends never stream, so these stay empty there.
+    let streamPartial = ''
+    let streamPartialId = ''
+    let streamTempId = ''
     if (voice) setLiveCaption(text)
     const userMsg: Msg = { id: `tmp-${Date.now()}`, role: 'user', content: text, mode: voice ? 'VOICE' : 'TEXT', time: new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }) }
     setMessages((prev) => [...prev, userMsg])
@@ -300,6 +307,7 @@ export function AIChatView() {
 
       if (!voice) {
         const assistantTempId = `tmp-ai-${Date.now()}`
+        streamTempId = assistantTempId
         let finalReply = ''
         let finalMessageId = assistantTempId
         let finalAgent: string | null = null
@@ -378,6 +386,7 @@ export function AIChatView() {
             finalAgent = event.agent || null
             finalEngine = event.engine || null
           } else if (event.type === 'error') {
+            streamPartialId = String(event.partialMessageId || '')
             throw new Error(event.error || 'خطأ في المحادثة — أعد المحاولة')
           }
         }
@@ -398,9 +407,11 @@ export function AIChatView() {
           while ((pendingDisplay || flushingDisplay) && !streamCancelled) await sleep(20)
         } catch (err) {
           streamCancelled = true
+          streamPartial = finalReply
           throw err
         }
 
+        streamPartial = finalReply
         if (!doneEventReceived || !finalReply.trim()) throw new Error('لم يكتمل رد المشرف الذكي — أعد المحاولة')
         setMessages((prev) => prev.map((m) => m.id === assistantTempId ? { ...m, id: finalMessageId, content: finalReply, agent: finalAgent, engine: finalEngine } : m))
         if (autoSpeakRef.current) speak(finalReply, finalMessageId)
@@ -420,12 +431,28 @@ export function AIChatView() {
       if (autoSpeakRef.current && preparedVoiceUrl) playSpeechUrl(preparedVoiceUrl, d.messageId).catch(showSpeechError)
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
-      setMessages((prev) => prev.filter((m) => m.id !== userMsg.id && !m.id.startsWith('tmp-ai-')))
-      if (!voice) setInput(text)
+      if (!voice && streamPartial.trim()) {
+        // The reply was cut, not lost: keep what reached the student and
+        // mark it partial so the continue button can resume from it,
+        // instead of deleting everything and starting over.
+        setMessages((prev) => prev.map((m) => m.id === streamTempId ? { ...m, id: streamPartialId || m.id, content: streamPartial, partial: true } : m))
+      } else {
+        setMessages((prev) => prev.filter((m) => m.id !== userMsg.id && !m.id.startsWith('tmp-ai-')))
+        if (!voice) setInput(text)
+      }
     } finally {
       setSending(false)
     }
   }, [input, sending, fetchSpeechUrl, playSpeechUrl, showSpeechError, speak, toast])
+
+  // Resume a cut reply from where it stopped, through the unchanged send
+  // path: the saved partial is already in the conversation history, so a
+  // plain "continue" message lets the supervisor pick up after it.
+  const continuePartialReply = useCallback((messageId: string) => {
+    if (sending) return
+    setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, partial: false } : m))
+    void send('أكمل الرد')
+  }, [sending, send])
 
   const openVoicePackageDialog = (message?: string | null) => {
     setVoicePackageDialog({
@@ -855,6 +882,12 @@ export function AIChatView() {
               <div className={`group max-w-[82%] rounded-2xl px-4 py-3 text-sm leading-loose shadow-sm sm:max-w-[75%] ${m.role === 'user' ? 'rounded-br-sm bg-[#0f2b46] text-white' : 'rounded-bl-sm bg-[#f7edd0] text-[#0f2b46]'}`}>
                 <div className="mb-1.5 flex flex-wrap gap-1">{m.kind === 'THESIS_REVIEW' && <Badge className="gap-1 bg-[#c9a227] text-[9px] font-black text-[#0f2b46] hover:bg-[#c9a227]"><FileSearch className="h-2.5 w-2.5" /> تحليل مسودة بحث</Badge>}{m.role === 'assistant' && m.agent && <Badge className="gap-1 bg-white/60 text-[9px] font-black text-[#0f2b46] hover:bg-white/60"><Bot className="h-2.5 w-2.5" /> {AGENT_LABELS[m.agent] || 'الوكيل الذكي'}</Badge>}</div>
                 <div className="whitespace-pre-wrap">{m.content}</div>
+                {m.role === 'assistant' && m.partial && (
+                  <div className="mt-2">
+                    <p className="mb-1.5 text-[11px] font-bold text-[#a8841a]">انقطع الرد قبل ما يكتمل — النص اللي وصل محفوظ.</p>
+                    <button onClick={() => continuePartialReply(m.id)} disabled={sending} className="rounded-full bg-[#0f2b46] px-4 py-1.5 text-xs font-black text-[#e0b83a] disabled:opacity-50">أكمل الرد</button>
+                  </div>
+                )}
                 <div className={`mt-1.5 flex items-center justify-between gap-2 text-[10px] ${m.role === 'user' ? 'text-white/50' : 'text-[#a8841a]/70'}`}>
                   <span className="flex items-center gap-1.5">{m.time}{m.mode === 'VOICE' && <span className="flex items-center gap-0.5 font-bold"><Mic className="h-2.5 w-2.5" /> صوتي</span>}</span>
                   {m.role === 'assistant' && <div className="flex items-center gap-1"><button onClick={() => submitMessageFeedback(m, 'HELPFUL')} disabled={feedbackBusyId === m.id} className={`rounded-full px-1.5 py-1 transition-all ${feedbackByMessage[m.id] === 'HELPFUL' ? 'bg-emerald-100 text-emerald-700' : 'opacity-60 hover:bg-white/50 hover:opacity-100'}`} title="هذا الرد مفيد"><ThumbsUp className="h-3.5 w-3.5" /></button><button onClick={() => { setFeedbackReason('TOO_GENERAL'); setFeedbackNote(''); setFeedbackDialog({ open: true, message: m }) }} disabled={feedbackBusyId === m.id} className={`rounded-full px-1.5 py-1 transition-all ${feedbackByMessage[m.id] === 'NEEDS_REVIEW' ? 'bg-red-100 text-red-700' : 'opacity-60 hover:bg-white/50 hover:opacity-100'}`} title="هذا الرد يحتاج مراجعة"><ThumbsDown className="h-3.5 w-3.5" /></button><button onClick={() => { if (speakingId === m.id) { audioRef.current?.pause(); try { window.speechSynthesis?.cancel() } catch (error) { console.warn('Failed to cancel speech synthesis from AI response playback button.', error) }; speechUtteranceRef.current = null; setSpeakingId(null) } else speak(m.content, m.id) }} className="opacity-60 transition-opacity hover:opacity-100" title="استمع للرد">{speakingId === m.id ? <span className="flex items-center gap-1 font-bold"><span className="aact-speak-wave"><span /><span /><span /><span /></span>يتحدث</span> : <Volume2 className="h-3.5 w-3.5" />}</button></div>}
