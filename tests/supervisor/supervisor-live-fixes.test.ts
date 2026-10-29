@@ -80,6 +80,27 @@ describe('فيديوهات محاضرات برامج طلابه ظاهرة لل�
   })
 })
 
+describe('تعديل المشرف المحاضر من نافذة تعديل اللقاء', () => {
+  const sessionPatch = read('src/app/api/admin/lectures/sessions/[id]/route.ts')
+  const sessionsList = read('src/app/api/admin/lectures/sessions/list/route.ts')
+  const lecturesUi = read('src/components/aact/AdminLectures.tsx')
+
+  test('تعديل اللقاء يقبل supervisorId ويعيد تعيين مشرف السلسلة — إدارة فقط وبنفس تحقق R-04', () => {
+    expect(sessionPatch).toContain('supervisorId: z.string().min(1).optional()')
+    expect(sessionPatch).toContain('تغيير المشرف المحاضر من صلاحيات الإدارة')
+    expect(sessionPatch).toContain('db.lectureSeries.update')
+    expect(sessionPatch).toContain('LECTURE_SERIES_SUPERVISOR_CHANGED')
+    expect(sessionPatch).toContain("target.role !== 'SUPERVISOR' && target.role !== 'ADMIN'")
+  })
+
+  test('قائمة اللقاءات تحمل supervisorId ونافذة التعديل تعرض منتقي المحاضر للإدارة', () => {
+    expect(sessionsList).toContain('supervisorId: true')
+    expect(lecturesUi).toContain('المشرف المحاضر')
+    expect(lecturesUi).toContain("showSupervisorSelect={surface === 'admin'}")
+    expect(lecturesUi).toContain('ينطبق على كل لقاءات هذه السلسلة')
+  })
+})
+
 describe('الاتصال الصوتي لا يعلّق للأبد', () => {
   test('مهلة قصوى: 45 ثانية بلا رد و30 ثانية لإنشاء الصوت ثم إنهاء واضح', () => {
     expect(voice).toContain("phase === 'calling' ? 45000 : 30000")

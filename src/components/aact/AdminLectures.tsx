@@ -41,6 +41,7 @@ type SessionRow = {
     title: string
     programId: string
     timezone: string
+    supervisorId?: string
     supervisor: { name: string } | null
     program: { titleAr: string } | null
   }
@@ -531,6 +532,8 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
       {editSession && (
         <EditSessionDialog
           session={editSession}
+          supervisors={supervisors}
+          showSupervisorSelect={surface === 'admin'}
           onClose={() => setEditSession(null)}
           onSubmit={async (payload) => {
             await act(
@@ -1076,10 +1079,14 @@ function CreateVideoDialog({
 
 function EditSessionDialog({
   session,
+  supervisors,
+  showSupervisorSelect,
   onClose,
   onSubmit,
 }: {
   session: SessionRow
+  supervisors: SupervisorOption[]
+  showSupervisorSelect: boolean
   onClose: () => void
   onSubmit: (payload: Record<string, unknown>) => Promise<void>
 }) {
@@ -1089,6 +1096,7 @@ function EditSessionDialog({
     provider: session.provider,
     meetingUrl: session.meetingUrl ?? '',
     meetingPasscode: session.meetingPasscode ?? '',
+    supervisorId: session.series.supervisorId ?? '',
   })
   const set = (key: string, value: unknown) => setForm((f) => ({ ...f, [key]: value }))
   return (
@@ -1117,6 +1125,20 @@ function EditSessionDialog({
             <label className={labelClass}>رمز الدخول</label>
             <Input value={form.meetingPasscode} onChange={(e) => set('meetingPasscode', e.target.value)} dir="ltr" />
           </div>
+          {showSupervisorSelect && (
+            <div>
+              <label className={labelClass}>المشرف المحاضر</label>
+              <select className={`${selectClass} w-full`} value={form.supervisorId} onChange={(e) => set('supervisorId', e.target.value)}>
+                <option value="">اختر المشرف</option>
+                {supervisors.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-[11px] text-slate-500">المحاضر يُضبط على مستوى السلسلة: تغييره هنا ينطبق على كل لقاءات هذه السلسلة، ويظهر اللقاء في صفحة المشرف الجديد.</p>
+            </div>
+          )}
           <p className="text-[11px] text-slate-500">تغيير الموعد يتم من زر «تأجيل» حصرًا حتى يُشعر الطلاب ويبقى السجل واضحًا.</p>
         </div>
         <div className="flex justify-end gap-2">
@@ -1131,6 +1153,9 @@ function EditSessionDialog({
                 provider: form.provider,
                 meetingUrl: form.meetingUrl || null,
                 meetingPasscode: form.meetingPasscode || null,
+                ...(showSupervisorSelect && form.supervisorId && form.supervisorId !== (session.series.supervisorId || '')
+                  ? { supervisorId: form.supervisorId }
+                  : {}),
               })
             }
           >

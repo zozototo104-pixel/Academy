@@ -43,6 +43,7 @@ export async function GET(req: NextRequest) {
             title: true,
             programId: true,
             timezone: true,
+            supervisorId: true,
             supervisor: { select: { name: true } },
             program: { select: { titleAr: true } },
           },
