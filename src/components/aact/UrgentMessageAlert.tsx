@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { api, useAppStore } from '@/lib/store'
 
 type UrgentData = {
@@ -20,7 +21,13 @@ export function UrgentMessageAlert() {
   const { user, navigate } = useAppStore()
   const [data, setData] = useState<UrgentData>(EMPTY)
   const [dismissedKey, setDismissedKey] = useState<string | null>(null)
+  const [mounted, setMounted] = useState(false)
   const audioRef = useRef<AudioContext | null>(null)
+
+  // البانر يُرسم عبر بوابة إلى جسم الصفحة مباشرة: ترويسة المنصة لاصقة وفيها
+  // backdrop-filter يجعل أي عنصر fixed داخلها محبوسًا في صندوقها (يختفي على
+  // الموبايل) — البوابة تحرّره لنافذة العرض الحقيقية في كل المتصفحات.
+  useEffect(() => { setMounted(true) }, [])
 
   const isStudent = user?.role === 'STUDENT'
   const total = data.admin.count + data.supervisor.count
@@ -115,8 +122,10 @@ export function UrgentMessageAlert() {
     openDashboardTab('supervision')
   }
 
-  return (
-    <div dir="rtl" className="fixed inset-x-0 top-0 z-[120] flex justify-center px-2 pt-2 sm:px-4">
+  if (!mounted) return null
+
+  return createPortal(
+    <div dir="rtl" className="fixed inset-x-0 top-0 z-[200] flex justify-center px-2 sm:px-4" style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top))' }}>
       <div className="w-full max-w-3xl overflow-hidden rounded-2xl border-2 border-red-300 bg-gradient-to-l from-red-700 via-red-600 to-red-700 shadow-2xl shadow-red-900/40 animate-pulse">
         <div className="flex flex-wrap items-center gap-2 px-3 py-2.5 sm:px-4">
           <span className="relative flex h-3 w-3 shrink-0">
@@ -145,6 +154,7 @@ export function UrgentMessageAlert() {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
