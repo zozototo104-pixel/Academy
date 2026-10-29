@@ -64,6 +64,20 @@ export async function destroySession() {
   }
 }
 
+const ACTIVITY_STAMP_INTERVAL_MS = 15 * 60 * 1000
+
+// خدمة المتابعة: ختم آخر نشاط موثّق للمستخدم، مخنوقًا كل 15 دقيقة كحد أقصى.
+// إضافي فقط ومعزول الفشل تمامًا: أي خطأ هنا لا يمنع المصادقة ولا يغيّر نتيجتها.
+async function stampUserActivity(user: { id: string; lastActivityAt?: Date | null }) {
+  try {
+    const last = user.lastActivityAt ? new Date(user.lastActivityAt).getTime() : 0
+    if (Date.now() - last < ACTIVITY_STAMP_INTERVAL_MS) return
+    await db.user.update({ where: { id: user.id }, data: { lastActivityAt: new Date() } })
+  } catch {
+    // تجاهل: الختم لا يكسر تسجيل الدخول أبدًا
+  }
+}
+
 export async function getCurrentUser() {
   try {
     const token = await getSessionToken()
@@ -77,6 +91,7 @@ export async function getCurrentUser() {
       await db.session.deleteMany({ where: { id: session.id } }).catch(() => {})
       return null
     }
+    await stampUserActivity(session.user)
     return session.user
   } catch {
     return null
