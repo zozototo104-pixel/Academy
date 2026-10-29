@@ -158,6 +158,8 @@ export function ExamView() {
   const [appealReason, setAppealReason] = useState('')
   const [appealSent, setAppealSent] = useState(false)
   const [appealBusy, setAppealBusy] = useState(false)
+  // التماس مراجعة امتحان الوحدة: متاح فقط لمن له مشرف بشري معيّن
+  const [unitAppeal, setUnitAppeal] = useState<{ canAppeal: boolean; status: string; response: string | null } | null>(null)
 
   const syncCountdown = useCallback(() => {
     const countdown = countdownRef.current
@@ -209,6 +211,7 @@ export function ExamView() {
     setAppealOpen(false)
     setAppealSent(false)
     setAppealReason('')
+    setUnitAppeal(null)
     const url =
       activeExamKind === 'final'
         ? `/api/program-exam/detail?examId=${activeExamId}`
@@ -532,6 +535,20 @@ export function ExamView() {
     }
   }, [result, examStarted])
 
+  // حالة التماس امتحان الوحدة (يظهر الزر فقط إن كان للطالب مشرف بشري)
+  useEffect(() => {
+    if (!result?.attemptId || activeExamKind === 'final') return
+    let cancelled = false
+    api<any>(`/api/unit-exam/appeal?attemptId=${encodeURIComponent(result.attemptId)}`)
+      .then((d) => {
+        if (cancelled) return
+        setUnitAppeal({ canAppeal: Boolean(d?.canAppeal), status: String(d?.appeal?.appealStatus || 'NONE'), response: d?.appeal?.appealResponse || null })
+        if (d?.appeal?.appealStatus === 'PENDING') setAppealSent(true)
+      })
+      .catch(() => { if (!cancelled) setUnitAppeal(null) })
+    return () => { cancelled = true }
+  }, [result?.attemptId, activeExamKind])
+
   // ===== تقديم الاعتراض على النتيجة =====
   const submitAppeal = async () => {
     if (!result || appealReason.trim().length < 10) {
@@ -540,13 +557,14 @@ export function ExamView() {
     }
     setAppealBusy(true)
     try {
-      await api('/api/program-exam/appeal', {
+      const isFinal = activeExamKind === 'final'
+      await api(isFinal ? '/api/program-exam/appeal' : '/api/unit-exam/appeal', {
         method: 'POST',
         body: JSON.stringify({ attemptId: result.attemptId, reason: appealReason }),
       })
       setAppealSent(true)
       setAppealOpen(false)
-      toast({ title: 'تم تقديم الاعتراض', description: 'نقلك المشرف البشري/الإدارة — ستصل النتيجة النهائية عبر الإشعارات' })
+      toast({ title: isFinal ? 'تم تقديم الاعتراض' : 'تم تقديم الالتماس', description: isFinal ? 'نقلك المشرف البشري/الإدارة — ستصل النتيجة النهائية عبر الإشعارات' : 'وصل التماسك لمشرفك البشري — بيصلك قراره عبر الإشعارات' })
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
     } finally {
@@ -716,6 +734,33 @@ export function ExamView() {
                 </p>
                 <Button size="sm" onClick={() => setAppealOpen(true)} className="mt-2.5 bg-[#0f2b46] font-black text-[#e0b83a] hover:bg-[#12365c]">
                   <MessageSquareWarning className="ml-1.5 h-3.5 w-3.5" /> اعتراض على النتيجة
+                </Button>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* التماس مراجعة امتحان الوحدة — لمشرفك البشري فقط */}
+        {activeExamKind !== 'final' && unitAppeal && (unitAppeal.canAppeal || unitAppeal.status === 'PENDING' || unitAppeal.status === 'REVIEWED') && (
+          <div className="mt-4 rounded-xl border border-[#c9a227]/40 bg-[#f7edd0]/40 p-4">
+            {appealSent || unitAppeal.status === 'PENDING' ? (
+              <p className="flex items-center gap-2 text-xs font-black text-[#0f2b46]">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                التماسك قيد المراجعة عند مشرفك البشري — بيصلك قراره عبر الإشعارات
+              </p>
+            ) : unitAppeal.status === 'REVIEWED' ? (
+              <p className="text-xs font-bold leading-relaxed text-[#0f2b46]">
+                <MessageSquareWarning className="ml-1 inline h-4 w-4 text-[#a8841a]" />
+                راجع مشرفك البشري التماسك: {unitAppeal.response || 'تمت المراجعة واعتُمدت النتيجة.'}
+              </p>
+            ) : (
+              <>
+                <p className="text-xs font-bold leading-relaxed text-[#0f2b46]">
+                  <MessageSquareWarning className="ml-1 inline h-4 w-4 text-[#a8841a]" />
+                  حاسس إن تصحيح الذكاء ظلمك بسؤال مقالي؟ التمس مراجعة من مشرفك البشري — بيراجع إجاباتك بنفسه وبيعدّل النتيجة إن لزم.
+                </p>
+                <Button size="sm" onClick={() => setAppealOpen(true)} className="mt-2.5 bg-[#0f2b46] font-black text-[#e0b83a] hover:bg-[#12365c]">
+                  <MessageSquareWarning className="ml-1.5 h-3.5 w-3.5" /> التماس مراجعة التصحيح
                 </Button>
               </>
             )}
