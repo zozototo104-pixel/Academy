@@ -43,6 +43,29 @@ describe('مراجعة اختبارات الطالب المسلّمة من بط�
   })
 })
 
+describe('تحميل كتب برامج طلابه للمشرف', () => {
+  const download = read('src/app/api/books/[id]/download/route.ts')
+  const contentTab = read('src/components/aact/SupervisorContentTab.tsx')
+
+  test('بوابة التحميل تسمح للمشرف ضمن نطاق برامجه فقط', () => {
+    expect(download).toContain('supervisorProgramIds')
+    expect(download).toContain("user.role === 'SUPERVISOR'")
+    expect(download).toContain('BOOK_OUT_OF_SCOPE')
+  })
+
+  test('تبويب المحتوى يعرض رابط فتح/تحميل لكل كتاب', () => {
+    expect(contentTab).toContain('/api/books/${b.id}/download')
+  })
+})
+
+describe('قائمة المراجعة: كل طالب باسمه وكل محاولة باسم امتحانها', () => {
+  test('التجميع حسب الطالب واسم الامتحان عنوان المحاولة', () => {
+    expect(gradeTab).toContain('attemptsByStudent')
+    expect(gradeTab).toContain('group.items.map')
+    expect(gradeTab).toContain('{a.exam.title}')
+  })
+})
+
 describe('الاتصال الصوتي لا يعلّق للأبد', () => {
   test('مهلة قصوى: 45 ثانية بلا رد و30 ثانية لإنشاء الصوت ثم إنهاء واضح', () => {
     expect(voice).toContain("phase === 'calling' ? 45000 : 30000")

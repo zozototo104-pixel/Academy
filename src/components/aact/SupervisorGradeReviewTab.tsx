@@ -106,6 +106,18 @@ export function SupervisorGradeReviewTab({ focus }: { focus?: { type: 'PROGRAM' 
 
   if (loading) return <div className="flex h-40 items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-[#c9a227]" /></div>
 
+  // تجميع المحاولات حسب الطالب: كل طالب باسمه، وكل محاولة باسم امتحانها.
+  const attemptsByStudent: { key: string; name: string; items: any[] }[] = []
+  {
+    const byStudent = new Map<string, { key: string; name: string; items: any[] }>()
+    for (const a of attempts) {
+      const key = a.student?.id || a.student?.name || '—'
+      if (!byStudent.has(key)) byStudent.set(key, { key, name: a.student?.name || 'طالب', items: [] })
+      byStudent.get(key)!.items.push(a)
+    }
+    attemptsByStudent.push(...byStudent.values())
+  }
+
   return (
     <div className="space-y-5" dir="rtl">
       <Card className={appeals.length ? 'border-red-200' : ''}><CardContent className="space-y-3 p-5">
@@ -143,17 +155,23 @@ export function SupervisorGradeReviewTab({ focus }: { focus?: { type: 'PROGRAM' 
         <h3 className="flex items-center gap-2 text-base font-black text-[#0f2b46]"><ClipboardCheck className="h-5 w-5 text-[#a8841a]" /> محاولات طلابي المصححة — مراجعة وتعديل ({attempts.length})</h3>
         <p className="text-[11px] font-bold leading-6 text-slate-500">النتيجة وصلت الطالب فور تصحيح الذكاء. مراجعتك هنا لاحقة: افتح أي محاولة، شوف كيف صحّح الذكاء كل إجابة — والمقالي بالتفصيل — وعدّل ما تراه مقيّدًا؛ النتيجة عند الطالب تتحدث فورًا وتُوثَّق المراجعة باسمك.</p>
         {!attempts.length && <p className="text-xs font-bold text-slate-500">لا محاولات مصححة بعد لطلابك.</p>}
-        {attempts.map((a) => (
-          <div key={`${a.type}-${a.id}`} className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-100 bg-slate-50/60 p-3.5 text-xs font-bold text-slate-600">
-            <span className="text-sm font-black text-[#0f2b46]">{a.student.name}</span>
-            <Badge variant="outline" className="text-[10px]">{a.type === 'UNIT' ? `وحدة: ${a.exam.unitTitle || ''}` : 'فصلي'}</Badge>
-            <span>{a.exam.title}</span>
-            <Badge className={(a.finalScore ?? a.score ?? 0) >= 60 ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>{a.finalScore ?? a.score ?? '—'}%</Badge>
-            {a.status === 'NEEDS_REVIEW' && <Badge className="bg-red-100 text-red-700 hover:bg-red-100">تحتاج مراجعة</Badge>}
-            {a.appealStatus === 'PENDING' && <Badge className="bg-red-600 text-white hover:bg-red-600">عليها التماس</Badge>}
-            {a.reviewedAt && <Badge variant="outline" className="text-[10px]">رُوجعت بشريًا</Badge>}
-            <span className="text-slate-400">{dateAr(a.submittedAt)}</span>
-            <span className="mr-auto"><Button size="sm" className="bg-[#0f2b46] text-[11px] font-bold hover:bg-[#12365c]" onClick={() => void openDetail(a.type, a.id)}>مراجعة التصحيح</Button></span>
+        {attemptsByStudent.map((group) => (
+          <div key={group.key} className="space-y-2">
+            <h4 className="flex items-center gap-2 pt-1 text-sm font-black text-[#0f2b46]">{group.name} <span className="text-[11px] font-bold text-slate-400">({group.items.length} محاولة)</span></h4>
+            {group.items.map((a) => (
+              <div key={`${a.type}-${a.id}`} className="rounded-2xl border border-slate-100 bg-slate-50/60 p-3.5 text-xs font-bold text-slate-600">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-black text-[#0f2b46]">{a.exam.title}</span>
+                  <Badge variant="outline" className="text-[10px]">{a.type === 'UNIT' ? `وحدة: ${a.exam.unitTitle || ''}` : 'امتحان فصلي'}</Badge>
+                  <Badge className={(a.finalScore ?? a.score ?? 0) >= 60 ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>{a.finalScore ?? a.score ?? '—'}%</Badge>
+                  {a.status === 'NEEDS_REVIEW' && <Badge className="bg-red-100 text-red-700 hover:bg-red-100">تحتاج مراجعة</Badge>}
+                  {a.appealStatus === 'PENDING' && <Badge className="bg-red-600 text-white hover:bg-red-600">عليها التماس</Badge>}
+                  {a.reviewedAt && <Badge variant="outline" className="text-[10px]">رُوجعت بشريًا</Badge>}
+                  <span className="mr-auto"><Button size="sm" className="bg-[#0f2b46] text-[11px] font-bold hover:bg-[#12365c]" onClick={() => void openDetail(a.type, a.id)}>مراجعة التصحيح</Button></span>
+                </div>
+                <p className="mt-1 text-[11px] text-slate-400">{a.exam.programTitle} — سُلّمت {dateAr(a.submittedAt)}</p>
+              </div>
+            ))}
           </div>
         ))}
       </CardContent></Card>
