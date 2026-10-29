@@ -63,6 +63,11 @@ function blobToBase64(blob: Blob): Promise<{ data: string; mime: string }> {
 
 export function StudentSupervisionTab() {
   const { toast } = useToast()
+  // فتح تبويب الإشراف = قراءة رسائل المشرف: تُعلَّم إشعاراتها مقروءة حتى
+  // يختفي تنبيه «الخبر العاجل» (رسائل الإدارة تعلّم نفسها عند فتح محادثتها).
+  useEffect(() => {
+    api('/api/student/urgent-messages', { method: 'POST', body: JSON.stringify({ kind: 'SUPERVISION' }) }).catch(() => {})
+  }, [])
   const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<SupervisionRow[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)

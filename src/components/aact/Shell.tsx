@@ -1,6 +1,7 @@
 'use client'
 
 import { useAppStore, api, clearToken } from '@/lib/store'
+import { UrgentMessageAlert } from '@/components/aact/UrgentMessageAlert'
 import { useEffect, useRef, useState } from 'react'
 import { Bot, ChevronDown, ChevronUp, ShieldCheck, Users2, Send, Loader2, X, ExternalLink, MessageCircle, UserRound, Mail, Globe2 } from 'lucide-react'
 
@@ -765,6 +766,7 @@ export function Header() {
           {user ? (
             <div className="mr-2 flex items-center gap-2 border-r border-white/15 pr-3">
               <NotificationBell />
+              <UrgentMessageAlert />
               <div className="relative">
                 <button
                   type="button"
