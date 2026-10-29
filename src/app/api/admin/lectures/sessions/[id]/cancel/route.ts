@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { auditLecture, canManageSeries, notifyProgramStudents, requireLectureManager } from '@/lib/lectures/manage'
+import { auditLecture, canManageSession, notifyProgramStudents, requireLectureManager } from '@/lib/lectures/manage'
 import { isLecturesEnabled } from '@/lib/lectures/config'
 
 // POST /api/admin/lectures/sessions/[id]/cancel — إلغاء لقاء مع إشعار
@@ -17,7 +17,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       include: { series: { select: { supervisorId: true, programId: true } } },
     })
     if (!session) return NextResponse.json({ error: 'اللقاء غير موجود' }, { status: 404 })
-    if (!canManageSeries(actor, session.series)) {
+    if (!canManageSession(actor, session, session.series)) {
       return NextResponse.json({ error: 'لا تملك صلاحية إدارة هذا اللقاء' }, { status: 403 })
     }
     if (session.status === 'CANCELLED') {

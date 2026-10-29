@@ -75,29 +75,54 @@ describe('فيديوهات محاضرات برامج طلابه ظاهرة لل�
     expect(videosList).not.toContain('db.lectureSeries.findMany')
   })
 
-  test('اللقاءات تبقى بملكية السلسلة فقط (قاعدة Haris: لقاءاته المخصصة له)', () => {
-    expect(sessionsList).toContain('...(isAdmin(actor) ? {} : { supervisorId: actor.id })')
+  test('اللقاءات لا تظهر إلا لمحاضرها الفعلي (قاعدة Haris: لقاءاته هو فقط)', () => {
+    expect(sessionsList).toContain('{ lecturerId: actor.id }')
+    expect(sessionsList).toContain('{ lecturerId: null, series: { supervisorId: actor.id } }')
   })
 })
 
-describe('تعديل المشرف المحاضر من نافذة تعديل اللقاء', () => {
+describe('المحاضر لكل لقاء + تبديل المشرف بعد أول لقاء', () => {
   const sessionPatch = read('src/app/api/admin/lectures/sessions/[id]/route.ts')
   const sessionsList = read('src/app/api/admin/lectures/sessions/list/route.ts')
+  const seriesPost = read('src/app/api/admin/lectures/series/route.ts')
+  const manage = read('src/lib/lectures/manage.ts')
   const lecturesUi = read('src/components/aact/AdminLectures.tsx')
+  const schema = read('prisma/schema.prisma')
 
-  test('تعديل اللقاء يقبل supervisorId ويعيد تعيين مشرف السلسلة — إدارة فقط وبنفس تحقق R-04', () => {
-    expect(sessionPatch).toContain('supervisorId: z.string().min(1).optional()')
+  test('النموذج: حقل محاضر خاص على اللقاء يرجع لمشرف السلسلة عند فراغه', () => {
+    expect(schema).toContain('lecturerId String?')
+    expect(schema).toContain('LectureSessionLecturer')
+    expect(manage).toContain('session.lecturerId || series.supervisorId')
+    expect(manage).toContain('export function canManageSession')
+  })
+
+  test('الرؤية: المشرف يرى لقاءات محاضرها هو فقط (خاص أو عبر السلسلة)', () => {
+    expect(sessionsList).toContain('{ lecturerId: actor.id }')
+    expect(sessionsList).toContain('{ lecturerId: null, series: { supervisorId: actor.id } }')
+    expect(sessionsList).toContain('lecturer: { select: { name: true } }')
+  })
+
+  test('تعديل اللقاء يغيّر محاضر هذا اللقاء وحده — إدارة فقط وبنفس تحقق R-04', () => {
+    expect(sessionPatch).toContain('supervisorId: z.string().min(1).nullable().optional()')
     expect(sessionPatch).toContain('تغيير المشرف المحاضر من صلاحيات الإدارة')
-    expect(sessionPatch).toContain('db.lectureSeries.update')
-    expect(sessionPatch).toContain('LECTURE_SERIES_SUPERVISOR_CHANGED')
+    expect(sessionPatch).toContain('LECTURE_SESSION_LECTURER_CHANGED')
+    expect(sessionPatch).toContain('canManageSession(actor, session, session.series)')
+    expect(sessionPatch).not.toContain('db.lectureSeries.update')
     expect(sessionPatch).toContain("target.role !== 'SUPERVISOR' && target.role !== 'ADMIN'")
   })
 
-  test('قائمة اللقاءات تحمل supervisorId ونافذة التعديل تعرض منتقي المحاضر للإدارة', () => {
-    expect(sessionsList).toContain('supervisorId: true')
-    expect(lecturesUi).toContain('المشرف المحاضر')
+  test('إنشاء سلسلة متكررة: خيار التبديل يسند اللقاءات من الثاني للبديل', () => {
+    expect(seriesPost).toContain('secondSupervisorId: z.string().min(1).optional()')
+    expect(seriesPost).toContain('lecturerId: idx === 0 ? null : (input.secondSupervisorId ?? null)')
+    expect(lecturesUi).toContain('تبديل المشرف بعد انتهاء اللقاء الأول')
+    expect(lecturesUi).toContain('المشرف من اللقاء الثاني فصاعدًا')
+  })
+
+  test('نافذة تعديل اللقاء: منتقي محاضر هذا اللقاء مع خيار مشرف السلسلة', () => {
+    expect(lecturesUi).toContain('المشرف المحاضر لهذا اللقاء')
+    expect(lecturesUi).toContain('مشرف السلسلة ({session.series.supervisor?.name')
+    expect(lecturesUi).toContain('ولا يؤثر في باقي لقاءات السلسلة')
     expect(lecturesUi).toContain("showSupervisorSelect={surface === 'admin'}")
-    expect(lecturesUi).toContain('ينطبق على كل لقاءات هذه السلسلة')
   })
 })
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
-import { auditLecture, canManageSeries, getProgramStudentIds, requireLectureManager } from '@/lib/lectures/manage'
+import { auditLecture, canManageSession, getProgramStudentIds, requireLectureManager } from '@/lib/lectures/manage'
 import { isLecturesEnabled } from '@/lib/lectures/config'
 
 async function loadManagedSession(actor: { id: string; name: string; role: string }, id: string) {
@@ -10,7 +10,7 @@ async function loadManagedSession(actor: { id: string; name: string; role: strin
     include: { series: { select: { supervisorId: true, programId: true } } },
   })
   if (!session) return { error: NextResponse.json({ error: 'اللقاء غير موجود' }, { status: 404 }) }
-  if (!canManageSeries(actor, session.series)) {
+  if (!canManageSession(actor, session, session.series)) {
     return { error: NextResponse.json({ error: 'لا تملك صلاحية إدارة هذا اللقاء' }, { status: 403 }) }
   }
   return { session }

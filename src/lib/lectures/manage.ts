@@ -30,6 +30,24 @@ export function canManageSeries(actor: LectureActor, series: { supervisorId: str
   return isAdmin(actor) || series.supervisorId === actor.id
 }
 
+// المحاضر الفعلي للقاء: محاضره الخاص إن عُيّن، وإلا مشرف السلسلة.
+export function effectiveLecturerId(
+  session: { lecturerId?: string | null },
+  series: { supervisorId: string },
+): string {
+  return session.lecturerId || series.supervisorId
+}
+
+// إدارة لقاء بعينه تتبع محاضره الفعلي لا مالك السلسلة وحده: لقاء عُيّن له
+// محاضر خاص يظهر عند محاضره فقط ويديره هو فقط.
+export function canManageSession(
+  actor: LectureActor,
+  session: { lecturerId?: string | null },
+  series: { supervisorId: string },
+): boolean {
+  return isAdmin(actor) || effectiveLecturerId(session, series) === actor.id
+}
+
 export async function canManageProgram(actor: LectureActor, programId: string): Promise<boolean> {
   if (isAdmin(actor)) return true
   const owned = await db.lectureSeries.findFirst({

@@ -63,6 +63,7 @@ model User {
   lectureSeriesSupervised LectureSeries[] @relation("LectureSeriesSupervisor")
   lectureSeriesCreated LectureSeries[] @relation("LectureSeriesCreator")
   lectureSessionsUpdated LectureSession[] @relation("LectureSessionUpdater")
+  lectureSessionsLectured LectureSession[] @relation("LectureSessionLecturer")
   lectureAttendanceConfirmed LectureAttendance[] @relation("LectureAttendanceConfirmer")
   lectureAttendances LectureAttendance[] @relation("LectureAttendanceStudent")
   lectureWatchProgress LectureWatchProgress[] @relation("LectureWatchStudent")
@@ -477,6 +478,9 @@ model LectureSession {
   meetingUrl String?
   meetingPasscode String?
   status LectureSessionStatus @default(SCHEDULED)
+  // المحاضر الخاص بهذا اللقاء وحده؛ فارغ = يتبع مشرف السلسلة.
+  lecturerId String?
+  lecturer User? @relation("LectureSessionLecturer", fields: [lecturerId], references: [id], onDelete: SetNull)
   updatedById String?
   updatedBy User? @relation("LectureSessionUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
   reminder24hSentAt DateTime?
@@ -488,6 +492,7 @@ model LectureSession {
 
   @@index([seriesId])
   @@index([status, startsAt])
+  @@index([lecturerId])
 }
 
 model LectureAttendance {

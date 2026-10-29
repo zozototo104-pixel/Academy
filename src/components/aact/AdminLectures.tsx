@@ -37,6 +37,8 @@ type SessionRow = {
   deliveryMode: string
   meetingUrl: string | null
   meetingPasscode: string | null
+  lecturerId?: string | null
+  lecturer?: { name: string } | null
   series: {
     title: string
     programId: string
@@ -307,7 +309,7 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
                       <span className="text-[11px] text-slate-400">محاولات دخول: {s._count.attendances}</span>
                     </div>
                     <div className="mt-1 text-xs text-slate-500">
-                      {fmtWhen(s.startsAt, s.series.timezone)} • {s.series.program?.titleAr ?? ''} • {s.series.supervisor?.name ?? ''}
+                      {fmtWhen(s.startsAt, s.series.timezone)} • {s.series.program?.titleAr ?? ''} • {s.lecturer?.name ?? s.series.supervisor?.name ?? ''}
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-1">
@@ -696,6 +698,8 @@ function CreateSeriesDialog({
     provider: 'ZOOM',
     meetingUrl: '',
     meetingPasscode: '',
+    rotateSupervisor: false,
+    secondSupervisorId: '',
     recurring: false,
     startDate: '',
     timeOfDay: '18:00',
@@ -815,6 +819,30 @@ function CreateSeriesDialog({
                 <label className={labelClass}>أو تاريخ الانتهاء</label>
                 <Input type="date" value={form.endDate} onChange={(e) => set('endDate', e.target.value)} dir="ltr" />
               </div>
+              {showSupervisorSelect && (
+                <>
+                  <div className="col-span-2 flex items-center gap-2">
+                    <input type="checkbox" id="lec-rotate" checked={form.rotateSupervisor} onChange={(e) => set('rotateSupervisor', e.target.checked)} />
+                    <label htmlFor="lec-rotate" className="text-sm font-bold text-slate-700">
+                      تبديل المشرف بعد انتهاء اللقاء الأول
+                    </label>
+                  </div>
+                  {form.rotateSupervisor && (
+                    <div className="col-span-2">
+                      <label className={labelClass}>المشرف من اللقاء الثاني فصاعدًا</label>
+                      <select className={`${selectClass} w-full`} value={form.secondSupervisorId} onChange={(e) => set('secondSupervisorId', e.target.value)}>
+                        <option value="">اختر المشرف البديل</option>
+                        {supervisors.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="mt-1 text-[11px] text-slate-500">اللقاء الأول يبقى عند المشرف المسؤول، واللقاءات التالية تظهر مباشرة في صفحة المشرف البديل ويديرها هو.</p>
+                    </div>
+                  )}
+                </>
+              )}
             </>
           )}
         </div>
@@ -841,6 +869,7 @@ function CreateSeriesDialog({
                 timeOfDay: form.timeOfDay,
                 ...(form.recurring && form.endDate ? { endDate: form.endDate } : {}),
                 ...(form.recurring ? { occurrenceCount: form.occurrenceCount } : {}),
+                ...(form.recurring && form.rotateSupervisor && form.secondSupervisorId ? { secondSupervisorId: form.secondSupervisorId } : {}),
               })
             }
           >
@@ -1096,7 +1125,7 @@ function EditSessionDialog({
     provider: session.provider,
     meetingUrl: session.meetingUrl ?? '',
     meetingPasscode: session.meetingPasscode ?? '',
-    supervisorId: session.series.supervisorId ?? '',
+    supervisorId: session.lecturerId ?? '',
   })
   const set = (key: string, value: unknown) => setForm((f) => ({ ...f, [key]: value }))
   return (
@@ -1127,16 +1156,16 @@ function EditSessionDialog({
           </div>
           {showSupervisorSelect && (
             <div>
-              <label className={labelClass}>المشرف المحاضر</label>
+              <label className={labelClass}>المشرف المحاضر لهذا اللقاء</label>
               <select className={`${selectClass} w-full`} value={form.supervisorId} onChange={(e) => set('supervisorId', e.target.value)}>
-                <option value="">اختر المشرف</option>
+                <option value="">مشرف السلسلة ({session.series.supervisor?.name || '—'})</option>
                 {supervisors.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
                   </option>
                 ))}
               </select>
-              <p className="mt-1 text-[11px] text-slate-500">المحاضر يُضبط على مستوى السلسلة: تغييره هنا ينطبق على كل لقاءات هذه السلسلة، ويظهر اللقاء في صفحة المشرف الجديد.</p>
+              <p className="mt-1 text-[11px] text-slate-500">يخص هذا اللقاء فقط: تغييره ينقله فورًا إلى صفحة المشرف الجديد، ولا يؤثر في باقي لقاءات السلسلة.</p>
             </div>
           )}
           <p className="text-[11px] text-slate-500">تغيير الموعد يتم من زر «تأجيل» حصرًا حتى يُشعر الطلاب ويبقى السجل واضحًا.</p>
@@ -1153,8 +1182,8 @@ function EditSessionDialog({
                 provider: form.provider,
                 meetingUrl: form.meetingUrl || null,
                 meetingPasscode: form.meetingPasscode || null,
-                ...(showSupervisorSelect && form.supervisorId && form.supervisorId !== (session.series.supervisorId || '')
-                  ? { supervisorId: form.supervisorId }
+                ...(showSupervisorSelect && (form.supervisorId || null) !== (session.lecturerId ?? null)
+                  ? { supervisorId: form.supervisorId || null }
                   : {}),
               })
             }

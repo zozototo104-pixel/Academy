@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
-import { auditLecture, canManageSeries, notifyProgramStudents, requireLectureManager } from '@/lib/lectures/manage'
+import { auditLecture, canManageSession, notifyProgramStudents, requireLectureManager } from '@/lib/lectures/manage'
 import { isLecturesEnabled } from '@/lib/lectures/config'
 
 const postponeSchema = z.object({
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       include: { series: { select: { supervisorId: true, programId: true, timezone: true } } },
     })
     if (!session) return NextResponse.json({ error: 'اللقاء غير موجود' }, { status: 404 })
-    if (!canManageSeries(actor, session.series)) {
+    if (!canManageSession(actor, session, session.series)) {
       return NextResponse.json({ error: 'لا تملك صلاحية إدارة هذا اللقاء' }, { status: 403 })
     }
     if (session.status === 'CANCELLED') {
@@ -59,6 +59,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const created = await tx.lectureSession.create({
         data: {
           seriesId: session.seriesId,
+          lecturerId: session.lecturerId,
           title: session.title,
           description: session.description,
           startsAt: newStartsAt,

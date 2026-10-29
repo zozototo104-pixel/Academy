@@ -23,6 +23,9 @@ const createSeriesSchema = z.object({
   programId: z.string().min(1),
   unitId: z.string().min(1).optional(),
   supervisorId: z.string().min(1).optional(),
+  // خيار «تبديل المشرف بعد أول لقاء» (إدارة فقط): اللقاءات من الثاني
+  // فصاعدًا تُسند لهذا المشرف كمحاضر خاص لكل لقاء.
+  secondSupervisorId: z.string().min(1).optional(),
   title: z.string().min(1).max(200),
   description: z.string().max(2000).optional(),
   timezone: z.string().refine(isValidTimeZone, 'منطقة زمنية غير صالحة'),
@@ -79,6 +82,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'المستخدم المختار ليس مشرفًا' }, { status: 400 })
     }
 
+    if (input.secondSupervisorId) {
+      if (!isAdmin(actor)) {
+        return NextResponse.json({ error: 'تبديل المشرف بعد أول لقاء من صلاحيات الإدارة' }, { status: 403 })
+      }
+      if (input.secondSupervisorId === supervisorId) {
+        return NextResponse.json({ error: 'المشرف البديل يجب أن يكون غير مشرف اللقاء الأول' }, { status: 400 })
+      }
+      const second = await db.user.findUnique({ where: { id: input.secondSupervisorId }, select: { id: true, role: true } })
+      if (!second) return NextResponse.json({ error: 'المشرف البديل غير موجود' }, { status: 400 })
+      if (second.role !== 'SUPERVISOR' && second.role !== 'ADMIN') {
+        return NextResponse.json({ error: 'المستخدم المختار كبديل ليس مشرفًا' }, { status: 400 })
+      }
+    }
+
     if (input.unitId) {
       const unit = await db.unit.findFirst({ where: { id: input.unitId, programId: input.programId }, select: { id: true } })
       if (!unit) return NextResponse.json({ error: 'الوحدة لا تنتمي لهذا البرنامج' }, { status: 400 })
@@ -117,8 +134,11 @@ export async function POST(req: NextRequest) {
         },
       })
       await tx.lectureSession.createMany({
-        data: startsList.map((startsAt) => ({
+        data: startsList.map((startsAt, idx) => ({
           seriesId: created.id,
+          // أول لقاء يتبع مشرف السلسلة؛ وإن فُعّل التبديل فمن الثاني
+          // فصاعدًا لكل لقاء محاضره البديل — يظهر بصفحته مباشرة.
+          lecturerId: idx === 0 ? null : (input.secondSupervisorId ?? null),
           title: input.title,
           description: input.description ?? null,
           startsAt,

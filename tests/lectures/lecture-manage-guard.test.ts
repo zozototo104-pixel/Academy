@@ -51,8 +51,14 @@ describe('admin lecture route guards', () => {
   })
 
   test('series and session mutations check supervisor scope', () => {
-    for (const rel of ['series/[id]/route.ts', 'sessions/route.ts', 'sessions/[id]/route.ts', 'sessions/[id]/postpone/route.ts', 'sessions/[id]/cancel/route.ts', 'sessions/[id]/attendance/route.ts']) {
+    for (const rel of ['series/[id]/route.ts', 'sessions/route.ts']) {
       expect(read(apiRoot, rel)).toContain('canManageSeries')
+    }
+    // منذ نموذج «المحاضر لكل لقاء» (2026-10-29): تعديلات اللقاء بعينه تُفحص
+    // بالمحاضر الفعلي (canManageSession) الذي يرجع لمشرف السلسلة عند غياب
+    // محاضر خاص — فحص أضيق من ملكية السلسلة، لا أوسع.
+    for (const rel of ['sessions/[id]/route.ts', 'sessions/[id]/postpone/route.ts', 'sessions/[id]/cancel/route.ts', 'sessions/[id]/attendance/route.ts']) {
+      expect(read(apiRoot, rel)).toContain('canManageSession')
     }
     for (const rel of ['videos/route.ts', 'videos/[id]/route.ts']) {
       expect(read(apiRoot, rel)).toContain('canManageProgram')
