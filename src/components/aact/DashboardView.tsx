@@ -412,6 +412,22 @@ export function DashboardView() {
     if (requestedTab && allowedTabs.includes(requestedTab)) setDashboardTab(requestedTab)
   }, [])
 
+  // قفزة تنبيه «الخبر العاجل» (Shell): فتح تبويب بعينه — رسائل الإدارة مع
+  // معرّف المحادثة، أو تبويب الإشراف — مع التمرير للمحتوى.
+  useEffect(() => {
+    const allowedTabs = ['programs', 'supervision', 'lectures', 'payments', 'deliverables', 'notifications', 'messages', 'thesis', 'transcript', 'certs']
+    const onOpenTab = (event: Event) => {
+      const detail = (event as CustomEvent<any>).detail || {}
+      if (detail.tab === 'messages' && detail.admissionId) setAdminMessagesAdmissionId(String(detail.admissionId))
+      if (detail.tab && allowedTabs.includes(detail.tab)) {
+        setDashboardTab(detail.tab)
+        window.dispatchEvent(new CustomEvent('aact:scroll-dashboard-content'))
+      }
+    }
+    window.addEventListener('aact:dashboard-tab', onOpenTab as EventListener)
+    return () => window.removeEventListener('aact:dashboard-tab', onOpenTab as EventListener)
+  }, [])
+
   // تبويب المحاضرات يظهر فقط إذا كانت الميزة متاحة لبرامج الطالب فعليًا على
   // السيرفر (القائمة ترجع 404 عند الإطفاء أو غياب برنامج مفعّل).
   useEffect(() => {
