@@ -13,9 +13,9 @@ export async function GET() {
   try {
     await requireAdmin()
     const rows = await (db as any).supervisorUnitProposal.findMany({ orderBy: [{ status: 'asc' }, { createdAt: 'desc' }], take: 200 })
-    const supervisorIds = [...new Set(rows.map((r: any) => r.supervisorId))]
-    const programIds = [...new Set(rows.map((r: any) => r.programId))]
-    const unitIds = [...new Set(rows.map((r: any) => r.unitId).filter(Boolean))]
+    const supervisorIds: string[] = [...new Set<string>(rows.map((r: any) => r.supervisorId as string))]
+    const programIds: string[] = [...new Set<string>(rows.map((r: any) => r.programId as string))]
+    const unitIds: string[] = [...new Set<string>(rows.map((r: any) => r.unitId as string).filter(Boolean))]
     const [supervisors, programs, units] = await Promise.all([
       supervisorIds.length ? db.user.findMany({ where: { id: { in: supervisorIds } }, select: { id: true, name: true } }) : [],
       programIds.length ? db.program.findMany({ where: { id: { in: programIds } }, select: { id: true, titleAr: true } }) : [],

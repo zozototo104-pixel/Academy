@@ -22,7 +22,7 @@ export async function GET() {
       orderBy: { createdAt: 'desc' },
       take: 100,
     })
-    const programIds = [...new Set(rows.map((r: any) => r.programId))]
+    const programIds: string[] = [...new Set<string>(rows.map((r: any) => r.programId as string))]
     const programs = programIds.length
       ? await db.program.findMany({ where: { id: { in: programIds } }, select: { id: true, titleAr: true } })
       : []
