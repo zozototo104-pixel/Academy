@@ -66,6 +66,20 @@ describe('قائمة المراجعة: كل طالب باسمه وكل محاو�
   })
 })
 
+describe('فيديوهات محاضرات برامج طلابه ظاهرة للمشرف', () => {
+  const videosList = read('src/app/api/admin/lectures/videos/list/route.ts')
+  const sessionsList = read('src/app/api/admin/lectures/sessions/list/route.ts')
+
+  test('نطاق قائمة الفيديوهات = برامج طلابه وسلاسله (لا ملكية السلاسل فقط)', () => {
+    expect(videosList).toContain('supervisorProgramIds(actor)')
+    expect(videosList).not.toContain('db.lectureSeries.findMany')
+  })
+
+  test('اللقاءات تبقى بملكية السلسلة فقط (قاعدة Haris: لقاءاته المخصصة له)', () => {
+    expect(sessionsList).toContain('...(isAdmin(actor) ? {} : { supervisorId: actor.id })')
+  })
+})
+
 describe('الاتصال الصوتي لا يعلّق للأبد', () => {
   test('مهلة قصوى: 45 ثانية بلا رد و30 ثانية لإنشاء الصوت ثم إنهاء واضح', () => {
     expect(voice).toContain("phase === 'calling' ? 45000 : 30000")
