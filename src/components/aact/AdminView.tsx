@@ -57,6 +57,7 @@ const AdminAdminsTab = dynamic(() => loadAdminExtrasModule().then((m) => m.Admin
 const AdminAuditTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminAuditTab), { ssr: false, loading: AdminTabLoader })
 const AdminMessagesTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminMessagesTab), { ssr: false, loading: AdminTabLoader })
 const AdminDirectMessagesTab = dynamic(() => import('@/components/aact/AdminDirectMessagesTab').then((m) => m.AdminDirectMessagesTab), { ssr: false, loading: AdminTabLoader })
+const AdminFollowUpTab = dynamic(() => import('@/components/aact/AdminFollowUpTab').then((m) => m.AdminFollowUpTab), { ssr: false, loading: AdminTabLoader })
 const AdminBooksTab = dynamic(() => loadAdminBooksModule().then((m) => m.AdminBooksTab), { ssr: false, loading: AdminTabLoader })
 const AdminAITab = dynamic(() => loadAdminAIModule().then((m) => m.AdminAITab), { ssr: false, loading: AdminTabLoader })
 const AdminSystemTab = dynamic(() => loadAdminSystemModule().then((m) => m.AdminSystemTab), { ssr: false, loading: AdminTabLoader })
@@ -1985,6 +1986,7 @@ export function AdminView() {
               <TabsTrigger value="audit" className="gap-1 text-[10px] font-bold sm:text-xs">سجل التدقيق</TabsTrigger>
               <TabsTrigger value="messages" className="gap-1 text-[10px] font-bold sm:text-xs">رسائل التواصل</TabsTrigger>
               <TabsTrigger value="admin-messages" className="gap-1 text-[10px] font-bold sm:text-xs">مراسلة الادارة</TabsTrigger>
+              <TabsTrigger value="student-follow-up" className="gap-1 text-[10px] font-bold sm:text-xs">متابعة الطلاب</TabsTrigger>
               <TabsTrigger value="whatsapp-inbox" className="gap-1 text-[10px] font-bold sm:text-xs">محادثات واتساب</TabsTrigger>
             </TabsList>
           </div>
@@ -2611,6 +2613,11 @@ export function AdminView() {
         {/* مراسلة الادارة — محادثات منفصلة عن الإشراف */}
         <TabsContent value="admin-messages">
           <AdminDirectMessagesTab key={directMessagesAdmissionId ?? 'none'} initialAdmissionId={directMessagesAdmissionId} />
+        </TabsContent>
+
+        {/* متابعة الطلاب — خدمة المتابعة */}
+        <TabsContent value="student-follow-up">
+          <AdminFollowUpTab onMessageStudent={(admissionId) => { setDirectMessagesAdmissionId(admissionId); setActiveTab('admin-messages') }} />
         </TabsContent>
 
         {/* محادثات واتساب البشرية */}

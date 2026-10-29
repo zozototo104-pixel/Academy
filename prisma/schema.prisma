@@ -27,6 +27,7 @@ model User {
   role           String       @default("STUDENT") // STUDENT | ADMIN | SUPERVISOR
   status         String       @default("ACTIVE") // ACTIVE | DISABLED | ARCHIVED
   archivedAt     DateTime?
+  lastActivityAt DateTime? // آخر نشاط موثّق على المنصة (خدمة المتابعة — يُختم من بوابة الدخول الموحدة)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   enrollments    Enrollment[]
@@ -38,6 +39,7 @@ model User {
   academicMemory StudentAcademicMemory?
   sessions       Session[]
   notifications  Notification[]
+  followUpLogs   StudentFollowUpLog[]
   payments       Payment[]
   paymentProofUploads PaymentProof[] @relation("PaymentProofUploader")
   paymentProofReviews PaymentProof[] @relation("PaymentProofReviewer")
@@ -608,6 +610,8 @@ model Enrollment {
   examReadiness  String    @default("[]") // JSON array of semester numbers the student explicitly marked ready for
   extensionDays  Int       @default(0) // مجموع أيام التمديد الممنوحة من الأدمن (تُضاف للمدة القصوى)
   lastReminderAt DateTime? // آخر يوم أُرسل فيه تذكير يومي لهذا التسجيل (منع التكرار بنفس اليوم)
+  followUpCount  Int       @default(0) // عدد رسائل متابعة الغياب المرسلة منذ آخر نشاط (خدمة المتابعة)
+  lastFollowUpAt DateTime? // آخر يوم أُرسلت فيه رسالة متابعة غياب لهذا التسجيل
   finalScore     Float?
   certificateNo  String?
   createdAt      DateTime  @default(now())
@@ -1134,6 +1138,26 @@ model Notification {
   link      String? // عرض داخلي مثل dashboard
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+// سجل خدمة المتابعة: كل رسالة متابعة غياب أُرسلت (أو حدث رجوع) لطالب، بقنواتها وسببها.
+model StudentFollowUpLog {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enrollmentId   String?
+  kind           String   // INACTIVITY_MESSAGE | RETURNED
+  messageIndex   Int      @default(0) // ترتيب رسالة الغياب (1..3) — 0 لحدث الرجوع
+  daysAbsent     Int      @default(0)
+  platformSent   Boolean  @default(false)
+  emailSent      Boolean  @default(false)
+  whatsappStatus String   @default("SKIPPED") // TEXT | TEMPLATE | FAILED | SKIPPED
+  title          String?
+  body           String?
+  createdAt      DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([enrollmentId, createdAt])
 }
 
 model AuditLog {

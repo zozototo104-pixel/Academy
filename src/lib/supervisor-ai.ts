@@ -690,6 +690,66 @@ function formatStudentPerformance(input: {
   return `نتائج الطالب في الامتحانات والواجبات (بياناته هو فقط — اعتمد عليها لتعرف نقاط قوته وضعفه، وبماذا أخطأ، وصحح أخطاءه منها):\n${sections.join('\n')}`
 }
 
+// خدمة المتابعة (المرحلة 3): كتلة بيانات المتابعة للمشرف الذكي — حقائق فقط:
+// غياب الطالب ورسائل المتابعة، مشاهدة المحاضرات، اختباراته وواجباته المعلقة،
+// ووجود رسائل الإدارة (عددها وآخر تاريخ فقط — محتواها لا يدخل السياق أبدًا
+// بقرار المالك، استمرارًا لعزل نطاق ADMIN في #146).
+export async function buildFollowUpContextBlock(userId: string): Promise<string> {
+  const userStore = (db as any).user
+  const enrollmentStore = (db as any).enrollment
+  const progressStore = (db as any).lectureWatchProgress
+  const videoStore = (db as any).lectureVideoResource
+  const channelStore = (db as any).supervisorChannelMessage
+  const logStore = (db as any).studentFollowUpLog
+  const examStore = (db as any).exam
+  const attemptStore = (db as any).examAttempt
+  const assignmentStore = (db as any).programAssignment
+  const submissionStore = (db as any).assignmentSubmission
+
+  const enrollments = await (enrollmentStore?.findMany({
+    where: { userId, status: { in: ['ACTIVE', 'SUPERVISOR_ASSIGNED'] } },
+    select: { id: true, programId: true, createdAt: true, followUpCount: true },
+  }).catch(() => []) || [])
+  if (!enrollments.length) return ''
+  const programIds = [...new Set(enrollments.map((e: any) => e.programId))]
+
+  const [user, videosTotal, progressRows, exams, passedAttempts, assignments, submissions, followUpsSent, adminCount, adminLatest] = await Promise.all([
+    userStore?.findUnique({ where: { id: userId }, select: { lastActivityAt: true } }).catch(() => null),
+    videoStore?.count({ where: { programId: { in: programIds } } }).catch(() => 0) ?? 0,
+    progressStore?.findMany({ where: { userId }, select: { watchedPercent: true, completedAt: true } }).catch(() => []) || [],
+    examStore?.findMany({ where: { unit: { programId: { in: programIds } } }, select: { id: true, title: true } }).catch(() => []) || [],
+    attemptStore?.findMany({ where: { userId, passed: true }, select: { examId: true } }).catch(() => []) || [],
+    assignmentStore?.findMany({ where: { programId: { in: programIds }, status: 'PUBLISHED' }, select: { id: true, title: true } }).catch(() => []) || [],
+    submissionStore?.findMany({ where: { userId, assignment: { programId: { in: programIds } } }, select: { assignmentId: true } }).catch(() => []) || [],
+    logStore?.count({ where: { userId, kind: 'INACTIVITY_MESSAGE' } }).catch(() => 0) ?? 0,
+    channelStore?.count({ where: { studentId: userId, scope: 'ADMIN' } }).catch(() => 0) ?? 0,
+    channelStore?.findFirst({ where: { studentId: userId, scope: 'ADMIN' }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } }).catch(() => null),
+  ])
+
+  const now = new Date()
+  const DAY_MS = 24 * 60 * 60 * 1000
+  const lastActivityAt = user?.lastActivityAt ? new Date(user.lastActivityAt) : null
+  const baseline = lastActivityAt || new Date(Math.min(...enrollments.map((e: any) => new Date(e.createdAt).getTime())))
+  const daysAbsent = Math.max(0, Math.floor((now.getTime() - baseline.getTime()) / DAY_MS))
+  const maxFollowUpCount = Math.max(0, ...enrollments.map((e: any) => Number(e.followUpCount || 0)))
+  const needsIntervention = daysAbsent >= 3 && maxFollowUpCount >= 3
+
+  const watchedCount = (progressRows as any[]).filter((r) => (r.watchedPercent || 0) > 0 || r.completedAt).length
+  const completedCount = (progressRows as any[]).filter((r) => r.completedAt).length
+  const passedExamIds = new Set((passedAttempts as any[]).map((a) => a.examId))
+  const unpassedExams = (exams as any[]).filter((e) => !passedExamIds.has(e.id))
+  const submittedIds = new Set((submissions as any[]).map((s) => s.assignmentId))
+  const unsubmittedAssignments = (assignments as any[]).filter((a) => !submittedIds.has(a.id))
+
+  const lines: string[] = ['متابعة الطالب وواجباته (بيانات خدمة المتابعة):']
+  lines.push(`- آخر نشاط للطالب على المنصة: ${lastActivityAt ? lastActivityAt.toISOString().slice(0, 10) : 'لا يوجد ختم نشاط بعد'} — أيام الغياب الحالية: ${daysAbsent}. رسائل متابعة الغياب المرسلة إليه: ${followUpsSent} من 3${needsIntervention ? ' — بلغ حد المتابعة الآلية وحالته الآن «يحتاج تدخل» بشري' : ''}.`)
+  if (videosTotal > 0) lines.push(`- مشاهدة المحاضرات: أكمل ${completedCount} من ${videosTotal} محاضرة في برامجه، وبدأ ${watchedCount} محاضرة بالمجمل.`)
+  if ((exams as any[]).length) lines.push(`- اختبارات الوحدات: اجتاز ${passedExamIds.size} من ${(exams as any[]).length}${unpassedExams.length ? ` — لم يجتز بعد: ${unpassedExams.slice(0, 5).map((e: any) => `«${e.title}»`).join('، ')}` : ''}.`)
+  if ((assignments as any[]).length) lines.push(`- الواجبات: سلّم ${submittedIds.size} من ${(assignments as any[]).length}${unsubmittedAssignments.length ? ` — لم يسلّم بعد: ${unsubmittedAssignments.slice(0, 5).map((a: any) => `«${a.title}»`).join('، ')}` : ''}.`)
+  if (adminCount > 0) lines.push(`- رسائل الإدارة المباشرة: أُرسلت إليه ${adminCount} رسالة من الإدارة${adminLatest?.createdAt ? `، آخرها بتاريخ ${new Date(adminLatest.createdAt).toISOString().slice(0, 10)}` : ''}. محتوى رسائل الإدارة لا يظهر في سياقك؛ إن احتاج فوجّهه لقراءتها في صندوق رسائله.`)
+  return lines.join('\n')
+}
+
 export async function buildSupervisorContext(userId: string, options?: { scope?: AiKnowledgeScope; query?: string | null }): Promise<string> {
   try {
     const userStore = (db as any).user
@@ -991,6 +1051,11 @@ export async function buildSupervisorContext(userId: string, options?: { scope?:
       }).join('\n\n')
       parts.push(`برامج المستخدم المسجل بها ومراجعها المعتمدة:\n${enrollmentLines}`)
     }
+
+    // خدمة المتابعة (المرحلة 3): كتلة بيانات مضافة فقط إلى السياق — لا تغيير
+    // في بنية السياق القائمة ولا في آلية الرد أو منهجه.
+    const followUpBlock = await buildFollowUpContextBlock(userId).catch(() => '')
+    if (followUpBlock) parts.push(followUpBlock)
 
     const allowGeneralCatalog = supervisorAskedForOtherPrograms(options?.query)
     if (allowGeneralCatalog) {
