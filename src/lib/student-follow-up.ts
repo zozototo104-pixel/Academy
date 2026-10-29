@@ -230,7 +230,7 @@ export async function listFollowUpBoard(options?: { userIds?: string[] }): Promi
     db.programAssignment.groupBy({ by: ['programId'], where: { programId: { in: programIds }, status: 'PUBLISHED' }, _count: { _all: true } }).catch(() => [] as any[]),
     db.unit.findMany({ where: { programId: { in: programIds } }, select: { id: true, programId: true, exam: { select: { id: true } } } }).catch(() => [] as any[]),
     db.lectureVideoResource.groupBy({ by: ['programId'], where: { programId: { in: programIds } }, _count: { _all: true } }).catch(() => [] as any[]),
-    db.admissionApplication.findMany({ where: { userId: { in: userIds } }, orderBy: { createdAt: 'desc' }, select: { id: true, userId: true, specialization: true } }).catch(() => [] as any[]),
+    db.admissionApplication.findMany({ where: { userId: { in: userIds } }, orderBy: { createdAt: 'desc' }, select: { id: true, userId: true } }).catch(() => [] as any[]),
     db.assignmentSubmission.findMany({ where: { userId: { in: userIds } }, select: { userId: true, assignmentId: true, assignment: { select: { programId: true } } } }).catch(() => [] as any[]),
     db.examAttempt.findMany({ where: { userId: { in: userIds } }, select: { userId: true, examId: true, passed: true } }).catch(() => [] as any[]),
     (db as any).lectureWatchProgress.findMany({ where: { userId: { in: userIds } }, select: { userId: true, watchedPercent: true, completedAt: true, video: { select: { programId: true } } } }).catch(() => [] as any[]),
@@ -241,8 +241,8 @@ export async function listFollowUpBoard(options?: { userIds?: string[] }): Promi
     db.supervisorChannelMessage.findMany({ where: { studentId: { in: userIds }, scope: 'SUPERVISION' }, distinct: ['studentId'], orderBy: { createdAt: 'desc' }, select: { studentId: true, createdAt: true } }).catch(() => [] as any[]),
   ])
 
-  const assignmentTotalByProgram = new Map(assignmentTotals.map((r: any) => [r.programId, r._count._all]))
-  const lectureTotalByProgram = new Map(lectureTotals.map((r: any) => [r.programId, r._count._all]))
+  const assignmentTotalByProgram = new Map<string, number>((assignmentTotals as any[]).map((r) => [r.programId, Number(r._count?._all || 0)] as [string, number]))
+  const lectureTotalByProgram = new Map<string, number>((lectureTotals as any[]).map((r) => [r.programId, Number(r._count?._all || 0)] as [string, number]))
   const examTotalByProgram = new Map<string, number>()
   const examProgram = new Map<string, string>()
   for (const unit of units as any[]) {
@@ -278,11 +278,11 @@ export async function listFollowUpBoard(options?: { userIds?: string[] }): Promi
     if (row.completedAt) entry.completed++
     watchByUserProgram.set(key, entry)
   }
-  const notifTotalByUser = new Map(notifTotals.map((r: any) => [r.userId, r._count._all]))
-  const notifUnreadByUser = new Map(notifUnread.map((r: any) => [r.userId, r._count._all]))
-  const followUpTotalByUser = new Map(followUpTotals.map((r: any) => [r.userId, r._count._all]))
-  const channelCountByUser = new Map(channelCounts.map((r: any) => [r.studentId, r._count._all]))
-  const channelLastByUser = new Map((channelLatest as any[]).map((r) => [r.studentId, r.createdAt]))
+  const notifTotalByUser = new Map<string, number>((notifTotals as any[]).map((r) => [r.userId, Number(r._count?._all || 0)] as [string, number]))
+  const notifUnreadByUser = new Map<string, number>((notifUnread as any[]).map((r) => [r.userId, Number(r._count?._all || 0)] as [string, number]))
+  const followUpTotalByUser = new Map<string, number>((followUpTotals as any[]).map((r) => [r.userId, Number(r._count?._all || 0)] as [string, number]))
+  const channelCountByUser = new Map<string, number>((channelCounts as any[]).map((r) => [r.studentId, Number(r._count?._all || 0)] as [string, number]))
+  const channelLastByUser = new Map<string, Date>((channelLatest as any[]).map((r) => [r.studentId, r.createdAt] as [string, Date]))
 
   const now = new Date()
   return enrollments.map((enrollment: any) => {
@@ -299,7 +299,8 @@ export async function listFollowUpBoard(options?: { userIds?: string[] }): Promi
       email: user?.email || '',
       programId: enrollment.programId,
       programTitle: enrollment.program?.titleAr || '',
-      specialization: admission?.specialization || enrollment.program?.titleAr || '',
+      // التخصص في هذه المنصة هو البرنامج نفسه (لا حقل تخصص منفصلًا على الطلب).
+      specialization: enrollment.program?.titleAr || '',
       lastActivityAt: status.lastActivityAt,
       daysAbsent: status.daysAbsent,
       followUpCount,

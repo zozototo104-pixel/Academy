@@ -49,8 +49,8 @@ mock.module('@/lib/db', () => ({
     },
     admissionApplication: {
       findMany: async (args: any) => {
-        if (args?.select?.specialization) return [{ id: 'adm-1', userId: 'user-A', specialization: 'إدارة الأزمات' }]
-        return [{ userId: 'user-A' }]
+        if (args?.where?.supervisorId) return [{ userId: 'user-A' }]
+        return [{ id: 'adm-1', userId: 'user-A' }]
       },
     },
     assignmentSubmission: {
@@ -136,7 +136,7 @@ describe('listFollowUpBoard', () => {
     expect(a.daysAbsent).toBe(5)
     expect(a.needsIntervention).toBe(true)
     expect(a.admissionId).toBe('adm-1')
-    expect(a.specialization).toBe('إدارة الأزمات')
+    expect(a.specialization).toBe('برنامج إدارة الأزمات')
     expect(a.assignments).toEqual({ total: 4, submitted: 1 })
     expect(a.unitExams).toEqual({ total: 2, passed: 1 })
     expect(a.lectures).toEqual({ total: 10, watched: 2, completed: 1 })
