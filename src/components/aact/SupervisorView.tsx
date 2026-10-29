@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Label } from '@/components/ui/label'
 import { Loader2, Users2, GraduationCap, FileText, Video, RefreshCcw, MessageCircle, Send, Mic, Square, ClipboardCheck, Bot, BookOpen, AlertTriangle, CheckCircle2, Sparkles, BarChart3, Brain, Headphones } from 'lucide-react'
 import { SupervisorLiveVoiceCall } from '@/components/aact/SupervisorLiveVoiceCall'
+import { SupervisorFollowUpBoard } from '@/components/aact/SupervisorFollowUpBoard'
 import { AdminLectures } from '@/components/aact/AdminLectures'
 
 interface SupervisorMessage {
@@ -374,6 +375,8 @@ export function SupervisorView() {
           </Button>
         </div>
       </div>
+
+      <SupervisorFollowUpBoard onOpenStudent={(admissionId) => { setSelectedId(admissionId); if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' }) }} />
 
       {loading ? (
         <div className="flex h-60 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" /></div>
