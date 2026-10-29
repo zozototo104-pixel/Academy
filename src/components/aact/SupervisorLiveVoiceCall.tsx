@@ -67,6 +67,7 @@ export function SupervisorLiveVoiceCall({ admissionId, role, title, compact }: P
   const [muted, setMuted] = useState(false)
   const [rtcAvailable, setRtcAvailable] = useState(true)
   const [lastError, setLastError] = useState('')
+  const [hasTurn, setHasTurn] = useState<boolean | null>(null)
 
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null)
   const pcRef = useRef<RTCPeerConnection | null>(null)
@@ -78,6 +79,16 @@ export function SupervisorLiveVoiceCall({ admissionId, role, title, compact }: P
   const acceptedRef = useRef(false)
   const postingIceRef = useRef(false)
   const pendingIceRef = useRef<RTCIceCandidateInit[]>([])
+
+  // هل خادم TURN مفعّل في إعدادات النظام؟ بدونه يفشل الصوت على أغلب شبكات الجوال.
+  const noteRtcConfig = useCallback((config?: RTCConfiguration | null) => {
+    if (!config?.iceServers) return
+    const servers = Array.isArray(config.iceServers) ? config.iceServers : [config.iceServers]
+    setHasTurn(servers.some((s: any) => {
+      const urls = Array.isArray(s?.urls) ? s.urls : [s?.urls]
+      return urls.some((u: any) => String(u || '').startsWith('turn:') || String(u || '').startsWith('turns:'))
+    }))
+  }, [])
 
   useEffect(() => { phaseRef.current = phase }, [phase])
   useEffect(() => { callIdRef.current = call?.id || '' }, [call?.id])
@@ -154,6 +165,15 @@ export function SupervisorLiveVoiceCall({ admissionId, role, title, compact }: P
       }
     }
 
+    // فشل ICE = الصوت لن يمرّ أبدًا على هذه الشبكة: أنهِ بوضوح بدل تعليق «جارٍ الإنشاء».
+    pc.oniceconnectionstatechange = () => {
+      if (pc.iceConnectionState !== 'failed') return
+      setLastError('فشل الاتصال الصوتي — الشبكة لم تسمح بمرور الصوت. فعّل خادم TURN من إعدادات النظام أو جرّب شبكة أخرى.')
+      setPhase('ended')
+      api('/api/supervisor/voice-call', { method: 'POST', body: JSON.stringify({ action: 'end', callId, reason: 'فشل اتصال الصوت (ICE)' }) }).catch(() => null)
+      closePeer(true)
+    }
+
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       video: false,
@@ -161,7 +181,7 @@ export function SupervisorLiveVoiceCall({ admissionId, role, title, compact }: P
     localStreamRef.current = stream
     stream.getAudioTracks().forEach((track) => pc.addTrack(track, stream))
     return pc
-  }, [postSignal, rtcAvailable])
+  }, [closePeer, postSignal, rtcAvailable])
 
   const applySignals = useCallback(async (signals: VoiceSignal[], config?: RTCConfiguration) => {
     if (!signals?.length) return
@@ -225,6 +245,7 @@ export function SupervisorLiveVoiceCall({ admissionId, role, title, compact }: P
         ? `/api/supervisor/voice-call?callId=${encodeURIComponent(callIdRef.current)}`
         : `/api/supervisor/voice-call?admissionId=${encodeURIComponent(admissionId)}`
       const d = await api<VoicePayload>(url)
+      noteRtcConfig(d.rtcConfig)
       if (!d.call) {
         if (phaseRef.current === 'incoming') setPhase('idle')
         if (phaseRef.current === 'idle') setCall(null)
@@ -243,7 +264,7 @@ export function SupervisorLiveVoiceCall({ admissionId, role, title, compact }: P
       console.error('voice poll error', e)
       setLastError(e.message || 'تعذر تحديث حالة المكالمة')
     }
-  }, [admissionId, applySignals, busy, closePeer, role])
+  }, [admissionId, applySignals, busy, closePeer, noteRtcConfig, role])
 
   useEffect(() => {
     pollCall()
@@ -252,6 +273,30 @@ export function SupervisorLiveVoiceCall({ admissionId, role, title, compact }: P
   }, [pollCall, phase])
 
   useEffect(() => () => closePeer(true), [closePeer])
+
+  // مهلة قصوى للاتصال: بلا ردّ خلال 45 ثانية أو بلا اكتمال الصوت خلال 30 ثانية
+  // تُنهى المكالمة برسالة واضحة بدل البقاء على «جارٍ إنشاء الاتصال» للأبد.
+  useEffect(() => {
+    if (phase !== 'calling' && phase !== 'connecting') return
+    const limitMs = phase === 'calling' ? 45000 : 30000
+    const timer = window.setTimeout(() => {
+      const id = callIdRef.current
+      const wasCalling = phaseRef.current === 'calling'
+      if (id) {
+        api('/api/supervisor/voice-call', { method: 'POST', body: JSON.stringify({ action: 'end', callId: id, reason: wasCalling ? 'لا رد من الطرف الآخر' : 'تعذر إنشاء الاتصال الصوتي' }) }).catch(() => null)
+      }
+      initiatorRef.current = false
+      acceptedRef.current = false
+      callIdRef.current = ''
+      closePeer(true)
+      setCall(null)
+      setLastError(wasCalling
+        ? 'لم يردّ الطرف الآخر خلال 45 ثانية — أُنهيت المكالمة. جرّب مرة أخرى وهو داخل المنصة.'
+        : 'تعذّر إنشاء الاتصال الصوتي خلال 30 ثانية — غالبًا تحتاج الشبكة خادم TURN مفعّلًا من إعدادات النظام.')
+      setPhase('ended')
+    }, limitMs)
+    return () => window.clearTimeout(timer)
+  }, [phase, closePeer])
 
   const startCall = async () => {
     if (!admissionId) return
@@ -268,6 +313,7 @@ export function SupervisorLiveVoiceCall({ admissionId, role, title, compact }: P
         body: JSON.stringify({ action: 'create', admissionId }),
       })
       if (!d.call) throw new Error('لم يتم إنشاء المكالمة')
+      noteRtcConfig(d.rtcConfig)
       setCall(d.call)
       callIdRef.current = d.call.id
       const pc = await initPeer(d.call.id, d.rtcConfig)
@@ -299,6 +345,7 @@ export function SupervisorLiveVoiceCall({ admissionId, role, title, compact }: P
         body: JSON.stringify({ action: 'join', callId: call.id }),
       })
       setCall(d.call)
+      noteRtcConfig(d.rtcConfig)
       callIdRef.current = d.call?.id || call.id
       await initPeer(call.id, d.rtcConfig)
       await applySignals(d.signals || [], d.rtcConfig)
@@ -370,6 +417,7 @@ export function SupervisorLiveVoiceCall({ admissionId, role, title, compact }: P
             </p>
             {!rtcAvailable && <p className="mt-2 rounded-xl bg-red-50 p-2 text-[11px] font-bold text-red-700">متصفحك لا يدعم المكالمة الصوتية المباشرة أو لا يسمح بالميكروفون.</p>}
             {lastError && <p className="mt-2 rounded-xl bg-amber-50 p-2 text-[11px] font-bold text-amber-700">{lastError}</p>}
+            {hasTurn === false && phase === 'idle' && <p className="mt-2 rounded-xl bg-amber-50 p-2 text-[11px] font-bold text-amber-700">تنبيه: خادم TURN غير مفعّل في إعدادات النظام — قد لا يكتمل الاتصال الصوتي على شبكات الجوال. التفعيل من إعدادات النظام (TURN_URL واسم المستخدم وكلمة المرور).</p>}
           </div>
           <div className="flex flex-wrap gap-2">
             {phase === 'idle' && (

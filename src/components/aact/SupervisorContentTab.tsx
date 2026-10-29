@@ -203,7 +203,12 @@ export function SupervisorContentTab() {
             <div>
               <h4 className="mb-2 text-sm font-black text-[#0f2b46]">الكتب ({detail.books.length})</h4>
               <div className="flex flex-wrap gap-2">
-                {detail.books.map((b: any) => <Badge key={b.id} variant="outline" className="text-[11px]">{b.title} — فصل {b.semester}</Badge>)}
+                {detail.books.map((b: any) => (
+                  <span key={b.id} className="inline-flex items-center gap-1.5">
+                    <Badge variant="outline" className="text-[11px]">{b.title} — فصل {b.semester}</Badge>
+                    <a href={`/api/books/${b.id}/download`} target="_blank" rel="noreferrer" className="text-[11px] font-black text-[#a8841a] underline">فتح/تحميل</a>
+                  </span>
+                ))}
                 {!detail.books.length && <p className="text-xs font-bold text-slate-400">لا كتب مرتبطة بعد.</p>}
               </div>
             </div>

@@ -4,8 +4,9 @@ import { isLecturesEnabled } from '@/lib/lectures/config'
 import { isAdmin, requireLectureManager } from '@/lib/lectures/manage'
 
 // GET /api/admin/lectures/sessions/list — قائمة اللقاءات لشاشة الإدارة.
-// الأدمن يرى الكل، والمشرف يرى لقاءات سلاسله فقط. الفلاتر: programId و
-// status و from/to على وقت البداية.
+// الأدمن يرى الكل، والمشرف يرى اللقاءات التي هو محاضرها الفعلي فقط:
+// محاضرها الخاص هو، أو بلا محاضر خاص وهو مشرف سلسلتها. الفلاتر:
+// programId و status و from/to على وقت البداية.
 export async function GET(req: NextRequest) {
   try {
     const actor = await requireLectureManager()
@@ -32,17 +33,26 @@ export async function GET(req: NextRequest) {
           : {}),
         series: {
           ...(programId ? { programId } : {}),
-          ...(isAdmin(actor) ? {} : { supervisorId: actor.id }),
         },
+        ...(isAdmin(actor)
+          ? {}
+          : {
+              OR: [
+                { lecturerId: actor.id },
+                { lecturerId: null, series: { supervisorId: actor.id } },
+              ],
+            }),
       },
       orderBy: { startsAt: 'asc' },
       take: 200,
       include: {
+        lecturer: { select: { name: true } },
         series: {
           select: {
             title: true,
             programId: true,
             timezone: true,
+            supervisorId: true,
             supervisor: { select: { name: true } },
             program: { select: { titleAr: true } },
           },

@@ -3,9 +3,11 @@ import { db } from '@/lib/db'
 import { isLecturesEnabled } from '@/lib/lectures/config'
 import { isAdmin, requireLectureManager } from '@/lib/lectures/manage'
 import { isLectureStorageConfigured, lectureVideoMaxBytes } from '@/lib/lectures/video-storage'
+import { supervisorProgramIds } from '@/lib/supervisor-scope'
 
 // GET /api/admin/lectures/videos/list — فيديوهات الإدارة بكل حالاتها
-// (مسودة ومنشورة). المشرف يرى فيديوهات البرامج التي يدير سلاسل فيها.
+// (مسودة ومنشورة). المشرف يرى فيديوهات برامج طلابه وسلاسله — بما فيها
+// فيديوهات الإدارة المنشورة لطلابه (قراءة؛ الإدارة والتعديل بملكية السلسلة).
 export async function GET(req: NextRequest) {
   try {
     const actor = await requireLectureManager()
@@ -17,11 +19,7 @@ export async function GET(req: NextRequest) {
 
     let programScope: string[] | undefined
     if (!isAdmin(actor)) {
-      const owned = (await db.lectureSeries.findMany({
-        where: { supervisorId: actor.id },
-        select: { programId: true },
-      })) as unknown as { programId: string }[]
-      programScope = [...new Set(owned.map((s) => s.programId))]
+      programScope = await supervisorProgramIds(actor)
     }
 
     // S-03L: تقاطع صريح بين فلتر البرنامج ونطاق المشرف — كتابة المفتاح
