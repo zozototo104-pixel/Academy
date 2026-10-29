@@ -664,6 +664,13 @@ model ExamAttempt {
   status      String    @default("SUBMITTED") // STARTED | EXPIRED | SUBMITTED | NEEDS_REVIEW | GRADED
   feedback    String? // AI overall feedback JSON { summary, strengths[], improvements[] }
   aiGraded    Boolean   @default(false)
+  // التماس مراجعة التصحيح (للطالب الذي له مشرف بشري معيّن فقط) + مراجعة المشرف البشري اللاحقة
+  appealStatus   String?  @default("NONE") // NONE | PENDING | REVIEWED
+  appealReason   String?
+  appealResponse String?
+  appealedAt     DateTime?
+  reviewedById   String? // المشرف البشري (أو الأدمن) الذي راجع/عدّل الدرجات بعد التصحيح
+  reviewedAt     DateTime?
   submittedAt DateTime  @default(now())
   createdAt   DateTime  @default(now())
   user        User      @relation(fields: [userId], references: [id], onDelete: Restrict)
@@ -1158,6 +1165,27 @@ model StudentFollowUpLog {
 
   @@index([userId, createdAt])
   @@index([enrollmentId, createdAt])
+}
+
+// اقتراحات المشرف البشري على الوحدات: المشرف يقترح فقط (إضافة/تعديل/حذف/ملاحظة)
+// والإدارة تقرر — لا تغيير مباشر منه على بنية الوحدات أبدًا.
+model SupervisorUnitProposal {
+  id           String   @id @default(cuid())
+  supervisorId String
+  programId    String
+  unitId       String?
+  kind         String   // ADD | EDIT | REMOVE | NOTE
+  title        String
+  details      String
+  status       String   @default("PENDING") // PENDING | APPROVED | REJECTED
+  adminNote    String?
+  resolvedById String?
+  resolvedAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([programId, status])
+  @@index([supervisorId, createdAt])
 }
 
 model AuditLog {
@@ -2151,6 +2179,8 @@ model ProgramExamAttempt {
   appealResponse String?
   finalScore     Float?   // الدرجة النهائية بعد المراجعة اليدوية
   appealedAt     DateTime?
+  reviewedById   String? // المشرف البشري (أو الأدمن) الذي راجع/عدّل الدرجات أو بتّ في الالتماس
+  reviewedAt     DateTime?
   // المراقبة الإلكترونية الاختيارية (AI Proctoring) — كاميرا + كشف تبديل النوافذ
   proctoringEnabled  Boolean @default(false)
   proctoringLog      String? // JSON [{t,type}] لحظات الخروج/تبديل النوافذ

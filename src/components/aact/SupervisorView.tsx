@@ -14,6 +14,8 @@ import { Label } from '@/components/ui/label'
 import { Loader2, Users2, GraduationCap, FileText, Video, RefreshCcw, MessageCircle, Send, Mic, Square, ClipboardCheck, Bot, BookOpen, AlertTriangle, CheckCircle2, Sparkles, BarChart3, Brain, Headphones } from 'lucide-react'
 import { SupervisorLiveVoiceCall } from '@/components/aact/SupervisorLiveVoiceCall'
 import { SupervisorFollowUpBoard } from '@/components/aact/SupervisorFollowUpBoard'
+import { SupervisorContentTab } from '@/components/aact/SupervisorContentTab'
+import { SupervisorGradeReviewTab } from '@/components/aact/SupervisorGradeReviewTab'
 import { AdminLectures } from '@/components/aact/AdminLectures'
 
 interface SupervisorMessage {
@@ -131,6 +133,7 @@ function fileBlobToBase64(blob: Blob): Promise<{ data: string; mime: string }> {
 export function SupervisorView() {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
+  const [mainSection, setMainSection] = useState<'students' | 'content' | 'review'>('students')
   const [students, setStudents] = useState<SupervisedStudent[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [messages, setMessages] = useState<SupervisorMessage[]>([])
@@ -376,6 +379,24 @@ export function SupervisorView() {
         </div>
       </div>
 
+      <div className="mb-5 flex flex-wrap gap-2" dir="rtl">
+        {([
+          { key: 'students', label: 'طلابي والمتابعة' },
+          { key: 'content', label: 'المحتوى والوحدات' },
+          { key: 'review', label: 'مراجعة الدرجات والالتماسات' },
+        ] as const).map((s) => (
+          <button
+            key={s.key}
+            type="button"
+            onClick={() => setMainSection(s.key)}
+            className={`rounded-2xl px-4 py-2 text-xs font-black transition ${mainSection === s.key ? 'bg-[#0f2b46] text-[#e0b83a] shadow' : 'border border-slate-200 bg-white text-slate-600 hover:border-[#c9a227]/60'}`}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+
+      {mainSection === 'students' && (<>
       <SupervisorFollowUpBoard onOpenStudent={(admissionId) => { setSelectedId(admissionId); if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' }) }} />
 
       {loading ? (
@@ -651,6 +672,10 @@ export function SupervisorView() {
           )}
         </div>
       )}
+      </>)}
+
+      {mainSection === 'content' && <SupervisorContentTab />}
+      {mainSection === 'review' && <SupervisorGradeReviewTab />}
 
       <Dialog open={!!gradingDetail} onOpenChange={(open) => { if (!open) { setGradingDetail(null); setGradingDraft(null) } }}>
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-3xl" dir="rtl">

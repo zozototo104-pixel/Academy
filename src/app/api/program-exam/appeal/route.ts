@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { requireAdmin, requireUser } from '@/lib/auth'
+import { requireUser } from '@/lib/auth'
 import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
+import { isAssignedStudent } from '@/lib/supervisor-scope'
 
 // ===== 12.2 الاعتراض على نتيجة الامتحان (Appeal) — يُحوَّل للمراجعة اليدوية =====
 
@@ -86,10 +87,14 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// PATCH /api/program-exam/appeal — قرار الإدارة على الاعتراض
+// PATCH /api/program-exam/appeal — قرار الاعتراض: الإدارة، أو المشرف
+// البشري المعيّن لهذا الطالب (الاعتراض يُبتّ عند مشرفه متى وُجد).
 export async function PATCH(req: NextRequest) {
   try {
-    await requireAdmin()
+    const resolver = await requireUser()
+    if (resolver.role !== 'ADMIN' && resolver.role !== 'SUPERVISOR') {
+      return NextResponse.json({ error: 'صلاحيات الإدارة أو المشرف المعيّن مطلوبة' }, { status: 403 })
+    }
     const body = await req.json().catch(() => ({}))
     const attemptId = String(body?.attemptId || '').trim()
     const action = String(body?.action || '').trim().toUpperCase()
@@ -103,6 +108,9 @@ export async function PATCH(req: NextRequest) {
       select: { id: true, userId: true, status: true, appealStatus: true, score: true, finalScore: true, exam: { select: { passScore: true, programId: true } } },
     })
     if (!attempt) return NextResponse.json({ error: 'المحاولة غير موجودة' }, { status: 404 })
+    if (resolver.role === 'SUPERVISOR' && !(await isAssignedStudent({ id: resolver.id, name: resolver.name, role: resolver.role }, attempt.userId))) {
+      return NextResponse.json({ error: 'هذا الاعتراض ليس لطالب معيّن عليك' }, { status: 403 })
+    }
     if (attempt.status !== 'GRADED') return NextResponse.json({ error: 'لا يمكن البت في اعتراض إلا على محاولة مصححة', code: 'APPEAL_REQUIRES_GRADED_ATTEMPT' }, { status: 409 })
     if (attempt.appealStatus !== 'PENDING') return NextResponse.json({ error: 'لا يوجد اعتراض قيد المراجعة لهذه المحاولة' }, { status: 409 })
 
@@ -114,7 +122,7 @@ export async function PATCH(req: NextRequest) {
       const passed = clamped >= attempt.exam.passScore
       await db.programExamAttempt.update({
         where: { id: attempt.id },
-        data: { finalScore: clamped, passed, appealStatus: 'REVIEWED', appealResponse: response || 'تم قبول الاعتراض واعتماد الدرجة النهائية بعد المراجعة.' },
+        data: { finalScore: clamped, passed, appealStatus: 'REVIEWED', appealResponse: response || 'تم قبول الاعتراض واعتماد الدرجة النهائية بعد المراجعة.', reviewedById: resolver.id, reviewedAt: new Date() } as any,
       })
       if (passed) {
         const enrollment = await db.enrollment.findUnique({ where: { userId_programId: { userId: attempt.userId, programId: attempt.exam.programId } }, select: { id: true } })
@@ -125,7 +133,7 @@ export async function PATCH(req: NextRequest) {
 
     await db.programExamAttempt.update({
       where: { id: attempt.id },
-      data: { appealStatus: 'REVIEWED', appealResponse: response || 'تم رفض الاعتراض بعد المراجعة.' },
+      data: { appealStatus: 'REVIEWED', appealResponse: response || 'تم رفض الاعتراض بعد المراجعة.', reviewedById: resolver.id, reviewedAt: new Date() } as any,
     })
     return NextResponse.json({ ok: true, finalScore: attempt.finalScore ?? attempt.score, passed: attempt.score != null ? attempt.score >= attempt.exam.passScore : attempt.finalScore != null ? attempt.finalScore >= attempt.exam.passScore : null })
   } catch (e: any) {

@@ -26,6 +26,8 @@ export function AdminSupervisorsTab() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [supervisors, setSupervisors] = useState<SupervisorRow[]>([])
+  const [proposals, setProposals] = useState<any[]>([])
+  const [proposalNotes, setProposalNotes] = useState<Record<string, string>>({})
   const [form, setForm] = useState({ name: '', email: '', password: '', phone: '', country: '' })
   const [resetFor, setResetFor] = useState<string | null>(null)
   const [newPassword, setNewPassword] = useState('')
@@ -39,6 +41,23 @@ export function AdminSupervisorsTab() {
       toast({ title: 'خطأ', description: e.message || 'تعذر تحميل المشرفين', variant: 'destructive' })
     } finally {
       setLoading(false)
+    }
+    try {
+      const p = await api<{ proposals: any[] }>('/api/admin/supervisor-proposals')
+      setProposals(p.proposals || [])
+    } catch { /* الاقتراحات ثانوية هنا */ }
+  }
+
+  const resolveProposal = async (id: string, status: 'APPROVED' | 'REJECTED') => {
+    setSaving(true)
+    try {
+      await api('/api/admin/supervisor-proposals', { method: 'PATCH', body: JSON.stringify({ id, status, adminNote: proposalNotes[id] || '' }) })
+      toast({ title: status === 'APPROVED' ? 'قُبل الاقتراح وأُشعر المشرف' : 'رُفض الاقتراح وأُشعر المشرف' })
+      await load()
+    } catch (e: any) {
+      toast({ title: 'تعذر البت في الاقتراح', description: e.message, variant: 'destructive' })
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -145,6 +164,38 @@ export function AdminSupervisorsTab() {
                       <Button size="sm" variant="outline" onClick={() => revoke(s.id)} disabled={saving || s.supervisedCount > 0} className="font-bold text-red-600">إلغاء الصلاحية</Button>
                     </div>
                   )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      <Card className="border-[#0f2b46]/10">
+        <CardContent className="p-5">
+          <h3 className="mb-1 text-lg font-black text-[#0f2b46]">اقتراحات المشرفين على الوحدات ({proposals.filter((p) => p.status === 'PENDING').length} بانتظار البت)</h3>
+          <p className="mb-4 text-xs font-bold leading-6 text-slate-500">المشرف يقترح فقط — القبول لا ينفّذ التغيير تلقائيًا؛ نفّذ التعديل بنفسك في الكتب والوحدات إن قبلته. تعديلات المشرفين على الأسئلة نفسها مباشرة وتصلك إشعارات بها (سجل التدقيق).</p>
+          {proposals.length === 0 ? (
+            <div className="rounded-2xl bg-slate-50 p-6 text-center text-sm font-bold text-slate-500">لا اقتراحات بعد.</div>
+          ) : (
+            <div className="space-y-3">
+              {proposals.map((p) => (
+                <div key={p.id} className="space-y-2 rounded-2xl border border-slate-100 bg-white p-4 text-xs font-bold leading-6 text-slate-600 shadow-sm">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-black text-[#0f2b46]">{p.title}</span>
+                    <Badge variant="outline" className="text-[10px]">{p.kind === 'ADD' ? 'إضافة وحدة' : p.kind === 'EDIT' ? 'تعديل وحدة' : p.kind === 'REMOVE' ? 'حذف وحدة' : 'ملاحظة'}</Badge>
+                    {p.status === 'PENDING' ? <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">بانتظار البت</Badge> : p.status === 'APPROVED' ? <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">مقبول</Badge> : <Badge className="bg-red-100 text-red-700 hover:bg-red-100">مرفوض</Badge>}
+                  </div>
+                  <p>{p.details}</p>
+                  <p className="text-slate-400">من {p.supervisorName} — {p.programTitle}{p.unitTitle ? ` — الوحدة: ${p.unitTitle}` : ''}</p>
+                  {p.status === 'PENDING' ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Input placeholder="ملاحظة للمشرف (اختياري)" value={proposalNotes[p.id] || ''} onChange={(e) => setProposalNotes((s) => ({ ...s, [p.id]: e.target.value }))} className="max-w-sm" />
+                      <Button size="sm" disabled={saving} className="bg-emerald-600 font-bold hover:bg-emerald-700" onClick={() => void resolveProposal(p.id, 'APPROVED')}>قبول</Button>
+                      <Button size="sm" disabled={saving} variant="outline" className="font-bold text-red-600" onClick={() => void resolveProposal(p.id, 'REJECTED')}>رفض</Button>
+                    </div>
+                  ) : p.adminNote ? (
+                    <p className="text-slate-400">ملاحظة الإدارة: {p.adminNote}</p>
+                  ) : null}
                 </div>
               ))}
             </div>
