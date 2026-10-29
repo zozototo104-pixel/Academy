@@ -10,7 +10,7 @@ import { FollowUpDutyChips, FollowUpRecordView, absenceLabel, type FollowUpBoard
 // متابعة الطلاب عند المشرف البشري (خدمة المتابعة): نفس لوحة الواجبات
 // والغياب التي تراها الإدارة، لكن لطلابه فقط (النطاق مضبوط في الـ API).
 // «فتح بطاقة الطالب» يختار الطالب في بطاقته بالأسفل حيث تبويب محادثته.
-export function SupervisorFollowUpBoard({ onOpenStudent }: { onOpenStudent: (admissionId: string) => void }) {
+export function SupervisorFollowUpBoard({ onOpenStudent }: { onOpenStudent: (userId: string, admissionId: string | null) => void }) {
   const [rows, setRows] = useState<FollowUpBoardRow[]>([])
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null)
 
@@ -52,11 +52,9 @@ export function SupervisorFollowUpBoard({ onOpenStudent }: { onOpenStudent: (adm
                   <Button size="sm" variant="outline" className="text-[11px] font-bold" onClick={() => setExpandedUserId(expandedUserId === row.userId ? null : row.userId)}>
                     {expandedUserId === row.userId ? 'إخفاء السجل' : 'سجل المتابعات'}
                   </Button>
-                  {row.admissionId && (
-                    <Button size="sm" className="bg-[#0f2b46] text-[11px] font-bold hover:bg-[#0f2b46]/90" onClick={() => onOpenStudent(row.admissionId!)}>
-                      فتح بطاقة الطالب
-                    </Button>
-                  )}
+                  <Button size="sm" className="bg-[#0f2b46] text-[11px] font-bold hover:bg-[#0f2b46]/90" onClick={() => onOpenStudent(row.userId, row.admissionId)}>
+                    فتح بطاقة الطالب
+                  </Button>
                 </span>
               </div>
               <FollowUpDutyChips row={row} />

@@ -170,6 +170,7 @@ async function buildStudentCard(app: any) {
 
   return {
     id: app.id,
+    userId: app.userId || null,
     reference: app.reference,
     fullName: app.fullName,
     email: app.email,

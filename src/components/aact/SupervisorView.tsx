@@ -47,6 +47,7 @@ interface PrivateAssessment {
 
 interface SupervisedStudent {
   id: string
+  userId?: string | null
   reference: string
   fullName: string
   email?: string
@@ -134,6 +135,11 @@ export function SupervisorView() {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [mainSection, setMainSection] = useState<'students' | 'content' | 'review'>('students')
+  const [reviewFocus, setReviewFocus] = useState<{ type: 'PROGRAM' | 'UNIT'; id: string; nonce: number } | null>(null)
+  const openAttemptReview = (type: 'PROGRAM' | 'UNIT', attemptId: string) => {
+    setReviewFocus({ type, id: attemptId, nonce: Date.now() })
+    setMainSection('review')
+  }
   const [students, setStudents] = useState<SupervisedStudent[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [messages, setMessages] = useState<SupervisorMessage[]>([])
@@ -397,7 +403,11 @@ export function SupervisorView() {
       </div>
 
       {mainSection === 'students' && (<>
-      <SupervisorFollowUpBoard onOpenStudent={(admissionId) => { setSelectedId(admissionId); if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' }) }} />
+      <SupervisorFollowUpBoard onOpenStudent={(userId, admissionId) => {
+        const match = students.find((s) => (userId && s.userId === userId) || (admissionId && s.id === admissionId))
+        if (match) setSelectedId(match.id)
+        window.setTimeout(() => document.getElementById('supervisor-student-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80)
+      }} />
 
       {loading ? (
         <div className="flex h-60 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" /></div>
@@ -424,7 +434,7 @@ export function SupervisorView() {
           </aside>
 
           {selected && (
-            <main className="space-y-5">
+            <main id="supervisor-student-card" className="scroll-mt-4 space-y-5">
               <Card className="border-[#0f2b46]/10"><CardContent className="p-5">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
@@ -533,6 +543,7 @@ export function SupervisorView() {
                           </div>
                           <p className="mt-1 text-[11px] font-bold text-slate-500">الفصل {exam.semester} — {exam.questionsCount} سؤال — الحالة: {exam.status} — مدة {exam.durationMin || 0} دقيقة</p>
                           {exam.submitted ? <p className="mt-1 text-[11px] font-bold text-slate-500">تاريخ التسليم: {dateAr(exam.submittedAt)} — اعتراض: {exam.appealStatus || 'NONE'}</p> : exam.studentAvailable ? <p className="mt-2 rounded-xl bg-white/70 p-2 text-xs font-bold text-amber-800">هذا الامتحان مطلوب من الطالب ولم يسلّمه حتى الآن.</p> : <p className="mt-2 rounded-xl bg-white/70 p-2 text-xs font-bold text-slate-600">هذا الامتحان موجود في النظام لكنه لم يعتمد/ينشر للطالب بعد.</p>}
+                          {exam.submitted && exam.attemptId ? <Button size="sm" onClick={() => openAttemptReview('PROGRAM', exam.attemptId)} className="mt-2 bg-[#0f2b46] font-black text-[#e0b83a] hover:bg-[#12365c]"><ClipboardCheck className="ml-1 h-3.5 w-3.5" /> مراجعة الإجابات وتعديل الدرجة</Button> : null}
                           {weak.length > 0 && <div className="mt-3 grid gap-2 md:grid-cols-2">{weak.map((w: any, i: number) => (
                             <div key={i} className="rounded-xl bg-amber-50 p-3 text-[11px] font-bold leading-5 text-amber-900">
                               <p className="font-black text-[#0f2b46]">قصور في سؤال</p>
@@ -564,6 +575,7 @@ export function SupervisorView() {
                           </div>
                           <p className="mt-1 text-[11px] font-bold text-slate-500">الوحدة: {exam.unitTitle || 'غير محددة'} — {exam.questionsCount} سؤال — درجة النجاح {exam.passScore}%</p>
                           {exam.submitted ? <p className="mt-1 text-[11px] font-bold text-slate-500">تاريخ التسليم: {dateAr(exam.submittedAt)}</p> : <p className="mt-2 rounded-xl bg-white/70 p-2 text-xs font-bold text-amber-800">هذا الاختبار اليومي/اختبار الوحدة مطلوب من الطالب ولم يسلّمه بعد.</p>}
+                          {exam.submitted && exam.attemptId ? <Button size="sm" onClick={() => openAttemptReview('UNIT', exam.attemptId)} className="mt-2 bg-[#0f2b46] font-black text-[#e0b83a] hover:bg-[#12365c]"><ClipboardCheck className="ml-1 h-3.5 w-3.5" /> مراجعة الإجابات وتعديل الدرجة</Button> : null}
                           {weak.length > 0 && <div className="mt-3 grid gap-2 md:grid-cols-2">{weak.map((w: any, i: number) => (
                             <div key={i} className="rounded-xl bg-white p-3 text-[11px] font-bold leading-5 text-slate-700 ring-1 ring-amber-100">
                               <p className="font-black text-amber-700">نقطة قصور</p>
@@ -675,7 +687,7 @@ export function SupervisorView() {
       </>)}
 
       {mainSection === 'content' && <SupervisorContentTab />}
-      {mainSection === 'review' && <SupervisorGradeReviewTab />}
+      {mainSection === 'review' && <SupervisorGradeReviewTab focus={reviewFocus} />}
 
       <Dialog open={!!gradingDetail} onOpenChange={(open) => { if (!open) { setGradingDetail(null); setGradingDraft(null) } }}>
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-3xl" dir="rtl">

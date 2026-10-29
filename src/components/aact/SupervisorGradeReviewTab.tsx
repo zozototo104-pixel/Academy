@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '@/lib/store'
 import { useToast } from '@/hooks/use-toast'
 import { Badge } from '@/components/ui/badge'
@@ -31,8 +31,9 @@ function dateAr(value: string | null | undefined) {
   try { return new Date(value).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' }) } catch { return '—' }
 }
 
-export function SupervisorGradeReviewTab() {
+export function SupervisorGradeReviewTab({ focus }: { focus?: { type: 'PROGRAM' | 'UNIT'; id: string; nonce: number } | null }) {
   const { toast } = useToast()
+  const openDetailRef = useRef<(type: string, id: string) => void>(() => {})
   const [appeals, setAppeals] = useState<any[]>([])
   const [attempts, setAttempts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -63,6 +64,14 @@ export function SupervisorGradeReviewTab() {
       toast({ title: 'تعذر فتح المحاولة', description: e?.message || '', variant: 'destructive' })
     }
   }
+
+  // وصول مباشر من بطاقة الطالب (تبويب الاختبارات): افتح نفس المحاولة فورًا.
+  useEffect(() => { openDetailRef.current = openDetail })
+  useEffect(() => {
+    if (!focus?.id) return
+    const timer = window.setTimeout(() => openDetailRef.current(focus.type, focus.id), 80)
+    return () => window.clearTimeout(timer)
+  }, [focus?.nonce]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const saveAdjustments = async () => {
     if (!detail) return
