@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { centsToDollars, dollarsToCents } from '@/lib/money'
+import { unsealSettingSecret } from '@/lib/secret-crypto'
 
 // ===== بوابات الدفع الحقيقية =====
 // البنية: إعدادات المزودين تُدار من لوحة الإدارة (تبويب «البريد والدفع») أو من متغيرات البيئة.
@@ -224,9 +225,9 @@ export async function getGatewayConfig(): Promise<PaymentGatewayConfig> {
   const rows = await db.setting.findMany({ where: { key: { in: keys } } })
   const map: Record<string, string> = {}
   for (const r of rows) map[r.key] = r.value
-  const stripeSecret = map.STRIPE_SECRET_KEY || env('STRIPE_SECRET_KEY') || ''
+  const stripeSecret = unsealSettingSecret(map.STRIPE_SECRET_KEY) || env('STRIPE_SECRET_KEY') || ''
   const paypalClientId = map.PAYPAL_CLIENT_ID || env('PAYPAL_CLIENT_ID') || ''
-  const paypalSecret = map.PAYPAL_SECRET || env('PAYPAL_SECRET') || ''
+  const paypalSecret = unsealSettingSecret(map.PAYPAL_SECRET) || env('PAYPAL_SECRET') || ''
   const paypalApiBase = (map.PAYPAL_API_BASE || env('PAYPAL_API_BASE') || 'https://api-m.sandbox.paypal.com').replace(/\/$/, '')
   const usdtWalletAddress = map.USDT_WALLET_ADDRESS || env('USDT_WALLET_ADDRESS') || ''
   const usdtBinancePayUserId = map.USDT_BINANCE_PAY_USER_ID || env('USDT_BINANCE_PAY_USER_ID') || ''
@@ -243,7 +244,7 @@ export async function getGatewayConfig(): Promise<PaymentGatewayConfig> {
   return {
     mode,
     stripeSecret,
-    stripeWebhookSecret: map.STRIPE_WEBHOOK_SECRET || env('STRIPE_WEBHOOK_SECRET') || '',
+    stripeWebhookSecret: unsealSettingSecret(map.STRIPE_WEBHOOK_SECRET) || env('STRIPE_WEBHOOK_SECRET') || '',
     paypalClientId,
     paypalSecret,
     paypalApiBase,

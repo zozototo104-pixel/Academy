@@ -48,6 +48,9 @@ type FinalizeAdmissionAfterSettlementOptions = {
   payment?: any
   receiptNo?: string
   amountDollars?: number
+  // استئناف بعد عطل سابق: تُنفَّذ انتقالات الحالة المحروسة فقط، وتُتخطّى
+  // إشعارات/رسائل الإيصال حتى لا تتكرر على الطالب.
+  resume?: boolean
 }
 
 export async function finalizeAdmissionAfterSettlement(tx: any, admissionId: string, opts: FinalizeAdmissionAfterSettlementOptions = { source: 'PAYMENT' }) {
@@ -122,7 +125,7 @@ export async function finalizeAdmissionAfterSettlement(tx: any, admissionId: str
     if (newStatus !== app.status) {
       await tx.admissionApplication.update({ where: { id: app.id }, data: { status: newStatus } })
     }
-    if (payment && receiptNo) {
+    if (payment && receiptNo && !opts.resume) {
       await notify(
         linkedUserId,
         'PAYMENT',
@@ -197,38 +200,21 @@ export async function finalizeAdmissionAfterSettlement(tx: any, admissionId: str
   return { admissionId: app.id, userId: linkedUserId, allSettled, feeSettled, tuitionSettled }
 }
 
-export async function markInvoicePaid(
-  invoiceNo: string,
-  method: string,
-  opts?: { viaWebhook?: boolean; actor?: { id?: string | null; name: string } | null }
-): Promise<SettleResult> {
-  const payment = await db.payment.findUnique({ where: { invoiceNo } })
-  if (!payment) return { ok: false, error: 'الفاتورة غير موجودة' }
-  if (payment.status === 'PAID') return { ok: true, payment, receiptNo: payment.receiptNo || '' }
-  if (payment.status === 'WAIVED') return { ok: false, error: 'لا يمكن تحويل فاتورة معفاة إلى مدفوعة. ألغِ الإعفاء أولاً إذا أردت إعادة فتح الفاتورة.' }
-
-  const receiptNo = await nextReceiptNo()
-  const paidAt = new Date()
-  const settled = await db.payment.updateMany({
-    where: { id: payment.id, status: 'UNPAID' },
-    data: {
-      status: 'PAID',
-      method: String(method),
-      receiptNo,
-      paidAt,
-      paidViaWebhook: !!opts?.viaWebhook,
-      // لا نربط الفاتورة بمستخدم الإدارة الذي أكد الدفع. سيتم ربطها بصاحب الطلب أدناه عند توفر حساب مطابق.
-      userId: payment.userId || null,
-    },
-  })
-  if (settled.count === 0) {
-    const alreadyPaid = await db.payment.findUnique({ where: { id: payment.id } })
-    if (alreadyPaid?.status === 'PAID') return { ok: true, payment: alreadyPaid, receiptNo: alreadyPaid.receiptNo || '' }
-    return { ok: false, error: 'تعذر تأكيد السداد لأن حالة الفاتورة تغيرت أثناء المعالجة' }
-  }
-  const updated = await db.payment.findUnique({ where: { id: payment.id } })
-  if (!updated) return { ok: false, error: 'تعذر قراءة الفاتورة بعد تأكيد السداد' }
-  const actor = opts?.actor || { name: payment.payerName || 'دافع' }
+// آثار قلب الفاتورة إلى PAID: إنهاء الالتحاق، تفعيل التسجيل، رصيد الصوت،
+// تنبيهات الوكالة/الاعتماد وإصدار شهادتها، والتدقيق الختامي. كل أثر محروس
+// بحالته فلا يتكرر عند إعادة التشغيل — وهذا هو إصلاح فخ «مدفوعة بلا تفعيل»:
+// إن تعطّلت الآثار بعد قلب الفاتورة في محاولة أولى، تستأنفها إعادة المحاولة
+// (وضع resume: انتقالات الحالة فقط، بلا تكرار إشعارات/رسائل الإيصال).
+async function applySettlementEffects(args: {
+  payment: any
+  updated: any
+  receiptNo: string
+  method: string
+  actor: { id?: string | null; name: string }
+  viaWebhook?: boolean
+  resume: boolean
+}): Promise<SettleResult> {
+  const { payment, updated, receiptNo, method, actor, viaWebhook, resume } = args
   const amountDollars = paymentAmountDollars(payment)
   const amountLabel = amountDollars.toFixed(2)
 
@@ -239,6 +225,7 @@ export async function markInvoicePaid(
       payment,
       receiptNo,
       amountDollars,
+      resume,
     })
   }
 
@@ -276,14 +263,14 @@ export async function markInvoicePaid(
         paymentId: updated.id,
         note: `فاتورة ${updated.invoiceNo} — ${payment.description}`,
       })
+      await notify(
+        updated.userId,
+        'PAYMENT',
+        'تم تفعيل باقة دقائق الصوت',
+        `تمت إضافة ${minutes} دقيقة صوت إضافية إلى رصيدك بعد سداد فاتورة ${updated.invoiceNo}. يمكنك الآن تشغيل المحادثة الصوتية مع المشرف الذكي.`,
+        'chat'
+      ).catch(() => {})
     }
-    await notify(
-      updated.userId,
-      'PAYMENT',
-      'تم تفعيل باقة دقائق الصوت',
-      `تمت إضافة ${minutes} دقيقة صوت إضافية إلى رصيدك بعد سداد فاتورة ${updated.invoiceNo}. يمكنك الآن تشغيل المحادثة الصوتية مع المشرف الذكي.`,
-      'chat'
-    ).catch(() => {})
   }
 
   // آثار السداد على طلب وكالة/اعتماد: إشعار صاحب الطلب + بريد الإيصال.
@@ -293,15 +280,17 @@ export async function markInvoicePaid(
     const agent = await db.agentApplication.findUnique({ where: { id: payment.agentId }, include: { certificates: true } })
     if (agent) {
       const agentOwner = agent.email ? await db.user.findUnique({ where: { email: agent.email }, select: { id: true } }).catch(() => null) : null
-      await notify(
-        agentOwner?.id || null,
-        'PAYMENT',
-        'تم استلام دفعة اعتماد بنجاح',
-        `سُددت فاتورة «${payment.description}» بمبلغ ${amountLabel}$ — رقم الإيصال ${receiptNo} — لطلب ${agent.kind === 'AGENCY' ? 'وكالة' : 'اعتماد'}: ${agent.orgName}.`,
-        'agent'
-      ).catch(() => {})
-      if (agent.email) {
-        await emailPaymentReceipt(agent.email, agent.repName, payment.invoiceNo, payment.description, amountDollars, receiptNo)
+      if (!resume) {
+        await notify(
+          agentOwner?.id || null,
+          'PAYMENT',
+          'تم استلام دفعة اعتماد بنجاح',
+          `سُددت فاتورة «${payment.description}» بمبلغ ${amountLabel}$ — رقم الإيصال ${receiptNo} — لطلب ${agent.kind === 'AGENCY' ? 'وكالة' : 'اعتماد'}: ${agent.orgName}.`,
+          'agent'
+        ).catch(() => {})
+        if (agent.email) {
+          await emailPaymentReceipt(agent.email, agent.repName, payment.invoiceNo, payment.description, amountDollars, receiptNo)
+        }
       }
       // إصدار شهادة الاعتماد عند سداد رسوم الفئة فقط — نطاق الحارس أعلاه.
       if (accreditationCertificateDue(payment, agent)) {
@@ -333,7 +322,62 @@ export async function markInvoicePaid(
     }
   }
 
-  await audit(actor, 'PAYMENT_RECEIVED', 'Payment', updated.id, `${receiptNo} — ${payment.description} (${amountLabel}$ عبر ${method})${opts?.viaWebhook ? ' [Webhook]' : ''}`)
+  await audit(actor, resume ? 'PAYMENT_SETTLEMENT_RESUMED' : 'PAYMENT_RECEIVED', 'Payment', updated.id, `${receiptNo} — ${payment.description} (${amountLabel}$ عبر ${method})${viaWebhook ? ' [Webhook]' : ''}`)
 
   return { ok: true, payment: updated, receiptNo }
+}
+
+export async function markInvoicePaid(
+  invoiceNo: string,
+  method: string,
+  opts?: { viaWebhook?: boolean; actor?: { id?: string | null; name: string } | null }
+): Promise<SettleResult> {
+  const payment = await db.payment.findUnique({ where: { invoiceNo } })
+  if (!payment) return { ok: false, error: 'الفاتورة غير موجودة' }
+  if (payment.status === 'PAID') {
+    // قُلبت PAID في محاولة سابقة وربما تعطّلت آثارها بعد القلب — إعادة
+    // المحاولة تستأنف الآثار المحروسة بدل إعلان نجاح كاذب بلا تفعيل.
+    await applySettlementEffects({
+      payment,
+      updated: payment,
+      receiptNo: payment.receiptNo || '',
+      method: payment.method || method,
+      actor: opts?.actor || { name: payment.payerName || 'دافع' },
+      viaWebhook: opts?.viaWebhook,
+      resume: true,
+    })
+    return { ok: true, payment, receiptNo: payment.receiptNo || '' }
+  }
+  if (payment.status === 'WAIVED') return { ok: false, error: 'لا يمكن تحويل فاتورة معفاة إلى مدفوعة. ألغِ الإعفاء أولاً إذا أردت إعادة فتح الفاتورة.' }
+
+  const receiptNo = await nextReceiptNo()
+  const paidAt = new Date()
+  const settled = await db.payment.updateMany({
+    where: { id: payment.id, status: 'UNPAID' },
+    data: {
+      status: 'PAID',
+      method: String(method),
+      receiptNo,
+      paidAt,
+      paidViaWebhook: !!opts?.viaWebhook,
+      // لا نربط الفاتورة بمستخدم الإدارة الذي أكد الدفع. سيتم ربطها بصاحب الطلب أدناه عند توفر حساب مطابق.
+      userId: payment.userId || null,
+    },
+  })
+  if (settled.count === 0) {
+    const alreadyPaid = await db.payment.findUnique({ where: { id: payment.id } })
+    if (alreadyPaid?.status === 'PAID') return { ok: true, payment: alreadyPaid, receiptNo: alreadyPaid.receiptNo || '' }
+    return { ok: false, error: 'تعذر تأكيد السداد لأن حالة الفاتورة تغيرت أثناء المعالجة' }
+  }
+  const updated = await db.payment.findUnique({ where: { id: payment.id } })
+  if (!updated) return { ok: false, error: 'تعذر قراءة الفاتورة بعد تأكيد السداد' }
+  return applySettlementEffects({
+    payment,
+    updated,
+    receiptNo,
+    method,
+    actor: opts?.actor || { name: payment.payerName || 'دافع' },
+    viaWebhook: opts?.viaWebhook,
+    resume: false,
+  })
 }

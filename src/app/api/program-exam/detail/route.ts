@@ -154,15 +154,21 @@ export async function GET(req: NextRequest) {
         maxAttempts,
         attemptsUsed: completedAttempts,
         hasActiveAttempt: !!currentActiveAttempt,
+        questionsCount: exam.questions.length,
       },
-      questions: exam.questions.map((q) => ({
-        id: q.id,
-        order: q.order,
-        type: q.type,
-        text: q.text,
-        options: q.options ? JSON.parse(q.options) : null,
-        points: q.points,
-      })),
+      // الأسئلة لا تُرسل إلا مع محاولة نشطة بدأت على الخادم — قبل البدء يطّلع
+      // الطالب على معلومات الامتحان وعدد أسئلته فقط، حتى لا يقرأ الأسئلة
+      // ويحضّر قبل أن يبدأ المؤقّت.
+      questions: currentActiveAttempt
+        ? exam.questions.map((q) => ({
+            id: q.id,
+            order: q.order,
+            type: q.type,
+            text: q.text,
+            options: q.options ? JSON.parse(q.options) : null,
+            points: q.points,
+          }))
+        : [],
       lastAttemptNotice,
       previousAttempts: previousAttempts.map((attempt) => ({
         ...attempt,

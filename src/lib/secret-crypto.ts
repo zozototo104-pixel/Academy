@@ -64,6 +64,19 @@ export function clearSecretCache() {
   decryptedCache = new Map()
 }
 
+// قراءة سرّ إعدادات عند الاستعمال: القيم المحفوظة من لوحة الإدارة مشفّرة
+// (enc:v1:) وتُفكّ هنا؛ النص العادي يمرّ كما هو؛ وفشل الفكّ يعيد سلسلة فارغة
+// («غير مهيأ») بدل استعمال النص المشفّر نفسه كأنه السرّ.
+export function unsealSettingSecret(value?: string | null): string {
+  const raw = String(value || '')
+  if (!isEncryptedSecret(raw)) return raw
+  try {
+    return decryptSecret(raw)
+  } catch {
+    return ''
+  }
+}
+
 export function isSecretKeyName(key: string) {
   return /(?:^|_)(?:KEY|KEYS|SECRET|TOKEN|CREDENTIAL|PASSWORD|PASS)(?:_|$)/i.test(key) || /KEY|SECRET|TOKEN|CREDENTIAL|PASSWORD/i.test(key)
 }

@@ -42,6 +42,7 @@ interface ExamData {
     startedAt?: string
     maxAttempts?: number
     attemptsUsed?: number
+    questionsCount?: number
     booksCount?: number
     programCategory?: string
     books?: { id: string; title: string; author?: string | null }[]
@@ -474,6 +475,12 @@ export function ExamView() {
       configureCountdown(started?.attempt?.startedAt, started?.durationMin || data.exam.durationMin, started?.serverNow)
       setProctorEnabled(enable)
       setExamStarted(true)
+      // الأسئلة لا تصل إلا بعد بدء المحاولة على الخادم — أعد جلب التفاصيل
+      // الآن حتى تظهر أسئلة المحاولة النشطة.
+      try {
+        const fresh = await api<ExamData>(`/api/program-exam/detail?examId=${data.exam.id}`)
+        setData(fresh)
+      } catch { /* عند فشل إعادة الجلب تظهر الأسئلة مع أي تحديث لاحق للصفحة */ }
       if (stream) {
         const activeStream = stream
         proctorStreamRef.current = activeStream
@@ -918,7 +925,7 @@ export function ExamView() {
         </div>
         <h1 className="text-xl font-black leading-snug text-[#0f2b46] sm:text-2xl">{data.exam.title}</h1>
         <div className="mt-2 flex flex-wrap gap-3 text-xs font-bold text-slate-500">
-          <span className="flex items-center gap-1"><FileQuestion className="h-3.5 w-3.5" /> {data.questions.length} أسئلة متنوعة</span>
+          <span className="flex items-center gap-1"><FileQuestion className="h-3.5 w-3.5" /> {data.exam.questionsCount ?? data.questions.length} أسئلة متنوعة</span>
           <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" /> حد النجاح: {data.exam.passScore}%</span>
           {activeExamKind === 'final' && data.exam.durationMin ? (
             <span className="flex items-center gap-1"><Hourglass className="h-3.5 w-3.5" /> مدة الاختبار: {data.exam.durationMin} دقيقة</span>

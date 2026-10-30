@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer'
 import { db } from '@/lib/db'
 import { hasAactTestRecipient } from '@/lib/prod-safety'
+import { unsealSettingSecret } from '@/lib/secret-crypto'
 
 export interface SmtpConfig {
   host: string
@@ -93,7 +94,7 @@ export async function getSmtpConfig(): Promise<SmtpConfig> {
   const host = map.SMTP_HOST || env('SMTP_HOST') || ''
   const port = parseInt(map.SMTP_PORT || env('SMTP_PORT') || '587', 10) || 587
   const user = map.SMTP_USER || env('SMTP_USER') || ''
-  const pass = map.SMTP_PASS || env('SMTP_PASS') || ''
+  const pass = unsealSettingSecret(map.SMTP_PASS) || env('SMTP_PASS') || ''
   const from = map.SMTP_FROM || env('SMTP_FROM') || user
   const fromName = map.SMTP_NAME || env('SMTP_NAME') || 'الأكاديمية الأمريكية للاستشارات والتدريب'
   const enabledSetting = map.SMTP_ENABLED !== '' ? map.SMTP_ENABLED === '1' : true
@@ -107,7 +108,7 @@ async function getResendConfig(): Promise<{ apiKey: string; from: string }> {
   const map: Record<string, string> = {}
   for (const r of rows) map[r.key] = r.value
   return {
-    apiKey: map.RESEND_API_KEY || env('RESEND_API_KEY') || '',
+    apiKey: unsealSettingSecret(map.RESEND_API_KEY) || env('RESEND_API_KEY') || '',
     from: map.MAIL_FROM || map.RESEND_FROM || env('MAIL_FROM') || env('RESEND_FROM') || '',
   }
 }

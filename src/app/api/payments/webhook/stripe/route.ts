@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { verifyStripeWebhook } from '@/lib/payments'
+import { unsealSettingSecret } from '@/lib/secret-crypto'
 import { markInvoicePaid } from '@/lib/settle-payment'
 import { paymentAmountCents } from '@/lib/money'
 
@@ -55,7 +56,7 @@ export async function POST(req: NextRequest) {
     const rows = await db.setting.findMany({
       where: { key: { in: ['STRIPE_WEBHOOK_SECRET'] } },
     })
-    const secret = rows[0]?.value || process.env.STRIPE_WEBHOOK_SECRET || ''
+    const secret = unsealSettingSecret(rows[0]?.value) || process.env.STRIPE_WEBHOOK_SECRET || ''
     if (!secret) {
       return NextResponse.json({ error: 'Webhook secret غير مهيأ' }, { status: 503 })
     }

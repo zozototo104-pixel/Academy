@@ -24,7 +24,23 @@ function parseOptions(v: any): string[] {
   } catch { return [] }
 }
 
-async function serializeAssessment(id: string, studentId?: string | null) {
+// مفاتيح التصحيح لا تصل الطالب أبداً — لا في قائمة الأسئلة ولا متداخلة داخل
+// أسئلة محاولاته السابقة. إخفاؤها في الواجهة لا يكفي: استجابة الشبكة نفسها
+// يجب أن تخلو منها، وإلا قرأها الطالب قبل التسليم.
+function stripQuestionKeys(q: any): any {
+  if (!q || typeof q !== 'object') return q
+  const { correctAnswer, modelAnswer, correctRationale, sourceEvidence, ...rest } = q
+  return rest
+}
+
+function attemptsForStudent(attempts: any[]): any[] {
+  return (attempts || []).map((at: any) => ({
+    ...at,
+    answers: (at?.answers || []).map((an: any) => (an?.question ? { ...an, question: stripQuestionKeys(an.question) } : an)),
+  }))
+}
+
+async function serializeAssessment(id: string, studentId?: string | null, opts?: { forStudent?: boolean }) {
   const assessment = await db.supervisorAssessment.findUnique({
     where: { id },
     include: {
@@ -33,10 +49,15 @@ async function serializeAssessment(id: string, studentId?: string | null) {
     },
   })
   if (!assessment) return null
+  const forStudent = !!opts?.forStudent
   return {
     ...assessment,
     sourceBookIds: assessment.sourceBookIds ? JSON.parse(assessment.sourceBookIds) : [],
-    questions: assessment.questions.map((q: any) => ({ ...q, options: parseOptions(q.options) })),
+    questions: assessment.questions.map((q: any) => {
+      const base = forStudent ? stripQuestionKeys(q) : q
+      return { ...base, options: parseOptions(q.options) }
+    }),
+    ...(forStudent ? { attempts: attemptsForStudent((assessment as any).attempts || []) } : {}),
   }
 }
 
@@ -55,10 +76,15 @@ export async function GET(req: NextRequest) {
         attempts: { where: app.userId ? { studentId: app.userId } : {}, orderBy: { submittedAt: 'desc' }, take: 5, include: { answers: { include: { question: true } } } },
       },
     })
+    const forStudent = user.role === 'STUDENT'
     return NextResponse.json({ assessments: assessments.map((a: any) => ({
       ...a,
       sourceBookIds: a.sourceBookIds ? JSON.parse(a.sourceBookIds) : [],
-      questions: a.questions.map((q: any) => ({ ...q, options: parseOptions(q.options) })),
+      questions: a.questions.map((q: any) => {
+        const base = forStudent ? stripQuestionKeys(q) : q
+        return { ...base, options: parseOptions(q.options) }
+      }),
+      ...(forStudent ? { attempts: attemptsForStudent(a.attempts || []) } : {}),
     })) })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'يجب تسجيل الدخول' }, { status: 401 })
@@ -183,7 +209,7 @@ async function submitAttempt(body: any, user: any) {
     },
   })
   await notify(app.supervisorId || null, 'SUPERVISION_ASSESSMENT', 'تسليم اختبار خاص', `${app.fullName} سلّم اختبار «${assessment.title}»${grade ? ` بنتيجة ${grade.score}%` : ' وهو بانتظار المراجعة'}.`, 'supervisor')
-  return NextResponse.json({ ok: true, attempt, assessment: await serializeAssessment(assessment.id, user.id) })
+  return NextResponse.json({ ok: true, attempt, assessment: await serializeAssessment(assessment.id, user.id, { forStudent: true }) })
 }
 
 async function aiGradeAttempt(body: any, user: any) {
