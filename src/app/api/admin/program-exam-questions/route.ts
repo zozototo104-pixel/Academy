@@ -9,6 +9,14 @@ import { cognitivePolicyArabicMessage, validateCognitiveDistribution } from '@/l
 import { validateProgramExamPublicationReadiness } from '@/lib/program-exam-publication-readiness'
 
 const REQUIRED_PUBLISHED_QUESTIONS = 80
+
+// مجموع الامتحان المخزّن يعني دائماً مجموع نقاط الأسئلة المنشورة — نفس
+// صيغة فعل النشر في هذا الملف — فيُعاد حسابه كلما تغيّرت نقاط سؤال أو
+// حالته (تعديل/اعتماد/رفض/حذف)، وإلا انحرف عن مجموع التصحيح الفعلي.
+async function publishedTotalPoints(examId: string): Promise<number> {
+  const published = await db.programQuestion.findMany({ where: { examId, status: 'PUBLISHED' }, select: { points: true } })
+  return published.reduce((s, q) => s + (Number(q.points) || 0), 0)
+}
 const VALID_SKILLS = new Set(['UNDERSTAND', 'APPLY', 'ANALYZE', 'EVALUATE'])
 const VALID_DIFFICULTIES = new Set(['EASY', 'MEDIUM', 'ADVANCED'])
 
@@ -160,6 +168,7 @@ export async function PATCH(req: NextRequest) {
       if (reviewNotes != null) data.reviewNotes = cleanInternalExamMeta(reviewNotes, 1500)
       if (points != null && Number(points) > 0) data.points = Math.max(1, Math.min(50, Math.round(Number(points))))
       await db.programQuestion.update({ where: { id: questionId }, data })
+      await db.programExam.update({ where: { id: existing.exam.id }, data: { totalPoints: await publishedTotalPoints(existing.exam.id) } }).catch(() => {})
       await audit({ id: admin.id, name: admin.name }, 'EDIT_EXAM_QUESTION', 'ProgramQuestion', questionId, existing.exam.title)
       return NextResponse.json({ ok: true })
     }
@@ -184,6 +193,7 @@ export async function PATCH(req: NextRequest) {
         where: { id: questionId },
         data: approveData,
       })
+      await db.programExam.update({ where: { id: existing.exam.id }, data: { totalPoints: await publishedTotalPoints(existing.exam.id) } }).catch(() => {})
       await audit(
         { id: admin.id, name: admin.name },
         action === 'APPROVE' ? 'APPROVE_EXAM_QUESTION' : 'REJECT_EXAM_QUESTION',
@@ -207,7 +217,7 @@ export async function PATCH(req: NextRequest) {
       for (let i = 0; i < remaining.length; i++) {
         await db.programQuestion.update({ where: { id: remaining[i].id }, data: { order: i + 1 } })
       }
-      const totalPoints = remaining.reduce((sum, q) => sum + q.points, 0)
+      const totalPoints = await publishedTotalPoints(examId)
       await db.programExam.update({
         where: { id: examId },
         data: {

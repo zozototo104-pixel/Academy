@@ -18,6 +18,8 @@ let admissionThrowOnce = false
 let admissionUpdates: any[] = []
 let activeAttemptRow: any = null
 let settingRows: any[] = []
+let examUpdates: any[] = []
+let publishedPointRows: any[] = [{ points: 5 }, { points: 8 }]
 
 const paymentRow: any = {
   id: 'p1', invoiceNo: 'INV-1', status: 'UNPAID', admissionId: 'app-1', enrollmentId: null,
@@ -35,7 +37,7 @@ const assessmentRow = {
   attempts: [{ id: 'at1', studentId: 'stu-1', status: 'GRADED', answers: [{ id: 'an1', questionId: 'q1', answerText: null, question: { ...questionRow } }] }],
 }
 const examRow = {
-  id: 'ex1', title: 'امتحان الفصل', semester: 1, status: 'READY', passScore: 50, durationMin: 60, totalPoints: 4,
+  id: 'ex1', title: 'امتحان الفصل', semester: 1, status: 'READY', passScore: 50, durationMin: 60, totalPoints: 999,
   programId: 'prog-1', program: { id: 'prog-1', titleAr: 'برنامج', slug: 'p', category: 'DIPLOMA' },
   questions: [
     { id: 'pq1', order: 1, type: 'MCQ', text: 'سؤال فصل أول؟', options: JSON.stringify(['x', 'y']), points: 2, status: 'PUBLISHED' },
@@ -84,7 +86,20 @@ const fakeDb: any = {
     create: async (args: any) => ({ id: 'en1', ...args.data }),
     update: async (args: any) => ({ id: 'en1', ...args.data }),
   },
-  programExam: { findUnique: async () => structuredClone(examRow), findFirst: async () => null },
+  programExam: {
+    findUnique: async () => structuredClone(examRow),
+    findFirst: async () => null,
+    update: async (args: any) => { examUpdates.push(args); return { id: 'ex1', ...args.data } },
+  },
+  programQuestion: {
+    findUnique: async () => ({
+      id: 'pq1', examId: 'ex1', text: 'نص سؤال قائم بطول مناسب', options: null, modelAnswer: null, sourceEvidence: null,
+      status: 'PENDING_REVIEW', points: 5, exam: { id: 'ex1', title: 'امتحان الفصل' },
+    }),
+    update: async (args: any) => ({ id: 'pq1', ...args.data }),
+    findMany: async (args: any) => (args?.where?.status === 'PUBLISHED' ? publishedPointRows : []),
+    count: async () => publishedPointRows.length,
+  },
   programExamAttempt: {
     findFirst: async (args: any) => (args?.where?.status === 'STARTED' ? activeAttemptRow : null),
     findMany: async () => [],
@@ -102,6 +117,7 @@ mock.module('@/lib/db', () => ({ db: fakeDb }))
 mock.module('@/lib/auth', () => ({
   requireUser: async () => { if (!currentUser) throw new Error('UNAUTHORIZED'); return currentUser },
   getCurrentUser: async () => currentUser,
+  requireAdmin: async () => { if (!currentUser || currentUser.role !== 'ADMIN') throw new Error('UNAUTHORIZED'); return currentUser },
 }))
 mock.module('@/lib/notify', () => ({
   notify: async (...a: any[]) => { notifyCalls.push(a) },
@@ -118,11 +134,20 @@ mock.module('@/lib/storage', () => ({
 mock.module('@/lib/settings', () => ({
   nextReceiptNo: async () => 'RCPT-TEST-1',
   nextCertSerial: async () => 'CERT-TEST-1',
+  getSetting: async () => null,
 }))
 mock.module('@/lib/mailer', () => ({
   emailPaymentReceipt: async (...a: any[]) => { receiptEmails.push(a) },
   emailFinalRegistration: async () => {},
   emailCertificateIssued: async () => {},
+  emailExamPublished: async () => {},
+}))
+mock.module('@/lib/exam-cognitive-policy', () => ({
+  cognitivePolicyArabicMessage: () => '',
+  validateCognitiveDistribution: () => ({ ok: true }),
+}))
+mock.module('@/lib/program-exam-publication-readiness', () => ({
+  validateProgramExamPublicationReadiness: async () => ({ ok: true }),
 }))
 mock.module('@/lib/tuition-installments', () => ({
   getAdmissionTuitionPlan: async () => null,
@@ -140,6 +165,7 @@ process.env.AACT_SECRETS_KEY = Buffer.alloc(32, 7).toString('base64')
 const assessmentsRoute = await import('@/app/api/supervisor/assessments/route')
 const recordingRoute = await import('@/app/api/admin/defense-recording/route')
 const programExamDetail = await import('@/app/api/program-exam/detail/route')
+const programExamQuestions = await import('@/app/api/admin/program-exam-questions/route')
 const settle = await import('@/lib/settle-payment')
 const payments = await import('@/lib/payments')
 const cryptoLib = await import('@/lib/secret-crypto')
@@ -148,7 +174,8 @@ function req(url: string) { return new NextRequest(url) }
 
 beforeEach(() => {
   notifyCalls.length = 0; auditCalls.length = 0; receiptEmails.length = 0
-  admissionUpdates = []; admissionThrowOnce = false
+  admissionUpdates = []; admissionThrowOnce = false; examUpdates = []
+  publishedPointRows = [{ points: 5 }, { points: 8 }]
   appRow = { id: 'app-1', userId: 'stu-1', supervisorId: 'sup-1', email: 's@x.test', fullName: 'طالب تجريبي', country: 'PS', program: 'برنامج', programId: 'prog-1', reference: 'REF-1', status: 'AWAITING_FEE' }
   scopeFindFirst = null; activeAttemptRow = null; settingRows = []
   paymentRow.status = 'UNPAID'; paymentRow.receiptNo = null; paymentRow.method = null
@@ -258,6 +285,8 @@ describe('5) أسئلة امتحان الفصل قبل البدء', () => {
     expect(body.questions).toEqual([])
     expect(body.exam.questionsCount).toBe(2)
     expect(body.exam.hasActiveAttempt).toBe(false)
+    // المجموع المعروض = مجموع المنشورة الفعلي (4) لا المخزّن المنحرف (999)
+    expect(body.exam.totalPoints).toBe(4)
   })
 
   test('مع محاولة نشطة: الأسئلة تُرسل', async () => {
@@ -268,5 +297,30 @@ describe('5) أسئلة امتحان الفصل قبل البدء', () => {
     const body = await res.json()
     expect(body.questions.length).toBe(2)
     expect(body.exam.hasActiveAttempt).toBe(true)
+    expect(body.exam.totalPoints).toBe(4)
+  })
+})
+
+describe('6) مجموع نقاط امتحان الفصل لا ينحرف', () => {
+  function patchReq(payload: any) {
+    return new NextRequest('http://x/api/admin/program-exam-questions', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+  }
+
+  test('تعديل نقاط سؤال يعيد حساب المجموع المخزّن من المنشورة', async () => {
+    currentUser = { id: 'adm-1', role: 'ADMIN', email: 'a@x.test', name: 'أدمن' }
+    const res = await programExamQuestions.PATCH(patchReq({ questionId: 'pq1', action: 'EDIT', points: 8 }))
+    expect(res.status).toBe(200)
+    expect(examUpdates.some((u) => u.data?.totalPoints === 13)).toBe(true)
+  })
+
+  test('اعتماد سؤال (قلب الحالة) يعيد حساب المجموع المخزّن أيضاً', async () => {
+    currentUser = { id: 'adm-1', role: 'ADMIN', email: 'a@x.test', name: 'أدمن' }
+    const res = await programExamQuestions.PATCH(patchReq({ questionId: 'pq1', action: 'APPROVE' }))
+    expect(res.status).toBe(200)
+    expect(examUpdates.some((u) => u.data?.totalPoints === 13)).toBe(true)
   })
 })

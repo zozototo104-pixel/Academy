@@ -144,7 +144,7 @@ export async function GET(req: NextRequest) {
         semester: exam.semester,
         passScore: exam.passScore,
         durationMin: exam.durationMin,
-        totalPoints: exam.totalPoints,
+        totalPoints: publishedPoints,
         programId: exam.program.id,
         programTitle: exam.program.titleAr,
         programCategory: exam.program.category,
