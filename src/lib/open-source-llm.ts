@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { unsealSettingSecret } from '@/lib/secret-crypto'
 
 type ChatRole = 'system' | 'user' | 'assistant'
 
@@ -28,7 +29,9 @@ export async function localAgentConfig(): Promise<LocalAgentConfig> {
   const provider = ((await settingValue('AI_AGENT_PROVIDER')) || process.env.AI_AGENT_PROVIDER || 'AUTO').trim().toUpperCase()
   const settingsBase = await settingValue('AI_AGENT_BASE_URL')
   const settingsModel = await settingValue('AI_AGENT_MODEL')
-  const settingsKey = await settingValue('AI_AGENT_API_KEY')
+  // AI_AGENT_API_KEY يُختم مشفراً عند حفظه من لوحة النظام — فك الختم هنا
+  // وإلا أُرسل النص المشفر نفسه كمفتاح لمزود الوكيل.
+  const settingsKey = unsealSettingSecret(await settingValue('AI_AGENT_API_KEY'))
   const envBase = process.env.AI_AGENT_BASE_URL || process.env.OPENAI_COMPATIBLE_BASE_URL || process.env.OLLAMA_BASE_URL || ''
   const envModel = process.env.AI_AGENT_MODEL || process.env.OLLAMA_MODEL || 'qwen2.5:7b-instruct'
   const baseUrl = cleanBaseUrl(settingsBase || envBase)

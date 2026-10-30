@@ -57,6 +57,13 @@ const db: any = {
     },
   },
   admissionApplication: {
+    // نطاق المشرف (supervisor-scope): في عالم هذا الاختبار الطالب student-1
+    // معيّن على supervisor-1 — اختبار التسجيل يختبر مسار التخزين الخارجي
+    // لمشرف مخوّل، وحالة «مشرف غير معيّن» يغطيها اختبار الأمن المخصص.
+    findFirst: async ({ where }: any) => {
+      if (where?.userId === 'student-1' && where?.supervisorId === 'supervisor-1') return { id: 'adm-new' }
+      return null
+    },
     findMany: async () => ([
       { id: 'adm-new', userId: 'student-1', email: 'student@example.test', status: 'THESIS', programId: 'program-new', program: 'برنامج جديد', reference: 'NEW', approvedAt: new Date(), thesisDeadline: null, createdAt: new Date('2026-02-01'), programRef: { id: 'program-new', slug: 'new', category: 'DIPLOMA' } },
       { id: 'adm-old', userId: 'student-1', email: 'student@example.test', status: 'THESIS', programId: 'program-old', program: 'برنامج قديم', reference: 'OLD', approvedAt: new Date(), thesisDeadline: null, createdAt: new Date('2026-01-01'), programRef: { id: 'program-old', slug: 'old', category: 'DIPLOMA' } },

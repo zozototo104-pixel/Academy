@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
-import { storeFileBuffer, storageErrorMessage } from '@/lib/storage'
+import { deleteStoredFile, storeFileBuffer, storageErrorMessage } from '@/lib/storage'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -115,6 +115,7 @@ export async function POST(req: NextRequest) {
       await cleanupUpload(uploadId, user.id, thesisId)
       return NextResponse.json({ error: storageErrorMessage(error) }, { status: 500 })
     }
+    const previousFileKey = thesis.fileStorageKey || null
     const updated = await db.$transaction(async (tx) => {
       await tx.thesisChunk.deleteMany({ where: { thesisId } })
       await tx.thesisUploadChunk.deleteMany({ where: { uploadId, userId: user.id, thesisId } })
@@ -142,6 +143,11 @@ export async function POST(req: NextRequest) {
       if (updatedRows.count !== 1) throw new Error('THESIS_ADMISSION_SCOPE_MISMATCH')
       return tx.thesisSubmission.findFirst({ where: { id: thesisId, userId: user.id, admissionId: thesis.admissionId } })
     })
+    // النسخة السابقة من ملف الأطروحة تُحذف من التخزين بعد تثبيت الجديدة —
+    // تنظيف جانبي آمن لا يُفشل الرفع إن تعذر.
+    if (previousFileKey && previousFileKey !== stored.key) {
+      await deleteStoredFile(previousFileKey).catch(() => false)
+    }
     return NextResponse.json({ ok: true, thesis: updated })
   } catch (error: any) {
     if (cleanupUploadId && cleanupUserId && cleanupThesisId) await cleanupUpload(cleanupUploadId, cleanupUserId, cleanupThesisId).catch(() => {})

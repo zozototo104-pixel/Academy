@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 import { readStoredFile } from '@/lib/storage'
+import { isAssignedStudent } from '@/lib/supervisor-scope'
 
 const MAX_DEFENSE_RECORDING_BYTES = 350 * 1024 * 1024
 
@@ -16,6 +17,12 @@ export async function GET(req: NextRequest) {
 
     const thesis = await db.thesisSubmission.findUnique({ where: { id: thesisId } })
     if (!thesis) return NextResponse.json({ error: 'البحث غير موجود' }, { status: 404 })
+
+    // المشرف لا يطّلع إلا على تسجيلات طلابه المعيّنين عليه — الدور وحده لا يكفي.
+    if (user.role === 'SUPERVISOR') {
+      const allowed = await isAssignedStudent({ id: user.id, name: user.name, role: user.role }, thesis.userId)
+      if (!allowed) return NextResponse.json({ error: 'هذا التسجيل لا يخص أحد طلابك' }, { status: 403 })
+    }
 
     const stored = await readStoredFile({
       provider: thesis.recordingStorageProvider,

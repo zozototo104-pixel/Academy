@@ -20,9 +20,25 @@ const deployCandidates = [
 const args = new Set(process.argv.slice(2))
 const mutatesDatabase = args.size === 0 || args.has('--migrate') || args.has('--push') || args.has('--force-push')
 
-if (process.env.VERCEL_ENV !== 'production' && mutatesDatabase) {
+// بوابة الأمان العليا: الترحيل التلقائي (بلا أعلام) لا يعمل إلا في إنتاج Vercel.
+// لكن التشغيل الصريح بعلم (--migrate/--push/--force-push) مسموح في حالتين
+// مقصودتين أصلاً في منطق السكربت بالأسفل: قاعدة Preview معزولة مُعلنة، أو
+// تشغيل محلي بيد المشغّل خارج Vercel وCI. سابقاً كانت البوابة تقتل حتى هذه
+// الحالات بصمت ('skipped') فبدت خطوات التشغيل الموثقة معطّلة.
+const hasExplicitMutationFlag = args.has('--migrate') || args.has('--push') || args.has('--force-push')
+const isCiRun = String(process.env.CI || '').toLowerCase() === 'true' || String(process.env.GITHUB_ACTIONS || '').toLowerCase() === 'true'
+const isIsolatedPreview = process.env.VERCEL_ENV === 'preview' && String(process.env.AACT_PREVIEW_DB_ISOLATED || '').toLowerCase() === 'true'
+const isLocalOperatorRun = !process.env.VERCEL && !process.env.VERCEL_ENV && !isCiRun
+const explicitMutationAllowed = hasExplicitMutationFlag && (isIsolatedPreview || isLocalOperatorRun)
+
+if (process.env.VERCEL_ENV !== 'production' && mutatesDatabase && !explicitMutationAllowed) {
   console.log('skipped')
+  console.log('prisma-deploy: no database change was made. Automatic migration runs only on Vercel production; for an isolated preview database set AACT_PREVIEW_DB_ISOLATED=true, and for a local database pass --migrate/--push explicitly outside Vercel/CI (a shell carrying VERCEL_ENV counts as a Vercel context, not a local one).')
   process.exit(0)
+}
+
+if (explicitMutationAllowed && process.env.VERCEL_ENV !== 'production') {
+  console.warn('prisma-deploy: explicit database change requested outside Vercel production — target is the configured DATABASE_URL/DIRECT_URL. Make sure it is NOT the production database.')
 }
 
 function resolveDatabaseUrl() {

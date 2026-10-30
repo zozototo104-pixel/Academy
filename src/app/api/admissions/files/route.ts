@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
-import { storageErrorMessage, storeFileBuffer } from '@/lib/storage'
+import { deleteStoredFile, storageErrorMessage, storeFileBuffer } from '@/lib/storage'
 import { verifyAdmissionUploadToken } from '@/lib/admission-upload-token'
 import { extractAdmissionDocumentReplacement } from '@/lib/admission-document-replacement'
 import { validateAdmissionFileSignature } from '@/lib/file-signature'
@@ -95,6 +95,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: storageErrorMessage(error) }, { status: 500 })
     }
 
+    let supersededKeys: string[] = []
     const saved = await db.$transaction(async (tx) => {
       const created = await tx.admissionDocument.create({
         data: {
@@ -110,9 +111,21 @@ export async function POST(req: NextRequest) {
         },
         select: { id: true, docType: true, fileName: true, size: true, storageProvider: true },
       })
+      // مفاتيح النسخ المستبدلة تُجمع قبل حذف سطورها حتى تُنظّف أجسامها من
+      // التخزين بعد تثبيت الجديد — وإلا بقيت وثائق شخصية يتيمة بلا سجل.
+      const superseded = await tx.admissionDocument.findMany({
+        where: { admissionId: app.id, docType, id: { not: created.id } },
+        select: { storageKey: true },
+      })
+      supersededKeys = superseded.map((row) => row.storageKey).filter((key): key is string => !!key && key !== stored.key)
       await tx.admissionDocument.deleteMany({ where: { admissionId: app.id, docType, id: { not: created.id } } })
       return created
     })
+
+    // تنظيف جانبي آمن بعد نجاح الاستبدال: فشل الحذف لا يُفشل الرفع أبداً.
+    for (const key of supersededKeys) {
+      await deleteStoredFile(key).catch(() => false)
+    }
 
     const docs = await db.admissionDocument.findMany({
       where: { admissionId: app.id },

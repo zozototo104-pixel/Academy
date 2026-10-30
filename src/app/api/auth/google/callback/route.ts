@@ -162,6 +162,7 @@ export async function GET(_req?: NextRequest) {
           where: { id: existing.id },
           data: {
             name: existing.name || profile.name,
+            authProvider: 'GOOGLE',
             emailVerifiedAt: existing.emailVerifiedAt || verifiedAt,
             emailVerificationTokenHash: null,
             emailVerificationExpiresAt: null,
@@ -174,6 +175,7 @@ export async function GET(_req?: NextRequest) {
             name: profile.name,
             password: hashPassword(`google:${randomBytes(32).toString('hex')}`),
             role: 'STUDENT',
+            authProvider: 'GOOGLE',
             emailVerifiedAt: verifiedAt,
           },
         })

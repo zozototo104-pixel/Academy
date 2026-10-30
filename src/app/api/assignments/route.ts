@@ -4,7 +4,7 @@ import { requireUser } from '@/lib/auth'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { notify } from '@/lib/notify'
 import { cleanAcademicOutput, looksLikeBrokenGeneratedArabic } from '@/lib/academic-output-quality'
-import { getStorageDownloadPathForKey, storeFileBuffer, storageErrorMessage } from '@/lib/storage'
+import { deleteStoredFile, getStorageDownloadPathForKey, storeFileBuffer, storageErrorMessage } from '@/lib/storage'
 import { assignmentDueAt as dueDateFrom } from '@/lib/assignment-due-date'
 import { validateAdmissionFileSignature } from '@/lib/file-signature'
 
@@ -143,7 +143,7 @@ export async function POST(req: NextRequest) {
     if (!enrollment) return NextResponse.json({ error: 'هذا الواجب خاص ببرنامج غير مسجل في حسابك' }, { status: 403 })
     const dueAt = dueDateFrom(enrollment.createdAt, assignment.dueDays, (assignment as any).dueAt)
     if (dueAt && Date.now() > dueAt.getTime()) return NextResponse.json({ error: 'انتهى موعد التسليم' }, { status: 400 })
-    const existingSubmission = await db.assignmentSubmission.findUnique({ where: { assignmentId_userId: { assignmentId, userId: user.id } }, select: { status: true } })
+    const existingSubmission = await db.assignmentSubmission.findUnique({ where: { assignmentId_userId: { assignmentId, userId: user.id } }, select: { status: true, fileStorageKey: true } })
     if (existingSubmission?.status === 'GRADED') return NextResponse.json({ error: 'لا يمكن إعادة تسليم واجب تم تقييمه' }, { status: 409 })
 
     if (pendingFileBuffer && fileName) {
@@ -189,6 +189,12 @@ export async function POST(req: NextRequest) {
         status: 'SUBMITTED',
       },
     })
+
+    // ملف التسليم السابق يُحذف من التخزين عند استبداله بملف جديد —
+    // تنظيف جانبي آمن لا يُفشل التسليم إن تعذر.
+    if (fileStorageKey && existingSubmission?.fileStorageKey && existingSubmission.fileStorageKey !== fileStorageKey) {
+      await deleteStoredFile(existingSubmission.fileStorageKey).catch(() => false)
+    }
 
     const admins = await db.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } })
     await Promise.all(admins.map((a) => notify(a.id, 'ASSIGNMENT', 'تسليم واجب جديد', `${user.name} سلّم واجب «${assignment.title}» في ${assignment.program.titleAr}`, 'admin')))

@@ -68,6 +68,7 @@ interface DefenseThesis {
   defenseDate?: string | null
   committee?: string | null
   agentMember?: string | null
+  defenseMeetingUrl?: string | null
   defenseStatus?: string | null
   needsReview?: boolean | null
   aiScore?: number | null
@@ -125,9 +126,11 @@ export function DefenseRoom({
   thesis,
   onFinished,
   mode = 'student',
+  guestInviteToken,
 }: {
   thesis: DefenseThesis
   onFinished?: () => void
+  guestInviteToken?: string
   mode?: 'student' | 'committee'
 }) {
   const { toast } = useToast()
@@ -216,6 +219,20 @@ export function DefenseRoom({
   const thesisTitle = useMemo(() => safeText(thesis.title, 'بحث تخرج بدون عنوان'), [thesis.title])
   const thesisAbstract = useMemo(() => safeText(thesis.abstract, 'لا يوجد ملخص محفوظ للبحث'), [thesis.abstract])
   const isStudent = mode === 'student'
+  // وضع الضيف المدعو: اعتماد القاعة برمز الدعوة عند الانضمام ثم بسرّ جلسة يصدره الخادم
+  const guestSecretRef = useRef<string | null>(null)
+  const roomBody = useCallback(
+    (extra: Record<string, any>) => {
+      if (!guestInviteToken) return extra
+      return {
+        ...extra,
+        ...(extra.action === 'join'
+          ? { inviteToken: guestInviteToken }
+          : { guestSecret: guestSecretRef.current || undefined }),
+      }
+    },
+    [guestInviteToken]
+  )
 
   const cleanupRecordingMixer = useCallback(() => {
     recordingAudioNodesRef.current.forEach((node) => { try { node.disconnect() } catch {} })
@@ -285,7 +302,9 @@ export function DefenseRoom({
   useEffect(() => {
     const w = window as any
     setSttSupported(!!(w.SpeechRecognition || w.webkitSpeechRecognition))
-    api<{ iceServers: RTCIceServer[]; hasTurn: boolean }>(`/api/webrtc/config?thesisId=${encodeURIComponent(thesis.id)}`)
+    api<{ iceServers: RTCIceServer[]; hasTurn: boolean }>(
+      `/api/webrtc/config?thesisId=${encodeURIComponent(thesis.id)}${guestInviteToken ? `&inviteToken=${encodeURIComponent(guestInviteToken)}` : ''}`
+    )
       .then((d) => {
         if (d.iceServers?.length) {
           iceServersRef.current = d.iceServers
@@ -303,7 +322,7 @@ export function DefenseRoom({
       screenStreamRef.current?.getTracks().forEach((t) => t.stop())
       audioRef.current?.pause()
     }
-  }, [cleanupRecordingMixer, thesis.id])
+  }, [cleanupRecordingMixer, thesis.id, guestInviteToken])
 
   // فتح قناة الصوت بأول لمسة داخل القاعة — لضمان نطق الخبير على iOS
   useEffect(() => {
@@ -513,10 +532,10 @@ ${recent || 'بدأت الجلسة للتو.'}
     try {
       await api('/api/defense/room', {
         method: 'POST',
-        body: JSON.stringify({ thesisId: thesisIdRef.current, peerId: myPeerId.current, action: 'signal', type, payload, to: to || null }),
+        body: JSON.stringify(roomBody({ thesisId: thesisIdRef.current, peerId: myPeerId.current, action: 'signal', type, payload, to: to || null })),
       })
     } catch {}
-  }, [])
+  }, [roomBody])
 
   const getOrCreatePeer = useCallback(
     async (remotePeerId: string, initiator: boolean): Promise<RTCPeerConnection> => {
@@ -623,10 +642,10 @@ ${recent || 'بدأت الجلسة للتو.'}
       try {
         await api('/api/defense/room', {
           method: 'POST',
-          body: JSON.stringify({ thesisId: thesisIdRef.current, peerId: myPeerId.current, action: 'heartbeat' }),
+          body: JSON.stringify(roomBody({ thesisId: thesisIdRef.current, peerId: myPeerId.current, action: 'heartbeat' })),
         })
         const d = await api<{ participants: Participant[]; signals: any[]; messages: DefenseMsg[]; defenseStatus?: string }>(
-          `/api/defense/room?thesisId=${thesisIdRef.current}&peerId=${myPeerId.current}`
+          `/api/defense/room?thesisId=${thesisIdRef.current}&peerId=${myPeerId.current}${guestInviteToken ? `&guestSecret=${encodeURIComponent(guestSecretRef.current || '')}` : ''}`
         )
         setParticipants(d.participants || [])
         const incomingMessages = d.messages || []
@@ -667,7 +686,7 @@ ${recent || 'بدأت الجلسة للتو.'}
     }
     pollRef.current = setInterval(tick, 2000)
     tick()
-  }, [processSignals, getOrCreatePeer, speak])
+  }, [processSignals, getOrCreatePeer, speak, roomBody, guestInviteToken])
 
   // ===== دخول القاعة: كاميرا + مايك + انضمام للغرفة =====
   // ===== شاشة التجهيز (Pre-join): معاينة الكاميرا والمايك قبل الانضمام — كما في قاعات الاجتماعات الاحترافية =====
@@ -718,17 +737,18 @@ ${recent || 'بدأت الجلسة للتو.'}
     let tz = ''
     try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone } catch {}
     try {
-      await api('/api/defense/room', {
+      const joinRes = await api<{ guestSecret?: string }>('/api/defense/room', {
         method: 'POST',
-        body: JSON.stringify({
+        body: JSON.stringify(roomBody({
           thesisId: thesisIdRef.current,
           peerId: myPeerId.current,
           action: 'join',
           name: isStudent ? undefined : 'عضو لجنة — الإدارة',
           role: isStudent ? 'STUDENT' : 'COMMITTEE',
           tz,
-        }),
+        })),
       })
+      if (joinRes?.guestSecret) guestSecretRef.current = joinRes.guestSecret
       setConnected(true)
       startPolling()
     } catch (e: any) {
@@ -737,7 +757,7 @@ ${recent || 'بدأت الجلسة للتو.'}
       try { sessionStorage.removeItem(roomSessionKey) } catch {}
       toast({ title: 'تعذر الانضمام للقاعة', description: e.message, variant: 'destructive' })
     }
-  }, [isStudent, roomSessionKey, startPolling, toast])
+  }, [isStudent, roomSessionKey, startPolling, toast, roomBody])
 
   // مغادرة القاعة نظيفة
   const leaveRoom = useCallback(
@@ -761,7 +781,7 @@ ${recent || 'بدأت الجلسة للتو.'}
       if (myPeerId.current) {
         api('/api/defense/room', {
           method: 'POST',
-          body: JSON.stringify({ thesisId: thesisIdRef.current, peerId: myPeerId.current, action: 'leave' }),
+          body: JSON.stringify(roomBody({ thesisId: thesisIdRef.current, peerId: myPeerId.current, action: 'leave' })),
         }).catch(() => {})
         myPeerId.current = ''
       }
@@ -781,7 +801,7 @@ ${recent || 'بدأت الجلسة للتو.'}
       setSpeaking(false)
       if (!silent) setInterim('')
     },
-    [isStudent, finished, roomSessionKey]
+    [isStudent, finished, roomSessionKey, roomBody]
   )
 
   // ===== 12.3: تسجيل الجلسة كاملة: فيديو الطالب + صوته + صوت المشرف الذكي + أصوات أعضاء اللجنة عبر WebRTC =====
@@ -1252,6 +1272,16 @@ ${recent || 'بدأت الجلسة للتو.'}
             <CalendarClock className="ml-1 h-3 w-3" />
             {safeArabicDate(thesis.defenseDate)}
           </Badge>
+          {thesis.defenseMeetingUrl && (
+            <a
+              href={thesis.defenseMeetingUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-full bg-[#c9a227] px-2.5 py-1 text-[10px] font-black text-black transition hover:bg-[#e0b83a]"
+              title="رابط اجتماع خارجي بديل وضعه الإدارة لهذه المناقشة">
+              الاجتماع الخارجي (Zoom)
+            </a>
+          )}
         </div>
       </div>
 

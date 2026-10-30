@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
+import { isAssignedStudent } from '@/lib/supervisor-scope'
 import { createProviderCheckout, getGatewayConfig, paymentMethodStatus } from '@/lib/payments'
 import { notify } from '@/lib/notify'
 import { paymentAmountCents, paymentAmountDollars } from '@/lib/money'
@@ -48,7 +49,15 @@ export async function POST(req: NextRequest) {
       ]).catch(() => {})
     }
     const ownerMatches = admissionEmailMatches || directPaymentMatches
-    const effectivePaymentUserId = isPrivileged ? (payment.userId || user.id) : user.id
+    // المشرف ليس صاحب امتياز عام: يعمل فقط على فواتير طلابه المعيّنين له،
+    // والفاتورة لا تُختم باسمه أبداً — مالكها الطالب دائماً.
+    const studentOwnerId = payment.userId || payment.admission?.userId || null
+    if (user.role === 'SUPERVISOR') {
+      if (!studentOwnerId || !(await isAssignedStudent(user as any, studentOwnerId))) {
+        return NextResponse.json({ error: 'هذه الفاتورة غير مرتبطة بأحد طلابك' }, { status: 403 })
+      }
+    }
+    const effectivePaymentUserId = user.role === 'SUPERVISOR' ? studentOwnerId : isPrivileged ? (payment.userId || user.id) : user.id
     if (!isPrivileged && !ownerMatches) {
       return NextResponse.json({ error: 'هذه الفاتورة غير مرتبطة بحسابك' }, { status: 403 })
     }

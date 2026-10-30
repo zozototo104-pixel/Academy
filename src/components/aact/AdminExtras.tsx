@@ -23,6 +23,8 @@ import {
   FileSignature, Video, RefreshCw, ShieldCheck, Trash2, KeyRound, Upload, Eye, ExternalLink, FileText, Copy, Check,
 } from 'lucide-react'
 
+import { DefenseInvitesManager } from '@/components/aact/DefenseInvitesManager'
+
 const DefenseRoom = dynamic(
   () => import('@/components/aact/DefenseRoom').then((mod) => mod.DefenseRoom),
   {
@@ -58,6 +60,7 @@ interface Thesis {
   defenseDate?: string | null
   committee?: string | null
   agentMember?: string | null
+  defenseMeetingUrl?: string | null
   defenseStatus?: string | null
   aiScore?: number | null
   aiRecommendation?: string | null
@@ -619,6 +622,7 @@ export function AdminThesisTab() {
               {busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Gavel className="ml-2 h-4 w-4" />}
               تأكيد الجدولة وإشعار الطالب
             </Button>
+            {sched && <DefenseInvitesManager key={sched.id} thesisId={sched.id} initialMeetingUrl={sched.defenseMeetingUrl} />}
           </div>
         </DialogContent>
       </Dialog>
@@ -672,6 +676,7 @@ export function AdminThesisTab() {
                 defenseDate: roomThesis.defenseDate,
                 committee: roomThesis.committee,
                 agentMember: roomThesis.agentMember,
+                defenseMeetingUrl: roomThesis.defenseMeetingUrl,
                 defenseStatus: roomThesis.defenseStatus,
                 aiScore: roomThesis.aiScore,
                 aiRecommendation: roomThesis.aiRecommendation,

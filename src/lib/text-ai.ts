@@ -247,7 +247,7 @@ const NVIDIA_OPENAI_COMPAT_DEAD_MODEL_MS = 24 * 60 * 60 * 1000
 const NVIDIA_OPENAI_COMPAT_HARD_FAILURE_WINDOW_MS = 60 * 60 * 1000
 const MAX_VISION_ATTACHMENT_BYTES = 15 * 1024 * 1024
 const VISION_ATTEMPT_TIMEOUT_MS = 75_000
-const VISION_OPENAI_COMPAT_PROVIDERS = new Set<TextAiProvider>(['OPENAI', 'OPENROUTER', 'OPENAI_COMPAT', 'ALBORIHI'])
+const VISION_OPENAI_COMPAT_PROVIDERS = new Set<TextAiProvider>(['OPENAI', 'OPENROUTER', 'OPENAI_COMPAT', 'ALBORIHI', 'APINEX'])
 const VISION_NATIVE_PROVIDERS = new Set<TextAiProvider>(['GEMINI', 'ANTHROPIC', 'ZAI'])
 
 const cooldowns = new Map<string, { until: number; reason: string; status?: number; model?: string }>()
@@ -2417,6 +2417,18 @@ function providerOrder(s: Settings, taskLevel: TextAiTaskLevel = 'GENERAL'): Con
   })
 }
 
+export function __testVisionOrderForTests(providers: string[]): string[] {
+  return visionPriorityOrder(providers as ConcreteProvider[])
+}
+
+export function __testVisionSupportForTests(args: { provider: string; model: string; vision?: boolean; modalities?: string[]; pdf?: boolean }): boolean {
+  const capability: ModelCapability | null = args.vision === undefined && !args.modalities
+    ? null
+    : { vision: args.vision === true, modalities: args.modalities || [] }
+  const attachments: TextAiAttachment[] = [{ mimeType: args.pdf ? 'application/pdf' : 'image/png', base64: '' }]
+  return modelSupportsVisionAttachment(args.provider as ConcreteProvider, args.model, capability, attachments)
+}
+
 export function __testB2ProviderOrderForTests(args: { policy?: TextAiRouterPolicy; rankBy?: TextAiPolicyRankBy; taskLevel?: TextAiTaskLevel; providerTiers?: string; paidFirst?: boolean; allowlist?: string; strict?: boolean; provider?: TextAiProvider; topToolsModel?: string; alborihiModel?: string; groqModel?: string; geminiModel?: string; openaiCompatTier?: TextAiProviderTier; manualOrder?: string; manualOrderEnabled?: boolean }): string[] {
   const s = {
     provider: normalizeProvider(args.provider || 'AUTO'),
@@ -2755,6 +2767,19 @@ function attachmentIncludesPdf(attachments?: TextAiAttachment[]) {
 
 function providerSupportsVisionAttachments(provider: ConcreteProvider) {
   return VISION_NATIVE_PROVIDERS.has(provider) || VISION_OPENAI_COMPAT_PROVIDERS.has(provider)
+}
+
+// Haris's vision queue (2026-10-30 ruling): for attachment calls, GEMINI
+// leads and APINEX is second; every other vision provider keeps its
+// existing relative order behind them. Vision calls only — the manual
+// provider order still governs text traffic untouched, and explicit
+// per-call preferred providers are still sorted ahead by the caller.
+function visionPriorityOrder(providers: ConcreteProvider[]): ConcreteProvider[] {
+  const pinned: ConcreteProvider[] = ['GEMINI', 'APINEX']
+  return [
+    ...pinned.filter((provider) => providers.includes(provider)),
+    ...providers.filter((provider) => !pinned.includes(provider)),
+  ]
 }
 
 function modelSupportsVisionAttachment(provider: ConcreteProvider, model: string, capability: ModelCapability | null, attachments: TextAiAttachment[]): boolean {
@@ -3598,8 +3623,9 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const baseOrderedProviders = providerOrder(s, taskLevel)
     .filter((provider) => !excluded.has(provider))
     .filter((provider) => !visionCall || providerSupportsVisionAttachments(provider))
+  const visionOrderedProviders = visionCall ? visionPriorityOrder(baseOrderedProviders) : baseOrderedProviders
   const orderedProviders = preferredProviders.length
-    ? [...baseOrderedProviders].sort((a, b) => {
+    ? [...visionOrderedProviders].sort((a, b) => {
       const ai = preferredProviders.indexOf(a)
       const bi = preferredProviders.indexOf(b)
       if (ai === -1 && bi === -1) return 0
@@ -3607,7 +3633,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
       if (bi === -1) return -1
       return ai - bi
     })
-    : baseOrderedProviders
+    : visionOrderedProviders
   let providers = orderedProviders
   const restrictSet = (effectiveOpts.restrictToModels?.length)
     ? new Set(effectiveOpts.restrictToModels.map((m) => m.provider as string))

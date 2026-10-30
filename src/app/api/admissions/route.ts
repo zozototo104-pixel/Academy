@@ -742,7 +742,9 @@ export async function GET(req: NextRequest) {
     const user = await withTiming('db_admissions_current_user_tracking', () => getCurrentUser().catch(() => null))
     const ownsApplication = !!user && (
       user.role === 'ADMIN' ||
-      user.role === 'SUPERVISOR' ||
+      // المشرف مالكٌ لهذا التتبع فقط إن كان معيّناً على الطلب نفسه — أي مشرف
+      // آخر غريب عنه، وإلا وصل إلى الرد الكامل وفيه رمز رفع الوثائق البديلة.
+      (user.role === 'SUPERVISOR' && !!app.supervisorId && app.supervisorId === user.id) ||
       studentOwnsAdmission(user as any, app)
     )
     const verified = ownsApplication || trackingVerifierMatches(app, trackingEmail, trackingPhoneLast4)

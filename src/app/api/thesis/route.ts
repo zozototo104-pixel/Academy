@@ -72,6 +72,7 @@ const studentThesisSelect = {
   defenseDate: true,
   committee: true,
   agentMember: true,
+  defenseMeetingUrl: true,
   defenseStatus: true,
   aiScore: true,
   aiRecommendation: true,

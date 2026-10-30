@@ -4,6 +4,11 @@ export const PRIVATE_STORAGE_PREFIXES = [
   'payment-proofs/',
   'assignments/',
   'theses/',
+  // الرفع الفعلي للأطروحات يستعمل «thesis/» (لا «theses/») وتسجيلات
+  // المناقشة «defense-recordings/» — غيابهما كان يخزّن ملفات الطلاب
+  // بفئة التخزين العامة بروابط مباشرة دائمة (فحص 2026-10-30).
+  'thesis/',
+  'defense-recordings/',
   'backups/',
   'service-deliverables/',
 ] as const

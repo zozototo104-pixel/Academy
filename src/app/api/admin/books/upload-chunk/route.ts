@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
 import { validateAdmissionFileSignature } from '@/lib/file-signature'
-import { storageErrorMessage, storeFileBuffer } from '@/lib/storage'
+import { deleteStoredFile, storageErrorMessage, storeFileBuffer } from '@/lib/storage'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -110,6 +110,11 @@ export async function POST(req: NextRequest) {
       })
 
       await db.bookUploadChunk.deleteMany({ where: { bookId, uploadId } }).catch(() => {})
+      // ملف الكتاب السابق يُحذف من التخزين بعد تثبيت النسخة الجديدة —
+      // تنظيف جانبي آمن لا يُفشل الرفع إن تعذر.
+      if (book.storageKey && book.storageKey !== stored.key) {
+        await deleteStoredFile(book.storageKey).catch(() => false)
+      }
       await audit(
         { id: admin.id, name: admin.name },
         'UPLOAD_BOOK_FILE_CHUNKED',

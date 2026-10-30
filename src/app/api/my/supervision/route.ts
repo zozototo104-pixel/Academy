@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
+import {
+  assessmentWindowEndsAt,
+  buildAssessmentPolicy,
+  getAssessmentMaxAttempts,
+  hideCorrectAnswersInFeedback,
+  type AssessmentAttemptPolicy,
+} from '@/lib/assessment-attempt-policy'
 
 function parseOptions(v: any): string[] {
   if (Array.isArray(v)) return v.map(String)
@@ -8,6 +15,26 @@ function parseOptions(v: any): string[] {
     const parsed = JSON.parse(String(v || '[]'))
     return Array.isArray(parsed) ? parsed.map(String) : []
   } catch { return [] }
+}
+
+// هذا المسار للطالب فقط: مفاتيح التصحيح لا تغادر الخادم أبداً — نفس قاعدة
+// مسار تقييمات المشرف (stripQuestionKeys هناك). تُنزع من أسئلة التقييم
+// ومن الأسئلة المتداخلة داخل أجوبة محاولات الطالب على حد سواء.
+function stripQuestionKeys(q: any): any {
+  if (!q || typeof q !== 'object') return q
+  const { correctAnswer, modelAnswer, correctRationale, sourceEvidence, ...rest } = q
+  return rest
+}
+
+function attemptsForStudent(attempts: any[], reveal = true): any[] {
+  return (attempts || []).map((at: any) => ({
+    ...at,
+    feedback: reveal ? at?.feedback : hideCorrectAnswersInFeedback(at?.feedback),
+    answers: (at?.answers || []).map((an: any) => {
+      const base = reveal ? an : { ...an, aiFeedback: hideCorrectAnswersInFeedback(an?.aiFeedback) }
+      return an?.question ? { ...base, question: stripQuestionKeys(an.question) } : base
+    }),
+  }))
 }
 
 export async function GET() {
@@ -38,6 +65,24 @@ export async function GET() {
           },
         }),
       ])
+      const maxAttempts = await getAssessmentMaxAttempts().catch(() => 3)
+      const assessmentIds = assessments.map((a: any) => a.id)
+      const attemptModel = db.supervisorAssessmentAttempt as any
+      const allAttempts: { assessmentId: string; passed: boolean | null }[] = assessmentIds.length && attemptModel?.findMany
+        ? await attemptModel.findMany({ where: { assessmentId: { in: assessmentIds }, studentId: user.id }, select: { assessmentId: true, passed: true } }).catch(() => [])
+        : []
+      const windowModel = (db as any).supervisorAssessmentAttemptWindow
+      const windows: any[] = assessmentIds.length && windowModel?.findMany
+        ? await windowModel.findMany({ where: { assessmentId: { in: assessmentIds }, studentId: user.id } }).catch(() => [])
+        : []
+      const policyFor = (a: any): AssessmentAttemptPolicy => {
+        const rows = allAttempts.filter((r) => r.assessmentId === a.id)
+        return buildAssessmentPolicy({ maxAttempts, completedAttempts: rows.length, passed: rows.some((r) => r.passed === true) })
+      }
+      const windowFor = (a: any) => {
+        const w = windows.find((x: any) => x.assessmentId === a.id)
+        return w ? { startedAt: w.startedAt, endsAt: assessmentWindowEndsAt(w.startedAt, a.durationMin), restarts: w.restarts } : null
+      }
       return {
         admission: {
           id: app.id,
@@ -53,11 +98,17 @@ export async function GET() {
           theses: app.theses || [],
         },
         messages,
-        assessments: assessments.map((a: any) => ({
-          ...a,
-          sourceBookIds: a.sourceBookIds ? JSON.parse(a.sourceBookIds) : [],
-          questions: a.questions.map((q: any) => ({ ...q, options: parseOptions(q.options) })),
-        })),
+        assessments: assessments.map((a: any) => {
+          const policy = policyFor(a)
+          return {
+            ...a,
+            sourceBookIds: a.sourceBookIds ? JSON.parse(a.sourceBookIds) : [],
+            questions: a.questions.map((q: any) => ({ ...stripQuestionKeys(q), options: parseOptions(q.options) })),
+            attempts: attemptsForStudent(a.attempts || [], policy.reveal),
+            attemptPolicy: policy,
+            attemptWindow: windowFor(a),
+          }
+        }),
       }
     }))
     return NextResponse.json({ supervision: rows, active: rows[0] || null })

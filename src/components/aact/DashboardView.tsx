@@ -387,6 +387,13 @@ export function DashboardView() {
   const [earnedMicroCredentials, setEarnedMicroCredentials] = useState<MicroCredentialCard[]>([])
   const [availableMicroCredentials, setAvailableMicroCredentials] = useState<MicroCredentialCard[]>([])
   const [studentSummary, setStudentSummary] = useState<StudentDashboardSummary | null>(null)
+  // تبويب الإشعارات (إصلاح 2026-10-30): قائمة كاملة متصفحّة من /api/notifications
+  // بدل شريحة الملخص (كانت آخر ٥ فقط)، وتعليم عند المشاهدة لما عُرض فعلاً.
+  const [notifItems, setNotifItems] = useState<any[]>([])
+  const [notifTotal, setNotifTotal] = useState(0)
+  const [notifLoaded, setNotifLoaded] = useState(false)
+  const notifItemsRef = useRef<any[]>([])
+  const notifMarkTimerRef = useRef<number | null>(null)
   const [serviceDeliverables, setServiceDeliverables] = useState<ServiceDeliverableRow[]>([])
   const [serviceDeliverablesLoading, setServiceDeliverablesLoading] = useState(true)
   const [dashboardTab, setDashboardTab] = useState('programs')
@@ -395,6 +402,32 @@ export function DashboardView() {
   const [programSection, setProgramSection] = useState('academic')
   const [programContentTab, setProgramContentTab] = useState('guides')
   const dashboardContentRef = useRef<HTMLDivElement | null>(null)
+
+  // «لما يشوفها تتعلم مقروءه»: ما عُرض في التبويب يُعلَّم بعد مهلة قصيرة حتى
+  // يلحق الطالب رؤية وسم «جديد» قبل أن يزول.
+  const markNotificationsSeen = (items: any[]) => {
+    const ids = items.filter((n) => !n.read).map((n) => n.id)
+    if (!ids.length) return
+    if (notifMarkTimerRef.current) window.clearTimeout(notifMarkTimerRef.current)
+    notifMarkTimerRef.current = window.setTimeout(() => {
+      api('/api/notifications', { method: 'PATCH', body: JSON.stringify({ ids }) }).catch(() => {})
+      notifItemsRef.current = notifItemsRef.current.map((n) => ids.includes(n.id) ? { ...n, read: true } : n)
+      setNotifItems(notifItemsRef.current)
+      setStudentSummary((prev) => prev ? { ...prev, unread: Math.max(0, (prev.unread || 0) - ids.length) } : prev)
+    }, 900)
+  }
+
+  const loadNotifications = async (skip: number) => {
+    const d = await api<{ notifications: any[]; unread: number; total: number }>(`/api/notifications?take=20&skip=${skip}`).catch(() => null)
+    if (!d) return
+    const merged = skip === 0 ? d.notifications : [...notifItemsRef.current, ...d.notifications.filter((n) => !notifItemsRef.current.some((p) => p.id === n.id))]
+    notifItemsRef.current = merged
+    setNotifItems(merged)
+    setNotifTotal(d.total || 0)
+    setNotifLoaded(true)
+    markNotificationsSeen(merged)
+  }
+
 
   useEffect(() => {
     const onScrollRequest = () => {
@@ -427,6 +460,12 @@ export function DashboardView() {
     window.addEventListener('aact:dashboard-tab', onOpenTab as EventListener)
     return () => window.removeEventListener('aact:dashboard-tab', onOpenTab as EventListener)
   }, [])
+
+  // تحميل قائمة الإشعارات الكاملة عند فتح تبويبها أول مرة (إصلاح 2026-10-30).
+  useEffect(() => {
+    if (dashboardTab === 'notifications' && !notifLoaded) loadNotifications(0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dashboardTab])
 
   // تبويب المحاضرات يظهر فقط إذا كانت الميزة متاحة لبرامج الطالب فعليًا على
   // السيرفر (القائمة ترجع 404 عند الإطفاء أو غياب برنامج مفعّل).
@@ -741,6 +780,22 @@ export function DashboardView() {
     api('/api/notifications', { method: 'PATCH', body: JSON.stringify({ id: n.id }) }).catch(() => {})
     setAdminMessagesAdmissionId(admissionId)
     selectDashboardTab('messages')
+  }
+
+  const NOTIF_TAB_BY_TYPE: Record<string, string> = { PAYMENT: 'payments', CERTIFICATE: 'certs', THESIS: 'thesis', DEFENSE: 'thesis', SUPERVISION: 'supervision', ASSIGNMENT: 'programs', ADMISSION: 'programs' }
+
+  // كبس أي إشعار في التبويب: رسائل الإدارة تفتح محادثتها (السلوك القائم)، وغيرها
+  // يُعلَّم مقروءاً وينقل لتبويبه إن عُرف — والنص الكامل ظاهر هنا أصلاً للقراءة.
+  const openNotificationItem = (n: any) => {
+    if (n.type === 'ADMIN_MESSAGE') { openAdminMessageNotification(n); return }
+    if (!n.read) {
+      api('/api/notifications', { method: 'PATCH', body: JSON.stringify({ id: n.id }) }).catch(() => {})
+      notifItemsRef.current = notifItemsRef.current.map((item) => item.id === n.id ? { ...item, read: true } : item)
+      setNotifItems(notifItemsRef.current)
+      setStudentSummary((prev) => prev ? { ...prev, unread: Math.max(0, (prev.unread || 0) - 1) } : prev)
+    }
+    const target = NOTIF_TAB_BY_TYPE[String(n.type || '')]
+    if (target) selectDashboardTab(target)
   }
 
   const openProgramWorkspace = (section: string, contentTab?: string) => {
@@ -1968,8 +2023,8 @@ export function DashboardView() {
                     <Badge className="bg-[#f7edd0] text-[#0f2b46] hover:bg-[#f7edd0]">{studentSummary?.unread || 0} غير مقروء</Badge>
                   </div>
                   <div className="space-y-3">
-                    {studentSummary?.notifications?.length ? studentSummary.notifications.map((n) => (
-                      <div key={n.id} onClick={() => openAdminMessageNotification(n)} className={`rounded-2xl border p-4 ${n.read ? 'border-slate-100 bg-slate-50' : 'border-[#c9a227]/40 bg-[#fffaf0]'} ${n.type === 'ADMIN_MESSAGE' ? 'cursor-pointer hover:bg-[#fff3d6]' : ''}`}>
+                    {notifItems.length ? notifItems.map((n) => (
+                      <div key={n.id} onClick={() => openNotificationItem(n)} className={`cursor-pointer rounded-2xl border p-4 ${n.read ? 'border-slate-100 bg-slate-50' : 'border-[#c9a227]/40 bg-[#fffaf0]'} hover:bg-[#fff3d6]`}>
                         <div className="flex flex-wrap items-start justify-between gap-2">
                           <div>
                             <p className="text-sm font-black text-[#0f2b46]">{n.title}</p>
@@ -1979,8 +2034,13 @@ export function DashboardView() {
                           {!n.read ? <Badge className="bg-[#c9a227] text-[#0f2b46] hover:bg-[#c9a227]">جديد</Badge> : null}
                         </div>
                       </div>
-                    )) : <div className="rounded-2xl bg-slate-50 p-8 text-center text-sm font-bold text-slate-500">لا توجد إشعارات بعد.</div>}
+                    )) : <div className="rounded-2xl bg-slate-50 p-8 text-center text-sm font-bold text-slate-500">{notifLoaded ? 'لا توجد إشعارات بعد.' : 'جارٍ تحميل الإشعارات…'}</div>}
                   </div>
+                  {notifItems.length < notifTotal && (
+                    <Button type="button" variant="outline" onClick={() => loadNotifications(notifItems.length)} className="mt-4 w-full rounded-2xl border-[#c9a227]/50 font-black text-[#a8841a] hover:bg-[#f7edd0]">
+                      عرض المزيد ({notifTotal - notifItems.length} إشعار متبقٍ)
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

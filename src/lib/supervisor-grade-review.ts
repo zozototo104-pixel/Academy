@@ -150,7 +150,12 @@ export async function applyScoreAdjustments(
       answer.points = points
     }
 
-    const maxTotal = attempt.exam.questions.reduce((s: number, q: any) => s + q.points, 0)
+    // المقام هو مجموع نقاط الأسئلة كما دخلت تصحيح هذه المحاولة فعلياً
+    // (maxPoints المحفوظة على كل إجابة)، لا مجموع أسئلة الامتحان الحالية:
+    // أسئلة الامتحان الفصلي غير المنشورة (مسودة/مرفوضة) لم تُصحَّح أصلاً —
+    // التصحيح الأصلي يحمّل المنشورة فقط — وضمّها هنا كان يخفّض نسبة الطالب
+    // عند أي تعديل من المشرف حتى لو لم يغيّر أي درجة.
+    const maxTotal = attempt.answers.reduce((s: number, a: any) => s + Number(a.maxPoints || a.question?.points || 0), 0)
     const total = attempt.answers.reduce((s: number, a: any) => s + Number(a.points || 0), 0)
     const rawScore = maxTotal > 0 ? (total / maxTotal) * 100 : 0
 
