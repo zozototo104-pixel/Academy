@@ -21,9 +21,9 @@ function asyncChunks(chunks: string[], failAfter = false): () => AsyncIterable<s
 }
 
 function testProviderOrderUnchanged() {
-  // Intentionally extended by the Mistral+Cloudflare integration (PR #145)
-  // and the APInex integration (PR #153): each appended as a rear reserve,
-  // the previous order otherwise untouched.
+  // Intentionally extended by the Mistral+Cloudflare integration (PR #145),
+  // the APInex integration (PR #153) and the OXION integration (PR #159):
+  // each appended as a rear reserve, the previous order otherwise untouched.
   assert.deepEqual(__testPrimaryProviderOrder(), [
     'GEMINI',
     'UNOROUTER',
@@ -41,6 +41,7 @@ function testProviderOrderUnchanged() {
     'MISTRAL',
     'CLOUDFLARE',
     'APINEX',
+    'OXION',
   ])
 }
 
