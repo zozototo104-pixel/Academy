@@ -5,6 +5,7 @@ import { requireUser } from '@/lib/auth'
 import { validateAdmissionFileSignature } from '@/lib/file-signature'
 import { storeFileBuffer, storageErrorMessage } from '@/lib/storage'
 import { audit, notify } from '@/lib/notify'
+import { isAssignedStudent } from '@/lib/supervisor-scope'
 import { repairVerifiedStudentRecordOwnership, studentPaymentOwnershipWhere } from '@/lib/student-record-ownership'
 import { dollarsToCents, paymentAmountDollars } from '@/lib/money'
 
@@ -82,6 +83,11 @@ export async function POST(req: NextRequest) {
       select: { id: true, invoiceNo: true, status: true, method: true, provider: true, description: true, amount: true, userId: true },
     })
     if (!payment) return NextResponse.json({ error: 'الفاتورة غير موجودة أو غير مرتبطة بحسابك' }, { status: 404 })
+    // المشرف يرفع إثباتات لطلابه المعيّنين فقط — بنفس رسالة «غير موجودة»
+    // حتى لا يتسرب وجود فواتير طلاب آخرين.
+    if (user.role === 'SUPERVISOR' && !(await isAssignedStudent(user as any, payment.userId))) {
+      return NextResponse.json({ error: 'الفاتورة غير موجودة أو غير مرتبطة بحسابك' }, { status: 404 })
+    }
     if (payment.status === 'PAID') return NextResponse.json({ error: 'الفاتورة مسددة بالفعل ولا تحتاج إثبات دفع جديد' }, { status: 400 })
     if (payment.status === 'WAIVED') return NextResponse.json({ error: 'الفاتورة معفاة ولا تحتاج إثبات دفع' }, { status: 400 })
     if (declaredAmount === null) return NextResponse.json({ error: 'يرجى إدخال مبلغ التحويل الظاهر في إثبات الدفع حتى تتمكن الإدارة من مطابقته.' }, { status: 400 })
