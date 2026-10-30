@@ -25,6 +25,7 @@ export async function GET() {
         defenseDate: true,
         committee: true,
         agentMember: true,
+        defenseMeetingUrl: true,
         defenseStatus: true,
         reviewNote: true,
         reviewNotes: { orderBy: { createdAt: 'desc' }, take: 10 },
@@ -75,11 +76,24 @@ export async function GET() {
   }
 }
 
+// رابط اجتماع خارجي للمناقشة (Zoom/Meet…): فارغ = إزالة، وإلا http(s) صالح فقط
+function parseDefenseMeetingUrl(raw: unknown): { ok: true; value: string | null } | { ok: false } {
+  const value = String(raw ?? '').trim().slice(0, 500)
+  if (!value) return { ok: true, value: null }
+  try {
+    const url = new URL(value)
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return { ok: false }
+    return { ok: true, value: url.toString() }
+  } catch {
+    return { ok: false }
+  }
+}
+
 // PATCH /api/admin/thesis — جدولة مناقشة (لجنة + تاريخ) أو اعتماد النتيجة
 export async function PATCH(req: NextRequest) {
   try {
     const admin = await requireAdmin()
-    const { id, action, defenseDate, committee, agentMember, resultScore, passed, reviewNote } = await req.json()
+    const { id, action, defenseDate, committee, agentMember, resultScore, passed, reviewNote, defenseMeetingUrl } = await req.json()
     const safeReviewNote = String(reviewNote || '').trim().slice(0, 2000)
     const thesis = await db.thesisSubmission.findUnique({
       where: { id },
@@ -211,6 +225,12 @@ export async function PATCH(req: NextRequest) {
       if (committeeList.length === 0 || !defenseDate) {
         return NextResponse.json({ error: 'تاريخ المناقشة وأعضاء اللجنة مطلوبون' }, { status: 400 })
       }
+      let meetingUrlValue: string | null | undefined
+      if (defenseMeetingUrl !== undefined) {
+        const parsed = parseDefenseMeetingUrl(defenseMeetingUrl)
+        if (!parsed.ok) return NextResponse.json({ error: 'رابط الاجتماع الخارجي غير صالح — يجب أن يبدأ بـ https' }, { status: 400 })
+        meetingUrlValue = parsed.value
+      }
       const updated = await db.thesisSubmission.update({
         where: { id },
         data: {
@@ -218,6 +238,7 @@ export async function PATCH(req: NextRequest) {
           defenseDate: new Date(defenseDate),
           committee: JSON.stringify(committeeList),
           agentMember: agentMember?.trim() || null,
+          ...(meetingUrlValue !== undefined ? { defenseMeetingUrl: meetingUrlValue } : {}),
         },
       })
       // عضو من الوكيل الدولي في اللجنة → مستحق 100$ وفق العقد
@@ -253,7 +274,7 @@ export async function PATCH(req: NextRequest) {
         thesis.userId,
         'DEFENSE',
         'تم تحديد موعد مناقشتك',
-        `بمناسبة بحث «${thesis.title}»: حُدد موعد المناقشة ${new Date(defenseDate).toLocaleDateString('ar-EG')} أمام اللجنة المختصة (${committeeList.length} أعضاء${agentMember ? ' + عضو الوكيل الدولي' : ''}). حظاً موفقاً!`,
+        `بمناسبة بحث «${thesis.title}»: حُدد موعد المناقشة ${new Date(defenseDate).toLocaleDateString('ar-EG')} أمام اللجنة المختصة (${committeeList.length} أعضاء${agentMember ? ' + عضو الوكيل الدولي' : ''}). حظاً موفقاً!${updated.defenseMeetingUrl ? `\nرابط الاجتماع الخارجي للمناقشة (بديل جاهز عند أي عطل باتصال القاعة): ${updated.defenseMeetingUrl}` : ''}`,
         'dashboard'
       )
       await audit(admin, 'SCHEDULE_DEFENSE', 'ThesisSubmission', id, `${thesis.title} — ${defenseDate}`)
@@ -273,6 +294,27 @@ export async function PATCH(req: NextRequest) {
             .catch((error) => { console.warn('Failed to send defense scheduled email.', error) })
         }
       }
+      return NextResponse.json({ ok: true, thesis: updated })
+    }
+
+    // ضبط/تحديث رابط الاجتماع الخارجي للمناقشة بدون إعادة جدولة (لا إشعارات ولا رسوم)
+    if (action === 'SET_DEFENSE_MEETING_URL') {
+      const parsed = parseDefenseMeetingUrl(defenseMeetingUrl)
+      if (!parsed.ok) return NextResponse.json({ error: 'رابط الاجتماع الخارجي غير صالح — يجب أن يبدأ بـ https' }, { status: 400 })
+      const updated = await db.thesisSubmission.update({
+        where: { id },
+        data: { defenseMeetingUrl: parsed.value },
+      })
+      if (parsed.value) {
+        await notify(
+          thesis.userId,
+          'DEFENSE',
+          'رابط اجتماع مناقشتك جاهز',
+          `أضافت الإدارة رابط اجتماع خارجي لمناقشة بحث «${thesis.title}»${thesis.defenseDate ? ` (${new Date(thesis.defenseDate).toLocaleDateString('ar-EG')})` : ''} — استعمله إذا تعذر اتصال قاعة المنصة:\n${parsed.value}`,
+          'dashboard'
+        ).catch(() => {})
+      }
+      await audit(admin, 'SET_DEFENSE_MEETING_URL', 'ThesisSubmission', id, parsed.value ? 'تم ضبط رابط اجتماع خارجي' : 'أزيل رابط الاجتماع الخارجي')
       return NextResponse.json({ ok: true, thesis: updated })
     }
 

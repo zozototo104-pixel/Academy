@@ -292,7 +292,7 @@ export async function GET() {
       take: 80,
       include: {
         supervisor: { select: { id: true, name: true, role: true } },
-        theses: { orderBy: { updatedAt: 'desc' }, take: 5, select: { id: true, title: true, status: true, aiScore: true, resultScore: true, passed: true, defenseDate: true, updatedAt: true } },
+        theses: { orderBy: { updatedAt: 'desc' }, take: 5, select: { id: true, title: true, status: true, aiScore: true, resultScore: true, passed: true, defenseDate: true, defenseMeetingUrl: true, updatedAt: true } },
       },
     })
     const students = await Promise.all(apps.map(buildStudentCard))

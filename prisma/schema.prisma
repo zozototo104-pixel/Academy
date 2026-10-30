@@ -1381,6 +1381,7 @@ model ThesisSubmission {
   defenseDate DateTime?
   committee   String?  // JSON array أسماء أعضاء اللجنة
   agentMember String?  // عضو من الوكيل الدولي (مقابل 100$)
+  defenseMeetingUrl String? // رابط اجتماع خارجي (Zoom/Meet) بديل/احتياطي لقاعة المنصة
   // المناقشة عبر الفيديو كونفرنس على المنصة مع خبير الذكاء الاصطناعي
   defenseStatus    String? // IN_PROGRESS | COMPLETED
   aiScore          Float?  // تقييم خبير الذكاء الاصطناعي 0-100
@@ -1397,6 +1398,7 @@ model ThesisSubmission {
   recordingDurationSec Int?
   defenseMessages  DefenseMessage[]
   defenseParticipants DefenseParticipant[]
+  defenseGuestInvites DefenseGuestInvite[]
   reviewNotes ThesisReviewNote[]
   chunks ThesisChunk[]
   resultScore Float?
@@ -2221,11 +2223,30 @@ model DefenseParticipant {
   thesis     ThesisSubmission @relation(fields: [thesisId], references: [id], onDelete: Cascade)
   peerId     String           @unique
   userId     String?
+  guestInviteId String?
+  guestSecretHash String?
   name       String
   role       String // STUDENT | COMMITTEE | AGENT | AI
   tz         String?
   joinedAt   DateTime         @default(now())
   lastSeenAt DateTime         @default(now())
+}
+
+// دعوة مناقش خارجي لقاعة المناقشة: رابط شخصي بلا حساب، الهاش فقط يُخزّن
+model DefenseGuestInvite {
+  id           String           @id @default(cuid())
+  thesisId     String
+  thesis       ThesisSubmission @relation(fields: [thesisId], references: [id], onDelete: Cascade)
+  name         String
+  role         String           @default("COMMITTEE") // COMMITTEE | AGENT
+  tokenHash    String           @unique
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  lastJoinedAt DateTime?
+  createdById  String?
+  createdAt    DateTime         @default(now())
+
+  @@index([thesisId])
 }
 
 // إشارات WebRTC (Offer/Answer/ICE) بين المشاركين عبر الخادم
