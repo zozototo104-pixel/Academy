@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { notify } from '@/lib/notify'
+import { unsealSettingSecret } from '@/lib/secret-crypto'
 
 const ACTIVE_STATUSES = ['RINGING', 'ACTIVE']
 const SIGNAL_TYPES = new Set(['OFFER', 'ANSWER', 'ICE', 'HANGUP'])
@@ -13,7 +14,9 @@ async function settingValue(key: string) {
 async function rtcConfig() {
   const turnUrl = await settingValue('TURN_URL')
   const turnUsername = await settingValue('TURN_USERNAME')
-  const turnCredential = await settingValue('TURN_CREDENTIAL')
+  // TURN_CREDENTIAL يُختم مشفراً عند حفظه من لوحة النظام (اسمه يحمل
+  // CREDENTIAL) — فك الختم هنا وإلا وصل النص المشفر نفسه ككلمة سر TURN.
+  const turnCredential = unsealSettingSecret(await settingValue('TURN_CREDENTIAL'))
   const iceServers: any[] = [{ urls: ['stun:stun.l.google.com:19302', 'stun:global.stun.twilio.com:3478'] }]
   if (turnUrl && turnUsername && turnCredential) {
     iceServers.push({
