@@ -121,7 +121,13 @@ mock.module('next/headers', () => ({
   headers: async () => new Headers(bearerToken ? { authorization: `Bearer ${bearerToken}` } : {}),
 }))
 mock.module('@/lib/notify', () => ({ audit: async () => {} }))
-mock.module('@/lib/mailer', () => ({ emailWelcome: async () => {} }))
+mock.module('@/lib/mailer', () => ({
+  emailWelcome: async () => {},
+  // مسار تغيير البريد (lib/email-change) صار جزءاً من شجرة استيراد مسار
+  // الطلاب الإداري؛ الدالة الحقيقية ترسل إيميل تأكيد — هنا تُستبدل بثبات.
+  emailEmailChangeConfirm: async () => true,
+  emailEmailChangeNotice: async () => true,
+}))
 const realRateLimit = await import('../../src/lib/rate-limit')
 mock.module('@/lib/rate-limit', () => ({ ...realRateLimit, enforceApiRateLimit: () => null, enforceDatabaseApiRateLimit: async () => null, checkDatabaseRateLimit: async () => ({ ok: true, remaining: 99, resetAt: Date.now() + 60000, retryAfterSec: 0 }) }))
 mock.module('@/lib/admin-query', () => ({
