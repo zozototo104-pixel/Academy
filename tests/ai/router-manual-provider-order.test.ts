@@ -100,6 +100,32 @@ describe('manual provider fallback order', () => {
     expect(order).toEqual([...COMPLETED_CHAIN.slice(start), ...COMPLETED_CHAIN.slice(0, start)])
   })
 
+  test('switch OFF parks the saved order and restores the legacy policy ordering', () => {
+    const order = __testB2ProviderOrderForTests({
+      policy: 'quality_first',
+      manualOrder: 'TOPTOOLS,OPENROUTER,GEMINI',
+      manualOrderEnabled: false,
+    })
+    expect(order.slice(0, 5)).toEqual(['ANTHROPIC', 'OPENAI', 'GEMINI', 'UNOROUTER', 'OPENROUTER'])
+  })
+
+  test('switch OFF restores paid-first academic jumps; switch ON keeps his order on top', () => {
+    const base = {
+      policy: 'balanced' as const,
+      taskLevel: 'ACADEMIC_CRITICAL' as const,
+      allowlist: 'GROQ:gpt-oss-120b,ALBORIHI:claude-sonnet-5',
+      providerTiers: 'ALBORIHI:PAID,GROQ:FREE',
+      paidFirst: true,
+      manualOrder: 'GROQ,ALBORIHI',
+    }
+    // ON (default): the allowlist pair walks in HIS order — GROQ first even
+    // though ALBORIHI is the PAID one.
+    expect(__testB2ProviderOrderForTests({ ...base })[0]).toBe('GROQ')
+    __resetTextAiStateForTests()
+    // OFF: the legacy paid-first jump is back — ALBORIHI leads.
+    expect(__testB2ProviderOrderForTests({ ...base, manualOrderEnabled: false })[0]).toBe('ALBORIHI')
+  })
+
   test('no saved manual order keeps the legacy coded behavior bit-for-bit', () => {
     expect(__testB2ProviderOrderForTests({ policy: 'primary_first' })).toEqual(__testPrimaryProviderOrder())
     expect(__testB2ProviderOrderForTests({ policy: 'primary_first', manualOrder: '' })).toEqual(__testPrimaryProviderOrder())

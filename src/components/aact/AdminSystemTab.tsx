@@ -967,6 +967,9 @@ export function AdminSystemTab() {
     set('AI_PROVIDER_FALLBACK_ORDER', next.join(','))
   }
   const fallbackProviderLabel = (p: string) => TEXT_PROVIDER_CHOICES.find((c) => c.value === p)?.label.split('—')[0].trim() || p
+  // مفتاح إطفاء الترتيب اليدوي: غير المضبوط = مفعّل (الترتيب المحفوظ يعمل فور
+  // حفظه)؛ الإطفاء الصريح يركن الترتيب ويرجع السياسات والعائلات والمدفوع أولاً.
+  const fallbackOrderEnabled = form.AI_PROVIDER_FALLBACK_ORDER_ENABLED !== 'false' && form.AI_PROVIDER_FALLBACK_ORDER_ENABLED !== '0'
   const agentDiag = data.agent
   const agentSourceLabel = agentDiag?.source === 'settings'
     ? 'إعدادات لوحة الإدارة'
@@ -1314,7 +1317,14 @@ export function AdminSystemTab() {
                   <Badge className="bg-slate-100 text-slate-600">حالياً: ترتيب النظام الافتراضي — حرّك أي مزود لحفظ ترتيبك</Badge>
                 )}
               </div>
-              <div className="mt-3 grid gap-1">
+              <div className="mt-3 flex items-center justify-between rounded-lg border border-indigo-100 bg-indigo-50/50 px-3 py-2">
+                <div>
+                  <p className="text-[11px] font-black text-indigo-900">تفعيل الترتيب اليدوي</p>
+                  <p className="text-[10px] font-bold leading-relaxed text-indigo-700">{fallbackOrderEnabled ? 'مفعّل: ترتيبك أعلاه هو الذي يمشي عليه التنفيذ.' : 'مطفأ: ترتيبك محفوظ كما هو، والتنفيذ يرجع للسياسات وترتيب العائلات والمدفوع أولاً.'}</p>
+                </div>
+                <Switch checked={fallbackOrderEnabled} onCheckedChange={(v) => set('AI_PROVIDER_FALLBACK_ORDER_ENABLED', v ? 'true' : 'false')} />
+              </div>
+              <div className={`mt-3 grid gap-1 ${fallbackOrderEnabled ? '' : 'pointer-events-none opacity-50'}`}>
                 {displayFallbackOrder.map((p, idx) => (
                   <div key={p} className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-1.5">
                     <div className="flex items-center gap-2">

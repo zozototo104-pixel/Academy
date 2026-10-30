@@ -994,7 +994,7 @@ async function readSettings(keys: string[]): Promise<Record<string, string>> {
 
 async function settings() {
   const rows = await readSettings([
-    'AI_TEXT_PROVIDER', 'AI_ROUTER_POLICY', 'AI_ROUTER_POLICY_SOURCE', 'AI_POLICY_RANK_BY', 'AI_FAMILY_QUALITY_ORDER', 'AI_FAMILY_COST_ORDER', 'AI_PROVIDER_TIERS', 'AI_PAID_FIRST', 'AI_ROUTER_ALLOW_PUBLIC_GATEWAYS', 'AI_ACADEMIC_ALLOWLIST', 'AI_ACADEMIC_ALLOWLIST_STRICT', 'AI_VERIFIER_PREFERRED', 'AI_VERIFIER_STRICT', 'AI_STICKY_ON_SUCCESS', 'AI_ROUTER_COOLDOWN_MINUTES', 'AI_PROVIDER_FALLBACK_ORDER',
+    'AI_TEXT_PROVIDER', 'AI_ROUTER_POLICY', 'AI_ROUTER_POLICY_SOURCE', 'AI_POLICY_RANK_BY', 'AI_FAMILY_QUALITY_ORDER', 'AI_FAMILY_COST_ORDER', 'AI_PROVIDER_TIERS', 'AI_PAID_FIRST', 'AI_ROUTER_ALLOW_PUBLIC_GATEWAYS', 'AI_ACADEMIC_ALLOWLIST', 'AI_ACADEMIC_ALLOWLIST_STRICT', 'AI_VERIFIER_PREFERRED', 'AI_VERIFIER_STRICT', 'AI_STICKY_ON_SUCCESS', 'AI_ROUTER_COOLDOWN_MINUTES', 'AI_PROVIDER_FALLBACK_ORDER', 'AI_PROVIDER_FALLBACK_ORDER_ENABLED',
     'AI_PAID_USAGE_MODE', 'AI_PAID_MODELS', 'AI_PAID_DAILY_LIMIT_USD', 'AI_PAID_MONTHLY_LIMIT_USD', 'AI_PROVIDER_TIER_OPENAI_COMPAT',
     'GEMINI_API_KEY', 'GEMINI_API_KEYS', 'GEMINI_TEXT_MODEL',
     'OPENAI_API_KEY', 'OPENAI_API_KEYS', 'OPENAI_TEXT_MODEL', 'OPENAI_BASE_URL',
@@ -1018,6 +1018,12 @@ async function settings() {
   const policy = normalizePolicy(rows.AI_ROUTER_POLICY || env('AI_ROUTER_POLICY') || 'primary_first')
   const routerCooldownMinutes = __testResolveRouterCooldownMinutesForTests(rows.AI_ROUTER_COOLDOWN_MINUTES, env('AI_ROUTER_COOLDOWN_MINUTES'))
   cachedRouterCooldownMinutes = routerCooldownMinutes
+  // The manual fallback order's on/off switch (AI_PROVIDER_FALLBACK_ORDER_ENABLED,
+  // Haris 2026-10-30): unset means ENABLED, so a saved order is live the moment
+  // it exists (the PR #159 semantics); an explicit 'false' parks the saved
+  // order and hands routing back to the coded policies/families/paid-first.
+  const manualOrderEnabledRaw = rows.AI_PROVIDER_FALLBACK_ORDER_ENABLED || env('AI_PROVIDER_FALLBACK_ORDER_ENABLED')
+  const manualProviderOrderEnabled = manualOrderEnabledRaw === '' ? true : booleanSetting(manualOrderEnabledRaw)
   const openaiCompatBaseUrl = normalizeOpenAiCompatibleBaseUrl(rows.OPENAI_COMPAT_BASE_URL || env('OPENAI_COMPAT_BASE_URL') || '')
   const openaiCompatDefaults = isNvidiaOpenAiCompatibleBaseUrl(openaiCompatBaseUrl) ? NVIDIA_OPENAI_COMPAT_TEXT_MODELS : OPENAI_COMPAT_TEXT_MODELS
   return {
@@ -1091,6 +1097,7 @@ async function settings() {
     oxionModel: normalizeModel(rows.OXION_TEXT_MODEL || env('OXION_TEXT_MODEL'), OXION_TEXT_MODELS),
     oxionBaseUrl: (rows.OXION_BASE_URL || env('OXION_BASE_URL') || OXION_DEFAULT_BASE_URL).replace(/\/$/, ''),
     manualProviderOrder: parseProviderOrder(rows.AI_PROVIDER_FALLBACK_ORDER || env('AI_PROVIDER_FALLBACK_ORDER')),
+    manualProviderOrderEnabled,
     openaiCompatKeys: parseKeys(rows.OPENAI_COMPAT_API_KEY, rows.OPENAI_COMPAT_API_KEYS, env('OPENAI_COMPAT_API_KEY'), env('OPENAI_COMPAT_API_KEYS')),
     openaiCompatModel: normalizeModel(rows.OPENAI_COMPAT_TEXT_MODEL || env('OPENAI_COMPAT_TEXT_MODEL'), openaiCompatDefaults),
     openaiCompatBaseUrl,
@@ -2336,7 +2343,7 @@ function providerOrder(s: Settings, taskLevel: TextAiTaskLevel = 'GENERAL'): Con
   const publicGateways = new Set<ConcreteProvider>(['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT'])
   const academyAlwaysAllowed = new Set<ConcreteProvider>(['UNOROUTER', 'OPENROUTER', 'TOPTOOLS'])
   const manual = manualChain(s)
-  if (manual.length) {
+  if (manual.length && s.manualProviderOrderEnabled) {
     // Manual order saved: Haris's order is literal law (2026-10-30 ruling) —
     // the coded policy lists, paid-first and family reshuffles do NOT touch
     // provider order. A concretely selected provider leads; «balanced» only
@@ -2382,7 +2389,7 @@ function providerOrder(s: Settings, taskLevel: TextAiTaskLevel = 'GENERAL'): Con
   })
 }
 
-export function __testB2ProviderOrderForTests(args: { policy?: TextAiRouterPolicy; rankBy?: TextAiPolicyRankBy; taskLevel?: TextAiTaskLevel; providerTiers?: string; paidFirst?: boolean; allowlist?: string; strict?: boolean; provider?: TextAiProvider; topToolsModel?: string; alborihiModel?: string; groqModel?: string; geminiModel?: string; openaiCompatTier?: TextAiProviderTier; manualOrder?: string }): string[] {
+export function __testB2ProviderOrderForTests(args: { policy?: TextAiRouterPolicy; rankBy?: TextAiPolicyRankBy; taskLevel?: TextAiTaskLevel; providerTiers?: string; paidFirst?: boolean; allowlist?: string; strict?: boolean; provider?: TextAiProvider; topToolsModel?: string; alborihiModel?: string; groqModel?: string; geminiModel?: string; openaiCompatTier?: TextAiProviderTier; manualOrder?: string; manualOrderEnabled?: boolean }): string[] {
   const s = {
     provider: normalizeProvider(args.provider || 'AUTO'),
     policy: normalizePolicy(args.policy || 'primary_first'),
@@ -2399,6 +2406,7 @@ export function __testB2ProviderOrderForTests(args: { policy?: TextAiRouterPolic
     geminiModel: args.geminiModel || 'gemini-3.8-flash', openaiModel: 'gpt-5.1', anthropicModel: 'claude-sonnet-4-5-20250929', zaiModel: 'glm-4.5', groqModel: args.groqModel || 'llama-3.3-70b-versatile', openrouterModel: 'openrouter/auto', deepinfraModel: 'meta-llama/Llama-3.3-70B-Instruct', togetherModel: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', unorouterModel: 'gpt-oss-120b:free', relayrouterModel: 'claude-opus-4-8', topToolsModel: args.topToolsModel || 'top-tools-ai', alborihiModel: args.alborihiModel || 'claude-sonnet-5', openaiCompatModel: 'auto', mistralModel: 'mistral-large-latest', cloudflareModel: '@cf/meta/llama-3.3-70b-instruct-fp8-fast', apinexModel: 'free/deepseek-v4.1-flash', oxionModel: 'claude-sonnet-5',
     openaiCompatBaseUrl: 'https://compat.test/v1', alborihiBaseUrl: ALBORIHI_DEFAULT_BASE_URL, mistralBaseUrl: MISTRAL_DEFAULT_BASE_URL, cloudflareBaseUrl: 'https://api.cloudflare.com/client/v4/accounts/test123/ai/v1', apinexBaseUrl: APINEX_DEFAULT_BASE_URL, oxionBaseUrl: OXION_DEFAULT_BASE_URL, openaiCompatTier: args.openaiCompatTier || 'FREE',
     manualProviderOrder: parseProviderOrder(args.manualOrder || ''),
+    manualProviderOrderEnabled: args.manualOrderEnabled !== false,
   } as Settings
   const taskLevel = args.taskLevel || (args.rankBy === 'family' ? 'ACADEMIC_CRITICAL' : 'GENERAL')
   return providerOrder(s, taskLevel)
