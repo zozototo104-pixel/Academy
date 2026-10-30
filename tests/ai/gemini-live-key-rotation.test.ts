@@ -289,6 +289,15 @@ describe('Gemini Live key rotation uses the text AI router state', () => {
     configureGeminiKeys('AIzaRATE1111')
     globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
       const urlText = String(url)
+      // GEMINI model discovery (2026-10-30) GETs /v1beta/models?key=… while
+      // building candidates; it is background traffic, not a Live token fetch,
+      // so it is answered with an empty catalog and never recorded.
+      if (urlText.includes('/v1beta/models?')) {
+        return new Response(JSON.stringify({ models: [] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
       if (urlText.includes(':generateContent')) {
         fetchKeys.push('text:AIzaRATE1111')
         return new Response(JSON.stringify({ error: { message: 'rate limited api_key:xyz' } }), {
