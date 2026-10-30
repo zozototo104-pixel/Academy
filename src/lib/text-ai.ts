@@ -1901,9 +1901,37 @@ function freeModelsPersistentCacheMs(provider: ConcreteProvider): number {
   return provider === 'ALBORIHI' ? ALBORIHI_MODEL_DISCOVERY_CACHE_MS : 24 * 60 * 60 * 1000
 }
 
+// Discovery is background traffic: it must never spend a request on a key the
+// router itself is avoiding. A key is skipped while ANY cooldown covers it —
+// key-level or model-level, in memory or persisted — or while it is marked
+// no-balance. When every key is cooling, the first key is used anyway
+// (discovery is best-effort and the static list covers a failure), mirroring
+// candidateKeys' fallback.
+async function discoveryKey(provider: ConcreteProvider, s: Settings): Promise<string> {
+  const keys = providerKeys(s, provider)
+  if (keys.length <= 1) return keys[0] || ''
+  const persistent = await loadPersistentCooldowns()
+  for (let index = 0; index < keys.length; index++) {
+    const key = keys[index]
+    if (activeMemoryCooldown(provider, key)) continue
+    const modelPrefix = `${cooldownId(provider, key)}:`
+    let memoryModelCooling = false
+    for (const [id, item] of cooldowns) {
+      if (id.startsWith(modelPrefix) && item.until > Date.now()) { memoryModelCooling = true; break }
+    }
+    if (memoryModelCooling) continue
+    if (persistentKeyCooldown(persistent, provider, index + 1)) continue
+    if (isPersistentNoBalance(persistent, provider, index + 1)) continue
+    const persistentPrefix = `${persistentCooldownKey(provider, index + 1)}:`
+    if (Object.entries(persistent).some(([name, value]) => name.startsWith(persistentPrefix) && parseCooldown(value))) continue
+    return key
+  }
+  return keys[0]
+}
+
 async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<string[]> {
   const baseUrl = baseFor(s, provider)
-  const key = providerKeys(s, provider)[0]
+  const key = await discoveryKey(provider, s)
   const cacheKey = cacheKeyForFreeModels(provider, baseUrl, key)
   const now = Date.now()
   const cached = freeModelsCache.get(cacheKey)
