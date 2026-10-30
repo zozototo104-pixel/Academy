@@ -177,10 +177,10 @@ describe('APINEX text provider', () => {
     expect(diagnostics.keyCounts.APINEX).toBe(0)
   })
 
-  test('primary order keeps APINEX as the last rear reserve', async () => {
+  test('primary order keeps APINEX as a rear reserve (OXION appended after it, 2026-10-30)', async () => {
     const order = textAi.__testPrimaryProviderOrder()
-    expect(order[order.length - 1]).toBe('APINEX')
-    expect(order.slice(-3)).toEqual(['MISTRAL', 'CLOUDFLARE', 'APINEX'])
+    expect(order[order.length - 1]).toBe('OXION')
+    expect(order.slice(-4)).toEqual(['MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION'])
     expect((KNOWN_AI_PROVIDERS as readonly string[])).toContain('APINEX')
   })
 

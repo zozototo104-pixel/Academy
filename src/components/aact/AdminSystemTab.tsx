@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {
   Loader2, Mail, CreditCard, Network, SendHorizonal, ShieldCheck, Save,
   CheckCircle2, XCircle, Clock3, Info, Bot, Radio, Upload,
+  ChevronUp, ChevronDown,
 } from 'lucide-react'
 
 interface EmailLog {
@@ -159,7 +160,7 @@ interface SystemData {
     activeMask: string
   }
   textAi?: {
-    selectedProvider: 'GEMINI' | 'OPENAI' | 'ANTHROPIC' | 'ZAI' | 'GROQ' | 'OPENROUTER' | 'DEEPINFRA' | 'TOGETHER' | 'UNOROUTER' | 'RELAYROUTER' | 'TOPTOOLS' | 'ALBORIHI' | 'OPENAI_COMPAT' | 'MISTRAL' | 'CLOUDFLARE' | 'APINEX' | 'AUTO'
+    selectedProvider: 'GEMINI' | 'OPENAI' | 'ANTHROPIC' | 'ZAI' | 'GROQ' | 'OPENROUTER' | 'DEEPINFRA' | 'TOGETHER' | 'UNOROUTER' | 'RELAYROUTER' | 'TOPTOOLS' | 'ALBORIHI' | 'OPENAI_COMPAT' | 'MISTRAL' | 'CLOUDFLARE' | 'APINEX' | 'OXION' | 'AUTO'
     activeProvider: 'GEMINI' | 'OPENAI' | 'ANTHROPIC' | 'ZAI' | 'GROQ' | 'OPENROUTER' | 'DEEPINFRA' | 'TOGETHER' | 'UNOROUTER' | 'RELAYROUTER' | 'TOPTOOLS' | 'ALBORIHI' | 'OPENAI_COMPAT' | null
     policy?: 'primary_first' | 'balanced' | 'quality_first' | 'cost_saver' | 'fallback_only'
     externalConfigured: boolean
@@ -220,6 +221,7 @@ const TEXT_PROVIDER_CHOICES = [
   { value: 'MISTRAL', label: 'Mistral AI — نماذج كبيرة بخطة مجانية' },
   { value: 'CLOUDFLARE', label: 'Cloudflare Workers AI — نماذج مفتوحة بحصة يومية' },
   { value: 'APINEX', label: 'APInex — بوابة مجانية بحصة يومية (احتياط أخير)' },
+  { value: 'OXION', label: 'Oxion AI — بوابة مدفوعة بخطة Pro (احتياطي)' },
 ]
 
 const ROUTER_POLICY_CHOICES = [
@@ -359,6 +361,15 @@ const APINEX_TEXT_MODEL_CHOICES = [
   { value: 'free/kimi-k3', label: 'Kimi K3 — مجاني، سياق 1M' },
   { value: 'free/muse-spark-1.3', label: 'Muse Spark 1.3 — مجاني، سياق 1M' },
   { value: 'free/jev-1.13', label: 'Jev 1.13 — مجاني، سياق 64K فقط' },
+]
+
+const OXION_TEXT_MODEL_CHOICES = [
+  { value: 'claude-sonnet-5', label: 'Claude Sonnet 5 — رائد متوازن' },
+  { value: 'gpt-5.6', label: 'GPT 5.6 — رائد OpenAI' },
+  { value: 'gemini-3.1-pro', label: 'Gemini 3.1 Pro — رائد Google' },
+  { value: 'deepseek-v4', label: 'DeepSeek V4 — قوي واقتصادي' },
+  { value: 'kimi-k3', label: 'Kimi K3 — سياق طويل' },
+  { value: 'grok-4.6', label: 'Grok 4.6 — رائد xAI' },
 ]
 
 const GEMINI_VOICE_CHOICES = [
@@ -939,7 +950,26 @@ export function AdminSystemTab() {
       ? 'مفتاح Vercel الافتراضي'
       : 'لا يوجد مفتاح فعّال'
   const textAiDiag = data.textAi
-  const currentTextProvider = (form.AI_TEXT_PROVIDER || textAiDiag?.selectedProvider || 'GEMINI') as 'GEMINI' | 'OPENAI' | 'ANTHROPIC' | 'ZAI' | 'GROQ' | 'OPENROUTER' | 'DEEPINFRA' | 'TOGETHER' | 'UNOROUTER' | 'RELAYROUTER' | 'TOPTOOLS' | 'ALBORIHI' | 'OPENAI_COMPAT' | 'MISTRAL' | 'CLOUDFLARE' | 'APINEX' | 'AUTO'
+  const currentTextProvider = (form.AI_TEXT_PROVIDER || textAiDiag?.selectedProvider || 'GEMINI') as 'GEMINI' | 'OPENAI' | 'ANTHROPIC' | 'ZAI' | 'GROQ' | 'OPENROUTER' | 'DEEPINFRA' | 'TOGETHER' | 'UNOROUTER' | 'RELAYROUTER' | 'TOPTOOLS' | 'ALBORIHI' | 'OPENAI_COMPAT' | 'MISTRAL' | 'CLOUDFLARE' | 'APINEX' | 'OXION' | 'AUTO'
+  // «ترتيب المزودات الاحتياطية» (2026-10-30): القائمة المعروضة = ترتيب الأدمن
+  // المحفوظ أولاً ثم بقية المزودين بالترتيب الافتراضي المكتوب، حتى يرى كل
+  // المزودين دائماً ويحرّك من يشاء. الحفظ يتم عبر حقل AI_PROVIDER_FALLBACK_ORDER.
+  const FALLBACK_ORDER_DEFAULT = ['GEMINI', 'UNOROUTER', 'OPENROUTER', 'TOPTOOLS', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'RELAYROUTER', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION']
+  const savedFallbackOrder = String(form.AI_PROVIDER_FALLBACK_ORDER || '').split(',').map((x) => x.trim().toUpperCase()).filter((x) => FALLBACK_ORDER_DEFAULT.includes(x))
+  const displayFallbackOrder = [...savedFallbackOrder, ...FALLBACK_ORDER_DEFAULT.filter((p) => !savedFallbackOrder.includes(p))]
+  const moveInFallbackOrder = (idx: number, dir: -1 | 1) => {
+    const next = [...displayFallbackOrder]
+    const j = idx + dir
+    if (j < 0 || j >= next.length) return
+    const tmp = next[idx]
+    next[idx] = next[j]
+    next[j] = tmp
+    set('AI_PROVIDER_FALLBACK_ORDER', next.join(','))
+  }
+  const fallbackProviderLabel = (p: string) => TEXT_PROVIDER_CHOICES.find((c) => c.value === p)?.label.split('—')[0].trim() || p
+  // مفتاح إطفاء الترتيب اليدوي: غير المضبوط = مفعّل (الترتيب المحفوظ يعمل فور
+  // حفظه)؛ الإطفاء الصريح يركن الترتيب ويرجع السياسات والعائلات والمدفوع أولاً.
+  const fallbackOrderEnabled = form.AI_PROVIDER_FALLBACK_ORDER_ENABLED !== 'false' && form.AI_PROVIDER_FALLBACK_ORDER_ENABLED !== '0'
   const agentDiag = data.agent
   const agentSourceLabel = agentDiag?.source === 'settings'
     ? 'إعدادات لوحة الإدارة'
@@ -1275,6 +1305,42 @@ export function AdminSystemTab() {
             {F('AI_FAMILY_QUALITY_ORDER', 'ترتيب عائلات الجودة AI_FAMILY_QUALITY_ORDER', DEFAULT_FAMILY_QUALITY_ORDER, 'text', 'اختياري. اتركه فارغاً لاستخدام الترتيب الافتراضي.')}
             {F('AI_FAMILY_COST_ORDER', 'ترتيب عائلات التوفير AI_FAMILY_COST_ORDER', DEFAULT_FAMILY_COST_ORDER, 'text', 'اختياري. اتركه فارغاً لاستخدام الترتيب الافتراضي.')}
             {F('AI_ROUTER_COOLDOWN_MINUTES', 'مدة التبريد الافتراضية (دقائق)', '15', 'number', 'رقم من 1 إلى 120. إذا تُرك فارغاً أو خارج النطاق يعود إلى 15 دقيقة.')}
+            <div className="rounded-xl border border-indigo-100 bg-white px-4 py-3 sm:col-span-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-black text-indigo-900">ترتيب المزودات الاحتياطية</p>
+                  <p className="mt-1 text-[10px] font-bold leading-relaxed text-indigo-700">عند فشل مزود ينتقل التنفيذ إلى التالي بهذا الترتيب حرفياً — السياسات لا تعيد ترتيبه. المزود بلا مفتاح محفوظ يُتخطى تلقائياً. المزود المختار أعلاه (إن لم يكن AUTO) يبقى أولاً ثم يتبعه هذا الترتيب.</p>
+                </div>
+                {savedFallbackOrder.length ? (
+                  <Button type="button" variant="outline" size="sm" className="h-7 text-[10px] font-extrabold" onClick={() => set('AI_PROVIDER_FALLBACK_ORDER', '')}>إعادة لترتيب النظام الافتراضي</Button>
+                ) : (
+                  <Badge className="bg-slate-100 text-slate-600">حالياً: ترتيب النظام الافتراضي — حرّك أي مزود لحفظ ترتيبك</Badge>
+                )}
+              </div>
+              <div className="mt-3 flex items-center justify-between rounded-lg border border-indigo-100 bg-indigo-50/50 px-3 py-2">
+                <div>
+                  <p className="text-[11px] font-black text-indigo-900">تفعيل الترتيب اليدوي</p>
+                  <p className="text-[10px] font-bold leading-relaxed text-indigo-700">{fallbackOrderEnabled ? 'مفعّل: ترتيبك أعلاه هو الذي يمشي عليه التنفيذ.' : 'مطفأ: ترتيبك محفوظ كما هو، والتنفيذ يرجع للسياسات وترتيب العائلات والمدفوع أولاً.'}</p>
+                </div>
+                <Switch checked={fallbackOrderEnabled} onCheckedChange={(v) => set('AI_PROVIDER_FALLBACK_ORDER_ENABLED', v ? 'true' : 'false')} />
+              </div>
+              <div className={`mt-3 grid gap-1 ${fallbackOrderEnabled ? '' : 'pointer-events-none opacity-50'}`}>
+                {displayFallbackOrder.map((p, idx) => (
+                  <div key={p} className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 text-center text-[11px] font-black text-indigo-900">{idx + 1}</span>
+                      <span className="text-[11px] font-extrabold text-slate-700">{fallbackProviderLabel(p)}</span>
+                      <span className="text-[9px] font-bold text-slate-400" dir="ltr">{p}</span>
+                      {textAiDiag?.keyCounts && !textAiDiag.keyCounts[p] ? <Badge className="bg-amber-100 text-amber-700">لا مفتاح — يُتخطى</Badge> : null}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button type="button" variant="outline" size="sm" className="h-7 w-7 p-0" disabled={idx === 0} onClick={() => moveInFallbackOrder(idx, -1)} aria-label={`تقديم ${p}`}><ChevronUp className="h-4 w-4" /></Button>
+                      <Button type="button" variant="outline" size="sm" className="h-7 w-7 p-0" disabled={idx === displayFallbackOrder.length - 1} onClick={() => moveInFallbackOrder(idx, 1)} aria-label={`تأخير ${p}`}><ChevronDown className="h-4 w-4" /></Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
             {F('AI_ACADEMIC_ALLOWLIST', 'قائمة المهام الحساسة AI_ACADEMIC_ALLOWLIST', 'GEMINI:gemini-3.5-flash,GEMINI:gemini-3.8-flash', 'text', academicAllowlistHelp)}
             <div className="flex items-center justify-between rounded-xl border border-indigo-100 bg-white px-4 py-3">
               <div>
@@ -1597,6 +1663,13 @@ export function AdminSystemTab() {
                 {F('APINEX_API_KEYS', 'APInex API Keys', data.secretsSet.APINEX_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'sk-apx...', 'password', 'مفتاح أو أكثر من APInex مفصول بفاصلة، يبدأ بـ sk-apx. لا تضع المفتاح داخل الكود.')}
                 {SelectF('APINEX_TEXT_MODEL', 'نموذج APInex', modelOptions('APINEX', APINEX_TEXT_MODEL_CHOICES), modelHint('APINEX', 'يتم تحميل النماذج المجانية تلقائياً من /models، ونماذج الاشتراك فقط مستبعدة، والقائمة الثابتة احتياط إذا فشل التحميل. انتبه: الخصم من الحصة = الرموز × وزن (×2 إلى ×4)، فالـ 20 مليون حصة تعادل أقل بالرموز الخام.'))}
                 {F('APINEX_BASE_URL', 'APInex Base URL', 'https://api.apinex.bond/v1', 'text', 'يجب أن يدعم /chat/completions بنمط OpenAI-compatible. حد الطلبات منخفض (5–15 طلب/دقيقة حسب صفحة الموقع) — احتياط أخير، ليس خطاً رئيسياً.')}
+              </>
+            ) : null}
+            {currentTextProvider === 'OXION' || currentTextProvider === 'AUTO' ? (
+              <>
+                {F('OXION_API_KEYS', 'Oxion AI API Keys', data.secretsSet.OXION_API_KEYS ? 'محفوظة — اكتب قيماً جديدة للتغيير' : 'cc_...', 'password', 'مفتاح أو أكثر من Oxion AI مفصول بفاصلة، يبدأ بـ cc_. لا تضع المفتاح داخل الكود.')}
+                {SelectF('OXION_TEXT_MODEL', 'نموذج Oxion AI', modelOptions('OXION', OXION_TEXT_MODEL_CHOICES), modelHint('OXION', 'يتم تحميل نماذج حسابك تلقائياً من /models عند توفر المفتاح، والقائمة الثابتة احتياط فقط إذا فشل التحميل. خطة Pro: 200M توكن شهرياً.'))}
+                {F('OXION_BASE_URL', 'Oxion AI Base URL', 'https://www.oxionai.com/v1', 'text', 'يجب أن يدعم /chat/completions بنمط OpenAI-compatible.')}
               </>
             ) : null}
           </div>

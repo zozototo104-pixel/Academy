@@ -52,7 +52,8 @@ describe('router admin policy B1', () => {
   })
 
   test('testProviderOrderUnchanged keeps the legacy primary provider order snapshot', () => {
-    // APINEX appended as the last rear reserve (PR #153); the rest untouched.
+    // APINEX appended as a rear reserve (PR #153), then OXION appended after
+    // it as the newest gateway reserve (2026-10-30); the rest untouched.
     expect(__testPrimaryProviderOrder()).toEqual([
       'GEMINI',
       'UNOROUTER',
@@ -70,6 +71,7 @@ describe('router admin policy B1', () => {
       'MISTRAL',
       'CLOUDFLARE',
       'APINEX',
+      'OXION',
     ])
   })
 
@@ -232,7 +234,11 @@ describe('router admin policy B1', () => {
     }))
 
     const calls: string[] = []
+    // OPENAI model discovery (2026-10-30) issues GET /models while building
+    // candidates; it is background traffic, not a completion attempt, so the
+    // stubs answer it with an empty catalog and never record it in `calls`.
     globalThis.fetch = (async (_url: any, init: any) => {
+      if (String(_url).endsWith('/models')) return new Response(JSON.stringify({ data: [] }), { status: 200 })
       const model = JSON.parse(String(init?.body || '{}')).model
       calls.push(model)
       return new Response(JSON.stringify({ output_text: 'ok' }), { status: 200 })
@@ -243,6 +249,7 @@ describe('router admin policy B1', () => {
 
     calls.length = 0
     globalThis.fetch = (async (_url: any, init: any) => {
+      if (String(_url).endsWith('/models')) return new Response(JSON.stringify({ data: [] }), { status: 200 })
       const model = JSON.parse(String(init?.body || '{}')).model
       calls.push(model)
       if (model === 'gpt-5.1') return new Response(JSON.stringify({ error: { message: 'upstream 503' } }), { status: 503 })
@@ -255,6 +262,7 @@ describe('router admin policy B1', () => {
 
     calls.length = 0
     globalThis.fetch = (async (_url: any, init: any) => {
+      if (String(_url).endsWith('/models')) return new Response(JSON.stringify({ data: [] }), { status: 200 })
       const model = JSON.parse(String(init?.body || '{}')).model
       calls.push(model)
       return new Response(JSON.stringify({ output_text: 'ok-again' }), { status: 200 })
@@ -294,6 +302,11 @@ describe('router admin policy B1', () => {
     const attemptedByRequest: string[][] = []
     let currentAttempts: string[] = []
     globalThis.fetch = (async (url: any) => {
+      // GEMINI model discovery (2026-10-30) GETs /v1beta/models while building
+      // candidates; only :generateContent calls are completion attempts.
+      if (!String(url).includes(':generateContent')) {
+        return new Response(JSON.stringify({ models: [] }), { status: 200 })
+      }
       const model = decodeURIComponent(String(url).match(/\/models\/([^:]+):/)?.[1] || '')
       currentAttempts.push(model)
       return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }), { status: 200 })
@@ -330,6 +343,10 @@ describe('router admin policy B1', () => {
     const keyOrderByRequest: string[][] = []
     let currentKeys: string[] = []
     globalThis.fetch = (async (url: any) => {
+      // Discovery GETs carry the same ?key= but are not completion attempts.
+      if (!String(url).includes(':generateContent')) {
+        return new Response(JSON.stringify({ models: [] }), { status: 200 })
+      }
       const key = new URL(String(url)).searchParams.get('key') || ''
       currentKeys.push(key)
       if (key !== 'key-c') return new Response(JSON.stringify({ error: { message: 'plain failure' } }), { status: 500 })
@@ -459,7 +476,9 @@ describe('router admin policy B1', () => {
       OPENAI_BASE_URL: 'https://openai.test/v1',
     }))
     let strictCalls = 0
-    globalThis.fetch = (async () => {
+    globalThis.fetch = (async (url: any) => {
+      // Model discovery is background traffic; strictCalls counts completions.
+      if (String(url).endsWith('/models')) return new Response(JSON.stringify({ data: [] }), { status: 200 })
       strictCalls += 1
       return new Response(JSON.stringify({ error: { message: 'upstream 503' } }), { status: 503 })
     }) as any

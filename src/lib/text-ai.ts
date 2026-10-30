@@ -20,6 +20,7 @@ export type TextAiProvider =
   | 'MISTRAL'
   | 'CLOUDFLARE'
   | 'APINEX'
+  | 'OXION'
   | 'AUTO'
 
 export type TextAiRouterPolicy = 'primary_first' | 'balanced' | 'quality_first' | 'cost_saver' | 'fallback_only'
@@ -109,6 +110,7 @@ export interface TextAiDiagnostics {
   mistralConfigured: boolean
   cloudflareConfigured: boolean
   apinexConfigured: boolean
+  oxionConfigured: boolean
   openaiCompatConfigured: boolean
   geminiModel: string
   openaiModel: string
@@ -125,6 +127,7 @@ export interface TextAiDiagnostics {
   mistralModel: string
   cloudflareModel: string
   apinexModel: string
+  oxionModel: string
   openaiCompatModel: string
   keyCounts: Record<string, number>
   cooldowns: Array<{ provider: string; key: string; until: string; reason: string }>
@@ -217,6 +220,15 @@ const CLOUDFLARE_TEXT_MODELS = ['@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf
 // apinex.bond/models?group=free at review time.
 const APINEX_TEXT_MODELS = ['free/deepseek-v4.1-flash', 'free/glm-5.3-flash', 'free/gpt-6-luna', 'free/minimax-m3.1-flash', 'free/gemini-3.8-flash', 'free/deepseek-v4-pro-0813', 'free/glm-5.3', 'free/glm-5.3-flashx', 'free/mimo-v2.6-pro', 'free/kimi-k3', 'free/muse-spark-1.3', 'free/jev-1.13']
 const APINEX_DEFAULT_BASE_URL = 'https://api.apinex.bond/v1'
+// Oxion AI (oxionai.com) is an OpenAI-compatible gateway on a paid Pro plan
+// (Haris, 2026-10-30). Its /v1/models catalog requires the account key, so
+// discovery (generic OpenAI-compatible branch in liveFreeModels) is the real
+// model source at runtime; the static list below is only the fallback when
+// discovery fails, seeded with the flagship IDs from Oxion's own published
+// catalog names — re-check against the live /models output once the key is
+// configured. Gateway reserve: sits at the back of the coded orders.
+const OXION_TEXT_MODELS = ['claude-sonnet-5', 'gpt-5.6', 'gemini-3.1-pro', 'deepseek-v4', 'kimi-k3', 'grok-4.6']
+const OXION_DEFAULT_BASE_URL = 'https://www.oxionai.com/v1'
 const ALBORIHI_MODEL_DISCOVERY_CACHE_MS = 6 * 60 * 60 * 1000
 const OPENAI_COMPAT_TEXT_MODELS = ['auto']
 const NVIDIA_OPENAI_COMPAT_TEXT_MODELS = [
@@ -367,7 +379,7 @@ function clean(value: unknown): string {
 
 function normalizeProvider(value: unknown): TextAiProvider {
   const v = clean(value).toUpperCase()
-  const allowed: TextAiProvider[] = ['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX', 'AUTO']
+  const allowed: TextAiProvider[] = ['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION', 'AUTO']
   return allowed.includes(v as TextAiProvider) ? (v as TextAiProvider) : 'GEMINI'
 }
 
@@ -464,6 +476,31 @@ function parseFamilyOrder(value: unknown, fallback: string): string[] {
     out.push(family)
   }
   return out.length ? out : fallback.split(',')
+}
+
+// Haris's manual fallback order (Admin System setting AI_PROVIDER_FALLBACK_ORDER,
+// «ترتيب المزودات الاحتياطية», 2026-10-30): a comma list of provider ids in the
+// exact order the router must walk when a provider fails. Empty = no manual
+// order saved, and routing keeps the coded policy orders bit-for-bit. Unknown
+// or duplicate ids are dropped; providers missing from the saved list are
+// appended by manualChain() in the coded primary order, so a newly added
+// provider joins the end of the chain until the admin reorders it.
+function parseProviderOrder(value: unknown): ConcreteProvider[] {
+  const seen = new Set<string>()
+  const out: ConcreteProvider[] = []
+  for (const raw of String(value || '').split(',')) {
+    const provider = clean(raw).toUpperCase()
+    if (!provider || provider === 'AUTO' || seen.has(provider)) continue
+    const normalized = normalizeProvider(provider)
+    if (normalized === 'AUTO' || normalized !== provider) continue
+    seen.add(provider)
+    out.push(normalized as ConcreteProvider)
+  }
+  return out
+}
+
+export function __testParseProviderOrderForTests(value: unknown): string[] {
+  return parseProviderOrder(value)
 }
 
 function sanitizeProviderTiersValue(value: unknown): string | null {
@@ -916,7 +953,7 @@ export function __testNvidiaHardFailureThresholdForTests(timestamps: number[], n
   return timestamps.filter((at) => Number.isFinite(at) && at <= now && now - at <= NVIDIA_OPENAI_COMPAT_HARD_FAILURE_WINDOW_MS).length >= 2
 }
 
-const STRICT_ENCRYPTED_SETTING_PROVIDERS = new Set(['GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX'])
+const STRICT_ENCRYPTED_SETTING_PROVIDERS = new Set(['GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION'])
 const LEGACY_PLAINTEXT_SETTING_PROVIDERS = new Set(['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI'])
 
 function providerFromSettingKey(key: string): string {
@@ -957,7 +994,7 @@ async function readSettings(keys: string[]): Promise<Record<string, string>> {
 
 async function settings() {
   const rows = await readSettings([
-    'AI_TEXT_PROVIDER', 'AI_ROUTER_POLICY', 'AI_ROUTER_POLICY_SOURCE', 'AI_POLICY_RANK_BY', 'AI_FAMILY_QUALITY_ORDER', 'AI_FAMILY_COST_ORDER', 'AI_PROVIDER_TIERS', 'AI_PAID_FIRST', 'AI_ROUTER_ALLOW_PUBLIC_GATEWAYS', 'AI_ACADEMIC_ALLOWLIST', 'AI_ACADEMIC_ALLOWLIST_STRICT', 'AI_VERIFIER_PREFERRED', 'AI_VERIFIER_STRICT', 'AI_STICKY_ON_SUCCESS', 'AI_ROUTER_COOLDOWN_MINUTES',
+    'AI_TEXT_PROVIDER', 'AI_ROUTER_POLICY', 'AI_ROUTER_POLICY_SOURCE', 'AI_POLICY_RANK_BY', 'AI_FAMILY_QUALITY_ORDER', 'AI_FAMILY_COST_ORDER', 'AI_PROVIDER_TIERS', 'AI_PAID_FIRST', 'AI_ROUTER_ALLOW_PUBLIC_GATEWAYS', 'AI_ACADEMIC_ALLOWLIST', 'AI_ACADEMIC_ALLOWLIST_STRICT', 'AI_VERIFIER_PREFERRED', 'AI_VERIFIER_STRICT', 'AI_STICKY_ON_SUCCESS', 'AI_ROUTER_COOLDOWN_MINUTES', 'AI_PROVIDER_FALLBACK_ORDER', 'AI_PROVIDER_FALLBACK_ORDER_ENABLED',
     'AI_PAID_USAGE_MODE', 'AI_PAID_MODELS', 'AI_PAID_DAILY_LIMIT_USD', 'AI_PAID_MONTHLY_LIMIT_USD', 'AI_PROVIDER_TIER_OPENAI_COMPAT',
     'GEMINI_API_KEY', 'GEMINI_API_KEYS', 'GEMINI_TEXT_MODEL',
     'OPENAI_API_KEY', 'OPENAI_API_KEYS', 'OPENAI_TEXT_MODEL', 'OPENAI_BASE_URL',
@@ -975,11 +1012,18 @@ async function settings() {
     'MISTRAL_API_KEY', 'MISTRAL_API_KEYS', 'MISTRAL_TEXT_MODEL', 'MISTRAL_BASE_URL',
     'CLOUDFLARE_API_KEY', 'CLOUDFLARE_API_KEYS', 'CLOUDFLARE_TEXT_MODEL', 'CLOUDFLARE_BASE_URL',
     'APINEX_API_KEY', 'APINEX_API_KEYS', 'APINEX_TEXT_MODEL', 'APINEX_BASE_URL',
+    'OXION_API_KEY', 'OXION_API_KEYS', 'OXION_TEXT_MODEL', 'OXION_BASE_URL',
   ])
   const provider = normalizeProvider(rows.AI_TEXT_PROVIDER || env('AI_TEXT_PROVIDER') || 'GEMINI')
   const policy = normalizePolicy(rows.AI_ROUTER_POLICY || env('AI_ROUTER_POLICY') || 'primary_first')
   const routerCooldownMinutes = __testResolveRouterCooldownMinutesForTests(rows.AI_ROUTER_COOLDOWN_MINUTES, env('AI_ROUTER_COOLDOWN_MINUTES'))
   cachedRouterCooldownMinutes = routerCooldownMinutes
+  // The manual fallback order's on/off switch (AI_PROVIDER_FALLBACK_ORDER_ENABLED,
+  // Haris 2026-10-30): unset means ENABLED, so a saved order is live the moment
+  // it exists (the PR #159 semantics); an explicit 'false' parks the saved
+  // order and hands routing back to the coded policies/families/paid-first.
+  const manualOrderEnabledRaw = rows.AI_PROVIDER_FALLBACK_ORDER_ENABLED || env('AI_PROVIDER_FALLBACK_ORDER_ENABLED')
+  const manualProviderOrderEnabled = manualOrderEnabledRaw === '' ? true : booleanSetting(manualOrderEnabledRaw)
   const openaiCompatBaseUrl = normalizeOpenAiCompatibleBaseUrl(rows.OPENAI_COMPAT_BASE_URL || env('OPENAI_COMPAT_BASE_URL') || '')
   const openaiCompatDefaults = isNvidiaOpenAiCompatibleBaseUrl(openaiCompatBaseUrl) ? NVIDIA_OPENAI_COMPAT_TEXT_MODELS : OPENAI_COMPAT_TEXT_MODELS
   return {
@@ -1049,6 +1093,11 @@ async function settings() {
     apinexKeys: parseKeys(rows.APINEX_API_KEY, rows.APINEX_API_KEYS, env('APINEX_API_KEY'), env('APINEX_API_KEYS')),
     apinexModel: normalizeModel(rows.APINEX_TEXT_MODEL || env('APINEX_TEXT_MODEL'), APINEX_TEXT_MODELS),
     apinexBaseUrl: (rows.APINEX_BASE_URL || env('APINEX_BASE_URL') || APINEX_DEFAULT_BASE_URL).replace(/\/$/, ''),
+    oxionKeys: parseKeys(rows.OXION_API_KEY, rows.OXION_API_KEYS, env('OXION_API_KEY'), env('OXION_API_KEYS')),
+    oxionModel: normalizeModel(rows.OXION_TEXT_MODEL || env('OXION_TEXT_MODEL'), OXION_TEXT_MODELS),
+    oxionBaseUrl: (rows.OXION_BASE_URL || env('OXION_BASE_URL') || OXION_DEFAULT_BASE_URL).replace(/\/$/, ''),
+    manualProviderOrder: parseProviderOrder(rows.AI_PROVIDER_FALLBACK_ORDER || env('AI_PROVIDER_FALLBACK_ORDER')),
+    manualProviderOrderEnabled,
     openaiCompatKeys: parseKeys(rows.OPENAI_COMPAT_API_KEY, rows.OPENAI_COMPAT_API_KEYS, env('OPENAI_COMPAT_API_KEY'), env('OPENAI_COMPAT_API_KEYS')),
     openaiCompatModel: normalizeModel(rows.OPENAI_COMPAT_TEXT_MODEL || env('OPENAI_COMPAT_TEXT_MODEL'), openaiCompatDefaults),
     openaiCompatBaseUrl,
@@ -1110,12 +1159,13 @@ function providerKeys(s: Settings, provider: ConcreteProvider): string[] {
     case 'MISTRAL': return s.mistralKeys || []
     case 'CLOUDFLARE': return s.cloudflareBaseUrl ? (s.cloudflareKeys || []) : []
     case 'APINEX': return s.apinexKeys || []
+    case 'OXION': return s.oxionKeys || []
     case 'OPENAI_COMPAT': return s.openaiCompatBaseUrl ? (s.openaiCompatKeys || []) : []
     default: return []
   }
 }
 
-const ROUTER_STATE_PROVIDERS: ConcreteProvider[] = ['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX']
+const ROUTER_STATE_PROVIDERS: ConcreteProvider[] = ['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION']
 
 type ClearTextAiRouterStateInput = {
   type?: string
@@ -1305,6 +1355,7 @@ function modelFor(s: Settings, provider: ConcreteProvider): string {
     case 'MISTRAL': return s.mistralModel
     case 'CLOUDFLARE': return s.cloudflareModel
     case 'APINEX': return s.apinexModel
+    case 'OXION': return s.oxionModel
     case 'OPENAI_COMPAT': return s.openaiCompatModel
   }
 }
@@ -1324,6 +1375,7 @@ function baseFor(s: Settings, provider: ConcreteProvider): string {
     case 'MISTRAL': return s.mistralBaseUrl
     case 'CLOUDFLARE': return s.cloudflareBaseUrl
     case 'APINEX': return s.apinexBaseUrl
+    case 'OXION': return s.oxionBaseUrl
     case 'OPENAI_COMPAT': return s.openaiCompatBaseUrl
     default: return ''
   }
@@ -1346,6 +1398,7 @@ function staticTextModelsForProvider(provider: ConcreteProvider, s?: Settings): 
     case 'MISTRAL': return MISTRAL_TEXT_MODELS
     case 'CLOUDFLARE': return CLOUDFLARE_TEXT_MODELS
     case 'APINEX': return APINEX_TEXT_MODELS
+    case 'OXION': return OXION_TEXT_MODELS
     case 'OPENAI_COMPAT': return s && isNvidiaOpenAiCompatibleBaseUrl(s.openaiCompatBaseUrl) ? NVIDIA_OPENAI_COMPAT_TEXT_MODELS : OPENAI_COMPAT_TEXT_MODELS
   }
 }
@@ -1589,11 +1642,16 @@ async function fetchOpenAiCompatibleFreeModels(provider: ConcreteProvider, baseU
       .filter(({ raw, id }) => validModelName(id) && (
         provider === 'ALBORIHI'
           ? true
-          : provider === 'TOPTOOLS'
-            ? isStrongTopToolsTextModel(raw, id)
-            : nvidiaCompat
-              ? isNvidiaFreeTrialTextModel(raw, id)
-              : isFreeModel(raw, id)
+          : provider === 'OXION'
+            // Oxion is a paid-plan gateway: the account key itself defines
+            // access, so every text-like catalog model is a candidate (the
+            // free-model marker check below would drop the whole catalog).
+            ? true
+            : provider === 'TOPTOOLS'
+              ? isStrongTopToolsTextModel(raw, id)
+              : nvidiaCompat
+                ? isNvidiaFreeTrialTextModel(raw, id)
+                : isFreeModel(raw, id)
       ))
     const orderedRows = provider === 'TOPTOOLS'
       ? rows.sort((a, b) => topToolsModelRank(a.id) - topToolsModelRank(b.id) || a.id.localeCompare(b.id))
@@ -1746,6 +1804,95 @@ export async function __testDiscoverApinexTextModelsForTests(baseUrl: string, ke
   return fetchApinexTextModels(baseUrl, key)
 }
 
+// Native first-party discovery (Haris's «كل النماذج تحدث تلقائيا», 2026-10-30):
+// GEMINI / OPENAI / ANTHROPIC were the last providers whose candidate pools
+// came only from the coded static lists. Each now reads its own live catalog
+// through the same cache as the gateways; the static list stays as the
+// fallback when discovery fails or returns nothing (modelFallbacks).
+async function fetchGeminiTextModels(key?: string): Promise<string[]> {
+  if (!key) return []
+  try {
+    const response = await fetchWithTimeout('GEMINI', `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`, {
+      cache: 'no-store',
+    }, aiDiscoveryTimeoutMs())
+    if (!response.ok) return []
+    const data = await response.json().catch(() => ({}))
+    const rows = rowsFromModelPayload(data)
+      .filter((m) => !Array.isArray(m?.supportedGenerationMethods) || m.supportedGenerationMethods.includes('generateContent'))
+      .map((m) => ({ raw: m, id: modelId(m).replace(/^models\//, '') }))
+      .filter(({ id }) => validModelName(id) && isTextLikeModel({ id }))
+    const models = rows.map(({ id }) => id)
+    const capabilities = Object.fromEntries(rows.map(({ raw, id }) => [id, capabilityFromModelRow(raw)]))
+    freeModelsCache.set(cacheKeyForFreeModels('GEMINI', '', key), { at: Date.now(), models, capabilities, discoveryOk: true })
+    console.info('[text-ai-router] gemini models discovered', { count: models.length })
+    return models
+  } catch {
+    return []
+  }
+}
+
+export async function __testDiscoverGeminiTextModelsForTests(key?: string): Promise<string[]> {
+  return fetchGeminiTextModels(key)
+}
+
+async function fetchAnthropicTextModels(key?: string): Promise<string[]> {
+  if (!key) return []
+  try {
+    const response = await fetchWithTimeout('ANTHROPIC', 'https://api.anthropic.com/v1/models?limit=100', {
+      cache: 'no-store',
+      headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+    }, aiDiscoveryTimeoutMs())
+    if (!response.ok) return []
+    const data = await response.json().catch(() => ({}))
+    const rows = rowsFromModelPayload(data)
+      .map((m) => ({ raw: m, id: modelId(m) }))
+      .filter(({ id }) => validModelName(id) && isTextLikeModel({ id }))
+    const models = rows.map(({ id }) => id)
+    const capabilities = Object.fromEntries(rows.map(({ raw, id }) => [id, capabilityFromModelRow(raw)]))
+    freeModelsCache.set(cacheKeyForFreeModels('ANTHROPIC', '', key), { at: Date.now(), models, capabilities, discoveryOk: true })
+    console.info('[text-ai-router] anthropic models discovered', { count: models.length })
+    return models
+  } catch {
+    return []
+  }
+}
+
+export async function __testDiscoverAnthropicTextModelsForTests(key?: string): Promise<string[]> {
+  return fetchAnthropicTextModels(key)
+}
+
+// OpenAI's /models returns every artifact on the account (fine-tunes, audio,
+// realtime, search, legacy completions). Discovery keeps only first-party
+// chat families and drops fine-tunes and non-chat variants explicitly; the
+// shared text-like filter and the health ordering do the rest.
+async function fetchOpenAiTextModels(baseUrl: string, key?: string): Promise<string[]> {
+  if (!baseUrl) return []
+  try {
+    const response = await fetchWithTimeout('OPENAI', `${baseUrl.replace(/\/$/, '')}/models`, {
+      cache: 'no-store',
+      headers: key ? { Authorization: `Bearer ${key}` } : undefined,
+    }, aiDiscoveryTimeoutMs())
+    if (!response.ok) return []
+    const data = await response.json().catch(() => ({}))
+    const rows = rowsFromModelPayload(data)
+      .map((m) => ({ raw: m, id: modelId(m) }))
+      .filter(({ id }) => validModelName(id) && isTextLikeModel({ id }))
+      .filter(({ id }) => /^(gpt-|o\d|chatgpt-)/i.test(id))
+      .filter(({ id }) => !/^ft:/i.test(id) && !/audio|realtime|image|tts|transcribe|search|instruct/i.test(id))
+    const models = rows.map(({ id }) => id)
+    const capabilities = Object.fromEntries(rows.map(({ raw, id }) => [id, capabilityFromModelRow(raw)]))
+    freeModelsCache.set(cacheKeyForFreeModels('OPENAI', baseUrl, key), { at: Date.now(), models, capabilities, discoveryOk: true })
+    console.info('[text-ai-router] openai models discovered', { count: models.length })
+    return models
+  } catch {
+    return []
+  }
+}
+
+export async function __testDiscoverOpenAiTextModelsForTests(baseUrl: string, key?: string): Promise<string[]> {
+  return fetchOpenAiTextModels(baseUrl, key)
+}
+
 function freeModelsMemoryCacheMs(provider: ConcreteProvider): number {
   return provider === 'ALBORIHI' ? ALBORIHI_MODEL_DISCOVERY_CACHE_MS : 30 * 60 * 1000
 }
@@ -1754,9 +1901,37 @@ function freeModelsPersistentCacheMs(provider: ConcreteProvider): number {
   return provider === 'ALBORIHI' ? ALBORIHI_MODEL_DISCOVERY_CACHE_MS : 24 * 60 * 60 * 1000
 }
 
+// Discovery is background traffic: it must never spend a request on a key the
+// router itself is avoiding. A key is skipped while ANY cooldown covers it —
+// key-level or model-level, in memory or persisted — or while it is marked
+// no-balance. When every key is cooling, the first key is used anyway
+// (discovery is best-effort and the static list covers a failure), mirroring
+// candidateKeys' fallback.
+async function discoveryKey(provider: ConcreteProvider, s: Settings): Promise<string> {
+  const keys = providerKeys(s, provider)
+  if (keys.length <= 1) return keys[0] || ''
+  const persistent = await loadPersistentCooldowns()
+  for (let index = 0; index < keys.length; index++) {
+    const key = keys[index]
+    if (activeMemoryCooldown(provider, key)) continue
+    const modelPrefix = `${cooldownId(provider, key)}:`
+    let memoryModelCooling = false
+    for (const [id, item] of cooldowns) {
+      if (id.startsWith(modelPrefix) && item.until > Date.now()) { memoryModelCooling = true; break }
+    }
+    if (memoryModelCooling) continue
+    if (persistentKeyCooldown(persistent, provider, index + 1)) continue
+    if (isPersistentNoBalance(persistent, provider, index + 1)) continue
+    const persistentPrefix = `${persistentCooldownKey(provider, index + 1)}:`
+    if (Object.entries(persistent).some(([name, value]) => name.startsWith(persistentPrefix) && parseCooldown(value))) continue
+    return key
+  }
+  return keys[0]
+}
+
 async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<string[]> {
   const baseUrl = baseFor(s, provider)
-  const key = providerKeys(s, provider)[0]
+  const key = await discoveryKey(provider, s)
   const cacheKey = cacheKeyForFreeModels(provider, baseUrl, key)
   const now = Date.now()
   const cached = freeModelsCache.get(cacheKey)
@@ -1793,13 +1968,19 @@ async function liveFreeModels(provider: ConcreteProvider, s: Settings): Promise<
     } catch {
       models = []
     }
+  } else if (provider === 'GEMINI') {
+    models = await fetchGeminiTextModels(key)
+  } else if (provider === 'ANTHROPIC') {
+    models = await fetchAnthropicTextModels(key)
+  } else if (provider === 'OPENAI') {
+    models = await fetchOpenAiTextModels(baseUrl, key)
   } else if (provider === 'GROQ') {
     models = await fetchGroqTextModels(baseUrl, key)
   } else if (provider === 'MISTRAL') {
     models = await fetchMistralTextModels(baseUrl, key)
   } else if (provider === 'APINEX') {
     models = await fetchApinexTextModels(baseUrl, key)
-  } else if (['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ZAI', 'ALBORIHI', 'CLOUDFLARE'].includes(provider)) {
+  } else if (['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ZAI', 'ALBORIHI', 'CLOUDFLARE', 'OXION'].includes(provider)) {
     models = await fetchOpenAiCompatibleFreeModels(provider, baseUrl, key)
   }
 
@@ -2081,6 +2262,7 @@ const ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER: ConcreteProvider[] = [
   'MISTRAL',
   'CLOUDFLARE',
   'APINEX',
+  'OXION',
 ]
 
 export function __testPrimaryProviderOrder(): string[] {
@@ -2167,8 +2349,8 @@ function applyPaidFirst(s: Settings, order: ConcreteProvider[], taskLevel: TextA
 
 function baseOrder(s: Settings, taskLevel: TextAiTaskLevel = 'GENERAL'): ConcreteProvider[] {
   const selected = s.provider === 'AUTO' ? null : s.provider
-  const quality: ConcreteProvider[] = ['ANTHROPIC', 'OPENAI', 'GEMINI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'TOPTOOLS', 'ZAI', 'GROQ', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX']
-  const cost: ConcreteProvider[] = ['GROQ', 'ZAI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'TOPTOOLS', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'GEMINI', 'OPENAI', 'ANTHROPIC', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX']
+  const quality: ConcreteProvider[] = ['ANTHROPIC', 'OPENAI', 'GEMINI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'TOPTOOLS', 'ZAI', 'GROQ', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION']
+  const cost: ConcreteProvider[] = ['GROQ', 'ZAI', 'UNOROUTER', 'OPENROUTER', 'RELAYROUTER', 'TOPTOOLS', 'DEEPINFRA', 'TOGETHER', 'OPENAI_COMPAT', 'GEMINI', 'OPENAI', 'ANTHROPIC', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION']
   const primary: ConcreteProvider[] = ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER
   if (s.policy === 'quality_first') return selectedFirst(selected, canRankProvidersByFamily(s, taskLevel) ? sortProvidersByFamily(s, quality, taskLevel) : quality)
   if (s.policy === 'cost_saver') return selectedFirst(selected, canRankProvidersByFamily(s, taskLevel) ? sortProvidersByFamily(s, cost, taskLevel) : cost)
@@ -2177,7 +2359,44 @@ function baseOrder(s: Settings, taskLevel: TextAiTaskLevel = 'GENERAL'): Concret
   return selectedFirst(selected, primary)
 }
 
+// The admin's manual chain: his saved order first, then any providers the
+// saved list omits (in the coded primary order) so new providers join the end.
+function manualChain(s: Settings): ConcreteProvider[] {
+  const saved = s.manualProviderOrder || []
+  if (!saved.length) return []
+  return [...saved, ...ACADEMY_PRIMARY_TEXT_PROVIDER_ORDER.filter((provider) => !saved.includes(provider))]
+}
+
 function providerOrder(s: Settings, taskLevel: TextAiTaskLevel = 'GENERAL'): ConcreteProvider[] {
+  const publicGateways = new Set<ConcreteProvider>(['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT'])
+  const academyAlwaysAllowed = new Set<ConcreteProvider>(['UNOROUTER', 'OPENROUTER', 'TOPTOOLS'])
+  const manual = manualChain(s)
+  if (manual.length && s.manualProviderOrderEnabled) {
+    // Manual order saved: Haris's order is literal law (2026-10-30 ruling) —
+    // the coded policy lists, paid-first and family reshuffles do NOT touch
+    // provider order. A concretely selected provider leads; «balanced» only
+    // rotates the start point of HIS list, keeping his relative order. The
+    // remaining guards are factual, not preferential: keyless providers are
+    // skipped, the public-gateway permission still gates general traffic, and
+    // the academic allowlist still advances first for book work (in his
+    // relative order). «fallback_only» keeps its single-provider meaning.
+    const selected = s.provider === 'AUTO' ? null : s.provider
+    if (s.policy === 'fallback_only' && selected) return providerKeys(s, selected).length ? [selected] : []
+    let chain = selected ? [selected, ...manual.filter((provider) => provider !== selected)] : [...manual]
+    if (s.policy === 'balanced' && !selected) {
+      const start = roundRobin++ % chain.length
+      chain = chain.slice(start).concat(chain.slice(0, start))
+    }
+    if (taskLevel !== 'GENERAL') {
+      const preferred = [...new Set(s.academicAllowlist.map((item) => item.provider))]
+      chain = [...chain.filter((provider) => preferred.includes(provider)), ...chain.filter((provider) => !preferred.includes(provider))]
+    }
+    return chain.filter((provider) => {
+      if (!providerKeys(s, provider).length) return false
+      if (taskLevel === 'GENERAL' && publicGateways.has(provider) && !s.allowPublicGateways && s.provider !== provider && !academyAlwaysAllowed.has(provider)) return false
+      return true
+    })
+  }
   if (taskLevel !== 'GENERAL') {
     const preferred = [...new Set(s.academicAllowlist.map((item) => item.provider))]
     const rest = baseOrder(s, taskLevel).filter((provider) => !preferred.includes(provider))
@@ -2191,8 +2410,6 @@ function providerOrder(s: Settings, taskLevel: TextAiTaskLevel = 'GENERAL'): Con
     if (s.policySource === 'admin' && s.policy === 'primary_first' && selected) return ordered
     return ordered.includes('OPENAI') ? [...ordered.filter((provider) => provider !== 'OPENAI'), 'OPENAI'] : ordered
   }
-  const publicGateways = new Set<ConcreteProvider>(['OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT'])
-  const academyAlwaysAllowed = new Set<ConcreteProvider>(['UNOROUTER', 'OPENROUTER', 'TOPTOOLS'])
   return baseOrder(s, taskLevel).filter((provider) => {
     if (!providerKeys(s, provider).length) return false
     if (publicGateways.has(provider) && !s.allowPublicGateways && s.provider !== provider && !academyAlwaysAllowed.has(provider)) return false
@@ -2200,7 +2417,7 @@ function providerOrder(s: Settings, taskLevel: TextAiTaskLevel = 'GENERAL'): Con
   })
 }
 
-export function __testB2ProviderOrderForTests(args: { policy?: TextAiRouterPolicy; rankBy?: TextAiPolicyRankBy; taskLevel?: TextAiTaskLevel; providerTiers?: string; paidFirst?: boolean; allowlist?: string; strict?: boolean; provider?: TextAiProvider; topToolsModel?: string; alborihiModel?: string; groqModel?: string; geminiModel?: string; openaiCompatTier?: TextAiProviderTier }): string[] {
+export function __testB2ProviderOrderForTests(args: { policy?: TextAiRouterPolicy; rankBy?: TextAiPolicyRankBy; taskLevel?: TextAiTaskLevel; providerTiers?: string; paidFirst?: boolean; allowlist?: string; strict?: boolean; provider?: TextAiProvider; topToolsModel?: string; alborihiModel?: string; groqModel?: string; geminiModel?: string; openaiCompatTier?: TextAiProviderTier; manualOrder?: string; manualOrderEnabled?: boolean }): string[] {
   const s = {
     provider: normalizeProvider(args.provider || 'AUTO'),
     policy: normalizePolicy(args.policy || 'primary_first'),
@@ -2213,9 +2430,11 @@ export function __testB2ProviderOrderForTests(args: { policy?: TextAiRouterPolic
     academicAllowlist: parseAcademicAllowlist(args.allowlist || DEFAULT_ACADEMIC_ALLOWLIST),
     academicAllowlistStrict: args.strict === true,
     allowPublicGateways: true,
-    geminiKeys: ['k'], openaiKeys: ['k'], anthropicKeys: ['k'], zaiKeys: ['k'], groqKeys: ['k'], openrouterKeys: ['k'], deepinfraKeys: ['k'], togetherKeys: ['k'], unorouterKeys: ['k'], relayrouterKeys: ['k'], topToolsKeys: ['k'], alborihiKeys: ['k'], openaiCompatKeys: ['k'], mistralKeys: ['k'], cloudflareKeys: ['k'], apinexKeys: ['k'],
-    geminiModel: args.geminiModel || 'gemini-3.8-flash', openaiModel: 'gpt-5.1', anthropicModel: 'claude-sonnet-4-5-20250929', zaiModel: 'glm-4.5', groqModel: args.groqModel || 'llama-3.3-70b-versatile', openrouterModel: 'openrouter/auto', deepinfraModel: 'meta-llama/Llama-3.3-70B-Instruct', togetherModel: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', unorouterModel: 'gpt-oss-120b:free', relayrouterModel: 'claude-opus-4-8', topToolsModel: args.topToolsModel || 'top-tools-ai', alborihiModel: args.alborihiModel || 'claude-sonnet-5', openaiCompatModel: 'auto', mistralModel: 'mistral-large-latest', cloudflareModel: '@cf/meta/llama-3.3-70b-instruct-fp8-fast', apinexModel: 'free/deepseek-v4.1-flash',
-    openaiCompatBaseUrl: 'https://compat.test/v1', alborihiBaseUrl: ALBORIHI_DEFAULT_BASE_URL, mistralBaseUrl: MISTRAL_DEFAULT_BASE_URL, cloudflareBaseUrl: 'https://api.cloudflare.com/client/v4/accounts/test123/ai/v1', apinexBaseUrl: APINEX_DEFAULT_BASE_URL, openaiCompatTier: args.openaiCompatTier || 'FREE',
+    geminiKeys: ['k'], openaiKeys: ['k'], anthropicKeys: ['k'], zaiKeys: ['k'], groqKeys: ['k'], openrouterKeys: ['k'], deepinfraKeys: ['k'], togetherKeys: ['k'], unorouterKeys: ['k'], relayrouterKeys: ['k'], topToolsKeys: ['k'], alborihiKeys: ['k'], openaiCompatKeys: ['k'], mistralKeys: ['k'], cloudflareKeys: ['k'], apinexKeys: ['k'], oxionKeys: ['k'],
+    geminiModel: args.geminiModel || 'gemini-3.8-flash', openaiModel: 'gpt-5.1', anthropicModel: 'claude-sonnet-4-5-20250929', zaiModel: 'glm-4.5', groqModel: args.groqModel || 'llama-3.3-70b-versatile', openrouterModel: 'openrouter/auto', deepinfraModel: 'meta-llama/Llama-3.3-70B-Instruct', togetherModel: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', unorouterModel: 'gpt-oss-120b:free', relayrouterModel: 'claude-opus-4-8', topToolsModel: args.topToolsModel || 'top-tools-ai', alborihiModel: args.alborihiModel || 'claude-sonnet-5', openaiCompatModel: 'auto', mistralModel: 'mistral-large-latest', cloudflareModel: '@cf/meta/llama-3.3-70b-instruct-fp8-fast', apinexModel: 'free/deepseek-v4.1-flash', oxionModel: 'claude-sonnet-5',
+    openaiCompatBaseUrl: 'https://compat.test/v1', alborihiBaseUrl: ALBORIHI_DEFAULT_BASE_URL, mistralBaseUrl: MISTRAL_DEFAULT_BASE_URL, cloudflareBaseUrl: 'https://api.cloudflare.com/client/v4/accounts/test123/ai/v1', apinexBaseUrl: APINEX_DEFAULT_BASE_URL, oxionBaseUrl: OXION_DEFAULT_BASE_URL, openaiCompatTier: args.openaiCompatTier || 'FREE',
+    manualProviderOrder: parseProviderOrder(args.manualOrder || ''),
+    manualProviderOrderEnabled: args.manualOrderEnabled !== false,
   } as Settings
   const taskLevel = args.taskLevel || (args.rankBy === 'family' ? 'ACADEMIC_CRITICAL' : 'GENERAL')
   return providerOrder(s, taskLevel)
@@ -2391,6 +2610,7 @@ export async function textAiDiagnostics(): Promise<TextAiDiagnostics> {
     MISTRAL: s.mistralKeys.length,
     CLOUDFLARE: s.cloudflareKeys.length,
     APINEX: s.apinexKeys.length,
+    OXION: s.oxionKeys.length,
     OPENAI_COMPAT: s.openaiCompatKeys.length,
   }
   return {
@@ -2413,6 +2633,7 @@ export async function textAiDiagnostics(): Promise<TextAiDiagnostics> {
     mistralConfigured: counts.MISTRAL > 0,
     cloudflareConfigured: counts.CLOUDFLARE > 0,
     apinexConfigured: counts.APINEX > 0,
+    oxionConfigured: counts.OXION > 0,
     openaiCompatConfigured: counts.OPENAI_COMPAT > 0,
     geminiModel: s.geminiModel,
     openaiModel: s.openaiModel,
@@ -2429,6 +2650,7 @@ export async function textAiDiagnostics(): Promise<TextAiDiagnostics> {
     mistralModel: s.mistralModel,
     cloudflareModel: s.cloudflareModel,
     apinexModel: s.apinexModel,
+    oxionModel: s.oxionModel,
     openaiCompatModel: s.openaiCompatModel,
     keyCounts: counts,
     cooldowns: cooldownList(),
