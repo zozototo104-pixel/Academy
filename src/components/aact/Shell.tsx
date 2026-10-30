@@ -3,7 +3,7 @@
 import { useAppStore, api, clearToken } from '@/lib/store'
 import { UrgentMessageAlert } from '@/components/aact/UrgentMessageAlert'
 import { useEffect, useRef, useState } from 'react'
-import { Bot, ChevronDown, ChevronUp, ShieldCheck, Users2, Send, Loader2, X, ExternalLink, MessageCircle, UserRound, Mail, Globe2 } from 'lucide-react'
+import { Bell, Bot, ChevronDown, ChevronUp, ShieldCheck, Users2, Send, Loader2, X, ExternalLink, MessageCircle, UserRound, Mail, Globe2 } from 'lucide-react'
 
 type ShellOfficialContact = {
   legalEntity: string
@@ -377,6 +377,8 @@ function NotificationBell() {
   const [unread, setUnread] = useState(0)
   const unreadRef = useRef(0)
   const loadedOnceRef = useRef(false)
+  const itemsRef = useRef<Notif[]>([])
+  const markTimerRef = useRef<number | null>(null)
 
   const playNotificationSound = () => {
     try {
@@ -405,6 +407,7 @@ function NotificationBell() {
         if (loadedOnceRef.current && d.unread > unreadRef.current) playNotificationSound()
         loadedOnceRef.current = true
         unreadRef.current = d.unread
+        itemsRef.current = d.notifications
         setItems(d.notifications)
         setUnread(d.unread)
       })
@@ -423,7 +426,29 @@ function NotificationBell() {
     await api('/api/notifications', { method: 'PATCH', body: JSON.stringify({}) }).catch(() => {})
     unreadRef.current = 0
     setUnread(0)
-    setItems((prev) => prev.map((n) => ({ ...n, read: true })))
+    itemsRef.current = itemsRef.current.map((n) => ({ ...n, read: true }))
+    setItems(itemsRef.current)
+  }
+
+  const closeBell = () => {
+    if (markTimerRef.current) window.clearTimeout(markTimerRef.current)
+    setOpen(false)
+  }
+
+  // «لما يشوفها تتعلم مقروءه» (إصلاح 2026-10-30): فتح القائمة يعلّم المعروض
+  // مقروءاً بعد مهلة قصيرة — حتى يلحق المستخدم رؤية العلامة، وإغلاقها قبل
+  // المهلة يلغي التعليم لأنه لم يقرأ فعلاً.
+  const scheduleMarkSeen = () => {
+    if (markTimerRef.current) window.clearTimeout(markTimerRef.current)
+    markTimerRef.current = window.setTimeout(() => {
+      const ids = itemsRef.current.filter((n) => !n.read).map((n) => n.id)
+      if (!ids.length) return
+      api('/api/notifications', { method: 'PATCH', body: JSON.stringify({ ids }) }).catch(() => {})
+      itemsRef.current = itemsRef.current.map((n) => ({ ...n, read: true }))
+      setItems(itemsRef.current)
+      unreadRef.current = Math.max(0, unreadRef.current - ids.length)
+      setUnread(unreadRef.current)
+    }, 1200)
   }
 
   const normalizeForRoute = (value: string) => value.toLowerCase().replace(/أ|إ|آ/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي')
@@ -518,11 +543,12 @@ function NotificationBell() {
   }
 
   const openNotification = async (n: Notif) => {
-    setOpen(false)
+    closeBell()
     if (!n.read) {
       unreadRef.current = Math.max(0, unreadRef.current - 1)
       setUnread((v) => Math.max(0, v - 1))
-      setItems((prev) => prev.map((item) => item.id === n.id ? { ...item, read: true } : item))
+      itemsRef.current = itemsRef.current.map((item) => item.id === n.id ? { ...item, read: true } : item)
+      setItems(itemsRef.current)
       api('/api/notifications', { method: 'PATCH', body: JSON.stringify({ id: n.id }) }).then(load).catch((error) => { console.warn('Failed to mark notification as read.', error) })
     }
     try { routeNotificationLink(n) } catch (error) { console.warn('Failed to route notification link.', error) }
@@ -532,8 +558,10 @@ function NotificationBell() {
     <div className="relative">
       <button
         onClick={() => {
-          setOpen(!open)
-          if (!open) load()
+          if (open) { closeBell(); return }
+          setOpen(true)
+          load()
+          scheduleMarkSeen()
         }}
         className="relative rounded-lg p-2 text-[#f5f0e1] hover:bg-white/10"
         aria-label="الإشعارات"
@@ -550,7 +578,7 @@ function NotificationBell() {
       </button>
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="fixed inset-0 z-40" onClick={closeBell} />
           <div className="absolute left-0 z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-[#c9a227]/30 bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-100 bg-[#f7edd0]/60 px-4 py-3">
               <span className="text-sm font-black text-[#0f2b46]">الإشعارات</span>
@@ -618,6 +646,33 @@ export function Header() {
     setMobileMenuOpen(false)
     setProfileOpen(false)
     navigate(target)
+  }
+
+  // علامة الإشعارات على الموبايل (إصلاح 2026-10-30): عدّاد خفيف لقائمة الهاتف
+  // حتى يرى المستخدم غير المقروء قبل فتح أي شيء — الجرس وحده لم يكن يصله هناك.
+  const [mobileUnread, setMobileUnread] = useState(0)
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    const tick = () => { api<{ unread: number }>('/api/notifications').then((d) => { if (!cancelled) setMobileUnread(d.unread || 0) }).catch(() => {}) }
+    tick()
+    const t = setInterval(tick, 30000)
+    return () => { cancelled = true; clearInterval(t) }
+  }, [user])
+
+  const openMobileNotifications = () => {
+    setMobileMenuOpen(false)
+    setProfileOpen(false)
+    if (user?.role === 'STUDENT') {
+      navigate('dashboard' as any)
+      ;[80, 250, 600, 1100].forEach((delay) => {
+        window.setTimeout(() => window.dispatchEvent(new CustomEvent('aact:dashboard-tab', { detail: { tab: 'notifications' } })), delay)
+      })
+    } else if (user?.role === 'ADMIN') {
+      navigate('admin' as any)
+    } else if (user?.role === 'SUPERVISOR') {
+      navigate('supervisor' as any)
+    }
   }
 
   const GroupMenu = ({ label, items, groupTargets, gold }: { label: string; items: NavItem[]; groupTargets: any[]; gold?: boolean }) => {
@@ -776,7 +831,7 @@ export function Header() {
                   aria-expanded={profileOpen}
                 >
                   <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#c9a227]/18 text-[#e0b83a]"><UserRound className="h-4 w-4" /></span>
-                  <span>
+                  <span className="hidden sm:block">
                     <span className="block max-w-[120px] truncate text-xs font-bold text-[#f5f0e1]">{user.name}</span>
                     <span className="block text-[10px] text-[#c9a227]">مرحباً بك مجدداً</span>
                   </span>
@@ -848,6 +903,19 @@ export function Header() {
       {mobileMenuOpen && (
         <div className="max-h-[calc(100dvh-4rem)] overflow-y-auto border-t border-white/10 bg-[#1d2947] px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-2 shadow-2xl lg:hidden">
           <div className="flex flex-col gap-1">
+            {user && (
+              <button
+                onClick={openMobileNotifications}
+                className="mt-2 flex items-center justify-between rounded-lg bg-white/5 px-4 py-2.5 text-right text-sm font-bold text-white/92 hover:bg-white/10"
+              >
+                <span className="flex items-center gap-2"><Bell className="h-4 w-4 text-[#d2ad5a]" /> الإشعارات</span>
+                {mobileUnread > 0 && (
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#b22234] px-1 text-[10px] font-black text-white">
+                    {mobileUnread > 9 ? '9+' : mobileUnread}
+                  </span>
+                )}
+              </button>
+            )}
             <p className="mb-1 mt-2 text-[10px] font-black text-[#d2ad5a]/75">القائمة الرئيسية</p>
             {[
               { label: 'الرئيسية', target: 'home' as const },
