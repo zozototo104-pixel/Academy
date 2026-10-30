@@ -199,7 +199,7 @@ describe('MISTRAL + CLOUDFLARE text providers', () => {
 
   test('primary order keeps both providers as rear reserves', () => {
     const order = textAi.__testPrimaryProviderOrder()
-    expect(order.slice(-3)).toEqual(['MISTRAL', 'CLOUDFLARE', 'APINEX'])
+    expect(order.slice(-4)).toEqual(['MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION'])
     expect((KNOWN_AI_PROVIDERS as readonly string[])).toContain('MISTRAL')
     expect((KNOWN_AI_PROVIDERS as readonly string[])).toContain('CLOUDFLARE')
     expect((KNOWN_AI_PROVIDERS as readonly string[])).toContain('APINEX')

@@ -21,7 +21,7 @@ const SYSTEM_KEYS = [
   'USDT_WALLET_ADDRESS', 'USDT_BINANCE_PAY_USER_ID', 'USDT_BINANCE_PAY_QR_IMAGE_URL', 'USDT_NETWORK', 'USDT_PAYMENT_INSTRUCTIONS',
   'TURN_URL', 'TURN_TCP_URL', 'TURN_USERNAME', 'TURN_CREDENTIAL', 'STUN_URLS',
   'GEMINI_API_KEY', 'GEMINI_API_KEYS', 'GEMINI_TEXT_MODEL', 'GEMINI_TTS_MODEL', 'GEMINI_LIVE_MODEL', 'GEMINI_SUPERVISOR_LIVE_MODEL', 'GEMINI_DISCUSSION_LIVE_MODEL', 'GEMINI_DISCUSSION_THINKING_LEVEL', 'GEMINI_TTS_VOICE',
-  'AI_TEXT_PROVIDER', 'AI_ROUTER_POLICY', 'AI_ROUTER_POLICY_SOURCE', 'AI_POLICY_RANK_BY', 'AI_FAMILY_QUALITY_ORDER', 'AI_FAMILY_COST_ORDER', 'AI_PROVIDER_TIERS', 'AI_PAID_FIRST', 'AI_ROUTER_ALLOW_PUBLIC_GATEWAYS', 'AI_ACADEMIC_ALLOWLIST', 'AI_ACADEMIC_ALLOWLIST_STRICT', 'AI_VERIFIER_PREFERRED', 'AI_VERIFIER_STRICT', 'AI_STICKY_ON_SUCCESS', 'AI_ROUTER_COOLDOWN_MINUTES',
+  'AI_TEXT_PROVIDER', 'AI_ROUTER_POLICY', 'AI_ROUTER_POLICY_SOURCE', 'AI_POLICY_RANK_BY', 'AI_FAMILY_QUALITY_ORDER', 'AI_FAMILY_COST_ORDER', 'AI_PROVIDER_TIERS', 'AI_PAID_FIRST', 'AI_ROUTER_ALLOW_PUBLIC_GATEWAYS', 'AI_ACADEMIC_ALLOWLIST', 'AI_ACADEMIC_ALLOWLIST_STRICT', 'AI_VERIFIER_PREFERRED', 'AI_VERIFIER_STRICT', 'AI_STICKY_ON_SUCCESS', 'AI_ROUTER_COOLDOWN_MINUTES', 'AI_PROVIDER_FALLBACK_ORDER',
   'OPENAI_API_KEY', 'OPENAI_API_KEYS', 'OPENAI_TEXT_MODEL', 'OPENAI_BASE_URL',
   'ANTHROPIC_API_KEY', 'ANTHROPIC_API_KEYS', 'ANTHROPIC_TEXT_MODEL',
   'ZAI_API_KEY', 'ZAI_API_KEYS', 'ZAI_TEXT_MODEL', 'ZAI_API_BASE',
@@ -36,6 +36,7 @@ const SYSTEM_KEYS = [
   'MISTRAL_API_KEY', 'MISTRAL_API_KEYS', 'MISTRAL_TEXT_MODEL', 'MISTRAL_BASE_URL',
   'CLOUDFLARE_API_KEY', 'CLOUDFLARE_API_KEYS', 'CLOUDFLARE_TEXT_MODEL', 'CLOUDFLARE_BASE_URL',
   'APINEX_API_KEY', 'APINEX_API_KEYS', 'APINEX_TEXT_MODEL', 'APINEX_BASE_URL',
+  'OXION_API_KEY', 'OXION_API_KEYS', 'OXION_TEXT_MODEL', 'OXION_BASE_URL',
   'OPENAI_COMPAT_API_KEY', 'OPENAI_COMPAT_API_KEYS', 'OPENAI_COMPAT_TEXT_MODEL', 'OPENAI_COMPAT_BASE_URL',
   'AI_AGENT_PROVIDER', 'AI_AGENT_BASE_URL', 'AI_AGENT_MODEL', 'AI_AGENT_API_KEY',
 ]
@@ -57,6 +58,7 @@ const SECRET_KEYS = new Set([
   'MISTRAL_API_KEY', 'MISTRAL_API_KEYS',
   'CLOUDFLARE_API_KEY', 'CLOUDFLARE_API_KEYS',
   'APINEX_API_KEY', 'APINEX_API_KEYS',
+  'OXION_API_KEY', 'OXION_API_KEYS',
   'OPENAI_COMPAT_API_KEY', 'OPENAI_COMPAT_API_KEYS',
   'AI_AGENT_API_KEY',
 ])
@@ -109,6 +111,21 @@ function sanitizeFamilyOrder(value: string): string {
   const items: string[] = []
   for (const raw of value.split(',')) {
     const item = raw.trim().toLowerCase()
+    if (!item || !allowed.has(item) || seen.has(item)) continue
+    seen.add(item)
+    items.push(item)
+  }
+  return items.join(',')
+}
+
+// «ترتيب المزودات الاحتياطية» (2026-10-30): قائمة يدوية بترتيب المزودين كما
+// رتّبها الأدمن؛ تُحفظ كما هي بعد إسقاط الأسماء غير المعروفة والمكررات.
+function sanitizeProviderOrder(value: string): string {
+  const allowed = new Set(['GEMINI', 'OPENAI', 'ANTHROPIC', 'ZAI', 'GROQ', 'OPENROUTER', 'DEEPINFRA', 'TOGETHER', 'UNOROUTER', 'RELAYROUTER', 'TOPTOOLS', 'OPENAI_COMPAT', 'ALBORIHI', 'MISTRAL', 'CLOUDFLARE', 'APINEX', 'OXION'])
+  const seen = new Set<string>()
+  const items: string[] = []
+  for (const raw of value.split(',')) {
+    const item = raw.trim().toUpperCase()
     if (!item || !allowed.has(item) || seen.has(item)) continue
     seen.add(item)
     items.push(item)
@@ -195,6 +212,8 @@ export async function GET() {
         CLOUDFLARE_API_KEYS: !!(await db.setting.findUnique({ where: { key: 'CLOUDFLARE_API_KEYS' } }))?.value,
         APINEX_API_KEY: !!(await db.setting.findUnique({ where: { key: 'APINEX_API_KEY' } }))?.value,
         APINEX_API_KEYS: !!(await db.setting.findUnique({ where: { key: 'APINEX_API_KEYS' } }))?.value,
+        OXION_API_KEY: !!(await db.setting.findUnique({ where: { key: 'OXION_API_KEY' } }))?.value,
+        OXION_API_KEYS: !!(await db.setting.findUnique({ where: { key: 'OXION_API_KEYS' } }))?.value,
         OPENAI_COMPAT_API_KEY: !!(await db.setting.findUnique({ where: { key: 'OPENAI_COMPAT_API_KEY' } }))?.value,
         OPENAI_COMPAT_API_KEYS: !!(await db.setting.findUnique({ where: { key: 'OPENAI_COMPAT_API_KEYS' } }))?.value,
         AI_AGENT_API_KEY: !!(await db.setting.findUnique({ where: { key: 'AI_AGENT_API_KEY' } }))?.value,
@@ -245,6 +264,9 @@ export async function PATCH(req: NextRequest) {
       }
       if (key === 'AI_FAMILY_QUALITY_ORDER' || key === 'AI_FAMILY_COST_ORDER') {
         value = sanitizeFamilyOrder(value)
+      }
+      if (key === 'AI_PROVIDER_FALLBACK_ORDER') {
+        value = sanitizeProviderOrder(value)
       }
       if (key === 'AI_PROVIDER_TIERS') {
         const cleaned = sanitizeTextAiProviderTiers(value)

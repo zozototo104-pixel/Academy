@@ -52,7 +52,8 @@ describe('router admin policy B1', () => {
   })
 
   test('testProviderOrderUnchanged keeps the legacy primary provider order snapshot', () => {
-    // APINEX appended as the last rear reserve (PR #153); the rest untouched.
+    // APINEX appended as a rear reserve (PR #153), then OXION appended after
+    // it as the newest gateway reserve (2026-10-30); the rest untouched.
     expect(__testPrimaryProviderOrder()).toEqual([
       'GEMINI',
       'UNOROUTER',
@@ -70,6 +71,7 @@ describe('router admin policy B1', () => {
       'MISTRAL',
       'CLOUDFLARE',
       'APINEX',
+      'OXION',
     ])
   })
 
