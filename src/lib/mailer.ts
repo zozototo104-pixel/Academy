@@ -20,6 +20,11 @@ export interface SendEmailInput {
   event: string
   html: string
   text?: string
+  // Identity/security mail (verification, password reset, email-change
+  // confirmations and notices) is always delivered to the exact address
+  // given; all other mail is rerouted to the account's notificationEmail
+  // when one is set (see sendEmailDetailed).
+  identityMail?: boolean
 }
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://aactacademy.com'
@@ -137,10 +142,22 @@ async function sendWithResend(input: SendEmailInput): Promise<boolean> {
 
 export type EmailDeliveryStatus = 'SENT' | 'SKIPPED' | 'FAILED'
 
-export async function sendEmailDetailed(input: SendEmailInput): Promise<EmailDeliveryStatus> {
-  if (hasAactTestRecipient(input.to)) {
-    await db.emailLog.create({ data: { to: input.to, subject: input.subject, event: input.event, status: 'SKIPPED', error: 'AACT_TEST_RECIPIENT_BLOCKED' } }).catch((error) => { console.warn('Failed to log blocked test email.', error) })
+export async function sendEmailDetailed(rawInput: SendEmailInput): Promise<EmailDeliveryStatus> {
+  if (hasAactTestRecipient(rawInput.to)) {
+    await db.emailLog.create({ data: { to: rawInput.to, subject: rawInput.subject, event: rawInput.event, status: 'SKIPPED', error: 'AACT_TEST_RECIPIENT_BLOCKED' } }).catch((error) => { console.warn('Failed to log blocked test email.', error) })
     return 'SKIPPED'
+  }
+
+  // Notification-email reroute: when the recipient is an account's login
+  // email and that account has a confirmed notificationEmail, deliver there
+  // instead (students whose login mailbox is full keep receiving platform
+  // mail). Identity/security mail opts out via identityMail.
+  let input = rawInput
+  if (!rawInput.identityMail) {
+    const owner = await db.user
+      .findUnique({ where: { email: String(rawInput.to || '').toLowerCase().trim() }, select: { notificationEmail: true } as any })
+      .catch(() => null) as { notificationEmail?: string | null } | null
+    if (owner?.notificationEmail) input = { ...rawInput, to: owner.notificationEmail }
   }
 
   const cfg = await getSmtpConfig()
@@ -198,6 +215,7 @@ export async function sendEmail(input: SendEmailInput): Promise<boolean> {
 export async function emailVerifyAccount(to: string, name: string, verifyUrl: string) {
   return sendEmail({
     to,
+    identityMail: true,
     event: 'EMAIL_VERIFICATION',
     subject: 'تأكيد بريدك الإلكتروني في منصة الأكاديمية الأمريكية',
     html: emailTemplate('تأكيد البريد الإلكتروني ✉️', `<p>${greeting(name)}،</p><p>شكراً لإنشاء حسابك في منصة الأكاديمية الأمريكية. يرجى تأكيد ملكية بريدك الإلكتروني.</p>${infoRows([{ label: 'البريد', value: to }, { label: 'صلاحية الرابط', value: '24 ساعة من وقت الإرسال' }])}`, { label: 'تأكيد البريد الإلكتروني', url: verifyUrl }),
@@ -207,6 +225,7 @@ export async function emailVerifyAccount(to: string, name: string, verifyUrl: st
 export async function emailPasswordResetDetailed(to: string, name: string, resetUrl: string): Promise<EmailDeliveryStatus> {
   return sendEmailDetailed({
     to,
+    identityMail: true,
     event: 'PASSWORD_RESET',
     subject: 'إعادة تعيين كلمة المرور في منصة الأكاديمية الأمريكية',
     html: emailTemplate('إعادة تعيين كلمة المرور 🔐', `<p>${greeting(name)}،</p><p>وصلنا طلب لإعادة تعيين كلمة مرور حسابك. الرابط صالح لمدة ساعة واحدة ويُستخدم مرة واحدة فقط.</p>${infoRows([{ label: 'البريد', value: to }, { label: 'صلاحية الرابط', value: 'ساعة واحدة من وقت الإرسال' }])}`, { label: 'إعادة تعيين كلمة المرور', url: resetUrl }),
@@ -220,9 +239,35 @@ export async function emailPasswordReset(to: string, name: string, resetUrl: str
 export async function emailLegacyGraduateWelcome(to: string, name: string, setupUrl: string): Promise<EmailDeliveryStatus> {
   return sendEmailDetailed({
     to,
+    identityMail: true,
     event: 'LEGACY_GRADUATE_WELCOME',
     subject: 'تم ربط شهادتك بمنصة الأكاديمية الأمريكية',
     html: emailTemplate('تم إنشاء حسابك وربط شهادتك 🎓', `<p>${greeting(name)}،</p><p>تم إنشاء حسابك في منصة الأكاديمية الأمريكية وربط شهادتك بسجلك الأكاديمي.</p><p>اضغط على الزر التالي لاختيار كلمة المرور والدخول إلى حسابك. الرابط صالح لمدة 7 أيام ويُستخدم مرة واحدة فقط.</p>${infoRows([{ label: 'البريد', value: to }, { label: 'صلاحية الرابط', value: '7 أيام من وقت الإرسال' }])}`, { label: 'اختيار كلمة المرور', url: setupUrl }),
+  })
+}
+
+export async function emailEmailChangeConfirm(to: string, name: string, confirmUrl: string, purpose: 'LOGIN' | 'NOTIFICATION') {
+  const isLogin = purpose === 'LOGIN'
+  return sendEmail({
+    to,
+    identityMail: true,
+    event: 'EMAIL_CHANGE_CONFIRM',
+    subject: isLogin ? 'تأكيد تغيير بريد الدخول في منصة الأكاديمية الأمريكية' : 'تأكيد بريد الإشعارات في منصة الأكاديمية الأمريكية',
+    html: emailTemplate(
+      isLogin ? 'تأكيد تغيير بريد الدخول ✉️' : 'تأكيد بريد الإشعارات ✉️',
+      `<p>${greeting(name)}،</p><p>${isLogin ? 'وصلنا طلب لتغيير بريد الدخول إلى حسابك في منصة الأكاديمية الأمريكية إلى هذا البريد. اضغط الزر التالي لإتمام التغيير — سيصبح هذا البريد هو بريد دخولك الرسمي.' : 'وصلنا طلب لاعتماد هذا البريد عنواناً لتلقي إشعارات حسابك في منصة الأكاديمية الأمريكية. اضغط الزر التالي للتأكيد — ستصل إشعارات المنصة إلى هنا بدلاً من بريد الدخول.'}</p>${infoRows([{ label: 'البريد الجديد', value: to }, { label: 'صلاحية الرابط', value: '24 ساعة من وقت الإرسال' }])}<p>إن لم تطلب هذا التغيير، تجاهل هذه الرسالة ولن يتغير أي شيء في حسابك.</p>`,
+      { label: isLogin ? 'تأكيد تغيير البريد' : 'تأكيد بريد الإشعارات', url: confirmUrl },
+    ),
+  })
+}
+
+export async function emailEmailChangeNotice(to: string, name: string, message: string) {
+  return sendEmail({
+    to,
+    identityMail: true,
+    event: 'EMAIL_CHANGE_NOTICE',
+    subject: 'تنبيه: تم تحديث بريد حسابك في منصة الأكاديمية الأمريكية',
+    html: emailTemplate('تحديث بريد الحساب 🔔', `<p>${greeting(name)}،</p><p>${escapeHtml(message)}</p><p>إن لم تكن أنت من أجرى هذا التغيير، تواصل مع إدارة الأكاديمية فوراً.</p>`, { label: 'الدخول إلى المنصة', url: appLink('/?view=dashboard') }),
   })
 }
 

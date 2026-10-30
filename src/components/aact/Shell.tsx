@@ -2,6 +2,7 @@
 
 import { useAppStore, api, clearToken } from '@/lib/store'
 import { UrgentMessageAlert } from '@/components/aact/UrgentMessageAlert'
+import AccountEmailDialog from '@/components/aact/AccountEmailDialog'
 import { useEffect, useRef, useState } from 'react'
 import { Bell, Bot, ChevronDown, ChevronUp, ShieldCheck, Users2, Send, Loader2, X, ExternalLink, MessageCircle, UserRound, Mail, Globe2 } from 'lucide-react'
 
@@ -622,6 +623,7 @@ function NotificationBell() {
 export function Header() {
   const { user, setUser, navigate, view, mobileMenuOpen, setMobileMenuOpen } = useAppStore()
   const [profileOpen, setProfileOpen] = useState(false)
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false)
   const canUseStudentPortal = user?.role === 'STUDENT'
 
   // ===== التنقل العلمي: العناصر مجمعة في مجموعات وظيفية واضحة =====
@@ -849,6 +851,7 @@ export function Header() {
                     </div>
                     <div className="space-y-2 p-3 text-xs font-bold text-slate-600">
                       <p className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2" dir="ltr"><Mail className="h-3.5 w-3.5 text-[#a8841a]" /> <span className="truncate">{user.email}</span></p>
+                      <button onClick={() => { setProfileOpen(false); setEmailDialogOpen(true) }} className="w-full rounded-xl border border-[#c9a227]/30 px-3 py-2 text-[11px] font-black text-[#a8841a] hover:bg-[#f7edd0]/45">إعدادات البريد الإلكتروني</button>
                       {user.country && <p className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2"><Globe2 className="h-3.5 w-3.5 text-[#a8841a]" /> {user.country}</p>}
                       <div className="grid grid-cols-2 gap-2 pt-1">
                         {canUseStudentPortal && (
@@ -1045,6 +1048,7 @@ export function Header() {
           </div>
         </div>
       )}
+      {emailDialogOpen && <AccountEmailDialog open onClose={() => setEmailDialogOpen(false)} />}
     </header>
   )
 }

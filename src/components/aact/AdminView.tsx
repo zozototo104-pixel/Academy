@@ -434,6 +434,24 @@ export function AdminView() {
       setWaVerifyBusy(null)
     }
   }
+  const [emailChangeStudent, setEmailChangeStudent] = useState<StudentRow | null>(null)
+  const [emailChangeValue, setEmailChangeValue] = useState('')
+  const [emailChangePurpose, setEmailChangePurpose] = useState<'LOGIN' | 'NOTIFICATION'>('NOTIFICATION')
+  const [emailChangeBusy, setEmailChangeBusy] = useState(false)
+  const submitStudentEmailChange = async () => {
+    if (!emailChangeStudent || !emailChangeValue.trim()) return
+    setEmailChangeBusy(true)
+    try {
+      await api('/api/admin/students/email-change', { method: 'POST', body: JSON.stringify({ userId: emailChangeStudent.id, newEmail: emailChangeValue.trim(), purpose: emailChangePurpose }) })
+      toast({ title: 'أرسلنا رابط التأكيد', description: 'سيُعتمد البريد الجديد عندما يضغط الطالب رابط التأكيد الواصل إليه.' })
+      setEmailChangeStudent(null)
+      setEmailChangeValue('')
+    } catch (e: any) {
+      toast({ title: 'تعذر بدء تغيير البريد', description: e.message || 'حاول لاحقاً', variant: 'destructive' })
+    } finally {
+      setEmailChangeBusy(false)
+    }
+  }
   const [announcements, setAnnouncements] = useState<SiteAnnouncement[]>([])
   const [loading, setLoading] = useState(true)
   const [admissionsLoading, setAdmissionsLoading] = useState(true)
@@ -2375,6 +2393,21 @@ export function AdminView() {
                               >
                                 <Send className="ml-1 h-3.5 w-3.5" /> إرسال رابط التحقق
                               </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={!s.hasAccount}
+                                title={!s.hasAccount ? 'لا يوجد حساب مرتبط' : 'بدء تغيير بريد الطالب — يُعتمد فقط بتأكيد الطالب من بريده الجديد'}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setEmailChangeStudent(s)
+                                  setEmailChangeValue('')
+                                  setEmailChangePurpose('NOTIFICATION')
+                                }}
+                                className="border-sky-200 text-[10px] font-black text-sky-700 hover:bg-sky-50"
+                              >
+                                <Mail className="ml-1 h-3.5 w-3.5" /> تغيير البريد
+                              </Button>
                             </div>
                           </td>
                         </tr>
@@ -2386,6 +2419,36 @@ export function AdminView() {
             </CardContent>
           </Card>
           <AdminPager page={currentStudentPage} pageSize={studentPageSize} total={studentTotal} onPageChange={setStudentPage} label={isApplicationRowStudentsFilter ? 'طلب غير مستكمل' : 'طالب'} />
+          <Dialog open={!!emailChangeStudent} onOpenChange={(o) => { if (!o) setEmailChangeStudent(null) }}>
+            <DialogContent dir="rtl" className="max-w-md">
+              <DialogHeader>
+                <DialogTitle className="text-right font-black text-[#0f2b46]">تغيير بريد الطالب</DialogTitle>
+                <DialogDescription className="text-right font-bold">
+                  {emailChangeStudent?.name} — البريد الحالي: {emailChangeStudent?.email}. سيرسل النظام رابط تأكيد إلى البريد الجديد، ولن يسري أي تغيير قبل أن يضغطه الطالب من بريده الجديد.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label className="font-black">البريد الجديد</Label>
+                  <Input type="email" value={emailChangeValue} onChange={(e) => setEmailChangeValue(e.target.value)} placeholder="new@example.com" dir="ltr" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="font-black">نوع التغيير</Label>
+                  <Select value={emailChangePurpose} onValueChange={(v) => setEmailChangePurpose(v as 'LOGIN' | 'NOTIFICATION')}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="NOTIFICATION">بريد إشعارات فقط — الدخول يبقى بالبريد الحالي (الأنسب لحسابات Google ولصناديق البريد الممتلئة)</SelectItem>
+                      <SelectItem value="LOGIN">بريد دخول جديد — لحسابات البريد وكلمة المرور فقط</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={() => setEmailChangeStudent(null)} className="font-black">إلغاء</Button>
+                <Button onClick={submitStudentEmailChange} disabled={emailChangeBusy || !emailChangeValue.trim()} className="bg-[#0f2b46] font-black hover:bg-[#12365c]">{emailChangeBusy ? 'جارٍ الإرسال…' : 'إرسال رابط التأكيد'}</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           </div>
         </TabsContent>
 
