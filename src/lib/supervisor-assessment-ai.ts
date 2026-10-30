@@ -173,10 +173,18 @@ export async function gradeSupervisorAttemptWithAi(opts: {
   passScore: number
   questions: { id: string; type: string; text: string; correctAnswer?: string | null; modelAnswer?: string | null; points: number }[]
   answers: { questionId: string; answerText?: string | null; selectedOption?: number | null }[]
+  // Attempt policy (owner decision 2026-10-30): correct answers are revealed
+  // in feedback only when this attempt passes or it is the last allowed one.
+  attemptNumber?: number
+  maxAttempts?: number
 }) {
+  const attemptNumber = Math.max(1, opts.attemptNumber || 1)
+  const maxAttempts = Math.max(attemptNumber, opts.maxAttempts || 3)
+  const isLastAttempt = attemptNumber >= maxAttempts
   const total = opts.questions.reduce((s, q) => s + (q.points || 0), 0) || 1
   let earned = 0
   const perQuestion: Record<string, { points: number; isCorrect?: boolean; feedback: string }> = {}
+  const mcqCorrectText = new Map<string, string>()
   for (const q of opts.questions) {
     const ans = opts.answers.find((a) => a.questionId === q.id)
     if (q.type === 'MCQ' || q.type === 'TF') {
@@ -185,14 +193,20 @@ export async function gradeSupervisorAttemptWithAi(opts: {
       const ok = correct !== '' && selected === correct
       const pts = ok ? q.points : 0
       earned += pts
-      perQuestion[q.id] = { points: pts, isCorrect: ok, feedback: ok ? 'إجابة صحيحة.' : `الإجابة غير صحيحة. الإجابة الصحيحة: ${correct || 'غير محددة'}.` }
+      mcqCorrectText.set(q.id, correct)
+      // Feedback text is filled after the final score is known (below):
+      // whether the correct answer may be shown depends on passing.
+      perQuestion[q.id] = { points: pts, isCorrect: ok, feedback: '' }
     }
   }
 
   const openQuestions = opts.questions.filter((q) => q.type === 'SHORT' || q.type === 'ESSAY')
   if (openQuestions.length) {
     const system = 'أنت مصحح أكاديمي عادل. أعد JSON فقط. صحح بإيجاز وفق الإجابة النموذجية ولا تجامل الطالب.'
-    const prompt = `صحح الأسئلة المفتوحة في اختبار: ${opts.assessmentTitle}\nأعد: {"grades":[{"questionId":"...","points":0,"feedback":"..."}],"overall":"..."}\n\nالأسئلة والإجابات:\n${openQuestions.map((q) => {
+    const revealRule = isLastAttempt
+      ? ''
+      : '\nقاعدة صارمة: هذه ليست المحاولة الأخيرة للطالب — لا تذكر الإجابة النموذجية ولا أي جزء من محتواها في الملاحظات، ولا تلمّح إلى الجواب الصحيح؛ اكتفِ بوصف مواضع القصور في إجابة الطالب وما يحتاج إلى مراجعته.'
+    const prompt = `صحح الأسئلة المفتوحة في اختبار: ${opts.assessmentTitle}${revealRule}\nأعد: {"grades":[{"questionId":"...","points":0,"feedback":"..."}],"overall":"..."}\n\nالأسئلة والإجابات:\n${openQuestions.map((q) => {
       const ans = opts.answers.find((a) => a.questionId === q.id)
       const studentAnswer = ans?.answerText || (ans?.selectedOption != null ? String(ans.selectedOption) : 'لم يجب')
       return `ID=${q.id}\nالسؤال: ${q.text}\nالنقاط: ${q.points}\nالإجابة النموذجية: ${q.modelAnswer || 'غير متاحة'}\nإجابة الطالب: ${studentAnswer}`
@@ -209,6 +223,26 @@ export async function gradeSupervisorAttemptWithAi(opts: {
   }
 
   const score = Math.round((earned / total) * 100)
+  const passedNow = score >= opts.passScore
+  const revealAnswers = passedNow || isLastAttempt
+  for (const q of opts.questions) {
+    const entry = perQuestion[q.id]
+    if (!entry) continue
+    if (q.type === 'MCQ' || q.type === 'TF') {
+      entry.feedback = entry.isCorrect
+        ? 'إجابة صحيحة.'
+        : revealAnswers
+          ? `الإجابة غير صحيحة. الإجابة الصحيحة: ${mcqCorrectText.get(q.id) || 'غير محددة'}.`
+          : 'إجابة غير صحيحة.'
+    } else if (!revealAnswers) {
+      // Belt and braces: even with the prompt rule above, never let an
+      // explicit correct/model answer statement reach a student who still
+      // has attempts left.
+      entry.feedback = String(entry.feedback || '')
+        .replace(/الإجابة الصحيحة\s*[:：]\s*[^.。\n]*/g, 'الإجابة الصحيحة محجوبة حتى تنهي محاولاتك')
+        .replace(/الإجابة النموذجية\s*[:：]\s*[^.。\n]*/g, 'الإجابة النموذجية محجوبة حتى تنهي محاولاتك')
+    }
+  }
   const weak = Object.values(perQuestion).filter((g) => (g.points || 0) <= 0).length
   const feedback = score >= opts.passScore
     ? `أداء جيد. نتيجتك ${score}%. راجع الملاحظات التفصيلية لكل سؤال لتعزيز الإجابات.`

@@ -160,6 +160,9 @@ mock.module('@/lib/semester-readiness', () => ({ calculateSemesterReadiness: asy
 mock.module('@/lib/exam-attempt-policy', () => ({
   EXAM_ATTEMPT_POLICY_SINCE: new Date(0),
   getExamMaxAttempts: async () => 3,
+  // Same semantics as the real helper — the mock predates
+  // lib/assessment-attempt-policy importing it (decision-1 build).
+  shouldRevealCorrectAnswers: ({ passed, completedAttempts, maxAttempts }: any) => passed || completedAttempts >= maxAttempts,
 }))
 mock.module('@/lib/live-usage-guard', () => ({ grantGeminiLiveCredit: async () => {} }))
 

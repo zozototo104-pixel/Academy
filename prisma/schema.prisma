@@ -1810,6 +1810,21 @@ model SupervisorAssessmentAnswer {
   @@index([questionId])
 }
 
+// نافذة زمنية لمحاولة تقييم مشرف جارية: تُفتح بزر «بدء التقييم» وتُستهلك
+// عند التسليم، وبها تُطبق مدة التقييم (durationMin) من ساعة السيرفر.
+model SupervisorAssessmentAttemptWindow {
+  id           String   @id @default(cuid())
+  assessmentId String
+  studentId    String
+  startedAt    DateTime @default(now())
+  restarts     Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([assessmentId, studentId])
+  @@index([studentId])
+}
+
 // ===== الكتب المقررة والاختبارات الشاملة من الكتب =====
 
 model Book {

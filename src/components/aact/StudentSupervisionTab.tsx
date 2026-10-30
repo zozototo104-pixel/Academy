@@ -78,7 +78,10 @@ export function StudentSupervisionTab() {
   const [audience, setAudience] = useState('ALL')
   const [sending, setSending] = useState(false)
   const [submitting, setSubmitting] = useState<string | null>(null)
+  const [starting, setStarting] = useState<string | null>(null)
   const [answers, setAnswers] = useState<Record<string, Record<string, any>>>({})
+  const [tick, setTick] = useState(() => Date.now())
+  const autoSubmittedRef = useRef<Set<string>>(new Set())
   const [recording, setRecording] = useState(false)
   const recorderRef = useRef<MediaRecorder | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -160,6 +163,19 @@ export function StudentSupervisionTab() {
     setAnswers((prev) => ({ ...prev, [assessmentId]: { ...(prev[assessmentId] || {}), [questionId]: value } }))
   }
 
+  const startAssessment = async (assessment: any) => {
+    setStarting(assessment.id)
+    try {
+      await api('/api/supervisor/assessments', { method: 'POST', body: JSON.stringify({ action: 'start', assessmentId: assessment.id }) })
+      autoSubmittedRef.current.delete(assessment.id)
+      await load()
+    } catch (e: any) {
+      toast({ title: 'تعذر بدء التقييم', description: e.message, variant: 'destructive' })
+    } finally {
+      setStarting(null)
+    }
+  }
+
   const submitAssessment = async (assessment: any) => {
     setSubmitting(assessment.id)
     try {
@@ -178,6 +194,25 @@ export function StudentSupervisionTab() {
       setSubmitting(null)
     }
   }
+
+  const anyLiveWindow = (active?.assessments || []).some((a: any) => a.attemptWindow && new Date(a.attemptWindow.endsAt).getTime() > Date.now())
+  useEffect(() => {
+    if (!anyLiveWindow) return
+    const t = setInterval(() => setTick(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [anyLiveWindow])
+
+  // انتهاء المدة أثناء المحاولة = تسليم تلقائي بالإجابات الحالية.
+  useEffect(() => {
+    for (const a of active?.assessments || []) {
+      if (!a.attemptWindow) continue
+      if (new Date(a.attemptWindow.endsAt).getTime() <= tick && !autoSubmittedRef.current.has(a.id) && submitting !== a.id) {
+        autoSubmittedRef.current.add(a.id)
+        void submitAssessment(a)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tick, active, submitting])
 
   if (loading) return <div className="flex h-52 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" /></div>
   if (!active) return <div className="rounded-2xl bg-slate-50 p-8 text-center text-sm font-bold text-slate-500">لا يوجد طلب دراسة مرتبط بحسابك بعد.</div>
@@ -264,25 +299,49 @@ export function StudentSupervisionTab() {
       <Card className="border-[#0f2b46]/10"><CardContent className="p-5">
         <h3 className="mb-3 text-base font-black text-[#0f2b46]"><ClipboardCheck className="ml-1 inline h-4 w-4 text-[#a8841a]" /> اختباراتي الخاصة من المشرف</h3>
         {active.assessments.length ? <div className="space-y-4">{active.assessments.map((a) => {
-          const last = a.attempts?.[0]
-          const already = !!last
+          const attempts = a.attempts || []
+          const last = attempts[0]
+          const policy = a.attemptPolicy || { maxAttempts: 3, completedAttempts: attempts.length, passed: attempts.some((at: any) => at.passed === true || (at.score ?? 0) >= a.passScore), attemptsLeft: Math.max(0, 3 - attempts.length), canAttempt: attempts.length < 3, reveal: false }
+          const windowLive = !!a.attemptWindow && new Date(a.attemptWindow.endsAt).getTime() > tick
+          const remainingMs = a.attemptWindow ? Math.max(0, new Date(a.attemptWindow.endsAt).getTime() - tick) : 0
+          const remainingLabel = `${Math.floor(remainingMs / 60000)}:${String(Math.floor((remainingMs % 60000) / 1000)).padStart(2, '0')}`
           return (
             <div key={a.id} className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <h4 className="font-black text-[#0f2b46]">{a.title}</h4>
-                  <p className="mt-1 text-xs font-bold text-slate-500">{a.questions?.length || 0} سؤال — {a.totalPoints} نقطة — النجاح {a.passScore}% — تصحيح آلي: {a.aiGradingEnabled ? 'نعم' : 'لا'}</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">{a.questions?.length || 0} سؤال — {a.totalPoints} نقطة — النجاح {a.passScore}% — المدة {a.durationMin} دقيقة — المحاولات {policy.completedAttempts}/{policy.maxAttempts}</p>
                 </div>
-                {already ? <Badge className={(last.score ?? 0) >= a.passScore ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>{last.score ?? 'بانتظار التصحيح'}%</Badge> : <Badge variant="outline">لم يسلّم</Badge>}
+                {policy.passed ? <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">ناجح</Badge> : last ? <Badge className={(last.score ?? 0) >= a.passScore ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>{last.score ?? 'بانتظار التصحيح'}%</Badge> : <Badge variant="outline">لم يسلّم</Badge>}
               </div>
               {a.description && <p className="mt-2 rounded-xl bg-slate-50 p-3 text-xs font-bold leading-6 text-slate-600">{a.description}</p>}
-              {already ? (
-                <div className="mt-3 rounded-xl bg-[#f8fafc] p-3 text-xs font-bold leading-6 text-slate-600">
-                  <p><CheckCircle2 className="ml-1 inline h-4 w-4 text-emerald-600" /> تم التسليم: {dateAr(last.submittedAt)} — الحالة: {last.status}</p>
-                  {last.feedback && <p className="mt-1 text-[#0f2b46]">{last.feedback}</p>}
+              {attempts.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  {attempts.map((at: any, ai: number) => (
+                    <div key={at.id || ai} className="rounded-xl bg-[#f8fafc] p-3 text-xs font-bold leading-6 text-slate-600">
+                      <p><CheckCircle2 className="ml-1 inline h-4 w-4 text-emerald-600" /> محاولة {attempts.length - ai}: {dateAr(at.submittedAt)} — الحالة: {at.status}{at.score != null ? ` — النتيجة: ${at.score}%` : ''}</p>
+                      {at.feedback && <p className="mt-1 text-[#0f2b46]">{at.feedback}</p>}
+                      {(at.answers || []).filter((an: any) => an.aiFeedback).map((an: any, bi: number) => (
+                        <p key={bi} className="mt-1 text-slate-500">• {an.aiFeedback}</p>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {policy.passed ? (
+                <p className="mt-3 rounded-xl bg-emerald-50 p-3 text-xs font-black text-emerald-700">اجتزت هذا التقييم — يمكنك مراجعة التصحيح الكامل أعلاه.</p>
+              ) : !policy.canAttempt ? (
+                <p className="mt-3 rounded-xl bg-amber-50 p-3 text-xs font-black text-amber-700">استنفدت محاولاتك ({policy.maxAttempts}) في هذا التقييم — التصحيح الكامل ظاهر أعلاه للمراجعة.</p>
+              ) : !windowLive ? (
+                <div className="mt-4 rounded-xl border border-dashed border-[#c9a227]/50 bg-[#fffaf0] p-4 text-center">
+                  <p className="text-xs font-bold leading-6 text-slate-600">المحاولات المتبقية: {policy.attemptsLeft} من {policy.maxAttempts}. عند بدء التقييم تبدأ مدته ({a.durationMin} دقيقة) من ساعة المنصة، والتسليم بعد انتهائها مرفوض — وعند انتهاء الوقت أثناء الحل يُسلَّم ما كتبته تلقائياً. الإجابات الصحيحة لا تظهر في التصحيح حتى تنجح أو تستنفد محاولاتك.</p>
+                  <Button onClick={() => startAssessment(a)} disabled={starting === a.id} className="mt-3 bg-[#0f2b46] font-black text-[#e0b83a] hover:bg-[#12365c]">
+                    {starting === a.id ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <ClipboardCheck className="ml-2 h-4 w-4" />} بدء التقييم
+                  </Button>
                 </div>
               ) : (
                 <div className="mt-4 space-y-4">
+                  <p className={`rounded-xl p-3 text-center text-sm font-black ${remainingMs <= 60000 ? 'bg-red-50 text-red-600' : 'bg-[#0f2b46] text-[#e0b83a]'}`}>الوقت المتبقي: {remainingLabel} — عند انتهائه يُسلَّم التقييم تلقائياً</p>
                   {a.questions.map((q: any, idx: number) => (
                     <div key={q.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
                       <p className="mb-2 text-sm font-black leading-6 text-[#0f2b46]">{idx + 1}. {q.text}</p>
