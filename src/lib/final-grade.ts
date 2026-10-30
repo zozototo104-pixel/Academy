@@ -110,12 +110,14 @@ async function programExamAverage(client: DbClient, userId: string, programId: s
   for (const exam of exams) {
     const attempts = await client.programExamAttempt.findMany({
       where: { userId, examId: exam.id, status: 'GRADED', passed: true, OR: [{ appealStatus: null }, { appealStatus: { not: 'PENDING' } }] },
-      select: { score: true, finalScore: true, appealStatus: true, answers: { select: { points: true, maxPoints: true } } },
+      select: { score: true, finalScore: true, appealStatus: true },
     })
     const bestAttemptScore = best(attempts.map((attempt) => {
       if (attempt.appealStatus === 'REVIEWED' && typeof attempt.finalScore === 'number') return attempt.finalScore
-      // Use the raw answer-derived percentage for certification decisions; stored scores may be rounded for display.
-      return percentFromAnswers(attempt.answers) ?? attempt.finalScore ?? attempt.score
+      // العلامة المخزنة هي الرسمية للشهادة: سقف أعمال السنة انطبق عليها لحظة
+      // التسليم (النسبة الخام محفوظة في rawScoreBeforeCourseworkCap للشفافية
+      // فقط). إعادة الحساب من الإجابات الخام هنا كانت تتجاوز السقف بصمت.
+      return attempt.finalScore ?? attempt.score
     }))
     if (bestAttemptScore == null) addMissing(missing, `امتحان البرنامج: ${exam.title}`)
     else bestScores.push(bestAttemptScore)
