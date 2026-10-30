@@ -164,11 +164,11 @@ describe('AI D1 behavior', () => {
     expect(reserved.sessionLimitMinutes).toBe(2)
     expect(firstLiveUsage().freeMinutesUsed).toBe(2)
 
-    const settled = await settleGeminiLiveUsage({ sessionId: 'live-session-1', actualSeconds: 30 })
+    const settled = await settleGeminiLiveUsage({ userId: 'student-1', sessionId: 'live-session-1', actualSeconds: 30 })
     expect(settled).toMatchObject({ ok: true, refundMinutes: 1 })
     expect(firstLiveUsage().freeMinutesUsed).toBe(1)
 
-    const retried = await settleGeminiLiveUsage({ sessionId: 'live-session-1', actualSeconds: 30 })
+    const retried = await settleGeminiLiveUsage({ userId: 'student-1', sessionId: 'live-session-1', actualSeconds: 30 })
     expect(retried).toMatchObject({ ok: true, idempotent: true })
     expect(firstLiveUsage().freeMinutesUsed).toBe(1)
   })

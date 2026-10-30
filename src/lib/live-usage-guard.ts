@@ -201,6 +201,7 @@ export async function reserveGeminiLiveUsage(input: {
           reservedMinutes: 0,
           freeReserved: 0,
           paidReserved: 0,
+          startedAt: now,
           expiresAt: new Date(now.getTime() + hardSessionLimit * 60 * 1000),
         },
       })
@@ -212,23 +213,52 @@ export async function reserveGeminiLiveUsage(input: {
   const maxSession = Math.max(1, Math.min(input.requestedMinutes || 2, hardSessionLimit))
 
   return db.$transaction(async (tx) => {
+    // معرّف جلسة وارد من العميل لا يُقبل على عماه: جلسة غيرك = تعارض،
+    // وجلستك المنتهية/المسوّاة لا تُبعث من جديد — تُحجز جلسة جديدة بمعرّف جديد.
+    let effectiveSessionId = sessionId
     const existing = await tx.aiLiveSession.findUnique({ where: { sessionId } }).catch(() => null)
     if (existing) {
-      const usage = await tx.aiLiveUsage.findUnique({ where: { userId_month_purpose: { userId: existing.userId, month: existing.month, purpose: existing.purpose } } }).catch(() => null)
-      return {
-        ok: true,
-        status: 200,
-        purpose: purposeName(existing.purpose),
-        month: existing.month,
-        freeMonthlyLimitMinutes,
-        sessionLimitMinutes: existing.reservedMinutes,
-        usedFreeMinutes: usage?.freeMinutesUsed || 0,
-        usedPaidMinutes: usage?.paidMinutesUsed || 0,
-        paidRemainingMinutes: 0,
-        totalRemainingMinutes: 0,
-        sessionsUsed: usage?.sessionsCount || 0,
-        sessionId,
+      if (existing.userId !== input.userId) {
+        return {
+          ok: false,
+          status: 409,
+          message: 'معرّف الجلسة هذا مستخدم من حساب آخر.',
+          purpose,
+          month,
+          freeMonthlyLimitMinutes,
+          sessionLimitMinutes: maxSession,
+          usedFreeMinutes: 0,
+          usedPaidMinutes: 0,
+          paidRemainingMinutes: 0,
+          totalRemainingMinutes: 0,
+          sessionsUsed: 0,
+          sessionId,
+        }
       }
+      const unexpired = existing.expiresAt ? new Date(existing.expiresAt).getTime() > now.getTime() : false
+      if (existing.status === 'RESERVED' && unexpired) {
+        const usage = await tx.aiLiveUsage.findUnique({ where: { userId_month_purpose: { userId: existing.userId, month: existing.month, purpose: existing.purpose } } }).catch(() => null)
+        return {
+          ok: true,
+          status: 200,
+          purpose: purposeName(existing.purpose),
+          month: existing.month,
+          freeMonthlyLimitMinutes,
+          sessionLimitMinutes: existing.reservedMinutes,
+          usedFreeMinutes: usage?.freeMinutesUsed || 0,
+          usedPaidMinutes: usage?.paidMinutesUsed || 0,
+          paidRemainingMinutes: 0,
+          totalRemainingMinutes: 0,
+          sessionsUsed: usage?.sessionsCount || 0,
+          sessionId,
+        }
+      }
+      if (existing.status === 'RESERVED' && !unexpired) {
+        // حجز منتهي لم يُسوَّ بعد: يُسترد كاملاً هنا حتى لا يبقى محجوزاً مرتين.
+        await refundReserved(tx, existing, existing.reservedMinutes)
+        await tx.aiLiveSession.update({ where: { id: existing.id }, data: { status: 'REFUNDED', settledAt: now, actualMinutes: 0 } })
+      }
+      effectiveSessionId = sessionIdValue(null)
     }
 
     const usage = await tx.aiLiveUsage.upsert({
@@ -266,7 +296,7 @@ export async function reserveGeminiLiveUsage(input: {
         paidRemainingMinutes,
         totalRemainingMinutes: 0,
         sessionsUsed: usage.sessionsCount,
-        sessionId,
+        sessionId: effectiveSessionId,
       }
     }
 
@@ -297,13 +327,14 @@ export async function reserveGeminiLiveUsage(input: {
 
     await tx.aiLiveSession.create({
       data: {
-        sessionId,
+        sessionId: effectiveSessionId,
         userId: input.userId,
         month,
         purpose,
         reservedMinutes: reserve,
         freeReserved: freeTake,
         paidReserved: paidUsed,
+        startedAt: now,
         expiresAt: new Date(now.getTime() + 10 * 60 * 1000),
       },
     })
@@ -320,18 +351,30 @@ export async function reserveGeminiLiveUsage(input: {
       paidRemainingMinutes: Math.max(0, paidRemainingMinutes - paidUsed),
       totalRemainingMinutes: Math.max(0, totalRemainingMinutes - reserve),
       sessionsUsed: updated.sessionsCount,
-      sessionId,
+      sessionId: effectiveSessionId,
     }
   })
 }
 
-export async function settleGeminiLiveUsage(input: { sessionId: string; actualSeconds?: number; actualMinutes?: number }) {
-  const actualMinutes = Math.max(0, Math.ceil(input.actualMinutes ?? ((Number(input.actualSeconds || 0) || 0) / 60)))
+export async function settleGeminiLiveUsage(input: { userId: string; sessionId: string; actualSeconds?: number; actualMinutes?: number }) {
+  const claimedMinutes = Math.max(0, Math.ceil(input.actualMinutes ?? ((Number(input.actualSeconds || 0) || 0) / 60)))
   return db.$transaction(async (tx) => {
     const session = await tx.aiLiveSession.findUnique({ where: { sessionId: input.sessionId } })
     if (!session) return { ok: false, status: 404, message: 'جلسة الصوت غير موجودة' }
+    // التسوية مقيدة بصاحب الجلسة فقط — لا أحد ينهي جلسة غيره أو يعبث برصيده.
+    if (session.userId !== input.userId) return { ok: false, status: 403, message: 'هذه الجلسة ليست جلستك' }
     if (session.status !== 'RESERVED') return { ok: true, status: 200, idempotent: true, session }
-    const recordedMinutes = session.reservedMinutes === 0 ? actualMinutes : Math.min(session.reservedMinutes, actualMinutes)
+    // المستهلك يُحسب من ساعة الخادم (startedAt) لا من ادعاء العميل؛ ادعاء
+    // «صفر دقائق» بعد جلسة كاملة لا يسترجع شيئاً. الجلسات غير المعدودة
+    // (أدمن، reservedMinutes=0) لا مال فيها فيبقى الادعاء سجلاً معلوماتياً.
+    let recordedMinutes: number
+    if (session.reservedMinutes === 0) {
+      recordedMinutes = claimedMinutes
+    } else {
+      const anchor = session.startedAt || session.createdAt
+      const elapsedMinutes = anchor ? Math.max(0, Math.ceil((Date.now() - new Date(anchor).getTime()) / 60000)) : claimedMinutes
+      recordedMinutes = Math.min(session.reservedMinutes, elapsedMinutes)
+    }
     const refund = Math.max(0, session.reservedMinutes - recordedMinutes)
     await refundReserved(tx, session, refund)
     const updated = await tx.aiLiveSession.update({

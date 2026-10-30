@@ -24,11 +24,11 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    await requireUser()
+    const user = await requireUser()
     const body = await req.json().catch(() => ({})) as any
     const sessionId = String(body.sessionId || '').trim()
     if (!sessionId) return NextResponse.json({ error: 'sessionId مطلوب لإنهاء جلسة الصوت.' }, { status: 400 })
-    const result = await settleGeminiLiveUsage({ sessionId, actualSeconds: Number(body.actualSeconds || 0), actualMinutes: Number(body.actualMinutes || 0) || undefined })
+    const result = await settleGeminiLiveUsage({ userId: user.id, sessionId, actualSeconds: Number(body.actualSeconds || 0), actualMinutes: Number(body.actualMinutes || 0) || undefined })
     return NextResponse.json({ liveUsageSettlement: result }, { status: result.status || 200 })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'يجب تسجيل الدخول أولاً' }, { status: 401 })

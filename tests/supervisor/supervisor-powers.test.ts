@@ -89,6 +89,15 @@ function seed() {
     answers: [],
   }
   const PAT2 = { ...PAT1, id: 'PAT2', appealReason: 'اعتراض ثان' }
+  const PA31 = { id: 'PA31', questionId: 'PQ31', attemptId: 'PAT3', points: 50, maxPoints: 60, isCorrect: true, answerText: '', selectedOption: 0, aiFeedback: null, question: { points: 60 } }
+  const PA32 = { id: 'PA32', questionId: 'PQ32', attemptId: 'PAT3', points: 30, maxPoints: 40, isCorrect: null, answerText: 'إجابة الطالب', selectedOption: null, aiFeedback: null, question: { points: 40 } }
+  const PAT3 = {
+    id: 'PAT3', userId: 'stu-1', status: 'GRADED', score: 80, finalScore: null, passed: true, appealStatus: 'NONE', appealReason: null, appealResponse: null, appealedAt: null, reviewedById: null, reviewedAt: null, submittedAt: new Date(),
+    user: { id: 'stu-1', name: 'طالب أول', email: 's1@x.io' },
+    // سؤال ثالث مرفوض (40 نقطة) موجود بالامتحان لكنه لم يدخل التصحيح أصلاً
+    exam: { id: 'PE2', title: 'فصلي ب', passScore: 60, programId: 'P1', semester: 1, program: { id: 'P1', titleAr: 'برنامج أ' }, questions: [{ points: 60, status: 'PUBLISHED' }, { points: 40, status: 'PUBLISHED' }, { points: 40, status: 'REJECTED' }] },
+    answers: [PA31, PA32],
+  }
   S = {
     users: [
       { id: 'admin-1', name: 'الأدمن', role: 'ADMIN', status: 'ACTIVE', email: 'a@x.io' },
@@ -104,9 +113,9 @@ function seed() {
     bankItems: [{ id: 'BK1', programId: 'P1', unitId: 'U1', type: 'MCQ', text: 'سؤال بنك قائم', options: '["أ","ب"]', correctAnswer: '1', modelAnswer: null, rubric: null, difficulty: 'MEDIUM', status: 'APPROVED', generatedBy: 'AI', sourceEvidence: null, sourceBookTitle: null, createdAt: new Date() }],
     programExams: [PE1],
     programQuestions: [PQ1, PQ2],
-    programAnswers: [{ id: 'PA1', questionId: 'PQ1', attemptId: 'PAT1' }],
+    programAnswers: [{ id: 'PA1', questionId: 'PQ1', attemptId: 'PAT1' }, PA31, PA32],
     unitAttempts: [AT1, AT2],
-    programAttempts: [PAT1, PAT2],
+    programAttempts: [PAT1, PAT2, PAT3],
     unitAnswers: [UA1, UA2],
     proposals: [],
     enrollments: [],
@@ -268,6 +277,16 @@ describe('grade review', () => {
     const res = await gradeReviewRoute.PATCH(req('/api/supervisor/grade-review', 'PATCH', { type: 'UNIT', attemptId: 'AT1', scores: { UA2: 9 } }))
     expect(res.status).toBe(403)
     expect(S.unitAttempts.find((a: any) => a.id === 'AT1').score).toBe(70)
+  })
+
+  test('program grade review: denominator is the graded questions only — a REJECTED leftover must not deflate the score', async () => {
+    const res = await gradeReviewRoute.PATCH(req('/api/supervisor/grade-review', 'PATCH', { type: 'PROGRAM', attemptId: 'PAT3', scores: { PA32: 40 } }))
+    const body = await res.json()
+    expect(res.status).toBe(200)
+    // (50+40) على مقام 100 (ما صُحّح فعلياً) — لا 90/140=64.3 باحتساب السؤال المرفوض
+    expect(body.score).toBe(90)
+    expect(body.passed).toBe(true)
+    expect(S.programAttempts.find((a: any) => a.id === 'PAT3').score).toBe(90)
   })
 })
 
