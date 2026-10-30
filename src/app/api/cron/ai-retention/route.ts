@@ -6,7 +6,9 @@ export const dynamic = 'force-dynamic'
 
 function authorized(req: NextRequest) {
   const secret = process.env.CRON_SECRET || process.env.BACKUP_CRON_SECRET || ''
-  if (!secret) return true
+  // فشل مُغلق كسائر مسارات الكرون: غياب السر يعني الرفض لا الفتح —
+  // الفتح كان يتيح لأي زائر بلا دخول تشغيل حذف محادثات الذكاء القديمة.
+  if (!secret) return false
   const header = req.headers.get('authorization') || req.headers.get('x-cron-secret') || ''
   return header === `Bearer ${secret}` || header === secret
 }
