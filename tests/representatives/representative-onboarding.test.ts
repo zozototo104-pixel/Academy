@@ -112,6 +112,9 @@ const db: any = {
   },
   user: {
     findMany: async () => [],
+    // sendEmailDetailed يبحث عن حساب ببريد المستلم لإعادة توجيه بريد
+    // الإشعارات (notificationEmail) — بريد المندوب ليس حساب مستخدم.
+    findUnique: async () => null,
   },
 }
 

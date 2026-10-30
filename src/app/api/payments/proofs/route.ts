@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
     if (!payment) return NextResponse.json({ error: 'الفاتورة غير موجودة أو غير مرتبطة بحسابك' }, { status: 404 })
     // المشرف يرفع إثباتات لطلابه المعيّنين فقط — بنفس رسالة «غير موجودة»
     // حتى لا يتسرب وجود فواتير طلاب آخرين.
-    if (user.role === 'SUPERVISOR' && !(await isAssignedStudent(user as any, payment.userId))) {
+    if (user.role === 'SUPERVISOR' && !(await isAssignedStudent(user as any, payment.userId || ''))) {
       return NextResponse.json({ error: 'الفاتورة غير موجودة أو غير مرتبطة بحسابك' }, { status: 404 })
     }
     if (payment.status === 'PAID') return NextResponse.json({ error: 'الفاتورة مسددة بالفعل ولا تحتاج إثبات دفع جديد' }, { status: 400 })

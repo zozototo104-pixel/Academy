@@ -140,7 +140,7 @@ export async function GET(req: NextRequest) {
       if (!participant?.guestInviteId) throw new Error('FORBIDDEN_PEER')
       assertGuestSecret(participant, guestSecret)
       const invite = await db.defenseGuestInvite.findUnique({ where: { id: participant.guestInviteId } })
-      if (defenseGuestInviteProblem(invite) || invite.thesisId !== thesisId) throw new Error('GUEST_INVALID')
+      if (!invite || defenseGuestInviteProblem(invite) || invite.thesisId !== thesisId) throw new Error('GUEST_INVALID')
       actor = { kind: 'guest', invite }
       thesis = await loadThesis(thesisId)
       if (!thesis) return NextResponse.json({ error: 'لا تملك صلاحية الوصول لهذه القاعة' }, { status: 403 })
@@ -253,7 +253,7 @@ export async function POST(req: NextRequest) {
       if (!participant?.guestInviteId) return NextResponse.json({ error: 'يجب تسجيل الدخول' }, { status: 401 })
       assertGuestSecret(participant, body.guestSecret)
       const invite = await db.defenseGuestInvite.findUnique({ where: { id: participant.guestInviteId } })
-      if (defenseGuestInviteProblem(invite) || invite.thesisId !== thesisId) throw new Error('GUEST_INVALID')
+      if (!invite || defenseGuestInviteProblem(invite) || invite.thesisId !== thesisId) throw new Error('GUEST_INVALID')
       const actor: Actor = { kind: 'guest', invite }
       return await handleAction(body, actor, thesisId, currentPeerId, null)
     }

@@ -50,7 +50,7 @@ async function audit(action: string, actor: { id?: string | null; name?: string 
     .create({
       data: {
         actorId: actor?.id || null,
-        actorName: actor?.name || null,
+        actorName: actor?.name || 'النظام',
         action,
         entity: 'User',
         entityId: userId,
