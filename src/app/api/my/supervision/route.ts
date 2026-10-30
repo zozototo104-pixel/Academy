@@ -10,6 +10,22 @@ function parseOptions(v: any): string[] {
   } catch { return [] }
 }
 
+// هذا المسار للطالب فقط: مفاتيح التصحيح لا تغادر الخادم أبداً — نفس قاعدة
+// مسار تقييمات المشرف (stripQuestionKeys هناك). تُنزع من أسئلة التقييم
+// ومن الأسئلة المتداخلة داخل أجوبة محاولات الطالب على حد سواء.
+function stripQuestionKeys(q: any): any {
+  if (!q || typeof q !== 'object') return q
+  const { correctAnswer, modelAnswer, correctRationale, sourceEvidence, ...rest } = q
+  return rest
+}
+
+function attemptsForStudent(attempts: any[]): any[] {
+  return (attempts || []).map((at: any) => ({
+    ...at,
+    answers: (at?.answers || []).map((an: any) => (an?.question ? { ...an, question: stripQuestionKeys(an.question) } : an)),
+  }))
+}
+
 export async function GET() {
   try {
     const user = await requireUser()
@@ -56,7 +72,8 @@ export async function GET() {
         assessments: assessments.map((a: any) => ({
           ...a,
           sourceBookIds: a.sourceBookIds ? JSON.parse(a.sourceBookIds) : [],
-          questions: a.questions.map((q: any) => ({ ...q, options: parseOptions(q.options) })),
+          questions: a.questions.map((q: any) => ({ ...stripQuestionKeys(q), options: parseOptions(q.options) })),
+          attempts: attemptsForStudent(a.attempts || []),
         })),
       }
     }))

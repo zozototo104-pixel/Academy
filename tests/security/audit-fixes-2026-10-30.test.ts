@@ -4,6 +4,8 @@
 // 3) استئناف آثار السداد عند إعادة المحاولة بعد قلب الفاتورة PAID.
 // 4) فك تشفير أسرار اللوحة عند القراءة (payments + helper).
 // 5) أسئلة امتحان الفصل لا تُرسل قبل بدء محاولة على الخادم.
+// 6) مجموع نقاط امتحان الفصل يُعاد حسابه من المنشورة عند التعديل/الاعتماد/الحذف.
+// 7) مفاتيح التصحيح لا تصل الطالب عبر my/supervision أيضاً (الباب الثاني).
 import { describe, test, expect, mock, beforeEach } from 'bun:test'
 import { NextRequest } from 'next/server'
 
@@ -59,6 +61,7 @@ const fakeDb: any = {
     findMany: async () => [structuredClone(assessmentRow)],
     findUnique: async () => structuredClone(assessmentRow),
   },
+  supervisorChannelMessage: { findMany: async () => [] },
   thesisSubmission: {
     findUnique: async () => ({ id: 'th-1', userId: 'stu-1', recordingStorageProvider: 's3', recordingStorageKey: 'k', recordingUrl: null, recordingData: null, recordingMime: 'video/webm' }),
   },
@@ -163,6 +166,7 @@ mock.module('@/lib/live-usage-guard', () => ({ grantGeminiLiveCredit: async () =
 process.env.AACT_SECRETS_KEY = Buffer.alloc(32, 7).toString('base64')
 
 const assessmentsRoute = await import('@/app/api/supervisor/assessments/route')
+const mySupervisionRoute = await import('@/app/api/my/supervision/route')
 const recordingRoute = await import('@/app/api/admin/defense-recording/route')
 const programExamDetail = await import('@/app/api/program-exam/detail/route')
 const programExamQuestions = await import('@/app/api/admin/program-exam-questions/route')
@@ -322,5 +326,33 @@ describe('6) مجموع نقاط امتحان الفصل لا ينحرف', () =>
     const res = await programExamQuestions.PATCH(patchReq({ questionId: 'pq1', action: 'APPROVE' }))
     expect(res.status).toBe(200)
     expect(examUpdates.some((u) => u.data?.totalPoints === 13)).toBe(true)
+  })
+})
+
+describe('7) مفاتيح التصحيح عبر my/supervision (الباب الثاني)', () => {
+  test('الطالب لا يرى مفاتيح التصحيح عبر صفحة متابعته — لا مباشرة ولا متداخلة', async () => {
+    fakeDb.admissionApplication.findMany = async () => [{
+      id: 'app-1', reference: 'REF-1', fullName: 'طالب تجريبي', program: 'برنامج', programId: 'prog-1',
+      status: 'ACTIVE_STUDY', supervisorId: 'sup-1', supervisionMode: 'HYBRID', supervisorAt: new Date(),
+      supervisor: { id: 'sup-1', name: 'مشرف', email: 'sup@x.test', phone: null },
+      programRef: { id: 'prog-1', titleAr: 'برنامج', books: [] }, theses: [],
+    }]
+    currentUser = { id: 'stu-1', role: 'STUDENT', email: 's@x.test', name: 'طالب' }
+    const res = await mySupervisionRoute.GET()
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    const a = body.supervision[0].assessments[0]
+    const q = a.questions[0]
+    expect(q.text).toBeTruthy()
+    expect(q.options).toEqual(['أ', 'ب'])
+    expect('correctAnswer' in q).toBe(false)
+    expect('modelAnswer' in q).toBe(false)
+    expect('correctRationale' in q).toBe(false)
+    expect('sourceEvidence' in q).toBe(false)
+    const nested = a.attempts[0].answers[0].question
+    expect('correctAnswer' in nested).toBe(false)
+    expect('modelAnswer' in nested).toBe(false)
+    expect('correctRationale' in nested).toBe(false)
+    expect('sourceEvidence' in nested).toBe(false)
   })
 })
