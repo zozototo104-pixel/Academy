@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { CertificateDialog, CertificateData } from '@/components/aact/CertificateDialog'
+import { StudentThesisTab } from '@/components/aact/StudentThesisTab'
 import {
   Award,
   Banknote,
@@ -811,15 +812,7 @@ export function PaymentsTab() {
 }
 
 export function ThesisTab() {
-  return (
-    <Card className='border-[#0f2b46]/10 bg-white'>
-      <CardContent className='p-6 text-center'>
-        <FileText className='mx-auto h-8 w-8 text-[#c9a227]' />
-        <h3 className='mt-3 text-lg font-black text-[#0f2b46]'>بحث التخرج والمناقشة</h3>
-        <p className='mt-2 text-sm font-bold leading-7 text-slate-500'>تظهر تفاصيل البحث والمناقشة بعد اعتماد مسارك الأكاديمي من الإدارة واستكمال شروط البرنامج.</p>
-      </CardContent>
-    </Card>
-  )
+  return <StudentThesisTab />
 }
 
 export function CertificatesTab() {
