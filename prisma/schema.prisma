@@ -684,6 +684,7 @@ model ExamAttempt {
   createdAt   DateTime  @default(now())
   user        User      @relation(fields: [userId], references: [id], onDelete: Restrict)
   answers     Answer[]
+  @@index([userId, examId, status])
 }
 
 model ExamDraft {
@@ -827,6 +828,8 @@ model Payment {
   payerEmail  String?
   payerCountry String?
   createdAt   DateTime @default(now())
+  @@index([userId, status])
+  @@index([status])
 }
 
 model PaymentWaiverCode {
@@ -1154,6 +1157,7 @@ model Notification {
   link      String? // عرض داخلي مثل dashboard
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
+  @@index([userId, read, createdAt])
 }
 
 // سجل خدمة المتابعة: كل رسالة متابعة غياب أُرسلت (أو حدث رجوع) لطالب، بقنواتها وسببها.
@@ -1207,6 +1211,8 @@ model AuditLog {
   entityId  String?
   details   String?
   createdAt DateTime @default(now())
+  @@index([createdAt])
+  @@index([entity, entityId])
 }
 
 model Setting {
@@ -1631,6 +1637,9 @@ model AdmissionApplication {
   scholarshipFull Boolean @default(false) // منحة كاملة معتمدة: أي فواتير دراسية لاحقة لهذا الطلب تُنشأ معفاة تلقائياً
   // نوع الإشراف الأكاديمي: AI = مشرف ذكي فقط، HUMAN = مشرف بشري معيّن من الإدارة، HYBRID = الاثنين معاً
   supervisionMode String @default("AI")
+  @@index([status, createdAt])
+  @@index([supervisorId])
+  @@index([userId])
 }
 
 model TuitionInstallmentAppeal {
@@ -2218,6 +2227,7 @@ model ProgramExamAttempt {
   proctoringSnapshotSize            Int?
   createdAt   DateTime @default(now())
   answers     ProgramAnswer[]
+  @@index([userId, examId, status])
 }
 
 model ProgramAnswer {
