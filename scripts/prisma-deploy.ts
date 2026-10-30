@@ -28,11 +28,12 @@ const mutatesDatabase = args.size === 0 || args.has('--migrate') || args.has('--
 const hasExplicitMutationFlag = args.has('--migrate') || args.has('--push') || args.has('--force-push')
 const isCiRun = String(process.env.CI || '').toLowerCase() === 'true' || String(process.env.GITHUB_ACTIONS || '').toLowerCase() === 'true'
 const isIsolatedPreview = process.env.VERCEL_ENV === 'preview' && String(process.env.AACT_PREVIEW_DB_ISOLATED || '').toLowerCase() === 'true'
-const isLocalOperatorRun = !process.env.VERCEL && !isCiRun
+const isLocalOperatorRun = !process.env.VERCEL && !process.env.VERCEL_ENV && !isCiRun
 const explicitMutationAllowed = hasExplicitMutationFlag && (isIsolatedPreview || isLocalOperatorRun)
 
 if (process.env.VERCEL_ENV !== 'production' && mutatesDatabase && !explicitMutationAllowed) {
-  console.log('skipped — prisma-deploy: no database change was made. Automatic migration runs only on Vercel production; for an isolated preview database set AACT_PREVIEW_DB_ISOLATED=true, and for a local database pass --migrate/--push explicitly outside Vercel/CI.')
+  console.log('skipped')
+  console.log('prisma-deploy: no database change was made. Automatic migration runs only on Vercel production; for an isolated preview database set AACT_PREVIEW_DB_ISOLATED=true, and for a local database pass --migrate/--push explicitly outside Vercel/CI (a shell carrying VERCEL_ENV counts as a Vercel context, not a local one).')
   process.exit(0)
 }
 
