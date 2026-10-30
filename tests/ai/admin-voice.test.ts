@@ -25,6 +25,7 @@ type SessionRow = {
   paidReserved: number
   actualMinutes?: number | null
   settledAt?: Date | null
+  startedAt?: Date
   expiresAt: Date
 }
 
@@ -267,6 +268,12 @@ describe('Admin Gemini Live minutes and classified errors', () => {
     expect(reserved).toMatchObject({ ok: true, status: 200, sessionLimitMinutes: 2 })
     expect(usages.get(usageKey('supervisor-1', month(), 'SUPERVISOR'))?.freeMinutesUsed).toBe(2)
     expect(sessions.get('supervisor-metered-1')?.reservedMinutes).toBe(2)
+    // التسوية تحسب الاستهلاك من ساعة الخادم (startedAt) لا من ادعاء العميل.
+    // بلا ضبط المرساة يعتمد هذا الاختبار على مرور ≥1ms حقيقي بين الحجز
+    // والتسوية؛ على الأجهزة السريعة قد يتمّان في الميلي ثانية نفسها فيُحسب
+    // المنقضي صفراً ويُسترد المحجوز كله. نثبّت بداية الجلسة قبل 30 ثانية —
+    // منتصف نافذة الدقيقة الواحدة — فيصير المنقضي المحسوب دقيقة دائماً.
+    sessions.get('supervisor-metered-1')!.startedAt = new Date(Date.now() - 30_000)
     const settled = await settleGeminiLiveUsage({ userId: 'supervisor-1', sessionId: 'supervisor-metered-1', actualSeconds: 60 })
     expect(settled).toMatchObject({ ok: true, refundMinutes: 1 })
     expect(usages.get(usageKey('supervisor-1', month(), 'SUPERVISOR'))?.freeMinutesUsed).toBe(1)
