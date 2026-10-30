@@ -1,5 +1,37 @@
 import { NextResponse } from 'next/server'
 import { getGatewayConfig, paymentDiagnostics, sandboxPaymentsAllowed } from '@/lib/payments'
+import { DEFAULT_OFFICIAL_CONTACT, getSettings } from '@/lib/settings'
+
+// أرقام التواصل الرسمية من إعداد OFFICIAL_CONTACT — بيانات عامة بطبيعتها
+// (تظهر بفوتر الموقع وأجوبة المساعد) وتحتاجها تعليمات الدفع المباشر.
+async function officialContactForPayments() {
+  try {
+    const settings = await getSettings()
+    let parsed: any = DEFAULT_OFFICIAL_CONTACT
+    try {
+      parsed = { ...DEFAULT_OFFICIAL_CONTACT, ...JSON.parse(settings.OFFICIAL_CONTACT || '{}') }
+    } catch {
+      parsed = DEFAULT_OFFICIAL_CONTACT
+    }
+    const list = (primary: unknown, arr: unknown): string[] => {
+      const out: string[] = []
+      const push = (v: unknown) => {
+        const s = String(v || '').trim()
+        if (s && !out.includes(s)) out.push(s)
+      }
+      push(primary)
+      if (Array.isArray(arr)) arr.forEach(push)
+      return out
+    }
+    return {
+      phones: list(parsed.phone, parsed.phones),
+      whatsapps: list(parsed.whatsapp, parsed.whatsapps),
+      email: String(parsed.email || ''),
+    }
+  } catch {
+    return { phones: [] as string[], whatsapps: [] as string[], email: '' }
+  }
+}
 
 // GET /api/payments/config — توزيع إعدادات الدفع الآمنة على الواجهة
 // يخبر الواجهة: وضع الدفع (SANDBOX/LIVE) والمزودين المتاحين فعلياً — بدون أي أسرار
@@ -7,7 +39,9 @@ export async function GET() {
   try {
     const cfg = await getGatewayConfig()
     const diagnostics = paymentDiagnostics(cfg)
+    const contact = await officialContactForPayments()
     return NextResponse.json({
+      contact,
       mode: diagnostics.mode,
       sandboxAllowed: diagnostics.sandboxAllowed,
       providers: {
@@ -33,6 +67,7 @@ export async function GET() {
     })
   } catch {
     return NextResponse.json({
+      contact: { phones: [], whatsapps: [], email: '' },
       mode: 'SANDBOX',
       sandboxAllowed: sandboxPaymentsAllowed(),
       providers: { STRIPE: false, PAYPAL: false, USDT: false },

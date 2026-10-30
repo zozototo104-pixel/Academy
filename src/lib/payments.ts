@@ -124,6 +124,17 @@ export function paymentDiagnostics(cfg: PaymentGatewayConfig): PaymentDiagnostic
 
   const methods: PaymentMethodStatus[] = [
     {
+      // الدفع المباشر هو الخيار الأول والافتراضي (قرار المالك ٢٠٢٦-١٠-٣٠):
+      // الطالب يتواصل مع الإدارة على الأرقام الرسمية لتحديد طريقة الدفع ثم
+      // يرفع وصل الدفع. ترتيب هذه القائمة هو ترتيب العرض والاختيار الافتراضي.
+      id: 'DIRECT_PAYMENT',
+      label: 'دفع مباشر — تواصل مع الإدارة',
+      enabled: true,
+      configured: true,
+      kind: 'manual',
+      reason: undefined,
+    },
+    {
       id: 'PAYMOB',
       label: 'Paymob — بطاقة / محافظ مصر',
       enabled: false,
@@ -172,14 +183,6 @@ export function paymentDiagnostics(cfg: PaymentGatewayConfig): PaymentDiagnostic
       configured: false,
       kind: 'manual',
       reason: preparingReason,
-    },
-    {
-      id: 'DIRECT_PAYMENT',
-      label: 'دفع مباشر — تواصل مع الإدارة',
-      enabled: true,
-      configured: true,
-      kind: 'manual',
-      reason: undefined,
     },
   ]
 

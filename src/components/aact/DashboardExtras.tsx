@@ -45,6 +45,11 @@ interface PaymentConfig {
   warnings: string[]
   errors: string[]
   methods: PaymentMethodStatus[]
+  contact?: {
+    phones?: string[]
+    whatsapps?: string[]
+    email?: string
+  }
   usdt?: {
     configured: boolean
     network: string
@@ -152,6 +157,15 @@ export function visiblePaymentMethods(methods?: PaymentMethodStatus[]) {
   return list.filter((m) => !['STRIPE', 'PAYPAL'].includes(String(m.id).toUpperCase()) || m.configured)
 }
 
+// الاختيار الافتراضي عند فتح نافذة الدفع: الدفع المباشر أولاً دائماً متى
+// كان مفعّلاً (قرار المالك ٢٠٢٦-١٠-٣٠)، وإلا أول طريقة مفعّلة.
+export function preferredPaymentMethodId(methods?: PaymentMethodStatus[]): string | null {
+  const list = visiblePaymentMethods(methods)
+  return list.find((m) => m.id === 'DIRECT_PAYMENT' && m.enabled)?.id
+    || list.find((m) => m.enabled)?.id
+    || null
+}
+
 function Money({ value }: { value: number }) {
   return <span dir='ltr'>{Math.round((Number(value) || 0) * 100) / 100}$</span>
 }
@@ -236,8 +250,8 @@ export function PaymentsTab() {
       .then((d) => {
         setPayConfig(d)
         setPayMode(d.mode || 'SANDBOX')
-        const firstEnabled = visiblePaymentMethods(d.methods).find((m) => m.enabled)?.id
-        if (firstEnabled) setMethod(firstEnabled)
+        const preferred = preferredPaymentMethodId(d.methods)
+        if (preferred) setMethod(preferred)
       })
       .catch(() => {})
 
@@ -259,8 +273,8 @@ export function PaymentsTab() {
   }, [])
 
   const openPaymentDialog = (payment: Payment) => {
-    const firstEnabled = visiblePaymentMethods(payConfig?.methods).find((m) => m.enabled)?.id
-    if (firstEnabled) setMethod(firstEnabled)
+    const preferred = preferredPaymentMethodId(payConfig?.methods)
+    if (preferred) setMethod(preferred)
     setPayTarget(payment)
   }
 
@@ -716,7 +730,7 @@ export function PaymentsTab() {
       )}
 
       <Dialog open={!!payTarget} onOpenChange={(v) => !v && setPayTarget(null)}>
-        <DialogContent className='max-w-md' dir='rtl'>
+        <DialogContent className='max-h-[92dvh] max-w-md overflow-y-auto' dir='rtl'>
           <DialogHeader>
             <DialogTitle className='flex items-center justify-between gap-2 font-black text-[#0f2b46]'>
               <span className='flex items-center gap-2'><Banknote className='h-5 w-5 text-[#c9a227]' /> إتمام الدفع</span>
@@ -726,7 +740,7 @@ export function PaymentsTab() {
           </DialogHeader>
           <div className='space-y-4'>
             <div className='space-y-2'>
-              <Label>اختر بوابة الدفع</Label>
+              <Label>اختر طريقة الدفع</Label>
               <Select value={method} onValueChange={setMethod}>
                 <SelectTrigger className='w-full'><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -743,7 +757,35 @@ export function PaymentsTab() {
               {payConfig?.methods?.find((m) => m.id === method && !m.enabled)?.reason && <p className='rounded-lg bg-amber-50 px-3 py-2 text-[10px] font-bold text-amber-700'>{payConfig.methods.find((m) => m.id === method)?.reason}</p>}
             </div>
             <div className='rounded-xl border border-slate-100 bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-500'><Info className='mb-1 h-3.5 w-3.5 text-[#c9a227]' /> الدفع اليدوي لا يخصم تلقائياً؛ في USDT أدخل Hash التحويل بعد الدفع ليتم التحقق آلياً إن كانت الشبكة مدعومة، ثم تؤكد الإدارة السداد.</div>
-            {['DIRECT_PAYMENT', 'BANK_TRANSFER'].includes(method) && (
+            {method === 'DIRECT_PAYMENT' && (
+              <div className='rounded-xl border border-amber-100 bg-amber-50 p-3 text-[11px] font-bold leading-6 text-amber-900'>
+                <p className='font-black'>تعليمات الدفع المباشر</p>
+                <ol className='mt-1 list-decimal space-y-1 pr-4'>
+                  <li>تواصل مع الإدارة على الأرقام الرسمية التالية لتحديد طريقة الدفع المناسبة لك:</li>
+                </ol>
+                {((payConfig?.contact?.whatsapps?.length || payConfig?.contact?.phones?.length)) ? (
+                  <div className='mt-2 flex flex-wrap gap-2'>
+                    {(payConfig?.contact?.whatsapps || []).map((num) => (
+                      <a key={`wa-${num}`} href={`https://wa.me/${num.replace(/\D/g, '')}`} target='_blank' rel='noreferrer' className='rounded-full bg-emerald-600 px-3 py-1.5 text-[11px] font-black text-white'>
+                        واتساب <span dir='ltr'>{num}</span>
+                      </a>
+                    ))}
+                    {(payConfig?.contact?.phones || []).map((num) => (
+                      <a key={`tel-${num}`} href={`tel:${num.replace(/[^\d+]/g, '')}`} className='rounded-full bg-white px-3 py-1.5 text-[11px] font-black text-amber-900 ring-1 ring-amber-200'>
+                        اتصال <span dir='ltr'>{num}</span>
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <p className='mt-1 text-[10px] text-amber-800'>أرقام التواصل الرسمية ظاهرة في أسفل موقع الأكاديمية.</p>
+                )}
+                <ol className='mt-2 list-decimal space-y-1 pr-4' start={2}>
+                  <li>عند الدفع استخدم رقم الفاتورة كمرجع: <span className='font-mono' dir='ltr'>{payTarget?.invoiceNo}</span> — وادفع المبلغ الظاهر في الفاتورة فقط.</li>
+                  <li>بعد الدفع، ارفع صورة وصل الدفع من بطاقة الفاتورة في القائمة بالأسفل، وستعتمد الإدارة السداد بعد مراجعة الوصل ومطابقة المبلغ.</li>
+                </ol>
+              </div>
+            )}
+            {method === 'BANK_TRANSFER' && (
               <div className='rounded-xl border border-amber-100 bg-amber-50 p-3 text-[11px] font-bold leading-6 text-amber-900'>
                 <p className='font-black'>تعليمات الدفع اليدوي</p>
                 <ol className='mt-1 list-decimal space-y-1 pr-4'>
