@@ -1,5 +1,4 @@
 import { db } from '@/lib/db'
-import { getZAI, chatWithRetry } from '@/lib/ai'
 import { geminiCompleteJson, geminiVisionJson } from '@/lib/gemini'
 import { textAiCompleteJson } from '@/lib/text-ai'
 import { hydrateBookContentForExam, type RawBookForHydration } from '@/lib/book-content'
