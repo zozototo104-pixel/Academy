@@ -325,7 +325,7 @@ function normalizeBoundaries(chunks: readonly Chunk[], boundaries: readonly Boun
   // Real chapter boundaries and same-chunk splits must not be merged away.
   // Only unlabeled one-chunk fragments may be absorbed into neighboring sections.
   for (let i = ranges.length - 1; i >= 0; i--) {
-    if (ranges.length <= 1 || chapterNumber(ranges[i].title) !== null) continue
+    if (ranges.length <= 1 || ranges[i].verifiedHeading || chapterNumber(ranges[i].title) !== null) continue
     if (ranges[i].end !== ranges[i].start) continue
     const sharesChunkWithNeighbor = (i > 0 && ranges[i - 1].start === ranges[i].start) || (i + 1 < ranges.length && ranges[i + 1].start === ranges[i].start)
     if (sharesChunkWithNeighbor || ranges[i].startCharOffset !== null) continue
