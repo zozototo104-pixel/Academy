@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
-import { getZAI, chatWithRetry } from '@/lib/ai'
+import { textAiCompleteJson } from '@/lib/text-ai'
 import { requireStudentAiSupervisorAccess } from '@/lib/student-ai-access'
 import { buildSupervisorContext, mergeContext } from '@/lib/supervisor-ai'
 import { summarizeDigestForPrompt } from '@/lib/thesis-context'
