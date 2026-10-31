@@ -413,38 +413,46 @@ export function StudentLectures() {
       <Card>
         <CardContent className="py-4">
           <h3 className="mb-3 text-base font-black text-slate-800">التسجيلات</h3>
-          {activeWatch && (
-            <div className="mb-4 space-y-2">
-              <LecturePlayer
-                descriptor={activeWatch.watch}
-                title={activeWatch.video.title}
-                watermark={
-                  user?.name || user?.email
-                    ? `${user?.name ?? ''}${user?.email ? ` • ${user.email}` : ''}`
-                    : null
-                }
-                onProgress={(positionSec, watchedPercent) => {
-                  void saveProgress(activeWatch.video.id, positionSec, watchedPercent)
-                }}
-                onEnded={() => void markWatched(activeWatch.video)}
-                onRenew={async () => {
-                  try {
-                    return await api<WatchDescriptor>(`/api/my/lecture-videos/${activeWatch.video.id}/watch`, {
-                      method: 'POST',
-                    })
-                  } catch {
-                    return null
-                  }
-                }}
-              />
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-slate-700">{activeWatch.video.title}</span>
-                <Button variant="outline" size="sm" onClick={() => void markWatched(activeWatch.video)}>
-                  <CheckCircle2 className="ml-1 h-4 w-4" /> تمت المشاهدة
-                </Button>
-              </div>
-            </div>
-          )}
+          <Dialog open={Boolean(activeWatch)} onOpenChange={(open) => { if (!open) setActiveWatch(null) }}>
+            <DialogContent className="max-h-[90dvh] w-[calc(100vw-1rem)] max-w-4xl overflow-y-auto p-3 sm:p-6" dir="rtl">
+              {activeWatch && (
+                <>
+                  <DialogHeader>
+                    <DialogTitle>{activeWatch.video.title}</DialogTitle>
+                    <DialogDescription>شاهد التسجيل هنا، ثم أغلق النافذة للعودة إلى نفس موضعك في القائمة.</DialogDescription>
+                  </DialogHeader>
+                  <LecturePlayer
+                    key={activeWatch.video.id}
+                    descriptor={activeWatch.watch}
+                    title={activeWatch.video.title}
+                    watermark={
+                      user?.name || user?.email
+                        ? `${user?.name ?? ''}${user?.email ? ` • ${user.email}` : ''}`
+                        : null
+                    }
+                    onProgress={(positionSec, watchedPercent) => {
+                      void saveProgress(activeWatch.video.id, positionSec, watchedPercent)
+                    }}
+                    onEnded={() => void markWatched(activeWatch.video)}
+                    onRenew={async () => {
+                      try {
+                        return await api<WatchDescriptor>(`/api/my/lecture-videos/${activeWatch.video.id}/watch`, {
+                          method: 'POST',
+                        })
+                      } catch {
+                        return null
+                      }
+                    }}
+                  />
+                  <div className="flex items-center justify-end">
+                    <Button variant="outline" size="sm" onClick={() => void markWatched(activeWatch.video)}>
+                      <CheckCircle2 className="ml-1 h-4 w-4" /> تمت المشاهدة
+                    </Button>
+                  </div>
+                </>
+              )}
+            </DialogContent>
+          </Dialog>
           {videos.length === 0 ? (
             <p className="py-4 text-center text-sm text-slate-500">لا توجد تسجيلات منشورة بعد.</p>
           ) : (
