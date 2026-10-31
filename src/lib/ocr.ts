@@ -167,6 +167,7 @@ async function readWithVisionRouter(buffer: Buffer, mimeType: string, declaredTy
     history: [{ role: 'user', text: 'حلّل المرفق البصري المرفق فقط وأعد JSON حسب التعليمات.' }],
     purpose: 'VISION',
     routerPolicy: 'primary_first',
+    excludeProviders: ['ZAI'], // لا نعتمد على Z-AI بدون مفتاح مُهيأ.
     temperature: 0.05,
     maxOutputTokens: 2400,
     deadlineMs: Date.now() + 25_000,
