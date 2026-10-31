@@ -540,6 +540,7 @@ function metadataKnowledgeBlueprint(program: ProgramMeta, book: RawBookForHydrat
     importance,
     semester: semester ?? book.semester ?? null,
     sourceNote: note,
+    textProvenance: 'METADATA_ONLY',
   })
 
   const items: KnowledgeItemDraft[] = [
