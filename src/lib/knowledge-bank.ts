@@ -1068,6 +1068,7 @@ CONCEPT, THEORY, METHOD, CASE, DEFINITION, QUESTION_SEED, SUMMARY
       ...item,
       excerpt: null,
       sourceNote: 'خطة معرفة مبنية على توصيف الكتاب لا على قراءة نصه الكامل',
+      textProvenance: 'METADATA_ONLY',
     }))
   } catch (e: any) {
     console.error('aiMetadataKnowledgeItems fallback:', String(e?.message || e).slice(0, 240))
