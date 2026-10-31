@@ -436,7 +436,7 @@ const subordinateHeading = /^(?:اسئله?\s*واجوبه?|أسئلة\s*وأج�
 const numberedOrQuestion = /^(?:[•●▪*]|[-–—]\s|\d{1,3}\s*[.):\-–]|[٠-٩]{1,3}\s*[.):\-–]|[سج]\s*\d+\s*[:：]|(?:سؤال|س)\s*[:：]|[؟?])/iu
 const commonTopicStart = /^(?:مقدمه|مقدمة|دور|اهميه|أهمية|مفهوم|الإدارة|ادارة|إدارة|التخطيط|القيادة|التحليل|الاقتصاد|التسويق|الابتكار|الموارد|الرقابة|الجودة|مهارات|التنظيم|الاتصال|المخاطر|المنافسة)(?=\s|[:：]|$)/iu
 
-function detectOriginalSourceHeadings(pages: readonly ExtractedBookPage[], bookTitle: string): SourceHeading[] {
+export function detectOriginalSourceHeadings(pages: readonly ExtractedBookPage[], bookTitle: string): SourceHeading[] {
   const normalizedPages = pages.map((page) => ({ page: page.page, lines: page.text.split(/\r?\n|\r/) }))
   const pagesPerLine = new Map<string, Set<number>>()
   for (const page of normalizedPages) {
