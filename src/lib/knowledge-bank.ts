@@ -1056,6 +1056,11 @@ CONCEPT, THEORY, METHOD, CASE, DEFINITION, QUESTION_SEED, SUMMARY
     ])
     const normalized = normalizeDrafts(extractJsonArray(raw), [], semester)
     const out = normalized.length ? normalized : fallback
+    const requiredCategories = ['SUMMARY', 'CONCEPT', 'DEFINITION', 'THEORY', 'METHOD', 'CASE', 'QUESTION_SEED']
+    const missingCategories = requiredCategories.filter((category) => !out.some((item) => safeCategory(item.category) === category))
+    if (missingCategories.length) {
+      console.info('BOOK_METADATA_CATEGORY_GAPS', { missingCategories, bookId: book.id || null, itemCount: out.length })
+    }
     return out.map((item) => ({
       ...item,
       excerpt: null,
