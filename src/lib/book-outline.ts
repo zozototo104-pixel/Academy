@@ -593,6 +593,24 @@ export function sourceBoundariesFromReadChunks(chunks: readonly Chunk[], bookTit
   return results.slice(0, 100)
 }
 
+export function parseAiOutlineBoundaries(raw: string, chunks: readonly Chunk[], bookTitle: string): Boundary[] {
+  const parsed = JSON.parse(raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim())
+  const existing = new Set(chunks.map((chunk) => chunk.index))
+  const seen = new Set<number>()
+  const boundaries: Boundary[] = []
+  for (const entry of Array.isArray(parsed?.sections) ? parsed.sections : []) {
+    const at = entry?.at
+    const title = clean(entry?.title, 140)
+    if (!Number.isInteger(at) || !existing.has(at) || seen.has(at) || !usableOutlineTitle(title, bookTitle)) continue
+    seen.add(at)
+    boundaries.push({ at, title, startCharOffset: null })
+    if (boundaries.length >= 16) break
+  }
+  // Reject a synthetic/generic outline; keep the previous saved draft unchanged.
+  if (boundaries.length < Math.min(2, chunks.length)) throw new Error('BOOK_OUTLINE_INSUFFICIENT_GROUNDED_SECTIONS')
+  return boundaries.sort((a, b) => a.at - b.at)
+}
+
 export async function buildBookOutline(bookId: string, options: { reuseReadChunks?: boolean; deterministicOnly?: boolean } = {}) {
   const book = await db.book.findUnique({ where: { id: bookId }, select: { id: true, semester: true, title: true } })
   if (!book) throw new Error('BOOK_NOT_FOUND')
