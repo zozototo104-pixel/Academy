@@ -160,6 +160,12 @@ function countMatchingBookTerms(value: unknown, terms: string[]): number {
   return terms.reduce((count, term) => count + (words.has(term) ? 1 : 0), 0)
 }
 
+// Metadata plans are educational guidance, not quotations from a book.
+function isMetadataOnlyKnowledgeItem(item: any): boolean {
+  const note = String(item?.sourceNote || '')
+  return /توصيف الكتاب|مبني(?:ة)? على بيانات الكتاب بعد تعذر استخراج|بيانات وصفية/i.test(note)
+}
+
 function formatBookSnippetLocator(value: any): string {
   const heading = safeContextText(value?.headingPath || value?.sourceNote, 140)
   const pageStart = value?.pageStart != null && Number.isFinite(Number(value.pageStart)) ? Number(value.pageStart) : null
