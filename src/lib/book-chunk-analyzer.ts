@@ -136,12 +136,18 @@ async function enrichBookChunkInner(input: { bookId: string; chunkText: string; 
     validate: (raw) => { if (!Array.isArray(JSON.parse(raw)?.items)) throw new Error('INVALID_BOOK_KNOWLEDGE_ENVELOPE') },
   }, input.routing ?? null, input.aiUsage ?? { provider: null, model: null, fallbackUsed: false })
   const accepted: BookKnowledgeCandidate[] = []
+  const rejected = { category: 0, excerptOrFields: 0, duplicate: 0 }
+  let candidates = 0
   for (const raw of JSON.parse(result).items) {
+    candidates++
+    if (!raw || typeof raw !== 'object' || !BOOK_KNOWLEDGE_CATEGORIES.includes(String((raw as Record<string, unknown>).category) as BookKnowledgeCandidate['category'])) { rejected.category++; continue }
     const candidate = validateBookKnowledgeCandidate(raw, input.chunkText)
-    if (!candidate || isRepeatedBookConcept(candidate, [...input.existing, ...accepted])) continue
+    if (!candidate) { rejected.excerptOrFields++; continue }
+    if (isRepeatedBookConcept(candidate, [...input.existing, ...accepted])) { rejected.duplicate++; continue }
     accepted.push(candidate)
     if (accepted.length >= 8) break
   }
+  console.info('[book-enrich] model-validation', { bookId: input.bookId, candidates, accepted: accepted.length, rejected })
   return accepted
 }
 
