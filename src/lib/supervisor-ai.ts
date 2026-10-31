@@ -295,6 +295,7 @@ async function fetchSupervisorBookSnippetSources(programIds: string[], dbTerms: 
             excerpt: true,
             keywords: true,
             sourceNote: true,
+            textProvenance: true,
             pageStart: true,
             pageEnd: true,
             book: { select: { title: true } },
