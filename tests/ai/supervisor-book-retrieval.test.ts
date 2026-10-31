@@ -21,6 +21,7 @@ type KnowledgeRow = {
   excerpt?: string | null
   keywords?: string | null
   sourceNote?: string | null
+  textProvenance?: string | null
   pageStart?: number | null
   pageEnd?: number | null
 }
