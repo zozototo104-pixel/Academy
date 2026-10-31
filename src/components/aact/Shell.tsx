@@ -583,8 +583,8 @@ function NotificationBell({ mobile = false }: { mobile?: boolean } = {}) {
       </button>
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onClick={closeBell} />
-          <div className="absolute left-0 z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-[#c9a227]/30 bg-white shadow-2xl">
+          {!mobile && <div className="fixed inset-0 z-40" onClick={closeBell} />}
+          <div className={mobile ? 'relative z-50 mt-2 w-full overflow-hidden rounded-2xl border border-[#c9a227]/30 bg-white shadow-2xl' : 'absolute left-0 z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-[#c9a227]/30 bg-white shadow-2xl'}>
             <div className="flex items-center justify-between border-b border-slate-100 bg-[#f7edd0]/60 px-4 py-3">
               <span className="text-sm font-black text-[#0f2b46]">الإشعارات</span>
               {unread > 0 && (
