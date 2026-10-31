@@ -492,6 +492,13 @@ async function createUnitsFromApprovedOutlines(programId: string, regenerateDraf
       regenerateDrafts,
     })
     plans.push({ book, actions })
+    // Reserve created orders during preflight so the next book cannot
+    // reuse the same order; no database writes have happened yet.
+    for (const action of actions) {
+      if (action.action === 'create') {
+        currentMaxOrderBySemester[action.semester] = Math.max(currentMaxOrderBySemester[action.semester] || 0, action.order)
+      }
+    }
   }
   const conflicts = plans.flatMap(({ book, actions }) => actions
     .filter((action) => action.action === 'review-overlap')
