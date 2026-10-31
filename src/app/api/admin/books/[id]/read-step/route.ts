@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { runExtractStep } from '@/lib/book-reader'
 import { runAnalyzeStep, runEnrichStep } from '@/lib/book-chunk-analyzer'
+import { buildBookOutline } from '@/lib/book-outline'
 import { BOOK_READ_RETRY_MS, BOOK_READ_TRANSIENT_RETRY_MS, canRunBookReadJob, claimBookReadLock, isTransientBookReadError } from '@/lib/book-read-job-control'
 
 export const runtime = 'nodejs'
