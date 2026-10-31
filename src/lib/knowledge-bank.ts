@@ -1670,6 +1670,7 @@ export async function rebuildKnowledgeForBook(bookId: string, options: { strictF
     throw new Error('لم يكتمل استخراج عناصر معرفة صالحة من الكتاب المرفوع. لم يتم توليد عناصر افتراضية أو عامة. أعد المحاولة أو ارفع نسخة PDF نصية/Word أوضح.')
   } else {
     items = ensureCategoryCoverage(normalizeDrafts([], fallback, semester), fallback)
+    if (buildMode === 'METADATA') items = items.map((item) => ({ ...item, textProvenance: 'METADATA_ONLY' }))
   }
 
   const beforeCount = await db.bookKnowledgeItem.count({ where: { bookId: book.id } })
