@@ -1275,6 +1275,7 @@ async function mergeKnowledgeRows(programId: string, bookId: string | null, item
           keywords: row.keywords || current.keywords,
           importance: Math.max(Number(current.importance || 0), Number(row.importance || 0)),
           sourceNote: row.sourceNote || current.sourceNote,
+          textProvenance: row.textProvenance === 'METADATA_ONLY' ? 'METADATA_ONLY' : current.textProvenance,
         },
       })
       updated++
