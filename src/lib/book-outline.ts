@@ -558,10 +558,11 @@ export async function buildBookOutline(bookId: string) {
   // Prefer original PDF line boundaries, but keep the old chunks/AI outline
   // path available for books whose original PDF is no longer stored.
   let sourceBoundaries: Boundary[] = []
+  let sourcePages: ExtractedBookPage[] = []
   let missingOriginalPdf = false
   try {
-    const pages = await originalBookPages(bookId)
-    sourceBoundaries = projectSourceHeadings(detectOriginalSourceHeadings(pages, book.title), chunks)
+    sourcePages = await originalBookPages(bookId)
+    sourceBoundaries = projectSourceHeadings(detectOriginalSourceHeadings(sourcePages, book.title), chunks)
   } catch (error: unknown) {
     // Do not disguise extraction, PDF corruption, storage, or permission errors
     // as a successful legacy fallback. Only an absent/non-PDF original qualifies.
