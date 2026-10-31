@@ -145,6 +145,38 @@ describe('supervisor enrolled book retrieval', () => {
     expect(context).toContain('استقبال المعلومات وتفسيرها')
   })
 
+  test('metadata-only knowledge is never cited as extracted book text', async () => {
+    knowledgeItems = [{
+      id: 'metadata-1',
+      bookId: 'book-a',
+      programId: 'program-a',
+      title: 'الإدراك المعرفي',
+      summary: 'محتوى إرشادي مبني على توصيف الكتاب فقط.',
+      excerpt: null,
+      sourceNote: 'خطة معرفة مبنية على توصيف الكتاب لا على قراءة نصه الكامل',
+    }]
+    const context = await buildSupervisorContext('student-1', { query: 'الإدراك المعرفي' })
+    expect(context).not.toContain('مقاطع من الكتب المقررة ذات صلة بسؤال الطالب')
+    expect(requestedKnowledgeProgramIds).toEqual(['program-a'])
+  })
+
+  test('the book knowledge list identifies description-derived items as guidance', async () => {
+    programs['program-a'].books = [{
+      title: 'علم النفس المعرفي',
+      knowledgeItems: [{
+        title: 'خطة القراءة',
+        summary: 'أهداف دراسية من وصف الكتاب',
+        sourceNote: 'خطة معرفة مبنية على توصيف الكتاب لا على قراءة نصه الكامل',
+      }],
+    }]
+    try {
+      const context = await buildSupervisorContext('student-1')
+      expect(context).toContain('[خطة من توصيف الكتاب وليست نصاً مستخرجاً]')
+    } finally {
+      programs['program-a'].books = []
+    }
+  })
+
   test('book chunk retrieval uses text OR with capped take and filters filler words', async () => {
     chunks = [{
       id: 'chunk-filter',
