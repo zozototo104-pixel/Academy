@@ -828,7 +828,7 @@ export async function buildSupervisorContext(userId: string, options?: { scope?:
                   knowledgeItems: {
                     orderBy: [{ importance: 'desc' }, { createdAt: 'asc' }],
                     take: 8,
-                    select: { title: true, summary: true, excerpt: true, category: true, importance: true, pageStart: true, pageEnd: true },
+                    select: { title: true, summary: true, excerpt: true, sourceNote: true, category: true, importance: true, pageStart: true, pageEnd: true },
                   },
                 },
               },
