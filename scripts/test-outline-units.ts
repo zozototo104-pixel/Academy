@@ -165,8 +165,7 @@ function testSmallIntersectionAlsoRequiresReview() {
 }
 
 function testBothUnitCreationEndpointsBlockOverlaps() {
-  const fs = require('node:fs') as typeof import('node:fs')
-  const primary = fs.readFileSync('src/app/api/admin/program-units/suggest/route.ts', 'utf8')
+  const primary = readFileSync('src/app/api/admin/program-units/suggest/route.ts', 'utf8')
   const perBook = fs.readFileSync('src/app/api/admin/books/[id]/outline/units/route.ts', 'utf8')
   assert(primary.includes("code: 'OUTLINE_UNIT_OVERLAP_REVIEW_REQUIRED'"), 'زر توليد الوحدات الأساسي يجب أن يمنع التداخل قبل الحفظ')
   assert(primary.includes('const plans: Array<'), 'المسار الأساسي يجب أن يجمع خطة الكتب كاملة قبل الكتابة')
