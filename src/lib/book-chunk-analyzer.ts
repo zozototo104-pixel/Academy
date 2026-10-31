@@ -202,7 +202,7 @@ export async function enrichStepWithStore(jobId: string, deadlineMs: number, sto
     if (item && !isRepeatedBookConcept(item, [...existing.local, ...accepted])) accepted.push(item)
     if (accepted.length >= capacity) break
   }
-  await store.save(chunk, accepted)
+  await store.save(chunk, accepted, capacity)
   return { completed: false, added: accepted.length }
 }
 
