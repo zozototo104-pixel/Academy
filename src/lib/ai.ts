@@ -565,23 +565,30 @@ ${studentAcademicContext ? `سياق ملف الطالب للقياس العاد
 }
 
 export async function generateOverallFeedback(programTitle: string, percentage: number, passed: boolean, weakPoints: string[], studentAcademicContext?: string): Promise<{ summary: string; strengths: string[]; improvements: string[] }> {
-  const zai = await getZAI()
   const prompt = `${buildSupervisorPersonaBlock('EXAM')}
 ${studentAcademicContext ? `سياق ملف الطالب لتخصيص التغذية الراجعة:\n${studentAcademicContext.slice(0, 6000)}\n` : ''}
 طالب أنهى اختبار دورة "${programTitle}" بنتيجة ${percentage.toFixed(0)}% (${passed ? 'ناجح' : 'لم يجتز'}).
 نقاط الضعف: ${weakPoints.map((w) => `- ${w}`).join('\n') || 'لا توجد نقاط ضعف كبيرة'}
 أجب JSON فقط: {"summary":"...","strengths":["..."],"improvements":["..."]}`
-  try {
-    const completion = await zai.chat.completions.create({
-      messages: [{ role: 'assistant', content: 'أنت مشرف أكاديمي يرجع بـ JSON فقط.' }, { role: 'user', content: prompt }],
-      thinking: { type: 'disabled' },
-    })
-    const raw = completion.choices[0]?.message?.content || ''
-    const jsonMatch = raw.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) throw new Error('NO_JSON')
-    const parsed = JSON.parse(jsonMatch[0])
-    return { summary: String(parsed.summary || '').slice(0, 800), strengths: (parsed.strengths || []).slice(0, 4).map(String), improvements: (parsed.improvements || []).slice(0, 4).map(String) }
-  } catch {
-    return { summary: passed ? 'مبروك! لقد اجتزت الاختبار بنجاح. استمر في التميز.' : 'لم تجتز الاختبار هذه المرة، لكن كل محاولة خطوة نحو الاحتراف. راجع الملاحظات وأعد المحاولة.', strengths: ['الالتزام بإكمال الاختبار'], improvements: ['مراجعة محتوى الوحدة التدريبية', 'التواصل مع المشرف الذكي لأي استفسار'] }
+  const raw = await textAiCompleteJson({
+    system: 'أنت مشرف أكاديمي يرجع بـ JSON فقط.',
+    history: [{ role: 'user', text: prompt }],
+    purpose: 'ANALYSIS',
+    taskLevel: 'ACADEMIC_DRAFT',
+    taskType: 'EXAM_FEEDBACK',
+    temperature: 0.1,
+    maxOutputTokens: 1400,
+  })
+  const jsonMatch = raw.match(/\{[\s\S]*\}/)
+  if (!jsonMatch) throw new Error('OVERALL_FEEDBACK_NO_JSON')
+  const parsed = JSON.parse(jsonMatch[0])
+  if (!parsed || typeof parsed.summary !== 'string' || !parsed.summary.trim() ||
+      !Array.isArray(parsed.strengths) || !Array.isArray(parsed.improvements)) {
+    throw new Error('OVERALL_FEEDBACK_INVALID_SCHEMA')
+  }
+  return {
+    summary: parsed.summary.slice(0, 800),
+    strengths: parsed.strengths.slice(0, 4).map(String),
+    improvements: parsed.improvements.slice(0, 4).map(String),
   }
 }
