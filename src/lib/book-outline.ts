@@ -617,6 +617,13 @@ export async function buildBookOutline(bookId: string, options: { reuseReadChunk
     const boundaries: Boundary[] = Array.isArray(parsed?.sections) ? parsed.sections.filter((entry: any) => Number.isInteger(entry.at) && clean(entry.title)).map((entry: any) => ({ at: entry.at, title: clean(entry.title), startCharOffset: null })) : []
     draft = { ...planBookOutline(chunks, items, chunkIds, book.semester, boundaries, book.title), source: 'AI_SEGMENTED' }
   }
+  if (options.reuseReadChunks && draft.source === 'AI_SEGMENTED' && options.deterministicOnly) {
+    draft = { ...draft, source: 'CHUNK_SEGMENTED' }
+    draft.warnings.push('لم تُكتشف عناوين موثوقة؛ التقسيم الحالي حتمي من المقاطع المقروءة، وليس مولداً بالذكاء. راجع الأقسام قبل الاعتماد.')
+  }
+  if (options.reuseReadChunks && options.deterministicOnly) {
+    draft.warnings.push('أُنشئت المسودة من المقاطع المحفوظة بعد القراءة وOCR دون إعادة فتح ملف الكتاب.')
+  }
   if (missingOriginalPdf) draft.warnings.push('ملف PDF الأصلي غير متاح؛ استُخدمت المقاطع المحفوظة لفهرسة هذا الكتاب. راجع حدود الأقسام قبل الاعتماد.')
   for (const marker of outlineSubheadingMarkers(sourcePages, chunks, draft.sections)) {
     draft.warnings.push('OUTLINE_SUBHEADING:' + JSON.stringify(marker))
