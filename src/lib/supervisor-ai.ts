@@ -479,10 +479,13 @@ export function formatProgramKnowledge(program: any): string {
   return items.slice(0, 18).map((item: any, i: number) => {
     const book = item.book?.title ? ` — من كتاب: ${item.book.title}` : ''
     const importance = item.importance != null ? ` — أهمية ${item.importance}/100` : ''
-    const excerpt = item.excerpt ? ` — مقتطف: ${safeContextText(item.excerpt, 180)}` : ''
+    const metadataOnly = isMetadataOnlyKnowledgeItem(item)
+    const excerpt = !metadataOnly && item.excerpt ? ` — مقتطف: ${safeContextText(item.excerpt, 180)}` : ''
     const chapter = item.sourceNote || item.title
     const page = item.pageStart ? `، ص ${item.pageStart}${item.pageEnd && item.pageEnd !== item.pageStart ? `-${item.pageEnd}` : ''}` : ''
-    const source = item.book?.title ? ` — بيانات المصدر: الكتاب=${item.book.title}، الفصل/الوحدة=${chapter}${page}` : ''
+    const source = metadataOnly
+      ? ' — خطة إرشادية مبنية على توصيف الكتاب وليست نصاً مستخرجاً منه؛ لا تنسب لها فصولاً أو اقتباسات أو صفحات.'
+      : item.book?.title ? ` — بيانات المصدر: الكتاب=${item.book.title}، الفصل/الوحدة=${chapter}${page}` : ''
     return `${i + 1}. [${item.category || 'CONCEPT'}] ${safeContextText(item.title, 120)}: ${safeContextText(item.summary, 240)}${book}${importance}${excerpt}${source}`
   }).join('\n')
 }
