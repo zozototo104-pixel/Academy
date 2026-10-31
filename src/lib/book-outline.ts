@@ -8,7 +8,7 @@ import { fixArabicPdfText } from '@/lib/arabic-pdf-text'
 type Chunk = { index: number; headingPath: string | null; text: string; pageStart: number; pageEnd: number }
 type Item = { chunkId: string | null; title: string; summary: string }
 export type OutlineSectionDraft = { order: number; title: string; level: number; semester: number | null; chunkStartIndex: number; chunkEndIndex: number; pageStart: number | null; pageEnd: number | null; itemsCount: number; startCharOffset?: number | null }
-type Boundary = { at: number; title: string; startCharOffset?: number | null; detectedChunkIndex?: number; detectedCharOffset?: number; note?: string }
+type Boundary = { at: number; title: string; startCharOffset?: number | null; detectedChunkIndex?: number; detectedCharOffset?: number; note?: string; verifiedHeading?: boolean }
 type TocEntry = { title: string; page: number; targetIndex: number | null }
 type LineWithOffset = { raw: string; start: number; lineNumber: number }
 type ChapterHit = { label: string; number: number | null; reversed: boolean; line: LineWithOffset; lineIndex: number }
