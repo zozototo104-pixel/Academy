@@ -655,9 +655,9 @@ export async function buildBookOutline(bookId: string, options: { reuseReadChunk
     draft = { ...planBookOutline(chunks, items, chunkIds, book.semester, boundaries, book.title), source: 'AI_SEGMENTED' }
     draft.warnings.push('هذه عناوين موضوعية مقترحة من نص الكتاب والمعرفة المستخرجة؛ راجعها قبل الاعتماد.')
   }
-  if (options.reuseReadChunks && draft.source === 'AI_SEGMENTED' && options.deterministicOnly) {
-    draft = { ...draft, source: 'CHUNK_SEGMENTED' }
-    draft.warnings.push('لم تُكتشف عناوين موثوقة؛ التقسيم الحالي حتمي من المقاطع المقروءة، وليس مولداً بالذكاء. راجع الأقسام قبل الاعتماد.')
+  if (draft.source === 'AI_SEGMENTED' && options.deterministicOnly) {
+    // Never persist synthetic "intro — continued" sections as a real outline.
+    throw new Error('BOOK_OUTLINE_INSUFFICIENT_GROUNDED_SECTIONS')
   }
   if (options.reuseReadChunks && options.deterministicOnly) {
     draft.warnings.push('أُنشئت المسودة من المقاطع المحفوظة بعد القراءة وOCR دون إعادة فتح ملف الكتاب.')
