@@ -38,11 +38,6 @@ function audioExtensionForMime(mimeType: string) {
   return 'audio'
 }
 
-function isOggOrOpusMime(mimeType?: string | null) {
-  const mime = normalizeAudioMimeType(mimeType)
-  return mime.includes('ogg') || mime.includes('opus')
-}
-
 function shouldWaitForGeminiFileState(state: string) {
   const normalized = String(state || '').toUpperCase()
   return normalized.includes('PROCESSING') || normalized.includes('PENDING') || normalized.includes('UNSPECIFIED')
