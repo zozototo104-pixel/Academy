@@ -76,7 +76,18 @@ function testOriginalPdfChapterDetected() {
   assert(detectOriginalSourceHeadings(pages, 'كتاب تجريبي').some((h) => h.title === 'الفصل الأول'), 'فهرسة المصدر يجب أن تكشف الفصل الأصلي')
 }
 
+function testSubheadingReviewMarkers() {
+  const pages = [{ page: 4, text: 'مقدمة في الإدارة\nأسئلة وأجوبة\nخلاصة\nهذا متن توضيحي طويل.', textProvenance: 'NATIVE_TEXT' as const }]
+  const chunks = [chunk(0, pages[0].text, 4)]
+  const draft = plan(chunks)
+  const markers = outlineSubheadingMarkers(pages, chunks, draft.sections)
+  assert(markers.some((m) => m.title === 'أسئلة وأجوبة' && m.page === 4), 'أسئلة وأجوبة يجب أن تظهر علامة مراجعة')
+  assert(markers.some((m) => m.title === 'خلاصة' && m.charOffset !== null), 'الخلاصة يجب أن تحتفظ بموضعها')
+  assert(draft.sections.length === 1, 'العلامات الفرعية يجب ألا تصبح حدود أقسام')
+}
+
 const tests = [
+  testSubheadingReviewMarkers,
   testArticleHeadingsFromOriginalPdf,
   testOrdinaryLinesAreNotSections,
   testOriginalPdfChapterDetected,
