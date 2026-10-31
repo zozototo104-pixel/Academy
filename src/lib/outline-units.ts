@@ -234,18 +234,20 @@ export function planOutlineUnitsFromSections(params: {
       continue
     }
     const sectionSpan = Math.max(1, section.chunkEndIndex - section.chunkStartIndex + 1)
+    // Even a small overlap shares source evidence with an existing unit.
+    // Do not consume the old unit on the first match: after splitting one
+    // oversized section, EVERY new subsection must remain review-blocked.
     let overlapMatch: { unit: ExistingOutlineUnitInput; overlap: number } | null = null
-    for (const unit of rangeCandidates()) {
+    for (const unit of params.existingUnits.filter((candidate) => candidate.chunkStartIndex != null && candidate.chunkEndIndex != null)) {
       const start = Math.max(section.chunkStartIndex, Number(unit.chunkStartIndex))
       const end = Math.min(section.chunkEndIndex, Number(unit.chunkEndIndex))
       if (end < start) continue
       const intersection = end - start + 1
       const unitSpan = Math.max(1, Number(unit.chunkEndIndex) - Number(unit.chunkStartIndex) + 1)
       const overlap = intersection / Math.min(sectionSpan, unitSpan)
-      if (overlap >= 0.5 && (!overlapMatch || overlap > overlapMatch.overlap)) overlapMatch = { unit, overlap }
+      if (!overlapMatch || overlap > overlapMatch.overlap) overlapMatch = { unit, overlap }
     }
     if (overlapMatch) {
-      usedUnitIds.add(overlapMatch.unit.id)
       actions.push({ action: 'review-overlap', unitId: overlapMatch.unit.id, section, overlap: overlapMatch.overlap })
       continue
     }
