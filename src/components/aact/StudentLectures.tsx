@@ -222,15 +222,20 @@ export function StudentLectures() {
 
   const openVideo = useCallback(
     async (video: VideoItem) => {
+      const requestId = ++watchRequestRef.current
+      setOpeningVideoId(video.id)
       try {
         const watch = await api<WatchDescriptor>(`/api/my/lecture-videos/${video.id}/watch`, { method: 'POST' })
+        if (requestId !== watchRequestRef.current) return
         if (watch.kind === 'external') {
           if (watch.url) window.open(watch.url, '_blank', 'noopener')
           return
         }
         setActiveWatch({ video, watch })
       } catch (e: any) {
-        toast({ title: 'تعذر فتح الفيديو', description: e?.message || 'حاول مجددًا', variant: 'destructive' })
+        if (requestId === watchRequestRef.current) toast({ title: 'تعذر فتح الفيديو', description: e?.message || 'حاول مجددًا', variant: 'destructive' })
+      } finally {
+        if (requestId === watchRequestRef.current) setOpeningVideoId(null)
       }
     },
     [toast],
