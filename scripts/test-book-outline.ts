@@ -1,4 +1,4 @@
-import { planBookOutline, detectOriginalSourceHeadings, outlineSubheadingMarkers } from '@/lib/book-outline'
+import { planBookOutline, detectOriginalSourceHeadings, outlineSubheadingMarkers, sourceBoundariesFromReadChunks } from '@/lib/book-outline'
 
 type ChunkInput = Parameters<typeof planBookOutline>[0][number]
 
