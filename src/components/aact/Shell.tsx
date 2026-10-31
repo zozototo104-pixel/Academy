@@ -557,7 +557,7 @@ function NotificationBell({ mobile = false }: { mobile?: boolean } = {}) {
   }
 
   return (
-    <div className="relative">
+    <div className={mobile ? 'w-full' : 'relative'}>
       <button
         onClick={() => {
           if (open) { closeBell(); return }
@@ -565,13 +565,16 @@ function NotificationBell({ mobile = false }: { mobile?: boolean } = {}) {
           load()
           scheduleMarkSeen()
         }}
-        className="relative rounded-lg p-2 text-[#f5f0e1] hover:bg-white/10"
+        className={mobile ? 'mt-2 flex w-full items-center justify-between rounded-lg bg-white/5 px-4 py-2.5 text-right text-sm font-bold text-white hover:bg-white/10' : 'relative rounded-lg p-2 text-[#f5f0e1] hover:bg-white/10'}
         aria-label="الإشعارات"
+        aria-expanded={open}
       >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" strokeLinecap="round" strokeLinejoin="round" />
-          <path d="M13.73 21a2 2 0 0 1-3.46 0" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        {mobile ? <span className="flex items-center gap-2"><Bell className="h-4 w-4 text-[#d2ad5a]" /> الإشعارات</span> : (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
         {unread > 0 && (
           <span className="absolute -left-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#b22234] px-1 text-[10px] font-black text-white">
             {unread > 9 ? '9+' : unread}
