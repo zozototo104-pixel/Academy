@@ -597,7 +597,7 @@ export async function buildBookOutline(bookId: string, options: { reuseReadChunk
   if (options.reuseReadChunks) {
     sourceBoundaries = sourceBoundariesFromReadChunks(chunks, book.title)
     // OCR text already lives in the stored chunks; do not read the PDF a second time.
-    sourcePages = chunks.map((chunk) => ({ page: chunk.index + 1, text: chunk.text, textProvenance: 'NATIVE_TEXT' as const }))
+    sourcePages = chunks.map((chunk) => ({ page: chunk.pageStart, text: chunk.text, textProvenance: 'NATIVE_TEXT' as const }))
   } else {
     try {
       sourcePages = await originalBookPages(bookId)
