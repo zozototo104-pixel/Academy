@@ -1,12 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, useAppStore } from '@/lib/store'
 import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { LecturePlayer } from '@/components/aact/LecturePlayer'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   AlarmClock,
   CalendarDays,
@@ -126,6 +127,8 @@ export function StudentLectures() {
   const [joiningId, setJoiningId] = useState<string | null>(null)
   const [now, setNow] = useState(() => Date.now())
   const [activeWatch, setActiveWatch] = useState<{ video: VideoItem; watch: WatchDescriptor } | null>(null)
+  const [openingVideoId, setOpeningVideoId] = useState<string | null>(null)
+  const watchRequestRef = useRef(0)
 
   const fetchAll = useCallback(async () => {
     const [lec, vid] = await Promise.all([
@@ -219,15 +222,20 @@ export function StudentLectures() {
 
   const openVideo = useCallback(
     async (video: VideoItem) => {
+      const requestId = ++watchRequestRef.current
+      setOpeningVideoId(video.id)
       try {
         const watch = await api<WatchDescriptor>(`/api/my/lecture-videos/${video.id}/watch`, { method: 'POST' })
+        if (requestId !== watchRequestRef.current) return
         if (watch.kind === 'external') {
           if (watch.url) window.open(watch.url, '_blank', 'noopener')
           return
         }
         setActiveWatch({ video, watch })
       } catch (e: any) {
-        toast({ title: 'تعذر فتح الفيديو', description: e?.message || 'حاول مجددًا', variant: 'destructive' })
+        if (requestId === watchRequestRef.current) toast({ title: 'تعذر فتح الفيديو', description: e?.message || 'حاول مجددًا', variant: 'destructive' })
+      } finally {
+        if (requestId === watchRequestRef.current) setOpeningVideoId(null)
       }
     },
     [toast],
@@ -405,38 +413,46 @@ export function StudentLectures() {
       <Card>
         <CardContent className="py-4">
           <h3 className="mb-3 text-base font-black text-slate-800">التسجيلات</h3>
-          {activeWatch && (
-            <div className="mb-4 space-y-2">
-              <LecturePlayer
-                descriptor={activeWatch.watch}
-                title={activeWatch.video.title}
-                watermark={
-                  user?.name || user?.email
-                    ? `${user?.name ?? ''}${user?.email ? ` • ${user.email}` : ''}`
-                    : null
-                }
-                onProgress={(positionSec, watchedPercent) => {
-                  void saveProgress(activeWatch.video.id, positionSec, watchedPercent)
-                }}
-                onEnded={() => void markWatched(activeWatch.video)}
-                onRenew={async () => {
-                  try {
-                    return await api<WatchDescriptor>(`/api/my/lecture-videos/${activeWatch.video.id}/watch`, {
-                      method: 'POST',
-                    })
-                  } catch {
-                    return null
-                  }
-                }}
-              />
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-slate-700">{activeWatch.video.title}</span>
-                <Button variant="outline" size="sm" onClick={() => void markWatched(activeWatch.video)}>
-                  <CheckCircle2 className="ml-1 h-4 w-4" /> تمت المشاهدة
-                </Button>
-              </div>
-            </div>
-          )}
+          <Dialog open={Boolean(activeWatch)} onOpenChange={(open) => { if (!open) setActiveWatch(null) }}>
+            <DialogContent className="max-h-[90dvh] w-[calc(100vw-1rem)] max-w-4xl overflow-y-auto p-3 sm:p-6" dir="rtl">
+              {activeWatch && (
+                <>
+                  <DialogHeader>
+                    <DialogTitle>{activeWatch.video.title}</DialogTitle>
+                    <DialogDescription>شاهد التسجيل هنا، ثم أغلق النافذة للعودة إلى نفس موضعك في القائمة.</DialogDescription>
+                  </DialogHeader>
+                  <LecturePlayer
+                    key={activeWatch.video.id}
+                    descriptor={activeWatch.watch}
+                    title={activeWatch.video.title}
+                    watermark={
+                      user?.name || user?.email
+                        ? `${user?.name ?? ''}${user?.email ? ` • ${user.email}` : ''}`
+                        : null
+                    }
+                    onProgress={(positionSec, watchedPercent) => {
+                      void saveProgress(activeWatch.video.id, positionSec, watchedPercent)
+                    }}
+                    onEnded={() => void markWatched(activeWatch.video)}
+                    onRenew={async () => {
+                      try {
+                        return await api<WatchDescriptor>(`/api/my/lecture-videos/${activeWatch.video.id}/watch`, {
+                          method: 'POST',
+                        })
+                      } catch {
+                        return null
+                      }
+                    }}
+                  />
+                  <div className="flex items-center justify-end">
+                    <Button variant="outline" size="sm" onClick={() => void markWatched(activeWatch.video)}>
+                      <CheckCircle2 className="ml-1 h-4 w-4" /> تمت المشاهدة
+                    </Button>
+                  </div>
+                </>
+              )}
+            </DialogContent>
+          </Dialog>
           {videos.length === 0 ? (
             <p className="py-4 text-center text-sm text-slate-500">لا توجد تسجيلات منشورة بعد.</p>
           ) : (
@@ -453,7 +469,7 @@ export function StudentLectures() {
                       <img src={v.thumbnailUrl} alt={v.title} className="h-full w-full object-cover" />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center text-slate-400">
-                        <Play className="h-10 w-10" />
+                        {openingVideoId === v.id ? <Loader2 className="h-10 w-10 animate-spin" /> : <Play className="h-10 w-10" />}
                       </div>
                     )}
                     {v.durationSec ? (

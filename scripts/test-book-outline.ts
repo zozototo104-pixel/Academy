@@ -1,4 +1,5 @@
-import { planBookOutline, detectOriginalSourceHeadings, outlineSubheadingMarkers, sourceBoundariesFromReadChunks } from '@/lib/book-outline'
+import { planBookOutline, detectOriginalSourceHeadings, outlineSubheadingMarkers, sourceBoundariesFromReadChunks, parseAiOutlineBoundaries } from '@/lib/book-outline'
+import { readFileSync } from 'node:fs'
 
 type ChunkInput = Parameters<typeof planBookOutline>[0][number]
 
@@ -99,7 +100,54 @@ function testReadChunksCreateOutlineWithoutReopeningPdf() {
   assert(planned.sections.length >= 2, 'الفهرس من المقاطع يجب أن يحتوي على أكثر من قسم')
 }
 
+function testGenericIntroductionRestoresLegacyAiFallback() {
+  const chunks = [
+    chunk(0, 'مقدمة الكتاب\n' + 'يعرض الكتاب سياق الإدارة ومبادئ التخطيط. '.repeat(5)),
+    chunk(1, 'تطبيقات في الإدارة وتحسين الأداء المؤسسي. '.repeat(5)),
+    chunk(2, 'مبادئ الموارد البشرية وتنظيم العمل الإداري. '.repeat(5)),
+  ]
+  const chunkIds = new Map(chunks.map((entry) => [entry.index, 'chunk-' + entry.index]))
+  const items = chunks.map((entry) => ({ chunkId: 'chunk-' + entry.index, title: 'مفهوم مرتبط بالمقطع ' + entry.index, summary: 'مفهوم من النص المحفوظ' }))
+  const preliminary = planBookOutline(chunks, items, chunkIds, 2, [
+    { at: 0, title: 'مقدمة الكتاب' },
+    { at: 1, title: 'مقدمة الكتاب — تابع' },
+  ], 'كتاب الإدارة', true)
+  assert(preliminary.source === 'AI_SEGMENTED', 'العناوين العامة لا تُعتبر فصولاً موثقة ولا توقف المسار الذكي القديم')
+  const ai = parseAiOutlineBoundaries(JSON.stringify({ sections: [
+    { at: 0, title: 'مبادئ التخطيط الإداري' },
+    { at: 1, title: 'تطوير الأداء المؤسسي' },
+    { at: 2, title: 'تنظيم الموارد البشرية' },
+  ] }), chunks, 'كتاب الإدارة')
+  const improved = planBookOutline(chunks, items, chunkIds, 2, ai, 'كتاب الإدارة')
+  assert(improved.sections.some((s) => s.title === 'تطوير الأداء المؤسسي'), 'يجب اعتماد العناوين الموضوعية ذات المواضع الصحيحة')
+  assert(!improved.sections.some((s) => s.title.includes('— تابع')), 'لا يجوز توليد أقسام مصطنعة بلا دليل')
+}
+
+function testAiOutlineRejectsInvalidAndGenericSections() {
+  const chunks = [chunk(0, 'القيادة والاتصال الإداري'), chunk(1, 'استراتيجيات الأعمال'), chunk(2, 'الإدارة المالية')]
+  let rejected = false
+  try {
+    parseAiOutlineBoundaries(JSON.stringify({ sections: [
+      { at: 0, title: 'مقدمة الكتاب' },
+      { at: 555, title: 'عنوان غير موجود بالمقاطع' },
+      { at: 1, title: 'مقدمة الكتاب — تابع' },
+    ] }), chunks, 'كتاب الإدارة')
+  } catch (error) {
+    rejected = error instanceof Error && error.message === 'BOOK_OUTLINE_INSUFFICIENT_GROUNDED_SECTIONS'
+  }
+  assert(rejected, 'يجب رفض الفهرس الشكلي قبل الحفظ دون حذف النسخة السابقة')
+}
+
+function testLegacyOcrFallbackRemainsConnected() {
+  const route = readFileSync('src/app/api/admin/books/[id]/outline/route.ts', 'utf8')
+  assert(route.includes('buildBookOutline(id, { reuseReadChunks: true })'), 'الفهرسة بعد OCR المكتمل يجب أن تبقي الإثراء الذكي القديم متاحاً')
+  assert(!route.includes('deterministicOnly: true'), 'لا يجوز فرض تقسيم المقاطع وحده للفهرس')
+}
+
 const tests = [
+  testGenericIntroductionRestoresLegacyAiFallback,
+  testAiOutlineRejectsInvalidAndGenericSections,
+  testLegacyOcrFallbackRemainsConnected,
   testReadChunksCreateOutlineWithoutReopeningPdf,
   testSubheadingReviewMarkers,
   testArticleHeadingsFromOriginalPdf,

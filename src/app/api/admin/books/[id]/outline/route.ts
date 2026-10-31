@@ -48,7 +48,9 @@ export async function POST(_req: NextRequest, context: Context) {
         orderBy: { createdAt: 'desc' }, select: { id: true },
       })
       if (!completeRead) throw error
-      outline = await buildBookOutline(id, { reuseReadChunks: true, deterministicOnly: true })
+      // Reuse completed OCR evidence, but retain the legacy evidence-grounded AI
+      // segmentation when no trustworthy chapter/article headings are present.
+      outline = await buildBookOutline(id, { reuseReadChunks: true })
     }
     return NextResponse.json({ ok: true, outline, programDraft: await programDraft(book.programId) })
   } catch (error: any) {

@@ -371,8 +371,8 @@ interface Notif {
   link?: string
 }
 
-function NotificationBell() {
-  const { user, navigate } = useAppStore()
+function NotificationBell({ mobile = false }: { mobile?: boolean } = {}) {
+  const { user, navigate, setMobileMenuOpen } = useAppStore()
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState<Notif[]>([])
   const [unread, setUnread] = useState(0)
@@ -545,6 +545,7 @@ function NotificationBell() {
 
   const openNotification = async (n: Notif) => {
     closeBell()
+    if (mobile) setMobileMenuOpen(false)
     if (!n.read) {
       unreadRef.current = Math.max(0, unreadRef.current - 1)
       setUnread((v) => Math.max(0, v - 1))
@@ -556,7 +557,7 @@ function NotificationBell() {
   }
 
   return (
-    <div className="relative">
+    <div className={mobile ? 'w-full' : 'relative'}>
       <button
         onClick={() => {
           if (open) { closeBell(); return }
@@ -564,23 +565,26 @@ function NotificationBell() {
           load()
           scheduleMarkSeen()
         }}
-        className="relative rounded-lg p-2 text-[#f5f0e1] hover:bg-white/10"
+        className={mobile ? 'mt-2 flex w-full items-center justify-between rounded-lg bg-white/5 px-4 py-2.5 text-right text-sm font-bold text-white hover:bg-white/10' : 'relative rounded-lg p-2 text-[#f5f0e1] hover:bg-white/10'}
         aria-label="الإشعارات"
+        aria-expanded={open}
       >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" strokeLinecap="round" strokeLinejoin="round" />
-          <path d="M13.73 21a2 2 0 0 1-3.46 0" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        {mobile ? <span className="flex items-center gap-2"><Bell className="h-4 w-4 text-[#d2ad5a]" /> الإشعارات</span> : (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
         {unread > 0 && (
-          <span className="absolute -left-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#b22234] px-1 text-[10px] font-black text-white">
+          <span className={mobile ? 'flex h-5 min-w-5 items-center justify-center rounded-full bg-[#b22234] px-1 text-[10px] font-black text-white' : 'absolute -left-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#b22234] px-1 text-[10px] font-black text-white'}>
             {unread > 9 ? '9+' : unread}
           </span>
         )}
       </button>
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onClick={closeBell} />
-          <div className="absolute left-0 z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-[#c9a227]/30 bg-white shadow-2xl">
+          {!mobile && <div className="fixed inset-0 z-40" onClick={closeBell} />}
+          <div className={mobile ? 'relative z-50 mt-2 w-full overflow-hidden rounded-2xl border border-[#c9a227]/30 bg-white shadow-2xl' : 'absolute left-0 z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-[#c9a227]/30 bg-white shadow-2xl'}>
             <div className="flex items-center justify-between border-b border-slate-100 bg-[#f7edd0]/60 px-4 py-3">
               <span className="text-sm font-black text-[#0f2b46]">الإشعارات</span>
               {unread > 0 && (
@@ -906,7 +910,9 @@ export function Header() {
       {mobileMenuOpen && (
         <div className="max-h-[calc(100dvh-4rem)] overflow-y-auto border-t border-white/10 bg-[#1d2947] px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-2 shadow-2xl lg:hidden">
           <div className="flex flex-col gap-1">
-            {user && (
+            {user?.role === 'ADMIN' ? (
+              <NotificationBell mobile />
+            ) : user && (
               <button
                 onClick={openMobileNotifications}
                 className="mt-2 flex items-center justify-between rounded-lg bg-white/5 px-4 py-2.5 text-right text-sm font-bold text-white/92 hover:bg-white/10"

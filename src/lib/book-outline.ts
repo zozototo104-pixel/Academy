@@ -390,14 +390,28 @@ export function debugBookOutlineChunks(chunks: readonly Chunk[]): BookOutlineDeb
   })
 }
 
+function usableOutlineTitle(title: string, bookTitle: string): boolean {
+  const normalized = normalizeHeading(title)
+  if (!normalized || normalized === normalizeHeading(bookTitle)) return false
+  // A cover, repeated header, or generic intro is not evidence of a chapter.
+  if (/^(?:مقدمه(?: الكتاب)?|تمهيد|تابع|الفهرس|المحتويات|خاتمه|مراجع|references|introduction|contents)$/u.test(normalized)) return false
+  if (/^(?:مقدمه الكتاب|تمهيد)(?: تابع)+$/u.test(normalized)) return false
+  return true
+}
+
 export function planBookOutline(chunks: readonly Chunk[], items: readonly Item[], chunkIds: ReadonlyMap<number, string>, semester: number | null, aiBoundaries: readonly Boundary[] = [], bookTitle = '', preferSourceBoundaries = false) {
   const headings = headingsFromChunks(chunks, bookTitle)
   const toc = tocFromChunks(chunks)
   const tocNames = tocNameMap(chunks)
   const fromText = textChapters(chunks, bookTitle, tocNames)
   const distinct = new Set(headings.map((heading) => normalizeHeading(heading.title))).size
-  const source = preferSourceBoundaries && aiBoundaries.length ? 'SOURCE_HEADINGS' : headings.length >= 2 && distinct / headings.length >= 0.6 ? 'HEADINGS' : toc.length >= 2 ? 'TOC' : fromText.length > 0 ? 'HEADINGS' : aiBoundaries.length ? 'SOURCE_HEADINGS' : 'AI_SEGMENTED'
-  const primary = source === 'HEADINGS' ? (headings.length >= 2 ? headings : fromText) : source === 'TOC' ? toc : aiBoundaries
+  const sourceHeadings = aiBoundaries.filter((entry) => usableOutlineTitle(entry.title, bookTitle))
+  const distinctSource = new Set(sourceHeadings.map((entry) => normalizeHeading(entry.title))).size
+  const reliableSource = (sourceHeadings.length >= 2 && distinctSource >= 2) || (chunks.length === 1 && sourceHeadings.length === 1)
+  // Keep the legacy chapter/TOC/text precedence. Prefer PDF headings only when
+  // at least two different, substantive source titles are actually detected.
+  const source = preferSourceBoundaries && reliableSource ? 'SOURCE_HEADINGS' : headings.length >= 2 && distinct / headings.length >= 0.6 ? 'HEADINGS' : toc.length >= 2 ? 'TOC' : fromText.length > 0 ? 'HEADINGS' : reliableSource ? 'SOURCE_HEADINGS' : 'AI_SEGMENTED'
+  const primary = source === 'HEADINGS' ? (headings.length >= 2 ? headings : fromText) : source === 'TOC' ? toc : source === 'SOURCE_HEADINGS' ? sourceHeadings : []
   const byNumber = new Map<number, Boundary>()
   for (const boundary of primary) {
     const number = chapterNumber(boundary.title)
@@ -579,6 +593,24 @@ export function sourceBoundariesFromReadChunks(chunks: readonly Chunk[], bookTit
   return results.slice(0, 100)
 }
 
+export function parseAiOutlineBoundaries(raw: string, chunks: readonly Chunk[], bookTitle: string): Boundary[] {
+  const parsed = JSON.parse(raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim())
+  const existing = new Set(chunks.map((chunk) => chunk.index))
+  const seen = new Set<number>()
+  const boundaries: Boundary[] = []
+  for (const entry of Array.isArray(parsed?.sections) ? parsed.sections : []) {
+    const at = entry?.at
+    const title = clean(entry?.title, 140)
+    if (!Number.isInteger(at) || !existing.has(at) || seen.has(at) || !usableOutlineTitle(title, bookTitle)) continue
+    seen.add(at)
+    boundaries.push({ at, title, startCharOffset: null })
+    if (boundaries.length >= 16) break
+  }
+  // Reject a synthetic/generic outline; keep the previous saved draft unchanged.
+  if (boundaries.length < Math.min(2, chunks.length)) throw new Error('BOOK_OUTLINE_INSUFFICIENT_GROUNDED_SECTIONS')
+  return boundaries.sort((a, b) => a.at - b.at)
+}
+
 export async function buildBookOutline(bookId: string, options: { reuseReadChunks?: boolean; deterministicOnly?: boolean } = {}) {
   const book = await db.book.findUnique({ where: { id: bookId }, select: { id: true, semester: true, title: true } })
   if (!book) throw new Error('BOOK_NOT_FOUND')
@@ -611,15 +643,21 @@ export async function buildBookOutline(bookId: string, options: { reuseReadChunk
   if (draft.source === 'AI_SEGMENTED' && !options.deterministicOnly) {
     const byChunk = new Map<string, Item[]>()
     for (const item of items) if (item.chunkId) byChunk.set(item.chunkId, [...(byChunk.get(item.chunkId) || []), item])
-    const evidence = chunks.map((chunk) => ({ index: chunk.index, items: (byChunk.get(chunk.id) || []).slice(0, 8).map((item) => ({ title: item.title.slice(0, 100), summary: item.summary.slice(0, 180) })) }))
-    const raw = await geminiCompleteJson({ system: 'قسّم الكتاب إلى أقسام متتابعة اعتماداً على عناوين وملخصات عناصر المعرفة فقط. أرجع JSON فقط.', history: [{ role: 'user', text: `حدد 4 إلى 16 بداية قسم مع عنوان، بصيغة {"sections":[{"at":0,"title":"..."}]}. يجب استخدام index موجود فقط. البيانات: ${JSON.stringify(evidence)}` }], taskLevel: 'ACADEMIC_DRAFT', temperature: 0.1, maxOutputTokens: 3000, deadlineMs: Date.now() + 180_000 })
-    const parsed = JSON.parse(raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim())
-    const boundaries: Boundary[] = Array.isArray(parsed?.sections) ? parsed.sections.filter((entry: any) => Number.isInteger(entry.at) && clean(entry.title)).map((entry: any) => ({ at: entry.at, title: clean(entry.title), startCharOffset: null })) : []
+    const evidence = chunks.map((chunk) => ({
+      index: chunk.index,
+      pageStart: chunk.pageStart,
+      pageEnd: chunk.pageEnd,
+      excerpt: chunk.text.slice(0, 350),
+      items: (byChunk.get(chunk.id) || []).slice(0, 8).map((item) => ({ title: item.title.slice(0, 100), summary: item.summary.slice(0, 180) })),
+    }))
+    const raw = await geminiCompleteJson({ system: 'قسّم الكتاب إلى أقسام موضوعية متتابعة اعتماداً حصراً على مقتطفات النص المحفوظ وعناوين وملخصات المعرفة. احترم ترتيب الصفحات، ولا تخترع فصولاً لم تظهر في الأدلة. امنع العناوين العامة مثل مقدمة الكتاب أو تابع أو عنوان الكتاب المكرر. أرجع JSON فقط.', history: [{ role: 'user', text: `اقترح من 2 إلى 16 بداية قسم (أو قسماً واحداً إذا كان هناك مقطع واحد) بعناوين موضوعية محددة مستندة إلى الأدلة، بصيغة {"sections":[{"at":0,"title":"عنوان موضوعي"}]}. استخدم index من البيانات فقط، ورتّب الأقسام وفق ظهورها في النص. البيانات: ${JSON.stringify(evidence)}` }], taskLevel: 'ACADEMIC_DRAFT', temperature: 0.1, maxOutputTokens: 3000, deadlineMs: Date.now() + 180_000 })
+    const boundaries = parseAiOutlineBoundaries(raw, chunks, book.title)
     draft = { ...planBookOutline(chunks, items, chunkIds, book.semester, boundaries, book.title), source: 'AI_SEGMENTED' }
+    draft.warnings.push('هذه عناوين موضوعية مقترحة من نص الكتاب والمعرفة المستخرجة؛ راجعها قبل الاعتماد.')
   }
-  if (options.reuseReadChunks && draft.source === 'AI_SEGMENTED' && options.deterministicOnly) {
-    draft = { ...draft, source: 'CHUNK_SEGMENTED' }
-    draft.warnings.push('لم تُكتشف عناوين موثوقة؛ التقسيم الحالي حتمي من المقاطع المقروءة، وليس مولداً بالذكاء. راجع الأقسام قبل الاعتماد.')
+  if (draft.source === 'AI_SEGMENTED' && options.deterministicOnly) {
+    // Never persist synthetic "intro — continued" sections as a real outline.
+    throw new Error('BOOK_OUTLINE_INSUFFICIENT_GROUNDED_SECTIONS')
   }
   if (options.reuseReadChunks && options.deterministicOnly) {
     draft.warnings.push('أُنشئت المسودة من المقاطع المحفوظة بعد القراءة وOCR دون إعادة فتح ملف الكتاب.')

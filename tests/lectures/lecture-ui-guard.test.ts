@@ -9,6 +9,7 @@ import { join } from 'node:path'
 const root = join(import.meta.dir, '../..')
 const component = readFileSync(join(root, 'src/components/aact/StudentLectures.tsx'), 'utf8')
 const dashboard = readFileSync(join(root, 'src/components/aact/DashboardView.tsx'), 'utf8')
+const shell = readFileSync(join(root, 'src/components/aact/Shell.tsx'), 'utf8')
 const listRoute = readFileSync(join(root, 'src/app/api/my/lectures/route.ts'), 'utf8')
 
 describe('student lectures UI guards', () => {
@@ -28,6 +29,24 @@ describe('student lectures UI guards', () => {
     expect(component).toContain('/api/my/lecture-videos')
     expect(component).toContain('/progress')
     expect(component).not.toContain('storageKey')
+  })
+
+  test('selected recording opens in a modal with its own player instance and stable selection', () => {
+    expect(component).toContain('<Dialog open={Boolean(activeWatch)}')
+    expect(component).toContain('key={activeWatch.video.id}')
+    expect(component).toContain('requestId !== watchRequestRef.current')
+    expect(component).toContain('setActiveWatch({ video, watch })')
+    expect(component).toContain('onEnded={() => void markWatched(activeWatch.video)}')
+    expect(component).toContain('saveProgress(activeWatch.video.id, positionSec, watchedPercent)')
+    expect(component).not.toContain('<div className="mb-4 space-y-2">\n              <LecturePlayer')
+  })
+
+  test('admin mobile notifications use the real notification bell without redirecting', () => {
+    expect(shell).toContain("user?.role === 'ADMIN' ? (")
+    expect(shell).toContain('<NotificationBell mobile />')
+    expect(shell).toContain("onClick={openMobileNotifications}")
+    expect(shell).toContain("if (mobile) setMobileMenuOpen(false)")
+    expect(shell).toContain("api('/api/notifications', { method: 'PATCH'")
   })
 
   test('dashboard tab is gated by a server probe, not a client flag', () => {
