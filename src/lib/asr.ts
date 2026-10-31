@@ -3,7 +3,6 @@ import { GoogleGenAI, createPartFromUri, createUserContent } from '@google/genai
 type TranscribeAudioOptions = {
   mimeType?: string | null
   languageCode?: string | null
-  allowZaiFallback?: boolean | null
 }
 
 function sleep(ms: number) {
