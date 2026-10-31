@@ -7,6 +7,7 @@ import ts from 'typescript'
 const root = process.cwd()
 const sourcePath = path.join(root, 'src/components/aact/AdminExtras.tsx')
 const source = fs.readFileSync(sourcePath, 'utf8')
+const thesisReview = fs.readFileSync(path.join(root, 'src/app/api/supervisor/thesis-review/route.ts'), 'utf8')
 const thesisStart = source.indexOf('export function AdminThesisTab()')
 const financeMarker = '// ============ المالية: المدفوعات + التقارير ============'
 const financeStart = source.indexOf(financeMarker)
