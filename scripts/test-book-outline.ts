@@ -86,7 +86,21 @@ function testSubheadingReviewMarkers() {
   assert(draft.sections.length === 1, 'العلامات الفرعية يجب ألا تصبح حدود أقسام')
 }
 
+function testReadChunksCreateOutlineWithoutReopeningPdf() {
+  const source = [
+    chunk(0, 'الفصل الأول\nمدخل الإدارة\n' + 'شرح تفصيلي عن مبادئ الإدارة والتخطيط وتطبيقها العملي. '.repeat(4), 1),
+    chunk(1, 'المقال: مقدمة في إدارة الأعمال\n' + 'يعرض هذا المقال مفاهيم الإدارة الحديثة وإدارة الموارد والعمليات. '.repeat(4), 3),
+    chunk(2, 'المقال: دور المدير في المنظمات الحديثة\n' + 'يوضح هذا المقال مسؤوليات المدير وسبل التخطيط والتنفيذ. '.repeat(4), 7),
+  ]
+  const boundaries = sourceBoundariesFromReadChunks(source, 'كتاب الإدارة')
+  assert(boundaries.some((b) => b.title === 'الفصل الأول'), 'فصل الكتاب الأصلي يجب أن يظهر من النص المحفوظ')
+  assert(boundaries.some((b) => b.title === 'مقدمة في إدارة الأعمال'), 'عنوان المقال يجب أن يظهر دون إعادة قراءة PDF')
+  const planned = planBookOutline(source, source.map((c) => ({ chunkId: 'chunk-' + c.index, title: 'عنصر', summary: 'ملخص' })), new Map(source.map((c) => [c.index, 'chunk-' + c.index])), 1, boundaries, 'كتاب الإدارة')
+  assert(planned.sections.length >= 2, 'الفهرس من المقاطع يجب أن يحتوي على أكثر من قسم')
+}
+
 const tests = [
+  testReadChunksCreateOutlineWithoutReopeningPdf,
   testSubheadingReviewMarkers,
   testArticleHeadingsFromOriginalPdf,
   testOrdinaryLinesAreNotSections,
