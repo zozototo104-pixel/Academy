@@ -459,8 +459,10 @@ async function createUnitsFromApprovedOutlines(programId: string, regenerateDraf
   const summary = { created: 0, updatedDrafts: 0, relinkedDrafts: 0, reviewOverlaps: 0, skippedApproved: 0, skippedDrafts: 0, skippedIntro: 0 }
   const created: any[] = []
   const updated: string[] = []
-  const reviewWarnings: string[] = []
+  const plans: Array<{ book: (typeof approvedBooks)[number]; actions: ReturnType<typeof planOutlineUnitsFromSections> }> = []
 
+  // Preflight every book BEFORE writing anything. A split of an older unit
+  // requires human reconciliation, not partially created parallel units.
   for (const book of approvedBooks) {
     const outline = book.outlines[0]
     // Include historical sections for legacy units without sourceBookId.
