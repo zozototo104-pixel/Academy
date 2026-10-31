@@ -57,4 +57,15 @@ describe('APINEX in the vision queue (Haris ruling 2026-10-30)', () => {
     expect(__testVisionSupportForTests({ provider: 'GEMINI', model: 'gemini-3.5-flash-lite' })).toBe(true)
     expect(__testVisionSupportForTests({ provider: 'GEMINI', model: 'gemini-3.5-flash-lite', pdf: true })).toBe(true)
   })
+
+  test('Gemini discovery without modality metadata does not skip document OCR', () => {
+    expect(modelAllowedForPurpose('gemini-3.5-flash-lite', 'VISION')).toBe(true)
+    expect(modelAllowedForPurpose('gemini-3.5-flash-lite', 'VISION', { vision: false, modalities: [] })).toBe(true)
+    expect(modelAllowedForPurpose('gemini-3.5-flash-lite', 'VISION', { vision: false })).toBe(true)
+  })
+
+  test('explicit text-only models remain excluded from document OCR', () => {
+    expect(modelAllowedForPurpose('text-only-model', 'VISION', { vision: false, modalities: ['text'] })).toBe(false)
+    expect(modelAllowedForPurpose('gemini-3.5-flash-lite', 'VISION', { vision: true, modalities: ['text', 'image'] })).toBe(true)
+  })
 })
