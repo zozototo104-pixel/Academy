@@ -257,6 +257,9 @@ function testCoverageRejectsShortSectionsWithMissingPages() {
   assert(outlineApprovalGuard(sections).decision === 'BLOCK', 'لا يجوز اعتماد فجوة حتى لو لم يكن أي قسم كبيراً')
   const incomplete = [draftSection(1, 'حدود ناقصة', 1, 40), { ...draftSection(2, 'صفحات غير معروفة', 41, 50), pageEnd: null }]
   assert(outlineApprovalGuard(incomplete).decision === 'ALLOW_WITH_REVIEW', 'نهاية الصفحة المجهولة تستدعي مراجعة بدل تمرير صامت')
+  const sameChunk = [draftSection(1, 'قسم أ', 1, 5), { ...draftSection(2, 'عنوان داخل نفس المقطع', 5, 6), pageEnd: null }, draftSection(3, 'قسم ج', 7, 11)]
+  assert(auditOutlineCoverage(sameChunk).gaps.length === 0, 'حدود داخل نفس المقطع غير محسومة ولا يجوز وسمها فجوة مؤكدة')
+  assert(outlineApprovalGuard(sameChunk).decision === 'ALLOW_WITH_REVIEW', 'القسم مجهول النهاية يبقى للمراجعة البشرية')
 }
 
 const tests = [
