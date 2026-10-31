@@ -448,25 +448,33 @@ async function createUnitsFromApprovedOutlines(programId: string, regenerateDraf
     return { program, usedApprovedOutlines: false as const, skippedBooks, created: [], updated: [], summary: { created: 0, updatedDrafts: 0, skippedApproved: 0, skippedDrafts: 0, skippedIntro: 0 } }
   }
 
-  const allSectionIds = approvedBooks.flatMap((book) => book.outlines[0].sections.map((section) => section.id))
-  const [existingUnits, allUnits] = await Promise.all([
-    db.unit.findMany({
-      where: { programId, outlineSectionId: { in: allSectionIds } },
-      select: { id: true, outlineSectionId: true, status: true, order: true, semester: true, generationVersion: true },
-    }),
-    db.unit.findMany({ where: { programId }, select: { semester: true, order: true } }),
-  ])
+  // The UI's primary "generate units" action must inspect older outline
+  // versions too. Matching only current section ids creates duplicate units.
+  const allUnits = await db.unit.findMany({ where: { programId }, select: { semester: true, order: true } })
   const currentMaxOrderBySemester = allUnits.reduce<Record<number, number>>((acc, unit) => {
     const semester = Number(unit.semester || 1)
     acc[semester] = Math.max(acc[semester] || 0, Number(unit.order || 0))
     return acc
   }, {})
-  const summary = { created: 0, updatedDrafts: 0, skippedApproved: 0, skippedDrafts: 0, skippedIntro: 0 }
+  const summary = { created: 0, updatedDrafts: 0, relinkedDrafts: 0, reviewOverlaps: 0, skippedApproved: 0, skippedDrafts: 0, skippedIntro: 0 }
   const created: any[] = []
   const updated: string[] = []
+  const plans: Array<{ book: (typeof approvedBooks)[number]; actions: ReturnType<typeof planOutlineUnitsFromSections> }> = []
 
+  // Preflight every book BEFORE writing anything. A split of an older unit
+  // requires human reconciliation, not partially created parallel units.
   for (const book of approvedBooks) {
     const outline = book.outlines[0]
+    // Include historical sections for legacy units without sourceBookId.
+    // Chunk indexes are scoped to a single book, never to a whole program.
+    const historicalSectionIds = (await db.bookOutlineSection.findMany({
+      where: { outline: { bookId: book.id } },
+      select: { id: true },
+    })).map((section) => section.id)
+    const existingUnits = await db.unit.findMany({
+      where: { programId, OR: [{ sourceBookId: book.id }, { outlineSectionId: { in: historicalSectionIds } }] },
+      select: { id: true, outlineSectionId: true, sourceBookId: true, status: true, order: true, semester: true, generationVersion: true, chunkStartIndex: true, chunkEndIndex: true },
+    })
     const actions = planOutlineUnitsFromSections({
       sections: outline.sections.map((section) => ({
         id: section.id,
@@ -483,6 +491,30 @@ async function createUnitsFromApprovedOutlines(programId: string, regenerateDraf
       bookSemester: book.semester,
       regenerateDrafts,
     })
+    plans.push({ book, actions })
+    // Reserve created orders during preflight so the next book cannot
+    // reuse the same order; no database writes have happened yet.
+    for (const action of actions) {
+      if (action.action === 'create') {
+        currentMaxOrderBySemester[action.semester] = Math.max(currentMaxOrderBySemester[action.semester] || 0, action.order)
+      }
+    }
+  }
+  const conflicts = plans.flatMap(({ book, actions }) => actions
+    .filter((action) => action.action === 'review-overlap')
+    .map((action) => ({
+      bookId: book.id, bookTitle: book.title,
+      unitId: action.unitId, sectionTitle: action.section.title,
+      chunkStartIndex: action.section.chunkStartIndex,
+      chunkEndIndex: action.section.chunkEndIndex,
+    })))
+  if (conflicts.length) {
+    // Nothing has been written. The administrator must explicitly review
+    // affected older units; silently skipping them would report false success.
+    return { program, usedApprovedOutlines: true as const, skippedBooks, created, updated, summary, conflicts }
+  }
+
+  for (const { book, actions } of plans) {
     for (const action of actions) {
       if (action.action === 'create') {
         const unit = await db.unit.create({
@@ -521,6 +553,19 @@ async function createUnitsFromApprovedOutlines(programId: string, regenerateDraf
         })
         updated.push(action.unitId)
         summary.updatedDrafts++
+      } else if (action.action === 'relink-draft') {
+        // Exact range survived a new outline version: relink metadata only.
+        // Preserve existing draft content, title, guide and generation count.
+        const changed = await db.unit.updateMany({
+          where: { id: action.unitId, programId, status: { not: 'APPROVED' } },
+          data: {
+            sourceBookId: book.id,
+            outlineSectionId: action.section.id,
+            chunkStartIndex: action.section.chunkStartIndex,
+            chunkEndIndex: action.section.chunkEndIndex,
+          },
+        })
+        if (changed.count) { updated.push(action.unitId); summary.relinkedDrafts++ }
       } else if (action.action === 'skip-approved') summary.skippedApproved++
       else if (action.action === 'skip-draft') summary.skippedDrafts++
       else if (action.action === 'skip-intro') summary.skippedIntro++
@@ -549,6 +594,13 @@ export async function POST(req: NextRequest) {
     const outlineResult = await createUnitsFromApprovedOutlines(programId, regenerateDrafts)
     if (!outlineResult) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
     if (outlineResult.usedApprovedOutlines) {
+      if ('conflicts' in outlineResult && outlineResult.conflicts?.length) {
+        return NextResponse.json({
+          code: 'OUTLINE_UNIT_OVERLAP_REVIEW_REQUIRED',
+          error: 'تتداخل أقسام الفهرس الجديد مع وحدات قديمة. لم تُنشأ أو تُعدّل أي وحدة؛ راجع الوحدات القديمة قبل إعادة المحاولة.',
+          conflicts: outlineResult.conflicts,
+        }, { status: 409 })
+      }
       await audit({ id: admin.id, name: admin.name }, 'GENERATE_UNITS_FROM_APPROVED_OUTLINES', 'Program', programId, `توليد وحدات من الفهارس المعتمدة لبرنامج ${outlineResult.program.titleAr}`)
       return NextResponse.json({
         ok: true,

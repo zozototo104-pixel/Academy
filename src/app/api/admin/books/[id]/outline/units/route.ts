@@ -50,20 +50,40 @@ export async function POST(req: NextRequest, context: Context) {
       pageStart: section.pageStart,
       pageEnd: section.pageEnd,
     }))
-    const sectionIds = sections.map((section) => section.id)
+    // Include all historical outline sections, including legacy units that
+    // still have a section ID but no sourceBookId recorded.
+    const historicalSectionIds = (await db.bookOutlineSection.findMany({
+      where: { outline: { bookId: book.id } },
+      select: { id: true },
+    })).map((section) => section.id)
     const [existingUnits, allUnits] = await Promise.all([
       db.unit.findMany({
-        where: { programId: book.programId, outlineSectionId: { in: sectionIds } },
-        select: { id: true, outlineSectionId: true, status: true, order: true, semester: true, generationVersion: true },
+        where: { programId: book.programId, OR: [{ outlineSectionId: { in: historicalSectionIds } }, { sourceBookId: book.id }] },
+        select: { id: true, outlineSectionId: true, status: true, order: true, semester: true, generationVersion: true, chunkStartIndex: true, chunkEndIndex: true, sourceBookId: true },
       }),
       db.unit.findMany({ where: { programId: book.programId }, select: { semester: true, order: true } }),
     ])
+    // Both query branches are book-scoped: a sourceBookId match or a
+    // historical outline section of this book. Legacy null sourceBookIds
+    // are therefore safe for per-book chunk-range matching.
     const currentMaxOrderBySemester = allUnits.reduce<Record<number, number>>((acc, unit) => {
       const semester = Number(unit.semester || 1)
       acc[semester] = Math.max(acc[semester] || 0, Number(unit.order || 0))
       return acc
     }, {})
     const actions = planOutlineUnitsFromSections({ sections, existingUnits, currentMaxOrderBySemester, bookSemester: book.semester, regenerateDrafts })
+    const conflicts = actions.filter((action) => action.action === 'review-overlap').map((action) => ({
+      unitId: action.unitId, sectionTitle: action.section.title,
+      chunkStartIndex: action.section.chunkStartIndex,
+      chunkEndIndex: action.section.chunkEndIndex,
+    }))
+    if (conflicts.length) {
+      return NextResponse.json({
+        code: 'OUTLINE_UNIT_OVERLAP_REVIEW_REQUIRED',
+        error: 'تتداخل وحدات قديمة مع أقسام الفهرس الجديد؛ لم تُعدّل أي وحدة. راجع الربط قبل التوليد.',
+        conflicts,
+      }, { status: 409 })
+    }
     const changedIds: string[] = []
     for (const action of actions) {
       if (action.action === 'create') {
@@ -101,6 +121,20 @@ export async function POST(req: NextRequest, context: Context) {
           },
         })
         changedIds.push(action.unitId)
+      } else if (action.action === 'relink-draft') {
+        // Metadata-only re-link of a draft unit whose chunk range survived
+        // the outline rebuild exactly: title, content and generation stay
+        // untouched, and approved units are excluded by the where clause.
+        await db.unit.updateMany({
+          where: { id: action.unitId, programId: book.programId, status: { not: 'APPROVED' } },
+          data: {
+            sourceBookId: book.id,
+            outlineSectionId: action.section.id,
+            chunkStartIndex: action.section.chunkStartIndex,
+            chunkEndIndex: action.section.chunkEndIndex,
+          },
+        })
+        changedIds.push(action.unitId)
       }
     }
     if (changedIds.length) {
@@ -117,9 +151,11 @@ export async function POST(req: NextRequest, context: Context) {
       summary: {
         created: actions.filter((a) => a.action === 'create').length,
         updatedDrafts: actions.filter((a) => a.action === 'update-draft').length,
+        relinkedDrafts: actions.filter((a) => a.action === 'relink-draft').length,
         skippedApproved: actions.filter((a) => a.action === 'skip-approved').length,
         skippedDrafts: actions.filter((a) => a.action === 'skip-draft').length,
         skippedIntro: actions.filter((a) => a.action === 'skip-intro').length,
+        reviewOverlaps: actions.filter((a) => a.action === 'review-overlap').length,
       },
       actions,
       units,

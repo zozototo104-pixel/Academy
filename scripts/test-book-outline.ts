@@ -1,4 +1,4 @@
-import { planBookOutline, detectOriginalSourceHeadings, outlineSubheadingMarkers, sourceBoundariesFromReadChunks, parseAiOutlineBoundaries } from '@/lib/book-outline'
+import { planBookOutline, detectOriginalSourceHeadings, outlineSubheadingMarkers, sourceBoundariesFromReadChunks, parseAiOutlineBoundaries, auditOutlineCoverage, outlineApprovalGuard, refineOversizedSections, type OutlineSectionDraft } from '@/lib/book-outline'
 import { readFileSync } from 'node:fs'
 
 type ChunkInput = Parameters<typeof planBookOutline>[0][number]
@@ -144,7 +144,127 @@ function testLegacyOcrFallbackRemainsConnected() {
   assert(!route.includes('deterministicOnly: true'), 'لا يجوز فرض تقسيم المقاطع وحده للفهرس')
 }
 
+function spanChunk(index: number, text: string, pageStart: number, pageEnd: number): ChunkInput {
+  return { index, headingPath: null, text, pageStart, pageEnd }
+}
+
+function draftSection(order: number, title: string, pageStart: number, pageEnd: number): OutlineSectionDraft {
+  return { order, title, level: 1, semester: 1, chunkStartIndex: order - 1, chunkEndIndex: order - 1, pageStart, pageEnd, itemsCount: 0 }
+}
+
+// 30 chunks tiling pages 1..297; chapter lines only up to page 50, so the
+// third chapter's section must swallow pages 41..297 (the production case).
+function book297() {
+  const chunks: ChunkInput[] = []
+  const chapterAt = new Map([[0, 'الفصل الأول: مدخل الإدارة'], [2, 'الفصل الثاني: التخطيط الاستراتيجي'], [4, 'الفصل الثالث: التنظيم الإداري']])
+  for (let i = 0; i < 30; i++) {
+    const pageStart = i < 29 ? i * 10 + 1 : 291
+    const pageEnd = i < 29 ? (i + 1) * 10 : 297
+    const head = chapterAt.get(i)
+    chunks.push(spanChunk(i, `${head ? head + '\n' : ''}نص المقطع ${i} في إدارة الأعمال وتحليل المنظمات وقياس الأداء المؤسسي.`, pageStart, pageEnd))
+  }
+  return chunks
+}
+
+function testCoverageAuditFlagsMonsterTail() {
+  const chunks = book297()
+  const chunkIds = new Map(chunks.map((entry) => [entry.index, `chunk-${entry.index}`]))
+  const items = chunks.map((entry) => ({ chunkId: `chunk-${entry.index}`, title: `عنصر ${entry.index}`, summary: 'ملخص اختباري' }))
+  const result = planBookOutline(chunks, items, chunkIds, 1, [], 'ماستر في إدارة الأعمال')
+  const report = auditOutlineCoverage(result.sections)
+  assert(report.totalPages === 297, 'تدقيق التغطية يجب أن يرى الكتاب كاملاً (297 صفحة)')
+  assert(report.blocked.length === 1, `قسم واحد فقط يجب أن يتجاوز حد المنع، وُجد ${report.blocked.length}`)
+  assert(report.blocked[0].pageStart === 41 && report.blocked[0].pageEnd === 297, 'القسم المحظور يجب أن يكون الذيل 41–297 نفسه')
+  assert(report.blocked[0].pages === 257, 'حجم الذيل يجب أن يُحسب 257 صفحة')
+  assert(outlineApprovalGuard(result.sections).decision === 'BLOCK', 'حارس الاعتماد يجب أن يمنع اعتماد فهرس فيه ذيل 257 صفحة')
+}
+
+function testGuardBandsAndGenuineLongChapter() {
+  const mixed = [draftSection(1, 'قسم قصير', 1, 40), draftSection(2, 'فصل أصلي طويل', 41, 100), draftSection(3, 'ذيل ضخم', 101, 297)]
+  const report = auditOutlineCoverage(mixed)
+  assert(report.review.length === 1 && report.review[0].title === 'فصل أصلي طويل', 'قسم 60 صفحة يجب أن يقع في نطاق المراجعة لا المنع')
+  assert(report.blocked.length === 1 && report.blocked[0].title === 'ذيل ضخم', 'قسم 197 صفحة يجب أن يُمنع')
+  assert(outlineApprovalGuard(mixed).decision === 'BLOCK', 'وجود قسم محظور يمنع الاعتماد')
+  const genuine = [draftSection(1, 'فصل أصلي موثق', 1, 60)]
+  assert(outlineApprovalGuard(genuine).decision === 'ALLOW_WITH_REVIEW', 'فصل أصلي من 60 صفحة يُعلَّم للمراجعة ولا يُمنع ولا يُقطَّع')
+  const normal = [draftSection(1, 'قسم أول', 1, 30), draftSection(2, 'قسم ثانٍ', 31, 55)]
+  assert(outlineApprovalGuard(normal).decision === 'ALLOW', 'أقسام طبيعية تمر بلا تنبيه')
+}
+
+async function testRefineSplitsMonsterFromDroppedSourceBoundaries() {
+  const chunks = book297()
+  const chunkIds = new Map(chunks.map((entry) => [entry.index, `chunk-${entry.index}`]))
+  const items = chunks.map((entry) => ({ chunkId: `chunk-${entry.index}`, title: `عنصر ${entry.index}`, summary: 'ملخص اختباري' }))
+  // Source (article) boundaries inside the tail: the global precedence picks
+  // the text chapters and drops these, exactly like the production book.
+  const sourceBoundaries = [
+    { at: 10, title: 'تحليل البيئة التنافسية' },
+    { at: 16, title: 'إدارة المعرفة التنظيمية' },
+    { at: 22, title: 'قياس التفكير الإبداعي' },
+    { at: 27, title: 'استراتيجيات الابتكار المؤسسي' },
+  ]
+  const planned = planBookOutline(chunks, items, chunkIds, 1, sourceBoundaries, 'ماستر في إدارة الأعمال')
+  assert(auditOutlineCoverage(planned.sections).blocked.length === 1, 'قبل إعادة التقسيم يجب أن يوجد الذيل المحظور')
+  const refined = await refineOversizedSections({ sections: planned.sections, chunks, items, chunkIds, semester: 1, sourceBoundaries, bookTitle: 'ماستر في إدارة الأعمال', allowAi: false })
+  assert(refined.refinedRanges === 1, 'يجب إعادة تقسيم نطاق واحد')
+  const report = auditOutlineCoverage(refined.sections)
+  assert(report.blocked.length === 0, `بعد إعادة التقسيم لا يجوز بقاء أي قسم فوق حد المنع، وُجد ${report.blocked.length}`)
+  assert(refined.sections.some((section) => section.title === 'قياس التفكير الإبداعي'), 'الأقسام الفرعية يجب أن تحمل عناوين الأدلة الحقيقية')
+  assert(refined.sections.some((section) => section.title.includes('الفصل الثالث')), 'أول قسم فرعي يجب أن يبقى مثبتاً على عنوان القسم الأصلي')
+  assert(!refined.sections.some((section) => section.title.includes('— تابع')), 'ممنوع توليد عناوين «تابع» وهمية أثناء إعادة التقسيم')
+  assert(refined.sections.some((section) => section.pageStart === 221 && section.pageEnd === 270), 'القسم الفرعي 221–270 يجب أن يبقى مستقلاً ولا يُبتلع بالدمج أو سقف الأقسام')
+}
+
+function testSectionCapNeverExtendsLargestSpan() {
+  // 17 chapter ranges: one 200-page chapter, then a 2-page chapter, then 15
+  // short chapters. The cap must merge a small adjacent pair; folding the
+  // 2-page chapter into the 200-page one would extend the largest span.
+  const chunks: ChunkInput[] = []
+  for (let i = 0; i < 26; i++) {
+    const pageStart = i < 10 ? i * 20 + 1 : i === 10 ? 201 : 203 + (i - 11) * 2
+    const pageEnd = i < 10 ? (i + 1) * 20 : i === 10 ? 202 : pageStart + 1
+    const head = i === 0 ? 'الفصل الأول: الدراسة الضخمة' : i >= 10 ? `الفصل ${i - 8}: موضوع ${i}` : ''
+    chunks.push(spanChunk(i, `${head ? head + '\n' : ''}نص المقطع ${i} في تحليل المنظمات وإدارة الأعمال المعاصرة.`, pageStart, pageEnd))
+  }
+  const chunkIds = new Map(chunks.map((entry) => [entry.index, `chunk-${entry.index}`]))
+  const items = chunks.map((entry) => ({ chunkId: `chunk-${entry.index}`, title: `عنصر ${entry.index}`, summary: 'ملخص اختباري' }))
+  const result = planBookOutline(chunks, items, chunkIds, 1, [], 'كتاب الاختبار')
+  assert(result.sections.length <= 16, `سقف الأقسام يجب أن يبقى 16، وُجد ${result.sections.length}`)
+  const huge = result.sections.find((section) => section.pageStart === 1)
+  assert(huge && huge.pageEnd === 200, `القسم الضخم يجب أن ينتهي عند 200 لا أن يمتد بالدمج، انتهى عند ${huge?.pageEnd}`)
+}
+
+function testWordFormChaptersElevenAndTwelve() {
+  // Regression: the ordinal alternatives string once lost its \s escapes, so
+  // «الحادي عشر» never matched and «الثاني عشر» matched as chapter 2 — the
+  // real chapter-12 boundary was then discarded as a duplicate of chapter 2
+  // and its pages were silently absorbed by the previous section.
+  const result = plan([
+    chunk(0, 'الفصل الثاني: الأساسيات\nنص الفصل الثاني'),
+    chunk(1, 'الفصل الحادي عشر: التطبيقات\nنص الفصل الحادي عشر'),
+    chunk(2, 'الفصل الثاني عشر: دراسات حالة\nنص الفصل الثاني عشر'),
+  ])
+  assert(result.sections.length === 3, `الفصول 2 و11 و12 يجب أن تنتج 3 أقسام، وُجد ${result.sections.length}: ${titles(result)}`)
+  assert(result.sections.some((s) => s.title.includes('الحادي عشر') && s.chunkStartIndex === 1), 'الفصل الحادي عشر يجب أن يظهر بقسمه المستقل')
+  assert(result.sections.some((s) => s.title.includes('الثاني عشر') && s.chunkStartIndex === 2), 'الفصل الثاني عشر يجب ألا يُبتلع أو يُحسب فصلاً ثانياً مكرراً')
+}
+
+function testCoverageRejectsShortSectionsWithMissingPages() {
+  const sections = [draftSection(1, 'قسم أ', 1, 40), draftSection(2, 'قسم ب', 50, 80)]
+  const report = auditOutlineCoverage(sections)
+  assert(report.blocked.length === 0, 'كل قسم أصغر من حد المنع')
+  assert(report.gaps.length === 1 && report.gaps[0].pageStart === 41 && report.gaps[0].pageEnd === 49, 'يجب اكتشاف الصفحات 41–49 المفقودة')
+  assert(outlineApprovalGuard(sections).decision === 'BLOCK', 'لا يجوز اعتماد فجوة حتى لو لم يكن أي قسم كبيراً')
+  const incomplete = [draftSection(1, 'حدود ناقصة', 1, 40), { ...draftSection(2, 'صفحات غير معروفة', 41, 50), pageEnd: null }]
+  assert(outlineApprovalGuard(incomplete).decision === 'ALLOW_WITH_REVIEW', 'نهاية الصفحة المجهولة تستدعي مراجعة بدل تمرير صامت')
+  const sameChunk = [draftSection(1, 'قسم أ', 1, 5), { ...draftSection(2, 'عنوان داخل نفس المقطع', 5, 6), pageEnd: null }, draftSection(3, 'قسم ج', 7, 11)]
+  assert(auditOutlineCoverage(sameChunk).gaps.length === 0, 'حدود داخل نفس المقطع غير محسومة ولا يجوز وسمها فجوة مؤكدة')
+  assert(outlineApprovalGuard(sameChunk).decision === 'ALLOW_WITH_REVIEW', 'القسم مجهول النهاية يبقى للمراجعة البشرية')
+}
+
 const tests = [
+  testCoverageRejectsShortSectionsWithMissingPages,
+  testWordFormChaptersElevenAndTwelve,
   testGenericIntroductionRestoresLegacyAiFallback,
   testAiOutlineRejectsInvalidAndGenericSections,
   testLegacyOcrFallbackRemainsConnected,
@@ -157,9 +277,15 @@ const tests = [
   testArabicIndicDigitChapter,
   testTwoChaptersInSameChunk,
   testIntroAndMidChunkFirstChapter,
+  testCoverageAuditFlagsMonsterTail,
+  testGuardBandsAndGenuineLongChapter,
+  testRefineSplitsMonsterFromDroppedSourceBoundaries,
+  testSectionCapNeverExtendsLargestSpan,
 ]
 
-for (const test of tests) {
-  test()
-  console.log(`✓ ${test.name}`)
-}
+;(async () => {
+  for (const test of tests) {
+    await test()
+    console.log(`✓ ${test.name}`)
+  }
+})().catch((error) => { console.error(error); process.exit(1) })

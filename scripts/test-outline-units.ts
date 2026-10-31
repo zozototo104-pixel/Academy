@@ -1,4 +1,5 @@
 import { canReplaceDeleteUnit, normalizeUnitSummaryAfterRetry, planOutlineUnitsFromSections, providerUnavailableStatus, summarizeReplaceUnitProtection, validateStudyGuideSources, validateUnitContentReferences } from '@/lib/outline-units'
+import { readFileSync } from 'node:fs'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
@@ -89,12 +90,102 @@ function testSummaryFallbackAndProviderClassification() {
   assert(!providerUnavailableStatus(errorWithCode('provider returned structurally invalid output', 'VALIDATION_REJECTED')), 'VALIDATION_REJECTED يجب أن يبقى FAILED حتى لو الرسالة عامة')
 }
 
+function testRebuildDoesNotDuplicateUnits() {
+  // Outline v2 mints NEW section ids for the SAME chunk ranges v1 covered.
+  const sections = [
+    { id: 'v2-s1', title: 'الفصل الأول: المدخل', level: 1, semester: 1, chunkStartIndex: 0, chunkEndIndex: 4, pageStart: 1, pageEnd: 40 },
+    { id: 'v2-s2', title: 'الفصل الثاني: التطبيق', level: 1, semester: 1, chunkStartIndex: 5, chunkEndIndex: 9, pageStart: 41, pageEnd: 90 },
+  ]
+  const existingUnits = [
+    { id: 'unit-approved', outlineSectionId: 'v1-s1', status: 'APPROVED', order: 1, semester: 1, generationVersion: 3, chunkStartIndex: 0, chunkEndIndex: 4 },
+    { id: 'unit-draft', outlineSectionId: 'v1-s2', status: 'DRAFT', order: 2, semester: 1, generationVersion: 1, chunkStartIndex: 5, chunkEndIndex: 9 },
+  ]
+  const kept = planOutlineUnitsFromSections({ sections, existingUnits, currentMaxOrderBySemester: { 1: 2 }, bookSemester: 1, regenerateDrafts: false })
+  assert(!kept.some((a) => a.action === 'create'), 'إعادة بناء الفهرس بنفس النطاقات لا يجوز أن تنشئ أي وحدة جديدة')
+  assert(kept.some((a) => a.action === 'skip-approved' && a.unitId === 'unit-approved'), 'الوحدة المعتمدة بنفس النطاق يجب أن تُحمى كما هي')
+  assert(kept.some((a) => a.action === 'relink-draft' && a.unitId === 'unit-draft'), 'وحدة المسودة بنفس النطاق يجب أن تُعاد ربطها لا أن تُستبدل')
+  const regenerated = planOutlineUnitsFromSections({ sections, existingUnits, currentMaxOrderBySemester: { 1: 2 }, bookSemester: 1, regenerateDrafts: true })
+  assert(!regenerated.some((a) => a.action === 'create'), 'مع إعادة التوليد أيضاً لا وحدات مكررة')
+  assert(regenerated.some((a) => a.action === 'skip-approved' && a.unitId === 'unit-approved'), 'المعتمدة لا تُحدَّث حتى مع إعادة التوليد')
+  assert(regenerated.some((a) => a.action === 'update-draft' && a.unitId === 'unit-draft'), 'المسودة بنفس النطاق تُحدَّث عند طلب إعادة التوليد')
+}
+
+function testOverlapRequiresHumanReview() {
+  const actions = planOutlineUnitsFromSections({
+    sections: [{ id: 'v2-x', title: 'قسم متداخل', level: 1, semester: 1, chunkStartIndex: 3, chunkEndIndex: 7, pageStart: 30, pageEnd: 70 }],
+    existingUnits: [{ id: 'unit-old', outlineSectionId: 'v1-x', status: 'DRAFT', order: 1, semester: 1, generationVersion: 1, chunkStartIndex: 5, chunkEndIndex: 9 }],
+    currentMaxOrderBySemester: { 1: 1 },
+    bookSemester: 1,
+    regenerateDrafts: true,
+  })
+  assert(actions.length === 1 && actions[0].action === 'review-overlap', 'التداخل القوي غير التطابقي يجب أن يُرفع للمراجعة البشرية فقط')
+  assert(!actions.some((a) => a.action === 'create'), 'لا إنشاء تلقائي فوق نطاق متداخل')
+}
+
+function testUnmatchedSectionStillCreatesAndUnitConsumedOnce() {
+  const created = planOutlineUnitsFromSections({
+    sections: [{ id: 'v2-new', title: 'قسم جديد كلياً', level: 1, semester: 1, chunkStartIndex: 20, chunkEndIndex: 24, pageStart: 200, pageEnd: 240 }],
+    existingUnits: [{ id: 'unit-far', outlineSectionId: 'v1-far', status: 'DRAFT', order: 1, semester: 1, generationVersion: 1, chunkStartIndex: 0, chunkEndIndex: 4 }],
+    currentMaxOrderBySemester: { 1: 1 },
+    bookSemester: 1,
+  })
+  assert(created.length === 1 && created[0].action === 'create', 'قسم بلا أي وحدة سابقة يجب أن يُنشأ طبيعياً')
+  const twice = planOutlineUnitsFromSections({
+    sections: [
+      { id: 'v2-a', title: 'قسم أ', level: 1, semester: 1, chunkStartIndex: 0, chunkEndIndex: 4, pageStart: 1, pageEnd: 40 },
+      { id: 'v2-b', title: 'قسم ب', level: 1, semester: 1, chunkStartIndex: 0, chunkEndIndex: 4, pageStart: 1, pageEnd: 40 },
+    ],
+    existingUnits: [{ id: 'unit-only', outlineSectionId: 'v1-only', status: 'DRAFT', order: 1, semester: 1, generationVersion: 1, chunkStartIndex: 0, chunkEndIndex: 4 }],
+    currentMaxOrderBySemester: { 1: 1 },
+    bookSemester: 1,
+  })
+  assert(twice.filter((a) => a.action === 'relink-draft' || a.action === 'update-draft' || a.action === 'skip-draft').length === 1, 'الوحدة الواحدة لا تُستهلك إلا مرة واحدة')
+}
+
+function testSplitOldGiantBlocksEveryOverlappingNewUnit() {
+  const sections = [
+    { id: 'v2-a', title: 'استراتيجيات التخطيط', level: 1, semester: 1, chunkStartIndex: 5, chunkEndIndex: 10, pageStart: 51, pageEnd: 100 },
+    { id: 'v2-b', title: 'الموارد البشرية', level: 1, semester: 1, chunkStartIndex: 11, chunkEndIndex: 16, pageStart: 101, pageEnd: 160 },
+    { id: 'v2-c', title: 'قياس الأداء', level: 1, semester: 1, chunkStartIndex: 17, chunkEndIndex: 28, pageStart: 161, pageEnd: 297 },
+  ]
+  const existingUnits = [{ id: 'old-giant', outlineSectionId: 'v1-giant', status: 'DRAFT', order: 17, semester: 1, chunkStartIndex: 5, chunkEndIndex: 28 }]
+  const actions = planOutlineUnitsFromSections({ sections, existingUnits, currentMaxOrderBySemester: { 1: 17 }, bookSemester: 1 })
+  assert(actions.length === 3, 'يجب فحص الأقسام الثلاثة')
+  assert(!actions.some((action) => action.action === 'create'), 'ممنوع إعادة إنشاء وحدات فوق نطاق الوحدة 17')
+  assert(actions.every((action) => action.action === 'review-overlap'), 'الوحدة القديمة الكبيرة تمنع إنشاء أي قسم جديد متداخل معها، لا الأول فقط')
+}
+
+function testSmallIntersectionAlsoRequiresReview() {
+  const actions = planOutlineUnitsFromSections({
+    sections: [{ id: 'new', title: 'وحدة جديدة', level: 1, chunkStartIndex: 15, chunkEndIndex: 24, pageStart: 150, pageEnd: 240 }],
+    existingUnits: [{ id: 'existing', outlineSectionId: 'old', status: 'APPROVED', order: 1, semester: 1, chunkStartIndex: 10, chunkEndIndex: 15 }],
+    currentMaxOrderBySemester: { 1: 1 },
+  })
+  assert(actions.length === 1 && actions[0].action === 'review-overlap', 'حتى اشتراك مقطع واحد مع وحدة معتمدة يمنع إنشاء نسخة متداخلة')
+}
+
+function testBothUnitCreationEndpointsBlockOverlaps() {
+  const primary = readFileSync('src/app/api/admin/program-units/suggest/route.ts', 'utf8')
+  const perBook = readFileSync('src/app/api/admin/books/[id]/outline/units/route.ts', 'utf8')
+  assert(primary.includes("code: 'OUTLINE_UNIT_OVERLAP_REVIEW_REQUIRED'"), 'زر توليد الوحدات الأساسي يجب أن يمنع التداخل قبل الحفظ')
+  assert(primary.includes('const plans: Array<'), 'المسار الأساسي يجب أن يجمع خطة الكتب كاملة قبل الكتابة')
+  assert(primary.includes('db.bookOutlineSection.findMany'), 'يجب تحميل أقسام الفهارس التاريخية')
+  assert(primary.includes("action.action === 'relink-draft'"), 'إعادة الربط الآمن يجب أن تكون موصولة بالمسار الأساسي')
+  assert(perBook.includes("code: 'OUTLINE_UNIT_OVERLAP_REVIEW_REQUIRED'"), 'المسار الفردي يجب أن يمنع التداخل أيضاً')
+}
+
 const tests = [
+  testSplitOldGiantBlocksEveryOverlappingNewUnit,
+  testSmallIntersectionAlsoRequiresReview,
+  testBothUnitCreationEndpointsBlockOverlaps,
   testSummaryFallbackAndProviderClassification,
   testApprovedUnitNotUpdatedOnRegenerate,
   testUnitContentRejectsOutsideChunkRange,
   testGuideWithoutSourceKnowledgeIdsRejected,
   testReplaceProtectionKeepsApprovedOutlineAndAttemptedUnits,
+  testRebuildDoesNotDuplicateUnits,
+  testOverlapRequiresHumanReview,
+  testUnmatchedSectionStillCreatesAndUnitConsumedOnce,
 ]
 
 for (const test of tests) {
