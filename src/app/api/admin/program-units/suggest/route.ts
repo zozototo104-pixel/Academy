@@ -456,12 +456,23 @@ async function createUnitsFromApprovedOutlines(programId: string, regenerateDraf
     acc[semester] = Math.max(acc[semester] || 0, Number(unit.order || 0))
     return acc
   }, {})
-  const summary = { created: 0, updatedDrafts: 0, skippedApproved: 0, skippedDrafts: 0, skippedIntro: 0 }
+  const summary = { created: 0, updatedDrafts: 0, relinkedDrafts: 0, reviewOverlaps: 0, skippedApproved: 0, skippedDrafts: 0, skippedIntro: 0 }
   const created: any[] = []
   const updated: string[] = []
+  const reviewWarnings: string[] = []
 
   for (const book of approvedBooks) {
     const outline = book.outlines[0]
+    // Include historical sections for legacy units without sourceBookId.
+    // Chunk indexes are scoped to a single book, never to a whole program.
+    const historicalSectionIds = (await db.bookOutlineSection.findMany({
+      where: { outline: { bookId: book.id } },
+      select: { id: true },
+    })).map((section) => section.id)
+    const existingUnits = await db.unit.findMany({
+      where: { programId, OR: [{ sourceBookId: book.id }, { outlineSectionId: { in: historicalSectionIds } }] },
+      select: { id: true, outlineSectionId: true, sourceBookId: true, status: true, order: true, semester: true, generationVersion: true, chunkStartIndex: true, chunkEndIndex: true },
+    })
     const actions = planOutlineUnitsFromSections({
       sections: outline.sections.map((section) => ({
         id: section.id,
