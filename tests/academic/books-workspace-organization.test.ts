@@ -23,7 +23,7 @@ const ORIGINAL_FUNCTION_HASHES: Record<string, string> = {
   refreshProgramReadiness: '4bcfeaf821451def388c4916edb0936aea32d71c97d29a4d6e9752cbcbdd2fd8',
   suggest: 'badc7e266c544800eb1267d3d21901d3e2490f13add7025389f8ab81b2cc671a',
 }
-const ORIGINAL_API_CALL_COUNT = 78
+const ORIGINAL_API_CALL_COUNT = 79 // 78 protected calls plus reviewed outline-section rejection
 // بصمة سطح النداءات من تعبير الاستدعاء الكامل (المسار + الخيارات: الطريقة والجسم والترويسات)،
 // لا من العنوان وحده — أي تغيير في عقد أي طلب يغيّر البصمة.
 // تحديث مقصود 2026-10-25 (PR #136): النداء 77 الوحيد المضاف هو تحليل الذكاء
