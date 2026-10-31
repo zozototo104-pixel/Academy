@@ -164,6 +164,10 @@ describe('AI D1 behavior', () => {
     expect(reserved.sessionLimitMinutes).toBe(2)
     expect(firstLiveUsage().freeMinutesUsed).toBe(2)
 
+    // The server settles against its own startedAt timestamp, not client-reported seconds.
+    const session = liveSessions.get('live-session-1')
+    if (!session) throw new Error('reserved session missing')
+    ;(session as LiveSessionRow & { startedAt: Date }).startedAt = new Date(Date.now() - 30_000)
     const settled = await settleGeminiLiveUsage({ userId: 'student-1', sessionId: 'live-session-1', actualSeconds: 30 })
     expect(settled).toMatchObject({ ok: true, refundMinutes: 1 })
     expect(firstLiveUsage().freeMinutesUsed).toBe(1)
