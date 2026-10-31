@@ -320,7 +320,7 @@ function normalizeBoundaries(chunks: readonly Chunk[], boundaries: readonly Boun
     const next = ordered[i + 1]
     const nextStart = next ? at.get(next.at)! : null
     const end = nextStart === null ? sorted.length - 1 : nextStart === start ? start : nextStart - 1
-    return { start, end, title: boundary.title, startCharOffset: boundary.startCharOffset ?? null }
+    return { start, end, title: boundary.title, startCharOffset: boundary.startCharOffset ?? null, verifiedHeading: boundary.verifiedHeading ?? false }
   }).filter((range) => range.end >= range.start)
   // Real chapter boundaries and same-chunk splits must not be merged away.
   // Only unlabeled one-chunk fragments may be absorbed into neighboring sections.
