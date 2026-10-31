@@ -72,7 +72,7 @@ ${reviewText}
     // Accept numeric JSON strings (e.g. "85"), never missing, blank or nonnumeric marks.
     for (const key of Object.keys(weights)) {
       const value = scores[key]
-      if (typeof value === 'string' && /^\\d+(?:\\.\\d+)?$/.test(value.trim())) {
+      if (typeof value === 'string' && /^\d+(?:\.\d+)?$/.test(value.trim())) {
         scores[key] = Number(value.trim())
       }
     }
