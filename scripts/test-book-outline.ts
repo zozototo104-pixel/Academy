@@ -1,4 +1,4 @@
-import { planBookOutline } from '@/lib/book-outline'
+import { planBookOutline, detectOriginalSourceHeadings } from '@/lib/book-outline'
 
 type ChunkInput = Parameters<typeof planBookOutline>[0][number]
 
