@@ -1,5 +1,4 @@
 import { GoogleGenAI, createPartFromUri, createUserContent } from '@google/genai'
-import { getZAI } from '@/lib/ai'
 
 type TranscribeAudioOptions = {
   mimeType?: string | null
