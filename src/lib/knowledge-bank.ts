@@ -889,18 +889,21 @@ ${sample}
     console.error('aiKnowledgeItems Gemini JSON failed:', String(e?.message || e).slice(0, 300))
   }
 
-  // مسار احتياطي فقط إذا تعذر Gemini، مع استمرار رفض أي مخرجات غير JSON صالحة.
+  // Retry through configured providers only; never use the unconfigured SDK.
   try {
-    const zai = await getZAI()
     const raw = await Promise.race([
-      chatWithRetry(zai, [
-        { role: 'assistant', content: 'أنت محلل مناهج جامعية يرجع JSON صالحاً فقط.' },
-        { role: 'user', content: prompt },
-      ], 2),
-      new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_ZAI_TIMEOUT')), 36000)),
+      textAiCompleteJson({
+        system: 'أنت محلل مناهج جامعية يرجع JSON صالحاً فقط.',
+        history: [{ role: 'user', text: prompt }],
+        purpose: 'ANALYSIS',
+        taskLevel: 'ACADEMIC_DRAFT',
+        taskType: 'BOOK_KNOWLEDGE_FALLBACK',
+        temperature: 0.08,
+        maxOutputTokens: 12288,
+      }),
+      new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_ROUTER_TIMEOUT')), 36000)),
     ])
-    const arr = extractJsonArray(raw)
-    const normalized = normalizeDrafts(arr, [], semester)
+    const normalized = normalizeDrafts(extractJsonArray(raw), [], semester)
     return hasBalancedKnowledgeShape(normalized) ? normalized : null
   } catch (e: any) {
     console.error('aiKnowledgeItems all providers failed:', String(e?.message || e).slice(0, 300))
