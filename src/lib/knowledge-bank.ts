@@ -1043,21 +1043,24 @@ CONCEPT, THEORY, METHOD, CASE, DEFINITION, QUESTION_SEED, SUMMARY
 {"category":"CONCEPT|THEORY|METHOD|CASE|DEFINITION|QUESTION_SEED|SUMMARY","title":"عنوان أكاديمي قصير","summary":"شرح مهني واضح","excerpt":"إعادة صياغة منهجية لا اقتباس حرفي","keywords":["كلمة"],"importance":75,"semester":${semester ?? 'null'},"sourceNote":"خطة معرفة مبنية على توصيف الكتاب لا على قراءة نصه الكامل"}`
 
   try {
-    const zai = await getZAI()
     const raw = await Promise.race([
-      chatWithRetry(zai, [
-        { role: 'assistant', content: 'أنت خبير مناهج مهنية يرجع JSON صالحاً فقط دون Markdown.' },
-        { role: 'user', content: prompt },
-      ], 2),
+      textAiCompleteJson({
+        system: 'أنت خبير مناهج مهنية يرجع JSON صالحاً فقط دون Markdown.',
+        history: [{ role: 'user', text: prompt }],
+        purpose: 'GENERATION',
+        taskLevel: 'ACADEMIC_DRAFT',
+        taskType: 'BOOK_METADATA_BLUEPRINT',
+        temperature: 0.15,
+        maxOutputTokens: 4096,
+      }),
       new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_METADATA_AI_TIMEOUT')), 24000)),
     ])
-    const arr = extractJsonArray(raw)
-    const normalized = normalizeDrafts(arr, fallback, semester)
-    const out = ensureCategoryCoverage(normalized.length ? normalized : fallback, fallback)
+    const normalized = normalizeDrafts(extractJsonArray(raw), [], semester)
+    const out = normalized.length ? normalized : fallback
     return out.map((item) => ({
       ...item,
       excerpt: null,
-      sourceNote: item.sourceNote || 'خطة معرفة مبنية على توصيف الكتاب لا على قراءة نصه الكامل',
+      sourceNote: 'خطة معرفة مبنية على توصيف الكتاب لا على قراءة نصه الكامل',
     }))
   } catch (e: any) {
     console.error('aiMetadataKnowledgeItems fallback:', String(e?.message || e).slice(0, 240))
