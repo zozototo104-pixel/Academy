@@ -5,8 +5,6 @@ import {
   ensureGeminiKey,
   geminiTTSWav,
   isAuthError,
-  isInvalidArgumentError,
-  isModelUnavailableError,
   isQuotaError,
 } from '@/lib/gemini'
 
