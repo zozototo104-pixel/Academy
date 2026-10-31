@@ -1253,6 +1253,7 @@ export async function analyzeAdmission(
       system: 'أنت خبير قبول أكاديمي صارم، لا ترفع النسبة إلا إذا كانت الأدلة المقروءة تثبت المتطلبات فعلاً. أرجع JSON صالحاً فقط.',
       purpose: 'ANALYSIS',
       routerPolicy: 'primary_first',
+      excludeProviders: ['ZAI'], // التقييم النهائي لا يحتاج مفتاح Z-AI.
       temperature: 0.1,
       maxOutputTokens: 2400,
       history: [{ role: 'user', text: `حلل طلب الالتحاق التالي. اعتمد على الأدلة المقروءة فقط، ولا تعتبر اسم الملف وحده دليلاً. إذا كانت المرفقات شعارات أو صوراً غير وثائقية أو غير قابلة للقراءة فالنسبة يجب أن تكون منخفضة جداً ولا تتجاوز 20%.
