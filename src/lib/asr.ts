@@ -179,36 +179,23 @@ async function transcribeWithWhisperCompatible(audioBase64: string, mimeType: st
 
 export async function transcribeAudioBase64(audioBase64: string, options: TranscribeAudioOptions = {}) {
   const { clean, mimeType } = cleanBase64AndMime(audioBase64, options.mimeType)
-  if (!clean) return ''
+  if (!clean) throw new Error('ASR_AUDIO_EMPTY')
 
-  const skipZaiFallback = options.allowZaiFallback === false || isOggOrOpusMime(mimeType)
-
+  let geminiFailure: unknown = null
   try {
     const geminiText = await transcribeWithGemini(clean, { ...options, mimeType })
-    if (geminiText !== null) return geminiText
-    if (isOggOrOpusMime(mimeType)) {
-      const whisperText = await transcribeWithWhisperCompatible(clean, mimeType)
-      if (whisperText) return whisperText
-      return ''
-    }
+    if (geminiText?.trim()) return geminiText.trim()
+    geminiFailure = new Error('GEMINI_ASR_EMPTY_OR_UNAVAILABLE')
   } catch (error) {
-    const reason = String((error as any)?.message || error).slice(0, 300)
-    if (isOggOrOpusMime(mimeType)) {
-      const whisperText = await transcribeWithWhisperCompatible(clean, mimeType)
-      if (whisperText) return whisperText
-      console.warn('Gemini ASR failed and no Whisper-compatible OGG provider succeeded:', JSON.stringify({ mimeType, reason }).slice(0, 500))
-      return ''
-    }
-    if (skipZaiFallback) {
-      console.warn('Gemini ASR failed; ZAI fallback disabled for this audio:', JSON.stringify({ mimeType, reason }).slice(0, 500))
-      throw error
-    }
-    console.warn('Gemini ASR failed, falling back to ZAI:', reason)
+    geminiFailure = error
   }
 
-  if (skipZaiFallback) {
-    throw new Error(`Gemini ASR unavailable for ${mimeType}; ZAI fallback disabled.`)
-  }
+  const whisperText = await transcribeWithWhisperCompatible(clean, mimeType)
+  if (whisperText?.trim()) return whisperText.trim()
 
-  return transcribeWithZai(clean)
+  console.warn('ASR providers exhausted:', JSON.stringify({
+    mimeType,
+    gemini: String((geminiFailure as any)?.message || geminiFailure).slice(0, 240),
+  }))
+  throw new Error('ASR_PROVIDERS_UNAVAILABLE')
 }
