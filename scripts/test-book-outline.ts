@@ -95,7 +95,7 @@ function testReadChunksCreateOutlineWithoutReopeningPdf() {
   const boundaries = sourceBoundariesFromReadChunks(source, 'كتاب الإدارة')
   assert(boundaries.some((b) => b.title === 'الفصل الأول'), 'فصل الكتاب الأصلي يجب أن يظهر من النص المحفوظ')
   assert(boundaries.some((b) => b.title === 'مقدمة في إدارة الأعمال'), 'عنوان المقال يجب أن يظهر دون إعادة قراءة PDF')
-  const planned = planBookOutline(source, source.map((c) => ({ chunkId: 'chunk-' + c.index, title: 'عنصر', summary: 'ملخص' })), new Map(source.map((c) => [c.index, 'chunk-' + c.index])), 1, boundaries, 'كتاب الإدارة')
+  const planned = planBookOutline(source, source.map((c) => ({ chunkId: 'chunk-' + c.index, title: 'عنصر', summary: 'ملخص' })), new Map(source.map((c) => [c.index, 'chunk-' + c.index])), 1, boundaries, 'كتاب الإدارة', true)
   assert(planned.sections.length >= 2, 'الفهرس من المقاطع يجب أن يحتوي على أكثر من قسم')
 }
 
