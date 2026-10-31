@@ -2,7 +2,7 @@ import { db } from '@/lib/db'
 import { geminiCompleteJson } from '@/lib/gemini'
 import { PDFDocument } from 'pdf-lib'
 import { getFileBufferFromStorageOrBase64 } from '@/lib/storage'
-import { extractNumberedPdfPages, type ExtractedBookPage } from '@/lib/book-reader'
+import { extractNumberedPdfPages, pagesNeedingOcr, transcribeScannedDocumentWithVision, type ExtractedBookPage } from '@/lib/book-reader'
 import { fixArabicPdfText } from '@/lib/arabic-pdf-text'
 
 type Chunk = { index: number; headingPath: string | null; text: string; pageStart: number; pageEnd: number }
