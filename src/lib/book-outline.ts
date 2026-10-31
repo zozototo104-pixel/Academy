@@ -498,12 +498,13 @@ export function auditOutlineCoverage(sections: readonly OutlineSectionDraft[]): 
     sections: audited,
     review: audited.filter((section) => section.band === 'REVIEW'),
     blocked: audited.filter((section) => section.band === 'BLOCKED'),
+    gaps,
   }
 }
 
 export function outlineApprovalGuard(sections: readonly OutlineSectionDraft[]): { decision: 'ALLOW' | 'ALLOW_WITH_REVIEW' | 'BLOCK'; report: OutlineCoverageReport } {
   const report = auditOutlineCoverage(sections)
-  return { decision: report.blocked.length ? 'BLOCK' : report.review.length ? 'ALLOW_WITH_REVIEW' : 'ALLOW', report }
+  return { decision: report.blocked.length || report.gaps.length ? 'BLOCK' : report.review.length ? 'ALLOW_WITH_REVIEW' : 'ALLOW', report }
 }
 
 function parseAiRangeBoundaries(raw: string, rangeChunks: readonly Chunk[], bookTitle: string): Boundary[] {
