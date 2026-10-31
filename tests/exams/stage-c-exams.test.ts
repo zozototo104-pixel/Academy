@@ -14,6 +14,19 @@ const programStart = source('src/app/api/program-exam/start/route.ts')
 const programSubmit = source('src/app/api/program-exam/submit/route.ts')
 
 describe('Stage C exam security invariants (static regression)', () => {
+  test('exam feedback uses the configured router and never changes scoring', () => {
+    const feedback = examAi.slice(examAi.indexOf('export async function generateOverallFeedback('))
+    expect(feedback).toContain('await textAiCompleteJson({')
+    expect(feedback).toContain("taskType: 'EXAM_FEEDBACK'")
+    expect(feedback).toContain('OVERALL_FEEDBACK_INVALID_SCHEMA')
+    expect(feedback).not.toContain('getZAI()')
+    expect(feedback).not.toContain('zai.chat.')
+    expect(unitSubmit).toContain('generateOverallFeedback(')
+    expect(unitSubmit).toContain('buildAnswerKeyFeedback(')
+    expect(unitSubmit).toContain('score: Math.round(percentage * 10) / 10')
+    expect(unitSubmit).toContain("status: 'NEEDS_REVIEW'")
+  })
+
   test('unit attempt starts on the server inside an exclusive transaction', () => {
     expect(unitDetail).toContain('db.$transaction(async (tx) =>')
     expect(unitDetail).toContain('FOR UPDATE')
