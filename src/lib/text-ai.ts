@@ -2063,8 +2063,10 @@ function nvidiaDiscoverySourceCount(s: Settings): number {
 export function modelAllowedForPurpose(model: string, purpose?: TextAiPurpose, capability?: ModelCapability | null): boolean {
   if (!purpose) return true
   if (purpose === 'VISION') {
-    if (!capability) return true
-    return capability.vision !== false && (capability.vision === true || !!capability.modalities?.some((m) => /image|vision/.test(m)))
+    // Gemini /models may omit input modalities entirely. Unknown capability is not
+    // proof of text-only support; the provider/model attachment guard runs later.
+    if (!capability || !capability.modalities?.length) return true
+    return capability.vision === true || capability.modalities.some((m) => /image|vision/.test(m))
   }
   if (purpose === 'LONG_CONTEXT') {
     if (!capability || !capability.contextLength) return true
