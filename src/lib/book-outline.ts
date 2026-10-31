@@ -489,7 +489,13 @@ export function auditOutlineCoverage(sections: readonly OutlineSectionDraft[]): 
   for (const section of validRanges) {
     const start = section.pageStart!
     const end = section.pageEnd!
-    if (coveredUntil !== null && start > coveredUntil + 1) gaps.push({ pageStart: coveredUntil + 1, pageEnd: start - 1 })
+    if (coveredUntil !== null && start > coveredUntil + 1) {
+      // Same-chunk chapter splits can have a null pageEnd; do not assert a
+      // missing-page gap while an unknown-length section starts inside it.
+      // The unknown section is already marked REVIEW, not silently approved.
+      const unknownBridge = audited.some((candidate) => candidate.pages === null && candidate.pageStart !== null && candidate.pageStart >= coveredUntil! && candidate.pageStart <= start)
+      if (!unknownBridge) gaps.push({ pageStart: coveredUntil + 1, pageEnd: start - 1 })
+    }
     coveredUntil = Math.max(coveredUntil ?? end, end)
   }
   return {
