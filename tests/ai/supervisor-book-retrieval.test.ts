@@ -161,6 +161,20 @@ describe('supervisor enrolled book retrieval', () => {
     expect(requestedKnowledgeProgramIds).toEqual(['program-a'])
   })
 
+  test('explicit provenance protects against changed metadata-note wording', async () => {
+    knowledgeItems = [{
+      id: 'metadata-2',
+      bookId: 'book-a',
+      programId: 'program-a',
+      title: 'الإدراك المعرفي',
+      summary: 'خطة إرشادية لا تستند إلى كتاب مقروء',
+      sourceNote: 'صياغة جديدة لا تتطابق مع قواعد الملاحظات القديمة',
+      textProvenance: 'METADATA_ONLY',
+    }]
+    const context = await buildSupervisorContext('student-1', { query: 'الإدراك المعرفي' })
+    expect(context).not.toContain('مقاطع من الكتب المقررة ذات صلة بسؤال الطالب')
+  })
+
   test('the book knowledge list identifies description-derived items as guidance', async () => {
     programs['program-a'].books = [{
       title: 'علم النفس المعرفي',
