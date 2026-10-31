@@ -454,7 +454,7 @@ function formatBooksForProgram(program: any): string {
     const levelPolicy = book?.levelPolicy ? `\n   سياسة المستوى: ${compactText(book.levelPolicy, 200)}` : ''
     const extracted = book?.textContent ? `\n   مقتطف محدود من النص المستخرج: ${compactText(book.textContent, 520)}` : ''
     const knowledge = Array.isArray(book?.knowledgeItems) && book.knowledgeItems.length
-      ? `\n   عناصر معرفة مرتبطة بهذا الكتاب: ${book.knowledgeItems.slice(0, 6).map((k: any) => `${k.title}: ${compactText(k.summary || k.excerpt, 170)}`).join(' | ')}`
+      ? `\n   عناصر معرفة مرتبطة بهذا الكتاب: ${book.knowledgeItems.slice(0, 6).map((k: any) => `${k.title}: ${compactText(k.summary || k.excerpt, 170)}${isMetadataOnlyKnowledgeItem(k) ? ' [خطة من توصيف الكتاب وليست نصاً مستخرجاً]' : ''}`).join(' | ')}`
       : ''
     return `${index + 1}. «${title}»${titleEn}${author}${semester}${description}${readingDepth}${assessment}${levelPolicy}${extracted}${knowledge}`
   }).join('\n')
