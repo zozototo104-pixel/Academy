@@ -910,7 +910,9 @@ export function Header() {
       {mobileMenuOpen && (
         <div className="max-h-[calc(100dvh-4rem)] overflow-y-auto border-t border-white/10 bg-[#1d2947] px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-2 shadow-2xl lg:hidden">
           <div className="flex flex-col gap-1">
-            {user && (
+            {user?.role === 'ADMIN' ? (
+              <NotificationBell mobile />
+            ) : user && (
               <button
                 onClick={openMobileNotifications}
                 className="mt-2 flex items-center justify-between rounded-lg bg-white/5 px-4 py-2.5 text-right text-sm font-bold text-white/92 hover:bg-white/10"
