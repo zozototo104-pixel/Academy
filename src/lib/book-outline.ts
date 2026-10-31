@@ -594,14 +594,18 @@ export async function buildBookOutline(bookId: string, options: { reuseReadChunk
   let sourceBoundaries: Boundary[] = []
   let sourcePages: ExtractedBookPage[] = []
   let missingOriginalPdf = false
-  try {
-    sourcePages = await originalBookPages(bookId)
-    sourceBoundaries = projectSourceHeadings(detectOriginalSourceHeadings(sourcePages, book.title), chunks)
-  } catch (error: unknown) {
-    // Do not disguise extraction, PDF corruption, storage, or permission errors
-    // as a successful legacy fallback. Only an absent/non-PDF original qualifies.
-    if (!(error instanceof Error) || error.message !== 'BOOK_ORIGINAL_PDF_REQUIRED') throw error
-    missingOriginalPdf = true
+  if (options.reuseReadChunks) {
+    sourceBoundaries = sourceBoundariesFromReadChunks(chunks, book.title)
+    // OCR text already lives in the stored chunks; do not read the PDF a second time.
+    sourcePages = chunks.map((chunk) => ({ page: chunk.index + 1, text: chunk.text, textProvenance: 'NATIVE_TEXT' as const }))
+  } else {
+    try {
+      sourcePages = await originalBookPages(bookId)
+      sourceBoundaries = projectSourceHeadings(detectOriginalSourceHeadings(sourcePages, book.title), chunks)
+    } catch (error: unknown) {
+      if (!(error instanceof Error) || error.message !== 'BOOK_ORIGINAL_PDF_REQUIRED') throw error
+      missingOriginalPdf = true
+    }
   }
   let draft = planBookOutline(chunks, items, chunkIds, book.semester, sourceBoundaries, book.title)
   if (draft.source === 'AI_SEGMENTED') {
