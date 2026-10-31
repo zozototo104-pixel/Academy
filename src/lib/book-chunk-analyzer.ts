@@ -216,7 +216,7 @@ export async function runEnrichStep(jobId: string, deadlineMs = Date.now() + 45_
       const rows = await db.bookKnowledgeItem.findMany({ where: { bookId, kbVersion: 2, chunkId: { in: chunks.map((chunk) => chunk.id) } }, select: { chunkId: true, title: true, summary: true } })
       return { local: rows, own: rows.filter((row) => row.chunkId === chunkId) }
     },
-    save: async (chunk, items) => {
+    save: async (chunk, items, capacity) => {
       await db.$transaction([
         ...(items.length ? [db.bookKnowledgeItem.createMany({ data: items.map((item) => ({ bookId: chunk.bookId, programId: chunk.programId, chunkId: chunk.id, pageStart: chunk.pageStart, pageEnd: chunk.pageEnd, textProvenance: chunk.textProvenance, kbVersion: 2, category: item.category, title: item.title, summary: item.summary, excerpt: item.excerpt, importance: item.importance })) })] : []),
         db.bookChunk.update({ where: { id: chunk.id }, data: { analysisPasses: { increment: 1 } } }),
