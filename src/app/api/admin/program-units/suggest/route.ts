@@ -448,14 +448,9 @@ async function createUnitsFromApprovedOutlines(programId: string, regenerateDraf
     return { program, usedApprovedOutlines: false as const, skippedBooks, created: [], updated: [], summary: { created: 0, updatedDrafts: 0, skippedApproved: 0, skippedDrafts: 0, skippedIntro: 0 } }
   }
 
-  const allSectionIds = approvedBooks.flatMap((book) => book.outlines[0].sections.map((section) => section.id))
-  const [existingUnits, allUnits] = await Promise.all([
-    db.unit.findMany({
-      where: { programId, outlineSectionId: { in: allSectionIds } },
-      select: { id: true, outlineSectionId: true, status: true, order: true, semester: true, generationVersion: true },
-    }),
-    db.unit.findMany({ where: { programId }, select: { semester: true, order: true } }),
-  ])
+  // The UI's primary "generate units" action must inspect older outline
+  // versions too. Matching only current section ids creates duplicate units.
+  const allUnits = await db.unit.findMany({ where: { programId }, select: { semester: true, order: true } })
   const currentMaxOrderBySemester = allUnits.reduce<Record<number, number>>((acc, unit) => {
     const semester = Number(unit.semester || 1)
     acc[semester] = Math.max(acc[semester] || 0, Number(unit.order || 0))
