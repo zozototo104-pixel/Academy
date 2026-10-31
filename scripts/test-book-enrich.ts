@@ -41,6 +41,35 @@ async function main() {
   assert.equal(full.added, 0, '20-item cap respected')
   assert.equal(full.persisted.length, 20)
   assert.equal(full.saturated, true)
+  // Three empty rounds exhaust eligibility without setting saturatedAt.
+  let passes = 0
+  let saved: { title: string; summary: string }[] = [{ title: candidate.title, summary: candidate.summary }]
+  let finished = 0
+  const store: EnrichStepStore = {
+    getJob: async () => ({ id: 'job', bookId: 'book', phase: 'ENRICH' }),
+    nextChunk: async () => passes < 3 ? ({ id: 'chunk', bookId: 'book', programId: 'program', index: 0, text: evidence, pageStart: 1, pageEnd: 1, textProvenance: 'NATIVE_TEXT', analysisPasses: passes }) : null,
+    existing: async () => ({ own: saved, local: saved }),
+    save: async (_chunk, items) => { saved = [...saved, ...items.map(({ title, summary }) => ({ title, summary }))]; passes++ },
+    finish: async () => { finished++ },
+  }
+  for (let round = 0; round < 3; round++) {
+    await enrichStepWithStore('job', Date.now() + 30000, store, async () => [candidate])
+    assert.equal(passes, round + 1)
+    assert.equal(finished, 0)
+  }
+  const exhausted = await enrichStepWithStore('job', Date.now() + 30000, store, async () => [candidate])
+  assert.equal(exhausted.completed, true, 'three empty rounds exhaust enrichment eligibility')
+  assert.equal(finished, 1)
+  assert.equal(saved.length, 1, 'existing knowledge remains untouched after empty rounds')
+
+  // An accepted result after an empty round proceeds normally.
+  passes = 0; saved = [{ title: candidate.title, summary: candidate.summary }]; finished = 0
+  await enrichStepWithStore('job', Date.now() + 30000, store, async () => [candidate])
+  const fresh: BookKnowledgeCandidate = { ...candidate, title: 'تطبيق تربوي جديد', summary: 'تطبيق عملي مختلف ومستقل في التعليم' }
+  const resumed = await enrichStepWithStore('job', Date.now() + 30000, store, async () => [fresh])
+  assert.equal(resumed.added, 1, 'success after zero accepted continues')
+  assert.equal(passes, 2)
+  assert.equal(saved.length, 2)
   console.log('book enrichment behavior tests passed')
 }
 
