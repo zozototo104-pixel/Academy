@@ -26,6 +26,14 @@ export async function POST(req: NextRequest, context: Context) {
     // records an explicit override (a genuine long chapter passes by a
     // documented decision, never silently).
     const guard = outlineApprovalGuard(outline.sections)
+    // A documented long-chapter override must NOT bypass missing pages.
+    if (guard.report.gaps.length) {
+      return NextResponse.json({
+        code: 'OUTLINE_COVERAGE_GAPS',
+        error: `لا يمكن اعتماد فهرس فيه فجوات صفحات داخلية: ${guard.report.gaps.map((gap) => `${gap.pageStart}–${gap.pageEnd}`).join('، ')}. أعد فحص حدود الأقسام قبل الاعتماد.`,
+        gaps: guard.report.gaps,
+      }, { status: 409 })
+    }
     let warningsPrefix: string[] = []
     if (guard.decision === 'BLOCK') {
       const overrideReason = String(body?.overrideReason || '').replace(/\s+/g, ' ').trim().slice(0, 300)
