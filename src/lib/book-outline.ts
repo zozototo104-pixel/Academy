@@ -607,7 +607,7 @@ export async function buildBookOutline(bookId: string, options: { reuseReadChunk
       missingOriginalPdf = true
     }
   }
-  let draft = planBookOutline(chunks, items, chunkIds, book.semester, sourceBoundaries, book.title)
+  let draft = planBookOutline(chunks, items, chunkIds, book.semester, sourceBoundaries, book.title, options.reuseReadChunks === true)
   if (draft.source === 'AI_SEGMENTED' && !options.deterministicOnly) {
     const byChunk = new Map<string, Item[]>()
     for (const item of items) if (item.chunkId) byChunk.set(item.chunkId, [...(byChunk.get(item.chunkId) || []), item])
