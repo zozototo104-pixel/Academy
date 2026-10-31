@@ -553,6 +553,7 @@ export async function buildBookOutline(bookId: string) {
     const boundaries: Boundary[] = Array.isArray(parsed?.sections) ? parsed.sections.filter((entry: any) => Number.isInteger(entry.at) && clean(entry.title)).map((entry: any) => ({ at: entry.at, title: clean(entry.title), startCharOffset: null })) : []
     draft = { ...planBookOutline(chunks, items, chunkIds, book.semester, boundaries, book.title), source: 'AI_SEGMENTED' }
   }
+  if (missingOriginalPdf) draft.warnings.push('ملف PDF الأصلي غير متاح؛ استُخدمت المقاطع المحفوظة لفهرسة هذا الكتاب. راجع حدود الأقسام قبل الاعتماد.')
   const latest = await db.bookOutline.findFirst({ where: { bookId }, orderBy: { version: 'desc' }, select: { version: true } })
   return db.bookOutline.create({ data: { bookId, version: (latest?.version || 0) + 1, status: 'DRAFT', source: draft.source, warnings: JSON.stringify(draft.warnings), sections: { create: draft.sections } }, include: { sections: { orderBy: { order: 'asc' } } } })
 }
