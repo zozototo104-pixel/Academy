@@ -550,7 +550,7 @@ async function createUnitsFromApprovedOutlines(programId: string, regenerateDraf
         // Exact range survived a new outline version: relink metadata only.
         // Preserve existing draft content, title, guide and generation count.
         const changed = await db.unit.updateMany({
-          where: { id: action.unitId, programId, status: 'DRAFT' },
+          where: { id: action.unitId, programId, status: { not: 'APPROVED' } },
           data: {
             sourceBookId: book.id,
             outlineSectionId: action.section.id,
