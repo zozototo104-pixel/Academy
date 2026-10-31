@@ -127,6 +127,8 @@ export function StudentLectures() {
   const [joiningId, setJoiningId] = useState<string | null>(null)
   const [now, setNow] = useState(() => Date.now())
   const [activeWatch, setActiveWatch] = useState<{ video: VideoItem; watch: WatchDescriptor } | null>(null)
+  const [openingVideoId, setOpeningVideoId] = useState<string | null>(null)
+  const watchRequestRef = useRef(0)
 
   const fetchAll = useCallback(async () => {
     const [lec, vid] = await Promise.all([
