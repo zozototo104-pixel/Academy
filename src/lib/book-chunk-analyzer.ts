@@ -219,7 +219,7 @@ export async function runEnrichStep(jobId: string, deadlineMs = Date.now() + 45_
     save: async (chunk, items, capacity) => {
       await db.$transaction([
         ...(items.length ? [db.bookKnowledgeItem.createMany({ data: items.map((item) => ({ bookId: chunk.bookId, programId: chunk.programId, chunkId: chunk.id, pageStart: chunk.pageStart, pageEnd: chunk.pageEnd, textProvenance: chunk.textProvenance, kbVersion: 2, category: item.category, title: item.title, summary: item.summary, excerpt: item.excerpt, importance: item.importance })) })] : []),
-        db.bookChunk.update({ where: { id: chunk.id }, data: { analysisPasses: { increment: 1 } } }),
+        db.bookChunk.update({ where: { id: chunk.id }, data: capacity === 0 ? { saturatedAt: new Date() } : { analysisPasses: { increment: 1 } } }),
       ])
     },
     finish: async (id) => { await db.bookReadJob.update({ where: { id }, data: { phase: 'DONE', status: 'COMPLETED', finishedAt: new Date(), lockedUntil: null, retryAt: null } }) },
