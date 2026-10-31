@@ -5,6 +5,21 @@ import { db } from '@/lib/db'
 export const runtime = 'nodejs'
 type Context = { params: Promise<{ id: string; sectionId: string }> }
 
+export async function DELETE(_request: NextRequest, context: Context) {
+  try {
+    await requireAdmin()
+    const { id, sectionId } = await context.params
+    const section = await db.bookOutlineSection.findFirst({ where: { id: sectionId, outline: { bookId: id, status: 'DRAFT' } }, select: { id: true } })
+    if (!section) return NextResponse.json({ error: 'القسم غير موجود أو الفهرس معتمد' }, { status: 404 })
+    const linkedUnits = await db.unit.count({ where: { outlineSectionId: sectionId } })
+    if (linkedUnits) return NextResponse.json({ error: 'لا يمكن تجاهل قسم مرتبط بوحدات قائمة' }, { status: 409 })
+    await db.bookOutlineSection.delete({ where: { id: sectionId } })
+    return NextResponse.json({ ok: true })
+  } catch (error: any) {
+    return NextResponse.json({ error: String(error?.message || error) }, { status: error?.message === 'UNAUTHORIZED' ? 401 : 500 })
+  }
+}
+
 export async function PATCH(request: NextRequest, context: Context) {
   try {
     await requireAdmin()
