@@ -150,8 +150,8 @@ function testSplitOldGiantBlocksEveryOverlappingNewUnit() {
   const existingUnits = [{ id: 'old-giant', outlineSectionId: 'v1-giant', status: 'DRAFT', order: 17, semester: 1, chunkStartIndex: 5, chunkEndIndex: 28 }]
   const actions = planOutlineUnitsFromSections({ sections, existingUnits, currentMaxOrderBySemester: { 1: 17 }, bookSemester: 1 })
   assert(actions.length === 3, 'يجب فحص الأقسام الثلاثة')
-  assert(actions.every((action) => action.action === 'review-overlap'), 'الوحدة القديمة الكبيرة تمنع إنشاء أي قسم جديد متداخل معها، لا الأول فقط')
   assert(!actions.some((action) => action.action === 'create'), 'ممنوع إعادة إنشاء وحدات فوق نطاق الوحدة 17')
+  assert(actions.every((action) => action.action === 'review-overlap'), 'الوحدة القديمة الكبيرة تمنع إنشاء أي قسم جديد متداخل معها، لا الأول فقط')
 }
 
 function testSmallIntersectionAlsoRequiresReview() {
