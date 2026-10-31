@@ -574,7 +574,7 @@ export function sourceBoundariesFromReadChunks(chunks: readonly Chunk[], bookTit
     const key = chunk.index + ':' + offset
     if (seen.has(key)) continue
     seen.add(key)
-    results.push({ at: chunk.index, title: heading.title, startCharOffset: offset || null })
+    results.push({ at: chunk.index, title: heading.title, startCharOffset: offset || null, verifiedHeading: true })
   }
   return results.slice(0, 100)
 }
