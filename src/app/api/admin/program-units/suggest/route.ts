@@ -587,6 +587,13 @@ export async function POST(req: NextRequest) {
     const outlineResult = await createUnitsFromApprovedOutlines(programId, regenerateDrafts)
     if (!outlineResult) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
     if (outlineResult.usedApprovedOutlines) {
+      if ('conflicts' in outlineResult && outlineResult.conflicts?.length) {
+        return NextResponse.json({
+          code: 'OUTLINE_UNIT_OVERLAP_REVIEW_REQUIRED',
+          error: 'تتداخل أقسام الفهرس الجديد مع وحدات قديمة. لم تُنشأ أو تُعدّل أي وحدة؛ راجع الوحدات القديمة قبل إعادة المحاولة.',
+          conflicts: outlineResult.conflicts,
+        }, { status: 409 })
+      }
       await audit({ id: admin.id, name: admin.name }, 'GENERATE_UNITS_FROM_APPROVED_OUTLINES', 'Program', programId, `توليد وحدات من الفهارس المعتمدة لبرنامج ${outlineResult.program.titleAr}`)
       return NextResponse.json({
         ok: true,
