@@ -187,7 +187,7 @@ describe('AI D1 behavior', () => {
       return new Response(JSON.stringify({ text: 'مرحبا من الصوت' }), { status: 200, headers: { 'content-type': 'application/json' } })
     }) as any
     try {
-      const text = await transcribeAudioBase64(Buffer.from('fake ogg').toString('base64'), { mimeType: 'audio/ogg; codecs=opus', allowZaiFallback: true })
+      const text = await transcribeAudioBase64(Buffer.from('fake ogg').toString('base64'), { mimeType: 'audio/ogg; codecs=opus' })
       expect(text).toBe('مرحبا من الصوت')
       expect(calledUrl).toContain('/audio/transcriptions')
     } finally {
