@@ -390,14 +390,28 @@ export function debugBookOutlineChunks(chunks: readonly Chunk[]): BookOutlineDeb
   })
 }
 
+function usableOutlineTitle(title: string, bookTitle: string): boolean {
+  const normalized = normalizeHeading(title)
+  if (!normalized || normalized === normalizeHeading(bookTitle)) return false
+  // A cover, repeated header, or generic intro is not evidence of a chapter.
+  if (/^(?:مقدمه(?: الكتاب)?|تمهيد|تابع|الفهرس|المحتويات|خاتمه|مراجع|references|introduction|contents)$/u.test(normalized)) return false
+  if (/^(?:مقدمه الكتاب|تمهيد)(?: تابع)+$/u.test(normalized)) return false
+  return true
+}
+
 export function planBookOutline(chunks: readonly Chunk[], items: readonly Item[], chunkIds: ReadonlyMap<number, string>, semester: number | null, aiBoundaries: readonly Boundary[] = [], bookTitle = '', preferSourceBoundaries = false) {
   const headings = headingsFromChunks(chunks, bookTitle)
   const toc = tocFromChunks(chunks)
   const tocNames = tocNameMap(chunks)
   const fromText = textChapters(chunks, bookTitle, tocNames)
   const distinct = new Set(headings.map((heading) => normalizeHeading(heading.title))).size
-  const source = preferSourceBoundaries && aiBoundaries.length ? 'SOURCE_HEADINGS' : headings.length >= 2 && distinct / headings.length >= 0.6 ? 'HEADINGS' : toc.length >= 2 ? 'TOC' : fromText.length > 0 ? 'HEADINGS' : aiBoundaries.length ? 'SOURCE_HEADINGS' : 'AI_SEGMENTED'
-  const primary = source === 'HEADINGS' ? (headings.length >= 2 ? headings : fromText) : source === 'TOC' ? toc : aiBoundaries
+  const sourceHeadings = aiBoundaries.filter((entry) => usableOutlineTitle(entry.title, bookTitle))
+  const distinctSource = new Set(sourceHeadings.map((entry) => normalizeHeading(entry.title))).size
+  const reliableSource = sourceHeadings.length >= 2 && distinctSource >= 2
+  // Keep the legacy chapter/TOC/text precedence. Prefer PDF headings only when
+  // at least two different, substantive source titles are actually detected.
+  const source = preferSourceBoundaries && reliableSource ? 'SOURCE_HEADINGS' : headings.length >= 2 && distinct / headings.length >= 0.6 ? 'HEADINGS' : toc.length >= 2 ? 'TOC' : fromText.length > 0 ? 'HEADINGS' : reliableSource ? 'SOURCE_HEADINGS' : 'AI_SEGMENTED'
+  const primary = source === 'HEADINGS' ? (headings.length >= 2 ? headings : fromText) : source === 'TOC' ? toc : source === 'SOURCE_HEADINGS' ? sourceHeadings : []
   const byNumber = new Map<number, Boundary>()
   for (const boundary of primary) {
     const number = chapterNumber(boundary.title)
