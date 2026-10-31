@@ -469,7 +469,7 @@ export function StudentLectures() {
                       <img src={v.thumbnailUrl} alt={v.title} className="h-full w-full object-cover" />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center text-slate-400">
-                        <Play className="h-10 w-10" />
+                        {openingVideoId === v.id ? <Loader2 className="h-10 w-10 animate-spin" /> : <Play className="h-10 w-10" />}
                       </div>
                     )}
                     {v.durationSec ? (
