@@ -530,7 +530,10 @@ export async function buildBookOutline(bookId: string) {
   if (!chunks.length) throw new Error('BOOK_CHUNKS_REQUIRED')
   if (!items.length) throw new Error('BOOK_V2_KNOWLEDGE_REQUIRED')
   const chunkIds = new Map(chunks.map((chunk) => [chunk.index, chunk.id]))
-  let draft = planBookOutline(chunks, items, chunkIds, book.semester, [], book.title)
+  // Reindex from original PDF pages; existing knowledge/chunks are read only.
+  const pages = await originalBookPages(bookId)
+  const sourceBoundaries = projectSourceHeadings(detectOriginalSourceHeadings(pages, book.title), chunks)
+  let draft = planBookOutline(chunks, items, chunkIds, book.semester, sourceBoundaries, book.title)
   if (draft.source === 'AI_SEGMENTED') {
     const byChunk = new Map<string, Item[]>()
     for (const item of items) if (item.chunkId) byChunk.set(item.chunkId, [...(byChunk.get(item.chunkId) || []), item])
