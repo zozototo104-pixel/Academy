@@ -1,5 +1,4 @@
 import { db } from '@/lib/db'
-import { getZAI, chatWithRetry } from '@/lib/ai'
 import { geminiCompleteJson, geminiVisionJson } from '@/lib/gemini'
 import { textAiCompleteJson } from '@/lib/text-ai'
 import { hydrateBookContentForExam, type RawBookForHydration } from '@/lib/book-content'
@@ -17,6 +16,7 @@ export interface KnowledgeItemDraft {
   importance?: number
   semester?: number | null
   sourceNote?: string | null
+  textProvenance?: 'METADATA_ONLY' | null
 }
 
 export interface KnowledgeBuildResult {
@@ -540,6 +540,7 @@ function metadataKnowledgeBlueprint(program: ProgramMeta, book: RawBookForHydrat
     importance,
     semester: semester ?? book.semester ?? null,
     sourceNote: note,
+    textProvenance: 'METADATA_ONLY',
   })
 
   const items: KnowledgeItemDraft[] = [
@@ -715,6 +716,7 @@ function deterministicKnowledgeItems(
       importance: 40,
       semester: semester ?? null,
       sourceNote: 'مبني على بيانات الكتاب بعد تعذر استخراج نص أكاديمي نظيف',
+      textProvenance: 'METADATA_ONLY',
     })
   }
   return items.slice(0, MAX_ITEMS_PER_BOOK)
@@ -889,18 +891,21 @@ ${sample}
     console.error('aiKnowledgeItems Gemini JSON failed:', String(e?.message || e).slice(0, 300))
   }
 
-  // مسار احتياطي فقط إذا تعذر Gemini، مع استمرار رفض أي مخرجات غير JSON صالحة.
+  // Retry through configured providers only; never use the unconfigured SDK.
   try {
-    const zai = await getZAI()
     const raw = await Promise.race([
-      chatWithRetry(zai, [
-        { role: 'assistant', content: 'أنت محلل مناهج جامعية يرجع JSON صالحاً فقط.' },
-        { role: 'user', content: prompt },
-      ], 2),
-      new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_ZAI_TIMEOUT')), 36000)),
+      textAiCompleteJson({
+        system: 'أنت محلل مناهج جامعية يرجع JSON صالحاً فقط.',
+        history: [{ role: 'user', text: prompt }],
+        purpose: 'ANALYSIS',
+        taskLevel: 'ACADEMIC_DRAFT',
+        taskType: 'BOOK_KNOWLEDGE_FALLBACK',
+        temperature: 0.08,
+        maxOutputTokens: 12288,
+      }),
+      new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_ROUTER_TIMEOUT')), 36000)),
     ])
-    const arr = extractJsonArray(raw)
-    const normalized = normalizeDrafts(arr, [], semester)
+    const normalized = normalizeDrafts(extractJsonArray(raw), [], semester)
     return hasBalancedKnowledgeShape(normalized) ? normalized : null
   } catch (e: any) {
     console.error('aiKnowledgeItems all providers failed:', String(e?.message || e).slice(0, 300))
@@ -1040,21 +1045,30 @@ CONCEPT, THEORY, METHOD, CASE, DEFINITION, QUESTION_SEED, SUMMARY
 {"category":"CONCEPT|THEORY|METHOD|CASE|DEFINITION|QUESTION_SEED|SUMMARY","title":"عنوان أكاديمي قصير","summary":"شرح مهني واضح","excerpt":"إعادة صياغة منهجية لا اقتباس حرفي","keywords":["كلمة"],"importance":75,"semester":${semester ?? 'null'},"sourceNote":"خطة معرفة مبنية على توصيف الكتاب لا على قراءة نصه الكامل"}`
 
   try {
-    const zai = await getZAI()
     const raw = await Promise.race([
-      chatWithRetry(zai, [
-        { role: 'assistant', content: 'أنت خبير مناهج مهنية يرجع JSON صالحاً فقط دون Markdown.' },
-        { role: 'user', content: prompt },
-      ], 2),
+      textAiCompleteJson({
+        system: 'أنت خبير مناهج مهنية يرجع JSON صالحاً فقط دون Markdown.',
+        history: [{ role: 'user', text: prompt }],
+        purpose: 'GENERATION',
+        taskLevel: 'ACADEMIC_DRAFT',
+        taskType: 'BOOK_METADATA_BLUEPRINT',
+        temperature: 0.15,
+        maxOutputTokens: 4096,
+      }),
       new Promise<string>((_, reject) => setTimeout(() => reject(new Error('KNOWLEDGE_METADATA_AI_TIMEOUT')), 24000)),
     ])
-    const arr = extractJsonArray(raw)
-    const normalized = normalizeDrafts(arr, fallback, semester)
-    const out = ensureCategoryCoverage(normalized.length ? normalized : fallback, fallback)
+    const normalized = normalizeDrafts(extractJsonArray(raw), [], semester)
+    const out = normalized.length ? normalized : fallback
+    const requiredCategories = ['SUMMARY', 'CONCEPT', 'DEFINITION', 'THEORY', 'METHOD', 'CASE', 'QUESTION_SEED']
+    const missingCategories = requiredCategories.filter((category) => !out.some((item) => safeCategory(item.category) === category))
+    if (missingCategories.length) {
+      console.info('BOOK_METADATA_CATEGORY_GAPS', { missingCategories, bookId: book.id || null, itemCount: out.length })
+    }
     return out.map((item) => ({
       ...item,
       excerpt: null,
-      sourceNote: item.sourceNote || 'خطة معرفة مبنية على توصيف الكتاب لا على قراءة نصه الكامل',
+      sourceNote: 'خطة معرفة مبنية على توصيف الكتاب لا على قراءة نصه الكامل',
+      textProvenance: 'METADATA_ONLY',
     }))
   } catch (e: any) {
     console.error('aiMetadataKnowledgeItems fallback:', String(e?.message || e).slice(0, 240))
@@ -1164,6 +1178,7 @@ function prepareKnowledgeRows(programId: string, bookId: string | null, items: K
       keywords: JSON.stringify(keywords),
       importance: safeImportance(item.importance),
       sourceNote: item.sourceNote ? cleanText(item.sourceNote, 400) : null,
+      textProvenance: item.textProvenance === 'METADATA_ONLY' ? 'METADATA_ONLY' : null,
     }
   }).filter(Boolean) as any[]
 
@@ -1263,6 +1278,7 @@ async function mergeKnowledgeRows(programId: string, bookId: string | null, item
           keywords: row.keywords || current.keywords,
           importance: Math.max(Number(current.importance || 0), Number(row.importance || 0)),
           sourceNote: row.sourceNote || current.sourceNote,
+          textProvenance: row.textProvenance,
         },
       })
       updated++
@@ -1654,6 +1670,7 @@ export async function rebuildKnowledgeForBook(bookId: string, options: { strictF
     throw new Error('لم يكتمل استخراج عناصر معرفة صالحة من الكتاب المرفوع. لم يتم توليد عناصر افتراضية أو عامة. أعد المحاولة أو ارفع نسخة PDF نصية/Word أوضح.')
   } else {
     items = ensureCategoryCoverage(normalizeDrafts([], fallback, semester), fallback)
+    if (buildMode === 'METADATA') items = items.map((item) => ({ ...item, textProvenance: 'METADATA_ONLY' }))
   }
 
   const beforeCount = await db.bookKnowledgeItem.count({ where: { bookId: book.id } })

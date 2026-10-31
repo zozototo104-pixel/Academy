@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getZAI } from '@/lib/ai'
 import { requireUser } from '@/lib/auth'
 import { AI_RATE_LIMITS, enforceUserAiRateLimit } from '@/lib/ai-rate-limits'
 import {
   ensureGeminiKey,
   geminiTTSWav,
   isAuthError,
-  isInvalidArgumentError,
-  isModelUnavailableError,
   isQuotaError,
 } from '@/lib/gemini'
 
@@ -37,50 +34,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'النص أطول من الحد المسموح' }, { status: 400 })
     }
 
-    // بعد تحويل المنصة إلى Gemini: نستخدم Gemini TTS أولاً، ثم ZAI فقط كاحتياط.
     const geminiReady = await ensureGeminiKey().catch(() => false)
-    if (geminiReady) {
-      try {
-        const wav = await geminiTTSWav(cleanText, { speed: Number(speed) || 1.0 })
-        return audioResponse(wav)
-      } catch (e: any) {
-        const msg = String(e?.message || e || '')
-        console.error('Gemini TTS error:', msg.slice(0, 500))
-        if (isQuotaError(e)) {
-          return NextResponse.json({ error: 'انتهت حصة Gemini الصوتية مؤقتاً. جرّب لاحقاً أو فعّل Billing.' }, { status: 429 })
-        }
-        if (isAuthError(e)) {
-          return NextResponse.json({ error: 'مفتاح Gemini غير صالح للصوت أو لا يملك الصلاحية المطلوبة.' }, { status: 401 })
-        }
-        // أخطاء النموذج نتركها تنزل إلى ZAI كاحتياط؛ لو فشل الاحتياط نرجع رسالة واضحة.
-        if (!isModelUnavailableError(e) && !isInvalidArgumentError(e)) {
-          // نكمل إلى الاحتياط أيضاً لأن بعض أخطاء الشبكة مؤقتة.
-        }
-      }
+    if (!geminiReady) {
+      return NextResponse.json({ error: 'تعذر توليد الصوت حالياً. النص ظاهر ويمكنك الضغط على زر السماعة للمحاولة مرة أخرى.' }, { status: 502 })
     }
-
     try {
-      const chunks = splitText(cleanText, 950)
-      const audioParts: Buffer[] = []
-      const zai = await getZAI()
-
-      for (const chunk of chunks.slice(0, 8)) {
-        const response = await zai.audio.tts.create({
-          input: chunk,
-          voice: 'tongtong',
-          speed: Math.min(2, Math.max(0.5, Number(speed) || 1.0)),
-          response_format: 'wav',
-          stream: false,
-        })
-        const arrayBuffer = await response.arrayBuffer()
-        audioParts.push(Buffer.from(new Uint8Array(arrayBuffer)))
-      }
-
-      const combined = audioParts.length === 1 ? audioParts[0] : mergeWav(audioParts)
-      if (!combined?.length) throw new Error('EMPTY_TTS_AUDIO')
-      return audioResponse(combined)
+      const wav = await geminiTTSWav(cleanText, { speed: Number(speed) || 1.0 })
+      return audioResponse(wav)
     } catch (e: any) {
-      console.error('Fallback ZAI TTS error:', String(e?.message || e).slice(0, 500))
+      const msg = String(e?.message || e || '')
+      console.error('Gemini TTS error:', msg.slice(0, 500))
+      if (isQuotaError(e)) {
+        return NextResponse.json({ error: 'انتهت حصة Gemini الصوتية مؤقتاً. جرّب لاحقاً أو فعّل Billing.' }, { status: 429 })
+      }
+      if (isAuthError(e)) {
+        return NextResponse.json({ error: 'مفتاح Gemini غير صالح للصوت أو لا يملك الصلاحية المطلوبة.' }, { status: 401 })
+      }
       return NextResponse.json({ error: 'تعذر توليد الصوت حالياً. النص ظاهر ويمكنك الضغط على زر السماعة للمحاولة مرة أخرى.' }, { status: 502 })
     }
   } catch (e: any) {

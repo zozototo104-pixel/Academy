@@ -19,6 +19,24 @@ function stageResolution(snapshotRaw: Record<string, unknown>, stage: 'READING' 
 }
 
 describe('D2.1 reading wiring: routing overrides with strict validation', () => {
+  test('books and knowledge use the router rather than the unavailable Z-AI SDK', () => {
+    const books = readFileSync('src/lib/books-ai.ts', 'utf8')
+    const knowledge = readFileSync('src/lib/knowledge-bank.ts', 'utf8')
+    for (const source of [books, knowledge]) {
+      expect(source).not.toContain('getZAI()')
+      expect(source).not.toContain('chatWithRetry(')
+    }
+    expect(books).toContain("taskType: 'BOOK_GENERATION_FALLBACK'")
+    expect(books).toContain("taskLevel: 'ACADEMIC_CRITICAL'")
+    expect(books).toContain('validate: args.validate')
+    expect(knowledge).toContain("taskType: 'BOOK_KNOWLEDGE_FALLBACK'")
+    expect(knowledge).toContain("taskType: 'BOOK_METADATA_BLUEPRINT'")
+    expect(knowledge).toContain('hasBalancedKnowledgeShape(normalized)')
+    expect(knowledge).toContain("sourceNote: 'خطة معرفة مبنية على توصيف الكتاب لا على قراءة نصه الكامل'")
+    expect(knowledge).toContain("buildMode = 'TEXT_DETERMINISTIC'")
+    expect(knowledge).toContain("buildMode = 'METADATA'")
+  })
+
   test('a valid profile becomes ordered overrides', () => {
     const out = buildStageRoutingOverrides(stageResolution({
       provider: 'GEMINI',

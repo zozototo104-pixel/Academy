@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
-import { getZAI, chatWithRetry } from '@/lib/ai'
+import { textAiCompleteJson } from '@/lib/text-ai'
 import { requireStudentAiSupervisorAccess } from '@/lib/student-ai-access'
 import { buildSupervisorContext, mergeContext } from '@/lib/supervisor-ai'
 import { summarizeDigestForPrompt } from '@/lib/thesis-context'
@@ -25,17 +25,9 @@ export async function POST(req: NextRequest) {
     const reviewText = readyThesis
       ? `Digest البحث الكامل:\n${summarizeDigestForPrompt(readyThesis.digest, 7000)}\n\nملخصات المقاطع:\n${readyThesis.chunks.map((chunk) => `#${chunk.index}: ${chunk.summary || ''}`).join('\n').slice(0, 6000)}`
       : `النص:\n"""${draft.slice(0, 9000)}"""`
-    const zai = await getZAI()
-
-    const raw = await chatWithRetry(zai, [
-      {
-        role: 'assistant',
-        content:
-          'أنت مشرف أكاديمي محترف يراجع مسودات أبحاث التخرج لطلاب الدراسات العليا. تراجع بدقة علمية وبنّاءة بالعربية الفصحى، وترجع JSON فقط.',
-      },
-      {
-        role: 'user',
-        content: `${ragContext ? mergeContext(ragContext) + '\n\n' : ''}راجع مسودة بحث التخرج التالية وقدم تقييماً علمياً معمقاً:
+    const raw = await textAiCompleteJson({
+      system: 'أنت مشرف أكاديمي محترف يراجع مسودات أبحاث التخرج لطلاب الدراسات العليا. تراجع بدقة علمية وبنّاءة بالعربية الفصحى، وترجع JSON فقط.',
+      history: [{ role: 'user', text: `${ragContext ? mergeContext(ragContext) + '\n\n' : ''}راجع مسودة بحث التخرج التالية وقدم تقييماً علمياً معمقاً:
 العنوان: ${String(readyThesis?.title || title || 'غير محدد').slice(0, 200)}
 ${reviewText}
 
@@ -51,9 +43,14 @@ ${reviewText}
   "methodology": "<تعليق مفصل على المنهجية وكيفية تقويتها 2-3 جمل>",
   "sources": "<تعليق على الأدبيات والتوثيق والتوصية بمراجع معينة من مجال البحث 2 جمل>",
   "nextSteps": ["<خطوة عملية 1 قبل المناقشة>", "<2>", "<3>"]
-}`,
-      },
-    ])
+}` }],
+      purpose: 'ANALYSIS',
+      taskLevel: 'ACADEMIC_DRAFT',
+      taskType: 'THESIS_REVIEW',
+      userId: user.id,
+      temperature: 0.15,
+      maxOutputTokens: 2400,
+    })
 
     let parsed: any
     try {
@@ -68,8 +65,27 @@ ${reviewText}
     }
 
     const weights: Record<string, number> = { problem: 20, methodology: 20, literature: 15, analysis: 20, application: 10, language: 15 }
-    const scores = parsed?.scores || {}
-    const weightedScore = Object.entries(weights).reduce((sum, [key, weight]) => sum + Math.max(0, Math.min(100, Number(scores[key]) || 0)) * weight, 0) / 100
+    const scores = parsed?.scores
+    if (!scores || typeof scores !== 'object' || Array.isArray(scores)) {
+      return NextResponse.json({ error: 'لم يكتمل التحليل العلمي، أعد المحاولة.' }, { status: 502 })
+    }
+    // Accept numeric JSON strings (e.g. "85"), never missing, blank or nonnumeric marks.
+    for (const key of Object.keys(weights)) {
+      const value = scores[key]
+      if (typeof value === 'string' && /^\d+(?:\.\d+)?$/.test(value.trim())) {
+        scores[key] = Number(value.trim())
+      }
+    }
+    if (Object.keys(weights).some(
+      (key) => typeof scores[key] !== 'number' || !Number.isFinite(scores[key]) || scores[key] < 0 || scores[key] > 100
+    )) {
+      return NextResponse.json({ error: 'لم يكتمل التحليل العلمي، أعد المحاولة.' }, { status: 502 })
+    }
+    // Narrative arrays are supplementary; preserve old tolerance without inventing marks.
+    parsed.strengths = Array.isArray(parsed.strengths) ? parsed.strengths : []
+    parsed.weaknesses = Array.isArray(parsed.weaknesses) ? parsed.weaknesses : []
+    parsed.nextSteps = Array.isArray(parsed.nextSteps) ? parsed.nextSteps : []
+    const weightedScore = Object.entries(weights).reduce((sum, [key, weight]) => sum + scores[key] * weight, 0) / 100
 
     const feedback =
       `تحليل مسودة البحث «${String(readyThesis?.title || title || 'بدون عنوان')}»\n\n` +

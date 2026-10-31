@@ -7,6 +7,7 @@ import ts from 'typescript'
 const root = process.cwd()
 const sourcePath = path.join(root, 'src/components/aact/AdminExtras.tsx')
 const source = fs.readFileSync(sourcePath, 'utf8')
+const thesisReview = fs.readFileSync(path.join(root, 'src/app/api/supervisor/thesis-review/route.ts'), 'utf8')
 const thesisStart = source.indexOf('export function AdminThesisTab()')
 const financeMarker = '// ============ المالية: المدفوعات + التقارير ============'
 const financeStart = source.indexOf(financeMarker)
@@ -56,6 +57,18 @@ if (thesisFn) {
 }
 
 describe('AdminThesisTab workspace organization', () => {
+  test('thesis draft review uses routed AI and rejects incomplete rubric scores', () => {
+    expect(thesisReview).toContain('await requireStudentAiSupervisorAccess(user)')
+    expect(thesisReview).toContain('await textAiCompleteJson({')
+    expect(thesisReview).toContain("taskType: 'THESIS_REVIEW'")
+    expect(thesisReview).not.toContain('getZAI()')
+    expect(thesisReview).not.toContain('chatWithRetry')
+    expect(thesisReview).toContain('Number.isFinite(scores[key])')
+    expect(thesisReview).toContain('scores[key] * weight')
+    expect(thesisReview).toContain("kind: 'THESIS_REVIEW'")
+    expect(thesisReview).toContain('await db.chatMessage.createMany(')
+  })
+
   test('keeps AdminThesisTab bounded before the finance section', () => {
     expect(thesisStart).toBeGreaterThan(-1)
     expect(financeStart).toBeGreaterThan(thesisStart)

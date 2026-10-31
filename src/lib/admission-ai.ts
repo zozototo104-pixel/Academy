@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { getZAI, chatWithRetry } from '@/lib/ai'
+import { textAiCompleteJson } from '@/lib/text-ai'
 import { readDocumentImage, DOC_TYPE_AR, inferMimeFromFileName, isVisualFile, type ImageDocRead } from '@/lib/ocr'
 import { extractDocumentText, type ExtractedDocumentText } from '@/lib/document-extract'
 import { updateStudentAcademicMemory } from '@/lib/supervisor-ai'
@@ -1249,12 +1249,14 @@ export async function analyzeAdmission(
 
   let review: AdmissionAIReview
   try {
-    const zai = await getZAI()
-    const raw = await chatWithRetry(zai, [
-      { role: 'assistant', content: 'أنت خبير قبول أكاديمي صارم، لا ترفع النسبة إلا إذا كانت الأدلة المقروءة تثبت المتطلبات فعلاً. أرجع JSON صالحاً فقط.' },
-      {
-        role: 'user',
-        content: `حلل طلب الالتحاق التالي. اعتمد على الأدلة المقروءة فقط، ولا تعتبر اسم الملف وحده دليلاً. إذا كانت المرفقات شعارات أو صوراً غير وثائقية أو غير قابلة للقراءة فالنسبة يجب أن تكون منخفضة جداً ولا تتجاوز 20%.
+    const raw = await textAiCompleteJson({
+      system: 'أنت خبير قبول أكاديمي صارم، لا ترفع النسبة إلا إذا كانت الأدلة المقروءة تثبت المتطلبات فعلاً. أرجع JSON صالحاً فقط.',
+      purpose: 'ANALYSIS',
+      routerPolicy: 'primary_first',
+      excludeProviders: ['ZAI'], // التقييم النهائي لا يحتاج مفتاح Z-AI.
+      temperature: 0.1,
+      maxOutputTokens: 2400,
+      history: [{ role: 'user', text: `حلل طلب الالتحاق التالي. اعتمد على الأدلة المقروءة فقط، ولا تعتبر اسم الملف وحده دليلاً. إذا كانت المرفقات شعارات أو صوراً غير وثائقية أو غير قابلة للقراءة فالنسبة يجب أن تكون منخفضة جداً ولا تتجاوز 20%.
 
 ${evidence}
 
@@ -1270,8 +1272,8 @@ ${evidence}
 
 أجب بصيغة JSON فقط:
 {"verdict":"RECOMMEND_APPROVE|NEEDS_CLARIFICATION|RECOMMEND_REJECT|INSUFFICIENT_DATA","fitScore":<0-100>,"summaryForAdmin":"<ملخص 2-4 جمل للإدارة>","findings":[{"severity":"HIGH|MEDIUM|LOW","title":"<عنوان>","detail":"<تفصيل>"}],"strengths":["<نقطة قوة حقيقية مثبتة فقط>"],"recommendedAction":"<توصية تنفيذية واحدة بالعربية>","requiredFromStudent":"<ما يُطلب من الطالب استكماله أو توضيحه إن وجد — أو سلسلة فارغة>"}`,
-      },
-    ])
+ }],
+    })
 
     const jsonMatch = raw.match(/\{[\s\S]*\}/)
     if (!jsonMatch) throw new Error('NO_JSON')
