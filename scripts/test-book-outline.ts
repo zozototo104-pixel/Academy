@@ -1,4 +1,5 @@
-import { planBookOutline, detectOriginalSourceHeadings, outlineSubheadingMarkers, sourceBoundariesFromReadChunks } from '@/lib/book-outline'
+import { planBookOutline, detectOriginalSourceHeadings, outlineSubheadingMarkers, sourceBoundariesFromReadChunks, parseAiOutlineBoundaries } from '@/lib/book-outline'
+import { readFileSync } from 'node:fs'
 
 type ChunkInput = Parameters<typeof planBookOutline>[0][number]
 
