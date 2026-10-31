@@ -834,7 +834,8 @@ export async function buildBookOutline(bookId: string, options: { reuseReadChunk
   const refined = await refineOversizedSections({ sections: draft.sections, chunks, items, chunkIds, semester: book.semester, sourceBoundaries, bookTitle: book.title, allowAi: !options.deterministicOnly })
   draft = { ...draft, sections: refined.sections, warnings: [...draft.warnings, ...refined.warnings] }
   const coverage = auditOutlineCoverage(draft.sections)
-  for (const section of coverage.review) draft.warnings.push(`تنبيه تغطية: القسم «${section.title}» يغطي ${section.pages} صفحة (صفحات ${section.pageStart}–${section.pageEnd}) — فوق حد المراجعة ${OUTLINE_SECTION_REVIEW_PAGES} صفحة؛ أعد فحص عناوين هذا النطاق قبل الاعتماد.`)
+  for (const section of coverage.review) draft.warnings.push(section.pages === null ? `تنبيه تغطية: حدود صفحات القسم «${section.title}» غير مكتملة؛ راجعها قبل الاعتماد.` : `تنبيه تغطية: القسم «${section.title}» يغطي ${section.pages} صفحة (صفحات ${section.pageStart}–${section.pageEnd}) — فوق حد المراجعة ${OUTLINE_SECTION_REVIEW_PAGES} صفحة؛ أعد فحص عناوين هذا النطاق قبل الاعتماد.`)
+  for (const gap of coverage.gaps) draft.warnings.push(`تنبيه تغطية: هناك فجوة غير مغطاة من الصفحة ${gap.pageStart} إلى ${gap.pageEnd}؛ لن يُعتمد الفهرس قبل تصحيحها.`)
   for (const section of coverage.blocked) draft.warnings.push(`تنبيه تغطية: القسم «${section.title}» يغطي ${section.pages} صفحة (صفحات ${section.pageStart}–${section.pageEnd}) — يتجاوز حد ${OUTLINE_SECTION_BLOCK_PAGES} صفحة؛ لن يُعتمد الفهرس حتى يُقسَّم هذا النطاق أو يُسجَّل تجاوز مشرف موثّق.`)
   draft.warnings.push('OUTLINE_COVERAGE:' + JSON.stringify({ maxSectionPages: coverage.maxSectionPages, review: coverage.review.map((section) => section.order), blocked: coverage.blocked.map((section) => section.order) }))
   if (missingOriginalPdf) draft.warnings.push('ملف PDF الأصلي غير متاح؛ استُخدمت المقاطع المحفوظة لفهرسة هذا الكتاب. راجع حدود الأقسام قبل الاعتماد.')
