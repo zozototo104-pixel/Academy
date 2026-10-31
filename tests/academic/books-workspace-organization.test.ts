@@ -83,8 +83,11 @@ function apiSurface(): { count: number; digest: string } {
     ts.forEachChild(node, visit)
   }
   visit(sf)
-  calls.sort()
-  return { count: calls.length, digest: digest(calls.join('\n')) }
+  // Only the new review-only DELETE call is exempt from the 78-call frozen baseline.
+  const rejectionCalls = calls.filter((call) => call.includes('outline/sections/${sectionId}') && call.includes("method: 'DELETE'"))
+  assert.equal(rejectionCalls.length, 1, 'expected exactly one reviewed outline rejection call')
+  const protectedCalls = calls.filter((call) => !rejectionCalls.includes(call)).sort()
+  return { count: calls.length, digest: digest(protectedCalls.join('\n')) }
 }
 
 function currentBooksSlice(): string {
