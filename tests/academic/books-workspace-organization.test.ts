@@ -40,7 +40,15 @@ const ORIGINAL_API_CALL_COUNT = 79 // 78 protected calls plus reviewed outline-s
 // وتعبير نداء واحد فقط تغيّر — نوع استجابة نداء إعادة التحقق نفسه (حقول التفصيل
 // الجديدة: skippedNoSource/skippedNoProvenance/skippedOcr/alreadyRechecked/verifiableRemaining)؛
 // المسار والطريقة والجسم لم تُمسّ، ولا نداء مضاف ولا محذوف.
-const ORIGINAL_API_DIGEST = '54f5a40111b0a933c8290282fb523177f6bc3697562ebe67f6c0708779a5eb14'
+// تحديث مقصود 2026-10-31 (PR #164، حارس تغطية الفهرس): العدد بقي 79،
+// وتعبير نداء واحد فقط تغيّر — نداء اعتماد الفهرس نفسه
+// (POST /api/admin/books/[id]/outline/approve) صار جسمه متغيّراً
+// (JSON.stringify(body)) بدل الثابت الفارغ، لأن المحاولة الأولى ترسل {}
+// وعند رفض الحارس (أقسام فوق 80 صفحة) تُعاد المحاولة بجسم التجاوز الموثّق
+// {overrideOversized, overrideReason} بعد تأكيد المشرف وكتابة السبب.
+// تم التحقق بمقارنة سطح النداءات مع main باستخراج الحارس نفسه:
+// 79 نداءً في النسختين، وتعبير واحد مختلف فقط، ولا نداء مضاف ولا محذوف.
+const ORIGINAL_API_DIGEST = '5f5384147c1825a9ed7272cfa56d8dc87b54915b626e19c07590c68f6ff2ed14'
 
 function parseSource() {
   return ts.createSourceFile('AdminBooks.tsx', SOURCE, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
