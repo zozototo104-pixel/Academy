@@ -2050,6 +2050,16 @@ export function AdminBooksTab() {
     }
   }
 
+  const rejectOutlineSection = async (bookId: string, sectionId: string) => {
+    try {
+      await api(`/api/admin/books/${bookId}/outline/sections/${sectionId}`, { method: 'DELETE' })
+      await loadBookOutline(bookId)
+      toast({ title: 'تم تجاهل القسم المقترح' })
+    } catch (error: any) {
+      toast({ title: 'تعذر تجاهل القسم', description: String(error?.message || error), variant: 'destructive' })
+    }
+  }
+
   const buildOutlineForBook = async (bookId: string) => {
     setOutlineBusyId(bookId)
     try {
