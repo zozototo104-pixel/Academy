@@ -223,6 +223,7 @@ function buildBookSnippetBlock(chunks: any[], knowledgeItems: any[], terms: stri
 
   for (const item of knowledgeItems) {
     if (Date.now() > deadline) return ''
+    if (isMetadataOnlyKnowledgeItem(item)) continue
     const text = [item?.title, item?.summary, item?.excerpt, item?.keywords].filter(Boolean).join(' ')
     if (!text) continue
     const score = countMatchingBookTerms([item?.book?.title, item?.sourceNote, text].filter(Boolean).join(' '), terms)
