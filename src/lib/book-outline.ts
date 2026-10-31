@@ -558,7 +558,28 @@ async function originalBookPages(bookId: string): Promise<ExtractedBookPage[]> {
   return pages
 }
 
-export async function buildBookOutline(bookId: string) {
+export function sourceBoundariesFromReadChunks(chunks: readonly Chunk[], bookTitle: string): Boundary[] {
+  // Reading has already extracted/OCRed this content. Never open the PDF again.
+  // Use one synthetic page per chunk only to apply the existing document-wide
+  // repeated-header and conservative article title filters.
+  const pages: ExtractedBookPage[] = chunks.map((chunk) => ({ page: chunk.index + 1, text: chunk.text, textProvenance: 'NATIVE_TEXT' }))
+  const headings = detectOriginalSourceHeadings(pages, bookTitle)
+  const results: Boundary[] = []
+  const seen = new Set<string>()
+  for (const heading of headings) {
+    const chunk = chunks[heading.page - 1]
+    if (!chunk) continue
+    const offset = chunk.text.indexOf(heading.rawLine)
+    if (offset < 0) continue
+    const key = chunk.index + ':' + offset
+    if (seen.has(key)) continue
+    seen.add(key)
+    results.push({ at: chunk.index, title: heading.title, startCharOffset: offset || null })
+  }
+  return results.slice(0, 100)
+}
+
+export async function buildBookOutline(bookId: string, options: { reuseReadChunks?: boolean; deterministicOnly?: boolean } = {}) {
   const book = await db.book.findUnique({ where: { id: bookId }, select: { id: true, semester: true, title: true } })
   if (!book) throw new Error('BOOK_NOT_FOUND')
   const [chunks, items] = await Promise.all([
