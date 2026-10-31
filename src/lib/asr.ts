@@ -145,14 +145,6 @@ async function transcribeWithGemini(audioBase64: string, options: TranscribeAudi
   }
 }
 
-async function transcribeWithZai(audioBase64: string) {
-  const { clean } = cleanBase64AndMime(audioBase64)
-  if (!clean) return ''
-  const zai = await getZAI()
-  const response = await zai.audio.asr.create({ file_base64: clean })
-  return String(response?.text || '').trim()
-}
-
 async function transcribeWithWhisperCompatible(audioBase64: string, mimeType: string) {
   const { clean } = cleanBase64AndMime(audioBase64, mimeType)
   if (!clean) return null
