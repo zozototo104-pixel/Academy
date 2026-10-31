@@ -2836,7 +2836,7 @@ export function AdminBooksTab() {
                             const outlineBusy = outlineUnitBusyId?.endsWith(`-${b.id}`)
                             return <div className="mt-2 rounded-lg border border-slate-200 bg-white p-2">
                               <div className="flex flex-wrap items-center justify-between gap-2">
-                                <p className="font-black text-[#0f2b46]">فهرس الكتاب — نسخة {outline.version} · {outline.source === 'HEADINGS' ? 'من العناوين' : outline.source === 'TOC' ? 'من فهرس الكتاب' : outline.source === 'SOURCE_HEADINGS' ? 'عناوين مقترحة من ملف الكتاب' : 'تقسيم ذكي مقترح'} · {outline.status === 'APPROVED' ? 'معتمد' : 'مسودة'}</p>
+                                <p className="font-black text-[#0f2b46]">فهرس الكتاب — نسخة {outline.version} · {outline.source === 'HEADINGS' ? 'من العناوين' : outline.source === 'TOC' ? 'من فهرس الكتاب' : outline.source === 'SOURCE_HEADINGS' ? 'عناوين مقترحة من النص المقروء' : outline.source === 'CHUNK_SEGMENTED' ? 'تقسيم حتمي من المقاطع — للمراجعة' : 'تقسيم ذكي مقترح'} · {outline.status === 'APPROVED' ? 'معتمد' : 'مسودة'}</p>
                                 <div className="flex flex-wrap gap-1">
                                   {outline.status !== 'APPROVED' && <Button size="sm" variant="outline" disabled={outlineBusy} onClick={() => approveBookOutline(b.id)} className="h-7 text-[10px] font-black text-emerald-700">اعتماد الفهرس</Button>}
                                 </div>
