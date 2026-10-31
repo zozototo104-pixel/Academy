@@ -249,7 +249,18 @@ function testWordFormChaptersElevenAndTwelve() {
   assert(result.sections.some((s) => s.title.includes('الثاني عشر') && s.chunkStartIndex === 2), 'الفصل الثاني عشر يجب ألا يُبتلع أو يُحسب فصلاً ثانياً مكرراً')
 }
 
+function testCoverageRejectsShortSectionsWithMissingPages() {
+  const sections = [draftSection(1, 'قسم أ', 1, 40), draftSection(2, 'قسم ب', 50, 80)]
+  const report = auditOutlineCoverage(sections)
+  assert(report.blocked.length === 0, 'كل قسم أصغر من حد المنع')
+  assert(report.gaps.length === 1 && report.gaps[0].pageStart === 41 && report.gaps[0].pageEnd === 49, 'يجب اكتشاف الصفحات 41–49 المفقودة')
+  assert(outlineApprovalGuard(sections).decision === 'BLOCK', 'لا يجوز اعتماد فجوة حتى لو لم يكن أي قسم كبيراً')
+  const incomplete = [draftSection(1, 'حدود ناقصة', 1, 40), { ...draftSection(2, 'صفحات غير معروفة', 41, 50), pageEnd: null }]
+  assert(outlineApprovalGuard(incomplete).decision === 'ALLOW_WITH_REVIEW', 'نهاية الصفحة المجهولة تستدعي مراجعة بدل تمرير صامت')
+}
+
 const tests = [
+  testCoverageRejectsShortSectionsWithMissingPages,
   testWordFormChaptersElevenAndTwelve,
   testGenericIntroductionRestoresLegacyAiFallback,
   testAiOutlineRejectsInvalidAndGenericSections,
