@@ -491,6 +491,23 @@ async function createUnitsFromApprovedOutlines(programId: string, regenerateDraf
       bookSemester: book.semester,
       regenerateDrafts,
     })
+    plans.push({ book, actions })
+  }
+  const conflicts = plans.flatMap(({ book, actions }) => actions
+    .filter((action) => action.action === 'review-overlap')
+    .map((action) => ({
+      bookId: book.id, bookTitle: book.title,
+      unitId: action.unitId, sectionTitle: action.section.title,
+      chunkStartIndex: action.section.chunkStartIndex,
+      chunkEndIndex: action.section.chunkEndIndex,
+    })))
+  if (conflicts.length) {
+    // Nothing has been written. The administrator must explicitly review
+    // affected older units; silently skipping them would report false success.
+    return { program, usedApprovedOutlines: true as const, skippedBooks, created, updated, summary, conflicts }
+  }
+
+  for (const { book, actions } of plans) {
     for (const action of actions) {
       if (action.action === 'create') {
         const unit = await db.unit.create({
