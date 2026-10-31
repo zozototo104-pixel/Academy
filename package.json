@@ -20,7 +20,7 @@
     "test:academic-ai-router": "tsx scripts/test-academic-ai-router.ts",
     "test:stage-b-sessions": "bun test tests/auth/stage-b-sessions.test.ts",
     "test:payments": "bun test tests/payments/payment-settlement.test.ts && bun test tests/payments/payments-c1.test.ts",
-    "test:pdf-arabic": "bun test tests/pdf/invoice-arabic.test.ts && bun test tests/pdf/official-arabic.test.ts && bun test tests/pdf/transcript-arabic.test.ts && bun test tests/pdf/official-routes-arabic.test.ts",
+    "test:pdf-arabic": "bun test tests/pdf/invoice-arabic.test.ts && bun test tests/pdf/official-arabic.test.ts && bun test tests/pdf/transcript-arabic.test.ts && bun test tests/pdf/official-routes-arabic.test.ts && bun test tests/pdf/official-fonts.test.ts",
     "test:representatives": "tsx scripts/test-representative-file-visibility.ts",
     "test:representative-public-card": "bun run db:generate && tsx scripts/test-representative-public-card.ts",
     "test:representative-onboarding": "bun test tests/representatives",
