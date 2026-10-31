@@ -576,7 +576,7 @@ function NotificationBell({ mobile = false }: { mobile?: boolean } = {}) {
           </svg>
         )}
         {unread > 0 && (
-          <span className="absolute -left-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#b22234] px-1 text-[10px] font-black text-white">
+          <span className={mobile ? 'flex h-5 min-w-5 items-center justify-center rounded-full bg-[#b22234] px-1 text-[10px] font-black text-white' : 'absolute -left-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#b22234] px-1 text-[10px] font-black text-white'}>
             {unread > 9 ? '9+' : unread}
           </span>
         )}
