@@ -742,22 +742,29 @@ async function completeJsonWithFallback(args: {
     errors.push('Gemini: GEMINI_NOT_CONFIGURED')
   }
 
+  // Preserve the strict academic flow above. Noncritical fallback uses the
+  // configured router, never the unconfigured Z-AI development SDK.
   try {
-    const zai = await getZAI()
-    const text = await withTimeout(chatWithRetry(
-      zai,
-      [
-        { role: 'assistant', content: args.system },
-        { role: 'user', content: args.prompt },
-      ],
-      args.retries ?? 3
-    ), timeoutMs, `${args.label}_ZAI`)
-    args.validate?.(text, { provider: 'ZAI', model: 'z-ai-web-dev-sdk' })
-    return text
+    return await withTimeout(textAiCompleteJson({
+      system: args.system,
+      history: [{ role: 'user', text: args.prompt }],
+      purpose: 'GENERATION',
+      taskLevel: args.taskLevel || 'ACADEMIC_DRAFT',
+      taskType: 'BOOK_GENERATION_FALLBACK',
+      temperature: args.temperature ?? 0.25,
+      maxOutputTokens: args.maxOutputTokens ?? 4096,
+      deadlineMs: args.deadlineMs,
+      stickyScope: args.stickyScope,
+      ...(args.preferredModels ? { preferredModels: args.preferredModels } : {}),
+      ...(args.preferredProviders ? { preferredProviders: args.preferredProviders } : {}),
+      ...(args.restrictToModels ? { restrictToModels: args.restrictToModels } : {}),
+      ...(args.routerPolicy ? { routerPolicy: args.routerPolicy } : {}),
+      validate: args.validate,
+    }), timeoutMs, `${args.label}_Router`)
   } catch (e: any) {
     const msg = String(e?.message || e).slice(0, 220)
-    errors.push(`ZAI: ${msg}`)
-    console.error(`${args.label} ZAI failed:`, msg)
+    errors.push(`Router: ${msg}`)
+    console.error(`${args.label} router fallback failed:`, msg)
   }
 
   throw new Error(`${args.label} AI failed — ${errors.join(' | ')}`)
