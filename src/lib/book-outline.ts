@@ -407,7 +407,7 @@ export function planBookOutline(chunks: readonly Chunk[], items: readonly Item[]
   const distinct = new Set(headings.map((heading) => normalizeHeading(heading.title))).size
   const sourceHeadings = aiBoundaries.filter((entry) => usableOutlineTitle(entry.title, bookTitle))
   const distinctSource = new Set(sourceHeadings.map((entry) => normalizeHeading(entry.title))).size
-  const reliableSource = sourceHeadings.length >= 2 && distinctSource >= 2
+  const reliableSource = (sourceHeadings.length >= 2 && distinctSource >= 2) || (chunks.length === 1 && sourceHeadings.length === 1)
   // Keep the legacy chapter/TOC/text precedence. Prefer PDF headings only when
   // at least two different, substantive source titles are actually detected.
   const source = preferSourceBoundaries && reliableSource ? 'SOURCE_HEADINGS' : headings.length >= 2 && distinct / headings.length >= 0.6 ? 'HEADINGS' : toc.length >= 2 ? 'TOC' : fromText.length > 0 ? 'HEADINGS' : reliableSource ? 'SOURCE_HEADINGS' : 'AI_SEGMENTED'
