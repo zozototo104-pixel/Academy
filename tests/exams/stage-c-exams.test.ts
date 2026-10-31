@@ -8,6 +8,7 @@ import { resolve } from 'node:path'
 const source = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8')
 const unitDetail = source('src/app/api/exam/detail/route.ts')
 const unitSubmit = source('src/app/api/exam/submit/route.ts')
+const examAi = source('src/lib/ai.ts')
 const programDetail = source('src/app/api/program-exam/detail/route.ts')
 const programStart = source('src/app/api/program-exam/start/route.ts')
 const programSubmit = source('src/app/api/program-exam/submit/route.ts')
