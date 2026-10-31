@@ -66,11 +66,25 @@ ${reviewText}
 
     const weights: Record<string, number> = { problem: 20, methodology: 20, literature: 15, analysis: 20, application: 10, language: 15 }
     const scores = parsed?.scores
-    if (!scores || typeof scores !== 'object' || Object.keys(weights).some(
-      (key) => typeof scores[key] !== 'number' || !Number.isFinite(scores[key]) || scores[key] < 0 || scores[key] > 100
-    ) || !Array.isArray(parsed.strengths) || !Array.isArray(parsed.weaknesses) || !Array.isArray(parsed.nextSteps)) {
+    if (!scores || typeof scores !== 'object' || Array.isArray(scores)) {
       return NextResponse.json({ error: 'لم يكتمل التحليل العلمي، أعد المحاولة.' }, { status: 502 })
     }
+    // Accept numeric JSON strings (e.g. "85"), never missing, blank or nonnumeric marks.
+    for (const key of Object.keys(weights)) {
+      const value = scores[key]
+      if (typeof value === 'string' && /^\\d+(?:\\.\\d+)?$/.test(value.trim())) {
+        scores[key] = Number(value.trim())
+      }
+    }
+    if (Object.keys(weights).some(
+      (key) => typeof scores[key] !== 'number' || !Number.isFinite(scores[key]) || scores[key] < 0 || scores[key] > 100
+    )) {
+      return NextResponse.json({ error: 'لم يكتمل التحليل العلمي، أعد المحاولة.' }, { status: 502 })
+    }
+    // Narrative arrays are supplementary; preserve old tolerance without inventing marks.
+    parsed.strengths = Array.isArray(parsed.strengths) ? parsed.strengths : []
+    parsed.weaknesses = Array.isArray(parsed.weaknesses) ? parsed.weaknesses : []
+    parsed.nextSteps = Array.isArray(parsed.nextSteps) ? parsed.nextSteps : []
     const weightedScore = Object.entries(weights).reduce((sum, [key, weight]) => sum + scores[key] * weight, 0) / 100
 
     const feedback =
