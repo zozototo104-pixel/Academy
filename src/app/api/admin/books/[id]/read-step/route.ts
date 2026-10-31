@@ -53,7 +53,25 @@ export async function POST(_request: NextRequest, context: Context) {
     } else {
       result = { phase: job.phase }
     }
-    const current = await db.bookReadJob.findUnique({ where: { id: job.id }, select: { status: true } })
+    const current = await db.bookReadJob.findUnique({ where: { id: job.id }, select: { status: true, phase: true, createdAt: true } })
+    if (job.phase !== 'ENRICH' && current?.status === 'COMPLETED' && current.phase === 'DONE' && Date.now() < deadlineMs - 15_000) {
+      // A source-backed draft is created from persisted chunks; all OCR work
+      // was already performed during extraction. Never regenerate knowledge.
+      try {
+        const alreadyBuilt = await db.bookOutline.findFirst({
+          where: { bookId: id, createdAt: { gte: current.createdAt } },
+          select: { id: true },
+        })
+        if (!alreadyBuilt) {
+          const draft = await buildBookOutline(id, { reuseReadChunks: true, deterministicOnly: true })
+          result = { reading: result, outline: { id: draft.id, version: draft.version, sections: draft.sections.length, status: draft.status } }
+        }
+      } catch (outlineError) {
+        // Successful reading must remain successful if outline indexing fails.
+        console.error('Auto outline draft failed after book reading:', outlineError)
+        result = { reading: result, outlineWarning: 'تعذر إنشاء مسودة الفهرس تلقائياً؛ يمكنك إعادة المحاولة من زر بناء الفهرس' }
+      }
+    }
     const updated = current?.status && ['COMPLETED', 'FAILED', 'PAUSED'].includes(current.status)
       ? await db.bookReadJob.findUniqueOrThrow({ where: { id: job.id } })
       : await db.bookReadJob.update({ where: { id: job.id }, data: { status: 'QUEUED', lockedUntil: null, lastError: null, retryAt: null } })
