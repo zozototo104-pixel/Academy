@@ -10,7 +10,7 @@ mock.module('@/lib/db', () => ({
   },
 }))
 
-const { __testVisionOrderForTests, __testVisionSupportForTests } = await import('../../src/lib/text-ai')
+const { __testVisionOrderForTests, __testVisionSupportForTests, modelAllowedForPurpose } = await import('../../src/lib/text-ai')
 
 describe('APINEX in the vision queue (Haris ruling 2026-10-30)', () => {
   test('vision order pins GEMINI first and APINEX second, rest keep relative order', () => {
