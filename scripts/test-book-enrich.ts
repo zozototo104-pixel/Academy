@@ -16,8 +16,9 @@ async function scenario(existingTitles: string[], produced: BookKnowledgeCandida
     save: async (_chunk, items) => {
       // Model append-only createMany: no removal or modification of previously persisted rows.
       added = items.length
-      if (items.length) { persisted.push(...items.map(({ title, summary }) => ({ title, summary }))); passes++ }
-      else saturatedAt = new Date()
+      if (items.length) persisted.push(...items.map(({ title, summary }) => ({ title, summary })))
+      if (persisted.length >= 20) saturatedAt = new Date()
+      else passes++
     },
     finish: async () => {},
   }
