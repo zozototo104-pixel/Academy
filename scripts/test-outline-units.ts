@@ -141,7 +141,43 @@ function testUnmatchedSectionStillCreatesAndUnitConsumedOnce() {
   assert(twice.filter((a) => a.action === 'relink-draft' || a.action === 'update-draft' || a.action === 'skip-draft').length === 1, 'الوحدة الواحدة لا تُستهلك إلا مرة واحدة')
 }
 
+function testSplitOldGiantBlocksEveryOverlappingNewUnit() {
+  const sections = [
+    { id: 'v2-a', title: 'استراتيجيات التخطيط', level: 1, semester: 1, chunkStartIndex: 5, chunkEndIndex: 10, pageStart: 51, pageEnd: 100 },
+    { id: 'v2-b', title: 'الموارد البشرية', level: 1, semester: 1, chunkStartIndex: 11, chunkEndIndex: 16, pageStart: 101, pageEnd: 160 },
+    { id: 'v2-c', title: 'قياس الأداء', level: 1, semester: 1, chunkStartIndex: 17, chunkEndIndex: 28, pageStart: 161, pageEnd: 297 },
+  ]
+  const existingUnits = [{ id: 'old-giant', outlineSectionId: 'v1-giant', status: 'DRAFT', order: 17, semester: 1, chunkStartIndex: 5, chunkEndIndex: 28 }]
+  const actions = planOutlineUnitsFromSections({ sections, existingUnits, currentMaxOrderBySemester: { 1: 17 }, bookSemester: 1 })
+  assert(actions.length === 3, 'يجب فحص الأقسام الثلاثة')
+  assert(actions.every((action) => action.action === 'review-overlap'), 'الوحدة القديمة الكبيرة تمنع إنشاء أي قسم جديد متداخل معها، لا الأول فقط')
+  assert(!actions.some((action) => action.action === 'create'), 'ممنوع إعادة إنشاء وحدات فوق نطاق الوحدة 17')
+}
+
+function testSmallIntersectionAlsoRequiresReview() {
+  const actions = planOutlineUnitsFromSections({
+    sections: [{ id: 'new', title: 'وحدة جديدة', level: 1, chunkStartIndex: 15, chunkEndIndex: 24, pageStart: 150, pageEnd: 240 }],
+    existingUnits: [{ id: 'existing', outlineSectionId: 'old', status: 'APPROVED', order: 1, semester: 1, chunkStartIndex: 10, chunkEndIndex: 15 }],
+    currentMaxOrderBySemester: { 1: 1 },
+  })
+  assert(actions.length === 1 && actions[0].action === 'review-overlap', 'حتى اشتراك مقطع واحد مع وحدة معتمدة يمنع إنشاء نسخة متداخلة')
+}
+
+function testBothUnitCreationEndpointsBlockOverlaps() {
+  const fs = require('node:fs') as typeof import('node:fs')
+  const primary = fs.readFileSync('src/app/api/admin/program-units/suggest/route.ts', 'utf8')
+  const perBook = fs.readFileSync('src/app/api/admin/books/[id]/outline/units/route.ts', 'utf8')
+  assert(primary.includes("code: 'OUTLINE_UNIT_OVERLAP_REVIEW_REQUIRED'"), 'زر توليد الوحدات الأساسي يجب أن يمنع التداخل قبل الحفظ')
+  assert(primary.includes('const plans: Array<'), 'المسار الأساسي يجب أن يجمع خطة الكتب كاملة قبل الكتابة')
+  assert(primary.includes('db.bookOutlineSection.findMany'), 'يجب تحميل أقسام الفهارس التاريخية')
+  assert(primary.includes("action.action === 'relink-draft'"), 'إعادة الربط الآمن يجب أن تكون موصولة بالمسار الأساسي')
+  assert(perBook.includes("code: 'OUTLINE_UNIT_OVERLAP_REVIEW_REQUIRED'"), 'المسار الفردي يجب أن يمنع التداخل أيضاً')
+}
+
 const tests = [
+  testSplitOldGiantBlocksEveryOverlappingNewUnit,
+  testSmallIntersectionAlsoRequiresReview,
+  testBothUnitCreationEndpointsBlockOverlaps,
   testSummaryFallbackAndProviderClassification,
   testApprovedUnitNotUpdatedOnRegenerate,
   testUnitContentRejectsOutsideChunkRange,
