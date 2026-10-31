@@ -29,7 +29,8 @@ async function scenario(existingTitles: string[], produced: BookKnowledgeCandida
 async function main() {
   const duplicate = await scenario([candidate.title], [candidate])
   assert.equal(duplicate.added, 0, 'same-chunk Jaccard duplicate rejected')
-  assert.equal(duplicate.saturated, true, 'zero new items saturates the chunk')
+  assert.equal(duplicate.saturated, false, 'one zero-acceptance round must not saturate')
+  assert.equal(duplicate.passes, 2, 'zero-acceptance round counts toward the three-round cap')
   assert.deepEqual(duplicate.persisted.map((item) => item.title), [candidate.title], 'existing item never deleted')
 
   const accepted = await scenario(['معلومة قديمة'], [candidate])
