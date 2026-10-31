@@ -498,7 +498,7 @@ function projectSourceHeadings(headings: readonly SourceHeading[], chunks: reado
     const positionKey = candidate.at + ':' + (candidate.startCharOffset ?? 0)
     if (used.has(positionKey)) continue
     used.add(positionKey)
-    projected.push(candidate)
+    projected.push({ ...candidate, verifiedHeading: true })
   }
   return projected.slice(0, 100)
 }
