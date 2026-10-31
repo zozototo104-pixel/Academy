@@ -371,8 +371,8 @@ interface Notif {
   link?: string
 }
 
-function NotificationBell() {
-  const { user, navigate } = useAppStore()
+function NotificationBell({ mobile = false }: { mobile?: boolean } = {}) {
+  const { user, navigate, setMobileMenuOpen } = useAppStore()
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState<Notif[]>([])
   const [unread, setUnread] = useState(0)
