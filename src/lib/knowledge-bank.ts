@@ -1175,6 +1175,7 @@ function prepareKnowledgeRows(programId: string, bookId: string | null, items: K
       keywords: JSON.stringify(keywords),
       importance: safeImportance(item.importance),
       sourceNote: item.sourceNote ? cleanText(item.sourceNote, 400) : null,
+      textProvenance: item.textProvenance === 'METADATA_ONLY' ? 'METADATA_ONLY' : null,
     }
   }).filter(Boolean) as any[]
 
