@@ -643,11 +643,17 @@ export async function buildBookOutline(bookId: string, options: { reuseReadChunk
   if (draft.source === 'AI_SEGMENTED' && !options.deterministicOnly) {
     const byChunk = new Map<string, Item[]>()
     for (const item of items) if (item.chunkId) byChunk.set(item.chunkId, [...(byChunk.get(item.chunkId) || []), item])
-    const evidence = chunks.map((chunk) => ({ index: chunk.index, items: (byChunk.get(chunk.id) || []).slice(0, 8).map((item) => ({ title: item.title.slice(0, 100), summary: item.summary.slice(0, 180) })) }))
-    const raw = await geminiCompleteJson({ system: 'قسّم الكتاب إلى أقسام متتابعة اعتماداً على عناوين وملخصات عناصر المعرفة فقط. أرجع JSON فقط.', history: [{ role: 'user', text: `حدد 4 إلى 16 بداية قسم مع عنوان، بصيغة {"sections":[{"at":0,"title":"..."}]}. يجب استخدام index موجود فقط. البيانات: ${JSON.stringify(evidence)}` }], taskLevel: 'ACADEMIC_DRAFT', temperature: 0.1, maxOutputTokens: 3000, deadlineMs: Date.now() + 180_000 })
-    const parsed = JSON.parse(raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim())
-    const boundaries: Boundary[] = Array.isArray(parsed?.sections) ? parsed.sections.filter((entry: any) => Number.isInteger(entry.at) && clean(entry.title)).map((entry: any) => ({ at: entry.at, title: clean(entry.title), startCharOffset: null })) : []
+    const evidence = chunks.map((chunk) => ({
+      index: chunk.index,
+      pageStart: chunk.pageStart,
+      pageEnd: chunk.pageEnd,
+      excerpt: chunk.text.slice(0, 350),
+      items: (byChunk.get(chunk.id) || []).slice(0, 8).map((item) => ({ title: item.title.slice(0, 100), summary: item.summary.slice(0, 180) })),
+    }))
+    const raw = await geminiCompleteJson({ system: 'قسّم الكتاب إلى أقسام موضوعية متتابعة اعتماداً حصراً على مقتطفات النص المحفوظ وعناوين وملخصات المعرفة. احترم ترتيب الصفحات، ولا تخترع فصولاً لم تظهر في الأدلة. امنع العناوين العامة مثل مقدمة الكتاب أو تابع أو عنوان الكتاب المكرر. أرجع JSON فقط.', history: [{ role: 'user', text: `اقترح من 2 إلى 16 بداية قسم (أو قسماً واحداً إذا كان هناك مقطع واحد) بعناوين موضوعية محددة مستندة إلى الأدلة، بصيغة {"sections":[{"at":0,"title":"عنوان موضوعي"}]}. استخدم index من البيانات فقط، ورتّب الأقسام وفق ظهورها في النص. البيانات: ${JSON.stringify(evidence)}` }], taskLevel: 'ACADEMIC_DRAFT', temperature: 0.1, maxOutputTokens: 3000, deadlineMs: Date.now() + 180_000 })
+    const boundaries = parseAiOutlineBoundaries(raw, chunks, book.title)
     draft = { ...planBookOutline(chunks, items, chunkIds, book.semester, boundaries, book.title), source: 'AI_SEGMENTED' }
+    draft.warnings.push('هذه عناوين موضوعية مقترحة من نص الكتاب والمعرفة المستخرجة؛ راجعها قبل الاعتماد.')
   }
   if (options.reuseReadChunks && draft.source === 'AI_SEGMENTED' && options.deterministicOnly) {
     draft = { ...draft, source: 'CHUNK_SEGMENTED' }
