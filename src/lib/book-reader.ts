@@ -20,7 +20,7 @@ export function nextExtractionPage(pagesDone: number, totalPages: number): numbe
   return pagesDone < totalPages ? pagesDone + 1 : null
 }
 function heading(text: string): string | null {
-  return text.split('\n').map((line) => line.trim()).find((line) => /^(?:الفصل|الباب|المبحث|المطلب|Chapter|Part)\s+\S+/i.test(line))?.slice(0, 240) || null
+  return text.split(/\r?\n|\r/).map((line) => line.trim()).find((line) => /^(?:الفصل|الباب|الوحدة|المبحث|المطلب|Chapter|Part|Unit)\s+\S+/i.test(line))?.slice(0, 240) || null
 }
 export function planBookChunks(pages: readonly ExtractedBookPage[], minChars = 2500, maxChars = 4000): PlannedBookChunk[] {
   const chunks: PlannedBookChunk[] = []
@@ -32,17 +32,21 @@ export function planBookChunks(pages: readonly ExtractedBookPage[], minChars = 2
     const value = text.trim()
     chunks.push({ index: chunks.length, pageStart: start, pageEnd: end, headingPath, text: value, charCount: value.length, textProvenance: provenance, contentHash: createHash('sha256').update(value).digest('hex') })
     text = ''
+    headingPath = null
   }
   for (const page of pages) {
-    const sentences = page.text.match(/[^.!؟。\n]+(?:[.!؟。]+|$)/gu) || []
-    for (const sentence of sentences) {
-      const part = sentence.trim()
+    // Keep PDF line breaks: outline extraction identifies headings by line.
+    // Each page (including middle pages of a chunk) can supply its heading.
+    const pageHeading = heading(page.text)
+    for (const line of page.text.split(/\r?\n|\r/)) {
+      const part = line.trim()
       if (!part) continue
       if (text && (text.length + part.length + 1 > maxChars || provenance !== page.textProvenance)) flush()
-      if (!text) { start = page.page; provenance = page.textProvenance; headingPath = heading(page.text) }
+      if (!text) { start = page.page; provenance = page.textProvenance }
+      if (!headingPath && pageHeading) headingPath = pageHeading
       end = page.page
-      text += (text ? ' ' : '') + part
-      // Preserve unusually long sentences intact instead of cutting evidence.
+      text += (text ? '\n' : '') + part
+      // Keep long source lines intact rather than severing evidence excerpts.
       if (text.length >= maxChars) flush()
     }
   }
