@@ -71,7 +71,7 @@ export async function POST(req: NextRequest, context: Context) {
       acc[semester] = Math.max(acc[semester] || 0, Number(unit.order || 0))
       return acc
     }, {})
-    const actions = planOutlineUnitsFromSections({ sections, existingUnits: plannerUnits, currentMaxOrderBySemester, bookSemester: book.semester, regenerateDrafts })
+    const actions = planOutlineUnitsFromSections({ sections, existingUnits, currentMaxOrderBySemester, bookSemester: book.semester, regenerateDrafts })
     const conflicts = actions.filter((action) => action.action === 'review-overlap').map((action) => ({
       unitId: action.unitId, sectionTitle: action.section.title,
       chunkStartIndex: action.section.chunkStartIndex,
