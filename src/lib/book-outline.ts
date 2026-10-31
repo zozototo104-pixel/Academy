@@ -503,6 +503,31 @@ function projectSourceHeadings(headings: readonly SourceHeading[], chunks: reado
   return projected.slice(0, 100)
 }
 
+export type OutlineSubheadingMarker = { sectionOrder: number; title: string; page: number; chunkIndex: number; charOffset: number | null }
+
+export function outlineSubheadingMarkers(pages: readonly ExtractedBookPage[], chunks: readonly Chunk[], sections: readonly OutlineSectionDraft[]): OutlineSubheadingMarker[] {
+  const markers: OutlineSubheadingMarker[] = []
+  const seen = new Set<string>()
+  for (const page of pages) {
+    for (const line of page.text.split(/\r?\n|\r/)) {
+      const title = line.trim()
+      if (!subordinateHeading.test(normalizeOutlineText(title))) continue
+      const possibleChunks = chunks.filter((chunk) => chunk.pageStart <= page.page && chunk.pageEnd >= page.page)
+      const found = possibleChunks.map((chunk) => ({ chunk, offset: chunk.text.indexOf(title) })).find((entry) => entry.offset >= 0)
+      const candidates = sections.filter((section) => section.chunkStartIndex <= (found?.chunk.index ?? possibleChunks[0]?.index ?? Number.MAX_SAFE_INTEGER)
+        && section.chunkEndIndex >= (found?.chunk.index ?? possibleChunks[0]?.index ?? -1)
+        && (!found || section.chunkStartIndex !== found.chunk.index || (section.startCharOffset ?? 0) <= found.offset))
+      const section = candidates.sort((a, b) => b.chunkStartIndex - a.chunkStartIndex || (b.startCharOffset ?? 0) - (a.startCharOffset ?? 0))[0]
+      if (!section) continue
+      const key = section.order + ':' + page.page + ':' + normalizeHeading(title)
+      if (seen.has(key)) continue
+      seen.add(key)
+      markers.push({ sectionOrder: section.order, title, page: page.page, chunkIndex: found?.chunk.index ?? possibleChunks[0]?.index ?? section.chunkStartIndex, charOffset: found?.offset ?? null })
+    }
+  }
+  return markers.slice(0, 250)
+}
+
 async function originalBookPages(bookId: string): Promise<ExtractedBookPage[]> {
   const book = await db.book.findUnique({ where: { id: bookId }, select: { data: true, storageProvider: true, storageKey: true, fileUrl: true, mimeType: true } })
   if (!book) throw new Error('BOOK_NOT_FOUND')
