@@ -390,7 +390,7 @@ export function debugBookOutlineChunks(chunks: readonly Chunk[]): BookOutlineDeb
   })
 }
 
-export function planBookOutline(chunks: readonly Chunk[], items: readonly Item[], chunkIds: ReadonlyMap<number, string>, semester: number | null, aiBoundaries: readonly Boundary[] = [], bookTitle = '') {
+export function planBookOutline(chunks: readonly Chunk[], items: readonly Item[], chunkIds: ReadonlyMap<number, string>, semester: number | null, aiBoundaries: readonly Boundary[] = [], bookTitle = '', preferSourceBoundaries = false) {
   const headings = headingsFromChunks(chunks, bookTitle)
   const toc = tocFromChunks(chunks)
   const tocNames = tocNameMap(chunks)
