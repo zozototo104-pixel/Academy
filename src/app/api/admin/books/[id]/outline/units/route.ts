@@ -63,9 +63,9 @@ export async function POST(req: NextRequest, context: Context) {
       }),
       db.unit.findMany({ where: { programId: book.programId }, select: { semester: true, order: true } }),
     ])
-    // Range matching is only meaningful inside one book (chunk indexes are
-    // per-book); units of other books in the program stay id-match-only.
-    const plannerUnits = existingUnits.map((unit) => unit.sourceBookId === book.id ? unit : { ...unit, chunkStartIndex: null, chunkEndIndex: null })
+    // Both query branches are book-scoped: a sourceBookId match or a
+    // historical outline section of this book. Legacy null sourceBookIds
+    // are therefore safe for per-book chunk-range matching.
     const currentMaxOrderBySemester = allUnits.reduce<Record<number, number>>((acc, unit) => {
       const semester = Number(unit.semester || 1)
       acc[semester] = Math.max(acc[semester] || 0, Number(unit.order || 0))
