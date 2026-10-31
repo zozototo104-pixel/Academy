@@ -50,14 +50,15 @@ export async function POST(req: NextRequest, context: Context) {
       pageStart: section.pageStart,
       pageEnd: section.pageEnd,
     }))
-    const sectionIds = sections.map((section) => section.id)
+    // Include all historical outline sections, including legacy units that
+    // still have a section ID but no sourceBookId recorded.
+    const historicalSectionIds = (await db.bookOutlineSection.findMany({
+      where: { outline: { bookId: book.id } },
+      select: { id: true },
+    })).map((section) => section.id)
     const [existingUnits, allUnits] = await Promise.all([
-      // Load this book's units from EVERY outline version, not only units
-      // linked to the current section ids: a rebuilt outline mints new
-      // section ids, and without the older units in view the planner would
-      // create a duplicate unit for every already-covered range.
       db.unit.findMany({
-        where: { programId: book.programId, OR: [{ outlineSectionId: { in: sectionIds } }, { sourceBookId: book.id }] },
+        where: { programId: book.programId, OR: [{ outlineSectionId: { in: historicalSectionIds } }, { sourceBookId: book.id }] },
         select: { id: true, outlineSectionId: true, status: true, order: true, semester: true, generationVersion: true, chunkStartIndex: true, chunkEndIndex: true, sourceBookId: true },
       }),
       db.unit.findMany({ where: { programId: book.programId }, select: { semester: true, order: true } }),
