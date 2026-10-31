@@ -16,6 +16,7 @@ export interface KnowledgeItemDraft {
   importance?: number
   semester?: number | null
   sourceNote?: string | null
+  textProvenance?: 'METADATA_ONLY' | null
 }
 
 export interface KnowledgeBuildResult {
