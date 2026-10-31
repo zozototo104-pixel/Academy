@@ -65,8 +65,13 @@ ${reviewText}
     }
 
     const weights: Record<string, number> = { problem: 20, methodology: 20, literature: 15, analysis: 20, application: 10, language: 15 }
-    const scores = parsed?.scores || {}
-    const weightedScore = Object.entries(weights).reduce((sum, [key, weight]) => sum + Math.max(0, Math.min(100, Number(scores[key]) || 0)) * weight, 0) / 100
+    const scores = parsed?.scores
+    if (!scores || typeof scores !== 'object' || Object.keys(weights).some(
+      (key) => typeof scores[key] !== 'number' || !Number.isFinite(scores[key]) || scores[key] < 0 || scores[key] > 100
+    ) || !Array.isArray(parsed.strengths) || !Array.isArray(parsed.weaknesses) || !Array.isArray(parsed.nextSteps)) {
+      return NextResponse.json({ error: 'لم يكتمل التحليل العلمي، أعد المحاولة.' }, { status: 502 })
+    }
+    const weightedScore = Object.entries(weights).reduce((sum, [key, weight]) => sum + scores[key] * weight, 0) / 100
 
     const feedback =
       `تحليل مسودة البحث «${String(readyThesis?.title || title || 'بدون عنوان')}»\n\n` +
