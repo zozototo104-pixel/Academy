@@ -608,7 +608,7 @@ export async function buildBookOutline(bookId: string, options: { reuseReadChunk
     }
   }
   let draft = planBookOutline(chunks, items, chunkIds, book.semester, sourceBoundaries, book.title)
-  if (draft.source === 'AI_SEGMENTED') {
+  if (draft.source === 'AI_SEGMENTED' && !options.deterministicOnly) {
     const byChunk = new Map<string, Item[]>()
     for (const item of items) if (item.chunkId) byChunk.set(item.chunkId, [...(byChunk.get(item.chunkId) || []), item])
     const evidence = chunks.map((chunk) => ({ index: chunk.index, items: (byChunk.get(chunk.id) || []).slice(0, 8).map((item) => ({ title: item.title.slice(0, 100), summary: item.summary.slice(0, 180) })) }))
