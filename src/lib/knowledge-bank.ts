@@ -716,6 +716,7 @@ function deterministicKnowledgeItems(
       importance: 40,
       semester: semester ?? null,
       sourceNote: 'مبني على بيانات الكتاب بعد تعذر استخراج نص أكاديمي نظيف',
+      textProvenance: 'METADATA_ONLY',
     })
   }
   return items.slice(0, MAX_ITEMS_PER_BOOK)
