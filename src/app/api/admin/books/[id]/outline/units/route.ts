@@ -71,6 +71,18 @@ export async function POST(req: NextRequest, context: Context) {
       return acc
     }, {})
     const actions = planOutlineUnitsFromSections({ sections, existingUnits: plannerUnits, currentMaxOrderBySemester, bookSemester: book.semester, regenerateDrafts })
+    const conflicts = actions.filter((action) => action.action === 'review-overlap').map((action) => ({
+      unitId: action.unitId, sectionTitle: action.section.title,
+      chunkStartIndex: action.section.chunkStartIndex,
+      chunkEndIndex: action.section.chunkEndIndex,
+    }))
+    if (conflicts.length) {
+      return NextResponse.json({
+        code: 'OUTLINE_UNIT_OVERLAP_REVIEW_REQUIRED',
+        error: 'تتداخل وحدات قديمة مع أقسام الفهرس الجديد؛ لم تُعدّل أي وحدة. راجع الربط قبل التوليد.',
+        conflicts,
+      }, { status: 409 })
+    }
     const changedIds: string[] = []
     for (const action of actions) {
       if (action.action === 'create') {
