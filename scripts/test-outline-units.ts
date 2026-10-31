@@ -89,12 +89,67 @@ function testSummaryFallbackAndProviderClassification() {
   assert(!providerUnavailableStatus(errorWithCode('provider returned structurally invalid output', 'VALIDATION_REJECTED')), 'VALIDATION_REJECTED يجب أن يبقى FAILED حتى لو الرسالة عامة')
 }
 
+function testRebuildDoesNotDuplicateUnits() {
+  // Outline v2 mints NEW section ids for the SAME chunk ranges v1 covered.
+  const sections = [
+    { id: 'v2-s1', title: 'الفصل الأول: المدخل', level: 1, semester: 1, chunkStartIndex: 0, chunkEndIndex: 4, pageStart: 1, pageEnd: 40 },
+    { id: 'v2-s2', title: 'الفصل الثاني: التطبيق', level: 1, semester: 1, chunkStartIndex: 5, chunkEndIndex: 9, pageStart: 41, pageEnd: 90 },
+  ]
+  const existingUnits = [
+    { id: 'unit-approved', outlineSectionId: 'v1-s1', status: 'APPROVED', order: 1, semester: 1, generationVersion: 3, chunkStartIndex: 0, chunkEndIndex: 4 },
+    { id: 'unit-draft', outlineSectionId: 'v1-s2', status: 'DRAFT', order: 2, semester: 1, generationVersion: 1, chunkStartIndex: 5, chunkEndIndex: 9 },
+  ]
+  const kept = planOutlineUnitsFromSections({ sections, existingUnits, currentMaxOrderBySemester: { 1: 2 }, bookSemester: 1, regenerateDrafts: false })
+  assert(!kept.some((a) => a.action === 'create'), 'إعادة بناء الفهرس بنفس النطاقات لا يجوز أن تنشئ أي وحدة جديدة')
+  assert(kept.some((a) => a.action === 'skip-approved' && a.unitId === 'unit-approved'), 'الوحدة المعتمدة بنفس النطاق يجب أن تُحمى كما هي')
+  assert(kept.some((a) => a.action === 'relink-draft' && a.unitId === 'unit-draft'), 'وحدة المسودة بنفس النطاق يجب أن تُعاد ربطها لا أن تُستبدل')
+  const regenerated = planOutlineUnitsFromSections({ sections, existingUnits, currentMaxOrderBySemester: { 1: 2 }, bookSemester: 1, regenerateDrafts: true })
+  assert(!regenerated.some((a) => a.action === 'create'), 'مع إعادة التوليد أيضاً لا وحدات مكررة')
+  assert(regenerated.some((a) => a.action === 'skip-approved' && a.unitId === 'unit-approved'), 'المعتمدة لا تُحدَّث حتى مع إعادة التوليد')
+  assert(regenerated.some((a) => a.action === 'update-draft' && a.unitId === 'unit-draft'), 'المسودة بنفس النطاق تُحدَّث عند طلب إعادة التوليد')
+}
+
+function testOverlapRequiresHumanReview() {
+  const actions = planOutlineUnitsFromSections({
+    sections: [{ id: 'v2-x', title: 'قسم متداخل', level: 1, semester: 1, chunkStartIndex: 3, chunkEndIndex: 7, pageStart: 30, pageEnd: 70 }],
+    existingUnits: [{ id: 'unit-old', outlineSectionId: 'v1-x', status: 'DRAFT', order: 1, semester: 1, generationVersion: 1, chunkStartIndex: 5, chunkEndIndex: 9 }],
+    currentMaxOrderBySemester: { 1: 1 },
+    bookSemester: 1,
+    regenerateDrafts: true,
+  })
+  assert(actions.length === 1 && actions[0].action === 'review-overlap', 'التداخل القوي غير التطابقي يجب أن يُرفع للمراجعة البشرية فقط')
+  assert(!actions.some((a) => a.action === 'create'), 'لا إنشاء تلقائي فوق نطاق متداخل')
+}
+
+function testUnmatchedSectionStillCreatesAndUnitConsumedOnce() {
+  const created = planOutlineUnitsFromSections({
+    sections: [{ id: 'v2-new', title: 'قسم جديد كلياً', level: 1, semester: 1, chunkStartIndex: 20, chunkEndIndex: 24, pageStart: 200, pageEnd: 240 }],
+    existingUnits: [{ id: 'unit-far', outlineSectionId: 'v1-far', status: 'DRAFT', order: 1, semester: 1, generationVersion: 1, chunkStartIndex: 0, chunkEndIndex: 4 }],
+    currentMaxOrderBySemester: { 1: 1 },
+    bookSemester: 1,
+  })
+  assert(created.length === 1 && created[0].action === 'create', 'قسم بلا أي وحدة سابقة يجب أن يُنشأ طبيعياً')
+  const twice = planOutlineUnitsFromSections({
+    sections: [
+      { id: 'v2-a', title: 'قسم أ', level: 1, semester: 1, chunkStartIndex: 0, chunkEndIndex: 4, pageStart: 1, pageEnd: 40 },
+      { id: 'v2-b', title: 'قسم ب', level: 1, semester: 1, chunkStartIndex: 0, chunkEndIndex: 4, pageStart: 1, pageEnd: 40 },
+    ],
+    existingUnits: [{ id: 'unit-only', outlineSectionId: 'v1-only', status: 'DRAFT', order: 1, semester: 1, generationVersion: 1, chunkStartIndex: 0, chunkEndIndex: 4 }],
+    currentMaxOrderBySemester: { 1: 1 },
+    bookSemester: 1,
+  })
+  assert(twice.filter((a) => a.action === 'relink-draft' || a.action === 'update-draft' || a.action === 'skip-draft').length === 1, 'الوحدة الواحدة لا تُستهلك إلا مرة واحدة')
+}
+
 const tests = [
   testSummaryFallbackAndProviderClassification,
   testApprovedUnitNotUpdatedOnRegenerate,
   testUnitContentRejectsOutsideChunkRange,
   testGuideWithoutSourceKnowledgeIdsRejected,
   testReplaceProtectionKeepsApprovedOutlineAndAttemptedUnits,
+  testRebuildDoesNotDuplicateUnits,
+  testOverlapRequiresHumanReview,
+  testUnmatchedSectionStillCreatesAndUnitConsumedOnce,
 ]
 
 for (const test of tests) {

@@ -25,14 +25,18 @@ export type ExistingOutlineUnitInput = {
   order: number
   semester: number
   generationVersion?: number | null
+  chunkStartIndex?: number | null
+  chunkEndIndex?: number | null
 }
 
 export type OutlineUnitPlanAction =
   | { action: 'create'; section: OutlineUnitSectionInput; semester: number; order: number }
   | { action: 'update-draft'; unitId: string; section: OutlineUnitSectionInput; semester: number; generationVersion: number }
+  | { action: 'relink-draft'; unitId: string; section: OutlineUnitSectionInput }
   | { action: 'skip-approved'; unitId: string; section: OutlineUnitSectionInput }
   | { action: 'skip-draft'; unitId: string; section: OutlineUnitSectionInput }
   | { action: 'skip-intro'; section: OutlineUnitSectionInput }
+  | { action: 'review-overlap'; unitId: string; section: OutlineUnitSectionInput; overlap: number }
 
 export type UnitSourceChunk = {
   id: string
@@ -190,6 +194,15 @@ export function planOutlineUnitsFromSections(params: {
   const existingBySection = new Map(params.existingUnits.filter((unit) => unit.outlineSectionId).map((unit) => [unit.outlineSectionId!, unit]))
   const maxOrder = new Map<number, number>(Object.entries(params.currentMaxOrderBySemester || {}).map(([semester, order]) => [Number(semester), Number(order || 0)]))
   const actions: OutlineUnitPlanAction[] = []
+  // A rebuilt outline gives every section a NEW id, so id matching alone
+  // would re-create a twin for every range a previous outline version
+  // already produced a unit for. Sections therefore fall back to an
+  // explicit range match against this book's existing units (exact chunk
+  // range first, then a strong-overlap review flag). A unit is consumed by
+  // at most one section, approved units are never written, and an ambiguous
+  // overlap creates nothing — it is reported for a human decision instead.
+  const usedUnitIds = new Set<string>()
+  const rangeCandidates = () => params.existingUnits.filter((unit) => !usedUnitIds.has(unit.id) && unit.chunkStartIndex != null && unit.chunkEndIndex != null)
   for (const section of params.sections.filter((entry) => Number(entry.level || 1) === 1).sort((a, b) => a.chunkStartIndex - b.chunkStartIndex || a.chunkEndIndex - b.chunkEndIndex)) {
     if (isSmallIntroOutlineSection(section)) {
       actions.push({ action: 'skip-intro', section })
@@ -197,7 +210,8 @@ export function planOutlineUnitsFromSections(params: {
     }
     const semester = Math.max(1, Math.min(12, Number(section.semester || params.bookSemester || 1)))
     const existing = existingBySection.get(section.id)
-    if (existing) {
+    if (existing && !usedUnitIds.has(existing.id)) {
+      usedUnitIds.add(existing.id)
       if (String(existing.status).toUpperCase() === 'APPROVED') {
         actions.push({ action: 'skip-approved', unitId: existing.id, section })
       } else if (params.regenerateDrafts) {
@@ -205,6 +219,34 @@ export function planOutlineUnitsFromSections(params: {
       } else {
         actions.push({ action: 'skip-draft', unitId: existing.id, section })
       }
+      continue
+    }
+    const exact = rangeCandidates().find((unit) => unit.chunkStartIndex === section.chunkStartIndex && unit.chunkEndIndex === section.chunkEndIndex)
+    if (exact) {
+      usedUnitIds.add(exact.id)
+      if (String(exact.status).toUpperCase() === 'APPROVED') {
+        actions.push({ action: 'skip-approved', unitId: exact.id, section })
+      } else if (params.regenerateDrafts) {
+        actions.push({ action: 'update-draft', unitId: exact.id, section, semester, generationVersion: Number(exact.generationVersion || 0) + 1 })
+      } else {
+        actions.push({ action: 'relink-draft', unitId: exact.id, section })
+      }
+      continue
+    }
+    const sectionSpan = Math.max(1, section.chunkEndIndex - section.chunkStartIndex + 1)
+    let overlapMatch: { unit: ExistingOutlineUnitInput; overlap: number } | null = null
+    for (const unit of rangeCandidates()) {
+      const start = Math.max(section.chunkStartIndex, Number(unit.chunkStartIndex))
+      const end = Math.min(section.chunkEndIndex, Number(unit.chunkEndIndex))
+      if (end < start) continue
+      const intersection = end - start + 1
+      const unitSpan = Math.max(1, Number(unit.chunkEndIndex) - Number(unit.chunkStartIndex) + 1)
+      const overlap = intersection / Math.min(sectionSpan, unitSpan)
+      if (overlap >= 0.5 && (!overlapMatch || overlap > overlapMatch.overlap)) overlapMatch = { unit, overlap }
+    }
+    if (overlapMatch) {
+      usedUnitIds.add(overlapMatch.unit.id)
+      actions.push({ action: 'review-overlap', unitId: overlapMatch.unit.id, section, overlap: overlapMatch.overlap })
       continue
     }
     const order = Number(maxOrder.get(semester) || 0) + 1
@@ -334,20 +376,37 @@ ${sourceChunkLines(params.chunks)}
     maxOutputTokens: 6000,
     deadlineMs: params.deadlineMs,
   })
-  const parsed = parseOutlineUnitJson(raw)
+  // Telemetry only (sizes + parse outcome): distinguishes a truncated model
+  // response from a malformed one before anyone touches token budgets.
+  let parsed: any
+  try {
+    parsed = parseOutlineUnitJson(raw)
+    console.info('[outline-unit-generate]', { stage: 'content', unitTitle: params.unitTitle, chunks: params.chunks.length, knowledge: params.knowledge.length, promptChars: prompt.length, rawChars: raw.length, parsed: true })
+  } catch (error) {
+    console.info('[outline-unit-generate]', { stage: 'content', unitTitle: params.unitTitle, chunks: params.chunks.length, knowledge: params.knowledge.length, promptChars: prompt.length, rawChars: raw.length, parsed: false, error: String((error as any)?.message || error) })
+    throw error
+  }
   let summary = cleanOutlineUnitText(parsed?.summary, 4000)
   let wc = wordCount(summary)
   if (wc < 80 || wc > 150) {
     console.warn('Retrying unit summary length', { unitTitle: params.unitTitle, wc })
+    const retryPrompt = `${prompt}\n\nالملخص السابق (${wc} كلمة) خارج النطاق المطلوب:\n${summary}\n\nأعد صياغة الملخص نفسه من المصادر أعلاه فقط ليكون بين 90 و140 كلمة. أعد JSON object يحتوي على summary فقط.`
     const retryRaw = await geminiCompleteJson({
       system: 'أنت محرر أكاديمي. أعد JSON صالحاً فقط، والتزم بالمصادر المحددة.',
-      history: [{ role: 'user', text: `${prompt}\n\nالملخص السابق (${wc} كلمة) خارج النطاق المطلوب:\n${summary}\n\nأعد صياغة الملخص نفسه من المصادر أعلاه فقط ليكون بين 90 و140 كلمة. أعد JSON object يحتوي على summary فقط.` }],
+      history: [{ role: 'user', text: retryPrompt }],
       taskLevel: 'ACADEMIC_DRAFT',
       temperature: 0.12,
       maxOutputTokens: 1200,
       deadlineMs: params.deadlineMs,
     })
-    const retried = parseOutlineUnitJson(retryRaw)
+    let retried: any
+    try {
+      retried = parseOutlineUnitJson(retryRaw)
+      console.info('[outline-unit-generate]', { stage: 'summary-retry', unitTitle: params.unitTitle, chunks: params.chunks.length, knowledge: params.knowledge.length, promptChars: retryPrompt.length, rawChars: retryRaw.length, parsed: true })
+    } catch (error) {
+      console.info('[outline-unit-generate]', { stage: 'summary-retry', unitTitle: params.unitTitle, chunks: params.chunks.length, knowledge: params.knowledge.length, promptChars: retryPrompt.length, rawChars: retryRaw.length, parsed: false, error: String((error as any)?.message || error) })
+      throw error
+    }
     summary = cleanOutlineUnitText(retried?.summary, 4000)
     wc = wordCount(summary)
     summary = normalizeUnitSummaryAfterRetry(summary)

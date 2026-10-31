@@ -47,13 +47,13 @@ const ordinals: Record<string, number> = {
   'الحادي عشر': 11,
   'الثاني عشر': 12,
 }
-const ordinalAlternatives = '(?:الحادي\s+عشر|الثاني\s+عشر|الاول|اول|الثاني|ثاني|الثالث|ثالث|الرابع|رابع|الخامس|خامس|السادس|سادس|السابع|سابع|الثامن|ثامن|التاسع|تاسع|العاشر|عاشر|\\d{1,3})'
-const chapterWordAlternatives = '(?:ال?ف\s*صل|ال?باب|ال?وحده|chapter|part|unit)'
+const ordinalAlternatives = '(?:الحادي\\s+عشر|الثاني\\s+عشر|الاول|اول|الثاني|ثاني|الثالث|ثالث|الرابع|رابع|الخامس|خامس|السادس|سادس|السابع|سابع|الثامن|ثامن|التاسع|تاسع|العاشر|عاشر|\\d{1,3})'
+const chapterWordAlternatives = '(?:ال?ف\\s*صل|ال?باب|ال?وحده|chapter|part|unit)'
 const normalChapterPattern = new RegExp(`(?:^|\\s)(${chapterWordAlternatives})\\s+(${ordinalAlternatives})(?=\\s|[:：.\\-–]|$)`, 'iu')
 const reversedChapterPattern = new RegExp(`(?:^|\\s)(${ordinalAlternatives})\\s+(${chapterWordAlternatives})(?=\\s|[:：.\\-–]|$)`, 'iu')
-const rawNormalLabelPattern = /(?:ال?ف\s*صل|ال?باب|ال?وحدة|chapter|part|unit)\s+(?:الحادي\s+عشر|الثاني\s+عشر|[\p{L}\d\u0660-\u0669\u06f0-\u06f9]+)\s*[:：.\-–]?\s*/iu
-const rawReversedLabelPattern = /(?:الحادي\s+عشر|الثاني\s+عشر|[\p{L}\d\u0660-\u0669\u06f0-\u06f9]+)\s+(?:ال?ف\s*صل|ال?باب|ال?وحدة|chapter|part|unit)\s*[:：.\-–]?\s*/iu
-const debugKeywordPattern = /(?:ال?ف\s*صل|ال?باب)/iu
+const rawNormalLabelPattern = /(?:ال?ف\\s*صل|ال?باب|ال?وحدة|chapter|part|unit)\s+(?:الحادي\\s+عشر|الثاني\\s+عشر|[\p{L}\d\u0660-\u0669\u06f0-\u06f9]+)\s*[:：.\-–]?\s*/iu
+const rawReversedLabelPattern = /(?:الحادي\\s+عشر|الثاني\\s+عشر|[\p{L}\d\u0660-\u0669\u06f0-\u06f9]+)\s+(?:ال?ف\\s*صل|ال?باب|ال?وحدة|chapter|part|unit)\s*[:：.\-–]?\s*/iu
+const debugKeywordPattern = /(?:ال?ف\\s*صل|ال?باب)/iu
 
 export function normalizeOutlineText(value: unknown): string {
   return String(value || '')
@@ -333,10 +333,18 @@ function normalizeBoundaries(chunks: readonly Chunk[], boundaries: readonly Boun
     else { ranges[1].start = ranges[0].start; ranges.shift() }
   }
   while (ranges.length > 16) {
-    let smallest = 1
-    for (let i = 2; i < ranges.length; i++) if (ranges[i].end - ranges[i].start < ranges[smallest].end - ranges[smallest].start) smallest = i
-    ranges[smallest - 1].end = ranges[smallest].end
-    ranges.splice(smallest, 1)
+    // Merge the adjacent pair whose COMBINED PAGE SPAN is smallest. Merging by
+    // chunk count alone can fold a short final range into a huge predecessor
+    // and silently re-form an oversized tail section; page span is the unit
+    // the coverage guard judges, so it is the unit merging must minimize.
+    let best = 1
+    let bestSpan = Infinity
+    for (let i = 1; i < ranges.length; i++) {
+      const span = sorted[ranges[i].end].pageEnd - sorted[ranges[i - 1].start].pageStart
+      if (span < bestSpan) { bestSpan = span; best = i }
+    }
+    ranges[best - 1].end = ranges[best].end
+    ranges.splice(best, 1)
   }
   // Never undo tiny-section merging by splitting real heading/TOC sections again.
   // Only create synthetic sections when no reliable boundaries were supplied.
@@ -441,6 +449,152 @@ export function planBookOutline(chunks: readonly Chunk[], items: readonly Item[]
   if (expected.length && detected.size !== expected.length) warnings.push(`عدد الفصول المكتشفة ${detected.size} من ${expected.length} في فهرس الكتاب`)
   for (let n = 1; n <= maximum; n++) if (!detected.has(n)) warnings.push(`الفصل رقم ${n} غير مكتشف`)
   return { source, sections, warnings }
+}
+
+// ---------------------------------------------------------------------------
+// Outline coverage audit + approval guard.
+//
+// Sections tile the book's chunks by construction, so "coverage" is judged by
+// page span: a section spanning too many pages means later boundaries were
+// never detected inside it, and any unit built from it would swallow that
+// whole range. Bands (owner-approved 2026-10-31): up to REVIEW pages passes,
+// up to BLOCK pages needs a heading re-check, above BLOCK pages approval is
+// refused unless a supervisor records an explicit override (a genuine long
+// chapter is flagged and passed by decision, never shredded automatically).
+// ---------------------------------------------------------------------------
+export const OUTLINE_SECTION_REVIEW_PAGES = 40
+export const OUTLINE_SECTION_BLOCK_PAGES = 80
+
+export type OutlineSectionCoverage = { order: number; title: string; pageStart: number | null; pageEnd: number | null; pages: number | null; band: 'OK' | 'REVIEW' | 'BLOCKED' }
+export type OutlineCoverageReport = { totalPages: number | null; maxSectionPages: number | null; sections: OutlineSectionCoverage[]; review: OutlineSectionCoverage[]; blocked: OutlineSectionCoverage[] }
+
+export function sectionPageSpan(section: Pick<OutlineSectionDraft, 'pageStart' | 'pageEnd'>): number | null {
+  if (section.pageStart == null || section.pageEnd == null || section.pageEnd < section.pageStart) return null
+  return section.pageEnd - section.pageStart + 1
+}
+
+export function auditOutlineCoverage(sections: readonly OutlineSectionDraft[]): OutlineCoverageReport {
+  const audited = sections.map((section) => {
+    const pages = sectionPageSpan(section)
+    const band: OutlineSectionCoverage['band'] = pages === null || pages <= OUTLINE_SECTION_REVIEW_PAGES ? 'OK' : pages <= OUTLINE_SECTION_BLOCK_PAGES ? 'REVIEW' : 'BLOCKED'
+    return { order: section.order, title: section.title, pageStart: section.pageStart, pageEnd: section.pageEnd, pages, band }
+  })
+  const starts = sections.map((section) => section.pageStart).filter((page): page is number => page != null)
+  const ends = sections.map((section) => section.pageEnd).filter((page): page is number => page != null)
+  return {
+    totalPages: starts.length && ends.length ? Math.max(...ends) - Math.min(...starts) + 1 : null,
+    maxSectionPages: audited.reduce<number | null>((max, section) => (section.pages === null ? max : Math.max(max ?? 0, section.pages)), null),
+    sections: audited,
+    review: audited.filter((section) => section.band === 'REVIEW'),
+    blocked: audited.filter((section) => section.band === 'BLOCKED'),
+  }
+}
+
+export function outlineApprovalGuard(sections: readonly OutlineSectionDraft[]): { decision: 'ALLOW' | 'ALLOW_WITH_REVIEW' | 'BLOCK'; report: OutlineCoverageReport } {
+  const report = auditOutlineCoverage(sections)
+  return { decision: report.blocked.length ? 'BLOCK' : report.review.length ? 'ALLOW_WITH_REVIEW' : 'ALLOW', report }
+}
+
+function parseAiRangeBoundaries(raw: string, rangeChunks: readonly Chunk[], bookTitle: string): Boundary[] {
+  const parsed = JSON.parse(raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim())
+  const first = rangeChunks[0]?.index
+  const last = rangeChunks[rangeChunks.length - 1]?.index
+  if (first === undefined || last === undefined) return []
+  const existing = new Set(rangeChunks.map((chunk) => chunk.index))
+  const seen = new Set<number>()
+  const boundaries: Boundary[] = []
+  for (const entry of Array.isArray(parsed?.sections) ? parsed.sections : []) {
+    const at = entry?.at
+    const title = clean(entry?.title, 140)
+    if (!Number.isInteger(at) || !existing.has(at) || at <= first || at > last || seen.has(at) || !usableOutlineTitle(title, bookTitle)) continue
+    seen.add(at)
+    boundaries.push({ at, title, startCharOffset: null })
+    if (boundaries.length >= 8) break
+  }
+  return boundaries.sort((a, b) => a.at - b.at)
+}
+
+// Collect grounded interior boundaries for ONE oversized section range from
+// the book's own deterministic evidence: chunk heading paths, chapter lines
+// in the stored text, and source boundaries the global source precedence
+// dropped. Returns interior boundaries only (the caller anchors the range
+// start with the section's own title, so no fabricated «مقدمة الكتاب»/«تابع»
+// title can appear mid-book). The caller falls back to an AI range pass
+// when this returns nothing.
+function rangeInteriorBoundaries(rangeChunks: readonly Chunk[], sourceBoundaries: readonly Boundary[], bookTitle: string): Boundary[] {
+  const first = rangeChunks[0].index
+  const last = rangeChunks[rangeChunks.length - 1].index
+  const interior = new Map<string, Boundary>()
+  const add = (boundary: Boundary) => {
+    if (boundary.at <= first || boundary.at > last || !usableOutlineTitle(boundary.title, bookTitle)) return
+    interior.set(boundary.at + ':' + (boundary.startCharOffset ?? 0), boundary)
+  }
+  for (const boundary of headingsFromChunks(rangeChunks, bookTitle)) add(boundary)
+  for (const boundary of textChapters(rangeChunks, bookTitle, new Map())) add(boundary)
+  for (const boundary of sourceBoundaries) add(boundary)
+  return [...interior.values()].sort((a, b) => a.at - b.at || offsetForSort(a.startCharOffset) - offsetForSort(b.startCharOffset))
+}
+
+// Split every section above the REVIEW band using evidence found inside its
+// own range. Runs AFTER the global plan, so the global section cap and the
+// small-section merging can never re-collapse a split range afterwards.
+// Sections that yield no grounded interior boundary stay whole and are left
+// for the coverage audit + approval guard to judge.
+export async function refineOversizedSections(params: {
+  sections: readonly OutlineSectionDraft[]
+  chunks: readonly Chunk[]
+  items: readonly Item[]
+  chunkIds: ReadonlyMap<number, string>
+  semester: number | null
+  sourceBoundaries?: readonly Boundary[]
+  bookTitle: string
+  allowAi?: boolean
+  maxRanges?: number
+}): Promise<{ sections: OutlineSectionDraft[]; warnings: string[]; refinedRanges: number }> {
+  const allowAi = params.allowAi !== false
+  const maxRanges = params.maxRanges ?? 3
+  const warnings: string[] = []
+  let sections: OutlineSectionDraft[] = [...params.sections]
+  let refinedRanges = 0
+  const targets = params.sections.filter((section) => {
+    const span = sectionPageSpan(section)
+    return span !== null && span > OUTLINE_SECTION_REVIEW_PAGES && section.chunkEndIndex > section.chunkStartIndex
+  })
+  for (const target of targets) {
+    const at = sections.findIndex((section) => section.order === target.order && section.chunkStartIndex === target.chunkStartIndex && section.chunkEndIndex === target.chunkEndIndex)
+    if (at < 0) continue
+    const section = sections[at]
+    if (refinedRanges >= maxRanges) {
+      warnings.push(`لم تُعاد فحوص تقسيم القسم «${section.title}» (${sectionPageSpan(section)} صفحة) في هذه الجولة؛ حدّ الجولات ${maxRanges}. أعد بناء الفهرس لإعادة المحاولة.`)
+      continue
+    }
+    const rangeChunks = params.chunks.filter((chunk) => chunk.index >= section.chunkStartIndex && chunk.index <= section.chunkEndIndex)
+    if (rangeChunks.length < 2) continue
+    let interior = rangeInteriorBoundaries(rangeChunks, params.sourceBoundaries || [], params.bookTitle)
+    if (!interior.length && allowAi) {
+      const byChunk = new Map<string, Item[]>()
+      for (const item of params.items) if (item.chunkId) byChunk.set(item.chunkId, [...(byChunk.get(item.chunkId) || []), item])
+      const evidence = rangeChunks.map((chunk) => ({
+        index: chunk.index,
+        pageStart: chunk.pageStart,
+        pageEnd: chunk.pageEnd,
+        excerpt: chunk.text.slice(0, 350),
+        items: (byChunk.get(params.chunkIds.get(chunk.index) || '') || []).slice(0, 8).map((item) => ({ title: item.title.slice(0, 100), summary: item.summary.slice(0, 180) })),
+      }))
+      try {
+        const raw = await geminiCompleteJson({ system: 'قسّم هذا النطاق فقط من الكتاب إلى أقسام موضوعية متتابعة اعتماداً حصراً على مقتطفات النص وعناوين وملخصات المعرفة. لا تخترع عناوين غير مستندة إلى الأدلة، وامنع العناوين العامة مثل مقدمة الكتاب أو تابع. أرجع JSON فقط.', history: [{ role: 'user', text: `اقترح من 1 إلى 8 بدايات أقسام فرعية داخل النطاق (لا تشمل بداية النطاق نفسه)، بعناوين موضوعية، بصيغة {"sections":[{"at":0,"title":"عنوان موضوعي"}]}. استخدم index من البيانات فقط. البيانات: ${JSON.stringify(evidence)}` }], taskLevel: 'ACADEMIC_DRAFT', temperature: 0.1, maxOutputTokens: 2000, deadlineMs: Date.now() + 120_000 })
+        interior = parseAiRangeBoundaries(raw, rangeChunks, params.bookTitle)
+      } catch { interior = [] }
+    }
+    if (!interior.length) continue
+    const anchor: Boundary = { at: section.chunkStartIndex, title: section.title, startCharOffset: section.startCharOffset ?? null, verifiedHeading: true }
+    const subSections = normalizeBoundaries(rangeChunks, [anchor, ...interior], params.items, params.chunkIds, params.semester)
+    if (subSections.length < 2) continue
+    sections = [...sections.slice(0, at), ...subSections, ...sections.slice(at + 1)]
+    warnings.push(`قُسّم القسم الكبير «${section.title}» (${sectionPageSpan(section)} صفحة، صفحات ${section.pageStart}–${section.pageEnd}) إلى ${subSections.length} أقسام فرعية بناءً على أدلة داخل نطاقه؛ راجع الحدود قبل الاعتماد.`)
+    refinedRanges++
+  }
+  return { sections: sections.map((section, index) => ({ ...section, order: index + 1 })), warnings, refinedRanges }
 }
 
 type SourceHeading = { page: number; title: string; rawLine: string }
@@ -662,6 +816,15 @@ export async function buildBookOutline(bookId: string, options: { reuseReadChunk
   if (options.reuseReadChunks && options.deterministicOnly) {
     draft.warnings.push('أُنشئت المسودة من المقاطع المحفوظة بعد القراءة وOCR دون إعادة فتح ملف الكتاب.')
   }
+  // Re-segment oversized ranges from their own evidence before judging the
+  // draft; then audit coverage so any section that is still too large is
+  // visibly flagged for the approval guard instead of passing silently.
+  const refined = await refineOversizedSections({ sections: draft.sections, chunks, items, chunkIds, semester: book.semester, sourceBoundaries, bookTitle: book.title, allowAi: !options.deterministicOnly })
+  draft = { ...draft, sections: refined.sections, warnings: [...draft.warnings, ...refined.warnings] }
+  const coverage = auditOutlineCoverage(draft.sections)
+  for (const section of coverage.review) draft.warnings.push(`تنبيه تغطية: القسم «${section.title}» يغطي ${section.pages} صفحة (صفحات ${section.pageStart}–${section.pageEnd}) — فوق حد المراجعة ${OUTLINE_SECTION_REVIEW_PAGES} صفحة؛ أعد فحص عناوين هذا النطاق قبل الاعتماد.`)
+  for (const section of coverage.blocked) draft.warnings.push(`تنبيه تغطية: القسم «${section.title}» يغطي ${section.pages} صفحة (صفحات ${section.pageStart}–${section.pageEnd}) — يتجاوز حد ${OUTLINE_SECTION_BLOCK_PAGES} صفحة؛ لن يُعتمد الفهرس حتى يُقسَّم هذا النطاق أو يُسجَّل تجاوز مشرف موثّق.`)
+  draft.warnings.push('OUTLINE_COVERAGE:' + JSON.stringify({ maxSectionPages: coverage.maxSectionPages, review: coverage.review.map((section) => section.order), blocked: coverage.blocked.map((section) => section.order) }))
   if (missingOriginalPdf) draft.warnings.push('ملف PDF الأصلي غير متاح؛ استُخدمت المقاطع المحفوظة لفهرسة هذا الكتاب. راجع حدود الأقسام قبل الاعتماد.')
   for (const marker of outlineSubheadingMarkers(sourcePages, chunks, draft.sections)) {
     draft.warnings.push('OUTLINE_SUBHEADING:' + JSON.stringify(marker))

@@ -52,18 +52,25 @@ export async function POST(req: NextRequest, context: Context) {
     }))
     const sectionIds = sections.map((section) => section.id)
     const [existingUnits, allUnits] = await Promise.all([
+      // Load this book's units from EVERY outline version, not only units
+      // linked to the current section ids: a rebuilt outline mints new
+      // section ids, and without the older units in view the planner would
+      // create a duplicate unit for every already-covered range.
       db.unit.findMany({
-        where: { programId: book.programId, outlineSectionId: { in: sectionIds } },
-        select: { id: true, outlineSectionId: true, status: true, order: true, semester: true, generationVersion: true },
+        where: { programId: book.programId, OR: [{ outlineSectionId: { in: sectionIds } }, { sourceBookId: book.id }] },
+        select: { id: true, outlineSectionId: true, status: true, order: true, semester: true, generationVersion: true, chunkStartIndex: true, chunkEndIndex: true, sourceBookId: true },
       }),
       db.unit.findMany({ where: { programId: book.programId }, select: { semester: true, order: true } }),
     ])
+    // Range matching is only meaningful inside one book (chunk indexes are
+    // per-book); units of other books in the program stay id-match-only.
+    const plannerUnits = existingUnits.map((unit) => unit.sourceBookId === book.id ? unit : { ...unit, chunkStartIndex: null, chunkEndIndex: null })
     const currentMaxOrderBySemester = allUnits.reduce<Record<number, number>>((acc, unit) => {
       const semester = Number(unit.semester || 1)
       acc[semester] = Math.max(acc[semester] || 0, Number(unit.order || 0))
       return acc
     }, {})
-    const actions = planOutlineUnitsFromSections({ sections, existingUnits, currentMaxOrderBySemester, bookSemester: book.semester, regenerateDrafts })
+    const actions = planOutlineUnitsFromSections({ sections, existingUnits: plannerUnits, currentMaxOrderBySemester, bookSemester: book.semester, regenerateDrafts })
     const changedIds: string[] = []
     for (const action of actions) {
       if (action.action === 'create') {
@@ -101,6 +108,20 @@ export async function POST(req: NextRequest, context: Context) {
           },
         })
         changedIds.push(action.unitId)
+      } else if (action.action === 'relink-draft') {
+        // Metadata-only re-link of a draft unit whose chunk range survived
+        // the outline rebuild exactly: title, content and generation stay
+        // untouched, and approved units are excluded by the where clause.
+        await db.unit.updateMany({
+          where: { id: action.unitId, programId: book.programId, status: { not: 'APPROVED' } },
+          data: {
+            sourceBookId: book.id,
+            outlineSectionId: action.section.id,
+            chunkStartIndex: action.section.chunkStartIndex,
+            chunkEndIndex: action.section.chunkEndIndex,
+          },
+        })
+        changedIds.push(action.unitId)
       }
     }
     if (changedIds.length) {
@@ -117,9 +138,11 @@ export async function POST(req: NextRequest, context: Context) {
       summary: {
         created: actions.filter((a) => a.action === 'create').length,
         updatedDrafts: actions.filter((a) => a.action === 'update-draft').length,
+        relinkedDrafts: actions.filter((a) => a.action === 'relink-draft').length,
         skippedApproved: actions.filter((a) => a.action === 'skip-approved').length,
         skippedDrafts: actions.filter((a) => a.action === 'skip-draft').length,
         skippedIntro: actions.filter((a) => a.action === 'skip-intro').length,
+        reviewOverlaps: actions.filter((a) => a.action === 'review-overlap').length,
       },
       actions,
       units,

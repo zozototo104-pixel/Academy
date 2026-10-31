@@ -2075,7 +2075,19 @@ export function AdminBooksTab() {
   const approveBookOutline = async (bookId: string) => {
     setOutlineUnitBusyId(`approve-${bookId}`)
     try {
-      const result = await api<{ outline: NonNullable<typeof bookOutlines[string]> }>(`/api/admin/books/${bookId}/outline/approve`, { method: 'POST', body: JSON.stringify({}) })
+      const attempt = (body: Record<string, unknown>) => api<{ outline: NonNullable<typeof bookOutlines[string]> }>(`/api/admin/books/${bookId}/outline/approve`, { method: 'POST', body: JSON.stringify(body) })
+      let result: Awaited<ReturnType<typeof attempt>>
+      try {
+        result = await attempt({})
+      } catch (error: any) {
+        // Oversized-section guard: approval is refused until the supervisor
+        // either splits the range or records a documented override reason.
+        if (error?.code !== 'OUTLINE_OVERSIZED_SECTIONS') throw error
+        if (!window.confirm(`${String(error?.message || error)}\n\nاعتماد رغم ذلك بتجاوز موثّق؟`)) throw error
+        const reason = window.prompt('سبب التجاوز الموثّق (مثال: فصل أصلي واحد موثّق بهذا الطول):')?.trim()
+        if (!reason) { toast({ title: 'أُلغي الاعتماد', description: 'التجاوز يحتاج سبباً موثّقاً.', variant: 'destructive' }); return }
+        result = await attempt({ overrideOversized: true, overrideReason: reason })
+      }
       setBookOutlines((previous) => ({ ...previous, [bookId]: result.outline }))
       toast({ title: 'تم اعتماد الفهرس', description: `نسخة ${result.outline.version}` })
     } catch (error: any) {
