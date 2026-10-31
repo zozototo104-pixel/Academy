@@ -36,7 +36,20 @@ export async function POST(_req: NextRequest, context: Context) {
     const { id } = await context.params
     const book = await db.book.findUnique({ where: { id }, select: { programId: true } })
     if (!book) return NextResponse.json({ error: 'BOOK_NOT_FOUND' }, { status: 404 })
-    const outline = await buildBookOutline(id)
+    let outline
+    try {
+      outline = await buildBookOutline(id)
+    } catch (error: unknown) {
+      if (!(error instanceof Error) || !error.message.startsWith('BOOK_OUTLINE_OCR_TOO_MANY_PAGES')) throw error
+      // The resumable reader has already completed OCR for this book. Use its
+      // persisted evidence instead of paying for or truncating OCR a second time.
+      const completeRead = await db.bookReadJob.findFirst({
+        where: { bookId: id, status: 'COMPLETED', phase: 'DONE', totalChunks: { gt: 0 } },
+        orderBy: { createdAt: 'desc' }, select: { id: true },
+      })
+      if (!completeRead) throw error
+      outline = await buildBookOutline(id, { reuseReadChunks: true, deterministicOnly: true })
+    }
     return NextResponse.json({ ok: true, outline, programDraft: await programDraft(book.programId) })
   } catch (error: any) {
     return NextResponse.json({ error: String(error?.message || error) }, { status: error?.message === 'UNAUTHORIZED' ? 401 : 500 })

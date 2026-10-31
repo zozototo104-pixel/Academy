@@ -1,4 +1,4 @@
-import { planBookOutline } from '@/lib/book-outline'
+import { planBookOutline, detectOriginalSourceHeadings, outlineSubheadingMarkers, sourceBoundariesFromReadChunks } from '@/lib/book-outline'
 
 type ChunkInput = Parameters<typeof planBookOutline>[0][number]
 
@@ -56,7 +56,55 @@ function testIntroAndMidChunkFirstChapter() {
   assert(result.sections[1].chunkStartIndex === 0 && (result.sections[1].startCharOffset ?? 0) > 0, 'الفصل الأول يجب أن يبدأ من نفس المقطع مع startCharOffset')
 }
 
+function testArticleHeadingsFromOriginalPdf() {
+  const pages = [
+    { page: 1, text: 'ماستر في إدارة الأعمال MBA\n\nالمقال: مقدمة في إدارة الأعمال\nتقدم الإدارة منهجاً متكاملاً لتنسيق الموارد وتحقيق النتائج التنظيمية الفعالة. '.repeat(2) + '\nأسئلة وأجوبة\nس: ما الإدارة؟\nخلاصة\n', textProvenance: 'NATIVE_TEXT' as const },
+    { page: 2, text: 'ماستر في إدارة الأعمال MBA\n\nدور المدير في المنظمات الحديثة\nيتولى المدير التنسيق بين الفرق وتوجيه الموارد وتحديد الأولويات وفق الخطة التشغيلية. '.repeat(2), textProvenance: 'NATIVE_TEXT' as const },
+    { page: 3, text: 'ماستر في إدارة الأعمال MBA\n\nالمقال: تطبيقات الإدارة المعاصرة\nتركز التطبيقات على التخطيط والرقابة والتطوير المتدرج للمؤسسات وتحسين جودة العمل. '.repeat(2), textProvenance: 'NATIVE_TEXT' as const },
+  ]
+  const headings = detectOriginalSourceHeadings(pages, 'كتاب إدارة الأعمال')
+  assert(headings.some((h) => h.title === 'مقدمة في إدارة الأعمال'), 'يجب اكتشاف عنوان المقال')
+  assert(headings.some((h) => h.title === 'دور المدير في المنظمات الحديثة'), 'يجب اكتشاف عنوان موضوع مستقل')
+  assert(!headings.some((h) => /ماستر|أسئلة وأجوبة|خلاصة/.test(h.title)), 'لا يجوز اعتماد الترويسة أو الأقسام الفرعية')
+}
+function testOrdinaryLinesAreNotSections() {
+  const pages = [{ page: 1, text: 'هذه جملة قصيرة عادية\nهذه الفقرة توضح كيفية عمل الفريق ومتابعة الأداء واستعمال وسائل القياس. '.repeat(3) + '\n1. البند الأول\nس: ماذا نفعل؟', textProvenance: 'NATIVE_TEXT' as const }]
+  assert(detectOriginalSourceHeadings(pages, 'كتاب تجريبي').length === 0, 'السطر العادي لا يجوز أن يصبح قسماً')
+}
+function testOriginalPdfChapterDetected() {
+  const pages = [{ page: 2, text: 'الفصل الأول\nمفاهيم الإدارة\nهذا شرح متصل لمنهج الإدارة وخطوات التخطيط والتحليل والتنفيذ. '.repeat(3), textProvenance: 'NATIVE_TEXT' as const }]
+  assert(detectOriginalSourceHeadings(pages, 'كتاب تجريبي').some((h) => h.title === 'الفصل الأول'), 'فهرسة المصدر يجب أن تكشف الفصل الأصلي')
+}
+
+function testSubheadingReviewMarkers() {
+  const pages = [{ page: 4, text: 'مقدمة في الإدارة\nأسئلة وأجوبة\nخلاصة\nهذا متن توضيحي طويل.', textProvenance: 'NATIVE_TEXT' as const }]
+  const chunks = [chunk(0, pages[0].text, 4)]
+  const draft = plan(chunks)
+  const markers = outlineSubheadingMarkers(pages, chunks, draft.sections)
+  assert(markers.some((m) => m.title === 'أسئلة وأجوبة' && m.page === 4), 'أسئلة وأجوبة يجب أن تظهر علامة مراجعة')
+  assert(markers.some((m) => m.title === 'خلاصة' && m.charOffset !== null), 'الخلاصة يجب أن تحتفظ بموضعها')
+  assert(draft.sections.length === 1, 'العلامات الفرعية يجب ألا تصبح حدود أقسام')
+}
+
+function testReadChunksCreateOutlineWithoutReopeningPdf() {
+  const source = [
+    chunk(0, 'الفصل الأول\nمدخل الإدارة\n' + 'شرح تفصيلي عن مبادئ الإدارة والتخطيط وتطبيقها العملي. '.repeat(4), 1),
+    chunk(1, 'المقال: مقدمة في إدارة الأعمال\n' + 'يعرض هذا المقال مفاهيم الإدارة الحديثة وإدارة الموارد والعمليات. '.repeat(4), 3),
+    chunk(2, 'المقال: دور المدير في المنظمات الحديثة\n' + 'يوضح هذا المقال مسؤوليات المدير وسبل التخطيط والتنفيذ. '.repeat(4), 7),
+  ]
+  const boundaries = sourceBoundariesFromReadChunks(source, 'كتاب الإدارة')
+  assert(boundaries.some((b) => b.title === 'الفصل الأول'), 'فصل الكتاب الأصلي يجب أن يظهر من النص المحفوظ')
+  assert(boundaries.some((b) => b.title === 'مقدمة في إدارة الأعمال'), 'عنوان المقال يجب أن يظهر دون إعادة قراءة PDF')
+  const planned = planBookOutline(source, source.map((c) => ({ chunkId: 'chunk-' + c.index, title: 'عنصر', summary: 'ملخص' })), new Map(source.map((c) => [c.index, 'chunk-' + c.index])), 1, boundaries, 'كتاب الإدارة', true)
+  assert(planned.sections.length >= 2, 'الفهرس من المقاطع يجب أن يحتوي على أكثر من قسم')
+}
+
 const tests = [
+  testReadChunksCreateOutlineWithoutReopeningPdf,
+  testSubheadingReviewMarkers,
+  testArticleHeadingsFromOriginalPdf,
+  testOrdinaryLinesAreNotSections,
+  testOriginalPdfChapterDetected,
   testReversedArabicChapterOrder,
   testArabicIndicDigitChapter,
   testTwoChaptersInSameChunk,

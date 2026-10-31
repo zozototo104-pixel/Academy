@@ -37,8 +37,8 @@ export async function POST(req: NextRequest, context: Context) {
     if (!book) return NextResponse.json({ error: 'BOOK_NOT_FOUND' }, { status: 404 })
     const outline = await latestOutline(id, outlineId || undefined)
     if (!outline) return NextResponse.json({ error: 'BOOK_OUTLINE_NOT_FOUND' }, { status: 404 })
-    if (!['APPROVED', 'DRAFT'].includes(String(outline.status || '').toUpperCase())) {
-      return NextResponse.json({ error: 'لا يمكن إنشاء وحدات إلا من فهرس DRAFT أو APPROVED' }, { status: 400 })
+    if (String(outline.status || '').toUpperCase() !== 'APPROVED') {
+      return NextResponse.json({ error: 'يجب مراجعة الفهرس واعتماده قبل إنشاء الوحدات' }, { status: 409 })
     }
     const sections = outline.sections.map((section) => ({
       id: section.id,

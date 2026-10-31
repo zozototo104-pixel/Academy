@@ -5,6 +5,12 @@ import { isRepeatedBookConcept, validateBookKnowledgeCandidate } from '../src/li
 
 const pages = [{ page: 1, text: `${'هذه جملة طويلة عن المعرفة. '.repeat(120)}`, textProvenance: 'NATIVE_TEXT' as const }, { page: 2, text: `${'هذه جملة ثانية عن العلم. '.repeat(120)}`, textProvenance: 'NATIVE_TEXT' as const }]
 const chunks = planBookChunks(pages)
+const structured = planBookChunks([
+  { page: 1, text: 'مقدمة قصيرة\nيتناول هذا الكتاب أصول الإدارة ومنهجها التطبيقي.', textProvenance: 'NATIVE_TEXT' },
+  { page: 2, text: 'الفصل الثاني\nتعريفات وأمثلة\nيُبيّن هذا الفصل دور المدير في الإدارة.', textProvenance: 'NATIVE_TEXT' },
+])
+assert.ok(structured[0].text.includes('\n'), 'Book chunks must preserve original line boundaries')
+assert.ok(structured[0].headingPath?.includes('الفصل الثاني'), 'Heading lookup must cover later pages within a chunk')
 assert.ok(chunks.length >= 2)
 assert.equal(chunks[0].pageStart, 1)
 assert.ok(chunks.every((chunk) => chunk.pageStart <= chunk.pageEnd))

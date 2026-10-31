@@ -2050,6 +2050,16 @@ export function AdminBooksTab() {
     }
   }
 
+  const rejectOutlineSection = async (bookId: string, sectionId: string) => {
+    try {
+      await api(`/api/admin/books/${bookId}/outline/sections/${sectionId}`, { method: 'DELETE' })
+      await loadBookOutline(bookId)
+      toast({ title: 'تم تجاهل القسم المقترح' })
+    } catch (error: any) {
+      toast({ title: 'تعذر تجاهل القسم', description: String(error?.message || error), variant: 'destructive' })
+    }
+  }
+
   const buildOutlineForBook = async (bookId: string) => {
     setOutlineBusyId(bookId)
     try {
@@ -2826,13 +2836,13 @@ export function AdminBooksTab() {
                             const outlineBusy = outlineUnitBusyId?.endsWith(`-${b.id}`)
                             return <div className="mt-2 rounded-lg border border-slate-200 bg-white p-2">
                               <div className="flex flex-wrap items-center justify-between gap-2">
-                                <p className="font-black text-[#0f2b46]">فهرس الكتاب — نسخة {outline.version} · {outline.source === 'HEADINGS' ? 'من العناوين' : outline.source === 'TOC' ? 'من فهرس الكتاب' : 'تقسيم ذكي'} · {outline.status === 'APPROVED' ? 'معتمد' : 'مسودة'}</p>
+                                <p className="font-black text-[#0f2b46]">فهرس الكتاب — نسخة {outline.version} · {outline.source === 'HEADINGS' ? 'من العناوين' : outline.source === 'TOC' ? 'من فهرس الكتاب' : outline.source === 'SOURCE_HEADINGS' ? 'عناوين مقترحة من النص المقروء' : outline.source === 'CHUNK_SEGMENTED' ? 'تقسيم حتمي من المقاطع — للمراجعة' : 'تقسيم ذكي مقترح'} · {outline.status === 'APPROVED' ? 'معتمد' : 'مسودة'}</p>
                                 <div className="flex flex-wrap gap-1">
                                   {outline.status !== 'APPROVED' && <Button size="sm" variant="outline" disabled={outlineBusy} onClick={() => approveBookOutline(b.id)} className="h-7 text-[10px] font-black text-emerald-700">اعتماد الفهرس</Button>}
                                 </div>
                               </div>
-                              {outline.warnings && (() => { try { return (JSON.parse(outline.warnings || '[]') as string[]).map((warning, index) => <p key={index} role="alert" className="mt-1 text-amber-700">⚠ {warning}</p>) } catch { return null } })()}
-                              {outline.sections.map((section) => <div key={section.id} className="mt-1">{outlineEditingId === section.id ? <div className="flex flex-wrap gap-2"><input aria-label="عنوان القسم" className="min-w-0 flex-1 rounded border p-2" value={outlineEditingTitle} maxLength={180} onChange={(event) => setOutlineEditingTitle(event.target.value)} /><Button size="sm" onClick={() => void renameOutlineSection(b.id, section.id)}>حفظ</Button><Button size="sm" variant="outline" onClick={() => setOutlineEditingId(null)}>إلغاء</Button></div> : <div>{section.order}. {section.title} · {section.pageEnd === null ? `بداية الصفحة ${section.pageStart ?? '؟'}` : `صفحات ${section.pageStart ?? '؟'}–${section.pageEnd}`} · {section.itemsCount} عنصر {section.startCharOffset != null ? `· موضع البداية ${section.startCharOffset}` : ''} {outline.status === 'DRAFT' && <Button size="sm" variant="outline" onClick={() => { setOutlineEditingId(section.id); setOutlineEditingTitle(section.title) }}>تعديل العنوان</Button>}</div>}</div>)}
+                              {outline.warnings && (() => { try { return (JSON.parse(outline.warnings || '[]') as string[]).filter((warning) => !warning.startsWith('OUTLINE_SUBHEADING:')).map((warning, index) => <p key={index} role="alert" className="mt-1 text-amber-700">⚠ {warning}</p>) } catch { return null } })()}
+                              {outline.sections.map((section) => <div key={section.id} className="mt-1">{outlineEditingId === section.id ? <div className="flex flex-wrap gap-2"><input aria-label="عنوان القسم" className="min-w-0 flex-1 rounded border p-2" value={outlineEditingTitle} maxLength={180} onChange={(event) => setOutlineEditingTitle(event.target.value)} /><Button size="sm" onClick={() => void renameOutlineSection(b.id, section.id)}>حفظ</Button><Button size="sm" variant="outline" onClick={() => setOutlineEditingId(null)}>إلغاء</Button></div> : <div>{section.order}. {section.title} · {section.pageEnd === null ? `بداية الصفحة ${section.pageStart ?? '؟'}` : `صفحات ${section.pageStart ?? '؟'}–${section.pageEnd}`} · {section.itemsCount} عنصر {section.startCharOffset != null ? `· موضع البداية ${section.startCharOffset}` : ''} {outline.status === 'DRAFT' && <Button size="sm" variant="outline" onClick={() => { setOutlineEditingId(section.id); setOutlineEditingTitle(section.title) }}>تعديل العنوان</Button>} {outline.status === 'DRAFT' && <Button size="sm" variant="outline" className="text-red-700" onClick={() => void rejectOutlineSection(b.id, section.id)}>تجاهل</Button>}</div>}{outline.warnings && (() => { try { return (JSON.parse(outline.warnings || '[]') as string[]).filter((w) => w.startsWith('OUTLINE_SUBHEADING:')).map((w) => { try { return JSON.parse(w.slice('OUTLINE_SUBHEADING:'.length)) as { sectionOrder: number; title: string; page: number; charOffset: number | null } } catch { return null } }).filter((m) => m?.sectionOrder === section.order).map((m, i) => <p key={i} className="ms-4 text-[10px] text-slate-500">↳ {m!.title} · صفحة {m!.page}{m!.charOffset === null ? ' · الموضع يحتاج مراجعة' : ''}</p>) } catch { return null } })()}</div>)}
                             </div>
                           })()}
                           {outlineDebugByBook[b.id] && (() => {
@@ -2853,7 +2863,7 @@ export function AdminBooksTab() {
                           {programKnowledgeV2States[b.id] && <p className="mt-1 text-[11px] font-bold text-slate-600">{programKnowledgeV2States[b.id].state === 'READING' ? 'يُقرأ' : programKnowledgeV2States[b.id].state === 'ENRICHING' ? 'يُستخرج المزيد' : programKnowledgeV2States[b.id].state === 'COMPLETED' ? 'مكتمل' : `متوقف مؤقتاً${programKnowledgeV2States[b.id].retryAt ? ` · إعادة المحاولة ${new Date(programKnowledgeV2States[b.id].retryAt!).toLocaleString('ar')}` : ''}`}</p>}
                           {!!bookReadRetryCounts[b.id] && bookReadRetryCounts[b.id] < 5 && <p className="mt-1 text-[11px] font-bold text-amber-700">إعادة محاولة تلقائية ({bookReadRetryCounts[b.id]}/5)</p>}
                           {bookReadRetryCounts[b.id] >= 5 && <div className="mt-1 flex items-center gap-2"><p className="text-[11px] font-bold text-red-700">فشلت 5 محاولات متتالية</p><Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => { delete bookReadRetryRef.current[b.id]; setBookReadRetryCounts((previous) => ({ ...previous, [b.id]: 0 })); void advanceBookReadJob(b.id) }}>استكمال</Button></div>}
-                          {bookEnrichment[b.id]?.totalChunks > 0 && <p className="mt-1 text-[11px] text-slate-600">{bookEnrichment[b.id].saturatedChunks >= bookEnrichment[b.id].totalChunks ? 'تم استخراج كل ما يمكن من الكتاب' : `مشبع ${bookEnrichment[b.id].saturatedChunks} من ${bookEnrichment[b.id].totalChunks} مقطع · أضيف ${bookEnrichment[b.id].addedItems} عنصر`}</p>}
+                          {bookEnrichment[b.id]?.totalChunks > 0 && <p className="mt-1 text-[11px] text-slate-600">{bookEnrichment[b.id].saturatedChunks >= bookEnrichment[b.id].totalChunks ? 'اكتملت جولات الإثراء' : `مشبع ${bookEnrichment[b.id].saturatedChunks} من ${bookEnrichment[b.id].totalChunks} مقطع · أضيف ${bookEnrichment[b.id].addedItems} عنصر`}</p>}
                           {bookReadJobs[b.id] && (() => {
                             const job = bookReadJobs[b.id]
                             const phase = job.status === 'PAUSED' ? 'متوقف مؤقتاً' : job.status === 'COMPLETED' ? 'مكتمل' : job.phase === 'EXTRACT' ? 'قراءة' : job.phase === 'ANALYZE' ? 'تحليل' : job.status === 'FAILED' ? 'فشل' : 'مكتمل'

@@ -1,10 +1,14 @@
 import { db } from '@/lib/db'
 import { geminiCompleteJson } from '@/lib/gemini'
+import { PDFDocument } from 'pdf-lib'
+import { getFileBufferFromStorageOrBase64 } from '@/lib/storage'
+import { extractNumberedPdfPages, pagesNeedingOcr, transcribeScannedDocumentWithVision, type ExtractedBookPage } from '@/lib/book-reader'
+import { fixArabicPdfText } from '@/lib/arabic-pdf-text'
 
 type Chunk = { index: number; headingPath: string | null; text: string; pageStart: number; pageEnd: number }
 type Item = { chunkId: string | null; title: string; summary: string }
 export type OutlineSectionDraft = { order: number; title: string; level: number; semester: number | null; chunkStartIndex: number; chunkEndIndex: number; pageStart: number | null; pageEnd: number | null; itemsCount: number; startCharOffset?: number | null }
-type Boundary = { at: number; title: string; startCharOffset?: number | null; detectedChunkIndex?: number; detectedCharOffset?: number; note?: string }
+type Boundary = { at: number; title: string; startCharOffset?: number | null; detectedChunkIndex?: number; detectedCharOffset?: number; note?: string; verifiedHeading?: boolean }
 type TocEntry = { title: string; page: number; targetIndex: number | null }
 type LineWithOffset = { raw: string; start: number; lineNumber: number }
 type ChapterHit = { label: string; number: number | null; reversed: boolean; line: LineWithOffset; lineIndex: number }
@@ -316,12 +320,12 @@ function normalizeBoundaries(chunks: readonly Chunk[], boundaries: readonly Boun
     const next = ordered[i + 1]
     const nextStart = next ? at.get(next.at)! : null
     const end = nextStart === null ? sorted.length - 1 : nextStart === start ? start : nextStart - 1
-    return { start, end, title: boundary.title, startCharOffset: boundary.startCharOffset ?? null }
+    return { start, end, title: boundary.title, startCharOffset: boundary.startCharOffset ?? null, verifiedHeading: boundary.verifiedHeading ?? false }
   }).filter((range) => range.end >= range.start)
   // Real chapter boundaries and same-chunk splits must not be merged away.
   // Only unlabeled one-chunk fragments may be absorbed into neighboring sections.
   for (let i = ranges.length - 1; i >= 0; i--) {
-    if (ranges.length <= 1 || chapterNumber(ranges[i].title) !== null) continue
+    if (ranges.length <= 1 || ranges[i].verifiedHeading || chapterNumber(ranges[i].title) !== null) continue
     if (ranges[i].end !== ranges[i].start) continue
     const sharesChunkWithNeighbor = (i > 0 && ranges[i - 1].start === ranges[i].start) || (i + 1 < ranges.length && ranges[i + 1].start === ranges[i].start)
     if (sharesChunkWithNeighbor || ranges[i].startCharOffset !== null) continue
@@ -342,7 +346,7 @@ function normalizeBoundaries(chunks: readonly Chunk[], boundaries: readonly Boun
     const range = ranges[largest]
     if (range.end <= range.start) break
     const mid = Math.floor((range.start + range.end) / 2)
-    ranges.splice(largest + 1, 0, { start: mid + 1, end: range.end, title: `${range.title} — تابع`, startCharOffset: null })
+    ranges.splice(largest + 1, 0, { start: mid + 1, end: range.end, title: `${range.title} — تابع`, startCharOffset: null, verifiedHeading: false })
     range.end = mid
   }
   const itemCount = new Map<string, number>()
@@ -386,13 +390,13 @@ export function debugBookOutlineChunks(chunks: readonly Chunk[]): BookOutlineDeb
   })
 }
 
-export function planBookOutline(chunks: readonly Chunk[], items: readonly Item[], chunkIds: ReadonlyMap<number, string>, semester: number | null, aiBoundaries: readonly Boundary[] = [], bookTitle = '') {
+export function planBookOutline(chunks: readonly Chunk[], items: readonly Item[], chunkIds: ReadonlyMap<number, string>, semester: number | null, aiBoundaries: readonly Boundary[] = [], bookTitle = '', preferSourceBoundaries = false) {
   const headings = headingsFromChunks(chunks, bookTitle)
   const toc = tocFromChunks(chunks)
   const tocNames = tocNameMap(chunks)
   const fromText = textChapters(chunks, bookTitle, tocNames)
   const distinct = new Set(headings.map((heading) => normalizeHeading(heading.title))).size
-  const source = headings.length >= 2 && distinct / headings.length >= 0.6 ? 'HEADINGS' : toc.length >= 2 ? 'TOC' : fromText.length > 0 ? 'HEADINGS' : 'AI_SEGMENTED'
+  const source = preferSourceBoundaries && aiBoundaries.length ? 'SOURCE_HEADINGS' : headings.length >= 2 && distinct / headings.length >= 0.6 ? 'HEADINGS' : toc.length >= 2 ? 'TOC' : fromText.length > 0 ? 'HEADINGS' : aiBoundaries.length ? 'SOURCE_HEADINGS' : 'AI_SEGMENTED'
   const primary = source === 'HEADINGS' ? (headings.length >= 2 ? headings : fromText) : source === 'TOC' ? toc : aiBoundaries
   const byNumber = new Map<number, Boundary>()
   for (const boundary of primary) {
@@ -425,7 +429,157 @@ export function planBookOutline(chunks: readonly Chunk[], items: readonly Item[]
   return { source, sections, warnings }
 }
 
-export async function buildBookOutline(bookId: string) {
+type SourceHeading = { page: number; title: string; rawLine: string }
+
+const articlePrefix = /^(?:المقال\s*[:：]\s*)(.{5,110})$/iu
+const subordinateHeading = /^(?:اسئله?\s*واجوبه?|أسئلة\s*وأجوبة|خلاصه|الخلاصة|تطبيقات\s*عمليه|المراجع|تمارين|مناقشه|أهداف\s*التعلم)\s*[:：]?\s*$/iu
+const numberedOrQuestion = /^(?:[•●▪*]|[-–—]\s|\d{1,3}\s*[.):\-–]|[٠-٩]{1,3}\s*[.):\-–]|[سج]\s*\d+\s*[:：]|(?:سؤال|س)\s*[:：]|[؟?])/iu
+const commonTopicStart = /^(?:مقدمه|مقدمة|دور|اهميه|أهمية|مفهوم|الإدارة|ادارة|إدارة|التخطيط|القيادة|التحليل|الاقتصاد|التسويق|الابتكار|الموارد|الرقابة|الجودة|مهارات|التنظيم|الاتصال|المخاطر|المنافسة)(?=\s|[:：]|$)/iu
+
+export function detectOriginalSourceHeadings(pages: readonly ExtractedBookPage[], bookTitle: string): SourceHeading[] {
+  const normalizedPages = pages.map((page) => ({ page: page.page, lines: page.text.split(/\r?\n|\r/) }))
+  const pagesPerLine = new Map<string, Set<number>>()
+  for (const page of normalizedPages) {
+    for (const line of page.lines) {
+      const key = normalizeHeading(line)
+      if (!key || key.length > 110) continue
+      if (!pagesPerLine.has(key)) pagesPerLine.set(key, new Set())
+      pagesPerLine.get(key)!.add(page.page)
+    }
+  }
+  const output: SourceHeading[] = []
+  for (const page of normalizedPages) {
+    for (let i = 0; i < page.lines.length; i++) {
+      const rawLine = page.lines[i].trim()
+      const key = normalizeHeading(rawLine)
+      if (rawLine.length < 7 || rawLine.length > 115 || !key) continue
+      if ((pagesPerLine.get(key)?.size || 0) >= 3 || key === normalizeHeading(bookTitle)) continue
+      if (subordinateHeading.test(normalizeOutlineText(rawLine)) || numberedOrQuestion.test(rawLine)) continue
+      if (/[؟?،,؛;.!]$/.test(rawLine) || /^\s*(?:https?:\/\/|www\.)/i.test(rawLine)) continue
+      if (matchChapterLine(rawLine)) {
+        output.push({ page: page.page, title: rawLine, rawLine })
+        continue
+      }
+      const prefixed = rawLine.match(articlePrefix)
+      const previousBlank = i === 0 || page.lines[i - 1].trim() === ''
+      const following = page.lines.slice(i + 1, i + 6).map((line) => line.trim()).filter(Boolean).join(' ')
+      const hasBody = following.length >= 95
+      if (!hasBody) continue
+      if (prefixed) output.push({ page: page.page, title: clean(prefixed[1]), rawLine })
+      else if (previousBlank && commonTopicStart.test(rawLine) && rawLine.length <= 85 && rawLine.split(/\s+/).length <= 11) {
+        output.push({ page: page.page, title: rawLine, rawLine })
+      }
+    }
+  }
+  return output
+}
+
+function projectSourceHeadings(headings: readonly SourceHeading[], chunks: readonly Chunk[]): Boundary[] {
+  const projected: Boundary[] = []
+  const used = new Set<string>()
+  for (const heading of headings) {
+    const overlaps = chunks.filter((chunk) => chunk.pageStart <= heading.page && chunk.pageEnd >= heading.page)
+    let candidate: Boundary | null = null
+    for (const chunk of overlaps) {
+      // Existing chunks retain their IDs and hashes. Match source evidence to text,
+      // never rewrite the stored chunks or fabricate an offset.
+      const rawOffset = chunk.text.indexOf(heading.rawLine)
+      const titleOffset = chunk.text.indexOf(heading.title)
+      const offset = rawOffset >= 0 ? rawOffset : titleOffset
+      if (offset >= 0) {
+        candidate = { at: chunk.index, title: heading.title, startCharOffset: offset || null }
+        break
+      }
+    }
+    if (!candidate && overlaps.length) {
+      candidate = { at: overlaps[0].index, title: heading.title, startCharOffset: null, note: 'عنوان من الملف الأصلي بلا موضع حرفي مطابق في المقاطع القديمة؛ راجع حد القسم قبل الاعتماد' }
+    }
+    if (!candidate) continue
+    const positionKey = candidate.at + ':' + (candidate.startCharOffset ?? 0)
+    if (used.has(positionKey)) continue
+    used.add(positionKey)
+    projected.push({ ...candidate, verifiedHeading: true })
+  }
+  return projected.slice(0, 100)
+}
+
+export type OutlineSubheadingMarker = { sectionOrder: number; title: string; page: number; chunkIndex: number; charOffset: number | null }
+
+export function outlineSubheadingMarkers(pages: readonly ExtractedBookPage[], chunks: readonly Chunk[], sections: readonly OutlineSectionDraft[]): OutlineSubheadingMarker[] {
+  const markers: OutlineSubheadingMarker[] = []
+  const seen = new Set<string>()
+  for (const page of pages) {
+    for (const line of page.text.split(/\r?\n|\r/)) {
+      const title = line.trim()
+      if (!subordinateHeading.test(normalizeOutlineText(title))) continue
+      const possibleChunks = chunks.filter((chunk) => chunk.pageStart <= page.page && chunk.pageEnd >= page.page)
+      const found = possibleChunks.map((chunk) => ({ chunk, offset: chunk.text.indexOf(title) })).find((entry) => entry.offset >= 0)
+      const candidates = sections.filter((section) => section.chunkStartIndex <= (found?.chunk.index ?? possibleChunks[0]?.index ?? Number.MAX_SAFE_INTEGER)
+        && section.chunkEndIndex >= (found?.chunk.index ?? possibleChunks[0]?.index ?? -1)
+        && (!found || section.chunkStartIndex !== found.chunk.index || (section.startCharOffset ?? 0) <= found.offset))
+      const section = candidates.sort((a, b) => b.chunkStartIndex - a.chunkStartIndex || (b.startCharOffset ?? 0) - (a.startCharOffset ?? 0))[0]
+      if (!section) continue
+      const key = section.order + ':' + page.page + ':' + normalizeHeading(title)
+      if (seen.has(key)) continue
+      seen.add(key)
+      markers.push({ sectionOrder: section.order, title, page: page.page, chunkIndex: found?.chunk.index ?? possibleChunks[0]?.index ?? section.chunkStartIndex, charOffset: found?.offset ?? null })
+    }
+  }
+  return markers.slice(0, 250)
+}
+
+async function originalBookPages(bookId: string): Promise<ExtractedBookPage[]> {
+  const book = await db.book.findUnique({ where: { id: bookId }, select: { data: true, storageProvider: true, storageKey: true, fileUrl: true, mimeType: true } })
+  if (!book) throw new Error('BOOK_NOT_FOUND')
+  const stored = await getFileBufferFromStorageOrBase64({ provider: book.storageProvider, key: book.storageKey, url: book.fileUrl, data: book.data, mimeType: book.mimeType })
+  if (!stored?.buffer?.length || stored.buffer.subarray(0, 5).toString() !== '%PDF-') throw new Error('BOOK_ORIGINAL_PDF_REQUIRED')
+  const pdf = await PDFDocument.load(stored.buffer)
+  const count = pdf.getPageCount()
+  if (count > 500) throw new Error('BOOK_REINDEX_MAX_500_PAGES')
+  const pages: ExtractedBookPage[] = []
+  for (let start = 1; start <= count; start += 16) {
+    const numbers = Array.from({ length: Math.min(16, count - start + 1) }, (_, i) => start + i)
+    const extracted = await extractNumberedPdfPages(stored.buffer, numbers)
+    pages.push(...extracted.map((page) => ({ ...page, text: fixArabicPdfText(page.text) })))
+  }
+  const ocrBatches = pagesNeedingOcr(pages)
+  const ocrCount = ocrBatches.reduce((total, batch) => total + batch.length, 0)
+  // A synchronous Vercel request cannot safely run large-book OCR. Do not
+  // persist an incomplete outline while claiming the scanned pages were read.
+  if (ocrCount > 8) throw new Error('BOOK_OUTLINE_OCR_TOO_MANY_PAGES: الكتاب يحتوي ' + ocrCount + ' صفحة ممسوحة ضوئياً تحتاج OCR. لا يمكن إتمامها بأمان في طلب واحد؛ استخدم مهمة قراءة الكتاب المرحلية قبل إعادة الفهرسة. لم يُحفظ أي فهرس ناقص.')
+  for (const batch of ocrBatches) {
+    const scanned = await transcribeScannedDocumentWithVision(stored.buffer, batch, Date.now() + 100_000)
+    for (const page of scanned) {
+      const at = pages.findIndex((existing) => existing.page === page.page)
+      if (at < 0 || !page.text.trim()) throw new Error('BOOK_OUTLINE_OCR_EMPTY_PAGE_' + page.page)
+      pages[at] = page
+    }
+  }
+  return pages
+}
+
+export function sourceBoundariesFromReadChunks(chunks: readonly Chunk[], bookTitle: string): Boundary[] {
+  // Reading has already extracted/OCRed this content. Never open the PDF again.
+  // Use one synthetic page per chunk only to apply the existing document-wide
+  // repeated-header and conservative article title filters.
+  const pages: ExtractedBookPage[] = chunks.map((chunk) => ({ page: chunk.index + 1, text: chunk.text, textProvenance: 'NATIVE_TEXT' }))
+  const headings = detectOriginalSourceHeadings(pages, bookTitle)
+  const results: Boundary[] = []
+  const seen = new Set<string>()
+  for (const heading of headings) {
+    const chunk = chunks[heading.page - 1]
+    if (!chunk) continue
+    const offset = chunk.text.indexOf(heading.rawLine)
+    if (offset < 0) continue
+    const key = chunk.index + ':' + offset
+    if (seen.has(key)) continue
+    seen.add(key)
+    results.push({ at: chunk.index, title: heading.title, startCharOffset: offset || null, verifiedHeading: true })
+  }
+  return results.slice(0, 100)
+}
+
+export async function buildBookOutline(bookId: string, options: { reuseReadChunks?: boolean; deterministicOnly?: boolean } = {}) {
   const book = await db.book.findUnique({ where: { id: bookId }, select: { id: true, semester: true, title: true } })
   if (!book) throw new Error('BOOK_NOT_FOUND')
   const [chunks, items] = await Promise.all([
@@ -435,15 +589,44 @@ export async function buildBookOutline(bookId: string) {
   if (!chunks.length) throw new Error('BOOK_CHUNKS_REQUIRED')
   if (!items.length) throw new Error('BOOK_V2_KNOWLEDGE_REQUIRED')
   const chunkIds = new Map(chunks.map((chunk) => [chunk.index, chunk.id]))
-  let draft = planBookOutline(chunks, items, chunkIds, book.semester, [], book.title)
-  if (draft.source === 'AI_SEGMENTED') {
+  // Prefer original PDF line boundaries, but keep the old chunks/AI outline
+  // path available for books whose original PDF is no longer stored.
+  let sourceBoundaries: Boundary[] = []
+  let sourcePages: ExtractedBookPage[] = []
+  let missingOriginalPdf = false
+  if (options.reuseReadChunks) {
+    sourceBoundaries = sourceBoundariesFromReadChunks(chunks, book.title)
+    // OCR text already lives in the stored chunks; do not read the PDF a second time.
+    sourcePages = chunks.map((chunk) => ({ page: chunk.pageStart, text: chunk.text, textProvenance: 'NATIVE_TEXT' as const }))
+  } else {
+    try {
+      sourcePages = await originalBookPages(bookId)
+      sourceBoundaries = projectSourceHeadings(detectOriginalSourceHeadings(sourcePages, book.title), chunks)
+    } catch (error: unknown) {
+      if (!(error instanceof Error) || error.message !== 'BOOK_ORIGINAL_PDF_REQUIRED') throw error
+      missingOriginalPdf = true
+    }
+  }
+  let draft = planBookOutline(chunks, items, chunkIds, book.semester, sourceBoundaries, book.title, options.reuseReadChunks === true)
+  if (draft.source === 'AI_SEGMENTED' && !options.deterministicOnly) {
     const byChunk = new Map<string, Item[]>()
     for (const item of items) if (item.chunkId) byChunk.set(item.chunkId, [...(byChunk.get(item.chunkId) || []), item])
     const evidence = chunks.map((chunk) => ({ index: chunk.index, items: (byChunk.get(chunk.id) || []).slice(0, 8).map((item) => ({ title: item.title.slice(0, 100), summary: item.summary.slice(0, 180) })) }))
     const raw = await geminiCompleteJson({ system: 'قسّم الكتاب إلى أقسام متتابعة اعتماداً على عناوين وملخصات عناصر المعرفة فقط. أرجع JSON فقط.', history: [{ role: 'user', text: `حدد 4 إلى 16 بداية قسم مع عنوان، بصيغة {"sections":[{"at":0,"title":"..."}]}. يجب استخدام index موجود فقط. البيانات: ${JSON.stringify(evidence)}` }], taskLevel: 'ACADEMIC_DRAFT', temperature: 0.1, maxOutputTokens: 3000, deadlineMs: Date.now() + 180_000 })
     const parsed = JSON.parse(raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim())
     const boundaries: Boundary[] = Array.isArray(parsed?.sections) ? parsed.sections.filter((entry: any) => Number.isInteger(entry.at) && clean(entry.title)).map((entry: any) => ({ at: entry.at, title: clean(entry.title), startCharOffset: null })) : []
-    draft = planBookOutline(chunks, items, chunkIds, book.semester, boundaries, book.title)
+    draft = { ...planBookOutline(chunks, items, chunkIds, book.semester, boundaries, book.title), source: 'AI_SEGMENTED' }
+  }
+  if (options.reuseReadChunks && draft.source === 'AI_SEGMENTED' && options.deterministicOnly) {
+    draft = { ...draft, source: 'CHUNK_SEGMENTED' }
+    draft.warnings.push('لم تُكتشف عناوين موثوقة؛ التقسيم الحالي حتمي من المقاطع المقروءة، وليس مولداً بالذكاء. راجع الأقسام قبل الاعتماد.')
+  }
+  if (options.reuseReadChunks && options.deterministicOnly) {
+    draft.warnings.push('أُنشئت المسودة من المقاطع المحفوظة بعد القراءة وOCR دون إعادة فتح ملف الكتاب.')
+  }
+  if (missingOriginalPdf) draft.warnings.push('ملف PDF الأصلي غير متاح؛ استُخدمت المقاطع المحفوظة لفهرسة هذا الكتاب. راجع حدود الأقسام قبل الاعتماد.')
+  for (const marker of outlineSubheadingMarkers(sourcePages, chunks, draft.sections)) {
+    draft.warnings.push('OUTLINE_SUBHEADING:' + JSON.stringify(marker))
   }
   const latest = await db.bookOutline.findFirst({ where: { bookId }, orderBy: { version: 'desc' }, select: { version: true } })
   return db.bookOutline.create({ data: { bookId, version: (latest?.version || 0) + 1, status: 'DRAFT', source: draft.source, warnings: JSON.stringify(draft.warnings), sections: { create: draft.sections } }, include: { sections: { orderBy: { order: 'asc' } } } })

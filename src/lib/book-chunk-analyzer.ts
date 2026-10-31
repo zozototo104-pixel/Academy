@@ -136,12 +136,18 @@ async function enrichBookChunkInner(input: { bookId: string; chunkText: string; 
     validate: (raw) => { if (!Array.isArray(JSON.parse(raw)?.items)) throw new Error('INVALID_BOOK_KNOWLEDGE_ENVELOPE') },
   }, input.routing ?? null, input.aiUsage ?? { provider: null, model: null, fallbackUsed: false })
   const accepted: BookKnowledgeCandidate[] = []
+  const rejected = { category: 0, excerptOrFields: 0, duplicate: 0 }
+  let candidates = 0
   for (const raw of JSON.parse(result).items) {
+    candidates++
+    if (!raw || typeof raw !== 'object' || !BOOK_KNOWLEDGE_CATEGORIES.includes(String((raw as Record<string, unknown>).category) as BookKnowledgeCandidate['category'])) { rejected.category++; continue }
     const candidate = validateBookKnowledgeCandidate(raw, input.chunkText)
-    if (!candidate || isRepeatedBookConcept(candidate, [...input.existing, ...accepted])) continue
+    if (!candidate) { rejected.excerptOrFields++; continue }
+    if (isRepeatedBookConcept(candidate, [...input.existing, ...accepted])) { rejected.duplicate++; continue }
     accepted.push(candidate)
     if (accepted.length >= 8) break
   }
+  console.info('[book-enrich] model-validation', { bookId: input.bookId, candidates, accepted: accepted.length, rejected })
   return accepted
 }
 
@@ -149,7 +155,7 @@ export type EnrichStepStore = {
   getJob: (id: string) => Promise<{ id: string; bookId: string; phase: string } | null>
   nextChunk: (bookId: string) => Promise<{ id: string; bookId: string; programId: string; index: number; text: string; pageStart: number; pageEnd: number; textProvenance: string; analysisPasses: number } | null>
   existing: (bookId: string, chunkId: string, index: number) => Promise<{ local: Pick<BookKnowledgeCandidate, 'title' | 'summary'>[]; own: Pick<BookKnowledgeCandidate, 'title' | 'summary'>[] }>
-  save: (chunk: { id: string; bookId: string; programId: string; pageStart: number; pageEnd: number; textProvenance: string }, items: BookKnowledgeCandidate[]) => Promise<void>
+  save: (chunk: { id: string; bookId: string; programId: string; pageStart: number; pageEnd: number; textProvenance: string }, items: BookKnowledgeCandidate[], capacity?: number) => Promise<void>
   finish: (jobId: string) => Promise<void>
 }
 
@@ -202,7 +208,8 @@ export async function enrichStepWithStore(jobId: string, deadlineMs: number, sto
     if (item && !isRepeatedBookConcept(item, [...existing.local, ...accepted])) accepted.push(item)
     if (accepted.length >= capacity) break
   }
-  await store.save(chunk, accepted)
+  console.info('[book-enrich] selection', { bookId: job.bookId, chunkId: chunk.id, candidates: candidates.length, accepted: accepted.length, rejected: { duplicateOrInvalid: candidates.length - accepted.length }, capacity })
+  await store.save(chunk, accepted, capacity)
   return { completed: false, added: accepted.length }
 }
 
@@ -216,10 +223,10 @@ export async function runEnrichStep(jobId: string, deadlineMs = Date.now() + 45_
       const rows = await db.bookKnowledgeItem.findMany({ where: { bookId, kbVersion: 2, chunkId: { in: chunks.map((chunk) => chunk.id) } }, select: { chunkId: true, title: true, summary: true } })
       return { local: rows, own: rows.filter((row) => row.chunkId === chunkId) }
     },
-    save: async (chunk, items) => {
+    save: async (chunk, items, capacity) => {
       await db.$transaction([
         ...(items.length ? [db.bookKnowledgeItem.createMany({ data: items.map((item) => ({ bookId: chunk.bookId, programId: chunk.programId, chunkId: chunk.id, pageStart: chunk.pageStart, pageEnd: chunk.pageEnd, textProvenance: chunk.textProvenance, kbVersion: 2, category: item.category, title: item.title, summary: item.summary, excerpt: item.excerpt, importance: item.importance })) })] : []),
-        db.bookChunk.update({ where: { id: chunk.id }, data: { ...(items.length ? { analysisPasses: { increment: 1 } } : { saturatedAt: new Date() }) } }),
+        db.bookChunk.update({ where: { id: chunk.id }, data: capacity === 0 ? { saturatedAt: new Date() } : { analysisPasses: { increment: 1 } } }),
       ])
     },
     finish: async (id) => { await db.bookReadJob.update({ where: { id }, data: { phase: 'DONE', status: 'COMPLETED', finishedAt: new Date(), lockedUntil: null, retryAt: null } }) },
