@@ -162,6 +162,8 @@ function countMatchingBookTerms(value: unknown, terms: string[]): number {
 
 // Metadata plans are educational guidance, not quotations from a book.
 function isMetadataOnlyKnowledgeItem(item: any): boolean {
+  if (item?.textProvenance === 'METADATA_ONLY') return true
+  if (item?.textProvenance && item.textProvenance !== 'METADATA_ONLY') return false
   const note = String(item?.sourceNote || '')
   return /توصيف الكتاب|مبني(?:ة)? على بيانات الكتاب بعد تعذر استخراج|بيانات وصفية/i.test(note)
 }
