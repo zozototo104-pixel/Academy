@@ -466,7 +466,7 @@ export const OUTLINE_SECTION_REVIEW_PAGES = 40
 export const OUTLINE_SECTION_BLOCK_PAGES = 80
 
 export type OutlineSectionCoverage = { order: number; title: string; pageStart: number | null; pageEnd: number | null; pages: number | null; band: 'OK' | 'REVIEW' | 'BLOCKED' }
-export type OutlineCoverageReport = { totalPages: number | null; maxSectionPages: number | null; sections: OutlineSectionCoverage[]; review: OutlineSectionCoverage[]; blocked: OutlineSectionCoverage[] }
+export type OutlineCoverageReport = { totalPages: number | null; maxSectionPages: number | null; sections: OutlineSectionCoverage[]; review: OutlineSectionCoverage[]; blocked: OutlineSectionCoverage[]; gaps: Array<{ pageStart: number; pageEnd: number }> }
 
 export function sectionPageSpan(section: Pick<OutlineSectionDraft, 'pageStart' | 'pageEnd'>): number | null {
   if (section.pageStart == null || section.pageEnd == null || section.pageEnd < section.pageStart) return null
