@@ -546,6 +546,19 @@ async function createUnitsFromApprovedOutlines(programId: string, regenerateDraf
         })
         updated.push(action.unitId)
         summary.updatedDrafts++
+      } else if (action.action === 'relink-draft') {
+        // Exact range survived a new outline version: relink metadata only.
+        // Preserve existing draft content, title, guide and generation count.
+        const changed = await db.unit.updateMany({
+          where: { id: action.unitId, programId, status: 'DRAFT' },
+          data: {
+            sourceBookId: book.id,
+            outlineSectionId: action.section.id,
+            chunkStartIndex: action.section.chunkStartIndex,
+            chunkEndIndex: action.section.chunkEndIndex,
+          },
+        })
+        if (changed.count) { updated.push(action.unitId); summary.relinkedDrafts++ }
       } else if (action.action === 'skip-approved') summary.skippedApproved++
       else if (action.action === 'skip-draft') summary.skippedDrafts++
       else if (action.action === 'skip-intro') summary.skippedIntro++
