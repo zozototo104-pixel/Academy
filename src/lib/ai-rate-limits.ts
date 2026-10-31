@@ -12,8 +12,6 @@ const MINUTE = 60_000
 export const AI_RATE_LIMITS = {
   asr: { scope: 'ai:asr', limit: 8, windowMs: 10 * MINUTE },
   tts: { scope: 'ai:tts', limit: 12, windowMs: 10 * MINUTE },
-  ttsStream: { scope: 'ai:tts-stream', limit: 16, windowMs: 10 * MINUTE },
-  voiceStream: { scope: 'ai:voice-stream', limit: 20, windowMs: 10 * MINUTE },
   defense: { scope: 'ai:defense', limit: 18, windowMs: 10 * MINUTE },
   defenseRecording: { scope: 'ai:defense-recording', limit: 4, windowMs: 60 * MINUTE },
 } satisfies Record<string, AiRateLimitProfile>
