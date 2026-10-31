@@ -9,6 +9,7 @@ import { join } from 'node:path'
 const root = join(import.meta.dir, '../..')
 const component = readFileSync(join(root, 'src/components/aact/StudentLectures.tsx'), 'utf8')
 const dashboard = readFileSync(join(root, 'src/components/aact/DashboardView.tsx'), 'utf8')
+const shell = readFileSync(join(root, 'src/components/aact/Shell.tsx'), 'utf8')
 const listRoute = readFileSync(join(root, 'src/app/api/my/lectures/route.ts'), 'utf8')
 
 describe('student lectures UI guards', () => {
