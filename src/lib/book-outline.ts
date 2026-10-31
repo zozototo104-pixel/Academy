@@ -429,6 +429,97 @@ export function planBookOutline(chunks: readonly Chunk[], items: readonly Item[]
   return { source, sections, warnings }
 }
 
+type SourceHeading = { page: number; title: string; rawLine: string }
+
+const articlePrefix = /^(?:المقال\s*[:：]\s*)(.{5,110})$/iu
+const subordinateHeading = /^(?:اسئله?\s*واجوبه?|أسئلة\s*وأجوبة|خلاصه|الخلاصة|تطبيقات\s*عمليه|المراجع|تمارين|مناقشه|أهداف\s*التعلم)\s*[:：]?\s*$/iu
+const numberedOrQuestion = /^(?:[•●▪*]|[-–—]\s|\d{1,3}\s*[.):\-–]|[٠-٩]{1,3}\s*[.):\-–]|[سج]\s*\d+\s*[:：]|(?:سؤال|س)\s*[:：]|[؟?])/iu
+const commonTopicStart = /^(?:مقدمه|مقدمة|دور|اهميه|أهمية|مفهوم|الإدارة|ادارة|إدارة|التخطيط|القيادة|التحليل|الاقتصاد|التسويق|الابتكار|الموارد|الرقابة|الجودة|مهارات|التنظيم|الاتصال|المخاطر|المنافسة)\b/iu
+
+function detectOriginalSourceHeadings(pages: readonly ExtractedBookPage[], bookTitle: string): SourceHeading[] {
+  const normalizedPages = pages.map((page) => ({ page: page.page, lines: page.text.split(/\r?\n|\r/) }))
+  const pagesPerLine = new Map<string, Set<number>>()
+  for (const page of normalizedPages) {
+    for (const line of page.lines) {
+      const key = normalizeHeading(line)
+      if (!key || key.length > 110) continue
+      if (!pagesPerLine.has(key)) pagesPerLine.set(key, new Set())
+      pagesPerLine.get(key)!.add(page.page)
+    }
+  }
+  const output: SourceHeading[] = []
+  for (const page of normalizedPages) {
+    for (let i = 0; i < page.lines.length; i++) {
+      const rawLine = page.lines[i].trim()
+      const key = normalizeHeading(rawLine)
+      if (rawLine.length < 7 || rawLine.length > 115 || !key) continue
+      if ((pagesPerLine.get(key)?.size || 0) >= 3 || key === normalizeHeading(bookTitle)) continue
+      if (subordinateHeading.test(normalizeOutlineText(rawLine)) || numberedOrQuestion.test(rawLine)) continue
+      if (/[؟?،,؛;.!]$/.test(rawLine) || /^\s*(?:https?:\/\/|www\.)/i.test(rawLine)) continue
+      if (matchChapterLine(rawLine)) {
+        output.push({ page: page.page, title: rawLine, rawLine })
+        continue
+      }
+      const prefixed = rawLine.match(articlePrefix)
+      const previousBlank = i === 0 || page.lines[i - 1].trim() === ''
+      const following = page.lines.slice(i + 1, i + 6).map((line) => line.trim()).filter(Boolean).join(' ')
+      const hasBody = following.length >= 95
+      if (!hasBody) continue
+      if (prefixed) output.push({ page: page.page, title: clean(prefixed[1]), rawLine })
+      else if (previousBlank && commonTopicStart.test(rawLine) && rawLine.length <= 85 && rawLine.split(/\s+/).length <= 11) {
+        output.push({ page: page.page, title: rawLine, rawLine })
+      }
+    }
+  }
+  return output
+}
+
+function projectSourceHeadings(headings: readonly SourceHeading[], chunks: readonly Chunk[]): Boundary[] {
+  const projected: Boundary[] = []
+  const used = new Set<string>()
+  for (const heading of headings) {
+    const overlaps = chunks.filter((chunk) => chunk.pageStart <= heading.page && chunk.pageEnd >= heading.page)
+    let candidate: Boundary | null = null
+    for (const chunk of overlaps) {
+      // Existing chunks retain their IDs and hashes. Match source evidence to text,
+      // never rewrite the stored chunks or fabricate an offset.
+      const rawOffset = chunk.text.indexOf(heading.rawLine)
+      const titleOffset = chunk.text.indexOf(heading.title)
+      const offset = rawOffset >= 0 ? rawOffset : titleOffset
+      if (offset >= 0) {
+        candidate = { at: chunk.index, title: heading.title, startCharOffset: offset || null }
+        break
+      }
+    }
+    if (!candidate && overlaps.length) {
+      candidate = { at: overlaps[0].index, title: heading.title, startCharOffset: null, note: 'عنوان من الملف الأصلي بلا موضع حرفي مطابق في المقاطع القديمة؛ راجع حد القسم قبل الاعتماد' }
+    }
+    if (!candidate) continue
+    const positionKey = candidate.at + ':' + (candidate.startCharOffset ?? 0)
+    if (used.has(positionKey)) continue
+    used.add(positionKey)
+    projected.push(candidate)
+  }
+  return projected.slice(0, 100)
+}
+
+async function originalBookPages(bookId: string): Promise<ExtractedBookPage[]> {
+  const book = await db.book.findUnique({ where: { id: bookId }, select: { data: true, storageProvider: true, storageKey: true, fileUrl: true, mimeType: true } })
+  if (!book) throw new Error('BOOK_NOT_FOUND')
+  const stored = await getFileBufferFromStorageOrBase64({ provider: book.storageProvider, key: book.storageKey, url: book.fileUrl, data: book.data, mimeType: book.mimeType })
+  if (!stored?.buffer?.length || stored.buffer.subarray(0, 5).toString() !== '%PDF-') throw new Error('BOOK_ORIGINAL_PDF_REQUIRED')
+  const pdf = await PDFDocument.load(stored.buffer)
+  const count = pdf.getPageCount()
+  if (count > 500) throw new Error('BOOK_REINDEX_MAX_500_PAGES')
+  const pages: ExtractedBookPage[] = []
+  for (let start = 1; start <= count; start += 16) {
+    const numbers = Array.from({ length: Math.min(16, count - start + 1) }, (_, i) => start + i)
+    const extracted = await extractNumberedPdfPages(stored.buffer, numbers)
+    pages.push(...extracted.map((page) => ({ ...page, text: fixArabicPdfText(page.text) })))
+  }
+  return pages
+}
+
 export async function buildBookOutline(bookId: string) {
   const book = await db.book.findUnique({ where: { id: bookId }, select: { id: true, semester: true, title: true } })
   if (!book) throw new Error('BOOK_NOT_FOUND')
