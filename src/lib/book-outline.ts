@@ -346,7 +346,7 @@ function normalizeBoundaries(chunks: readonly Chunk[], boundaries: readonly Boun
     const range = ranges[largest]
     if (range.end <= range.start) break
     const mid = Math.floor((range.start + range.end) / 2)
-    ranges.splice(largest + 1, 0, { start: mid + 1, end: range.end, title: `${range.title} — تابع`, startCharOffset: null })
+    ranges.splice(largest + 1, 0, { start: mid + 1, end: range.end, title: `${range.title} — تابع`, startCharOffset: null, verifiedHeading: false })
     range.end = mid
   }
   const itemCount = new Map<string, number>()
