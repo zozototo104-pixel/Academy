@@ -542,6 +542,19 @@ async function originalBookPages(bookId: string): Promise<ExtractedBookPage[]> {
     const extracted = await extractNumberedPdfPages(stored.buffer, numbers)
     pages.push(...extracted.map((page) => ({ ...page, text: fixArabicPdfText(page.text) })))
   }
+  const ocrBatches = pagesNeedingOcr(pages)
+  const ocrCount = ocrBatches.reduce((total, batch) => total + batch.length, 0)
+  // A synchronous Vercel request cannot safely run large-book OCR. Do not
+  // persist an incomplete outline while claiming the scanned pages were read.
+  if (ocrCount > 8) throw new Error('BOOK_OUTLINE_OCR_TOO_MANY_PAGES: ' + ocrCount + ' scanned pages; use the resumable book reading workflow before reindexing')
+  for (const batch of ocrBatches) {
+    const scanned = await transcribeScannedDocumentWithVision(stored.buffer, batch, Date.now() + 100_000)
+    for (const page of scanned) {
+      const at = pages.findIndex((existing) => existing.page === page.page)
+      if (at < 0 || !page.text.trim()) throw new Error('BOOK_OUTLINE_OCR_EMPTY_PAGE_' + page.page)
+      pages[at] = page
+    }
+  }
   return pages
 }
 
