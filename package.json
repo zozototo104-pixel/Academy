@@ -51,7 +51,7 @@
     "test:live-usage-binding": "bun test tests/ai/live-usage-binding.test.ts",
     "test:gemini-live-rotation": "bun test tests/ai/gemini-live-key-rotation.test.ts",
     "test:ui-e": "bun test tests/ui/ui-e.test.ts",
-    "test:lectures": "bun test tests/lectures",
+    "test:lectures": "bun test --isolate tests/lectures",
     "test:ai-pipeline-log": "bun test tests/ai/ai-pipeline-log.test.ts",
     "test:ai-stage-profiles": "bun test tests/ai/ai-stage-profiles.test.ts",
     "test:ai-stage-reading": "bun test tests/ai/ai-stage-reading.test.ts",
