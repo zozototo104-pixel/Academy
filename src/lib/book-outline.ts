@@ -476,11 +476,22 @@ export function sectionPageSpan(section: Pick<OutlineSectionDraft, 'pageStart' |
 export function auditOutlineCoverage(sections: readonly OutlineSectionDraft[]): OutlineCoverageReport {
   const audited = sections.map((section) => {
     const pages = sectionPageSpan(section)
-    const band: OutlineSectionCoverage['band'] = pages === null || pages <= OUTLINE_SECTION_REVIEW_PAGES ? 'OK' : pages <= OUTLINE_SECTION_BLOCK_PAGES ? 'REVIEW' : 'BLOCKED'
+    // Unknown page ends need review; they must never silently pass as OK.
+    const band: OutlineSectionCoverage['band'] = pages === null ? 'REVIEW' : pages <= OUTLINE_SECTION_REVIEW_PAGES ? 'OK' : pages <= OUTLINE_SECTION_BLOCK_PAGES ? 'REVIEW' : 'BLOCKED'
     return { order: section.order, title: section.title, pageStart: section.pageStart, pageEnd: section.pageEnd, pages, band }
   })
   const starts = sections.map((section) => section.pageStart).filter((page): page is number => page != null)
   const ends = sections.map((section) => section.pageEnd).filter((page): page is number => page != null)
+  const validRanges = audited.filter((section) => section.pages !== null && section.pageStart !== null && section.pageEnd !== null)
+    .sort((a, b) => Number(a.pageStart) - Number(b.pageStart))
+  const gaps: Array<{ pageStart: number; pageEnd: number }> = []
+  let coveredUntil: number | null = null
+  for (const section of validRanges) {
+    const start = section.pageStart!
+    const end = section.pageEnd!
+    if (coveredUntil !== null && start > coveredUntil + 1) gaps.push({ pageStart: coveredUntil + 1, pageEnd: start - 1 })
+    coveredUntil = Math.max(coveredUntil ?? end, end)
+  }
   return {
     totalPages: starts.length && ends.length ? Math.max(...ends) - Math.min(...starts) + 1 : null,
     maxSectionPages: audited.reduce<number | null>((max, section) => (section.pages === null ? max : Math.max(max ?? 0, section.pages)), null),
