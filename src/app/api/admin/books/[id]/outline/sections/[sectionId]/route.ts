@@ -36,7 +36,8 @@ export async function DELETE(request: NextRequest, context: Context) {
     }
     const left = mergeInto === 'previous' ? target : removed
     const right = mergeInto === 'previous' ? removed : target
-    if (right.pageStart > left.pageEnd + 1 ||
+    if (right.pageStart == null || left.pageEnd == null ||
+      right.pageStart > left.pageEnd + 1 ||
       right.chunkStartIndex > left.chunkEndIndex + 1 ||
       right.chunkEndIndex < left.chunkStartIndex) {
       return NextResponse.json({ code: 'OUTLINE_MERGE_GAP', error: 'لا يمكن ضم قسمين بينهما صفحات أو مقاطع غير موثقة؛ أعد بناء الفهرس.' }, { status: 409 })
