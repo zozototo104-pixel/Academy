@@ -282,43 +282,58 @@ async function loadBookContext(programId: string, unitId: string | null, semeste
         select: { id: true, title: true, sourceBookId: true, chunkStartIndex: true, chunkEndIndex: true },
       })
     }
-    // Never silently grade against the FIRST OTHER unit in the semester.
-    // Legacy assignments without a verified unit remain human-reviewable,
-    // but are explicitly reported as lacking a matching book reference.
-    if (!unit || !unit.sourceBookId || unit.chunkStartIndex == null || unit.chunkEndIndex == null) {
-      return { text: '', titles: [], used: false }
-    }
+    // A persisted source never authorizes a different unit or program.
+    // Legacy tasks with no unit have no book context; no silent semester fallback.
+    if (!unit || !unit.sourceBookId || unit.chunkStartIndex == null || unit.chunkEndIndex == null) return missing()
     const belongsToProgram = await db.unit.findFirst({
       where: { id: unit.id, programId, ...(semester === 3 ? {} : { semester }) },
       select: { id: true },
     })
-    if (!belongsToProgram) return { text: '', titles: [], used: false }
+    if (!belongsToProgram) return missing()
     const chunks = await db.bookChunk.findMany({
       where: { bookId: unit.sourceBookId, index: { gte: unit.chunkStartIndex, lte: unit.chunkEndIndex } },
       orderBy: { index: 'asc' },
-      take: 12,
       select: { id: true, text: true },
     })
-    if (!chunks.length) return { text: '', titles: [], used: false }
-    const knowledge = await db.bookKnowledgeItem.findMany({
-      where: { programId, kbVersion: 2, chunkId: { in: chunks.map((c: any) => c.id) }, category: { notIn: ['QUESTION_SEED', 'LEGACY'] } },
+    if (!chunks.length) return missing()
+    const allowedWhere = { programId, kbVersion: 2,
+      chunkId: { in: chunks.map((chunk) => chunk.id) },
+      category: { notIn: ['QUESTION_SEED', 'LEGACY'] } }
+    const original = sourceIds.length ? await db.bookKnowledgeItem.findMany({
+      where: { ...allowedWhere, id: { in: sourceIds } },
+      select: { id: true, title: true, summary: true, excerpt: true },
+    }) : []
+    const originalById = new Map(original.map((item) => [item.id, item]))
+    const orderedOriginals = sourceIds.map((id) => originalById.get(id)).filter((item): item is NonNullable<typeof item> => Boolean(item))
+    const matched = orderedOriginals.length
+    // Supplement only from the same verified unit when an original is missing
+    // or when a legacy/manual assignment has no source IDs.
+    const supplement = !sourceIds.length || matched !== sourceIds.length ? await db.bookKnowledgeItem.findMany({
+      where: { ...allowedWhere, ...(matched ? { id: { notIn: sourceIds } } : {}) },
       orderBy: [{ importance: 'desc' }],
       take: 20,
       select: { title: true, summary: true, excerpt: true },
-    })
+    }) : []
     const parts: string[] = []
-    for (const item of knowledge) {
+    for (const item of orderedOriginals) {
       const line = [item.title, item.summary, item.excerpt].filter(Boolean).join(' — ')
-      if (line) parts.push(line)
+      if (line) parts.push('مصدر الواجب الأصلي: ' + line)
     }
-    if (!parts.length) {
-      parts.push(...chunks.map((c: any) => String(c.text || '')).filter(Boolean))
+    for (const item of supplement) {
+      const line = [item.title, item.summary, item.excerpt].filter(Boolean).join(' — ')
+      if (line) parts.push('استكمال من الوحدة نفسها: ' + line)
     }
-    const text = parts.join('\n').slice(0, MAX_BOOK_CHARS)
+    if (!parts.length && !sourceIds.length) {
+      parts.push(...chunks.slice(0, 12).map((chunk) => String(chunk.text || '')).filter(Boolean))
+    }
+    const joined = parts.join('\n')
+    const text = joined.slice(0, MAX_BOOK_CHARS)
     const book = await db.book.findUnique({ where: { id: unit.sourceBookId }, select: { title: true } }).catch(() => null)
-    return { text, titles: book?.title ? [book.title] : [], used: text.length > 0 }
+    const status: GradingBookContext['status'] = !text ? 'NONE' : !sourceIds.length ? 'UNIT' :
+      matched === sourceIds.length && joined.length <= MAX_BOOK_CHARS ? 'EXACT' : 'PARTIAL'
+    return { text, titles: [book?.title, unit.title].filter((title): title is string => Boolean(title)), used: Boolean(text), status, expected: sourceIds.length, matched }
   } catch {
-    return { text: '', titles: [], used: false }
+    return missing()
   }
 }
 
