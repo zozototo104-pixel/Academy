@@ -192,7 +192,7 @@ export async function POST(req: NextRequest) {
       const unitTitle = String(items[0]?.unitTitle || id)
       const unitSources = items.slice(0, 12)
       const context = unitSources.map((k, i) => `${i + 1}. id=${k.id}\nالوحدة: ${unitTitle}\nالعنوان: ${titleFromKnowledge(k)}\nالصفحات: ${k.pageStart ?? '؟'}–${k.pageEnd ?? k.pageStart ?? '؟'}\nالملخص: ${cleanAssignmentText(k.summary, '', 380)}\nالمقتطف: ${cleanAssignmentText(k.excerpt, '', 380)}`).join('\n\n')
-      const prompt = `اقترح واجباً أكاديمياً واحداً موثقاً لوحدة "${unitTitle}" من الفصل ${semester} في برنامج "${program.titleAr}".\nمعرف الوحدة الثابت: ${id}\nواجبات موجودة لتجنب التكرار: ${existingTitles || 'لا يوجد'}\nمصادر الوحدة المسموحة فقط:\n${context}\nأرجع JSON array فيه واجب واحد بالحقول title, description, type, semester, points, weight, rubric, unitId, sourceKnowledgeIds, sourceKnowledgeTitles. استخدم unitId=${id} ومعرفات المصادر الحرفية أعلاه فقط، واذكر صفحات المصادر في الوصف. لا تقترح موعد تسليم، ولا تستخدم قوالب عامة.`
+      const prompt = `اقترح واجباً أكاديمياً واحداً موثقاً لوحدة "${unitTitle}" من الفصل ${semester} في برنامج "${programTitle}".\nمعرف الوحدة الثابت: ${id}\nواجبات موجودة لتجنب التكرار: ${existingTitles || 'لا يوجد'}\nمصادر الوحدة المسموحة فقط:\n${context}\nأرجع JSON array فيه واجب واحد بالحقول title, description, type, semester, points, weight, rubric, unitId, sourceKnowledgeIds, sourceKnowledgeTitles. استخدم unitId=${id} ومعرفات المصادر الحرفية أعلاه فقط، واذكر صفحات المصادر في الوصف. لا تقترح موعد تسليم، ولا تستخدم قوالب عامة.`
       const localAllowedIds = new Set(unitSources.map((item) => String(item.id)))
       let lastReason = 'لم ينتج واجب موثق'
       for (let attempt = 0; attempt < 2; attempt++) {
