@@ -676,10 +676,14 @@ export async function refineOversizedSections(params: {
     const section = sections[at]
     const rangeChunks = params.chunks.filter((chunk) => chunk.index >= section.chunkStartIndex && chunk.index <= section.chunkEndIndex)
     if (rangeChunks.length < 2) continue
-    let interior = rangeInteriorBoundaries(rangeChunks, params.sourceBoundaries || [], params.bookTitle)
-    if (!interior.length) {
-      interior = evidenceBoundariesForOversizedRange(rangeChunks, params.items, params.chunkIds, params.bookTitle)
-    }
+    const fromHeadings = rangeInteriorBoundaries(rangeChunks, params.sourceBoundaries || [], params.bookTitle)
+    const fromKnowledge = evidenceBoundariesForOversizedRange(rangeChunks, params.items, params.chunkIds, params.bookTitle)
+    // Do not stop at the first few early headings: continue scanning the
+    // entire range for later topic shifts. Actual source headings take
+    // precedence when both sources propose a boundary in the same chunk.
+    const headingChunks = new Set(fromHeadings.map((boundary) => boundary.at))
+    let interior = [...fromHeadings, ...fromKnowledge.filter((boundary) => !headingChunks.has(boundary.at))]
+      .sort((a, b) => a.at - b.at || offsetForSort(a.startCharOffset) - offsetForSort(b.startCharOffset))
     if (!interior.length && allowAi && aiCalls < maxAiRanges) {
       aiCalls++
       const byChunk = new Map<string, Item[]>()
