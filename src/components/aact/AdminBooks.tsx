@@ -2061,13 +2061,15 @@ export function AdminBooksTab() {
     }
   }
 
-  const rejectOutlineSection = async (bookId: string, sectionId: string) => {
+  const rejectOutlineSection = async (bookId: string, sectionId: string, mergeInto: 'previous' | 'next') => {
+    const direction = mergeInto === 'previous' ? 'السابق' : 'التالي'
+    if (!window.confirm(`سيُضم نطاق هذا القسم مع جميع صفحاته ومقاطع معرفته للقسم ${direction}، ولن يُحذف محتوى الكتاب. تأكد من مناسبة الموضوعين قبل المتابعة. هل تريد الضم؟`)) return
     try {
-      await api(`/api/admin/books/${bookId}/outline/sections/${sectionId}`, { method: 'DELETE' })
+      await api(`/api/admin/books/${bookId}/outline/sections/${sectionId}?mergeInto=${mergeInto}`, { method: 'DELETE' })
       await loadBookOutline(bookId)
-      toast({ title: 'تم تجاهل القسم المقترح' })
+      toast({ title: `تم ضم القسم إلى ${direction} مع الحفاظ على نطاق المصدر` })
     } catch (error: any) {
-      toast({ title: 'تعذر تجاهل القسم', description: String(error?.message || error), variant: 'destructive' })
+      toast({ title: 'تعذر ضم القسم بأمان', description: String(error?.message || error), variant: 'destructive' })
     }
   }
 
