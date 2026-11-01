@@ -1,5 +1,11 @@
 import { readFileSync } from 'fs'
 import { join } from 'path'
+import {
+  hasPendingPlatformChatHandoffDetailsPrompt,
+  looksLikePlatformChatHandoffDetails,
+  wantsPlatformChatHumanSupport,
+  wantsHumanSupport,
+} from '../src/lib/human-handoff'
 
 function file(path: string) {
   return readFileSync(join(process.cwd(), path), 'utf8')
