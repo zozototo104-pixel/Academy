@@ -467,6 +467,17 @@ function testThematicGroupCannotHideMissingPdfPages() {
   assert(reason === 'OUTLINE_THEMATIC_SOURCE_COVERAGE_GAP', 'لا يجوز إخفاء الصفحة 28 المفقودة داخل وحدة أكبر')
 }
 
+function testRepeatedMergesRetainOriginalTitles() {
+  const markers = [
+    'OUTLINE_SUBHEADING:' + JSON.stringify({ sectionOrder: 3, title: 'عنوان أصلي', page: 27 }),
+    'OUTLINE_MERGED_TITLE:' + JSON.stringify({ sectionOrder: 2, title: 'قسم سابق', pageStart: 10, pageEnd: 26 }),
+  ]
+  const first = remapOutlineReviewWarnings(markers, new Map([[1, 1], [2, 2]]), 3, 2)
+  const second = remapOutlineReviewWarnings(first, new Map([[1, 1]]), 2, 1)
+  const retained = second.map((warning) => JSON.parse(warning.slice(warning.indexOf(':') + 1)))
+  assert(retained.length === 2 && retained.every((marker) => marker.sectionOrder === 1), 'الدمج المتكرر يجب أن يحافظ على العناوين الأصلية في القسم الباقي')
+}
+
 function testOutlineReviewNeverSilentlyDeletesSourceCoverage() {
   const route = readFileSync('src/app/api/admin/books/[id]/outline/sections/[sectionId]/route.ts', 'utf8')
   const approval = readFileSync('src/app/api/admin/books/[id]/outline/approve/route.ts', 'utf8')
