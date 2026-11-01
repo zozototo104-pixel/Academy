@@ -10,6 +10,7 @@ import {
 } from '@/lib/human-handoff'
 import {
   createOfficialWhatsAppAgentReply,
+  sanitizeWhatsAppBotReply,
   extractWhatsAppInboundMessages,
   officialWhatsAppConfigured,
   sendOfficialWhatsAppReadReceipt,
