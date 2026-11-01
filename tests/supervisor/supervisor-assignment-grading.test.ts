@@ -218,6 +218,11 @@ describe('supervisor assignments route — scope is the gate, analyze never save
     admissionSupervisorId = 'sup-1'
     textAiResponse = validDraft()
     textAiCalls = 0
+    lastGradingPrompt = ''
+    mockSourceUnit = false
+    mockMissingOriginal = false
+    submission.assignment.unitId = null
+    submission.assignment.sourceKnowledgeIds = null
     fileBufferToReturn = null
     bookReaderCalls = 0
     bookOcrCalls = 0
