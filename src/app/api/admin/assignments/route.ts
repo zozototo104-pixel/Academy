@@ -36,6 +36,7 @@ function mapAssignment(a: any) {
     id: a.id,
     programId: a.programId,
     unitId: a.unitId || null,
+    sourceKnowledgeIds: Array.isArray(a.sourceKnowledgeIds) ? a.sourceKnowledgeIds.filter((id: unknown): id is string => typeof id === 'string') : null,
     title,
     description,
     semester: a.semester,
