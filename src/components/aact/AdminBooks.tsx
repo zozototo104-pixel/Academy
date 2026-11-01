@@ -3352,7 +3352,7 @@ export function AdminBooksTab() {
                         {s.sourceKnowledgeTitles?.length ? (
                           <p className="mt-2 rounded-lg bg-slate-50 p-2 text-[10px] font-bold leading-5 text-slate-500">مصادر معرفية: {s.sourceKnowledgeTitles.slice(0, 4).join('، ')}</p>
                         ) : null}
-                        <p role="alert" className="mt-2 rounded-lg bg-amber-50 p-2 text-[10px] font-bold leading-5 text-amber-900">تنبيه: عند الحفظ تُحفظ وحدة الواجب فقط. معرّفات عناصر المعرفة الأصلية لا تُحفظ بعد، إلى حين إضافة ترحيل قاعدة البيانات. راجع مرجع الوحدة قبل اعتماد التصحيح.</p>
+                        <p className="mt-2 rounded-lg bg-emerald-50 p-2 text-[10px] font-bold leading-5 text-emerald-900">سيُتحقق عند الحفظ من وحدة الواجب وعناصر المعرفة المشار إليها، وتُحفظ المراجع الأصلية لإعادة استخدامها في التصحيح.</p>
                         <p className="mt-2 text-[10px] font-bold leading-5 text-[#a8841a]">معايير التصحيح: {s.rubric}</p>
                         <div className="mt-3 flex flex-wrap gap-2">
                           {s.added ? (
