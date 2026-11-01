@@ -196,7 +196,7 @@ export async function createOfficialWhatsAppAgentReply(message: WhatsAppInboundM
 // WhatsApp-only output boundary. A provider/model may occasionally introduce
 // itself despite the academy persona. Strip SELF-identification, not ordinary
 // mentions of technical products in a visitor's requested answer.
-export const WHATSAPP_IDENTITY_FALLBACK_REPLY = 'أنا الوكيل الذكي للأكاديمية، كيف يمكنني مساعدتك؟'
+export const WHATSAPP_IDENTITY_FALLBACK_REPLY = 'أنا الوكيل الذكي للأكاديمية.'
 
 const WHATSAPP_MODEL_SELF_IDENTITY: RegExp[] = [
   /\b(?:i\s+am|i'm|my\s+name\s+is|this\s+is)\s+(?:(?:an?|the)\s+)?(?:deepseek[\w.-]*|chatgpt[\w.-]*|gpt-\d[\w.-]*|claude[\w.-]*|gemini[\w.-]*|llama[\w.-]*|grok[\w.-]*|qwen[\w.-]*|mistral[\w.-]*|copilot[\w.-]*)\b/i,
