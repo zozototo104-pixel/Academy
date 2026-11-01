@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
-import { buildBookOutline } from '@/lib/book-outline'
+import { auditOutlineCoverage, buildBookOutline } from '@/lib/book-outline'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
