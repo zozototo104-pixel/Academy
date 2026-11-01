@@ -460,8 +460,12 @@ const genericOutlineWords = new Set([
   'and', 'the', 'introduction', 'chapter', 'part', 'overview',
 ])
 function outlineTopicWords(title: string): Set<string> {
-  return new Set(normalizeHeading(title).split(' ')
-    .filter((word) => word.length >= 4 && !genericOutlineWords.has(word)))
+  // Arabic PDFs and model-produced academic titles routinely differ only by
+  // the definite article (منافسة/المنافسة), or Persian glyphs (ی/ي, ک/ك).
+  // Canonicalize those spellings before comparing grounded topic evidence.
+  return new Set(normalizeHeading(title).replace(/ی/g, 'ي').replace(/ک/g, 'ك').replace(/ھ/g, 'ه').split(' ')
+    .map((word) => word.startsWith('ال') && word.length >= 6 ? word.slice(2) : word)
+    .filter((word) => word.length >= 4 && !genericOutlineWords.has(word) && !genericOutlineWords.has('ال' + word)))
 }
 
 /**
