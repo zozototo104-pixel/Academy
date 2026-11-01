@@ -189,6 +189,7 @@ function parseStampLayout(positionValue?: string | null, sizeValue?: string | nu
 }
 
 export default function AdminLegacyGraduatesTab() {
+  const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
   const [items, setItems] = useState<LegacyGraduateCertificate[]>([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(false)
