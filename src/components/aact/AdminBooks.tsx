@@ -4601,6 +4601,8 @@ export function AdminBooksTab() {
                   <p>مصدر القراءة: {gradingAiDraft.provenance?.answerSourceLabel || 'نص مكتوب'}</p>
                   {gradingAiDraft.provenance?.ocrNote && <p>{gradingAiDraft.provenance.ocrNote}</p>}
                   <p>سياق الكتاب: {gradingAiDraft.provenance?.bookContextUsed ? `مستخدم (${(gradingAiDraft.provenance.bookTitles || []).join('، ') || 'كتاب الوحدة'})` : 'غير متوفر — اعتمد على نص الإجابة فقط'}</p>
+                  {!gradingAiDraft.provenance?.bookContextUsed && <p role="alert" className="rounded-lg bg-red-50 p-2 text-red-800">تحذير: لا يوجد مرجع موثّق من وحدة هذا الواجب. لا تعتمد درجة الذكاء كمقارنة بالمنهج قبل مراجعة الطالب والملف الأصلي يدويًا.</p>}
+                  {!Array.isArray(gradingAiDraft.draft.criteria) && <p role="alert" className="rounded-lg bg-red-50 p-2 text-red-800">تحذير: لم يمكن التحقق من توزيع الدرجة على المعايير؛ الرقم الإجمالي مجرد اقتراح يحتاج تصحيحًا بشريًا مفصّلًا.</p>}
                   {Array.isArray(gradingAiDraft.draft.criteria) && gradingAiDraft.draft.criteria.length > 0 && (
                     <ul className="list-disc pr-4">
                       {gradingAiDraft.draft.criteria.map((c: any, i: number) => (
