@@ -506,6 +506,7 @@ function testVerifiedMidChunkArticleKeepsPreviousPageAndEvidence() {
 }
 
 const tests = [
+  testTwoHeadingsOnSameOriginalPdfPageHaveKnownEnds,
   testVerifiedMidChunkArticleKeepsPreviousPageAndEvidence,
   testThematicGroupCannotHideMissingPdfPages,
   testRealArabicTopicVariationsDoNotRejectValidGroups,
