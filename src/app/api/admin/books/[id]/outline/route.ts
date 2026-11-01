@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
-import { buildBookOutline } from '@/lib/book-outline'
+import { auditOutlineCoverage, buildBookOutline } from '@/lib/book-outline'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -24,7 +24,30 @@ export async function GET(_req: NextRequest, context: Context) {
     const book = await db.book.findUnique({ where: { id }, select: { programId: true } })
     if (!book) return NextResponse.json({ error: 'BOOK_NOT_FOUND' }, { status: 404 })
     const outline = await db.bookOutline.findFirst({ where: { bookId: id }, orderBy: { version: 'desc' }, include: { sections: { orderBy: { order: 'asc' } } } })
-    return NextResponse.json({ outline, programDraft: await programDraft(book.programId) })
+    // Historical warnings were recorded at BUILD time, before a supervisor
+    // could remove/merge sections. Never show those frozen warnings as the
+    // current audit; recompute against the original stored book extent.
+    let currentOutline = outline
+    if (outline) {
+      const sourceChunks = await db.bookChunk.findMany({
+        where: { bookId: id }, select: { pageStart: true, pageEnd: true },
+      })
+      const range = sourceChunks.length ? {
+        pageStart: Math.min(...sourceChunks.map((chunk) => chunk.pageStart)),
+        pageEnd: Math.max(...sourceChunks.map((chunk) => chunk.pageEnd)),
+      } : undefined
+      const coverage = auditOutlineCoverage(outline.sections, range)
+      const warnings = (() => { try { const x = JSON.parse(outline.warnings || '[]'); return Array.isArray(x) ? x.map(String) : [] } catch { return [] as string[] } })()
+        .filter((warning) => !warning.startsWith('تنبيه تغطية:') && !warning.startsWith('OUTLINE_COVERAGE:'))
+      for (const section of coverage.review) {
+        if (section.pages === null) warnings.push(`تنبيه تغطية: حدود صفحات القسم «${section.title}» غير مكتملة؛ لا يمكن اعتماده حتى تصحيحها.`)
+        else if (section.band === 'REVIEW') warnings.push(`تنبيه تغطية: القسم «${section.title}» يمتد ${section.pages} صفحة ويحتاج مراجعة.`)
+      }
+      for (const gap of coverage.gaps) warnings.push(`تنبيه تغطية: صفحات ${gap.pageStart}–${gap.pageEnd} غير ممثلة في الفهرس الحالي؛ أعد بناء الفهرس أو ضم الأقسام بأدلة مصدرية.`)
+      for (const section of coverage.blocked) warnings.push(`تنبيه تغطية: القسم «${section.title}» يتجاوز 80 صفحة؛ يحتاج تقسيمًا موثقًا.`)
+      currentOutline = { ...outline, warnings: JSON.stringify(warnings) }
+    }
+    return NextResponse.json({ outline: currentOutline, programDraft: await programDraft(book.programId) })
   } catch (error: any) {
     return NextResponse.json({ error: String(error?.message || error) }, { status: error?.message === 'UNAUTHORIZED' ? 401 : 500 })
   }
