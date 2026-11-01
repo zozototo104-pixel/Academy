@@ -358,7 +358,9 @@ function normalizeBoundaries(chunks: readonly Chunk[], boundaries: readonly Boun
       // Distinct article headings in a shared chunk can have different real
       // PDF pages. Unknown boundaries still require review; never guess.
       pageEnd: nextPage === null ? sorted[range.end].pageEnd
-        : nextPage <= pageStart ? null : Math.min(sorted[range.end].pageEnd, nextPage - 1),
+        : nextPage < pageStart ? null
+        : nextPage === pageStart ? (sorted[range.end].pageEnd >= pageStart ? pageStart : null)
+        : Math.min(sorted[range.end].pageEnd, nextPage - 1),
       itemsCount: sorted.slice(range.start, range.end + 1).reduce((sum, chunk) => sum + (itemCount.get(chunkIds.get(chunk.index) || '') || 0), 0),
     }
   })
