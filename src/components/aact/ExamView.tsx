@@ -597,9 +597,12 @@ export function ExamView() {
     )
   }
 
+  // Before a program-exam attempt is started, the API intentionally sends
+  // questions: [] to keep exam questions private. Do not dereference q until
+  // the consent screen has been rendered and questions are available.
   const q = data.questions[current]
   const elapsedMin = Math.floor((Date.now() - startedAt) / 60000)
-  const isObjective = q.type === 'MCQ' || q.type === 'TF'
+  const isObjective = q?.type === 'MCQ' || q?.type === 'TF'
   const lowTime = secondsLeft !== null && secondsLeft <= 600
 
   // ===== 12.2: شاشة الإشعار المسبق والموافقة على المراقبة الإلكترونية (للامتحانات الشاملة) =====
