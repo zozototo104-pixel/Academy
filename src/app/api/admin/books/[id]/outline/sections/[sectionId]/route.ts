@@ -79,6 +79,7 @@ export async function DELETE(request: NextRequest, context: Context) {
       sectionOrder: orderByOld.get(oldTargetOrder), title: removed.title,
       pageStart: removed.pageStart, pageEnd: removed.pageEnd,
     }))
+    warnings.push(`تم ضم العنوان «${removed.title}» (صفحات ${removed.pageStart}–${removed.pageEnd}) إلى «${target.title}» مع حفظ الصفحات والمقاطع المرجعية.`)
     // Do not let a failed reorder or merge lose the original pages.
     await db.$transaction(async (tx) => {
       await tx.bookOutlineSection.delete({ where: { id: sectionId } })
