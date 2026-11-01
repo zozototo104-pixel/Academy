@@ -8,6 +8,7 @@ let admissionSupervisorId: string | null = 'sup-1'
 let textAiResponse = ''
 let extractedText: string | null = 'نص إجابة الطالب المكتوب في الملف المرفق بشكل واضح ومفصل.'
 const updateCalls: any[] = []
+const assignmentCreates: any[] = []
 const notifyCalls: any[] = []
 const emailCalls: any[] = []
 const auditCalls: any[] = []
