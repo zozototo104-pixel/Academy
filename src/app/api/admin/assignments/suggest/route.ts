@@ -246,7 +246,15 @@ export async function POST(req: NextRequest) {
           const valid = normalizeSuggestions(parsed, semester, localAllowedIds, titleById, unitById, id, unitSources.map((source) => String(source.id)))
             .find((item) => item.unitId === id && !existingNormalized.has(item.title.toLowerCase()))
           if (valid) return { suggestion: valid, unitId: id, title: unitTitle }
-          lastReason = `النتائج غير موثقة أو مكررة (عدد المقترحات: ${parsed.length})`
+          const candidates = parsed.filter((item) => item && typeof item === 'object')
+          const malformed = candidates.filter((item) => !cleanAssignmentText(item.title, '', 180, true) || !cleanAssignmentText(item.description, '', 5000) || looksLikeBrokenAcademicOutput(`${item.title || ''}. ${item.description || ''}`)).length
+          const ungrounded = candidates.filter((item) => {
+            const direct = Array.isArray(item.sourceKnowledgeIds) && item.sourceKnowledgeIds.some((value: unknown) => localAllowedIds.has(clean(value, 100)))
+            const indexed = Array.isArray(item.sourceKnowledgeIndices) && item.sourceKnowledgeIndices.some((value: unknown) => Number.isInteger(Number(value)) && Number(value) >= 1 && Number(value) <= unitSources.length)
+            return !direct && !indexed
+          }).length
+          const rejected = malformed ? `نص غير صالح: ${malformed}` : ungrounded ? `مصادر غير صالحة: ${ungrounded}` : parsed.length ? 'تكرار عنوان أو عدم تطابق الوحدة أو فشل التحقق من المحتوى' : 'لم تُستخرج مقترحات من استجابة الذكاء'
+          lastReason = `${rejected} (عدد المقترحات: ${parsed.length})`
         } catch (error: any) {
           lastReason = String(error?.message || error).slice(0, 180)
         }
