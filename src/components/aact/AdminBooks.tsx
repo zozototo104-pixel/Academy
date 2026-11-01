@@ -729,7 +729,7 @@ export function AdminBooksTab() {
   const [examKickFailures, setExamKickFailures] = useState<Record<string, { count: number; blocked: boolean; message: string }>>({})
   const examKickFailuresRef = useRef<Record<string, { count: number; blocked: boolean; message: string }>>({})
   const [form, setForm] = useState({ title: '', titleEn: '', author: '', year: '', description: '', semester: '', link: '' })
-  const [assignmentForm, setAssignmentForm] = useState({ id: '', unitId: '', title: '', description: '', semester: '1', type: 'REPORT', points: '10', weight: '0', dueDays: '', dueAt: '', rubric: '', status: 'PUBLISHED' })
+  const [assignmentForm, setAssignmentForm] = useState({ id: '', unitId: '', sourceKnowledgeIds: null as string[] | null, title: '', description: '', semester: '1', type: 'REPORT', points: '10', weight: '0', dueDays: '', dueAt: '', rubric: '', status: 'PUBLISHED' })
   const [savingAssignment, setSavingAssignment] = useState(false)
   const [gradingSubmissionId, setGradingSubmissionId] = useState<string | null>(null)
   const [gradingStatusFilter, setGradingStatusFilter] = useState('PENDING')
