@@ -219,6 +219,49 @@ describe('supervisor assignment grading — rubric and draft normalization', () 
   })
 })
 
+describe('admin assignment source persistence — verified program/unit/knowledge contract', () => {
+  beforeEach(() => {
+    currentUser = { id: 'admin-1', role: 'ADMIN', name: 'المدير' }
+    mockSourceUnit = true
+    mockMissingOriginal = false
+    assignmentCreates.length = 0
+  })
+
+  const save = (extra: any) => new NextRequest('http://localhost/api/admin/assignments', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      programId: 'prog-1', title: 'واجب إدارة الموارد البشرية', description: 'طبّق معايير الاستقطاب في حالة واقعية مفصلة.',
+      semester: 1, points: 100, status: 'DRAFT', unitId: 'unit-1', ...extra,
+    }),
+  })
+
+  test('verified original source ID is written to assignment JSONB field', async () => {
+    const route = await import('@/app/api/admin/assignments/route')
+    const res = await route.POST(save({ sourceKnowledgeIds: ['ki-exact'] }))
+    expect(res.status).toBe(200)
+    expect(assignmentCreates).toHaveLength(1)
+    expect(assignmentCreates[0].unitId).toBe('unit-1')
+    expect(assignmentCreates[0].sourceKnowledgeIds).toEqual(['ki-exact'])
+  })
+
+  test('knowledge ID outside the verified unit is rejected without any write', async () => {
+    const route = await import('@/app/api/admin/assignments/route')
+    const res = await route.POST(save({ sourceKnowledgeIds: ['ki-outside'] }))
+    expect(res.status).toBe(400)
+    expect(assignmentCreates).toHaveLength(0)
+  })
+
+  test('legacy manual assignment without source/unit still saves without invented provenance', async () => {
+    const route = await import('@/app/api/admin/assignments/route')
+    const res = await route.POST(save({ unitId: null }))
+    expect(res.status).toBe(200)
+    expect(assignmentCreates).toHaveLength(1)
+    expect(assignmentCreates[0].sourceKnowledgeIds).toBeUndefined()
+    expect(assignmentCreates[0].unitId).toBeNull()
+  })
+})
+
 describe('supervisor assignments route — scope is the gate, analyze never saves', () => {
   beforeEach(() => {
     currentUser = { id: 'sup-1', role: 'SUPERVISOR', name: 'المشرف' }
