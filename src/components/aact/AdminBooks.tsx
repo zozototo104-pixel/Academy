@@ -4609,7 +4609,7 @@ export function AdminBooksTab() {
                   {!gradingAiDraft.provenance?.bookContextUsed && <p role="alert" className="rounded-lg bg-red-50 p-2 text-red-800">تحذير: لا يوجد مرجع موثّق من وحدة هذا الواجب. لا تعتمد درجة الذكاء كمقارنة بالمنهج قبل مراجعة الطالب والملف الأصلي يدويًا.</p>}
                   {gradingAiDraft.provenance?.bookSourceStatus === 'EXACT' && <p className="rounded-lg bg-emerald-50 p-2 text-emerald-900">مصادر الواجب الأصلية موثّقة: {gradingAiDraft.provenance.sourceKnowledgeMatched} عناصر معرفة.</p>}
                   {gradingAiDraft.provenance?.bookSourceStatus === 'PARTIAL' && <p role="alert" className="rounded-lg bg-red-50 p-2 text-red-800">تحذير: المراجع الأصلية غير مكتملة أو مقتطعة ({gradingAiDraft.provenance.sourceKnowledgeMatched}/{gradingAiDraft.provenance.sourceKnowledgeCount})؛ الاستكمال من نفس الوحدة يحتاج مراجعة بشرية.</p>}
-                  {gradingAiDraft.provenance?.bookSourceStatus === 'UNIT' && <p role="alert" className="rounded-lg bg-amber-50 p-2 text-amber-900">مرجع وحدة فقط، ولا توجد معرّفات مصادر السؤال الأصلية محفوظة لهذا الواجب.</p>
+                  {gradingAiDraft.provenance?.bookSourceStatus === 'UNIT' && <p role="alert" className="rounded-lg bg-amber-50 p-2 text-amber-900">مرجع وحدة فقط، ولا توجد معرّفات مصادر السؤال الأصلية محفوظة لهذا الواجب.</p>}
                   {!Array.isArray(gradingAiDraft.draft.criteria) && <p role="alert" className="rounded-lg bg-red-50 p-2 text-red-800">تحذير: لم يمكن التحقق من توزيع الدرجة على المعايير؛ الرقم الإجمالي مجرد اقتراح يحتاج تصحيحًا بشريًا مفصّلًا.</p>}
                   {Array.isArray(gradingAiDraft.draft.criteria) && gradingAiDraft.draft.criteria.length > 0 && (
                     <ul className="list-disc pr-4">
