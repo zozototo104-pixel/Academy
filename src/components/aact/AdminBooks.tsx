@@ -2061,13 +2061,15 @@ export function AdminBooksTab() {
     }
   }
 
-  const rejectOutlineSection = async (bookId: string, sectionId: string) => {
+  const rejectOutlineSection = async (bookId: string, sectionId: string, mergeInto: 'previous' | 'next') => {
+    const direction = mergeInto === 'previous' ? 'السابق' : 'التالي'
+    if (!window.confirm(`سيُضم نطاق هذا القسم مع جميع صفحاته ومقاطع معرفته للقسم ${direction}، ولن يُحذف محتوى الكتاب. تأكد من مناسبة الموضوعين قبل المتابعة. هل تريد الضم؟`)) return
     try {
-      await api(`/api/admin/books/${bookId}/outline/sections/${sectionId}`, { method: 'DELETE' })
+      await api(`/api/admin/books/${bookId}/outline/sections/${sectionId}?mergeInto=${mergeInto}`, { method: 'DELETE' })
       await loadBookOutline(bookId)
-      toast({ title: 'تم تجاهل القسم المقترح' })
+      toast({ title: `تم ضم القسم إلى ${direction} مع الحفاظ على نطاق المصدر` })
     } catch (error: any) {
-      toast({ title: 'تعذر تجاهل القسم', description: String(error?.message || error), variant: 'destructive' })
+      toast({ title: 'تعذر ضم القسم بأمان', description: String(error?.message || error), variant: 'destructive' })
     }
   }
 
@@ -2899,7 +2901,10 @@ export function AdminBooksTab() {
                                   if (warning.startsWith('OUTLINE_')) return []
                                   return [warning]
                                 }).map((warning, index) => <p key={index} role="alert" className="mt-1 break-words text-amber-700">⚠ {warning}</p>) } catch { return null } })()}
-                              {outline.sections.map((section) => <div key={section.id} className="mt-1">{outlineEditingId === section.id ? <div className="flex flex-wrap gap-2"><input aria-label="عنوان القسم" className="min-w-0 flex-1 rounded border p-2" value={outlineEditingTitle} maxLength={180} onChange={(event) => setOutlineEditingTitle(event.target.value)} /><Button size="sm" onClick={() => void renameOutlineSection(b.id, section.id)}>حفظ</Button><Button size="sm" variant="outline" onClick={() => setOutlineEditingId(null)}>إلغاء</Button></div> : <div>{section.order}. {section.title} · {section.pageEnd === null ? `بداية الصفحة ${section.pageStart ?? '؟'}` : `صفحات ${section.pageStart ?? '؟'}–${section.pageEnd}`} · {section.itemsCount} عنصر {section.startCharOffset != null ? `· موضع البداية ${section.startCharOffset}` : ''} {outline.status === 'DRAFT' && <Button size="sm" variant="outline" onClick={() => { setOutlineEditingId(section.id); setOutlineEditingTitle(section.title) }}>تعديل العنوان</Button>} {outline.status === 'DRAFT' && <Button size="sm" variant="outline" className="text-red-700" onClick={() => void rejectOutlineSection(b.id, section.id)}>تجاهل</Button>}</div>}{outline.warnings && (() => { try { return (JSON.parse(outline.warnings || '[]') as string[]).filter((w) => w.startsWith('OUTLINE_SUBHEADING:')).map((w) => { try { return JSON.parse(w.slice('OUTLINE_SUBHEADING:'.length)) as { sectionOrder: number; title: string; page: number; charOffset: number | null } } catch { return null } }).filter((m) => m?.sectionOrder === section.order).map((m, i) => <p key={i} className="ms-4 text-[10px] text-slate-500">↳ {m!.title} · صفحة {m!.page}{m!.charOffset === null ? ' · الموضع يحتاج مراجعة' : ''}</p>) } catch { return null } })()}</div>)}
+                              {outline.sections.map((section, sectionIndex) => <div key={section.id} className="mt-1">{outlineEditingId === section.id ? <div className="flex flex-wrap gap-2"><input aria-label="عنوان القسم" className="min-w-0 flex-1 rounded border p-2" value={outlineEditingTitle} maxLength={180} onChange={(event) => setOutlineEditingTitle(event.target.value)} /><Button size="sm" onClick={() => void renameOutlineSection(b.id, section.id)}>حفظ</Button><Button size="sm" variant="outline" onClick={() => setOutlineEditingId(null)}>إلغاء</Button></div> : <div>{section.order}. {section.title} · {section.pageEnd === null ? `بداية الصفحة ${section.pageStart ?? '؟'}` : `صفحات ${section.pageStart ?? '؟'}–${section.pageEnd}`} · {section.itemsCount} عنصر {section.startCharOffset != null ? `· موضع البداية ${section.startCharOffset}` : ''} {outline.status === 'DRAFT' && <Button size="sm" variant="outline" onClick={() => { setOutlineEditingId(section.id); setOutlineEditingTitle(section.title) }}>تعديل العنوان</Button>} {outline.status === 'DRAFT' && <>
+                                {sectionIndex > 0 && <Button size="sm" variant="outline" className="text-amber-700" onClick={() => void rejectOutlineSection(b.id, section.id, 'previous')}>ضم للسابق</Button>}
+                                {sectionIndex < outline.sections.length - 1 && <Button size="sm" variant="outline" className="text-amber-700" onClick={() => void rejectOutlineSection(b.id, section.id, 'next')}>ضم للتالي</Button>}
+                              </>}</div>}{outline.warnings && (() => { try { return (JSON.parse(outline.warnings || '[]') as string[]).filter((w) => w.startsWith('OUTLINE_SUBHEADING:')).map((w) => { try { return JSON.parse(w.slice('OUTLINE_SUBHEADING:'.length)) as { sectionOrder: number; title: string; page: number; charOffset: number | null } } catch { return null } }).filter((m) => m?.sectionOrder === section.order).map((m, i) => <p key={i} className="ms-4 text-[10px] text-slate-500">↳ {m!.title} · صفحة {m!.page}{m!.charOffset === null ? ' · الموضع يحتاج مراجعة' : ''}</p>) } catch { return null } })()}</div>)}
                             </div>
                           })()}
                           {outlineDebugByBook[b.id] && (() => {

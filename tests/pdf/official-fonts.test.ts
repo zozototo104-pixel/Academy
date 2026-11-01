@@ -191,4 +191,46 @@ describe('official PDF fonts (production tofu regression)', () => {
     },
     180000,
   )
+
+  test(
+    'Arabic runs stay inside the page margins (librsvg RTL anchor layout)',
+    async () => {
+      // librsvg swaps start/end anchors for RTL text compared to browsers;
+      // before the text() helper compensated for that, Arabic titles,
+      // labels and values were laid out mirrored and ran off both page
+      // edges. The font test above cannot see that (both of its renders go
+      // through the same rasterizer), so this test measures WHERE the ink
+      // lands: below the full-bleed header band, every designed element
+      // lives inside the 52px margins, so the outer 26px columns must stay
+      // (nearly) empty in the production-path render.
+      const dir = mkdtempSync(path.join(os.tmpdir(), 'official-layout-test-'))
+      const noFontsDir = path.join(dir, 'nofonts')
+      mkdirSync(noFontsDir, { recursive: true })
+      writeFileSync(path.join(noFontsDir, 'fonts.conf'), confWithDirs([]))
+      const out = path.join(dir, 'node.pdf')
+      expect(existsSync(TSX)).toBe(true)
+      const { FONTCONFIG_FILE: _dropped, ...envWithoutFontconfig } = process.env
+      const res = spawnSync(TSX, [HELPER, out], {
+        cwd: REPO_ROOT,
+        env: { ...envWithoutFontconfig, FONTCONFIG_PATH: noFontsDir, XDG_CACHE_HOME: path.join(dir, 'cache-node') },
+        encoding: 'utf8',
+        timeout: 120000,
+      })
+      expect(res.status).toBe(0)
+      expect(existsSync(out)).toBe(true)
+
+      const img = await pageInk(out)
+      const edge = 26
+      let edgeInk = 0
+      for (let y = 150; y < img.height; y++) {
+        for (let x = 0; x < img.width; x++) {
+          if (x >= edge && x < img.width - edge) continue
+          if (img.mask[y * img.width + x]) edgeInk++
+        }
+      }
+      console.log(`[official-layout] edgeInk=${edgeInk} page=${img.width}x${img.height}`)
+      expect(edgeInk).toBeLessThan(50)
+    },
+    180000,
+  )
 })

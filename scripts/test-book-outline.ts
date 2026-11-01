@@ -1,4 +1,4 @@
-import { planBookOutline, detectOriginalSourceHeadings, outlineSubheadingMarkers, sourceBoundariesFromReadChunks, parseAiOutlineBoundaries, auditOutlineCoverage, outlineApprovalGuard, refineOversizedSections, evidenceBoundariesForOversizedRange, balanceBookOutlineSections, validateThematicArticleGrouping, type OutlineSectionDraft } from '@/lib/book-outline'
+import { planBookOutline, detectOriginalSourceHeadings, outlineSubheadingMarkers, sourceBoundariesFromReadChunks, parseAiOutlineBoundaries, auditOutlineCoverage, outlineApprovalGuard, remapOutlineReviewWarnings, refineOversizedSections, evidenceBoundariesForOversizedRange, balanceBookOutlineSections, validateThematicArticleGrouping, type OutlineSectionDraft } from '@/lib/book-outline'
 import { readFileSync } from 'node:fs'
 
 type ChunkInput = Parameters<typeof planBookOutline>[0][number]
@@ -256,10 +256,20 @@ function testCoverageRejectsShortSectionsWithMissingPages() {
   assert(report.gaps.length === 1 && report.gaps[0].pageStart === 41 && report.gaps[0].pageEnd === 49, 'يجب اكتشاف الصفحات 41–49 المفقودة')
   assert(outlineApprovalGuard(sections).decision === 'BLOCK', 'لا يجوز اعتماد فجوة حتى لو لم يكن أي قسم كبيراً')
   const incomplete = [draftSection(1, 'حدود ناقصة', 1, 40), { ...draftSection(2, 'صفحات غير معروفة', 41, 50), pageEnd: null }]
-  assert(outlineApprovalGuard(incomplete).decision === 'ALLOW_WITH_REVIEW', 'نهاية الصفحة المجهولة تستدعي مراجعة بدل تمرير صامت')
+  assert(outlineApprovalGuard(incomplete).decision === 'BLOCK', 'نهاية الصفحة المجهولة تمنع الاعتماد حتى لو وُضع القسم للمراجعة')
   const sameChunk = [draftSection(1, 'قسم أ', 1, 5), { ...draftSection(2, 'عنوان داخل نفس المقطع', 5, 6), pageEnd: null }, draftSection(3, 'قسم ج', 7, 11)]
   assert(auditOutlineCoverage(sameChunk).gaps.length === 0, 'حدود داخل نفس المقطع غير محسومة ولا يجوز وسمها فجوة مؤكدة')
-  assert(outlineApprovalGuard(sameChunk).decision === 'ALLOW_WITH_REVIEW', 'القسم مجهول النهاية يبقى للمراجعة البشرية')
+  assert(outlineApprovalGuard(sameChunk).decision === 'BLOCK', 'القسم مجهول النهاية لا يجوز تمريره باعتماد مشروط')
+  const sourceRange = { pageStart: 1, pageEnd: 297 }
+  const removedOpening = [draftSection(2, 'قيادة', 10, 26), draftSection(3, 'ذكاء عاطفي', 27, 297)]
+  const beginning = outlineApprovalGuard(removedOpening, sourceRange)
+  assert(beginning.decision === 'BLOCK' && beginning.report.gaps.some((gap) => gap.pageStart === 1 && gap.pageEnd === 9), 'حذف أول عنوان لا يجوز أن يمحو الصفحات 1–9')
+  const removedEnding = [draftSection(1, 'تنشئة اجتماعية', 1, 9), draftSection(2, 'قيادة', 10, 26)]
+  const ending = outlineApprovalGuard(removedEnding, sourceRange)
+  assert(ending.decision === 'BLOCK' && ending.report.gaps.some((gap) => gap.pageStart === 27 && gap.pageEnd === 297), 'حذف عناوين نهاية الكتاب لا يجوز أن يمحو الصفحات 27–297')
+  assert(outlineApprovalGuard([], sourceRange).decision === 'BLOCK', 'فهرس بلا أقسام لا يمكن اعتماده')
+  const full = [draftSection(1, 'تنشئة اجتماعية', 1, 9), draftSection(2, 'قيادة', 10, 297)]
+  assert(outlineApprovalGuard(full, sourceRange).decision === 'BLOCK', 'القسم الذي يزيد عن 80 صفحة ممنوع مهما كان كامل التغطية')
 }
 
 function testWholeBookBalanceMergesOnlyGroundedNeighborTopics() {
@@ -457,6 +467,46 @@ function testThematicGroupCannotHideMissingPdfPages() {
   assert(reason === 'OUTLINE_THEMATIC_SOURCE_COVERAGE_GAP', 'لا يجوز إخفاء الصفحة 28 المفقودة داخل وحدة أكبر')
 }
 
+function testRepeatedMergesRetainOriginalTitles() {
+  const markers = [
+    'OUTLINE_SUBHEADING:' + JSON.stringify({ sectionOrder: 3, title: 'عنوان أصلي', page: 27 }),
+    'OUTLINE_MERGED_TITLE:' + JSON.stringify({ sectionOrder: 2, title: 'قسم سابق', pageStart: 10, pageEnd: 26 }),
+  ]
+  const first = remapOutlineReviewWarnings(markers, new Map([[1, 1], [2, 2]]), 3, 2)
+  const second = remapOutlineReviewWarnings(first, new Map([[1, 1]]), 2, 1)
+  const retained = second.map((warning) => JSON.parse(warning.slice(warning.indexOf(':') + 1)))
+  assert(retained.length === 2 && retained.every((marker) => marker.sectionOrder === 1), 'الدمج المتكرر يجب أن يحافظ على العناوين الأصلية في القسم الباقي')
+}
+
+function testOutlineReviewNeverSilentlyDeletesSourceCoverage() {
+  const route = readFileSync('src/app/api/admin/books/[id]/outline/sections/[sectionId]/route.ts', 'utf8')
+  const approval = readFileSync('src/app/api/admin/books/[id]/outline/approve/route.ts', 'utf8')
+  const view = readFileSync('src/components/aact/AdminBooks.tsx', 'utf8')
+  assert(route.includes("mergeInto !== 'previous' && mergeInto !== 'next'"), 'حذف الفهرس يجب أن يطلب اتجاه ضم صريح')
+  assert(route.includes("code: 'OUTLINE_MERGE_UNVERIFIED_PAGES'"), 'لا يجوز ضم عناوين بصفحات غير موثقة')
+  assert(route.includes("code: 'OUTLINE_MERGE_GAP'"), 'لا يجوز تخطي فجوة عند ضم العناوين')
+  assert(route.includes('await db.$transaction(async (tx) => {'), 'ضم القسم وإعادة الترقيم يجب أن تكون عملية ذرّية')
+  assert(route.includes('itemsCount = await db.bookKnowledgeItem.count('), 'العدّاد يجب أن يعكس المقاطع بعد الدمج')
+  assert(!route.includes('await db.bookOutlineSection.delete({ where: { id: sectionId } })'), 'حظر العودة للحذف غير الذرّي')
+  assert(view.includes('ضم للسابق') && view.includes('ضم للتالي'), 'قرار دمج القسم يجب أن يظهر للمسؤول')
+  assert(!view.includes('>تجاهل</Button>'), 'إزالة زر التجاهل الصامت')
+  assert(approval.includes('outlineApprovalGuard(outline.sections, sourceRange)'), 'يجب فحص النطاق الأصلي للكتاب كله قبل الاعتماد')
+  assert(approval.includes("code: 'OUTLINE_INCOMPLETE_PAGE_RANGES'"), 'الحدود المجهولة تمنع الاعتماد')
+}
+
+function testTwoHeadingsOnSameOriginalPdfPageHaveKnownEnds() {
+  const chunks = [spanChunk(0, 'مقال: كلفة السلع المباعة\nنص\nمقال: النفقات العامة\nنص', 218, 218)]
+  const ids = new Map([[0, 'chunk-0']])
+  const result = planBookOutline(chunks, [], ids, 2, [
+    { at: 0, title: 'كلفة السلع المباعة', sourcePage: 218, startCharOffset: 0 },
+    { at: 0, title: 'النفقات العامة', sourcePage: 218, startCharOffset: 33 },
+  ], 'ماجستير إدارة الأعمال', true)
+  assert(result.sections.length === 2, 'مقالان حقيقيان داخل الصفحة نفسها يجب أن يبقيا مستقلين')
+  assert(result.sections[0].pageStart === 218 && result.sections[0].pageEnd === 218, 'حد نهاية المقال الأول لا يجوز أن يصبح مجهولًا لمجرد مشاركة الصفحة')
+  assert(result.sections[1].pageStart === 218 && result.sections[1].pageEnd === 218, 'المقال الثاني موثّق في الصفحة ذاتها')
+  assert(outlineApprovalGuard(result.sections, { pageStart: 218, pageEnd: 218 }).decision === 'ALLOW', 'الصفحة المشتركة ليست فجوة أو نقص تغطية')
+}
+
 function testVerifiedMidChunkArticleKeepsPreviousPageAndEvidence() {
   // Actual failure pattern from the 297-page replay: page 28 belongs to
   // the same stored chunk that also contains a new article on page 29.
@@ -483,6 +533,9 @@ function testVerifiedMidChunkArticleKeepsPreviousPageAndEvidence() {
 }
 
 const tests = [
+  testRepeatedMergesRetainOriginalTitles,
+  testOutlineReviewNeverSilentlyDeletesSourceCoverage,
+  testTwoHeadingsOnSameOriginalPdfPageHaveKnownEnds,
   testVerifiedMidChunkArticleKeepsPreviousPageAndEvidence,
   testThematicGroupCannotHideMissingPdfPages,
   testRealArabicTopicVariationsDoNotRejectValidGroups,
