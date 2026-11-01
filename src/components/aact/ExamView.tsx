@@ -914,6 +914,30 @@ export function ExamView() {
     )
   }
 
+  // A stale draft, malformed question list or transient detail failure must
+  // never crash the entire student portal. Retry detail without changing
+  // the server attempt or consuming another exam attempt.
+  if (!q) {
+    return (
+      <div role="alert" className="mx-auto max-w-xl px-4 py-16 text-center text-[#0f2b46]">
+        <p className="mb-4 text-sm font-bold">تعذر عرض سؤال الامتحان. يمكنك إعادة تحميل أسئلة محاولتك الحالية دون بدء محاولة جديدة.</p>
+        <Button onClick={async () => {
+          try {
+            const detailUrl = activeExamKind === 'final'
+              ? `/api/program-exam/detail?examId=${data.exam.id}`
+              : `/api/exam/detail?examId=${data.exam.id}`
+            const fresh = await api<ExamData>(detailUrl)
+            if (!Array.isArray(fresh.questions) || !fresh.questions.length) throw new Error('أسئلة الامتحان غير متاحة حاليًا')
+            setCurrent(0)
+            setData(fresh)
+          } catch (error) {
+            toast({ title: 'تعذر استعادة الأسئلة', description: (error as Error).message || 'أعد المحاولة لاحقًا', variant: 'destructive' })
+          }
+        }}>إعادة تحميل أسئلة المحاولة</Button>
+      </div>
+    )
+  }
+
   // ===== Exam taking screen =====
   return (
     <div className="aact-fade-in mx-auto max-w-3xl px-4 py-8">
