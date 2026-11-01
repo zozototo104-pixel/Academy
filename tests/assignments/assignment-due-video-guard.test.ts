@@ -42,6 +42,41 @@ describe('assignment fixed-date guards', () => {
   })
 })
 
+describe('assignment source and grading guardrails', () => {
+  const grader = readFileSync(join(root, 'src/lib/supervisor-assignment-grading.ts'), 'utf8')
+  const supervisor = readFileSync(join(root, 'src/components/aact/SupervisorView.tsx'), 'utf8')
+
+  test('AI cannot claim a unit while citing knowledge from another unit', () => {
+    expect(suggestRoute).toContain('unitById.get(id) !== proposedUnitId')
+    expect(suggestRoute).toContain('unitId: proposedUnitId')
+    expect(suggestRoute).toContain('unitById, unitId)')
+  })
+
+  test('manual and suggested assignments retain validated unit scope', () => {
+    expect(adminAssignmentsRoute).toContain('unitId: requestedUnitId')
+    expect(adminAssignmentsRoute).toContain('id: requestedUnitId, programId')
+    expect(adminAssignmentsRoute).toContain('unitId: a.unitId || null')
+    expect(adminBooks).toContain('unitId: s.unitId || null')
+    expect(adminBooks).toContain('الوحدة المرجعية للواجب')
+  })
+
+  test('legacy unlinked assignments never silently use first unrelated book', () => {
+    expect(grader).not.toContain('units.find((u: any) => u.sourceBookId')
+    expect(grader).toContain('if (!belongsToProgram) return')
+    expect(supervisor).toContain('هذا الواجب لا يملك مرجع وحدة موثوقًا')
+  })
+
+  test('missing rubric breakdown is disclosed to both reviewers', () => {
+    expect(supervisor).toContain('تعذّر التحقق من تفصيل الدرجة')
+    expect(adminBooks).toContain('لم يمكن التحقق من توزيع الدرجة')
+  })
+
+  test('knowledge provenance cannot silently vanish before a safe schema migration exists', () => {
+    expect(adminAssignmentsRoute).toContain('Array.isArray(body.sourceKnowledgeIds)')
+    expect(adminAssignmentsRoute).toContain('status: 409')
+  })
+})
+
 describe('lecture video edit/delete guards', () => {
   test('video route has an admin-only DELETE with storage cleanup', () => {
     expect(videoRoute).toContain('export async function DELETE')
