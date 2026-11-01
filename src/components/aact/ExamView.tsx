@@ -472,15 +472,18 @@ export function ExamView() {
         method: 'POST',
         body: JSON.stringify({ examId: data.exam.id, proctoringRequested: enable }),
       })
+      // Only the server can start/resume the attempt; its detail endpoint
+      // releases questions after that succeeds. Keep the consent screen up
+      // until they arrive, otherwise an empty list crashes the exam view.
+      // If this request fails, retrying start resumes the SAME active attempt.
+      const fresh = await api<ExamData>(`/api/program-exam/detail?examId=${data.exam.id}`)
+      if (!Array.isArray(fresh.questions) || !fresh.questions.length) {
+        throw new Error('تعذر تحميل أسئلة المحاولة النشطة. أعد المحاولة لاستكمال نفس الامتحان.')
+      }
       configureCountdown(started?.attempt?.startedAt, started?.durationMin || data.exam.durationMin, started?.serverNow)
+      setData(fresh)
       setProctorEnabled(enable)
       setExamStarted(true)
-      // الأسئلة لا تصل إلا بعد بدء المحاولة على الخادم — أعد جلب التفاصيل
-      // الآن حتى تظهر أسئلة المحاولة النشطة.
-      try {
-        const fresh = await api<ExamData>(`/api/program-exam/detail?examId=${data.exam.id}`)
-        setData(fresh)
-      } catch { /* عند فشل إعادة الجلب تظهر الأسئلة مع أي تحديث لاحق للصفحة */ }
       if (stream) {
         const activeStream = stream
         proctorStreamRef.current = activeStream
