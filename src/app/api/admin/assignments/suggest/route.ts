@@ -273,7 +273,7 @@ export async function POST(req: NextRequest) {
     }
     if (!suggestions.length) {
       console.warn('assignment suggestions: all sourced units failed', { programId, semester, failedUnits })
-      return NextResponse.json({ error: 'لم يتم توليد واجبات موثقة لأي وحدة. راجع مصادر الوحدات وسجلات التوليد.', status: 'PAUSED', failedUnits }, { status: 503 })
+      return NextResponse.json({ error: `لم يتم توليد واجب موثق: ${failedUnits.map((unit) => `${unit.title}: ${unit.reason}`).join('؛ ').slice(0, 900)}`, status: 'PAUSED', failedUnits }, { status: 503 })
     }
     return NextResponse.json({
       suggestions,
