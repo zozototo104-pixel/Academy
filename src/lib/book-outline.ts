@@ -560,21 +560,26 @@ export function auditOutlineCoverage(
   const validRanges = audited.filter((section) => section.pages !== null && section.pageStart !== null && section.pageEnd !== null)
     .sort((a, b) => Number(a.pageStart) - Number(b.pageStart))
   const gaps: Array<{ pageStart: number; pageEnd: number }> = []
-  let coveredUntil: number | null = null
+  // Start with the ACTUAL book's first extracted page, not the first
+  // surviving outline section. Otherwise deleting an opening/closing article
+  // makes those pages disappear from the audit without an internal gap.
+  let coveredUntil: number | null = sourceRange ? sourceRange.pageStart - 1 : null
   for (const section of validRanges) {
     const start = section.pageStart!
     const end = section.pageEnd!
     if (coveredUntil !== null && start > coveredUntil + 1) {
-      // Same-chunk chapter splits can have a null pageEnd; do not assert a
-      // missing-page gap while an unknown-length section starts inside it.
-      // The unknown section is already marked REVIEW, not silently approved.
+      // An unknown bridge is not a valid substitute for page coverage.
+      // It remains an independently blocking incomplete section below.
       const unknownBridge = audited.some((candidate) => candidate.pages === null && candidate.pageStart !== null && candidate.pageStart >= coveredUntil! && candidate.pageStart <= start)
       if (!unknownBridge) gaps.push({ pageStart: coveredUntil + 1, pageEnd: start - 1 })
     }
     coveredUntil = Math.max(coveredUntil ?? end, end)
   }
+  if (sourceRange && (coveredUntil === null || coveredUntil < sourceRange.pageEnd)) {
+    gaps.push({ pageStart: (coveredUntil ?? sourceRange.pageStart - 1) + 1, pageEnd: sourceRange.pageEnd })
+  }
   return {
-    totalPages: starts.length && ends.length ? Math.max(...ends) - Math.min(...starts) + 1 : null,
+    totalPages: sourceRange ? sourceRange.pageEnd - sourceRange.pageStart + 1 : starts.length && ends.length ? Math.max(...ends) - Math.min(...starts) + 1 : null,
     maxSectionPages: audited.reduce<number | null>((max, section) => (section.pages === null ? max : Math.max(max ?? 0, section.pages)), null),
     sections: audited,
     review: audited.filter((section) => section.band === 'REVIEW'),
