@@ -149,7 +149,7 @@ export async function POST(req: NextRequest) {
     } catch (error: any) {
       return NextResponse.json({ error: `توقف اقتراح الواجبات مؤقتاً: ${String(error?.message || error)}`, status: 'PAUSED' }, { status: 503 })
     }
-    const suggestions = normalizeSuggestions(parseJsonArray(raw), semester, allowedIds, titleById, unitId)
+    const suggestions = normalizeSuggestions(parseJsonArray(raw), semester, allowedIds, titleById, unitById, unitId)
     if (!suggestions.length) return NextResponse.json({ error: 'لم ينتج الراوتر واجبات موثقة بالمصادر. لم تُنشأ قوالب بديلة.', status: 'PAUSED' }, { status: 503 })
     return NextResponse.json({ suggestions })
   } catch (e: any) {
