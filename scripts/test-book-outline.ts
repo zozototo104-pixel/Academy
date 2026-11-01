@@ -467,6 +467,22 @@ function testThematicGroupCannotHideMissingPdfPages() {
   assert(reason === 'OUTLINE_THEMATIC_SOURCE_COVERAGE_GAP', 'لا يجوز إخفاء الصفحة 28 المفقودة داخل وحدة أكبر')
 }
 
+function testOutlineReviewNeverSilentlyDeletesSourceCoverage() {
+  const route = readFileSync('src/app/api/admin/books/[id]/outline/sections/[sectionId]/route.ts', 'utf8')
+  const approval = readFileSync('src/app/api/admin/books/[id]/outline/approve/route.ts', 'utf8')
+  const view = readFileSync('src/components/aact/AdminBooks.tsx', 'utf8')
+  assert(route.includes("mergeInto !== 'previous' && mergeInto !== 'next'"), 'حذف الفهرس يجب أن يطلب اتجاه ضم صريح')
+  assert(route.includes("code: 'OUTLINE_MERGE_UNVERIFIED_PAGES'"), 'لا يجوز ضم عناوين بصفحات غير موثقة')
+  assert(route.includes("code: 'OUTLINE_MERGE_GAP'"), 'لا يجوز تخطي فجوة عند ضم العناوين')
+  assert(route.includes('await db.$transaction(async (tx) => {'), 'ضم القسم وإعادة الترقيم يجب أن تكون عملية ذرّية')
+  assert(route.includes('itemsCount = await db.bookKnowledgeItem.count('), 'العدّاد يجب أن يعكس المقاطع بعد الدمج')
+  assert(!route.includes('await db.bookOutlineSection.delete({ where: { id: sectionId } })'), 'حظر العودة للحذف غير الذرّي')
+  assert(view.includes('ضم للسابق') && view.includes('ضم للتالي'), 'قرار دمج القسم يجب أن يظهر للمسؤول')
+  assert(!view.includes('>تجاهل</Button>'), 'إزالة زر التجاهل الصامت')
+  assert(approval.includes('outlineApprovalGuard(outline.sections, sourceRange)'), 'يجب فحص النطاق الأصلي للكتاب كله قبل الاعتماد')
+  assert(approval.includes("code: 'OUTLINE_INCOMPLETE_PAGE_RANGES'"), 'الحدود المجهولة تمنع الاعتماد')
+}
+
 function testTwoHeadingsOnSameOriginalPdfPageHaveKnownEnds() {
   const chunks = [spanChunk(0, 'مقال: كلفة السلع المباعة\nنص\nمقال: النفقات العامة\nنص', 218, 218)]
   const ids = new Map([[0, 'chunk-0']])
