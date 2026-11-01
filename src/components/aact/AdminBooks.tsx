@@ -2282,6 +2282,7 @@ export function AdminBooksTab() {
   const applyAssignmentSuggestionToForm = (s: AssignmentSuggestion) => {
     setAssignmentForm({
       id: '',
+      unitId: s.unitId || '',
       title: s.title,
       description: s.description,
       semester: String(s.semester || 1),
