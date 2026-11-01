@@ -93,7 +93,9 @@ function normalizeSuggestions(raw: any[], semester: number, allowedIds: Set<stri
       title,
       description,
       type,
-      semester: asInt(item?.semester, semester, 1, 3),
+      // فصل الواجب يُثبَّت من الطلب الموثوق؛ حقل الفصل في ناتج الذكاء لا
+      // يُستخدم أبدًا حتى لا يتجاوز فصلًا آخر عبر استثناء مشاريع البحث.
+      semester,
       points: asInt(item?.points, 15, 5, 100),
       weight: asInt(item?.weight, 0, 0, 100),
       dueDays: null,
@@ -129,8 +131,12 @@ function normalizeSuggestions(raw: any[], semester: number, allowedIds: Set<stri
 }
 
 async function unitKnowledge(programId: string, semester: number, unitId?: string | null) {
+  // فصل الواجب شيء وفصل الوحدة المرجعية شيء آخر: واجب الفصل الثالث
+  // (بحث/مشروع) يستند إلى وحدات الفصول الدراسية السابقة، تمامًا كما يسمح
+  // مسار الحفظ. لذلك لا يُقيَّد نطاق المصادر بفصل الواجب إلا في الفصلين
+  // الأول والثاني؛ والفصل نفسه يُثبَّت على الاقتراح من الطلب الموثوق.
   const units = await db.unit.findMany({
-    where: { programId, semester, ...(unitId ? { id: unitId } : {}) },
+    where: { programId, ...(unitId ? { id: unitId } : semester === 3 ? {} : { semester }) },
     orderBy: [{ semester: 'asc' }, { order: 'asc' }],
     select: { id: true, title: true, semester: true, sourceBookId: true, chunkStartIndex: true, chunkEndIndex: true },
   })
@@ -152,7 +158,8 @@ export async function GET(req: NextRequest) {
     const semester = asInt(req.nextUrl.searchParams.get('semester'), 1, 1, 3)
     if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
     const units = await db.unit.findMany({
-      where: { programId, semester },
+      // كتالوج الفصل الثالث يعرض وحدات الفصول السابقة أيضًا (مصادر البحث).
+      where: semester === 3 ? { programId } : { programId, semester },
       orderBy: [{ order: 'asc' }],
       select: { id: true, title: true, sourceBookId: true, chunkStartIndex: true, chunkEndIndex: true },
     })

@@ -54,8 +54,15 @@ const ORIGINAL_API_CALL_COUNT = 80 // 78 original protected calls, reviewed outl
 // No endpoint, HTTP method, or call count changed. The changed payload is
 // guarded independently in tests/assignments/assignment-due-video-guard.test.ts.
 // Reviewed PR #168: per-unit assignment generation changes the suggestion calls.
+// تحديث مقصود 2026-11-01 (إصلاحات مراجعة PR #168): العدد بقي 80، وتعبيرا
+// نداءين فقط تغيّرا — نداءا اقتراح الواجبات (كتالوج GET والوليد POST) أضيف
+// إليهما خيار signal لربطهما بـAbortController الخاص بعملية التوليد، حتى
+// تُلغى الطلبات القديمة عند تغيير البرنامج أو الفصل. لا نقطة نهاية ولا
+// طريقة ولا جسم تغيّر. السلوك مثبّت في
+// tests/assignments/assignment-due-video-guard.test.ts و
+// tests/assignments/assignment-suggest-behavior.test.ts.
 // Keep this declaration outside comments so TypeScript can validate the guard.
-const ORIGINAL_API_DIGEST = 'd6b0a4cb8c03f8e3690bc9cd0cc1dfd2de8edf60ebb0790f4abcf8a5916cf442'
+const ORIGINAL_API_DIGEST = 'c8b806deb476242ed67c638a599506fdd7a04f6e5f75e513606d507581628769'
 
 function parseSource() {
   return ts.createSourceFile('AdminBooks.tsx', SOURCE, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
@@ -133,7 +140,7 @@ describe('books workspace organization guard', () => {
   })
 
   it('program selection and its data reset stay wired', () => {
-    assert.ok(SOURCE.includes('onValueChange={(v) => { setProgramId(v); setSuggestions([]); loadProgramData(v) }}'))
+    assert.ok(SOURCE.includes('onValueChange={(v) => { invalidateAssignmentGeneration(); setProgramId(v); setSuggestions([]); loadProgramData(v) }}'))
     assert.ok(SOURCE.includes('setProgramReadiness(null)'))
     assert.ok(SOURCE.includes("useState('overview')") || SOURCE.includes('useState("overview")'))
   })
