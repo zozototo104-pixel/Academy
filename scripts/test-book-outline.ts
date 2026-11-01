@@ -256,10 +256,20 @@ function testCoverageRejectsShortSectionsWithMissingPages() {
   assert(report.gaps.length === 1 && report.gaps[0].pageStart === 41 && report.gaps[0].pageEnd === 49, 'يجب اكتشاف الصفحات 41–49 المفقودة')
   assert(outlineApprovalGuard(sections).decision === 'BLOCK', 'لا يجوز اعتماد فجوة حتى لو لم يكن أي قسم كبيراً')
   const incomplete = [draftSection(1, 'حدود ناقصة', 1, 40), { ...draftSection(2, 'صفحات غير معروفة', 41, 50), pageEnd: null }]
-  assert(outlineApprovalGuard(incomplete).decision === 'ALLOW_WITH_REVIEW', 'نهاية الصفحة المجهولة تستدعي مراجعة بدل تمرير صامت')
+  assert(outlineApprovalGuard(incomplete).decision === 'BLOCK', 'نهاية الصفحة المجهولة تمنع الاعتماد حتى لو وُضع القسم للمراجعة')
   const sameChunk = [draftSection(1, 'قسم أ', 1, 5), { ...draftSection(2, 'عنوان داخل نفس المقطع', 5, 6), pageEnd: null }, draftSection(3, 'قسم ج', 7, 11)]
   assert(auditOutlineCoverage(sameChunk).gaps.length === 0, 'حدود داخل نفس المقطع غير محسومة ولا يجوز وسمها فجوة مؤكدة')
-  assert(outlineApprovalGuard(sameChunk).decision === 'ALLOW_WITH_REVIEW', 'القسم مجهول النهاية يبقى للمراجعة البشرية')
+  assert(outlineApprovalGuard(sameChunk).decision === 'BLOCK', 'القسم مجهول النهاية لا يجوز تمريره باعتماد مشروط')
+  const sourceRange = { pageStart: 1, pageEnd: 297 }
+  const removedOpening = [draftSection(2, 'قيادة', 10, 26), draftSection(3, 'ذكاء عاطفي', 27, 297)]
+  const beginning = outlineApprovalGuard(removedOpening, sourceRange)
+  assert(beginning.decision === 'BLOCK' && beginning.report.gaps.some((gap) => gap.pageStart === 1 && gap.pageEnd === 9), 'حذف أول عنوان لا يجوز أن يمحو الصفحات 1–9')
+  const removedEnding = [draftSection(1, 'تنشئة اجتماعية', 1, 9), draftSection(2, 'قيادة', 10, 26)]
+  const ending = outlineApprovalGuard(removedEnding, sourceRange)
+  assert(ending.decision === 'BLOCK' && ending.report.gaps.some((gap) => gap.pageStart === 27 && gap.pageEnd === 297), 'حذف عناوين نهاية الكتاب لا يجوز أن يمحو الصفحات 27–297')
+  assert(outlineApprovalGuard([], sourceRange).decision === 'BLOCK', 'فهرس بلا أقسام لا يمكن اعتماده')
+  const full = [draftSection(1, 'تنشئة اجتماعية', 1, 9), draftSection(2, 'قيادة', 10, 297)]
+  assert(outlineApprovalGuard(full, sourceRange).decision === 'BLOCK' || outlineApprovalGuard(full, sourceRange).decision === 'ALLOW', 'القسم الطويل يبقى خاضعاً لحارس الطول')
 }
 
 function testWholeBookBalanceMergesOnlyGroundedNeighborTopics() {
