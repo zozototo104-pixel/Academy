@@ -542,7 +542,10 @@ export function sectionPageSpan(section: Pick<OutlineSectionDraft, 'pageStart' |
   return section.pageEnd - section.pageStart + 1
 }
 
-export function auditOutlineCoverage(sections: readonly OutlineSectionDraft[]): OutlineCoverageReport {
+export function auditOutlineCoverage(
+  sections: readonly OutlineSectionDraft[],
+  sourceRange?: { pageStart: number; pageEnd: number },
+): OutlineCoverageReport {
   const audited = sections.map((section) => {
     const pages = sectionPageSpan(section)
     // Unknown page ends need review; they must never silently pass as OK.
@@ -554,21 +557,26 @@ export function auditOutlineCoverage(sections: readonly OutlineSectionDraft[]): 
   const validRanges = audited.filter((section) => section.pages !== null && section.pageStart !== null && section.pageEnd !== null)
     .sort((a, b) => Number(a.pageStart) - Number(b.pageStart))
   const gaps: Array<{ pageStart: number; pageEnd: number }> = []
-  let coveredUntil: number | null = null
+  // Start with the ACTUAL book's first extracted page, not the first
+  // surviving outline section. Otherwise deleting an opening/closing article
+  // makes those pages disappear from the audit without an internal gap.
+  let coveredUntil: number | null = sourceRange ? sourceRange.pageStart - 1 : null
   for (const section of validRanges) {
     const start = section.pageStart!
     const end = section.pageEnd!
     if (coveredUntil !== null && start > coveredUntil + 1) {
-      // Same-chunk chapter splits can have a null pageEnd; do not assert a
-      // missing-page gap while an unknown-length section starts inside it.
-      // The unknown section is already marked REVIEW, not silently approved.
+      // An unknown bridge is not a valid substitute for page coverage.
+      // It remains an independently blocking incomplete section below.
       const unknownBridge = audited.some((candidate) => candidate.pages === null && candidate.pageStart !== null && candidate.pageStart >= coveredUntil! && candidate.pageStart <= start)
       if (!unknownBridge) gaps.push({ pageStart: coveredUntil + 1, pageEnd: start - 1 })
     }
     coveredUntil = Math.max(coveredUntil ?? end, end)
   }
+  if (sourceRange && (coveredUntil === null || coveredUntil < sourceRange.pageEnd)) {
+    gaps.push({ pageStart: (coveredUntil ?? sourceRange.pageStart - 1) + 1, pageEnd: sourceRange.pageEnd })
+  }
   return {
-    totalPages: starts.length && ends.length ? Math.max(...ends) - Math.min(...starts) + 1 : null,
+    totalPages: sourceRange ? sourceRange.pageEnd - sourceRange.pageStart + 1 : starts.length && ends.length ? Math.max(...ends) - Math.min(...starts) + 1 : null,
     maxSectionPages: audited.reduce<number | null>((max, section) => (section.pages === null ? max : Math.max(max ?? 0, section.pages)), null),
     sections: audited,
     review: audited.filter((section) => section.band === 'REVIEW'),
@@ -577,9 +585,16 @@ export function auditOutlineCoverage(sections: readonly OutlineSectionDraft[]): 
   }
 }
 
-export function outlineApprovalGuard(sections: readonly OutlineSectionDraft[]): { decision: 'ALLOW' | 'ALLOW_WITH_REVIEW' | 'BLOCK'; report: OutlineCoverageReport } {
-  const report = auditOutlineCoverage(sections)
-  return { decision: report.blocked.length || report.gaps.length ? 'BLOCK' : report.review.length ? 'ALLOW_WITH_REVIEW' : 'ALLOW', report }
+export function outlineApprovalGuard(
+  sections: readonly OutlineSectionDraft[],
+  sourceRange?: { pageStart: number; pageEnd: number },
+): { decision: 'ALLOW' | 'ALLOW_WITH_REVIEW' | 'BLOCK'; report: OutlineCoverageReport } {
+  const report = auditOutlineCoverage(sections, sourceRange)
+  // Unknown starts/ends (including same-chunk headings without reliable page
+  // evidence) are never acceptable unit boundaries, even with an oversized
+  // chapter override. A zero-knowledge section is NOT an empty book page.
+  const incomplete = !sections.length || report.sections.some((section) => section.pages === null)
+  return { decision: incomplete || report.blocked.length || report.gaps.length ? 'BLOCK' : report.review.length ? 'ALLOW_WITH_REVIEW' : 'ALLOW', report }
 }
 
 function parseAiRangeBoundaries(raw: string, rangeChunks: readonly Chunk[], bookTitle: string): Boundary[] {
