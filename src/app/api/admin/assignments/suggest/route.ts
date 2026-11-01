@@ -180,49 +180,58 @@ export async function POST(req: NextRequest) {
       group.push(item)
       knowledgeByUnit.set(key, group)
     }
-    const sampledKnowledge: typeof knowledge = []
-    const unitGroups = [...knowledgeByUnit.values()]
-    for (let offset = 0; sampledKnowledge.length < 60; offset++) {
-      let added = false
-      for (const group of unitGroups) {
-        if (sampledKnowledge.length >= 60) break
-        if (offset < group.length) {
-          sampledKnowledge.push(group[offset])
-          added = true
+    // Generate independently for every sourced unit, rather than capping the
+    // entire semester at six suggestions or losing successes on partial failure.
+    const unitEntries = [...knowledgeByUnit.entries()]
+    const suggestions: AssignmentSuggestion[] = []
+    const failedUnits: { unitId: string; title: string; reason: string }[] = []
+    const existingNormalized = new Set(existing.map((a) => clean(a.title, 180).toLowerCase()))
+
+    async function suggestForUnit(id: string, items: typeof knowledge) {
+      const unitTitle = String(items[0]?.unitTitle || id)
+      const unitSources = items.slice(0, 12)
+      const context = unitSources.map((k, i) => `${i + 1}. id=${k.id}\nالوحدة: ${unitTitle}\nالعنوان: ${titleFromKnowledge(k)}\nالصفحات: ${k.pageStart ?? '؟'}–${k.pageEnd ?? k.pageStart ?? '؟'}\nالملخص: ${cleanAssignmentText(k.summary, '', 380)}\nالمقتطف: ${cleanAssignmentText(k.excerpt, '', 380)}`).join('\n\n')
+      const prompt = `اقترح واجباً أكاديمياً واحداً موثقاً لوحدة "${unitTitle}" من الفصل ${semester} في برنامج "${program.titleAr}".\nمعرف الوحدة الثابت: ${id}\nواجبات موجودة لتجنب التكرار: ${existingTitles || 'لا يوجد'}\nمصادر الوحدة المسموحة فقط:\n${context}\nأرجع JSON array فيه واجب واحد بالحقول title, description, type, semester, points, weight, rubric, unitId, sourceKnowledgeIds, sourceKnowledgeTitles. استخدم unitId=${id} ومعرفات المصادر الحرفية أعلاه فقط، واذكر صفحات المصادر في الوصف. لا تقترح موعد تسليم، ولا تستخدم قوالب عامة.`
+      const localAllowedIds = new Set(unitSources.map((item) => String(item.id)))
+      let lastReason = 'لم ينتج واجب موثق'
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const raw = await textAiCompleteJson({
+            system: 'أنت مصمم تكليفات جامعية موثقة بالمصادر. أعد JSON array فقط.',
+            history: [{ role: 'user', text: attempt ? prompt + '\nالمحاولة السابقة لم تجتز التوثيق. استخدم معرفات المصادر أعلاه حرفياً ولا تخلط بين الوحدات.' : prompt }],
+            taskLevel: 'ACADEMIC_CRITICAL', routerPolicy: 'balanced',
+            temperature: 0.1, maxOutputTokens: 1800,
+            stickyScope: `ASSIGNMENTS:${programId}:${id}`,
+          })
+          const parsed = parseJsonArray(raw)
+          const valid = normalizeSuggestions(parsed, semester, localAllowedIds, titleById, unitById, id)
+            .find((item) => item.unitId === id && !existingNormalized.has(item.title.toLowerCase()))
+          if (valid) return { suggestion: valid, unitId: id, title: unitTitle }
+          lastReason = `النتائج غير موثقة أو مكررة (عدد المقترحات: ${parsed.length})`
+        } catch (error: any) {
+          lastReason = String(error?.message || error).slice(0, 180)
         }
       }
-      if (!added) break
+      return { unitId: id, title: unitTitle, reason: lastReason }
     }
-    const knowledgeContext = sampledKnowledge.map((k, i) => `${i + 1}. id=${k.id}\nمعرف الوحدة: ${k.unitId}\nالوحدة: ${k.unitTitle}\nالعنوان: ${titleFromKnowledge(k)}\nالفئة: ${k.category}\nالصفحات: ${k.pageStart ?? '؟'}–${k.pageEnd ?? k.pageStart ?? '؟'}\nالملخص: ${cleanAssignmentText(k.summary, '', 520)}\nالمقتطف: ${cleanAssignmentText(k.excerpt, '', 520)}`).join('\n\n')
 
-    const unitCatalog = [...knowledgeByUnit.entries()].map(([id, items]) => `${id}: ${items[0]?.unitTitle || ''}`).join('؛ ')
-    const prompt = `صمم 4 إلى 6 واجبات أكاديمية من عناصر معرفة v2 داخل نطاق الوحدات فقط. وزع الواجبات على أكبر عدد ممكن من الوحدات المختلفة (واجب واحد لكل وحدة أولاً، ثم واجبات إضافية عند الحاجة). لا تستخدم وحدة بلا مصادر متاحة.\nالوحدات ذات المصادر: ${unitCatalog}.\n\nالبرنامج: ${program.titleAr}\nالفصل: ${semester === 2 ? 'الثاني' : semester === 3 ? 'بحث/مشروع' : 'الأول'}\nالواجبات الموجودة لتجنب التكرار: ${existingTitles || 'لا يوجد'}\n\nمصادر الوحدة المسموحة:\n${knowledgeContext}\n\nأرجع JSON array فقط. كل واجب يجب أن يحتوي title, description, type, semester, points, weight, rubric, unitId, sourceKnowledgeIds, sourceKnowledgeTitles. لا تقترح أي موعد تسليم — الموعد يحدده الأدمن بتاريخ ثابت لاحقًا.\nقواعد إلزامية: sourceKnowledgeIds من ids أعلاه فقط، والوصف يذكر مراجع الصفحات، ولا تكتب واجباً عاماً أو قالبياً.`
-
-    let raw = ''
-    try {
-      raw = await textAiCompleteJson({ system: 'أنت مصمم تكليفات جامعية مصدرية. أعد JSON فقط.', history: [{ role: 'user', text: prompt }], taskLevel: 'ACADEMIC_CRITICAL', routerPolicy: 'balanced', temperature: 0.15, maxOutputTokens: 6000, stickyScope: `ASSIGNMENTS:${programId}:${unitId || semester}` })
-    } catch (error: any) {
-      return NextResponse.json({ error: `توقف اقتراح الواجبات مؤقتاً: ${String(error?.message || error)}`, status: 'PAUSED' }, { status: 503 })
-    }
-    let parsed = parseJsonArray(raw)
-    let suggestions = normalizeSuggestions(parsed, semester, allowedIds, titleById, unitById, unitId)
-    if (!suggestions.length) {
-      console.warn('assignment suggestions rejected', { programId, semester, unitId, returned: parsed.length, sourcedUnits: unitGroups.length, sampledSources: sampledKnowledge.length })
-      try {
-        const retry = await textAiCompleteJson({
-          system: 'أنت مصمم تكليفات جامعية مصدرية. أعد JSON array فقط. لا تختلق معرفات.',
-          history: [{ role: 'user', text: prompt + '\n\nالمحاولة السابقة لم تنتج واجبات مقبولة. أعد الاقتراحات باستخدام sourceKnowledgeIds وunitId الحرفية الواردة في المصادر أعلاه. كل واجب من وحدة واحدة فقط، وكل مصدر يجب أن ينتمي إلى تلك الوحدة. وزع الاقتراحات بين وحدات الفصل قدر الإمكان.' }],
-          taskLevel: 'ACADEMIC_CRITICAL', routerPolicy: 'balanced', temperature: 0.1,
-          maxOutputTokens: 6000, stickyScope: `ASSIGNMENTS:${programId}:${unitId || semester}`,
-        })
-        parsed = parseJsonArray(retry)
-        suggestions = normalizeSuggestions(parsed, semester, allowedIds, titleById, unitById, unitId)
-      } catch (retryError) {
-        console.warn('assignment suggestions correction failed', retryError)
+    // Bound concurrency to avoid overwhelming the AI provider.
+    for (let offset = 0; offset < unitEntries.length; offset += 3) {
+      const batch = unitEntries.slice(offset, offset + 3)
+      const results = await Promise.all(batch.map(([id, items]) => suggestForUnit(id, items)))
+      for (const result of results) {
+        if ('suggestion' in result && result.suggestion) suggestions.push(result.suggestion)
+        else failedUnits.push({ unitId: result.unitId, title: result.title, reason: 'reason' in result ? result.reason : 'فشل غير معروف' })
       }
     }
-    if (!suggestions.length) return NextResponse.json({ error: 'لم تنتج محاولتا الاقتراح واجبات موثقة بمصادر الوحدات. تحقق من ربط عناصر المعرفة بالوحدات أو راجع سجلات التوليد.', status: 'PAUSED' }, { status: 503 })
-    return NextResponse.json({ suggestions })
+    if (!suggestions.length) {
+      console.warn('assignment suggestions: all sourced units failed', { programId, semester, failedUnits })
+      return NextResponse.json({ error: 'لم يتم توليد واجبات موثقة لأي وحدة. راجع مصادر الوحدات وسجلات التوليد.', status: 'PAUSED', failedUnits }, { status: 503 })
+    }
+    return NextResponse.json({
+      suggestions,
+      coverage: { eligibleUnits: unitEntries.length, coveredUnits: suggestions.length, failedUnits },
+    })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('assignment suggestions error:', e)
