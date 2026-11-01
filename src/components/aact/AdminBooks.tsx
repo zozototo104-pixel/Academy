@@ -814,6 +814,10 @@ export function AdminBooksTab() {
       if (!detail?.programId) return
       const target = programs.find((p) => p.id === detail.programId)
       if (target?.category) setSelectedCategory(target.category)
+      invalidateAssignmentGeneration()
+      setSuggestingAssignments(false)
+      setAssignmentSuggestions([])
+      setAssignmentSuggestionProgress('')
       setProgramId(detail.programId)
       const section = String(detail.section || 'overview')
       setWorkspaceTab(section === 'add' ? 'books' : section)
