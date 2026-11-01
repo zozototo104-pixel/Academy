@@ -2304,6 +2304,7 @@ export function AdminBooksTab() {
         method: 'POST',
         body: JSON.stringify({
           programId,
+          unitId: s.unitId || null,
           title: s.title,
           description: s.description,
           semester: s.semester,
