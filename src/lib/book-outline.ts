@@ -588,6 +588,30 @@ export function auditOutlineCoverage(
   }
 }
 
+/**
+ * Preserve title provenance when sections are merged repeatedly.
+ */
+export function remapOutlineReviewWarnings(
+  warnings: readonly string[],
+  newOrderByOld: ReadonlyMap<number, number>,
+  removedOrder: number,
+  targetOrder: number,
+): string[] {
+  return warnings.flatMap((warning) => {
+    if (warning.startsWith('تنبيه تغطية:') || warning.startsWith('OUTLINE_COVERAGE:')) return []
+    const prefix = warning.startsWith('OUTLINE_SUBHEADING:') ? 'OUTLINE_SUBHEADING:'
+      : warning.startsWith('OUTLINE_MERGED_TITLE:') ? 'OUTLINE_MERGED_TITLE:' : null
+    if (!prefix) return [warning]
+    try {
+      const marker = JSON.parse(warning.slice(prefix.length))
+      if (!marker || !Number.isInteger(marker.sectionOrder)) return []
+      const oldOrder = marker.sectionOrder === removedOrder ? targetOrder : marker.sectionOrder
+      const newOrder = newOrderByOld.get(oldOrder)
+      return newOrder === undefined ? [] : [prefix + JSON.stringify({ ...marker, sectionOrder: newOrder })]
+    } catch { return [] }
+  })
+}
+
 export function outlineApprovalGuard(
   sections: readonly OutlineSectionDraft[],
   sourceRange?: { pageStart: number; pageEnd: number },
