@@ -402,7 +402,23 @@ function testReal297BookThematicGroupsRespectArticleBoundaries() {
   assert(rejected, 'ممنوع تحويل 138 صفحة إلى وحدة واحدة حتى لو اقترحها الذكاء')
 }
 
+function testOriginalPdfArticlePageNumbersWithinSameChunk() {
+  // The uploaded PDF starts "تحليل فوائد التكلفة" at page 201 and
+  // "تكلفة متغيرة" at page 205. One OCR chunk can contain both.
+  const chunks = [spanChunk(0, 'تحليل فوائد التكلفة\nمادة المحاسبة\nتكلفة متغيرة\nتفاصيل التكاليف', 201, 208)]
+  const ids = new Map([[0, 'chunk-0']])
+  const items = [{ chunkId: 'chunk-0', title: 'التكاليف', summary: 'مادة موثقة' }]
+  const draft = planBookOutline(chunks, items, ids, 2, [
+    { at: 0, title: 'تحليل فوائد التكلفة', sourcePage: 201, startCharOffset: null },
+    { at: 0, title: 'تكلفة متغيرة', sourcePage: 205, startCharOffset: 42 },
+  ], 'ماجستير إدارة الأعمال', true)
+  assert(draft.sections.length === 2, 'المقالان الحقيقيان يجب أن يبقيا منفصلين عند اختلاف صفحاتهما')
+  assert(draft.sections[0].pageStart === 201 && draft.sections[0].pageEnd === 204, 'رقم 204 يجب أن يأتي من بداية المقال الثاني 205')
+  assert(draft.sections[1].pageStart === 205 && draft.sections[1].pageEnd === 208, 'يجب الحفاظ على رقم الصفحة الأصلي داخل نفس المقطع')
+}
+
 const tests = [
+  testOriginalPdfArticlePageNumbersWithinSameChunk,
   testReal297BookThematicGroupsRespectArticleBoundaries,
   testRealUploaded297PageArticleHeadings,
   testWholeBookBalanceMergesOnlyGroundedNeighborTopics,
