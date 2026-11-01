@@ -360,7 +360,50 @@ function testRealUploaded297PageArticleHeadings() {
   assert(projected.some((entry) => entry.title.includes('موازنة') && (entry.startCharOffset ?? 0) > 0), 'يجب الاحتفاظ بموضع المقال داخل المقطع، وليس أول الصفحة فقط')
 }
 
+function testReal297BookThematicGroupsRespectArticleBoundaries() {
+  // Actual article start pages recorded from the uploaded 297-page PDF.
+  // This exercises the deterministic validator; no production AI call,
+  // simulated database write, or synthetic page cut is claimed.
+  const anchors: Array<[number, string]> = [
+    [1, 'معجزة اقتصادية'], [3, 'تنشئة اجتماعية'], [11, 'قيادة'],
+    [34, 'اتخاذ القرار'], [62, 'ابتكار'], [79, 'فرصة السوق'],
+    [99, 'إدارة الطلب'], [139, 'ترويج تسويق'], [153, 'استراتيجية التسويق'],
+    [176, 'كلفة'], [201, 'تحليل فوائد التكلفة'], [214, 'محاسبة تكاليف'],
+    [232, 'إدارة مبيعات'], [261, 'تكلفة مستهدفة'],
+    [273, 'تنمية اقتصادية'], [291, 'تجارة دولية'], [295, 'ذكاء عاطفي'],
+  ]
+  const sections = anchors.map(([page, title], i) =>
+    draftSection(i + 1, title, page, i + 1 < anchors.length ? anchors[i + 1][0] - 1 : 297))
+  // The two merged pairs really are adjacent, related source articles:
+  // marketing 139–175 and cost/accounting 201–231. Other unrelated
+  // topics are NOT force-merged just to meet a page quota.
+  const ends = [1, 2, 3, 4, 5, 6, 7, 9, 10, 12, 13, 14, 15, 16, 17]
+  let start = 1
+  const groups = ends.map((endOrder) => {
+    const group = { startOrder: start, endOrder, title: sections[start - 1].title }
+    start = endOrder + 1
+    return group
+  })
+  const valid = validateThematicArticleGrouping(JSON.stringify({ groups }), sections)
+  const report = auditOutlineCoverage(valid.sections)
+  assert(report.totalPages === 297 && report.gaps.length === 0, 'كل صفحات ملف PDF الحقيقي مغطاة دون فجوات')
+  assert(report.blocked.length === 0, 'لا توجد وحدة 97 أو 248 صفحة بعد التجميع المتحقق منه')
+  assert(valid.subheadings.length === sections.length, 'كل عنوان مقال أصلي يجب أن يبقى مرجعًا فرعيًا')
+  assert(valid.subheadings.some((marker) => marker.page === 293) === false, 'هذا المثال المختصر لا يضيف عناوين لم تكن ضمن مدخلاته')
+  assert(valid.sections.some((s) => s.pageStart === 201 && s.pageEnd === 231), 'المحاسبة والتكاليف يمكن جمعهما عند حدود المقالات')
+  const invalid = groups.map((group) => ({ ...group }))
+  invalid[7] = { ...invalid[7], endOrder: 12 }
+  let rejected = false
+  try { validateThematicArticleGrouping(JSON.stringify({ groups: invalid }), sections) } catch { rejected = true }
+  assert(rejected, 'المجموعات المتداخلة أو غير المتتابعة مرفوضة بالكامل')
+  const huge = [{ startOrder: 1, endOrder: 7, title: 'إدارة الأعمال' }, ...groups.slice(7)]
+  rejected = false
+  try { validateThematicArticleGrouping(JSON.stringify({ groups: huge }), sections) } catch { rejected = true }
+  assert(rejected, 'ممنوع تحويل 138 صفحة إلى وحدة واحدة حتى لو اقترحها الذكاء')
+}
+
 const tests = [
+  testReal297BookThematicGroupsRespectArticleBoundaries,
   testRealUploaded297PageArticleHeadings,
   testWholeBookBalanceMergesOnlyGroundedNeighborTopics,
   testFull297BookUsesLateEvidenceNotArithmeticSplits,
