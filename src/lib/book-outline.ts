@@ -656,26 +656,32 @@ export async function refineOversizedSections(params: {
   maxRanges?: number
 }): Promise<{ sections: OutlineSectionDraft[]; warnings: string[]; refinedRanges: number }> {
   const allowAi = params.allowAi !== false
-  const maxRanges = params.maxRanges ?? 3
+  // Limit expensive model calls, NOT full-book coverage checks. Every oversized
+  // range is examined deterministically; biggest tails get first priority.
+  const maxAiRanges = params.maxRanges ?? 3
+  let aiCalls = 0
   const warnings: string[] = []
   let sections: OutlineSectionDraft[] = [...params.sections]
   let refinedRanges = 0
   const targets = params.sections.filter((section) => {
     const span = sectionPageSpan(section)
-    return span !== null && span > OUTLINE_SECTION_REVIEW_PAGES && section.chunkEndIndex > section.chunkStartIndex
-  })
+    // A genuine chapter of 41–80 pages is reviewable as-is, not force-cut.
+    return span !== null && span > OUTLINE_SECTION_REVIEW_PAGES &&
+      !(span <= OUTLINE_SECTION_BLOCK_PAGES && chapterNumber(section.title) !== null) &&
+      section.chunkEndIndex > section.chunkStartIndex
+  }).sort((a, b) => (sectionPageSpan(b) || 0) - (sectionPageSpan(a) || 0))
   for (const target of targets) {
-    const at = sections.findIndex((section) => section.order === target.order && section.chunkStartIndex === target.chunkStartIndex && section.chunkEndIndex === target.chunkEndIndex)
+    const at = sections.findIndex((section) => section.chunkStartIndex === target.chunkStartIndex && section.chunkEndIndex === target.chunkEndIndex && section.title === target.title)
     if (at < 0) continue
     const section = sections[at]
-    if (refinedRanges >= maxRanges) {
-      warnings.push(`لم تُعاد فحوص تقسيم القسم «${section.title}» (${sectionPageSpan(section)} صفحة) في هذه الجولة؛ حدّ الجولات ${maxRanges}. أعد بناء الفهرس لإعادة المحاولة.`)
-      continue
-    }
     const rangeChunks = params.chunks.filter((chunk) => chunk.index >= section.chunkStartIndex && chunk.index <= section.chunkEndIndex)
     if (rangeChunks.length < 2) continue
     let interior = rangeInteriorBoundaries(rangeChunks, params.sourceBoundaries || [], params.bookTitle)
-    if (!interior.length && allowAi) {
+    if (!interior.length) {
+      interior = evidenceBoundariesForOversizedRange(rangeChunks, params.items, params.chunkIds, params.bookTitle)
+    }
+    if (!interior.length && allowAi && aiCalls < maxAiRanges) {
+      aiCalls++
       const byChunk = new Map<string, Item[]>()
       for (const item of params.items) if (item.chunkId) byChunk.set(item.chunkId, [...(byChunk.get(item.chunkId) || []), item])
       const evidence = rangeChunks.map((chunk) => ({
