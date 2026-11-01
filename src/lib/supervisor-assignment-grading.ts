@@ -47,6 +47,9 @@ export interface AnswerProvenance {
   ocrNote: string | null
   bookContextUsed: boolean
   bookTitles: string[]
+  bookSourceStatus: 'EXACT' | 'PARTIAL' | 'UNIT' | 'NONE'
+  sourceKnowledgeCount: number
+  sourceKnowledgeMatched: number
   answerTruncated: boolean
 }
 
