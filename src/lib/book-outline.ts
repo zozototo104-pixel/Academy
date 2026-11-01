@@ -741,10 +741,22 @@ export function detectOriginalSourceHeadings(pages: readonly ExtractedBookPage[]
     for (let i = 0; i < page.lines.length; i++) {
       const rawLine = page.lines[i].trim()
       const key = normalizeHeading(rawLine)
-      if (rawLine.length < 7 || rawLine.length > 115 || !key) continue
+      if (rawLine.length > 115 || !key) continue
       if ((pagesPerLine.get(key)?.size || 0) >= 3 || key === normalizeHeading(bookTitle)) continue
       if (subordinateHeading.test(normalizeOutlineText(rawLine)) || numberedOrQuestion.test(rawLine)) continue
       if (/[؟?،,؛;.!]$/.test(rawLine) || /^\s*(?:https?:\/\/|www\.)/i.test(rawLine)) continue
+      // Real PDF evidence (e.g. uploaded 297-page management compilation):
+      // article title followed by «اذهب إلى التنقل/البحث». It appears at
+      // arbitrary positions within an OCR chunk, not only the first page.
+      // A short title is allowed ONLY when the navigation marker validates it.
+      const nextNonempty = page.lines.slice(i + 1, i + 5).map((line) => line.trim()).find(Boolean) || ''
+      const articleNavigation = articleNavigationMarker.test(normalizeOutlineText(nextNonempty))
+      if (articleNavigation && rawLine.length >= 3 && rawLine.length <= 95 &&
+          rawLine.split(/\s+/).length <= 12 && !articleNavigationMarker.test(normalizeOutlineText(rawLine))) {
+        output.push({ page: page.page, title: rawLine, rawLine })
+        continue
+      }
+      if (rawLine.length < 7) continue
       if (matchChapterLine(rawLine)) {
         output.push({ page: page.page, title: rawLine, rawLine })
         continue
