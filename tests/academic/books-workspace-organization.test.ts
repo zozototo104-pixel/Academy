@@ -48,7 +48,11 @@ const ORIGINAL_API_CALL_COUNT = 79 // 78 protected calls plus reviewed outline-s
 // {overrideOversized, overrideReason} بعد تأكيد المشرف وكتابة السبب.
 // تم التحقق بمقارنة سطح النداءات مع main باستخراج الحارس نفسه:
 // 79 نداءً في النسختين، وتعبير واحد مختلف فقط، ولا نداء مضاف ولا محذوف.
-const ORIGINAL_API_DIGEST = '5f5384147c1825a9ed7272cfa56d8dc87b54915b626e19c07590c68f6ff2ed14'
+// Reviewed PR #165 change: the existing POST /api/admin/assignments suggestion
+// save includes unitId, so it cannot silently lose its verified source unit.
+// No endpoint, HTTP method, or call count changed. The new contract is also
+// guarded independently in tests/assignments/assignment-due-video-guard.test.ts.
+const ORIGINAL_API_DIGEST = '2775d350b3220413798b71e66600c16d157f0bb7d481303d2bcd696e6167b135'
 
 function parseSource() {
   return ts.createSourceFile('AdminBooks.tsx', SOURCE, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
