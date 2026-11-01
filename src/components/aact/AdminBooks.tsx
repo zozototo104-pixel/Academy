@@ -724,6 +724,7 @@ export function AdminBooksTab() {
   const [adding, setAdding] = useState(false)
   const [suggesting, setSuggesting] = useState(false)
   const [suggestingAssignments, setSuggestingAssignments] = useState(false)
+  const [assignmentSuggestionProgress, setAssignmentSuggestionProgress] = useState('')
   const [generating, setGenerating] = useState(false)
   const [stoppingExamId, setStoppingExamId] = useState<string | null>(null)
   const [examKickFailures, setExamKickFailures] = useState<Record<string, { count: number; blocked: boolean; message: string }>>({})
