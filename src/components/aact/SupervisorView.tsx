@@ -726,6 +726,8 @@ export function SupervisorView() {
                   <p>مصدر قراءة الإجابة: {gradingDraft.provenance?.answerSourceLabel || 'غير محدد'}</p>
                   {gradingDraft.provenance?.ocrNote && <p>ملاحظة القراءة: {gradingDraft.provenance.ocrNote}</p>}
                   <p>سياق الكتاب: {gradingDraft.provenance?.bookContextUsed ? `مستخدم${gradingDraft.provenance.bookTitles?.length ? ` — ${gradingDraft.provenance.bookTitles.join('، ')}` : ''}` : 'غير متاح لهذه الوحدة؛ التقييم على أساس الفهم والتطبيق فقط'}</p>
+                  {!gradingDraft.provenance?.bookContextUsed && <p role="alert" className="rounded-lg bg-red-50 p-2 text-red-800">تنبيه: هذا الواجب لا يملك مرجع وحدة موثوقًا. راجع إجابة الطالب والكتاب الأصلي قبل اعتماد الدرجة.</p>}
+                  {!gradingDraft.draft?.criteria?.length && <p role="alert" className="rounded-lg bg-red-50 p-2 text-red-800">تنبيه: تعذّر التحقق من تفصيل الدرجة وفق المعايير. المجموع المقترح وحده لا يكفي للاعتماد.</p>}
                   {gradingDraft.draft?.criteria?.length ? (
                     <div>
                       <p className="font-black text-[#0f2b46]">تفصيل الدرجة المقترحة:</p>
