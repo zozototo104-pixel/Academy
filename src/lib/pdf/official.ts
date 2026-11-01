@@ -114,9 +114,14 @@ function text(x: number, y: number, content: unknown, opts: { size?: number; fil
   const fill = opts.fill || TEXT
   const anchor = opts.anchor || 'start'
   const dir = opts.dir || 'rtl'
+  // librsvg (the sharp rasterizer) swaps start/end anchors for RTL text
+  // compared to browsers: an end-anchored Arabic run STARTS at x and extends
+  // right, off the page. Swap them back for RTL runs so the template
+  // coordinates mean what they say; LTR runs and middle are unaffected.
+  const renderAnchor = dir === 'rtl' ? (anchor === 'end' ? 'start' : anchor === 'start' ? 'end' : anchor) : anchor
   const weight = opts.weight || 700
   const family = opts.family || `'${OFFICIAL_ARABIC_FONT_NAME}','Amiri','Noto Naskh Arabic','DejaVu Sans','Arial','Tahoma',sans-serif`
-  return `<text x="${x}" y="${y}" text-anchor="${anchor}" direction="${dir}" unicode-bidi="plaintext" style="font-family:${family};font-size:${size}px;font-weight:${weight};fill:${fill};dominant-baseline:alphabetic">${esc(content)}</text>`
+  return `<text x="${x}" y="${y}" text-anchor="${renderAnchor}" direction="${dir}" unicode-bidi="plaintext" style="font-family:${family};font-size:${size}px;font-weight:${weight};fill:${fill};dominant-baseline:alphabetic">${esc(content)}</text>`
 }
 
 function pageShell(body: string, pageNo: number, totalPages: number, opts: OfficialPdfOptions) {
@@ -128,10 +133,10 @@ function pageShell(body: string, pageNo: number, totalPages: number, opts: Offic
   <rect x="0" y="132" width="${PDF_PAGE_W}" height="8" fill="${BRAND_GOLD}"/>
   <circle cx="704" cy="66" r="38" fill="${BRAND_GOLD}"/>
   ${text(704, 76, 'AACT', { size: 24, fill: '#ffffff', weight: 900, anchor: 'middle', dir: 'ltr', family: 'Arial,sans-serif' })}
-  ${text(660, 52, 'الأكاديمية الأمريكية للاستشارات والتدريب', { size: 23, fill: '#ffffff', weight: 900, anchor: 'end', dir: 'rtl' })}
-  ${text(660, 86, 'American Academy for Consulting and Training', { size: 16, fill: '#dbeafe', weight: 700, anchor: 'end', dir: 'ltr', family: 'Arial,sans-serif' })}
-  ${text(88, 62, opts.documentLabel || 'OFFICIAL DOCUMENT', { size: 25, fill: '#ffffff', weight: 900, anchor: 'start', dir: 'ltr', family: 'Arial,sans-serif' })}
-  ${text(88, 96, opts.subtitle || 'وثيقة رسمية قابلة للطباعة', { size: 16, fill: '#f7edd0', weight: 800, anchor: 'start', dir: 'rtl' })}
+  ${text(660, 44, 'الأكاديمية الأمريكية للاستشارات والتدريب', { size: 21, fill: '#ffffff', weight: 900, anchor: 'end', dir: 'rtl' })}
+  ${text(660, 88, 'American Academy for Consulting and Training', { size: 16, fill: '#dbeafe', weight: 700, anchor: 'end', dir: 'ltr', family: 'Arial,sans-serif' })}
+  ${text(88, 68, opts.documentLabel || 'OFFICIAL DOCUMENT', { size: 25, fill: '#ffffff', weight: 900, anchor: 'start', dir: 'ltr', family: 'Arial,sans-serif' })}
+  ${text(88, 108, opts.subtitle || 'وثيقة رسمية قابلة للطباعة', { size: 16, fill: '#f7edd0', weight: 800, anchor: 'start', dir: 'rtl' })}
   ${body}
   <line x1="52" y1="1044" x2="742" y2="1044" stroke="#e2e8f0"/>
   ${text(742, 1070, opts.footer || 'تم إصدار هذه الوثيقة إلكترونياً من منصة AACT.', { size: 14, fill: MUTED, weight: 700, anchor: 'end', dir: 'rtl' })}
