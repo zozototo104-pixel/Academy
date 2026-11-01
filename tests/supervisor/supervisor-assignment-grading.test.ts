@@ -290,6 +290,54 @@ describe('supervisor assignments route — scope is the gate, analyze never save
     expect(updateCalls.length).toBe(0)
   })
 
+  test('original source IDs are read and sent to AI before all other unit knowledge', async () => {
+    mockSourceUnit = true
+    submission.assignment.unitId = 'unit-1'
+    submission.assignment.sourceKnowledgeIds = ['ki-exact']
+    const route = await import('@/app/api/supervisor/assignments/route')
+    const res = await route.POST(postRequest({ action: 'analyze', submissionId: 'sub-1' }))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.provenance.bookSourceStatus).toBe('EXACT')
+    expect(body.provenance.sourceKnowledgeCount).toBe(1)
+    expect(body.provenance.sourceKnowledgeMatched).toBe(1)
+    expect(lastGradingPrompt).toContain('مصدر الواجب الأصلي: الاستقطاب الموثّق')
+    expect(lastGradingPrompt).not.toContain('تخطيط الكفاءات')
+    expect(updateCalls).toHaveLength(0)
+    expect(notifyCalls).toHaveLength(0)
+  })
+
+  test('deleted original knowledge is flagged and supplemented only from the same unit', async () => {
+    mockSourceUnit = true
+    mockMissingOriginal = true
+    submission.assignment.unitId = 'unit-1'
+    submission.assignment.sourceKnowledgeIds = ['ki-exact']
+    const route = await import('@/app/api/supervisor/assignments/route')
+    const res = await route.POST(postRequest({ action: 'analyze', submissionId: 'sub-1' }))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.provenance.bookSourceStatus).toBe('PARTIAL')
+    expect(body.provenance.sourceKnowledgeCount).toBe(1)
+    expect(body.provenance.sourceKnowledgeMatched).toBe(0)
+    expect(lastGradingPrompt).toContain('استكمال من الوحدة نفسها: تخطيط الكفاءات')
+    expect(lastGradingPrompt).not.toContain('مصدر الواجب الأصلي: الاستقطاب الموثّق')
+    expect(updateCalls).toHaveLength(0)
+  })
+
+  test('legacy manual linked task uses UNIT status, unlinked task uses NONE with no invented reference', async () => {
+    mockSourceUnit = true
+    submission.assignment.unitId = 'unit-1'
+    const route = await import('@/app/api/supervisor/assignments/route')
+    const linked = await route.POST(postRequest({ action: 'analyze', submissionId: 'sub-1' }))
+    expect((await linked.json()).provenance.bookSourceStatus).toBe('UNIT')
+    expect(lastGradingPrompt).toContain('تخطيط الكفاءات')
+    submission.assignment.unitId = null
+    const unlinked = await route.POST(postRequest({ action: 'analyze', submissionId: 'sub-1' }))
+    expect((await unlinked.json()).provenance.bookSourceStatus).toBe('NONE')
+    expect(lastGradingPrompt).toContain('لا يوجد سياق كتاب متاح')
+    expect(updateCalls).toHaveLength(0)
+  })
+
   test('grade above assignment points is rejected without saving', async () => {
     const route = await import('@/app/api/supervisor/assignments/route')
     const res = await route.POST(
