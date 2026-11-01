@@ -152,6 +152,9 @@ mock.module('@/lib/mailer', () => ({
   emailAssignmentGraded: async (...args: any[]) => {
     emailCalls.push(args)
   },
+  emailAssignmentPublished: async (...args: any[]) => {
+    emailCalls.push(args)
+  },
 }))
 
 const validDraft = () =>
