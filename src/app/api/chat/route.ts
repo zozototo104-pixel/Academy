@@ -200,7 +200,7 @@ export async function POST(req: NextRequest) {
         sourceRef: user.id,
       })
       reply = await getHumanHandoffConfirmationReply()
-    } else if (wantsHumanSupport(userText)) {
+    } else if (wantsPlatformChatHumanSupport(userText)) {
       await createHumanHandoffRequest({
         user: { id: user.id, name: user.name, email: user.email, phone: user.phone, role: user.role },
         message: userText,
