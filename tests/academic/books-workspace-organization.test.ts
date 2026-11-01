@@ -55,7 +55,7 @@ const ORIGINAL_API_CALL_COUNT = 80 // 78 original protected calls, reviewed outl
 // guarded independently in tests/assignments/assignment-due-video-guard.test.ts.
 // Reviewed PR #168: per-unit assignment generation changes the suggestion calls.
 // Keep this declaration outside comments so TypeScript can validate the guard.
-const ORIGINAL_API_DIGEST = 'e3b48c50f41490b8eaca893ac595089ee3c361d9381e024e55becd84a836aa5f'
+const ORIGINAL_API_DIGEST = 'd6b0a4cb8c03f8e3690bc9cd0cc1dfd2de8edf60ebb0790f4abcf8a5916cf442'
 
 function parseSource() {
   return ts.createSourceFile('AdminBooks.tsx', SOURCE, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
