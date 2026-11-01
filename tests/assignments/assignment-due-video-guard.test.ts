@@ -128,8 +128,11 @@ describe('assignment suggestion hardening guards (PR #168 review fixes)', () => 
   test('generation is invalidated on program/semester change and checked after every await', () => {
     expect(adminBooks).toContain('assignmentGenerationRef')
     expect(adminBooks).toContain('assignmentAbortRef')
-    expect(adminBooks).toContain('invalidateAssignmentGeneration(); setProgramId(v)')
+    expect(adminBooks).toContain("invalidateAssignmentGeneration(); setSuggestingAssignments(false); setAssignmentSuggestions([]); setAssignmentSuggestionProgress(''); setProgramId(v)")
     expect(adminBooks).toContain('invalidateAssignmentGeneration(); setGenSemester(v)')
+    expect(adminBooks).toContain("invalidateAssignmentGeneration(); setSuggestingAssignments(false); setAssignmentSuggestions([]); setAssignmentSuggestionProgress(''); setAssignmentForm({ ...assignmentForm, semester: v, unitId: '', sourceKnowledgeIds: null })")
+    expect(adminBooks).toContain("invalidateAssignmentGeneration()\n      setSuggestingAssignments(false)\n      setAssignmentSuggestions([])\n      setAssignmentSuggestionProgress('')\n      setProgramId(detail.programId)")
+    expect(adminBooks).toContain("invalidateAssignmentGeneration()\n                  setSuggestingAssignments(false)\n                  setAssignmentSuggestionProgress('')\n                  setSelectedCategory(v)")
     expect(adminBooks).toContain('signal: controller.signal')
     expect(adminBooks.split('if (!isCurrent()) return').length - 1).toBeGreaterThanOrEqual(4)
   })
