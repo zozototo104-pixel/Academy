@@ -898,6 +898,66 @@ export function parseAiOutlineBoundaries(raw: string, chunks: readonly Chunk[], 
   return boundaries.sort((a, b) => a.at - b.at)
 }
 
+/**
+ * Group a dense sequence of genuine article titles into study units. Model
+ * output selects groups of EXISTING source sections, never arbitrary pages.
+ * Validation is strict: all source sections must be covered exactly once,
+ * chapters must stay intact, and long/fuzzy groups cannot pass.
+ */
+export function validateThematicArticleGrouping(raw: string, source: readonly OutlineSectionDraft[]): {
+  sections: OutlineSectionDraft[]
+  subheadings: OutlineSubheadingMarker[]
+} {
+  const parsed = JSON.parse(raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim())
+  if (!Array.isArray(parsed?.groups) || parsed.groups.length < 2 || parsed.groups.length >= source.length) {
+    throw new Error('OUTLINE_THEMATIC_GROUPS_INVALID')
+  }
+  const output: OutlineSectionDraft[] = []
+  const subheadings: OutlineSubheadingMarker[] = []
+  let cursor = 0
+  for (const candidate of parsed.groups) {
+    const end = candidate?.endOrder
+    const start = candidate?.startOrder
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start !== cursor + 1 || end < start || end > source.length) {
+      throw new Error('OUTLINE_THEMATIC_GROUPS_NOT_CONTIGUOUS')
+    }
+    const group = source.slice(cursor, end)
+    if (group.some((section, i) => section.order !== cursor + i + 1)) throw new Error('OUTLINE_THEMATIC_SOURCE_ORDER')
+    if (group.length > 1 && group.some((section) => chapterNumber(section.title) !== null)) {
+      throw new Error('OUTLINE_THEMATIC_CANNOT_MERGE_CHAPTERS')
+    }
+    const first = group[0]
+    const last = group[group.length - 1]
+    const pages = first.pageStart != null && last.pageEnd != null ? last.pageEnd - first.pageStart + 1 : null
+    if (pages === null || pages < 1 || pages > OUTLINE_SECTION_REVIEW_PAGES) {
+      throw new Error('OUTLINE_THEMATIC_GROUP_TOO_LARGE_OR_UNKNOWN')
+    }
+    const title = clean(candidate?.title, 150)
+    if (!usableOutlineTitle(title, '') || !outlineTopicWords(title).size) throw new Error('OUTLINE_THEMATIC_UNGROUNDED_TITLE')
+    const originalWords = new Set(group.flatMap((section) => [...outlineTopicWords(section.title)]))
+    if (![...outlineTopicWords(title)].some((word) => originalWords.has(word))) {
+      throw new Error('OUTLINE_THEMATIC_UNGROUNDED_TITLE')
+    }
+    const order = output.length + 1
+    output.push({
+      ...first, order, title, chunkEndIndex: last.chunkEndIndex,
+      pageEnd: last.pageEnd,
+      itemsCount: group.reduce((count, section) => count + section.itemsCount, 0),
+    })
+    // Original article headings remain visible as documented subheadings
+    // after consolidation, not silently discarded.
+    for (const section of group) {
+      subheadings.push({
+        sectionOrder: order, title: section.title, page: section.pageStart ?? first.pageStart!,
+        chunkIndex: section.chunkStartIndex, charOffset: section.startCharOffset ?? null,
+      })
+    }
+    cursor = end
+  }
+  if (cursor !== source.length) throw new Error('OUTLINE_THEMATIC_GROUPS_INCOMPLETE')
+  return { sections: output, subheadings }
+}
+
 export async function buildBookOutline(bookId: string, options: { reuseReadChunks?: boolean; deterministicOnly?: boolean } = {}) {
   const book = await db.book.findUnique({ where: { id: bookId }, select: { id: true, semester: true, title: true } })
   if (!book) throw new Error('BOOK_NOT_FOUND')
