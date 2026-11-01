@@ -52,6 +52,8 @@ function asInt(value: unknown, fallback: number, min: number, max: number) {
 function arrayFromJson(value: any): any[] {
   if (Array.isArray(value)) return value
   for (const key of ['suggestions', 'items', 'data', 'assignments', 'results']) if (Array.isArray(value?.[key])) return value[key]
+  // A single sourced assignment is also a valid model response.
+  if (value && typeof value === 'object' && typeof value.title === 'string' && typeof value.description === 'string') return [value]
   return []
 }
 
