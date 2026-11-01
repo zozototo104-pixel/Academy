@@ -227,6 +227,8 @@ interface AssignmentRow {
 }
 
 interface AssignmentSuggestion {
+  unitId?: string | null
+  sourceKnowledgeIds?: string[]
   title: string
   description: string
   type: string
