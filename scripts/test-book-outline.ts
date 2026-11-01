@@ -522,6 +522,7 @@ function testVerifiedMidChunkArticleKeepsPreviousPageAndEvidence() {
 }
 
 const tests = [
+  testOutlineReviewNeverSilentlyDeletesSourceCoverage,
   testTwoHeadingsOnSameOriginalPdfPageHaveKnownEnds,
   testVerifiedMidChunkArticleKeepsPreviousPageAndEvidence,
   testThematicGroupCannotHideMissingPdfPages,
