@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { remapOutlineReviewWarnings } from '@/lib/book-outline'
 
 export const runtime = 'nodejs'
 type Context = { params: Promise<{ id: string; sectionId: string }> }
