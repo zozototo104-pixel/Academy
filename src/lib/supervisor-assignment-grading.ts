@@ -562,6 +562,9 @@ ${answer.combinedText}`
       ocrNote: answer.ocrNote,
       bookContextUsed: book.used,
       bookTitles: book.titles,
+      bookSourceStatus: book.status,
+      sourceKnowledgeCount: book.expected,
+      sourceKnowledgeMatched: book.matched,
       answerTruncated: answer.truncated,
     } as AnswerProvenance,
   }
