@@ -329,16 +329,28 @@ function normalizeBoundaries(chunks: readonly Chunk[], boundaries: readonly Boun
   // A missing trustworthy title is never replaced by «تابع» scaffolding.
   const itemCount = new Map<string, number>()
   for (const item of items) if (item.chunkId) itemCount.set(item.chunkId, (itemCount.get(item.chunkId) || 0) + 1)
-  return ranges.map((range, order) => ({
-    order: order + 1, title: range.title, level: 1, semester,
-    chunkStartIndex: sorted[range.start].index, chunkEndIndex: sorted[range.end].index,
-    startCharOffset: range.startCharOffset,
-    pageStart: sorted[range.start].pageStart,
-    pageEnd: order + 1 < ranges.length
-      ? (sorted[ranges[order + 1].start].pageStart <= sorted[range.start].pageStart ? null : Math.min(sorted[range.end].pageEnd, sorted[ranges[order + 1].start].pageStart - 1))
-      : sorted[range.end].pageEnd,
-    itemsCount: sorted.slice(range.start, range.end + 1).reduce((sum, chunk) => sum + (itemCount.get(chunkIds.get(chunk.index) || '') || 0), 0),
-  }))
+  const verifiedPageStart = (range: typeof ranges[number]) => {
+    const chunk = sorted[range.start]
+    return range.sourcePage !== null && Number.isInteger(range.sourcePage) &&
+      range.sourcePage! >= chunk.pageStart && range.sourcePage! <= chunk.pageEnd
+      ? range.sourcePage! : chunk.pageStart
+  }
+  return ranges.map((range, order) => {
+    const pageStart = verifiedPageStart(range)
+    const next = ranges[order + 1]
+    const nextPage = next ? verifiedPageStart(next) : null
+    return {
+      order: order + 1, title: range.title, level: 1, semester,
+      chunkStartIndex: sorted[range.start].index, chunkEndIndex: sorted[range.end].index,
+      startCharOffset: range.startCharOffset,
+      pageStart,
+      // Distinct article headings in a shared chunk can have different real
+      // PDF pages. Unknown boundaries still require review; never guess.
+      pageEnd: nextPage === null ? sorted[range.end].pageEnd
+        : nextPage <= pageStart ? null : Math.min(sorted[range.end].pageEnd, nextPage - 1),
+      itemsCount: sorted.slice(range.start, range.end + 1).reduce((sum, chunk) => sum + (itemCount.get(chunkIds.get(chunk.index) || '') || 0), 0),
+    }
+  })
 }
 
 export function debugBookOutlineChunks(chunks: readonly Chunk[]): BookOutlineDebugChunk[] {
