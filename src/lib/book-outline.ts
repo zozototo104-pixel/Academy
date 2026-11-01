@@ -788,7 +788,7 @@ function projectSourceHeadings(headings: readonly SourceHeading[], chunks: reado
       const titleOffset = chunk.text.indexOf(heading.title)
       const offset = rawOffset >= 0 ? rawOffset : titleOffset
       if (offset >= 0) {
-        candidate = { at: chunk.index, title: heading.title, startCharOffset: offset || null }
+        candidate = { at: chunk.index, title: heading.title, startCharOffset: offset || null, sourcePage: heading.page }
         break
       }
     }
