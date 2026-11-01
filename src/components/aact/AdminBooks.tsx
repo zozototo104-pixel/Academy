@@ -4652,6 +4652,131 @@ export function AdminBooksTab() {
           }}
         />
       )}
+      {/* Branded mobile-safe outline approval workflow (never browser confirm/prompt). */}
+      <Dialog
+        open={!!outlineApprovalDialog}
+        onOpenChange={(open) => { if (!open && !outlineUnitBusyId) setOutlineApprovalDialog(null) }}
+      >
+        <DialogContent
+          dir="rtl"
+          className="max-h-[min(88dvh,760px)] w-[calc(100vw-1.5rem)] max-w-lg overflow-y-auto rounded-[1.75rem] border border-[#c9a227]/30 bg-white p-0 text-right shadow-2xl shadow-[#0f2b46]/25 sm:max-w-lg"
+        >
+          {outlineApprovalDialog && (
+            <>
+              <div className="relative overflow-hidden rounded-t-[1.75rem] bg-[#0f2b46] px-6 pb-5 pt-6 text-white">
+                <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-l from-[#c9a227] via-[#f1d477] to-[#c9a227]" />
+                <div className="mb-4 flex items-center gap-2 text-sm font-black tracking-wide text-[#f1d477]">
+                  <BookMarked className="h-5 w-5" />
+                  AACT Academy
+                </div>
+                <DialogHeader className="text-right">
+                  <DialogTitle className="flex items-center gap-3 text-xl font-black leading-9 text-white sm:text-2xl">
+                    <AlertTriangle className="h-7 w-7 shrink-0 text-[#e8bc4b]" />
+                    {outlineApprovalDialog.stage === 'warning' ? 'تعذّر اعتماد الفهرس' : 'تجاوز موثّق'}
+                  </DialogTitle>
+                  <DialogDescription className="text-right text-sm font-bold leading-7 text-slate-200">
+                    {outlineApprovalDialog.stage === 'warning'
+                      ? 'توجد أقسام تتجاوز 80 صفحة، ولذلك لا يمكن اعتماد الفهرس مباشرة.'
+                      : 'اكتب سببًا حقيقيًا يثبت أن القسم الأصلي يستدعي هذا الطول قبل اعتماد الفهرس.'}
+                  </DialogDescription>
+                </DialogHeader>
+              </div>
+
+              <div className="space-y-4 px-5 pb-6 pt-1 sm:px-6">
+                {outlineApprovalDialog.blocked.length > 0 && (
+                  <div className="space-y-2 rounded-2xl border border-[#c9a227]/35 bg-[#fff9ed] p-3">
+                    <p className="text-xs font-black text-[#956c16]">الأقسام التي تحتاج مراجعة</p>
+                    {outlineApprovalDialog.blocked.slice(0, 4).map((section, index) => (
+                      <div key={index} className="flex items-start gap-2 text-sm font-bold leading-6 text-[#0f2b46]">
+                        <BookMarked className="mt-1 h-4 w-4 shrink-0 text-[#b88924]" />
+                        <span className="min-w-0 break-words">{section.title} — <strong className="text-[#956c16]">{section.pages} صفحة</strong></span>
+                      </div>
+                    ))}
+                    {outlineApprovalDialog.blocked.length > 4 && <p className="text-xs text-slate-600">و{outlineApprovalDialog.blocked.length - 4} أقسام إضافية.</p>}
+                  </div>
+                )}
+
+                {outlineApprovalDialog.stage === 'warning' ? (
+                  <>
+                    <p className="text-sm font-bold leading-7 text-slate-600">
+                      قسّم النطاقات الكبيرة أو أعد بناء الفهرس. إذا كان هذا فصلًا أصليًا موثقًا، يمكنك تسجيل تجاوز بسبب واضح يُحفظ مع قرار الاعتماد.
+                    </p>
+                    <p className="text-center text-sm font-black text-[#0f2b46]">هل تريد المتابعة بتجاوز موثّق؟</p>
+                    <div className="grid gap-2">
+                      <Button
+                        type="button"
+                        disabled={!!outlineUnitBusyId}
+                        onClick={() => setOutlineApprovalDialog((previous) => previous ? { ...previous, stage: 'reason', error: '' } : previous)}
+                        className="h-12 w-full rounded-xl border border-[#c9a227] bg-[#0f2b46] font-black text-white hover:bg-[#163b60]"
+                      >
+                        <FileCheck2 className="ml-2 h-5 w-5 text-[#f1d477]" /> تسجيل تجاوز موثّق
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={!!outlineUnitBusyId}
+                        onClick={() => {
+                          const bookId = outlineApprovalDialog.bookId
+                          setOutlineApprovalDialog(null)
+                          void buildOutlineForBook(bookId)
+                        }}
+                        className="h-12 w-full rounded-xl border-[#0f2b46] font-black text-[#0f2b46]"
+                      >
+                        <RefreshCw className="ml-2 h-4 w-4" /> إعادة بناء الفهرس
+                      </Button>
+                      <Button type="button" variant="ghost" disabled={!!outlineUnitBusyId} onClick={() => setOutlineApprovalDialog(null)} className="h-10 w-full rounded-xl font-black text-slate-600">إلغاء</Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="outline-override-reason" className="text-sm font-black text-[#0f2b46]">سبب التجاوز الموثّق</Label>
+                      <p className="text-xs font-bold leading-6 text-slate-500">مثال: فصل أصلي واحد موثّق بهذا الطول.</p>
+                      <Textarea
+                        id="outline-override-reason"
+                        dir="rtl"
+                        rows={4}
+                        maxLength={300}
+                        autoFocus
+                        disabled={!!outlineUnitBusyId}
+                        value={outlineApprovalDialog.reason}
+                        onChange={(event) => setOutlineApprovalDialog((previous) => previous ? { ...previous, reason: event.target.value, error: '' } : previous)}
+                        placeholder="اكتب سبب التجاوز هنا..."
+                        aria-invalid={!!outlineApprovalDialog.error}
+                        className="min-h-28 rounded-xl border-slate-300 bg-white text-sm font-bold leading-7 focus-visible:ring-[#c9a227]"
+                      />
+                      <p className="text-left text-[11px] text-slate-500">{outlineApprovalDialog.reason.length}/300</p>
+                      {outlineApprovalDialog.error && <p role="alert" className="text-xs font-bold leading-6 text-red-700">{outlineApprovalDialog.error}</p>}
+                    </div>
+                    <p className="rounded-xl bg-[#fff8e9] p-3 text-xs font-bold leading-6 text-[#755510]">
+                      <Info className="ml-1 inline h-4 w-4" />
+                      سيتم حفظ السبب مع قرار الاعتماد في سجل مراجعة الفهرس.
+                    </p>
+                    <div className="flex flex-col-reverse gap-2 sm:flex-row">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={!!outlineUnitBusyId}
+                        onClick={() => setOutlineApprovalDialog((previous) => previous ? { ...previous, stage: 'warning', error: '' } : previous)}
+                        className="h-12 flex-1 rounded-xl font-black"
+                      >رجوع</Button>
+                      <Button
+                        type="button"
+                        disabled={!!outlineUnitBusyId || outlineApprovalDialog.reason.trim().length < 3}
+                        onClick={() => void submitDocumentedOutlineOverride()}
+                        className="h-12 flex-1 rounded-xl border border-[#c9a227] bg-[#0f2b46] font-black text-white hover:bg-[#163b60]"
+                      >
+                        {outlineUnitBusyId ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <FileCheck2 className="ml-2 h-4 w-4 text-[#f1d477]" />}
+                        {outlineUnitBusyId ? 'جارٍ التوثيق...' : 'تأكيد التوثيق'}
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
       {actionDialog}
     </div>
   )
