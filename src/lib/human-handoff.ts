@@ -348,7 +348,7 @@ export function hasPendingPlatformChatHandoffDetailsPrompt(messages: Array<{ rol
     'ما اسمك', 'شو اسمك', 'نحتاج منك',
   ])
   return requestedDetails && includesAny(n, ['اسمك', 'الاسم']) &&
-    includesAny(n, ['موضوعك', 'موضوع الطلب', 'سبب التواصل', 'سبب الطلب', 'الموضوع'])
+    includesAny(n, ['موضوعك', 'وموضوعك', 'موضوع الطلب', 'وموضوع الطلب', 'سبب التواصل', 'سبب الطلب', 'الموضوع'])
 }
 
 export function looksLikePlatformChatHandoffDetails(message: string): boolean {
