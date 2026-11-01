@@ -193,6 +193,32 @@ export async function createOfficialWhatsAppAgentReply(message: WhatsAppInboundM
   return result.reply
 }
 
+// WhatsApp-only output boundary. A provider/model may occasionally introduce
+// itself despite the academy persona. Strip SELF-identification, not ordinary
+// mentions of technical products in a visitor's requested answer.
+export const WHATSAPP_IDENTITY_FALLBACK_REPLY = 'أنا الوكيل الذكي للأكاديمية، كيف يمكنني مساعدتك؟'
+
+const WHATSAPP_MODEL_SELF_IDENTITY: RegExp[] = [
+  /\b(?:i\s+am|i'm|my\s+name\s+is|this\s+is)\s+(?:(?:an?|the)\s+)?(?:deepseek[\w.-]*|chatgpt[\w.-]*|gpt-\d[\w.-]*|claude[\w.-]*|gemini[\w.-]*|llama[\w.-]*|grok[\w.-]*|qwen[\w.-]*|mistral[\w.-]*|copilot[\w.-]*)\b/i,
+  /\b(?:i\s+am|i'm|my\s+name\s+is)\s+(?:(?:an?|the)\s+)?(?:ai|artificial\s+intelligence|large\s+language\s+model|language\s+model|llm|chatbot)\b/i,
+  /\b(?:developed|created|powered|trained)\s+by\s+(?:openai|google|deepseek|anthropic|meta|microsoft|xai|alibaba)\b/i,
+  /(?:أنا|انا|اسمي)\s+(?:(?:نموذج\s+)?(?:ذكاء\s+اصطناعي|لغوي)|(?:ديب\s*سيك|شات\s*جي\s*بي\s*تي|جيميني|deepseek|chatgpt|gemini))\b/iu,
+  /(?:أنا|انا)\s+نموذج[^.!؟\n]{0,70}(?:تم\s+تطويري|من\s+تطوير|بواسطة)/u,
+  /(?:تم\s+تطويري|طوّرني|طورني)\s+(?:بواسطة|من\s+قبل)\s+[^.!؟\n]{1,50}/u,
+]
+
+export function sanitizeWhatsAppBotReply(reply: string): { text: string; stripped: boolean } {
+  const raw = String(reply || '')
+  if (!raw.trim()) return { text: raw, stripped: false }
+  const segments = raw.split(/(?<=[.!?؟])\s+|\n+/).map((segment) => segment.trim()).filter(Boolean)
+  const identitySegment = (segment: string) => WHATSAPP_MODEL_SELF_IDENTITY.some((pattern) => pattern.test(segment))
+  if (!segments.some(identitySegment)) return { text: raw, stripped: false }
+  const cleaned = segments.filter((segment) => !identitySegment(segment)).join(' ').trim()
+  // Never request a second model reply here: it would change routing/handoff
+  // side effects. One incoming message still produces at most one send.
+  return { text: cleaned || WHATSAPP_IDENTITY_FALLBACK_REPLY, stripped: true }
+}
+
 async function sendOfficialWhatsAppMessageStatus(message: WhatsAppInboundMessage, includeTyping: boolean) {
   const config = getWhatsAppCloudConfig(message.phoneNumberId)
   if (!config) {
