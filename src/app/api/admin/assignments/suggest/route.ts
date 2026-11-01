@@ -76,8 +76,14 @@ function normalizeSuggestions(raw: any[], semester: number, allowedIds: Set<stri
     if (!title || !description || looksLikeBrokenAcademicOutput(`${title}. ${description}`)) continue
     const ids: string[] = Array.isArray(item?.sourceKnowledgeIds) ? item.sourceKnowledgeIds.map((id: unknown) => clean(id, 100)).filter((id: string): id is string => Boolean(id) && allowedIds.has(id)) : []
     if (!ids.length) continue
-    const proposedUnitId = clean(item?.unitId, 100) || fallbackUnitId || ''
-    if (!proposedUnitId || ids.some((id) => !unitById.get(id)?.has(proposedUnitId))) continue
+    // Infer the unit from trusted source-to-unit mappings, never from an AI-supplied ID alone.
+    const matchingUnitIds = [...(unitById.get(ids[0]) || new Set<string>())]
+      .filter((candidate) => ids.every((id) => unitById.get(id)?.has(candidate)))
+    const requestedUnitId = clean(item?.unitId, 100) || fallbackUnitId || ''
+    const proposedUnitId = matchingUnitIds.includes(requestedUnitId)
+      ? requestedUnitId
+      : matchingUnitIds.length === 1 ? matchingUnitIds[0] : ''
+    if (!proposedUnitId) continue
     const key = title.toLowerCase().replace(/\s+/g, ' ')
     if (seen.has(key)) continue
     seen.add(key)
