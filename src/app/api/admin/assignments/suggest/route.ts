@@ -130,7 +130,7 @@ function normalizeSuggestions(raw: any[], semester: number, allowedIds: Set<stri
 
 async function unitKnowledge(programId: string, semester: number, unitId?: string | null) {
   const units = await db.unit.findMany({
-    where: { programId, ...(unitId ? { id: unitId } : semester === 3 ? {} : { semester }) },
+    where: { programId, semester, ...(unitId ? { id: unitId } : {}) },
     orderBy: [{ semester: 'asc' }, { order: 'asc' }],
     select: { id: true, title: true, semester: true, sourceBookId: true, chunkStartIndex: true, chunkEndIndex: true },
   })
