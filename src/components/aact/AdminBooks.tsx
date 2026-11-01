@@ -3338,7 +3338,7 @@ export function AdminBooksTab() {
                 </div>
                 <div>
                   <Label className="text-[10px] font-black text-slate-500">الفصل</Label>
-                  <Select value={assignmentForm.semester} onValueChange={(v) => setAssignmentForm({ ...assignmentForm, semester: v })}>
+                  <Select value={assignmentForm.semester} onValueChange={(v) => { invalidateAssignmentGeneration(); setSuggestingAssignments(false); setAssignmentSuggestions([]); setAssignmentSuggestionProgress(''); setAssignmentForm({ ...assignmentForm, semester: v, unitId: '', sourceKnowledgeIds: null }) }}>
                     <SelectTrigger className="mt-1 h-10 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="1">الفصل الأول</SelectItem>
