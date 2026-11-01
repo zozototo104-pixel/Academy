@@ -114,8 +114,21 @@ export async function POST(req: NextRequest) {
     const program = await db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true } })
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
 
+    const requestedUnitId = asString(body.unitId, 100) || null
+    if (requestedUnitId) {
+      const matchingUnit = await db.unit.findFirst({ where: { id: requestedUnitId, programId }, select: { id: true, semester: true } })
+      if (!matchingUnit || matchingUnit.semester !== asInt(body.semester, 1, 1, 3)) {
+        return NextResponse.json({ error: 'وحدة الواجب لا تتبع البرنامج والفصل المحددين' }, { status: 400 })
+      }
+    }
+    // Source IDs are not persisted until their additive Prisma migration is available.
+    // Refuse misleading unverified provenance instead of silently discarding it.
+    if (Array.isArray(body.sourceKnowledgeIds) && body.sourceKnowledgeIds.length) {
+      return NextResponse.json({ error: 'ربط عناصر مصادر الواجب غير متاح حتى اعتماد ترحيل قاعدة البيانات' }, { status: 409 })
+    }
     const data = {
       programId,
+      unitId: requestedUnitId,
       title,
       description,
       semester: asInt(body.semester, 1, 1, 3),
