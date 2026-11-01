@@ -95,6 +95,7 @@ mock.module('@/lib/db', () => ({ db }))
 mock.module('@/lib/auth', () => ({
   requireUser: async () => currentUser,
   requireAdmin: async () => {
+    if (currentUser.role === 'ADMIN') return currentUser
     throw new Error('UNAUTHORIZED')
   },
 }))
