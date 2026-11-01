@@ -145,6 +145,28 @@ async function unitKnowledge(programId: string, semester: number, unitId?: strin
   return out
 }
 
+export async function GET(req: NextRequest) {
+  try {
+    await requireAdmin()
+    const programId = clean(req.nextUrl.searchParams.get('programId'), 80)
+    const semester = asInt(req.nextUrl.searchParams.get('semester'), 1, 1, 3)
+    if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
+    const units = await db.unit.findMany({
+      where: { programId, semester },
+      orderBy: [{ order: 'asc' }],
+      select: { id: true, title: true, sourceBookId: true, chunkStartIndex: true, chunkEndIndex: true },
+    })
+    return NextResponse.json({ units: units.map((unit) => ({
+      unitId: unit.id, title: unit.title,
+      hasSourceRange: Boolean(unit.sourceBookId && unit.chunkStartIndex != null && unit.chunkEndIndex != null),
+    })) })
+  } catch (e: any) {
+    if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
+    console.error('assignment unit catalog error:', e)
+    return NextResponse.json({ error: 'تعذر قراءة وحدات الفصل' }, { status: 500 })
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     await requireAdmin()
