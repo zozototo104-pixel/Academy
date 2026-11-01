@@ -243,6 +243,7 @@ describe('books workspace organization guard', () => {
     assert.ok(SOURCE.includes('تم اعتماد استثناء موثّق للأقسام الطويلة'), 'human-readable override text is visible')
     assert.ok(SOURCE.includes("warning.startsWith('OUTLINE_')"), 'internal structured metadata is not rendered as raw text')
     assert.ok(SOURCE.includes("w.startsWith('OUTLINE_SUBHEADING:')"), 'original article subheadings still render separately')
-    assert.ok(SOURCE.includes('reason: ${reason}'), 'supervisor rationale remains readable without exposing internal IDs')
+    assert.ok(SOURCE.includes('سبب المشرف: ${reason}'), 'supervisor rationale remains readable without exposing internal IDs')
+    assert.ok(!SOURCE.includes('⚠ {warning.startsWith'), 'audit code is not rendered directly as a warning')
   })
 })
