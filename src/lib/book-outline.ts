@@ -593,6 +593,52 @@ function rangeInteriorBoundaries(rangeChunks: readonly Chunk[], sourceBoundaries
   return [...interior.values()].sort((a, b) => a.at - b.at || offsetForSort(a.startCharOffset) - offsetForSort(b.startCharOffset))
 }
 
+// Additional boundaries from topics that are ALREADY present in verified
+// knowledge items. Prefer a topic transition near the 30–40 page goal. Never
+// split on arithmetic positions alone: without distinct adjacent concepts
+// the oversized section remains subject to the supervisor's coverage guard.
+export function evidenceBoundariesForOversizedRange(
+  rangeChunks: readonly Chunk[],
+  items: readonly Item[],
+  chunkIds: ReadonlyMap<number, string>,
+  bookTitle: string,
+): Boundary[] {
+  const chunks = [...rangeChunks].sort((a, b) => a.index - b.index)
+  if (chunks.length < 2) return []
+  const titlesByChunk = new Map<string, string[]>()
+  for (const item of items) {
+    if (!item.chunkId || !usableOutlineTitle(item.title, bookTitle)) continue
+    const titles = titlesByChunk.get(item.chunkId) || []
+    titles.push(clean(item.title, 120))
+    titlesByChunk.set(item.chunkId, titles)
+  }
+  const subject = (chunk: Chunk) => {
+    const titles = titlesByChunk.get(chunkIds.get(chunk.index) || '') || []
+    const candidate = titles.find((title) => outlineTopicWords(title).size > 0)
+    return candidate ? { title: candidate, words: outlineTopicWords(candidate) } : null
+  }
+  const boundaries: Boundary[] = []
+  let lastStart = chunks[0].pageStart
+  let currentTopic = subject(chunks[0])
+  for (let i = 1; i < chunks.length; i++) {
+    const incoming = subject(chunks[i])
+    if (!incoming) continue
+    if (!currentTopic) { currentTopic = incoming; continue }
+    const currentPages = chunks[i - 1].pageEnd - lastStart + 1
+    if (currentPages < 25) continue
+    const overlaps = [...incoming.words].some((word) => currentTopic!.words.has(word))
+    if (overlaps) continue
+    // A genuine change of topic, not a page-count cut. Also prevent an
+    // unnecessarily tiny final unit when the original range ends nearby.
+    const remainingPages = chunks[chunks.length - 1].pageEnd - chunks[i].pageStart + 1
+    if (remainingPages < OUTLINE_SHORT_SECTION_PAGES) continue
+    boundaries.push({ at: chunks[i].index, title: incoming.title })
+    currentTopic = incoming
+    lastStart = chunks[i].pageStart
+  }
+  return boundaries
+}
+
 // Split every section above the REVIEW band using evidence found inside its
 // own range. Runs AFTER the global plan, so the global section cap and the
 // small-section merging can never re-collapse a split range afterwards.
