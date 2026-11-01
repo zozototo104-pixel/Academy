@@ -47,12 +47,21 @@ export function ProgramsStandaloneClient() {
     if (path.startsWith('/programs/') && path.split('/').filter(Boolean)[1]) {
       const slug = decodeURIComponent(path.split('/').filter(Boolean)[1] || '')
       useAppStore.setState({ view: 'program-detail', programDetailsId: slug, mobileMenuOpen: false })
-      return
+    } else {
+      useAppStore.setState({ view: 'programs', mobileMenuOpen: false })
     }
-    useAppStore.setState({ view: 'programs', mobileMenuOpen: false })
+    setRouteReady(true)
   }, [])
 
-  const effectiveView = view === 'home' ? 'programs' : view
+  useEffect(() => {
+    if (!routeReady || supportedProgramViews.has(view)) return
+    // navigate() already writes the correct URL with history.pushState, but
+    // it cannot replace this standalone page's React tree. Reload the new
+    // URL to mount the real home/student/admin route immediately.
+    window.location.reload()
+  }, [routeReady, view])
+
+  const effectiveView = !routeReady && view === 'home' ? 'programs' : view
 
   return (
     <div className="flex min-h-screen flex-col bg-[#eef0f5]">
