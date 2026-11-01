@@ -457,7 +457,33 @@ function testThematicGroupCannotHideMissingPdfPages() {
   assert(reason === 'OUTLINE_THEMATIC_SOURCE_COVERAGE_GAP', 'لا يجوز إخفاء الصفحة 28 المفقودة داخل وحدة أكبر')
 }
 
+function testVerifiedMidChunkArticleKeepsPreviousPageAndEvidence() {
+  // Actual failure pattern from the 297-page replay: page 28 belongs to
+  // the same stored chunk that also contains a new article on page 29.
+  const chunks = [
+    spanChunk(0, 'مبادئ القيادة وتفاصيلها', 24, 27),
+    spanChunk(1, 'نهاية المقال السابق ثم عنوان مقال جديد', 28, 31),
+    spanChunk(2, 'متابعة المقال الجديد', 32, 35),
+  ]
+  const ids = new Map(chunks.map((chunk) => [chunk.index, 'chunk-' + chunk.index]))
+  const draft = planBookOutline(chunks, [], ids, 1, [
+    { at: 0, title: 'القيادة الإدارية', sourcePage: 24 },
+    { at: 1, title: 'الذكاء العاطفي', sourcePage: 29, startCharOffset: 25 },
+  ], 'كتاب الإدارة', true)
+  assert(draft.sections.length === 2, 'Two source articles should remain separate')
+  assert(draft.sections[0].pageEnd === 28 && draft.sections[1].pageStart === 29, 'Page 28 must not disappear')
+  assert(draft.sections[0].chunkEndIndex === 1, 'Prior study unit must retain the source chunk containing page 28')
+  assert(draft.sections[1].chunkStartIndex === 1, 'Next unit must also cite the source chunk starting on page 28')
+  assert(auditOutlineCoverage(draft.sections).gaps.length === 0, 'No false gap between pages 28 and 29')
+  const withoutVerifiedPage = planBookOutline(chunks, [], ids, 1, [
+    { at: 0, title: 'القيادة الإدارية' },
+    { at: 1, title: 'الذكاء العاطفي', startCharOffset: 25 },
+  ], 'كتاب الإدارة', true)
+  assert(withoutVerifiedPage.sections[0].chunkEndIndex === 0, 'No guessing an overlap when PDF page evidence is absent')
+}
+
 const tests = [
+  testVerifiedMidChunkArticleKeepsPreviousPageAndEvidence,
   testThematicGroupCannotHideMissingPdfPages,
   testRealArabicTopicVariationsDoNotRejectValidGroups,
   testOriginalPdfArticlePageNumbersWithinSameChunk,
