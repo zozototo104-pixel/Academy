@@ -98,6 +98,10 @@ function testWhatsAppSourceWiring() {
   assert(cloud.includes('سياق داخلي إضافي للنموذج فقط وليس رداً جاهزاً: ${extraContext}'), 'WhatsApp extraContext must be passed into uiContext')
   assert(cloud.includes('WHATSAPP_MODEL_UNAVAILABLE_REPLY'), 'WhatsApp must reject the fixed platform unavailable reply instead of sending it')
   assert(!route.includes('sendFallbackAndRequestHuman') && !route.includes('WHATSAPP_AI_FALLBACK_REPLY'), 'WhatsApp route must not send fixed fallback text when all models fail')
+  assert(route.includes('const modelReply = await createAgentReply(message, extraContext)'), 'agent still produces only one reply per inbound event')
+  assert(route.includes('const outgoing = sanitizeWhatsAppBotReply(modelReply)'), 'sanitizer only modifies that single reply before sending')
+  assert((route.match(/await sendOfficialWhatsAppText\(/g) || []).length === 1, 'there must be only one WhatsApp sending call')
+  assert(!readFileSync('src/lib/platform-agent.ts', 'utf8').includes('هويتك المعلنة للمستخدم واحدة فقط'), 'WhatsApp-specific identity instruction must not change other platform agent channels')
 }
 
 async function main() {
