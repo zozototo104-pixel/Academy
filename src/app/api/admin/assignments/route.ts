@@ -179,6 +179,8 @@ export async function POST(req: NextRequest) {
     const data = {
       programId,
       unitId: requestedUnitId,
+      sourceKnowledgeIds: validatedSourceIds === undefined ? undefined
+        : validatedSourceIds === null ? Prisma.DbNull : validatedSourceIds,
       title,
       description,
       semester: asInt(body.semester, 1, 1, 3),
