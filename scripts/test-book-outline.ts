@@ -300,6 +300,9 @@ async function testFull297BookUsesLateEvidenceNotArithmeticSplits() {
   assert(inferred.some((boundary) => boundary.at >= 22), 'فحص الموضوعات يجب أن يصل إلى آخر صفحات الكتاب')
   const refined = await refineOversizedSections({
     sections: planned.sections, chunks, items, chunkIds, semester: 1,
+    // This early source heading used to suppress ALL later knowledge
+    // boundaries, producing a second oversized tail.
+    sourceBoundaries: [{ at: 6, title: 'التخطيط الاستراتيجي' }],
     bookTitle: 'ماستر في إدارة الأعمال', allowAi: false,
   })
   const balanced = balanceBookOutlineSections(refined.sections)
