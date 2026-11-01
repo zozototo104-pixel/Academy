@@ -2063,7 +2063,7 @@ export function AdminBooksTab() {
 
   const rejectOutlineSection = async (bookId: string, sectionId: string, mergeInto: 'previous' | 'next') => {
     const direction = mergeInto === 'previous' ? 'السابق' : 'التالي'
-    if (!window.confirm(`سيُضم نطاق هذا القسم مع جميع صفحاته ومقاطع معرفته للقسم ${direction}، ولن يُحذف محتوى الكتاب. تأكد من مناسبة الموضوعين قبل المتابعة. هل تريد الضم؟`)) return
+    if (!await confirmAction({ title: `ضم القسم إلى القسم ${direction}`, description: `سيتم دمج صفحات القسم ومقاطع المعرفة في القسم ${direction}، مع الاحتفاظ بمحتوى الكتاب والعناوين الأصلية للمراجعة.\nتأكد من مناسبة الموضوعين قبل المتابعة.`, confirmLabel: 'تأكيد الضم', cancelLabel: 'إلغاء', tone: 'info' })) return
     try {
       await api(`/api/admin/books/${bookId}/outline/sections/${sectionId}?mergeInto=${mergeInto}`, { method: 'DELETE' })
       await loadBookOutline(bookId)
