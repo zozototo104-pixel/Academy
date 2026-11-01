@@ -34,6 +34,7 @@ function mapAssignment(a: any) {
   return {
     id: a.id,
     programId: a.programId,
+    unitId: a.unitId || null,
     title,
     description,
     semester: a.semester,
