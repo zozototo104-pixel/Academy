@@ -2079,17 +2079,18 @@ export function AdminBooksTab() {
     } finally { setOutlineBusyId(null) }
   }
 
-  const approveBookOutline = async (bookId: string) => {
+  const approveBookOutline = async (bookId: string, overrideReason?: string) => {
     setOutlineUnitBusyId(`approve-${bookId}`)
     try {
+      // Preserve the single guarded API call for normal and documented approval.
       const attempt = (body: Record<string, unknown>) => api<{ outline: NonNullable<typeof bookOutlines[string]> }>(`/api/admin/books/${bookId}/outline/approve`, { method: 'POST', body: JSON.stringify(body) })
-      const result = await attempt({})
+      const result = await attempt(overrideReason ? { overrideOversized: true, overrideReason } : {})
       setBookOutlines((previous) => ({ ...previous, [bookId]: result.outline }))
-      toast({ title: 'تم اعتماد الفهرس', description: `نسخة ${result.outline.version}` })
+      if (overrideReason) setOutlineApprovalDialog(null)
+      toast({ title: overrideReason ? 'تم اعتماد الفهرس بتجاوز موثّق' : 'تم اعتماد الفهرس', description: `نسخة ${result.outline.version}` })
     } catch (error: any) {
-      if (error?.code === 'OUTLINE_OVERSIZED_SECTIONS') {
-        // Render the actual guard result inside the Academy, not browser prompts.
-        // Page gaps and other errors cannot enter the override workflow.
+      if (error?.code === 'OUTLINE_OVERSIZED_SECTIONS' && !overrideReason) {
+        // Page-gap errors cannot enter the documented oversized override.
         const blocked = Array.isArray(error?.data?.blocked) ? error.data.blocked : []
         setOutlineApprovalDialog({
           bookId,
@@ -2098,6 +2099,8 @@ export function AdminBooksTab() {
           reason: '',
           error: '',
         })
+      } else if (overrideReason) {
+        setOutlineApprovalDialog((previous) => previous ? { ...previous, error: String(error?.message || error) } : previous)
       } else {
         toast({ title: 'تعذر اعتماد الفهرس', description: String(error?.message || error), variant: 'destructive' })
       }
@@ -2112,19 +2115,7 @@ export function AdminBooksTab() {
       setOutlineApprovalDialog((previous) => previous ? { ...previous, error: 'يجب كتابة سبب موثّق لا يقل عن 3 أحرف.' } : previous)
       return
     }
-    setOutlineUnitBusyId(`approve-${dialog.bookId}`)
-    try {
-      // Same protected endpoint, payload and guard; only the presentation changed.
-      const result = await api<{ outline: NonNullable<typeof bookOutlines[string]> }>(`/api/admin/books/${dialog.bookId}/outline/approve`, {
-        method: 'POST',
-        body: JSON.stringify({ overrideOversized: true, overrideReason: reason.slice(0, 300) }),
-      })
-      setBookOutlines((previous) => ({ ...previous, [dialog.bookId]: result.outline }))
-      setOutlineApprovalDialog(null)
-      toast({ title: 'تم اعتماد الفهرس بتجاوز موثّق', description: `نسخة ${result.outline.version} — حُفظ سبب التجاوز للمراجعة.` })
-    } catch (error: any) {
-      setOutlineApprovalDialog((previous) => previous ? { ...previous, error: String(error?.message || error) } : previous)
-    } finally { setOutlineUnitBusyId(null) }
+    await approveBookOutline(dialog.bookId, reason.slice(0, 300))
   }
 
   const loadOutlineDebug = async (bookId: string) => {
