@@ -275,15 +275,17 @@ async function loadBookContext(programId: string, unitId: string | null, semeste
         select: { id: true, title: true, sourceBookId: true, chunkStartIndex: true, chunkEndIndex: true },
       })
     }
+    // Never silently grade against the FIRST OTHER unit in the semester.
+    // Legacy assignments without a verified unit remain human-reviewable,
+    // but are explicitly reported as lacking a matching book reference.
     if (!unit || !unit.sourceBookId || unit.chunkStartIndex == null || unit.chunkEndIndex == null) {
-      const units = await db.unit.findMany({
-        where: { programId, semester },
-        orderBy: [{ order: 'asc' }],
-        select: { id: true, title: true, sourceBookId: true, chunkStartIndex: true, chunkEndIndex: true },
-      })
-      unit = units.find((u: any) => u.sourceBookId && u.chunkStartIndex != null && u.chunkEndIndex != null) || null
+      return { text: '', titles: [], used: false }
     }
-    if (!unit) return { text: '', titles: [], used: false }
+    const belongsToProgram = await db.unit.findFirst({
+      where: { id: unit.id, programId, semester },
+      select: { id: true },
+    })
+    if (!belongsToProgram) return { text: '', titles: [], used: false }
     const chunks = await db.bookChunk.findMany({
       where: { bookId: unit.sourceBookId, index: { gte: unit.chunkStartIndex, lte: unit.chunkEndIndex } },
       orderBy: { index: 'asc' },
