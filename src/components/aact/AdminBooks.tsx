@@ -2307,6 +2307,7 @@ export function AdminBooksTab() {
         body: JSON.stringify({
           programId,
           unitId: s.unitId || null,
+          sourceKnowledgeIds: s.sourceKnowledgeIds || null,
           title: s.title,
           description: s.description,
           semester: s.semester,
