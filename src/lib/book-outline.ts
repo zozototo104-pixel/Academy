@@ -322,41 +322,11 @@ function normalizeBoundaries(chunks: readonly Chunk[], boundaries: readonly Boun
     const end = nextStart === null ? sorted.length - 1 : nextStart === start ? start : nextStart - 1
     return { start, end, title: boundary.title, startCharOffset: boundary.startCharOffset ?? null, verifiedHeading: boundary.verifiedHeading ?? false }
   }).filter((range) => range.end >= range.start)
-  // Real chapter boundaries and same-chunk splits must not be merged away.
-  // Only unlabeled one-chunk fragments may be absorbed into neighboring sections.
-  for (let i = ranges.length - 1; i >= 0; i--) {
-    if (ranges.length <= 1 || ranges[i].verifiedHeading || chapterNumber(ranges[i].title) !== null) continue
-    if (ranges[i].end !== ranges[i].start) continue
-    const sharesChunkWithNeighbor = (i > 0 && ranges[i - 1].start === ranges[i].start) || (i + 1 < ranges.length && ranges[i + 1].start === ranges[i].start)
-    if (sharesChunkWithNeighbor || ranges[i].startCharOffset !== null) continue
-    if (i > 0) { ranges[i - 1].end = ranges[i].end; ranges.splice(i, 1) }
-    else { ranges[1].start = ranges[0].start; ranges.shift() }
-  }
-  while (ranges.length > 16) {
-    // Merge the adjacent pair whose COMBINED PAGE SPAN is smallest. Merging by
-    // chunk count alone can fold a short final range into a huge predecessor
-    // and silently re-form an oversized tail section; page span is the unit
-    // the coverage guard judges, so it is the unit merging must minimize.
-    let best = 1
-    let bestSpan = Infinity
-    for (let i = 1; i < ranges.length; i++) {
-      const span = sorted[ranges[i].end].pageEnd - sorted[ranges[i - 1].start].pageStart
-      if (span < bestSpan) { bestSpan = span; best = i }
-    }
-    ranges[best - 1].end = ranges[best].end
-    ranges.splice(best, 1)
-  }
-  // Never undo tiny-section merging by splitting real heading/TOC sections again.
-  // Only create synthetic sections when no reliable boundaries were supplied.
-  while (boundaries.length === 0 && ranges.length < Math.min(4, sorted.length)) {
-    let largest = 0
-    for (let i = 1; i < ranges.length; i++) if (ranges[i].end - ranges[i].start > ranges[largest].end - ranges[largest].start) largest = i
-    const range = ranges[largest]
-    if (range.end <= range.start) break
-    const mid = Math.floor((range.start + range.end) / 2)
-    ranges.splice(largest + 1, 0, { start: mid + 1, end: range.end, title: `${range.title} — تابع`, startCharOffset: null, verifiedHeading: false })
-    range.end = mid
-  }
+  // Do NOT absorb short headings or force a 16-section cap before assessing
+  // the entire book. Those operations previously removed genuine topics near
+  // the end and manufactured an oversized tail. Keep the source headings and
+  // let the evidence-based book-level balancer merge compatible short topics.
+  // A missing trustworthy title is never replaced by «تابع» scaffolding.
   const itemCount = new Map<string, number>()
   for (const item of items) if (item.chunkId) itemCount.set(item.chunkId, (itemCount.get(item.chunkId) || 0) + 1)
   return ranges.map((range, order) => ({
