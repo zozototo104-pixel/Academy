@@ -93,8 +93,9 @@ mock.module('@/lib/auth', () => ({
   },
 }))
 mock.module('@/lib/text-ai', () => ({
-  textAiCompleteJson: async () => {
+  textAiCompleteJson: async (args: any) => {
     textAiCalls += 1
+    lastGradingPrompt = String(args?.history?.[0]?.text || '')
     return textAiResponse
   },
 }))
