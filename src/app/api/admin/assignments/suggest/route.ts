@@ -52,6 +52,8 @@ function asInt(value: unknown, fallback: number, min: number, max: number) {
 function arrayFromJson(value: any): any[] {
   if (Array.isArray(value)) return value
   for (const key of ['suggestions', 'items', 'data', 'assignments', 'results']) if (Array.isArray(value?.[key])) return value[key]
+  // A single sourced assignment is also a valid model response.
+  if (value && typeof value === 'object' && typeof value.title === 'string' && typeof value.description === 'string') return [value]
   return []
 }
 
@@ -67,14 +69,21 @@ function parseJsonArray(raw: string): any[] {
   return []
 }
 
-function normalizeSuggestions(raw: any[], semester: number, allowedIds: Set<string>, titleById: Map<string, string>, unitById: Map<string, Set<string>>, fallbackUnitId?: string | null): AssignmentSuggestion[] {
+function normalizeSuggestions(raw: any[], semester: number, allowedIds: Set<string>, titleById: Map<string, string>, unitById: Map<string, Set<string>>, fallbackUnitId?: string | null, sourceIndexIds: string[] = []): AssignmentSuggestion[] {
   const seen = new Set<string>()
   const out: AssignmentSuggestion[] = []
   for (const item of raw) {
     const title = cleanAssignmentText(item?.title, '', 180, true)
     const description = cleanAssignmentText(item?.description, '', 5000)
     if (!title || !description || looksLikeBrokenAcademicOutput(`${title}. ${description}`)) continue
-    const ids: string[] = Array.isArray(item?.sourceKnowledgeIds) ? item.sourceKnowledgeIds.map((id: unknown) => clean(id, 100)).filter((id: string): id is string => Boolean(id) && allowedIds.has(id)) : []
+    const directIds: string[] = Array.isArray(item?.sourceKnowledgeIds) ? item.sourceKnowledgeIds.map((id: unknown) => clean(id, 100)).filter((id: string): id is string => Boolean(id) && allowedIds.has(id)) : []
+    // The model may cite numbered sources instead of copying opaque database IDs.
+    // Resolve only indexes explicitly present in this unit's trusted prompt.
+    const indexedIds: string[] = Array.isArray(item?.sourceKnowledgeIndices) ? item.sourceKnowledgeIndices.flatMap((index: unknown) => {
+      const n = Number(index)
+      return Number.isInteger(n) && n >= 1 && n <= sourceIndexIds.length ? [sourceIndexIds[n - 1]] : []
+    }) : []
+    const ids: string[] = [...new Set([...directIds, ...indexedIds])]
     if (!ids.length) continue
     // Infer the unit from trusted source-to-unit mappings, never from an AI-supplied ID alone.
     const matchingUnitIds = [...(unitById.get(ids[0]) || new Set<string>())]
@@ -221,7 +230,7 @@ export async function POST(req: NextRequest) {
       const unitTitle = String(items[0]?.unitTitle || id)
       const unitSources = items.slice(0, 12)
       const context = unitSources.map((k, i) => `${i + 1}. id=${k.id}\nالوحدة: ${unitTitle}\nالعنوان: ${titleFromKnowledge(k)}\nالصفحات: ${k.pageStart ?? '؟'}–${k.pageEnd ?? k.pageStart ?? '؟'}\nالملخص: ${cleanAssignmentText(k.summary, '', 380)}\nالمقتطف: ${cleanAssignmentText(k.excerpt, '', 380)}`).join('\n\n')
-      const prompt = `اقترح واجباً أكاديمياً واحداً موثقاً لوحدة "${unitTitle}" من الفصل ${semester} في برنامج "${programTitle}".\nمعرف الوحدة الثابت: ${id}\nواجبات موجودة لتجنب التكرار: ${existingTitles || 'لا يوجد'}\nمصادر الوحدة المسموحة فقط:\n${context}\nأرجع JSON array فيه واجب واحد بالحقول title, description, type, semester, points, weight, rubric, unitId, sourceKnowledgeIds, sourceKnowledgeTitles. استخدم unitId=${id} ومعرفات المصادر الحرفية أعلاه فقط، واذكر صفحات المصادر في الوصف. لا تقترح موعد تسليم، ولا تستخدم قوالب عامة.`
+      const prompt = `اقترح واجباً أكاديمياً واحداً موثقاً لوحدة "${unitTitle}" من الفصل ${semester} في برنامج "${programTitle}".\nمعرف الوحدة الثابت: ${id}\nواجبات موجودة لتجنب التكرار: ${existingTitles || 'لا يوجد'}\nمصادر الوحدة المسموحة فقط:\n${context}\nأرجع JSON array فيه واجب واحد بالحقول title, description, type, semester, points, weight, rubric, unitId, sourceKnowledgeIds, sourceKnowledgeIndices, sourceKnowledgeTitles. استخدم unitId=${id}، وأشر إلى مصدر واحد على الأقل من القائمة أعلاه إما بمعرفه الحرفي في sourceKnowledgeIds أو برقمه الظاهر (يبدأ من 1) في sourceKnowledgeIndices. لا تختلق مصادر أو أرقاماً، واذكر صفحات المصادر في الوصف. لا تقترح موعد تسليم، ولا تستخدم قوالب عامة.`
       const localAllowedIds = new Set(unitSources.map((item) => String(item.id)))
       let lastReason = 'لم ينتج واجب موثق'
       for (let attempt = 0; attempt < 2; attempt++) {
@@ -234,10 +243,29 @@ export async function POST(req: NextRequest) {
             stickyScope: `ASSIGNMENTS:${programId}:${id}`,
           })
           const parsed = parseJsonArray(raw)
-          const valid = normalizeSuggestions(parsed, semester, localAllowedIds, titleById, unitById, id)
+          const valid = normalizeSuggestions(parsed, semester, localAllowedIds, titleById, unitById, id, unitSources.map((source) => String(source.id)))
             .find((item) => item.unitId === id && !existingNormalized.has(item.title.toLowerCase()))
           if (valid) return { suggestion: valid, unitId: id, title: unitTitle }
-          lastReason = `النتائج غير موثقة أو مكررة (عدد المقترحات: ${parsed.length})`
+          const candidates = parsed.filter((item) => item && typeof item === 'object')
+          const malformed = candidates.filter((item) => !cleanAssignmentText(item.title, '', 180, true) || !cleanAssignmentText(item.description, '', 5000) || looksLikeBrokenAcademicOutput(`${item.title || ''}. ${item.description || ''}`)).length
+          const ungrounded = candidates.filter((item) => {
+            const direct = Array.isArray(item.sourceKnowledgeIds) && item.sourceKnowledgeIds.some((value: unknown) => localAllowedIds.has(clean(value, 100)))
+            const indexed = Array.isArray(item.sourceKnowledgeIndices) && item.sourceKnowledgeIndices.some((value: unknown) => Number.isInteger(Number(value)) && Number(value) >= 1 && Number(value) <= unitSources.length)
+            return !direct && !indexed
+          }).length
+          const duplicate = normalizeSuggestions(parsed, semester, localAllowedIds, titleById, unitById, id, unitSources.map((source) => String(source.id)))
+            .some((item) => item.unitId === id && existingNormalized.has(item.title.toLowerCase()))
+          const wrongUnit = candidates.some((item) => {
+            const ids = Array.isArray(item.sourceKnowledgeIds) ? item.sourceKnowledgeIds.map((value: unknown) => clean(value, 100)).filter((value: string) => localAllowedIds.has(value)) : []
+            return ids.length > 0 && !ids.every((value: string) => unitById.get(value)?.has(id))
+          })
+          const rejected = !parsed.length ? (raw.trim() ? 'استجابة JSON غير قابلة للاستخراج أو لا تحتوي قائمة واجبات' : 'استجابة الذكاء فارغة')
+            : malformed ? `جودة النص غير صالحة: ${malformed}`
+            : ungrounded ? `معرفات المصادر غير صالحة: ${ungrounded}`
+            : duplicate ? 'عنوان الواجب مكرر مع واجب موجود'
+            : wrongUnit ? 'المصادر لا تنتمي للوحدة المطلوبة'
+            : 'فشل التحقق من محتوى الواجب أو نطاق الوحدة'
+          lastReason = `${rejected} (عدد المقترحات: ${parsed.length})`
         } catch (error: any) {
           lastReason = String(error?.message || error).slice(0, 180)
         }
@@ -256,7 +284,7 @@ export async function POST(req: NextRequest) {
     }
     if (!suggestions.length) {
       console.warn('assignment suggestions: all sourced units failed', { programId, semester, failedUnits })
-      return NextResponse.json({ error: 'لم يتم توليد واجبات موثقة لأي وحدة. راجع مصادر الوحدات وسجلات التوليد.', status: 'PAUSED', failedUnits }, { status: 503 })
+      return NextResponse.json({ error: `لم يتم توليد واجب موثق: ${failedUnits.map((unit) => `${unit.title}: ${unit.reason}`).join('؛ ').slice(0, 900)}`, status: 'PAUSED', failedUnits }, { status: 503 })
     }
     return NextResponse.json({
       suggestions,

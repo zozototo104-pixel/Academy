@@ -51,7 +51,7 @@ describe('assignment source and grading guardrails', () => {
     expect(suggestRoute).toContain('matchingUnitIds.includes(requestedUnitId)')
     expect(suggestRoute).toContain('if (!proposedUnitId) continue')
     expect(suggestRoute).toContain('unitId: proposedUnitId')
-    expect(suggestRoute).toContain('unitById, id)')
+    expect(suggestRoute).toContain('unitById, id, unitSources.map((source) => String(source.id)))')
   })
 
   test('manual and suggested assignments retain validated unit scope', () => {
