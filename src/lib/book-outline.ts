@@ -1013,17 +1013,49 @@ export async function buildBookOutline(bookId: string, options: { reuseReadChunk
   // draft; then audit coverage so any section that is still too large is
   // visibly flagged for the approval guard instead of passing silently.
   const refined = await refineOversizedSections({ sections: draft.sections, chunks, items, chunkIds, semester: book.semester, sourceBoundaries, bookTitle: book.title, allowAi: !options.deterministicOnly })
-  // Whole-book balancing runs BEFORE persisting the draft and AFTER all long
-  // ranges have been scanned. Merge only real adjacent topics, never chapters.
-  const balanced = balanceBookOutlineSections(refined.sections)
+  // Real-world validation: encyclopedia-style collections have dozens of
+  // genuine short article titles. Preserving all as study UNITS produces 60+
+  // tiny units, so plan a second, explicitly validated thematic grouping.
+  // Grouping may choose only existing source-section boundaries; original
+  // headings are preserved below as auditable subheadings.
+  let thematic: ReturnType<typeof validateThematicArticleGrouping> | null = null
+  const manyShortArticles = refined.sections.length >= 18 &&
+    refined.sections.filter((section) => (sectionPageSpan(section) ?? Infinity) < OUTLINE_SHORT_SECTION_PAGES).length >= refined.sections.length / 2 &&
+    refined.sections.every((section) => chapterNumber(section.title) === null)
+  if (manyShortArticles && !options.deterministicOnly) {
+    try {
+      const evidence = refined.sections.map((section) => ({
+        order: section.order, title: section.title, pageStart: section.pageStart,
+        pageEnd: section.pageEnd, itemsCount: section.itemsCount,
+      }))
+      const raw = await geminiCompleteJson({
+        system: 'أنت محرر فهرس أكاديمي. هذه عناوين مقالات أصلية في كتاب واحد، وليست وحدات دراسية مستقلة. جمّع المقالات المتجاورة والمتقاربة موضوعياً في وحدات متماسكة تغطي جميع المقالات مرة واحدة وبنفس الترتيب. استهدف 30–40 صفحة ولكن لا تجمع موضوعات مختلفة لمجرد ملء الصفحات. اترك وحدة قصيرة عندما لا يوجد انسجام. لا تخترع عناوين أو صفحات؛ عنوان كل وحدة يجب أن يعتمد على عناوين المقالات الداخلة فيها. JSON فقط.',
+        history: [{ role: 'user', text: `أرجع {"groups":[{"startOrder":1,"endOrder":4,"title":"عنوان جامع مستند إلى هذه العناوين"}]}. يجب أن تبدأ المجموعة الأولى من 1 وأن تكون المجموعات متتابعة بلا فجوات وأن تنتهي عند ${refined.sections.length}. لا تتجاوز أي مجموعة 40 صفحة من pageStart لأول مقال إلى pageEnd لآخر مقال. لا تدمج فصولاً أصلية، واحتفظ بالموضوعات غير المتوافقة مستقلة. الأقسام المصدرية: ${JSON.stringify(evidence)}` }],
+        taskLevel: 'ACADEMIC_DRAFT', temperature: 0.1, maxOutputTokens: 2700,
+        deadlineMs: Date.now() + 100_000,
+      })
+      thematic = validateThematicArticleGrouping(raw, refined.sections)
+    } catch (error) {
+      console.warn('[book-outline] thematic grouping rejected', { bookId, reason: error instanceof Error ? error.message : 'UNKNOWN' })
+      draft.warnings.push('تعذّر توثيق تجميع المقالات القصيرة في وحدات موضوعية؛ احتُفظ بعناوين المقالات الأصلية للمراجعة، ولم يُفرض دمج غير موثوق.')
+    }
+  }
+  const balanced = balanceBookOutlineSections(thematic?.sections || refined.sections)
   draft = {
     ...draft,
     sections: balanced.sections,
     warnings: [
       ...draft.warnings,
       ...refined.warnings,
+      ...(thematic ? [`أُعيد تنظيم ${refined.sections.length} عنوان مقال أصلي إلى ${thematic.sections.length} وحدات موضوعية للمراجعة، مع الاحتفاظ بالعناوين الفرعية ومراجع الصفحات.`] : []),
       ...(balanced.merged ? [`توازن موضوعي: دُمجت ${balanced.merged} مجموعات قصيرة متجاورة ذات موضوع مشترك دون اختراع عناوين.`] : []),
     ],
+  }
+  if (thematic) for (const marker of thematic.subheadings) {
+    // The balancer never joins already grouped 30–40-page units except
+    // explicitly shared topics, and the originals remain attached to the
+    // initial group ordering for administrative inspection.
+    draft.warnings.push('OUTLINE_SUBHEADING:' + JSON.stringify(marker))
   }
   const coverage = auditOutlineCoverage(draft.sections)
   for (const section of coverage.review) draft.warnings.push(section.pages === null ? `تنبيه تغطية: حدود صفحات القسم «${section.title}» غير مكتملة؛ راجعها قبل الاعتماد.` : `تنبيه تغطية: القسم «${section.title}» يغطي ${section.pages} صفحة (صفحات ${section.pageStart}–${section.pageEnd}) — فوق حد المراجعة ${OUTLINE_SECTION_REVIEW_PAGES} صفحة؛ أعد فحص عناوين هذا النطاق قبل الاعتماد.`)
