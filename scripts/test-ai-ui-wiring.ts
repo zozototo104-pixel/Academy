@@ -195,6 +195,35 @@ function testOfficialAccreditationProgramsNavigation() {
   assert(appRoutes.includes("home: '/'") && appRoutes.includes("dashboard: '/dashboard'"), 'home and student routes must remain distinct')
 }
 
+function testInPlatformAcademicRequestNeverCreatesUnwantedHandoff() {
+  const academic = 'اريد ملخص بسيط عن ادارة الموارد البشرية مع شرح مسار اهداف البرنامج'
+  const otherAcademic = 'أريد شرح إدارة المشاريع وطريقة دراسة المواد'
+  assert(!wantsPlatformChatHumanSupport(academic), 'student screenshot: academic summary must not request administration')
+  assert(!wantsPlatformChatHumanSupport(otherAcademic), 'generic إدارة in an academic question is not a human target')
+  assert(!looksLikePlatformChatHandoffDetails(academic), 'long academic request without a question mark is not contact details')
+
+  const oldConversation = [
+    { role: 'user', content: 'اريد التواصل مع الادارة بشأن طلب سابق' },
+    { role: 'assistant', content: 'تم استلام طلبك وتحويله لفريق الإدارة. وصلنا اسمك وموضوعك، وسيتواصل معك موظف مختص.' },
+  ]
+  assert(!hasPendingPlatformChatHandoffDetailsPrompt(oldConversation), 'an old handoff confirmation never opens a new details prompt')
+  assert(wantsPlatformChatHumanSupport('أريد التواصل مع الإدارة بخصوص التسجيل'), 'explicit human contact remains available')
+  assert(wantsPlatformChatHumanSupport('بدي موظف احكي معه'), 'explicit staff request remains available')
+  assert(wantsHumanSupport('أريد التواصل مع الإدارة بخصوص التسجيل'), 'existing shared/WhatsApp handoff logic remains unchanged')
+
+  const explicitPrompt = [{ role: 'assistant', content: 'رجاء اكتب اسمك وموضوعك حتى نستطيع التواصل معك' }]
+  assert(hasPendingPlatformChatHandoffDetailsPrompt(explicitPrompt), 'assistant question for name and topic opens details step')
+  assert(looksLikePlatformChatHandoffDetails('اسمي محمد وموضوعي طلب القبول'), 'explicit name and topic remain accepted')
+  assert(!looksLikePlatformChatHandoffDetails('أريد ملخصًا لبرنامج الإدارة مع شرح الأهداف'), 'academic request must not be treated as details even after a real prompt')
+
+  const chatRoute = file('src/app/api/chat/route.ts')
+  assert(chatRoute.includes('hasPendingPlatformChatHandoffDetailsPrompt(orderedMessages)'), 'platform chat must check the assistant prompt, not an old user request')
+  assert(occurrences(chatRoute, 'looksLikePlatformChatHandoffDetails(userText)') === 2, 'text-stream and voice/non-stream must use safe detail detection')
+  assert(occurrences(chatRoute, 'wantsPlatformChatHumanSupport(userText)') === 2, 'text-stream and voice/non-stream must gate admin writes on explicit intent')
+  assert(!chatRoute.includes('wantsHumanSupport(userText)'), 'platform chat must not use generic إدارة word matching')
+}
+
+testInPlatformAcademicRequestNeverCreatesUnwantedHandoff()
 testOfficialAccreditationProgramsNavigation()
 testSupervisorsApiAndUi()
 testApprovedOnlyExamAssembly()
