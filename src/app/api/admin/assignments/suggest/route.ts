@@ -103,9 +103,29 @@ function normalizeSuggestions(raw: any[], semester: number, allowedIds: Set<stri
       sourceKnowledgeIds: Array.from(new Set<string>(ids)),
       unitId: proposedUnitId,
     })
-    if (out.length >= 6) break
   }
-  return out
+  // Select one proposal per unit before taking second proposals from any unit.
+  // This makes semester-wide results representative without inventing assignments.
+  const byUnit = new Map<string, AssignmentSuggestion[]>()
+  for (const suggestion of out) {
+    const group = byUnit.get(suggestion.unitId || '') || []
+    group.push(suggestion)
+    byUnit.set(suggestion.unitId || '', group)
+  }
+  const balanced: AssignmentSuggestion[] = []
+  while (balanced.length < 6) {
+    let added = false
+    for (const group of byUnit.values()) {
+      if (balanced.length >= 6) break
+      const next = group.shift()
+      if (next) {
+        balanced.push(next)
+        added = true
+      }
+    }
+    if (!added) break
+  }
+  return balanced
 }
 
 async function unitKnowledge(programId: string, semester: number, unitId?: string | null) {
