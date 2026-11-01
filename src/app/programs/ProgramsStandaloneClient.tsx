@@ -65,7 +65,7 @@ export function ProgramsStandaloneClient() {
 
   return (
     <div className="flex min-h-screen flex-col bg-[#eef0f5]">
-      <Header />
+      {sessionReady && <Header />}
       <main className="flex-1">
         {effectiveView === 'programs' && <ProgramsView />}
         {effectiveView === 'program-detail' && <ProgramDetailsView />}
