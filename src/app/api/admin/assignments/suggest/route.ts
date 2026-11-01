@@ -253,7 +253,18 @@ export async function POST(req: NextRequest) {
             const indexed = Array.isArray(item.sourceKnowledgeIndices) && item.sourceKnowledgeIndices.some((value: unknown) => Number.isInteger(Number(value)) && Number(value) >= 1 && Number(value) <= unitSources.length)
             return !direct && !indexed
           }).length
-          const rejected = malformed ? `نص غير صالح: ${malformed}` : ungrounded ? `مصادر غير صالحة: ${ungrounded}` : parsed.length ? 'تكرار عنوان أو عدم تطابق الوحدة أو فشل التحقق من المحتوى' : 'لم تُستخرج مقترحات من استجابة الذكاء'
+          const duplicate = normalizeSuggestions(parsed, semester, localAllowedIds, titleById, unitById, id, unitSources.map((source) => String(source.id)))
+            .some((item) => item.unitId === id && existingNormalized.has(item.title.toLowerCase()))
+          const wrongUnit = candidates.some((item) => {
+            const ids = Array.isArray(item.sourceKnowledgeIds) ? item.sourceKnowledgeIds.map((value: unknown) => clean(value, 100)).filter((value: string) => localAllowedIds.has(value)) : []
+            return ids.length > 0 && !ids.every((value: string) => unitById.get(value)?.has(id))
+          })
+          const rejected = !parsed.length ? (raw.trim() ? 'استجابة JSON غير قابلة للاستخراج أو لا تحتوي قائمة واجبات' : 'استجابة الذكاء فارغة')
+            : malformed ? `جودة النص غير صالحة: ${malformed}`
+            : ungrounded ? `معرفات المصادر غير صالحة: ${ungrounded}`
+            : duplicate ? 'عنوان الواجب مكرر مع واجب موجود'
+            : wrongUnit ? 'المصادر لا تنتمي للوحدة المطلوبة'
+            : 'فشل التحقق من محتوى الواجب أو نطاق الوحدة'
           lastReason = `${rejected} (عدد المقترحات: ${parsed.length})`
         } catch (error: any) {
           lastReason = String(error?.message || error).slice(0, 180)
