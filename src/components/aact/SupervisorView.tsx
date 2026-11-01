@@ -727,6 +727,9 @@ export function SupervisorView() {
                   {gradingDraft.provenance?.ocrNote && <p>ملاحظة القراءة: {gradingDraft.provenance.ocrNote}</p>}
                   <p>سياق الكتاب: {gradingDraft.provenance?.bookContextUsed ? `مستخدم${gradingDraft.provenance.bookTitles?.length ? ` — ${gradingDraft.provenance.bookTitles.join('، ')}` : ''}` : 'غير متاح لهذه الوحدة؛ التقييم على أساس الفهم والتطبيق فقط'}</p>
                   {!gradingDraft.provenance?.bookContextUsed && <p role="alert" className="rounded-lg bg-red-50 p-2 text-red-800">تنبيه: هذا الواجب لا يملك مرجع وحدة موثوقًا. راجع إجابة الطالب والكتاب الأصلي قبل اعتماد الدرجة.</p>}
+                  {gradingDraft.provenance?.bookSourceStatus === 'EXACT' && <p className="rounded-lg bg-emerald-50 p-2 text-emerald-900">تم التحقق من {gradingDraft.provenance.sourceKnowledgeMatched} مصادر أصلية للواجب من الوحدة الصحيحة.</p>}
+                  {gradingDraft.provenance?.bookSourceStatus === 'PARTIAL' && <p role="alert" className="rounded-lg bg-red-50 p-2 text-red-800">تحذير: المصادر الأصلية غير مكتملة أو مقتطعة ({gradingDraft.provenance.sourceKnowledgeMatched}/{gradingDraft.provenance.sourceKnowledgeCount}). المراجع الإضافية من نفس الوحدة، وليست دليل الواجب الأصلي؛ راجعها قبل اعتماد الدرجة.</p>}
+                  {gradingDraft.provenance?.bookSourceStatus === 'UNIT' && <p role="alert" className="rounded-lg bg-amber-50 p-2 text-amber-900">مرجع من الوحدة المرتبطة بالواجب، وليس عناصر المعرفة الأصلية الموثقة لسؤال الواجب.</p>}
                   {!gradingDraft.draft?.criteria?.length && <p role="alert" className="rounded-lg bg-red-50 p-2 text-red-800">تنبيه: تعذّر التحقق من تفصيل الدرجة وفق المعايير. المجموع المقترح وحده لا يكفي للاعتماد.</p>}
                   {gradingDraft.draft?.criteria?.length ? (
                     <div>
