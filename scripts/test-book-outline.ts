@@ -269,7 +269,7 @@ function testCoverageRejectsShortSectionsWithMissingPages() {
   assert(ending.decision === 'BLOCK' && ending.report.gaps.some((gap) => gap.pageStart === 27 && gap.pageEnd === 297), 'حذف عناوين نهاية الكتاب لا يجوز أن يمحو الصفحات 27–297')
   assert(outlineApprovalGuard([], sourceRange).decision === 'BLOCK', 'فهرس بلا أقسام لا يمكن اعتماده')
   const full = [draftSection(1, 'تنشئة اجتماعية', 1, 9), draftSection(2, 'قيادة', 10, 297)]
-  assert(outlineApprovalGuard(full, sourceRange).decision === 'BLOCK' || outlineApprovalGuard(full, sourceRange).decision === 'ALLOW', 'القسم الطويل يبقى خاضعاً لحارس الطول')
+  assert(outlineApprovalGuard(full, sourceRange).decision === 'BLOCK', 'القسم الذي يزيد عن 80 صفحة ممنوع مهما كان كامل التغطية')
 }
 
 function testWholeBookBalanceMergesOnlyGroundedNeighborTopics() {
