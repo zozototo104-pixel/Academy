@@ -70,6 +70,11 @@ const db: any = {
   admissionApplication: {
     findFirst: async () => ({ id: 'app-1', supervisorId: admissionSupervisorId, supervisionMode: 'HYBRID' }),
   },
+  program: { findUnique: async () => ({ id: 'prog-1', titleAr: 'إدارة الموارد البشرية' }) },
+  programAssignment: {
+    findUnique: async () => null,
+    create: async (args: any) => { assignmentCreates.push(args.data); return { id: 'assign-new', ...args.data } },
+  },
   unit: {
     findUnique: async () => mockSourceUnit ? { id: 'unit-1', title: 'إدارة الكفاءات', sourceBookId: 'book-1', chunkStartIndex: 0, chunkEndIndex: 1 } : null,
     findFirst: async (args: any) => mockSourceUnit && args?.where?.programId === 'prog-1' && args?.where?.id === 'unit-1' ? { id: 'unit-1' } : null,
