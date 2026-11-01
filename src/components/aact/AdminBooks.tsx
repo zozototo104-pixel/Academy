@@ -2259,7 +2259,7 @@ export function AdminBooksTab() {
     }
   }
 
-  const resetAssignmentForm = () => setAssignmentForm({ id: '', unitId: '', title: '', description: '', semester: '1', type: 'REPORT', points: '10', weight: '0', dueDays: '', dueAt: '', rubric: '', status: 'PUBLISHED' })
+  const resetAssignmentForm = () => setAssignmentForm({ id: '', unitId: '', sourceKnowledgeIds: null, title: '', description: '', semester: '1', type: 'REPORT', points: '10', weight: '0', dueDays: '', dueAt: '', rubric: '', status: 'PUBLISHED' })
 
   const suggestAssignments = async () => {
     if (!programId) return
