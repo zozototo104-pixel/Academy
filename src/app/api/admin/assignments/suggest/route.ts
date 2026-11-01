@@ -151,7 +151,29 @@ export async function POST(req: NextRequest) {
       matchingUnits.add(String(item.unitId))
       unitById.set(id, matchingUnits)
     }
-    const knowledgeContext = knowledge.slice(0, 60).map((k, i) => `${i + 1}. id=${k.id}\nالوحدة: ${k.unitTitle}\nالعنوان: ${titleFromKnowledge(k)}\nالفئة: ${k.category}\nالصفحات: ${k.pageStart ?? '؟'}–${k.pageEnd ?? k.pageStart ?? '؟'}\nالملخص: ${cleanAssignmentText(k.summary, '', 520)}\nالمقتطف: ${cleanAssignmentText(k.excerpt, '', 520)}`).join('\n\n')
+    // Sample across all sourced units instead of letting the first 60 knowledge rows
+    // (typically from the first units) monopolize the model context.
+    const knowledgeByUnit = new Map<string, typeof knowledge>()
+    for (const item of knowledge) {
+      const key = String(item.unitId)
+      const group = knowledgeByUnit.get(key) || []
+      group.push(item)
+      knowledgeByUnit.set(key, group)
+    }
+    const sampledKnowledge: typeof knowledge = []
+    const unitGroups = [...knowledgeByUnit.values()]
+    for (let offset = 0; sampledKnowledge.length < 60; offset++) {
+      let added = false
+      for (const group of unitGroups) {
+        if (sampledKnowledge.length >= 60) break
+        if (offset < group.length) {
+          sampledKnowledge.push(group[offset])
+          added = true
+        }
+      }
+      if (!added) break
+    }
+    const knowledgeContext = sampledKnowledge.map((k, i) => `${i + 1}. id=${k.id}\nمعرف الوحدة: ${k.unitId}\nالوحدة: ${k.unitTitle}\nالعنوان: ${titleFromKnowledge(k)}\nالفئة: ${k.category}\nالصفحات: ${k.pageStart ?? '؟'}–${k.pageEnd ?? k.pageStart ?? '؟'}\nالملخص: ${cleanAssignmentText(k.summary, '', 520)}\nالمقتطف: ${cleanAssignmentText(k.excerpt, '', 520)}`).join('\n\n')
 
     const prompt = `صمم 4 إلى 6 واجبات أكاديمية من عناصر معرفة v2 داخل نطاق الوحدات فقط.\n\nالبرنامج: ${program.titleAr}\nالفصل: ${semester === 2 ? 'الثاني' : semester === 3 ? 'بحث/مشروع' : 'الأول'}\nالواجبات الموجودة لتجنب التكرار: ${existingTitles || 'لا يوجد'}\n\nمصادر الوحدة المسموحة:\n${knowledgeContext}\n\nأرجع JSON array فقط. كل واجب يجب أن يحتوي title, description, type, semester, points, weight, rubric, unitId, sourceKnowledgeIds, sourceKnowledgeTitles. لا تقترح أي موعد تسليم — الموعد يحدده الأدمن بتاريخ ثابت لاحقًا.\nقواعد إلزامية: sourceKnowledgeIds من ids أعلاه فقط، والوصف يذكر مراجع الصفحات، ولا تكتب واجباً عاماً أو قالبياً.`
 
