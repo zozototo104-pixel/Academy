@@ -588,9 +588,16 @@ export function auditOutlineCoverage(
   }
 }
 
-export function outlineApprovalGuard(sections: readonly OutlineSectionDraft[]): { decision: 'ALLOW' | 'ALLOW_WITH_REVIEW' | 'BLOCK'; report: OutlineCoverageReport } {
-  const report = auditOutlineCoverage(sections)
-  return { decision: report.blocked.length || report.gaps.length ? 'BLOCK' : report.review.length ? 'ALLOW_WITH_REVIEW' : 'ALLOW', report }
+export function outlineApprovalGuard(
+  sections: readonly OutlineSectionDraft[],
+  sourceRange?: { pageStart: number; pageEnd: number },
+): { decision: 'ALLOW' | 'ALLOW_WITH_REVIEW' | 'BLOCK'; report: OutlineCoverageReport } {
+  const report = auditOutlineCoverage(sections, sourceRange)
+  // Unknown starts/ends (including same-chunk headings without reliable page
+  // evidence) are never acceptable unit boundaries, even with an oversized
+  // chapter override. A zero-knowledge section is NOT an empty book page.
+  const incomplete = !sections.length || report.sections.some((section) => section.pages === null)
+  return { decision: incomplete || report.blocked.length || report.gaps.length ? 'BLOCK' : report.review.length ? 'ALLOW_WITH_REVIEW' : 'ALLOW', report }
 }
 
 function parseAiRangeBoundaries(raw: string, rangeChunks: readonly Chunk[], bookTitle: string): Boundary[] {
