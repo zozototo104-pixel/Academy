@@ -80,7 +80,8 @@ const textAiCompleteJson = async (input: any) => {
     points: 15,
     weight: 10,
     rubric: 'التوثيق بالمصادر ٥٠٪، التحليل ٥٠٪',
-    sourceKnowledgeIds: [firstId],
+    sourceKnowledgeIds: modelSourceFormat === 'id' ? [firstId] : modelSourceFormat === 'invalid' ? ['fabricated-id'] : [],
+    sourceKnowledgeIndices: modelSourceFormat === 'index' ? [1] : [],
   }])
 }
 
