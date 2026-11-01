@@ -67,14 +67,22 @@ export function ProgramsStandaloneClient() {
     <div className="flex min-h-screen flex-col bg-[#eef0f5]">
       {sessionReady && <Header />}
       <main className="flex-1">
-        {effectiveView === 'programs' && <ProgramsView />}
-        {effectiveView === 'program-detail' && <ProgramDetailsView />}
-        {effectiveView === 'apply' && <ApplyView />}
-        {effectiveView === 'verify' && <VerifyView />}
-        {effectiveView === 'directory' && <DirectoryView />}
-        {effectiveView === 'about' && <AboutView />}
-        {effectiveView === 'contact' && <ContactView />}
-        {effectiveView === 'auth' && <AuthView />}
+        {!sessionReady ? (
+          <div role="status" aria-live="polite" className="mx-auto flex min-h-[50vh] max-w-xl items-center justify-center px-4 text-center text-sm font-bold text-[#0f2b46]">
+            جارٍ تجهيز صفحة البرامج والتحقق من الجلسة...
+          </div>
+        ) : (
+          <>
+            {effectiveView === 'programs' && <ProgramsView />}
+            {effectiveView === 'program-detail' && <ProgramDetailsView />}
+            {effectiveView === 'apply' && <ApplyView />}
+            {effectiveView === 'verify' && <VerifyView />}
+            {effectiveView === 'directory' && <DirectoryView />}
+            {effectiveView === 'about' && <AboutView />}
+            {effectiveView === 'contact' && <ContactView />}
+            {effectiveView === 'auth' && <AuthView />}
+          </>
+        )}
       </main>
       {effectiveView !== 'auth' && <Footer />}
       <FloatingActions />
