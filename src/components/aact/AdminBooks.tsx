@@ -2268,29 +2268,56 @@ export function AdminBooksTab() {
     const semester = Number(assignmentForm.semester || genSemester || 1) || 1
     setSuggestingAssignments(true)
     setAssignmentSuggestions([])
+    setAssignmentSuggestionProgress('')
+    const successes: AssignmentSuggestion[] = []
+    const failures: string[] = []
     try {
-      const d = await api<{ suggestions: AssignmentSuggestion[]; coverage?: { eligibleUnits: number; coveredUnits: number; failedUnits: { unitId: string; title: string; reason: string }[] } }>('/api/admin/assignments/suggest', {
-        method: 'POST',
-        body: JSON.stringify({ programId, semester }),
-      })
-      setAssignmentSuggestions(d.suggestions || [])
-      const coverage = d.coverage
+      const catalog = await api<{ units: { unitId: string; title: string; hasSourceRange: boolean }[] }>(
+        `/api/admin/assignments/suggest?programId=${encodeURIComponent(programId)}&semester=${semester}`
+      )
+      const units = catalog.units || []
+      if (!units.length) {
+        await alertAction({ title: 'لا توجد وحدات', description: 'لم يتم العثور على وحدات في الفصل المحدد.', tone: 'warning' })
+        return
+      }
+      // One request per unit: no semester-wide request can exceed the server deadline.
+      for (let index = 0; index < units.length; index++) {
+        const unit = units[index]
+        setAssignmentSuggestionProgress(`جاري معالجة الوحدة ${index + 1} من ${units.length}: ${unit.title} — نجح ${successes.length}`)
+        if (!unit.hasSourceRange) {
+          failures.push(`${unit.title}: لا يوجد نطاق مصادر مرتبط بالوحدة`)
+          continue
+        }
+        try {
+          const result = await api<{ suggestions: AssignmentSuggestion[] }>(
+            '/api/admin/assignments/suggest',
+            { method: 'POST', body: JSON.stringify({ programId, semester, unitId: unit.unitId }) }
+          )
+          const suggestion = (result.suggestions || []).find((item) => item.unitId === unit.unitId)
+          if (suggestion) {
+            successes.push(suggestion)
+            setAssignmentSuggestions([...successes])
+          } else {
+            failures.push(`${unit.title}: لم ينتج واجب موثق لهذه الوحدة`)
+          }
+        } catch (error: any) {
+          failures.push(`${unit.title}: ${String(error?.message || 'فشل التوليد').slice(0, 140)}`)
+        }
+      }
+      setAssignmentSuggestionProgress(`اكتملت المعالجة: ${successes.length} من ${units.length} وحدة`)
       toast({
-        title: coverage?.failedUnits?.length ? 'اقتراحات الواجبات جاهزة جزئياً' : 'اقتراحات الواجبات جاهزة',
-        description: coverage
-          ? `تمت تغطية ${coverage.coveredUnits} من ${coverage.eligibleUnits} وحدات لديها مصادر موثقة`
-          : `تم اقتراح ${d.suggestions?.length || 0} تكليفاً من بنك المعرفة والكتب`,
+        title: failures.length ? 'اكتملت اقتراحات الواجبات جزئياً' : 'اكتملت اقتراحات الواجبات',
+        description: `تم اقتراح ${successes.length} واجب موثق من أصل ${units.length} وحدة`,
       })
-      if (coverage?.failedUnits?.length) {
+      if (failures.length) {
         await alertAction({
-          title: 'وحدات لم تكتمل تغطيتها',
-          description: `تم حفظ الاقتراحات الناجحة للمراجعة. الوحدات التي تعذر اقتراح واجب موثق لها:\n${coverage.failedUnits.map((unit) => `• ${unit.title}: ${unit.reason}`).join('\n')}`,
-          confirmLabel: 'فهمت',
-          tone: 'warning',
+          title: 'تقرير تغطية الوحدات',
+          description: `تم الاحتفاظ بالواجبات الناجحة. الوحدات غير المغطاة:\n${failures.join('\n')}`,
+          confirmLabel: 'فهمت', tone: 'warning',
         })
       }
-    } catch (e: any) {
-      await alertAction({ title: 'تعذر اقتراح الواجبات', description: `${String(e?.message || 'لم تتوفر تفاصيل إضافية.') }\n\nراجع توفر نصوص موثقة في بنك المعرفة وربط مصادر الوحدة قبل إعادة المحاولة.`, confirmLabel: 'فهمت', tone: 'warning' })
+    } catch (error: any) {
+      await alertAction({ title: 'تعذر قراءة وحدات الفصل', description: String(error?.message || error), tone: 'warning' })
     } finally {
       setSuggestingAssignments(false)
     }
