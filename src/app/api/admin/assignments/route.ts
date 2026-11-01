@@ -115,7 +115,11 @@ export async function POST(req: NextRequest) {
     const program = await db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true } })
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
 
-    const requestedUnitId = asString(body.unitId, 100) || null
+    // Old clients omit unitId: preserve their existing assignment link on update.
+    // An explicitly submitted empty value means the administrator cleared it.
+    const requestedUnitId = Object.prototype.hasOwnProperty.call(body, 'unitId')
+      ? (asString(body.unitId, 100) || null)
+      : undefined
     if (requestedUnitId) {
       const matchingUnit = await db.unit.findFirst({ where: { id: requestedUnitId, programId }, select: { id: true, semester: true } })
       // Semester 3 research projects may cite a verified unit from either taught semester.
