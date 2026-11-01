@@ -545,7 +545,10 @@ export function sectionPageSpan(section: Pick<OutlineSectionDraft, 'pageStart' |
   return section.pageEnd - section.pageStart + 1
 }
 
-export function auditOutlineCoverage(sections: readonly OutlineSectionDraft[]): OutlineCoverageReport {
+export function auditOutlineCoverage(
+  sections: readonly OutlineSectionDraft[],
+  sourceRange?: { pageStart: number; pageEnd: number },
+): OutlineCoverageReport {
   const audited = sections.map((section) => {
     const pages = sectionPageSpan(section)
     // Unknown page ends need review; they must never silently pass as OK.
