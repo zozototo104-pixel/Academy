@@ -3258,6 +3258,18 @@ export function AdminBooksTab() {
                   </Select>
                 </div>
                 <div>
+                  <Label className="text-[10px] font-black text-slate-500">الوحدة المرجعية للواجب</Label>
+                  <Select value={assignmentForm.unitId || 'NONE'} onValueChange={(v) => setAssignmentForm({ ...assignmentForm, unitId: v === 'NONE' ? '' : v })}>
+                    <SelectTrigger className="mt-1 h-10 text-xs"><SelectValue placeholder="حدد وحدة المنهج" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="NONE">غير مربوط بوحدة — تصحيح بشري دون مرجع وحدة</SelectItem>
+                      {curriculumUnits.filter((unit) => Number(unit.semester || 1) === Number(assignmentForm.semester)).map((unit) => (
+                        <SelectItem key={unit.id} value={unit.id}>{unit.title}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
                   <Label className="text-[10px] font-black text-slate-500">نوع التكليف</Label>
                   <Select value={assignmentForm.type} onValueChange={(v) => setAssignmentForm({ ...assignmentForm, type: v })}>
                     <SelectTrigger className="mt-1 h-10 text-xs"><SelectValue /></SelectTrigger>
