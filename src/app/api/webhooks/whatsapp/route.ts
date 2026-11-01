@@ -12,6 +12,7 @@ import {
   createOfficialWhatsAppAgentReply,
   extractWhatsAppInboundMessages,
   officialWhatsAppConfigured,
+  sanitizeWhatsAppBotReply,
   sendOfficialWhatsAppReadReceipt,
   sendOfficialWhatsAppText,
   sendOfficialWhatsAppTypingIndicator,
@@ -536,7 +537,14 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
     `nonTextMessage=${deps.contextFlags?.nonTextMessage || 'none'}`,
     `contactRequested=${contactRequested ? 'true' : 'false'}`,
   ].join('; ')
-  return createAgentReply(message, extraContext)
+  const rawReply = await createAgentReply(message, extraContext)
+  // Last gate before the visitor: never let the model's own identity
+  // (model/provider names) leave through the academy's WhatsApp number.
+  const sanitized = sanitizeWhatsAppBotReply(rawReply)
+  if (sanitized.stripped) {
+    console.warn('[whatsapp-identity-guard] stripped model self-identification from WhatsApp bot reply')
+  }
+  return sanitized.text
 }
 
 export async function __resolveWhatsAppBotReplyForTests(message: WhatsAppInboundMessage, storedInbound: any, deps: ResolveWhatsAppBotReplyDeps = {}) {
