@@ -47,7 +47,7 @@ describe('assignment source and grading guardrails', () => {
   const supervisor = readFileSync(join(root, 'src/components/aact/SupervisorView.tsx'), 'utf8')
 
   test('AI cannot claim a unit while citing knowledge from another unit', () => {
-    expect(suggestRoute).toContain('unitById.get(id) !== proposedUnitId')
+    expect(suggestRoute).toContain('!unitById.get(id)?.has(proposedUnitId)')
     expect(suggestRoute).toContain('unitId: proposedUnitId')
     expect(suggestRoute).toContain('unitById, unitId)')
   })
