@@ -105,6 +105,7 @@ function testWhatsAppSourceWiring() {
 }
 
 async function main() {
+  testWhatsAppIdentityGuardDoesNotRepeatGreeting()
   testWhatsAppSourceWiring()
   await assertModelOnlyCase('greeting', { text: 'السلام عليكم' }, 'QUERY')
   await assertModelOnlyCase('official-contact', { text: 'ممكن رقم التواصل؟' }, 'REQUEST_OFFICIAL_CONTACT', { expectContext: ['contactRequested=true'] })
