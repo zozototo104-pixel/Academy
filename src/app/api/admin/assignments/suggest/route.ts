@@ -67,7 +67,7 @@ function parseJsonArray(raw: string): any[] {
   return []
 }
 
-function normalizeSuggestions(raw: any[], semester: number, allowedIds: Set<string>, titleById: Map<string, string>, unitById: Map<string, string>, fallbackUnitId?: string | null): AssignmentSuggestion[] {
+function normalizeSuggestions(raw: any[], semester: number, allowedIds: Set<string>, titleById: Map<string, string>, unitById: Map<string, Set<string>>, fallbackUnitId?: string | null): AssignmentSuggestion[] {
   const seen = new Set<string>()
   const out: AssignmentSuggestion[] = []
   for (const item of raw) {
