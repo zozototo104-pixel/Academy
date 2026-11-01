@@ -319,7 +319,18 @@ function normalizeBoundaries(chunks: readonly Chunk[], boundaries: readonly Boun
     const start = at.get(boundary.at)!
     const next = ordered[i + 1]
     const nextStart = next ? at.get(next.at)! : null
-    const end = nextStart === null ? sorted.length - 1 : nextStart === start ? start : nextStart - 1
+    // A source-verified heading may start on page 29 inside a stored chunk
+    // beginning on page 28. The previous unit must retain that shared chunk:
+    // otherwise page 28 disappears from both page coverage and study evidence.
+    // Keep an overlapping CHUNK reference (not fabricated page text) and
+    // use the next verified page to bound the previous unit at page 28.
+    const nextChunk = nextStart === null ? null : sorted[nextStart]
+    const nextStartsWithinChunk = Boolean(next && nextChunk &&
+      Number.isInteger(next.sourcePage) &&
+      next.sourcePage! > nextChunk.pageStart &&
+      next.sourcePage! <= nextChunk.pageEnd)
+    const end = nextStart === null ? sorted.length - 1
+      : nextStart === start || nextStartsWithinChunk ? nextStart : nextStart - 1
     return { start, end, title: boundary.title, startCharOffset: boundary.startCharOffset ?? null, sourcePage: boundary.sourcePage ?? null, verifiedHeading: boundary.verifiedHeading ?? false }
   }).filter((range) => range.end >= range.start)
   // Do NOT absorb short headings or force a 16-section cap before assessing
