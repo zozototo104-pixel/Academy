@@ -464,6 +464,76 @@ export function planBookOutline(chunks: readonly Chunk[], items: readonly Item[]
 // ---------------------------------------------------------------------------
 export const OUTLINE_SECTION_REVIEW_PAGES = 40
 export const OUTLINE_SECTION_BLOCK_PAGES = 80
+export const OUTLINE_TARGET_MIN_PAGES = 30
+export const OUTLINE_SHORT_SECTION_PAGES = 15
+
+// A shared topic must be evidenced by substantive words from BOTH source
+// titles. Generic academic language is not enough to merge unrelated topics.
+const genericOutlineWords = new Set([
+  'الفصل', 'الباب', 'الوحده', 'الكتاب', 'مقدمه', 'مقدمة',
+  'المفهوم', 'مفهوم', 'مفاهيم', 'تعريف', 'تعريفات', 'الاداره',
+  'المدخل', 'مدخل', 'دراسه', 'تحليل', 'التطبيقات', 'تطبيقات',
+  'الاساسيات', 'اساسيات', 'العام', 'الخاص', 'الاول', 'الثاني',
+  'الثالث', 'الرابع', 'بين', 'حول', 'من', 'في', 'على', 'الى', 'عن',
+  'and', 'the', 'introduction', 'chapter', 'part', 'overview',
+])
+function outlineTopicWords(title: string): Set<string> {
+  return new Set(normalizeHeading(title).split(' ')
+    .filter((word) => word.length >= 4 && !genericOutlineWords.has(word)))
+}
+
+/**
+ * Balance a WHOLE draft after heading discovery and oversized-range refinement.
+ * Merge only adjacent short sections that have a common, specific source topic.
+ * Never merge documented chapters, unknown-page boundaries, noncontiguous pages
+ * or same-chunk divisions. Titles concatenate exact source headings; no new
+ * academic title or unsupported chapter is invented.
+ */
+export function balanceBookOutlineSections(input: readonly OutlineSectionDraft[]): {
+  sections: OutlineSectionDraft[]
+  merged: number
+} {
+  const sections = input.map((section) => ({ ...section }))
+  let merged = 0
+  for (;;) {
+    let best = -1
+    let bestPriority = -Infinity
+    for (let i = 0; i + 1 < sections.length; i++) {
+      const left = sections[i]
+      const right = sections[i + 1]
+      const leftPages = sectionPageSpan(left)
+      const rightPages = sectionPageSpan(right)
+      if (leftPages === null || rightPages === null) continue
+      if (leftPages >= OUTLINE_TARGET_MIN_PAGES && rightPages >= OUTLINE_TARGET_MIN_PAGES) continue
+      if (left.pageEnd! + 1 !== right.pageStart || left.chunkEndIndex >= right.chunkStartIndex) continue
+      if (chapterNumber(left.title) !== null || chapterNumber(right.title) !== null) continue
+      if (/^(?:الفصل|الباب|chapter|part)\s/iu.test(normalizeOutlineText(left.title)) ||
+          /^(?:الفصل|الباب|chapter|part)\s/iu.test(normalizeOutlineText(right.title))) continue
+      const combinedPages = leftPages + rightPages
+      if (combinedPages > OUTLINE_SECTION_REVIEW_PAGES) continue
+      const leftWords = outlineTopicWords(left.title)
+      const rightWords = outlineTopicWords(right.title)
+      const shared = [...leftWords].filter((word) => rightWords.has(word))
+      if (!shared.length) continue
+      const priority = (leftPages < OUTLINE_SHORT_SECTION_PAGES || rightPages < OUTLINE_SHORT_SECTION_PAGES ? 100 : 0)
+        + (combinedPages >= OUTLINE_TARGET_MIN_PAGES ? 20 : 0)
+        + shared.length * 5 - Math.abs(35 - combinedPages)
+      if (priority > bestPriority) { bestPriority = priority; best = i }
+    }
+    if (best < 0) break
+    const left = sections[best]
+    const right = sections[best + 1]
+    sections.splice(best, 2, {
+      ...left,
+      title: left.title === right.title ? left.title : clean(`${left.title} / ${right.title}`, 180),
+      chunkEndIndex: right.chunkEndIndex,
+      pageEnd: right.pageEnd,
+      itemsCount: left.itemsCount + right.itemsCount,
+    })
+    merged++
+  }
+  return { sections: sections.map((section, index) => ({ ...section, order: index + 1 })), merged }
+}
 
 export type OutlineSectionCoverage = { order: number; title: string; pageStart: number | null; pageEnd: number | null; pages: number | null; band: 'OK' | 'REVIEW' | 'BLOCKED' }
 export type OutlineCoverageReport = { totalPages: number | null; maxSectionPages: number | null; sections: OutlineSectionCoverage[]; review: OutlineSectionCoverage[]; blocked: OutlineSectionCoverage[]; gaps: Array<{ pageStart: number; pageEnd: number }> }
