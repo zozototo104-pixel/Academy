@@ -467,6 +467,19 @@ function testThematicGroupCannotHideMissingPdfPages() {
   assert(reason === 'OUTLINE_THEMATIC_SOURCE_COVERAGE_GAP', 'لا يجوز إخفاء الصفحة 28 المفقودة داخل وحدة أكبر')
 }
 
+function testTwoHeadingsOnSameOriginalPdfPageHaveKnownEnds() {
+  const chunks = [spanChunk(0, 'مقال: كلفة السلع المباعة\nنص\nمقال: النفقات العامة\nنص', 218, 218)]
+  const ids = new Map([[0, 'chunk-0']])
+  const result = planBookOutline(chunks, [], ids, 2, [
+    { at: 0, title: 'كلفة السلع المباعة', sourcePage: 218, startCharOffset: 0 },
+    { at: 0, title: 'النفقات العامة', sourcePage: 218, startCharOffset: 33 },
+  ], 'ماجستير إدارة الأعمال', true)
+  assert(result.sections.length === 2, 'مقالان حقيقيان داخل الصفحة نفسها يجب أن يبقيا مستقلين')
+  assert(result.sections[0].pageStart === 218 && result.sections[0].pageEnd === 218, 'حد نهاية المقال الأول لا يجوز أن يصبح مجهولًا لمجرد مشاركة الصفحة')
+  assert(result.sections[1].pageStart === 218 && result.sections[1].pageEnd === 218, 'المقال الثاني موثّق في الصفحة ذاتها')
+  assert(outlineApprovalGuard(result.sections, { pageStart: 218, pageEnd: 218 }).decision === 'ALLOW', 'الصفحة المشتركة ليست فجوة أو نقص تغطية')
+}
+
 function testVerifiedMidChunkArticleKeepsPreviousPageAndEvidence() {
   // Actual failure pattern from the 297-page replay: page 28 belongs to
   // the same stored chunk that also contains a new article on page 29.
