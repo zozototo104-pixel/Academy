@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect } from 'react'
-import { useAppStore } from '@/lib/store'
+import { useEffect, useState } from 'react'
+import { useAppStore, type View } from '@/lib/store'
 import { Header, Footer, FloatingActions } from '@/components/aact/Shell'
 import { ProgramsView } from '@/components/aact/ProgramsView'
 import { ProgramDetailsView } from '@/components/aact/ProgramDetailsView'
