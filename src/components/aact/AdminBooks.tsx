@@ -3286,6 +3286,7 @@ export function AdminBooksTab() {
                     {suggestingAssignments ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="ml-1 h-3.5 w-3.5" />}
                     اقترح واجبات من بنك المعرفة
                   </Button>
+                  {assignmentSuggestionProgress && <span role="status" aria-live="polite" className="text-xs text-slate-600">{assignmentSuggestionProgress}</span>}
                   {assignmentForm.id && (
                     <Button size="sm" variant="outline" onClick={resetAssignmentForm} className="text-xs font-bold">إلغاء التعديل</Button>
                   )}
