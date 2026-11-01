@@ -269,7 +269,11 @@ export async function loadSupervisorAssignmentDetail(submissionId: string, user:
   }
 }
 
-async function loadBookContext(programId: string, unitId: string | null, semester: number): Promise<{ text: string; titles: string[]; used: boolean }> {
+type GradingBookContext = { text: string; titles: string[]; used: boolean; status: 'EXACT' | 'PARTIAL' | 'UNIT' | 'NONE'; expected: number; matched: number }
+
+async function loadBookContext(programId: string, unitId: string | null, semester: number, storedSourceIds: unknown): Promise<GradingBookContext> {
+  const sourceIds = Array.isArray(storedSourceIds) ? [...new Set(storedSourceIds.filter((id): id is string => typeof id === 'string' && Boolean(id.trim())))] : []
+  const missing = (): GradingBookContext => ({ text: '', titles: [], used: false, status: 'NONE', expected: sourceIds.length, matched: 0 })
   try {
     let unit: any = null
     if (unitId) {
