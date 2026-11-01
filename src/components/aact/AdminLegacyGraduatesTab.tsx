@@ -533,6 +533,7 @@ export default function AdminLegacyGraduatesTab() {
 
   return (
     <div className="mt-4 space-y-4" dir="rtl">
+      {actionDialog}
       <Card className="border-[#0f2b46]/10">
         <CardContent className="space-y-4 p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
