@@ -515,7 +515,7 @@ export default function AdminLegacyGraduatesTab() {
   }
 
   async function removeGraduate(cert: LegacyGraduateCertificate) {
-    const confirmed = window.confirm(`حذف ${cert.holderName} نهائياً؟\nسيتم حذف الشهادة وملفاتها، وحذف الحساب والتسجيل إذا لم يكونا مرتبطين بشيء آخر. لا يمكن التراجع.`)
+    const confirmed = await confirmAction({ title: 'حذف الخريج نهائياً', description: `الخريج: ${cert.holderName}\nرقم الشهادة: ${cert.serial}\n\nسيتم حذف الشهادة وملفاتها. وقد يُحذف الحساب والتسجيل المرتبطان إذا لم يكونا مرتبطين ببيانات أخرى.\n\nهذا الإجراء نهائي ولا يمكن التراجع عنه.`, confirmLabel: 'حذف نهائي', cancelLabel: 'إلغاء', tone: 'danger' })
     if (!confirmed) return
     setBusy(`delete:${cert.id}`)
     try {
