@@ -3263,7 +3263,7 @@ export function AdminBooksTab() {
                 </div>
                 <div>
                   <Label className="text-[10px] font-black text-slate-500">الوحدة المرجعية للواجب</Label>
-                  <Select value={assignmentForm.unitId || 'NONE'} onValueChange={(v) => setAssignmentForm({ ...assignmentForm, unitId: v === 'NONE' ? '' : v })}>
+                  <Select value={assignmentForm.unitId || 'NONE'} onValueChange={(v) => setAssignmentForm({ ...assignmentForm, unitId: v === 'NONE' ? '' : v, sourceKnowledgeIds: null })}>
                     <SelectTrigger className="mt-1 h-10 text-xs"><SelectValue placeholder="حدد وحدة المنهج" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="NONE">غير مربوط بوحدة — تصحيح بشري دون مرجع وحدة</SelectItem>
