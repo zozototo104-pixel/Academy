@@ -118,7 +118,8 @@ export async function POST(req: NextRequest) {
     const requestedUnitId = asString(body.unitId, 100) || null
     if (requestedUnitId) {
       const matchingUnit = await db.unit.findFirst({ where: { id: requestedUnitId, programId }, select: { id: true, semester: true } })
-      if (!matchingUnit || matchingUnit.semester !== asInt(body.semester, 1, 1, 3)) {
+      // Semester 3 research projects may cite a verified unit from either taught semester.
+      if (!matchingUnit || (asInt(body.semester, 1, 1, 3) !== 3 && matchingUnit.semester !== asInt(body.semester, 1, 1, 3))) {
         return NextResponse.json({ error: 'وحدة الواجب لا تتبع البرنامج والفصل المحددين' }, { status: 400 })
       }
     }
