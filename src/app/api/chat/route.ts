@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
     const ordered = history.reverse().slice(0, -1) // استبعاد الرسالة الحالية (مضافة سابقاً)
     const orderedMessages = ordered.map((m) => ({ role: m.role, content: m.content }))
     const userText = message.trim()
-    const handoffPromptActive = hadRecentHumanSupportPrompt(orderedMessages)
+    const handoffPromptActive = hasPendingPlatformChatHandoffDetailsPrompt(orderedMessages)
 
     if (stream === true && chatMode === 'TEXT') {
       const encoder = new TextEncoder()
