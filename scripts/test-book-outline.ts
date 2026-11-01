@@ -417,7 +417,29 @@ function testOriginalPdfArticlePageNumbersWithinSameChunk() {
   assert(draft.sections[1].pageStart === 205 && draft.sections[1].pageEnd === 208, 'يجب الحفاظ على رقم الصفحة الأصلي داخل نفس المقطع')
 }
 
+function testRealArabicTopicVariationsDoNotRejectValidGroups() {
+  const sections = [
+    draftSection(1, 'منافسة', 1, 10),
+    draftSection(2, 'احتكار', 11, 20),
+    draftSection(3, 'تسویق', 21, 26),
+    draftSection(4, 'إبداع', 27, 30),
+  ]
+  const groups = { groups: [
+    { startOrder: 1, endOrder: 2, title: 'المنافسة والاحتكار' },
+    { startOrder: 3, endOrder: 3, title: 'التسويق' },
+    { startOrder: 4, endOrder: 4, title: 'الإبداع' },
+  ] }
+  const result = validateThematicArticleGrouping(JSON.stringify(groups), sections)
+  assert(result.sections.length === 3, 'الـ التعريف وكتابة ي الفارسية في PDF لا يجوز أن ترفض عناوين موثّقة')
+  assert(result.subheadings.length === 4, 'دمج العناوين لا يفقد موضوعات المصدر الأصلية')
+  const unrelated = { groups: [{ ...groups.groups[0], title: 'توليد طاقة شمسية' }, ...groups.groups.slice(1)] }
+  let rejected = false
+  try { validateThematicArticleGrouping(JSON.stringify(unrelated), sections) } catch { rejected = true }
+  assert(rejected, 'المرونة الإملائية لا تجيز عنوانًا بعيدًا عن محتوى المقالات')
+}
+
 const tests = [
+  testRealArabicTopicVariationsDoNotRejectValidGroups,
   testOriginalPdfArticlePageNumbersWithinSameChunk,
   testReal297BookThematicGroupsRespectArticleBoundaries,
   testRealUploaded297PageArticleHeadings,
