@@ -827,7 +827,7 @@ export function AdminBooksTab() {
     }
     window.addEventListener('aact-admin-books-target', handler as EventListener)
     return () => window.removeEventListener('aact-admin-books-target', handler as EventListener)
-  }, [programs])
+  }, [programs, invalidateAssignmentGeneration])
 
   const availableCategories = useMemo(() => {
     const set = new Set(programs.map((p) => p.category).filter(Boolean))
