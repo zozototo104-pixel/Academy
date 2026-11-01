@@ -2340,6 +2340,7 @@ export function AdminBooksTab() {
     setAssignmentForm({
       id: a.id,
       unitId: a.unitId || '',
+      sourceKnowledgeIds: a.sourceKnowledgeIds || null,
       title: a.title,
       description: a.description,
       semester: String(a.semester || 1),
