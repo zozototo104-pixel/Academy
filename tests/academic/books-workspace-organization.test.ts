@@ -140,7 +140,7 @@ describe('books workspace organization guard', () => {
   })
 
   it('program selection and its data reset stay wired', () => {
-    assert.ok(SOURCE.includes('onValueChange={(v) => { invalidateAssignmentGeneration(); setProgramId(v); setSuggestions([]); loadProgramData(v) }}'))
+    assert.ok(SOURCE.includes('onValueChange={(v) => { invalidateAssignmentGeneration(); setSuggestingAssignments(false); setAssignmentSuggestions([]); setAssignmentSuggestionProgress(''); setProgramId(v); setSuggestions([]); loadProgramData(v) }}'))
     assert.ok(SOURCE.includes('setProgramReadiness(null)'))
     assert.ok(SOURCE.includes("useState('overview')") || SOURCE.includes('useState("overview")'))
   })
