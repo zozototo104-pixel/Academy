@@ -71,9 +71,33 @@ describe('assignment source and grading guardrails', () => {
     expect(adminBooks).toContain('لم يمكن التحقق من توزيع الدرجة')
   })
 
-  test('knowledge provenance cannot silently vanish before a safe schema migration exists', () => {
-    expect(adminAssignmentsRoute).toContain('Array.isArray(body.sourceKnowledgeIds)')
-    expect(adminAssignmentsRoute).toContain('status: 409')
+  test('JSONB migration and nullable legacy provenance match Prisma', () => {
+    const migration = readFileSync(join(root, 'prisma/migrations/20261101080000_assignment_knowledge_sources/migration.sql'), 'utf8')
+    expect(schema).toContain('sourceKnowledgeIds Json?')
+    expect(migration).toContain('ADD COLUMN "sourceKnowledgeIds" JSONB')
+  })
+
+  test('server validates and stores original knowledge IDs against exact unit chunks', () => {
+    expect(adminAssignmentsRoute).toContain("id: { in: validatedSourceIds }")
+    expect(adminAssignmentsRoute).toContain('sources.length !== validatedSourceIds.length')
+    expect(adminAssignmentsRoute).toContain('sourceKnowledgeIds: validatedSourceIds === undefined ? undefined')
+    expect(adminAssignmentsRoute).toContain('Prisma.DbNull')
+    expect(adminAssignmentsRoute).not.toContain('status: 409')
+  })
+
+  test('both UI submission routes retain source IDs and changing unit clears stale evidence', () => {
+    expect(adminBooks).toContain('sourceKnowledgeIds: s.sourceKnowledgeIds || null')
+    expect(adminBooks).toContain('sourceKnowledgeIds: a.sourceKnowledgeIds || null')
+    expect(adminBooks).toContain("unitId: v === 'NONE' ? '' : v, sourceKnowledgeIds: null")
+  })
+
+  test('AI grader prioritizes exact source IDs, and reports partial or unit-only fallback', () => {
+    expect(grader).toContain('id: { in: sourceIds }')
+    expect(grader).toContain('sourceIds.map((id) => originalById.get(id))')
+    expect(grader).toContain("status: GradingBookContext['status']")
+    expect(grader).toContain("sourceKnowledgeCount: book.expected")
+    expect(supervisor).toContain("bookSourceStatus === 'PARTIAL'")
+    expect(adminBooks).toContain("bookSourceStatus === 'UNIT'")
   })
 })
 
