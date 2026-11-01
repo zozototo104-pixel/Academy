@@ -2269,12 +2269,26 @@ export function AdminBooksTab() {
     setSuggestingAssignments(true)
     setAssignmentSuggestions([])
     try {
-      const d = await api<{ suggestions: AssignmentSuggestion[] }>('/api/admin/assignments/suggest', {
+      const d = await api<{ suggestions: AssignmentSuggestion[]; coverage?: { eligibleUnits: number; coveredUnits: number; failedUnits: { unitId: string; title: string; reason: string }[] } }>('/api/admin/assignments/suggest', {
         method: 'POST',
         body: JSON.stringify({ programId, semester }),
       })
       setAssignmentSuggestions(d.suggestions || [])
-      toast({ title: 'اقتراحات الواجبات جاهزة', description: `تم اقتراح ${d.suggestions?.length || 0} تكليفاً من بنك المعرفة والكتب` })
+      const coverage = d.coverage
+      toast({
+        title: coverage?.failedUnits?.length ? 'اقتراحات الواجبات جاهزة جزئياً' : 'اقتراحات الواجبات جاهزة',
+        description: coverage
+          ? `تمت تغطية ${coverage.coveredUnits} من ${coverage.eligibleUnits} وحدات لديها مصادر موثقة`
+          : `تم اقتراح ${d.suggestions?.length || 0} تكليفاً من بنك المعرفة والكتب`,
+      })
+      if (coverage?.failedUnits?.length) {
+        await alertAction({
+          title: 'وحدات لم تكتمل تغطيتها',
+          description: `تم حفظ الاقتراحات الناجحة للمراجعة. الوحدات التي تعذر اقتراح واجب موثق لها:\n${coverage.failedUnits.map((unit) => `• ${unit.title}: ${unit.reason}`).join('\n')}`,
+          confirmLabel: 'فهمت',
+          tone: 'warning',
+        })
+      }
     } catch (e: any) {
       await alertAction({ title: 'تعذر اقتراح الواجبات', description: `${String(e?.message || 'لم تتوفر تفاصيل إضافية.') }\n\nراجع توفر نصوص موثقة في بنك المعرفة وربط مصادر الوحدة قبل إعادة المحاولة.`, confirmLabel: 'فهمت', tone: 'warning' })
     } finally {
