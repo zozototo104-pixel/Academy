@@ -793,7 +793,7 @@ function projectSourceHeadings(headings: readonly SourceHeading[], chunks: reado
       }
     }
     if (!candidate && overlaps.length) {
-      candidate = { at: overlaps[0].index, title: heading.title, startCharOffset: null, note: 'عنوان من الملف الأصلي بلا موضع حرفي مطابق في المقاطع القديمة؛ راجع حد القسم قبل الاعتماد' }
+      candidate = { at: overlaps[0].index, title: heading.title, startCharOffset: null, sourcePage: heading.page, note: 'عنوان من الملف الأصلي بلا موضع حرفي مطابق في المقاطع القديمة؛ راجع حد القسم قبل الاعتماد' }
     }
     if (!candidate) continue
     const positionKey = candidate.at + ':' + (candidate.startCharOffset ?? 0)
