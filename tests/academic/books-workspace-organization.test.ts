@@ -237,4 +237,12 @@ describe('books workspace organization guard', () => {
     assert.ok(SOURCE.includes('void buildOutlineForBook(bookId)'), 'rebuild option remains functional')
     assert.ok(SOURCE.includes('aria-invalid={!!outlineApprovalDialog.error}'), 'invalid reasons are announced in the modal')
   })
+
+  it('book index warnings show Arabic explanations instead of raw audit JSON', () => {
+    assert.ok(SOURCE.includes("warning.startsWith('OUTLINE_OVERSIZED_OVERRIDE:')"), 'documented override is decoded for administrators')
+    assert.ok(SOURCE.includes('تم اعتماد استثناء موثّق للأقسام الطويلة'), 'human-readable override text is visible')
+    assert.ok(SOURCE.includes("warning.startsWith('OUTLINE_')"), 'internal structured metadata is not rendered as raw text')
+    assert.ok(SOURCE.includes("w.startsWith('OUTLINE_SUBHEADING:')"), 'original article subheadings still render separately')
+    assert.ok(SOURCE.includes('reason: ${reason}'), 'supervisor rationale remains readable without exposing internal IDs')
+  })
 })
