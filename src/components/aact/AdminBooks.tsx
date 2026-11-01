@@ -2336,6 +2336,7 @@ export function AdminBooksTab() {
   const editAssignment = (a: AssignmentRow) => {
     setAssignmentForm({
       id: a.id,
+      unitId: a.unitId || '',
       title: a.title,
       description: a.description,
       semester: String(a.semester || 1),
