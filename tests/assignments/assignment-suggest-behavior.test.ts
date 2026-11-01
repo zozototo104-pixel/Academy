@@ -68,6 +68,7 @@ const fakeDb = {
 // نموذج ذكاء مُتحكَّم فيه: يقترح واجبًا واحدًا يستشهد بأول مصدر في موجهه،
 // ويعيد فصلًا خاطئًا عمدًا (${modelSemester}) لإثبات أن الخادم لا يثق به.
 let modelSemester = 1
+let modelSourceFormat: 'id' | 'index' | 'invalid' = 'id'
 const textAiCompleteJson = async (input: any) => {
   const prompt = String(input?.history?.[0]?.text || '')
   const firstId = prompt.match(/id=([A-Za-z0-9_-]+)/)?.[1] || ''
