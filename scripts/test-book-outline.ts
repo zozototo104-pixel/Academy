@@ -333,7 +333,35 @@ function testFullBalancingIsWiredBeforePersistingDraft() {
   assert(refine >= 0 && balance > refine && coverage > balance, 'الفحص ثم التوازن ثم التغطية يجب أن يسبقوا حفظ الفهرس')
 }
 
+function testRealUploaded297PageArticleHeadings() {
+  // Article titles and navigation markers transcribed from pages of the
+  // actual uploaded Noor-Book.com 297-page management PDF (not invented
+  // chapter names). The source is a compilation of short encyclopedia articles.
+  const real = [
+    [3, 'تنشئة اجتماعیة'], [11, 'قیادة'], [48, 'إبداع'],
+    [62, 'ابتكار'], [101, 'تجزئة السوق'], [114, 'تسویق متعدد القنوات'],
+    [201, 'تحلیل فوائد التكلفة'], [205, 'تكلفة متغیرة'],
+    [214, 'محاسبة تكالیف'], [246, 'موازنة تقدیریة'],
+    [261, 'تكلفة مستھدفة'], [282, 'سوق الأوراق المالیة'],
+    [293, 'استثمار أجنبي مباشر'], [295, 'ذكاء عاطفي'],
+  ] as const
+  const pages = real.map(([page, title]) => ({
+    page, text: `${title}\nاذھب إلى التنقلاذھب إلى البحث\n${title} من عناوين المقالات الموثقة في النص الأصلي.`,
+    textProvenance: 'NATIVE_TEXT' as const,
+  }))
+  const headings = detectOriginalSourceHeadings(pages, 'ماجستير إدارة الأعمال')
+  assert(headings.length === real.length, `عناوين المقالات الفعلية في PDF يجب أن تُكتشف جميعها: ${headings.length}/${real.length}`)
+  assert(headings.some((entry) => entry.page === 293), 'لا يجوز تجاهل موضوع الاستثمار في الصفحات الأخيرة')
+  assert(headings.some((entry) => entry.page === 214), 'مصطلح محاسبة تكاليف ليس ضمن القائمة القديمة لكنه عنوان موثق')
+  const chunkText = pages.slice(6, 11).map((p) => p.text).join('\n\n')
+  const chunks = [{ index: 0, headingPath: null, text: chunkText, pageStart: 201, pageEnd: 261 }]
+  const projected = sourceBoundariesFromReadChunks(chunks, 'ماجستير إدارة الأعمال')
+  assert(projected.length === 5, 'يجب اكتشاف بدايات مقالات متعددة داخل المقطع المحفوظ نفسه')
+  assert(projected.some((entry) => entry.title.includes('موازنة') && (entry.startCharOffset ?? 0) > 0), 'يجب الاحتفاظ بموضع المقال داخل المقطع، وليس أول الصفحة فقط')
+}
+
 const tests = [
+  testRealUploaded297PageArticleHeadings,
   testWholeBookBalanceMergesOnlyGroundedNeighborTopics,
   testFull297BookUsesLateEvidenceNotArithmeticSplits,
   testGenuineSixtyPageChapterIsReviewedNotForceSplit,
