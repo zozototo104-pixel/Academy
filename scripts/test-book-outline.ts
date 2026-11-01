@@ -533,6 +533,7 @@ function testVerifiedMidChunkArticleKeepsPreviousPageAndEvidence() {
 }
 
 const tests = [
+  testRepeatedMergesRetainOriginalTitles,
   testOutlineReviewNeverSilentlyDeletesSourceCoverage,
   testTwoHeadingsOnSameOriginalPdfPageHaveKnownEnds,
   testVerifiedMidChunkArticleKeepsPreviousPageAndEvidence,
