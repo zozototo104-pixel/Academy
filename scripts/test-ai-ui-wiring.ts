@@ -165,6 +165,27 @@ function testAlborihiProviderWiring() {
   assert(settingsRoute.includes('ALBORIHI'), 'settings route encryption allowlist must include Alborihi')
 }
 
+function testOfficialAccreditationProgramsNavigation() {
+  const accreditation = file('src/app/accreditation/page.tsx')
+  const standalone = file('src/app/programs/ProgramsStandaloneClient.tsx')
+  const shell = file('src/components/aact/Shell.tsx')
+  const home = file('src/app/page.tsx')
+  const appRoutes = file('src/lib/app-routes.ts')
+
+  assert(accreditation.includes('<Link href="/programs"'), 'official accreditation must still link to public programs')
+  assert(shell.includes("navigate('home')"), 'the shared header home action must remain available')
+  assert(standalone.includes("fetch('/api/auth/me', { cache: 'no-store', credentials: 'same-origin' })"), 'standalone programs must recover the existing HttpOnly session')
+  assert(standalone.includes('{sessionReady && <Header />}'), 'header must not show a misleading login button before the session check')
+  assert(standalone.includes("if (!routeReady || supportedProgramViews.has(view)) return"), 'supported public views must not reload')
+  assert(standalone.includes('window.location.reload()'), 'home/dashboard navigation must hand off to their actual Next page without manual refresh')
+  assert(standalone.includes('setRouteReady(true)'), 'initial programs page hydration must not trigger a reload loop')
+  assert(!standalone.includes("view === 'home' ? 'programs' : view"), 'home must never be silently rendered as programs after navigation')
+  assert(home.includes("effectiveView === 'home' && <HomeView />"), 'main page must remain the canonical home renderer')
+  assert(home.includes("effectiveView === 'dashboard' && <DashboardView />"), 'main page must render an authenticated student dashboard')
+  assert(appRoutes.includes("home: '/'") && appRoutes.includes("dashboard: '/dashboard'"), 'home and student routes must remain distinct')
+}
+
+testOfficialAccreditationProgramsNavigation()
 testSupervisorsApiAndUi()
 testApprovedOnlyExamAssembly()
 testQuestionVerifierUsesOriginalBookChunk()
