@@ -2727,6 +2727,9 @@ export function AdminBooksTab() {
               <Select
                 value={selectedCategory}
                 onValueChange={(v) => {
+                  invalidateAssignmentGeneration()
+                  setSuggestingAssignments(false)
+                  setAssignmentSuggestionProgress('')
                   setSelectedCategory(v)
                   setProgramId('')
                   setBooks([])
