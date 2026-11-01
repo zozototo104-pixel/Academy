@@ -320,7 +320,7 @@ function normalizeBoundaries(chunks: readonly Chunk[], boundaries: readonly Boun
     const next = ordered[i + 1]
     const nextStart = next ? at.get(next.at)! : null
     const end = nextStart === null ? sorted.length - 1 : nextStart === start ? start : nextStart - 1
-    return { start, end, title: boundary.title, startCharOffset: boundary.startCharOffset ?? null, verifiedHeading: boundary.verifiedHeading ?? false }
+    return { start, end, title: boundary.title, startCharOffset: boundary.startCharOffset ?? null, sourcePage: boundary.sourcePage ?? null, verifiedHeading: boundary.verifiedHeading ?? false }
   }).filter((range) => range.end >= range.start)
   // Do NOT absorb short headings or force a 16-section cap before assessing
   // the entire book. Those operations previously removed genuine topics near
