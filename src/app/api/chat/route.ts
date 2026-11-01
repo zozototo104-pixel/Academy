@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
           }
 
           try {
-            if (handoffPromptActive && looksLikeHumanHandoffDetails(userText)) {
+            if (handoffPromptActive && looksLikePlatformChatHandoffDetails(userText)) {
               await createHumanHandoffRequest({
                 user: { id: user.id, name: user.name, email: user.email, phone: user.phone, role: user.role },
                 message: userText,
