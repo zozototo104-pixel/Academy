@@ -2276,7 +2276,7 @@ export function AdminBooksTab() {
       setAssignmentSuggestions(d.suggestions || [])
       toast({ title: 'اقتراحات الواجبات جاهزة', description: `تم اقتراح ${d.suggestions?.length || 0} تكليفاً من بنك المعرفة والكتب` })
     } catch (e: any) {
-      toast({ title: 'تعذر اقتراح الواجبات', description: e.message, variant: 'destructive' })
+      await alertAction({ title: 'تعذر اقتراح الواجبات', description: `${String(e?.message || 'لم تتوفر تفاصيل إضافية.') }\n\nراجع توفر نصوص موثقة في بنك المعرفة وربط مصادر الوحدة قبل إعادة المحاولة.`, confirmLabel: 'فهمت', tone: 'warning' })
     } finally {
       setSuggestingAssignments(false)
     }
