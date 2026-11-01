@@ -76,7 +76,14 @@ function normalizeSuggestions(raw: any[], semester: number, allowedIds: Set<stri
     const title = cleanAssignmentText(item?.title, '', 180, true)
     const description = cleanAssignmentText(item?.description, '', 5000)
     if (!title || !description || looksLikeBrokenAcademicOutput(`${title}. ${description}`)) continue
-    const ids: string[] = Array.isArray(item?.sourceKnowledgeIds) ? item.sourceKnowledgeIds.map((id: unknown) => clean(id, 100)).filter((id: string): id is string => Boolean(id) && allowedIds.has(id)) : []
+    const directIds: string[] = Array.isArray(item?.sourceKnowledgeIds) ? item.sourceKnowledgeIds.map((id: unknown) => clean(id, 100)).filter((id: string): id is string => Boolean(id) && allowedIds.has(id)) : []
+    // The model may cite numbered sources instead of copying opaque database IDs.
+    // Resolve only indexes explicitly present in this unit's trusted prompt.
+    const indexedIds: string[] = Array.isArray(item?.sourceKnowledgeIndices) ? item.sourceKnowledgeIndices.flatMap((index: unknown) => {
+      const n = Number(index)
+      return Number.isInteger(n) && n >= 1 && n <= sourceIndexIds.length ? [sourceIndexIds[n - 1]] : []
+    }) : []
+    const ids: string[] = [...new Set([...directIds, ...indexedIds])]
     if (!ids.length) continue
     // Infer the unit from trusted source-to-unit mappings, never from an AI-supplied ID alone.
     const matchingUnitIds = [...(unitById.get(ids[0]) || new Set<string>())]
