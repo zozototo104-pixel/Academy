@@ -2756,7 +2756,7 @@ export function AdminBooksTab() {
               <Select
                 value={programId}
                 disabled={!selectedCategory}
-                onValueChange={(v) => { invalidateAssignmentGeneration(); setProgramId(v); setSuggestions([]); loadProgramData(v) }}
+                onValueChange={(v) => { invalidateAssignmentGeneration(); setSuggestingAssignments(false); setAssignmentSuggestions([]); setAssignmentSuggestionProgress(''); setProgramId(v); setSuggestions([]); loadProgramData(v) }}
               >
                 <SelectTrigger className="h-11 text-sm font-bold">
                   <SelectValue placeholder={selectedCategory ? 'اختر التخصص...' : 'اختر الدرجة أولاً'} />
