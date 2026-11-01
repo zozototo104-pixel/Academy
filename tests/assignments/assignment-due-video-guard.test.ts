@@ -47,9 +47,11 @@ describe('assignment source and grading guardrails', () => {
   const supervisor = readFileSync(join(root, 'src/components/aact/SupervisorView.tsx'), 'utf8')
 
   test('AI cannot claim a unit while citing knowledge from another unit', () => {
-    expect(suggestRoute).toContain('!unitById.get(id)?.has(proposedUnitId)')
+    expect(suggestRoute).toContain('ids.every((id) => unitById.get(id)?.has(candidate))')
+    expect(suggestRoute).toContain('matchingUnitIds.includes(requestedUnitId)')
+    expect(suggestRoute).toContain('if (!proposedUnitId) continue')
     expect(suggestRoute).toContain('unitId: proposedUnitId')
-    expect(suggestRoute).toContain('unitById, unitId)')
+    expect(suggestRoute).toContain('unitById, id)')
   })
 
   test('manual and suggested assignments retain validated unit scope', () => {
@@ -114,5 +116,36 @@ describe('lecture video edit/delete guards', () => {
     expect(adminLectures).toContain('تعديل فيديو:')
     expect(adminLectures).toContain("surface === 'admin'")
     expect(adminLectures).toContain('سيُحذف سجل تقدم مشاهدته')
+  })
+})
+
+describe('assignment suggestion hardening guards (PR #168 review fixes)', () => {
+  test('suggest route scopes semester-3 sources across taught semesters and pins the requested semester', () => {
+    expect(suggestRoute).toContain('semester === 3 ? {} : { semester }')
+    expect(suggestRoute).toContain('semester === 3 ? { programId } : { programId, semester }')
+    expect(suggestRoute).not.toContain('semester: asInt(item?.semester')
+  })
+  test('generation is invalidated on program/semester change and checked after every await', () => {
+    expect(adminBooks).toContain('assignmentGenerationRef')
+    expect(adminBooks).toContain('assignmentAbortRef')
+    expect(adminBooks).toContain("invalidateAssignmentGeneration(); setSuggestingAssignments(false); setAssignmentSuggestions([]); setAssignmentSuggestionProgress(''); setProgramId(v)")
+    expect(adminBooks).toContain('invalidateAssignmentGeneration(); setGenSemester(v)')
+    expect(adminBooks).toContain("invalidateAssignmentGeneration(); setSuggestingAssignments(false); setAssignmentSuggestions([]); setAssignmentSuggestionProgress(''); setAssignmentForm({ ...assignmentForm, semester: v, unitId: '', sourceKnowledgeIds: null })")
+    expect(adminBooks).toContain("invalidateAssignmentGeneration()\n      setSuggestingAssignments(false)\n      setAssignmentSuggestions([])\n      setAssignmentSuggestionProgress('')\n      setProgramId(detail.programId)")
+    expect(adminBooks).toContain("invalidateAssignmentGeneration()\n                  setSuggestingAssignments(false)\n                  setAssignmentSuggestionProgress('')\n                  setSelectedCategory(v)")
+    expect(adminBooks).toContain('signal: controller.signal')
+    expect(adminBooks.split('if (!isCurrent()) return').length - 1).toBeGreaterThanOrEqual(4)
+  })
+  test('added-marking uses the stable unit+title identity, not the title alone', () => {
+    expect(adminBooks).toContain("(x.unitId || '') === (s.unitId || '') && x.title === s.title")
+  })
+  test('add-all reports per-item results and never announces full success over failures', () => {
+    expect(adminBooks).toContain('const list = assignmentSuggestions.filter((s) => !s.added)')
+    expect(adminBooks).toContain('if (await addAssignmentSuggestion(s)) saved++')
+    expect(adminBooks).toContain('else failedTitles.push(s.title)')
+    expect(adminBooks).toContain('const failedTitles: string[] = []')
+    expect(adminBooks).toContain('if (!failedTitles.length)')
+    expect(adminBooks).toContain('اكتملت الإضافة جزئياً')
+    expect(adminBooks).not.toContain("if (list.length) toast({ title: 'تمت إضافة الواجبات المقترحة' })")
   })
 })

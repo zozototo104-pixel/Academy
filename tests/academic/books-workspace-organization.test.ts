@@ -23,7 +23,7 @@ const ORIGINAL_FUNCTION_HASHES: Record<string, string> = {
   refreshProgramReadiness: '4bcfeaf821451def388c4916edb0936aea32d71c97d29a4d6e9752cbcbdd2fd8',
   suggest: 'badc7e266c544800eb1267d3d21901d3e2490f13add7025389f8ab81b2cc671a',
 }
-const ORIGINAL_API_CALL_COUNT = 79 // 78 protected calls plus reviewed outline-section rejection
+const ORIGINAL_API_CALL_COUNT = 80 // 78 original protected calls, reviewed outline rejection, and semester unit catalog GET
 // بصمة سطح النداءات من تعبير الاستدعاء الكامل (المسار + الخيارات: الطريقة والجسم والترويسات)،
 // لا من العنوان وحده — أي تغيير في عقد أي طلب يغيّر البصمة.
 // تحديث مقصود 2026-10-25 (PR #136): النداء 77 الوحيد المضاف هو تحليل الذكاء
@@ -53,7 +53,16 @@ const ORIGINAL_API_CALL_COUNT = 79 // 78 protected calls plus reviewed outline-s
 // not silently discarded; the apply-to-form path carries the same IDs.
 // No endpoint, HTTP method, or call count changed. The changed payload is
 // guarded independently in tests/assignments/assignment-due-video-guard.test.ts.
-const ORIGINAL_API_DIGEST = 'fe748a2db691e23c625cbfbd572d5def86016620f43cd7d6560cc2352181af0a'
+// Reviewed PR #168: per-unit assignment generation changes the suggestion calls.
+// تحديث مقصود 2026-11-01 (إصلاحات مراجعة PR #168): العدد بقي 80، وتعبيرا
+// نداءين فقط تغيّرا — نداءا اقتراح الواجبات (كتالوج GET والوليد POST) أضيف
+// إليهما خيار signal لربطهما بـAbortController الخاص بعملية التوليد، حتى
+// تُلغى الطلبات القديمة عند تغيير البرنامج أو الفصل. لا نقطة نهاية ولا
+// طريقة ولا جسم تغيّر. السلوك مثبّت في
+// tests/assignments/assignment-due-video-guard.test.ts و
+// tests/assignments/assignment-suggest-behavior.test.ts.
+// Keep this declaration outside comments so TypeScript can validate the guard.
+const ORIGINAL_API_DIGEST = 'c8b806deb476242ed67c638a599506fdd7a04f6e5f75e513606d507581628769'
 
 function parseSource() {
   return ts.createSourceFile('AdminBooks.tsx', SOURCE, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
@@ -131,7 +140,7 @@ describe('books workspace organization guard', () => {
   })
 
   it('program selection and its data reset stay wired', () => {
-    assert.ok(SOURCE.includes('onValueChange={(v) => { setProgramId(v); setSuggestions([]); loadProgramData(v) }}'))
+    assert.ok(SOURCE.includes(`onValueChange={(v) => { invalidateAssignmentGeneration(); setSuggestingAssignments(false); setAssignmentSuggestions([]); setAssignmentSuggestionProgress(''); setProgramId(v); setSuggestions([]); loadProgramData(v) }}`))
     assert.ok(SOURCE.includes('setProgramReadiness(null)'))
     assert.ok(SOURCE.includes("useState('overview')") || SOURCE.includes('useState("overview")'))
   })

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
 import { toast } from '@/hooks/use-toast'
+import { useAdminActionDialog } from '@/components/aact/AdminActionDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -188,6 +189,7 @@ function parseStampLayout(positionValue?: string | null, sizeValue?: string | nu
 }
 
 export default function AdminLegacyGraduatesTab() {
+  const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
   const [items, setItems] = useState<LegacyGraduateCertificate[]>([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(false)
@@ -513,7 +515,7 @@ export default function AdminLegacyGraduatesTab() {
   }
 
   async function removeGraduate(cert: LegacyGraduateCertificate) {
-    const confirmed = window.confirm(`حذف ${cert.holderName} نهائياً؟\nسيتم حذف الشهادة وملفاتها، وحذف الحساب والتسجيل إذا لم يكونا مرتبطين بشيء آخر. لا يمكن التراجع.`)
+    const confirmed = await confirmAction({ title: 'حذف الخريج نهائياً', description: `الخريج: ${cert.holderName}\nرقم الشهادة: ${cert.serial}\n\nسيتم حذف الشهادة وملفاتها. وقد يُحذف الحساب والتسجيل المرتبطان إذا لم يكونا مرتبطين ببيانات أخرى.\n\nهذا الإجراء نهائي ولا يمكن التراجع عنه.`, confirmLabel: 'حذف نهائي', cancelLabel: 'إلغاء', tone: 'danger' })
     if (!confirmed) return
     setBusy(`delete:${cert.id}`)
     try {
@@ -531,6 +533,7 @@ export default function AdminLegacyGraduatesTab() {
 
   return (
     <div className="mt-4 space-y-4" dir="rtl">
+      {actionDialog}
       <Card className="border-[#0f2b46]/10">
         <CardContent className="space-y-4 p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">

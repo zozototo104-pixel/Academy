@@ -76,8 +76,14 @@ function normalizeSuggestions(raw: any[], semester: number, allowedIds: Set<stri
     if (!title || !description || looksLikeBrokenAcademicOutput(`${title}. ${description}`)) continue
     const ids: string[] = Array.isArray(item?.sourceKnowledgeIds) ? item.sourceKnowledgeIds.map((id: unknown) => clean(id, 100)).filter((id: string): id is string => Boolean(id) && allowedIds.has(id)) : []
     if (!ids.length) continue
-    const proposedUnitId = clean(item?.unitId, 100) || fallbackUnitId || ''
-    if (!proposedUnitId || ids.some((id) => !unitById.get(id)?.has(proposedUnitId))) continue
+    // Infer the unit from trusted source-to-unit mappings, never from an AI-supplied ID alone.
+    const matchingUnitIds = [...(unitById.get(ids[0]) || new Set<string>())]
+      .filter((candidate) => ids.every((id) => unitById.get(id)?.has(candidate)))
+    const requestedUnitId = clean(item?.unitId, 100) || fallbackUnitId || ''
+    const proposedUnitId = matchingUnitIds.includes(requestedUnitId)
+      ? requestedUnitId
+      : matchingUnitIds.length === 1 ? matchingUnitIds[0] : ''
+    if (!proposedUnitId) continue
     const key = title.toLowerCase().replace(/\s+/g, ' ')
     if (seen.has(key)) continue
     seen.add(key)
@@ -87,7 +93,9 @@ function normalizeSuggestions(raw: any[], semester: number, allowedIds: Set<stri
       title,
       description,
       type,
-      semester: asInt(item?.semester, semester, 1, 3),
+      // فصل الواجب يُثبَّت من الطلب الموثوق؛ حقل الفصل في ناتج الذكاء لا
+      // يُستخدم أبدًا حتى لا يتجاوز فصلًا آخر عبر استثناء مشاريع البحث.
+      semester,
       points: asInt(item?.points, 15, 5, 100),
       weight: asInt(item?.weight, 0, 0, 100),
       dueDays: null,
@@ -97,12 +105,36 @@ function normalizeSuggestions(raw: any[], semester: number, allowedIds: Set<stri
       sourceKnowledgeIds: Array.from(new Set<string>(ids)),
       unitId: proposedUnitId,
     })
-    if (out.length >= 6) break
   }
-  return out
+  // Select one proposal per unit before taking second proposals from any unit.
+  // This makes semester-wide results representative without inventing assignments.
+  const byUnit = new Map<string, AssignmentSuggestion[]>()
+  for (const suggestion of out) {
+    const group = byUnit.get(suggestion.unitId || '') || []
+    group.push(suggestion)
+    byUnit.set(suggestion.unitId || '', group)
+  }
+  const balanced: AssignmentSuggestion[] = []
+  while (balanced.length < 6) {
+    let added = false
+    for (const group of byUnit.values()) {
+      if (balanced.length >= 6) break
+      const next = group.shift()
+      if (next) {
+        balanced.push(next)
+        added = true
+      }
+    }
+    if (!added) break
+  }
+  return balanced
 }
 
 async function unitKnowledge(programId: string, semester: number, unitId?: string | null) {
+  // فصل الواجب شيء وفصل الوحدة المرجعية شيء آخر: واجب الفصل الثالث
+  // (بحث/مشروع) يستند إلى وحدات الفصول الدراسية السابقة، تمامًا كما يسمح
+  // مسار الحفظ. لذلك لا يُقيَّد نطاق المصادر بفصل الواجب إلا في الفصلين
+  // الأول والثاني؛ والفصل نفسه يُثبَّت على الاقتراح من الطلب الموثوق.
   const units = await db.unit.findMany({
     where: { programId, ...(unitId ? { id: unitId } : semester === 3 ? {} : { semester }) },
     orderBy: [{ semester: 'asc' }, { order: 'asc' }],
@@ -117,6 +149,29 @@ async function unitKnowledge(programId: string, semester: number, unitId?: strin
     for (const item of knowledge) out.push({ ...item, unitId: unit.id, unitTitle: unit.title, unitSemester: unit.semester })
   }
   return out
+}
+
+export async function GET(req: NextRequest) {
+  try {
+    await requireAdmin()
+    const programId = clean(req.nextUrl.searchParams.get('programId'), 80)
+    const semester = asInt(req.nextUrl.searchParams.get('semester'), 1, 1, 3)
+    if (!programId) return NextResponse.json({ error: 'معرف البرنامج مطلوب' }, { status: 400 })
+    const units = await db.unit.findMany({
+      // كتالوج الفصل الثالث يعرض وحدات الفصول السابقة أيضًا (مصادر البحث).
+      where: semester === 3 ? { programId } : { programId, semester },
+      orderBy: [{ order: 'asc' }],
+      select: { id: true, title: true, sourceBookId: true, chunkStartIndex: true, chunkEndIndex: true },
+    })
+    return NextResponse.json({ units: units.map((unit) => ({
+      unitId: unit.id, title: unit.title,
+      hasSourceRange: Boolean(unit.sourceBookId && unit.chunkStartIndex != null && unit.chunkEndIndex != null),
+    })) })
+  } catch (e: any) {
+    if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
+    console.error('assignment unit catalog error:', e)
+    return NextResponse.json({ error: 'تعذر قراءة وحدات الفصل' }, { status: 500 })
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -134,6 +189,7 @@ export async function POST(req: NextRequest) {
     const knowledge = await unitKnowledge(programId, semester, unitId)
     if (!knowledge.length) return NextResponse.json({ error: unitId ? 'لا توجد عناصر معرفة v2 داخل نطاق هذه الوحدة. ولّد محتوى الوحدة أولاً.' : 'لا توجد وحدات ذات مصادر v2 لهذا الفصل. ولّد محتوى الوحدات أولاً.' }, { status: 400 })
 
+    const programTitle = program.titleAr
     const existing = await db.programAssignment.findMany({ where: { programId }, select: { title: true } })
     const existingTitles = existing.map((a) => a.title).join('، ')
     const titleById = new Map(knowledge.map((k) => [String(k.id), titleFromKnowledge(k)] as const))
@@ -145,19 +201,67 @@ export async function POST(req: NextRequest) {
       matchingUnits.add(String(item.unitId))
       unitById.set(id, matchingUnits)
     }
-    const knowledgeContext = knowledge.slice(0, 60).map((k, i) => `${i + 1}. id=${k.id}\nالوحدة: ${k.unitTitle}\nالعنوان: ${titleFromKnowledge(k)}\nالفئة: ${k.category}\nالصفحات: ${k.pageStart ?? '؟'}–${k.pageEnd ?? k.pageStart ?? '؟'}\nالملخص: ${cleanAssignmentText(k.summary, '', 520)}\nالمقتطف: ${cleanAssignmentText(k.excerpt, '', 520)}`).join('\n\n')
-
-    const prompt = `صمم 4 إلى 6 واجبات أكاديمية من عناصر معرفة v2 داخل نطاق الوحدات فقط.\n\nالبرنامج: ${program.titleAr}\nالفصل: ${semester === 2 ? 'الثاني' : semester === 3 ? 'بحث/مشروع' : 'الأول'}\nالواجبات الموجودة لتجنب التكرار: ${existingTitles || 'لا يوجد'}\n\nمصادر الوحدة المسموحة:\n${knowledgeContext}\n\nأرجع JSON array فقط. كل واجب يجب أن يحتوي title, description, type, semester, points, weight, rubric, unitId, sourceKnowledgeIds, sourceKnowledgeTitles. لا تقترح أي موعد تسليم — الموعد يحدده الأدمن بتاريخ ثابت لاحقًا.\nقواعد إلزامية: sourceKnowledgeIds من ids أعلاه فقط، والوصف يذكر مراجع الصفحات، ولا تكتب واجباً عاماً أو قالبياً.`
-
-    let raw = ''
-    try {
-      raw = await textAiCompleteJson({ system: 'أنت مصمم تكليفات جامعية مصدرية. أعد JSON فقط.', history: [{ role: 'user', text: prompt }], taskLevel: 'ACADEMIC_CRITICAL', routerPolicy: 'balanced', temperature: 0.15, maxOutputTokens: 6000, stickyScope: `ASSIGNMENTS:${programId}:${unitId || semester}` })
-    } catch (error: any) {
-      return NextResponse.json({ error: `توقف اقتراح الواجبات مؤقتاً: ${String(error?.message || error)}`, status: 'PAUSED' }, { status: 503 })
+    // Sample across all sourced units instead of letting the first 60 knowledge rows
+    // (typically from the first units) monopolize the model context.
+    const knowledgeByUnit = new Map<string, typeof knowledge>()
+    for (const item of knowledge) {
+      const key = String(item.unitId)
+      const group = knowledgeByUnit.get(key) || []
+      group.push(item)
+      knowledgeByUnit.set(key, group)
     }
-    const suggestions = normalizeSuggestions(parseJsonArray(raw), semester, allowedIds, titleById, unitById, unitId)
-    if (!suggestions.length) return NextResponse.json({ error: 'لم ينتج الراوتر واجبات موثقة بالمصادر. لم تُنشأ قوالب بديلة.', status: 'PAUSED' }, { status: 503 })
-    return NextResponse.json({ suggestions })
+    // Generate independently for every sourced unit, rather than capping the
+    // entire semester at six suggestions or losing successes on partial failure.
+    const unitEntries = [...knowledgeByUnit.entries()]
+    const suggestions: AssignmentSuggestion[] = []
+    const failedUnits: { unitId: string; title: string; reason: string }[] = []
+    const existingNormalized = new Set(existing.map((a) => clean(a.title, 180).toLowerCase()))
+
+    async function suggestForUnit(id: string, items: typeof knowledge) {
+      const unitTitle = String(items[0]?.unitTitle || id)
+      const unitSources = items.slice(0, 12)
+      const context = unitSources.map((k, i) => `${i + 1}. id=${k.id}\nالوحدة: ${unitTitle}\nالعنوان: ${titleFromKnowledge(k)}\nالصفحات: ${k.pageStart ?? '؟'}–${k.pageEnd ?? k.pageStart ?? '؟'}\nالملخص: ${cleanAssignmentText(k.summary, '', 380)}\nالمقتطف: ${cleanAssignmentText(k.excerpt, '', 380)}`).join('\n\n')
+      const prompt = `اقترح واجباً أكاديمياً واحداً موثقاً لوحدة "${unitTitle}" من الفصل ${semester} في برنامج "${programTitle}".\nمعرف الوحدة الثابت: ${id}\nواجبات موجودة لتجنب التكرار: ${existingTitles || 'لا يوجد'}\nمصادر الوحدة المسموحة فقط:\n${context}\nأرجع JSON array فيه واجب واحد بالحقول title, description, type, semester, points, weight, rubric, unitId, sourceKnowledgeIds, sourceKnowledgeTitles. استخدم unitId=${id} ومعرفات المصادر الحرفية أعلاه فقط، واذكر صفحات المصادر في الوصف. لا تقترح موعد تسليم، ولا تستخدم قوالب عامة.`
+      const localAllowedIds = new Set(unitSources.map((item) => String(item.id)))
+      let lastReason = 'لم ينتج واجب موثق'
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const raw = await textAiCompleteJson({
+            system: 'أنت مصمم تكليفات جامعية موثقة بالمصادر. أعد JSON array فقط.',
+            history: [{ role: 'user', text: attempt ? prompt + '\nالمحاولة السابقة لم تجتز التوثيق. استخدم معرفات المصادر أعلاه حرفياً ولا تخلط بين الوحدات.' : prompt }],
+            taskLevel: 'ACADEMIC_CRITICAL', routerPolicy: 'balanced',
+            temperature: 0.1, maxOutputTokens: 1800,
+            stickyScope: `ASSIGNMENTS:${programId}:${id}`,
+          })
+          const parsed = parseJsonArray(raw)
+          const valid = normalizeSuggestions(parsed, semester, localAllowedIds, titleById, unitById, id)
+            .find((item) => item.unitId === id && !existingNormalized.has(item.title.toLowerCase()))
+          if (valid) return { suggestion: valid, unitId: id, title: unitTitle }
+          lastReason = `النتائج غير موثقة أو مكررة (عدد المقترحات: ${parsed.length})`
+        } catch (error: any) {
+          lastReason = String(error?.message || error).slice(0, 180)
+        }
+      }
+      return { unitId: id, title: unitTitle, reason: lastReason }
+    }
+
+    // Bound concurrency to avoid overwhelming the AI provider.
+    for (let offset = 0; offset < unitEntries.length; offset += 3) {
+      const batch = unitEntries.slice(offset, offset + 3)
+      const results = await Promise.all(batch.map(([id, items]) => suggestForUnit(id, items)))
+      for (const result of results) {
+        if ('suggestion' in result && result.suggestion) suggestions.push(result.suggestion)
+        else failedUnits.push({ unitId: result.unitId, title: result.title, reason: 'reason' in result ? result.reason : 'فشل غير معروف' })
+      }
+    }
+    if (!suggestions.length) {
+      console.warn('assignment suggestions: all sourced units failed', { programId, semester, failedUnits })
+      return NextResponse.json({ error: 'لم يتم توليد واجبات موثقة لأي وحدة. راجع مصادر الوحدات وسجلات التوليد.', status: 'PAUSED', failedUnits }, { status: 503 })
+    }
+    return NextResponse.json({
+      suggestions,
+      coverage: { eligibleUnits: unitEntries.length, coveredUnits: suggestions.length, failedUnits },
+    })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     console.error('assignment suggestions error:', e)

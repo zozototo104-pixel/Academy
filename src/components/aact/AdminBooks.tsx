@@ -631,7 +631,7 @@ function bookNeedsReadableSource(book: BookRow): boolean {
 
 export function AdminBooksTab() {
   const { toast } = useToast()
-  const { promptAction, dialog: actionDialog } = useAdminActionDialog()
+  const { promptAction, confirmAction, alertAction, dialog: actionDialog } = useAdminActionDialog()
   const [programs, setPrograms] = useState<ProgramOption[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [programId, setProgramId] = useState<string>('')
@@ -646,6 +646,15 @@ export function AdminBooksTab() {
   const [exams, setExams] = useState<ExamRow[]>([])
   const [assignments, setAssignments] = useState<AssignmentRow[]>([])
   const [assignmentSuggestions, setAssignmentSuggestions] = useState<AssignmentSuggestion[]>([])
+  // رمز عملية توليد الاقتراحات: أي توليد جديد أو تغيير برنامج/فصل يُبطل
+  // العملية السابقة، وتُفحص الصلاحية بعد كل await قبل لمس الحالة.
+  const assignmentGenerationRef = useRef(0)
+  const assignmentAbortRef = useRef<AbortController | null>(null)
+  const invalidateAssignmentGeneration = useCallback(() => {
+    assignmentGenerationRef.current += 1
+    assignmentAbortRef.current?.abort()
+    assignmentAbortRef.current = null
+  }, [])
   const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItemRow[]>([])
   const [showLegacyKnowledge, setShowLegacyKnowledge] = useState(false)
   const [showAllKnowledge, setShowAllKnowledge] = useState(false)
@@ -724,6 +733,7 @@ export function AdminBooksTab() {
   const [adding, setAdding] = useState(false)
   const [suggesting, setSuggesting] = useState(false)
   const [suggestingAssignments, setSuggestingAssignments] = useState(false)
+  const [assignmentSuggestionProgress, setAssignmentSuggestionProgress] = useState('')
   const [generating, setGenerating] = useState(false)
   const [stoppingExamId, setStoppingExamId] = useState<string | null>(null)
   const [examKickFailures, setExamKickFailures] = useState<Record<string, { count: number; blocked: boolean; message: string }>>({})
@@ -804,6 +814,10 @@ export function AdminBooksTab() {
       if (!detail?.programId) return
       const target = programs.find((p) => p.id === detail.programId)
       if (target?.category) setSelectedCategory(target.category)
+      invalidateAssignmentGeneration()
+      setSuggestingAssignments(false)
+      setAssignmentSuggestions([])
+      setAssignmentSuggestionProgress('')
       setProgramId(detail.programId)
       const section = String(detail.section || 'overview')
       setWorkspaceTab(section === 'add' ? 'books' : section)
@@ -813,7 +827,7 @@ export function AdminBooksTab() {
     }
     window.addEventListener('aact-admin-books-target', handler as EventListener)
     return () => window.removeEventListener('aact-admin-books-target', handler as EventListener)
-  }, [programs])
+  }, [programs, invalidateAssignmentGeneration])
 
   const availableCategories = useMemo(() => {
     const set = new Set(programs.map((p) => p.category).filter(Boolean))
@@ -2063,7 +2077,7 @@ export function AdminBooksTab() {
 
   const rejectOutlineSection = async (bookId: string, sectionId: string, mergeInto: 'previous' | 'next') => {
     const direction = mergeInto === 'previous' ? 'السابق' : 'التالي'
-    if (!window.confirm(`سيُضم نطاق هذا القسم مع جميع صفحاته ومقاطع معرفته للقسم ${direction}، ولن يُحذف محتوى الكتاب. تأكد من مناسبة الموضوعين قبل المتابعة. هل تريد الضم؟`)) return
+    if (!await confirmAction({ title: `ضم القسم إلى القسم ${direction}`, description: `سيتم دمج صفحات القسم ومقاطع المعرفة في القسم ${direction}، مع الاحتفاظ بمحتوى الكتاب والعناوين الأصلية للمراجعة.\nتأكد من مناسبة الموضوعين قبل المتابعة.`, confirmLabel: 'تأكيد الضم', cancelLabel: 'إلغاء', tone: 'info' })) return
     try {
       await api(`/api/admin/books/${bookId}/outline/sections/${sectionId}?mergeInto=${mergeInto}`, { method: 'DELETE' })
       await loadBookOutline(bookId)
@@ -2266,19 +2280,71 @@ export function AdminBooksTab() {
   const suggestAssignments = async () => {
     if (!programId) return
     const semester = Number(assignmentForm.semester || genSemester || 1) || 1
+    assignmentAbortRef.current?.abort()
+    const controller = new AbortController()
+    assignmentAbortRef.current = controller
+    const generation = ++assignmentGenerationRef.current
+    const isCurrent = () => assignmentGenerationRef.current === generation && !controller.signal.aborted
     setSuggestingAssignments(true)
     setAssignmentSuggestions([])
+    setAssignmentSuggestionProgress('')
+    const successes: AssignmentSuggestion[] = []
+    const failures: string[] = []
     try {
-      const d = await api<{ suggestions: AssignmentSuggestion[] }>('/api/admin/assignments/suggest', {
-        method: 'POST',
-        body: JSON.stringify({ programId, semester }),
+      const catalog = await api<{ units: { unitId: string; title: string; hasSourceRange: boolean }[] }>(
+        `/api/admin/assignments/suggest?programId=${encodeURIComponent(programId)}&semester=${semester}`,
+        { signal: controller.signal }
+      )
+      if (!isCurrent()) return
+      const units = catalog.units || []
+      if (!units.length) {
+        await alertAction({ title: 'لا توجد وحدات', description: 'لم يتم العثور على وحدات في الفصل المحدد.', tone: 'warning' })
+        return
+      }
+      // One request per unit: no semester-wide request can exceed the server deadline.
+      for (let index = 0; index < units.length; index++) {
+        const unit = units[index]
+        setAssignmentSuggestionProgress(`جاري معالجة الوحدة ${index + 1} من ${units.length}: ${unit.title} — نجح ${successes.length}`)
+        if (!unit.hasSourceRange) {
+          failures.push(`${unit.title}: لا يوجد نطاق مصادر مرتبط بالوحدة`)
+          continue
+        }
+        try {
+          const result = await api<{ suggestions: AssignmentSuggestion[] }>(
+            '/api/admin/assignments/suggest',
+            { method: 'POST', body: JSON.stringify({ programId, semester, unitId: unit.unitId }), signal: controller.signal }
+          )
+          if (!isCurrent()) return
+          const suggestion = (result.suggestions || []).find((item) => item.unitId === unit.unitId)
+          if (suggestion) {
+            successes.push(suggestion)
+            setAssignmentSuggestions([...successes])
+          } else {
+            failures.push(`${unit.title}: لم ينتج واجب موثق لهذه الوحدة`)
+          }
+        } catch (error: any) {
+          if (!isCurrent()) return
+          failures.push(`${unit.title}: ${String(error?.message || 'فشل التوليد').slice(0, 140)}`)
+        }
+      }
+      if (!isCurrent()) return
+      setAssignmentSuggestionProgress(`اكتملت المعالجة: ${successes.length} من ${units.length} وحدة`)
+      toast({
+        title: failures.length ? 'اكتملت اقتراحات الواجبات جزئياً' : 'اكتملت اقتراحات الواجبات',
+        description: `تم اقتراح ${successes.length} واجب موثق من أصل ${units.length} وحدة`,
       })
-      setAssignmentSuggestions(d.suggestions || [])
-      toast({ title: 'اقتراحات الواجبات جاهزة', description: `تم اقتراح ${d.suggestions?.length || 0} تكليفاً من بنك المعرفة والكتب` })
-    } catch (e: any) {
-      toast({ title: 'تعذر اقتراح الواجبات', description: e.message, variant: 'destructive' })
+      if (failures.length) {
+        await alertAction({
+          title: 'تقرير تغطية الوحدات',
+          description: `تم الاحتفاظ بالواجبات الناجحة. الوحدات غير المغطاة:\n${failures.join('\n')}`,
+          confirmLabel: 'فهمت', tone: 'warning',
+        })
+      }
+    } catch (error: any) {
+      if (!isCurrent()) return
+      await alertAction({ title: 'تعذر قراءة وحدات الفصل', description: String(error?.message || error), tone: 'warning' })
     } finally {
-      setSuggestingAssignments(false)
+      if (assignmentGenerationRef.current === generation) setSuggestingAssignments(false)
     }
   }
 
@@ -2300,8 +2366,8 @@ export function AdminBooksTab() {
     })
   }
 
-  const addAssignmentSuggestion = async (s: AssignmentSuggestion) => {
-    if (!programId) return
+  const addAssignmentSuggestion = async (s: AssignmentSuggestion): Promise<boolean> => {
+    if (!programId) return false
     setSavingAssignment(true)
     try {
       await api('/api/admin/assignments', {
@@ -2322,11 +2388,15 @@ export function AdminBooksTab() {
           status: 'PUBLISHED',
         }),
       })
-      setAssignmentSuggestions((prev) => prev.map((x) => x.title === s.title ? { ...x, added: true } : x))
+      // هوية الاقتراح مستقرة: الوحدة + العنوان معًا. عنوان مكرر لوحدة أخرى
+      // لا يُعلَّم مضافًا ولا يُتخطى عند «إضافة الكل».
+      setAssignmentSuggestions((prev) => prev.map((x) => (x.unitId || '') === (s.unitId || '') && x.title === s.title ? { ...x, added: true } : x))
       await loadProgramData(programId, true)
       toast({ title: 'تم إضافة الواجب المقترح', description: s.title })
+      return true
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
+      return false
     } finally {
       setSavingAssignment(false)
     }
@@ -2334,8 +2404,22 @@ export function AdminBooksTab() {
 
   const addAllAssignmentSuggestions = async () => {
     const list = assignmentSuggestions.filter((s) => !s.added)
-    for (const s of list) await addAssignmentSuggestion(s)
-    if (list.length) toast({ title: 'تمت إضافة الواجبات المقترحة' })
+    if (!list.length) return
+    let saved = 0
+    const failedTitles: string[] = []
+    for (const s of list) {
+      if (await addAssignmentSuggestion(s)) saved++
+      else failedTitles.push(s.title)
+    }
+    if (!failedTitles.length) {
+      toast({ title: 'تمت إضافة الواجبات المقترحة', description: `أُضيف ${saved} واجب بنجاح` })
+    } else {
+      await alertAction({
+        title: 'اكتملت الإضافة جزئياً',
+        description: `أُضيف ${saved} من ${list.length} واجب. لم يُحفظ: ${failedTitles.join('، ')}.\nالواجبات الناجحة لن تُضاف من جديد؛ أعد الضغط على «إضافة الكل» لمحاولة الفاشلة فقط.`,
+        confirmLabel: 'فهمت', tone: 'warning',
+      })
+    }
   }
 
   const editAssignment = (a: AssignmentRow) => {
@@ -2643,6 +2727,9 @@ export function AdminBooksTab() {
               <Select
                 value={selectedCategory}
                 onValueChange={(v) => {
+                  invalidateAssignmentGeneration()
+                  setSuggestingAssignments(false)
+                  setAssignmentSuggestionProgress('')
                   setSelectedCategory(v)
                   setProgramId('')
                   setBooks([])
@@ -2676,7 +2763,7 @@ export function AdminBooksTab() {
               <Select
                 value={programId}
                 disabled={!selectedCategory}
-                onValueChange={(v) => { setProgramId(v); setSuggestions([]); loadProgramData(v) }}
+                onValueChange={(v) => { invalidateAssignmentGeneration(); setSuggestingAssignments(false); setAssignmentSuggestions([]); setAssignmentSuggestionProgress(''); setProgramId(v); setSuggestions([]); loadProgramData(v) }}
               >
                 <SelectTrigger className="h-11 text-sm font-bold">
                   <SelectValue placeholder={selectedCategory ? 'اختر التخصص...' : 'اختر الدرجة أولاً'} />
@@ -3244,6 +3331,7 @@ export function AdminBooksTab() {
                     {suggestingAssignments ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="ml-1 h-3.5 w-3.5" />}
                     اقترح واجبات من بنك المعرفة
                   </Button>
+                  {assignmentSuggestionProgress && <span role="status" aria-live="polite" className="text-xs text-slate-600">{assignmentSuggestionProgress}</span>}
                   {assignmentForm.id && (
                     <Button size="sm" variant="outline" onClick={resetAssignmentForm} className="text-xs font-bold">إلغاء التعديل</Button>
                   )}
@@ -3257,7 +3345,7 @@ export function AdminBooksTab() {
                 </div>
                 <div>
                   <Label className="text-[10px] font-black text-slate-500">الفصل</Label>
-                  <Select value={assignmentForm.semester} onValueChange={(v) => setAssignmentForm({ ...assignmentForm, semester: v })}>
+                  <Select value={assignmentForm.semester} onValueChange={(v) => { invalidateAssignmentGeneration(); setSuggestingAssignments(false); setAssignmentSuggestions([]); setAssignmentSuggestionProgress(''); setAssignmentForm({ ...assignmentForm, semester: v, unitId: '', sourceKnowledgeIds: null }) }}>
                     <SelectTrigger className="mt-1 h-10 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="1">الفصل الأول</SelectItem>
@@ -4020,7 +4108,7 @@ export function AdminBooksTab() {
                   امتحانات الفصول الدراسية المولدة من الكتب ({exams.length})
                 </h2>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Select value={genSemester} onValueChange={setGenSemester}>
+                  <Select value={genSemester} onValueChange={(v) => { invalidateAssignmentGeneration(); setGenSemester(v) }}>
                     <SelectTrigger className="h-9 w-44 text-xs font-bold">
                       <SelectValue />
                     </SelectTrigger>
