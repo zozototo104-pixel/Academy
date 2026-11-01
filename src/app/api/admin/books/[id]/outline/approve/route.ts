@@ -25,7 +25,24 @@ export async function POST(req: NextRequest, context: Context) {
     // swallows that whole range, so approval is refused unless a supervisor
     // records an explicit override (a genuine long chapter passes by a
     // documented decision, never silently).
-    const guard = outlineApprovalGuard(outline.sections)
+    const sourceChunks = await db.bookChunk.findMany({
+      where: { bookId: id }, select: { pageStart: true, pageEnd: true },
+    })
+    if (!sourceChunks.length) return NextResponse.json({ code: 'OUTLINE_SOURCE_MISSING', error: 'مقاطع الكتاب الأصلية غير متاحة للتحقق من التغطية' }, { status: 409 })
+    const sourceRange = {
+      pageStart: Math.min(...sourceChunks.map((chunk) => chunk.pageStart)),
+      pageEnd: Math.max(...sourceChunks.map((chunk) => chunk.pageEnd)),
+    }
+    const guard = outlineApprovalGuard(outline.sections, sourceRange)
+    // Unknown page ends must never be bypassed by the documented long-section override.
+    const incomplete = guard.report.sections.filter((section) => section.pages === null)
+    if (!outline.sections.length || incomplete.length) {
+      return NextResponse.json({
+        code: 'OUTLINE_INCOMPLETE_PAGE_RANGES',
+        error: `لا يمكن اعتماد الفهرس: توجد حدود صفحات غير محسومة (${incomplete.map((section) => section.title).join('، ') || 'لا توجد أقسام'}). أعد بناء الفهرس ثم راجع الأقسام.`,
+        incomplete,
+      }, { status: 409 })
+    }
     // A documented long-chapter override must NOT bypass missing pages.
     if (guard.report.gaps.length) {
       return NextResponse.json({
