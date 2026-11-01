@@ -631,7 +631,7 @@ function bookNeedsReadableSource(book: BookRow): boolean {
 
 export function AdminBooksTab() {
   const { toast } = useToast()
-  const { promptAction, dialog: actionDialog } = useAdminActionDialog()
+  const { promptAction, confirmAction, dialog: actionDialog } = useAdminActionDialog()
   const [programs, setPrograms] = useState<ProgramOption[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [programId, setProgramId] = useState<string>('')
