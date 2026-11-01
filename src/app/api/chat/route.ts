@@ -5,11 +5,11 @@ import { enforceDatabaseApiRateLimit } from '@/lib/rate-limit'
 import { platformAgentComplete, platformAgentStream } from '@/lib/platform-agent'
 import {
   createHumanHandoffRequest,
-  hadRecentHumanSupportPrompt,
+  hasPendingPlatformChatHandoffDetailsPrompt,
   hasRecentHumanHandoffRequest,
   getHumanHandoffConfirmationReply,
-  looksLikeHumanHandoffDetails,
-  wantsHumanSupport,
+  looksLikePlatformChatHandoffDetails,
+  wantsPlatformChatHumanSupport,
   withHumanHandoffActiveNote,
 } from '@/lib/human-handoff'
 import { requireStudentAiSupervisorAccess } from '@/lib/student-ai-access'
