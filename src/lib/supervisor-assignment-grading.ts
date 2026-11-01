@@ -282,7 +282,7 @@ async function loadBookContext(programId: string, unitId: string | null, semeste
       return { text: '', titles: [], used: false }
     }
     const belongsToProgram = await db.unit.findFirst({
-      where: { id: unit.id, programId, semester },
+      where: { id: unit.id, programId, ...(semester === 3 ? {} : { semester }) },
       select: { id: true },
     })
     if (!belongsToProgram) return { text: '', titles: [], used: false }
