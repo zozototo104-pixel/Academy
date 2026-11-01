@@ -229,7 +229,7 @@ function testSectionCapNeverExtendsLargestSpan() {
   const chunkIds = new Map(chunks.map((entry) => [entry.index, `chunk-${entry.index}`]))
   const items = chunks.map((entry) => ({ chunkId: `chunk-${entry.index}`, title: `عنصر ${entry.index}`, summary: 'ملخص اختباري' }))
   const result = planBookOutline(chunks, items, chunkIds, 1, [], 'كتاب الاختبار')
-  assert(result.sections.length <= 16, `سقف الأقسام يجب أن يبقى 16، وُجد ${result.sections.length}`)
+  assert(result.sections.length >= 17, `الفصول الأصلية لا يجوز ضغطها قسرًا إلى سقف 16؛ وُجد ${result.sections.length}`)
   const huge = result.sections.find((section) => section.pageStart === 1)
   assert(huge && huge.pageEnd === 200, `القسم الضخم يجب أن ينتهي عند 200 لا أن يمتد بالدمج، انتهى عند ${huge?.pageEnd}`)
 }
