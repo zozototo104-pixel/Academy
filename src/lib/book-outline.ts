@@ -933,7 +933,18 @@ export async function buildBookOutline(bookId: string, options: { reuseReadChunk
   // draft; then audit coverage so any section that is still too large is
   // visibly flagged for the approval guard instead of passing silently.
   const refined = await refineOversizedSections({ sections: draft.sections, chunks, items, chunkIds, semester: book.semester, sourceBoundaries, bookTitle: book.title, allowAi: !options.deterministicOnly })
-  draft = { ...draft, sections: refined.sections, warnings: [...draft.warnings, ...refined.warnings] }
+  // Whole-book balancing runs BEFORE persisting the draft and AFTER all long
+  // ranges have been scanned. Merge only real adjacent topics, never chapters.
+  const balanced = balanceBookOutlineSections(refined.sections)
+  draft = {
+    ...draft,
+    sections: balanced.sections,
+    warnings: [
+      ...draft.warnings,
+      ...refined.warnings,
+      ...(balanced.merged ? [`توازن موضوعي: دُمجت ${balanced.merged} مجموعات قصيرة متجاورة ذات موضوع مشترك دون اختراع عناوين.`] : []),
+    ],
+  }
   const coverage = auditOutlineCoverage(draft.sections)
   for (const section of coverage.review) draft.warnings.push(section.pages === null ? `تنبيه تغطية: حدود صفحات القسم «${section.title}» غير مكتملة؛ راجعها قبل الاعتماد.` : `تنبيه تغطية: القسم «${section.title}» يغطي ${section.pages} صفحة (صفحات ${section.pageStart}–${section.pageEnd}) — فوق حد المراجعة ${OUTLINE_SECTION_REVIEW_PAGES} صفحة؛ أعد فحص عناوين هذا النطاق قبل الاعتماد.`)
   for (const gap of coverage.gaps) draft.warnings.push(`تنبيه تغطية: هناك فجوة غير مغطاة من الصفحة ${gap.pageStart} إلى ${gap.pageEnd}؛ لن يُعتمد الفهرس قبل تصحيحها.`)
