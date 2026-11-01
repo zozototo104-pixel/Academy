@@ -47,6 +47,9 @@ export interface AnswerProvenance {
   ocrNote: string | null
   bookContextUsed: boolean
   bookTitles: string[]
+  bookSourceStatus: 'EXACT' | 'PARTIAL' | 'UNIT' | 'NONE'
+  sourceKnowledgeCount: number
+  sourceKnowledgeMatched: number
   answerTruncated: boolean
 }
 
@@ -266,7 +269,11 @@ export async function loadSupervisorAssignmentDetail(submissionId: string, user:
   }
 }
 
-async function loadBookContext(programId: string, unitId: string | null, semester: number): Promise<{ text: string; titles: string[]; used: boolean }> {
+type GradingBookContext = { text: string; titles: string[]; used: boolean; status: 'EXACT' | 'PARTIAL' | 'UNIT' | 'NONE'; expected: number; matched: number }
+
+async function loadBookContext(programId: string, unitId: string | null, semester: number, storedSourceIds: unknown): Promise<GradingBookContext> {
+  const sourceIds = Array.isArray(storedSourceIds) ? [...new Set(storedSourceIds.filter((id): id is string => typeof id === 'string' && Boolean(id.trim())))] : []
+  const missing = (): GradingBookContext => ({ text: '', titles: [], used: false, status: 'NONE', expected: sourceIds.length, matched: 0 })
   try {
     let unit: any = null
     if (unitId) {
@@ -275,41 +282,58 @@ async function loadBookContext(programId: string, unitId: string | null, semeste
         select: { id: true, title: true, sourceBookId: true, chunkStartIndex: true, chunkEndIndex: true },
       })
     }
-    if (!unit || !unit.sourceBookId || unit.chunkStartIndex == null || unit.chunkEndIndex == null) {
-      const units = await db.unit.findMany({
-        where: { programId, semester },
-        orderBy: [{ order: 'asc' }],
-        select: { id: true, title: true, sourceBookId: true, chunkStartIndex: true, chunkEndIndex: true },
-      })
-      unit = units.find((u: any) => u.sourceBookId && u.chunkStartIndex != null && u.chunkEndIndex != null) || null
-    }
-    if (!unit) return { text: '', titles: [], used: false }
+    // A persisted source never authorizes a different unit or program.
+    // Legacy tasks with no unit have no book context; no silent semester fallback.
+    if (!unit || !unit.sourceBookId || unit.chunkStartIndex == null || unit.chunkEndIndex == null) return missing()
+    const belongsToProgram = await db.unit.findFirst({
+      where: { id: unit.id, programId, ...(semester === 3 ? {} : { semester }) },
+      select: { id: true },
+    })
+    if (!belongsToProgram) return missing()
     const chunks = await db.bookChunk.findMany({
       where: { bookId: unit.sourceBookId, index: { gte: unit.chunkStartIndex, lte: unit.chunkEndIndex } },
       orderBy: { index: 'asc' },
-      take: 12,
       select: { id: true, text: true },
     })
-    if (!chunks.length) return { text: '', titles: [], used: false }
-    const knowledge = await db.bookKnowledgeItem.findMany({
-      where: { programId, kbVersion: 2, chunkId: { in: chunks.map((c: any) => c.id) }, category: { notIn: ['QUESTION_SEED', 'LEGACY'] } },
+    if (!chunks.length) return missing()
+    const allowedWhere = { programId, kbVersion: 2,
+      chunkId: { in: chunks.map((chunk) => chunk.id) },
+      category: { notIn: ['QUESTION_SEED', 'LEGACY'] } }
+    const original = sourceIds.length ? await db.bookKnowledgeItem.findMany({
+      where: { ...allowedWhere, id: { in: sourceIds } },
+      select: { id: true, title: true, summary: true, excerpt: true },
+    }) : []
+    const originalById = new Map(original.map((item) => [item.id, item]))
+    const orderedOriginals = sourceIds.map((id) => originalById.get(id)).filter((item): item is NonNullable<typeof item> => Boolean(item))
+    const matched = orderedOriginals.length
+    // Supplement only from the same verified unit when an original is missing
+    // or when a legacy/manual assignment has no source IDs.
+    const supplement = !sourceIds.length || matched !== sourceIds.length ? await db.bookKnowledgeItem.findMany({
+      where: { ...allowedWhere, ...(matched ? { id: { notIn: sourceIds } } : {}) },
       orderBy: [{ importance: 'desc' }],
       take: 20,
       select: { title: true, summary: true, excerpt: true },
-    })
+    }) : []
     const parts: string[] = []
-    for (const item of knowledge) {
+    for (const item of orderedOriginals) {
       const line = [item.title, item.summary, item.excerpt].filter(Boolean).join(' — ')
-      if (line) parts.push(line)
+      if (line) parts.push('مصدر الواجب الأصلي: ' + line)
     }
-    if (!parts.length) {
-      parts.push(...chunks.map((c: any) => String(c.text || '')).filter(Boolean))
+    for (const item of supplement) {
+      const line = [item.title, item.summary, item.excerpt].filter(Boolean).join(' — ')
+      if (line) parts.push('استكمال من الوحدة نفسها: ' + line)
     }
-    const text = parts.join('\n').slice(0, MAX_BOOK_CHARS)
+    if (!parts.length && !sourceIds.length) {
+      parts.push(...chunks.slice(0, 12).map((chunk) => String(chunk.text || '')).filter(Boolean))
+    }
+    const joined = parts.join('\n')
+    const text = joined.slice(0, MAX_BOOK_CHARS)
     const book = await db.book.findUnique({ where: { id: unit.sourceBookId }, select: { title: true } }).catch(() => null)
-    return { text, titles: book?.title ? [book.title] : [], used: text.length > 0 }
+    const status: GradingBookContext['status'] = !text ? 'NONE' : !sourceIds.length ? 'UNIT' :
+      matched === sourceIds.length && joined.length <= MAX_BOOK_CHARS ? 'EXACT' : 'PARTIAL'
+    return { text, titles: [book?.title, unit.title].filter((title): title is string => Boolean(title)), used: Boolean(text), status, expected: sourceIds.length, matched }
   } catch {
-    return { text: '', titles: [], used: false }
+    return missing()
   }
 }
 
@@ -488,7 +512,7 @@ export async function analyzeAssignmentSubmission(submissionId: string, user: { 
   await assertSupervisorScope(user, submission)
 
   const criteria = parseRubricCriteria(submission.assignment.rubric)
-  const book = await loadBookContext(submission.assignment.programId, submission.assignment.unitId, submission.assignment.semester)
+  const book = await loadBookContext(submission.assignment.programId, submission.assignment.unitId, submission.assignment.semester, submission.assignment.sourceKnowledgeIds)
   const answer = await loadAnswerContent(submission)
   if (!answer.combinedText.trim()) {
     const error = new Error('NO_ANSWER_TEXT') as Error & { status?: number }
@@ -500,7 +524,7 @@ export async function analyzeAssignmentSubmission(submissionId: string, user: { 
 وصف الواجب: ${cleanAcademicOutput(submission.assignment.description, 3000)}
 معايير الواجب كما كتبها المعلم: ${submission.assignment.rubric ? cleanAcademicOutput(submission.assignment.rubric, 1000) : 'الافتراضي: الاستناد إلى مصادر الوحدة 30%، جودة التحليل 30%، التطبيق المهني 25%، وضوح العرض 15%'}
 مصدر قراءة الإجابة: ${answer.answerSourceLabel}${answer.ocrNote ? ` — ملاحظة القراءة: ${answer.ocrNote}` : ''}
-${book.used ? `مقتطفات مرجعية من كتاب الوحدة (للمرجع فقط، ليست نموذج إجابة حرفي):\n${book.text}` : 'لا يوجد سياق كتاب متاح لهذه الوحدة؛ قيّم الإجابة على أساس الفهم والتحليل والتطبيق المهني فقط، ولا تخترع مرجعاً.'}
+${book.used ? `حالة المرجع: ${book.status === 'EXACT' ? 'المصادر الأصلية للواجب موثّقة' : book.status === 'PARTIAL' ? 'بعض المصادر الأصلية مفقودة أو مقتطعة؛ لا تفترض اكتمال الدليل' : 'مرجع من الوحدة نفسها وليس مصادر الواجب الأصلية'}.\nمقتطفات مرجعية من كتاب الوحدة (للمرجع فقط، ليست نموذج إجابة حرفي):\n${book.text}` : 'لا يوجد سياق كتاب متاح لهذه الوحدة؛ قيّم الإجابة على أساس الفهم والتحليل والتطبيق المهني فقط، ولا تخترع مرجعاً.'}
 إجابة الطالب:
 ${answer.combinedText}`
 
@@ -538,6 +562,9 @@ ${answer.combinedText}`
       ocrNote: answer.ocrNote,
       bookContextUsed: book.used,
       bookTitles: book.titles,
+      bookSourceStatus: book.status,
+      sourceKnowledgeCount: book.expected,
+      sourceKnowledgeMatched: book.matched,
       answerTruncated: answer.truncated,
     } as AnswerProvenance,
   }

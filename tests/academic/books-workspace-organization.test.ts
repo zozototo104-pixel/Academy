@@ -48,7 +48,12 @@ const ORIGINAL_API_CALL_COUNT = 79 // 78 protected calls plus reviewed outline-s
 // {overrideOversized, overrideReason} بعد تأكيد المشرف وكتابة السبب.
 // تم التحقق بمقارنة سطح النداءات مع main باستخراج الحارس نفسه:
 // 79 نداءً في النسختين، وتعبير واحد مختلف فقط، ولا نداء مضاف ولا محذوف.
-const ORIGINAL_API_DIGEST = '5f5384147c1825a9ed7272cfa56d8dc87b54915b626e19c07590c68f6ff2ed14'
+// Reviewed PR #165 change: the existing POST /api/admin/assignments suggestion
+// save includes unitId and sourceKnowledgeIds, so the original evidence is
+// not silently discarded; the apply-to-form path carries the same IDs.
+// No endpoint, HTTP method, or call count changed. The changed payload is
+// guarded independently in tests/assignments/assignment-due-video-guard.test.ts.
+const ORIGINAL_API_DIGEST = 'fe748a2db691e23c625cbfbd572d5def86016620f43cd7d6560cc2352181af0a'
 
 function parseSource() {
   return ts.createSourceFile('AdminBooks.tsx', SOURCE, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
@@ -219,5 +224,31 @@ describe('books workspace organization guard', () => {
     // loadProgramData)، لا يجوز أن يبقى تفصيل كتاب قديم مختارًا تحت البرنامج الجديد.
     assert.ok(SOURCE.includes('if (expandedBookProgramId !== programId)'))
     assert.ok(SOURCE.includes('setExpandedBookProgramId(programId)'))
+  })
+
+  it('oversized outline approval uses Academy dialogs, preserves the server guard and its documented payload', () => {
+    const start = SOURCE.indexOf('  const approveBookOutline = async')
+    const end = SOURCE.indexOf('  const loadOutlineDebug = async', start)
+    assert.ok(start >= 0 && end > start, 'outline approval flow remains present')
+    const flow = SOURCE.slice(start, end)
+    assert.ok(!flow.includes('window.confirm(') && !flow.includes('window.prompt('), 'browser system prompts must not be used')
+    assert.ok(flow.includes("error?.code === 'OUTLINE_OVERSIZED_SECTIONS' && !overrideReason"), 'only the oversized guard may open the documented override flow')
+    assert.ok(flow.includes('attempt(overrideReason ? { overrideOversized: true, overrideReason } : {})'), 'server-side guard remains authoritative on both requests')
+    assert.ok(flow.includes('reason.length < 3'), 'documented reason must be validated before submission')
+    assert.ok(SOURCE.includes("outlineApprovalDialog.stage === 'warning'"), 'warning is an in-platform stage')
+    assert.ok(SOURCE.includes("outlineApprovalDialog.stage === 'reason'") || SOURCE.includes("stage: 'reason'"), 'reason entry is an in-platform stage')
+    assert.ok(SOURCE.includes('outlineApprovalDialog.blocked.slice(0, 4)'), 'actual oversized sections must be displayed')
+    assert.ok(SOURCE.includes('onClick={() => void submitDocumentedOutlineOverride()}'), 'documented override action remains wired')
+    assert.ok(SOURCE.includes('void buildOutlineForBook(bookId)'), 'rebuild option remains functional')
+    assert.ok(SOURCE.includes('aria-invalid={!!outlineApprovalDialog.error}'), 'invalid reasons are announced in the modal')
+  })
+
+  it('book index warnings show Arabic explanations instead of raw audit JSON', () => {
+    assert.ok(SOURCE.includes("warning.startsWith('OUTLINE_OVERSIZED_OVERRIDE:')"), 'documented override is decoded for administrators')
+    assert.ok(SOURCE.includes('تم اعتماد استثناء موثّق للأقسام الطويلة'), 'human-readable override text is visible')
+    assert.ok(SOURCE.includes("warning.startsWith('OUTLINE_')"), 'internal structured metadata is not rendered as raw text')
+    assert.ok(SOURCE.includes("w.startsWith('OUTLINE_SUBHEADING:')"), 'original article subheadings still render separately')
+    assert.ok(SOURCE.includes('سبب المشرف: ${reason}'), 'supervisor rationale remains readable without exposing internal IDs')
+    assert.ok(!SOURCE.includes('⚠ {warning.startsWith'), 'audit code is not rendered directly as a warning')
   })
 })

@@ -1,4 +1,4 @@
-import { planBookOutline, detectOriginalSourceHeadings, outlineSubheadingMarkers, sourceBoundariesFromReadChunks, parseAiOutlineBoundaries, auditOutlineCoverage, outlineApprovalGuard, refineOversizedSections, type OutlineSectionDraft } from '@/lib/book-outline'
+import { planBookOutline, detectOriginalSourceHeadings, outlineSubheadingMarkers, sourceBoundariesFromReadChunks, parseAiOutlineBoundaries, auditOutlineCoverage, outlineApprovalGuard, refineOversizedSections, evidenceBoundariesForOversizedRange, balanceBookOutlineSections, validateThematicArticleGrouping, type OutlineSectionDraft } from '@/lib/book-outline'
 import { readFileSync } from 'node:fs'
 
 type ChunkInput = Parameters<typeof planBookOutline>[0][number]
@@ -229,7 +229,7 @@ function testSectionCapNeverExtendsLargestSpan() {
   const chunkIds = new Map(chunks.map((entry) => [entry.index, `chunk-${entry.index}`]))
   const items = chunks.map((entry) => ({ chunkId: `chunk-${entry.index}`, title: `عنصر ${entry.index}`, summary: 'ملخص اختباري' }))
   const result = planBookOutline(chunks, items, chunkIds, 1, [], 'كتاب الاختبار')
-  assert(result.sections.length <= 16, `سقف الأقسام يجب أن يبقى 16، وُجد ${result.sections.length}`)
+  assert(result.sections.length >= 17, `الفصول الأصلية لا يجوز ضغطها قسرًا إلى سقف 16؛ وُجد ${result.sections.length}`)
   const huge = result.sections.find((section) => section.pageStart === 1)
   assert(huge && huge.pageEnd === 200, `القسم الضخم يجب أن ينتهي عند 200 لا أن يمتد بالدمج، انتهى عند ${huge?.pageEnd}`)
 }
@@ -262,7 +262,237 @@ function testCoverageRejectsShortSectionsWithMissingPages() {
   assert(outlineApprovalGuard(sameChunk).decision === 'ALLOW_WITH_REVIEW', 'القسم مجهول النهاية يبقى للمراجعة البشرية')
 }
 
+function testWholeBookBalanceMergesOnlyGroundedNeighborTopics() {
+  const sections = [
+    draftSection(1, 'مفهوم الإبداع', 1, 9),
+    draftSection(2, 'أنواع الإبداع', 10, 18),
+    draftSection(3, 'مكونات الإبداع', 19, 33),
+    draftSection(4, 'التخطيط الاستراتيجي', 34, 48),
+  ]
+  const result = balanceBookOutlineSections(sections)
+  assert(result.sections.length === 2 && result.merged === 2, 'العناوين الثلاثة المتقاربة يجب أن تصبح وحدة واحدة')
+  assert(result.sections[0].pageStart === 1 && result.sections[0].pageEnd === 33, 'الوحدة المجمّعة يجب أن تستهدف 30–40 صفحة')
+  assert(result.sections[0].title.includes('مفهوم الإبداع') && result.sections[0].title.includes('مكونات الإبداع'), 'العنوان الجامع يجب أن يتكون من العناوين الأصلية نفسها')
+  assert(result.sections[1].title === 'التخطيط الاستراتيجي', 'لا يجوز دمج موضوع غير مرتبط')
+  assert(sections.length === 4, 'الموازنة لا تعدّل الأقسام الأصلية')
+  const chapters = balanceBookOutlineSections([draftSection(1, 'الفصل الأول: الإبداع', 1, 10), draftSection(2, 'الفصل الثاني: الإبداع', 11, 20)])
+  assert(chapters.sections.length === 2, 'حدود الفصول الأصلية محفوظة حتى عند اشتراك الموضوع')
+  const unknown = balanceBookOutlineSections([{ ...draftSection(1, 'أنواع الإبداع', 1, 10), pageEnd: null }, draftSection(2, 'مكونات الإبداع', 11, 20)])
+  assert(unknown.sections.length === 2, 'لا يجوز دمج حدود غير معروفة الصفحات')
+}
+
+async function testFull297BookUsesLateEvidenceNotArithmeticSplits() {
+  const chunks = book297()
+  const topics = [
+    'مبادئ التفكير الإبداعي', 'الابتكار الإداري', 'التخطيط الاستراتيجي',
+    'الموارد البشرية', 'المحاسبة المالية', 'قياس الأداء المؤسسي',
+    'الاتصال التنظيمي', 'إدارة المخاطر', 'جودة الإنتاج', 'التكنولوجيا الرقمية',
+  ]
+  const chunkIds = new Map(chunks.map((entry) => [entry.index, `chunk-${entry.index}`]))
+  const items = chunks.map((entry) => ({
+    chunkId: `chunk-${entry.index}`,
+    title: topics[Math.floor(entry.index / 3)],
+    summary: 'مفهوم مستند إلى مادة الكتاب في هذا المقطع',
+  }))
+  const planned = planBookOutline(chunks, items, chunkIds, 1, [], 'ماستر في إدارة الأعمال')
+  const tail = chunks.filter((entry) => entry.index >= 4)
+  const inferred = evidenceBoundariesForOversizedRange(tail, items, chunkIds, 'ماستر في إدارة الأعمال')
+  assert(inferred.some((boundary) => boundary.at >= 22), 'فحص الموضوعات يجب أن يصل إلى آخر صفحات الكتاب')
+  const refined = await refineOversizedSections({
+    sections: planned.sections, chunks, items, chunkIds, semester: 1,
+    // This early source heading used to suppress ALL later knowledge
+    // boundaries, producing a second oversized tail.
+    sourceBoundaries: [{ at: 6, title: 'التخطيط الاستراتيجي' }],
+    bookTitle: 'ماستر في إدارة الأعمال', allowAi: false,
+  })
+  const balanced = balanceBookOutlineSections(refined.sections)
+  const report = auditOutlineCoverage(balanced.sections)
+  assert(report.totalPages === 297 && report.gaps.length === 0, 'كل صفحات الكتاب 297 يجب أن تبقى مغطاة')
+  assert(report.blocked.length === 0, 'الموضوعات المستندة للمعرفة يجب أن تمنع ذيل 200 صفحة')
+  assert(balanced.sections.some((section) => section.pageStart !== null && section.pageStart > 200), 'لا يجوز تكديس الوحدات بأول خمسين صفحة')
+  assert(!balanced.sections.some((section) => section.title.includes('— تابع')), 'ممنوع الفهرسة بعناوين متابعة مصطنعة')
+}
+
+async function testGenuineSixtyPageChapterIsReviewedNotForceSplit() {
+  const chunks = Array.from({ length: 6 }, (_, index) => spanChunk(index,
+    `${index === 0 ? 'الفصل الأول: مبادئ الإدارة\n' : ''}دراسة متصلة للمفاهيم الأصلية`, index * 10 + 1, (index + 1) * 10))
+  const chunkIds = new Map(chunks.map((entry) => [entry.index, `chunk-${entry.index}`]))
+  const topics = ['الإبداع النظري', 'الاتصال الفعال', 'التخطيط المؤسسي', 'إدارة المخاطر', 'قياس الأداء', 'تنظيم الموارد']
+  const items = chunks.map((entry) => ({ chunkId: `chunk-${entry.index}`, title: topics[entry.index], summary: 'مادة الكتاب' }))
+  const outline = planBookOutline(chunks, items, chunkIds, 1, [], 'كتاب الإدارة')
+  const result = await refineOversizedSections({ sections: outline.sections, chunks, items, chunkIds, semester: 1, bookTitle: 'كتاب الإدارة', allowAi: false })
+  assert(result.sections.length === 1 && result.sections[0].pageEnd === 60, 'لا يُقطّع فصل أصلي من 60 صفحة قسرًا')
+  assert(outlineApprovalGuard(result.sections).decision === 'ALLOW_WITH_REVIEW', 'الفصل الأصلي الطويل يخضع للمراجعة')
+}
+
+function testFullBalancingIsWiredBeforePersistingDraft() {
+  const source = readFileSync('src/lib/book-outline.ts', 'utf8')
+  const refine = source.indexOf('const refined = await refineOversizedSections(')
+  const balance = source.indexOf('const balanced = thematic ? { sections: thematic.sections, merged: 0 } : balanceBookOutlineSections(refined.sections)', refine)
+  const coverage = source.indexOf('const coverage = auditOutlineCoverage(draft.sections)', balance)
+  assert(refine >= 0 && balance > refine && coverage > balance, 'الفحص ثم التجميع الموضوعي المحروس ثم التغطية يجب أن تسبق حفظ الفهرس')
+}
+
+function testRealUploaded297PageArticleHeadings() {
+  // Article titles and navigation markers transcribed from pages of the
+  // actual uploaded Noor-Book.com 297-page management PDF (not invented
+  // chapter names). The source is a compilation of short encyclopedia articles.
+  const real = [
+    [3, 'تنشئة اجتماعیة'], [11, 'قیادة'], [48, 'إبداع'],
+    [62, 'ابتكار'], [101, 'تجزئة السوق'], [114, 'تسویق متعدد القنوات'],
+    [201, 'تحلیل فوائد التكلفة'], [205, 'تكلفة متغیرة'],
+    [214, 'محاسبة تكالیف'], [246, 'موازنة تقدیریة'],
+    [261, 'تكلفة مستھدفة'], [282, 'سوق الأوراق المالیة'],
+    [293, 'استثمار أجنبي مباشر'], [295, 'ذكاء عاطفي'],
+  ] as const
+  const pages = real.map(([page, title]) => ({
+    page, text: `${title}\nاذھب إلى التنقلاذھب إلى البحث\n${title} من عناوين المقالات الموثقة في النص الأصلي.`,
+    textProvenance: 'NATIVE_TEXT' as const,
+  }))
+  const headings = detectOriginalSourceHeadings(pages, 'ماجستير إدارة الأعمال')
+  assert(headings.length === real.length, `عناوين المقالات الفعلية في PDF يجب أن تُكتشف جميعها: ${headings.length}/${real.length}`)
+  assert(headings.some((entry) => entry.page === 293), 'لا يجوز تجاهل موضوع الاستثمار في الصفحات الأخيرة')
+  assert(headings.some((entry) => entry.page === 214), 'مصطلح محاسبة تكاليف ليس ضمن القائمة القديمة لكنه عنوان موثق')
+  const chunkText = pages.slice(6, 11).map((p) => p.text).join('\n\n')
+  const chunks = [{ index: 0, headingPath: null, text: chunkText, pageStart: 201, pageEnd: 261 }]
+  const projected = sourceBoundariesFromReadChunks(chunks, 'ماجستير إدارة الأعمال')
+  assert(projected.length === 5, 'يجب اكتشاف بدايات مقالات متعددة داخل المقطع المحفوظ نفسه')
+  assert(projected.some((entry) => entry.title.includes('موازنة') && (entry.startCharOffset ?? 0) > 0), 'يجب الاحتفاظ بموضع المقال داخل المقطع، وليس أول الصفحة فقط')
+}
+
+function testReal297BookThematicGroupsRespectArticleBoundaries() {
+  // Actual article start pages recorded from the uploaded 297-page PDF.
+  // This exercises the deterministic validator; no production AI call,
+  // simulated database write, or synthetic page cut is claimed.
+  const anchors: Array<[number, string]> = [
+    [1, 'معجزة اقتصادية'], [3, 'تنشئة اجتماعية'], [11, 'قيادة'],
+    [34, 'اتخاذ القرار'], [62, 'ابتكار'], [79, 'فرصة السوق'],
+    [99, 'إدارة الطلب'], [139, 'ترويج تسويق'], [153, 'استراتيجية التسويق'],
+    [176, 'كلفة'], [201, 'تحليل فوائد التكلفة'], [214, 'محاسبة تكاليف'],
+    [232, 'إدارة مبيعات'], [261, 'تكلفة مستهدفة'],
+    [273, 'تنمية اقتصادية'], [291, 'تجارة دولية'], [295, 'ذكاء عاطفي'],
+  ]
+  const sections = anchors.map(([page, title], i) =>
+    draftSection(i + 1, title, page, i + 1 < anchors.length ? anchors[i + 1][0] - 1 : 297))
+  // The two merged pairs really are adjacent, related source articles:
+  // marketing 139–175 and cost/accounting 201–231. Other unrelated
+  // topics are NOT force-merged just to meet a page quota.
+  const ends = [1, 2, 3, 4, 5, 6, 7, 9, 10, 12, 13, 14, 15, 16, 17]
+  let start = 1
+  const groups = ends.map((endOrder) => {
+    const group = { startOrder: start, endOrder, title: sections[start - 1].title }
+    start = endOrder + 1
+    return group
+  })
+  const valid = validateThematicArticleGrouping(JSON.stringify({ groups }), sections)
+  const report = auditOutlineCoverage(valid.sections)
+  assert(report.totalPages === 297 && report.gaps.length === 0, 'كل صفحات ملف PDF الحقيقي مغطاة دون فجوات')
+  assert(report.blocked.length === 0, 'لا توجد وحدة 97 أو 248 صفحة بعد التجميع المتحقق منه')
+  assert(valid.subheadings.length === sections.length, 'كل عنوان مقال أصلي يجب أن يبقى مرجعًا فرعيًا')
+  assert(valid.subheadings.some((marker) => marker.page === 293) === false, 'هذا المثال المختصر لا يضيف عناوين لم تكن ضمن مدخلاته')
+  assert(valid.sections.some((s) => s.pageStart === 201 && s.pageEnd === 231), 'المحاسبة والتكاليف يمكن جمعهما عند حدود المقالات')
+  const invalid = groups.map((group) => ({ ...group }))
+  invalid[7] = { ...invalid[7], endOrder: 12 }
+  let rejected = false
+  try { validateThematicArticleGrouping(JSON.stringify({ groups: invalid }), sections) } catch { rejected = true }
+  assert(rejected, 'المجموعات المتداخلة أو غير المتتابعة مرفوضة بالكامل')
+  const huge = [{ startOrder: 1, endOrder: 7, title: 'إدارة الأعمال' }, ...groups.slice(7)]
+  rejected = false
+  try { validateThematicArticleGrouping(JSON.stringify({ groups: huge }), sections) } catch { rejected = true }
+  assert(rejected, 'ممنوع تحويل 138 صفحة إلى وحدة واحدة حتى لو اقترحها الذكاء')
+}
+
+function testOriginalPdfArticlePageNumbersWithinSameChunk() {
+  // The uploaded PDF starts "تحليل فوائد التكلفة" at page 201 and
+  // "تكلفة متغيرة" at page 205. One OCR chunk can contain both.
+  const chunks = [spanChunk(0, 'تحليل فوائد التكلفة\nمادة المحاسبة\nتكلفة متغيرة\nتفاصيل التكاليف', 201, 208)]
+  const ids = new Map([[0, 'chunk-0']])
+  const items = [{ chunkId: 'chunk-0', title: 'التكاليف', summary: 'مادة موثقة' }]
+  const draft = planBookOutline(chunks, items, ids, 2, [
+    { at: 0, title: 'تحليل فوائد التكلفة', sourcePage: 201, startCharOffset: null },
+    { at: 0, title: 'تكلفة متغيرة', sourcePage: 205, startCharOffset: 42 },
+  ], 'ماجستير إدارة الأعمال', true)
+  assert(draft.sections.length === 2, 'المقالان الحقيقيان يجب أن يبقيا منفصلين عند اختلاف صفحاتهما')
+  assert(draft.sections[0].pageStart === 201 && draft.sections[0].pageEnd === 204, 'رقم 204 يجب أن يأتي من بداية المقال الثاني 205')
+  assert(draft.sections[1].pageStart === 205 && draft.sections[1].pageEnd === 208, 'يجب الحفاظ على رقم الصفحة الأصلي داخل نفس المقطع')
+}
+
+function testRealArabicTopicVariationsDoNotRejectValidGroups() {
+  const sections = [
+    draftSection(1, 'منافسة', 1, 10),
+    draftSection(2, 'احتكار', 11, 20),
+    draftSection(3, 'تسویق', 21, 26),
+    draftSection(4, 'إبداع', 27, 30),
+  ]
+  const groups = { groups: [
+    { startOrder: 1, endOrder: 2, title: 'المنافسة والاحتكار' },
+    { startOrder: 3, endOrder: 3, title: 'التسويق' },
+    { startOrder: 4, endOrder: 4, title: 'الإبداع' },
+  ] }
+  const result = validateThematicArticleGrouping(JSON.stringify(groups), sections)
+  assert(result.sections.length === 3, 'الـ التعريف وكتابة ي الفارسية في PDF لا يجوز أن ترفض عناوين موثّقة')
+  assert(result.subheadings.length === 4, 'دمج العناوين لا يفقد موضوعات المصدر الأصلية')
+  const unrelated = { groups: [{ ...groups.groups[0], title: 'توليد طاقة شمسية' }, ...groups.groups.slice(1)] }
+  let rejected = false
+  try { validateThematicArticleGrouping(JSON.stringify(unrelated), sections) } catch { rejected = true }
+  assert(rejected, 'المرونة الإملائية لا تجيز عنوانًا بعيدًا عن محتوى المقالات')
+}
+
+function testThematicGroupCannotHideMissingPdfPages() {
+  // Replayed 297-page PDF: a heading on p29 can share a stored chunk with
+  // preceding p28, while the old range ends at p27. Grouping must not
+  // silently claim p28 was covered by either unit.
+  const source = [
+    draftSection(1, 'قيادة', 11, 27),
+    draftSection(2, 'ذكاء عاطفي', 29, 31),
+    draftSection(3, 'صراع', 32, 33),
+  ]
+  const proposal = { groups: [
+    { startOrder: 1, endOrder: 2, title: 'قيادة وذكاء عاطفي' },
+    { startOrder: 3, endOrder: 3, title: 'صراع' },
+  ] }
+  let reason = ''
+  try { validateThematicArticleGrouping(JSON.stringify(proposal), source) }
+  catch (error) { reason = error instanceof Error ? error.message : String(error) }
+  assert(reason === 'OUTLINE_THEMATIC_SOURCE_COVERAGE_GAP', 'لا يجوز إخفاء الصفحة 28 المفقودة داخل وحدة أكبر')
+}
+
+function testVerifiedMidChunkArticleKeepsPreviousPageAndEvidence() {
+  // Actual failure pattern from the 297-page replay: page 28 belongs to
+  // the same stored chunk that also contains a new article on page 29.
+  const chunks = [
+    spanChunk(0, 'مبادئ القيادة وتفاصيلها', 24, 27),
+    spanChunk(1, 'نهاية المقال السابق ثم عنوان مقال جديد', 28, 31),
+    spanChunk(2, 'متابعة المقال الجديد', 32, 35),
+  ]
+  const ids = new Map(chunks.map((chunk) => [chunk.index, 'chunk-' + chunk.index]))
+  const draft = planBookOutline(chunks, [], ids, 1, [
+    { at: 0, title: 'القيادة الإدارية', sourcePage: 24 },
+    { at: 1, title: 'الذكاء العاطفي', sourcePage: 29, startCharOffset: 25 },
+  ], 'كتاب الإدارة', true)
+  assert(draft.sections.length === 2, 'Two source articles should remain separate')
+  assert(draft.sections[0].pageEnd === 28 && draft.sections[1].pageStart === 29, 'Page 28 must not disappear')
+  assert(draft.sections[0].chunkEndIndex === 1, 'Prior study unit must retain the source chunk containing page 28')
+  assert(draft.sections[1].chunkStartIndex === 1, 'Next unit must also cite the source chunk starting on page 28')
+  assert(auditOutlineCoverage(draft.sections).gaps.length === 0, 'No false gap between pages 28 and 29')
+  const withoutVerifiedPage = planBookOutline(chunks, [], ids, 1, [
+    { at: 0, title: 'القيادة الإدارية' },
+    { at: 1, title: 'الذكاء العاطفي', startCharOffset: 25 },
+  ], 'كتاب الإدارة', true)
+  assert(withoutVerifiedPage.sections[0].chunkEndIndex === 0, 'No guessing an overlap when PDF page evidence is absent')
+}
+
 const tests = [
+  testVerifiedMidChunkArticleKeepsPreviousPageAndEvidence,
+  testThematicGroupCannotHideMissingPdfPages,
+  testRealArabicTopicVariationsDoNotRejectValidGroups,
+  testOriginalPdfArticlePageNumbersWithinSameChunk,
+  testReal297BookThematicGroupsRespectArticleBoundaries,
+  testRealUploaded297PageArticleHeadings,
+  testWholeBookBalanceMergesOnlyGroundedNeighborTopics,
+  testFull297BookUsesLateEvidenceNotArithmeticSplits,
+  testGenuineSixtyPageChapterIsReviewedNotForceSplit,
+  testFullBalancingIsWiredBeforePersistingDraft,
   testCoverageRejectsShortSectionsWithMissingPages,
   testWordFormChaptersElevenAndTwelve,
   testGenericIntroductionRestoresLegacyAiFallback,

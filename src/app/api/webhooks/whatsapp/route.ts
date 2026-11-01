@@ -10,6 +10,7 @@ import {
 } from '@/lib/human-handoff'
 import {
   createOfficialWhatsAppAgentReply,
+  sanitizeWhatsAppBotReply,
   extractWhatsAppInboundMessages,
   officialWhatsAppConfigured,
   sendOfficialWhatsAppReadReceipt,
@@ -536,7 +537,12 @@ async function resolveWhatsAppBotReply(message: WhatsAppInboundMessage, storedIn
     `nonTextMessage=${deps.contextFlags?.nonTextMessage || 'none'}`,
     `contactRequested=${contactRequested ? 'true' : 'false'}`,
   ].join('; ')
-  return createAgentReply(message, extraContext)
+  const modelReply = await createAgentReply(message, extraContext)
+  const outgoing = sanitizeWhatsAppBotReply(modelReply)
+  if (outgoing.stripped) {
+    console.warn('[whatsapp-identity-guard] removed model self-identification from outgoing reply')
+  }
+  return outgoing.text
 }
 
 export async function __resolveWhatsAppBotReplyForTests(message: WhatsAppInboundMessage, storedInbound: any, deps: ResolveWhatsAppBotReplyDeps = {}) {

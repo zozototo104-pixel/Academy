@@ -8,10 +8,14 @@ let admissionSupervisorId: string | null = 'sup-1'
 let textAiResponse = ''
 let extractedText: string | null = 'نص إجابة الطالب المكتوب في الملف المرفق بشكل واضح ومفصل.'
 const updateCalls: any[] = []
+const assignmentCreates: any[] = []
 const notifyCalls: any[] = []
 const emailCalls: any[] = []
 const auditCalls: any[] = []
 let textAiCalls = 0
+let lastGradingPrompt = ''
+let mockSourceUnit = false
+let mockMissingOriginal = false
 let fileBufferToReturn: Buffer | null = null
 let bookReaderCalls = 0
 let bookOcrCalls = 0
@@ -66,25 +70,39 @@ const db: any = {
   admissionApplication: {
     findFirst: async () => ({ id: 'app-1', supervisorId: admissionSupervisorId, supervisionMode: 'HYBRID' }),
   },
-  unit: {
+  program: { findUnique: async () => ({ id: 'prog-1', titleAr: 'إدارة الموارد البشرية' }) },
+  programAssignment: {
     findUnique: async () => null,
+    create: async (args: any) => { assignmentCreates.push(args.data); return { id: 'assign-new', ...args.data } },
+  },
+  unit: {
+    findUnique: async () => mockSourceUnit ? { id: 'unit-1', title: 'إدارة الكفاءات', sourceBookId: 'book-1', chunkStartIndex: 0, chunkEndIndex: 1 } : null,
+    findFirst: async (args: any) => mockSourceUnit && args?.where?.programId === 'prog-1' && args?.where?.id === 'unit-1' ? { id: 'unit-1', semester: 1, sourceBookId: 'book-1', chunkStartIndex: 0, chunkEndIndex: 1 } : null,
     findMany: async () => [],
   },
-  bookChunk: { findMany: async () => [] },
-  bookKnowledgeItem: { findMany: async () => [] },
-  book: { findUnique: async () => null },
+  bookChunk: { findMany: async () => mockSourceUnit ? [{ id: 'chunk-1', text: 'نص كتاب الموارد البشرية عن التخطيط والاستقطاب.' }] : [] },
+  bookKnowledgeItem: { findMany: async (args: any) => {
+    if (!mockSourceUnit) return []
+    const exact = { id: 'ki-exact', title: 'الاستقطاب الموثّق', summary: 'المصدر الأصلي عن معايير الاختيار والموارد البشرية.', excerpt: 'إجراءات الاستقطاب' }
+    const unitExtra = { id: 'ki-other-unit', title: 'تخطيط الكفاءات', summary: 'معلومات إضافية من الوحدة الصحيحة.', excerpt: 'التخطيط' }
+    if (args?.where?.id?.in) return mockMissingOriginal ? [] : args.where.id.in.includes(exact.id) ? [exact] : []
+    return [unitExtra]
+  } },
+  book: { findUnique: async () => mockSourceUnit ? { title: 'كتاب الموارد البشرية' } : null },
 }
 
 mock.module('@/lib/db', () => ({ db }))
 mock.module('@/lib/auth', () => ({
   requireUser: async () => currentUser,
   requireAdmin: async () => {
+    if (currentUser.role === 'ADMIN') return currentUser
     throw new Error('UNAUTHORIZED')
   },
 }))
 mock.module('@/lib/text-ai', () => ({
-  textAiCompleteJson: async () => {
+  textAiCompleteJson: async (args: any) => {
     textAiCalls += 1
+    lastGradingPrompt = String(args?.history?.[0]?.text || '')
     return textAiResponse
   },
 }))
@@ -132,6 +150,9 @@ mock.module('@/lib/notify', () => ({
 }))
 mock.module('@/lib/mailer', () => ({
   emailAssignmentGraded: async (...args: any[]) => {
+    emailCalls.push(args)
+  },
+  emailAssignmentPublished: async (...args: any[]) => {
     emailCalls.push(args)
   },
 }))
@@ -201,12 +222,60 @@ describe('supervisor assignment grading — rubric and draft normalization', () 
   })
 })
 
+describe('admin assignment source persistence — verified program/unit/knowledge contract', () => {
+  beforeEach(() => {
+    currentUser = { id: 'admin-1', role: 'ADMIN', name: 'المدير' }
+    mockSourceUnit = true
+    mockMissingOriginal = false
+    assignmentCreates.length = 0
+  })
+
+  const save = (extra: any) => new NextRequest('http://localhost/api/admin/assignments', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      programId: 'prog-1', title: 'واجب إدارة الموارد البشرية', description: 'طبّق معايير الاستقطاب في حالة واقعية مفصلة.',
+      semester: 1, points: 100, status: 'DRAFT', unitId: 'unit-1', ...extra,
+    }),
+  })
+
+  test('verified original source ID is written to assignment JSONB field', async () => {
+    const route = await import('@/app/api/admin/assignments/route')
+    const res = await route.POST(save({ sourceKnowledgeIds: ['ki-exact'] }))
+    expect(res.status).toBe(200)
+    expect(assignmentCreates).toHaveLength(1)
+    expect(assignmentCreates[0].unitId).toBe('unit-1')
+    expect(assignmentCreates[0].sourceKnowledgeIds).toEqual(['ki-exact'])
+  })
+
+  test('knowledge ID outside the verified unit is rejected without any write', async () => {
+    const route = await import('@/app/api/admin/assignments/route')
+    const res = await route.POST(save({ sourceKnowledgeIds: ['ki-outside'] }))
+    expect(res.status).toBe(400)
+    expect(assignmentCreates).toHaveLength(0)
+  })
+
+  test('legacy manual assignment without source/unit still saves without invented provenance', async () => {
+    const route = await import('@/app/api/admin/assignments/route')
+    const res = await route.POST(save({ unitId: null }))
+    expect(res.status).toBe(200)
+    expect(assignmentCreates).toHaveLength(1)
+    expect(assignmentCreates[0].sourceKnowledgeIds).toBeUndefined()
+    expect(assignmentCreates[0].unitId).toBeNull()
+  })
+})
+
 describe('supervisor assignments route — scope is the gate, analyze never saves', () => {
   beforeEach(() => {
     currentUser = { id: 'sup-1', role: 'SUPERVISOR', name: 'المشرف' }
     admissionSupervisorId = 'sup-1'
     textAiResponse = validDraft()
     textAiCalls = 0
+    lastGradingPrompt = ''
+    mockSourceUnit = false
+    mockMissingOriginal = false
+    submission.assignment.unitId = null
+    submission.assignment.sourceKnowledgeIds = null
     fileBufferToReturn = null
     bookReaderCalls = 0
     bookOcrCalls = 0
@@ -272,6 +341,54 @@ describe('supervisor assignments route — scope is the gate, analyze never save
     // نداء ذكاء واحد فقط هو التصحيح؛ قراءة PDF لم تمر بنداء رؤية منفرد.
     expect(textAiCalls).toBe(1)
     expect(updateCalls.length).toBe(0)
+  })
+
+  test('original source IDs are read and sent to AI before all other unit knowledge', async () => {
+    mockSourceUnit = true
+    submission.assignment.unitId = 'unit-1'
+    submission.assignment.sourceKnowledgeIds = ['ki-exact']
+    const route = await import('@/app/api/supervisor/assignments/route')
+    const res = await route.POST(postRequest({ action: 'analyze', submissionId: 'sub-1' }))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.provenance.bookSourceStatus).toBe('EXACT')
+    expect(body.provenance.sourceKnowledgeCount).toBe(1)
+    expect(body.provenance.sourceKnowledgeMatched).toBe(1)
+    expect(lastGradingPrompt).toContain('مصدر الواجب الأصلي: الاستقطاب الموثّق')
+    expect(lastGradingPrompt).not.toContain('تخطيط الكفاءات')
+    expect(updateCalls).toHaveLength(0)
+    expect(notifyCalls).toHaveLength(0)
+  })
+
+  test('deleted original knowledge is flagged and supplemented only from the same unit', async () => {
+    mockSourceUnit = true
+    mockMissingOriginal = true
+    submission.assignment.unitId = 'unit-1'
+    submission.assignment.sourceKnowledgeIds = ['ki-exact']
+    const route = await import('@/app/api/supervisor/assignments/route')
+    const res = await route.POST(postRequest({ action: 'analyze', submissionId: 'sub-1' }))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.provenance.bookSourceStatus).toBe('PARTIAL')
+    expect(body.provenance.sourceKnowledgeCount).toBe(1)
+    expect(body.provenance.sourceKnowledgeMatched).toBe(0)
+    expect(lastGradingPrompt).toContain('استكمال من الوحدة نفسها: تخطيط الكفاءات')
+    expect(lastGradingPrompt).not.toContain('مصدر الواجب الأصلي: الاستقطاب الموثّق')
+    expect(updateCalls).toHaveLength(0)
+  })
+
+  test('legacy manual linked task uses UNIT status, unlinked task uses NONE with no invented reference', async () => {
+    mockSourceUnit = true
+    submission.assignment.unitId = 'unit-1'
+    const route = await import('@/app/api/supervisor/assignments/route')
+    const linked = await route.POST(postRequest({ action: 'analyze', submissionId: 'sub-1' }))
+    expect((await linked.json()).provenance.bookSourceStatus).toBe('UNIT')
+    expect(lastGradingPrompt).toContain('تخطيط الكفاءات')
+    submission.assignment.unitId = null
+    const unlinked = await route.POST(postRequest({ action: 'analyze', submissionId: 'sub-1' }))
+    expect((await unlinked.json()).provenance.bookSourceStatus).toBe('NONE')
+    expect(lastGradingPrompt).toContain('لا يوجد سياق كتاب متاح')
+    expect(updateCalls).toHaveLength(0)
   })
 
   test('grade above assignment points is rejected without saving', async () => {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit, notify } from '@/lib/notify'
@@ -34,6 +35,8 @@ function mapAssignment(a: any) {
   return {
     id: a.id,
     programId: a.programId,
+    unitId: a.unitId || null,
+    sourceKnowledgeIds: Array.isArray(a.sourceKnowledgeIds) ? a.sourceKnowledgeIds.filter((id: unknown): id is string => typeof id === 'string') : null,
     title,
     description,
     semester: a.semester,
@@ -114,8 +117,70 @@ export async function POST(req: NextRequest) {
     const program = await db.program.findUnique({ where: { id: programId }, select: { id: true, titleAr: true } })
     if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
 
+    // Old clients omit unitId: preserve their existing assignment link on update.
+    // An explicitly submitted empty value means the administrator cleared it.
+    const requestedUnitId = Object.prototype.hasOwnProperty.call(body, 'unitId')
+      ? (asString(body.unitId, 100) || null)
+      : undefined
+    if (requestedUnitId) {
+      const matchingUnit = await db.unit.findFirst({ where: { id: requestedUnitId, programId }, select: { id: true, semester: true } })
+      // Semester 3 research projects may cite a verified unit from either taught semester.
+      if (!matchingUnit || (asInt(body.semester, 1, 1, 3) !== 3 && matchingUnit.semester !== asInt(body.semester, 1, 1, 3))) {
+        return NextResponse.json({ error: 'وحدة الواجب لا تتبع البرنامج والفصل المحددين' }, { status: 400 })
+      }
+    }
+    const existingScope = id ? await db.programAssignment.findUnique({
+      where: { id }, select: { id: true, programId: true, unitId: true, sourceKnowledgeIds: true },
+    }) : null
+    if (id && (!existingScope || existingScope.programId !== programId)) {
+      return NextResponse.json({ error: 'الواجب غير موجود لهذا البرنامج' }, { status: 404 })
+    }
+    const effectiveUnitId = requestedUnitId === undefined ? (existingScope?.unitId || null) : requestedUnitId
+    const hasSourceIds = Object.prototype.hasOwnProperty.call(body, 'sourceKnowledgeIds')
+    let validatedSourceIds: string[] | null | undefined = undefined
+    if (hasSourceIds) {
+      if (body.sourceKnowledgeIds === null) {
+        validatedSourceIds = null
+      } else if (!Array.isArray(body.sourceKnowledgeIds) || body.sourceKnowledgeIds.length > 60 ||
+        body.sourceKnowledgeIds.some((value: unknown) => typeof value !== 'string' || !String(value).trim() || String(value).length > 100)) {
+        return NextResponse.json({ error: 'صيغة مراجع المعرفة غير صالحة' }, { status: 400 })
+      } else {
+        validatedSourceIds = [...new Set<string>(body.sourceKnowledgeIds.map((value: string) => value.trim()))]
+        if (!validatedSourceIds.length) validatedSourceIds = null
+      }
+    } else if (id && requestedUnitId !== undefined && requestedUnitId !== existingScope?.unitId) {
+      // A different unit invalidates previous evidence unless explicitly resubmitted and verified.
+      validatedSourceIds = null
+    }
+    if (validatedSourceIds?.length) {
+      if (!effectiveUnitId) return NextResponse.json({ error: 'اختر الوحدة المرجعية قبل ربط عناصر المعرفة' }, { status: 400 })
+      const unit = await db.unit.findFirst({
+        where: { id: effectiveUnitId, programId },
+        select: { sourceBookId: true, chunkStartIndex: true, chunkEndIndex: true, semester: true },
+      })
+      if (!unit?.sourceBookId || unit.chunkStartIndex == null || unit.chunkEndIndex == null ||
+        (asInt(body.semester, 1, 1, 3) !== 3 && unit.semester !== asInt(body.semester, 1, 1, 3))) {
+        return NextResponse.json({ error: 'وحدة المصادر غير موثّقة في البرنامج والفصل' }, { status: 400 })
+      }
+      const chunks = await db.bookChunk.findMany({
+        where: { bookId: unit.sourceBookId, index: { gte: unit.chunkStartIndex, lte: unit.chunkEndIndex } },
+        select: { id: true },
+      })
+      const sources = await db.bookKnowledgeItem.findMany({
+        where: { id: { in: validatedSourceIds }, programId, kbVersion: 2,
+          chunkId: { in: chunks.map((chunk) => chunk.id) },
+          category: { notIn: ['QUESTION_SEED', 'LEGACY'] } },
+        select: { id: true },
+      })
+      if (sources.length !== validatedSourceIds.length) {
+        return NextResponse.json({ error: 'بعض عناصر المعرفة لا تنتمي للوحدة والبرنامج المحددين' }, { status: 400 })
+      }
+    }
     const data = {
       programId,
+      unitId: requestedUnitId,
+      sourceKnowledgeIds: validatedSourceIds === undefined ? undefined
+        : validatedSourceIds === null ? Prisma.DbNull : validatedSourceIds,
       title,
       description,
       semester: asInt(body.semester, 1, 1, 3),

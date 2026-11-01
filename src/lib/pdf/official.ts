@@ -3,6 +3,7 @@ import { join } from 'path'
 import { pathToFileURL } from 'url'
 import { jsPDF } from 'jspdf'
 import sharp from 'sharp'
+import { ensureStampFonts } from '@/lib/legacy-certificate-files'
 
 export const PDF_PAGE_W = 794
 export const PDF_PAGE_H = 1123
@@ -217,6 +218,14 @@ function buildBodies(opts: OfficialPdfOptions) {
 }
 
 export async function renderOfficialPdf(opts: OfficialPdfOptions): Promise<Uint8Array> {
+  // sharp/librsvg resolves SVG fonts through fontconfig system fonts only;
+  // it does not honor the @font-face block below. Production servers ship
+  // no Arabic system font, so every Arabic glyph rendered as a tofu box
+  // there while local/CI machines (which have Noto fonts) looked fine.
+  // Point fontconfig at the embedded fonts before the first rasterization —
+  // the same mechanism the legacy-certificate stamp already relies on; the
+  // family stack below already names 'Noto Naskh Arabic', which is bundled.
+  ensureStampFonts()
   const bodies = buildBodies(opts)
   const doc = new jsPDF({ orientation: 'portrait', unit: 'px', format: [PDF_PAGE_W, PDF_PAGE_H], compress: true })
   for (let i = 0; i < bodies.length; i++) {

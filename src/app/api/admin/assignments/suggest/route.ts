@@ -67,7 +67,7 @@ function parseJsonArray(raw: string): any[] {
   return []
 }
 
-function normalizeSuggestions(raw: any[], semester: number, allowedIds: Set<string>, titleById: Map<string, string>, fallbackUnitId?: string | null): AssignmentSuggestion[] {
+function normalizeSuggestions(raw: any[], semester: number, allowedIds: Set<string>, titleById: Map<string, string>, unitById: Map<string, Set<string>>, fallbackUnitId?: string | null): AssignmentSuggestion[] {
   const seen = new Set<string>()
   const out: AssignmentSuggestion[] = []
   for (const item of raw) {
@@ -76,6 +76,8 @@ function normalizeSuggestions(raw: any[], semester: number, allowedIds: Set<stri
     if (!title || !description || looksLikeBrokenAcademicOutput(`${title}. ${description}`)) continue
     const ids: string[] = Array.isArray(item?.sourceKnowledgeIds) ? item.sourceKnowledgeIds.map((id: unknown) => clean(id, 100)).filter((id: string): id is string => Boolean(id) && allowedIds.has(id)) : []
     if (!ids.length) continue
+    const proposedUnitId = clean(item?.unitId, 100) || fallbackUnitId || ''
+    if (!proposedUnitId || ids.some((id) => !unitById.get(id)?.has(proposedUnitId))) continue
     const key = title.toLowerCase().replace(/\s+/g, ' ')
     if (seen.has(key)) continue
     seen.add(key)
@@ -93,7 +95,7 @@ function normalizeSuggestions(raw: any[], semester: number, allowedIds: Set<stri
       rubric: cleanAssignmentText(item?.rubric, '', 1600) || 'الاستناد إلى مصادر الوحدة 30%، جودة التحليل 30%، التطبيق المهني 25%، وضوح العرض 15%',
       sourceKnowledgeTitles: sourceTitles,
       sourceKnowledgeIds: Array.from(new Set<string>(ids)),
-      unitId: clean(item?.unitId, 100) || fallbackUnitId || null,
+      unitId: proposedUnitId,
     })
     if (out.length >= 6) break
   }
@@ -136,6 +138,13 @@ export async function POST(req: NextRequest) {
     const existingTitles = existing.map((a) => a.title).join('، ')
     const titleById = new Map(knowledge.map((k) => [String(k.id), titleFromKnowledge(k)] as const))
     const allowedIds = new Set<string>(knowledge.map((k) => String(k.id)))
+    const unitById = new Map<string, Set<string>>()
+    for (const item of knowledge) {
+      const id = String(item.id)
+      const matchingUnits = unitById.get(id) || new Set<string>()
+      matchingUnits.add(String(item.unitId))
+      unitById.set(id, matchingUnits)
+    }
     const knowledgeContext = knowledge.slice(0, 60).map((k, i) => `${i + 1}. id=${k.id}\nالوحدة: ${k.unitTitle}\nالعنوان: ${titleFromKnowledge(k)}\nالفئة: ${k.category}\nالصفحات: ${k.pageStart ?? '؟'}–${k.pageEnd ?? k.pageStart ?? '؟'}\nالملخص: ${cleanAssignmentText(k.summary, '', 520)}\nالمقتطف: ${cleanAssignmentText(k.excerpt, '', 520)}`).join('\n\n')
 
     const prompt = `صمم 4 إلى 6 واجبات أكاديمية من عناصر معرفة v2 داخل نطاق الوحدات فقط.\n\nالبرنامج: ${program.titleAr}\nالفصل: ${semester === 2 ? 'الثاني' : semester === 3 ? 'بحث/مشروع' : 'الأول'}\nالواجبات الموجودة لتجنب التكرار: ${existingTitles || 'لا يوجد'}\n\nمصادر الوحدة المسموحة:\n${knowledgeContext}\n\nأرجع JSON array فقط. كل واجب يجب أن يحتوي title, description, type, semester, points, weight, rubric, unitId, sourceKnowledgeIds, sourceKnowledgeTitles. لا تقترح أي موعد تسليم — الموعد يحدده الأدمن بتاريخ ثابت لاحقًا.\nقواعد إلزامية: sourceKnowledgeIds من ids أعلاه فقط، والوصف يذكر مراجع الصفحات، ولا تكتب واجباً عاماً أو قالبياً.`
@@ -146,7 +155,7 @@ export async function POST(req: NextRequest) {
     } catch (error: any) {
       return NextResponse.json({ error: `توقف اقتراح الواجبات مؤقتاً: ${String(error?.message || error)}`, status: 'PAUSED' }, { status: 503 })
     }
-    const suggestions = normalizeSuggestions(parseJsonArray(raw), semester, allowedIds, titleById, unitId)
+    const suggestions = normalizeSuggestions(parseJsonArray(raw), semester, allowedIds, titleById, unitById, unitId)
     if (!suggestions.length) return NextResponse.json({ error: 'لم ينتج الراوتر واجبات موثقة بالمصادر. لم تُنشأ قوالب بديلة.', status: 'PAUSED' }, { status: 503 })
     return NextResponse.json({ suggestions })
   } catch (e: any) {

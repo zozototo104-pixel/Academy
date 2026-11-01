@@ -2095,6 +2095,7 @@ model ProgramAssignment {
   programId   String
   program     Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
   unitId      String?
+  sourceKnowledgeIds Json?
   title       String
   description String
   semester    Int      @default(1) // الفصل الدراسي المرتبط بالتكليف

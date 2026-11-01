@@ -472,15 +472,18 @@ export function ExamView() {
         method: 'POST',
         body: JSON.stringify({ examId: data.exam.id, proctoringRequested: enable }),
       })
+      // Only the server can start/resume the attempt; its detail endpoint
+      // releases questions after that succeeds. Keep the consent screen up
+      // until they arrive, otherwise an empty list crashes the exam view.
+      // If this request fails, retrying start resumes the SAME active attempt.
+      const fresh = await api<ExamData>(`/api/program-exam/detail?examId=${data.exam.id}`)
+      if (!Array.isArray(fresh.questions) || !fresh.questions.length) {
+        throw new Error('تعذر تحميل أسئلة المحاولة النشطة. أعد المحاولة لاستكمال نفس الامتحان.')
+      }
       configureCountdown(started?.attempt?.startedAt, started?.durationMin || data.exam.durationMin, started?.serverNow)
+      setData(fresh)
       setProctorEnabled(enable)
       setExamStarted(true)
-      // الأسئلة لا تصل إلا بعد بدء المحاولة على الخادم — أعد جلب التفاصيل
-      // الآن حتى تظهر أسئلة المحاولة النشطة.
-      try {
-        const fresh = await api<ExamData>(`/api/program-exam/detail?examId=${data.exam.id}`)
-        setData(fresh)
-      } catch { /* عند فشل إعادة الجلب تظهر الأسئلة مع أي تحديث لاحق للصفحة */ }
       if (stream) {
         const activeStream = stream
         proctorStreamRef.current = activeStream
@@ -597,9 +600,12 @@ export function ExamView() {
     )
   }
 
+  // Before a program-exam attempt is started, the API intentionally sends
+  // questions: [] to keep exam questions private. Do not dereference q until
+  // the consent screen has been rendered and questions are available.
   const q = data.questions[current]
   const elapsedMin = Math.floor((Date.now() - startedAt) / 60000)
-  const isObjective = q.type === 'MCQ' || q.type === 'TF'
+  const isObjective = q?.type === 'MCQ' || q?.type === 'TF'
   const lowTime = secondsLeft !== null && secondsLeft <= 600
 
   // ===== 12.2: شاشة الإشعار المسبق والموافقة على المراقبة الإلكترونية (للامتحانات الشاملة) =====
@@ -904,6 +910,30 @@ export function ExamView() {
             </div>
           </DialogContent>
         </Dialog>
+      </div>
+    )
+  }
+
+  // A stale draft, malformed question list or transient detail failure must
+  // never crash the entire student portal. Retry detail without changing
+  // the server attempt or consuming another exam attempt.
+  if (!q) {
+    return (
+      <div role="alert" className="mx-auto max-w-xl px-4 py-16 text-center text-[#0f2b46]">
+        <p className="mb-4 text-sm font-bold">تعذر عرض سؤال الامتحان. يمكنك إعادة تحميل أسئلة محاولتك الحالية دون بدء محاولة جديدة.</p>
+        <Button onClick={async () => {
+          try {
+            const detailUrl = activeExamKind === 'final'
+              ? `/api/program-exam/detail?examId=${data.exam.id}`
+              : `/api/exam/detail?examId=${data.exam.id}`
+            const fresh = await api<ExamData>(detailUrl)
+            if (!Array.isArray(fresh.questions) || !fresh.questions.length) throw new Error('أسئلة الامتحان غير متاحة حاليًا')
+            setCurrent(0)
+            setData(fresh)
+          } catch (error) {
+            toast({ title: 'تعذر استعادة الأسئلة', description: (error as Error).message || 'أعد المحاولة لاحقًا', variant: 'destructive' })
+          }
+        }}>إعادة تحميل أسئلة المحاولة</Button>
       </div>
     )
   }

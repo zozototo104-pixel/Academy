@@ -1,5 +1,11 @@
 import { readFileSync } from 'fs'
 import { join } from 'path'
+import {
+  hasPendingPlatformChatHandoffDetailsPrompt,
+  looksLikePlatformChatHandoffDetails,
+  wantsPlatformChatHumanSupport,
+  wantsHumanSupport,
+} from '../src/lib/human-handoff'
 
 function file(path: string) {
   return readFileSync(join(process.cwd(), path), 'utf8')
@@ -165,6 +171,60 @@ function testAlborihiProviderWiring() {
   assert(settingsRoute.includes('ALBORIHI'), 'settings route encryption allowlist must include Alborihi')
 }
 
+function testOfficialAccreditationProgramsNavigation() {
+  const accreditation = file('src/app/accreditation/page.tsx')
+  const standalone = file('src/app/programs/ProgramsStandaloneClient.tsx')
+  const shell = file('src/components/aact/Shell.tsx')
+  const home = file('src/app/page.tsx')
+  const appRoutes = file('src/lib/app-routes.ts')
+
+  assert(accreditation.includes('<Link href="/programs"'), 'official accreditation must still link to public programs')
+  assert(shell.includes("navigate('home')"), 'the shared header home action must remain available')
+  assert(standalone.includes("fetch('/api/auth/me', { cache: 'no-store', credentials: 'same-origin' })"), 'standalone programs must recover the existing HttpOnly session')
+  assert(standalone.includes('{sessionReady && <Header />}'), 'header must not show a misleading login button before the session check')
+  assert(standalone.includes('!sessionReady ? (') && standalone.includes("effectiveView === 'programs' && <ProgramsView />"), 'programs must mount only after restoring the user session to avoid loading the public catalog for a logged-in student')
+  const programsView = file('src/components/aact/ProgramsView.tsx')
+  assert(programsView.includes('const d = user') && programsView.includes("'/api/programs?summary=1'"), 'student program catalog must continue selecting the authenticated endpoint')
+  assert(standalone.includes("if (!routeReady || supportedProgramViews.has(view)) return"), 'supported public views must not reload')
+  assert(standalone.includes('window.location.reload()'), 'home/dashboard navigation must hand off to their actual Next page without manual refresh')
+  assert(standalone.includes('setRouteReady(true)'), 'initial programs page hydration must not trigger a reload loop')
+  assert(standalone.includes("const effectiveView = !routeReady && view === 'home' ? 'programs' : view"), 'programs fallback is permitted only during initial standalone route hydration')
+  assert(!standalone.includes("const effectiveView = view === 'home' ? 'programs' : view"), 'after hydration, home must not silently remain on the programs page')
+  assert(home.includes("effectiveView === 'home' && <HomeView />"), 'main page must remain the canonical home renderer')
+  assert(home.includes("effectiveView === 'dashboard' && <DashboardView />"), 'main page must render an authenticated student dashboard')
+  assert(appRoutes.includes("home: '/'") && appRoutes.includes("dashboard: '/dashboard'"), 'home and student routes must remain distinct')
+}
+
+function testInPlatformAcademicRequestNeverCreatesUnwantedHandoff() {
+  const academic = 'اريد ملخص بسيط عن ادارة الموارد البشرية مع شرح مسار اهداف البرنامج'
+  const otherAcademic = 'أريد شرح إدارة المشاريع وطريقة دراسة المواد'
+  assert(!wantsPlatformChatHumanSupport(academic), 'student screenshot: academic summary must not request administration')
+  assert(!wantsPlatformChatHumanSupport(otherAcademic), 'generic إدارة in an academic question is not a human target')
+  assert(!looksLikePlatformChatHandoffDetails(academic), 'long academic request without a question mark is not contact details')
+
+  const oldConversation = [
+    { role: 'user', content: 'اريد التواصل مع الادارة بشأن طلب سابق' },
+    { role: 'assistant', content: 'تم استلام طلبك وتحويله لفريق الإدارة. وصلنا اسمك وموضوعك، وسيتواصل معك موظف مختص.' },
+  ]
+  assert(!hasPendingPlatformChatHandoffDetailsPrompt(oldConversation), 'an old handoff confirmation never opens a new details prompt')
+  assert(wantsPlatformChatHumanSupport('أريد التواصل مع الإدارة بخصوص التسجيل'), 'explicit human contact remains available')
+  assert(wantsPlatformChatHumanSupport('بدي موظف احكي معه'), 'explicit staff request remains available')
+  assert(wantsHumanSupport('أريد التواصل مع الإدارة بخصوص التسجيل'), 'existing shared/WhatsApp handoff logic remains unchanged')
+
+  const explicitPrompt = [{ role: 'assistant', content: 'رجاء اكتب اسمك وموضوعك حتى نستطيع التواصل معك' }]
+  assert(hasPendingPlatformChatHandoffDetailsPrompt(explicitPrompt), 'assistant question for name and topic opens details step')
+  assert(looksLikePlatformChatHandoffDetails('اسمي محمد وموضوعي طلب القبول'), 'explicit name and topic remain accepted')
+  assert(!looksLikePlatformChatHandoffDetails('أريد ملخصًا لبرنامج الإدارة مع شرح الأهداف'), 'academic request must not be treated as details even after a real prompt')
+
+  const chatRoute = file('src/app/api/chat/route.ts')
+  assert(chatRoute.includes('hasPendingPlatformChatHandoffDetailsPrompt(orderedMessages)'), 'platform chat must check the assistant prompt, not an old user request')
+  assert(occurrences(chatRoute, 'looksLikePlatformChatHandoffDetails(userText)') === 2, 'text-stream and voice/non-stream must use safe detail detection')
+  assert(occurrences(chatRoute, 'wantsPlatformChatHumanSupport(userText)') === 2, 'text-stream and voice/non-stream must gate admin writes on explicit intent')
+  assert(!chatRoute.includes('wantsHumanSupport(userText)'), 'platform chat must not use generic إدارة word matching')
+}
+
+testInPlatformAcademicRequestNeverCreatesUnwantedHandoff()
+testOfficialAccreditationProgramsNavigation()
 testSupervisorsApiAndUi()
 testApprovedOnlyExamAssembly()
 testQuestionVerifierUsesOriginalBookChunk()

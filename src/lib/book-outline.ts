@@ -8,7 +8,7 @@ import { fixArabicPdfText } from '@/lib/arabic-pdf-text'
 type Chunk = { index: number; headingPath: string | null; text: string; pageStart: number; pageEnd: number }
 type Item = { chunkId: string | null; title: string; summary: string }
 export type OutlineSectionDraft = { order: number; title: string; level: number; semester: number | null; chunkStartIndex: number; chunkEndIndex: number; pageStart: number | null; pageEnd: number | null; itemsCount: number; startCharOffset?: number | null }
-type Boundary = { at: number; title: string; startCharOffset?: number | null; detectedChunkIndex?: number; detectedCharOffset?: number; note?: string; verifiedHeading?: boolean }
+type Boundary = { at: number; title: string; startCharOffset?: number | null; sourcePage?: number; detectedChunkIndex?: number; detectedCharOffset?: number; note?: string; verifiedHeading?: boolean }
 type TocEntry = { title: string; page: number; targetIndex: number | null }
 type LineWithOffset = { raw: string; start: number; lineNumber: number }
 type ChapterHit = { label: string; number: number | null; reversed: boolean; line: LineWithOffset; lineIndex: number }
@@ -319,56 +319,49 @@ function normalizeBoundaries(chunks: readonly Chunk[], boundaries: readonly Boun
     const start = at.get(boundary.at)!
     const next = ordered[i + 1]
     const nextStart = next ? at.get(next.at)! : null
-    const end = nextStart === null ? sorted.length - 1 : nextStart === start ? start : nextStart - 1
-    return { start, end, title: boundary.title, startCharOffset: boundary.startCharOffset ?? null, verifiedHeading: boundary.verifiedHeading ?? false }
+    // A source-verified heading may start on page 29 inside a stored chunk
+    // beginning on page 28. The previous unit must retain that shared chunk:
+    // otherwise page 28 disappears from both page coverage and study evidence.
+    // Keep an overlapping CHUNK reference (not fabricated page text) and
+    // use the next verified page to bound the previous unit at page 28.
+    const nextChunk = nextStart === null ? null : sorted[nextStart]
+    const nextStartsWithinChunk = Boolean(next && nextChunk &&
+      Number.isInteger(next.sourcePage) &&
+      next.sourcePage! > nextChunk.pageStart &&
+      next.sourcePage! <= nextChunk.pageEnd)
+    const end = nextStart === null ? sorted.length - 1
+      : nextStart === start || nextStartsWithinChunk ? nextStart : nextStart - 1
+    return { start, end, title: boundary.title, startCharOffset: boundary.startCharOffset ?? null, sourcePage: boundary.sourcePage ?? null, verifiedHeading: boundary.verifiedHeading ?? false }
   }).filter((range) => range.end >= range.start)
-  // Real chapter boundaries and same-chunk splits must not be merged away.
-  // Only unlabeled one-chunk fragments may be absorbed into neighboring sections.
-  for (let i = ranges.length - 1; i >= 0; i--) {
-    if (ranges.length <= 1 || ranges[i].verifiedHeading || chapterNumber(ranges[i].title) !== null) continue
-    if (ranges[i].end !== ranges[i].start) continue
-    const sharesChunkWithNeighbor = (i > 0 && ranges[i - 1].start === ranges[i].start) || (i + 1 < ranges.length && ranges[i + 1].start === ranges[i].start)
-    if (sharesChunkWithNeighbor || ranges[i].startCharOffset !== null) continue
-    if (i > 0) { ranges[i - 1].end = ranges[i].end; ranges.splice(i, 1) }
-    else { ranges[1].start = ranges[0].start; ranges.shift() }
-  }
-  while (ranges.length > 16) {
-    // Merge the adjacent pair whose COMBINED PAGE SPAN is smallest. Merging by
-    // chunk count alone can fold a short final range into a huge predecessor
-    // and silently re-form an oversized tail section; page span is the unit
-    // the coverage guard judges, so it is the unit merging must minimize.
-    let best = 1
-    let bestSpan = Infinity
-    for (let i = 1; i < ranges.length; i++) {
-      const span = sorted[ranges[i].end].pageEnd - sorted[ranges[i - 1].start].pageStart
-      if (span < bestSpan) { bestSpan = span; best = i }
-    }
-    ranges[best - 1].end = ranges[best].end
-    ranges.splice(best, 1)
-  }
-  // Never undo tiny-section merging by splitting real heading/TOC sections again.
-  // Only create synthetic sections when no reliable boundaries were supplied.
-  while (boundaries.length === 0 && ranges.length < Math.min(4, sorted.length)) {
-    let largest = 0
-    for (let i = 1; i < ranges.length; i++) if (ranges[i].end - ranges[i].start > ranges[largest].end - ranges[largest].start) largest = i
-    const range = ranges[largest]
-    if (range.end <= range.start) break
-    const mid = Math.floor((range.start + range.end) / 2)
-    ranges.splice(largest + 1, 0, { start: mid + 1, end: range.end, title: `${range.title} — تابع`, startCharOffset: null, verifiedHeading: false })
-    range.end = mid
-  }
+  // Do NOT absorb short headings or force a 16-section cap before assessing
+  // the entire book. Those operations previously removed genuine topics near
+  // the end and manufactured an oversized tail. Keep the source headings and
+  // let the evidence-based book-level balancer merge compatible short topics.
+  // A missing trustworthy title is never replaced by «تابع» scaffolding.
   const itemCount = new Map<string, number>()
   for (const item of items) if (item.chunkId) itemCount.set(item.chunkId, (itemCount.get(item.chunkId) || 0) + 1)
-  return ranges.map((range, order) => ({
-    order: order + 1, title: range.title, level: 1, semester,
-    chunkStartIndex: sorted[range.start].index, chunkEndIndex: sorted[range.end].index,
-    startCharOffset: range.startCharOffset,
-    pageStart: sorted[range.start].pageStart,
-    pageEnd: order + 1 < ranges.length
-      ? (sorted[ranges[order + 1].start].pageStart <= sorted[range.start].pageStart ? null : Math.min(sorted[range.end].pageEnd, sorted[ranges[order + 1].start].pageStart - 1))
-      : sorted[range.end].pageEnd,
-    itemsCount: sorted.slice(range.start, range.end + 1).reduce((sum, chunk) => sum + (itemCount.get(chunkIds.get(chunk.index) || '') || 0), 0),
-  }))
+  const verifiedPageStart = (range: typeof ranges[number]) => {
+    const chunk = sorted[range.start]
+    return range.sourcePage !== null && Number.isInteger(range.sourcePage) &&
+      range.sourcePage! >= chunk.pageStart && range.sourcePage! <= chunk.pageEnd
+      ? range.sourcePage! : chunk.pageStart
+  }
+  return ranges.map((range, order) => {
+    const pageStart = verifiedPageStart(range)
+    const next = ranges[order + 1]
+    const nextPage = next ? verifiedPageStart(next) : null
+    return {
+      order: order + 1, title: range.title, level: 1, semester,
+      chunkStartIndex: sorted[range.start].index, chunkEndIndex: sorted[range.end].index,
+      startCharOffset: range.startCharOffset,
+      pageStart,
+      // Distinct article headings in a shared chunk can have different real
+      // PDF pages. Unknown boundaries still require review; never guess.
+      pageEnd: nextPage === null ? sorted[range.end].pageEnd
+        : nextPage <= pageStart ? null : Math.min(sorted[range.end].pageEnd, nextPage - 1),
+      itemsCount: sorted.slice(range.start, range.end + 1).reduce((sum, chunk) => sum + (itemCount.get(chunkIds.get(chunk.index) || '') || 0), 0),
+    }
+  })
 }
 
 export function debugBookOutlineChunks(chunks: readonly Chunk[]): BookOutlineDebugChunk[] {
@@ -464,6 +457,80 @@ export function planBookOutline(chunks: readonly Chunk[], items: readonly Item[]
 // ---------------------------------------------------------------------------
 export const OUTLINE_SECTION_REVIEW_PAGES = 40
 export const OUTLINE_SECTION_BLOCK_PAGES = 80
+export const OUTLINE_TARGET_MIN_PAGES = 30
+export const OUTLINE_SHORT_SECTION_PAGES = 15
+
+// A shared topic must be evidenced by substantive words from BOTH source
+// titles. Generic academic language is not enough to merge unrelated topics.
+const genericOutlineWords = new Set([
+  'الفصل', 'الباب', 'الوحده', 'الكتاب', 'مقدمه', 'مقدمة',
+  'المفهوم', 'مفهوم', 'مفاهيم', 'تعريف', 'تعريفات', 'الاداره',
+  'المدخل', 'مدخل', 'دراسه', 'تحليل', 'التطبيقات', 'تطبيقات',
+  'الاساسيات', 'اساسيات', 'العام', 'الخاص', 'الاول', 'الثاني',
+  'الثالث', 'الرابع', 'بين', 'حول', 'من', 'في', 'على', 'الى', 'عن',
+  'and', 'the', 'introduction', 'chapter', 'part', 'overview',
+])
+function outlineTopicWords(title: string): Set<string> {
+  // Arabic PDFs and model-produced academic titles routinely differ only by
+  // the definite article (منافسة/المنافسة), or Persian glyphs (ی/ي, ک/ك).
+  // Canonicalize those spellings before comparing grounded topic evidence.
+  return new Set(normalizeHeading(title).replace(/ی/g, 'ي').replace(/ک/g, 'ك').replace(/ھ/g, 'ه').split(' ')
+    .map((word) => word.startsWith('ال') && word.length >= 6 ? word.slice(2) : word)
+    .filter((word) => word.length >= 4 && !genericOutlineWords.has(word) && !genericOutlineWords.has('ال' + word)))
+}
+
+/**
+ * Balance a WHOLE draft after heading discovery and oversized-range refinement.
+ * Merge only adjacent short sections that have a common, specific source topic.
+ * Never merge documented chapters, unknown-page boundaries, noncontiguous pages
+ * or same-chunk divisions. Titles concatenate exact source headings; no new
+ * academic title or unsupported chapter is invented.
+ */
+export function balanceBookOutlineSections(input: readonly OutlineSectionDraft[]): {
+  sections: OutlineSectionDraft[]
+  merged: number
+} {
+  const sections = input.map((section) => ({ ...section }))
+  let merged = 0
+  for (;;) {
+    let best = -1
+    let bestPriority = -Infinity
+    for (let i = 0; i + 1 < sections.length; i++) {
+      const left = sections[i]
+      const right = sections[i + 1]
+      const leftPages = sectionPageSpan(left)
+      const rightPages = sectionPageSpan(right)
+      if (leftPages === null || rightPages === null) continue
+      if (leftPages >= OUTLINE_TARGET_MIN_PAGES && rightPages >= OUTLINE_TARGET_MIN_PAGES) continue
+      if (left.pageEnd! + 1 !== right.pageStart || left.chunkEndIndex >= right.chunkStartIndex) continue
+      if (chapterNumber(left.title) !== null || chapterNumber(right.title) !== null) continue
+      if (/^(?:الفصل|الباب|chapter|part)\s/iu.test(normalizeOutlineText(left.title)) ||
+          /^(?:الفصل|الباب|chapter|part)\s/iu.test(normalizeOutlineText(right.title))) continue
+      const combinedPages = leftPages + rightPages
+      if (combinedPages > OUTLINE_SECTION_REVIEW_PAGES) continue
+      const leftWords = outlineTopicWords(left.title)
+      const rightWords = outlineTopicWords(right.title)
+      const shared = [...leftWords].filter((word) => rightWords.has(word))
+      if (!shared.length) continue
+      const priority = (leftPages < OUTLINE_SHORT_SECTION_PAGES || rightPages < OUTLINE_SHORT_SECTION_PAGES ? 100 : 0)
+        + (combinedPages >= OUTLINE_TARGET_MIN_PAGES ? 20 : 0)
+        + shared.length * 5 - Math.abs(35 - combinedPages)
+      if (priority > bestPriority) { bestPriority = priority; best = i }
+    }
+    if (best < 0) break
+    const left = sections[best]
+    const right = sections[best + 1]
+    sections.splice(best, 2, {
+      ...left,
+      title: left.title === right.title ? left.title : clean(`${left.title} / ${right.title}`, 180),
+      chunkEndIndex: right.chunkEndIndex,
+      pageEnd: right.pageEnd,
+      itemsCount: left.itemsCount + right.itemsCount,
+    })
+    merged++
+  }
+  return { sections: sections.map((section, index) => ({ ...section, order: index + 1 })), merged }
+}
 
 export type OutlineSectionCoverage = { order: number; title: string; pageStart: number | null; pageEnd: number | null; pages: number | null; band: 'OK' | 'REVIEW' | 'BLOCKED' }
 export type OutlineCoverageReport = { totalPages: number | null; maxSectionPages: number | null; sections: OutlineSectionCoverage[]; review: OutlineSectionCoverage[]; blocked: OutlineSectionCoverage[]; gaps: Array<{ pageStart: number; pageEnd: number }> }
@@ -553,6 +620,52 @@ function rangeInteriorBoundaries(rangeChunks: readonly Chunk[], sourceBoundaries
   return [...interior.values()].sort((a, b) => a.at - b.at || offsetForSort(a.startCharOffset) - offsetForSort(b.startCharOffset))
 }
 
+// Additional boundaries from topics that are ALREADY present in verified
+// knowledge items. Prefer a topic transition near the 30–40 page goal. Never
+// split on arithmetic positions alone: without distinct adjacent concepts
+// the oversized section remains subject to the supervisor's coverage guard.
+export function evidenceBoundariesForOversizedRange(
+  rangeChunks: readonly Chunk[],
+  items: readonly Item[],
+  chunkIds: ReadonlyMap<number, string>,
+  bookTitle: string,
+): Boundary[] {
+  const chunks = [...rangeChunks].sort((a, b) => a.index - b.index)
+  if (chunks.length < 2) return []
+  const titlesByChunk = new Map<string, string[]>()
+  for (const item of items) {
+    if (!item.chunkId || !usableOutlineTitle(item.title, bookTitle)) continue
+    const titles = titlesByChunk.get(item.chunkId) || []
+    titles.push(clean(item.title, 120))
+    titlesByChunk.set(item.chunkId, titles)
+  }
+  const subject = (chunk: Chunk) => {
+    const titles = titlesByChunk.get(chunkIds.get(chunk.index) || '') || []
+    const candidate = titles.find((title) => outlineTopicWords(title).size > 0)
+    return candidate ? { title: candidate, words: outlineTopicWords(candidate) } : null
+  }
+  const boundaries: Boundary[] = []
+  let lastStart = chunks[0].pageStart
+  let currentTopic = subject(chunks[0])
+  for (let i = 1; i < chunks.length; i++) {
+    const incoming = subject(chunks[i])
+    if (!incoming) continue
+    if (!currentTopic) { currentTopic = incoming; continue }
+    const currentPages = chunks[i - 1].pageEnd - lastStart + 1
+    if (currentPages < 25) continue
+    const overlaps = [...incoming.words].some((word) => currentTopic!.words.has(word))
+    if (overlaps) continue
+    // A genuine change of topic, not a page-count cut. Also prevent an
+    // unnecessarily tiny final unit when the original range ends nearby.
+    const remainingPages = chunks[chunks.length - 1].pageEnd - chunks[i].pageStart + 1
+    if (remainingPages < OUTLINE_SHORT_SECTION_PAGES) continue
+    boundaries.push({ at: chunks[i].index, title: incoming.title })
+    currentTopic = incoming
+    lastStart = chunks[i].pageStart
+  }
+  return boundaries
+}
+
 // Split every section above the REVIEW band using evidence found inside its
 // own range. Runs AFTER the global plan, so the global section cap and the
 // small-section merging can never re-collapse a split range afterwards.
@@ -570,26 +683,36 @@ export async function refineOversizedSections(params: {
   maxRanges?: number
 }): Promise<{ sections: OutlineSectionDraft[]; warnings: string[]; refinedRanges: number }> {
   const allowAi = params.allowAi !== false
-  const maxRanges = params.maxRanges ?? 3
+  // Limit expensive model calls, NOT full-book coverage checks. Every oversized
+  // range is examined deterministically; biggest tails get first priority.
+  const maxAiRanges = params.maxRanges ?? 3
+  let aiCalls = 0
   const warnings: string[] = []
   let sections: OutlineSectionDraft[] = [...params.sections]
   let refinedRanges = 0
   const targets = params.sections.filter((section) => {
     const span = sectionPageSpan(section)
-    return span !== null && span > OUTLINE_SECTION_REVIEW_PAGES && section.chunkEndIndex > section.chunkStartIndex
-  })
+    // A genuine chapter of 41–80 pages is reviewable as-is, not force-cut.
+    return span !== null && span > OUTLINE_SECTION_REVIEW_PAGES &&
+      !(span <= OUTLINE_SECTION_BLOCK_PAGES && chapterNumber(section.title) !== null) &&
+      section.chunkEndIndex > section.chunkStartIndex
+  }).sort((a, b) => (sectionPageSpan(b) || 0) - (sectionPageSpan(a) || 0))
   for (const target of targets) {
-    const at = sections.findIndex((section) => section.order === target.order && section.chunkStartIndex === target.chunkStartIndex && section.chunkEndIndex === target.chunkEndIndex)
+    const at = sections.findIndex((section) => section.chunkStartIndex === target.chunkStartIndex && section.chunkEndIndex === target.chunkEndIndex && section.title === target.title)
     if (at < 0) continue
     const section = sections[at]
-    if (refinedRanges >= maxRanges) {
-      warnings.push(`لم تُعاد فحوص تقسيم القسم «${section.title}» (${sectionPageSpan(section)} صفحة) في هذه الجولة؛ حدّ الجولات ${maxRanges}. أعد بناء الفهرس لإعادة المحاولة.`)
-      continue
-    }
     const rangeChunks = params.chunks.filter((chunk) => chunk.index >= section.chunkStartIndex && chunk.index <= section.chunkEndIndex)
     if (rangeChunks.length < 2) continue
-    let interior = rangeInteriorBoundaries(rangeChunks, params.sourceBoundaries || [], params.bookTitle)
-    if (!interior.length && allowAi) {
+    const fromHeadings = rangeInteriorBoundaries(rangeChunks, params.sourceBoundaries || [], params.bookTitle)
+    const fromKnowledge = evidenceBoundariesForOversizedRange(rangeChunks, params.items, params.chunkIds, params.bookTitle)
+    // Do not stop at the first few early headings: continue scanning the
+    // entire range for later topic shifts. Actual source headings take
+    // precedence when both sources propose a boundary in the same chunk.
+    const headingChunks = new Set(fromHeadings.map((boundary) => boundary.at))
+    let interior = [...fromHeadings, ...fromKnowledge.filter((boundary) => !headingChunks.has(boundary.at))]
+      .sort((a, b) => a.at - b.at || offsetForSort(a.startCharOffset) - offsetForSort(b.startCharOffset))
+    if (!interior.length && allowAi && aiCalls < maxAiRanges) {
+      aiCalls++
       const byChunk = new Map<string, Item[]>()
       for (const item of params.items) if (item.chunkId) byChunk.set(item.chunkId, [...(byChunk.get(item.chunkId) || []), item])
       const evidence = rangeChunks.map((chunk) => ({
@@ -604,7 +727,10 @@ export async function refineOversizedSections(params: {
         interior = parseAiRangeBoundaries(raw, rangeChunks, params.bookTitle)
       } catch { interior = [] }
     }
-    if (!interior.length) continue
+    if (!interior.length) {
+      warnings.push(`لم يظهر داخل النطاق «${section.title}» (${section.pageStart}–${section.pageEnd}) حدّ موضوعي موثوق؛ بقي القسم للمراجعة، ولم يُقسّم حسابيًا.`)
+      continue
+    }
     const anchor: Boundary = { at: section.chunkStartIndex, title: section.title, startCharOffset: section.startCharOffset ?? null, verifiedHeading: true }
     const subSections = normalizeBoundaries(rangeChunks, [anchor, ...interior], params.items, params.chunkIds, params.semester)
     if (subSections.length < 2) continue
@@ -618,6 +744,10 @@ export async function refineOversizedSections(params: {
 type SourceHeading = { page: number; title: string; rawLine: string }
 
 const articlePrefix = /^(?:المقال\s*[:：]\s*)(.{5,110})$/iu
+// Source-specific but evidence-based article structure, common in PDFs
+// compiled from encyclopedia pages. The navigation line is a strong
+// independent marker of a new article and avoids a fixed list of topic names.
+const articleNavigationMarker = /(?:(?:اذهب|اذھب).{0,35}(?:التنقل|البحث)|(?:التنقل|البحث).{0,35}(?:اذهب|اذھب))/iu
 const subordinateHeading = /^(?:اسئله?\s*واجوبه?|أسئلة\s*وأجوبة|خلاصه|الخلاصة|تطبيقات\s*عمليه|المراجع|تمارين|مناقشه|أهداف\s*التعلم)\s*[:：]?\s*$/iu
 const numberedOrQuestion = /^(?:[•●▪*]|[-–—]\s|\d{1,3}\s*[.):\-–]|[٠-٩]{1,3}\s*[.):\-–]|[سج]\s*\d+\s*[:：]|(?:سؤال|س)\s*[:：]|[؟?])/iu
 const commonTopicStart = /^(?:مقدمه|مقدمة|دور|اهميه|أهمية|مفهوم|الإدارة|ادارة|إدارة|التخطيط|القيادة|التحليل|الاقتصاد|التسويق|الابتكار|الموارد|الرقابة|الجودة|مهارات|التنظيم|الاتصال|المخاطر|المنافسة)(?=\s|[:：]|$)/iu
@@ -638,10 +768,22 @@ export function detectOriginalSourceHeadings(pages: readonly ExtractedBookPage[]
     for (let i = 0; i < page.lines.length; i++) {
       const rawLine = page.lines[i].trim()
       const key = normalizeHeading(rawLine)
-      if (rawLine.length < 7 || rawLine.length > 115 || !key) continue
+      if (rawLine.length > 115 || !key) continue
       if ((pagesPerLine.get(key)?.size || 0) >= 3 || key === normalizeHeading(bookTitle)) continue
       if (subordinateHeading.test(normalizeOutlineText(rawLine)) || numberedOrQuestion.test(rawLine)) continue
       if (/[؟?،,؛;.!]$/.test(rawLine) || /^\s*(?:https?:\/\/|www\.)/i.test(rawLine)) continue
+      // Real PDF evidence (e.g. uploaded 297-page management compilation):
+      // article title followed by «اذهب إلى التنقل/البحث». It appears at
+      // arbitrary positions within an OCR chunk, not only the first page.
+      // A short title is allowed ONLY when the navigation marker validates it.
+      const nextNonempty = page.lines.slice(i + 1, i + 5).map((line) => line.trim()).find(Boolean) || ''
+      const articleNavigation = articleNavigationMarker.test(normalizeOutlineText(nextNonempty))
+      if (articleNavigation && rawLine.length >= 3 && rawLine.length <= 95 &&
+          rawLine.split(/\s+/).length <= 12 && !articleNavigationMarker.test(normalizeOutlineText(rawLine))) {
+        output.push({ page: page.page, title: rawLine, rawLine })
+        continue
+      }
+      if (rawLine.length < 7) continue
       if (matchChapterLine(rawLine)) {
         output.push({ page: page.page, title: rawLine, rawLine })
         continue
@@ -673,12 +815,12 @@ function projectSourceHeadings(headings: readonly SourceHeading[], chunks: reado
       const titleOffset = chunk.text.indexOf(heading.title)
       const offset = rawOffset >= 0 ? rawOffset : titleOffset
       if (offset >= 0) {
-        candidate = { at: chunk.index, title: heading.title, startCharOffset: offset || null }
+        candidate = { at: chunk.index, title: heading.title, startCharOffset: offset || null, sourcePage: heading.page }
         break
       }
     }
     if (!candidate && overlaps.length) {
-      candidate = { at: overlaps[0].index, title: heading.title, startCharOffset: null, note: 'عنوان من الملف الأصلي بلا موضع حرفي مطابق في المقاطع القديمة؛ راجع حد القسم قبل الاعتماد' }
+      candidate = { at: overlaps[0].index, title: heading.title, startCharOffset: null, sourcePage: heading.page, note: 'عنوان من الملف الأصلي بلا موضع حرفي مطابق في المقاطع القديمة؛ راجع حد القسم قبل الاعتماد' }
     }
     if (!candidate) continue
     const positionKey = candidate.at + ':' + (candidate.startCharOffset ?? 0)
@@ -783,6 +925,74 @@ export function parseAiOutlineBoundaries(raw: string, chunks: readonly Chunk[], 
   return boundaries.sort((a, b) => a.at - b.at)
 }
 
+/**
+ * Group a dense sequence of genuine article titles into study units. Model
+ * output selects groups of EXISTING source sections, never arbitrary pages.
+ * Validation is strict: all source sections must be covered exactly once,
+ * chapters must stay intact, and long/fuzzy groups cannot pass.
+ */
+export function validateThematicArticleGrouping(raw: string, source: readonly OutlineSectionDraft[]): {
+  sections: OutlineSectionDraft[]
+  subheadings: OutlineSubheadingMarker[]
+} {
+  const parsed = JSON.parse(raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim())
+  if (!Array.isArray(parsed?.groups) || parsed.groups.length < 2 || parsed.groups.length >= source.length) {
+    throw new Error('OUTLINE_THEMATIC_GROUPS_INVALID')
+  }
+  const output: OutlineSectionDraft[] = []
+  const subheadings: OutlineSubheadingMarker[] = []
+  let cursor = 0
+  for (const candidate of parsed.groups) {
+    const end = candidate?.endOrder
+    const start = candidate?.startOrder
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start !== cursor + 1 || end < start || end > source.length) {
+      throw new Error('OUTLINE_THEMATIC_GROUPS_NOT_CONTIGUOUS')
+    }
+    const group = source.slice(cursor, end)
+    if (group.some((section, i) => section.order !== cursor + i + 1)) throw new Error('OUTLINE_THEMATIC_SOURCE_ORDER')
+    // A 30-page merged unit must not conceal missing page coverage from
+    // the underlying source sections. Real 297-page PDF replay uncovered
+    // gaps where a heading begins inside a persisted chunk. Never let AI
+    // grouping silently fill those missing source pages on paper.
+    if (group.some((section) => section.pageStart === null || section.pageEnd === null) ||
+        group.some((section, i) => i > 0 && section.pageStart !== group[i - 1].pageEnd! + 1)) {
+      throw new Error('OUTLINE_THEMATIC_SOURCE_COVERAGE_GAP')
+    }
+    if (group.length > 1 && group.some((section) => chapterNumber(section.title) !== null)) {
+      throw new Error('OUTLINE_THEMATIC_CANNOT_MERGE_CHAPTERS')
+    }
+    const first = group[0]
+    const last = group[group.length - 1]
+    const pages = first.pageStart != null && last.pageEnd != null ? last.pageEnd - first.pageStart + 1 : null
+    if (pages === null || pages < 1 || pages > OUTLINE_SECTION_REVIEW_PAGES) {
+      throw new Error('OUTLINE_THEMATIC_GROUP_TOO_LARGE_OR_UNKNOWN')
+    }
+    const title = clean(candidate?.title, 150)
+    if (!usableOutlineTitle(title, '') || !outlineTopicWords(title).size) throw new Error('OUTLINE_THEMATIC_UNGROUNDED_TITLE')
+    const originalWords = new Set(group.flatMap((section) => [...outlineTopicWords(section.title)]))
+    if (![...outlineTopicWords(title)].some((word) => originalWords.has(word))) {
+      throw new Error('OUTLINE_THEMATIC_UNGROUNDED_TITLE')
+    }
+    const order = output.length + 1
+    output.push({
+      ...first, order, title, chunkEndIndex: last.chunkEndIndex,
+      pageEnd: last.pageEnd,
+      itemsCount: group.reduce((count, section) => count + section.itemsCount, 0),
+    })
+    // Original article headings remain visible as documented subheadings
+    // after consolidation, not silently discarded.
+    for (const section of group) {
+      subheadings.push({
+        sectionOrder: order, title: section.title, page: section.pageStart ?? first.pageStart!,
+        chunkIndex: section.chunkStartIndex, charOffset: section.startCharOffset ?? null,
+      })
+    }
+    cursor = end
+  }
+  if (cursor !== source.length) throw new Error('OUTLINE_THEMATIC_GROUPS_INCOMPLETE')
+  return { sections: output, subheadings }
+}
+
 export async function buildBookOutline(bookId: string, options: { reuseReadChunks?: boolean; deterministicOnly?: boolean } = {}) {
   const book = await db.book.findUnique({ where: { id: bookId }, select: { id: true, semester: true, title: true } })
   if (!book) throw new Error('BOOK_NOT_FOUND')
@@ -822,7 +1032,7 @@ export async function buildBookOutline(bookId: string, options: { reuseReadChunk
       excerpt: chunk.text.slice(0, 350),
       items: (byChunk.get(chunk.id) || []).slice(0, 8).map((item) => ({ title: item.title.slice(0, 100), summary: item.summary.slice(0, 180) })),
     }))
-    const raw = await geminiCompleteJson({ system: 'قسّم الكتاب إلى أقسام موضوعية متتابعة اعتماداً حصراً على مقتطفات النص المحفوظ وعناوين وملخصات المعرفة. احترم ترتيب الصفحات، ولا تخترع فصولاً لم تظهر في الأدلة. امنع العناوين العامة مثل مقدمة الكتاب أو تابع أو عنوان الكتاب المكرر. أرجع JSON فقط.', history: [{ role: 'user', text: `اقترح من 2 إلى 16 بداية قسم (أو قسماً واحداً إذا كان هناك مقطع واحد) بعناوين موضوعية محددة مستندة إلى الأدلة، بصيغة {"sections":[{"at":0,"title":"عنوان موضوعي"}]}. استخدم index من البيانات فقط، ورتّب الأقسام وفق ظهورها في النص. البيانات: ${JSON.stringify(evidence)}` }], taskLevel: 'ACADEMIC_DRAFT', temperature: 0.1, maxOutputTokens: 3000, deadlineMs: Date.now() + 180_000 })
+    const raw = await geminiCompleteJson({ system: 'افحص أدلة الكتاب من أول صفحة إلى آخر صفحة قبل اختيار حدود الوحدات. اقترح خريطة موضوعية متوازنة، واستهدف وحدات 30–40 صفحة عندما تسمح الموضوعات بذلك، وادمج العناوين القصيرة المتجاورة فقط إذا تناولت المفهوم نفسه. لا تكدّس العناوين في بداية الكتاب وتترك الصفحات الأخيرة بلا حدود. اعتمد حصراً على النص المحفوظ والمعرفة المستخرجة، واحترم الفصول الأصلية ولا تخترع فصولاً أو عناوين عامة مثل مقدمة الكتاب أو تابع. إذا تعذّر الفصل الموضوعي فلا تقطع عند رقم صفحة اعتباطي. أرجع JSON فقط.', history: [{ role: 'user', text: `اقترح من 2 إلى 16 بداية قسم (أو قسماً واحداً إذا كان هناك مقطع واحد) بعناوين موضوعية محددة مستندة إلى الأدلة، بصيغة {"sections":[{"at":0,"title":"عنوان موضوعي"}]}. استخدم index من البيانات فقط، ورتّب الأقسام وفق ظهورها في النص. البيانات: ${JSON.stringify(evidence)}` }], taskLevel: 'ACADEMIC_DRAFT', temperature: 0.1, maxOutputTokens: 3000, deadlineMs: Date.now() + 180_000 })
     const boundaries = parseAiOutlineBoundaries(raw, chunks, book.title)
     draft = { ...planBookOutline(chunks, items, chunkIds, book.semester, boundaries, book.title), source: 'AI_SEGMENTED' }
     draft.warnings.push('هذه عناوين موضوعية مقترحة من نص الكتاب والمعرفة المستخرجة؛ راجعها قبل الاعتماد.')
@@ -838,7 +1048,52 @@ export async function buildBookOutline(bookId: string, options: { reuseReadChunk
   // draft; then audit coverage so any section that is still too large is
   // visibly flagged for the approval guard instead of passing silently.
   const refined = await refineOversizedSections({ sections: draft.sections, chunks, items, chunkIds, semester: book.semester, sourceBoundaries, bookTitle: book.title, allowAi: !options.deterministicOnly })
-  draft = { ...draft, sections: refined.sections, warnings: [...draft.warnings, ...refined.warnings] }
+  // Real-world validation: encyclopedia-style collections have dozens of
+  // genuine short article titles. Preserving all as study UNITS produces 60+
+  // tiny units, so plan a second, explicitly validated thematic grouping.
+  // Grouping may choose only existing source-section boundaries; original
+  // headings are preserved below as auditable subheadings.
+  let thematic: ReturnType<typeof validateThematicArticleGrouping> | null = null
+  const manyShortArticles = refined.sections.length >= 18 &&
+    refined.sections.filter((section) => (sectionPageSpan(section) ?? Infinity) < OUTLINE_SHORT_SECTION_PAGES).length >= refined.sections.length / 2 &&
+    refined.sections.every((section) => chapterNumber(section.title) === null)
+  if (manyShortArticles && !options.deterministicOnly) {
+    try {
+      const evidence = refined.sections.map((section) => ({
+        order: section.order, title: section.title, pageStart: section.pageStart,
+        pageEnd: section.pageEnd, itemsCount: section.itemsCount,
+      }))
+      const raw = await geminiCompleteJson({
+        system: 'أنت محرر فهرس أكاديمي. هذه عناوين مقالات أصلية في كتاب واحد، وليست وحدات دراسية مستقلة. جمّع المقالات المتجاورة والمتقاربة موضوعياً في وحدات متماسكة تغطي جميع المقالات مرة واحدة وبنفس الترتيب. استهدف 30–40 صفحة ولكن لا تجمع موضوعات مختلفة لمجرد ملء الصفحات. اترك وحدة قصيرة عندما لا يوجد انسجام. لا تخترع عناوين أو صفحات؛ عنوان كل وحدة يجب أن يعتمد على عناوين المقالات الداخلة فيها. JSON فقط.',
+        history: [{ role: 'user', text: `أرجع {"groups":[{"startOrder":1,"endOrder":4,"title":"عنوان جامع مستند إلى هذه العناوين"}]}. يجب أن تبدأ المجموعة الأولى من 1 وأن تكون المجموعات متتابعة بلا فجوات وأن تنتهي عند ${refined.sections.length}. لا تتجاوز أي مجموعة 40 صفحة من pageStart لأول مقال إلى pageEnd لآخر مقال. لا تدمج فصولاً أصلية، واحتفظ بالموضوعات غير المتوافقة مستقلة. الأقسام المصدرية: ${JSON.stringify(evidence)}` }],
+        taskLevel: 'ACADEMIC_DRAFT', temperature: 0.1, maxOutputTokens: 2700,
+        deadlineMs: Date.now() + 100_000,
+      })
+      thematic = validateThematicArticleGrouping(raw, refined.sections)
+    } catch (error) {
+      console.warn('[book-outline] thematic grouping rejected', { bookId, reason: error instanceof Error ? error.message : 'UNKNOWN' })
+      draft.warnings.push('تعذّر توثيق تجميع المقالات القصيرة في وحدات موضوعية؛ احتُفظ بعناوين المقالات الأصلية للمراجعة، ولم يُفرض دمج غير موثوق.')
+    }
+  }
+  // Validated thematic groups already have an explicit source-to-group map;
+  // do not renumber them again or their original subheading markers drift.
+  const balanced = thematic ? { sections: thematic.sections, merged: 0 } : balanceBookOutlineSections(refined.sections)
+  draft = {
+    ...draft,
+    sections: balanced.sections,
+    warnings: [
+      ...draft.warnings,
+      ...refined.warnings,
+      ...(thematic ? [`أُعيد تنظيم ${refined.sections.length} عنوان مقال أصلي إلى ${thematic.sections.length} وحدات موضوعية للمراجعة، مع الاحتفاظ بالعناوين الفرعية ومراجع الصفحات.`] : []),
+      ...(balanced.merged ? [`توازن موضوعي: دُمجت ${balanced.merged} مجموعات قصيرة متجاورة ذات موضوع مشترك دون اختراع عناوين.`] : []),
+    ],
+  }
+  if (thematic) for (const marker of thematic.subheadings) {
+    // The balancer never joins already grouped 30–40-page units except
+    // explicitly shared topics, and the originals remain attached to the
+    // initial group ordering for administrative inspection.
+    draft.warnings.push('OUTLINE_SUBHEADING:' + JSON.stringify(marker))
+  }
   const coverage = auditOutlineCoverage(draft.sections)
   for (const section of coverage.review) draft.warnings.push(section.pages === null ? `تنبيه تغطية: حدود صفحات القسم «${section.title}» غير مكتملة؛ راجعها قبل الاعتماد.` : `تنبيه تغطية: القسم «${section.title}» يغطي ${section.pages} صفحة (صفحات ${section.pageStart}–${section.pageEnd}) — فوق حد المراجعة ${OUTLINE_SECTION_REVIEW_PAGES} صفحة؛ أعد فحص عناوين هذا النطاق قبل الاعتماد.`)
   for (const gap of coverage.gaps) draft.warnings.push(`تنبيه تغطية: هناك فجوة غير مغطاة من الصفحة ${gap.pageStart} إلى ${gap.pageEnd}؛ لن يُعتمد الفهرس قبل تصحيحها.`)

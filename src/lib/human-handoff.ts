@@ -315,6 +315,58 @@ export function hadRecentHumanSupportPrompt(messages: Array<{ role: string; cont
   return recent.some((m) => m.role === 'user' && wantsHumanSupport(m.content))
 }
 
+// The in-platform student chat may file an administrative request. Its
+// action must be explicit: «أريد شرح إدارة الموارد البشرية» contains both
+// «أريد» and «إدارة» but is NOT a request to speak with administration.
+// Keep the existing shared/WhatsApp intent functions unchanged.
+export function wantsPlatformChatHumanSupport(message: string): boolean {
+  const n = normalizeArabic(message)
+  if (!wantsHumanSupport(message)) return false
+  const actualContactAction = includesAny(n, [
+    'حولني', 'وجهني', 'وصلني', 'اكلم', 'احكي مع', 'اتواصل',
+    'تواصل مع', 'التواصل مع', 'التحدث مع', 'تكلم مع',
+    'راسل', 'مراسله', 'رقم', 'واتساب',
+  ])
+  const directStaffRequest = includesAny(n, [
+    'اريد موظف', 'بدي موظف', 'احتاج موظف', 'ابي موظف',
+    'اريد الاداره', 'بدي الاداره', 'احتاج الاداره',
+    'اريد الدعم', 'بدي الدعم', 'اريد شخص حقيقي',
+  ])
+  return actualContactAction || directStaffRequest
+}
+
+// Only an ASSISTANT message actually asking for name and topic opens a
+// pending details step. An old USER request or the confirmation «وصلنا
+// اسمك وموضوعك» must not turn subsequent academic questions into handoffs.
+export function hasPendingPlatformChatHandoffDetailsPrompt(messages: Array<{ role: string; content: string }>): boolean {
+  const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant')
+  if (!lastAssistant) return false
+  const n = normalizeArabic(lastAssistant.content)
+  if (includesAny(n, ['تم استلام طلبك', 'وصلنا اسمك', 'طلبك السابق'])) return false
+  const requestedDetails = includesAny(n, [
+    'اذكر', 'اكتب', 'ارسل', 'زودني', 'اعطني',
+    'ما اسمك', 'شو اسمك', 'نحتاج منك',
+  ])
+  return requestedDetails && includesAny(n, ['اسمك', 'الاسم']) &&
+    includesAny(n, ['موضوعك', 'وموضوعك', 'موضوع الطلب', 'وموضوع الطلب', 'سبب التواصل', 'سبب الطلب', 'الموضوع'])
+}
+
+export function looksLikePlatformChatHandoffDetails(message: string): boolean {
+  const n = normalizeArabic(message)
+  if (n.length < 5 || looksLikeQuestion(message)) return false
+  // An answer request (even WITHOUT a question mark) remains an AI task.
+  if (includesAny(n, [
+    'ملخص', 'لخص', 'تلخيص', 'شرح', 'اشرح', 'فسر', 'تفسير',
+    'نبذه', 'معلومات عن', 'وضح', 'توضيح', 'اهداف البرنامج',
+    'مسار البرنامج',
+  ])) return false
+  // Do not accept arbitrary text length or «بخصوص» alone as evidence.
+  return includesAny(n, [
+    'اسمي', 'انا اسمي', 'الاسم', 'موضوعي', 'موضوع الطلب',
+    'سبب التواصل', 'سبب الطلب',
+  ])
+}
+
 export const HUMAN_HANDOFF_ACTIVE_NOTE = '\n\nملاحظة: طلبك السابق للتواصل مع الإدارة ما زال مسجلاً لدى الفريق، ويمكنك متابعة أسئلتك هنا إلى حين تواصل الموظف المختص معك.'
 
 async function officialContactLines() {

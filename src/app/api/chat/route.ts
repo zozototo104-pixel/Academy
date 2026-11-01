@@ -5,11 +5,11 @@ import { enforceDatabaseApiRateLimit } from '@/lib/rate-limit'
 import { platformAgentComplete, platformAgentStream } from '@/lib/platform-agent'
 import {
   createHumanHandoffRequest,
-  hadRecentHumanSupportPrompt,
+  hasPendingPlatformChatHandoffDetailsPrompt,
   hasRecentHumanHandoffRequest,
   getHumanHandoffConfirmationReply,
-  looksLikeHumanHandoffDetails,
-  wantsHumanSupport,
+  looksLikePlatformChatHandoffDetails,
+  wantsPlatformChatHumanSupport,
   withHumanHandoffActiveNote,
 } from '@/lib/human-handoff'
 import { requireStudentAiSupervisorAccess } from '@/lib/student-ai-access'
@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
     const ordered = history.reverse().slice(0, -1) // استبعاد الرسالة الحالية (مضافة سابقاً)
     const orderedMessages = ordered.map((m) => ({ role: m.role, content: m.content }))
     const userText = message.trim()
-    const handoffPromptActive = hadRecentHumanSupportPrompt(orderedMessages)
+    const handoffPromptActive = hasPendingPlatformChatHandoffDetailsPrompt(orderedMessages)
 
     if (stream === true && chatMode === 'TEXT') {
       const encoder = new TextEncoder()
@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
           }
 
           try {
-            if (handoffPromptActive && looksLikeHumanHandoffDetails(userText)) {
+            if (handoffPromptActive && looksLikePlatformChatHandoffDetails(userText)) {
               await createHumanHandoffRequest({
                 user: { id: user.id, name: user.name, email: user.email, phone: user.phone, role: user.role },
                 message: userText,
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
               })
               reply = await getHumanHandoffConfirmationReply()
               await emitChunk(reply)
-            } else if (wantsHumanSupport(userText)) {
+            } else if (wantsPlatformChatHumanSupport(userText)) {
               await createHumanHandoffRequest({
                 user: { id: user.id, name: user.name, email: user.email, phone: user.phone, role: user.role },
                 message: userText,
@@ -192,7 +192,7 @@ export async function POST(req: NextRequest) {
     let reply = ''
     let agentResult: { agent: any; engine: any } = { agent: 'SUPPORT', engine: 'LOCAL_RULE' }
 
-    if (handoffPromptActive && looksLikeHumanHandoffDetails(userText)) {
+    if (handoffPromptActive && looksLikePlatformChatHandoffDetails(userText)) {
       await createHumanHandoffRequest({
         user: { id: user.id, name: user.name, email: user.email, phone: user.phone, role: user.role },
         message: userText,
@@ -200,7 +200,7 @@ export async function POST(req: NextRequest) {
         sourceRef: user.id,
       })
       reply = await getHumanHandoffConfirmationReply()
-    } else if (wantsHumanSupport(userText)) {
+    } else if (wantsPlatformChatHumanSupport(userText)) {
       await createHumanHandoffRequest({
         user: { id: user.id, name: user.name, email: user.email, phone: user.phone, role: user.role },
         message: userText,

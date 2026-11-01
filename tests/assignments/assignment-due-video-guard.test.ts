@@ -42,6 +42,65 @@ describe('assignment fixed-date guards', () => {
   })
 })
 
+describe('assignment source and grading guardrails', () => {
+  const grader = readFileSync(join(root, 'src/lib/supervisor-assignment-grading.ts'), 'utf8')
+  const supervisor = readFileSync(join(root, 'src/components/aact/SupervisorView.tsx'), 'utf8')
+
+  test('AI cannot claim a unit while citing knowledge from another unit', () => {
+    expect(suggestRoute).toContain('!unitById.get(id)?.has(proposedUnitId)')
+    expect(suggestRoute).toContain('unitId: proposedUnitId')
+    expect(suggestRoute).toContain('unitById, unitId)')
+  })
+
+  test('manual and suggested assignments retain validated unit scope', () => {
+    expect(adminAssignmentsRoute).toContain('unitId: requestedUnitId')
+    expect(adminAssignmentsRoute).toContain('id: requestedUnitId, programId')
+    expect(adminAssignmentsRoute).toContain('unitId: a.unitId || null')
+    expect(adminBooks).toContain('unitId: s.unitId || null')
+    expect(adminBooks).toContain('الوحدة المرجعية للواجب')
+  })
+
+  test('legacy unlinked assignments never silently use first unrelated book', () => {
+    expect(grader).not.toContain('units.find((u: any) => u.sourceBookId')
+    expect(grader).toContain('if (!belongsToProgram) return')
+    expect(supervisor).toContain('هذا الواجب لا يملك مرجع وحدة موثوقًا')
+  })
+
+  test('missing rubric breakdown is disclosed to both reviewers', () => {
+    expect(supervisor).toContain('تعذّر التحقق من تفصيل الدرجة')
+    expect(adminBooks).toContain('لم يمكن التحقق من توزيع الدرجة')
+  })
+
+  test('JSONB migration and nullable legacy provenance match Prisma', () => {
+    const migration = readFileSync(join(root, 'prisma/migrations/20261101080000_assignment_knowledge_sources/migration.sql'), 'utf8')
+    expect(schema).toContain('sourceKnowledgeIds Json?')
+    expect(migration).toContain('ADD COLUMN "sourceKnowledgeIds" JSONB')
+  })
+
+  test('server validates and stores original knowledge IDs against exact unit chunks', () => {
+    expect(adminAssignmentsRoute).toContain("id: { in: validatedSourceIds }")
+    expect(adminAssignmentsRoute).toContain('sources.length !== validatedSourceIds.length')
+    expect(adminAssignmentsRoute).toContain('sourceKnowledgeIds: validatedSourceIds === undefined ? undefined')
+    expect(adminAssignmentsRoute).toContain('Prisma.DbNull')
+    expect(adminAssignmentsRoute).not.toContain('status: 409')
+  })
+
+  test('both UI submission routes retain source IDs and changing unit clears stale evidence', () => {
+    expect(adminBooks).toContain('sourceKnowledgeIds: s.sourceKnowledgeIds || null')
+    expect(adminBooks).toContain('sourceKnowledgeIds: a.sourceKnowledgeIds || null')
+    expect(adminBooks).toContain("unitId: v === 'NONE' ? '' : v, sourceKnowledgeIds: null")
+  })
+
+  test('AI grader prioritizes exact source IDs, and reports partial or unit-only fallback', () => {
+    expect(grader).toContain('id: { in: sourceIds }')
+    expect(grader).toContain('sourceIds.map((id) => originalById.get(id))')
+    expect(grader).toContain("status: GradingBookContext['status']")
+    expect(grader).toContain("sourceKnowledgeCount: book.expected")
+    expect(supervisor).toContain("bookSourceStatus === 'PARTIAL'")
+    expect(adminBooks).toContain("bookSourceStatus === 'UNIT'")
+  })
+})
+
 describe('lecture video edit/delete guards', () => {
   test('video route has an admin-only DELETE with storage cleanup', () => {
     expect(videoRoute).toContain('export async function DELETE')
