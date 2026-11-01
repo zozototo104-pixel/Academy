@@ -53,7 +53,7 @@ const ORIGINAL_API_CALL_COUNT = 79 // 78 protected calls plus reviewed outline-s
 // not silently discarded; the apply-to-form path carries the same IDs.
 // No endpoint, HTTP method, or call count changed. The changed payload is
 // guarded independently in tests/assignments/assignment-due-video-guard.test.ts.
-const ORIGINAL_API_DIGEST = 'fe748a2db691e23c625cbfbd572d5def86016620f43cd7d6560cc2352181af0a'
+// Reviewed PR #168: the suggestion response type now includes per-unit coverage metadata.\n// Endpoint, method and POST payload are unchanged; the AST call-expression digest\n// also includes the generic response type, so the expected digest is updated.\nconst ORIGINAL_API_DIGEST = 'e3b48c50f41490b8eaca893ac595089ee3c361d9381e024e55becd84a836aa5f'
 
 function parseSource() {
   return ts.createSourceFile('AdminBooks.tsx', SOURCE, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
