@@ -438,7 +438,27 @@ function testRealArabicTopicVariationsDoNotRejectValidGroups() {
   assert(rejected, 'المرونة الإملائية لا تجيز عنوانًا بعيدًا عن محتوى المقالات')
 }
 
+function testThematicGroupCannotHideMissingPdfPages() {
+  // Replayed 297-page PDF: a heading on p29 can share a stored chunk with
+  // preceding p28, while the old range ends at p27. Grouping must not
+  // silently claim p28 was covered by either unit.
+  const source = [
+    draftSection(1, 'قيادة', 11, 27),
+    draftSection(2, 'ذكاء عاطفي', 29, 31),
+    draftSection(3, 'صراع', 32, 33),
+  ]
+  const proposal = { groups: [
+    { startOrder: 1, endOrder: 2, title: 'قيادة وذكاء عاطفي' },
+    { startOrder: 3, endOrder: 3, title: 'صراع' },
+  ] }
+  let reason = ''
+  try { validateThematicArticleGrouping(JSON.stringify(proposal), source) }
+  catch (error) { reason = error instanceof Error ? error.message : String(error) }
+  assert(reason === 'OUTLINE_THEMATIC_SOURCE_COVERAGE_GAP', 'لا يجوز إخفاء الصفحة 28 المفقودة داخل وحدة أكبر')
+}
+
 const tests = [
+  testThematicGroupCannotHideMissingPdfPages,
   testRealArabicTopicVariationsDoNotRejectValidGroups,
   testOriginalPdfArticlePageNumbersWithinSameChunk,
   testReal297BookThematicGroupsRespectArticleBoundaries,
