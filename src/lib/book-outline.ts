@@ -696,7 +696,10 @@ export async function refineOversizedSections(params: {
         interior = parseAiRangeBoundaries(raw, rangeChunks, params.bookTitle)
       } catch { interior = [] }
     }
-    if (!interior.length) continue
+    if (!interior.length) {
+      warnings.push(`لم يظهر داخل النطاق «${section.title}» (${section.pageStart}–${section.pageEnd}) حدّ موضوعي موثوق؛ بقي القسم للمراجعة، ولم يُقسّم حسابيًا.`)
+      continue
+    }
     const anchor: Boundary = { at: section.chunkStartIndex, title: section.title, startCharOffset: section.startCharOffset ?? null, verifiedHeading: true }
     const subSections = normalizeBoundaries(rangeChunks, [anchor, ...interior], params.items, params.chunkIds, params.semester)
     if (subSections.length < 2) continue
