@@ -243,7 +243,7 @@ export async function POST(req: NextRequest) {
             stickyScope: `ASSIGNMENTS:${programId}:${id}`,
           })
           const parsed = parseJsonArray(raw)
-          const valid = normalizeSuggestions(parsed, semester, localAllowedIds, titleById, unitById, id)
+          const valid = normalizeSuggestions(parsed, semester, localAllowedIds, titleById, unitById, id, unitSources.map((source) => String(source.id)))
             .find((item) => item.unitId === id && !existingNormalized.has(item.title.toLowerCase()))
           if (valid) return { suggestion: valid, unitId: id, title: unitTitle }
           lastReason = `النتائج غير موثقة أو مكررة (عدد المقترحات: ${parsed.length})`
