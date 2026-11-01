@@ -12,8 +12,35 @@ import { ContactView } from '@/components/aact/ContactView'
 import { DirectoryView } from '@/components/aact/DirectoryView'
 import { AuthView } from '@/components/aact/AuthView'
 
+// This route renders only the public programs family. Navigating from its
+// shared Header to the dashboard/home/etc. must hand off to the actual Next
+// route: updating Zustand + pushState alone leaves the wrong React tree mounted.
+const supportedProgramViews: ReadonlySet<View> = new Set([
+  'programs', 'program-detail', 'apply', 'verify', 'directory',
+  'about', 'contact', 'auth',
+])
+
 export function ProgramsStandaloneClient() {
   const view = useAppStore((s) => s.view)
+  const setUser = useAppStore((s) => s.setUser)
+  const [routeReady, setRouteReady] = useState(false)
+  const [sessionReady, setSessionReady] = useState(false)
+
+  // This standalone public route does not mount the root page's /api/auth/me
+  // initialization. Restore only the Header identity from the EXISTING
+  // HttpOnly cookie; never prompt login or create a second login/session.
+  useEffect(() => {
+    let alive = true
+    fetch('/api/auth/me', { cache: 'no-store', credentials: 'same-origin' })
+      .then(async (response) => response.ok ? (await response.json()).user ?? null : null)
+      .then((user) => { if (alive) setUser(user) })
+      .catch((error) => {
+        // Public programs remain accessible even during a network outage.
+        console.warn('Failed to restore public programs header session.', error)
+      })
+      .finally(() => { if (alive) setSessionReady(true) })
+    return () => { alive = false }
+  }, [setUser])
 
   useEffect(() => {
     const path = window.location.pathname
