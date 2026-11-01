@@ -717,6 +717,10 @@ export async function refineOversizedSections(params: {
 type SourceHeading = { page: number; title: string; rawLine: string }
 
 const articlePrefix = /^(?:المقال\s*[:：]\s*)(.{5,110})$/iu
+// Source-specific but evidence-based article structure, common in PDFs
+// compiled from encyclopedia pages. The navigation line is a strong
+// independent marker of a new article and avoids a fixed list of topic names.
+const articleNavigationMarker = /(?:(?:اذهب|اذھب).{0,35}(?:التنقل|البحث)|(?:التنقل|البحث).{0,35}(?:اذهب|اذھب))/iu
 const subordinateHeading = /^(?:اسئله?\s*واجوبه?|أسئلة\s*وأجوبة|خلاصه|الخلاصة|تطبيقات\s*عمليه|المراجع|تمارين|مناقشه|أهداف\s*التعلم)\s*[:：]?\s*$/iu
 const numberedOrQuestion = /^(?:[•●▪*]|[-–—]\s|\d{1,3}\s*[.):\-–]|[٠-٩]{1,3}\s*[.):\-–]|[سج]\s*\d+\s*[:：]|(?:سؤال|س)\s*[:：]|[؟?])/iu
 const commonTopicStart = /^(?:مقدمه|مقدمة|دور|اهميه|أهمية|مفهوم|الإدارة|ادارة|إدارة|التخطيط|القيادة|التحليل|الاقتصاد|التسويق|الابتكار|الموارد|الرقابة|الجودة|مهارات|التنظيم|الاتصال|المخاطر|المنافسة)(?=\s|[:：]|$)/iu
