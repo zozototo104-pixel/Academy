@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs'
 import { __resolveWhatsAppBotReplyForTests } from '../src/app/api/webhooks/whatsapp/route'
-import type { WhatsAppInboundMessage } from '../src/lib/whatsapp-cloud'
+import { sanitizeWhatsAppBotReply, WHATSAPP_IDENTITY_FALLBACK_REPLY, type WhatsAppInboundMessage } from '../src/lib/whatsapp-cloud'
 
 function assert(condition: unknown, message: string) {
   if (!condition) throw new Error(message)
