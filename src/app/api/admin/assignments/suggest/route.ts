@@ -183,8 +183,24 @@ export async function POST(req: NextRequest) {
     } catch (error: any) {
       return NextResponse.json({ error: `توقف اقتراح الواجبات مؤقتاً: ${String(error?.message || error)}`, status: 'PAUSED' }, { status: 503 })
     }
-    const suggestions = normalizeSuggestions(parseJsonArray(raw), semester, allowedIds, titleById, unitById, unitId)
-    if (!suggestions.length) return NextResponse.json({ error: 'لم ينتج الراوتر واجبات موثقة بالمصادر. لم تُنشأ قوالب بديلة.', status: 'PAUSED' }, { status: 503 })
+    let parsed = parseJsonArray(raw)
+    let suggestions = normalizeSuggestions(parsed, semester, allowedIds, titleById, unitById, unitId)
+    if (!suggestions.length) {
+      console.warn('assignment suggestions rejected', { programId, semester, unitId, returned: parsed.length, sourcedUnits: unitGroups.length, sampledSources: sampledKnowledge.length })
+      try {
+        const retry = await textAiCompleteJson({
+          system: 'أنت مصمم تكليفات جامعية مصدرية. أعد JSON array فقط. لا تختلق معرفات.',
+          history: [{ role: 'user', text: prompt + '\n\nالمحاولة السابقة لم تنتج واجبات مقبولة. أعد الاقتراحات باستخدام sourceKnowledgeIds وunitId الحرفية الواردة في المصادر أعلاه. كل واجب من وحدة واحدة فقط، وكل مصدر يجب أن ينتمي إلى تلك الوحدة. وزع الاقتراحات بين وحدات الفصل قدر الإمكان.' }],
+          taskLevel: 'ACADEMIC_CRITICAL', routerPolicy: 'balanced', temperature: 0.1,
+          maxOutputTokens: 6000, stickyScope: `ASSIGNMENTS:${programId}:${unitId || semester}`,
+        })
+        parsed = parseJsonArray(retry)
+        suggestions = normalizeSuggestions(parsed, semester, allowedIds, titleById, unitById, unitId)
+      } catch (retryError) {
+        console.warn('assignment suggestions correction failed', retryError)
+      }
+    }
+    if (!suggestions.length) return NextResponse.json({ error: 'لم تنتج محاولتا الاقتراح واجبات موثقة بمصادر الوحدات. تحقق من ربط عناصر المعرفة بالوحدات أو راجع سجلات التوليد.', status: 'PAUSED' }, { status: 503 })
     return NextResponse.json({ suggestions })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
