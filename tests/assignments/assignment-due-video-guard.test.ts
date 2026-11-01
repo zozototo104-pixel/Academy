@@ -140,6 +140,9 @@ describe('assignment suggestion hardening guards (PR #168 review fixes)', () => 
     expect(adminBooks).toContain("(x.unitId || '') === (s.unitId || '') && x.title === s.title")
   })
   test('add-all reports per-item results and never announces full success over failures', () => {
+    expect(adminBooks).toContain('const list = assignmentSuggestions.filter((s) => !s.added)')
+    expect(adminBooks).toContain('if (await addAssignmentSuggestion(s)) saved++')
+    expect(adminBooks).toContain('else failedTitles.push(s.title)')
     expect(adminBooks).toContain('const failedTitles: string[] = []')
     expect(adminBooks).toContain('if (!failedTitles.length)')
     expect(adminBooks).toContain('اكتملت الإضافة جزئياً')
