@@ -212,6 +212,7 @@ interface AssignmentRow {
   id: string
   programId: string
   unitId?: string | null
+  sourceKnowledgeIds?: string[] | null
   title: string
   description: string
   semester: number
