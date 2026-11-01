@@ -77,7 +77,7 @@ const db: any = {
   },
   unit: {
     findUnique: async () => mockSourceUnit ? { id: 'unit-1', title: 'إدارة الكفاءات', sourceBookId: 'book-1', chunkStartIndex: 0, chunkEndIndex: 1 } : null,
-    findFirst: async (args: any) => mockSourceUnit && args?.where?.programId === 'prog-1' && args?.where?.id === 'unit-1' ? { id: 'unit-1' } : null,
+    findFirst: async (args: any) => mockSourceUnit && args?.where?.programId === 'prog-1' && args?.where?.id === 'unit-1' ? { id: 'unit-1', semester: 1, sourceBookId: 'book-1', chunkStartIndex: 0, chunkEndIndex: 1 } : null,
     findMany: async () => [],
   },
   bookChunk: { findMany: async () => mockSourceUnit ? [{ id: 'chunk-1', text: 'نص كتاب الموارد البشرية عن التخطيط والاستقطاب.' }] : [] },
