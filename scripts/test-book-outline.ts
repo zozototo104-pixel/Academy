@@ -312,7 +312,7 @@ async function testFull297BookUsesLateEvidenceNotArithmeticSplits() {
 
 async function testGenuineSixtyPageChapterIsReviewedNotForceSplit() {
   const chunks = Array.from({ length: 6 }, (_, index) => spanChunk(index,
-    `${index === 0 ? 'الفصل الأول: مبادئ الإدارة\\n' : ''}دراسة متصلة للمفاهيم الأصلية`, index * 10 + 1, (index + 1) * 10))
+    `${index === 0 ? 'الفصل الأول: مبادئ الإدارة\n' : ''}دراسة متصلة للمفاهيم الأصلية`, index * 10 + 1, (index + 1) * 10))
   const chunkIds = new Map(chunks.map((entry) => [entry.index, `chunk-${entry.index}`]))
   const topics = ['الإبداع النظري', 'الاتصال الفعال', 'التخطيط المؤسسي', 'إدارة المخاطر', 'قياس الأداء', 'تنظيم الموارد']
   const items = chunks.map((entry) => ({ chunkId: `chunk-${entry.index}`, title: topics[entry.index], summary: 'مادة الكتاب' }))
