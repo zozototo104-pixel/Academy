@@ -160,6 +160,7 @@ export async function POST(req: NextRequest) {
     const knowledge = await unitKnowledge(programId, semester, unitId)
     if (!knowledge.length) return NextResponse.json({ error: unitId ? 'لا توجد عناصر معرفة v2 داخل نطاق هذه الوحدة. ولّد محتوى الوحدة أولاً.' : 'لا توجد وحدات ذات مصادر v2 لهذا الفصل. ولّد محتوى الوحدات أولاً.' }, { status: 400 })
 
+    const programTitle = program.titleAr
     const existing = await db.programAssignment.findMany({ where: { programId }, select: { title: true } })
     const existingTitles = existing.map((a) => a.title).join('، ')
     const titleById = new Map(knowledge.map((k) => [String(k.id), titleFromKnowledge(k)] as const))
