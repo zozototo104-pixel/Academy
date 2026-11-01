@@ -357,6 +357,9 @@ function normalizeBoundaries(chunks: readonly Chunk[], boundaries: readonly Boun
       pageStart,
       // Distinct article headings in a shared chunk can have different real
       // PDF pages. Unknown boundaries still require review; never guess.
+      // Two real article headings may share one PDF page. That page belongs
+      // to both article spans; it is not an unknown end or lost content.
+      // Reversed page order is still unknown and must block approval.
       pageEnd: nextPage === null ? sorted[range.end].pageEnd
         : nextPage < pageStart ? null
         : nextPage === pageStart ? (sorted[range.end].pageEnd >= pageStart ? pageStart : null)
