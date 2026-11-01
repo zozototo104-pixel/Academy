@@ -67,15 +67,7 @@ export async function DELETE(request: NextRequest, context: Context) {
     const oldTargetOrder = target.order
     const oldRemovedOrder = removed.order
     const oldWarnings = (() => { try { const x = JSON.parse(outline?.warnings || '[]'); return Array.isArray(x) ? x.map(String) : [] } catch { return [] as string[] } })()
-    const warnings = oldWarnings.flatMap((warning) => {
-      if (warning.startsWith('تنبيه تغطية:') || warning.startsWith('OUTLINE_COVERAGE:')) return []
-      if (!warning.startsWith('OUTLINE_SUBHEADING:')) return [warning]
-      try {
-        const marker = JSON.parse(warning.slice('OUTLINE_SUBHEADING:'.length))
-        const newOrder = orderByOld.get(marker.sectionOrder === oldRemovedOrder ? oldTargetOrder : marker.sectionOrder)
-        return newOrder ? ['OUTLINE_SUBHEADING:' + JSON.stringify({ ...marker, sectionOrder: newOrder })] : []
-      } catch { return [] }
-    })
+    const warnings = remapOutlineReviewWarnings(oldWarnings, orderByOld, oldRemovedOrder, oldTargetOrder)
     warnings.push('OUTLINE_MERGED_TITLE:' + JSON.stringify({
       sectionOrder: orderByOld.get(oldTargetOrder), title: removed.title,
       pageStart: removed.pageStart, pageEnd: removed.pageEnd,
