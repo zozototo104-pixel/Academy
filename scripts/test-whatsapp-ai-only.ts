@@ -69,6 +69,27 @@ async function assertModelOnlyCase(name: string, input: Partial<WhatsAppInboundM
   }
 }
 
+function testWhatsAppIdentityGuardDoesNotRepeatGreeting() {
+  const onlyModel = sanitizeWhatsAppBotReply('I am DeepSeek-V4-Flash, developed by DeepSeek.')
+  assert(onlyModel.stripped, 'model-only self-introduction must be intercepted')
+  assert(onlyModel.text === WHATSAPP_IDENTITY_FALLBACK_REPLY, 'model-only reply must use academy identity')
+  assert(!/السلام عليكم|كيف يمكنني مساعدتك/u.test(onlyModel.text), 'fallback must not repeat a greeting or canned help offer')
+
+  const withAnswer = sanitizeWhatsAppBotReply('I am DeepSeek-V4-Flash, developed by DeepSeek. رسوم التسجيل تجدها في صفحة البرامج.')
+  assert(withAnswer.stripped, 'model self-introduction must be removed')
+  assert(withAnswer.text === 'رسوم التسجيل تجدها في صفحة البرامج.', 'actual informative model reply must be preserved')
+
+  const regular = 'ما الفرق بين DeepSeek وGemini في نماذج الذكاء الاصطناعي؟'
+  const unchanged = sanitizeWhatsAppBotReply(regular)
+  assert(!unchanged.stripped && unchanged.text === regular, 'technical discussion must not be censored merely for naming a model')
+
+  const arabic = sanitizeWhatsAppBotReply('أنا نموذج ذكاء اصطناعي. يمكنك التواصل مع الإدارة عبر الموقع.')
+  assert(arabic.stripped && arabic.text === 'يمكنك التواصل مع الإدارة عبر الموقع.', 'Arabic model identity must be removed without discarding the answer')
+
+  const noGreeting = sanitizeWhatsAppBotReply('السلام عليكم ورحمة الله.')
+  assert(noGreeting.text === 'السلام عليكم ورحمة الله.' && !noGreeting.stripped, 'ordinary greeting must not be rewritten')
+}
+
 function testWhatsAppSourceWiring() {
   const route = readFileSync('src/app/api/webhooks/whatsapp/route.ts', 'utf8')
   assert(!route.includes('getHumanHandoffConfirmationReply'), 'WhatsApp route must not import or call getHumanHandoffConfirmationReply')
