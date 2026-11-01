@@ -70,12 +70,19 @@ const db: any = {
     findFirst: async () => ({ id: 'app-1', supervisorId: admissionSupervisorId, supervisionMode: 'HYBRID' }),
   },
   unit: {
-    findUnique: async () => null,
+    findUnique: async () => mockSourceUnit ? { id: 'unit-1', title: 'إدارة الكفاءات', sourceBookId: 'book-1', chunkStartIndex: 0, chunkEndIndex: 1 } : null,
+    findFirst: async (args: any) => mockSourceUnit && args?.where?.programId === 'prog-1' && args?.where?.id === 'unit-1' ? { id: 'unit-1' } : null,
     findMany: async () => [],
   },
-  bookChunk: { findMany: async () => [] },
-  bookKnowledgeItem: { findMany: async () => [] },
-  book: { findUnique: async () => null },
+  bookChunk: { findMany: async () => mockSourceUnit ? [{ id: 'chunk-1', text: 'نص كتاب الموارد البشرية عن التخطيط والاستقطاب.' }] : [] },
+  bookKnowledgeItem: { findMany: async (args: any) => {
+    if (!mockSourceUnit) return []
+    const exact = { id: 'ki-exact', title: 'الاستقطاب الموثّق', summary: 'المصدر الأصلي عن معايير الاختيار والموارد البشرية.', excerpt: 'إجراءات الاستقطاب' }
+    const unitExtra = { id: 'ki-other-unit', title: 'تخطيط الكفاءات', summary: 'معلومات إضافية من الوحدة الصحيحة.', excerpt: 'التخطيط' }
+    if (args?.where?.id?.in) return mockMissingOriginal ? [] : args.where.id.in.includes(exact.id) ? [exact] : []
+    return [unitExtra]
+  } },
+  book: { findUnique: async () => mockSourceUnit ? { title: 'كتاب الموارد البشرية' } : null },
 }
 
 mock.module('@/lib/db', () => ({ db }))
