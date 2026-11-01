@@ -1040,7 +1040,9 @@ export async function buildBookOutline(bookId: string, options: { reuseReadChunk
       draft.warnings.push('تعذّر توثيق تجميع المقالات القصيرة في وحدات موضوعية؛ احتُفظ بعناوين المقالات الأصلية للمراجعة، ولم يُفرض دمج غير موثوق.')
     }
   }
-  const balanced = balanceBookOutlineSections(thematic?.sections || refined.sections)
+  // Validated thematic groups already have an explicit source-to-group map;
+  // do not renumber them again or their original subheading markers drift.
+  const balanced = thematic ? { sections: thematic.sections, merged: 0 } : balanceBookOutlineSections(refined.sections)
   draft = {
     ...draft,
     sections: balanced.sections,
