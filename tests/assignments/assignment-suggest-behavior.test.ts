@@ -119,6 +119,22 @@ function postReq(url: string, body: unknown) {
 }
 
 describe('assignment suggestions: semester scope and pinning (behavioral)', () => {
+  test('numbered citations resolve to real unit knowledge, but fabricated IDs never pass', async () => {
+    try {
+      modelSourceFormat = 'index'
+      const validResponse = await suggestPOST(postReq('http://t/api/admin/assignments/suggest', { programId: 'prog1', semester: 1, unitId: 'u1' }))
+      expect(validResponse.status).toBe(200)
+      const valid = await validResponse.json()
+      expect(valid.suggestions[0].sourceKnowledgeIds).toEqual(['k1'])
+      modelSourceFormat = 'invalid'
+      const invalidResponse = await suggestPOST(postReq('http://t/api/admin/assignments/suggest', { programId: 'prog1', semester: 1, unitId: 'u1' }))
+      expect(invalidResponse.status).toBe(503)
+      const invalid = await invalidResponse.json()
+      expect(invalid.failedUnits[0].unitId).toBe('u1')
+    } finally {
+      modelSourceFormat = 'id'
+    }
+  })
   test('semester-3 generation is grounded in semester 1+2 units while the assignment semester stays 3', async () => {
     modelSemester = 1 // النموذج يحاول إعادة الفصل الأول
     const res = await suggestPOST(postReq('http://t/api/admin/assignments/suggest', { programId: 'prog1', semester: 3 }))
