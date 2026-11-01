@@ -211,6 +211,7 @@ interface AssignmentSubmissionRow {
 interface AssignmentRow {
   id: string
   programId: string
+  unitId?: string | null
   title: string
   description: string
   semester: number
