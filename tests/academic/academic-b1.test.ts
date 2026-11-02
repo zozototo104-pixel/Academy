@@ -56,6 +56,7 @@ const db: any = {
     findMany: async () => [],
   },
   answer: {
+    count: async () => pendingUnitGrading?.savedAnswerCount ?? 0,
     create: async ({ data }: any) => { calls.push(`answer.create:${data.questionId}:${data.aiFeedback || ''}`); answers.push({ ...data }); return data },
     createMany: async ({ data }: any) => {
       for (const item of data) { calls.push(`answer.create:${item.questionId}:${item.aiFeedback || ''}`); answers.push({ ...item }) }
