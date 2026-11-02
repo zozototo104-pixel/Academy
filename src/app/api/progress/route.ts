@@ -296,6 +296,9 @@ export async function POST(req: NextRequest) {
     if (e?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'يجب تسجيل الدخول أولاً' }, { status: 401 })
     }
+    if (e?.message === 'SEM1_REQUIRED') {
+      return NextResponse.json({ error: 'يجب اجتياز امتحان الفصل الدراسي الأول قبل فتح الثاني', code: 'SEM1_REQUIRED' }, { status: 403 })
+    }
     console.error('Progress POST error:', e)
     return NextResponse.json({ error: 'خطأ في تحديث التقدم' }, { status: 500 })
   }
