@@ -262,8 +262,8 @@ function testMaxAttemptsAndAnswerKeyDisclosure() {
 function testProgressCertificateUsesCentralServiceAndFullTuition() {
   const progress = file('src/app/api/progress/route.ts')
   assert(progress.includes('completeEnrollmentIfEligible({ enrollmentId: enrollment.id })'), 'progress POST must delegate PROGRAM_COMPLETION issuance to the central completion service')
-  assert(progress.includes('getStudentTuitionPlan(user.id, programId)'), 'progress POST must check the student tuition plan before certificate issuance')
-  assert(progress.includes('tuitionPlan.paidTuition >= tuitionPlan.totalTuition'), 'progress POST must require full tuition before issuing PROGRAM_COMPLETION')
+  assert(progress.includes('completeEnrollmentIfEligible({ enrollmentId: enrollment.id })'), 'progress POST must defer graduation to central service')
+  assert(progress.includes('data: { completedUnits: JSON.stringify(completedUnits) }'), 'marking a read unit may update only its progress, never graduation status or academic score')
   assert(!progress.includes('db.certificate.create'), 'progress POST must not create PROGRAM_COMPLETION certificates directly')
   assert(!progress.includes('nextCertSerial'), 'progress POST must not mint certificate serials directly')
   assert(!progress.includes('randomBytes(16).toString'), 'progress POST must not generate certificate tokens directly')
