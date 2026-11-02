@@ -215,6 +215,7 @@ export default function AdminLegacyGraduatesTab() {
   const stampResizeRef = useRef<{ field: StampField; startX: number; startY: number; startSize: number; startWidth: number; startFontSize: number } | null>(null)
   const [excelFile, setExcelFile] = useState<File | null>(null)
   const [importRows, setImportRows] = useState<ImportPreviewRow[]>([])
+  const [programOverrides, setProgramOverrides] = useState<Record<string, string>>({})
   const [zipFile, setZipFile] = useState<File | null>(null)
   const [zipReport, setZipReport] = useState<any>(null)
   const [programOptions, setProgramOptions] = useState<LegacyProgramOption[]>([])
