@@ -140,6 +140,7 @@ async function mapLimited<T, R>(items: T[], limit: number, fn: (item: T) => Prom
 
 // POST /api/program-exam/submit — تسليم الاختبار الشامل والتصحيح الآلي
 export async function POST(req: NextRequest) {
+  let claimedProgramAttemptId: string | null = null
   try {
     const user = await requireUser()
     const maxPayloadBytes = 512 * 1024
