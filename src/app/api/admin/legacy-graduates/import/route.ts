@@ -8,6 +8,7 @@ import {
 } from '@/lib/legacy-graduates'
 import {
   LEGACY_GRADUATE_IMPORT_MAX_BYTES,
+  LEGACY_GRADUATE_IMPORT_MAX_ROWS,
   parseLegacyGraduateWorkbook,
   validateLegacyGraduateImportRows,
 } from '@/lib/legacy-graduates-import'
