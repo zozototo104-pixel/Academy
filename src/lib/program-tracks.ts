@@ -184,9 +184,21 @@ export interface AcademicExamRef {
 }
 
 export interface AcademicEvaluationItem {
+  key?: string // Stable grade component, selected explicitly by the administrator
   label: string
   weight: number
   description: string
+}
+
+/** Signature of the exact component mapping and weights approved by an administrator.
+ * Changing even one mapped item invalidates prior approval automatically.
+ */
+export function gradingFormulaSignature(formula: Array<{ key?: string; label: string; weight: number }>): string {
+  return JSON.stringify(formula.map((item) => [
+    String(item.key || '').trim(),
+    String(item.label || '').replace(/\s+/g, ' ').trim(),
+    Number(item.weight),
+  ]))
 }
 
 export interface AcademicTermPlan {
