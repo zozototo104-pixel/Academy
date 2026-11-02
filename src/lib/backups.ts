@@ -1,6 +1,7 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from 'crypto'
 import { gunzipSync, gzipSync } from 'zlib'
 import { NextRequest } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { audit } from '@/lib/notify'
 import { readStoredFile, storeFileBuffer, storageErrorMessage } from '@/lib/storage'
