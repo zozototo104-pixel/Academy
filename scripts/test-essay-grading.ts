@@ -156,8 +156,9 @@ function testManualRegradeGuidance() {
 
 function testApprovalRejectsNullOpenAnswerPoints() {
   const code = src('src/app/api/admin/attempts-review/route.ts')
-  assert(code.includes('OPEN_ANSWER_POINTS_REQUIRED'), 'اعتماد المراجعة يجب أن يرفض أي سؤال مقالي/قصير بلا نقاط')
-  assert(code.includes('points == null'), 'التحقق يجب أن يحافظ على null بدلاً من تحويله إلى صفر')
+  assert(code.includes('ANSWERS_NOT_FULLY_GRADED'), 'اعتماد المراجعة يجب أن يرفض أي إجابة بلا نقاط — من كل الأنواع، لا المقالي/القصير فقط')
+  const completeness = src('src/lib/answer-completeness.ts')
+  assert(completeness.includes('points == null'), 'التحقق يجب أن يحافظ على null بدلاً من تحويله إلى صفر')
   assert(code.includes('ANSWER_NOT_IN_ATTEMPT'), 'اعتماد المراجعة يجب أن يتحقق من ملكية answerId للمحاولة')
 }
 

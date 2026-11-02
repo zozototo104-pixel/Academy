@@ -65,13 +65,11 @@ async function listReviewAttempts(statusFilter: string = 'NEEDS_REVIEW') {
       select: { id: true, status: true, submittedAt: true, user: { select: { id: true, name: true, email: true } }, exam: { select: { id: true, title: true, program: { select: { titleAr: true } } } } },
     }),
   ])
-  const rows = [
-    ...unitAttempts.map((a) => ({ type: 'UNIT', id: a.id, status: a.status, submittedAt: a.submittedAt, student: a.user, exam: { id: a.exam.id, title: a.exam.title, programTitle: a.exam.unit.program.titleAr, unitTitle: a.exam.unit.title } })),
-    ...programAttempts.map((a) => ({ type: 'PROGRAM', id: a.id, status: a.status, submittedAt: a.submittedAt, student: a.user, exam: { id: a.exam.id, title: a.exam.title, programTitle: a.exam.program.titleAr } })),
-  ]
+  let stuckUnit: Array<any> = []
+  let stuckProgram: Array<any> = []
   if (statusFilter !== 'GRADED') {
     const stuckBefore = new Date(Date.now() - STUCK_SUBMITTED_MS)
-    const [stuckUnit, stuckProgram] = await Promise.all([
+    ;[stuckUnit, stuckProgram] = await Promise.all([
       db.examAttempt.findMany({
         where: { status: 'SUBMITTED', submittedAt: { lt: stuckBefore } },
         orderBy: { submittedAt: 'desc' },
@@ -85,12 +83,13 @@ async function listReviewAttempts(statusFilter: string = 'NEEDS_REVIEW') {
         select: { id: true, status: true, submittedAt: true, createdAt: true, user: { select: { id: true, name: true, email: true } }, exam: { select: { id: true, title: true, program: { select: { titleAr: true } } } } },
       }),
     ])
-    rows.push(
-      ...stuckUnit.map((a) => ({ type: 'UNIT', id: a.id, status: a.status, stuck: true, submittedAt: a.submittedAt, student: a.user, exam: { id: a.exam.id, title: a.exam.title, programTitle: a.exam.unit.program.titleAr, unitTitle: a.exam.unit.title } })),
-      ...stuckProgram.map((a) => ({ type: 'PROGRAM', id: a.id, status: a.status, stuck: true, submittedAt: a.submittedAt ?? a.createdAt, student: a.user, exam: { id: a.exam.id, title: a.exam.title, programTitle: a.exam.program.titleAr } })),
-    )
   }
-  return rows.sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime())
+  return [
+    ...unitAttempts.map((a) => ({ type: 'UNIT', id: a.id, status: a.status, submittedAt: a.submittedAt, student: a.user, exam: { id: a.exam.id, title: a.exam.title, programTitle: a.exam.unit.program.titleAr, unitTitle: a.exam.unit.title } })),
+    ...programAttempts.map((a) => ({ type: 'PROGRAM', id: a.id, status: a.status, submittedAt: a.submittedAt, student: a.user, exam: { id: a.exam.id, title: a.exam.title, programTitle: a.exam.program.titleAr } })),
+    ...stuckUnit.map((a) => ({ type: 'UNIT', id: a.id, status: a.status, stuck: true, submittedAt: a.submittedAt, student: a.user, exam: { id: a.exam.id, title: a.exam.title, programTitle: a.exam.unit.program.titleAr, unitTitle: a.exam.unit.title } })),
+    ...stuckProgram.map((a) => ({ type: 'PROGRAM', id: a.id, status: a.status, stuck: true, submittedAt: a.submittedAt ?? a.createdAt, student: a.user, exam: { id: a.exam.id, title: a.exam.title, programTitle: a.exam.program.titleAr } })),
+  ].sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime())
 }
 
 async function unitDetail(id: string) {
