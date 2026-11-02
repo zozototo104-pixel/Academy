@@ -18,6 +18,8 @@ type DiplomaFixture = {
   researchRequired?: boolean
   researchUnapproved?: boolean
   researchScore?: number | null
+  twoSemesterExams?: boolean
+  secondSemesterMissing?: boolean
   unitScore?: number | null
   unitPassed?: boolean
   assignmentStatus?: 'GRADED' | 'SUBMITTED'
