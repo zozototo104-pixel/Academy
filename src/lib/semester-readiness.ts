@@ -126,6 +126,9 @@ export async function calculateSemesterReadiness(userId: string, programId: stri
 }
 
 export async function markSemesterReady(userId: string, programId: string, semester: number) {
+  if (semester === 2 && !(await hasPassedFirstSemesterExam(userId, programId))) {
+    throw new Error('SEM1_REQUIRED')
+  }
   const enrollment = await db.enrollment.findUnique({ where: { userId_programId: { userId, programId } } })
   if (!enrollment) throw new Error('ENROLLMENT_NOT_FOUND')
   const ready = new Set(parseJsonArray(enrollment.examReadiness).map((x) => Number(x)).filter(Boolean))
