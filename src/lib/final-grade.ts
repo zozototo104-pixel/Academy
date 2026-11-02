@@ -191,7 +191,9 @@ async function programExamAverage(client: DbClient, userId: string, programId: s
     })
     const scores = attempts.map(rawProgramAttemptScore)
     earned.push(best(scores) ?? 0)
-    if (!scores.some((value) => value !== null && value >= exam.passScore)) {
+    if (!attempts.some((attempt, index) =>
+      attempt.passed === true && scores[index] !== null && scores[index]! >= exam.passScore
+    )) {
       addMissing(missing, `امتحان البرنامج: ${exam.title}`)
       complete = false
     }
