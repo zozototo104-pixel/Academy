@@ -1847,7 +1847,7 @@ export function AdminSystemTab() {
                 <div>
                   <h5 className="text-xs font-black text-amber-900">فحص أو استيراد نسخة احتياطية مشفرة</h5>
                   <p className="mt-1 text-[11px] font-bold leading-relaxed text-amber-800">
-                    هذا خاص بالنسخة الكاملة المشفرة من قاعدة البيانات، وليس نسخة كتالوج البرامج في تبويب الجودة. الفحص لا يكتب شيئاً، والاستيراد لا يحذف البيانات الحالية ويستخدم skipDuplicates.
+                    هذه نسخة صفوف قاعدة البيانات فقط، وليست نسخة الملفات المخزنة خارجيًا. الفحص قراءة فقط؛ الاستعادة لا تعمل على قاعدة الإنتاج ولا تدعم الدمج أو skipDuplicates. تتطلب قاعدة اختبار معزولة وفارغة ونسخةً كاملةً متوافقة، وإلا ترفض العملية.
                   </p>
                 </div>
                 <Badge className={backupStatus?.configured.encryptionConfigured ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}>
