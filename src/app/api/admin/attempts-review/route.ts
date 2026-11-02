@@ -234,6 +234,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, ...result, certificateNo: completion?.ok ? completion.certificate?.serial || null : null })
   } catch (error: any) {
     if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
+    if (error instanceof EssayNeedsReviewError) {
+      const descriptions: Record<string, string> = {
+        ESSAY_MODEL_ANSWER_MISSING: 'الإجابة النموذجية لهذا السؤال غير موجودة. استخدم التصحيح اليدوي أو أكمل المرجع المعتمد أولاً.',
+        ESSAY_LOW_CONFIDENCE: 'المصحح الآلي غير واثق من النتيجة. راجع إجابة الطالب يدوياً ولا تعتمد علامة تلقائية.',
+        ESSAY_CRITERION_MISSING: 'لم يرجع المصحح جميع معايير التصحيح المطلوبة. راجع الإجابة يدوياً أو حاول إعادة التصحيح.',
+        ESSAY_CRITERION_UNKNOWN: 'أرجع المصحح معياراً غير موجود في الروبرك المعتمد. يلزم مراجعة يدوية.',
+        ESSAY_CRITERION_DUPLICATED: 'كرر المصحح أحد معايير التقييم. يلزم مراجعة يدوية.',
+      }
+      return NextResponse.json({
+        error: descriptions[error.code] || 'التصحيح الآلي غير مكتمل، والمحاولة ما زالت بانتظار المراجعة.',
+        code: error.code,
+        reviewRequired: true,
+      }, { status: 422 })
+    }
     if (error?.code) return NextResponse.json({ error: error.userMessage || String(error.message || error) }, { status: error.status || 400 })
     console.error('attempts-review POST error:', error)
     return NextResponse.json({ error: 'تعذر إعادة التصحيح الآلي' }, { status: 500 })
