@@ -298,6 +298,6 @@ test('امتحان برنامج: إجابة محفوظة لسؤال REJECTED ل�
   const result = await reviewRequest('PROGRAM')
   expect(result.status).toBe(200)
   expect((await result.json()).score).toBe(100)
-  expect(auditFinalGrade?.status).toBe('GRADED')
+  expect((auditFinalGrade as Record<string, any> | null)?.status).toBe('GRADED')
 })
 
