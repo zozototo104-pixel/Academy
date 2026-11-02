@@ -550,7 +550,7 @@ export async function POST(req: NextRequest) {
       results,
     })
     } catch (postCreateError: any) {
-      const reviewState = { code: 'POST_SUBMIT_FAILURE' }
+      const reviewState = { code: postCreateError?.code === 'ANSWER_KEY_MISSING' ? 'ANSWER_KEY_MISSING' : 'POST_SUBMIT_FAILURE' }
       // Never downgrade an already GRADED attempt, even if later side effects fail.
       const recovered = await db.programExamAttempt.updateMany({
         where: { id: attempt.id, status: 'SUBMITTED' },
