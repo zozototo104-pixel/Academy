@@ -18,7 +18,8 @@ type Scenario = {
   examRaw?: number
   examStored?: number
   appealFinal?: number
-  formula?: Array<{ label: string; weight: number }>
+  formula?: Array<{ key?: string; label: string; weight: number }>
+  approval?: 'APPROVED' | 'UNAPPROVED'
   thesisScore?: number
 }
 
