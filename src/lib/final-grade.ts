@@ -119,7 +119,7 @@ function addMissing(missing: string[], label: string) {
   if (!missing.includes(label)) missing.push(label)
 }
 
-async function unitQuizAverage(client: DbClient, userId: string, programId: string, missing: string[], semester?: number) {
+async function unitQuizAverage(client: DbClient, userId: string, programId: string, missing: string[], semester?: number): Promise<ComponentScore> {
   const exams = await client.exam.findMany({
     where: { status: 'READY', unit: { programId, ...(semester ? { semester } : {}) } },
     select: { id: true, title: true, passScore: true, unit: { select: { title: true } }, _count: { select: { questions: true } } },
@@ -129,25 +129,49 @@ async function unitQuizAverage(client: DbClient, userId: string, programId: stri
     addMissing(missing, semester ? `اختبارات وحدات الفصل ${semester}` : 'اختبارات الوحدات المطلوبة')
     return null
   }
-  const scorableExams = exams.filter((exam) => Number((exam as any)._count?.questions || 0) > 0)
-  // Legacy READY unit exams with no published questions are ignored for certification eligibility:
-  // they cannot be attempted, so they must not block graduation forever or inflate the final score.
-  if (!scorableExams.length) return 'EXEMPT' as const
-
-  const bestScores: number[] = []
-  for (const exam of scorableExams) {
+  const scorable = exams.filter((e) => Number(e._count?.questions || 0) > 0)
+  if (!scorable.length) return 'EXEMPT'
+  const earned: number[] = []
+  let complete = true
+  for (const exam of scorable) {
     const attempts = await client.examAttempt.findMany({
-      where: { userId, examId: exam.id, status: 'GRADED', passed: true },
-      select: { score: true, answers: { select: { points: true, maxPoints: true } } },
+      where: { userId, examId: exam.id, status: 'GRADED' },
+      select: { score: true, passed: true, answers: { select: { points: true, maxPoints: true } } },
     })
-    const bestAttemptScore = best(attempts.map((attempt) => percentFromAnswers(attempt.answers) ?? attempt.score))
-    if (bestAttemptScore == null) addMissing(missing, `اختبار وحدة: ${exam.unit.title || exam.title}`)
-    else bestScores.push(bestAttemptScore)
+    const scores = attempts.map((a) => percentFromAnswers(a.answers) ?? a.score)
+    earned.push(best(scores) ?? 0)
+    if (!attempts.some((a, i) => a.passed === true && scores[i] !== null)) {
+      addMissing(missing, `اختبار وحدة: ${exam.unit.title || exam.title}`)
+      complete = false
+    }
   }
-  return bestScores.length === scorableExams.length ? avg(bestScores) : null
+  // All required quizzes occupy their original slots; missing quizzes count as zero, not a smaller denominator.
+  const percent = avg(earned) ?? 0
+  return complete ? percent : { score: percent, complete: false }
 }
 
-async function programExamAverage(client: DbClient, userId: string, programId: string, missing: string[], semester?: number) {
+function rawProgramAttemptScore(attempt: {
+  score: number | null
+  finalScore?: number | null
+  appealStatus?: string | null
+  feedback?: string | null
+  answers?: ScoredAnswer[]
+}): number | null {
+  // A manually resolved appeal is a separate, explicit final exam decision.
+  if (attempt.appealStatus === 'REVIEWED' && typeof attempt.finalScore === 'number') return clampPercent(attempt.finalScore)
+  let storedRaw: unknown = null
+  try {
+    storedRaw = JSON.parse(attempt.feedback || '{}')?.rawScoreBeforeCourseworkCap
+  } catch {
+    // Historical free-form feedback; prefer original answer points when available.
+  }
+  if (storedRaw !== null && storedRaw !== undefined && storedRaw !== '' && Number.isFinite(Number(storedRaw))) {
+    return clampPercent(Number(storedRaw))
+  }
+  return (attempt.answers?.length ? percentFromAnswers(attempt.answers) : null) ?? attempt.finalScore ?? attempt.score
+}
+
+async function programExamAverage(client: DbClient, userId: string, programId: string, missing: string[], semester?: number): Promise<ComponentScore> {
   const exams = await client.programExam.findMany({
     where: { programId, status: 'READY', ...(semester ? { semester } : {}) },
     select: { id: true, title: true, semester: true, passScore: true },
@@ -157,51 +181,56 @@ async function programExamAverage(client: DbClient, userId: string, programId: s
     addMissing(missing, semester ? `امتحان برنامج الفصل ${semester}` : 'امتحانات البرنامج المطلوبة')
     return null
   }
-
-  const bestScores: number[] = []
+  const earned: number[] = []
+  let complete = true
   for (const exam of exams) {
     const attempts = await client.programExamAttempt.findMany({
-      where: { userId, examId: exam.id, status: 'GRADED', passed: true, OR: [{ appealStatus: null }, { appealStatus: { not: 'PENDING' } }] },
-      select: { score: true, finalScore: true, appealStatus: true },
+      where: { userId, examId: exam.id, status: 'GRADED', OR: [{ appealStatus: null }, { appealStatus: { not: 'PENDING' } }] },
+      select: { score: true, finalScore: true, feedback: true, appealStatus: true, answers: { select: { points: true, maxPoints: true } } },
     })
-    const bestAttemptScore = best(attempts.map((attempt) => {
-      if (attempt.appealStatus === 'REVIEWED' && typeof attempt.finalScore === 'number') return attempt.finalScore
-      // العلامة المخزنة هي الرسمية للشهادة: سقف أعمال السنة انطبق عليها لحظة
-      // التسليم (النسبة الخام محفوظة في rawScoreBeforeCourseworkCap للشفافية
-      // فقط). إعادة الحساب من الإجابات الخام هنا كانت تتجاوز السقف بصمت.
-      return attempt.finalScore ?? attempt.score
-    }))
-    if (bestAttemptScore == null) addMissing(missing, `امتحان البرنامج: ${exam.title}`)
-    else bestScores.push(bestAttemptScore)
+    const scores = attempts.map(rawProgramAttemptScore)
+    earned.push(best(scores) ?? 0)
+    if (!scores.some((value) => value !== null && value >= exam.passScore)) {
+      addMissing(missing, `امتحان البرنامج: ${exam.title}`)
+      complete = false
+    }
   }
-  return bestScores.length === exams.length ? avg(bestScores) : null
+  const percent = avg(earned) ?? 0
+  return complete ? percent : { score: percent, complete: false }
 }
 
-async function assignmentAverage(client: DbClient, userId: string, programId: string, missing: string[], requiredForGrade: boolean) {
+async function assignmentAverage(client: DbClient, userId: string, programId: string, missing: string[], requiredForGrade: boolean): Promise<ComponentScore> {
   const assignments = await client.programAssignment.findMany({
     where: { programId, status: 'PUBLISHED' },
-    select: { id: true, title: true, points: true },
+    select: { id: true, title: true, points: true, weight: true },
     orderBy: { createdAt: 'asc' },
   })
   if (!assignments.length) {
     if (requiredForGrade) addMissing(missing, 'الواجبات المنشورة المصححة')
     return null
   }
-
-  const scores: number[] = []
-  for (const assignment of assignments) {
+  const declaredWeights = assignments.map((a) => Math.max(0, Number(a.weight || 0)))
+  const shares = declaredWeights.some((v) => v > 0) ? declaredWeights : assignments.map(() => 1)
+  const totalShares = shares.reduce((sum, v) => sum + v, 0)
+  let percent = 0
+  let complete = true
+  for (let i = 0; i < assignments.length; i++) {
+    const assignment = assignments[i]
     const submission = await client.assignmentSubmission.findUnique({
       where: { assignmentId_userId: { assignmentId: assignment.id, userId } },
       select: { status: true, score: true },
     })
-    if (!submission || submission.status !== 'GRADED' || typeof submission.score !== 'number') {
-      addMissing(missing, `واجب منشور غير مصحح: ${assignment.title}`)
-      continue
+    const graded = submission?.status === 'GRADED' && typeof submission.score === 'number'
+    const score = graded
+      ? clampPercent(assignment.points > 0 ? (submission!.score! / assignment.points) * 100 : submission!.score!)
+      : 0
+    percent += score * (shares[i] / totalShares)
+    if (!graded || score < 60) {
+      addMissing(missing, `واجب منشور غير مكتمل أو غير مجتاز: ${assignment.title}`)
+      complete = false
     }
-    const points = Number(assignment.points || 0)
-    scores.push(points > 0 ? clampPercent((submission.score / points) * 100) : clampPercent(submission.score))
   }
-  return scores.length === assignments.length ? avg(scores) : null
+  return complete ? percent : { score: percent, complete: false }
 }
 
 async function thesisScores(client: DbClient, userId: string, admissionId?: string | null) {
