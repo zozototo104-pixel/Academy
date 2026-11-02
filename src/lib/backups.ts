@@ -247,57 +247,59 @@ export async function inspectStoredDatabaseBackup(input: { provider?: string | n
 
 export async function restoreStoredDatabaseBackup(input: { provider?: string | null; key: string; confirm: string }) {
   if (String(input.confirm || '').trim() !== 'RESTORE') throw new Error('RESTORE_CONFIRMATION_REQUIRED')
+  // Never allow a live admin request to merge partial data into the production DB.
+  // Recover into a separately provisioned, empty test DB first and verify it there.
+  if (process.env.AACT_RESTORE_ISOLATED_TARGET !== 'YES') {
+    throw new Error('RESTORE_ISOLATED_TARGET_REQUIRED')
+  }
   const key = String(input.key || '').trim()
   if (!key) throw new Error('BACKUP_STORAGE_KEY_REQUIRED')
   const stored = await readStoredFile({ provider: input.provider || 's3', key, mimeType: 'application/octet-stream' })
   if (!stored?.buffer) throw new Error('BACKUP_FILE_NOT_FOUND')
   const decrypted = decryptBackupPayload(stored.buffer)
   const parsed = parseBackupJsonl(decrypted.plain)
-  const specs = restoreTableSpecsByName()
-  const results: Array<{ table: string; rows: number; processed: number; skipped?: boolean; error?: string }> = []
+  const integrity = validateBackupManifest(parsed)
+  if (!integrity.valid) throw new Error(`BACKUP_INTEGRITY_FAILED:${integrity.errors.join(';')}`)
 
-  for (const table of parsed.tables) {
-    const spec = specs.get(table.name)
-    if (!spec || spec.delegate !== table.delegate) {
-      results.push({ table: table.name, rows: table.rows.length, processed: 0, skipped: true, error: 'Unknown or mismatched table delegate' })
-      continue
+  const byName = new Map(parsed.tables.map((table) => [table.name, table]))
+  const ordered = BACKUP_TABLES.map((spec) => byName.get(spec.name)).filter((t): t is ParsedBackupTable => !!t)
+  const results: Array<{ table: string; rows: number; processed: number }> = []
+  // Atomic restore into a completely empty target. Any FK error or missing row
+  // rolls the entire operation back; no skipDuplicates or partial-success audit.
+  await db.$transaction(async (tx) => {
+    for (const table of ordered) {
+      const delegate = (tx as any)[table.delegate]
+      if (!delegate?.createMany || !delegate?.count) throw new Error(`RESTORE_DELEGATE_MISSING:${table.name}`)
+      const current = await delegate.count()
+      if (current !== 0) throw new Error(`RESTORE_TARGET_NOT_EMPTY:${table.name}`)
     }
-    const delegate = (db as any)[spec.delegate]
-    if (!delegate?.createMany) {
-      results.push({ table: table.name, rows: table.rows.length, processed: 0, skipped: true, error: 'Delegate does not support createMany' })
-      continue
+    for (const table of ordered) {
+      const delegate = (tx as any)[table.delegate]
+      let processed = 0
+      for (let index = 0; index < table.rows.length; index += 300) {
+        const batch = table.rows.slice(index, index + 300)
+        const inserted = await delegate.createMany({ data: batch })
+        processed += Number(inserted?.count || 0)
+      }
+      if (processed !== table.rows.length) throw new Error(`RESTORE_ROW_COUNT_MISMATCH:${table.name}`)
+      results.push({ table: table.name, rows: table.rows.length, processed })
     }
-    if (!table.rows.length) {
-      results.push({ table: table.name, rows: 0, processed: 0 })
-      continue
-    }
-    try {
-      const created = await delegate.createMany({ data: table.rows, skipDuplicates: true })
-      results.push({ table: table.name, rows: table.rows.length, processed: Number(created?.count || 0) })
-    } catch (e: any) {
-      results.push({ table: table.name, rows: table.rows.length, processed: 0, error: e?.message || String(e) })
-    }
-  }
+  }, { maxWait: 30000, timeout: 300000 })
 
-  const errors = results.filter((result) => result.error)
-  await audit(
-    null,
-    errors.length ? 'DB_RESTORE_PARTIAL' : 'DB_RESTORE_SUCCESS',
-    'Backup',
-    key,
-    `provider=${input.provider || 's3'} | tables=${parsed.tables.length} | errors=${errors.length}`
-  ).catch(() => {})
+  await audit(null, 'DB_RESTORE_SUCCESS', 'Backup', key,
+    `provider=${input.provider || 's3'} | tables=${ordered.length} | errors=0 | atomic=true`).catch(() => {})
 
   return {
-    ok: errors.length === 0,
+    ok: true,
     mode: 'restore' as const,
     storage: { provider: input.provider || 's3', key, size: stored.buffer.byteLength, mimeType: stored.mimeType },
     encrypted: true,
     meta: parsed.meta,
     summary: parsed.summary,
-    tableCount: parsed.tables.length,
+    integrity,
+    tableCount: ordered.length,
     results,
-    errors,
+    errors: [],
   }
 }
 
