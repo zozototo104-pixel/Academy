@@ -222,6 +222,7 @@ export async function validateLegacyGraduateImportRows(parsedRows: { rowNumber: 
     const nameEn = cleanEnglishName(raw.nameEn)
     const errors: string[] = []
 
+    if (!cleanOptional(raw.name)) errors.push('اسم الخريج مطلوب')
     if (nameEn === '__INVALID_ENGLISH_NAME__') errors.push("الاسم بالإنجليزي يجب أن يحتوي على حروف لاتينية ومسافات و . - ' فقط")
     if (!email || !isValidLegacyGraduateEmail(email)) errors.push('إيميل غلط')
     if (!programText && !override) errors.push('البرنامج مطلوب')
