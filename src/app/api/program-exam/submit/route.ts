@@ -8,6 +8,7 @@ import { calculateSemesterReadiness } from '@/lib/semester-readiness'
 import { enforceSemesterTuitionGate } from '@/lib/tuition-installments'
 import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
 import { EXAM_ATTEMPT_POLICY_SINCE, getExamMaxAttempts, shouldRevealCorrectAnswers } from '@/lib/exam-attempt-policy'
+import { gradeObjectiveAnswer, parseObjectiveOptions } from '@/lib/answer-completeness'
 
 const COMPLETED_PROGRAM_ATTEMPT_STATUSES = ['GRADED', 'EXPIRED', 'NEEDS_REVIEW']
 const HIDDEN_CORRECT_ANSWER_FEEDBACK = 'إجابة غير صحيحة — راجع هذا المفهوم في الوحدة'
