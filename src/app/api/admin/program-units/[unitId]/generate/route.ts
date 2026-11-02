@@ -141,7 +141,7 @@ export async function POST(req: NextRequest, context: Context) {
     })
     if (!knowledge.length) throw new Error('UNIT_V2_KNOWLEDGE_REQUIRED')
 
-    const generated = await generateUnitContentWithAi({
+    const generated = repairGuideOnly ? null : await generateUnitContentWithAi({
       programTitle: unit.program.titleAr || unit.program.titleEn || 'البرنامج الأكاديمي',
       unitTitle: unit.title,
       unitPages: pageRef(chunks[0]?.pageStart, chunks[chunks.length - 1]?.pageEnd),
@@ -153,12 +153,13 @@ export async function POST(req: NextRequest, context: Context) {
     const guideDraft = buildUnitStudyGuideDraft({
       programTitle: unit.program.titleAr || unit.program.titleEn || 'البرنامج الأكاديمي',
       unitTitle: unit.title,
-      unitSummary: generated.summary,
+      unitSummary: generated?.summary ?? unit.summary,
       semester: unit.semester,
       knowledge,
-      unitContent: generated.content,
+      unitContent: generated?.content ?? existingContent,
     })
     const sourceKnowledgeIds = validateStudyGuideSources(guideDraft.sourceKnowledgeIds, knowledge.map((item) => item.id))
+    if (!guideDraft.sections.length) throw new Error('UNIT_STUDY_GUIDE_SECTIONS_REQUIRED')
     const guideData = {
       programId: unit.programId,
       unitId: unit.id,
