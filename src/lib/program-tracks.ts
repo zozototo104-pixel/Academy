@@ -344,6 +344,8 @@ export function normalizeAcademicProfileOverride(raw: unknown): PartialAcademicP
   if (studyPlan) out.studyPlan = studyPlan
   if (termPlans) out.termPlans = termPlans
   if (finalEvaluationFormula) out.finalEvaluationFormula = finalEvaluationFormula
+  const signature = typeof r.approvedFormulaSignature === 'string' ? r.approvedFormulaSignature : ''
+  if (signature.length > 0 && signature.length < 4000) out.approvedFormulaSignature = signature
   return Object.keys(out).length ? out : null
 }
 
