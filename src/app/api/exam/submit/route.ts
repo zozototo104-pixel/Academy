@@ -401,13 +401,9 @@ export async function POST(req: NextRequest) {
     const percentage = maxTotal > 0 ? (totalScore / maxTotal) * 100 : 0
     const passed = percentage >= exam.passScore
 
-    let overall: { summary: string; strengths: string[]; improvements: string[] }
-    try {
-      overall = await generateOverallFeedback(exam.unit.program.titleAr, percentage, passed, weakPoints)
-    } catch (e: any) {
-      console.error('Overall feedback failed; using answer-key feedback:', String(e?.message || e).slice(0, 300))
-      overall = buildAnswerKeyFeedback(exam.unit.program.titleAr, percentage, passed, weakPoints)
-    }
+    // Deterministic feedback is persisted WITH the official mark.
+    // Optional AI commentary is requested only after the graded transaction commits.
+    let overall = buildAnswerKeyFeedback(exam.unit.program.titleAr, percentage, passed, weakPoints)
     const feedbackJson = JSON.stringify(overall)
     const completedAttempts = completedAttemptsBeforeSubmit + 1
     const revealCorrectAnswers = shouldRevealCorrectAnswers({ passed, completedAttempts, maxAttempts })
