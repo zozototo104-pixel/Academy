@@ -1319,6 +1319,35 @@ export function DashboardView() {
                   </div>
                 )}
 
+                {active.gradeProgress && (
+                  <div className="mt-3 rounded-xl border border-[#c9a227]/30 bg-white p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-black text-[#0f2b46]">مجموع علاماتك التراكمي</p>
+                      <span className="text-lg font-black text-[#0f2b46]">
+                        {(active.status === 'COMPLETED' && active.finalScore != null
+                          ? active.finalScore : active.gradeProgress.earned).toFixed(1)}%
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[11px] text-slate-600">
+                      {active.gradeProgress.complete ? 'المكونات الأكاديمية مكتملة' :
+                        'هذه علامة مكتسبة حتى الآن، وليست نتيجة تخرج نهائية. الأعمال غير المكتملة لا تكسب علامات حتى تصحيحها.'}
+                    </p>
+                    <div className="mt-3 space-y-2">
+                      {active.gradeProgress.components.map((item) => (
+                        <div key={item.key} className="flex items-center justify-between gap-2 text-xs">
+                          <span className="text-slate-700">{item.label} (حصتها {item.weight}%)</span>
+                          <span className="font-bold text-[#0f2b46]">{item.weighted.toFixed(1)} من {item.weight}%</span>
+                        </div>
+                      ))}
+                    </div>
+                    {active.gradeProgress.missing.length > 0 && (
+                      <p className="mt-3 text-[11px] text-amber-800">
+                        المتطلبات المتبقية: {active.gradeProgress.missing.join('، ')}
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {active.finalScore != null && (
                   <div className="mt-3 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3.5 text-sm font-bold text-emerald-700">
                     <Award className="h-5 w-5" />
