@@ -11,73 +11,51 @@ interface BackupTableSpec {
   name: string
   delegate: string
   includeByDefault?: boolean
-  orderBy?: Record<string, 'asc' | 'desc'>
+  orderBy: Record<string, 'asc'>
 }
 
-const BACKUP_TABLES: BackupTableSpec[] = [
-  { name: 'User', delegate: 'user' },
-  { name: 'Session', delegate: 'session', includeByDefault: false },
-  { name: 'AiLiveUsage', delegate: 'aiLiveUsage' },
-  { name: 'AiLiveCredit', delegate: 'aiLiveCredit' },
-  { name: 'Program', delegate: 'program' },
-  { name: 'Unit', delegate: 'unit' },
-  { name: 'Enrollment', delegate: 'enrollment' },
-  { name: 'Exam', delegate: 'exam' },
-  { name: 'Question', delegate: 'question' },
-  { name: 'ExamAttempt', delegate: 'examAttempt' },
-  { name: 'ExamDraft', delegate: 'examDraft' },
-  { name: 'Answer', delegate: 'answer' },
-  { name: 'ChatMessage', delegate: 'chatMessage' },
-  { name: 'ChatFeedback', delegate: 'chatFeedback' },
-  { name: 'StudentAcademicMemory', delegate: 'studentAcademicMemory' },
-  { name: 'Payment', delegate: 'payment' },
-  { name: 'PaymentProof', delegate: 'paymentProof' },
-  { name: 'PaymentWaiverCode', delegate: 'paymentWaiverCode' },
-  { name: 'PaymentWaiverAttempt', delegate: 'paymentWaiverAttempt' },
-  { name: 'Certificate', delegate: 'certificate' },
-  { name: 'CertificateTemplate', delegate: 'certificateTemplate' },
-  { name: 'MicroCredential', delegate: 'microCredential' },
-  { name: 'UserMicroCredential', delegate: 'userMicroCredential' },
-  { name: 'Notification', delegate: 'notification' },
-  { name: 'AuditLog', delegate: 'auditLog' },
-  { name: 'Setting', delegate: 'setting', orderBy: { key: 'asc' } },
-  { name: 'EmailLog', delegate: 'emailLog' },
-  { name: 'ContactMessage', delegate: 'contactMessage' },
-  { name: 'ThesisSubmission', delegate: 'thesisSubmission' },
-  { name: 'ThesisReviewNote', delegate: 'thesisReviewNote' },
-  { name: 'ThesisTopic', delegate: 'thesisTopic' },
-  { name: 'ThesisTopicRequest', delegate: 'thesisTopicRequest' },
-  { name: 'DefenseMessage', delegate: 'defenseMessage' },
-  { name: 'AgentApplication', delegate: 'agentApplication' },
-  { name: 'AgentDocument', delegate: 'agentDocument' },
-  { name: 'AcademyRepresentative', delegate: 'academyRepresentative' },
-  { name: 'AcademyRepresentativeFile', delegate: 'academyRepresentativeFile' },
-  { name: 'RevenueShareTransaction', delegate: 'revenueShareTransaction' },
-  { name: 'AdmissionApplication', delegate: 'admissionApplication' },
-  { name: 'TuitionInstallmentAppeal', delegate: 'tuitionInstallmentAppeal' },
-  { name: 'SupervisorChannelMessage', delegate: 'supervisorChannelMessage' },
-  { name: 'SupervisorVoiceCall', delegate: 'supervisorVoiceCall' },
-  { name: 'SupervisorVoiceSignal', delegate: 'supervisorVoiceSignal' },
-  { name: 'SupervisorAssessment', delegate: 'supervisorAssessment' },
-  { name: 'SupervisorAssessmentQuestion', delegate: 'supervisorAssessmentQuestion' },
-  { name: 'SupervisorAssessmentAttempt', delegate: 'supervisorAssessmentAttempt' },
-  { name: 'SupervisorAssessmentAnswer', delegate: 'supervisorAssessmentAnswer' },
-  { name: 'Book', delegate: 'book' },
-  { name: 'BookUploadChunk', delegate: 'bookUploadChunk' },
-  { name: 'BookKnowledgeItem', delegate: 'bookKnowledgeItem' },
-  { name: 'QuestionBankItem', delegate: 'questionBankItem' },
-  { name: 'ProgramStudyGuide', delegate: 'programStudyGuide' },
-  { name: 'ProgramAssignment', delegate: 'programAssignment' },
-  { name: 'AssignmentSubmission', delegate: 'assignmentSubmission' },
-  { name: 'ProgramExam', delegate: 'programExam' },
-  { name: 'ProgramQuestion', delegate: 'programQuestion' },
-  { name: 'ProgramExamAttempt', delegate: 'programExamAttempt' },
-  { name: 'ProgramAnswer', delegate: 'programAnswer' },
-  { name: 'DefenseParticipant', delegate: 'defenseParticipant' },
-  { name: 'DefenseSignal', delegate: 'defenseSignal' },
-  { name: 'AdmissionDocument', delegate: 'admissionDocument' },
-  { name: 'ServiceDeliverable', delegate: 'serviceDeliverable' },
-]
+/** Prisma is the source of truth: the old hard-coded list omitted 35 academic,
+ * lecture, AI and audit models as the schema grew. Parent-first order also
+ * allows FK-safe restores into an empty isolated database.
+ */
+export function backupTableSpecs(): BackupTableSpec[] {
+  const models = Prisma.dmmf.datamodel.models
+  const modelByName = new Map(models.map((model) => [model.name, model]))
+  const remaining = new Map(models.map((model) => [
+    model.name,
+    new Set(model.fields.filter((field) =>
+      field.kind === 'object' &&
+      field.relationFromFields?.length > 0 &&
+      modelByName.has(field.type) &&
+      field.type !== model.name,
+    ).map((field) => field.type)),
+  ]))
+  const ordered: BackupTableSpec[] = []
+  while (remaining.size > 0) {
+    const ready = [...remaining].filter(([, dependencies]) =>
+      [...dependencies].every((name) => !remaining.has(name)),
+    ).map(([name]) => name).sort()
+    if (!ready.length) throw new Error('BACKUP_SCHEMA_DEPENDENCY_CYCLE')
+    for (const name of ready) {
+      const model = modelByName.get(name)!
+      const sortFields = model.primaryKey?.fields?.length
+        ? model.primaryKey.fields
+        : model.fields.filter((field) => field.isId).map((field) => field.name)
+      const fallback = sortFields.length ? sortFields : model.uniqueFields[0] || []
+      if (!fallback.length) throw new Error(`BACKUP_MODEL_WITHOUT_STABLE_KEY:${name}`)
+      ordered.push({
+        name,
+        delegate: name.charAt(0).toLowerCase() + name.slice(1),
+        includeByDefault: name !== 'Session',
+        orderBy: Object.fromEntries(fallback.map((field) => [field, 'asc' as const])),
+      })
+      remaining.delete(name)
+    }
+  }
+  return ordered
+}
+
+const BACKUP_TABLES = backupTableSpecs()
 
 function backupSecret() {
   return (process.env.AACT_BACKUP_SECRET || process.env.CRON_SECRET || '').trim()
