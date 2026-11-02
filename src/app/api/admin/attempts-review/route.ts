@@ -319,7 +319,17 @@ export async function POST(req: NextRequest) {
     if (detail.status !== 'NEEDS_REVIEW') return NextResponse.json({ error: 'تم اعتماد هذه المحاولة مسبقاً' }, { status: 409 })
     const readiness = type === 'PROGRAM' ? await readinessForProgramAttempt(id) : null
     const graded: Array<{ answerId: string; points: number; feedback: string; isCorrect?: boolean }> = []
+    // A program exam may retain answer rows for questions rejected after
+    // submission. Regrade only the PUBLISHED set used by the final score.
+    // Historical rejected answers stay stored and visible for audit.
+    const eligibleProgramQuestionIds = type === 'PROGRAM'
+      ? new Set((await db.programQuestion.findMany({
+          where: { examId: detail.exam.id, status: 'PUBLISHED' },
+          select: { id: true },
+        })).map((q) => q.id))
+      : null
     for (const answer of detail.answers) {
+      if (eligibleProgramQuestionIds && !eligibleProgramQuestionIds.has(answer.questionId)) continue
       if (answer.questionType === 'MCQ' || answer.questionType === 'TF') {
         // Objective answers regrade deterministically from the approved
         // key — exactly as at submit time; no AI is involved.
