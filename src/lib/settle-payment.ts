@@ -254,15 +254,14 @@ async function applySettlementEffects(args: {
   if (payment.purpose === 'AI_LIVE_CREDIT' && updated.userId) {
     const minutesFromDescription = Number((payment.description.match(/(\d+)\s*دقيقة/) || [])[1] || 0)
     const minutes = minutesFromDescription > 0 ? minutesFromDescription : Math.max(1, Math.floor(amountDollars * 6))
-    const existingCredit = await db.aiLiveCredit.findFirst({ where: { paymentId: updated.id } }).catch(() => null)
-    if (!existingCredit) {
-      await grantGeminiLiveCredit({
-        userId: updated.userId,
-        minutes,
-        source: 'PURCHASE',
-        paymentId: updated.id,
-        note: `فاتورة ${updated.invoiceNo} — ${payment.description}`,
-      })
+    const credit = await grantGeminiLiveCredit({
+      userId: updated.userId,
+      minutes,
+      source: 'PURCHASE',
+      paymentId: updated.id,
+      note: `فاتورة ${updated.invoiceNo} — ${payment.description}`,
+    })
+    if (credit.newlyGranted) {
       await notify(
         updated.userId,
         'PAYMENT',
