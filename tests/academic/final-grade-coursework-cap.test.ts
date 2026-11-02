@@ -173,7 +173,7 @@ describe('التجميع التراكمي بالأوزان الرسمية', () =
       units: { 1: 70, 2: 70, 3: 70, 4: 70, 5: 70, 6: 70 },
       assignments: { 1: 80, 2: 80, 3: 80, 4: 80 },
       examRaw: 90,
-      formula: [{ label: 'الاختبار النهائي', weight: 60 }],
+      formula: [{ key: 'final_exam', label: 'الاختبار النهائي', weight: 60 }],
     })
     expect(grade.weightSource).toBe('category_default')
     expect(grade.weightWarning).toBe('ASSESSMENT_FORMULA_INVALID')
