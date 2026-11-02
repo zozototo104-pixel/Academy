@@ -150,6 +150,15 @@ async function testFinalGradeBehaviorWithMockData() {
   })
   assert(!pendingAppeal.ok, 'طعن الفصل المعلق لا يحقق شرط اجتياز الامتحان')
 
+  const missingSecondSemester = await evaluateProgramCertificateEligibility({
+    userId: 'student-1', programId: 'program-1',
+    client: mockDiplomaClient([90], { twoSemesterExams: true, secondSemesterMissing: true }),
+  })
+  assert(!missingSecondSemester.ok && missingSecondSemester.score !== null &&
+    missingSecondSemester.score > 50 && missingSecondSemester.missing.includes('الاختبار النهائي'),
+    'لا شهادة لطالب قدم الأول وترك الثاني حتى لو مجموعه التراكمي فوق 50')
+
+
   const atCutoff = await evaluateProgramCertificateEligibility({
     userId: 'student-1', programId: 'program-1',
     client: mockDiplomaClient([50], { unitScore: null, examPassScore: 50 }),
