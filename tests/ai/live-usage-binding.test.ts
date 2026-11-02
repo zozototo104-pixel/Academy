@@ -64,6 +64,7 @@ const db: any = {
   },
   aiLiveCredit: {
     findMany: async ({ where }: any) => credits.filter((row) => row.userId === where.userId && row.status === 'ACTIVE' && row.remainingMinutes > 0),
+    findFirst: async ({ where }: any) => credits.find((row) => row.paymentId === where.paymentId) || null,
     update: async ({ where, data }: any) => {
       const row = credits.find((item) => item.id === where.id)
       if (!row) throw new Error('credit not found')
