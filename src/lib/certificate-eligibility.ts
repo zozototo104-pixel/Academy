@@ -198,7 +198,8 @@ export async function evaluateProgramCertificateEligibility(input: {
     }
     if (unfulfilled.length > 0) {
       const missing = unfulfilled.map((key) =>
-        finalGrade.components.find((component) => component.key === key)?.label || key,
+        finalGrade.components.find((component) => component.key === key)?.label ||
+          (key === 'thesis' ? 'بحث التخرج' : key),
       )
       return {
         ok: false,
