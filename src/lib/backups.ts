@@ -26,7 +26,7 @@ export function backupTableSpecs(): BackupTableSpec[] {
     model.name,
     new Set(model.fields.filter((field) =>
       field.kind === 'object' &&
-      field.relationFromFields?.length > 0 &&
+      (field.relationFromFields?.length ?? 0) > 0 &&
       modelByName.has(field.type) &&
       field.type !== model.name,
     ).map((field) => field.type)),
