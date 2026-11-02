@@ -3638,10 +3638,13 @@ export function AdminBooksTab() {
                         </div>
                       </div>
                     </article>
+                      ))}
+                      </div>
+                    </details>
                   ))}
                 </div>
                 <div className="mt-3">
-                  <AdminPager page={currentGradingPage} pageSize={gradingPageSize} total={filteredGradingQueue.length} onPageChange={setGradingPage} label="تسليم" />
+                  <AdminPager page={currentGradingPage} pageSize={gradingPageSize} total={groupedGradingQueue.length} onPageChange={setGradingPage} label="طالب" />
                 </div>
               </CardContent>
             </Card>
