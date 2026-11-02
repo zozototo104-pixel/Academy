@@ -408,15 +408,33 @@ export async function grantGeminiLiveCredit(input: {
 }) {
   const minutes = Math.max(0, Math.floor(input.minutes || 0))
   if (!minutes) throw new Error('LIVE_CREDIT_MINUTES_REQUIRED')
-  return db.aiLiveCredit.create({
-    data: {
-      userId: input.userId,
-      minutes,
-      remainingMinutes: minutes,
-      source: input.source || 'ADMIN_GRANT',
-      paymentId: input.paymentId || null,
-      note: input.note || null,
-      expiresAt: input.expiresAt || null,
-    },
+  const data = {
+    userId: input.userId,
+    minutes,
+    remainingMinutes: minutes,
+    source: input.source || 'ADMIN_GRANT',
+    paymentId: input.paymentId || null,
+    note: input.note || null,
+    expiresAt: input.expiresAt || null,
+  }
+
+  if (!input.paymentId) {
+    const credit = await db.aiLiveCredit.create({ data })
+    return { ...credit, newlyGranted: true }
+  }
+  // A payment row lock serializes manual confirmation, webhook and PAID replay.
+  // The existence check and grant MUST be within the SAME transaction.
+  return db.$transaction(async (tx) => {
+    const payments = await tx.$queryRaw<Array<{ id: string; userId: string | null; status: string }>>`
+      SELECT "id", "userId", "status" FROM "Payment" WHERE "id" = ${input.paymentId} FOR UPDATE
+    `
+    const payment = payments[0]
+    if (!payment || payment.status !== 'PAID' || payment.userId !== input.userId) {
+      throw new Error('LIVE_CREDIT_PAYMENT_NOT_SETTLED_OR_OWNER_MISMATCH')
+    }
+    const existing = await tx.aiLiveCredit.findFirst({ where: { paymentId: payment.id } })
+    if (existing) return { ...existing, newlyGranted: false }
+    const credit = await tx.aiLiveCredit.create({ data })
+    return { ...credit, newlyGranted: true }
   })
 }
