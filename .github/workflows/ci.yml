@@ -123,4 +123,8 @@ jobs:
             exit 1
           fi
           grep -q "RESTORE_TARGET_NOT_EMPTY:Setting" /tmp/restore-second.log
+      - name: Verify concurrent backup snapshot on disposable PostgreSQL
+        env:
+          AACT_ALLOW_LOCAL_UPLOADS: "true"
+        run: bunx tsx scripts/test-backup-snapshot.ts
 
