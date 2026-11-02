@@ -107,6 +107,7 @@ export function pointsFromCriteria(criteria: EssayCriterionGrade[], maxPoints: n
 export function parseEssayGradeJson(raw: string, maxPoints: number, rubric?: string | null): EssayGradeResult {
   const rubricInfo = parseRubricCriteria(rubric)
   const parsed = gradingSchema.parse(JSON.parse(extractJson(raw)))
+  if (parsed.confidence !== 'HIGH') throw new EssayNeedsReviewError('ESSAY_LOW_CONFIDENCE')
   const criteria = normalizeCriteriaToRubric(parsed.criteria, rubricInfo.criteria)
   const points = pointsFromCriteria(criteria, maxPoints)
   return { criteria, points, feedback: parsed.feedback, confidence: parsed.confidence, rubric: rubricInfo.description }
