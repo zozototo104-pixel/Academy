@@ -139,6 +139,7 @@ export function normalizeLegacyGraduateProgramName(value: unknown) {
     .replace(/[\u064b-\u065f\u0670\u0640]/g, '')
     .replace(/[أإآٱ]/g, 'ا')
     .replace(/ى/g, 'ي')
+    .replace(/ة/g, 'ه')
     .replace(/[\u0660-\u0669]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
     .replace(/[^\p{L}\p{N}]+/gu, ' ')
     .trim().replace(/\s+/g, ' ')
