@@ -382,13 +382,17 @@ describe('unit content + sourced study guide atomic persistence', () => {
     generationCalls = 0
   })
 
-  test('existing referenced content without a guide is regenerated and completed', async () => {
+  test('missing study guide is restored without re-generating existing content', async () => {
+    const before = { ...generatedUnit }
     const response = await generateOneUnit()
     expect(response.status).toBe(200)
-    expect((await response.json()).skipped).toBeUndefined()
-    expect(generationCalls).toBe(1)
-    expect(generatedUnit.generationVersion).toBe(4)
+    const payload = await response.json()
+    expect(payload.skipped).toBeUndefined()
+    expect(payload.repairedGuideOnly).toBe(true)
+    expect(generationCalls).toBe(0)
+    expect(generatedUnit).toEqual(before)
     expect(generatedGuide.sourceKnowledgeIds).toBe('["kb-1"]')
+    expect(generatedJob.phase).toBe('GUIDE')
     expect(generatedJob.status).toBe('COMPLETED')
   })
 
