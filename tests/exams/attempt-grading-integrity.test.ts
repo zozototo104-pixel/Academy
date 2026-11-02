@@ -156,7 +156,11 @@ describe('حراس نصية للمسارات', () => {
     expect(program).not.toContain('reason: String(e?.message')
     expect(program).not.toContain('reason: String(postCreateError?.message')
     expect(program).toContain("code: 'GRADING_INTERRUPTED' }")
-    expect(program).toContain("const reviewState = { code: 'POST_SUBMIT_FAILURE' }")
+    expect(program).toContain("postCreateError?.code === 'ANSWER_KEY_MISSING'")
+    expect(program).toContain("'POST_SUBMIT_FAILURE' }")
+    expect(program).toContain('const objective = gradeObjectiveAnswer({')
+    expect(program).toContain("throw Object.assign(new Error('ANSWER_KEY_MISSING')")
+    expect(program).toContain('status: \'NEEDS_REVIEW\'')
   })
 })
 
