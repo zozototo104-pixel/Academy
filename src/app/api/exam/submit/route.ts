@@ -433,6 +433,18 @@ export async function POST(req: NextRequest) {
     })
     claimedUnitAttemptId = null
 
+    try {
+      const generated = await generateOverallFeedback(exam.unit.program.titleAr, percentage, passed, weakPoints)
+      const changed = await db.examAttempt.updateMany({
+        // Never overwrite feedback modified by a human after the grade was saved.
+        where: { id: attempt.id, status: 'GRADED', feedback: feedbackJson },
+        data: { feedback: JSON.stringify(generated) },
+      })
+      if (changed.count === 1) overall = generated
+    } catch (feedbackError: any) {
+      console.error('Optional unit feedback failed; official grade remains saved:', String(feedbackError?.message || feedbackError).slice(0, 300))
+    }
+
     // Any graded attempt can push the weighted cumulative mark above the threshold.
     const completion = await completeEnrollmentIfEligible({ enrollmentId: enrollment.id }).catch((error) => {
       console.error('Post-grade certificate recheck failed; preserving unit result:', error)
