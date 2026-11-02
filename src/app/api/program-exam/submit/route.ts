@@ -545,10 +545,31 @@ export async function POST(req: NextRequest) {
       throw postCreateError
     }
   } catch (e: any) {
+    if (claimedProgramAttemptId) {
+      // Raw answers were saved atomically with the claim: retain them and surface
+      // a reviewable attempt rather than strand a student behind SUBMITTED.
+      try {
+        const recovered = await db.programExamAttempt.updateMany({
+          where: { id: claimedProgramAttemptId, status: 'SUBMITTED' },
+          data: {
+            status: 'NEEDS_REVIEW',
+            score: null,
+            finalScore: null,
+            passed: null,
+            feedback: JSON.stringify({ code: 'GRADING_INTERRUPTED', reason: String(e?.message || e).slice(0, 350) }),
+          },
+        })
+        if (recovered.count === 1) {
+          return NextResponse.json({ ok: true, status: 'NEEDS_REVIEW', attemptId: claimedProgramAttemptId, message: 'تم حفظ إجاباتك للمراجعة بعد توقف التصحيح الآلي.' }, { status: 202 })
+        }
+      } catch (recoveryError) {
+        console.error('Programme attempt recovery failed:', recoveryError)
+      }
+    }
     if (e?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'يجب تسجيل الدخول أولاً' }, { status: 401 })
     }
     console.error('program-exam submit error:', e)
-    return NextResponse.json({ error: 'حدث خطأ أثناء تصحيح الاختبار — حاول مرة أخرى' }, { status: 500 })
+    return NextResponse.json({ error: 'تعذّر إتمام التصحيح؛ إذا سبق تسليم الإجابات يرجى مراجعة حالة المحاولة قبل إعادة الإرسال.' }, { status: 500 })
   }
 }
