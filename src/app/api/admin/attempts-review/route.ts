@@ -245,7 +245,7 @@ async function recomputeProgramAttempt(tx: any, attemptId: string, readiness: Re
     include: { exam: { include: { questions: { where: { status: 'PUBLISHED' } } } }, answers: true },
   })
   const maxTotal = attempt.exam.questions.reduce((s: number, q: any) => s + Math.max(0, Number(q.points || 0)), 0)
-  const total = attempt.answers.reduce((s: number, a: any) => s + Number(a.points || 0), 0)
+  const total = sumRequiredAnswerPoints(attempt.exam.questions.map((q: any) => q.id), attempt.answers)
   const rawScore = maxTotal > 0 ? (total / maxTotal) * 100 : 0
   const score = Math.round(rawScore * 10) / 10
   const passed = score >= attempt.exam.passScore
