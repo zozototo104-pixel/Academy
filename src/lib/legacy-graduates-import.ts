@@ -196,7 +196,11 @@ export async function validateLegacyGraduateImportRows(parsedRows: { rowNumber: 
     const raw = parsed.raw
     const email = normalizeLegacyGraduateEmail(raw.email)
     const programText = cleanOptional(raw.program)
-    const resolved = resolveProgram(programText, programs)
+    const override = String(programOverrides[String(parsed.rowNumber)] || '').trim()
+    const selectedProgram = override ? programs.find((program) => program.id === override) : null
+    const resolved = override
+      ? { programId: selectedProgram?.id || null, suggestion: null }
+      : resolveProgram(programText, programs)
     const finalScore = parseLegacyGraduateFinalScore(raw.finalScoreText)
     const issuedAt = parseLegacyGraduateDate(raw.issuedAtText)
     const legacySerial = cleanOptional(raw.legacySerial)
