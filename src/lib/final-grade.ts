@@ -167,7 +167,13 @@ async function unitQuizAverage(client: DbClient, userId: string, programId: stri
       where: { userId, examId: exam.id, status: 'GRADED' },
       select: { score: true, passed: true, answers: { select: { points: true, maxPoints: true } } },
     })
-    const scores = attempts.map((a) => percentFromAnswers(a.answers) ?? a.score)
+    // The approved attempt score is authoritative after manual review.
+    // Answer points are only a fallback for legacy graded attempts without a stored score.
+    const scores = attempts.map((a) =>
+      typeof a.score === 'number' && Number.isFinite(a.score)
+        ? a.score
+        : percentFromAnswers(a.answers)
+    )
     earned.push(best(scores) ?? 0)
     if (!attempts.some((a, i) => a.passed === true && scores[i] !== null)) {
       addMissing(missing, `اختبار وحدة: ${exam.unit.title || exam.title}`)
