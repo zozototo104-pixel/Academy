@@ -76,41 +76,56 @@ function mockDiplomaClient(programAttemptScores: number[], options: DiplomaFixtu
 async function testFinalGradeBehaviorWithMockData() {
   const bestAttemptGrade = await calculateFinalGrade({ userId: 'student-1', programId: 'program-1', client: mockDiplomaClient([60, 90]) })
   const finalExam = bestAttemptGrade.components.find((component) => component.key === 'final_exam')
-  assert(finalExam?.score === 90, 'محاولتان ناجحتان 60 و90 يجب أن تعتمد أفضل محاولة 90 لا المتوسط')
+  assert(finalExam?.score === 90, 'أفضل محاولة مصححة تدخل المعدل، لا متوسط المحاولات')
 
-  const barelyFailingGrade = await calculateFinalGrade({ userId: 'student-1', programId: 'program-1', client: mockDiplomaClient([50.96]) })
-  const barelyFailingFinalExam = barelyFailingGrade.components.find((component) => component.key === 'final_exam')
-  assert(typeof barelyFailingFinalExam?.score === 'number' && Math.abs(barelyFailingFinalExam.score - 50.96) < 0.001 && barelyFailingFinalExam.score < 51, 'اختبار 50.96 يجب أن يبقى خاماً داخل مكوّن الاختبار النهائي بدون تقريب للقرار')
-  const barelyFailing = await evaluateProgramCertificateEligibility({ userId: 'student-1', programId: 'program-1', client: mockDiplomaClient([50.96]) })
-  assert(!barelyFailing.ok, 'درجة 50.96 يجب ألا تنجح لأنها أقل من 51 خاماً')
-
-  const passing = await evaluateProgramCertificateEligibility({ userId: 'student-1', programId: 'program-1', client: mockDiplomaClient([51]) })
-  assert(passing.ok, 'درجة 51 يجب أن تنجح')
+  const belowExamPass = await calculateFinalGrade({ userId: 'student-1', programId: 'program-1', client: mockDiplomaClient([50.96]) })
+  assert(Math.abs((belowExamPass.components.find((c) => c.key === 'final_exam')?.score ?? 0) - 50.96) < 0.001, 'تُحفظ علامة الامتحان دون تقريب')
+  const passesDespiteExam = await evaluateProgramCertificateEligibility({ userId: 'student-1', programId: 'program-1', client: mockDiplomaClient([50.96]) })
+  assert(passesDespiteExam.ok, 'الطالب يستحق الشهادة إذا معدله فوق 50 حتى لو كان الامتحان نفسه أقل من درجة اجتيازه')
 
   const failedUnit = await evaluateProgramCertificateEligibility({
     userId: 'student-1', programId: 'program-1',
-    client: mockDiplomaClient([90], { unitPassed: false }),
+    client: mockDiplomaClient([90], { unitScore: 30, unitPassed: false }),
   })
-  assert(!failedUnit.ok && failedUnit.missing.some((entry) => entry.includes('اختبار وحدة')),
-    'محاولة وحدة مصححة لكنها غير ناجحة يجب أن تمنع إكمال البرنامج')
+  assert(failedUnit.ok && failedUnit.score !== null && failedUnit.score > 50,
+    'رسوب وحدة لا يمنع الشهادة إذا مجموع الوحدات والواجبات والفصلي أكبر من 50')
 
   const missingUnit = await evaluateProgramCertificateEligibility({
     userId: 'student-1', programId: 'program-1',
     client: mockDiplomaClient([90], { unitScore: null }),
   })
-  assert(!missingUnit.ok, 'عدم أداء اختبار الوحدة يجب أن يمنع الشهادة ولا يعتبر إعفاءً')
+  assert(missingUnit.ok, 'الوحدة غير المجابة تساوي صفر مساهمة، وليست شرط اجتياز منفصل')
 
   const ungradedAssignment = await evaluateProgramCertificateEligibility({
     userId: 'student-1', programId: 'program-1',
     client: mockDiplomaClient([90], { assignmentStatus: 'SUBMITTED' }),
   })
-  assert(!ungradedAssignment.ok, 'تسليم واجب لم يُصحح لا يحقق أهلية الشهادة')
+  assert(ungradedAssignment.ok, 'الواجب غير المصحح يأخذ صفر مساهمة من حصته ولا يمنع شهادة بمعدل كاف')
 
   const pendingAppeal = await evaluateProgramCertificateEligibility({
     userId: 'student-1', programId: 'program-1',
     client: mockDiplomaClient([90], { programAppealPending: true }),
   })
-  assert(!pendingAppeal.ok, 'الطعن المعلق في الامتحان الفصلي لا يعتبر نتيجة مؤهلة للشهادة')
+  assert(!pendingAppeal.ok, 'الطعن المعلق لا يضيف علامات الامتحان للمعدل، والـ40 المكتسبة لا تكفي')
+
+  const atCutoff = await evaluateProgramCertificateEligibility({
+    userId: 'student-1', programId: 'program-1',
+    client: mockDiplomaClient([50], { unitScore: null }),
+  })
+  assert(!atCutoff.ok && atCutoff.score === 50, 'المعدل 50 بالضبط لا يتجاوز الحد الأدنى')
+
+  const aboveCutoff = await evaluateProgramCertificateEligibility({
+    userId: 'student-1', programId: 'program-1',
+    client: mockDiplomaClient([50.01], { unitScore: null }),
+  })
+  assert(aboveCutoff.ok && aboveCutoff.score !== null && aboveCutoff.score > 50,
+    'المعدل 50.006 يُقبل بدون التقريب إلى 50 أولاً')
+
+  const belowCutoff = await evaluateProgramCertificateEligibility({
+    userId: 'student-1', programId: 'program-1',
+    client: mockDiplomaClient([49.99], { unitScore: null }),
+  })
+  assert(!belowCutoff.ok, 'المعدل الأقل من 50 لا يستحق الشهادة')
 }
 function testCentralCompletionOnly() {
   const submit = file('src/app/api/exam/submit/route.ts')
