@@ -183,7 +183,7 @@ export function parseLegacyGraduateWorkbook(buffer: Buffer, fileName: string) {
   return dataRows.map((row, index) => ({ rowNumber: index + 2, raw: rowToObject(headers, row), sourceFile: fileName }))
 }
 
-export async function validateLegacyGraduateImportRows(parsedRows: { rowNumber: number; raw: Record<string, unknown> }[]): Promise<LegacyImportRow[]> {
+export async function validateLegacyGraduateImportRows(parsedRows: { rowNumber: number; raw: Record<string, unknown> }[], programOverrides: Record<string, string> = {}): Promise<LegacyImportRow[]> {
   const programs = await db.program.findMany({ select: { id: true, slug: true, titleAr: true, titleEn: true } })
   const legacySerials = parsedRows.map((row) => cleanOptional(row.raw.legacySerial)).filter(Boolean) as string[]
   const existingSerials = legacySerials.length
