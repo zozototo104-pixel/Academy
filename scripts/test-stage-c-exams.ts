@@ -13,6 +13,10 @@ function assert(condition: unknown, message: string) {
 }
 
 type DiplomaFixture = {
+  category?: 'DIPLOMA' | 'DOCTORATE'
+  examPassScore?: number
+  researchRequired?: boolean
+  researchScore?: number | null
   unitScore?: number | null
   unitPassed?: boolean
   assignmentStatus?: 'GRADED' | 'SUBMITTED'
