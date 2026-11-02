@@ -31,7 +31,7 @@ export function certificateGradeLabel(score: number) {
   if (score >= 90) return `${p}% — امتياز`
   if (score >= 80) return `${p}% — جيد جداً`
   if (score >= 70) return `${p}% — جيد`
-  if (score >= CERTIFICATE_PASS_SCORE) return `${p}% — ناجح`
+  if (score > CERTIFICATE_PASS_SCORE) return `${p}% — ناجح`
   return `${p}% — غير مجتاز`
 }
 
