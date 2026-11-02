@@ -357,6 +357,7 @@ export default function AdminLegacyGraduatesTab() {
         const fd = new FormData()
         fd.append('file', excelFile)
         fd.append('dryRun', 'true')
+        fd.append('programOverrides', JSON.stringify(overrides))
         const data = await jsonOrThrow(await fetch('/api/admin/legacy-graduates/import?dryRun=true', { method: 'POST', body: fd }), 'تعذر فحص الملف')
         setImportRows(data.rows || [])
         toast({ title: 'تمت معاينة ملف Excel', description: `صالح: ${data.validRows} / أخطاء: ${data.invalidRows}` })
