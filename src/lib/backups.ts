@@ -316,6 +316,7 @@ export function backupConfigurationStatus() {
     encryptionConfigured: backupEncryptionSecret().length >= 32,
     localFallbackAllowed: process.env.AACT_ALLOW_LOCAL_UPLOADS === 'true',
     includeSessions: process.env.AACT_BACKUP_INCLUDE_SESSIONS === 'true',
+    isolatedRestoreEnabled: process.env.AACT_RESTORE_ISOLATED_TARGET === 'YES',
     tableCount: activeBackupTables().length,
   }
 }
