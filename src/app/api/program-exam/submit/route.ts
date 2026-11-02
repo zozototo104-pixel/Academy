@@ -528,11 +528,21 @@ export async function POST(req: NextRequest) {
     })
     } catch (postCreateError: any) {
       const reviewState = { code: 'POST_SUBMIT_FAILURE', reason: String(postCreateError?.message || postCreateError).slice(0, 500) }
-      await db.programExamAttempt.update({
-        where: { id: attempt.id },
-        data: { status: 'NEEDS_REVIEW', feedback: JSON.stringify(reviewState), submittedAt: new Date() },
-      }).catch(() => {})
-      return NextResponse.json({ ok: true, status: 'NEEDS_REVIEW', attemptId: attempt.id, message: 'تم حفظ المحاولة للمراجعة بسبب خطأ أثناء التصحيح.', ...reviewState }, { status: 202 })
+      // Never downgrade an already GRADED attempt, even if later side effects fail.
+      const recovered = await db.programExamAttempt.updateMany({
+        where: { id: attempt.id, status: 'SUBMITTED' },
+        data: { status: 'NEEDS_REVIEW', score: null, finalScore: null, passed: null, feedback: JSON.stringify(reviewState), submittedAt: new Date() },
+      }).catch(() => ({ count: 0 }))
+      if (recovered.count === 1) {
+        claimedProgramAttemptId = null
+        return NextResponse.json({ ok: true, status: 'NEEDS_REVIEW', attemptId: attempt.id, message: 'إجاباتك محفوظة للمراجعة، ولم تُعتمد علامة جزئية.', ...reviewState }, { status: 202 })
+      }
+      const persisted = await db.programExamAttempt.findUnique({ where: { id: attempt.id }, select: { status: true, score: true, passed: true } }).catch(() => null)
+      if (persisted?.status === 'GRADED') {
+        claimedProgramAttemptId = null
+        return NextResponse.json({ ok: true, status: 'GRADED', attemptId: attempt.id, score: persisted.score, passed: persisted.passed, message: 'العلامة محفوظة؛ تعذّر إتمام إحدى خطوات عرض النتيجة.' })
+      }
+      throw postCreateError
     }
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') {
