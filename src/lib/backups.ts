@@ -413,6 +413,8 @@ export async function createDatabaseBackup(trigger: BackupTrigger) {
     }
   }
   }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, maxWait: 30000, timeout: 300000 })
+  // A failed table must never produce an apparently usable snapshot.
+  if (errors.length) throw new Error(`BACKUP_SNAPSHOT_FAILED:${errors.map((e) => e.table).join(',')}`)
 
   const summary = { type: 'summary', counts, errors, durationMs: Date.now() - startedAt }
   chunks.push(line(summary))
