@@ -285,6 +285,10 @@ export async function PATCH(req: NextRequest) {
       )
     }
     await audit(admin, 'GRADE_ASSIGNMENT', 'AssignmentSubmission', submission.id, `تصحيح واجب ${submission.assignment.title} للطالب ${existing.user.name}`)
+    if (finalStatus === 'GRADED') {
+      await completeEnrollmentIfEligible({ userId: submission.userId, programId: submission.assignment.programId })
+        .catch((error) => console.error('Admin assignment graduation recheck failed:', error))
+    }
 
     return NextResponse.json({ submission })
   } catch (e: any) {
