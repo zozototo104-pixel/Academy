@@ -200,35 +200,38 @@ export async function POST(req: NextRequest) {
       })
       return NextResponse.json({ error: 'انتهت مدة الاختبار ولا يمكن قبول التسليم بعد الهامش المسموح.', code: 'UNIT_EXAM_EXPIRED' }, { status: 409 })
     }
-    const claim = await db.examAttempt.updateMany({
-      where: { id: activeAttempt.id, userId: user.id, examId, status: 'STARTED' },
-      data: { status: 'SUBMITTED', submittedAt: new Date() },
+    const answerMap = new Map(answers.map((a) => [a.questionId, a]))
+    // Store a durable snapshot of ALL submitted answers in the same transaction
+    // that claims the attempt. A server crash cannot leave a submitted but empty exam.
+    const claim = await db.$transaction(async (tx) => {
+      const result = await tx.examAttempt.updateMany({
+        where: { id: activeAttempt.id, userId: user.id, examId, status: 'STARTED' },
+        data: { status: 'SUBMITTED', submittedAt: new Date() },
+      })
+      if (result.count === 1) {
+        await tx.answer.createMany({
+          data: exam.questions.map((q) => {
+            const submitted = answerMap.get(q.id)
+            return answerData(activeAttempt.id, {
+              questionId: q.id,
+              answerText: submitted?.answerText ?? null,
+              selectedOption: parseOptionIndex(submitted?.selectedOption),
+              isCorrect: null,
+              points: null,
+              maxPoints: q.points,
+              aiFeedback: JSON.stringify({ status: 'PENDING_AI_GRADING' }),
+            })
+          }),
+        })
+      }
+      return result
     })
     if (claim.count !== 1) {
       return NextResponse.json({ error: 'تم تسليم المحاولة أو يجري تصحيحها بالفعل' }, { status: 409 })
     }
     claimedUnitAttemptId = activeAttempt.id
-
-    const answerMap = new Map(answers.map((a) => [a.questionId, a]))
-    const prePersistedEssayQuestionIds = new Set<string>()
-    const essayQuestions = exam.questions.filter((q) => q.type !== 'MCQ' && q.type !== 'TF')
-    if (essayQuestions.length) {
-      await db.$transaction(async (tx) => {
-        for (const q of essayQuestions) {
-          const submit = answerMap.get(q.id)
-          const essayText = submit?.answerText || ''
-          await persistPreparedAnswer(tx, activeAttempt.id, {
-            questionId: q.id,
-            answerText: essayText,
-            isCorrect: null,
-            points: null,
-            maxPoints: q.points,
-            aiFeedback: JSON.stringify({ status: 'PENDING_AI_GRADING' }),
-          })
-          prePersistedEssayQuestionIds.add(q.id)
-        }
-      })
-    }
+    // Each subsequently graded answer updates its existing preserved snapshot.
+    const prePersistedEssayQuestionIds = new Set(exam.questions.map((q) => q.id))
     const knowledgeIds = [...new Set(exam.questions.map((q) => q.knowledgeItemId).filter((id): id is string => Boolean(id)))]
     const knowledgeItems = knowledgeIds.length ? await db.bookKnowledgeItem.findMany({ where: { id: { in: knowledgeIds } }, select: { id: true, excerpt: true } }) : []
     const excerptByKnowledgeId = new Map(knowledgeItems.map((item) => [item.id, item.excerpt || ''] as const))
