@@ -253,54 +253,72 @@ export async function calculateFinalGrade(input: {
   client?: DbClient
 }): Promise<FinalGradeResult> {
   const client = input.client || db
-  const program = await client.program.findUnique({ where: { id: input.programId }, select: { category: true } })
+  const program = await client.program.findUnique({
+    where: { id: input.programId },
+    select: { category: true, admissionRules: true },
+  })
   const category = program?.category || 'DIPLOMA'
+  const configured = resolveGradeWeights(category, program?.admissionRules)
+  const weight = (key: string) => configured.weights[key] || 0
   const missing: string[] = []
 
-  // These global checks intentionally run for every credential path: certification requires all
-  // published/ready required work, not only the weighted components displayed on the transcript.
+  // The global academic gate remains strict even while the student's earned total is visible.
   await unitQuizAverage(client, input.userId, input.programId, missing)
   await programExamAverage(client, input.userId, input.programId, missing)
-  const assignmentsForGlobalRequirement = await assignmentAverage(client, input.userId, input.programId, missing, false)
-
+  const assignmentScores = await assignmentAverage(client, input.userId, input.programId, missing, false)
   const thesis = await thesisScores(client, input.userId, input.admissionId)
+
   let components: FinalGradeComponent[]
   if (category === 'DOCTORATE') {
     components = [
-      component('reading_quizzes', 'اختبارات/تقارير القراءات المتقدمة', 8, await unitQuizAverage(client, input.userId, input.programId, missing, 1)),
-      component('reading_exam', 'اختبار مرحلة القراءات المتقدمة', 12, await programExamAverage(client, input.userId, input.programId, missing, 1)),
-      component('analysis_quizzes', 'اختبارات/حالات التطبيق والتحليل', 8, await unitQuizAverage(client, input.userId, input.programId, missing, 2)),
-      component('analysis_exam', 'اختبار مرحلة التطبيق والتحليل', 12, await programExamAverage(client, input.userId, input.programId, missing, 2)),
-      component('thesis', 'الأطروحة المهنية', 40, thesis.research),
-      component('defense', 'المناقشة النهائية', 20, thesis.defense),
+      component('reading_quizzes', 'اختبارات/تقارير القراءات المتقدمة', weight('reading_quizzes'), await unitQuizAverage(client, input.userId, input.programId, missing, 1)),
+      component('reading_exam', 'اختبار مرحلة القراءات المتقدمة', weight('reading_exam'), await programExamAverage(client, input.userId, input.programId, missing, 1)),
+      component('analysis_quizzes', 'اختبارات/حالات التطبيق والتحليل', weight('analysis_quizzes'), await unitQuizAverage(client, input.userId, input.programId, missing, 2)),
+      component('analysis_exam', 'اختبار مرحلة التطبيق والتحليل', weight('analysis_exam'), await programExamAverage(client, input.userId, input.programId, missing, 2)),
+      component('thesis', 'الأطروحة المهنية', weight('thesis'), thesis.research),
+      component('defense', 'المناقشة النهائية', weight('defense'), thesis.defense),
     ]
   } else if (category === 'MASTERS') {
     components = [
-      component('semester1_quizzes', 'اختبارات الفصل الأول القصيرة', 10, await unitQuizAverage(client, input.userId, input.programId, missing, 1)),
-      component('semester1_exam', 'امتحان الفصل الأول', 15, await programExamAverage(client, input.userId, input.programId, missing, 1)),
-      component('semester2_quizzes', 'اختبارات الفصل الثاني القصيرة', 10, await unitQuizAverage(client, input.userId, input.programId, missing, 2)),
-      component('semester2_exam', 'امتحان الفصل الثاني', 15, await programExamAverage(client, input.userId, input.programId, missing, 2)),
-      component('thesis', 'بحث التخرج المهني', 30, thesis.research),
-      component('defense', 'المناقشة النهائية', 20, thesis.defense),
+      component('semester1_quizzes', 'اختبارات الفصل الأول القصيرة', weight('semester1_quizzes'), await unitQuizAverage(client, input.userId, input.programId, missing, 1)),
+      component('semester1_exam', 'امتحان الفصل الأول', weight('semester1_exam'), await programExamAverage(client, input.userId, input.programId, missing, 1)),
+      component('semester2_quizzes', 'اختبارات الفصل الثاني القصيرة', weight('semester2_quizzes'), await unitQuizAverage(client, input.userId, input.programId, missing, 2)),
+      component('semester2_exam', 'امتحان الفصل الثاني', weight('semester2_exam'), await programExamAverage(client, input.userId, input.programId, missing, 2)),
+      component('thesis', 'بحث التخرج المهني', weight('thesis'), thesis.research),
+      component('defense', 'المناقشة النهائية', weight('defense'), thesis.defense),
     ]
   } else {
     components = [
-      component('quizzes', 'اختبارات قصيرة ومتابعة', 20, await unitQuizAverage(client, input.userId, input.programId, missing)),
-      component('assignments', 'واجبات أو أنشطة تطبيقية', 20, assignmentsForGlobalRequirement ?? await assignmentAverage(client, input.userId, input.programId, missing, true)),
-      component('final_exam', 'الاختبار النهائي', 60, await programExamAverage(client, input.userId, input.programId, missing)),
+      component('quizzes', 'اختبارات قصيرة ومتابعة', weight('quizzes'), await unitQuizAverage(client, input.userId, input.programId, missing)),
+      component('assignments', 'واجبات أو أنشطة تطبيقية', weight('assignments'), assignmentScores ?? await assignmentAverage(client, input.userId, input.programId, missing, true)),
+      component('final_exam', 'الاختبار النهائي', weight('final_exam'), await programExamAverage(client, input.userId, input.programId, missing)),
+      ...(weight('thesis') > 0 ? [component('thesis', 'بحث تخرج', weight('thesis'), thesis.research)] : []),
     ]
   }
 
-  for (const c of components) {
-    if (!c.ready && !c.exempt) addMissing(missing, c.label)
+  for (const item of components) {
+    if (!item.ready && !item.exempt) addMissing(missing, item.label)
   }
-
-  if (missing.length) return { score: null, components, missing }
-  const activeComponents = components.filter((c) => !c.exempt && typeof c.score === 'number')
-  const activeWeight = activeComponents.reduce((sum, c) => sum + c.weight, 0)
-  if (activeWeight <= 0) return { score: null, components, missing }
-  for (const c of components) {
-    c.weighted = c.exempt || typeof c.score !== 'number' ? 0 : (c.score * c.weight) / activeWeight
+  const active = components.filter((item) => !item.exempt)
+  const activeWeight = active.reduce((sum, item) => sum + item.weight, 0)
+  if (activeWeight <= 0) {
+    return {
+      score: null, progressScore: 0, components, missing,
+      weightSource: configured.source, weightWarning: configured.warning,
+    }
   }
-  return { score: activeComponents.reduce((sum, c) => sum + c.weighted, 0), components, missing }
+  // The denominator stays the FULL programme weight; unfinished work earns zero.
+  // Redistribution occurs only for explicitly exempt components.
+  for (const item of components) {
+    item.weighted = item.exempt || item.score == null ? 0 : item.score * item.weight / activeWeight
+  }
+  const earned = components.reduce((sum, item) => sum + item.weighted, 0)
+  return {
+    score: missing.length ? null : earned,
+    progressScore: Math.round(earned * 100) / 100,
+    components,
+    missing,
+    weightSource: configured.source,
+    weightWarning: configured.warning,
+  }
 }
