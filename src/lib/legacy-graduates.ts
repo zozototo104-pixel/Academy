@@ -103,6 +103,14 @@ export async function createLegacyGraduate(input: LegacyGraduateInput, admin: Ad
           status: 'ACTIVE',
         },
       })
+    } else {
+      // Backfill missing contact details only. Never overwrite an existing
+      // student's verified phone, country or other profile information.
+      const contactData = {
+        ...(!cleanOptional(user.phone) && cleanOptional(input.phone) ? { phone: cleanOptional(input.phone) } : {}),
+        ...(!cleanOptional(user.country) && cleanOptional(input.country) ? { country: cleanOptional(input.country) } : {}),
+      }
+      if (Object.keys(contactData).length) user = await tx.user.update({ where: { id: user.id }, data: contactData })
     }
 
     const holderName = cleanOptional(input.name) || user.name
