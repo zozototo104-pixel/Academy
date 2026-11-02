@@ -356,6 +356,92 @@ describe('legacy graduate creation', () => {
 })
 
 describe('legacy graduate spreadsheet import helpers', () => {
+  test('visually equivalent Arabic program titles and phone number headers are imported correctly', async () => {
+    const XLSX = await import('xlsx')
+    const sheet = XLSX.utils.aoa_to_sheet([
+      ['اسم الطالب', 'الإيميل', 'رقم الهاتف', 'الدولة', 'اسم البرنامج', 'تاريخ التخرج', 'المعدل'],
+      ['ليلى أحمد', 'leila@example.com', 599000000, 'فلسطين', 'دبلوم القِيادَة', '2024-06-30', 91],
+    ])
+    sheet['C2'].z = '0000000000'
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, sheet, 'Sheet1')
+    const buffer = Buffer.from(XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer)
+    const parsed = parseLegacyGraduateWorkbook(buffer, 'graduates.xlsx')
+    const rows = await validateLegacyGraduateImportRows(parsed)
+    expect(rows[0].name).toBe('ليلى أحمد')
+    expect(rows[0].phone).toBe('0599000000')
+    expect(rows[0].programId).toBe('program-1')
+    expect(rows[0].errors).toEqual([])
+
+    const file = new File([buffer], 'graduates.xlsx')
+    const fd = new FormData()
+    fd.append('file', file)
+    const importResult = await importRoute.POST(formReq(fd, 'https://aactacademy.test/api/admin/legacy-graduates/import'))
+    expect(importResult.status).toBe(200)
+    expect((await responseJson(importResult)).successful).toBe(1)
+    expect([...users.values()][0].phone).toBe('0599000000')
+    expect([...users.values()][0].country).toBe('فلسطين')
+  })
+
+  test('ambiguous or differently named programs need explicit verified selection instead of a dead-end suggestion', async () => {
+    const XLSX = await import('xlsx')
+    const sheet = XLSX.utils.aoa_to_sheet([
+      ['الاسم', 'الإيميل', 'رقم الهاتف', 'البرنامج', 'تاريخ التخرج'],
+      ['أحمد', 'ahmad@example.com', '+970599123456', 'دبلوم القياده المتقدم', '2024-06-30'],
+    ])
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, sheet, 'Sheet1')
+    const file = new File([Buffer.from(XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer)], 'graduates.xlsx')
+    const preview = new FormData()
+    preview.append('file', file)
+    preview.append('dryRun', 'true')
+    const first = await responseJson(await importRoute.POST(formReq(preview, 'https://aactacademy.test/api/admin/legacy-graduates/import?dryRun=true')))
+    expect(first.invalidRows).toBe(1)
+    expect(first.rows[0].programSuggestion).toContain('دبلوم القيادة')
+    expect(first.rows[0].errors).toContain('برنامج مش موجود')
+
+    const chosen = new FormData()
+    chosen.append('file', file)
+    chosen.append('dryRun', 'true')
+    chosen.append('programOverrides', JSON.stringify({ '2': 'program-1' }))
+    const resolved = await responseJson(await importRoute.POST(formReq(chosen, 'https://aactacademy.test/api/admin/legacy-graduates/import?dryRun=true')))
+    expect(resolved.invalidRows).toBe(0)
+    expect(resolved.rows[0].programId).toBe('program-1')
+
+    const submitted = new FormData()
+    submitted.append('file', file)
+    submitted.append('programOverrides', JSON.stringify({ '2': 'program-1' }))
+    const saved = await responseJson(await importRoute.POST(formReq(submitted, 'https://aactacademy.test/api/admin/legacy-graduates/import')))
+    expect(saved.successful).toBe(1)
+    expect([...users.values()][0].phone).toBe('+970599123456')
+    expect([...enrollments.values()][0].programId).toBe('program-1')
+  })
+
+  test('unrecognized program ID is rejected by the server rather than linked', async () => {
+    const XLSX = await import('xlsx')
+    const sheet = XLSX.utils.aoa_to_sheet([
+      ['name', 'email', 'program', 'issuedAt'],
+      ['Test', 'test@example.com', 'unknown', '2024-06-30'],
+    ])
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, sheet, 'Sheet1')
+    const fd = new FormData()
+    fd.append('file', new File([Buffer.from(XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer)], 'test.xlsx'))
+    fd.append('programOverrides', JSON.stringify({ '2': 'not-real-program' }))
+    const res = await importRoute.POST(formReq(fd, 'https://aactacademy.test/api/admin/legacy-graduates/import'))
+    expect((await responseJson(res)).failed).toBe(1)
+    expect(users.size).toBe(0)
+  })
+
+  test('all imported fields including phone and program selection are visible in admin preview and sent to server', () => {
+    const source = readFileSync('src/components/aact/AdminLegacyGraduatesTab.tsx', 'utf8')
+    for (const field of ['row.phone', 'row.country', 'row.finalScore', 'row.issuedAt', 'row.gradeEn', 'row.nameEn', 'row.programEn']) {
+      expect(source).toContain(field)
+    }
+    expect(source).toContain("fd.append('programOverrides', JSON.stringify(overrides))")
+    expect(source).toContain('onChange={(event) => {')
+  })
+
   test('Arabic xlsx headers parse correctly and Excel numeric dates convert correctly without saving', async () => {
     const XLSX = await import('xlsx')
     const excelSerial = Math.floor(Date.UTC(2024, 5, 30) / 86400000) + 25569
