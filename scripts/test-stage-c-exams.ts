@@ -42,7 +42,7 @@ function mockDiplomaClient(programAttemptScores: number[], options: DiplomaFixtu
         admissionRules: options.researchRequired ? {
           academicProfile: {
             finalEvaluationFormula: researchFormula,
-            approvedFormulaSignature: gradingFormulaSignature(researchFormula),
+            approvedFormulaSignature: options.researchUnapproved ? undefined : gradingFormulaSignature(researchFormula),
             approvedFormulaAt: '2026-10-01T00:00:00.000Z',
           },
         } : null,
