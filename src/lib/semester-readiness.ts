@@ -70,7 +70,9 @@ export async function calculateSemesterReadiness(userId: string, programId: stri
   const missingAssignments = assignmentItems.filter((a) => !a.passed)
   const assignmentWeight = assignmentItems.reduce((sum, a) => sum + Number(a.weight || 0), 0)
   const missingAssignmentWeight = missingAssignments.reduce((sum, a) => sum + Number(a.weight || 0), 0)
-  const maxExamScore = Math.max(0, Math.min(100, 100 - missingAssignmentWeight))
+  // Retained response field for older clients. Missing assignments no longer cap the exam mark:
+  // their earned contribution is computed separately by calculateFinalGrade.
+  const maxExamScore = 100
   const complete = missingUnitExams.length === 0 && missingAssignments.length === 0
 
   return {
