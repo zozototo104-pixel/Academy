@@ -371,7 +371,7 @@ export async function POST(req: NextRequest) {
           maxPoints: q.points,
           aiFeedback: feedback,
           studentAnswer: selected !== undefined ? options[selected] || '' : '(لم يجب)',
-          correctAnswerText: options[Number(q.correctAnswer)],
+          correctAnswerText: objective.correctAnswerText,
           wrongOptionRationale,
           ...resultMetadata(q),
         })
