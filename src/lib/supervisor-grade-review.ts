@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import { notify } from '@/lib/notify'
 import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
-import { findMissingAnswerQuestionIds } from '@/lib/answer-completeness'
+import { findDuplicateAnswerQuestionIds, findMissingAnswerQuestionIds, sumRequiredAnswerPoints } from '@/lib/answer-completeness'
 import type { SupervisorActor } from '@/lib/supervisor-scope'
 
 // مراجعة المشرف البشري لنتائج طلابه بعد تصحيح الذكاء + البتّ في
