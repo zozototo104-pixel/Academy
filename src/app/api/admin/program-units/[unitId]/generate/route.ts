@@ -149,18 +149,6 @@ export async function POST(req: NextRequest, context: Context) {
       unitContent: generated.content,
     })
     const sourceKnowledgeIds = validateStudyGuideSources(guideDraft.sourceKnowledgeIds, knowledge.map((item) => item.id))
-    const existingGuide = await db.programStudyGuide.findFirst({ where: { unitId: unit.id }, select: { id: true } })
-
-    const updatedUnit = await db.unit.update({
-      where: { id: unit.id },
-      data: {
-        summary: generated.summary,
-        objectives: JSON.stringify(generated.objectives),
-        content: JSON.stringify(generated.content),
-        generationVersion: { increment: 1 },
-      },
-    })
-
     const guideData = {
       programId: unit.programId,
       unitId: unit.id,
@@ -176,12 +164,38 @@ export async function POST(req: NextRequest, context: Context) {
       status: 'DRAFT',
       generatedBy: 'AI',
     }
-    const guide = existingGuide
-      ? await db.programStudyGuide.update({ where: { id: existingGuide.id }, data: guideData })
-      : await db.programStudyGuide.create({ data: guideData })
 
-    await db.unitGenerationJob.update({ where: { id: job.id }, data: { status: 'COMPLETED', phase: 'GUIDE', unitsDone: 1, finishedAt: new Date(), lockedUntil: null, lastError: null } })
-    await audit(admin, 'GENERATE_OUTLINE_UNIT', 'Unit', unit.id, `توليد محتوى ودليل وحدة من فهرس الكتاب: ${unit.title}`)
+    // The content, study guide and completed job form one durable result.
+    // A failed guide write rolls back the unit content/version change as well.
+    const { updatedUnit, guide } = await db.$transaction(async (tx) => {
+      const existingGuide = await tx.programStudyGuide.findFirst({
+        where: { unitId: unit.id },
+        select: { id: true },
+      })
+      const updatedUnit = await tx.unit.update({
+        where: { id: unit.id },
+        data: {
+          summary: generated.summary,
+          objectives: JSON.stringify(generated.objectives),
+          content: JSON.stringify(generated.content),
+          generationVersion: { increment: 1 },
+        },
+      })
+      const guide = existingGuide
+        ? await tx.programStudyGuide.update({ where: { id: existingGuide.id }, data: guideData })
+        : await tx.programStudyGuide.create({ data: guideData })
+
+      await tx.unitGenerationJob.update({
+        where: { id: job!.id },
+        data: { status: 'COMPLETED', phase: 'GUIDE', unitsDone: 1, finishedAt: new Date(), lockedUntil: null, lastError: null },
+      })
+      return { updatedUnit, guide }
+    }, { maxWait: 20000, timeout: 30000 })
+
+    // Audit is observational and must not invalidate an already committed unit.
+    await audit(admin, 'GENERATE_OUTLINE_UNIT', 'Unit', unit.id,
+      `توليد محتوى ودليل وحدة من فهرس الكتاب: ${unit.title}`
+    ).catch((auditError) => console.error('Outline unit audit failed after commit:', auditError))
     return NextResponse.json({ ok: true, unit: mapUnit(updatedUnit), guide, job: { id: job.id, status: 'COMPLETED' } })
   } catch (error: any) {
     const message = String(error?.message || error)
