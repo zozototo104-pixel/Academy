@@ -335,10 +335,20 @@ export async function POST(req: NextRequest) {
 
       if (q.type === 'MCQ' || q.type === 'TF') {
         const selected = submit?.selectedOption
-        const isCorrect = selected !== undefined && String(selected) === (q.correctAnswer ?? '')
-        const pts = isCorrect ? q.points : 0
+        const objective = gradeObjectiveAnswer({
+          optionsRaw: q.options,
+          correctAnswerRaw: q.correctAnswer,
+          selectedOption: selected ?? null,
+          maxPoints: q.points,
+        })
+        if (!objective) {
+          // An invalid answer key is NOT a wrong student answer. Preserve the
+          // attempt for review instead of recording a fabricated zero.
+          throw Object.assign(new Error('ANSWER_KEY_MISSING'), { code: 'ANSWER_KEY_MISSING' })
+        }
+        const { isCorrect, points: pts } = objective
         totalScore += pts
-        const options = q.options ? JSON.parse(q.options) : []
+        const options = parseObjectiveOptions(q.options)
         const feedback = buildObjectiveFeedback(q, isCorrect, options, selected)
         const wrongOptionRationale = isCorrect ? null : selectedOptionRationale(q, selected)
         if (!isCorrect) weakPoints.push(`سؤال ${q.type === 'TF' ? 'صح/خطأ' : 'اختيار'}: ${q.text.slice(0, 60)}...`)
