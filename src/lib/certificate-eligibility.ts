@@ -154,8 +154,31 @@ export async function evaluateProgramCertificateEligibility(input: {
     }
   }
 
-  // Thesis/defense scores already contribute by weight. Individual failure or
-  // pending assessment earns no points but is not a separate academic veto.
+  // A previously issued, officially completed certificate retains its historical decision.
+  // New certificates require the mandatory programme assessments even if earnedScore > 50.
+  const alreadyCertified = enrollment?.status === 'COMPLETED' &&
+    !!enrollment.certificateNo && typeof enrollment.finalScore === 'number'
+  if (!alreadyCertified) {
+    const requiredKeys = requiredGraduationComponents(program?.category || 'DIPLOMA', finalGrade.components)
+    const unfulfilled = requiredKeys.filter((key) => {
+      const item = finalGrade.components.find((component) => component.key === key)
+      // A missing/exempt required semester exam or research must never be waived silently.
+      return !item || !item.ready || item.exempt || item.score === null
+    })
+    if (unfulfilled.length > 0) {
+      const missing = unfulfilled.map((key) =>
+        finalGrade.components.find((component) => component.key === key)?.label || key,
+      )
+      return {
+        ok: false,
+        score: academicScore,
+        gradeLabel: certificateGradeLabel(academicScore),
+        missing,
+        components: finalGrade.components,
+        error: `لا يمكن إصدار الشهادة قبل اجتياز الامتحانات الفصلية واعتماد بحث التخرج/المناقشة المطلوبة: ${missing.join('، ')}.`,
+      }
+    }
+  }
 
   return {
     ok: true,
