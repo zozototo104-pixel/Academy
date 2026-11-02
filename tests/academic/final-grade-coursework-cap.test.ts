@@ -20,6 +20,8 @@ type Scenario = {
   appealFinal?: number
   formula?: Array<{ key?: string; label: string; weight: number }>
   approval?: 'APPROVED' | 'UNAPPROVED'
+  cohort?: 'NEW' | 'EXISTING'
+  archivedScore?: number
   thesisScore?: number
 }
 
