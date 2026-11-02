@@ -267,7 +267,7 @@ async function main() {
     return
   }
 
-  console.log('\nRESTORE MODE ENABLED. Existing rows will not be deleted. Duplicate primary/unique keys will be skipped when supported.')
+  console.log('\nRESTORE MODE ENABLED. An isolated empty database is required; any error rolls back all data.')
   await restoreTables(parsed.tables)
 }
 
