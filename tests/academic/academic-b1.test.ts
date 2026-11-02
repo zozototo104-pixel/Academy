@@ -259,6 +259,7 @@ beforeEach(() => {
   calls.splice(0, calls.length)
   answers.splice(0, answers.length)
   unitModelAnswer = 'إجابة نموذجية'
+  pendingUnitGrading = null
   defenseMessages.splice(0, defenseMessages.length, { id: 'm1', thesisId: 'thesis-1', role: 'STUDENT', content: 'إجابة محفوظة' })
   thesis = { id: 'thesis-1', userId: 'user-1', title: 'بحث', abstract: 'ملخص', status: 'SCHEDULED', defenseStatus: 'NEEDS_REVIEW', extractionStatus: 'READY', fileStorageKey: 'thesis.pdf', defenseDate: new Date(Date.now() - 60_000), createdAt: new Date() }
 })
