@@ -105,7 +105,7 @@ const db: any = {
       durationMin: 60,
       totalPoints: 100,
       program: { id: 'program-1', titleAr: 'برنامج عربي للاختبار' },
-      questions: [{ id: 'program-essay-1', order: 1, type: 'ESSAY', text: 'حلل الحالة', modelAnswer: 'إجابة نموذجية', rubric: null, knowledgeItemId: null, sourceEvidence: null, points: 100, status: 'PUBLISHED' }],
+      questions: [{ id: 'program-essay-1', order: 1, type: programObjectiveMode ? 'MCQ' : 'ESSAY', text: 'حلل الحالة', modelAnswer: 'إجابة نموذجية', rubric: null, knowledgeItemId: null, sourceEvidence: null, points: 100, status: 'PUBLISHED', options: programObjectiveMode ? JSON.stringify(['صحيح', 'خطأ']) : null, correctAnswer: programObjectiveMode ? '0' : null }],
     }),
   },
   programExamAttempt: {
