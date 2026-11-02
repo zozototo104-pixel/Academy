@@ -454,17 +454,15 @@ export async function POST(req: NextRequest) {
     const percentage = rawPercentage
     const passed = percentage >= exam.passScore
 
-    let overall: { summary: string; strengths: string[]; improvements: string[] }
-    try {
-      overall = await generateOverallFeedback(exam.program.titleAr, percentage, passed, weakPoints, examAcademicContext)
-    } catch (feedbackError) {
-      console.error('Optional programme feedback failed; preserving graded result:', feedbackError)
-      overall = fallbackProgramFeedback(exam.program.titleAr, percentage, passed, weakPoints)
-    }
-
     const roundedScore = Math.round(percentage * 10) / 10
     const roundedRawScore = Math.round(rawPercentage * 10) / 10
+    const fallbackOverall = fallbackProgramFeedback(exam.program.titleAr, percentage, passed, weakPoints)
+    const gradeMetadata = { rawScoreBeforeCourseworkCap: roundedRawScore, maxExamScore: 100, gradeCapApplied: false, readiness }
+    const initialFeedback = JSON.stringify({ ...fallbackOverall, ...gradeMetadata })
 
+    // Persist the objective + essay result BEFORE requesting optional AI prose.
+    // A timeout, provider failure, or process termination during commentary must
+    // never postpone or erase the official grade.
     await db.programExamAttempt.update({
       where: { id: attempt.id },
       data: {
@@ -472,11 +470,25 @@ export async function POST(req: NextRequest) {
         finalScore: roundedScore,
         passed,
         status: 'GRADED',
-        feedback: JSON.stringify({ ...overall, rawScoreBeforeCourseworkCap: roundedRawScore, maxExamScore: 100, gradeCapApplied: false, readiness }),
+        feedback: initialFeedback,
         submittedAt: new Date(),
       },
     })
     claimedProgramAttemptId = null
+
+    let overall: { summary: string; strengths: string[]; improvements: string[] } = fallbackOverall
+    try {
+      const generated = await generateOverallFeedback(exam.program.titleAr, percentage, passed, weakPoints, examAcademicContext)
+      // Replace only our own fallback; never overwrite feedback altered by an
+      // administrator or a parallel grade review in the meantime.
+      const changed = await db.programExamAttempt.updateMany({
+        where: { id: attempt.id, status: 'GRADED', feedback: initialFeedback },
+        data: { feedback: JSON.stringify({ ...generated, ...gradeMetadata }) },
+      })
+      if (changed.count === 1) overall = generated
+    } catch (feedbackError) {
+      console.error('Optional programme feedback failed; stored grade and fallback remain intact:', feedbackError)
+    }
 
     await updateStudentAcademicMemory(user.id, {
       kind: 'EXAM',
