@@ -27,7 +27,7 @@ export type LegacyImportRow = {
 type ProgramOption = { id: string; slug: string; titleAr: string; titleEn: string | null }
 
 const HEADER_ALIASES: Record<string, string[]> = {
-  name: ['name', 'full name', 'holder name', 'الاسم', 'اسم', 'اسم الخريج'],
+  name: ['name', 'full name', 'holder name', 'الاسم', 'اسم', 'اسم الخريج', 'اسم الطالب', 'الاسم الكامل', 'الاسم الثلاثي'],
   nameEn: ['name en', 'english name', 'holder name en', 'الاسم بالإنجليزي'],
   email: ['email', 'e-mail', 'mail', 'البريد', 'الإيميل', 'ايميل', 'البريد الإلكتروني'],
   phone: ['phone', 'mobile', 'الجوال', 'الهاتف', 'رقم الجوال'],
