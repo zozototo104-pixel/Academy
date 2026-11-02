@@ -85,10 +85,16 @@ function mockDiplomaClient(programAttemptScores: number[], options: DiplomaFixtu
       }),
     },
     thesisSubmission: {
-      findFirst: async () => null,
+      findFirst: async () => options.researchScore == null ? null : {
+        status: 'RESULT_APPROVED', passed: true,
+        resultScore: options.researchScore, aiScore: options.researchScore,
+      },
     },
     enrollment: {
-      findUnique: async () => ({ id: 'enrollment-1' }),
+      findUnique: async () => ({
+        id: 'enrollment-1', status: 'ACTIVE', certificateNo: null,
+        createdAt: new Date('2026-10-05T00:00:00.000Z'),
+      }),
     },
     admissionApplication: {
       findFirst: async () => null,
