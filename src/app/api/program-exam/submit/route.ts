@@ -355,9 +355,10 @@ export async function POST(req: NextRequest) {
     }
 
     // 2) التصحيح بالذكاء الاصطناعي للأسئلة القصيرة والمقالية (بالتوازي المحدود)
-    // الأسئلة بدون إجابة فعلية تُقيَّم صفراً فوراً دون استدعاء النموذج
-    const realEssayTasks = essayTasks.filter(({ text }) => text.trim().length >= 3)
-    const emptyEssayTasks = essayTasks.filter(({ text }) => text.trim().length < 3)
+    // A short but meaningful word may answer a short-response question.
+    // Only truly empty responses earn zero without academic review.
+    const realEssayTasks = essayTasks.filter(({ text }) => text.trim().length > 0)
+    const emptyEssayTasks = essayTasks.filter(({ text }) => text.trim().length === 0)
 
     for (const { q, text } of emptyEssayTasks) {
       await persistProgramAnswer(db, attempt.id, {
