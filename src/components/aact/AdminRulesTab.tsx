@@ -1573,6 +1573,25 @@ export function AdminRulesTab() {
                       </div>
                     ))}
                     {!(draft.academicProfile?.finalEvaluationFormula || []).length && <p className="text-[11px] font-bold text-slate-400">اتركها فارغة ليستخدم النظام معادلة التقييم التلقائية من الدليل.</p>}
+                    {gradingFormula.length > 0 && gradingChoices.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-3">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={!gradingFormulaValid || gradingFormulaApproved}
+                          onClick={() => patchAcademic({ approvedFormulaSignature: gradingFormulaSignature(gradingFormula) })}
+                          className="border-[#c9a227]/50 text-xs font-bold"
+                        >
+                          {gradingFormulaApproved ? 'المعادلة معتمدة' : 'اعتماد توزيع العلامات'}
+                        </Button>
+                        <p className="text-[11px] text-slate-600">
+                          {gradingFormulaApproved ? 'تم اعتماد هذا التوزيع في المسودة. اضغط حفظ القواعد لتثبيته.' :
+                            gradingFormulaValid ? 'التوزيع جاهز للاعتماد. لا يؤثر على أي طالب قبل الحفظ.' :
+                            'يلزم ربط جميع المكونات الأساسية مرة واحدة، وأن يكون مجموع الأوزان 100%.'}
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   <div className="mt-4 space-y-3 rounded-xl bg-white p-3 ring-1 ring-[#c9a227]/20">
