@@ -119,13 +119,19 @@ function testModelPointsIgnored() {
   assert.equal(result.points, 10)
 }
 
-function testMissingDefaultCriteriaCountAsZero() {
-  const result = parseEssayGradeJson(JSON.stringify({
+function testMissingDefaultCriteriaRequireReview() {
+  assert.throws(() => parseEssayGradeJson(JSON.stringify({
     criteria: [{ name: 'الدقة مقابل المصدر', weight: 100, score0to10: 5, comment: 'نصف الإجابة صحيح' }],
     feedback: 'تعليق',
     confidence: 'HIGH',
-  }), 20)
-  assert.equal(result.points, 5)
+  }), 20), /ESSAY_CRITERION_MISSING/)
+}
+
+async function testMissingModelAnswerRequiresReview() {
+  await assert.rejects(() => gradeEssayWithRubric({
+    question: 'حلل الظاهرة', studentAnswer: 'إجابة طويلة قابلة للتصحيح',
+    modelAnswer: null, maxPoints: 10,
+  }), /ESSAY_MODEL_ANSWER_MISSING/)
 }
 
 function testApprovalRejectsNullOpenAnswerPoints() {
