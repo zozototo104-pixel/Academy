@@ -174,11 +174,14 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const messages = await db.defenseMessage.findMany({
+    // Fetch the latest messages, not the oldest ones. Keep a deterministic
+    // tie-breaker for messages written within the same timestamp and return
+    // chronological order to the room polling client.
+    const messages = (await db.defenseMessage.findMany({
       where: { thesisId },
-      orderBy: { createdAt: 'asc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 60,
-    })
+    })).reverse()
 
     return NextResponse.json({
       participants: participants.map((p) => ({
