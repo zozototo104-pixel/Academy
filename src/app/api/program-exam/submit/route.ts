@@ -340,9 +340,8 @@ export async function POST(req: NextRequest) {
         const feedback = buildObjectiveFeedback(q, isCorrect, options, selected)
         const wrongOptionRationale = isCorrect ? null : selectedOptionRationale(q, selected)
         if (!isCorrect) weakPoints.push(`سؤال ${q.type === 'TF' ? 'صح/خطأ' : 'اختيار'}: ${q.text.slice(0, 60)}...`)
-        await db.programAnswer.create({
-          data: {
-            attemptId: attempt.id,
+        await persistProgramAnswer(db, attempt.id, {
+            questionId: q.id,
             questionId: q.id,
             selectedOption: selected ?? null,
             answerText: submit?.answerText || null,
