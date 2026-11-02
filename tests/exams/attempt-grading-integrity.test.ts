@@ -6,7 +6,8 @@
 // 3) منح دقائق الصوت محمي بفهرس فريد على paymentId (+ ترحيلة) ومعالجة
 //    P2002 بوصفها «ممنوح أصلًا».
 // 4) مسارات فشل التصحيح تخزّن رموز سبب فقط، لا نص الخطأ الخام.
-import { describe, test, expect } from 'bun:test'
+import { describe, test, expect, mock } from 'bun:test'
+import { NextRequest } from 'next/server'
 import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { findMissingAnswerQuestionIds, findUngradedAnswers, gradeObjectiveAnswer } from '../../src/lib/answer-completeness'
