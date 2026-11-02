@@ -171,9 +171,7 @@ export async function POST(req: NextRequest) {
         if (correctIndex === null || !options[correctIndex]) {
           return NextResponse.json({ error: `مفتاح التصحيح غير مكتمل للسؤال رقم ${question.order}`, code: 'ANSWER_KEY_MISSING' }, { status: 422 })
         }
-      } else if (!question.modelAnswer) {
-        return NextResponse.json({ error: `الإجابة النموذجية غير مكتملة للسؤال رقم ${question.order}`, code: 'MODEL_ANSWER_MISSING' }, { status: 422 })
-      }
+      } // Missing reference for a written answer is handled as NEEDS_REVIEW after preserving the submission.
     }
     // Atomic claim before AI grading: only the first submission can grade this attempt.
     const activeAttempt = await db.examAttempt.findFirst({
