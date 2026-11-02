@@ -965,8 +965,18 @@ export function AdminBooksTab() {
       return statusOk && semesterOk && (!q || text.includes(q))
     })
   }, [gradingQueue, gradingSearch, gradingSemesterFilter, gradingStatusFilter])
-  const pagedGradingQueue = pageItems(filteredGradingQueue, gradingPage, gradingPageSize)
-  const currentGradingPage = safePage(filteredGradingQueue.length, gradingPageSize, gradingPage)
+  const groupedGradingQueue = useMemo(() => {
+    const groups = new Map<string, { studentId: string; name: string; email: string; entries: typeof filteredGradingQueue }>()
+    for (const entry of filteredGradingQueue) {
+      const { submission } = entry
+      const key = submission.userId || `submission:${submission.id}`
+      if (!groups.has(key)) groups.set(key, { studentId: key, name: submission.studentName || 'طالب', email: submission.studentEmail || '', entries: [] })
+      groups.get(key)!.entries.push(entry)
+    }
+    return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name, 'ar'))
+  }, [filteredGradingQueue])
+  const pagedGradingGroups = pageItems(groupedGradingQueue, gradingPage, gradingPageSize)
+  const currentGradingPage = safePage(groupedGradingQueue.length, gradingPageSize, gradingPage)
 
   const loadProgramData = useCallback(async (pid: string, silent = false) => {
     if (!pid) return
