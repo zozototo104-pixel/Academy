@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
+import { gradingFormulaSignature } from '@/lib/program-tracks'
 
 export interface FinalGradeComponent {
   key: string
