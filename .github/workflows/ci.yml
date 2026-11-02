@@ -54,7 +54,7 @@ jobs:
           const { gzipSync } = require('node:zlib')
           const { writeFileSync } = require('node:fs')
           const names = Object.keys(Prisma.ModelName).filter((name) => name !== 'Session')
-          const counts = Object.fromEntries(names.map((name) => [name, name === 'Setting' ? 1 : 0]))
+          const counts = Object.fromEntries(names.map((name) => [name, ['Setting', 'User', 'Notification'].includes(name) ? 1 : 0]))
           const lines = [{
             type: 'meta', platform: 'AACT', format: 'aact-db-jsonl-v1',
             exportedAt: new Date().toISOString(), tables: names,
