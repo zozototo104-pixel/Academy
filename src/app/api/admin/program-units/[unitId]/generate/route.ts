@@ -92,8 +92,14 @@ export async function POST(req: NextRequest, context: Context) {
     if (!unit.sourceBookId || unit.chunkStartIndex == null || unit.chunkEndIndex == null || !unit.outlineSectionId) {
       return NextResponse.json({ error: 'UNIT_OUTLINE_SOURCE_REQUIRED' }, { status: 400 })
     }
-    if (!force && parseContent(unit.content).some((section) => section.sourceKnowledgeIds?.length || section.sourceChunkIndexes?.length)) {
-      return NextResponse.json({ ok: true, skipped: 'UNIT_ALREADY_HAS_REFERENCED_CONTENT', unit: mapUnit(unit) })
+    if (!force) {
+      const guide = await db.programStudyGuide.findFirst({
+        where: { unitId: unit.id },
+        select: { sourceKnowledgeIds: true },
+      })
+      if (hasCompleteUnitArtifacts(parseContent(unit.content), guide)) {
+        return NextResponse.json({ ok: true, skipped: 'UNIT_ALREADY_HAS_REFERENCED_CONTENT', unit: mapUnit(unit) })
+      }
     }
 
     let createdJob: { id: string }
