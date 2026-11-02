@@ -218,7 +218,7 @@ export async function POST(req: NextRequest) {
       const readiness = await markSemesterReady(user.id, programId, Number(semester))
       const message = readiness.complete
         ? 'تم تفعيل زر بدء امتحان الفصل. جميع الاختبارات والواجبات الفصلية مكتملة.'
-        : `تم تفعيل زر بدء امتحان الفصل مع تنبيه: الدرجات غير المكتملة ستخصم من سقف درجتك النهائية. أعلى نتيجة ممكنة الآن ${readiness.maxExamScore}%.`
+        : 'تم تفعيل زر بدء امتحان الفصل. الوحدات والواجبات الناقصة تظل متطلبات مستقلة ويُحتسب إنجازها في المجموع التراكمي دون خصم من الامتحان الفصلي.'
       return NextResponse.json({ ok: true, readiness, message })
     }
     if (!programId || !unitId) {
