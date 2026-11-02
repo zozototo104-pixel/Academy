@@ -412,6 +412,7 @@ export async function createDatabaseBackup(trigger: BackupTrigger) {
       chunks.push(line({ type: 'table_error', name: table.name, error: e?.message || String(e) }))
     }
   }
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, maxWait: 30000, timeout: 300000 })
 
   const summary = { type: 'summary', counts, errors, durationMs: Date.now() - startedAt }
   chunks.push(line(summary))
