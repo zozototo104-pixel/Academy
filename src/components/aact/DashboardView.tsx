@@ -152,6 +152,15 @@ interface ProgressData {
   progress: number
   status: string
   finalScore: number | null
+  gradeProgress?: {
+    score: number | null
+    earned: number
+    complete: boolean
+    components: { key: string; label: string; weight: number; score: number | null; weighted: number; ready: boolean; exempt?: boolean }[]
+    missing: string[]
+    weightSource: 'academic_profile' | 'category_default'
+    weightWarning: string | null
+  }
   completedUnits: string[]
   booksCount?: number
   finalExam?: {
