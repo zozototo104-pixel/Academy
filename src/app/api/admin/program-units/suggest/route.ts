@@ -745,6 +745,9 @@ export async function POST(req: NextRequest) {
     })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
+    if (e?.message === 'UNIT_PLAN_STALE_RETRY') {
+      return NextResponse.json({ error: 'تغيرت وحدات البرنامج أثناء التوليد؛ لم يُحفظ أي تغيير جزئي. حدّث الصفحة وأعد المراجعة.', code: 'UNIT_PLAN_STALE_RETRY' }, { status: 409 })
+    }
     console.error('suggest program units error:', e)
     return NextResponse.json({ error: 'تعذر اقتراح وحدات البرنامج من الكتب وبنك المعرفة' }, { status: 500 })
   }
