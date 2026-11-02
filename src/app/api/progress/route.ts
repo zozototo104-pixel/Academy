@@ -241,103 +241,56 @@ export async function POST(req: NextRequest) {
     if (!completedUnits.includes(unitId)) completedUnits.push(unitId)
 
     const totalUnits = await db.unit.count({ where: { programId } })
-    let status = totalUnits > 0 && completedUnits.length >= totalUnits ? 'COMPLETED' : 'ACTIVE'
 
-    // لا إكمال للبرنامج قبل اجتياز جميع اختبارات وحداته وواجباته المنشورة (بوابة الجودة)
+    // Marking a unit as read does not certify graduation or compute a final mark.
+    // Those decisions belong solely to the weighted certificate eligibility service.
+    const updated = await db.enrollment.update({
+      where: { id: enrollment.id },
+      data: { completedUnits: JSON.stringify(completedUnits) },
+    })
+
+    // Keep these counts for student guidance only: failed units/assignments cost
+    // weighted points but are NOT stand-alone certificate blockers.
     let examsNotPassed = 0
     let assignmentsNotPassed = 0
-    if (status === 'COMPLETED') {
+    if (totalUnits > 0 && completedUnits.length >= totalUnits) {
       const gate = await getExamsGate(user.id, programId)
-      const unitMissing = gate.missing.filter((m) => m.kind === 'UNIT')
-      examsNotPassed = unitMissing.length
+      examsNotPassed = gate.missing.filter((item) => item.kind === 'UNIT').length
       const requiredAssignments = await db.programAssignment.findMany({
         where: { programId, status: 'PUBLISHED' },
         select: { id: true, points: true, submissions: { where: { userId: user.id }, select: { score: true, status: true }, take: 1 } },
       })
-      assignmentsNotPassed = requiredAssignments.filter((a) => {
-        const sub = a.submissions[0]
-        if (!sub || sub.status !== 'GRADED' || sub.score == null) return true
-        return a.points > 0 ? (sub.score / a.points) * 100 < 60 : false
+      assignmentsNotPassed = requiredAssignments.filter((assignment) => {
+        const submission = assignment.submissions[0]
+        if (!submission || submission.status !== 'GRADED' || submission.score == null) return true
+        return assignment.points > 0 ? (submission.score / assignment.points) * 100 < 60 : false
       }).length
-      if (examsNotPassed > 0 || assignmentsNotPassed > 0) {
-        status = 'ACTIVE' // يبقى نشطاً حتى يجتاز كل الاختبارات والواجبات المنشورة
-      }
     }
 
-    // حساب النتيجة النهائية كمتوسط أفضل درجات الاختبارات
-    let finalScore = enrollment.finalScore
-    if (status === 'COMPLETED') {
-      const units = await db.unit.findMany({
-        where: { programId },
-        include: { exam: { select: { id: true } } },
-      })
-      const examIds = units.map((u) => u.exam?.id).filter(Boolean) as string[]
-      if (examIds.length) {
-        const attempts = await db.examAttempt.findMany({
-          where: { userId: user.id, examId: { in: examIds }, passed: true },
-          orderBy: { score: 'desc' },
-        })
-        const best: Record<string, number> = {}
-        for (const a of attempts) {
-          if (a.examId && a.score !== null && (!best[a.examId] || a.score > best[a.examId])) {
-            best[a.examId] = a.score
-          }
-        }
-        const scores = examIds.map((id) => best[id]).filter((s) => s !== undefined)
-        if (scores.length === examIds.length) {
-          finalScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
-        }
-      }
-    }
-
-    const updated = await db.enrollment.update({
-      where: { id: enrollment.id },
-      data: { completedUnits: JSON.stringify(completedUnits), status, finalScore },
-    })
-
-    // إصدار شهادة تلقائية فقط للبرامج التدريبية البسيطة. برامج الماجستير/الدكتوراه لا تصدر شهادتها من إكمال الوحدات؛ تنتظر البحث والمناقشة واعتماد النتيجة من الإدارة.
-    let certificate: { serial: string } | null = null
-    if (status === 'COMPLETED' && !updated.certificateNo) {
-      const program = await db.program.findUnique({ where: { id: programId } })
-      const requiresFinalReview = ['MASTERS', 'DOCTORATE'].includes(program?.category || '')
-      if (requiresFinalReview) {
-        await notify(
-          user.id,
-          'THESIS',
-          'اكتمل محتوى البرنامج — انتقل إلى بحث التخرج',
-          `أكملت وحدات «${program?.titleAr}». شهادة هذا المسار تصدر بعد اعتماد البحث والمناقشة والنتيجة النهائية من الإدارة.`,
-          'dashboard'
-        )
-      } else {
-        const tuitionPlan = await getStudentTuitionPlan(user.id, programId)
-        const tuitionFullyPaid = !tuitionPlan || tuitionPlan.totalTuition <= 0 || tuitionPlan.paidTuition >= tuitionPlan.totalTuition
-        if (tuitionFullyPaid) {
-          const completion = await completeEnrollmentIfEligible({ enrollmentId: enrollment.id })
-          if (completion.ok && completion.certificate) {
-            certificate = { serial: completion.certificate.serial }
-            if (completion.certificateIssued) {
-              await notify(
-                user.id,
-                'CERTIFICATE',
-                'تم إصدار شهادتك المعتمدة',
-                `مبروك! أُصدرت شهادتك لبرنامج «${program?.titleAr}» برقم ${certificate.serial} — يمكنك تحميلها وطباعتها من بوابة الطالب.`,
-                'dashboard'
-              )
-            }
-          }
-        }
-      }
+    const completion = await completeEnrollmentIfEligible({ enrollmentId: enrollment.id })
+    const certificate = completion.ok && completion.certificate
+      ? { serial: completion.certificate.serial }
+      : null
+    if (completion.ok && completion.certificateIssued && certificate) {
+      const program = await db.program.findUnique({ where: { id: programId }, select: { titleAr: true } })
+      await notify(
+        user.id,
+        'CERTIFICATE',
+        'تم إصدار شهادتك المعتمدة',
+        `مبروك! أُصدرت شهادتك لبرنامج «${program?.titleAr}» برقم ${certificate.serial} — يمكنك تحميلها وطباعتها من بوابة الطالب.`,
+        'dashboard'
+      )
     }
 
     return NextResponse.json({
       ok: true,
-      completedUnits: JSON.parse(updated.completedUnits),
+      completedUnits,
       progress: totalUnits ? Math.round((completedUnits.length / totalUnits) * 100) : 0,
-      status,
-      finalScore,
+      status: completion.ok ? 'COMPLETED' : updated.status,
+      finalScore: completion.ok ? completion.eligibility?.score ?? updated.finalScore : updated.finalScore,
       examsNotPassed,
       assignmentsNotPassed,
-      certificate: certificate ? { serial: certificate.serial } : null,
+      certificate,
     })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') {
