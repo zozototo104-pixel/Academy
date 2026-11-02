@@ -264,6 +264,7 @@ export async function POST(req: NextRequest) {
         data: {
           status: 'SUBMITTED',
           durationUsedMin: serverDurationUsedMin,
+          submittedAt: new Date(),
           proctoringEnabled: procEnabled,
           proctoringLog: procLog,
           proctoringSnapshot: procSnapshot,
