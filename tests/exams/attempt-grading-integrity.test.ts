@@ -159,3 +159,145 @@ describe('حراس نصية للمسارات', () => {
     expect(program).toContain("const reviewState = { code: 'POST_SUBMIT_FAILURE' }")
   })
 })
+
+describe('منع تكرار الإجابات وعدم احتساب الأسئلة المستبعدة', () => {
+  test('مكرر ضمن المحاولة يُكتشف حتى لو جميع النقاط مكتملة', () => {
+    expect(findDuplicateAnswerQuestionIds([
+      { questionId: 'q1' }, { questionId: 'q2' }, { questionId: 'q1' },
+    ])).toEqual(['q1'])
+  })
+  test('السؤال المستبعد لا يرفع بسط العلامة', () => {
+    const answers = [
+      { questionId: 'published', points: 10 },
+      { questionId: 'rejected', points: 10 },
+    ]
+    expect(sumRequiredAnswerPoints(['published'], answers)).toBe(10)
+    expect(sumRequiredAnswerPoints(['published', 'rejected'], answers)).toBe(20)
+  })
+  test('المشرف يفحص التكرار ويحسب البسط والمقام من الأسئلة المسموح بها فقط', () => {
+    const source = read('src/lib/supervisor-grade-review.ts')
+    expect(source).toContain('findDuplicateAnswerQuestionIds(attempt.answers)')
+    expect(source).toContain("new Error('DUPLICATE_ANSWER_ROWS')")
+    expect(source).toContain('const maxTotal = eligibleAnswers.reduce')
+    expect(source).toContain('sumRequiredAnswerPoints(requiredIds, attempt.answers)')
+  })
+})
+
+// Request-level tests of the actual admin PATCH handler, with an isolated,
+// intentionally mutable database mock. No production data is ever written.
+let auditAnswers: Array<Record<string, any>> = []
+let auditQuestions: Array<Record<string, any>> = []
+let auditFinalGrade: Record<string, any> | null = null
+const auditExam = (type: 'UNIT' | 'PROGRAM', include?: any) => ({
+  id: type + '-exam',
+  title: 'اختبار تجريبي',
+  passScore: 50,
+  semester: 1,
+  programId: null,
+  program: { titleAr: 'برنامج تجريبي' },
+  unit: { programId: null, program: { titleAr: 'برنامج تجريبي' } },
+  questions: type === 'PROGRAM' && include?.exam?.include?.questions?.where?.status === 'PUBLISHED'
+    ? auditQuestions.filter((question) => question.status === 'PUBLISHED')
+    : auditQuestions,
+})
+const auditDb: any = {
+  $transaction: async (operation: (tx: any) => Promise<any>) => operation(auditDb),
+  examAttempt: {
+    findUnique: async ({ include }: any) => ({
+      id: 'UNIT-attempt', userId: 'student-1', examId: 'UNIT-exam',
+      status: 'NEEDS_REVIEW', exam: auditExam('UNIT', include), answers: auditAnswers,
+    }),
+    updateMany: async () => ({ count: 1 }),
+    update: async ({ data }: any) => { auditFinalGrade = data; return data },
+  },
+  programExamAttempt: {
+    findUnique: async ({ include }: any) => ({
+      id: 'PROGRAM-attempt', userId: 'student-1', examId: 'PROGRAM-exam',
+      status: 'NEEDS_REVIEW', exam: auditExam('PROGRAM', include), answers: auditAnswers,
+    }),
+    updateMany: async () => ({ count: 1 }),
+    update: async ({ data }: any) => { auditFinalGrade = data; return data },
+  },
+  question: {
+    findMany: async () => auditQuestions.map((question) => ({ id: question.id })),
+  },
+  programQuestion: {
+    findMany: async () => auditQuestions.filter((question) => question.status === 'PUBLISHED')
+      .map((question) => ({ id: question.id })),
+  },
+  answer: {
+    findMany: async () => auditAnswers,
+    findUnique: async () => null,
+  },
+  programAnswer: {
+    findMany: async () => auditAnswers,
+    findUnique: async () => null,
+  },
+  bookKnowledgeItem: { findMany: async () => [] },
+}
+mock.module('@/lib/db', () => ({ db: auditDb }))
+mock.module('@/lib/auth', () => ({ requireAdmin: async () => ({ id: 'admin-1' }) }))
+mock.module('@/lib/semester-readiness', () => ({ calculateSemesterReadiness: async () => null }))
+mock.module('@/lib/enrollment-completion', () => ({ completeEnrollmentIfEligible: async () => null }))
+mock.module('@/lib/essay-grading', () => ({
+  EssayNeedsReviewError: class EssayNeedsReviewError extends Error {},
+  gradeEssayWithRubric: async () => ({ points: 0, feedback: '' }),
+}))
+const reviewRoute = await import('../../src/app/api/admin/attempts-review/route')
+function reviewRequest(type: 'UNIT' | 'PROGRAM') {
+  return reviewRoute.PATCH(new NextRequest('https://academy.test/api/admin/attempts-review', {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ type, attemptId: type + '-attempt', scores: {} }),
+  }))
+}
+for (const type of ['UNIT', 'PROGRAM'] as const) {
+  describe('اعتماد الإدارة الفعلي — ' + type, () => {
+    test('يرفض إجابتين لنفس السؤال بدل احتساب 200%', async () => {
+      auditFinalGrade = null
+      auditQuestions = [{ id: 'q1', status: 'PUBLISHED', type: 'MCQ', points: 10, order: 1 }]
+      auditAnswers = [
+        { id: 'a1', questionId: 'q1', points: 10, maxPoints: 10, question: { type: 'MCQ' } },
+        { id: 'a2', questionId: 'q1', points: 10, maxPoints: 10, question: { type: 'MCQ' } },
+      ]
+      const result = await reviewRequest(type)
+      expect(result.status).toBe(409)
+      expect((await result.json()).error).toContain('تكررت')
+      expect(auditFinalGrade).toBeNull()
+    })
+    test('يمنع الاعتماد عندما لا يوجد سجل للسؤال المطلوب', async () => {
+      auditFinalGrade = null
+      auditQuestions = [{ id: 'q1', status: 'PUBLISHED', type: 'MCQ', points: 10 }]
+      auditAnswers = []
+      const result = await reviewRequest(type)
+      expect(result.status).toBe(400)
+      expect((await result.json()).error).toContain('سؤال مطلوب')
+      expect(auditFinalGrade).toBeNull()
+    })
+    test('سؤال واحد صحيح يُعتمد بدرجة 100% دون تضخيم', async () => {
+      auditFinalGrade = null
+      auditQuestions = [{ id: 'q1', status: 'PUBLISHED', type: 'MCQ', points: 10 }]
+      auditAnswers = [{ id: 'a1', questionId: 'q1', points: 10, maxPoints: 10, question: { type: 'MCQ' } }]
+      const result = await reviewRequest(type)
+      expect(result.status).toBe(200)
+      expect((await result.json()).score).toBe(100)
+      expect(auditFinalGrade?.status).toBe('GRADED')
+    })
+  })
+}
+test('امتحان برنامج: إجابة محفوظة لسؤال REJECTED لا ترفع العلامة', async () => {
+  auditFinalGrade = null
+  auditQuestions = [
+    { id: 'q1', status: 'PUBLISHED', type: 'MCQ', points: 10 },
+    { id: 'q2', status: 'REJECTED', type: 'MCQ', points: 10 },
+  ]
+  auditAnswers = [
+    { id: 'a1', questionId: 'q1', points: 10, maxPoints: 10, question: { type: 'MCQ' } },
+    { id: 'a2', questionId: 'q2', points: 10, maxPoints: 10, question: { type: 'MCQ' } },
+  ]
+  const result = await reviewRequest('PROGRAM')
+  expect(result.status).toBe(200)
+  expect((await result.json()).score).toBe(100)
+  expect(auditFinalGrade?.status).toBe('GRADED')
+})
+
