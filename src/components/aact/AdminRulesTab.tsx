@@ -365,6 +365,16 @@ export function AdminRulesTab() {
     : []
   const selectedFlow = getServiceFlow(selected?.slug)
   const isStudyProgram = selectedFlow ? selectedFlow.isStudyProgram : selected?.category !== 'SERVICE'
+  const gradingChoices = GRADING_COMPONENT_CHOICES[selected?.category || ''] || []
+  const gradingFormula = draft.academicProfile?.finalEvaluationFormula || []
+  const gradingKeys = gradingFormula.map((item) => item.key || '')
+  const gradingFormulaValid = gradingChoices.length > 0 && gradingFormula.length > 0
+    && gradingFormula.every((item) => gradingChoices.some((choice) => choice.key === item.key) && item.label.trim() && Number.isFinite(item.weight) && item.weight > 0)
+    && new Set(gradingKeys).size === gradingKeys.length
+    && Math.abs(gradingFormula.reduce((sum, item) => sum + item.weight, 0) - 100) < 0.000001
+    && gradingChoices.filter((choice) => choice.key !== 'thesis').every((choice) => gradingKeys.includes(choice.key))
+  const gradingFormulaApproved = gradingFormulaValid &&
+    draft.academicProfile?.approvedFormulaSignature === gradingFormulaSignature(gradingFormula)
   const serviceDocOptions = selectedFlow ? getServiceDocumentOptions(selectedFlow) : []
   const activeDocOptions = isStudyProgram ? DOC_OPTIONS : (serviceDocOptions.length ? serviceDocOptions.map((d) => ({ value: d.value, label: d.label, icon: FileText })) : DOC_OPTIONS)
   const normalizedProgramSearch = programSearch.trim().toLowerCase()
