@@ -178,6 +178,46 @@ describe('التجميع التراكمي بالأوزان الرسمية', () =
     expect(grade.score).toBeCloseTo(82, 6)
   })
 
+  test('المعادلة النصية غير المعتمدة لا تغيّر وزن أي طالب', async () => {
+    const result = await calculate({
+      units: unitsThree, assignments: assignmentsTwo, examRaw: 90,
+      approval: 'UNAPPROVED',
+    })
+    expect(result.weightSource).toBe('category_default')
+    expect(result.weightWarning).toBe('ASSESSMENT_FORMULA_AWAITING_APPROVAL')
+    expect(result.progressScore).toBeCloseTo(69, 6)
+  })
+
+  test('الطالب الملتحق قبل اعتماد السياسة لا يتأثر بأوزانها الجديدة', async () => {
+    const result = await calculate({
+      units: unitsThree, assignments: assignmentsTwo, examRaw: 90,
+      cohort: 'EXISTING',
+    })
+    expect(result.weightSource).toBe('category_default')
+    expect(result.weightWarning).toBe('ASSESSMENT_FORMULA_FUTURE_COHORT_ONLY')
+    expect(result.progressScore).toBeCloseTo(69, 6)
+  })
+
+  test('النتيجة القديمة المسجلة للتخرج تظل مجمدة رغم تغيير محرك الحساب', async () => {
+    const result = await calculate({
+      units: { 1: 70, 2: 70, 3: 70, 4: 70, 5: 70, 6: 70 },
+      assignments: { 1: 80, 2: 80, 3: 80, 4: 80 },
+      examRaw: 90,
+      archivedScore: 77.2,
+    })
+    expect(result.score).toBe(77.2)
+    expect(result.progressScore).toBeCloseTo(82, 6)
+  })
+
+  test('بند بدون مفتاح مكون ثابت لا يعتمد حتى لو كان مجموع الأوزان 100%', async () => {
+    const result = await calculate({
+      units: unitsThree, assignments: assignmentsTwo, examRaw: 90,
+      formula: [{ label: 'اختبارات قصيرة ومتابعة', weight: 30 }, { label: 'واجبات أو أنشطة تطبيقية', weight: 20 }, { label: 'الاختبار النهائي', weight: 50 }],
+    })
+    expect(result.weightSource).toBe('category_default')
+    expect(result.weightWarning).toBe('ASSESSMENT_FORMULA_MAPPING_REQUIRED')
+  })
+
   test('صيغة وزن غير كاملة لا تُستخدم بصمت؛ يرجع النظام لتوزيع الفئة مع تحذير', async () => {
     const grade = await calculate({
       units: { 1: 70, 2: 70, 3: 70, 4: 70, 5: 70, 6: 70 },
