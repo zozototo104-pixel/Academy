@@ -169,7 +169,7 @@ function testPromptStudentAnswerDelimiters() {
 }
 
 async function main() {
-  for (const fn of [testWeightedPoints, testClamp, testDefaultRubric, testTextRubricUsesDefaultWeights, testJsonRubricWithFractionWeights, testLowConfidenceRequiresReview, testMissingAndExtraCriteriaRequireReview, testDuplicateCriterionRequiresReview, testInvalidJsonRejected, testModelPointsIgnored, testMissingDefaultCriteriaRequireReview, testApprovalRejectsNullOpenAnswerPoints, testPromptStudentAnswerDelimiters]) {
+  for (const fn of [testWeightedPoints, testClamp, testDefaultRubric, testTextRubricUsesDefaultWeights, testJsonRubricWithFractionWeights, testLowConfidenceRequiresReview, testMissingAndExtraCriteriaRequireReview, testDuplicateCriterionRequiresReview, testInvalidJsonRejected, testModelPointsIgnored, testMissingDefaultCriteriaRequireReview, testMeaningBasedEssayGradingContract, testManualRegradeGuidance, testApprovalRejectsNullOpenAnswerPoints, testPromptStudentAnswerDelimiters]) {
     fn()
     console.log(`✓ ${fn.name}`)
   }
