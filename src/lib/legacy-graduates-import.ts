@@ -129,22 +129,41 @@ function levenshtein(a: string, b: string) {
   return dp[aa.length][bb.length]
 }
 
+/** Excel often has Arabic diacritics, Kashida, hamza or invisible Unicode
+ * characters that are visually indistinguishable from the catalog title.
+ * Normalize only for matching; never alter the official program name.
+ */
+export function normalizeLegacyGraduateProgramName(value: unknown) {
+  return cleanString(value).normalize('NFKC').toLowerCase()
+    .replace(/[\u200b-\u200f\u061c\ufeff]/g, '')
+    .replace(/[\u064b-\u065f\u0670\u0640]/g, '')
+    .replace(/[أإآٱ]/g, 'ا')
+    .replace(/ى/g, 'ي')
+    .replace(/[\u0660-\u0669]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim().replace(/\s+/g, ' ')
+}
+
 function resolveProgram(value: string | null | undefined, programs: ProgramOption[]) {
   const text = cleanString(value)
   if (!text) return { programId: null, suggestion: null }
-  const normalized = text.toLowerCase()
-  const exact = programs.find((program) => (
-    program.id.toLowerCase() === normalized
-    || program.slug.toLowerCase() === normalized
-    || program.titleAr.trim().toLowerCase() === normalized
-    || String(program.titleEn || '').trim().toLowerCase() === normalized
+  const normalized = normalizeLegacyGraduateProgramName(text)
+  const matches = programs.filter((program) => (
+    [program.id, program.slug, program.titleAr, program.titleEn || '']
+      .some((candidate) => candidate && normalizeLegacyGraduateProgramName(candidate) === normalized)
   ))
-  if (exact) return { programId: exact.id, suggestion: null }
+  // If multiple programs share the same visible title, do not guess which
+  // certificate program the graduate completed. Require a manual selection.
+  if (matches.length === 1) return { programId: matches[0].id, suggestion: null }
+  if (matches.length > 1) return {
+    programId: null, suggestion: 'يوجد أكثر من برنامج بهذا الاسم — اختر البرنامج الصحيح',
+  }
 
   let best: { program: ProgramOption; score: number } | null = null
   for (const program of programs) {
-    const candidates = [program.slug, program.titleAr, program.titleEn || ''].filter(Boolean)
-    const score = Math.min(...candidates.map((candidate) => levenshtein(normalized, candidate.toLowerCase())))
+    const candidates = [program.slug, program.titleAr, program.titleEn || '']
+      .filter(Boolean).map(normalizeLegacyGraduateProgramName)
+    const score = Math.min(...candidates.map((candidate) => levenshtein(normalized, candidate)))
     if (!best || score < best.score) best = { program, score }
   }
   const suggestion = best ? `${best.program.titleAr} (${best.program.slug})` : null
