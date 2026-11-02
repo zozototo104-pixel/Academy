@@ -343,4 +343,23 @@ test('المشرف يستثني نقاط السؤال REJECTED من الدرجة
   expect((auditFinalGrade as Record<string, any> | null)?.status).toBe('GRADED')
 })
 
+test('إعادة تصحيح البرنامج تتجاهل سجل سؤال REJECTED ذي مفتاح غير مكتمل', async () => {
+  auditFinalGrade = null
+  auditQuestions = [
+    { id: 'q1', order: 1, type: 'MCQ', status: 'PUBLISHED', points: 10, options: JSON.stringify(['أ', 'ب']), correctAnswer: '1' },
+    { id: 'q2', order: 2, type: 'MCQ', status: 'REJECTED', points: 10, options: null, correctAnswer: null },
+  ]
+  auditAnswers = [
+    { id: 'a1', questionId: 'q1', points: null, maxPoints: 10, selectedOption: 1, question: auditQuestions[0] },
+    { id: 'a2', questionId: 'q2', points: null, maxPoints: 10, selectedOption: 0, question: auditQuestions[1] },
+  ]
+  const result = await reviewRoute.POST(new NextRequest('https://academy.test/api/admin/attempts-review', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ type: 'PROGRAM', attemptId: 'PROGRAM-attempt' }),
+  }))
+  expect(result.status).toBe(200)
+  expect((await result.json()).score).toBe(100)
+  expect(auditAnswers.find((a) => a.id === 'a2')?.points).toBeNull()
+  expect((auditFinalGrade as Record<string, any> | null)?.status).toBe('GRADED')
+})
 
