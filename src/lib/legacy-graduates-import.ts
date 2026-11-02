@@ -28,7 +28,7 @@ type ProgramOption = { id: string; slug: string; titleAr: string; titleEn: strin
 
 const HEADER_ALIASES: Record<string, string[]> = {
   name: ['name', 'full name', 'holder name', 'الاسم', 'اسم', 'اسم الخريج', 'اسم الطالب', 'الاسم الكامل', 'الاسم الثلاثي'],
-  nameEn: ['name en', 'english name', 'holder name en', 'الاسم بالإنجليزي'],
+  nameEn: ['name en', 'english name', 'holder name en', 'الاسم بالإنجليزي', 'الاسم بالانجليزي', 'الاسم باللغة الإنجليزية'],
   email: ['email', 'e-mail', 'mail', 'البريد', 'الإيميل', 'ايميل', 'البريد الإلكتروني'],
   phone: ['phone', 'mobile', 'الجوال', 'الهاتف', 'رقم الجوال'],
   country: ['country', 'الدولة', 'البلد'],
