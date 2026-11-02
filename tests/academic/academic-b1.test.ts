@@ -6,6 +6,7 @@ const calls: string[] = []
 const answers: any[] = []
 const defenseMessages: any[] = [{ id: 'm1', thesisId: 'thesis-1', role: 'STUDENT', content: 'إجابة محفوظة' }]
 let thesis: any
+let unitModelAnswer: string | null = 'إجابة نموذجية'
 
 function clone<T>(value: T): T {
   return value == null ? value : JSON.parse(JSON.stringify(value))
