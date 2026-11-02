@@ -43,6 +43,13 @@ function fakeClient(scenario: Scenario = {}) {
         },
       }),
     },
+    enrollment: {
+      findUnique: async () => ({
+        createdAt: new Date(scenario.cohort === 'EXISTING' ? '2026-09-01T00:00:00.000Z' : '2026-10-05T00:00:00.000Z'),
+        status: scenario.archivedScore == null ? 'ACTIVE' : 'COMPLETED',
+        finalScore: scenario.archivedScore ?? null,
+      }),
+    },
     exam: {
       findMany: async () => Array.from({ length: 6 }, (_, i) => ({
         id: `unit-${i + 1}`, title: `اختبار ${i + 1}`, passScore: 60,
