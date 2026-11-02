@@ -101,10 +101,19 @@ jobs:
           node <<'NODE'
           const { PrismaClient } = require('@prisma/client')
           const db = new PrismaClient()
-          db.setting.findUnique({ where: { key: 'RESTORE_SMOKE' } })
-            .then((row) => {
-              if (row?.value !== 'verified') throw new Error('RESTORED_ROW_NOT_FOUND')
-              console.log('Verified restored PostgreSQL row')
+          Promise.all([
+            db.setting.findUnique({ where: { key: 'RESTORE_SMOKE' } }),
+            db.notification.findUnique({
+              where: { id: 'restore-ci-notification' },
+              include: { user: true },
+            }),
+          ])
+            .then(([setting, notification]) => {
+              if (setting?.value !== 'verified') throw new Error('RESTORED_SETTING_MISSING')
+              if (notification?.user?.email !== 'restore-ci@example.test') {
+                throw new Error('RESTORED_FOREIGN_KEY_RELATION_MISSING')
+              }
+              console.log('Verified restored PostgreSQL rows and User → Notification relation')
             })
             .finally(() => db.$disconnect())
             .catch((error) => { console.error(error); process.exitCode = 1 })
