@@ -460,14 +460,30 @@ export async function POST(req: NextRequest) {
   } catch (e: any) {
     if (claimedUnitAttemptId) {
       try {
-        // A failed grading operation must not strand a student in SUBMITTED.
-        // Only the request that claimed this attempt may release an unpersisted claim.
-        await db.examAttempt.updateMany({
+        // The claim already saved all raw answers atomically. Never discard that
+        // delivery or reopen the timer after an AI/provider/database failure.
+        const recovered = await db.examAttempt.updateMany({
           where: { id: claimedUnitAttemptId, status: 'SUBMITTED' },
-          data: { status: 'STARTED' },
+          data: {
+            status: 'NEEDS_REVIEW',
+            score: null,
+            passed: null,
+            feedback: JSON.stringify({
+              code: 'UNIT_GRADING_INTERRUPTED',
+              summary: 'تم حفظ إجاباتك كاملة؛ تعذّر إتمام التصحيح الآلي وتحتاج المحاولة لمراجعة بشرية.',
+            }),
+          },
         })
+        if (recovered.count === 1) {
+          return NextResponse.json({
+            ok: true,
+            status: 'NEEDS_REVIEW',
+            attemptId: claimedUnitAttemptId,
+            message: 'إجاباتك محفوظة للمراجعة البشرية دون احتساب درجة ظالمة.',
+          }, { status: 202 })
+        }
       } catch (recoveryError) {
-        console.error('Failed to release unsuccessful unit exam claim:', recoveryError)
+        console.error('Failed to preserve unit exam for review:', recoveryError)
       }
     }
     if (e?.message === 'UNAUTHORIZED') {
