@@ -347,6 +347,9 @@ export function normalizeAcademicProfileOverride(raw: unknown): PartialAcademicP
   if (finalEvaluationFormula) out.finalEvaluationFormula = finalEvaluationFormula
   const signature = typeof r.approvedFormulaSignature === 'string' ? r.approvedFormulaSignature : ''
   if (signature.length > 0 && signature.length < 4000) out.approvedFormulaSignature = signature
+  if (typeof r.approvedFormulaAt === 'string' && Number.isFinite(Date.parse(r.approvedFormulaAt))) {
+    out.approvedFormulaAt = new Date(r.approvedFormulaAt).toISOString()
+  }
   return Object.keys(out).length ? out : null
 }
 
