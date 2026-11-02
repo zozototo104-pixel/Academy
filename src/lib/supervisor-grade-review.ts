@@ -175,8 +175,8 @@ export async function applyScoreAdjustments(
     // أسئلة الامتحان الفصلي غير المنشورة (مسودة/مرفوضة) لم تُصحَّح أصلاً —
     // التصحيح الأصلي يحمّل المنشورة فقط — وضمّها هنا كان يخفّض نسبة الطالب
     // عند أي تعديل من المشرف حتى لو لم يغيّر أي درجة.
-    const maxTotal = attempt.answers.reduce((s: number, a: any) => s + Number(a.maxPoints || a.question?.points || 0), 0)
-    const total = attempt.answers.reduce((s: number, a: any) => s + Number(a.points || 0), 0)
+    const maxTotal = eligibleAnswers.reduce((s: number, a: any) => s + Number(a.maxPoints || a.question?.points || 0), 0)
+    const total = sumRequiredAnswerPoints(requiredIds, attempt.answers)
     const rawScore = maxTotal > 0 ? (total / maxTotal) * 100 : 0
 
     const feedback = JSON.stringify({
