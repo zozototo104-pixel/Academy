@@ -1546,6 +1546,7 @@ export function AdminRulesTab() {
                         إضافة عنصر تقييم
                       </Button>
                     </div>
+                    <p className="text-[11px] leading-5 text-slate-600">اربط كل بند بمكون علامات ثابت. الأوزان المكتوبة للعرض فقط حتى تختار المكونات، ومجموعها 100%، ثم تضغط اعتماد المعادلة وتحفظ القواعد. أي تغيير لاحق في بند أو وزن يبطل الاعتماد.</p>
                     {(draft.academicProfile?.finalEvaluationFormula || []).map((item, i) => (
                       <div key={i} className="rounded-lg bg-slate-50 p-2">
                         <div className="mb-2 flex items-center justify-between gap-2">
