@@ -318,8 +318,10 @@ export async function calculateFinalGrade(input: {
     item.weighted = item.exempt || item.score == null ? 0 : item.score * item.weight / activeWeight
   }
   const earned = components.reduce((sum, item) => sum + item.weighted, 0)
+  const historicalScore = enrollment?.status === 'COMPLETED' && typeof enrollment.finalScore === 'number'
+    ? enrollment.finalScore : null
   return {
-    score: missing.length ? null : earned,
+    score: missing.length ? null : historicalScore ?? earned,
     progressScore: Math.round(earned * 100) / 100,
     components,
     missing,
