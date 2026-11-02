@@ -184,6 +184,18 @@ export async function evaluateProgramCertificateEligibility(input: {
       // A missing/exempt required semester exam or research must never be waived silently.
       return !item || !item.ready || item.exempt || item.score === null
     })
+    if (program?.category === 'DIPLOMA' && declaresGraduationResearch(program.admissionRules) &&
+        !requiredKeys.includes('thesis')) {
+      const thesis = await client.thesisSubmission.findFirst({
+        where: admissionId ? { admissionId } : { userId: resolvedUserId },
+        orderBy: { updatedAt: 'desc' },
+        select: { status: true, passed: true, resultScore: true },
+      })
+      if (thesis?.status !== 'RESULT_APPROVED' || thesis.passed !== true ||
+          typeof thesis.resultScore !== 'number') {
+        unfulfilled.push('thesis')
+      }
+    }
     if (unfulfilled.length > 0) {
       const missing = unfulfilled.map((key) =>
         finalGrade.components.find((component) => component.key === key)?.label || key,
