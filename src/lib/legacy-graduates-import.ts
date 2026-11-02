@@ -229,7 +229,9 @@ export async function validateLegacyGraduateImportRows(parsedRows: { rowNumber: 
     if (override && !selectedProgram) errors.push('البرنامج المختار غير موجود')
     else if (programText && !resolved.programId) errors.push('برنامج مش موجود')
     if (!issuedAt) errors.push('تاريخ غلط')
-    if (Number.isNaN(finalScore)) errors.push('المعدل غير صالح')
+    if (Number.isNaN(finalScore) || (finalScore != null && (finalScore < 0 || finalScore > 100))) {
+      errors.push('المعدل يجب أن يكون بين 0 و100')
+    }
     if (legacySerial && existingSerials.has(legacySerial)) errors.push('رقم الشهادة القديم مستخدم مسبقاً')
     if (legacySerial) {
       const firstRow = seenLegacySerial.get(legacySerial)
