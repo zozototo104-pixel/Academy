@@ -30,59 +30,49 @@ const DEFAULT_WEIGHTS: Record<string, GradeWeights> = {
   MASTERS: { semester1_quizzes: 10, semester1_exam: 15, semester2_quizzes: 10, semester2_exam: 15, thesis: 30, defense: 20 },
   DOCTORATE: { reading_quizzes: 8, reading_exam: 12, analysis_quizzes: 8, analysis_exam: 12, thesis: 40, defense: 20 },
 }
-const FORMULA_KEYS: Record<string, Record<string, string>> = {
-  DIPLOMA: {
-    'اختبارات قصيرة ومتابعة': 'quizzes',
-    'واجبات أو أنشطة تطبيقية': 'assignments',
-    'الاختبار النهائي': 'final_exam',
-    'بحث تخرج': 'thesis',
-  },
-  MASTERS: {
-    'اختبارات الفصل الأول القصيرة': 'semester1_quizzes',
-    'امتحان الفصل الأول': 'semester1_exam',
-    'اختبارات الفصل الثاني القصيرة': 'semester2_quizzes',
-    'امتحان الفصل الثاني': 'semester2_exam',
-    'بحث التخرج المهني': 'thesis',
-    'المناقشة النهائية': 'defense',
-  },
-  DOCTORATE: {
-    'اختبارات/تقارير القراءات المتقدمة': 'reading_quizzes',
-    'اختبار مرحلة القراءات المتقدمة': 'reading_exam',
-    'اختبارات/حالات التطبيق والتحليل': 'analysis_quizzes',
-    'اختبار مرحلة التطبيق والتحليل': 'analysis_exam',
-    'الأطروحة المهنية': 'thesis',
-    'المناقشة النهائية': 'defense',
-  },
+const ALLOWED_COMPONENT_KEYS: Record<string, string[]> = {
+  DIPLOMA: ['quizzes', 'assignments', 'final_exam', 'thesis'],
+  MASTERS: ['semester1_quizzes', 'semester1_exam', 'semester2_quizzes', 'semester2_exam', 'thesis', 'defense'],
+  DOCTORATE: ['reading_quizzes', 'reading_exam', 'analysis_quizzes', 'analysis_exam', 'thesis', 'defense'],
 }
-/** A programme's published academic formula is authoritative only if complete and valid. */
+
+/** Text labels are never used to select a grade component.
+ * Existing free-text admission formulas remain informational until explicitly mapped and approved.
+ */
 export function resolveGradeWeights(category: string, admissionRules: unknown): {
   weights: GradeWeights
   source: 'academic_profile' | 'category_default'
   warning?: string
 } {
   const defaults = DEFAULT_WEIGHTS[category] || DEFAULT_WEIGHTS.DIPLOMA
-  const fallback = (warning?: string) => ({ weights: { ...defaults }, source: 'category_default' as const, ...(warning ? { warning } : {}) })
+  const fallback = (warning?: string) => ({
+    weights: { ...defaults }, source: 'category_default' as const, ...(warning ? { warning } : {}),
+  })
   if (!admissionRules || typeof admissionRules !== 'object' || Array.isArray(admissionRules)) return fallback()
-  const formula = (admissionRules as Record<string, any>).academicProfile?.finalEvaluationFormula
+  const profile = (admissionRules as Record<string, any>).academicProfile
+  const formula = profile?.finalEvaluationFormula
   if (!Array.isArray(formula) || formula.length === 0) return fallback()
-  const labels = FORMULA_KEYS[category]
-  if (!labels) return fallback('ASSESSMENT_FORMULA_UNSUPPORTED_CATEGORY')
+  const allowed = ALLOWED_COMPONENT_KEYS[category]
+  if (!allowed) return fallback('ASSESSMENT_FORMULA_UNSUPPORTED_CATEGORY')
   const weights: GradeWeights = {}
   for (const row of formula) {
-    const label = String(row?.label || '').replace(/\s+/g, ' ').trim()
-    const key = labels[label]
-    const weight = Number(row?.weight)
-    if (!key || !Number.isFinite(weight) || weight <= 0 || weight > 100 || key in weights) return fallback('ASSESSMENT_FORMULA_INVALID')
-    weights[key] = weight
+    const key = String(row?.key || '')
+    const value = Number(row?.weight)
+    if (!allowed.includes(key) || key in weights || !Number.isFinite(value) || value <= 0 || value > 100) {
+      return fallback('ASSESSMENT_FORMULA_MAPPING_REQUIRED')
+    }
+    weights[key] = value
   }
   if (Object.keys(defaults).some((key) => !(key in weights)) ||
       Math.abs(Object.values(weights).reduce((sum, n) => sum + n, 0) - 100) > 0.000001) {
     return fallback('ASSESSMENT_FORMULA_INVALID')
   }
+  const approved = profile?.approvedFormulaSignature
+  if (typeof approved !== 'string' || approved !== gradingFormulaSignature(formula)) {
+    return fallback('ASSESSMENT_FORMULA_AWAITING_APPROVAL')
+  }
   return { weights, source: 'academic_profile' }
 }
-
-type ScoredAnswer = { points: number | null; maxPoints: number | null }
 
 function clampPercent(n: number) {
   return Math.max(0, Math.min(100, n))
