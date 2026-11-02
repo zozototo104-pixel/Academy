@@ -64,6 +64,18 @@ jobs:
             if (name === 'Setting') {
               lines.push({ type: 'row', table: name, data: { key: 'RESTORE_SMOKE', value: 'verified' } })
             }
+            if (name === 'User') {
+              lines.push({ type: 'row', table: name, data: {
+                id: 'restore-ci-user', email: 'restore-ci@example.test',
+                password: 'fixture-not-a-login', name: 'Restore CI',
+              } })
+            }
+            if (name === 'Notification') {
+              lines.push({ type: 'row', table: name, data: {
+                id: 'restore-ci-notification', userId: 'restore-ci-user',
+                type: 'GENERAL', title: 'Restore test', body: 'FK verified',
+              } })
+            }
           }
           lines.push({ type: 'summary', counts, errors: [] })
           const plain = Buffer.from(lines.map((line) => JSON.stringify(line)).join('\n') + '\n')
