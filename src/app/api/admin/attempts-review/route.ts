@@ -232,7 +232,7 @@ async function ensureManualAnswerIdsBelongToAttempt(tx: any, type: AttemptType, 
 async function recomputeUnitAttempt(tx: any, attemptId: string) {
   const attempt = await tx.examAttempt.findUnique({ where: { id: attemptId }, include: { exam: { include: { questions: true } }, answers: true } })
   const maxTotal = attempt.exam.questions.reduce((s: number, q: any) => s + q.points, 0)
-  const total = attempt.answers.reduce((s: number, a: any) => s + Number(a.points || 0), 0)
+  const total = sumRequiredAnswerPoints(attempt.exam.questions.map((q: any) => q.id), attempt.answers)
   const score = maxTotal > 0 ? Math.round((total / maxTotal) * 1000) / 10 : 0
   const passed = score >= attempt.exam.passScore
   await tx.examAttempt.update({ where: { id: attemptId }, data: { score, passed, status: 'GRADED', aiGraded: true, feedback: JSON.stringify({ summary: 'تم اعتماد النتيجة بعد مراجعة التصحيح.' }) } })
