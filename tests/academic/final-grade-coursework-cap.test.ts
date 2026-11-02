@@ -157,10 +157,10 @@ describe('التجميع التراكمي بالأوزان الرسمية', () =
       assignments: { 1: 80, 2: 80, 3: 80, 4: 80 },
       examRaw: 90, thesisScore: 80,
       formula: [
-        { label: 'اختبارات قصيرة ومتابعة', weight: 20 },
-        { label: 'واجبات أو أنشطة تطبيقية', weight: 20 },
-        { label: 'الاختبار النهائي', weight: 40 },
-        { label: 'بحث تخرج', weight: 20 },
+        { key: 'quizzes', label: 'اختبارات قصيرة ومتابعة', weight: 20 },
+        { key: 'assignments', label: 'واجبات أو أنشطة تطبيقية', weight: 20 },
+        { key: 'final_exam', label: 'الاختبار النهائي', weight: 40 },
+        { key: 'thesis', label: 'بحث تخرج', weight: 20 },
       ],
     })
     expect(grade.weightSource).toBe('academic_profile')
