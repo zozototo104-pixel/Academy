@@ -36,7 +36,7 @@ const db: any = {
       status: 'READY',
       passScore: 60,
       unit: { programId: 'program-1', program: { id: 'program-1', titleAr: 'برنامج عربي للاختبار', slug: 'program' } },
-      questions: [{ id: 'essay-1', order: 1, type: 'ESSAY', text: 'اشرح الفكرة', modelAnswer: 'إجابة نموذجية', rubric: null, knowledgeItemId: null, sourceEvidence: null, points: 10 }],
+      questions: [{ id: 'essay-1', order: 1, type: 'ESSAY', text: 'اشرح الفكرة', modelAnswer: unitModelAnswer, rubric: null, knowledgeItemId: null, sourceEvidence: null, points: 10 }],
     }),
     findMany: async () => [{ id: 'empty-unit-exam', title: 'اختبار فارغ قديم', status: 'READY', passScore: 60, unit: { title: 'وحدة قديمة' }, _count: { questions: 0 } }],
   },
