@@ -344,10 +344,11 @@ export default function AdminLegacyGraduatesTab() {
   function onExcelChange(e: ChangeEvent<HTMLInputElement>) {
     setExcelFile(e.target.files?.[0] || null)
     setImportRows([])
+    setProgramOverrides({})
     setImportProgress(null)
   }
 
-  async function runImport(dryRun: boolean) {
+  async function runImport(dryRun: boolean, overrides = programOverrides) {
     if (!excelFile) return toast({ title: 'اختر ملف Excel أولاً', variant: 'destructive' })
     setBusy(dryRun ? 'dryRun' : 'import')
     setImportProgress(null)
