@@ -119,6 +119,8 @@ beforeEach(() => {
   usages.clear()
   sessions.clear()
   credits = []
+  paidInvoices.clear()
+  transactionQueue = Promise.resolve()
   process.env.AACT_LIVE_FREE_MONTHLY_MINUTES_STUDENT = '30'
 })
 
