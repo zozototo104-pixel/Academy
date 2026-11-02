@@ -132,7 +132,9 @@ export async function gradeEssayWithRubric(args: {
   const sourceExcerpt = String(args.sourceExcerpt || '').replace(/\s+/g, ' ').trim().slice(0, 3000)
   const modelAnswer = String(args.modelAnswer || '').replace(/\s+/g, ' ').trim().slice(0, 2500)
   const studentAnswer = String(args.studentAnswer || '').replace(/\s+/g, ' ').trim().slice(0, 5000)
-  if (studentAnswer.trim().length < 3) return zeroGrade(args.maxPoints, args.rubric)
+  // Only a genuinely blank answer earns automatic zero. Even a one-word answer
+  // may be scientifically complete for a short-answer question.
+  if (!studentAnswer.trim()) return zeroGrade(args.maxPoints, args.rubric)
   if (!modelAnswer) throw new EssayNeedsReviewError('ESSAY_MODEL_ANSWER_MISSING')
   const question = String(args.question || '').replace(/\s+/g, ' ').trim().slice(0, 1200)
   const criteriaText = rubricInfo.criteria.map((item) => `- ${item.name}: ${item.weight}`).join('\n')
