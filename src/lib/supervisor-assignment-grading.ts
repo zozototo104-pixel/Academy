@@ -327,7 +327,9 @@ async function loadBookContext(programId: string, unitId: string | null, semeste
     if (!parts.length && !sourceIds.length) {
       parts.push(...chunks.slice(0, 12).map((chunk) => String(chunk.text || '')).filter(Boolean))
     }
-    const joined = parts.join('\n')
+    // Repair extraction-order artifacts before using book text as grading evidence.
+    // Never replace the stored source: this is an in-memory reading correction only.
+    const joined = parts.map((part) => fixArabicPdfText(part)).join('\n')
     const text = joined.slice(0, MAX_BOOK_CHARS)
     const book = await db.book.findUnique({ where: { id: unit.sourceBookId }, select: { title: true } }).catch(() => null)
     const status: GradingBookContext['status'] = !text ? 'NONE' : !sourceIds.length ? 'UNIT' :
