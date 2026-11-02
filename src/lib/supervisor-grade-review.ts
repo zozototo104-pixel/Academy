@@ -1,6 +1,5 @@
 import { db } from '@/lib/db'
 import { notify } from '@/lib/notify'
-import { calculateSemesterReadiness } from '@/lib/semester-readiness'
 import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
 import type { SupervisorActor } from '@/lib/supervisor-scope'
 
