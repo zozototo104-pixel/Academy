@@ -23,6 +23,25 @@ function parseContent(value: unknown): UnitContentSection[] {
   return []
 }
 
+/**
+ * Referenced content alone is not a finished generated unit: the study guide
+ * must exist and have at least one usable knowledge-source identifier.
+ */
+export function hasCompleteUnitArtifacts(
+  content: UnitContentSection[],
+  guide: { sourceKnowledgeIds: string | null } | null,
+): boolean {
+  if (!content.some((section) => section.sourceKnowledgeIds?.length || section.sourceChunkIndexes?.length)) return false
+  if (!guide?.sourceKnowledgeIds) return false
+  try {
+    const ids: unknown = JSON.parse(guide.sourceKnowledgeIds)
+    return Array.isArray(ids) && ids.length > 0 &&
+      ids.every((id) => typeof id === 'string' && id.trim().length > 0)
+  } catch {
+    return false
+  }
+}
+
 function pageRef(pageStart?: number | null, pageEnd?: number | null) {
   if (!pageStart && !pageEnd) return ''
   if (pageStart && pageEnd && pageStart !== pageEnd) return `صفحات ${pageStart}–${pageEnd}`
