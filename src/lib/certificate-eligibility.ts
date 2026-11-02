@@ -8,6 +8,23 @@ export type CertificateEligibilityDbClient = typeof db | Prisma.TransactionClien
 /** Academic graduation is based on the cumulative earned mark, strictly above 50%. */
 export const CERTIFICATE_PASS_SCORE = 50
 
+/** Unit quizzes and assignments affect the weighted mean only.
+ * Semester exams, and research/defense where applicable, are graduation gates.
+ */
+export function requiredGraduationComponents(
+  category: string,
+  components: FinalGradeResult['components'],
+): string[] {
+  if (category === 'MASTERS') {
+    return ['semester1_exam', 'semester2_exam', 'thesis', 'defense']
+  }
+  if (category === 'DOCTORATE') {
+    return ['reading_exam', 'analysis_exam', 'thesis', 'defense']
+  }
+  return ['final_exam', ...(components.some((item) => item.key === 'thesis' && item.weight > 0) ? ['thesis'] : [])]
+}
+
+
 export interface ProgramCertificateEligibility {
   ok: boolean
   score: number | null
