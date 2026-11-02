@@ -142,8 +142,8 @@ export async function evaluateProgramCertificateEligibility(input: {
 
   return {
     ok: true,
-    score: finalGrade.score,
-    gradeLabel: certificateGradeLabel(finalGrade.score),
+    score: academicScore,
+    gradeLabel: certificateGradeLabel(academicScore),
     missing: [],
     components: finalGrade.components,
   }
