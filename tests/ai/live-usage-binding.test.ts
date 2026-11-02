@@ -28,7 +28,18 @@ function updateNumber(current: number, change: any): number {
 }
 
 const db: any = {
-  $transaction: async (work: (tx: any) => Promise<any>) => work(db),
+  $transaction: async (work: (tx: any) => Promise<any>) => {
+    // Mimic the ordering guarantee of PostgreSQL FOR UPDATE for concurrent grant callers.
+    const previous = transactionQueue
+    let release!: () => void
+    transactionQueue = new Promise<void>((resolve) => { release = resolve })
+    await previous
+    try { return await work(db) } finally { release() }
+  },
+  $queryRaw: async (_strings: TemplateStringsArray, paymentId: string) => {
+    const payment = paidInvoices.get(paymentId)
+    return payment ? [{ ...payment }] : []
+  },
   enrollment: { count: async () => 0 },
   aiLiveUsage: {
     findUnique: async ({ where }: any) => {
