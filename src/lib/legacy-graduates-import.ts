@@ -175,12 +175,26 @@ export function parseLegacyGraduateWorkbook(buffer: Buffer, fileName: string) {
   const firstSheetName = workbook.SheetNames[0]
   if (!firstSheetName) throw new Error('EMPTY_WORKBOOK')
   const sheet = workbook.Sheets[firstSheetName]
-  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: true, defval: '' })
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: true, defval: '', blankrows: true })
   const headerRow = rows[0] || []
   const headers = headerRow.map(canonicalHeader)
-  const dataRows = rows.slice(1).filter((row) => !isEmptySheetRow(row))
+  const dataRows = rows.slice(1).map((row, index) => ({ row, rowNumber: index + 2 }))
+    .filter(({ row }) => !isEmptySheetRow(row))
   if (dataRows.length > LEGACY_GRADUATE_IMPORT_MAX_ROWS) throw new Error('TOO_MANY_ROWS')
-  return dataRows.map((row, index) => ({ rowNumber: index + 2, raw: rowToObject(headers, row), sourceFile: fileName }))
+  return dataRows.map(({ row, rowNumber }) => {
+    const raw = rowToObject(headers, row)
+    // Phone numbers may be numeric cells with a custom zero-padding format.
+    // Read their displayed value to keep leading zeroes when Excel recorded them.
+    const phoneColumn = headers.indexOf('phone')
+    if (phoneColumn >= 0 && typeof row[phoneColumn] === 'number') {
+      const cell = sheet[XLSX.utils.encode_cell({ r: rowNumber - 1, c: phoneColumn })]
+      const formatted = cell ? XLSX.utils.format_cell(cell) : ''
+      raw.phone = formatted && !/[eE][+-]?\d+/.test(formatted)
+        ? formatted
+        : String(row[phoneColumn])
+    }
+    return { rowNumber, raw, sourceFile: fileName }
+  })
 }
 
 export async function validateLegacyGraduateImportRows(parsedRows: { rowNumber: number; raw: Record<string, unknown> }[], programOverrides: Record<string, string> = {}): Promise<LegacyImportRow[]> {
