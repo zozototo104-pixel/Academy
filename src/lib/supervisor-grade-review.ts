@@ -150,18 +150,25 @@ export async function applyScoreAdjustments(
       answer.points = points
     }
 
-    // لا تُحسم المراجعة وعليها إجابات بلا نقاط: إعادة الاحتساب تعامل الفارغ
-    // كصفر، فيرسب الطالب بصمت على إجابة قد تكون صحيحة — نفس بوابة الإدارة.
-    const ungradedCount = attempt.answers.filter((a: any) => a.points == null).length
-    if (ungradedCount) throw Object.assign(new Error('ANSWERS_NOT_FULLY_GRADED'), { userMessage: `لا يمكن إتمام المراجعة قبل تحديد نقاط كل الإجابات: ${ungradedCount} إجابة بلا نقاط` })
+    // A duplicated answer can inflate a single question's contribution.
+    // Preserve suspicious rows for human repair rather than guessing which
+    // response to discard or changing already-issued grades.
+    const duplicates = findDuplicateAnswerQuestionIds(attempt.answers)
+    if (duplicates.length) throw Object.assign(new Error('DUPLICATE_ANSWER_ROWS'), {
+      userMessage: `لا يمكن إتمام المراجعة: تكررت إجابة ${duplicates.length} سؤال في المحاولة`,
+    })
 
-    // وتغطية كاملة أيضاً: كل سؤال مطلوب له سجل إجابة. سجل مفقود يُخرج
-    // السؤال من الحساب بصمت — نفس بوابة الإدارة.
     const requiredQuestions = type === 'UNIT'
       ? attempt.exam.questions
       : attempt.exam.questions.filter((q: any) => q.status === 'PUBLISHED')
-    const missingCount = findMissingAnswerQuestionIds(requiredQuestions.map((q: any) => q.id), attempt.answers).length
+    const requiredIds = requiredQuestions.map((q: any) => q.id)
+    if (!requiredIds.length) throw Object.assign(new Error('EXAM_HAS_NO_QUESTIONS'), { userMessage: 'لا يمكن اعتماد امتحان بلا أسئلة مطلوبة' })
+    const missingCount = findMissingAnswerQuestionIds(requiredIds, attempt.answers).length
     if (missingCount) throw Object.assign(new Error('ANSWERS_COVERAGE_INCOMPLETE'), { userMessage: `لا يمكن إتمام المراجعة: ${missingCount} سؤال مطلوب بلا سجل إجابة` })
+    const eligible = new Set(requiredIds)
+    const eligibleAnswers = attempt.answers.filter((a: any) => eligible.has(a.questionId))
+    const ungradedCount = eligibleAnswers.filter((a: any) => a.points == null).length
+    if (ungradedCount) throw Object.assign(new Error('ANSWERS_NOT_FULLY_GRADED'), { userMessage: `لا يمكن إتمام المراجعة قبل تحديد نقاط كل الإجابات: ${ungradedCount} إجابة بلا نقاط` })
 
     // المقام هو مجموع نقاط الأسئلة كما دخلت تصحيح هذه المحاولة فعلياً
     // (maxPoints المحفوظة على كل إجابة)، لا مجموع أسئلة الامتحان الحالية:
