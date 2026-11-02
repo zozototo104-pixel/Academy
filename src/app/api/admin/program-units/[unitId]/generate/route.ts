@@ -183,15 +183,17 @@ export async function POST(req: NextRequest, context: Context) {
         where: { unitId: unit.id },
         select: { id: true },
       })
-      const updatedUnit = await tx.unit.update({
-        where: { id: unit.id },
-        data: {
-          summary: generated.summary,
-          objectives: JSON.stringify(generated.objectives),
-          content: JSON.stringify(generated.content),
-          generationVersion: { increment: 1 },
-        },
-      })
+      const updatedUnit = generated
+        ? await tx.unit.update({
+            where: { id: unit.id },
+            data: {
+              summary: generated.summary,
+              objectives: JSON.stringify(generated.objectives),
+              content: JSON.stringify(generated.content),
+              generationVersion: { increment: 1 },
+            },
+          })
+        : unit // Guide-only repair must not write or bump the existing unit.
       const guide = existingGuide
         ? await tx.programStudyGuide.update({ where: { id: existingGuide.id }, data: guideData })
         : await tx.programStudyGuide.create({ data: guideData })
