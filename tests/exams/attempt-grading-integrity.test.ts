@@ -307,6 +307,7 @@ mock.module('@/lib/notify', () => ({ notify: async () => {} }))
 const { applyScoreAdjustments } = await import('../../src/lib/supervisor-grade-review')
 auditDb.answer.update = async ({ where, data }: any) => {
   const answer = auditAnswers.find((row) => row.id === where.id)
+  if (!answer) throw new Error('MOCK_ANSWER_NOT_FOUND')
   Object.assign(answer, data)
   return answer
 }
