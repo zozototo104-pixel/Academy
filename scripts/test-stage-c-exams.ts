@@ -86,8 +86,32 @@ async function testFinalGradeBehaviorWithMockData() {
 
   const passing = await evaluateProgramCertificateEligibility({ userId: 'student-1', programId: 'program-1', client: mockDiplomaClient([51]) })
   assert(passing.ok, 'درجة 51 يجب أن تنجح')
-}
 
+  const failedUnit = await evaluateProgramCertificateEligibility({
+    userId: 'student-1', programId: 'program-1',
+    client: mockDiplomaClient([90], { unitPassed: false }),
+  })
+  assert(!failedUnit.ok && failedUnit.missing.some((entry) => entry.includes('اختبار وحدة')),
+    'محاولة وحدة مصححة لكنها غير ناجحة يجب أن تمنع إكمال البرنامج')
+
+  const missingUnit = await evaluateProgramCertificateEligibility({
+    userId: 'student-1', programId: 'program-1',
+    client: mockDiplomaClient([90], { unitScore: null }),
+  })
+  assert(!missingUnit.ok, 'عدم أداء اختبار الوحدة يجب أن يمنع الشهادة ولا يعتبر إعفاءً')
+
+  const ungradedAssignment = await evaluateProgramCertificateEligibility({
+    userId: 'student-1', programId: 'program-1',
+    client: mockDiplomaClient([90], { assignmentStatus: 'SUBMITTED' }),
+  })
+  assert(!ungradedAssignment.ok, 'تسليم واجب لم يُصحح لا يحقق أهلية الشهادة')
+
+  const pendingAppeal = await evaluateProgramCertificateEligibility({
+    userId: 'student-1', programId: 'program-1',
+    client: mockDiplomaClient([90], { programAppealPending: true }),
+  })
+  assert(!pendingAppeal.ok, 'الطعن المعلق في الامتحان الفصلي لا يعتبر نتيجة مؤهلة للشهادة')
+}
 function testCentralCompletionOnly() {
   const submit = file('src/app/api/exam/submit/route.ts')
   assert(submit.includes("completeEnrollmentIfEligible({ enrollmentId: enrollment.id })"), 'unit exam submit must delegate completion to the central service')
