@@ -134,6 +134,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'استنفدت عدد محاولات هذا الاختبار', code: 'MAX_ATTEMPTS_REACHED', maxAttempts: startState.maxAttempts, attemptsUsed: startState.completedAttempts }, { status: 403 })
     }
     if (startState.blocked === 'GRADING') return NextResponse.json({ error: 'هذه المحاولة قيد التصحيح', code: 'SUBMITTED' }, { status: 409 })
+    if (startState.blocked === 'REVIEW') return NextResponse.json({
+      error: 'تأخر التصحيح؛ تم نقل إجاباتك المحفوظة للمراجعة البشرية دون احتساب علامة ناقصة.',
+      code: 'NEEDS_REVIEW',
+    }, { status: 409 })
     if (startState.blocked === 'EXPIRED') return NextResponse.json({ error: 'انتهت المحاولة وحُسبت صفر', code: 'ATTEMPT_EXPIRED', maxAttempts: startState.maxAttempts, attemptsUsed: startState.completedAttempts }, { status: 409 })
     if (startState.blocked === 'PASSED') return NextResponse.json({ error: 'لقد اجتزت هذا الاختبار سابقاً، لا يمكن بدء محاولة جديدة', code: 'ALREADY_PASSED' }, { status: 403 })
     if (!startState.attempt) return NextResponse.json({ error: 'تعذر بدء الاختبار' }, { status: 409 })
