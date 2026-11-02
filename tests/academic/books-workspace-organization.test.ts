@@ -418,13 +418,43 @@ describe('unit content + sourced study guide atomic persistence', () => {
     expect(generatedJob).toBeNull()
   })
 
-  test('failure writing guide rolls back content, generation version and success status', async () => {
+  test('guide repair failure leaves existing content and version untouched', async () => {
     failGuidePersist = true
+    const before = { ...generatedUnit }
     const response = await generateOneUnit()
     expect(response.status).toBe(500)
-    expect(generatedUnit.summary).toBe('شرح قديم')
-    expect(generatedUnit.generationVersion).toBe(3)
-    expect(generatedUnit.content).toBe(JSON.stringify(citedContent))
+    expect(generationCalls).toBe(0)
+    expect(generatedUnit).toEqual(before)
+    expect(generatedGuide).toBeNull()
+    expect(generatedJob.status).toBe('FAILED')
+  })
+
+  test('force explicitly regenerates both content and guide', async () => {
+    const response = await generateOneUnit({ force: true })
+    expect(response.status).toBe(200)
+    expect((await response.json()).repairedGuideOnly).toBe(false)
+    expect(generationCalls).toBe(1)
+    expect(generatedUnit.summary).toBe('شرح جديد')
+    expect(generatedUnit.generationVersion).toBe(4)
+    expect(generatedGuide.sourceKnowledgeIds).toBe('["kb-1"]')
+  })
+
+  test('absent referenced content still uses full content generation', async () => {
+    generatedUnit.content = '[]'
+    const response = await generateOneUnit()
+    expect(response.status).toBe(200)
+    expect((await response.json()).repairedGuideOnly).toBe(false)
+    expect(generationCalls).toBe(1)
+    expect(generatedUnit.generationVersion).toBe(4)
+  })
+
+  test('failed full regeneration rolls back content and version atomically', async () => {
+    failGuidePersist = true
+    const before = { ...generatedUnit }
+    const response = await generateOneUnit({ force: true })
+    expect(response.status).toBe(500)
+    expect(generationCalls).toBe(1)
+    expect(generatedUnit).toEqual(before)
     expect(generatedGuide).toBeNull()
     expect(generatedJob.status).toBe('FAILED')
   })
