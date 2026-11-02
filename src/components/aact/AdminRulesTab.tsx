@@ -248,6 +248,7 @@ function normalizeAcademicProfile(profile?: AcademicProfileDraft | null): Academ
       .filter((t) => t.title || t.description),
     finalEvaluationFormula: (profile.finalEvaluationFormula || [])
       .map((item) => ({
+        key: String(item.key || '').trim() || undefined,
         label: String(item.label || '').trim(),
         weight: Number(item.weight || 0),
         description: String(item.description || '').trim(),
