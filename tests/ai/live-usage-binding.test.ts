@@ -167,6 +167,38 @@ describe('تسوية الجلسة: ملكية + ساعة الخادم', () => {
   })
 })
 
+describe('منح دقائق الصوت المشتراة لا يتكرر عند الدفع المتزامن أو الإعادة', () => {
+  test('محاولتان متزامنتان على فاتورة واحدة تمنحان رصيداً واحداً فقط', async () => {
+    paidInvoices.set('invoice-1', { id: 'invoice-1', userId: 'stu-1', status: 'PAID' })
+    const [first, second] = await Promise.all([
+      grantGeminiLiveCredit({ userId: 'stu-1', minutes: 30, paymentId: 'invoice-1', source: 'PURCHASE' }),
+      grantGeminiLiveCredit({ userId: 'stu-1', minutes: 30, paymentId: 'invoice-1', source: 'PURCHASE' }),
+    ])
+    expect([first.newlyGranted, second.newlyGranted].sort()).toEqual([false, true])
+    expect(credits.filter((credit) => credit.paymentId === 'invoice-1')).toHaveLength(1)
+    expect(credits[0].remainingMinutes).toBe(30)
+    const replay = await grantGeminiLiveCredit({ userId: 'stu-1', minutes: 30, paymentId: 'invoice-1', source: 'PURCHASE' })
+    expect(replay.newlyGranted).toBe(false)
+    expect(credits).toHaveLength(1)
+  })
+
+  test('فاتورة غير مدفوعة أو مملوكة لحساب آخر لا تمنح أي دقيقة', async () => {
+    paidInvoices.set('invoice-2', { id: 'invoice-2', userId: 'stu-1', status: 'UNPAID' })
+    await expect(grantGeminiLiveCredit({ userId: 'stu-1', minutes: 30, paymentId: 'invoice-2', source: 'PURCHASE' }))
+      .rejects.toThrow('LIVE_CREDIT_PAYMENT_NOT_SETTLED_OR_OWNER_MISMATCH')
+    paidInvoices.set('invoice-2', { id: 'invoice-2', userId: 'stu-1', status: 'PAID' })
+    await expect(grantGeminiLiveCredit({ userId: 'stu-2', minutes: 30, paymentId: 'invoice-2', source: 'PURCHASE' }))
+      .rejects.toThrow('LIVE_CREDIT_PAYMENT_NOT_SETTLED_OR_OWNER_MISMATCH')
+    expect(credits).toHaveLength(0)
+  })
+
+  test('منحة إدارية مستقلة بلا فاتورة تبقى مسموحة', async () => {
+    const grant = await grantGeminiLiveCredit({ userId: 'stu-1', minutes: 5, source: 'ADMIN_GRANT' })
+    expect(grant.newlyGranted).toBe(true)
+    expect(grant.remainingMinutes).toBe(5)
+  })
+})
+
 describe('حجز الجلسة: معرّف العميل لا يُبعث ولا يُسرق', () => {
   test('إعادة استعمال معرّف جلسة مسوّاة = حجز جديد بمعرّف جديد وبخصم جديد', async () => {
     seedUsage('stu-1', { freeMinutesUsed: 2, sessionsCount: 1 })
