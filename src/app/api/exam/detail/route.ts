@@ -63,9 +63,36 @@ export async function GET(req: NextRequest) {
       if (passedAttempt) return { blocked: true as const, reason: 'PASSED_ALREADY' as const, maxAttempts, completedAttempts }
       const grading = await tx.examAttempt.findFirst({
         where: { userId: user.id, examId, status: 'SUBMITTED' },
-        select: { id: true },
+        select: { id: true, submittedAt: true },
+        orderBy: { createdAt: 'desc' },
       })
-      if (grading) return { blocked: true as const, reason: 'SUBMITTED' as const, maxAttempts, completedAttempts }
+      if (grading) {
+        // An interrupted request keeps the raw answers from the atomic submit.
+        // Recover only a sufficiently old submission WITH saved answers; never
+        // invent zero points or reopen its attempt automatically.
+        const staleBefore = new Date(Date.now() - STALE_SUBMITTED_REVIEW_MS)
+        if (grading.submittedAt && grading.submittedAt <= staleBefore) {
+          const savedAnswers = await tx.answer.count({ where: { attemptId: grading.id } })
+          if (savedAnswers > 0) {
+            const recovered = await tx.examAttempt.updateMany({
+              where: { id: grading.id, status: 'SUBMITTED', submittedAt: { lte: staleBefore } },
+              data: {
+                status: 'NEEDS_REVIEW',
+                score: null,
+                passed: null,
+                feedback: JSON.stringify({
+                  code: 'STALE_UNIT_GRADING_RECOVERED',
+                  summary: 'تأخر التصحيح؛ تم تحويل إجاباتك المحفوظة للمراجعة البشرية.',
+                }),
+              },
+            })
+            if (recovered.count === 1) {
+              return { blocked: true as const, reason: 'NEEDS_REVIEW' as const, maxAttempts, completedAttempts: completedAttempts + 1 }
+            }
+          }
+        }
+        return { blocked: true as const, reason: 'SUBMITTED' as const, maxAttempts, completedAttempts }
+      }
       const existing = await tx.examAttempt.findFirst({
         where: { userId: user.id, examId, status: 'STARTED' },
         orderBy: { createdAt: 'desc' },
