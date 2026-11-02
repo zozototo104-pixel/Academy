@@ -31,6 +31,9 @@ const program = {
 
 const db: any = {
   $transaction: async (work: (tx: any) => Promise<any>) => work(db),
+  $queryRaw: async () => [],
+  setting: { findMany: async () => [] },
+  question: { findMany: async () => [{ id: 'essay-1', order: 1, type: 'ESSAY', text: 'اشرح الفكرة', points: 10, options: null }] },
   exam: {
     findUnique: async () => ({
       id: 'exam-1',
