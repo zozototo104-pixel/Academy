@@ -209,8 +209,9 @@ export async function validateLegacyGraduateImportRows(parsedRows: { rowNumber: 
 
     if (nameEn === '__INVALID_ENGLISH_NAME__') errors.push("الاسم بالإنجليزي يجب أن يحتوي على حروف لاتينية ومسافات و . - ' فقط")
     if (!email || !isValidLegacyGraduateEmail(email)) errors.push('إيميل غلط')
-    if (!programText) errors.push('البرنامج مطلوب')
-    if (programText && !resolved.programId) errors.push('برنامج مش موجود')
+    if (!programText && !override) errors.push('البرنامج مطلوب')
+    if (override && !selectedProgram) errors.push('البرنامج المختار غير موجود')
+    else if (programText && !resolved.programId) errors.push('برنامج مش موجود')
     if (!issuedAt) errors.push('تاريخ غلط')
     if (Number.isNaN(finalScore)) errors.push('المعدل غير صالح')
     if (legacySerial && existingSerials.has(legacySerial)) errors.push('رقم الشهادة القديم مستخدم مسبقاً')
