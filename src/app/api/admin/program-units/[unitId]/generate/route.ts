@@ -115,7 +115,7 @@ export async function POST(req: NextRequest, context: Context) {
     let createdJob: { id: string }
     try {
       createdJob = await db.unitGenerationJob.create({
-        data: { unitId: unit.id, programId: unit.programId, status: 'RUNNING', phase: 'CONTENT', unitsTotal: 1, unitsDone: 0, startedAt: new Date(), lockedUntil: new Date(Date.now() + 240_000) },
+        data: { unitId: unit.id, programId: unit.programId, status: 'RUNNING', phase: repairGuideOnly ? 'GUIDE' : 'CONTENT', unitsTotal: 1, unitsDone: 0, startedAt: new Date(), lockedUntil: new Date(Date.now() + 240_000) },
         select: { id: true },
       })
     } catch (error: any) {
