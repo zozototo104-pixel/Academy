@@ -5,6 +5,7 @@ import { notify } from '@/lib/notify'
 import { getExamsGate } from '@/lib/exam-gate'
 import { academicProfileFromRules } from '@/lib/program-tracks'
 import { calculateSemesterReadiness, markSemesterReady } from '@/lib/semester-readiness'
+import { calculateFinalGrade } from '@/lib/final-grade'
 import { enforceSemesterTuitionGate, getStudentTuitionPlan } from '@/lib/tuition-installments'
 import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
 
