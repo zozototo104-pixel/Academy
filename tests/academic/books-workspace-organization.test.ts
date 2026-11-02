@@ -396,12 +396,16 @@ describe('unit content + sourced study guide atomic persistence', () => {
     expect(generatedJob.status).toBe('COMPLETED')
   })
 
-  test('empty guide evidence does not satisfy skip guard', async () => {
+  test('empty guide evidence is repaired without touching the existing unit', async () => {
     generatedGuide = { id: 'guide-1', sourceKnowledgeIds: '[]', sections: '[]' }
+    const before = { ...generatedUnit }
     expect(outlineGeneration.hasCompleteUnitArtifacts(citedContent, generatedGuide)).toBe(false)
     const response = await generateOneUnit()
     expect(response.status).toBe(200)
-    expect(generationCalls).toBe(1)
+    expect((await response.json()).repairedGuideOnly).toBe(true)
+    expect(generationCalls).toBe(0)
+    expect(generatedUnit).toEqual(before)
+    expect(generatedGuide.sourceKnowledgeIds).toBe('["kb-1"]')
   })
 
   test('complete referenced content and sourced guide skip safely', async () => {
