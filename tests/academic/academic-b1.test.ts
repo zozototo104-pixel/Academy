@@ -276,6 +276,25 @@ beforeEach(() => {
 })
 
 describe('academic B1 safety', () => {
+  test('official programme grade is committed before optional AI feedback and survives outage', async () => {
+    programObjectiveMode = true
+    optionalFeedbackFails = true
+    const response = await programExamSubmitRoute.POST(new NextRequest('https://academy.test/api/program-exam/submit', {
+      method: 'POST',
+      body: JSON.stringify({ examId: 'program-exam-1', answers: [{ questionId: 'program-essay-1', selectedOption: 0 }] }),
+      headers: { 'content-type': 'application/json' },
+    }))
+    const payload = await body(response as any)
+    expect(response.status).toBe(200)
+    expect(payload.passed).toBe(true)
+    expect(payload.score).toBe(100)
+    const graded = calls.indexOf('programAttempt.update:GRADED')
+    const commentary = calls.indexOf('overall.ai')
+    expect(graded).toBeGreaterThanOrEqual(0)
+    expect(commentary).toBeGreaterThan(graded)
+    expect(calls).not.toContain('programAttempt.update:NEEDS_REVIEW')
+  })
+
   test('official unit grade is committed before optional AI feedback and survives outage', async () => {
     unitObjectiveMode = true
     optionalFeedbackFails = true
