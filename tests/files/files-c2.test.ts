@@ -32,6 +32,31 @@ describe('files C2 upload and backup safety', () => {
     expect(tables).toContain('CertificateTemplate')
   })
 
+  test('backup model coverage follows Prisma without a manual allowlist', () => {
+    const current = new Set(backupTableNames())
+    const all = Object.keys(Prisma.ModelName)
+    const omitted = all.filter((name) => !current.has(name))
+    expect(omitted).toEqual(process.env.AACT_BACKUP_INCLUDE_SESSIONS === 'true' ? [] : ['Session'])
+    expect(current.size).toBe(all.length - omitted.length)
+    for (const name of ['LectureSession', 'LectureAttendance', 'BookChunk', 'BookOutline', 'AiUsageLog', 'QuestionRecheckTask', 'WhatsAppConversationMessage']) {
+      expect(current.has(name)).toBe(true)
+    }
+  })
+
+  test('backup restores model dependencies before their children', () => {
+    const specs = backupTableSpecs()
+    const positions = new Map(specs.map((spec, index) => [spec.name, index]))
+    for (const model of Prisma.dmmf.datamodel.models) {
+      const spec = specs.find((item) => item.name === model.name)
+      expect(spec).toBeDefined()
+      expect(Object.keys(spec!.orderBy).length).toBeGreaterThan(0)
+      for (const field of model.fields) {
+        if (field.kind !== 'object' || !(field.relationFromFields?.length) || field.type === model.name) continue
+        expect(positions.get(field.type)!).toBeLessThan(positions.get(model.name)!)
+      }
+    }
+  })
+
   test('x-forwarded-for is trusted only for Vercel requests', () => {
     expect(clientIpFromHeaders(new Headers({ 'x-forwarded-for': '1.1.1.1', 'x-real-ip': '2.2.2.2' }))).toBe('2.2.2.2')
     expect(clientIpFromHeaders(new Headers({ 'x-forwarded-for': '1.1.1.1, 3.3.3.3', 'x-vercel-id': 'iad1::abc' }))).toBe('1.1.1.1')
