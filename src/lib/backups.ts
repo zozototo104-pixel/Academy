@@ -389,13 +389,21 @@ export async function createDatabaseBackup(trigger: BackupTrigger) {
       counts[table.name] = total
       chunks.push(line({ type: 'table', name: table.name, delegate: table.delegate, count: total }))
 
+      let exportedRows = 0
       for (let skip = 0; skip < total; skip += safeBatchSize) {
         const rows = await delegate.findMany({
-          orderBy: table.orderBy || { id: 'asc' },
+          orderBy: table.orderBy,
           skip,
           take: safeBatchSize,
         })
+        if (rows.length !== Math.min(safeBatchSize, total - skip)) {
+          throw new Error(`BACKUP_PAGE_SIZE_MISMATCH:${table.name}`)
+        }
+        exportedRows += rows.length
         for (const row of rows) chunks.push(line({ type: 'row', table: table.name, data: row }))
+      }
+      if (exportedRows !== total || await delegate.count() !== total) {
+        throw new Error(`BACKUP_SOURCE_CHANGED_DURING_EXPORT:${table.name}`)
       }
     } catch (e: any) {
       errors.push({ table: table.name, error: e?.message || String(e) })
