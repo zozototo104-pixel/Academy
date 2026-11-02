@@ -270,6 +270,30 @@ beforeEach(() => {
 })
 
 describe('academic B1 safety', () => {
+  test('stale submitted unit with preserved answers becomes NEEDS_REVIEW, not a new attempt or zero', async () => {
+    pendingUnitGrading = { submittedAt: new Date(Date.now() - 3 * 60 * 60 * 1000), savedAnswerCount: 1 }
+    const response = await examDetailRoute.GET(new NextRequest('https://academy.test/api/exam/detail?examId=exam-1'))
+    const payload = await body(response as any)
+    expect(response.status).toBe(409)
+    expect(payload.code).toBe('NEEDS_REVIEW')
+    expect(calls).toContain('attempt.updateMany:NEEDS_REVIEW')
+    expect(answers).toHaveLength(0)
+  })
+
+  test('live or answerless submitted unit cannot be prematurely recovered', async () => {
+    for (const fixture of [
+      { submittedAt: new Date(Date.now() - 10 * 60 * 1000), savedAnswerCount: 1 },
+      { submittedAt: new Date(Date.now() - 3 * 60 * 60 * 1000), savedAnswerCount: 0 },
+    ]) {
+      pendingUnitGrading = fixture
+      const response = await examDetailRoute.GET(new NextRequest('https://academy.test/api/exam/detail?examId=exam-1'))
+      const payload = await body(response as any)
+      expect(response.status).toBe(409)
+      expect(payload.code).toBe('SUBMITTED')
+    }
+    expect(calls).not.toContain('attempt.updateMany:NEEDS_REVIEW')
+  })
+
   test('missing essay model preserves the submitted answer for human review instead of rejecting or assigning zero', async () => {
     unitModelAnswer = null
     const response = await examSubmitRoute.POST(new NextRequest('https://academy.test/api/exam/submit', {
