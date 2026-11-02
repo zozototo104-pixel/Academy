@@ -34,6 +34,31 @@ interface AcademicEvaluationItemDraft {
   description: string
 }
 
+const GRADING_COMPONENT_CHOICES: Record<string, Array<{ key: string; label: string }>> = {
+  DIPLOMA: [
+    { key: 'quizzes', label: 'اختبارات الوحدات والمتابعة' },
+    { key: 'assignments', label: 'الواجبات والأنشطة' },
+    { key: 'final_exam', label: 'الامتحان النهائي' },
+    { key: 'thesis', label: 'بحث التخرج' },
+  ],
+  MASTERS: [
+    { key: 'semester1_quizzes', label: 'اختبارات وحدات الفصل الأول' },
+    { key: 'semester1_exam', label: 'امتحان الفصل الأول' },
+    { key: 'semester2_quizzes', label: 'اختبارات وحدات الفصل الثاني' },
+    { key: 'semester2_exam', label: 'امتحان الفصل الثاني' },
+    { key: 'thesis', label: 'بحث التخرج' },
+    { key: 'defense', label: 'المناقشة النهائية' },
+  ],
+  DOCTORATE: [
+    { key: 'reading_quizzes', label: 'اختبارات القراءات المتقدمة' },
+    { key: 'reading_exam', label: 'امتحان القراءات المتقدمة' },
+    { key: 'analysis_quizzes', label: 'اختبارات التطبيق والتحليل' },
+    { key: 'analysis_exam', label: 'امتحان التطبيق والتحليل' },
+    { key: 'thesis', label: 'الأطروحة' },
+    { key: 'defense', label: 'المناقشة النهائية' },
+  ],
+}
+
 interface AcademicTermPlanDraft {
   id?: string
   order?: number
