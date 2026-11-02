@@ -57,6 +57,18 @@ describe('files C2 upload and backup safety', () => {
     }
   })
 
+  test('database restore requires isolation, a complete backup and an empty target', () => {
+    const backups = require('node:fs').readFileSync('src/lib/backups.ts', 'utf8')
+    const cli = require('node:fs').readFileSync('scripts/backup-restore.ts', 'utf8')
+    for (const source of [backups, cli]) {
+      expect(source).toContain('AACT_RESTORE_ISOLATED_TARGET')
+      expect(source).toContain('BACKUP_INCOMPLETE_SCHEMA_COVERAGE')
+      expect(source).toContain('RESTORE_TARGET_NOT_EMPTY')
+      expect(source).toContain('.$transaction(')
+      expect(source).not.toContain('skipDuplicates: true')
+    }
+  })
+
   test('x-forwarded-for is trusted only for Vercel requests', () => {
     expect(clientIpFromHeaders(new Headers({ 'x-forwarded-for': '1.1.1.1', 'x-real-ip': '2.2.2.2' }))).toBe('2.2.2.2')
     expect(clientIpFromHeaders(new Headers({ 'x-forwarded-for': '1.1.1.1, 3.3.3.3', 'x-vercel-id': 'iad1::abc' }))).toBe('1.1.1.1')
