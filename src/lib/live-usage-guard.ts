@@ -434,7 +434,17 @@ export async function grantGeminiLiveCredit(input: {
     }
     const existing = await tx.aiLiveCredit.findFirst({ where: { paymentId: payment.id } })
     if (existing) return { ...existing, newlyGranted: false }
-    const credit = await tx.aiLiveCredit.create({ data })
-    return { ...credit, newlyGranted: true }
+    try {
+      const credit = await tx.aiLiveCredit.create({ data })
+      return { ...credit, newlyGranted: true }
+    } catch (error: any) {
+      // The paymentId unique index fired: a concurrent settle already
+      // granted this payment. That is the already-granted outcome, not a
+      // failure — return the existing credit.
+      if (error?.code !== 'P2002') throw error
+      const granted = await tx.aiLiveCredit.findFirst({ where: { paymentId: payment.id } })
+      if (!granted) throw error
+      return { ...granted, newlyGranted: false }
+    }
   })
 }

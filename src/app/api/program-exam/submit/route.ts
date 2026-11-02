@@ -439,7 +439,7 @@ export async function POST(req: NextRequest) {
       return r
       })
     } catch (e: any) {
-      const reviewState = { code: e?.code || 'AI_ACADEMIC_PROVIDER_UNAVAILABLE', reason: String(e?.message || e).slice(0, 500), retryAt: e?.retryAt || null }
+      const reviewState = { code: e?.code || 'AI_ACADEMIC_PROVIDER_UNAVAILABLE', retryAt: e?.retryAt || null }
       await db.programExamAttempt.update({
         where: { id: attempt.id },
         data: { status: 'NEEDS_REVIEW', score: null, passed: null, feedback: JSON.stringify(reviewState), submittedAt: new Date() },
@@ -539,7 +539,7 @@ export async function POST(req: NextRequest) {
       results,
     })
     } catch (postCreateError: any) {
-      const reviewState = { code: 'POST_SUBMIT_FAILURE', reason: String(postCreateError?.message || postCreateError).slice(0, 500) }
+      const reviewState = { code: 'POST_SUBMIT_FAILURE' }
       // Never downgrade an already GRADED attempt, even if later side effects fail.
       const recovered = await db.programExamAttempt.updateMany({
         where: { id: attempt.id, status: 'SUBMITTED' },
@@ -568,7 +568,7 @@ export async function POST(req: NextRequest) {
             score: null,
             finalScore: null,
             passed: null,
-            feedback: JSON.stringify({ code: 'GRADING_INTERRUPTED', reason: String(e?.message || e).slice(0, 350) }),
+            feedback: JSON.stringify({ code: 'GRADING_INTERRUPTED' }),
           },
         })
         if (recovered.count === 1) {

@@ -338,7 +338,7 @@ export async function POST(req: NextRequest) {
             isCorrect: null,
             points: null,
             maxPoints: q.points,
-            aiFeedback: JSON.stringify({ status: 'NEEDS_REVIEW', reason: String(e?.message || e).slice(0, 300) }),
+            aiFeedback: JSON.stringify({ status: 'NEEDS_REVIEW', code: 'ESSAY_GRADING_FAILED' }),
           })
           gradedResults.push({
             questionId: q.id,

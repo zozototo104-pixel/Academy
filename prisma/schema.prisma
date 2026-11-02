@@ -111,7 +111,7 @@ model AiLiveCredit {
   remainingMinutes Int
   source           String   @default("ADMIN_GRANT") // PURCHASE | ADMIN_GRANT | REFUND | PROMO
   status           String   @default("ACTIVE") // ACTIVE | CONSUMED | EXPIRED | REVOKED
-  paymentId        String?
+  paymentId        String?  @unique
   note             String?
   expiresAt        DateTime?
   createdAt        DateTime @default(now())

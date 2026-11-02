@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth'
 import { EssayNeedsReviewError, gradeEssayWithRubric } from '@/lib/essay-grading'
 import { calculateSemesterReadiness } from '@/lib/semester-readiness'
 import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
+import { findUngradedAnswers } from '@/lib/answer-completeness'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -42,6 +43,12 @@ async function buildExcerptMap(ids: Array<string | null | undefined>) {
   return new Map(rows.map((row) => [row.id, row.excerpt || ''] as const))
 }
 
+// Attempts claimed (SUBMITTED) whose grading never finished and never
+// flipped to NEEDS_REVIEW are invisible in every queue. Surface the stale
+// ones (older than 30 minutes) alongside the review list so an admin can
+// find them instead of depending on the student returning to the exam.
+const STUCK_SUBMITTED_MS = 30 * 60 * 1000
+
 async function listReviewAttempts(statusFilter: string = 'NEEDS_REVIEW') {
   const statuses = statusFilter === 'ALL' ? ['NEEDS_REVIEW', 'GRADED'] : statusFilter === 'GRADED' ? ['GRADED'] : ['NEEDS_REVIEW']
   const [unitAttempts, programAttempts] = await Promise.all([
@@ -58,10 +65,32 @@ async function listReviewAttempts(statusFilter: string = 'NEEDS_REVIEW') {
       select: { id: true, status: true, submittedAt: true, user: { select: { id: true, name: true, email: true } }, exam: { select: { id: true, title: true, program: { select: { titleAr: true } } } } },
     }),
   ])
-  return [
+  const rows = [
     ...unitAttempts.map((a) => ({ type: 'UNIT', id: a.id, status: a.status, submittedAt: a.submittedAt, student: a.user, exam: { id: a.exam.id, title: a.exam.title, programTitle: a.exam.unit.program.titleAr, unitTitle: a.exam.unit.title } })),
     ...programAttempts.map((a) => ({ type: 'PROGRAM', id: a.id, status: a.status, submittedAt: a.submittedAt, student: a.user, exam: { id: a.exam.id, title: a.exam.title, programTitle: a.exam.program.titleAr } })),
-  ].sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime())
+  ]
+  if (statusFilter !== 'GRADED') {
+    const stuckBefore = new Date(Date.now() - STUCK_SUBMITTED_MS)
+    const [stuckUnit, stuckProgram] = await Promise.all([
+      db.examAttempt.findMany({
+        where: { status: 'SUBMITTED', submittedAt: { lt: stuckBefore } },
+        orderBy: { submittedAt: 'desc' },
+        take: 100,
+        select: { id: true, status: true, submittedAt: true, user: { select: { id: true, name: true, email: true } }, exam: { select: { id: true, title: true, unit: { select: { title: true, program: { select: { titleAr: true } } } } } } },
+      }),
+      db.programExamAttempt.findMany({
+        where: { status: 'SUBMITTED', OR: [{ submittedAt: { lt: stuckBefore } }, { submittedAt: null, createdAt: { lt: stuckBefore } }] },
+        orderBy: { submittedAt: 'desc' },
+        take: 100,
+        select: { id: true, status: true, submittedAt: true, createdAt: true, user: { select: { id: true, name: true, email: true } }, exam: { select: { id: true, title: true, program: { select: { titleAr: true } } } } },
+      }),
+    ])
+    rows.push(
+      ...stuckUnit.map((a) => ({ type: 'UNIT', id: a.id, status: a.status, stuck: true, submittedAt: a.submittedAt, student: a.user, exam: { id: a.exam.id, title: a.exam.title, programTitle: a.exam.unit.program.titleAr, unitTitle: a.exam.unit.title } })),
+      ...stuckProgram.map((a) => ({ type: 'PROGRAM', id: a.id, status: a.status, stuck: true, submittedAt: a.submittedAt ?? a.createdAt, student: a.user, exam: { id: a.exam.id, title: a.exam.title, programTitle: a.exam.program.titleAr } })),
+    )
+  }
+  return rows.sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime())
 }
 
 async function unitDetail(id: string) {
@@ -122,11 +151,19 @@ async function ensureNeedsReview(tx: any, type: AttemptType, attemptId: string) 
   if (guarded.count === 0) throw apiError('ATTEMPT_ALREADY_APPROVED', 'تم اعتماد هذه المحاولة مسبقاً', 409)
 }
 
-async function ensureNoNullOpenAnswers(tx: any, type: AttemptType, attemptId: string) {
+async function ensureAllAnswersGraded(tx: any, type: AttemptType, attemptId: string) {
+  // EVERY answer must carry points before approval — not only essay/short
+  // ones. An interrupted grading run leaves ungraded answers at points =
+  // null for any type (including choice questions), and recompute would
+  // count them as zero, silently failing a correct answer.
   const rows = type === 'UNIT'
-    ? await tx.answer.findMany({ where: { attemptId, question: { type: { in: ['ESSAY', 'SHORT'] } } }, select: { id: true, points: true } })
-    : await tx.programAnswer.findMany({ where: { attemptId, question: { type: { in: ['ESSAY', 'SHORT'] } } }, select: { id: true, points: true } })
-  if (rows.some((row: any) => row.points == null)) throw apiError('OPEN_ANSWER_POINTS_REQUIRED', 'لا يمكن اعتماد النتيجة قبل تحديد نقاط كل سؤال مقالي/قصير', 400)
+    ? await tx.answer.findMany({ where: { attemptId }, select: { id: true, points: true, question: { select: { type: true } } } })
+    : await tx.programAnswer.findMany({ where: { attemptId }, select: { id: true, points: true, question: { select: { type: true } } } })
+  const ungraded = findUngradedAnswers(rows)
+  if (ungraded.length) {
+    const types = [...new Set(ungraded.map((row) => row.type))].join('، ')
+    throw apiError('ANSWERS_NOT_FULLY_GRADED', `لا يمكن اعتماد النتيجة قبل إكمال تصحيح كل الإجابات: ${ungraded.length} إجابة بلا نقاط (${types})`, 400)
+  }
 }
 
 async function ensureManualAnswerIdsBelongToAttempt(tx: any, type: AttemptType, attemptId: string, answerIds: string[]) {
@@ -212,6 +249,16 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const type = clean(body?.type, 20) as AttemptType
     const id = clean(body?.attemptId, 100)
+    if (body?.action === 'MARK_NEEDS_REVIEW') {
+      // Rescue a stuck claimed attempt into the review queue. Guarded by
+      // status AND age so a grading run still in flight is never touched.
+      const stuckBefore = new Date(Date.now() - STUCK_SUBMITTED_MS)
+      const flipped = type === 'UNIT'
+        ? await db.examAttempt.updateMany({ where: { id, status: 'SUBMITTED', submittedAt: { lt: stuckBefore } }, data: { status: 'NEEDS_REVIEW' } })
+        : await db.programExamAttempt.updateMany({ where: { id, status: 'SUBMITTED', OR: [{ submittedAt: { lt: stuckBefore } }, { submittedAt: null, createdAt: { lt: stuckBefore } }] }, data: { status: 'NEEDS_REVIEW' } })
+      if (!flipped.count) return NextResponse.json({ error: 'المحاولة ليست عالقة، أو لم يمضِ على تعليقها وقت كافٍ بعد' }, { status: 409 })
+      return NextResponse.json({ ok: true, status: 'NEEDS_REVIEW' })
+    }
     const detail = type === 'UNIT' ? await unitDetail(id) : await programDetail(id)
     if (!detail) return NextResponse.json({ error: 'المحاولة غير موجودة' }, { status: 404 })
     if (detail.status !== 'NEEDS_REVIEW') return NextResponse.json({ error: 'تم اعتماد هذه المحاولة مسبقاً' }, { status: 409 })
@@ -227,7 +274,7 @@ export async function POST(req: NextRequest) {
         if (type === 'UNIT') await tx.answer.update({ where: { id: item.answerId }, data: { points: item.points, isCorrect: item.points > 0 ? null : false, aiFeedback: item.feedback } })
         else await tx.programAnswer.update({ where: { id: item.answerId }, data: { points: item.points, isCorrect: item.points > 0 ? null : false, aiFeedback: item.feedback } })
       }
-      await ensureNoNullOpenAnswers(tx, type, id)
+      await ensureAllAnswersGraded(tx, type, id)
       return type === 'UNIT' ? recomputeUnitAttempt(tx, id) : recomputeProgramAttempt(tx, id, readiness)
     }, { timeout: 120000, maxWait: 10000 })
     const completion = await completeReviewedAttemptIfEligible(type, id, result.passed)
@@ -281,7 +328,7 @@ export async function PATCH(req: NextRequest) {
           }
         }
       }
-      await ensureNoNullOpenAnswers(tx, type, id)
+      await ensureAllAnswersGraded(tx, type, id)
       return type === 'UNIT' ? recomputeUnitAttempt(tx, id) : recomputeProgramAttempt(tx, id, readiness)
     }, { timeout: 120000, maxWait: 10000 })
     const completion = await completeReviewedAttemptIfEligible(type, id, result.passed)

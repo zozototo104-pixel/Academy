@@ -149,6 +149,11 @@ export async function applyScoreAdjustments(
       answer.points = points
     }
 
+    // لا تُحسم المراجعة وعليها إجابات بلا نقاط: إعادة الاحتساب تعامل الفارغ
+    // كصفر، فيرسب الطالب بصمت على إجابة قد تكون صحيحة — نفس بوابة الإدارة.
+    const ungradedCount = attempt.answers.filter((a: any) => a.points == null).length
+    if (ungradedCount) throw Object.assign(new Error('ANSWERS_NOT_FULLY_GRADED'), { userMessage: `لا يمكن إتمام المراجعة قبل تحديد نقاط كل الإجابات: ${ungradedCount} إجابة بلا نقاط` })
+
     // المقام هو مجموع نقاط الأسئلة كما دخلت تصحيح هذه المحاولة فعلياً
     // (maxPoints المحفوظة على كل إجابة)، لا مجموع أسئلة الامتحان الحالية:
     // أسئلة الامتحان الفصلي غير المنشورة (مسودة/مرفوضة) لم تُصحَّح أصلاً —
