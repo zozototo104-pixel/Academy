@@ -14,6 +14,8 @@ export interface FinalGradeComponent {
 
 export interface FinalGradeResult {
   score: number | null
+  /** Unrounded earned percentage across the complete programme denominator. */
+  earnedScore: number
   progressScore: number
   components: FinalGradeComponent[]
   missing: string[]
