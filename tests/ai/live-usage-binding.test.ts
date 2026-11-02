@@ -17,6 +17,8 @@ const usageKey = (userId: string, m: string, purpose: string) => `${userId}:${m}
 const usages = new Map<string, UsageRow>()
 const sessions = new Map<string, SessionRow>()
 let credits: CreditRow[] = []
+const paidInvoices = new Map<string, { id: string; userId: string; status: string }>()
+let transactionQueue: Promise<void> = Promise.resolve()
 
 function updateNumber(current: number, change: any): number {
   if (typeof change === 'number') return change
