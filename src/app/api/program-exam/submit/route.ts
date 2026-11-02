@@ -476,6 +476,7 @@ export async function POST(req: NextRequest) {
         submittedAt: new Date(),
       },
     })
+    claimedProgramAttemptId = null
 
     await updateStudentAcademicMemory(user.id, {
       kind: 'EXAM',
