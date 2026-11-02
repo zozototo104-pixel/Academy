@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
+import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
 import { requireAdmin } from '@/lib/auth'
 import { audit, notify } from '@/lib/notify'
 import { emailAssignmentGraded, emailAssignmentPublished } from '@/lib/mailer'
