@@ -28,6 +28,7 @@ interface AcademicPlanStage {
 }
 
 interface AcademicEvaluationItemDraft {
+  key?: string
   label: string
   weight: number
   description: string
