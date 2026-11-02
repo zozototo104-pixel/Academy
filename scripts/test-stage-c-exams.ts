@@ -139,18 +139,17 @@ function testCentralCompletionOnly() {
 
 function testEligibilityRequiresAllAcademicAndFinancialInputs() {
   const finalGrade = file('src/lib/final-grade.ts')
-  assert(finalGrade.includes('unitQuizAverage') && finalGrade.includes('exams.length'), 'final grade must require all ready unit exams')
-  assert(finalGrade.includes("status: 'GRADED', passed: true"), 'unit exam eligibility must require passed graded attempts')
-  assert(finalGrade.includes('programExamAverage'), 'final grade must require program exams')
-  assert(finalGrade.includes("status: 'GRADED', passed: true, OR: [{ appealStatus: null }, { appealStatus: { not: 'PENDING' } }]"), 'program exam eligibility must require passed graded non-pending attempts, including normal null appealStatus attempts')
+  // Behavioral rejection and best-attempt coverage lives in testFinalGradeBehaviorWithMockData.
+  // These checks guard required source wiring, not the exact Prisma query formatting.
+  assert(finalGrade.includes('unitQuizAverage') && finalGrade.includes('exams.length'), 'final grade must enumerate and require unit exams')
+  assert(finalGrade.includes("status: 'GRADED'") && finalGrade.includes("a.passed === true"), 'unit success must require a passed graded attempt')
+  assert(finalGrade.includes('programExamAverage') && finalGrade.includes("appealStatus: { not: 'PENDING' }"), 'program exams must exclude pending appeals')
   assert(finalGrade.includes('assignmentAverage'), 'final grade must include published assignments')
   assert(finalGrade.includes("where: { programId, status: 'PUBLISHED' }"), 'published assignments must be enumerated')
-  assert(finalGrade.includes("submission.status !== 'GRADED'"), 'published assignments must be submitted and graded')
+  assert(finalGrade.includes("submission?.status === 'GRADED'"), 'published assignments must be graded')
   assert(finalGrade.includes('thesisScores'), 'masters/doctorate eligibility must include thesis/defense scores')
-  assert(finalGrade.includes('Raw percentage: certification decisions compare this unrounded value'), 'passing decisions must use raw scores and keep rounding for display only')
-  assert(finalGrade.includes('function best('), 'final grade must use a best-attempt helper')
-  assert(finalGrade.includes('const bestAttemptScore = best(attempts.map'), 'final grade must use the best successful attempt per exam rather than averaging attempts')
-  assert(!finalGrade.includes('const best = avg(attempts.map'), 'final grade must not average all successful attempts for a single exam')
+  assert(finalGrade.includes('percentFromAnswers') && finalGrade.includes('exam.passScore'), 'exam passing must use original answer-based percentage')
+  assert(finalGrade.includes('function best(') && finalGrade.includes('best(scores)'), 'final grade must consider the best scored attempt per exam')
 
   const eligibility = file('src/lib/certificate-eligibility.ts')
   assert(eligibility.includes('finalGrade.score < CERTIFICATE_PASS_SCORE'), 'certificate eligibility must compare the raw final score against pass score')
