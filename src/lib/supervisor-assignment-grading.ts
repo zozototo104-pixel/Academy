@@ -625,5 +625,10 @@ export async function gradeAssignmentSubmission(
     await emailAssignmentGraded(updated.user.email, updated.user.name || 'الطالب', submission.assignment.title, input.status, score, points, feedback || null)
   }
   await audit(user as any, 'GRADE_ASSIGNMENT_SUPERVISOR', 'AssignmentSubmission', submissionId, `تصحيح مشرف لواجب ${submission.assignment.title} للطالب ${submission.user?.name || ''} — ${score}/${points}`)
+  if (input.status === 'GRADED') {
+    // Re-evaluate the cumulative mark; a component's individual passing flag is not a prerequisite.
+    await completeEnrollmentIfEligible({ userId: submission.userId, programId: submission.assignment.programId })
+      .catch((error) => console.error('Supervisor assignment graduation recheck failed:', error))
+  }
   return updated
 }
