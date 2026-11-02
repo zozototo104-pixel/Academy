@@ -1,8 +1,21 @@
 import { describe, expect, mock, test } from 'bun:test'
 
 // Route-level persistence is tested elsewhere; this is the grade calculation's behavioral contract.
-mock.module('@/lib/db', () => ({ db: {} }))
+const firstSemesterFixture = {
+  exams: [] as Array<{ id: string; status: string; questions: Array<{ points: number }> }>,
+  passedExamIds: new Set<string>(),
+}
+mock.module('@/lib/db', () => ({
+  db: {
+    programExam: { findMany: async () => firstSemesterFixture.exams },
+    programExamAttempt: {
+      findFirst: async ({ where }: any) =>
+        firstSemesterFixture.passedExamIds.has(where.examId) ? { id: 'graded-passed-attempt' } : null,
+    },
+  },
+}))
 const { calculateFinalGrade } = await import('@/lib/final-grade')
+const { hasPassedFirstSemesterExam } = await import('@/lib/semester-readiness')
 const { gradingFormulaSignature } = await import('@/lib/program-tracks')
 
 const diplomaFormula = [
