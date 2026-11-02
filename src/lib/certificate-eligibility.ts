@@ -61,6 +61,25 @@ export function certificateGradeLabelEn(score: number) {
   return `${p}% — Not Passed`
 }
 
+/**
+ * Graduation requirements and grade-weight approval are different contracts:
+ * a legacy rules profile may declare graduation research before its text-based
+ * formula has been mapped and signed. Never let that pending mapping bypass
+ * an explicitly declared research requirement.
+ */
+function declaresGraduationResearch(admissionRules: unknown): boolean {
+  if (!admissionRules || typeof admissionRules !== 'object') return false
+  const profile = (admissionRules as Record<string, any>).academicProfile
+  const rows = profile?.finalEvaluationFormula
+  if (!Array.isArray(rows)) return false
+  return rows.some((row) => {
+    if (row?.key === 'thesis') return true
+    const label = String(row?.label || '').replace(/\s+/g, ' ').trim()
+    return label.includes('بحث التخرج') || label.includes('بحث تخرج') ||
+      label.includes('الأطروحة') || label.includes('أطروحة')
+  })
+}
+
 function isSettledPayment(status: string) {
   return status === 'PAID' || status === 'WAIVED'
 }
