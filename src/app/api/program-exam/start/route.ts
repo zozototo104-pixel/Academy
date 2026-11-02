@@ -45,22 +45,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: tuitionGate.error, code: tuitionGate.code, tuitionPlan: tuitionGate.plan }, { status: 402 })
     }
 
-    if (exam.semester === 2) {
-      const sem1 = await db.programExam.findFirst({
-        where: { programId: exam.programId, semester: 1, status: 'READY' },
-        include: { _count: { select: { questions: true } } },
-      })
-      if (sem1 && sem1._count.questions > 0) {
-        const passedSem1 = await db.programExamAttempt.findFirst({
-          where: { userId: user.id, examId: sem1.id, passed: true, OR: [{ appealStatus: null }, { appealStatus: { not: 'PENDING' } }] },
-        })
-        if (!passedSem1) {
-          return NextResponse.json(
-            { error: 'يجب اجتياز امتحان الفصل الدراسي الأول أولاً قبل فتح امتحان الفصل الثاني', code: 'SEM1_REQUIRED' },
-            { status: 403 }
-          )
-        }
-      }
+    if (exam.semester >= 2 && !(await hasPassedFirstSemesterExam(user.id, exam.programId))) {
+      return NextResponse.json(
+        { error: 'يجب اجتياز امتحان الفصل الدراسي الأول قبل فتح امتحان الفصل الثاني', code: 'SEM1_REQUIRED' },
+        { status: 403 },
+      )
     }
 
     const readiness = await calculateSemesterReadiness(user.id, exam.programId, exam.semester)
