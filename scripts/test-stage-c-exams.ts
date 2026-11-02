@@ -11,28 +11,51 @@ function assert(condition: unknown, message: string) {
   if (!condition) throw new Error(message)
 }
 
-function mockDiplomaClient(programAttemptScores: number[]) {
+type DiplomaFixture = {
+  unitScore?: number | null
+  unitPassed?: boolean
+  assignmentStatus?: 'GRADED' | 'SUBMITTED'
+  assignmentScore?: number | null
+  programAppealPending?: boolean
+}
+
+function mockDiplomaClient(programAttemptScores: number[], options: DiplomaFixture = {}) {
+  const unitScore = options.unitScore === undefined ? 100 : options.unitScore
+  const unitPassed = options.unitPassed ?? (unitScore !== null && unitScore >= 51)
   const client: any = {
     program: {
       findUnique: async () => ({ category: 'DIPLOMA', price: 0 }),
     },
     exam: {
-      findMany: async () => [{ id: 'unit-exam-1', title: 'اختبار وحدة', passScore: 51, unit: { title: 'الوحدة الأولى' } }],
+      findMany: async () => [{
+        id: 'unit-exam-1', title: 'اختبار وحدة', passScore: 51, unit: { title: 'الوحدة الأولى' },
+        _count: { questions: 1 },
+      }],
     },
     examAttempt: {
-      findMany: async () => [{ score: 100, answers: [{ points: 100, maxPoints: 100 }] }],
+      findMany: async () => unitScore === null ? [] : [{
+        status: 'GRADED', score: unitScore, passed: unitPassed,
+        answers: [{ points: unitScore, maxPoints: 100 }],
+      }],
     },
     programExam: {
       findMany: async () => [{ id: 'program-exam-1', title: 'الاختبار النهائي', semester: 1, passScore: 51 }],
     },
     programExamAttempt: {
-      findMany: async () => programAttemptScores.map((score) => ({ score, finalScore: score, answers: [{ points: score, maxPoints: 100 }] })),
+      // Mimic Prisma's GRADED + non-pending-appeal WHERE filter, not unfiltered rows.
+      findMany: async () => options.programAppealPending ? [] : programAttemptScores.map((score) => ({
+        status: 'GRADED', score, finalScore: score, passed: score >= 51,
+        appealStatus: null, answers: [{ points: score, maxPoints: 100 }],
+      })),
     },
     programAssignment: {
       findMany: async () => [{ id: 'assignment-1', title: 'واجب تطبيقي', points: 100 }],
     },
     assignmentSubmission: {
-      findUnique: async () => ({ status: 'GRADED', score: 100 }),
+      findUnique: async () => ({
+        status: options.assignmentStatus || 'GRADED',
+        score: options.assignmentScore === undefined ? 100 : options.assignmentScore,
+      }),
     },
     thesisSubmission: {
       findFirst: async () => null,
@@ -50,7 +73,6 @@ function mockDiplomaClient(programAttemptScores: number[]) {
   }
   return client
 }
-
 async function testFinalGradeBehaviorWithMockData() {
   const bestAttemptGrade = await calculateFinalGrade({ userId: 'student-1', programId: 'program-1', client: mockDiplomaClient([60, 90]) })
   const finalExam = bestAttemptGrade.components.find((component) => component.key === 'final_exam')
