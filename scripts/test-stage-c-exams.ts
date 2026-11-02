@@ -167,8 +167,9 @@ function testEligibilityRequiresAllAcademicAndFinancialInputs() {
   assert(finalGrade.includes('function best(') && finalGrade.includes('best(scores)'), 'final grade must consider the best scored attempt per exam')
 
   const eligibility = file('src/lib/certificate-eligibility.ts')
-  assert(eligibility.includes('finalGrade.score < CERTIFICATE_PASS_SCORE'), 'certificate eligibility must compare the raw final score against pass score')
-  assert(!eligibility.includes('round1(finalGrade.score) < CERTIFICATE_PASS_SCORE'), 'certificate eligibility must not use rounded score for pass/fail')
+  assert(eligibility.includes('academicScore <= CERTIFICATE_PASS_SCORE'), 'certificate eligibility must use the exact cumulative score above 50%')
+  assert(!eligibility.includes('failedComponentLabels'), 'individual failed components must not independently block graduation')
+  assert(eligibility.includes('finalGrade.earnedScore'), 'incomplete assessments must contribute zero credit instead of forcing null eligibility')
   assert(eligibility.includes('paymentEligibilityError'), 'certificate eligibility must include paid-fee checks')
   assert(eligibility.includes('tuitionPaidTotal'), 'certificate eligibility must require paid or waived tuition')
 
