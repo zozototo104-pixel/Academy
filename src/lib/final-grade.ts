@@ -317,7 +317,7 @@ export async function calculateFinalGrade(input: {
   const activeWeight = active.reduce((sum, item) => sum + item.weight, 0)
   if (activeWeight <= 0) {
     return {
-      score: null, progressScore: 0, components, missing,
+      score: null, earnedScore: 0, progressScore: 0, components, missing,
       weightSource: configured.source, weightWarning: configured.warning,
     }
   }
