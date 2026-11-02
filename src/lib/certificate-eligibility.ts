@@ -5,7 +5,8 @@ import { TUITION_PURPOSES, inferTotalTuition, roundMoney, tuitionPaidTotal } fro
 
 export type CertificateEligibilityDbClient = typeof db | Prisma.TransactionClient
 
-export const CERTIFICATE_PASS_SCORE = 51
+/** Academic graduation is based on the cumulative earned mark, strictly above 50%. */
+export const CERTIFICATE_PASS_SCORE = 50
 
 export interface ProgramCertificateEligibility {
   ok: boolean
