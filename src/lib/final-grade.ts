@@ -69,7 +69,8 @@ export function resolveGradeWeights(category: string, admissionRules: unknown): 
     return fallback('ASSESSMENT_FORMULA_INVALID')
   }
   const approved = profile?.approvedFormulaSignature
-  if (typeof approved !== 'string' || approved !== gradingFormulaSignature(formula)) {
+  const approvedAt = Date.parse(String(profile?.approvedFormulaAt || ''))
+  if (typeof approved !== 'string' || approved !== gradingFormulaSignature(formula) || !Number.isFinite(approvedAt)) {
     return fallback('ASSESSMENT_FORMULA_AWAITING_APPROVAL')
   }
   return { weights, source: 'academic_profile' }
