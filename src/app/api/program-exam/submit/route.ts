@@ -48,6 +48,15 @@ function selectedOptionRationale(q: { distractorRationales?: string | null }, se
   return match?.reason ? String(match.reason).slice(0, 800) : null
 }
 
+/** Optional AI narrative must never determine whether a fully graded result is persisted. */
+function fallbackProgramFeedback(title: string, percentage: number, passed: boolean, weakPoints: string[]) {
+  return {
+    summary: `تم تصحيح ${title} وفق الإجابات المعتمدة، والنتيجة ${Math.round(percentage * 10) / 10}%. ${passed ? 'اجتزت الامتحان.' : 'راجع نقاط الضعف قبل المحاولة التالية.'}`,
+    strengths: ['تم حفظ نتيجة المحاولة والتصحيح المعتمد دون الاعتماد على خدمة التعليق الاختيارية'],
+    improvements: weakPoints.length ? weakPoints.slice(0, 3) : ['راجع المقررات ونقاط التصحيح المعروضة'],
+  }
+}
+
 function buildObjectiveFeedback(q: any, isCorrect: boolean, options: string[], selected?: number): string {
   const correctText = options[Number(q.correctAnswer)] ?? q.correctAnswer
   const sourceBits = [
