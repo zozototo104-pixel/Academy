@@ -2,7 +2,7 @@ import { createDecipheriv, createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 import { basename } from 'node:path'
 import { gunzipSync } from 'node:zlib'
-import { PrismaClient } from '@prisma/client'
+import { Prisma, PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
