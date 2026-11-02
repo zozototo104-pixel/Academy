@@ -164,6 +164,16 @@ function testSmallIntersectionAlsoRequiresReview() {
   assert(actions.length === 1 && actions[0].action === 'review-overlap', 'حتى اشتراك مقطع واحد مع وحدة معتمدة يمنع إنشاء نسخة متداخلة')
 }
 
+function testUnitGenerationIsAtomicAndRejectsStalePlans() {
+  const route = readFileSync('src/app/api/admin/program-units/suggest/route.ts', 'utf8')
+  assert(route.includes('await db.$transaction(async (tx) => {'), 'إنشاء الوحدات وحالة البرنامج يجب أن يكونا بمعاملة واحدة')
+  assert(route.includes('await tx.unit.deleteMany('), 'الحذف في وضع الاستبدال يجب أن يكون داخل المعاملة')
+  assert(route.includes('await tx.unit.create('), 'إنشاء الوحدات يجب أن يجري داخل نفس المعاملة')
+  assert(route.includes('await tx.program.update('), 'تغيير الجاهزية يجب أن يحفظ مع الوحدات معًا')
+  assert(route.includes('UNIT_PLAN_STALE_RETRY'), 'يجب رفض إعادة خطة قديمة بدل مضاعفة الوحدات')
+  assert(route.includes('FOR UPDATE'), 'يجب منع سباق توليد وحدات متزامن لنفس البرنامج')
+}
+
 function testBothUnitCreationEndpointsBlockOverlaps() {
   const primary = readFileSync('src/app/api/admin/program-units/suggest/route.ts', 'utf8')
   const perBook = readFileSync('src/app/api/admin/books/[id]/outline/units/route.ts', 'utf8')
