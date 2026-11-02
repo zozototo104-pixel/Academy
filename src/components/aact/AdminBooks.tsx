@@ -193,6 +193,7 @@ function examErrorMessage(errorNote?: string | null): string {
 
 interface AssignmentSubmissionRow {
   id: string
+  userId: string
   studentName?: string
   studentEmail?: string
   answerText?: string | null
