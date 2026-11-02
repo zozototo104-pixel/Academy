@@ -213,7 +213,8 @@ async function ensureAllAnswersGraded(tx: any, type: AttemptType, attemptId: str
   if (missing.length) {
     throw apiError('ANSWERS_COVERAGE_INCOMPLETE', `لا يمكن اعتماد النتيجة: ${missing.length} سؤال مطلوب بلا سجل إجابة — أكمل بيانات المحاولة أو راجع أسئلة الامتحان أولاً`, 400)
   }
-  const ungraded = findUngradedAnswers(rows)
+  const eligible = new Set(requiredIds)
+  const ungraded = findUngradedAnswers(rows.filter((row) => eligible.has(row.questionId)))
   if (ungraded.length) {
     const types = [...new Set(ungraded.map((row) => row.type))].join('، ')
     throw apiError('ANSWERS_NOT_FULLY_GRADED', `لا يمكن اعتماد النتيجة قبل إكمال تصحيح كل الإجابات: ${ungraded.length} إجابة بلا نقاط (${types})`, 400)
