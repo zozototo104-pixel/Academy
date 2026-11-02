@@ -191,7 +191,7 @@ export async function applyScoreAdjustments(
     return { score, passed, userId: attempt.userId, examTitle: attempt.exam.title, programId: attempt.exam.programId as string | undefined }
   }, { timeout: 120000, maxWait: 10000 })
 
-  if (result.passed) await completeIfEligible(result.userId, result.programId).catch(() => null)
+  await completeIfEligible(result.userId, result.programId).catch(() => null)
   await notify(result.userId, 'GENERAL', 'تمت مراجعة نتيجتك من مشرفك', `راجع ${actor.name} تصحيح «${result.examTitle}» وحدّث نتيجتك — نتيجتك الحالية: ${result.score}%.`, '/?view=dashboard')
   return { score: result.score, passed: result.passed }
 }
