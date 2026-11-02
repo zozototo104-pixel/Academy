@@ -178,9 +178,8 @@ export async function applyScoreAdjustments(
       return { score, passed, userId: attempt.userId, examTitle: attempt.exam.title, programId: attempt.exam.unit?.programId as string | undefined }
     }
 
-    const readiness = await calculateSemesterReadiness(attempt.userId, attempt.exam.programId, attempt.exam.semester)
-    const capped = Math.min(rawScore, readiness?.maxExamScore ?? 100)
-    const score = Math.round(capped * 10) / 10
+    // Semester coursework is graded independently; supervisor review must preserve the exam's raw score.
+    const score = Math.round(rawScore * 10) / 10
     const passed = score >= attempt.exam.passScore
     await txAny.programExamAttempt.update({
       where: { id: attemptId },
