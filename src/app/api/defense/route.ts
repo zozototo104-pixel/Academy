@@ -620,7 +620,7 @@ async function aiLiveNote(title: string, abstract: string, thesisId: string, use
 ${latest || 'غير متوفر'}
 
 أحدث ما جرى في الجلسة:
-${dialog.slice(0, 4500)}
+${dialog.slice(-5500)}
 
 اكتب مداخلة صوتية مباشرة للطالب من جملتين إلى ثلاث فقط، كأنك داخل قاعة مناقشة:
 - علّق على آخر كلام قاله الطالب تحديداً، لا على البحث بشكل عام.
