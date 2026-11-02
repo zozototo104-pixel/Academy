@@ -496,7 +496,11 @@ export async function POST(req: NextRequest) {
 
     await db.examDraft.deleteMany({ where: { userId: user.id, examId, examType: 'PROGRAM' } }).catch(() => {})
 
-    const completion = await completeEnrollmentIfEligible({ enrollmentId: enrollment.id })
+    // Certificate issuance is a separate action: it must never undo a saved exam grade.
+    const completion = await completeEnrollmentIfEligible({ enrollmentId: enrollment.id }).catch((error) => {
+      console.error('Post-grade certificate recheck failed; preserving programme grade:', error)
+      return null
+    })
     const completedAttempts = completedAttemptsBeforeSubmit + 1
     const revealCorrectAnswers = shouldRevealCorrectAnswers({ passed, completedAttempts, maxAttempts })
     if (!revealCorrectAnswers) await hidePersistedProgramAnswerFeedback(attempt.id)
