@@ -1,5 +1,6 @@
 /// <reference types="bun-types" />
 import { beforeEach, describe, expect, mock, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
 
 process.env.NEXT_PUBLIC_APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://aactacademy.test'
 
