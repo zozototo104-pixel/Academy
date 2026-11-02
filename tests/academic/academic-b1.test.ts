@@ -208,6 +208,7 @@ const realProgramTracks = await import('../../src/lib/program-tracks')
 mock.module('@/lib/program-tracks', () => ({ ...realProgramTracks, academicProfileFromRules: () => ({}), buildAcademicProgramProfile: (input: any) => input }))
 
 const examSubmitRoute = await import('../../src/app/api/exam/submit/route')
+const examDetailRoute = await import('../../src/app/api/exam/detail/route')
 const programExamSubmitRoute = await import('../../src/app/api/program-exam/submit/route')
 const defenseRoute = await import('../../src/app/api/defense/route')
 const { canPublishUnitExamFromQuestions } = await import('../../src/lib/unit-exam-policy')
