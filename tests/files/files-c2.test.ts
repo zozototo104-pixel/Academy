@@ -59,8 +59,8 @@ describe('files C2 upload and backup safety', () => {
   })
 
   test('database restore requires isolation, a complete backup and an empty target', () => {
-    const backups = require('node:fs').readFileSync('src/lib/backups.ts', 'utf8')
-    const cli = require('node:fs').readFileSync('scripts/backup-restore.ts', 'utf8')
+    const backups = readFileSync('src/lib/backups.ts', 'utf8')
+    const cli = readFileSync('scripts/backup-restore.ts', 'utf8')
     for (const source of [backups, cli]) {
       expect(source).toContain('AACT_RESTORE_ISOLATED_TARGET')
       expect(source).toContain('BACKUP_INCOMPLETE_SCHEMA_COVERAGE')
