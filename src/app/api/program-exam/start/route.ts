@@ -6,6 +6,7 @@ import { enforceSemesterTuitionGate } from '@/lib/tuition-installments'
 import { EXAM_ATTEMPT_POLICY_SINCE, getExamMaxAttempts } from '@/lib/exam-attempt-policy'
 
 const COMPLETED_PROGRAM_ATTEMPT_STATUSES = ['GRADED', 'EXPIRED', 'NEEDS_REVIEW']
+const STALE_SUBMITTED_REVIEW_MS = 2 * 60 * 60 * 1000 // Above the worst expected bounded essay grading window
 
 // POST /api/program-exam/start — يبدأ أو يستعيد محاولة STARTED بعد ضغط الطالب زر البدء
 export async function POST(req: NextRequest) {
