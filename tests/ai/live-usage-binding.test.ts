@@ -5,7 +5,7 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test'
 
 type UsageRow = { id: string; userId: string; month: string; purpose: string; freeMinutesUsed: number; paidMinutesUsed: number; sessionsCount: number; lastSessionAt?: Date | null }
-type CreditRow = { id: string; userId: string; minutes?: number; remainingMinutes: number; status: string; source?: string; expiresAt?: Date | null }
+type CreditRow = { id: string; userId: string; minutes?: number; remainingMinutes: number; status: string; source?: string; paymentId?: string | null; expiresAt?: Date | null }
 type SessionRow = {
   id: string; sessionId: string; userId: string; month: string; purpose: string; status: string
   reservedMinutes: number; freeReserved: number; paidReserved: number
