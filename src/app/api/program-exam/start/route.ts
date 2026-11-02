@@ -94,9 +94,29 @@ export async function POST(req: NextRequest) {
       }
       if (!startedAttempt) {
         const submitted = await tx.programExamAttempt.findFirst({
-          where: { userId: user.id, examId, status: 'SUBMITTED' }, select: { id: true },
+          where: { userId: user.id, examId, status: 'SUBMITTED' },
+          select: { id: true, submittedAt: true },
+          orderBy: { createdAt: 'desc' },
         })
-        if (submitted) return { blocked: 'GRADING' as const, attempt: null, maxAttempts, completedAttempts }
+        if (submitted) {
+          // Only claims with a trustworthy submittedAt timestamp can be recovered
+          // automatically. Legacy claims with no timestamp require manual inspection.
+          const staleBefore = new Date(now.getTime() - STALE_SUBMITTED_REVIEW_MS)
+          if (submitted.submittedAt && submitted.submittedAt <= staleBefore) {
+            const recovered = await tx.programExamAttempt.updateMany({
+              where: { id: submitted.id, status: 'SUBMITTED', submittedAt: { lte: staleBefore } },
+              data: {
+                status: 'NEEDS_REVIEW',
+                score: null,
+                finalScore: null,
+                passed: null,
+                feedback: JSON.stringify({ code: 'STALE_GRADING_RECOVERED', summary: 'التصحيح تأخر؛ تم تحويل الإجابات المحفوظة للمراجعة اليدوية.' }),
+              },
+            })
+            if (recovered.count === 1) return { blocked: 'REVIEW' as const, attempt: null, maxAttempts, completedAttempts: completedAttempts + 1 }
+          }
+          return { blocked: 'GRADING' as const, attempt: null, maxAttempts, completedAttempts }
+        }
         const passedAttempt = await tx.programExamAttempt.findFirst({
           where: { userId: user.id, examId, passed: true, OR: [{ appealStatus: null }, { appealStatus: { not: 'PENDING' } }] },
           select: { id: true },
