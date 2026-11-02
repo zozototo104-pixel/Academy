@@ -252,6 +252,19 @@ describe('books workspace organization guard', () => {
     assert.ok(SOURCE.includes('aria-invalid={!!outlineApprovalDialog.error}'), 'invalid reasons are announced in the modal')
   })
 
+  it('assignment grading groups every student and never silently cuts off 200 submissions', () => {
+    const endpoint = readFileSync(resolve(process.cwd(), 'src/app/api/admin/assignments/route.ts'), 'utf8')
+    const start = endpoint.indexOf('// GET /api/admin/assignments?programId=xxx')
+    const end = endpoint.indexOf('// POST /api/admin/assignments', start)
+    assert.ok(start >= 0 && end > start)
+    const query = endpoint.slice(start, end)
+    assert.ok(!query.includes('take: 200'), 'the API must not drop older submissions from the student list')
+    assert.ok(query.includes('submissions: {') && query.includes('submittedAt'), 'all submissions remain available')
+    assert.ok(SOURCE.includes('const groupedGradingQueue = useMemo'), 'the UI must group grading records by student')
+    assert.ok(SOURCE.includes('const pagedGradingGroups = pageItems(groupedGradingQueue'), 'pagination applies to student groups')
+    assert.ok(SOURCE.includes('<details key={student.studentId}'), 'student submissions must open inside the student card')
+  })
+
   it('book index warnings show Arabic explanations instead of raw audit JSON', () => {
     assert.ok(SOURCE.includes("warning.startsWith('OUTLINE_OVERSIZED_OVERRIDE:')"), 'documented override is decoded for administrators')
     assert.ok(SOURCE.includes('تم اعتماد استثناء موثّق للأقسام الطويلة'), 'human-readable override text is visible')
