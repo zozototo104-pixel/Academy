@@ -156,6 +156,8 @@ async function main() {
 
   await testEmptyAnswerZeroWithoutAi()
   console.log('✓ testEmptyAnswerZeroWithoutAi')
+  await testMissingModelAnswerRequiresReview()
+  console.log('✓ testMissingModelAnswerRequiresReview')
 }
 
 main().catch((error) => {
