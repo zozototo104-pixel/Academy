@@ -574,19 +574,70 @@ export default function AdminLegacyGraduatesTab() {
       <Card className="border-[#0f2b46]/10">
         <CardContent className="space-y-3 p-4">
           <h4 className="font-black text-[#0f2b46]">استيراد Excel</h4>
+          <p className="text-xs text-slate-600">تظهر جميع الحقول المستوردة في المعاينة، بما فيها رقم الهاتف والمعدل وتاريخ التخرج. إذا لم يتطابق اسم البرنامج، اختره من القائمة في السطر نفسه ثم احفظ الاستيراد.</p>
           <div className="flex flex-col gap-2 md:flex-row md:items-center">
-            <Input type="file" accept=".xlsx,.xls,.csv" onChange={onExcelChange} />
-            <Button variant="outline" onClick={() => runImport(true)} disabled={busy === 'dryRun'}>{busy === 'dryRun' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'معاينة الأخطاء'}</Button>
-            <Button onClick={() => runImport(false)} disabled={!excelFile || importRows.length === 0 || invalidImportRows.length > 0 || busy === 'import'}>{busy === 'import' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'حفظ الاستيراد'}</Button>
+            <Input type="file" accept=".xlsx,.xls,.csv" onChange={onExcelChange} disabled={busy !== null} />
+            <Button variant="outline" onClick={() => runImport(true)} disabled={!excelFile || busy !== null}>{busy === 'dryRun' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'معاينة البيانات والأخطاء'}</Button>
+            <Button onClick={() => runImport(false)} disabled={!excelFile || importRows.length === 0 || invalidImportRows.length > 0 || busy !== null}>{busy === 'import' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'حفظ الاستيراد'}</Button>
           </div>
           {importProgress ? <p className="text-xs font-bold text-[#0f2b46]">تم {importProgress.done} من {importProgress.total}</p> : null}
           {importRows.length > 0 && (
-            <div className="max-h-72 overflow-auto rounded-xl border border-slate-200">
-              <table className="w-full min-w-[760px] text-right text-xs">
-                <thead className="bg-slate-50 text-slate-600"><tr><th className="p-2">السطر</th><th className="p-2">الاسم</th><th className="p-2">الإيميل</th><th className="p-2">البرنامج</th><th className="p-2">رقم الشهادة القديم</th><th className="p-2">الأخطاء</th></tr></thead>
-                <tbody>{importRows.map((row) => <tr key={row.rowNumber} className="border-t"><td className="p-2 font-bold">{row.rowNumber}</td><td className="p-2">{row.name || '—'}</td><td className="p-2 ltr:text-left">{row.email || '—'}</td><td className="p-2">{row.program || '—'}{row.programSuggestion ? <div className="text-[10px] text-amber-700">اقتراح: {row.programSuggestion}</div> : null}</td><td className="p-2">{row.legacySerial || '—'}</td><td className="p-2"><span className={row.errors.length ? 'text-red-600' : 'text-emerald-700'}>{row.errors.length ? row.errors.join('، ') : 'صالح'}</span></td></tr>)}</tbody>
-              </table>
-            </div>
+            <>
+              <p className="text-xs font-bold text-slate-600" role="status">
+                الملف: {importRows.length} سجل · صالح: {importRows.length - invalidImportRows.length} · بحاجة تصحيح: {invalidImportRows.length}
+                {invalidImportRows.length ? ' — لن يُفعّل الحفظ حتى تصحح السجلات المرفوضة.' : ' — البيانات جاهزة للحفظ.'}
+              </p>
+              <div className="max-h-96 overflow-auto rounded-xl border border-slate-200">
+                <table className="w-full min-w-[1750px] text-right text-xs">
+                  <thead className="sticky top-0 bg-slate-50 text-slate-600"><tr>
+                    <th className="p-2">السطر</th><th className="p-2">الاسم</th><th className="p-2">الاسم بالإنجليزي</th>
+                    <th className="p-2">الإيميل</th><th className="p-2">رقم الهاتف</th><th className="p-2">الدولة</th>
+                    <th className="p-2 min-w-[250px]">البرنامج ومطابقته</th><th className="p-2">البرنامج بالإنجليزي</th>
+                    <th className="p-2">التقدير</th><th className="p-2">التقدير بالإنجليزي</th><th className="p-2">المعدل</th>
+                    <th className="p-2">تاريخ التخرج</th><th className="p-2">رقم الشهادة القديم</th><th className="p-2">الأخطاء</th>
+                  </tr></thead>
+                  <tbody>{importRows.map((row) => <tr key={row.rowNumber} className="border-t align-top">
+                    <td className="p-2 font-bold">{row.rowNumber}</td>
+                    <td className="p-2">{row.name || '—'}</td>
+                    <td className="p-2" dir="ltr">{row.nameEn || '—'}</td>
+                    <td className="p-2" dir="ltr">{row.email || '—'}</td>
+                    <td className="p-2" dir="ltr">{row.phone || '—'}</td>
+                    <td className="p-2">{row.country || '—'}</td>
+                    <td className="p-2">
+                      <div>{row.program || '—'}</div>
+                      {row.programSuggestion ? <div className="text-[11px] text-amber-700">اقتراح: {row.programSuggestion}</div> : null}
+                      {row.programId && !row.errors.some((error) => error.includes('برنامج') || error.includes('البرنامج')) ? <div className="text-[10px] text-emerald-700">تم ربط البرنامج</div> : null}
+                      <label className="mt-1 block text-[10px] text-slate-600" htmlFor={`graduate-program-${row.rowNumber}`}>البرنامج المعتمد لهذا الخريج</label>
+                      <select
+                        id={`graduate-program-${row.rowNumber}`}
+                        className="mt-1 w-full rounded-md border border-slate-300 bg-white p-1.5 text-xs"
+                        value={programOverrides[String(row.rowNumber)] || row.programId || ''}
+                        disabled={busy !== null}
+                        onChange={(event) => {
+                          const next = { ...programOverrides }
+                          if (event.target.value) next[String(row.rowNumber)] = event.target.value
+                          else delete next[String(row.rowNumber)]
+                          setProgramOverrides(next)
+                          void runImport(true, next)
+                        }}
+                      >
+                        <option value="">اختر البرنامج الصحيح</option>
+                        {programOptions.map((program) =>
+                          <option key={program.id} value={program.id}>{program.titleAr}{program.titleEn ? ` — ${program.titleEn}` : ''}</option>
+                        )}
+                      </select>
+                    </td>
+                    <td className="p-2" dir="ltr">{row.programEn || '—'}</td>
+                    <td className="p-2">{row.grade || '—'}</td>
+                    <td className="p-2" dir="ltr">{row.gradeEn || '—'}</td>
+                    <td className="p-2">{row.finalScore ?? '—'}</td>
+                    <td className="p-2">{row.issuedAt ? dateOnly(row.issuedAt) : '—'}</td>
+                    <td className="p-2">{row.legacySerial || '—'}</td>
+                    <td className="p-2"><span className={row.errors.length ? 'text-red-600' : 'text-emerald-700'}>{row.errors.length ? row.errors.join('، ') : 'صالح'}</span></td>
+                  </tr>)}</tbody>
+                </table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
