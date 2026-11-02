@@ -207,9 +207,15 @@ export async function POST(req: NextRequest, context: Context) {
 
     // Audit is observational and must not invalidate an already committed unit.
     await audit(admin, 'GENERATE_OUTLINE_UNIT', 'Unit', unit.id,
-      `توليد محتوى ودليل وحدة من فهرس الكتاب: ${unit.title}`
+      repairGuideOnly
+        ? `استكمال دليل الوحدة الناقص دون تعديل المحتوى: ${unit.title}`
+        : `توليد محتوى ودليل وحدة من فهرس الكتاب: ${unit.title}`
     ).catch((auditError) => console.error('Outline unit audit failed after commit:', auditError))
-    return NextResponse.json({ ok: true, unit: mapUnit(updatedUnit), guide, job: { id: job.id, status: 'COMPLETED' } })
+    return NextResponse.json({
+      ok: true, unit: mapUnit(updatedUnit), guide,
+      repairedGuideOnly: repairGuideOnly,
+      job: { id: job.id, status: 'COMPLETED' },
+    })
   } catch (error: any) {
     const message = String(error?.message || error)
     if (job?.id) {
