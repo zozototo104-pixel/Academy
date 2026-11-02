@@ -203,7 +203,13 @@ async function ensureAllAnswersGraded(tx: any, type: AttemptType, attemptId: str
   const rows = type === 'UNIT'
     ? await tx.answer.findMany({ where: { attemptId }, select: { id: true, questionId: true, points: true, question: { select: { type: true } } } })
     : await tx.programAnswer.findMany({ where: { attemptId }, select: { id: true, questionId: true, points: true, question: { select: { type: true } } } })
-  const missing = findMissingAnswerQuestionIds(required.map((q: any) => q.id), rows)
+  const requiredIds = required.map((q: any) => q.id)
+  if (!requiredIds.length) throw apiError('EXAM_HAS_NO_QUESTIONS', 'لا يمكن اعتماد امتحان بلا أسئلة مطلوبة', 400)
+  const duplicates = findDuplicateAnswerQuestionIds(rows)
+  if (duplicates.length) {
+    throw apiError('DUPLICATE_ANSWER_ROWS', `لا يمكن اعتماد النتيجة: تكررت إجابة ${duplicates.length} سؤال في سجلات المحاولة. يلزم مراجعة البيانات دون حذفها تلقائياً.`, 409)
+  }
+  const missing = findMissingAnswerQuestionIds(requiredIds, rows)
   if (missing.length) {
     throw apiError('ANSWERS_COVERAGE_INCOMPLETE', `لا يمكن اعتماد النتيجة: ${missing.length} سؤال مطلوب بلا سجل إجابة — أكمل بيانات المحاولة أو راجع أسئلة الامتحان أولاً`, 400)
   }
