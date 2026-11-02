@@ -137,42 +137,8 @@ export async function evaluateProgramCertificateEligibility(input: {
     }
   }
 
-  const requiresThesis = ['MASTERS', 'DOCTORATE'].includes(program?.category || '')
-
-  if (requiresThesis) {
-    const thesis = await client.thesisSubmission.findFirst({
-      where: admissionId ? { admissionId } : { userId: resolvedUserId },
-      orderBy: { updatedAt: 'desc' },
-      select: { status: true, resultScore: true, passed: true },
-    })
-    const thesisPassed =
-      thesis?.status === 'RESULT_APPROVED' &&
-      thesis.passed === true &&
-      typeof thesis.resultScore === 'number' &&
-      thesis.resultScore >= CERTIFICATE_PASS_SCORE
-
-    if (!thesisPassed) {
-      return {
-        ok: false,
-        score: finalGrade.score,
-        gradeLabel: certificateGradeLabel(finalGrade.score),
-        missing: ['بحث التخرج/المناقشة النهائية المعتمدة بدرجة نجاح'],
-        components: finalGrade.components,
-        error: `لا يمكن إصدار شهادة هذا المسار قبل اعتماد نتيجة بحث التخرج/المناقشة النهائية ونجاحها بدرجة لا تقل عن ${CERTIFICATE_PASS_SCORE}%.`,
-      }
-    }
-  }
-
-  if (finalGrade.score < CERTIFICATE_PASS_SCORE) {
-    return {
-      ok: false,
-      score: finalGrade.score,
-      gradeLabel: certificateGradeLabel(finalGrade.score),
-      missing: [`الدرجة النهائية أقل من ${CERTIFICATE_PASS_SCORE}%`],
-      components: finalGrade.components,
-      error: `لا يمكن إصدار الشهادة لأن الدرجة النهائية ${percent(finalGrade.score)}% أقل من حد النجاح ${CERTIFICATE_PASS_SCORE}%.`,
-    }
-  }
+  // Thesis/defense scores already contribute by weight. Individual failure or
+  // pending assessment earns no points but is not a separate academic veto.
 
   return {
     ok: true,
