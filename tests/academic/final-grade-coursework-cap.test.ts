@@ -243,3 +243,30 @@ describe('التجميع التراكمي بالأوزان الرسمية', () =
     expect(grade.score).toBeCloseTo(84, 6)
   })
 })
+
+describe('بوابة الفصل الثاني ترفض أي التفاف على اجتياز الأول', () => {
+  test('لا يفتح الثاني إذا لم يوجد امتحان أول منشور', async () => {
+    firstSemesterFixture.exams = []
+    firstSemesterFixture.passedExamIds.clear()
+    expect(await hasPassedFirstSemesterExam('student', 'program')).toBe(false)
+  })
+
+  test('لا يفتح الثاني إذا كان امتحان الأول في المراجعة أو بلا أسئلة منشورة', async () => {
+    firstSemesterFixture.exams = [{ id: 'sem1', status: 'REVIEW', questions: [{ points: 100 }] }]
+    firstSemesterFixture.passedExamIds = new Set(['sem1'])
+    expect(await hasPassedFirstSemesterExam('student', 'program')).toBe(false)
+    firstSemesterFixture.exams = [{ id: 'sem1', status: 'READY', questions: [] }]
+    expect(await hasPassedFirstSemesterExam('student', 'program')).toBe(false)
+  })
+
+  test('اجتياز جميع امتحانات الفصل الأول المعتمدة يفتح الثاني فقط بعد التصحيح', async () => {
+    firstSemesterFixture.exams = [
+      { id: 'sem1a', status: 'READY', questions: [{ points: 50 }] },
+      { id: 'sem1b', status: 'READY', questions: [{ points: 40 }] },
+    ]
+    firstSemesterFixture.passedExamIds = new Set(['sem1a'])
+    expect(await hasPassedFirstSemesterExam('student', 'program')).toBe(false)
+    firstSemesterFixture.passedExamIds.add('sem1b')
+    expect(await hasPassedFirstSemesterExam('student', 'program')).toBe(true)
+  })
+})
