@@ -255,38 +255,45 @@ export async function POST(req: NextRequest) {
 
     // Atomic compare-and-set: exactly one request can claim a STARTED attempt.
     // Other concurrent submissions are rejected before writing answers or grading.
-    const claimed = await db.programExamAttempt.updateMany({
-      where: { id: startedAttempt.id, userId: user.id, examId, status: 'STARTED' },
-      data: {
-        status: 'SUBMITTED',
-        durationUsedMin: serverDurationUsedMin,
-        proctoringEnabled: procEnabled,
-        proctoringLog: procLog,
-        proctoringSnapshot: procSnapshot,
-      },
+    // Claim and preserve every submitted response in ONE transaction. A process
+    // crash after the claim must never leave an empty, unrecoverable SUBMITTED row.
+    const claimed = await db.$transaction(async (tx) => {
+      const result = await tx.programExamAttempt.updateMany({
+        where: { id: startedAttempt.id, userId: user.id, examId, status: 'STARTED' },
+        data: {
+          status: 'SUBMITTED',
+          durationUsedMin: serverDurationUsedMin,
+          proctoringEnabled: procEnabled,
+          proctoringLog: procLog,
+          proctoringSnapshot: procSnapshot,
+        },
+      })
+      if (result.count === 1) {
+        await tx.programAnswer.createMany({
+          data: exam.questions.map((q) => {
+            const submitted = answerMap.get(q.id)
+            return programAnswerData(startedAttempt.id, {
+              questionId: q.id,
+              selectedOption: submitted?.selectedOption ?? null,
+              answerText: submitted?.answerText ?? null,
+              isCorrect: null,
+              points: null,
+              maxPoints: q.points,
+              aiFeedback: JSON.stringify({ status: 'PENDING_AI_GRADING' }),
+            })
+          }),
+        })
+      }
+      return result
     })
     if (claimed.count !== 1) {
       return NextResponse.json({ error: 'تم تسليم هذه المحاولة أو يجري تصحيحها بالفعل', code: 'ATTEMPT_ALREADY_CLAIMED' }, { status: 409 })
     }
+    claimedProgramAttemptId = startedAttempt.id
     const attempt = startedAttempt
-    const prePersistedEssayQuestionIds = new Set<string>()
-    const essayQuestions = exam.questions.filter((q) => q.type !== 'MCQ' && q.type !== 'TF')
-    if (essayQuestions.length) {
-      await db.$transaction(async (tx) => {
-        for (const q of essayQuestions) {
-          const submit = answerMap.get(q.id)
-          await persistProgramAnswer(tx, attempt.id, {
-            questionId: q.id,
-            answerText: submit?.answerText || '',
-            isCorrect: null,
-            points: null,
-            maxPoints: q.points,
-            aiFeedback: JSON.stringify({ status: 'PENDING_AI_GRADING' }),
-          })
-          prePersistedEssayQuestionIds.add(q.id)
-        }
-      })
-    }
+    const prePersistedEssayQuestionIds = new Set(
+      exam.questions.filter((q) => q.type !== 'MCQ' && q.type !== 'TF').map((q) => q.id),
+    )
 
     try {
     let totalScore = 0
