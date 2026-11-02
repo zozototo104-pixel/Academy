@@ -276,7 +276,8 @@ export async function calculateFinalGrade(input: {
   const weight = (key: string) => configured.weights[key] || 0
   const missing: string[] = []
 
-  // The global academic gate remains strict even while the student's earned total is visible.
+  // Keep the list of remaining academic activity for guidance only.
+  // Graduation eligibility uses the weighted earned score, not an independent pass on each unit.
   await unitQuizAverage(client, input.userId, input.programId, missing)
   await programExamAverage(client, input.userId, input.programId, missing)
   const assignmentScores = await assignmentAverage(client, input.userId, input.programId, missing, false)
