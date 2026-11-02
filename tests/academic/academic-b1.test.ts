@@ -276,6 +276,25 @@ beforeEach(() => {
 })
 
 describe('academic B1 safety', () => {
+  test('official unit grade is committed before optional AI feedback and survives outage', async () => {
+    unitObjectiveMode = true
+    optionalFeedbackFails = true
+    const response = await examSubmitRoute.POST(new NextRequest('https://academy.test/api/exam/submit', {
+      method: 'POST',
+      body: JSON.stringify({ examId: 'exam-1', answers: [{ questionId: 'essay-1', selectedOption: 0 }] }),
+      headers: { 'content-type': 'application/json' },
+    }))
+    const payload = await body(response as any)
+    expect(response.status).toBe(200)
+    expect(payload.passed).toBe(true)
+    expect(payload.score).toBe(100)
+    const graded = calls.indexOf('attempt.update:GRADED')
+    const commentary = calls.indexOf('overall.ai')
+    expect(graded).toBeGreaterThanOrEqual(0)
+    expect(commentary).toBeGreaterThan(graded)
+    expect(calls).not.toContain('attempt.update:NEEDS_REVIEW')
+  })
+
   test('stale submitted unit with preserved answers becomes NEEDS_REVIEW, not a new attempt or zero', async () => {
     pendingUnitGrading = { submittedAt: new Date(Date.now() - 3 * 60 * 60 * 1000), savedAnswerCount: 1 }
     const response = await examDetailRoute.GET(new NextRequest('https://academy.test/api/exam/detail?examId=exam-1'))
