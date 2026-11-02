@@ -85,9 +85,16 @@ export async function GET(req: NextRequest) {
       include: {
         _count: { select: { submissions: true } },
         submissions: {
-          orderBy: { submittedAt: 'desc' },
-          take: 200,
-          include: { user: { select: { id: true, name: true, email: true } } },
+          orderBy: [{ submittedAt: 'desc' }, { id: 'asc' }],
+          // No silent 200-item cutoff: the UI paginates students, not individual
+          // submissions, and a missing row would hide that student's assignments.
+          select: {
+            id: true, userId: true, answerText: true,
+            fileName: true, fileStorageKey: true, mimeType: true, size: true,
+            status: true, score: true, feedback: true,
+            submittedAt: true, gradedAt: true, updatedAt: true,
+            user: { select: { id: true, name: true, email: true } },
+          },
         },
       },
     })
