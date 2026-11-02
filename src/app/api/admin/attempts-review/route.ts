@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
-import { gradeEssayWithRubric } from '@/lib/essay-grading'
+import { EssayNeedsReviewError, gradeEssayWithRubric } from '@/lib/essay-grading'
 import { calculateSemesterReadiness } from '@/lib/semester-readiness'
 import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
 
