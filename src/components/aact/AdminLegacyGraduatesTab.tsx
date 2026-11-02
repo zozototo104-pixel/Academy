@@ -386,6 +386,7 @@ export default function AdminLegacyGraduatesTab() {
       }
       toast({ title: 'تم استيراد الملف', description: `نجح: ${successful} / فشل: ${failed}` })
       setImportRows([])
+      setProgramOverrides({})
       await load()
     } catch (error: any) {
       toast({ title: dryRun ? 'فشل فحص الملف' : 'فشل الاستيراد', description: String(error?.message || error), variant: 'destructive' })
