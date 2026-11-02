@@ -141,7 +141,7 @@ export async function evaluateProgramCertificateEligibility(input: {
 
   const program = await client.program.findUnique({
     where: { id: resolvedProgramId },
-    select: { category: true, price: true },
+    select: { category: true, price: true, admissionRules: true },
   })
 
   const enrollment = await client.enrollment.findUnique({
