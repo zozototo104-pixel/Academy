@@ -356,10 +356,10 @@ mock.module('@/lib/outline-units', () => ({
 }))
 const outlineGeneration = await import('@/app/api/admin/program-units/[unitId]/generate/route')
 
-async function generateOneUnit() {
+async function generateOneUnit(body: Record<string, unknown> = {}) {
   return outlineGeneration.POST(
     new NextRequest('https://academy.test/api/admin/program-units/unit-1/generate', {
-      method: 'POST', body: '{}', headers: { 'content-type': 'application/json' },
+      method: 'POST', body: JSON.stringify(body), headers: { 'content-type': 'application/json' },
     }),
     { params: Promise.resolve({ unitId: 'unit-1' }) },
   )
