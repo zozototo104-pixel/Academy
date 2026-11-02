@@ -259,6 +259,7 @@ async function main() {
   const { header, compressed, plain } = decryptEncryptedBackup(encrypted)
   const parsed = parseBackupJsonl(plain)
   printPlan({ file, header, compressed, plain, ...parsed })
+  preflightBackupTables(parsed)
 
   if (!restore) {
     console.log('\nDry-run only. No database changes were made.')
