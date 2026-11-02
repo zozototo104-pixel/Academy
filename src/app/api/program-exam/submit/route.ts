@@ -448,7 +448,13 @@ export async function POST(req: NextRequest) {
     const percentage = rawPercentage
     const passed = percentage >= exam.passScore
 
-    const overall = await generateOverallFeedback(exam.program.titleAr, percentage, passed, weakPoints, examAcademicContext)
+    let overall: { summary: string; strengths: string[]; improvements: string[] }
+    try {
+      overall = await generateOverallFeedback(exam.program.titleAr, percentage, passed, weakPoints, examAcademicContext)
+    } catch (feedbackError) {
+      console.error('Optional programme feedback failed; preserving graded result:', feedbackError)
+      overall = fallbackProgramFeedback(exam.program.titleAr, percentage, passed, weakPoints)
+    }
 
     const roundedScore = Math.round(percentage * 10) / 10
     const roundedRawScore = Math.round(rawPercentage * 10) / 10
