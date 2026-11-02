@@ -125,30 +125,97 @@ interface ParsedBackupTable {
   rows: Record<string, unknown>[]
 }
 
+interface BackupIntegrity {
+  valid: boolean
+  errors: string[]
+  expectedTables: number
+  includedTables: number
+  missingTables: string[]
+  unexpectedTables: string[]
+}
+
+/** Every table/header/count must match before a backup can be treated as restorable.
+ * Old partial backups remain inspectable, but cannot be silently restored as full.
+ */
+function validateBackupManifest(parsed: ReturnType<typeof parseBackupJsonl>): BackupIntegrity {
+  const issues: string[] = []
+  const expected = new Set(activeBackupTables().map((spec) => spec.name))
+  const found = new Set(parsed.tables.map((t) => t.name))
+  const missingTables = [...expected].filter((name) => !found.has(name))
+  const unexpectedTables = [...found].filter((name) => !BACKUP_TABLES.some((s) => s.name === name))
+  if (missingTables.length > 0) issues.push(`BACKUP_INCOMPLETE_SCHEMA_COVERAGE:${missingTables.join(',')}`)
+  if (unexpectedTables.length > 0) issues.push(`BACKUP_UNKNOWN_TABLES:${unexpectedTables.join(',')}`)
+  if (!parsed.meta || parsed.meta.platform !== 'AACT' || parsed.meta.format !== 'aact-db-jsonl-v1') {
+    issues.push('BACKUP_META_INVALID')
+  }
+  if (!parsed.summary || !parsed.summary.counts || !Array.isArray(parsed.summary.errors)) {
+    issues.push('BACKUP_SUMMARY_MISSING')
+  } else if (parsed.summary.errors.length) {
+    issues.push('BACKUP_SOURCE_REPORTED_ERRORS')
+  }
+  const listed = Array.isArray(parsed.meta?.tables) ? parsed.meta.tables.map(String) : []
+  if (listed.length !== found.size || listed.some((name) => !found.has(name))) {
+    issues.push('BACKUP_TABLE_MANIFEST_MISMATCH')
+  }
+  for (const table of parsed.tables) {
+    const actual = table.rows.length
+    const summaryCount = Number(parsed.summary?.counts?.[table.name])
+    if (!Number.isSafeInteger(table.expected) || table.expected < 0 ||
+        table.expected !== actual || summaryCount !== actual) {
+      issues.push(`BACKUP_ROW_COUNT_MISMATCH:${table.name}`)
+    }
+    const spec = BACKUP_TABLES.find((item) => item.name === table.name)
+    if (!spec || spec.delegate !== table.delegate) issues.push(`BACKUP_DELEGATE_MISMATCH:${table.name}`)
+  }
+  return {
+    valid: issues.length === 0,
+    errors: issues,
+    expectedTables: expected.size,
+    includedTables: found.size,
+    missingTables,
+    unexpectedTables,
+  }
+}
+
 function parseBackupJsonl(plain: Buffer) {
   const tables = new Map<string, ParsedBackupTable>()
-  let meta: Record<string, unknown> | null = null
-  let summary: Record<string, unknown> | null = null
+  let meta: Record<string, any> | null = null
+  let summary: Record<string, any> | null = null
   let parsedLines = 0
   for (const raw of plain.toString('utf8').split('\n')) {
     if (!raw.trim()) continue
     const item = JSON.parse(raw) as any
+    if (!item || typeof item !== 'object') throw new Error('BACKUP_INVALID_LINE')
     parsedLines += 1
+    if (summary) throw new Error('BACKUP_TRAILING_DATA_AFTER_SUMMARY')
     if (item.type === 'meta') {
+      if (meta || parsedLines !== 1) throw new Error('BACKUP_DUPLICATE_OR_MISPLACED_META')
       meta = item
       continue
     }
+    if (!meta) throw new Error('BACKUP_META_MISSING')
     if (item.type === 'table') {
-      tables.set(String(item.name), { name: String(item.name), delegate: String(item.delegate), expected: Number(item.count || 0), rows: [] })
+      const name = String(item.name || '')
+      if (!name || tables.has(name)) throw new Error('BACKUP_DUPLICATE_TABLE')
+      tables.set(name, { name, delegate: String(item.delegate || ''), expected: Number(item.count), rows: [] })
       continue
     }
     if (item.type === 'row') {
       const table = tables.get(String(item.table))
-      if (table) table.rows.push(item.data || {})
+      if (!table || !item.data || typeof item.data !== 'object' || Array.isArray(item.data)) {
+        throw new Error('BACKUP_ROW_WITHOUT_VALID_TABLE')
+      }
+      table.rows.push(item.data)
       continue
     }
-    if (item.type === 'summary') summary = item
+    if (item.type === 'table_error') continue // Source errors are validated via the summary.
+    if (item.type === 'summary') {
+      summary = item
+      continue
+    }
+    throw new Error('BACKUP_UNKNOWN_LINE_TYPE')
   }
+  if (!summary) throw new Error('BACKUP_SUMMARY_MISSING')
   return { meta, summary, tables: Array.from(tables.values()), parsedLines }
 }
 
