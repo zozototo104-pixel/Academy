@@ -1,5 +1,37 @@
 import { db } from '@/lib/db'
 
+/**
+ * Semester two is locked until every published/READY first-semester programme exam
+ * has a graded passing attempt with no pending appeal. An absent, unready or
+ * questionless first-semester exam never silently unlocks the next semester.
+ */
+export async function hasPassedFirstSemesterExam(userId: string, programId: string): Promise<boolean> {
+  const exams = await db.programExam.findMany({
+    where: { programId, semester: 1 },
+    select: {
+      id: true,
+      status: true,
+      questions: { where: { status: 'PUBLISHED' }, select: { points: true } },
+    },
+  })
+  if (exams.length === 0) return false
+  for (const exam of exams) {
+    if (exam.status !== 'READY' || !exam.questions.some((q) => q.points > 0)) return false
+    const passed = await db.programExamAttempt.findFirst({
+      where: {
+        userId,
+        examId: exam.id,
+        status: 'GRADED',
+        passed: true,
+        OR: [{ appealStatus: null }, { appealStatus: { not: 'PENDING' } }],
+      },
+      select: { id: true },
+    })
+    if (!passed) return false
+  }
+  return true
+}
+
 function parseJsonArray(value: string | null | undefined): any[] {
   if (!value) return []
   try {
