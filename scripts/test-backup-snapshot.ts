@@ -32,7 +32,7 @@ function fail(message: string): never {
 async function main() {
   // Seed the linked pair plus enough rows to widen the export window.
   await db.user.create({
-    data: { id: USER_ID, email: OLD_EMAIL, password: 'snapshot-test-only' },
+    data: { id: USER_ID, email: OLD_EMAIL, password: 'snapshot-test-only', name: 'Snapshot Pair User' },
   })
   await db.notification.create({
     data: { id: NOTIFICATION_ID, userId: USER_ID, type: 'GENERAL', title: OLD_TITLE, body: 'pair' },
