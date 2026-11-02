@@ -425,9 +425,8 @@ export async function POST(req: NextRequest) {
     })
     claimedUnitAttemptId = null
 
-    const completion = passed
-      ? await completeEnrollmentIfEligible({ enrollmentId: enrollment.id })
-      : null
+    // Any graded attempt can push the weighted cumulative mark above the threshold.
+    const completion = await completeEnrollmentIfEligible({ enrollmentId: enrollment.id })
     const certificateNo = completion?.ok ? completion.certificate?.serial || null : null
     const results = responseResults.sort((a, b) => a.order - b.order)
     const finalResults = revealCorrectAnswers ? results : results.map(({ correctAnswerText, ...result }) => result)
