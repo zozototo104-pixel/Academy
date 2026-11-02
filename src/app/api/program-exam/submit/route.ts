@@ -450,7 +450,7 @@ export async function POST(req: NextRequest) {
         finalScore: roundedScore,
         passed,
         status: 'GRADED',
-        feedback: JSON.stringify({ ...overall, rawScoreBeforeCourseworkCap: roundedRawScore, maxExamScore: readiness.maxExamScore, readiness }),
+        feedback: JSON.stringify({ ...overall, rawScoreBeforeCourseworkCap: roundedRawScore, maxExamScore: 100, gradeCapApplied: false, readiness }),
         submittedAt: new Date(),
       },
     })
