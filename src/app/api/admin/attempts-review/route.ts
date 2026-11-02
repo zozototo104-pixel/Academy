@@ -4,7 +4,7 @@ import { requireAdmin } from '@/lib/auth'
 import { EssayNeedsReviewError, gradeEssayWithRubric } from '@/lib/essay-grading'
 import { calculateSemesterReadiness } from '@/lib/semester-readiness'
 import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
-import { findMissingAnswerQuestionIds, findUngradedAnswers, gradeObjectiveAnswer, parseObjectiveIndex, parseObjectiveOptions } from '@/lib/answer-completeness'
+import { findDuplicateAnswerQuestionIds, findMissingAnswerQuestionIds, findUngradedAnswers, sumRequiredAnswerPoints, gradeObjectiveAnswer, parseObjectiveIndex, parseObjectiveOptions } from '@/lib/answer-completeness'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
