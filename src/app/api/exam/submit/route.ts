@@ -299,7 +299,7 @@ export async function POST(req: NextRequest) {
         })
       } else {
         const essayText = submit?.answerText || ''
-        if (!q.modelAnswer && essayText.trim().length >= 3) {
+        if (!q.modelAnswer && essayText.trim().length > 0) {
           // Reference missing: retain the submitted answer for human marking,
           // without manufacturing zero points or stranding the claimed attempt.
           needsReview = true
