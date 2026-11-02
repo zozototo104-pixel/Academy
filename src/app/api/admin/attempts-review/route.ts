@@ -260,7 +260,8 @@ async function recomputeProgramAttempt(tx: any, attemptId: string, readiness: Re
         gradeCapApplied: false,
         readiness,
       }),
-      submittedAt: new Date(),
+      // submittedAt is the student's original submission time; approval
+      // must never rewrite it (the review moment lives in this feedback).
     },
   })
   return { score, passed }

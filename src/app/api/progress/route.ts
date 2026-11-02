@@ -5,7 +5,7 @@ import { notify } from '@/lib/notify'
 import { getExamsGate } from '@/lib/exam-gate'
 import { academicProfileFromRules } from '@/lib/program-tracks'
 import { calculateSemesterReadiness, markSemesterReady } from '@/lib/semester-readiness'
-import { calculateFinalGrade } from '@/lib/final-grade'
+import { calculateFinalGrade, pickBestGradedAttempt } from '@/lib/final-grade'
 import { enforceSemesterTuitionGate, getStudentTuitionPlan } from '@/lib/tuition-installments'
 import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
 
@@ -51,11 +51,19 @@ export async function GET(req: NextRequest) {
           orderBy: { submittedAt: 'desc' },
         })
       : []
+    // أفضل محاولة لكل اختبار بنفس قاعدة محرك المعدل النهائي: المحاولات
+    // المعتمدة (GRADED) فقط وأعلى علامة بينها — لا أحدث محاولة.
     const bestByExam: Record<string, { score: number; passed: boolean }> = {}
+    const attemptsByExam = new Map<string, typeof attempts>()
     for (const a of attempts) {
-      if (a.examId && !bestByExam[a.examId] && a.score !== null) {
-        bestByExam[a.examId] = { score: a.score, passed: !!a.passed }
-      }
+      if (!a.examId) continue
+      const list = attemptsByExam.get(a.examId)
+      if (list) list.push(a)
+      else attemptsByExam.set(a.examId, [a])
+    }
+    for (const [examId, examAttempts] of attemptsByExam) {
+      const bestAttempt = pickBestGradedAttempt(examAttempts)
+      if (bestAttempt) bestByExam[examId] = { score: bestAttempt.score as number, passed: !!bestAttempt.passed }
     }
 
     const completedUnits: string[] = JSON.parse(enrollment.completedUnits || '[]')

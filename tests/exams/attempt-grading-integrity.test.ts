@@ -289,6 +289,18 @@ for (const type of ['UNIT', 'PROGRAM'] as const) {
     })
   })
 }
+test('اعتماد امتحان البرنامج لا يبدّل تاريخ التسليم الأصلي', async () => {
+  auditFinalGrade = null
+  auditQuestions = [{ id: 'q1', status: 'PUBLISHED', type: 'MCQ', points: 10 }]
+  auditAnswers = [{ id: 'a1', questionId: 'q1', points: 10, maxPoints: 10, question: { type: 'MCQ' } }]
+  const result = await reviewRequest('PROGRAM')
+  expect(result.status).toBe(200)
+  expect((auditFinalGrade as Record<string, any> | null)?.status).toBe('GRADED')
+  // The approval update must not carry a new submittedAt: that field is the
+  // student's original submission time, not the review moment.
+  expect((auditFinalGrade as Record<string, any> | null)?.submittedAt).toBeUndefined()
+})
+
 test('امتحان برنامج: إجابة محفوظة لسؤال REJECTED لا ترفع العلامة', async () => {
   auditFinalGrade = null
   auditQuestions = [

@@ -101,6 +101,34 @@ function best(values: Array<number | null | undefined>) {
   return Math.max(...nums)
 }
 
+export interface GradedAttemptLike {
+  score: number | null
+  passed?: boolean | null
+  status?: string | null
+  submittedAt?: Date | string | null
+}
+
+/**
+ * The one attempt-selection rule shared by the final-grade engine and the
+ * student progress page: among GRADED attempts only (an attempt still in
+ * review never counts), the best score wins; ties go to the most recent
+ * submission. A stored GRADED score already carries any post-appeal
+ * adjustment, so both surfaces show the same approved final result.
+ */
+export function pickBestGradedAttempt<T extends GradedAttemptLike>(attempts: readonly T[]): T | null {
+  let chosen: T | null = null
+  let chosenTime = -Infinity
+  for (const attempt of attempts) {
+    if (attempt.status !== 'GRADED' || typeof attempt.score !== 'number' || !Number.isFinite(attempt.score)) continue
+    const time = attempt.submittedAt ? new Date(attempt.submittedAt).getTime() || 0 : 0
+    if (!chosen || attempt.score > (chosen.score as number) || (attempt.score === chosen.score && time > chosenTime)) {
+      chosen = attempt
+      chosenTime = time
+    }
+  }
+  return chosen
+}
+
 function component(key: string, label: string, weight: number, value: ComponentScore): FinalGradeComponent {
   if (value === 'EXEMPT') return { key, label, weight, score: null, weighted: 0, ready: true, exempt: true }
   const complete = typeof value === 'number' || (value !== null && typeof value === 'object' && value.complete)

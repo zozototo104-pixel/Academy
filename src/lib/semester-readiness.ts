@@ -1,9 +1,14 @@
 import { db } from '@/lib/db'
 
 /**
- * Semester two is locked until every published/READY first-semester programme exam
- * has a graded passing attempt with no pending appeal. An absent, unready or
- * questionless first-semester exam never silently unlocks the next semester.
+ * Semester two is locked until the programme's designated first-semester
+ * exams are all published (READY) and passed. The designated set is: every
+ * READY exam, plus the programme's current exam (the latest one) while it
+ * is still being prepared — a required exam that has not been published yet
+ * must keep the lock. Older superseded drafts/failures that are neither
+ * READY nor the current exam are NOT designated: an abandoned leftover must
+ * never block every student in the programme forever. With no first-semester
+ * exam at all, the semester stays locked (nothing designated to pass yet).
  */
 export async function hasPassedFirstSemesterExam(userId: string, programId: string): Promise<boolean> {
   const exams = await db.programExam.findMany({
@@ -11,11 +16,15 @@ export async function hasPassedFirstSemesterExam(userId: string, programId: stri
     select: {
       id: true,
       status: true,
+      createdAt: true,
       questions: { where: { status: 'PUBLISHED' }, select: { points: true } },
     },
+    orderBy: { createdAt: 'desc' },
   })
   if (exams.length === 0) return false
-  for (const exam of exams) {
+  const current = exams[0]
+  const designated = exams.filter((exam) => exam.status === 'READY' || exam.id === current.id)
+  for (const exam of designated) {
     if (exam.status !== 'READY' || !exam.questions.some((q) => q.points > 0)) return false
     const passed = await db.programExamAttempt.findFirst({
       where: {
