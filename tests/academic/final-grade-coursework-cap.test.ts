@@ -3,6 +3,7 @@ import { describe, expect, mock, test } from 'bun:test'
 // Route-level persistence is tested elsewhere; this is the grade calculation's behavioral contract.
 mock.module('@/lib/db', () => ({ db: {} }))
 const { calculateFinalGrade } = await import('@/lib/final-grade')
+const { gradingFormulaSignature } = await import('@/lib/program-tracks')
 
 const diplomaFormula = [
   { label: 'اختبارات قصيرة ومتابعة', weight: 30 },
