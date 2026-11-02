@@ -148,15 +148,29 @@ async function recomputeUnitAttempt(tx: any, attemptId: string) {
 }
 
 async function recomputeProgramAttempt(tx: any, attemptId: string, readiness: ReviewReadiness) {
-  const attempt = await tx.programExamAttempt.findUnique({ where: { id: attemptId }, include: { exam: { include: { questions: true } }, answers: true } })
-  const maxTotal = attempt.exam.questions.reduce((s: number, q: any) => s + q.points, 0)
+  const attempt = await tx.programExamAttempt.findUnique({
+    where: { id: attemptId },
+    include: { exam: { include: { questions: { where: { status: 'PUBLISHED' } } } }, answers: true },
+  })
+  const maxTotal = attempt.exam.questions.reduce((s: number, q: any) => s + Math.max(0, Number(q.points || 0)), 0)
   const total = attempt.answers.reduce((s: number, a: any) => s + Number(a.points || 0), 0)
   const rawScore = maxTotal > 0 ? (total / maxTotal) * 100 : 0
-  const capped = Math.min(rawScore, readiness?.maxExamScore ?? 100)
-  const score = Math.round(capped * 10) / 10
-  const rawRounded = Math.round(rawScore * 10) / 10
+  const score = Math.round(rawScore * 10) / 10
   const passed = score >= attempt.exam.passScore
-  await tx.programExamAttempt.update({ where: { id: attemptId }, data: { score, finalScore: score, passed, status: 'GRADED', feedback: JSON.stringify({ summary: 'تم اعتماد النتيجة بعد مراجعة التصحيح.', rawScoreBeforeCourseworkCap: rawRounded, maxExamScore: readiness?.maxExamScore ?? 100, readiness }), submittedAt: new Date() } })
+  await tx.programExamAttempt.update({
+    where: { id: attemptId },
+    data: {
+      score, finalScore: score, passed, status: 'GRADED',
+      feedback: JSON.stringify({
+        summary: 'تم اعتماد النتيجة بعد مراجعة التصحيح.',
+        rawScoreBeforeCourseworkCap: score,
+        maxExamScore: 100,
+        gradeCapApplied: false,
+        readiness,
+      }),
+      submittedAt: new Date(),
+    },
+  })
   return { score, passed }
 }
 
