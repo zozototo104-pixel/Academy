@@ -258,6 +258,23 @@ beforeEach(() => {
 })
 
 describe('academic B1 safety', () => {
+  test('missing essay model preserves the submitted answer for human review instead of rejecting or assigning zero', async () => {
+    unitModelAnswer = null
+    const response = await examSubmitRoute.POST(new NextRequest('https://academy.test/api/exam/submit', {
+      method: 'POST',
+      body: JSON.stringify({ examId: 'exam-1', answers: [{ questionId: 'essay-1', answerText: 'إجابة صحيحة بأسلوب الطالب' }] }),
+      headers: { 'content-type': 'application/json' },
+    }))
+    const payload = await body(response as any)
+    expect(response.status).toBe(202)
+    expect(payload.status).toBe('NEEDS_REVIEW')
+    expect(payload.attemptId).toBe('attempt-1')
+    expect(answers).toHaveLength(1)
+    expect(answers[0]).toMatchObject({ questionId: 'essay-1', answerText: 'إجابة صحيحة بأسلوب الطالب', points: null, isCorrect: null })
+    expect(calls).toContain('attempt.update:NEEDS_REVIEW')
+    expect(calls).not.toContain('essay.grade')
+  })
+
   test('essay answer is persisted before AI grading and remains saved when grading fails', async () => {
     const res = await examSubmitRoute.POST(new NextRequest('https://academy.test/api/exam/submit', {
       method: 'POST',
