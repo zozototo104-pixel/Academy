@@ -96,7 +96,7 @@ const db: any = {
 
 mock.module('@/lib/db', () => ({ db }))
 
-const { reserveGeminiLiveUsage, settleGeminiLiveUsage } = await import('../../src/lib/live-usage-guard')
+const { reserveGeminiLiveUsage, settleGeminiLiveUsage, grantGeminiLiveCredit } = await import('../../src/lib/live-usage-guard')
 
 function seedUsage(userId: string, patch: Partial<UsageRow> = {}) {
   const row: UsageRow = { id: `usage-${userId}`, userId, month: month(), purpose: 'SUPERVISOR', freeMinutesUsed: 0, paidMinutesUsed: 0, sessionsCount: 0, ...patch }
