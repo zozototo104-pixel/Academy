@@ -4,6 +4,7 @@ import { requireUser } from '@/lib/auth'
 import { EXAM_ATTEMPT_POLICY_SINCE, getExamMaxAttempts } from '@/lib/exam-attempt-policy'
 
 const UNIT_EXAM_DURATION_MIN = Math.max(1, Number(process.env.AACT_UNIT_EXAM_DURATION_MIN || 60))
+const STALE_SUBMITTED_REVIEW_MS = 2 * 60 * 60 * 1000 // Expired only after the bounded essay grading window
 const COMPLETED_UNIT_ATTEMPT_STATUSES = ['GRADED', 'EXPIRED', 'NEEDS_REVIEW']
 
 // GET /api/exam/detail?examId=xxx — أسئلة الاختبار (بدون الإجابات الصحيحة)
