@@ -87,7 +87,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'تعذر قراءة الملف' }, { status: 400 })
     }
 
-    const rows = await validateLegacyGraduateImportRows(parsedRows)
+    let programOverrides: Record<string, string> = {}
+    try {
+      const rawOverrides = String(form.get('programOverrides') || '{}')
+      if (rawOverrides.length > 50000) throw new Error('OVERRIDE_TOO_LARGE')
+      const parsed: unknown = JSON.parse(rawOverrides)
+      if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') throw new Error('INVALID_OVERRIDES')
+      const entries = Object.entries(parsed)
+      if (entries.length > LEGACY_GRADUATE_IMPORT_MAX_ROWS) throw new Error('INVALID_OVERRIDES')
+      for (const [rowNumber, programId] of entries) {
+        if (!/^\d{1,6}$/.test(rowNumber) || typeof programId !== 'string' || programId.length > 128) throw new Error('INVALID_OVERRIDES')
+      }
+      programOverrides = Object.fromEntries(entries) as Record<string, string>
+    } catch {
+      return NextResponse.json({ error: 'اختيارات البرامج غير صالحة، أعد المعاينة' }, { status: 400 })
+    }
+
+    const rows = await validateLegacyGraduateImportRows(parsedRows, programOverrides)
     const invalidRows = rows.filter((row) => row.errors.length > 0)
     if (shouldDryRun) {
       return NextResponse.json({
