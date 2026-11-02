@@ -73,7 +73,9 @@ function mockDiplomaClient(programAttemptScores: number[], options: DiplomaFixtu
     },
     programExamAttempt: {
       // Mimic Prisma's GRADED + non-pending-appeal WHERE filter, not unfiltered rows.
-      findMany: async () => options.programAppealPending ? [] : programAttemptScores.map((score) => ({
+      findMany: async ({ where }: any) =>
+        options.programAppealPending || (options.secondSemesterMissing && where.examId === 'program-exam-2')
+          ? [] : programAttemptScores.map((score) => ({
         status: 'GRADED', score, finalScore: score, passed: score >= (options.examPassScore ?? 51),
         appealStatus: null, answers: [{ points: score, maxPoints: 100 }],
       })),
