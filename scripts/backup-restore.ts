@@ -29,7 +29,8 @@ Usage:
 Safe defaults:
   - Without --restore this performs a dry-run only.
   - With --restore you must also set AACT_RESTORE_CONFIRM=YES.
-  - Restore uses createMany({ skipDuplicates: true }) and does not wipe existing data.
+  - Restore requires a separately isolated EMPTY database and AACT_RESTORE_ISOLATED_TARGET=YES.
+  - A partial/old-schema backup is refused. Writes are atomic and rollback on error.
 
 Required env:
   AACT_BACKUP_ENCRYPTION_KEY  The same key used when the backup was created.
