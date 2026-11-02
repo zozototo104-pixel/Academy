@@ -283,6 +283,7 @@ function cleanEvaluationFormula(list: unknown): AcademicEvaluationItem[] | undef
     .map((x) => {
       const row = (x && typeof x === 'object') ? (x as Record<string, unknown>) : {}
       return {
+        key: /^[a-z][a-z0-9_]*$/.test(String(row.key || '')) ? String(row.key) : undefined,
         label: cleanAcademicText(String(row.label || '')),
         weight: Math.max(0, Math.min(100, Number(row.weight || 0))),
         description: cleanAcademicText(String(row.description || '')),
