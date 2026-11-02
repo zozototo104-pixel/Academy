@@ -187,6 +187,7 @@ function testBothUnitCreationEndpointsBlockOverlaps() {
 const tests = [
   testSplitOldGiantBlocksEveryOverlappingNewUnit,
   testSmallIntersectionAlsoRequiresReview,
+  testUnitGenerationIsAtomicAndRejectsStalePlans,
   testBothUnitCreationEndpointsBlockOverlaps,
   testSummaryFallbackAndProviderClassification,
   testApprovedUnitNotUpdatedOnRegenerate,
