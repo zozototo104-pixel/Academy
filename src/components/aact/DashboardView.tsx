@@ -1329,8 +1329,9 @@ export function DashboardView() {
                       </span>
                     </div>
                     <p className="mt-1 text-[11px] text-slate-600">
-                      {active.gradeProgress.complete ? 'المكونات الأكاديمية مكتملة' :
-                        'هذه علامة مكتسبة حتى الآن، وليست نتيجة تخرج نهائية. الأعمال غير المكتملة لا تكسب علامات حتى تصحيحها.'}
+                      {active.status === 'COMPLETED' && active.finalScore != null
+                        ? 'هذه نتيجتك المعتمدة للشهادة. العلامات اللاحقة لا تغير الشهادة المؤرشفة تلقائيًا.'
+                        : 'هذه علامتك التراكمية المكتسبة. الرسوب أو عدم تسليم عنصر يخفض مساهمته فقط؛ الاستحقاق الأكاديمي للشهادة يعتمد مجموعًا أعلى من 50%.'}
                     </p>
                     <div className="mt-3 space-y-2">
                       {active.gradeProgress.components.map((item) => (
