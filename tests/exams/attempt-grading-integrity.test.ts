@@ -301,3 +301,45 @@ test('امتحان برنامج: إجابة محفوظة لسؤال REJECTED ل�
   expect((auditFinalGrade as Record<string, any> | null)?.status).toBe('GRADED')
 })
 
+// Supervisor review is a separate scoring entry point. Exercise the actual
+// service with the same in-memory attempt rows so it cannot bypass the guard.
+mock.module('@/lib/notify', () => ({ notify: async () => {} }))
+const { applyScoreAdjustments } = await import('../../src/lib/supervisor-grade-review')
+auditDb.answer.update = async ({ where, data }: any) => {
+  const answer = auditAnswers.find((row) => row.id === where.id)
+  Object.assign(answer, data)
+  return answer
+}
+auditDb.programAnswer.update = auditDb.answer.update
+
+test('المشرف يرفض تكرار الإجابة في محاولة واحدة دون اعتماد درجة مضاعفة', async () => {
+  auditFinalGrade = null
+  auditQuestions = [{ id: 'q1', type: 'MCQ', status: 'PUBLISHED', points: 10 }]
+  auditAnswers = [
+    { id: 'a1', questionId: 'q1', points: 10, maxPoints: 10, question: { type: 'MCQ', points: 10 } },
+    { id: 'a2', questionId: 'q1', points: 10, maxPoints: 10, question: { type: 'MCQ', points: 10 } },
+  ]
+  await expect(applyScoreAdjustments(
+    { id: 'admin', name: 'مسؤول', role: 'ADMIN' } as any, 'UNIT', 'UNIT-attempt', { a1: 10 },
+  )).rejects.toThrow('DUPLICATE_ANSWER_ROWS')
+  expect(auditFinalGrade).toBeNull()
+})
+
+test('المشرف يستثني نقاط السؤال REJECTED من الدرجة النهائية للفصل', async () => {
+  auditFinalGrade = null
+  auditQuestions = [
+    { id: 'q1', type: 'MCQ', status: 'PUBLISHED', points: 10 },
+    { id: 'q2', type: 'MCQ', status: 'REJECTED', points: 10 },
+  ]
+  auditAnswers = [
+    { id: 'a1', questionId: 'q1', points: 10, maxPoints: 10, question: { type: 'MCQ', points: 10 } },
+    { id: 'a2', questionId: 'q2', points: 10, maxPoints: 10, question: { type: 'MCQ', points: 10 } },
+  ]
+  const result = await applyScoreAdjustments(
+    { id: 'admin', name: 'مسؤول', role: 'ADMIN' } as any, 'PROGRAM', 'PROGRAM-attempt', { a1: 10 },
+  )
+  expect(result.score).toBe(100)
+  expect((auditFinalGrade as Record<string, any> | null)?.status).toBe('GRADED')
+})
+
+
