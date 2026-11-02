@@ -49,7 +49,8 @@ const db: any = {
     findFirst: async () => ({ id: 'enrollment-1', userId: 'user-1', programId: 'program-1', status: 'COMPLETED', finalScore: 88, certificateNo: 'AACT-C-1', createdAt: new Date(), updatedAt: new Date() }),
   },
   examAttempt: {
-    findFirst: async () => ({ id: 'attempt-1', createdAt: new Date() }),
+    findFirst: async ({ where }: any = {}) => where?.status === 'SUBMITTED' ? (pendingUnitGrading ? { id: 'attempt-1', submittedAt: pendingUnitGrading.submittedAt } : null) : ({ id: 'attempt-1', createdAt: new Date() }),
+    count: async () => 0,
     updateMany: async ({ data }: any) => { calls.push(`attempt.updateMany:${data.status}`); return { count: 1 } },
     update: async ({ data }: any) => { calls.push(`attempt.update:${data.status}`); return { id: 'attempt-1', ...data } },
     findMany: async () => [],
