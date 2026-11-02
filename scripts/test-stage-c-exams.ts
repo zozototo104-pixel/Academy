@@ -60,7 +60,13 @@ function mockDiplomaClient(programAttemptScores: number[], options: DiplomaFixtu
       }],
     },
     programExam: {
-      findMany: async () => [{ id: 'program-exam-1', title: 'الاختبار النهائي', semester: 1, passScore: 51 }],
+      findMany: async ({ where }: any) => (category === 'DOCTORATE'
+        ? [
+            { id: 'program-exam-1', title: 'اختبار القراءات', semester: 1, passScore: 51 },
+            { id: 'program-exam-2', title: 'اختبار التحليل', semester: 2, passScore: 51 },
+          ]
+        : [{ id: 'program-exam-1', title: 'الاختبار النهائي', semester: 1, passScore: options.examPassScore ?? 51 }])
+        .filter((exam) => !where.semester || exam.semester === where.semester),
     },
     programExamAttempt: {
       // Mimic Prisma's GRADED + non-pending-appeal WHERE filter, not unfiltered rows.
