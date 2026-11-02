@@ -12,6 +12,7 @@ let theses: any[] = []
 let applications: any[] = []
 let participants: any[] = []
 let signals: any[] = []
+let messages: any[] = []
 let invites: any[] = []
 let settings: any[] = []
 let inviteSeq = 0
