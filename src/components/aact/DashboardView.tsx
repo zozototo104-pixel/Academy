@@ -1919,7 +1919,7 @@ export function DashboardView() {
                         {readiness && (
                           <div className="mt-3 rounded-xl bg-white/10 p-3 text-[11px] font-bold leading-5 text-[#f5f0e1]">
                             <p>اختبارات الوحدات: {readiness.passedUnitExamsCount}/{readiness.unitExamsCount} · الواجبات: {readiness.passedAssignmentsCount}/{readiness.assignmentsCount}</p>
-                            {readiness.missingAssignmentWeight > 0 ? <p className="mt-1 text-amber-200">تنبيه: عدم استكمال الواجبات/التقييمات سيجعل أعلى نتيجة ممكنة الآن {readiness.maxExamScore}% فقط.</p> : null}
+                            {readiness.missingAssignmentWeight > 0 ? <p className="mt-1 text-amber-200">تنبيه: الوحدات والواجبات غير المكتملة لا تكسب علامات في المجموع التراكمي حتى يتم تصحيحها، لكنها لا تخفض نتيجة الامتحان الفصلي.</p> : null}
                           </div>
                         )}
                         {tuitionLocked && tuitionGate?.message ? (
