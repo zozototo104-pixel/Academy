@@ -38,6 +38,7 @@ function fakeClient(scenario: Scenario = {}) {
             finalEvaluationFormula: scenario.formula || diplomaFormula,
             approvedFormulaSignature: scenario.approval === 'UNAPPROVED'
               ? undefined : gradingFormulaSignature(scenario.formula || diplomaFormula),
+            approvedFormulaAt: '2026-10-01T00:00:00.000Z',
           },
         },
       }),
