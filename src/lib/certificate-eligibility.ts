@@ -88,26 +88,18 @@ export async function evaluateProgramCertificateEligibility(input: {
   const resolvedProgramId = programId
   const admissionId = input.admissionId || null
   const finalGrade = await calculateFinalGrade({ userId: resolvedUserId, programId: resolvedProgramId, admissionId, client })
-  if (finalGrade.score === null) {
+  // Missing/failed components earn zero weighted credit; none is an independent
+  // graduation veto. Use the exact unrounded cumulative mark, not the display value.
+  // For archived graduations, preserve the already approved official mark.
+  const academicScore = finalGrade.score ?? finalGrade.earnedScore
+  if (!Number.isFinite(academicScore) || academicScore <= CERTIFICATE_PASS_SCORE) {
     return {
       ok: false,
-      score: null,
-      gradeLabel: null,
-      missing: finalGrade.missing,
+      score: Number.isFinite(academicScore) ? academicScore : null,
+      gradeLabel: Number.isFinite(academicScore) ? certificateGradeLabel(academicScore) : null,
+      missing: [`المعدل التراكمي لا يتجاوز ${CERTIFICATE_PASS_SCORE}%`],
       components: finalGrade.components,
-      error: missingError(finalGrade.missing),
-    }
-  }
-
-  const failedComponents = failedComponentLabels(finalGrade)
-  if (failedComponents.length) {
-    return {
-      ok: false,
-      score: finalGrade.score,
-      gradeLabel: certificateGradeLabel(finalGrade.score),
-      missing: failedComponents,
-      components: finalGrade.components,
-      error: `لا يمكن إصدار الشهادة قبل النجاح في كل عناصر التقييم. العناصر دون ${CERTIFICATE_PASS_SCORE}%: ${failedComponents.join('، ')}.`,
+      error: `لا يمكن إصدار الشهادة لأن المعدل التراكمي المكتسب ${percent(Number.isFinite(academicScore) ? academicScore : 0)}% يجب أن يكون أعلى من ${CERTIFICATE_PASS_SCORE}%.`,
     }
   }
 
