@@ -514,10 +514,21 @@ async function createUnitsFromApprovedOutlines(programId: string, regenerateDraf
     return { program, usedApprovedOutlines: true as const, skippedBooks, created, updated, summary, conflicts }
   }
 
+  // A multi-book outline update must either persist every section and its
+  // programme readiness flag, or make no changes at all.
+  await db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "Program" WHERE "id" = ${programId} FOR UPDATE`
+    const newSectionIds = plans.flatMap(({ actions }) =>
+      actions.filter((action) => action.action === 'create').map((action) => action.section.id))
+    if (newSectionIds.length) {
+      const found = await tx.unit.findFirst({ where: { programId, outlineSectionId: { in: newSectionIds } }, select: { id: true } })
+      if (found) throw new Error('UNIT_PLAN_STALE_RETRY')
+    }
+
   for (const { book, actions } of plans) {
     for (const action of actions) {
       if (action.action === 'create') {
-        const unit = await db.unit.create({
+        const unit = await tx.unit.create({
           data: {
             programId,
             order: action.order,
@@ -538,7 +549,7 @@ async function createUnitsFromApprovedOutlines(programId: string, regenerateDraf
         summary.created++
         currentMaxOrderBySemester[action.semester] = Math.max(currentMaxOrderBySemester[action.semester] || 0, action.order)
       } else if (action.action === 'update-draft') {
-        await db.unit.updateMany({
+        await tx.unit.updateMany({
           where: { id: action.unitId, programId, status: { not: 'APPROVED' } },
           data: {
             title: cleanText(action.section.title, 220) || 'وحدة من فهرس الكتاب',
@@ -556,7 +567,7 @@ async function createUnitsFromApprovedOutlines(programId: string, regenerateDraf
       } else if (action.action === 'relink-draft') {
         // Exact range survived a new outline version: relink metadata only.
         // Preserve existing draft content, title, guide and generation count.
-        const changed = await db.unit.updateMany({
+        const changed = await tx.unit.updateMany({
           where: { id: action.unitId, programId, status: { not: 'APPROVED' } },
           data: {
             sourceBookId: book.id,
@@ -573,8 +584,10 @@ async function createUnitsFromApprovedOutlines(programId: string, regenerateDraf
   }
 
   if (summary.created || summary.updatedDrafts) {
-    await db.program.update({ where: { id: programId }, data: { academicReadinessStatus: 'READY_FOR_REVIEW', academicApproved: false, academicApprovedAt: null, academicApprovedById: null } })
+    await tx.program.update({ where: { id: programId }, data: { academicReadinessStatus: 'READY_FOR_REVIEW', academicApproved: false, academicApprovedAt: null, academicApprovedById: null } })
   }
+  }, { maxWait: 20000, timeout: 120000 })
+
   return { program, usedApprovedOutlines: true as const, skippedBooks, created, updated, summary }
 }
 
