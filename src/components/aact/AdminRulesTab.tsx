@@ -1558,6 +1558,18 @@ export function AdminRulesTab() {
                           <Input type="number" min={0} max={100} className="text-xs" placeholder="النسبة %" value={item.weight || ''} onChange={(e) => updateEvaluationItem(i, { weight: Number(e.target.value) })} />
                           <Input className="text-xs" placeholder="وصف مختصر" value={item.description || ''} onChange={(e) => updateEvaluationItem(i, { description: e.target.value })} />
                         </div>
+                        {gradingChoices.length > 0 && (
+                          <div className="mt-2">
+                            <Label className="text-[11px] text-slate-600">المكوّن الفعلي الذي يستقبل هذه النسبة</Label>
+                            <Select value={item.key || '__unmapped__'} onValueChange={(v) => updateEvaluationItem(i, { key: v === '__unmapped__' ? undefined : v })}>
+                              <SelectTrigger className="mt-1 text-xs"><SelectValue placeholder="اختر المكون" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__unmapped__" className="text-xs">غير مربوط — للعرض فقط</SelectItem>
+                                {gradingChoices.map((choice) => <SelectItem key={choice.key} value={choice.key} className="text-xs">{choice.label}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
                       </div>
                     ))}
                     {!(draft.academicProfile?.finalEvaluationFormula || []).length && <p className="text-[11px] font-bold text-slate-400">اتركها فارغة ليستخدم النظام معادلة التقييم التلقائية من الدليل.</p>}
