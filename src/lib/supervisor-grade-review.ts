@@ -233,7 +233,7 @@ export async function resolveExamAppeal(
         data: { finalScore: clamped, passed, appealStatus: 'REVIEWED', appealResponse: responseText || 'تم قبول الالتماس واعتماد الدرجة النهائية بعد المراجعة.', reviewedById: actor.id, reviewedAt: new Date() },
       })
     }
-    if (passed) await completeIfEligible(attempt.userId, programId).catch(() => null)
+    await completeIfEligible(attempt.userId, programId).catch(() => null)
     await notify(attempt.userId, 'GENERAL', 'تم البت في التماس مراجعة نتيجتك', `راجع مشرفك التماسك على «${attempt.exam.title}» واعتمد درجتك النهائية: ${clamped}%.`, '/?view=dashboard')
     return { finalScore: clamped, passed }
   }
