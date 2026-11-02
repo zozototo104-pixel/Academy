@@ -129,8 +129,8 @@ export async function evaluateProgramCertificateEligibility(input: {
   if (financeError) {
     return {
       ok: false,
-      score: finalGrade.score,
-      gradeLabel: certificateGradeLabel(finalGrade.score),
+      score: academicScore,
+      gradeLabel: certificateGradeLabel(academicScore),
       missing: ['الرسوم المدفوعة'],
       components: finalGrade.components,
       error: financeError,
