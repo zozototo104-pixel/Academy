@@ -110,7 +110,18 @@ const dbMock: any = {
       return { count }
     },
   },
-  defenseMessage: { findMany: async () => [] },
+  defenseMessage: {
+    findMany: async ({ where, orderBy, take }: any) => {
+      const order = Array.isArray(orderBy) ? orderBy : [orderBy]
+      const descending = order[0]?.createdAt === 'desc'
+      return messages.filter((m) => m.thesisId === where.thesisId)
+        .sort((a, b) => {
+          const date = a.createdAt.getTime() - b.createdAt.getTime()
+          return (descending ? -1 : 1) * (date || a.id.localeCompare(b.id))
+        })
+        .slice(0, take)
+    },
+  },
   defenseGuestInvite: {
     findUnique: async ({ where }: any) => {
       if (where.tokenHash) return invites.find((i) => i.tokenHash === where.tokenHash) ?? null
