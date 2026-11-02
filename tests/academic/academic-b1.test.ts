@@ -165,7 +165,7 @@ const realEssayGrading = await import('../../src/lib/essay-grading')
 mock.module('@/lib/essay-grading', () => ({ ...realEssayGrading, gradeEssayWithRubric: async () => { calls.push('essay.grade'); throw new Error('AI_DOWN') } }))
 
 const realAi = await import('../../src/lib/ai')
-mock.module('@/lib/ai', () => ({ ...realAi, generateOverallFeedback: async () => ({ summary: '', strengths: [], improvements: [] }) }))
+mock.module('@/lib/ai', () => ({ ...realAi, generateOverallFeedback: async () => { calls.push('overall.ai'); if (optionalFeedbackFails) throw new Error('OPTIONAL_FEEDBACK_DOWN'); return { summary: '', strengths: [], improvements: [] } } }))
 
 const realEnrollmentCompletion = await import('../../src/lib/enrollment-completion')
 mock.module('@/lib/enrollment-completion', () => ({ ...realEnrollmentCompletion, completeEnrollmentIfEligible: async () => null }))
