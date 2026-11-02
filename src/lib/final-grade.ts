@@ -13,8 +13,11 @@ export interface FinalGradeComponent {
 
 export interface FinalGradeResult {
   score: number | null
+  progressScore: number
   components: FinalGradeComponent[]
   missing: string[]
+  weightSource: 'academic_profile' | 'category_default'
+  weightWarning?: string
 }
 
 type DbClient = typeof db | Prisma.TransactionClient
