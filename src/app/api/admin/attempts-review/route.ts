@@ -175,7 +175,8 @@ async function recomputeProgramAttempt(tx: any, attemptId: string, readiness: Re
 }
 
 async function completeReviewedAttemptIfEligible(type: AttemptType, attemptId: string, passed: boolean) {
-  if (!passed) return null
+  // A failed individual exam can still increase the weighted cumulative total.
+  void passed
   if (type === 'UNIT') {
     const attempt = await db.examAttempt.findUnique({ where: { id: attemptId }, select: { userId: true, exam: { select: { unit: { select: { programId: true } } } } } })
     const programId = attempt?.exam?.unit?.programId
