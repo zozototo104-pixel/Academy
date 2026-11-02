@@ -34,6 +34,33 @@ export function findMissingAnswerQuestionIds(
   return requiredQuestionIds.filter((id) => !answered.has(id))
 }
 
+// A set of question IDs is not enough to establish integrity: two rows for
+// the same question could be counted twice in the numerator. Reject these
+// attempts at approval rather than silently choosing one answer/grade.
+export function findDuplicateAnswerQuestionIds(
+  answers: Array<{ questionId: string }>,
+): string[] {
+  const seen = new Set<string>()
+  const duplicates = new Set<string>()
+  for (const answer of answers) {
+    if (seen.has(answer.questionId)) duplicates.add(answer.questionId)
+    seen.add(answer.questionId)
+  }
+  return [...duplicates]
+}
+
+// Historical answers for questions no longer eligible (e.g. a REJECTED
+// program question) must never increase the numerator of a grade whose
+// denominator includes PUBLISHED questions only.
+export function sumRequiredAnswerPoints(
+  requiredQuestionIds: string[],
+  answers: Array<{ questionId: string; points: number | null }>,
+): number {
+  const eligibleIds = new Set(requiredQuestionIds)
+  return answers.reduce((total, answer) =>
+    eligibleIds.has(answer.questionId) ? total + Number(answer.points ?? 0) : total, 0)
+}
+
 // Deterministic grading for objective questions (MCQ / TF), mirroring
 // the submit-time logic exactly: the stored selectedOption index is
 // compared with the question's approved correctAnswer index. Returns
