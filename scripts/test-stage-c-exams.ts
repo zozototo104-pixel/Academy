@@ -36,7 +36,16 @@ function mockDiplomaClient(programAttemptScores: number[], options: DiplomaFixtu
   const unitPassed = options.unitPassed ?? (unitScore !== null && unitScore >= 51)
   const client: any = {
     program: {
-      findUnique: async () => ({ category: 'DIPLOMA', price: 0 }),
+      findUnique: async () => ({
+        category, price: 0,
+        admissionRules: options.researchRequired ? {
+          academicProfile: {
+            finalEvaluationFormula: researchFormula,
+            approvedFormulaSignature: gradingFormulaSignature(researchFormula),
+            approvedFormulaAt: '2026-10-01T00:00:00.000Z',
+          },
+        } : null,
+      }),
     },
     exam: {
       findMany: async () => [{
