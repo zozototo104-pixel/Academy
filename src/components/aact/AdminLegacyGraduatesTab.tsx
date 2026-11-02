@@ -373,6 +373,7 @@ export default function AdminLegacyGraduatesTab() {
         const fd = new FormData()
         fd.append('file', excelFile)
         fd.append('dryRun', 'false')
+        fd.append('programOverrides', JSON.stringify(overrides))
         fd.append('offset', String(offset))
         fd.append('limit', '50')
         const data = await jsonOrThrow(await fetch('/api/admin/legacy-graduates/import?dryRun=false', { method: 'POST', body: fd }), 'تعذر حفظ الاستيراد')
