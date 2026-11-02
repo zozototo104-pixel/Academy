@@ -29,14 +29,16 @@ function parseContent(value: unknown): UnitContentSection[] {
  */
 export function hasCompleteUnitArtifacts(
   content: UnitContentSection[],
-  guide: { sourceKnowledgeIds: string | null } | null,
+  guide: { sourceKnowledgeIds: string | null; sections: string | null } | null,
 ): boolean {
   if (!content.some((section) => section.sourceKnowledgeIds?.length || section.sourceChunkIndexes?.length)) return false
-  if (!guide?.sourceKnowledgeIds) return false
+  if (!guide?.sourceKnowledgeIds || !guide.sections) return false
   try {
     const ids: unknown = JSON.parse(guide.sourceKnowledgeIds)
+    const sections: unknown = JSON.parse(guide.sections)
     return Array.isArray(ids) && ids.length > 0 &&
-      ids.every((id) => typeof id === 'string' && id.trim().length > 0)
+      ids.every((id) => typeof id === 'string' && id.trim().length > 0) &&
+      Array.isArray(sections) && sections.length > 0
   } catch {
     return false
   }
