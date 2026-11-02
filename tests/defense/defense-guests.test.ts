@@ -227,6 +227,52 @@ describe('بوابة دخول القاعة لمستخدمي المنصة', () =>
   })
 })
 
+describe('سجل محادثة الغرفة بعد تجاوز 60 رسالة', () => {
+  test('الطالب يرى أحدث 60 بالترتيب الطبيعي بدل تجمد الشات عند أول 60', async () => {
+    currentUser = OWNER
+    const start = Date.UTC(2026, 10, 2, 12, 0)
+    messages = Array.from({ length: 75 }, (_, i) => ({
+      id: `m-${String(i + 1).padStart(3, '0')}`,
+      thesisId: 't1',
+      role: i % 2 === 0 ? 'STUDENT' : 'COMMITTEE',
+      content: `رسالة ${i + 1}`,
+      createdAt: new Date(start + i * 1000),
+    }))
+    const first = await getRoom('thesisId=t1')
+    expect(first.status).toBe(200)
+    const firstJson = await first.json()
+    expect(firstJson.messages).toHaveLength(60)
+    expect(firstJson.messages[0].content).toBe('رسالة 16')
+    expect(firstJson.messages.at(-1).content).toBe('رسالة 75')
+
+    messages.push({
+      id: 'm-076', thesisId: 't1', role: 'STUDENT',
+      content: 'رسالة جديدة بعد الستين',
+      createdAt: new Date(start + 75 * 1000),
+    })
+    const next = await getRoom('thesisId=t1')
+    const nextMessages = (await next.json()).messages
+    expect(nextMessages).toHaveLength(60)
+    expect(nextMessages[0].content).toBe('رسالة 17')
+    expect(nextMessages.at(-1).content).toBe('رسالة جديدة بعد الستين')
+  })
+
+  test('رسائل غرفة أخرى لا تختلط ولا تُكشف لمستخدم لا يملك صلاحية الدخول', async () => {
+    messages = Array.from({ length: 65 }, (_, i) => ({
+      id: `msg-${String(i).padStart(3, '0')}`,
+      thesisId: i === 64 ? 'different-thesis' : 't1',
+      role: 'STUDENT',
+      content: 'غرفة عامة',
+      createdAt: new Date(Date.UTC(2026, 10, 2, 13, 0) + i * 1000),
+    }))
+    currentUser = OWNER
+    const res = await getRoom('thesisId=t1')
+    expect((await res.json()).messages.every((m: any) => m.thesisId === 't1')).toBe(true)
+    currentUser = OTHER_SUP
+    expect((await getRoom('thesisId=t1')).status).toBe(403)
+  })
+})
+
 describe('دخول الضيوف بروابط الدعوة', () => {
   test('ضيف بدعوة صالحة ينضم بهوية الدعوة ودورها، ويصدر له سر جلسة', async () => {
     const { invite, token } = await seedInvite()
