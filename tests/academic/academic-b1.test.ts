@@ -51,6 +51,10 @@ const db: any = {
   },
   answer: {
     create: async ({ data }: any) => { calls.push(`answer.create:${data.questionId}:${data.aiFeedback || ''}`); answers.push({ ...data }); return data },
+    createMany: async ({ data }: any) => {
+      for (const item of data) { calls.push(`answer.create:${item.questionId}:${item.aiFeedback || ''}`); answers.push({ ...item }) }
+      return { count: data.length }
+    },
     updateMany: async ({ where, data }: any) => {
       calls.push(`answer.updateMany:${where.questionId}:${data.aiFeedback || ''}`)
       const existing = answers.find((answer) => answer.attemptId === where.attemptId && answer.questionId === where.questionId)
