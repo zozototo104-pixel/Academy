@@ -52,20 +52,47 @@ function testJsonRubricWithFractionWeights() {
   assert.equal(result.points, 7.8)
 }
 
-function testMissingAndExtraCriteria() {
+function testLowConfidenceRequiresReview() {
   const rubric = JSON.stringify([{ name: 'أ', weight: 50 }, { name: 'ب', weight: 50 }])
-  const result = parseEssayGradeJson(JSON.stringify({
+  assert.throws(() => parseEssayGradeJson(JSON.stringify({
     criteria: [
-      { name: 'أ', weight: 100, score0to10: 10, comment: 'ممتاز' },
-      { name: 'ج زائد', weight: 100, score0to10: 10, comment: 'يجب تجاهله' },
+      { name: 'أ', weight: 50, score0to10: 10, comment: 'صحيح' },
+      { name: 'ب', weight: 50, score0to10: 10, comment: 'صحيح' },
     ],
     feedback: 'تعليق',
     confidence: 'LOW',
-  }), 10, rubric)
-  assert.equal(result.criteria.length, 2)
-  assert.deepEqual(result.criteria.map((c) => c.name), ['أ', 'ب'])
-  assert.equal(result.criteria[1].score0to10, 0)
-  assert.equal(result.points, 5)
+  }), 10, rubric), /ESSAY_LOW_CONFIDENCE/)
+}
+
+function testMissingAndExtraCriteriaRequireReview() {
+  const rubric = JSON.stringify([{ name: 'أ', weight: 50 }, { name: 'ب', weight: 50 }])
+  assert.throws(() => parseEssayGradeJson(JSON.stringify({
+    criteria: [{ name: 'أ', weight: 50, score0to10: 10, comment: 'صحيح' }],
+    feedback: 'تعليق',
+    confidence: 'HIGH',
+  }), 10, rubric), /ESSAY_CRITERION_MISSING/)
+  assert.throws(() => parseEssayGradeJson(JSON.stringify({
+    criteria: [
+      { name: 'أ', weight: 50, score0to10: 10, comment: 'صحيح' },
+      { name: 'ب', weight: 50, score0to10: 10, comment: 'صحيح' },
+      { name: 'ج زائد', weight: 50, score0to10: 10, comment: 'ليس معياراً' },
+    ],
+    feedback: 'تعليق',
+    confidence: 'HIGH',
+  }), 10, rubric), /ESSAY_CRITERION_UNKNOWN/)
+}
+
+function testDuplicateCriterionRequiresReview() {
+  const rubric = JSON.stringify([{ name: 'الدقة', weight: 50 }, { name: 'الشمول', weight: 50 }])
+  assert.throws(() => parseEssayGradeJson(JSON.stringify({
+    criteria: [
+      { name: 'الدقة', weight: 50, score0to10: 10, comment: 'صحيح' },
+      { name: 'الدقة', weight: 50, score0to10: 0, comment: 'مكرر' },
+      { name: 'الشمول', weight: 50, score0to10: 8, comment: 'جيد' },
+    ],
+    feedback: 'تعليق',
+    confidence: 'HIGH',
+  }), 10, rubric), /ESSAY_CRITERION_DUPLICATED/)
 }
 
 async function testEmptyAnswerZeroWithoutAi() {
