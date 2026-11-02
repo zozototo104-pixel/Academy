@@ -338,13 +338,16 @@ export async function PATCH(req: NextRequest) {
             select: { programId: true, userId: true },
           })
           if (admission?.programId && admission.userId) {
-            const finalGrade = await calculateFinalGrade({ userId: admission.userId, programId: admission.programId, admissionId: thesis.admissionId })
-            if (finalGrade.score !== null) {
-              await db.enrollment.updateMany({
-                where: { userId: admission.userId, programId: admission.programId },
-                data: { finalScore: finalGrade.score },
-              })
-            }
+            // Research approval can complete a programme only after all mandatory
+            // semester exams, the >50% cumulative mark and finance checks pass.
+            // Do not set an official finalScore outside the certificate service.
+            await completeEnrollmentIfEligible({
+              userId: admission.userId,
+              programId: admission.programId,
+              admissionId: thesis.admissionId,
+            }).catch((error) => {
+              console.error('Thesis graduation recheck failed:', error)
+            })
           }
         }
       }
