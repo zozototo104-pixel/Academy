@@ -1794,7 +1794,7 @@ export function AdminSystemTab() {
               <div>
                 <h4 className="text-sm font-black text-[#0f2b46]">النسخ الاحتياطي الدوري</h4>
                 <p className="mt-1 text-[11px] font-bold leading-relaxed text-slate-500">
-                  نسخة JSONL مضغوطة يومياً عبر Vercel Cron، ومحفوظة في R2/S3 عند ضبط التخزين الخارجي. النسخ اليدوي قد يستغرق دقيقة حسب حجم البيانات.
+                  نسخة مشفرة ومضغوطة من صفوف قاعدة البيانات عبر Vercel Cron، محفوظة في R2/S3 عند ضبط التخزين. لا تتضمن ملفات الكتب أو الفيديو أو المرفقات المخزنة في R2/S3؛ هذه تحتاج نسخة ملفات مستقلة. النسخ اليدوي قد يستغرق دقيقة حسب حجم البيانات.
                 </p>
               </div>
               <Button onClick={runBackup} disabled={backupBusy} className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">
