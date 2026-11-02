@@ -44,16 +44,6 @@ export function certificateGradeLabelEn(score: number) {
   return `${p}% — Not Passed`
 }
 
-function missingError(missing: string[]) {
-  return `لا يمكن إصدار شهادة البرنامج قبل اكتمال عناصر الدرجة النهائية: ${missing.length ? missing.join('، ') : 'عناصر التقييم غير مكتملة'}.`
-}
-
-function failedComponentLabels(finalGrade: FinalGradeResult) {
-  return finalGrade.components
-    .filter((component) => component.ready && typeof component.score === 'number' && component.score < CERTIFICATE_PASS_SCORE)
-    .map((component) => `${component.label} (${percent(component.score || 0)}%)`)
-}
-
 function isSettledPayment(status: string) {
   return status === 'PAID' || status === 'WAIVED'
 }
