@@ -378,8 +378,9 @@ export async function createDatabaseBackup(trigger: BackupTrigger) {
 
   chunks.push(line({ type: 'meta', platform: 'AACT', format: 'aact-db-jsonl-v1', exportedAt, trigger, tables: tables.map((t) => t.name) }))
 
+  await db.$transaction(async (tx) => {
   for (const table of tables) {
-    const delegate = (db as any)[table.delegate]
+    const delegate = (tx as any)[table.delegate]
     if (!delegate?.findMany || !delegate?.count) {
       errors.push({ table: table.name, error: 'Delegate not available' })
       continue
