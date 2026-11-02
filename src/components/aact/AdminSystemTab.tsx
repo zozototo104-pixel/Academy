@@ -66,6 +66,7 @@ interface BackupStatus {
     encryptionConfigured?: boolean
     localFallbackAllowed: boolean
     includeSessions: boolean
+    isolatedRestoreEnabled?: boolean
     tableCount: number
   }
   recent: Array<{ id: string; action: string; entityId?: string | null; details?: string | null; createdAt: string }>
