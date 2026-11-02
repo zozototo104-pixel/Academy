@@ -1,7 +1,8 @@
 /// <reference types="bun-types" />
 import { describe, expect, test } from 'bun:test'
 import { validateAdmissionFileSignature } from '../../src/lib/file-signature'
-import { backupTableNames } from '../../src/lib/backups'
+import { backupTableNames, backupTableSpecs } from '../../src/lib/backups'
+import { Prisma } from '@prisma/client'
 import { clientIpFromHeaders } from '../../src/lib/rate-limit'
 
 describe('files C2 upload and backup safety', () => {
