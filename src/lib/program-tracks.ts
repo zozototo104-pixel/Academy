@@ -249,6 +249,7 @@ export interface PartialAcademicProgramProfile {
   termPlans?: AcademicTermPlan[]
   finalEvaluationFormula?: AcademicEvaluationItem[]
   approvedFormulaSignature?: string
+  approvedFormulaAt?: string
   graduationRequirements?: string[]
   assessmentComponents?: string[]
   thesisRequirement?: string
