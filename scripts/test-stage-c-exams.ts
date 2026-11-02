@@ -16,6 +16,7 @@ type DiplomaFixture = {
   category?: 'DIPLOMA' | 'DOCTORATE'
   examPassScore?: number
   researchRequired?: boolean
+  researchUnapproved?: boolean
   researchScore?: number | null
   unitScore?: number | null
   unitPassed?: boolean
