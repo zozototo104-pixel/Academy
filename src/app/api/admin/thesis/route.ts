@@ -5,7 +5,7 @@ import { requireAdmin } from '@/lib/auth'
 import { notify, audit } from '@/lib/notify'
 import { getSettings } from '@/lib/settings'
 import { emailDefenseScheduled, emailThesisFinalRevision, emailThesisPlanDecision, emailThesisResultApproved } from '@/lib/mailer'
-import { calculateFinalGrade } from '@/lib/final-grade'
+import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
 import { getStorageDownloadPathForKey } from '@/lib/storage'
 
 export const dynamic = 'force-dynamic'
