@@ -113,6 +113,8 @@ export async function GET(req: NextRequest) {
               ? 'لقد اجتزت هذا الاختبار بالفعل ولا يمكن بدء محاولة جديدة.'
               : attemptState.reason === 'MAX_ATTEMPTS_REACHED'
               ? 'استنفدت عدد محاولات هذا الاختبار'
+              : attemptState.reason === 'NEEDS_REVIEW'
+              ? 'تأخر التصحيح؛ تم حفظ إجاباتك ونقل المحاولة للمراجعة البشرية دون احتساب صفر.'
               : 'هذه المحاولة قيد التصحيح بالفعل',
           code: attemptState.reason,
           maxAttempts: attemptState.maxAttempts,
