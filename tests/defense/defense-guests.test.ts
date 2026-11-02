@@ -26,6 +26,7 @@ function reset() {
   applications = [{ id: 'a1', supervisorId: 'sup-1', userId: 'student-1' }]
   participants = []
   signals = []
+  messages = []
   invites = []
   settings = []
   inviteSeq = 0
