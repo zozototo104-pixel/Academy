@@ -299,11 +299,22 @@ export async function POST(req: NextRequest) {
         })
       } else {
         const essayText = submit?.answerText || ''
-        if (!q.modelAnswer) {
-          return NextResponse.json(
-            { error: `الإجابة النموذجية غير مكتملة للسؤال رقم ${q.order}. لا يمكن تصحيح سؤال مقالي بلا مرجع معتمد.`, code: 'MODEL_ANSWER_MISSING' },
-            { status: 422 }
-          )
+        if (!q.modelAnswer && essayText.trim().length >= 3) {
+          // Reference missing: retain the submitted answer for human marking,
+          // without manufacturing zero points or stranding the claimed attempt.
+          needsReview = true
+          answersToPersist.push({
+            questionId: q.id, answerText: essayText, isCorrect: null,
+            points: null, maxPoints: q.points,
+            aiFeedback: JSON.stringify({ status: 'NEEDS_REVIEW', code: 'ESSAY_MODEL_ANSWER_MISSING' }),
+          })
+          gradedResults.push({
+            questionId: q.id, order: q.order, type: q.type, text: q.text,
+            isCorrect: null, points: 0, maxPoints: q.points,
+            aiFeedback: 'الإجابة محفوظة للمراجعة البشرية بسبب عدم توفر الإجابة النموذجية.',
+            studentAnswer: essayText,
+          })
+          continue
         }
 
         let graded: { points: number; feedback: string; confidence?: string; criteria?: unknown }
