@@ -238,6 +238,7 @@ export async function inspectStoredDatabaseBackup(input: { provider?: string | n
     header: { type: decrypted.header.type, algorithm: decrypted.header.algorithm, aad: decrypted.aad },
     meta: parsed.meta,
     summary: parsed.summary,
+    integrity: validateBackupManifest(parsed),
     parsedLines: parsed.parsedLines,
     tables: parsed.tables.map((table) => ({ name: table.name, delegate: table.delegate, expected: table.expected, rows: table.rows.length, mismatch: table.expected !== table.rows.length })),
     checksums: { encryptedSha256: sha256(stored.buffer), compressedSha256: sha256(decrypted.compressed), uncompressedSha256: sha256(decrypted.plain) },
