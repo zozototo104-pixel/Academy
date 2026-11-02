@@ -25,6 +25,13 @@ type DbClient = typeof db | Prisma.TransactionClient
 
 type ComponentScore = number | null | 'EXEMPT' | { score: number; complete: boolean }
 
+// Both Answer and ProgramAnswer expose the same selected scoring fields in Prisma.
+// Keep this small structural type shared by percentFromAnswers and exam score recovery.
+type ScoredAnswer = {
+  points: number | null
+  maxPoints: number | null
+}
+
 type GradeWeights = Record<string, number>
 const DEFAULT_WEIGHTS: Record<string, GradeWeights> = {
   DIPLOMA: { quizzes: 20, assignments: 20, final_exam: 60 },
