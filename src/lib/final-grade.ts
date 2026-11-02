@@ -100,21 +100,12 @@ function best(values: Array<number | null | undefined>) {
   return Math.max(...nums)
 }
 
-function component(key: string, label: string, weight: number, score: ComponentScore): FinalGradeComponent {
-  if (score === 'EXEMPT') {
-    return { key, label, weight, score: null, weighted: 0, ready: true, exempt: true }
-  }
-  const ready = typeof score === 'number' && Number.isFinite(score)
-  const rawScore = ready ? clampPercent(score) : null
-  return {
-    key,
-    label,
-    weight,
-    // Raw percentage: certification decisions compare this unrounded value.
-    score: rawScore,
-    weighted: rawScore == null ? 0 : (rawScore * weight) / 100,
-    ready,
-  }
+function component(key: string, label: string, weight: number, value: ComponentScore): FinalGradeComponent {
+  if (value === 'EXEMPT') return { key, label, weight, score: null, weighted: 0, ready: true, exempt: true }
+  const complete = typeof value === 'number' || (value !== null && typeof value === 'object' && value.complete)
+  const numberScore = typeof value === 'number' ? value : value && typeof value === 'object' ? value.score : null
+  const score = typeof numberScore === 'number' && Number.isFinite(numberScore) ? clampPercent(numberScore) : null
+  return { key, label, weight, score, weighted: score == null ? 0 : score * weight / 100, ready: complete }
 }
 
 function percentFromAnswers(answers: ScoredAnswer[]) {
