@@ -138,6 +138,15 @@ export async function gradeEssayWithRubric(args: {
   if (!modelAnswer) throw new EssayNeedsReviewError('ESSAY_MODEL_ANSWER_MISSING')
   const question = String(args.question || '').replace(/\s+/g, ' ').trim().slice(0, 1200)
   const criteriaText = rubricInfo.criteria.map((item) => `- ${item.name}: ${item.weight}`).join('\n')
+  const semanticGradingRules = [
+    'قيّم مطابقة المعنى العلمي والأفكار المطلوبة، لا مطابقة الكلمات أو ترتيب الجمل مع الإجابة النموذجية.',
+    'تقبّل المرادفات وإعادة الصياغة المختصرة والصحيحة، حتى عند اختلاف الألفاظ كلياً عن النص الأصلي.',
+    'استخرج النقاط الجوهرية في السؤال والإجابة النموذجية، وحدد الأفكار الصحيحة التي عبّر عنها الطالب بأي صياغة.',
+    'امنح الدرجة الكاملة عند اكتمال المعنى المطلوب وصحته، ودرجة جزئية عادلة إذا ذكر الطالب بعض الأفكار الصحيحة.',
+    'لا تجعل إضافة معلومات عامة لا تتعارض مع الإجابة الصحيحة سبباً لإبطال النقاط المستحقة، ولا تمنح نقاطاً عن معلومات لا تدعمها المراجع.',
+    'لا تمنح درجة لإجابة تناقض المصدر أو تستبدل المطلوب بمفهوم مختلف. إذا لم تتأكد من التكافؤ المعنوي، اختر confidence=LOW لإحالة الإجابة للمراجعة البشرية.',
+    'اشرح في comment وfeedback أي مفهوم أساسي غائب أو خطأ علمي محدد، ولا تقل إن الإجابة خاطئة لمجرد اختلاف الصياغة.',
+  ].join('\n')
   const raw = await textAiCompleteJson({
     taskLevel: 'ACADEMIC_CRITICAL',
     purpose: 'GRADING',
