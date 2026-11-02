@@ -650,10 +650,16 @@ export async function POST(req: NextRequest) {
     if ((plan as any).evidenceError) return NextResponse.json({ error: (plan as any).evidenceError }, { status: 422 })
     if (!plan.units.length) return NextResponse.json({ error: 'لم ينتج تحليل الكتب وبنك المعرفة أي وحدات قابلة للحفظ.' }, { status: 422 })
 
+    const { created, replaceProtection, generationAudit } = await db.$transaction(async (tx) => {
+      // Serialise competing generation requests for the same programme.
+      await tx.$queryRaw`SELECT "id" FROM "Program" WHERE "id" = ${programId} FOR UPDATE`
+      const currentLockedCount = await tx.unit.count({ where: { programId } })
+      if (currentLockedCount !== currentCount) throw new Error('UNIT_PLAN_STALE_RETRY')
+
     let replaceProtection = { deleted: 0, keptApproved: 0, keptOutline: 0, keptWithAttempts: 0 }
     let orderOffset = Number(existingOrder._max.order || currentCount)
     if (replace) {
-      const unitsBeforeReplace = await db.unit.findMany({
+      const unitsBeforeReplace = await tx.unit.findMany({
         where: { programId },
         select: {
           status: true,
@@ -662,9 +668,9 @@ export async function POST(req: NextRequest) {
         },
       })
       replaceProtection = summarizeReplaceUnitProtection(unitsBeforeReplace)
-      const deleted = await db.unit.deleteMany({ where: safeReplaceDraftUnitWhere(programId) })
+      const deleted = await tx.unit.deleteMany({ where: safeReplaceDraftUnitWhere(programId) })
       replaceProtection.deleted = deleted.count
-      const remainingOrder = await db.unit.aggregate({ where: { programId }, _max: { order: true } })
+      const remainingOrder = await tx.unit.aggregate({ where: { programId }, _max: { order: true } })
       orderOffset = Number(remainingOrder._max.order || 0)
     }
 
@@ -687,7 +693,7 @@ export async function POST(req: NextRequest) {
       previousNote: cleanText((plan.program as any).curriculumPreparationNote, 1200) || undefined,
     }
 
-    const created = await Promise.all(plan.units.map((u: any, idx: number) => db.unit.create({
+    const created = await Promise.all(plan.units.map((u: any, idx: number) => tx.unit.create({
       data: {
         programId,
         order: orderOffset + idx + 1,
@@ -700,7 +706,7 @@ export async function POST(req: NextRequest) {
       },
     })))
 
-    await db.program.update({
+    await tx.program.update({
       where: { id: programId },
       data: {
         semestersCount: plan.semestersCount,
@@ -711,6 +717,9 @@ export async function POST(req: NextRequest) {
         curriculumPreparationNote: safeJson(generationAudit),
       },
     })
+
+      return { created, replaceProtection, generationAudit }
+    }, { maxWait: 20000, timeout: 120000 })
 
     await audit({ id: admin.id, name: admin.name }, 'GENERATE_CURRICULUM_UNITS', 'Program', programId, `اقتراح ${created.length} وحدة منهجية مبنية على قراءة الكتب وبنك المعرفة لبرنامج ${plan.program.titleAr}${replace ? ' مع استبدال الوحدات السابقة' : append ? ' مع إضافتها إلى الوحدات الحالية' : ''}`)
 
