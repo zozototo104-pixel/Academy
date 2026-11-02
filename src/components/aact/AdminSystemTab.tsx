@@ -1875,6 +1875,15 @@ export function AdminSystemTab() {
               </div>
               {restorePreview && (
                 <div className="mt-3 rounded-xl border border-amber-100 bg-white p-3 text-[11px] font-bold leading-relaxed text-slate-600">
+                  {restorePreview.integrity && (
+                    <div className={restorePreview.integrity.valid
+                      ? 'mb-3 rounded-lg bg-emerald-50 p-2 text-emerald-800'
+                      : 'mb-3 rounded-lg bg-red-50 p-2 text-red-800'}>
+                      {restorePreview.integrity.valid
+                        ? `فحص التغطية سليم: ${restorePreview.integrity.includedTables}/${restorePreview.integrity.expectedTables} جدول، وكل أعداد الصفوف متطابقة.`
+                        : `هذه النسخة ليست صالحة للاستعادة الشاملة: ${restorePreview.integrity.missingTables.length} جدول ناقص. ${restorePreview.integrity.errors.join('، ')}`}
+                    </div>
+                  )}
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span>وضع العملية: <b>{restorePreview.mode === 'restore' ? 'استيراد' : 'فحص فقط'}</b></span>
                     <span>{restorePreview.tables?.length || restorePreview.results?.length || 0} جدول</span>
