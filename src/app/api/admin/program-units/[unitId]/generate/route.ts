@@ -94,15 +94,23 @@ export async function POST(req: NextRequest, context: Context) {
     if (!unit.sourceBookId || unit.chunkStartIndex == null || unit.chunkEndIndex == null || !unit.outlineSectionId) {
       return NextResponse.json({ error: 'UNIT_OUTLINE_SOURCE_REQUIRED' }, { status: 400 })
     }
+    const existingContent = parseContent(unit.content)
+    const hasReferencedContent = existingContent.some(
+      (section) => section.sourceKnowledgeIds?.length || section.sourceChunkIndexes?.length,
+    )
     if (!force) {
       const guide = await db.programStudyGuide.findFirst({
         where: { unitId: unit.id },
         select: { sourceKnowledgeIds: true, sections: true },
       })
-      if (hasCompleteUnitArtifacts(parseContent(unit.content), guide)) {
+      if (hasCompleteUnitArtifacts(existingContent, guide)) {
         return NextResponse.json({ ok: true, skipped: 'UNIT_ALREADY_HAS_REFERENCED_CONTENT', unit: mapUnit(unit) })
       }
     }
+    // Repair only the missing/invalid study guide when existing unit content
+    // has real source references. Full content generation requires absent
+    // referenced content or an explicit administrator regenerate/force request.
+    const repairGuideOnly = !force && !!hasReferencedContent
 
     let createdJob: { id: string }
     try {
