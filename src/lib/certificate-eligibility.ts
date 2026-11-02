@@ -40,7 +40,7 @@ export function certificateGradeLabelEn(score: number) {
   if (score >= 90) return `${p}% — Excellent`
   if (score >= 80) return `${p}% — Very Good`
   if (score >= 70) return `${p}% — Good`
-  if (score >= CERTIFICATE_PASS_SCORE) return `${p}% — Pass`
+  if (score > CERTIFICATE_PASS_SCORE) return `${p}% — Pass`
   return `${p}% — Not Passed`
 }
 
