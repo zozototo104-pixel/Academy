@@ -251,6 +251,10 @@ async function main() {
     throw new Error('Refusing restore. Set AACT_RESTORE_CONFIRM=YES together with --restore to write to the database.')
   }
 
+  if (restore && process.env.AACT_RESTORE_ISOLATED_TARGET !== 'YES') {
+    throw new Error('Refusing restore unless AACT_RESTORE_ISOLATED_TARGET=YES is set for a separate, empty test database.')
+  }
+
   const encrypted = readFileSync(file)
   const { header, compressed, plain } = decryptEncryptedBackup(encrypted)
   const parsed = parseBackupJsonl(plain)
