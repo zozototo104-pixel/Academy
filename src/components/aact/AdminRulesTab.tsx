@@ -86,6 +86,7 @@ interface AcademicProfileDraft {
   termPlans?: AcademicTermPlanDraft[]
   finalEvaluationFormula?: AcademicEvaluationItemDraft[]
   approvedFormulaSignature?: string
+  approvedFormulaAt?: string
   graduationRequirements?: string[]
   assessmentComponents?: string[]
   thesisRequirement?: string
