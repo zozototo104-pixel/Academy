@@ -330,7 +330,8 @@ export async function calculateFinalGrade(input: {
   const historicalScore = enrollment?.status === 'COMPLETED' && typeof enrollment.finalScore === 'number'
     ? enrollment.finalScore : null
   return {
-    score: missing.length ? null : historicalScore ?? earned,
+    score: historicalScore ?? (missing.length ? null : earned),
+    earnedScore: earned,
     progressScore: Math.round(earned * 100) / 100,
     components,
     missing,
