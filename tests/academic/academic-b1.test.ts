@@ -8,6 +8,9 @@ const defenseMessages: any[] = [{ id: 'm1', thesisId: 'thesis-1', role: 'STUDENT
 let thesis: any
 let unitModelAnswer: string | null = 'إجابة نموذجية'
 let pendingUnitGrading: { submittedAt: Date | null; savedAnswerCount: number } | null = null
+let unitObjectiveMode = false
+let programObjectiveMode = false
+let optionalFeedbackFails = false
 
 function clone<T>(value: T): T {
   return value == null ? value : JSON.parse(JSON.stringify(value))
