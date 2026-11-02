@@ -10,7 +10,7 @@ import { describe, test, expect, mock } from 'bun:test'
 import { NextRequest } from 'next/server'
 import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { findMissingAnswerQuestionIds, findUngradedAnswers, gradeObjectiveAnswer } from '../../src/lib/answer-completeness'
+import { findDuplicateAnswerQuestionIds, findMissingAnswerQuestionIds, findUngradedAnswers, sumRequiredAnswerPoints, gradeObjectiveAnswer } from '../../src/lib/answer-completeness'
 
 const root = join(import.meta.dir, '..', '..')
 const read = (path: string) => readFileSync(join(root, path), 'utf8')
