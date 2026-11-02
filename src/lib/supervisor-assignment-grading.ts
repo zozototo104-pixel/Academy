@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
 import { textAiCompleteJson } from '@/lib/text-ai'
 import { extractDocumentText, isPdfLike } from '@/lib/document-extract'
 import { getFileBufferFromStorageOrBase64, getStorageDownloadPathForKey } from '@/lib/storage'
