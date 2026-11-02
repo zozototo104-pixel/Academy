@@ -6,9 +6,9 @@ const { calculateFinalGrade } = await import('@/lib/final-grade')
 const { gradingFormulaSignature } = await import('@/lib/program-tracks')
 
 const diplomaFormula = [
-  { label: 'اختبارات قصيرة ومتابعة', weight: 30 },
-  { label: 'واجبات أو أنشطة تطبيقية', weight: 20 },
-  { label: 'الاختبار النهائي', weight: 50 },
+  { key: 'quizzes', label: 'اختبارات قصيرة ومتابعة', weight: 30 },
+  { key: 'assignments', label: 'واجبات أو أنشطة تطبيقية', weight: 20 },
+  { key: 'final_exam', label: 'الاختبار النهائي', weight: 50 },
 ]
 
 type Scenario = {
