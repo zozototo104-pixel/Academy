@@ -3603,7 +3603,13 @@ export function AdminBooksTab() {
                 <div className="mt-4 space-y-3">
                   {filteredGradingQueue.length === 0 ? (
                     <div className="rounded-2xl bg-slate-50 p-8 text-center text-sm font-bold text-slate-500">لا توجد تسليمات مطابقة للفلتر الحالي.</div>
-                  ) : pagedGradingQueue.map(({ assignment, submission }) => (
+                  ) : pagedGradingGroups.map((student) => (
+                    <details key={student.studentId} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                      <summary className="cursor-pointer select-none text-sm font-black text-[#0f2b46]">
+                        {student.name} <span className="text-xs font-bold text-slate-500">{student.email} — {student.entries.length} تسليم — {student.entries.filter(({ submission }) => submission.status !== 'GRADED').length} بانتظار التصحيح</span>
+                      </summary>
+                      <div className="mt-3 space-y-3">
+                      {student.entries.map(({ assignment, submission }) => (
                     <article key={submission.id} className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
