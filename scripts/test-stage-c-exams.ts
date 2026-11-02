@@ -25,6 +25,13 @@ type DiplomaFixture = {
 }
 
 function mockDiplomaClient(programAttemptScores: number[], options: DiplomaFixture = {}) {
+  const category = options.category || 'DIPLOMA'
+  const researchFormula = [
+    { key: 'quizzes', label: 'وحدات', weight: 20 },
+    { key: 'assignments', label: 'واجبات', weight: 20 },
+    { key: 'final_exam', label: 'فصلي', weight: 40 },
+    { key: 'thesis', label: 'بحث تخرج', weight: 20 },
+  ]
   const unitScore = options.unitScore === undefined ? 100 : options.unitScore
   const unitPassed = options.unitPassed ?? (unitScore !== null && unitScore >= 51)
   const client: any = {
