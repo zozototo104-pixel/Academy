@@ -19,7 +19,65 @@ export interface FinalGradeResult {
 
 type DbClient = typeof db | Prisma.TransactionClient
 
-type ComponentScore = number | null | 'EXEMPT'
+type ComponentScore = number | null | 'EXEMPT' | { score: number; complete: boolean }
+
+type GradeWeights = Record<string, number>
+const DEFAULT_WEIGHTS: Record<string, GradeWeights> = {
+  DIPLOMA: { quizzes: 20, assignments: 20, final_exam: 60 },
+  MASTERS: { semester1_quizzes: 10, semester1_exam: 15, semester2_quizzes: 10, semester2_exam: 15, thesis: 30, defense: 20 },
+  DOCTORATE: { reading_quizzes: 8, reading_exam: 12, analysis_quizzes: 8, analysis_exam: 12, thesis: 40, defense: 20 },
+}
+const FORMULA_KEYS: Record<string, Record<string, string>> = {
+  DIPLOMA: {
+    'اختبارات قصيرة ومتابعة': 'quizzes',
+    'واجبات أو أنشطة تطبيقية': 'assignments',
+    'الاختبار النهائي': 'final_exam',
+    'بحث تخرج': 'thesis',
+  },
+  MASTERS: {
+    'اختبارات الفصل الأول القصيرة': 'semester1_quizzes',
+    'امتحان الفصل الأول': 'semester1_exam',
+    'اختبارات الفصل الثاني القصيرة': 'semester2_quizzes',
+    'امتحان الفصل الثاني': 'semester2_exam',
+    'بحث التخرج المهني': 'thesis',
+    'المناقشة النهائية': 'defense',
+  },
+  DOCTORATE: {
+    'اختبارات/تقارير القراءات المتقدمة': 'reading_quizzes',
+    'اختبار مرحلة القراءات المتقدمة': 'reading_exam',
+    'اختبارات/حالات التطبيق والتحليل': 'analysis_quizzes',
+    'اختبار مرحلة التطبيق والتحليل': 'analysis_exam',
+    'الأطروحة المهنية': 'thesis',
+    'المناقشة النهائية': 'defense',
+  },
+}
+/** A programme's published academic formula is authoritative only if complete and valid. */
+export function resolveGradeWeights(category: string, admissionRules: unknown): {
+  weights: GradeWeights
+  source: 'academic_profile' | 'category_default'
+  warning?: string
+} {
+  const defaults = DEFAULT_WEIGHTS[category] || DEFAULT_WEIGHTS.DIPLOMA
+  const fallback = (warning?: string) => ({ weights: { ...defaults }, source: 'category_default' as const, ...(warning ? { warning } : {}) })
+  if (!admissionRules || typeof admissionRules !== 'object' || Array.isArray(admissionRules)) return fallback()
+  const formula = (admissionRules as Record<string, any>).academicProfile?.finalEvaluationFormula
+  if (!Array.isArray(formula) || formula.length === 0) return fallback()
+  const labels = FORMULA_KEYS[category]
+  if (!labels) return fallback('ASSESSMENT_FORMULA_UNSUPPORTED_CATEGORY')
+  const weights: GradeWeights = {}
+  for (const row of formula) {
+    const label = String(row?.label || '').replace(/\s+/g, ' ').trim()
+    const key = labels[label]
+    const weight = Number(row?.weight)
+    if (!key || !Number.isFinite(weight) || weight <= 0 || weight > 100 || key in weights) return fallback('ASSESSMENT_FORMULA_INVALID')
+    weights[key] = weight
+  }
+  if (Object.keys(defaults).some((key) => !(key in weights)) ||
+      Math.abs(Object.values(weights).reduce((sum, n) => sum + n, 0) - 100) > 0.000001) {
+    return fallback('ASSESSMENT_FORMULA_INVALID')
+  }
+  return { weights, source: 'academic_profile' }
+}
 
 type ScoredAnswer = { points: number | null; maxPoints: number | null }
 
