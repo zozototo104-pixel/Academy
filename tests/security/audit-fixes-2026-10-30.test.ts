@@ -156,7 +156,12 @@ mock.module('@/lib/tuition-installments', () => ({
   getAdmissionTuitionPlan: async () => null,
   enforceSemesterTuitionGate: async () => ({ ok: true }),
 }))
-mock.module('@/lib/semester-readiness', () => ({ calculateSemesterReadiness: async () => ({ readyMarked: true }) }))
+mock.module('@/lib/semester-readiness', () => ({
+  calculateSemesterReadiness: async () => ({ readyMarked: true }),
+  // The examination route now imports the shared first-semester prerequisite.
+  // This security test exercises semester-one questions, not progression to semester two.
+  hasPassedFirstSemesterExam: async () => false,
+}))
 mock.module('@/lib/exam-attempt-policy', () => ({
   EXAM_ATTEMPT_POLICY_SINCE: new Date(0),
   getExamMaxAttempts: async () => 3,
