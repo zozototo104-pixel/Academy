@@ -9,7 +9,7 @@
 import { describe, test, expect } from 'bun:test'
 import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { findUngradedAnswers } from '../../src/lib/answer-completeness'
+import { findMissingAnswerQuestionIds, findUngradedAnswers, gradeObjectiveAnswer } from '../../src/lib/answer-completeness'
 
 const root = join(import.meta.dir, '..', '..')
 const read = (path: string) => readFileSync(join(root, path), 'utf8')
@@ -46,6 +46,42 @@ describe('findUngradedAnswers — بوابة اكتمال التصحيح', () =>
   })
 })
 
+describe('findMissingAnswerQuestionIds — بوابة التغطية', () => {
+  test('سؤال مطلوب بلا سجل إجابة يُكشف (قلب ثقب الاعتماد الثاني)', () => {
+    const required = ['q1', 'q2', 'q3']
+    const answers = [{ questionId: 'q1' }, { questionId: 'q3' }]
+    expect(findMissingAnswerQuestionIds(required, answers)).toEqual(['q2'])
+  })
+
+  test('مصفوفة إجابات فارغة مع أسئلة مطلوبة = كلها مفقودة', () => {
+    expect(findMissingAnswerQuestionIds(['q1', 'q2'], [])).toEqual(['q1', 'q2'])
+  })
+
+  test('تغطية كاملة = لا مفقود، والإجابات الزائدة لا تضر', () => {
+    const answers = [{ questionId: 'q1' }, { questionId: 'q2' }, { questionId: 'qX' }]
+    expect(findMissingAnswerQuestionIds(['q1', 'q2'], answers)).toEqual([])
+  })
+})
+
+describe('gradeObjectiveAnswer — إعادة التصحيح الحتمية', () => {
+  const base = { optionsRaw: JSON.stringify(['أ', 'ب', 'ج']), correctAnswerRaw: '1', maxPoints: 10 }
+
+  test('اختيار صحيح = العلامة الكاملة', () => {
+    expect(gradeObjectiveAnswer({ ...base, selectedOption: 1 })).toEqual({ points: 10, isCorrect: true, correctAnswerText: 'ب' })
+  })
+
+  test('اختيار خاطئ أو غياب الاختيار = صفر صريح', () => {
+    expect(gradeObjectiveAnswer({ ...base, selectedOption: 0 })?.points).toBe(0)
+    expect(gradeObjectiveAnswer({ ...base, selectedOption: null })?.points).toBe(0)
+    expect(gradeObjectiveAnswer({ ...base, selectedOption: null })?.isCorrect).toBe(false)
+  })
+
+  test('مفتاح ناقص = null (يُرفض بدل التخمين)', () => {
+    expect(gradeObjectiveAnswer({ ...base, correctAnswerRaw: null, selectedOption: 1 })).toBeNull()
+    expect(gradeObjectiveAnswer({ ...base, optionsRaw: null, selectedOption: 1 })).toBeNull()
+  })
+})
+
 describe('حراس نصية للمسارات', () => {
   test('اعتماد الإدارة: الفحص يشمل كل الإجابات بلا مرشح نوع', () => {
     const route = read('src/app/api/admin/attempts-review/route.ts')
@@ -56,11 +92,34 @@ describe('حراس نصية للمسارات', () => {
     expect(route).not.toContain('ensureNoNullOpenAnswers')
   })
 
-  test('مراجعة المشرف: لا حسم قبل اكتمال النقاط', () => {
+  test('اعتماد الإدارة: بوابة التغطية قبل بوابة النقاط', () => {
+    const route = read('src/app/api/admin/attempts-review/route.ts')
+    const gate = route.slice(route.indexOf('async function ensureAllAnswersGraded'), route.indexOf('async function ensureManualAnswerIdsBelongToAttempt'))
+    expect(gate).toContain('findMissingAnswerQuestionIds')
+    expect(gate).toContain('ANSWERS_COVERAGE_INCOMPLETE')
+    expect(gate).toContain("status: 'PUBLISHED'")
+    expect(gate.indexOf('ANSWERS_COVERAGE_INCOMPLETE')).toBeLessThan(gate.indexOf('ANSWERS_NOT_FULLY_GRADED'))
+  })
+
+  test('مراجعة المشرف: لا حسم قبل اكتمال النقاط والتغطية', () => {
     const lib = read('src/lib/supervisor-grade-review.ts')
     const gateAt = lib.indexOf('ANSWERS_NOT_FULLY_GRADED')
     expect(gateAt).toBeGreaterThan(-1)
     expect(gateAt).toBeLessThan(lib.indexOf('const maxTotal'))
+    expect(lib).toContain('ANSWERS_COVERAGE_INCOMPLETE')
+    expect(lib.indexOf('ANSWERS_COVERAGE_INCOMPLETE')).toBeLessThan(lib.indexOf('const maxTotal'))
+  })
+
+  test('تفاصيل المراجعة: كل أنواع الأسئلة ظاهرة وقابلة لإعادة التصحيح الحتمي', () => {
+    const route = read('src/app/api/admin/attempts-review/route.ts')
+    const unitDetail = route.slice(route.indexOf('async function unitDetail'), route.indexOf('async function programDetail'))
+    const programDetail = route.slice(route.indexOf('async function programDetail'), route.indexOf('async function readinessForProgramAttempt'))
+    for (const detail of [unitDetail, programDetail]) {
+      expect(detail).toContain('questionType')
+      expect(detail).not.toContain("['ESSAY', 'SHORT']")
+    }
+    expect(route).toContain('gradeObjectiveAnswer')
+    expect(route).toContain('ANSWER_KEY_MISSING')
   })
 
   test('قائمة المراجعة: العالق SUBMITTED الأقدم من 30 دقيقة ظاهر وقابل للنقل المحروس', () => {
@@ -82,6 +141,10 @@ describe('حراس نصية للمسارات', () => {
     const guard = read('src/lib/live-usage-guard.ts')
     expect(guard).toContain("error?.code !== 'P2002'")
     expect(guard).toContain('newlyGranted: false')
+    // تعافي P2002 بقراءة جديدة خارج المعاملة المُجهضة، لا داخلها:
+    // بحث tx الوحيد هو فحص الوجود المسبق ضمن القفل.
+    expect(guard).toContain('await db.aiLiveCredit.findFirst({ where: { paymentId: input.paymentId } })')
+    expect(guard.split('tx.aiLiveCredit.findFirst').length - 1).toBe(1)
   })
 
   test('مسارا التسليم: رموز سبب فقط في بيانات الفشل المخزنة', () => {

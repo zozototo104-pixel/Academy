@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { notify } from '@/lib/notify'
 import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
+import { findMissingAnswerQuestionIds } from '@/lib/answer-completeness'
 import type { SupervisorActor } from '@/lib/supervisor-scope'
 
 // مراجعة المشرف البشري لنتائج طلابه بعد تصحيح الذكاء + البتّ في
@@ -153,6 +154,14 @@ export async function applyScoreAdjustments(
     // كصفر، فيرسب الطالب بصمت على إجابة قد تكون صحيحة — نفس بوابة الإدارة.
     const ungradedCount = attempt.answers.filter((a: any) => a.points == null).length
     if (ungradedCount) throw Object.assign(new Error('ANSWERS_NOT_FULLY_GRADED'), { userMessage: `لا يمكن إتمام المراجعة قبل تحديد نقاط كل الإجابات: ${ungradedCount} إجابة بلا نقاط` })
+
+    // وتغطية كاملة أيضاً: كل سؤال مطلوب له سجل إجابة. سجل مفقود يُخرج
+    // السؤال من الحساب بصمت — نفس بوابة الإدارة.
+    const requiredQuestions = type === 'UNIT'
+      ? attempt.exam.questions
+      : attempt.exam.questions.filter((q: any) => q.status === 'PUBLISHED')
+    const missingCount = findMissingAnswerQuestionIds(requiredQuestions.map((q: any) => q.id), attempt.answers).length
+    if (missingCount) throw Object.assign(new Error('ANSWERS_COVERAGE_INCOMPLETE'), { userMessage: `لا يمكن إتمام المراجعة: ${missingCount} سؤال مطلوب بلا سجل إجابة` })
 
     // المقام هو مجموع نقاط الأسئلة كما دخلت تصحيح هذه المحاولة فعلياً
     // (maxPoints المحفوظة على كل إجابة)، لا مجموع أسئلة الامتحان الحالية:

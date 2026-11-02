@@ -78,7 +78,7 @@ function seed() {
   const AT1 = {
     id: 'AT1', userId: 'stu-1', status: 'GRADED', score: 70, passed: true, aiGraded: true, appealStatus: 'NONE', appealReason: null, appealResponse: null, appealedAt: null, reviewedById: null, reviewedAt: null, submittedAt: new Date(),
     user: { id: 'stu-1', name: 'طالب أول', email: 's1@x.io' },
-    exam: { id: 'E1', title: 'امتحان الوحدة', passScore: 60, questions: [{ points: 10 }, { points: 10 }], unit: { title: 'الوحدة الأولى', programId: 'P1', program: { id: 'P1', titleAr: 'برنامج أ' } } },
+    exam: { id: 'E1', title: 'امتحان الوحدة', passScore: 60, questions: [{ id: 'Q1', points: 10 }, { id: 'Q2', points: 10 }], unit: { title: 'الوحدة الأولى', programId: 'P1', program: { id: 'P1', titleAr: 'برنامج أ' } } },
     answers: [UA1, UA2],
   }
   const AT2 = { id: 'AT2', userId: 'stu-2', status: 'GRADED', score: 50, passed: false, aiGraded: true, appealStatus: 'NONE', appealReason: null, appealResponse: null, appealedAt: null, reviewedById: null, reviewedAt: null, submittedAt: new Date(), user: { id: 'stu-2', name: 'طالب ثان', email: 's2@x.io' }, exam: AT1.exam, answers: [] }
@@ -95,7 +95,7 @@ function seed() {
     id: 'PAT3', userId: 'stu-1', status: 'GRADED', score: 80, finalScore: null, passed: true, appealStatus: 'NONE', appealReason: null, appealResponse: null, appealedAt: null, reviewedById: null, reviewedAt: null, submittedAt: new Date(),
     user: { id: 'stu-1', name: 'طالب أول', email: 's1@x.io' },
     // سؤال ثالث مرفوض (40 نقطة) موجود بالامتحان لكنه لم يدخل التصحيح أصلاً
-    exam: { id: 'PE2', title: 'فصلي ب', passScore: 60, programId: 'P1', semester: 1, program: { id: 'P1', titleAr: 'برنامج أ' }, questions: [{ points: 60, status: 'PUBLISHED' }, { points: 40, status: 'PUBLISHED' }, { points: 40, status: 'REJECTED' }] },
+    exam: { id: 'PE2', title: 'فصلي ب', passScore: 60, programId: 'P1', semester: 1, program: { id: 'P1', titleAr: 'برنامج أ' }, questions: [{ id: 'PQ31', points: 60, status: 'PUBLISHED' }, { id: 'PQ32', points: 40, status: 'PUBLISHED' }, { id: 'PQ33', points: 40, status: 'REJECTED' }] },
     answers: [PA31, PA32],
   }
   S = {

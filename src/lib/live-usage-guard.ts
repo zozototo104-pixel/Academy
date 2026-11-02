@@ -424,27 +424,29 @@ export async function grantGeminiLiveCredit(input: {
   }
   // A payment row lock serializes manual confirmation, webhook and PAID replay.
   // The existence check and grant MUST be within the SAME transaction.
-  return db.$transaction(async (tx) => {
-    const payments = await tx.$queryRaw<Array<{ id: string; userId: string | null; status: string }>>`
-      SELECT "id", "userId", "status" FROM "Payment" WHERE "id" = ${input.paymentId} FOR UPDATE
-    `
-    const payment = payments[0]
-    if (!payment || payment.status !== 'PAID' || payment.userId !== input.userId) {
-      throw new Error('LIVE_CREDIT_PAYMENT_NOT_SETTLED_OR_OWNER_MISMATCH')
-    }
-    const existing = await tx.aiLiveCredit.findFirst({ where: { paymentId: payment.id } })
-    if (existing) return { ...existing, newlyGranted: false }
-    try {
+  try {
+    return await db.$transaction(async (tx) => {
+      const payments = await tx.$queryRaw<Array<{ id: string; userId: string | null; status: string }>>`
+        SELECT "id", "userId", "status" FROM "Payment" WHERE "id" = ${input.paymentId} FOR UPDATE
+      `
+      const payment = payments[0]
+      if (!payment || payment.status !== 'PAID' || payment.userId !== input.userId) {
+        throw new Error('LIVE_CREDIT_PAYMENT_NOT_SETTLED_OR_OWNER_MISMATCH')
+      }
+      const existing = await tx.aiLiveCredit.findFirst({ where: { paymentId: payment.id } })
+      if (existing) return { ...existing, newlyGranted: false }
       const credit = await tx.aiLiveCredit.create({ data })
       return { ...credit, newlyGranted: true }
-    } catch (error: any) {
-      // The paymentId unique index fired: a concurrent settle already
-      // granted this payment. That is the already-granted outcome, not a
-      // failure — return the existing credit.
-      if (error?.code !== 'P2002') throw error
-      const granted = await tx.aiLiveCredit.findFirst({ where: { paymentId: payment.id } })
-      if (!granted) throw error
-      return { ...granted, newlyGranted: false }
-    }
-  })
+    })
+  } catch (error: any) {
+    // The paymentId unique index fired: a concurrent settle already
+    // granted this payment. PostgreSQL ABORTS the whole transaction on
+    // a unique violation, so the winning credit can only be read in a
+    // FRESH query here — never inside the aborted transaction. The
+    // already-granted outcome is not a failure.
+    if (error?.code !== 'P2002') throw error
+    const granted = await db.aiLiveCredit.findFirst({ where: { paymentId: input.paymentId } })
+    if (!granted) throw error
+    return { ...granted, newlyGranted: false }
+  }
 }

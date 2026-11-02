@@ -4,7 +4,7 @@ import { requireAdmin } from '@/lib/auth'
 import { EssayNeedsReviewError, gradeEssayWithRubric } from '@/lib/essay-grading'
 import { calculateSemesterReadiness } from '@/lib/semester-readiness'
 import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
-import { findUngradedAnswers } from '@/lib/answer-completeness'
+import { findMissingAnswerQuestionIds, findUngradedAnswers, gradeObjectiveAnswer, parseObjectiveIndex, parseObjectiveOptions } from '@/lib/answer-completeness'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -99,19 +99,35 @@ async function unitDetail(id: string) {
   })
   if (!attempt) return null
   const excerptById = await buildExcerptMap(attempt.answers.map((a) => a.question.knowledgeItemId))
-  const rows = attempt.answers.filter((a) => ['ESSAY', 'SHORT'].includes(a.question.type)).map((a) => ({
-    answerId: a.id,
-    questionId: a.questionId,
-    order: a.question.order,
-    question: a.question.text,
-    studentAnswer: a.answerText || '',
-    modelAnswer: a.question.modelAnswer || '',
-    source: sourceFromMap(excerptById, a.question.knowledgeItemId, a.question.sourceEvidence),
-    rubric: a.question.rubric || null,
-    points: a.points,
-    maxPoints: a.maxPoints || a.question.points,
-    aiFeedback: a.aiFeedback,
-  }))
+  const rows = attempt.answers.map((a) => {
+    // The review screen covers EVERY question type, not only open ones:
+    // an ungraded objective answer blocks approval, so the admin must be
+    // able to see it here (its key, the student's pick) and regrade it.
+    const isObjective = a.question.type === 'MCQ' || a.question.type === 'TF'
+    const options = isObjective ? parseObjectiveOptions(a.question.options) : []
+    const correctIndex = isObjective ? parseObjectiveIndex(a.question.correctAnswer) : null
+    const correctAnswerText = isObjective && correctIndex !== null ? options[correctIndex] || '' : ''
+    return {
+      answerId: a.id,
+      questionId: a.questionId,
+      order: a.question.order,
+      questionType: a.question.type,
+      question: a.question.text,
+      studentAnswer: isObjective
+        ? (a.selectedOption !== null && a.selectedOption !== undefined && options[a.selectedOption] ? options[a.selectedOption] : '(لم يجب)')
+        : (a.answerText || ''),
+      modelAnswer: isObjective ? correctAnswerText : (a.question.modelAnswer || ''),
+      source: isObjective ? '' : sourceFromMap(excerptById, a.question.knowledgeItemId, a.question.sourceEvidence),
+      rubric: a.question.rubric || null,
+      optionsRaw: a.question.options ?? null,
+      correctAnswer: a.question.correctAnswer ?? null,
+      selectedOption: a.selectedOption ?? null,
+      isCorrect: a.isCorrect ?? null,
+      points: a.points,
+      maxPoints: a.maxPoints || a.question.points,
+      aiFeedback: a.aiFeedback,
+    }
+  })
   return { type: 'UNIT', id: attempt.id, status: attempt.status, student: attempt.user, exam: { id: attempt.exam.id, title: attempt.exam.title, unitTitle: attempt.exam.unit.title, programTitle: attempt.exam.unit.program.titleAr, passScore: attempt.exam.passScore }, answers: rows }
 }
 
@@ -122,19 +138,35 @@ async function programDetail(id: string) {
   })
   if (!attempt) return null
   const excerptById = await buildExcerptMap(attempt.answers.map((a) => a.question.knowledgeItemId))
-  const rows = attempt.answers.filter((a) => ['ESSAY', 'SHORT'].includes(a.question.type)).map((a) => ({
-    answerId: a.id,
-    questionId: a.questionId,
-    order: a.question.order,
-    question: a.question.text,
-    studentAnswer: a.answerText || '',
-    modelAnswer: a.question.modelAnswer || '',
-    source: sourceFromMap(excerptById, a.question.knowledgeItemId, a.question.sourceEvidence),
-    rubric: a.question.rubric || null,
-    points: a.points,
-    maxPoints: a.maxPoints || a.question.points,
-    aiFeedback: a.aiFeedback,
-  }))
+  const rows = attempt.answers.map((a) => {
+    // The review screen covers EVERY question type, not only open ones:
+    // an ungraded objective answer blocks approval, so the admin must be
+    // able to see it here (its key, the student's pick) and regrade it.
+    const isObjective = a.question.type === 'MCQ' || a.question.type === 'TF'
+    const options = isObjective ? parseObjectiveOptions(a.question.options) : []
+    const correctIndex = isObjective ? parseObjectiveIndex(a.question.correctAnswer) : null
+    const correctAnswerText = isObjective && correctIndex !== null ? options[correctIndex] || '' : ''
+    return {
+      answerId: a.id,
+      questionId: a.questionId,
+      order: a.question.order,
+      questionType: a.question.type,
+      question: a.question.text,
+      studentAnswer: isObjective
+        ? (a.selectedOption !== null && a.selectedOption !== undefined && options[a.selectedOption] ? options[a.selectedOption] : '(لم يجب)')
+        : (a.answerText || ''),
+      modelAnswer: isObjective ? correctAnswerText : (a.question.modelAnswer || ''),
+      source: isObjective ? '' : sourceFromMap(excerptById, a.question.knowledgeItemId, a.question.sourceEvidence),
+      rubric: a.question.rubric || null,
+      optionsRaw: a.question.options ?? null,
+      correctAnswer: a.question.correctAnswer ?? null,
+      selectedOption: a.selectedOption ?? null,
+      isCorrect: a.isCorrect ?? null,
+      points: a.points,
+      maxPoints: a.maxPoints || a.question.points,
+      aiFeedback: a.aiFeedback,
+    }
+  })
   return { type: 'PROGRAM', id: attempt.id, status: attempt.status, student: attempt.user, exam: { id: attempt.exam.id, title: attempt.exam.title, programTitle: attempt.exam.program.titleAr, passScore: attempt.exam.passScore }, answers: rows }
 }
 
@@ -151,13 +183,30 @@ async function ensureNeedsReview(tx: any, type: AttemptType, attemptId: string) 
 }
 
 async function ensureAllAnswersGraded(tx: any, type: AttemptType, attemptId: string) {
-  // EVERY answer must carry points before approval — not only essay/short
-  // ones. An interrupted grading run leaves ungraded answers at points =
-  // null for any type (including choice questions), and recompute would
-  // count them as zero, silently failing a correct answer.
+  // Completeness has two halves, and approval needs BOTH:
+  // (1) Coverage — every required question must have an answer ROW.
+  //     Recompute divides by the required questions' points, so a
+  //     missing row (question added/published after submission, or a
+  //     legacy partial record) would silently score that question zero.
+  //     Required = all questions of a unit exam; PUBLISHED questions of
+  //     a program exam (the same sets the recompute denominators use).
+  // (2) Graded — every existing answer must carry points, for EVERY
+  //     type. An interrupted grading run leaves answers at points =
+  //     null, and recompute would count them as zero.
+  const attemptRow = type === 'UNIT'
+    ? await tx.examAttempt.findUnique({ where: { id: attemptId }, select: { examId: true } })
+    : await tx.programExamAttempt.findUnique({ where: { id: attemptId }, select: { examId: true } })
+  if (!attemptRow) throw apiError('ATTEMPT_NOT_FOUND', 'المحاولة غير موجودة', 404)
+  const required = type === 'UNIT'
+    ? await tx.question.findMany({ where: { examId: attemptRow.examId }, select: { id: true } })
+    : await tx.programQuestion.findMany({ where: { examId: attemptRow.examId, status: 'PUBLISHED' }, select: { id: true } })
   const rows = type === 'UNIT'
-    ? await tx.answer.findMany({ where: { attemptId }, select: { id: true, points: true, question: { select: { type: true } } } })
-    : await tx.programAnswer.findMany({ where: { attemptId }, select: { id: true, points: true, question: { select: { type: true } } } })
+    ? await tx.answer.findMany({ where: { attemptId }, select: { id: true, questionId: true, points: true, question: { select: { type: true } } } })
+    : await tx.programAnswer.findMany({ where: { attemptId }, select: { id: true, questionId: true, points: true, question: { select: { type: true } } } })
+  const missing = findMissingAnswerQuestionIds(required.map((q: any) => q.id), rows)
+  if (missing.length) {
+    throw apiError('ANSWERS_COVERAGE_INCOMPLETE', `لا يمكن اعتماد النتيجة: ${missing.length} سؤال مطلوب بلا سجل إجابة — أكمل بيانات المحاولة أو راجع أسئلة الامتحان أولاً`, 400)
+  }
   const ungraded = findUngradedAnswers(rows)
   if (ungraded.length) {
     const types = [...new Set(ungraded.map((row) => row.type))].join('، ')
@@ -262,16 +311,30 @@ export async function POST(req: NextRequest) {
     if (!detail) return NextResponse.json({ error: 'المحاولة غير موجودة' }, { status: 404 })
     if (detail.status !== 'NEEDS_REVIEW') return NextResponse.json({ error: 'تم اعتماد هذه المحاولة مسبقاً' }, { status: 409 })
     const readiness = type === 'PROGRAM' ? await readinessForProgramAttempt(id) : null
-    const graded: Array<{ answerId: string; points: number; feedback: string }> = []
+    const graded: Array<{ answerId: string; points: number; feedback: string; isCorrect?: boolean }> = []
     for (const answer of detail.answers) {
+      if (answer.questionType === 'MCQ' || answer.questionType === 'TF') {
+        // Objective answers regrade deterministically from the approved
+        // key — exactly as at submit time; no AI is involved.
+        const objective = gradeObjectiveAnswer({ optionsRaw: answer.optionsRaw, correctAnswerRaw: answer.correctAnswer, selectedOption: answer.selectedOption, maxPoints: answer.maxPoints })
+        if (!objective) throw apiError('ANSWER_KEY_MISSING', `مفتاح التصحيح غير مكتمل للسؤال رقم ${answer.order}. راجع مفتاح الإجابة من إدارة الامتحان أولاً.`, 422)
+        graded.push({
+          answerId: answer.answerId,
+          points: objective.points,
+          isCorrect: objective.isCorrect,
+          feedback: objective.isCorrect ? 'إجابة صحيحة وفق مفتاح التصحيح المعتمد.' : `إجابة غير صحيحة. الإجابة الصحيحة المعتمدة: «${objective.correctAnswerText}».`,
+        })
+        continue
+      }
       const result = await gradeEssayWithRubric({ question: answer.question, modelAnswer: answer.modelAnswer, rubric: answer.rubric, sourceExcerpt: answer.source, studentAnswer: answer.studentAnswer, maxPoints: answer.maxPoints, deadlineMs: Date.now() + 45_000 })
       graded.push({ answerId: answer.answerId, points: result.points, feedback: JSON.stringify(result) })
     }
     const result = await db.$transaction(async (tx) => {
       await ensureNeedsReview(tx, type, id)
       for (const item of graded) {
-        if (type === 'UNIT') await tx.answer.update({ where: { id: item.answerId }, data: { points: item.points, isCorrect: item.points > 0 ? null : false, aiFeedback: item.feedback } })
-        else await tx.programAnswer.update({ where: { id: item.answerId }, data: { points: item.points, isCorrect: item.points > 0 ? null : false, aiFeedback: item.feedback } })
+        const data = { points: item.points, isCorrect: item.isCorrect !== undefined ? item.isCorrect : (item.points > 0 ? null : false), aiFeedback: item.feedback }
+        if (type === 'UNIT') await tx.answer.update({ where: { id: item.answerId }, data })
+        else await tx.programAnswer.update({ where: { id: item.answerId }, data })
       }
       await ensureAllAnswersGraded(tx, type, id)
       return type === 'UNIT' ? recomputeUnitAttempt(tx, id) : recomputeProgramAttempt(tx, id, readiness)
