@@ -341,16 +341,14 @@ export async function POST(req: NextRequest) {
         const wrongOptionRationale = isCorrect ? null : selectedOptionRationale(q, selected)
         if (!isCorrect) weakPoints.push(`سؤال ${q.type === 'TF' ? 'صح/خطأ' : 'اختيار'}: ${q.text.slice(0, 60)}...`)
         await persistProgramAnswer(db, attempt.id, {
-            questionId: q.id,
-            questionId: q.id,
-            selectedOption: selected ?? null,
-            answerText: submit?.answerText || null,
-            isCorrect,
-            points: pts,
-            maxPoints: q.points,
-            aiFeedback: feedback,
-          },
-        })
+          questionId: q.id,
+          selectedOption: selected ?? null,
+          answerText: submit?.answerText || null,
+          isCorrect,
+          points: pts,
+          maxPoints: q.points,
+          aiFeedback: feedback,
+        }, true)
         objectiveResults.push({
           questionId: q.id,
           order: q.order,
