@@ -134,6 +134,26 @@ async function testMissingModelAnswerRequiresReview() {
   }), /ESSAY_MODEL_ANSWER_MISSING/)
 }
 
+function testMeaningBasedEssayGradingContract() {
+  const code = src('src/lib/essay-grading.ts')
+  const program = src('src/app/api/program-exam/submit/route.ts')
+  const unit = src('src/app/api/exam/submit/route.ts')
+  assert(code.includes('تقبّل المرادفات وإعادة الصياغة المختصرة والصحيحة'), 'يجب تقييم المعنى والمرادفات بدل مقارنة الألفاظ')
+  assert(code.includes('درجة جزئية عادلة'), 'يجب منح النقاط الجزئية للأفكار الصحيحة')
+  assert(code.includes('إذا لم تتأكد من التكافؤ المعنوي'), 'الحالات غير المؤكدة يجب أن تبقى للمراجعة')
+  assert(code.includes('if (!studentAnswer.trim()) return zeroGrade'), 'فقط الإجابة الفارغة يجب تصفيرها تلقائياً')
+  assert(!code.includes('studentAnswer.trim().length < 3'), 'منع رفض الإجابة من طولها وحده')
+  assert(program.includes('text.trim().length > 0'), 'الامتحان الفصلي يجب أن يصحح الإجابات القصيرة غير الفارغة')
+  assert(unit.includes('!q.modelAnswer && essayText.trim().length > 0'), 'غياب المرجع في امتحان الوحدة يستدعي مراجعة حتى للإجابة القصيرة')
+}
+
+function testManualRegradeGuidance() {
+  const admin = src('src/app/api/admin/attempts-review/route.ts')
+  assert(admin.includes('error instanceof EssayNeedsReviewError'), 'إعادة التصحيح يجب أن تميّز أخطاء مراجعة المقالي')
+  assert(admin.includes('reviewRequired: true'), 'إبلاغ الإدارة بأن المحاولة ما زالت للمراجعة البشرية')
+  assert(admin.includes('ESSAY_LOW_CONFIDENCE'), 'يجب توضيح حالة ثقة المصحح المنخفضة')
+}
+
 function testApprovalRejectsNullOpenAnswerPoints() {
   const code = src('src/app/api/admin/attempts-review/route.ts')
   assert(code.includes('OPEN_ANSWER_POINTS_REQUIRED'), 'اعتماد المراجعة يجب أن يرفض أي سؤال مقالي/قصير بلا نقاط')
