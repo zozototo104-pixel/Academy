@@ -31,7 +31,7 @@ const HEADER_ALIASES: Record<string, string[]> = {
   nameEn: ['name en', 'english name', 'holder name en', 'الاسم بالإنجليزي', 'الاسم بالانجليزي', 'الاسم باللغة الإنجليزية'],
   email: ['email', 'e-mail', 'mail', 'البريد', 'الإيميل', 'ايميل', 'البريد الإلكتروني'],
   phone: ['phone', 'mobile', 'phone number', 'mobile number', 'telephone', 'tel', 'whatsapp', 'الجوال', 'الهاتف', 'رقم الجوال', 'رقم الهاتف', 'رقم الموبايل', 'الموبايل', 'رقم المحمول', 'رقم الواتساب', 'الهاتف المحمول'],
-  country: ['country', 'الدولة', 'البلد'],
+  country: ['country', 'الدولة', 'البلد', 'بلد الإقامة', 'الجنسية'],
   program: ['program', 'program slug', 'program title', 'البرنامج', 'اسم البرنامج'],
   programEn: ['program en', 'english program', 'program english', 'البرنامج بالإنجليزي'],
   grade: ['grade', 'التقدير', 'تقدير'],
