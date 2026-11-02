@@ -31,7 +31,13 @@ function fakeClient(scenario: Scenario = {}) {
     program: {
       findUnique: async () => ({
         category: 'DIPLOMA',
-        admissionRules: { academicProfile: { finalEvaluationFormula: scenario.formula || diplomaFormula } },
+        admissionRules: {
+          academicProfile: {
+            finalEvaluationFormula: scenario.formula || diplomaFormula,
+            approvedFormulaSignature: scenario.approval === 'UNAPPROVED'
+              ? undefined : gradingFormulaSignature(scenario.formula || diplomaFormula),
+          },
+        },
       }),
     },
     exam: {
