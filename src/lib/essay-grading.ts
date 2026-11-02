@@ -61,17 +61,29 @@ function parseRubricCriteria(rubric?: string | null): { description: string; cri
   return { description: value, criteria: DEFAULT_CRITERIA }
 }
 
+export class EssayNeedsReviewError extends Error {
+  constructor(public readonly code: string) {
+    super(code)
+    this.name = 'EssayNeedsReviewError'
+  }
+}
+
 function normalizeCriteriaToRubric(criteria: EssayCriterionGrade[], rubricCriteria: EssayRubricCriterion[]): EssayCriterionGrade[] {
-  const byName = new Map(criteria.map((item) => [normalizeName(item.name), item] as const))
-  return rubricCriteria.map((required) => {
-    const matched = byName.get(normalizeName(required.name))
-    return {
-      name: required.name,
-      weight: required.weight,
-      score0to10: matched ? Math.max(0, Math.min(10, Number(matched.score0to10) || 0)) : 0,
-      comment: matched?.comment || 'لم يُرجع المصحح درجة لهذا المعيار، فاحتُسب صفرًا.',
-    }
-  })
+  const required = new Set(rubricCriteria.map((item) => normalizeName(item.name)))
+  const found = new Map<string, EssayCriterionGrade>()
+  for (const item of criteria) {
+    const key = normalizeName(item.name)
+    if (!required.has(key)) throw new EssayNeedsReviewError('ESSAY_CRITERION_UNKNOWN')
+    if (found.has(key)) throw new EssayNeedsReviewError('ESSAY_CRITERION_DUPLICATED')
+    found.set(key, item)
+  }
+  if (found.size !== required.size) throw new EssayNeedsReviewError('ESSAY_CRITERION_MISSING')
+  return rubricCriteria.map((criterion) => ({
+    name: criterion.name,
+    weight: criterion.weight,
+    score0to10: found.get(normalizeName(criterion.name))!.score0to10,
+    comment: found.get(normalizeName(criterion.name))!.comment,
+  }))
 }
 
 export function effectiveRubric(rubric?: string | null) {
