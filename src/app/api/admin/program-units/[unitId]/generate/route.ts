@@ -97,7 +97,7 @@ export async function POST(req: NextRequest, context: Context) {
     if (!force) {
       const guide = await db.programStudyGuide.findFirst({
         where: { unitId: unit.id },
-        select: { sourceKnowledgeIds: true },
+        select: { sourceKnowledgeIds: true, sections: true },
       })
       if (hasCompleteUnitArtifacts(parseContent(unit.content), guide)) {
         return NextResponse.json({ ok: true, skipped: 'UNIT_ALREADY_HAS_REFERENCED_CONTENT', unit: mapUnit(unit) })
