@@ -1,6 +1,7 @@
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import { calculateFinalGrade } from '../src/lib/final-grade'
+import { gradingFormulaSignature } from '../src/lib/program-tracks'
 import { evaluateProgramCertificateEligibility } from '../src/lib/certificate-eligibility'
 
 function file(path: string) {
