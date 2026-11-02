@@ -1868,7 +1868,7 @@ export function AdminSystemTab() {
                     {restoreBusy ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : <Info className="ml-1 h-4 w-4" />}
                     فحص
                   </Button>
-                  <Button type="button" onClick={restoreBackup} disabled={restoreBusy || restoreConfirm.trim() !== 'RESTORE'} className="flex-1 bg-red-700 font-black text-white hover:bg-red-800">
+                  <Button type="button" onClick={restoreBackup} disabled={restoreBusy || restoreConfirm.trim() !== 'RESTORE' || !backupStatus?.configured.isolatedRestoreEnabled} className="flex-1 bg-red-700 font-black text-white hover:bg-red-800">
                     استيراد
                   </Button>
                 </div>
