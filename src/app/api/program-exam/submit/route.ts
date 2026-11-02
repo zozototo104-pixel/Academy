@@ -473,7 +473,7 @@ export async function POST(req: NextRequest) {
 
     await db.examDraft.deleteMany({ where: { userId: user.id, examId, examType: 'PROGRAM' } }).catch(() => {})
 
-    const completion = passed ? await completeEnrollmentIfEligible({ enrollmentId: enrollment.id }) : null
+    const completion = await completeEnrollmentIfEligible({ enrollmentId: enrollment.id })
     const completedAttempts = completedAttemptsBeforeSubmit + 1
     const revealCorrectAnswers = shouldRevealCorrectAnswers({ passed, completedAttempts, maxAttempts })
     if (!revealCorrectAnswers) await hidePersistedProgramAnswerFeedback(attempt.id)
