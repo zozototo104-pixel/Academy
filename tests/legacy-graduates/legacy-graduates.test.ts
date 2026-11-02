@@ -305,6 +305,28 @@ describe('legacy graduate creation', () => {
     expect(users.size).toBe(1)
   })
 
+  test('import fills missing existing phone but never overwrites verified contact details', async () => {
+    users.set('user-existing', {
+      id: 'user-existing', email: 'student@example.com', name: 'Student',
+      phone: null, country: null, role: 'STUDENT', status: 'ACTIVE',
+    })
+    await createLegacyGraduate({
+      email: 'student@example.com', name: 'Student',
+      phone: '+970599000111', country: 'فلسطين',
+      programId: 'program-1', issuedAt: new Date('2024-06-30T00:00:00Z'),
+    }, currentAdmin as any, { source: 'IMPORT' })
+    expect(users.get('user-existing')?.phone).toBe('+970599000111')
+    expect(users.get('user-existing')?.country).toBe('فلسطين')
+    // Later imports must not replace already saved personal contact details.
+    await createLegacyGraduate({
+      email: 'student@example.com', name: 'Student',
+      phone: '+999000000', country: 'دولة أخرى',
+      programId: 'program-1', issuedAt: new Date('2024-06-30T00:00:00Z'),
+    }, currentAdmin as any, { source: 'IMPORT' })
+    expect(users.get('user-existing')?.phone).toBe('+970599000111')
+    expect(users.get('user-existing')?.country).toBe('فلسطين')
+  })
+
   test('manual legacy graduate with unused password setup can resend invite', async () => {
     const created = await adminLegacyRoute.POST(jsonReq({ name: 'Manual Graduate', email: 'manual@example.com', programId: 'program-1', issuedAt: '2024-06-30' }))
     const createdData = await responseJson(created)
