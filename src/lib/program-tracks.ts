@@ -248,6 +248,7 @@ export interface PartialAcademicProgramProfile {
   studyPlan?: AcademicPlanStage[]
   termPlans?: AcademicTermPlan[]
   finalEvaluationFormula?: AcademicEvaluationItem[]
+  approvedFormulaSignature?: string
   graduationRequirements?: string[]
   assessmentComponents?: string[]
   thesisRequirement?: string
