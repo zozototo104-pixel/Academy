@@ -598,11 +598,14 @@ async function aiLiveNote(title: string, abstract: string, thesisId: string, use
     const history = await db.defenseMessage.findMany({
       where: { thesisId, role: { in: ['AI_EXPERT', 'STUDENT', 'TRANSCRIPT', 'AI_NOTE'] } },
       orderBy: { createdAt: 'desc' },
-      take: 14,
+      take: 60,
     })
+    // Retain the latest 60 interaction turns without sacrificing the newest
+    // remarks to prompt truncation. A bounded excerpt from every turn preserves
+    // chronology, speaker and the concept being discussed.
     const dialog = history
       .reverse()
-      .map((m) => `${m.role === 'AI_EXPERT' ? 'اللجنة/المستشار' : m.role === 'AI_NOTE' ? 'مداخلة سابقة للمستشار' : m.role === 'STUDENT' ? 'إجابة الطالب' : 'كلام الطالب المباشر'}: ${m.content.slice(0, 500)}`)
+      .map((m) => `${m.role === 'AI_EXPERT' ? 'اللجنة/المستشار' : m.role === 'AI_NOTE' ? 'مداخلة سابقة للمستشار' : m.role === 'STUDENT' ? 'إجابة الطالب' : 'كلام الطالب المباشر'}: ${m.content.slice(0, 70)}`)
       .join('\n')
     if (`${dialog} ${latest}`.length < 45) return null
 
