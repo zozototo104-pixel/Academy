@@ -187,7 +187,7 @@ async function programExamAverage(client: DbClient, userId: string, programId: s
   for (const exam of exams) {
     const attempts = await client.programExamAttempt.findMany({
       where: { userId, examId: exam.id, status: 'GRADED', OR: [{ appealStatus: null }, { appealStatus: { not: 'PENDING' } }] },
-      select: { score: true, finalScore: true, feedback: true, appealStatus: true, answers: { select: { points: true, maxPoints: true } } },
+      select: { score: true, finalScore: true, feedback: true, appealStatus: true, passed: true, answers: { select: { points: true, maxPoints: true } } },
     })
     const scores = attempts.map(rawProgramAttemptScore)
     earned.push(best(scores) ?? 0)
