@@ -173,6 +173,13 @@ async function testFinalGradeBehaviorWithMockData() {
   })
   assert(approvedResearch.ok, 'الدبلوم الذي يتطلب بحثًا يستحق الشهادة بعد اعتماد البحث والفصلي والمعدل')
 
+  const legacyWithoutResearch = await evaluateProgramCertificateEligibility({
+    userId: 'student-1', programId: 'program-1',
+    client: mockDiplomaClient([90], { researchRequired: true, researchUnapproved: true }),
+  })
+  assert(!legacyWithoutResearch.ok && legacyWithoutResearch.missing.includes('بحث التخرج'),
+    'المعادلة القديمة غير المربوطة لا يجوز أن تسمح بتجاوز شرط البحث المعلن للطالب')
+
   const doctorateWithoutSemesterExams = await evaluateProgramCertificateEligibility({
     userId: 'student-1', programId: 'program-1',
     client: mockDiplomaClient([], { category: 'DOCTORATE', researchScore: 100, unitScore: null }),
