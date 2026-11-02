@@ -63,10 +63,10 @@ function mockDiplomaClient(programAttemptScores: number[], options: DiplomaFixtu
       }],
     },
     programExam: {
-      findMany: async ({ where }: any) => (category === 'DOCTORATE'
+      findMany: async ({ where }: any) => (category === 'DOCTORATE' || options.twoSemesterExams
         ? [
-            { id: 'program-exam-1', title: 'اختبار القراءات', semester: 1, passScore: 51 },
-            { id: 'program-exam-2', title: 'اختبار التحليل', semester: 2, passScore: 51 },
+            { id: 'program-exam-1', title: 'امتحان الفصل الأول', semester: 1, passScore: 51 },
+            { id: 'program-exam-2', title: 'امتحان الفصل الثاني', semester: 2, passScore: 51 },
           ]
         : [{ id: 'program-exam-1', title: 'الاختبار النهائي', semester: 1, passScore: options.examPassScore ?? 51 }])
         .filter((exam) => !where.semester || exam.semester === where.semester),
