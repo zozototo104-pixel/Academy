@@ -1581,7 +1581,10 @@ export function AdminRulesTab() {
                           size="sm"
                           variant="outline"
                           disabled={!gradingFormulaValid || gradingFormulaApproved}
-                          onClick={() => patchAcademic({ approvedFormulaSignature: gradingFormulaSignature(gradingFormula) })}
+                          onClick={() => patchAcademic({
+                            approvedFormulaSignature: gradingFormulaSignature(gradingFormula),
+                            approvedFormulaAt: new Date().toISOString(),
+                          })}
                           className="border-[#c9a227]/50 text-xs font-bold"
                         >
                           {gradingFormulaApproved ? 'المعادلة معتمدة' : 'اعتماد توزيع العلامات'}
