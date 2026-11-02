@@ -250,7 +250,20 @@ export async function calculateFinalGrade(input: {
     select: { category: true, admissionRules: true },
   })
   const category = program?.category || 'DIPLOMA'
-  const configured = resolveGradeWeights(category, program?.admissionRules)
+  const enrollment = (client as any).enrollment?.findUnique
+    ? await client.enrollment.findUnique({
+        where: { userId_programId: { userId: input.userId, programId: input.programId } },
+        select: { createdAt: true, status: true, finalScore: true },
+      })
+    : null
+  const policy = resolveGradeWeights(category, program?.admissionRules)
+  const profile = ((program?.admissionRules || {}) as any).academicProfile
+  const policyEffectiveAt = Date.parse(String(profile?.approvedFormulaAt || ''))
+  const newCohort = enrollment?.createdAt && Number.isFinite(policyEffectiveAt) &&
+    new Date(enrollment.createdAt).getTime() >= policyEffectiveAt
+  const configured = policy.source === 'academic_profile' && !newCohort
+    ? { ...resolveGradeWeights(category, null), warning: 'ASSESSMENT_FORMULA_FUTURE_COHORT_ONLY' }
+    : policy
   const weight = (key: string) => configured.weights[key] || 0
   const missing: string[] = []
 
