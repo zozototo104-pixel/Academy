@@ -77,6 +77,16 @@ jobs:
                 type: 'GENERAL', title: 'Restore test', body: 'FK verified',
               } })
             }
+            const fixtures = {
+              Program: { id: 'restore-ci-program', slug: 'restore-ci-program', titleAr: 'Restore CI', description: 'Isolated restore fixture', category: 'DIPLOMA' },
+              Book: { id: 'restore-ci-book', programId: 'restore-ci-program', title: 'Restore book' },
+              ProgramAssignment: { id: 'restore-ci-assignment', programId: 'restore-ci-program', title: 'Restore assignment', description: 'CI assignment' },
+              AssignmentSubmission: { id: 'restore-ci-submission', assignmentId: 'restore-ci-assignment', userId: 'restore-ci-user', status: 'GRADED', score: 18 },
+              ProgramExam: { id: 'restore-ci-exam', programId: 'restore-ci-program', title: 'Restore exam', status: 'READY' },
+              ProgramExamAttempt: { id: 'restore-ci-attempt', examId: 'restore-ci-exam', userId: 'restore-ci-user', status: 'GRADED', score: 80 },
+              Payment: { id: 'restore-ci-payment', userId: 'restore-ci-user', invoiceNo: 'RESTORE-CI-INVOICE', purpose: 'TUITION', description: 'Restore payment', amount: 20 },
+            }
+            if (fixtures[name]) lines.push({ type: 'row', table: name, data: fixtures[name] })
           }
           lines.push({ type: 'summary', counts, errors: [] })
           const plain = Buffer.from(lines.map((line) => JSON.stringify(line)).join('\n') + '\n')
