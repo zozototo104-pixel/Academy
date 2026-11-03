@@ -110,6 +110,11 @@ mock.module('@/lib/text-ai', () => ({
     lastGradingPrompt = String(args?.history?.[0]?.text || '')
     return textAiResponse
   },
+  textAiCompleteJsonWithMetadata: async (args: any) => {
+    textAiCalls += 1
+    lastGradingPrompt = String(args?.history?.[0]?.text || '')
+    return { text: textAiResponse, provider: 'GEMINI', model: 'test-grading-model' }
+  },
 }))
 mock.module('@/lib/document-extract', () => ({
   extractDocumentText: async () => ({
