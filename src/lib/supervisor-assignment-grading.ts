@@ -741,10 +741,18 @@ ${citations.evidenceText || 'لا توجد صفحات صريحة متاحة لل
     error.status = 502
     throw error
   }
-  const draft = normalizeAiDraft(parseAiJson(raw), submission.assignment.points, criteria)
+  const rejectionReason = classifyAssignmentAiOutput(raw)
+  const draft = rejectionReason ? null : normalizeAiDraft(parseAiJson(raw), submission.assignment.points, criteria)
   if (!draft) {
-    const error = new Error('AI_OUTPUT_INVALID') as Error & { status?: number }
+    // Safe operational diagnostics only: no student content or model response.
+    console.error('supervisor assignment AI output rejected', {
+      code: 'AI_OUTPUT_INVALID',
+      reason: rejectionReason || 'INVALID_SCORE',
+      purpose: 'GRADING',
+    })
+    const error = new Error('AI_OUTPUT_INVALID') as Error & { status?: number; reason?: AssignmentAiRejectionReason }
     error.status = 502
+    error.reason = rejectionReason || 'INVALID_SCORE'
     throw error
   }
   const isolation = isolateSourceCriterion(draft, criteria, submission.assignment.points, (citations.mode === 'STUDENT_CITATIONS' && citations.pages.some(page => page.source === 'UNVERIFIED')) || (book.unreadable && citations.mode !== 'STUDENT_CITATIONS'))
