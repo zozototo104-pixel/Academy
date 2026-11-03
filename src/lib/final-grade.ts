@@ -257,12 +257,18 @@ async function assignmentAverage(client: DbClient, userId: string, programId: st
       where: { assignmentId_userId: { assignmentId: assignment.id, userId } },
       select: { status: true, score: true },
     })
-    const graded = submission?.status === 'GRADED' && typeof submission.score === 'number'
-    const score = graded
-      ? clampPercent(assignment.points > 0 ? (submission!.score! / assignment.points) * 100 : submission!.score!)
+    const validMaxPoints = Number.isFinite(assignment.points) && assignment.points > 0
+    const graded = submission?.status === 'GRADED' && typeof submission.score === 'number' && Number.isFinite(submission.score)
+    // An invalid maximum must never silently turn a score such as 18/0 into 18/100.
+    // Reserve this published assignment's equal share as zero and flag it for correction.
+    const score = graded && validMaxPoints
+      ? clampPercent((submission!.score! / assignment.points) * 100)
       : 0
     percent += score / totalShares
-    if (!graded || score < 60) {
+    if (!validMaxPoints) {
+      addMissing(missing, `واجب منشور بعلامة كاملة غير صالحة: ${assignment.title}`)
+      complete = false
+    } else if (!graded || score < 60) {
       addMissing(missing, `واجب منشور غير مكتمل أو غير مجتاز: ${assignment.title}`)
       complete = false
     }
