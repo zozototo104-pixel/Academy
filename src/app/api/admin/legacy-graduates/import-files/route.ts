@@ -13,7 +13,10 @@ import {
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-export const maxDuration = 60
+// Bulk ZIP imports stamp and store every file in one request; Haris's paid
+// Vercel plan allows up to 800s, so give the route the full window instead
+// of the old 60s cap that killed large imports mid-way.
+export const maxDuration = 800
 
 function looksLikeZip(buffer: Buffer) {
   return buffer.length >= 4 && buffer[0] === 0x50 && buffer[1] === 0x4b && (buffer[2] === 0x03 || buffer[2] === 0x05 || buffer[2] === 0x07)
