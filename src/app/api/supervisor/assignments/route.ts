@@ -90,7 +90,7 @@ export async function GET(req: NextRequest) {
             id: a.id, title: a.title, points: a.points, type: a.type, dueAt: deadline,
             submissionId: sub?.id || null, score: sub?.score ?? null,
             submittedAt: sub?.submittedAt || null,
-            status: sub?.status || (a.dueAt && a.dueAt.getTime() < Date.now() ? 'OVERDUE' : 'NOT_SUBMITTED'),
+            status: sub?.status || (deadline && deadline.getTime() < Date.now() ? 'OVERDUE' : 'NOT_SUBMITTED'),
           }
         }),
       }))
