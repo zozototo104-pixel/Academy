@@ -73,7 +73,13 @@ const db: any = {
       return { ...submission, score: _args.data.score, feedback: _args.data.feedback, status: _args.data.status }
     },
   },
-  enrollment: { findMany: async () => [{ userId: 'student-1', createdAt: new Date('2020-01-01') }] },
+  enrollment: {
+    count: async (args: any) => args.where.user?.ownedAdmissions?.some?.supervisorId === 'other-supervisor' ? 0 : 1,
+    findMany: async (args: any) => args.where.user?.ownedAdmissions?.some?.supervisorId === 'other-supervisor' ? [] : [{
+      id: 'enroll-1', userId: 'student-1', createdAt: new Date('2020-01-01'),
+      user: { name: 'محمود', ownedAdmissions: [{ fullName: 'محمود' }] },
+    }].slice(args.skip || 0, (args.skip || 0) + args.take),
+  },
   admissionApplication: {
     findFirst: async () => ({ id: 'app-1', supervisorId: admissionSupervisorId, supervisionMode: 'HYBRID' }),
     count: async (args: any) => args.where.supervisorId === 'other-supervisor' ? 0 : 1,
