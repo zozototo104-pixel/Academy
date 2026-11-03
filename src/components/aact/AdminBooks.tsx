@@ -3378,6 +3378,17 @@ export function AdminBooksTab() {
                     {student.assignments.map(assignment => <div key={assignment.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 p-3 text-xs">
                       <span className="font-bold">{assignment.title}</span>
                       <span>{assignment.status === 'GRADED' ? 'مصحح' : assignment.status === 'OVERDUE' ? 'متأخر' : assignment.status === 'NOT_SUBMITTED' ? 'لم يسلّم' : assignment.status === 'NEEDS_REVISION' ? 'يحتاج تعديل' : 'بانتظار التصحيح'}{assignment.score != null ? ` — ${assignment.score}/${assignment.points}` : ''}</span>
+                      {(() => {
+                        const record = assignments.find(item => item.id === assignment.id)
+                        const submission = record?.submissions.find(item => item.id === assignment.submissionId && item.userId === student.userId)
+                        if (!record || !submission) return null
+                        return <div className="w-full space-y-2 border-t border-slate-200 pt-2">
+                          {submission.answerText && <p className="whitespace-pre-wrap text-slate-700">{submission.answerText}</p>}
+                          {submission.fileName && <a className="text-blue-700 underline" href={submission.fileUrl || submission.downloadUrl || `/api/admin/assignments/file?id=${submission.id}`} target="_blank" rel="noreferrer">المرفق: {submission.fileName}</a>}
+                          {submission.feedback && <p className="text-emerald-700">ملاحظة التصحيح: {submission.feedback}</p>}
+                          <Button size="sm" type="button" onClick={() => gradeSubmission(submission, record)}>فتح التصحيح</Button>
+                        </div>
+                      })()}
                     </div>)}
                   </div>
                 </details>)}
