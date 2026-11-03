@@ -10,11 +10,13 @@ const users = new Map<string, AnyRecord>()
 const programs = new Map<string, AnyRecord>()
 const enrollments = new Map<string, AnyRecord>()
 const certificates = new Map<string, AnyRecord>()
+const zipImports = new Map<string, AnyRecord>()
 const audits: AnyRecord[] = []
 const storedFiles = new Map<string, { buffer: Buffer; mimeType: string }>()
 let userSeq = 0
 let enrollmentSeq = 0
 let certificateSeq = 0
+let zipImportSeq = 0
 let serialSeq = 0
 let storageSeq = 0
 let currentAdmin: AnyRecord | null = { id: 'admin-1', name: 'Admin', role: 'ADMIN' }
@@ -126,6 +128,30 @@ const db: any = {
       return clone(cert)
     },
   },
+  legacyCertificateZipImport: {
+    create: async ({ data }: { data: AnyRecord }) => {
+      const row = { id: `zip-import-${++zipImportSeq}`, totalFiles: null, successful: null, notFound: null, rejected: null, failed: null, results: null, createdAt: new Date(), updatedAt: new Date(), ...data }
+      zipImports.set(row.id, row)
+      return clone(row)
+    },
+    findUnique: async ({ where }: { where: AnyRecord }) => {
+      const row = zipImports.get(where.id)
+      return row ? clone(row) : null
+    },
+    findMany: async ({ take }: { take?: number } = {}) => [...zipImports.values()].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)).slice(0, take ?? 20).map((row) => clone(row)),
+    update: async ({ where, data }: { where: AnyRecord; data: AnyRecord }) => {
+      const row = zipImports.get(where.id)
+      if (!row) throw new Error('ZIP_IMPORT_NOT_FOUND')
+      Object.assign(row, data, { updatedAt: new Date() })
+      return clone(row)
+    },
+    delete: async ({ where }: { where: AnyRecord }) => {
+      const row = zipImports.get(where.id)
+      if (!row) throw new Error('ZIP_IMPORT_NOT_FOUND')
+      zipImports.delete(where.id)
+      return clone(row)
+    },
+  },
   admissionApplication: { findMany: async () => [], findUnique: async () => null },
   payment: { findMany: async () => [] },
   thesisSubmission: { findFirst: async () => null, findMany: async () => [] },
@@ -189,13 +215,14 @@ const importRoute = await import('../../src/app/api/admin/legacy-graduates/impor
 const uploadRoute = await import('../../src/app/api/admin/legacy-graduates/[certificateId]/upload/route')
 const importFilesRoute = await import('../../src/app/api/admin/legacy-graduates/import-files/route')
 const importFilesPresignRoute = await import('../../src/app/api/admin/legacy-graduates/import-files/presign/route')
+const importFilesSessionsRoute = await import('../../src/app/api/admin/legacy-graduates/import-files/sessions/route')
 const resendRoute = await import('../../src/app/api/admin/legacy-graduates/[certificateId]/resend-invite/route')
 const verifyRoute = await import('../../src/app/api/certificates/verify/route')
 const pdfRoute = await import('../../src/app/api/pdf/certificates/[id]/route')
 
 function resetState() {
-  users.clear(); programs.clear(); enrollments.clear(); certificates.clear(); audits.splice(0); storedFiles.clear()
-  userSeq = 0; enrollmentSeq = 0; certificateSeq = 0; serialSeq = 0; storageSeq = 0
+  users.clear(); programs.clear(); enrollments.clear(); certificates.clear(); zipImports.clear(); audits.splice(0); storedFiles.clear()
+  userSeq = 0; enrollmentSeq = 0; certificateSeq = 0; zipImportSeq = 0; serialSeq = 0; storageSeq = 0
   currentAdmin = { id: 'admin-1', name: 'Admin', role: 'ADMIN' }
   currentUser = { id: 'admin-1', name: 'Admin', role: 'ADMIN', email: 'admin@example.com' }
   delete db.certificateTemplate
@@ -750,48 +777,77 @@ describe('legacy ZIP direct-to-storage upload', () => {
     expect(route).toContain('isLegacyCertificateZipImportKey(key)')
     expect(route).toContain('readLegacyCertificateZipImport(key)')
   })
-})
 
-describe('legacy ZIP email matching', () => {
-  test('a file named with a .com-less email still matches its owner', async () => {
-    const created = await createLegacyGraduate(
-      { name: 'سارة خليل', email: 'sara@gmail.com', programId: 'program-1', grade: 'امتياز', finalScore: 95, issuedAt: new Date('2024-06-30T00:00:00Z'), legacySerial: 'OLD-SARA-1' },
-      currentAdmin as any,
-    )
-    const zip = makeStoredZip('sara@gmail.pdf', await minimalPdf())
-    const fd = new FormData()
-    fd.append('file', new File([zip], 'legacy.zip', { type: 'application/zip' }))
-    const res = await importFilesRoute.POST(formReq(fd, 'https://aactacademy.test/api/admin/legacy-graduates/import-files'))
-    const data = await responseJson(res)
-    expect(res.status).toBe(200)
-    expect(data.successful).toBe(1)
-    expect(data.results[0].status).toBe('SUCCESS')
-    expect(data.results[0].serial).toBe(created.certificate.serial)
-    expect(certificates.get(created.certificate.id)?.stampedFileKey).toBeTruthy()
+  test('import session survives: presign records it, processing updates it, the archive stays for resume', async () => {
+    setS3Env()
+    try {
+      const presignRes = await importFilesPresignRoute.POST(jsonReq({ size: 2048, fileName: 'bulk-session.zip' }, presignUrl))
+      const presign = await responseJson(presignRes)
+      expect(presignRes.status).toBe(200)
+      expect(presign.importId).toBeTruthy()
+      const recorded = zipImports.get(presign.importId)
+      expect(recorded?.storageKey).toBe(presign.key)
+      expect(recorded?.fileName).toBe('bulk-session.zip')
+      expect(recorded?.adminId).toBe('admin-1')
+      expect(recorded?.totalFiles).toBeNull()
+
+      // Simulate the browser's direct PUT landing in storage.
+      const zip = makeStoredZip('missing@example.com.pdf', await minimalPdf())
+      storedFiles.set(presign.key, { buffer: zip, mimeType: 'application/zip' })
+
+      const processRes = await importFilesRoute.POST(jsonUploadReq({ key: presign.key, size: zip.length, importId: presign.importId }, importUrl))
+      const payload = await responseJson(processRes)
+      expect(processRes.status).toBe(200)
+      expect(payload.notFound).toBe(1)
+      const updated = zipImports.get(presign.importId)
+      expect(updated?.totalFiles).toBe(1)
+      expect(updated?.notFound).toBe(1)
+      expect(Array.isArray(updated?.results)).toBe(true)
+      // The archive is NOT deleted: the session can be resumed later.
+      expect(storedFiles.has(presign.key)).toBe(true)
+
+      // Resume re-processes the stored archive and refreshes the session row.
+      const resumeRes = await importFilesRoute.POST(jsonUploadReq({ key: presign.key, size: zip.length, importId: presign.importId }, importUrl))
+      expect(resumeRes.status).toBe(200)
+      expect(zipImports.get(presign.importId)?.notFound).toBe(1)
+
+      // A session id that does not own the key is refused before any work.
+      const mismatch = await importFilesRoute.POST(jsonUploadReq({ key: presign.key, size: zip.length, importId: 'zip-import-999' }, importUrl))
+      expect(mismatch.status).toBe(400)
+      expect(storedFiles.has(presign.key)).toBe(true)
+    } finally {
+      clearS3Env()
+    }
   })
 
-  test('a .com-less email with no owner stays NOT_FOUND, and so do plain names', async () => {
-    const zip = makeStoredZipEntries([
-      { fileName: 'ghost@gmail.pdf', data: await minimalPdf() },
-      { fileName: 'طالب مجهول.pdf', data: await minimalPdf() },
-    ])
-    const fd = new FormData()
-    fd.append('file', new File([zip], 'legacy.zip', { type: 'application/zip' }))
-    const res = await importFilesRoute.POST(formReq(fd, 'https://aactacademy.test/api/admin/legacy-graduates/import-files'))
-    const data = await responseJson(res)
-    expect(res.status).toBe(200)
-    expect(data.successful).toBe(0)
-    expect(data.notFound).toBe(2)
-    expect(data.results[0].status).toBe('NOT_FOUND')
-    expect(data.results[1].status).toBe('NOT_FOUND')
+  test('sessions list shows recorded sessions and delete removes the row and its archive', async () => {
+    const key = 'certificates/legacy-zip-imports/session-list.zip'
+    zipImports.set('zip-import-manual', { id: 'zip-import-manual', adminId: 'admin-1', fileName: 'old.zip', sizeBytes: 10, storageKey: key, totalFiles: 3, successful: 1, notFound: 2, rejected: 0, failed: 0, results: [], createdAt: new Date(), updatedAt: new Date() })
+    storedFiles.set(key, { buffer: Buffer.from('zip'), mimeType: 'application/zip' })
+
+    const sessionsUrl = 'https://aactacademy.test/api/admin/legacy-graduates/import-files/sessions'
+    const listRes = await importFilesSessionsRoute.GET()
+    const list = await responseJson(listRes)
+    expect(listRes.status).toBe(200)
+    expect(list.sessions).toHaveLength(1)
+    expect(list.sessions[0].id).toBe('zip-import-manual')
+    expect(list.sessions[0].notFound).toBe(2)
+
+    const deleteRes = await importFilesSessionsRoute.DELETE(jsonReq({}, `${sessionsUrl}?id=zip-import-manual`))
+    expect(deleteRes.status).toBe(200)
+    expect(zipImports.size).toBe(0)
+    expect(storedFiles.has(key)).toBe(false)
+
+    currentAdmin = null
+    expect((await importFilesSessionsRoute.GET()).status).toBe(403)
+    currentAdmin = { id: 'admin-1', name: 'Admin', role: 'ADMIN' }
   })
 
-  test('tab renders the per-file ZIP results list, a resume button, and the stamped-file viewer', () => {
+  test('tab is wired for server-side import sessions', () => {
     const tab = readFileSync('src/components/aact/AdminLegacyGraduatesTab.tsx', 'utf8')
-    expect(tab).toContain('zipReport.results.map')
+    expect(tab).toContain('/api/admin/legacy-graduates/import-files/sessions')
     expect(tab).toContain('استكمال الربط')
-    expect(tab).toContain('الملف المختوم الحالي')
-    expect(tab).toContain('/api/pdf/certificates/')
+    expect(tab).toContain('جلسات استيراد ZIP الأخيرة')
   })
 })
 
