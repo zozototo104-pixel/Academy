@@ -499,7 +499,10 @@ export function isolateSourceCriterion(draft: AiGradingDraft, criteria: RubricCr
   const max = other.reduce((sum, criterion) => sum + criterion.maxPoints, 0)
   if (max <= 0) return { status: 'NO_VALID_BREAKDOWN', note: 'لا يمكن عزل المصادر دون معايير أخرى صالحة؛ راجع الدرجة يدويًا.' }
   draft.score = Math.round(other.reduce((sum, criterion) => sum + criterion.points, 0) / max * points * 100) / 100
-  for (const i of sourceIndices) draft.criteria[i].justification = 'مُستبعَد لتعذر التحقق؛ نقاط هذا المعيار لا تدخل الدرجة المقترحة.'
+  for (const i of sourceIndices) {
+    draft.criteria[i].excludedFromScore = true
+    draft.criteria[i].justification = 'مُستبعَد لتعذر التحقق؛ نقاط هذا المعيار لا تدخل الدرجة المقترحة.'
+  }
   const weight = sourceIndices.reduce((sum, i) => sum + criteria[i].weightPct, 0)
   return { status: 'ISOLATED', note: 'درجة الذكاء لا تشمل مكوّن المصادر (وزنه ' + weight + '%) لتعذر التحقق من الاستشهادات — حدّده بنفسك عند الاعتماد. الدرجة المعدّلة مقترحة وليست نهائية.' }
 }
