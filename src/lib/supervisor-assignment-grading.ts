@@ -374,11 +374,20 @@ async function loadBookContext(programId: string, unitId: string | null, semeste
         return Array.from({ length: Math.max(0, end - start + 1) }, (_, i) => start + i)
       }))].sort((a, b) => a - b)
       if (!pages.length) throw new Error('REFERENCE_PAGES_UNAVAILABLE')
-      // The synchronous route cannot safely re-read arbitrarily large books. Refuse
-      // partial recovery instead of returning a misleading clean grading draft.
-      if (pages.length > 8) throw new Error('REFERENCE_REPAIR_BATCH_REQUIRED')
-      const rescanned = await transcribeScannedDocumentWithVision(stored.buffer, pages, Date.now() + 100_000)
-      const recovered = rescanned.map((page) => fixArabicPdfText(page.text || '')).filter(Boolean).join('\n')
+      // The OCR provider accepts up to eight pages per call. Process every damaged
+      // source page in ordered batches; never silently drop pages after the first batch.
+      const deadline = Date.now() + 100_000
+      const rescanned: Awaited<ReturnType<typeof transcribeScannedDocumentWithVision>> = []
+      for (let offset = 0; offset < pages.length; offset += 8) {
+        if (deadline - Date.now() < 25_000) throw new Error('REFERENCE_REPAIR_TIME_BUDGET')
+        const batch = pages.slice(offset, offset + 8)
+        const result = await transcribeScannedDocumentWithVision(stored.buffer, batch, deadline)
+        if (result.length !== batch.length || result.some((page, i) => page.page !== batch[i] || !page.text.trim())) {
+          throw new Error('REFERENCE_OCR_INCOMPLETE')
+        }
+        rescanned.push(...result)
+      }
+      const recovered = rescanned.map((page) => fixArabicPdfText(page.text || '')).join('\n')
       if (recovered.length < 120 || isUnreadableBookReference(recovered)) throw new Error('REFERENCE_OCR_UNREADABLE')
       text = recovered.slice(0, MAX_BOOK_CHARS)
     }
