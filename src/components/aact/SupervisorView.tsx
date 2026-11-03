@@ -764,6 +764,12 @@ export function SupervisorView() {
                 <Label className="text-xs font-black text-[#0f2b46]">ملاحظة للطالب</Label>
                 <Textarea value={gradingFeedback} onChange={(e) => setGradingFeedback(e.target.value)} placeholder="اكتب تغذية راجعة مفصلة للطالب" className="min-h-28 rounded-2xl text-sm font-bold leading-7" />
               </div>
+              {gradingDraft?.provenance?.referenceWarning === 'REFERENCE_UNREADABLE' && (
+                <label className="flex items-start gap-2 rounded-xl border border-red-300 bg-red-50 p-3 text-sm font-bold text-red-900">
+                  <input type="checkbox" checked={sourceReviewed} onChange={(e) => setSourceReviewed(e.target.checked)} className="mt-1" />
+                  أؤكد أنني راجعت صفحات المصدر الأصلي بنفسي، ولن أعتمد خصماً على استشهادات تعذّر التحقق منها.
+                </label>
+              )}
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Button variant="outline" onClick={() => { setGradingDetail(null); setGradingDraft(null) }} className="flex-1 rounded-2xl font-black">إلغاء</Button>
                 <Button onClick={() => submitSupervisorGrading('NEEDS_REVISION')} disabled={gradingSaving} className="flex-1 rounded-2xl bg-amber-600 font-black text-white hover:bg-amber-700">
