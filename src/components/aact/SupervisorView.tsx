@@ -340,7 +340,7 @@ export function SupervisorView() {
       toast({ title: 'ملاحظة التعديل مطلوبة', description: 'اكتب سبباً واضحاً للطالب قبل طلب التعديل.', variant: 'destructive' })
       return
     }
-    if (status === 'GRADED' && gradingDraft?.provenance?.referenceWarning === 'REFERENCE_UNREADABLE' && !sourceReviewed) {
+    if (status === 'GRADED' && sourceReviewRequired && !sourceReviewed) {
       toast({ title: 'راجع المرجع الأصلي أولاً', description: 'أكد مراجعة صفحات المصدر الأصلي قبل اعتماد الدرجة.', variant: 'destructive' })
       return
     }
