@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/auth'
+import { db } from '@/lib/db'
 import {
   loadSupervisorAssignmentDetail,
   analyzeAssignmentSubmission,
