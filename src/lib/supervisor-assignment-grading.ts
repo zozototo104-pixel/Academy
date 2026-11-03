@@ -620,6 +620,15 @@ export async function gradeAssignmentSubmission(
   }
   await assertSupervisorScope(user, submission)
 
+  if (input.status === 'GRADED') {
+    const book = await loadBookContext(submission.assignment.programId, submission.assignment.unitId, submission.assignment.semester, submission.assignment.sourceKnowledgeIds)
+    if (book.unreadable && input.sourceReviewed !== true) {
+      const error = new Error('SOURCE_REVIEW_REQUIRED') as Error & { status?: number }
+      error.status = 409
+      throw error
+    }
+  }
+
   const points = submission.assignment.points
   const score = Number(input.score)
   if (!Number.isFinite(score) || score < 0 || score > points) {
