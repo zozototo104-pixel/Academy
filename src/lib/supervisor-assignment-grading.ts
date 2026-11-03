@@ -374,7 +374,6 @@ async function loadBookContext(programId: string, unitId: string | null, semeste
       const recovered = rescanned.map((page) => fixArabicPdfText(page.text || '')).filter(Boolean).join('\n')
       if (recovered.length < 120 || isUnreadableBookReference(recovered)) throw new Error('REFERENCE_OCR_UNREADABLE')
       text = recovered.slice(0, MAX_BOOK_CHARS)
-      repaired = true
     }
     const book = await db.book.findUnique({ where: { id: unit.sourceBookId }, select: { title: true } }).catch(() => null)
     const status: GradingBookContext['status'] = !text ? 'NONE' : !sourceIds.length ? 'UNIT' :
