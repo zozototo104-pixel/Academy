@@ -364,12 +364,19 @@ async function loadBookContext(programId: string, unitId: string | null, semeste
       }
       const pdf = await PDFDocument.load(stored.buffer)
       const pageCount = pdf.getPageCount()
-      const pages = [...new Set(chunks.flatMap((chunk) => {
+      // OCR only the source chunks exhibiting extraction corruption; never scan the first
+      // eight unrelated pages and mistake their clean text for repaired evidence.
+      const damagedChunks = chunks.filter((chunk) => isUnreadableBookReference(fixArabicPdfText(chunk.text || '')))
+      if (!damagedChunks.length) throw new Error('REFERENCE_DAMAGED_PAGES_UNKNOWN')
+      const pages = [...new Set(damagedChunks.flatMap((chunk) => {
         const start = Math.max(1, chunk.pageStart)
         const end = Math.min(pageCount, chunk.pageEnd)
-        return Array.from({ length: Math.max(0, Math.min(end - start + 1, 8)) }, (_, i) => start + i)
-      }))].slice(0, 8)
+        return Array.from({ length: Math.max(0, end - start + 1) }, (_, i) => start + i)
+      }))].sort((a, b) => a - b)
       if (!pages.length) throw new Error('REFERENCE_PAGES_UNAVAILABLE')
+      // The synchronous route cannot safely re-read arbitrarily large books. Refuse
+      // partial recovery instead of returning a misleading clean grading draft.
+      if (pages.length > 8) throw new Error('REFERENCE_REPAIR_BATCH_REQUIRED')
       const rescanned = await transcribeScannedDocumentWithVision(stored.buffer, pages, Date.now() + 100_000)
       const recovered = rescanned.map((page) => fixArabicPdfText(page.text || '')).filter(Boolean).join('\n')
       if (recovered.length < 120 || isUnreadableBookReference(recovered)) throw new Error('REFERENCE_OCR_UNREADABLE')
