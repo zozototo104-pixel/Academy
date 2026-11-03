@@ -503,7 +503,7 @@ export async function POST(req: NextRequest) {
     if (e?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'يجب تسجيل الدخول أولاً' }, { status: 401 })
     }
-    console.error('Exam submit error:', e)
+    // Diagnostic code and attempt ID were logged above; never log the raw exception here.
     return NextResponse.json(
       { error: 'حدث خطأ أثناء تصحيح الاختبار — حاول مرة أخرى' },
       { status: 500 }
