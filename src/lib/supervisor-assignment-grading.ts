@@ -761,6 +761,7 @@ ${citations.evidenceText || 'لا توجد صفحات صريحة متاحة لل
       citationPages: citations.pages,
       citationMode: citations.mode,
       citationReviewRequired: citations.reviewRequired,
+      attachmentReviewRequired: approvalAnswer.uncertain,
       isolationStatus: isolation.status,
       isolationNote: isolation.note,
     } as AnswerProvenance,
