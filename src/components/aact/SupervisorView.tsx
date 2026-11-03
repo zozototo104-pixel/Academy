@@ -284,6 +284,23 @@ export function SupervisorView() {
     }
   }
 
+  const [rosterSemester, setRosterSemester] = useState(1)
+  const [rosterPage, setRosterPage] = useState(1)
+  const [assignmentRoster, setAssignmentRoster] = useState<any | null>(null)
+  const [rosterLoading, setRosterLoading] = useState(false)
+  const [rosterStudentId, setRosterStudentId] = useState<string | null>(null)
+  const loadAssignmentRoster = async (programId: string, semester: number, page: number) => {
+    setRosterLoading(true)
+    try {
+      const data = await api<any>(`/api/supervisor/assignments?mode=roster&programId=${encodeURIComponent(programId)}&semester=${semester}&page=${page}`)
+      setAssignmentRoster(data)
+      setRosterStudentId(null)
+    } catch (e: any) {
+      toast({ title: 'تعذر تحميل واجبات الفصل', description: e.message || 'حاول مرة أخرى', variant: 'destructive' })
+    } finally {
+      setRosterLoading(false)
+    }
+  }
   const [gradingDetail, setGradingDetail] = useState<any | null>(null)
   const [gradingScore, setGradingScore] = useState('')
   const [gradingFeedback, setGradingFeedback] = useState('')
