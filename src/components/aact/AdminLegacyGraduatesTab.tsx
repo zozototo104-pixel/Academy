@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Award, Download, FileArchive, FileSpreadsheet, Loader2, Mail, PenLine, Plus, Search, ShieldOff, Trash2, Upload } from 'lucide-react'
+import { Award, Download, FileArchive, FileSpreadsheet, Loader2, Mail, PenLine, Plus, RefreshCw, Search, ShieldOff, Trash2, Upload } from 'lucide-react'
 
 type LegacyGraduateCertificate = {
   id: string
@@ -715,6 +715,23 @@ export default function AdminLegacyGraduatesTab() {
           </div>
           {busy === 'zip' && zipProgress >= 100 ? <p className="text-xs font-bold text-slate-600">اكتمل الرفع — جارٍ ربط الشهادات وختمها...</p> : null}
           {zipReport ? <p className="text-xs font-bold text-slate-600">النتيجة: نجح {zipReport.successful}، غير مرتبط {zipReport.notFound}، مرفوض {zipReport.rejected}، فشل {zipReport.failed}</p> : null}
+          {zipReport?.results?.length ? (
+            <div className="max-h-64 space-y-1 overflow-auto rounded-lg border border-slate-200 p-2">
+              {zipReport.results.map((row: any, index: number) => (
+                <div key={index} className="flex items-center justify-between gap-2 text-xs">
+                  <span dir="ltr" className="font-bold text-slate-700">{row.fileName}</span>
+                  {row.ok
+                    ? <span className="shrink-0 font-black text-emerald-600">تم الربط والختم</span>
+                    : <span className="shrink-0 font-black text-red-600">{row.error || row.status}</span>}
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {zipReport && (zipReport.notFound > 0 || zipReport.rejected > 0 || zipReport.failed > 0) ? (
+            <Button variant="outline" onClick={uploadZip} disabled={busy === 'zip' || !zipFile} className="gap-2">
+              <RefreshCw className="h-4 w-4" /> استكمال الربط — إعادة محاولة الباقي بنفس الأرشيف
+            </Button>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -789,6 +806,12 @@ export default function AdminLegacyGraduatesTab() {
           </DialogHeader>
           <div className="space-y-4">
             <Input type="file" accept="application/pdf,image/png,image/jpeg" onChange={(e) => setUploadFile(e.target.files?.[0] || null)} />
+            {uploadFor?.stampedFileKey ? (
+              <div className="space-y-2">
+                <Label className="text-[11px] font-black text-slate-600">الملف المختوم الحالي</Label>
+                <iframe title="الشهادة المختومة الحالية" src={`/api/pdf/certificates/${encodeURIComponent(uploadFor.serial)}`} className="h-96 w-full rounded-xl border border-slate-200 bg-white" />
+              </div>
+            ) : null}
             <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
               <div className="space-y-3">
                 <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-[11px] font-bold leading-5 text-emerald-900">
