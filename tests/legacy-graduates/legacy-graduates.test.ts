@@ -464,6 +464,18 @@ describe('legacy graduate spreadsheet import helpers', () => {
     expect(source).toContain('onChange={(event) => {')
   })
 
+  test('import preview list flows at full height on small screens instead of a fixed-height box', () => {
+    const source = readFileSync('src/components/aact/AdminLegacyGraduatesTab.tsx', 'utf8')
+    // The whole parsed file must stay reachable: every preview row renders,
+    // and the wrapper must not cap the height on small screens (the desktop
+    // boxed scroll above md is intentional and stays).
+    expect(source).toContain('importRows.map((row)')
+    expect(source).not.toContain('importRows.slice')
+    expect(source).toContain('max-h-none overflow-x-auto')
+    expect(source).toContain('md:max-h-96 md:overflow-auto')
+    expect(source).not.toContain('className="max-h-96 overflow-auto')
+  })
+
   test('Arabic xlsx headers parse correctly and Excel numeric dates convert correctly without saving', async () => {
     const XLSX = await import('xlsx')
     const excelSerial = Math.floor(Date.UTC(2024, 5, 30) / 86400000) + 25569
