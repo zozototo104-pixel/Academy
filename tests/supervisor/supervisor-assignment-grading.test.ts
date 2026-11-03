@@ -85,7 +85,7 @@ const db: any = {
     findFirst: async (args: any) => mockSourceUnit && args?.where?.programId === 'prog-1' && args?.where?.id === 'unit-1' ? { id: 'unit-1', semester: 1, sourceBookId: 'book-1', chunkStartIndex: 0, chunkEndIndex: 1 } : null,
     findMany: async () => [],
   },
-  bookChunk: { findMany: async () => mockSourceUnit ? [{ id: 'chunk-1', text: 'نص كتاب الموارد البشرية عن التخطيط والاستقطاب.' }] : [] },
+  bookChunk: { findMany: async () => mockSourceUnit ? [{ id: 'chunk-1', pageStart: 1, pageEnd: 2, text: 'نص كتاب الموارد البشرية عن التخطيط والاستقطاب.' }] : [] },
   bookKnowledgeItem: { findMany: async (args: any) => {
     if (!mockSourceUnit) return []
     const exact = { id: 'ki-exact', title: 'الاستقطاب الموثّق', summary: 'المصدر الأصلي عن معايير الاختيار والموارد البشرية.', excerpt: 'إجراءات الاستقطاب' }
