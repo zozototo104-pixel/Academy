@@ -313,7 +313,7 @@ async function loadBookContext(programId: string, unitId: string | null, semeste
     const chunks = await db.bookChunk.findMany({
       where: { bookId: unit.sourceBookId, index: { gte: unit.chunkStartIndex, lte: unit.chunkEndIndex } },
       orderBy: { index: 'asc' },
-      select: { id: true, text: true },
+      select: { id: true, text: true, pageStart: true, pageEnd: true },
     })
     if (!chunks.length) return missing()
     const allowedWhere = { programId, kbVersion: 2,
