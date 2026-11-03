@@ -30,6 +30,7 @@ export interface DraftCriterion {
   points: number
   maxPoints: number
   justification: string
+  excludedFromScore?: boolean
 }
 
 export interface AiGradingDraft {
