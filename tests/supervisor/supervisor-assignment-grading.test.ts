@@ -214,7 +214,7 @@ describe('semester roster API', () => {
     expect(data.pageSize).toBe(20)
     expect(data.total).toBe(1)
     expect(data.students[0].name).toBe('محمود')
-    expect(data.students[0].assignments.map((a: any) => a.status)).toEqual(['GRADED', 'NOT_SUBMITTED'])
+    expect(data.students[0].assignments.map((a: any) => a.status)).toEqual(['GRADED', 'OVERDUE'])
     expect(data.students[0].assignments[0].score).toBe(85)
   })
 
