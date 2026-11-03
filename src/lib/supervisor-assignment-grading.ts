@@ -729,6 +729,11 @@ ${answer.combinedText}`
       sourceKnowledgeMatched: book.matched,
       referenceWarning,
       answerTruncated: answer.truncated,
+      citationPages: citations.pages,
+      citationMode: citations.mode,
+      citationReviewRequired: citations.reviewRequired,
+      isolationStatus: isolation.status,
+      isolationNote: isolation.note,
     } as AnswerProvenance,
   }
 }
