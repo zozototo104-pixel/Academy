@@ -352,6 +352,10 @@ export function SupervisorView() {
       setGradingDraft(null)
       await load()
     } catch (e: any) {
+      if (e?.status === 409 || /راجع صفحات المصدر|تأكيد المشرف|تعذر التحقق/.test(String(e?.message || ''))) {
+        setSourceReviewRequired(true)
+        setSourceReviewed(false)
+      }
       toast({ title: 'تعذر حفظ التصحيح', description: e.message || 'حاول مرة أخرى', variant: 'destructive' })
     } finally {
       setGradingSaving(false)
