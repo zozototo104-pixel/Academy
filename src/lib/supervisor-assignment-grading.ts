@@ -544,6 +544,7 @@ export async function analyzeAssignmentSubmission(submissionId: string, user: { 
     throw error
   }
 
+  const referenceWarning = book.unreadable ? 'REFERENCE_UNREADABLE' as const : null
   const userPrompt = `عنوان الواجب: ${cleanAcademicOutput(submission.assignment.title, 220)}
 وصف الواجب: ${cleanAcademicOutput(submission.assignment.description, 3000)}
 معايير الواجب كما كتبها المعلم: ${submission.assignment.rubric ? cleanAcademicOutput(submission.assignment.rubric, 1000) : 'الافتراضي: الاستناد إلى مصادر الوحدة 30%، جودة التحليل 30%، التطبيق المهني 25%، وضوح العرض 15%'}
