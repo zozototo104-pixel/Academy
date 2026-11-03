@@ -982,6 +982,19 @@ export function AdminBooksTab() {
   const pagedGradingGroups = pageItems(groupedGradingQueue, gradingPage, gradingPageSize)
   const currentGradingPage = safePage(groupedGradingQueue.length, gradingPageSize, gradingPage)
 
+  const loadAdminRoster = async (page: number, semester = adminRosterSemester) => {
+    if (!programId) return
+    setAdminRosterLoading(true)
+    try {
+      const data = await api<NonNullable<typeof adminRoster>>(`/api/supervisor/assignments?mode=roster&programId=${encodeURIComponent(programId)}&semester=${semester}&page=${page}`)
+      setAdminRoster(data)
+      setAdminRosterPage(page)
+    } catch {
+      setAdminRoster(null)
+      toast({ title: 'تعذر تحميل طلاب الفصل', variant: 'destructive' })
+    } finally { setAdminRosterLoading(false) }
+  }
+
   const loadProgramData = useCallback(async (pid: string, silent = false) => {
     if (!pid) return
     const loadToken = `${pid}:${Date.now()}`
