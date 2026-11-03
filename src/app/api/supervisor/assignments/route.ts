@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
         db.programAssignment.findMany({
           where: { programId, semester, status: 'PUBLISHED' },
           orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-          select: { id: true, title: true, points: true, dueAt: true, type: true },
+          select: { id: true, title: true, points: true, dueAt: true, dueDays: true, type: true },
         }),
       ])
       const userIds = apps.map(app => app.userId).filter((id): id is string => Boolean(id))
