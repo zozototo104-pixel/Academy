@@ -91,10 +91,10 @@ export async function GET(req: NextRequest) {
         select: { id: true, userId: true, assignmentId: true, status: true, score: true, submittedAt: true },
       }) : []
       const byPair = new Map(submissions.map(s => [s.userId + ':' + s.assignmentId, s]))
-      const students = visibleApps.map(app => ({
-        admissionId: app.id,
-        userId: app.userId,
-        name: app.fullName || 'طالب',
+      const students = visibleEnrollments.map(enrollment => ({
+        admissionId: enrollment.id,
+        userId: enrollment.userId,
+        name: enrollment.user.ownedAdmissions[0]?.fullName || enrollment.user.name || 'طالب',
         assignments: assignments.map(a => {
           const sub = byPair.get(app.userId + ':' + a.id)
           const start = app.userId ? enrolledAt.get(app.userId) : undefined
