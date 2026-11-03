@@ -937,6 +937,28 @@ model Certificate {
   @@index([valid, revokedAt])
 }
 
+// One bulk legacy-certificate ZIP import session. The archive itself stays
+// in file storage under storageKey; this row records the run (counts and
+// per-file results) so a partial import can be resumed later from any
+// device instead of depending on the uploader's open page.
+model LegacyCertificateZipImport {
+  id         String   @id @default(cuid())
+  adminId    String
+  fileName   String
+  sizeBytes  Int
+  storageKey String
+  totalFiles Int?
+  successful Int?
+  notFound   Int?
+  rejected   Int?
+  failed     Int?
+  results    Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([createdAt])
+}
+
 model CertificateTemplate {
   id              String   @id @default(cuid())
   name            String
