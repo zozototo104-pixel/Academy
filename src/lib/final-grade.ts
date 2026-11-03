@@ -239,16 +239,16 @@ async function programExamAverage(client: DbClient, userId: string, programId: s
 async function assignmentAverage(client: DbClient, userId: string, programId: string, missing: string[], requiredForGrade: boolean): Promise<ComponentScore> {
   const assignments = await client.programAssignment.findMany({
     where: { programId, status: 'PUBLISHED' },
-    select: { id: true, title: true, points: true },
+    select: { id: true, title: true, points: true, weight: true },
     orderBy: { createdAt: 'asc' },
   })
   if (!assignments.length) {
     if (requiredForGrade) addMissing(missing, 'الواجبات المنشورة المصححة')
     return null
   }
-  // Published assignments share the assignment component equally, regardless of legacy weight.
-  // Each score is normalized using its own maximum points before averaging.
-  const totalShares = assignments.length
+  const declaredWeights = assignments.map((a) => Math.max(0, Number(a.weight || 0)))
+  const shares = declaredWeights.some((v) => v > 0) ? declaredWeights : assignments.map(() => 1)
+  const totalShares = shares.reduce((sum, v) => sum + v, 0)
   let percent = 0
   let complete = true
   for (let i = 0; i < assignments.length; i++) {
@@ -257,18 +257,12 @@ async function assignmentAverage(client: DbClient, userId: string, programId: st
       where: { assignmentId_userId: { assignmentId: assignment.id, userId } },
       select: { status: true, score: true },
     })
-    const validMaxPoints = Number.isFinite(assignment.points) && assignment.points > 0
-    const graded = submission?.status === 'GRADED' && typeof submission.score === 'number' && Number.isFinite(submission.score)
-    // An invalid maximum must never silently turn a score such as 18/0 into 18/100.
-    // Reserve this published assignment's equal share as zero and flag it for correction.
-    const score = graded && validMaxPoints
-      ? clampPercent((submission!.score! / assignment.points) * 100)
+    const graded = submission?.status === 'GRADED' && typeof submission.score === 'number'
+    const score = graded
+      ? clampPercent(assignment.points > 0 ? (submission!.score! / assignment.points) * 100 : submission!.score!)
       : 0
-    percent += score / totalShares
-    if (!validMaxPoints) {
-      addMissing(missing, `واجب منشور بعلامة كاملة غير صالحة: ${assignment.title}`)
-      complete = false
-    } else if (!graded || score < 60) {
+    percent += score * (shares[i] / totalShares)
+    if (!graded || score < 60) {
       addMissing(missing, `واجب منشور غير مكتمل أو غير مجتاز: ${assignment.title}`)
       complete = false
     }
