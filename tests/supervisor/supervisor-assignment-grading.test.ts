@@ -25,6 +25,9 @@ let nativeSourcePages: Record<number, string> = {}
 let ocrSourcePages: Record<number, string> = {}
 let ocrPageRequests: number[][] = []
 
+let rosterEnrollments: any[] | null = null
+let rosterAdmissions: Record<string, { supervisorId: string; fullName: string }[]> = {}
+
 const submission: any = {
   id: 'sub-1',
   userId: 'student-1',
