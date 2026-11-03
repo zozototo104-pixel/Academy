@@ -78,6 +78,7 @@ export async function POST(req: NextRequest) {
       const updated = await gradeAssignmentSubmission(submissionId, user, {
         score,
         feedback,
+        sourceReviewed: body.sourceReviewed === true,
         status: status as 'GRADED' | 'NEEDS_REVISION',
       })
       return NextResponse.json({ submission: updated })
