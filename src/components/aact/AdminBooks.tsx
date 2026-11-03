@@ -1001,6 +1001,11 @@ export function AdminBooksTab() {
       if (!isCurrent()) return
       setAdminRoster(data)
       setAdminRosterPage(page)
+      setAdminRosterCursors(previous => {
+        const next = previous.slice(0, page)
+        if (data.nextCursor) next[page] = data.nextCursor
+        return next
+      })
     } catch {
       if (!isCurrent()) return
       setAdminRoster(null)
