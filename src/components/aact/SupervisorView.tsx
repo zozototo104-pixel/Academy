@@ -208,6 +208,7 @@ export function SupervisorView() {
 
   useEffect(() => { load() }, [])
   useEffect(() => { if (selected?.id) loadDetails(selected.id) }, [selected?.id])
+  useEffect(() => { setAssignmentRoster(null); setRosterStudentId(null); setRosterPage(1) }, [selected?.programId])
 
   const sendMessage = async (payload?: { mode?: 'TEXT' | 'VOICE'; audioData?: string; audioMime?: string; content?: string }) => {
     if (!selected) return
