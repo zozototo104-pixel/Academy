@@ -109,7 +109,7 @@ function apiSurface(): { count: number; digest: string } {
   // Only the new review-only DELETE call is exempt from the 78-call frozen baseline.
   const rejectionCalls = calls.filter((call) => call.includes('outline/sections/${sectionId}') && call.includes("method: 'DELETE'"))
   assert.equal(rejectionCalls.length, 1, 'expected exactly one reviewed outline rejection call')
-  const rosterCalls = calls.filter((call) => call.includes('/api/supervisor/assignments?mode=roster&programId=') && call.includes('&semester=') && call.includes('&page='))
+  const rosterCalls = calls.filter((call) => call.includes('/api/supervisor/assignments?mode=roster&programId=') && call.includes('&semester=') && call.includes('encodeURIComponent(cursor)'))
   assert.equal(rosterCalls.length, 1, 'expected exactly one reviewed admin roster GET')
   const protectedCalls = calls.filter((call) => !rejectionCalls.includes(call) && !rosterCalls.includes(call)).sort()
   return { count: calls.length, digest: digest(protectedCalls.join('\n')) }
