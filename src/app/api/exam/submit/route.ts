@@ -404,7 +404,7 @@ export async function POST(req: NextRequest) {
     // Deterministic feedback is persisted WITH the official mark.
     // Optional AI commentary is requested only after the graded transaction commits.
     let overall = buildAnswerKeyFeedback(exam.unit.program.titleAr, percentage, passed, weakPoints)
-    const feedbackJson = JSON.stringify(overall)
+    const feedbackJson = JSON.stringify({ ...overall, feedbackSource: 'FALLBACK' })
     const completedAttempts = completedAttemptsBeforeSubmit + 1
     const revealCorrectAnswers = shouldRevealCorrectAnswers({ passed, completedAttempts, maxAttempts })
     const persistedAnswers = revealCorrectAnswers ? answersToPersist : sanitizePreparedAnswersForHiddenAnswers(answersToPersist)
