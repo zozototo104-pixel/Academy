@@ -447,7 +447,7 @@ export async function POST(req: NextRequest) {
 
     // Any graded attempt can push the weighted cumulative mark above the threshold.
     const completion = await completeEnrollmentIfEligible({ enrollmentId: enrollment.id }).catch((error) => {
-      console.error('Post-grade certificate recheck failed; preserving unit result:', error)
+      console.error('Post-grade certificate recheck failed; preserving unit result', { code: 'UNIT_CERTIFICATE_RECHECK_FAILED', attemptId: claimedUnitAttemptId || null })
       return null
     })
     const certificateNo = completion?.ok ? completion.certificate?.serial || null : null
