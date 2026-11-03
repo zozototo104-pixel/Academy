@@ -315,7 +315,7 @@ export function SupervisorView() {
     if (!gradingDetail) return
     setGradingAnalyzing(true)
     try {
-      const d = await api<any>('/api/supervisor/assignments', { method: 'POST', body: JSON.stringify({ action: repairSource ? 'repair-reference' : 'analyze', submissionId: gradingDetail.submissionId }) })
+      const d = await api<any>('/api/supervisor/assignments', { method: 'POST', body: JSON.stringify({ action: 'analyze', submissionId: gradingDetail.submissionId }) })
       setGradingDraft(d)
       setSourceReviewRequired((previous) => previous || d.provenance?.referenceWarning === 'REFERENCE_UNREADABLE' || repairSource)
       setSourceReviewed(false)
