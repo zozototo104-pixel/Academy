@@ -26,6 +26,7 @@ function publicMessage(error: any, fallback: string): string {
   if (status === 403) return 'هذا التسليم ليس من طلابك المعيّنين لك'
   if (status === 404) return 'التسليم غير موجود'
   if (status === 422) return 'لا يوجد نص قابل للتحليل في هذا التسليم؛ راجع الملف المرفق يدوياً'
+  if (status === 409 && error?.message === 'SOURCE_REVIEW_REQUIRED') return 'المرجع غير مقروء — افتح صفحات المصدر الأصلي وأكد مراجعتها قبل اعتماد الدرجة'
   if (status === 502) return 'تعذر التحليل بالذكاء الآن؛ حاول مرة أخرى بعد قليل أو صحّح يدوياً'
   if (status === 400) return 'بيانات التصحيح غير صالحة'
   return fallback
