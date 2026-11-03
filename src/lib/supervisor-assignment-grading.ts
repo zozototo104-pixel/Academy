@@ -734,7 +734,7 @@ ${citations.evidenceText || 'لا توجد صفحات صريحة متاحة لل
     error.status = 502
     throw error
   }
-  const isolation = isolateSourceCriterion(draft, criteria, submission.assignment.points, citations.reviewRequired || (book.unreadable && citations.mode !== 'STUDENT_CITATIONS'))
+  const isolation = isolateSourceCriterion(draft, criteria, submission.assignment.points, (citations.mode === 'STUDENT_CITATIONS' && citations.pages.some(page => page.source === 'UNVERIFIED')) || (book.unreadable && citations.mode !== 'STUDENT_CITATIONS'))
   if (referenceWarning) {
     draft.feedback = `${REFERENCE_UNREADABLE_WARNING}\n\n${draft.feedback}`
     draft.gaps = draft.gaps.filter((gap) => !/استشهاد|مرجع|مراجع|مصادر|صفحات/.test(gap))
