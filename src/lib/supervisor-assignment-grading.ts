@@ -574,6 +574,13 @@ ${answer.combinedText}`
     error.status = 502
     throw error
   }
+  if (referenceWarning) {
+    draft.feedback = `${REFERENCE_UNREADABLE_WARNING}\n\n${draft.feedback}`
+    // The breakdown cannot substantiate deductions based on an unreadable reference.
+    draft.criteria = null
+    draft.gaps = draft.gaps.filter((gap) => !/استشهاد|مرجع|مراجع|مصادر|صفحات/.test(gap))
+    draft.errors = draft.errors.filter((error) => !/استشهاد|مرجع|مراجع|مصادر|صفحات/.test(error))
+  }
   return {
     submissionId: submission.id,
     assignmentTitle: cleanAcademicOutput(submission.assignment.title, 220),
