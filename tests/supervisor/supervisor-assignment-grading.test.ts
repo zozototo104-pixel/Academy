@@ -334,6 +334,170 @@ describe('admin assignment source persistence — verified program/unit/knowledg
   })
 })
 
+
+describe('original PDF citation verification and approval safety', () => {
+  beforeEach(() => {
+    currentUser = { id: 'sup-1', role: 'SUPERVISOR', name: 'المشرف' }
+    admissionSupervisorId = 'sup-1'
+    textAiResponse = validDraft()
+    textAiCalls = 0
+    lastGradingPrompt = ''
+    mockSourceUnit = true
+    mockMissingOriginal = false
+    mockCorruptedReference = false
+    submission.assignment.unitId = 'unit-1'
+    submission.assignment.sourceKnowledgeIds = null
+    submission.assignment.rubric = 'الاستناد إلى مصادر الوحدة 30%، جودة التحليل 30%، التطبيق المهني 25%، وضوح العرض 15%'
+    submission.answerText = 'استشهد الطالب بالمرجع ص 1، مع تحليل واضح للعمل.'
+    sourcePdfBuffer = null
+    fileBufferToReturn = null
+    nativeSourcePages = {}
+    ocrSourcePages = {}
+    ocrPageRequests = []
+    bookReaderCalls = 0
+    bookOcrCalls = 0
+    updateCalls.length = 0
+    notifyCalls.length = 0
+    emailCalls.length = 0
+  })
+
+  async function pdfWithPages(count: number) {
+    const { PDFDocument } = await import('pdf-lib')
+    const doc = await PDFDocument.create()
+    for (let i = 0; i < count; i++) doc.addPage()
+    sourcePdfBuffer = Buffer.from(await doc.save())
+  }
+
+  const analyze = async () => {
+    const route = await import('@/app/api/supervisor/assignments/route')
+    const response = await route.POST(postRequest({ action: 'analyze', submissionId: 'sub-1' }))
+    expect(response.status).toBe(200)
+    return response.json()
+  }
+
+  test('native cited page is used without vision', async () => {
+    await pdfWithPages(2)
+    const result = await analyze()
+    expect(result.provenance.citationPages[0].source).toBe('NATIVE_TEXT')
+    expect(bookOcrCalls).toBe(0)
+    expect(lastGradingPrompt).toContain('صفحة PDF 1 [NATIVE_TEXT]')
+  })
+
+  test('unreadable native page invokes vision only for that cited page', async () => {
+    await pdfWithPages(3)
+    submission.answerText = 'اقتبست من ص 2 في الكتاب الأصلي.'
+    nativeSourcePages[2] = '[غير واضح] '.repeat(20)
+    const result = await analyze()
+    expect(ocrPageRequests).toEqual([[2]])
+    expect(result.provenance.citationPages[0].source).toBe('VISION_OCR')
+    expect(result.provenance.citationReviewRequired).toBe(true)
+  })
+
+  test('OCR failure remains unverified and never labels citation false', async () => {
+    await pdfWithPages(2)
+    nativeSourcePages[1] = '[غير واضح] '.repeat(20)
+    ocrSourcePages[1] = '[غير واضح] '.repeat(20)
+    const result = await analyze()
+    expect(result.provenance.citationPages[0].source).toBe('UNVERIFIED')
+    expect(result.provenance.isolationStatus).toBe('ISOLATED')
+    expect(result.draft.criteria[0].justification).toContain('مُستبعَد')
+    expect(lastGradingPrompt).toContain('لا تخصم')
+  })
+
+  test('readable PDF mismatch is supervisor decision, not an automatic error', async () => {
+    await pdfWithPages(2)
+    submission.answerText = 'يقول الطالب إن ص 1 تتحدث عن نظرية لا توجد في النص.'
+    const result = await analyze()
+    expect(result.provenance.citationPages[0].source).toBe('NATIVE_TEXT')
+    expect(lastGradingPrompt).toContain('القرار للمشرف')
+    expect(result.provenance.isolationStatus).toBe('NOT_REQUIRED')
+  })
+
+  test('more than eight citations marks overflow unverified and does not OCR overflow', async () => {
+    await pdfWithPages(12)
+    submission.answerText = 'راجع ص 1-10'
+    const result = await analyze()
+    expect(result.provenance.citationPages).toHaveLength(9)
+    expect(result.provenance.citationPages[8].source).toBe('UNVERIFIED')
+    expect(result.provenance.isolationStatus).toBe('ISOLATED')
+    expect(bookOcrCalls).toBe(7)
+  })
+
+  test('no explicit citation uses reference ranges, not fabricated student citations', async () => {
+    await pdfWithPages(2)
+    submission.answerText = 'تحليل مهني دون أي إشارة لصفحات.'
+    const result = await analyze()
+    expect(result.provenance.citationMode).toBe('REFERENCE_RANGES')
+    expect(lastGradingPrompt).toContain('ليست صفحات استشهد بها الطالب')
+    expect(bookOcrCalls).toBe(0)
+  })
+
+  test('out-of-range citation requires 409 and passes only with explicit supervisor review', async () => {
+    await pdfWithPages(2)
+    submission.answerText = 'أستشهد بالصفحة ص 99'
+    const route = await import('@/app/api/supervisor/assignments/route')
+    const request = { action: 'grade', submissionId: 'sub-1', score: 80, feedback: 'راجعت المصدر الأصلي.', status: 'GRADED' }
+    expect((await route.POST(postRequest(request))).status).toBe(409)
+    expect(textAiCalls).toBe(0)
+    expect(bookOcrCalls).toBe(0)
+    expect((await route.POST(postRequest({ ...request, sourceReviewed: true }))).status).toBe(200)
+  })
+
+  test('overflow citations require 409 without vision during approval', async () => {
+    await pdfWithPages(10)
+    submission.answerText = 'ص 1-9'
+    const route = await import('@/app/api/supervisor/assignments/route')
+    expect((await route.POST(postRequest({ action: 'grade', submissionId: 'sub-1', score: 80, feedback: 'تمت المراجعة.', status: 'GRADED' }))).status).toBe(409)
+    expect(textAiCalls).toBe(0)
+    expect(bookOcrCalls).toBe(0)
+  })
+
+  test('locally unreadable citation requires 409 even if vision could recover it', async () => {
+    await pdfWithPages(2)
+    nativeSourcePages[1] = '[غير واضح] '.repeat(20)
+    const route = await import('@/app/api/supervisor/assignments/route')
+    expect((await route.POST(postRequest({ action: 'grade', submissionId: 'sub-1', score: 80, feedback: 'تمت المراجعة.', status: 'GRADED' }))).status).toBe(409)
+    expect(bookOcrCalls).toBe(0)
+  })
+
+  test('scanned student attachment fails closed while plain written answer remains eligible', async () => {
+    await pdfWithPages(2)
+    submission.answerText = 'إجابة نصية بلا استشهادات.'
+    const route = await import('@/app/api/supervisor/assignments/route')
+    const request = { action: 'grade', submissionId: 'sub-1', score: 80, feedback: 'تمت مراجعة الإجابة.', status: 'GRADED' }
+    expect((await route.POST(postRequest(request))).status).toBe(200)
+    updateCalls.length = 0
+    const { PDFDocument } = await import('pdf-lib')
+    const doc = await PDFDocument.create()
+    doc.addPage()
+    fileBufferToReturn = Buffer.from(await doc.save())
+    nativeSourcePages[1] = ''
+    const scannedRequest = { ...request, submissionId: 'sub-pdf' }
+    expect((await route.POST(postRequest(scannedRequest))).status).toBe(409)
+    expect((await route.POST(postRequest({ ...scannedRequest, sourceReviewed: true }))).status).toBe(200)
+    expect(bookOcrCalls).toBe(0)
+  })
+
+  test('no source criterion exposes impossible isolation status and strong warning', async () => {
+    await pdfWithPages(2)
+    submission.answerText = 'راجع ص 99'
+    submission.assignment.rubric = 'جودة التحليل 60%، التطبيق المهني 40%'
+    const result = await analyze()
+    expect(result.provenance.isolationStatus).toBe('NO_SOURCE_CRITERION')
+    expect(result.provenance.isolationNote).toContain('لا يمكن عزل أثرها رياضيًا')
+  })
+
+  test('invalid model breakdown exposes manual-review-only protection', async () => {
+    await pdfWithPages(2)
+    submission.answerText = 'راجع ص 99'
+    textAiResponse = JSON.stringify({ ...JSON.parse(validDraft()), criteria: [] })
+    const result = await analyze()
+    expect(result.provenance.isolationStatus).toBe('NO_VALID_BREAKDOWN')
+    expect(result.draft.criteria).toBeNull()
+    expect(result.draft.score).toBe(85)
+  })
+})
+
 describe('supervisor assignments route — scope is the gate, analyze never saves', () => {
   beforeEach(() => {
     currentUser = { id: 'sup-1', role: 'SUPERVISOR', name: 'المشرف' }
