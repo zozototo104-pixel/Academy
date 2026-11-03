@@ -41,6 +41,54 @@ export async function GET(req: NextRequest) {
     if (!['SUPERVISOR', 'ADMIN'].includes(user.role)) {
       return NextResponse.json({ error: 'هذه الصفحة مخصصة للمشرفين والإدارة' }, { status: 403 })
     }
+    const mode = req.nextUrl.searchParams.get('mode')
+    if (mode === 'roster') {
+      const semester = Number(req.nextUrl.searchParams.get('semester'))
+      const page = Number(req.nextUrl.searchParams.get('page') || 1)
+      const pageSize = 20
+      if (!Number.isInteger(semester) || semester < 1 || semester > 12 || !Number.isInteger(page) || page < 1 || page > 10000) {
+        return NextResponse.json({ error: 'الفصل أو رقم الصفحة غير صالح' }, { status: 400 })
+      }
+      const programId = asString(req.nextUrl.searchParams.get('programId'), 80)
+      if (!programId) return NextResponse.json({ error: 'البرنامج مطلوب' }, { status: 400 })
+      const scope = { programId, userId: { not: null }, ...(user.role === 'ADMIN' ? {} : { supervisorId: user.id }) }
+      const [total, apps, assignments] = await Promise.all([
+        db.admissionApplication.count({ where: scope }),
+        db.admissionApplication.findMany({
+          where: scope,
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+          select: { id: true, userId: true, user: { select: { id: true, name: true } } },
+        }),
+        db.programAssignment.findMany({
+          where: { programId, semester, status: 'PUBLISHED' },
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          select: { id: true, title: true, points: true, dueAt: true, type: true },
+        }),
+      ])
+      const userIds = apps.map(app => app.userId).filter((id): id is string => Boolean(id))
+      const submissions = userIds.length && assignments.length ? await db.assignmentSubmission.findMany({
+        where: { userId: { in: userIds }, assignmentId: { in: assignments.map(a => a.id) } },
+        select: { id: true, userId: true, assignmentId: true, status: true, score: true, submittedAt: true },
+      }) : []
+      const byPair = new Map(submissions.map(s => [s.userId + ':' + s.assignmentId, s]))
+      const students = apps.map(app => ({
+        admissionId: app.id,
+        userId: app.userId,
+        name: app.user?.name || 'طالب',
+        assignments: assignments.map(a => {
+          const sub = byPair.get(app.userId + ':' + a.id)
+          return {
+            id: a.id, title: a.title, points: a.points, type: a.type, dueAt: a.dueAt,
+            submissionId: sub?.id || null, score: sub?.score ?? null,
+            submittedAt: sub?.submittedAt || null,
+            status: sub?.status || (a.dueAt && a.dueAt.getTime() < Date.now() ? 'OVERDUE' : 'NOT_SUBMITTED'),
+          }
+        }),
+      }))
+      return NextResponse.json({ semester, page, pageSize, total, totalPages: Math.ceil(total / pageSize), students })
+    }
     const submissionId = req.nextUrl.searchParams.get('submissionId') || ''
     if (!submissionId) return NextResponse.json({ error: 'معرف التسليم مطلوب' }, { status: 400 })
     const detail = await loadSupervisorAssignmentDetail(submissionId, user)
