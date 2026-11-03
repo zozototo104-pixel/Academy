@@ -261,7 +261,7 @@ async function assignmentAverage(client: DbClient, userId: string, programId: st
     const score = graded
       ? clampPercent(assignment.points > 0 ? (submission!.score! / assignment.points) * 100 : submission!.score!)
       : 0
-    percent += score * (shares[i] / totalShares)
+    percent += score / totalShares
     if (!graded || score < 60) {
       addMissing(missing, `واجب منشور غير مكتمل أو غير مجتاز: ${assignment.title}`)
       complete = false
