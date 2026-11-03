@@ -727,8 +727,10 @@ ${citations.evidenceText || 'لا توجد صفحات صريحة متاحة لل
 عدم المطابقة قد ينتج عن اختلاف ترقيم PDF عن المطبوع؛ لا تخصم بناءً على عدم المطابقة وحده. القرار للمشرف.`
 
   let raw: string
+  let gradingProvider = 'UNKNOWN'
+  let gradingModel = 'UNKNOWN'
   try {
-    raw = await textAiCompleteJson({
+    const completion = await textAiCompleteJsonWithMetadata({
       system: gradingSystemPrompt(submission.assignment.points, criteria),
       history: [{ role: 'user', text: userPrompt }],
       purpose: 'GRADING',
