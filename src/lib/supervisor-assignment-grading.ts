@@ -353,7 +353,7 @@ async function loadBookContext(programId: string, unitId: string | null, semeste
     const book = await db.book.findUnique({ where: { id: unit.sourceBookId }, select: { title: true } }).catch(() => null)
     const status: GradingBookContext['status'] = !text ? 'NONE' : !sourceIds.length ? 'UNIT' :
       matched === sourceIds.length && joined.length <= MAX_BOOK_CHARS ? 'EXACT' : 'PARTIAL'
-    return { text, titles: [book?.title, unit.title].filter((title): title is string => Boolean(title)), used: Boolean(text), status, expected: sourceIds.length, matched }
+    return { text, titles: [book?.title, unit.title].filter((title): title is string => Boolean(title)), used: Boolean(text), status, expected: sourceIds.length, matched, unreadable: isUnreadableBookReference(text) }
   } catch {
     return missing()
   }
