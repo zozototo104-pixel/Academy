@@ -271,7 +271,25 @@ export async function loadSupervisorAssignmentDetail(submissionId: string, user:
   }
 }
 
-type GradingBookContext = { text: string; titles: string[]; used: boolean; status: 'EXACT' | 'PARTIAL' | 'UNIT' | 'NONE'; expected: number; matched: number }
+export const REFERENCE_UNREADABLE_WARNING = 'المرجع غير مقروء — افتح صفحات المصدر الأصلي قبل اعتماد أي خصم على الاستشهادات'
+
+/** Conservative, deterministic quality gate; short and English-language sources are not failures. */
+export function isUnreadableBookReference(text: string): boolean {
+  const value = String(text || '').trim()
+  if (value.length < 120) return false
+  const unclear = (value.match(/\[\s*غير\s+واضح\s*\]/g) || []).length
+  const arabicWords = value.match(/[\u0621-\u064A]{3,}/g) || []
+  const arabicLetters = (value.match(/[\u0621-\u064A]/g) || []).length
+  const latinLetters = (value.match(/[A-Za-z]/g) || []).length
+  if (unclear >= 4 || (unclear >= 2 && unclear * 8 >= arabicWords.length)) return true
+  if (arabicLetters >= 60 && arabicLetters > latinLetters * 2 && arabicWords.length >= 25) {
+    const fragments = (value.match(/(?:^|\s)[\u0621-\u064A](?=\s|$)/gm) || []).length
+    if (fragments >= 20 && fragments > arabicWords.length * 0.8) return true
+  }
+  return false
+}
+
+type GradingBookContext = { text: string; titles: string[]; used: boolean; status: 'EXACT' | 'PARTIAL' | 'UNIT' | 'NONE'; expected: number; matched: number; unreadable: boolean }
 
 async function loadBookContext(programId: string, unitId: string | null, semester: number, storedSourceIds: unknown): Promise<GradingBookContext> {
   const sourceIds = Array.isArray(storedSourceIds) ? [...new Set(storedSourceIds.filter((id): id is string => typeof id === 'string' && Boolean(id.trim())))] : []
