@@ -181,6 +181,20 @@ function postRequest(body: any) {
   })
 }
 
+describe('assignment reference readability guard', () => {
+  test('detects repeated explicit OCR gaps', async () => {
+    const { isUnreadableBookReference } = await import('@/lib/supervisor-assignment-grading')
+    const damaged = ('هذه فقرة مرجعية غير مكتملة [غير واضح] وبعض تفاصيل المصدر مفقودة. ').repeat(5)
+    expect(isUnreadableBookReference(damaged)).toBe(true)
+  })
+  test('does not reject valid Arabic, mixed-language or short sources', async () => {
+    const { isUnreadableBookReference } = await import('@/lib/supervisor-assignment-grading')
+    expect(isUnreadableBookReference('هذا شرح أكاديمي واضح عن التخطيط وإدارة الموارد البشرية مع أمثلة عملية. '.repeat(8))).toBe(false)
+    expect(isUnreadableBookReference('Deprivation, Tension Building, Conflict and Post-Crisis. '.repeat(8))).toBe(false)
+    expect(isUnreadableBookReference('[غير واضح]')).toBe(false)
+  })
+})
+
 describe('supervisor assignment grading — rubric and draft normalization', () => {
   test('screenshot rubric parses to 30/30/25/15', async () => {
     const lib = await import('@/lib/supervisor-assignment-grading')
