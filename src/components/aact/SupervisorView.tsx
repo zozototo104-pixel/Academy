@@ -315,6 +315,7 @@ export function SupervisorView() {
     try {
       const d = await api<any>('/api/supervisor/assignments', { method: 'POST', body: JSON.stringify({ action: 'analyze', submissionId: gradingDetail.submissionId }) })
       setGradingDraft(d)
+      setSourceReviewed(false)
       setGradingScore(String(d.draft.score))
       setGradingFeedback(d.draft.feedback)
       toast({ title: 'تم التحليل بالذكاء', description: 'عُبئت الدرجة والملاحظة كمسودة — راجعها وعدّلها قبل الاعتماد.' })
