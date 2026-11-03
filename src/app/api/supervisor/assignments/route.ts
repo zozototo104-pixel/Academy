@@ -69,6 +69,7 @@ export async function GET(req: NextRequest) {
           select: { id: true, title: true, points: true, dueAt: true, dueDays: true, type: true },
         }),
       ])
+      const total = studentGroups.length
       const hasMore = apps.length > pageSize
       const visibleApps = apps.slice(0, pageSize)
       const nextCursor = hasMore ? visibleApps[visibleApps.length - 1]?.id ?? null : null
