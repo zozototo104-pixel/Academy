@@ -347,6 +347,12 @@ describe('supervisor assignments route — scope is the gate, analyze never save
     submission.assignment.unitId = null
     submission.assignment.sourceKnowledgeIds = null
     fileBufferToReturn = null
+    sourcePdfBuffer = null
+    nativeSourcePages = {}
+    ocrSourcePages = {}
+    ocrPageRequests = []
+    submission.answerText = 'إجابة الطالب النصية: تحليل لعملية الاستقطاب مع أمثلة من سوق العمل المحلي.'
+    submission.assignment.rubric = 'الاستناد إلى مصادر الوحدة 30%، جودة التحليل 30%، التطبيق المهني 25%، وضوح العرض 15%'
     bookReaderCalls = 0
     bookOcrCalls = 0
     updateCalls.length = 0
