@@ -322,7 +322,7 @@ export function extractExplicitPageCitations(answer: string): number[] {
 
 type GradingBookContext = { text: string; titles: string[]; used: boolean; status: 'EXACT' | 'PARTIAL' | 'UNIT' | 'NONE'; expected: number; matched: number; unreadable: boolean }
 
-async function loadBookContext(programId: string, unitId: string | null, semester: number, storedSourceIds: unknown, repairSource = false): Promise<GradingBookContext> {
+async function loadBookContext(programId: string, unitId: string | null, semester: number, storedSourceIds: unknown): Promise<GradingBookContext> {
   const sourceIds = Array.isArray(storedSourceIds) ? [...new Set(storedSourceIds.filter((id): id is string => typeof id === 'string' && Boolean(id.trim())))] : []
   const missing = (): GradingBookContext => ({ text: '', titles: [], used: false, status: 'NONE', expected: sourceIds.length, matched: 0, unreadable: false })
   try {
