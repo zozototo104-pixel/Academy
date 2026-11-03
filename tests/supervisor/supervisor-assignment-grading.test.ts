@@ -73,6 +73,7 @@ const db: any = {
       return { ...submission, score: _args.data.score, feedback: _args.data.feedback, status: _args.data.status }
     },
   },
+  enrollment: { findMany: async () => [{ userId: 'student-1', createdAt: new Date('2020-01-01') }] },
   admissionApplication: {
     findFirst: async () => ({ id: 'app-1', supervisorId: admissionSupervisorId, supervisionMode: 'HYBRID' }),
     count: async (args: any) => args.where.supervisorId === 'other-supervisor' ? 0 : 1,
