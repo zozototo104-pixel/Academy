@@ -208,6 +208,7 @@ export default function AdminLegacyGraduatesTab() {
   const [uploadFor, setUploadFor] = useState<LegacyGraduateCertificate | null>(null)
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [uploadPreviewUrl, setUploadPreviewUrl] = useState<string | null>(null)
+  const [stampPreviewUrl, setStampPreviewUrl] = useState<string | null>(null)
   const [stampLayout, setStampLayout] = useState<StampLayout>(DEFAULT_STAMP_LAYOUT)
   const [selectedStampField, setSelectedStampField] = useState<StampField>('qr')
   const stampCanvasRef = useRef<HTMLDivElement | null>(null)
@@ -476,7 +477,15 @@ export default function AdminLegacyGraduatesTab() {
     }
   }
 
+  function clearStampPreview() {
+    setStampPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev)
+      return null
+    })
+  }
+
   function openUpload(cert: LegacyGraduateCertificate) {
+    clearStampPreview()
     setUploadFor(cert)
     setUploadFile(null)
     setSelectedStampField('qr')
@@ -495,7 +504,11 @@ export default function AdminLegacyGraduatesTab() {
       if (preview) {
         if (!res.ok) throw new Error(apiErrorMessage(await res.json().catch(() => ({})), 'تعذر إنشاء المعاينة'))
         const blob = await res.blob()
-        window.open(URL.createObjectURL(blob), '_blank')
+        // Show the fresh stamp inside the dialog (replacing the saved-file
+        // view below) instead of opening a new window — on phones a popup
+        // tab is unreliable and loses the editing context.
+        clearStampPreview()
+        setStampPreviewUrl(URL.createObjectURL(blob))
       } else {
         const data = await jsonOrThrow(res, 'تعذر حفظ الشهادة المختومة')
         toast({ title: 'تم حفظ الشهادة المختومة', description: data.stampedFileKey || uploadFor.serial })
@@ -795,6 +808,7 @@ export default function AdminLegacyGraduatesTab() {
         if (!open) {
           setUploadFor(null)
           setUploadFile(null)
+          clearStampPreview()
           stampDragRef.current = null
           stampResizeRef.current = null
         }
@@ -806,10 +820,10 @@ export default function AdminLegacyGraduatesTab() {
           </DialogHeader>
           <div className="space-y-4">
             <Input type="file" accept="application/pdf,image/png,image/jpeg" onChange={(e) => setUploadFile(e.target.files?.[0] || null)} />
-            {uploadFor?.stampedFileKey ? (
+            {uploadFor?.stampedFileKey || stampPreviewUrl ? (
               <div className="space-y-2">
-                <Label className="text-[11px] font-black text-slate-600">الملف المختوم الحالي</Label>
-                <iframe title="الشهادة المختومة الحالية" src={`/api/pdf/certificates/${encodeURIComponent(uploadFor.serial)}`} className="h-96 w-full rounded-xl border border-slate-200 bg-white" />
+                <Label className="text-[11px] font-black text-slate-600">{stampPreviewUrl ? 'معاينة بالمواضع الحالية — لم تُحفظ بعد' : 'الملف المختوم الحالي'}</Label>
+                <iframe title="معاينة الشهادة المختومة" src={stampPreviewUrl || `/api/pdf/certificates/${encodeURIComponent(uploadFor?.serial || '')}`} className="h-96 w-full rounded-xl border border-slate-200 bg-white" />
               </div>
             ) : null}
             <div className="grid gap-4 lg:grid-cols-[220px_1fr]">

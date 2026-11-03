@@ -793,6 +793,18 @@ describe('legacy ZIP email matching', () => {
     expect(tab).toContain('الملف المختوم الحالي')
     expect(tab).toContain('/api/pdf/certificates/')
   })
+
+  test('stamp preview renders inside the dialog instead of a popup window', () => {
+    const tab = readFileSync('src/components/aact/AdminLegacyGraduatesTab.tsx', 'utf8')
+    // The preview blob is fed into the dialog's own iframe state...
+    expect(tab).toContain('setStampPreviewUrl(URL.createObjectURL(blob))')
+    expect(tab).toContain("stampPreviewUrl || `/api/pdf/certificates/")
+    expect(tab).toContain('معاينة بالمواضع الحالية — لم تُحفظ بعد')
+    // ...and no longer opened as a popup (unreliable on phones).
+    expect(tab).not.toContain("window.open(URL.createObjectURL(blob), '_blank')")
+    // The preview state is reset when the dialog opens and closes.
+    expect(tab).toContain('clearStampPreview()')
+  })
 })
 
 describe('legacy certificate verification', () => {
