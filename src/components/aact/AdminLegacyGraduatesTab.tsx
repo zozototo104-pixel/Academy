@@ -587,7 +587,7 @@ export default function AdminLegacyGraduatesTab() {
                 الملف: {importRows.length} سجل · صالح: {importRows.length - invalidImportRows.length} · بحاجة تصحيح: {invalidImportRows.length}
                 {invalidImportRows.length ? ' — لن يُفعّل الحفظ حتى تصحح السجلات المرفوضة.' : ' — البيانات جاهزة للحفظ.'}
               </p>
-              <div className="max-h-96 overflow-auto rounded-xl border border-slate-200">
+              <div className="max-h-none overflow-x-auto rounded-xl border border-slate-200 md:max-h-96 md:overflow-auto">
                 <table className="w-full min-w-[1750px] text-right text-xs">
                   <thead className="sticky top-0 bg-slate-50 text-slate-600"><tr>
                     <th className="p-2">السطر</th><th className="p-2">الاسم</th><th className="p-2">الاسم بالإنجليزي</th>
