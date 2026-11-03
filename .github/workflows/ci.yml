@@ -112,19 +112,34 @@ jobs:
           node <<'NODE'
           const { PrismaClient } = require('@prisma/client')
           const db = new PrismaClient()
+          const fixtureModels = ['Setting', 'User', 'Notification', 'Program', 'Book', 'ProgramAssignment', 'AssignmentSubmission', 'ProgramExam', 'ProgramExamAttempt', 'Payment']
           Promise.all([
             db.setting.findUnique({ where: { key: 'RESTORE_SMOKE' } }),
             db.notification.findUnique({
               where: { id: 'restore-ci-notification' },
               include: { user: true },
             }),
+            db.assignmentSubmission.findUnique({ where: { id: 'restore-ci-submission' }, include: { assignment: true, user: true } }),
+            db.programExamAttempt.findUnique({ where: { id: 'restore-ci-attempt' }, include: { exam: true, user: true } }),
+            db.book.findUnique({ where: { id: 'restore-ci-book' }, include: { program: true } }),
+            db.payment.findUnique({ where: { id: 'restore-ci-payment' }, include: { user: true } }),
+            ...Object.keys(require('@prisma/client').Prisma.ModelName)
+              .filter(name => name !== 'Session')
+              .map(async name => {
+                const delegate = db[name[0].toLowerCase() + name.slice(1)]
+                const actual = await delegate.count()
+                const expected = fixtureModels.includes(name) ? 1 : 0
+                if (actual !== expected) throw new Error('RESTORE_ROW_COUNT_MISMATCH:' + name + ':' + actual + ':' + expected)
+              }),
           ])
-            .then(([setting, notification]) => {
+            .then(([setting, notification, submission, attempt, book, payment]) => {
               if (setting?.value !== 'verified') throw new Error('RESTORED_SETTING_MISSING')
-              if (notification?.user?.email !== 'restore-ci@example.test') {
-                throw new Error('RESTORED_FOREIGN_KEY_RELATION_MISSING')
-              }
-              console.log('Verified restored PostgreSQL rows and User → Notification relation')
+              if (notification?.user?.email !== 'restore-ci@example.test') throw new Error('RESTORED_FOREIGN_KEY_RELATION_MISSING')
+              if (submission?.assignment?.programId !== 'restore-ci-program' || submission.user?.id !== 'restore-ci-user') throw new Error('RESTORED_ASSIGNMENT_RELATION_MISSING')
+              if (attempt?.exam?.programId !== 'restore-ci-program' || attempt.user?.id !== 'restore-ci-user') throw new Error('RESTORED_EXAM_RELATION_MISSING')
+              if (book?.program?.id !== 'restore-ci-program') throw new Error('RESTORED_BOOK_RELATION_MISSING')
+              if (payment?.user?.id !== 'restore-ci-user') throw new Error('RESTORED_PAYMENT_RELATION_MISSING')
+              console.log('Verified all restored table counts and linked exam, assignment, payment, book rows')
             })
             .finally(() => db.$disconnect())
             .catch((error) => { console.error(error); process.exitCode = 1 })
