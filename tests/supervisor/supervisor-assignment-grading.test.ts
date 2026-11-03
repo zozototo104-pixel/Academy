@@ -182,6 +182,52 @@ function postRequest(body: any) {
   })
 }
 
+describe('explicit PDF citations and mathematical source isolation', () => {
+  test('accepts Eastern Arabic digits and marked ranges', async () => {
+    const { extractExplicitPageCitations } = await import('@/lib/supervisor-assignment-grading')
+    expect(extractExplicitPageCitations('راجع ص ٤٥')).toEqual([45])
+    expect(extractExplicitPageCitations('من ص 45 إلى 48')).toEqual([45, 46, 47, 48])
+    expect(extractExplicitPageCitations('ص 45–48')).toEqual([45, 46, 47, 48])
+  })
+
+  test('ignores PO boxes and unmarked years or chapter numbers', async () => {
+    const { extractExplicitPageCitations } = await import('@/lib/supervisor-assignment-grading')
+    expect(extractExplicitPageCitations('ص.ب 1234، ص ب 100، سنة 2024، السؤال 3، الفصل 4')).toEqual([])
+  })
+
+  test('bounds very large ranges without enumerating them', async () => {
+    const { extractExplicitPageCitations } = await import('@/lib/supervisor-assignment-grading')
+    expect(extractExplicitPageCitations('ص 1-999999')).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9])
+  })
+
+  test('changing source points cannot change the isolated score', async () => {
+    const { isolateSourceCriterion, DEFAULT_RUBRIC } = await import('@/lib/supervisor-assignment-grading')
+    const makeDraft = (sourcePoints: number) => ({
+      score: 75, criteria: [
+        { label: DEFAULT_RUBRIC[0].label, points: sourcePoints, maxPoints: 30, justification: '' },
+        { label: DEFAULT_RUBRIC[1].label, points: 24, maxPoints: 30, justification: '' },
+        { label: DEFAULT_RUBRIC[2].label, points: 20, maxPoints: 25, justification: '' },
+        { label: DEFAULT_RUBRIC[3].label, points: 12, maxPoints: 15, justification: '' },
+      ], feedback: '', strengths: [], gaps: [], errors: [], effortNote: '',
+    })
+    const a = makeDraft(30), b = makeDraft(0)
+    expect(isolateSourceCriterion(a, DEFAULT_RUBRIC, 100, true).status).toBe('ISOLATED')
+    expect(isolateSourceCriterion(b, DEFAULT_RUBRIC, 100, true).status).toBe('ISOLATED')
+    expect(a.score).toBe(80)
+    expect(b.score).toBe(80)
+    expect(a.criteria[0].points).toBe(30)
+    expect(a.criteria[0].justification).toContain('مُستبعَد')
+  })
+
+  test('reports missing breakdown or source criterion without claiming isolation', async () => {
+    const { isolateSourceCriterion, DEFAULT_RUBRIC } = await import('@/lib/supervisor-assignment-grading')
+    const draft: any = { score: 60, criteria: null, feedback: '', strengths: [], gaps: [], errors: [], effortNote: '' }
+    expect(isolateSourceCriterion(draft, DEFAULT_RUBRIC, 100, true).status).toBe('NO_VALID_BREAKDOWN')
+    expect(draft.score).toBe(60)
+    expect(isolateSourceCriterion(draft, [{ label: 'التحليل', weightPct: 100 }], 100, true).status).toBe('NO_SOURCE_CRITERION')
+  })
+})
+
 describe('assignment reference readability guard', () => {
   test('detects repeated explicit OCR gaps', async () => {
     const { isUnreadableBookReference } = await import('@/lib/supervisor-assignment-grading')
