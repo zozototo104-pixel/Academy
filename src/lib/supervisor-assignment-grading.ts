@@ -350,7 +350,6 @@ async function loadBookContext(programId: string, unitId: string | null, semeste
     // Never replace the stored source: this is an in-memory reading correction only.
     const joined = parts.map((part) => fixArabicPdfText(part)).join('\n')
     let text = joined.slice(0, MAX_BOOK_CHARS)
-    let repaired = false
     if (repairSource && isUnreadableBookReference(text)) {
       const source = await db.book.findUnique({
         where: { id: unit.sourceBookId },
