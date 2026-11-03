@@ -96,8 +96,8 @@ export async function GET(req: NextRequest) {
         userId: enrollment.userId,
         name: enrollment.user.ownedAdmissions[0]?.fullName || enrollment.user.name || 'طالب',
         assignments: assignments.map(a => {
-          const sub = byPair.get(app.userId + ':' + a.id)
-          const start = app.userId ? enrolledAt.get(app.userId) : undefined
+          const sub = byPair.get(enrollment.userId + ':' + a.id)
+          const start = enrollment.createdAt
           const deadline = a.dueAt || (a.dueDays != null && start ? new Date(start.getTime() + a.dueDays * 86400000) : null)
           return {
             id: a.id, title: a.title, points: a.points, type: a.type, dueAt: deadline,
