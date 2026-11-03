@@ -407,6 +407,25 @@ describe('supervisor assignments route — scope is the gate, analyze never save
     expect(updateCalls).toHaveLength(0)
   })
 
+  test('unreadable source blocks approval until supervisor explicitly confirms original review', async () => {
+    mockSourceUnit = true
+    mockCorruptedReference = true
+    submission.assignment.unitId = 'unit-1'
+    const route = await import('@/app/api/supervisor/assignments/route')
+    const analysis = await route.POST(postRequest({ action: 'analyze', submissionId: 'sub-1' }))
+    expect(analysis.status).toBe(200)
+    const draft = await analysis.json()
+    expect(draft.provenance.referenceWarning).toBe('REFERENCE_UNREADABLE')
+    expect(draft.draft.feedback).toContain('المرجع غير مقروء')
+    const body = { action: 'grade', submissionId: 'sub-1', score: 80, feedback: 'راجعت المحتوى الأكاديمي.', status: 'GRADED' }
+    const rejected = await route.POST(postRequest(body))
+    expect(rejected.status).toBe(409)
+    expect(updateCalls).toHaveLength(0)
+    const approved = await route.POST(postRequest({ ...body, sourceReviewed: true }))
+    expect(approved.status).toBe(200)
+    expect(updateCalls).toHaveLength(1)
+  })
+
   test('grade above assignment points is rejected without saving', async () => {
     const route = await import('@/app/api/supervisor/assignments/route')
     const res = await route.POST(
