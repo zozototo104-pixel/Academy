@@ -597,6 +597,7 @@ ${answer.combinedText}`
       bookSourceStatus: book.status,
       sourceKnowledgeCount: book.expected,
       sourceKnowledgeMatched: book.matched,
+      referenceWarning,
       answerTruncated: answer.truncated,
     } as AnswerProvenance,
   }
