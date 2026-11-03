@@ -3345,6 +3345,42 @@ export function AdminBooksTab() {
           </TabsContent>
 
           <TabsContent value="assignments" className="mt-0 space-y-4">
+          <Card className="border-[#0f2b46]/10">
+            <CardContent className="space-y-3 p-5">
+              <h3 className="text-sm font-black text-[#0f2b46]">طلاب الفصل وواجباتهم</h3>
+              <p className="text-xs text-slate-500">اختر الفصل، ثم افتح اسم الطالب لعرض جميع واجباته، بما فيها غير المسلّمة والمتأخرة.</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Select value={adminRosterSemester} onValueChange={(value) => { setAdminRosterSemester(value); setAdminRoster(null); setAdminRosterPage(1) }}>
+                  <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">الفصل الأول</SelectItem>
+                    <SelectItem value="2">الفصل الثاني</SelectItem>
+                    <SelectItem value="3">الفصل الثالث</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button type="button" disabled={!programId || adminRosterLoading} onClick={() => loadAdminRoster(1)}>
+                  {adminRosterLoading ? 'جارٍ التحميل...' : 'عرض طلاب الفصل'}
+                </Button>
+              </div>
+              {adminRoster && <div className="space-y-2">
+                <p className="text-xs font-bold text-slate-500">عدد الطلاب: {adminRoster.total}</p>
+                {adminRoster.students.map(student => <details key={student.userId} className="rounded-xl border border-slate-200 p-3">
+                  <summary className="cursor-pointer text-sm font-black text-[#0f2b46]">{student.name} — {student.assignments.length} واجب</summary>
+                  <div className="mt-3 space-y-2">
+                    {student.assignments.map(assignment => <div key={assignment.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 p-3 text-xs">
+                      <span className="font-bold">{assignment.title}</span>
+                      <span>{assignment.status === 'GRADED' ? 'مصحح' : assignment.status === 'OVERDUE' ? 'متأخر' : assignment.status === 'NOT_SUBMITTED' ? 'لم يسلّم' : assignment.status === 'NEEDS_REVISION' ? 'يحتاج تعديل' : 'بانتظار التصحيح'}{assignment.score != null ? ` — ${assignment.score}/${assignment.points}` : ''}</span>
+                    </div>)}
+                  </div>
+                </details>)}
+                <div className="flex items-center gap-3">
+                  <Button variant="outline" disabled={adminRosterLoading || adminRosterPage <= 1} onClick={() => loadAdminRoster(adminRosterPage - 1)}>السابق</Button>
+                  <span className="text-xs">صفحة {adminRosterPage} من {Math.max(1, adminRoster.totalPages)}</span>
+                  <Button variant="outline" disabled={adminRosterLoading || adminRosterPage >= adminRoster.totalPages} onClick={() => loadAdminRoster(adminRosterPage + 1)}>التالي</Button>
+                </div>
+              </div>}
+            </CardContent>
+          </Card>
           {/* الواجبات والتكليفات */}
           <Card className="border-[#0f2b46]/10">
             <CardContent className="p-5 sm:p-6">
