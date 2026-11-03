@@ -624,6 +624,37 @@ export function SupervisorView() {
                       <h3 className="text-base font-black text-[#0f2b46]">الواجبات والتكليفات</h3>
                       <Badge className="bg-[#fffaf0] text-[#8a6614] hover:bg-[#fffaf0]">غير مسلّمة: {selected.metrics.pendingAssignmentsCount ?? 0}</Badge>
                     </div>
+                    <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <p className="mb-2 text-xs font-black">واجبات الفصل — الطلاب أولاً (20 طالباً في الصفحة)</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <select aria-label="الفصل الدراسي للواجبات" className="rounded-lg border bg-white p-2 text-xs" value={rosterSemester} onChange={e => { setRosterSemester(Number(e.target.value)); setRosterPage(1); setAssignmentRoster(null); setRosterStudentId(null) }}>
+                          <option value={1}>الفصل الأول</option><option value={2}>الفصل الثاني</option>
+                        </select>
+                        <Button size="sm" disabled={!selected.programId || rosterLoading} onClick={() => selected.programId && loadAssignmentRoster(selected.programId, rosterSemester, rosterPage)}>
+                          {rosterLoading ? 'جارٍ التحميل…' : 'عرض طلاب الفصل'}
+                        </Button>
+                      </div>
+                      {assignmentRoster && <div className="mt-3 space-y-2">
+                        <p className="text-xs text-slate-600">عدد الطلاب: {assignmentRoster.total} — صفحة {assignmentRoster.page} من {Math.max(1, assignmentRoster.totalPages)}</p>
+                        {assignmentRoster.students.map((student: any) => <div key={student.admissionId} className="rounded-lg border bg-white p-2">
+                          <button type="button" className="w-full text-right text-sm font-bold" onClick={() => setRosterStudentId(rosterStudentId === student.admissionId ? null : student.admissionId)} aria-expanded={rosterStudentId === student.admissionId}>
+                            {student.name} — {student.assignments.filter((a: any) => a.status === 'GRADED').length} مصحح / {student.assignments.length} واجب
+                          </button>
+                          {rosterStudentId === student.admissionId && <div className="mt-2 space-y-2">
+                            {student.assignments.length === 0 && <p className="text-xs text-slate-500">لا توجد واجبات منشورة في هذا الفصل.</p>}
+                            {student.assignments.map((a: any) => <div key={a.id} className="rounded-lg bg-slate-50 p-2 text-xs">
+                              <p className="font-bold">{a.title}</p>
+                              <p>الحالة: {a.status === 'NOT_SUBMITTED' ? 'غير مسلّم' : a.status === 'OVERDUE' ? 'متأخر' : a.status === 'GRADED' ? 'مصحح' : a.status === 'SUBMITTED' ? 'مسلّم' : a.status === 'NEEDS_REVISION' ? 'بحاجة إلى تعديل' : a.status} — الدرجة: {a.score ?? '—'}/{a.points}</p>
+                              {a.submissionId && <Button size="sm" className="mt-1" onClick={() => openAssignmentGrading(a.submissionId)}>فتح التصحيح</Button>}
+                            </div>)}
+                          </div>}
+                        </div>)}
+                        <div className="flex gap-2">
+                          <Button size="sm" disabled={rosterLoading || rosterPage <= 1} onClick={() => { const p = rosterPage - 1; setRosterPage(p); if (selected.programId) loadAssignmentRoster(selected.programId, rosterSemester, p) }}>السابق</Button>
+                          <Button size="sm" disabled={rosterLoading || rosterPage >= assignmentRoster.totalPages} onClick={() => { const p = rosterPage + 1; setRosterPage(p); if (selected.programId) loadAssignmentRoster(selected.programId, rosterSemester, p) }}>التالي</Button>
+                        </div>
+                      </div>}
+                    </div>
                     {selected.availableAssignments?.length ? <div className="grid gap-2 md:grid-cols-2">{selected.availableAssignments.map((a) => (
                       <div key={a.id} className={`rounded-2xl border p-3 text-xs font-bold leading-6 ${a.submitted ? 'border-slate-100 bg-slate-50 text-slate-600' : 'border-amber-200 bg-amber-50/70 text-amber-900'}`}>
                         <div className="flex flex-wrap items-center justify-between gap-2">
