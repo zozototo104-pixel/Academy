@@ -239,7 +239,7 @@ async function programExamAverage(client: DbClient, userId: string, programId: s
 async function assignmentAverage(client: DbClient, userId: string, programId: string, missing: string[], requiredForGrade: boolean): Promise<ComponentScore> {
   const assignments = await client.programAssignment.findMany({
     where: { programId, status: 'PUBLISHED' },
-    select: { id: true, title: true, points: true, weight: true },
+    select: { id: true, title: true, points: true },
     orderBy: { createdAt: 'asc' },
   })
   if (!assignments.length) {
