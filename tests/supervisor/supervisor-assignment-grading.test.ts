@@ -407,6 +407,18 @@ describe('supervisor assignments route — scope is the gate, analyze never save
     expect(updateCalls).toHaveLength(0)
   })
 
+  test('OCR repair fails explicitly when original book PDF is unavailable, without issuing a new grade', async () => {
+    mockSourceUnit = true
+    mockCorruptedReference = true
+    submission.assignment.unitId = 'unit-1'
+    const route = await import('@/app/api/supervisor/assignments/route')
+    const res = await route.POST(postRequest({ action: 'repair-reference', submissionId: 'sub-1' }))
+    expect(res.status).toBe(500)
+    expect((await res.json()).error).toContain('تعذرت إعادة قراءة')
+    expect(textAiCalls).toBe(0)
+    expect(updateCalls).toHaveLength(0)
+  })
+
   test('unreadable source blocks approval until supervisor explicitly confirms original review', async () => {
     mockSourceUnit = true
     mockCorruptedReference = true
