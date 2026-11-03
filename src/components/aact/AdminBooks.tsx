@@ -3403,7 +3403,7 @@ export function AdminBooksTab() {
                 <div className="flex items-center gap-3">
                   <Button variant="outline" disabled={adminRosterLoading || adminRosterPage <= 1} onClick={() => loadAdminRoster(adminRosterPage - 1)}>السابق</Button>
                   <span className="text-xs">صفحة {adminRosterPage} من {Math.max(1, adminRoster.totalPages)}</span>
-                  <Button variant="outline" disabled={adminRosterLoading || adminRosterPage >= adminRoster.totalPages} onClick={() => loadAdminRoster(adminRosterPage + 1)}>التالي</Button>
+                  <Button variant="outline" disabled={adminRosterLoading || !adminRoster.nextCursor} onClick={() => loadAdminRoster(adminRosterPage + 1)}>التالي</Button>
                 </div>
               </div>}
             </CardContent>
