@@ -997,7 +997,7 @@ export function AdminBooksTab() {
     const isCurrent = () => requestId === adminRosterRequestRef.current && adminRosterSelectionRef.current.programId === selectedProgramId && adminRosterSelectionRef.current.semester === semester
     setAdminRosterLoading(true)
     try {
-      const data = await api<NonNullable<typeof adminRoster>>(`/api/supervisor/assignments?mode=roster&programId=${encodeURIComponent(programId)}&semester=${semester}&page=${page}`)
+      const data = await api<NonNullable<typeof adminRoster>>(`/api/supervisor/assignments?mode=roster&programId=${encodeURIComponent(programId)}&semester=${semester}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`)
       if (!isCurrent()) return
       setAdminRoster(data)
       setAdminRosterPage(page)
