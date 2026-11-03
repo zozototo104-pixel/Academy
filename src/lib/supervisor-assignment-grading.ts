@@ -735,8 +735,8 @@ ${citations.evidenceText || 'لا توجد صفحات صريحة متاحة لل
     throw error
   }
   const isolation = isolateSourceCriterion(draft, criteria, submission.assignment.points, (citations.mode === 'STUDENT_CITATIONS' && citations.pages.some(page => page.source === 'UNVERIFIED')) || (book.unreadable && citations.mode !== 'STUDENT_CITATIONS'))
-  if (referenceWarning) {
-    draft.feedback = `${REFERENCE_UNREADABLE_WARNING}\n\n${draft.feedback}`
+  if (referenceWarning) draft.feedback = `${REFERENCE_UNREADABLE_WARNING}\n\n${draft.feedback}`
+  if (referenceWarning || citations.pages.some(page => page.source === 'UNVERIFIED')) {
     draft.gaps = draft.gaps.filter((gap) => !/استشهاد|مرجع|مراجع|مصادر|صفحات/.test(gap))
     draft.errors = draft.errors.filter((error) => !/استشهاد|مرجع|مراجع|مصادر|صفحات/.test(error))
   }
