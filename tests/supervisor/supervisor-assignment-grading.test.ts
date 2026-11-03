@@ -203,6 +203,37 @@ function postRequest(body: any) {
   })
 }
 
+describe('semester roster API', () => {
+  test('returns scoped graded and unsubmitted assignments with server pagination', async () => {
+    currentUser = { id: 'sup-1', role: 'SUPERVISOR', name: 'المشرف' }
+    const route = await import('@/app/api/supervisor/assignments/route')
+    const res = await route.GET(new NextRequest('http://localhost/api/supervisor/assignments?mode=roster&programId=prog-1&semester=1&page=1'))
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    expect(data.pageSize).toBe(20)
+    expect(data.total).toBe(1)
+    expect(data.students[0].name).toBe('محمود')
+    expect(data.students[0].assignments.map((a: any) => a.status)).toEqual(['GRADED', 'NOT_SUBMITTED'])
+    expect(data.students[0].assignments[0].score).toBe(85)
+  })
+
+  test('rejects invalid semester and page before any data query', async () => {
+    const route = await import('@/app/api/supervisor/assignments/route')
+    const res = await route.GET(new NextRequest('http://localhost/api/supervisor/assignments?mode=roster&programId=prog-1&semester=0&page=-1'))
+    expect(res.status).toBe(400)
+  })
+
+  test('does not return a student outside the assigned supervisor scope', async () => {
+    currentUser = { id: 'other-supervisor', role: 'SUPERVISOR', name: 'آخر' }
+    const route = await import('@/app/api/supervisor/assignments/route')
+    const res = await route.GET(new NextRequest('http://localhost/api/supervisor/assignments?mode=roster&programId=prog-1&semester=1&page=1'))
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    expect(data.total).toBe(0)
+    expect(data.students).toHaveLength(0)
+  })
+})
+
 describe('AI_OUTPUT_INVALID rejection diagnostics', () => {
   test('classifies malformed JSON without guessing a score', async () => {
     const { classifyAssignmentAiOutput } = await import('@/lib/supervisor-assignment-grading')
