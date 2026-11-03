@@ -144,7 +144,8 @@ mock.module('@/lib/book-reader', () => ({
   },
   transcribeScannedDocumentWithVision: async (_buffer: Buffer, range: number[]) => {
     bookOcrCalls += 1
-    return range.map((p) => ({ page: p, text: 'نص مقروء بالرؤية من الصفحة المصورة يشرح أمثلة من الواقع.', textProvenance: 'VISION_OCR' as const }))
+    ocrPageRequests.push(range)
+    return range.map((p) => ({ page: p, text: Object.prototype.hasOwnProperty.call(ocrSourcePages, p) ? ocrSourcePages[p] : 'نص مقروء بالرؤية من الصفحة المصورة يشرح أمثلة من الواقع.', textProvenance: 'VISION_OCR' as const }))
   },
   planBookChunks: (pages: any[]) => [{ text: pages.map((p) => p.text).filter(Boolean).join(' ') }],
 }))
