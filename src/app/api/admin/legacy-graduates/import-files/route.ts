@@ -34,17 +34,31 @@ function stampedFileName(serial: string) {
   return `${String(serial || 'certificate').replace(/[^a-zA-Z0-9._-]+/g, '-')}-stamped.pdf`
 }
 
-async function findCertificateByFileIdentifier(identifier: string) {
-  const bySerial = await db.certificate.findFirst({ where: { legacy: true, legacySerial: identifier } })
-  if (bySerial) return { certificate: bySerial, status: 'FOUND' as const }
-
-  const email = normalizeLegacyGraduateEmail(identifier)
-  if (!isValidLegacyGraduateEmail(email)) return { certificate: null, status: 'NOT_FOUND' as const }
+async function findCertificateByEmail(email: string) {
   const user = await db.user.findUnique({ where: { email }, select: { id: true } })
   if (!user) return { certificate: null, status: 'NOT_FOUND' as const }
   const matches = await db.certificate.findMany({ where: { legacy: true, userId: user.id }, orderBy: { issuedAt: 'desc' } })
   if (matches.length === 1) return { certificate: matches[0], status: 'FOUND' as const }
   if (matches.length > 1) return { certificate: null, status: 'AMBIGUOUS' as const }
+  return { certificate: null, status: 'NOT_FOUND' as const }
+}
+
+async function findCertificateByFileIdentifier(identifier: string) {
+  const bySerial = await db.certificate.findFirst({ where: { legacy: true, legacySerial: identifier } })
+  if (bySerial) return { certificate: bySerial, status: 'FOUND' as const }
+
+  const email = normalizeLegacyGraduateEmail(identifier)
+  if (isValidLegacyGraduateEmail(email)) return findCertificateByEmail(email)
+
+  // Bulk archives in the wild name files with the email minus its ".com"
+  // (e.g. "student@gmail"): such an identifier fails the validity check
+  // only because the domain has no dot, so retry once with ".com" appended.
+  // The repaired candidate goes through the exact same user + single
+  // legacy-certificate rules as a full email — nothing else changes.
+  if (/^[^\s@]+@[^\s@.]+$/.test(email)) {
+    const repaired = `${email}.com`
+    if (isValidLegacyGraduateEmail(repaired)) return findCertificateByEmail(repaired)
+  }
   return { certificate: null, status: 'NOT_FOUND' as const }
 }
 

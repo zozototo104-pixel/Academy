@@ -752,6 +752,49 @@ describe('legacy ZIP direct-to-storage upload', () => {
   })
 })
 
+describe('legacy ZIP email matching', () => {
+  test('a file named with a .com-less email still matches its owner', async () => {
+    const created = await createLegacyGraduate(
+      { name: 'سارة خليل', email: 'sara@gmail.com', programId: 'program-1', grade: 'امتياز', finalScore: 95, issuedAt: new Date('2024-06-30T00:00:00Z'), legacySerial: 'OLD-SARA-1' },
+      currentAdmin as any,
+    )
+    const zip = makeStoredZip('sara@gmail.pdf', await minimalPdf())
+    const fd = new FormData()
+    fd.append('file', new File([zip], 'legacy.zip', { type: 'application/zip' }))
+    const res = await importFilesRoute.POST(formReq(fd, 'https://aactacademy.test/api/admin/legacy-graduates/import-files'))
+    const data = await responseJson(res)
+    expect(res.status).toBe(200)
+    expect(data.successful).toBe(1)
+    expect(data.results[0].status).toBe('SUCCESS')
+    expect(data.results[0].serial).toBe(created.certificate.serial)
+    expect(certificates.get(created.certificate.id)?.stampedFileKey).toBeTruthy()
+  })
+
+  test('a .com-less email with no owner stays NOT_FOUND, and so do plain names', async () => {
+    const zip = makeStoredZipEntries([
+      { fileName: 'ghost@gmail.pdf', data: await minimalPdf() },
+      { fileName: 'طالب مجهول.pdf', data: await minimalPdf() },
+    ])
+    const fd = new FormData()
+    fd.append('file', new File([zip], 'legacy.zip', { type: 'application/zip' }))
+    const res = await importFilesRoute.POST(formReq(fd, 'https://aactacademy.test/api/admin/legacy-graduates/import-files'))
+    const data = await responseJson(res)
+    expect(res.status).toBe(200)
+    expect(data.successful).toBe(0)
+    expect(data.notFound).toBe(2)
+    expect(data.results[0].status).toBe('NOT_FOUND')
+    expect(data.results[1].status).toBe('NOT_FOUND')
+  })
+
+  test('tab renders the per-file ZIP results list, a resume button, and the stamped-file viewer', () => {
+    const tab = readFileSync('src/components/aact/AdminLegacyGraduatesTab.tsx', 'utf8')
+    expect(tab).toContain('zipReport.results.map')
+    expect(tab).toContain('استكمال الربط')
+    expect(tab).toContain('الملف المختوم الحالي')
+    expect(tab).toContain('/api/pdf/certificates/')
+  })
+})
+
 describe('legacy certificate verification', () => {
   test('QR verification returns certificate and revoked legacy certificate is invalid', async () => {
     certificates.set('cert-1', { id: 'cert-1', legacy: true, serial: 'AACT-C-2026-00001', legacySerial: 'OLD-VERIFY-1', qrToken: 'verify-token', type: 'PROGRAM_COMPLETION', holderName: 'Grad', program: 'دبلوم القيادة', grade: 'امتياز', valid: true, issuedAt: new Date() })
