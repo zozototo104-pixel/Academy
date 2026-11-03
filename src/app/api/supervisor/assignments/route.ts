@@ -53,8 +53,8 @@ export async function GET(req: NextRequest) {
       const programId = asString(req.nextUrl.searchParams.get('programId'), 80)
       if (!programId) return NextResponse.json({ error: 'البرنامج مطلوب' }, { status: 400 })
       const scope = { programId, userId: { not: null }, ...(user.role === 'ADMIN' ? {} : { supervisorId: user.id }) }
-      const [total, apps, assignments] = await Promise.all([
-        db.admissionApplication.count({ where: scope }),
+      const [studentGroups, apps, assignments] = await Promise.all([
+        db.admissionApplication.groupBy({ by: ['userId'], where: scope }),
         db.admissionApplication.findMany({
           where: scope,
           orderBy: [{ userId: 'asc' }, { createdAt: 'desc' }, { id: 'desc' }],
