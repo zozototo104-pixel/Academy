@@ -4,7 +4,10 @@ import { requireAdmin } from '@/lib/auth'
 import { isValidLegacyGraduateEmail, normalizeLegacyGraduateEmail } from '@/lib/legacy-graduates'
 import {
   LEGACY_CERTIFICATE_ZIP_MAX_BYTES,
+  deleteLegacyCertificateZipImport,
+  isLegacyCertificateZipImportKey,
   parseZipEntries,
+  readLegacyCertificateZipImport,
   sniffLegacyCertificateMime,
   stampLegacyCertificatePdf,
   storeLegacyCertificateOriginal,
@@ -54,26 +57,11 @@ type LegacyCertificateZipImportResult = {
   serial?: string
 }
 
-// POST /api/admin/legacy-graduates/import-files — ربط وختم شهادات جاهزة من ZIP
-export async function POST(req: NextRequest) {
-  try {
-    const admin = await requireAdmin()
-    const form = await req.formData()
-    const file = form.get('file')
-    if (!(file instanceof File)) return NextResponse.json({ error: 'ملف ZIP مطلوب' }, { status: 400 })
-    if (file.size <= 0) return NextResponse.json({ error: 'الملف فارغ' }, { status: 400 })
-    if (file.size > LEGACY_CERTIFICATE_ZIP_MAX_BYTES) return NextResponse.json({ error: 'حجم ملف ZIP كبير جداً' }, { status: 413 })
-
-    const zipBuffer = Buffer.from(await file.arrayBuffer())
-    if (!looksLikeZip(zipBuffer)) return NextResponse.json({ error: 'الملف ليس ZIP صالحاً' }, { status: 400 })
-
-    let entries
-    try {
-      entries = parseZipEntries(zipBuffer)
-    } catch (error) {
-      console.error('legacy certificate ZIP parse error:', error)
-      return NextResponse.json({ error: 'تعذر قراءة ملف ZIP' }, { status: 400 })
-    }
+// Parses one bulk ZIP and stamps/stores every matched certificate file.
+// Shared by the classic multipart upload and the direct-to-storage flow
+// (JSON body with a storage key), so both paths behave identically.
+async function processLegacyCertificateZip(zipBuffer: Buffer, admin: { id: string; name?: string | null }) {
+    const entries = parseZipEntries(zipBuffer)
 
     const results: LegacyCertificateZipImportResult[] = []
     for (const entry of entries) {
@@ -88,8 +76,13 @@ export async function POST(req: NextRequest) {
         results.push({ fileName: entry.fileName, ok: false, status: 'REJECTED_FORMAT', error })
         continue
       }
+      const entryBuffer = entry.buffer
+      if (!entryBuffer) {
+        results.push({ fileName: entry.fileName, ok: false, status: 'REJECTED_FORMAT', error: 'تعذر قبول الملف داخل ZIP' })
+        continue
+      }
       const identifier = baseIdentifier(entry.fileName)
-      const mime = sniffLegacyCertificateMime(entry.buffer)
+      const mime = sniffLegacyCertificateMime(entryBuffer)
       if (!mime) {
         results.push({ fileName: entry.fileName, ok: false, status: 'REJECTED_FORMAT', error: 'صيغة مرفوضة' })
         continue
@@ -113,14 +106,14 @@ export async function POST(req: NextRequest) {
 
         const cert = found.certificate
         const stamped = await stampLegacyCertificatePdf({
-          buffer: entry.buffer,
+          buffer: entryBuffer,
           mime,
           serial: cert.serial,
           qrToken: cert.qrToken,
           qrPosition: 'BOTTOM_LEFT',
           qrSize: 'M',
         })
-        const originalStored = await storeLegacyCertificateOriginal(entry.buffer, entry.fileName, mime)
+        const originalStored = await storeLegacyCertificateOriginal(entryBuffer, entry.fileName, mime)
         const stampedStored = await storeLegacyCertificateStamped(stamped, stampedFileName(cert.serial))
         await db.certificate.update({
           where: { id: cert.id },
@@ -149,7 +142,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({
+    return {
       ok: true,
       totalFiles: entries.length,
       successful: results.filter((row) => row.ok).length,
@@ -157,7 +150,64 @@ export async function POST(req: NextRequest) {
       rejected: results.filter((row) => row.status === 'REJECTED_FORMAT').length,
       failed: results.filter((row) => row.status === 'FAILED').length,
       results,
-    })
+    }
+}
+
+// Runs the shared ZIP processing; a structurally invalid archive maps to
+// null (the caller answers 400), anything else keeps propagating to the
+// route's 500 handler, exactly like the original inline flow.
+async function runZipImport(zipBuffer: Buffer, admin: { id: string; name?: string | null }) {
+  try {
+    return await processLegacyCertificateZip(zipBuffer, admin)
+  } catch (error: any) {
+    if (String(error?.message || '').startsWith('INVALID_ZIP')) {
+      console.error('legacy certificate ZIP parse error:', error)
+      return null
+    }
+    throw error
+  }
+}
+
+// POST /api/admin/legacy-graduates/import-files — ربط وختم شهادات جاهزة من ZIP
+export async function POST(req: NextRequest) {
+  try {
+    const admin = await requireAdmin()
+    const contentType = req.headers?.get?.('content-type') || ''
+
+    // Direct-to-storage flow: the browser already uploaded the archive to
+    // storage with a presigned URL (see import-files/presign), so the body
+    // here is only the storage key — archives far beyond the 4.5MB function
+    // request-body cap work through this path.
+    if (contentType.includes('application/json')) {
+      const body = (await req.json().catch(() => null)) as { key?: unknown; size?: unknown } | null
+      const key = body?.key
+      if (!isLegacyCertificateZipImportKey(key)) return NextResponse.json({ error: 'مفتاح ملف غير صالح' }, { status: 400 })
+      const zipBuffer = await readLegacyCertificateZipImport(key)
+      if (!zipBuffer) return NextResponse.json({ error: 'الملف المرفوع غير موجود في التخزين' }, { status: 404 })
+      try {
+        if (typeof body?.size === 'number' && body.size !== zipBuffer.length) return NextResponse.json({ error: 'حجم الملف المرفوع لا يطابق الحجم المعلن' }, { status: 400 })
+        if (zipBuffer.length > LEGACY_CERTIFICATE_ZIP_MAX_BYTES) return NextResponse.json({ error: 'حجم ملف ZIP كبير جداً' }, { status: 413 })
+        if (!looksLikeZip(zipBuffer)) return NextResponse.json({ error: 'الملف ليس ZIP صالحاً' }, { status: 400 })
+        const payload = await runZipImport(zipBuffer, admin)
+        if (!payload) return NextResponse.json({ error: 'تعذر قراءة ملف ZIP' }, { status: 400 })
+        return NextResponse.json(payload)
+      } finally {
+        await deleteLegacyCertificateZipImport(key).catch(() => {})
+      }
+    }
+
+    const form = await req.formData()
+    const file = form.get('file')
+    if (!(file instanceof File)) return NextResponse.json({ error: 'ملف ZIP مطلوب' }, { status: 400 })
+    if (file.size <= 0) return NextResponse.json({ error: 'الملف فارغ' }, { status: 400 })
+    if (file.size > LEGACY_CERTIFICATE_ZIP_MAX_BYTES) return NextResponse.json({ error: 'حجم ملف ZIP كبير جداً' }, { status: 413 })
+
+    const zipBuffer = Buffer.from(await file.arrayBuffer())
+    if (!looksLikeZip(zipBuffer)) return NextResponse.json({ error: 'الملف ليس ZIP صالحاً' }, { status: 400 })
+
+    const payload = await runZipImport(zipBuffer, admin)
+    if (!payload) return NextResponse.json({ error: 'تعذر قراءة ملف ZIP' }, { status: 400 })
+    return NextResponse.json(payload)
   } catch (error: any) {
     if (error?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })

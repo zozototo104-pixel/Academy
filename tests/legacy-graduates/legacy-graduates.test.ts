@@ -165,6 +165,7 @@ mock.module('@/lib/storage', () => ({
     const stored = input.key ? storedFiles.get(input.key) : null
     return stored ? { buffer: stored.buffer, mimeType: stored.mimeType || input.mimeType || 'application/octet-stream' } : null
   },
+  deleteStoredFile: async (key: string) => storedFiles.delete(String(key)),
 }))
 mock.module('@/lib/rate-limit', () => ({
   enforceDatabaseApiRateLimit: async () => null,
@@ -187,6 +188,7 @@ const adminLegacyRoute = await import('../../src/app/api/admin/legacy-graduates/
 const importRoute = await import('../../src/app/api/admin/legacy-graduates/import/route')
 const uploadRoute = await import('../../src/app/api/admin/legacy-graduates/[certificateId]/upload/route')
 const importFilesRoute = await import('../../src/app/api/admin/legacy-graduates/import-files/route')
+const importFilesPresignRoute = await import('../../src/app/api/admin/legacy-graduates/import-files/presign/route')
 const resendRoute = await import('../../src/app/api/admin/legacy-graduates/[certificateId]/resend-invite/route')
 const verifyRoute = await import('../../src/app/api/certificates/verify/route')
 const pdfRoute = await import('../../src/app/api/pdf/certificates/[id]/route')
@@ -655,6 +657,98 @@ describe('legacy certificate file upload stamping and download', () => {
     expect(data.results[0].status).toBe('REJECTED_FORMAT')
     expect(data.results[0].error).toContain('10MB')
     expect(data.results[1].status).toBe('NOT_FOUND')
+  })
+})
+
+describe('legacy ZIP direct-to-storage upload', () => {
+  const presignUrl = 'https://aactacademy.test/api/admin/legacy-graduates/import-files/presign'
+  const importUrl = 'https://aactacademy.test/api/admin/legacy-graduates/import-files'
+  const s3EnvKeys = ['AACT_S3_ENDPOINT', 'AACT_S3_BUCKET', 'AACT_S3_ACCESS_KEY_ID', 'AACT_S3_SECRET_ACCESS_KEY', 'AACT_S3_REGION'] as const
+
+  // The shared jsonReq double carries no headers; the import route branches
+  // on content-type, so these calls use a header-carrying double that
+  // matches what the browser actually sends.
+  function jsonUploadReq(body: AnyRecord, url: string) {
+    const req = jsonReq(body, url) as any
+    req.headers = new Headers({ 'content-type': 'application/json' })
+    return req
+  }
+  function clearS3Env() {
+    for (const k of s3EnvKeys) delete process.env[k]
+  }
+  function setS3Env() {
+    process.env.AACT_S3_ENDPOINT = 'https://storage.example.com'
+    process.env.AACT_S3_BUCKET = 'aact-test-bucket'
+    process.env.AACT_S3_ACCESS_KEY_ID = 'test-access-key'
+    process.env.AACT_S3_SECRET_ACCESS_KEY = 'test-secret-key'
+    process.env.AACT_S3_REGION = 'auto'
+  }
+
+  test('presign rejects non-admin, invalid size, and oversize archives', async () => {
+    currentAdmin = null
+    expect((await importFilesPresignRoute.POST(jsonReq({ size: 1024 }, presignUrl))).status).toBe(403)
+    currentAdmin = { id: 'admin-1', name: 'Admin', role: 'ADMIN' }
+    expect((await importFilesPresignRoute.POST(jsonReq({}, presignUrl))).status).toBe(400)
+    expect((await importFilesPresignRoute.POST(jsonReq({ size: 0 }, presignUrl))).status).toBe(400)
+    expect((await importFilesPresignRoute.POST(jsonReq({ size: 201 * 1024 * 1024 }, presignUrl))).status).toBe(413)
+  })
+
+  test('presign answers 422 when storage is not configured', async () => {
+    clearS3Env()
+    const res = await importFilesPresignRoute.POST(jsonReq({ size: 1024 }, presignUrl))
+    expect(res.status).toBe(422)
+  })
+
+  test('presign returns a signed PUT URL and a zip-import key when storage is configured', async () => {
+    setS3Env()
+    try {
+      const res = await importFilesPresignRoute.POST(jsonReq({ size: 150 * 1024 * 1024 }, presignUrl))
+      const data = await responseJson(res)
+      expect(res.status).toBe(200)
+      expect(String(data.key).startsWith('certificates/legacy-zip-imports/')).toBe(true)
+      expect(String(data.key).endsWith('.zip')).toBe(true)
+      expect(String(data.uploadUrl)).toContain('X-Amz-Signature=')
+      expect(String(data.uploadUrl)).toContain(String(data.key))
+      expect(data.maxBytes).toBe(200 * 1024 * 1024)
+    } finally {
+      clearS3Env()
+    }
+  })
+
+  test('stored-key import processes the archive exactly like multipart and cleans up', async () => {
+    const zip = makeStoredZip('missing@example.com.pdf', await minimalPdf())
+    const key = 'certificates/legacy-zip-imports/test-archive.zip'
+    storedFiles.set(key, { buffer: zip, mimeType: 'application/zip' })
+    const res = await importFilesRoute.POST(jsonUploadReq({ key, size: zip.length }, importUrl))
+    const data = await responseJson(res)
+    expect(res.status).toBe(200)
+    expect(data.notFound).toBe(1)
+    expect(data.results[0].status).toBe('NOT_FOUND')
+    expect(storedFiles.has(key)).toBe(false)
+  })
+
+  test('stored-key import rejects foreign keys, missing objects, and size mismatches', async () => {
+    const foreign = await importFilesRoute.POST(jsonUploadReq({ key: 'certificates/legacy-originals/x.zip', size: 10 }, importUrl))
+    expect(foreign.status).toBe(400)
+
+    const missing = await importFilesRoute.POST(jsonUploadReq({ key: 'certificates/legacy-zip-imports/nope.zip', size: 10 }, importUrl))
+    expect(missing.status).toBe(404)
+
+    const zip = makeStoredZip('missing@example.com.pdf', await minimalPdf())
+    const key = 'certificates/legacy-zip-imports/mismatch.zip'
+    storedFiles.set(key, { buffer: zip, mimeType: 'application/zip' })
+    const mismatch = await importFilesRoute.POST(jsonUploadReq({ key, size: zip.length + 1 }, importUrl))
+    expect(mismatch.status).toBe(400)
+    expect(storedFiles.has(key)).toBe(false)
+  })
+
+  test('tab and route are wired for the presigned direct upload', () => {
+    const tab = readFileSync('src/components/aact/AdminLegacyGraduatesTab.tsx', 'utf8')
+    expect(tab).toContain('/api/admin/legacy-graduates/import-files/presign')
+    expect(tab).toContain("xhr.open('PUT', uploadUrl)")
+    const route = readFileSync('src/app/api/admin/legacy-graduates/import-files/route.ts', 'utf8')
+    expect(route).toContain('isLegacyCertificateZipImportKey(key)')
+    expect(route).toContain('readLegacyCertificateZipImport(key)')
   })
 })
 
