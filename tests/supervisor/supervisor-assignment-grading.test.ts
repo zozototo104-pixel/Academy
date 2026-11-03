@@ -87,7 +87,7 @@ const db: any = {
     const exact = { id: 'ki-exact', title: 'الاستقطاب الموثّق', summary: 'المصدر الأصلي عن معايير الاختيار والموارد البشرية.', excerpt: 'إجراءات الاستقطاب' }
     const unitExtra = { id: 'ki-other-unit', title: 'تخطيط الكفاءات', summary: 'معلومات إضافية من الوحدة الصحيحة.', excerpt: 'التخطيط' }
     if (args?.where?.id?.in) return mockMissingOriginal ? [] : args.where.id.in.includes(exact.id) ? [exact] : []
-    return [unitExtra]
+    return mockCorruptedReference ? [{ ...unitExtra, summary: ('[غير واضح] محتوى المرجع غير قابل للقراءة. ').repeat(5) }] : [unitExtra]
   } },
   book: { findUnique: async () => mockSourceUnit ? { title: 'كتاب الموارد البشرية' } : null },
 }
