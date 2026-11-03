@@ -77,11 +77,29 @@ const db: any = {
     },
   },
   enrollment: {
-    count: async (args: any) => args.where.user?.ownedAdmissions?.some?.supervisorId === 'other-supervisor' ? 0 : 1,
-    findMany: async (args: any) => args.where.user?.ownedAdmissions?.some?.supervisorId === 'other-supervisor' ? [] : [{
-      id: 'enroll-1', userId: 'student-1', createdAt: new Date('2020-01-01'),
-      user: { name: 'محمود', ownedAdmissions: [{ fullName: 'محمود' }] },
-    }].slice(args.skip || 0, (args.skip || 0) + args.take),
+    count: async (args: any) => {
+      const rows = rosterEnrollments ?? [{ id: 'enroll-1', userId: 'student-1', createdAt: new Date('2020-01-01'), status: 'ACTIVE' }]
+      return rows.filter((e: any) => e.status !== 'CANCELLED' && (
+        !args.where.user || (rosterEnrollments
+          ? (rosterAdmissions[e.userId] || []).some(a => a.supervisorId === args.where.user.ownedAdmissions.some.supervisorId)
+          : args.where.user.ownedAdmissions.some.supervisorId !== 'other-supervisor')
+      )).length
+    },
+    findMany: async (args: any) => {
+      const rows = rosterEnrollments ?? [{ id: 'enroll-1', userId: 'student-1', createdAt: new Date('2020-01-01'), status: 'ACTIVE' }]
+      const sorted = rows.filter((e: any) => ['ACTIVE', 'COMPLETED'].includes(e.status) && (
+        !args.where.user || (rosterEnrollments
+          ? (rosterAdmissions[e.userId] || []).some(a => a.supervisorId === args.where.user.ownedAdmissions.some.supervisorId)
+          : args.where.user.ownedAdmissions.some.supervisorId !== 'other-supervisor')
+      )).sort((a: any, b: any) => b.createdAt.getTime() - a.createdAt.getTime() || b.id.localeCompare(a.id))
+      const index = args.cursor ? sorted.findIndex((e: any) => e.id === args.cursor.id) : -1
+      const selected = sorted.slice(args.cursor ? index + (args.skip || 0) : (args.skip || 0), (args.cursor ? index + (args.skip || 0) : (args.skip || 0)) + args.take)
+      return selected.map((e: any) => ({
+        ...e, user: { name: e.userId, ownedAdmissions: rosterEnrollments
+          ? (rosterAdmissions[e.userId] || []).filter(a => !args.select.user.select.ownedAdmissions.where.supervisorId || a.supervisorId === args.select.user.select.ownedAdmissions.where.supervisorId).map(a => ({ fullName: a.fullName })).slice(0, 1)
+          : [{ fullName: 'محمود' }] },
+      }))
+    },
   },
   admissionApplication: {
     findFirst: async () => ({ id: 'app-1', supervisorId: admissionSupervisorId, supervisionMode: 'HYBRID' }),
