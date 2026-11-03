@@ -489,6 +489,14 @@ describe('legacy graduate spreadsheet import helpers', () => {
     expect(source).not.toContain('setItems(data.certificates || [])')
   })
 
+  test('ZIP certificate import route keeps the raised 800s execution window', () => {
+    const source = readFileSync('src/app/api/admin/legacy-graduates/import-files/route.ts', 'utf8')
+    // One request stamps and stores every file in the ZIP; the old 60s cap
+    // killed large imports mid-way. The paid Vercel plan ceiling is 800s.
+    expect(source).toContain('export const maxDuration = 800')
+    expect(source).not.toContain('export const maxDuration = 60')
+  })
+
   test('Arabic xlsx headers parse correctly and Excel numeric dates convert correctly without saving', async () => {
     const XLSX = await import('xlsx')
     const excelSerial = Math.floor(Date.UTC(2024, 5, 30) / 86400000) + 25569
