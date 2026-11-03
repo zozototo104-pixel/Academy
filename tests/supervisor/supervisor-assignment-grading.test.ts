@@ -66,6 +66,7 @@ const submissionPdf: any = {
 
 const db: any = {
   assignmentSubmission: {
+    findMany: async () => [{ id: 'sub-1', userId: 'student-1', assignmentId: 'assign-1', status: 'GRADED', score: 85, submittedAt: new Date() }],
     findUnique: async (args: any) => (args?.where?.id === 'sub-pdf' ? submissionPdf : submission),
     update: async (_args: any) => {
       updateCalls.push(_args)
