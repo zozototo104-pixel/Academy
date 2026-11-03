@@ -16,6 +16,7 @@ let textAiCalls = 0
 let lastGradingPrompt = ''
 let mockSourceUnit = false
 let mockMissingOriginal = false
+let mockCorruptedReference = false
 let fileBufferToReturn: Buffer | null = null
 let bookReaderCalls = 0
 let bookOcrCalls = 0
