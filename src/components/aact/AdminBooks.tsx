@@ -646,6 +646,10 @@ export function AdminBooksTab() {
   const [books, setBooks] = useState<BookRow[]>([])
   const [exams, setExams] = useState<ExamRow[]>([])
   const [assignments, setAssignments] = useState<AssignmentRow[]>([])
+  const [adminRosterSemester, setAdminRosterSemester] = useState('1')
+  const [adminRosterPage, setAdminRosterPage] = useState(1)
+  const [adminRoster, setAdminRoster] = useState<{ students: { userId: string; name: string; assignments: { id: string; title: string; status: string; score: number | null; points: number; submissionId: string | null }[] }[]; totalPages: number; total: number } | null>(null)
+  const [adminRosterLoading, setAdminRosterLoading] = useState(false)
   const [assignmentSuggestions, setAssignmentSuggestions] = useState<AssignmentSuggestion[]>([])
   // رمز عملية توليد الاقتراحات: أي توليد جديد أو تغيير برنامج/فصل يُبطل
   // العملية السابقة، وتُفحص الصلاحية بعد كل await قبل لمس الحالة.
