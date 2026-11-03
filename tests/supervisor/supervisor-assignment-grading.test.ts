@@ -459,8 +459,8 @@ describe('supervisor assignments route — scope is the gate, analyze never save
     submission.assignment.unitId = 'unit-1'
     const route = await import('@/app/api/supervisor/assignments/route')
     const res = await route.POST(postRequest({ action: 'repair-reference', submissionId: 'sub-1' }))
-    expect(res.status).toBe(500)
-    expect((await res.json()).error).toContain('تعذرت إعادة قراءة')
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toContain('إجراء غير معروف')
     expect(textAiCalls).toBe(0)
     expect(updateCalls).toHaveLength(0)
   })
