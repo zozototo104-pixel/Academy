@@ -220,6 +220,9 @@ export default function AdminLegacyGraduatesTab() {
   const [zipFile, setZipFile] = useState<File | null>(null)
   const [zipReport, setZipReport] = useState<any>(null)
   const [zipProgress, setZipProgress] = useState(0)
+  const [zipSessions, setZipSessions] = useState<any[]>([])
+  const [zipSessionBusyId, setZipSessionBusyId] = useState<string | null>(null)
+  const [expandedZipSessionId, setExpandedZipSessionId] = useState<string | null>(null)
   const [programOptions, setProgramOptions] = useState<LegacyProgramOption[]>([])
   const [importProgress, setImportProgress] = useState<{ done: number; total: number } | null>(null)
 
@@ -264,7 +267,7 @@ export default function AdminLegacyGraduatesTab() {
   }
 
   useEffect(() => {
-    const timer = window.setTimeout(() => { void load(); void loadProgramOptions() }, 0)
+    const timer = window.setTimeout(() => { void load(); void loadProgramOptions(); void loadZipSessions() }, 0)
     return () => window.clearTimeout(timer)
     // Keep the initial fetch tied to mount only; search is refreshed by the explicit search button/Enter.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -432,10 +435,10 @@ export default function AdminLegacyGraduatesTab() {
       const presignRes = await fetch('/api/admin/legacy-graduates/import-files/presign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ size: zipFile.size }),
+        body: JSON.stringify({ size: zipFile.size, fileName: zipFile.name }),
       }).catch(() => null)
       if (presignRes?.ok) {
-        const { uploadUrl, key } = await presignRes.json()
+        const { uploadUrl, key, importId } = await presignRes.json()
         try {
           await new Promise<void>((resolve, reject) => {
             const xhr = new XMLHttpRequest()
@@ -457,7 +460,7 @@ export default function AdminLegacyGraduatesTab() {
           data = await jsonOrThrow(await fetch('/api/admin/legacy-graduates/import-files', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ key, size: zipFile.size }),
+            body: JSON.stringify({ key, size: zipFile.size, importId }),
           }), 'تعذر رفع ملفات الشهادات')
         }
       } else if (zipFile.size <= 4 * 1024 * 1024) {
@@ -469,11 +472,52 @@ export default function AdminLegacyGraduatesTab() {
       setZipReport(data)
       toast({ title: 'تمت معالجة ZIP', description: `نجح: ${data.successful} / غير مرتبط: ${data.notFound} / مرفوض: ${data.rejected}` })
       await load()
+      await loadZipSessions()
     } catch (error: any) {
       toast({ title: 'فشل رفع ZIP', description: String(error?.message || error), variant: 'destructive' })
     } finally {
       setBusy(null)
       setZipProgress(0)
+    }
+  }
+
+  async function loadZipSessions() {
+    try {
+      const data = await jsonOrThrow(await fetch('/api/admin/legacy-graduates/import-files/sessions', { cache: 'no-store' }), 'تعذر تحميل جلسات الاستيراد')
+      setZipSessions(data.sessions || [])
+    } catch {
+      // The sessions card simply stays empty when the list cannot load.
+    }
+  }
+
+  async function resumeZipSession(session: any) {
+    setZipSessionBusyId(session.id)
+    try {
+      const data = await jsonOrThrow(await fetch('/api/admin/legacy-graduates/import-files', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: session.storageKey, size: session.sizeBytes, importId: session.id }),
+      }), 'تعذر استكمال الربط')
+      setZipReport(data)
+      toast({ title: 'تمت معالجة الاستكمال', description: `نجح: ${data.successful} / غير مرتبط: ${data.notFound} / مرفوض: ${data.rejected}` })
+      await load()
+      await loadZipSessions()
+    } catch (error: any) {
+      toast({ title: 'فشل استكمال الربط', description: String(error?.message || error), variant: 'destructive' })
+    } finally {
+      setZipSessionBusyId(null)
+    }
+  }
+
+  async function deleteZipSession(session: any) {
+    setZipSessionBusyId(session.id)
+    try {
+      await jsonOrThrow(await fetch(`/api/admin/legacy-graduates/import-files/sessions?id=${encodeURIComponent(session.id)}`, { method: 'DELETE' }), 'تعذر حذف الجلسة')
+      await loadZipSessions()
+    } catch (error: any) {
+      toast({ title: 'فشل حذف الجلسة', description: String(error?.message || error), variant: 'destructive' })
+    } finally {
+      setZipSessionBusyId(null)
     }
   }
 
@@ -747,6 +791,59 @@ export default function AdminLegacyGraduatesTab() {
           ) : null}
         </CardContent>
       </Card>
+
+      {zipSessions.length ? (
+        <Card className="border-[#0f2b46]/10">
+          <CardContent className="space-y-3 p-4">
+            <h4 className="font-black text-[#0f2b46]">جلسات استيراد ZIP الأخيرة</h4>
+            <div className="space-y-2">
+              {zipSessions.map((session: any) => {
+                const remaining = session.totalFiles == null ? null : (session.notFound || 0) + (session.rejected || 0) + (session.failed || 0)
+                return (
+                  <div key={session.id} className="rounded-lg border border-slate-200 p-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <span dir="ltr" className="font-bold text-slate-700">{session.fileName}</span>
+                      <span className="font-bold text-slate-500">{new Date(session.createdAt).toLocaleString('ar-EG')} · {(session.sizeBytes / (1024 * 1024)).toFixed(1)}MB</span>
+                    </div>
+                    <p className="mt-1 text-xs font-bold text-slate-600">
+                      {session.totalFiles == null
+                        ? 'بانتظار المعالجة — الأرشيف محفوظ بالتخزين'
+                        : `نجح ${session.successful} · غير مرتبط ${session.notFound} · مرفوض ${session.rejected} · فشل ${session.failed} من أصل ${session.totalFiles}`}
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {session.totalFiles == null || (remaining != null && remaining > 0) ? (
+                        <Button size="sm" variant="outline" onClick={() => resumeZipSession(session)} disabled={zipSessionBusyId === session.id} className="gap-1">
+                          <RefreshCw className="h-3.5 w-3.5" /> استكمال الربط
+                        </Button>
+                      ) : null}
+                      {Array.isArray(session.results) && session.results.length ? (
+                        <Button size="sm" variant="outline" onClick={() => setExpandedZipSessionId(expandedZipSessionId === session.id ? null : session.id)}>
+                          {expandedZipSessionId === session.id ? 'إخفاء التفاصيل' : 'عرض التفاصيل'}
+                        </Button>
+                      ) : null}
+                      <Button size="sm" variant="outline" onClick={() => deleteZipSession(session)} disabled={zipSessionBusyId === session.id} className="gap-1 text-red-600">
+                        <Trash2 className="h-3.5 w-3.5" /> حذف الجلسة والأرشيف
+                      </Button>
+                    </div>
+                    {expandedZipSessionId === session.id && Array.isArray(session.results) ? (
+                      <div className="mt-2 max-h-64 space-y-1 overflow-auto rounded-lg border border-slate-200 p-2">
+                        {session.results.map((row: any, index: number) => (
+                          <div key={index} className="flex items-center justify-between gap-2 text-xs">
+                            <span dir="ltr" className="font-bold text-slate-700">{row.fileName}</span>
+                            {row.ok
+                              ? <span className="shrink-0 font-black text-emerald-600">تم الربط والختم</span>
+                              : <span className="shrink-0 font-black text-red-600">{row.error || row.status}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="space-y-3">
         {items.map((cert) => (

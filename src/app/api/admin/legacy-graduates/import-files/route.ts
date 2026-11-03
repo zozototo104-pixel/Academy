@@ -193,9 +193,14 @@ export async function POST(req: NextRequest) {
     // here is only the storage key — archives far beyond the 4.5MB function
     // request-body cap work through this path.
     if (contentType.includes('application/json')) {
-      const body = (await req.json().catch(() => null)) as { key?: unknown; size?: unknown } | null
+      const body = (await req.json().catch(() => null)) as { key?: unknown; size?: unknown; importId?: unknown } | null
       const key = body?.key
       if (!isLegacyCertificateZipImportKey(key)) return NextResponse.json({ error: 'مفتاح ملف غير صالح' }, { status: 400 })
+      let session: { id: string; storageKey: string } | null = null
+      if (typeof body?.importId === 'string' && body.importId) {
+        session = await db.legacyCertificateZipImport.findUnique({ where: { id: body.importId }, select: { id: true, storageKey: true } })
+        if (!session || session.storageKey !== key) return NextResponse.json({ error: 'جلسة الاستيراد غير مطابقة لمفتاح الملف' }, { status: 400 })
+      }
       const zipBuffer = await readLegacyCertificateZipImport(key)
       if (!zipBuffer) return NextResponse.json({ error: 'الملف المرفوع غير موجود في التخزين' }, { status: 404 })
       try {
@@ -204,9 +209,25 @@ export async function POST(req: NextRequest) {
         if (!looksLikeZip(zipBuffer)) return NextResponse.json({ error: 'الملف ليس ZIP صالحاً' }, { status: 400 })
         const payload = await runZipImport(zipBuffer, admin)
         if (!payload) return NextResponse.json({ error: 'تعذر قراءة ملف ZIP' }, { status: 400 })
+        if (session) {
+          await db.legacyCertificateZipImport.update({
+            where: { id: session.id },
+            data: {
+              totalFiles: payload.totalFiles,
+              successful: payload.successful,
+              notFound: payload.notFound,
+              rejected: payload.rejected,
+              failed: payload.failed,
+              results: payload.results,
+            },
+          })
+        }
         return NextResponse.json(payload)
       } finally {
-        await deleteLegacyCertificateZipImport(key).catch(() => {})
+        // Session-backed archives stay in storage so the import can be
+        // resumed later from the sessions list; only ad-hoc key uploads
+        // (no session) are cleaned up immediately.
+        if (!session) await deleteLegacyCertificateZipImport(key).catch(() => {})
       }
     }
 
