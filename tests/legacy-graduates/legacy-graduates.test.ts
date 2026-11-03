@@ -216,6 +216,7 @@ const uploadRoute = await import('../../src/app/api/admin/legacy-graduates/[cert
 const importFilesRoute = await import('../../src/app/api/admin/legacy-graduates/import-files/route')
 const importFilesPresignRoute = await import('../../src/app/api/admin/legacy-graduates/import-files/presign/route')
 const importFilesSessionsRoute = await import('../../src/app/api/admin/legacy-graduates/import-files/sessions/route')
+const originalRoute = await import('../../src/app/api/admin/legacy-graduates/[certificateId]/original/route')
 const resendRoute = await import('../../src/app/api/admin/legacy-graduates/[certificateId]/resend-invite/route')
 const verifyRoute = await import('../../src/app/api/certificates/verify/route')
 const pdfRoute = await import('../../src/app/api/pdf/certificates/[id]/route')
@@ -615,6 +616,41 @@ describe('legacy certificate file upload stamping and download', () => {
     expect(sniffLegacyCertificateMime(Buffer.from('not a certificate'))).toBeNull()
   })
 
+  test('stamp preview GET stamps the stored original at a real URL and the layout changes the output', async () => {
+    certificates.set('cert-prev', { id: 'cert-prev', legacy: true, serial: 'AACT-C-2026-00700', qrToken: 'qr-prev', type: 'PROGRAM_COMPLETION', holderName: 'Prev', program: 'دبلوم القيادة', grade: 'امتياز', valid: true, issuedAt: new Date(), uploadedFileKey: 'certificates/legacy-originals/prev.pdf', uploadedMime: 'application/pdf', qrPosition: 'BOTTOM_LEFT', qrSize: 'M' })
+    storedFiles.set('certificates/legacy-originals/prev.pdf', { buffer: await minimalPdf(), mimeType: 'application/pdf' })
+    const urlFor = (x: number) => `https://aactacademy.test/api/admin/legacy-graduates/cert-prev/upload?layout=${encodeURIComponent(JSON.stringify({ qr: { x, y: 90, size: 12, visible: true } }))}`
+    const resA = await uploadRoute.GET(jsonReq({}, urlFor(10)), { params: { certificateId: 'cert-prev' } } as any)
+    expect(resA.status).toBe(200)
+    expect(resA.headers.get('Content-Type')).toBe('application/pdf')
+    const bufA = Buffer.from(await resA.arrayBuffer())
+    expect(bufA.subarray(0, 5).toString()).toBe('%PDF-')
+    const resB = await uploadRoute.GET(jsonReq({}, urlFor(85)), { params: { certificateId: 'cert-prev' } } as any)
+    expect(resB.status).toBe(200)
+    const bufB = Buffer.from(await resB.arrayBuffer())
+    expect(bufB.equals(bufA)).toBe(false)
+
+    certificates.set('cert-nofile', { id: 'cert-nofile', legacy: true, serial: 'AACT-C-2026-00701', qrToken: 'qr-nf', type: 'PROGRAM_COMPLETION', holderName: 'NF', program: 'دبلوم القيادة', valid: true, issuedAt: new Date() })
+    expect((await uploadRoute.GET(jsonReq({}, 'https://aactacademy.test/api/admin/legacy-graduates/cert-nofile/upload'), { params: { certificateId: 'cert-nofile' } } as any)).status).toBe(404)
+    currentAdmin = null
+    expect((await uploadRoute.GET(jsonReq({}, urlFor(10)), { params: { certificateId: 'cert-prev' } } as any)).status).toBe(403)
+    currentAdmin = { id: 'admin-1', name: 'Admin', role: 'ADMIN' }
+  })
+
+  test('original file route serves the stored original to admins only', async () => {
+    certificates.set('cert-orig', { id: 'cert-orig', legacy: true, serial: 'AACT-C-2026-00702', qrToken: 'qr-orig', type: 'PROGRAM_COMPLETION', holderName: 'Orig', program: 'دبلوم القيادة', valid: true, issuedAt: new Date(), uploadedFileKey: 'certificates/legacy-originals/orig.jpg', uploadedMime: 'image/jpeg' })
+    const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46])
+    storedFiles.set('certificates/legacy-originals/orig.jpg', { buffer: jpeg, mimeType: 'image/jpeg' })
+    const res = await originalRoute.GET(jsonReq({}, 'https://aactacademy.test/api/admin/legacy-graduates/cert-orig/original'), { params: { certificateId: 'cert-orig' } } as any)
+    expect(res.status).toBe(200)
+    expect(res.headers.get('Content-Type')).toBe('image/jpeg')
+    expect(Buffer.from(await res.arrayBuffer()).equals(jpeg)).toBe(true)
+    currentAdmin = null
+    expect((await originalRoute.GET(jsonReq({}, 'https://aactacademy.test/api/admin/legacy-graduates/cert-orig/original'), { params: { certificateId: 'cert-orig' } } as any)).status).toBe(403)
+    currentAdmin = { id: 'admin-1', name: 'Admin', role: 'ADMIN' }
+    expect((await originalRoute.GET(jsonReq({}, 'https://aactacademy.test/api/admin/legacy-graduates/cert-missing/original'), { params: { certificateId: 'cert-missing' } } as any)).status).toBe(404)
+  })
+
   test('certificate without uploaded file downloads generated template PDF fallback', async () => {
     certificates.set('cert-1', { id: 'cert-1', legacy: true, serial: 'AACT-C-2026-00001', qrToken: 'qr-1', type: 'PROGRAM_COMPLETION', holderName: 'Grad', program: 'دبلوم القيادة', valid: true, issuedAt: new Date() })
     const res = await pdfRoute.GET(jsonReq({}, 'https://aactacademy.test/api/pdf/certificates/AACT-C-2026-00001'), { params: { id: 'AACT-C-2026-00001' } } as any)
@@ -903,6 +939,16 @@ describe('legacy ZIP email matching', () => {
     expect(tab).not.toContain("window.open(URL.createObjectURL(blob), '_blank')")
     // The preview state is reset when the dialog opens and closes.
     expect(tab).toContain('clearStampPreview()')
+  })
+
+  test('tab shows the stored original as the stamp-canvas backdrop and previews stored files via a real URL', () => {
+    const tab = readFileSync('src/components/aact/AdminLegacyGraduatesTab.tsx', 'utf8')
+    expect(tab).toContain('/original`')
+    expect(tab).toContain('storedBackdropUrl')
+    expect(tab).toContain('upload?layout=${encodeURIComponent(JSON.stringify(stampLayout))}')
+    expect(tab).toContain('stampViewerRef')
+    const uploadRouteSrc = readFileSync('src/app/api/admin/legacy-graduates/[certificateId]/upload/route.ts', 'utf8')
+    expect(uploadRouteSrc).toContain('export async function GET')
   })
 
 })

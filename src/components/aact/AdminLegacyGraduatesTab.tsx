@@ -28,6 +28,7 @@ type LegacyGraduateCertificate = {
   valid: boolean
   legacySerial?: string | null
   uploadedFileKey?: string | null
+  uploadedMime?: string | null
   stampedFileKey?: string | null
   qrPosition?: string | null
   qrSize?: string | null
@@ -209,9 +210,11 @@ export default function AdminLegacyGraduatesTab() {
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [uploadPreviewUrl, setUploadPreviewUrl] = useState<string | null>(null)
   const [stampPreviewUrl, setStampPreviewUrl] = useState<string | null>(null)
+  const [storedBackdropUrl, setStoredBackdropUrl] = useState<string | null>(null)
   const [stampLayout, setStampLayout] = useState<StampLayout>(DEFAULT_STAMP_LAYOUT)
   const [selectedStampField, setSelectedStampField] = useState<StampField>('qr')
   const stampCanvasRef = useRef<HTMLDivElement | null>(null)
+  const stampViewerRef = useRef<HTMLDivElement | null>(null)
   const stampDragRef = useRef<StampField | null>(null)
   const stampResizeRef = useRef<{ field: StampField; startX: number; startY: number; startSize: number; startWidth: number; startFontSize: number } | null>(null)
   const [excelFile, setExcelFile] = useState<File | null>(null)
@@ -528,10 +531,22 @@ export default function AdminLegacyGraduatesTab() {
     })
   }
 
+  function revealStampPreview() {
+    window.setTimeout(() => {
+      stampViewerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }, 80)
+  }
+
   function openUpload(cert: LegacyGraduateCertificate) {
     clearStampPreview()
     setUploadFor(cert)
     setUploadFile(null)
+    // Show the stored original itself behind the draggable fields, so the
+    // admin positions the QR on the real certificate instead of a blank
+    // slate. PDFs cannot be an <img> backdrop; they use the preview below.
+    setStoredBackdropUrl(cert.uploadedFileKey && String(cert.uploadedMime || '').startsWith('image/')
+      ? `/api/admin/legacy-graduates/${cert.id}/original`
+      : null)
     setSelectedStampField('qr')
     setStampLayout(parseStampLayout(cert.qrPosition, cert.qrSize))
   }
@@ -539,6 +554,16 @@ export default function AdminLegacyGraduatesTab() {
   async function stampUpload(preview: boolean) {
     if (!uploadFor) return
     if (!uploadFile && !uploadFor.uploadedFileKey) return toast({ title: 'ارفع ملف الشهادة أولاً', variant: 'destructive' })
+    // Previewing the stored original uses a plain GET URL for the viewer
+    // iframe: phone browsers refuse to render blob: PDFs inside iframes,
+    // which made the preview look like "nothing happened". A newly picked
+    // (unsaved) file still previews through the POST response below.
+    if (preview && !uploadFile) {
+      clearStampPreview()
+      setStampPreviewUrl(`/api/admin/legacy-graduates/${uploadFor.id}/upload?layout=${encodeURIComponent(JSON.stringify(stampLayout))}&t=${Date.now()}`)
+      revealStampPreview()
+      return
+    }
     setBusy(preview ? 'preview' : 'upload')
     try {
       const fd = new FormData()
@@ -553,6 +578,7 @@ export default function AdminLegacyGraduatesTab() {
         // tab is unreliable and loses the editing context.
         clearStampPreview()
         setStampPreviewUrl(URL.createObjectURL(blob))
+        revealStampPreview()
       } else {
         const data = await jsonOrThrow(res, 'تعذر حفظ الشهادة المختومة')
         toast({ title: 'تم حفظ الشهادة المختومة', description: data.stampedFileKey || uploadFor.serial })
@@ -906,6 +932,7 @@ export default function AdminLegacyGraduatesTab() {
           setUploadFor(null)
           setUploadFile(null)
           clearStampPreview()
+          setStoredBackdropUrl(null)
           stampDragRef.current = null
           stampResizeRef.current = null
         }
@@ -917,12 +944,6 @@ export default function AdminLegacyGraduatesTab() {
           </DialogHeader>
           <div className="space-y-4">
             <Input type="file" accept="application/pdf,image/png,image/jpeg" onChange={(e) => setUploadFile(e.target.files?.[0] || null)} />
-            {uploadFor?.stampedFileKey || stampPreviewUrl ? (
-              <div className="space-y-2">
-                <Label className="text-[11px] font-black text-slate-600">{stampPreviewUrl ? 'معاينة بالمواضع الحالية — لم تُحفظ بعد' : 'الملف المختوم الحالي'}</Label>
-                <iframe title="معاينة الشهادة المختومة" src={stampPreviewUrl || `/api/pdf/certificates/${encodeURIComponent(uploadFor?.serial || '')}`} className="h-96 w-full rounded-xl border border-slate-200 bg-white" />
-              </div>
-            ) : null}
             <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
               <div className="space-y-3">
                 <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-[11px] font-bold leading-5 text-emerald-900">
@@ -952,7 +973,7 @@ export default function AdminLegacyGraduatesTab() {
               </div>
               <div
                 ref={stampCanvasRef}
-                className={`relative overflow-hidden rounded-2xl border border-[#0f2b46]/10 bg-white shadow-inner ${uploadPreviewUrl ? '' : 'aspect-[1.414/1]'}`}
+                className={`relative overflow-hidden rounded-2xl border border-[#0f2b46]/10 bg-white shadow-inner ${uploadPreviewUrl || storedBackdropUrl ? '' : 'aspect-[1.414/1]'}`}
                 onPointerMove={(e) => {
                   if (stampResizeRef.current) {
                     resizeStampField(e.clientX, e.clientY)
@@ -968,11 +989,13 @@ export default function AdminLegacyGraduatesTab() {
                 onPointerUp={() => { stampDragRef.current = null; stampResizeRef.current = null }}
                 onPointerLeave={() => { stampDragRef.current = null; stampResizeRef.current = null }}
               >
-                {uploadPreviewUrl ? (
-                  <img src={uploadPreviewUrl} alt="معاينة الشهادة المرفوعة" className="block h-auto w-full select-none" draggable={false} />
+                {uploadPreviewUrl || storedBackdropUrl ? (
+                  <img src={uploadPreviewUrl || storedBackdropUrl || ''} alt="معاينة الشهادة المرفوعة" className="block h-auto w-full select-none" draggable={false} />
                 ) : (
                   <div className="flex h-full min-h-[260px] items-center justify-center bg-slate-50 p-6 text-center text-xs font-bold leading-6 text-slate-500">
-                    ارفع صورة للشهادة لعرضها هنا مباشرة، أو استخدم هذه المساحة لضبط الموضع ثم اضغط معاينة عند رفع PDF.
+                    {uploadFor?.uploadedFileKey
+                      ? 'الملف الأصلي PDF — اضبط المواضع هنا ثم اضغط معاينة لرؤية النتيجة تحت المحرر مباشرة.'
+                      : 'ارفع صورة للشهادة لعرضها هنا مباشرة، أو استخدم هذه المساحة لضبط الموضع ثم اضغط معاينة عند رفع PDF.'}
                   </div>
                 )}
                 {(Object.keys(LEGACY_STAMP_LABELS) as StampField[]).filter((field) => stampLayout[field]?.visible !== false).map((field) => (
@@ -1009,6 +1032,12 @@ export default function AdminLegacyGraduatesTab() {
                 ))}
               </div>
             </div>
+            {uploadFor?.stampedFileKey || stampPreviewUrl ? (
+              <div ref={stampViewerRef} className="space-y-2">
+                <Label className="text-[11px] font-black text-slate-600">{stampPreviewUrl ? 'معاينة بالمواضع الحالية — لم تُحفظ بعد' : 'الملف المختوم الحالي'}</Label>
+                <iframe title="معاينة الشهادة المختومة" src={stampPreviewUrl || `/api/pdf/certificates/${encodeURIComponent(uploadFor?.serial || '')}`} className="h-96 w-full rounded-xl border border-slate-200 bg-white" />
+              </div>
+            ) : null}
           </div>
           <DialogFooter className="gap-2"><Button variant="outline" onClick={() => stampUpload(true)} disabled={busy === 'preview'}>{busy === 'preview' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'معاينة'}</Button><Button onClick={() => stampUpload(false)} disabled={busy === 'upload'}>{busy === 'upload' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'حفظ المختوم'}</Button></DialogFooter>
         </DialogContent>
