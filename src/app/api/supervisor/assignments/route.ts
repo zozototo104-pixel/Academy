@@ -72,6 +72,11 @@ export async function GET(req: NextRequest) {
         where: { userId: { in: userIds }, assignmentId: { in: assignments.map(a => a.id) } },
         select: { id: true, userId: true, assignmentId: true, status: true, score: true, submittedAt: true },
       }) : []
+      const enrollments = userIds.length ? await db.enrollment.findMany({
+        where: { programId, userId: { in: userIds } },
+        select: { userId: true, createdAt: true },
+      }) : []
+      const enrolledAt = new Map(enrollments.map(e => [e.userId, e.createdAt]))
       const byPair = new Map(submissions.map(s => [s.userId + ':' + s.assignmentId, s]))
       const students = apps.map(app => ({
         admissionId: app.id,
