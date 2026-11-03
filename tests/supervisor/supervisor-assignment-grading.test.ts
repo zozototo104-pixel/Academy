@@ -121,7 +121,10 @@ mock.module('@/lib/document-extract', () => ({
   isPdfLike: () => true,
 }))
 mock.module('@/lib/storage', () => ({
-  getFileBufferFromStorageOrBase64: async () => (fileBufferToReturn ? { buffer: fileBufferToReturn, mimeType: 'application/pdf' } : null),
+  getFileBufferFromStorageOrBase64: async (args: any) => {
+    const buffer = String(args?.key || '').startsWith('books/') ? sourcePdfBuffer : fileBufferToReturn
+    return buffer ? { buffer, mimeType: 'application/pdf' } : null
+  },
   getStorageDownloadPathForKey: (key: string) => `/api/files/${key}`,
 }))
 mock.module('@/lib/book-reader', () => ({
