@@ -803,7 +803,7 @@ export function SupervisorView() {
                     <div>
                       <p className="font-black text-[#0f2b46]">تفصيل الدرجة المقترحة:</p>
                       {gradingDraft.draft.criteria.map((c: any, i: number) => (
-                        <p key={i}>{c.label}: {c.points}/{c.maxPoints}{c.justification ? ` — ${c.justification}` : ''}</p>
+                        <p key={i}>{c.label}: {c.excludedFromScore ? 'مستبعد من الدرجة المقترحة' : `${c.points}/${c.maxPoints}`}{c.justification ? ` — ${c.justification}` : ''}</p>
                       ))}
                     </div>
                   ) : null}
