@@ -469,7 +469,7 @@ export async function POST(req: NextRequest) {
     const roundedRawScore = Math.round(rawPercentage * 10) / 10
     const fallbackOverall = fallbackProgramFeedback(exam.program.titleAr, percentage, passed, weakPoints)
     const gradeMetadata = { rawScoreBeforeCourseworkCap: roundedRawScore, maxExamScore: 100, gradeCapApplied: false, readiness }
-    const initialFeedback = JSON.stringify({ ...fallbackOverall, ...gradeMetadata })
+    const initialFeedback = JSON.stringify({ ...fallbackOverall, ...gradeMetadata, feedbackSource: 'FALLBACK' })
 
     // Persist the objective + essay result BEFORE requesting optional AI prose.
     // A timeout, provider failure, or process termination during commentary must
