@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
           const start = enrolledAt.get(app.userId)
           const deadline = a.dueAt || (a.dueDays != null && start ? new Date(start.getTime() + a.dueDays * 86400000) : null)
           return {
-            id: a.id, title: a.title, points: a.points, type: a.type, dueAt: a.dueAt,
+            id: a.id, title: a.title, points: a.points, type: a.type, dueAt: deadline,
             submissionId: sub?.id || null, score: sub?.score ?? null,
             submittedAt: sub?.submittedAt || null,
             status: sub?.status || (a.dueAt && a.dueAt.getTime() < Date.now() ? 'OVERDUE' : 'NOT_SUBMITTED'),
