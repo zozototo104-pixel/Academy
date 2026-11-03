@@ -595,7 +595,7 @@ export async function POST(req: NextRequest) {
     if (e?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'يجب تسجيل الدخول أولاً' }, { status: 401 })
     }
-    console.error('program-exam submit error:', e)
+    // Sanitized error code and attempt ID were logged above; do not log raw provider output.
     return NextResponse.json({ error: 'تعذّر إتمام التصحيح؛ إذا سبق تسليم الإجابات يرجى مراجعة حالة المحاولة قبل إعادة الإرسال.' }, { status: 500 })
   }
 }
