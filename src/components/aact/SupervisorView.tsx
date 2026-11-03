@@ -343,7 +343,7 @@ export function SupervisorView() {
     }
     setGradingSaving(true)
     try {
-      await api('/api/supervisor/assignments', { method: 'POST', body: JSON.stringify({ action: 'grade', submissionId: gradingDetail.submissionId, score: parsedScore, feedback: gradingFeedback.trim(), status }) })
+      await api('/api/supervisor/assignments', { method: 'POST', body: JSON.stringify({ action: 'grade', submissionId: gradingDetail.submissionId, score: parsedScore, feedback: gradingFeedback.trim(), status, sourceReviewed }) })
       toast({ title: status === 'GRADED' ? 'تم اعتماد التصحيح' : 'تم طلب تعديل الواجب' })
       setGradingDetail(null)
       setGradingDraft(null)
