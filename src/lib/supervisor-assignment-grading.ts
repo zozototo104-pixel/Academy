@@ -301,6 +301,25 @@ export function isUnreadableBookReference(text: string): boolean {
   return false
 }
 
+/** Parse only explicit page markers; never infer pages from unrelated numbers. */
+export function extractExplicitPageCitations(answer: string): number[] {
+  const normalized = String(answer || '')
+    .replace(/[٠-٩]/g, digit => String(digit.charCodeAt(0) - 0x660))
+    .replace(/[۰-۹]/g, digit => String(digit.charCodeAt(0) - 0x6f0))
+  const pages: number[] = []
+  const pattern = /(?:^|[^\p{L}])(?:الصفحة|صفحة|ص(?!\s*\.?\s*ب\b)\.?|pp?\.|page\b)\s*(\d{1,6})(?:\s*(?:[-–—]|إلى|الى|to)\s*(\d{1,6}))?/giu
+  for (const match of normalized.matchAll(pattern)) {
+    const first = Number(match[1])
+    const last = match[2] ? Number(match[2]) : first
+    if (first < 1 || last < first) continue
+    // Include a ninth page as an overflow sentinel; never enumerate unbounded ranges.
+    for (let page = first; page <= Math.min(last, first + 8); page++) {
+      if (!pages.includes(page)) pages.push(page)
+    }
+  }
+  return pages
+}
+
 type GradingBookContext = { text: string; titles: string[]; used: boolean; status: 'EXACT' | 'PARTIAL' | 'UNIT' | 'NONE'; expected: number; matched: number; unreadable: boolean }
 
 async function loadBookContext(programId: string, unitId: string | null, semester: number, storedSourceIds: unknown, repairSource = false): Promise<GradingBookContext> {
