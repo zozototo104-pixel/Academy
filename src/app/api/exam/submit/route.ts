@@ -438,7 +438,7 @@ export async function POST(req: NextRequest) {
       const changed = await db.examAttempt.updateMany({
         // Never overwrite feedback modified by a human after the grade was saved.
         where: { id: attempt.id, status: 'GRADED', feedback: feedbackJson },
-        data: { feedback: JSON.stringify(generated) },
+        data: { feedback: JSON.stringify({ ...generated, feedbackSource: 'AI' }) },
       })
       if (changed.count === 1) overall = generated
     } catch (feedbackError: any) {
