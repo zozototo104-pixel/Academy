@@ -81,6 +81,9 @@ const db: any = {
   },
   program: { findUnique: async () => ({ id: 'prog-1', titleAr: 'إدارة الموارد البشرية' }) },
   programAssignment: {
+    findMany: async (args: any) => args.where.semester === 1 && args.where.status === 'PUBLISHED'
+      ? [{ id: 'assign-1', title: 'تكليف منشور', points: 100, dueAt: new Date('2020-01-01'), type: 'REPORT' },
+        { id: 'assign-2', title: 'واجب غير مسلّم', points: 20, dueAt: null, type: 'SUMMARY' }] : [],
     findUnique: async () => null,
     create: async (args: any) => { assignmentCreates.push(args.data); return { id: 'assign-new', ...args.data } },
   },
