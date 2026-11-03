@@ -246,9 +246,9 @@ async function assignmentAverage(client: DbClient, userId: string, programId: st
     if (requiredForGrade) addMissing(missing, 'الواجبات المنشورة المصححة')
     return null
   }
-  const declaredWeights = assignments.map((a) => Math.max(0, Number(a.weight || 0)))
-  const shares = declaredWeights.some((v) => v > 0) ? declaredWeights : assignments.map(() => 1)
-  const totalShares = shares.reduce((sum, v) => sum + v, 0)
+  // Published assignments share the assignment component equally, regardless of legacy weight.
+  // Each score is normalized using its own maximum points before averaging.
+  const totalShares = assignments.length
   let percent = 0
   let complete = true
   for (let i = 0; i < assignments.length; i++) {
