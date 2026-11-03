@@ -568,6 +568,9 @@ export async function POST(req: NextRequest) {
       throw postCreateError
     }
   } catch (e: any) {
+    const errorCode = typeof e?.code === 'string' && /^[A-Z][A-Z0-9_]{1,79}$/.test(e.code)
+      ? e.code : typeof e?.message === 'string' && /^[A-Z][A-Z0-9_]{1,79}$/.test(e.message) ? e.message : 'PROGRAM_GRADING_ERROR'
+    console.error('programme exam grading interrupted', { code: errorCode, attemptId: claimedProgramAttemptId || null })
     if (claimedProgramAttemptId) {
       // Raw answers were saved atomically with the claim: retain them and surface
       // a reviewable attempt rather than strand a student behind SUBMITTED.
