@@ -85,7 +85,8 @@ const db: any = {
   programAssignment: {
     findMany: async (args: any) => args.where.semester === 1 && args.where.status === 'PUBLISHED'
       ? [{ id: 'assign-1', title: 'تكليف منشور', points: 100, dueAt: new Date('2020-01-01'), type: 'REPORT' },
-        { id: 'assign-2', title: 'واجب غير مسلّم', points: 20, dueAt: null, dueDays: 2, type: 'SUMMARY' }] : [],
+        { id: 'assign-2', title: 'واجب متأخر', points: 20, dueAt: null, dueDays: 2, type: 'SUMMARY' },
+        { id: 'assign-3', title: 'واجب لم تنته مهلته', points: 20, dueAt: new Date('2099-01-01'), dueDays: 2, type: 'SUMMARY' }] : [],
     findUnique: async () => null,
     create: async (args: any) => { assignmentCreates.push(args.data); return { id: 'assign-new', ...args.data } },
   },
