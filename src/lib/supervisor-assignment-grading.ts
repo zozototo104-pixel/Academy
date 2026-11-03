@@ -60,6 +60,11 @@ export interface AnswerProvenance {
   sourceKnowledgeMatched: number
   referenceWarning: 'REFERENCE_UNREADABLE' | null
   answerTruncated: boolean
+  citationPages?: CitationEvidence[]
+  citationMode?: 'STUDENT_CITATIONS' | 'REFERENCE_RANGES' | 'NONE'
+  citationReviewRequired?: boolean
+  isolationStatus?: 'ISOLATED' | 'NO_VALID_BREAKDOWN' | 'NO_SOURCE_CRITERION' | 'NOT_REQUIRED'
+  isolationNote?: string | null
 }
 
 export const DEFAULT_RUBRIC: RubricCriterion[] = [
