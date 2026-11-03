@@ -650,6 +650,9 @@ export function AdminBooksTab() {
   const [adminRosterPage, setAdminRosterPage] = useState(1)
   const [adminRoster, setAdminRoster] = useState<{ students: { userId: string; name: string; assignments: { id: string; title: string; status: string; score: number | null; points: number; submissionId: string | null }[] }[]; totalPages: number; total: number } | null>(null)
   const [adminRosterLoading, setAdminRosterLoading] = useState(false)
+  const adminRosterRequestRef = useRef(0)
+  const adminRosterSelectionRef = useRef({ programId: '', semester: '1' })
+  adminRosterSelectionRef.current = { programId, semester: adminRosterSemester }
   const [assignmentSuggestions, setAssignmentSuggestions] = useState<AssignmentSuggestion[]>([])
   // رمز عملية توليد الاقتراحات: أي توليد جديد أو تغيير برنامج/فصل يُبطل
   // العملية السابقة، وتُفحص الصلاحية بعد كل await قبل لمس الحالة.
