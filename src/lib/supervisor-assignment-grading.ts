@@ -607,7 +607,7 @@ ${answer.combinedText}`
 export async function gradeAssignmentSubmission(
   submissionId: string,
   user: { id: string; role: string; name?: string | null },
-  input: { score: number; feedback: string; status: 'GRADED' | 'NEEDS_REVISION' }
+  input: { score: number; feedback: string; status: 'GRADED' | 'NEEDS_REVISION'; sourceReviewed?: boolean }
 ) {
   const submission = await db.assignmentSubmission.findUnique({
     where: { id: submissionId },
