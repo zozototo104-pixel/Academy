@@ -562,7 +562,7 @@ export async function analyzeAssignmentSubmission(submissionId: string, user: { 
   await assertSupervisorScope(user, submission)
 
   const criteria = parseRubricCriteria(submission.assignment.rubric)
-  const book = await loadBookContext(submission.assignment.programId, submission.assignment.unitId, submission.assignment.semester, submission.assignment.sourceKnowledgeIds)
+  const book = await loadBookContext(submission.assignment.programId, submission.assignment.unitId, submission.assignment.semester, submission.assignment.sourceKnowledgeIds, repairSource)
   const answer = await loadAnswerContent(submission)
   if (!answer.combinedText.trim()) {
     const error = new Error('NO_ANSWER_TEXT') as Error & { status?: number }
