@@ -98,7 +98,7 @@ export async function GET(req: NextRequest) {
           }
         }),
       }))
-      return NextResponse.json({ semester, page, pageSize, total, totalPages: Math.ceil(total / pageSize), students })
+      return NextResponse.json({ semester, page, pageSize, total, totalPages: Math.ceil(total / pageSize), nextCursor, students })
     }
     const submissionId = req.nextUrl.searchParams.get('submissionId') || ''
     if (!submissionId) return NextResponse.json({ error: 'معرف التسليم مطلوب' }, { status: 400 })
