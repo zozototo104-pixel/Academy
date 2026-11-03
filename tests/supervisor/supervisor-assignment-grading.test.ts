@@ -202,6 +202,19 @@ describe('AI_OUTPUT_INVALID rejection diagnostics', () => {
     expect(classifyAssignmentAiOutput(JSON.stringify({ score: 'oops', feedback: 'هذه ملاحظة طويلة وكافية عن الإجابة' }))).toBe('INVALID_SCORE')
   })
 
+  test('rejects an empty-string score rather than silently treating it as zero', async () => {
+    const { classifyAssignmentAiOutput } = await import('@/lib/supervisor-assignment-grading')
+    expect(classifyAssignmentAiOutput(JSON.stringify({ score: '', feedback: 'هذه ملاحظة طويلة وكافية عن الإجابة' }))).toBe('INVALID_SCORE')
+  })
+
+  test('classifies broken Arabic output after feedback length validation', async () => {
+    const { classifyAssignmentAiOutput } = await import('@/lib/supervisor-assignment-grading')
+    expect(classifyAssignmentAiOutput(JSON.stringify({
+      score: 80,
+      feedback: 'محور معرفي مهم في إجابة الطالب ويحتاج إلى شرح أكاديمي وتطبيق مهني مناسب.',
+    }))).toBe('BROKEN_ARABIC')
+  })
+
   test('classifies missing or short feedback', async () => {
     const { classifyAssignmentAiOutput } = await import('@/lib/supervisor-assignment-grading')
     expect(classifyAssignmentAiOutput(JSON.stringify({ score: 80, feedback: 'قصير' }))).toBe('SHORT_FEEDBACK')
