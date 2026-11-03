@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
           orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
           skip: (page - 1) * pageSize,
           take: pageSize,
-          select: { id: true, userId: true, user: { select: { id: true, name: true } } },
+          select: { id: true, userId: true, fullName: true },
         }),
         db.programAssignment.findMany({
           where: { programId, semester, status: 'PUBLISHED' },
