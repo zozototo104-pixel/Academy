@@ -754,6 +754,8 @@ ${citations.evidenceText || 'لا توجد صفحات صريحة متاحة لل
       code: 'AI_OUTPUT_INVALID',
       reason: rejectionReason || 'INVALID_SCORE',
       purpose: 'GRADING',
+      provider: gradingProvider,
+      model: gradingModel,
     })
     const error = new Error('AI_OUTPUT_INVALID') as Error & { status?: number; reason?: AssignmentAiRejectionReason }
     error.status = 502
