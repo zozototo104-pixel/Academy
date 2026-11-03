@@ -726,7 +726,7 @@ export function SupervisorView() {
                   <b>معايير التصحيح:</b> {gradingDetail.assignmentRubric}
                 </div>
               )}
-              <Button onClick={() => analyzeAssignmentGrading(false)} disabled={gradingAnalyzing} className="w-full bg-[#0f2b46] font-black text-[#e0b83a] hover:bg-[#12365c]">
+              <Button onClick={() => analyzeAssignmentGrading()} disabled={gradingAnalyzing} className="w-full bg-[#0f2b46] font-black text-[#e0b83a] hover:bg-[#12365c]">
                 {gradingAnalyzing ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Bot className="ml-2 h-4 w-4" />} تحليل إجابة الطالب بالذكاء
               </Button>
               <p className="text-center text-[11px] font-bold text-slate-500">التحليل يعبّئ الدرجة والملاحظة كمسودة فقط — لا يُحفظ ولا يُرسل للطالب إلا بعد تعديلك واعتمادك.</p>
