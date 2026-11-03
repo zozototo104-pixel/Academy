@@ -349,7 +349,34 @@ async function loadBookContext(programId: string, unitId: string | null, semeste
     // Repair extraction-order artifacts before using book text as grading evidence.
     // Never replace the stored source: this is an in-memory reading correction only.
     const joined = parts.map((part) => fixArabicPdfText(part)).join('\n')
-    const text = joined.slice(0, MAX_BOOK_CHARS)
+    let text = joined.slice(0, MAX_BOOK_CHARS)
+    let repaired = false
+    if (repairSource && isUnreadableBookReference(text)) {
+      const source = await db.book.findUnique({
+        where: { id: unit.sourceBookId },
+        select: { storageProvider: true, storageKey: true, fileUrl: true, data: true, mimeType: true },
+      })
+      const stored = source ? await getFileBufferFromStorageOrBase64({
+        provider: source.storageProvider, key: source.storageKey, url: source.fileUrl,
+        data: source.data, mimeType: source.mimeType,
+      }) : null
+      if (!stored?.buffer?.length || stored.buffer.subarray(0, 5).toString() !== '%PDF-') {
+        throw new Error('REFERENCE_PDF_UNAVAILABLE')
+      }
+      const pdf = await PDFDocument.load(stored.buffer)
+      const pageCount = pdf.getPageCount()
+      const pages = [...new Set(chunks.flatMap((chunk) => {
+        const start = Math.max(1, chunk.pageStart)
+        const end = Math.min(pageCount, chunk.pageEnd)
+        return Array.from({ length: Math.max(0, Math.min(end - start + 1, 8)) }, (_, i) => start + i)
+      }))].slice(0, 8)
+      if (!pages.length) throw new Error('REFERENCE_PAGES_UNAVAILABLE')
+      const rescanned = await transcribeScannedDocumentWithVision(stored.buffer, pages, Date.now() + 100_000)
+      const recovered = rescanned.map((page) => fixArabicPdfText(page.text || '')).filter(Boolean).join('\n')
+      if (recovered.length < 120 || isUnreadableBookReference(recovered)) throw new Error('REFERENCE_OCR_UNREADABLE')
+      text = recovered.slice(0, MAX_BOOK_CHARS)
+      repaired = true
+    }
     const book = await db.book.findUnique({ where: { id: unit.sourceBookId }, select: { title: true } }).catch(() => null)
     const status: GradingBookContext['status'] = !text ? 'NONE' : !sourceIds.length ? 'UNIT' :
       matched === sourceIds.length && joined.length <= MAX_BOOK_CHARS ? 'EXACT' : 'PARTIAL'
