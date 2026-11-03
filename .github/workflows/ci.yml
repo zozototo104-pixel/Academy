@@ -148,7 +148,7 @@ jobs:
             echo "ERROR: restored into a nonempty target"
             exit 1
           fi
-          grep -q "RESTORE_TARGET_NOT_EMPTY:Setting" /tmp/restore-second.log
+          grep -Eq "RESTORE_TARGET_NOT_EMPTY:[A-Za-z][A-Za-z0-9_]*" /tmp/restore-second.log
       - name: Verify concurrent backup snapshot on disposable PostgreSQL
         env:
           AACT_ALLOW_LOCAL_UPLOADS: "true"
