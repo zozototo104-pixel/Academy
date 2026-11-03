@@ -698,6 +698,7 @@ export async function analyzeAssignmentSubmission(submissionId: string, user: { 
 
   const book = await loadBookContext(submission.assignment.programId, submission.assignment.unitId, submission.assignment.semester, submission.assignment.sourceKnowledgeIds)
   const citations = await verifyCitedPages(submission.assignment, answer.combinedText, true)
+  const approvalAnswer = await readApprovalAnswerLocally(submission)
   const referenceWarning = book.unreadable ? 'REFERENCE_UNREADABLE' as const : null
   const userPrompt = `عنوان الواجب: ${cleanAcademicOutput(submission.assignment.title, 220)}
 وصف الواجب: ${cleanAcademicOutput(submission.assignment.description, 3000)}
