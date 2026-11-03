@@ -42,6 +42,13 @@ export interface AiGradingDraft {
   effortNote: string
 }
 
+export interface CitationEvidence {
+  page: number
+  source: 'NATIVE_TEXT' | 'VISION_OCR' | 'UNVERIFIED'
+  reason?: string
+  text?: string
+}
+
 export interface AnswerProvenance {
   answerSource: 'TEXT' | 'TEXT_AND_FILE' | 'FILE_TEXT' | 'FILE_OCR' | 'FILE_UNREADABLE' | 'NONE'
   answerSourceLabel: string
