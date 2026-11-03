@@ -63,6 +63,7 @@ export interface AnswerProvenance {
   citationPages?: CitationEvidence[]
   citationMode?: 'STUDENT_CITATIONS' | 'REFERENCE_RANGES' | 'NONE'
   citationReviewRequired?: boolean
+  attachmentReviewRequired?: boolean
   isolationStatus?: 'ISOLATED' | 'NO_VALID_BREAKDOWN' | 'NO_SOURCE_CRITERION' | 'NOT_REQUIRED'
   isolationNote?: string | null
 }
