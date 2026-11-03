@@ -734,6 +734,10 @@ export function SupervisorView() {
                 <div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-xs font-bold leading-6 text-slate-700">
                   <p className="font-black text-amber-800">مسودة ذكاء اصطناعي — غير معتمدة</p>
                   <p>مصدر قراءة الإجابة: {gradingDraft.provenance?.answerSourceLabel || 'غير محدد'}</p>
+                  {gradingDraft.provenance?.citationMode === 'REFERENCE_RANGES' && <p role="alert">الصفحات المعروضة نطاقات مرجعية للواجب وليست استشهادات الطالب.</p>}
+                  {gradingDraft.provenance?.citationPages?.length > 0 && <div className="space-y-1"><p className="font-black">أدلة صفحات PDF الأصلي:</p>{gradingDraft.provenance.citationPages.map((page: any, i: number) => <p key={i}>صفحة {page.page} — {page.source === 'NATIVE_TEXT' ? 'نص أصلي' : page.source === 'VISION_OCR' ? 'قراءة بالرؤية OCR' : 'لم يتم التحقق'}{page.reason ? ` — ${page.reason}` : ''} — أي عدم مطابقة يحتاج قرار المشرف</p>)}</div>}
+                  {gradingDraft.provenance?.isolationStatus === 'ISOLATED' && <p role="alert" className="rounded-lg bg-amber-100 p-2 text-amber-950">{gradingDraft.provenance.isolationNote}</p>}
+                  {['NO_VALID_BREAKDOWN', 'NO_SOURCE_CRITERION'].includes(gradingDraft.provenance?.isolationStatus) && <p role="alert" className="rounded-lg bg-red-100 p-2 text-red-950">{gradingDraft.provenance.isolationNote}</p>}
                   {gradingDraft.provenance?.ocrNote && <p>ملاحظة القراءة: {gradingDraft.provenance.ocrNote}</p>}
                   <p>سياق الكتاب: {gradingDraft.provenance?.bookContextUsed ? `مستخدم${gradingDraft.provenance.bookTitles?.length ? ` — ${gradingDraft.provenance.bookTitles.join('، ')}` : ''}` : 'غير متاح لهذه الوحدة؛ التقييم على أساس الفهم والتطبيق فقط'}</p>
                   {gradingDraft.provenance?.referenceWarning === 'REFERENCE_UNREADABLE' && <div className="space-y-2 rounded-lg border border-red-300 bg-red-100 p-3 text-red-900"><p role="alert" className="font-black">المرجع غير مقروء — افتح صفحات المصدر الأصلي قبل اعتماد أي خصم على الاستشهادات.</p></div>}
