@@ -494,7 +494,7 @@ export async function POST(req: NextRequest) {
       // administrator or a parallel grade review in the meantime.
       const changed = await db.programExamAttempt.updateMany({
         where: { id: attempt.id, status: 'GRADED', feedback: initialFeedback },
-        data: { feedback: JSON.stringify({ ...generated, ...gradeMetadata }) },
+        data: { feedback: JSON.stringify({ ...generated, ...gradeMetadata, feedbackSource: 'AI' }) },
       })
       if (changed.count === 1) overall = generated
     } catch (feedbackError) {
