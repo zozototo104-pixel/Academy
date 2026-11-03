@@ -154,7 +154,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ error: 'إجراء غير معروف' }, { status: 400 })
   } catch (e: any) {
-    console.error('supervisor assignments POST error:', e)
+    console.error('supervisor assignments POST failed', { code: 'SUPERVISOR_ASSIGNMENTS_POST_FAILED', status: statusFor(e) })
     return NextResponse.json({ error: publicMessage(e, 'تعذر تنفيذ الطلب') }, { status: statusFor(e) })
   }
 }
