@@ -298,6 +298,7 @@ export function SupervisorView() {
     setGradingLoading(true)
     setGradingDraft(null)
     setSourceReviewed(false)
+    setSourceReviewRequired(false)
     try {
       const d = await api<{ detail: any }>(`/api/supervisor/assignments?submissionId=${submissionId}`)
       setGradingDetail(d.detail)
