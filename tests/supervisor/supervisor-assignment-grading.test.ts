@@ -264,6 +264,79 @@ describe('semester roster API', () => {
   })
 })
 
+describe('enrollment-backed roster regressions', () => {
+  const routeUrl = 'http://localhost/api/supervisor/assignments?mode=roster&programId=prog-1&semester=1'
+  const row = (n: number) => ({ id: 'enroll-' + String(n).padStart(3, '0'), userId: 'student-' + n, createdAt: new Date(Date.UTC(2026, 0, n + 1)), status: 'ACTIVE' })
+  const get = async (suffix = '') => {
+    const route = await import('@/app/api/supervisor/assignments/route')
+    const response = await route.GET(new NextRequest(routeUrl + suffix))
+    expect(response.status).toBe(200)
+    return response.json()
+  }
+  beforeEach(() => {
+    currentUser = { id: 'sup-1', role: 'SUPERVISOR', name: 'المشرف' }
+    rosterEnrollments = null
+    rosterAdmissions = {}
+  })
+
+  test('duplicate admission applications produce one enrolled student', async () => {
+    rosterEnrollments = [row(1)]
+    rosterAdmissions = { 'student-1': [{ supervisorId: 'sup-1', fullName: 'أول' }, { supervisorId: 'sup-1', fullName: 'ثان' }] }
+    const result = await get()
+    expect(result.total).toBe(1)
+    expect(result.students).toHaveLength(1)
+  })
+
+  test('applicant without enrollment is excluded and manually enrolled student is visible to admin', async () => {
+    rosterEnrollments = [row(1)]
+    rosterAdmissions = { 'applicant-only': [{ supervisorId: 'sup-1', fullName: 'متقدم فقط' }] }
+    currentUser = { id: 'admin-1', role: 'ADMIN' }
+    const result = await get()
+    expect(result.students.map((s: any) => s.userId)).toEqual(['student-1'])
+    expect(result.students[0].name).toBe('student-1')
+  })
+
+  test('25 enrolled students paginate as 20 then 5 with no overlap', async () => {
+    rosterEnrollments = Array.from({ length: 25 }, (_, i) => row(i + 1))
+    rosterAdmissions = Object.fromEntries(rosterEnrollments.map(e => [e.userId, [{ supervisorId: 'sup-1', fullName: e.userId }]]))
+    const first = await get()
+    const second = await get('&cursor=' + encodeURIComponent(first.nextCursor))
+    expect(first.students).toHaveLength(20)
+    expect(second.students).toHaveLength(5)
+    expect(second.nextCursor).toBeNull()
+    expect(new Set([...first.students, ...second.students].map((s: any) => s.userId)).size).toBe(25)
+  })
+
+  test('inserting a newer enrollment between cursor pages does not duplicate or drop existing students', async () => {
+    rosterEnrollments = Array.from({ length: 25 }, (_, i) => row(i + 1))
+    rosterAdmissions = Object.fromEntries(rosterEnrollments.map(e => [e.userId, [{ supervisorId: 'sup-1', fullName: e.userId }]]))
+    const first = await get()
+    const inserted = row(26)
+    rosterEnrollments.push(inserted)
+    rosterAdmissions[inserted.userId] = [{ supervisorId: 'sup-1', fullName: inserted.userId }]
+    const second = await get('&cursor=' + encodeURIComponent(first.nextCursor))
+    expect(new Set([...first.students, ...second.students].map((s: any) => s.userId)).size).toBe(25)
+    expect([...first.students, ...second.students].some((s: any) => s.userId === inserted.userId)).toBe(false)
+  })
+
+  test('supervisor only sees assigned enrollments while admin sees all', async () => {
+    rosterEnrollments = [row(1), row(2)]
+    rosterAdmissions = { 'student-1': [{ supervisorId: 'sup-1', fullName: 'الأول' }], 'student-2': [{ supervisorId: 'sup-2', fullName: 'الثاني' }] }
+    expect((await get()).students.map((s: any) => s.userId)).toEqual(['student-1'])
+    currentUser = { id: 'admin-1', role: 'ADMIN' }
+    expect((await get()).total).toBe(2)
+  })
+
+  test('legacy page query retains response contract without cursor', async () => {
+    rosterEnrollments = [row(1)]
+    rosterAdmissions = { 'student-1': [{ supervisorId: 'sup-1', fullName: 'الأول' }] }
+    const result = await get('&page=1')
+    expect(Object.keys(result).sort()).toEqual(['semester', 'page', 'pageSize', 'total', 'totalPages', 'nextCursor', 'students'].sort())
+    expect(result.page).toBe(1)
+    expect(result.pageSize).toBe(20)
+  })
+})
+
 describe('AI_OUTPUT_INVALID rejection diagnostics', () => {
   test('classifies malformed JSON without guessing a score', async () => {
     const { classifyAssignmentAiOutput } = await import('@/lib/supervisor-assignment-grading')
