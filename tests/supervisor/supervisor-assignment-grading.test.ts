@@ -74,6 +74,15 @@ const db: any = {
   },
   admissionApplication: {
     findFirst: async () => ({ id: 'app-1', supervisorId: admissionSupervisorId, supervisionMode: 'HYBRID' }),
+    count: async (args: any) => args.where.supervisorId === 'other-supervisor' ? 0 : 1,
+    findMany: async (args: any) => args.where.supervisorId === 'other-supervisor' ? [] : [{
+      id: 'app-1', userId: 'student-1', fullName: 'محمود',
+    }].slice(args.skip, args.skip + args.take),
+  },
+  programAssignment: {
+    findMany: async (args: any) => args.where.semester === 1 && args.where.status === 'PUBLISHED'
+      ? [{ id: 'assign-1', title: 'تكليف منشور', points: 100, dueAt: new Date('2020-01-01'), type: 'REPORT' },
+        { id: 'assign-2', title: 'واجب غير مسلّم', points: 20, dueAt: null, type: 'SUMMARY' }] : [],
   },
   program: { findUnique: async () => ({ id: 'prog-1', titleAr: 'إدارة الموارد البشرية' }) },
   programAssignment: {
