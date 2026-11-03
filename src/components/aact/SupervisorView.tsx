@@ -289,6 +289,7 @@ export function SupervisorView() {
   const [gradingFeedback, setGradingFeedback] = useState('')
   const [gradingDraft, setGradingDraft] = useState<any | null>(null)
   const [sourceReviewed, setSourceReviewed] = useState(false)
+  const [sourceReviewRequired, setSourceReviewRequired] = useState(false)
   const [gradingLoading, setGradingLoading] = useState(false)
   const [gradingAnalyzing, setGradingAnalyzing] = useState(false)
   const [gradingSaving, setGradingSaving] = useState(false)
