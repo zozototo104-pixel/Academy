@@ -57,8 +57,9 @@ export async function GET(req: NextRequest) {
         db.admissionApplication.count({ where: scope }),
         db.admissionApplication.findMany({
           where: scope,
-          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-          ...(cursor ? { cursor: { id: cursor }, skip: 1 } : { skip: (page - 1) * pageSize }),
+          orderBy: [{ userId: 'asc' }, { createdAt: 'desc' }, { id: 'desc' }],
+          distinct: ['userId'],
+          ...(cursor ? { where: { ...scope, userId: { gt: cursor } } } : { skip: (page - 1) * pageSize }),
           take: pageSize + 1,
           select: { id: true, userId: true, fullName: true },
         }),
