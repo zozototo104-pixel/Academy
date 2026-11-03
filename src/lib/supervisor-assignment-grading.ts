@@ -51,6 +51,7 @@ export interface AnswerProvenance {
   bookSourceStatus: 'EXACT' | 'PARTIAL' | 'UNIT' | 'NONE'
   sourceKnowledgeCount: number
   sourceKnowledgeMatched: number
+  referenceWarning: 'REFERENCE_UNREADABLE' | null
   answerTruncated: boolean
 }
 
