@@ -79,7 +79,7 @@ export async function readPdfWithBookPath(buffer: Buffer): Promise<{ text: strin
     const numbers = Array.from({ length: Math.min(8, pagesToRead - start) }, (_, i) => start + i + 1)
     const extracted = await extractNumberedPdfPages(buffer, numbers)
     const pageMap = new Map(extracted.map((p) => [p.page, p]))
-    for (const range of pagesNeedingOcr(extracted)) {
+    for (const range of pagesNeedingOcr(extracted.filter((page) => !page.text.trim() || isUnreadableBookReference(fixArabicPdfText(page.text))))) {
       const ocr = await transcribeScannedDocumentWithVision(buffer, range, Date.now() + 120_000)
       for (const page of ocr) pageMap.set(page.page, page)
     }
