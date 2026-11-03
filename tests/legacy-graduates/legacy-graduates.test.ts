@@ -476,6 +476,19 @@ describe('legacy graduate spreadsheet import helpers', () => {
     expect(source).not.toContain('className="max-h-96 overflow-auto')
   })
 
+  test('graduates list loads every page instead of only the first 25 rows', () => {
+    const source = readFileSync('src/components/aact/AdminLegacyGraduatesTab.tsx', 'utf8')
+    // The API paginates at 25 by default; the tab must request pages of 100
+    // and keep going until the reported total is collected, for both the
+    // plain list and search results (same load path).
+    expect(source).toContain("params.set('page', String(page))")
+    expect(source).toContain("params.set('pageSize', String(pageSize))")
+    expect(source).toContain('while (collected.length < total')
+    expect(source).toContain('total = Number(data.total ?? collected.length)')
+    expect(source).toContain('setItems(collected)')
+    expect(source).not.toContain('setItems(data.certificates || [])')
+  })
+
   test('Arabic xlsx headers parse correctly and Excel numeric dates convert correctly without saving', async () => {
     const XLSX = await import('xlsx')
     const excelSerial = Math.floor(Date.UTC(2024, 5, 30) / 86400000) + 25569

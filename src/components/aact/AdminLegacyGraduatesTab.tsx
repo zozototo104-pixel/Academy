@@ -226,10 +226,25 @@ export default function AdminLegacyGraduatesTab() {
   async function load() {
     setLoading(true)
     try {
-      const params = new URLSearchParams()
-      if (search.trim()) params.set('search', search.trim())
-      const data = await jsonOrThrow(await fetch(`/api/admin/legacy-graduates?${params.toString()}`, { cache: 'no-store' }), 'تعذر تحميل الخريجين السابقين')
-      setItems(data.certificates || [])
+      // The list must show every graduate: the API paginates (25 by default),
+      // so walk all pages (100 per page) until the reported total is collected.
+      const pageSize = 100
+      const collected: LegacyGraduateCertificate[] = []
+      let page = 1
+      let total = Number.POSITIVE_INFINITY
+      while (collected.length < total && page <= 50) {
+        const params = new URLSearchParams()
+        if (search.trim()) params.set('search', search.trim())
+        params.set('page', String(page))
+        params.set('pageSize', String(pageSize))
+        const data = await jsonOrThrow(await fetch(`/api/admin/legacy-graduates?${params.toString()}`, { cache: 'no-store' }), 'تعذر تحميل الخريجين السابقين')
+        const batch = (data.certificates || []) as LegacyGraduateCertificate[]
+        collected.push(...batch)
+        total = Number(data.total ?? collected.length)
+        if (batch.length === 0) break
+        page += 1
+      }
+      setItems(collected)
     } catch (error: any) {
       toast({ title: 'تعذر تحميل الخريجين السابقين', description: String(error?.message || error), variant: 'destructive' })
     } finally {
