@@ -453,7 +453,7 @@ describe('supervisor assignments route — scope is the gate, analyze never save
     expect(updateCalls).toHaveLength(0)
   })
 
-  test('OCR repair fails explicitly when original book PDF is unavailable, without issuing a new grade', async () => {
+  test('obsolete repair-reference action is rejected without issuing a grade', async () => {
     mockSourceUnit = true
     mockCorruptedReference = true
     submission.assignment.unitId = 'unit-1'
