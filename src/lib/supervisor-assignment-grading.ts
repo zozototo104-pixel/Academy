@@ -307,7 +307,7 @@ export function extractExplicitPageCitations(answer: string): number[] {
     .replace(/[٠-٩]/g, digit => String(digit.charCodeAt(0) - 0x660))
     .replace(/[۰-۹]/g, digit => String(digit.charCodeAt(0) - 0x6f0))
   const pages: number[] = []
-  const pattern = /(?:^|[^\p{L}])(?:الصفحة|صفحة|ص(?!\s*\.?\s*ب\b)\.?|pp?\.|page\b)\s*(\d{1,6})(?:\s*(?:[-–—]|إلى|الى|to)\s*(\d{1,6}))?/giu
+  const pattern = /(?:^|[^\p{L}])(?:الصفحة|صفحة|ص(?!\s*\.?\s*ب(?=\s|$))\.?|pp?\.|page\b)\s*(\d{1,6})(?:\s*(?:[-–—]|إلى|الى|to)\s*(\d{1,6}))?/giu
   for (const match of normalized.matchAll(pattern)) {
     const first = Number(match[1])
     const last = match[2] ? Number(match[2]) : first
