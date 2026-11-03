@@ -469,6 +469,9 @@ export async function POST(req: NextRequest) {
       results: finalResults,
     })
   } catch (e: any) {
+    const errorCode = typeof e?.code === 'string' && /^[A-Z][A-Z0-9_]{1,79}$/.test(e.code)
+      ? e.code : typeof e?.message === 'string' && /^[A-Z][A-Z0-9_]{1,79}$/.test(e.message) ? e.message : 'UNIT_GRADING_ERROR'
+    console.error('unit exam grading interrupted', { code: errorCode, attemptId: claimedUnitAttemptId || null })
     if (claimedUnitAttemptId) {
       try {
         // The claim already saved all raw answers atomically. Never discard that
