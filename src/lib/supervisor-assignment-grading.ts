@@ -489,6 +489,28 @@ export function isolateSourceCriterion(draft: AiGradingDraft, criteria: RubricCr
   return { status: 'ISOLATED', note: 'درجة الذكاء لا تشمل مكوّن المصادر (وزنه ' + weight + '%) لتعذر التحقق من الاستشهادات — حدّده بنفسك عند الاعتماد. الدرجة المعدّلة مقترحة وليست نهائية.' }
 }
 
+/** Approval must not invoke AI or OCR; an unreadable student attachment requires confirmation. */
+async function readApprovalAnswerLocally(submission: any): Promise<{ text: string; uncertain: boolean }> {
+  const written = String(submission.answerText || '')
+  if (!(submission.fileStorageKey || submission.fileUrl || submission.data)) return { text: written, uncertain: false }
+  try {
+    const stored = await getFileBufferFromStorageOrBase64({
+      provider: submission.fileStorageProvider, key: submission.fileStorageKey, url: submission.fileUrl,
+      data: submission.data, mimeType: submission.mimeType,
+    })
+    if (!stored?.buffer?.length) return { text: written, uncertain: true }
+    if (isPdfLike(stored.mimeType || submission.mimeType, submission.fileName)) {
+      const pdf = await PDFDocument.load(stored.buffer)
+      const count = Math.min(pdf.getPageCount(), MAX_PDF_PAGES)
+      const extracted = await extractNumberedPdfPages(stored.buffer, Array.from({ length: count }, (_, i) => i + 1))
+      const text = extracted.map(page => fixArabicPdfText(page.text || '')).join('\n')
+      return { text: [written, text].join('\n'), uncertain: text.trim().length < 40 || isUnreadableBookReference(text) || pdf.getPageCount() > MAX_PDF_PAGES }
+    }
+    const extracted = await extractDocumentText(stored.buffer, stored.mimeType, submission.fileName)
+    return { text: [written, extracted.text || ''].join('\n'), uncertain: !extracted.readable || extracted.text.trim().length < 40 }
+  } catch { return { text: written, uncertain: true } }
+}
+
 interface AnswerContent {
   combinedText: string
   answerSource: AnswerProvenance['answerSource']
