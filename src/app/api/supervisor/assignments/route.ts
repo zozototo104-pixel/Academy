@@ -45,6 +45,7 @@ export async function GET(req: NextRequest) {
     if (mode === 'roster') {
       const semester = Number(req.nextUrl.searchParams.get('semester'))
       const page = Number(req.nextUrl.searchParams.get('page') || 1)
+      const cursor = req.nextUrl.searchParams.get('cursor') || null
       const pageSize = 20
       if (!Number.isInteger(semester) || semester < 1 || semester > 12 || !Number.isInteger(page) || page < 1 || page > 10000) {
         return NextResponse.json({ error: 'الفصل أو رقم الصفحة غير صالح' }, { status: 400 })
