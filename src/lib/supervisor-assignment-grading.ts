@@ -554,7 +554,7 @@ ${criteriaLines}
 }
 
 /** تحليل بلا حفظ: يرجع مسودة + مصدر القراءة + سياق الكتاب. أي فشل في الذكاء يرجع خطأ صريحاً، لا مسودة مخترعة. */
-export async function analyzeAssignmentSubmission(submissionId: string, user: { id: string; role: string; name?: string | null }, repairSource = false) {
+export async function analyzeAssignmentSubmission(submissionId: string, user: { id: string; role: string; name?: string | null }) {
   const submission = await db.assignmentSubmission.findUnique({
     where: { id: submissionId },
     include: { assignment: true, user: { select: { id: true, name: true, email: true } } },
