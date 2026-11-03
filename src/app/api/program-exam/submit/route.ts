@@ -521,7 +521,7 @@ export async function POST(req: NextRequest) {
 
     // Certificate issuance is a separate action: it must never undo a saved exam grade.
     const completion = await completeEnrollmentIfEligible({ enrollmentId: enrollment.id }).catch((error) => {
-      console.error('Post-grade certificate recheck failed; preserving programme grade:', error)
+      console.error('Post-grade certificate recheck failed; preserving programme grade', { code: 'PROGRAM_CERTIFICATE_RECHECK_FAILED', attemptId: claimedProgramAttemptId || null })
       return null
     })
     const completedAttempts = completedAttemptsBeforeSubmit + 1
