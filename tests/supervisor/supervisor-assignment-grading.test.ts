@@ -289,6 +289,7 @@ describe('supervisor assignments route — scope is the gate, analyze never save
     lastGradingPrompt = ''
     mockSourceUnit = false
     mockMissingOriginal = false
+    mockCorruptedReference = false
     submission.assignment.unitId = null
     submission.assignment.sourceKnowledgeIds = null
     fileBufferToReturn = null
