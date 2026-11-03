@@ -497,7 +497,7 @@ export async function POST(req: NextRequest) {
           }, { status: 202 })
         }
       } catch (recoveryError) {
-        console.error('Failed to preserve unit exam for review:', recoveryError)
+        console.error('unit exam recovery failed', { code: 'UNIT_RECOVERY_FAILED', attemptId: claimedUnitAttemptId })
       }
     }
     if (e?.message === 'UNAUTHORIZED') {
