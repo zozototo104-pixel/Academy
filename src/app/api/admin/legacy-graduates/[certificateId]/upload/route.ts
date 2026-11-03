@@ -26,6 +26,59 @@ function stampedFileName(serial: string) {
   return `${String(serial || 'certificate').replace(/[^a-zA-Z0-9._-]+/g, '-')}-stamped.pdf`
 }
 
+// GET — معاينة الختم على الملف الأصلي المخزّن، برابط نظامي (مش blob) حتى
+// يعرضها متصفح التلفون داخل إطار النافذة. المواضع توصل كسلسلة layout.
+export async function GET(req: NextRequest, context: RouteContext) {
+  try {
+    await requireAdmin()
+    const { certificateId } = await context.params
+    const cert = await db.certificate.findUnique({ where: { id: certificateId } })
+    if (!cert || !cert.legacy) return NextResponse.json({ error: 'شهادة الخريج السابق غير موجودة' }, { status: 404 })
+    if (!cert.uploadedFileKey) return NextResponse.json({ error: 'لا يوجد ملف أصلي مخزّن لهذه الشهادة' }, { status: 404 })
+
+    const stored = await readLegacyCertificateStoredFile(cert.uploadedFileKey, cert.uploadedMime)
+    if (!stored) return NextResponse.json({ error: 'تعذر قراءة الملف الأصلي المخزن' }, { status: 404 })
+    const mime = sniffLegacyCertificateMime(stored.buffer)
+    if (!mime) return NextResponse.json({ error: 'الملف الأصلي المخزن غير مدعوم' }, { status: 400 })
+
+    const qrSize = normalizeQrSize(req.nextUrl.searchParams.get('qrSize') || cert.qrSize || 'M')
+    const stampLayout = normalizeStampLayout(req.nextUrl.searchParams.get('layout') || cert.qrPosition || 'BOTTOM_LEFT', qrSize)
+    const stampedBuffer = await stampLegacyCertificatePdf({
+      buffer: stored.buffer,
+      mime,
+      serial: cert.serial,
+      qrToken: cert.qrToken,
+      stampLayout,
+      qrSize,
+      values: {
+        holderName: cert.holderName,
+        holderNameEn: cert.holderNameEn,
+        program: cert.program,
+        programEn: cert.programEn,
+        grade: cert.grade,
+        gradeEn: cert.gradeEn,
+        issuedAt: cert.issuedAt,
+        serial: cert.serial,
+        legacySerial: cert.legacySerial,
+      },
+    })
+
+    return new NextResponse(stampedBuffer, {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `inline; filename="${stampedFileName(cert.serial)}"`,
+        'Cache-Control': 'no-store',
+      },
+    })
+  } catch (error: any) {
+    if (error?.message === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
+    }
+    console.error('admin legacy-graduates stamp preview error:', error)
+    return NextResponse.json({ error: 'تعذر إنشاء المعاينة' }, { status: 500 })
+  }
+}
+
 export async function POST(req: NextRequest, context: RouteContext) {
   try {
     const admin = await requireAdmin()
