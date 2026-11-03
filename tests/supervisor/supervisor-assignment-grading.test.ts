@@ -132,7 +132,7 @@ mock.module('@/lib/book-reader', () => ({
     bookReaderCalls += 1
     return numbers.map((n) => ({
       page: n,
-      text: n === 1 ? 'نص صفحة أولى من إجابة الطالب مكتوب بشكل واضح ومفصل ويشرح التحليل والتطبيق المهني.' : '',
+      text: Object.prototype.hasOwnProperty.call(nativeSourcePages, n) ? nativeSourcePages[n] : n === 1 ? 'نص صفحة أولى من إجابة الطالب مكتوب بشكل واضح ومفصل ويشرح التحليل والتطبيق المهني.' : '',
       textProvenance: 'NATIVE_TEXT' as const,
     }))
   },
