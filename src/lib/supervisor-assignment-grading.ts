@@ -784,7 +784,9 @@ export async function gradeAssignmentSubmission(
 
   if (input.status === 'GRADED') {
     const book = await loadBookContext(submission.assignment.programId, submission.assignment.unitId, submission.assignment.semester, submission.assignment.sourceKnowledgeIds)
-    if (book.unreadable && input.sourceReviewed !== true) {
+    const answer = await readApprovalAnswerLocally(submission)
+    const citations = await verifyCitedPages(submission.assignment, answer.text, false)
+    if ((book.unreadable || answer.uncertain || citations.reviewRequired) && input.sourceReviewed !== true) {
       const error = new Error('SOURCE_REVIEW_REQUIRED') as Error & { status?: number }
       error.status = 409
       throw error
