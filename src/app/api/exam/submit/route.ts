@@ -330,7 +330,7 @@ export async function POST(req: NextRequest) {
             deadlineMs: Date.now() + 45_000,
           })
         } catch (e: any) {
-          console.error('Essay grading failed; saving for manual review:', String(e?.message || e).slice(0, 300))
+          console.error('Essay grading failed; saving for manual review', { code: 'UNIT_ESSAY_GRADING_FAILED', attemptId: claimedUnitAttemptId || null })
           needsReview = true
           answersToPersist.push({
             questionId: q.id,
