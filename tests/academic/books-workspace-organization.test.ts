@@ -1,4 +1,5 @@
-import { describe, it } from 'bun:test'
+import { beforeEach, describe, expect, it, mock, test } from 'bun:test'
+import { NextRequest } from 'next/server'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
@@ -23,7 +24,7 @@ const ORIGINAL_FUNCTION_HASHES: Record<string, string> = {
   refreshProgramReadiness: '4bcfeaf821451def388c4916edb0936aea32d71c97d29a4d6e9752cbcbdd2fd8',
   suggest: 'badc7e266c544800eb1267d3d21901d3e2490f13add7025389f8ab81b2cc671a',
 }
-const ORIGINAL_API_CALL_COUNT = 80 // 78 original protected calls, reviewed outline rejection, and semester unit catalog GET
+const ORIGINAL_API_CALL_COUNT = 81 // Existing 80 reviewed calls plus the admin semester/student roster GET
 // بصمة سطح النداءات من تعبير الاستدعاء الكامل (المسار + الخيارات: الطريقة والجسم والترويسات)،
 // لا من العنوان وحده — أي تغيير في عقد أي طلب يغيّر البصمة.
 // تحديث مقصود 2026-10-25 (PR #136): النداء 77 الوحيد المضاف هو تحليل الذكاء
@@ -108,7 +109,9 @@ function apiSurface(): { count: number; digest: string } {
   // Only the new review-only DELETE call is exempt from the 78-call frozen baseline.
   const rejectionCalls = calls.filter((call) => call.includes('outline/sections/${sectionId}') && call.includes("method: 'DELETE'"))
   assert.equal(rejectionCalls.length, 1, 'expected exactly one reviewed outline rejection call')
-  const protectedCalls = calls.filter((call) => !rejectionCalls.includes(call)).sort()
+  const rosterCalls = calls.filter((call) => call.includes('/api/supervisor/assignments?mode=roster&programId=') && call.includes('&semester=') && call.includes('encodeURIComponent(cursor)'))
+  assert.equal(rosterCalls.length, 1, 'expected exactly one reviewed admin roster GET')
+  const protectedCalls = calls.filter((call) => !rejectionCalls.includes(call) && !rosterCalls.includes(call)).sort()
   return { count: calls.length, digest: digest(protectedCalls.join('\n')) }
 }
 
@@ -252,6 +255,19 @@ describe('books workspace organization guard', () => {
     assert.ok(SOURCE.includes('aria-invalid={!!outlineApprovalDialog.error}'), 'invalid reasons are announced in the modal')
   })
 
+  it('assignment grading groups every student and never silently cuts off 200 submissions', () => {
+    const endpoint = readFileSync(resolve(process.cwd(), 'src/app/api/admin/assignments/route.ts'), 'utf8')
+    const start = endpoint.indexOf('// GET /api/admin/assignments?programId=xxx')
+    const end = endpoint.indexOf('// POST /api/admin/assignments', start)
+    assert.ok(start >= 0 && end > start)
+    const query = endpoint.slice(start, end)
+    assert.ok(!query.includes('take: 200'), 'the API must not drop older submissions from the student list')
+    assert.ok(query.includes('submissions: {') && query.includes('submittedAt'), 'all submissions remain available')
+    assert.ok(SOURCE.includes('const groupedGradingQueue = useMemo'), 'the UI must group grading records by student')
+    assert.ok(SOURCE.includes('const pagedGradingGroups = pageItems(groupedGradingQueue'), 'pagination applies to student groups')
+    assert.ok(SOURCE.includes('<details key={student.studentId}'), 'student submissions must open inside the student card')
+  })
+
   it('book index warnings show Arabic explanations instead of raw audit JSON', () => {
     assert.ok(SOURCE.includes("warning.startsWith('OUTLINE_OVERSIZED_OVERRIDE:')"), 'documented override is decoded for administrators')
     assert.ok(SOURCE.includes('تم اعتماد استثناء موثّق للأقسام الطويلة'), 'human-readable override text is visible')
@@ -261,3 +277,188 @@ describe('books workspace organization guard', () => {
     assert.ok(!SOURCE.includes('⚠ {warning.startsWith'), 'audit code is not rendered directly as a warning')
   })
 })
+
+// Behavioural integration checks for the actual per-unit generation API.
+// The mock transaction supports rollback, including a simulated failed guide write.
+let generatedUnit: any
+let generatedGuide: any
+let generatedJob: any
+let failGuidePersist = false
+let generationCalls = 0
+const citedContent = [{ heading: 'موضوع', body: 'شرح من المصدر', sourceKnowledgeIds: ['kb-1'], sourceChunkIndexes: [0] }]
+
+const unitDbMock: any = {
+  unit: {
+    findUnique: async () => generatedUnit,
+    update: async ({ data }: any) => {
+      generatedUnit = { ...generatedUnit, ...data, generationVersion: generatedUnit.generationVersion + data.generationVersion.increment }
+      return { ...generatedUnit }
+    },
+  },
+  programStudyGuide: {
+    findFirst: async () => generatedGuide,
+    create: async ({ data }: any) => {
+      if (failGuidePersist) throw new Error('SIMULATED_GUIDE_WRITE_FAILURE')
+      generatedGuide = { id: 'guide-1', ...data }
+      return { ...generatedGuide }
+    },
+    update: async ({ data }: any) => {
+      if (failGuidePersist) throw new Error('SIMULATED_GUIDE_WRITE_FAILURE')
+      generatedGuide = { ...generatedGuide, ...data }
+      return { ...generatedGuide }
+    },
+  },
+  unitGenerationJob: {
+    findFirst: async () => generatedJob?.status === 'RUNNING' ? generatedJob : null,
+    create: async ({ data }: any) => {
+      generatedJob = { id: 'job-1', ...data }
+      return { id: generatedJob.id }
+    },
+    update: async ({ data }: any) => {
+      generatedJob = { ...generatedJob, ...data }
+      return { ...generatedJob }
+    },
+  },
+  bookChunk: {
+    findMany: async () => [{ id: 'chunk-1', index: 0, pageStart: 1, pageEnd: 2, headingPath: 'موضوع', text: 'النص' }],
+  },
+  bookKnowledgeItem: {
+    findMany: async () => [{ id: 'kb-1', category: 'CONCEPT', title: 'المفهوم', summary: 'الفكرة', chunkId: 'chunk-1' }],
+  },
+}
+unitDbMock.$transaction = async (work: (tx: any) => Promise<any>) => {
+  const before = structuredClone({ generatedUnit, generatedGuide, generatedJob })
+  try {
+    return await work(unitDbMock)
+  } catch (error) {
+    generatedUnit = before.generatedUnit
+    generatedGuide = before.generatedGuide
+    generatedJob = before.generatedJob
+    throw error
+  }
+}
+mock.module('@/lib/db', () => ({ db: unitDbMock }))
+mock.module('@/lib/auth', () => ({ requireAdmin: async () => ({ id: 'admin-1', role: 'ADMIN' }) }))
+mock.module('@/lib/notify', () => ({ audit: async () => {} }))
+mock.module('@/lib/outline-units', () => ({
+  generateUnitContentWithAi: async () => {
+    generationCalls++
+    return { summary: 'شرح جديد', objectives: ['هدف'], content: citedContent }
+  },
+  buildUnitStudyGuideDraft: () => ({
+    title: 'دليل', overview: 'ملخص', objectives: ['هدف'],
+    keyTerms: ['مصطلح'], sections: [{ title: 'قسم موثق', sourceKnowledgeIds: ['kb-1'] }],
+    activities: [], discussionQuestions: [], sourceKnowledgeIds: ['kb-1'],
+  }),
+  validateStudyGuideSources: (ids: string[], permitted: string[]) => {
+    if (!ids.length || ids.some((id) => !permitted.includes(id))) throw new Error('BAD_STUDY_GUIDE_SOURCES')
+    return ids
+  },
+  providerUnavailableStatus: () => false,
+}))
+const outlineGeneration = await import('@/app/api/admin/program-units/[unitId]/generate/route')
+
+async function generateOneUnit(body: Record<string, unknown> = {}) {
+  return outlineGeneration.POST(
+    new NextRequest('https://academy.test/api/admin/program-units/unit-1/generate', {
+      method: 'POST', body: JSON.stringify(body), headers: { 'content-type': 'application/json' },
+    }),
+    { params: Promise.resolve({ unitId: 'unit-1' }) },
+  )
+}
+
+describe('unit content + sourced study guide atomic persistence', () => {
+  beforeEach(() => {
+    generatedUnit = {
+      id: 'unit-1', programId: 'program-1', title: 'الوحدة الأولى',
+      status: 'DRAFT', semester: 1, order: 1,
+      summary: 'شرح قديم', content: JSON.stringify(citedContent),
+      objectives: '[]', generationVersion: 3,
+      sourceBookId: 'book-1', outlineSectionId: 'section-1',
+      chunkStartIndex: 0, chunkEndIndex: 0,
+      program: { id: 'program-1', titleAr: 'برنامج تجريبي', titleEn: '' },
+    }
+    generatedGuide = null
+    generatedJob = null
+    failGuidePersist = false
+    generationCalls = 0
+  })
+
+  test('missing study guide is restored without re-generating existing content', async () => {
+    const before = { ...generatedUnit }
+    const response = await generateOneUnit()
+    expect(response.status).toBe(200)
+    const payload = await response.json()
+    expect(payload.skipped).toBeUndefined()
+    expect(payload.repairedGuideOnly).toBe(true)
+    expect(generationCalls).toBe(0)
+    expect(generatedUnit).toEqual(before)
+    expect(generatedGuide.sourceKnowledgeIds).toBe('["kb-1"]')
+    expect(generatedJob.phase).toBe('GUIDE')
+    expect(generatedJob.status).toBe('COMPLETED')
+  })
+
+  test('empty guide evidence is repaired without touching the existing unit', async () => {
+    generatedGuide = { id: 'guide-1', sourceKnowledgeIds: '[]', sections: '[]' }
+    const before = { ...generatedUnit }
+    expect(outlineGeneration.hasCompleteUnitArtifacts(citedContent, generatedGuide)).toBe(false)
+    const response = await generateOneUnit()
+    expect(response.status).toBe(200)
+    expect((await response.json()).repairedGuideOnly).toBe(true)
+    expect(generationCalls).toBe(0)
+    expect(generatedUnit).toEqual(before)
+    expect(generatedGuide.sourceKnowledgeIds).toBe('["kb-1"]')
+  })
+
+  test('complete referenced content and sourced guide skip safely', async () => {
+    generatedGuide = { id: 'guide-1', sourceKnowledgeIds: '["kb-1"]', sections: '[{"title":"قسم موثق"}]' }
+    expect(outlineGeneration.hasCompleteUnitArtifacts(citedContent, generatedGuide)).toBe(true)
+    const response = await generateOneUnit()
+    expect((await response.json()).skipped).toBe('UNIT_ALREADY_HAS_REFERENCED_CONTENT')
+    expect(generationCalls).toBe(0)
+    expect(generatedUnit.generationVersion).toBe(3)
+    expect(generatedJob).toBeNull()
+  })
+
+  test('guide repair failure leaves existing content and version untouched', async () => {
+    failGuidePersist = true
+    const before = { ...generatedUnit }
+    const response = await generateOneUnit()
+    expect(response.status).toBe(500)
+    expect(generationCalls).toBe(0)
+    expect(generatedUnit).toEqual(before)
+    expect(generatedGuide).toBeNull()
+    expect(generatedJob.status).toBe('FAILED')
+  })
+
+  test('force explicitly regenerates both content and guide', async () => {
+    const response = await generateOneUnit({ force: true })
+    expect(response.status).toBe(200)
+    expect((await response.json()).repairedGuideOnly).toBe(false)
+    expect(generationCalls).toBe(1)
+    expect(generatedUnit.summary).toBe('شرح جديد')
+    expect(generatedUnit.generationVersion).toBe(4)
+    expect(generatedGuide.sourceKnowledgeIds).toBe('["kb-1"]')
+  })
+
+  test('absent referenced content still uses full content generation', async () => {
+    generatedUnit.content = '[]'
+    const response = await generateOneUnit()
+    expect(response.status).toBe(200)
+    expect((await response.json()).repairedGuideOnly).toBe(false)
+    expect(generationCalls).toBe(1)
+    expect(generatedUnit.generationVersion).toBe(4)
+  })
+
+  test('failed full regeneration rolls back content and version atomically', async () => {
+    failGuidePersist = true
+    const before = { ...generatedUnit }
+    const response = await generateOneUnit({ force: true })
+    expect(response.status).toBe(500)
+    expect(generationCalls).toBe(1)
+    expect(generatedUnit).toEqual(before)
+    expect(generatedGuide).toBeNull()
+    expect(generatedJob.status).toBe('FAILED')
+  })
+})
+

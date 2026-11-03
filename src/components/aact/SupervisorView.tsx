@@ -208,6 +208,7 @@ export function SupervisorView() {
 
   useEffect(() => { load() }, [])
   useEffect(() => { if (selected?.id) loadDetails(selected.id) }, [selected?.id])
+  useEffect(() => { setAssignmentRoster(null); setRosterStudentId(null); setRosterPage(1) }, [selected?.programId])
 
   const sendMessage = async (payload?: { mode?: 'TEXT' | 'VOICE'; audioData?: string; audioMime?: string; content?: string }) => {
     if (!selected) return
@@ -284,10 +285,29 @@ export function SupervisorView() {
     }
   }
 
+  const [rosterSemester, setRosterSemester] = useState(1)
+  const [rosterPage, setRosterPage] = useState(1)
+  const [assignmentRoster, setAssignmentRoster] = useState<any | null>(null)
+  const [rosterLoading, setRosterLoading] = useState(false)
+  const [rosterStudentId, setRosterStudentId] = useState<string | null>(null)
+  const loadAssignmentRoster = async (programId: string, semester: number, page: number) => {
+    setRosterLoading(true)
+    try {
+      const data = await api<any>(`/api/supervisor/assignments?mode=roster&programId=${encodeURIComponent(programId)}&semester=${semester}&page=${page}`)
+      setAssignmentRoster(data)
+      setRosterStudentId(null)
+    } catch (e: any) {
+      toast({ title: 'تعذر تحميل واجبات الفصل', description: e.message || 'حاول مرة أخرى', variant: 'destructive' })
+    } finally {
+      setRosterLoading(false)
+    }
+  }
   const [gradingDetail, setGradingDetail] = useState<any | null>(null)
   const [gradingScore, setGradingScore] = useState('')
   const [gradingFeedback, setGradingFeedback] = useState('')
   const [gradingDraft, setGradingDraft] = useState<any | null>(null)
+  const [sourceReviewed, setSourceReviewed] = useState(false)
+  const [sourceReviewRequired, setSourceReviewRequired] = useState(false)
   const [gradingLoading, setGradingLoading] = useState(false)
   const [gradingAnalyzing, setGradingAnalyzing] = useState(false)
   const [gradingSaving, setGradingSaving] = useState(false)
@@ -295,6 +315,8 @@ export function SupervisorView() {
   const openAssignmentGrading = async (submissionId: string) => {
     setGradingLoading(true)
     setGradingDraft(null)
+    setSourceReviewed(false)
+    setSourceReviewRequired(false)
     try {
       const d = await api<{ detail: any }>(`/api/supervisor/assignments?submissionId=${submissionId}`)
       setGradingDetail(d.detail)
@@ -313,6 +335,8 @@ export function SupervisorView() {
     try {
       const d = await api<any>('/api/supervisor/assignments', { method: 'POST', body: JSON.stringify({ action: 'analyze', submissionId: gradingDetail.submissionId }) })
       setGradingDraft(d)
+      setSourceReviewRequired((previous) => previous || d.provenance?.referenceWarning === 'REFERENCE_UNREADABLE' || d.provenance?.citationReviewRequired === true || d.provenance?.attachmentReviewRequired === true)
+      setSourceReviewed(false)
       setGradingScore(String(d.draft.score))
       setGradingFeedback(d.draft.feedback)
       toast({ title: 'تم التحليل بالذكاء', description: 'عُبئت الدرجة والملاحظة كمسودة — راجعها وعدّلها قبل الاعتماد.' })
@@ -334,14 +358,22 @@ export function SupervisorView() {
       toast({ title: 'ملاحظة التعديل مطلوبة', description: 'اكتب سبباً واضحاً للطالب قبل طلب التعديل.', variant: 'destructive' })
       return
     }
+    if (status === 'GRADED' && sourceReviewRequired && !sourceReviewed) {
+      toast({ title: 'راجع المرجع الأصلي أولاً', description: 'أكد مراجعة صفحات المصدر الأصلي قبل اعتماد الدرجة.', variant: 'destructive' })
+      return
+    }
     setGradingSaving(true)
     try {
-      await api('/api/supervisor/assignments', { method: 'POST', body: JSON.stringify({ action: 'grade', submissionId: gradingDetail.submissionId, score: parsedScore, feedback: gradingFeedback.trim(), status }) })
+      await api('/api/supervisor/assignments', { method: 'POST', body: JSON.stringify({ action: 'grade', submissionId: gradingDetail.submissionId, score: parsedScore, feedback: gradingFeedback.trim(), status, sourceReviewed }) })
       toast({ title: status === 'GRADED' ? 'تم اعتماد التصحيح' : 'تم طلب تعديل الواجب' })
       setGradingDetail(null)
       setGradingDraft(null)
       await load()
     } catch (e: any) {
+      if (e?.status === 409 || /راجع صفحات المصدر|تأكيد المشرف|تعذر التحقق/.test(String(e?.message || ''))) {
+        setSourceReviewRequired(true)
+        setSourceReviewed(false)
+      }
       toast({ title: 'تعذر حفظ التصحيح', description: e.message || 'حاول مرة أخرى', variant: 'destructive' })
     } finally {
       setGradingSaving(false)
@@ -593,6 +625,37 @@ export function SupervisorView() {
                       <h3 className="text-base font-black text-[#0f2b46]">الواجبات والتكليفات</h3>
                       <Badge className="bg-[#fffaf0] text-[#8a6614] hover:bg-[#fffaf0]">غير مسلّمة: {selected.metrics.pendingAssignmentsCount ?? 0}</Badge>
                     </div>
+                    <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <p className="mb-2 text-xs font-black">واجبات الفصل — الطلاب أولاً (20 طالباً في الصفحة)</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <select aria-label="الفصل الدراسي للواجبات" className="rounded-lg border bg-white p-2 text-xs" value={rosterSemester} onChange={e => { setRosterSemester(Number(e.target.value)); setRosterPage(1); setAssignmentRoster(null); setRosterStudentId(null) }}>
+                          <option value={1}>الفصل الأول</option><option value={2}>الفصل الثاني</option>
+                        </select>
+                        <Button size="sm" disabled={!selected.programId || rosterLoading} onClick={() => selected.programId && loadAssignmentRoster(selected.programId, rosterSemester, rosterPage)}>
+                          {rosterLoading ? 'جارٍ التحميل…' : 'عرض طلاب الفصل'}
+                        </Button>
+                      </div>
+                      {assignmentRoster && <div className="mt-3 space-y-2">
+                        <p className="text-xs text-slate-600">عدد الطلاب: {assignmentRoster.total} — صفحة {assignmentRoster.page} من {Math.max(1, assignmentRoster.totalPages)}</p>
+                        {assignmentRoster.students.map((student: any) => <div key={student.admissionId} className="rounded-lg border bg-white p-2">
+                          <button type="button" className="w-full text-right text-sm font-bold" onClick={() => setRosterStudentId(rosterStudentId === student.admissionId ? null : student.admissionId)} aria-expanded={rosterStudentId === student.admissionId}>
+                            {student.name} — {student.assignments.filter((a: any) => a.status === 'GRADED').length} مصحح / {student.assignments.length} واجب
+                          </button>
+                          {rosterStudentId === student.admissionId && <div className="mt-2 space-y-2">
+                            {student.assignments.length === 0 && <p className="text-xs text-slate-500">لا توجد واجبات منشورة في هذا الفصل.</p>}
+                            {student.assignments.map((a: any) => <div key={a.id} className="rounded-lg bg-slate-50 p-2 text-xs">
+                              <p className="font-bold">{a.title}</p>
+                              <p>الحالة: {a.status === 'NOT_SUBMITTED' ? 'غير مسلّم' : a.status === 'OVERDUE' ? 'متأخر' : a.status === 'GRADED' ? 'مصحح' : a.status === 'SUBMITTED' ? 'مسلّم' : a.status === 'NEEDS_REVISION' ? 'بحاجة إلى تعديل' : a.status} — الدرجة: {a.score ?? '—'}/{a.points}</p>
+                              {a.submissionId && <Button size="sm" className="mt-1" onClick={() => openAssignmentGrading(a.submissionId)}>فتح التصحيح</Button>}
+                            </div>)}
+                          </div>}
+                        </div>)}
+                        <div className="flex gap-2">
+                          <Button size="sm" disabled={rosterLoading || rosterPage <= 1} onClick={() => { const p = rosterPage - 1; setRosterPage(p); if (selected.programId) loadAssignmentRoster(selected.programId, rosterSemester, p) }}>السابق</Button>
+                          <Button size="sm" disabled={rosterLoading || rosterPage >= assignmentRoster.totalPages} onClick={() => { const p = rosterPage + 1; setRosterPage(p); if (selected.programId) loadAssignmentRoster(selected.programId, rosterSemester, p) }}>التالي</Button>
+                        </div>
+                      </div>}
+                    </div>
                     {selected.availableAssignments?.length ? <div className="grid gap-2 md:grid-cols-2">{selected.availableAssignments.map((a) => (
                       <div key={a.id} className={`rounded-2xl border p-3 text-xs font-bold leading-6 ${a.submitted ? 'border-slate-100 bg-slate-50 text-slate-600' : 'border-amber-200 bg-amber-50/70 text-amber-900'}`}>
                         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -716,7 +779,7 @@ export function SupervisorView() {
                   <b>معايير التصحيح:</b> {gradingDetail.assignmentRubric}
                 </div>
               )}
-              <Button onClick={analyzeAssignmentGrading} disabled={gradingAnalyzing} className="w-full bg-[#0f2b46] font-black text-[#e0b83a] hover:bg-[#12365c]">
+              <Button onClick={() => analyzeAssignmentGrading()} disabled={gradingAnalyzing} className="w-full bg-[#0f2b46] font-black text-[#e0b83a] hover:bg-[#12365c]">
                 {gradingAnalyzing ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Bot className="ml-2 h-4 w-4" />} تحليل إجابة الطالب بالذكاء
               </Button>
               <p className="text-center text-[11px] font-bold text-slate-500">التحليل يعبّئ الدرجة والملاحظة كمسودة فقط — لا يُحفظ ولا يُرسل للطالب إلا بعد تعديلك واعتمادك.</p>
@@ -724,8 +787,13 @@ export function SupervisorView() {
                 <div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-xs font-bold leading-6 text-slate-700">
                   <p className="font-black text-amber-800">مسودة ذكاء اصطناعي — غير معتمدة</p>
                   <p>مصدر قراءة الإجابة: {gradingDraft.provenance?.answerSourceLabel || 'غير محدد'}</p>
+                  {gradingDraft.provenance?.citationMode === 'REFERENCE_RANGES' && <p role="alert">الصفحات المعروضة نطاقات مرجعية للواجب وليست استشهادات الطالب.</p>}
+                  {gradingDraft.provenance?.citationPages?.length > 0 && <div className="space-y-1"><p className="font-black">أدلة صفحات PDF الأصلي:</p>{gradingDraft.provenance.citationPages.map((page: any, i: number) => <p key={i}>صفحة {page.page} — {page.source === 'NATIVE_TEXT' ? 'نص أصلي' : page.source === 'VISION_OCR' ? 'قراءة بالرؤية OCR' : 'لم يتم التحقق'}{page.reason ? ` — ${page.reason}` : ''} — أي عدم مطابقة يحتاج قرار المشرف</p>)}</div>}
+                  {gradingDraft.provenance?.isolationStatus === 'ISOLATED' && <p role="alert" className="rounded-lg bg-amber-100 p-2 text-amber-950">{gradingDraft.provenance.isolationNote}</p>}
+                  {['NO_VALID_BREAKDOWN', 'NO_SOURCE_CRITERION'].includes(gradingDraft.provenance?.isolationStatus) && <p role="alert" className="rounded-lg bg-red-100 p-2 text-red-950">{gradingDraft.provenance.isolationNote}</p>}
                   {gradingDraft.provenance?.ocrNote && <p>ملاحظة القراءة: {gradingDraft.provenance.ocrNote}</p>}
                   <p>سياق الكتاب: {gradingDraft.provenance?.bookContextUsed ? `مستخدم${gradingDraft.provenance.bookTitles?.length ? ` — ${gradingDraft.provenance.bookTitles.join('، ')}` : ''}` : 'غير متاح لهذه الوحدة؛ التقييم على أساس الفهم والتطبيق فقط'}</p>
+                  {gradingDraft.provenance?.referenceWarning === 'REFERENCE_UNREADABLE' && <div className="space-y-2 rounded-lg border border-red-300 bg-red-100 p-3 text-red-900"><p role="alert" className="font-black">المرجع غير مقروء — افتح صفحات المصدر الأصلي قبل اعتماد أي خصم على الاستشهادات.</p></div>}
                   {!gradingDraft.provenance?.bookContextUsed && <p role="alert" className="rounded-lg bg-red-50 p-2 text-red-800">تنبيه: هذا الواجب لا يملك مرجع وحدة موثوقًا. راجع إجابة الطالب والكتاب الأصلي قبل اعتماد الدرجة.</p>}
                   {gradingDraft.provenance?.bookSourceStatus === 'EXACT' && <p className="rounded-lg bg-emerald-50 p-2 text-emerald-900">تم التحقق من {gradingDraft.provenance.sourceKnowledgeMatched} مصادر أصلية للواجب من الوحدة الصحيحة.</p>}
                   {gradingDraft.provenance?.bookSourceStatus === 'PARTIAL' && <p role="alert" className="rounded-lg bg-red-50 p-2 text-red-800">تحذير: المصادر الأصلية غير مكتملة أو مقتطعة ({gradingDraft.provenance.sourceKnowledgeMatched}/{gradingDraft.provenance.sourceKnowledgeCount}). المراجع الإضافية من نفس الوحدة، وليست دليل الواجب الأصلي؛ راجعها قبل اعتماد الدرجة.</p>}
@@ -735,7 +803,7 @@ export function SupervisorView() {
                     <div>
                       <p className="font-black text-[#0f2b46]">تفصيل الدرجة المقترحة:</p>
                       {gradingDraft.draft.criteria.map((c: any, i: number) => (
-                        <p key={i}>{c.label}: {c.points}/{c.maxPoints}{c.justification ? ` — ${c.justification}` : ''}</p>
+                        <p key={i}>{c.label}: {c.excludedFromScore ? 'مستبعد من الدرجة المقترحة' : `${c.points}/${c.maxPoints}`}{c.justification ? ` — ${c.justification}` : ''}</p>
                       ))}
                     </div>
                   ) : null}
@@ -756,6 +824,12 @@ export function SupervisorView() {
                 <Label className="text-xs font-black text-[#0f2b46]">ملاحظة للطالب</Label>
                 <Textarea value={gradingFeedback} onChange={(e) => setGradingFeedback(e.target.value)} placeholder="اكتب تغذية راجعة مفصلة للطالب" className="min-h-28 rounded-2xl text-sm font-bold leading-7" />
               </div>
+              {sourceReviewRequired && (
+                <label className="flex items-start gap-2 rounded-xl border border-red-300 bg-red-50 p-3 text-sm font-bold text-red-900">
+                  <input type="checkbox" checked={sourceReviewed} onChange={(e) => setSourceReviewed(e.target.checked)} className="mt-1" />
+                  أؤكد أنني راجعت صفحات المصدر الأصلي بنفسي، ولن أعتمد خصماً على استشهادات تعذّر التحقق منها.
+                </label>
+              )}
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Button variant="outline" onClick={() => { setGradingDetail(null); setGradingDraft(null) }} className="flex-1 rounded-2xl font-black">إلغاء</Button>
                 <Button onClick={() => submitSupervisorGrading('NEEDS_REVISION')} disabled={gradingSaving} className="flex-1 rounded-2xl bg-amber-600 font-black text-white hover:bg-amber-700">

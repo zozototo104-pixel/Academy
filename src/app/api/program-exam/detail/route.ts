@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
-import { calculateSemesterReadiness } from '@/lib/semester-readiness'
+import { calculateSemesterReadiness, hasPassedFirstSemesterExam } from '@/lib/semester-readiness'
 import { enforceSemesterTuitionGate } from '@/lib/tuition-installments'
 import { EXAM_ATTEMPT_POLICY_SINCE, getExamMaxAttempts } from '@/lib/exam-attempt-policy'
 
@@ -54,22 +54,11 @@ export async function GET(req: NextRequest) {
     }
 
     // 12.2: الامتحانان متسلسلان وفق آلة الحالات — اجتياز امتحان الفصل الأول شرط لفتح الفصل الثاني
-    if (exam.semester === 2) {
-      const sem1 = await db.programExam.findFirst({
-        where: { programId: exam.programId, semester: 1, status: 'READY' },
-        include: { _count: { select: { questions: true } } },
-      })
-      if (sem1 && sem1._count.questions > 0) {
-        const passedSem1 = await db.programExamAttempt.findFirst({
-          where: { userId: user.id, examId: sem1.id, passed: true, OR: [{ appealStatus: null }, { appealStatus: { not: 'PENDING' } }] },
-        })
-        if (!passedSem1) {
-          return NextResponse.json(
-            { error: 'يجب اجتياز امتحان الفصل الدراسي الأول أولاً قبل فتح امتحان الفصل الثاني', code: 'SEM1_REQUIRED' },
-            { status: 403 }
-          )
-        }
-      }
+    if (exam.semester >= 2 && !(await hasPassedFirstSemesterExam(user.id, exam.programId))) {
+      return NextResponse.json(
+        { error: 'يجب اجتياز امتحان الفصل الدراسي الأول قبل فتح امتحان الفصل الثاني', code: 'SEM1_REQUIRED' },
+        { status: 403 },
+      )
     }
 
     const readiness = await calculateSemesterReadiness(user.id, exam.programId, exam.semester)

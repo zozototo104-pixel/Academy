@@ -1,6 +1,7 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from 'crypto'
 import { gunzipSync, gzipSync } from 'zlib'
 import { NextRequest } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { audit } from '@/lib/notify'
 import { readStoredFile, storeFileBuffer, storageErrorMessage } from '@/lib/storage'
@@ -11,73 +12,51 @@ interface BackupTableSpec {
   name: string
   delegate: string
   includeByDefault?: boolean
-  orderBy?: Record<string, 'asc' | 'desc'>
+  orderBy: Record<string, 'asc'>
 }
 
-const BACKUP_TABLES: BackupTableSpec[] = [
-  { name: 'User', delegate: 'user' },
-  { name: 'Session', delegate: 'session', includeByDefault: false },
-  { name: 'AiLiveUsage', delegate: 'aiLiveUsage' },
-  { name: 'AiLiveCredit', delegate: 'aiLiveCredit' },
-  { name: 'Program', delegate: 'program' },
-  { name: 'Unit', delegate: 'unit' },
-  { name: 'Enrollment', delegate: 'enrollment' },
-  { name: 'Exam', delegate: 'exam' },
-  { name: 'Question', delegate: 'question' },
-  { name: 'ExamAttempt', delegate: 'examAttempt' },
-  { name: 'ExamDraft', delegate: 'examDraft' },
-  { name: 'Answer', delegate: 'answer' },
-  { name: 'ChatMessage', delegate: 'chatMessage' },
-  { name: 'ChatFeedback', delegate: 'chatFeedback' },
-  { name: 'StudentAcademicMemory', delegate: 'studentAcademicMemory' },
-  { name: 'Payment', delegate: 'payment' },
-  { name: 'PaymentProof', delegate: 'paymentProof' },
-  { name: 'PaymentWaiverCode', delegate: 'paymentWaiverCode' },
-  { name: 'PaymentWaiverAttempt', delegate: 'paymentWaiverAttempt' },
-  { name: 'Certificate', delegate: 'certificate' },
-  { name: 'CertificateTemplate', delegate: 'certificateTemplate' },
-  { name: 'MicroCredential', delegate: 'microCredential' },
-  { name: 'UserMicroCredential', delegate: 'userMicroCredential' },
-  { name: 'Notification', delegate: 'notification' },
-  { name: 'AuditLog', delegate: 'auditLog' },
-  { name: 'Setting', delegate: 'setting', orderBy: { key: 'asc' } },
-  { name: 'EmailLog', delegate: 'emailLog' },
-  { name: 'ContactMessage', delegate: 'contactMessage' },
-  { name: 'ThesisSubmission', delegate: 'thesisSubmission' },
-  { name: 'ThesisReviewNote', delegate: 'thesisReviewNote' },
-  { name: 'ThesisTopic', delegate: 'thesisTopic' },
-  { name: 'ThesisTopicRequest', delegate: 'thesisTopicRequest' },
-  { name: 'DefenseMessage', delegate: 'defenseMessage' },
-  { name: 'AgentApplication', delegate: 'agentApplication' },
-  { name: 'AgentDocument', delegate: 'agentDocument' },
-  { name: 'AcademyRepresentative', delegate: 'academyRepresentative' },
-  { name: 'AcademyRepresentativeFile', delegate: 'academyRepresentativeFile' },
-  { name: 'RevenueShareTransaction', delegate: 'revenueShareTransaction' },
-  { name: 'AdmissionApplication', delegate: 'admissionApplication' },
-  { name: 'TuitionInstallmentAppeal', delegate: 'tuitionInstallmentAppeal' },
-  { name: 'SupervisorChannelMessage', delegate: 'supervisorChannelMessage' },
-  { name: 'SupervisorVoiceCall', delegate: 'supervisorVoiceCall' },
-  { name: 'SupervisorVoiceSignal', delegate: 'supervisorVoiceSignal' },
-  { name: 'SupervisorAssessment', delegate: 'supervisorAssessment' },
-  { name: 'SupervisorAssessmentQuestion', delegate: 'supervisorAssessmentQuestion' },
-  { name: 'SupervisorAssessmentAttempt', delegate: 'supervisorAssessmentAttempt' },
-  { name: 'SupervisorAssessmentAnswer', delegate: 'supervisorAssessmentAnswer' },
-  { name: 'Book', delegate: 'book' },
-  { name: 'BookUploadChunk', delegate: 'bookUploadChunk' },
-  { name: 'BookKnowledgeItem', delegate: 'bookKnowledgeItem' },
-  { name: 'QuestionBankItem', delegate: 'questionBankItem' },
-  { name: 'ProgramStudyGuide', delegate: 'programStudyGuide' },
-  { name: 'ProgramAssignment', delegate: 'programAssignment' },
-  { name: 'AssignmentSubmission', delegate: 'assignmentSubmission' },
-  { name: 'ProgramExam', delegate: 'programExam' },
-  { name: 'ProgramQuestion', delegate: 'programQuestion' },
-  { name: 'ProgramExamAttempt', delegate: 'programExamAttempt' },
-  { name: 'ProgramAnswer', delegate: 'programAnswer' },
-  { name: 'DefenseParticipant', delegate: 'defenseParticipant' },
-  { name: 'DefenseSignal', delegate: 'defenseSignal' },
-  { name: 'AdmissionDocument', delegate: 'admissionDocument' },
-  { name: 'ServiceDeliverable', delegate: 'serviceDeliverable' },
-]
+/** Prisma is the source of truth: the old hard-coded list omitted 35 academic,
+ * lecture, AI and audit models as the schema grew. Parent-first order also
+ * allows FK-safe restores into an empty isolated database.
+ */
+export function backupTableSpecs(): BackupTableSpec[] {
+  const models = Prisma.dmmf.datamodel.models
+  const modelByName = new Map(models.map((model) => [model.name, model]))
+  const remaining = new Map(models.map((model) => [
+    model.name,
+    new Set(model.fields.filter((field) =>
+      field.kind === 'object' &&
+      (field.relationFromFields?.length ?? 0) > 0 &&
+      modelByName.has(field.type) &&
+      field.type !== model.name,
+    ).map((field) => field.type)),
+  ]))
+  const ordered: BackupTableSpec[] = []
+  while (remaining.size > 0) {
+    const ready = [...remaining].filter(([, dependencies]) =>
+      [...dependencies].every((name) => !remaining.has(name)),
+    ).map(([name]) => name).sort()
+    if (!ready.length) throw new Error('BACKUP_SCHEMA_DEPENDENCY_CYCLE')
+    for (const name of ready) {
+      const model = modelByName.get(name)!
+      const sortFields = model.primaryKey?.fields?.length
+        ? model.primaryKey.fields
+        : model.fields.filter((field) => field.isId).map((field) => field.name)
+      const fallback = sortFields.length ? sortFields : model.uniqueFields[0] || []
+      if (!fallback.length) throw new Error(`BACKUP_MODEL_WITHOUT_STABLE_KEY:${name}`)
+      ordered.push({
+        name,
+        delegate: name.charAt(0).toLowerCase() + name.slice(1),
+        includeByDefault: name !== 'Session',
+        orderBy: Object.fromEntries(fallback.map((field) => [field, 'asc' as const])),
+      })
+      remaining.delete(name)
+    }
+  }
+  return ordered
+}
+
+const BACKUP_TABLES = backupTableSpecs()
 
 function backupSecret() {
   return (process.env.AACT_BACKUP_SECRET || process.env.CRON_SECRET || '').trim()
@@ -146,30 +125,97 @@ interface ParsedBackupTable {
   rows: Record<string, unknown>[]
 }
 
+interface BackupIntegrity {
+  valid: boolean
+  errors: string[]
+  expectedTables: number
+  includedTables: number
+  missingTables: string[]
+  unexpectedTables: string[]
+}
+
+/** Every table/header/count must match before a backup can be treated as restorable.
+ * Old partial backups remain inspectable, but cannot be silently restored as full.
+ */
+function validateBackupManifest(parsed: ReturnType<typeof parseBackupJsonl>): BackupIntegrity {
+  const issues: string[] = []
+  const expected = new Set(activeBackupTables().map((spec) => spec.name))
+  const found = new Set(parsed.tables.map((t) => t.name))
+  const missingTables = [...expected].filter((name) => !found.has(name))
+  const unexpectedTables = [...found].filter((name) => !BACKUP_TABLES.some((s) => s.name === name))
+  if (missingTables.length > 0) issues.push(`BACKUP_INCOMPLETE_SCHEMA_COVERAGE:${missingTables.join(',')}`)
+  if (unexpectedTables.length > 0) issues.push(`BACKUP_UNKNOWN_TABLES:${unexpectedTables.join(',')}`)
+  if (!parsed.meta || parsed.meta.platform !== 'AACT' || parsed.meta.format !== 'aact-db-jsonl-v1') {
+    issues.push('BACKUP_META_INVALID')
+  }
+  if (!parsed.summary || !parsed.summary.counts || !Array.isArray(parsed.summary.errors)) {
+    issues.push('BACKUP_SUMMARY_MISSING')
+  } else if (parsed.summary.errors.length) {
+    issues.push('BACKUP_SOURCE_REPORTED_ERRORS')
+  }
+  const listed = Array.isArray(parsed.meta?.tables) ? parsed.meta.tables.map(String) : []
+  if (listed.length !== found.size || listed.some((name) => !found.has(name))) {
+    issues.push('BACKUP_TABLE_MANIFEST_MISMATCH')
+  }
+  for (const table of parsed.tables) {
+    const actual = table.rows.length
+    const summaryCount = Number(parsed.summary?.counts?.[table.name])
+    if (!Number.isSafeInteger(table.expected) || table.expected < 0 ||
+        table.expected !== actual || summaryCount !== actual) {
+      issues.push(`BACKUP_ROW_COUNT_MISMATCH:${table.name}`)
+    }
+    const spec = BACKUP_TABLES.find((item) => item.name === table.name)
+    if (!spec || spec.delegate !== table.delegate) issues.push(`BACKUP_DELEGATE_MISMATCH:${table.name}`)
+  }
+  return {
+    valid: issues.length === 0,
+    errors: issues,
+    expectedTables: expected.size,
+    includedTables: found.size,
+    missingTables,
+    unexpectedTables,
+  }
+}
+
 function parseBackupJsonl(plain: Buffer) {
   const tables = new Map<string, ParsedBackupTable>()
-  let meta: Record<string, unknown> | null = null
-  let summary: Record<string, unknown> | null = null
+  let meta: Record<string, any> | null = null
+  let summary: Record<string, any> | null = null
   let parsedLines = 0
   for (const raw of plain.toString('utf8').split('\n')) {
     if (!raw.trim()) continue
     const item = JSON.parse(raw) as any
+    if (!item || typeof item !== 'object') throw new Error('BACKUP_INVALID_LINE')
     parsedLines += 1
+    if (summary) throw new Error('BACKUP_TRAILING_DATA_AFTER_SUMMARY')
     if (item.type === 'meta') {
+      if (meta || parsedLines !== 1) throw new Error('BACKUP_DUPLICATE_OR_MISPLACED_META')
       meta = item
       continue
     }
+    if (!meta) throw new Error('BACKUP_META_MISSING')
     if (item.type === 'table') {
-      tables.set(String(item.name), { name: String(item.name), delegate: String(item.delegate), expected: Number(item.count || 0), rows: [] })
+      const name = String(item.name || '')
+      if (!name || tables.has(name)) throw new Error('BACKUP_DUPLICATE_TABLE')
+      tables.set(name, { name, delegate: String(item.delegate || ''), expected: Number(item.count), rows: [] })
       continue
     }
     if (item.type === 'row') {
       const table = tables.get(String(item.table))
-      if (table) table.rows.push(item.data || {})
+      if (!table || !item.data || typeof item.data !== 'object' || Array.isArray(item.data)) {
+        throw new Error('BACKUP_ROW_WITHOUT_VALID_TABLE')
+      }
+      table.rows.push(item.data)
       continue
     }
-    if (item.type === 'summary') summary = item
+    if (item.type === 'table_error') continue // Source errors are validated via the summary.
+    if (item.type === 'summary') {
+      summary = item
+      continue
+    }
+    throw new Error('BACKUP_UNKNOWN_LINE_TYPE')
   }
+  if (!summary) throw new Error('BACKUP_SUMMARY_MISSING')
   return { meta, summary, tables: Array.from(tables.values()), parsedLines }
 }
 
@@ -192,6 +238,7 @@ export async function inspectStoredDatabaseBackup(input: { provider?: string | n
     header: { type: decrypted.header.type, algorithm: decrypted.header.algorithm, aad: decrypted.aad },
     meta: parsed.meta,
     summary: parsed.summary,
+    integrity: validateBackupManifest(parsed),
     parsedLines: parsed.parsedLines,
     tables: parsed.tables.map((table) => ({ name: table.name, delegate: table.delegate, expected: table.expected, rows: table.rows.length, mismatch: table.expected !== table.rows.length })),
     checksums: { encryptedSha256: sha256(stored.buffer), compressedSha256: sha256(decrypted.compressed), uncompressedSha256: sha256(decrypted.plain) },
@@ -200,57 +247,59 @@ export async function inspectStoredDatabaseBackup(input: { provider?: string | n
 
 export async function restoreStoredDatabaseBackup(input: { provider?: string | null; key: string; confirm: string }) {
   if (String(input.confirm || '').trim() !== 'RESTORE') throw new Error('RESTORE_CONFIRMATION_REQUIRED')
+  // Never allow a live admin request to merge partial data into the production DB.
+  // Recover into a separately provisioned, empty test DB first and verify it there.
+  if (process.env.AACT_RESTORE_ISOLATED_TARGET !== 'YES') {
+    throw new Error('RESTORE_ISOLATED_TARGET_REQUIRED')
+  }
   const key = String(input.key || '').trim()
   if (!key) throw new Error('BACKUP_STORAGE_KEY_REQUIRED')
   const stored = await readStoredFile({ provider: input.provider || 's3', key, mimeType: 'application/octet-stream' })
   if (!stored?.buffer) throw new Error('BACKUP_FILE_NOT_FOUND')
   const decrypted = decryptBackupPayload(stored.buffer)
   const parsed = parseBackupJsonl(decrypted.plain)
-  const specs = restoreTableSpecsByName()
-  const results: Array<{ table: string; rows: number; processed: number; skipped?: boolean; error?: string }> = []
+  const integrity = validateBackupManifest(parsed)
+  if (!integrity.valid) throw new Error(`BACKUP_INTEGRITY_FAILED:${integrity.errors.join(';')}`)
 
-  for (const table of parsed.tables) {
-    const spec = specs.get(table.name)
-    if (!spec || spec.delegate !== table.delegate) {
-      results.push({ table: table.name, rows: table.rows.length, processed: 0, skipped: true, error: 'Unknown or mismatched table delegate' })
-      continue
+  const byName = new Map(parsed.tables.map((table) => [table.name, table]))
+  const ordered = BACKUP_TABLES.map((spec) => byName.get(spec.name)).filter((t): t is ParsedBackupTable => !!t)
+  const results: Array<{ table: string; rows: number; processed: number }> = []
+  // Atomic restore into a completely empty target. Any FK error or missing row
+  // rolls the entire operation back; no skipDuplicates or partial-success audit.
+  await db.$transaction(async (tx) => {
+    for (const table of ordered) {
+      const delegate = (tx as any)[table.delegate]
+      if (!delegate?.createMany || !delegate?.count) throw new Error(`RESTORE_DELEGATE_MISSING:${table.name}`)
+      const current = await delegate.count()
+      if (current !== 0) throw new Error(`RESTORE_TARGET_NOT_EMPTY:${table.name}`)
     }
-    const delegate = (db as any)[spec.delegate]
-    if (!delegate?.createMany) {
-      results.push({ table: table.name, rows: table.rows.length, processed: 0, skipped: true, error: 'Delegate does not support createMany' })
-      continue
+    for (const table of ordered) {
+      const delegate = (tx as any)[table.delegate]
+      let processed = 0
+      for (let index = 0; index < table.rows.length; index += 300) {
+        const batch = table.rows.slice(index, index + 300)
+        const inserted = await delegate.createMany({ data: batch })
+        processed += Number(inserted?.count || 0)
+      }
+      if (processed !== table.rows.length) throw new Error(`RESTORE_ROW_COUNT_MISMATCH:${table.name}`)
+      results.push({ table: table.name, rows: table.rows.length, processed })
     }
-    if (!table.rows.length) {
-      results.push({ table: table.name, rows: 0, processed: 0 })
-      continue
-    }
-    try {
-      const created = await delegate.createMany({ data: table.rows, skipDuplicates: true })
-      results.push({ table: table.name, rows: table.rows.length, processed: Number(created?.count || 0) })
-    } catch (e: any) {
-      results.push({ table: table.name, rows: table.rows.length, processed: 0, error: e?.message || String(e) })
-    }
-  }
+  }, { maxWait: 30000, timeout: 300000 })
 
-  const errors = results.filter((result) => result.error)
-  await audit(
-    null,
-    errors.length ? 'DB_RESTORE_PARTIAL' : 'DB_RESTORE_SUCCESS',
-    'Backup',
-    key,
-    `provider=${input.provider || 's3'} | tables=${parsed.tables.length} | errors=${errors.length}`
-  ).catch(() => {})
+  await audit(null, 'DB_RESTORE_SUCCESS', 'Backup', key,
+    `provider=${input.provider || 's3'} | tables=${ordered.length} | errors=0 | atomic=true`).catch(() => {})
 
   return {
-    ok: errors.length === 0,
+    ok: true,
     mode: 'restore' as const,
     storage: { provider: input.provider || 's3', key, size: stored.buffer.byteLength, mimeType: stored.mimeType },
     encrypted: true,
     meta: parsed.meta,
     summary: parsed.summary,
-    tableCount: parsed.tables.length,
+    integrity,
+    tableCount: ordered.length,
     results,
-    errors,
+    errors: [],
   }
 }
 
@@ -267,6 +316,7 @@ export function backupConfigurationStatus() {
     encryptionConfigured: backupEncryptionSecret().length >= 32,
     localFallbackAllowed: process.env.AACT_ALLOW_LOCAL_UPLOADS === 'true',
     includeSessions: process.env.AACT_BACKUP_INCLUDE_SESSIONS === 'true',
+    isolatedRestoreEnabled: process.env.AACT_RESTORE_ISOLATED_TARGET === 'YES',
     tableCount: activeBackupTables().length,
   }
 }
@@ -328,8 +378,9 @@ export async function createDatabaseBackup(trigger: BackupTrigger) {
 
   chunks.push(line({ type: 'meta', platform: 'AACT', format: 'aact-db-jsonl-v1', exportedAt, trigger, tables: tables.map((t) => t.name) }))
 
+  await db.$transaction(async (tx) => {
   for (const table of tables) {
-    const delegate = (db as any)[table.delegate]
+    const delegate = (tx as any)[table.delegate]
     if (!delegate?.findMany || !delegate?.count) {
       errors.push({ table: table.name, error: 'Delegate not available' })
       continue
@@ -340,19 +391,30 @@ export async function createDatabaseBackup(trigger: BackupTrigger) {
       counts[table.name] = total
       chunks.push(line({ type: 'table', name: table.name, delegate: table.delegate, count: total }))
 
+      let exportedRows = 0
       for (let skip = 0; skip < total; skip += safeBatchSize) {
         const rows = await delegate.findMany({
-          orderBy: table.orderBy || { id: 'asc' },
+          orderBy: table.orderBy,
           skip,
           take: safeBatchSize,
         })
+        if (rows.length !== Math.min(safeBatchSize, total - skip)) {
+          throw new Error(`BACKUP_PAGE_SIZE_MISMATCH:${table.name}`)
+        }
+        exportedRows += rows.length
         for (const row of rows) chunks.push(line({ type: 'row', table: table.name, data: row }))
+      }
+      if (exportedRows !== total || await delegate.count() !== total) {
+        throw new Error(`BACKUP_SOURCE_CHANGED_DURING_EXPORT:${table.name}`)
       }
     } catch (e: any) {
       errors.push({ table: table.name, error: e?.message || String(e) })
       chunks.push(line({ type: 'table_error', name: table.name, error: e?.message || String(e) }))
     }
   }
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, maxWait: 30000, timeout: 300000 })
+  // A failed table must never produce an apparently usable snapshot.
+  if (errors.length) throw new Error(`BACKUP_SNAPSHOT_FAILED:${errors.map((e) => e.table).join(',')}`)
 
   const summary = { type: 'summary', counts, errors, durationMs: Date.now() - startedAt }
   chunks.push(line(summary))

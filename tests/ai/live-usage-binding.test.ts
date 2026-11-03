@@ -5,7 +5,7 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test'
 
 type UsageRow = { id: string; userId: string; month: string; purpose: string; freeMinutesUsed: number; paidMinutesUsed: number; sessionsCount: number; lastSessionAt?: Date | null }
-type CreditRow = { id: string; userId: string; minutes?: number; remainingMinutes: number; status: string; source?: string; expiresAt?: Date | null }
+type CreditRow = { id: string; userId: string; minutes?: number; remainingMinutes: number; status: string; source?: string; paymentId?: string | null; expiresAt?: Date | null }
 type SessionRow = {
   id: string; sessionId: string; userId: string; month: string; purpose: string; status: string
   reservedMinutes: number; freeReserved: number; paidReserved: number
@@ -17,6 +17,8 @@ const usageKey = (userId: string, m: string, purpose: string) => `${userId}:${m}
 const usages = new Map<string, UsageRow>()
 const sessions = new Map<string, SessionRow>()
 let credits: CreditRow[] = []
+const paidInvoices = new Map<string, { id: string; userId: string; status: string }>()
+let transactionQueue: Promise<void> = Promise.resolve()
 
 function updateNumber(current: number, change: any): number {
   if (typeof change === 'number') return change
@@ -26,7 +28,18 @@ function updateNumber(current: number, change: any): number {
 }
 
 const db: any = {
-  $transaction: async (work: (tx: any) => Promise<any>) => work(db),
+  $transaction: async (work: (tx: any) => Promise<any>) => {
+    // Mimic the ordering guarantee of PostgreSQL FOR UPDATE for concurrent grant callers.
+    const previous = transactionQueue
+    let release!: () => void
+    transactionQueue = new Promise<void>((resolve) => { release = resolve })
+    await previous
+    try { return await work(db) } finally { release() }
+  },
+  $queryRaw: async (_strings: TemplateStringsArray, paymentId: string) => {
+    const payment = paidInvoices.get(paymentId)
+    return payment ? [{ ...payment }] : []
+  },
   enrollment: { count: async () => 0 },
   aiLiveUsage: {
     findUnique: async ({ where }: any) => {
@@ -51,6 +64,7 @@ const db: any = {
   },
   aiLiveCredit: {
     findMany: async ({ where }: any) => credits.filter((row) => row.userId === where.userId && row.status === 'ACTIVE' && row.remainingMinutes > 0),
+    findFirst: async ({ where }: any) => credits.find((row) => row.paymentId === where.paymentId) || null,
     update: async ({ where, data }: any) => {
       const row = credits.find((item) => item.id === where.id)
       if (!row) throw new Error('credit not found')
@@ -82,7 +96,7 @@ const db: any = {
 
 mock.module('@/lib/db', () => ({ db }))
 
-const { reserveGeminiLiveUsage, settleGeminiLiveUsage } = await import('../../src/lib/live-usage-guard')
+const { reserveGeminiLiveUsage, settleGeminiLiveUsage, grantGeminiLiveCredit } = await import('../../src/lib/live-usage-guard')
 
 function seedUsage(userId: string, patch: Partial<UsageRow> = {}) {
   const row: UsageRow = { id: `usage-${userId}`, userId, month: month(), purpose: 'SUPERVISOR', freeMinutesUsed: 0, paidMinutesUsed: 0, sessionsCount: 0, ...patch }
@@ -105,6 +119,8 @@ beforeEach(() => {
   usages.clear()
   sessions.clear()
   credits = []
+  paidInvoices.clear()
+  transactionQueue = Promise.resolve()
   process.env.AACT_LIVE_FREE_MONTHLY_MINUTES_STUDENT = '30'
 })
 
@@ -148,6 +164,38 @@ describe('تسوية الجلسة: ملكية + ساعة الخادم', () => {
     expect(usages.get(usageKey('stu-1', month(), 'SUPERVISOR'))?.paidMinutesUsed).toBe(1)
     const refund = credits.find((c) => c.source === 'REFUND')
     expect(refund?.remainingMinutes).toBe(1)
+  })
+})
+
+describe('منح دقائق الصوت المشتراة لا يتكرر عند الدفع المتزامن أو الإعادة', () => {
+  test('محاولتان متزامنتان على فاتورة واحدة تمنحان رصيداً واحداً فقط', async () => {
+    paidInvoices.set('invoice-1', { id: 'invoice-1', userId: 'stu-1', status: 'PAID' })
+    const [first, second] = await Promise.all([
+      grantGeminiLiveCredit({ userId: 'stu-1', minutes: 30, paymentId: 'invoice-1', source: 'PURCHASE' }),
+      grantGeminiLiveCredit({ userId: 'stu-1', minutes: 30, paymentId: 'invoice-1', source: 'PURCHASE' }),
+    ])
+    expect([first.newlyGranted, second.newlyGranted].sort()).toEqual([false, true])
+    expect(credits.filter((credit) => credit.paymentId === 'invoice-1')).toHaveLength(1)
+    expect(credits[0].remainingMinutes).toBe(30)
+    const replay = await grantGeminiLiveCredit({ userId: 'stu-1', minutes: 30, paymentId: 'invoice-1', source: 'PURCHASE' })
+    expect(replay.newlyGranted).toBe(false)
+    expect(credits).toHaveLength(1)
+  })
+
+  test('فاتورة غير مدفوعة أو مملوكة لحساب آخر لا تمنح أي دقيقة', async () => {
+    paidInvoices.set('invoice-2', { id: 'invoice-2', userId: 'stu-1', status: 'UNPAID' })
+    await expect(grantGeminiLiveCredit({ userId: 'stu-1', minutes: 30, paymentId: 'invoice-2', source: 'PURCHASE' }))
+      .rejects.toThrow('LIVE_CREDIT_PAYMENT_NOT_SETTLED_OR_OWNER_MISMATCH')
+    paidInvoices.set('invoice-2', { id: 'invoice-2', userId: 'stu-1', status: 'PAID' })
+    await expect(grantGeminiLiveCredit({ userId: 'stu-2', minutes: 30, paymentId: 'invoice-2', source: 'PURCHASE' }))
+      .rejects.toThrow('LIVE_CREDIT_PAYMENT_NOT_SETTLED_OR_OWNER_MISMATCH')
+    expect(credits).toHaveLength(0)
+  })
+
+  test('منحة إدارية مستقلة بلا فاتورة تبقى مسموحة', async () => {
+    const grant = await grantGeminiLiveCredit({ userId: 'stu-1', minutes: 5, source: 'ADMIN_GRANT' })
+    expect(grant.newlyGranted).toBe(true)
+    expect(grant.remainingMinutes).toBe(5)
   })
 })
 

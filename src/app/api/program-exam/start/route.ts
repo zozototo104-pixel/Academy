@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
-import { calculateSemesterReadiness } from '@/lib/semester-readiness'
+import { calculateSemesterReadiness, hasPassedFirstSemesterExam } from '@/lib/semester-readiness'
 import { enforceSemesterTuitionGate } from '@/lib/tuition-installments'
 import { EXAM_ATTEMPT_POLICY_SINCE, getExamMaxAttempts } from '@/lib/exam-attempt-policy'
 
 const COMPLETED_PROGRAM_ATTEMPT_STATUSES = ['GRADED', 'EXPIRED', 'NEEDS_REVIEW']
+const STALE_SUBMITTED_REVIEW_MS = 2 * 60 * 60 * 1000 // Above the worst expected bounded essay grading window
 
 // POST /api/program-exam/start — يبدأ أو يستعيد محاولة STARTED بعد ضغط الطالب زر البدء
 export async function POST(req: NextRequest) {
@@ -45,22 +46,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: tuitionGate.error, code: tuitionGate.code, tuitionPlan: tuitionGate.plan }, { status: 402 })
     }
 
-    if (exam.semester === 2) {
-      const sem1 = await db.programExam.findFirst({
-        where: { programId: exam.programId, semester: 1, status: 'READY' },
-        include: { _count: { select: { questions: true } } },
-      })
-      if (sem1 && sem1._count.questions > 0) {
-        const passedSem1 = await db.programExamAttempt.findFirst({
-          where: { userId: user.id, examId: sem1.id, passed: true, OR: [{ appealStatus: null }, { appealStatus: { not: 'PENDING' } }] },
-        })
-        if (!passedSem1) {
-          return NextResponse.json(
-            { error: 'يجب اجتياز امتحان الفصل الدراسي الأول أولاً قبل فتح امتحان الفصل الثاني', code: 'SEM1_REQUIRED' },
-            { status: 403 }
-          )
-        }
-      }
+    if (exam.semester >= 2 && !(await hasPassedFirstSemesterExam(user.id, exam.programId))) {
+      return NextResponse.json(
+        { error: 'يجب اجتياز امتحان الفصل الدراسي الأول قبل فتح امتحان الفصل الثاني', code: 'SEM1_REQUIRED' },
+        { status: 403 },
+      )
     }
 
     const readiness = await calculateSemesterReadiness(user.id, exam.programId, exam.semester)
@@ -104,9 +94,29 @@ export async function POST(req: NextRequest) {
       }
       if (!startedAttempt) {
         const submitted = await tx.programExamAttempt.findFirst({
-          where: { userId: user.id, examId, status: 'SUBMITTED' }, select: { id: true },
+          where: { userId: user.id, examId, status: 'SUBMITTED' },
+          select: { id: true, submittedAt: true },
+          orderBy: { createdAt: 'desc' },
         })
-        if (submitted) return { blocked: 'GRADING' as const, attempt: null, maxAttempts, completedAttempts }
+        if (submitted) {
+          // Only claims with a trustworthy submittedAt timestamp can be recovered
+          // automatically. Legacy claims with no timestamp require manual inspection.
+          const staleBefore = new Date(now.getTime() - STALE_SUBMITTED_REVIEW_MS)
+          if (submitted.submittedAt && submitted.submittedAt <= staleBefore) {
+            const recovered = await tx.programExamAttempt.updateMany({
+              where: { id: submitted.id, status: 'SUBMITTED', submittedAt: { lte: staleBefore } },
+              data: {
+                status: 'NEEDS_REVIEW',
+                score: null,
+                finalScore: null,
+                passed: null,
+                feedback: JSON.stringify({ code: 'STALE_GRADING_RECOVERED', summary: 'التصحيح تأخر؛ تم تحويل الإجابات المحفوظة للمراجعة اليدوية.' }),
+              },
+            })
+            if (recovered.count === 1) return { blocked: 'REVIEW' as const, attempt: null, maxAttempts, completedAttempts: completedAttempts + 1 }
+          }
+          return { blocked: 'GRADING' as const, attempt: null, maxAttempts, completedAttempts }
+        }
         const passedAttempt = await tx.programExamAttempt.findFirst({
           where: { userId: user.id, examId, passed: true, OR: [{ appealStatus: null }, { appealStatus: { not: 'PENDING' } }] },
           select: { id: true },
@@ -124,6 +134,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'استنفدت عدد محاولات هذا الاختبار', code: 'MAX_ATTEMPTS_REACHED', maxAttempts: startState.maxAttempts, attemptsUsed: startState.completedAttempts }, { status: 403 })
     }
     if (startState.blocked === 'GRADING') return NextResponse.json({ error: 'هذه المحاولة قيد التصحيح', code: 'SUBMITTED' }, { status: 409 })
+    if (startState.blocked === 'REVIEW') return NextResponse.json({
+      error: 'تأخر التصحيح؛ تم نقل إجاباتك المحفوظة للمراجعة البشرية دون احتساب علامة ناقصة.',
+      code: 'NEEDS_REVIEW',
+    }, { status: 409 })
     if (startState.blocked === 'EXPIRED') return NextResponse.json({ error: 'انتهت المحاولة وحُسبت صفر', code: 'ATTEMPT_EXPIRED', maxAttempts: startState.maxAttempts, attemptsUsed: startState.completedAttempts }, { status: 409 })
     if (startState.blocked === 'PASSED') return NextResponse.json({ error: 'لقد اجتزت هذا الاختبار سابقاً، لا يمكن بدء محاولة جديدة', code: 'ALREADY_PASSED' }, { status: 403 })
     if (!startState.attempt) return NextResponse.json({ error: 'تعذر بدء الاختبار' }, { status: 409 })

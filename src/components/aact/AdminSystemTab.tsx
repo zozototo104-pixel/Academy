@@ -66,6 +66,7 @@ interface BackupStatus {
     encryptionConfigured?: boolean
     localFallbackAllowed: boolean
     includeSessions: boolean
+    isolatedRestoreEnabled?: boolean
     tableCount: number
   }
   recent: Array<{ id: string; action: string; entityId?: string | null; details?: string | null; createdAt: string }>
@@ -111,6 +112,7 @@ interface BackupInspectResult {
   storage?: { provider: string; key: string; size: number; mimeType: string }
   meta?: Record<string, unknown> | null
   tables?: Array<{ name: string; rows?: number; expected?: number; mismatch?: boolean }>
+  integrity?: { valid: boolean; errors: string[]; expectedTables: number; includedTables: number; missingTables: string[] }
   tableCount?: number
   results?: Array<{ table: string; rows: number; processed: number; skipped?: boolean; error?: string }>
   errors?: Array<{ table: string; error?: string }>
@@ -1792,7 +1794,7 @@ export function AdminSystemTab() {
               <div>
                 <h4 className="text-sm font-black text-[#0f2b46]">النسخ الاحتياطي الدوري</h4>
                 <p className="mt-1 text-[11px] font-bold leading-relaxed text-slate-500">
-                  نسخة JSONL مضغوطة يومياً عبر Vercel Cron، ومحفوظة في R2/S3 عند ضبط التخزين الخارجي. النسخ اليدوي قد يستغرق دقيقة حسب حجم البيانات.
+                  نسخة مشفرة ومضغوطة من صفوف قاعدة البيانات عبر Vercel Cron، محفوظة في R2/S3 عند ضبط التخزين. لا تتضمن ملفات الكتب أو الفيديو أو المرفقات المخزنة في R2/S3؛ هذه تحتاج نسخة ملفات مستقلة. النسخ اليدوي قد يستغرق دقيقة حسب حجم البيانات.
                 </p>
               </div>
               <Button onClick={runBackup} disabled={backupBusy} className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">
@@ -1845,7 +1847,7 @@ export function AdminSystemTab() {
                 <div>
                   <h5 className="text-xs font-black text-amber-900">فحص أو استيراد نسخة احتياطية مشفرة</h5>
                   <p className="mt-1 text-[11px] font-bold leading-relaxed text-amber-800">
-                    هذا خاص بالنسخة الكاملة المشفرة من قاعدة البيانات، وليس نسخة كتالوج البرامج في تبويب الجودة. الفحص لا يكتب شيئاً، والاستيراد لا يحذف البيانات الحالية ويستخدم skipDuplicates.
+                    هذه نسخة صفوف قاعدة البيانات فقط، وليست نسخة الملفات المخزنة خارجيًا. الفحص قراءة فقط؛ الاستعادة لا تعمل على قاعدة الإنتاج ولا تدعم الدمج أو skipDuplicates. تتطلب قاعدة اختبار معزولة وفارغة ونسخةً كاملةً متوافقة، وإلا ترفض العملية.
                   </p>
                 </div>
                 <Badge className={backupStatus?.configured.encryptionConfigured ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}>
@@ -1866,13 +1868,22 @@ export function AdminSystemTab() {
                     {restoreBusy ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : <Info className="ml-1 h-4 w-4" />}
                     فحص
                   </Button>
-                  <Button type="button" onClick={restoreBackup} disabled={restoreBusy || restoreConfirm.trim() !== 'RESTORE'} className="flex-1 bg-red-700 font-black text-white hover:bg-red-800">
+                  <Button type="button" onClick={restoreBackup} disabled={restoreBusy || restoreConfirm.trim() !== 'RESTORE' || !backupStatus?.configured.isolatedRestoreEnabled} className="flex-1 bg-red-700 font-black text-white hover:bg-red-800">
                     استيراد
                   </Button>
                 </div>
               </div>
               {restorePreview && (
                 <div className="mt-3 rounded-xl border border-amber-100 bg-white p-3 text-[11px] font-bold leading-relaxed text-slate-600">
+                  {restorePreview.integrity && (
+                    <div className={restorePreview.integrity.valid
+                      ? 'mb-3 rounded-lg bg-emerald-50 p-2 text-emerald-800'
+                      : 'mb-3 rounded-lg bg-red-50 p-2 text-red-800'}>
+                      {restorePreview.integrity.valid
+                        ? `فحص التغطية سليم: ${restorePreview.integrity.includedTables}/${restorePreview.integrity.expectedTables} جدول، وكل أعداد الصفوف متطابقة.`
+                        : `هذه النسخة ليست صالحة للاستعادة الشاملة: ${restorePreview.integrity.missingTables.length} جدول ناقص. ${restorePreview.integrity.errors.join('، ')}`}
+                    </div>
+                  )}
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span>وضع العملية: <b>{restorePreview.mode === 'restore' ? 'استيراد' : 'فحص فقط'}</b></span>
                     <span>{restorePreview.tables?.length || restorePreview.results?.length || 0} جدول</span>

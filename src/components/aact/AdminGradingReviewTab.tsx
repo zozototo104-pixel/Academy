@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 
 type ReviewAttempt = { type: 'UNIT' | 'PROGRAM'; id: string; status?: string; submittedAt: string; student: { name: string; email: string }; exam: { title: string; programTitle?: string; unitTitle?: string } }
-type ReviewDetail = { type: 'UNIT' | 'PROGRAM'; id: string; status?: string; answers: Array<{ answerId: string; order: number; question: string; studentAnswer: string; modelAnswer: string; source: string; points: number | null; maxPoints: number; aiFeedback: string | null }> }
+type ReviewDetail = { type: 'UNIT' | 'PROGRAM'; id: string; status?: string; answers: Array<{ answerId: string; order: number; questionType?: string; question: string; studentAnswer: string; modelAnswer: string; source: string; points: number | null; maxPoints: number; aiFeedback: string | null }> }
 
 export default function AdminGradingReviewTab() {
   const { toast } = useToast()
@@ -53,6 +53,21 @@ export default function AdminGradingReviewTab() {
     }
   }
 
+  const markReview = async () => {
+    if (!selected) return
+    setBusy('regrade')
+    try {
+      await api(`/api/admin/attempts-review`, { method: 'POST', body: JSON.stringify({ type: selected.type, attemptId: selected.id, action: 'MARK_NEEDS_REVIEW' }) })
+      toast({ title: 'نُقلت المحاولة إلى قائمة المراجعة' })
+      setSelected(null)
+      await load()
+    } catch (error: any) {
+      toast({ title: 'تعذر نقل المحاولة', description: String(error?.message || error), variant: 'destructive' })
+    } finally {
+      setBusy(null)
+    }
+  }
+
   const approve = async () => {
     if (!selected) return
     setBusy('approve')
@@ -84,15 +99,15 @@ export default function AdminGradingReviewTab() {
             <option value="GRADED">مصححة/مجتازة</option>
             <option value="ALL">الكل</option>
           </select>
-          {loading ? <p className="text-sm text-slate-500">جاري التحميل...</p> : attempts.length === 0 ? <p className="text-sm font-bold text-emerald-700">لا توجد محاولات ضمن هذا الفلتر.</p> : <div className="space-y-2">{attempts.map((a) => <button key={`${a.type}:${a.id}`} onClick={() => open(a)} className="w-full rounded-xl border bg-white p-3 text-right text-xs hover:bg-amber-50"><p className="font-black text-[#0f2b46]">{a.student.name}</p><p className="text-slate-500">{a.exam.title}</p><p className="text-slate-400">{a.type === 'UNIT' ? 'اختبار وحدة' : 'امتحان برنامج'} · {a.status === 'GRADED' ? 'مصححة' : 'قيد المراجعة'} · {new Date(a.submittedAt).toLocaleString('ar')}</p></button>)}</div>}
+          {loading ? <p className="text-sm text-slate-500">جاري التحميل...</p> : attempts.length === 0 ? <p className="text-sm font-bold text-emerald-700">لا توجد محاولات ضمن هذا الفلتر.</p> : <div className="space-y-2">{attempts.map((a) => <button key={`${a.type}:${a.id}`} onClick={() => open(a)} className="w-full rounded-xl border bg-white p-3 text-right text-xs hover:bg-amber-50"><p className="font-black text-[#0f2b46]">{a.student.name}</p><p className="text-slate-500">{a.exam.title}</p><p className="text-slate-400">{a.type === 'UNIT' ? 'اختبار وحدة' : 'امتحان برنامج'} · {a.status === 'GRADED' ? 'مصححة' : a.status === 'SUBMITTED' ? 'عالقة قيد التصحيح' : 'قيد المراجعة'} · {new Date(a.submittedAt).toLocaleString('ar')}</p></button>)}</div>}
         </CardContent>
       </Card>
       <Card>
         <CardContent className="p-4">
-          {!selected ? <p className="text-sm font-bold text-slate-500">اختر محاولة لعرض الأسئلة المقالية وإقرار النتيجة.</p> : <div className="space-y-4">
-            {selected.status === 'NEEDS_REVIEW' ? <div className="flex flex-wrap gap-2"><Button onClick={regrade} variant="outline" disabled={busy !== null}>{busy === 'regrade' ? 'جارٍ التصحيح...' : 'إعادة التصحيح الآلي'}</Button><Button onClick={approve} disabled={busy !== null} className="bg-[#0f2b46] text-[#f5f0e1]">{busy === 'approve' ? 'جارٍ الاعتماد...' : 'اعتماد النتيجة'}</Button></div> : <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">محاولة مصححة</Badge>}
+          {!selected ? <p className="text-sm font-bold text-slate-500">اختر محاولة لعرض كل الأسئلة وإقرار النتيجة.</p> : <div className="space-y-4">
+            {selected.status === 'NEEDS_REVIEW' ? <div className="flex flex-wrap gap-2"><Button onClick={regrade} variant="outline" disabled={busy !== null}>{busy === 'regrade' ? 'جارٍ التصحيح...' : 'إعادة التصحيح الآلي'}</Button><Button onClick={approve} disabled={busy !== null} className="bg-[#0f2b46] text-[#f5f0e1]">{busy === 'approve' ? 'جارٍ الاعتماد...' : 'اعتماد النتيجة'}</Button></div> : selected.status === 'SUBMITTED' ? <div className="flex flex-wrap items-center gap-2"><Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">محاولة عالقة قيد التصحيح</Badge><Button onClick={markReview} disabled={busy !== null} variant="outline">{busy === 'regrade' ? 'جارٍ النقل...' : 'نقل إلى المراجعة'}</Button></div> : <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">محاولة مصححة</Badge>}
             {selected.answers.map((a) => <div key={a.answerId} className="rounded-2xl border p-3 text-sm">
-              <p className="font-black text-[#0f2b46]">سؤال {a.order}: {a.question}</p>
+              <p className="font-black text-[#0f2b46]">سؤال {a.order} ({a.questionType === 'MCQ' ? 'اختيار من متعدد' : a.questionType === 'TF' ? 'صح/خطأ' : a.questionType === 'SHORT' ? 'إجابة قصيرة' : 'مقالي'}): {a.question}</p>
               <p className="mt-2 whitespace-pre-wrap rounded-xl bg-slate-50 p-2"><b>إجابة الطالب:</b> {a.studentAnswer || '—'}</p>
               <p className="mt-2 whitespace-pre-wrap rounded-xl bg-emerald-50 p-2"><b>الإجابة النموذجية:</b> {a.modelAnswer || '—'}</p>
               {a.source && <p className="mt-2 whitespace-pre-wrap rounded-xl bg-amber-50 p-2"><b>المصدر:</b> {a.source}</p>}

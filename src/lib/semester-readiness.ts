@@ -1,5 +1,46 @@
 import { db } from '@/lib/db'
 
+/**
+ * Semester two is locked until the programme's designated first-semester
+ * exams are all published (READY) and passed. The designated set is: every
+ * READY exam, plus the programme's current exam (the latest one) while it
+ * is still being prepared — a required exam that has not been published yet
+ * must keep the lock. Older superseded drafts/failures that are neither
+ * READY nor the current exam are NOT designated: an abandoned leftover must
+ * never block every student in the programme forever. With no first-semester
+ * exam at all, the semester stays locked (nothing designated to pass yet).
+ */
+export async function hasPassedFirstSemesterExam(userId: string, programId: string): Promise<boolean> {
+  const exams = await db.programExam.findMany({
+    where: { programId, semester: 1 },
+    select: {
+      id: true,
+      status: true,
+      createdAt: true,
+      questions: { where: { status: 'PUBLISHED' }, select: { points: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  })
+  if (exams.length === 0) return false
+  const current = exams[0]
+  const designated = exams.filter((exam) => exam.status === 'READY' || exam.id === current.id)
+  for (const exam of designated) {
+    if (exam.status !== 'READY' || !exam.questions.some((q) => q.points > 0)) return false
+    const passed = await db.programExamAttempt.findFirst({
+      where: {
+        userId,
+        examId: exam.id,
+        status: 'GRADED',
+        passed: true,
+        OR: [{ appealStatus: null }, { appealStatus: { not: 'PENDING' } }],
+      },
+      select: { id: true },
+    })
+    if (!passed) return false
+  }
+  return true
+}
+
 function parseJsonArray(value: string | null | undefined): any[] {
   if (!value) return []
   try {
@@ -70,7 +111,9 @@ export async function calculateSemesterReadiness(userId: string, programId: stri
   const missingAssignments = assignmentItems.filter((a) => !a.passed)
   const assignmentWeight = assignmentItems.reduce((sum, a) => sum + Number(a.weight || 0), 0)
   const missingAssignmentWeight = missingAssignments.reduce((sum, a) => sum + Number(a.weight || 0), 0)
-  const maxExamScore = Math.max(0, Math.min(100, 100 - missingAssignmentWeight))
+  // Retained response field for older clients. Missing assignments no longer cap the exam mark:
+  // their earned contribution is computed separately by calculateFinalGrade.
+  const maxExamScore = 100
   const complete = missingUnitExams.length === 0 && missingAssignments.length === 0
 
   return {
@@ -92,6 +135,9 @@ export async function calculateSemesterReadiness(userId: string, programId: stri
 }
 
 export async function markSemesterReady(userId: string, programId: string, semester: number) {
+  if (semester === 2 && !(await hasPassedFirstSemesterExam(userId, programId))) {
+    throw new Error('SEM1_REQUIRED')
+  }
   const enrollment = await db.enrollment.findUnique({ where: { userId_programId: { userId, programId } } })
   if (!enrollment) throw new Error('ENROLLMENT_NOT_FOUND')
   const ready = new Set(parseJsonArray(enrollment.examReadiness).map((x) => Number(x)).filter(Boolean))

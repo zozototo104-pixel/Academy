@@ -152,6 +152,15 @@ interface ProgressData {
   progress: number
   status: string
   finalScore: number | null
+  gradeProgress?: {
+    score: number | null
+    earned: number
+    complete: boolean
+    components: { key: string; label: string; weight: number; score: number | null; weighted: number; ready: boolean; exempt?: boolean }[]
+    missing: string[]
+    weightSource: 'academic_profile' | 'category_default'
+    weightWarning: string | null
+  }
   completedUnits: string[]
   booksCount?: number
   finalExam?: {
@@ -1310,6 +1319,36 @@ export function DashboardView() {
                   </div>
                 )}
 
+                {active.gradeProgress && (
+                  <div className="mt-3 rounded-xl border border-[#c9a227]/30 bg-white p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-black text-[#0f2b46]">مجموع علاماتك التراكمي</p>
+                      <span className="text-lg font-black text-[#0f2b46]">
+                        {(active.status === 'COMPLETED' && active.finalScore != null
+                          ? active.finalScore : active.gradeProgress.earned).toFixed(1)}%
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[11px] text-slate-600">
+                      {active.status === 'COMPLETED' && active.finalScore != null
+                        ? 'هذه نتيجتك المعتمدة للشهادة. العلامات اللاحقة لا تغير الشهادة المؤرشفة تلقائيًا.'
+                        : 'هذه علامتك التراكمية المكتسبة. الرسوب أو عدم تسليم عنصر يخفض مساهمته فقط؛ الاستحقاق الأكاديمي للشهادة يعتمد مجموعًا أعلى من 50%.'}
+                    </p>
+                    <div className="mt-3 space-y-2">
+                      {active.gradeProgress.components.map((item) => (
+                        <div key={item.key} className="flex items-center justify-between gap-2 text-xs">
+                          <span className="text-slate-700">{item.label} (حصتها {item.weight}%)</span>
+                          <span className="font-bold text-[#0f2b46]">{item.weighted.toFixed(1)} من {item.weight}%</span>
+                        </div>
+                      ))}
+                    </div>
+                    {active.gradeProgress.missing.length > 0 && (
+                      <p className="mt-3 text-[11px] text-amber-800">
+                        المتطلبات المتبقية: {active.gradeProgress.missing.join('، ')}
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {active.finalScore != null && (
                   <div className="mt-3 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3.5 text-sm font-bold text-emerald-700">
                     <Award className="h-5 w-5" />
@@ -1881,7 +1920,7 @@ export function DashboardView() {
                         {readiness && (
                           <div className="mt-3 rounded-xl bg-white/10 p-3 text-[11px] font-bold leading-5 text-[#f5f0e1]">
                             <p>اختبارات الوحدات: {readiness.passedUnitExamsCount}/{readiness.unitExamsCount} · الواجبات: {readiness.passedAssignmentsCount}/{readiness.assignmentsCount}</p>
-                            {readiness.missingAssignmentWeight > 0 ? <p className="mt-1 text-amber-200">تنبيه: عدم استكمال الواجبات/التقييمات سيجعل أعلى نتيجة ممكنة الآن {readiness.maxExamScore}% فقط.</p> : null}
+                            {readiness.missingAssignmentWeight > 0 ? <p className="mt-1 text-amber-200">تنبيه: الوحدات والواجبات غير المكتملة لا تكسب علامات في المجموع التراكمي حتى يتم تصحيحها، لكنها لا تخفض نتيجة الامتحان الفصلي.</p> : null}
                           </div>
                         )}
                         {tuitionLocked && tuitionGate?.message ? (

@@ -193,6 +193,7 @@ function examErrorMessage(errorNote?: string | null): string {
 
 interface AssignmentSubmissionRow {
   id: string
+  userId: string
   studentName?: string
   studentEmail?: string
   answerText?: string | null
@@ -645,6 +646,14 @@ export function AdminBooksTab() {
   const [books, setBooks] = useState<BookRow[]>([])
   const [exams, setExams] = useState<ExamRow[]>([])
   const [assignments, setAssignments] = useState<AssignmentRow[]>([])
+  const [adminRosterSemester, setAdminRosterSemester] = useState('1')
+  const [adminRosterPage, setAdminRosterPage] = useState(1)
+  const [adminRosterCursors, setAdminRosterCursors] = useState<(string | null)[]>([null])
+  const [adminRoster, setAdminRoster] = useState<{ students: { userId: string; name: string; assignments: { id: string; title: string; status: string; score: number | null; points: number; submissionId: string | null }[] }[]; totalPages: number; total: number; nextCursor: string | null } | null>(null)
+  const [adminRosterLoading, setAdminRosterLoading] = useState(false)
+  const adminRosterRequestRef = useRef(0)
+  const adminRosterSelectionRef = useRef({ programId: '', semester: '1' })
+  adminRosterSelectionRef.current = { programId, semester: adminRosterSemester }
   const [assignmentSuggestions, setAssignmentSuggestions] = useState<AssignmentSuggestion[]>([])
   // رمز عملية توليد الاقتراحات: أي توليد جديد أو تغيير برنامج/فصل يُبطل
   // العملية السابقة، وتُفحص الصلاحية بعد كل await قبل لمس الحالة.
@@ -964,8 +973,45 @@ export function AdminBooksTab() {
       return statusOk && semesterOk && (!q || text.includes(q))
     })
   }, [gradingQueue, gradingSearch, gradingSemesterFilter, gradingStatusFilter])
-  const pagedGradingQueue = pageItems(filteredGradingQueue, gradingPage, gradingPageSize)
-  const currentGradingPage = safePage(filteredGradingQueue.length, gradingPageSize, gradingPage)
+  const groupedGradingQueue = useMemo(() => {
+    const groups = new Map<string, { studentId: string; name: string; email: string; entries: typeof filteredGradingQueue }>()
+    for (const entry of filteredGradingQueue) {
+      const { submission } = entry
+      const key = submission.userId || `submission:${submission.id}`
+      if (!groups.has(key)) groups.set(key, { studentId: key, name: submission.studentName || 'طالب', email: submission.studentEmail || '', entries: [] })
+      groups.get(key)!.entries.push(entry)
+    }
+    return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name, 'ar'))
+  }, [filteredGradingQueue])
+  const pagedGradingGroups = pageItems(groupedGradingQueue, gradingPage, gradingPageSize)
+  const currentGradingPage = safePage(groupedGradingQueue.length, gradingPageSize, gradingPage)
+
+  useEffect(() => { adminRosterRequestRef.current += 1; setAdminRoster(null); setAdminRosterPage(1); setAdminRosterCursors([null]); setAdminRosterLoading(false) }, [programId, adminRosterSemester])
+
+  const loadAdminRoster = async (page: number, semester = adminRosterSemester) => {
+    if (!programId) return
+    const cursor = page === 1 ? null : adminRosterCursors[page - 1]
+    if (page > 1 && !cursor) return
+    const requestId = ++adminRosterRequestRef.current
+    const selectedProgramId = programId
+    const isCurrent = () => requestId === adminRosterRequestRef.current && adminRosterSelectionRef.current.programId === selectedProgramId && adminRosterSelectionRef.current.semester === semester
+    setAdminRosterLoading(true)
+    try {
+      const data = await api<NonNullable<typeof adminRoster>>(`/api/supervisor/assignments?mode=roster&programId=${encodeURIComponent(programId)}&semester=${semester}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`)
+      if (!isCurrent()) return
+      setAdminRoster(data)
+      setAdminRosterPage(page)
+      setAdminRosterCursors(previous => {
+        const next = previous.slice(0, page)
+        if (data.nextCursor) next[page] = data.nextCursor
+        return next
+      })
+    } catch {
+      if (!isCurrent()) return
+      setAdminRoster(null)
+      toast({ title: 'تعذر تحميل طلاب الفصل', variant: 'destructive' })
+    } finally { if (isCurrent()) setAdminRosterLoading(false) }
+  }
 
   const loadProgramData = useCallback(async (pid: string, silent = false) => {
     if (!pid) return
@@ -2549,6 +2595,9 @@ export function AdminBooksTab() {
         }),
       })
       await loadProgramData(programId, true)
+      if (adminRoster && adminRoster.students.some(student => student.assignments.some(item => item.submissionId === submission.id))) {
+        await loadAdminRoster(adminRosterPage)
+      }
       toast({ title: mode === 'GRADE' ? 'تم تصحيح الواجب' : 'تم طلب تعديل الواجب', description: mode === 'GRADE' ? `${submission.studentName || 'الطالب'} — ${parsedScore}/${assignment.points}` : undefined })
       setGradingDialog(null)
     } catch (e: any) {
@@ -3315,6 +3364,53 @@ export function AdminBooksTab() {
           </TabsContent>
 
           <TabsContent value="assignments" className="mt-0 space-y-4">
+          <Card className="border-[#0f2b46]/10">
+            <CardContent className="space-y-3 p-5">
+              <h3 className="text-sm font-black text-[#0f2b46]">طلاب الفصل وواجباتهم</h3>
+              <p className="text-xs text-slate-500">اختر الفصل، ثم افتح اسم الطالب لعرض جميع واجباته، بما فيها غير المسلّمة والمتأخرة.</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Select value={adminRosterSemester} onValueChange={(value) => { setAdminRosterSemester(value); setAdminRoster(null); setAdminRosterPage(1) }}>
+                  <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">الفصل الأول</SelectItem>
+                    <SelectItem value="2">الفصل الثاني</SelectItem>
+                    <SelectItem value="3">الفصل الثالث</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button type="button" disabled={!programId || adminRosterLoading} onClick={() => loadAdminRoster(1)}>
+                  {adminRosterLoading ? 'جارٍ التحميل...' : 'عرض طلاب الفصل'}
+                </Button>
+              </div>
+              {adminRoster && <div className="space-y-2">
+                <p className="text-xs font-bold text-slate-500">عدد الطلاب: {adminRoster.total}</p>
+                {adminRoster.students.map(student => <details key={student.userId} className="rounded-xl border border-slate-200 p-3">
+                  <summary className="cursor-pointer text-sm font-black text-[#0f2b46]">{student.name} — {student.assignments.length} واجب</summary>
+                  <div className="mt-3 space-y-2">
+                    {student.assignments.map(assignment => <div key={assignment.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 p-3 text-xs">
+                      <span className="font-bold">{assignment.title}</span>
+                      <span>{assignment.status === 'GRADED' ? 'مصحح' : assignment.status === 'OVERDUE' ? 'متأخر' : assignment.status === 'NOT_SUBMITTED' ? 'لم يسلّم' : assignment.status === 'NEEDS_REVISION' ? 'يحتاج تعديل' : 'بانتظار التصحيح'}{assignment.score != null ? ` — ${assignment.score}/${assignment.points}` : ''}</span>
+                      {(() => {
+                        const record = assignments.find(item => item.id === assignment.id)
+                        const submission = record?.submissions.find(item => item.id === assignment.submissionId && item.userId === student.userId)
+                        if (!record || !submission) return null
+                        return <div className="w-full space-y-2 border-t border-slate-200 pt-2">
+                          {submission.answerText && <p className="whitespace-pre-wrap text-slate-700">{submission.answerText}</p>}
+                          {submission.fileName && <a className="text-blue-700 underline" href={submission.fileUrl || submission.downloadUrl || `/api/admin/assignments/file?id=${submission.id}`} target="_blank" rel="noreferrer">المرفق: {submission.fileName}</a>}
+                          {submission.feedback && <p className="text-emerald-700">ملاحظة التصحيح: {submission.feedback}</p>}
+                          <Button size="sm" type="button" onClick={() => gradeSubmission(submission, record)}>فتح التصحيح</Button>
+                        </div>
+                      })()}
+                    </div>)}
+                  </div>
+                </details>)}
+                <div className="flex items-center gap-3">
+                  <Button variant="outline" disabled={adminRosterLoading || adminRosterPage <= 1} onClick={() => loadAdminRoster(adminRosterPage - 1)}>السابق</Button>
+                  <span className="text-xs">صفحة {adminRosterPage} من {Math.max(1, adminRoster.totalPages)}</span>
+                  <Button variant="outline" disabled={adminRosterLoading || !adminRoster.nextCursor} onClick={() => loadAdminRoster(adminRosterPage + 1)}>التالي</Button>
+                </div>
+              </div>}
+            </CardContent>
+          </Card>
           {/* الواجبات والتكليفات */}
           <Card className="border-[#0f2b46]/10">
             <CardContent className="p-5 sm:p-6">
@@ -3592,7 +3688,13 @@ export function AdminBooksTab() {
                 <div className="mt-4 space-y-3">
                   {filteredGradingQueue.length === 0 ? (
                     <div className="rounded-2xl bg-slate-50 p-8 text-center text-sm font-bold text-slate-500">لا توجد تسليمات مطابقة للفلتر الحالي.</div>
-                  ) : pagedGradingQueue.map(({ assignment, submission }) => (
+                  ) : pagedGradingGroups.map((student) => (
+                    <details key={student.studentId} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                      <summary className="cursor-pointer select-none text-sm font-black text-[#0f2b46]">
+                        {student.name} <span className="text-xs font-bold text-slate-500">{student.email} — {student.entries.length} تسليم — {student.entries.filter(({ submission }) => submission.status !== 'GRADED').length} بانتظار التصحيح</span>
+                      </summary>
+                      <div className="mt-3 space-y-3">
+                      {student.entries.map(({ assignment, submission }) => (
                     <article key={submission.id} className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
@@ -3621,10 +3723,13 @@ export function AdminBooksTab() {
                         </div>
                       </div>
                     </article>
+                      ))}
+                      </div>
+                    </details>
                   ))}
                 </div>
                 <div className="mt-3">
-                  <AdminPager page={currentGradingPage} pageSize={gradingPageSize} total={filteredGradingQueue.length} onPageChange={setGradingPage} label="تسليم" />
+                  <AdminPager page={currentGradingPage} pageSize={gradingPageSize} total={groupedGradingQueue.length} onPageChange={setGradingPage} label="طالب" />
                 </div>
               </CardContent>
             </Card>

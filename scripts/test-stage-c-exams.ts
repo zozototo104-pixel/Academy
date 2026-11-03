@@ -1,6 +1,7 @@
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import { calculateFinalGrade } from '../src/lib/final-grade'
+import { gradingFormulaSignature } from '../src/lib/program-tracks'
 import { evaluateProgramCertificateEligibility } from '../src/lib/certificate-eligibility'
 
 function file(path: string) {
@@ -11,34 +12,94 @@ function assert(condition: unknown, message: string) {
   if (!condition) throw new Error(message)
 }
 
-function mockDiplomaClient(programAttemptScores: number[]) {
+type DiplomaFixture = {
+  category?: 'DIPLOMA' | 'DOCTORATE'
+  examPassScore?: number
+  researchRequired?: boolean
+  researchUnapproved?: boolean
+  researchScore?: number | null
+  twoSemesterExams?: boolean
+  secondSemesterMissing?: boolean
+  unitScore?: number | null
+  unitPassed?: boolean
+  assignmentStatus?: 'GRADED' | 'SUBMITTED'
+  assignmentScore?: number | null
+  programAppealPending?: boolean
+}
+
+function mockDiplomaClient(programAttemptScores: number[], options: DiplomaFixture = {}) {
+  const category = options.category || 'DIPLOMA'
+  const researchFormula = [
+    { key: 'quizzes', label: 'وحدات', weight: 20 },
+    { key: 'assignments', label: 'واجبات', weight: 20 },
+    { key: 'final_exam', label: 'فصلي', weight: 40 },
+    { key: 'thesis', label: 'بحث تخرج', weight: 20 },
+  ]
+  const unitScore = options.unitScore === undefined ? 100 : options.unitScore
+  const unitPassed = options.unitPassed ?? (unitScore !== null && unitScore >= 51)
   const client: any = {
     program: {
-      findUnique: async () => ({ category: 'DIPLOMA', price: 0 }),
+      findUnique: async () => ({
+        category, price: 0,
+        admissionRules: options.researchRequired ? {
+          academicProfile: {
+            finalEvaluationFormula: researchFormula,
+            approvedFormulaSignature: options.researchUnapproved ? undefined : gradingFormulaSignature(researchFormula),
+            approvedFormulaAt: '2026-10-01T00:00:00.000Z',
+          },
+        } : null,
+      }),
     },
     exam: {
-      findMany: async () => [{ id: 'unit-exam-1', title: 'اختبار وحدة', passScore: 51, unit: { title: 'الوحدة الأولى' } }],
+      findMany: async () => [{
+        id: 'unit-exam-1', title: 'اختبار وحدة', passScore: 51, unit: { title: 'الوحدة الأولى' },
+        _count: { questions: 1 },
+      }],
     },
     examAttempt: {
-      findMany: async () => [{ score: 100, answers: [{ points: 100, maxPoints: 100 }] }],
+      findMany: async () => unitScore === null ? [] : [{
+        status: 'GRADED', score: unitScore, passed: unitPassed,
+        answers: [{ points: unitScore, maxPoints: 100 }],
+      }],
     },
     programExam: {
-      findMany: async () => [{ id: 'program-exam-1', title: 'الاختبار النهائي', semester: 1, passScore: 51 }],
+      findMany: async ({ where }: any) => (category === 'DOCTORATE' || options.twoSemesterExams
+        ? [
+            { id: 'program-exam-1', title: 'امتحان الفصل الأول', semester: 1, passScore: 51 },
+            { id: 'program-exam-2', title: 'امتحان الفصل الثاني', semester: 2, passScore: 51 },
+          ]
+        : [{ id: 'program-exam-1', title: 'الاختبار النهائي', semester: 1, passScore: options.examPassScore ?? 51 }])
+        .filter((exam) => !where.semester || exam.semester === where.semester),
     },
     programExamAttempt: {
-      findMany: async () => programAttemptScores.map((score) => ({ score, finalScore: score, answers: [{ points: score, maxPoints: 100 }] })),
+      // Mimic Prisma's GRADED + non-pending-appeal WHERE filter, not unfiltered rows.
+      findMany: async ({ where }: any) =>
+        options.programAppealPending || (options.secondSemesterMissing && where.examId === 'program-exam-2')
+          ? [] : programAttemptScores.map((score) => ({
+        status: 'GRADED', score, finalScore: score, passed: score >= (options.examPassScore ?? 51),
+        appealStatus: null, answers: [{ points: score, maxPoints: 100 }],
+      })),
     },
     programAssignment: {
       findMany: async () => [{ id: 'assignment-1', title: 'واجب تطبيقي', points: 100 }],
     },
     assignmentSubmission: {
-      findUnique: async () => ({ status: 'GRADED', score: 100 }),
+      findUnique: async () => ({
+        status: options.assignmentStatus || 'GRADED',
+        score: options.assignmentScore === undefined ? 100 : options.assignmentScore,
+      }),
     },
     thesisSubmission: {
-      findFirst: async () => null,
+      findFirst: async () => options.researchScore == null ? null : {
+        status: 'RESULT_APPROVED', passed: true,
+        resultScore: options.researchScore, aiScore: options.researchScore,
+      },
     },
     enrollment: {
-      findUnique: async () => ({ id: 'enrollment-1' }),
+      findUnique: async () => ({
+        id: 'enrollment-1', status: 'ACTIVE', certificateNo: null,
+        createdAt: new Date('2026-10-05T00:00:00.000Z'),
+      }),
     },
     admissionApplication: {
       findFirst: async () => null,
@@ -50,22 +111,97 @@ function mockDiplomaClient(programAttemptScores: number[]) {
   }
   return client
 }
-
 async function testFinalGradeBehaviorWithMockData() {
   const bestAttemptGrade = await calculateFinalGrade({ userId: 'student-1', programId: 'program-1', client: mockDiplomaClient([60, 90]) })
   const finalExam = bestAttemptGrade.components.find((component) => component.key === 'final_exam')
-  assert(finalExam?.score === 90, 'محاولتان ناجحتان 60 و90 يجب أن تعتمد أفضل محاولة 90 لا المتوسط')
+  assert(finalExam?.score === 90, 'أفضل محاولة مصححة تدخل المعدل، لا متوسط المحاولات')
 
-  const barelyFailingGrade = await calculateFinalGrade({ userId: 'student-1', programId: 'program-1', client: mockDiplomaClient([50.96]) })
-  const barelyFailingFinalExam = barelyFailingGrade.components.find((component) => component.key === 'final_exam')
-  assert(typeof barelyFailingFinalExam?.score === 'number' && Math.abs(barelyFailingFinalExam.score - 50.96) < 0.001 && barelyFailingFinalExam.score < 51, 'اختبار 50.96 يجب أن يبقى خاماً داخل مكوّن الاختبار النهائي بدون تقريب للقرار')
-  const barelyFailing = await evaluateProgramCertificateEligibility({ userId: 'student-1', programId: 'program-1', client: mockDiplomaClient([50.96]) })
-  assert(!barelyFailing.ok, 'درجة 50.96 يجب ألا تنجح لأنها أقل من 51 خاماً')
+  const belowExamPass = await calculateFinalGrade({ userId: 'student-1', programId: 'program-1', client: mockDiplomaClient([50.96]) })
+  assert(Math.abs((belowExamPass.components.find((c) => c.key === 'final_exam')?.score ?? 0) - 50.96) < 0.001, 'تُحفظ علامة الامتحان دون تقريب')
+  const failedSemester = await evaluateProgramCertificateEligibility({ userId: 'student-1', programId: 'program-1', client: mockDiplomaClient([50.96]) })
+  assert(!failedSemester.ok && failedSemester.missing.includes('الاختبار النهائي'),
+    'معدل مرتفع لا يكفي إذا لم يجتز الطالب الامتحان الفصلي')
 
   const passing = await evaluateProgramCertificateEligibility({ userId: 'student-1', programId: 'program-1', client: mockDiplomaClient([51]) })
-  assert(passing.ok, 'درجة 51 يجب أن تنجح')
-}
+  assert(passing.ok, 'النجاح بالفصلي مع معدل تراكمي فوق 50 يجيز الشهادة')
 
+  const failedUnit = await evaluateProgramCertificateEligibility({
+    userId: 'student-1', programId: 'program-1',
+    client: mockDiplomaClient([90], { unitScore: 30, unitPassed: false }),
+  })
+  assert(failedUnit.ok && failedUnit.score !== null && failedUnit.score > 50,
+    'رسوب وحدة لا يمنع الشهادة بعد اجتياز الفصلي بمعدل فوق 50')
+
+  const missingUnit = await evaluateProgramCertificateEligibility({
+    userId: 'student-1', programId: 'program-1',
+    client: mockDiplomaClient([90], { unitScore: null }),
+  })
+  assert(missingUnit.ok, 'الوحدة غير المجابة صفر مساهمة ولا تمنع الشهادة')
+
+  const ungradedAssignment = await evaluateProgramCertificateEligibility({
+    userId: 'student-1', programId: 'program-1',
+    client: mockDiplomaClient([90], { assignmentStatus: 'SUBMITTED' }),
+  })
+  assert(ungradedAssignment.ok, 'الواجب غير المصحح صفر مساهمة وليس شرط اجتياز')
+
+  const pendingAppeal = await evaluateProgramCertificateEligibility({
+    userId: 'student-1', programId: 'program-1',
+    client: mockDiplomaClient([90], { programAppealPending: true }),
+  })
+  assert(!pendingAppeal.ok, 'طعن الفصل المعلق لا يحقق شرط اجتياز الامتحان')
+
+  const missingSecondSemester = await evaluateProgramCertificateEligibility({
+    userId: 'student-1', programId: 'program-1',
+    client: mockDiplomaClient([90], { twoSemesterExams: true, secondSemesterMissing: true }),
+  })
+  assert(!missingSecondSemester.ok && missingSecondSemester.score !== null &&
+    missingSecondSemester.score > 50 && missingSecondSemester.missing.includes('الاختبار النهائي'),
+    'لا شهادة لطالب قدم الأول وترك الثاني حتى لو مجموعه التراكمي فوق 50')
+
+
+  const atCutoff = await evaluateProgramCertificateEligibility({
+    userId: 'student-1', programId: 'program-1',
+    client: mockDiplomaClient([50], { unitScore: null, examPassScore: 50 }),
+  })
+  assert(!atCutoff.ok && atCutoff.score === 50, 'المعدل 50 بالضبط لا يتجاوز الحد الأدنى حتى مع اجتياز الامتحان')
+
+  const aboveCutoff = await evaluateProgramCertificateEligibility({
+    userId: 'student-1', programId: 'program-1',
+    client: mockDiplomaClient([50.01], { unitScore: null, examPassScore: 50 }),
+  })
+  assert(aboveCutoff.ok && aboveCutoff.score !== null && aboveCutoff.score > 50,
+    'المعدل 50.006 ينجح إذا اجتاز الامتحان الإلزامي دون تقريب')
+
+  const withoutResearch = await evaluateProgramCertificateEligibility({
+    userId: 'student-1', programId: 'program-1',
+    client: mockDiplomaClient([90], { researchRequired: true }),
+  })
+  assert(!withoutResearch.ok && withoutResearch.score !== null && withoutResearch.score > 50 &&
+    withoutResearch.missing.includes('بحث تخرج'),
+    'دبلوم البحث لا يمنح شهادة قبل اعتماد البحث رغم ارتفاع المعدل')
+
+  const approvedResearch = await evaluateProgramCertificateEligibility({
+    userId: 'student-1', programId: 'program-1',
+    client: mockDiplomaClient([90], { researchRequired: true, researchScore: 80 }),
+  })
+  assert(approvedResearch.ok, 'الدبلوم الذي يتطلب بحثًا يستحق الشهادة بعد اعتماد البحث والفصلي والمعدل')
+
+  const legacyWithoutResearch = await evaluateProgramCertificateEligibility({
+    userId: 'student-1', programId: 'program-1',
+    client: mockDiplomaClient([90], { researchRequired: true, researchUnapproved: true }),
+  })
+  assert(!legacyWithoutResearch.ok && legacyWithoutResearch.missing.includes('بحث التخرج'),
+    'المعادلة القديمة غير المربوطة لا يجوز أن تسمح بتجاوز شرط البحث المعلن للطالب')
+
+  const doctorateWithoutSemesterExams = await evaluateProgramCertificateEligibility({
+    userId: 'student-1', programId: 'program-1',
+    client: mockDiplomaClient([], { category: 'DOCTORATE', researchScore: 100, unitScore: null }),
+  })
+  assert(!doctorateWithoutSemesterExams.ok && doctorateWithoutSemesterExams.score !== null &&
+    doctorateWithoutSemesterExams.score >= 60 &&
+    doctorateWithoutSemesterExams.missing.length >= 2,
+    'دكتوراه بأطروحة ومناقشة 60% لا تتخرج قبل اجتياز امتحاني المرحلتين')
+}
 function testCentralCompletionOnly() {
   const submit = file('src/app/api/exam/submit/route.ts')
   assert(submit.includes("completeEnrollmentIfEligible({ enrollmentId: enrollment.id })"), 'unit exam submit must delegate completion to the central service')
@@ -93,22 +229,22 @@ function testCentralCompletionOnly() {
 
 function testEligibilityRequiresAllAcademicAndFinancialInputs() {
   const finalGrade = file('src/lib/final-grade.ts')
-  assert(finalGrade.includes('unitQuizAverage') && finalGrade.includes('exams.length'), 'final grade must require all ready unit exams')
-  assert(finalGrade.includes("status: 'GRADED', passed: true"), 'unit exam eligibility must require passed graded attempts')
-  assert(finalGrade.includes('programExamAverage'), 'final grade must require program exams')
-  assert(finalGrade.includes("status: 'GRADED', passed: true, OR: [{ appealStatus: null }, { appealStatus: { not: 'PENDING' } }]"), 'program exam eligibility must require passed graded non-pending attempts, including normal null appealStatus attempts')
+  // Behavioral rejection and best-attempt coverage lives in testFinalGradeBehaviorWithMockData.
+  // These checks guard required source wiring, not the exact Prisma query formatting.
+  assert(finalGrade.includes('unitQuizAverage') && finalGrade.includes('exams.length'), 'final grade must enumerate and require unit exams')
+  assert(finalGrade.includes("status: 'GRADED'") && finalGrade.includes("a.passed === true"), 'unit success must require a passed graded attempt')
+  assert(finalGrade.includes('programExamAverage') && finalGrade.includes("appealStatus: { not: 'PENDING' }"), 'program exams must exclude pending appeals')
   assert(finalGrade.includes('assignmentAverage'), 'final grade must include published assignments')
   assert(finalGrade.includes("where: { programId, status: 'PUBLISHED' }"), 'published assignments must be enumerated')
-  assert(finalGrade.includes("submission.status !== 'GRADED'"), 'published assignments must be submitted and graded')
+  assert(finalGrade.includes("submission?.status === 'GRADED'"), 'published assignments must be graded')
   assert(finalGrade.includes('thesisScores'), 'masters/doctorate eligibility must include thesis/defense scores')
-  assert(finalGrade.includes('Raw percentage: certification decisions compare this unrounded value'), 'passing decisions must use raw scores and keep rounding for display only')
-  assert(finalGrade.includes('function best('), 'final grade must use a best-attempt helper')
-  assert(finalGrade.includes('const bestAttemptScore = best(attempts.map'), 'final grade must use the best successful attempt per exam rather than averaging attempts')
-  assert(!finalGrade.includes('const best = avg(attempts.map'), 'final grade must not average all successful attempts for a single exam')
+  assert(finalGrade.includes('percentFromAnswers') && finalGrade.includes('exam.passScore'), 'exam passing must use original answer-based percentage')
+  assert(finalGrade.includes('function best(') && finalGrade.includes('best(scores)'), 'final grade must consider the best scored attempt per exam')
 
   const eligibility = file('src/lib/certificate-eligibility.ts')
-  assert(eligibility.includes('finalGrade.score < CERTIFICATE_PASS_SCORE'), 'certificate eligibility must compare the raw final score against pass score')
-  assert(!eligibility.includes('round1(finalGrade.score) < CERTIFICATE_PASS_SCORE'), 'certificate eligibility must not use rounded score for pass/fail')
+  assert(eligibility.includes('academicScore <= CERTIFICATE_PASS_SCORE'), 'certificate eligibility must use the exact cumulative score above 50%')
+  assert(!eligibility.includes('failedComponentLabels'), 'individual failed components must not independently block graduation')
+  assert(eligibility.includes('finalGrade.earnedScore'), 'incomplete assessments must contribute zero credit instead of forcing null eligibility')
   assert(eligibility.includes('paymentEligibilityError'), 'certificate eligibility must include paid-fee checks')
   assert(eligibility.includes('tuitionPaidTotal'), 'certificate eligibility must require paid or waived tuition')
 
@@ -201,8 +337,8 @@ function testMaxAttemptsAndAnswerKeyDisclosure() {
 function testProgressCertificateUsesCentralServiceAndFullTuition() {
   const progress = file('src/app/api/progress/route.ts')
   assert(progress.includes('completeEnrollmentIfEligible({ enrollmentId: enrollment.id })'), 'progress POST must delegate PROGRAM_COMPLETION issuance to the central completion service')
-  assert(progress.includes('getStudentTuitionPlan(user.id, programId)'), 'progress POST must check the student tuition plan before certificate issuance')
-  assert(progress.includes('tuitionPlan.paidTuition >= tuitionPlan.totalTuition'), 'progress POST must require full tuition before issuing PROGRAM_COMPLETION')
+  assert(progress.includes('completeEnrollmentIfEligible({ enrollmentId: enrollment.id })'), 'progress POST must defer graduation to central service')
+  assert(progress.includes('data: { completedUnits: JSON.stringify(completedUnits) }'), 'marking a read unit may update only its progress, never graduation status or academic score')
   assert(!progress.includes('db.certificate.create'), 'progress POST must not create PROGRAM_COMPLETION certificates directly')
   assert(!progress.includes('nextCertSerial'), 'progress POST must not mint certificate serials directly')
   assert(!progress.includes('randomBytes(16).toString'), 'progress POST must not generate certificate tokens directly')

@@ -1,7 +1,9 @@
 /// <reference types="bun-types" />
 import { describe, expect, test } from 'bun:test'
 import { validateAdmissionFileSignature } from '../../src/lib/file-signature'
-import { backupTableNames } from '../../src/lib/backups'
+import { backupTableNames, backupTableSpecs } from '../../src/lib/backups'
+import { Prisma } from '@prisma/client'
+import { readFileSync } from 'node:fs'
 import { clientIpFromHeaders } from '../../src/lib/rate-limit'
 
 describe('files C2 upload and backup safety', () => {
@@ -29,6 +31,43 @@ describe('files C2 upload and backup safety', () => {
     expect(tables).toContain('PaymentWaiverCode')
     expect(tables).toContain('PaymentWaiverAttempt')
     expect(tables).toContain('CertificateTemplate')
+  })
+
+  test('backup model coverage follows Prisma without a manual allowlist', () => {
+    const current = new Set(backupTableNames())
+    const all = Object.keys(Prisma.ModelName)
+    const omitted = all.filter((name) => !current.has(name))
+    expect(omitted).toEqual(process.env.AACT_BACKUP_INCLUDE_SESSIONS === 'true' ? [] : ['Session'])
+    expect(current.size).toBe(all.length - omitted.length)
+    for (const name of ['LectureSession', 'LectureAttendance', 'BookChunk', 'BookOutline', 'AiUsageLog', 'QuestionRecheckTask', 'WhatsAppConversationMessage']) {
+      expect(current.has(name)).toBe(true)
+    }
+  })
+
+  test('backup restores model dependencies before their children', () => {
+    const specs = backupTableSpecs()
+    const positions = new Map(specs.map((spec, index) => [spec.name, index]))
+    for (const model of Prisma.dmmf.datamodel.models) {
+      const spec = specs.find((item) => item.name === model.name)
+      expect(spec).toBeDefined()
+      expect(Object.keys(spec!.orderBy).length).toBeGreaterThan(0)
+      for (const field of model.fields) {
+        if (field.kind !== 'object' || !(field.relationFromFields?.length) || field.type === model.name) continue
+        expect(positions.get(field.type)!).toBeLessThan(positions.get(model.name)!)
+      }
+    }
+  })
+
+  test('database restore requires isolation, a complete backup and an empty target', () => {
+    const backups = readFileSync('src/lib/backups.ts', 'utf8')
+    const cli = readFileSync('scripts/backup-restore.ts', 'utf8')
+    for (const source of [backups, cli]) {
+      expect(source).toContain('AACT_RESTORE_ISOLATED_TARGET')
+      expect(source).toContain('BACKUP_INCOMPLETE_SCHEMA_COVERAGE')
+      expect(source).toContain('RESTORE_TARGET_NOT_EMPTY')
+      expect(source).toContain('.$transaction(')
+      expect(source).not.toContain('skipDuplicates: true')
+    }
   })
 
   test('x-forwarded-for is trusted only for Vercel requests', () => {

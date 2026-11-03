@@ -1,86 +1,272 @@
 import { describe, expect, mock, test } from 'bun:test'
 
-// lib/final-grade يستورد db افتراضياً؛ الاختبار يحقن عميلاً وهمياً دائماً.
-mock.module('@/lib/db', () => ({ db: {} }))
-
+// Route-level persistence is tested elsewhere; this is the grade calculation's behavioral contract.
+const firstSemesterFixture = {
+  exams: [] as Array<{ id: string; status: string; questions: Array<{ points: number }> }>,
+  passedExamIds: new Set<string>(),
+}
+mock.module('@/lib/db', () => ({
+  db: {
+    programExam: { findMany: async () => firstSemesterFixture.exams },
+    programExamAttempt: {
+      findFirst: async ({ where }: any) =>
+        firstSemesterFixture.passedExamIds.has(where.examId) ? { id: 'graded-passed-attempt' } : null,
+    },
+  },
+}))
 const { calculateFinalGrade } = await import('@/lib/final-grade')
+const { hasPassedFirstSemesterExam } = await import('@/lib/semester-readiness')
+const { gradingFormulaSignature } = await import('@/lib/program-tracks')
 
-// ---------------------------------------------------------------------------
-// سقف أعمال السنة (تدقيق ٢٠٢٦-١٠-٣٠، الوحدة ٤): تسليم امتحان البرنامج يخزن
-// العلامة مقيدة بالسقف (min(الخام، maxExamScore)) ويحفظ الخام في
-// rawScoreBeforeCourseworkCap للشفافية فقط. حساب الشهادة كان يعيد حساب
-// النسبة من الإجابات الخام ويتجاوز السقف بصمت — طالب خامُه ٩٥ وسقفه ٧٠
-// كان يُعتمد بـ٩٥. القاعدة: الشهادة تعتمد العلامة المخزنة دائماً، وفرع
-// الطعن المراجَع يبقى على finalScore.
-// ---------------------------------------------------------------------------
+const diplomaFormula = [
+  { key: 'quizzes', label: 'اختبارات قصيرة ومتابعة', weight: 30 },
+  { key: 'assignments', label: 'واجبات أو أنشطة تطبيقية', weight: 20 },
+  { key: 'final_exam', label: 'الاختبار النهائي', weight: 50 },
+]
 
-function fakeClient(programAttempt: any) {
+type Scenario = {
+  units?: Record<number, number>
+  assignments?: Record<number, number>
+  assignmentWeights?: number[]
+  examRaw?: number
+  examStored?: number
+  appealFinal?: number
+  formula?: Array<{ key?: string; label: string; weight: number }>
+  approval?: 'APPROVED' | 'UNAPPROVED'
+  cohort?: 'NEW' | 'EXISTING'
+  archivedScore?: number
+  thesisScore?: number
+}
+
+function fakeClient(scenario: Scenario = {}) {
+  const units = scenario.units || {}
+  const assignments = scenario.assignments || {}
+  const weights = scenario.assignmentWeights || [5, 5, 5, 5]
   return {
-    program: { findUnique: async () => ({ category: 'DIPLOMA' }) },
+    program: {
+      findUnique: async () => ({
+        category: 'DIPLOMA',
+        admissionRules: {
+          academicProfile: {
+            finalEvaluationFormula: scenario.formula || diplomaFormula,
+            approvedFormulaSignature: scenario.approval === 'UNAPPROVED'
+              ? undefined : gradingFormulaSignature(scenario.formula || diplomaFormula),
+            approvedFormulaAt: '2026-10-01T00:00:00.000Z',
+          },
+        },
+      }),
+    },
+    enrollment: {
+      findUnique: async () => ({
+        createdAt: new Date(scenario.cohort === 'EXISTING' ? '2026-09-01T00:00:00.000Z' : '2026-10-05T00:00:00.000Z'),
+        status: scenario.archivedScore == null ? 'ACTIVE' : 'COMPLETED',
+        finalScore: scenario.archivedScore ?? null,
+      }),
+    },
     exam: {
-      findMany: async () => [
-        { id: 'unit-exam-1', title: 'اختبار وحدة', passScore: 50, unit: { title: 'الوحدة الأولى' }, _count: { questions: 4 } },
-      ],
+      findMany: async () => Array.from({ length: 6 }, (_, i) => ({
+        id: `unit-${i + 1}`, title: `اختبار ${i + 1}`, passScore: 60,
+        unit: { title: `وحدة ${i + 1}` }, _count: { questions: 5 },
+      })),
     },
     examAttempt: {
-      findMany: async () => [{ score: 80, answers: [{ points: 80, maxPoints: 100 }] }],
+      findMany: async ({ where }: any) => {
+        const number = Number(String(where.examId).replace('unit-', ''))
+        const score = units[number]
+        return score === undefined ? [] : [{ score, passed: score >= 60, status: 'GRADED', answers: [{ points: score, maxPoints: 100 }] }]
+      },
+    },
+    programAssignment: {
+      findMany: async () => weights.map((weight, i) => ({ id: `a-${i + 1}`, title: `واجب ${i + 1}`, points: 100, weight })),
+    },
+    assignmentSubmission: {
+      findUnique: async ({ where }: any) => {
+        const number = Number(String(where.assignmentId_userId.assignmentId).replace('a-', ''))
+        return assignments[number] === undefined ? null : { status: 'GRADED', score: assignments[number] }
+      },
     },
     programExam: {
-      findMany: async () => [{ id: 'pex-1', title: 'الامتحان النهائي', semester: null, passScore: 50 }],
+      findMany: async () => [{ id: 'final-1', title: 'الامتحان الفصلي', semester: 1, passScore: 60 }],
     },
-    programExamAttempt: { findMany: async () => [programAttempt] },
-    programAssignment: { findMany: async () => [{ id: 'a-1', title: 'واجب', points: 100 }] },
-    assignmentSubmission: { findUnique: async () => ({ status: 'GRADED', score: 100 }) },
-    thesisSubmission: { findFirst: async () => null },
+    programExamAttempt: {
+      findMany: async () => scenario.examRaw === undefined ? [] : [{
+        status: 'GRADED', passed: true,
+        score: scenario.examStored ?? scenario.examRaw,
+        finalScore: scenario.appealFinal ?? null,
+        appealStatus: scenario.appealFinal === undefined ? null : 'REVIEWED',
+        feedback: JSON.stringify({ rawScoreBeforeCourseworkCap: scenario.examRaw }),
+        answers: [{ points: scenario.examRaw, maxPoints: 100 }],
+      }],
+    },
+    thesisSubmission: {
+      findFirst: async () => scenario.thesisScore == null ? null : {
+        status: 'RESULT_APPROVED', passed: true, resultScore: scenario.thesisScore,
+        aiScore: scenario.thesisScore,
+      },
+    },
   } as any
 }
 
-async function grade(programAttempt: any) {
-  return calculateFinalGrade({ userId: 'student-1', programId: 'prog-1', client: fakeClient(programAttempt) })
+async function calculate(scenario: Scenario) {
+  return calculateFinalGrade({ userId: 'student-1', programId: 'program-1', client: fakeClient(scenario) })
 }
 
-function finalExamComponent(result: any) {
-  return result.components.find((c: any) => c.key === 'final_exam')
-}
+const unitsThree = { 1: 70, 2: 70, 3: 70 }
+const assignmentsTwo = { 1: 80, 2: 80 }
 
-describe('حساب الشهادة يحترم سقف أعمال السنة', () => {
-  test('طالب مقيد بالسقف: مكوّن الامتحان النهائي = العلامة المخزنة ٧٠ لا الخام ٩٥', async () => {
-    const result = await grade({
-      score: 70, // المخزنة بعد تطبيق سقف maxExamScore=70
-      finalScore: null,
-      appealStatus: null,
-      answers: [{ points: 95, maxPoints: 100 }], // الخام ٩٥
-    })
-    expect(finalExamComponent(result)?.score).toBe(70)
+describe('التجميع التراكمي بالأوزان الرسمية', () => {
+  test('٣ وحدات من ٦ بمتوسط ٧٠ = ١٠٫٥ من ٣٠؛ واجبان ٨٠ = ٨ من ٢٠؛ فصلي ٩٠ = ٤٥ من ٥٠', async () => {
+    const grade = await calculate({ units: unitsThree, assignments: assignmentsTwo, examRaw: 90 })
+    expect(grade.progressScore).toBeCloseTo(63.5, 6)
+    expect(grade.score).toBeNull() // A certificate grade is not final while required work is outstanding.
+    expect(grade.weightSource).toBe('academic_profile')
+    expect(grade.components.find((c) => c.key === 'quizzes')?.weighted).toBeCloseTo(10.5, 6)
+    expect(grade.components.find((c) => c.key === 'assignments')?.weighted).toBeCloseTo(8, 6)
+    expect(grade.components.find((c) => c.key === 'final_exam')?.weighted).toBeCloseTo(45, 6)
   })
 
-  test('المجموع النهائي يُبنى على المقيدة: (٨٠×٢٠ + ١٠٠×٢٠ + ٧٠×٦٠) ÷ ١٠٠ = ٧٨', async () => {
-    const result = await grade({
-      score: 70,
-      finalScore: null,
-      appealStatus: null,
-      answers: [{ points: 95, maxPoints: 100 }],
-    })
-    expect(result.score).toBe(78)
+  test('نجاح وحدة رابعة يعيد الحساب دون فقدان أو تضخيم الوحدات السابقة', async () => {
+    const before = await calculate({ units: unitsThree, assignments: assignmentsTwo, examRaw: 90 })
+    const after = await calculate({ units: { ...unitsThree, 4: 70 }, assignments: assignmentsTwo, examRaw: 90 })
+    expect(after.progressScore - before.progressScore).toBeCloseTo(3.5, 6)
+    expect(after.score).toBeNull()
   })
 
-  test('طالب بلا سقف (كمّل أعماله): علامته الخام كاملة كما هي', async () => {
-    const result = await grade({
-      score: 95,
-      finalScore: null,
-      appealStatus: null,
-      answers: [{ points: 95, maxPoints: 100 }],
+  test('بعد إكمال كل الوحدات والواجبات تُصبح النتيجة النهائية هي المجموع دون خصم مزدوج', async () => {
+    const grade = await calculate({
+      units: { 1: 70, 2: 70, 3: 70, 4: 70, 5: 70, 6: 70 },
+      assignments: { 1: 80, 2: 80, 3: 80, 4: 80 },
+      examRaw: 90,
     })
-    expect(finalExamComponent(result)?.score).toBe(95)
+    expect(grade.score).toBeCloseTo(82, 6)
+    expect(grade.progressScore).toBeCloseTo(82, 6)
+    expect(grade.missing).toEqual([])
   })
 
-  test('طعن مرجَّع: تُعتمد علامة المراجعة النهائية ٨٨', async () => {
-    const result = await grade({
-      score: 70,
-      finalScore: 88,
-      appealStatus: 'REVIEWED',
-      answers: [{ points: 95, maxPoints: 100 }],
+  test('العلامة القديمة المقيدة ٧٠ لا تخفض الامتحان الخام ٩٥ مرة ثانية', async () => {
+    const grade = await calculate({
+      units: { 1: 70, 2: 70, 3: 70, 4: 70, 5: 70, 6: 70 },
+      assignments: { 1: 80, 2: 80, 3: 80, 4: 80 },
+      examRaw: 95, examStored: 70,
     })
-    expect(finalExamComponent(result)?.score).toBe(88)
+    expect(grade.components.find((c) => c.key === 'final_exam')?.score).toBe(95)
+    expect(grade.score).toBeCloseTo(84.5, 6)
+  })
+
+  test('قرار مراجعة الطعن المعتمد يتقدم على العلامة الخام', async () => {
+    const grade = await calculate({
+      units: { 1: 70, 2: 70, 3: 70, 4: 70, 5: 70, 6: 70 },
+      assignments: { 1: 80, 2: 80, 3: 80, 4: 80 },
+      examRaw: 95, examStored: 70, appealFinal: 88,
+    })
+    expect(grade.components.find((c) => c.key === 'final_exam')?.score).toBe(88)
+    expect(grade.score).toBeCloseTo(81, 6)
+  })
+
+  test('واجب بوزن صفر لا يكسب علامات ولا يعطل كسب العلامات الأخرى', async () => {
+    const grade = await calculate({
+      units: unitsThree, examRaw: 90,
+      assignmentWeights: [20, 10, 0, 0],
+      assignments: { 1: 80, 2: 70 },
+    })
+    // (80*20 + 70*10)/30 = 76.666% of the assignment component.
+    expect(grade.components.find((c) => c.key === 'assignments')?.weighted).toBeCloseTo(15.333333, 5)
+    expect(grade.score).toBeNull() // Zero-weight assignments can still be mandatory completion work.
+  })
+
+  test('توزيع دبلوم خاص ٢٠/٢٠/٤٠/٢٠ يضيف البحث بدل تغيير وزن الامتحان إلى ٦٠', async () => {
+    const grade = await calculate({
+      units: { 1: 70, 2: 70, 3: 70, 4: 70, 5: 70, 6: 70 },
+      assignments: { 1: 80, 2: 80, 3: 80, 4: 80 },
+      examRaw: 90, thesisScore: 80,
+      formula: [
+        { key: 'quizzes', label: 'اختبارات قصيرة ومتابعة', weight: 20 },
+        { key: 'assignments', label: 'واجبات أو أنشطة تطبيقية', weight: 20 },
+        { key: 'final_exam', label: 'الاختبار النهائي', weight: 40 },
+        { key: 'thesis', label: 'بحث تخرج', weight: 20 },
+      ],
+    })
+    expect(grade.weightSource).toBe('academic_profile')
+    expect(grade.components.find((c) => c.key === 'thesis')?.weighted).toBeCloseTo(16, 6)
+    expect(grade.score).toBeCloseTo(82, 6)
+  })
+
+  test('المعادلة النصية غير المعتمدة لا تغيّر وزن أي طالب', async () => {
+    const result = await calculate({
+      units: unitsThree, assignments: assignmentsTwo, examRaw: 90,
+      approval: 'UNAPPROVED',
+    })
+    expect(result.weightSource).toBe('category_default')
+    expect(result.weightWarning).toBe('ASSESSMENT_FORMULA_AWAITING_APPROVAL')
+    expect(result.progressScore).toBeCloseTo(69, 6)
+  })
+
+  test('الطالب الملتحق قبل اعتماد السياسة لا يتأثر بأوزانها الجديدة', async () => {
+    const result = await calculate({
+      units: unitsThree, assignments: assignmentsTwo, examRaw: 90,
+      cohort: 'EXISTING',
+    })
+    expect(result.weightSource).toBe('category_default')
+    expect(result.weightWarning).toBe('ASSESSMENT_FORMULA_FUTURE_COHORT_ONLY')
+    expect(result.progressScore).toBeCloseTo(69, 6)
+  })
+
+  test('النتيجة القديمة المسجلة للتخرج تظل مجمدة رغم تغيير محرك الحساب', async () => {
+    const result = await calculate({
+      units: { 1: 70, 2: 70, 3: 70, 4: 70, 5: 70, 6: 70 },
+      assignments: { 1: 80, 2: 80, 3: 80, 4: 80 },
+      examRaw: 90,
+      archivedScore: 77.2,
+    })
+    expect(result.score).toBe(77.2)
+    expect(result.progressScore).toBeCloseTo(82, 6)
+  })
+
+  test('بند بدون مفتاح مكون ثابت لا يعتمد حتى لو كان مجموع الأوزان 100%', async () => {
+    const result = await calculate({
+      units: unitsThree, assignments: assignmentsTwo, examRaw: 90,
+      formula: [{ label: 'اختبارات قصيرة ومتابعة', weight: 30 }, { label: 'واجبات أو أنشطة تطبيقية', weight: 20 }, { label: 'الاختبار النهائي', weight: 50 }],
+    })
+    expect(result.weightSource).toBe('category_default')
+    expect(result.weightWarning).toBe('ASSESSMENT_FORMULA_MAPPING_REQUIRED')
+  })
+
+  test('صيغة وزن غير كاملة لا تُستخدم بصمت؛ يرجع النظام لتوزيع الفئة مع تحذير', async () => {
+    const grade = await calculate({
+      units: { 1: 70, 2: 70, 3: 70, 4: 70, 5: 70, 6: 70 },
+      assignments: { 1: 80, 2: 80, 3: 80, 4: 80 },
+      examRaw: 90,
+      formula: [{ key: 'final_exam', label: 'الاختبار النهائي', weight: 60 }],
+    })
+    expect(grade.weightSource).toBe('category_default')
+    expect(grade.weightWarning).toBe('ASSESSMENT_FORMULA_INVALID')
+    expect(grade.score).toBeCloseTo(84, 6)
+  })
+})
+
+describe('بوابة الفصل الثاني ترفض أي التفاف على اجتياز الأول', () => {
+  test('لا يفتح الثاني إذا لم يوجد امتحان أول منشور', async () => {
+    firstSemesterFixture.exams = []
+    firstSemesterFixture.passedExamIds.clear()
+    expect(await hasPassedFirstSemesterExam('student', 'program')).toBe(false)
+  })
+
+  test('لا يفتح الثاني إذا كان امتحان الأول في المراجعة أو بلا أسئلة منشورة', async () => {
+    firstSemesterFixture.exams = [{ id: 'sem1', status: 'REVIEW', questions: [{ points: 100 }] }]
+    firstSemesterFixture.passedExamIds = new Set(['sem1'])
+    expect(await hasPassedFirstSemesterExam('student', 'program')).toBe(false)
+    firstSemesterFixture.exams = [{ id: 'sem1', status: 'READY', questions: [] }]
+    expect(await hasPassedFirstSemesterExam('student', 'program')).toBe(false)
+  })
+
+  test('اجتياز جميع امتحانات الفصل الأول المعتمدة يفتح الثاني فقط بعد التصحيح', async () => {
+    firstSemesterFixture.exams = [
+      { id: 'sem1a', status: 'READY', questions: [{ points: 50 }] },
+      { id: 'sem1b', status: 'READY', questions: [{ points: 40 }] },
+    ]
+    firstSemesterFixture.passedExamIds = new Set(['sem1a'])
+    expect(await hasPassedFirstSemesterExam('student', 'program')).toBe(false)
+    firstSemesterFixture.passedExamIds.add('sem1b')
+    expect(await hasPassedFirstSemesterExam('student', 'program')).toBe(true)
   })
 })

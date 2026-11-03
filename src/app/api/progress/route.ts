@@ -5,6 +5,7 @@ import { notify } from '@/lib/notify'
 import { getExamsGate } from '@/lib/exam-gate'
 import { academicProfileFromRules } from '@/lib/program-tracks'
 import { calculateSemesterReadiness, markSemesterReady } from '@/lib/semester-readiness'
+import { calculateFinalGrade, pickBestGradedAttempt } from '@/lib/final-grade'
 import { enforceSemesterTuitionGate, getStudentTuitionPlan } from '@/lib/tuition-installments'
 import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
 
@@ -50,11 +51,19 @@ export async function GET(req: NextRequest) {
           orderBy: { submittedAt: 'desc' },
         })
       : []
+    // أفضل محاولة لكل اختبار بنفس قاعدة محرك المعدل النهائي: المحاولات
+    // المعتمدة (GRADED) فقط وأعلى علامة بينها — لا أحدث محاولة.
     const bestByExam: Record<string, { score: number; passed: boolean }> = {}
+    const attemptsByExam = new Map<string, typeof attempts>()
     for (const a of attempts) {
-      if (a.examId && !bestByExam[a.examId] && a.score !== null) {
-        bestByExam[a.examId] = { score: a.score, passed: !!a.passed }
-      }
+      if (!a.examId) continue
+      const list = attemptsByExam.get(a.examId)
+      if (list) list.push(a)
+      else attemptsByExam.set(a.examId, [a])
+    }
+    for (const [examId, examAttempts] of attemptsByExam) {
+      const bestAttempt = pickBestGradedAttempt(examAttempts)
+      if (bestAttempt) bestByExam[examId] = { score: bestAttempt.score as number, passed: !!bestAttempt.passed }
     }
 
     const completedUnits: string[] = JSON.parse(enrollment.completedUnits || '[]')
@@ -95,7 +104,10 @@ export async function GET(req: NextRequest) {
     const semesterReadiness = await Promise.all(
       semesterExams.map((e) => calculateSemesterReadiness(user.id, programId, e.semester))
     )
-    const tuitionPlan = await getStudentTuitionPlan(user.id, programId)
+    const [tuitionPlan, grade] = await Promise.all([
+      getStudentTuitionPlan(user.id, programId),
+      calculateFinalGrade({ userId: user.id, programId }),
+    ])
     const finalExam = semesterExams[0] || null
 
     return NextResponse.json({
@@ -143,6 +155,15 @@ export async function GET(req: NextRequest) {
       progress,
       status: enrollment.status,
       finalScore: enrollment.finalScore,
+      gradeProgress: {
+        score: grade.score,
+        earned: grade.progressScore,
+        complete: grade.score !== null,
+        components: grade.components,
+        missing: grade.missing,
+        weightSource: grade.weightSource,
+        weightWarning: grade.weightWarning || null,
+      },
       completedUnits,
       booksCount,
       finalExam,
@@ -205,7 +226,7 @@ export async function POST(req: NextRequest) {
       const readiness = await markSemesterReady(user.id, programId, Number(semester))
       const message = readiness.complete
         ? 'تم تفعيل زر بدء امتحان الفصل. جميع الاختبارات والواجبات الفصلية مكتملة.'
-        : `تم تفعيل زر بدء امتحان الفصل مع تنبيه: الدرجات غير المكتملة ستخصم من سقف درجتك النهائية. أعلى نتيجة ممكنة الآن ${readiness.maxExamScore}%.`
+        : 'تم تفعيل زر بدء امتحان الفصل. الوحدات والواجبات الناقصة تظل متطلبات مستقلة ويُحتسب إنجازها في المجموع التراكمي دون خصم من الامتحان الفصلي.'
       return NextResponse.json({ ok: true, readiness, message })
     }
     if (!programId || !unitId) {
@@ -228,107 +249,63 @@ export async function POST(req: NextRequest) {
     if (!completedUnits.includes(unitId)) completedUnits.push(unitId)
 
     const totalUnits = await db.unit.count({ where: { programId } })
-    let status = totalUnits > 0 && completedUnits.length >= totalUnits ? 'COMPLETED' : 'ACTIVE'
 
-    // لا إكمال للبرنامج قبل اجتياز جميع اختبارات وحداته وواجباته المنشورة (بوابة الجودة)
+    // Marking a unit as read does not certify graduation or compute a final mark.
+    // Those decisions belong solely to the weighted certificate eligibility service.
+    const updated = await db.enrollment.update({
+      where: { id: enrollment.id },
+      data: { completedUnits: JSON.stringify(completedUnits) },
+    })
+
+    // Keep these counts for student guidance only: failed units/assignments cost
+    // weighted points but are NOT stand-alone certificate blockers.
     let examsNotPassed = 0
     let assignmentsNotPassed = 0
-    if (status === 'COMPLETED') {
+    if (totalUnits > 0 && completedUnits.length >= totalUnits) {
       const gate = await getExamsGate(user.id, programId)
-      const unitMissing = gate.missing.filter((m) => m.kind === 'UNIT')
-      examsNotPassed = unitMissing.length
+      examsNotPassed = gate.missing.filter((item) => item.kind === 'UNIT').length
       const requiredAssignments = await db.programAssignment.findMany({
         where: { programId, status: 'PUBLISHED' },
         select: { id: true, points: true, submissions: { where: { userId: user.id }, select: { score: true, status: true }, take: 1 } },
       })
-      assignmentsNotPassed = requiredAssignments.filter((a) => {
-        const sub = a.submissions[0]
-        if (!sub || sub.status !== 'GRADED' || sub.score == null) return true
-        return a.points > 0 ? (sub.score / a.points) * 100 < 60 : false
+      assignmentsNotPassed = requiredAssignments.filter((assignment) => {
+        const submission = assignment.submissions[0]
+        if (!submission || submission.status !== 'GRADED' || submission.score == null) return true
+        return assignment.points > 0 ? (submission.score / assignment.points) * 100 < 60 : false
       }).length
-      if (examsNotPassed > 0 || assignmentsNotPassed > 0) {
-        status = 'ACTIVE' // يبقى نشطاً حتى يجتاز كل الاختبارات والواجبات المنشورة
-      }
     }
 
-    // حساب النتيجة النهائية كمتوسط أفضل درجات الاختبارات
-    let finalScore = enrollment.finalScore
-    if (status === 'COMPLETED') {
-      const units = await db.unit.findMany({
-        where: { programId },
-        include: { exam: { select: { id: true } } },
-      })
-      const examIds = units.map((u) => u.exam?.id).filter(Boolean) as string[]
-      if (examIds.length) {
-        const attempts = await db.examAttempt.findMany({
-          where: { userId: user.id, examId: { in: examIds }, passed: true },
-          orderBy: { score: 'desc' },
-        })
-        const best: Record<string, number> = {}
-        for (const a of attempts) {
-          if (a.examId && a.score !== null && (!best[a.examId] || a.score > best[a.examId])) {
-            best[a.examId] = a.score
-          }
-        }
-        const scores = examIds.map((id) => best[id]).filter((s) => s !== undefined)
-        if (scores.length === examIds.length) {
-          finalScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
-        }
-      }
-    }
-
-    const updated = await db.enrollment.update({
-      where: { id: enrollment.id },
-      data: { completedUnits: JSON.stringify(completedUnits), status, finalScore },
-    })
-
-    // إصدار شهادة تلقائية فقط للبرامج التدريبية البسيطة. برامج الماجستير/الدكتوراه لا تصدر شهادتها من إكمال الوحدات؛ تنتظر البحث والمناقشة واعتماد النتيجة من الإدارة.
-    let certificate: { serial: string } | null = null
-    if (status === 'COMPLETED' && !updated.certificateNo) {
-      const program = await db.program.findUnique({ where: { id: programId } })
-      const requiresFinalReview = ['MASTERS', 'DOCTORATE'].includes(program?.category || '')
-      if (requiresFinalReview) {
-        await notify(
-          user.id,
-          'THESIS',
-          'اكتمل محتوى البرنامج — انتقل إلى بحث التخرج',
-          `أكملت وحدات «${program?.titleAr}». شهادة هذا المسار تصدر بعد اعتماد البحث والمناقشة والنتيجة النهائية من الإدارة.`,
-          'dashboard'
-        )
-      } else {
-        const tuitionPlan = await getStudentTuitionPlan(user.id, programId)
-        const tuitionFullyPaid = !tuitionPlan || tuitionPlan.totalTuition <= 0 || tuitionPlan.paidTuition >= tuitionPlan.totalTuition
-        if (tuitionFullyPaid) {
-          const completion = await completeEnrollmentIfEligible({ enrollmentId: enrollment.id })
-          if (completion.ok && completion.certificate) {
-            certificate = { serial: completion.certificate.serial }
-            if (completion.certificateIssued) {
-              await notify(
-                user.id,
-                'CERTIFICATE',
-                'تم إصدار شهادتك المعتمدة',
-                `مبروك! أُصدرت شهادتك لبرنامج «${program?.titleAr}» برقم ${certificate.serial} — يمكنك تحميلها وطباعتها من بوابة الطالب.`,
-                'dashboard'
-              )
-            }
-          }
-        }
-      }
+    const completion = await completeEnrollmentIfEligible({ enrollmentId: enrollment.id })
+    const certificate = completion.ok && completion.certificate
+      ? { serial: completion.certificate.serial }
+      : null
+    if (completion.ok && completion.certificateIssued && certificate) {
+      const program = await db.program.findUnique({ where: { id: programId }, select: { titleAr: true } })
+      await notify(
+        user.id,
+        'CERTIFICATE',
+        'تم إصدار شهادتك المعتمدة',
+        `مبروك! أُصدرت شهادتك لبرنامج «${program?.titleAr}» برقم ${certificate.serial} — يمكنك تحميلها وطباعتها من بوابة الطالب.`,
+        'dashboard'
+      )
     }
 
     return NextResponse.json({
       ok: true,
-      completedUnits: JSON.parse(updated.completedUnits),
+      completedUnits,
       progress: totalUnits ? Math.round((completedUnits.length / totalUnits) * 100) : 0,
-      status,
-      finalScore,
+      status: completion.ok ? 'COMPLETED' : updated.status,
+      finalScore: completion.ok ? completion.eligibility?.score ?? updated.finalScore : updated.finalScore,
       examsNotPassed,
       assignmentsNotPassed,
-      certificate: certificate ? { serial: certificate.serial } : null,
+      certificate,
     })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'يجب تسجيل الدخول أولاً' }, { status: 401 })
+    }
+    if (e?.message === 'SEM1_REQUIRED') {
+      return NextResponse.json({ error: 'يجب اجتياز امتحان الفصل الدراسي الأول قبل فتح الثاني', code: 'SEM1_REQUIRED' }, { status: 403 })
     }
     console.error('Progress POST error:', e)
     return NextResponse.json({ error: 'خطأ في تحديث التقدم' }, { status: 500 })

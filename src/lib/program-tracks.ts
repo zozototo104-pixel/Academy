@@ -184,9 +184,21 @@ export interface AcademicExamRef {
 }
 
 export interface AcademicEvaluationItem {
+  key?: string // Stable grade component, selected explicitly by the administrator
   label: string
   weight: number
   description: string
+}
+
+/** Signature of the exact component mapping and weights approved by an administrator.
+ * Changing even one mapped item invalidates prior approval automatically.
+ */
+export function gradingFormulaSignature(formula: Array<{ key?: string; label: string; weight: number }>): string {
+  return JSON.stringify(formula.map((item) => [
+    String(item.key || '').trim(),
+    String(item.label || '').replace(/\s+/g, ' ').trim(),
+    Number(item.weight),
+  ]))
 }
 
 export interface AcademicTermPlan {
@@ -236,6 +248,8 @@ export interface PartialAcademicProgramProfile {
   studyPlan?: AcademicPlanStage[]
   termPlans?: AcademicTermPlan[]
   finalEvaluationFormula?: AcademicEvaluationItem[]
+  approvedFormulaSignature?: string
+  approvedFormulaAt?: string
   graduationRequirements?: string[]
   assessmentComponents?: string[]
   thesisRequirement?: string
@@ -270,6 +284,7 @@ function cleanEvaluationFormula(list: unknown): AcademicEvaluationItem[] | undef
     .map((x) => {
       const row = (x && typeof x === 'object') ? (x as Record<string, unknown>) : {}
       return {
+        key: /^[a-z][a-z0-9_]*$/.test(String(row.key || '')) ? String(row.key) : undefined,
         label: cleanAcademicText(String(row.label || '')),
         weight: Math.max(0, Math.min(100, Number(row.weight || 0))),
         description: cleanAcademicText(String(row.description || '')),
@@ -330,6 +345,11 @@ export function normalizeAcademicProfileOverride(raw: unknown): PartialAcademicP
   if (studyPlan) out.studyPlan = studyPlan
   if (termPlans) out.termPlans = termPlans
   if (finalEvaluationFormula) out.finalEvaluationFormula = finalEvaluationFormula
+  const signature = typeof r.approvedFormulaSignature === 'string' ? r.approvedFormulaSignature : ''
+  if (signature.length > 0 && signature.length < 4000) out.approvedFormulaSignature = signature
+  if (typeof r.approvedFormulaAt === 'string' && Number.isFinite(Date.parse(r.approvedFormulaAt))) {
+    out.approvedFormulaAt = new Date(r.approvedFormulaAt).toISOString()
+  }
   return Object.keys(out).length ? out : null
 }
 

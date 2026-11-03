@@ -52,20 +52,47 @@ function testJsonRubricWithFractionWeights() {
   assert.equal(result.points, 7.8)
 }
 
-function testMissingAndExtraCriteria() {
+function testLowConfidenceRequiresReview() {
   const rubric = JSON.stringify([{ name: 'أ', weight: 50 }, { name: 'ب', weight: 50 }])
-  const result = parseEssayGradeJson(JSON.stringify({
+  assert.throws(() => parseEssayGradeJson(JSON.stringify({
     criteria: [
-      { name: 'أ', weight: 100, score0to10: 10, comment: 'ممتاز' },
-      { name: 'ج زائد', weight: 100, score0to10: 10, comment: 'يجب تجاهله' },
+      { name: 'أ', weight: 50, score0to10: 10, comment: 'صحيح' },
+      { name: 'ب', weight: 50, score0to10: 10, comment: 'صحيح' },
     ],
     feedback: 'تعليق',
     confidence: 'LOW',
-  }), 10, rubric)
-  assert.equal(result.criteria.length, 2)
-  assert.deepEqual(result.criteria.map((c) => c.name), ['أ', 'ب'])
-  assert.equal(result.criteria[1].score0to10, 0)
-  assert.equal(result.points, 5)
+  }), 10, rubric), /ESSAY_LOW_CONFIDENCE/)
+}
+
+function testMissingAndExtraCriteriaRequireReview() {
+  const rubric = JSON.stringify([{ name: 'أ', weight: 50 }, { name: 'ب', weight: 50 }])
+  assert.throws(() => parseEssayGradeJson(JSON.stringify({
+    criteria: [{ name: 'أ', weight: 50, score0to10: 10, comment: 'صحيح' }],
+    feedback: 'تعليق',
+    confidence: 'HIGH',
+  }), 10, rubric), /ESSAY_CRITERION_MISSING/)
+  assert.throws(() => parseEssayGradeJson(JSON.stringify({
+    criteria: [
+      { name: 'أ', weight: 50, score0to10: 10, comment: 'صحيح' },
+      { name: 'ب', weight: 50, score0to10: 10, comment: 'صحيح' },
+      { name: 'ج زائد', weight: 50, score0to10: 10, comment: 'ليس معياراً' },
+    ],
+    feedback: 'تعليق',
+    confidence: 'HIGH',
+  }), 10, rubric), /ESSAY_CRITERION_UNKNOWN/)
+}
+
+function testDuplicateCriterionRequiresReview() {
+  const rubric = JSON.stringify([{ name: 'الدقة', weight: 50 }, { name: 'الشمول', weight: 50 }])
+  assert.throws(() => parseEssayGradeJson(JSON.stringify({
+    criteria: [
+      { name: 'الدقة', weight: 50, score0to10: 10, comment: 'صحيح' },
+      { name: 'الدقة', weight: 50, score0to10: 0, comment: 'مكرر' },
+      { name: 'الشمول', weight: 50, score0to10: 8, comment: 'جيد' },
+    ],
+    feedback: 'تعليق',
+    confidence: 'HIGH',
+  }), 10, rubric), /ESSAY_CRITERION_DUPLICATED/)
 }
 
 async function testEmptyAnswerZeroWithoutAi() {
@@ -92,19 +119,46 @@ function testModelPointsIgnored() {
   assert.equal(result.points, 10)
 }
 
-function testMissingDefaultCriteriaCountAsZero() {
-  const result = parseEssayGradeJson(JSON.stringify({
+function testMissingDefaultCriteriaRequireReview() {
+  assert.throws(() => parseEssayGradeJson(JSON.stringify({
     criteria: [{ name: 'الدقة مقابل المصدر', weight: 100, score0to10: 5, comment: 'نصف الإجابة صحيح' }],
     feedback: 'تعليق',
     confidence: 'HIGH',
-  }), 20)
-  assert.equal(result.points, 5)
+  }), 20), /ESSAY_CRITERION_MISSING/)
+}
+
+async function testMissingModelAnswerRequiresReview() {
+  await assert.rejects(() => gradeEssayWithRubric({
+    question: 'حلل الظاهرة', studentAnswer: 'إجابة طويلة قابلة للتصحيح',
+    modelAnswer: null, maxPoints: 10,
+  }), /ESSAY_MODEL_ANSWER_MISSING/)
+}
+
+function testMeaningBasedEssayGradingContract() {
+  const code = src('src/lib/essay-grading.ts')
+  const program = src('src/app/api/program-exam/submit/route.ts')
+  const unit = src('src/app/api/exam/submit/route.ts')
+  assert(code.includes('تقبّل المرادفات وإعادة الصياغة المختصرة والصحيحة'), 'يجب تقييم المعنى والمرادفات بدل مقارنة الألفاظ')
+  assert(code.includes('درجة جزئية عادلة'), 'يجب منح النقاط الجزئية للأفكار الصحيحة')
+  assert(code.includes('إذا لم تتأكد من التكافؤ المعنوي'), 'الحالات غير المؤكدة يجب أن تبقى للمراجعة')
+  assert(code.includes('if (!studentAnswer.trim()) return zeroGrade'), 'فقط الإجابة الفارغة يجب تصفيرها تلقائياً')
+  assert(!code.includes('studentAnswer.trim().length < 3'), 'منع رفض الإجابة من طولها وحده')
+  assert(program.includes('text.trim().length > 0'), 'الامتحان الفصلي يجب أن يصحح الإجابات القصيرة غير الفارغة')
+  assert(unit.includes('!q.modelAnswer && essayText.trim().length > 0'), 'غياب المرجع في امتحان الوحدة يستدعي مراجعة حتى للإجابة القصيرة')
+}
+
+function testManualRegradeGuidance() {
+  const admin = src('src/app/api/admin/attempts-review/route.ts')
+  assert(admin.includes('error instanceof EssayNeedsReviewError'), 'إعادة التصحيح يجب أن تميّز أخطاء مراجعة المقالي')
+  assert(admin.includes('reviewRequired: true'), 'إبلاغ الإدارة بأن المحاولة ما زالت للمراجعة البشرية')
+  assert(admin.includes('ESSAY_LOW_CONFIDENCE'), 'يجب توضيح حالة ثقة المصحح المنخفضة')
 }
 
 function testApprovalRejectsNullOpenAnswerPoints() {
   const code = src('src/app/api/admin/attempts-review/route.ts')
-  assert(code.includes('OPEN_ANSWER_POINTS_REQUIRED'), 'اعتماد المراجعة يجب أن يرفض أي سؤال مقالي/قصير بلا نقاط')
-  assert(code.includes('points == null'), 'التحقق يجب أن يحافظ على null بدلاً من تحويله إلى صفر')
+  assert(code.includes('ANSWERS_NOT_FULLY_GRADED'), 'اعتماد المراجعة يجب أن يرفض أي إجابة بلا نقاط — من كل الأنواع، لا المقالي/القصير فقط')
+  const completeness = src('src/lib/answer-completeness.ts')
+  assert(completeness.includes('points == null'), 'التحقق يجب أن يحافظ على null بدلاً من تحويله إلى صفر')
   assert(code.includes('ANSWER_NOT_IN_ATTEMPT'), 'اعتماد المراجعة يجب أن يتحقق من ملكية answerId للمحاولة')
 }
 
@@ -116,13 +170,15 @@ function testPromptStudentAnswerDelimiters() {
 }
 
 async function main() {
-  for (const fn of [testWeightedPoints, testClamp, testDefaultRubric, testTextRubricUsesDefaultWeights, testJsonRubricWithFractionWeights, testMissingAndExtraCriteria, testInvalidJsonRejected, testModelPointsIgnored, testMissingDefaultCriteriaCountAsZero, testApprovalRejectsNullOpenAnswerPoints, testPromptStudentAnswerDelimiters]) {
+  for (const fn of [testWeightedPoints, testClamp, testDefaultRubric, testTextRubricUsesDefaultWeights, testJsonRubricWithFractionWeights, testLowConfidenceRequiresReview, testMissingAndExtraCriteriaRequireReview, testDuplicateCriterionRequiresReview, testInvalidJsonRejected, testModelPointsIgnored, testMissingDefaultCriteriaRequireReview, testMeaningBasedEssayGradingContract, testManualRegradeGuidance, testApprovalRejectsNullOpenAnswerPoints, testPromptStudentAnswerDelimiters]) {
     fn()
     console.log(`✓ ${fn.name}`)
   }
 
   await testEmptyAnswerZeroWithoutAi()
   console.log('✓ testEmptyAnswerZeroWithoutAi')
+  await testMissingModelAnswerRequiresReview()
+  console.log('✓ testMissingModelAnswerRequiresReview')
 }
 
 main().catch((error) => {

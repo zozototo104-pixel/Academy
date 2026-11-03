@@ -27,11 +27,11 @@ export type LegacyImportRow = {
 type ProgramOption = { id: string; slug: string; titleAr: string; titleEn: string | null }
 
 const HEADER_ALIASES: Record<string, string[]> = {
-  name: ['name', 'full name', 'holder name', 'الاسم', 'اسم', 'اسم الخريج'],
-  nameEn: ['name en', 'english name', 'holder name en', 'الاسم بالإنجليزي'],
+  name: ['name', 'full name', 'holder name', 'الاسم', 'اسم', 'اسم الخريج', 'اسم الطالب', 'الاسم الكامل', 'الاسم الثلاثي'],
+  nameEn: ['name en', 'english name', 'holder name en', 'الاسم بالإنجليزي', 'الاسم بالانجليزي', 'الاسم باللغة الإنجليزية'],
   email: ['email', 'e-mail', 'mail', 'البريد', 'الإيميل', 'ايميل', 'البريد الإلكتروني'],
-  phone: ['phone', 'mobile', 'الجوال', 'الهاتف', 'رقم الجوال'],
-  country: ['country', 'الدولة', 'البلد'],
+  phone: ['phone', 'mobile', 'phone number', 'mobile number', 'telephone', 'tel', 'whatsapp', 'الجوال', 'الهاتف', 'رقم الجوال', 'رقم الهاتف', 'رقم الموبايل', 'الموبايل', 'رقم المحمول', 'رقم الواتساب', 'الهاتف المحمول'],
+  country: ['country', 'الدولة', 'البلد', 'بلد الإقامة', 'الجنسية'],
   program: ['program', 'program slug', 'program title', 'البرنامج', 'اسم البرنامج'],
   programEn: ['program en', 'english program', 'program english', 'البرنامج بالإنجليزي'],
   grade: ['grade', 'التقدير', 'تقدير'],
@@ -129,22 +129,42 @@ function levenshtein(a: string, b: string) {
   return dp[aa.length][bb.length]
 }
 
+/** Excel often has Arabic diacritics, Kashida, hamza or invisible Unicode
+ * characters that are visually indistinguishable from the catalog title.
+ * Normalize only for matching; never alter the official program name.
+ */
+export function normalizeLegacyGraduateProgramName(value: unknown) {
+  return cleanString(value).normalize('NFKC').toLowerCase()
+    .replace(/[\u200b-\u200f\u061c\ufeff]/g, '')
+    .replace(/[\u064b-\u065f\u0670\u0640]/g, '')
+    .replace(/[أإآٱ]/g, 'ا')
+    .replace(/ى/g, 'ي')
+    .replace(/ة/g, 'ه')
+    .replace(/[\u0660-\u0669]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim().replace(/\s+/g, ' ')
+}
+
 function resolveProgram(value: string | null | undefined, programs: ProgramOption[]) {
   const text = cleanString(value)
   if (!text) return { programId: null, suggestion: null }
-  const normalized = text.toLowerCase()
-  const exact = programs.find((program) => (
-    program.id.toLowerCase() === normalized
-    || program.slug.toLowerCase() === normalized
-    || program.titleAr.trim().toLowerCase() === normalized
-    || String(program.titleEn || '').trim().toLowerCase() === normalized
+  const normalized = normalizeLegacyGraduateProgramName(text)
+  const matches = programs.filter((program) => (
+    [program.id, program.slug, program.titleAr, program.titleEn || '']
+      .some((candidate) => candidate && normalizeLegacyGraduateProgramName(candidate) === normalized)
   ))
-  if (exact) return { programId: exact.id, suggestion: null }
+  // If multiple programs share the same visible title, do not guess which
+  // certificate program the graduate completed. Require a manual selection.
+  if (matches.length === 1) return { programId: matches[0].id, suggestion: null }
+  if (matches.length > 1) return {
+    programId: null, suggestion: 'يوجد أكثر من برنامج بهذا الاسم — اختر البرنامج الصحيح',
+  }
 
   let best: { program: ProgramOption; score: number } | null = null
   for (const program of programs) {
-    const candidates = [program.slug, program.titleAr, program.titleEn || ''].filter(Boolean)
-    const score = Math.min(...candidates.map((candidate) => levenshtein(normalized, candidate.toLowerCase())))
+    const candidates = [program.slug, program.titleAr, program.titleEn || '']
+      .filter(Boolean).map(normalizeLegacyGraduateProgramName)
+    const score = Math.min(...candidates.map((candidate) => levenshtein(normalized, candidate)))
     if (!best || score < best.score) best = { program, score }
   }
   const suggestion = best ? `${best.program.titleAr} (${best.program.slug})` : null
@@ -156,15 +176,29 @@ export function parseLegacyGraduateWorkbook(buffer: Buffer, fileName: string) {
   const firstSheetName = workbook.SheetNames[0]
   if (!firstSheetName) throw new Error('EMPTY_WORKBOOK')
   const sheet = workbook.Sheets[firstSheetName]
-  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: true, defval: '' })
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: true, defval: '', blankrows: true })
   const headerRow = rows[0] || []
   const headers = headerRow.map(canonicalHeader)
-  const dataRows = rows.slice(1).filter((row) => !isEmptySheetRow(row))
+  const dataRows = rows.slice(1).map((row, index) => ({ row, rowNumber: index + 2 }))
+    .filter(({ row }) => !isEmptySheetRow(row))
   if (dataRows.length > LEGACY_GRADUATE_IMPORT_MAX_ROWS) throw new Error('TOO_MANY_ROWS')
-  return dataRows.map((row, index) => ({ rowNumber: index + 2, raw: rowToObject(headers, row), sourceFile: fileName }))
+  return dataRows.map(({ row, rowNumber }) => {
+    const raw = rowToObject(headers, row)
+    // Phone numbers may be numeric cells with a custom zero-padding format.
+    // Read their displayed value to keep leading zeroes when Excel recorded them.
+    const phoneColumn = headers.indexOf('phone')
+    if (phoneColumn >= 0 && typeof row[phoneColumn] === 'number') {
+      const cell = sheet[XLSX.utils.encode_cell({ r: rowNumber - 1, c: phoneColumn })]
+      const formatted = cell ? XLSX.utils.format_cell(cell) : ''
+      raw.phone = formatted && !/[eE][+-]?\d+/.test(formatted)
+        ? formatted
+        : String(row[phoneColumn])
+    }
+    return { rowNumber, raw, sourceFile: fileName }
+  })
 }
 
-export async function validateLegacyGraduateImportRows(parsedRows: { rowNumber: number; raw: Record<string, unknown> }[]): Promise<LegacyImportRow[]> {
+export async function validateLegacyGraduateImportRows(parsedRows: { rowNumber: number; raw: Record<string, unknown> }[], programOverrides: Record<string, string> = {}): Promise<LegacyImportRow[]> {
   const programs = await db.program.findMany({ select: { id: true, slug: true, titleAr: true, titleEn: true } })
   const legacySerials = parsedRows.map((row) => cleanOptional(row.raw.legacySerial)).filter(Boolean) as string[]
   const existingSerials = legacySerials.length
@@ -177,19 +211,27 @@ export async function validateLegacyGraduateImportRows(parsedRows: { rowNumber: 
     const raw = parsed.raw
     const email = normalizeLegacyGraduateEmail(raw.email)
     const programText = cleanOptional(raw.program)
-    const resolved = resolveProgram(programText, programs)
+    const override = String(programOverrides[String(parsed.rowNumber)] || '').trim()
+    const selectedProgram = override ? programs.find((program) => program.id === override) : null
+    const resolved = override
+      ? { programId: selectedProgram?.id || null, suggestion: null }
+      : resolveProgram(programText, programs)
     const finalScore = parseLegacyGraduateFinalScore(raw.finalScoreText)
     const issuedAt = parseLegacyGraduateDate(raw.issuedAtText)
     const legacySerial = cleanOptional(raw.legacySerial)
     const nameEn = cleanEnglishName(raw.nameEn)
     const errors: string[] = []
 
+    if (!cleanOptional(raw.name)) errors.push('اسم الخريج مطلوب')
     if (nameEn === '__INVALID_ENGLISH_NAME__') errors.push("الاسم بالإنجليزي يجب أن يحتوي على حروف لاتينية ومسافات و . - ' فقط")
     if (!email || !isValidLegacyGraduateEmail(email)) errors.push('إيميل غلط')
-    if (!programText) errors.push('البرنامج مطلوب')
-    if (programText && !resolved.programId) errors.push('برنامج مش موجود')
+    if (!programText && !override) errors.push('البرنامج مطلوب')
+    if (override && !selectedProgram) errors.push('البرنامج المختار غير موجود')
+    else if (programText && !resolved.programId) errors.push('برنامج مش موجود')
     if (!issuedAt) errors.push('تاريخ غلط')
-    if (Number.isNaN(finalScore)) errors.push('المعدل غير صالح')
+    if (Number.isNaN(finalScore) || (finalScore != null && (finalScore < 0 || finalScore > 100))) {
+      errors.push('المعدل يجب أن يكون بين 0 و100')
+    }
     if (legacySerial && existingSerials.has(legacySerial)) errors.push('رقم الشهادة القديم مستخدم مسبقاً')
     if (legacySerial) {
       const firstRow = seenLegacySerial.get(legacySerial)

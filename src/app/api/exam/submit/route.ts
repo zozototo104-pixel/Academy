@@ -171,9 +171,7 @@ export async function POST(req: NextRequest) {
         if (correctIndex === null || !options[correctIndex]) {
           return NextResponse.json({ error: `مفتاح التصحيح غير مكتمل للسؤال رقم ${question.order}`, code: 'ANSWER_KEY_MISSING' }, { status: 422 })
         }
-      } else if (!question.modelAnswer) {
-        return NextResponse.json({ error: `الإجابة النموذجية غير مكتملة للسؤال رقم ${question.order}`, code: 'MODEL_ANSWER_MISSING' }, { status: 422 })
-      }
+      } // Missing reference for a written answer is handled as NEEDS_REVIEW after preserving the submission.
     }
     // Atomic claim before AI grading: only the first submission can grade this attempt.
     const activeAttempt = await db.examAttempt.findFirst({
@@ -200,35 +198,38 @@ export async function POST(req: NextRequest) {
       })
       return NextResponse.json({ error: 'انتهت مدة الاختبار ولا يمكن قبول التسليم بعد الهامش المسموح.', code: 'UNIT_EXAM_EXPIRED' }, { status: 409 })
     }
-    const claim = await db.examAttempt.updateMany({
-      where: { id: activeAttempt.id, userId: user.id, examId, status: 'STARTED' },
-      data: { status: 'SUBMITTED', submittedAt: new Date() },
+    const answerMap = new Map(answers.map((a) => [a.questionId, a]))
+    // Store a durable snapshot of ALL submitted answers in the same transaction
+    // that claims the attempt. A server crash cannot leave a submitted but empty exam.
+    const claim = await db.$transaction(async (tx) => {
+      const result = await tx.examAttempt.updateMany({
+        where: { id: activeAttempt.id, userId: user.id, examId, status: 'STARTED' },
+        data: { status: 'SUBMITTED', submittedAt: new Date() },
+      })
+      if (result.count === 1) {
+        await tx.answer.createMany({
+          data: exam.questions.map((q) => {
+            const submitted = answerMap.get(q.id)
+            return answerData(activeAttempt.id, {
+              questionId: q.id,
+              answerText: submitted?.answerText ?? null,
+              selectedOption: parseOptionIndex(submitted?.selectedOption),
+              isCorrect: null,
+              points: null,
+              maxPoints: q.points,
+              aiFeedback: JSON.stringify({ status: 'PENDING_AI_GRADING' }),
+            })
+          }),
+        })
+      }
+      return result
     })
     if (claim.count !== 1) {
       return NextResponse.json({ error: 'تم تسليم المحاولة أو يجري تصحيحها بالفعل' }, { status: 409 })
     }
     claimedUnitAttemptId = activeAttempt.id
-
-    const answerMap = new Map(answers.map((a) => [a.questionId, a]))
-    const prePersistedEssayQuestionIds = new Set<string>()
-    const essayQuestions = exam.questions.filter((q) => q.type !== 'MCQ' && q.type !== 'TF')
-    if (essayQuestions.length) {
-      await db.$transaction(async (tx) => {
-        for (const q of essayQuestions) {
-          const submit = answerMap.get(q.id)
-          const essayText = submit?.answerText || ''
-          await persistPreparedAnswer(tx, activeAttempt.id, {
-            questionId: q.id,
-            answerText: essayText,
-            isCorrect: null,
-            points: null,
-            maxPoints: q.points,
-            aiFeedback: JSON.stringify({ status: 'PENDING_AI_GRADING' }),
-          })
-          prePersistedEssayQuestionIds.add(q.id)
-        }
-      })
-    }
+    // Each subsequently graded answer updates its existing preserved snapshot.
+    const prePersistedEssayQuestionIds = new Set(exam.questions.map((q) => q.id))
     const knowledgeIds = [...new Set(exam.questions.map((q) => q.knowledgeItemId).filter((id): id is string => Boolean(id)))]
     const knowledgeItems = knowledgeIds.length ? await db.bookKnowledgeItem.findMany({ where: { id: { in: knowledgeIds } }, select: { id: true, excerpt: true } }) : []
     const excerptByKnowledgeId = new Map(knowledgeItems.map((item) => [item.id, item.excerpt || ''] as const))
@@ -299,11 +300,22 @@ export async function POST(req: NextRequest) {
         })
       } else {
         const essayText = submit?.answerText || ''
-        if (!q.modelAnswer) {
-          return NextResponse.json(
-            { error: `الإجابة النموذجية غير مكتملة للسؤال رقم ${q.order}. لا يمكن تصحيح سؤال مقالي بلا مرجع معتمد.`, code: 'MODEL_ANSWER_MISSING' },
-            { status: 422 }
-          )
+        if (!q.modelAnswer && essayText.trim().length > 0) {
+          // Reference missing: retain the submitted answer for human marking,
+          // without manufacturing zero points or stranding the claimed attempt.
+          needsReview = true
+          answersToPersist.push({
+            questionId: q.id, answerText: essayText, isCorrect: null,
+            points: null, maxPoints: q.points,
+            aiFeedback: JSON.stringify({ status: 'NEEDS_REVIEW', code: 'ESSAY_MODEL_ANSWER_MISSING' }),
+          })
+          gradedResults.push({
+            questionId: q.id, order: q.order, type: q.type, text: q.text,
+            isCorrect: null, points: 0, maxPoints: q.points,
+            aiFeedback: 'الإجابة محفوظة للمراجعة البشرية بسبب عدم توفر الإجابة النموذجية.',
+            studentAnswer: essayText,
+          })
+          continue
         }
 
         let graded: { points: number; feedback: string; confidence?: string; criteria?: unknown }
@@ -318,7 +330,7 @@ export async function POST(req: NextRequest) {
             deadlineMs: Date.now() + 45_000,
           })
         } catch (e: any) {
-          console.error('Essay grading failed; saving for manual review:', String(e?.message || e).slice(0, 300))
+          console.error('Essay grading failed; saving for manual review', { code: 'UNIT_ESSAY_GRADING_FAILED', attemptId: claimedUnitAttemptId || null })
           needsReview = true
           answersToPersist.push({
             questionId: q.id,
@@ -326,7 +338,7 @@ export async function POST(req: NextRequest) {
             isCorrect: null,
             points: null,
             maxPoints: q.points,
-            aiFeedback: JSON.stringify({ status: 'NEEDS_REVIEW', reason: String(e?.message || e).slice(0, 300) }),
+            aiFeedback: JSON.stringify({ status: 'NEEDS_REVIEW', code: 'ESSAY_GRADING_FAILED' }),
           })
           gradedResults.push({
             questionId: q.id,
@@ -389,14 +401,10 @@ export async function POST(req: NextRequest) {
     const percentage = maxTotal > 0 ? (totalScore / maxTotal) * 100 : 0
     const passed = percentage >= exam.passScore
 
-    let overall: { summary: string; strengths: string[]; improvements: string[] }
-    try {
-      overall = await generateOverallFeedback(exam.unit.program.titleAr, percentage, passed, weakPoints)
-    } catch (e: any) {
-      console.error('Overall feedback failed; using answer-key feedback:', String(e?.message || e).slice(0, 300))
-      overall = buildAnswerKeyFeedback(exam.unit.program.titleAr, percentage, passed, weakPoints)
-    }
-    const feedbackJson = JSON.stringify(overall)
+    // Deterministic feedback is persisted WITH the official mark.
+    // Optional AI commentary is requested only after the graded transaction commits.
+    let overall = buildAnswerKeyFeedback(exam.unit.program.titleAr, percentage, passed, weakPoints)
+    const feedbackJson = JSON.stringify({ ...overall, feedbackSource: 'FALLBACK' })
     const completedAttempts = completedAttemptsBeforeSubmit + 1
     const revealCorrectAnswers = shouldRevealCorrectAnswers({ passed, completedAttempts, maxAttempts })
     const persistedAnswers = revealCorrectAnswers ? answersToPersist : sanitizePreparedAnswersForHiddenAnswers(answersToPersist)
@@ -425,9 +433,23 @@ export async function POST(req: NextRequest) {
     })
     claimedUnitAttemptId = null
 
-    const completion = passed
-      ? await completeEnrollmentIfEligible({ enrollmentId: enrollment.id })
-      : null
+    try {
+      const generated = await generateOverallFeedback(exam.unit.program.titleAr, percentage, passed, weakPoints)
+      const changed = await db.examAttempt.updateMany({
+        // Never overwrite feedback modified by a human after the grade was saved.
+        where: { id: attempt.id, status: 'GRADED', feedback: feedbackJson },
+        data: { feedback: JSON.stringify({ ...generated, feedbackSource: 'AI' }) },
+      })
+      if (changed.count === 1) overall = generated
+    } catch (feedbackError: any) {
+      console.error('Optional unit feedback failed; official grade remains saved', { code: 'UNIT_FEEDBACK_FAILED', attemptId: claimedUnitAttemptId || null })
+    }
+
+    // Any graded attempt can push the weighted cumulative mark above the threshold.
+    const completion = await completeEnrollmentIfEligible({ enrollmentId: enrollment.id }).catch((error) => {
+      console.error('Post-grade certificate recheck failed; preserving unit result', { code: 'UNIT_CERTIFICATE_RECHECK_FAILED', attemptId: claimedUnitAttemptId || null })
+      return null
+    })
     const certificateNo = completion?.ok ? completion.certificate?.serial || null : null
     const results = responseResults.sort((a, b) => a.order - b.order)
     const finalResults = revealCorrectAnswers ? results : results.map(({ correctAnswerText, ...result }) => result)
@@ -447,22 +469,41 @@ export async function POST(req: NextRequest) {
       results: finalResults,
     })
   } catch (e: any) {
+    const errorCode = typeof e?.code === 'string' && /^[A-Z][A-Z0-9_]{1,79}$/.test(e.code)
+      ? e.code : typeof e?.message === 'string' && /^[A-Z][A-Z0-9_]{1,79}$/.test(e.message) ? e.message : 'UNIT_GRADING_ERROR'
+    console.error('unit exam grading interrupted', { code: errorCode, attemptId: claimedUnitAttemptId || null })
     if (claimedUnitAttemptId) {
       try {
-        // A failed grading operation must not strand a student in SUBMITTED.
-        // Only the request that claimed this attempt may release an unpersisted claim.
-        await db.examAttempt.updateMany({
+        // The claim already saved all raw answers atomically. Never discard that
+        // delivery or reopen the timer after an AI/provider/database failure.
+        const recovered = await db.examAttempt.updateMany({
           where: { id: claimedUnitAttemptId, status: 'SUBMITTED' },
-          data: { status: 'STARTED' },
+          data: {
+            status: 'NEEDS_REVIEW',
+            score: null,
+            passed: null,
+            feedback: JSON.stringify({
+              code: 'UNIT_GRADING_INTERRUPTED',
+              summary: 'تم حفظ إجاباتك كاملة؛ تعذّر إتمام التصحيح الآلي وتحتاج المحاولة لمراجعة بشرية.',
+            }),
+          },
         })
+        if (recovered.count === 1) {
+          return NextResponse.json({
+            ok: true,
+            status: 'NEEDS_REVIEW',
+            attemptId: claimedUnitAttemptId,
+            message: 'إجاباتك محفوظة للمراجعة البشرية دون احتساب درجة ظالمة.',
+          }, { status: 202 })
+        }
       } catch (recoveryError) {
-        console.error('Failed to release unsuccessful unit exam claim:', recoveryError)
+        console.error('unit exam recovery failed', { code: 'UNIT_RECOVERY_FAILED', attemptId: claimedUnitAttemptId })
       }
     }
     if (e?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'يجب تسجيل الدخول أولاً' }, { status: 401 })
     }
-    console.error('Exam submit error:', e)
+    // Diagnostic code and attempt ID were logged above; never log the raw exception here.
     return NextResponse.json(
       { error: 'حدث خطأ أثناء تصحيح الاختبار — حاول مرة أخرى' },
       { status: 500 }

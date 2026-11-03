@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import { notify } from '@/lib/notify'
-import { calculateSemesterReadiness } from '@/lib/semester-readiness'
 import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
+import { findDuplicateAnswerQuestionIds, findMissingAnswerQuestionIds, sumRequiredAnswerPoints } from '@/lib/answer-completeness'
 import type { SupervisorActor } from '@/lib/supervisor-scope'
 
 // مراجعة المشرف البشري لنتائج طلابه بعد تصحيح الذكاء + البتّ في
@@ -150,13 +150,33 @@ export async function applyScoreAdjustments(
       answer.points = points
     }
 
+    // A duplicated answer can inflate a single question's contribution.
+    // Preserve suspicious rows for human repair rather than guessing which
+    // response to discard or changing already-issued grades.
+    const duplicates = findDuplicateAnswerQuestionIds(attempt.answers)
+    if (duplicates.length) throw Object.assign(new Error('DUPLICATE_ANSWER_ROWS'), {
+      userMessage: `لا يمكن إتمام المراجعة: تكررت إجابة ${duplicates.length} سؤال في المحاولة`,
+    })
+
+    const requiredQuestions = type === 'UNIT'
+      ? attempt.exam.questions
+      : attempt.exam.questions.filter((q: any) => q.status === 'PUBLISHED')
+    const requiredIds = requiredQuestions.map((q: any) => q.id)
+    if (!requiredIds.length) throw Object.assign(new Error('EXAM_HAS_NO_QUESTIONS'), { userMessage: 'لا يمكن اعتماد امتحان بلا أسئلة مطلوبة' })
+    const missingCount = findMissingAnswerQuestionIds(requiredIds, attempt.answers).length
+    if (missingCount) throw Object.assign(new Error('ANSWERS_COVERAGE_INCOMPLETE'), { userMessage: `لا يمكن إتمام المراجعة: ${missingCount} سؤال مطلوب بلا سجل إجابة` })
+    const eligible = new Set(requiredIds)
+    const eligibleAnswers = attempt.answers.filter((a: any) => eligible.has(a.questionId))
+    const ungradedCount = eligibleAnswers.filter((a: any) => a.points == null).length
+    if (ungradedCount) throw Object.assign(new Error('ANSWERS_NOT_FULLY_GRADED'), { userMessage: `لا يمكن إتمام المراجعة قبل تحديد نقاط كل الإجابات: ${ungradedCount} إجابة بلا نقاط` })
+
     // المقام هو مجموع نقاط الأسئلة كما دخلت تصحيح هذه المحاولة فعلياً
     // (maxPoints المحفوظة على كل إجابة)، لا مجموع أسئلة الامتحان الحالية:
     // أسئلة الامتحان الفصلي غير المنشورة (مسودة/مرفوضة) لم تُصحَّح أصلاً —
     // التصحيح الأصلي يحمّل المنشورة فقط — وضمّها هنا كان يخفّض نسبة الطالب
     // عند أي تعديل من المشرف حتى لو لم يغيّر أي درجة.
-    const maxTotal = attempt.answers.reduce((s: number, a: any) => s + Number(a.maxPoints || a.question?.points || 0), 0)
-    const total = attempt.answers.reduce((s: number, a: any) => s + Number(a.points || 0), 0)
+    const maxTotal = eligibleAnswers.reduce((s: number, a: any) => s + Number(a.maxPoints || a.question?.points || 0), 0)
+    const total = sumRequiredAnswerPoints(requiredIds, attempt.answers)
     const rawScore = maxTotal > 0 ? (total / maxTotal) * 100 : 0
 
     const feedback = JSON.stringify({
@@ -178,9 +198,8 @@ export async function applyScoreAdjustments(
       return { score, passed, userId: attempt.userId, examTitle: attempt.exam.title, programId: attempt.exam.unit?.programId as string | undefined }
     }
 
-    const readiness = await calculateSemesterReadiness(attempt.userId, attempt.exam.programId, attempt.exam.semester)
-    const capped = Math.min(rawScore, readiness?.maxExamScore ?? 100)
-    const score = Math.round(capped * 10) / 10
+    // Semester coursework is graded independently; supervisor review must preserve the exam's raw score.
+    const score = Math.round(rawScore * 10) / 10
     const passed = score >= attempt.exam.passScore
     await txAny.programExamAttempt.update({
       where: { id: attemptId },
@@ -193,7 +212,7 @@ export async function applyScoreAdjustments(
     return { score, passed, userId: attempt.userId, examTitle: attempt.exam.title, programId: attempt.exam.programId as string | undefined }
   }, { timeout: 120000, maxWait: 10000 })
 
-  if (result.passed) await completeIfEligible(result.userId, result.programId).catch(() => null)
+  await completeIfEligible(result.userId, result.programId).catch(() => null)
   await notify(result.userId, 'GENERAL', 'تمت مراجعة نتيجتك من مشرفك', `راجع ${actor.name} تصحيح «${result.examTitle}» وحدّث نتيجتك — نتيجتك الحالية: ${result.score}%.`, '/?view=dashboard')
   return { score: result.score, passed: result.passed }
 }
@@ -235,7 +254,7 @@ export async function resolveExamAppeal(
         data: { finalScore: clamped, passed, appealStatus: 'REVIEWED', appealResponse: responseText || 'تم قبول الالتماس واعتماد الدرجة النهائية بعد المراجعة.', reviewedById: actor.id, reviewedAt: new Date() },
       })
     }
-    if (passed) await completeIfEligible(attempt.userId, programId).catch(() => null)
+    await completeIfEligible(attempt.userId, programId).catch(() => null)
     await notify(attempt.userId, 'GENERAL', 'تم البت في التماس مراجعة نتيجتك', `راجع مشرفك التماسك على «${attempt.exam.title}» واعتمد درجتك النهائية: ${clamped}%.`, '/?view=dashboard')
     return { finalScore: clamped, passed }
   }

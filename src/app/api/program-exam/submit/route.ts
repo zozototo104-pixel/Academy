@@ -8,6 +8,7 @@ import { calculateSemesterReadiness } from '@/lib/semester-readiness'
 import { enforceSemesterTuitionGate } from '@/lib/tuition-installments'
 import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
 import { EXAM_ATTEMPT_POLICY_SINCE, getExamMaxAttempts, shouldRevealCorrectAnswers } from '@/lib/exam-attempt-policy'
+import { gradeObjectiveAnswer, parseObjectiveOptions } from '@/lib/answer-completeness'
 
 const COMPLETED_PROGRAM_ATTEMPT_STATUSES = ['GRADED', 'EXPIRED', 'NEEDS_REVIEW']
 const HIDDEN_CORRECT_ANSWER_FEEDBACK = 'إجابة غير صحيحة — راجع هذا المفهوم في الوحدة'
@@ -46,6 +47,15 @@ function selectedOptionRationale(q: { distractorRationales?: string | null }, se
   const rationales = parseJsonArray(q.distractorRationales || null)
   const match = rationales.find((r) => Number(r?.optionIndex) === selected)
   return match?.reason ? String(match.reason).slice(0, 800) : null
+}
+
+/** Optional AI narrative must never determine whether a fully graded result is persisted. */
+function fallbackProgramFeedback(title: string, percentage: number, passed: boolean, weakPoints: string[]) {
+  return {
+    summary: `تم تصحيح ${title} وفق الإجابات المعتمدة، والنتيجة ${Math.round(percentage * 10) / 10}%. ${passed ? 'اجتزت الامتحان.' : 'راجع نقاط الضعف قبل المحاولة التالية.'}`,
+    strengths: ['تم حفظ نتيجة المحاولة والتصحيح المعتمد دون الاعتماد على خدمة التعليق الاختيارية'],
+    improvements: weakPoints.length ? weakPoints.slice(0, 3) : ['راجع المقررات ونقاط التصحيح المعروضة'],
+  }
 }
 
 function buildObjectiveFeedback(q: any, isCorrect: boolean, options: string[], selected?: number): string {
@@ -131,6 +141,7 @@ async function mapLimited<T, R>(items: T[], limit: number, fn: (item: T) => Prom
 
 // POST /api/program-exam/submit — تسليم الاختبار الشامل والتصحيح الآلي
 export async function POST(req: NextRequest) {
+  let claimedProgramAttemptId: string | null = null
   try {
     const user = await requireUser()
     const maxPayloadBytes = 512 * 1024
@@ -246,38 +257,46 @@ export async function POST(req: NextRequest) {
 
     // Atomic compare-and-set: exactly one request can claim a STARTED attempt.
     // Other concurrent submissions are rejected before writing answers or grading.
-    const claimed = await db.programExamAttempt.updateMany({
-      where: { id: startedAttempt.id, userId: user.id, examId, status: 'STARTED' },
-      data: {
-        status: 'SUBMITTED',
-        durationUsedMin: serverDurationUsedMin,
-        proctoringEnabled: procEnabled,
-        proctoringLog: procLog,
-        proctoringSnapshot: procSnapshot,
-      },
+    // Claim and preserve every submitted response in ONE transaction. A process
+    // crash after the claim must never leave an empty, unrecoverable SUBMITTED row.
+    const claimed = await db.$transaction(async (tx) => {
+      const result = await tx.programExamAttempt.updateMany({
+        where: { id: startedAttempt.id, userId: user.id, examId, status: 'STARTED' },
+        data: {
+          status: 'SUBMITTED',
+          durationUsedMin: serverDurationUsedMin,
+          submittedAt: new Date(),
+          proctoringEnabled: procEnabled,
+          proctoringLog: procLog,
+          proctoringSnapshot: procSnapshot,
+        },
+      })
+      if (result.count === 1) {
+        await tx.programAnswer.createMany({
+          data: exam.questions.map((q) => {
+            const submitted = answerMap.get(q.id)
+            return programAnswerData(startedAttempt.id, {
+              questionId: q.id,
+              selectedOption: submitted?.selectedOption ?? null,
+              answerText: submitted?.answerText ?? null,
+              isCorrect: null,
+              points: null,
+              maxPoints: q.points,
+              aiFeedback: JSON.stringify({ status: 'PENDING_AI_GRADING' }),
+            })
+          }),
+        })
+      }
+      return result
     })
     if (claimed.count !== 1) {
       return NextResponse.json({ error: 'تم تسليم هذه المحاولة أو يجري تصحيحها بالفعل', code: 'ATTEMPT_ALREADY_CLAIMED' }, { status: 409 })
     }
+    claimedProgramAttemptId = startedAttempt.id
     const attempt = startedAttempt
-    const prePersistedEssayQuestionIds = new Set<string>()
-    const essayQuestions = exam.questions.filter((q) => q.type !== 'MCQ' && q.type !== 'TF')
-    if (essayQuestions.length) {
-      await db.$transaction(async (tx) => {
-        for (const q of essayQuestions) {
-          const submit = answerMap.get(q.id)
-          await persistProgramAnswer(tx, attempt.id, {
-            questionId: q.id,
-            answerText: submit?.answerText || '',
-            isCorrect: null,
-            points: null,
-            maxPoints: q.points,
-            aiFeedback: JSON.stringify({ status: 'PENDING_AI_GRADING' }),
-          })
-          prePersistedEssayQuestionIds.add(q.id)
-        }
-      })
-    }
+    const prePersistedEssayQuestionIds = new Set(
+      exam.questions.filter((q) => q.type !== 'MCQ' && q.type !== 'TF').map((q) => q.id),
+    )
 
     try {
     let totalScore = 0
@@ -316,25 +335,32 @@ export async function POST(req: NextRequest) {
 
       if (q.type === 'MCQ' || q.type === 'TF') {
         const selected = submit?.selectedOption
-        const isCorrect = selected !== undefined && String(selected) === (q.correctAnswer ?? '')
-        const pts = isCorrect ? q.points : 0
+        const objective = gradeObjectiveAnswer({
+          optionsRaw: q.options,
+          correctAnswerRaw: q.correctAnswer,
+          selectedOption: selected ?? null,
+          maxPoints: q.points,
+        })
+        if (!objective) {
+          // An invalid answer key is NOT a wrong student answer. Preserve the
+          // attempt for review instead of recording a fabricated zero.
+          throw Object.assign(new Error('ANSWER_KEY_MISSING'), { code: 'ANSWER_KEY_MISSING' })
+        }
+        const { isCorrect, points: pts } = objective
         totalScore += pts
-        const options = q.options ? JSON.parse(q.options) : []
+        const options = parseObjectiveOptions(q.options)
         const feedback = buildObjectiveFeedback(q, isCorrect, options, selected)
         const wrongOptionRationale = isCorrect ? null : selectedOptionRationale(q, selected)
         if (!isCorrect) weakPoints.push(`سؤال ${q.type === 'TF' ? 'صح/خطأ' : 'اختيار'}: ${q.text.slice(0, 60)}...`)
-        await db.programAnswer.create({
-          data: {
-            attemptId: attempt.id,
-            questionId: q.id,
-            selectedOption: selected ?? null,
-            answerText: submit?.answerText || null,
-            isCorrect,
-            points: pts,
-            maxPoints: q.points,
-            aiFeedback: feedback,
-          },
-        })
+        await persistProgramAnswer(db, attempt.id, {
+          questionId: q.id,
+          selectedOption: selected ?? null,
+          answerText: submit?.answerText || null,
+          isCorrect,
+          points: pts,
+          maxPoints: q.points,
+          aiFeedback: feedback,
+        }, true)
         objectiveResults.push({
           questionId: q.id,
           order: q.order,
@@ -345,7 +371,7 @@ export async function POST(req: NextRequest) {
           maxPoints: q.points,
           aiFeedback: feedback,
           studentAnswer: selected !== undefined ? options[selected] || '' : '(لم يجب)',
-          correctAnswerText: options[Number(q.correctAnswer)],
+          correctAnswerText: objective.correctAnswerText,
           wrongOptionRationale,
           ...resultMetadata(q),
         })
@@ -355,9 +381,10 @@ export async function POST(req: NextRequest) {
     }
 
     // 2) التصحيح بالذكاء الاصطناعي للأسئلة القصيرة والمقالية (بالتوازي المحدود)
-    // الأسئلة بدون إجابة فعلية تُقيَّم صفراً فوراً دون استدعاء النموذج
-    const realEssayTasks = essayTasks.filter(({ text }) => text.trim().length >= 3)
-    const emptyEssayTasks = essayTasks.filter(({ text }) => text.trim().length < 3)
+    // A short but meaningful word may answer a short-response question.
+    // Only truly empty responses earn zero without academic review.
+    const realEssayTasks = essayTasks.filter(({ text }) => text.trim().length > 0)
+    const emptyEssayTasks = essayTasks.filter(({ text }) => text.trim().length === 0)
 
     for (const { q, text } of emptyEssayTasks) {
       await persistProgramAnswer(db, attempt.id, {
@@ -423,7 +450,7 @@ export async function POST(req: NextRequest) {
       return r
       })
     } catch (e: any) {
-      const reviewState = { code: e?.code || 'AI_ACADEMIC_PROVIDER_UNAVAILABLE', reason: String(e?.message || e).slice(0, 500), retryAt: e?.retryAt || null }
+      const reviewState = { code: e?.code || 'AI_ACADEMIC_PROVIDER_UNAVAILABLE', retryAt: e?.retryAt || null }
       await db.programExamAttempt.update({
         where: { id: attempt.id },
         data: { status: 'NEEDS_REVIEW', score: null, passed: null, feedback: JSON.stringify(reviewState), submittedAt: new Date() },
@@ -434,17 +461,19 @@ export async function POST(req: NextRequest) {
     }
 
     const rawPercentage = maxTotal > 0 ? (totalScore / maxTotal) * 100 : 0
-    const percentage = Math.min(rawPercentage, readiness.maxExamScore)
+    // Exam performance is independent of coursework; coursework earns its own weighted contribution.
+    const percentage = rawPercentage
     const passed = percentage >= exam.passScore
-    if (readiness.maxExamScore < 100) {
-      weakPoints.push(`خصم سقف الدرجة بسبب عدم استكمال اختبارات/واجبات فصلية: أعلى نتيجة ممكنة ${readiness.maxExamScore}%`)
-    }
-
-    const overall = await generateOverallFeedback(exam.program.titleAr, percentage, passed, weakPoints, examAcademicContext)
 
     const roundedScore = Math.round(percentage * 10) / 10
     const roundedRawScore = Math.round(rawPercentage * 10) / 10
+    const fallbackOverall = fallbackProgramFeedback(exam.program.titleAr, percentage, passed, weakPoints)
+    const gradeMetadata = { rawScoreBeforeCourseworkCap: roundedRawScore, maxExamScore: 100, gradeCapApplied: false, readiness }
+    const initialFeedback = JSON.stringify({ ...fallbackOverall, ...gradeMetadata, feedbackSource: 'FALLBACK' })
 
+    // Persist the objective + essay result BEFORE requesting optional AI prose.
+    // A timeout, provider failure, or process termination during commentary must
+    // never postpone or erase the official grade.
     await db.programExamAttempt.update({
       where: { id: attempt.id },
       data: {
@@ -452,10 +481,25 @@ export async function POST(req: NextRequest) {
         finalScore: roundedScore,
         passed,
         status: 'GRADED',
-        feedback: JSON.stringify({ ...overall, rawScoreBeforeCourseworkCap: roundedRawScore, maxExamScore: readiness.maxExamScore, readiness }),
+        feedback: initialFeedback,
         submittedAt: new Date(),
       },
     })
+    claimedProgramAttemptId = null
+
+    let overall: { summary: string; strengths: string[]; improvements: string[] } = fallbackOverall
+    try {
+      const generated = await generateOverallFeedback(exam.program.titleAr, percentage, passed, weakPoints, examAcademicContext)
+      // Replace only our own fallback; never overwrite feedback altered by an
+      // administrator or a parallel grade review in the meantime.
+      const changed = await db.programExamAttempt.updateMany({
+        where: { id: attempt.id, status: 'GRADED', feedback: initialFeedback },
+        data: { feedback: JSON.stringify({ ...generated, ...gradeMetadata, feedbackSource: 'AI' }) },
+      })
+      if (changed.count === 1) overall = generated
+    } catch (feedbackError) {
+      console.error('Optional programme feedback failed; stored grade and fallback remain intact', { code: 'PROGRAM_FEEDBACK_FAILED', attemptId: claimedProgramAttemptId || null })
+    }
 
     await updateStudentAcademicMemory(user.id, {
       kind: 'EXAM',
@@ -475,7 +519,11 @@ export async function POST(req: NextRequest) {
 
     await db.examDraft.deleteMany({ where: { userId: user.id, examId, examType: 'PROGRAM' } }).catch(() => {})
 
-    const completion = passed ? await completeEnrollmentIfEligible({ enrollmentId: enrollment.id }) : null
+    // Certificate issuance is a separate action: it must never undo a saved exam grade.
+    const completion = await completeEnrollmentIfEligible({ enrollmentId: enrollment.id }).catch((error) => {
+      console.error('Post-grade certificate recheck failed; preserving programme grade', { code: 'PROGRAM_CERTIFICATE_RECHECK_FAILED', attemptId: claimedProgramAttemptId || null })
+      return null
+    })
     const completedAttempts = completedAttemptsBeforeSubmit + 1
     const revealCorrectAnswers = shouldRevealCorrectAnswers({ passed, completedAttempts, maxAttempts })
     if (!revealCorrectAnswers) await hidePersistedProgramAnswerFeedback(attempt.id)
@@ -502,18 +550,52 @@ export async function POST(req: NextRequest) {
       results,
     })
     } catch (postCreateError: any) {
-      const reviewState = { code: 'POST_SUBMIT_FAILURE', reason: String(postCreateError?.message || postCreateError).slice(0, 500) }
-      await db.programExamAttempt.update({
-        where: { id: attempt.id },
-        data: { status: 'NEEDS_REVIEW', feedback: JSON.stringify(reviewState), submittedAt: new Date() },
-      }).catch(() => {})
-      return NextResponse.json({ ok: true, status: 'NEEDS_REVIEW', attemptId: attempt.id, message: 'تم حفظ المحاولة للمراجعة بسبب خطأ أثناء التصحيح.', ...reviewState }, { status: 202 })
+      const reviewState = { code: postCreateError?.code === 'ANSWER_KEY_MISSING' ? 'ANSWER_KEY_MISSING' : 'POST_SUBMIT_FAILURE' }
+      // Never downgrade an already GRADED attempt, even if later side effects fail.
+      const recovered = await db.programExamAttempt.updateMany({
+        where: { id: attempt.id, status: 'SUBMITTED' },
+        data: { status: 'NEEDS_REVIEW', score: null, finalScore: null, passed: null, feedback: JSON.stringify(reviewState), submittedAt: new Date() },
+      }).catch(() => ({ count: 0 }))
+      if (recovered.count === 1) {
+        claimedProgramAttemptId = null
+        return NextResponse.json({ ok: true, status: 'NEEDS_REVIEW', attemptId: attempt.id, message: 'إجاباتك محفوظة للمراجعة، ولم تُعتمد علامة جزئية.', ...reviewState }, { status: 202 })
+      }
+      const persisted = await db.programExamAttempt.findUnique({ where: { id: attempt.id }, select: { status: true, score: true, passed: true } }).catch(() => null)
+      if (persisted?.status === 'GRADED') {
+        claimedProgramAttemptId = null
+        return NextResponse.json({ ok: true, status: 'GRADED', attemptId: attempt.id, score: persisted.score, passed: persisted.passed, message: 'العلامة محفوظة؛ تعذّر إتمام إحدى خطوات عرض النتيجة.' })
+      }
+      throw postCreateError
     }
   } catch (e: any) {
+    const errorCode = typeof e?.code === 'string' && /^[A-Z][A-Z0-9_]{1,79}$/.test(e.code)
+      ? e.code : typeof e?.message === 'string' && /^[A-Z][A-Z0-9_]{1,79}$/.test(e.message) ? e.message : 'PROGRAM_GRADING_ERROR'
+    console.error('programme exam grading interrupted', { code: errorCode, attemptId: claimedProgramAttemptId || null })
+    if (claimedProgramAttemptId) {
+      // Raw answers were saved atomically with the claim: retain them and surface
+      // a reviewable attempt rather than strand a student behind SUBMITTED.
+      try {
+        const recovered = await db.programExamAttempt.updateMany({
+          where: { id: claimedProgramAttemptId, status: 'SUBMITTED' },
+          data: {
+            status: 'NEEDS_REVIEW',
+            score: null,
+            finalScore: null,
+            passed: null,
+            feedback: JSON.stringify({ code: 'GRADING_INTERRUPTED' }),
+          },
+        })
+        if (recovered.count === 1) {
+          return NextResponse.json({ ok: true, status: 'NEEDS_REVIEW', attemptId: claimedProgramAttemptId, message: 'تم حفظ إجاباتك للمراجعة بعد توقف التصحيح الآلي.' }, { status: 202 })
+        }
+      } catch (recoveryError) {
+        console.error('programme attempt recovery failed', { code: 'PROGRAM_RECOVERY_FAILED', attemptId: claimedProgramAttemptId })
+      }
+    }
     if (e?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'يجب تسجيل الدخول أولاً' }, { status: 401 })
     }
-    console.error('program-exam submit error:', e)
-    return NextResponse.json({ error: 'حدث خطأ أثناء تصحيح الاختبار — حاول مرة أخرى' }, { status: 500 })
+    // Sanitized error code and attempt ID were logged above; do not log raw provider output.
+    return NextResponse.json({ error: 'تعذّر إتمام التصحيح؛ إذا سبق تسليم الإجابات يرجى مراجعة حالة المحاولة قبل إعادة الإرسال.' }, { status: 500 })
   }
 }

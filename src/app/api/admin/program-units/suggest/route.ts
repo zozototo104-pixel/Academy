@@ -514,10 +514,21 @@ async function createUnitsFromApprovedOutlines(programId: string, regenerateDraf
     return { program, usedApprovedOutlines: true as const, skippedBooks, created, updated, summary, conflicts }
   }
 
+  // A multi-book outline update must either persist every section and its
+  // programme readiness flag, or make no changes at all.
+  await db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "Program" WHERE "id" = ${programId} FOR UPDATE`
+    const newSectionIds = plans.flatMap(({ actions }) =>
+      actions.filter((action) => action.action === 'create').map((action) => action.section.id))
+    if (newSectionIds.length) {
+      const found = await tx.unit.findFirst({ where: { programId, outlineSectionId: { in: newSectionIds } }, select: { id: true } })
+      if (found) throw new Error('UNIT_PLAN_STALE_RETRY')
+    }
+
   for (const { book, actions } of plans) {
     for (const action of actions) {
       if (action.action === 'create') {
-        const unit = await db.unit.create({
+        const unit = await tx.unit.create({
           data: {
             programId,
             order: action.order,
@@ -538,7 +549,7 @@ async function createUnitsFromApprovedOutlines(programId: string, regenerateDraf
         summary.created++
         currentMaxOrderBySemester[action.semester] = Math.max(currentMaxOrderBySemester[action.semester] || 0, action.order)
       } else if (action.action === 'update-draft') {
-        await db.unit.updateMany({
+        await tx.unit.updateMany({
           where: { id: action.unitId, programId, status: { not: 'APPROVED' } },
           data: {
             title: cleanText(action.section.title, 220) || 'وحدة من فهرس الكتاب',
@@ -556,7 +567,7 @@ async function createUnitsFromApprovedOutlines(programId: string, regenerateDraf
       } else if (action.action === 'relink-draft') {
         // Exact range survived a new outline version: relink metadata only.
         // Preserve existing draft content, title, guide and generation count.
-        const changed = await db.unit.updateMany({
+        const changed = await tx.unit.updateMany({
           where: { id: action.unitId, programId, status: { not: 'APPROVED' } },
           data: {
             sourceBookId: book.id,
@@ -573,8 +584,10 @@ async function createUnitsFromApprovedOutlines(programId: string, regenerateDraf
   }
 
   if (summary.created || summary.updatedDrafts) {
-    await db.program.update({ where: { id: programId }, data: { academicReadinessStatus: 'READY_FOR_REVIEW', academicApproved: false, academicApprovedAt: null, academicApprovedById: null } })
+    await tx.program.update({ where: { id: programId }, data: { academicReadinessStatus: 'READY_FOR_REVIEW', academicApproved: false, academicApprovedAt: null, academicApprovedById: null } })
   }
+  }, { maxWait: 20000, timeout: 120000 })
+
   return { program, usedApprovedOutlines: true as const, skippedBooks, created, updated, summary }
 }
 
@@ -637,10 +650,16 @@ export async function POST(req: NextRequest) {
     if ((plan as any).evidenceError) return NextResponse.json({ error: (plan as any).evidenceError }, { status: 422 })
     if (!plan.units.length) return NextResponse.json({ error: 'لم ينتج تحليل الكتب وبنك المعرفة أي وحدات قابلة للحفظ.' }, { status: 422 })
 
+    const { created, replaceProtection, generationAudit } = await db.$transaction(async (tx) => {
+      // Serialise competing generation requests for the same programme.
+      await tx.$queryRaw`SELECT "id" FROM "Program" WHERE "id" = ${programId} FOR UPDATE`
+      const currentLockedCount = await tx.unit.count({ where: { programId } })
+      if (currentLockedCount !== currentCount) throw new Error('UNIT_PLAN_STALE_RETRY')
+
     let replaceProtection = { deleted: 0, keptApproved: 0, keptOutline: 0, keptWithAttempts: 0 }
     let orderOffset = Number(existingOrder._max.order || currentCount)
     if (replace) {
-      const unitsBeforeReplace = await db.unit.findMany({
+      const unitsBeforeReplace = await tx.unit.findMany({
         where: { programId },
         select: {
           status: true,
@@ -649,9 +668,9 @@ export async function POST(req: NextRequest) {
         },
       })
       replaceProtection = summarizeReplaceUnitProtection(unitsBeforeReplace)
-      const deleted = await db.unit.deleteMany({ where: safeReplaceDraftUnitWhere(programId) })
+      const deleted = await tx.unit.deleteMany({ where: safeReplaceDraftUnitWhere(programId) })
       replaceProtection.deleted = deleted.count
-      const remainingOrder = await db.unit.aggregate({ where: { programId }, _max: { order: true } })
+      const remainingOrder = await tx.unit.aggregate({ where: { programId }, _max: { order: true } })
       orderOffset = Number(remainingOrder._max.order || 0)
     }
 
@@ -674,7 +693,7 @@ export async function POST(req: NextRequest) {
       previousNote: cleanText((plan.program as any).curriculumPreparationNote, 1200) || undefined,
     }
 
-    const created = await Promise.all(plan.units.map((u: any, idx: number) => db.unit.create({
+    const created = await Promise.all(plan.units.map((u: any, idx: number) => tx.unit.create({
       data: {
         programId,
         order: orderOffset + idx + 1,
@@ -687,7 +706,7 @@ export async function POST(req: NextRequest) {
       },
     })))
 
-    await db.program.update({
+    await tx.program.update({
       where: { id: programId },
       data: {
         semestersCount: plan.semestersCount,
@@ -698,6 +717,9 @@ export async function POST(req: NextRequest) {
         curriculumPreparationNote: safeJson(generationAudit),
       },
     })
+
+      return { created, replaceProtection, generationAudit }
+    }, { maxWait: 20000, timeout: 120000 })
 
     await audit({ id: admin.id, name: admin.name }, 'GENERATE_CURRICULUM_UNITS', 'Program', programId, `اقتراح ${created.length} وحدة منهجية مبنية على قراءة الكتب وبنك المعرفة لبرنامج ${plan.program.titleAr}${replace ? ' مع استبدال الوحدات السابقة' : append ? ' مع إضافتها إلى الوحدات الحالية' : ''}`)
 
@@ -723,6 +745,9 @@ export async function POST(req: NextRequest) {
     })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
+    if (e?.message === 'UNIT_PLAN_STALE_RETRY') {
+      return NextResponse.json({ error: 'تغيرت وحدات البرنامج أثناء التوليد؛ لم يُحفظ أي تغيير جزئي. حدّث الصفحة وأعد المراجعة.', code: 'UNIT_PLAN_STALE_RETRY' }, { status: 409 })
+    }
     console.error('suggest program units error:', e)
     return NextResponse.json({ error: 'تعذر اقتراح وحدات البرنامج من الكتب وبنك المعرفة' }, { status: 500 })
   }

@@ -6,6 +6,11 @@ const calls: string[] = []
 const answers: any[] = []
 const defenseMessages: any[] = [{ id: 'm1', thesisId: 'thesis-1', role: 'STUDENT', content: 'إجابة محفوظة' }]
 let thesis: any
+let unitModelAnswer: string | null = 'إجابة نموذجية'
+let pendingUnitGrading: { submittedAt: Date | null; savedAnswerCount: number } | null = null
+let unitObjectiveMode = false
+let programObjectiveMode = false
+let optionalFeedbackFails = false
 
 function clone<T>(value: T): T {
   return value == null ? value : JSON.parse(JSON.stringify(value))
@@ -29,13 +34,16 @@ const program = {
 
 const db: any = {
   $transaction: async (work: (tx: any) => Promise<any>) => work(db),
+  $queryRaw: async () => [],
+  setting: { findMany: async () => [] },
+  question: { findMany: async () => [{ id: 'essay-1', order: 1, type: 'ESSAY', text: 'اشرح الفكرة', points: 10, options: null }] },
   exam: {
     findUnique: async () => ({
       id: 'exam-1',
       status: 'READY',
       passScore: 60,
       unit: { programId: 'program-1', program: { id: 'program-1', titleAr: 'برنامج عربي للاختبار', slug: 'program' } },
-      questions: [{ id: 'essay-1', order: 1, type: 'ESSAY', text: 'اشرح الفكرة', modelAnswer: 'إجابة نموذجية', rubric: null, knowledgeItemId: null, sourceEvidence: null, points: 10 }],
+      questions: [{ id: 'essay-1', order: 1, type: unitObjectiveMode ? 'MCQ' : 'ESSAY', text: 'اشرح الفكرة', modelAnswer: unitModelAnswer, rubric: null, knowledgeItemId: null, sourceEvidence: null, points: 10, options: unitObjectiveMode ? JSON.stringify(['صحيح', 'خطأ']) : null, correctAnswer: unitObjectiveMode ? '0' : null }],
     }),
     findMany: async () => [{ id: 'empty-unit-exam', title: 'اختبار فارغ قديم', status: 'READY', passScore: 60, unit: { title: 'وحدة قديمة' }, _count: { questions: 0 } }],
   },
@@ -44,13 +52,23 @@ const db: any = {
     findFirst: async () => ({ id: 'enrollment-1', userId: 'user-1', programId: 'program-1', status: 'COMPLETED', finalScore: 88, certificateNo: 'AACT-C-1', createdAt: new Date(), updatedAt: new Date() }),
   },
   examAttempt: {
-    findFirst: async () => ({ id: 'attempt-1', createdAt: new Date() }),
+    findFirst: async ({ where }: any = {}) => {
+      if (where?.status === 'SUBMITTED') return pendingUnitGrading ? { id: 'attempt-1', submittedAt: pendingUnitGrading.submittedAt } : null
+      if (where?.status === 'GRADED') return null
+      return { id: 'attempt-1', createdAt: new Date() }
+    },
+    count: async () => 0,
     updateMany: async ({ data }: any) => { calls.push(`attempt.updateMany:${data.status}`); return { count: 1 } },
     update: async ({ data }: any) => { calls.push(`attempt.update:${data.status}`); return { id: 'attempt-1', ...data } },
     findMany: async () => [],
   },
   answer: {
+    count: async () => pendingUnitGrading?.savedAnswerCount ?? 0,
     create: async ({ data }: any) => { calls.push(`answer.create:${data.questionId}:${data.aiFeedback || ''}`); answers.push({ ...data }); return data },
+    createMany: async ({ data }: any) => {
+      for (const item of data) { calls.push(`answer.create:${item.questionId}:${item.aiFeedback || ''}`); answers.push({ ...item }) }
+      return { count: data.length }
+    },
     updateMany: async ({ where, data }: any) => {
       calls.push(`answer.updateMany:${where.questionId}:${data.aiFeedback || ''}`)
       const existing = answers.find((answer) => answer.attemptId === where.attemptId && answer.questionId === where.questionId)
@@ -87,7 +105,7 @@ const db: any = {
       durationMin: 60,
       totalPoints: 100,
       program: { id: 'program-1', titleAr: 'برنامج عربي للاختبار' },
-      questions: [{ id: 'program-essay-1', order: 1, type: 'ESSAY', text: 'حلل الحالة', modelAnswer: 'إجابة نموذجية', rubric: null, knowledgeItemId: null, sourceEvidence: null, points: 100, status: 'PUBLISHED' }],
+      questions: [{ id: 'program-essay-1', order: 1, type: programObjectiveMode ? 'MCQ' : 'ESSAY', text: 'حلل الحالة', modelAnswer: 'إجابة نموذجية', rubric: null, knowledgeItemId: null, sourceEvidence: null, points: 100, status: 'PUBLISHED', options: programObjectiveMode ? JSON.stringify(['صحيح', 'خطأ']) : null, correctAnswer: programObjectiveMode ? '0' : null }],
     }),
   },
   programExamAttempt: {
@@ -107,6 +125,10 @@ const db: any = {
   },
   programAnswer: {
     create: async ({ data }: any) => { calls.push(`programAnswer.create:${data.questionId}:${data.aiFeedback || ''}`); answers.push({ ...data }); return data },
+    createMany: async ({ data }: any) => {
+      for (const item of data) { calls.push(`programAnswer.create:${item.questionId}:${item.aiFeedback || ''}`); answers.push({ ...item }) }
+      return { count: data.length }
+    },
     updateMany: async ({ where, data }: any) => {
       calls.push(`programAnswer.updateMany:${where.questionId}:${data.aiFeedback || ''}`)
       const existing = answers.find((answer) => answer.attemptId === where.attemptId && answer.questionId === where.questionId)
@@ -143,7 +165,7 @@ const realEssayGrading = await import('../../src/lib/essay-grading')
 mock.module('@/lib/essay-grading', () => ({ ...realEssayGrading, gradeEssayWithRubric: async () => { calls.push('essay.grade'); throw new Error('AI_DOWN') } }))
 
 const realAi = await import('../../src/lib/ai')
-mock.module('@/lib/ai', () => ({ ...realAi, generateOverallFeedback: async () => ({ summary: '', strengths: [], improvements: [] }) }))
+mock.module('@/lib/ai', () => ({ ...realAi, generateOverallFeedback: async () => { calls.push('overall.ai'); if (optionalFeedbackFails) throw new Error('OPTIONAL_FEEDBACK_DOWN'); return { summary: '', strengths: [], improvements: [] } } }))
 
 const realEnrollmentCompletion = await import('../../src/lib/enrollment-completion')
 mock.module('@/lib/enrollment-completion', () => ({ ...realEnrollmentCompletion, completeEnrollmentIfEligible: async () => null }))
@@ -189,6 +211,7 @@ const realProgramTracks = await import('../../src/lib/program-tracks')
 mock.module('@/lib/program-tracks', () => ({ ...realProgramTracks, academicProfileFromRules: () => ({}), buildAcademicProgramProfile: (input: any) => input }))
 
 const examSubmitRoute = await import('../../src/app/api/exam/submit/route')
+const examDetailRoute = await import('../../src/app/api/exam/detail/route')
 const programExamSubmitRoute = await import('../../src/app/api/program-exam/submit/route')
 const defenseRoute = await import('../../src/app/api/defense/route')
 const { canPublishUnitExamFromQuestions } = await import('../../src/lib/unit-exam-policy')
@@ -243,11 +266,95 @@ async function completionResult(options: { payments: any[]; scholarshipFull?: bo
 beforeEach(() => {
   calls.splice(0, calls.length)
   answers.splice(0, answers.length)
+  unitModelAnswer = 'إجابة نموذجية'
+  pendingUnitGrading = null
+  unitObjectiveMode = false
+  programObjectiveMode = false
+  optionalFeedbackFails = false
   defenseMessages.splice(0, defenseMessages.length, { id: 'm1', thesisId: 'thesis-1', role: 'STUDENT', content: 'إجابة محفوظة' })
   thesis = { id: 'thesis-1', userId: 'user-1', title: 'بحث', abstract: 'ملخص', status: 'SCHEDULED', defenseStatus: 'NEEDS_REVIEW', extractionStatus: 'READY', fileStorageKey: 'thesis.pdf', defenseDate: new Date(Date.now() - 60_000), createdAt: new Date() }
 })
 
 describe('academic B1 safety', () => {
+  test('official programme grade is committed before optional AI feedback and survives outage', async () => {
+    programObjectiveMode = true
+    optionalFeedbackFails = true
+    const response = await programExamSubmitRoute.POST(new NextRequest('https://academy.test/api/program-exam/submit', {
+      method: 'POST',
+      body: JSON.stringify({ examId: 'program-exam-1', answers: [{ questionId: 'program-essay-1', selectedOption: 0 }] }),
+      headers: { 'content-type': 'application/json' },
+    }))
+    const payload = await body(response as any)
+    expect(response.status).toBe(200)
+    expect(payload.passed).toBe(true)
+    expect(payload.score).toBe(100)
+    const graded = calls.indexOf('programAttempt.update:GRADED')
+    const commentary = calls.indexOf('overall.ai')
+    expect(graded).toBeGreaterThanOrEqual(0)
+    expect(commentary).toBeGreaterThan(graded)
+    expect(calls).not.toContain('programAttempt.update:NEEDS_REVIEW')
+  })
+
+  test('official unit grade is committed before optional AI feedback and survives outage', async () => {
+    unitObjectiveMode = true
+    optionalFeedbackFails = true
+    const response = await examSubmitRoute.POST(new NextRequest('https://academy.test/api/exam/submit', {
+      method: 'POST',
+      body: JSON.stringify({ examId: 'exam-1', answers: [{ questionId: 'essay-1', selectedOption: 0 }] }),
+      headers: { 'content-type': 'application/json' },
+    }))
+    const payload = await body(response as any)
+    expect(response.status).toBe(200)
+    expect(payload.passed).toBe(true)
+    expect(payload.score).toBe(100)
+    const graded = calls.indexOf('attempt.update:GRADED')
+    const commentary = calls.indexOf('overall.ai')
+    expect(graded).toBeGreaterThanOrEqual(0)
+    expect(commentary).toBeGreaterThan(graded)
+    expect(calls).not.toContain('attempt.update:NEEDS_REVIEW')
+  })
+
+  test('stale submitted unit with preserved answers becomes NEEDS_REVIEW, not a new attempt or zero', async () => {
+    pendingUnitGrading = { submittedAt: new Date(Date.now() - 3 * 60 * 60 * 1000), savedAnswerCount: 1 }
+    const response = await examDetailRoute.GET(new NextRequest('https://academy.test/api/exam/detail?examId=exam-1'))
+    const payload = await body(response as any)
+    expect(response.status).toBe(409)
+    expect(payload.code).toBe('NEEDS_REVIEW')
+    expect(calls).toContain('attempt.updateMany:NEEDS_REVIEW')
+    expect(answers).toHaveLength(0)
+  })
+
+  test('live or answerless submitted unit cannot be prematurely recovered', async () => {
+    for (const fixture of [
+      { submittedAt: new Date(Date.now() - 10 * 60 * 1000), savedAnswerCount: 1 },
+      { submittedAt: new Date(Date.now() - 3 * 60 * 60 * 1000), savedAnswerCount: 0 },
+    ]) {
+      pendingUnitGrading = fixture
+      const response = await examDetailRoute.GET(new NextRequest('https://academy.test/api/exam/detail?examId=exam-1'))
+      const payload = await body(response as any)
+      expect(response.status).toBe(409)
+      expect(payload.code).toBe('SUBMITTED')
+    }
+    expect(calls).not.toContain('attempt.updateMany:NEEDS_REVIEW')
+  })
+
+  test('missing essay model preserves the submitted answer for human review instead of rejecting or assigning zero', async () => {
+    unitModelAnswer = null
+    const response = await examSubmitRoute.POST(new NextRequest('https://academy.test/api/exam/submit', {
+      method: 'POST',
+      body: JSON.stringify({ examId: 'exam-1', answers: [{ questionId: 'essay-1', answerText: 'إجابة صحيحة بأسلوب الطالب' }] }),
+      headers: { 'content-type': 'application/json' },
+    }))
+    const payload = await body(response as any)
+    expect(response.status).toBe(202)
+    expect(payload.status).toBe('NEEDS_REVIEW')
+    expect(payload.attemptId).toBe('attempt-1')
+    expect(answers).toHaveLength(1)
+    expect(answers[0]).toMatchObject({ questionId: 'essay-1', answerText: 'إجابة صحيحة بأسلوب الطالب', points: null, isCorrect: null })
+    expect(calls).toContain('attempt.update:NEEDS_REVIEW')
+    expect(calls).not.toContain('essay.grade')
+  })
+
   test('essay answer is persisted before AI grading and remains saved when grading fails', async () => {
     const res = await examSubmitRoute.POST(new NextRequest('https://academy.test/api/exam/submit', {
       method: 'POST',

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
+import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
 import { requireAdmin } from '@/lib/auth'
 import { audit, notify } from '@/lib/notify'
 import { emailAssignmentGraded, emailAssignmentPublished } from '@/lib/mailer'
@@ -84,9 +85,16 @@ export async function GET(req: NextRequest) {
       include: {
         _count: { select: { submissions: true } },
         submissions: {
-          orderBy: { submittedAt: 'desc' },
-          take: 200,
-          include: { user: { select: { id: true, name: true, email: true } } },
+          orderBy: [{ submittedAt: 'desc' }, { id: 'asc' }],
+          // No silent 200-item cutoff: the UI paginates students, not individual
+          // submissions, and a missing row would hide that student's assignments.
+          select: {
+            id: true, userId: true, answerText: true,
+            fileName: true, fileStorageKey: true, mimeType: true, size: true,
+            status: true, score: true, feedback: true,
+            submittedAt: true, gradedAt: true, updatedAt: true,
+            user: { select: { id: true, name: true, email: true } },
+          },
         },
       },
     })
@@ -284,6 +292,10 @@ export async function PATCH(req: NextRequest) {
       )
     }
     await audit(admin, 'GRADE_ASSIGNMENT', 'AssignmentSubmission', submission.id, `تصحيح واجب ${submission.assignment.title} للطالب ${existing.user.name}`)
+    if (finalStatus === 'GRADED') {
+      await completeEnrollmentIfEligible({ userId: submission.userId, programId: submission.assignment.programId })
+        .catch((error) => console.error('Admin assignment graduation recheck failed:', error))
+    }
 
     return NextResponse.json({ submission })
   } catch (e: any) {

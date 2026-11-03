@@ -23,6 +23,27 @@ function parseContent(value: unknown): UnitContentSection[] {
   return []
 }
 
+/**
+ * Referenced content alone is not a finished generated unit: the study guide
+ * must exist and have at least one usable knowledge-source identifier.
+ */
+export function hasCompleteUnitArtifacts(
+  content: UnitContentSection[],
+  guide: { sourceKnowledgeIds: string | null; sections: string | null } | null,
+): boolean {
+  if (!content.some((section) => section.sourceKnowledgeIds?.length || section.sourceChunkIndexes?.length)) return false
+  if (!guide?.sourceKnowledgeIds || !guide.sections) return false
+  try {
+    const ids: unknown = JSON.parse(guide.sourceKnowledgeIds)
+    const sections: unknown = JSON.parse(guide.sections)
+    return Array.isArray(ids) && ids.length > 0 &&
+      ids.every((id) => typeof id === 'string' && id.trim().length > 0) &&
+      Array.isArray(sections) && sections.length > 0
+  } catch {
+    return false
+  }
+}
+
 function pageRef(pageStart?: number | null, pageEnd?: number | null) {
   if (!pageStart && !pageEnd) return ''
   if (pageStart && pageEnd && pageStart !== pageEnd) return `صفحات ${pageStart}–${pageEnd}`
@@ -73,14 +94,28 @@ export async function POST(req: NextRequest, context: Context) {
     if (!unit.sourceBookId || unit.chunkStartIndex == null || unit.chunkEndIndex == null || !unit.outlineSectionId) {
       return NextResponse.json({ error: 'UNIT_OUTLINE_SOURCE_REQUIRED' }, { status: 400 })
     }
-    if (!force && parseContent(unit.content).some((section) => section.sourceKnowledgeIds?.length || section.sourceChunkIndexes?.length)) {
-      return NextResponse.json({ ok: true, skipped: 'UNIT_ALREADY_HAS_REFERENCED_CONTENT', unit: mapUnit(unit) })
+    const existingContent = parseContent(unit.content)
+    const hasReferencedContent = existingContent.some(
+      (section) => section.sourceKnowledgeIds?.length || section.sourceChunkIndexes?.length,
+    )
+    if (!force) {
+      const guide = await db.programStudyGuide.findFirst({
+        where: { unitId: unit.id },
+        select: { sourceKnowledgeIds: true, sections: true },
+      })
+      if (hasCompleteUnitArtifacts(existingContent, guide)) {
+        return NextResponse.json({ ok: true, skipped: 'UNIT_ALREADY_HAS_REFERENCED_CONTENT', unit: mapUnit(unit) })
+      }
     }
+    // Repair only the missing/invalid study guide when existing unit content
+    // has real source references. Full content generation requires absent
+    // referenced content or an explicit administrator regenerate/force request.
+    const repairGuideOnly = !force && !!hasReferencedContent
 
     let createdJob: { id: string }
     try {
       createdJob = await db.unitGenerationJob.create({
-        data: { unitId: unit.id, programId: unit.programId, status: 'RUNNING', phase: 'CONTENT', unitsTotal: 1, unitsDone: 0, startedAt: new Date(), lockedUntil: new Date(Date.now() + 240_000) },
+        data: { unitId: unit.id, programId: unit.programId, status: 'RUNNING', phase: repairGuideOnly ? 'GUIDE' : 'CONTENT', unitsTotal: 1, unitsDone: 0, startedAt: new Date(), lockedUntil: new Date(Date.now() + 240_000) },
         select: { id: true },
       })
     } catch (error: any) {
@@ -106,7 +141,7 @@ export async function POST(req: NextRequest, context: Context) {
     })
     if (!knowledge.length) throw new Error('UNIT_V2_KNOWLEDGE_REQUIRED')
 
-    const generated = await generateUnitContentWithAi({
+    const generated = repairGuideOnly ? null : await generateUnitContentWithAi({
       programTitle: unit.program.titleAr || unit.program.titleEn || 'البرنامج الأكاديمي',
       unitTitle: unit.title,
       unitPages: pageRef(chunks[0]?.pageStart, chunks[chunks.length - 1]?.pageEnd),
@@ -118,24 +153,13 @@ export async function POST(req: NextRequest, context: Context) {
     const guideDraft = buildUnitStudyGuideDraft({
       programTitle: unit.program.titleAr || unit.program.titleEn || 'البرنامج الأكاديمي',
       unitTitle: unit.title,
-      unitSummary: generated.summary,
+      unitSummary: generated?.summary ?? unit.summary,
       semester: unit.semester,
       knowledge,
-      unitContent: generated.content,
+      unitContent: generated?.content ?? existingContent,
     })
     const sourceKnowledgeIds = validateStudyGuideSources(guideDraft.sourceKnowledgeIds, knowledge.map((item) => item.id))
-    const existingGuide = await db.programStudyGuide.findFirst({ where: { unitId: unit.id }, select: { id: true } })
-
-    const updatedUnit = await db.unit.update({
-      where: { id: unit.id },
-      data: {
-        summary: generated.summary,
-        objectives: JSON.stringify(generated.objectives),
-        content: JSON.stringify(generated.content),
-        generationVersion: { increment: 1 },
-      },
-    })
-
+    if (!guideDraft.sections.length) throw new Error('UNIT_STUDY_GUIDE_SECTIONS_REQUIRED')
     const guideData = {
       programId: unit.programId,
       unitId: unit.id,
@@ -151,13 +175,47 @@ export async function POST(req: NextRequest, context: Context) {
       status: 'DRAFT',
       generatedBy: 'AI',
     }
-    const guide = existingGuide
-      ? await db.programStudyGuide.update({ where: { id: existingGuide.id }, data: guideData })
-      : await db.programStudyGuide.create({ data: guideData })
 
-    await db.unitGenerationJob.update({ where: { id: job.id }, data: { status: 'COMPLETED', phase: 'GUIDE', unitsDone: 1, finishedAt: new Date(), lockedUntil: null, lastError: null } })
-    await audit(admin, 'GENERATE_OUTLINE_UNIT', 'Unit', unit.id, `توليد محتوى ودليل وحدة من فهرس الكتاب: ${unit.title}`)
-    return NextResponse.json({ ok: true, unit: mapUnit(updatedUnit), guide, job: { id: job.id, status: 'COMPLETED' } })
+    // The content, study guide and completed job form one durable result.
+    // A failed guide write rolls back the unit content/version change as well.
+    const { updatedUnit, guide } = await db.$transaction(async (tx) => {
+      const existingGuide = await tx.programStudyGuide.findFirst({
+        where: { unitId: unit.id },
+        select: { id: true },
+      })
+      const updatedUnit = generated
+        ? await tx.unit.update({
+            where: { id: unit.id },
+            data: {
+              summary: generated.summary,
+              objectives: JSON.stringify(generated.objectives),
+              content: JSON.stringify(generated.content),
+              generationVersion: { increment: 1 },
+            },
+          })
+        : unit // Guide-only repair must not write or bump the existing unit.
+      const guide = existingGuide
+        ? await tx.programStudyGuide.update({ where: { id: existingGuide.id }, data: guideData })
+        : await tx.programStudyGuide.create({ data: guideData })
+
+      await tx.unitGenerationJob.update({
+        where: { id: job!.id },
+        data: { status: 'COMPLETED', phase: 'GUIDE', unitsDone: 1, finishedAt: new Date(), lockedUntil: null, lastError: null },
+      })
+      return { updatedUnit, guide }
+    }, { maxWait: 20000, timeout: 30000 })
+
+    // Audit is observational and must not invalidate an already committed unit.
+    await audit(admin, 'GENERATE_OUTLINE_UNIT', 'Unit', unit.id,
+      repairGuideOnly
+        ? `استكمال دليل الوحدة الناقص دون تعديل المحتوى: ${unit.title}`
+        : `توليد محتوى ودليل وحدة من فهرس الكتاب: ${unit.title}`
+    ).catch((auditError) => console.error('Outline unit audit failed after commit:', auditError))
+    return NextResponse.json({
+      ok: true, unit: mapUnit(updatedUnit), guide,
+      repairedGuideOnly: repairGuideOnly,
+      job: { id: job.id, status: 'COMPLETED' },
+    })
   } catch (error: any) {
     const message = String(error?.message || error)
     if (job?.id) {

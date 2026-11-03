@@ -67,10 +67,14 @@ describe('Stage C exam security invariants (static regression)', () => {
     expect(unitSubmit).toContain('claim.count !== 1')
     expect(unitSubmit).not.toContain('tx.examAttempt.create(')
   })
-  test('unit answer keys are checked before consuming an attempt', () => {
+  test('objective answer keys are validated before claim; missing essay models require review after preservation', () => {
     expect(unitSubmit.indexOf('for (const question of exam.questions)')).toBeLessThan(unitSubmit.indexOf('const claim ='))
     expect(unitSubmit).toContain("code: 'ANSWER_KEY_MISSING'")
-    expect(unitSubmit).toContain("code: 'MODEL_ANSWER_MISSING'")
+    // A missing essay model is not a reason to reject the student's answer:
+    // persist it atomically and send the attempt for manual grading.
+    expect(unitSubmit.indexOf('const claim =')).toBeLessThan(unitSubmit.indexOf('if (!q.modelAnswer && essayText.trim().length > 0)'))
+    expect(unitSubmit).toContain("code: 'ESSAY_MODEL_ANSWER_MISSING'")
+    expect(unitSubmit).toContain("status: 'NEEDS_REVIEW'")
   })
   test('unit grading recovers unpersisted claims without discarding final results', () => {
     expect(unitSubmit).toContain('claimedUnitAttemptId = null')

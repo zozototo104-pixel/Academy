@@ -15,3 +15,142 @@ jobs:
       - run: bun run test:outline-units
       - run: bun run test:gemini-live-rotation
       - run: bunx tsc --noEmit
+
+  backup-restore-postgres:
+    name: Backup restore — isolated PostgreSQL
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: restore
+          POSTGRES_PASSWORD: restore_test_only
+          POSTGRES_DB: academy_restore_smoke
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U restore -d academy_restore_smoke"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://restore:restore_test_only@localhost:5432/academy_restore_smoke
+      DIRECT_URL: postgresql://restore:restore_test_only@localhost:5432/academy_restore_smoke
+      AACT_BACKUP_ENCRYPTION_KEY: academy-ci-restore-smoke-key-only-not-a-secret-2026
+      AACT_RESTORE_CONFIRM: "YES"
+      AACT_RESTORE_ISOLATED_TARGET: "YES"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install
+      - run: bunx prisma generate
+      # This database exists only as a disposable GitHub Actions service.
+      - run: bunx prisma db push
+      - name: Build a full-schema encrypted fixture
+        run: |
+          node <<'NODE'
+          const { Prisma } = require('@prisma/client')
+          const { createHash, createCipheriv, randomBytes } = require('node:crypto')
+          const { gzipSync } = require('node:zlib')
+          const { writeFileSync } = require('node:fs')
+          const names = Object.keys(Prisma.ModelName).filter((name) => name !== 'Session')
+          const fixtureModels = ['Setting', 'User', 'Notification', 'Program', 'Book', 'ProgramAssignment', 'AssignmentSubmission', 'ProgramExam', 'ProgramExamAttempt', 'Payment']
+          const counts = Object.fromEntries(names.map((name) => [name, fixtureModels.includes(name) ? 1 : 0]))
+          const lines = [{
+            type: 'meta', platform: 'AACT', format: 'aact-db-jsonl-v1',
+            exportedAt: new Date().toISOString(), tables: names,
+          }]
+          for (const name of names) {
+            lines.push({ type: 'table', name, delegate: name[0].toLowerCase() + name.slice(1), count: counts[name] })
+            if (name === 'Setting') {
+              lines.push({ type: 'row', table: name, data: { key: 'RESTORE_SMOKE', value: 'verified' } })
+            }
+            if (name === 'User') {
+              lines.push({ type: 'row', table: name, data: {
+                id: 'restore-ci-user', email: 'restore-ci@example.test',
+                password: 'fixture-not-a-login', name: 'Restore CI',
+              } })
+            }
+            if (name === 'Notification') {
+              lines.push({ type: 'row', table: name, data: {
+                id: 'restore-ci-notification', userId: 'restore-ci-user',
+                type: 'GENERAL', title: 'Restore test', body: 'FK verified',
+              } })
+            }
+            const fixtures = {
+              Program: { id: 'restore-ci-program', slug: 'restore-ci-program', titleAr: 'Restore CI', description: 'Isolated restore fixture', category: 'DIPLOMA' },
+              Book: { id: 'restore-ci-book', programId: 'restore-ci-program', title: 'Restore book' },
+              ProgramAssignment: { id: 'restore-ci-assignment', programId: 'restore-ci-program', title: 'Restore assignment', description: 'CI assignment' },
+              AssignmentSubmission: { id: 'restore-ci-submission', assignmentId: 'restore-ci-assignment', userId: 'restore-ci-user', status: 'GRADED', score: 18 },
+              ProgramExam: { id: 'restore-ci-exam', programId: 'restore-ci-program', title: 'Restore exam', status: 'READY' },
+              ProgramExamAttempt: { id: 'restore-ci-attempt', examId: 'restore-ci-exam', userId: 'restore-ci-user', status: 'GRADED', score: 80 },
+              Payment: { id: 'restore-ci-payment', userId: 'restore-ci-user', invoiceNo: 'RESTORE-CI-INVOICE', purpose: 'TUITION', description: 'Restore payment', amount: 20 },
+            }
+            if (fixtures[name]) lines.push({ type: 'row', table: name, data: fixtures[name] })
+          }
+          lines.push({ type: 'summary', counts, errors: [] })
+          const plain = Buffer.from(lines.map((line) => JSON.stringify(line)).join('\n') + '\n')
+          const zipped = gzipSync(plain)
+          const sha = (buffer) => createHash('sha256').update(buffer).digest('hex')
+          const aad = { compressedSha256: sha(zipped), uncompressedSha256: sha(plain) }
+          const iv = randomBytes(12)
+          const key = createHash('sha256').update(process.env.AACT_BACKUP_ENCRYPTION_KEY).digest()
+          const cipher = createCipheriv('aes-256-gcm', key, iv)
+          cipher.setAAD(Buffer.from(JSON.stringify(aad)))
+          const encrypted = Buffer.concat([cipher.update(zipped), cipher.final()])
+          const header = {
+            type: 'aact-encrypted-backup-v1', algorithm: 'AES-256-GCM',
+            iv: iv.toString('base64'), authTag: cipher.getAuthTag().toString('base64'), aad,
+          }
+          writeFileSync('/tmp/academy-restore-smoke.enc',
+            Buffer.concat([Buffer.from(JSON.stringify(header) + '\n'), encrypted]))
+          NODE
+      - name: Restore atomically and refuse nonempty target
+        run: |
+          bunx tsx scripts/backup-restore.ts --file /tmp/academy-restore-smoke.enc
+          bunx tsx scripts/backup-restore.ts --file /tmp/academy-restore-smoke.enc --restore
+          node <<'NODE'
+          const { PrismaClient } = require('@prisma/client')
+          const db = new PrismaClient()
+          const fixtureModels = ['Setting', 'User', 'Notification', 'Program', 'Book', 'ProgramAssignment', 'AssignmentSubmission', 'ProgramExam', 'ProgramExamAttempt', 'Payment']
+          Promise.all([
+            db.setting.findUnique({ where: { key: 'RESTORE_SMOKE' } }),
+            db.notification.findUnique({
+              where: { id: 'restore-ci-notification' },
+              include: { user: true },
+            }),
+            db.assignmentSubmission.findUnique({ where: { id: 'restore-ci-submission' }, include: { assignment: true, user: true } }),
+            db.programExamAttempt.findUnique({ where: { id: 'restore-ci-attempt' }, include: { exam: true, user: true } }),
+            db.book.findUnique({ where: { id: 'restore-ci-book' }, include: { program: true } }),
+            db.payment.findUnique({ where: { id: 'restore-ci-payment' }, include: { user: true } }),
+            ...Object.keys(require('@prisma/client').Prisma.ModelName)
+              .filter(name => name !== 'Session')
+              .map(async name => {
+                const delegate = db[name[0].toLowerCase() + name.slice(1)]
+                const actual = await delegate.count()
+                const expected = fixtureModels.includes(name) ? 1 : 0
+                if (actual !== expected) throw new Error('RESTORE_ROW_COUNT_MISMATCH:' + name + ':' + actual + ':' + expected)
+              }),
+          ])
+            .then(([setting, notification, submission, attempt, book, payment]) => {
+              if (setting?.value !== 'verified') throw new Error('RESTORED_SETTING_MISSING')
+              if (notification?.user?.email !== 'restore-ci@example.test') throw new Error('RESTORED_FOREIGN_KEY_RELATION_MISSING')
+              if (submission?.assignment?.programId !== 'restore-ci-program' || submission.user?.id !== 'restore-ci-user') throw new Error('RESTORED_ASSIGNMENT_RELATION_MISSING')
+              if (attempt?.exam?.programId !== 'restore-ci-program' || attempt.user?.id !== 'restore-ci-user') throw new Error('RESTORED_EXAM_RELATION_MISSING')
+              if (book?.program?.id !== 'restore-ci-program') throw new Error('RESTORED_BOOK_RELATION_MISSING')
+              if (payment?.user?.id !== 'restore-ci-user') throw new Error('RESTORED_PAYMENT_RELATION_MISSING')
+              console.log('Verified all restored table counts and linked exam, assignment, payment, book rows')
+            })
+            .finally(() => db.$disconnect())
+            .catch((error) => { console.error(error); process.exitCode = 1 })
+          NODE
+          if bunx tsx scripts/backup-restore.ts --file /tmp/academy-restore-smoke.enc --restore > /tmp/restore-second.log 2>&1; then
+            echo "ERROR: restored into a nonempty target"
+            exit 1
+          fi
+          grep -Eq "RESTORE_TARGET_NOT_EMPTY:[A-Za-z][A-Za-z0-9_]*" /tmp/restore-second.log
+      - name: Verify concurrent backup snapshot on disposable PostgreSQL
+        env:
+          AACT_ALLOW_LOCAL_UPLOADS: "true"
+        run: bunx tsx scripts/test-backup-snapshot.ts
+

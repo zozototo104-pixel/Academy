@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
-import { textAiCompleteJson } from '@/lib/text-ai'
+import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
+import { textAiCompleteJson, textAiCompleteJsonWithMetadata } from '@/lib/text-ai'
 import { extractDocumentText, isPdfLike } from '@/lib/document-extract'
 import { getFileBufferFromStorageOrBase64, getStorageDownloadPathForKey } from '@/lib/storage'
 import { notify, audit } from '@/lib/notify'
@@ -29,6 +30,7 @@ export interface DraftCriterion {
   points: number
   maxPoints: number
   justification: string
+  excludedFromScore?: boolean
 }
 
 export interface AiGradingDraft {
@@ -41,6 +43,13 @@ export interface AiGradingDraft {
   effortNote: string
 }
 
+export interface CitationEvidence {
+  page: number
+  source: 'NATIVE_TEXT' | 'VISION_OCR' | 'UNVERIFIED'
+  reason?: string
+  text?: string
+}
+
 export interface AnswerProvenance {
   answerSource: 'TEXT' | 'TEXT_AND_FILE' | 'FILE_TEXT' | 'FILE_OCR' | 'FILE_UNREADABLE' | 'NONE'
   answerSourceLabel: string
@@ -50,7 +59,14 @@ export interface AnswerProvenance {
   bookSourceStatus: 'EXACT' | 'PARTIAL' | 'UNIT' | 'NONE'
   sourceKnowledgeCount: number
   sourceKnowledgeMatched: number
+  referenceWarning: 'REFERENCE_UNREADABLE' | null
   answerTruncated: boolean
+  citationPages?: CitationEvidence[]
+  citationMode?: 'STUDENT_CITATIONS' | 'REFERENCE_RANGES' | 'NONE'
+  citationReviewRequired?: boolean
+  attachmentReviewRequired?: boolean
+  isolationStatus?: 'ISOLATED' | 'NO_VALID_BREAKDOWN' | 'NO_SOURCE_CRITERION' | 'NOT_REQUIRED'
+  isolationNote?: string | null
 }
 
 export const DEFAULT_RUBRIC: RubricCriterion[] = [
@@ -77,7 +93,7 @@ export async function readPdfWithBookPath(buffer: Buffer): Promise<{ text: strin
     const numbers = Array.from({ length: Math.min(8, pagesToRead - start) }, (_, i) => start + i + 1)
     const extracted = await extractNumberedPdfPages(buffer, numbers)
     const pageMap = new Map(extracted.map((p) => [p.page, p]))
-    for (const range of pagesNeedingOcr(extracted)) {
+    for (const range of pagesNeedingOcr(extracted.filter((page) => !page.text.trim() || isUnreadableBookReference(fixArabicPdfText(page.text))))) {
       const ocr = await transcribeScannedDocumentWithVision(buffer, range, Date.now() + 120_000)
       for (const page of ocr) pageMap.set(page.page, page)
     }
@@ -129,6 +145,19 @@ export function parseRubricCriteria(rubric: string | null | undefined): RubricCr
   const sum = parsed.reduce((total, c) => total + c.weightPct, 0)
   if (parsed.length >= 2 && Math.abs(sum - 100) < 0.01) return parsed
   return DEFAULT_RUBRIC
+}
+
+export type AssignmentAiRejectionReason = 'INVALID_JSON' | 'INVALID_SCORE' | 'SHORT_FEEDBACK' | 'BROKEN_ARABIC'
+
+/** Diagnose rejection without logging the student answer, feedback, or raw provider output. */
+export function classifyAssignmentAiOutput(raw: string): AssignmentAiRejectionReason | null {
+  const parsed = parseAiJson(raw)
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return 'INVALID_JSON'
+  if (parsed.score === null || parsed.score === undefined || String(parsed.score).trim() === '' || !Number.isFinite(Number(parsed.score))) return 'INVALID_SCORE'
+  const feedback = cleanAcademicOutput(parsed.feedback, 4000)
+  if (feedback.length < 20) return 'SHORT_FEEDBACK'
+  if (looksLikeBrokenGeneratedArabic(feedback)) return 'BROKEN_ARABIC'
+  return null
 }
 
 /** تطبيع مخرجات الذكاء الخام إلى مسودة صالحة، أو null إذا كانت غير صالحة. */
@@ -269,11 +298,48 @@ export async function loadSupervisorAssignmentDetail(submissionId: string, user:
   }
 }
 
-type GradingBookContext = { text: string; titles: string[]; used: boolean; status: 'EXACT' | 'PARTIAL' | 'UNIT' | 'NONE'; expected: number; matched: number }
+export const REFERENCE_UNREADABLE_WARNING = 'المرجع غير مقروء — افتح صفحات المصدر الأصلي قبل اعتماد أي خصم على الاستشهادات'
+
+/** Conservative, deterministic quality gate; short and English-language sources are not failures. */
+export function isUnreadableBookReference(text: string): boolean {
+  const value = String(text || '').trim()
+  if (value.length < 120) return false
+  const unclear = (value.match(/\[\s*غير\s+واضح\s*\]/g) || []).length
+  const arabicWords = value.match(/[\u0621-\u064A]{3,}/g) || []
+  const arabicLetters = (value.match(/[\u0621-\u064A]/g) || []).length
+  const latinLetters = (value.match(/[A-Za-z]/g) || []).length
+  if (unclear >= 4 || (unclear >= 2 && unclear * 8 >= arabicWords.length)) return true
+  if (arabicLetters >= 60 && arabicLetters > latinLetters * 2 && arabicWords.length >= 25) {
+    const fragments = (value.match(/(?:^|\s)[\u0621-\u064A](?=\s|$)/gm) || []).length
+    if (fragments >= 20 && fragments > arabicWords.length * 0.8) return true
+  }
+  return false
+}
+
+/** Parse only explicit page markers; never infer pages from unrelated numbers. */
+export function extractExplicitPageCitations(answer: string): number[] {
+  const normalized = String(answer || '')
+    .replace(/[٠-٩]/g, digit => String(digit.charCodeAt(0) - 0x660))
+    .replace(/[۰-۹]/g, digit => String(digit.charCodeAt(0) - 0x6f0))
+  const pages: number[] = []
+  const pattern = /(?:^|[^\p{L}])(?:الصفحة|صفحة|ص(?!\s*\.?\s*ب(?=\s|$))\.?|pp?\.|page\b)\s*(\d{1,6})(?:\s*(?:[-–—]|إلى|الى|to)\s*(\d{1,6}))?/giu
+  for (const match of normalized.matchAll(pattern)) {
+    const first = Number(match[1])
+    const last = match[2] ? Number(match[2]) : first
+    if (first < 1 || last < first) continue
+    // Include a ninth page as an overflow sentinel; never enumerate unbounded ranges.
+    for (let page = first; page <= Math.min(last, first + 8); page++) {
+      if (!pages.includes(page)) pages.push(page)
+    }
+  }
+  return pages
+}
+
+type GradingBookContext = { text: string; titles: string[]; used: boolean; status: 'EXACT' | 'PARTIAL' | 'UNIT' | 'NONE'; expected: number; matched: number; unreadable: boolean }
 
 async function loadBookContext(programId: string, unitId: string | null, semester: number, storedSourceIds: unknown): Promise<GradingBookContext> {
   const sourceIds = Array.isArray(storedSourceIds) ? [...new Set(storedSourceIds.filter((id): id is string => typeof id === 'string' && Boolean(id.trim())))] : []
-  const missing = (): GradingBookContext => ({ text: '', titles: [], used: false, status: 'NONE', expected: sourceIds.length, matched: 0 })
+  const missing = (): GradingBookContext => ({ text: '', titles: [], used: false, status: 'NONE', expected: sourceIds.length, matched: 0, unreadable: false })
   try {
     let unit: any = null
     if (unitId) {
@@ -293,7 +359,7 @@ async function loadBookContext(programId: string, unitId: string | null, semeste
     const chunks = await db.bookChunk.findMany({
       where: { bookId: unit.sourceBookId, index: { gte: unit.chunkStartIndex, lte: unit.chunkEndIndex } },
       orderBy: { index: 'asc' },
-      select: { id: true, text: true },
+      select: { id: true, text: true, pageStart: true, pageEnd: true },
     })
     if (!chunks.length) return missing()
     const allowedWhere = { programId, kbVersion: 2,
@@ -326,15 +392,141 @@ async function loadBookContext(programId: string, unitId: string | null, semeste
     if (!parts.length && !sourceIds.length) {
       parts.push(...chunks.slice(0, 12).map((chunk) => String(chunk.text || '')).filter(Boolean))
     }
-    const joined = parts.join('\n')
-    const text = joined.slice(0, MAX_BOOK_CHARS)
+    // Repair extraction-order artifacts before using book text as grading evidence.
+    // Never replace the stored source: this is an in-memory reading correction only.
+    const joined = parts.map((part) => fixArabicPdfText(part)).join('\n')
+    let text = joined.slice(0, MAX_BOOK_CHARS)
     const book = await db.book.findUnique({ where: { id: unit.sourceBookId }, select: { title: true } }).catch(() => null)
     const status: GradingBookContext['status'] = !text ? 'NONE' : !sourceIds.length ? 'UNIT' :
       matched === sourceIds.length && joined.length <= MAX_BOOK_CHARS ? 'EXACT' : 'PARTIAL'
-    return { text, titles: [book?.title, unit.title].filter((title): title is string => Boolean(title)), used: Boolean(text), status, expected: sourceIds.length, matched }
-  } catch {
+    return { text, titles: [book?.title, unit.title].filter((title): title is string => Boolean(title)), used: Boolean(text), status, expected: sourceIds.length, matched, unreadable: isUnreadableBookReference(text) }
+  } catch (error) {
     return missing()
   }
+}
+
+
+const MAX_CITATION_PAGES = 8
+const SOURCE_LABEL = /مصادر|استشهاد|مراجع|مرجع|توثيق/
+
+async function loadOriginalPdf(assignment: any): Promise<{ buffer: Buffer; pageCount: number; ranges: { pageStart: number; pageEnd: number }[] } | null> {
+  if (!assignment.unitId) return null
+  const unit = await db.unit.findFirst({
+    where: { id: assignment.unitId, programId: assignment.programId, ...(assignment.semester === 3 ? {} : { semester: assignment.semester }) },
+    select: { sourceBookId: true, chunkStartIndex: true, chunkEndIndex: true },
+  })
+  if (!unit?.sourceBookId) return null
+  const book = await db.book.findUnique({
+    where: { id: unit.sourceBookId },
+    select: { storageProvider: true, storageKey: true, fileUrl: true, data: true, mimeType: true },
+  })
+  const stored = book ? await getFileBufferFromStorageOrBase64({
+    provider: book.storageProvider, key: book.storageKey, url: book.fileUrl,
+    data: book.data, mimeType: book.mimeType,
+  }) : null
+  if (!stored?.buffer?.length || stored.buffer.subarray(0, 5).toString() !== '%PDF-') return null
+  const pdf = await PDFDocument.load(stored.buffer)
+  const ranges = unit.chunkStartIndex != null && unit.chunkEndIndex != null
+    ? await db.bookChunk.findMany({
+      where: { bookId: unit.sourceBookId, index: { gte: unit.chunkStartIndex, lte: unit.chunkEndIndex } },
+      select: { pageStart: true, pageEnd: true }, orderBy: { index: 'asc' },
+    }) : []
+  return { buffer: stored.buffer, pageCount: pdf.getPageCount(), ranges }
+}
+
+async function verifyCitedPages(assignment: any, answer: string, allowVision: boolean): Promise<{
+  pages: CitationEvidence[]; mode: NonNullable<AnswerProvenance['citationMode']>; reviewRequired: boolean; evidenceText: string
+}> {
+  const explicit = extractExplicitPageCitations(answer)
+  let pdf: Awaited<ReturnType<typeof loadOriginalPdf>> = null
+  try { pdf = await loadOriginalPdf(assignment) } catch { /* fail closed */ }
+  const fallback = !explicit.length && pdf
+    ? [...new Set(pdf.ranges.flatMap(range => Array.from({
+      length: Math.max(0, Math.min(MAX_CITATION_PAGES + 1, range.pageEnd - range.pageStart + 1)),
+    }, (_, i) => range.pageStart + i)))].slice(0, MAX_CITATION_PAGES + 1) : []
+  const requested = explicit.length ? explicit : fallback
+  const mode = explicit.length ? 'STUDENT_CITATIONS' : fallback.length ? 'REFERENCE_RANGES' : 'NONE'
+  const valid = requested.filter(page => pdf && page > 0 && page <= pdf.pageCount).slice(0, MAX_CITATION_PAGES)
+  const local = new Map<number, string>()
+  if (pdf && valid.length) {
+    try {
+      const extracted = await extractNumberedPdfPages(pdf.buffer, valid)
+      for (const entry of extracted) local.set(entry.page, fixArabicPdfText(entry.text || ''))
+    } catch { /* local failure requires review */ }
+  }
+  const pages: CitationEvidence[] = []
+  for (const page of requested) {
+    if (!pdf || page < 1 || page > pdf.pageCount) {
+      pages.push({ page, source: 'UNVERIFIED', reason: 'PDF الأصلي غير متاح أو الصفحة خارج النطاق' })
+      continue
+    }
+    if (!valid.includes(page)) {
+      pages.push({ page, source: 'UNVERIFIED', reason: 'تجاوز حد التحقق (8 صفحات)' })
+      continue
+    }
+    const native = local.get(page) || ''
+    if (native.trim().length >= 40 && !isUnreadableBookReference(native)) {
+      pages.push({ page, source: 'NATIVE_TEXT', text: native.slice(0, 2500) })
+      continue
+    }
+    if (allowVision && mode === 'STUDENT_CITATIONS') {
+      try {
+        const ocr = await transcribeScannedDocumentWithVision(pdf.buffer, [page], Date.now() + 60_000)
+        const text = fixArabicPdfText(ocr.find(item => item.page === page)?.text || '')
+        if (text.trim().length >= 40 && !isUnreadableBookReference(text)) {
+          pages.push({ page, source: 'VISION_OCR', text: text.slice(0, 2500) })
+          continue
+        }
+      } catch { /* do not mark citation false */ }
+    }
+    pages.push({ page, source: 'UNVERIFIED', reason: 'النص المحلي غير مقروء أو فشل التحقق' })
+  }
+  const reviewRequired = explicit.length > 0 && (!pdf || pages.some(page => page.source !== 'NATIVE_TEXT'))
+  const evidenceText = pages.map(page => page.source === 'UNVERIFIED'
+    ? 'صفحة PDF ' + page.page + ': لم يتم التحقق؛ ' + page.reason + '. لا تخصم على الاستشهاد.'
+    : 'صفحة PDF ' + page.page + ' [' + page.source + '] — أي عدم مطابقة يحتاج قرار المشرف:\n' + page.text).join('\n\n')
+  return { pages, mode, reviewRequired, evidenceText }
+}
+
+export function isolateSourceCriterion(draft: AiGradingDraft, criteria: RubricCriterion[], points: number, required: boolean): {
+  status: NonNullable<AnswerProvenance['isolationStatus']>; note: string | null
+} {
+  if (!required) return { status: 'NOT_REQUIRED', note: null }
+  const sourceIndices = criteria.flatMap((criterion, i) => SOURCE_LABEL.test(criterion.label) ? [i] : [])
+  if (!sourceIndices.length) return { status: 'NO_SOURCE_CRITERION', note: 'تعذر التحقق من بعض الاستشهادات، ولا يمكن عزل أثرها رياضيًا لعدم وجود معيار مستقل للمصادر. راجع الدرجة المقترحة قبل اعتمادها.' }
+  if (!draft.criteria || draft.criteria.length !== criteria.length) return { status: 'NO_VALID_BREAKDOWN', note: 'تعذر التحقق من بعض الاستشهادات، ولا يمكن عزل أثرها رياضيًا لعدم توفر تفصيل معايير صالح. راجع الدرجة المقترحة قبل اعتمادها.' }
+  const other = draft.criteria.filter((_, i) => !sourceIndices.includes(i))
+  const max = other.reduce((sum, criterion) => sum + criterion.maxPoints, 0)
+  if (max <= 0) return { status: 'NO_VALID_BREAKDOWN', note: 'لا يمكن عزل المصادر دون معايير أخرى صالحة؛ راجع الدرجة يدويًا.' }
+  draft.score = Math.round(other.reduce((sum, criterion) => sum + criterion.points, 0) / max * points * 100) / 100
+  for (const i of sourceIndices) {
+    draft.criteria[i].excludedFromScore = true
+    draft.criteria[i].justification = 'مُستبعَد لتعذر التحقق؛ نقاط هذا المعيار لا تدخل الدرجة المقترحة.'
+  }
+  const weight = sourceIndices.reduce((sum, i) => sum + criteria[i].weightPct, 0)
+  return { status: 'ISOLATED', note: 'درجة الذكاء لا تشمل مكوّن المصادر (وزنه ' + weight + '%) لتعذر التحقق من الاستشهادات — حدّده بنفسك عند الاعتماد. الدرجة المعدّلة مقترحة وليست نهائية.' }
+}
+
+/** Approval must not invoke AI or OCR; an unreadable student attachment requires confirmation. */
+async function readApprovalAnswerLocally(submission: any): Promise<{ text: string; uncertain: boolean }> {
+  const written = String(submission.answerText || '')
+  if (!(submission.fileStorageKey || submission.fileUrl || submission.data)) return { text: written, uncertain: false }
+  try {
+    const stored = await getFileBufferFromStorageOrBase64({
+      provider: submission.fileStorageProvider, key: submission.fileStorageKey, url: submission.fileUrl,
+      data: submission.data, mimeType: submission.mimeType,
+    })
+    if (!stored?.buffer?.length) return { text: written, uncertain: true }
+    if (isPdfLike(stored.mimeType || submission.mimeType, submission.fileName)) {
+      const pdf = await PDFDocument.load(stored.buffer)
+      const count = Math.min(pdf.getPageCount(), MAX_PDF_PAGES)
+      const extracted = await extractNumberedPdfPages(stored.buffer, Array.from({ length: count }, (_, i) => i + 1))
+      const text = extracted.map(page => fixArabicPdfText(page.text || '')).join('\n')
+      return { text: [written, text].join('\n'), uncertain: text.trim().length < 40 || isUnreadableBookReference(text) || pdf.getPageCount() > MAX_PDF_PAGES }
+    }
+    const extracted = await extractDocumentText(stored.buffer, stored.mimeType, submission.fileName)
+    return { text: [written, extracted.text || ''].join('\n'), uncertain: !extracted.readable || extracted.text.trim().length < 40 }
+  } catch { return { text: written, uncertain: true } }
 }
 
 interface AnswerContent {
@@ -492,6 +684,8 @@ ${criteriaLines}
 - كل تبرير معيار يجب أن يستند إلى عبارة أو مثال موجود فعلاً في إجابة الطالب — لا تذكر دليلاً غير موجود فيها، ولا تنسب للطالب ما لم يكتبه.
 - قيّم الاجتهاد الشخصي صراحة: تحليل خاص، تطبيق مهني، أمثلة، ربط بالواقع، نقد — وليس طول الإجابة وحده.
 - إذا كان مصدر الإجابة قراءة رؤية (OCR) وظهرت أجزاء [غير واضح]، لا تعاقب الطالب على تلك الأجزاء ولا تخترع ما فيها؛ اذكر أن الجزء غير واضح ويحتاج مراجعة الملف الأصلي.
+- إذا كان نص مرجع الكتاب مشوشاً أو معكوساً أو ناقصاً بسبب OCR أو الاستخراج، فهذا خلل في قراءة المرجع وليس خطأ الطالب. لا تخصم نقاطاً بسبب عدم تطابق الاستشهادات أو غياب تفاصيل لا يمكن التحقق منها في النص المشوش، ولا تعتبر غياب الدليل المقروء دليلاً على ضعف إجابة الطالب. قيّم ما يظهر بوضوح في إجابة الطالب، واطلب مراجعة صفحات المصدر الأصلي يدوياً قبل الحكم على صحة الاستشهادات.
+- لا تخترع اقتباسات أو أرقام صفحات أو مراجع، ولا تدّعِ أنك تحققت من صفحة لم تتوفر لك قراءتها بوضوح.
 - لا تخترع محتوى كتاب غير مرفق، ولا تعطِ تشخيصاً أو حكماً خارج الواجب.
 - الملاحظة للطالب تكون مفصلة، محترمة، بالعربية الفصحى المبسطة، بصيغة المخاطب، وتشمل: ما أتقنه، ما ينقصه، الأخطاء الجوهرية إن وجدت، وخطوة عملية واحدة للتحسين — مع تفصيل الدرجة على المعايير.
 أجب بصيغة JSON فقط، بلا أي نص خارجها:
@@ -512,7 +706,6 @@ export async function analyzeAssignmentSubmission(submissionId: string, user: { 
   await assertSupervisorScope(user, submission)
 
   const criteria = parseRubricCriteria(submission.assignment.rubric)
-  const book = await loadBookContext(submission.assignment.programId, submission.assignment.unitId, submission.assignment.semester, submission.assignment.sourceKnowledgeIds)
   const answer = await loadAnswerContent(submission)
   if (!answer.combinedText.trim()) {
     const error = new Error('NO_ANSWER_TEXT') as Error & { status?: number }
@@ -520,17 +713,28 @@ export async function analyzeAssignmentSubmission(submissionId: string, user: { 
     throw error
   }
 
+  const book = await loadBookContext(submission.assignment.programId, submission.assignment.unitId, submission.assignment.semester, submission.assignment.sourceKnowledgeIds)
+  const citations = await verifyCitedPages(submission.assignment, answer.combinedText, true)
+  const approvalAnswer = await readApprovalAnswerLocally(submission)
+  const referenceWarning = book.unreadable ? 'REFERENCE_UNREADABLE' as const : null
   const userPrompt = `عنوان الواجب: ${cleanAcademicOutput(submission.assignment.title, 220)}
 وصف الواجب: ${cleanAcademicOutput(submission.assignment.description, 3000)}
 معايير الواجب كما كتبها المعلم: ${submission.assignment.rubric ? cleanAcademicOutput(submission.assignment.rubric, 1000) : 'الافتراضي: الاستناد إلى مصادر الوحدة 30%، جودة التحليل 30%، التطبيق المهني 25%، وضوح العرض 15%'}
 مصدر قراءة الإجابة: ${answer.answerSourceLabel}${answer.ocrNote ? ` — ملاحظة القراءة: ${answer.ocrNote}` : ''}
-${book.used ? `حالة المرجع: ${book.status === 'EXACT' ? 'المصادر الأصلية للواجب موثّقة' : book.status === 'PARTIAL' ? 'بعض المصادر الأصلية مفقودة أو مقتطعة؛ لا تفترض اكتمال الدليل' : 'مرجع من الوحدة نفسها وليس مصادر الواجب الأصلية'}.\nمقتطفات مرجعية من كتاب الوحدة (للمرجع فقط، ليست نموذج إجابة حرفي):\n${book.text}` : 'لا يوجد سياق كتاب متاح لهذه الوحدة؛ قيّم الإجابة على أساس الفهم والتحليل والتطبيق المهني فقط، ولا تخترع مرجعاً.'}
+${referenceWarning ? `تحذير حتمي: ${REFERENCE_UNREADABLE_WARNING}. لا تخصم درجات بسبب استشهادات لا يمكن التحقق منها من النص المشوش؛ على المشرف مراجعة المصدر الأصلي.\n` : ''}${book.used ? `حالة المرجع: ${book.status === 'EXACT' ? 'المصادر الأصلية للواجب موثّقة' : book.status === 'PARTIAL' ? 'بعض المصادر الأصلية مفقودة أو مقتطعة؛ لا تفترض اكتمال الدليل' : 'مرجع من الوحدة نفسها وليس مصادر الواجب الأصلية'}.\nمقتطفات مرجعية من كتاب الوحدة (للمرجع فقط، ليست نموذج إجابة حرفي):\n${book.text}` : 'لا يوجد سياق كتاب متاح لهذه الوحدة؛ قيّم الإجابة على أساس الفهم والتحليل والتطبيق المهني فقط، ولا تخترع مرجعاً.'}
 إجابة الطالب:
-${answer.combinedText}`
+${answer.combinedText}
+
+أدلة PDF الأصلي (إضافة لا استبدال لسياق الوحدة):
+${citations.mode === 'REFERENCE_RANGES' ? 'هذه نطاقات مرجعية للواجب، وليست صفحات استشهد بها الطالب.' : ''}
+${citations.evidenceText || 'لا توجد صفحات صريحة متاحة للتحقق.'}
+عدم المطابقة قد ينتج عن اختلاف ترقيم PDF عن المطبوع؛ لا تخصم بناءً على عدم المطابقة وحده. القرار للمشرف.`
 
   let raw: string
+  let gradingProvider = 'UNKNOWN'
+  let gradingModel = 'UNKNOWN'
   try {
-    raw = await textAiCompleteJson({
+    const completion = await textAiCompleteJsonWithMetadata({
       system: gradingSystemPrompt(submission.assignment.points, criteria),
       history: [{ role: 'user', text: userPrompt }],
       purpose: 'GRADING',
@@ -538,16 +742,35 @@ ${answer.combinedText}`
       maxOutputTokens: 4000,
       deadlineMs: Date.now() + 120_000,
     })
+    raw = completion.text
+    gradingProvider = completion.provider
+    gradingModel = completion.model
   } catch (e: any) {
     const error = new Error(`AI_UNAVAILABLE: ${String(e?.message || e).slice(0, 200)}`) as Error & { status?: number }
     error.status = 502
     throw error
   }
-  const draft = normalizeAiDraft(parseAiJson(raw), submission.assignment.points, criteria)
+  const rejectionReason = classifyAssignmentAiOutput(raw)
+  const draft = rejectionReason ? null : normalizeAiDraft(parseAiJson(raw), submission.assignment.points, criteria)
   if (!draft) {
-    const error = new Error('AI_OUTPUT_INVALID') as Error & { status?: number }
+    // Safe operational diagnostics only: no student content or model response.
+    console.error('supervisor assignment AI output rejected', {
+      code: 'AI_OUTPUT_INVALID',
+      reason: rejectionReason || 'INVALID_SCORE',
+      purpose: 'GRADING',
+      provider: gradingProvider,
+      model: gradingModel,
+    })
+    const error = new Error('AI_OUTPUT_INVALID') as Error & { status?: number; reason?: AssignmentAiRejectionReason }
     error.status = 502
+    error.reason = rejectionReason || 'INVALID_SCORE'
     throw error
+  }
+  const isolation = isolateSourceCriterion(draft, criteria, submission.assignment.points, (citations.mode === 'STUDENT_CITATIONS' && citations.pages.some(page => page.source === 'UNVERIFIED')) || (book.unreadable && citations.mode !== 'STUDENT_CITATIONS'))
+  if (referenceWarning) draft.feedback = `${REFERENCE_UNREADABLE_WARNING}\n\n${draft.feedback}`
+  if (referenceWarning || citations.pages.some(page => page.source === 'UNVERIFIED')) {
+    draft.gaps = draft.gaps.filter((gap) => !/استشهاد|مرجع|مراجع|مصادر|صفحات/.test(gap))
+    draft.errors = draft.errors.filter((error) => !/استشهاد|مرجع|مراجع|مصادر|صفحات/.test(error))
   }
   return {
     submissionId: submission.id,
@@ -565,7 +788,14 @@ ${answer.combinedText}`
       bookSourceStatus: book.status,
       sourceKnowledgeCount: book.expected,
       sourceKnowledgeMatched: book.matched,
+      referenceWarning,
       answerTruncated: answer.truncated,
+      citationPages: citations.pages,
+      citationMode: citations.mode,
+      citationReviewRequired: citations.reviewRequired,
+      attachmentReviewRequired: approvalAnswer.uncertain,
+      isolationStatus: isolation.status,
+      isolationNote: isolation.note,
     } as AnswerProvenance,
   }
 }
@@ -574,7 +804,7 @@ ${answer.combinedText}`
 export async function gradeAssignmentSubmission(
   submissionId: string,
   user: { id: string; role: string; name?: string | null },
-  input: { score: number; feedback: string; status: 'GRADED' | 'NEEDS_REVISION' }
+  input: { score: number; feedback: string; status: 'GRADED' | 'NEEDS_REVISION'; sourceReviewed?: boolean }
 ) {
   const submission = await db.assignmentSubmission.findUnique({
     where: { id: submissionId },
@@ -586,6 +816,17 @@ export async function gradeAssignmentSubmission(
     throw error
   }
   await assertSupervisorScope(user, submission)
+
+  if (input.status === 'GRADED') {
+    const book = await loadBookContext(submission.assignment.programId, submission.assignment.unitId, submission.assignment.semester, submission.assignment.sourceKnowledgeIds)
+    const answer = await readApprovalAnswerLocally(submission)
+    const citations = await verifyCitedPages(submission.assignment, answer.text, false)
+    if ((book.unreadable || answer.uncertain || citations.reviewRequired) && input.sourceReviewed !== true) {
+      const error = new Error('SOURCE_REVIEW_REQUIRED') as Error & { status?: number }
+      error.status = 409
+      throw error
+    }
+  }
 
   const points = submission.assignment.points
   const score = Number(input.score)
@@ -624,5 +865,10 @@ export async function gradeAssignmentSubmission(
     await emailAssignmentGraded(updated.user.email, updated.user.name || 'الطالب', submission.assignment.title, input.status, score, points, feedback || null)
   }
   await audit(user as any, 'GRADE_ASSIGNMENT_SUPERVISOR', 'AssignmentSubmission', submissionId, `تصحيح مشرف لواجب ${submission.assignment.title} للطالب ${submission.user?.name || ''} — ${score}/${points}`)
+  if (input.status === 'GRADED') {
+    // Re-evaluate the cumulative mark; a component's individual passing flag is not a prerequisite.
+    await completeEnrollmentIfEligible({ userId: submission.userId, programId: submission.assignment.programId })
+      .catch((error) => console.error('Supervisor assignment graduation recheck failed:', error))
+  }
   return updated
 }

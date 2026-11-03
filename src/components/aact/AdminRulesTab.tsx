@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '@/lib/store'
+import { gradingFormulaSignature } from '@/lib/program-tracks'
 import { buildOfficialStudyAdmissionDefaults, buildServiceAdmissionDefaults, getServiceDocumentOptions, getServiceFlow } from '@/lib/service-flows'
 import { toast } from '@/hooks/use-toast'
 import { Card, CardContent } from '@/components/ui/card'
@@ -27,9 +28,35 @@ interface AcademicPlanStage {
 }
 
 interface AcademicEvaluationItemDraft {
+  key?: string
   label: string
   weight: number
   description: string
+}
+
+const GRADING_COMPONENT_CHOICES: Record<string, Array<{ key: string; label: string }>> = {
+  DIPLOMA: [
+    { key: 'quizzes', label: 'اختبارات الوحدات والمتابعة' },
+    { key: 'assignments', label: 'الواجبات والأنشطة' },
+    { key: 'final_exam', label: 'الامتحان النهائي' },
+    { key: 'thesis', label: 'بحث التخرج' },
+  ],
+  MASTERS: [
+    { key: 'semester1_quizzes', label: 'اختبارات وحدات الفصل الأول' },
+    { key: 'semester1_exam', label: 'امتحان الفصل الأول' },
+    { key: 'semester2_quizzes', label: 'اختبارات وحدات الفصل الثاني' },
+    { key: 'semester2_exam', label: 'امتحان الفصل الثاني' },
+    { key: 'thesis', label: 'بحث التخرج' },
+    { key: 'defense', label: 'المناقشة النهائية' },
+  ],
+  DOCTORATE: [
+    { key: 'reading_quizzes', label: 'اختبارات القراءات المتقدمة' },
+    { key: 'reading_exam', label: 'امتحان القراءات المتقدمة' },
+    { key: 'analysis_quizzes', label: 'اختبارات التطبيق والتحليل' },
+    { key: 'analysis_exam', label: 'امتحان التطبيق والتحليل' },
+    { key: 'thesis', label: 'الأطروحة' },
+    { key: 'defense', label: 'المناقشة النهائية' },
+  ],
 }
 
 interface AcademicTermPlanDraft {
@@ -58,6 +85,8 @@ interface AcademicProfileDraft {
   studyPlan?: AcademicPlanStage[]
   termPlans?: AcademicTermPlanDraft[]
   finalEvaluationFormula?: AcademicEvaluationItemDraft[]
+  approvedFormulaSignature?: string
+  approvedFormulaAt?: string
   graduationRequirements?: string[]
   assessmentComponents?: string[]
   thesisRequirement?: string
@@ -245,6 +274,7 @@ function normalizeAcademicProfile(profile?: AcademicProfileDraft | null): Academ
       .filter((t) => t.title || t.description),
     finalEvaluationFormula: (profile.finalEvaluationFormula || [])
       .map((item) => ({
+        key: String(item.key || '').trim() || undefined,
         label: String(item.label || '').trim(),
         weight: Number(item.weight || 0),
         description: String(item.description || '').trim(),
@@ -336,6 +366,16 @@ export function AdminRulesTab() {
     : []
   const selectedFlow = getServiceFlow(selected?.slug)
   const isStudyProgram = selectedFlow ? selectedFlow.isStudyProgram : selected?.category !== 'SERVICE'
+  const gradingChoices = GRADING_COMPONENT_CHOICES[selected?.category || ''] || []
+  const gradingFormula = draft.academicProfile?.finalEvaluationFormula || []
+  const gradingKeys = gradingFormula.map((item) => item.key || '')
+  const gradingFormulaValid = gradingChoices.length > 0 && gradingFormula.length > 0
+    && gradingFormula.every((item) => gradingChoices.some((choice) => choice.key === item.key) && item.label.trim() && Number.isFinite(item.weight) && item.weight > 0)
+    && new Set(gradingKeys).size === gradingKeys.length
+    && Math.abs(gradingFormula.reduce((sum, item) => sum + item.weight, 0) - 100) < 0.000001
+    && gradingChoices.filter((choice) => choice.key !== 'thesis').every((choice) => gradingKeys.includes(choice.key))
+  const gradingFormulaApproved = gradingFormulaValid &&
+    draft.academicProfile?.approvedFormulaSignature === gradingFormulaSignature(gradingFormula)
   const serviceDocOptions = selectedFlow ? getServiceDocumentOptions(selectedFlow) : []
   const activeDocOptions = isStudyProgram ? DOC_OPTIONS : (serviceDocOptions.length ? serviceDocOptions.map((d) => ({ value: d.value, label: d.label, icon: FileText })) : DOC_OPTIONS)
   const normalizedProgramSearch = programSearch.trim().toLowerCase()
@@ -1507,6 +1547,7 @@ export function AdminRulesTab() {
                         إضافة عنصر تقييم
                       </Button>
                     </div>
+                    <p className="text-[11px] leading-5 text-slate-600">اربط كل بند بمكون علامات ثابت. الأوزان المكتوبة للعرض فقط حتى تختار المكونات، ومجموعها 100%، ثم تضغط اعتماد المعادلة وتحفظ القواعد. أي تغيير لاحق في بند أو وزن يبطل الاعتماد.</p>
                     {(draft.academicProfile?.finalEvaluationFormula || []).map((item, i) => (
                       <div key={i} className="rounded-lg bg-slate-50 p-2">
                         <div className="mb-2 flex items-center justify-between gap-2">
@@ -1518,9 +1559,43 @@ export function AdminRulesTab() {
                           <Input type="number" min={0} max={100} className="text-xs" placeholder="النسبة %" value={item.weight || ''} onChange={(e) => updateEvaluationItem(i, { weight: Number(e.target.value) })} />
                           <Input className="text-xs" placeholder="وصف مختصر" value={item.description || ''} onChange={(e) => updateEvaluationItem(i, { description: e.target.value })} />
                         </div>
+                        {gradingChoices.length > 0 && (
+                          <div className="mt-2">
+                            <Label className="text-[11px] text-slate-600">المكوّن الفعلي الذي يستقبل هذه النسبة</Label>
+                            <Select value={item.key || '__unmapped__'} onValueChange={(v) => updateEvaluationItem(i, { key: v === '__unmapped__' ? undefined : v })}>
+                              <SelectTrigger className="mt-1 text-xs"><SelectValue placeholder="اختر المكون" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__unmapped__" className="text-xs">غير مربوط — للعرض فقط</SelectItem>
+                                {gradingChoices.map((choice) => <SelectItem key={choice.key} value={choice.key} className="text-xs">{choice.label}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
                       </div>
                     ))}
                     {!(draft.academicProfile?.finalEvaluationFormula || []).length && <p className="text-[11px] font-bold text-slate-400">اتركها فارغة ليستخدم النظام معادلة التقييم التلقائية من الدليل.</p>}
+                    {gradingFormula.length > 0 && gradingChoices.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-3">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={!gradingFormulaValid || gradingFormulaApproved}
+                          onClick={() => patchAcademic({
+                            approvedFormulaSignature: gradingFormulaSignature(gradingFormula),
+                            approvedFormulaAt: new Date().toISOString(),
+                          })}
+                          className="border-[#c9a227]/50 text-xs font-bold"
+                        >
+                          {gradingFormulaApproved ? 'المعادلة معتمدة' : 'اعتماد توزيع العلامات'}
+                        </Button>
+                        <p className="text-[11px] text-slate-600">
+                          {gradingFormulaApproved ? 'تم اعتماد هذا التوزيع في المسودة. اضغط حفظ القواعد لتثبيته.' :
+                            gradingFormulaValid ? 'التوزيع جاهز للاعتماد. لا يؤثر على أي طالب قبل الحفظ.' :
+                            'يلزم ربط جميع المكونات الأساسية مرة واحدة، وأن يكون مجموع الأوزان 100%.'}
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   <div className="mt-4 space-y-3 rounded-xl bg-white p-3 ring-1 ring-[#c9a227]/20">
