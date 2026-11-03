@@ -2595,6 +2595,9 @@ export function AdminBooksTab() {
         }),
       })
       await loadProgramData(programId, true)
+      if (adminRoster && adminRoster.students.some(student => student.assignments.some(item => item.submissionId === submission.id))) {
+        await loadAdminRoster(adminRosterPage)
+      }
       toast({ title: mode === 'GRADE' ? 'تم تصحيح الواجب' : 'تم طلب تعديل الواجب', description: mode === 'GRADE' ? `${submission.studentName || 'الطالب'} — ${parsedScore}/${assignment.points}` : undefined })
       setGradingDialog(null)
     } catch (e: any) {
