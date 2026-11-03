@@ -381,47 +381,6 @@ async function loadBookContext(programId: string, unitId: string | null, semeste
     // Never replace the stored source: this is an in-memory reading correction only.
     const joined = parts.map((part) => fixArabicPdfText(part)).join('\n')
     let text = joined.slice(0, MAX_BOOK_CHARS)
-    if (repairSource && isUnreadableBookReference(text)) {
-      const source = await db.book.findUnique({
-        where: { id: unit.sourceBookId },
-        select: { storageProvider: true, storageKey: true, fileUrl: true, data: true, mimeType: true },
-      })
-      const stored = source ? await getFileBufferFromStorageOrBase64({
-        provider: source.storageProvider, key: source.storageKey, url: source.fileUrl,
-        data: source.data, mimeType: source.mimeType,
-      }) : null
-      if (!stored?.buffer?.length || stored.buffer.subarray(0, 5).toString() !== '%PDF-') {
-        throw new Error('REFERENCE_PDF_UNAVAILABLE')
-      }
-      const pdf = await PDFDocument.load(stored.buffer)
-      const pageCount = pdf.getPageCount()
-      // OCR only the source chunks exhibiting extraction corruption; never scan the first
-      // eight unrelated pages and mistake their clean text for repaired evidence.
-      const damagedChunks = chunks.filter((chunk) => isUnreadableBookReference(fixArabicPdfText(chunk.text || '')))
-      if (!damagedChunks.length) throw new Error('REFERENCE_DAMAGED_PAGES_UNKNOWN')
-      const pages = [...new Set(damagedChunks.flatMap((chunk) => {
-        const start = Math.max(1, chunk.pageStart)
-        const end = Math.min(pageCount, chunk.pageEnd)
-        return Array.from({ length: Math.max(0, end - start + 1) }, (_, i) => start + i)
-      }))].sort((a, b) => a - b)
-      if (!pages.length) throw new Error('REFERENCE_PAGES_UNAVAILABLE')
-      // The OCR provider accepts up to eight pages per call. Process every damaged
-      // source page in ordered batches; never silently drop pages after the first batch.
-      const deadline = Date.now() + 100_000
-      const rescanned: Awaited<ReturnType<typeof transcribeScannedDocumentWithVision>> = []
-      for (let offset = 0; offset < pages.length; offset += 8) {
-        if (deadline - Date.now() < 25_000) throw new Error('REFERENCE_REPAIR_TIME_BUDGET')
-        const batch = pages.slice(offset, offset + 8)
-        const result = await transcribeScannedDocumentWithVision(stored.buffer, batch, deadline)
-        if (result.length !== batch.length || result.some((page, i) => page.page !== batch[i] || !page.text.trim())) {
-          throw new Error('REFERENCE_OCR_INCOMPLETE')
-        }
-        rescanned.push(...result)
-      }
-      const recovered = rescanned.map((page) => fixArabicPdfText(page.text || '')).join('\n')
-      if (recovered.length < 120 || isUnreadableBookReference(recovered)) throw new Error('REFERENCE_OCR_UNREADABLE')
-      text = recovered.slice(0, MAX_BOOK_CHARS)
-    }
     const book = await db.book.findUnique({ where: { id: unit.sourceBookId }, select: { title: true } }).catch(() => null)
     const status: GradingBookContext['status'] = !text ? 'NONE' : !sourceIds.length ? 'UNIT' :
       matched === sourceIds.length && joined.length <= MAX_BOOK_CHARS ? 'EXACT' : 'PARTIAL'
