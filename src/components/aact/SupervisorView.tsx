@@ -311,7 +311,7 @@ export function SupervisorView() {
     }
   }
 
-  const analyzeAssignmentGrading = async (repairSource = false) => {
+  const analyzeAssignmentGrading = async () => {
     if (!gradingDetail) return
     setGradingAnalyzing(true)
     try {
