@@ -738,6 +738,9 @@ ${citations.evidenceText || 'لا توجد صفحات صريحة متاحة لل
       maxOutputTokens: 4000,
       deadlineMs: Date.now() + 120_000,
     })
+    raw = completion.text
+    gradingProvider = completion.provider
+    gradingModel = completion.model
   } catch (e: any) {
     const error = new Error(`AI_UNAVAILABLE: ${String(e?.message || e).slice(0, 200)}`) as Error & { status?: number }
     error.status = 502
