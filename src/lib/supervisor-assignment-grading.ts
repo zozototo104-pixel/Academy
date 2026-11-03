@@ -386,7 +386,6 @@ async function loadBookContext(programId: string, unitId: string | null, semeste
       matched === sourceIds.length && joined.length <= MAX_BOOK_CHARS ? 'EXACT' : 'PARTIAL'
     return { text, titles: [book?.title, unit.title].filter((title): title is string => Boolean(title)), used: Boolean(text), status, expected: sourceIds.length, matched, unreadable: isUnreadableBookReference(text) }
   } catch (error) {
-    if (repairSource) throw error
     return missing()
   }
 }
