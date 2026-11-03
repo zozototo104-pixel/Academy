@@ -80,6 +80,7 @@ export async function GET(req: NextRequest) {
       }) : []
       const enrollments = userIds.length ? await db.enrollment.findMany({
         where: { programId, userId: { in: userIds } },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
         select: { userId: true, createdAt: true },
       }) : []
       const enrolledAt = new Map(enrollments.map(e => [e.userId, e.createdAt]))
