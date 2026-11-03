@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
       const students = apps.map(app => ({
         admissionId: app.id,
         userId: app.userId,
-        name: app.user?.name || 'طالب',
+        name: app.fullName || 'طالب',
         assignments: assignments.map(a => {
           const sub = byPair.get(app.userId + ':' + a.id)
           return {
