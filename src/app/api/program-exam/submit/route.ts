@@ -589,7 +589,7 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ ok: true, status: 'NEEDS_REVIEW', attemptId: claimedProgramAttemptId, message: 'تم حفظ إجاباتك للمراجعة بعد توقف التصحيح الآلي.' }, { status: 202 })
         }
       } catch (recoveryError) {
-        console.error('Programme attempt recovery failed:', recoveryError)
+        console.error('programme attempt recovery failed', { code: 'PROGRAM_RECOVERY_FAILED', attemptId: claimedProgramAttemptId })
       }
     }
     if (e?.message === 'UNAUTHORIZED') {
