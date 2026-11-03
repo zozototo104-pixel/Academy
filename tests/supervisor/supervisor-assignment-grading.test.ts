@@ -77,6 +77,7 @@ const db: any = {
   admissionApplication: {
     findFirst: async () => ({ id: 'app-1', supervisorId: admissionSupervisorId, supervisionMode: 'HYBRID' }),
     count: async (args: any) => args.where.supervisorId === 'other-supervisor' ? 0 : 1,
+    groupBy: async (args: any) => args.where.supervisorId === 'other-supervisor' ? [] : [{ userId: 'student-1' }],
     findMany: async (args: any) => args.where.supervisorId === 'other-supervisor' ? [] : [{
       id: 'app-1', userId: 'student-1', fullName: 'محمود',
     }].slice(args.skip, args.skip + args.take),
