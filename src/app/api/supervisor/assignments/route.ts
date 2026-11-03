@@ -56,10 +56,10 @@ export async function GET(req: NextRequest) {
       const [studentGroups, apps, assignments] = await Promise.all([
         db.admissionApplication.groupBy({ by: ['userId'], where: scope }),
         db.admissionApplication.findMany({
-          where: scope,
+          where: cursor ? { ...scope, userId: { gt: cursor } } : scope,
           orderBy: [{ userId: 'asc' }, { createdAt: 'desc' }, { id: 'desc' }],
           distinct: ['userId'],
-          ...(cursor ? { where: { ...scope, userId: { gt: cursor } } } : { skip: (page - 1) * pageSize }),
+          ...(!cursor ? { skip: (page - 1) * pageSize } : {}),
           take: pageSize + 1,
           select: { id: true, userId: true, fullName: true },
         }),
