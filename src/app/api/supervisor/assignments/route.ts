@@ -113,7 +113,7 @@ export async function GET(req: NextRequest) {
     if (!detail) return NextResponse.json({ error: 'التسليم غير موجود' }, { status: 404 })
     return NextResponse.json({ detail })
   } catch (e: any) {
-    console.error('supervisor assignments GET error:', e)
+    console.error('supervisor assignments GET failed', { code: 'SUPERVISOR_ASSIGNMENTS_GET_FAILED', status: statusFor(e) })
     return NextResponse.json({ error: publicMessage(e, 'تعذر تحميل التسليم') }, { status: statusFor(e) })
   }
 }
