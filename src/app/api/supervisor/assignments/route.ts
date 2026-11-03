@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
       }) : []
       const enrolledAt = new Map(enrollments.map(e => [e.userId, e.createdAt]))
       const byPair = new Map(submissions.map(s => [s.userId + ':' + s.assignmentId, s]))
-      const students = apps.map(app => ({
+      const students = visibleApps.map(app => ({
         admissionId: app.id,
         userId: app.userId,
         name: app.fullName || 'طالب',
