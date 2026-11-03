@@ -83,7 +83,11 @@ export async function GET(req: NextRequest) {
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
         select: { userId: true, createdAt: true },
       }) : []
-      const enrolledAt = new Map(enrollments.map(e => [e.userId, e.createdAt]))
+      const enrolledAt = new Map<string, Date>()
+      for (const enrollment of enrollments) {
+        const previous = enrolledAt.get(enrollment.userId)
+        if (!previous || enrollment.createdAt < previous) enrolledAt.set(enrollment.userId, enrollment.createdAt)
+      }
       const byPair = new Map(submissions.map(s => [s.userId + ':' + s.assignmentId, s]))
       const students = visibleApps.map(app => ({
         admissionId: app.id,
