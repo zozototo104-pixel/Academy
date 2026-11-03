@@ -93,7 +93,7 @@ const db: any = {
     if (args?.where?.id?.in) return mockMissingOriginal ? [] : args.where.id.in.includes(exact.id) ? [exact] : []
     return mockCorruptedReference ? [{ ...unitExtra, summary: ('[غير واضح] محتوى المرجع غير قابل للقراءة. ').repeat(5) }] : [unitExtra]
   } },
-  book: { findUnique: async () => mockSourceUnit ? { title: 'كتاب الموارد البشرية' } : null },
+  book: { findUnique: async () => mockSourceUnit ? { title: 'كتاب الموارد البشرية', storageProvider: 'LOCAL', storageKey: 'books/book-1.pdf', mimeType: 'application/pdf' } : null },
 }
 
 mock.module('@/lib/db', () => ({ db }))
