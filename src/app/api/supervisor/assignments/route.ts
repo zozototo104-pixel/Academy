@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
       const total = studentGroups.length
       const hasMore = apps.length > pageSize
       const visibleApps = apps.slice(0, pageSize)
-      const nextCursor = hasMore ? visibleApps[visibleApps.length - 1]?.id ?? null : null
+      const nextCursor = hasMore ? visibleApps[visibleApps.length - 1]?.userId ?? null : null
       const userIds = visibleApps.map(app => app.userId).filter((id): id is string => Boolean(id))
       const submissions = userIds.length && assignments.length ? await db.assignmentSubmission.findMany({
         where: { userId: { in: userIds }, assignmentId: { in: assignments.map(a => a.id) } },
