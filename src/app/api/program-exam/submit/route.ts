@@ -498,7 +498,7 @@ export async function POST(req: NextRequest) {
       })
       if (changed.count === 1) overall = generated
     } catch (feedbackError) {
-      console.error('Optional programme feedback failed; stored grade and fallback remain intact:', feedbackError)
+      console.error('Optional programme feedback failed; stored grade and fallback remain intact', { code: 'PROGRAM_FEEDBACK_FAILED', attemptId: claimedProgramAttemptId || null })
     }
 
     await updateStudentAcademicMemory(user.id, {
