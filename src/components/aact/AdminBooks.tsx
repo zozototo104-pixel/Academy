@@ -995,12 +995,14 @@ export function AdminBooksTab() {
     setAdminRosterLoading(true)
     try {
       const data = await api<NonNullable<typeof adminRoster>>(`/api/supervisor/assignments?mode=roster&programId=${encodeURIComponent(programId)}&semester=${semester}&page=${page}`)
+      if (!isCurrent()) return
       setAdminRoster(data)
       setAdminRosterPage(page)
     } catch {
+      if (!isCurrent()) return
       setAdminRoster(null)
       toast({ title: 'تعذر تحميل طلاب الفصل', variant: 'destructive' })
-    } finally { setAdminRosterLoading(false) }
+    } finally { if (isCurrent()) setAdminRosterLoading(false) }
   }
 
   const loadProgramData = useCallback(async (pid: string, silent = false) => {
