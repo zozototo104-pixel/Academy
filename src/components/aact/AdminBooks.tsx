@@ -986,7 +986,7 @@ export function AdminBooksTab() {
   const pagedGradingGroups = pageItems(groupedGradingQueue, gradingPage, gradingPageSize)
   const currentGradingPage = safePage(groupedGradingQueue.length, gradingPageSize, gradingPage)
 
-  useEffect(() => { adminRosterRequestRef.current += 1; setAdminRoster(null); setAdminRosterPage(1); setAdminRosterLoading(false) }, [programId, adminRosterSemester])
+  useEffect(() => { adminRosterRequestRef.current += 1; setAdminRoster(null); setAdminRosterPage(1); setAdminRosterCursors([null]); setAdminRosterLoading(false) }, [programId, adminRosterSemester])
 
   const loadAdminRoster = async (page: number, semester = adminRosterSemester) => {
     if (!programId) return
