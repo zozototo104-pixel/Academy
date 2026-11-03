@@ -442,7 +442,7 @@ export async function POST(req: NextRequest) {
       })
       if (changed.count === 1) overall = generated
     } catch (feedbackError: any) {
-      console.error('Optional unit feedback failed; official grade remains saved:', String(feedbackError?.message || feedbackError).slice(0, 300))
+      console.error('Optional unit feedback failed; official grade remains saved', { code: 'UNIT_FEEDBACK_FAILED', attemptId: claimedUnitAttemptId || null })
     }
 
     // Any graded attempt can push the weighted cumulative mark above the threshold.
