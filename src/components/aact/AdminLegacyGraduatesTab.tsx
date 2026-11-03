@@ -218,6 +218,7 @@ export default function AdminLegacyGraduatesTab() {
   const [programOverrides, setProgramOverrides] = useState<Record<string, string>>({})
   const [zipFile, setZipFile] = useState<File | null>(null)
   const [zipReport, setZipReport] = useState<any>(null)
+  const [zipProgress, setZipProgress] = useState(0)
   const [programOptions, setProgramOptions] = useState<LegacyProgramOption[]>([])
   const [importProgress, setImportProgress] = useState<{ done: number; total: number } | null>(null)
 
@@ -410,13 +411,60 @@ export default function AdminLegacyGraduatesTab() {
     }
   }
 
+  async function uploadZipMultipart(file: File) {
+    const fd = new FormData()
+    fd.append('file', file)
+    return jsonOrThrow(await fetch('/api/admin/legacy-graduates/import-files', { method: 'POST', body: fd }), 'تعذر رفع ملفات الشهادات')
+  }
+
   async function uploadZip() {
     if (!zipFile) return toast({ title: 'اختر ملف ZIP أولاً', variant: 'destructive' })
     setBusy('zip')
+    setZipProgress(0)
     try {
-      const fd = new FormData()
-      fd.append('file', zipFile)
-      const data = await jsonOrThrow(await fetch('/api/admin/legacy-graduates/import-files', { method: 'POST', body: fd }), 'تعذر رفع ملفات الشهادات')
+      let data: any = null
+      // Preferred path: upload the archive straight to storage with a
+      // presigned URL, then ask the import route to process it by key.
+      // Function request bodies cap at 4.5MB, so a large ZIP can only ever
+      // arrive this way; the classic multipart POST stays as a fallback for
+      // small archives when direct upload is unavailable.
+      const presignRes = await fetch('/api/admin/legacy-graduates/import-files/presign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ size: zipFile.size }),
+      }).catch(() => null)
+      if (presignRes?.ok) {
+        const { uploadUrl, key } = await presignRes.json()
+        try {
+          await new Promise<void>((resolve, reject) => {
+            const xhr = new XMLHttpRequest()
+            xhr.open('PUT', uploadUrl)
+            xhr.setRequestHeader('Content-Type', 'application/zip')
+            xhr.upload.onprogress = (e) => {
+              if (e.lengthComputable) setZipProgress(Math.round((e.loaded / e.total) * 100))
+            }
+            xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`HTTP ${xhr.status}`)))
+            xhr.onerror = () => reject(new Error('network'))
+            xhr.send(zipFile)
+          })
+        } catch (uploadError) {
+          if (zipFile.size > 4 * 1024 * 1024) throw uploadError
+          data = await uploadZipMultipart(zipFile)
+        }
+        if (!data) {
+          setZipProgress(100)
+          data = await jsonOrThrow(await fetch('/api/admin/legacy-graduates/import-files', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key, size: zipFile.size }),
+          }), 'تعذر رفع ملفات الشهادات')
+        }
+      } else if (zipFile.size <= 4 * 1024 * 1024) {
+        data = await uploadZipMultipart(zipFile)
+      } else {
+        const presignError = presignRes ? await presignRes.json().catch(() => null) : null
+        throw new Error(presignError?.error || 'الرفع المباشر غير متاح حالياً، والملف أكبر من حد الرفع العادي')
+      }
       setZipReport(data)
       toast({ title: 'تمت معالجة ZIP', description: `نجح: ${data.successful} / غير مرتبط: ${data.notFound} / مرفوض: ${data.rejected}` })
       await load()
@@ -424,6 +472,7 @@ export default function AdminLegacyGraduatesTab() {
       toast({ title: 'فشل رفع ZIP', description: String(error?.message || error), variant: 'destructive' })
     } finally {
       setBusy(null)
+      setZipProgress(0)
     }
   }
 
@@ -662,8 +711,9 @@ export default function AdminLegacyGraduatesTab() {
           <h4 className="font-black text-[#0f2b46]">رفع شهادات ZIP</h4>
           <div className="flex flex-col gap-2 md:flex-row md:items-center">
             <Input type="file" accept=".zip,application/zip" onChange={(e) => setZipFile(e.target.files?.[0] || null)} />
-            <Button variant="outline" onClick={uploadZip} disabled={busy === 'zip'} className="gap-2"><FileArchive className="h-4 w-4" /> {busy === 'zip' ? 'جاري المعالجة...' : 'رفع شهادات ZIP'}</Button>
+            <Button variant="outline" onClick={uploadZip} disabled={busy === 'zip'} className="gap-2"><FileArchive className="h-4 w-4" /> {busy === 'zip' ? (zipProgress > 0 && zipProgress < 100 ? `جاري الرفع ${zipProgress}%...` : 'جاري المعالجة...') : 'رفع شهادات ZIP'}</Button>
           </div>
+          {busy === 'zip' && zipProgress >= 100 ? <p className="text-xs font-bold text-slate-600">اكتمل الرفع — جارٍ ربط الشهادات وختمها...</p> : null}
           {zipReport ? <p className="text-xs font-bold text-slate-600">النتيجة: نجح {zipReport.successful}، غير مرتبط {zipReport.notFound}، مرفوض {zipReport.rejected}، فشل {zipReport.failed}</p> : null}
         </CardContent>
       </Card>

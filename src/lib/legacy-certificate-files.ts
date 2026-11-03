@@ -1,12 +1,13 @@
 import { inflateRawSync } from 'zlib'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { createHash, createHmac, randomUUID } from 'crypto'
 import os from 'os'
 import path from 'path'
 import { PDFDocument } from 'pdf-lib'
 import QRCode from 'qrcode'
 import sharp from 'sharp'
 import { certificateVerificationUrl } from '@/lib/w3c/certificate-credential'
-import { readStoredFile, storeFileBuffer } from '@/lib/storage'
+import { deleteStoredFile, readStoredFile, storeFileBuffer } from '@/lib/storage'
 import { STAMP_FONT_BUNDLES } from './stamp-fonts-data'
 
 // Fonts embedded with the app (see stamp-fonts-data.ts) so stamp text
@@ -93,7 +94,11 @@ export type StampValues = {
 }
 
 export const LEGACY_CERTIFICATE_UPLOAD_MAX_BYTES = 10 * 1024 * 1024
-export const LEGACY_CERTIFICATE_ZIP_MAX_BYTES = 50 * 1024 * 1024
+// Archive cap for a bulk certificate ZIP. The archive now reaches the server
+// through direct-to-storage upload (Vercel function request bodies cap at
+// 4.5MB, so a big ZIP can never arrive as a request body); the per-file and
+// total-uncompressed parser caps below remain the processing limits.
+export const LEGACY_CERTIFICATE_ZIP_MAX_BYTES = 200 * 1024 * 1024
 export const LEGACY_CERTIFICATE_ZIP_MAX_FILES = 300
 export const LEGACY_CERTIFICATE_ZIP_MAX_UNCOMPRESSED_BYTES = 200 * 1024 * 1024
 
@@ -371,6 +376,102 @@ export async function storeLegacyCertificateOriginal(buffer: Buffer, fileName: s
 
 export async function storeLegacyCertificateStamped(buffer: Buffer, fileName: string) {
   return storeFileBuffer({ buffer, fileName, mimeType: 'application/pdf', namespace: 'certificates/legacy-stamped' })
+}
+
+// --- Bulk ZIP direct-to-storage upload -------------------------------------
+// A bulk ZIP can be far larger than the 4.5MB request-body cap Vercel puts
+// on functions, so the browser uploads the archive straight to storage with
+// a presigned PUT (the lecture-video pattern, same AACT_S3_* configuration)
+// and the import route then reads it back from storage by key. The signing
+// here is feature-local on purpose: the platform signer in
+// src/lib/storage.ts clamps URLs to 300 seconds, too short to start a very
+// large upload on a slow connection.
+
+export const LEGACY_CERTIFICATE_ZIP_IMPORT_PREFIX = 'certificates/legacy-zip-imports/'
+export const LEGACY_CERTIFICATE_ZIP_UPLOAD_TTL_SEC = 3600
+
+type LegacyZipS3Config = {
+  endpoint: string
+  bucket: string
+  accessKeyId: string
+  secretAccessKey: string
+  region: string
+}
+
+function getLegacyZipS3Config(): LegacyZipS3Config | null {
+  const endpoint = process.env.AACT_S3_ENDPOINT?.trim()
+  const bucket = process.env.AACT_S3_BUCKET?.trim()
+  const accessKeyId = process.env.AACT_S3_ACCESS_KEY_ID?.trim()
+  const secretAccessKey = process.env.AACT_S3_SECRET_ACCESS_KEY?.trim()
+  if (!endpoint || !bucket || !accessKeyId || !secretAccessKey) return null
+  return {
+    endpoint: endpoint.replace(/\/+$/, ''),
+    bucket,
+    accessKeyId,
+    secretAccessKey,
+    region: process.env.AACT_S3_REGION?.trim() || 'auto',
+  }
+}
+
+function legacyZipSha256Hex(input: string): string {
+  return createHash('sha256').update(input).digest('hex')
+}
+
+function legacyZipHmac(key: Buffer | string, value: string): Buffer {
+  return createHmac('sha256', key).update(value).digest()
+}
+
+function legacyZipEncodePart(value: string): string {
+  return encodeURIComponent(value).replace(/[!'()*]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase())
+}
+
+export function newLegacyCertificateZipImportKey(): string {
+  return `${LEGACY_CERTIFICATE_ZIP_IMPORT_PREFIX}${randomUUID()}.zip`
+}
+
+export function isLegacyCertificateZipImportKey(key: unknown): key is string {
+  return typeof key === 'string' && key.startsWith(LEGACY_CERTIFICATE_ZIP_IMPORT_PREFIX) && !key.includes('..')
+}
+
+// Presigned PUT URL the browser uses to upload one bulk ZIP directly to
+// storage. Returns null when S3 storage is not configured on this server.
+export function createLegacyCertificateZipUploadUrl(key: string): string | null {
+  if (!isLegacyCertificateZipImportKey(key)) return null
+  const cfg = getLegacyZipS3Config()
+  if (!cfg) return null
+  const endpoint = new URL(cfg.endpoint)
+  const amzDate = new Date().toISOString().replace(/[:-]|\.\d{3}/g, '')
+  const dateStamp = amzDate.slice(0, 8)
+  const scope = `${dateStamp}/${cfg.region}/s3/aws4_request`
+  const uri = `/${legacyZipEncodePart(cfg.bucket)}/${key.split('/').map(legacyZipEncodePart).join('/')}`
+  const query: Array<[string, string]> = [
+    ['X-Amz-Algorithm', 'AWS4-HMAC-SHA256'],
+    ['X-Amz-Credential', `${cfg.accessKeyId}/${scope}`],
+    ['X-Amz-Date', amzDate],
+    ['X-Amz-Expires', String(LEGACY_CERTIFICATE_ZIP_UPLOAD_TTL_SEC)],
+    ['X-Amz-SignedHeaders', 'host'],
+  ]
+  const canonicalQuery = query.map(([k, v]) => `${legacyZipEncodePart(k)}=${legacyZipEncodePart(v)}`).sort().join('&')
+  const canonicalRequest = ['PUT', uri, canonicalQuery, `host:${endpoint.host}\n`, 'host', 'UNSIGNED-PAYLOAD'].join('\n')
+  const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, legacyZipSha256Hex(canonicalRequest)].join('\n')
+  const kDate = legacyZipHmac(`AWS4${cfg.secretAccessKey}`, dateStamp)
+  const kRegion = legacyZipHmac(kDate, cfg.region)
+  const kService = legacyZipHmac(kRegion, 's3')
+  const kSigning = legacyZipHmac(kService, 'aws4_request')
+  const signature = createHmac('sha256', kSigning).update(stringToSign).digest('hex')
+  return `${endpoint.origin}${uri}?${canonicalQuery}&X-Amz-Signature=${signature}`
+}
+
+export async function readLegacyCertificateZipImport(key: string): Promise<Buffer | null> {
+  if (!isLegacyCertificateZipImportKey(key)) return null
+  const stored = (await readStoredFile({ provider: 's3', key, mimeType: 'application/zip', maxBytes: LEGACY_CERTIFICATE_ZIP_MAX_BYTES }).catch(() => null))
+    || (await readStoredFile({ provider: 'local', key, mimeType: 'application/zip', maxBytes: LEGACY_CERTIFICATE_ZIP_MAX_BYTES }).catch(() => null))
+  return stored ? stored.buffer : null
+}
+
+export async function deleteLegacyCertificateZipImport(key: string): Promise<void> {
+  if (!isLegacyCertificateZipImportKey(key)) return
+  await deleteStoredFile(key).catch(() => false)
 }
 
 function readUInt16(buffer: Buffer, offset: number) {

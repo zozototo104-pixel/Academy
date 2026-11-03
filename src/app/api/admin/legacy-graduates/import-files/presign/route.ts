@@ -1,0 +1,36 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { requireAdmin } from '@/lib/auth'
+import {
+  LEGACY_CERTIFICATE_ZIP_MAX_BYTES,
+  createLegacyCertificateZipUploadUrl,
+  newLegacyCertificateZipImportKey,
+} from '@/lib/legacy-certificate-files'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
+// POST /api/admin/legacy-graduates/import-files/presign — يجهّز رفعًا مباشرًا
+// من المتصفح إلى التخزين لملف ZIP كبير: يعيد رابط PUT موقّعًا ومفتاح التخزين،
+// ثم يُستدعى مسار الاستيراد نفسه بالمفتاح فقط. هيك الأرشيف ما بيمرّ بجسم طلب
+// الدالة (سقفه 4.5MB على Vercel) مهما كان حجمه ضمن الحد الأقصى.
+export async function POST(req: NextRequest) {
+  try {
+    await requireAdmin()
+    const body = (await req.json().catch(() => null)) as { size?: unknown } | null
+    const size = typeof body?.size === 'number' ? Math.floor(body.size) : 0
+    if (!Number.isFinite(size) || size <= 0) return NextResponse.json({ error: 'حجم الملف مطلوب' }, { status: 400 })
+    if (size > LEGACY_CERTIFICATE_ZIP_MAX_BYTES) return NextResponse.json({ error: 'حجم ملف ZIP كبير جداً' }, { status: 413 })
+
+    const key = newLegacyCertificateZipImportKey()
+    const uploadUrl = createLegacyCertificateZipUploadUrl(key)
+    if (!uploadUrl) return NextResponse.json({ error: 'الرفع المباشر غير متاح على هذا الخادم' }, { status: 422 })
+
+    return NextResponse.json({ uploadUrl, key, maxBytes: LEGACY_CERTIFICATE_ZIP_MAX_BYTES })
+  } catch (error: any) {
+    if (error?.message === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
+    }
+    console.error('admin legacy-graduates import-files presign error:', error)
+    return NextResponse.json({ error: 'تعذر تجهيز رابط الرفع' }, { status: 500 })
+  }
+}
