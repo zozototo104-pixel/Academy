@@ -648,6 +648,7 @@ export function AdminBooksTab() {
   const [assignments, setAssignments] = useState<AssignmentRow[]>([])
   const [adminRosterSemester, setAdminRosterSemester] = useState('1')
   const [adminRosterPage, setAdminRosterPage] = useState(1)
+  const [adminRosterCursors, setAdminRosterCursors] = useState<(string | null)[]>([null])
   const [adminRoster, setAdminRoster] = useState<{ students: { userId: string; name: string; assignments: { id: string; title: string; status: string; score: number | null; points: number; submissionId: string | null }[] }[]; totalPages: number; total: number } | null>(null)
   const [adminRosterLoading, setAdminRosterLoading] = useState(false)
   const adminRosterRequestRef = useRef(0)
