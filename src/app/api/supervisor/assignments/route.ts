@@ -63,8 +63,8 @@ export async function POST(req: NextRequest) {
     const submissionId = asString(body.submissionId, 80)
     if (!submissionId) return NextResponse.json({ error: 'معرف التسليم مطلوب' }, { status: 400 })
 
-    if (action === 'analyze') {
-      const result = await analyzeAssignmentSubmission(submissionId, user)
+    if (action === 'analyze' || action === 'repair-reference') {
+      const result = await analyzeAssignmentSubmission(submissionId, user, action === 'repair-reference')
       return NextResponse.json({ ...result, saved: false })
     }
 
