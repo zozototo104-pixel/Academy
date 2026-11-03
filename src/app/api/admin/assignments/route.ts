@@ -194,7 +194,8 @@ export async function POST(req: NextRequest) {
       semester: asInt(body.semester, 1, 1, 3),
       type: asType(body.type),
       points: asInt(body.points, 10, 1, 100),
-      weight: asInt(body.weight, 0, 0, 100),
+      // Assignment contribution is now equally distributed; ignore legacy client weights.
+      weight: 0,
       dueDays: body.dueDays === '' || body.dueDays == null ? null : asInt(body.dueDays, 14, 1, 365),
       // تاريخ ثابت يحدده الأدمن؛ إذا وُضع، يُقدَّم على المدة بالأيام عند الطالب.
       // تاريخ بدون وقت يُفسَّر على أنه نهاية ذلك اليوم (23:59:59 بتوقيت UTC)
