@@ -390,6 +390,105 @@ async function loadBookContext(programId: string, unitId: string | null, semeste
   }
 }
 
+
+const MAX_CITATION_PAGES = 8
+const SOURCE_LABEL = /مصادر|استشهاد|مراجع|مرجع|توثيق/
+
+async function loadOriginalPdf(assignment: any): Promise<{ buffer: Buffer; pageCount: number; ranges: { pageStart: number; pageEnd: number }[] } | null> {
+  if (!assignment.unitId) return null
+  const unit = await db.unit.findFirst({
+    where: { id: assignment.unitId, programId: assignment.programId, ...(assignment.semester === 3 ? {} : { semester: assignment.semester }) },
+    select: { sourceBookId: true, chunkStartIndex: true, chunkEndIndex: true },
+  })
+  if (!unit?.sourceBookId) return null
+  const book = await db.book.findUnique({
+    where: { id: unit.sourceBookId },
+    select: { storageProvider: true, storageKey: true, fileUrl: true, data: true, mimeType: true },
+  })
+  const stored = book ? await getFileBufferFromStorageOrBase64({
+    provider: book.storageProvider, key: book.storageKey, url: book.fileUrl,
+    data: book.data, mimeType: book.mimeType,
+  }) : null
+  if (!stored?.buffer?.length || stored.buffer.subarray(0, 5).toString() !== '%PDF-') return null
+  const pdf = await PDFDocument.load(stored.buffer)
+  const ranges = unit.chunkStartIndex != null && unit.chunkEndIndex != null
+    ? await db.bookChunk.findMany({
+      where: { bookId: unit.sourceBookId, index: { gte: unit.chunkStartIndex, lte: unit.chunkEndIndex } },
+      select: { pageStart: true, pageEnd: true }, orderBy: { index: 'asc' },
+    }) : []
+  return { buffer: stored.buffer, pageCount: pdf.getPageCount(), ranges }
+}
+
+async function verifyCitedPages(assignment: any, answer: string, allowVision: boolean): Promise<{
+  pages: CitationEvidence[]; mode: NonNullable<AnswerProvenance['citationMode']>; reviewRequired: boolean; evidenceText: string
+}> {
+  const explicit = extractExplicitPageCitations(answer)
+  let pdf: Awaited<ReturnType<typeof loadOriginalPdf>> = null
+  try { pdf = await loadOriginalPdf(assignment) } catch { /* fail closed */ }
+  const fallback = !explicit.length && pdf
+    ? [...new Set(pdf.ranges.flatMap(range => Array.from({
+      length: Math.max(0, Math.min(MAX_CITATION_PAGES + 1, range.pageEnd - range.pageStart + 1)),
+    }, (_, i) => range.pageStart + i)))].slice(0, MAX_CITATION_PAGES + 1) : []
+  const requested = explicit.length ? explicit : fallback
+  const mode = explicit.length ? 'STUDENT_CITATIONS' : fallback.length ? 'REFERENCE_RANGES' : 'NONE'
+  const valid = requested.filter(page => pdf && page > 0 && page <= pdf.pageCount).slice(0, MAX_CITATION_PAGES)
+  const local = new Map<number, string>()
+  if (pdf && valid.length) {
+    try {
+      const extracted = await extractNumberedPdfPages(pdf.buffer, valid)
+      for (const entry of extracted) local.set(entry.page, fixArabicPdfText(entry.text || ''))
+    } catch { /* local failure requires review */ }
+  }
+  const pages: CitationEvidence[] = []
+  for (const page of requested) {
+    if (!pdf || page < 1 || page > pdf.pageCount) {
+      pages.push({ page, source: 'UNVERIFIED', reason: 'PDF الأصلي غير متاح أو الصفحة خارج النطاق' })
+      continue
+    }
+    if (!valid.includes(page)) {
+      pages.push({ page, source: 'UNVERIFIED', reason: 'تجاوز حد التحقق (8 صفحات)' })
+      continue
+    }
+    const native = local.get(page) || ''
+    if (native.trim().length >= 40 && !isUnreadableBookReference(native)) {
+      pages.push({ page, source: 'NATIVE_TEXT', text: native.slice(0, 2500) })
+      continue
+    }
+    if (allowVision && mode === 'STUDENT_CITATIONS') {
+      try {
+        const ocr = await transcribeScannedDocumentWithVision(pdf.buffer, [page], Date.now() + 60_000)
+        const text = fixArabicPdfText(ocr.find(item => item.page === page)?.text || '')
+        if (text.trim().length >= 40 && !isUnreadableBookReference(text)) {
+          pages.push({ page, source: 'VISION_OCR', text: text.slice(0, 2500) })
+          continue
+        }
+      } catch { /* do not mark citation false */ }
+    }
+    pages.push({ page, source: 'UNVERIFIED', reason: 'النص المحلي غير مقروء أو فشل التحقق' })
+  }
+  const reviewRequired = explicit.length > 0 && (!pdf || pages.some(page => page.source !== 'NATIVE_TEXT'))
+  const evidenceText = pages.map(page => page.source === 'UNVERIFIED'
+    ? 'صفحة PDF ' + page.page + ': لم يتم التحقق؛ ' + page.reason + '. لا تخصم على الاستشهاد.'
+    : 'صفحة PDF ' + page.page + ' [' + page.source + '] — أي عدم مطابقة يحتاج قرار المشرف:\n' + page.text).join('\n\n')
+  return { pages, mode, reviewRequired, evidenceText }
+}
+
+export function isolateSourceCriterion(draft: AiGradingDraft, criteria: RubricCriterion[], points: number, required: boolean): {
+  status: NonNullable<AnswerProvenance['isolationStatus']>; note: string | null
+} {
+  if (!required) return { status: 'NOT_REQUIRED', note: null }
+  const sourceIndices = criteria.flatMap((criterion, i) => SOURCE_LABEL.test(criterion.label) ? [i] : [])
+  if (!sourceIndices.length) return { status: 'NO_SOURCE_CRITERION', note: 'تعذر التحقق من بعض الاستشهادات، ولا يمكن عزل أثرها رياضيًا لعدم وجود معيار مستقل للمصادر. راجع الدرجة المقترحة قبل اعتمادها.' }
+  if (!draft.criteria || draft.criteria.length !== criteria.length) return { status: 'NO_VALID_BREAKDOWN', note: 'تعذر التحقق من بعض الاستشهادات، ولا يمكن عزل أثرها رياضيًا لعدم توفر تفصيل معايير صالح. راجع الدرجة المقترحة قبل اعتمادها.' }
+  const other = draft.criteria.filter((_, i) => !sourceIndices.includes(i))
+  const max = other.reduce((sum, criterion) => sum + criterion.maxPoints, 0)
+  if (max <= 0) return { status: 'NO_VALID_BREAKDOWN', note: 'لا يمكن عزل المصادر دون معايير أخرى صالحة؛ راجع الدرجة يدويًا.' }
+  draft.score = Math.round(other.reduce((sum, criterion) => sum + criterion.points, 0) / max * points * 100) / 100
+  for (const i of sourceIndices) draft.criteria[i].justification = 'مُستبعَد لتعذر التحقق؛ نقاط هذا المعيار لا تدخل الدرجة المقترحة.'
+  const weight = sourceIndices.reduce((sum, i) => sum + criteria[i].weightPct, 0)
+  return { status: 'ISOLATED', note: 'درجة الذكاء لا تشمل مكوّن المصادر (وزنه ' + weight + '%) لتعذر التحقق من الاستشهادات — حدّده بنفسك عند الاعتماد. الدرجة المعدّلة مقترحة وليست نهائية.' }
+}
+
 interface AnswerContent {
   combinedText: string
   answerSource: AnswerProvenance['answerSource']
