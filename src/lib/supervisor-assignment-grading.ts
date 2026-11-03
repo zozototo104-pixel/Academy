@@ -146,6 +146,19 @@ export function parseRubricCriteria(rubric: string | null | undefined): RubricCr
   return DEFAULT_RUBRIC
 }
 
+export type AssignmentAiRejectionReason = 'INVALID_JSON' | 'INVALID_SCORE' | 'SHORT_FEEDBACK' | 'BROKEN_ARABIC'
+
+/** Diagnose rejection without logging the student answer, feedback, or raw provider output. */
+export function classifyAssignmentAiOutput(raw: string): AssignmentAiRejectionReason | null {
+  const parsed = parseAiJson(raw)
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return 'INVALID_JSON'
+  if (parsed.score === null || parsed.score === undefined || String(parsed.score).trim() === '' || !Number.isFinite(Number(parsed.score))) return 'INVALID_SCORE'
+  const feedback = cleanAcademicOutput(parsed.feedback, 4000)
+  if (feedback.length < 20) return 'SHORT_FEEDBACK'
+  if (looksLikeBrokenGeneratedArabic(feedback)) return 'BROKEN_ARABIC'
+  return null
+}
+
 /** تطبيع مخرجات الذكاء الخام إلى مسودة صالحة، أو null إذا كانت غير صالحة. */
 export function normalizeAiDraft(raw: any, points: number, criteria: RubricCriterion[]): AiGradingDraft | null {
   if (!raw || typeof raw !== 'object') return null
