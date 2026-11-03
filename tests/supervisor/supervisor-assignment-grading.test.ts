@@ -20,6 +20,10 @@ let mockCorruptedReference = false
 let fileBufferToReturn: Buffer | null = null
 let bookReaderCalls = 0
 let bookOcrCalls = 0
+let sourcePdfBuffer: Buffer | null = null
+let nativeSourcePages: Record<number, string> = {}
+let ocrSourcePages: Record<number, string> = {}
+let ocrPageRequests: number[][] = []
 
 const submission: any = {
   id: 'sub-1',
