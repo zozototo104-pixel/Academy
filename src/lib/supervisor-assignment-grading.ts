@@ -705,6 +705,7 @@ ${answer.combinedText}`
     error.status = 502
     throw error
   }
+  const isolation = isolateSourceCriterion(draft, criteria, submission.assignment.points, citations.reviewRequired || (book.unreadable && citations.mode !== 'STUDENT_CITATIONS'))
   if (referenceWarning) {
     draft.feedback = `${REFERENCE_UNREADABLE_WARNING}\n\n${draft.feedback}`
     // The breakdown cannot substantiate deductions based on an unreadable reference.
