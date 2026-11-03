@@ -52,16 +52,29 @@ export async function GET(req: NextRequest) {
       }
       const programId = asString(req.nextUrl.searchParams.get('programId'), 80)
       if (!programId) return NextResponse.json({ error: 'البرنامج مطلوب' }, { status: 400 })
-      const scope = { programId, userId: { not: null }, ...(user.role === 'ADMIN' ? {} : { supervisorId: user.id }) }
-      const [studentGroups, apps, assignments] = await Promise.all([
-        db.admissionApplication.groupBy({ by: ['userId'], where: scope }),
-        db.admissionApplication.findMany({
-          where: cursor ? { ...scope, userId: { gt: cursor } } : scope,
-          orderBy: [{ userId: 'asc' }, { createdAt: 'desc' }, { id: 'desc' }],
-          distinct: ['userId'],
-          ...(!cursor ? { skip: (page - 1) * pageSize } : {}),
+      const scope = {
+        programId,
+        status: { in: ['ACTIVE', 'COMPLETED'] },
+        ...(user.role === 'ADMIN' ? {} : {
+          user: { ownedAdmissions: { some: { programId, supervisorId: user.id } } },
+        }),
+      }
+      const [total, enrollments, assignments] = await Promise.all([
+        db.enrollment.count({ where: scope }),
+        db.enrollment.findMany({
+          where: scope,
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          ...(cursor ? { cursor: { id: cursor }, skip: 1 } : { skip: (page - 1) * pageSize }),
           take: pageSize + 1,
-          select: { id: true, userId: true, fullName: true },
+          select: {
+            id: true, userId: true, createdAt: true,
+            user: { select: { name: true, ownedAdmissions: {
+              where: { programId, ...(user.role === 'ADMIN' ? {} : { supervisorId: user.id }) },
+              orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+              take: 1,
+              select: { fullName: true },
+            } } },
+          },
         }),
         db.programAssignment.findMany({
           where: { programId, semester, status: 'PUBLISHED' },
@@ -69,25 +82,14 @@ export async function GET(req: NextRequest) {
           select: { id: true, title: true, points: true, dueAt: true, dueDays: true, type: true },
         }),
       ])
-      const total = studentGroups.length
-      const hasMore = apps.length > pageSize
-      const visibleApps = apps.slice(0, pageSize)
-      const nextCursor = hasMore ? visibleApps[visibleApps.length - 1]?.userId ?? null : null
-      const userIds = visibleApps.map(app => app.userId).filter((id): id is string => Boolean(id))
+      const hasMore = enrollments.length > pageSize
+      const visibleEnrollments = enrollments.slice(0, pageSize)
+      const nextCursor = hasMore ? visibleEnrollments[visibleEnrollments.length - 1]?.id ?? null : null
+      const userIds = visibleEnrollments.map(enrollment => enrollment.userId)
       const submissions = userIds.length && assignments.length ? await db.assignmentSubmission.findMany({
         where: { userId: { in: userIds }, assignmentId: { in: assignments.map(a => a.id) } },
         select: { id: true, userId: true, assignmentId: true, status: true, score: true, submittedAt: true },
       }) : []
-      const enrollments = userIds.length ? await db.enrollment.findMany({
-        where: { programId, userId: { in: userIds } },
-        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-        select: { userId: true, createdAt: true },
-      }) : []
-      const enrolledAt = new Map<string, Date>()
-      for (const enrollment of enrollments) {
-        const previous = enrolledAt.get(enrollment.userId)
-        if (!previous || enrollment.createdAt < previous) enrolledAt.set(enrollment.userId, enrollment.createdAt)
-      }
       const byPair = new Map(submissions.map(s => [s.userId + ':' + s.assignmentId, s]))
       const students = visibleApps.map(app => ({
         admissionId: app.id,
