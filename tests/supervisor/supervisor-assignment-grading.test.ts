@@ -190,6 +190,47 @@ function postRequest(body: any) {
   })
 }
 
+describe('AI_OUTPUT_INVALID rejection diagnostics', () => {
+  test('classifies malformed JSON without guessing a score', async () => {
+    const { classifyAssignmentAiOutput } = await import('@/lib/supervisor-assignment-grading')
+    expect(classifyAssignmentAiOutput('{bad json')).toBe('INVALID_JSON')
+  })
+
+  test('classifies missing or nonnumeric scores', async () => {
+    const { classifyAssignmentAiOutput } = await import('@/lib/supervisor-assignment-grading')
+    expect(classifyAssignmentAiOutput(JSON.stringify({ score: null, feedback: 'هذه ملاحظة طويلة وكافية عن الإجابة' }))).toBe('INVALID_SCORE')
+    expect(classifyAssignmentAiOutput(JSON.stringify({ score: 'oops', feedback: 'هذه ملاحظة طويلة وكافية عن الإجابة' }))).toBe('INVALID_SCORE')
+  })
+
+  test('classifies missing or short feedback', async () => {
+    const { classifyAssignmentAiOutput } = await import('@/lib/supervisor-assignment-grading')
+    expect(classifyAssignmentAiOutput(JSON.stringify({ score: 80, feedback: 'قصير' }))).toBe('SHORT_FEEDBACK')
+  })
+
+  test('valid model output is not classified as rejected', async () => {
+    const { classifyAssignmentAiOutput } = await import('@/lib/supervisor-assignment-grading')
+    expect(classifyAssignmentAiOutput(validDraft())).toBeNull()
+  })
+
+  test('invalid AI output returns 502 without saving grades or sending notices', async () => {
+    currentUser = { id: 'sup-1', role: 'SUPERVISOR', name: 'المشرف' }
+    admissionSupervisorId = 'sup-1'
+    mockSourceUnit = false
+    submission.assignment.unitId = null
+    submission.answerText = 'إجابة الطالب النصية: تحليل لعملية الاستقطاب مع أمثلة من سوق العمل المحلي.'
+    textAiResponse = '{bad json'
+    updateCalls.length = 0
+    notifyCalls.length = 0
+    emailCalls.length = 0
+    const route = await import('@/app/api/supervisor/assignments/route')
+    const response = await route.POST(postRequest({ action: 'analyze', submissionId: 'sub-1' }))
+    expect(response.status).toBe(502)
+    expect(updateCalls).toHaveLength(0)
+    expect(notifyCalls).toHaveLength(0)
+    expect(emailCalls).toHaveLength(0)
+  })
+})
+
 describe('explicit PDF citations and mathematical source isolation', () => {
   test('accepts Eastern Arabic digits and marked ranges', async () => {
     const { extractExplicitPageCitations } = await import('@/lib/supervisor-assignment-grading')
