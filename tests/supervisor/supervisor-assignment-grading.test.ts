@@ -391,6 +391,7 @@ describe('original PDF citation verification and approval safety', () => {
     expect(ocrPageRequests).toEqual([[2]])
     expect(result.provenance.citationPages[0].source).toBe('VISION_OCR')
     expect(result.provenance.citationReviewRequired).toBe(true)
+    expect(result.provenance.isolationStatus).toBe('NOT_REQUIRED')
   })
 
   test('OCR failure remains unverified and never labels citation false', async () => {
