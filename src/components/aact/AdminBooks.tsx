@@ -990,6 +990,8 @@ export function AdminBooksTab() {
 
   const loadAdminRoster = async (page: number, semester = adminRosterSemester) => {
     if (!programId) return
+    const cursor = page === 1 ? null : adminRosterCursors[page - 1]
+    if (page > 1 && !cursor) return
     const requestId = ++adminRosterRequestRef.current
     const selectedProgramId = programId
     const isCurrent = () => requestId === adminRosterRequestRef.current && adminRosterSelectionRef.current.programId === selectedProgramId && adminRosterSelectionRef.current.semester === semester
