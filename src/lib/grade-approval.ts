@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/db'
+import { db as prisma } from '@/lib/db'
 import { audit } from '@/lib/notify'
 
 // Phase 2 of the academic-lifecycle plan: GRADE approvals, stored as their
