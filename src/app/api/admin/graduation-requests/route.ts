@@ -103,6 +103,11 @@ export async function POST(req: NextRequest) {
       if (request.status !== 'PENDING' && request.status !== 'REJECTED') {
         return NextResponse.json({ error: 'حالة الطلب الحالية لا تسمح بالاعتماد.', code: 'INVALID_TRANSITION' }, { status: 409 })
       }
+      // The stored readiness snapshot is informational; it must at least
+      // be ready before approval. Issuance independently re-checks live facts.
+      if (!request.ready) {
+        return NextResponse.json({ error: 'لا يمكن مصادقة طلب تخرج غير مستوفٍ للشروط الحالية.', code: 'GRADUATION_NOT_READY' }, { status: 409 })
+      }
       const updated = await db.graduationRequest.update({
         where: { id: requestId },
         data: { status: 'APPROVED', decidedById: admin.id, decidedAt: new Date(), decisionNote: note },
