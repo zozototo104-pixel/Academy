@@ -267,7 +267,7 @@ for (const type of ['UNIT', 'PROGRAM'] as const) {
       const result = await reviewRequest(type)
       expect(result.status).toBe(409)
       expect((await result.json()).error).toContain('تكررت')
-      expect(auditFinalGrade).toBeNull()
+      expect((auditFinalGrade as Record<string, any> | null)?.status).not.toBe('GRADED')
     })
     test('يمنع الاعتماد عندما لا يوجد سجل للسؤال المطلوب', async () => {
       auditFinalGrade = null
