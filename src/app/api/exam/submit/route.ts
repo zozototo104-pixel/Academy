@@ -3,6 +3,8 @@ import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { generateOverallFeedback } from '@/lib/ai'
 import { gradeEssayWithRubric } from '@/lib/essay-grading'
+import { buildEssaySourceMap } from '@/lib/essay-source'
+import { notifyAttemptGraded, notifyAttemptNeedsReview } from '@/lib/exam-attempt-notifications'
 import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
 import { EXAM_ATTEMPT_POLICY_SINCE, getExamMaxAttempts, shouldRevealCorrectAnswers } from '@/lib/exam-attempt-policy'
 
@@ -231,8 +233,9 @@ export async function POST(req: NextRequest) {
     // Each subsequently graded answer updates its existing preserved snapshot.
     const prePersistedEssayQuestionIds = new Set(exam.questions.map((q) => q.id))
     const knowledgeIds = [...new Set(exam.questions.map((q) => q.knowledgeItemId).filter((id): id is string => Boolean(id)))]
-    const knowledgeItems = knowledgeIds.length ? await db.bookKnowledgeItem.findMany({ where: { id: { in: knowledgeIds } }, select: { id: true, excerpt: true } }) : []
-    const excerptByKnowledgeId = new Map(knowledgeItems.map((item) => [item.id, item.excerpt || ''] as const))
+    // مصدر المقارنة للمقالي: نص مقطع الكتاب المخزّن نفسه يقود، لا الاقتباس
+    // القصير وحده — البنك قد يلتقط جزءًا فقط مما يقوله الكتاب.
+    const sourceByKnowledgeId = await buildEssaySourceMap(knowledgeIds)
 
     let totalScore = 0
     let maxTotal = 0
@@ -248,6 +251,7 @@ export async function POST(req: NextRequest) {
       aiFeedback: string
       studentAnswer: string
       correctAnswerText?: string
+      pendingReview?: boolean
     }[] = []
     const weakPoints: string[] = []
     let needsReview = false
@@ -314,6 +318,7 @@ export async function POST(req: NextRequest) {
             isCorrect: null, points: 0, maxPoints: q.points,
             aiFeedback: 'الإجابة محفوظة للمراجعة البشرية بسبب عدم توفر الإجابة النموذجية.',
             studentAnswer: essayText,
+            pendingReview: true,
           })
           continue
         }
@@ -324,7 +329,7 @@ export async function POST(req: NextRequest) {
             question: q.text,
             modelAnswer: q.modelAnswer,
             rubric: q.rubric,
-            sourceExcerpt: (q.knowledgeItemId ? excerptByKnowledgeId.get(q.knowledgeItemId) : '') || q.sourceEvidence,
+            sourceExcerpt: (q.knowledgeItemId ? sourceByKnowledgeId.get(q.knowledgeItemId) : '') || q.sourceEvidence,
             studentAnswer: essayText,
             maxPoints: q.points,
             deadlineMs: Date.now() + 45_000,
@@ -350,6 +355,7 @@ export async function POST(req: NextRequest) {
             maxPoints: q.points,
             aiFeedback: 'تم حفظ الإجابة للمراجعة اليدوية لأن التصحيح الآلي لم يكتمل.',
             studentAnswer: essayText || '(لم يجب)',
+            pendingReview: true,
           })
           continue
         }
@@ -371,7 +377,9 @@ export async function POST(req: NextRequest) {
           order: q.order,
           type: q.type,
           text: q.text,
-          isCorrect: pts >= q.points * 0.6,
+          // نفس منطق القيمة المخزّنة: جزئي فوق الصفر ودون 60% يبقى «جزئيًا»
+          // (null) ولا يُعرض خطأً كإجابة خاطئة رغم نقاطه المستحقة.
+          isCorrect: pts >= q.points * 0.6 ? true : pts > 0 ? null : false,
           points: pts,
           maxPoints: q.points,
           aiFeedback: graded.feedback || 'تم تصحيح الإجابة وفق الإجابة النموذجية.',
@@ -384,8 +392,18 @@ export async function POST(req: NextRequest) {
       const revealCorrectAnswers = shouldRevealCorrectAnswers({ passed: false, completedAttempts: completedAttemptsBeforeSubmit + 1, maxAttempts })
       const persistedAnswers = revealCorrectAnswers ? answersToPersist : sanitizePreparedAnswersForHiddenAnswers(answersToPersist)
       const responseResults = revealCorrectAnswers ? gradedResults : sanitizeUnitFeedbackForHiddenAnswers(gradedResults)
+      // درجة أولية صادقة: مجموع ما صُحّح فعليًا فقط، والأسئلة العالقة
+      // موسومة بانتظار التأكيد — لا مجموع مخترع ولا فراغ يخيف الطالب.
+      // تُحسب قبل المعاملة وتُحفظ داخلها مع حالة المراجعة نفسها، فلا توجد
+      // لحظة تكون فيها المحاولة «بانتظار المراجعة» دون درجتها الأولية.
+      const preliminary = {
+        gradedPoints: gradedResults.filter((r) => !r.pendingReview).reduce((sum, r) => sum + r.points, 0),
+        gradedMaxPoints: gradedResults.filter((r) => !r.pendingReview).reduce((sum, r) => sum + r.maxPoints, 0),
+        pendingCount: gradedResults.filter((r) => r.pendingReview).length,
+        totalMaxPoints: maxTotal,
+      }
       const attempt = await db.$transaction(async (tx) => {
-        const created = await tx.examAttempt.update({ where: { id: activeAttempt.id }, data: { status: 'NEEDS_REVIEW', feedback: JSON.stringify({ summary: 'تم حفظ الإجابات، التصحيح قيد المراجعة.' }) } })
+        const created = await tx.examAttempt.update({ where: { id: activeAttempt.id }, data: { status: 'NEEDS_REVIEW', feedback: JSON.stringify({ summary: 'تم حفظ الإجابات، التصحيح قيد المراجعة.', preliminary }) } })
         for (const prepared of persistedAnswers) {
           await persistPreparedAnswer(tx, created.id, prepared, prePersistedEssayQuestionIds.has(prepared.questionId))
         }
@@ -395,7 +413,8 @@ export async function POST(req: NextRequest) {
       claimedUnitAttemptId = null
       const results = responseResults.sort((a, b) => a.order - b.order)
       const reviewResults = revealCorrectAnswers ? results : results.map(({ correctAnswerText, ...result }) => result)
-      return NextResponse.json({ ok: true, status: 'NEEDS_REVIEW', attemptId: attempt.id, message: 'تم حفظ إجاباتك، التصحيح قيد المراجعة', maxAttempts, attemptsUsed: completedAttemptsBeforeSubmit + 1, results: reviewResults }, { status: 202 })
+      await notifyAttemptNeedsReview({ studentId: user.id, studentName: user.name, examTitle: exam.title, preliminary })
+      return NextResponse.json({ ok: true, status: 'NEEDS_REVIEW', attemptId: attempt.id, message: 'درجتك أولية — بانتظار تأكيد المشرف', maxAttempts, attemptsUsed: completedAttemptsBeforeSubmit + 1, preliminary, results: reviewResults }, { status: 202 })
     }
 
     const percentage = maxTotal > 0 ? (totalScore / maxTotal) * 100 : 0
@@ -451,6 +470,9 @@ export async function POST(req: NextRequest) {
       return null
     })
     const certificateNo = completion?.ok ? completion.certificate?.serial || null : null
+    // النتيجة الواثقة معتمدة فورًا — تُشعر الإدارة والمشرف البشري بها
+    // مع بقاء خيار إعادة التصحيح من شاشات المراجعة.
+    await notifyAttemptGraded({ studentId: user.id, studentName: user.name, examTitle: exam.title, score: Math.round(percentage * 10) / 10 })
     const results = responseResults.sort((a, b) => a.order - b.order)
     const finalResults = revealCorrectAnswers ? results : results.map(({ correctAnswerText, ...result }) => result)
 
@@ -489,6 +511,10 @@ export async function POST(req: NextRequest) {
           },
         })
         if (recovered.count === 1) {
+          const recoveredAttempt = await db.examAttempt.findUnique({ where: { id: claimedUnitAttemptId }, select: { userId: true, exam: { select: { title: true } } } }).catch(() => null)
+          if (recoveredAttempt?.userId) {
+            await notifyAttemptNeedsReview({ studentId: recoveredAttempt.userId, examTitle: recoveredAttempt.exam?.title || 'اختبار الوحدة' })
+          }
           return NextResponse.json({
             ok: true,
             status: 'NEEDS_REVIEW',

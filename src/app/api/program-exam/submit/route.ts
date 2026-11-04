@@ -3,6 +3,8 @@ import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { generateOverallFeedback } from '@/lib/ai'
 import { gradeEssayWithRubric } from '@/lib/essay-grading'
+import { buildEssaySourceMap } from '@/lib/essay-source'
+import { notifyAttemptGraded, notifyAttemptNeedsReview } from '@/lib/exam-attempt-notifications'
 import { buildSupervisorContext, mergeContext, updateStudentAcademicMemory } from '@/lib/supervisor-ai'
 import { calculateSemesterReadiness } from '@/lib/semester-readiness'
 import { enforceSemesterTuitionGate } from '@/lib/tuition-installments'
@@ -218,8 +220,9 @@ export async function POST(req: NextRequest) {
 
     const answerMap = new Map(answers.map((a) => [a.questionId, a]))
     const knowledgeIds = [...new Set(exam.questions.map((q) => q.knowledgeItemId).filter((id): id is string => Boolean(id)))]
-    const knowledgeItems = knowledgeIds.length ? await db.bookKnowledgeItem.findMany({ where: { id: { in: knowledgeIds } }, select: { id: true, excerpt: true } }) : []
-    const excerptByKnowledgeId = new Map(knowledgeItems.map((item) => [item.id, item.excerpt || ''] as const))
+    // مصدر المقارنة للمقالي: نص مقطع الكتاب المخزّن نفسه يقود، لا الاقتباس
+    // القصير وحده — البنك قد يلتقط جزءًا فقط مما يقوله الكتاب.
+    const sourceByKnowledgeId = await buildEssaySourceMap(knowledgeIds)
 
     // 12.2: بيانات المراقبة الإلكترونية الاختيارية
     const procEnabled = !!proctoring?.enabled
@@ -321,6 +324,7 @@ export async function POST(req: NextRequest) {
       difficulty?: string | null
       correctRationale?: string | null
       wrongOptionRationale?: string | null
+      pendingReview?: boolean
     }
 
     const essayResults: GradedResult[] = []
@@ -412,14 +416,17 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    let gradedEssayResults: GradedResult[]
-    try {
-      gradedEssayResults = await mapLimited(realEssayTasks, 2, async ({ q, text }) => {
+    // إنقاذ لكل سؤال على حدة: فشل سؤال واحد لا يُسقط نجاح الباقي — ما صُحّح
+    // يبقى بنتيجته في الدرجة الأولية، والمعلّق فقط هو ما فشل تصحيحه فعلًا.
+    type EssayOutcome = { result: GradedResult } | { failedTask: (typeof realEssayTasks)[number]; error: any }
+    const essayOutcomes = await mapLimited(realEssayTasks, 2, async (task): Promise<EssayOutcome> => {
+      const { q, text } = task
+      try {
       const graded = await gradeEssayWithRubric({
         question: q.text,
         modelAnswer: q.modelAnswer || '',
         rubric: q.rubric,
-        sourceExcerpt: (q.knowledgeItemId ? excerptByKnowledgeId.get(q.knowledgeItemId) : '') || q.sourceEvidence,
+        sourceExcerpt: (q.knowledgeItemId ? sourceByKnowledgeId.get(q.knowledgeItemId) : '') || q.sourceEvidence,
         studentAnswer: text,
         maxPoints: q.points,
         deadlineMs: Date.now() + 45_000,
@@ -439,7 +446,9 @@ export async function POST(req: NextRequest) {
         order: q.order,
         type: q.type,
         text: q.text,
-        isCorrect: clampedPoints >= q.points * 0.6,
+        // نفس منطق القيمة المخزّنة: الجزئي فوق الصفر يبقى «جزئيًا» (null)
+        // ولا يُعرض خطأً كإجابة خاطئة رغم نقاطه المستحقة.
+        isCorrect: clampedPoints >= q.points * 0.6 ? true : clampedPoints > 0 ? null : false,
         points: clampedPoints,
         maxPoints: q.points,
         aiFeedback: q.correctRationale ? `${graded.feedback}\nمعيار التصحيح: ${q.correctRationale}` : graded.feedback,
@@ -447,17 +456,53 @@ export async function POST(req: NextRequest) {
         ...resultMetadata(q),
       }
       totalScore += clampedPoints
-      return r
-      })
-    } catch (e: any) {
+      return { result: r }
+      } catch (error: any) {
+        return { failedTask: task, error }
+      }
+    })
+    const gradedEssayResults: GradedResult[] = []
+    const failedEssayOutcomes: Array<{ failedTask: (typeof realEssayTasks)[number]; error: any }> = []
+    for (const outcome of essayOutcomes) {
+      if ('result' in outcome) gradedEssayResults.push(outcome.result)
+      else failedEssayOutcomes.push(outcome)
+    }
+    if (failedEssayOutcomes.length > 0) {
+      const e = failedEssayOutcomes[0].error
       const reviewState = { code: e?.code || 'AI_ACADEMIC_PROVIDER_UNAVAILABLE', retryAt: e?.retryAt || null }
+      // درجة أولية صادقة: ما صُحّح فعليًا (الموضوعي والفارغ والمقالية الناجحة)
+      // يُعرض بنقاطه، والمقالية الفاشلة فقط موسومة بانتظار تأكيد المشرف.
+      // تُحسب قبل الحفظ وتُكتب مع حالة المراجعة في تحديث واحد، فلا تُفقد
+      // حالة السبب ولا توجد محاولة «بانتظار المراجعة» دون درجتها الأولية.
+      const pendingResults: GradedResult[] = failedEssayOutcomes.map(({ failedTask: { q, text } }) => ({
+        questionId: q.id,
+        order: q.order,
+        type: q.type,
+        text: q.text,
+        isCorrect: null,
+        points: 0,
+        maxPoints: q.points,
+        aiFeedback: 'تم حفظ الإجابة للمراجعة اليدوية لأن التصحيح الآلي لم يكتمل.',
+        studentAnswer: text || '(لم يجب)',
+        pendingReview: true,
+        ...resultMetadata(q),
+      }))
+      const combinedResults = [...objectiveResults, ...essayResults, ...gradedEssayResults, ...pendingResults].sort((a, b) => a.order - b.order)
+      const preliminary = {
+        gradedPoints: combinedResults.filter((r) => !r.pendingReview).reduce((sum, r) => sum + r.points, 0),
+        gradedMaxPoints: combinedResults.filter((r) => !r.pendingReview).reduce((sum, r) => sum + r.maxPoints, 0),
+        pendingCount: pendingResults.length,
+        totalMaxPoints: maxTotal,
+      }
       await db.programExamAttempt.update({
         where: { id: attempt.id },
-        data: { status: 'NEEDS_REVIEW', score: null, passed: null, feedback: JSON.stringify(reviewState), submittedAt: new Date() },
+        data: { status: 'NEEDS_REVIEW', score: null, passed: null, feedback: JSON.stringify({ ...reviewState, preliminary }), submittedAt: new Date() },
       })
       const revealCorrectAnswers = shouldRevealCorrectAnswers({ passed: false, completedAttempts: completedAttemptsBeforeSubmit + 1, maxAttempts })
       if (!revealCorrectAnswers) await hidePersistedProgramAnswerFeedback(attempt.id)
-      return NextResponse.json({ ok: true, status: 'NEEDS_REVIEW', attemptId: attempt.id, message: 'تم حفظ المحاولة كاملة للمراجعة دون اعتماد نتيجة جزئية.', ...reviewState }, { status: 202 })
+      await notifyAttemptNeedsReview({ studentId: user.id, studentName: user.name, examTitle: exam.title, preliminary })
+      const results = revealCorrectAnswers ? combinedResults : sanitizeProgramResultsForHiddenAnswers(combinedResults)
+      return NextResponse.json({ ok: true, status: 'NEEDS_REVIEW', attemptId: attempt.id, message: 'درجتك أولية — بانتظار تأكيد المشرف', preliminary, results, ...reviewState }, { status: 202 })
     }
 
     const rawPercentage = maxTotal > 0 ? (totalScore / maxTotal) * 100 : 0
@@ -517,6 +562,10 @@ export async function POST(req: NextRequest) {
         : ['حل تدريب علاجي على نقاط الضعف قبل إعادة المحاولة أو مراجعة المشرف'],
     }).catch(() => {})
 
+    // النتيجة الواثقة معتمدة — تُشعر الإدارة والمشرف البشري بها مع بقاء
+    // خيار إعادة التصحيح من شاشات المراجعة.
+    await notifyAttemptGraded({ studentId: user.id, studentName: user.name, examTitle: exam.title, score: roundedScore })
+
     await db.examDraft.deleteMany({ where: { userId: user.id, examId, examType: 'PROGRAM' } }).catch(() => {})
 
     // Certificate issuance is a separate action: it must never undo a saved exam grade.
@@ -558,7 +607,8 @@ export async function POST(req: NextRequest) {
       }).catch(() => ({ count: 0 }))
       if (recovered.count === 1) {
         claimedProgramAttemptId = null
-        return NextResponse.json({ ok: true, status: 'NEEDS_REVIEW', attemptId: attempt.id, message: 'إجاباتك محفوظة للمراجعة، ولم تُعتمد علامة جزئية.', ...reviewState }, { status: 202 })
+        await notifyAttemptNeedsReview({ studentId: user.id, studentName: user.name, examTitle: exam.title })
+        return NextResponse.json({ ok: true, status: 'NEEDS_REVIEW', attemptId: attempt.id, message: 'إجاباتك محفوظة للمراجعة، ودرجتك تُعتمد بعد تأكيد المشرف.', ...reviewState }, { status: 202 })
       }
       const persisted = await db.programExamAttempt.findUnique({ where: { id: attempt.id }, select: { status: true, score: true, passed: true } }).catch(() => null)
       if (persisted?.status === 'GRADED') {
@@ -586,6 +636,10 @@ export async function POST(req: NextRequest) {
           },
         })
         if (recovered.count === 1) {
+          const recoveredAttempt = await db.programExamAttempt.findUnique({ where: { id: claimedProgramAttemptId }, select: { userId: true, exam: { select: { title: true } } } }).catch(() => null)
+          if (recoveredAttempt?.userId) {
+            await notifyAttemptNeedsReview({ studentId: recoveredAttempt.userId, examTitle: recoveredAttempt.exam?.title || 'امتحان الفصل' })
+          }
           return NextResponse.json({ ok: true, status: 'NEEDS_REVIEW', attemptId: claimedProgramAttemptId, message: 'تم حفظ إجاباتك للمراجعة بعد توقف التصحيح الآلي.' }, { status: 202 })
         }
       } catch (recoveryError) {

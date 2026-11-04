@@ -3684,6 +3684,16 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
   const noteNoCandidate = (provider: string, model: string, reason: string) => {
     if (isVerifierCall(effectiveOpts)) verifierNoCandidate.push(`${provider}:${model || '-'} ${redactSecrets(reason).slice(0, 220)}`)
   }
+  // Skip notes for EVERY call (not just verifier calls): candidates skipped
+  // before an attempt (cooldown / no-balance / dead model / health) otherwise
+  // leave no trace, so the final error names only the attempted providers and
+  // reads as if the chain had a single provider. Reasons are fixed codes —
+  // never raw provider text — so downstream substring classifiers stay safe.
+  const skipNotes: string[] = []
+  const noteSkip = (provider: string, model: string, reason: string) => {
+    const entry = `${provider}/${model || '-'} (${reason})`
+    if (!skipNotes.includes(entry) && skipNotes.length < 8) skipNotes.push(entry)
+  }
   if (isVerifierCall(effectiveOpts)) {
     for (const provider of baseOrder(s)) {
       if (excluded.has(provider)) noteNoCandidate(provider, modelFor(s, provider), 'SAME_PROVIDER_AS_GENERATOR')
@@ -3725,7 +3735,10 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
       : baseModels
     const health = await readModelHealth(provider, orderedModels)
     for (const model of orderedModels) {
-      if (recentFailedHealth(health.get(model) || null)) noteNoCandidate(provider, model, 'HEALTH_SKIP')
+      if (recentFailedHealth(health.get(model) || null)) {
+        noteNoCandidate(provider, model, 'HEALTH_SKIP')
+        noteSkip(provider, model, 'HEALTH_SKIP')
+      }
     }
     const healthFilteredModels = orderedModels.filter((model) => !recentFailedHealth(health.get(model) || null))
     const stickyEligibleModels = healthFilteredModels.length ? healthFilteredModels : orderedModels
@@ -3734,10 +3747,12 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
       ? [usableSticky.model, ...routedModels.filter((model) => model !== usableSticky.model)].slice(0, routedModels.length)
       : routedModels
     if (isVerifierCall(effectiveOpts) && candidateModels.length > 0 && models.length === 0) onlySameFamilyModelsExcluded = true
+    if (!models.length) noteSkip(provider, '-', candidateModels.length ? 'ALL_MODELS_SKIPPED' : 'NO_MODELS')
     for (const model of models) {
       if (skipModelsThisRequest.has(`${provider}:${model}`)) continue
       if (isPersistentModelDead(persistentCooldowns, provider, model)) {
         noteNoCandidate(provider, model, 'MODEL_DEAD')
+        noteSkip(provider, model, 'MODEL_DEAD')
         continue
       }
       let stickyKeyQueue: string[] | null = null
@@ -3756,22 +3771,26 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
         const memoryModelCooldown = activeMemoryModelCooldown(provider, currentKey, model)
         if (isPersistentNoBalance(persistentCooldowns, provider, keyIndex)) {
           noteNoCandidate(provider, model, 'NO_BALANCE')
+          noteSkip(provider, model, 'NO_BALANCE')
           continue
         }
         if (memoryKeyCooldown || persistedKeyCooldown) {
           const cooldown = persistedKeyCooldown || memoryKeyCooldown
           if (cooldown) skippedCooldownUntil = skippedCooldownUntil == null ? cooldown.until : Math.min(skippedCooldownUntil, cooldown.until)
           noteNoCandidate(provider, model, `COOLDOWN(key)(${new Date((cooldown?.until || Date.now())).toISOString()})`)
+          noteSkip(provider, model, 'COOLDOWN_KEY')
           continue
         }
         if (memoryModelCooldown || persistedModelCooldown) {
           const cooldown = persistedModelCooldown || memoryModelCooldown
           if (cooldown) skippedCooldownUntil = skippedCooldownUntil == null ? cooldown.until : Math.min(skippedCooldownUntil, cooldown.until)
           noteNoCandidate(provider, model, `COOLDOWN(model)(${new Date((cooldown?.until || Date.now())).toISOString()})`)
+          noteSkip(provider, model, 'COOLDOWN_MODEL')
           continue
         }
         if (!(await keyRateAllowed(provider, currentKey))) {
           noteNoCandidate(provider, model, 'REQUEST_FAILED(rate_limit)')
+          noteSkip(provider, model, 'RATE_LIMIT')
           continue
         }
         if (Number.isFinite(effectiveOpts.deadlineMs || NaN) && Date.now() >= Number(effectiveOpts.deadlineMs)) throw deadlineExceeded()
@@ -3891,7 +3910,8 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
     if (skippedCooldownUntil) err.retryAt = new Date(skippedCooldownUntil).toISOString()
     throw err
   }
-  throw new Error(errors.join(' | ') || 'TEXT_AI_ROUTER_FAILED')
+  const failureMessage = errors.join(' | ') || 'TEXT_AI_ROUTER_FAILED'
+  throw new Error(skipNotes.length ? `${failureMessage} || تخطّى: ${skipNotes.join('، ')}` : failureMessage)
 }
 
 // D0 telemetry: the effective router configuration the academic pipeline

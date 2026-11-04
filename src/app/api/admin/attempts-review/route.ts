@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { EssayNeedsReviewError, gradeEssayWithRubric } from '@/lib/essay-grading'
+import { buildEssaySourceMap } from '@/lib/essay-source'
+import { notifyStudentReviewResolved } from '@/lib/exam-attempt-notifications'
 import { calculateSemesterReadiness } from '@/lib/semester-readiness'
 import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
 import { findDuplicateAnswerQuestionIds, findMissingAnswerQuestionIds, findUngradedAnswers, sumRequiredAnswerPoints, gradeObjectiveAnswer, parseObjectiveIndex, parseObjectiveOptions } from '@/lib/answer-completeness'
@@ -32,15 +34,17 @@ function apiError(code: string, message: string, status = 400) {
 }
 
 function sourceFromMap(map: Map<string, string>, knowledgeItemId?: string | null, fallback?: string | null) {
-  if (knowledgeItemId && map.get(knowledgeItemId)) return map.get(knowledgeItemId)!.slice(0, 3000)
-  return clean(fallback, 3000)
+  // No prefix cut: relevance selection inside the grader works from the
+  // full stored book text, so a correct answer near the end of a long
+  // chunk still reaches it.
+  if (knowledgeItemId && map.get(knowledgeItemId)) return map.get(knowledgeItemId)!
+  return clean(fallback, 8000)
 }
 
+// مصدر إعادة التصحيح هو مصدر التصحيح نفسه: نص مقطع الكتاب المخزّن يقود،
+// لا الاقتباس القصير وحده — البنك قد يلتقط جزءًا فقط مما يقوله الكتاب.
 async function buildExcerptMap(ids: Array<string | null | undefined>) {
-  const unique = [...new Set(ids.filter((id): id is string => Boolean(id)))]
-  if (!unique.length) return new Map<string, string>()
-  const rows = await db.bookKnowledgeItem.findMany({ where: { id: { in: unique } }, select: { id: true, excerpt: true } })
-  return new Map(rows.map((row) => [row.id, row.excerpt || ''] as const))
+  return buildEssaySourceMap(ids)
 }
 
 // Attempts claimed (SUBMITTED) whose grading never finished and never
@@ -358,6 +362,13 @@ export async function POST(req: NextRequest) {
       return type === 'UNIT' ? recomputeUnitAttempt(tx, id) : recomputeProgramAttempt(tx, id, readiness)
     }, { timeout: 120000, maxWait: 10000 })
     const completion = await completeReviewedAttemptIfEligible(type, id, result.passed)
+    try {
+      if (detail.student?.id) {
+        await notifyStudentReviewResolved({ studentId: detail.student.id, examTitle: detail.exam.title, score: result.score })
+      }
+    } catch {
+      // إشعار الطالب باعتماد نتيجته لا يعطّل الاعتماد نفسه أبدًا.
+    }
     return NextResponse.json({ ok: true, ...result, certificateNo: completion?.ok ? completion.certificate?.serial || null : null })
   } catch (error: any) {
     if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
@@ -412,6 +423,16 @@ export async function PATCH(req: NextRequest) {
       return type === 'UNIT' ? recomputeUnitAttempt(tx, id) : recomputeProgramAttempt(tx, id, readiness)
     }, { timeout: 120000, maxWait: 10000 })
     const completion = await completeReviewedAttemptIfEligible(type, id, result.passed)
+    try {
+      const resolvedAttempt = type === 'UNIT'
+        ? await db.examAttempt.findUnique({ where: { id }, select: { userId: true, exam: { select: { title: true } } } })
+        : await db.programExamAttempt.findUnique({ where: { id }, select: { userId: true, exam: { select: { title: true } } } })
+      if (resolvedAttempt?.userId) {
+        await notifyStudentReviewResolved({ studentId: resolvedAttempt.userId, examTitle: resolvedAttempt.exam?.title || 'الامتحان', score: result.score })
+      }
+    } catch {
+      // إشعار الطالب باعتماد نتيجته لا يعطّل الاعتماد نفسه أبدًا.
+    }
     return NextResponse.json({ ok: true, ...result, certificateNo: completion?.ok ? completion.certificate?.serial || null : null })
   } catch (error: any) {
     if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })

@@ -240,7 +240,7 @@ const auditDb: any = {
   bookKnowledgeItem: { findMany: async () => [] },
 }
 mock.module('@/lib/db', () => ({ db: auditDb }))
-mock.module('@/lib/auth', () => ({ requireAdmin: async () => ({ id: 'admin-1' }) }))
+mock.module('@/lib/auth', () => ({ requireAdmin: async () => ({ id: 'admin-1' }), requireUser: async () => ({ id: 'admin-1' }) }))
 mock.module('@/lib/semester-readiness', () => ({ calculateSemesterReadiness: async () => null }))
 mock.module('@/lib/enrollment-completion', () => ({ completeEnrollmentIfEligible: async () => null }))
 mock.module('@/lib/essay-grading', () => ({

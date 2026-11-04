@@ -4,7 +4,7 @@ import { requireAdmin } from '@/lib/auth'
 import { runExtractStep } from '@/lib/book-reader'
 import { runAnalyzeStep, runEnrichStep } from '@/lib/book-chunk-analyzer'
 import { buildBookOutline } from '@/lib/book-outline'
-import { BOOK_READ_RETRY_MS, BOOK_READ_TRANSIENT_RETRY_MS, canRunBookReadJob, claimBookReadLock, isTransientBookReadError } from '@/lib/book-read-job-control'
+import { BOOK_READ_RETRY_MS, BOOK_READ_TRANSIENT_RETRY_MS, canRunBookReadJob, claimBookReadLock, classifyBookReadFailure } from '@/lib/book-read-job-control'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -15,7 +15,7 @@ export async function GET(_request: NextRequest, context: Context) {
     await requireAdmin()
     const { id } = await context.params
     const job = await db.bookReadJob.findFirst({ where: { bookId: id }, orderBy: { createdAt: 'desc' } })
-    if (!job) return NextResponse.json({ error: 'BOOK_READ_JOB_NOT_FOUND' }, { status: 404 })
+    if (!job) return NextResponse.json({ error: 'لا توجد مهمة قراءة لهذا الكتاب بعد — ابدأ القراءة أولاً' }, { status: 404 })
     return NextResponse.json({ ok: true, job })
   } catch (error: any) {
     if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
@@ -32,7 +32,19 @@ export async function POST(_request: NextRequest, context: Context) {
   }
   const { id } = await context.params
   const job = await db.bookReadJob.findFirst({ where: { bookId: id, status: { in: ['QUEUED', 'RUNNING', 'PAUSED'] } }, orderBy: { createdAt: 'desc' } })
-  if (!job) return NextResponse.json({ error: 'BOOK_READ_JOB_NOT_FOUND' }, { status: 404 })
+  if (!job) {
+    // No runnable job: answer honestly instead of a bare "not found" — the
+    // job usually exists but is FAILED (restart it from the read button) or
+    // already COMPLETED (a trailing step call after success is not an error).
+    const latest = await db.bookReadJob.findFirst({ where: { bookId: id }, orderBy: { createdAt: 'desc' } })
+    if (latest?.status === 'FAILED') {
+      return NextResponse.json({ ok: false, error: 'آخر محاولة لقراءة هذا الكتاب فشلت — أعد بدء القراءة من زر «قراءة وتحليل كامل»', job: latest }, { status: 409 })
+    }
+    if (latest?.status === 'COMPLETED') {
+      return NextResponse.json({ ok: true, skipped: 'ALREADY_COMPLETED', job: latest })
+    }
+    return NextResponse.json({ error: 'لا توجد مهمة قراءة لهذا الكتاب — ابدأ القراءة أولاً' }, { status: 404 })
+  }
   const now = new Date()
   if (!canRunBookReadJob(job, now)) return NextResponse.json({ ok: true, skipped: 'RETRY_NOT_DUE', job })
   const claimed = await claimBookReadLock(db, job.id, now)
@@ -84,16 +96,25 @@ export async function POST(_request: NextRequest, context: Context) {
   } catch (error: any) {
     const message = String(error?.message || error)
     const providerUnavailable = message.includes('AI_ACADEMIC_PROVIDER_UNAVAILABLE')
-    const transient = isTransientBookReadError(message)
+    // Four-way handling (Haris's taxonomy): pressure pauses and auto-retries;
+    // proven billing exhaustion and missing configuration stop the job with
+    // a clear operator message instead of futile retries; the rest fails.
+    const kind = classifyBookReadFailure(message)
+    const transient = kind === 'TRANSIENT'
+    const adminMessage = kind === 'BILLING'
+      ? `نفد رصيد جميع المزودين المتاحين — عبّئ الرصيد أو فعّل مزوّدًا بديلًا ثم أعد بدء القراءة. التفاصيل: ${message}`
+      : kind === 'CONFIG'
+        ? `خطأ إعدادات: لا يوجد مزوّد ذكاء مُعدّ بمفتاح صالح — راجع إعدادات النظام ومفاتيح المزودين ثم أعد بدء القراءة. التفاصيل: ${message}`
+        : message
     const updated = await db.bookReadJob.update({
       where: { id: job.id },
       data: {
         status: transient ? 'PAUSED' : 'FAILED',
         retryAt: transient ? new Date(Date.now() + (providerUnavailable ? BOOK_READ_RETRY_MS : BOOK_READ_TRANSIENT_RETRY_MS)) : null,
-        lastError: message.slice(0, 2000),
+        lastError: adminMessage.slice(0, 2000),
         lockedUntil: null,
       },
     })
-    return NextResponse.json({ ok: false, error: message, job: updated }, { status: transient ? 503 : 500 })
+    return NextResponse.json({ ok: false, error: adminMessage, job: updated }, { status: transient ? 503 : 500 })
   }
 }

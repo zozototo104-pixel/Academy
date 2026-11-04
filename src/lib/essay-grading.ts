@@ -119,6 +119,33 @@ function zeroGrade(maxPoints: number, rubric?: string | null): EssayGradeResult 
   return { criteria, points: clampPoints(0, maxPoints), feedback: 'إجابة فارغة أو قصيرة جداً، فاحتُسبت صفرًا دون تصحيح آلي.', confidence: 'HIGH', rubric: rubricInfo.description }
 }
 
+// Select relevant paragraphs from the stored book passage, not simply its prefix.
+// Keep the original ordering among selected paragraphs for academic context.
+export function selectEssayEvidence(source: string, question: string, modelAnswer: string, limit = 12000): string {
+  const normalized = source.replace(/\r/g, '').trim()
+  if (normalized.length <= limit) return normalized
+  const terms = new Set((question + ' ' + modelAnswer).toLowerCase()
+    .match(/[\u0621-\u064a]{3,}|[a-z]{4,}/g) || [])
+  const paragraphs = normalized.split(/\n{2,}|(?<=[.!؟])\s+/).filter(Boolean)
+  const ranked = paragraphs.map((value, index) => {
+    const tokens = new Set(value.toLowerCase().match(/[\u0621-\u064a]{3,}|[a-z]{4,}/g) || [])
+    let score = 0
+    for (const token of terms) if (tokens.has(token)) score++
+    return { value, index, score }
+  })
+  ranked.sort((a, b) => b.score - a.score || a.index - b.index)
+  const chosen: typeof ranked = []
+  let size = 0
+  for (const paragraph of ranked) {
+    if (size >= limit) break
+    const value = paragraph.value.slice(0, limit - size)
+    if (!value) break
+    chosen.push({ ...paragraph, value })
+    size += value.length + 2
+  }
+  return chosen.sort((a, b) => a.index - b.index).map((item) => item.value).join('\n\n').slice(0, limit)
+}
+
 export async function gradeEssayWithRubric(args: {
   question: string
   modelAnswer?: string | null
@@ -129,7 +156,9 @@ export async function gradeEssayWithRubric(args: {
   deadlineMs?: number
 }): Promise<EssayGradeResult> {
   const rubricInfo = parseRubricCriteria(args.rubric)
-  const sourceExcerpt = String(args.sourceExcerpt || '').replace(/\s+/g, ' ').trim().slice(0, 3000)
+  // Preserve enough of the stored book passage for semantic grading: the
+  // relevant answer may occur after the first 3,000 characters.
+  const sourceExcerpt = selectEssayEvidence(String(args.sourceExcerpt || ''), String(args.question || ''), String(args.modelAnswer || ''), 12000)
   const modelAnswer = String(args.modelAnswer || '').replace(/\s+/g, ' ').trim().slice(0, 2500)
   const studentAnswer = String(args.studentAnswer || '').replace(/\s+/g, ' ').trim().slice(0, 5000)
   // Only a genuinely blank answer earns automatic zero. Even a one-word answer

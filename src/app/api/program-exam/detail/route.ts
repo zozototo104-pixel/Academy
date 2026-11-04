@@ -69,6 +69,12 @@ export async function GET(req: NextRequest) {
       )
     }
 
+    const pendingReview = await db.programExamAttempt.findFirst({ where: { userId: user.id, examId, status: 'NEEDS_REVIEW' }, select: { feedback: true }, orderBy: { submittedAt: 'desc' } })
+    if (pendingReview) {
+      let preliminary = null
+      try { preliminary = pendingReview.feedback ? JSON.parse(pendingReview.feedback).preliminary || null : null } catch { /* legacy feedback */ }
+      return NextResponse.json({ error: 'نتيجتك قيد المراجعة', code: 'NEEDS_REVIEW', preliminary }, { status: 409 })
+    }
     const [passedAttempt, submittedAttempt, activeAttempt] = await Promise.all([
       db.programExamAttempt.findFirst({
         where: { userId: user.id, examId, passed: true, OR: [{ appealStatus: null }, { appealStatus: { not: 'PENDING' } }] },
