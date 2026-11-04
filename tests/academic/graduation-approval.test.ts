@@ -146,6 +146,23 @@ describe('graduation approval law', () => {
     expect(world.state.request.certificateId).toBe('cert-new')
   })
 
+  test('a refresh after a score change returns the transaction to PENDING with the new score', async () => {
+    await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
+    world.state.request.status = 'APPROVED'
+    world.state.request.decidedById = 'admin-1'
+    world.state.request.decidedAt = new Date()
+    world.state.request.score = 88
+    const again = await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
+    expect(again.registered).toBe(true)
+    expect(world.state.request.status).toBe('PENDING')
+    expect(world.state.request.decidedById).toBeNull()
+    expect(world.state.request.score).toBe(95)
+    const result = await completeEnrollmentIfEligibleInTransaction(world.tx, { enrollmentId: 'enrollment-1', admissionId: 'admission-1' })
+    expect(result.ok).toBe(false)
+    expect(result.code).toBe('ADMIN_GRADUATION_APPROVAL_REQUIRED')
+    expect(world.state.createdCertificate).toBeNull()
+  })
+
   test('an already-issued certificate is returned as-is, never recreated or regraded', async () => {
     world.state.enrollment = { id: 'enrollment-1', userId: 'user-1', programId: 'program-1', status: 'COMPLETED', certificateNo: 'AACT-C-2026-00001' }
     world.state.certificate = { id: 'cert-1', serial: 'AACT-C-2026-00001', type: 'PROGRAM_COMPLETION', enrollmentId: 'enrollment-1' }

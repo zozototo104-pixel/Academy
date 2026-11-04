@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, result })
     }
 
-    if (action !== 'APPROVE' && action !== 'REJECT') {
+    if (action !== 'APPROVE' && action !== 'REJECT' && action !== 'REFRESH') {
       return NextResponse.json({ error: 'إجراء غير معروف' }, { status: 400 })
     }
     const requestId = String(body?.requestId || '').trim()
@@ -99,20 +99,40 @@ export async function POST(req: NextRequest) {
     }
     const note = String(body?.note || '').trim().slice(0, 1000) || null
 
+    if (action === 'REFRESH') {
+      // Re-run the readiness evaluation now: the snapshot, the stored
+      // score, and any stale approval (which resets itself to PENDING
+      // inside registration) all become current. This is the recovery
+      // path when issuance was refused over a changed score.
+      await registerGraduationRequest({ enrollmentId: request.enrollmentId })
+      const fresh = await db.graduationRequest.findUnique({ where: { id: requestId } })
+      await audit(admin, 'REFRESH_GRADUATION_REQUEST', 'GraduationRequest', requestId, 'تحديث فحص أهلية معاملة التخرج من لوحة الإدارة')
+      return NextResponse.json({ ok: true, request: fresh })
+    }
+
     if (action === 'APPROVE') {
-      if (request.status !== 'PENDING' && request.status !== 'REJECTED') {
+      // Decide on current facts, not on the last academic event's
+      // snapshot: refresh first (a stale stored approval resets to
+      // PENDING inside registration), then judge the re-read row.
+      await registerGraduationRequest({ enrollmentId: request.enrollmentId })
+      const fresh = await db.graduationRequest.findUnique({ where: { id: requestId } })
+      if (!fresh) return NextResponse.json({ error: 'طلب التخرج غير موجود' }, { status: 404 })
+      if (fresh.status === 'ISSUED') {
+        return NextResponse.json({ error: 'صُدّرت شهادة هذا الطلب من قبل — لا يمكن تغيير قراره.', code: 'ALREADY_ISSUED' }, { status: 409 })
+      }
+      if (fresh.status !== 'PENDING' && fresh.status !== 'REJECTED') {
         return NextResponse.json({ error: 'حالة الطلب الحالية لا تسمح بالاعتماد.', code: 'INVALID_TRANSITION' }, { status: 409 })
       }
       // The stored readiness snapshot is informational; it must at least
       // be ready before approval. Issuance independently re-checks live facts.
-      if (!request.ready) {
+      if (!fresh.ready) {
         return NextResponse.json({ error: 'لا يمكن مصادقة طلب تخرج غير مستوفٍ للشروط الحالية.', code: 'GRADUATION_NOT_READY' }, { status: 409 })
       }
       const updated = await db.graduationRequest.update({
         where: { id: requestId },
         data: { status: 'APPROVED', decidedById: admin.id, decidedAt: new Date(), decisionNote: note },
       })
-      await audit(admin, 'APPROVE_GRADUATION_REQUEST', 'GraduationRequest', requestId, `اعتماد طلب تخرج الطالب ${request.userId} — الإصدار ما زال مشروطًا بإعادة فحص الشروط وقت التنفيذ`)
+      await audit(admin, 'APPROVE_GRADUATION_REQUEST', 'GraduationRequest', requestId, `اعتماد طلب تخرج الطالب ${fresh.userId} — الإصدار ما زال مشروطًا بإعادة فحص الشروط وقت التنفيذ`)
       return NextResponse.json({ ok: true, request: updated })
     }
 

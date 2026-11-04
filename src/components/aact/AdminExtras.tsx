@@ -1693,6 +1693,19 @@ export function AdminCertificatesTab() {
     }
   }
 
+  const refreshGraduation = async (request: GraduationRequestItem) => {
+    setBusy(true)
+    try {
+      await api('/api/admin/graduation-requests', { method: 'POST', body: JSON.stringify({ action: 'REFRESH', requestId: request.id }) })
+      toast({ title: 'تم تحديث الفحص', description: 'أُعيد تقييم الأهلية والدرجة الآن — راجع حالة المعاملة قبل القرار.' })
+      setGradRefresh((v) => v + 1)
+    } catch (e: any) {
+      toast({ title: 'تعذر تحديث الفحص', description: e.message, variant: 'destructive' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const registerGraduationForCandidate = async (candidate: CertificateCandidate) => {
     setBusy(true)
     try {
@@ -2034,6 +2047,7 @@ export function AdminCertificatesTab() {
                           <p className="text-[11px] font-bold text-slate-500">آخر قرار: {new Date(r.decidedAt).toLocaleString('ar-EG')}{r.decisionNote ? ` — ${r.decisionNote}` : ''}</p>
                         )}
                         <div className="flex flex-wrap gap-2">
+                          <Button disabled={busy} variant="outline" onClick={() => refreshGraduation(r)} className="border-[#0f2b46]/20 font-black text-[#0f2b46] hover:bg-slate-50">تحديث الفحص</Button>
                           {(r.status === 'PENDING' || r.status === 'REJECTED') && (
                             <Button disabled={busy} onClick={() => decideGraduation(r, 'APPROVE')} className="bg-emerald-600 font-black text-white hover:bg-emerald-700">{busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="ml-2 h-4 w-4" />} اعتماد الطلب</Button>
                           )}

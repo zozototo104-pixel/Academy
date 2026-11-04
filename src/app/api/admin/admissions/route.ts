@@ -496,7 +496,7 @@ export async function PATCH(req: NextRequest) {
         }
         if (typeof graduationRequest.score === 'number' && typeof eligibility.score === 'number' && graduationRequest.score !== eligibility.score) {
           return NextResponse.json(
-            { error: 'تغيّرت الدرجة النهائية بعد مصادقة الإدارة؛ يلزم قرار إداري جديد على الدرجة الحالية قبل الإصدار.', code: 'GRADUATION_APPROVAL_STALE' },
+            { error: 'تغيّرت الدرجة النهائية بعد مصادقة الإدارة؛ حدّث فحص المعاملة من لوحة معاملات التخرج ثم أعد المصادقة على الدرجة الحالية قبل الإصدار.', code: 'GRADUATION_APPROVAL_STALE' },
             { status: 409 }
           )
         }
