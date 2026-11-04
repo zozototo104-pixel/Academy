@@ -187,28 +187,30 @@ export async function applyScoreAdjustments(
     if (type === 'UNIT') {
       const score = Math.round(rawScore * 10) / 10
       const passed = score >= attempt.exam.passScore
-      await txAny.examAttempt.update({
-        where: { id: attemptId },
+      const saved = await txAny.examAttempt.updateMany({
+        where: { id: attemptId, status: attempt.status, reviewedAt: attempt.reviewedAt ?? null },
         data: {
           score, passed, status: 'GRADED', feedback,
           reviewedById: actor.id, reviewedAt: new Date(),
           ...(attempt.appealStatus === 'PENDING' ? { appealStatus: 'REVIEWED', appealResponse: 'تمت مراجعة نتيجتك وتعديل الدرجة من مشرفك البشري.' } : {}),
         },
       })
+      if (saved.count !== 1) throw Object.assign(new Error('CONCURRENT_REVIEW'), { userMessage: 'حُسمت هذه المراجعة من جلسة أخرى؛ حدّث الصفحة قبل المحاولة مجددًا', status: 409 })
       return { score, passed, userId: attempt.userId, examTitle: attempt.exam.title, programId: attempt.exam.unit?.programId as string | undefined }
     }
 
     // Semester coursework is graded independently; supervisor review must preserve the exam's raw score.
     const score = Math.round(rawScore * 10) / 10
     const passed = score >= attempt.exam.passScore
-    await txAny.programExamAttempt.update({
-      where: { id: attemptId },
+    const saved = await txAny.programExamAttempt.updateMany({
+      where: { id: attemptId, status: attempt.status, reviewedAt: attempt.reviewedAt ?? null },
       data: {
         score, finalScore: score, passed, status: 'GRADED', feedback,
         reviewedById: actor.id, reviewedAt: new Date(),
         ...(attempt.appealStatus === 'PENDING' ? { appealStatus: 'REVIEWED', appealResponse: 'تمت مراجعة نتيجتك وتعديل الدرجة من مشرفك البشري.' } : {}),
       },
     })
+    if (saved.count !== 1) throw Object.assign(new Error('CONCURRENT_REVIEW'), { userMessage: 'حُسمت هذه المراجعة من جلسة أخرى؛ حدّث الصفحة قبل المحاولة مجددًا', status: 409 })
     return { score, passed, userId: attempt.userId, examTitle: attempt.exam.title, programId: attempt.exam.programId as string | undefined }
   }, { timeout: 120000, maxWait: 10000 })
 
