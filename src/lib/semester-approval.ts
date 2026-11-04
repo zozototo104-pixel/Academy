@@ -146,7 +146,7 @@ export async function approveSemesterResult(input: {
   const outcome = (await db.$transaction(async (tx: AnyClient) => {
     const enrollment = await tx.enrollment.findUnique({
       where: { id: input.enrollmentId },
-      select: { id: true, userId: true, programId: true },
+      select: { id: true, userId: true, programId: true, program: { select: { semestersCount: true } } },
     })
     if (!enrollment) return { ok: false, code: 'ENROLLMENT_NOT_FOUND' } as const
     const blockers = await collectSemesterApprovalBlockers(tx, {
