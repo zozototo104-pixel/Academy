@@ -65,8 +65,23 @@ function makeWorld() {
 
 const world = makeWorld()
 mock.module('@/lib/db', () => ({ db: world.db }))
+mock.module('@/lib/auth', () => ({ requireAdmin: async () => ({ id: 'admin-1', role: 'ADMIN' }) }))
+mock.module('@/lib/notify', () => ({
+  notify: async () => {},
+  notifyAdmins: async () => {},
+  audit: async () => {},
+}))
 
 const { completeEnrollmentIfEligibleInTransaction, registerGraduationRequest } = await import('../../src/lib/enrollment-completion')
+const { POST: graduationAction } = await import('../../src/app/api/admin/graduation-requests/route')
+
+function postGraduationAction(action: 'REFRESH' | 'APPROVE') {
+  return graduationAction(new NextRequest('http://localhost/api/admin/graduation-requests', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, requestId: 'grad-1' }),
+  }))
+}
 
 beforeEach(() => {
   world.state.enrollment = { id: 'enrollment-1', userId: 'user-1', programId: 'program-1', status: 'ACTIVE', certificateNo: null }
