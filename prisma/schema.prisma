@@ -941,6 +941,30 @@ model Certificate {
 // in file storage under storageKey; this row records the run (counts and
 // per-file results) so a partial import can be resumed later from any
 // device instead of depending on the uploader's open page.
+// معاملة تخرّج: سجلّ حيّ واحد لكل تسجيل يوثّق فحص الأهلية والمصادقة
+// الإدارية الصريحة قبل إصدار الشهادة. لا إصدار دون موافقة محفوظة هنا.
+model GraduationRequest {
+  id            String    @id @default(cuid())
+  enrollmentId  String    @unique
+  userId        String
+  programId     String
+  admissionId   String?
+  status        String    @default("PENDING") // PENDING | APPROVED | REJECTED | ISSUED
+  ready         Boolean   @default(false)
+  score         Float?
+  snapshot      Json?
+  decidedById   String?
+  decidedAt     DateTime?
+  decisionNote  String?
+  certificateId String?
+  issuedAt      DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status])
+  @@index([userId])
+}
+
 model LegacyCertificateZipImport {
   id         String   @id @default(cuid())
   adminId    String
