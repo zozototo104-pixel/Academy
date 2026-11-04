@@ -465,7 +465,7 @@ export async function POST(req: NextRequest) {
       if (!revealCorrectAnswers) await hidePersistedProgramAnswerFeedback(attempt.id)
       // درجة أولية صادقة: ما صُحّح فعليًا (الموضوعي والفارغ) يُعرض بنقاطه،
       // والمقالية العالقة موسومة بانتظار تأكيد المشرف — بلا مجموع مخترع.
-      const pendingResults: GradedResult[] = realEssayTasks.map(({ q, text }) => ({
+      const pendingResults: GradedResult[] = realEssayTasks.filter(({ q }) => !essayResults.some((r) => r.questionId === q.id)).map(({ q, text }) => ({
         questionId: q.id,
         order: q.order,
         type: q.type,
