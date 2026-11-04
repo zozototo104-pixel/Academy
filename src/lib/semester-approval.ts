@@ -74,6 +74,10 @@ export async function collectSemesterApprovalBlockers(
       where: { userId: args.userId, examId: { in: programExamIds }, status: 'GRADED', score: null },
     })
     if (missingScore) blockers.push({ code: 'PROGRAM_EXAM_GRADED_SCORE_MISSING', count: missingScore })
+    const unscoredAnswers = await client.programExamAttempt.count({
+      where: { userId: args.userId, examId: { in: programExamIds }, status: 'GRADED', answers: { some: { points: null } } },
+    })
+    if (unscoredAnswers) blockers.push({ code: 'PROGRAM_EXAM_ANSWER_POINTS_MISSING', count: unscoredAnswers })
     const review = await client.programExamAttempt.count({
       where: { userId: args.userId, examId: { in: programExamIds }, status: 'NEEDS_REVIEW' },
     })
