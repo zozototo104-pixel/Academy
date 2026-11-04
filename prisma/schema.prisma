@@ -2422,3 +2422,23 @@ model ProgramExtensionRequest {
   @@index([enrollmentId, status])
   @@index([status, createdAt])
 }
+
+// اعتماد درجة محفوظ (المرحلة 2): يميَّز عن مراجعة التصحيح؛ صلاحيته مشروطة
+// ببقاء درجة المحاولة الحالية مساوية للدرجة المعتمدة وقت الاعتماد.
+model GradeApproval {
+  id           String   @id @default(cuid())
+  targetType   String // UNIT_EXAM | PROGRAM_EXAM
+  attemptId    String
+  userId       String // الطالب
+  programId    String
+  semester     Int
+  score        Float
+  approvedById String
+  approvedAt   DateTime @default(now())
+  note         String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([targetType, attemptId])
+  @@index([userId, programId, semester])
+}
