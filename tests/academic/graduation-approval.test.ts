@@ -1,4 +1,5 @@
 import { describe, test, expect, mock, beforeEach } from 'bun:test'
+import { NextRequest } from 'next/server'
 
 // ===== قانون المصادقة على التخرج =====
 // إنشاء شهادة إتمام برنامج يتطلب طلب تخرج بحالة APPROVED محفوظًا في قاعدة
