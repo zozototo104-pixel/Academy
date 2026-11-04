@@ -166,9 +166,5 @@ export async function approveSemesterResult(input: {
     // The official decision writer will be introduced with the verified
     // semester grade snapshot and its atomic approval history.
   })) as SemesterApprovalDecision
-  if (outcome.ok) {
-    const approval = outcome.approval as { id: string }
-    await audit(input.actor as never, 'APPROVE_SEMESTER_RESULT', 'SemesterResultApproval', approval.id, `اعتماد نتيجة الفصل ${input.semester}`)
-  }
   return outcome
 }
