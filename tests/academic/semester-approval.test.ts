@@ -85,6 +85,11 @@ beforeEach(() => {
 })
 
 describe('حارس اعتماد نتيجة الفصل', () => {
+  test('رفض أي درجة مرسلة من العميل وعدم إنشاء اعتماد', async () => {
+    const decision = await approveSemesterResult({ enrollmentId: 'enrollment-1', semester: 1, actor: ADMIN, score: 99 })
+    expect(decision).toEqual({ ok: false, code: 'SEMESTER_APPROVAL_NOT_ACTIVE' })
+    expect(world.state.approvals.size).toBe(0)
+  })
   test('درجة امتحان محفوظة مع إجابة دون نقاط تمنع المصادقة', async () => {
     world.state.unitAttempts = [{ userId: 'user-1', examId: 'exam-s1', status: 'GRADED', score: 70, answerPointsMissing: true }]
     world.state.programAttempts = [{ userId: 'user-1', examId: 'pexam-s1', status: 'GRADED', score: 70, answerPointsMissing: true }]
