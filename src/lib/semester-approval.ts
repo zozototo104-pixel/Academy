@@ -185,6 +185,7 @@ export async function approveSemesterResult(input: {
       },
     })
     return { ok: true, approval } as const
+    */
   })) as SemesterApprovalDecision
   if (outcome.ok) {
     const approval = outcome.approval as { id: string }
