@@ -55,6 +55,13 @@ export async function GET(req: NextRequest) {
       const completedAttempts = await tx.examAttempt.count({
         where: { userId: user.id, examId, status: { in: COMPLETED_UNIT_ATTEMPT_STATUSES }, createdAt: { gte: EXAM_ATTEMPT_POLICY_SINCE } },
       })
+      // A pending review takes precedence over the attempt limit: tell the student
+      // that grading is unresolved rather than implying the result is final.
+      const unresolvedReview = await tx.examAttempt.findFirst({
+        where: { userId: user.id, examId, status: 'NEEDS_REVIEW' },
+        select: { id: true },
+      })
+      if (unresolvedReview) return { blocked: true as const, reason: 'NEEDS_REVIEW' as const, maxAttempts, completedAttempts }
       if (completedAttempts >= maxAttempts) return { blocked: true as const, reason: 'MAX_ATTEMPTS_REACHED' as const, maxAttempts, completedAttempts }
 
       const passedAttempt = await tx.examAttempt.findFirst({
