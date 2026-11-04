@@ -167,21 +167,54 @@ describe('graduation approval law', () => {
     expect(world.state.request.certificateId).toBe('cert-new')
   })
 
-  test('a refresh after a score change returns the transaction to PENDING with the new score', async () => {
+  test('stale 88 approval -> admin refresh to 95 -> new approval -> issuance at 95', async () => {
     await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
     world.state.request.status = 'APPROVED'
     world.state.request.decidedById = 'admin-1'
     world.state.request.decidedAt = new Date()
     world.state.request.score = 88
-    const again = await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
-    expect(again.registered).toBe(true)
+
+    const stale = await completeEnrollmentIfEligibleInTransaction(world.tx, { enrollmentId: 'enrollment-1', admissionId: 'admission-1' })
+    expect(stale.code).toBe('GRADUATION_APPROVAL_STALE')
+    expect(world.state.createdCertificate).toBeNull()
+
+    const refresh = await postGraduationAction('REFRESH')
+    expect(refresh.status).toBe(200)
+    expect((await refresh.json()).request.score).toBe(95)
     expect(world.state.request.status).toBe('PENDING')
     expect(world.state.request.decidedById).toBeNull()
-    expect(world.state.request.score).toBe(95)
-    const result = await completeEnrollmentIfEligibleInTransaction(world.tx, { enrollmentId: 'enrollment-1', admissionId: 'admission-1' })
-    expect(result.ok).toBe(false)
-    expect(result.code).toBe('ADMIN_GRADUATION_APPROVAL_REQUIRED')
+    expect(world.state.request.decidedAt).toBeNull()
+
+    const pending = await completeEnrollmentIfEligibleInTransaction(world.tx, { enrollmentId: 'enrollment-1', admissionId: 'admission-1' })
+    expect(pending.code).toBe('ADMIN_GRADUATION_APPROVAL_REQUIRED')
     expect(world.state.createdCertificate).toBeNull()
+
+    const approval = await postGraduationAction('APPROVE')
+    expect(approval.status).toBe(200)
+    expect(world.state.request.status).toBe('APPROVED')
+    expect(world.state.request.score).toBe(95)
+    expect(world.state.request.decidedById).toBe('admin-1')
+    expect(world.state.request.decidedAt).toBeInstanceOf(Date)
+
+    const issued = await completeEnrollmentIfEligibleInTransaction(world.tx, { enrollmentId: 'enrollment-1', admissionId: 'admission-1' })
+    expect(issued.ok).toBe(true)
+    expect(issued.certificateIssued).toBe(true)
+    expect(world.state.enrollment.finalScore).toBe(95)
+    expect(world.state.request.status).toBe('ISSUED')
+    expect(world.state.request.certificateId).toBe('cert-new')
+  })
+
+  test('failed readiness refresh never returns success or approves the old snapshot', async () => {
+    await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
+    world.state.failTransaction = true
+    for (const action of ['REFRESH', 'APPROVE'] as const) {
+      const response = await postGraduationAction(action)
+      expect(response.status).toBe(503)
+      expect((await response.json()).code).toBe('GRADUATION_REFRESH_FAILED')
+      expect(world.state.request.status).toBe('PENDING')
+      expect(world.state.request.decidedById).toBeUndefined()
+      expect(world.state.createdCertificate).toBeNull()
+    }
   })
 
   test('an already-issued certificate is returned as-is, never recreated or regraded', async () => {
