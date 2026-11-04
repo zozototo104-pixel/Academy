@@ -20,6 +20,23 @@ export function isTransientBookReadError(message: unknown): boolean {
     'book_extract_deadline',
     'book_read_time_budget_exhausted',
     'ai_academic_provider_unavailable',
+    // Billing exhaustion is an operator-side, recoverable state: the router
+    // marks the key NO_BALANCE and later calls skip it, so the job must pause
+    // (and resume on the surviving providers) instead of dying as FAILED.
+    'no credits',
+    'add credits',
+    'insufficient credits',
+    'credit balance',
+    'payment required',
+    'no balance',
+    'no_balance',
+    'recharge',
+    'top up',
+    // Every candidate was skipped/unavailable and nobody was even attempted:
+    // a transient bench state (cooldowns expire), not a book problem.
+    'text_ai_router_failed',
+    'text_ai_router_not_configured',
+    'no_provider',
   ].some((term) => text.includes(term))
 }
 
