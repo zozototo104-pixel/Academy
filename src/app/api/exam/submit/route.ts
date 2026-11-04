@@ -409,15 +409,6 @@ export async function POST(req: NextRequest) {
       claimedUnitAttemptId = null
       const results = responseResults.sort((a, b) => a.order - b.order)
       const reviewResults = revealCorrectAnswers ? results : results.map(({ correctAnswerText, ...result }) => result)
-      // درجة أولية صادقة: مجموع ما صُحّح فعليًا فقط، والأسئلة العالقة
-      // موسومة بانتظار التأكيد — لا مجموع مخترع ولا فراغ يخيف الطالب.
-      const preliminary = {
-        gradedPoints: gradedResults.filter((r) => !r.pendingReview).reduce((sum, r) => sum + r.points, 0),
-        gradedMaxPoints: gradedResults.filter((r) => !r.pendingReview).reduce((sum, r) => sum + r.maxPoints, 0),
-        pendingCount: gradedResults.filter((r) => r.pendingReview).length,
-        totalMaxPoints: maxTotal,
-      }
-      await db.examAttempt.update({ where: { id: attempt.id }, data: { feedback: JSON.stringify({ summary: 'تم حفظ الإجابات، التصحيح قيد المراجعة.', preliminary }) } })
       await notifyAttemptNeedsReview({ studentId: user.id, studentName: user.name, examTitle: exam.title, preliminary })
       return NextResponse.json({ ok: true, status: 'NEEDS_REVIEW', attemptId: attempt.id, message: 'درجتك أولية — بانتظار تأكيد المشرف', maxAttempts, attemptsUsed: completedAttemptsBeforeSubmit + 1, preliminary, results: reviewResults }, { status: 202 })
     }
