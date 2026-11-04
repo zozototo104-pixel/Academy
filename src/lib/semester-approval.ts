@@ -154,6 +154,13 @@ export async function approveSemesterResult(input: {
     })
     if (blockers.length) return { ok: false, code: 'SEMESTER_GRADES_INCOMPLETE', blockers } as const
     if (!SEMESTER_APPROVAL_ACTIVE) return { ok: false, code: 'SEMESTER_APPROVAL_NOT_ACTIVE' } as const
+    // Recheck the actor from the database inside the decision transaction.
+    // The actor id passed by an API caller is not proof of administrator rights.
+    const actor = await tx.user.findUnique({ where: { id: input.actor.id }, select: { role: true } })
+    if (actor?.role !== 'ADMIN') return { ok: false, code: 'SEMESTER_APPROVAL_FORBIDDEN' } as const
+    // A client-supplied score is not an official computed semester result.
+    // Keep the decision closed until the verified semester grade engine is wired.
+    return { ok: false, code: 'SEMESTER_SCORE_NOT_VERIFIED' } as const
     const approval = await tx.semesterResultApproval.upsert({
       where: { enrollmentId_semester: { enrollmentId: input.enrollmentId, semester: input.semester } },
       create: {
