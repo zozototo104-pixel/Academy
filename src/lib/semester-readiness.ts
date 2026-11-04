@@ -32,6 +32,8 @@ export async function hasPassedFirstSemesterExam(userId: string, programId: stri
         examId: exam.id,
         status: 'GRADED',
         passed: true,
+        score: { not: null },
+        answers: { none: { points: null } },
         OR: [{ appealStatus: null }, { appealStatus: { not: 'PENDING' } }],
       },
       select: { id: true },
