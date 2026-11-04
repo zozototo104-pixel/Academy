@@ -117,6 +117,11 @@ export async function POST(req: NextRequest) {
           }
           return { blocked: 'GRADING' as const, attempt: null, maxAttempts, completedAttempts }
         }
+        const pendingReview = await tx.programExamAttempt.findFirst({
+          where: { userId: user.id, examId, status: 'NEEDS_REVIEW' },
+          select: { id: true },
+        })
+        if (pendingReview) return { blocked: 'REVIEW_PENDING' as const, attempt: null, maxAttempts, completedAttempts }
         const passedAttempt = await tx.programExamAttempt.findFirst({
           where: { userId: user.id, examId, passed: true, OR: [{ appealStatus: null }, { appealStatus: { not: 'PENDING' } }] },
           select: { id: true },
@@ -136,6 +141,10 @@ export async function POST(req: NextRequest) {
     if (startState.blocked === 'GRADING') return NextResponse.json({ error: 'هذه المحاولة قيد التصحيح', code: 'SUBMITTED' }, { status: 409 })
     if (startState.blocked === 'REVIEW') return NextResponse.json({
       error: 'تأخر التصحيح؛ تم نقل إجاباتك المحفوظة للمراجعة البشرية دون احتساب علامة ناقصة.',
+      code: 'NEEDS_REVIEW',
+    }, { status: 409 })
+    if (startState.blocked === 'REVIEW_PENDING') return NextResponse.json({
+      error: 'نتيجة محاولتك السابقة بانتظار تأكيد المشرف — لا يمكنك بدء محاولة جديدة حتى تُعتمد النتيجة',
       code: 'NEEDS_REVIEW',
     }, { status: 409 })
     if (startState.blocked === 'EXPIRED') return NextResponse.json({ error: 'انتهت المحاولة وحُسبت صفر', code: 'ATTEMPT_EXPIRED', maxAttempts: startState.maxAttempts, attemptsUsed: startState.completedAttempts }, { status: 409 })

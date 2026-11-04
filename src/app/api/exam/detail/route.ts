@@ -94,6 +94,15 @@ export async function GET(req: NextRequest) {
         }
         return { blocked: true as const, reason: 'SUBMITTED' as const, maxAttempts, completedAttempts }
       }
+      const pendingReview = await tx.examAttempt.findFirst({
+        where: { userId: user.id, examId, status: 'NEEDS_REVIEW' },
+        select: { id: true },
+      })
+      if (pendingReview) {
+        // نتيجة عالقة عند المشرف: لا محاولة جديدة قبل اعتمادها — وإلا
+        // احترقت محاولات الطالب بينما الأولى لم تُحسم بعد.
+        return { blocked: true as const, reason: 'NEEDS_REVIEW' as const, maxAttempts, completedAttempts }
+      }
       const existing = await tx.examAttempt.findFirst({
         where: { userId: user.id, examId, status: 'STARTED' },
         orderBy: { createdAt: 'desc' },
@@ -114,7 +123,7 @@ export async function GET(req: NextRequest) {
               : attemptState.reason === 'MAX_ATTEMPTS_REACHED'
               ? 'استنفدت عدد محاولات هذا الاختبار'
               : attemptState.reason === 'NEEDS_REVIEW'
-              ? 'تأخر التصحيح؛ تم حفظ إجاباتك ونقل المحاولة للمراجعة البشرية دون احتساب صفر.'
+              ? 'نتيجة محاولتك السابقة بانتظار تأكيد المشرف — لا يمكنك بدء محاولة جديدة حتى تُعتمد النتيجة'
               : 'هذه المحاولة قيد التصحيح بالفعل',
           code: attemptState.reason,
           maxAttempts: attemptState.maxAttempts,

@@ -66,6 +66,8 @@ interface SubmitResult {
   maxTotal: number
   passScore: number
   passed: boolean
+  status?: string
+  preliminary?: { gradedPoints: number; gradedMaxPoints: number; pendingCount: number; totalMaxPoints?: number } | null
   rawScoreBeforeCourseworkCap?: number
   maxExamScore?: number
   courseworkCapApplied?: boolean
@@ -76,6 +78,7 @@ interface SubmitResult {
     type: string
     text: string
     isCorrect: boolean | null
+    pendingReview?: boolean
     points: number
     maxPoints: number
     aiFeedback: string
@@ -409,6 +412,29 @@ export function ExamView() {
         setDraftStatus('idle')
         setDraftUpdatedAt(null)
         if (d?.status === 'NEEDS_REVIEW') {
+          if (Array.isArray(d.results) && d.preliminary) {
+            // درجة أولية: نعرض ما صُحّح بنقاطه والأسئلة العالقة موسومة
+            // بانتظار التأكيد — بدل رمي النتائج وترك الطالب بلا أي علامة.
+            setResult({
+              attemptId: d.attemptId,
+              score: 0,
+              rawScore: d.preliminary.gradedPoints,
+              maxTotal: d.preliminary.gradedMaxPoints,
+              passScore: data.exam.passScore ?? 0,
+              passed: false,
+              status: 'NEEDS_REVIEW',
+              preliminary: d.preliminary,
+              overall: {
+                summary: 'بعض أسئلة هذه المحاولة لم يكتمل تصحيحها الآلي، فحُوّلت لتأكيد المشرف البشري. ما تراه الآن درجة أولية من الأسئلة المصححة فقط — نتيجتك النهائية تُعتمد بعد المراجعة، وسيصلك إشعار عند اعتمادها.',
+                strengths: [],
+                improvements: [],
+              },
+              results: d.results,
+            })
+            toast({ title: 'درجتك أولية', description: 'بعض الأسئلة بانتظار تأكيد المشرف — تُعتمد نتيجتك النهائية بعد المراجعة.' })
+            window.scrollTo({ top: 0, behavior: 'smooth' })
+            return
+          }
           setResult(null)
           toast({ title: 'إجاباتك محفوظة للمراجعة', description: d.message || 'تم حفظ إجاباتك، وسيتم اعتماد النتيجة بعد مراجعة الإدارة.' })
           navigate('dashboard', { programId: data.exam.programId, tab: 'results' })
@@ -655,14 +681,34 @@ export function ExamView() {
     return (
       <div className="aact-fade-in mx-auto max-w-4xl px-4 py-10">
         {/* Score header */}
-        <Card className={`overflow-hidden border-0 text-white ${result.passed ? 'bg-emerald-600' : 'bg-amber-600'}`}>
+        <Card className={`overflow-hidden border-0 text-white ${result.preliminary ? 'bg-[#0f2b46]' : result.passed ? 'bg-emerald-600' : 'bg-amber-600'}`}>
           <CardContent className="p-7 text-center sm:p-9">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white/15">
-              {result.passed ? <Trophy className="h-9 w-9" /> : <AlertTriangle className="h-9 w-9" />}
+              {result.preliminary ? <Hourglass className="h-9 w-9" /> : result.passed ? <Trophy className="h-9 w-9" /> : <AlertTriangle className="h-9 w-9" />}
             </div>
             <h1 className="text-2xl font-black sm:text-3xl">
-              {result.passed ? 'مبروك! اجتزت الاختبار' : 'لم تجتز هذه المرة — لا تستسلم'}
+              {result.preliminary ? 'نتيجتك أولية — بانتظار تأكيد المشرف' : result.passed ? 'مبروك! اجتزت الاختبار' : 'لم تجتز هذه المرة — لا تستسلم'}
             </h1>
+            {result.preliminary ? (
+              <>
+                <div className="mt-5 flex flex-wrap items-center justify-center gap-6">
+                  <div>
+                    <div className="text-4xl font-black sm:text-5xl">
+                      {result.rawScore}<span className="text-xl">/{result.maxTotal}</span>
+                    </div>
+                    <div className="mt-1 text-xs font-bold opacity-85">نقاط الأسئلة المصححة حتى الآن</div>
+                  </div>
+                  <div className="h-12 w-px bg-white/25" />
+                  <div>
+                    <div className="text-4xl font-black sm:text-5xl">{result.preliminary.pendingCount}</div>
+                    <div className="mt-1 text-xs font-bold opacity-85">سؤال بانتظار تأكيد المشرف</div>
+                  </div>
+                </div>
+                <div className="mx-auto mt-5 max-w-md rounded-xl bg-white/15 p-4 text-sm font-extrabold leading-7">
+                  نتيجتك النهائية تُعتمد بعد مراجعة المشرف — لا يمكنك بدء محاولة جديدة قبل الاعتماد، وسيصلك إشعار عند اعتمادها.
+                </div>
+              </>
+            ) : (
             <div className="mt-5 flex flex-wrap items-center justify-center gap-6">
               <div>
                 <div className="text-4xl font-black sm:text-5xl">{pct}%</div>
@@ -681,6 +727,7 @@ export function ExamView() {
                 <div className="mt-1 text-xs font-bold opacity-85">حد النجاح</div>
               </div>
             </div>
+            )}
             {result.courseworkCapApplied && (
               <div className="mx-auto mt-5 max-w-md rounded-xl bg-amber-900/25 p-4 text-sm font-extrabold leading-7">
                 تم تطبيق سقف الدرجة بسبب عدم استكمال بعض الاختبارات/الواجبات الفصلية. نتيجتك قبل السقف: {result.rawScoreBeforeCourseworkCap}%، وأعلى نتيجة مسموحة الآن: {result.maxExamScore}%.
@@ -732,7 +779,7 @@ export function ExamView() {
         </Card>
 
         {/* 12.2: الاعتراض على النتيجة */}
-        {activeExamKind === 'final' && (
+        {activeExamKind === 'final' && !result.preliminary && (
           <div className="mt-4 rounded-xl border border-[#c9a227]/40 bg-[#f7edd0]/40 p-4">
             {appealSent ? (
               <p className="flex items-center gap-2 text-xs font-black text-[#0f2b46]">
@@ -754,7 +801,7 @@ export function ExamView() {
         )}
 
         {/* التماس مراجعة امتحان الوحدة — لمشرفك البشري فقط */}
-        {activeExamKind !== 'final' && unitAppeal && (unitAppeal.canAppeal || unitAppeal.status === 'PENDING' || unitAppeal.status === 'REVIEWED') && (
+        {activeExamKind !== 'final' && !result.preliminary && unitAppeal && (unitAppeal.canAppeal || unitAppeal.status === 'PENDING' || unitAppeal.status === 'REVIEWED') && (
           <div className="mt-4 rounded-xl border border-[#c9a227]/40 bg-[#f7edd0]/40 p-4">
             {appealSent || unitAppeal.status === 'PENDING' ? (
               <p className="flex items-center gap-2 text-xs font-black text-[#0f2b46]">
@@ -816,22 +863,28 @@ export function ExamView() {
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
-                    <Badge
-                      className={
-                        r.isCorrect === true
-                          ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100'
-                          : r.isCorrect === false
-                          ? 'bg-red-100 text-red-700 hover:bg-red-100'
-                          : 'bg-amber-100 text-amber-700 hover:bg-amber-100'
-                      }
-                    >
-                      {r.points}/{r.maxPoints} نقطة
-                    </Badge>
-                    {r.isCorrect === true ? (
-                      <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                    ) : r.isCorrect === false ? (
-                      <XCircle className="h-5 w-5 text-red-500" />
-                    ) : null}
+                    {r.pendingReview ? (
+                      <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">بانتظار تأكيد المشرف</Badge>
+                    ) : (
+                      <>
+                        <Badge
+                          className={
+                            r.isCorrect === true
+                              ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100'
+                              : r.isCorrect === false
+                              ? 'bg-red-100 text-red-700 hover:bg-red-100'
+                              : 'bg-amber-100 text-amber-700 hover:bg-amber-100'
+                          }
+                        >
+                          {r.points}/{r.maxPoints} نقطة
+                        </Badge>
+                        {r.isCorrect === true ? (
+                          <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                        ) : r.isCorrect === false ? (
+                          <XCircle className="h-5 w-5 text-red-500" />
+                        ) : null}
+                      </>
+                    )}
                   </div>
                 </div>
                 <div className="mt-3 rounded-lg bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
@@ -863,7 +916,7 @@ export function ExamView() {
                   <strong className="flex items-center gap-1.5">
                     <Bot className="h-3.5 w-3.5" /> تقييم المشرف الذكي:
                   </strong>
-                  <span className="mt-1 block">{r.aiFeedback}</span>
+                  <span className="mt-1 block">{r.pendingReview ? 'إجابتك محفوظة — تصحيح هذا السؤال بانتظار تأكيد المشرف البشري، وستُعتمد نتيجتك النهائية بعد المراجعة.' : r.aiFeedback}</span>
                 </div>
               </CardContent>
             </Card>
