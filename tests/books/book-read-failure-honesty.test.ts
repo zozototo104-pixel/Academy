@@ -12,6 +12,7 @@ import { join } from 'node:path'
 const root = join(import.meta.dir, '..', '..')
 const readStep = readFileSync(join(root, 'src/app/api/admin/books/[id]/read-step/route.ts'), 'utf8')
 const textAi = readFileSync(join(root, 'src/lib/text-ai.ts'), 'utf8')
+const jobControl = readFileSync(join(root, 'src/lib/book-read-job-control.ts'), 'utf8')
 
 describe('read-step honest job states', () => {
   it('never answers the bare BOOK_READ_JOB_NOT_FOUND code', () => {
@@ -27,6 +28,28 @@ describe('read-step honest job states', () => {
   it('treats a step call after completion as an already-completed skip', () => {
     expect(readStep).toContain("latest?.status === 'COMPLETED'")
     expect(readStep).toContain("skipped: 'ALREADY_COMPLETED'")
+  })
+})
+
+describe('four-way failure handling in the read-step route', () => {
+  it('classifies step failures instead of a binary transient check', () => {
+    expect(readStep).toContain('classifyBookReadFailure')
+    expect(jobControl).toContain('export function classifyBookReadFailure')
+  })
+
+  it('stops with a clear operator message on proven billing exhaustion', () => {
+    expect(readStep).toContain("kind === 'BILLING'")
+    expect(readStep).toContain('نفد رصيد جميع المزودين المتاحين')
+  })
+
+  it('stops with a settings message when no provider is configured', () => {
+    expect(readStep).toContain("kind === 'CONFIG'")
+    expect(readStep).toContain('خطأ إعدادات')
+  })
+
+  it('keeps the strict billing rule: any non-balance skip downgrades the verdict', () => {
+    expect(jobControl).toContain("skipReasons.every((reason) => reason === 'NO_BALANCE')")
+    expect(jobControl).toContain('if (skipReasons.length > 0) return \'TRANSIENT\'')
   })
 })
 

@@ -392,6 +392,10 @@ export async function POST(req: NextRequest) {
       const revealCorrectAnswers = shouldRevealCorrectAnswers({ passed: false, completedAttempts: completedAttemptsBeforeSubmit + 1, maxAttempts })
       const persistedAnswers = revealCorrectAnswers ? answersToPersist : sanitizePreparedAnswersForHiddenAnswers(answersToPersist)
       const responseResults = revealCorrectAnswers ? gradedResults : sanitizeUnitFeedbackForHiddenAnswers(gradedResults)
+      // درجة أولية صادقة: مجموع ما صُحّح فعليًا فقط، والأسئلة العالقة
+      // موسومة بانتظار التأكيد — لا مجموع مخترع ولا فراغ يخيف الطالب.
+      // تُحسب قبل المعاملة وتُحفظ داخلها مع حالة المراجعة نفسها، فلا توجد
+      // لحظة تكون فيها المحاولة «بانتظار المراجعة» دون درجتها الأولية.
       const preliminary = {
         gradedPoints: gradedResults.filter((r) => !r.pendingReview).reduce((sum, r) => sum + r.points, 0),
         gradedMaxPoints: gradedResults.filter((r) => !r.pendingReview).reduce((sum, r) => sum + r.maxPoints, 0),
@@ -399,7 +403,7 @@ export async function POST(req: NextRequest) {
         totalMaxPoints: maxTotal,
       }
       const attempt = await db.$transaction(async (tx) => {
-        const created = await tx.examAttempt.update({ where: { id: activeAttempt.id }, data: { status: 'NEEDS_REVIEW', feedback: JSON.stringify({ summary: 'تم حفظ الإجابات، التصحيح قيد المراجعة.', pendingReview: true, preliminary }) } })
+        const created = await tx.examAttempt.update({ where: { id: activeAttempt.id }, data: { status: 'NEEDS_REVIEW', feedback: JSON.stringify({ summary: 'تم حفظ الإجابات، التصحيح قيد المراجعة.', preliminary }) } })
         for (const prepared of persistedAnswers) {
           await persistPreparedAnswer(tx, created.id, prepared, prePersistedEssayQuestionIds.has(prepared.questionId))
         }

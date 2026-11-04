@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { nextExtractionPage, pagesNeedingOcr, planBookChunks, extractPdfBatch, extractNumberedPdfPages } from '../src/lib/book-reader'
 import { PDFDocument, StandardFonts } from 'pdf-lib'
-import { isRepeatedBookConcept, validateBookKnowledgeCandidate } from '../src/lib/book-chunk-analyzer'
+import { analyzeStepWithStore, isRepeatedBookConcept, validateBookKnowledgeCandidate } from '../src/lib/book-chunk-analyzer'
 
 const pages = [{ page: 1, text: `${'هذه جملة طويلة عن المعرفة. '.repeat(120)}`, textProvenance: 'NATIVE_TEXT' as const }, { page: 2, text: `${'هذه جملة ثانية عن العلم. '.repeat(120)}`, textProvenance: 'NATIVE_TEXT' as const }]
 const chunks = planBookChunks(pages)
@@ -55,4 +55,43 @@ async function pdfExtractionRegression() {
   assert.ok(firstChunkText.includes('Page 1:'))
 }
 
-pdfExtractionRegression().then(() => console.log('book-reading regression checks passed')).catch((error) => { console.error(error); process.exitCode = 1 })
+async function analyzeResumeRegression() {
+  // Resume proof (Haris's closing criterion, 2026-11-04): a job whose first
+  // chunks were analyzed in an earlier run continues from the saved progress —
+  // the already-analyzed chunks are never re-processed and the job completes.
+  const baseText = 'الاستئناف من التقدم المحفوظ يعني أن النظام يكمل من حيث توقف تمامًا دون إعادة تحليل ما أُنجز من المقاطع في محاولة سابقة.'
+  const chunks = [0, 1, 2, 3].map((index) => ({
+    id: `chunk-${index}`, bookId: 'book', programId: 'program', index,
+    text: `${baseText} الجزء ${index}.`, pageStart: index + 1, pageEnd: index + 1,
+    textProvenance: 'NATIVE_TEXT', attempts: 0,
+  }))
+  const pending = chunks.slice(2) // chunks 0 and 1 were ANALYZED by the earlier run
+  const analyzedCalls: number[] = []
+  const savedCalls: number[] = []
+  let completedJob = false
+  const store = {
+    getJob: async () => ({ id: 'job', bookId: 'book', programId: 'program', phase: 'ANALYZE', status: 'RUNNING' }),
+    nextChunk: async (_bookId: string, excludeIds: string[]) => pending.find((chunk) => !excludeIds.includes(chunk.id)) ?? null,
+    priorItems: async () => [],
+    saveAnalyzed: async (chunk: { index: number }) => { savedCalls.push(chunk.index) },
+    saveFailure: async () => { throw new Error('saveFailure must not run in the resume scenario') },
+    complete: async () => { completedJob = true },
+  }
+  const analyze = async (input: { chunkText: string }) => {
+    const index = chunks.find((chunk) => chunk.text === input.chunkText)!.index
+    analyzedCalls.push(index)
+    return [{ category: 'CONCEPT', title: 'مفهوم الاستئناف', summary: 'شرح مفهوم الاستئناف من التقدم المحفوظ', excerpt: baseText, importance: 80 }]
+  }
+  const result = await analyzeStepWithStore('job', Date.now() + 60_000, store as any, analyze as any)
+  assert.deepEqual(analyzedCalls, [2, 3])
+  assert.deepEqual(savedCalls, [2, 3])
+  assert.equal(result.analyzed, 2)
+  assert.equal(result.failed, 0)
+  assert.equal(result.completed, true)
+  assert.equal(completedJob, true)
+}
+
+pdfExtractionRegression()
+  .then(() => analyzeResumeRegression())
+  .then(() => console.log('book-reading regression checks passed'))
+  .catch((error) => { console.error(error); process.exitCode = 1 })

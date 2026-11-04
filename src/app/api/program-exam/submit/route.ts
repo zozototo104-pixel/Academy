@@ -457,11 +457,11 @@ export async function POST(req: NextRequest) {
       })
     } catch (e: any) {
       const reviewState = { code: e?.code || 'AI_ACADEMIC_PROVIDER_UNAVAILABLE', retryAt: e?.retryAt || null }
-      const revealCorrectAnswers = shouldRevealCorrectAnswers({ passed: false, completedAttempts: completedAttemptsBeforeSubmit + 1, maxAttempts })
-      if (!revealCorrectAnswers) await hidePersistedProgramAnswerFeedback(attempt.id)
       // درجة أولية صادقة: ما صُحّح فعليًا (الموضوعي والفارغ) يُعرض بنقاطه،
       // والمقالية العالقة موسومة بانتظار تأكيد المشرف — بلا مجموع مخترع.
-      const pendingResults: GradedResult[] = realEssayTasks.filter(({ q }) => !essayResults.some((r) => r.questionId === q.id)).map(({ q, text }) => ({
+      // تُحسب قبل الحفظ وتُكتب مع حالة المراجعة في تحديث واحد، فلا تُفقد
+      // حالة السبب ولا توجد محاولة «بانتظار المراجعة» دون درجتها الأولية.
+      const pendingResults: GradedResult[] = realEssayTasks.map(({ q, text }) => ({
         questionId: q.id,
         order: q.order,
         type: q.type,
@@ -481,7 +481,12 @@ export async function POST(req: NextRequest) {
         pendingCount: pendingResults.length,
         totalMaxPoints: maxTotal,
       }
-      await db.programExamAttempt.update({ where: { id: attempt.id }, data: { status: 'NEEDS_REVIEW', score: null, passed: null, feedback: JSON.stringify({ ...reviewState, preliminary }), submittedAt: new Date() } })
+      await db.programExamAttempt.update({
+        where: { id: attempt.id },
+        data: { status: 'NEEDS_REVIEW', score: null, passed: null, feedback: JSON.stringify({ ...reviewState, preliminary }), submittedAt: new Date() },
+      })
+      const revealCorrectAnswers = shouldRevealCorrectAnswers({ passed: false, completedAttempts: completedAttemptsBeforeSubmit + 1, maxAttempts })
+      if (!revealCorrectAnswers) await hidePersistedProgramAnswerFeedback(attempt.id)
       await notifyAttemptNeedsReview({ studentId: user.id, studentName: user.name, examTitle: exam.title, preliminary })
       const results = revealCorrectAnswers ? combinedResults : sanitizeProgramResultsForHiddenAnswers(combinedResults)
       return NextResponse.json({ ok: true, status: 'NEEDS_REVIEW', attemptId: attempt.id, message: 'درجتك أولية — بانتظار تأكيد المشرف', preliminary, results, ...reviewState }, { status: 202 })

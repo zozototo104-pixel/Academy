@@ -177,4 +177,17 @@ describe('grading-flow wiring pins', () => {
     expect(view).toContain('بانتظار تأكيد المشرف')
     expect(view).toContain('pendingReview')
   })
+
+  test('the preliminary is persisted atomically with the review state in both submit routes', () => {
+    // Unit: one transaction write carries the NEEDS_REVIEW status and the
+    // preliminary together (the summary string appears exactly once — the old
+    // split wrote it in the transaction and again in a post-commit update).
+    expect(unitSubmit).toContain("data: { status: 'NEEDS_REVIEW', feedback: JSON.stringify({ summary: 'تم حفظ الإجابات، التصحيح قيد المراجعة.', preliminary }) }")
+    expect(unitSubmit.split('تم حفظ الإجابات، التصحيح قيد المراجعة.').length - 1).toBe(1)
+    // Program: the single update keeps the review state (code/retryAt) AND
+    // the preliminary; the old second write overwrote feedback with only the
+    // preliminary and silently dropped the review state.
+    expect(programSubmit).toContain('feedback: JSON.stringify({ ...reviewState, preliminary })')
+    expect(programSubmit).not.toContain('data: { feedback: JSON.stringify({ preliminary }) }')
+  })
 })

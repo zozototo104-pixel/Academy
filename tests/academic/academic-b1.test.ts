@@ -11,6 +11,10 @@ let pendingUnitGrading: { submittedAt: Date | null; savedAnswerCount: number } |
 let unitObjectiveMode = false
 let programObjectiveMode = false
 let optionalFeedbackFails = false
+let unitPendingReviewFeedback: string | null = null
+let programPendingReviewFeedback: string | null = null
+let failNeedsReviewUpdate = false
+const attemptUpdatePayloads: any[] = []
 
 function clone<T>(value: T): T {
   return value == null ? value : JSON.parse(JSON.stringify(value))
@@ -54,12 +58,19 @@ const db: any = {
   examAttempt: {
     findFirst: async ({ where }: any = {}) => {
       if (where?.status === 'SUBMITTED') return pendingUnitGrading ? { id: 'attempt-1', submittedAt: pendingUnitGrading.submittedAt } : null
+      if (where?.status === 'NEEDS_REVIEW' && unitPendingReviewFeedback !== null) return { id: 'attempt-1', feedback: unitPendingReviewFeedback, submittedAt: new Date() }
       if (where?.status === 'GRADED' || where?.status === 'NEEDS_REVIEW') return null
       return { id: 'attempt-1', createdAt: new Date() }
     },
+    findUnique: async () => ({ userId: 'user-1', exam: { title: 'اختبار الوحدة' } }),
     count: async () => 0,
     updateMany: async ({ data }: any) => { calls.push(`attempt.updateMany:${data.status}`); return { count: 1 } },
-    update: async ({ data }: any) => { calls.push(`attempt.update:${data.status}`); return { id: 'attempt-1', ...data } },
+    update: async ({ data }: any) => {
+      if (failNeedsReviewUpdate && data?.status === 'NEEDS_REVIEW') throw new Error('SIMULATED_WRITE_FAILURE')
+      calls.push(`attempt.update:${data.status}`)
+      attemptUpdatePayloads.push(data)
+      return { id: 'attempt-1', ...data }
+    },
     findMany: async () => [],
   },
   answer: {
@@ -110,6 +121,7 @@ const db: any = {
   },
   programExamAttempt: {
     findFirst: async ({ where }: any) => {
+      if (where?.status === 'NEEDS_REVIEW' && programPendingReviewFeedback !== null) return { id: 'program-attempt-1', feedback: programPendingReviewFeedback, submittedAt: new Date() }
       if (where?.status === 'EXPIRED') return null
       if (where?.status === 'STARTED') return { id: 'program-attempt-started', userId: 'user-1', examId: 'program-exam-1', status: 'STARTED', startedAt: new Date(Date.now() - 60_000), createdAt: new Date() }
       return null
@@ -212,6 +224,7 @@ mock.module('@/lib/program-tracks', () => ({ ...realProgramTracks, academicProfi
 
 const examSubmitRoute = await import('../../src/app/api/exam/submit/route')
 const examDetailRoute = await import('../../src/app/api/exam/detail/route')
+const programExamDetailRoute = await import('../../src/app/api/program-exam/detail/route')
 const programExamSubmitRoute = await import('../../src/app/api/program-exam/submit/route')
 const defenseRoute = await import('../../src/app/api/defense/route')
 const { canPublishUnitExamFromQuestions } = await import('../../src/lib/unit-exam-policy')
@@ -271,6 +284,10 @@ beforeEach(() => {
   unitObjectiveMode = false
   programObjectiveMode = false
   optionalFeedbackFails = false
+  unitPendingReviewFeedback = null
+  programPendingReviewFeedback = null
+  failNeedsReviewUpdate = false
+  attemptUpdatePayloads.splice(0, attemptUpdatePayloads.length)
   defenseMessages.splice(0, defenseMessages.length, { id: 'm1', thesisId: 'thesis-1', role: 'STUDENT', content: 'إجابة محفوظة' })
   thesis = { id: 'thesis-1', userId: 'user-1', title: 'بحث', abstract: 'ملخص', status: 'SCHEDULED', defenseStatus: 'NEEDS_REVIEW', extractionStatus: 'READY', fileStorageKey: 'thesis.pdf', defenseDate: new Date(Date.now() - 60_000), createdAt: new Date() }
 })
@@ -353,6 +370,76 @@ describe('academic B1 safety', () => {
     expect(answers[0]).toMatchObject({ questionId: 'essay-1', answerText: 'إجابة صحيحة بأسلوب الطالب', points: null, isCorrect: null })
     expect(calls).toContain('attempt.update:NEEDS_REVIEW')
     expect(calls).not.toContain('essay.grade')
+  })
+
+  test('preliminary is stored atomically with the review state and matches the response', async () => {
+    unitModelAnswer = null
+    const response = await examSubmitRoute.POST(new NextRequest('https://academy.test/api/exam/submit', {
+      method: 'POST',
+      body: JSON.stringify({ examId: 'exam-1', answers: [{ questionId: 'essay-1', answerText: 'إجابة صحيحة بأسلوب الطالب' }] }),
+      headers: { 'content-type': 'application/json' },
+    }))
+    const payload = await body(response as any)
+    expect(response.status).toBe(202)
+    expect(payload.status).toBe('NEEDS_REVIEW')
+    expect(payload.preliminary).toEqual({ gradedPoints: 0, gradedMaxPoints: 0, pendingCount: 1, totalMaxPoints: 10 })
+    // Exactly one write carries the preliminary, and it is the same write that
+    // sets the NEEDS_REVIEW status — no split-brain second write, and the old
+    // intermediate pendingReview-only feedback never lands.
+    const preliminaryWrites = attemptUpdatePayloads.filter((data) => typeof data?.feedback === 'string' && data.feedback.includes('"preliminary"'))
+    expect(preliminaryWrites).toHaveLength(1)
+    expect(preliminaryWrites[0].status).toBe('NEEDS_REVIEW')
+    expect(JSON.parse(preliminaryWrites[0].feedback).preliminary).toEqual(payload.preliminary)
+    expect(attemptUpdatePayloads.some((data) => typeof data?.feedback === 'string' && data.feedback.includes('pendingReview'))).toBe(false)
+  })
+
+  test('a failed review write never leaves a misleading preliminary behind', async () => {
+    unitModelAnswer = null
+    failNeedsReviewUpdate = true
+    const response = await examSubmitRoute.POST(new NextRequest('https://academy.test/api/exam/submit', {
+      method: 'POST',
+      body: JSON.stringify({ examId: 'exam-1', answers: [{ questionId: 'essay-1', answerText: 'إجابة صحيحة بأسلوب الطالب' }] }),
+      headers: { 'content-type': 'application/json' },
+    }))
+    const payload = await body(response as any)
+    // The recovery path keeps the answers and asks for a human review, but it
+    // must not claim a preliminary grade that was never stored.
+    expect(response.status).toBe(202)
+    expect(payload.status).toBe('NEEDS_REVIEW')
+    expect(payload.preliminary).toBeUndefined()
+    expect(calls).toContain('attempt.updateMany:NEEDS_REVIEW')
+    expect(attemptUpdatePayloads.some((data) => data?.status === 'NEEDS_REVIEW')).toBe(false)
+  })
+
+  test('unit preliminary is recovered when the student reopens the exam', async () => {
+    const preliminary = { gradedPoints: 7, gradedMaxPoints: 10, pendingCount: 1, totalMaxPoints: 20 }
+    unitPendingReviewFeedback = JSON.stringify({ summary: 'تم حفظ الإجابات، التصحيح قيد المراجعة.', preliminary })
+    const response = await examDetailRoute.GET(new NextRequest('https://academy.test/api/exam/detail?examId=exam-1'))
+    const payload = await body(response as any)
+    expect(response.status).toBe(409)
+    expect(payload.code).toBe('NEEDS_REVIEW')
+    expect(payload.preliminary).toEqual(preliminary)
+  })
+
+  test('legacy or broken stored feedback recovers with a null preliminary, still blocked', async () => {
+    for (const stored of [JSON.stringify({ summary: 'تنسيق قديم بلا درجة أولية' }), '{broken json']) {
+      unitPendingReviewFeedback = stored
+      const response = await examDetailRoute.GET(new NextRequest('https://academy.test/api/exam/detail?examId=exam-1'))
+      const payload = await body(response as any)
+      expect(response.status).toBe(409)
+      expect(payload.code).toBe('NEEDS_REVIEW')
+      expect(payload.preliminary).toBeNull()
+    }
+  })
+
+  test('program preliminary is recovered when the student reopens the exam', async () => {
+    const preliminary = { gradedPoints: 40, gradedMaxPoints: 50, pendingCount: 2, totalMaxPoints: 100 }
+    programPendingReviewFeedback = JSON.stringify({ code: 'AI_ACADEMIC_PROVIDER_UNAVAILABLE', retryAt: null, preliminary })
+    const response = await programExamDetailRoute.GET(new NextRequest('https://academy.test/api/program-exam/detail?examId=program-exam-1'))
+    const payload = await body(response as any)
+    expect(response.status).toBe(409)
+    expect(payload.code).toBe('NEEDS_REVIEW')
+    expect(payload.preliminary).toEqual(preliminary)
   })
 
   test('essay answer is persisted before AI grading and remains saved when grading fails', async () => {
