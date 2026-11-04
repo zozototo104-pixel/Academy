@@ -85,7 +85,7 @@ export async function calculateSemesterReadiness(userId: string, programId: stri
 
   const unitExamIds = units.map((u) => u.exam?.id).filter(Boolean) as string[]
   const unitAttempts = unitExamIds.length
-    ? await db.examAttempt.findMany({ where: { userId, examId: { in: unitExamIds }, score: { not: null } }, orderBy: { score: 'desc' } })
+    ? await db.examAttempt.findMany({ where: { userId, examId: { in: unitExamIds }, status: 'GRADED', score: { not: null }, answers: { none: { points: null } }, OR: [{ appealStatus: null }, { appealStatus: { not: 'PENDING' } }] }, orderBy: { score: 'desc' } })
     : []
 
   const passedUnitExamIds = new Set<string>()
