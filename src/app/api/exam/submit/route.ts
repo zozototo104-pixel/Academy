@@ -392,6 +392,12 @@ export async function POST(req: NextRequest) {
       const revealCorrectAnswers = shouldRevealCorrectAnswers({ passed: false, completedAttempts: completedAttemptsBeforeSubmit + 1, maxAttempts })
       const persistedAnswers = revealCorrectAnswers ? answersToPersist : sanitizePreparedAnswersForHiddenAnswers(answersToPersist)
       const responseResults = revealCorrectAnswers ? gradedResults : sanitizeUnitFeedbackForHiddenAnswers(gradedResults)
+      const preliminary = {
+        gradedPoints: gradedResults.filter((r) => !r.pendingReview).reduce((sum, r) => sum + r.points, 0),
+        gradedMaxPoints: gradedResults.filter((r) => !r.pendingReview).reduce((sum, r) => sum + r.maxPoints, 0),
+        pendingCount: gradedResults.filter((r) => r.pendingReview).length,
+        totalMaxPoints: maxTotal,
+      }
       const attempt = await db.$transaction(async (tx) => {
         const created = await tx.examAttempt.update({ where: { id: activeAttempt.id }, data: { status: 'NEEDS_REVIEW', feedback: JSON.stringify({ summary: 'تم حفظ الإجابات، التصحيح قيد المراجعة.', pendingReview: true }) } })
         for (const prepared of persistedAnswers) {
