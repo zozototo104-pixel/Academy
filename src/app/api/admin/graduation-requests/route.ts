@@ -99,24 +99,34 @@ export async function POST(req: NextRequest) {
     }
     const note = String(body?.note || '').trim().slice(0, 1000) || null
 
+    // Academic-event callers intentionally swallow registration failures so a
+    // saved grade is never rolled back. Administrative refresh/approval must
+    // instead fail closed: no success toast or approval on an old snapshot.
+    let fresh = request
+    if (action === 'REFRESH' || action === 'APPROVE') {
+      const refreshed = await registerGraduationRequest({ enrollmentId: request.enrollmentId })
+      if (!refreshed.registered || refreshed.requestId !== requestId) {
+        return NextResponse.json(
+          { error: 'تعذر تحديث فحص معاملة التخرج؛ لم تُحفظ مصادقة جديدة. أعد المحاولة.', code: 'GRADUATION_REFRESH_FAILED' },
+          { status: 503 },
+        )
+      }
+      const current = await db.graduationRequest.findUnique({ where: { id: requestId } })
+      if (!current || current.enrollmentId !== request.enrollmentId) {
+        return NextResponse.json(
+          { error: 'تعذر التحقق من معاملة التخرج بعد تحديث الفحص.', code: 'GRADUATION_REFRESH_FAILED' },
+          { status: 503 },
+        )
+      }
+      fresh = current
+    }
+
     if (action === 'REFRESH') {
-      // Re-run the readiness evaluation now: the snapshot, the stored
-      // score, and any stale approval (which resets itself to PENDING
-      // inside registration) all become current. This is the recovery
-      // path when issuance was refused over a changed score.
-      await registerGraduationRequest({ enrollmentId: request.enrollmentId })
-      const fresh = await db.graduationRequest.findUnique({ where: { id: requestId } })
       await audit(admin, 'REFRESH_GRADUATION_REQUEST', 'GraduationRequest', requestId, 'تحديث فحص أهلية معاملة التخرج من لوحة الإدارة')
       return NextResponse.json({ ok: true, request: fresh })
     }
 
     if (action === 'APPROVE') {
-      // Decide on current facts, not on the last academic event's
-      // snapshot: refresh first (a stale stored approval resets to
-      // PENDING inside registration), then judge the re-read row.
-      await registerGraduationRequest({ enrollmentId: request.enrollmentId })
-      const fresh = await db.graduationRequest.findUnique({ where: { id: requestId } })
-      if (!fresh) return NextResponse.json({ error: 'طلب التخرج غير موجود' }, { status: 404 })
       if (fresh.status === 'ISSUED') {
         return NextResponse.json({ error: 'صُدّرت شهادة هذا الطلب من قبل — لا يمكن تغيير قراره.', code: 'ALREADY_ISSUED' }, { status: 409 })
       }
