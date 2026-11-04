@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
-import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
+import { registerGraduationRequest } from '@/lib/enrollment-completion'
 import { isAssignedStudent } from '@/lib/supervisor-scope'
 
 // ===== 12.2 الاعتراض على نتيجة الامتحان (Appeal) — يُحوَّل للمراجعة اليدوية =====
@@ -114,7 +114,7 @@ export async function PATCH(req: NextRequest) {
     if (attempt.status !== 'GRADED') return NextResponse.json({ error: 'لا يمكن البت في اعتراض إلا على محاولة مصححة', code: 'APPEAL_REQUIRES_GRADED_ATTEMPT' }, { status: 409 })
     if (attempt.appealStatus !== 'PENDING') return NextResponse.json({ error: 'لا يوجد اعتراض قيد المراجعة لهذه المحاولة' }, { status: 409 })
 
-    let completion: Awaited<ReturnType<typeof completeEnrollmentIfEligible>> | null = null
+    let registration: Awaited<ReturnType<typeof registerGraduationRequest>> | null = null
     if (action === 'APPROVE' || action === 'ACCEPT') {
       const finalScore = Number(finalScoreInput)
       if (!Number.isFinite(finalScore)) return NextResponse.json({ error: 'اعتماد الاعتراض يحتاج درجة نهائية رقمية' }, { status: 400 })
@@ -126,9 +126,9 @@ export async function PATCH(req: NextRequest) {
       })
       if (passed) {
         const enrollment = await db.enrollment.findUnique({ where: { userId_programId: { userId: attempt.userId, programId: attempt.exam.programId } }, select: { id: true } })
-        completion = enrollment ? await completeEnrollmentIfEligible({ enrollmentId: enrollment.id }) : null
+        registration = enrollment ? await registerGraduationRequest({ enrollmentId: enrollment.id }) : null
       }
-      return NextResponse.json({ ok: true, finalScore: clamped, passed, certificateNo: completion?.ok ? completion.certificate?.serial || null : null })
+      return NextResponse.json({ ok: true, finalScore: clamped, passed, certificateNo: registration?.certificateNo || null })
     }
 
     await db.programExamAttempt.update({

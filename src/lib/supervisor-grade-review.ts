@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 import { notify } from '@/lib/notify'
-import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
+import { registerGraduationRequest } from '@/lib/enrollment-completion'
 import { findDuplicateAnswerQuestionIds, findMissingAnswerQuestionIds, sumRequiredAnswerPoints } from '@/lib/answer-completeness'
 import type { SupervisorActor } from '@/lib/supervisor-scope'
 
@@ -111,7 +111,7 @@ export async function reviewAttemptDetail(type: AttemptKind, id: string) {
 async function completeIfEligible(userId: string, programId: string | null | undefined) {
   if (!userId || !programId) return null
   const enrollment = await db.enrollment.findUnique({ where: { userId_programId: { userId, programId } }, select: { id: true } })
-  return enrollment ? completeEnrollmentIfEligible({ enrollmentId: enrollment.id }) : null
+  return enrollment ? registerGraduationRequest({ enrollmentId: enrollment.id }) : null
 }
 
 // تعديل درجات إجابات محاولة (GRADED أو NEEDS_REVIEW) وإعادة احتساب

@@ -8,7 +8,7 @@ import { notifyAttemptGraded, notifyAttemptNeedsReview } from '@/lib/exam-attemp
 import { buildSupervisorContext, mergeContext, updateStudentAcademicMemory } from '@/lib/supervisor-ai'
 import { calculateSemesterReadiness } from '@/lib/semester-readiness'
 import { enforceSemesterTuitionGate } from '@/lib/tuition-installments'
-import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
+import { registerGraduationRequest } from '@/lib/enrollment-completion'
 import { EXAM_ATTEMPT_POLICY_SINCE, getExamMaxAttempts, shouldRevealCorrectAnswers } from '@/lib/exam-attempt-policy'
 import { gradeObjectiveAnswer, parseObjectiveOptions } from '@/lib/answer-completeness'
 
@@ -568,9 +568,11 @@ export async function POST(req: NextRequest) {
 
     await db.examDraft.deleteMany({ where: { userId: user.id, examId, examType: 'PROGRAM' } }).catch(() => {})
 
-    // Certificate issuance is a separate action: it must never undo a saved exam grade.
-    const completion = await completeEnrollmentIfEligible({ enrollmentId: enrollment.id }).catch((error) => {
-      console.error('Post-grade certificate recheck failed; preserving programme grade', { code: 'PROGRAM_CERTIFICATE_RECHECK_FAILED', attemptId: claimedProgramAttemptId || null })
+    // Graduation is a separate, administratively approved transaction:
+    // this submit only registers or refreshes it, and must never undo a
+    // saved exam grade.
+    const registration = await registerGraduationRequest({ enrollmentId: enrollment.id }).catch((error) => {
+      console.error('Post-grade graduation request registration failed; preserving programme grade', { code: 'PROGRAM_GRADUATION_REQUEST_FAILED', attemptId: claimedProgramAttemptId || null })
       return null
     })
     const completedAttempts = completedAttemptsBeforeSubmit + 1
@@ -593,7 +595,7 @@ export async function POST(req: NextRequest) {
       maxExamScore: readiness.maxExamScore,
       courseworkCapApplied: readiness.maxExamScore < 100,
       overall,
-      certificateNo: completion?.ok ? completion.certificate?.serial || null : null,
+      certificateNo: registration?.certificateNo || null,
       maxAttempts,
       attemptsUsed: completedAttempts,
       results,

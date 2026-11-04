@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
-import { notify } from '@/lib/notify'
 import { getExamsGate } from '@/lib/exam-gate'
 import { academicProfileFromRules } from '@/lib/program-tracks'
 import { calculateSemesterReadiness, markSemesterReady } from '@/lib/semester-readiness'
 import { calculateFinalGrade, pickBestGradedAttempt } from '@/lib/final-grade'
 import { enforceSemesterTuitionGate, getStudentTuitionPlan } from '@/lib/tuition-installments'
-import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
+import { registerGraduationRequest } from '@/lib/enrollment-completion'
 
 // GET /api/progress?programId=xxx — تفاصيل البرنامج مع وحداته وتقدم الطالب
 export async function GET(req: NextRequest) {
@@ -275,27 +274,20 @@ export async function POST(req: NextRequest) {
       }).length
     }
 
-    const completion = await completeEnrollmentIfEligible({ enrollmentId: enrollment.id })
-    const certificate = completion.ok && completion.certificate
-      ? { serial: completion.certificate.serial }
+    // Opening the progress page registers or refreshes the graduation
+    // transaction — it never issues a certificate. A certificate is shown
+    // only when one was actually issued through administrative approval.
+    const registration = await registerGraduationRequest({ enrollmentId: enrollment.id })
+    const certificate = registration?.certificateNo
+      ? { serial: registration.certificateNo }
       : null
-    if (completion.ok && completion.certificateIssued && certificate) {
-      const program = await db.program.findUnique({ where: { id: programId }, select: { titleAr: true } })
-      await notify(
-        user.id,
-        'CERTIFICATE',
-        'تم إصدار شهادتك المعتمدة',
-        `مبروك! أُصدرت شهادتك لبرنامج «${program?.titleAr}» برقم ${certificate.serial} — يمكنك تحميلها وطباعتها من بوابة الطالب.`,
-        'dashboard'
-      )
-    }
 
     return NextResponse.json({
       ok: true,
       completedUnits,
       progress: totalUnits ? Math.round((completedUnits.length / totalUnits) * 100) : 0,
-      status: completion.ok ? 'COMPLETED' : updated.status,
-      finalScore: completion.ok ? completion.eligibility?.score ?? updated.finalScore : updated.finalScore,
+      status: registration?.status === 'ISSUED' ? 'COMPLETED' : updated.status,
+      finalScore: updated.finalScore,
       examsNotPassed,
       assignmentsNotPassed,
       certificate,

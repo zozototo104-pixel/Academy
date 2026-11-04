@@ -475,6 +475,26 @@ export async function PATCH(req: NextRequest) {
       }
 
       const existingCert = await db.certificate.findFirst({ where: { admissionId: id } })
+      // Stored-approval law: this status change CREATES a program-completion
+      // certificate, so — exactly like the completion library — it first
+      // requires an APPROVED graduation request stored for the enrollment.
+      // Retrieving an already-issued certificate stays ungated.
+      let graduationRequest: any = null
+      if (!existingCert) {
+        const certEnrollment = app.userId && app.programId
+          ? await db.enrollment.findUnique({ where: { userId_programId: { userId: app.userId, programId: app.programId } }, select: { id: true } })
+          : null
+        const grTable: any = (db as any).graduationRequest
+        graduationRequest = certEnrollment && typeof grTable?.findUnique === 'function'
+          ? await grTable.findUnique({ where: { enrollmentId: certEnrollment.id } }).catch(() => null)
+          : null
+        if (!graduationRequest || graduationRequest.status !== 'APPROVED') {
+          return NextResponse.json(
+            { error: 'إصدار شهادة التخرج يتطلب مصادقة إدارية محفوظة على طلب التخرج أولًا.', code: 'ADMIN_GRADUATION_APPROVAL_REQUIRED' },
+            { status: 409 }
+          )
+        }
+      }
       const cert = existingCert || await db.certificate.create({
         data: {
           serial: await nextCertSerial(),
@@ -496,6 +516,12 @@ export async function PATCH(req: NextRequest) {
           where: { userId: app.userId, programId: app.programId },
           data: { certificateNo: cert.serial, status: 'COMPLETED', ...(eligibility.score !== null ? { finalScore: eligibility.score } : {}) },
         })
+      }
+      if (!existingCert && graduationRequest) {
+        await (db as any).graduationRequest.update({
+          where: { id: graduationRequest.id },
+          data: { status: 'ISSUED', ready: true, certificateId: cert.id, issuedAt: new Date() },
+        }).catch(() => {})
       }
       if (!existingCert && app.userId) {
         await notify(

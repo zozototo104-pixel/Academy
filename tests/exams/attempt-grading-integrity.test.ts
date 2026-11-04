@@ -242,7 +242,7 @@ const auditDb: any = {
 mock.module('@/lib/db', () => ({ db: auditDb }))
 mock.module('@/lib/auth', () => ({ requireAdmin: async () => ({ id: 'admin-1' }), requireUser: async () => ({ id: 'admin-1' }) }))
 mock.module('@/lib/semester-readiness', () => ({ calculateSemesterReadiness: async () => null }))
-mock.module('@/lib/enrollment-completion', () => ({ completeEnrollmentIfEligible: async () => null }))
+mock.module('@/lib/enrollment-completion', () => ({ completeEnrollmentIfEligible: async () => null, registerGraduationRequest: async () => ({ registered: false, certificateNo: null }) }))
 mock.module('@/lib/essay-grading', () => ({
   EssayNeedsReviewError: class EssayNeedsReviewError extends Error {},
   gradeEssayWithRubric: async () => ({ points: 0, feedback: '' }),
