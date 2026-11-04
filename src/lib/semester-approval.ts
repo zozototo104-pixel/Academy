@@ -1,0 +1,137 @@
+import { db } from '@/lib/db'
+import { audit } from '@/lib/notify'
+
+// ===== اعتماد نتيجة الفصل — سجل قرار مستقل وحارس خادمي =====
+// Phase 2 of the academic-lifecycle plan. Grade REVIEW (the attempts'
+// reviewedById/reviewedAt, written by the supervisor/admin grading flows)
+// is a different operation and is never reused as a semester approval:
+// the semester RESULT approval is its own stored decision
+// (SemesterResultApproval), taken only when every grade in the semester
+// is final — no attempt awaiting review and no grade appeal pending.
+//
+// Ordering guard (the owner's Phase-2 condition): the record and the
+// integrity guard are live now, but the approval itself stays INERT
+// until the per-semester average engine (Phase 3) and the semester
+// lifecycle (Phase 4) exist. SEMESTER_APPROVAL_ACTIVE flips to true in
+// Phase 4; until then every decide call is refused server-side with
+// SEMESTER_APPROVAL_NOT_ACTIVE, after the integrity check has had its
+// say, and no approval feeds any later decision (closure, transition).
+
+export const SEMESTER_APPROVAL_ACTIVE = false
+
+export type SemesterBlocker = { code: string; count: number }
+
+type AnyClient = { [key: string]: any }
+
+async function rowIds(client: AnyClient, model: string, where: Record<string, unknown>): Promise<string[]> {
+  const rows = await client[model].findMany({ where, select: { id: true } })
+  return (rows as Array<{ id: string }>).map((r) => r.id)
+}
+
+/**
+ * Every grade-affecting procedure still open in one semester of one
+ * student's program: attempts awaiting review confirmation and grade
+ * appeals still pending, split by unit exams vs the semester exam.
+ * Scoped strictly to (programId, semester) — another semester's open
+ * items never block this one.
+ */
+export async function collectSemesterApprovalBlockers(
+  client: AnyClient,
+  args: { userId: string; programId: string; semester: number },
+): Promise<SemesterBlocker[]> {
+  const blockers: SemesterBlocker[] = []
+  const unitIds = await rowIds(client, 'unit', { programId: args.programId, semester: args.semester })
+  const examIds = unitIds.length ? await rowIds(client, 'exam', { unitId: { in: unitIds } }) : []
+  if (examIds.length) {
+    const review = await client.examAttempt.count({
+      where: { userId: args.userId, examId: { in: examIds }, status: 'NEEDS_REVIEW' },
+    })
+    if (review) blockers.push({ code: 'UNIT_REVIEW_PENDING', count: review })
+    const appeals = await client.examAttempt.count({
+      where: { userId: args.userId, examId: { in: examIds }, appealStatus: 'PENDING' },
+    })
+    if (appeals) blockers.push({ code: 'UNIT_APPEAL_PENDING', count: appeals })
+  }
+  const programExamIds = await rowIds(client, 'programExam', { programId: args.programId, semester: args.semester })
+  if (programExamIds.length) {
+    const review = await client.programExamAttempt.count({
+      where: { userId: args.userId, examId: { in: programExamIds }, status: 'NEEDS_REVIEW' },
+    })
+    if (review) blockers.push({ code: 'PROGRAM_EXAM_REVIEW_PENDING', count: review })
+    const appeals = await client.programExamAttempt.count({
+      where: { userId: args.userId, examId: { in: programExamIds }, appealStatus: 'PENDING' },
+    })
+    if (appeals) blockers.push({ code: 'PROGRAM_EXAM_APPEAL_PENDING', count: appeals })
+  }
+  return blockers
+}
+
+/** Defensive read: a missing table (unmigrated environment) means NO approval. */
+export async function storedSemesterApproval(client: AnyClient, enrollmentId: string, semester: number) {
+  try {
+    return await client.semesterResultApproval.findUnique({
+      where: { enrollmentId_semester: { enrollmentId, semester } },
+    })
+  } catch {
+    return null
+  }
+}
+
+export type SemesterApprovalDecision =
+  | { ok: true; approval: unknown }
+  | { ok: false; code: 'ENROLLMENT_NOT_FOUND' | 'SEMESTER_GRADES_INCOMPLETE' | 'SEMESTER_APPROVAL_NOT_ACTIVE'; blockers?: SemesterBlocker[] }
+
+/**
+ * The single server-side gate for approving a semester result. Refuses,
+ * in order: unknown enrollment → any open grade/review in the semester
+ * (SEMESTER_GRADES_INCOMPLETE with the exact blockers) → the Phase-2
+ * ordering guard (SEMESTER_APPROVAL_NOT_ACTIVE). Only with all three
+ * passed does it store the decision and audit it.
+ */
+export async function approveSemesterResult(input: {
+  enrollmentId: string
+  semester: number
+  actor: { id: string }
+  score?: number | null
+  note?: string | null
+}): Promise<SemesterApprovalDecision> {
+  const outcome = (await db.$transaction(async (tx: AnyClient) => {
+    const enrollment = await tx.enrollment.findUnique({
+      where: { id: input.enrollmentId },
+      select: { id: true, userId: true, programId: true },
+    })
+    if (!enrollment) return { ok: false, code: 'ENROLLMENT_NOT_FOUND' } as const
+    const blockers = await collectSemesterApprovalBlockers(tx, {
+      userId: enrollment.userId,
+      programId: enrollment.programId,
+      semester: input.semester,
+    })
+    if (blockers.length) return { ok: false, code: 'SEMESTER_GRADES_INCOMPLETE', blockers } as const
+    if (!SEMESTER_APPROVAL_ACTIVE) return { ok: false, code: 'SEMESTER_APPROVAL_NOT_ACTIVE' } as const
+    const approval = await tx.semesterResultApproval.upsert({
+      where: { enrollmentId_semester: { enrollmentId: input.enrollmentId, semester: input.semester } },
+      create: {
+        enrollmentId: input.enrollmentId,
+        semester: input.semester,
+        status: 'APPROVED',
+        score: input.score ?? null,
+        decidedById: input.actor.id,
+        decidedAt: new Date(),
+        decisionNote: input.note ?? null,
+      },
+      update: {
+        status: 'APPROVED',
+        score: input.score ?? null,
+        decidedById: input.actor.id,
+        decidedAt: new Date(),
+        decisionNote: input.note ?? null,
+      },
+    })
+    return { ok: true, approval } as const
+  })) as SemesterApprovalDecision
+  if (outcome.ok) {
+    const approval = outcome.approval as { id: string }
+    await audit(input.actor as never, 'APPROVE_SEMESTER_RESULT', 'SemesterResultApproval', approval.id, `اعتماد نتيجة الفصل ${input.semester}`)
+  }
+  return outcome
+}
