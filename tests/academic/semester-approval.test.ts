@@ -77,6 +77,7 @@ const ADMIN = { id: 'admin-1' }
 beforeEach(() => {
   world.state.unitAttempts = []
   world.state.programAttempts = []
+  world.state.pendingAssignments = 0
   world.state.approvals = new Map()
   world.state.throwOnApprovalRead = false
 })
