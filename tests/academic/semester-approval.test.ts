@@ -23,6 +23,7 @@ function makeWorld() {
     enrollment: { id: 'enrollment-1', userId: 'user-1', programId: 'program-1' },
     unitAttempts: [] as any[],
     programAttempts: [] as any[],
+    pendingAssignments: 0,
     approvals: new Map<string, any>(),
     throwOnApprovalRead: false,
   }
