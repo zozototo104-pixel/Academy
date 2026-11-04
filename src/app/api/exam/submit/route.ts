@@ -393,7 +393,7 @@ export async function POST(req: NextRequest) {
       const persistedAnswers = revealCorrectAnswers ? answersToPersist : sanitizePreparedAnswersForHiddenAnswers(answersToPersist)
       const responseResults = revealCorrectAnswers ? gradedResults : sanitizeUnitFeedbackForHiddenAnswers(gradedResults)
       const attempt = await db.$transaction(async (tx) => {
-        const created = await tx.examAttempt.update({ where: { id: activeAttempt.id }, data: { status: 'NEEDS_REVIEW', feedback: JSON.stringify({ summary: 'تم حفظ الإجابات، التصحيح قيد المراجعة.' }) } })
+        const created = await tx.examAttempt.update({ where: { id: activeAttempt.id }, data: { status: 'NEEDS_REVIEW', feedback: JSON.stringify({ summary: 'تم حفظ الإجابات، التصحيح قيد المراجعة.', pendingReview: true }) } })
         for (const prepared of persistedAnswers) {
           await persistPreparedAnswer(tx, created.id, prepared, prePersistedEssayQuestionIds.has(prepared.questionId))
         }
