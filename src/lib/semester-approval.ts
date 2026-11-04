@@ -71,6 +71,25 @@ export async function collectSemesterApprovalBlockers(
     })
     if (appeals) blockers.push({ code: 'PROGRAM_EXAM_APPEAL_PENDING', count: appeals })
   }
+  // Published coursework with a submitted but ungraded answer is not an approved grade.
+  // A missing submission is handled by the semester deadline/lifecycle engine,
+  // rather than silently treating an unexpired obligation as final zero here.
+  const assignmentIds = await rowIds(client, 'programAssignment', {
+    programId: args.programId, semester: args.semester, status: 'PUBLISHED',
+  })
+  if (assignmentIds.length) {
+    const pending = await client.assignmentSubmission.count({
+      where: {
+        userId: args.userId,
+        assignmentId: { in: assignmentIds },
+        OR: [
+          { status: { in: ['SUBMITTED', 'NEEDS_REVISION'] } },
+          { status: 'GRADED', score: null },
+        ],
+      },
+    })
+    if (pending) blockers.push({ code: 'ASSIGNMENT_GRADING_PENDING', count: pending })
+  }
   return blockers
 }
 
