@@ -481,9 +481,9 @@ export async function POST(req: NextRequest) {
         pendingCount: pendingResults.length,
         totalMaxPoints: maxTotal,
       }
+      await db.programExamAttempt.update({ where: { id: attempt.id }, data: { status: 'NEEDS_REVIEW', score: null, passed: null, feedback: JSON.stringify({ ...reviewState, preliminary }), submittedAt: new Date() } })
       await notifyAttemptNeedsReview({ studentId: user.id, studentName: user.name, examTitle: exam.title, preliminary })
       const results = revealCorrectAnswers ? combinedResults : sanitizeProgramResultsForHiddenAnswers(combinedResults)
-      await db.programExamAttempt.update({ where: { id: attempt.id }, data: { status: 'NEEDS_REVIEW', score: null, passed: null, feedback: JSON.stringify({ ...reviewState, preliminary }), submittedAt: new Date() } })
       return NextResponse.json({ ok: true, status: 'NEEDS_REVIEW', attemptId: attempt.id, message: 'درجتك أولية — بانتظار تأكيد المشرف', preliminary, results, ...reviewState }, { status: 202 })
     }
 
