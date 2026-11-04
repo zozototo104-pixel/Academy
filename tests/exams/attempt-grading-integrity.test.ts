@@ -219,7 +219,7 @@ const auditDb: any = {
       id: 'PROGRAM-attempt', userId: 'student-1', examId: 'PROGRAM-exam',
       status: 'NEEDS_REVIEW', exam: auditExam('PROGRAM', include), answers: auditAnswers,
     }),
-    updateMany: async () => ({ count: 1 }),
+    updateMany: async ({ data }: any) => { auditFinalGrade = data; return { count: 1 } },
     update: async ({ data }: any) => { auditFinalGrade = data; return data },
   },
   question: {
