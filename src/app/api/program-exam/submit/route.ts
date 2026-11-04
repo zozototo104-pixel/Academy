@@ -416,9 +416,12 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    let gradedEssayResults: GradedResult[]
-    try {
-      gradedEssayResults = await mapLimited(realEssayTasks, 2, async ({ q, text }) => {
+    // إنقاذ لكل سؤال على حدة: فشل سؤال واحد لا يُسقط نجاح الباقي — ما صُحّح
+    // يبقى بنتيجته في الدرجة الأولية، والمعلّق فقط هو ما فشل تصحيحه فعلًا.
+    type EssayOutcome = { result: GradedResult } | { failedTask: (typeof realEssayTasks)[number]; error: any }
+    const essayOutcomes = await mapLimited(realEssayTasks, 2, async (task): Promise<EssayOutcome> => {
+      const { q, text } = task
+      try {
       const graded = await gradeEssayWithRubric({
         question: q.text,
         modelAnswer: q.modelAnswer || '',
@@ -453,15 +456,25 @@ export async function POST(req: NextRequest) {
         ...resultMetadata(q),
       }
       totalScore += clampedPoints
-      return r
-      })
-    } catch (e: any) {
+      return { result: r }
+      } catch (error: any) {
+        return { failedTask: task, error }
+      }
+    })
+    const gradedEssayResults: GradedResult[] = []
+    const failedEssayOutcomes: Array<{ failedTask: (typeof realEssayTasks)[number]; error: any }> = []
+    for (const outcome of essayOutcomes) {
+      if ('result' in outcome) gradedEssayResults.push(outcome.result)
+      else failedEssayOutcomes.push(outcome)
+    }
+    if (failedEssayOutcomes.length > 0) {
+      const e = failedEssayOutcomes[0].error
       const reviewState = { code: e?.code || 'AI_ACADEMIC_PROVIDER_UNAVAILABLE', retryAt: e?.retryAt || null }
-      // درجة أولية صادقة: ما صُحّح فعليًا (الموضوعي والفارغ) يُعرض بنقاطه،
-      // والمقالية العالقة موسومة بانتظار تأكيد المشرف — بلا مجموع مخترع.
+      // درجة أولية صادقة: ما صُحّح فعليًا (الموضوعي والفارغ والمقالية الناجحة)
+      // يُعرض بنقاطه، والمقالية الفاشلة فقط موسومة بانتظار تأكيد المشرف.
       // تُحسب قبل الحفظ وتُكتب مع حالة المراجعة في تحديث واحد، فلا تُفقد
       // حالة السبب ولا توجد محاولة «بانتظار المراجعة» دون درجتها الأولية.
-      const pendingResults: GradedResult[] = realEssayTasks.map(({ q, text }) => ({
+      const pendingResults: GradedResult[] = failedEssayOutcomes.map(({ failedTask: { q, text } }) => ({
         questionId: q.id,
         order: q.order,
         type: q.type,
@@ -474,7 +487,7 @@ export async function POST(req: NextRequest) {
         pendingReview: true,
         ...resultMetadata(q),
       }))
-      const combinedResults = [...objectiveResults, ...essayResults, ...pendingResults].sort((a, b) => a.order - b.order)
+      const combinedResults = [...objectiveResults, ...essayResults, ...gradedEssayResults, ...pendingResults].sort((a, b) => a.order - b.order)
       const preliminary = {
         gradedPoints: combinedResults.filter((r) => !r.pendingReview).reduce((sum, r) => sum + r.points, 0),
         gradedMaxPoints: combinedResults.filter((r) => !r.pendingReview).reduce((sum, r) => sum + r.maxPoints, 0),

@@ -190,4 +190,14 @@ describe('grading-flow wiring pins', () => {
     expect(programSubmit).toContain('feedback: JSON.stringify({ ...reviewState, preliminary })')
     expect(programSubmit).not.toContain('data: { feedback: JSON.stringify({ preliminary }) }')
   })
+
+  test('program essay grading salvages each question instead of discarding the batch', () => {
+    // Per-question outcomes: a failed essay becomes a failed outcome, never a
+    // rejected batch; the pending list is built from the failed outcomes only
+    // and the salvaged grades join the preliminary results.
+    expect(programSubmit).toContain('failedEssayOutcomes')
+    expect(programSubmit).toContain('pendingResults: GradedResult[] = failedEssayOutcomes.map')
+    expect(programSubmit).not.toContain('pendingResults: GradedResult[] = realEssayTasks.map')
+    expect(programSubmit).toContain('[...objectiveResults, ...essayResults, ...gradedEssayResults, ...pendingResults]')
+  })
 })

@@ -14,6 +14,7 @@ let optionalFeedbackFails = false
 let unitPendingReviewFeedback: string | null = null
 let programPendingReviewFeedback: string | null = null
 let failNeedsReviewUpdate = false
+let programPartialEssayGrading = false
 const attemptUpdatePayloads: any[] = []
 
 function clone<T>(value: T): T {
@@ -116,7 +117,12 @@ const db: any = {
       durationMin: 60,
       totalPoints: 100,
       program: { id: 'program-1', titleAr: 'برنامج عربي للاختبار' },
-      questions: [{ id: 'program-essay-1', order: 1, type: programObjectiveMode ? 'MCQ' : 'ESSAY', text: 'حلل الحالة', modelAnswer: 'إجابة نموذجية', rubric: null, knowledgeItemId: null, sourceEvidence: null, points: 100, status: 'PUBLISHED', options: programObjectiveMode ? JSON.stringify(['صحيح', 'خطأ']) : null, correctAnswer: programObjectiveMode ? '0' : null }],
+      questions: programPartialEssayGrading
+        ? [
+          { id: 'program-essay-1', order: 1, type: 'ESSAY', text: 'حلل الحالة', modelAnswer: 'إجابة نموذجية', rubric: null, knowledgeItemId: null, sourceEvidence: null, points: 50, status: 'PUBLISHED', options: null, correctAnswer: null },
+          { id: 'program-essay-2', order: 2, type: 'ESSAY', text: 'حلل الحالة الثانية', modelAnswer: 'إجابة نموذجية', rubric: null, knowledgeItemId: null, sourceEvidence: null, points: 50, status: 'PUBLISHED', options: null, correctAnswer: null },
+        ]
+        : [{ id: 'program-essay-1', order: 1, type: programObjectiveMode ? 'MCQ' : 'ESSAY', text: 'حلل الحالة', modelAnswer: 'إجابة نموذجية', rubric: null, knowledgeItemId: null, sourceEvidence: null, points: 100, status: 'PUBLISHED', options: programObjectiveMode ? JSON.stringify(['صحيح', 'خطأ']) : null, correctAnswer: programObjectiveMode ? '0' : null }],
     }),
   },
   programExamAttempt: {
@@ -174,7 +180,7 @@ const realAuth = await import('../../src/lib/auth')
 mock.module('@/lib/auth', () => ({ ...realAuth, requireUser: async () => ({ id: 'user-1', name: 'طالب', email: 'student@example.test', role: 'STUDENT' }) }))
 
 const realEssayGrading = await import('../../src/lib/essay-grading')
-mock.module('@/lib/essay-grading', () => ({ ...realEssayGrading, gradeEssayWithRubric: async () => { calls.push('essay.grade'); throw new Error('AI_DOWN') } }))
+mock.module('@/lib/essay-grading', () => ({ ...realEssayGrading, gradeEssayWithRubric: async (args: any) => { calls.push('essay.grade'); if (programPartialEssayGrading) { if (String(args?.question || '').includes('الثانية')) throw new Error('AI_DOWN'); return { points: 30, feedback: 'تصحيح آلي ناجح' } } throw new Error('AI_DOWN') } }))
 
 const realAi = await import('../../src/lib/ai')
 mock.module('@/lib/ai', () => ({ ...realAi, generateOverallFeedback: async () => { calls.push('overall.ai'); if (optionalFeedbackFails) throw new Error('OPTIONAL_FEEDBACK_DOWN'); return { summary: '', strengths: [], improvements: [] } } }))
@@ -287,6 +293,7 @@ beforeEach(() => {
   unitPendingReviewFeedback = null
   programPendingReviewFeedback = null
   failNeedsReviewUpdate = false
+  programPartialEssayGrading = false
   attemptUpdatePayloads.splice(0, attemptUpdatePayloads.length)
   defenseMessages.splice(0, defenseMessages.length, { id: 'm1', thesisId: 'thesis-1', role: 'STUDENT', content: 'إجابة محفوظة' })
   thesis = { id: 'thesis-1', userId: 'user-1', title: 'بحث', abstract: 'ملخص', status: 'SCHEDULED', defenseStatus: 'NEEDS_REVIEW', extractionStatus: 'READY', fileStorageKey: 'thesis.pdf', defenseDate: new Date(Date.now() - 60_000), createdAt: new Date() }
@@ -468,6 +475,31 @@ describe('academic B1 safety', () => {
     expect(calls.indexOf('programAnswer.create:program-essay-1:{"status":"PENDING_AI_GRADING"}')).toBeLessThan(calls.indexOf('essay.grade'))
     expect(answers[0]).toMatchObject({ questionId: 'program-essay-1', answerText: 'إجابة برنامج مقالية', isCorrect: null, points: null })
     expect(calls).toContain('programAttempt.update:NEEDS_REVIEW')
+  })
+
+  test('program partial essay failure salvages the graded essay and pends only the failed one', async () => {
+    programPartialEssayGrading = true
+    const res = await programExamSubmitRoute.POST(new NextRequest('https://academy.test/api/program-exam/submit', {
+      method: 'POST',
+      body: JSON.stringify({ examId: 'program-exam-1', answers: [
+        { questionId: 'program-essay-1', answerText: 'إجابة أولى كاملة' },
+        { questionId: 'program-essay-2', answerText: 'إجابة ثانية كاملة' },
+      ] }),
+      headers: { 'content-type': 'application/json' },
+    }))
+    const payload = await body(res as any)
+    expect(res.status).toBe(202)
+    expect(payload.status).toBe('NEEDS_REVIEW')
+    // The successfully graded essay keeps its real points in the preliminary;
+    // only the failed essay is pending — the batch is not discarded wholesale.
+    expect(payload.preliminary).toEqual({ gradedPoints: 30, gradedMaxPoints: 50, pendingCount: 1, totalMaxPoints: 100 })
+    expect(payload.results).toHaveLength(2)
+    const pending = payload.results.filter((r: any) => r.pendingReview)
+    expect(pending).toHaveLength(1)
+    expect(pending[0].questionId).toBe('program-essay-2')
+    const gradedOne = payload.results.find((r: any) => r.questionId === 'program-essay-1')
+    expect(gradedOne.points).toBe(30)
+    expect(gradedOne.pendingReview).toBeUndefined()
   })
 
   test('NEEDS_REVIEW defense cannot be restarted and existing messages are not deleted', async () => {
