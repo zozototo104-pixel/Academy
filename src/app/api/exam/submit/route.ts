@@ -411,6 +411,7 @@ export async function POST(req: NextRequest) {
         pendingCount: gradedResults.filter((r) => r.pendingReview).length,
         totalMaxPoints: maxTotal,
       }
+      await db.examAttempt.update({ where: { id: attempt.id }, data: { feedback: JSON.stringify({ summary: 'تم حفظ الإجابات، التصحيح قيد المراجعة.', preliminary }) } })
       await notifyAttemptNeedsReview({ studentId: user.id, studentName: user.name, examTitle: exam.title, preliminary })
       return NextResponse.json({ ok: true, status: 'NEEDS_REVIEW', attemptId: attempt.id, message: 'درجتك أولية — بانتظار تأكيد المشرف', maxAttempts, attemptsUsed: completedAttemptsBeforeSubmit + 1, preliminary, results: reviewResults }, { status: 202 })
     }
