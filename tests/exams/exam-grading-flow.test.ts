@@ -1,5 +1,6 @@
 import { describe, test, expect, mock, beforeEach } from 'bun:test'
 import { readFileSync } from 'node:fs'
+import { selectEssayEvidence } from '../../src/lib/essay-grading'
 
 // ===== essay-source: مصدر المقارنة للمقالي =====
 // حالة هاريس: الكتاب يذكر ستة بنود، بنك المعرفة التقط ثلاثة منها فقط،
