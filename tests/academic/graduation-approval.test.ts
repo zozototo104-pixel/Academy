@@ -89,6 +89,7 @@ beforeEach(() => {
   world.state.createdCertificate = null
   world.state.request = null
   world.state.enrollmentUpdates = []
+  world.state.failTransaction = false
 })
 
 describe('graduation approval law', () => {
