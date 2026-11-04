@@ -158,7 +158,7 @@ export async function gradeEssayWithRubric(args: {
   const rubricInfo = parseRubricCriteria(args.rubric)
   // Preserve enough of the stored book passage for semantic grading: the
   // relevant answer may occur after the first 3,000 characters.
-  const sourceExcerpt = String(args.sourceExcerpt || '').replace(/\s+/g, ' ').trim().slice(0, 12000)
+  const sourceExcerpt = selectEssayEvidence(String(args.sourceExcerpt || ''), String(args.question || ''), String(args.modelAnswer || ''), 12000)
   const modelAnswer = String(args.modelAnswer || '').replace(/\s+/g, ' ').trim().slice(0, 2500)
   const studentAnswer = String(args.studentAnswer || '').replace(/\s+/g, ' ').trim().slice(0, 5000)
   // Only a genuinely blank answer earns automatic zero. Even a one-word answer
