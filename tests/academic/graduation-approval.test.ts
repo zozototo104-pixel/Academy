@@ -56,7 +56,10 @@ function makeWorld() {
     },
     notification: { createMany: async () => ({ count: 1 }), create: async () => ({}) },
   }
-  const db: any = { ...tx, $transaction: async (work: any) => work(tx) }
+  const db: any = { ...tx, $transaction: async (work: any) => {
+    if (state.failTransaction) throw new Error('simulated readiness refresh failure')
+    return work(tx)
+  } }
   return { state, tx, db }
 }
 
