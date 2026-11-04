@@ -30,6 +30,14 @@ const { buildEssaySourceMap } = await import('../../src/lib/essay-source')
 const { selectEssayEvidence } = await import('../../src/lib/essay-grading')
 
 describe('essay grading source (book text leads)', () => {
+  test('relevant evidence near the end survives long unrelated book text', () => {
+    const source = ('مقدمة عامة لا تتعلق بالمطلوب.\n\n').repeat(600)
+      + 'شروط الإرشاد الأسري تشمل الإنصات والتعاطف والخصوصية.'
+    const selected = selectEssayEvidence(source, 'ما شروط الإرشاد الأسري؟', 'الإنصات والتعاطف والخصوصية', 500)
+    expect(selected).toContain('الإنصات والتعاطف والخصوصية')
+    expect(selected.length).toBeLessThanOrEqual(500)
+  })
+
   test('chunk text is included in full — items the bank missed still prove the student right', async () => {
     const map = await buildEssaySourceMap(['k-full'])
     const source = map.get('k-full')!
