@@ -47,8 +47,8 @@ function makeWorld() {
     },
     examAttempt: { count: async ({ where }: any) => state.unitAttempts.filter((a: any) => matchAttempt(a, where)).length },
     programExamAttempt: { count: async ({ where }: any) => state.programAttempts.filter((a: any) => matchAttempt(a, where)).length },
-    programAssignment: { findMany: async () => [] },
-    assignmentSubmission: { count: async () => 0 },
+    programAssignment: { findMany: async ({ where }: any) => where.semester === 1 ? [{ id: 'assignment-s1' }] : [] },
+    assignmentSubmission: { count: async () => state.pendingAssignments },
     semesterResultApproval: {
       findUnique: async ({ where }: any) => {
         if (state.throwOnApprovalRead) throw new Error('table missing')
