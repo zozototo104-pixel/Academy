@@ -262,8 +262,15 @@ export async function completeEnrollmentIfEligibleInTransaction(tx: Tx, input: C
   // request stored in the database. This check is what refuses direct
   // API calls that bypass the administration's approval screen.
   const graduationRequest = await storedGraduationRequest(tx, enrollment.id)
-  if (!existing && graduationRequest?.status !== 'APPROVED') {
+  if (!existing && (graduationRequest?.status !== 'APPROVED' || !graduationRequest.decidedById || !graduationRequest.decidedAt)) {
     return { ok: false, completed: false, certificateIssued: false, status: 'NOT_ELIGIBLE', httpStatus: 409, code: 'ADMIN_GRADUATION_APPROVAL_REQUIRED', error: 'إصدار شهادة التخرج يتطلب مصادقة إدارية محفوظة على طلب التخرج.', enrollmentId: enrollment.id, admissionId: matchedAdmission?.id || null, eligibility }
+  }
+  // The stored approval covered a specific final score. If the freshly
+  // computed score differs — even when no academic event has refreshed
+  // the transaction since the change — the decision no longer matches
+  // the facts, and issuance waits for a fresh administrative decision.
+  if (!existing && typeof graduationRequest?.score === 'number' && typeof eligibility.score === 'number' && graduationRequest.score !== eligibility.score) {
+    return { ok: false, completed: false, certificateIssued: false, status: 'NOT_ELIGIBLE', httpStatus: 409, code: 'GRADUATION_APPROVAL_STALE', error: 'تغيّرت الدرجة النهائية بعد مصادقة الإدارة؛ يلزم قرار إداري جديد على الدرجة الحالية قبل الإصدار.', enrollmentId: enrollment.id, admissionId: matchedAdmission?.id || null, eligibility }
   }
 
   const grade = eligibility.gradeLabel || (typeof eligibility.score === 'number' ? certificateGradeLabel(eligibility.score) : null)

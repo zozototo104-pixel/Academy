@@ -266,7 +266,7 @@ function completionTx(options: { payments: any[]; scholarshipFull?: boolean; ful
       create: async ({ data }: any) => { createdCertificate = { id: 'cert-new', ...data }; return createdCertificate },
     },
     graduationRequest: {
-      findUnique: async () => options.approved === false ? null : { id: 'grad-1', enrollmentId: 'enrollment-1', status: 'APPROVED' },
+      findUnique: async () => options.approved === false ? null : { id: 'grad-1', enrollmentId: 'enrollment-1', status: 'APPROVED', decidedById: 'admin-1', decidedAt: new Date() },
       update: async ({ data }: any) => ({ id: 'grad-1', enrollmentId: 'enrollment-1', status: data.status }),
     },
     exam: { findMany: async () => [{ id: 'unit-empty', title: 'اختبار فارغ', passScore: 51, unit: { title: 'وحدة' }, _count: { questions: 0 } }] },

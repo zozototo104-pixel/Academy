@@ -116,8 +116,27 @@ describe('graduation approval law', () => {
     expect(world.state.enrollment.status).toBe('ACTIVE')
   })
 
+  test('issuance is refused when the stored approval lacks its decider identity or timestamp', async () => {
+    world.state.request = { id: 'grad-1', enrollmentId: 'enrollment-1', userId: 'user-1', programId: 'program-1', admissionId: 'admission-1', status: 'APPROVED', ready: true, score: 95, snapshot: null, decidedById: null, decidedAt: null }
+    const result = await completeEnrollmentIfEligibleInTransaction(world.tx, { enrollmentId: 'enrollment-1', admissionId: 'admission-1' })
+    expect(result.ok).toBe(false)
+    expect(result.code).toBe('ADMIN_GRADUATION_APPROVAL_REQUIRED')
+    expect(world.state.createdCertificate).toBeNull()
+    expect(world.state.enrollment.status).toBe('ACTIVE')
+  })
+
+  test('issuance is refused when the final score changed after approval', async () => {
+    world.state.request = { id: 'grad-1', enrollmentId: 'enrollment-1', userId: 'user-1', programId: 'program-1', admissionId: 'admission-1', status: 'APPROVED', ready: true, score: 88, snapshot: null, decidedById: 'admin-1', decidedAt: new Date() }
+    const result = await completeEnrollmentIfEligibleInTransaction(world.tx, { enrollmentId: 'enrollment-1', admissionId: 'admission-1' })
+    expect(result.ok).toBe(false)
+    expect(result.code).toBe('GRADUATION_APPROVAL_STALE')
+    expect(result.httpStatus).toBe(409)
+    expect(world.state.createdCertificate).toBeNull()
+    expect(world.state.enrollment.status).toBe('ACTIVE')
+  })
+
   test('issuance succeeds under a stored APPROVED request and closes the transaction as ISSUED', async () => {
-    world.state.request = { id: 'grad-1', enrollmentId: 'enrollment-1', userId: 'user-1', programId: 'program-1', admissionId: 'admission-1', status: 'APPROVED', ready: true, score: 95, snapshot: null }
+    world.state.request = { id: 'grad-1', enrollmentId: 'enrollment-1', userId: 'user-1', programId: 'program-1', admissionId: 'admission-1', status: 'APPROVED', ready: true, score: 95, snapshot: null, decidedById: 'admin-1', decidedAt: new Date() }
     const result = await completeEnrollmentIfEligibleInTransaction(world.tx, { enrollmentId: 'enrollment-1', admissionId: 'admission-1' })
     expect(result.ok).toBe(true)
     expect(result.certificateIssued).toBe(true)

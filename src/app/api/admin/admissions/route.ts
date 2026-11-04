@@ -488,9 +488,15 @@ export async function PATCH(req: NextRequest) {
         graduationRequest = certEnrollment && typeof grTable?.findUnique === 'function'
           ? await grTable.findUnique({ where: { enrollmentId: certEnrollment.id } }).catch(() => null)
           : null
-        if (!graduationRequest || graduationRequest.status !== 'APPROVED') {
+        if (!graduationRequest || graduationRequest.status !== 'APPROVED' || !graduationRequest.decidedById || !graduationRequest.decidedAt) {
           return NextResponse.json(
             { error: 'إصدار شهادة التخرج يتطلب مصادقة إدارية محفوظة على طلب التخرج أولًا.', code: 'ADMIN_GRADUATION_APPROVAL_REQUIRED' },
+            { status: 409 }
+          )
+        }
+        if (typeof graduationRequest.score === 'number' && typeof eligibility.score === 'number' && graduationRequest.score !== eligibility.score) {
+          return NextResponse.json(
+            { error: 'تغيّرت الدرجة النهائية بعد مصادقة الإدارة؛ يلزم قرار إداري جديد على الدرجة الحالية قبل الإصدار.', code: 'GRADUATION_APPROVAL_STALE' },
             { status: 409 }
           )
         }
