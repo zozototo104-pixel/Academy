@@ -158,6 +158,23 @@ export async function completeEnrollmentIfEligibleInTransaction(tx: Tx, input: C
     return { ok: false, completed: false, certificateIssued: false, status: 'NOT_ELIGIBLE', httpStatus: 422, code: 'ENROLLMENT_REQUIRED', error: 'لا يمكن إصدار شهادة برنامج دون تسجيل مطابق للطالب في البرنامج.' }
   }
 
+  // Never issue a new graduation certificate from automatic academic events.
+  // Administrative approval will be implemented as a separate, audited workflow.
+  // Previously issued certificates remain valid and unchanged.
+  if (enrollment.status !== 'COMPLETED' || !enrollment.certificateNo) {
+    return {
+      ok: false,
+      completed: false,
+      certificateIssued: false,
+      status: 'NOT_ELIGIBLE',
+      httpStatus: 409,
+      code: 'ADMIN_GRADUATION_APPROVAL_REQUIRED',
+      error: 'إصدار شهادة التخرج يتطلب مصادقة الإدارة على الدرجة والمتطلبات.',
+      enrollmentId: enrollment.id,
+      admissionId: matchedAdmission?.id || null,
+    }
+  }
+
   const payments = await tx.payment.findMany({
     where: {
       OR: [
