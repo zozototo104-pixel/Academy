@@ -92,7 +92,7 @@ describe('حارس اعتماد نتيجة الفصل', () => {
     expect(actorResult).toEqual({ ok: false, code: 'INVALID_SEMESTER_APPROVAL_INPUT' })
   })
   test('invalid semester returns a blocker', async () => {
-    const blockers = await collectSemesterApprovalBlockers(world.db, { userId: 'user-1', programId: 'program-1', semester: 3 })
+    const blockers = await collectSemesterApprovalBlockers(world.db, { userId: 'user-1', programId: 'program-1', semester: 0 })
     expect(blockers).toEqual([{ code: 'INVALID_SEMESTER', count: 1 }])
   })
   test('رفض أي درجة مرسلة من العميل وعدم إنشاء اعتماد', async () => {
