@@ -115,7 +115,7 @@ describe('حارس اعتماد نتيجة الفصل', () => {
   })
 
   test('التماسات الدرجات المعلّقة تمنع الاعتماد بنوعيها', async () => {
-    world.state.unitAttempts = [{ userId: 'user-1', examId: 'exam-s1', status: 'GRADED', appealStatus: 'PENDING' }]
+    world.state.unitAttempts = [{ userId: 'user-1', examId: 'exam-s1', status: 'GRADED', score: 70, appealStatus: 'PENDING' }]
     world.state.programAttempts = [{ userId: 'user-1', examId: 'pexam-s1', status: 'GRADED', appealStatus: 'PENDING' }]
     const blockers = await collectSemesterApprovalBlockers(world.db, { userId: 'user-1', programId: 'program-1', semester: 1 })
     expect(blockers.map((b: any) => b.code).sort()).toEqual(['PROGRAM_EXAM_APPEAL_PENDING', 'UNIT_APPEAL_PENDING'])
