@@ -27,6 +27,7 @@ const dbMock = {
 mock.module('@/lib/db', () => ({ db: dbMock }))
 
 const { buildEssaySourceMap } = await import('../../src/lib/essay-source')
+const { selectEssayEvidence } = await import('../../src/lib/essay-grading')
 
 describe('essay grading source (book text leads)', () => {
   test('chunk text is included in full — items the bank missed still prove the student right', async () => {
