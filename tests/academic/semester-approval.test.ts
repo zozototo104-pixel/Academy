@@ -85,6 +85,12 @@ beforeEach(() => {
 })
 
 describe('حارس اعتماد نتيجة الفصل', () => {
+  test('missing student or program scope blocks approval inspection', async () => {
+    const result = await collectSemesterApprovalBlockers(world.db, { userId: ' ', programId: 'program-1', semester: 1 })
+    expect(result).toEqual([{ code: 'INVALID_SEMESTER', count: 1 }])
+    const missingProgram = await collectSemesterApprovalBlockers(world.db, { userId: 'user-1', programId: '', semester: 1 })
+    expect(missingProgram).toEqual([{ code: 'INVALID_SEMESTER', count: 1 }])
+  })
   test('three-semester programs accept third semester but reject fourth', async () => {
     const third = await approveSemesterResult({ enrollmentId: 'enrollment-1', semester: 3, actor: ADMIN })
     expect(third).toEqual({ ok: false, code: 'SEMESTER_APPROVAL_NOT_ACTIVE' })
