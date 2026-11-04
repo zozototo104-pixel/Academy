@@ -113,6 +113,11 @@ export async function GET(req: NextRequest) {
       return { blocked: false as const, attempt, maxAttempts, completedAttempts }
     })
     if (attemptState.blocked) {
+      const pendingAttempt = attemptState.reason === 'NEEDS_REVIEW'
+        ? await db.examAttempt.findFirst({ where: { userId: user.id, examId, status: 'NEEDS_REVIEW' }, select: { feedback: true }, orderBy: { submittedAt: 'desc' } })
+        : null
+      let preliminary = null
+      try { preliminary = pendingAttempt?.feedback ? JSON.parse(pendingAttempt.feedback).preliminary || null : null } catch { /* legacy feedback */ }
       return NextResponse.json(
         {
           error:
