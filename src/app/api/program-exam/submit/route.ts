@@ -487,6 +487,7 @@ export async function POST(req: NextRequest) {
       }
       await notifyAttemptNeedsReview({ studentId: user.id, studentName: user.name, examTitle: exam.title, preliminary })
       const results = revealCorrectAnswers ? combinedResults : sanitizeProgramResultsForHiddenAnswers(combinedResults)
+      await db.programExamAttempt.update({ where: { id: attempt.id }, data: { feedback: JSON.stringify({ preliminary }) } })
       return NextResponse.json({ ok: true, status: 'NEEDS_REVIEW', attemptId: attempt.id, message: 'درجتك أولية — بانتظار تأكيد المشرف', preliminary, results, ...reviewState }, { status: 202 })
     }
 
