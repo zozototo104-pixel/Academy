@@ -149,6 +149,9 @@ export async function approveSemesterResult(input: {
       select: { id: true, userId: true, programId: true, program: { select: { semestersCount: true } } },
     })
     if (!enrollment) return { ok: false, code: 'ENROLLMENT_NOT_FOUND' } as const
+    if (enrollment.program?.semestersCount != null && input.semester > enrollment.program.semestersCount) {
+      return { ok: false, code: 'INVALID_SEMESTER_APPROVAL_INPUT' } as const
+    }
     const blockers = await collectSemesterApprovalBlockers(tx, {
       userId: enrollment.userId,
       programId: enrollment.programId,
