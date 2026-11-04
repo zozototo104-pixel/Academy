@@ -83,6 +83,13 @@ beforeEach(() => {
 })
 
 describe('حارس اعتماد نتيجة الفصل', () => {
+  test('واجب غير مصحح يمنع اعتماد فصله دون حجب الفصل الثاني', async () => {
+    world.state.pendingAssignments = 1
+    const blocked = await collectSemesterApprovalBlockers(world.db, { userId: 'user-1', programId: 'program-1', semester: 1 })
+    expect(blocked).toEqual([{ code: 'ASSIGNMENT_GRADING_PENDING', count: 1 }])
+    const second = await collectSemesterApprovalBlockers(world.db, { userId: 'user-1', programId: 'program-1', semester: 2 })
+    expect(second).toEqual([])
+  })
   test('رفض رقم فصل غير صالح قبل الوصول لقاعدة البيانات', async () => {
     const result = await approveSemesterResult({ enrollmentId: 'enrollment-1', semester: 0, actor: ADMIN })
     expect(result).toEqual({ ok: false, code: 'INVALID_SEMESTER_APPROVAL_INPUT' })
