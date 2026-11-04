@@ -164,28 +164,8 @@ export async function approveSemesterResult(input: {
     // Phase 3 must supply a server-computed and version-verified result
     // before any semester decision can be persisted.
     return { ok: false, code: 'SEMESTER_SCORE_NOT_VERIFIED' } as const
-    /* Phase 3/4: replace this closed gate with verified computation.
-    const approval = await tx.semesterResultApproval.upsert({
-      where: { enrollmentId_semester: { enrollmentId: input.enrollmentId, semester: input.semester } },
-      create: {
-        enrollmentId: input.enrollmentId,
-        semester: input.semester,
-        status: 'APPROVED',
-        score: input.score ?? null,
-        decidedById: input.actor.id,
-        decidedAt: new Date(),
-        decisionNote: input.note ?? null,
-      },
-      update: {
-        status: 'APPROVED',
-        score: input.score ?? null,
-        decidedById: input.actor.id,
-        decidedAt: new Date(),
-        decisionNote: input.note ?? null,
-      },
-    })
-    return { ok: true, approval } as const
-    */
+    // The official decision writer will be introduced with the verified
+    // semester grade snapshot and its atomic approval history.
   })) as SemesterApprovalDecision
   if (outcome.ok) {
     const approval = outcome.approval as { id: string }
