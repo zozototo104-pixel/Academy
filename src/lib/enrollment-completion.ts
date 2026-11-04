@@ -162,7 +162,24 @@ export async function completeEnrollmentIfEligibleInTransaction(tx: Tx, input: C
   // Administrative approval will be implemented as a separate, audited workflow.
   // Previously issued certificates remain valid and unchanged.
   if (enrollment.status === 'COMPLETED' && enrollment.certificateNo) {
-    // Idempotent legacy completion: never re-grade or rewrite issued certificates.
+    // Preserve historical certificates and return the actual record for
+    // administrative retrieval and resend, without changing any stored grade.
+    const certificate = await tx.certificate.findFirst({
+      where: { enrollmentId: enrollment.id, type: 'PROGRAM_COMPLETION' },
+    })
+    if (!certificate || certificate.serial !== enrollment.certificateNo) {
+      return {
+        ok: false,
+        completed: false,
+        certificateIssued: false,
+        status: 'NOT_ELIGIBLE',
+        httpStatus: 409,
+        code: 'ISSUED_CERTIFICATE_RECORD_MISSING',
+        error: 'سجل الشهادة الصادرة غير متطابق؛ يلزم تدقيق إداري دون إعادة إصدار تلقائي.',
+        enrollmentId: enrollment.id,
+        admissionId: matchedAdmission?.id || null,
+      }
+    }
     return {
       ok: true,
       completed: true,
@@ -170,6 +187,7 @@ export async function completeEnrollmentIfEligibleInTransaction(tx: Tx, input: C
       status: 'COMPLETED',
       enrollmentId: enrollment.id,
       admissionId: matchedAdmission?.id || null,
+      certificate,
     }
   }
   return {
