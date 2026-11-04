@@ -85,6 +85,12 @@ beforeEach(() => {
 })
 
 describe('حارس اعتماد نتيجة الفصل', () => {
+  test('three-semester programs accept third semester but reject fourth', async () => {
+    const third = await approveSemesterResult({ enrollmentId: 'enrollment-1', semester: 3, actor: ADMIN })
+    expect(third).toEqual({ ok: false, code: 'SEMESTER_APPROVAL_NOT_ACTIVE' })
+    const fourth = await approveSemesterResult({ enrollmentId: 'enrollment-1', semester: 4, actor: ADMIN })
+    expect(fourth).toEqual({ ok: false, code: 'INVALID_SEMESTER_APPROVAL_INPUT' })
+  })
   test('empty enrollment and actor identifiers are rejected', async () => {
     const result = await approveSemesterResult({ enrollmentId: ' ', semester: 1, actor: ADMIN })
     expect(result).toEqual({ ok: false, code: 'INVALID_SEMESTER_APPROVAL_INPUT' })
