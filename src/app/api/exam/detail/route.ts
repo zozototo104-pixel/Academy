@@ -101,15 +101,6 @@ export async function GET(req: NextRequest) {
         }
         return { blocked: true as const, reason: 'SUBMITTED' as const, maxAttempts, completedAttempts }
       }
-      const pendingReview = await tx.examAttempt.findFirst({
-        where: { userId: user.id, examId, status: 'NEEDS_REVIEW' },
-        select: { id: true },
-      })
-      if (pendingReview) {
-        // نتيجة عالقة عند المشرف: لا محاولة جديدة قبل اعتمادها — وإلا
-        // احترقت محاولات الطالب بينما الأولى لم تُحسم بعد.
-        return { blocked: true as const, reason: 'NEEDS_REVIEW' as const, maxAttempts, completedAttempts }
-      }
       const existing = await tx.examAttempt.findFirst({
         where: { userId: user.id, examId, status: 'STARTED' },
         orderBy: { createdAt: 'desc' },
