@@ -106,7 +106,7 @@ export async function storedSemesterApproval(client: AnyClient, enrollmentId: st
 
 export type SemesterApprovalDecision =
   | { ok: true; approval: unknown }
-  | { ok: false; code: 'ENROLLMENT_NOT_FOUND' | 'SEMESTER_GRADES_INCOMPLETE' | 'SEMESTER_APPROVAL_NOT_ACTIVE'; blockers?: SemesterBlocker[] }
+  | { ok: false; code: 'INVALID_SEMESTER_APPROVAL_INPUT' | 'ENROLLMENT_NOT_FOUND' | 'SEMESTER_GRADES_INCOMPLETE' | 'SEMESTER_APPROVAL_NOT_ACTIVE'; blockers?: SemesterBlocker[] }
 
 /**
  * The single server-side gate for approving a semester result. Refuses,
