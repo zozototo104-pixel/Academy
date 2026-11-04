@@ -54,7 +54,7 @@ const db: any = {
   examAttempt: {
     findFirst: async ({ where }: any = {}) => {
       if (where?.status === 'SUBMITTED') return pendingUnitGrading ? { id: 'attempt-1', submittedAt: pendingUnitGrading.submittedAt } : null
-      if (where?.status === 'GRADED') return null
+      if (where?.status === 'GRADED' || where?.status === 'NEEDS_REVIEW') return null
       return { id: 'attempt-1', createdAt: new Date() }
     },
     count: async () => 0,
