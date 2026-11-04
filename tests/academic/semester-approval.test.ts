@@ -46,6 +46,8 @@ function makeWorld() {
     },
     examAttempt: { count: async ({ where }: any) => state.unitAttempts.filter((a: any) => matchAttempt(a, where)).length },
     programExamAttempt: { count: async ({ where }: any) => state.programAttempts.filter((a: any) => matchAttempt(a, where)).length },
+    programAssignment: { findMany: async () => [] },
+    assignmentSubmission: { count: async () => 0 },
     semesterResultApproval: {
       findUnique: async ({ where }: any) => {
         if (state.throwOnApprovalRead) throw new Error('table missing')
