@@ -39,7 +39,7 @@ export async function collectSemesterApprovalBlockers(
   args: { userId: string; programId: string; semester: number },
 ): Promise<SemesterBlocker[]> {
   const blockers: SemesterBlocker[] = []
-  if (!Number.isInteger(args.semester) || args.semester < 1 || args.semester > 2) {
+  if (!Number.isInteger(args.semester) || args.semester < 1) {
     return [{ code: 'INVALID_SEMESTER', count: 1 }]
   }
   const unitIds = await rowIds(client, 'unit', { programId: args.programId, semester: args.semester })
