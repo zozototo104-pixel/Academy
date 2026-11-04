@@ -84,6 +84,12 @@ beforeEach(() => {
 })
 
 describe('حارس اعتماد نتيجة الفصل', () => {
+  test('امتحان مصحح دون درجة رقمية يمنع اعتماد الفصل', async () => {
+    world.state.unitAttempts = [{ userId: 'user-1', examId: 'exam-s1', status: 'GRADED', score: null }]
+    world.state.programAttempts = [{ userId: 'user-1', examId: 'pexam-s1', status: 'GRADED', score: null }]
+    const blockers = await collectSemesterApprovalBlockers(world.db, { userId: 'user-1', programId: 'program-1', semester: 1 })
+    expect(blockers.map((b: any) => b.code).sort()).toEqual(['PROGRAM_EXAM_GRADED_SCORE_MISSING', 'UNIT_GRADED_SCORE_MISSING'])
+  })
   test('واجب غير مصحح يمنع اعتماد فصله دون حجب الفصل الثاني', async () => {
     world.state.pendingAssignments = 1
     const blocked = await collectSemesterApprovalBlockers(world.db, { userId: 'user-1', programId: 'program-1', semester: 1 })
