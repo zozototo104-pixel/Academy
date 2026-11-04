@@ -457,10 +457,6 @@ export async function POST(req: NextRequest) {
       })
     } catch (e: any) {
       const reviewState = { code: e?.code || 'AI_ACADEMIC_PROVIDER_UNAVAILABLE', retryAt: e?.retryAt || null }
-      await db.programExamAttempt.update({
-        where: { id: attempt.id },
-        data: { status: 'NEEDS_REVIEW', score: null, passed: null, feedback: JSON.stringify(reviewState), submittedAt: new Date() },
-      })
       const revealCorrectAnswers = shouldRevealCorrectAnswers({ passed: false, completedAttempts: completedAttemptsBeforeSubmit + 1, maxAttempts })
       if (!revealCorrectAnswers) await hidePersistedProgramAnswerFeedback(attempt.id)
       // درجة أولية صادقة: ما صُحّح فعليًا (الموضوعي والفارغ) يُعرض بنقاطه،
