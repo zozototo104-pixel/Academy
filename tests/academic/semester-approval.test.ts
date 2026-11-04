@@ -79,6 +79,10 @@ beforeEach(() => {
 })
 
 describe('حارس اعتماد نتيجة الفصل', () => {
+  test('رفض رقم فصل غير صالح قبل الوصول لقاعدة البيانات', async () => {
+    const result = await approveSemesterResult({ enrollmentId: 'enrollment-1', semester: 0, actor: ADMIN })
+    expect(result).toEqual({ ok: false, code: 'INVALID_SEMESTER_APPROVAL_INPUT' })
+  })
   test('محاولة وحدة بانتظار تأكيد المراجعة تمنع الاعتماد', async () => {
     world.state.unitAttempts = [{ userId: 'user-1', examId: 'exam-s1', status: 'NEEDS_REVIEW', appealStatus: 'NONE' }]
     const blockers = await collectSemesterApprovalBlockers(world.db, { userId: 'user-1', programId: 'program-1', semester: 1 })
