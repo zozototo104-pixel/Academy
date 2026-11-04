@@ -129,7 +129,9 @@ export async function gradeEssayWithRubric(args: {
   deadlineMs?: number
 }): Promise<EssayGradeResult> {
   const rubricInfo = parseRubricCriteria(args.rubric)
-  const sourceExcerpt = String(args.sourceExcerpt || '').replace(/\s+/g, ' ').trim().slice(0, 3000)
+  // Preserve enough of the stored book passage for semantic grading: the
+  // relevant answer may occur after the first 3,000 characters.
+  const sourceExcerpt = String(args.sourceExcerpt || '').replace(/\s+/g, ' ').trim().slice(0, 12000)
   const modelAnswer = String(args.modelAnswer || '').replace(/\s+/g, ' ').trim().slice(0, 2500)
   const studentAnswer = String(args.studentAnswer || '').replace(/\s+/g, ' ').trim().slice(0, 5000)
   // Only a genuinely blank answer earns automatic zero. Even a one-word answer
