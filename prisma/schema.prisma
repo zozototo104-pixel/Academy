@@ -965,6 +965,22 @@ model GraduationRequest {
   @@index([userId])
 }
 
+model SemesterResultApproval {
+  id           String    @id @default(cuid())
+  enrollmentId String
+  semester     Int
+  status       String    @default("APPROVED") // APPROVED — stored admin decision on a semester result
+  score        Float?
+  decidedById  String?
+  decidedAt    DateTime?
+  decisionNote String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([enrollmentId, semester])
+  @@index([enrollmentId])
+}
+
 model LegacyCertificateZipImport {
   id         String   @id @default(cuid())
   adminId    String
