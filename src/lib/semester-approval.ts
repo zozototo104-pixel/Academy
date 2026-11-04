@@ -122,6 +122,9 @@ export async function approveSemesterResult(input: {
   score?: number | null
   note?: string | null
 }): Promise<SemesterApprovalDecision> {
+  if (!Number.isInteger(input.semester) || input.semester < 1 || input.semester > 2 || !input.actor?.id) {
+    return { ok: false, code: 'INVALID_SEMESTER_APPROVAL_INPUT' }
+  }
   const outcome = (await db.$transaction(async (tx: AnyClient) => {
     const enrollment = await tx.enrollment.findUnique({
       where: { id: input.enrollmentId },
