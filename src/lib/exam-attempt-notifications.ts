@@ -28,17 +28,23 @@ export async function notifyAttemptNeedsReview(input: {
   examTitle: string
   preliminary?: PreliminaryGrade | null
 }) {
+  // كل جهة معزولة بشبكة أمانها الخاصة: فشل إشعار أي جهة لا يمنع وصول
+  // البقية — حتى لو تغيّر عقد الأمان الداخلي لدوال الإرسال مستقبلًا.
+  const studentBody = input.preliminary
+    ? `درجتك في «${input.examTitle}» أولية حتى الآن: حصلت على ${input.preliminary.gradedPoints} من ${input.preliminary.gradedMaxPoints} نقطة في الأسئلة المصححة، وهناك ${input.preliminary.pendingCount} سؤال بانتظار تأكيد المشرف. لا يمكنك بدء محاولة جديدة قبل اعتماد النتيجة، وسيصلك إشعار عند اعتمادها.`
+    : `إجاباتك في «${input.examTitle}» محفوظة، ونتيجتك بانتظار مراجعة المشرف قبل اعتمادها. لا يمكنك بدء محاولة جديدة قبل الاعتماد، وسيصلك إشعار عند اعتماد النتيجة.`
   try {
-    const studentBody = input.preliminary
-      ? `درجتك في «${input.examTitle}» أولية حتى الآن: حصلت على ${input.preliminary.gradedPoints} من ${input.preliminary.gradedMaxPoints} نقطة في الأسئلة المصححة، وهناك ${input.preliminary.pendingCount} سؤال بانتظار تأكيد المشرف. لا يمكنك بدء محاولة جديدة قبل اعتماد النتيجة، وسيصلك إشعار عند اعتمادها.`
-      : `إجاباتك في «${input.examTitle}» محفوظة، ونتيجتك بانتظار مراجعة المشرف قبل اعتمادها. لا يمكنك بدء محاولة جديدة قبل الاعتماد، وسيصلك إشعار عند اعتماد النتيجة.`
     await notify(input.studentId, 'GENERAL', 'نتيجتك بانتظار مراجعة المشرف', studentBody, '/?view=dashboard')
-    const humansBody = `محاولة ${input.studentName || 'طالب'} في «${input.examTitle}» بانتظار تأكيد التصحيح — الطالب لا يستطيع بدء محاولة جديدة حتى الاعتماد.`
-    await notifyAdmins('GENERAL', 'محاولة بانتظار تأكيد التصحيح', humansBody, 'admin')
-    await notifyAssignedSupervisor(input.studentId, 'محاولة بانتظار تأكيدك', humansBody)
   } catch {
-    // الإشعارات لا تعطّل التصحيح أبدًا.
+    // إشعار الطالب لا تعطّل التصحيح ولا بقية الإشعارات أبدًا.
   }
+  const humansBody = `محاولة ${input.studentName || 'طالب'} في «${input.examTitle}» بانتظار تأكيد التصحيح — الطالب لا يستطيع بدء محاولة جديدة حتى الاعتماد.`
+  try {
+    await notifyAdmins('GENERAL', 'محاولة بانتظار تأكيد التصحيح', humansBody, 'admin')
+  } catch {
+    // إشعار الإدارة لا تعطّل التصحيح ولا بقية الإشعارات أبدًا.
+  }
+  await notifyAssignedSupervisor(input.studentId, 'محاولة بانتظار تأكيدك', humansBody)
 }
 
 export async function notifyAttemptGraded(input: {
@@ -47,13 +53,13 @@ export async function notifyAttemptGraded(input: {
   examTitle: string
   score: number
 }) {
+  const body = `اعتُمدت نتيجة ${input.studentName || 'طالب'} في «${input.examTitle}»: ${input.score}% — الدرجة معتمدة، ويمكن إعادة تصحيحها من مراجعة التصحيح إن لزم.`
   try {
-    const body = `اعتُمدت نتيجة ${input.studentName || 'طالب'} في «${input.examTitle}»: ${input.score}% — الدرجة معتمدة، ويمكن إعادة تصحيحها من مراجعة التصحيح إن لزم.`
     await notifyAdmins('GENERAL', 'نتيجة امتحان معتمدة', body, 'admin')
-    await notifyAssignedSupervisor(input.studentId, 'نتيجة امتحان معتمدة لطالبك', body)
   } catch {
-    // الإشعارات لا تعطّل التصحيح أبدًا.
+    // إشعار الإدارة لا تعطّل التصحيح ولا بقية الإشعارات أبدًا.
   }
+  await notifyAssignedSupervisor(input.studentId, 'نتيجة امتحان معتمدة لطالبك', body)
 }
 
 export async function notifyStudentReviewResolved(input: {

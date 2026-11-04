@@ -285,7 +285,28 @@ export function ExamView() {
       })
       .catch((e: ApiError) => {
         const recovered = e.code === 'NEEDS_REVIEW' ? e.data?.preliminary : null
-        const message = recovered ? `نتيجتك الأولية: ${recovered.gradedPoints} من ${recovered.gradedMaxPoints} نقطة مصححة، و${recovered.pendingCount} سؤال بانتظار المراجعة.` : examErrorMessage(e)
+        if (recovered) {
+          // إعادة فتح امتحان بانتظار المراجعة: الدرجة الأولية المحفوظة تظهر
+          // في شاشة نتيجة ثابتة موسومة بوضوح أنها أولية — لا في تنبيه عابر.
+          setResult({
+            attemptId: '',
+            score: 0,
+            rawScore: recovered.gradedPoints,
+            maxTotal: recovered.gradedMaxPoints,
+            passScore: 0,
+            passed: false,
+            status: 'NEEDS_REVIEW',
+            preliminary: recovered,
+            overall: {
+              summary: 'هذه درجتك الأولية المحفوظة من تصحيح محاولتك: ما صُحّح يظهر بنقاطه، والأسئلة الباقية بانتظار تأكيد المشرف. هذه ليست نتيجة نجاح أو رسوب نهائية — تُعتمد نتيجتك بعد المراجعة، وسيصلك إشعار عند اعتمادها.',
+              strengths: [],
+              improvements: [],
+            },
+            results: [],
+          })
+          return
+        }
+        const message = examErrorMessage(e)
         toast({ title: 'تنبيه الاختبار', description: message, variant: 'destructive' })
         if (e.status === 402 || e.code === 'PENDING_PAYMENT' || e.code === 'ENROLLMENT_NOT_ACTIVE') navigate('dashboard', { programId: String(e.data?.programId || ''), tab: 'payments' })
         else if ((e.status === 403 || e.status === 409) && ['ALREADY_PASSED', 'PASSED_ALREADY', 'SUBMITTED', 'ATTEMPT_SUBMITTED', 'ATTEMPT_EXPIRED', 'UNIT_EXAM_EXPIRED', 'ATTEMPT_ALREADY_CLAIMED', 'MAX_ATTEMPTS_REACHED', 'EXAM_HAS_NO_QUESTIONS'].includes(String(e.code || ''))) {

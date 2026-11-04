@@ -34,7 +34,10 @@ function apiError(code: string, message: string, status = 400) {
 }
 
 function sourceFromMap(map: Map<string, string>, knowledgeItemId?: string | null, fallback?: string | null) {
-  if (knowledgeItemId && map.get(knowledgeItemId)) return map.get(knowledgeItemId)!.slice(0, 8000)
+  // No prefix cut: relevance selection inside the grader works from the
+  // full stored book text, so a correct answer near the end of a long
+  // chunk still reaches it.
+  if (knowledgeItemId && map.get(knowledgeItemId)) return map.get(knowledgeItemId)!
   return clean(fallback, 8000)
 }
 

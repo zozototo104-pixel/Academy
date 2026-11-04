@@ -15,6 +15,12 @@ const knowledgeRows = [
 const chunkRows = [
   { id: 'chunk-1', text: 'نص الكتاب الكامل — البنود الستة: أ، ب، ج، د، هـ، و' },
 ]
+// مقطع طويل (> 12,000 حرف) والمعلومة الصحيحة في نهايته تمامًا — لكشف أي
+// قصّ مبكر لأول N حرف قبل اختيار الفقرات ذات الصلة.
+const longChunkText = 'فقرة حشو بعيدة عن المطلوب تتناول موضوعًا آخر تمامًا.\n\n'.repeat(260)
+  + 'بنود التقييم الختامي هي: الدقة، والشمول، والوضوح، والالتزام بالمواعيد.'
+knowledgeRows.push({ id: 'k-long', summary: 'ملخص عنصر طويل', excerpt: 'اقتباس أولي', chunkId: 'chunk-long' })
+chunkRows.push({ id: 'chunk-long', text: longChunkText })
 
 const dbMock = {
   bookKnowledgeItem: {
@@ -44,6 +50,21 @@ describe('essay grading source (book text leads)', () => {
     expect(source).toContain('نص الكتاب الكامل')
     expect(source).toContain('د، هـ، و')
     expect(source.startsWith('ملخص عنصر المعرفة')).toBe(true)
+  })
+
+  test('a correct answer at the END of a long chunk survives the whole pipeline', async () => {
+    const map = await buildEssaySourceMap(['k-long'])
+    const source = map.get('k-long')!
+    // No early prefix cut anywhere before selection: the composed source
+    // carries the chunk all the way to its end (past the old 12,000 cap).
+    expect(source.length).toBeGreaterThan(12000)
+    expect(source).toContain('بنود التقييم الختامي')
+    // Relevance selection — what the grader actually runs — then finds the
+    // tail paragraph from the full text and keeps it within the limit.
+    const selected = selectEssayEvidence(source, 'ما بنود التقييم الختامي؟', 'الدقة والشمول والوضوح', 12000)
+    expect(selected).toContain('بنود التقييم الختامي')
+    expect(selected).toContain('الدقة')
+    expect(selected.length).toBeLessThanOrEqual(12000)
   })
 
   test('without a chunk the summary + excerpt remain the fallback', async () => {
@@ -189,6 +210,13 @@ describe('grading-flow wiring pins', () => {
     // preliminary and silently dropped the review state.
     expect(programSubmit).toContain('feedback: JSON.stringify({ ...reviewState, preliminary })')
     expect(programSubmit).not.toContain('data: { feedback: JSON.stringify({ preliminary }) }')
+  })
+
+  test('reopening a pending-review exam restores the persistent preliminary screen, not just a toast', () => {
+    const view = readFileSync('src/components/aact/ExamView.tsx', 'utf8')
+    expect(view).toContain("e.code === 'NEEDS_REVIEW' ? e.data?.preliminary : null")
+    expect(view).toContain('هذه درجتك الأولية المحفوظة من تصحيح محاولتك')
+    expect(view).toContain('هذه ليست نتيجة نجاح أو رسوب نهائية')
   })
 
   test('program essay grading salvages each question instead of discarding the batch', () => {

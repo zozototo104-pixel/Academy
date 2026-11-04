@@ -8,7 +8,11 @@ import { db } from '@/lib/db'
 // البنود التي لم يلتقطها البنك) خطأً. لذلك يقود نصّ المقطع المخزّن من
 // الكتاب نفسه المصدرَ، وملخّص العنصر يؤطّره فقط، والاقتباس بديل عند
 // غياب المقطع.
-const ESSAY_SOURCE_MAX_CHARS = 12000
+//
+// لا قصّ هنا إطلاقًا: اختيار الفقرات ذات الصلة وتطبيق حدّ الطول يحدثان
+// داخل التصحيح نفسه (selectEssayEvidence) من النص الكامل — أي قصّ مبكر
+// لأول N حرف قد يحذف المعلومة الصحيحة إن وقعت في نهاية مقطع طويل،
+// ولا نعتمد على سقف أداة التقطيع الحالي لحماية ذلك.
 
 export async function buildEssaySourceMap(ids: ReadonlyArray<unknown>): Promise<Map<string, string>> {
   const unique = [...new Set(ids.filter((id): id is string => typeof id === 'string' && id.length > 0))]
@@ -44,7 +48,7 @@ export async function buildEssaySourceMap(ids: ReadonlyArray<unknown>): Promise<
     if (item.summary?.trim()) parts.push(item.summary.trim())
     if (chunkText) parts.push(chunkText)
     else if (item.excerpt?.trim()) parts.push(item.excerpt.trim())
-    map.set(item.id, parts.join('\n\n').slice(0, ESSAY_SOURCE_MAX_CHARS))
+    map.set(item.id, parts.join('\n\n'))
   }
   return map
 }
