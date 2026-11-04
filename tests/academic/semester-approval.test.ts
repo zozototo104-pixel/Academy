@@ -33,6 +33,7 @@ function makeWorld() {
     inList(a.examId, where.examId) &&
     (!where.status || a.status === where.status) &&
     (!Object.prototype.hasOwnProperty.call(where, 'score') || (where.score === null && a.score == null)) &&
+    (!where.answers || (where.answers.some.points === null && a.answerPointsMissing === true)) &&
     (!where.appealStatus || a.appealStatus === where.appealStatus)
   const db: any = {
     $transaction: async (cb: any) => cb(db),
