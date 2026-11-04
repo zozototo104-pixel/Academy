@@ -85,6 +85,12 @@ beforeEach(() => {
 })
 
 describe('حارس اعتماد نتيجة الفصل', () => {
+  test('empty enrollment and actor identifiers are rejected', async () => {
+    const result = await approveSemesterResult({ enrollmentId: ' ', semester: 1, actor: ADMIN })
+    expect(result).toEqual({ ok: false, code: 'INVALID_SEMESTER_APPROVAL_INPUT' })
+    const actorResult = await approveSemesterResult({ enrollmentId: 'enrollment-1', semester: 1, actor: { id: ' ' } })
+    expect(actorResult).toEqual({ ok: false, code: 'INVALID_SEMESTER_APPROVAL_INPUT' })
+  })
   test('invalid semester returns a blocker', async () => {
     const blockers = await collectSemesterApprovalBlockers(world.db, { userId: 'user-1', programId: 'program-1', semester: 3 })
     expect(blockers).toEqual([{ code: 'INVALID_SEMESTER', count: 1 }])
