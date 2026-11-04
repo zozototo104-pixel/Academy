@@ -140,6 +140,10 @@ export async function markSemesterReady(userId: string, programId: string, semes
   }
   const enrollment = await db.enrollment.findUnique({ where: { userId_programId: { userId, programId } } })
   if (!enrollment) throw new Error('ENROLLMENT_NOT_FOUND')
+  const program = await db.program.findUnique({ where: { id: programId }, select: { semestersCount: true } })
+  if (!Number.isInteger(semester) || semester < 1 || (program?.semestersCount != null && semester > program.semestersCount)) {
+    throw new Error('INVALID_SEMESTER')
+  }
   const ready = new Set(parseJsonArray(enrollment.examReadiness).map((x) => Number(x)).filter(Boolean))
   ready.add(semester)
   await db.enrollment.update({
