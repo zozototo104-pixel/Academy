@@ -20,7 +20,7 @@ function makeWorld() {
     { id: 'pexam-s2', programId: 'program-1', semester: 2 },
   ]
   const state: any = {
-    enrollment: { id: 'enrollment-1', userId: 'user-1', programId: 'program-1' },
+    enrollment: { id: 'enrollment-1', userId: 'user-1', programId: 'program-1', program: { semestersCount: 3 } },
     unitAttempts: [] as any[],
     programAttempts: [] as any[],
     pendingAssignments: 0,
