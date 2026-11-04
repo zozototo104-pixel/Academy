@@ -43,6 +43,10 @@ export async function collectSemesterApprovalBlockers(
   const unitIds = await rowIds(client, 'unit', { programId: args.programId, semester: args.semester })
   const examIds = unitIds.length ? await rowIds(client, 'exam', { unitId: { in: unitIds } }) : []
   if (examIds.length) {
+    const submitted = await client.examAttempt.count({
+      where: { userId: args.userId, examId: { in: examIds }, status: 'SUBMITTED' },
+    })
+    if (submitted) blockers.push({ code: 'UNIT_GRADING_PENDING', count: submitted })
     const review = await client.examAttempt.count({
       where: { userId: args.userId, examId: { in: examIds }, status: 'NEEDS_REVIEW' },
     })
@@ -54,6 +58,10 @@ export async function collectSemesterApprovalBlockers(
   }
   const programExamIds = await rowIds(client, 'programExam', { programId: args.programId, semester: args.semester })
   if (programExamIds.length) {
+    const submitted = await client.programExamAttempt.count({
+      where: { userId: args.userId, examId: { in: programExamIds }, status: 'SUBMITTED' },
+    })
+    if (submitted) blockers.push({ code: 'PROGRAM_EXAM_GRADING_PENDING', count: submitted })
     const review = await client.programExamAttempt.count({
       where: { userId: args.userId, examId: { in: programExamIds }, status: 'NEEDS_REVIEW' },
     })
