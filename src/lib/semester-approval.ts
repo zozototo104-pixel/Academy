@@ -160,9 +160,11 @@ export async function approveSemesterResult(input: {
     if (actor?.role !== 'ADMIN') return { ok: false, code: 'SEMESTER_APPROVAL_FORBIDDEN' } as const
     // A client-supplied score is not an official computed semester result.
     // Keep the decision closed until the verified semester grade engine is wired.
-    if (input.score == null || !Number.isFinite(input.score) || input.score < 0 || input.score > 100) {
-      return { ok: false, code: 'SEMESTER_SCORE_NOT_VERIFIED' } as const
-    }
+    // Never trust a caller-supplied score, even if it is within 0..100.
+    // Phase 3 must supply a server-computed and version-verified result
+    // before any semester decision can be persisted.
+    return { ok: false, code: 'SEMESTER_SCORE_NOT_VERIFIED' } as const
+    /* Phase 3/4: replace this closed gate with verified computation.
     const approval = await tx.semesterResultApproval.upsert({
       where: { enrollmentId_semester: { enrollmentId: input.enrollmentId, semester: input.semester } },
       create: {
