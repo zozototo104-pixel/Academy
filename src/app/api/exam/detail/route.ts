@@ -131,6 +131,7 @@ export async function GET(req: NextRequest) {
           code: attemptState.reason,
           maxAttempts: attemptState.maxAttempts,
           attemptsUsed: attemptState.completedAttempts,
+          preliminary,
         },
         { status: 409 }
       )
