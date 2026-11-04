@@ -362,9 +362,27 @@ export async function registerGraduationRequest(input: CompleteEnrollmentInput):
         if (existing.status === 'ISSUED') {
           return { registered: false, status: 'ISSUED' as string | null, certificateNo: enrollment.certificateNo || null, created: false, studentName: null, programTitle: null, ready: true, missing: [] as string[] }
         }
+        // An approval applies to the academic and financial facts reviewed.
+        // A changed score or lost eligibility requires a fresh decision; never
+        // allow an earlier approval to authorize issuance on changed facts.
+        const approvalStale = existing.status === 'APPROVED'
+          && (!ready || existing.score !== snapshot.score)
         const updated = await table.update({
           where: { enrollmentId: enrollment.id },
-          data: { userId: enrollment.userId, programId: enrollment.programId, admissionId: matchedAdmission?.id || null, ready, score: snapshot.score, snapshot },
+          data: {
+            userId: enrollment.userId,
+            programId: enrollment.programId,
+            admissionId: matchedAdmission?.id || null,
+            ready,
+            score: snapshot.score,
+            snapshot,
+            ...(approvalStale ? {
+              status: 'PENDING',
+              decidedById: null,
+              decidedAt: null,
+              decisionNote: null,
+            } : {}),
+          },
         })
         return { registered: true, requestId: updated.id as string, status: updated.status as string, certificateNo: null, created: false, studentName: null, programTitle: null, ready, missing }
       }
