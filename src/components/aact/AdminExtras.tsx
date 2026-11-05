@@ -1548,6 +1548,33 @@ interface GraduationRequestItem {
   updatedAt: string
 }
 
+// موانع اعتماد نتيجة الفصل كما يرجعها الحارس الخادمي — تسميات عربية للشاشة.
+const SEMESTER_BLOCKER_LABELS: Record<string, string> = {
+  UNIT_GRADING_PENDING: 'محاولات وحدات مقدّمة بانتظار التصحيح',
+  UNIT_GRADED_SCORE_MISSING: 'محاولات وحدات مصحّحة بلا درجة رقمية',
+  UNIT_ANSWER_POINTS_MISSING: 'محاولات وحدات فيها إجابات بلا نقاط',
+  UNIT_REVIEW_PENDING: 'محاولات وحدات بانتظار تأكيد المراجعة',
+  UNIT_APPEAL_PENDING: 'التماسات درجات وحدات معلّقة',
+  UNIT_GRADES_UNAPPROVED: 'درجات وحدات نهائية بلا اعتماد رسمي',
+  PROGRAM_EXAM_GRADING_PENDING: 'محاولات امتحان فصل بانتظار التصحيح',
+  PROGRAM_EXAM_GRADED_SCORE_MISSING: 'محاولات امتحان فصل مصحّحة بلا درجة رقمية',
+  PROGRAM_EXAM_ANSWER_POINTS_MISSING: 'محاولات امتحان فصل فيها إجابات بلا نقاط',
+  PROGRAM_EXAM_REVIEW_PENDING: 'محاولات امتحان فصل بانتظار تأكيد المراجعة',
+  PROGRAM_EXAM_APPEAL_PENDING: 'التماسات امتحان فصل معلّقة',
+  PROGRAM_EXAM_GRADES_UNAPPROVED: 'درجات امتحان فصل نهائية بلا اعتماد رسمي',
+  ASSIGNMENT_GRADING_PENDING: 'واجبات مقدّمة بانتظار التصحيح',
+  INVALID_SEMESTER: 'فصل غير صالح لهذا البرنامج',
+}
+
+interface SemesterCheckState {
+  loading?: boolean
+  error?: string
+  blockers?: { code: string; count: number }[]
+  approvalActive?: boolean
+  hasApproval?: boolean
+  gradeApprovals?: { id: string; targetType: string; score: number }[]
+}
+
 interface CertificateTemplateItem {
   id: string
   name: string
@@ -1663,6 +1690,7 @@ export function AdminCertificatesTab() {
   const [gradRequests, setGradRequests] = useState<GraduationRequestItem[]>([])
   const [gradLoading, setGradLoading] = useState(true)
   const [gradRefresh, setGradRefresh] = useState(0)
+  const [semesterChecks, setSemesterChecks] = useState<Record<string, SemesterCheckState>>({})
 
   useEffect(() => {
     let cancelled = false
@@ -1701,6 +1729,47 @@ export function AdminCertificatesTab() {
       setGradRefresh((v) => v + 1)
     } catch (e: any) {
       toast({ title: 'تعذر تحديث الفحص', description: e.message, variant: 'destructive' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // شاشة مصادقة نتيجة الفصل: الشروط تأتي من الحارس الخادمي نفسه، والزر
+  // معطّل حتى اكتمال القائمة وتفعيل الاعتماد (المرحلتان 3 و4) — التعطيل
+  // هنا عرضٌ لقرار الخادم، لا بديل عنه.
+  const loadSemesterCheck = async (request: GraduationRequestItem, semester: number) => {
+    const key = `${request.enrollmentId}:${semester}`
+    setSemesterChecks((prev) => ({ ...prev, [key]: { ...prev[key], loading: true, error: undefined } }))
+    try {
+      const data = await api<{ blockers?: { code: string; count: number }[]; approvalActive?: boolean; approval?: unknown }>(`/api/admin/semester-approvals?enrollmentId=${encodeURIComponent(request.enrollmentId)}&semester=${semester}`)
+      let gradeApprovals: { id: string; targetType: string; score: number }[] = []
+      try {
+        const g = await api<{ approvals?: { id: string; targetType: string; score: number }[] }>(`/api/admin/grade-approvals?userId=${encodeURIComponent(request.userId)}&programId=${encodeURIComponent(request.programId)}&semester=${semester}`)
+        gradeApprovals = Array.isArray(g?.approvals) ? g.approvals : []
+      } catch { gradeApprovals = [] }
+      setSemesterChecks((prev) => ({
+        ...prev,
+        [key]: {
+          loading: false,
+          blockers: Array.isArray(data?.blockers) ? data.blockers : [],
+          approvalActive: Boolean(data?.approvalActive),
+          hasApproval: Boolean(data?.approval),
+          gradeApprovals,
+        },
+      }))
+    } catch (e: any) {
+      setSemesterChecks((prev) => ({ ...prev, [key]: { loading: false, error: e?.message || 'تعذر تحميل شروط الفصل' } }))
+    }
+  }
+
+  const decideSemester = async (request: GraduationRequestItem, semester: number) => {
+    setBusy(true)
+    try {
+      await api('/api/admin/semester-approvals', { method: 'POST', body: JSON.stringify({ enrollmentId: request.enrollmentId, semester }) })
+      toast({ title: 'تم اعتماد نتيجة الفصل', description: 'الاعتماد محفوظ في قاعدة البيانات بسجلّه.' })
+      void loadSemesterCheck(request, semester)
+    } catch (e: any) {
+      toast({ title: 'تعذر اعتماد نتيجة الفصل', description: e.message, variant: 'destructive' })
     } finally {
       setBusy(false)
     }
@@ -2057,6 +2126,46 @@ export function AdminCertificatesTab() {
                           {r.status === 'APPROVED' && (
                             <Button disabled={busy} onClick={() => issueForRequest(r)} className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">{busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Award className="ml-2 h-4 w-4" />} إصدار الشهادة</Button>
                           )}
+                        </div>
+                        <div className="space-y-2 rounded-xl border border-dashed border-[#0f2b46]/15 p-3">
+                          <p className="text-xs font-black text-[#0f2b46]">مصادقة نتيجة الفصل — قائمة الشروط من الخادم</p>
+                          <div className="flex flex-wrap gap-2">
+                            {[1, 2].map((s) => (
+                              <Button key={s} variant="outline" disabled={busy} onClick={() => loadSemesterCheck(r, s)} className="border-[#0f2b46]/20 font-black text-[#0f2b46] hover:bg-slate-50">شروط الفصل {s === 1 ? 'الأول' : 'الثاني'}</Button>
+                            ))}
+                          </div>
+                          {[1, 2].map((s) => {
+                            const chk = semesterChecks[`${r.enrollmentId}:${s}`]
+                            if (!chk || (!chk.loading && !chk.blockers && !chk.error)) return null
+                            const canDecide = Boolean(chk.approvalActive) && Array.isArray(chk.blockers) && chk.blockers.length === 0
+                            return (
+                              <div key={s} className="space-y-2 rounded-xl bg-slate-50 p-3 text-xs font-bold leading-6 text-slate-700">
+                                <p className="font-black text-[#0f2b46]">الفصل {s === 1 ? 'الأول' : 'الثاني'}</p>
+                                {chk.loading ? (
+                                  <p>جارٍ فحص الشروط…</p>
+                                ) : chk.error ? (
+                                  <p className="text-red-700">{chk.error}</p>
+                                ) : (
+                                  <>
+                                    {!chk.approvalActive && <p className="text-amber-700">اعتماد نتيجة الفصل النهائي غير مفعّل بعد — يُفعَّل بعد اكتمال حساب معدلات الفصول ودورة حياة الفصل (المرحلتان 3 و4)، والخادم يرفض أي اعتماد حتى ذلك الحين ولو باستدعاء مباشر.</p>}
+                                    {chk.blockers && chk.blockers.length > 0 ? (
+                                      <ul className="list-inside list-disc space-y-1">
+                                        {chk.blockers.map((b, i) => <li key={i}>{SEMESTER_BLOCKER_LABELS[b.code] || b.code} — {b.count}</li>)}
+                                      </ul>
+                                    ) : (
+                                      <p className="text-emerald-700">كل شروط الدرجات مكتملة في هذا الفصل.</p>
+                                    )}
+                                    {chk.hasApproval && <p>يوجد اعتماد نتيجة محفوظ لهذا الفصل.</p>}
+                                    {chk.gradeApprovals && chk.gradeApprovals.length > 0 && (
+                                      <p>الدرجات المعتمدة رسميًا: {chk.gradeApprovals.map((g) => `${g.targetType === 'UNIT_EXAM' ? 'وحدة' : 'امتحان فصل'} (${g.score})`).join('، ')}</p>
+                                    )}
+                                    <Button disabled={!canDecide || busy} onClick={() => decideSemester(r, s)} className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c] disabled:opacity-40">اعتماد نتيجة الفصل</Button>
+                                    {!canDecide && <p className="text-[11px] text-slate-500">زر الاعتماد معطّل بصريًا ووظيفيًا حتى اكتمال كل الشروط وتفعيل الاعتماد.</p>}
+                                  </>
+                                )}
+                              </div>
+                            )
+                          })}
                         </div>
                       </div>
                     )
