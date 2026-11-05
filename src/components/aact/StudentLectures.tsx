@@ -408,6 +408,21 @@ export function StudentLectures() {
 
   return (
     <div className="space-y-6">
+      <Dialog open={!!embeddedZoom} onOpenChange={(open) => { if (!open) { setEmbeddedZoom(null); setZoomError(null) } }}>
+        <DialogContent className="flex h-[90vh] max-w-[96vw] flex-col" dir="rtl">
+          <DialogHeader>
+            <DialogTitle>{embeddedZoom?.title || 'قاعة المحاضرة'}</DialogTitle>
+            <DialogDescription>المحاضرة تعمل داخل المنصة. تأكيد الحضور الفعلي من صلاحية المشرف.</DialogDescription>
+          </DialogHeader>
+          {zoomError && (
+            <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+              {zoomError} — يمكنك فتح المحاضرة في Zoom مباشرة.
+              <a className="mr-2 underline" href={embeddedZoom?.meetingUrl} target="_blank" rel="noopener noreferrer">فتح الرابط الخارجي</a>
+            </div>
+          )}
+          <div ref={zoomRootRef} className="min-h-0 flex-1 overflow-auto" dir="ltr" />
+        </DialogContent>
+      </Dialog>
       {next ? (
         <Card className="border-blue-200 bg-blue-50/50">
           <CardContent className="space-y-3 py-5">
