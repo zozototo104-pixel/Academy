@@ -38,6 +38,8 @@ function resetWorld() {
     userId: 'student-1',
     status: 'GRADED',
     score: 88,
+    appealStatus: 'NONE',
+    answers: [],
     exam: { unit: { programId: 'program-1', semester: 1 } },
   })
   world.programAttempts.set('program-attempt-1', {
