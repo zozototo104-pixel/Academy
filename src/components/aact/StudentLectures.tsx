@@ -242,15 +242,24 @@ export function StudentLectures() {
     async (s: PublicSession) => {
       setJoiningId(s.id)
       try {
-        const res = await api<{ meetingUrl: string; meetingPasscode?: string | null }>(
+        const res = await api<{
+          meetingUrl: string
+          meetingPasscode?: string | null
+          zoomSdk?: { signature: string; sdkKey: string; meetingNumber: string; userName: string; password: string }
+        }>(
           `/api/my/lectures/${s.id}/join`,
           { method: 'POST' },
         )
-        window.open(res.meetingUrl, '_blank', 'noopener')
-        toast({
-          title: 'تم تسجيل دخولك إلى المحاضرة',
-          description: res.meetingPasscode ? `رمز الدخول: ${res.meetingPasscode}` : 'انضممت بنجاح. المشرف يؤكد الحضور الفعلي.',
-        })
+        if (res.zoomSdk) {
+          setZoomError(null)
+          setEmbeddedZoom({ title: s.title, meetingUrl: res.meetingUrl, ...res.zoomSdk })
+        } else {
+          window.open(res.meetingUrl, '_blank', 'noopener')
+          toast({
+            title: 'تم تسجيل دخولك إلى المحاضرة',
+            description: res.meetingPasscode ? `رمز الدخول: ${res.meetingPasscode}` : 'انضممت بنجاح. المشرف يؤكد الحضور الفعلي.',
+          })
+        }
       } catch (e: any) {
         toast({ title: 'تعذر الانضمام', description: e?.message || 'حاول مجددًا بعد قليل', variant: 'destructive' })
       } finally {
