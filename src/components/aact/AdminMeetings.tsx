@@ -717,6 +717,11 @@ function MeetingDetailsPanel({
                       </td>
                       <td className="px-3 py-2">
                         {!inv.revoked && (
+                          <Button type="button" variant="outline" size="sm" disabled={busy || adding} onClick={() => { setAdding(true); setAddError(null); void onRotateInvite(inv).then((url) => setFreshLink(url)).catch((e) => setAddError(e?.message || 'تعذر إنشاء الرابط')).finally(() => setAdding(false)) }}>
+                            <Link2 className="ml-1 h-3.5 w-3.5" /> إصدار رابط جديد
+                          </Button>
+                        )}
+                        {!inv.revoked && (
                           <Button
                             type="button"
                             variant="ghost"
