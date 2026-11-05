@@ -77,10 +77,35 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ se
       update: {},
     })
 
+    // The student was authenticated and authorized above; no invitation token is required.
+    // The Zoom SDK secret remains server-side.
+    let zoomSdk: Record<string, string> | undefined
+    if (session.provider === 'ZOOM') {
+      const match = String(session.meetingUrl).match(/^https:\/\/[a-z0-9.-]*zoom\.us\/j\/(\d{9,11})(?:[/?#]|$)/i)
+      const sdkKey = process.env.ZOOM_MEETING_SDK_CLIENT_ID
+      const sdkSecret = process.env.ZOOM_MEETING_SDK_CLIENT_SECRET
+      if (match && sdkKey && sdkSecret) {
+        const now = Math.floor(Date.now() / 1000)
+        const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url')
+        const unsigned = encode({ alg: 'HS256', typ: 'JWT' }) + '.' + encode({
+          sdkKey, appKey: sdkKey, mn: match[1], role: 0,
+          iat: now - 30, exp: now + 3600, tokenExp: now + 3600,
+        })
+        const signature = createHmac('sha256', sdkSecret).update(unsigned).digest('base64url')
+        zoomSdk = {
+          signature: unsigned + '.' + signature,
+          sdkKey,
+          meetingNumber: match[1],
+          userName: user.name || 'طالب الأكاديمية',
+          password: session.meetingPasscode || '',
+        }
+      }
+    }
     return NextResponse.json({
       meetingUrl: session.meetingUrl,
       meetingPasscode: session.meetingPasscode,
       provider: session.provider,
+      ...(zoomSdk ? { zoomSdk } : {}),
     })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') {
