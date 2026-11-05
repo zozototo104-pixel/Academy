@@ -73,6 +73,12 @@ const db: any = {
   enrollment: {
     findUnique: async ({ where }: any) => ({ id: `enroll-${where.userId_programId.programId}`, status: 'ACTIVE' }),
   },
+  program: {
+    // بوابة الرسالة (خطة دورة التخرج، المرحلة 5) تقرأ البرنامج لفحص بوابته؛
+    // عالم هذا الاختبار برامجه دبلومات كما في تجهيزات القبول أعلاه
+    // (programRef.category = 'DIPLOMA')، وبلا بصمة دورة حياة تبقى البوابة مفتوحة.
+    findUnique: async ({ where }: any) => ({ id: where.id, category: 'DIPLOMA', semestersCount: 2 }),
+  },
   programStudyGuide: { findFirst: async () => null },
   certificate: {
     findUnique: async ({ where }: any) => certificate && certificate.id === where.id ? certificate : null,
