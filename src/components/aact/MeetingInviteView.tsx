@@ -110,6 +110,44 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
   const [revealedPasscode, setRevealedPasscode] = useState<string | null>(null)
   const [joinedExternal, setJoinedExternal] = useState(false)
   const [inRoom, setInRoom] = useState(false)
+  const [zoomConfig, setZoomConfig] = useState<null | { signature: string; sdkKey: string; meetingNumber: string; userName: string; password: string }>(null)
+  const [zoomError, setZoomError] = useState<string | null>(null)
+  const [zoomExternalUrl, setZoomExternalUrl] = useState<string | null>(null)
+  const zoomRootRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!zoomConfig || !zoomRootRef.current) return
+    let cancelled = false
+    const loadScript = (src: string) => new Promise<void>((resolve, reject) => {
+      if (document.querySelector('script[data-zoom-src="' + src + '"]')) { resolve(); return }
+      const script = document.createElement('script')
+      script.src = src
+      script.dataset.zoomSrc = src
+      script.onload = () => resolve()
+      script.onerror = () => { script.remove(); reject(new Error('تعذّر تحميل مكتبة Zoom')) }
+      document.head.appendChild(script)
+    })
+    const start = async () => {
+      try {
+        const version = '6.2.0'
+        for (const name of ['react', 'react-dom', 'redux', 'redux-thunk', 'react-redux', 'lodash']) {
+          await loadScript('https://source.zoom.us/' + version + '/lib/vendor/' + name + '.min.js')
+        }
+        await loadScript('https://source.zoom.us/zoom-meeting-embedded-' + version + '.min.js')
+        if (cancelled) return
+        const sdk = (window as any).ZoomMtgEmbedded
+        if (!sdk?.createClient) throw new Error('مكتبة Zoom غير متاحة')
+        const client = sdk.createClient()
+        await client.init({ zoomAppRoot: zoomRootRef.current, language: 'en-US', patchJsMedia: true, leaveOnPageUnload: true })
+        if (cancelled) return
+        await client.join(zoomConfig)
+      } catch (error) {
+        if (!cancelled) setZoomError(error instanceof Error ? error.message : 'تعذّر تشغيل Zoom داخل القاعة')
+      }
+    }
+    void start()
+    return () => { cancelled = true }
+  }, [zoomConfig])
+
   const [nowMs, setNowMs] = useState(() => Date.now())
   const [noteText, setNoteText] = useState('')
   const [noteBusy, setNoteBusy] = useState(false)
