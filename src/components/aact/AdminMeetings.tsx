@@ -983,6 +983,15 @@ export function AdminMeetings() {
     })
   }
 
+  const rotateInvite = async (meetingId: string, invite: Invite): Promise<string> => {
+    const res = await api<{ ok: boolean; url: string }>(`/api/admin/meetings/${meetingId}/invites/${invite.id}`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'rotate' }),
+    })
+    await loadDetail(meetingId)
+    return res.url
+  }
+
   const confirmAttendance = (meetingId: string, userId: string, status: AttendanceStatus) => {
     void act(async () => {
       await api(`/api/admin/meetings/${meetingId}/attendance`, {
