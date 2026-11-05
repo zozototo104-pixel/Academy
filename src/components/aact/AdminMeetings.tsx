@@ -1131,6 +1131,7 @@ export function AdminMeetings() {
                         busy={busy}
                         copyText={copyText}
                         onRevokeInvite={(invite) => askRevokeInvite(m.id, invite)}
+                        onRotateInvite={(invite) => rotateInvite(m.id, invite)}
                         onConfirmAttendance={(userId, status) => confirmAttendance(m.id, userId, status)}
                         onAddInvitee={(name, email) => addInvitee(m.id, name, email)}
                       />
