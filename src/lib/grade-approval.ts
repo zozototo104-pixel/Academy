@@ -72,6 +72,8 @@ async function resolveAttempt(
       userId: true,
       status: true,
       score: true,
+      appealStatus: true,
+      answers: { where: { points: null }, select: { id: true } },
       exam: { select: { programId: true, semester: true } },
     },
   })
