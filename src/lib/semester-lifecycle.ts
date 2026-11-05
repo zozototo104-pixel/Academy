@@ -115,3 +115,68 @@ export async function closeSemesterState(
     },
   }).catch(() => null)
 }
+
+// ===== حارس نوافذ التقديم (المرحلة 4، بندا 2 و5) =====
+// المحاولات والتسليمات تجري داخل فتراتها فقط: فصل مغلق ⟸ رفض قاطع؛
+// نافذة وحدة منتهية ⟸ رفض إلا بمنحة التماس إعادة فتح معتمدة (المرحلة
+// 4C)؛ نافذة فصل منتهية ⟸ رفض. برنامج بلا مدة مضبوطة = لا نظام نوافذ
+// (لا يُخترع قيد لم يضبطه المالك).
+export type WindowVerdict =
+  | { ok: true }
+  | { ok: false; code: 'SEMESTER_CLOSED' | 'UNIT_WINDOW_ENDED' | 'SEMESTER_WINDOW_ENDED'; message: string }
+
+export async function submissionWindowCheck(
+  client: AnyClient,
+  args: {
+    enrollment: { id: string; createdAt: Date | string; extensionDays?: number | null; programId: string }
+    program: ProgramLike
+    semester: number
+    unitId?: string | null
+    now?: Date
+  },
+): Promise<WindowVerdict> {
+  const now = args.now ?? new Date()
+  const state = await getSemesterState(client, args.enrollment.id, args.semester)
+  if (state?.status === 'CLOSED') {
+    return { ok: false, code: 'SEMESTER_CLOSED', message: 'أُغلق هذا الفصل واعتُمدت نتيجته؛ لا تُقبل محاولات أو تسليمات جديدة فيه.' }
+  }
+  if (getProgramMaxDays(args.program) == null) return { ok: true }
+  const units = await loadUnits(client, args.enrollment.programId)
+  if (args.unitId) {
+    const w = unitWindowFor(new Date(args.enrollment.createdAt), args.program, units, args.unitId, args.enrollment.extensionDays || 0)
+    if (w && now.getTime() > w.endAt.getTime()) {
+      // منحة إعادة فتح معتمدة لهذه الوحدة تستثني صاحبها من انتهاء النافذة
+      // (داخل فترة الفصل القائمة فقط — يفحصها سطر نافذة الفصل أدناه).
+      const grantStore = (client as AnyClient)?.reopenAppeal
+      const grant = grantStore?.findFirst
+        ? await grantStore.findFirst({
+            where: { enrollmentId: args.enrollment.id, unitId: args.unitId, status: 'APPROVED' },
+            select: { id: true },
+          }).catch(() => null)
+        : null
+      if (!grant) {
+        return { ok: false, code: 'UNIT_WINDOW_ENDED', message: 'انتهت نافذة هذه الوحدة؛ لا تُقبل محاولة جديدة. يمكنك تقديم التماس إعادة فتح من بوابتك ما دام الفصل قائمًا.' }
+      }
+    }
+  }
+  const semesterWindow = getSemesterWindows(new Date(args.enrollment.createdAt), args.program, units, args.enrollment.extensionDays || 0)
+    .find((w) => w.semester === args.semester)
+  const deadline = state?.submissionDeadline ? new Date(state.submissionDeadline) : semesterWindow?.endAt
+  if (deadline && now.getTime() > deadline.getTime()) {
+    return { ok: false, code: 'SEMESTER_WINDOW_ENDED', message: 'انتهت فترة هذا الفصل؛ لا تُقبل محاولات أو تسليمات جديدة.' }
+  }
+  return { ok: true }
+}
+
+// سياق الانضباط بالنوافذ لمسار طالب: التسجيل + البرنامج بشكل موحّد.
+export async function windowContextFor(client: AnyClient, userId: string, programId: string) {
+  const enrollment = await client.enrollment.findUnique({
+    where: { userId_programId: { userId, programId } },
+    select: {
+      id: true, createdAt: true, extensionDays: true, programId: true,
+      program: { select: { category: true, maxStudyDays: true, semestersCount: true } },
+    },
+  }).catch(() => null)
+  if (!enrollment) return null
+  return { enrollment, program: (enrollment as any).program || {} }
+}

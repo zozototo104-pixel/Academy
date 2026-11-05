@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { registerGraduationRequest } from '@/lib/enrollment-completion'
 import { isAssignedStudent } from '@/lib/supervisor-scope'
+import { getSemesterState, windowContextFor } from '@/lib/semester-lifecycle'
 
 // ===== 12.2 الاعتراض على نتيجة الامتحان (Appeal) — يُحوَّل للمراجعة اليدوية =====
 
@@ -17,7 +18,7 @@ export async function POST(req: NextRequest) {
 
     const attempt = await db.programExamAttempt.findUnique({
       where: { id: attemptId },
-      include: { exam: { select: { title: true } } },
+      include: { exam: { select: { title: true, semester: true, programId: true } } },
     })
     if (!attempt || attempt.userId !== user.id) {
       return NextResponse.json({ error: 'المحاولة غير موجودة' }, { status: 404 })
@@ -30,6 +31,18 @@ export async function POST(req: NextRequest) {
     }
     if (attempt.appealStatus === 'REVIEWED') {
       return NextResponse.json({ error: 'تمت مراجعة اعتراضك مسبقاً — اطّلع على الرد' }, { status: 409 })
+    }
+    // دورة حياة الفصل (المرحلة 4): الاعتراض يُقبل ما دامت فترة فصله قائمة؛
+    // بعد إغلاق الفصل يُرفض خادميًا.
+    {
+      const examRef: any = (attempt as any).exam
+      if (examRef?.programId && examRef?.semester) {
+        const ctx = await windowContextFor(db, user.id, examRef.programId)
+        const state = ctx ? await getSemesterState(db, ctx.enrollment.id, examRef.semester) : null
+        if (state?.status === 'CLOSED') {
+          return NextResponse.json({ error: 'أُغلق الفصل واعتُمدت نتيجته؛ انتهت الاعتراضات العادية لهذا الفصل.', code: 'SEMESTER_CLOSED' }, { status: 409 })
+        }
+      }
     }
 
     await db.programExamAttempt.update({

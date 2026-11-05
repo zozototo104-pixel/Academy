@@ -7,6 +7,7 @@ import { cleanAcademicOutput, looksLikeBrokenGeneratedArabic } from '@/lib/acade
 import { deleteStoredFile, getStorageDownloadPathForKey, storeFileBuffer, storageErrorMessage } from '@/lib/storage'
 import { assignmentDueAt as dueDateFrom } from '@/lib/assignment-due-date'
 import { validateAdmissionFileSignature } from '@/lib/file-signature'
+import { submissionWindowCheck, windowContextFor } from '@/lib/semester-lifecycle'
 
 const MAX_FILE_SIZE = 6 * 1024 * 1024
 const ALLOWED_MIME = new Set([
@@ -143,6 +144,19 @@ export async function POST(req: NextRequest) {
     if (!enrollment) return NextResponse.json({ error: 'هذا الواجب خاص ببرنامج غير مسجل في حسابك' }, { status: 403 })
     const dueAt = dueDateFrom(enrollment.createdAt, assignment.dueDays, (assignment as any).dueAt)
     if (dueAt && Date.now() > dueAt.getTime()) return NextResponse.json({ error: 'انتهى موعد التسليم' }, { status: 400 })
+    // دورة حياة الفصل (المرحلة 4): نافذة الفصل حدّ خارجي فوق موعد الواجب
+    // نفسه — فصل مغلق أو منتهي الفترة لا يقبل تسليمًا.
+    {
+      const ctx = await windowContextFor(db, user.id, assignment.programId)
+      if (ctx) {
+        const verdict = await submissionWindowCheck(db, {
+          enrollment: ctx.enrollment,
+          program: ctx.program,
+          semester: assignment.semester,
+        })
+        if (!verdict.ok) return NextResponse.json({ error: verdict.message, code: verdict.code }, { status: 403 })
+      }
+    }
     const existingSubmission = await db.assignmentSubmission.findUnique({ where: { assignmentId_userId: { assignmentId, userId: user.id } }, select: { status: true, fileStorageKey: true } })
     if (existingSubmission?.status === 'GRADED') return NextResponse.json({ error: 'لا يمكن إعادة تسليم واجب تم تقييمه' }, { status: 409 })
 
