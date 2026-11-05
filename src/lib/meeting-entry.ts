@@ -150,7 +150,7 @@ export async function meetingAction(
           sdkKey,
           meetingNumber: match[1],
           userName: String(user.name || invite.inviteeName || 'Guest').slice(0, 100),
-          password: meeting.meetingPasscode || url.searchParams.get('pwd') || '',
+          password: meeting.meetingPasscode || '',
         }
       }
     }
