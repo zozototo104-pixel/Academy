@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createHmac } from 'node:crypto'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { checkDatabaseRateLimit } from '@/lib/rate-limit'
