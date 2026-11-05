@@ -125,6 +125,57 @@ export function StudentLectures() {
   const [sessions, setSessions] = useState<PublicSession[]>([])
   const [videos, setVideos] = useState<VideoItem[]>([])
   const [joiningId, setJoiningId] = useState<string | null>(null)
+  const [embeddedZoom, setEmbeddedZoom] = useState<null | {
+    title: string
+    meetingUrl: string
+    signature: string
+    sdkKey: string
+    meetingNumber: string
+    userName: string
+    password: string
+  }>(null)
+  const [zoomError, setZoomError] = useState<string | null>(null)
+  const zoomRootRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!embeddedZoom || !zoomRootRef.current) return
+    let cancelled = false
+    const loadScript = (src: string) => new Promise<void>((resolve, reject) => {
+      const existing = document.querySelector<HTMLScriptElement>('script[data-zoom-src="' + src + '"]')
+      if (existing?.dataset.loaded === 'true') { resolve(); return }
+      if (existing) { existing.addEventListener('load', () => resolve(), { once: true }); existing.addEventListener('error', () => reject(new Error('تعذّر تحميل Zoom')), { once: true }); return }
+      const script = document.createElement('script')
+      script.src = src
+      script.dataset.zoomSrc = src
+      script.onload = () => { script.dataset.loaded = 'true'; resolve() }
+      script.onerror = () => { script.remove(); reject(new Error('تعذّر تحميل Zoom')) }
+      document.head.appendChild(script)
+    })
+    const start = async () => {
+      try {
+        const version = '6.2.0'
+        for (const name of ['react', 'react-dom', 'redux', 'redux-thunk', 'react-redux', 'lodash']) {
+          await loadScript('https://source.zoom.us/' + version + '/lib/vendor/' + name + '.min.js')
+        }
+        await loadScript('https://source.zoom.us/zoom-meeting-embedded-' + version + '.min.js')
+        if (cancelled) return
+        const sdk = (window as any).ZoomMtgEmbedded
+        if (!sdk?.createClient) throw new Error('مكتبة Zoom غير متاحة')
+        const client = sdk.createClient()
+        await client.init({ zoomAppRoot: zoomRootRef.current, language: 'en-US', patchJsMedia: true, leaveOnPageUnload: true })
+        if (cancelled) return
+        await client.join({
+          signature: embeddedZoom.signature, sdkKey: embeddedZoom.sdkKey,
+          meetingNumber: embeddedZoom.meetingNumber, userName: embeddedZoom.userName,
+          password: embeddedZoom.password,
+        })
+      } catch (e) {
+        if (!cancelled) setZoomError(e instanceof Error ? e.message : 'تعذّر تشغيل Zoom داخل المنصة')
+      }
+    }
+    void start()
+    return () => { cancelled = true }
+  }, [embeddedZoom])
   const [now, setNow] = useState(() => Date.now())
   const [activeWatch, setActiveWatch] = useState<{ video: VideoItem; watch: WatchDescriptor } | null>(null)
   const [openingVideoId, setOpeningVideoId] = useState<string | null>(null)
