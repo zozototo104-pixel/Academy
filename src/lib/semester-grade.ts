@@ -132,7 +132,7 @@ function componentSpecs(category: string, semester: number): ComponentSpec[] {
 
 /** The between-semester weights (and thesis/defense) for the recomposition,
  * taken from the same approved map. */
-function compositionWeights(
+export function compositionWeights(
   category: string,
   weights: Record<string, number>,
   semestersCount: number,

@@ -123,12 +123,12 @@ export async function closeSemesterState(
 // (لا يُخترع قيد لم يضبطه المالك).
 export type WindowVerdict =
   | { ok: true }
-  | { ok: false; code: 'SEMESTER_CLOSED' | 'UNIT_WINDOW_ENDED' | 'SEMESTER_WINDOW_ENDED'; message: string }
+  | { ok: false; code: 'SEMESTER_CLOSED' | 'UNIT_WINDOW_ENDED' | 'SEMESTER_WINDOW_ENDED' | 'PROGRESSION_LOCKED'; message: string }
 
 export async function submissionWindowCheck(
   client: AnyClient,
   args: {
-    enrollment: { id: string; createdAt: Date | string; extensionDays?: number | null; programId: string }
+    enrollment: { id: string; userId?: string; createdAt: Date | string; extensionDays?: number | null; programId: string }
     program: ProgramLike
     semester: number
     unitId?: string | null
@@ -136,6 +136,25 @@ export async function submissionWindowCheck(
   },
 ): Promise<WindowVerdict> {
   const now = args.now ?? new Date()
+  // بوابة الانتقال (المرحلة 5) هي القفل الأبعد: فصل ٢+ لا يفتح —
+  // لا محاولة ولا تسليم — قبل نجاح الفصول السابقة بنتائج معتمدة.
+  // تُستدعى دائريًا؟ لا: progression لا يستدعي هذا الحارس.
+  if (args.semester > 1 && args.enrollment.userId) {
+    const { progressionGate } = await import('./progression')
+    const gate = await progressionGate(
+      client,
+      { id: args.enrollment.id, userId: args.enrollment.userId, programId: args.enrollment.programId },
+      args.semester,
+      (args.program as any)?.category,
+    ).catch(() => null)
+    if (gate && !gate.open) {
+      return {
+        ok: false,
+        code: 'PROGRESSION_LOCKED',
+        message: `الفصل ${args.semester} غير مفتوح بعد: ${gate.reasons[0] || 'نتيجة الفصل السابق غير معتمدة ناجحة'}.`,
+      }
+    }
+  }
   const state = await getSemesterState(client, args.enrollment.id, args.semester)
   if (state?.status === 'CLOSED') {
     return { ok: false, code: 'SEMESTER_CLOSED', message: 'أُغلق هذا الفصل واعتُمدت نتيجته؛ لا تُقبل محاولات أو تسليمات جديدة فيه.' }
@@ -173,7 +192,7 @@ export async function windowContextFor(client: AnyClient, userId: string, progra
   const enrollment = await client.enrollment.findUnique({
     where: { userId_programId: { userId, programId } },
     select: {
-      id: true, createdAt: true, extensionDays: true, programId: true,
+      id: true, userId: true, createdAt: true, extensionDays: true, programId: true,
       program: { select: { category: true, maxStudyDays: true, semestersCount: true } },
     },
   }).catch(() => null)

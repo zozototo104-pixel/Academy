@@ -23,11 +23,38 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ se
 
     const session = await db.lectureSession.findUnique({
       where: { id: sessionId },
-      include: { series: { select: { programId: true } } },
+      include: { series: { select: { programId: true, unitId: true } } },
     })
     if (!session) return NextResponse.json({ error: 'المحاضرة غير موجودة' }, { status: 404 })
     if (!(await canStudentAccessProgram(user.id, session.series.programId))) {
       return NextResponse.json({ error: 'المحاضرة غير موجودة' }, { status: 404 })
+    }
+    // بوابة الانتقال (المرحلة 5): محاضرة مربوطة بوحدة من فصل ٢+ لا
+    // تُفتح قبل نجاح الفصول السابقة بنتائج معتمدة (نفس حجب المحتوى).
+    if ((session.series as any).unitId) {
+      const unit = await db.unit.findUnique({
+        where: { id: (session.series as any).unitId },
+        select: { semester: true, program: { select: { category: true } } },
+      }).catch(() => null)
+      const unitSemester = Number((unit as any)?.semester || 1)
+      if (unitSemester > 1) {
+        const enrollment = await db.enrollment.findUnique({
+          where: { userId_programId: { userId: user.id, programId: session.series.programId } },
+          select: { id: true },
+        }).catch(() => null)
+        if (enrollment) {
+          const { progressionGate } = await import('@/lib/progression')
+          const gate = await progressionGate(
+            db as any,
+            { id: enrollment.id, userId: user.id, programId: session.series.programId },
+            unitSemester,
+            (unit as any)?.program?.category,
+          ).catch(() => null)
+          if (gate && !gate.open) {
+            return NextResponse.json({ error: 'هذه المحاضرة من فصل غير مفتوح بعد — يُفتح بعد اعتماد نجاح الفصل السابق', code: 'PROGRESSION_LOCKED' }, { status: 403 })
+          }
+        }
+      }
     }
     if (session.deliveryMode !== 'EXTERNAL_LINK' || !session.meetingUrl) {
       return NextResponse.json({ error: 'لا يوجد رابط اجتماع لهذه المحاضرة' }, { status: 400 })
