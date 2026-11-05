@@ -95,7 +95,13 @@ mock.module('@/lib/db', () => ({
         program: { id: 'prog-1', titleAr: 'برنامج' },
       }),
     },
-    enrollment: { findFirst: async () => ({ id: 'enr-1', createdAt: new Date() }) },
+    enrollment: {
+      findFirst: async () => ({ id: 'enr-1', createdAt: new Date() }),
+      // فحص نافذة الفصل في تسليم الواجب (خطة دورة التخرج، المرحلة 4) يقرأ
+      // الالتحاق بـ findUnique؛ بلا برنامج معروف في عالم الاختبار تبقى
+      // النافذة مفتوحة كما كانت قبل تلك المرحلة.
+      findUnique: async () => ({ id: 'enr-1', createdAt: new Date() }),
+    },
     assignmentSubmission: {
       findUnique: async () => ({ status: 'SUBMITTED', fileStorageKey: state.existingSubmissionKey }),
       upsert: async (args: any) => ({ id: 'sub-1', ...args.create }),
