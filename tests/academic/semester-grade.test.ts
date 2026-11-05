@@ -150,6 +150,55 @@ describe('معدلات الفصول — دبلوم (أوزان افتراضية�
     expect(s2.average).toBe(68)
   })
 
+  test('برنامج من ثلاثة فصول: ثلاثة معدلات مستقلة وتركيب يطابق المحرك المسطّح', async () => {
+    // طلب المالك 2026-11-05: إثبات أن التصميم لا يفترض فصلين فقط.
+    const fx: Fixture = {
+      ...baseDiploma,
+      semestersCount: 3,
+      unitExams: [
+        { id: 'ue1', passScore: 60, semester: 1, unitTitle: 'وحدة ١', questions: 5 },
+        { id: 'ue2', passScore: 60, semester: 2, unitTitle: 'وحدة ٢', questions: 5 },
+        { id: 'ue3', passScore: 60, semester: 3, unitTitle: 'وحدة ٣', questions: 5 },
+      ],
+      unitAttempts: {
+        ue1: [{ score: 60, passed: true }],
+        ue2: [{ score: 80, passed: true }],
+        ue3: [{ score: 100, passed: true }],
+      },
+      programExams: [
+        { id: 'pe1', title: 'امتحان الفصل الأول', semester: 1, passScore: 60 },
+        { id: 'pe2', title: 'امتحان الفصل الثاني', semester: 2, passScore: 60 },
+        { id: 'pe3', title: 'امتحان الفصل الثالث', semester: 3, passScore: 60 },
+      ],
+      programAttempts: {
+        pe1: [{ score: 65, passed: true }],
+        pe2: [{ score: 75, passed: true }],
+        pe3: [{ score: 85, passed: true }],
+      },
+      assignments: [
+        { id: 'a1', points: 100, weight: 10, semester: 1 },
+        { id: 'a2', points: 100, weight: 10, semester: 2 },
+        { id: 'a3', points: 100, weight: 10, semester: 3 },
+      ],
+      submissions: {
+        a1: { status: 'GRADED', score: 70 },
+        a2: { status: 'GRADED', score: 80 },
+        a3: { status: 'GRADED', score: 90 },
+      },
+    }
+    const client = fakeClient(fx)
+    const result = await calculateSemesterAverages({ userId: 'u1', programId: 'p1', client })
+    expect(result.semesters.length).toBe(3)
+    // S1: (60×20 + 70×20 + 65×60)/100 = 65 — S2: 77 — S3: 89
+    expect(result.semesters.map((s) => s.average)).toEqual([65, 77, 89])
+    expect(result.semesters.every((s) => s.complete && s.passed)).toBe(true)
+    // التركيب بثلاثة أثلاث: (65 + 77 + 89)/3 = 77
+    expect(result.composedFinal).toBe(77)
+    const flat = await calculateFinalGrade({ userId: 'u1', programId: 'p1', client })
+    expect(flat.earnedScore).toBe(77)
+    expect(result.composedFinal).toBe(flat.earnedScore)
+  })
+
   test('فصل بلا أي نشاط قابل للاحتساب: معدله null ونجاحه null والتركيب null', async () => {
     const fx: Fixture = {
       ...baseDiploma,

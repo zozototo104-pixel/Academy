@@ -2566,6 +2566,28 @@ model MercyRequest {
   @@unique([enrollmentId, semester])
 }
 
+// قناة المراجعة الأكاديمية الاستثنائية (المرحلة 4): قرار إداري موثّق
+// بعد إغلاق فصل — لأي فصل مستقلًا عن الآخر — لحالات الخطأ المثبت التي
+// لا يعالجها الاسترحام. القناة نفسها لا تغيّر درجة ولا تعيد فتح فصل؛
+// التعديلات الرسمية تجري بمساراتها (تصحيح الدرجات ثم إعادة المصادقة)
+// وقرار القناة يوثّقها.
+model ExceptionalReview {
+  id           String    @id @default(cuid())
+  enrollmentId String
+  userId       String
+  programId    String
+  semester     Int
+  reason       String
+  status       String    @default("OPEN") // OPEN | DECIDED
+  decisionNote String?
+  decidedById  String?
+  decidedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([enrollmentId, semester, status])
+}
+
 // اعتماد درجة محفوظ (المرحلة 2): يميَّز عن مراجعة التصحيح؛ صلاحيته مشروطة
 // ببقاء درجة المحاولة الحالية مساوية للدرجة المعتمدة وقت الاعتماد.
 
