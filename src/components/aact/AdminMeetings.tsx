@@ -591,6 +591,7 @@ function MeetingDetailsPanel({
   busy: boolean
   copyText: (text: string) => Promise<void>
   onRevokeInvite: (invite: Invite) => void
+  onRotateInvite: (invite: Invite) => Promise<string>
   onConfirmAttendance: (userId: string, status: AttendanceStatus) => void
   onAddInvitee: (name: string, email: string) => Promise<string>
 }) {
