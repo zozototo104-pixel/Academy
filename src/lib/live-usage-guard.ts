@@ -54,6 +54,9 @@ export async function freeMonthlyLiveMinutes(userId: string, role: unknown): Pro
   const r = roleName(role)
   if (r === 'ADMIN') return envNum('AACT_LIVE_FREE_MONTHLY_MINUTES_ADMIN', 1000)
   if (r === 'SUPERVISOR') return envNum('AACT_LIVE_FREE_MONTHLY_MINUTES_SUPERVISOR', 300)
+  // الزائر لا يحصل على دقائق صوت حي مجانية — مساعد الاجتماع له
+  // مساره المحكوم بدعوة الاجتماع، لا هذا الاحتياطي الافتراضي.
+  if (r === 'VISITOR') return 0
   const active = await hasActiveEnrollment(userId)
   if (active) return envNum('AACT_LIVE_FREE_MONTHLY_MINUTES_ACTIVE_STUDENT', 60)
   return envNum('AACT_LIVE_FREE_MONTHLY_MINUTES_STUDENT', 30)

@@ -81,6 +81,9 @@ export async function getStudentAiSupervisorAccess(userId: string): Promise<{ al
 }
 
 export async function requireStudentAiSupervisorAccess(user: { id: string; role: string }) {
+  // الزائر ليس طالبًا ولا طاقمًا: لا يمر من بوابة المشرف الذكي أبدًا
+  // (الفحص القديم كان يسمح لأي دور غير STUDENT بالمرور افتراضيًا).
+  if (user.role === 'VISITOR') return { allowed: false, reason: 'حساب زائر — لا يصل إلى المشرف الذكي', admissionId: null }
   if (user.role !== 'STUDENT') return { allowed: true, reason: null, admissionId: null }
   const access = await getStudentAiSupervisorAccess(user.id)
   if (!access.allowed) {

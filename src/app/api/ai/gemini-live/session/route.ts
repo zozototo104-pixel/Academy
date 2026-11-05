@@ -274,6 +274,9 @@ export async function POST(req: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: 'يجب تسجيل الدخول أولاً' }, { status: 401 })
   }
+  if ((user as any).role === 'VISITOR') {
+    return NextResponse.json({ error: 'هذه الخدمة غير متاحة لحسابات الزوار' }, { status: 403 })
+  }
 
   const sessionLimit = enforceApiRateLimit(req, 'ai:gemini-live-session', 12, 10 * 60 * 1000, user.id)
   if (sessionLimit) return sessionLimit

@@ -16,6 +16,9 @@ function normalizePurpose(value: unknown): GeminiLivePurpose {
 async function handler(req: NextRequest) {
   try {
     const user = await requireUser()
+    if ((user as any).role === 'VISITOR') {
+      return NextResponse.json({ error: 'هذه الخدمة غير متاحة لحسابات الزوار' }, { status: 403 })
+    }
     const liveLimit = enforceApiRateLimit(req, 'ai:live-token', 20, 10 * 60 * 1000, user.id)
     if (liveLimit) return liveLimit
 

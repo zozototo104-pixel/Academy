@@ -28,7 +28,10 @@ export function emailVerificationUrl(_req: NextRequest, token: string) {
 }
 
 export function shouldRequireEmailVerification(user: { role?: string | null; emailVerifiedAt?: Date | string | null }) {
-  return String(user.role || 'STUDENT') === 'STUDENT' && !user.emailVerifiedAt
+  const role = String(user.role || 'STUDENT')
+  // الطالب والزائر كلاهما يدخل ببريد موثّق — الزائر حساب خارجي
+  // بالكامل فلا يُستثنى من التحقق (كان القصر على STUDENT سيمرّره).
+  return (role === 'STUDENT' || role === 'VISITOR') && !user.emailVerifiedAt
 }
 
 export function shouldIssueNewVerification(user: { emailVerificationSentAt?: Date | string | null; emailVerificationExpiresAt?: Date | string | null }) {

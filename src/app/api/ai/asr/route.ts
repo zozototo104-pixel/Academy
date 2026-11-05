@@ -12,6 +12,9 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'يجب تسجيل الدخول' }, { status: 401 })
     }
+    if ((user as any).role === 'VISITOR') {
+      return NextResponse.json({ error: 'هذه الخدمة غير متاحة لحسابات الزوار' }, { status: 403 })
+    }
     const limited = enforceUserAiRateLimit(req, AI_RATE_LIMITS.asr, user.id)
     if (limited) return limited
 
