@@ -11,6 +11,14 @@ mock.module('@/lib/db', () => ({
     programExamAttempt: {
       findFirst: async ({ where }: any) =>
         firstSemesterFixture.passedExamIds.has(where.examId) ? { id: 'graded-passed-attempt' } : null,
+      // Readiness now reads candidates via findMany and keeps those with a
+      // usable score (owner-ratified parity, 2026-11-05); the fixture's
+      // premise is unchanged — a passed exam has one settled passing
+      // attempt with a stored score and fully-scored answers.
+      findMany: async ({ where }: any) =>
+        firstSemesterFixture.passedExamIds.has(where.examId)
+          ? [{ id: 'graded-passed-attempt', score: 90, finalScore: null, answers: [{ points: 9, maxPoints: 10 }] }]
+          : [],
     },
   },
 }))
