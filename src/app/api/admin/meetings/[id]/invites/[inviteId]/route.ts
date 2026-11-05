@@ -16,6 +16,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (body?.action !== 'revoke' && body?.action !== 'rotate') return NextResponse.json({ error: 'إجراء غير معروف' }, { status: 400 })
     const invite = await (db as any).adminMeetingInvite.findFirst({ where: { id: inviteId, meetingId: id } })
     if (!invite) return NextResponse.json({ error: 'الدعوة غير موجودة' }, { status: 404 })
+    if (body.action === 'rotate') {
+      if (invite.revokedAt) return NextResponse.json({ error: 'الدعوة ملغاة' }, { status: 409 })
+      const token = generateMeetingToken()
+      const url = meetingInviteUrl(token)
+      await (db as any).adminMeetingInvite.update({ where: { id: inviteId }, data: { tokenHash: hashMeetingToken(token) } })
+      await audit({ id: admin.id, name: admin.name || 'مسؤول' }, 'ADMIN_MEETING_INVITE_ROTATED', 'AdminMeeting', id, `invitee=${invite.inviteeName}`).catch(() => {})
+      return NextResponse.json({ ok: true, url })
+    }
     if (!invite.revokedAt) {
       await (db as any).adminMeetingInvite.update({ where: { id: inviteId }, data: { revokedAt: new Date() } })
       await audit({ id: admin.id, name: admin.name || 'مسؤول' }, 'ADMIN_MEETING_INVITE_REVOKED', 'AdminMeeting', id, `invitee=${invite.inviteeName}`).catch(() => {})
