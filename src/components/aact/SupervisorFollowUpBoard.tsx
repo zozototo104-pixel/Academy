@@ -47,7 +47,7 @@ export function SupervisorFollowUpBoard({ onOpenStudent }: { onOpenStudent: (use
                 <span className="text-[11px] text-slate-500">{row.specialization}</span>
                 {row.needsIntervention && <Badge className="bg-red-600 text-white">يحتاج تدخل</Badge>}
                 <Badge variant="outline" className="text-[10px]">{absenceLabel(row)}</Badge>
-                <Badge variant="outline" className="text-[10px]">رسائل متابعة: {row.followUpsSent}/3</Badge>
+                <Badge variant="outline" className="text-[10px]">رسائل متابعة: {row.followUpCount}/3</Badge>
                 <span className="mr-auto flex gap-1.5">
                   <Button size="sm" variant="outline" className="text-[11px] font-bold" onClick={() => setExpandedUserId(expandedUserId === row.userId ? null : row.userId)}>
                     {expandedUserId === row.userId ? 'إخفاء السجل' : 'سجل المتابعات'}

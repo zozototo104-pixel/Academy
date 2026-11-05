@@ -98,7 +98,7 @@ export function AdminFollowUpTab({ onMessageStudent }: { onMessageStudent: (admi
                 <div className="mr-auto flex flex-wrap items-center gap-1.5">
                   {row.needsIntervention && <Badge className="bg-red-600 text-white">يحتاج تدخل</Badge>}
                   <Badge variant="outline" className="text-[10px]">{absenceLabel(row)}</Badge>
-                  <Badge variant="outline" className="text-[10px]">رسائل متابعة: {row.followUpsSent}/3</Badge>
+                  <Badge variant="outline" className="text-[10px]">رسائل متابعة: {row.followUpCount}/3</Badge>
                 </div>
               </div>
               <FollowUpDutyChips row={row} />
