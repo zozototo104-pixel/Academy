@@ -17,7 +17,7 @@ export default function AdminGradingReviewTab() {
   const [selected, setSelected] = useState<ReviewDetail | null>(null)
   const [scores, setScores] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
-  const [busy, setBusy] = useState<'regrade' | 'approve' | null>(null)
+  const [busy, setBusy] = useState<'regrade' | 'approve' | 'approve-grade' | null>(null)
   const [statusFilter, setStatusFilter] = useState<'NEEDS_REVIEW' | 'GRADED' | 'ALL'>('NEEDS_REVIEW')
 
   const load = useCallback(async () => {
