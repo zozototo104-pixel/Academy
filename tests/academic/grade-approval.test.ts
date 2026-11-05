@@ -65,7 +65,10 @@ const fakeDb: AnyRow = {
     },
   },
   programExamAttempt: {
-    findUnique: async ({ where }: AnyRow) => world.programAttempts.get(where.id) ?? null,
+    findUnique: async ({ where }: AnyRow) => {
+      const attempt = world.programAttempts.get(where.id)
+      return attempt ? { appealStatus: 'NONE', answers: [], ...attempt } : null
+    },
   },
   admissionApplication: {
     findFirst: async ({ where }: AnyRow) =>
