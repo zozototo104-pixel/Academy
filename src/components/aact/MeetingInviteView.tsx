@@ -318,9 +318,15 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok || !d?.meetingUrl) throw new Error(d?.error || 'تعذّر فتح رابط الاجتماع')
-      window.open(d.meetingUrl, '_blank', 'noopener')
+      if (d.zoomSdk) {
+        setZoomExternalUrl(d.meetingUrl)
+        setZoomError(null)
+        setZoomConfig(d.zoomSdk)
+      } else {
+        window.open(d.meetingUrl, '_blank', 'noopener')
+        setJoinedExternal(true)
+      }
       setRevealedPasscode(d.meetingPasscode || null)
-      setJoinedExternal(true)
       await load()
     } catch (e: any) {
       setActionError(e?.message || 'تعذّر فتح رابط الاجتماع')
