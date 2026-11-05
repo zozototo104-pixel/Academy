@@ -108,6 +108,59 @@ export async function collectSemesterApprovalBlockers(
     })
     if (pending) blockers.push({ code: 'ASSIGNMENT_GRADING_PENDING', count: pending })
   }
+  // Phase 2 item 3: a fully graded grade that nobody has officially
+  // approved yet blocks the semester decision just like an ungraded one.
+  // Attempts already blocked above for incomplete grading (unscored
+  // answers) or a pending appeal are not double-counted here — this code
+  // means exactly "grading is final, official approval is missing". An
+  // approval counts only while its stored score still equals the
+  // attempt's current score; a later grade change invalidates it (see
+  // grade-approval.ts). Defensive: an unreadable approvals table counts
+  // every graded grade as unapproved (fail closed), never the reverse.
+  let approvalRows: Array<{ targetType: string; attemptId: string; score: number }> = []
+  try {
+    approvalRows = await client.gradeApproval.findMany({
+      where: { userId: args.userId, programId: args.programId, semester: args.semester },
+      select: { targetType: true, attemptId: true, score: true },
+    })
+  } catch {
+    approvalRows = []
+  }
+  const approvedScoreByKey = new Map(
+    approvalRows.map((r) => [`${r.targetType}:${r.attemptId}`, r.score] as const),
+  )
+  const countUnapproved = (graded: Array<{ id: string; score: number }>, targetType: string) =>
+    graded.filter((a) => approvedScoreByKey.get(`${targetType}:${a.id}`) !== a.score).length
+  if (examIds.length) {
+    const graded = await client.examAttempt.findMany({
+      where: {
+        userId: args.userId,
+        examId: { in: examIds },
+        status: 'GRADED',
+        score: { not: null },
+        appealStatus: { not: 'PENDING' },
+        NOT: { answers: { some: { points: null } } },
+      },
+      select: { id: true, score: true },
+    })
+    const unapproved = countUnapproved(graded, 'UNIT_EXAM')
+    if (unapproved) blockers.push({ code: 'UNIT_GRADES_UNAPPROVED', count: unapproved })
+  }
+  if (programExamIds.length) {
+    const graded = await client.programExamAttempt.findMany({
+      where: {
+        userId: args.userId,
+        examId: { in: programExamIds },
+        status: 'GRADED',
+        score: { not: null },
+        appealStatus: { not: 'PENDING' },
+        NOT: { answers: { some: { points: null } } },
+      },
+      select: { id: true, score: true },
+    })
+    const unapproved = countUnapproved(graded, 'PROGRAM_EXAM')
+    if (unapproved) blockers.push({ code: 'PROGRAM_EXAM_GRADES_UNAPPROVED', count: unapproved })
+  }
   return blockers
 }
 
