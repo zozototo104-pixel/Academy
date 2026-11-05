@@ -132,7 +132,9 @@ export async function approveGrade(input: {
     if (
       resolved.status !== 'GRADED' ||
       resolved.score == null ||
-      !Number.isFinite(resolved.score)
+      !Number.isFinite(resolved.score) ||
+      resolved.appealStatus === 'PENDING' ||
+      resolved.unscoredAnswers > 0
     ) {
       return { ok: false, code: 'GRADE_NOT_FINAL' } as const
     }
