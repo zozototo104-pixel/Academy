@@ -196,6 +196,8 @@ mock.module('@/lib/notify', () => ({
   notify: async (...args: any[]) => {
     notifyCalls.push(args)
   },
+  // Graduation registration may notify admins; supervisor tests only track student messages.
+  notifyAdmins: async () => {},
   audit: async (...args: any[]) => {
     auditCalls.push(args)
   },

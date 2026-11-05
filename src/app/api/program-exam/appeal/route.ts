@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
-import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
+import { registerGraduationRequest } from '@/lib/enrollment-completion'
 import { isAssignedStudent } from '@/lib/supervisor-scope'
+import { getSemesterState, windowContextFor } from '@/lib/semester-lifecycle'
 
 // ===== 12.2 الاعتراض على نتيجة الامتحان (Appeal) — يُحوَّل للمراجعة اليدوية =====
 
@@ -17,7 +18,7 @@ export async function POST(req: NextRequest) {
 
     const attempt = await db.programExamAttempt.findUnique({
       where: { id: attemptId },
-      include: { exam: { select: { title: true } } },
+      include: { exam: { select: { title: true, semester: true, programId: true } } },
     })
     if (!attempt || attempt.userId !== user.id) {
       return NextResponse.json({ error: 'المحاولة غير موجودة' }, { status: 404 })
@@ -30,6 +31,18 @@ export async function POST(req: NextRequest) {
     }
     if (attempt.appealStatus === 'REVIEWED') {
       return NextResponse.json({ error: 'تمت مراجعة اعتراضك مسبقاً — اطّلع على الرد' }, { status: 409 })
+    }
+    // دورة حياة الفصل (المرحلة 4): الاعتراض يُقبل ما دامت فترة فصله قائمة؛
+    // بعد إغلاق الفصل يُرفض خادميًا.
+    {
+      const examRef: any = (attempt as any).exam
+      if (examRef?.programId && examRef?.semester) {
+        const ctx = await windowContextFor(db, user.id, examRef.programId)
+        const state = ctx ? await getSemesterState(db, ctx.enrollment.id, examRef.semester) : null
+        if (state?.status === 'CLOSED') {
+          return NextResponse.json({ error: 'أُغلق الفصل واعتُمدت نتيجته؛ انتهت الاعتراضات العادية لهذا الفصل.', code: 'SEMESTER_CLOSED' }, { status: 409 })
+        }
+      }
     }
 
     await db.programExamAttempt.update({
@@ -114,7 +127,7 @@ export async function PATCH(req: NextRequest) {
     if (attempt.status !== 'GRADED') return NextResponse.json({ error: 'لا يمكن البت في اعتراض إلا على محاولة مصححة', code: 'APPEAL_REQUIRES_GRADED_ATTEMPT' }, { status: 409 })
     if (attempt.appealStatus !== 'PENDING') return NextResponse.json({ error: 'لا يوجد اعتراض قيد المراجعة لهذه المحاولة' }, { status: 409 })
 
-    let completion: Awaited<ReturnType<typeof completeEnrollmentIfEligible>> | null = null
+    let registration: Awaited<ReturnType<typeof registerGraduationRequest>> | null = null
     if (action === 'APPROVE' || action === 'ACCEPT') {
       const finalScore = Number(finalScoreInput)
       if (!Number.isFinite(finalScore)) return NextResponse.json({ error: 'اعتماد الاعتراض يحتاج درجة نهائية رقمية' }, { status: 400 })
@@ -126,9 +139,9 @@ export async function PATCH(req: NextRequest) {
       })
       if (passed) {
         const enrollment = await db.enrollment.findUnique({ where: { userId_programId: { userId: attempt.userId, programId: attempt.exam.programId } }, select: { id: true } })
-        completion = enrollment ? await completeEnrollmentIfEligible({ enrollmentId: enrollment.id }) : null
+        registration = enrollment ? await registerGraduationRequest({ enrollmentId: enrollment.id }) : null
       }
-      return NextResponse.json({ ok: true, finalScore: clamped, passed, certificateNo: completion?.ok ? completion.certificate?.serial || null : null })
+      return NextResponse.json({ ok: true, finalScore: clamped, passed, certificateNo: registration?.certificateNo || null })
     }
 
     await db.programExamAttempt.update({

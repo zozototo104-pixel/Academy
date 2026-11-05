@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { notify, notifyAdmins } from '@/lib/notify'
 import { assignedSupervisorForStudent, studentHasHumanSupervisor } from '@/lib/supervisor-scope'
+import { getSemesterState, windowContextFor } from '@/lib/semester-lifecycle'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
     const dbAny = db as any
     const attempt: any = await dbAny.examAttempt.findUnique({
       where: { id: String(attemptId) },
-      include: { exam: { select: { title: true, unit: { select: { title: true } } } } },
+      include: { exam: { select: { title: true, unit: { select: { title: true, id: true, semester: true, programId: true } } } } },
     })
     if (!attempt || attempt.userId !== user.id) {
       return NextResponse.json({ error: 'المحاولة غير موجودة' }, { status: 404 })
@@ -38,6 +39,19 @@ export async function POST(req: NextRequest) {
     }
     if (attempt.appealStatus === 'REVIEWED') {
       return NextResponse.json({ error: 'تمت مراجعة التماسك مسبقًا — اطّلع على الرد' }, { status: 409 })
+    }
+    // دورة حياة الفصل (المرحلة 4): التماس الوحدة يُقبل ما دامت فترة فصلها
+    // قائمة؛ بعد إغلاق الفصل تُرفض الالتماسات العادية خادميًا (تبقى قناة
+    // المراجعة الأكاديمية الاستثنائية للإدارة).
+    {
+      const unitRef = attempt.exam?.unit
+      if (unitRef?.programId && unitRef?.semester) {
+        const ctx = await windowContextFor(db, user.id, unitRef.programId)
+        const state = ctx ? await getSemesterState(db, ctx.enrollment.id, unitRef.semester) : null
+        if (state?.status === 'CLOSED') {
+          return NextResponse.json({ error: 'أُغلق الفصل واعتُمدت نتيجته؛ انتهت الالتماسات العادية لهذا الفصل.', code: 'SEMESTER_CLOSED' }, { status: 409 })
+        }
+      }
     }
 
     await dbAny.examAttempt.update({

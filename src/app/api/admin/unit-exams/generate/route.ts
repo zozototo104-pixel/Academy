@@ -7,6 +7,7 @@ import { getSetting } from '@/lib/settings'
 import { cognitivePolicyArabicMessage, validateCognitiveDistribution } from '@/lib/exam-cognitive-policy'
 import { ensureQuestionBankGenerationJob, runQuestionBankGenerationJobStepsUntil } from '@/lib/question-bank-job'
 import { UNIT_EXAM_REVIEW_LABEL, selectUnitExamQuestionsApprovedFirst, unitExamQuestionTextWithReviewLabel, unitExamRequiredQuestions, type UnitExamSelection } from '@/lib/unit-exam-policy'
+import { pinThresholdIfPublished } from '@/lib/exam-threshold'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -144,7 +145,7 @@ export async function POST(req: NextRequest) {
     const overrideReason = cleanText(body.overrideReason, 1000)
 
     if (!programId || !unitId) return NextResponse.json({ ok: false, error: 'معرف البرنامج والوحدة مطلوبان' }, { status: 400 })
-    const unit = await db.unit.findFirst({ where: { id: unitId, programId }, include: { exam: { select: { id: true, title: true, status: true, _count: { select: { questions: true, attempts: true } } } } } })
+    const unit = await db.unit.findFirst({ where: { id: unitId, programId }, include: { exam: { select: { id: true, title: true, status: true, passScore: true, _count: { select: { questions: true, attempts: true } } } } } })
     if (!unit) return NextResponse.json({ ok: false, error: 'الوحدة غير موجودة ضمن البرنامج المحدد' }, { status: 404 })
     if (unit.exam?._count.attempts && replace) return NextResponse.json({ ok: false, error: 'لا يمكن إعادة توليد اختبار وحدة لديه محاولات طلابية محفوظة. أنشئ وحدة/اختباراً جديداً بدلاً من مسح سجل الطلاب.' }, { status: 409 })
 
@@ -192,7 +193,9 @@ export async function POST(req: NextRequest) {
 
     const result = await db.$transaction(async (tx) => {
       const exam = unit.exam
-        ? await tx.exam.update({ where: { id: unit.exam.id }, data: { title: `${reviewRequired ? `[${UNIT_EXAM_REVIEW_LABEL}] ` : ''}اختبار وحدة: ${unit.title}`, status: examStatus, passScore: 60, generationWarning } })
+        // إعادة التوليد على امتحان منشور لا تعيد ضبط حدّه (مثبّت لإصداره —
+        // قرار المالك 2026-11-05)؛ الحدّ الافتراضي 60 يسري قبل النشر فقط.
+        ? await tx.exam.update({ where: { id: unit.exam.id }, data: { title: `${reviewRequired ? `[${UNIT_EXAM_REVIEW_LABEL}] ` : ''}اختبار وحدة: ${unit.title}`, status: examStatus, passScore: pinThresholdIfPublished(unit.exam, { passScore: 60 }).data.passScore ?? 60, generationWarning } })
         : await tx.exam.create({ data: { unitId: unit.id, title: `${reviewRequired ? `[${UNIT_EXAM_REVIEW_LABEL}] ` : ''}اختبار وحدة: ${unit.title}`, status: examStatus, passScore: 60, generationWarning } })
       if (replace) {
         await tx.examDraft.deleteMany({ where: { examId: exam.id, examType: 'UNIT' } })

@@ -88,7 +88,7 @@ const textAiCompleteJson = async (input: any) => {
 mock.module('@/lib/db', () => ({ db: fakeDb }))
 mock.module('@/lib/auth', () => ({ requireAdmin: async () => ({ id: 'admin1', role: 'ADMIN', email: 'a@t.st' }) }))
 mock.module('@/lib/text-ai', () => ({ textAiCompleteJson }))
-mock.module('@/lib/notify', () => ({ audit: async () => {}, notify: async () => {} }))
+mock.module('@/lib/notify', () => ({ audit: async () => {}, notify: async () => {}, notifyAdmins: async () => {} }))
 mock.module('@/lib/mailer', () => ({ emailAssignmentGraded: async () => {}, emailAssignmentPublished: async () => {} }))
 mock.module('@/lib/storage', () => ({ getStorageDownloadPathForKey: (k: string) => k }))
 mock.module('@prisma/client', () => ({ Prisma: {} }))

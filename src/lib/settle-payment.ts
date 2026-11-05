@@ -5,6 +5,7 @@ import { emailCertificateIssued, emailPaymentReceipt, emailFinalRegistration } f
 import { getAdmissionTuitionPlan } from '@/lib/tuition-installments'
 import { grantGeminiLiveCredit } from '@/lib/live-usage-guard'
 import { paymentAmountDollars } from '@/lib/money'
+import { captureEnrollmentSnapshot } from '@/lib/rules-snapshot'
 import { randomBytes } from 'crypto'
 
 const ACC_TYPE_LABEL_SETTLE: Record<string, string> = {
@@ -115,8 +116,14 @@ export async function finalizeAdmissionAfterSettlement(tx: any, admissionId: str
           where: { userId_programId: { userId: linkedUserId, programId: app.programId } },
         })
         if (!existingEnrollment) {
-          await tx.enrollment.create({
+          const createdEnrollment = await tx.enrollment.create({
             data: { userId: linkedUserId, programId: app.programId, status: 'ACTIVE' },
+          })
+          // لقطة القواعد المجمّدة تُنشأ مع الالتحاق نفسه (المرحلة 3): أي
+          // فشل هنا لا يُسقط تسوية الدفع — أول احتساب درجات يستكمل اللقطة
+          // كـBACKFILL من نفس الحسم.
+          await captureEnrollmentSnapshot(tx, createdEnrollment, 'ENROLLMENT').catch((err) => {
+            console.error('rules snapshot capture failed for enrollment', createdEnrollment.id, err)
           })
         }
       }

@@ -5,7 +5,7 @@ import { requireAdmin } from '@/lib/auth'
 import { notify, audit } from '@/lib/notify'
 import { getSettings } from '@/lib/settings'
 import { emailDefenseScheduled, emailThesisFinalRevision, emailThesisPlanDecision, emailThesisResultApproved } from '@/lib/mailer'
-import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
+import { registerGraduationRequest } from '@/lib/enrollment-completion'
 import { getStorageDownloadPathForKey } from '@/lib/storage'
 
 export const dynamic = 'force-dynamic'
@@ -338,15 +338,15 @@ export async function PATCH(req: NextRequest) {
             select: { programId: true, userId: true },
           })
           if (admission?.programId && admission.userId) {
-            // Research approval can complete a programme only after all mandatory
-            // semester exams, the >50% cumulative mark and finance checks pass.
-            // Do not set an official finalScore outside the certificate service.
-            await completeEnrollmentIfEligible({
+            // Research approval refreshes the graduation transaction; the
+            // certificate itself waits for the stored administrative
+            // approval and the issuance-time re-check.
+            await registerGraduationRequest({
               userId: admission.userId,
               programId: admission.programId,
               admissionId: thesis.admissionId,
             }).catch((error) => {
-              console.error('Thesis graduation recheck failed:', error)
+              console.error('Thesis graduation request registration failed:', error)
             })
           }
         }

@@ -180,7 +180,7 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       )
     }
-    const { admission } = await findLatestStudyAdmission(user, false)
+    const { admission, enrollment } = await findLatestStudyAdmission(user, false)
 
     // بوابة 1: لا تسليم بحث قبل التسجيل النهائي (سداد كامل + قبول إدارة) — إغلاق باب تجاوز الدفع
     // (SCHEDULED/RESULT_APPROVED لمن لديه بحث مسلم مسبقاً — منع التعديل يبقى من حالة البحث أدناه)
@@ -189,6 +189,53 @@ export async function POST(req: NextRequest) {
         { error: 'تسليم البحث متاح بعد التسجيل النهائي في البرنامج (سداد الرسوم وموافقة الإدارة)' },
         { status: 403 }
       )
+    }
+
+    // بوابة الانتقال للرسالة (المرحلة 5): حيث توجد بصمة دورة حياة،
+    // مسار الرسالة لا يفتح إلا باكتمال الفصول واعتماد نتائجها
+    // وتراكميٍّ من المعتمد فقط أكبر تمامًا من العتبة. عند أول انفتاح
+    // يُشعر الطالب والإدارة والمشرف عبر سجل الأحداث الصادرة (مفتاح
+    // عدم تكرار = مرة واحدة لكل التحاق).
+    if (enrollment?.id && admission.programId) {
+      const { thesisGate } = await import('@/lib/progression')
+      const program = await db.program.findUnique({
+        where: { id: admission.programId },
+        select: { category: true, semestersCount: true },
+      }).catch(() => null)
+      const tGate = await thesisGate(
+        db as any,
+        { id: enrollment.id, userId: user.id, programId: admission.programId },
+        program || {},
+      ).catch(() => null)
+      if (tGate && tGate.required && !tGate.open) {
+        return NextResponse.json(
+          { error: `مسار الرسالة غير مفتوح بعد: ${tGate.reasons[0] || 'شروط التأهل غير مكتملة'}.`, code: 'THESIS_GATE_CLOSED', reasons: tGate.reasons },
+          { status: 403 }
+        )
+      }
+      if (tGate && tGate.required && tGate.open) {
+        const { enqueueOutbox, dispatchOutboxBatch } = await import('@/lib/outbox')
+        const base = {
+          kind: 'THESIS_ELIGIBLE',
+          title: 'تأهل لبدء مسار الرسالة',
+          body: 'اكتملت فصولك واعتُمدت نتائجها وتجاوز معدّلك التراكمي العتبة — يمكنك الآن بدء مسار رسالة التخرج من بوابتك.',
+          link: '/dashboard',
+        }
+        await enqueueOutbox(db as any, { key: `thesis-eligible:${enrollment.id}:student`, recipientUserId: user.id, ...base }).catch(() => {})
+        await enqueueOutbox(db as any, {
+          key: `thesis-eligible:${enrollment.id}:admins`,
+          recipientRole: 'ADMINS',
+          kind: 'THESIS_ELIGIBLE',
+          title: 'طالب تأهل لمسار الرسالة',
+          body: 'طالب أكمل فصوله بنتائج معتمدة وتأهل لبدء مسار الرسالة.',
+          link: '/admin',
+        }).catch(() => {})
+        const supervisorId = (admission as any).supervisorId
+        if (supervisorId) {
+          await enqueueOutbox(db as any, { key: `thesis-eligible:${enrollment.id}:supervisor`, recipientUserId: supervisorId, ...base }).catch(() => {})
+        }
+        await dispatchOutboxBatch(db as any).catch(() => {})
+      }
     }
 
     // بوابة 2 (وفق مسار المنصة الرسمي): إنهاء جميع الامتحانات أولاً ثم تسليم البحث الذي يُناقش عبر الفيديو
