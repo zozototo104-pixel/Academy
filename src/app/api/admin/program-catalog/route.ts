@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
+import { pinThresholdIfPublished } from '@/lib/exam-threshold'
 
 export const runtime = 'nodejs'
 
@@ -305,7 +306,11 @@ export async function POST(req: NextRequest) {
             generatedBy: ex.generatedBy || 'IMPORT',
             createdAt: asDate(ex.createdAt) ?? undefined,
           })
-          const savedExam = await tx.programExam.upsert({ where: { id: ex.id }, create: { id: ex.id, ...data }, update: data })
+          // حدّ امتحان منشور مثبّت لإصداره (قرار المالك 2026-11-05): الاستيراد
+          // لا يغيّره على طلابه الحاليين؛ الإنشاء الجديد يأخذ حدّه كما هو.
+          const existingExam = await tx.programExam.findUnique({ where: { id: ex.id }, select: { status: true, passScore: true } })
+          const examUpdate = pinThresholdIfPublished(existingExam, data).data
+          const savedExam = await tx.programExam.upsert({ where: { id: ex.id }, create: { id: ex.id, ...data }, update: examUpdate })
           examIdMap.set(ex.id, savedExam.id)
           stats.exams++
           for (const q of questions) {
