@@ -140,6 +140,16 @@ export function StudentLectures() {
   useEffect(() => {
     if (!embeddedZoom || !zoomRootRef.current) return
     let cancelled = false
+    let client: any = null
+    const leave = () => {
+      if (!client) return
+      try {
+        const pending = client.leaveMeeting?.()
+        if (pending && typeof pending.catch === 'function') void pending.catch(() => {})
+      } catch {
+        // Leaving the UI must not be blocked by a provider teardown error.
+      }
+    }
     const loadScript = (src: string) => new Promise<void>((resolve, reject) => {
       const existing = document.querySelector<HTMLScriptElement>('script[data-zoom-src="' + src + '"]')
       if (existing?.dataset.loaded === 'true') { resolve(); return }
