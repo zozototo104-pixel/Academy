@@ -8,6 +8,7 @@ import { HomeView } from '@/components/aact/HomeView'
 import { Loader2 } from 'lucide-react'
 import { unlockAudioOnFirstGesture } from '@/lib/audioPlayer'
 import { routeStateFromLocation } from '@/lib/app-routes'
+import { peekPendingMeetingInvite } from '@/lib/pending-meeting-invite'
 
 function LazyViewLoader() {
   return (
@@ -212,6 +213,14 @@ export default function Home() {
           setUser(d.user)
           const targetView = routeForUser(d.user)
           if (currentView === 'auth' || oauthReturn) {
+            // ضيف اجتماع بجلسة قائمة ودعوة معلّقة في متصفحه: إلى
+            // اجتماعه مباشرة بدل لوحته.
+            const pendingInvite = peekPendingMeetingInvite()
+            if (pendingInvite) {
+              // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- صفحة الدعوة مسار Next مستقل خارج هذا التطبيق الأحادي
+              window.location.assign(`/meetings/${encodeURIComponent(pendingInvite)}`)
+              return
+            }
             navigate(targetView as any)
           }
         } else {

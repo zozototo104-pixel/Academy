@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
-import { deriveMeetingStatus, validateMeetingVideo } from '@/lib/admin-meetings'
+import { adminInviteShape, deriveMeetingStatus, validateMeetingVideo } from '@/lib/admin-meetings'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -36,7 +36,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       },
     })
     if (!meeting) return NextResponse.json({ error: 'الاجتماع غير موجود' }, { status: 404 })
-    const userIds = [...new Set((meeting.attendance as any[]).map((a) => a.userId))]
+    const userIds = [...new Set([
+      ...(meeting.attendance as any[]).map((a) => a.userId),
+      ...(meeting.invites as any[]).map((i) => i.claimedByUserId).filter(Boolean),
+    ])]
     const users = userIds.length
       ? await db.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true, email: true, role: true } })
       : []
@@ -63,17 +66,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         createdById: meeting.createdById,
         createdAt: meeting.createdAt,
       },
-      invites: (meeting.invites as any[]).map((i) => ({
-        id: i.id,
-        inviteeName: i.inviteeName,
-        inviteeEmail: i.inviteeEmail,
-        claimed: Boolean(i.claimedByUserId),
-        claimedByName: i.claimedByUserId ? userById.get(i.claimedByUserId)?.name || null : null,
-        opened: Boolean(i.lastOpenedAt),
-        revoked: Boolean(i.revokedAt),
-        expired: new Date(i.expiresAt).getTime() <= now.getTime(),
-        createdAt: i.createdAt,
-      })),
+      // روابط الدعوات الكاملة (من النسخ المشفّرة) — هذا المسار خلف
+      // بوابة الإدارة حصرًا؛ لا تصل الروابط لأي مسار ضيف أو طالب.
+      invites: (meeting.invites as any[]).map((i) =>
+        adminInviteShape(i, i.claimedByUserId ? userById.get(i.claimedByUserId)?.name || null : null, now),
+      ),
       attendance: (meeting.attendance as any[]).map((a) => ({
         userId: a.userId,
         userName: userById.get(a.userId)?.name || null,

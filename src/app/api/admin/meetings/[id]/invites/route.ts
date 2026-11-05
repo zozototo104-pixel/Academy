@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
-import { generateMeetingToken, hashMeetingToken, meetingInviteUrl } from '@/lib/admin-meetings'
+import { generateMeetingToken, hashMeetingToken, meetingInviteUrl, sealMeetingToken } from '@/lib/admin-meetings'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -13,7 +13,8 @@ const addSchema = z.object({
   email: z.string().trim().email().max(200).optional().or(z.literal('')),
 })
 
-// إضافة مدعو لاجتماع قائم — الرابط الكامل يُعرض في هذا الرد مرة واحدة.
+// إضافة مدعو لاجتماع قائم — الرابط في هذا الرد، ويبقى قابلًا للنسخ
+// من صفحة تفاصيل الاجتماع (نسخة مشفّرة من الرمز تُحفظ مع الهاش).
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const admin = await requireAdmin()
@@ -30,6 +31,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         inviteeName: parsed.data.name,
         inviteeEmail: parsed.data.email || null,
         tokenHash: hashMeetingToken(token),
+        tokenSealed: sealMeetingToken(token),
         expiresAt: new Date(new Date(meeting.endsAt).getTime() + 24 * 60 * 60 * 1000),
       },
     })

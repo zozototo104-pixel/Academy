@@ -57,6 +57,7 @@ type Invite = {
   id: string
   inviteeName: string
   inviteeEmail: string | null
+  url: string | null
   claimed: boolean
   claimedByName?: string | null
   opened: boolean
@@ -444,7 +445,7 @@ function MeetingFormDialog({
                 <UserPlus className="ml-1 h-4 w-4" /> إضافة مدعو
               </Button>
               <p className="mt-1 text-[11px] text-slate-500">
-                لكل مدعو رابط دعوة خاص به يُعرض مرة واحدة فقط بعد إنشاء الاجتماع — انسخه وأرسله إليه.
+                لكل مدعو رابط دعوة خاص به — يبقى ظاهرًا بجانب اسمه في تفاصيل الاجتماع لتتمكن من نسخه وإرساله في أي وقت.
               </p>
             </div>
           )}
@@ -583,6 +584,7 @@ function MeetingDetailsPanel({
   busy,
   copyText,
   onRevokeInvite,
+  onRotateInvite,
   onConfirmAttendance,
   onAddInvitee,
 }: {
@@ -590,6 +592,7 @@ function MeetingDetailsPanel({
   busy: boolean
   copyText: (text: string) => Promise<void>
   onRevokeInvite: (invite: Invite) => void
+  onRotateInvite: (invite: Invite) => void
   onConfirmAttendance: (userId: string, status: AttendanceStatus) => void
   onAddInvitee: (name: string, email: string) => Promise<string>
 }) {
@@ -693,6 +696,7 @@ function MeetingDetailsPanel({
                   <th className="px-3 py-2 font-bold">الاسم</th>
                   <th className="px-3 py-2 font-bold">البريد</th>
                   <th className="px-3 py-2 font-bold">حالة الدعوة</th>
+                  <th className="px-3 py-2 font-bold">رابط الدعوة</th>
                   <th className="px-3 py-2 font-bold">إجراءات</th>
                 </tr>
               </thead>
@@ -714,18 +718,48 @@ function MeetingDetailsPanel({
                         <Badge className={st.className}>{st.label}</Badge>
                       </td>
                       <td className="px-3 py-2">
-                        {!inv.revoked && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="text-red-600 hover:text-red-700"
-                            disabled={busy}
-                            onClick={() => onRevokeInvite(inv)}
-                          >
-                            <Ban className="ml-1 h-3.5 w-3.5" /> إلغاء الدعوة
-                          </Button>
+                        {inv.revoked ? (
+                          <span className="text-[11px] text-slate-400">—</span>
+                        ) : inv.url ? (
+                          <div className="flex items-center gap-1.5">
+                            <code dir="ltr" className="max-w-44 truncate rounded bg-slate-50 px-1.5 py-0.5 text-[10px] text-slate-500">
+                              {inv.url}
+                            </code>
+                            <Button type="button" size="sm" variant="outline" className="h-7 text-[11px]" onClick={() => void copyText(inv.url as string)}>
+                              <Copy className="ml-1 h-3.5 w-3.5" /> نسخ
+                            </Button>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] font-bold text-amber-700">رابط قديم لا يظهر — أعد إصداره</span>
                         )}
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex flex-wrap items-center gap-1">
+                          {!inv.revoked && !inv.url && !inv.claimed && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="text-[#0f2b46] hover:text-[#12365c]"
+                              disabled={busy}
+                              onClick={() => onRotateInvite(inv)}
+                            >
+                              <RefreshCw className="ml-1 h-3.5 w-3.5" /> إعادة إصدار الرابط
+                            </Button>
+                          )}
+                          {!inv.revoked && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-600 hover:text-red-700"
+                              disabled={busy}
+                              onClick={() => onRevokeInvite(inv)}
+                            >
+                              <Ban className="ml-1 h-3.5 w-3.5" /> إلغاء الدعوة
+                            </Button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   )
@@ -751,7 +785,7 @@ function MeetingDetailsPanel({
         {freshLink && (
           <div className="mt-3 rounded-md bg-amber-50 px-3 py-2">
             <p className="mb-1 flex items-center gap-1 text-[11px] font-bold text-amber-800">
-              <Link2 className="h-3.5 w-3.5" /> رابط الدعوة الجديد — يظهر مرة واحدة فقط، انسخه الآن وأرسله إلى المدعو:
+              <Link2 className="h-3.5 w-3.5" /> رابط الدعوة الجديد — انسخه وأرسله إلى المدعو (ويبقى ظاهرًا بجانب اسمه في الجدول):
             </p>
             <div className="flex items-center gap-2">
               <code dir="ltr" className="min-w-0 flex-1 truncate rounded bg-white px-2 py-1 text-[11px] text-slate-700">
@@ -976,6 +1010,23 @@ export function AdminMeetings() {
     })
   }
 
+  const askRotateInvite = (meetingId: string, invite: Invite) => {
+    setConfirm({
+      title: 'إعادة إصدار رابط الدعوة',
+      message: `سيتم إصدار رابط جديد لدعوة «${invite.inviteeName}» ويموت الرابط القديم فورًا (لن يعمل بعد الآن). هل أنت متأكد؟`,
+      run: async () => {
+        await act(async () => {
+          await api(`/api/admin/meetings/${meetingId}/invites/${invite.id}`, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'rotate' }),
+          })
+          await loadDetail(meetingId)
+          await load()
+        }, 'تم إصدار رابط جديد — انسخه من جدول المدعوين')
+      },
+    })
+  }
+
   const confirmAttendance = (meetingId: string, userId: string, status: AttendanceStatus) => {
     void act(async () => {
       await api(`/api/admin/meetings/${meetingId}/attendance`, {
@@ -1115,6 +1166,7 @@ export function AdminMeetings() {
                         busy={busy}
                         copyText={copyText}
                         onRevokeInvite={(invite) => askRevokeInvite(m.id, invite)}
+                        onRotateInvite={(invite) => askRotateInvite(m.id, invite)}
                         onConfirmAttendance={(userId, status) => confirmAttendance(m.id, userId, status)}
                         onAddInvitee={(name, email) => addInvitee(m.id, name, email)}
                       />
@@ -1142,7 +1194,7 @@ export function AdminMeetings() {
               <DialogTitle>روابط دعوة الاجتماع</DialogTitle>
             </DialogHeader>
             <p className="rounded-md bg-amber-50 px-3 py-2 text-xs font-bold leading-6 text-amber-800">
-              تظهر هذه الروابط مرة واحدة فقط — انسخها الآن وأرسلها إلى المدعوين، ولن تتمكن من عرضها مرة أخرى.
+              انسخ هذه الروابط وأرسلها إلى المدعوين — وتبقى متاحة للنسخ في أي وقت من تفاصيل الاجتماع بجانب اسم كل مدعو.
             </p>
             <div className="max-h-[50vh] space-y-2 overflow-y-auto">
               {linksToShow.map((link) => (

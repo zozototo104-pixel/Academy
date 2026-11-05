@@ -7,6 +7,28 @@ mock.module('@/lib/rate-limit', () => ({
   checkDatabaseRateLimit: async () => ({ allowed: true, ok: true }),
 }))
 
+// بيئة الخادم اللازمة لروابط الدعوات والنسخ المشفّرة (تُقرأ عند
+// الاستدعاء لا عند الاستيراد، فيكفي ضبطها هنا).
+process.env.NEXT_PUBLIC_APP_URL = 'https://academy.test'
+process.env.AACT_SECRETS_KEY = Buffer.alloc(32, 7).toString('base64')
+
+// قاعدة وهمية لمسار تفاصيل اجتماع الإدارة + بوابة إدارية قابلة للقلب
+const routeAdmin = { current: true }
+const routeMeeting = { current: null as any }
+mock.module('@/lib/db', () => ({
+  db: {
+    adminMeeting: { findUnique: async () => routeMeeting.current },
+    user: { findMany: async () => [] },
+  },
+}))
+mock.module('@/lib/auth', () => ({
+  requireAdmin: async () => {
+    if (!routeAdmin.current) throw new Error('FORBIDDEN')
+    return { id: 'admin-1', name: 'المسؤول' }
+  },
+}))
+mock.module('@/lib/notify', () => ({ audit: async () => {} }))
+
 const {
   generateMeetingToken,
   hashMeetingToken,
@@ -15,9 +37,16 @@ const {
   meetingInviteProblem,
   validateMeetingVideo,
   meetingAccessFor,
+  sealMeetingToken,
+  meetingInviteUrl,
+  meetingInviteUrlForInvite,
+  rotateMeetingInviteToken,
+  findMeetingInviteByToken,
+  adminInviteShape,
 } = await import('@/lib/admin-meetings')
 const { meetingState, meetingAction } = await import('@/lib/meeting-entry')
 const { generateMinutesDraft } = await import('@/lib/meeting-minutes')
+const adminMeetingDetailRoute = await import('@/app/api/admin/meetings/[id]/route')
 
 const T0 = new Date('2026-11-10T12:00:00.000Z')
 const at = (min: number) => new Date(T0.getTime() + min * 60_000)
@@ -296,6 +325,127 @@ describe('entry state & actions (fake db)', () => {
     expect((notLive.body as any).code).toBe('NOT_LIVE')
   })
 
+  test('guest-facing state never exposes invite URLs or sealed tokens', async () => {
+    const inv = invite({ claimedByUserId: visitor.id, tokenSealed: sealMeetingToken('raw-token-xyz') })
+    const db = fakeDb(inv)
+    const teaser = await meetingState(db as any, db.state.inv, null)
+    expect(JSON.stringify(teaser.body)).not.toContain('/meetings/')
+    expect(JSON.stringify(teaser.body)).not.toContain('tokenSealed')
+    expect((teaser.body as any).myInvite?.inviteeName).toBe('ضيف')
+    const full = await meetingState(db as any, db.state.inv, visitor)
+    expect(JSON.stringify(full.body)).not.toContain('/meetings/')
+    expect(JSON.stringify(full.body)).not.toContain('tokenSealed')
+    expect(JSON.stringify(full.body)).not.toContain('raw-token-xyz')
+  })
+})
+
+function fakeInviteDb(inv: any) {
+  const state = { inv: { ...inv } }
+  return {
+    state,
+    adminMeetingInvite: {
+      findUnique: async ({ where }: any) =>
+        where?.tokenHash && where.tokenHash === state.inv.tokenHash ? { ...state.inv, meeting: meeting() } : null,
+      update: async ({ data }: any) => {
+        Object.assign(state.inv, data)
+        return state.inv
+      },
+    },
+  }
+}
+
+describe('persistent invite links (sealed tokens)', () => {
+  test('sealed token is stored encrypted; admin shape rebuilds the exact creation URL', () => {
+    const token = generateMeetingToken()
+    const sealed = sealMeetingToken(token)
+    expect(sealed).not.toBeNull()
+    expect(sealed).not.toBe(token)
+    expect(String(sealed)).toStartWith('enc:v1:')
+    expect(meetingInviteUrlForInvite({ tokenSealed: sealed })).toBe(meetingInviteUrl(token))
+    expect(meetingInviteUrl(token)).toBe(`https://academy.test/meetings/${token}`)
+    const shaped = adminInviteShape(invite({ tokenSealed: sealed }), null, T0)
+    expect(shaped.url).toBe(`https://academy.test/meetings/${token}`)
+    // دعوة قديمة بلا نسخة مشفّرة: لا رابط (تُعالج بإعادة الإصدار)
+    expect(meetingInviteUrlForInvite({ tokenSealed: null })).toBeNull()
+    expect(adminInviteShape(invite({ tokenSealed: null }), null, T0).url).toBeNull()
+  })
+
+  test('without a server encryption key nothing raw is stored — link stays one-time', () => {
+    const saved = process.env.AACT_SECRETS_KEY
+    delete process.env.AACT_SECRETS_KEY
+    try {
+      expect(sealMeetingToken(generateMeetingToken())).toBeNull()
+    } finally {
+      process.env.AACT_SECRETS_KEY = saved
+    }
+  })
+
+  test('legacy rotation: new link works, old link dies, sealed copy matches the new link', async () => {
+    const oldToken = generateMeetingToken()
+    const db = fakeInviteDb(invite({ tokenHash: hashMeetingToken(oldToken), tokenSealed: null }))
+    const rotated = await rotateMeetingInviteToken(db as any, db.state.inv)
+    expect(rotated.ok).toBe(true)
+    if (!rotated.ok) return
+    const newToken = rotated.url.split('/meetings/')[1]
+    expect(newToken).toBeTruthy()
+    expect(newToken).not.toBe(oldToken)
+    // الرابط القديم ميت: هاشه لم يعد يطابق أي دعوة
+    expect(await findMeetingInviteByToken(db as any, oldToken)).toBeNull()
+    // الرابط الجديد حيّ ويحل إلى نفس الدعوة
+    const found = await findMeetingInviteByToken(db as any, newToken)
+    expect(found?.id).toBe('inv1')
+    // والنسخة المشفّرة المحفوظة تعيد بناء الرابط الجديد نفسه لعرض الإدارة
+    expect(db.state.inv.tokenSealed).not.toBeNull()
+    expect(meetingInviteUrlForInvite(db.state.inv)).toBe(rotated.url)
+  })
+
+  test('claimed invite refuses rotation and keeps its hash; revoked refuses too', async () => {
+    const token = generateMeetingToken()
+    const claimedDb = fakeInviteDb(invite({ tokenHash: hashMeetingToken(token), claimedByUserId: visitor.id }))
+    const refused = await rotateMeetingInviteToken(claimedDb as any, claimedDb.state.inv)
+    expect(refused.ok).toBe(false)
+    if (!refused.ok) expect(refused.code).toBe('ALREADY_CLAIMED')
+    expect(claimedDb.state.inv.tokenHash).toBe(hashMeetingToken(token))
+
+    const revokedDb = fakeInviteDb(invite({ tokenHash: hashMeetingToken(token), revokedAt: new Date() }))
+    const refused2 = await rotateMeetingInviteToken(revokedDb as any, revokedDb.state.inv)
+    expect(refused2.ok).toBe(false)
+    if (!refused2.ok) expect(refused2.code).toBe('INVITE_REVOKED')
+    expect(revokedDb.state.inv.tokenHash).toBe(hashMeetingToken(token))
+  })
+
+  test('admin detail endpoint returns the URL to admins only', async () => {
+    const token = generateMeetingToken()
+    const sealed = sealMeetingToken(token)
+    routeMeeting.current = {
+      ...meeting(),
+      invites: [{ ...invite({ tokenSealed: sealed }), meeting: undefined }],
+      attendance: [],
+    }
+    routeAdmin.current = true
+    const okRes = await adminMeetingDetailRoute.GET(new Request('https://academy.test') as any, {
+      params: Promise.resolve({ id: 'm1' }),
+    })
+    expect(okRes.status).toBe(200)
+    const okBody = await okRes.json()
+    expect(okBody.invites[0].url).toBe(`https://academy.test/meetings/${token}`)
+    expect(JSON.stringify(okBody)).not.toContain('tokenSealed')
+    expect(JSON.stringify(okBody)).not.toContain(String(sealed))
+
+    routeAdmin.current = false
+    const deniedRes = await adminMeetingDetailRoute.GET(new Request('https://academy.test') as any, {
+      params: Promise.resolve({ id: 'm1' }),
+    })
+    expect(deniedRes.status).toBe(403)
+    const deniedBody = await deniedRes.json()
+    expect(JSON.stringify(deniedBody)).not.toContain('/meetings/')
+    expect(JSON.stringify(deniedBody)).not.toContain(token)
+    routeAdmin.current = true
+    routeMeeting.current = null
+  })
+})
+
+describe('entry state & actions (fake db)', () => {
   test('join requires claim first; PLATFORM join returns room; cancelled meeting refuses', async () => {
     const dbA = fakeDb(invite())
     const unclaimed = await meetingAction(dbA as any, dbA.state.inv, visitor, 'join')

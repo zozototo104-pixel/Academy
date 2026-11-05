@@ -8,6 +8,7 @@ import {
   generateMeetingToken,
   hashMeetingToken,
   meetingInviteUrl,
+  sealMeetingToken,
   validateMeetingVideo,
 } from '@/lib/admin-meetings'
 
@@ -15,8 +16,9 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 // قاعة الاجتماعات — قائمة اجتماعات الإدارة وإنشاؤها. الإنشاء يولّد
-// دعوة شخصية لكل مدعو (هاش الرمز فقط يُحفظ؛ الرابط الكامل يُعرض في
-// رد الإنشاء مرة واحدة). صلاحية الدعوة: حتى يوم بعد نهاية الاجتماع.
+// دعوة شخصية لكل مدعو (يُحفظ هاش الرمز + نسخة مشفّرة منه، فيبقى
+// الرابط قابلًا للعرض والنسخ من صفحة تفاصيل الاجتماع في أي وقت).
+// صلاحية الدعوة: حتى يوم بعد نهاية الاجتماع.
 
 const inviteeSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -131,6 +133,7 @@ export async function POST(req: NextRequest) {
             inviteeName: invitee.name,
             inviteeEmail: invitee.email || null,
             tokenHash: hashMeetingToken(token),
+            tokenSealed: sealMeetingToken(token),
             expiresAt: new Date(expiresBase),
           },
         })
