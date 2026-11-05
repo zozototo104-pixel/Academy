@@ -227,6 +227,30 @@ describe('entry state & actions (fake db)', () => {
     expect((res.body.meeting as any).title).toBe('اجتماع الإدارة')
   })
 
+  test('claimable (logged-in, not yet claimed) sees the teaser only — no description, agenda or invitee names', async () => {
+    const db = fakeDb(invite())
+    const res = await meetingState(db as any, db.state.inv, visitor)
+    expect(res.body.level).toBe('CLAIMABLE')
+    const m = res.body.meeting as any
+    expect(m.title).toBe('اجتماع الإدارة')
+    expect(m.hostName).toBe('الإدارة')
+    expect(m.description).toBeUndefined()
+    expect(m.agenda).toBeUndefined()
+    expect(m.inviteeNames).toBeUndefined()
+    expect(JSON.stringify(res.body)).not.toContain('جدول سري')
+    expect((res.body as any).myInvite?.inviteeName).toBe('ضيف')
+  })
+
+  test('claimed (FULL) still receives description, agenda and invitee names', async () => {
+    const db = fakeDb(invite({ claimedByUserId: visitor.id }))
+    const res = await meetingState(db as any, db.state.inv, visitor)
+    expect(res.body.level).toBe('FULL')
+    const m = res.body.meeting as any
+    expect(m.description).toBe('وصف')
+    expect(m.agenda).toBe('جدول سري')
+    expect(m.inviteeNames).toEqual(['ضيف'])
+  })
+
   test('revoked invite shows nothing', async () => {
     const db = fakeDb(invite({ revokedAt: new Date() }))
     const res = await meetingState(db as any, db.state.inv, visitor)

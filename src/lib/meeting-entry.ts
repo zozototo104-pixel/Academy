@@ -51,11 +51,16 @@ export async function meetingState(db: any, invite: any, user: { id: string; rol
   if (!invite.lastOpenedAt || Date.now() - new Date(invite.lastOpenedAt).getTime() > 5 * 60_000) {
     await db.adminMeetingInvite.update({ where: { id: invite.id }, data: { lastOpenedAt: new Date() } }).catch(() => {})
   }
-  const invites = await db.adminMeetingInvite.findMany({
-    where: { meetingId: meeting.id },
-    select: { inviteeName: true },
-    orderBy: { createdAt: 'asc' },
-  }).catch(() => [])
+  // تفاصيل الاجتماع الكاملة (الوصف والأجندة وأسماء المدعوين) لا تُكشف
+  // إلا بعد استلام الدعوة (FULL) — حامل دعوة لم يستلمها بعد (CLAIMABLE)
+  // يرى التمهيد العام فقط، كما تنصّ سياسة meetingAccessFor.
+  const invites = access.level === 'FULL'
+    ? await db.adminMeetingInvite.findMany({
+        where: { meetingId: meeting.id },
+        select: { inviteeName: true },
+        orderBy: { createdAt: 'asc' },
+      }).catch(() => [])
+    : []
   const attendance = access.level === 'FULL'
     ? await db.adminMeetingAttendance.findUnique({
         where: { meetingId_userId: { meetingId: meeting.id, userId: user.id } },
@@ -75,16 +80,18 @@ export async function meetingState(db: any, invite: any, user: { id: string; rol
     body: {
       ok: true,
       level: access.level,
-      meeting: {
-        ...teaserOf(meeting),
-        description: meeting.description,
-        agenda: meeting.agenda,
-        provider: meeting.provider,
-        aiAssistantEnabled: meeting.aiAssistantEnabled,
-        minutesEnabled: meeting.minutesEnabled,
-        status: meeting.status,
-        inviteeNames: (invites as any[]).map((i) => i.inviteeName),
-      },
+      meeting: access.level === 'FULL'
+        ? {
+            ...teaserOf(meeting),
+            description: meeting.description,
+            agenda: meeting.agenda,
+            provider: meeting.provider,
+            aiAssistantEnabled: meeting.aiAssistantEnabled,
+            minutesEnabled: meeting.minutesEnabled,
+            status: meeting.status,
+            inviteeNames: (invites as any[]).map((i) => i.inviteeName),
+          }
+        : teaserOf(meeting),
       myInvite: { inviteeName: invite.inviteeName },
       attendance,
       notes,
