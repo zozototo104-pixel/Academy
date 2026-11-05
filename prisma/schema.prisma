@@ -2466,3 +2466,47 @@ model EnrollmentRulesSnapshot {
 
   @@index([userId, programId])
 }
+
+// دورة حياة الفصل (المرحلة 4): حالة محفوظة لكل (التحاق × فصل) — الإغلاق
+// حالة خادمية لا استنتاج من التواريخ. النوافذ مشتقة من تقسيم مدة البرنامج
+// القائم (program-duration) وتُختم هنا عند إنشاء الحالة.
+model EnrollmentSemesterState {
+  id                   String    @id @default(cuid())
+  enrollmentId         String
+  semester             Int
+  status               String    @default("OPEN") // OPEN | CLOSED
+  openedAt             DateTime
+  submissionDeadline   DateTime?
+  nextSemesterStartsAt DateTime?
+  closedAt             DateTime?
+  result               String? // PASSED | FAILED
+  approvedScore        Float?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@unique([enrollmentId, semester])
+  @@index([status, submissionDeadline])
+}
+
+// سجل الأحداث الصادرة (المرحلة 4/6): كل إشعار دورة حياة يُحفظ داخل نفس
+// معاملة تغيير الحالة التي ولّدته، بمفتاح عدم تكرار فريد. الإرسال داخل
+// المنصة مضمون عدم التكرار (ينقلب SENT مع إنشاء الإشعارات بمعاملة
+// واحدة)؛ البريد يُعاد محاولته بأمان وموثّق، ولا يُدّعى له مرة واحدة.
+model NotificationOutbox {
+  id              String    @id @default(cuid())
+  idempotencyKey  String    @unique
+  kind            String
+  recipientUserId String?
+  recipientRole   String? // ADMINS
+  title           String
+  body            String
+  link            String?
+  status          String    @default("PENDING") // PENDING | SENT
+  emailStatus     String    @default("PENDING") // PENDING | SENT | FAILED | SKIPPED
+  emailAttempts   Int       @default(0)
+  lastError       String?
+  createdAt       DateTime  @default(now())
+  sentAt          DateTime?
+
+  @@index([status, createdAt])
+}

@@ -1,10 +1,13 @@
 import { describe, test, expect, mock, beforeEach } from 'bun:test'
 
-// ===== حارس اعتماد نتيجة الفصل (المرحلة 2 من خطة دورة التخرج) =====
+// ===== حارس اعتماد نتيجة الفصل (المرحلتان 2 و4 من خطة دورة التخرج) =====
 // اعتماد نتيجة الفصل سجل قرار مستقل (SemesterResultApproval) لا علاقة له
 // بمراجعة التصحيح (reviewedById/reviewedAt). الحارس يرفض الاعتماد ما دامت
-// في الفصل درجة قيد المراجعة أو التماس درجات معلّق، والاعتماد نفسه يبقى
-// خاملًا بقرار الترتيب حتى تكتمل مرحلتا معدلات الفصول ودورة الحياة.
+// في الفصل درجة قيد المراجعة أو التماس درجات معلّق. كان الاعتماد خاملًا
+// بقرار ترتيب المرحلة 2 حتى اكتمل محرك المعدلات ودورة الحياة؛ فُعّل في
+// المرحلة 4: لا اعتماد بلا متوسط محسوب خادميًا من قواعد الطالب المجمّدة
+// (درجة مرسلة من العميل لا تُحفظ أبدًا)، والاعتماد الناجح يُغلق الفصل
+// ذرّيًا — نجاحه الكامل بحالته الواقعية في مجموعة التفعيل المنفصلة.
 
 function makeWorld() {
   const units = [
@@ -69,8 +72,14 @@ function makeWorld() {
           (r: any) => r.userId === where.userId && r.programId === where.programId && r.semester === where.semester,
         ),
     },
+    // أسطح المرحلة 4 التي يلمسها قرار الاعتماد المفعّل: فاعل يُعاد قراءته،
+    // وبرنامج لمحرك المعدلات، ورسالة (غيابها يجعل أي متوسط غير مكتمل في
+    // هذا العالم العدّي — فتقف القرارات عند SEMESTER_SCORE_NOT_VERIFIED).
+    user: { findUnique: async () => ({ role: 'ADMIN', name: 'مسؤول' }) },
+    program: { findUnique: async () => ({ category: 'DIPLOMA', admissionRules: null, semestersCount: 3 }) },
+    thesisSubmission: { findFirst: async () => null },
     programAssignment: { findMany: async ({ where }: any) => where.semester === 1 ? [{ id: 'assignment-s1' }] : [] },
-    assignmentSubmission: { count: async () => state.pendingAssignments },
+    assignmentSubmission: { count: async () => state.pendingAssignments, findMany: async () => [], findUnique: async () => null },
     semesterResultApproval: {
       findUnique: async ({ where }: any) => {
         if (state.throwOnApprovalRead) throw new Error('table missing')
@@ -114,7 +123,7 @@ describe('حارس اعتماد نتيجة الفصل', () => {
   })
   test('three-semester programs accept third semester but reject fourth', async () => {
     const third = await approveSemesterResult({ enrollmentId: 'enrollment-1', semester: 3, actor: ADMIN })
-    expect(third).toEqual({ ok: false, code: 'SEMESTER_APPROVAL_NOT_ACTIVE' })
+    expect(third).toEqual({ ok: false, code: 'SEMESTER_SCORE_NOT_VERIFIED' })
     const fourth = await approveSemesterResult({ enrollmentId: 'enrollment-1', semester: 4, actor: ADMIN })
     expect(fourth).toEqual({ ok: false, code: 'INVALID_SEMESTER_APPROVAL_INPUT' })
   })
@@ -130,7 +139,7 @@ describe('حارس اعتماد نتيجة الفصل', () => {
   })
   test('رفض أي درجة مرسلة من العميل وعدم إنشاء اعتماد', async () => {
     const decision = await approveSemesterResult({ enrollmentId: 'enrollment-1', semester: 1, actor: ADMIN, score: 99 })
-    expect(decision).toEqual({ ok: false, code: 'SEMESTER_APPROVAL_NOT_ACTIVE' })
+    expect(decision).toEqual({ ok: false, code: 'SEMESTER_SCORE_NOT_VERIFIED' })
     expect(world.state.approvals.size).toBe(0)
   })
   test('درجة امتحان محفوظة مع إجابة دون نقاط تمنع المصادقة', async () => {
@@ -182,15 +191,15 @@ describe('حارس اعتماد نتيجة الفصل', () => {
     expect(blockers.map((b: any) => b.code).sort()).toEqual(['PROGRAM_EXAM_APPEAL_PENDING', 'UNIT_APPEAL_PENDING'])
   })
 
-  test('موانع الفصل الثاني لا تحجب الفصل الأول، والاعتماد النظيف يصطدم بحارس الترتيب', async () => {
+  test('موانع الفصل الثاني لا تحجب الفصل الأول، والاعتماد بلا متوسط موثّق يُرفض', async () => {
     world.state.unitAttempts = [{ userId: 'user-1', examId: 'exam-s2', status: 'NEEDS_REVIEW', appealStatus: 'NONE' }]
     world.state.programAttempts = [{ userId: 'user-1', examId: 'pexam-s2', status: 'NEEDS_REVIEW', appealStatus: 'NONE' }]
     const blockers = await collectSemesterApprovalBlockers(world.db, { userId: 'user-1', programId: 'program-1', semester: 1 })
     expect(blockers).toEqual([])
-    expect(SEMESTER_APPROVAL_ACTIVE).toBe(false)
+    expect(SEMESTER_APPROVAL_ACTIVE).toBe(true)
     const decision = await approveSemesterResult({ enrollmentId: 'enrollment-1', semester: 1, actor: ADMIN })
     expect(decision.ok).toBe(false)
-    if (!decision.ok) expect(decision.code).toBe('SEMESTER_APPROVAL_NOT_ACTIVE')
+    if (!decision.ok) expect(decision.code).toBe('SEMESTER_SCORE_NOT_VERIFIED')
     expect(world.state.approvals.size).toBe(0)
   })
 

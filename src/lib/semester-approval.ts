@@ -1,22 +1,26 @@
 import { db } from '@/lib/db'
+import { audit } from '@/lib/notify'
+import { calculateSemesterAverages } from '@/lib/semester-grade'
+import { closeSemesterState, ensureSemesterStates } from '@/lib/semester-lifecycle'
+import { enqueueOutbox } from '@/lib/outbox'
 
 // ===== اعتماد نتيجة الفصل — سجل قرار مستقل وحارس خادمي =====
-// Phase 2 of the academic-lifecycle plan. Grade REVIEW (the attempts'
-// reviewedById/reviewedAt, written by the supervisor/admin grading flows)
-// is a different operation and is never reused as a semester approval:
-// the semester RESULT approval is its own stored decision
-// (SemesterResultApproval), taken only when every grade in the semester
-// is final — no attempt awaiting review and no grade appeal pending.
+// Grade REVIEW (the attempts' reviewedById/reviewedAt, written by the
+// supervisor/admin grading flows) is a different operation and is never
+// reused as a semester approval: the semester RESULT approval is its
+// own stored decision (SemesterResultApproval), taken only when every
+// grade in the semester is final — no attempt awaiting review and no
+// grade appeal pending.
 //
-// Ordering guard (the owner's Phase-2 condition): the record and the
-// integrity guard are live now, but the approval itself stays INERT
-// until the per-semester average engine (Phase 3) and the semester
-// lifecycle (Phase 4) exist. SEMESTER_APPROVAL_ACTIVE flips to true in
-// Phase 4; until then every decide call is refused server-side with
-// SEMESTER_APPROVAL_NOT_ACTIVE, after the integrity check has had its
-// say, and no approval feeds any later decision (closure, transition).
+// ACTIVATED in Phase 4 (the Phase-2 ordering guard's condition is met:
+// the Phase-3 averages engine and the Phase-4 lifecycle both exist).
+// The stored score is ALWAYS the server-computed semester average from
+// the student's frozen rules — a caller-supplied score is only accepted
+// when it equals the computed one. Approval and semester closure are
+// one transaction: the decision record, the lifecycle CLOSED stamp and
+// the outbox events land together or not at all.
 
-export const SEMESTER_APPROVAL_ACTIVE = false
+export const SEMESTER_APPROVAL_ACTIVE = true
 
 export type SemesterBlocker = { code: string; count: number }
 
@@ -182,9 +186,12 @@ export type SemesterApprovalDecision =
 /**
  * The single server-side gate for approving a semester result. Refuses,
  * in order: unknown enrollment → any open grade/review in the semester
- * (SEMESTER_GRADES_INCOMPLETE with the exact blockers) → the Phase-2
- * ordering guard (SEMESTER_APPROVAL_NOT_ACTIVE). Only with all three
- * passed does it store the decision and audit it.
+ * (SEMESTER_GRADES_INCOMPLETE with the exact blockers) → a non-admin
+ * actor (SEMESTER_APPROVAL_FORBIDDEN) → the activation valve
+ * (SEMESTER_APPROVAL_NOT_ACTIVE) → a missing or mismatched
+ * server-computed average (SEMESTER_SCORE_NOT_VERIFIED). On success it
+ * stores the decision, closes the semester and enqueues the cycle
+ * notifications — atomically, in this one transaction.
  */
 export async function approveSemesterResult(input: {
   enrollmentId: string
@@ -199,7 +206,10 @@ export async function approveSemesterResult(input: {
   const outcome = (await db.$transaction(async (tx: AnyClient) => {
     const enrollment = await tx.enrollment.findUnique({
       where: { id: input.enrollmentId },
-      select: { id: true, userId: true, programId: true, program: { select: { semestersCount: true } } },
+      select: {
+        id: true, userId: true, programId: true, createdAt: true, extensionDays: true,
+        program: { select: { semestersCount: true, category: true, maxStudyDays: true } },
+      },
     })
     if (!enrollment) return { ok: false, code: 'ENROLLMENT_NOT_FOUND' } as const
     if (enrollment.program?.semestersCount != null && input.semester > enrollment.program.semestersCount) {
@@ -211,19 +221,105 @@ export async function approveSemesterResult(input: {
       semester: input.semester,
     })
     if (blockers.length) return { ok: false, code: 'SEMESTER_GRADES_INCOMPLETE', blockers } as const
-    if (!SEMESTER_APPROVAL_ACTIVE) return { ok: false, code: 'SEMESTER_APPROVAL_NOT_ACTIVE' } as const
     // Recheck the actor from the database inside the decision transaction.
     // The actor id passed by an API caller is not proof of administrator rights.
-    const actor = await tx.user.findUnique({ where: { id: input.actor.id }, select: { role: true } })
+    const actor = await tx.user.findUnique({ where: { id: input.actor.id }, select: { role: true, name: true } })
     if (actor?.role !== 'ADMIN') return { ok: false, code: 'SEMESTER_APPROVAL_FORBIDDEN' } as const
-    // A client-supplied score is not an official computed semester result.
-    // Keep the decision closed until the verified semester grade engine is wired.
-    // Never trust a caller-supplied score, even if it is within 0..100.
-    // Phase 3 must supply a server-computed and version-verified result
-    // before any semester decision can be persisted.
-    return { ok: false, code: 'SEMESTER_SCORE_NOT_VERIFIED' } as const
-    // The official decision writer will be introduced with the verified
-    // semester grade snapshot and its atomic approval history.
+    if (!SEMESTER_APPROVAL_ACTIVE) return { ok: false, code: 'SEMESTER_APPROVAL_NOT_ACTIVE' } as const
+    // The official score is computed HERE from the student's frozen
+    // rules — never taken from the caller. A caller-supplied score is
+    // tolerated only as a freshness echo of the computed value.
+    const averages = await calculateSemesterAverages({
+      userId: enrollment.userId,
+      programId: enrollment.programId,
+      client: tx,
+    })
+    const entry = averages.semesters.find((s) => s.semester === input.semester)
+    if (!entry || entry.average === null || !entry.complete) {
+      return { ok: false, code: 'SEMESTER_SCORE_NOT_VERIFIED' } as const
+    }
+    if (input.score != null && Math.abs(Number(input.score) - entry.average) > 0.009) {
+      return { ok: false, code: 'SEMESTER_SCORE_NOT_VERIFIED' } as const
+    }
+    const passed = entry.passed === true
+    const approval = await tx.semesterResultApproval.upsert({
+      where: { enrollmentId_semester: { enrollmentId: input.enrollmentId, semester: input.semester } },
+      create: {
+        enrollmentId: input.enrollmentId,
+        semester: input.semester,
+        status: 'APPROVED',
+        score: entry.average,
+        decidedById: input.actor.id,
+        decidedAt: new Date(),
+        decisionNote: input.note ?? null,
+      },
+      update: {
+        status: 'APPROVED',
+        score: entry.average,
+        decidedById: input.actor.id,
+        decidedAt: new Date(),
+        decisionNote: input.note ?? null,
+      },
+    })
+    // Approval ⟹ closure, atomically: lifecycle stamp + outbox events.
+    await ensureSemesterStates(tx, enrollment, enrollment.program || {})
+    await closeSemesterState(tx, {
+      enrollmentId: input.enrollmentId,
+      semester: input.semester,
+      score: entry.average,
+      passed,
+    })
+    await enqueueOutbox(tx, {
+      key: `semester-closed:${input.enrollmentId}:${input.semester}:${entry.average}`,
+      kind: 'SEMESTER_CLOSED',
+      recipientUserId: enrollment.userId,
+      title: passed ? `نتيجة الفصل ${input.semester}: ناجح` : `نتيجة الفصل ${input.semester}: راسب`,
+      body: `اعتُمدت نتيجة الفصل ${input.semester} بمعدل ${entry.average} وأُغلق الفصل.`,
+    })
+    if (!passed) {
+      await enqueueOutbox(tx, {
+        key: `semester-failed:${input.enrollmentId}:${input.semester}:${entry.average}`,
+        kind: 'SEMESTER_FAILED',
+        recipientRole: 'ADMINS',
+        title: 'توثيق رسوب فصل',
+        body: `أُغلق فصل طالب بنتيجة راسب (معدل ${entry.average}) — الفصل ${input.semester}. يمكن للطالب طلب استرحام لرفع المعدل.`,
+      })
+    }
+    await audit(
+      { id: input.actor.id, name: actor.name || 'مسؤول' },
+      'APPROVE_SEMESTER_RESULT',
+      'Enrollment',
+      input.enrollmentId,
+      `semester=${input.semester} score=${entry.average} passed=${passed}`,
+    )
+    return { ok: true, approval } as const
   })) as SemesterApprovalDecision
   return outcome
+}
+
+/**
+ * Validity of a stored semester approval against CURRENT computed
+ * values: APPROVED while the computed average still equals the stored
+ * score; STALE after any grade-affecting change (the stored decision
+ * stays on record; progression and graduation read only APPROVED).
+ */
+export async function semesterApprovalState(
+  client: AnyClient,
+  enrollment: { id: string; userId: string; programId: string },
+  semester: number,
+): Promise<'APPROVED' | 'STALE' | 'NONE'> {
+  const stored = await storedSemesterApproval(client, enrollment.id, semester)
+  if (!stored || stored.score == null) return 'NONE'
+  try {
+    const averages = await calculateSemesterAverages({
+      userId: enrollment.userId,
+      programId: enrollment.programId,
+      client,
+    })
+    const entry = averages.semesters.find((s) => s.semester === semester)
+    if (!entry || entry.average === null) return 'STALE'
+    return Math.abs(entry.average - Number(stored.score)) <= 0.009 ? 'APPROVED' : 'STALE'
+  } catch {
+    return 'STALE'
+  }
 }
