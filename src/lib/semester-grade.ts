@@ -65,6 +65,8 @@ export interface SemesterAverage {
   complete: boolean
   components: SemesterComponentValue[]
   missing: string[]
+  /** نشاط علاجي معتمد الدرجات (استرحام، المرحلة 4) دخل في هذا المعدل. */
+  mercyApplied?: { weightPercent: number; score: number }
 }
 
 export interface SemesterAveragesResult {
@@ -240,6 +242,27 @@ export async function calculateSemesterAverages(input: {
       components,
       missing,
     })
+  }
+
+  // الاسترحام (المرحلة 4): نشاط علاجي مصحَّح بدرجة حقيقية يدخل المعدل
+  // بوزنه المسند: newAvg = (oldAvg×(100−w) + score×w)/100. يُقرأ فقط
+  // بحالتي GRADED/COMPLETED — قبل التصحيح لا أثر له، والرسوب الأصلي
+  // يبقى موثّقًا في سجل الطلب والاعتماد السابق.
+  const mercyStore = (client as any)?.mercyRequest
+  if (enrollment?.id && mercyStore?.findFirst) {
+    for (const entry of semesters) {
+      if (entry.average === null) continue
+      const mercy = await mercyStore.findFirst({
+        where: { enrollmentId: enrollment.id, semester: entry.semester, status: { in: ['GRADED', 'COMPLETED'] } },
+        select: { score: true, weightPercent: true },
+      }).catch(() => null)
+      if (mercy && typeof mercy.score === 'number' && Number.isInteger(mercy.weightPercent)) {
+        const w = mercy.weightPercent
+        entry.average = round2(((entry.average * (100 - w)) + mercy.score * w) / 100)
+        entry.passed = entry.average > passThreshold
+        entry.mercyApplied = { weightPercent: w, score: mercy.score }
+      }
+    }
   }
 
   const thesis = await thesisScores(client, input.userId, input.admissionId)

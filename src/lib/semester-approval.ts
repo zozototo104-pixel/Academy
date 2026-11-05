@@ -290,6 +290,15 @@ export async function approveSemesterResult(input: {
       score: entry.average,
       passed,
     })
+    // إعادة مصادقة بعد استرحام مصحَّح تُتمّ دورة الطلب: النشاط صار
+    // جزءًا من النتيجة الرسمية الجديدة، والرسوب الأصلي باقٍ في السجل.
+    const mercyStore = (tx as AnyClient)?.mercyRequest
+    if (mercyStore?.updateMany) {
+      await mercyStore.updateMany({
+        where: { enrollmentId: input.enrollmentId, semester: input.semester, status: 'GRADED' },
+        data: { status: 'COMPLETED', newAverage: entry.average },
+      }).catch(() => {})
+    }
     await enqueueOutbox(tx, {
       key: `semester-closed:${input.enrollmentId}:${input.semester}:${entry.average}`,
       kind: 'SEMESTER_CLOSED',

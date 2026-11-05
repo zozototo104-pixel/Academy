@@ -2534,6 +2534,38 @@ model ReopenAppeal {
   @@index([status, decisionDeadline])
 }
 
+// طلب استرحام ونشاط علاجي (المرحلة 4، مبدأ 6): سجل واحد لكل (التحاق ×
+// فصل) — نشاط واحد معتمد لكل فصل، وأي ثانٍ لا يكون إلا بمراجعة
+// استثنائية. النشاط حقيقي: يُسند بوزن ومهلة ≤ 7 أيام، يُسلَّم ويُصحَّح
+// بدرجة حقيقية، ثم يُعاد حساب معدل الفصل ومصادقته رسميًا مع بقاء
+// الرسوب الأصلي موثّقًا (previousAverage + سجل الاعتماد السابق).
+model MercyRequest {
+  id                   String    @id @default(cuid())
+  enrollmentId         String
+  userId               String
+  programId            String
+  semester             Int
+  status               String    @default("REQUESTED") // REQUESTED | ACTIVITY_ASSIGNED | SUBMITTED | GRADED | COMPLETED | LAPSED | REJECTED
+  initiatedBy          String    @default("STUDENT") // STUDENT | ADMIN
+  activityTitle        String?
+  activityInstructions String?
+  assignedById         String?
+  assignedAt           DateTime?
+  dueAt                DateTime?
+  weightPercent        Int?
+  submissionText       String?
+  submittedAt          DateTime?
+  score                Float?
+  gradedById           String?
+  gradedAt             DateTime?
+  previousAverage      Float?
+  newAverage           Float?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@unique([enrollmentId, semester])
+}
+
 // اعتماد درجة محفوظ (المرحلة 2): يميَّز عن مراجعة التصحيح؛ صلاحيته مشروطة
 // ببقاء درجة المحاولة الحالية مساوية للدرجة المعتمدة وقت الاعتماد.
 
