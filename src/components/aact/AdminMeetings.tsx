@@ -583,6 +583,7 @@ function MeetingDetailsPanel({
   busy,
   copyText,
   onRevokeInvite,
+  onRotateInvite,
   onConfirmAttendance,
   onAddInvitee,
 }: {
