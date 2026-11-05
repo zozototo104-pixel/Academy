@@ -16,9 +16,22 @@ process.env.AACT_SECRETS_KEY = Buffer.alloc(32, 7).toString('base64')
 // قاعدة وهمية لمسار تفاصيل اجتماع الإدارة + بوابة إدارية قابلة للقلب
 const routeAdmin = { current: true }
 const routeMeeting = { current: null as any }
+const routeDeletedIds: string[] = []
+const routeAudits: any[] = []
 mock.module('@/lib/db', () => ({
   db: {
-    adminMeeting: { findUnique: async () => routeMeeting.current },
+    adminMeeting: {
+      findUnique: async () => routeMeeting.current,
+      // الحذف يزيل الصف نفسه؛ في قاعدة البيانات الحقيقية يزيل معه
+      // كل ما يتفرع عنه (الدعوات والحضور...) عبر onDelete: Cascade —
+      // والوهمية تمثّل ذلك بأن الصف وكل ما تحته يختفي من أي وصول لاحق.
+      delete: async ({ where }: any) => {
+        routeDeletedIds.push(where.id)
+        const removed = routeMeeting.current
+        routeMeeting.current = null
+        return removed
+      },
+    },
     user: { findMany: async () => [] },
   },
 }))
@@ -28,7 +41,11 @@ mock.module('@/lib/auth', () => ({
     return { id: 'admin-1', name: 'المسؤول' }
   },
 }))
-mock.module('@/lib/notify', () => ({ audit: async () => {} }))
+mock.module('@/lib/notify', () => ({
+  audit: async (...args: any[]) => {
+    routeAudits.push(args)
+  },
+}))
 
 const {
   generateMeetingToken,
@@ -519,5 +536,74 @@ describe('entry state & actions (fake db)', () => {
     const dbC = fakeDb(invC)
     const cancelled = await meetingAction(dbC as any, dbC.state.inv, visitor, 'join')
     expect(cancelled.status).toBe(409)
+  })
+})
+
+describe('admin meeting hard delete (route level)', () => {
+  test('admin delete removes the meeting and writes the audit; afterwards the detail 404s', async () => {
+    routeAdmin.current = true
+    routeDeletedIds.length = 0
+    routeAudits.length = 0
+    routeMeeting.current = { ...meeting(), invites: [invite()], attendance: [] }
+    const res = await adminMeetingDetailRoute.DELETE(new Request('https://academy.test') as any, {
+      params: Promise.resolve({ id: 'm1' }),
+    })
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.ok).toBe(true)
+    expect(body.deleted).toBe(true)
+    expect(routeDeletedIds).toEqual(['m1'])
+    // أثر التدقيق يحمل فعل الحذف وعنوان الاجتماع المحذوف
+    const del = routeAudits.find((a) => a[1] === 'ADMIN_MEETING_DELETED')
+    expect(del).toBeTruthy()
+    expect(del?.[2]).toBe('AdminMeeting')
+    expect(del?.[3]).toBe('m1')
+    expect(String(del?.[4])).toContain('title=اجتماع الإدارة')
+    // الصف اختفى بكل ما كان متدليًا منه (الدعوات nested تحته في
+    // الوهمية كما تتفرع عنه في الحقيقية): التفاصيل الآن 404
+    const gone = await adminMeetingDetailRoute.GET(new Request('https://academy.test') as any, {
+      params: Promise.resolve({ id: 'm1' }),
+    })
+    expect(gone.status).toBe(404)
+    routeMeeting.current = null
+  })
+
+  test('a cancelled meeting can still be hard-deleted (no status restriction)', async () => {
+    routeAdmin.current = true
+    routeDeletedIds.length = 0
+    routeMeeting.current = { ...meeting({ status: 'CANCELLED' }), invites: [], attendance: [] }
+    const res = await adminMeetingDetailRoute.DELETE(new Request('https://academy.test') as any, {
+      params: Promise.resolve({ id: 'm1' }),
+    })
+    expect(res.status).toBe(200)
+    expect(routeDeletedIds).toEqual(['m1'])
+    routeMeeting.current = null
+  })
+
+  test('non-admin cannot delete: 403 and nothing is removed', async () => {
+    routeDeletedIds.length = 0
+    routeMeeting.current = { ...meeting(), invites: [], attendance: [] }
+    routeAdmin.current = false
+    const res = await adminMeetingDetailRoute.DELETE(new Request('https://academy.test') as any, {
+      params: Promise.resolve({ id: 'm1' }),
+    })
+    expect(res.status).toBe(403)
+    expect(routeDeletedIds).toEqual([])
+    expect(routeMeeting.current?.id).toBe('m1')
+    routeAdmin.current = true
+    routeMeeting.current = null
+  })
+
+  test('deleting a missing meeting 404s and deletes nothing', async () => {
+    routeAdmin.current = true
+    routeDeletedIds.length = 0
+    routeMeeting.current = null
+    const res = await adminMeetingDetailRoute.DELETE(new Request('https://academy.test') as any, {
+      params: Promise.resolve({ id: 'missing' }),
+    })
+    expect(res.status).toBe(404)
+    const body = await res.json()
+    expect(body.error).toBe('الاجتماع غير موجود')
+    expect(routeDeletedIds).toEqual([])
   })
 })

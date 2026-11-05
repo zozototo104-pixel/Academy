@@ -993,6 +993,21 @@ export function AdminMeetings() {
     })
   }
 
+  const askDeleteMeeting = (m: Meeting) => {
+    setConfirm({
+      title: 'حذف الاجتماع',
+      message: `حذف نهائي لا يمكن التراجع عنه: سيُحذف اجتماع «${m.title}» وكل ما يتعلق به — الدعوات والحضور والملاحظات والمحضر — من قاعدة البيانات. إن أردت إبقاء السجل مع منع الدخول فقط، استخدم «إلغاء» بدلًا من الحذف. هل أنت متأكد؟`,
+      run: async () => {
+        await act(async () => {
+          await api(`/api/admin/meetings/${m.id}`, { method: 'DELETE' })
+          setDetails((d) => ({ ...d, [m.id]: null }))
+          if (openId === m.id) setOpenId(null)
+          await load()
+        }, 'تم حذف الاجتماع نهائيًا')
+      },
+    })
+  }
+
   const askRevokeInvite = (meetingId: string, invite: Invite) => {
     setConfirm({
       title: 'إلغاء دعوة',
@@ -1153,6 +1168,15 @@ export function AdminMeetings() {
                           <Ban className="ml-1 h-4 w-4" /> إلغاء
                         </Button>
                       )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                        disabled={busy}
+                        onClick={() => askDeleteMeeting(m)}
+                      >
+                        <Trash2 className="ml-1 h-4 w-4" /> حذف
+                      </Button>
                     </div>
                   </div>
                   {isOpen &&
