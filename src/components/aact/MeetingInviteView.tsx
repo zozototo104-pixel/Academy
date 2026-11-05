@@ -1,13 +1,14 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useAppStore } from '@/lib/store'
+import { clearPendingMeetingInvite, peekPendingMeetingInvite, setPendingMeetingInvite } from '@/lib/pending-meeting-invite'
 import { AcademyLogo } from '@/components/aact/Shell'
 import { Button } from '@/components/ui/button'
 import {
   CalendarClock, CheckCircle2, Clock3, ExternalLink, KeyRound, Loader2, LogIn,
-  ShieldAlert, Sparkles, User2, Users2, Video,
+  MailCheck, ShieldAlert, Sparkles, User2, UserPlus, Users2, Video,
 } from 'lucide-react'
 
 const MeetingRoom = dynamic(
@@ -40,6 +41,7 @@ type InviteState = {
   ok?: boolean
   level: 'TEASER' | 'CLAIMABLE' | 'FULL' | 'NONE'
   loginRequired?: boolean
+  myInvite?: { inviteeName: string }
   meeting?: MeetingInfo
   joinOpen: boolean
   joinOpensAt: string
@@ -116,6 +118,15 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
   const [assistantAnswer, setAssistantAnswer] = useState<string | null>(null)
   const [assistantGreeting, setAssistantGreeting] = useState<string | null>(null)
   const [assistantError, setAssistantError] = useState<string | null>(null)
+  // إنشاء حساب زائر من صفحة الدعوة نفسها (للضيف بلا حساب)
+  const [regName, setRegName] = useState('')
+  const [regEmail, setRegEmail] = useState('')
+  const [regPassword, setRegPassword] = useState('')
+  const [regWebsite, setRegWebsite] = useState('')
+  const [regBusy, setRegBusy] = useState(false)
+  const [regError, setRegError] = useState<string | null>(null)
+  const [regDone, setRegDone] = useState(false)
+  const autoClaimTried = useRef(false)
 
   const load = useCallback(async () => {
     try {
@@ -203,6 +214,7 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(d?.error || 'تعذّر تأكيد الحضور')
+      clearPendingMeetingInvite()
       await load()
     } catch (e: any) {
       setActionError(e?.message || 'تعذّر تأكيد الحضور')
@@ -210,6 +222,52 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
       setBusy(null)
     }
   }
+
+  // اسم المدعو من الخادم هو قيمة النموذج الافتراضية ما لم يكتب الضيف غيره
+  const effectiveRegName = regName.trim() || data?.myInvite?.inviteeName || ''
+
+  const doRegister = async () => {
+    if (!effectiveRegName || !regEmail.trim() || regPassword.length < 6) {
+      setRegError('الاسم والبريد الإلكتروني وكلمة مرور من 6 أحرف على الأقل — كلها مطلوبة.')
+      return
+    }
+    setRegBusy(true)
+    setRegError(null)
+    try {
+      const res = await fetch('/api/auth/register-visitor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-aact-register-form': 'web' },
+        body: JSON.stringify({ name: effectiveRegName, email: regEmail.trim(), password: regPassword, website: regWebsite }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(d?.error || 'تعذّر إنشاء الحساب')
+      // نتذكّر هذه الدعوة في هذا المتصفح: بعد تأكيد البريد وتسجيل
+      // الدخول يعود الضيف إلى هنا ويُستلم تأكيده تلقائيًا.
+      if (token) setPendingMeetingInvite(token)
+      setRegDone(true)
+    } catch (e: any) {
+      setRegError(e?.message || 'تعذّر إنشاء الحساب')
+    } finally {
+      setRegBusy(false)
+    }
+  }
+
+  const goLogin = () => {
+    if (token) setPendingMeetingInvite(token)
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- انتقال مقصود لصفحة الدخول (جذر التطبيق)
+    window.location.assign('/')
+  }
+
+  // عودة تلقائية بعد الدخول: من جاء عبر مؤشر الدعوة المعلّقة
+  // (سجّل من هنا أو سجّل دخوله من أجله) يُستلم تأكيده دون نقرة.
+  useEffect(() => {
+    if (!token || !data || data.level !== 'CLAIMABLE' || autoClaimTried.current) return
+    if (peekPendingMeetingInvite() !== token) return
+    autoClaimTried.current = true
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- استلام تلقائي مقصود لمرة واحدة عند عودة الضيف مسجّل الدخول
+    void doClaim()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, data?.level])
 
   const doJoinExternal = async () => {
     setBusy('join')
@@ -450,19 +508,75 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
                 <p className="text-sm font-bold text-[#0f2b46]">انتهى هذا الاجتماع وأُغلق الدخول إليه.</p>
               </div>
             ) : data?.loginRequired ? (
-              <div className="space-y-3">
-                <p className="text-center text-xs leading-relaxed text-muted-foreground">
-                  لعرض تفاصيل الاجتماع وتأكيد حضورك، سجّل الدخول بحسابك أولاً ثم ارجع إلى هذا الرابط.
-                </p>
-                <a href="/" className="block">
-                  <Button className="w-full bg-[#0f2b46] py-6 text-base font-black text-[#f5f0e1] hover:bg-[#12365c]">
-                    <LogIn className="ml-2 h-5 w-5" /> تسجيل الدخول
+              regDone ? (
+                <div className="space-y-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-center">
+                  <MailCheck className="mx-auto h-8 w-8 text-emerald-600" />
+                  <p className="text-sm font-black text-emerald-900">تم إنشاء حسابك — بقيت خطوة واحدة</p>
+                  <p className="text-xs font-semibold leading-relaxed text-emerald-800">
+                    أرسلنا رابط تأكيد إلى بريدك الإلكتروني. افتح بريدك واضغط رابط التأكيد، ثم سجّل الدخول
+                    بكلمة المرور التي اخترتها — وستعود إلى هذا الاجتماع مباشرة ويُؤكَّد حضورك تلقائيًا.
+                  </p>
+                  <Button onClick={goLogin} className="w-full bg-[#0f2b46] py-5 text-sm font-black text-[#f5f0e1] hover:bg-[#12365c]">
+                    <LogIn className="ml-2 h-5 w-5" /> الذهاب لتسجيل الدخول
                   </Button>
-                </a>
-                <p className="text-center text-xs leading-relaxed text-muted-foreground">
-                  ليس لديك حساب؟ يمكنك إنشاء حساب زائر من صفحة تسجيل الدخول ثم العودة لهذا الرابط.
-                </p>
-              </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-center text-xs leading-relaxed text-muted-foreground">
+                    هذه الدعوة شخصية لك. أنشئ حساب زائر سريعًا هنا — حساب ضيف للاجتماعات فقط، بلا أي حقوق أكاديمية —
+                    ثم أكّد بريدك وسجّل الدخول، وستصل إلى الاجتماع مباشرة.
+                  </p>
+                  <input
+                    value={regName || data?.myInvite?.inviteeName || ''}
+                    onChange={(e) => setRegName(e.target.value)}
+                    placeholder="الاسم الكامل"
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold outline-none focus:border-[#c9a227]"
+                  />
+                  <input
+                    type="email"
+                    dir="ltr"
+                    value={regEmail}
+                    onChange={(e) => setRegEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-left text-sm font-semibold outline-none focus:border-[#c9a227]"
+                  />
+                  <input
+                    type="password"
+                    dir="ltr"
+                    value={regPassword}
+                    onChange={(e) => setRegPassword(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') doRegister() }}
+                    placeholder="كلمة المرور (6 أحرف على الأقل)"
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-left text-sm font-semibold outline-none focus:border-[#c9a227]"
+                  />
+                  <input
+                    tabIndex={-1}
+                    autoComplete="off"
+                    value={regWebsite}
+                    onChange={(e) => setRegWebsite(e.target.value)}
+                    className="hidden"
+                    aria-hidden="true"
+                  />
+                  {regError && (
+                    <p className="rounded-xl bg-red-50 px-3 py-2 text-center text-xs font-bold text-red-600 ring-1 ring-red-200">{regError}</p>
+                  )}
+                  <Button
+                    onClick={doRegister}
+                    disabled={regBusy}
+                    className="w-full bg-[#0f2b46] py-6 text-base font-black text-[#f5f0e1] hover:bg-[#12365c]"
+                  >
+                    {regBusy ? <Loader2 className="ml-2 h-5 w-5 animate-spin" /> : <UserPlus className="ml-2 h-5 w-5" />}
+                    إنشاء حسابي والمتابعة للاجتماع
+                  </Button>
+                  <p className="text-center text-xs leading-relaxed text-muted-foreground">
+                    لديك حساب أصلًا؟{' '}
+                    <button type="button" onClick={goLogin} className="font-black text-[#0f2b46] underline underline-offset-2">
+                      سجّل الدخول
+                    </button>{' '}
+                    وستعود إلى هذا الاجتماع مباشرة.
+                  </p>
+                </div>
+              )
             ) : data?.level === 'CLAIMABLE' ? (
               <div className="space-y-3">
                 <p className="text-center text-xs leading-relaxed text-muted-foreground">

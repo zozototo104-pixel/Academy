@@ -38,7 +38,12 @@ export async function meetingState(db: any, invite: any, user: { id: string; rol
     joinOpensAt: meetingJoinOpensAt(meeting).toISOString(),
   }
   if (!user) {
-    return { status: 200, body: { ok: true, level: 'TEASER', loginRequired: true, meeting: teaserOf(meeting), ...base } }
+    // اسم المدعو نفسه يُعرض لحامل الرابط (الرابط هو الاعتماد) حتى
+    // يُملأ نموذج إنشاء حساب الزائر في صفحة الدعوة باسمه مسبقًا.
+    return {
+      status: 200,
+      body: { ok: true, level: 'TEASER', loginRequired: true, meeting: teaserOf(meeting), myInvite: { inviteeName: invite.inviteeName }, ...base },
+    }
   }
   if (access.level === 'NONE') return { status: 200, body: { ok: true, level: 'NONE', problem: 'CLAIMED_BY_OTHER' } }
   // فتح الدعوة من صاحبها المحتمل/المستلم يُسجَّل (مقيّدًا زمنيًا)

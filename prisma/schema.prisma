@@ -2424,6 +2424,7 @@ model AdminMeetingInvite {
   inviteeName     String
   inviteeEmail    String?
   tokenHash       String       @unique
+  tokenSealed     String?
   expiresAt       DateTime
   revokedAt       DateTime?
   claimedByUserId String?

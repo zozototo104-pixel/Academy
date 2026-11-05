@@ -1,6 +1,7 @@
 'use client'
 
 import { useAppStore, api, clearToken } from '@/lib/store'
+import { peekPendingMeetingInvite } from '@/lib/pending-meeting-invite'
 import { AcademyLogo } from '@/components/aact/Shell'
 import { useEffect, useState, type FormEvent } from 'react'
 import { useToast } from '@/hooks/use-toast'
@@ -61,6 +62,14 @@ export function AuthView() {
       try { sessionStorage.setItem('aact_skip_startup', '1') } catch (error) { console.warn('Failed to persist startup skip flag after login.', error) }
       setUser(d.user)
       toast({ title: `أهلاً بعودتك ${d.user.name}!`, description: 'تم تسجيل الدخول بنجاح' })
+      // ضيف اجتماع جاء من رابط دعوة: يُعاد إلى اجتماعه مباشرة بدل
+      // لوحته (صفحة الدعوة تستلم تأكيده تلقائيًا هناك).
+      const pendingInvite = peekPendingMeetingInvite()
+      if (pendingInvite) {
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- صفحة الدعوة مسار Next مستقل خارج هذا التطبيق الأحادي
+        window.location.assign(`/meetings/${encodeURIComponent(pendingInvite)}`)
+        return
+      }
       navigate(d.user.role === 'ADMIN' ? 'admin' : d.user.role === 'SUPERVISOR' ? 'supervisor' : d.user.role === 'VISITOR' ? 'visitor' : 'dashboard')
     } catch (err: any) {
       toast({ title: 'خطأ في الدخول', description: err.message, variant: 'destructive' })

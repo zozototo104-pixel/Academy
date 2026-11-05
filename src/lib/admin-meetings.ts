@@ -1,10 +1,14 @@
 import { createHash, randomBytes } from 'node:crypto'
+import { decryptSecret, encryptSecret, hasSecretEncryptionKey } from '@/lib/secret-crypto'
 
 // ===== قاعة الاجتماعات الإدارية — المنطق المشترك =====
 // الأنماط معاد استخدامها من أنظمة مجرّبة في المنصة: رموز الدعوة من
-// دعوات المناقشة (هاش SHA-256 فقط، والنص يُعرض مرة واحدة)، ونافذة
+// دعوات المناقشة (هاش SHA-256 هو الاعتماد الوحيد للتحقق)، ونافذة
 // الدخول من لقاءات الطلاب (تفتح قبل البدء بـ15 دقيقة بالضبط وتُفرض
-// من الخادم)، والحالة الفعلية مشتقة من الساعة لا مخزّنة.
+// من الخادم)، والحالة الفعلية مشتقة من الساعة لا مخزّنة. إلى جانب
+// الهاش تُحفظ نسخة مشفّرة من الرمز (tokenSealed) حتى تستطيع الإدارة
+// إعادة عرض الرابط ونسخه من صفحة التفاصيل في أي وقت؛ بلا مفتاح
+// تشفير مضبوط في الخادم تبقى النسخة فارغة ويبقى الرابط «مرة واحدة».
 
 export const MEETING_JOIN_WINDOW_MINUTES = 15
 export const MEETING_PROVIDERS = ['ZOOM', 'MEET', 'TEAMS', 'OTHER', 'PLATFORM'] as const
@@ -22,6 +26,29 @@ export function meetingInviteUrl(token: string): string {
   const base = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/+$/, '')
   if (!base) throw new Error('NEXT_PUBLIC_APP_URL is not configured')
   return `${base}/meetings/${token}`
+}
+
+// تشفير رمز الدعوة لحفظه بجانب الهاش (لعرض الإدارة لاحقًا). بلا
+// مفتاح تشفير في بيئة الخادم يعيد null — لا يُحفظ النص الخام أبدًا.
+export function sealMeetingToken(token: string): string | null {
+  if (!hasSecretEncryptionKey()) return null
+  try {
+    return encryptSecret(token)
+  } catch {
+    return null
+  }
+}
+
+// رابط الدعوة الكامل من النسخة المشفّرة — لمسارات الإدارة حصرًا.
+// دعوة قديمة بلا نسخة مشفّرة (أو فشل فكّها) يعيد null.
+export function meetingInviteUrlForInvite(invite: { tokenSealed?: string | null } | null | undefined): string | null {
+  const sealed = invite?.tokenSealed
+  if (!sealed) return null
+  try {
+    return meetingInviteUrl(decryptSecret(sealed))
+  } catch {
+    return null
+  }
 }
 
 export type MeetingTimes = { startsAt: Date | string; endsAt: Date | string; status: string }
@@ -111,6 +138,39 @@ export async function meetingAccessFor(db: AnyDb, invite: any, user: { id: strin
   if (invite.claimedByUserId && invite.claimedByUserId !== user.id) return { level: 'NONE' as const }
   if (invite.claimedByUserId === user.id) return { level: 'FULL' as const }
   return { level: 'CLAIMABLE' as const }
+}
+
+// إعادة إصدار رابط دعوة (للدعوات القديمة بلا نسخة مشفّرة، أو عند
+// الحاجة): رمز جديد يحل محل القديم — الهاش والنسخة المشفّرة معًا —
+// فيموت الرابط القديم فورًا. تُرفض للدعوة المستلَمة (صاحبها دخل
+// بها أصلًا وإبطالها يكسر جلسته) وللملغاة (تُضاف دعوة جديدة بدلًا).
+export async function rotateMeetingInviteToken(db: AnyDb, invite: any):
+  Promise<{ ok: true; url: string } | { ok: false; code: 'ALREADY_CLAIMED' | 'INVITE_REVOKED' }> {
+  if (invite.claimedByUserId) return { ok: false, code: 'ALREADY_CLAIMED' }
+  if (invite.revokedAt) return { ok: false, code: 'INVITE_REVOKED' }
+  const token = generateMeetingToken()
+  await db.adminMeetingInvite.update({
+    where: { id: invite.id },
+    data: { tokenHash: hashMeetingToken(token), tokenSealed: sealMeetingToken(token) },
+  })
+  return { ok: true, url: meetingInviteUrl(token) }
+}
+
+// شكل دعوة كما يظهر في تفاصيل اجتماع الإدارة: يشمل الرابط الكامل
+// (من النسخة المشفّرة) — ولا يُستخدم إلا خلف بوابة الإدارة.
+export function adminInviteShape(invite: any, claimedByName: string | null, now: Date = new Date()) {
+  return {
+    id: invite.id,
+    inviteeName: invite.inviteeName,
+    inviteeEmail: invite.inviteeEmail,
+    url: meetingInviteUrlForInvite(invite),
+    claimed: Boolean(invite.claimedByUserId),
+    claimedByName,
+    opened: Boolean(invite.lastOpenedAt),
+    revoked: Boolean(invite.revokedAt),
+    expired: new Date(invite.expiresAt).getTime() <= now.getTime(),
+    createdAt: invite.createdAt,
+  }
 }
 
 // استلام الدعوة: يربطها بحساب المستخدم. دعوة مستلَمة من غيره لا
