@@ -219,7 +219,7 @@ const auditDb: any = {
       id: 'PROGRAM-attempt', userId: 'student-1', examId: 'PROGRAM-exam',
       status: 'NEEDS_REVIEW', exam: auditExam('PROGRAM', include), answers: auditAnswers,
     }),
-    updateMany: async () => ({ count: 1 }),
+    updateMany: async ({ data }: any) => { auditFinalGrade = data; return { count: 1 } },
     update: async ({ data }: any) => { auditFinalGrade = data; return data },
   },
   question: {
@@ -242,7 +242,7 @@ const auditDb: any = {
 mock.module('@/lib/db', () => ({ db: auditDb }))
 mock.module('@/lib/auth', () => ({ requireAdmin: async () => ({ id: 'admin-1' }), requireUser: async () => ({ id: 'admin-1' }) }))
 mock.module('@/lib/semester-readiness', () => ({ calculateSemesterReadiness: async () => null }))
-mock.module('@/lib/enrollment-completion', () => ({ completeEnrollmentIfEligible: async () => null }))
+mock.module('@/lib/enrollment-completion', () => ({ completeEnrollmentIfEligible: async () => null, registerGraduationRequest: async () => ({ registered: false, certificateNo: null }) }))
 mock.module('@/lib/essay-grading', () => ({
   EssayNeedsReviewError: class EssayNeedsReviewError extends Error {},
   gradeEssayWithRubric: async () => ({ points: 0, feedback: '' }),
@@ -267,7 +267,7 @@ for (const type of ['UNIT', 'PROGRAM'] as const) {
       const result = await reviewRequest(type)
       expect(result.status).toBe(409)
       expect((await result.json()).error).toContain('تكررت')
-      expect(auditFinalGrade).toBeNull()
+      expect((auditFinalGrade as Record<string, any> | null)?.status).not.toBe('GRADED')
     })
     test('يمنع الاعتماد عندما لا يوجد سجل للسؤال المطلوب', async () => {
       auditFinalGrade = null
@@ -276,7 +276,7 @@ for (const type of ['UNIT', 'PROGRAM'] as const) {
       const result = await reviewRequest(type)
       expect(result.status).toBe(400)
       expect((await result.json()).error).toContain('سؤال مطلوب')
-      expect(auditFinalGrade).toBeNull()
+      expect((auditFinalGrade as Record<string, any> | null)?.status).not.toBe('GRADED')
     })
     test('سؤال واحد صحيح يُعتمد بدرجة 100% دون تضخيم', async () => {
       auditFinalGrade = null

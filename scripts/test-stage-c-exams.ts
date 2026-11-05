@@ -204,7 +204,7 @@ async function testFinalGradeBehaviorWithMockData() {
 }
 function testCentralCompletionOnly() {
   const submit = file('src/app/api/exam/submit/route.ts')
-  assert(submit.includes("completeEnrollmentIfEligible({ enrollmentId: enrollment.id })"), 'unit exam submit must delegate completion to the central service')
+  assert(submit.includes("registerGraduationRequest({ enrollmentId: enrollment.id })"), 'unit exam submit must delegate graduation registration to the central service')
   assert(!submit.includes('programUnits = await db.unit.count'), 'unit exam submit must not locally count all program units to issue certificates')
   assert(!submit.includes('data: { status: \'COMPLETED\''), 'unit exam submit must not directly mark Enrollment COMPLETED')
   assert(!submit.includes('AACT-${new Date().getFullYear()}'), 'unit exam submit must not mint local certificate numbers')
@@ -222,7 +222,7 @@ function testCentralCompletionOnly() {
   assert(central.includes('for (let attempt = 0; attempt < 3; attempt++)'), 'central completion must retry serial conflicts outside the transaction')
   assert(!central.includes('createProgramCompletionCertificateWithRetry'), 'central completion must not retry P2002 inside the same transaction')
   const programSubmit = file('src/app/api/program-exam/submit/route.ts')
-  assert(programSubmit.includes('completeEnrollmentIfEligible({ enrollmentId: enrollment.id })'), 'program exam submit must also delegate eligible completion to the central service')
+  assert(programSubmit.includes('registerGraduationRequest({ enrollmentId: enrollment.id })'), 'program exam submit must also delegate graduation registration to the central service')
   assert(programSubmit.includes("return NextResponse.json({ error: 'JSON غير صالح في طلب التسليم' }, { status: 400 })"), 'program exam submit must return 400 for malformed JSON')
   assert(submit.includes("return NextResponse.json({ error: 'JSON غير صالح في طلب التسليم' }, { status: 400 })"), 'unit exam submit must return 400 for malformed JSON')
 }
@@ -235,7 +235,7 @@ function testEligibilityRequiresAllAcademicAndFinancialInputs() {
   assert(finalGrade.includes("status: 'GRADED'") && finalGrade.includes("a.passed === true"), 'unit success must require a passed graded attempt')
   assert(finalGrade.includes('programExamAverage') && finalGrade.includes("appealStatus: { not: 'PENDING' }"), 'program exams must exclude pending appeals')
   assert(finalGrade.includes('assignmentAverage'), 'final grade must include published assignments')
-  assert(finalGrade.includes("where: { programId, status: 'PUBLISHED' }"), 'published assignments must be enumerated')
+  assert(finalGrade.includes("where: { programId, status: 'PUBLISHED', ...(semester ? { semester } : {}) }"), 'published assignments must be enumerated with optional semester scope')
   assert(finalGrade.includes("submission?.status === 'GRADED'"), 'published assignments must be graded')
   assert(finalGrade.includes('thesisScores'), 'masters/doctorate eligibility must include thesis/defense scores')
   assert(finalGrade.includes('percentFromAnswers') && finalGrade.includes('exam.passScore'), 'exam passing must use original answer-based percentage')
@@ -336,8 +336,8 @@ function testMaxAttemptsAndAnswerKeyDisclosure() {
 
 function testProgressCertificateUsesCentralServiceAndFullTuition() {
   const progress = file('src/app/api/progress/route.ts')
-  assert(progress.includes('completeEnrollmentIfEligible({ enrollmentId: enrollment.id })'), 'progress POST must delegate PROGRAM_COMPLETION issuance to the central completion service')
-  assert(progress.includes('completeEnrollmentIfEligible({ enrollmentId: enrollment.id })'), 'progress POST must defer graduation to central service')
+  assert(progress.includes('registerGraduationRequest({ enrollmentId: enrollment.id })'), 'progress POST must register the graduation transaction with the central service, never issue by itself')
+  assert(progress.includes('registerGraduationRequest({ enrollmentId: enrollment.id })'), 'progress POST must defer graduation to the central service')
   assert(progress.includes('data: { completedUnits: JSON.stringify(completedUnits) }'), 'marking a read unit may update only its progress, never graduation status or academic score')
   assert(!progress.includes('db.certificate.create'), 'progress POST must not create PROGRAM_COMPLETION certificates directly')
   assert(!progress.includes('nextCertSerial'), 'progress POST must not mint certificate serials directly')

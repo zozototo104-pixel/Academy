@@ -941,6 +941,46 @@ model Certificate {
 // in file storage under storageKey; this row records the run (counts and
 // per-file results) so a partial import can be resumed later from any
 // device instead of depending on the uploader's open page.
+// معاملة تخرّج: سجلّ حيّ واحد لكل تسجيل يوثّق فحص الأهلية والمصادقة
+// الإدارية الصريحة قبل إصدار الشهادة. لا إصدار دون موافقة محفوظة هنا.
+model GraduationRequest {
+  id            String    @id @default(cuid())
+  enrollmentId  String    @unique
+  userId        String
+  programId     String
+  admissionId   String?
+  status        String    @default("PENDING") // PENDING | APPROVED | REJECTED | ISSUED
+  ready         Boolean   @default(false)
+  score         Float?
+  snapshot      Json?
+  decidedById   String?
+  decidedAt     DateTime?
+  decisionNote  String?
+  certificateId String?
+  issuedAt      DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status])
+  @@index([userId])
+}
+
+model SemesterResultApproval {
+  id           String    @id @default(cuid())
+  enrollmentId String
+  semester     Int
+  status       String    @default("APPROVED") // APPROVED — stored admin decision on a semester result
+  score        Float?
+  decidedById  String?
+  decidedAt    DateTime?
+  decisionNote String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([enrollmentId, semester])
+  @@index([enrollmentId])
+}
+
 model LegacyCertificateZipImport {
   id         String   @id @default(cuid())
   adminId    String
@@ -2382,6 +2422,175 @@ model ProgramExtensionRequest {
   @@index([enrollmentId, status])
   @@index([status, createdAt])
 }
+
+model GradeApproval {
+  id           String   @id @default(cuid())
+  targetType   String // UNIT_EXAM | PROGRAM_EXAM
+  attemptId    String
+  userId       String // الطالب
+  programId    String
+  semester     Int
+  score        Float
+  approvedById String
+  approvedAt   DateTime @default(now())
+  note         String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([targetType, attemptId])
+  @@index([userId, programId, semester])
+}
+
+// لقطة قواعد الالتحاق المجمّدة (المرحلة 3 من خطة دورة التخرج): نسخة قيمية
+// ثابتة من الشروط الأكاديمية الفعّالة وقت التحاق الطالب — خريطة الأوزان
+// المحسومة لهذا الالتحاق، قيمة عتبة النجاح (50) مع صرامتها (> لا ≥)،
+// والمتطلبات المعلنة المشتقة منها. تُنشأ عند إنشاء الالتحاق، أو تُستكمل
+// عند أول احتساب لالتحاق سابق (basis=BACKFILL). لا تُعدَّل بعد إنشائها
+// أبدًا؛ الإعدادات التشغيلية (حدود المحاولات والمواعيد) لا تدخلها.
+model EnrollmentRulesSnapshot {
+  id               String   @id @default(cuid())
+  enrollmentId     String   @unique
+  userId           String
+  programId        String
+  weightsJson      String // JSON: { componentKey: weight }
+  weightSource     String // academic_profile | category_default
+  weightWarning    String?
+  passThreshold    Int      @default(50)
+  thresholdStrict  Boolean  @default(true)
+  requirementsJson String // JSON: { semestersCount, requiredComponents[] }
+  basis            String   @default("ENROLLMENT") // ENROLLMENT | BACKFILL
+  capturedAt       DateTime @default(now())
+  createdAt        DateTime @default(now())
+
+  @@index([userId, programId])
+}
+
+// دورة حياة الفصل (المرحلة 4): حالة محفوظة لكل (التحاق × فصل) — الإغلاق
+// حالة خادمية لا استنتاج من التواريخ. النوافذ مشتقة من تقسيم مدة البرنامج
+// القائم (program-duration) وتُختم هنا عند إنشاء الحالة.
+
+model EnrollmentSemesterState {
+  id                   String    @id @default(cuid())
+  enrollmentId         String
+  semester             Int
+  status               String    @default("OPEN") // OPEN | CLOSED
+  openedAt             DateTime
+  submissionDeadline   DateTime?
+  nextSemesterStartsAt DateTime?
+  closedAt             DateTime?
+  result               String? // PASSED | FAILED
+  approvedScore        Float?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@unique([enrollmentId, semester])
+  @@index([status, submissionDeadline])
+}
+
+// سجل الأحداث الصادرة (المرحلة 4/6): كل إشعار دورة حياة يُحفظ داخل نفس
+// معاملة تغيير الحالة التي ولّدته، بمفتاح عدم تكرار فريد. الإرسال داخل
+// المنصة مضمون عدم التكرار (ينقلب SENT مع إنشاء الإشعارات بمعاملة
+// واحدة)؛ البريد يُعاد محاولته بأمان وموثّق، ولا يُدّعى له مرة واحدة.
+model NotificationOutbox {
+  id              String    @id @default(cuid())
+  idempotencyKey  String    @unique
+  kind            String
+  recipientUserId String?
+  recipientRole   String? // ADMINS
+  title           String
+  body            String
+  link            String?
+  status          String    @default("PENDING") // PENDING | SENT
+  emailStatus     String    @default("PENDING") // PENDING | SENT | FAILED | SKIPPED
+  emailAttempts   Int       @default(0)
+  lastError       String?
+  createdAt       DateTime  @default(now())
+  sentAt          DateTime?
+
+  @@index([status, createdAt])
+}
+
+// التماس إعادة فتح (المرحلة 4) — نظام مستقل عن التماسات الدرجات: طلب
+// لإعادة فتح تسليم وحدة انتهت نافذتها ما دام فصلها قائمًا. له مهلة بتّ
+// وتصعيد إداري، ولا يُرفض تلقائيًا أبدًا؛ المعلّق منه يمنع إغلاق الفصل.
+model ReopenAppeal {
+  id               String    @id @default(cuid())
+  enrollmentId     String
+  userId           String
+  programId        String
+  semester         Int
+  unitId           String?
+  reason           String
+  status           String    @default("PENDING") // PENDING | APPROVED | REJECTED | ARCHIVED
+  decisionDeadline DateTime
+  decidedById      String?
+  decidedAt        DateTime?
+  decisionNote     String?
+  escalatedAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([enrollmentId, semester, status])
+  @@index([status, decisionDeadline])
+}
+
+// طلب استرحام ونشاط علاجي (المرحلة 4، مبدأ 6): سجل واحد لكل (التحاق ×
+// فصل) — نشاط واحد معتمد لكل فصل، وأي ثانٍ لا يكون إلا بمراجعة
+// استثنائية. النشاط حقيقي: يُسند بوزن ومهلة ≤ 7 أيام، يُسلَّم ويُصحَّح
+// بدرجة حقيقية، ثم يُعاد حساب معدل الفصل ومصادقته رسميًا مع بقاء
+// الرسوب الأصلي موثّقًا (previousAverage + سجل الاعتماد السابق).
+model MercyRequest {
+  id                   String    @id @default(cuid())
+  enrollmentId         String
+  userId               String
+  programId            String
+  semester             Int
+  status               String    @default("REQUESTED") // REQUESTED | ACTIVITY_ASSIGNED | SUBMITTED | GRADED | COMPLETED | LAPSED | REJECTED
+  initiatedBy          String    @default("STUDENT") // STUDENT | ADMIN
+  activityTitle        String?
+  activityInstructions String?
+  assignedById         String?
+  assignedAt           DateTime?
+  dueAt                DateTime?
+  weightPercent        Int?
+  submissionText       String?
+  submittedAt          DateTime?
+  score                Float?
+  gradedById           String?
+  gradedAt             DateTime?
+  previousAverage      Float?
+  newAverage           Float?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@unique([enrollmentId, semester])
+}
+
+// قناة المراجعة الأكاديمية الاستثنائية (المرحلة 4): قرار إداري موثّق
+// بعد إغلاق فصل — لأي فصل مستقلًا عن الآخر — لحالات الخطأ المثبت التي
+// لا يعالجها الاسترحام. القناة نفسها لا تغيّر درجة ولا تعيد فتح فصل؛
+// التعديلات الرسمية تجري بمساراتها (تصحيح الدرجات ثم إعادة المصادقة)
+// وقرار القناة يوثّقها.
+model ExceptionalReview {
+  id           String    @id @default(cuid())
+  enrollmentId String
+  userId       String
+  programId    String
+  semester     Int
+  reason       String
+  status       String    @default("OPEN") // OPEN | DECIDED
+  decisionNote String?
+  decidedById  String?
+  decidedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([enrollmentId, semester, status])
+}
+
+// اعتماد درجة محفوظ (المرحلة 2): يميَّز عن مراجعة التصحيح؛ صلاحيته مشروطة
+// ببقاء درجة المحاولة الحالية مساوية للدرجة المعتمدة وقت الاعتماد.
+
 
 // ===== قاعة الاجتماعات الإدارية =====
 // اجتماعات رسمية غير مرتبطة ببرنامج أكاديمي. المزود: ZOOM | MEET |

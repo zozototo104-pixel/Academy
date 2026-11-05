@@ -156,7 +156,7 @@ mock.module('@/lib/notify', () => ({
 }))
 
 mock.module('@/lib/semester-readiness', () => ({ calculateSemesterReadiness: async () => ({ maxExamScore: 100 }) }))
-mock.module('@/lib/enrollment-completion', () => ({ completeEnrollmentIfEligible: async () => ({ ok: false }) }))
+mock.module('@/lib/enrollment-completion', () => ({ completeEnrollmentIfEligible: async () => ({ ok: false }), registerGraduationRequest: async () => ({ registered: false, certificateNo: null }) }))
 
 const dbModule: any = await import('@/lib/db')
 ;(globalThis as any).__fakeDb = dbModule.db

@@ -5,7 +5,7 @@ import { generateOverallFeedback } from '@/lib/ai'
 import { gradeEssayWithRubric } from '@/lib/essay-grading'
 import { buildEssaySourceMap } from '@/lib/essay-source'
 import { notifyAttemptGraded, notifyAttemptNeedsReview } from '@/lib/exam-attempt-notifications'
-import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
+import { registerGraduationRequest } from '@/lib/enrollment-completion'
 import { EXAM_ATTEMPT_POLICY_SINCE, getExamMaxAttempts, shouldRevealCorrectAnswers } from '@/lib/exam-attempt-policy'
 
 const UNIT_EXAM_DURATION_MIN = Math.max(1, Number(process.env.AACT_UNIT_EXAM_DURATION_MIN || 60))
@@ -464,12 +464,14 @@ export async function POST(req: NextRequest) {
       console.error('Optional unit feedback failed; official grade remains saved', { code: 'UNIT_FEEDBACK_FAILED', attemptId: claimedUnitAttemptId || null })
     }
 
-    // Any graded attempt can push the weighted cumulative mark above the threshold.
-    const completion = await completeEnrollmentIfEligible({ enrollmentId: enrollment.id }).catch((error) => {
-      console.error('Post-grade certificate recheck failed; preserving unit result', { code: 'UNIT_CERTIFICATE_RECHECK_FAILED', attemptId: claimedUnitAttemptId || null })
+    // Any graded attempt can complete the graduation picture: register or
+    // refresh the graduation transaction. Issuance itself is a separate,
+    // administratively approved action — never a submit side effect.
+    const registration = await registerGraduationRequest({ enrollmentId: enrollment.id }).catch((error) => {
+      console.error('Post-grade graduation request registration failed; preserving unit result', { code: 'UNIT_GRADUATION_REQUEST_FAILED', attemptId: claimedUnitAttemptId || null })
       return null
     })
-    const certificateNo = completion?.ok ? completion.certificate?.serial || null : null
+    const certificateNo = registration?.certificateNo || null
     // النتيجة الواثقة معتمدة فورًا — تُشعر الإدارة والمشرف البشري بها
     // مع بقاء خيار إعادة التصحيح من شاشات المراجعة.
     await notifyAttemptGraded({ studentId: user.id, studentName: user.name, examTitle: exam.title, score: Math.round(percentage * 10) / 10 })

@@ -1521,8 +1521,63 @@ interface CertificateCandidate {
   status: string
   ready: boolean
   missing: string[]
+  userId?: string | null
+  programId?: string | null
   eligibility: { ok: boolean; score: number | null; gradeLabel: string | null; error: string; components?: any[] }
   payments: { tuitionTotal: number; tuitionPaid: number; tuitionOk: boolean; nonTuitionUnpaid: number; missing: string[] }
+}
+
+interface GraduationRequestItem {
+  id: string
+  enrollmentId: string
+  userId: string
+  programId: string
+  admissionId: string | null
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'ISSUED'
+  ready: boolean
+  score: number | null
+  snapshot: { ready?: boolean; score?: number | null; gradeLabel?: string | null; missing?: string[]; financeError?: string | null; academicError?: string | null; checkedAt?: string } | null
+  decidedById: string | null
+  decidedAt: string | null
+  decisionNote: string | null
+  issuedAt: string | null
+  studentName: string | null
+  studentEmail: string | null
+  programTitle: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+// موانع اعتماد نتيجة الفصل كما يرجعها الحارس الخادمي — تسميات عربية للشاشة.
+const SEMESTER_BLOCKER_LABELS: Record<string, string> = {
+  UNIT_GRADING_PENDING: 'محاولات وحدات مقدّمة بانتظار التصحيح',
+  UNIT_GRADED_SCORE_MISSING: 'محاولات وحدات مصحّحة بلا درجة رقمية',
+  UNIT_ANSWER_POINTS_MISSING: 'محاولات وحدات فيها إجابات بلا نقاط',
+  UNIT_REVIEW_PENDING: 'محاولات وحدات بانتظار تأكيد المراجعة',
+  UNIT_APPEAL_PENDING: 'التماسات درجات وحدات معلّقة',
+  UNIT_GRADES_UNAPPROVED: 'درجات وحدات نهائية بلا اعتماد رسمي',
+  PROGRAM_EXAM_GRADING_PENDING: 'محاولات امتحان فصل بانتظار التصحيح',
+  PROGRAM_EXAM_GRADED_SCORE_MISSING: 'محاولات امتحان فصل مصحّحة بلا درجة رقمية',
+  PROGRAM_EXAM_ANSWER_POINTS_MISSING: 'محاولات امتحان فصل فيها إجابات بلا نقاط',
+  PROGRAM_EXAM_REVIEW_PENDING: 'محاولات امتحان فصل بانتظار تأكيد المراجعة',
+  PROGRAM_EXAM_APPEAL_PENDING: 'التماسات امتحان فصل معلّقة',
+  PROGRAM_EXAM_GRADES_UNAPPROVED: 'درجات امتحان فصل نهائية بلا اعتماد رسمي',
+  ASSIGNMENT_GRADING_PENDING: 'واجبات مقدّمة بانتظار التصحيح',
+  INVALID_SEMESTER: 'فصل غير صالح لهذا البرنامج',
+}
+
+interface SemesterCheckState {
+  loading?: boolean
+  error?: string
+  blockers?: { code: string; count: number }[]
+  approvalActive?: boolean
+  hasApproval?: boolean
+  gradeApprovals?: { id: string; targetType: string; score: number }[]
+  averages?: {
+    semesters: { semester: number; average: number | null; passed: boolean | null; complete: boolean }[]
+    composedFinal: number | null
+  } | null
+  snapshot?: { basis: string; weightSource: string } | null
 }
 
 interface CertificateTemplateItem {
@@ -1636,6 +1691,129 @@ export function AdminCertificatesTab() {
     }, 250)
     return () => { cancelled = true; window.clearTimeout(timer) }
   }, [certSearch, candidateRefresh, certRefresh])
+
+  const [gradRequests, setGradRequests] = useState<GraduationRequestItem[]>([])
+  const [gradLoading, setGradLoading] = useState(true)
+  const [gradRefresh, setGradRefresh] = useState(0)
+  const [semesterChecks, setSemesterChecks] = useState<Record<string, SemesterCheckState>>({})
+
+  useEffect(() => {
+    let cancelled = false
+    setGradLoading(true)
+    api<{ requests: GraduationRequestItem[] }>('/api/admin/graduation-requests')
+      .then((d) => { if (!cancelled) setGradRequests(Array.isArray(d.requests) ? d.requests : []) })
+      .catch(() => { if (!cancelled) setGradRequests([]) })
+      .finally(() => { if (!cancelled) setGradLoading(false) })
+    return () => { cancelled = true }
+  }, [gradRefresh, certRefresh])
+
+  const decideGraduation = async (request: GraduationRequestItem, action: 'APPROVE' | 'REJECT') => {
+    let note: string | undefined
+    if (action === 'REJECT') {
+      const reason = window.prompt('سبب رفض طلب التخرج (يصل إلى الطالب):', '')
+      if (reason === null) return
+      note = reason.trim() || undefined
+    }
+    setBusy(true)
+    try {
+      await api('/api/admin/graduation-requests', { method: 'POST', body: JSON.stringify({ action, requestId: request.id, note }) })
+      toast({ title: action === 'APPROVE' ? 'تم اعتماد الطلب' : 'تم رفض الطلب', description: action === 'APPROVE' ? 'الاعتماد محفوظ — الإصدار يتم من زر إصدار الشهادة بعد إعادة فحص الشروط.' : 'سُجّل الرفض وأُشعر الطالب.' })
+      setGradRefresh((v) => v + 1)
+    } catch (e: any) {
+      toast({ title: 'تعذر تنفيذ القرار', description: e.message, variant: 'destructive' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const refreshGraduation = async (request: GraduationRequestItem) => {
+    setBusy(true)
+    try {
+      await api('/api/admin/graduation-requests', { method: 'POST', body: JSON.stringify({ action: 'REFRESH', requestId: request.id }) })
+      toast({ title: 'تم تحديث الفحص', description: 'أُعيد تقييم الأهلية والدرجة الآن — راجع حالة المعاملة قبل القرار.' })
+      setGradRefresh((v) => v + 1)
+    } catch (e: any) {
+      toast({ title: 'تعذر تحديث الفحص', description: e.message, variant: 'destructive' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // شاشة مصادقة نتيجة الفصل: الشروط تأتي من الحارس الخادمي نفسه، والزر
+  // معطّل حتى اكتمال القائمة وتفعيل الاعتماد (المرحلتان 3 و4) — التعطيل
+  // هنا عرضٌ لقرار الخادم، لا بديل عنه.
+  const loadSemesterCheck = async (request: GraduationRequestItem, semester: number) => {
+    const key = `${request.enrollmentId}:${semester}`
+    setSemesterChecks((prev) => ({ ...prev, [key]: { ...prev[key], loading: true, error: undefined } }))
+    try {
+      const data = await api<{ blockers?: { code: string; count: number }[]; approvalActive?: boolean; approval?: unknown; averages?: SemesterCheckState['averages']; snapshot?: SemesterCheckState['snapshot'] }>(`/api/admin/semester-approvals?enrollmentId=${encodeURIComponent(request.enrollmentId)}&semester=${semester}`)
+      let gradeApprovals: { id: string; targetType: string; score: number }[] = []
+      try {
+        const g = await api<{ approvals?: { id: string; targetType: string; score: number }[] }>(`/api/admin/grade-approvals?userId=${encodeURIComponent(request.userId)}&programId=${encodeURIComponent(request.programId)}&semester=${semester}`)
+        gradeApprovals = Array.isArray(g?.approvals) ? g.approvals : []
+      } catch { gradeApprovals = [] }
+      setSemesterChecks((prev) => ({
+        ...prev,
+        [key]: {
+          loading: false,
+          blockers: Array.isArray(data?.blockers) ? data.blockers : [],
+          approvalActive: Boolean(data?.approvalActive),
+          hasApproval: Boolean(data?.approval),
+          gradeApprovals,
+          averages: data?.averages ?? null,
+          snapshot: data?.snapshot ?? null,
+        },
+      }))
+    } catch (e: any) {
+      setSemesterChecks((prev) => ({ ...prev, [key]: { loading: false, error: e?.message || 'تعذر تحميل شروط الفصل' } }))
+    }
+  }
+
+  const decideSemester = async (request: GraduationRequestItem, semester: number) => {
+    setBusy(true)
+    try {
+      await api('/api/admin/semester-approvals', { method: 'POST', body: JSON.stringify({ enrollmentId: request.enrollmentId, semester }) })
+      toast({ title: 'تم اعتماد نتيجة الفصل', description: 'الاعتماد محفوظ في قاعدة البيانات بسجلّه.' })
+      void loadSemesterCheck(request, semester)
+    } catch (e: any) {
+      toast({ title: 'تعذر اعتماد نتيجة الفصل', description: e.message, variant: 'destructive' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const registerGraduationForCandidate = async (candidate: CertificateCandidate) => {
+    setBusy(true)
+    try {
+      await api('/api/admin/graduation-requests', { method: 'POST', body: JSON.stringify({ action: 'REGISTER', userId: candidate.userId || null, programId: candidate.programId || null, admissionId: candidate.id }) })
+      toast({ title: 'أُنشئت معاملة التخرج', description: `معاملة ${candidate.fullName} ظاهرة الآن في قائمة المصادقة.` })
+      setGradRefresh((v) => v + 1)
+    } catch (e: any) {
+      toast({ title: 'تعذر إنشاء المعاملة', description: e.message, variant: 'destructive' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const issueForRequest = async (request: GraduationRequestItem) => {
+    if (!request.admissionId) {
+      toast({ title: 'تعذر الإصدار', description: 'لا يوجد طلب التحاق مرتبط بهذه المعاملة.', variant: 'destructive' })
+      return
+    }
+    setBusy(true)
+    try {
+      await api('/api/admin/certificates', { method: 'POST', body: JSON.stringify({ admissionId: request.admissionId }) })
+      toast({ title: 'تم إصدار الشهادة', description: `أُصدرت شهادة ${request.studentName || 'الطالب'} بعد اعتماد معاملته وإعادة فحص الشروط.` })
+      load()
+      setGradRefresh((v) => v + 1)
+      setCandidateRefresh((v) => v + 1)
+      setSection('ISSUED')
+    } catch (e: any) {
+      toast({ title: 'تعذر إصدار الشهادة', description: e.message, variant: 'destructive' })
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const loadTemplates = () => {
     api<{ templates: CertificateTemplateItem[] }>('/api/admin/certificates/templates')
@@ -1893,12 +2071,141 @@ export function AdminCertificatesTab() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="text-lg font-black text-[#0f2b46]">مركز إصدار الشهادات</h3>
-          <p className="text-xs font-bold text-slate-500">النظام يحدد الجاهزين والممنوعين آلياً، والإدارة تعتمد الإصدار بضغطة زر.</p>
+          <p className="text-xs font-bold text-slate-500">لا إصدار دون مصادقة إدارية محفوظة على معاملة التخرج، والخادم يعيد فحص الشروط وقت الإصدار نفسه.</p>
         </div>
         <Button onClick={() => setIssueOpen(true)} variant="outline" className="border-[#c9a227] font-extrabold text-[#a8841a]">
           <Plus className="ml-1 h-4 w-4" /> إصدار يدوي مقيد
         </Button>
       </div>
+
+      <Card className="border-[#c9a227]/40 bg-white">
+        <CardContent className="space-y-3 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h4 className="text-sm font-black text-[#0f2b46]">معاملات التخرج — المصادقة الإدارية</h4>
+              <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">كل طالب أنهى حدثًا أكاديميًا تُنشأ له معاملة هنا مع نتيجة فحص الأهلية وأسباب النقص. الاعتماد محفوظ في قاعدة البيانات، والإصدار بعده يعيد فحص الشروط طازجة — فلا زرّ وحده ولا استدعاء مباشر يصدر شهادة دون اعتماد صالح.</p>
+            </div>
+            <Badge className="bg-[#c9a227]/15 text-[#a8841a]">{gradRequests.filter((r) => r.status === 'PENDING').length} بانتظار المصادقة</Badge>
+          </div>
+          {gradLoading ? (
+            <div className="flex h-20 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-[#c9a227]" /></div>
+          ) : (
+            <>
+              {gradRequests.filter((r) => r.status !== 'ISSUED').length === 0 && readyCandidates.filter((c) => !gradRequests.some((r) => r.status !== 'ISSUED' && ((r.admissionId && r.admissionId === c.id) || (c.userId && r.userId === c.userId && c.programId && r.programId === c.programId)))).length === 0 ? (
+                <p className="rounded-xl bg-slate-50 p-3 text-center text-xs font-bold text-slate-400">لا توجد معاملات تخرج مفتوحة حاليًا.</p>
+              ) : (
+                <div className="grid gap-3 lg:grid-cols-2">
+                  {gradRequests.filter((r) => r.status !== 'ISSUED').map((r) => {
+                    const missing = Array.isArray(r.snapshot?.missing) ? r.snapshot!.missing! : []
+                    const statusMeta = r.status === 'APPROVED'
+                      ? { label: 'معتمد — بانتظار الإصدار', cls: 'bg-sky-100 text-sky-700' }
+                      : r.status === 'REJECTED'
+                        ? { label: 'مرفوض', cls: 'bg-red-100 text-red-700' }
+                        : { label: 'بانتظار المصادقة', cls: 'bg-amber-100 text-amber-700' }
+                    return (
+                      <div key={r.id} className="space-y-3 rounded-xl border border-[#0f2b46]/10 p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <h5 className="text-sm font-black text-[#0f2b46]">{r.studentName || 'طالب'}</h5>
+                            <p className="text-xs font-bold text-slate-500">{r.programTitle || ''}</p>
+                            {r.studentEmail && <p className="mt-1 font-mono text-[10px] text-slate-400" dir="ltr">{r.studentEmail}</p>}
+                          </div>
+                          <Badge className={statusMeta.cls}>{statusMeta.label}</Badge>
+                        </div>
+                        <div className="grid gap-2 rounded-xl bg-slate-50 p-3 text-xs font-bold text-slate-700 sm:grid-cols-2">
+                          <span>الدرجة التراكمية: {typeof r.score === 'number' ? `${r.score}%` : '—'}</span>
+                          <span>{r.ready ? 'مستوفٍ للشروط عند آخر فحص' : 'غير مستوفٍ عند آخر فحص'}</span>
+                        </div>
+                        {!r.ready && missing.length > 0 && (
+                          <div className="rounded-xl bg-red-50 p-3 text-xs font-bold leading-6 text-red-900"><p className="mb-1 font-black">أسباب عدم الاستحقاق:</p><ul className="list-inside list-disc space-y-1">{missing.slice(0, 6).map((m, i) => <li key={i}>{m}</li>)}</ul></div>
+                        )}
+                        {r.status !== 'PENDING' && r.decidedAt && (
+                          <p className="text-[11px] font-bold text-slate-500">آخر قرار: {new Date(r.decidedAt).toLocaleString('ar-EG')}{r.decisionNote ? ` — ${r.decisionNote}` : ''}</p>
+                        )}
+                        <div className="flex flex-wrap gap-2">
+                          <Button disabled={busy} variant="outline" onClick={() => refreshGraduation(r)} className="border-[#0f2b46]/20 font-black text-[#0f2b46] hover:bg-slate-50">تحديث الفحص</Button>
+                          {(r.status === 'PENDING' || r.status === 'REJECTED') && (
+                            <Button disabled={busy} onClick={() => decideGraduation(r, 'APPROVE')} className="bg-emerald-600 font-black text-white hover:bg-emerald-700">{busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="ml-2 h-4 w-4" />} اعتماد الطلب</Button>
+                          )}
+                          {(r.status === 'PENDING' || r.status === 'APPROVED') && (
+                            <Button disabled={busy} variant="outline" onClick={() => decideGraduation(r, 'REJECT')} className="border-red-200 font-black text-red-600 hover:bg-red-50">{busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <XCircle className="ml-2 h-4 w-4" />} رفض</Button>
+                          )}
+                          {r.status === 'APPROVED' && (
+                            <Button disabled={busy} onClick={() => issueForRequest(r)} className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">{busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Award className="ml-2 h-4 w-4" />} إصدار الشهادة</Button>
+                          )}
+                        </div>
+                        <div className="space-y-2 rounded-xl border border-dashed border-[#0f2b46]/15 p-3">
+                          <p className="text-xs font-black text-[#0f2b46]">مصادقة نتيجة الفصل — قائمة الشروط من الخادم</p>
+                          <div className="flex flex-wrap gap-2">
+                            {[1, 2].map((s) => (
+                              <Button key={s} variant="outline" disabled={busy} onClick={() => loadSemesterCheck(r, s)} className="border-[#0f2b46]/20 font-black text-[#0f2b46] hover:bg-slate-50">شروط الفصل {s === 1 ? 'الأول' : 'الثاني'}</Button>
+                            ))}
+                          </div>
+                          {[1, 2].map((s) => {
+                            const chk = semesterChecks[`${r.enrollmentId}:${s}`]
+                            if (!chk || (!chk.loading && !chk.blockers && !chk.error)) return null
+                            const canDecide = Boolean(chk.approvalActive) && Array.isArray(chk.blockers) && chk.blockers.length === 0
+                            return (
+                              <div key={s} className="space-y-2 rounded-xl bg-slate-50 p-3 text-xs font-bold leading-6 text-slate-700">
+                                <p className="font-black text-[#0f2b46]">الفصل {s === 1 ? 'الأول' : 'الثاني'}</p>
+                                {chk.loading ? (
+                                  <p>جارٍ فحص الشروط…</p>
+                                ) : chk.error ? (
+                                  <p className="text-red-700">{chk.error}</p>
+                                ) : (
+                                  <>
+                                    {!chk.approvalActive && <p className="text-amber-700">اعتماد نتيجة الفصل النهائي غير مفعّل بعد — يُفعَّل بعد اكتمال حساب معدلات الفصول ودورة حياة الفصل (المرحلتان 3 و4)، والخادم يرفض أي اعتماد حتى ذلك الحين ولو باستدعاء مباشر.</p>}
+                                    {chk.blockers && chk.blockers.length > 0 ? (
+                                      <ul className="list-inside list-disc space-y-1">
+                                        {chk.blockers.map((b, i) => <li key={i}>{SEMESTER_BLOCKER_LABELS[b.code] || b.code} — {b.count}</li>)}
+                                      </ul>
+                                    ) : (
+                                      <p className="text-emerald-700">كل شروط الدرجات مكتملة في هذا الفصل.</p>
+                                    )}
+                                    {chk.hasApproval && <p>يوجد اعتماد نتيجة محفوظ لهذا الفصل.</p>}
+                                    {chk.averages && (
+                                      <p className="font-bold text-[#0f2b46]">
+                                        معدلات الفصول من الخادم:{' '}
+                                        {chk.averages.semesters.map((s) => `الفصل ${s.semester}: ${s.average === null ? 'غير متاح بعد' : `${s.average} (${s.passed ? 'ناجح' : 'غير ناجح'}${s.complete ? '' : ' — غير مكتمل'})`}`).join(' · ')}
+                                        {' · '}المعدل النهائي المركّب: {chk.averages.composedFinal === null ? 'غير متاح بعد' : chk.averages.composedFinal}
+                                      </p>
+                                    )}
+                                    {chk.gradeApprovals && chk.gradeApprovals.length > 0 && (
+                                      <p>الدرجات المعتمدة رسميًا: {chk.gradeApprovals.map((g) => `${g.targetType === 'UNIT_EXAM' ? 'وحدة' : 'امتحان فصل'} (${g.score})`).join('، ')}</p>
+                                    )}
+                                    {chk.snapshot && (
+                                      <p className="text-[11px] text-slate-500">لقطة القواعد المجمّدة: محفوظة ({chk.snapshot.basis === 'ENROLLMENT' ? 'منذ الالتحاق' : 'استُكملت عند أول احتساب'}) — المعدلات محسوبة من قواعد الطالب المجمّدة، لا من إعدادات البرنامج الحالية.</p>
+                                    )}
+                                    <Button disabled={!canDecide || busy} onClick={() => decideSemester(r, s)} className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c] disabled:opacity-40">اعتماد نتيجة الفصل</Button>
+                                    {!canDecide && <p className="text-[11px] text-slate-500">زر الاعتماد معطّل بصريًا ووظيفيًا حتى اكتمال كل الشروط وتفعيل الاعتماد.</p>}
+                                  </>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
+                  {readyCandidates.filter((c) => !gradRequests.some((r) => r.status !== 'ISSUED' && ((r.admissionId && r.admissionId === c.id) || (c.userId && r.userId === c.userId && c.programId && r.programId === c.programId)))).map((c) => (
+                    <div key={`orphan-${c.id}`} className="space-y-3 rounded-xl border border-dashed border-[#c9a227]/60 p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h5 className="text-sm font-black text-[#0f2b46]">{c.fullName}</h5>
+                          <p className="text-xs font-bold text-slate-500">{c.program}</p>
+                        </div>
+                        <Badge className="bg-slate-100 text-slate-600">لا توجد معاملة بعد</Badge>
+                      </div>
+                      <p className="text-[11px] font-bold leading-5 text-slate-500">هذا الطالب جاهز بحسب الفحص الحي، لكن لا توجد له معاملة تخرج محفوظة. أنشئ المعاملة أولًا لتوثيق الفحص والمصادقة.</p>
+                      <Button disabled={busy} variant="outline" onClick={() => registerGraduationForCandidate(c)} className="border-[#c9a227] font-black text-[#a8841a]">{busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Plus className="ml-2 h-4 w-4" />} إنشاء معاملة التخرج</Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-2 rounded-2xl border border-[#0f2b46]/10 bg-white p-2 sm:grid-cols-3">
         {[

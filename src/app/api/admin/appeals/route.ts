@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
 import { notify } from '@/lib/notify'
-import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
+import { registerGraduationRequest } from '@/lib/enrollment-completion'
 
 // ===== 12.2 لوحة الاعتراضات — مراجعة يدوية من المشرف البشري/الإدارة =====
 
@@ -110,8 +110,8 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'هذا الاعتراض حُسم من جلسة أخرى ولا يمكن الكتابة فوق القرار.' }, { status: 409 })
     }
 
-    await completeEnrollmentIfEligible({ userId: attempt.userId, programId: attempt.exam.programId }).catch((error) => {
-      console.warn('Appeal resolved but enrollment completion check did not issue a certificate yet.', error)
+    await registerGraduationRequest({ userId: attempt.userId, programId: attempt.exam.programId }).catch((error) => {
+      console.warn('Appeal resolved but the graduation request was not refreshed.', error)
       return null
     })
 
