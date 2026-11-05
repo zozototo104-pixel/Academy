@@ -185,7 +185,7 @@ export function StudentLectures() {
       }
     }
     void start()
-    return () => { cancelled = true }
+    return () => { cancelled = true; leave() }
   }, [embeddedZoom])
   const [now, setNow] = useState(() => Date.now())
   const [activeWatch, setActiveWatch] = useState<{ video: VideoItem; watch: WatchDescriptor } | null>(null)
