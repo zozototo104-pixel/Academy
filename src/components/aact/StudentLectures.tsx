@@ -171,14 +171,15 @@ export function StudentLectures() {
         if (cancelled) return
         const sdk = (window as any).ZoomMtgEmbedded
         if (!sdk?.createClient) throw new Error('مكتبة Zoom غير متاحة')
-        const client = sdk.createClient()
+        client = sdk.createClient()
         await client.init({ zoomAppRoot: zoomRootRef.current, language: 'en-US', patchJsMedia: true, leaveOnPageUnload: true })
-        if (cancelled) return
+        if (cancelled) { leave(); return }
         await client.join({
           signature: embeddedZoom.signature, sdkKey: embeddedZoom.sdkKey,
           meetingNumber: embeddedZoom.meetingNumber, userName: embeddedZoom.userName,
           password: embeddedZoom.password,
         })
+        if (cancelled) leave()
       } catch (e) {
         if (!cancelled) setZoomError(e instanceof Error ? e.message : 'تعذّر تشغيل Zoom داخل المنصة')
       }
