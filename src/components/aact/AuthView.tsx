@@ -61,7 +61,7 @@ export function AuthView() {
       try { sessionStorage.setItem('aact_skip_startup', '1') } catch (error) { console.warn('Failed to persist startup skip flag after login.', error) }
       setUser(d.user)
       toast({ title: `أهلاً بعودتك ${d.user.name}!`, description: 'تم تسجيل الدخول بنجاح' })
-      navigate(d.user.role === 'ADMIN' ? 'admin' : d.user.role === 'SUPERVISOR' ? 'supervisor' : 'dashboard')
+      navigate(d.user.role === 'ADMIN' ? 'admin' : d.user.role === 'SUPERVISOR' ? 'supervisor' : d.user.role === 'VISITOR' ? 'visitor' : 'dashboard')
     } catch (err: any) {
       toast({ title: 'خطأ في الدخول', description: err.message, variant: 'destructive' })
     } finally {
