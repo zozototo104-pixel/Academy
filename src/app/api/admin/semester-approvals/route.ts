@@ -62,6 +62,15 @@ const STATUS_BY_CODE: Record<string, number> = {
   SEMESTER_SCORE_NOT_VERIFIED: 409,
 }
 
+const ERROR_BY_CODE: Record<string, string> = {
+  INVALID_SEMESTER_APPROVAL_INPUT: 'طلب اعتماد غير صالح',
+  ENROLLMENT_NOT_FOUND: 'التسجيل غير موجود',
+  SEMESTER_GRADES_INCOMPLETE: 'توجد في هذا الفصل درجات غير مكتملة أو غير معتمدة أو إجراءات مفتوحة تمنع الاعتماد',
+  SEMESTER_APPROVAL_NOT_ACTIVE: 'اعتماد نتيجة الفصل النهائي غير مفعّل بعد — يُفعَّل بعد اكتمال حساب معدلات الفصول ودورة حياة الفصل',
+  SEMESTER_APPROVAL_FORBIDDEN: 'قرار اعتماد نتيجة الفصل للإدارة فقط',
+  SEMESTER_SCORE_NOT_VERIFIED: 'الدرجة الرسمية للفصل غير متاحة بعد — لا تُقبل درجة مرسلة يدويًا',
+}
+
 export async function POST(req: NextRequest) {
   try {
     const admin = await requireAdmin()
@@ -80,7 +89,7 @@ export async function POST(req: NextRequest) {
     })
     if (!result.ok) {
       return NextResponse.json(
-        { ok: false, code: result.code, blockers: result.blockers ?? [] },
+        { ok: false, code: result.code, error: ERROR_BY_CODE[result.code] || 'تعذر اعتماد نتيجة الفصل', blockers: result.blockers ?? [] },
         { status: STATUS_BY_CODE[result.code] ?? 400 },
       )
     }

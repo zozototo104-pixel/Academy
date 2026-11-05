@@ -91,6 +91,28 @@ export function SupervisorGradeReviewTab({ focus }: { focus?: { type: 'PROGRAM' 
     } finally { setSaving(false) }
   }
 
+  // مصادقة الدرجة رسميًا (المرحلة 2): سجل اعتماد محفوظ مستقل عن مراجعة
+  // التصحيح أعلاه. الخادم هو الحكم — درجة غير نهائية أو طالب غير طلابي
+  // يُرفض من المسار نفسه وتظهر رسالته.
+  const approveOfficialGrade = async () => {
+    if (!detail) return
+    setSaving(true)
+    try {
+      await api('/api/supervisor/grade-approvals', {
+        method: 'POST',
+        body: JSON.stringify({
+          targetType: detail.type === 'PROGRAM' ? 'PROGRAM_EXAM' : 'UNIT_EXAM',
+          attemptId: detail.id,
+        }),
+      })
+      toast({ title: 'تمت مصادقة الدرجة رسميًا', description: 'الاعتماد محفوظ بسجلّه (مَن ومتى والقيمة)، وأي تعديل لاحق على الدرجة يُبطله تلقائيًا.' })
+      setDetail(null)
+      await load()
+    } catch (e: any) {
+      toast({ title: 'تعذرت مصادقة الدرجة', description: e?.message || '', variant: 'destructive' })
+    } finally { setSaving(false) }
+  }
+
   const resolveAppeal = async (appeal: any, action: 'APPROVE' | 'REJECT') => {
     const draft = appealDrafts[appeal.id] || { response: '', finalScore: '' }
     if (action === 'APPROVE' && draft.finalScore.trim() === '') { toast({ title: 'قبول الالتماس يحتاج درجة نهائية', variant: 'destructive' }); return }
@@ -217,6 +239,9 @@ export function SupervisorGradeReviewTab({ focus }: { focus?: { type: 'PROGRAM' 
               <div className="flex flex-wrap items-center gap-2">
                 <Button onClick={() => void saveAdjustments()} disabled={saving} className="bg-[#0f2b46] font-black text-[#e0b83a] hover:bg-[#12365c]">
                   {saving ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null} اعتماد التعديلات وتحديث النتيجة
+                </Button>
+                <Button onClick={() => void approveOfficialGrade()} disabled={saving} className="bg-emerald-600 font-black text-white hover:bg-emerald-700">
+                  مصادقة الدرجة رسميًا
                 </Button>
                 <p className="text-[11px] font-bold text-slate-400">اترك خانة الدرجة فارغة لما لا تريد تغييره.</p>
               </div>

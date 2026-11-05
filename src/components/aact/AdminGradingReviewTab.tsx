@@ -87,6 +87,24 @@ export default function AdminGradingReviewTab() {
     }
   }
 
+  // مصادقة الدرجة رسميًا (المرحلة 2): صلاحية الإدارة الأصلية الكاملة
+  // بالتوازي مع المشرف — سجل اعتماد محفوظ مستقل عن اعتماد نتيجة المراجعة
+  // أعلاه، والخادم يرفض أي درجة غير نهائية.
+  const approveOfficial = async () => {
+    if (!selected) return
+    setBusy('approve-grade')
+    try {
+      await api(`/api/admin/grade-approvals`, { method: 'POST', body: JSON.stringify({ targetType: selected.type === 'UNIT' ? 'UNIT_EXAM' : 'PROGRAM_EXAM', attemptId: selected.id }) })
+      toast({ title: 'تمت مصادقة الدرجة رسميًا', description: 'الاعتماد محفوظ بسجلّه، وأي تعديل لاحق على الدرجة يُبطله تلقائيًا.' })
+      setSelected(null)
+      await load()
+    } catch (error: any) {
+      toast({ title: 'تعذرت مصادقة الدرجة', description: String(error?.message || error), variant: 'destructive' })
+    } finally {
+      setBusy(null)
+    }
+  }
+
   useEffect(() => { void load() }, [load])
 
   return (
@@ -105,7 +123,7 @@ export default function AdminGradingReviewTab() {
       <Card>
         <CardContent className="p-4">
           {!selected ? <p className="text-sm font-bold text-slate-500">اختر محاولة لعرض كل الأسئلة وإقرار النتيجة.</p> : <div className="space-y-4">
-            {selected.status === 'NEEDS_REVIEW' ? <div className="flex flex-wrap gap-2"><Button onClick={regrade} variant="outline" disabled={busy !== null}>{busy === 'regrade' ? 'جارٍ التصحيح...' : 'إعادة التصحيح الآلي'}</Button><Button onClick={approve} disabled={busy !== null} className="bg-[#0f2b46] text-[#f5f0e1]">{busy === 'approve' ? 'جارٍ الاعتماد...' : 'اعتماد النتيجة'}</Button></div> : selected.status === 'SUBMITTED' ? <div className="flex flex-wrap items-center gap-2"><Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">محاولة عالقة قيد التصحيح</Badge><Button onClick={markReview} disabled={busy !== null} variant="outline">{busy === 'regrade' ? 'جارٍ النقل...' : 'نقل إلى المراجعة'}</Button></div> : <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">محاولة مصححة</Badge>}
+            {selected.status === 'NEEDS_REVIEW' ? <div className="flex flex-wrap gap-2"><Button onClick={regrade} variant="outline" disabled={busy !== null}>{busy === 'regrade' ? 'جارٍ التصحيح...' : 'إعادة التصحيح الآلي'}</Button><Button onClick={approve} disabled={busy !== null} className="bg-[#0f2b46] text-[#f5f0e1]">{busy === 'approve' ? 'جارٍ الاعتماد...' : 'اعتماد النتيجة'}</Button></div> : selected.status === 'SUBMITTED' ? <div className="flex flex-wrap items-center gap-2"><Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">محاولة عالقة قيد التصحيح</Badge><Button onClick={markReview} disabled={busy !== null} variant="outline">{busy === 'regrade' ? 'جارٍ النقل...' : 'نقل إلى المراجعة'}</Button></div> : <div className="flex flex-wrap items-center gap-2"><Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">محاولة مصححة</Badge><Button onClick={approveOfficial} disabled={busy !== null} className="bg-emerald-600 font-black text-white hover:bg-emerald-700">{busy === 'approve-grade' ? 'جارٍ المصادقة...' : 'مصادقة الدرجة رسميًا'}</Button></div>}
             {selected.answers.map((a) => <div key={a.answerId} className="rounded-2xl border p-3 text-sm">
               <p className="font-black text-[#0f2b46]">سؤال {a.order} ({a.questionType === 'MCQ' ? 'اختيار من متعدد' : a.questionType === 'TF' ? 'صح/خطأ' : a.questionType === 'SHORT' ? 'إجابة قصيرة' : 'مقالي'}): {a.question}</p>
               <p className="mt-2 whitespace-pre-wrap rounded-xl bg-slate-50 p-2"><b>إجابة الطالب:</b> {a.studentAnswer || '—'}</p>

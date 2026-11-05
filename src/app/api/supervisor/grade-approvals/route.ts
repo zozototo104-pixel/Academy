@@ -14,6 +14,13 @@ const STATUS_BY_CODE: Record<string, number> = {
   GRADE_APPROVAL_FORBIDDEN: 403,
 }
 
+const ERROR_BY_CODE: Record<string, string> = {
+  INVALID_GRADE_APPROVAL_INPUT: 'طلب اعتماد غير صالح',
+  ATTEMPT_NOT_FOUND: 'المحاولة غير موجودة',
+  GRADE_NOT_FINAL: 'الدرجة ليست نهائية بعد — إما قيد التصحيح أو المراجعة، أو عليها التماس معلّق، أو فيها إجابات بلا نقاط',
+  GRADE_APPROVAL_FORBIDDEN: 'هذه الدرجة ليست ضمن طلابك',
+}
+
 export async function POST(req: NextRequest) {
   try {
     const actor = await requireSupervisor()
@@ -30,7 +37,7 @@ export async function POST(req: NextRequest) {
     })
     if (!result.ok) {
       return NextResponse.json(
-        { ok: false, code: result.code },
+        { ok: false, code: result.code, error: ERROR_BY_CODE[result.code] || 'تعذر اعتماد الدرجة' },
         { status: STATUS_BY_CODE[result.code] ?? 400 },
       )
     }
