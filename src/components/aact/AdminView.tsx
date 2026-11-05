@@ -71,6 +71,7 @@ const AdminStudyScheduleTab = dynamic(() => loadAdminStudyScheduleModule(), { ss
 const AdminLegacyGraduatesTab = dynamic(() => loadAdminLegacyGraduatesModule(), { ssr: false, loading: AdminTabLoader })
 const AdminAnnouncementsTab = dynamic(() => loadAdminAnnouncementsModule().then((m) => m.AdminAnnouncementsTab), { ssr: false, loading: AdminTabLoader })
 const AdminLectures = dynamic(() => import('@/components/aact/AdminLectures').then((m) => m.AdminLectures), { ssr: false, loading: AdminTabLoader })
+const AdminMeetings = dynamic(() => import('@/components/aact/AdminMeetings').then((m) => m.AdminMeetings), { ssr: false, loading: AdminTabLoader })
 const AdminAiStageProfiles = dynamic(() => import('@/components/aact/AdminAiStageProfiles').then((m) => m.AdminAiStageProfiles), { ssr: false, loading: AdminTabLoader })
 
 interface Stats {
@@ -1998,6 +1999,7 @@ export function AdminView() {
               <TabsTrigger value="system" className="gap-1 text-[10px] font-bold sm:text-xs">البريد والدفع والفيديو</TabsTrigger>
               <TabsTrigger value="announcements" className="gap-1 text-[10px] font-bold sm:text-xs">الإعلانات</TabsTrigger>
               <TabsTrigger value="lectures" className="gap-1 text-[10px] font-bold sm:text-xs">المحاضرات واللقاءات</TabsTrigger>
+              <TabsTrigger value="meetings" className="gap-1 text-[10px] font-bold sm:text-xs">قاعة الاجتماعات</TabsTrigger>
               <TabsTrigger value="ai-stage-profiles" className="gap-1 text-[10px] font-bold sm:text-xs">بروفايلات الذكاء</TabsTrigger>
               <TabsTrigger value="settings" className="gap-1 text-[10px] font-bold sm:text-xs">الرسوم والقواعد</TabsTrigger>
               <TabsTrigger value="admins" className="gap-1 text-[10px] font-bold sm:text-xs">مدراء النظام</TabsTrigger>
@@ -2656,6 +2658,11 @@ export function AdminView() {
         {/* المحاضرات واللقاءات */}
         <TabsContent value="lectures">
           <AdminLectures />
+        </TabsContent>
+
+        {/* قاعة الاجتماعات */}
+        <TabsContent value="meetings">
+          <AdminMeetings />
         </TabsContent>
 
         {/* بروفايلات مراحل الذكاء */}

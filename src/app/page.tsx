@@ -112,6 +112,7 @@ const ProgramDetailsView = dynamic(() => import('@/components/aact/ProgramDetail
 const ApplyView = dynamic(() => import('@/components/aact/ApplyView').then((m) => m.ApplyView), { ssr: false, loading: LazyViewLoader })
 const AuthView = dynamic(() => import('@/components/aact/AuthView').then((m) => m.AuthView), { ssr: false, loading: LazyViewLoader })
 const VerifyView = dynamic(() => import('@/components/aact/VerifyView').then((m) => m.VerifyView), { ssr: false, loading: LazyViewLoader })
+const VisitorMeetings = dynamic(() => import('@/components/aact/VisitorMeetings').then((m) => m.VisitorMeetings), { ssr: false, loading: LazyViewLoader })
 const DirectoryView = dynamic(() => import('@/components/aact/DirectoryView').then((m) => m.DirectoryView), { ssr: false, loading: LazyViewLoader })
 const AboutView = dynamic(() => import('@/components/aact/AboutView').then((m) => m.AboutView), { ssr: false, loading: LazyViewLoader })
 const ContactView = dynamic(() => import('@/components/aact/ContactView').then((m) => m.ContactView), { ssr: false, loading: LazyViewLoader })
@@ -184,7 +185,7 @@ export default function Home() {
     const currentView = routeState.view || view
     const oauthReturn = q.get('oauth') || ''
     const protectedViews = ['dashboard', 'unit', 'exam', 'chat', 'admin', 'supervisor', 'student-preview', 'agent-preview']
-    const routeForUser = (u: any) => u?.role === 'ADMIN' ? 'admin' : u?.role === 'SUPERVISOR' ? 'supervisor' : 'dashboard'
+    const routeForUser = (u: any) => u?.role === 'ADMIN' ? 'admin' : u?.role === 'SUPERVISOR' ? 'supervisor' : u?.role === 'VISITOR' ? 'visitor' : 'dashboard'
     const loadMe = async () => {
       const maxAttempts = oauthReturn ? 6 : 1
 
@@ -283,12 +284,14 @@ export default function Home() {
   }, [authChecked])
 
   const studentOnlyViews = ['dashboard', 'unit', 'exam']
-  const protectedViews = ['dashboard', 'unit', 'exam', 'chat', 'admin', 'supervisor', 'student-preview', 'agent-preview']
+  const protectedViews = ['dashboard', 'unit', 'exam', 'chat', 'admin', 'supervisor', 'student-preview', 'agent-preview', 'visitor']
   const needsAuthRecovery = authChecked && authRecovering && protectedViews.includes(view)
   const effectiveView = needsAuthRecovery
     ? view
+    : authChecked && view === 'visitor' && user?.role !== 'VISITOR' && user?.role !== 'ADMIN'
+        ? 'home'
     : authChecked && user?.role !== 'STUDENT' && studentOnlyViews.includes(view)
-      ? (user?.role === 'ADMIN' ? 'admin' : user?.role === 'SUPERVISOR' ? 'supervisor' : 'home')
+      ? (user?.role === 'ADMIN' ? 'admin' : user?.role === 'SUPERVISOR' ? 'supervisor' : user?.role === 'VISITOR' ? 'visitor' : 'home')
       : authChecked && view === 'supervisor' && user?.role !== 'SUPERVISOR'
         ? 'home'
       : authChecked && (view === 'student-preview' || view === 'agent-preview') && user?.role !== 'ADMIN'
@@ -306,7 +309,7 @@ export default function Home() {
       const d = await res.json().catch(() => ({ user: null }))
       if (res.ok && d?.user) {
         setUser(d.user)
-        navigate(d.user.role === 'ADMIN' ? 'admin' : d.user.role === 'SUPERVISOR' ? 'supervisor' : 'dashboard')
+        navigate(d.user.role === 'ADMIN' ? 'admin' : d.user.role === 'SUPERVISOR' ? 'supervisor' : d.user.role === 'VISITOR' ? 'visitor' : 'dashboard')
       } else {
         clearToken()
         setUser(null)
@@ -374,6 +377,7 @@ export default function Home() {
             {effectiveView === 'student-preview' && <AdminStudentPreview />}
             {effectiveView === 'agent-preview' && <AdminAgentPreview />}
             {effectiveView === 'verify' && <VerifyView />}
+            {effectiveView === 'visitor' && <VisitorMeetings />}
             {effectiveView === 'directory' && <DirectoryView />}
             {effectiveView === 'about' && <AboutView />}
             {effectiveView === 'contact' && <ContactView />}

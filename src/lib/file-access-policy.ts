@@ -18,7 +18,12 @@ export function sameFileAccessEmail(a: unknown, b: unknown) {
 }
 
 export function isFileOwner(user: FileAccessUser, candidate?: { userId?: string | null; email?: string | null } | null) {
-  return !!candidate && (candidate.userId === user.id || sameFileAccessEmail(candidate.email, user.email))
+  if (!candidate) return false
+  if (candidate.userId === user.id) return true
+  // المطابقة بالبريد وحدها إرثٌ لمقدّمي طلبات بلا حساب صاروا طلابًا —
+  // تُحصر بدور الطالب: بريد حساب زائر قد يطابق صفًا قديمًا بلا حساب
+  // فيكشف ملفات ومخرجات ليست له.
+  return String(user.role || 'STUDENT') === 'STUDENT' && sameFileAccessEmail(candidate.email, user.email)
 }
 
 export async function canAccessStorageKeyWithClient(client: FileAccessClient, key: string, user: FileAccessUser) {
@@ -50,7 +55,7 @@ export async function canAccessStorageKeyWithClient(client: FileAccessClient, ke
       },
     },
   })
-  if (proof && (proof.uploadedById === user.id || proof.payment.userId === user.id || sameFileAccessEmail(proof.payment.payerEmail, user.email) || isFileOwner(user, proof.payment.admission))) return true
+  if (proof && (proof.uploadedById === user.id || proof.payment.userId === user.id || (String(user.role || 'STUDENT') === 'STUDENT' && sameFileAccessEmail(proof.payment.payerEmail, user.email)) || isFileOwner(user, proof.payment.admission))) return true
 
   const assignment = await client.assignmentSubmission.findFirst({
     where: { fileStorageKey: key },

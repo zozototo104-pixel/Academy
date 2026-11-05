@@ -2382,3 +2382,132 @@ model ProgramExtensionRequest {
   @@index([enrollmentId, status])
   @@index([status, createdAt])
 }
+
+// ===== قاعة الاجتماعات الإدارية =====
+// اجتماعات رسمية غير مرتبطة ببرنامج أكاديمي. المزود: ZOOM | MEET |
+// TEAMS | OTHER (رابط خارجي يُكشف داخل نافذة الدخول) أو PLATFORM
+// (غرفة فيديو داخلية بتقنية غرفة المناقشة). الدعوات روابط شخصية
+// يُخزَّن هاش رمزها فقط (نمط دعوات المناقشة)، وتُلغى وتنتهي.
+model AdminMeeting {
+  id                  String   @id @default(cuid())
+  title               String
+  description         String?
+  agenda              String?
+  startsAt            DateTime
+  endsAt              DateTime
+  timezone            String   @default("UTC")
+  provider            String   @default("ZOOM") // ZOOM | MEET | TEAMS | OTHER | PLATFORM
+  meetingUrl          String?
+  meetingPasscode     String?
+  hostName            String?
+  status              String   @default("SCHEDULED") // SCHEDULED | CANCELLED
+  aiAssistantEnabled  Boolean  @default(false)
+  minutesEnabled      Boolean  @default(false)
+  createdById         String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  invites    AdminMeetingInvite[]
+  attendance AdminMeetingAttendance[]
+  signals    AdminMeetingSignal[]
+  notes      AdminMeetingNote[]
+  minutes    AdminMeetingMinutes?
+  agentEvents AdminMeetingAgentEvent[]
+
+  @@index([status, startsAt])
+}
+
+model AdminMeetingInvite {
+  id              String       @id @default(cuid())
+  meetingId       String
+  meeting         AdminMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  inviteeName     String
+  inviteeEmail    String?
+  tokenHash       String       @unique
+  expiresAt       DateTime
+  revokedAt       DateTime?
+  claimedByUserId String?
+  claimedAt       DateTime?
+  lastOpenedAt    DateTime?
+  createdAt       DateTime     @default(now())
+
+  @@index([meetingId])
+}
+
+model AdminMeetingAttendance {
+  id          String       @id @default(cuid())
+  meetingId   String
+  meeting     AdminMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  userId      String
+  inviteId    String?
+  status      String       @default("JOINED") // JOINED | PRESENT | ABSENT
+  joinedAt    DateTime     @default(now())
+  confirmedAt DateTime?
+  confirmedById String?
+
+  @@unique([meetingId, userId])
+  @@index([meetingId, status])
+}
+
+// إشارات WebRTC (Offer/Answer/ICE) بين المشاركين عبر الخادم — نفس
+// نمط DefenseSignal، مربوطة بالاجتماع لا بالرسالة.
+model AdminMeetingSignal {
+  id        String       @id @default(cuid())
+  meetingId String
+  meeting   AdminMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  fromPeer  String
+  toPeer    String?
+  type      String // OFFER | ANSWER | ICE | BYE
+  payload   String
+  consumed  Boolean      @default(false)
+  createdAt DateTime     @default(now())
+
+  @@index([meetingId, createdAt])
+}
+
+// ملاحظات المشاركين داخل صفحة الاجتماع — مدخل حقيقي للمحضر.
+model AdminMeetingNote {
+  id         String       @id @default(cuid())
+  meetingId  String
+  meeting    AdminMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  userId     String
+  authorName String
+  text       String
+  createdAt  DateTime     @default(now())
+
+  @@index([meetingId, createdAt])
+}
+
+// محضر الاجتماع الرسمي: يُبنى من جدول الأعمال وملاحظات المشاركين
+// والحضور فقط، ويمر بمراجعة بشرية قبل الاعتماد — لا اعتماد تلقائي.
+model AdminMeetingMinutes {
+  id            String       @id @default(cuid())
+  meetingId     String       @unique
+  meeting       AdminMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  status        String       @default("DRAFT") // DRAFT | PENDING_REVIEW | APPROVED
+  title         String
+  summary       String?
+  decisions     String?
+  actionItems   String?
+  deferred      String?
+  generatedFrom String       @default("AGENDA_AND_NOTES")
+  createdById   String?
+  approvedById  String?
+  approvedAt    DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+}
+
+// أحداث مساعد الاجتماع: الترحيب يُسجَّل مرة واحدة لكل اجتماع،
+// والأسئلة والأجوبة موثقة للمراجعة.
+model AdminMeetingAgentEvent {
+  id        String       @id @default(cuid())
+  meetingId String
+  meeting   AdminMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  userId    String?
+  kind      String // GREETING | QUESTION | ANSWER
+  text      String
+  createdAt DateTime     @default(now())
+
+  @@index([meetingId, createdAt])
+}

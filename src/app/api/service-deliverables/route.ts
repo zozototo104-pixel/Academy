@@ -10,12 +10,13 @@ export const dynamic = 'force-dynamic'
 export async function GET() {
   try {
     const user = await requireUser()
+    // المطابقة بالبريد وحدها للطلاب فقط (نفس قاعدة سياسة الملفات):
+    // حساب الزائر لا يرى مخرجات طلبات قديمة لمجرد تطابق البريد.
+    const ownershipOr: Record<string, unknown>[] = [{ userId: user.id }]
+    if ((user as any).role === 'STUDENT') ownershipOr.push({ email: user.email })
     const applications = await db.admissionApplication.findMany({
       where: {
-        OR: [
-          { userId: user.id },
-          { email: user.email },
-        ],
+        OR: ownershipOr,
       },
       orderBy: { createdAt: 'desc' },
       select: {

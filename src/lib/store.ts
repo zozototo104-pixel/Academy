@@ -19,6 +19,7 @@ export type View =
   | 'student-preview'
   | 'agent-preview'
   | 'verify'
+  | 'visitor'
   | 'directory'
   | 'about'
   | 'contact'
