@@ -194,6 +194,16 @@ test('a grade that is not final cannot be approved', async () => {
   expect(scoreless).toEqual({ ok: false, code: 'GRADE_NOT_FINAL' })
 })
 
+test('pending appeals and unscored answers prevent official approval', async () => {
+  world.unitAttempts.get('unit-attempt-1')!.appealStatus = 'PENDING'
+  expect(await approveGrade({ targetType: 'UNIT_EXAM', attemptId: 'unit-attempt-1', actor: { id: 'admin-1' } }))
+    .toEqual({ ok: false, code: 'GRADE_NOT_FINAL' })
+  world.programAttempts.get('program-attempt-1')!.answers = [{ id: 'answer-1', points: null }]
+  expect(await approveGrade({ targetType: 'PROGRAM_EXAM', attemptId: 'program-attempt-1', actor: { id: 'admin-1' } }))
+    .toEqual({ ok: false, code: 'GRADE_NOT_FINAL' })
+  expect(world.approvals.size).toBe(0)
+})
+
 test('unknown attempt and malformed input are refused', async () => {
   const missing = await approveGrade({
     targetType: 'UNIT_EXAM',
