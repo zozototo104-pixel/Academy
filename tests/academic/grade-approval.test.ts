@@ -47,6 +47,8 @@ function resetWorld() {
     userId: 'student-1',
     status: 'GRADED',
     score: 73,
+    appealStatus: 'NONE',
+    answers: [],
     exam: { programId: 'program-1', semester: 1 },
   })
 }
