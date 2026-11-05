@@ -1573,6 +1573,10 @@ interface SemesterCheckState {
   approvalActive?: boolean
   hasApproval?: boolean
   gradeApprovals?: { id: string; targetType: string; score: number }[]
+  averages?: {
+    semesters: { semester: number; average: number | null; passed: boolean | null; complete: boolean }[]
+    composedFinal: number | null
+  } | null
 }
 
 interface CertificateTemplateItem {
@@ -1741,7 +1745,7 @@ export function AdminCertificatesTab() {
     const key = `${request.enrollmentId}:${semester}`
     setSemesterChecks((prev) => ({ ...prev, [key]: { ...prev[key], loading: true, error: undefined } }))
     try {
-      const data = await api<{ blockers?: { code: string; count: number }[]; approvalActive?: boolean; approval?: unknown }>(`/api/admin/semester-approvals?enrollmentId=${encodeURIComponent(request.enrollmentId)}&semester=${semester}`)
+      const data = await api<{ blockers?: { code: string; count: number }[]; approvalActive?: boolean; approval?: unknown; averages?: SemesterCheckState['averages'] }>(`/api/admin/semester-approvals?enrollmentId=${encodeURIComponent(request.enrollmentId)}&semester=${semester}`)
       let gradeApprovals: { id: string; targetType: string; score: number }[] = []
       try {
         const g = await api<{ approvals?: { id: string; targetType: string; score: number }[] }>(`/api/admin/grade-approvals?userId=${encodeURIComponent(request.userId)}&programId=${encodeURIComponent(request.programId)}&semester=${semester}`)
@@ -1755,6 +1759,7 @@ export function AdminCertificatesTab() {
           approvalActive: Boolean(data?.approvalActive),
           hasApproval: Boolean(data?.approval),
           gradeApprovals,
+          averages: data?.averages ?? null,
         },
       }))
     } catch (e: any) {
@@ -2156,6 +2161,13 @@ export function AdminCertificatesTab() {
                                       <p className="text-emerald-700">كل شروط الدرجات مكتملة في هذا الفصل.</p>
                                     )}
                                     {chk.hasApproval && <p>يوجد اعتماد نتيجة محفوظ لهذا الفصل.</p>}
+                                    {chk.averages && (
+                                      <p className="font-bold text-[#0f2b46]">
+                                        معدلات الفصول من الخادم:{' '}
+                                        {chk.averages.semesters.map((s) => `الفصل ${s.semester}: ${s.average === null ? 'غير متاح بعد' : `${s.average} (${s.passed ? 'ناجح' : 'غير ناجح'}${s.complete ? '' : ' — غير مكتمل'})`}`).join(' · ')}
+                                        {' · '}المعدل النهائي المركّب: {chk.averages.composedFinal === null ? 'غير متاح بعد' : chk.averages.composedFinal}
+                                      </p>
+                                    )}
                                     {chk.gradeApprovals && chk.gradeApprovals.length > 0 && (
                                       <p>الدرجات المعتمدة رسميًا: {chk.gradeApprovals.map((g) => `${g.targetType === 'UNIT_EXAM' ? 'وحدة' : 'امتحان فصل'} (${g.score})`).join('، ')}</p>
                                     )}

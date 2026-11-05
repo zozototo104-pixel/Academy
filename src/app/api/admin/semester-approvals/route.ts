@@ -7,6 +7,7 @@ import {
   collectSemesterApprovalBlockers,
   storedSemesterApproval,
 } from '@/lib/semester-approval'
+import { calculateSemesterAverages } from '@/lib/semester-grade'
 
 // اعتماد نتيجة الفصل بيد الإدارة (المرحلة 2 من خطة دورة التخرج).
 // GET يعرض بيانات شاشة المصادقة: موانع الاعتماد الحالية + الاعتماد المحفوظ
@@ -40,6 +41,18 @@ export async function GET(req: NextRequest) {
       }),
       storedSemesterApproval(db, enrollmentId, semester),
     ])
+    // معدلات الفصول المحسوبة من الخادم (المرحلة 3): قيم قرار معروضة بجانب
+    // الشروط — معدل كل فصل والمعدل النهائي المركّب. دفاعي: أي فشل في
+    // الحساب لا يُسقط بيانات الشروط.
+    let averages: Awaited<ReturnType<typeof calculateSemesterAverages>> | null = null
+    try {
+      averages = await calculateSemesterAverages({
+        userId: enrollment.userId,
+        programId: enrollment.programId,
+      })
+    } catch {
+      averages = null
+    }
     return NextResponse.json({
       ok: true,
       enrollmentId,
@@ -47,6 +60,7 @@ export async function GET(req: NextRequest) {
       approvalActive: SEMESTER_APPROVAL_ACTIVE,
       blockers,
       approval,
+      averages,
     })
   } catch {
     return NextResponse.json({ ok: false, code: 'UNAUTHORIZED' }, { status: 401 })
