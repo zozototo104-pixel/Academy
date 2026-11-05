@@ -2,6 +2,7 @@
 // التشغيل: bun test tests/meetings/admin-meetings.test.ts (منفردًا —
 // المُحاكاة تتسرب بين الملفات).
 import { describe, expect, mock, test } from 'bun:test'
+import { createHmac } from 'node:crypto'
 
 mock.module('@/lib/rate-limit', () => ({
   checkDatabaseRateLimit: async () => ({ allowed: true, ok: true }),
