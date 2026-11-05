@@ -235,7 +235,7 @@ function testEligibilityRequiresAllAcademicAndFinancialInputs() {
   assert(finalGrade.includes("status: 'GRADED'") && finalGrade.includes("a.passed === true"), 'unit success must require a passed graded attempt')
   assert(finalGrade.includes('programExamAverage') && finalGrade.includes("appealStatus: { not: 'PENDING' }"), 'program exams must exclude pending appeals')
   assert(finalGrade.includes('assignmentAverage'), 'final grade must include published assignments')
-  assert(finalGrade.includes("where: { programId, status: 'PUBLISHED' }"), 'published assignments must be enumerated')
+  assert(finalGrade.includes("where: { programId, status: 'PUBLISHED', ...(semester ? { semester } : {}) }"), 'published assignments must be enumerated with optional semester scope')
   assert(finalGrade.includes("submission?.status === 'GRADED'"), 'published assignments must be graded')
   assert(finalGrade.includes('thesisScores'), 'masters/doctorate eligibility must include thesis/defense scores')
   assert(finalGrade.includes('percentFromAnswers') && finalGrade.includes('exam.passScore'), 'exam passing must use original answer-based percentage')
