@@ -110,6 +110,44 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
   const [revealedPasscode, setRevealedPasscode] = useState<string | null>(null)
   const [joinedExternal, setJoinedExternal] = useState(false)
   const [inRoom, setInRoom] = useState(false)
+  const [zoomConfig, setZoomConfig] = useState<null | { signature: string; sdkKey: string; meetingNumber: string; userName: string; password: string }>(null)
+  const [zoomError, setZoomError] = useState<string | null>(null)
+  const [zoomExternalUrl, setZoomExternalUrl] = useState<string | null>(null)
+  const zoomRootRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!zoomConfig || !zoomRootRef.current) return
+    let cancelled = false
+    const loadScript = (src: string) => new Promise<void>((resolve, reject) => {
+      if (document.querySelector('script[data-zoom-src="' + src + '"]')) { resolve(); return }
+      const script = document.createElement('script')
+      script.src = src
+      script.dataset.zoomSrc = src
+      script.onload = () => resolve()
+      script.onerror = () => { script.remove(); reject(new Error('تعذّر تحميل مكتبة Zoom')) }
+      document.head.appendChild(script)
+    })
+    const start = async () => {
+      try {
+        const version = '6.2.0'
+        for (const name of ['react', 'react-dom', 'redux', 'redux-thunk', 'react-redux', 'lodash']) {
+          await loadScript('https://source.zoom.us/' + version + '/lib/vendor/' + name + '.min.js')
+        }
+        await loadScript('https://source.zoom.us/zoom-meeting-embedded-' + version + '.min.js')
+        if (cancelled) return
+        const sdk = (window as any).ZoomMtgEmbedded
+        if (!sdk?.createClient) throw new Error('مكتبة Zoom غير متاحة')
+        const client = sdk.createClient()
+        await client.init({ zoomAppRoot: zoomRootRef.current, language: 'en-US', patchJsMedia: true, leaveOnPageUnload: true })
+        if (cancelled) return
+        await client.join(zoomConfig)
+      } catch (error) {
+        if (!cancelled) setZoomError(error instanceof Error ? error.message : 'تعذّر تشغيل Zoom داخل القاعة')
+      }
+    }
+    void start()
+    return () => { cancelled = true }
+  }, [zoomConfig])
+
   const [nowMs, setNowMs] = useState(() => Date.now())
   const [noteText, setNoteText] = useState('')
   const [noteBusy, setNoteBusy] = useState(false)
@@ -280,9 +318,15 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok || !d?.meetingUrl) throw new Error(d?.error || 'تعذّر فتح رابط الاجتماع')
-      window.open(d.meetingUrl, '_blank', 'noopener')
+      if (d.zoomSdk) {
+        setZoomExternalUrl(d.meetingUrl)
+        setZoomError(null)
+        setZoomConfig(d.zoomSdk)
+      } else {
+        window.open(d.meetingUrl, '_blank', 'noopener')
+        setJoinedExternal(true)
+      }
       setRevealedPasscode(d.meetingPasscode || null)
-      setJoinedExternal(true)
       await load()
     } catch (e: any) {
       setActionError(e?.message || 'تعذّر فتح رابط الاجتماع')
@@ -612,6 +656,19 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
                       {busy === 'join' ? <Loader2 className="ml-2 h-5 w-5 animate-spin" /> : <ExternalLink className="ml-2 h-5 w-5" />}
                       فتح رابط الاجتماع
                     </Button>
+                  )}
+                  {zoomConfig && (
+                    <div className="space-y-2">
+                      <div ref={zoomRootRef} className="min-h-[480px] w-full overflow-hidden rounded-xl bg-slate-950" dir="ltr" />
+                      {zoomError && (
+                        <p role="alert" className="text-center text-sm font-bold text-red-600">{zoomError}</p>
+                      )}
+                      {zoomExternalUrl && (
+                        <a href={zoomExternalUrl} target="_blank" rel="noopener noreferrer" className="block text-center text-sm font-bold underline">
+                          {zoomError ? 'فتح الاجتماع في Zoom بدلًا من ذلك' : 'فتح Zoom في نافذة مستقلة'}
+                        </a>
+                      )}
+                    </div>
                   )}
                   {joinedExternal && (
                     <p className="text-center text-xs font-bold text-emerald-600">
