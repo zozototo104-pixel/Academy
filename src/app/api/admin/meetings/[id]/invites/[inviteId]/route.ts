@@ -13,7 +13,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const admin = await requireAdmin()
     const { id, inviteId } = await params
     const body = await req.json().catch(() => null)
-    if (body?.action !== 'revoke') return NextResponse.json({ error: 'إجراء غير معروف' }, { status: 400 })
+    if (body?.action !== 'revoke' && body?.action !== 'rotate') return NextResponse.json({ error: 'إجراء غير معروف' }, { status: 400 })
     const invite = await (db as any).adminMeetingInvite.findFirst({ where: { id: inviteId, meetingId: id } })
     if (!invite) return NextResponse.json({ error: 'الدعوة غير موجودة' }, { status: 404 })
     if (!invite.revokedAt) {
