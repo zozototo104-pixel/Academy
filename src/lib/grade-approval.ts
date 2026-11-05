@@ -60,6 +60,8 @@ async function resolveAttempt(
       userId: a.userId,
       status: a.status,
       score: a.score,
+      appealStatus: a.appealStatus,
+      unscoredAnswers: a.answers.length,
       programId: a.exam.unit.programId,
       semester: a.exam.unit.semester,
     }
