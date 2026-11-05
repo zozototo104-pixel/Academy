@@ -2,6 +2,7 @@
 // التشغيل: bun test tests/meetings/admin-meetings.test.ts (منفردًا —
 // المُحاكاة تتسرب بين الملفات).
 import { describe, expect, mock, test } from 'bun:test'
+import { createHmac } from 'node:crypto'
 
 mock.module('@/lib/rate-limit', () => ({
   checkDatabaseRateLimit: async () => ({ allowed: true, ok: true }),
@@ -236,6 +237,61 @@ describe('entry state & actions (fake db)', () => {
     expect(ok.status).toBe(200)
     expect((ok.body as any).meetingUrl).toContain('zoom.us')
     expect(db.state.attendance?.status).toBe('JOINED')
+  })
+
+  test('Zoom SDK signature is scoped, verifiable, and never bypasses meeting access', async () => {
+    const oldKey = process.env.ZOOM_MEETING_SDK_CLIENT_ID
+    const oldSecret = process.env.ZOOM_MEETING_SDK_CLIENT_SECRET
+    process.env.ZOOM_MEETING_SDK_CLIENT_ID = 'test-sdk-key'
+    process.env.ZOOM_MEETING_SDK_CLIENT_SECRET = 'test-sdk-secret'
+    try {
+      const active = meeting({
+        meetingUrl: 'https://us05web.zoom.us/j/89713410341?pwd=encrypted-token',
+        meetingPasscode: 'actual-passcode',
+        startsAt: new Date(Date.now() - 5 * 60_000),
+        endsAt: new Date(Date.now() + 55 * 60_000),
+      })
+      const inv = invite({ claimedByUserId: visitor.id, meeting: active })
+      const db = fakeDb(inv)
+      const joined = await meetingAction(db as any, db.state.inv, visitor, 'join')
+      expect(joined.status).toBe(200)
+      const sdk = (joined.body as any).zoomSdk
+      expect(sdk?.meetingNumber).toBe('89713410341')
+      expect(sdk?.sdkKey).toBe('test-sdk-key')
+      expect(sdk?.password).toBe('actual-passcode')
+      const parts = sdk.signature.split('.')
+      expect(parts).toHaveLength(3)
+      const header = JSON.parse(Buffer.from(parts[0], 'base64url').toString())
+      const claims = JSON.parse(Buffer.from(parts[1], 'base64url').toString())
+      expect(header.alg).toBe('HS256')
+      expect(claims.sdkKey).toBe('test-sdk-key')
+      expect(claims.mn).toBe('89713410341')
+      expect(claims.role).toBe(0)
+      expect(claims.exp).toBeGreaterThan(claims.iat)
+      expect(parts[2]).toBe(createHmac('sha256', 'test-sdk-secret').update(parts[0] + '.' + parts[1]).digest('base64url'))
+      expect(sdk.signature).not.toContain('test-sdk-secret')
+
+      const unclaimed = await meetingAction(db as any, db.state.inv, other, 'join')
+      expect(unclaimed.status).toBe(403)
+      expect((unclaimed.body as any).zoomSdk).toBeUndefined()
+
+      db.state.inv.meeting = { ...active, startsAt: new Date(Date.now() + 16 * 60_000), endsAt: new Date(Date.now() + 76 * 60_000) }
+      const early = await meetingAction(db as any, db.state.inv, visitor, 'join')
+      expect(early.status).toBe(403)
+      expect((early.body as any).zoomSdk).toBeUndefined()
+
+      db.state.inv.meeting = active
+      delete process.env.ZOOM_MEETING_SDK_CLIENT_SECRET
+      const fallback = await meetingAction(db as any, db.state.inv, visitor, 'join')
+      expect(fallback.status).toBe(200)
+      expect((fallback.body as any).zoomSdk).toBeUndefined()
+      expect((fallback.body as any).meetingUrl).toBe(active.meetingUrl)
+    } finally {
+      if (oldKey === undefined) delete process.env.ZOOM_MEETING_SDK_CLIENT_ID
+      else process.env.ZOOM_MEETING_SDK_CLIENT_ID = oldKey
+      if (oldSecret === undefined) delete process.env.ZOOM_MEETING_SDK_CLIENT_SECRET
+      else process.env.ZOOM_MEETING_SDK_CLIENT_SECRET = oldSecret
+    }
   })
 
   test('minutes draft from real inputs only; approved minutes are locked', async () => {

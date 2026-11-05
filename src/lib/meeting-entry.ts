@@ -7,6 +7,7 @@ import {
   meetingJoinOpensAt,
 } from '@/lib/admin-meetings'
 import { checkDatabaseRateLimit } from '@/lib/rate-limit'
+import { createHmac } from 'node:crypto'
 import { addMeetingNote, askMeetingAssistant } from '@/lib/meeting-assistant'
 
 // منطق دخول الاجتماع المشترك بين مسارَي الدخول: رابط الدعوة
@@ -132,7 +133,28 @@ export async function meetingAction(
     }).catch(() => {})
     if (meeting.provider === 'PLATFORM') return { status: 200, body: { ok: true, room: true } }
     if (!meeting.meetingUrl) return { status: 409, body: { error: 'لم يُضف رابط الاجتماع بعد', code: 'NO_MEETING_URL' } }
-    return { status: 200, body: { ok: true, meetingUrl: meeting.meetingUrl, meetingPasscode: meeting.meetingPasscode } }
+    const result: Record<string, unknown> = { ok: true, meetingUrl: meeting.meetingUrl, meetingPasscode: meeting.meetingPasscode }
+    if (meeting.provider === 'ZOOM') {
+      const match = String(meeting.meetingUrl).match(/^https:\/\/[a-z0-9.-]*zoom\.us\/j\/(\d{9,11})(?:[/?#]|$)/i)
+      const sdkKey = process.env.ZOOM_MEETING_SDK_CLIENT_ID
+      const sdkSecret = process.env.ZOOM_MEETING_SDK_CLIENT_SECRET
+      if (match && sdkKey && sdkSecret) {
+        const now = Math.floor(Date.now() / 1000)
+        const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url')
+        const unsigned = encode({ alg: 'HS256', typ: 'JWT' }) + '.' + encode({
+          sdkKey, appKey: sdkKey, mn: match[1], role: 0, iat: now - 30, exp: now + 60 * 60, tokenExp: now + 60 * 60,
+        })
+        const signature = createHmac('sha256', sdkSecret).update(unsigned).digest('base64url')
+        result.zoomSdk = {
+          signature: unsigned + '.' + signature,
+          sdkKey,
+          meetingNumber: match[1],
+          userName: String(user.name || invite.inviteeName || 'Guest').slice(0, 100),
+          password: meeting.meetingPasscode || '',
+        }
+      }
+    }
+    return { status: 200, body: result }
   }
 
   if (action === 'note') {
