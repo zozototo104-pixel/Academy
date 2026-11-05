@@ -2442,3 +2442,27 @@ model GradeApproval {
   @@unique([targetType, attemptId])
   @@index([userId, programId, semester])
 }
+
+// لقطة قواعد الالتحاق المجمّدة (المرحلة 3 من خطة دورة التخرج): نسخة قيمية
+// ثابتة من الشروط الأكاديمية الفعّالة وقت التحاق الطالب — خريطة الأوزان
+// المحسومة لهذا الالتحاق، قيمة عتبة النجاح (50) مع صرامتها (> لا ≥)،
+// والمتطلبات المعلنة المشتقة منها. تُنشأ عند إنشاء الالتحاق، أو تُستكمل
+// عند أول احتساب لالتحاق سابق (basis=BACKFILL). لا تُعدَّل بعد إنشائها
+// أبدًا؛ الإعدادات التشغيلية (حدود المحاولات والمواعيد) لا تدخلها.
+model EnrollmentRulesSnapshot {
+  id               String   @id @default(cuid())
+  enrollmentId     String   @unique
+  userId           String
+  programId        String
+  weightsJson      String // JSON: { componentKey: weight }
+  weightSource     String // academic_profile | category_default
+  weightWarning    String?
+  passThreshold    Int      @default(50)
+  thresholdStrict  Boolean  @default(true)
+  requirementsJson String // JSON: { semestersCount, requiredComponents[] }
+  basis            String   @default("ENROLLMENT") // ENROLLMENT | BACKFILL
+  capturedAt       DateTime @default(now())
+  createdAt        DateTime @default(now())
+
+  @@index([userId, programId])
+}

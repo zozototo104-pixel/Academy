@@ -8,6 +8,7 @@ import {
   storedSemesterApproval,
 } from '@/lib/semester-approval'
 import { calculateSemesterAverages } from '@/lib/semester-grade'
+import { readEnrollmentSnapshot } from '@/lib/rules-snapshot'
 
 // اعتماد نتيجة الفصل بيد الإدارة (المرحلة 2 من خطة دورة التخرج).
 // GET يعرض بيانات شاشة المصادقة: موانع الاعتماد الحالية + الاعتماد المحفوظ
@@ -53,6 +54,16 @@ export async function GET(req: NextRequest) {
     } catch {
       averages = null
     }
+    // لقطة القواعد المجمّدة لهذا الالتحاق (المرحلة 3): إثبات مرئي أن
+    // المعدلات المعروضة محسوبة من قواعد الطالب المجمّدة لا من إعدادات
+    // البرنامج الحالية.
+    let snapshot: { basis: string; capturedAt: unknown; weightSource: string } | null = null
+    try {
+      const snap = await readEnrollmentSnapshot(db, enrollmentId)
+      if (snap) snapshot = { basis: snap.basis, capturedAt: snap.capturedAt, weightSource: snap.weightSource }
+    } catch {
+      snapshot = null
+    }
     return NextResponse.json({
       ok: true,
       enrollmentId,
@@ -61,6 +72,7 @@ export async function GET(req: NextRequest) {
       blockers,
       approval,
       averages,
+      snapshot,
     })
   } catch {
     return NextResponse.json({ ok: false, code: 'UNAUTHORIZED' }, { status: 401 })

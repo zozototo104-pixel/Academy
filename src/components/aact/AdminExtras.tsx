@@ -1577,6 +1577,7 @@ interface SemesterCheckState {
     semesters: { semester: number; average: number | null; passed: boolean | null; complete: boolean }[]
     composedFinal: number | null
   } | null
+  snapshot?: { basis: string; weightSource: string } | null
 }
 
 interface CertificateTemplateItem {
@@ -1745,7 +1746,7 @@ export function AdminCertificatesTab() {
     const key = `${request.enrollmentId}:${semester}`
     setSemesterChecks((prev) => ({ ...prev, [key]: { ...prev[key], loading: true, error: undefined } }))
     try {
-      const data = await api<{ blockers?: { code: string; count: number }[]; approvalActive?: boolean; approval?: unknown; averages?: SemesterCheckState['averages'] }>(`/api/admin/semester-approvals?enrollmentId=${encodeURIComponent(request.enrollmentId)}&semester=${semester}`)
+      const data = await api<{ blockers?: { code: string; count: number }[]; approvalActive?: boolean; approval?: unknown; averages?: SemesterCheckState['averages']; snapshot?: SemesterCheckState['snapshot'] }>(`/api/admin/semester-approvals?enrollmentId=${encodeURIComponent(request.enrollmentId)}&semester=${semester}`)
       let gradeApprovals: { id: string; targetType: string; score: number }[] = []
       try {
         const g = await api<{ approvals?: { id: string; targetType: string; score: number }[] }>(`/api/admin/grade-approvals?userId=${encodeURIComponent(request.userId)}&programId=${encodeURIComponent(request.programId)}&semester=${semester}`)
@@ -1760,6 +1761,7 @@ export function AdminCertificatesTab() {
           hasApproval: Boolean(data?.approval),
           gradeApprovals,
           averages: data?.averages ?? null,
+          snapshot: data?.snapshot ?? null,
         },
       }))
     } catch (e: any) {
@@ -2170,6 +2172,9 @@ export function AdminCertificatesTab() {
                                     )}
                                     {chk.gradeApprovals && chk.gradeApprovals.length > 0 && (
                                       <p>الدرجات المعتمدة رسميًا: {chk.gradeApprovals.map((g) => `${g.targetType === 'UNIT_EXAM' ? 'وحدة' : 'امتحان فصل'} (${g.score})`).join('، ')}</p>
+                                    )}
+                                    {chk.snapshot && (
+                                      <p className="text-[11px] text-slate-500">لقطة القواعد المجمّدة: محفوظة ({chk.snapshot.basis === 'ENROLLMENT' ? 'منذ الالتحاق' : 'استُكملت عند أول احتساب'}) — المعدلات محسوبة من قواعد الطالب المجمّدة، لا من إعدادات البرنامج الحالية.</p>
                                     )}
                                     <Button disabled={!canDecide || busy} onClick={() => decideSemester(r, s)} className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c] disabled:opacity-40">اعتماد نتيجة الفصل</Button>
                                     {!canDecide && <p className="text-[11px] text-slate-500">زر الاعتماد معطّل بصريًا ووظيفيًا حتى اكتمال كل الشروط وتفعيل الاعتماد.</p>}

@@ -1,12 +1,16 @@
 import { db } from '@/lib/db'
 import {
-  resolveGradeWeights,
   unitQuizAverage,
   programExamAverage,
   assignmentAverage,
   thesisScores,
   type ComponentScore,
 } from '@/lib/final-grade'
+import {
+  effectiveGradeWeights,
+  ensureEnrollmentSnapshot,
+  type EnrollmentSnapshot,
+} from '@/lib/rules-snapshot'
 
 /**
  * Phase 3 of the academic-lifecycle plan: per-semester averages as DECISION
@@ -173,24 +177,34 @@ export async function calculateSemesterAverages(input: {
   const enrollment = (client as any).enrollment?.findUnique
     ? await client.enrollment.findUnique({
         where: { userId_programId: { userId: input.userId, programId: input.programId } },
-        select: { createdAt: true, status: true, finalScore: true },
+        select: { id: true, createdAt: true, status: true, finalScore: true },
       })
     : null
 
-  // The weight-policy resolution MUST stay in lockstep with
-  // calculateFinalGrade (approved signed map only; a map approved after the
-  // enrollment belongs to future cohorts and falls back to the defaults).
-  const policy = resolveGradeWeights(category, program?.admissionRules)
-  const profile = ((program?.admissionRules || {}) as any).academicProfile
-  const policyEffectiveAt = Date.parse(String(profile?.approvedFormulaAt || ''))
-  const newCohort =
-    enrollment?.createdAt &&
-    Number.isFinite(policyEffectiveAt) &&
-    new Date(enrollment.createdAt).getTime() >= policyEffectiveAt
-  const configured =
-    policy.source === 'academic_profile' && !newCohort
-      ? { ...resolveGradeWeights(category, null), warning: 'ASSESSMENT_FORMULA_FUTURE_COHORT_ONLY' }
-      : policy
+  // Frozen rules first (owner's Phase-3 condition): when the enrollment
+  // has a rules snapshot, ITS weights and threshold govern — never the
+  // programme's current settings. Without one, the snapshot is captured
+  // from the live resolution (backfill) and used from this call on; the
+  // live resolution itself stays in lockstep with calculateFinalGrade via
+  // the shared effectiveGradeWeights helper.
+  let configured = effectiveGradeWeights(category, program?.admissionRules, enrollment?.createdAt)
+  let snapshot: EnrollmentSnapshot | null = null
+  if (enrollment?.id) {
+    snapshot = await ensureEnrollmentSnapshot(client, {
+      id: enrollment.id,
+      userId: input.userId,
+      programId: input.programId,
+      createdAt: enrollment.createdAt,
+    }).catch(() => null)
+    if (snapshot) {
+      configured = {
+        weights: snapshot.weights,
+        source: snapshot.weightSource,
+        ...(snapshot.weightWarning ? { warning: snapshot.weightWarning } : {}),
+      }
+    }
+  }
+  const passThreshold = snapshot?.passThreshold ?? SEMESTER_PASS_THRESHOLD
   const weights = configured.weights
   const weightOf = (key: string) => weights[key] || 0
 
@@ -221,7 +235,7 @@ export async function calculateSemesterAverages(input: {
     semesters.push({
       semester,
       average,
-      passed: average === null ? null : average > SEMESTER_PASS_THRESHOLD,
+      passed: average === null ? null : average > passThreshold,
       complete: components.every((c) => c.complete) && missing.length === 0,
       components,
       missing,

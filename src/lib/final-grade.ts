@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { gradingFormulaSignature } from '@/lib/program-tracks'
+import { effectiveGradeWeights, ensureEnrollmentSnapshot } from '@/lib/rules-snapshot'
 
 export interface FinalGradeComponent {
   key: string
@@ -34,7 +35,7 @@ type ScoredAnswer = {
   maxPoints: number | null
 }
 
-type GradeWeights = Record<string, number>
+export type GradeWeights = Record<string, number>
 const DEFAULT_WEIGHTS: Record<string, GradeWeights> = {
   DIPLOMA: { quizzes: 20, assignments: 20, final_exam: 60 },
   MASTERS: { semester1_quizzes: 10, semester1_exam: 15, semester2_quizzes: 10, semester2_exam: 15, thesis: 30, defense: 20 },
@@ -298,17 +299,29 @@ export async function calculateFinalGrade(input: {
   const enrollment = (client as any).enrollment?.findUnique
     ? await client.enrollment.findUnique({
         where: { userId_programId: { userId: input.userId, programId: input.programId } },
-        select: { createdAt: true, status: true, finalScore: true },
+        select: { id: true, createdAt: true, status: true, finalScore: true },
       })
     : null
-  const policy = resolveGradeWeights(category, program?.admissionRules)
-  const profile = ((program?.admissionRules || {}) as any).academicProfile
-  const policyEffectiveAt = Date.parse(String(profile?.approvedFormulaAt || ''))
-  const newCohort = enrollment?.createdAt && Number.isFinite(policyEffectiveAt) &&
-    new Date(enrollment.createdAt).getTime() >= policyEffectiveAt
-  const configured = policy.source === 'academic_profile' && !newCohort
-    ? { ...resolveGradeWeights(category, null), warning: 'ASSESSMENT_FORMULA_FUTURE_COHORT_ONLY' }
-    : policy
+  // Frozen rules first (Phase-3 snapshot): the enrollment's captured
+  // weights govern when a snapshot exists (captured on first use for
+  // pre-snapshot enrollments); the live resolution is the shared
+  // effectiveGradeWeights — the exact policy this engine has always used.
+  let configured = effectiveGradeWeights(category, program?.admissionRules, enrollment?.createdAt)
+  if (enrollment?.id) {
+    const snapshot = await ensureEnrollmentSnapshot(client, {
+      id: enrollment.id,
+      userId: input.userId,
+      programId: input.programId,
+      createdAt: enrollment.createdAt,
+    }).catch(() => null)
+    if (snapshot) {
+      configured = {
+        weights: snapshot.weights,
+        source: snapshot.weightSource,
+        ...(snapshot.weightWarning ? { warning: snapshot.weightWarning } : {}),
+      }
+    }
+  }
   const weight = (key: string) => configured.weights[key] || 0
   const missing: string[] = []
 
