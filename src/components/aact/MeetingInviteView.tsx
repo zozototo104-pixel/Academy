@@ -657,6 +657,19 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
                       فتح رابط الاجتماع
                     </Button>
                   )}
+                  {zoomConfig && (
+                    <div className="space-y-2">
+                      <div ref={zoomRootRef} className="min-h-[480px] w-full overflow-hidden rounded-xl bg-slate-950" dir="ltr" />
+                      {zoomError && (
+                        <p role="alert" className="text-center text-sm font-bold text-red-600">{zoomError}</p>
+                      )}
+                      {zoomExternalUrl && (
+                        <a href={zoomExternalUrl} target="_blank" rel="noopener noreferrer" className="block text-center text-sm font-bold underline">
+                          {zoomError ? 'فتح الاجتماع في Zoom بدلًا من ذلك' : 'فتح Zoom في نافذة مستقلة'}
+                        </a>
+                      )}
+                    </div>
+                  )}
                   {joinedExternal && (
                     <p className="text-center text-xs font-bold text-emerald-600">
                       فُتح رابط الاجتماع في نافذة جديدة وسُجّل انضمامك.
