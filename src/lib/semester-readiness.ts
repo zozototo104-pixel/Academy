@@ -1,6 +1,42 @@
 import { db } from '@/lib/db'
 
 /**
+ * FREEZE EXCEPTION — APPROVED BY THE OWNER 2026-11-05 (documented in
+ * docs/semester-readiness-freeze-exception.md): this file was frozen
+ * verbatim by the academic-lifecycle plan, and the 2026-11-04 hardening
+ * below was ratified as an exception rather than reverted. Scope of the
+ * exception: an attempt counts toward readiness ONLY when it is fully
+ * settled — status GRADED, every answer scored, no PENDING appeal — so a
+ * provisional or partially graded result can never unlock progression
+ * before it is final. Storage-shape parity with the grade engine is part
+ * of the ratification: a GRADED attempt whose score is derivable (stored
+ * score, or finalScore, or a percentage computed from its fully-scored
+ * answers — the legacy shape the engine itself accepts) counts exactly
+ * like a stored-score attempt, so no deserving student is blocked by how
+ * their grade happens to be stored.
+ */
+
+function percentFromStoredAnswers(answers: { points: number | null; maxPoints: number | null }[] | undefined): number | null {
+  if (!answers?.length) return null
+  const max = answers.reduce((sum, a) => sum + Math.max(0, Number(a.maxPoints || 0)), 0)
+  if (max <= 0) return null
+  const points = answers.reduce((sum, a) => sum + Math.max(0, Number(a.points || 0)), 0)
+  return (points / max) * 100
+}
+
+/** A settled attempt has a usable score: stored, final, or derivable from
+ * its fully-scored answers (the same fallback the grade engine applies). */
+function hasUsableScore(attempt: {
+  score?: number | null
+  finalScore?: number | null
+  answers?: { points: number | null; maxPoints: number | null }[]
+}): boolean {
+  if (typeof attempt.score === 'number' && Number.isFinite(attempt.score)) return true
+  if (typeof attempt.finalScore === 'number' && Number.isFinite(attempt.finalScore)) return true
+  return percentFromStoredAnswers(attempt.answers) !== null
+}
+
+/**
  * Semester two is locked until the programme's designated first-semester
  * exams are all published (READY) and passed. The designated set is: every
  * READY exam, plus the programme's current exam (the latest one) while it
@@ -26,19 +62,19 @@ export async function hasPassedFirstSemesterExam(userId: string, programId: stri
   const designated = exams.filter((exam) => exam.status === 'READY' || exam.id === current.id)
   for (const exam of designated) {
     if (exam.status !== 'READY' || !exam.questions.some((q) => q.points > 0)) return false
-    const passed = await db.programExamAttempt.findFirst({
+    const candidates = await db.programExamAttempt.findMany({
       where: {
         userId,
         examId: exam.id,
         status: 'GRADED',
         passed: true,
-        score: { not: null },
         answers: { none: { points: null } },
         OR: [{ appealStatus: null }, { appealStatus: { not: 'PENDING' } }],
       },
-      select: { id: true },
+      select: { id: true, score: true, finalScore: true, answers: { select: { points: true, maxPoints: true } } },
+      take: 25,
     })
-    if (!passed) return false
+    if (!candidates.some((attempt) => hasUsableScore(attempt))) return false
   }
   return true
 }
@@ -85,12 +121,15 @@ export async function calculateSemesterReadiness(userId: string, programId: stri
 
   const unitExamIds = units.map((u) => u.exam?.id).filter(Boolean) as string[]
   const unitAttempts = unitExamIds.length
-    ? await db.examAttempt.findMany({ where: { userId, examId: { in: unitExamIds }, status: 'GRADED', score: { not: null }, answers: { none: { points: null } }, OR: [{ appealStatus: null }, { appealStatus: { not: 'PENDING' } }] }, orderBy: { score: 'desc' } })
+    ? await db.examAttempt.findMany({
+        where: { userId, examId: { in: unitExamIds }, status: 'GRADED', answers: { none: { points: null } }, OR: [{ appealStatus: null }, { appealStatus: { not: 'PENDING' } }] },
+        select: { examId: true, score: true, passed: true, answers: { select: { points: true, maxPoints: true } } },
+      })
     : []
 
   const passedUnitExamIds = new Set<string>()
   for (const attempt of unitAttempts) {
-    if (attempt.examId && attempt.passed) passedUnitExamIds.add(attempt.examId)
+    if (attempt.examId && attempt.passed && hasUsableScore(attempt)) passedUnitExamIds.add(attempt.examId)
   }
 
   const missingUnitExams = units
