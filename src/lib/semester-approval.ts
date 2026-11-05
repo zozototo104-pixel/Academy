@@ -165,6 +165,27 @@ export async function collectSemesterApprovalBlockers(
     const unapproved = countUnapproved(graded, 'PROGRAM_EXAM')
     if (unapproved) blockers.push({ code: 'PROGRAM_EXAM_GRADES_UNAPPROVED', count: unapproved })
   }
+  // Phase 4: an undecided reopen appeal is grade-affecting by nature —
+  // it can still produce new grades in this semester — so it blocks the
+  // closure decision until the administration decides it. An existing
+  // but unreadable appeals table fails closed, like grade approvals.
+  const appealStore = (client as AnyClient)?.reopenAppeal
+  if (appealStore?.count) {
+    try {
+      const enrollment = await client.enrollment.findUnique({
+        where: { userId_programId: { userId: args.userId, programId: args.programId } },
+        select: { id: true },
+      })
+      if (enrollment) {
+        const pending = await appealStore.count({
+          where: { enrollmentId: enrollment.id, semester: args.semester, status: 'PENDING' },
+        })
+        if (pending) blockers.push({ code: 'REOPEN_APPEALS_PENDING', count: pending })
+      }
+    } catch {
+      blockers.push({ code: 'REOPEN_APPEALS_PENDING', count: 1 })
+    }
+  }
   return blockers
 }
 

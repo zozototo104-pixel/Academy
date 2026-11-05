@@ -2423,8 +2423,6 @@ model ProgramExtensionRequest {
   @@index([status, createdAt])
 }
 
-// اعتماد درجة محفوظ (المرحلة 2): يميَّز عن مراجعة التصحيح؛ صلاحيته مشروطة
-// ببقاء درجة المحاولة الحالية مساوية للدرجة المعتمدة وقت الاعتماد.
 model GradeApproval {
   id           String   @id @default(cuid())
   targetType   String // UNIT_EXAM | PROGRAM_EXAM
@@ -2470,6 +2468,7 @@ model EnrollmentRulesSnapshot {
 // دورة حياة الفصل (المرحلة 4): حالة محفوظة لكل (التحاق × فصل) — الإغلاق
 // حالة خادمية لا استنتاج من التواريخ. النوافذ مشتقة من تقسيم مدة البرنامج
 // القائم (program-duration) وتُختم هنا عند إنشاء الحالة.
+
 model EnrollmentSemesterState {
   id                   String    @id @default(cuid())
   enrollmentId         String
@@ -2510,3 +2509,31 @@ model NotificationOutbox {
 
   @@index([status, createdAt])
 }
+
+// التماس إعادة فتح (المرحلة 4) — نظام مستقل عن التماسات الدرجات: طلب
+// لإعادة فتح تسليم وحدة انتهت نافذتها ما دام فصلها قائمًا. له مهلة بتّ
+// وتصعيد إداري، ولا يُرفض تلقائيًا أبدًا؛ المعلّق منه يمنع إغلاق الفصل.
+model ReopenAppeal {
+  id               String    @id @default(cuid())
+  enrollmentId     String
+  userId           String
+  programId        String
+  semester         Int
+  unitId           String?
+  reason           String
+  status           String    @default("PENDING") // PENDING | APPROVED | REJECTED | ARCHIVED
+  decisionDeadline DateTime
+  decidedById      String?
+  decidedAt        DateTime?
+  decisionNote     String?
+  escalatedAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([enrollmentId, semester, status])
+  @@index([status, decisionDeadline])
+}
+
+// اعتماد درجة محفوظ (المرحلة 2): يميَّز عن مراجعة التصحيح؛ صلاحيته مشروطة
+// ببقاء درجة المحاولة الحالية مساوية للدرجة المعتمدة وقت الاعتماد.
+
