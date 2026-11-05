@@ -145,7 +145,6 @@ export async function meetingAction(
           sdkKey, appKey: sdkKey, mn: match[1], role: 0, iat: now - 30, exp: now + 60 * 60, tokenExp: now + 60 * 60,
         })
         const signature = createHmac('sha256', sdkSecret).update(unsigned).digest('base64url')
-        const url = new URL(String(meeting.meetingUrl))
         result.zoomSdk = {
           signature: unsigned + '.' + signature,
           sdkKey,
