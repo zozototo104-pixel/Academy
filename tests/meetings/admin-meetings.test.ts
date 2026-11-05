@@ -228,14 +228,57 @@ describe('entry state & actions (fake db)', () => {
 
   test('participant notes are stored with the author name; unclaimed cannot write', async () => {
     const inv = invite({ claimedByUserId: visitor.id })
+    // الاجتماع حيّ الآن (داخل نافذة الدخول) — فرضية الاختبار الأصلية:
+    // ملاحظة مشارك أثناء الاجتماع تُحفظ.
+    inv.meeting = meeting({ startsAt: new Date(Date.now() - 5 * 60_000), endsAt: new Date(Date.now() + 55 * 60_000) })
     const db = fakeDb(inv)
     const ok = await meetingAction(db as any, db.state.inv, visitor, 'note', { text: 'اتفقنا على مراجعة الخطة' })
     expect(ok.status).toBe(200)
     expect(db.state.notes.length).toBe(1)
     expect(db.state.notes[0].authorName).toBe('ضيف')
-    const db2 = fakeDb(invite())
+    const inv2 = invite()
+    inv2.meeting = meeting({ startsAt: new Date(Date.now() - 5 * 60_000), endsAt: new Date(Date.now() + 55 * 60_000) })
+    const db2 = fakeDb(inv2)
     const denied = await meetingAction(db2 as any, db2.state.inv, visitor, 'note', { text: 'x' })
     expect(denied.status).toBe(403)
+    expect((denied.body as any).code).toBe('NOT_CLAIMED')
+    expect(db2.state.notes.length).toBe(0)
+  })
+
+  test('notes are refused outside the join window and never stored; reading them stays open', async () => {
+    // قبل فتح النافذة (الاجتماع بعد ساعة): رفض + لا حفظ
+    const invEarly = invite({ claimedByUserId: visitor.id })
+    invEarly.meeting = meeting({ startsAt: new Date(Date.now() + 60 * 60_000), endsAt: new Date(Date.now() + 120 * 60_000) })
+    const dbEarly = fakeDb(invEarly)
+    const early = await meetingAction(dbEarly as any, dbEarly.state.inv, visitor, 'note', { text: 'ملاحظة مبكرة' })
+    expect(early.status).toBe(403)
+    expect((early.body as any).code).toBe('JOIN_WINDOW_CLOSED')
+    expect(dbEarly.state.notes.length).toBe(0)
+
+    // داخل النافذة (قبل البدء بـ10 دقائق): تُحفظ
+    const invLive = invite({ claimedByUserId: visitor.id })
+    invLive.meeting = meeting({ startsAt: new Date(Date.now() + 10 * 60_000), endsAt: new Date(Date.now() + 70 * 60_000) })
+    const dbLive = fakeDb(invLive)
+    const live = await meetingAction(dbLive as any, dbLive.state.inv, visitor, 'note', { text: 'ملاحظة أثناء الاجتماع' })
+    expect(live.status).toBe(200)
+    expect(dbLive.state.notes.length).toBe(1)
+    expect(dbLive.state.notes[0].text).toBe('ملاحظة أثناء الاجتماع')
+
+    // بعد انتهاء الاجتماع: رفض + لا حفظ
+    const invLate = invite({ claimedByUserId: visitor.id })
+    invLate.meeting = meeting({ startsAt: new Date(Date.now() - 120 * 60_000), endsAt: new Date(Date.now() - 60 * 60_000) })
+    const dbLate = fakeDb(invLate)
+    const late = await meetingAction(dbLate as any, dbLate.state.inv, visitor, 'note', { text: 'ملاحظة متأخرة' })
+    expect(late.status).toBe(403)
+    expect((late.body as any).code).toBe('JOIN_WINDOW_CLOSED')
+    expect(dbLate.state.notes.length).toBe(0)
+
+    // القراءة بعد الانتهاء تبقى مسموحة لصاحب الوصول الكامل
+    dbLate.state.notes.push({ id: 'n-old', meetingId: 'm1', userId: visitor.id, authorName: 'ضيف', text: 'ملاحظة قديمة', createdAt: new Date() })
+    const state = await meetingState(dbLate as any, dbLate.state.inv, visitor)
+    expect(state.body.level).toBe('FULL')
+    expect((state.body.notes as any[]).length).toBe(1)
+    expect((state.body.notes as any[])[0].text).toBe('ملاحظة قديمة')
   })
 
   test('assistant: disabled flag refuses; outside the live window refuses', async () => {

@@ -1,4 +1,4 @@
-import { isMeetingJoinOpen, meetingAccessFor } from '@/lib/admin-meetings'
+import { isMeetingJoinOpen, meetingAccessFor, meetingJoinOpensAt } from '@/lib/admin-meetings'
 import { checkDatabaseRateLimit } from '@/lib/rate-limit'
 
 // مساعد الاجتماع الذكي — وضع نصي بمسار المنصة الحالي. لا يسمع صوت
@@ -83,6 +83,20 @@ export async function addMeetingNote(
   const access = await meetingAccessFor(db, invite, user)
   if (access.level !== 'FULL') return { status: 403, body: { error: 'استلم الدعوة بحسابك أولًا', code: 'NOT_CLAIMED' } }
   if (meeting.status === 'CANCELLED') return { status: 409, body: { error: 'الاجتماع ملغى', code: 'MEETING_CANCELLED' } }
+  // الملاحظات تُكتب أثناء الاجتماع فقط: نفس نافذة الدخول المفروضة
+  // خادميًا على الانضمام والمساعد (تفتح قبل الموعد بـ15 دقيقة
+  // وتُغلق عند انتهاء الاجتماع). القراءة في meetingState غير
+  // محكومة بالنافذة — الحظر على الحفظ فقط.
+  if (!isMeetingJoinOpen(meeting)) {
+    return {
+      status: 403,
+      body: {
+        error: 'الملاحظات تُحفظ أثناء الاجتماع فقط — يفتح قبل الموعد بـ15 دقيقة ويُغلق عند انتهائه',
+        code: 'JOIN_WINDOW_CLOSED',
+        joinOpensAt: meetingJoinOpensAt(meeting).toISOString(),
+      },
+    }
+  }
   const clean = String(text || '').trim().slice(0, 4000)
   if (!clean) return { status: 400, body: { error: 'الملاحظة فارغة', code: 'EMPTY_NOTE' } }
   const note = await db.adminMeetingNote.create({
