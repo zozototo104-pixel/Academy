@@ -38,6 +38,8 @@ async function resolveAttempt(
   userId: string
   status: string
   score: number | null
+  appealStatus: string | null
+  unscoredAnswers: number
   programId: string
   semester: number
 } | null> {
