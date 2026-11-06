@@ -554,7 +554,7 @@ function testGenericChunkHeadingsYieldToSemanticSourceChapterTitles() {
 function testRepeatedBookHeaderWithPageNumberNeverBecomesChapterTitle() {
   const chunks = [
     chunk(0, 'الفصل الثامن\\nإدارة المخاطر\\nشرح عمليات المخاطر وإجراءات تخفيفها.', 69),
-    chunk(1, 'الفصل التاسع\\nإدارة المشروعات بنجاح ١٠٣\\nإدارة فرق التنفيذ\\nشرح مفصل عن الفرق والتعاون والتنسيق.', 89),
+    chunk(1, 'الفصل التاسع\nإدارة المشروعات بنجاح ١٠٣\nإدارة فرق التنفيذ\nشرح مفصل عن الفرق والتعاون والتنسيق.', 89),
   ]
   const result = planBookOutline(chunks, [], new Map(chunks.map((c) => [c.index, 'chunk-' + c.index])), 1, [], 'إدارة المشروعات بنجاح')
   const ninth = result.sections.find((s) => s.title.startsWith('الفصل التاسع'))
