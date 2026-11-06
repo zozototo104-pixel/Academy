@@ -78,7 +78,7 @@ function isBookRunningHeader(value: string, bookTitle: string): boolean {
   const book = normalizeHeading(bookTitle)
   if (!book || !title.startsWith(book)) return false
   const suffix = title.slice(book.length).trim()
-  return !suffix || (/^\\d{1,4}(?:\\s+\\d{1,4})?$/u.test(suffix) && title[book.length] === ' ')
+  return !suffix || (/^\d{1,4}(?:\s+\d{1,4})?$/u.test(suffix) && title[book.length] === ' ')
 }
 const normalizeLineForMatch = (value: unknown) => normalizeOutlineText(value).toLowerCase()
 const pageNumber = (value: string) => Number(normalizeOutlineText(value).replace(/[^0-9]/g, ''))
