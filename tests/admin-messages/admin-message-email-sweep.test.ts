@@ -45,7 +45,7 @@ const db: any = {
       return messages.filter((m) =>
         (!w.scope || m.scope === w.scope) &&
         (!w.senderRole || m.senderRole === w.senderRole) &&
-        (w.emailSentAt !== null || m.emailSentAt === null) &&
+        matchesDigestLease(m, w) &&
         (!w.createdAt?.lt || m.createdAt < w.createdAt.lt)
       )
     },
