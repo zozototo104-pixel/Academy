@@ -626,6 +626,7 @@ function testInferredChapterTitleRequiresSameChapterKnowledgeEvidence() {
 }
 
 const tests = [
+  testSourceVerifiedWhitePagesCannotMaskMissingBookContent,
   testInferredChapterTitleRequiresSameChapterKnowledgeEvidence,
   testGenericChunkHeadingsYieldToSemanticSourceChapterTitles,
   testRepeatedBookHeaderWithPageNumberNeverBecomesChapterTitle,
