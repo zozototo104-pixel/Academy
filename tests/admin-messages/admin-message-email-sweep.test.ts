@@ -55,8 +55,7 @@ const db: any = {
       let count = 0
       for (const m of messages) {
         if (w.id?.in && !w.id.in.includes(m.id)) continue
-        if (w.emailSentAt === null && m.emailSentAt !== null) continue
-        if (w.emailSentAt instanceof Date && m.emailSentAt?.getTime() !== w.emailSentAt.getTime()) continue
+        if (!matchesDigestLease(m, w)) continue
         m.emailSentAt = args.data.emailSentAt
         count++
       }
