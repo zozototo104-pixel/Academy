@@ -199,6 +199,25 @@ describe('graduation approval law', () => {
     expect(world.state.createdCertificate).toBeNull()
   })
 
+  test('a new student missing tuition is tracked without an approval notification; only becoming eligible alerts admins once', async () => {
+    world.state.payments = []
+    const first = await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
+    expect(first.registered).toBe(true)
+    expect(first.ready).toBe(false)
+    expect(world.state.request.status).toBe('PENDING')
+    expect(sentGraduationNotifications).toHaveLength(0)
+
+    world.state.payments = [{ purpose: 'TUITION', status: 'PAID', amount: 1000, amountCents: 100000 }]
+    const second = await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
+    expect(second.ready).toBe(true)
+    expect(sentGraduationNotifications).toHaveLength(1)
+    expect(sentGraduationNotifications[0].title).toContain('مستوفٍ')
+    expect(sentGraduationNotifications[0].link).toContain('tab=certs')
+
+    await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
+    expect(sentGraduationNotifications).toHaveLength(1)
+  })
+
   test('registration creates one living PENDING transaction with a readiness snapshot', async () => {
     const first = await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
     expect(first.registered).toBe(true)
