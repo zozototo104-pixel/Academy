@@ -328,7 +328,12 @@ export async function runAnalyzeStep(jobId: string, deadlineMs: number) {
       if (remaining) return
       const failed = await db.bookChunk.count({ where: { bookId, status: 'FAILED' } })
       if (failed) {
-        await db.bookReadJob.update({ where: { id }, data: { phase: 'ANALYZE', status: 'FAILED', lastError: `${failed} مقطع فشل`, finishedAt: new Date(), lockedUntil: null, retryAt: null } })
+        const previous = await db.bookReadJob.findUnique({ where: { id }, select: { lastError: true } })
+        await db.bookReadJob.update({ where: { id }, data: {
+          phase: 'ANALYZE', status: 'FAILED',
+          lastError: preserveBookPageReadIssues(previous?.lastError, `${failed} مقطع فشل`),
+          finishedAt: new Date(), lockedUntil: null, retryAt: null,
+        } })
         return
       }
       // One parameterized statement regardless of historical item count; reruns skip LEGACY rows.
