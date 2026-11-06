@@ -251,6 +251,25 @@ describe('graduation approval law', () => {
     expect(world.state.createdCertificate).toBeNull()
   })
 
+  test('historical CERTIFIED admission stays retrievable without rechecking current invoices', async () => {
+    world.state.admissionStatus = 'CERTIFIED'
+    world.state.certificate = {
+      id: 'legacy-cert', admissionId: 'admission-1', enrollmentId: null,
+      type: 'PROGRAM_COMPLETION', serial: 'AACT-C-2026-OLD',
+    }
+    const payments = world.db.payment.findMany
+    world.db.payment.findMany = async () => [{ purpose: 'TUITION', status: 'PENDING', amount: 1000, amountCents: 100000 }]
+    try {
+      const response = await certifyFromAdmissions()
+      expect(response.status).toBe(200)
+      expect((await response.json()).ok).toBe(true)
+      expect(world.state.createdCertificate).toBeNull()
+      expect(world.state.admissionStatus).toBe('CERTIFIED')
+    } finally {
+      world.db.payment.findMany = payments
+    }
+  })
+
   test('stale 88 approval -> admin refresh to 95 -> new approval -> issuance at 95', async () => {
     await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
     world.state.request.status = 'APPROVED'
