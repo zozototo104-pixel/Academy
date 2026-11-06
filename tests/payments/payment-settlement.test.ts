@@ -652,6 +652,7 @@ describe('waiver approval atomicity and expiry (audit fixes 1 + 4)', () => {
     expect(updated.waiverStatus).toBe('PROGRAM_APPLIED')
     const tuition = [...payments.values()].find((p) => p.purpose === 'TUITION')
     expect(tuition).toBeTruthy()
+    if (!tuition) throw new Error('Expected tuition invoice from approved application-fee waiver')
     // رقم الفاتورة جاء من nextInvoiceNo عبر createPaymentWithInvoiceNo
     // (ترقيم هذا الحarness التجريبي: INV-<عدد الفواتير + 1>).
     expect(tuition.invoiceNo).toBe('INV-2')
