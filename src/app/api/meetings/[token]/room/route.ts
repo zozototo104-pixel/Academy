@@ -302,6 +302,7 @@ function errorResponse(e: any) {
   if (code === 'BAD_SIGNAL_TYPE') return NextResponse.json({ error: 'نوع إشارة غير معروف', code }, { status: 400 })
   if (code === 'PAYLOAD_TOO_LARGE') return NextResponse.json({ error: 'حجم إشارة الاتصال أكبر من الحد المسموح', code }, { status: 413 })
   if (code === 'PEER_IN_USE') return NextResponse.json({ error: 'معرف الاتصال مستخدم في جلسة أخرى', code }, { status: 409 })
+  if (code === 'PEER_CONFLICT') return NextResponse.json({ error: 'تزامن اتصال آخر مع هذه الجلسة؛ أعد المحاولة', code }, { status: 409 })
   console.error('meeting room error:', e)
   return NextResponse.json({ error: 'خطأ في غرفة الاجتماع' }, { status: 500 })
 }
