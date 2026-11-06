@@ -63,9 +63,16 @@ export async function extractNumberedPdfPages(buffer: Buffer, pageNumbers: reado
   try {
     const pages: ExtractedBookPage[] = []
     for (const page of pageNumbers) {
-      const result = await parser.getText({ partial: [page] })
-      const raw = (result as any).pages?.find((entry: any) => entry.num === page)?.text ?? (result as any).pages?.[0]?.text ?? result.text ?? ''
-      pages.push({ page, text: String(raw).trim(), textProvenance: 'NATIVE_TEXT' })
+      try {
+        const result = await parser.getText({ partial: [page] })
+        const raw = (result as any).pages?.find((entry: any) => entry.num === page)?.text ?? (result as any).pages?.[0]?.text ?? result.text ?? ''
+        pages.push({ page, text: String(raw).trim(), textProvenance: 'NATIVE_TEXT' })
+      } catch (error) {
+        // One corrupt page must not cancel 297 otherwise readable pages. OCR
+        // can still recover this page; any failure is recorded later.
+        pages.push({ page, text: '', textProvenance: 'NATIVE_TEXT',
+          readError: 'NATIVE_EXTRACTION_FAILED: ' + String(error instanceof Error ? error.message : error).slice(0, 120) })
+      }
     }
     return pages
   } finally {
