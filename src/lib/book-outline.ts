@@ -1204,6 +1204,56 @@ export async function buildBookOutline(bookId: string, options: { reuseReadChunk
     // initial group ordering for administrative inspection.
     draft.warnings.push('OUTLINE_SUBHEADING:' + JSON.stringify(marker))
   }
+  // Resolve generic labels AFTER page segmentation and balancing, so a
+  // suggested name never shifts page boundaries or overwrites knowledge.
+  if (!options.deterministicOnly) {
+    const unnamed = draft.sections.filter((section) => isBareChapterTitle(section.title))
+    const maxBatches = 3
+    const batchSize = 8
+    for (let start = 0; start < unnamed.length && start < maxBatches * batchSize; start += batchSize) {
+      const batch = unnamed.slice(start, start + batchSize)
+      const evidence = batch.map((section) => {
+        const segment = chunks.filter((chunk) =>
+          chunk.index >= section.chunkStartIndex && chunk.index <= section.chunkEndIndex)
+        const sampleIndexes = [0, Math.floor((segment.length - 1) / 2), segment.length - 1]
+        const samples = [...new Set(sampleIndexes)].map((index) => segment[index]).filter((chunk): chunk is Chunk => !!chunk)
+          .map((chunk) => ({
+            pages: [chunk.pageStart, chunk.pageEnd],
+            text: chunk.text.slice(0, 650) + (chunk.text.length > 950 ? ' … ' + chunk.text.slice(-300) : ''),
+          }))
+        const ids = new Set(segment.map((chunk) => chunkIds.get(chunk.index)))
+        const knowledge = items.filter((item) => item.chunkId && ids.has(item.chunkId))
+          .slice(0, 14).map((item) => ({ title: item.title, summary: item.summary.slice(0, 140) }))
+        return { order: section.order, chapter: section.title,
+          pages: [section.pageStart, section.pageEnd], samples, knowledge }
+      })
+      // No knowledge = no defensible claim that the title was learned from
+      // the book. Keep the generic chapter name for human review.
+      const grounded = evidence.filter((entry) => entry.knowledge.length > 0 && entry.samples.length > 0)
+      if (!grounded.length) continue
+      try {
+        const raw = await geminiCompleteJson({
+          system: 'أنت محرر فهرس كتاب أكاديمي. لكل فصل يحمل عنوانًا رقميًا عامًا، اقرأ مقتطفات النص عبر بداية ووسط ونهاية نطاقه وعناصر المعرفة المستخرجة من نطاقه نفسه. اقترح عنوانًا عربيًا دقيقًا يلخص الموضوع الفعلي، دون تخمين أو نقل عنوان من فصل آخر. لا تستخدم اسم الكتاب أو رقم الصفحة كعنوان. لكل اقتراح أرجع sourceItemTitle مطابقًا حرفيًا لأحد عناوين المعرفة المرسلة للفصل نفسه. إذا الأدلة ضعيفة احذف الاقتراح. لا تغير حدود الفصول أو أرقامها. JSON فقط.',
+          history: [{ role: 'user', text: 'أرجع {"proposals":[{"order":9,"title":"عنوان الموضوع","sourceItemTitle":"عنوان عنصر معرفة موجود حرفيًا"}]}. اجعل العنوان دقيقًا ومفهومًا، ولابد أن يتشارك كلمة موضوعية مع sourceItemTitle. الفصول: ' + JSON.stringify(grounded) }],
+          taskLevel: 'ACADEMIC_DRAFT', temperature: 0.1, maxOutputTokens: 2400,
+          deadlineMs: Date.now() + 90_000,
+        })
+        const renamed = applyGroundedChapterTitleProposals(draft.sections, chunks, items, chunkIds, raw, book.title)
+        draft = { ...draft, sections: renamed.sections, warnings: [...draft.warnings, ...renamed.warnings] }
+      } catch (error) {
+        console.warn('[book-outline] grounded title proposals rejected', {
+          bookId, reason: error instanceof Error ? error.message : 'UNKNOWN',
+        })
+        draft.warnings.push('تعذّر اقتراح عنوان موضوعي موثّق لبعض الفصول؛ احتُفظ بالعناوين الأصلية للمراجعة.')
+      }
+    }
+    const unresolved = draft.sections.filter((section) => isBareChapterTitle(section.title))
+    if (unresolved.length) draft.warnings.push(
+      'بقي ' + unresolved.length + ' فصلًا بعنوان رقمي فقط؛ لم تتوفر له عناوين موثّقة كافية أو تعذّر إكمال الاستدلال. يُراجع قبل اعتماد المسودة.')
+    if (draft.warnings.some((warning) => warning.startsWith('OUTLINE_INFERRED_TITLE:'))) {
+      draft.warnings.push('العناوين الموسومة «عنوان مقترح من المحتوى» استنتجها الذكاء من نص الفصل ومعرفته المحفوظة وليست عناوين حرفية مثبتة في أصل الكتاب؛ راجعها قبل الاعتماد.')
+    }
+  }
   const coverage = auditOutlineCoverage(draft.sections)
   for (const section of coverage.review) draft.warnings.push(section.pages === null ? `تنبيه تغطية: حدود صفحات القسم «${section.title}» غير مكتملة؛ راجعها قبل الاعتماد.` : `تنبيه تغطية: القسم «${section.title}» يغطي ${section.pages} صفحة (صفحات ${section.pageStart}–${section.pageEnd}) — فوق حد المراجعة ${OUTLINE_SECTION_REVIEW_PAGES} صفحة؛ أعد فحص عناوين هذا النطاق قبل الاعتماد.`)
   for (const gap of coverage.gaps) draft.warnings.push(`تنبيه تغطية: هناك فجوة غير مغطاة من الصفحة ${gap.pageStart} إلى ${gap.pageEnd}؛ لن يُعتمد الفهرس قبل تصحيحها.`)
