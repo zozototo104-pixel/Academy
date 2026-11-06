@@ -66,6 +66,7 @@ mock.module('@/lib/db', () => ({
 }))
 mock.module('@/lib/settings', () => ({ getSettings: async () => ({}) }))
 mock.module('@/lib/auth', () => ({
+  getCurrentUser: async () => ({ id: 'room-user-1', role: 'STUDENT', name: 'Participant' }),
   requireAdmin: async () => {
     if (!routeAdmin.current) throw new Error('FORBIDDEN')
     return { id: 'admin-1', name: 'المسؤول' }
