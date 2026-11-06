@@ -262,7 +262,12 @@ function testWhatsAppMinimalSafety() {
   assert(route.includes('return { ...payload, message: { ...(payload?.message || {}), fromEncrypted } }'), 'WhatsApp inbound payload must restore encrypted sender after redactDeep')
   assert(route.includes('decryptWhatsAppPhone(message?.fromEncrypted)'), 'saved WhatsApp inbound events must recover the encrypted sender for cron/after processing')
   assert(route.includes("{ status: 'RECEIVED' }") && route.includes("{ status: 'FAILED' }"), 'WhatsApp event processing must atomically claim RECEIVED or FAILED events')
-  assert(!route.includes("{ status: 'PROCESSING', updatedAt"), 'WhatsApp event processing must not double-claim an in-flight event')
+  // Recover only a stale PROCESSING row, never one owned by an active worker;
+  // the functional webhook-event-claim suite exercises both paths.
+  assert(route.includes("{ status: 'PROCESSING', updatedAt: { lt: new Date(Date.now() - STALE_PROCESSING_RETRY_MS) } }"),
+    'WhatsApp event processing may reclaim only expired PROCESSING leases, not in-flight work')
+  assert(route.includes("if (!claim.count) return"),
+    'WhatsApp event processing must not proceed without its atomic claim')
   assert(route.includes('if (!claim.count) return'), 'WhatsApp event processing must skip when the atomic claim was not acquired')
   const asr = file('src/lib/asr.ts')
   assert(route.includes('transcribeAudioBase64(audioBase64, {'), 'WhatsApp voice transcription must use the shared ASR path')
