@@ -611,6 +611,46 @@ export function sectionPageSpan(section: Pick<OutlineSectionDraft, 'pageStart' |
   return section.pageEnd - section.pageStart + 1
 }
 
+/** Independent source audit: merged section ranges must not hide unread pages. */
+export function missingBookSourcePageRanges(
+  chunks: readonly { pageStart: number; pageEnd: number }[],
+  sourceRange: { pageStart: number; pageEnd: number },
+): Array<{ pageStart: number; pageEnd: number }> {
+  const ordered = chunks.filter((chunk) =>
+    Number.isSafeInteger(chunk.pageStart) && Number.isSafeInteger(chunk.pageEnd) &&
+    chunk.pageStart > 0 && chunk.pageEnd >= chunk.pageStart)
+    .sort((a, b) => a.pageStart - b.pageStart)
+  const gaps: Array<{ pageStart: number; pageEnd: number }> = []
+  let next = sourceRange.pageStart
+  for (const chunk of ordered) {
+    if (chunk.pageEnd < next) continue
+    if (chunk.pageStart > sourceRange.pageEnd) break
+    if (chunk.pageStart > next) gaps.push({ pageStart: next, pageEnd: Math.min(chunk.pageStart - 1, sourceRange.pageEnd) })
+    next = Math.max(next, chunk.pageEnd + 1)
+    if (next > sourceRange.pageEnd) break
+  }
+  if (next <= sourceRange.pageEnd) gaps.push({ pageStart: next, pageEnd: sourceRange.pageEnd })
+  return gaps
+}
+
+export function subtractVerifiedBlankPages(
+  gaps: readonly { pageStart: number; pageEnd: number }[],
+  verifiedBlankPages: readonly number[],
+): Array<{ pageStart: number; pageEnd: number }> {
+  const blanks = [...new Set(verifiedBlankPages.filter((page) => Number.isSafeInteger(page) && page > 0))].sort((a, b) => a - b)
+  const unresolved: Array<{ pageStart: number; pageEnd: number }> = []
+  for (const gap of gaps) {
+    let start = gap.pageStart
+    for (const page of blanks) {
+      if (page < start || page > gap.pageEnd) continue
+      if (page > start) unresolved.push({ pageStart: start, pageEnd: page - 1 })
+      start = page + 1
+    }
+    if (start <= gap.pageEnd) unresolved.push({ pageStart: start, pageEnd: gap.pageEnd })
+  }
+  return unresolved
+}
+
 export function auditOutlineCoverage(
   sections: readonly OutlineSectionDraft[],
   sourceRange?: { pageStart: number; pageEnd: number },
