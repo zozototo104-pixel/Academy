@@ -36,7 +36,10 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ se
       const unit = await db.unit.findUnique({
         where: { id: (session.series as any).unitId },
         select: { semester: true, program: { select: { category: true } } },
-      }).catch(() => null)
+      })
+      if (!unit) {
+        return NextResponse.json({ error: 'تعذر التحقق من الفصل المرتبط بالمحاضرة', code: 'UNIT_SCOPE_UNAVAILABLE' }, { status: 503 })
+      }
       const unitSemester = Number((unit as any)?.semester || 1)
       if (unitSemester > 1) {
         const enrollment = await db.enrollment.findUnique({
