@@ -2161,8 +2161,30 @@ export function AdminBooksTab() {
       if (overrideReason) setOutlineApprovalDialog(null)
       toast({ title: overrideReason ? 'تم اعتماد الفهرس بتجاوز موثّق' : 'تم اعتماد الفهرس', description: `نسخة ${result.outline.version}` })
     } catch (error: any) {
-      if (error?.code === 'OUTLINE_OVERSIZED_SECTIONS' && !overrideReason) {
-        // Page-gap errors cannot enter the documented oversized override.
+      if (error?.code === 'OUTLINE_REVIEW_REQUIRED') {
+        const issues = Array.isArray(error?.data?.issues)
+          ? error.data.issues.filter((issue: unknown): issue is string => typeof issue === 'string')
+          : []
+        const key = String(error?.data?.acknowledgmentKey || '')
+        if (!key || !issues.length) {
+          toast({ title: 'تعذر عرض تقرير النواقص', description: String(error?.message || error), variant: 'destructive' })
+        } else {
+          const confirmed = await confirmAction({
+            title: 'تقرير قراءة الكتاب قبل اعتماد الفهرس',
+            description: 'القراءة استمرت رغم المشكلات التالية، لكن الصفحات غير المقروءة ليست مصدرًا للمحتوى.\n\n' +
+              issues.map((item: string, index: number) => `${index + 1}. ${item}`).join('\n') +
+              '\n\nهل تقرّ باعتماد الفهرس مع حفظ هذه النواقص في سجل الاعتماد؟',
+            confirmLabel: 'اعتماد مع الإقرار بالنواقص',
+            cancelLabel: 'رفض الاعتماد والعودة للتصحيح',
+            tone: 'warning',
+          })
+          if (confirmed) {
+            outlineCoverageAcksRef.current[bookId] = key
+            await approveBookOutline(bookId, overrideReason)
+          } else delete outlineCoverageAcksRef.current[bookId]
+        }
+      } else if (error?.code === 'OUTLINE_OVERSIZED_SECTIONS' && !overrideReason) {
+        // Oversized sections retain their independent documented approval gate.
         const blocked = Array.isArray(error?.data?.blocked) ? error.data.blocked : []
         setOutlineApprovalDialog({
           bookId,
