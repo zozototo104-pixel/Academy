@@ -564,8 +564,6 @@ function NotificationBell({ mobile = false }: { mobile?: boolean } = {}) {
   }
 
   const openNotification = async (n: Notif) => {
-    closeBell()
-    if (mobile) setMobileMenuOpen(false)
     if (!n.read) {
       unreadRef.current = Math.max(0, unreadRef.current - 1)
       setUnread((v) => Math.max(0, v - 1))
