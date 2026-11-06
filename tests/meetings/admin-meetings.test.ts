@@ -37,6 +37,23 @@ const roomInvite = {
     endsAt: new Date(Date.now() + 60 * 60_000),
   },
 }
+const roomSignalStore = {
+  findFirst: async () => roomPeerOwner.current
+    ? { id: 'presence-1', payload: JSON.stringify({ userId: roomPeerOwner.current, name: 'Participant' }) }
+    : null,
+  findMany: async ({ where }: any) => where.type === 'PRESENCE'
+    ? []
+    : [{ id: 'signal-1', fromPeer: 'another-peer', toPeer: 'p_target', type: 'ICE', payload: '{}', consumed: false }],
+  updateMany: async () => { roomSignalsConsumed.count++; return { count: 1 } },
+  deleteMany: async ({ where }: any) => {
+    if (where.fromPeer) roomPeerOwner.current = null
+    return { count: 1 }
+  },
+  create: async ({ data }: any) => {
+    roomPeerOwner.current = JSON.parse(data.payload).userId
+    return { id: 'presence-new', ...data }
+  },
+}
 mock.module('@/lib/db', () => ({
   db: {
     adminMeeting: {
