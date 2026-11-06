@@ -11,11 +11,14 @@ import { describe, expect, mock, test } from 'bun:test'
 
 let emailBehavior: 'SENT' | 'FAILED' = 'SENT'
 let emailSendCount = 0
+const emailRecipientsSent: string[] = []
+const failTheseEmailRecipients = new Set<string>()
 mock.module('@/lib/db', () => ({ db: {} }))
 mock.module('@/lib/mailer', () => ({
-  sendEmailDetailed: async () => {
+  sendEmailDetailed: async ({ to }: { to: string }) => {
     emailSendCount++
-    return emailBehavior
+    emailRecipientsSent.push(to)
+    return failTheseEmailRecipients.has(to) ? 'FAILED' : emailBehavior
   },
   emailTemplate: (title: string, body: string) => `<p>${title}</p><p>${body}</p>`,
 }))
