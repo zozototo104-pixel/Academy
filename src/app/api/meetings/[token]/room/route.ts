@@ -276,11 +276,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   try {
     const { token } = await params
     const actor = await resolveRoomActor(token)
+    // Every room GET, including discovery without peerId, must respect the join window.
+    // Otherwise peers and ICE/TURN credentials are exposed before entry opens.
+    assertJoinOpen(actor.meeting)
     const peerId = normalizePeerId(req.nextUrl.searchParams.get('peerId'))
 
     if (peerId) {
       assertValidPeerId(peerId)
-      assertJoinOpen(actor.meeting)
       // أول استطلاع من مشارك مستلِم = دخول فعلي: سجّل الحضور
       await recordAttendance(actor)
       const presence = await latestPresence(actor.meeting.id, peerId)
