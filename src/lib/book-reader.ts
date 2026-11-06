@@ -8,7 +8,7 @@ import { buildStageRoutingOverrides, resolveEffectiveStageProfile, type StageRou
 import { withPipelineRun } from '@/lib/ai-pipeline-log'
 import { mergeBookPageReadIssues, type BookPageReadIssue } from '@/lib/book-read-job-control'
 
-export type ExtractedBookPage = { page: number; text: string; textProvenance: 'NATIVE_TEXT' | 'VISION_OCR' }
+export type ExtractedBookPage = { page: number; text: string; textProvenance: 'NATIVE_TEXT' | 'VISION_OCR'; readError?: string }
 export type PlannedBookChunk = { index: number; pageStart: number; pageEnd: number; headingPath: string | null; text: string; charCount: number; textProvenance: 'NATIVE_TEXT' | 'VISION_OCR'; contentHash: string }
 
 export function pagesNeedingOcr(pages: readonly { page: number; text: string }[]): number[][] {
