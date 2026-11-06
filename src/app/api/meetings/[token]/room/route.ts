@@ -1,4 +1,5 @@
 import { createHmac } from 'node:crypto'
+import { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
@@ -166,8 +167,8 @@ function parsePresence(payload: string): PresenceInfo {
   }
 }
 
-async function latestPresence(meetingId: string, peerId: string) {
-  const row = await db.adminMeetingSignal.findFirst({
+async function latestPresence(meetingId: string, peerId: string, client: Prisma.TransactionClient | typeof db = db) {
+  const row = await client.adminMeetingSignal.findFirst({
     where: {
       meetingId,
       type: PRESENCE_TYPE,
@@ -179,11 +180,11 @@ async function latestPresence(meetingId: string, peerId: string) {
   return row ? { row, info: parsePresence(row.payload) } : null
 }
 
-async function touchPresence(meetingId: string, peerId: string, info: PresenceInfo) {
-  await db.adminMeetingSignal.deleteMany({
+async function touchPresence(meetingId: string, peerId: string, info: PresenceInfo, client: Prisma.TransactionClient | typeof db = db) {
+  await client.adminMeetingSignal.deleteMany({
     where: { meetingId, type: PRESENCE_TYPE, fromPeer: peerId },
   })
-  await db.adminMeetingSignal.create({
+  await client.adminMeetingSignal.create({
     data: {
       meetingId,
       fromPeer: peerId,
@@ -193,6 +194,40 @@ async function touchPresence(meetingId: string, peerId: string, info: PresenceIn
       consumed: true, // صفوف الحضور لا تُسلَّم كإشارات أبداً
     },
   })
+}
+
+// Serialize join and heartbeat for the same peer identity. Without a
+// serializable read/check/write cycle, two users can both see no presence
+// and overwrite each other's claim between deleteMany and create.
+async function refreshOwnedPresence(
+  meetingId: string,
+  peerId: string,
+  userId: string,
+  name: string,
+  action: 'join' | 'heartbeat',
+) {
+  const maxAttempts = 3
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      await db.$transaction(async (tx) => {
+        const existing = await latestPresence(meetingId, peerId, tx)
+        if (action === 'heartbeat' && !existing) throw new Error('FORBIDDEN_PEER')
+        if (existing && existing.info.userId !== userId) {
+          throw new Error(action === 'join' ? 'PEER_IN_USE' : 'FORBIDDEN_PEER')
+        }
+        await touchPresence(meetingId, peerId, {
+          name: action === 'heartbeat' ? (existing?.info.name || name) : name,
+          userId,
+        }, tx)
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
+      return
+    } catch (e: unknown) {
+      // PostgreSQL rolls back one of two conflicting serializable writes.
+      // Retry against the current owner; never turn a collision into access.
+      if ((e as { code?: string })?.code !== 'P2034') throw e
+      if (attempt === maxAttempts - 1) throw new Error('PEER_CONFLICT')
+    }
+  }
 }
 
 async function clearPresence(meetingId: string, peerId: string) {
@@ -267,6 +302,7 @@ function errorResponse(e: any) {
   if (code === 'BAD_SIGNAL_TYPE') return NextResponse.json({ error: 'نوع إشارة غير معروف', code }, { status: 400 })
   if (code === 'PAYLOAD_TOO_LARGE') return NextResponse.json({ error: 'حجم إشارة الاتصال أكبر من الحد المسموح', code }, { status: 413 })
   if (code === 'PEER_IN_USE') return NextResponse.json({ error: 'معرف الاتصال مستخدم في جلسة أخرى', code }, { status: 409 })
+  if (code === 'PEER_CONFLICT') return NextResponse.json({ error: 'تزامن اتصال آخر مع هذه الجلسة؛ أعد المحاولة', code }, { status: 409 })
   console.error('meeting room error:', e)
   return NextResponse.json({ error: 'خطأ في غرفة الاجتماع' }, { status: 500 })
 }
@@ -276,15 +312,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   try {
     const { token } = await params
     const actor = await resolveRoomActor(token)
+    // Every room GET, including discovery without peerId, must respect the join window.
+    // Otherwise peers and ICE/TURN credentials are exposed before entry opens.
+    assertJoinOpen(actor.meeting)
     const peerId = normalizePeerId(req.nextUrl.searchParams.get('peerId'))
 
     if (peerId) {
-      assertValidPeerId(peerId)
-      assertJoinOpen(actor.meeting)
-      // أول استطلاع من مشارك مستلِم = دخول فعلي: سجّل الحضور
+      // Polling is allowed only after a successful join created a fresh,
+      // owned presence. A missing presence is NOT permission to consume
+      // signals addressed to an arbitrary peerId.
+      await requireOwnedPeer(actor.meeting.id, peerId, actor.user.id)
       await recordAttendance(actor)
-      const presence = await latestPresence(actor.meeting.id, peerId)
-      if (presence && presence.info.userId !== actor.user.id) throw new Error('FORBIDDEN_PEER')
     }
 
     let signals: any[] = []
@@ -344,11 +382,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       if (!peerId) return NextResponse.json({ error: 'معرف الاتصال مطلوب' }, { status: 400 })
       assertValidPeerId(peerId)
       assertJoinOpen(actor.meeting)
-      const existing = await latestPresence(meetingId, peerId)
-      if (existing && existing.info.userId !== actor.user.id) throw new Error('PEER_IN_USE')
       const name = String(body.name || actor.user.name || actor.invite.inviteeName || 'مشارك').slice(0, 80)
+      await refreshOwnedPresence(meetingId, peerId, actor.user.id, name, 'join')
       await recordAttendance(actor)
-      await touchPresence(meetingId, peerId, { name, userId: actor.user.id })
       // تنظيف صفوف حضور قديمة انتهت نافذتها
       await db.adminMeetingSignal
         .deleteMany({
@@ -362,12 +398,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     if (action === 'heartbeat') {
       if (!peerId) return NextResponse.json({ error: 'معرف الاتصال مطلوب' }, { status: 400 })
       assertJoinOpen(actor.meeting)
-      await requireOwnedPeer(meetingId, peerId, actor.user.id)
-      const presence = await latestPresence(meetingId, peerId)
-      await touchPresence(meetingId, peerId, {
-        name: presence?.info.name || String(actor.user.name || 'مشارك').slice(0, 80),
-        userId: actor.user.id,
-      })
+      await refreshOwnedPresence(
+        meetingId,
+        peerId,
+        actor.user.id,
+        String(actor.user.name || 'مشارك').slice(0, 80),
+        'heartbeat',
+      )
       return NextResponse.json({ ok: true })
     }
 

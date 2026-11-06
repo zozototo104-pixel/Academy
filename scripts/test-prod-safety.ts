@@ -220,11 +220,26 @@ function testGradingCertificateFlowRegressions() {
   assert(programDetail.includes("code: 'ALREADY_PASSED'") && programDetail.includes("code: 'SUBMITTED'"), 'program exam detail must keep compatible already-passed and submitted blocking codes')
 
   const attemptsReview = file('src/app/api/admin/attempts-review/route.ts')
-  assert(attemptsReview.includes('completeEnrollmentIfEligible') && attemptsReview.includes('completeReviewedAttemptIfEligible'), 'review approval must complete enrollment after transaction')
+  assert(attemptsReview.includes('registerGraduationRequest') && attemptsReview.includes('registerGraduationAfterReview'), 'review approval must register the graduation transaction after review')
 
   const appeal = file('src/app/api/program-exam/appeal/route.ts')
   assert(appeal.includes("attempt.status !== 'GRADED'"), 'appeals must only be accepted for graded attempts')
-  assert(appeal.includes('finalScore: clamped') && appeal.includes('completeEnrollmentIfEligible'), 'accepted appeals must set finalScore and try certificate completion')
+  assert(appeal.includes('finalScore: clamped') && appeal.includes('registerGraduationRequest'), 'accepted appeals must set finalScore and register the graduation transaction')
+
+  const completionLib = file('src/lib/enrollment-completion.ts')
+  assert(completionLib.includes('storedGraduationRequest') && completionLib.includes('ADMIN_GRADUATION_APPROVAL_REQUIRED'), 'certificate creation must require a stored APPROVED graduation request')
+  const adminCertification = file('src/app/api/admin/admissions/route.ts')
+  assert(
+    adminCertification.includes('await completeEnrollmentIfEligible({') &&
+    !adminCertification.includes('db.certificate.create({') &&
+    !adminCertification.includes('nextCertSerial(') &&
+    completionLib.includes('storedGraduationRequest') &&
+    completionLib.includes('ADMIN_GRADUATION_APPROVAL_REQUIRED') &&
+    completionLib.includes('await tx.enrollment.update({') &&
+    completionLib.includes('graduationRequest.update({'),
+    'admission CERTIFIED issuance must delegate to the atomic, admin-approved completion service without a parallel certificate creator'
+  )
+  assert(schema.includes('model GraduationRequest'), 'graduation requests table must exist in the schema')
 
   const examView = file('src/components/aact/ExamView.tsx')
   assert(examView.includes("d?.status === 'NEEDS_REVIEW'") && examView.includes('إجاباتك محفوظة للمراجعة'), 'ExamView must handle NEEDS_REVIEW without score display')

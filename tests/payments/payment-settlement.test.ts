@@ -7,6 +7,9 @@ const payments: RecordMap = new Map()
 const admissions: RecordMap = new Map()
 const users: RecordMap = new Map()
 const enrollments: RecordMap = new Map()
+const rulesSnapshots: RecordMap = new Map()
+const semesterStates: RecordMap = new Map()
+let snapshotWriteFails = false
 const waiverCodes: Record<string, any>[] = []
 const waiverAttempts: Record<string, any>[] = []
 const notifications: Record<string, any>[] = []
@@ -174,7 +177,7 @@ const db: any = {
       return enrollments.get(key) || null
     },
     create: async ({ data }: { data: Record<string, any> }) => {
-      const enrollment = { ...data, id: `enrollment-${enrollments.size + 1}` }
+      const enrollment = { ...data, id: `enrollment-${enrollments.size + 1}`, createdAt: new Date(), extensionDays: 0 }
       enrollments.set(`${data.userId}:${data.programId}`, enrollment)
       return { ...enrollment }
     },
@@ -184,6 +187,37 @@ const db: any = {
       Object.assign(entry[1], data)
       return { ...entry[1] }
     },
+  },
+  program: {
+    findUnique: async () => ({ id: 'program-1', category: 'DIPLOMA', admissionRules: null, semestersCount: 2, maxStudyDays: 90 }),
+  },
+  unit: {
+    findMany: async () => [
+      { id: 'unit-1', semester: 1, order: 1 },
+      { id: 'unit-2', semester: 2, order: 2 },
+    ],
+  },
+  enrollmentRulesSnapshot: {
+    findUnique: async ({ where }: any) => rulesSnapshots.get(where.enrollmentId) || null,
+    create: async ({ data }: any) => {
+      if (snapshotWriteFails) throw new Error('snapshot database unavailable')
+      const row = { id: `snapshot-${rulesSnapshots.size + 1}`, ...data, capturedAt: new Date() }
+      rulesSnapshots.set(data.enrollmentId, row)
+      return row
+    },
+  },
+  enrollmentSemesterState: {
+    findUnique: async ({ where }: any) => {
+      const w = where.enrollmentId_semester
+      return semesterStates.get(`${w.enrollmentId}:${w.semester}`) || null
+    },
+    create: async ({ data }: any) => {
+      const key = `${data.enrollmentId}:${data.semester}`
+      const row = { ...data, id: `state-${semesterStates.size + 1}` }
+      semesterStates.set(key, row)
+      return row
+    },
+    count: async ({ where }: any) => [...semesterStates.values()].filter((row) => row.enrollmentId === where.enrollmentId).length,
   },
   aiLiveCredit: { findFirst: async () => null },
   agentApplication: { findUnique: async () => null },
@@ -232,13 +266,17 @@ mock.module('@/lib/tuition-installments', () => ({
 mock.module('@/lib/live-usage-guard', () => ({ grantGeminiLiveCredit: async () => {} }))
 
 const { verifyPaymentWaiverCode } = await import('../../src/lib/payment-waivers')
-const { markInvoicePaid } = await import('../../src/lib/settle-payment')
+const { markInvoicePaid, finalizeAdmissionAfterSettlement } = await import('../../src/lib/settle-payment')
+const { hasLifecycleFootprint, progressionGate } = await import('../../src/lib/progression')
 
 beforeEach(() => {
   payments.clear()
   admissions.clear()
   users.clear()
   enrollments.clear()
+  rulesSnapshots.clear()
+  semesterStates.clear()
+  snapshotWriteFails = false
   waiverCodes.splice(0, waiverCodes.length)
   waiverAttempts.splice(0, waiverAttempts.length)
   notifications.splice(0, notifications.length)
@@ -286,6 +324,88 @@ describe('payment waiver verification attempts', () => {
     }
 
     expect(waiverAttempts).toHaveLength(5)
+  })
+})
+
+function seedAcademicAdmission(tuitionStatus: 'UNPAID' | 'WAIVED') {
+  users.set('student-1', { id: 'student-1', email: 'student@example.test', name: 'Student', role: 'STUDENT' })
+  admissions.set('admission-1', {
+    id: 'admission-1', userId: 'student-1', email: 'student@example.test',
+    fullName: 'Student', country: 'PS', reference: 'APP-STUDY',
+    program: 'دبلوم تجريبي', programId: 'program-1', status: 'AWAITING_TUITION', supervisorId: null,
+  })
+  payments.set('fee', {
+    id: 'fee', invoiceNo: 'INV-APPLICATION', admissionId: 'admission-1',
+    userId: 'student-1', status: 'PAID', purpose: 'APPLICATION_FEE',
+    description: 'رسوم تقديم', amount: 30, amountCents: 3_000,
+  })
+  payments.set('tuition', {
+    id: 'tuition', invoiceNo: 'INV-TUITION', admissionId: 'admission-1',
+    userId: 'student-1', status: tuitionStatus, purpose: 'TUITION',
+    description: 'رسوم الدراسة', amount: 350, amountCents: 35_000,
+    payerName: 'Student', payerEmail: 'student@example.test',
+  })
+}
+
+describe('new academic enrollment lifecycle', () => {
+  test('full tuition settlement stores ENROLLMENT snapshot and both semester states', async () => {
+    seedAcademicAdmission('UNPAID')
+    const paid = await markInvoicePaid('INV-TUITION', 'CARD', { actor: { id: 'admin-1', name: 'Admin' } })
+    expect(paid.ok).toBe(true)
+    const enrollment = enrollments.get('student-1:program-1')
+    expect(enrollment?.status).toBe('ACTIVE')
+    expect(rulesSnapshots.get(enrollment!.id)?.basis).toBe('ENROLLMENT')
+    expect(semesterStates.has(`${enrollment!.id}:1`)).toBe(true)
+    expect(semesterStates.has(`${enrollment!.id}:2`)).toBe(true)
+    expect(await hasLifecycleFootprint(db, enrollment!.id)).toBe(true)
+    const gate = await progressionGate(db, {
+      id: enrollment!.id, userId: 'student-1', programId: 'program-1',
+    }, 2, 'DIPLOMA')
+    expect(gate.open).toBe(false)
+    expect(gate.reasons.join(' ')).toContain('غير معتمدة')
+  })
+
+  test('approved installment activation stores the same frozen lifecycle', async () => {
+    seedAcademicAdmission('UNPAID')
+    payments.set('installment', {
+      id: 'installment', invoiceNo: 'INV-INSTALLMENT', admissionId: 'admission-1',
+      userId: 'student-1', status: 'UNPAID', purpose: 'TUITION_INSTALLMENT',
+      description: 'الدفعة الأولى', amount: 100, amountCents: 10_000,
+      payerName: 'Student', payerEmail: 'student@example.test',
+    })
+    tuitionPlan = { appealStatus: 'APPROVED', approvedInitialAmount: 100, paidTuition: 100 }
+    const paid = await markInvoicePaid('INV-INSTALLMENT', 'CARD', { actor: { id: 'admin-1', name: 'Admin' } })
+    expect(paid.ok).toBe(true)
+    const enrollment = enrollments.get('student-1:program-1')
+    expect(rulesSnapshots.get(enrollment!.id)?.basis).toBe('ENROLLMENT')
+    expect(semesterStates.has(`${enrollment!.id}:2`)).toBe(true)
+  })
+
+  test('tuition waiver activates the student with enrollment provenance and semester states', async () => {
+    seedAcademicAdmission('WAIVED')
+    await finalizeAdmissionAfterSettlement(db, 'admission-1', { source: 'WAIVER' })
+    const enrollment = enrollments.get('student-1:program-1')
+    expect(enrollment?.status).toBe('ACTIVE')
+    expect(rulesSnapshots.get(enrollment!.id)?.basis).toBe('ENROLLMENT')
+    expect(semesterStates.has(`${enrollment!.id}:1`)).toBe(true)
+    expect(semesterStates.has(`${enrollment!.id}:2`)).toBe(true)
+  })
+
+  test('failed snapshot creation does not finalize admission; retry completes without duplicate enrollment', async () => {
+    seedAcademicAdmission('UNPAID')
+    snapshotWriteFails = true
+    await expect(markInvoicePaid('INV-TUITION', 'CARD', { actor: { name: 'Admin' } }))
+      .rejects.toThrow('ENROLLMENT_RULES_SNAPSHOT_REQUIRED')
+    expect(admissions.get('admission-1')?.status).toBe('AWAITING_TUITION')
+    expect(rulesSnapshots.size).toBe(0)
+    expect(enrollments.size).toBe(1)
+    snapshotWriteFails = false
+    const resumed = await markInvoicePaid('INV-TUITION', 'CARD', { actor: { name: 'Admin' } })
+    expect(resumed.ok).toBe(true)
+    expect(enrollments.size).toBe(1)
+    const enrollment = enrollments.get('student-1:program-1')
+    expect(rulesSnapshots.get(enrollment!.id)?.basis).toBe('ENROLLMENT')
+    expect(admissions.get('admission-1')?.status).toBe('SUPERVISOR_ASSIGNED')
   })
 })
 

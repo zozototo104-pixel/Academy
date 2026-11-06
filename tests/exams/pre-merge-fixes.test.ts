@@ -30,6 +30,15 @@ const gateDb: any = {
   },
   programExamAttempt: {
     findFirst: async ({ where }: any) => (gatePassedExamIds.has(where.examId) ? { id: 'attempt-' + where.examId } : null),
+    // The gate now reads candidates via findMany and keeps those with a
+    // usable score (owner-ratified readiness parity, 2026-11-05). The set
+    // premise is unchanged: an exam in gatePassedExamIds has exactly one
+    // settled passing attempt — here with a stored score and fully-scored
+    // answers so the usable-score rule accepts it.
+    findMany: async ({ where }: any) =>
+      gatePassedExamIds.has(where.examId)
+        ? [{ id: 'attempt-' + where.examId, score: 90, finalScore: null, answers: [{ points: 9, maxPoints: 10 }] }]
+        : [],
   },
 }
 mock.module('@/lib/db', () => ({ db: gateDb }))

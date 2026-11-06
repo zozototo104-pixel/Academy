@@ -1,0 +1,243 @@
+import { describe, test, expect, mock, beforeEach } from 'bun:test'
+
+// ===== حارس اعتماد نتيجة الفصل (المرحلتان 2 و4 من خطة دورة التخرج) =====
+// اعتماد نتيجة الفصل سجل قرار مستقل (SemesterResultApproval) لا علاقة له
+// بمراجعة التصحيح (reviewedById/reviewedAt). الحارس يرفض الاعتماد ما دامت
+// في الفصل درجة قيد المراجعة أو التماس درجات معلّق. كان الاعتماد خاملًا
+// بقرار ترتيب المرحلة 2 حتى اكتمل محرك المعدلات ودورة الحياة؛ فُعّل في
+// المرحلة 4: لا اعتماد بلا متوسط محسوب خادميًا من قواعد الطالب المجمّدة
+// (درجة مرسلة من العميل لا تُحفظ أبدًا)، والاعتماد الناجح يُغلق الفصل
+// ذرّيًا — نجاحه الكامل بحالته الواقعية في مجموعة التفعيل المنفصلة.
+
+function makeWorld() {
+  const units = [
+    { id: 'unit-s1', programId: 'program-1', semester: 1 },
+    { id: 'unit-s2', programId: 'program-1', semester: 2 },
+  ]
+  const exams = [
+    { id: 'exam-s1', unitId: 'unit-s1' },
+    { id: 'exam-s2', unitId: 'unit-s2' },
+  ]
+  const programExams = [
+    { id: 'pexam-s1', programId: 'program-1', semester: 1 },
+    { id: 'pexam-s2', programId: 'program-1', semester: 2 },
+  ]
+  const state: any = {
+    enrollment: { id: 'enrollment-1', userId: 'user-1', programId: 'program-1', program: { semestersCount: 3 } },
+    unitAttempts: [] as any[],
+    programAttempts: [] as any[],
+    pendingAssignments: 0,
+    gradeApprovals: [] as any[],
+    approvals: new Map<string, any>(),
+    throwOnApprovalRead: false,
+  }
+  const inList = (v: string, cond: any) => !cond || !cond.in || cond.in.includes(v)
+  const matchAttempt = (a: any, where: any) =>
+    a.userId === where.userId &&
+    inList(a.examId, where.examId) &&
+    (!where.status || a.status === where.status) &&
+    (!Object.prototype.hasOwnProperty.call(where, 'score') || (where.score === null && a.score == null)) &&
+    (!where.answers || (where.answers.some.points === null && a.answerPointsMissing === true)) &&
+    (!where.appealStatus || a.appealStatus === where.appealStatus)
+  const matchGraded = (a: any, where: any) =>
+    a.userId === where.userId &&
+    inList(a.examId, where.examId) &&
+    a.status === where.status &&
+    (!where.score || (where.score.not === null ? a.score != null : true)) &&
+    (!where.appealStatus || (where.appealStatus.not ? a.appealStatus !== where.appealStatus.not : true)) &&
+    (!where.NOT || a.answerPointsMissing !== true)
+  const db: any = {
+    $transaction: async (cb: any) => cb(db),
+    enrollment: {
+      findUnique: async ({ where }: any) => (where.id === state.enrollment.id ? state.enrollment : null),
+    },
+    unit: {
+      findMany: async ({ where }: any) => units.filter((u) => u.programId === where.programId && u.semester === where.semester),
+    },
+    exam: { findMany: async ({ where }: any) => exams.filter((e) => inList(e.unitId, where.unitId)) },
+    programExam: {
+      findMany: async ({ where }: any) => programExams.filter((e) => e.programId === where.programId && e.semester === where.semester),
+    },
+    examAttempt: {
+      count: async ({ where }: any) => state.unitAttempts.filter((a: any) => matchAttempt(a, where)).length,
+      findMany: async ({ where }: any) => state.unitAttempts.filter((a: any) => matchGraded(a, where)),
+    },
+    programExamAttempt: {
+      count: async ({ where }: any) => state.programAttempts.filter((a: any) => matchAttempt(a, where)).length,
+      findMany: async ({ where }: any) => state.programAttempts.filter((a: any) => matchGraded(a, where)),
+    },
+    gradeApproval: {
+      findMany: async ({ where }: any) =>
+        state.gradeApprovals.filter(
+          (r: any) => r.userId === where.userId && r.programId === where.programId && r.semester === where.semester,
+        ),
+    },
+    // أسطح المرحلة 4 التي يلمسها قرار الاعتماد المفعّل: فاعل يُعاد قراءته،
+    // وبرنامج لمحرك المعدلات، ورسالة (غيابها يجعل أي متوسط غير مكتمل في
+    // هذا العالم العدّي — فتقف القرارات عند SEMESTER_SCORE_NOT_VERIFIED).
+    user: { findUnique: async () => ({ role: 'ADMIN', name: 'مسؤول' }) },
+    program: { findUnique: async () => ({ category: 'DIPLOMA', admissionRules: null, semestersCount: 3 }) },
+    thesisSubmission: { findFirst: async () => null },
+    programAssignment: { findMany: async ({ where }: any) => where.semester === 1 ? [{ id: 'assignment-s1' }] : [] },
+    assignmentSubmission: { count: async () => state.pendingAssignments, findMany: async () => [], findUnique: async () => null },
+    semesterResultApproval: {
+      findUnique: async ({ where }: any) => {
+        if (state.throwOnApprovalRead) throw new Error('table missing')
+        const k = where.enrollmentId_semester
+        return state.approvals.get(`${k.enrollmentId}:${k.semester}`) ?? null
+      },
+      upsert: async ({ where, create }: any) => {
+        const k = where.enrollmentId_semester
+        const row = { id: `approval-${k.enrollmentId}-${k.semester}`, ...create }
+        state.approvals.set(`${k.enrollmentId}:${k.semester}`, row)
+        return row
+      },
+    },
+  }
+  return { state, db }
+}
+
+const world = makeWorld()
+mock.module('@/lib/db', () => ({ db: world.db }))
+mock.module('@/lib/notify', () => ({ audit: async () => {}, notify: async () => {}, notifyAdmins: async () => {} }))
+const { approveSemesterResult, collectSemesterApprovalBlockers, storedSemesterApproval, SEMESTER_APPROVAL_ACTIVE } =
+  await import('../../src/lib/semester-approval')
+
+const ADMIN = { id: 'admin-1' }
+
+beforeEach(() => {
+  world.state.unitAttempts = []
+  world.state.programAttempts = []
+  world.state.pendingAssignments = 0
+  world.state.gradeApprovals = []
+  world.state.approvals = new Map()
+  world.state.throwOnApprovalRead = false
+})
+
+describe('حارس اعتماد نتيجة الفصل', () => {
+  test('missing student or program scope blocks approval inspection', async () => {
+    const result = await collectSemesterApprovalBlockers(world.db, { userId: ' ', programId: 'program-1', semester: 1 })
+    expect(result).toEqual([{ code: 'INVALID_SEMESTER', count: 1 }])
+    const missingProgram = await collectSemesterApprovalBlockers(world.db, { userId: 'user-1', programId: '', semester: 1 })
+    expect(missingProgram).toEqual([{ code: 'INVALID_SEMESTER', count: 1 }])
+  })
+  test('three-semester programs accept third semester but reject fourth', async () => {
+    const third = await approveSemesterResult({ enrollmentId: 'enrollment-1', semester: 3, actor: ADMIN })
+    expect(third).toEqual({ ok: false, code: 'SEMESTER_SCORE_NOT_VERIFIED' })
+    const fourth = await approveSemesterResult({ enrollmentId: 'enrollment-1', semester: 4, actor: ADMIN })
+    expect(fourth).toEqual({ ok: false, code: 'INVALID_SEMESTER_APPROVAL_INPUT' })
+  })
+  test('empty enrollment and actor identifiers are rejected', async () => {
+    const result = await approveSemesterResult({ enrollmentId: ' ', semester: 1, actor: ADMIN })
+    expect(result).toEqual({ ok: false, code: 'INVALID_SEMESTER_APPROVAL_INPUT' })
+    const actorResult = await approveSemesterResult({ enrollmentId: 'enrollment-1', semester: 1, actor: { id: ' ' } })
+    expect(actorResult).toEqual({ ok: false, code: 'INVALID_SEMESTER_APPROVAL_INPUT' })
+  })
+  test('invalid semester returns a blocker', async () => {
+    const blockers = await collectSemesterApprovalBlockers(world.db, { userId: 'user-1', programId: 'program-1', semester: 0 })
+    expect(blockers).toEqual([{ code: 'INVALID_SEMESTER', count: 1 }])
+  })
+  test('رفض أي درجة مرسلة من العميل وعدم إنشاء اعتماد', async () => {
+    const decision = await approveSemesterResult({ enrollmentId: 'enrollment-1', semester: 1, actor: ADMIN, score: 99 })
+    expect(decision).toEqual({ ok: false, code: 'SEMESTER_SCORE_NOT_VERIFIED' })
+    expect(world.state.approvals.size).toBe(0)
+  })
+  test('درجة امتحان محفوظة مع إجابة دون نقاط تمنع المصادقة', async () => {
+    world.state.unitAttempts = [{ userId: 'user-1', examId: 'exam-s1', status: 'GRADED', score: 70, answerPointsMissing: true }]
+    world.state.programAttempts = [{ userId: 'user-1', examId: 'pexam-s1', status: 'GRADED', score: 70, answerPointsMissing: true }]
+    const blockers = await collectSemesterApprovalBlockers(world.db, { userId: 'user-1', programId: 'program-1', semester: 1 })
+    expect(blockers.map((b: any) => b.code).sort()).toEqual(['PROGRAM_EXAM_ANSWER_POINTS_MISSING', 'UNIT_ANSWER_POINTS_MISSING'])
+  })
+  test('امتحان مصحح دون درجة رقمية يمنع اعتماد الفصل', async () => {
+    world.state.unitAttempts = [{ userId: 'user-1', examId: 'exam-s1', status: 'GRADED', score: null }]
+    world.state.programAttempts = [{ userId: 'user-1', examId: 'pexam-s1', status: 'GRADED', score: null }]
+    const blockers = await collectSemesterApprovalBlockers(world.db, { userId: 'user-1', programId: 'program-1', semester: 1 })
+    expect(blockers.map((b: any) => b.code).sort()).toEqual(['PROGRAM_EXAM_GRADED_SCORE_MISSING', 'UNIT_GRADED_SCORE_MISSING'])
+  })
+  test('واجب غير مصحح يمنع اعتماد فصله دون حجب الفصل الثاني', async () => {
+    world.state.pendingAssignments = 1
+    const blocked = await collectSemesterApprovalBlockers(world.db, { userId: 'user-1', programId: 'program-1', semester: 1 })
+    expect(blocked).toEqual([{ code: 'ASSIGNMENT_GRADING_PENDING', count: 1 }])
+    const second = await collectSemesterApprovalBlockers(world.db, { userId: 'user-1', programId: 'program-1', semester: 2 })
+    expect(second).toEqual([])
+  })
+  test('رفض رقم فصل غير صالح قبل الوصول لقاعدة البيانات', async () => {
+    const result = await approveSemesterResult({ enrollmentId: 'enrollment-1', semester: 0, actor: ADMIN })
+    expect(result).toEqual({ ok: false, code: 'INVALID_SEMESTER_APPROVAL_INPUT' })
+  })
+  test('محاولة وحدة بانتظار تأكيد المراجعة تمنع الاعتماد', async () => {
+    world.state.unitAttempts = [{ userId: 'user-1', examId: 'exam-s1', status: 'NEEDS_REVIEW', appealStatus: 'NONE' }]
+    const blockers = await collectSemesterApprovalBlockers(world.db, { userId: 'user-1', programId: 'program-1', semester: 1 })
+    expect(blockers).toEqual([{ code: 'UNIT_REVIEW_PENDING', count: 1 }])
+    const decision = await approveSemesterResult({ enrollmentId: 'enrollment-1', semester: 1, actor: ADMIN })
+    expect(decision.ok).toBe(false)
+    if (!decision.ok) expect(decision.code).toBe('SEMESTER_GRADES_INCOMPLETE')
+  })
+
+  test('محاولة امتحان فصل بانتظار المراجعة تمنع الاعتماد', async () => {
+    world.state.programAttempts = [{ userId: 'user-1', examId: 'pexam-s1', status: 'NEEDS_REVIEW', appealStatus: 'NONE' }]
+    const decision = await approveSemesterResult({ enrollmentId: 'enrollment-1', semester: 1, actor: ADMIN })
+    expect(decision.ok).toBe(false)
+    if (!decision.ok) {
+      expect(decision.code).toBe('SEMESTER_GRADES_INCOMPLETE')
+      expect(decision.blockers).toEqual([{ code: 'PROGRAM_EXAM_REVIEW_PENDING', count: 1 }])
+    }
+  })
+
+  test('التماسات الدرجات المعلّقة تمنع الاعتماد بنوعيها', async () => {
+    world.state.unitAttempts = [{ userId: 'user-1', examId: 'exam-s1', status: 'GRADED', score: 70, appealStatus: 'PENDING' }]
+    world.state.programAttempts = [{ userId: 'user-1', examId: 'pexam-s1', status: 'GRADED', score: 70, appealStatus: 'PENDING' }]
+    const blockers = await collectSemesterApprovalBlockers(world.db, { userId: 'user-1', programId: 'program-1', semester: 1 })
+    expect(blockers.map((b: any) => b.code).sort()).toEqual(['PROGRAM_EXAM_APPEAL_PENDING', 'UNIT_APPEAL_PENDING'])
+  })
+
+  test('موانع الفصل الثاني لا تحجب الفصل الأول، والاعتماد بلا متوسط موثّق يُرفض', async () => {
+    world.state.unitAttempts = [{ userId: 'user-1', examId: 'exam-s2', status: 'NEEDS_REVIEW', appealStatus: 'NONE' }]
+    world.state.programAttempts = [{ userId: 'user-1', examId: 'pexam-s2', status: 'NEEDS_REVIEW', appealStatus: 'NONE' }]
+    const blockers = await collectSemesterApprovalBlockers(world.db, { userId: 'user-1', programId: 'program-1', semester: 1 })
+    expect(blockers).toEqual([])
+    expect(SEMESTER_APPROVAL_ACTIVE).toBe(true)
+    const decision = await approveSemesterResult({ enrollmentId: 'enrollment-1', semester: 1, actor: ADMIN })
+    expect(decision.ok).toBe(false)
+    if (!decision.ok) expect(decision.code).toBe('SEMESTER_SCORE_NOT_VERIFIED')
+    expect(world.state.approvals.size).toBe(0)
+  })
+
+  test('تسجيل غير موجود يُرفض برمزه الخاص', async () => {
+    const decision = await approveSemesterResult({ enrollmentId: 'missing', semester: 1, actor: ADMIN })
+    expect(decision.ok).toBe(false)
+    if (!decision.ok) expect(decision.code).toBe('ENROLLMENT_NOT_FOUND')
+  })
+
+  test('قراءة الاعتماد المحفوظ فاشلة بأمان عند غياب الجدول', async () => {
+    world.state.throwOnApprovalRead = true
+    expect(await storedSemesterApproval(world.db, 'enrollment-1', 1)).toBeNull()
+    world.state.throwOnApprovalRead = false
+    world.state.approvals.set('enrollment-1:1', { id: 'approval-1', status: 'APPROVED' })
+    expect((await storedSemesterApproval(world.db, 'enrollment-1', 1))?.id).toBe('approval-1')
+  })
+
+  test('درجة نهائية كاملة بلا اعتماد رسمي تمنع اعتماد الفصل', async () => {
+    world.state.unitAttempts = [{ id: 'ua-1', userId: 'user-1', examId: 'exam-s1', status: 'GRADED', score: 70, appealStatus: 'NONE' }]
+    world.state.programAttempts = [{ id: 'pa-1', userId: 'user-1', examId: 'pexam-s1', status: 'GRADED', score: 65, appealStatus: 'NONE' }]
+    const blockers = await collectSemesterApprovalBlockers(world.db, { userId: 'user-1', programId: 'program-1', semester: 1 })
+    expect(blockers.map((b: any) => b.code).sort()).toEqual(['PROGRAM_EXAM_GRADES_UNAPPROVED', 'UNIT_GRADES_UNAPPROVED'])
+    const decision = await approveSemesterResult({ enrollmentId: 'enrollment-1', semester: 1, actor: ADMIN })
+    expect(decision.ok).toBe(false)
+    if (!decision.ok) expect(decision.code).toBe('SEMESTER_GRADES_INCOMPLETE')
+  })
+
+  test('اعتماد مطابق للدرجة الحالية يرفع مانع عدم الاعتماد', async () => {
+    world.state.unitAttempts = [{ id: 'ua-1', userId: 'user-1', examId: 'exam-s1', status: 'GRADED', score: 70, appealStatus: 'NONE' }]
+    world.state.gradeApprovals = [{ targetType: 'UNIT_EXAM', attemptId: 'ua-1', userId: 'user-1', programId: 'program-1', semester: 1, score: 70 }]
+    const blockers = await collectSemesterApprovalBlockers(world.db, { userId: 'user-1', programId: 'program-1', semester: 1 })
+    expect(blockers).toEqual([])
+  })
+
+  test('اعتماد قديم بدرجة مختلفة لا يرفع المانع (أُبطل بتغيّر الدرجة)', async () => {
+    world.state.unitAttempts = [{ id: 'ua-1', userId: 'user-1', examId: 'exam-s1', status: 'GRADED', score: 82, appealStatus: 'NONE' }]
+    world.state.gradeApprovals = [{ targetType: 'UNIT_EXAM', attemptId: 'ua-1', userId: 'user-1', programId: 'program-1', semester: 1, score: 70 }]
+    const blockers = await collectSemesterApprovalBlockers(world.db, { userId: 'user-1', programId: 'program-1', semester: 1 })
+    expect(blockers).toEqual([{ code: 'UNIT_GRADES_UNAPPROVED', count: 1 }])
+  })
+})

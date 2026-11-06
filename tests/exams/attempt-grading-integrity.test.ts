@@ -131,6 +131,26 @@ describe('حراس نصية للمسارات', () => {
     expect(route).toContain("status: 'SUBMITTED', submittedAt: { lt: stuckBefore } }, data: { status: 'NEEDS_REVIEW' }")
   })
 
+  test('إعادة تصحيح الإدارة: جواب آلي مشوّه الشكل = 422 واضحة لا 500 عامة', () => {
+    const route = read('src/app/api/admin/attempts-review/route.ts')
+    expect(route).toContain('error instanceof ZodError || error instanceof SyntaxError')
+    expect(route).toContain("code: 'ESSAY_GRADE_INVALID_SHAPE'")
+    expect(route).toContain('reviewRequired: true')
+    // الفرع يسبق السقوط العام إلى 500 في سلسلة الالتقاط نفسها
+    expect(route.indexOf('ESSAY_GRADE_INVALID_SHAPE')).toBeLessThan(route.indexOf('تعذر إعادة التصحيح الآلي'))
+  })
+
+  test('تحويل المحاولة العالقة للمراجعة يُشعر — في مسارَي الوحدة والبرنامج', () => {
+    const detail = read('src/app/api/exam/detail/route.ts')
+    // التحويل الطازج وحده يحمل علم recovered — المراجعة المعلّقة سلفًا لا تُشعر ثانية
+    expect(detail).toContain('recovered: true as const')
+    expect(detail).toContain("'recovered' in attemptState && attemptState.recovered")
+    expect(detail).toContain('notifyAttemptNeedsReview({ studentId: user.id')
+    const start = read('src/app/api/program-exam/start/route.ts')
+    const reviewBranch = start.slice(start.indexOf("blocked === 'REVIEW')"), start.indexOf("blocked === 'REVIEW_PENDING'"))
+    expect(reviewBranch).toContain('notifyAttemptNeedsReview({ studentId: user.id')
+  })
+
   test('دقائق الصوت: فهرس فريد + ترحيلة + P2002 ممنوح أصلًا', () => {
     const schema = read('prisma/schema.prisma')
     const creditModel = schema.slice(schema.indexOf('model AiLiveCredit'), schema.indexOf('model AiLiveSession'))
@@ -219,7 +239,7 @@ const auditDb: any = {
       id: 'PROGRAM-attempt', userId: 'student-1', examId: 'PROGRAM-exam',
       status: 'NEEDS_REVIEW', exam: auditExam('PROGRAM', include), answers: auditAnswers,
     }),
-    updateMany: async () => ({ count: 1 }),
+    updateMany: async ({ data }: any) => { auditFinalGrade = data; return { count: 1 } },
     update: async ({ data }: any) => { auditFinalGrade = data; return data },
   },
   question: {
@@ -242,7 +262,7 @@ const auditDb: any = {
 mock.module('@/lib/db', () => ({ db: auditDb }))
 mock.module('@/lib/auth', () => ({ requireAdmin: async () => ({ id: 'admin-1' }), requireUser: async () => ({ id: 'admin-1' }) }))
 mock.module('@/lib/semester-readiness', () => ({ calculateSemesterReadiness: async () => null }))
-mock.module('@/lib/enrollment-completion', () => ({ completeEnrollmentIfEligible: async () => null }))
+mock.module('@/lib/enrollment-completion', () => ({ completeEnrollmentIfEligible: async () => null, registerGraduationRequest: async () => ({ registered: false, certificateNo: null }) }))
 mock.module('@/lib/essay-grading', () => ({
   EssayNeedsReviewError: class EssayNeedsReviewError extends Error {},
   gradeEssayWithRubric: async () => ({ points: 0, feedback: '' }),
@@ -267,7 +287,7 @@ for (const type of ['UNIT', 'PROGRAM'] as const) {
       const result = await reviewRequest(type)
       expect(result.status).toBe(409)
       expect((await result.json()).error).toContain('تكررت')
-      expect(auditFinalGrade).toBeNull()
+      expect((auditFinalGrade as Record<string, any> | null)?.status).not.toBe('GRADED')
     })
     test('يمنع الاعتماد عندما لا يوجد سجل للسؤال المطلوب', async () => {
       auditFinalGrade = null
@@ -276,7 +296,7 @@ for (const type of ['UNIT', 'PROGRAM'] as const) {
       const result = await reviewRequest(type)
       expect(result.status).toBe(400)
       expect((await result.json()).error).toContain('سؤال مطلوب')
-      expect(auditFinalGrade).toBeNull()
+      expect((auditFinalGrade as Record<string, any> | null)?.status).not.toBe('GRADED')
     })
     test('سؤال واحد صحيح يُعتمد بدرجة 100% دون تضخيم', async () => {
       auditFinalGrade = null

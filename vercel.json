@@ -37,6 +37,10 @@
     {
       "path": "/api/cron/admin-message-digest",
       "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/academic-lifecycle",
+      "schedule": "*/15 * * * *"
     }
   ],
   "git": {

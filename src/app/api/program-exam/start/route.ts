@@ -4,6 +4,8 @@ import { requireUser } from '@/lib/auth'
 import { calculateSemesterReadiness, hasPassedFirstSemesterExam } from '@/lib/semester-readiness'
 import { enforceSemesterTuitionGate } from '@/lib/tuition-installments'
 import { EXAM_ATTEMPT_POLICY_SINCE, getExamMaxAttempts } from '@/lib/exam-attempt-policy'
+import { submissionWindowCheck, windowContextFor } from '@/lib/semester-lifecycle'
+import { notifyAttemptNeedsReview } from '@/lib/exam-attempt-notifications'
 
 const COMPLETED_PROGRAM_ATTEMPT_STATUSES = ['GRADED', 'EXPIRED', 'NEEDS_REVIEW']
 const STALE_SUBMITTED_REVIEW_MS = 2 * 60 * 60 * 1000 // Above the worst expected bounded essay grading window
@@ -44,6 +46,24 @@ export async function POST(req: NextRequest) {
     const tuitionGate = await enforceSemesterTuitionGate(user.id, exam.programId, exam.semester)
     if (!tuitionGate.ok) {
       return NextResponse.json({ error: tuitionGate.error, code: tuitionGate.code, tuitionPlan: tuitionGate.plan }, { status: 402 })
+    }
+
+    // دورة حياة الفصل (المرحلة 4): محاولة جديدة فقط داخل فترة الفصل —
+    // استئناف محاولة بدأت أصلًا ليس محاولة جديدة.
+    const hasStarted = await db.programExamAttempt.findFirst({
+      where: { userId: user.id, examId, status: 'STARTED' },
+      select: { id: true },
+    })
+    if (!hasStarted) {
+      const ctx = await windowContextFor(db, user.id, exam.programId)
+      if (ctx) {
+        const verdict = await submissionWindowCheck(db, {
+          enrollment: ctx.enrollment,
+          program: ctx.program,
+          semester: exam.semester,
+        })
+        if (!verdict.ok) return NextResponse.json({ error: verdict.message, code: verdict.code }, { status: 403 })
+      }
     }
 
     if (exam.semester >= 2 && !(await hasPassedFirstSemesterExam(user.id, exam.programId))) {
@@ -139,10 +159,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'استنفدت عدد محاولات هذا الاختبار', code: 'MAX_ATTEMPTS_REACHED', maxAttempts: startState.maxAttempts, attemptsUsed: startState.completedAttempts }, { status: 403 })
     }
     if (startState.blocked === 'GRADING') return NextResponse.json({ error: 'هذه المحاولة قيد التصحيح', code: 'SUBMITTED' }, { status: 409 })
-    if (startState.blocked === 'REVIEW') return NextResponse.json({
-      error: 'تأخر التصحيح؛ تم نقل إجاباتك المحفوظة للمراجعة البشرية دون احتساب علامة ناقصة.',
-      code: 'NEEDS_REVIEW',
-    }, { status: 409 })
+    if (startState.blocked === 'REVIEW') {
+      // هذا الحظر يعني تحديدًا أن محاولة عالقة حُوّلت للتو إلى المراجعة
+      // البشرية داخل المعاملة — نُشعر بها كما في مسار التسليم، بدل أن
+      // يبقى التحويل صامتًا حتى يفتح أحدهم قائمة المراجعة.
+      try {
+        await notifyAttemptNeedsReview({ studentId: user.id, studentName: user.name || null, examTitle: exam.title })
+      } catch { /* الإشعار لا يعطّل بدء الامتحان أبدًا */ }
+      return NextResponse.json({
+        error: 'تأخر التصحيح؛ تم نقل إجاباتك المحفوظة للمراجعة البشرية دون احتساب علامة ناقصة.',
+        code: 'NEEDS_REVIEW',
+      }, { status: 409 })
+    }
     if (startState.blocked === 'REVIEW_PENDING') return NextResponse.json({
       error: 'نتيجة محاولتك السابقة بانتظار تأكيد المشرف — لا يمكنك بدء محاولة جديدة حتى تُعتمد النتيجة',
       code: 'NEEDS_REVIEW',

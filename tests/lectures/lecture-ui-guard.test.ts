@@ -17,9 +17,13 @@ describe('student lectures UI guards', () => {
     expect(component).toContain('/join')
     expect(component).toContain("method: 'POST'")
     expect(component).toContain('window.open(res.meetingUrl')
-    // The word meetingUrl appears exactly twice: the join response type and
-    // its single use. Session objects from the list never carry the field.
-    expect((component.match(/meetingUrl/g) ?? []).length).toBe(2)
+    // The word meetingUrl appears exactly six times, and every occurrence
+    // traces to the click-time join response: its response type, the
+    // external window.open use, the embedded-Zoom state (its type and the
+    // value stored from the response), and the dialog's external fallback
+    // link rendered from that state. Session objects from the list never
+    // carry the field.
+    expect((component.match(/meetingUrl/g) ?? []).length).toBe(6)
     expect(component).not.toContain('session.meetingUrl')
   })
 

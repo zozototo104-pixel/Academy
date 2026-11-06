@@ -338,7 +338,10 @@ export async function reserveGeminiLiveUsage(input: {
         freeReserved: freeTake,
         paidReserved: paidUsed,
         startedAt: now,
-        expiresAt: new Date(now.getTime() + 10 * 60 * 1000),
+        // سجل الجلسة يعيش حتى سقف جلستها الحقيقي (طالب 10 / مشرف 20 /
+        // نقاش 30) لا 10 دقائق مسطّحة — حتى لا «ينتهي» سجل جلسة مشرف
+        // أو نقاش وهي ما زالت جارية بتوكن حي فيُسترد حجزها منتصف المكالمة.
+        expiresAt: new Date(now.getTime() + hardSessionLimit * 60 * 1000),
       },
     })
 
@@ -359,6 +362,56 @@ export async function reserveGeminiLiveUsage(input: {
   })
 }
 
+// خصم الدقائق المنقضية فوق الحجز المسبق من رصيد الطالب المتبقي (مجاني أولاً
+// ثم مدفوع بترتيب انتهاء الرصيد — نفس ترتيب الحجز). توكن Google يعيش حتى
+// سقف الجلسة/الرصيد بينما الحجز دقيقتان فقط؛ بلا هذا الخصم يحكي الطالب
+// أطول مما يُحاسَب عليه وتدفع الأكاديمية الفرق. يُخصم المتاح فقط — لا
+// رصيد سالب أبدًا — والباقي المنقضي فوق كل رصيده يبقى غير محاسَب (سقفه
+// عمر التوكن نفسه المربوط برصيده عند الإصدار).
+async function chargeExtraLiveMinutes(tx: any, session: any, wantedMinutes: number): Promise<number> {
+  const wanted = Math.max(0, Math.floor(wantedMinutes || 0))
+  if (!wanted) return 0
+  const user = await tx.user.findUnique({ where: { id: session.userId }, select: { role: true } }).catch(() => null)
+  const freeMonthlyLimitMinutes = await freeMonthlyLiveMinutes(session.userId, user?.role)
+  const now = new Date()
+  const usage = await tx.aiLiveUsage.findUnique({ where: { userId_month_purpose: { userId: session.userId, month: session.month, purpose: session.purpose } } })
+  if (!usage) return 0
+  const credits = await tx.aiLiveCredit.findMany({
+    where: {
+      userId: session.userId,
+      status: 'ACTIVE',
+      remainingMinutes: { gt: 0 },
+      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+    },
+    orderBy: [{ expiresAt: 'asc' }, { createdAt: 'asc' }],
+  })
+  const freeRemaining = Math.max(0, freeMonthlyLimitMinutes - (usage.freeMinutesUsed || 0))
+  const freeTake = Math.min(wanted, freeRemaining)
+  let paidTake = Math.min(wanted - freeTake, credits.reduce((sum: number, c: any) => sum + Math.max(0, c.remainingMinutes), 0))
+  const paidWanted = paidTake
+  for (const credit of credits) {
+    if (paidTake <= 0) break
+    const take = Math.min(paidTake, credit.remainingMinutes)
+    const remaining = credit.remainingMinutes - take
+    await tx.aiLiveCredit.update({
+      where: { id: credit.id },
+      data: { remainingMinutes: remaining, status: remaining <= 0 ? 'CONSUMED' : 'ACTIVE' },
+    })
+    paidTake -= take
+  }
+  const paidCharged = paidWanted - paidTake
+  if (freeTake > 0 || paidCharged > 0) {
+    await tx.aiLiveUsage.update({
+      where: { id: usage.id },
+      data: {
+        freeMinutesUsed: { increment: freeTake },
+        paidMinutesUsed: { increment: paidCharged },
+      },
+    })
+  }
+  return freeTake + paidCharged
+}
+
 export async function settleGeminiLiveUsage(input: { userId: string; sessionId: string; actualSeconds?: number; actualMinutes?: number }) {
   const claimedMinutes = Math.max(0, Math.ceil(input.actualMinutes ?? ((Number(input.actualSeconds || 0) || 0) / 60)))
   return db.$transaction(async (tx) => {
@@ -371,12 +424,19 @@ export async function settleGeminiLiveUsage(input: { userId: string; sessionId: 
     // «صفر دقائق» بعد جلسة كاملة لا يسترجع شيئاً. الجلسات غير المعدودة
     // (أدمن، reservedMinutes=0) لا مال فيها فيبقى الادعاء سجلاً معلوماتياً.
     let recordedMinutes: number
+    let extraChargedMinutes = 0
     if (session.reservedMinutes === 0) {
       recordedMinutes = claimedMinutes
     } else {
       const anchor = session.startedAt || session.createdAt
       const elapsedMinutes = anchor ? Math.max(0, Math.ceil((Date.now() - new Date(anchor).getTime()) / 60000)) : claimedMinutes
-      recordedMinutes = Math.min(session.reservedMinutes, elapsedMinutes)
+      const coveredByReserve = Math.min(session.reservedMinutes, elapsedMinutes)
+      // ما تجاوز الحجز يُخصم من الرصيد المتبقي داخل نفس المعاملة (انظر
+      // chargeExtraLiveMinutes) — كان يُعفى كاملاً قبل هذا الإصلاح.
+      if (elapsedMinutes > session.reservedMinutes) {
+        extraChargedMinutes = await chargeExtraLiveMinutes(tx, session, elapsedMinutes - session.reservedMinutes)
+      }
+      recordedMinutes = coveredByReserve + extraChargedMinutes
     }
     const refund = Math.max(0, session.reservedMinutes - recordedMinutes)
     await refundReserved(tx, session, refund)
@@ -384,7 +444,7 @@ export async function settleGeminiLiveUsage(input: { userId: string; sessionId: 
       where: { id: session.id },
       data: { status: 'SETTLED', actualMinutes: recordedMinutes, settledAt: new Date() },
     })
-    return { ok: true, status: 200, refundMinutes: refund, session: updated }
+    return { ok: true, status: 200, refundMinutes: refund, extraChargedMinutes, session: updated }
   })
 }
 

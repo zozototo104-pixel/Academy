@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { ZodError } from 'zod'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { EssayNeedsReviewError, gradeEssayWithRubric } from '@/lib/essay-grading'
 import { buildEssaySourceMap } from '@/lib/essay-source'
 import { notifyStudentReviewResolved } from '@/lib/exam-attempt-notifications'
 import { calculateSemesterReadiness } from '@/lib/semester-readiness'
-import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
+import { registerGraduationRequest } from '@/lib/enrollment-completion'
 import { findDuplicateAnswerQuestionIds, findMissingAnswerQuestionIds, findUngradedAnswers, sumRequiredAnswerPoints, gradeObjectiveAnswer, parseObjectiveIndex, parseObjectiveOptions } from '@/lib/answer-completeness'
 
 export const runtime = 'nodejs'
@@ -271,7 +272,7 @@ async function recomputeProgramAttempt(tx: any, attemptId: string, readiness: Re
   return { score, passed }
 }
 
-async function completeReviewedAttemptIfEligible(type: AttemptType, attemptId: string, passed: boolean) {
+async function registerGraduationAfterReview(type: AttemptType, attemptId: string, passed: boolean) {
   // A failed individual exam can still increase the weighted cumulative total.
   void passed
   if (type === 'UNIT') {
@@ -279,13 +280,13 @@ async function completeReviewedAttemptIfEligible(type: AttemptType, attemptId: s
     const programId = attempt?.exam?.unit?.programId
     if (!attempt?.userId || !programId) return null
     const enrollment = await db.enrollment.findUnique({ where: { userId_programId: { userId: attempt.userId, programId } }, select: { id: true } })
-    return enrollment ? completeEnrollmentIfEligible({ enrollmentId: enrollment.id }) : null
+    return enrollment ? registerGraduationRequest({ enrollmentId: enrollment.id }) : null
   }
   const attempt = await db.programExamAttempt.findUnique({ where: { id: attemptId }, select: { userId: true, exam: { select: { programId: true } } } })
   const programId = attempt?.exam?.programId
   if (!attempt?.userId || !programId) return null
   const enrollment = await db.enrollment.findUnique({ where: { userId_programId: { userId: attempt.userId, programId } }, select: { id: true } })
-  return enrollment ? completeEnrollmentIfEligible({ enrollmentId: enrollment.id }) : null
+  return enrollment ? registerGraduationRequest({ enrollmentId: enrollment.id }) : null
 }
 
 export async function GET(req: NextRequest) {
@@ -361,7 +362,7 @@ export async function POST(req: NextRequest) {
       await ensureAllAnswersGraded(tx, type, id)
       return type === 'UNIT' ? recomputeUnitAttempt(tx, id) : recomputeProgramAttempt(tx, id, readiness)
     }, { timeout: 120000, maxWait: 10000 })
-    const completion = await completeReviewedAttemptIfEligible(type, id, result.passed)
+    const registration = await registerGraduationAfterReview(type, id, result.passed)
     try {
       if (detail.student?.id) {
         await notifyStudentReviewResolved({ studentId: detail.student.id, examTitle: detail.exam.title, score: result.score })
@@ -369,7 +370,7 @@ export async function POST(req: NextRequest) {
     } catch {
       // إشعار الطالب باعتماد نتيجته لا يعطّل الاعتماد نفسه أبدًا.
     }
-    return NextResponse.json({ ok: true, ...result, certificateNo: completion?.ok ? completion.certificate?.serial || null : null })
+    return NextResponse.json({ ok: true, ...result, certificateNo: registration?.certificateNo || null })
   } catch (error: any) {
     if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     if (error instanceof EssayNeedsReviewError) {
@@ -383,6 +384,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         error: descriptions[error.code] || 'التصحيح الآلي غير مكتمل، والمحاولة ما زالت بانتظار المراجعة.',
         code: error.code,
+        reviewRequired: true,
+      }, { status: 422 })
+    }
+    // جواب المصحح الآلي مشوّه الشكل (ZodError من مخطط النتيجة الصارم أو
+    // SyntaxError من تحليل JSON): نفس معاملة نتيجة المراجعة الناقصة —
+    // رسالة واضحة 422 والمحاولة تبقى بانتظار المراجعة، لا 500 عامة.
+    if (error instanceof ZodError || error instanceof SyntaxError) {
+      return NextResponse.json({
+        error: 'أرجع المصحح الآلي نتيجة غير صالحة الشكل، والمحاولة ما زالت بانتظار المراجعة. حاول إعادة التصحيح أو صحّح يدويًا.',
+        code: 'ESSAY_GRADE_INVALID_SHAPE',
         reviewRequired: true,
       }, { status: 422 })
     }
@@ -422,7 +433,7 @@ export async function PATCH(req: NextRequest) {
       await ensureAllAnswersGraded(tx, type, id)
       return type === 'UNIT' ? recomputeUnitAttempt(tx, id) : recomputeProgramAttempt(tx, id, readiness)
     }, { timeout: 120000, maxWait: 10000 })
-    const completion = await completeReviewedAttemptIfEligible(type, id, result.passed)
+    const registration = await registerGraduationAfterReview(type, id, result.passed)
     try {
       const resolvedAttempt = type === 'UNIT'
         ? await db.examAttempt.findUnique({ where: { id }, select: { userId: true, exam: { select: { title: true } } } })
@@ -433,7 +444,7 @@ export async function PATCH(req: NextRequest) {
     } catch {
       // إشعار الطالب باعتماد نتيجته لا يعطّل الاعتماد نفسه أبدًا.
     }
-    return NextResponse.json({ ok: true, ...result, certificateNo: completion?.ok ? completion.certificate?.serial || null : null })
+    return NextResponse.json({ ok: true, ...result, certificateNo: registration?.certificateNo || null })
   } catch (error: any) {
     if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
     if (error?.code) return NextResponse.json({ error: error.userMessage || String(error.message || error) }, { status: error.status || 400 })

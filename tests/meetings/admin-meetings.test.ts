@@ -3,6 +3,7 @@
 // المُحاكاة تتسرب بين الملفات).
 import { describe, expect, mock, test } from 'bun:test'
 import { createHmac } from 'node:crypto'
+import { NextRequest } from 'next/server'
 
 mock.module('@/lib/rate-limit', () => ({
   checkDatabaseRateLimit: async () => ({ allowed: true, ok: true }),
@@ -16,19 +17,85 @@ process.env.AACT_SECRETS_KEY = Buffer.alloc(32, 7).toString('base64')
 // قاعدة وهمية لمسار تفاصيل اجتماع الإدارة + بوابة إدارية قابلة للقلب
 const routeAdmin = { current: true }
 const routeMeeting = { current: null as any }
+const routeDeletedIds: string[] = []
+const routeAudits: any[] = []
+const roomPeerOwner = { current: null as string | null }
+const roomSignalsConsumed = { count: 0 }
+const roomAttendanceWrites = { count: 0 }
+const roomTransaction = { attempts: 0, conflictsRemaining: 0, isolationLevel: '' }
+const roomInvite = {
+  id: 'room-invite-1',
+  inviteeName: 'Participant',
+  claimedByUserId: 'room-user-1',
+  revokedAt: null,
+  expiresAt: new Date(Date.now() + 2 * 60 * 60_000),
+  meeting: {
+    id: 'room-meeting-1',
+    provider: 'PLATFORM',
+    status: 'SCHEDULED',
+    startsAt: new Date(Date.now() - 60_000),
+    endsAt: new Date(Date.now() + 60 * 60_000),
+  },
+}
+const roomSignalStore = {
+  findFirst: async () => roomPeerOwner.current
+    ? { id: 'presence-1', payload: JSON.stringify({ userId: roomPeerOwner.current, name: 'Participant' }) }
+    : null,
+  findMany: async ({ where }: any) => where.type === 'PRESENCE'
+    ? []
+    : [{ id: 'signal-1', fromPeer: 'another-peer', toPeer: 'p_target', type: 'ICE', payload: '{}', consumed: false }],
+  updateMany: async () => { roomSignalsConsumed.count++; return { count: 1 } },
+  deleteMany: async ({ where }: any) => {
+    if (where.fromPeer) roomPeerOwner.current = null
+    return { count: 1 }
+  },
+  create: async ({ data }: any) => {
+    roomPeerOwner.current = JSON.parse(data.payload).userId
+    return { id: 'presence-new', ...data }
+  },
+}
 mock.module('@/lib/db', () => ({
   db: {
-    adminMeeting: { findUnique: async () => routeMeeting.current },
+    adminMeeting: {
+      findUnique: async () => routeMeeting.current,
+      // الحذف يزيل الصف نفسه؛ في قاعدة البيانات الحقيقية يزيل معه
+      // كل ما يتفرع عنه (الدعوات والحضور...) عبر onDelete: Cascade —
+      // والوهمية تمثّل ذلك بأن الصف وكل ما تحته يختفي من أي وصول لاحق.
+      delete: async ({ where }: any) => {
+        routeDeletedIds.push(where.id)
+        const removed = routeMeeting.current
+        routeMeeting.current = null
+        return removed
+      },
+    },
     user: { findMany: async () => [] },
+    adminMeetingInvite: { findUnique: async () => roomInvite },
+    adminMeetingAttendance: { upsert: async () => { roomAttendanceWrites.count++ } },
+    adminMeetingSignal: roomSignalStore,
+    $transaction: async (work: any, options: any) => {
+      roomTransaction.attempts++
+      roomTransaction.isolationLevel = options?.isolationLevel || ''
+      if (roomTransaction.conflictsRemaining > 0) {
+        roomTransaction.conflictsRemaining--
+        throw Object.assign(new Error('serialization conflict'), { code: 'P2034' })
+      }
+      return work({ adminMeetingSignal: roomSignalStore })
+    },
   },
 }))
+mock.module('@/lib/settings', () => ({ getSettings: async () => ({}) }))
 mock.module('@/lib/auth', () => ({
+  getCurrentUser: async () => ({ id: 'room-user-1', role: 'STUDENT', name: 'Participant' }),
   requireAdmin: async () => {
     if (!routeAdmin.current) throw new Error('FORBIDDEN')
     return { id: 'admin-1', name: 'المسؤول' }
   },
 }))
-mock.module('@/lib/notify', () => ({ audit: async () => {} }))
+mock.module('@/lib/notify', () => ({
+  audit: async (...args: any[]) => {
+    routeAudits.push(args)
+  },
+}))
 
 const {
   generateMeetingToken,
@@ -48,6 +115,7 @@ const {
 const { meetingState, meetingAction } = await import('@/lib/meeting-entry')
 const { generateMinutesDraft } = await import('@/lib/meeting-minutes')
 const adminMeetingDetailRoute = await import('@/app/api/admin/meetings/[id]/route')
+const meetingRoomRoute = await import('@/app/api/meetings/[token]/room/route')
 
 const T0 = new Date('2026-11-10T12:00:00.000Z')
 const at = (min: number) => new Date(T0.getTime() + min * 60_000)
@@ -208,6 +276,30 @@ describe('entry state & actions (fake db)', () => {
     expect(res.body.level).toBe('TEASER')
     expect((res.body.meeting as any).agenda).toBeUndefined()
     expect((res.body.meeting as any).title).toBe('اجتماع الإدارة')
+  })
+
+  test('claimable (logged-in, not yet claimed) sees the teaser only — no description, agenda or invitee names', async () => {
+    const db = fakeDb(invite())
+    const res = await meetingState(db as any, db.state.inv, visitor)
+    expect(res.body.level).toBe('CLAIMABLE')
+    const m = res.body.meeting as any
+    expect(m.title).toBe('اجتماع الإدارة')
+    expect(m.hostName).toBe('الإدارة')
+    expect(m.description).toBeUndefined()
+    expect(m.agenda).toBeUndefined()
+    expect(m.inviteeNames).toBeUndefined()
+    expect(JSON.stringify(res.body)).not.toContain('جدول سري')
+    expect((res.body as any).myInvite?.inviteeName).toBe('ضيف')
+  })
+
+  test('claimed (FULL) still receives description, agenda and invitee names', async () => {
+    const db = fakeDb(invite({ claimedByUserId: visitor.id }))
+    const res = await meetingState(db as any, db.state.inv, visitor)
+    expect(res.body.level).toBe('FULL')
+    const m = res.body.meeting as any
+    expect(m.description).toBe('وصف')
+    expect(m.agenda).toBe('جدول سري')
+    expect(m.inviteeNames).toEqual(['ضيف'])
   })
 
   test('revoked invite shows nothing', async () => {
@@ -519,5 +611,191 @@ describe('entry state & actions (fake db)', () => {
     const dbC = fakeDb(invC)
     const cancelled = await meetingAction(dbC as any, dbC.state.inv, visitor, 'join')
     expect(cancelled.status).toBe(409)
+  })
+})
+
+async function pollRoom(peerId?: string) {
+  const url = 'https://academy.test/api/meetings/valid-token/room'
+    + (peerId ? '?peerId=' + encodeURIComponent(peerId) : '')
+  return meetingRoomRoute.GET(new NextRequest(url), {
+    params: Promise.resolve({ token: 'valid-token' }),
+  })
+}
+
+async function postRoom(action: 'join' | 'heartbeat', peerId = 'p_target') {
+  return meetingRoomRoute.POST(
+    new NextRequest('https://academy.test/api/meetings/valid-token/room', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, peerId, name: 'Participant' }),
+    }),
+    { params: Promise.resolve({ token: 'valid-token' }) },
+  )
+}
+
+describe('meeting-room signal ownership', () => {
+  test('missing peer presence refuses signal polling without consuming messages', async () => {
+    roomPeerOwner.current = null
+    roomSignalsConsumed.count = 0
+    roomAttendanceWrites.count = 0
+    const response = await pollRoom('p_target')
+    expect(response.status).toBe(403)
+    expect((await response.json()).code).toBe('FORBIDDEN_PEER')
+    expect(roomSignalsConsumed.count).toBe(0)
+    expect(roomAttendanceWrites.count).toBe(0)
+  })
+
+  test('a peer belonging to another user cannot consume that peer messages', async () => {
+    roomPeerOwner.current = 'room-user-2'
+    roomSignalsConsumed.count = 0
+    const response = await pollRoom('p_target')
+    expect(response.status).toBe(403)
+    expect((await response.json()).code).toBe('FORBIDDEN_PEER')
+    expect(roomSignalsConsumed.count).toBe(0)
+  })
+
+  test('the owner of a joined peer can poll its signalling messages', async () => {
+    roomPeerOwner.current = 'room-user-1'
+    roomSignalsConsumed.count = 0
+    roomAttendanceWrites.count = 0
+    const response = await pollRoom('p_target')
+    expect(response.status).toBe(200)
+    expect((await response.json()).signals).toHaveLength(1)
+    expect(roomSignalsConsumed.count).toBe(1)
+    expect(roomAttendanceWrites.count).toBe(1)
+  })
+
+  test('peer discovery without peerId remains available to the invite owner', async () => {
+    roomPeerOwner.current = null
+    roomSignalsConsumed.count = 0
+    const response = await pollRoom()
+    expect(response.status).toBe(200)
+    expect(roomSignalsConsumed.count).toBe(0)
+  })
+  test('join claims peer using a serializable transaction before recording attendance', async () => {
+    roomPeerOwner.current = null
+    roomTransaction.attempts = 0
+    roomTransaction.conflictsRemaining = 0
+    roomTransaction.isolationLevel = ''
+    roomAttendanceWrites.count = 0
+    const response = await postRoom('join')
+    expect(response.status).toBe(200)
+    expect(roomTransaction.isolationLevel).toBe('Serializable')
+    expect(roomTransaction.attempts).toBe(1)
+    expect(String(roomPeerOwner.current)).toBe('room-user-1')
+    expect(roomAttendanceWrites.count).toBe(1)
+  })
+
+  test('an already-claimed peer cannot be stolen by a new join', async () => {
+    roomPeerOwner.current = 'room-user-2'
+    roomTransaction.attempts = 0
+    roomAttendanceWrites.count = 0
+    const response = await postRoom('join')
+    expect(response.status).toBe(409)
+    expect((await response.json()).code).toBe('PEER_IN_USE')
+    expect(roomPeerOwner.current).toBe('room-user-2')
+    expect(roomAttendanceWrites.count).toBe(0)
+  })
+
+  test('serialization conflict retries and then records a successful join', async () => {
+    roomPeerOwner.current = null
+    roomTransaction.attempts = 0
+    roomTransaction.conflictsRemaining = 1
+    const response = await postRoom('join')
+    expect(response.status).toBe(200)
+    expect(roomTransaction.attempts).toBe(2)
+    expect(String(roomPeerOwner.current)).toBe('room-user-1')
+  })
+
+  test('repeated serialization conflicts return retryable 409 without stealing a peer', async () => {
+    roomPeerOwner.current = null
+    roomTransaction.attempts = 0
+    roomTransaction.conflictsRemaining = 3
+    const response = await postRoom('join')
+    expect(response.status).toBe(409)
+    expect((await response.json()).code).toBe('PEER_CONFLICT')
+    expect(roomTransaction.attempts).toBe(3)
+    expect(roomPeerOwner.current).toBeNull()
+  })
+
+  test('heartbeat must own its peer and uses the same serializable path', async () => {
+    roomPeerOwner.current = null
+    roomTransaction.conflictsRemaining = 0
+    expect((await postRoom('heartbeat')).status).toBe(403)
+    roomPeerOwner.current = 'room-user-1'
+    roomTransaction.attempts = 0
+    const response = await postRoom('heartbeat')
+    expect(response.status).toBe(200)
+    expect(roomTransaction.attempts).toBe(1)
+    expect(roomTransaction.isolationLevel).toBe('Serializable')
+  })
+})
+
+describe('admin meeting hard delete (route level)', () => {
+  test('admin delete removes the meeting and writes the audit; afterwards the detail 404s', async () => {
+    routeAdmin.current = true
+    routeDeletedIds.length = 0
+    routeAudits.length = 0
+    routeMeeting.current = { ...meeting(), invites: [invite()], attendance: [] }
+    const res = await adminMeetingDetailRoute.DELETE(new Request('https://academy.test') as any, {
+      params: Promise.resolve({ id: 'm1' }),
+    })
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.ok).toBe(true)
+    expect(body.deleted).toBe(true)
+    expect(routeDeletedIds).toEqual(['m1'])
+    // أثر التدقيق يحمل فعل الحذف وعنوان الاجتماع المحذوف
+    const del = routeAudits.find((a) => a[1] === 'ADMIN_MEETING_DELETED')
+    expect(del).toBeTruthy()
+    expect(del?.[2]).toBe('AdminMeeting')
+    expect(del?.[3]).toBe('m1')
+    expect(String(del?.[4])).toContain('title=اجتماع الإدارة')
+    // الصف اختفى بكل ما كان متدليًا منه (الدعوات nested تحته في
+    // الوهمية كما تتفرع عنه في الحقيقية): التفاصيل الآن 404
+    const gone = await adminMeetingDetailRoute.GET(new Request('https://academy.test') as any, {
+      params: Promise.resolve({ id: 'm1' }),
+    })
+    expect(gone.status).toBe(404)
+    routeMeeting.current = null
+  })
+
+  test('a cancelled meeting can still be hard-deleted (no status restriction)', async () => {
+    routeAdmin.current = true
+    routeDeletedIds.length = 0
+    routeMeeting.current = { ...meeting({ status: 'CANCELLED' }), invites: [], attendance: [] }
+    const res = await adminMeetingDetailRoute.DELETE(new Request('https://academy.test') as any, {
+      params: Promise.resolve({ id: 'm1' }),
+    })
+    expect(res.status).toBe(200)
+    expect(routeDeletedIds).toEqual(['m1'])
+    routeMeeting.current = null
+  })
+
+  test('non-admin cannot delete: 403 and nothing is removed', async () => {
+    routeDeletedIds.length = 0
+    routeMeeting.current = { ...meeting(), invites: [], attendance: [] }
+    routeAdmin.current = false
+    const res = await adminMeetingDetailRoute.DELETE(new Request('https://academy.test') as any, {
+      params: Promise.resolve({ id: 'm1' }),
+    })
+    expect(res.status).toBe(403)
+    expect(routeDeletedIds).toEqual([])
+    expect(routeMeeting.current?.id).toBe('m1')
+    routeAdmin.current = true
+    routeMeeting.current = null
+  })
+
+  test('deleting a missing meeting 404s and deletes nothing', async () => {
+    routeAdmin.current = true
+    routeDeletedIds.length = 0
+    routeMeeting.current = null
+    const res = await adminMeetingDetailRoute.DELETE(new Request('https://academy.test') as any, {
+      params: Promise.resolve({ id: 'missing' }),
+    })
+    expect(res.status).toBe(404)
+    const body = await res.json()
+    expect(body.error).toBe('الاجتماع غير موجود')
+    expect(routeDeletedIds).toEqual([])
   })
 })

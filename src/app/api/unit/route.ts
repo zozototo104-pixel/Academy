@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     const unit = await db.unit.findUnique({
       where: { id: unitId },
       include: {
-        program: { select: { id: true, titleAr: true, slug: true } },
+        program: { select: { id: true, titleAr: true, slug: true, category: true } },
         exam: { select: { id: true, title: true, status: true, passScore: true } },
       },
     })
@@ -30,6 +30,24 @@ export async function GET(req: NextRequest) {
         { error: 'تسجيلك بانتظار سداد الفاتورة — أكمل الدفع لفتح محتوى الوحدات', code: 'PENDING_PAYMENT' },
         { status: 402 }
       )
+    }
+    // بوابة الانتقال (المرحلة 5): محتوى فصل ٢+ مغلق كليًا حتى نجاح
+    // الفصول السابقة بنتائج معتمدة — حجب خادمي على المحتوى نفسه.
+    const unitSemester = Number((unit as any).semester || 1)
+    if (unitSemester > 1) {
+      const { progressionGate } = await import('@/lib/progression')
+      const gate = await progressionGate(
+        db as any,
+        { id: enrollment.id, userId: user.id, programId: unit.programId },
+        unitSemester,
+        (unit as any).program?.category,
+      ).catch(() => ({ open: false, reasons: ['تعذر التحقق من فتح الفصل؛ أعد المحاولة لاحقًا'] }))
+      if (!gate.open) {
+        return NextResponse.json(
+          { error: `هذا المحتوى من الفصل ${unitSemester} وهو غير مفتوح بعد: ${gate.reasons[0] || 'نتيجة الفصل السابق غير معتمدة ناجحة'}.`, code: 'PROGRESSION_LOCKED', reasons: gate.reasons },
+          { status: 403 }
+        )
+      }
     }
 
     // الكتب المقررة للبرنامج + امتحانات الفصول المبنية عليها (منشورة فقط)

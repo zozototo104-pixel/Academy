@@ -244,7 +244,7 @@ async function body(response: Response) {
   return response.json() as Promise<any>
 }
 
-function completionTx(options: { payments: any[]; scholarshipFull?: boolean; fullNameEn?: string | null }) {
+function completionTx(options: { payments: any[]; scholarshipFull?: boolean; fullNameEn?: string | null; approved?: boolean }) {
   let createdCertificate: any = null
   const tx: any = {
     $queryRaw: async () => [{ value: 1 }],
@@ -265,6 +265,10 @@ function completionTx(options: { payments: any[]; scholarshipFull?: boolean; ful
       findFirst: async () => null,
       create: async ({ data }: any) => { createdCertificate = { id: 'cert-new', ...data }; return createdCertificate },
     },
+    graduationRequest: {
+      findUnique: async () => options.approved === false ? null : { id: 'grad-1', enrollmentId: 'enrollment-1', status: 'APPROVED', decidedById: 'admin-1', decidedAt: new Date() },
+      update: async ({ data }: any) => ({ id: 'grad-1', enrollmentId: 'enrollment-1', status: data.status }),
+    },
     exam: { findMany: async () => [{ id: 'unit-empty', title: 'اختبار فارغ', passScore: 51, unit: { title: 'وحدة' }, _count: { questions: 0 } }] },
     examAttempt: { findMany: async () => [] },
     programExam: { findMany: async () => [{ id: 'program-exam-1', title: 'اختبار نهائي', semester: 1, passScore: 51 }] },
@@ -276,7 +280,7 @@ function completionTx(options: { payments: any[]; scholarshipFull?: boolean; ful
   return { tx, certificate: () => createdCertificate }
 }
 
-async function completionResult(options: { payments: any[]; scholarshipFull?: boolean; fullNameEn?: string | null }) {
+async function completionResult(options: { payments: any[]; scholarshipFull?: boolean; fullNameEn?: string | null; approved?: boolean }) {
   const ctx = completionTx(options)
   const result = await completeEnrollmentIfEligibleInTransaction(ctx.tx, { enrollmentId: 'enrollment-1', admissionId: 'admission-1' })
   return { result, certificate: ctx.certificate() }
@@ -527,7 +531,9 @@ describe('academic B1 safety', () => {
   })
 
   test('certificate issuance finance rules match tuition gate cases', async () => {
-    expect((await completionResult({ payments: [] })).result.ok).toBe(true)
+    const withoutTuitionInvoice = await completionResult({ payments: [] })
+    expect(withoutTuitionInvoice.result.ok).toBe(false)
+    expect(withoutTuitionInvoice.result.code).toBe('PAYMENT_REQUIRED')
     expect((await completionResult({ payments: [], scholarshipFull: true })).result.ok).toBe(true)
     expect((await completionResult({ scholarshipFull: true, payments: [{ purpose: 'APPLICATION_FEE', status: 'UNPAID', amount: 30 }] })).result.ok).toBe(true)
 
@@ -549,9 +555,17 @@ describe('academic B1 safety', () => {
     expect(fullyPaid.result.ok).toBe(true)
   })
 
+  test('issuance is refused without a stored administrative approval, even when finance and academics pass', async () => {
+    const refused = await completionResult({ payments: [{ purpose: 'TUITION', status: 'PAID', amount: 1000, originalAmount: 1000 }], approved: false })
+    expect(refused.result.ok).toBe(false)
+    expect(refused.result.code).toBe('ADMIN_GRADUATION_APPROVAL_REQUIRED')
+    expect(refused.result.httpStatus).toBe(409)
+    expect(refused.certificate).toBeNull()
+  })
+
   test('certificate English labels and admission English name are used on issuance', async () => {
     expect(certificateGradeLabelEn(95)).toBe('95% — Excellent')
-    const issued = await completionResult({ payments: [], fullNameEn: 'John Smith' })
+    const issued = await completionResult({ payments: [{ purpose: 'TUITION', status: 'PAID', amount: 1000, originalAmount: 1000 }], fullNameEn: 'John Smith' })
     expect(issued.result.ok).toBe(true)
     expect(issued.certificate.holderNameEn).toBe('John Smith')
     expect(issued.certificate.gradeEn).toBe('95% — Excellent')

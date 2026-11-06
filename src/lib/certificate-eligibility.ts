@@ -89,7 +89,11 @@ function paymentEligibilityError(payments: Array<{ purpose: string; status: stri
   const tuitionRows = payments.filter((p) => TUITION_PURPOSES.includes(p.purpose))
   const nonTuitionUnpaid = payments.filter((p) => !TUITION_PURPOSES.includes(p.purpose) && !isSettledPayment(p.status))
   if (nonTuitionUnpaid.length) return 'لا يمكن إصدار الشهادة قبل سداد جميع فواتير الطلب غير الدراسية.'
-  if (tuitionRows.length === 0) return null
+  if (tuitionRows.length === 0) {
+    return Number(programPrice || 0) > 0
+      ? 'لا يمكن إصدار الشهادة لبرنامج مدفوع دون فاتورة رسوم دراسية موثقة.'
+      : null
+  }
   const total = roundMoney(inferTotalTuition(payments, Number(programPrice || 0)))
   const paid = roundMoney(tuitionPaidTotal(payments))
   if (total > 0 && paid < total) return `لا يمكن إصدار الشهادة قبل استكمال الرسوم الدراسية. المسدد ${paid}$ من ${total}$.`

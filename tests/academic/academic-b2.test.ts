@@ -73,6 +73,12 @@ const db: any = {
   enrollment: {
     findUnique: async ({ where }: any) => ({ id: `enroll-${where.userId_programId.programId}`, status: 'ACTIVE' }),
   },
+  program: {
+    // بوابة الرسالة (خطة دورة التخرج، المرحلة 5) تقرأ البرنامج لفحص بوابته؛
+    // عالم هذا الاختبار برامجه دبلومات كما في تجهيزات القبول أعلاه
+    // (programRef.category = 'DIPLOMA')، وبلا بصمة دورة حياة تبقى البوابة مفتوحة.
+    findUnique: async ({ where }: any) => ({ id: where.id, category: 'DIPLOMA', semestersCount: 2 }),
+  },
   programStudyGuide: { findFirst: async () => null },
   certificate: {
     findUnique: async ({ where }: any) => certificate && certificate.id === where.id ? certificate : null,
@@ -103,6 +109,7 @@ const realEnrollmentCompletion = await import('../../src/lib/enrollment-completi
 mock.module('@/lib/enrollment-completion', () => ({
   ...realEnrollmentCompletion,
   completeEnrollmentIfEligible: async (input: any) => { calls.push(`complete:${input.userId}:${input.programId}`); return { ok: true, completed: true, certificateIssued: true } },
+  registerGraduationRequest: async (input: any) => { calls.push(`register:${input.userId}:${input.programId}`); return { registered: true, certificateNo: null } },
 }))
 
 const realNotify = await import('../../src/lib/notify')
@@ -158,11 +165,11 @@ beforeEach(() => {
 })
 
 describe('academic B2 safety', () => {
-  test('admin appeal decision atomically writes finalScore and triggers certificate completion', async () => {
+  test('admin appeal decision atomically writes finalScore and registers the graduation transaction', async () => {
     const res = await appealsRoute.PATCH(new NextRequest('https://academy.test/api/admin/appeals', { method: 'PATCH', body: JSON.stringify({ attemptId: 'attempt-1', finalScore: 88, response: 'مراجعة مقبولة' }) }))
     expect(res.status).toBe(200)
     expect(calls).toContain('appeal.updateMany:PENDING:88:true')
-    expect(calls).toContain('complete:student-1:program-1')
+    expect(calls).toContain('register:student-1:program-1')
 
     appealUpdateCount = 0
     const conflict = await appealsRoute.PATCH(new NextRequest('https://academy.test/api/admin/appeals', { method: 'PATCH', body: JSON.stringify({ attemptId: 'attempt-1', finalScore: 90, response: 'قرار ثان' }) }))

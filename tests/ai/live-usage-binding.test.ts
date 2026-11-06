@@ -41,6 +41,7 @@ const db: any = {
     return payment ? [{ ...payment }] : []
   },
   enrollment: { count: async () => 0 },
+  user: { findUnique: async () => ({ role: 'STUDENT' }) },
   aiLiveUsage: {
     findUnique: async ({ where }: any) => {
       const w = where.userId_month_purpose
@@ -164,6 +165,37 @@ describe('تسوية الجلسة: ملكية + ساعة الخادم', () => {
     expect(usages.get(usageKey('stu-1', month(), 'SUPERVISOR'))?.paidMinutesUsed).toBe(1)
     const refund = credits.find((c) => c.source === 'REFUND')
     expect(refund?.remainingMinutes).toBe(1)
+  })
+})
+
+describe('تسوية الجلسة: تجاوز الحجز يُخصم من الرصيد المتبقي', () => {
+  test('مكالمة أطول من الحجز تُخصم كاملة من الرصيد المجاني المتبقي', async () => {
+    seedUsage('stu-1', { freeMinutesUsed: 2, sessionsCount: 1 })
+    // بدأت قبل 12.5 دقيقة: المنقضي بساعة الخادم 13 دقيقة والحجز دقيقتان فقط
+    seedSession({ sessionId: 's-over', startedAt: new Date(Date.now() - 12.5 * 60 * 1000) })
+    const res: any = await settleGeminiLiveUsage({ userId: 'stu-1', sessionId: 's-over', actualMinutes: 0 })
+    expect(res.ok).toBe(true)
+    expect(res.extraChargedMinutes).toBe(11)
+    expect(res.refundMinutes).toBe(0)
+    expect(res.session.actualMinutes).toBe(13)
+    expect(usages.get(usageKey('stu-1', month(), 'SUPERVISOR'))?.freeMinutesUsed).toBe(13)
+  })
+
+  test('الخصم الإضافي يقف عند حدود الرصيد ولا يخلق رصيدًا سالبًا', async () => {
+    process.env.AACT_LIVE_FREE_MONTHLY_MINUTES_STUDENT = '5'
+    seedUsage('stu-1', { freeMinutesUsed: 2, paidMinutesUsed: 0, sessionsCount: 1 })
+    credits.push({ id: 'credit-cap', userId: 'stu-1', remainingMinutes: 4, status: 'ACTIVE' })
+    seedSession({ sessionId: 's-capped', startedAt: new Date(Date.now() - 12.5 * 60 * 1000) })
+    const res: any = await settleGeminiLiveUsage({ userId: 'stu-1', sessionId: 's-capped', actualMinutes: 0 })
+    // المتاح فوق الحجز: 3 مجاني (5-2) + 4 مدفوع = 7 من أصل 11 دقيقة متجاوزة
+    expect(res.extraChargedMinutes).toBe(7)
+    expect(res.session.actualMinutes).toBe(9)
+    const usage = usages.get(usageKey('stu-1', month(), 'SUPERVISOR'))
+    expect(usage?.freeMinutesUsed).toBe(5)
+    expect(usage?.paidMinutesUsed).toBe(4)
+    const credit = credits.find((c) => c.id === 'credit-cap')
+    expect(credit?.remainingMinutes).toBe(0)
+    expect(credit?.status).toBe('CONSUMED')
   })
 })
 

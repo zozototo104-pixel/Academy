@@ -5,6 +5,8 @@ import { emailCertificateIssued, emailPaymentReceipt, emailFinalRegistration } f
 import { getAdmissionTuitionPlan } from '@/lib/tuition-installments'
 import { grantGeminiLiveCredit } from '@/lib/live-usage-guard'
 import { paymentAmountDollars } from '@/lib/money'
+import { captureEnrollmentSnapshot } from '@/lib/rules-snapshot'
+import { ensureSemesterStates } from '@/lib/semester-lifecycle'
 import { randomBytes } from 'crypto'
 
 const ACC_TYPE_LABEL_SETTLE: Record<string, string> = {
@@ -51,6 +53,23 @@ type FinalizeAdmissionAfterSettlementOptions = {
   // استئناف بعد عطل سابق: تُنفَّذ انتقالات الحالة المحروسة فقط، وتُتخطّى
   // إشعارات/رسائل الإيصال حتى لا تتكرر على الطالب.
   resume?: boolean
+}
+
+// A freshly activated student must carry a durable ENROLLMENT snapshot:
+// the progression gate uses its provenance even when a program has no
+// configured semester windows. Never silently treat a failed write as a
+// grandfathered legacy enrollment; payment settlement can retry its effects.
+async function initializeAcademicEnrollment(tx: any, enrollment: {
+  id: string; userId: string; programId: string; createdAt: Date | string; extensionDays?: number | null
+}) {
+  const snapshot = await captureEnrollmentSnapshot(tx, enrollment, 'ENROLLMENT')
+  if (!snapshot) throw new Error('ENROLLMENT_RULES_SNAPSHOT_REQUIRED')
+  const program = await tx.program.findUnique({
+    where: { id: enrollment.programId },
+    select: { category: true, maxStudyDays: true, semestersCount: true },
+  })
+  if (!program) throw new Error('ENROLLMENT_PROGRAM_NOT_FOUND')
+  await ensureSemesterStates(tx, enrollment, program)
 }
 
 export async function finalizeAdmissionAfterSettlement(tx: any, admissionId: string, opts: FinalizeAdmissionAfterSettlementOptions = { source: 'PAYMENT' }) {
@@ -114,11 +133,10 @@ export async function finalizeAdmissionAfterSettlement(tx: any, admissionId: str
         const existingEnrollment = await tx.enrollment.findUnique({
           where: { userId_programId: { userId: linkedUserId, programId: app.programId } },
         })
-        if (!existingEnrollment) {
-          await tx.enrollment.create({
-            data: { userId: linkedUserId, programId: app.programId, status: 'ACTIVE' },
-          })
-        }
+        const activeEnrollment = existingEnrollment || await tx.enrollment.create({
+          data: { userId: linkedUserId, programId: app.programId, status: 'ACTIVE' },
+        })
+        await initializeAcademicEnrollment(tx, activeEnrollment)
       }
     }
 
@@ -181,9 +199,13 @@ export async function finalizeAdmissionAfterSettlement(tx: any, admissionId: str
     const newStatus = app.supervisorId ? 'THESIS' : 'SUPERVISOR_ASSIGNED'
     await tx.admissionApplication.update({ where: { id: app.id }, data: { status: newStatus } })
     if (app.programId && linkedUserId) {
-      const existingEnrollment = await tx.enrollment.findUnique({ where: { userId_programId: { userId: linkedUserId, programId: app.programId } } }).catch(() => null)
-      if (!existingEnrollment) await tx.enrollment.create({ data: { userId: linkedUserId, programId: app.programId, status: 'ACTIVE' } })
-      else if (!['ACTIVE', 'COMPLETED'].includes(existingEnrollment.status)) await tx.enrollment.update({ where: { id: existingEnrollment.id }, data: { status: 'ACTIVE' } })
+      const existingEnrollment = await tx.enrollment.findUnique({ where: { userId_programId: { userId: linkedUserId, programId: app.programId } } })
+      const activeEnrollment = !existingEnrollment
+        ? await tx.enrollment.create({ data: { userId: linkedUserId, programId: app.programId, status: 'ACTIVE' } })
+        : !['ACTIVE', 'COMPLETED'].includes(existingEnrollment.status)
+          ? await tx.enrollment.update({ where: { id: existingEnrollment.id }, data: { status: 'ACTIVE' } })
+          : existingEnrollment
+      await initializeAcademicEnrollment(tx, activeEnrollment)
       await notify(linkedUserId, 'ADMISSION', 'تم تفعيل تسجيلك بمنحة/إعفاء', `أصبح تسجيلك في «${app.program}» فعالاً.`, 'dashboard')
       const student = await tx.user.findUnique({ where: { id: linkedUserId }, select: { email: true, name: true } }).catch(() => null)
       if (student) await emailFinalRegistration(student.email, student.name, app.program)
@@ -236,6 +258,7 @@ async function applySettlementEffects(args: {
       include: { program: { select: { titleAr: true } } },
     })
     if (enrollment && enrollment.status === 'PENDING_PAYMENT') {
+      await initializeAcademicEnrollment(db, enrollment)
       await db.enrollment.update({ where: { id: enrollment.id }, data: { status: 'ACTIVE' } })
       await notify(
         enrollment.userId,

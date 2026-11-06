@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { gradingFormulaSignature } from '@/lib/program-tracks'
+import { effectiveGradeWeights, ensureEnrollmentSnapshot } from '@/lib/rules-snapshot'
 
 export interface FinalGradeComponent {
   key: string
@@ -25,7 +26,7 @@ export interface FinalGradeResult {
 
 type DbClient = typeof db | Prisma.TransactionClient
 
-type ComponentScore = number | null | 'EXEMPT' | { score: number; complete: boolean }
+export type ComponentScore = number | null | 'EXEMPT' | { score: number; complete: boolean }
 
 // Both Answer and ProgramAnswer expose the same selected scoring fields in Prisma.
 // Keep this small structural type shared by percentFromAnswers and exam score recovery.
@@ -34,7 +35,7 @@ type ScoredAnswer = {
   maxPoints: number | null
 }
 
-type GradeWeights = Record<string, number>
+export type GradeWeights = Record<string, number>
 const DEFAULT_WEIGHTS: Record<string, GradeWeights> = {
   DIPLOMA: { quizzes: 20, assignments: 20, final_exam: 60 },
   MASTERS: { semester1_quizzes: 10, semester1_exam: 15, semester2_quizzes: 10, semester2_exam: 15, thesis: 30, defense: 20 },
@@ -148,7 +149,7 @@ function addMissing(missing: string[], label: string) {
   if (!missing.includes(label)) missing.push(label)
 }
 
-async function unitQuizAverage(client: DbClient, userId: string, programId: string, missing: string[], semester?: number): Promise<ComponentScore> {
+export async function unitQuizAverage(client: DbClient, userId: string, programId: string, missing: string[], semester?: number): Promise<ComponentScore> {
   const exams = await client.exam.findMany({
     where: { status: 'READY', unit: { programId, ...(semester ? { semester } : {}) } },
     select: { id: true, title: true, passScore: true, unit: { select: { title: true } }, _count: { select: { questions: true } } },
@@ -206,7 +207,7 @@ function rawProgramAttemptScore(attempt: {
   return (attempt.answers?.length ? percentFromAnswers(attempt.answers) : null) ?? attempt.finalScore ?? attempt.score
 }
 
-async function programExamAverage(client: DbClient, userId: string, programId: string, missing: string[], semester?: number): Promise<ComponentScore> {
+export async function programExamAverage(client: DbClient, userId: string, programId: string, missing: string[], semester?: number): Promise<ComponentScore> {
   const exams = await client.programExam.findMany({
     where: { programId, status: 'READY', ...(semester ? { semester } : {}) },
     select: { id: true, title: true, semester: true, passScore: true },
@@ -236,9 +237,9 @@ async function programExamAverage(client: DbClient, userId: string, programId: s
   return complete ? percent : { score: percent, complete: false }
 }
 
-async function assignmentAverage(client: DbClient, userId: string, programId: string, missing: string[], requiredForGrade: boolean): Promise<ComponentScore> {
+export async function assignmentAverage(client: DbClient, userId: string, programId: string, missing: string[], requiredForGrade: boolean, semester?: number): Promise<ComponentScore> {
   const assignments = await client.programAssignment.findMany({
-    where: { programId, status: 'PUBLISHED' },
+    where: { programId, status: 'PUBLISHED', ...(semester ? { semester } : {}) },
     select: { id: true, title: true, points: true, weight: true },
     orderBy: { createdAt: 'asc' },
   })
@@ -270,7 +271,7 @@ async function assignmentAverage(client: DbClient, userId: string, programId: st
   return complete ? percent : { score: percent, complete: false }
 }
 
-async function thesisScores(client: DbClient, userId: string, admissionId?: string | null) {
+export async function thesisScores(client: DbClient, userId: string, admissionId?: string | null) {
   const thesis = await client.thesisSubmission.findFirst({
     where: admissionId ? { admissionId } : { userId },
     orderBy: { updatedAt: 'desc' },
@@ -298,17 +299,29 @@ export async function calculateFinalGrade(input: {
   const enrollment = (client as any).enrollment?.findUnique
     ? await client.enrollment.findUnique({
         where: { userId_programId: { userId: input.userId, programId: input.programId } },
-        select: { createdAt: true, status: true, finalScore: true },
+        select: { id: true, createdAt: true, status: true, finalScore: true },
       })
     : null
-  const policy = resolveGradeWeights(category, program?.admissionRules)
-  const profile = ((program?.admissionRules || {}) as any).academicProfile
-  const policyEffectiveAt = Date.parse(String(profile?.approvedFormulaAt || ''))
-  const newCohort = enrollment?.createdAt && Number.isFinite(policyEffectiveAt) &&
-    new Date(enrollment.createdAt).getTime() >= policyEffectiveAt
-  const configured = policy.source === 'academic_profile' && !newCohort
-    ? { ...resolveGradeWeights(category, null), warning: 'ASSESSMENT_FORMULA_FUTURE_COHORT_ONLY' }
-    : policy
+  // Frozen rules first (Phase-3 snapshot): the enrollment's captured
+  // weights govern when a snapshot exists (captured on first use for
+  // pre-snapshot enrollments); the live resolution is the shared
+  // effectiveGradeWeights — the exact policy this engine has always used.
+  let configured = effectiveGradeWeights(category, program?.admissionRules, enrollment?.createdAt)
+  if (enrollment?.id) {
+    const snapshot = await ensureEnrollmentSnapshot(client, {
+      id: enrollment.id,
+      userId: input.userId,
+      programId: input.programId,
+      createdAt: enrollment.createdAt,
+    }).catch(() => null)
+    if (snapshot) {
+      configured = {
+        weights: snapshot.weights,
+        source: snapshot.weightSource,
+        ...(snapshot.weightWarning ? { warning: snapshot.weightWarning } : {}),
+      }
+    }
+  }
   const weight = (key: string) => configured.weights[key] || 0
   const missing: string[] = []
 

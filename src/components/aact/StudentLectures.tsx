@@ -125,6 +125,68 @@ export function StudentLectures() {
   const [sessions, setSessions] = useState<PublicSession[]>([])
   const [videos, setVideos] = useState<VideoItem[]>([])
   const [joiningId, setJoiningId] = useState<string | null>(null)
+  const [embeddedZoom, setEmbeddedZoom] = useState<null | {
+    title: string
+    meetingUrl: string
+    signature: string
+    sdkKey: string
+    meetingNumber: string
+    userName: string
+    password: string
+  }>(null)
+  const [zoomError, setZoomError] = useState<string | null>(null)
+  const zoomRootRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!embeddedZoom || !zoomRootRef.current) return
+    let cancelled = false
+    let client: any = null
+    const leave = () => {
+      if (!client) return
+      try {
+        const pending = client.leaveMeeting?.()
+        if (pending && typeof pending.catch === 'function') void pending.catch(() => {})
+      } catch {
+        // Leaving the UI must not be blocked by a provider teardown error.
+      }
+    }
+    const loadScript = (src: string) => new Promise<void>((resolve, reject) => {
+      const existing = document.querySelector<HTMLScriptElement>('script[data-zoom-src="' + src + '"]')
+      if (existing?.dataset.loaded === 'true') { resolve(); return }
+      if (existing) { existing.addEventListener('load', () => resolve(), { once: true }); existing.addEventListener('error', () => reject(new Error('تعذّر تحميل Zoom')), { once: true }); return }
+      const script = document.createElement('script')
+      script.src = src
+      script.dataset.zoomSrc = src
+      script.onload = () => { script.dataset.loaded = 'true'; resolve() }
+      script.onerror = () => { script.remove(); reject(new Error('تعذّر تحميل Zoom')) }
+      document.head.appendChild(script)
+    })
+    const start = async () => {
+      try {
+        const version = '6.2.0'
+        for (const name of ['react', 'react-dom', 'redux', 'redux-thunk', 'react-redux', 'lodash']) {
+          await loadScript('https://source.zoom.us/' + version + '/lib/vendor/' + name + '.min.js')
+        }
+        await loadScript('https://source.zoom.us/zoom-meeting-embedded-' + version + '.min.js')
+        if (cancelled) return
+        const sdk = (window as any).ZoomMtgEmbedded
+        if (!sdk?.createClient) throw new Error('مكتبة Zoom غير متاحة')
+        client = sdk.createClient()
+        await client.init({ zoomAppRoot: zoomRootRef.current, language: 'en-US', patchJsMedia: true, leaveOnPageUnload: true })
+        if (cancelled) { leave(); return }
+        await client.join({
+          signature: embeddedZoom.signature, sdkKey: embeddedZoom.sdkKey,
+          meetingNumber: embeddedZoom.meetingNumber, userName: embeddedZoom.userName,
+          password: embeddedZoom.password,
+        })
+        if (cancelled) leave()
+      } catch (e) {
+        if (!cancelled) setZoomError(e instanceof Error ? e.message : 'تعذّر تشغيل Zoom داخل المنصة')
+      }
+    }
+    void start()
+    return () => { cancelled = true; leave() }
+  }, [embeddedZoom])
   const [now, setNow] = useState(() => Date.now())
   const [activeWatch, setActiveWatch] = useState<{ video: VideoItem; watch: WatchDescriptor } | null>(null)
   const [openingVideoId, setOpeningVideoId] = useState<string | null>(null)
@@ -191,15 +253,24 @@ export function StudentLectures() {
     async (s: PublicSession) => {
       setJoiningId(s.id)
       try {
-        const res = await api<{ meetingUrl: string; meetingPasscode?: string | null }>(
+        const res = await api<{
+          meetingUrl: string
+          meetingPasscode?: string | null
+          zoomSdk?: { signature: string; sdkKey: string; meetingNumber: string; userName: string; password: string }
+        }>(
           `/api/my/lectures/${s.id}/join`,
           { method: 'POST' },
         )
-        window.open(res.meetingUrl, '_blank', 'noopener')
-        toast({
-          title: 'تم تسجيل دخولك إلى المحاضرة',
-          description: res.meetingPasscode ? `رمز الدخول: ${res.meetingPasscode}` : 'انضممت بنجاح. المشرف يؤكد الحضور الفعلي.',
-        })
+        if (res.zoomSdk) {
+          setZoomError(null)
+          setEmbeddedZoom({ title: s.title, meetingUrl: res.meetingUrl, ...res.zoomSdk })
+        } else {
+          window.open(res.meetingUrl, '_blank', 'noopener')
+          toast({
+            title: 'تم تسجيل دخولك إلى المحاضرة',
+            description: res.meetingPasscode ? `رمز الدخول: ${res.meetingPasscode}` : 'انضممت بنجاح. المشرف يؤكد الحضور الفعلي.',
+          })
+        }
       } catch (e: any) {
         toast({ title: 'تعذر الانضمام', description: e?.message || 'حاول مجددًا بعد قليل', variant: 'destructive' })
       } finally {
@@ -348,6 +419,21 @@ export function StudentLectures() {
 
   return (
     <div className="space-y-6">
+      <Dialog open={!!embeddedZoom} onOpenChange={(open) => { if (!open) { setEmbeddedZoom(null); setZoomError(null) } }}>
+        <DialogContent className="flex h-[90vh] max-w-[96vw] flex-col" dir="rtl">
+          <DialogHeader>
+            <DialogTitle>{embeddedZoom?.title || 'قاعة المحاضرة'}</DialogTitle>
+            <DialogDescription>المحاضرة تعمل داخل المنصة. تأكيد الحضور الفعلي من صلاحية المشرف.</DialogDescription>
+          </DialogHeader>
+          {zoomError && (
+            <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+              {zoomError} — يمكنك فتح المحاضرة في Zoom مباشرة.
+              <a className="mr-2 underline" href={embeddedZoom?.meetingUrl} target="_blank" rel="noopener noreferrer">فتح الرابط الخارجي</a>
+            </div>
+          )}
+          <div ref={zoomRootRef} className="min-h-0 flex-1 overflow-auto" dir="ltr" />
+        </DialogContent>
+      </Dialog>
       {next ? (
         <Card className="border-blue-200 bg-blue-50/50">
           <CardContent className="space-y-3 py-5">

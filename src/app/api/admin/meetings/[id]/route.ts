@@ -85,6 +85,27 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   }
 }
 
+// حذف نهائي — بخلاف الإلغاء الذي يُبقي السجل ويمنع الدخول فقط.
+// يزيل صف الاجتماع، وقاعدة البيانات تزيل معه كل ما يتفرع عنه
+// (الدعوات والحضور والإشارات والملاحظات والمحضر وأحداث المساعد)
+// عبر onDelete: Cascade في المخطط. لا تراجع عنه وبلا قيد على حالة
+// الاجتماع؛ الحارس الوحيد هو نافذة التأكيد في الواجهة.
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const admin = await requireAdmin()
+    const { id } = await params
+    const meeting = await (db as any).adminMeeting.findUnique({ where: { id } })
+    if (!meeting) return NextResponse.json({ error: 'الاجتماع غير موجود' }, { status: 404 })
+    await (db as any).adminMeeting.delete({ where: { id } })
+    await audit({ id: admin.id, name: admin.name || 'مسؤول' }, 'ADMIN_MEETING_DELETED', 'AdminMeeting', id, `title=${meeting.title}`).catch(() => {})
+    return NextResponse.json({ ok: true, deleted: true })
+  } catch (e: any) {
+    if (e?.message === 'UNAUTHORIZED' || e?.message === 'FORBIDDEN') return NextResponse.json({ error: 'صلاحية إدارية مطلوبة' }, { status: 403 })
+    console.error('admin meeting DELETE error:', e)
+    return NextResponse.json({ error: 'تعذر حذف الاجتماع' }, { status: 500 })
+  }
+}
+
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const admin = await requireAdmin()

@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
+import { registerGraduationRequest } from '@/lib/enrollment-completion'
 import { textAiCompleteJson, textAiCompleteJsonWithMetadata } from '@/lib/text-ai'
 import { extractDocumentText, isPdfLike } from '@/lib/document-extract'
 import { getFileBufferFromStorageOrBase64, getStorageDownloadPathForKey } from '@/lib/storage'
@@ -867,8 +867,8 @@ export async function gradeAssignmentSubmission(
   await audit(user as any, 'GRADE_ASSIGNMENT_SUPERVISOR', 'AssignmentSubmission', submissionId, `تصحيح مشرف لواجب ${submission.assignment.title} للطالب ${submission.user?.name || ''} — ${score}/${points}`)
   if (input.status === 'GRADED') {
     // Re-evaluate the cumulative mark; a component's individual passing flag is not a prerequisite.
-    await completeEnrollmentIfEligible({ userId: submission.userId, programId: submission.assignment.programId })
-      .catch((error) => console.error('Supervisor assignment graduation recheck failed:', error))
+    await registerGraduationRequest({ userId: submission.userId, programId: submission.assignment.programId })
+      .catch((error) => console.error('Supervisor assignment graduation request registration failed:', error))
   }
   return updated
 }

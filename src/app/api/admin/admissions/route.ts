@@ -2,14 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 import { audit, notify, AUDIT_ACTIONS } from '@/lib/notify'
-import { getSettings, nextInvoiceNo, nextCertSerial } from '@/lib/settings'
-import { randomBytes } from 'crypto'
+import { getSettings, nextInvoiceNo } from '@/lib/settings'
 import { emailAdmissionDecision, emailAdmissionDocumentsRequested, emailCertificateIssued } from '@/lib/mailer'
 import { getServiceFlow } from '@/lib/service-flows'
 import { deriveServiceWorkflowState } from '@/lib/service-workflows'
 import { TUITION_PURPOSES, inferTotalTuition, tuitionPaidTotal, roundMoney } from '@/lib/tuition-installments'
 import { adminPaginationMeta, cleanAdminQuery, parseAdminPagination } from '@/lib/admin-query'
-import { certificateGradeLabelEn, evaluateProgramCertificateEligibility } from '@/lib/certificate-eligibility'
+import { evaluateProgramCertificateEligibility } from '@/lib/certificate-eligibility'
+import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
 import { dollarsToCents } from '@/lib/money'
 import { applyScholarshipToNewInvoiceData } from '@/lib/payment-waivers'
 import {
@@ -439,6 +439,15 @@ export async function PATCH(req: NextRequest) {
     // إصدار الشهادة الرقمية (رقم تسلسلي + QR) عند الوصول لحالة CERTIFIED.
     // لا نحدّث حالة الطلب إلى CERTIFIED قبل إثبات الاستحقاق الأكاديمي والمالي حتى لا تظهر شهادة لطالب غير مستحق.
     if (status === 'CERTIFIED') {
+      // Retrieving an already-issued certificate (including older unlinked
+      // records) must not re-grade the graduate or demand today's payments.
+      if (app.status === 'CERTIFIED') {
+        const issued = await db.certificate.findFirst({
+          where: { admissionId: id, type: 'PROGRAM_COMPLETION' },
+        })
+        if (issued) return NextResponse.json({ ok: true, application: app })
+      }
+
       const allPayments = await db.payment.findMany({ where: { admissionId: id } })
       if (app.scholarshipFull !== true) {
         const nonTuitionUnpaid = allPayments.filter((p) => !TUITION_PURPOSES.includes(p.purpose) && !['PAID', 'WAIVED'].includes(p.status))
@@ -474,41 +483,57 @@ export async function PATCH(req: NextRequest) {
         )
       }
 
-      const existingCert = await db.certificate.findFirst({ where: { admissionId: id } })
-      const cert = existingCert || await db.certificate.create({
-        data: {
-          serial: await nextCertSerial(),
-          qrToken: randomBytes(16).toString('hex'),
-          type: 'PROGRAM_COMPLETION',
-          holderName: app.fullName,
-          holderNameEn: app.fullNameEn || null,
-          program: app.program,
-          programEn: programForFlow?.id ? (await db.program.findUnique({ where: { id: programForFlow.id }, select: { titleEn: true } }))?.titleEn || null : null,
-          grade: eligibility.gradeLabel,
-          gradeEn: typeof eligibility.score === 'number' ? certificateGradeLabelEn(eligibility.score) : null,
-          country: app.country,
-          userId: app.userId,
-          admissionId: id,
-        },
+      // Certificate issuance is centralized in enrollment-completion. The
+      // certificate, student enrollment, admission and graduation decision
+      // must commit together; the legacy path's independent writes could
+      // leave partially issued records or create unlinked duplicate certs.
+      const existingCert = await db.certificate.findFirst({
+        where: { admissionId: id, type: 'PROGRAM_COMPLETION' },
       })
-      if (!existingCert && app.programId && app.userId) {
-        await db.enrollment.updateMany({
-          where: { userId: app.userId, programId: app.programId },
-          data: { certificateNo: cert.serial, status: 'COMPLETED', ...(eligibility.score !== null ? { finalScore: eligibility.score } : {}) },
+      if (existingCert && app.status === 'CERTIFIED') {
+        // Repeating an already-issued decision must not issue or notify again,
+        // including historical certificates that lack an enrollmentId.
+        updated = app
+      } else {
+        if (existingCert && !existingCert.enrollmentId) {
+          return NextResponse.json({
+            error: 'توجد شهادة قديمة مرتبطة بهذا الطلب دون تسجيل مرتبط. يلزم تدقيق إداري قبل تصحيح حالة الإصدار، دون إنشاء شهادة ثانية.',
+            code: 'CERTIFICATE_RECONCILIATION_REQUIRED',
+          }, { status: 409 })
+        }
+        const result = await completeEnrollmentIfEligible({
+          userId: app.userId,
+          programId: app.programId,
+          admissionId: id,
+          holderName: app.fullName,
+          programTitle: app.program,
+          country: app.country,
+          requireEligible: true,
         })
-      }
-      if (!existingCert && app.userId) {
-        await notify(
-          app.userId,
-          'CERTIFICATE',
-          'تم إصدار شهادتك المعتمدة',
-          `أُصدرت شهادتك لبرنامج «${app.program}» برقم ${cert.serial} — متاحة في بوابة الطالب للطباعة والتحقق.`,
-          'dashboard'
-        )
-        await emailCertificateIssued(app.email, app.fullName, app.program, cert.serial).catch(() => {})
-      }
+        if (!result.ok || !result.certificate) {
+          return NextResponse.json({
+            error: result.error || 'تعذر إصدار شهادة التخرج',
+            code: result.code,
+            eligibility: result.eligibility,
+            missing: result.missing,
+          }, { status: result.httpStatus || 422 })
+        }
 
-      updated = await db.admissionApplication.update({ where: { id }, data })
+        const cert = result.certificate
+        if (result.certificateIssued && app.userId) {
+          await notify(
+            app.userId,
+            'CERTIFICATE',
+            'تم إصدار شهادتك المعتمدة',
+            `أُصدرت شهادتك لبرنامج «${app.program}» برقم ${cert.serial} — متاحة في بوابة الطالب للطباعة والتحقق.`,
+            'dashboard'
+          ).catch((e) => console.error('certificate notification failed after issuance', e))
+          await emailCertificateIssued(app.email, app.fullName, app.program, cert.serial).catch(() => {})
+        }
+        // The canonical issuer already updated this admission inside its
+        // transaction. Do not rewrite its state in an independent operation.
+        updated = await db.admissionApplication.findUnique({ where: { id } })
+      }
     } else {
       updated = await db.admissionApplication.update({ where: { id }, data })
     }

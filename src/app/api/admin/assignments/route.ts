@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
-import { completeEnrollmentIfEligible } from '@/lib/enrollment-completion'
+import { registerGraduationRequest } from '@/lib/enrollment-completion'
 import { requireAdmin } from '@/lib/auth'
 import { audit, notify } from '@/lib/notify'
 import { emailAssignmentGraded, emailAssignmentPublished } from '@/lib/mailer'
@@ -293,8 +293,8 @@ export async function PATCH(req: NextRequest) {
     }
     await audit(admin, 'GRADE_ASSIGNMENT', 'AssignmentSubmission', submission.id, `تصحيح واجب ${submission.assignment.title} للطالب ${existing.user.name}`)
     if (finalStatus === 'GRADED') {
-      await completeEnrollmentIfEligible({ userId: submission.userId, programId: submission.assignment.programId })
-        .catch((error) => console.error('Admin assignment graduation recheck failed:', error))
+      await registerGraduationRequest({ userId: submission.userId, programId: submission.assignment.programId })
+        .catch((error) => console.error('Admin assignment graduation request registration failed:', error))
     }
 
     return NextResponse.json({ submission })
