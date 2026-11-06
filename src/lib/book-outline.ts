@@ -573,7 +573,10 @@ export function balanceBookOutlineSections(input: readonly OutlineSectionDraft[]
       const rightPages = sectionPageSpan(right)
       if (leftPages === null || rightPages === null) continue
       if (leftPages >= OUTLINE_TARGET_MIN_PAGES && rightPages >= OUTLINE_TARGET_MIN_PAGES) continue
-      if (left.pageEnd! + 1 !== right.pageStart || left.chunkEndIndex >= right.chunkStartIndex) continue
+      // A blank/unreadable source page may lie between otherwise compatible
+      // adjacent themes. Do not reject the merge solely for that missing
+      // page; independent BookChunk coverage audit keeps it reportable.
+      if (left.pageEnd! >= right.pageStart! || left.chunkEndIndex >= right.chunkStartIndex) continue
       if (chapterNumber(left.title) !== null || chapterNumber(right.title) !== null) continue
       if (/^(?:الفصل|الباب|chapter|part)\s/iu.test(normalizeOutlineText(left.title)) ||
           /^(?:الفصل|الباب|chapter|part)\s/iu.test(normalizeOutlineText(right.title))) continue
