@@ -224,6 +224,110 @@ export async function collectMeetingAcademyEvidence(db: any, question: string, u
         'فصل ' + u.semester + '، وحدة ' + u.order + ' «' + shortValue(u.title) + '» (' + u.status + ')').join('؛ '))
     } else if (programs.length > 35) lines.push('عُرضت أول 35 برنامجاً فقط؛ حدد اسم البرنامج لعرض تفاصيله.')
   }
+  if (admissionIntent || overview) {
+    const [applications, pending, inReview, services, deliverables] = await Promise.all([
+      db.admissionApplication.count(),
+      db.admissionApplication.count({ where: { status: { in: ['PENDING', 'AWAITING_FEE'] } } }),
+      db.admissionApplication.count({ where: { status: 'UNDER_REVIEW' } }),
+      db.admissionApplication.count({ where: { programRef: { category: 'SERVICE' } } }),
+      db.serviceDeliverable.count(),
+    ])
+    lines.push('القبول والخدمات: جميع طلبات القبول/الخدمات ' + applications +
+      '؛ بانتظار الإجراء أو الرسوم ' + pending + '؛ قيد المراجعة ' + inReview +
+      '؛ الطلبات المرتبطة ببرامج مصنفة SERVICE ' + services +
+      '؛ مخرجات الخدمات المسجلة ' + deliverables +
+      '. قد توجد خدمات لا تحمل تصنيف SERVICE، لذا لا تعتبر هذا العدد حصرًا لكل الخدمات.')
+    if (/آخر|أحدث|حديث|قائمة|تفاصيل|طلبات/i.test(q) && !overview) {
+      const recent: any[] = await db.admissionApplication.findMany({
+        select: { reference: true, fullName: true, program: true, status: true, createdAt: true },
+        orderBy: { createdAt: 'desc' }, take: 12,
+      })
+      lines.push('أحدث 12 طلبًا (أسماء وحالات للمسؤول الإداري فقط): ' +
+        (recent.map((a) => shortValue(a.reference, 30) + '، ' + shortValue(a.fullName, 70) +
+          '، ' + shortValue(a.program, 80) + '، ' + a.status).join('؛ ') || 'لا توجد') + '.')
+    }
+  }
+  if (certificateIntent || overview) {
+    const [issued, valid, revoked, legacy, graduationPending, semesterPending] = await Promise.all([
+      db.certificate.count(),
+      db.certificate.count({ where: { valid: true, revokedAt: null } }),
+      db.certificate.count({ where: { revokedAt: { not: null } } }),
+      db.certificate.count({ where: { legacy: true } }),
+      db.graduationRequest.count({ where: { status: 'PENDING' } }),
+      db.semesterResultApproval.count({ where: { status: 'PENDING' } }),
+    ])
+    lines.push('الشهادات والتخرج: سجلات الشهادات ' + issued + '؛ السارية ' + valid +
+      '؛ الملغاة أو المسحوبة ' + revoked + '؛ التاريخية ' + legacy +
+      '؛ طلبات التخرج بحالة PENDING ' + graduationPending +
+      '؛ اعتمادات نتائج الفصول بحالة PENDING ' + semesterPending +
+      '. لا تمثل هذه الإحصاءات قرارًا بمنح شهادة.')
+  }
+  if (contentIntent || overview) {
+    const [books, chunks, knowledge, readingJobs, studyGuides, bankQuestions, examQuestions, jobs] = await Promise.all([
+      db.book.count(), db.bookChunk.count(), db.bookKnowledgeItem.count(),
+      db.bookReadJob.count(), db.programStudyGuide.count(),
+      db.questionBankItem.count(), db.programQuestion.count(), db.unitGenerationJob.count(),
+    ])
+    lines.push('الكتب والمحتوى الأكاديمي: الكتب ' + books + '؛ مقاطع القراءة ' + chunks +
+      '؛ عناصر المعرفة ' + knowledge + '؛ مهام قراءة الكتب ' + readingJobs +
+      '؛ أدلة الدراسة ' + studyGuides + '؛ أسئلة بنك الأسئلة ' + bankQuestions +
+      '؛ أسئلة امتحانات البرامج ' + examQuestions + '؛ مهام إنشاء الوحدات ' + jobs +
+      '. هذه أعداد السجلات لا إثبات بجودة القراءة أو اعتماد المحتوى.')
+    if (/فشل|عالق|معلق|تعطل|أخطاء القراءة/i.test(q)) {
+      const failed: any[] = await db.bookReadJob.findMany({
+        where: { status: 'FAILED' },
+        select: { book: { select: { title: true } }, lastError: true, status: true },
+        orderBy: { createdAt: 'desc' }, take: 8,
+      })
+      lines.push('أحدث 8 مهام قراءة فاشلة: ' + (failed.map((j) =>
+        shortValue(j.book?.title) + '؛ ' + shortValue(j.lastError || 'سبب غير مسجل', 150)).join('؛ ') || 'لا توجد') + '.')
+    }
+  }
+  if (lecturesIntent || overview) {
+    const [series, sessions, upcoming, attendance, videos, schedule, watched] = await Promise.all([
+      db.lectureSeries.count(), db.lectureSession.count(),
+      db.lectureSession.count({ where: { startsAt: { gte: new Date() } } }),
+      db.lectureAttendance.count(), db.lectureVideoResource.count(),
+      db.studyScheduleItem.count(), db.lectureWatchProgress.count({ where: { completedAt: { not: null } } }),
+    ])
+    lines.push('المحاضرات وجدول الدراسة: سلاسل المحاضرات ' + series +
+      '؛ الجلسات المسجلة ' + sessions + '؛ الجلسات المستقبلية ' + upcoming +
+      '؛ سجلات الحضور ' + attendance + '؛ الفيديوهات ' + videos +
+      '؛ بنود جدول الدراسة ' + schedule + '؛ سجلات إكمال مشاهدة الفيديو ' + watched +
+      '. الجلسات المستقبلية حسب التاريخ المخزن وليست ضمانًا بانعقادها.')
+    if (/القادم|القادمة|موعد|مواعيد|جدول|الأسبوع|اليوم/i.test(q) && !overview) {
+      const next: any[] = await db.lectureSession.findMany({
+        where: { startsAt: { gte: new Date() } }, orderBy: { startsAt: 'asc' },
+        select: { title: true, startsAt: true, provider: true, status: true },
+        take: 10,
+      })
+      lines.push('أقرب 10 جلسات مجدولة: ' + (next.map((s) =>
+        shortValue(s.title) + '، ' + new Date(s.startsAt).toISOString() +
+        ' UTC، ' + s.provider + '، ' + s.status).join('؛ ') || 'لا توجد') + '.')
+    }
+  }
+  if (researchIntent || overview) {
+    const [research, defensesDone, proposedTopics, topicRequests, reviewNotes] = await Promise.all([
+      db.thesisSubmission.count(),
+      db.thesisSubmission.count({ where: { defenseCompletedAt: { not: null } } }),
+      db.thesisTopic.count(), db.thesisTopicRequest.count(), db.thesisReviewNote.count(),
+    ])
+    lines.push('الأبحاث والمناقشات: الأبحاث ' + research + '؛ التي سُجل إكمال مناقشتها ' +
+      defensesDone + '؛ موضوعات البحث ' + proposedTopics + '؛ طلبات الموضوعات ' +
+      topicRequests + '؛ ملاحظات مراجعة البحث ' + reviewNotes +
+      '. إكمال جلسة المناقشة لا يعني النجاح أو اعتماد التخرج.')
+  }
+  if (reviewIntent || overview) {
+    const [reviewTasks, approvedGrades, reopen, mercy, exceptional, appeals] = await Promise.all([
+      db.questionRecheckTask.count(), db.gradeApproval.count(), db.reopenAppeal.count(),
+      db.mercyRequest.count(), db.exceptionalReview.count(), db.tuitionInstallmentAppeal.count(),
+    ])
+    lines.push('الجودة والمراجعات: مهام إعادة تدقيق الأسئلة ' + reviewTasks +
+      '؛ سجلات اعتماد الدرجات ' + approvedGrades + '؛ طلبات إعادة الفتح ' + reopen +
+      '؛ طلبات الرحمة ' + mercy + '؛ المراجعات الاستثنائية ' + exceptional +
+      '؛ طلبات تقسيط الرسوم ' + appeals +
+      '. هذه إحصاءات لكل الحالات؛ لا تعتبر كل سجل منها حالة معلقة.')
+  }
   lines.push('لا تخترع بيانات لتبويب لم يرد في هذا الدليل. اطلب اسم الطالب أو البرنامج أو التبويب عند الحاجة إلى تفاصيل إضافية.')
   return lines.join('\n')
 }
