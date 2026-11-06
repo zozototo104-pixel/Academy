@@ -467,6 +467,54 @@ export function planBookOutline(chunks: readonly Chunk[], items: readonly Item[]
   return { source, sections, warnings }
 }
 
+// A chapter name like «الفصل التاسع» identifies a position, not a subject.
+// We can improve the draft with a model, but only using a verified knowledge
+// title belonging to this *same* chapter's saved chunk range.
+function isBareChapterTitle(title: string): boolean {
+  return chapterNumber(title) !== null && normalizeHeading(title) === normalizeHeading(chapterLabel(title))
+}
+
+export function applyGroundedChapterTitleProposals(
+  sections: readonly OutlineSectionDraft[],
+  chunks: readonly Chunk[],
+  items: readonly Item[],
+  chunkIds: ReadonlyMap<number, string>,
+  raw: string,
+  bookTitle: string,
+): { sections: OutlineSectionDraft[]; warnings: string[]; accepted: number } {
+  const parsed = JSON.parse(raw.replace(/^```(?:json)?\\s*/i, '').replace(/\\s*```$/, '').trim())
+  const proposals = Array.isArray(parsed?.proposals) ? parsed.proposals : []
+  const result = sections.map((section) => ({ ...section }))
+  const warnings: string[] = []
+  const used = new Set<number>()
+  let accepted = 0
+  for (const proposal of proposals) {
+    const order = proposal?.order
+    if (!Number.isInteger(order) || used.has(order)) continue
+    used.add(order)
+    const section = result.find((s) => s.order === order)
+    if (!section || !isBareChapterTitle(section.title)) continue
+    const title = clean(proposal?.title, 110)
+    const sourceItemTitle = clean(proposal?.sourceItemTitle, 120)
+    if (title.length < 7 || title.length > 95 || !usableOutlineTitle(title, bookTitle) ||
+        isBookRunningHeader(title, bookTitle) || chapterNumber(title) !== null) continue
+    const sectionIds = new Set(chunks.filter((chunk) =>
+      chunk.index >= section.chunkStartIndex && chunk.index <= section.chunkEndIndex)
+      .map((chunk) => chunkIds.get(chunk.index)).filter((id): id is string => !!id))
+    if (!items.some((item) => item.chunkId && sectionIds.has(item.chunkId) && clean(item.title, 120) === sourceItemTitle)) continue
+    const topicWords = outlineTopicWords(title)
+    const evidenceWords = outlineTopicWords(sourceItemTitle)
+    if (!topicWords.size || ![...topicWords].some((word) => evidenceWords.has(word))) continue
+    section.title = chapterLabel(section.title) + ': ' + title
+    warnings.push('OUTLINE_INFERRED_TITLE:' + JSON.stringify({
+      sectionOrder: section.order, title, sourceItemTitle,
+      pageStart: section.pageStart, pageEnd: section.pageEnd,
+    }))
+    accepted++
+  }
+  return { sections: result, warnings, accepted }
+}
+
 // ---------------------------------------------------------------------------
 // Outline coverage audit + approval guard.
 //
