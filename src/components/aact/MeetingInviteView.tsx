@@ -98,6 +98,85 @@ function formatCountdown(ms: number): string {
   return parts.join(' و')
 }
 
+// Dedicated bot station. The machine joins Zoom through the official desktop
+// client or joins the PLATFORM room as a separate peer. This panel only routes
+// meeting audio to/from Gemini Live; it is NOT a Zoom Meeting SDK bot.
+function MeetingAiVoiceControl({ basePath, provider }: { basePath: string; provider: string }) {
+  const [running, setRunning] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [voiceState, setVoiceState] = useState('IDLE')
+  const [heard, setHeard] = useState('')
+  const [spoken, setSpoken] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const agentRef = useRef<GeminiLiveAgent | null>(null)
+
+  const stop = () => {
+    agentRef.current?.stop()
+    agentRef.current = null
+    setRunning(false)
+    setVoiceState('IDLE')
+  }
+  const start = async () => {
+    if (agentRef.current || busy) return
+    setBusy(true)
+    setError(null)
+    setHeard('')
+    setSpoken('')
+    const agent = new GeminiLiveAgent({
+      sessionEndpoint: basePath,
+      sessionAction: 'voice-session',
+      meetingDataEndpoint: basePath,
+      logEndpoint: basePath,
+      logExtra: { action: 'live-turn' },
+      onState: (state) => setVoiceState(state),
+      onUserCaption: (text) => setHeard(text),
+      onAiCaption: (text) => setSpoken(text),
+      onError: (msg) => setError(msg),
+    })
+    agentRef.current = agent
+    try {
+      await agent.start()
+      setRunning(true)
+    } catch (e) {
+      agent.stop()
+      agentRef.current = null
+      setError(e instanceof Error ? e.message : 'تعذّر تشغيل المشرف الصوتي')
+    } finally {
+      setBusy(false)
+    }
+  }
+  useEffect(() => {
+    const agent = agentRef
+    return () => { agent.current?.stop(); agent.current = null }
+  }, [])
+
+  return (
+    <section className="mt-3 rounded-2xl border border-violet-300 bg-violet-50 p-4 text-right" dir="rtl" aria-label="المشارك الصوتي المستقل">
+      <p className="text-sm font-black text-violet-950">المشرف الذكي — مشارك صوتي مستقل (Gemini Live)</p>
+      <p className="mt-1 text-xs leading-relaxed text-violet-900">
+        {provider === 'ZOOM'
+          ? 'افتح اجتماع Zoom بعميل Zoom الرسمي على هذا الجهاز كمشارك مستقل باسم «المشرف الذكي — AACT». اضبط Zoom ليستقبل صوت Gemini من منفذ صوت افتراضي ويرسل صوت بقية الأعضاء إلى مدخل Gemini منفصل.'
+          : 'هذه محطة المشرف الذكي داخل غرفة WebRTC. استخدم مدخلًا افتراضيًا لصوت الأعضاء ومخرجًا افتراضيًا لصوت Gemini، واضبط الميكروفون المرسل إلى الغرفة على مخرج Gemini.'}
+        {' '}المشرف يسمع ويرد مباشرة، وليس زر تشغيل تسجيل. فعّل صوت الكمبيوتر مرة واحدة بإذن صاحب الجهاز.
+      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Button type="button" size="sm" onClick={() => void (running ? stop() : start())}
+          disabled={busy} className={running ? 'bg-red-700 text-white hover:bg-red-800' : 'bg-violet-700 text-white hover:bg-violet-800'}>
+          {busy ? 'جارٍ وصل الصوت الحي…' : running ? 'إيقاف مشاركة المشرف الذكي' : 'بدء مشاركة المشرف الذكي بصوته'}
+        </Button>
+        <span role="status" className="text-xs font-semibold text-violet-900">{running ? 'جلسة صوتية نشطة — ' + voiceState : 'غير متصل صوتياً'}</span>
+      </div>
+      {heard && <p className="mt-2 text-xs text-slate-700">الكلام المسموع (قد يحتاج تصحيحاً): {heard}</p>}
+      {spoken && <p className="mt-2 text-xs text-violet-900">مداخلة المشرف: {spoken}</p>}
+      {error && <p role="alert" className="mt-2 text-xs font-semibold text-red-700">{error}</p>}
+      <p className="mt-2 text-[11px] text-slate-600">
+        عند تشغيل المحضر، يُحفظ التفريغ بوسم «المتحدث غير محدد» ما لم تُثبت هويته.
+        تُراجع الإدارة المحضر قبل اعتماده. لا تشارك صوت الاجتماع دون موافقة الحاضرين.
+      </p>
+    </section>
+  )
+}
+
 export function MeetingInviteView({ token, inviteId }: { token?: string; inviteId?: string }) {
   const segment = token || inviteId || ''
   const basePath = token
