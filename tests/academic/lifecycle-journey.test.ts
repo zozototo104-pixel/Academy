@@ -54,6 +54,12 @@ function fakeOutboxWorld() {
         }
         return row
       },
+      updateMany: async ({ where, data }: any) => {
+        const row = outboxRows.find((r) => r.id === where.id && r.status === where.status)
+        if (!row) return { count: 0 }
+        Object.assign(row, data)
+        return { count: 1 }
+      },
     },
     user: {
       findUnique: async ({ where }: any) => ({ id: where.id, email: `${where.id}@example.com`, name: 'طالب' }),
