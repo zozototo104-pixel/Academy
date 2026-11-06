@@ -619,7 +619,8 @@ export class GeminiLiveAgent {
     }
     if (msg.setupComplete) return true
     if (msg.toolCall) {
-      void this.handleBookSearchToolCall(msg.toolCall)
+      if (this.cb.meetingDataEndpoint) void this.handleMeetingQueryToolCall(msg.toolCall)
+      else void this.handleBookSearchToolCall(msg.toolCall)
       return false
     }
 
