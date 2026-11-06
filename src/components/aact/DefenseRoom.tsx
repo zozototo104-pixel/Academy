@@ -111,7 +111,9 @@ function parseCommitteeNames(raw?: string | null): string[] {
     if (Array.isArray(parsed)) return parsed.map((x) => safeText(x)).filter(Boolean).slice(0, 10)
     if (typeof parsed === 'string') return parsed.split(/[,،\n]/).map((x) => x.trim()).filter(Boolean).slice(0, 10)
     if (parsed && typeof parsed === 'object') return Object.values(parsed).map((x) => safeText(x)).filter(Boolean).slice(0, 10)
-  } catch {}
+  } catch {
+    // Legacy committee names may be plain comma-separated text, not JSON.
+  }
   return raw.split(/[,،\n]/).map((x) => x.trim()).filter(Boolean).slice(0, 10)
 }
 
