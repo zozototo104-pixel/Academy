@@ -490,7 +490,665 @@ function NotificationBell({ mobile = false }: { mobile?: boolean } = {}) {
       // Historical admin chat links use a colon separator, not an HTTP URL.
       // URL() treats "admin-messages:..." as a custom scheme and sends the
       // browser nowhere; route it internally to its actual thread instead.
-      const message = user?.role === 'ADMIN' ? rawLink.match(/^\\/?admin-messages:([a-z0-9_-]{3,128})$/i) : null
+      const message = user?.role === 'ADMIN' ? rawLink.match(new RegExp('^/?admin-messages:([a-z0-9_-]{3,128}) : null
+      if (message) {
+        navigate('admin' as any, { tab: 'admin-messages' })
+        dispatchAdminTab('admin-messages', { admissionId: message[1] })
+        return true
+      }
+      const url = new URL(rawLink, window.location.origin)
+      // Links stored in notifications are data, never executable protocols.
+      if (!['http:', 'https:'].includes(url.protocol)) return false
+      if (url.origin !== window.location.origin) {
+        window.location.assign(url.href)
+        return true
+      }
+      const params = url.searchParams
+      const parts = url.pathname.split('/').filter(Boolean).map((p) => decodeURIComponent(p))
+      const legacyView = params.get('view') || ''
+      const first = parts[0] || ''
+      const second = parts[1] || ''
+      const third = parts[2] || ''
+      const routeParams = Object.fromEntries(params.entries())
+
+      if (first === 'admin' && second === 'students' && third) {
+        navigate('student-preview' as any, { studentId: third })
+        return true
+      }
+      if (first === 'admin' && second === 'agents' && third) {
+        navigate('agent-preview' as any, { agentId: third })
+        return true
+      }
+      if (first === 'dashboard' && second === 'program' && third) {
+        navigate('dashboard' as any, { ...routeParams, programId: third })
+        return true
+      }
+      if (first === 'programs' && second) {
+        navigate('program-detail' as any, { program: second })
+        return true
+      }
+
+      const view = viewLinks.has(legacyView) ? legacyView : viewLinks.has(first) ? first : rawLink.replace(/^\?view=/, '').replace(/^\//, '').split(/[?#&]/)[0]
+      if (viewLinks.has(view)) {
+        const adminTab = view === 'admin' ? adminTabForNotification(n, params) : null
+        navigate(view as any, adminTab ? { ...routeParams, tab: adminTab } : routeParams)
+        if (adminTab) dispatchAdminTab(adminTab, routeParams)
+        return true
+      }
+
+      if (rawLink.startsWith('/') || rawLink.startsWith('?')) {
+        window.location.assign(rawLink)
+        return true
+      }
+    }
+
+    const adminTab = user?.role === 'ADMIN' ? adminTabForNotification(n) : null
+    if (adminTab) {
+      navigate('admin' as any, { tab: adminTab })
+      dispatchAdminTab(adminTab)
+      return true
+    }
+    if (user?.role === 'SUPERVISOR') {
+      navigate('supervisor' as any)
+      return true
+    }
+    if (user?.role === 'STUDENT') {
+      navigate('dashboard' as any)
+      return true
+    }
+    return false
+  }
+
+  const openNotification = async (n: Notif) => {
+    closeBell()
+    if (mobile) setMobileMenuOpen(false)
+    if (!n.read) {
+      unreadRef.current = Math.max(0, unreadRef.current - 1)
+      setUnread((v) => Math.max(0, v - 1))
+      itemsRef.current = itemsRef.current.map((item) => item.id === n.id ? { ...item, read: true } : item)
+      setItems(itemsRef.current)
+      api('/api/notifications', { method: 'PATCH', body: JSON.stringify({ id: n.id }) }).then(load).catch((error) => { console.warn('Failed to mark notification as read.', error) })
+    }
+    try { routeNotificationLink(n) } catch (error) { console.warn('Failed to route notification link.', error) }
+  }
+
+  return (
+    <div className={mobile ? 'w-full' : 'relative'}>
+      <button
+        onClick={() => {
+          if (open) { closeBell(); return }
+          setOpen(true)
+          load()
+          scheduleMarkSeen()
+        }}
+        className={mobile ? 'mt-2 flex w-full items-center justify-between rounded-lg bg-white/5 px-4 py-2.5 text-right text-sm font-bold text-white hover:bg-white/10' : 'relative rounded-lg p-2 text-[#f5f0e1] hover:bg-white/10'}
+        aria-label="الإشعارات"
+        aria-expanded={open}
+      >
+        {mobile ? <span className="flex items-center gap-2"><Bell className="h-4 w-4 text-[#d2ad5a]" /> الإشعارات</span> : (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
+        {unread > 0 && (
+          <span className={mobile ? 'flex h-5 min-w-5 items-center justify-center rounded-full bg-[#b22234] px-1 text-[10px] font-black text-white' : 'absolute -left-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#b22234] px-1 text-[10px] font-black text-white'}>
+            {unread > 9 ? '9+' : unread}
+          </span>
+        )}
+      </button>
+      {open && (
+        <>
+          {!mobile && <div className="fixed inset-0 z-40" onClick={closeBell} />}
+          <div className={mobile ? 'relative z-50 mt-2 w-full overflow-hidden rounded-2xl border border-[#c9a227]/30 bg-white shadow-2xl' : 'absolute left-0 z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-[#c9a227]/30 bg-white shadow-2xl'}>
+            <div className="flex items-center justify-between border-b border-slate-100 bg-[#f7edd0]/60 px-4 py-3">
+              <span className="text-sm font-black text-[#0f2b46]">الإشعارات</span>
+              {unread > 0 && (
+                <button onClick={markAll} className="text-[11px] font-bold text-[#a8841a] hover:underline">
+                  تحديد الكل كمقروء
+                </button>
+              )}
+            </div>
+            <div className="aact-scroll max-h-80 overflow-y-auto">
+              {items.length === 0 ? (
+                <div className="p-6 text-center text-xs text-slate-400">لا توجد إشعارات بعد</div>
+              ) : (
+                items.map((n) => (
+                  <button
+                    key={n.id}
+                    onClick={() => openNotification(n)}
+                    className={`block w-full border-b border-slate-50 px-4 py-3 text-right transition-colors hover:bg-[#f7edd0]/40 ${
+                      n.read ? '' : 'bg-[#c9a227]/5'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-black text-[#0f2b46]">{n.title}</span>
+                      {!n.read && <span className="h-2 w-2 shrink-0 rounded-full bg-[#b22234]" />}
+                    </div>
+                    <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-slate-500">{n.body}</p>
+                    <span className="mt-1 block text-[10px] text-slate-300">
+                      {new Date(n.createdAt).toLocaleDateString('ar-EG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+export function Header() {
+  const { user, setUser, navigate, view, mobileMenuOpen, setMobileMenuOpen } = useAppStore()
+  const [profileOpen, setProfileOpen] = useState(false)
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false)
+  const canUseStudentPortal = user?.role === 'STUDENT'
+
+  // ===== التنقل العلمي: العناصر مجمعة في مجموعات وظيفية واضحة =====
+  type NavItem = { label: string; target: any; desc: string; path?: string }
+  const studentItems: NavItem[] = [
+    { label: 'بوابة الطالب', target: 'dashboard', desc: 'برامجك، دفعاتك، بحثك، شهاداتك' },
+    { label: 'الوكيل/المشرف الذكي', target: 'chat', desc: 'محادثة نصية وصوتية حية' },
+  ]
+  const academyItems: NavItem[] = [
+    { label: 'التراخيص والوثائق الرسمية', target: 'accreditation', path: '/accreditation', desc: 'وثائق الترخيص والشراكات وروابط التحقق الرسمية' },
+    { label: 'الوكالة والاعتماد', target: 'agent', path: '/agent', desc: 'تمثيل دولي واعتماد مؤسسات' },
+    { label: 'دليل المعتمدين', target: 'directory', desc: 'وكلاء ومستشارون معتمدون' },
+    { label: 'تواصل معنا', target: 'contact', desc: 'استفسارات ودعم' },
+  ]
+
+  useEffect(() => {
+    setProfileOpen(false)
+  }, [view])
+
+  const isActiveGroup = (targets: any[]) => targets.includes(view)
+  const goMobile = (target: any) => {
+    setMobileMenuOpen(false)
+    setProfileOpen(false)
+    navigate(target)
+  }
+
+  // علامة الإشعارات على الموبايل (إصلاح 2026-10-30): عدّاد خفيف لقائمة الهاتف
+  // حتى يرى المستخدم غير المقروء قبل فتح أي شيء — الجرس وحده لم يكن يصله هناك.
+  const [mobileUnread, setMobileUnread] = useState(0)
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    const tick = () => { api<{ unread: number }>('/api/notifications').then((d) => { if (!cancelled) setMobileUnread(d.unread || 0) }).catch(() => {}) }
+    tick()
+    const t = setInterval(tick, 30000)
+    return () => { cancelled = true; clearInterval(t) }
+  }, [user])
+
+  const openMobileNotifications = () => {
+    setMobileMenuOpen(false)
+    setProfileOpen(false)
+    if (user?.role === 'STUDENT') {
+      navigate('dashboard' as any)
+      ;[80, 250, 600, 1100].forEach((delay) => {
+        window.setTimeout(() => window.dispatchEvent(new CustomEvent('aact:dashboard-tab', { detail: { tab: 'notifications' } })), delay)
+      })
+    } else if (user?.role === 'ADMIN') {
+      navigate('admin' as any)
+    } else if (user?.role === 'SUPERVISOR') {
+      navigate('supervisor' as any)
+    }
+  }
+
+  const GroupMenu = ({ label, items, groupTargets, gold }: { label: string; items: NavItem[]; groupTargets: any[]; gold?: boolean }) => {
+    const [open, setOpen] = useState(false)
+    const active = isActiveGroup(groupTargets)
+    return (
+      <div className="relative" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+        <button
+          onClick={() => setOpen(true)}
+          className={`flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
+            active ? 'text-[#e0b83a]' : 'text-[#f5f0e1]/85 hover:bg-white/10 hover:text-[#f5f0e1]'
+          }`}
+        >
+          {label}
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
+        </button>
+        {open && (
+          <div className="absolute right-0 top-full z-50 w-72 pt-1">
+            <div className="overflow-hidden rounded-xl border border-[#c9a227]/25 bg-white shadow-2xl">
+              {items.map((it) => (
+                <button
+                  key={it.target}
+                  onClick={() => {
+                    setOpen(false)
+                    if (it.path) window.location.assign(it.path)
+                    else navigate(it.target)
+                  }}
+                  className={`block w-full border-b border-slate-100 px-4 py-3 text-right transition-colors last:border-0 hover:bg-[#f7edd0]/60 ${view === it.target ? 'bg-[#f7edd0]' : ''}`}
+                >
+                  <span className={`block text-sm font-black ${view === it.target || gold ? 'text-[#a8841a]' : 'text-[#0f2b46]'}`}>{it.label}</span>
+                  <span className="block text-[10px] leading-relaxed text-slate-400">{it.desc}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <header className="sticky top-0 z-50 border-b-4 border-[#bf1646] bg-[#1d2947]/97 shadow-[0_10px_35px_-25px_rgba(0,0,0,0.55)] backdrop-blur supports-[backdrop-filter]:bg-[#1d2947]/92">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-2 px-3 sm:h-20 sm:gap-3 sm:px-4">
+        <button
+          onClick={() => navigate('home')}
+          className="flex items-center gap-2.5 text-right"
+          aria-label="الصفحة الرئيسية"
+        >
+          <AcademyLogo size={36} />
+          <div className="min-w-0 leading-tight">
+            <div className="max-w-[190px] truncate text-[12px] font-extrabold text-[#f5f0e1] sm:max-w-none sm:text-sm">
+              الأكاديمية الأمريكية
+            </div>
+            <div className="text-[10px] font-semibold tracking-[0.08em] text-[#d2ad5a] sm:text-[11px]">
+              للاستشارات والتدريب — EST. 2016
+            </div>
+          </div>
+        </button>
+
+        {/* Desktop nav — تنظيم علمي: مسار عام ← مسار الطالب ← مسار الأكاديمية */}
+        <nav className="hidden items-center gap-0.5 lg:flex" aria-label="التنقل الرئيسي">
+          <button
+            onClick={() => navigate('home')}
+            className={`rounded-full px-3.5 py-2 text-sm font-black transition-colors ${
+              view === 'home' ? 'bg-[#bf1646] text-white shadow-lg shadow-[#bf1646]/20' : 'text-white/86 hover:bg-white/10 hover:text-white'
+            }`}
+          >
+            الرئيسية
+          </button>
+          <button
+            onClick={() => navigate('programs')}
+            className={`rounded-full px-3.5 py-2 text-sm font-black transition-colors ${
+              (view === 'programs' || view === 'program-detail') ? 'bg-[#bf1646] text-white shadow-lg shadow-[#bf1646]/20' : 'text-white/86 hover:bg-white/10 hover:text-white'
+            }`}
+          >
+            البرامج والخدمات
+          </button>
+          <button
+            onClick={() => navigate('verify')}
+            className={`rounded-full px-3.5 py-2 text-sm font-black transition-colors ${
+              view === 'verify' ? 'bg-[#bf1646] text-white shadow-lg shadow-[#bf1646]/20' : 'text-white/86 hover:bg-white/10 hover:text-white'
+            }`}
+          >
+            الشهادات
+          </button>
+          <button
+            onClick={() => window.location.assign('/representatives')}
+            className="rounded-full px-3.5 py-2 text-sm font-black text-white/86 transition-colors hover:bg-white/10 hover:text-white"
+          >
+            ممثلو الدول
+          </button>
+          <button
+            onClick={() => navigate('about')}
+            className={`rounded-full px-3.5 py-2 text-sm font-black transition-colors ${
+              view === 'about' ? 'bg-[#bf1646] text-white shadow-lg shadow-[#bf1646]/20' : 'text-white/86 hover:bg-white/10 hover:text-white'
+            }`}
+          >
+            من نحن
+          </button>
+          <button
+            onClick={() => navigate('apply')}
+            className={`rounded-full px-3.5 py-2 text-sm font-black transition-colors ${
+              view === 'apply' ? 'bg-[#bf1646] text-white shadow-lg shadow-[#bf1646]/20' : 'text-white/86 hover:bg-white/10 hover:text-white'
+            }`}
+          >
+            طلب الالتحاق
+          </button>
+          {canUseStudentPortal && <GroupMenu label="بوابة الدراسة" items={studentItems} groupTargets={['dashboard', 'chat', 'unit', 'exam']} />}
+          {user?.role === 'SUPERVISOR' && (
+            <button
+              onClick={() => navigate('supervisor')}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
+                view === 'supervisor' ? 'bg-[#c9a227] text-[#0f2b46]' : 'text-[#f5f0e1]/85 hover:bg-white/10 hover:text-[#f5f0e1]'
+              }`}
+              title="الطلاب والأبحاث المعيّنة لك كمشرف بشري"
+            >
+              <Users2 className="h-4 w-4" />
+              طلابي تحت الإشراف
+            </button>
+          )}
+          {user && !canUseStudentPortal && (
+            <button
+              onClick={() => navigate('chat')}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
+                view === 'chat' ? 'bg-[#c9a227] text-[#0f2b46]' : 'text-[#f5f0e1]/85 hover:bg-white/10 hover:text-[#f5f0e1]'
+              }`}
+              title="الوكيل الذكي المتكامل للمنصة"
+            >
+              <Bot className="h-4 w-4" />
+              الوكيل الذكي
+            </button>
+          )}
+          <GroupMenu label="الاعتمادات والعضويات" items={academyItems} groupTargets={['agent', 'directory', 'contact']} />
+          {user?.role === 'ADMIN' && (
+            <button
+              onClick={() => navigate('admin')}
+              className={`flex items-center gap-1.5 rounded-lg border-2 border-[#c9a227] px-3 py-1.5 text-sm font-black shadow transition-colors ${
+                view === 'admin' ? 'bg-[#f5f0e1] text-[#0f2b46]' : 'bg-[#c9a227] text-[#0f2b46] hover:bg-[#e0b83a]'
+              }`}
+              title="إدارة طلبات الالتحاق والطلاب والمالية والامتحانات"
+            >
+              <ShieldCheck className="h-4 w-4" />
+              لوحة الإدارة
+            </button>
+          )}
+          {user ? (
+            <div className="mr-2 flex items-center gap-2 border-r border-white/15 pr-3">
+              <NotificationBell />
+              <UrgentMessageAlert />
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setProfileOpen((v) => !v)}
+                  className="flex items-center gap-2 rounded-xl px-2 py-1.5 text-left leading-tight transition-colors hover:bg-white/10"
+                  aria-label="فتح الملف الشخصي المختصر"
+                  aria-expanded={profileOpen}
+                >
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#c9a227]/18 text-[#e0b83a]"><UserRound className="h-4 w-4" /></span>
+                  <span className="hidden sm:block">
+                    <span className="block max-w-[120px] truncate text-xs font-bold text-[#f5f0e1]">{user.name}</span>
+                    <span className="block text-[10px] text-[#c9a227]">مرحباً بك مجدداً</span>
+                  </span>
+                </button>
+                {profileOpen && (
+                  <div className="absolute left-0 top-full z-50 mt-2 w-72 overflow-hidden rounded-2xl border border-[#c9a227]/25 bg-white text-right shadow-2xl" dir="rtl">
+                    <div className="bg-gradient-to-l from-[#0f2b46] to-[#1d2947] px-4 py-3 text-white">
+                      <div className="flex items-center gap-2">
+                        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#c9a227]/20 text-[#e0b83a]"><UserRound className="h-5 w-5" /></span>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-black">{user.name}</p>
+                          <p className="text-[10px] font-bold text-[#d2ad5a]">{user.role === 'ADMIN' ? 'مدير نظام' : user.role === 'SUPERVISOR' ? 'مشرف أكاديمي' : 'طالب / عميل'}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-2 p-3 text-xs font-bold text-slate-600">
+                      <p className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2" dir="ltr"><Mail className="h-3.5 w-3.5 text-[#a8841a]" /> <span className="truncate">{user.email}</span></p>
+                      <button onClick={() => { setProfileOpen(false); setEmailDialogOpen(true) }} className="w-full rounded-xl border border-[#c9a227]/30 px-3 py-2 text-[11px] font-black text-[#a8841a] hover:bg-[#f7edd0]/45">إعدادات البريد الإلكتروني</button>
+                      {user.country && <p className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2"><Globe2 className="h-3.5 w-3.5 text-[#a8841a]" /> {user.country}</p>}
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        {canUseStudentPortal && (
+                          <button onClick={() => { setProfileOpen(false); navigate('dashboard') }} className="rounded-xl bg-[#0f2b46] px-3 py-2 text-[11px] font-black text-white hover:bg-[#12365c]">بوابة الطالب</button>
+                        )}
+                        <button onClick={() => { setProfileOpen(false); navigate('apply') }} className="rounded-xl border border-[#c9a227]/30 px-3 py-2 text-[11px] font-black text-[#a8841a] hover:bg-[#f7edd0]/45">تتبع الطلبات</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={async () => {
+                  await api('/api/auth/logout', { method: 'POST' }).catch(() => {})
+                  clearToken()
+                  setUser(null)
+                  navigate('home')
+                }}
+                className="rounded-lg border border-white/25 px-3 py-1.5 text-xs font-bold text-[#f5f0e1] hover:bg-white/10"
+              >
+                خروج
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => navigate('auth')}
+              className="mr-2 rounded-full bg-[#bf1646] px-5 py-2 text-sm font-extrabold text-white shadow-lg shadow-[#bf1646]/25 hover:bg-[#a61139]"
+            >
+              دخول / تسجيل
+            </button>
+          )}
+        </nav>
+
+        {/* Mobile menu button */}
+        <button
+          className="rounded-lg p-2 text-[#f5f0e1] hover:bg-white/10 lg:hidden"
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          aria-label="القائمة"
+          aria-expanded={mobileMenuOpen}
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            {mobileMenuOpen ? (
+              <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
+            ) : (
+              <path d="M4 7h16M4 12h16M4 17h16" strokeLinecap="round" />
+            )}
+          </svg>
+        </button>
+      </div>
+
+      {/* Mobile nav — مجمعة بعناوين أقسام واضحة */}
+      {mobileMenuOpen && (
+        <div className="max-h-[calc(100dvh-4rem)] overflow-y-auto border-t border-white/10 bg-[#1d2947] px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-2 shadow-2xl lg:hidden">
+          <div className="flex flex-col gap-1">
+            {user?.role === 'ADMIN' ? (
+              <NotificationBell mobile />
+            ) : user && (
+              <button
+                onClick={openMobileNotifications}
+                className="mt-2 flex items-center justify-between rounded-lg bg-white/5 px-4 py-2.5 text-right text-sm font-bold text-white/92 hover:bg-white/10"
+              >
+                <span className="flex items-center gap-2"><Bell className="h-4 w-4 text-[#d2ad5a]" /> الإشعارات</span>
+                {mobileUnread > 0 && (
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#b22234] px-1 text-[10px] font-black text-white">
+                    {mobileUnread > 9 ? '9+' : mobileUnread}
+                  </span>
+                )}
+              </button>
+            )}
+            <p className="mb-1 mt-2 text-[10px] font-black text-[#d2ad5a]/75">القائمة الرئيسية</p>
+            {[
+              { label: 'الرئيسية', target: 'home' as const },
+              { label: 'البرامج والخدمات', target: 'programs' as const },
+              { label: 'الشهادات والتحقق', target: 'verify' as const },
+              { label: 'ممثلو الدول', target: 'representatives' as any },
+              { label: 'من نحن', target: 'about' as const },
+              { label: 'طلب الالتحاق وتتبعه', target: 'apply' as const },
+            ].map((n) => (
+              <button
+                key={n.target}
+                onClick={() => {
+                  if (n.target === 'representatives') {
+                    setMobileMenuOpen(false)
+                    window.location.assign('/representatives')
+                    return
+                  }
+                  goMobile(n.target)
+                }}
+                className={`rounded-lg px-4 py-2.5 text-right text-sm font-bold ${
+                  (view === n.target || (n.target === 'programs' && view === 'program-detail')) ? 'bg-[#bf1646] text-white shadow-lg shadow-[#bf1646]/20' : 'text-white/88 hover:bg-white/10'
+                }`}
+              >
+                {n.label}
+              </button>
+            ))}
+            {canUseStudentPortal && (
+              <>
+                <p className="mb-1 mt-3 text-[10px] font-black text-[#c9a227]/70">بوابة الدراسة</p>
+                {studentItems.map((n) => (
+                  <button
+                    key={n.target}
+                    onClick={() => goMobile(n.target)}
+                    className={`rounded-lg px-4 py-2.5 text-right text-sm font-bold ${
+                      view === n.target ? 'bg-[#bf1646] text-white shadow-lg shadow-[#bf1646]/20' : 'text-white/88 hover:bg-white/10'
+                    }`}
+                  >
+                    {n.label}
+                  </button>
+                ))}
+              </>
+            )}
+            {user?.role === 'SUPERVISOR' && (
+              <button
+                onClick={() => goMobile('supervisor')}
+                className={`mt-2 flex items-center gap-2 rounded-lg px-4 py-3 text-right text-sm font-black ${
+                  view === 'supervisor' ? 'bg-[#bf1646] text-white shadow-lg shadow-[#bf1646]/20' : 'text-white/88 hover:bg-white/10'
+                }`}
+              >
+                <Users2 className="h-4 w-4" />
+                طلابي تحت الإشراف
+              </button>
+            )}
+            {user && !canUseStudentPortal && (
+              <button
+                onClick={() => goMobile('chat')}
+                className={`mt-2 flex items-center gap-2 rounded-lg px-4 py-3 text-right text-sm font-black ${
+                  view === 'chat' ? 'bg-[#bf1646] text-white shadow-lg shadow-[#bf1646]/20' : 'text-white/88 hover:bg-white/10'
+                }`}
+              >
+                <Bot className="h-4 w-4" />
+                الوكيل الذكي المتكامل
+              </button>
+            )}
+            <p className="mb-1 mt-3 text-[10px] font-black text-[#d2ad5a]/80">الاعتمادات والعضويات</p>
+            {academyItems.map((n) => (
+              <button
+                key={n.target}
+                onClick={() => {
+                  if (n.path) {
+                    setMobileMenuOpen(false)
+                    setProfileOpen(false)
+                    window.location.assign(n.path)
+                    return
+                  }
+                  goMobile(n.target)
+                }}
+                className={`rounded-lg px-4 py-2.5 text-right text-sm font-bold ${
+                  view === n.target ? 'bg-[#bf1646] text-white shadow-lg shadow-[#bf1646]/20' : 'text-white/88 hover:bg-white/10'
+                }`}
+              >
+                {n.label}
+              </button>
+            ))}
+            {user?.role === 'ADMIN' && (
+              <button
+                onClick={() => goMobile('admin')}
+                className={`mt-2 flex items-center gap-2 rounded-lg bg-[#bf1646] px-4 py-3 text-right text-sm font-black text-white shadow-lg shadow-[#bf1646]/20 ${
+                  view === 'admin' ? 'ring-2 ring-white/45' : ''
+                }`}
+              >
+                <ShieldCheck className="h-4 w-4" />
+                لوحة الإدارة — طلبات الالتحاق والطلاب والمالية
+              </button>
+            )}
+            {user ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => goMobile(user.role === 'STUDENT' ? 'dashboard' : user.role === 'ADMIN' ? 'admin' : 'supervisor')}
+                  className="mt-3 rounded-xl border border-[#c9a227]/35 bg-white/8 px-4 py-3 text-right text-sm font-bold text-[#f5f0e1] hover:bg-white/12"
+                >
+                  <span className="flex items-center gap-2"><UserRound className="h-4 w-4 text-[#e0b83a]" /> {user.name}</span>
+                  <span className="mt-1 block text-[10px] font-semibold text-[#d2ad5a]" dir="ltr">{user.email}</span>
+                </button>
+                <button
+                  onClick={async () => {
+                    await api('/api/auth/logout', { method: 'POST' }).catch(() => {})
+                    clearToken()
+                    setUser(null)
+                    goMobile('home')
+                  }}
+                  className="mt-2 rounded-lg border border-white/25 px-4 py-3 text-right text-sm font-bold text-[#f5f0e1] hover:bg-white/10"
+                >
+                  تسجيل الخروج
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => goMobile('auth')}
+                className="mt-2 rounded-lg bg-[#bf1646] px-4 py-3 text-sm font-extrabold text-white shadow-lg shadow-[#bf1646]/20"
+              >
+                دخول / تسجيل
+              </button>
+            )}
+
+          </div>
+        </div>
+      )}
+      {emailDialogOpen && <AccountEmailDialog open onClose={() => setEmailDialogOpen(false)} />}
+    </header>
+  )
+}
+
+export function Footer() {
+  const { navigate } = useAppStore()
+  const [officialContact, setOfficialContact] = useState<ShellOfficialContact>(EMPTY_OFFICIAL_CONTACT)
+
+  useEffect(() => {
+    api<{ values?: Record<string, string> }>('/api/settings')
+      .then((data) => setOfficialContact(parseOfficialContact(data.values?.OFFICIAL_CONTACT)))
+      .catch(() => setOfficialContact(EMPTY_OFFICIAL_CONTACT))
+  }, [])
+
+  const legalEntity = officialContact.legalEntity || 'الأكاديمية الأمريكية للاستشارات والتدريب'
+
+  return (
+    <footer className="mt-auto border-t border-[#c9a227]/25 bg-[#0a1f36] text-[#f5f0e1]">
+      <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:grid-cols-2 lg:grid-cols-4">
+        <div>
+          <div className="mb-3 flex items-center gap-2">
+            <AcademyLogo size={38} />
+            <div className="text-sm font-extrabold">{legalEntity}</div>
+          </div>
+          <p className="text-xs leading-relaxed text-[#f5f0e1]/70">
+            بناء القيادات، صقل المهارات. منصة مهنية للدبلومات المهنية والدرجات
+            المهنية واعتماد المستشارين والمدربين ومراكز التدريب.
+          </p>
+        </div>
+        <div>
+          <h4 className="mb-3 text-sm font-extrabold text-[#c9a227]">روابط سريعة</h4>
+          <ul className="space-y-2 text-xs font-semibold text-[#f5f0e1]/80">
+            <li><button className="hover:text-[#c9a227]" onClick={() => navigate('programs')}>البرامج والخدمات</button></li>
+            <li><button className="hover:text-[#c9a227]" onClick={() => navigate('verify')}>الشهادات والتحقق</button></li>
+            <li><button className="hover:text-[#c9a227]" onClick={() => window.location.assign('/accreditation')}>التراخيص والوثائق الرسمية</button></li>
+            <li><button className="hover:text-[#c9a227]" onClick={() => navigate('about')}>من نحن</button></li>
+            <li><button className="hover:text-[#c9a227]" onClick={() => navigate('apply')}>طلب الالتحاق وتتبعه</button></li>
+            <li><button className="hover:text-[#c9a227]" onClick={() => window.location.assign('/agent')}>الوكالة الدولية والاعتمادات</button></li>
+            <li><button className="hover:text-[#c9a227]" onClick={() => navigate('directory')}>دليل المعتمدين والوكلاء</button></li>
+            <li><button className="hover:text-[#c9a227]" onClick={() => window.location.assign('/representatives')}>ممثلو الأكاديمية في الدول</button></li>
+            <li><button className="hover:text-[#c9a227]" onClick={() => navigate('verify')}>التحقق من صحة الشهادات</button></li>
+            <li><button className="hover:text-[#c9a227]" onClick={() => navigate('contact')}>تواصل معنا</button></li>
+            <li><button className="hover:text-[#c9a227]" onClick={() => navigate('auth')}>التسجيل في الأكاديمية</button></li>
+          </ul>
+        </div>
+        <div>
+          <h4 className="mb-3 text-sm font-extrabold text-[#c9a227]">تواصل معنا</h4>
+          <ul className="space-y-2 text-xs font-semibold text-[#f5f0e1]/80">
+            {officialContact.address && <li>{officialContact.address}</li>}
+            {officialContact.phones.map((phone, index) => (
+              <li key={`phone-${phone}`} dir="ltr" className="text-right">{index === 0 ? 'الهاتف الرسمي' : `هاتف رسمي إضافي ${index + 1}`}: {phone}</li>
+            ))}
+            {officialContact.whatsapps.map((whatsapp, index) => (
+              <li key={`whatsapp-${whatsapp}`} dir="ltr" className="text-right">{index === 0 ? 'واتساب رسمي' : `واتساب رسمي إضافي ${index + 1}`}: {whatsapp}</li>
+            ))}
+            {officialContact.email && <li dir="ltr" className="text-right">البريد الرسمي: {officialContact.email}</li>}
+            {officialContact.responsiblePerson && <li>مسؤول التواصل: {officialContact.responsiblePerson}</li>}
+            {!officialContact.address && !officialContact.email && officialContact.phones.length === 0 && officialContact.whatsapps.length === 0 && (
+              <li>بيانات التواصل الرسمية تُضبط من إعدادات الأكاديمية.</li>
+            )}
+            <li>بناء القيادات، صقل المهارات</li>
+            <li>Building Leaders, Refining Skills</li>
+          </ul>
+        </div>
+        <div>
+          <h4 className="mb-3 text-sm font-extrabold text-[#c9a227]">ثقة الأكاديمية</h4>
+          <p className="text-xs leading-relaxed text-[#f5f0e1]/70">
+            الشهادات تُصدر خلال 30 يوماً من استلام كشوف الدرجات والرسوم المقررة، وهي شهادات معتمدة دولياً.
+          </p>
+        </div>
+      </div>
+      <div className="border-t border-white/10 py-4 text-center text-[11px] text-[#f5f0e1]/60">
+        © {new Date().getFullYear()} American Academy for Consulting and Training — جميع الحقوق محفوظة
+      </div>
+    </footer>
+  )
+}
+, 'i')) : null
       if (message) {
         navigate('admin' as any, { tab: 'admin-messages' })
         dispatchAdminTab('admin-messages', { admissionId: message[1] })
