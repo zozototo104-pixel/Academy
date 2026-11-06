@@ -921,6 +921,69 @@ describe('meeting AI academy evidence is admin-only and current', () => {
     expect(result).toContain('أكثر من سجل')
   })
 
+  test('focused Whatsapp inquiry does not trigger unrelated student or program queries', async () => {
+    const count = async () => 7
+    const fake: any = {
+      contactMessage: { count }, humanHandoffRequest: { count },
+      whatsAppConversation: { count }, whatsAppConversationMessage: { count },
+      notification: { count }, notificationOutbox: { count }, emailLog: { count },
+      studentFollowUpLog: { count }, supervisorChannelMessage: { count },
+      user: { count: () => { throw new Error('UNRELATED_STUDENT_QUERY') } },
+      program: { findMany: () => { throw new Error('UNRELATED_PROGRAM_QUERY') } },
+    }
+    const result = await collectMeetingAcademyEvidence(fake, 'ما وضع محادثات واتساب؟', { role: 'ADMIN' })
+    expect(result).toContain('محادثات واتساب المسجلة 7')
+    expect(result).toContain('رسائل واتساب المسجلة 7')
+    expect(result).not.toContain('حسابات الطلاب النشطة')
+  })
+
+  test('financial evidence groups actual paid amounts by currency, not mixed revenues', async () => {
+    const fake: any = {
+      payment: {
+        count: async () => 8,
+        groupBy: async () => [
+          { currency: 'USD', _sum: { amount: 100 }, _count: { _all: 2 } },
+          { currency: 'EUR', _sum: { amount: 80 }, _count: { _all: 1 } },
+        ],
+      },
+      paymentWaiverCode: { count: async () => 1 },
+      paymentProof: { count: async () => 2 },
+      revenueShareTransaction: { count: async () => 3 },
+    }
+    const result = await collectMeetingAcademyEvidence(fake, 'كم الإيرادات حسب العملة؟', { role: 'ADMIN' })
+    expect(result).toContain('USD: 100 (2 سجل)')
+    expect(result).toContain('EUR: 80 (1 سجل)')
+    expect(result).toContain('ليست أرباحًا صافية')
+  })
+
+  test('admissions questions can read latest applications without unrelated areas', async () => {
+    const fake: any = {
+      admissionApplication: {
+        count: async () => 5,
+        findMany: async () => [
+          { reference: 'A-1', fullName: 'أحمد', program: 'إدارة الأعمال', status: 'UNDER_REVIEW' },
+        ],
+      },
+      serviceDeliverable: { count: async () => 1 },
+    }
+    const result = await collectMeetingAcademyEvidence(fake, 'آخر طلبات القبول', { role: 'ADMIN' })
+    expect(result).toContain('جميع طلبات القبول/الخدمات 5')
+    expect(result).toContain('A-1، أحمد، إدارة الأعمال، UNDER_REVIEW')
+  })
+
+  test('named student certificate query does not mix with another student', async () => {
+    const fake: any = {
+      user: { findMany: async () => [{ id: 's-1', name: 'جميل ناصر', status: 'ACTIVE' }] },
+      enrollment: { findMany: async () => [] },
+      certificate: { findMany: async () => [
+        { serial: 'CERT-1', valid: true, revokedAt: null, program: 'الماجستير' },
+      ] },
+    }
+    const result = await collectMeetingAcademyEvidence(fake, 'شهادات الطالب جميل ناصر', { role: 'ADMIN' })
+    expect(result).toContain('CERT-1')
+    expect(result).toContain('الصلاحية سارية')
+  })
+
   test('database failures propagate instead of converting to zero or fabricated answers', async () => {
     const fake: any = { user: { count: async () => { throw new Error('DB_OFFLINE') } },
       enrollment: { count: async () => 0 }, examAttempt: { count: async () => 0 },
