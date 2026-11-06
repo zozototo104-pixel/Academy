@@ -34,6 +34,16 @@ function firstLiveUsage() {
 
 const db: any = {
   $transaction: async (work: (tx: any) => Promise<any>) => work(db),
+  // The live-usage engine now acquires row locks before reserve/settle.
+  // This single-threaded fake acknowledges only the supported FOR UPDATE
+  // locks; concurrent accounting is covered separately in live-usage-binding.
+  $queryRaw: async (strings: TemplateStringsArray) => {
+    const sql = strings.join('?')
+    if (!sql.includes('FOR UPDATE') || !/FROM "(User|AiLiveUsage|AiLiveSession)"/.test(sql)) {
+      throw new Error('Unexpected SQL in AI D1 test database')
+    }
+    return []
+  },
   setting: {
     findUnique: async ({ where }: any) => settings.has(where.key) ? { key: where.key, value: settings.get(where.key) } : null,
     findMany: async () => [],
