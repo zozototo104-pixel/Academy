@@ -50,14 +50,14 @@ async function resolveRecipients(client: AnyClient, row: any): Promise<Array<{ i
     const admins = await client.user.findMany({
       where: { role: 'ADMIN', status: 'ACTIVE' },
       select: { id: true, email: true, name: true },
-    }).catch(() => [])
+    })
     return admins.filter((a: any) => !isAactTestEmail(a.email))
   }
   if (row.recipientUserId) {
     const user = await client.user.findUnique({
       where: { id: row.recipientUserId },
       select: { id: true, email: true, name: true },
-    }).catch(() => null)
+    })
     if (!user || isAactTestEmail(user.email)) return []
     return [user]
   }
