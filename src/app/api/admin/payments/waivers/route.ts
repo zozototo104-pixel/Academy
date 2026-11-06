@@ -208,7 +208,9 @@ export async function PATCH(req: NextRequest) {
                 })
               }
               if (reversal.admissionData) {
-                await tx.admissionApplication.update({ where: { id: waiver.payment.admissionId }, data: reversal.admissionData })
+                const admissionId = waiver.payment.admissionId
+                if (!admissionId) throw new WaiverCancelUnsafeError()
+                await tx.admissionApplication.update({ where: { id: admissionId }, data: reversal.admissionData })
               }
               if (reversal.enrollmentUpdate) {
                 await tx.enrollment.update({ where: { id: reversal.enrollmentUpdate.id }, data: reversal.enrollmentUpdate.data })
