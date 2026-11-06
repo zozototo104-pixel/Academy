@@ -78,7 +78,7 @@ export async function collectMeetingAcademyEvidence(db: any, question: string, u
         '؛ حالة الالتحاق ' + enrollment.status +
         '؛ المنجز من الوحدات ' + completed.size +
         '؛ إجمالي الوحدات المعروضة ' + units.length +
-        '؛ الوحدات المعتمدة المتبقية ' + remaining.length +
+        '؛ الوحدات المعتمدة المتبقية: ' + remaining.length +
         '؛ الدرجة النهائية المحفوظة ' + (enrollment.finalScore ?? 'لم تسجّل') +
         '؛ رقم الشهادة ' + (enrollment.certificateNo || 'لم يصدر') + '.')
       if (/وحد|تقدم|أنجز|انجز|باق|خلص/i.test(q)) {
