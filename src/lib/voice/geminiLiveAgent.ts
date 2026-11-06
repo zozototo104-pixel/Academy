@@ -232,7 +232,7 @@ export class GeminiLiveAgent {
 
   constructor(callbacks: AgentCallbacks = {}) {
     this.cb = callbacks
-    this.player = new Pcm24Player((stream) => this.cb.onOutputStream?.(stream))
+    this.player = new Pcm24Player((stream) => this.cb.onOutputStream?.(stream), this.cb.outputDeviceId)
   }
 
   private state(s: VoiceState) { this.cb.onState?.(s) }
