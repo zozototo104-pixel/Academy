@@ -375,6 +375,7 @@ function NotificationBell({ mobile = false }: { mobile?: boolean } = {}) {
   const { user, navigate, setMobileMenuOpen } = useAppStore()
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState<Notif[]>([])
+  const [notificationDetail, setNotificationDetail] = useState<Notif | null>(null)
   const [unread, setUnread] = useState(0)
   const unreadRef = useRef(0)
   const loadedOnceRef = useRef(false)
