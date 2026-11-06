@@ -35,11 +35,18 @@ export async function askMeetingAssistant(
     await db.adminMeetingAgentEvent.create({ data: { meetingId: meeting.id, kind: 'GREETING', text: greeting } }).catch(() => {})
   }
 
-  const [notes, attendance, invites] = await Promise.all([
-    db.adminMeetingNote.findMany({ where: { meetingId: meeting.id }, orderBy: { createdAt: 'asc' }, take: 40 }).catch(() => []),
-    db.adminMeetingAttendance.findMany({ where: { meetingId: meeting.id }, select: { userId: true, status: true } }).catch(() => []),
-    db.adminMeetingInvite.findMany({ where: { meetingId: meeting.id }, select: { inviteeName: true } }).catch(() => []),
-  ])
+  // لا نولّد إجابة مبنية على سياق ناقص عند فشل قراءة بيانات الاجتماع.
+  // لا نصل إلى جداول الطلاب أو الدرجات أو بيانات الإدارة من هذا المسار.
+  let notes: any[]
+  let invites: any[]
+  try {
+    ;[notes, invites] = await Promise.all([
+      db.adminMeetingNote.findMany({ where: { meetingId: meeting.id }, orderBy: { createdAt: 'asc' }, take: 40 }),
+      db.adminMeetingInvite.findMany({ where: { meetingId: meeting.id }, select: { inviteeName: true } }),
+    ])
+  } catch {
+    return { status: 503, body: { error: 'تعذّر التحقق من سياق الاجتماع — حاول لاحقًا', code: 'MEETING_CONTEXT_UNAVAILABLE', greeting } }
+  }
   const context = [
     `عنوان الاجتماع: ${meeting.title}`,
     meeting.hostName ? `المنظّم: ${meeting.hostName}` : '',
