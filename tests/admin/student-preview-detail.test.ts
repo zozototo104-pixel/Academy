@@ -202,6 +202,53 @@ describe('admin student preview — detail payload', () => {
     expect(body.overview.assignmentsPublishedTotal).toBe(2)
   })
 
+  test('urgent signals follow the latest admission analysis, not historical supervisor memory', async () => {
+    fx = baseFx()
+    const oldFinding = 'الهوية غير متحقق منها'
+    fx.student.academicMemory = {
+      weaknesses: JSON.stringify([oldFinding]),
+      strengths: '[]', conceptsToReview: '[]', recommendedNextActions: '[]',
+    }
+    fx.admissions = [{
+      id: 'ad-1', reference: 'AACT-1', status: 'UNDER_REVIEW',
+      aiVerdict: 'NEEDS_CLARIFICATION', aiReviewedAt: daysAgo(1),
+      aiReview: JSON.stringify({
+        verdict: 'NEEDS_CLARIFICATION',
+        findings: [{ severity: 'HIGH', title: oldFinding, detail: 'يلزم تدقيق الهوية' }],
+      }),
+    }]
+    const first = await getPreview()
+    expect(first.status).toBe(200)
+    expect(first.body.overview.atRiskSignals.join(' ')).toContain(oldFinding)
+
+    // The same admission is re-analyzed with no current findings.
+    fx.admissions[0].aiVerdict = 'RECOMMEND_APPROVE'
+    fx.admissions[0].aiReviewedAt = new Date()
+    fx.admissions[0].aiReview = JSON.stringify({
+      verdict: 'RECOMMEND_APPROVE', findings: [], strengths: ['الوثائق مطابقة'],
+    })
+    const second = await getPreview()
+    expect(second.status).toBe(200)
+    expect(second.body.overview.atRiskSignals).toEqual([])
+    // Academic history stays available but does not produce active alerts.
+    expect(second.body.student.academicMemory.weaknesses).toContain(oldFinding)
+    expect(second.body.admissions[0].aiReview).toBeUndefined()
+  })
+
+  test('current unresolved admission findings remain actionable and tied to an application', async () => {
+    fx = baseFx()
+    fx.admissions = [{
+      id: 'ad-2', reference: 'AACT-2', status: 'UNDER_REVIEW',
+      aiVerdict: 'NEEDS_CLARIFICATION', aiReviewedAt: new Date(),
+      aiReview: JSON.stringify({ verdict: 'NEEDS_CLARIFICATION',
+        findings: [{ severity: 'HIGH', title: 'الشهادة غير واضحة', detail: 'يلزم صورة أوضح' }] }),
+    }]
+    const { status, body } = await getPreview()
+    expect(status).toBe(200)
+    expect(body.overview.atRiskSignals.join(' ')).toContain('AACT-2')
+    expect(body.overview.atRiskSignals.join(' ')).toContain('الشهادة غير واضحة')
+  })
+
   test('pending review: NEEDS_REVIEW and PENDING appeals are exposed distinctly, never merged', async () => {
     const { body } = await getPreview()
     expect(body.pendingReview.needsReviewCount).toBe(1)
