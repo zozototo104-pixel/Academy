@@ -576,7 +576,7 @@ function testInferredChapterTitleRequiresSameChapterKnowledgeEvidence() {
   const accepted = applyGroundedChapterTitleProposals(source, chunks, items, ids,
     JSON.stringify({ proposals: [{ order: 2, title: 'تحليل المخاطر التشغيلية', sourceItemTitle: 'تحليل المخاطر المؤسسية' }] }),
     'إدارة المشروعات بنجاح')
-  assert(accepted.accepted === 1, 'يجب قبول عنوان موثّق بعنصر معرفة من نفس الفصل')
+  assert(accepted.accepted === 1, 'يجب قبول عنوان موثّق بعنصر معرفة من نفس الفصل: ' + JSON.stringify({ before: source.map((s) => s.title), after: accepted.sections.map((s) => s.title), accepted: accepted.accepted }))
   assert(accepted.sections[1].title === 'الفصل الثاني: تحليل المخاطر التشغيلية', 'تظل هوية الفصل مع عنوانه المستنتج')
   assert(accepted.sections[0].title === source[0].title, 'الفصول الأخرى لا تتغير')
   assert(accepted.sections[1].pageStart === source[1].pageStart && accepted.sections[1].pageEnd === source[1].pageEnd,
