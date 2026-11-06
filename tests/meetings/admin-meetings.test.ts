@@ -672,6 +672,63 @@ describe('meeting-room signal ownership', () => {
     expect(response.status).toBe(200)
     expect(roomSignalsConsumed.count).toBe(0)
   })
+  test('join claims peer using a serializable transaction before recording attendance', async () => {
+    roomPeerOwner.current = null
+    roomTransaction.attempts = 0
+    roomTransaction.conflictsRemaining = 0
+    roomTransaction.isolationLevel = ''
+    roomAttendanceWrites.count = 0
+    const response = await postRoom('join')
+    expect(response.status).toBe(200)
+    expect(roomTransaction.isolationLevel).toBe('Serializable')
+    expect(roomTransaction.attempts).toBe(1)
+    expect(roomPeerOwner.current).toBe('room-user-1')
+    expect(roomAttendanceWrites.count).toBe(1)
+  })
+
+  test('an already-claimed peer cannot be stolen by a new join', async () => {
+    roomPeerOwner.current = 'room-user-2'
+    roomTransaction.attempts = 0
+    roomAttendanceWrites.count = 0
+    const response = await postRoom('join')
+    expect(response.status).toBe(409)
+    expect((await response.json()).code).toBe('PEER_IN_USE')
+    expect(roomPeerOwner.current).toBe('room-user-2')
+    expect(roomAttendanceWrites.count).toBe(0)
+  })
+
+  test('serialization conflict retries and then records a successful join', async () => {
+    roomPeerOwner.current = null
+    roomTransaction.attempts = 0
+    roomTransaction.conflictsRemaining = 1
+    const response = await postRoom('join')
+    expect(response.status).toBe(200)
+    expect(roomTransaction.attempts).toBe(2)
+    expect(roomPeerOwner.current).toBe('room-user-1')
+  })
+
+  test('repeated serialization conflicts return retryable 409 without stealing a peer', async () => {
+    roomPeerOwner.current = null
+    roomTransaction.attempts = 0
+    roomTransaction.conflictsRemaining = 3
+    const response = await postRoom('join')
+    expect(response.status).toBe(409)
+    expect((await response.json()).code).toBe('PEER_CONFLICT')
+    expect(roomTransaction.attempts).toBe(3)
+    expect(roomPeerOwner.current).toBeNull()
+  })
+
+  test('heartbeat must own its peer and uses the same serializable path', async () => {
+    roomPeerOwner.current = null
+    roomTransaction.conflictsRemaining = 0
+    expect((await postRoom('heartbeat')).status).toBe(403)
+    roomPeerOwner.current = 'room-user-1'
+    roomTransaction.attempts = 0
+    const response = await postRoom('heartbeat')
+    expect(response.status).toBe(200)
+    expect(roomTransaction.attempts).toBe(1)
+    expect(roomTransaction.isolationLevel).toBe('Serializable')
+  })
 })
 
 describe('admin meeting hard delete (route level)', () => {
