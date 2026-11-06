@@ -124,7 +124,7 @@ export async function approveGrade(input: {
     if (!resolved) return { ok: false, code: 'ATTEMPT_NOT_FOUND' } as const
     if (actor.role === 'SUPERVISOR') {
       const assigned = await tx.admissionApplication.findFirst({
-        where: { supervisorId: input.actor.id, userId: resolved.userId },
+        where: { supervisorId: input.actor.id, userId: resolved.userId, programId: resolved.programId },
         select: { id: true },
       })
       if (!assigned) return { ok: false, code: 'GRADE_APPROVAL_FORBIDDEN' } as const
