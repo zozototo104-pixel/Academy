@@ -230,6 +230,44 @@ describe('graduation approval law', () => {
     }
   })
 
+  test('concurrent approval cannot overwrite an already-recorded admin decision', async () => {
+    await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
+    const original = world.db.graduationRequest.updateMany
+    world.db.graduationRequest.updateMany = async (args: any) => {
+      // A second admin acted after the route refreshed readiness but before CAS.
+      world.state.request.status = 'APPROVED'
+      world.state.request.decidedById = 'admin-other'
+      world.state.request.updatedAt = new Date(world.state.request.updatedAt.getTime() + 1000)
+      return original(args)
+    }
+    try {
+      const response = await postGraduationAction('APPROVE')
+      expect(response.status).toBe(409)
+      expect((await response.json()).code).toBe('GRADUATION_DECISION_CONFLICT')
+      expect(world.state.request.decidedById).toBe('admin-other')
+    } finally {
+      world.db.graduationRequest.updateMany = original
+    }
+  })
+
+  test('concurrent rejection cannot overwrite a just-issued request', async () => {
+    await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
+    const original = world.db.graduationRequest.updateMany
+    world.db.graduationRequest.updateMany = async (args: any) => {
+      world.state.request.status = 'ISSUED'
+      world.state.request.updatedAt = new Date(world.state.request.updatedAt.getTime() + 1000)
+      return original(args)
+    }
+    try {
+      const response = await postGraduationAction('REJECT')
+      expect(response.status).toBe(409)
+      expect((await response.json()).code).toBe('GRADUATION_DECISION_CONFLICT')
+      expect(world.state.request.status).toBe('ISSUED')
+    } finally {
+      world.db.graduationRequest.updateMany = original
+    }
+  })
+
   test('an already-issued certificate is returned as-is, never recreated or regraded', async () => {
     world.state.enrollment = { id: 'enrollment-1', userId: 'user-1', programId: 'program-1', status: 'COMPLETED', certificateNo: 'AACT-C-2026-00001' }
     world.state.certificate = { id: 'cert-1', serial: 'AACT-C-2026-00001', type: 'PROGRAM_COMPLETION', enrollmentId: 'enrollment-1' }
