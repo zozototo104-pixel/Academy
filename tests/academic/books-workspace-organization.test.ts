@@ -17,7 +17,8 @@ const digest = (text: string) => createHash('sha256').update(text.replace(/\s+/g
 const ORIGINAL_FUNCTION_HASHES: Record<string, string> = {
   isCatalogLikeUiLink: '93f7b3faf4202e69bb9eb9d1d7da1a508fbee90b88acc5e76c847c80e37419f4',
   bookNeedsReadableSource: '7f1883f10d3d63aa91c3037b31357e12215722e0c00ba727a76967e3fac84657',
-  loadProgramData: 'c8100488c57894107b24c1b9d50b2d661097442b8f8247409fef88ab5c69d9e9',
+  // PR #188: preserve total from paginated knowledge-bank response; count alone is page size.
+  loadProgramData: '6b12d54037f8095e36be378ef3db2d1f3db8e9979359d946e8973339c7a976f4',
   addBook: '4700faf06c1d307a54615f61b573370e64c79f519e25cb51de6dfe5dcd796599',
   updateBookSource: '5caaafdc9ebe990b2c4d36cb3f2e415bfc662929e4ec816e7caca5122271cd2f',
   deleteBook: '40b8c4120c1c782b73206f9998512221d36fc7b3d523e6d6266d13ea1e480d92',
