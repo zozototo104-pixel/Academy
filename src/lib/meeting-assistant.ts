@@ -269,6 +269,31 @@ export async function askMeetingAssistant(
   return { status: 200, body: { ok: true, answer, greeting } }
 }
 
+// Speech segments are evidence for a human-reviewed draft, never binding decisions.
+export async function addMeetingTranscript(
+  db: any,
+  invite: any,
+  user: { id: string; role?: string; name?: string },
+  spokenText: string,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const meeting = invite.meeting
+  const access = await meetingAccessFor(db, invite, user)
+  if (access.level !== 'FULL') return { status: 403, body: { error: 'استلم الدعوة بحسابك أولًا', code: 'NOT_CLAIMED' } }
+  if (!meeting.aiAssistantEnabled || !meeting.minutesEnabled) {
+    return { status: 403, body: { error: 'التفريغ غير مفعّل في هذا الاجتماع', code: 'TRANSCRIPT_DISABLED' } }
+  }
+  if (!isMeetingJoinOpen(meeting)) return { status: 403, body: { error: 'انتهت نافذة تفريغ الاجتماع', code: 'NOT_LIVE' } }
+  const clean = String(spokenText || '').replace(/\s+/g, ' ').trim().slice(0, 2200)
+  if (clean.length < 3) return { status: 400, body: { error: 'النص الصوتي قصير أو فارغ', code: 'EMPTY_TRANSCRIPT' } }
+  const limit = await checkDatabaseRateLimit('meetings:transcript:' + meeting.id + ':' + user.id, 180, 10 * 60_000)
+  if (!limit.ok) return { status: 429, body: { error: 'وصل التفريغ إلى الحد المسموح', code: 'RATE_LIMITED' } }
+  const speaker = String(user.name || invite.inviteeName || 'مشارك').replace(/\s+/g, ' ').slice(0, 100)
+  const event = await db.adminMeetingAgentEvent.create({
+    data: { meetingId: meeting.id, userId: user.id, kind: 'TRANSCRIPT', text: speaker + ': ' + clean },
+  })
+  return { status: 200, body: { ok: true, eventId: event.id } }
+}
+
 export async function addMeetingNote(
   db: any,
   invite: any,
