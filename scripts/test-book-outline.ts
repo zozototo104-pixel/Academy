@@ -678,6 +678,7 @@ function testInferredChapterTitleRequiresSameChapterKnowledgeEvidence() {
 }
 
 const tests = [
+  testOutlinePdfOcrFailureContinuesAndRequiresAcknowledgment,
   testMergeAcrossUnreadPageRetainsSourceEvidenceGap,
   testSourceVerifiedWhitePagesCannotMaskMissingBookContent,
   testInferredChapterTitleRequiresSameChapterKnowledgeEvidence,
