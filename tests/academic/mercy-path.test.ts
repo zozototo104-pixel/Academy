@@ -142,7 +142,7 @@ function extendWorld(w: any) {
   w.db.admissionApplication = { findFirst: async () => null }
   w.state.mercyRows = mercyRows
   w.state.setSupervisorAssigned = (assigned: boolean) => {
-    w.db.admissionApplication.findFirst = async () => (assigned ? { id: 'app-1' } : null)
+    w.db.admissionApplication.findFirst = async ({ where }: any) => (assigned && where.userId === 'u1' && where.programId === 'p1' ? { id: 'app-1' } : null)
   }
   w.state.setRole2 = (role: string) => { w.state.actorRole = role }
   // المستخدم الفاعل الثاني (مشرف) — user.findUnique يفرّق بالمعرف
