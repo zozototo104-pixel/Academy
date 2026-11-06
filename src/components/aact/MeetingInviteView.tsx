@@ -496,7 +496,9 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok || !d?.meetingUrl) throw new Error(d?.error || 'تعذّر فتح رابط الاجتماع')
-      if (d.zoomSdk) {
+      // Zoom Meeting SDK is for human attendees. The dedicated AI station
+      // instead joins via the installed Zoom client as a separate participant.
+      if (d.zoomSdk && !aiDeviceMode) {
         setZoomExternalUrl(d.meetingUrl)
         setZoomError(null)
         setZoomConfig(d.zoomSdk)
