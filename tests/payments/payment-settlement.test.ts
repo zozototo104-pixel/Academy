@@ -72,7 +72,9 @@ const db: any = {
       waiverAttempts: cloneArray(waiverAttempts),
     }
     try {
-      return await work(db)
+      // Prisma's interactive transaction client is distinct from the root
+      // client; this distinction catches forbidden in-transaction P2002 retry.
+      return await work({ ...db })
     } catch (error) {
       replaceMap(payments, snapshot.payments)
       replaceMap(admissions, snapshot.admissions)
