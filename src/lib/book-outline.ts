@@ -553,8 +553,9 @@ function outlineTopicWords(title: string): Set<string> {
 /**
  * Balance a WHOLE draft after heading discovery and oversized-range refinement.
  * Merge only adjacent short sections that have a common, specific source topic.
- * Never merge documented chapters, unknown-page boundaries, noncontiguous pages
- * or same-chunk divisions. Titles concatenate exact source headings; no new
+ * Never merge documented chapters, unknown-page boundaries, reversed source
+ * order, or same-chunk divisions. Missing intervening pages remain separately
+ * tracked by the source-chunk audit, never treated as read evidence. Titles concatenate exact source headings; no new
  * academic title or unsupported chapter is invented.
  */
 export function balanceBookOutlineSections(input: readonly OutlineSectionDraft[]): {
