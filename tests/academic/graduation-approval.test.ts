@@ -87,7 +87,11 @@ mock.module('@/lib/notify', () => ({
   notifyAdmins: async () => {},
   audit: async () => {},
 }))
+// Keep the actual module's export surface for dependent payment/admission
+// imports; replace only outbound mail side effects under test.
+const realMailer = await import('../../src/lib/mailer')
 mock.module('@/lib/mailer', () => ({
+  ...realMailer,
   emailAdmissionDecision: async () => {},
   emailAdmissionDocumentsRequested: async () => {},
   emailCertificateIssued: async () => {},
