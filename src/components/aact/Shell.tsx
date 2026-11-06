@@ -518,8 +518,9 @@ function NotificationBell({ mobile = false }: { mobile?: boolean } = {}) {
 
       const view = viewLinks.has(legacyView) ? legacyView : viewLinks.has(first) ? first : rawLink.replace(/^\?view=/, '').replace(/^\//, '').split(/[?#&]/)[0]
       if (viewLinks.has(view)) {
-        navigate(view as any, routeParams)
-        if (view === 'admin') dispatchAdminTab(adminTabForNotification(n, params), routeParams)
+        const adminTab = view === 'admin' ? adminTabForNotification(n, params) : null
+        navigate(view as any, adminTab ? { ...routeParams, tab: adminTab } : routeParams)
+        if (adminTab) dispatchAdminTab(adminTab, routeParams)
         return true
       }
 
