@@ -1242,7 +1242,7 @@ export async function buildBookOutline(bookId: string, options: { reuseReadChunk
           system: 'أنت محرر فهرس كتاب أكاديمي. لكل فصل يحمل عنوانًا رقميًا عامًا، اقرأ مقتطفات النص عبر بداية ووسط ونهاية نطاقه وعناصر المعرفة المستخرجة من نطاقه نفسه. اقترح عنوانًا عربيًا دقيقًا يلخص الموضوع الفعلي، دون تخمين أو نقل عنوان من فصل آخر. لا تستخدم اسم الكتاب أو رقم الصفحة كعنوان. لكل اقتراح أرجع sourceItemTitle مطابقًا حرفيًا لأحد عناوين المعرفة المرسلة للفصل نفسه. إذا الأدلة ضعيفة احذف الاقتراح. لا تغير حدود الفصول أو أرقامها. JSON فقط.',
           history: [{ role: 'user', text: 'أرجع {"proposals":[{"order":9,"title":"عنوان الموضوع","sourceItemTitle":"عنوان عنصر معرفة موجود حرفيًا"}]}. اجعل العنوان دقيقًا ومفهومًا، ولابد أن يتشارك كلمة موضوعية مع sourceItemTitle. الفصول: ' + JSON.stringify(grounded) }],
           taskLevel: 'ACADEMIC_DRAFT', temperature: 0.1, maxOutputTokens: 2400,
-          deadlineMs: Date.now() + 90_000,
+          deadlineMs: Math.min(Date.now() + 35_000, titleStageDeadline),
         })
         const renamed = applyGroundedChapterTitleProposals(draft.sections, chunks, items, chunkIds, raw, book.title)
         draft = { ...draft, sections: renamed.sections, warnings: [...draft.warnings, ...renamed.warnings] }
