@@ -149,7 +149,7 @@
     "test:exceptional-review": "bun test tests/academic/exceptional-review.test.ts",
     "test:progression-gates": "bun test tests/academic/progression-gates.test.ts",
     "test:lifecycle-journey": "bun test tests/academic/lifecycle-journey.test.ts",
-    "test:meetings": "bun test tests/meetings/admin-meetings.test.ts && bun test tests/meetings/meeting-audio-hint-guard.test.ts",
+    "test:meetings": "bun test tests/meetings/admin-meetings.test.ts",
     "test:follow-up": "bun test tests/follow-up/follow-up-board-and-ai-block.test.ts && bun test tests/follow-up/student-inactivity-follow-up.test.ts && bun test tests/follow-up/supervisor-schedule-and-progress.test.ts",
     "test:student-preview": "bun test tests/admin/student-preview-detail.test.ts"
   },

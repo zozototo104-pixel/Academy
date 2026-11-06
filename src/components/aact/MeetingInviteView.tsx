@@ -8,7 +8,7 @@ import { AcademyLogo } from '@/components/aact/Shell'
 import { Button } from '@/components/ui/button'
 import {
   CalendarClock, CheckCircle2, Clock3, ExternalLink, KeyRound, Loader2, LogIn,
-  MailCheck, ShieldAlert, Sparkles, User2, UserPlus, Users2, Video, Volume2,
+  MailCheck, ShieldAlert, Sparkles, User2, UserPlus, Users2, Video,
 } from 'lucide-react'
 
 const MeetingRoom = dynamic(
@@ -111,10 +111,6 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
   const [joinedExternal, setJoinedExternal] = useState(false)
   const [inRoom, setInRoom] = useState(false)
   const [zoomConfig, setZoomConfig] = useState<null | { signature: string; sdkKey: string; meetingNumber: string; userName: string; password: string }>(null)
-  // تنبيه الصوت: متصفحات الويب تمنع تشغيل الصوت تلقائيًا داخل Zoom المضمّن،
-  // فيحتاج العضو لكبس أيقونة الصوت بنفسه بعد الدخول — ننبّهه قبل الدخول وبعده.
-  // الشريط بعد الدخول يختفي لحاله بعد 12 ثانية (وقت مريح لقراءته) أو بكبسة «فهمت».
-  const [audioHintDismissed, setAudioHintDismissed] = useState(false)
   const [zoomError, setZoomError] = useState<string | null>(null)
   const [zoomExternalUrl, setZoomExternalUrl] = useState<string | null>(null)
   const zoomRootRef = useRef<HTMLDivElement>(null)
@@ -151,14 +147,6 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
     void start()
     return () => { cancelled = true }
   }, [zoomConfig])
-
-  // إخفاء تلقائي مهذّب لشريط تنبيه الصوت: 12 ثانية تكفي لقراءته على مهل،
-  // ولا يبقى معلّقًا فوق الاجتماع بعدها. الكبس اليدوي على «فهمت» يلغي المؤقّت.
-  useEffect(() => {
-    if (!zoomConfig || audioHintDismissed) return
-    const t = setTimeout(() => setAudioHintDismissed(true), 12000)
-    return () => clearTimeout(t)
-  }, [zoomConfig, audioHintDismissed])
 
   const [nowMs, setNowMs] = useState(() => Date.now())
   const [noteText, setNoteText] = useState('')
@@ -669,25 +657,8 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
                       فتح رابط الاجتماع
                     </Button>
                   )}
-                  {!isPlatform && meeting?.provider === 'ZOOM' && !zoomConfig && (
-                    <p className="flex items-center justify-center gap-1.5 text-center text-[11px] font-bold leading-relaxed text-slate-500">
-                      <Volume2 className="h-4 w-4 shrink-0" />
-                      تنبيه: بعد الدخول إلى الاجتماع، اضغط أيقونة الصوت داخل نافذة Zoom لتفعيل السماع — فالمتصفح لا يشغّل الصوت تلقائيًا.
-                    </p>
-                  )}
                   {zoomConfig && (
                     <div className="space-y-2">
-                      {!audioHintDismissed && (
-                        <div className="flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2.5 ring-1 ring-amber-200">
-                          <Volume2 className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
-                          <p className="flex-1 text-xs font-bold leading-relaxed text-amber-800">
-                            لا تسمع الصوت؟ اضغط أيقونة الصوت (السماعة) داخل نافذة Zoom واختر الانضمام إلى الصوت — المتصفح لا يفعّل الصوت تلقائيًا عند الدخول.
-                          </p>
-                          <button type="button" onClick={() => setAudioHintDismissed(true)} className="shrink-0 rounded-lg bg-amber-100 px-2.5 py-1 text-[11px] font-black text-amber-800">
-                            فهمت
-                          </button>
-                        </div>
-                      )}
                       <div ref={zoomRootRef} className="min-h-[480px] w-full overflow-hidden rounded-xl bg-slate-950" dir="ltr" />
                       {zoomError && (
                         <p role="alert" className="text-center text-sm font-bold text-red-600">{zoomError}</p>
