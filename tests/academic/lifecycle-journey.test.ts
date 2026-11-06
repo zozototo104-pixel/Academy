@@ -104,6 +104,64 @@ describe('outbox guarantees', () => {
     expect(notifications).toHaveLength(1)
   })
 
+  test('recipient database outage leaves a student notification pending until retry', async () => {
+    const { client, outboxRows, notifications } = fakeOutboxWorld()
+    await enqueueOutbox(client, { key: 'student-lookup', kind: 'SEMESTER_CLOSED', recipientUserId: 'u1', title: 't', body: 'b' })
+    const findUnique = client.user.findUnique
+    client.user.findUnique = async () => { throw new Error('student lookup unavailable') }
+    try {
+      const failed = await dispatchOutboxBatch(client)
+      expect(failed.platformSent).toBe(0)
+      expect(outboxRows[0].status).toBe('PENDING')
+      expect(outboxRows[0].emailStatus).toBe('PENDING')
+      expect(notifications).toHaveLength(0)
+    } finally {
+      client.user.findUnique = findUnique
+    }
+    const recovered = await dispatchOutboxBatch(client)
+    expect(recovered.platformSent).toBe(1)
+    expect(notifications.filter((row) => row.userId === 'u1')).toHaveLength(1)
+  })
+
+  test('admin recipient lookup outage does not silently mark an event SENT', async () => {
+    const { client, outboxRows, notifications } = fakeOutboxWorld()
+    await enqueueOutbox(client, { key: 'admin-lookup', kind: 'SEMESTER_FAILED', recipientRole: 'ADMINS', title: 't', body: 'b' })
+    const findMany = client.user.findMany
+    client.user.findMany = async () => { throw new Error('admin lookup unavailable') }
+    try {
+      const failed = await dispatchOutboxBatch(client)
+      expect(failed.platformSent).toBe(0)
+      expect(outboxRows[0].status).toBe('PENDING')
+      expect(notifications).toHaveLength(0)
+    } finally {
+      client.user.findMany = findMany
+    }
+    const recovered = await dispatchOutboxBatch(client)
+    expect(recovered.platformSent).toBe(1)
+    expect(notifications.filter((row) => row.userId === 'admin1')).toHaveLength(1)
+  })
+
+  test('email recipient lookup outage remains retryable, not SKIPPED', async () => {
+    const { client, outboxRows } = fakeOutboxWorld()
+    emailBehavior = 'SENT'
+    await enqueueOutbox(client, { key: 'email-lookup', kind: 'SEMESTER_CLOSED', recipientUserId: 'u1', title: 't', body: 'b' })
+    outboxRows[0].status = 'SENT'
+    const findUnique = client.user.findUnique
+    client.user.findUnique = async () => { throw new Error('email lookup unavailable') }
+    try {
+      const failed = await dispatchOutboxBatch(client)
+      expect(failed.emailsSent).toBe(0)
+      expect(outboxRows[0].emailStatus).toBe('PENDING')
+      expect(outboxRows[0].emailAttempts).toBe(0)
+    } finally {
+      client.user.findUnique = findUnique
+    }
+    const recovered = await dispatchOutboxBatch(client)
+    expect(recovered.emailsSent).toBe(1)
+    expect(outboxRows[0].emailStatus).toBe('SENT')
+    expect(outboxRows[0].emailAttempts).toBe(1)
+  })
+
   test('same key enqueued twice → one row; dispatched twice → exactly one platform notification', async () => {
     const { client, outboxRows, notifications } = fakeOutboxWorld()
     const evt = { key: 'semester-closed:e1:1', kind: 'SEMESTER_CLOSED', recipientUserId: 'u1', title: 'أُغلق الفصل', body: 'نتيجتك معتمدة' }
