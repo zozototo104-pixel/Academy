@@ -358,6 +358,11 @@ describe('new academic enrollment lifecycle', () => {
     expect(semesterStates.has(`${enrollment!.id}:1`)).toBe(true)
     expect(semesterStates.has(`${enrollment!.id}:2`)).toBe(true)
     expect(await hasLifecycleFootprint(db, enrollment!.id)).toBe(true)
+    const gate = await progressionGate(db, {
+      id: enrollment!.id, userId: 'student-1', programId: 'program-1',
+    }, 2, 'DIPLOMA')
+    expect(gate.open).toBe(false)
+    expect(gate.reasons.join(' ')).toContain('غير معتمدة')
   })
 
   test('approved installment activation stores the same frozen lifecycle', async () => {
