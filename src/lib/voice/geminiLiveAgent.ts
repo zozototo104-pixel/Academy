@@ -169,7 +169,14 @@ class Pcm24Player {
   async play(b64: string) {
     const Ctx = window.AudioContext || (window as any).webkitAudioContext
     if (!Ctx) throw new Error('AudioContext غير مدعوم في هذا المتصفح')
-    if (!this.ctx) this.ctx = new Ctx({ sampleRate: 24000 }) as AudioContext
+    if (!this.ctx) {
+      this.ctx = new Ctx({ sampleRate: 24000 }) as AudioContext
+      if (this.sinkId) {
+        const setSinkId = (this.ctx as any).setSinkId
+        if (typeof setSinkId !== 'function') throw new Error('هذا المتصفح لا يدعم اختيار مخرج الصوت للمشرف الذكي؛ استخدم Chrome حديثاً على الجهاز المستقل.')
+        await setSinkId.call(this.ctx, this.sinkId)
+      }
+    }
     if (this.ctx.state === 'suspended') await this.ctx.resume().catch(() => {})
     this.ensureRecorderDestination()
 
