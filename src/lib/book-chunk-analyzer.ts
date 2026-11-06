@@ -5,6 +5,7 @@ import type { TextAiPreferredModel, TextAiProvider, TextAiRouterPolicy } from '@
 import { db } from '@/lib/db'
 import { normalizeArabic } from '@/lib/arabic-normalize'
 import { textContainsEvidenceAfterNormalization } from '@/lib/text-provenance'
+import { preserveBookPageReadIssues } from '@/lib/book-read-job-control'
 
 export const BOOK_KNOWLEDGE_CATEGORIES = ['CONCEPT', 'DEFINITION', 'THEORY', 'METHOD', 'CASE', 'PRINCIPLE', 'FACT'] as const
 export type BookKnowledgeCandidate = { category: typeof BOOK_KNOWLEDGE_CATEGORIES[number]; title: string; summary: string; excerpt: string; importance: number }
