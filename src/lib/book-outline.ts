@@ -482,7 +482,7 @@ export function applyGroundedChapterTitleProposals(
   raw: string,
   bookTitle: string,
 ): { sections: OutlineSectionDraft[]; warnings: string[]; accepted: number } {
-  const parsed = JSON.parse(raw.replace(/^```(?:json)?\\s*/i, '').replace(/\\s*```$/, '').trim())
+  const parsed = JSON.parse(raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim())
   const proposals = Array.isArray(parsed?.proposals) ? parsed.proposals : []
   const result = sections.map((section) => ({ ...section }))
   const warnings: string[] = []
