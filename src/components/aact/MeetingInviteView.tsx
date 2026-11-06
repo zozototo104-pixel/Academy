@@ -555,7 +555,7 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
         )}
         <MeetingRoom
           token={segment}
-          displayName={storeUserName || undefined}
+          displayName={data?.canOperateAi && aiDeviceMode ? 'المشرف الذكي — AACT' : storeUserName || undefined}
           onLeave={() => {
             stopTranscript()
             setInRoom(false)
