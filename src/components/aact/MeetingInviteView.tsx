@@ -481,10 +481,10 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
                   <div className="rounded-2xl bg-violet-50 p-4 ring-1 ring-violet-200">
                     <div className="mb-2 flex items-center gap-2 text-xs font-black text-violet-900">
                       <Sparkles className="h-4 w-4 text-violet-500" />
-                      مساعد الاجتماع الذكي
+                      المشرف الذكي — عضو الاجتماع
                     </div>
                     <p className="mb-3 text-[11px] font-semibold leading-relaxed text-violet-700">
-                      يجيب أثناء الاجتماع فقط، ومن جدول الأعمال وملاحظات المشاركين المكتوبة هنا حصرًا — لا يسمع صوت الاجتماعات الخارجية ولا يتخذ قرارات.
+                      يشارك بملاحظات واقتراحات مهنية عند سؤاله، اعتمادًا على جدول الأعمال والملاحظات المكتوبة. الربط بالصوت المباشر والتدخل التلقائي لم يُفعّلا بعد، ولا يتخذ قرارات نيابة عن المجتمعين.
                     </p>
                     {assistantGreeting && (
                       <p className="mb-2 rounded-xl bg-white/70 px-3 py-2 text-xs font-bold leading-relaxed text-violet-900">{assistantGreeting}</p>
