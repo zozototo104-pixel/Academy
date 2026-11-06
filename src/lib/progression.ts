@@ -15,12 +15,14 @@ export type GateVerdict = { open: boolean; reasons: string[] }
 export async function hasLifecycleFootprint(client: AnyClient, enrollmentId: string): Promise<boolean> {
   const stateStore = client?.enrollmentSemesterState
   if (stateStore?.count) {
-    const n = await stateStore.count({ where: { enrollmentId } }).catch(() => 0)
+    // Distinguish a real zero-count (legacy enrollment) from a database
+    // failure: never grandfather a student in because a lookup failed.
+    const n = await stateStore.count({ where: { enrollmentId } })
     if (n > 0) return true
   }
   const approvalStore = client?.semesterResultApproval
   if (approvalStore?.count) {
-    const n = await approvalStore.count({ where: { enrollmentId } }).catch(() => 0)
+    const n = await approvalStore.count({ where: { enrollmentId } })
     if (n > 0) return true
   }
   return false
