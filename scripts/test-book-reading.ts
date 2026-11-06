@@ -81,7 +81,13 @@ async function unreadablePdfPageDoesNotStopFollowingPages() {
         const ledger = mergeBookPageReadIssues(null, processedPages, issues)
         assert.deepEqual(parseBookPageReadIssues(ledger).map((i) => i.page), [2],
           'يجب حفظ فشل الصفحة الثانية مع تقدم بقية الكتاب')
-        assert.equal(mergeBookPageReadIssues(ledger, [2], []), null,
+        const afterAnalyzeFailure = preserveBookPageReadIssues(ledger, 'فشل تحليل المقطع')
+        const afterCronFailure = preserveBookPageReadIssues(afterAnalyzeFailure, 'AI_ACADEMIC_PROVIDER_UNAVAILABLE')
+        assert(afterCronFailure.includes('AI_ACADEMIC_PROVIDER_UNAVAILABLE'),
+          'يجب الاحتفاظ بسبب فشل المرحلة الأخيرة')
+        assert.deepEqual(parseBookPageReadIssues(afterCronFailure).map((i) => i.page), [2],
+          'فشل التحليل والكرون لا يجوز أن يمحو سجل الصفحة غير المقروءة')
+        assert.equal(mergeBookPageReadIssues(afterCronFailure, [2], []), null,
           'القراءة اللاحقة الناجحة تزيل المشكلة القديمة فقط')
       },
     },
