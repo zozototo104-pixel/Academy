@@ -258,6 +258,7 @@ async function applySettlementEffects(args: {
       include: { program: { select: { titleAr: true } } },
     })
     if (enrollment && enrollment.status === 'PENDING_PAYMENT') {
+      await initializeAcademicEnrollment(db, enrollment)
       await db.enrollment.update({ where: { id: enrollment.id }, data: { status: 'ACTIVE' } })
       await notify(
         enrollment.userId,
