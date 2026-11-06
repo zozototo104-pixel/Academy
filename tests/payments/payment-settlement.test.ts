@@ -177,7 +177,7 @@ const db: any = {
       return enrollments.get(key) || null
     },
     create: async ({ data }: { data: Record<string, any> }) => {
-      const enrollment = { ...data, id: `enrollment-${enrollments.size + 1}` }
+      const enrollment = { ...data, id: `enrollment-${enrollments.size + 1}`, createdAt: new Date(), extensionDays: 0 }
       enrollments.set(`${data.userId}:${data.programId}`, enrollment)
       return { ...enrollment }
     },
