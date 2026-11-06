@@ -802,6 +802,59 @@ describe('admin meeting hard delete (route level)', () => {
 })
 
 
+describe('dedicated voice participant scope and minutes integrity', () => {
+  const liveInvite = () => {
+    const now = Date.now()
+    return invite({
+      claimedByUserId: visitor.id,
+      meeting: meeting({
+        provider: 'PLATFORM', meetingUrl: null,
+        aiAssistantEnabled: true, minutesEnabled: true,
+        startsAt: new Date(now - 60_000), endsAt: new Date(now + 60 * 60_000),
+      }),
+    })
+  }
+  test('guest cannot create a voice session, query admin data or log AI turns', async () => {
+    const db = fakeDb(liveInvite())
+    for (const action of ['voice-session', 'live-data', 'live-turn']) {
+      const result = await meetingAction(db as any, db.state.inv, visitor, action, {
+        question: 'نتيجة الطالب جميل ناصر', userText: 'نتيجة', aiText: 'تعليق',
+      })
+      expect(result.status).toBe(403)
+      expect((result.body as any).code).toBe('MEETING_AGENT_ADMIN_REQUIRED')
+    }
+    expect(db.state.events).toHaveLength(0)
+  })
+  test('only authorized admins see the independent bot switch', async () => {
+    const db = fakeDb(liveInvite())
+    const guest = await meetingState(db as any, db.state.inv, visitor)
+    expect((guest.body as any).canOperateAi).toBe(false)
+    const admin = await meetingState(db as any, db.state.inv, { id: 'admin-1', role: 'ADMIN', name: 'مسؤول' })
+    expect((admin.body as any).canOperateAi).toBe(true)
+  })
+  test('admin data question resolves from meeting-scoped DB with no model SQL', async () => {
+    const db = fakeDb(liveInvite())
+    const result = await meetingAction(db as any, db.state.inv, { id: 'admin-1', role: 'ADMIN' },
+      'live-data', { question: 'نتيجة الطالب جميل ناصر' })
+    expect(result.status).toBe(200)
+    expect((result.body as any).snippets).toContain('لم يُعثر على طالب')
+  })
+  test('meeting speech is stored with unknown speaker and AI provenance, never as a formal decision', async () => {
+    const db = fakeDb(liveInvite()) as any
+    db.adminMeetingAgentEvent.createMany = async ({ data }: any) => {
+      db.state.events.push(...data)
+      return { count: data.length }
+    }
+    const result = await meetingAction(db, db.state.inv, { id: 'admin-1', role: 'ADMIN' }, 'live-turn', {
+      userText: 'سأراجع خطة البرنامج', aiText: 'أقترح أن نراجع أعداد الطلاب أولاً',
+    })
+    expect(result.status).toBe(200)
+    expect(db.state.events.map((e: any) => e.kind)).toEqual(['TRANSCRIPT', 'AI_SPEECH'])
+    expect(db.state.events[0].text).toContain('المتحدث غير محدد')
+    expect(db.state.events[1].text).toContain('المشرف الذكي')
+  })
+})
+
 describe('meeting AI academy evidence is admin-only and current', () => {
   test('a claimed guest or supervisor never triggers an administrative query', async () => {
     const forbiddenDb = new Proxy({}, { get() { throw new Error('UNAUTHORIZED_QUERY') } })
