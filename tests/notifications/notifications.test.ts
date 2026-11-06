@@ -143,7 +143,7 @@ describe('وصلات الواجهة — التعليم عند المشاهدة �
     expect(shell).toContain('navigate(view as any, adminTab ? { ...routeParams, tab: adminTab } : routeParams)')
     expect(shell).toContain("navigate('admin' as any, { tab: adminTab })")
     expect(adminView).toContain("new URLSearchParams(window.location.search).get('tab')")
-    expect(adminView).toContain("if (tab && allowed.has(tab)) setActiveTab(tab)")
+    expect(adminView).toContain('window.requestAnimationFrame(() => setActiveTab(tab))')
   })
 
   test('الجرس يجدول تعليم المعروض عند الفتح عبر PATCH ids', () => {
