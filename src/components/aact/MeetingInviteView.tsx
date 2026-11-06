@@ -666,6 +666,12 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
                   )}
                   {zoomConfig && (
                     <div className="space-y-2">
+                      {showZoomAudioHint && (
+                        <div role="status" className="flex items-start justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-950">
+                          <span>لتسمع وتتحدث داخل اجتماع Zoom، اضغط على زر «Join Audio» أو «الانضمام للصوت» داخل القاعة واسمح للمتصفح باستخدام الميكروفون عند الحاجة.</span>
+                          <button type="button" onClick={() => setShowZoomAudioHint(false)} aria-label="إغلاق تنبيه الصوت" className="shrink-0 rounded px-2 py-1 hover:bg-amber-100">إغلاق</button>
+                        </div>
+                      )}
                       <div ref={zoomRootRef} className="min-h-[480px] w-full overflow-hidden rounded-xl bg-slate-950" dir="ltr" />
                       {zoomError && (
                         <p role="alert" className="text-center text-sm font-bold text-red-600">{zoomError}</p>
