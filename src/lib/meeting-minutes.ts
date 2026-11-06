@@ -36,7 +36,7 @@ export async function collectMinutesSources(db: any, meeting: any): Promise<Minu
     })),
     ...(speechEvents as any[]).map((e) => ({
       at: new Date(e.createdAt || 0).getTime(),
-      authorName: 'تفريغ صوتي آلي (يحتاج تدقيقًا)',
+      authorName: e.kind === 'AI_SPEECH' ? 'المشرف الذكي (مداخلة وليست قرارًا)' : 'تفريغ صوتي آلي (المتحدث غير محدد، يحتاج تدقيقًا)',
       text: e.text,
     })),
   ].sort((a, b) => a.at - b.at)
