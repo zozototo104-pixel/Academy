@@ -37,6 +37,13 @@ export function mergeBookPageReadIssues(
   return report.length ? PAGE_ISSUES_PREFIX + JSON.stringify(report) : null
 }
 
+/** Append the immutable page evidence when a later phase needs lastError. */
+export function preserveBookPageReadIssues(previous: string | null | undefined, error: string): string {
+  const issues = parseBookPageReadIssues(previous)
+  const message = String(error).slice(0, 2000)
+  return issues.length ? message + '\n' + PAGE_ISSUES_PREFIX + JSON.stringify(issues) : message
+}
+
 export function hasBookPageReadIssues(value: string | null | undefined): boolean {
   return parseBookPageReadIssues(value).length > 0
 }
