@@ -199,9 +199,13 @@ export async function finalizeAdmissionAfterSettlement(tx: any, admissionId: str
     const newStatus = app.supervisorId ? 'THESIS' : 'SUPERVISOR_ASSIGNED'
     await tx.admissionApplication.update({ where: { id: app.id }, data: { status: newStatus } })
     if (app.programId && linkedUserId) {
-      const existingEnrollment = await tx.enrollment.findUnique({ where: { userId_programId: { userId: linkedUserId, programId: app.programId } } }).catch(() => null)
-      if (!existingEnrollment) await tx.enrollment.create({ data: { userId: linkedUserId, programId: app.programId, status: 'ACTIVE' } })
-      else if (!['ACTIVE', 'COMPLETED'].includes(existingEnrollment.status)) await tx.enrollment.update({ where: { id: existingEnrollment.id }, data: { status: 'ACTIVE' } })
+      const existingEnrollment = await tx.enrollment.findUnique({ where: { userId_programId: { userId: linkedUserId, programId: app.programId } } })
+      const activeEnrollment = !existingEnrollment
+        ? await tx.enrollment.create({ data: { userId: linkedUserId, programId: app.programId, status: 'ACTIVE' } })
+        : !['ACTIVE', 'COMPLETED'].includes(existingEnrollment.status)
+          ? await tx.enrollment.update({ where: { id: existingEnrollment.id }, data: { status: 'ACTIVE' } })
+          : existingEnrollment
+      await initializeAcademicEnrollment(tx, activeEnrollment)
       await notify(linkedUserId, 'ADMISSION', 'تم تفعيل تسجيلك بمنحة/إعفاء', `أصبح تسجيلك في «${app.program}» فعالاً.`, 'dashboard')
       const student = await tx.user.findUnique({ where: { id: linkedUserId }, select: { email: true, name: true } }).catch(() => null)
       if (student) await emailFinalRegistration(student.email, student.name, app.program)
