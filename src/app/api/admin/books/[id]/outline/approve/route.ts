@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
-import { outlineApprovalGuard, verifyBlankPdfGapPages, OUTLINE_SECTION_BLOCK_PAGES } from '@/lib/book-outline'
+import { createHash } from 'node:crypto'
+import { outlineApprovalGuard, verifyBlankPdfGapPages, missingBookSourcePageRanges, subtractVerifiedBlankPages, OUTLINE_SECTION_BLOCK_PAGES } from '@/lib/book-outline'
+import { parseBookPageReadIssues } from '@/lib/book-read-job-control'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
