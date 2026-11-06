@@ -444,6 +444,10 @@ async function chargeExtraLiveMinutes(tx: any, session: any, wantedMinutes: numb
 export async function settleGeminiLiveUsage(input: { userId: string; sessionId: string; actualSeconds?: number; actualMinutes?: number }) {
   const claimedMinutes = Math.max(0, Math.ceil(input.actualMinutes ?? ((Number(input.actualSeconds || 0) || 0) / 60)))
   return db.$transaction(async (tx) => {
+    // Serialize settlements of the same session BEFORE checking RESERVED.
+    // A second request must observe the first committed SETTLED state, not
+    // refund or charge an identical reservation twice.
+    await tx.$queryRaw`SELECT "id" FROM "AiLiveSession" WHERE "sessionId" = ${input.sessionId} FOR UPDATE`
     const session = await tx.aiLiveSession.findUnique({ where: { sessionId: input.sessionId } })
     if (!session) return { ok: false, status: 404, message: 'جلسة الصوت غير موجودة' }
     // التسوية مقيدة بصاحب الجلسة فقط — لا أحد ينهي جلسة غيره أو يعبث برصيده.
