@@ -726,6 +726,22 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
               </>
             )}
 
+            {data?.canOperateAi && (
+              <div className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-3">
+                <label className="flex cursor-pointer items-center gap-2 text-xs font-black text-violet-950">
+                  <input type="checkbox" checked={aiDeviceMode} onChange={(e) => setAiDeviceMode(e.target.checked)} />
+                  هذا جهاز المشرف الذكي المستقل — الانضمام كمشارك AI
+                </label>
+                <p className="mt-1 text-[11px] leading-relaxed text-violet-800">
+                  اختر هذا على الجهاز المخصص فقط؛ الحساب الإداري مخوّل بالاستعلام عن سجلات الأكاديمية.
+                  في Zoom يُفتح عميل Zoom المستقل، وليس Meeting SDK، ويحتاج ضبط مساري الصوت الافتراضيين.
+                </p>
+              </div>
+            )}
+            {data?.canOperateAi && aiDeviceMode && meeting.provider === 'ZOOM' && joinOpenNow && (
+              <MeetingAiVoiceControl basePath={basePath} provider="ZOOM" />
+            )}
+
             {actionError && (
               <p className="rounded-xl bg-red-50 px-3 py-2 text-center text-xs font-bold text-red-600 ring-1 ring-red-200">
                 {actionError}
