@@ -1044,7 +1044,7 @@ export function AdminBooksTab() {
         .then((k) => {
           if (latestProgramLoadRef.current !== loadToken) return
           setKnowledgeItems(k.items || [])
-          setKnowledgeTotalCount(k.count || 0)
+          setKnowledgeTotalCount(k.total ?? k.count ?? 0)
           setShowAllKnowledge(false)
           setKnowledgeStats(k.stats || {})
           setV2CountsByBook(k.v2CountsByBook || {})
