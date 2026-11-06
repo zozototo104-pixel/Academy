@@ -82,6 +82,7 @@ export async function GET(req: NextRequest) {
           status: true,
           aiVerdict: true,
           aiScore: true,
+          aiReview: true,
           aiReviewedAt: true,
           supervisorAt: true,
           approvedAt: true,
