@@ -19,6 +19,7 @@ const sessions = new Map<string, SessionRow>()
 let credits: CreditRow[] = []
 const paidInvoices = new Map<string, { id: string; userId: string; status: string }>()
 let transactionQueue: Promise<void> = Promise.resolve()
+const queriedRowLocks: string[] = []
 
 function updateNumber(current: number, change: any): number {
   if (typeof change === 'number') return change
