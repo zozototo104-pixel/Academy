@@ -266,7 +266,8 @@ mock.module('@/lib/tuition-installments', () => ({
 mock.module('@/lib/live-usage-guard', () => ({ grantGeminiLiveCredit: async () => {} }))
 
 const { verifyPaymentWaiverCode } = await import('../../src/lib/payment-waivers')
-const { markInvoicePaid } = await import('../../src/lib/settle-payment')
+const { markInvoicePaid, finalizeAdmissionAfterSettlement } = await import('../../src/lib/settle-payment')
+const { hasLifecycleFootprint } = await import('../../src/lib/progression')
 
 beforeEach(() => {
   payments.clear()
