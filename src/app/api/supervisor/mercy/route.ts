@@ -13,12 +13,16 @@ export async function GET() {
     const supervisor = await requireSupervisor()
     const dbAny = db as any
     const applications = await dbAny.admissionApplication.findMany({
-      where: { supervisorId: supervisor.id },
-      select: { userId: true },
+      where: { supervisorId: supervisor.id, userId: { not: null }, programId: { not: null } },
+      select: { userId: true, programId: true },
     }).catch(() => [])
-    const studentIds = [...new Set((applications as any[]).map((a) => a.userId).filter(Boolean))]
-    const requests = studentIds.length
-      ? await dbAny.mercyRequest.findMany({ where: { userId: { in: studentIds } }, orderBy: { createdAt: 'desc' } }).catch(() => [])
+    // Scope each mercy request to the same student AND programme assignment.
+    // Independent userId/programId lists would allow cross-product leakage.
+    const assignedPairs = (applications as any[])
+      .filter((a) => a.userId && a.programId)
+      .map((a) => ({ userId: a.userId, programId: a.programId }))
+    const requests = assignedPairs.length
+      ? await dbAny.mercyRequest.findMany({ where: { OR: assignedPairs }, orderBy: { createdAt: 'desc' } }).catch(() => [])
       : []
     return NextResponse.json({ ok: true, requests })
   } catch {
