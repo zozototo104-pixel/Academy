@@ -41,8 +41,8 @@ export async function GET(req: NextRequest) {
         { id: enrollment.id, userId: user.id, programId: unit.programId },
         unitSemester,
         (unit as any).program?.category,
-      ).catch(() => null)
-      if (gate && !gate.open) {
+      ).catch(() => ({ open: false, reasons: ['تعذر التحقق من فتح الفصل؛ أعد المحاولة لاحقًا'] }))
+      if (!gate.open) {
         return NextResponse.json(
           { error: `هذا المحتوى من الفصل ${unitSemester} وهو غير مفتوح بعد: ${gate.reasons[0] || 'نتيجة الفصل السابق غير معتمدة ناجحة'}.`, code: 'PROGRESSION_LOCKED', reasons: gate.reasons },
           { status: 403 }
