@@ -63,8 +63,12 @@ const ORIGINAL_API_CALL_COUNT = 81 // Existing 80 reviewed calls plus the admin 
 // طريقة ولا جسم تغيّر. السلوك مثبّت في
 // tests/assignments/assignment-due-video-guard.test.ts و
 // tests/assignments/assignment-suggest-behavior.test.ts.
+// PR #188: the existing outline approval POST now also sends a report-bound
+// acknowledgeCoverage/acknowledgmentKey pair; endpoint and call count stay
+// unchanged. This digest pins the reviewed contract; separate assertions below
+// ensure the new acknowledgment is never sent before the admin confirms it.
 // Keep this declaration outside comments so TypeScript can validate the guard.
-const ORIGINAL_API_DIGEST = 'c8b806deb476242ed67c638a599506fdd7a04f6e5f75e513606d507581628769'
+const ORIGINAL_API_DIGEST = '06cd5c330f532a607bf472385424563049691648756fc0047abf598ff4d1c29d'
 
 function parseSource() {
   return ts.createSourceFile('AdminBooks.tsx', SOURCE, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
