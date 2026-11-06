@@ -69,6 +69,7 @@ mock.module('@/lib/auth', () => ({
 }))
 
 const route = await import('../../src/app/api/notifications/route')
+const { pathForView } = await import('../../src/lib/app-routes')
 
 function getReq(query = '') {
   return new NextRequest(`http://localhost/api/notifications${query}`)
