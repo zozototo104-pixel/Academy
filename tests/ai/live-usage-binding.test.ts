@@ -225,6 +225,56 @@ describe('تسوية الجلسة: ملكية + ساعة الخادم', () => {
   })
 })
 
+describe('حماية محاسبة الصوت من التزامن', () => {
+  test('تسويتان متزامنتان لنفس الجلسة: استرداد واحد وتصبح الثانية idempotent', async () => {
+    seedUsage('stu-1', { paidMinutesUsed: 2, sessionsCount: 1 })
+    seedSession({ sessionId: 'concurrent-settle', freeReserved: 0, paidReserved: 2, startedAt: new Date(Date.now() - 20_000) })
+    const [first, second]: any[] = await Promise.all([
+      settleGeminiLiveUsage({ userId: 'stu-1', sessionId: 'concurrent-settle', actualMinutes: 0 }),
+      settleGeminiLiveUsage({ userId: 'stu-1', sessionId: 'concurrent-settle', actualMinutes: 0 }),
+    ])
+    expect(first.ok && second.ok).toBe(true)
+    expect([first, second].filter((result) => result.idempotent)).toHaveLength(1)
+    expect(credits.filter((row) => row.source === 'REFUND')).toHaveLength(1)
+    expect(usages.get(usageKey('stu-1', month(), 'SUPERVISOR'))?.paidMinutesUsed).toBe(1)
+    expect(queriedRowLocks.some((sql) => sql.includes('"AiLiveSession"'))).toBe(true)
+    expect(queriedRowLocks.some((sql) => sql.includes('"User"'))).toBe(true)
+  })
+
+  test('حجزان متزامنان لا يتجاوزان آخر دقيقة مجانية', async () => {
+    process.env.AACT_LIVE_FREE_MONTHLY_MINUTES_STUDENT = '1'
+    const [first, second]: any[] = await Promise.all([
+      reserveGeminiLiveUsage({ userId: 'stu-1', role: 'STUDENT', requestedMinutes: 2 }),
+      reserveGeminiLiveUsage({ userId: 'stu-1', role: 'STUDENT', requestedMinutes: 2 }),
+    ])
+    expect([first, second].filter((result) => result.ok)).toHaveLength(1)
+    expect([first, second].find((result) => result.ok)?.sessionLimitMinutes).toBe(1)
+    expect(usages.get(usageKey('stu-1', month(), 'SUPERVISOR'))?.freeMinutesUsed).toBe(1)
+    expect(sessions.size).toBe(1)
+    expect(queriedRowLocks.some((sql) => sql.includes('"AiLiveUsage"'))).toBe(true)
+  })
+
+  test('الكنس لا يستبدل نتيجة تسوية تمت بعد قراءة قائمة الجلسات', async () => {
+    seedUsage('stu-1', { freeMinutesUsed: 1, sessionsCount: 1 })
+    const session = seedSession({ sessionId: 'stale-sweep-candidate', expiresAt: new Date(Date.now() - 1000) })
+    const originalFindMany = db.aiLiveSession.findMany
+    db.aiLiveSession.findMany = async (args: any) => {
+      const candidate = await originalFindMany(args)
+      session.status = 'SETTLED'
+      session.actualMinutes = 1
+      return candidate
+    }
+    try {
+      const result: any = await refundExpiredGeminiLiveSessions(new Date())
+      expect(result.sessions).toBe(0)
+      expect(result.charged).toBe(0)
+      expect(session.actualMinutes).toBe(1)
+    } finally {
+      db.aiLiveSession.findMany = originalFindMany
+    }
+  })
+})
+
 describe('تسوية الجلسة: تجاوز الحجز يُخصم من الرصيد المتبقي', () => {
   test('مكالمة أطول من الحجز تُخصم كاملة من الرصيد المجاني المتبقي', async () => {
     seedUsage('stu-1', { freeMinutesUsed: 2, sessionsCount: 1 })
