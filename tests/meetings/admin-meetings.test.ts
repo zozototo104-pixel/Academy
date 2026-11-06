@@ -622,6 +622,17 @@ async function pollRoom(peerId?: string) {
   })
 }
 
+async function postRoom(action: 'join' | 'heartbeat', peerId = 'p_target') {
+  return meetingRoomRoute.POST(
+    new NextRequest('https://academy.test/api/meetings/valid-token/room', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, peerId, name: 'Participant' }),
+    }),
+    { params: Promise.resolve({ token: 'valid-token' }) },
+  )
+}
+
 describe('meeting-room signal ownership', () => {
   test('missing peer presence refuses signal polling without consuming messages', async () => {
     roomPeerOwner.current = null
