@@ -36,7 +36,10 @@ export async function GET(request: NextRequest) {
   }
   const cutoff = new Date(Date.now() - UNREAD_AFTER_MS)
   const overdue = await db.supervisorChannelMessage.findMany({
-    where: { scope: 'ADMIN', senderRole: 'ADMIN', emailSentAt: null, createdAt: { lt: cutoff } },
+    where: {
+      scope: 'ADMIN', senderRole: 'ADMIN', createdAt: { lt: cutoff },
+      OR: [{ emailSentAt: null }, { emailSentAt: staleDigestClaim() }],
+    },
     orderBy: { createdAt: 'asc' },
     take: 500,
     select: { id: true, admissionId: true, studentId: true, content: true, createdAt: true },
