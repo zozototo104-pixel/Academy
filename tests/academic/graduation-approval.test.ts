@@ -136,6 +136,9 @@ beforeEach(() => {
   world.state.enrollmentUpdates = []
   world.state.failTransaction = false
   world.state.admissionStatus = 'APPROVED'
+  world.state.scholarshipFull = false
+  world.state.programPrice = 1000
+  world.state.payments = [{ purpose: 'TUITION', status: 'PAID', amount: 1000, amountCents: 100000 }]
 })
 
 describe('graduation approval law', () => {
