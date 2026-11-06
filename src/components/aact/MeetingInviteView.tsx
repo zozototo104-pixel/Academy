@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useAppStore } from '@/lib/store'
+import { GeminiLiveAgent } from '@/lib/voice/geminiLiveAgent'
 import { clearPendingMeetingInvite, peekPendingMeetingInvite, setPendingMeetingInvite } from '@/lib/pending-meeting-invite'
 import { AcademyLogo } from '@/components/aact/Shell'
 import { Button } from '@/components/ui/button'
