@@ -18,6 +18,9 @@ export interface AgentCallbacks {
   sessionAction?: string
   /** Optional meeting-scoped tool endpoint; never used by existing voice consumers. */
   meetingDataEndpoint?: string
+  /** Explicit device routing for the separate meeting bot station only. */
+  inputDeviceId?: string
+  outputDeviceId?: string
   /** صوت Gemini Live المطلوب. قاعة المناقشة تستخدم صوتاً أخف حتى لا يظهر صوت الرجل الفصيح الآلي. */
   voice?: string
   /** لهجة التفريغ/التعرّف على الصوت المطلوبة مثل ar-PS أو ar-EG. */
