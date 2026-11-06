@@ -115,10 +115,47 @@ export async function collectMeetingAcademyEvidence(db: any, question: string, u
           shortValue(s.assignment.title) + '، ' + s.status + '، ' + (s.score ?? 'غير مصحح') + '/' + s.assignment.points).join('؛ ') || 'لا توجد') + '.')
       }
     }
+    if (financialIntent) {
+      const payments: any[] = await db.payment.findMany({
+        where: { userId: student.id },
+        select: { invoiceNo: true, purpose: true, status: true, amount: true, currency: true },
+        orderBy: { createdAt: 'desc' }, take: 20,
+      })
+      lines.push('آخر 20 سجل دفع مرتبط بالطالب: ' + (payments.map((p) =>
+        'فاتورة ' + shortValue(p.invoiceNo, 50) + '، ' + shortValue(p.purpose, 60) + '، ' +
+        p.status + '، ' + p.amount + ' ' + p.currency).join('؛ ') || 'لا توجد') + '.')
+    }
+    if (certificateIntent) {
+      const certificates: any[] = await db.certificate.findMany({
+        where: { userId: student.id },
+        select: { serial: true, valid: true, revokedAt: true, program: true, issuedAt: true },
+        orderBy: { issuedAt: 'desc' }, take: 20,
+      })
+      lines.push('شهادات الطالب (آخر 20): ' + (certificates.map((c) =>
+        shortValue(c.program) + '، الرقم ' + shortValue(c.serial) +
+        '، الصلاحية ' + (c.valid && !c.revokedAt ? 'سارية' : 'غير سارية')).join('؛ ') || 'لا توجد') + '.')
+    }
+    if (researchIntent) {
+      const theses: any[] = await db.thesisSubmission.findMany({
+        where: { userId: student.id },
+        select: { title: true, status: true, defenseStatus: true, resultScore: true },
+        orderBy: { createdAt: 'desc' }, take: 15,
+      })
+      lines.push('الأبحاث والمناقشات الخاصة بالطالب: ' + (theses.map((t) =>
+        shortValue(t.title) + '، البحث ' + t.status + '، المناقشة ' +
+        (t.defenseStatus || 'غير محددة') + '، النتيجة ' + (t.resultScore ?? 'غير مسجلة')).join('؛ ') || 'لا توجد') + '.')
+    }
+    if (communicationIntent) {
+      const [alerts, followUps] = await Promise.all([
+        db.notification.count({ where: { userId: student.id, read: false } }),
+        db.studentFollowUpLog.count({ where: { userId: student.id } }),
+      ])
+      lines.push('إشعارات الطالب غير المقروءة: ' + alerts + '؛ سجلات المتابعة: ' + followUps + '.')
+    }
     return lines.join('\n')
   }
 
-  if (studentIntent || overview || (!programIntent && !examIntent && !assignmentIntent && !financialIntent)) {
+  if (studentIntent || overview || (!programIntent && !examIntent && !assignmentIntent && !financialIntent && !admissionIntent && !certificateIntent && !contentIntent && !lecturesIntent && !researchIntent && !reviewIntent && !peopleIntent && !communicationIntent && !operationsIntent && !tabIntent)) {
     const [students, enrollments, complete] = await Promise.all([
       db.user.count({ where: { role: 'STUDENT', status: 'ACTIVE' } }),
       db.enrollment.count(),
