@@ -210,7 +210,7 @@ async function extractPdfBatchInner(input: { buffer: Buffer; bookId: string; pro
   }
   const phase = lastPage >= input.totalPages ? 'ANALYZE' : 'EXTRACT'
   const totalChunks = input.existingChunks + chunks.length
-  await store.saveProgress(jobId, lastPage, input.totalPages, totalChunks, phase)
+  await store.saveProgress(jobId, lastPage, input.totalPages, totalChunks, phase, issues, numbers)
   return { pagesDone: lastPage, totalPages: input.totalPages, totalChunks, phase }
 }
 
