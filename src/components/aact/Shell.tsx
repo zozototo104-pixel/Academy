@@ -460,7 +460,7 @@ function NotificationBell({ mobile = false }: { mobile?: boolean } = {}) {
     const text = normalizeForRoute(`${n.type || ''} ${n.title || ''} ${n.body || ''} ${n.link || ''}`)
     // Historical graduation notifications used the generic 'admin' link.
     // Route them to the actual certification/approval workspace as well.
-    if (text.includes('تخرج') || text.includes('graduation')) return 'certs'
+    if (text.includes('طلب تخرج') || text.includes('معامله تخرج') || text.includes('graduation request')) return 'certs'
     if (text.includes('whatsapp') || text.includes('واتساب') || text.includes('محادث')) return 'whatsapp-inbox'
     if (text.includes('رسائل التواصل') || text.includes('طلب تواصل') || text.includes('contact message')) return 'messages'
     if (text.includes('دفع') || text.includes('مالي') || text.includes('فاتور') || n.type === 'PAYMENT') return 'finance'
