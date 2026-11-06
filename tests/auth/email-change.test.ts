@@ -180,6 +180,22 @@ describe('applyPendingEmailChange (verify-email confirmation)', () => {
     expect(u.pendingEmail).toBeNull()
   })
 
+  test('LOGIN: session revocation failure rolls back the email and keeps the confirmation token retryable', async () => {
+    users.length = 0
+    deletedSessionUserIds.length = 0
+    const u = seed({ pendingEmail: 'new@student.com', pendingEmailPurpose: 'LOGIN', emailVerificationTokenHash: 'still-valid' })
+    failSessionRevocation = true
+    try {
+      await expect(applyPendingEmailChange(u as any)).rejects.toThrow('SESSION_REVOCATION_FAILED')
+      expect(u.email).toBe('old@student.com')
+      expect(u.pendingEmail).toBe('new@student.com')
+      expect(u.emailVerificationTokenHash).toBe('still-valid')
+      expect(deletedSessionUserIds).toHaveLength(0)
+    } finally {
+      failSessionRevocation = false
+    }
+  })
+
   test('LOGIN: an address taken in the meantime aborts the swap and clears the pending state', async () => {
     users.length = 0
     seed({ id: 'squatter', email: 'new@student.com' })
