@@ -48,6 +48,15 @@ function updateNumber(current: number, change: any): number {
 
 const db: any = {
   $transaction: async (work: (tx: any) => Promise<any>) => work(db),
+  // This single-threaded fake supports the live-usage row-lock contract.
+  // A concurrent session cannot be proved by a fake and is tested separately.
+  $queryRaw: async (strings: TemplateStringsArray) => {
+    const sql = strings.join('?')
+    if (!sql.includes('FOR UPDATE') || !/FROM "(User|AiLiveUsage|AiLiveSession)"/.test(sql)) {
+      throw new Error('Unexpected SQL in admin voice test database')
+    }
+    return []
+  },
   enrollment: { count: async () => 0 },
   thesisSubmission: { findFirst: async () => latestThesisStatus ? { id: 'thesis-1', status: latestThesisStatus, createdAt: new Date() } : null },
   setting: { findUnique: async () => null, findMany: async () => [] },
