@@ -144,25 +144,65 @@ async function extractPdfBatchInner(input: { buffer: Buffer; bookId: string; pro
   if (Date.now() >= input.deadlineMs) throw new Error('BOOK_EXTRACT_DEADLINE')
   const lastPage = Math.min(input.totalPages, input.pagesDone + 8)
   const numbers = Array.from({ length: lastPage - input.pagesDone }, (_, index) => input.pagesDone + index + 1)
-  const extracted = await (input.extractPages || extractNumberedPdfPages)(buffer, numbers)
-  const pageMap = new Map(extracted.map((page) => [page.page, page]))
-  for (const range of pagesNeedingOcr(extracted)) {
-    if (input.deadlineMs - Date.now() < 25_000) return { pagesDone: input.pagesDone, totalPages: input.totalPages, totalChunks: input.existingChunks, phase: 'EXTRACT' }
-    const ocr = input.ocrPages
-      ? await input.ocrPages(buffer, range, input.deadlineMs)
-      : await (async () => {
-          const meta = await transcribeWithMeta(buffer, range, input.deadlineMs, input.routing ?? null, () => {
-            if (input.aiUsage) { input.aiUsage.fallbackUsed = true; input.aiUsage.fallbackReason = 'all-stage-models-failed' }
-          })
-          if (input.aiUsage) { input.aiUsage.provider = meta.provider; input.aiUsage.model = meta.model; if (meta.fellBack) input.aiUsage.fallbackUsed = true }
-          return meta.pages
-        })()
-    for (const page of ocr) pageMap.set(page.page, page)
+  let extracted: ExtractedBookPage[]
+  try {
+    extracted = await (input.extractPages || extractNumberedPdfPages)(buffer, numbers)
+  } catch (error) {
+    // A broken native text layer may affect an entire PDF batch. Do not
+    // discard later pages; give OCR an independent chance on every page.
+    const reason = String(error instanceof Error ? error.message : error).slice(0, 120)
+    extracted = numbers.map((page) => ({ page, text: '', textProvenance: 'NATIVE_TEXT', readError: 'NATIVE_EXTRACTION_FAILED: ' + reason }))
   }
-  const ordered = numbers.map((page) => {
-    const result = pageMap.get(page)
-    if (!result) throw new Error(`BOOK_PAGE_MISSING_${page}`)
-    return result.textProvenance === 'NATIVE_TEXT' ? { ...result, text: fixArabicPdfText(result.text) } : result
+  const pageMap = new Map(extracted.filter((page) => numbers.includes(page.page)).map((page) => [page.page, page]))
+  const ocrFailures = new Map<number, string>()
+  const callOcr = async (pageNumbers: number[]): Promise<ExtractedBookPage[]> => {
+    if (input.ocrPages) return input.ocrPages(buffer, pageNumbers, input.deadlineMs)
+    const meta = await transcribeWithMeta(buffer, pageNumbers, input.deadlineMs, input.routing ?? null, () => {
+      if (input.aiUsage) { input.aiUsage.fallbackUsed = true; input.aiUsage.fallbackReason = 'all-stage-models-failed' }
+    })
+    if (input.aiUsage) {
+      input.aiUsage.provider = meta.provider
+      input.aiUsage.model = meta.model
+      if (meta.fellBack) input.aiUsage.fallbackUsed = true
+    }
+    return meta.pages
+  }
+  const needsOcr = numbers.filter((page) => (pageMap.get(page)?.text || '').trim().length < 80)
+  for (let offset = 0; offset < needsOcr.length; offset += 4) {
+    const batch = needsOcr.slice(offset, offset + 4)
+    // If the worker budget is nearly exhausted, resume this SAME batch on
+    // the next cron run instead of prematurely marking pages as unreadable.
+    if (input.deadlineMs - Date.now() < 25_000) return { pagesDone: input.pagesDone, totalPages: input.totalPages, totalChunks: input.existingChunks, phase: 'EXTRACT' }
+    try {
+      const ocr = await callOcr(batch)
+      for (const item of ocr) if (batch.includes(item.page) && item.text.trim()) pageMap.set(item.page, item)
+      for (const page of batch) if (!ocr.some((item) => item.page === page && item.text.trim())) ocrFailures.set(page, 'OCR_RETURNED_NO_TEXT')
+    } catch (batchError) {
+      // A failure on one page of a four-page OCR call must not discard the
+      // other three. Try each page, then preserve every remaining failure.
+      for (const page of batch) {
+        if (input.deadlineMs - Date.now() < 25_000) return { pagesDone: input.pagesDone, totalPages: input.totalPages, totalChunks: input.existingChunks, phase: 'EXTRACT' }
+        try {
+          const single = await callOcr([page])
+          const recovered = single.find((item) => item.page === page && item.text.trim())
+          if (recovered) pageMap.set(page, recovered)
+          else ocrFailures.set(page, 'OCR_RETURNED_NO_TEXT')
+        } catch (error) {
+          ocrFailures.set(page, 'OCR_FAILED: ' + String(error instanceof Error ? error.message : error).slice(0, 120))
+        }
+      }
+    }
+  }
+  const issues: BookPageReadIssue[] = []
+  const ordered = numbers.map((page): ExtractedBookPage => {
+    const result = pageMap.get(page) || { page, text: '', textProvenance: 'NATIVE_TEXT' as const }
+    const text = result.textProvenance === 'NATIVE_TEXT' ? fixArabicPdfText(result.text) : result.text
+    const reason = ocrFailures.get(page)
+    if (!text.trim() || reason) issues.push({
+      page, kind: text.trim() ? 'PARTIAL' : 'UNREADABLE',
+      reason: reason || result.readError || 'NO_EXTRACTABLE_TEXT_AFTER_OCR',
+    })
+    return { ...result, text }
   })
   const chunks = planBookChunks(ordered)
   for (let index = 0; index < chunks.length; index++) {
