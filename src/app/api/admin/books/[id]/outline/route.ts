@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
-import { auditOutlineCoverage, buildBookOutline, verifyBlankPdfGapPages } from '@/lib/book-outline'
+import { auditOutlineCoverage, buildBookOutline, verifyBlankPdfGapPages, missingBookSourcePageRanges, subtractVerifiedBlankPages } from '@/lib/book-outline'
+import { parseBookPageReadIssues } from '@/lib/book-read-job-control'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
