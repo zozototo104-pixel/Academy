@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
         status: paused ? 'PAUSED' : 'FAILED',
         retryAt: paused ? new Date(Date.now() + BOOK_READ_RETRY_MS) : null,
         lockedUntil: null,
-        lastError: message.slice(0, 2000),
+        lastError: preserveBookPageReadIssues(previous?.lastError, message),
       } })
       outcomes.push({ jobId: job.id, outcome: paused ? 'PAUSED' : 'FAILED' })
     }
