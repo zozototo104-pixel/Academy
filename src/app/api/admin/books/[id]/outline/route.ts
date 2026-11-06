@@ -36,7 +36,10 @@ export async function GET(_req: NextRequest, context: Context) {
         pageStart: Math.min(...sourceChunks.map((chunk) => chunk.pageStart)),
         pageEnd: Math.max(...sourceChunks.map((chunk) => chunk.pageEnd)),
       } : undefined
-      const coverage = auditOutlineCoverage(outline.sections, range)
+      const unchecked = auditOutlineCoverage(outline.sections, range)
+      const verifiedBlankPages = unchecked.gaps.length
+        ? await verifyBlankPdfGapPages(id, unchecked.gaps) : []
+      const coverage = auditOutlineCoverage(outline.sections, range, verifiedBlankPages)
       const warnings = (() => { try { const x = JSON.parse(outline.warnings || '[]'); return Array.isArray(x) ? x.map(String) : [] } catch { return [] as string[] } })()
         .filter((warning) => !warning.startsWith('تنبيه تغطية:') && !warning.startsWith('OUTLINE_COVERAGE:'))
       for (const section of coverage.review) {
