@@ -97,6 +97,14 @@ const { completeEnrollmentIfEligibleInTransaction, registerGraduationRequest } =
 const { POST: graduationAction } = await import('../../src/app/api/admin/graduation-requests/route')
 const { PATCH: admissionAction } = await import('../../src/app/api/admin/admissions/route')
 
+function certifyFromAdmissions() {
+  return admissionAction(new NextRequest('http://localhost/api/admin/admissions', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: 'admission-1', status: 'CERTIFIED' }),
+  }))
+}
+
 function postGraduationAction(action: 'REFRESH' | 'APPROVE' | 'REJECT') {
   return graduationAction(new NextRequest('http://localhost/api/admin/graduation-requests', {
     method: 'POST',
