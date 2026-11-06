@@ -42,7 +42,7 @@ function makeWorld() {
     program: {
       findUnique: async () => ({ id: 'program-1', titleAr: 'برنامج عربي للاختبار', titleEn: 'Arabic Test Program', price: state.programPrice, category: 'DIPLOMA' }),
     },
-    payment: { findMany: async () => [] },
+    payment: { findMany: async () => state.payments },
     certificate: {
       findFirst: async () => state.certificate,
       create: async ({ data }: any) => { state.createdCertificate = { id: 'cert-new', ...data }; state.certificate = state.createdCertificate; return state.createdCertificate },
