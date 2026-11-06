@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
         await runEnrichStep(job.id, deadline)
       }
       const current = await db.bookReadJob.findUnique({ where: { id: job.id }, select: { status: true } })
-      if (current?.status !== 'COMPLETED') await db.bookReadJob.update({ where: { id: job.id }, data: { status: 'QUEUED', lockedUntil: null, retryAt: null, lastError: null } })
+      if (current?.status !== 'COMPLETED') await db.bookReadJob.update({ where: { id: job.id }, data: { status: 'QUEUED', lockedUntil: null, retryAt: null } })
       outcomes.push({ jobId: job.id, outcome: current?.status === 'COMPLETED' ? 'COMPLETED' : 'PROGRESSED' })
     } catch (error: any) {
       const message = String(error?.message || error)
