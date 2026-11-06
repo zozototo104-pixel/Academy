@@ -492,6 +492,16 @@ export function applyGroundedChapterTitleProposals(
     const order = proposal?.order
     if (!Number.isInteger(order) || used.has(order)) continue
     used.add(order)
+    const probeSection = result.find((s) => s.order === order)
+    const probeEvidence = clean(proposal?.sourceItemTitle, 120)
+    const probeTitle = clean(proposal?.title, 110)
+    const probeIds = new Set(chunks.filter((c) => probeSection && c.index >= probeSection.chunkStartIndex && c.index <= probeSection.chunkEndIndex).map((c) => chunkIds.get(c.index)))
+    console.warn('[book-outline] title-proposal diagnostic', {
+      section: Boolean(probeSection), bare: probeSection ? isBareChapterTitle(probeSection.title) : false,
+      titleValid: usableOutlineTitle(probeTitle, bookTitle), proposedChapter: chapterNumber(probeTitle),
+      evidenceFound: items.some((i) => i.chunkId && probeIds.has(i.chunkId) && clean(i.title, 120) === probeEvidence),
+      overlap: [...outlineTopicWords(probeTitle)].some((w) => outlineTopicWords(probeEvidence).has(w)),
+    })
     const section = result.find((s) => s.order === order)
     if (!section || !isBareChapterTitle(section.title)) continue
     const title = clean(proposal?.title, 110)
