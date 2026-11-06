@@ -33,7 +33,12 @@ export async function POST(req: NextRequest, context: Context) {
       pageStart: Math.min(...sourceChunks.map((chunk) => chunk.pageStart)),
       pageEnd: Math.max(...sourceChunks.map((chunk) => chunk.pageEnd)),
     }
-    const guard = outlineApprovalGuard(outline.sections, sourceRange)
+    const rawCoverage = outlineApprovalGuard(outline.sections, sourceRange)
+    // Blankness is verified against the current original PDF at approval time.
+    // Missing OCR/text must never be interpreted as empty content.
+    const verifiedBlankPages = rawCoverage.report.gaps.length
+      ? await verifyBlankPdfGapPages(id, rawCoverage.report.gaps) : []
+    const guard = outlineApprovalGuard(outline.sections, sourceRange, verifiedBlankPages)
     // Unknown page ends must never be bypassed by the documented long-section override.
     const incomplete = guard.report.sections.filter((section) => section.pages === null)
     if (!outline.sections.length || incomplete.length) {
