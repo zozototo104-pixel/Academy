@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { claimAiHealthRun } from '@/lib/ai-health'
 import { runExtractStep } from '@/lib/book-reader'
 import { runAnalyzeStep, runEnrichStep } from '@/lib/book-chunk-analyzer'
-import { BOOK_READ_RETRY_MS, claimBookReadLock } from '@/lib/book-read-job-control'
+import { BOOK_READ_RETRY_MS, claimBookReadLock, preserveBookPageReadIssues } from '@/lib/book-read-job-control'
 import { textAiCheckAllModelHealth } from '@/lib/text-ai'
 
 export const runtime = 'nodejs'
