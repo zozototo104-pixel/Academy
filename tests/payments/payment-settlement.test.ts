@@ -188,6 +188,37 @@ const db: any = {
       return { ...entry[1] }
     },
   },
+  program: {
+    findUnique: async () => ({ id: 'program-1', category: 'DIPLOMA', admissionRules: null, semestersCount: 2, maxStudyDays: 90 }),
+  },
+  unit: {
+    findMany: async () => [
+      { id: 'unit-1', semester: 1, order: 1 },
+      { id: 'unit-2', semester: 2, order: 2 },
+    ],
+  },
+  enrollmentRulesSnapshot: {
+    findUnique: async ({ where }: any) => rulesSnapshots.get(where.enrollmentId) || null,
+    create: async ({ data }: any) => {
+      if (snapshotWriteFails) throw new Error('snapshot database unavailable')
+      const row = { id: `snapshot-${rulesSnapshots.size + 1}`, ...data, capturedAt: new Date() }
+      rulesSnapshots.set(data.enrollmentId, row)
+      return row
+    },
+  },
+  enrollmentSemesterState: {
+    findUnique: async ({ where }: any) => {
+      const w = where.enrollmentId_semester
+      return semesterStates.get(`${w.enrollmentId}:${w.semester}`) || null
+    },
+    create: async ({ data }: any) => {
+      const key = `${data.enrollmentId}:${data.semester}`
+      const row = { ...data, id: `state-${semesterStates.size + 1}` }
+      semesterStates.set(key, row)
+      return row
+    },
+    count: async ({ where }: any) => [...semesterStates.values()].filter((row) => row.enrollmentId === where.enrollmentId).length,
+  },
   aiLiveCredit: { findFirst: async () => null },
   agentApplication: { findUnique: async () => null },
   auditLog: { create: async ({ data }: { data: Record<string, any> }) => ({ id: `audit-${audits.length + 1}`, ...data }) },
