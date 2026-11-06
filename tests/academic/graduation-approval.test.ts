@@ -25,9 +25,12 @@ function makeWorld() {
   const tx: any = {
     $queryRaw: async () => [{ value: 1 }],
     admissionApplication: {
-      findUnique: async () => admission,
-      findFirst: async () => admission,
-      update: async ({ data }: any) => ({ id: 'admission-1', ...data }),
+      findUnique: async () => ({ ...admission, status: state.admissionStatus }),
+      findFirst: async () => ({ ...admission, status: state.admissionStatus }),
+      update: async ({ data }: any) => {
+        if (data.status) state.admissionStatus = data.status
+        return { ...admission, status: state.admissionStatus, ...data }
+      },
     },
     enrollment: {
       findUnique: async () => state.enrollment,
