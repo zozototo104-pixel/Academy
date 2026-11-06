@@ -532,7 +532,7 @@ function NotificationBell({ mobile = false }: { mobile?: boolean } = {}) {
 
     const adminTab = user?.role === 'ADMIN' ? adminTabForNotification(n) : null
     if (adminTab) {
-      navigate('admin' as any)
+      navigate('admin' as any, { tab: adminTab })
       dispatchAdminTab(adminTab)
       return true
     }
