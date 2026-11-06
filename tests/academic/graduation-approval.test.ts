@@ -78,7 +78,10 @@ function makeWorld() {
 
 const world = makeWorld()
 mock.module('@/lib/db', () => ({ db: world.db }))
-mock.module('@/lib/auth', () => ({ requireAdmin: async () => ({ id: 'admin-1', role: 'ADMIN' }) }))
+mock.module('@/lib/auth', () => ({
+  requireAdmin: async () => ({ id: 'admin-1', role: 'ADMIN' }),
+  getCurrentUser: async () => ({ id: 'admin-1', role: 'ADMIN', name: 'المسؤول' }),
+}))
 mock.module('@/lib/notify', () => ({
   notify: async () => {},
   notifyAdmins: async () => {},
