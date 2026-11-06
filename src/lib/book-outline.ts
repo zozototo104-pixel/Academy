@@ -69,7 +69,17 @@ export function normalizeOutlineText(value: unknown): string {
     .trim()
 }
 
-const normalizeHeading = (value: unknown) => normalizeOutlineText(clean(value)).replace(/[^\p{L}\p{N}]+/gu, ' ').toLowerCase().trim()
+const normalizeHeading = (value: unknown) => normalizeOutlineText(clean(value)).replace(/[^\\p{L}\\p{N}]+/gu, ' ').toLowerCase().trim()
+// Running headers in PDF scans often contain the book title + printed page
+// number. They are not chapter/article titles even when the first word (e.g.
+// «إدارة») otherwise satisfies the generic heading recognizer.
+function isBookRunningHeader(value: string, bookTitle: string): boolean {
+  const title = normalizeHeading(value)
+  const book = normalizeHeading(bookTitle)
+  if (!book || !title.startsWith(book)) return false
+  const suffix = title.slice(book.length).trim()
+  return !suffix || (/^\\d{1,4}(?:\\s+\\d{1,4})?$/u.test(suffix) && title[book.length] === ' ')
+}
 const normalizeLineForMatch = (value: unknown) => normalizeOutlineText(value).toLowerCase()
 const pageNumber = (value: string) => Number(normalizeOutlineText(value).replace(/[^0-9]/g, ''))
 const offsetForSort = (value: number | null | undefined) => Math.max(0, value ?? 0)
