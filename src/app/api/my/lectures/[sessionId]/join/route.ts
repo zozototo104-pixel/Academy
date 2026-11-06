@@ -45,8 +45,11 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ se
         const enrollment = await db.enrollment.findUnique({
           where: { userId_programId: { userId: user.id, programId: session.series.programId } },
           select: { id: true },
-        }).catch(() => null)
-        if (enrollment) {
+        })
+        if (!enrollment) {
+          return NextResponse.json({ error: 'تعذر التحقق من تسجيل الطالب لهذه المحاضرة', code: 'ENROLLMENT_REQUIRED' }, { status: 403 })
+        }
+        {
           const { progressionGate } = await import('@/lib/progression')
           const gate = await progressionGate(
             db as any,
