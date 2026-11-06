@@ -273,6 +273,9 @@ beforeEach(() => {
   admissions.clear()
   users.clear()
   enrollments.clear()
+  rulesSnapshots.clear()
+  semesterStates.clear()
+  snapshotWriteFails = false
   waiverCodes.splice(0, waiverCodes.length)
   waiverAttempts.splice(0, waiverAttempts.length)
   notifications.splice(0, notifications.length)
