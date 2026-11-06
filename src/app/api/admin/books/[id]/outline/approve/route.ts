@@ -106,7 +106,7 @@ export async function POST(req: NextRequest, context: Context) {
     let warningsPrefix: string[] = reviewMessages.length ? [
       'OUTLINE_REVIEW_ACK:' + JSON.stringify({
         at: new Date().toISOString(), byAdminId: admin.id,
-        gaps: unresolvedGaps, readIssues, verifiedBlankPages, acknowledgmentKey,
+        gaps: unresolvedGaps, readIssues, pdfReadIssues, verifiedBlankPages, acknowledgmentKey,
       }),
     ] : []
     // Acknowledging lost pages NEVER bypasses unknown section bounds or a
