@@ -80,19 +80,30 @@ export async function dispatchOutboxBatch(client: AnyClient = db, limit = 50): P
     take: limit,
   }).catch(() => [])
   for (const row of pending) {
-    const recipients = await resolveRecipients(client, row)
-    await client.$transaction(async (tx: AnyClient) => {
-      if (recipients.length) {
-        await tx.notification.createMany({
-          data: recipients.map((r) => ({ userId: r.id, type: row.kind, title: row.title, body: row.body, link: row.link ?? undefined })),
+    try {
+      const recipients = await resolveRecipients(client, row)
+      const delivered = await client.$transaction(async (tx: AnyClient) => {
+        // Claim before creating notifications, with a conditional write inside
+        // the same transaction. Concurrent dispatchers can see the same PENDING
+        // row, but only one can transition it to SENT.
+        const claim = await tx.notificationOutbox.updateMany({
+          where: { id: row.id, status: 'PENDING' },
+          data: { status: 'SENT', sentAt: new Date(), ...(recipients.length ? {} : { emailStatus: 'SKIPPED' }) },
         })
-      }
-      await tx.notificationOutbox.update({
-        where: { id: row.id },
-        data: { status: 'SENT', sentAt: new Date(), ...(recipients.length ? {} : { emailStatus: 'SKIPPED' }) },
+        if (claim.count !== 1) return false
+        if (recipients.length) {
+          await tx.notification.createMany({
+            data: recipients.map((r) => ({ userId: r.id, type: row.kind, title: row.title, body: row.body, link: row.link ?? undefined })),
+          })
+        }
+        return true
       })
-    }).catch((e: any) => console.error('outbox platform dispatch failed', row.id, e))
-    platformSent++
+      if (delivered) platformSent++
+    } catch (e) {
+      // A failed transaction rolls back both the status change and all
+      // notifications. Leave the event PENDING for the next cron run.
+      console.error('outbox platform dispatch failed', row.id, e)
+    }
   }
 
   // ٢) البريد: محاولات موثّقة للمنصّة المُسلَّمة التي بريدها لم يُحسم.
