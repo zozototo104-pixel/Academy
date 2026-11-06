@@ -33,6 +33,7 @@ type MeetingInfo = {
   hostName?: string | null
   inviteeNames?: string[]
   aiAssistantEnabled?: boolean
+  minutesEnabled?: boolean
 }
 
 type MeetingNote = { id: string; authorName: string; text: string; createdAt: string }
