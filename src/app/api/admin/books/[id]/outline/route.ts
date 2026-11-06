@@ -58,7 +58,11 @@ export async function GET(_req: NextRequest, context: Context) {
       }
       if (verifiedBlankPages.length) warnings.push(
         'صفحات بيضاء تم التحقق منها بصريًا في PDF الأصلي، ولا تُعد فجوات معرفية: ' + verifiedBlankPages.join('، ') + '.')
-      for (const gap of coverage.gaps) warnings.push(`تنبيه تغطية: صفحات ${gap.pageStart}–${gap.pageEnd} غير ممثلة في الفهرس الحالي؛ أعد فحص مصدر هذه الصفحات ولا تتجاوز الحارس دون دليل.`)
+      for (const gap of coverage.gaps) warnings.push(`تنبيه تغطية: صفحات ${gap.pageStart}–${gap.pageEnd} غير ممثلة في الفهرس؛ ستظهر في تقرير اعتماد مع الإقرار.`)
+      for (const gap of unresolvedSource) warnings.push(
+        `تنبيه تغطية: صفحات المصدر ${gap.pageStart}–${gap.pageEnd} غير مقروءة أو غير ممثلة بمقاطع النص؛ دمج الفصول لا يُخفي هذه الفجوة.`)
+      for (const issue of readIssues) warnings.push(
+        `تنبيه قراءة: صفحة ${issue.page} — ${issue.kind === 'PARTIAL' ? 'قراءة جزئية' : 'لم تُقرأ'}؛ ${issue.reason}.`)
       for (const section of coverage.blocked) warnings.push(`تنبيه تغطية: القسم «${section.title}» يتجاوز 80 صفحة؛ يحتاج تقسيمًا موثقًا.`)
       currentOutline = { ...outline, warnings: JSON.stringify(warnings) }
     }
