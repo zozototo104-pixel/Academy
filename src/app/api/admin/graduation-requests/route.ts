@@ -138,10 +138,16 @@ export async function POST(req: NextRequest) {
       if (!fresh.ready) {
         return NextResponse.json({ error: 'لا يمكن مصادقة طلب تخرج غير مستوفٍ للشروط الحالية.', code: 'GRADUATION_NOT_READY' }, { status: 409 })
       }
-      const updated = await db.graduationRequest.update({
-        where: { id: requestId },
+      // Compare-and-set: a concurrent rejection/approval or readiness refresh
+      // must never be overwritten by a decision based on an older snapshot.
+      const decision = await db.graduationRequest.updateMany({
+        where: { id: requestId, status: fresh.status, ready: true, score: fresh.score, updatedAt: fresh.updatedAt },
         data: { status: 'APPROVED', decidedById: admin.id, decidedAt: new Date(), decisionNote: note },
       })
+      if (decision.count !== 1) {
+        return NextResponse.json({ error: 'تغيّرت حالة طلب التخرج أثناء اعتماد القرار. حدّث القائمة وأعد المحاولة.', code: 'GRADUATION_DECISION_CONFLICT' }, { status: 409 })
+      }
+      const updated = await db.graduationRequest.findUnique({ where: { id: requestId } })
       await audit(admin, 'APPROVE_GRADUATION_REQUEST', 'GraduationRequest', requestId, `اعتماد طلب تخرج الطالب ${fresh.userId} — الإصدار ما زال مشروطًا بإعادة فحص الشروط وقت التنفيذ`)
       return NextResponse.json({ ok: true, request: updated })
     }
