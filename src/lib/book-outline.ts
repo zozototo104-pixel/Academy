@@ -1428,6 +1428,13 @@ export async function buildBookOutline(bookId: string, options: { reuseReadChunk
       draft.warnings.push('العناوين الموسومة «عنوان مقترح من المحتوى» استنتجها الذكاء من نص الفصل ومعرفته المحفوظة وليست عناوين حرفية مثبتة في أصل الكتاب؛ راجعها قبل الاعتماد.')
     }
   }
+  // Attach read failures only after every AI/legacy draft replacement, so
+  // no later re-segmentation can discard the mandatory approval evidence.
+  if (pdfReadIssues.length) {
+    draft.warnings.push('OUTLINE_PDF_READ_ISSUES:' + JSON.stringify(pdfReadIssues))
+    for (const issue of pdfReadIssues) draft.warnings.push(
+      `تنبيه إعادة قراءة PDF: صفحة ${issue.page} ${issue.kind === 'PARTIAL' ? 'قراءة جزئية' : 'غير مقروءة'}؛ ${issue.reason}. تُراجع عند الاعتماد.`)
+  }
   const coverage = auditOutlineCoverage(draft.sections)
   for (const section of coverage.review) draft.warnings.push(section.pages === null ? `تنبيه تغطية: حدود صفحات القسم «${section.title}» غير مكتملة؛ راجعها قبل الاعتماد.` : `تنبيه تغطية: القسم «${section.title}» يغطي ${section.pages} صفحة (صفحات ${section.pageStart}–${section.pageEnd}) — فوق حد المراجعة ${OUTLINE_SECTION_REVIEW_PAGES} صفحة؛ أعد فحص عناوين هذا النطاق قبل الاعتماد.`)
   for (const gap of coverage.gaps) draft.warnings.push(`تنبيه تغطية: هناك فجوة غير مغطاة من الصفحة ${gap.pageStart} إلى ${gap.pageEnd}؛ لن يُعتمد الفهرس قبل تصحيحها.`)
