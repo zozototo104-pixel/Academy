@@ -225,19 +225,6 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
     }
   }
 
-  // إخراج صوتي اختياري على جهاز المشارك فقط؛ لا يُبث إلى بقية الحضور.
-  const readAssistantAnswer = () => {
-    if (!assistantAnswer || typeof window === 'undefined' || !('speechSynthesis' in window)) {
-      setAssistantError('القراءة الصوتية غير مدعومة في هذا المتصفح')
-      return
-    }
-    window.speechSynthesis.cancel()
-    const utterance = new SpeechSynthesisUtterance(assistantAnswer.slice(0, 3000))
-    utterance.lang = 'ar'
-    utterance.rate = 0.95
-    window.speechSynthesis.speak(utterance)
-  }
-
   const doAsk = async () => {
     const q = question.trim()
     if (!q) return
