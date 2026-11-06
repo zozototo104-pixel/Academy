@@ -523,6 +523,30 @@ function testThematicGroupCannotHideMissingPdfPages() {
   assert(reason === 'OUTLINE_THEMATIC_SOURCE_COVERAGE_GAP', 'الحدود المتداخلة أو المعكوسة تظل مرفوضة')
 }
 
+async function testOutlinePdfOcrFailureContinuesAndRequiresAcknowledgment() {
+  const pages = [1, 2, 3, 4].map((page) => ({
+    page, text: [2, 3].includes(page) ? '' : 'نص أصلي مقروء',
+    textProvenance: 'NATIVE_TEXT' as const,
+  }))
+  const calls: string[] = []
+  const result = await recoverOutlineOcrPages(pages, [[2, 3]], async (numbers) => {
+    calls.push(numbers.join(','))
+    if (numbers.length > 1 || numbers[0] === 2) throw new Error('OCR_UNREADABLE')
+    return [{ page: numbers[0], text: 'نص الصفحة الثالثة المستعاد', textProvenance: 'VISION_OCR' as const }]
+  })
+  assert(calls.join('|') === '2,3|2|3', 'فشل OCR الجماعي يتبعه فحص كل صفحة منفردة')
+  assert(result[1].text === '' && !!result[1].readError,
+    'صفحة 2 تبقى مفقودة ومعلّمة عند فشل OCR')
+  assert(result[2].text.includes('الثالثة') && !result[2].readError,
+    'صفحة 3 تُستعاد رغم فشل الثانية')
+  assert(result[3].text.includes('أصلي'), 'صفحة 4 تبقى مقروءة بعد الفشل')
+  const source = readFileSync('src/lib/book-outline.ts', 'utf8')
+  const approval = readFileSync('src/app/api/admin/books/[id]/outline/approve/route.ts', 'utf8')
+  assert(source.includes('OUTLINE_PDF_READ_ISSUES:'), 'أخطاء OCR المباشر يجب أن تحفظ مع المسودة')
+  assert(approval.includes('pdfReadIssues, verifiedBlankPages') &&
+    approval.includes('...pdfReadIssues.map('), 'الإقرار يجب أن يغطي أخطاء OCR المباشر')
+}
+
 function testRepeatedMergesRetainOriginalTitles() {
   const markers = [
     'OUTLINE_SUBHEADING:' + JSON.stringify({ sectionOrder: 3, title: 'عنوان أصلي', page: 27 }),
