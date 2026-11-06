@@ -237,4 +237,55 @@ describe('مسار الاسترحام والنشاط العلاجي', () => {
     const lateSubmit = await submitMercyActivity(world.db, { mercyId: 'mercy-lapse', userId: 'u1', text: 'متأخر' })
     expect(lateSubmit).toEqual({ ok: false, code: 'MERCY_WRONG_STATE' })
   })
+
+  test('supervisor assigned to student in programme A cannot assign or grade mercy in programme B', async () => {
+    world.state.setSupervisorAssigned(true)
+    const other = { id: 'mercy-other-program', enrollmentId: 'enr-other',
+      userId: 'u1', programId: 'p2', semester: 1, status: 'REQUESTED' }
+    world.state.mercyRows.push(other)
+    try {
+      const assign = await assignMercyActivity(world.db, {
+        mercyId: other.id, actor: { id: 'sup-1' }, title: 'نشاط', weightPercent: 25,
+      })
+      expect(assign).toEqual({ ok: false, code: 'FORBIDDEN' })
+      expect(other.status).toBe('REQUESTED')
+      other.status = 'SUBMITTED'
+      const grade = await gradeMercyActivity(world.db, { mercyId: other.id, actor: { id: 'sup-1' }, score: 90 })
+      expect(grade).toEqual({ ok: false, code: 'FORBIDDEN' })
+      expect(other.status).toBe('SUBMITTED')
+    } finally {
+      world.state.mercyRows.splice(world.state.mercyRows.indexOf(other), 1)
+    }
+  })
+
+  test('supervisor mercy list shows only exact student-program assignments', async () => {
+    const originalAdmissionFindMany = world.db.admissionApplication.findMany
+    const originalMercyFindMany = world.db.mercyRequest.findMany
+    const requests = [
+      { id: 'allowed-1', userId: 'u1', programId: 'p1' },
+      { id: 'allowed-2', userId: 'u2', programId: 'p2' },
+      { id: 'hidden-cross-program', userId: 'u1', programId: 'p2' },
+      { id: 'hidden-other-student', userId: 'u2', programId: 'p1' },
+    ]
+    world.db.admissionApplication.findMany = async () => [
+      { userId: 'u1', programId: 'p1' }, { userId: 'u2', programId: 'p2' },
+    ]
+    world.db.mercyRequest.findMany = async ({ where }: any) => {
+      expect(where.OR).toEqual([
+        { userId: 'u1', programId: 'p1' },
+        { userId: 'u2', programId: 'p2' },
+      ])
+      return requests.filter((r) => where.OR.some((p: any) =>
+        p.userId === r.userId && p.programId === r.programId))
+    }
+    try {
+      const res = await supervisorMercyList()
+      expect(res.status).toBe(200)
+      const payload = await res.json()
+      expect(payload.requests.map((r: any) => r.id)).toEqual(['allowed-1', 'allowed-2'])
+    } finally {
+      world.db.admissionApplication.findMany = originalAdmissionFindMany
+      world.db.mercyRequest.findMany = originalMercyFindMany
+    }
+  })
 })
