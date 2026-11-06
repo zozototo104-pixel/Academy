@@ -180,11 +180,11 @@ async function latestPresence(meetingId: string, peerId: string, client: Prisma.
   return row ? { row, info: parsePresence(row.payload) } : null
 }
 
-async function touchPresence(meetingId: string, peerId: string, info: PresenceInfo) {
-  await db.adminMeetingSignal.deleteMany({
+async function touchPresence(meetingId: string, peerId: string, info: PresenceInfo, client: Prisma.TransactionClient | typeof db = db) {
+  await client.adminMeetingSignal.deleteMany({
     where: { meetingId, type: PRESENCE_TYPE, fromPeer: peerId },
   })
-  await db.adminMeetingSignal.create({
+  await client.adminMeetingSignal.create({
     data: {
       meetingId,
       fromPeer: peerId,
