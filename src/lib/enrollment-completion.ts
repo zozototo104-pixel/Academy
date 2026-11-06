@@ -378,6 +378,8 @@ export async function registerGraduationRequest(input: CompleteEnrollmentInput):
         // allow an earlier approval to authorize issuance on changed facts.
         const approvalStale = existing.status === 'APPROVED'
           && (!ready || existing.score !== snapshot.score)
+        // Capture before update: mocks (and other clients) can mutate the returned row in place.
+        const becameReady = !existing.ready && ready
         const updated = await table.update({
           where: { enrollmentId: enrollment.id },
           data: {
