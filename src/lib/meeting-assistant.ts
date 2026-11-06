@@ -1,11 +1,184 @@
 import { isMeetingJoinOpen, meetingAccessFor, meetingJoinOpensAt } from '@/lib/admin-meetings'
 import { checkDatabaseRateLimit } from '@/lib/rate-limit'
 
-// مساعد الاجتماع الذكي — وضع نصي بمسار المنصة الحالي. لا يسمع صوت
-// Zoom/Meet (لا وصول تقني له)، ومعرفته محصورة بسياق هذا الاجتماع:
-// العنوان وجدول الأعمال وأسماء المدعوين وملاحظات المشاركين المكتوبة.
-// لا يُستدعى إلا بطلب صريح من مشارك (زر «اسأل المساعد»)، وترحيبه
-// يُسجَّل كحدث مرة واحدة لكل اجتماع فلا يتكرر مع التحديث.
+// مساعد الاجتماعات مستقل عن مشرف الطلاب والوكيل العام وواتساب والمناقش.
+// جميع الاستعلامات أدناه قراءة فقط وتُنفّذ ببيانات حديثة وقت السؤال.
+// دعوة الاجتماع لا تمنح صاحبها صلاحية الإدارة أو الاطلاع على درجات الطلاب.
+
+const shortValue = (value: unknown, max = 140) =>
+  String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max)
+
+function selectedStudent(question: string): string | null {
+  const match = question.match(/(?:الطالب(?:ة)?|للطالب(?:ة)?)\s+([\p{L}][\p{L}\s'-]{2,65})/u)
+  if (!match) return null
+  const name = match[1].split(/\s+(?:في|عن|من|ضمن|كم|شو|كيف|هل|ما|نتيجته|نتيجتها|معدله|معدلها|درجاته|درجاتها|وحداته|وحداتها|بالبرنامج|ببرنامج|عنده|لديه|خلص|نجح|بالفصل)(?:\s|$)/u)[0]
+  return shortValue(name, 55) || null
+}
+
+function finishedUnitIds(raw: unknown): Set<string> {
+  try {
+    const values = JSON.parse(String(raw || '[]'))
+    return new Set(Array.isArray(values) ? values.filter((id): id is string => typeof id === 'string') : [])
+  } catch { return new Set() }
+}
+
+/** Admin-only evidence provider. Read-only, scoped, never executes model-created SQL. */
+export async function collectMeetingAcademyEvidence(db: any, question: string, user: { role?: string }): Promise<string> {
+  if (user.role !== 'ADMIN') {
+    return 'سجلات الطلاب والدرجات والإدارة غير متاحة لهذه الجلسة. دعوة الاجتماع لا تمنح صلاحيات إضافية؛ يلزم حساب إدارة مخوّل.'
+  }
+  const q = shortValue(question, 1000)
+  const studentIntent = /طالب|طلاب|طلبة|خريج|تقدم|معدل|درجات|نتائج|وحدات|التحاق|تخرّج/i.test(q)
+  const programIntent = /برنامج|برامج|تخصص|وحدة|وحدات|فصل|منهج|مقرر|الكتب|الكتاب/i.test(q)
+  const examIntent = /امتحان|اختبار|درجات|نتائج|معدل|نجاح|رسوب|تصحيح/i.test(q)
+  const assignmentIntent = /واجب|تكليف|تسليم|تصحيح/i.test(q)
+  const financialIntent = /دفع|مدفوع|مالي|فاتور|رسوم|تسديد/i.test(q)
+  const overview = /كل|شامل|إحصائ|احصائ|عدد|كم|شهادة|قبول|طلب|نشاط|تقرير|ملخص|لوحة|الإدارة/i.test(q)
+  const lines: string[] = ['مصدر الحقائق: قاعدة بيانات الأكاديمية المباشرة (قراءة فقط). وقت الاستعلام: ' + new Date().toISOString() + '.']
+
+  const studentName = studentIntent ? selectedStudent(q) : null
+  if (studentName) {
+    const students = await db.user.findMany({
+      where: { role: 'STUDENT', name: { contains: studentName, mode: 'insensitive' } },
+      select: { id: true, name: true, status: true },
+      take: 6,
+    })
+    if (!students.length) return lines.concat('لم يُعثر على طالب بالاسم المحدد «' + studentName + '».').join('\n')
+    if (students.length !== 1) return lines.concat('يوجد أكثر من سجل يطابق «' + studentName + '». حدد الطالب بدقة حتى لا تختلط النتائج.').join('\n')
+    const student = students[0]
+    const enrollments = await db.enrollment.findMany({
+      where: { userId: student.id },
+      select: {
+        programId: true, status: true, completedUnits: true, finalScore: true, certificateNo: true,
+        program: { select: {
+          titleAr: true,
+          units: { select: { id: true, title: true, semester: true, status: true },
+            orderBy: [{ semester: 'asc' }, { order: 'asc' }], take: 200 },
+        } },
+      },
+      take: 30,
+    })
+    lines.push('الطالب ' + shortValue(student.name) + '؛ حالة الحساب ' + student.status + '؛ عدد الالتحاقات ' + enrollments.length + '.')
+    for (const enrollment of enrollments) {
+      const completed = finishedUnitIds(enrollment.completedUnits)
+      const units: any[] = enrollment.program.units
+      const remaining = units.filter((u) => !completed.has(u.id) && u.status === 'APPROVED')
+      lines.push('برنامج ' + shortValue(enrollment.program.titleAr) +
+        '؛ حالة الالتحاق ' + enrollment.status +
+        '؛ المنجز من الوحدات ' + completed.size +
+        '؛ إجمالي الوحدات المعروضة ' + units.length +
+        '؛ الوحدات المعتمدة المتبقية ' + remaining.length +
+        '؛ الدرجة النهائية المحفوظة ' + (enrollment.finalScore ?? 'لم تسجّل') +
+        '؛ رقم الشهادة ' + (enrollment.certificateNo || 'لم يصدر') + '.')
+      if (/وحد|تقدم|أنجز|انجز|باق|خلص/i.test(q)) {
+        lines.push('الوحدات المكتملة: ' +
+          (units.filter((u) => completed.has(u.id)).map((u) => shortValue(u.title)).join('، ') || 'لا توجد') + '.')
+        lines.push('الوحدات المعتمدة المتبقية: ' +
+          (remaining.map((u) => shortValue(u.title)).join('، ') || 'لا توجد') + '.')
+      }
+      if (examIntent) {
+        const [unitAttempts, programAttempts] = await Promise.all([
+          db.examAttempt.findMany({
+            where: { userId: student.id, status: 'GRADED', exam: { unit: { programId: enrollment.programId } } },
+            select: { score: true, passed: true, exam: { select: { title: true } } },
+            orderBy: { submittedAt: 'desc' }, take: 40,
+          }),
+          db.programExamAttempt.findMany({
+            where: { userId: student.id, status: 'GRADED', exam: { programId: enrollment.programId } },
+            select: { score: true, finalScore: true, exam: { select: { title: true, semester: true } } },
+            orderBy: { createdAt: 'desc' }, take: 30,
+          }),
+        ])
+        lines.push('نتائج اختبارات الوحدات المصححة (آخر 40): ' +
+          (unitAttempts.map((a) => shortValue(a.exam.title) + '=' + (a.score ?? 'غير محدد') + '، اجتياز=' + (a.passed ?? 'غير محدد')).join('؛ ') || 'لا توجد') + '.')
+        lines.push('نتائج امتحانات البرامج المصححة (آخر 30): ' +
+          (programAttempts.map((a) => shortValue(a.exam.title) + ' (الفصل ' + a.exam.semester + ')=' + (a.finalScore ?? a.score ?? 'غير محدد')).join('؛ ') || 'لا توجد') + '.')
+      }
+      if (assignmentIntent) {
+        const submissions = await db.assignmentSubmission.findMany({
+          where: { userId: student.id, assignment: { programId: enrollment.programId } },
+          select: { status: true, score: true, assignment: { select: { title: true, points: true } } },
+          orderBy: { submittedAt: 'desc' }, take: 40,
+        })
+        lines.push('الواجبات المقدمة (آخر 40): ' + (submissions.map((s) =>
+          shortValue(s.assignment.title) + '، ' + s.status + '، ' + (s.score ?? 'غير مصحح') + '/' + s.assignment.points).join('؛ ') || 'لا توجد') + '.')
+      }
+    }
+    return lines.join('\n')
+  }
+
+  if (studentIntent || overview || (!programIntent && !examIntent && !assignmentIntent && !financialIntent)) {
+    const [students, enrollments, complete] = await Promise.all([
+      db.user.count({ where: { role: 'STUDENT', status: 'ACTIVE' } }),
+      db.enrollment.count(),
+      db.enrollment.count({ where: { status: 'COMPLETED' } }),
+    ])
+    lines.push('حسابات الطلاب النشطة: ' + students + '؛ الالتحاقات: ' + enrollments +
+      '؛ الالتحاقات المكتملة: ' + complete + '. الالتحاقات ليست بالضرورة طلاباً مختلفين.')
+  }
+  if (examIntent || overview) {
+    const [unitGraded, unitPending, programGraded, programPending] = await Promise.all([
+      db.examAttempt.count({ where: { status: 'GRADED' } }),
+      db.examAttempt.count({ where: { status: { in: ['SUBMITTED', 'NEEDS_REVIEW'] } } }),
+      db.programExamAttempt.count({ where: { status: 'GRADED' } }),
+      db.programExamAttempt.count({ where: { status: { in: ['SUBMITTED', 'NEEDS_REVIEW'] } } }),
+    ])
+    lines.push('محاولات اختبارات الوحدات المصححة: ' + unitGraded + '؛ المعلّقة/المراجعة: ' + unitPending +
+      '؛ محاولات امتحانات البرامج المصححة: ' + programGraded + '؛ المعلقة/المراجعة: ' + programPending + '.')
+  }
+  if (assignmentIntent || overview) {
+    const [assignments, submissions, notGraded] = await Promise.all([
+      db.programAssignment.count(), db.assignmentSubmission.count(),
+      db.assignmentSubmission.count({ where: { status: { not: 'GRADED' } } }),
+    ])
+    lines.push('الواجبات: ' + assignments + '؛ التسليمات: ' + submissions + '؛ غير المصححة: ' + notGraded + '.')
+  }
+  if (financialIntent || overview) {
+    const [total, paid] = await Promise.all([
+      db.payment.count(), db.payment.count({ where: { status: 'PAID' } }),
+    ])
+    lines.push('سجلات المدفوعات: ' + total + '؛ بحالة PAID: ' + paid + '. هذه أعداد سجلات وليست مبالغ الإيرادات.')
+  }
+  if (overview) {
+    const [books, theses, videos, admissions, certificates] = await Promise.all([
+      db.book.count(), db.thesisSubmission.count(), db.lectureVideoResource.count(),
+      db.admissionApplication.count(), db.certificate.count(),
+    ])
+    lines.push('الكتب: ' + books + '؛ الأبحاث المقدمة: ' + theses +
+      '؛ الفيديوهات التعليمية: ' + videos + '؛ طلبات القبول: ' + admissions +
+      '؛ سجلات الشهادات: ' + certificates + '.')
+  }
+  if (programIntent || overview) {
+    const programs = await db.program.findMany({
+      select: {
+        id: true, titleAr: true, slug: true, active: true, category: true,
+        semestersCount: true, academicReadinessStatus: true, academicApproved: true,
+        _count: { select: { units: true, enrollments: true } },
+      },
+      orderBy: { order: 'asc' }, take: 150,
+    })
+    const selected = programs.filter((p) =>
+      q.includes(p.titleAr) || (p.slug && q.toLowerCase().includes(p.slug.toLowerCase())))
+    const displayed = selected.length ? selected : programs.slice(0, 35)
+    lines.push('البرامج الظاهرة في نطاق الاستعلام: ' + programs.length + '.')
+    lines.push('البرامج: ' + displayed.map((p) =>
+      shortValue(p.titleAr) + ': الفئة ' + p.category + '؛ ' + (p.active ? 'نشط' : 'غير نشط') +
+      '؛ الفصول ' + (p.semestersCount ?? 'غير محدد') + '؛ الوحدات ' + p._count.units +
+      '؛ الالتحاقات ' + p._count.enrollments + '؛ الجاهزية ' + p.academicReadinessStatus +
+      '؛ الاعتماد ' + (p.academicApproved ? 'نعم' : 'لا')).join('\n'))
+    if (selected.length === 1) {
+      const units = await db.unit.findMany({
+        where: { programId: selected[0].id },
+        select: { title: true, semester: true, order: true, status: true },
+        orderBy: [{ semester: 'asc' }, { order: 'asc' }], take: 180,
+      })
+      lines.push('وحدات البرنامج المحدد: ' + units.map((u) =>
+        'فصل ' + u.semester + '، وحدة ' + u.order + ' «' + shortValue(u.title) + '» (' + u.status + ')').join('؛ '))
+    } else if (programs.length > 35) lines.push('عُرضت أول 35 برنامجاً فقط؛ حدد اسم البرنامج لعرض تفاصيله.')
+  }
+  lines.push('لا تخترع بيانات لتبويب لم يرد في هذا الدليل. اطلب اسم الطالب أو البرنامج أو التبويب عند الحاجة إلى تفاصيل إضافية.')
+  return lines.join('\n')
+}
 
 export const MEETING_GREETING = (title: string) =>
   `أهلًا بالجميع في اجتماع «${title}». أنا المشرف الذكي، حاضر معكم لمتابعة النقاش وتوضيح المعلومات المهمة وتقديم الملاحظات عند الحاجة.`
