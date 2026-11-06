@@ -69,7 +69,7 @@ export function normalizeOutlineText(value: unknown): string {
     .trim()
 }
 
-const normalizeHeading = (value: unknown) => normalizeOutlineText(clean(value)).replace(/[^\\p{L}\\p{N}]+/gu, ' ').toLowerCase().trim()
+const normalizeHeading = (value: unknown) => normalizeOutlineText(clean(value)).replace(/[^\p{L}\p{N}]+/gu, ' ').toLowerCase().trim()
 // Running headers in PDF scans often contain the book title + printed page
 // number. They are not chapter/article titles even when the first word (e.g.
 // «إدارة») otherwise satisfies the generic heading recognizer.
