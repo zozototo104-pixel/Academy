@@ -32,7 +32,9 @@ function fakeClient(cfg: Cfg) {
     passThreshold: 50,
     thresholdStrict: true,
     requirementsJson: JSON.stringify({ semestersCount: 2, requiredComponents: cfg.requiredComponents || ['final_exam'] }),
-    basis: 'ENROLLMENT',
+    basis: cfg.snapshotBasis === undefined
+      ? (cfg.footprint === false ? 'BACKFILL' : 'ENROLLMENT')
+      : cfg.snapshotBasis,
     capturedAt: new Date('2026-01-01'),
   }
   const approvals = cfg.approvals || {}
