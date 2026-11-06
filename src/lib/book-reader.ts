@@ -36,6 +36,10 @@ export function planBookChunks(pages: readonly ExtractedBookPage[], minChars = 2
     headingPath = null
   }
   for (const page of pages) {
+    // Skipped/blank pages are holes in evidence, not a bridge of readable
+    // content. Flush before them so chunk ranges never claim those pages.
+    if (!page.text.trim()) { flush(); continue }
+    if (text && end + 1 < page.page) flush()
     // Keep PDF line breaks: outline extraction identifies headings by line.
     // Each page (including middle pages of a chunk) can supply its heading.
     const pageHeading = heading(page.text)
