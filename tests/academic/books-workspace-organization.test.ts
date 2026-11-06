@@ -276,6 +276,13 @@ describe('books workspace organization guard', () => {
     assert.ok(SOURCE.includes('onClick={() => void submitDocumentedOutlineOverride()}'), 'documented override action remains wired')
     assert.ok(SOURCE.includes('void buildOutlineForBook(bookId)'), 'rebuild option remains functional')
     assert.ok(SOURCE.includes('aria-invalid={!!outlineApprovalDialog.error}'), 'invalid reasons are announced in the modal')
+    const approvalRoute = readFileSync(resolve(process.cwd(),
+      'src/app/api/admin/books/[id]/outline/approve/route.ts'), 'utf8')
+    assert.ok(approvalRoute.includes("code: 'OUTLINE_REVIEW_REQUIRED'") &&
+      approvalRoute.includes('body?.acknowledgeCoverage !== true || body?.acknowledgmentKey !== acknowledgmentKey'),
+      'the server must reject approvals without explicit acknowledgment of the exact report')
+    assert.ok(approvalRoute.includes("code: 'OUTLINE_INCOMPLETE_PAGE_RANGES'"),
+      'acknowledging gaps must not bypass unknown chapter boundaries')
   })
 
   it('assignment grading groups every student and never silently cuts off 200 submissions', () => {
