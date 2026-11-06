@@ -693,11 +693,79 @@ export function remapOutlineReviewWarnings(
   })
 }
 
+// A missing text chunk could be a blank PDF page OR a failed OCR/page read.
+// Only a successful rendering of the ORIGINAL uploaded page, with virtually
+// no visible ink, can exempt it from the coverage guard.
+export async function isVisuallyBlankPdfPage(png: Uint8Array): Promise<boolean> {
+  const sharp = (await import('sharp')).default
+  const { data, info } = await sharp(Buffer.from(png))
+    .flatten({ background: '#ffffff' }).removeAlpha().raw().toBuffer({ resolveWithObject: true })
+  if (!info.width || !info.height || info.channels < 3) return false
+  const maxInk = Math.floor(info.width * info.height * 0.0002)
+  let ink = 0
+  for (let index = 0; index < data.length; index += info.channels) {
+    if (data[index] < 245 || data[index + 1] < 245 || data[index + 2] < 245) {
+      ink++
+      if (ink > maxInk) return false
+    }
+  }
+  return true
+}
+
+export async function verifyBlankPdfGapPages(
+  bookId: string,
+  gaps: readonly { pageStart: number; pageEnd: number }[],
+): Promise<number[]> {
+  const requested = [...new Set(gaps.flatMap((gap) =>
+    Number.isSafeInteger(gap.pageStart) && Number.isSafeInteger(gap.pageEnd) &&
+    gap.pageStart >= 1 && gap.pageEnd >= gap.pageStart && gap.pageEnd - gap.pageStart < 20
+      ? Array.from({ length: gap.pageEnd - gap.pageStart + 1 }, (_, i) => gap.pageStart + i)
+      : []))].sort((a, b) => a - b)
+  // Limit PDF rendering, and fail closed if the book/file cannot be verified.
+  if (!requested.length || requested.length > 12) return []
+  try {
+    const book = await db.book.findUnique({ where: { id: bookId },
+      select: { data: true, storageProvider: true, storageKey: true, fileUrl: true, mimeType: true } })
+    if (!book) return []
+    const stored = await getFileBufferFromStorageOrBase64({
+      provider: book.storageProvider, key: book.storageKey, url: book.fileUrl,
+      data: book.data, mimeType: book.mimeType,
+    })
+    if (!stored?.buffer?.length || stored.buffer.subarray(0, 5).toString() !== '%PDF-') return []
+    const original = await PDFDocument.load(stored.buffer)
+    if (requested.some((page) => page > original.getPageCount())) return []
+    const worker = await import('pdf-parse/worker')
+    const { PDFParse } = await import('pdf-parse')
+    const parser = new PDFParse({ data: new Uint8Array(stored.buffer),
+      CanvasFactory: (worker as any).CanvasFactory } as any)
+    try {
+      const rendered = await parser.getScreenshot({
+        partial: requested, desiredWidth: 420, imageBuffer: true, imageDataUrl: false,
+      })
+      if (rendered.pages.length !== requested.length) return []
+      const verified: number[] = []
+      for (let index = 0; index < requested.length; index++) {
+        const png = rendered.pages[index]?.data
+        if (png && await isVisuallyBlankPdfPage(png)) verified.push(requested[index])
+      }
+      return verified
+    } finally {
+      await parser.destroy().catch(() => {})
+    }
+  } catch (error) {
+    console.warn('[book-outline] could not verify original PDF blank pages', {
+      bookId, reason: error instanceof Error ? error.message : 'UNKNOWN',
+    })
+    return []
+  }
+}
+
 export function outlineApprovalGuard(
   sections: readonly OutlineSectionDraft[],
   sourceRange?: { pageStart: number; pageEnd: number },
+  verifiedBlankPages: readonly number[] = [],
 ): { decision: 'ALLOW' | 'ALLOW_WITH_REVIEW' | 'BLOCK'; report: OutlineCoverageReport } {
-  const report = auditOutlineCoverage(sections, sourceRange)
+  const report = auditOutlineCoverage(sections, sourceRange, verifiedBlankPages)
   // Unknown starts/ends (including same-chunk headings without reliable page
   // evidence) are never acceptable unit boundaries, even with an oversized
   // chapter override. A zero-knowledge section is NOT an empty book page.
