@@ -595,6 +595,55 @@ describe('entry state & actions (fake db)', () => {
   })
 })
 
+async function pollRoom(peerId?: string) {
+  const url = 'https://academy.test/api/meetings/valid-token/room'
+    + (peerId ? '?peerId=' + encodeURIComponent(peerId) : '')
+  return meetingRoomRoute.GET(new NextRequest(url), {
+    params: Promise.resolve({ token: 'valid-token' }),
+  })
+}
+
+describe('meeting-room signal ownership', () => {
+  test('missing peer presence refuses signal polling without consuming messages', async () => {
+    roomPeerOwner.current = null
+    roomSignalsConsumed.count = 0
+    roomAttendanceWrites.count = 0
+    const response = await pollRoom('p_target')
+    expect(response.status).toBe(403)
+    expect((await response.json()).code).toBe('FORBIDDEN_PEER')
+    expect(roomSignalsConsumed.count).toBe(0)
+    expect(roomAttendanceWrites.count).toBe(0)
+  })
+
+  test('a peer belonging to another user cannot consume that peer messages', async () => {
+    roomPeerOwner.current = 'room-user-2'
+    roomSignalsConsumed.count = 0
+    const response = await pollRoom('p_target')
+    expect(response.status).toBe(403)
+    expect((await response.json()).code).toBe('FORBIDDEN_PEER')
+    expect(roomSignalsConsumed.count).toBe(0)
+  })
+
+  test('the owner of a joined peer can poll its signalling messages', async () => {
+    roomPeerOwner.current = 'room-user-1'
+    roomSignalsConsumed.count = 0
+    roomAttendanceWrites.count = 0
+    const response = await pollRoom('p_target')
+    expect(response.status).toBe(200)
+    expect((await response.json()).signals).toHaveLength(1)
+    expect(roomSignalsConsumed.count).toBe(1)
+    expect(roomAttendanceWrites.count).toBe(1)
+  })
+
+  test('peer discovery without peerId remains available to the invite owner', async () => {
+    roomPeerOwner.current = null
+    roomSignalsConsumed.count = 0
+    const response = await pollRoom()
+    expect(response.status).toBe(200)
+    expect(roomSignalsConsumed.count).toBe(0)
+  })
+})
+
 describe('admin meeting hard delete (route level)', () => {
   test('admin delete removes the meeting and writes the audit; afterwards the detail 404s', async () => {
     routeAdmin.current = true
