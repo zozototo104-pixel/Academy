@@ -180,7 +180,7 @@ export async function dispatchOutboxBatch(client: AnyClient = db, limit = 50): P
           { emailStatus: 'SENDING', lastError: row.lastError ?? null },
         ],
       },
-      data: { emailStatus: 'SENDING', emailAttempts: { increment: 1 }, lastError: emailClaimMarker() },
+      data: { emailStatus: 'SENDING', emailAttempts: { increment: 1 }, lastError: activeClaimMarker },
     }).catch(() => ({ count: 0 }))
     if ((claim as any)?.count !== 1) continue
     const recipients = resolved.filter((r) => r.email)
