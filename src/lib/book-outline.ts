@@ -580,7 +580,7 @@ export function balanceBookOutlineSections(input: readonly OutlineSectionDraft[]
       if (chapterNumber(left.title) !== null || chapterNumber(right.title) !== null) continue
       if (/^(?:الفصل|الباب|chapter|part)\s/iu.test(normalizeOutlineText(left.title)) ||
           /^(?:الفصل|الباب|chapter|part)\s/iu.test(normalizeOutlineText(right.title))) continue
-      const combinedPages = leftPages + rightPages
+      const combinedPages = right.pageEnd! - left.pageStart! + 1 // include missing pages in the real span
       if (combinedPages > OUTLINE_SECTION_REVIEW_PAGES) continue
       const leftWords = outlineTopicWords(left.title)
       const rightWords = outlineTopicWords(right.title)
