@@ -160,9 +160,10 @@ async function ensureTuitionInvoiceWithWaiverCredit(params: {
     admissionId: params.app.id,
     ...data,
   })
-  // إنشاء الفاتورة عبر helper يعيد المحاولة عند اصطدام رقم الفاتورة (P2002)
-  // بدل أن يفشل الاعتماد كله بسبب سباق ترقيم متزامن.
-  return createPaymentWithInvoiceNo(newInvoiceData, client)
+  // A P2002 aborts the PostgreSQL transaction. Never retry INSERT inside
+  // the same transaction: the outer approval transaction retries as a whole.
+  // With a plain client (non-transactional callers), retain the helper retries.
+  return createPaymentWithInvoiceNo(newInvoiceData, client, client === db ? 5 : 1)
 }
 
 async function moveAdmissionToTuitionStage(app: any, actor: { id?: string | null; name: string }, client: any = db) {
