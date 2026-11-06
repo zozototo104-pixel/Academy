@@ -637,6 +637,7 @@ export async function createMeetingLiveVoiceSession(meeting: any, user: { id: st
   return { status: 200, body: {
     token, wsUrl: 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained?access_token=' + encodeURIComponent(token),
     setup, sdkConfig, setupVariant: 'minimal', model, voice, expiresAt: expiresAt.toISOString(),
+    sessionId: reserved.sessionId, liveUsage: reserved,
   } }
 }
 
