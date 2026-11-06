@@ -13,8 +13,10 @@ export type MinutesSources = {
 }
 
 export async function collectMinutesSources(db: any, meeting: any): Promise<MinutesSources> {
-  const [notes, attendance, invites, users] = await Promise.all([
+  const [notes, speechEvents, attendance, invites, users] = await Promise.all([
     db.adminMeetingNote.findMany({ where: { meetingId: meeting.id }, orderBy: { createdAt: 'asc' }, take: 200 }).catch(() => []),
+    // Speech is collected only from access-checked, finalized participant segments.
+    db.adminMeetingAgentEvent.findMany({ where: { meetingId: meeting.id, kind: 'TRANSCRIPT' }, orderBy: { createdAt: 'asc' }, take: 600 }).catch(() => []),
     db.adminMeetingAttendance.findMany({ where: { meetingId: meeting.id } }).catch(() => []),
     db.adminMeetingInvite.findMany({ where: { meetingId: meeting.id }, select: { inviteeName: true, claimedByUserId: true } }).catch(() => []),
     db.user.findMany({ where: {}, select: { id: true, name: true }, take: 0 }).catch(() => []),
@@ -24,9 +26,23 @@ export async function collectMinutesSources(db: any, meeting: any): Promise<Minu
     ? await db.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true } }).catch(() => [])
     : users
   const nameById = new Map((named as any[]).map((u) => [u.id, u.name]))
+  // Keep written notes and participant-attributed audio transcripts in time order.
+  // Recognition can be imperfect; the human must review before approving minutes.
+  const combined = [
+    ...(notes as any[]).map((n) => ({
+      at: new Date(n.createdAt || 0).getTime(),
+      authorName: n.authorName,
+      text: n.text,
+    })),
+    ...(speechEvents as any[]).map((e) => ({
+      at: new Date(e.createdAt || 0).getTime(),
+      authorName: 'تفريغ صوتي آلي (يحتاج تدقيقًا)',
+      text: e.text,
+    })),
+  ].sort((a, b) => a.at - b.at)
   return {
     agenda: meeting.agenda || null,
-    notes: (notes as any[]).map((n) => ({ authorName: n.authorName, text: n.text })),
+    notes: combined.map(({ authorName, text }) => ({ authorName, text })),
     attendees: (attendance as any[]).map((a) => `${nameById.get(a.userId) || 'مشارك'} — ${a.status === 'PRESENT' ? 'حاضر (مؤكد)' : a.status === 'ABSENT' ? 'غائب (مؤكد)' : 'دخل عبر المنصة'}`),
     invitees: (invites as any[]).map((i) => i.inviteeName),
   }
