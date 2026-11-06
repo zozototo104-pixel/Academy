@@ -571,7 +571,19 @@ function NotificationBell({ mobile = false }: { mobile?: boolean } = {}) {
       setItems(itemsRef.current)
       api('/api/notifications', { method: 'PATCH', body: JSON.stringify({ id: n.id }) }).then(load).catch((error) => { console.warn('Failed to mark notification as read.', error) })
     }
-    try { routeNotificationLink(n) } catch (error) { console.warn('Failed to route notification link.', error) }
+    let routed = false
+    try { routed = routeNotificationLink(n) } catch (error) {
+      console.warn('Failed to route notification link.', error)
+    }
+    if (routed) {
+      setNotificationDetail(null)
+      closeBell()
+      if (mobile) setMobileMenuOpen(false)
+    } else {
+      // Preserve access to the complete alert when it has no actionable URL.
+      setNotificationDetail(n)
+      setOpen(true)
+    }
   }
 
   return (
