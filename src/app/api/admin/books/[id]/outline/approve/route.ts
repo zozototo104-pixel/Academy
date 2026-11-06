@@ -105,7 +105,7 @@ export async function POST(req: NextRequest, context: Context) {
           blocked: guard.report.blocked,
         }, { status: 409 })
       }
-      warningsPrefix = ['OUTLINE_OVERSIZED_OVERRIDE:' + JSON.stringify({ at: new Date().toISOString(), byAdminId: admin.id, reason: overrideReason, sections: guard.report.blocked.map((section) => ({ order: section.order, title: section.title, pages: section.pages })) })]
+      warningsPrefix.push('OUTLINE_OVERSIZED_OVERRIDE:' + JSON.stringify({ at: new Date().toISOString(), byAdminId: admin.id, reason: overrideReason, sections: guard.report.blocked.map((section) => ({ order: section.order, title: section.title, pages: section.pages })) }))
     }
     const existingWarnings = (() => { try { const parsed = JSON.parse(outline.warnings || '[]'); return Array.isArray(parsed) ? parsed.map(String) : [] } catch { return [] } })()
     const updated = await db.bookOutline.update({
