@@ -485,6 +485,14 @@ function NotificationBell({ mobile = false }: { mobile?: boolean } = {}) {
     })
   }
 
+  // Same staggered re-dispatch for the student dashboard (its tab listener
+  // may mount after navigation), mirroring the urgent-message alert.
+  const dispatchDashboardTab = (tab: string, admissionId?: string | null) => {
+    ;[80, 300, 700, 1200].forEach((delay) => {
+      window.setTimeout(() => window.dispatchEvent(new CustomEvent('aact:dashboard-tab', { detail: { tab, admissionId: admissionId || null } })), delay)
+    })
+  }
+
   const routeNotificationLink = (n: Notif) => {
     const rawLink = String(n.link || '').trim()
     const viewLinks = new Set(['home', 'programs', 'apply', 'auth', 'dashboard', 'chat', 'agent', 'admin', 'supervisor', 'verify', 'directory', 'about', 'contact'])
@@ -493,10 +501,18 @@ function NotificationBell({ mobile = false }: { mobile?: boolean } = {}) {
       // Historical admin chat links use a colon separator, not an HTTP URL.
       // URL() treats "admin-messages:..." as a custom scheme and sends the
       // browser nowhere; route it internally to its actual thread instead.
-      const message = user?.role === 'ADMIN' ? rawLink.match(/^\/?admin-messages:([a-z0-9_-]{3,128})$/i) : null
-      if (message) {
+      const message = rawLink.match(/^\/?admin-messages:([a-z0-9_-]{3,128})$/i)
+      if (message && user?.role === 'ADMIN') {
         navigate('admin' as any, { tab: 'admin-messages' })
         dispatchAdminTab('admin-messages', { admissionId: message[1] })
+        return true
+      }
+      if (message && user?.role === 'STUDENT') {
+        // The same stored link in the student's own bell must open HIS
+        // admin-messages conversation (dashboard messages tab), not just
+        // the read-only alert detail.
+        navigate('dashboard' as any)
+        dispatchDashboardTab('messages', message[1])
         return true
       }
       const url = new URL(rawLink, window.location.origin)
