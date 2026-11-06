@@ -149,6 +149,34 @@ export function AIChatView() {
   const [voiceDialect, setVoiceDialect] = useState(() => defaultVoiceDialect())
   const agentRef = useRef<VoiceAgent | null>(null)
   const mutedRef = useRef(muted)
+  // تسوية دقائق الصوت: كل جلسة مباشرة تُنشأ تُسجَّل هنا، وعند الإيقاف أو
+  // الانقطاع أو إغلاق المكوّن تُسوّى عبر /api/ai/live-usage — بنفس نمط
+  // محطة الاجتماعات (MeetingInviteView) حتى لا تبقى الجلسة محجوزة وتُسترد
+  // كاملة آخر الليل رغم استعمالها.
+  const pendingUsageSessions = useRef(new Map<string, number>())
+  const settleUsageSessions = useCallback(() => {
+    const sessions = [...pendingUsageSessions.current.entries()]
+    pendingUsageSessions.current.clear()
+    for (const [sessionId, startedAt] of sessions) {
+      void fetch('/api/ai/live-usage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}) },
+        body: JSON.stringify({
+          sessionId,
+          actualSeconds: Math.max(0, Math.ceil((Date.now() - startedAt) / 1000)),
+        }),
+        keepalive: true,
+      }).then((response) => {
+        if (!response.ok) {
+          pendingUsageSessions.current.set(sessionId, startedAt)
+          toast({ title: 'تعذر تسوية جلسة الصوت', description: 'تعذر تسجيل دقائق المحادثة الصوتية؛ ستتم إعادة المحاولة عند الإيقاف التالي.', variant: 'destructive' })
+        }
+      }).catch(() => {
+        pendingUsageSessions.current.set(sessionId, startedAt)
+        toast({ title: 'تعذر تسوية جلسة الصوت', description: 'تعذر الاتصال بخدمة تسجيل دقائق الصوت.', variant: 'destructive' })
+      })
+    }
+  }, [toast])
 
   const [reviewOpen, setReviewOpen] = useState(false)
   const [reviewTitle, setReviewTitle] = useState('')
@@ -222,11 +250,12 @@ export function AIChatView() {
       try { window.speechSynthesis?.cancel() } catch (error) { console.warn('Failed to cancel speech synthesis during AI chat cleanup.', error) }
       try { agentRef.current?.stop() } catch (error) { console.warn('Failed to stop voice agent during AI chat cleanup.', error) }
       agentRef.current = null
+      settleUsageSessions()
       voiceModeRef.current = false
       speechUtteranceRef.current = null
       if (micRestartTimerRef.current) clearTimeout(micRestartTimerRef.current)
     }
-  }, [])
+  }, [settleUsageSessions])
 
   useEffect(() => {
     if (!voiceMode) scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
@@ -481,6 +510,7 @@ export function AIChatView() {
   const switchVoiceToText = () => {
     agentRef.current?.stop()
     agentRef.current = null
+    settleUsageSessions()
     setVoiceMode(false)
     voiceModeRef.current = false
     setSpeakingId(null)
@@ -499,6 +529,7 @@ export function AIChatView() {
       voiceModeRef.current = false
       agentRef.current?.stop()
       agentRef.current = null
+      settleUsageSessions()
       setSpeakingId(null)
       setListening(false)
       setInterim('')
@@ -512,6 +543,7 @@ export function AIChatView() {
     try { window.speechSynthesis?.cancel() } catch (error) { console.warn('Failed to cancel speech synthesis before starting voice mode.', error) }
     try { agentRef.current?.stop() } catch (error) { console.warn('Failed to stop previous voice agent before restart.', error) }
     agentRef.current = null
+    settleUsageSessions()
     speechUtteranceRef.current = null
     setSpeakingId(null)
     setVoiceMode(true)
@@ -519,6 +551,7 @@ export function AIChatView() {
     setVoiceState('IDLE')
     setMicLevel(0)
     const agent = new VoiceAgent({
+      onSessionCreated: (sessionId) => pendingUsageSessions.current.set(sessionId, Date.now()),
       onState: (s) => setVoiceState(s),
       onLevel: (lvl) => setMicLevel((prev) => prev * 0.5 + lvl * 0.5),
       onUserCaption: (t) => setLiveCaption(t),
@@ -533,6 +566,8 @@ export function AIChatView() {
       onInterrupted: () => {},
       onError: (msg, code, status) => {
         const text = String(msg || '').trim() || 'تعذر تشغيل المحادثة الصوتية'
+        // انقطاع اتصال Live نهائي: سوِّ الجلسات المحجوزة بدل تركها لتسوية الليل.
+        if (text.includes('انقطع اتصال Gemini Live')) settleUsageSessions()
         if (isLiveMinutesExhausted({ code, status })) {
           openVoicePackageDialog(text)
           return
@@ -549,6 +584,7 @@ export function AIChatView() {
       voiceModeRef.current = false
       try { agent.stop() } catch (error) { console.warn('Failed to stop voice agent after start failure.', error) }
       agentRef.current = null
+      settleUsageSessions()
     })
   }
 

@@ -289,3 +289,23 @@ describe('مسار الاسترحام والنشاط العلاجي', () => {
     }
   })
 })
+
+describe('سباق إنشاء الاسترحام (تدقيق 2026-11-06)', () => {
+  test('خرق قيد التفرد عند الإنشاء ⟹ MERCY_ALREADY_EXISTS لا خطأ 500، وأي خطأ آخر يصعد', async () => {
+    // عميل minimal: فصل مغلق راسب معتمد، لا طلب قائم، والإنشاء يخسر السباق.
+    const client: any = {
+      enrollment: { findUnique: async () => ({ id: 'enr-race' }) },
+      enrollmentSemesterState: { findUnique: async () => ({ status: 'CLOSED', result: 'FAILED' }) },
+      semesterResultApproval: { findUnique: async () => ({ id: 'appr-race' }) },
+      mercyRequest: {
+        findUnique: async () => null,
+        create: async () => { throw Object.assign(new Error('Unique constraint failed on the fields: (`enrollmentId`,`semester`)'), { code: 'P2002' }) },
+      },
+      notificationOutbox: { create: async () => ({}), findUnique: async () => null },
+    }
+    const raced = await requestMercy(client, { userId: 'u-race', programId: 'p-race', semester: 1 })
+    expect(raced).toEqual({ ok: false, code: 'MERCY_ALREADY_EXISTS' })
+    client.mercyRequest.create = async () => { throw new Error('DB_DOWN') }
+    await expect(requestMercy(client, { userId: 'u-race', programId: 'p-race', semester: 1 })).rejects.toThrow('DB_DOWN')
+  })
+})

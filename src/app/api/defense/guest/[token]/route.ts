@@ -27,6 +27,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
       },
     })
     if (!thesis) return NextResponse.json({ status: 'NOT_FOUND' }, { status: 404 })
+    // رابط الاجتماع لا يُكشف إلا داخل نافذة المناقشة: يفتح قبل الموعد
+    // بـ15 دقيقة (اتفاقية نوافذ الانضمام في المنصة) ويُغلق بعد الموعد
+    // بـ3 ساعات. خارج النافذة تبقى البيانات التعريفية (العنوان والملخص
+    // واللجنة والموعد) ظاهرة والرابط مخفيًا، وبلا موعد محدد يبقى
+    // الرابط مخفيًا دائمًا.
+    const defenseAt = thesis.defenseDate ? new Date(thesis.defenseDate).getTime() : NaN
+    const nowMs = Date.now()
+    const meetingUrlOpen = Number.isFinite(defenseAt) && nowMs >= defenseAt - 15 * 60_000 && nowMs <= defenseAt + 3 * 60 * 60_000
     return NextResponse.json({
       status: 'VALID',
       inviteeName: invite.name,
@@ -40,7 +48,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
         committee: thesis.committee,
         agentMember: thesis.agentMember,
         defenseStatus: thesis.defenseStatus,
-        defenseMeetingUrl: thesis.defenseMeetingUrl,
+        defenseMeetingUrl: meetingUrlOpen ? thesis.defenseMeetingUrl : null,
       },
       studentName: thesis.user?.name || 'الطالب',
     })

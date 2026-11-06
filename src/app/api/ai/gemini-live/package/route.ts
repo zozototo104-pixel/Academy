@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
-import { getSettingNum, nextInvoiceNo } from '@/lib/settings'
+import { createPaymentWithInvoiceNo, getSettingNum } from '@/lib/settings'
 
 async function getLiveVoicePackage() {
   const minutesRaw = await getSettingNum('AI_LIVE_PACKAGE_MINUTES')
@@ -52,19 +52,17 @@ export async function POST() {
       })
     }
 
-    const invoiceNo = await nextInvoiceNo()
-    const payment = await db.payment.create({
-      data: {
-        userId: user.id,
-        invoiceNo,
-        purpose: 'AI_LIVE_CREDIT',
-        description,
-        amount,
-        currency,
-        status: 'UNPAID',
-        payerName: user.name,
-        payerEmail: user.email,
-      },
+    // إنشاء عبر helper يعيد المحاولة عند اصطدام رقم الفاتورة (P2002) بدل
+    // أن يفشل طلب الباقة كله بسبب سباق ترقيم متزامن.
+    const payment = await createPaymentWithInvoiceNo({
+      userId: user.id,
+      purpose: 'AI_LIVE_CREDIT',
+      description,
+      amount,
+      currency,
+      status: 'UNPAID',
+      payerName: user.name,
+      payerEmail: user.email,
     })
 
     return NextResponse.json({

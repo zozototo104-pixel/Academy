@@ -176,7 +176,11 @@ export async function isWhatsAppConversationHumanActive(waId: string) {
   const conversation = await db.whatsAppConversation.findUnique({
     where: { waIdHash },
     select: { id: true, status: true },
-  }).catch(() => null)
+  }).catch(() => undefined)
+  // A failed lookup must fail CLOSED (the caller asks "is a human holding
+  // this conversation?" before letting the bot reply): on error, presume a
+  // human is active so the bot stays silent rather than talking over them.
+  if (conversation === undefined) return true
   return conversation?.status === 'HUMAN_ACTIVE'
 }
 

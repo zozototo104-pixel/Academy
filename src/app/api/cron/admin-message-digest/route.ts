@@ -14,8 +14,10 @@ const UNREAD_AFTER_MS = 60 * 60 * 1000
 // Runs every 30 minutes (vercel.json); emails only admin-scope messages from ADMIN
 // senders older than 1 hour that were never emailed. One digest email per student
 // per run. A message counts as unread only while its student still has an unread
-// ADMIN_MESSAGE notification pointing at that thread; emailSentAt is set only after
-// a successful send, so a failed send retries on the next run.
+// ADMIN_MESSAGE notification pointing at that thread. Each group is claimed
+// atomically (emailSentAt stamped by a conditional updateMany — the lecture
+// reminders pattern) before its email is sent, so overlapping runs cannot
+// double-send; a failed send releases the claim, so it retries on the next run.
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET
   if (!secret || request.headers.get('authorization') !== `Bearer ${secret}`) {
@@ -44,12 +46,35 @@ export async function GET(request: NextRequest) {
     if (!unread) continue
     const student = await db.user.findUnique({ where: { id: group.studentId }, select: { email: true, name: true } }).catch(() => null)
     if (!student?.email) continue
-    const sent = await emailAdminMessagesDigest(student.email, student.name, group.messages)
-    if (!sent) continue
-    await db.supervisorChannelMessage.updateMany({
-      where: { id: { in: group.messages.map((m: any) => m.id) } },
-      data: { emailSentAt: new Date() },
+    // المطالبة الذرية قبل الإرسال (نمط تذكيرات المحاضرات): التحديث المشروط
+    // ينجح لمُشغّل واحد فقط لكل مجموعة؛ مطالبة جزئية تعني تداخلًا مع تشغيل
+    // آخر فتُحرَّر الصفوف المأخوذة وتُتخطى المجموعة.
+    const messageIds = group.messages.map((m: any) => m.id)
+    const claimedAt = new Date()
+    const claim = await db.supervisorChannelMessage.updateMany({
+      where: { id: { in: messageIds }, emailSentAt: null },
+      data: { emailSentAt: claimedAt },
     })
+    const releaseClaim = () =>
+      db.supervisorChannelMessage.updateMany({
+        where: { id: { in: messageIds }, emailSentAt: claimedAt },
+        data: { emailSentAt: null },
+      }).catch(() => {})
+    if (claim.count !== messageIds.length) {
+      await releaseClaim()
+      continue
+    }
+    let sent = false
+    try {
+      sent = await emailAdminMessagesDigest(student.email, student.name, group.messages)
+    } catch {
+      sent = false
+    }
+    if (!sent) {
+      // فشل الإرسال يحرّر المطالبة فيُعاد على التشغيل التالي كما كان.
+      await releaseClaim()
+      continue
+    }
     emailedStudents += 1
     emailedMessages += group.messages.length
   }

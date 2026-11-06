@@ -161,7 +161,8 @@ export function deriveServiceWorkflowState(input: {
   const payments = input.payments || []
   const deliverables = input.deliverables || []
   const hasInvoice = payments.length > 0
-  const paid = hasInvoice && payments.every((p) => p.status === 'PAID')
+  // الإعفاء الكامل (WAIVED) تسوية نهائية كالدفع تماماً؛ تجاهله كان يُظهر للعميل خطوة «ادفع الآن» رغم إعفائه.
+  const paid = hasInvoice && payments.every((p) => p.status === 'PAID' || p.status === 'WAIVED')
   const paymentIndex = firstPaymentStageIndex(workflow)
   const deliveryIndex = firstDeliveryStageIndex(workflow)
   const publishedDeliverables = deliverables.filter((d) => d.status === 'PUBLISHED' && d.visibleToStudent !== false).length

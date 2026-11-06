@@ -54,7 +54,8 @@ async function getSessionToken(): Promise<string | null> {
 export async function destroySession() {
   const token = await getSessionToken()
   if (token) {
-    await db.session.deleteMany({ where: { OR: [{ token }, { token: hashSessionToken(token) }] } }).catch((error) => { console.warn('Failed to delete auth session during logout.', error) })
+    // المخزّن في القاعدة هو هاش الرمز فقط؛ نبحث بالهاش دائماً حتى لا تصلح القيمة المخزّنة نفسها كرمز دخول.
+    await db.session.deleteMany({ where: { token: hashSessionToken(token) } }).catch((error) => { console.warn('Failed to delete auth session during logout.', error) })
   }
   try {
     const store = await cookies()
@@ -83,7 +84,9 @@ export async function getCurrentUser() {
     const token = await getSessionToken()
     if (!token) return null
     const session = await db.session.findFirst({
-      where: { OR: [{ token }, { token: hashSessionToken(token) }] },
+      // كل الجلسات تُنشأ بهاش SHA-256 فقط (createSession)؛ مطابقة الهاش وحدها تكفي للرمز الخام الشرعي،
+      // وقبول القيمة المخزّنة كما هي كان يجعل تسريب صف الجلسة مساوياً لتسريب الرمز نفسه.
+      where: { token: hashSessionToken(token) },
       include: { user: true },
     })
     if (!session) return null

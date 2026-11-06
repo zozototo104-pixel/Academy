@@ -56,16 +56,26 @@ export async function requestMercy(
     where: { enrollmentId_semester: { enrollmentId: enrollment.id, semester: args.semester } },
   }).catch(() => null)
   if (existing) return { ok: false, code: 'MERCY_ALREADY_EXISTS' }
-  const mercy = await store.create({
-    data: {
-      enrollmentId: enrollment.id,
-      userId: args.userId,
-      programId: args.programId,
-      semester: args.semester,
-      status: 'REQUESTED',
-      initiatedBy: args.initiatedBy || 'STUDENT',
-    },
-  })
+  // Two concurrent requests can both pass the existence check above; the
+  // @@unique([enrollmentId, semester]) constraint then stops the loser.
+  // Map that violation to the same MERCY_ALREADY_EXISTS result instead
+  // of letting it escape as an unhandled 500.
+  let mercy: any
+  try {
+    mercy = await store.create({
+      data: {
+        enrollmentId: enrollment.id,
+        userId: args.userId,
+        programId: args.programId,
+        semester: args.semester,
+        status: 'REQUESTED',
+        initiatedBy: args.initiatedBy || 'STUDENT',
+      },
+    })
+  } catch (error: any) {
+    if (error?.code === 'P2002') return { ok: false, code: 'MERCY_ALREADY_EXISTS' }
+    throw error
+  }
   await enqueueOutbox(client, {
     key: `mercy-requested:${mercy.id}`,
     kind: 'MERCY_REQUESTED',

@@ -96,6 +96,9 @@ export async function POST(_req: NextRequest, context: Context) {
     }
     return NextResponse.json({ ok: true, outline, programDraft: await programDraft(book.programId) })
   } catch (error: any) {
+    if (error?.message === 'BOOK_OUTLINE_VERSION_CONFLICT') {
+      return NextResponse.json({ code: 'BOOK_OUTLINE_VERSION_CONFLICT', error: 'يُبنى فهرس آخر لهذا الكتاب في هذه اللحظة — أعد المحاولة بعد لحظات' }, { status: 409 })
+    }
     return NextResponse.json({ error: String(error?.message || error) }, { status: error?.message === 'UNAUTHORIZED' ? 401 : 500 })
   }
 }

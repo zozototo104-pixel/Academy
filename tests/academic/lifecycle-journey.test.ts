@@ -10,9 +10,13 @@
 import { describe, expect, mock, test } from 'bun:test'
 
 let emailBehavior: 'SENT' | 'FAILED' = 'SENT'
+let emailSendCount = 0
 mock.module('@/lib/db', () => ({ db: {} }))
 mock.module('@/lib/mailer', () => ({
-  sendEmailDetailed: async () => emailBehavior,
+  sendEmailDetailed: async () => {
+    emailSendCount++
+    return emailBehavior
+  },
   emailTemplate: (title: string, body: string) => `<p>${title}</p><p>${body}</p>`,
 }))
 mock.module('@/lib/prod-safety', () => ({ isAactTestEmail: () => false }))
@@ -20,6 +24,31 @@ mock.module('@/lib/prod-safety', () => ({ isAactTestEmail: () => false }))
 const { enqueueOutbox, dispatchOutboxBatch } = await import('@/lib/outbox')
 const { scanDeadlineWarnings } = await import('@/lib/lifecycle-scans')
 const { progressionGate } = await import('@/lib/progression')
+
+// مطابقة where مصغّرة بأسلوب Prisma (مساواة/in/lt/OR/null) حتى يفسّر
+// العالم الوهمي شروط المطالبة الجديدة كما تفعل قاعدة البيانات.
+function matchesWhere(row: any, where: any): boolean {
+  for (const [key, cond] of Object.entries(where || {})) {
+    if (key === 'OR') { if (!(cond as any[]).some((w) => matchesWhere(row, w))) return false; continue }
+    if (key === 'AND') { if (!(cond as any[]).every((w) => matchesWhere(row, w))) return false; continue }
+    const actual = row[key]
+    if (cond instanceof Date) { if (!(actual instanceof Date) || actual.getTime() !== cond.getTime()) return false; continue }
+    if (cond === null) { if (actual !== null && actual !== undefined) return false; continue }
+    if (cond && typeof cond === 'object') {
+      if ('in' in (cond as any)) { if (!(cond as any).in.includes(actual)) return false } else if ('lt' in (cond as any)) { if (!(actual < (cond as any).lt)) return false } else if ('gt' in (cond as any)) { if (!(actual > (cond as any).gt)) return false } else if ('not' in (cond as any)) { if (actual === (cond as any).not) return false }
+      continue
+    }
+    if (actual !== cond) return false
+  }
+  return true
+}
+
+function applyData(row: any, data: any) {
+  for (const [k, v] of Object.entries(data)) {
+    if (v && typeof v === 'object' && !(v instanceof Date) && 'increment' in (v as any)) row[k] = (row[k] || 0) + (v as any).increment
+    else row[k] = v
+  }
+}
 
 function fakeOutboxWorld() {
   const outboxRows: any[] = []
@@ -39,26 +68,21 @@ function fakeOutboxWorld() {
       },
       findUnique: async ({ where }: any) => outboxRows.find((r) => r.idempotencyKey === where.idempotencyKey) ?? null,
       findMany: async ({ where, take }: any) => {
-        let rows = [...outboxRows]
-        if (where?.status) rows = rows.filter((r) => r.status === where.status)
-        if (where?.emailStatus?.in) rows = rows.filter((r) => where.emailStatus.in.includes(r.emailStatus))
-        if (where?.emailAttempts?.lt !== undefined) rows = rows.filter((r) => r.emailAttempts < where.emailAttempts.lt)
+        // لقطات منفصلة كما في قراءة قاعدة حقيقية — لا مراجع حية للصفوف،
+        // وإلا رأى الموزّع الثاني مطالبة الأول بقيمتها الجديدة لا بلقطته.
+        const rows = outboxRows.filter((r) => matchesWhere(r, where)).map((r) => ({ ...r }))
         return rows.slice(0, take ?? rows.length)
       },
       update: async ({ where, data }: any) => {
         const row = outboxRows.find((r) => r.id === where.id)
         if (!row) return null
-        for (const [k, v] of Object.entries(data)) {
-          if (v && typeof v === 'object' && 'increment' in (v as any)) row[k] += (v as any).increment
-          else row[k] = v
-        }
+        applyData(row, data)
         return row
       },
       updateMany: async ({ where, data }: any) => {
-        const row = outboxRows.find((r) => r.id === where.id && r.status === where.status)
-        if (!row) return { count: 0 }
-        Object.assign(row, data)
-        return { count: 1 }
+        const rows = outboxRows.filter((r) => matchesWhere(r, where))
+        for (const row of rows) applyData(row, data)
+        return { count: rows.length }
       },
     },
     user: {
@@ -187,6 +211,68 @@ describe('outbox guarantees', () => {
     expect(second.emailsSent).toBe(1)
     expect(outboxRows[0].emailStatus).toBe('SENT')
     expect(outboxRows[0].emailAttempts).toBe(2)
+  })
+
+  test('concurrent dispatchers claim the email once — exactly one send', async () => {
+    const { client, outboxRows } = fakeOutboxWorld()
+    await enqueueOutbox(client, { key: 'k-email-race', kind: 'SEMESTER_CLOSED', recipientUserId: 'u1', title: 't', body: 'b' })
+    emailBehavior = 'SENT'
+    emailSendCount = 0
+    const [first, second] = await Promise.all([
+      dispatchOutboxBatch(client),
+      dispatchOutboxBatch(client),
+    ])
+    expect(emailSendCount).toBe(1)
+    expect(first.emailsSent + second.emailsSent).toBe(1)
+    expect(outboxRows[0].emailStatus).toBe('SENT')
+    expect(outboxRows[0].emailAttempts).toBe(1)
+  })
+
+  test('a stale email claim (dead dispatcher) is recovered and sent', async () => {
+    const { client, outboxRows } = fakeOutboxWorld()
+    await enqueueOutbox(client, { key: 'k-email-stale', kind: 'SEMESTER_CLOSED', recipientUserId: 'u1', title: 't', body: 'b' })
+    outboxRows[0].status = 'SENT'
+    outboxRows[0].emailStatus = 'SENDING'
+    outboxRows[0].emailAttempts = 1
+    outboxRows[0].lastError = `EMAIL_CLAIM:${new Date(Date.now() - 11 * 60 * 1000).toISOString()}`
+    emailBehavior = 'SENT'
+    emailSendCount = 0
+    const recovered = await dispatchOutboxBatch(client)
+    expect(emailSendCount).toBe(1)
+    expect(recovered.emailsSent).toBe(1)
+    expect(outboxRows[0].emailStatus).toBe('SENT')
+    expect(outboxRows[0].emailAttempts).toBe(2)
+    expect(outboxRows[0].lastError).toBeNull()
+  })
+
+  test('a fresh email claim is not stolen by another dispatcher', async () => {
+    const { client, outboxRows } = fakeOutboxWorld()
+    await enqueueOutbox(client, { key: 'k-email-fresh-claim', kind: 'SEMESTER_CLOSED', recipientUserId: 'u1', title: 't', body: 'b' })
+    outboxRows[0].status = 'SENT'
+    outboxRows[0].emailStatus = 'SENDING'
+    outboxRows[0].emailAttempts = 1
+    outboxRows[0].lastError = `EMAIL_CLAIM:${new Date().toISOString()}`
+    emailBehavior = 'SENT'
+    emailSendCount = 0
+    const result = await dispatchOutboxBatch(client)
+    expect(emailSendCount).toBe(0)
+    expect(result.emailsSent).toBe(0)
+    expect(outboxRows[0].emailStatus).toBe('SENDING')
+    expect(outboxRows[0].emailAttempts).toBe(1)
+  })
+
+  test('an email at the attempts cap is never claimed again', async () => {
+    const { client, outboxRows } = fakeOutboxWorld()
+    await enqueueOutbox(client, { key: 'k-email-cap', kind: 'SEMESTER_CLOSED', recipientUserId: 'u1', title: 't', body: 'b' })
+    outboxRows[0].status = 'SENT'
+    outboxRows[0].emailStatus = 'FAILED'
+    outboxRows[0].emailAttempts = 5
+    emailBehavior = 'SENT'
+    emailSendCount = 0
+    await dispatchOutboxBatch(client)
+    expect(emailSendCount).toBe(0)
+    expect(outboxRows[0].emailStatus).toBe('FAILED')
+    expect(outboxRows[0].emailAttempts).toBe(5)
   })
 
   test('admins-role event fans out to admins exactly once', async () => {

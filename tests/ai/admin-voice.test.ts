@@ -233,8 +233,10 @@ describe('Admin Gemini Live minutes and classified errors', () => {
     studentAiAllowed = false
     latestThesisStatus = 'SCHEDULED'
 
+    // بلا testOnly: وضع الاختبار صار للإدارة فقط (إصلاح تدقيق 2026-11-06)
+    // وقصد الاختبار هو بوابة المناقشة للطالب لا وضع الاختبار.
     const response = await POST(new NextRequest('http://localhost/api/ai/gemini-live/session', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ purpose: 'DISCUSSION', testOnly: true }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ purpose: 'DISCUSSION' }),
     }))
 
     expect(response.status).not.toBe(403)

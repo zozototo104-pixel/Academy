@@ -316,18 +316,34 @@ async function applySettlementEffects(args: {
       }
       // إصدار شهادة الاعتماد عند سداد رسوم الفئة فقط — نطاق الحارس أعلاه.
       if (accreditationCertificateDue(payment, agent)) {
-        const serial = await nextCertSerial()
-        await db.certificate.create({
-          data: {
-            serial,
-            qrToken: randomBytes(16).toString('hex'),
-            type: 'ACCREDITATION',
-            holderName: agent.orgName,
-            program: ACC_TYPE_LABEL_SETTLE[agent.accreditationType || ''] || 'اعتماد دولي',
-            country: agent.country,
-            agentId: agent.id,
-          },
-        })
+        // الرقم التسلسلي محسوب من عدّ الشهادات الحالية: تسويتان متزامنتان
+        // قد تحسبان الرقم نفسه فيصطدم الإنشاء بقيد تفرد serial ويُجهض بقية
+        // آثار التسوية رغم أن الفاتورة قُلبت PAID. أعد حساب الرقم والمحاولة
+        // (حتى 3 مرات) عند الاصطدام فقط — الفائز المتزامن يرفع العدّ فينجح
+        // الرقم التالي — وأعد رمي أي خطأ آخر كما هو.
+        let serial = ''
+        let lastSerialError: any = null
+        for (let attempt = 0; attempt < 3 && !serial; attempt++) {
+          const candidate = await nextCertSerial()
+          try {
+            await db.certificate.create({
+              data: {
+                serial: candidate,
+                qrToken: randomBytes(16).toString('hex'),
+                type: 'ACCREDITATION',
+                holderName: agent.orgName,
+                program: ACC_TYPE_LABEL_SETTLE[agent.accreditationType || ''] || 'اعتماد دولي',
+                country: agent.country,
+                agentId: agent.id,
+              },
+            })
+            serial = candidate
+          } catch (error: any) {
+            if (error?.code !== 'P2002') throw error
+            lastSerialError = error
+          }
+        }
+        if (!serial) throw lastSerialError || new Error('CERT_SERIAL_COLLISION')
         if (agentOwner?.id) {
           await notify(
             agentOwner.id,

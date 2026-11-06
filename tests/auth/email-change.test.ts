@@ -16,7 +16,14 @@ function findBy(where: Row) {
   }) || null
 }
 
+const deletedSessionUserIds: string[] = []
 const dbMock = {
+  session: {
+    deleteMany: async ({ where }: any) => {
+      if (where?.userId) deletedSessionUserIds.push(where.userId)
+      return { count: 1 }
+    },
+  },
   user: {
     findUnique: async ({ where }: any) => findBy(where),
     findFirst: async ({ where }: any) => {
@@ -203,6 +210,7 @@ describe('routes', () => {
 
   test('verify-email route: a token carrying a LOGIN pending change redirects as verified with the NEW email', async () => {
     users.length = 0
+    deletedSessionUserIds.length = 0
     const token = 'a'.repeat(43)
     seed({ pendingEmail: 'new@student.com', pendingEmailPurpose: 'LOGIN', emailVerificationTokenHash: hashEmailVerificationToken(token), emailVerificationExpiresAt: new Date(Date.now() + 3600_000) })
     const res = await verifyGet(new NextRequest(`https://example.test/api/auth/verify-email?token=${token}`))
@@ -211,10 +219,13 @@ describe('routes', () => {
     expect(loc).toContain('email_verified=1')
     expect(loc).toContain('email=new%40student.com')
     expect(users[0].email).toBe('new@student.com')
+    // تغيير بريد الدخول يلغي جلسات المستخدم على كل الأجهزة (كإعادة تعيين كلمة المرور)
+    expect(deletedSessionUserIds).toEqual([users[0].id])
   })
 
   test('verify-email route: a NOTIFICATION confirmation redirects with notification_email=1 and keeps the session', async () => {
     users.length = 0
+    deletedSessionUserIds.length = 0
     const token = 'b'.repeat(43)
     seed({ pendingEmail: 'inbox@student.com', pendingEmailPurpose: 'NOTIFICATION', emailVerificationTokenHash: hashEmailVerificationToken(token), emailVerificationExpiresAt: new Date(Date.now() + 3600_000) })
     const res = await verifyGet(new NextRequest(`https://example.test/api/auth/verify-email?token=${token}`))
@@ -223,5 +234,7 @@ describe('routes', () => {
     expect(users[0].notificationEmail).toBe('inbox@student.com')
     expect(users[0].email).toBe('old@student.com')
     expect(res.headers.get('set-cookie') || '').not.toContain('aact_session=;')
+    // تغيير بريد الإشعارات ليس حدث هوية: لا إلغاء لأي جلسة
+    expect(deletedSessionUserIds).toEqual([])
   })
 })

@@ -1,4 +1,5 @@
 import { GoogleGenAI, createPartFromUri, createUserContent } from '@google/genai'
+import { geminiApiKeys, isRetryableGeminiKeyError } from '@/lib/gemini'
 
 type TranscribeAudioOptions = {
   mimeType?: string | null
@@ -24,8 +25,15 @@ function normalizeAudioMimeType(value?: string | null) {
   return 'audio/ogg'
 }
 
-function geminiApiKey() {
-  return String(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '').trim()
+// مفاتيح ASR تأتي من مصدر إعدادات Gemini نفسه الذي يفكّه gemini.ts
+// (إعدادات المنصة المفكوكة ثم متغيرات البيئة بترتيبها) — كانت ASR تقرأ
+// مفتاح بيئة وحيداً خارج المسبح كلياً فلا تدوير ولا بديل عند موته.
+// GOOGLE_API_KEY يبقى احتياطاً أخيراً لأنه كان مصدر ASR التاريخي وحده
+// في بعض البيئات.
+async function asrGeminiKeys(): Promise<string[]> {
+  const fromSettings = await geminiApiKeys().catch(() => [] as string[])
+  const googleEnv = String(process.env.GOOGLE_API_KEY || '').trim()
+  return [...new Set([...fromSettings, ...(googleEnv ? [googleEnv] : [])])].filter(Boolean)
 }
 
 function audioExtensionForMime(mimeType: string) {
@@ -95,13 +103,8 @@ function extractGeminiTranscript(response: any) {
   return fromText
 }
 
-async function transcribeWithGemini(audioBase64: string, options: TranscribeAudioOptions = {}) {
-  const apiKey = geminiApiKey()
-  if (!apiKey) return null
-
-  const { clean, mimeType } = cleanBase64AndMime(audioBase64, options.mimeType)
-  if (!clean) return ''
-
+// محاولة واحدة بمفتاح واحد: رفع الملف ثم توليد النص ثم حذف الملف المؤقت.
+async function transcribeWithGeminiKey(apiKey: string, clean: string, mimeType: string, options: TranscribeAudioOptions = {}) {
   const ai = new GoogleGenAI({ apiKey })
   const audioBuffer = Buffer.from(clean, 'base64')
   const audioBlob = new Blob([audioBuffer], { type: mimeType })
@@ -143,6 +146,30 @@ async function transcribeWithGemini(audioBase64: string, options: TranscribeAudi
       })
     }
   }
+}
+
+// تدوير المفاتيح: جرّب مفاتيح المسبح بالترتيب، وانتقل للمفتاح التالي عند
+// أخطاء المفتاح القابلة للتدوير (401/402/403/429 وأخطاء المصادقة/الحصة).
+// أي خطأ آخر (حالة ملف، ردّ فارغ الشكل...) يخرج فوراً كما كان قبلاً حتى
+// يتعامل معه المستدعي ويرجع لمسار Whisper المتوافق.
+async function transcribeWithGemini(audioBase64: string, options: TranscribeAudioOptions = {}) {
+  const keys = await asrGeminiKeys()
+  if (!keys.length) return null
+
+  const { clean, mimeType } = cleanBase64AndMime(audioBase64, options.mimeType)
+  if (!clean) return ''
+
+  let lastError: unknown = null
+  for (const apiKey of keys) {
+    try {
+      return await transcribeWithGeminiKey(apiKey, clean, mimeType, options)
+    } catch (error) {
+      lastError = error
+      if (!isRetryableGeminiKeyError(error)) throw error
+      console.warn('Gemini ASR key failed; rotating to next key:', String((error as any)?.message || error).slice(0, 240))
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('GEMINI_ASR_KEYS_EXHAUSTED')
 }
 
 async function transcribeWithWhisperCompatible(audioBase64: string, mimeType: string) {

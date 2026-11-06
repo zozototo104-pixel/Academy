@@ -135,7 +135,10 @@ export async function getGeminiLiveAllowance(input: {
     purpose,
     month,
     freeMonthlyLimitMinutes,
-    sessionLimitMinutes: cappedSessionLimit || sessionLimitMinutes,
+    // عند نفاد الرصيد (ok=false) يكون سقف الجلسة صفراً حقيقياً — لا السقف
+    // الكامل. القيمة المموّهة كانت فخاً لأي مستهلك مستقبلي يثق بالسقف
+    // دون فحص ok فيصدر توكناً بحد كامل لمستخدم بلا رصيد.
+    sessionLimitMinutes: cappedSessionLimit,
     usedFreeMinutes,
     usedPaidMinutes,
     paidRemainingMinutes,
@@ -160,12 +163,26 @@ async function refundReserved(tx: any, session: any, minutes: number) {
     })
   }
   if (paidRefund > 0) {
+    // الدقائق المدفوعة المستردة كانت مشتراةً منتهية الصلاحية بطبيعتها:
+    // الحجز يسحب المدفوع بأقرب انتهاء أولاً (FIFO)، فيرث الرصيد المسترد
+    // أقرب انتهاء بين أرصدة المستخدم التي كانت موجودة عند بدء الجلسة —
+    // وهي مجموعة السحب نفسها — بدل أن يولد بلا expiresAt فيتحوّل رصيد
+    // مؤقت إلى رصيد دائم لا ينتهي أبداً. بلا أي انتهاء في المجموعة
+    // (أرصدة دائمة أصلاً) يبقى المسترد بلا انتهاء وفاءً لمصدره.
+    const poolAnchor = session.startedAt || session.createdAt || new Date()
+    const pool = await tx.aiLiveCredit.findMany({
+      where: { userId: session.userId, createdAt: { lte: poolAnchor }, expiresAt: { not: null } },
+      orderBy: [{ expiresAt: 'asc' }],
+      take: 1,
+    })
+    const inheritedExpiry = pool[0]?.expiresAt ?? null
     await tx.aiLiveCredit.create({
       data: {
         userId: session.userId,
         minutes: paidRefund,
         remainingMinutes: paidRefund,
         source: 'REFUND',
+        expiresAt: inheritedExpiry,
         note: `Auto refund for live session ${session.sessionId}`,
       },
     })
@@ -257,9 +274,11 @@ export async function reserveGeminiLiveUsage(input: {
         }
       }
       if (existing.status === 'RESERVED' && !unexpired) {
-        // حجز منتهي لم يُسوَّ بعد: يُسترد كاملاً هنا حتى لا يبقى محجوزاً مرتين.
-        await refundReserved(tx, existing, existing.reservedMinutes)
-        await tx.aiLiveSession.update({ where: { id: existing.id }, data: { status: 'REFUNDED', settledAt: now, actualMinutes: 0 } })
+        // حجز منتهٍ لم يُسوَّ أبداً: يُحاسَب على محجوزه كاملاً — لا يُسترد —
+        // بنفس سياسة كنس الجلسات المنتهية (refundExpiredGeminiLiveSessions).
+        // الحجز دقيقتان كحد أقصى فكلفة جلسة تعطّلت فعلاً محدودة، أما
+        // الاسترداد الكامل فكان يجعل كل جلسة صوت بلا تسوية مجانية تماماً.
+        await tx.aiLiveSession.update({ where: { id: existing.id }, data: { status: 'SETTLED', settledAt: now, actualMinutes: existing.reservedMinutes } })
       }
       effectiveSessionId = sessionIdValue(null)
     }
@@ -448,16 +467,22 @@ export async function settleGeminiLiveUsage(input: { userId: string; sessionId: 
   })
 }
 
+// اسم الدالة تاريخي: كانت «تسترد» الجلسات المنتهية كاملة. السياسة الآن
+// (إصلاح تدقيق 2026-11-06): الجلسة المنتهية التي لم تُسوَّ أبداً تُحاسَب
+// على حجزها كاملاً — status SETTLED وactualMinutes = المحجوز، بلا أي
+// استرداد — لأن العميل الذي لا يتصل بالتسوية يجب ألا يكون أوفر من الذي
+// يتصل. الحجز دقيقتان كحد أقصى (min(2, سقف الجلسة)) فخسارة جلسة تعطّلت
+// فعلاً محدودة بها. عدّاد الاستخدام رُفع أصلاً عند الحجز فالمحاسبة هنا
+// مجرد عدم التراجع عنه؛ refunded تبقى في النتيجة صفراً لتوافق المستهلكين.
 export async function refundExpiredGeminiLiveSessions(now = new Date()) {
   return db.$transaction(async (tx) => {
     const sessions = await tx.aiLiveSession.findMany({ where: { status: 'RESERVED', expiresAt: { lt: now } }, take: 50 })
-    let refunded = 0
+    let charged = 0
     for (const session of sessions) {
-      await refundReserved(tx, session, session.reservedMinutes)
-      await tx.aiLiveSession.update({ where: { id: session.id }, data: { status: 'REFUNDED', settledAt: now, actualMinutes: 0 } })
-      refunded += session.reservedMinutes
+      await tx.aiLiveSession.update({ where: { id: session.id }, data: { status: 'SETTLED', settledAt: now, actualMinutes: session.reservedMinutes } })
+      charged += session.reservedMinutes
     }
-    return { sessions: sessions.length, refunded }
+    return { sessions: sessions.length, refunded: 0, charged }
   })
 }
 

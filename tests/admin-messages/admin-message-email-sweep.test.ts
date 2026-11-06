@@ -8,6 +8,8 @@ process.env.CRON_SECRET = 'test-cron-secret'
 const oldDate = new Date(Date.now() - 2 * 60 * 60 * 1000)
 const freshDate = new Date(Date.now() - 10 * 60 * 1000)
 let messages: any[]
+let digestBehavior: 'success' | 'fail' | 'hold' = 'success'
+let releaseHeldSend: (() => void) | null = null
 const emailCalls: any[] = []
 const updateManyCalls: any[] = []
 const unreadLinks = new Set<string>()
@@ -36,10 +38,16 @@ const db: any = {
     },
     updateMany: async (args: any) => {
       updateManyCalls.push(args)
+      const w = args?.where || {}
+      let count = 0
       for (const m of messages) {
-        if (args?.where?.id?.in?.includes(m.id)) m.emailSentAt = args.data.emailSentAt
+        if (w.id?.in && !w.id.in.includes(m.id)) continue
+        if (w.emailSentAt === null && m.emailSentAt !== null) continue
+        if (w.emailSentAt instanceof Date && m.emailSentAt?.getTime() !== w.emailSentAt.getTime()) continue
+        m.emailSentAt = args.data.emailSentAt
+        count++
       }
-      return { count: args?.where?.id?.in?.length || 0 }
+      return { count }
     },
   },
   notification: {
@@ -59,6 +67,10 @@ mock.module('@/lib/notify', () => ({
 mock.module('@/lib/mailer', () => ({
   emailAdminMessagesDigest: async (...args: any[]) => {
     emailCalls.push(args)
+    if (digestBehavior === 'fail') return false
+    if (digestBehavior === 'hold') {
+      await new Promise<void>((resolve) => { releaseHeldSend = resolve })
+    }
     return true
   },
 }))
@@ -72,6 +84,8 @@ function cronRequest() {
 
 beforeEach(() => {
   resetMessages()
+  digestBehavior = 'success'
+  releaseHeldSend = null
   emailCalls.length = 0
   updateManyCalls.length = 0
 })
@@ -103,5 +117,41 @@ describe('admin message digest sweep', () => {
     expect(emailedIds).not.toContain('m-fresh')
     expect(emailedIds).not.toContain('m-old-read')
     expect(emailedIds).not.toContain('m-old-emailed')
+  })
+
+  test('a failed send releases the claim — the next run retries and succeeds', async () => {
+    const route = await import('@/app/api/cron/admin-message-digest/route')
+    digestBehavior = 'fail'
+    const res1 = await route.GET(cronRequest())
+    expect(res1.status).toBe(200)
+    expect(emailCalls.length).toBe(1)
+    const old = messages.find((m) => m.id === 'm-old-unread')
+    expect(old.emailSentAt).toBeNull()
+    digestBehavior = 'success'
+    const res2 = await route.GET(cronRequest())
+    expect(res2.status).toBe(200)
+    expect(emailCalls.length).toBe(2)
+    expect(old.emailSentAt).toBeInstanceOf(Date)
+  })
+
+  test('an overlapping run during an in-flight send does not double-send', async () => {
+    const route = await import('@/app/api/cron/admin-message-digest/route')
+    digestBehavior = 'hold'
+    const first = route.GET(cronRequest())
+    // انتظر حتى تُسجَّل المطالبة ويبدأ الإرسال المُعلَّق
+    for (let i = 0; i < 50 && !(updateManyCalls.length >= 1 && emailCalls.length >= 1); i++) {
+      await new Promise((r) => setTimeout(r, 0))
+    }
+    expect(updateManyCalls.length).toBeGreaterThanOrEqual(1)
+    expect(emailCalls.length).toBe(1)
+    const second = await route.GET(cronRequest())
+    expect(second.status).toBe(200)
+    expect(emailCalls.length).toBe(1)
+    releaseHeldSend?.()
+    const firstRes = await first
+    expect(firstRes.status).toBe(200)
+    expect(emailCalls.length).toBe(1)
+    const body = await firstRes.json()
+    expect(body.emailedMessages).toBe(1)
   })
 })

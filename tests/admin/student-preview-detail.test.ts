@@ -143,7 +143,7 @@ const db: any = {
 mock.module('@/lib/db', () => ({ db }))
 mock.module('@/lib/auth', () => ({ requireAdmin: async () => ({ id: 'admin-1', role: 'ADMIN' }) }))
 mock.module('@/lib/notify', () => ({ notify: async () => ({}), notifyAdmins: async () => ({}), audit: async () => ({}) }))
-mock.module('@/lib/mailer', () => ({ sendEmail: async () => true, emailTemplate: () => '' }))
+mock.module('@/lib/mailer', () => ({ sendEmail: async () => true, sendEmailDetailed: async () => 'SENT', emailTemplate: () => '' }))
 mock.module('@/lib/whatsapp-cloud', () => ({ officialWhatsAppConfigured: () => false, sendOfficialWhatsAppHumanFollowup: async () => ({}), sendOfficialWhatsAppText: async () => ({}) }))
 mock.module('@/lib/whatsapp-conversations', () => ({ hashWhatsAppId: (x: string) => x, recordWhatsAppOutboundMessage: async () => ({}) }))
 

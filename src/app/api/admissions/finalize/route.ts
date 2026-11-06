@@ -58,6 +58,30 @@ export async function POST(req: NextRequest) {
     const isServiceRequest = docRequirements.isServiceRequest
     const requiredDocList = docRequirements.requiredDocs
     const missing = docRequirements.missingDocs
+
+    // طلب قيد الدراسة أصلاً (طلب خدمة مُستلم، أو طلب دراسة رسوم تقديمه مسددة): إعادة الإنهاء
+    // نجاح عديم الأثر — لا إعادة كتابة للحالة إلى AWAITING_FEE ولا فواتير أو رسائل تقديم مكررة.
+    // (رمز الرفع صالح 24 ساعة وغير مرتبط بالحالة، فتكرار النداء به كان يرجع بالطلب الحي للخلف.)
+    if (app.status === 'UNDER_REVIEW') {
+      const settledFee = (app.payments || []).find((p) => p.purpose === 'APPLICATION_FEE') || null
+      const feesSettled = isServiceRequest || Boolean(settledFee && ['PAID', 'WAIVED'].includes(settledFee.status))
+      if (feesSettled) {
+        return NextResponse.json({
+          message: `طلبك (${app.reference}) مُستلم أصلاً وهو قيد دراسة الإدارة الآن — لا حاجة لإعادة إكمال التقديم.`,
+          reference: app.reference,
+          applicationFee: isServiceRequest ? 0 : (settledFee?.amount ?? 0),
+          documentsCount: (app.files || []).length,
+          invoice: settledFee ? {
+            invoiceNo: settledFee.invoiceNo,
+            amount: settledFee.amount,
+            purpose: settledFee.purpose,
+            description: settledFee.description,
+          } : null,
+        })
+      }
+      // رسوم تقديم غير مسددة رغم حالة قيد الدراسة (نقل يدوي): يكمل المسار العادي أدناه
+      // ليعيد الطلب إلى مرحلة انتظار الرسوم ويُصدر فاتورتها إن لم توجد.
+    }
     if (missing.length > 0) {
       return NextResponse.json({
         error: isServiceRequest ? 'لا يمكن إكمال طلب الخدمة: مرفقات الخدمة المطلوبة غير مكتملة' : 'لا يمكن إكمال الطلب: المستندات المطلوبة غير مكتملة. ارفع المستندات الناقصة أولاً',

@@ -1435,7 +1435,18 @@ export async function buildBookOutline(bookId: string, options: { reuseReadChunk
     for (const issue of pdfReadIssues) draft.warnings.push(
       `تنبيه إعادة قراءة PDF: صفحة ${issue.page} ${issue.kind === 'PARTIAL' ? 'قراءة جزئية' : 'غير مقروءة'}؛ ${issue.reason}. تُراجع عند الاعتماد.`)
   }
-  const coverage = auditOutlineCoverage(draft.sections)
+  // Audit against the book's full stored extent — the same source range
+  // the display and approval paths compute — so gaps at the head/tail of
+  // the book are visible in the draft's own warnings at build time, not
+  // only later at approval. Approval behavior itself is unchanged.
+  const latestRead = await db.bookReadJob.findFirst({
+    where: { bookId, totalPages: { gt: 0 } }, orderBy: { createdAt: 'desc' },
+    select: { totalPages: true },
+  })
+  const coverage = auditOutlineCoverage(draft.sections, {
+    pageStart: 1,
+    pageEnd: Math.max(latestRead?.totalPages || 0, ...chunks.map((chunk) => chunk.pageEnd)),
+  })
   for (const section of coverage.review) draft.warnings.push(section.pages === null ? `تنبيه تغطية: حدود صفحات القسم «${section.title}» غير مكتملة؛ راجعها قبل الاعتماد.` : `تنبيه تغطية: القسم «${section.title}» يغطي ${section.pages} صفحة (صفحات ${section.pageStart}–${section.pageEnd}) — فوق حد المراجعة ${OUTLINE_SECTION_REVIEW_PAGES} صفحة؛ أعد فحص عناوين هذا النطاق قبل الاعتماد.`)
   for (const gap of coverage.gaps) draft.warnings.push(`تنبيه تغطية: هناك فجوة غير مغطاة من الصفحة ${gap.pageStart} إلى ${gap.pageEnd}؛ لن يُعتمد الفهرس قبل تصحيحها.`)
   for (const section of coverage.blocked) draft.warnings.push(`تنبيه تغطية: القسم «${section.title}» يغطي ${section.pages} صفحة (صفحات ${section.pageStart}–${section.pageEnd}) — يتجاوز حد ${OUTLINE_SECTION_BLOCK_PAGES} صفحة؛ لن يُعتمد الفهرس حتى يُقسَّم هذا النطاق أو يُسجَّل تجاوز مشرف موثّق.`)
@@ -1445,5 +1456,13 @@ export async function buildBookOutline(bookId: string, options: { reuseReadChunk
     draft.warnings.push('OUTLINE_SUBHEADING:' + JSON.stringify(marker))
   }
   const latest = await db.bookOutline.findFirst({ where: { bookId }, orderBy: { version: 'desc' }, select: { version: true } })
-  return db.bookOutline.create({ data: { bookId, version: (latest?.version || 0) + 1, status: 'DRAFT', source: draft.source, warnings: JSON.stringify(draft.warnings), sections: { create: draft.sections } }, include: { sections: { orderBy: { order: 'asc' } } } })
+  try {
+    return await db.bookOutline.create({ data: { bookId, version: (latest?.version || 0) + 1, status: 'DRAFT', source: draft.source, warnings: JSON.stringify(draft.warnings), sections: { create: draft.sections } }, include: { sections: { orderBy: { order: 'asc' } } } })
+  } catch (error: any) {
+    // Two builds racing for the same book both read the same latest
+    // version; @@unique([bookId, version]) stops the loser. Surface a
+    // clean, retryable conflict instead of the raw Prisma error.
+    if (error?.code === 'P2002') throw new Error('BOOK_OUTLINE_VERSION_CONFLICT')
+    throw error
+  }
 }

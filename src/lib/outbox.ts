@@ -7,8 +7,10 @@ import { emailTemplate, sendEmailDetailed } from './mailer'
 // بمفتاح عدم تكرار فريد، ويوزّعها الموزّع لاحقًا:
 // - داخل المنصة: إنشاء الإشعارات وانقلاب الحدث إلى SENT بمعاملة واحدة
 //   ⟹ عدم تكرار مضمون بمفتاح الحدث.
-// - البريد: محاولات موثّقة بحالة مستقلة؛ قد يصل مرتين في انقطاع نادر
-//   بعد قبول المزوّد وقبل تسجيل النجاح — لا يُدّعى له «مرة واحدة».
+// - البريد: يُطالَب به ذرّيًا قبل الإرسال (انقلاب مشروط إلى SENDING مع
+//   ختم وقت المطالبة) فلا يرسله موزّعان متزامنان؛ المطالبة التي لا تُحسم
+//   خلال 10 دقائق (موزّع مات بعد قبول المزوّد وقبل تسجيل النتيجة) تصبح
+//   قديمة وتُسترد — في تلك النافذة الضيقة فقط قد يصل البريد مرتين.
 type AnyClient = any
 
 export type OutboxEvent = {
@@ -66,6 +68,26 @@ async function resolveRecipients(client: AnyClient, row: any): Promise<Array<{ i
 
 const MAX_EMAIL_ATTEMPTS = 5
 
+// مطالبة البريد: لا يوجد عمود updatedAt على صف الحدث، فيُحمل وقت
+// المطالبة داخل lastError كختم «EMAIL_CLAIM:<ISO>» ريثما تُكتب النتيجة
+// الحقيقية (نجاح يمسح الختم، وفشل يستبدله بنص الخطأ). المطالبة الأقدم
+// من المهلة تُعدّ يتيمة — صاحبها مات قبل الحسم — وتُسترد بمطابقة الختم
+// نفسه (CAS) حتى لا يسرق موزّعٌ مطالبةً حيّة من آخر.
+const EMAIL_CLAIM_STALE_MS = 10 * 60 * 1000
+const EMAIL_CLAIM_PREFIX = 'EMAIL_CLAIM:'
+
+function emailClaimMarker(now = new Date()) {
+  return `${EMAIL_CLAIM_PREFIX}${now.toISOString()}`
+}
+
+function emailClaimIsStale(row: any, now = Date.now()) {
+  if (row?.emailStatus !== 'SENDING') return false
+  const marker = String(row?.lastError || '')
+  if (!marker.startsWith(EMAIL_CLAIM_PREFIX)) return true
+  const claimedAt = Date.parse(marker.slice(EMAIL_CLAIM_PREFIX.length))
+  return !Number.isFinite(claimedAt) || now - claimedAt > EMAIL_CLAIM_STALE_MS
+}
+
 export async function dispatchOutboxBatch(client: AnyClient = db, limit = 50): Promise<{ platformSent: number; emailsSent: number; emailsFailed: number }> {
   const store = (client as AnyClient)?.notificationOutbox
   if (!store?.findMany) return { platformSent: 0, emailsSent: 0, emailsFailed: 0 }
@@ -107,22 +129,48 @@ export async function dispatchOutboxBatch(client: AnyClient = db, limit = 50): P
   }
 
   // ٢) البريد: محاولات موثّقة للمنصّة المُسلَّمة التي بريدها لم يُحسم.
+  // تُرشَّح أيضًا صفوف SENDING (مطالبات سابقة) وتُفحص حداثتها بالحلقة.
   const emailDue = await store.findMany({
-    where: { status: 'SENT', emailStatus: { in: ['PENDING', 'FAILED'] }, emailAttempts: { lt: MAX_EMAIL_ATTEMPTS } },
+    where: {
+      status: 'SENT',
+      emailAttempts: { lt: MAX_EMAIL_ATTEMPTS },
+      OR: [
+        { emailStatus: { in: ['PENDING', 'FAILED'] } },
+        { emailStatus: 'SENDING' },
+      ],
+    },
     orderBy: { createdAt: 'asc' },
     take: limit,
   }).catch(() => [])
   for (const row of emailDue) {
+    if (row.emailStatus === 'SENDING' && !emailClaimIsStale(row)) continue
+    if (row.emailStatus !== 'SENDING' && row.emailStatus !== 'PENDING' && row.emailStatus !== 'FAILED') continue
+    if (!(Number(row.emailAttempts || 0) < MAX_EMAIL_ATTEMPTS)) continue
     // A lookup outage is not an empty recipient list: leave the email
     // PENDING/FAILED for the next cron tick and continue with other events.
+    // يحدث البحث قبل المطالبة عمدًا: انقطاع البحث لا يحرق محاولة ولا
+    // يترك مطالبة معلّقة.
     const resolved = await resolveRecipients(client, row).catch((e: unknown) => {
       console.error('outbox email recipient lookup failed', row.id, e)
       return null
     })
     if (resolved === null) continue
+    // المطالبة الذرية: انقلاب مشروط واحد فقط ينجح بين الموزّعين
+    // المتزامنين؛ إعادة مطالبة القديم مشروطة بختمه المرصود نفسه.
+    const claim = await store.updateMany({
+      where: {
+        id: row.id,
+        OR: [
+          { emailStatus: { in: ['PENDING', 'FAILED'] } },
+          { emailStatus: 'SENDING', lastError: row.lastError ?? null },
+        ],
+      },
+      data: { emailStatus: 'SENDING', emailAttempts: { increment: 1 }, lastError: emailClaimMarker() },
+    }).catch(() => ({ count: 0 }))
+    if ((claim as any)?.count !== 1) continue
     const recipients = resolved.filter((r) => r.email)
     if (!recipients.length) {
-      await store.update({ where: { id: row.id }, data: { emailStatus: 'SKIPPED' } }).catch(() => {})
+      await store.update({ where: { id: row.id }, data: { emailStatus: 'SKIPPED', lastError: null } }).catch(() => {})
       continue
     }
     const outcomes: string[] = []
@@ -139,6 +187,7 @@ export async function dispatchOutboxBatch(client: AnyClient = db, limit = 50): P
     }
     // الحالة النهائية بأمانة: فشل أي مستلم = FAILED (يُعاد لاحقًا)،
     // تخطّي المزوّد غير المهيأ = SKIPPED نهائي موثّق، غير ذلك SENT.
+    // عدّاد المحاولات زيد عند المطالبة لا هنا — محاولة واحدة لكل إرسال.
     const finalStatus = outcomes.includes('FAILED') ? 'FAILED' : outcomes.includes('SKIPPED') ? 'SKIPPED' : 'SENT'
     if (finalStatus === 'SENT') emailsSent++
     else if (finalStatus === 'FAILED') emailsFailed++
@@ -146,8 +195,7 @@ export async function dispatchOutboxBatch(client: AnyClient = db, limit = 50): P
       where: { id: row.id },
       data: {
         emailStatus: finalStatus,
-        emailAttempts: { increment: 1 },
-        ...(lastError ? { lastError } : {}),
+        lastError: lastError || null,
       },
     }).catch(() => {})
   }

@@ -27,7 +27,7 @@ export default async function CertificateVerifyPage({ params }: PageProps) {
   const clean = decodeURIComponent(token || '').trim()
   const cert = clean
     ? await db.certificate.findFirst({
-        where: { OR: [{ qrToken: clean }, { serial: clean }] },
+        where: { OR: [{ qrToken: clean }, { serial: clean }, { legacySerial: clean }] },
         select: {
           id: true,
           serial: true,

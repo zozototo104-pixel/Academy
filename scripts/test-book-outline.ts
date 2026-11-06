@@ -386,7 +386,7 @@ function testFullBalancingIsWiredBeforePersistingDraft() {
   const source = readFileSync('src/lib/book-outline.ts', 'utf8')
   const refine = source.indexOf('const refined = await refineOversizedSections(')
   const balance = source.indexOf('const balanced = thematic ? { sections: thematic.sections, merged: 0 } : balanceBookOutlineSections(refined.sections)', refine)
-  const coverage = source.indexOf('const coverage = auditOutlineCoverage(draft.sections)', balance)
+  const coverage = source.indexOf('const coverage = auditOutlineCoverage(draft.sections, {', balance)
   assert(refine >= 0 && balance > refine && coverage > balance, 'الفحص ثم التجميع الموضوعي المحروس ثم التغطية يجب أن تسبق حفظ الفهرس')
 }
 

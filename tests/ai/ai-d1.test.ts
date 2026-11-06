@@ -97,11 +97,16 @@ const db: any = {
       return row
     },
   },
+  // الحذف الاحتفاظي صار على دفعات (إصلاح 2026-11-06): الاختيار يتم عبر
+  // findMany بشرط الاستبعاد نفسه ثم الحذف بالمعرّفات — فتُلتقط شروط
+  // الاستبعاد عند findMany ويُشتق عدد الحذف من المعرّفات الممرَّرة.
   chatMessage: {
-    deleteMany: async ({ where }: any) => { chatDeleteWhere = where; return { count: 3 } },
+    findMany: async ({ where }: any) => { chatDeleteWhere = where; return [{ id: 'chat-1' }, { id: 'chat-2' }, { id: 'chat-3' }] },
+    deleteMany: async ({ where }: any) => ({ count: where?.id?.in?.length ?? 3 }),
   },
   whatsAppConversationMessage: {
-    deleteMany: async ({ where }: any) => { whatsappDeleteWhere = where; return { count: 2 } },
+    findMany: async ({ where }: any) => { whatsappDeleteWhere = where; return [{ id: 'wa-1' }, { id: 'wa-2' }] },
+    deleteMany: async ({ where }: any) => ({ count: where?.id?.in?.length ?? 2 }),
   },
 }
 

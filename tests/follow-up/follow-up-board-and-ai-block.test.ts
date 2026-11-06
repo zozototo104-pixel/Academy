@@ -91,7 +91,7 @@ mock.module('@/lib/db', () => ({
 }))
 
 mock.module('@/lib/notify', () => ({ notify: async () => {} }))
-mock.module('@/lib/mailer', () => ({ sendEmail: async () => ({ ok: true }), emailTemplate: () => '<html></html>' }))
+mock.module('@/lib/mailer', () => ({ sendEmail: async () => ({ ok: true }), sendEmailDetailed: async () => 'SENT', emailTemplate: () => '<html></html>' }))
 mock.module('@/lib/whatsapp-cloud', () => ({
   officialWhatsAppConfigured: () => false,
   sendOfficialWhatsAppText: async () => ({}),

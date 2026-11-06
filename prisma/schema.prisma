@@ -2501,7 +2501,7 @@ model NotificationOutbox {
   body            String
   link            String?
   status          String    @default("PENDING") // PENDING | SENT
-  emailStatus     String    @default("PENDING") // PENDING | SENT | FAILED | SKIPPED
+  emailStatus     String    @default("PENDING") // PENDING | SENDING | SENT | FAILED | SKIPPED
   emailAttempts   Int       @default(0)
   lastError       String?
   createdAt       DateTime  @default(now())

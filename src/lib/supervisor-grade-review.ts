@@ -245,25 +245,29 @@ export async function resolveExamAppeal(
     if (!Number.isFinite(finalScore)) throw Object.assign(new Error('FINAL_SCORE_REQUIRED'), { userMessage: 'قبول الالتماس يحتاج درجة نهائية رقمية', status: 400 })
     const clamped = Math.max(0, Math.min(100, Math.round(finalScore * 10) / 10))
     const passed = clamped >= attempt.exam.passScore
-    if (type === 'UNIT') {
-      await dbAny.examAttempt.update({
-        where: { id: attempt.id },
+    // كتابة مشروطة بالحالة التي قُرئت أعلاه (كنمط applyScoreAdjustments
+    // في هذا الملف ومسار الأدمن): قرار متزامن من جلسة أخرى ⟸ تعارض
+    // صريح بدل كتابة صامتة فوق قراره.
+    const saved = type === 'UNIT'
+      ? await dbAny.examAttempt.updateMany({
+        where: { id: attempt.id, status: 'GRADED', appealStatus: 'PENDING' },
         data: { score: clamped, passed, appealStatus: 'REVIEWED', appealResponse: responseText || 'تم قبول الالتماس واعتماد الدرجة النهائية بعد مراجعة مشرفك.', reviewedById: actor.id, reviewedAt: new Date() },
       })
-    } else {
-      await dbAny.programExamAttempt.update({
-        where: { id: attempt.id },
+      : await dbAny.programExamAttempt.updateMany({
+        where: { id: attempt.id, status: 'GRADED', appealStatus: 'PENDING' },
         data: { finalScore: clamped, passed, appealStatus: 'REVIEWED', appealResponse: responseText || 'تم قبول الالتماس واعتماد الدرجة النهائية بعد المراجعة.', reviewedById: actor.id, reviewedAt: new Date() },
       })
-    }
+    if (saved.count !== 1) throw Object.assign(new Error('CONCURRENT_REVIEW'), { userMessage: 'حُسم هذا الالتماس من جلسة أخرى؛ حدّث الصفحة قبل المحاولة مجددًا', status: 409 })
     await completeIfEligible(attempt.userId, programId).catch(() => null)
     await notify(attempt.userId, 'GENERAL', 'تم البت في التماس مراجعة نتيجتك', `راجع مشرفك التماسك على «${attempt.exam.title}» واعتمد درجتك النهائية: ${clamped}%.`, '/?view=dashboard')
     return { finalScore: clamped, passed }
   }
 
   const data = { appealStatus: 'REVIEWED', appealResponse: responseText || 'تمت مراجعة الالتماس وبقيت النتيجة كما هي.', reviewedById: actor.id, reviewedAt: new Date() }
-  if (type === 'UNIT') await dbAny.examAttempt.update({ where: { id: attempt.id }, data })
-  else await dbAny.programExamAttempt.update({ where: { id: attempt.id }, data })
+  const saved = type === 'UNIT'
+    ? await dbAny.examAttempt.updateMany({ where: { id: attempt.id, status: 'GRADED', appealStatus: 'PENDING' }, data })
+    : await dbAny.programExamAttempt.updateMany({ where: { id: attempt.id, status: 'GRADED', appealStatus: 'PENDING' }, data })
+  if (saved.count !== 1) throw Object.assign(new Error('CONCURRENT_REVIEW'), { userMessage: 'حُسم هذا الالتماس من جلسة أخرى؛ حدّث الصفحة قبل المحاولة مجددًا', status: 409 })
   await notify(attempt.userId, 'GENERAL', 'تم البت في التماس مراجعة نتيجتك', `راجع مشرفك التماسك على «${attempt.exam.title}»: ${data.appealResponse}`, '/?view=dashboard')
   const current = type === 'UNIT' ? attempt.score : (attempt.finalScore ?? attempt.score)
   return { finalScore: current ?? null, passed: current != null ? current >= attempt.exam.passScore : null }

@@ -8,15 +8,21 @@ process.env.NEXT_PUBLIC_APP_URL = 'https://aactacademy.com'
 let currentUser: any
 let adminThrows = false
 let rateOk = true
+let textThrows = false
+let templateThrows = false
 let windowConversation: any
 const textCalls: any[] = []
 const templateCalls: any[] = []
 const recordCalls: any[] = []
+const userUpdateCalls: any[] = []
 
 const db: any = {
   user: {
     findUnique: async () => currentUser,
-    update: async () => ({}),
+    update: async (args: any) => {
+      userUpdateCalls.push(args)
+      return {}
+    },
   },
   whatsAppConversation: {
     findUnique: async () => windowConversation,
@@ -36,10 +42,12 @@ mock.module('@/lib/rate-limit', () => ({
 mock.module('@/lib/whatsapp-cloud', () => ({
   sendOfficialWhatsAppText: async (to: string, text: string) => {
     textCalls.push({ to, text })
+    if (textThrows) throw new Error('WhatsApp send failed with status 500')
     return { messages: [{ id: 'wamid.text' }] }
   },
   sendOfficialWhatsAppHumanFollowup: async (to: string, name: string) => {
     templateCalls.push({ to, name })
+    if (templateThrows) throw new Error('WhatsApp template send failed')
     return { messages: [{ id: 'wamid.template' }] }
   },
 }))
@@ -78,10 +86,13 @@ beforeEach(() => {
   currentUser = defaultUser()
   adminThrows = false
   rateOk = true
+  textThrows = false
+  templateThrows = false
   windowConversation = null
   textCalls.length = 0
   templateCalls.length = 0
   recordCalls.length = 0
+  userUpdateCalls.length = 0
 })
 
 describe('زر إرسال رابط التحقق عبر واتساب', () => {
@@ -158,6 +169,51 @@ describe('زر إرسال رابط التحقق عبر واتساب', () => {
     expect(templateCalls[0].name).toBe('طالب اختبار')
     expect(textCalls).toHaveLength(0)
     expect(recordCalls).toHaveLength(1)
+  })
+
+  test('فشل إرسال الرابط يسترجع ختم الإصدار فلا تُحرق نافذة إعادة الإرسال', async () => {
+    windowConversation = { lastInboundAt: new Date() }
+    textThrows = true
+    const res = await POST(post('student@example.test'))
+    expect(res.status).toBe(500)
+    expect(textCalls).toHaveLength(1)
+    expect(recordCalls).toHaveLength(0)
+    // تحديثان: إصدار الرمز ثم استرجاع الختم السابق (الفارغ هنا)
+    expect(userUpdateCalls).toHaveLength(2)
+    expect(userUpdateCalls[0].data.emailVerificationSentAt).toBeInstanceOf(Date)
+    expect(userUpdateCalls[1].data.emailVerificationSentAt).toBeNull()
+    expect(userUpdateCalls[1].data.emailVerificationTokenHash).toBeNull()
+    expect(userUpdateCalls[1].data.emailVerificationExpiresAt).toBeNull()
+  })
+
+  test('فشل إرسال القالب يسترجع ختم الإصدار السابق كما كان', async () => {
+    // ختم قبل ساعة: تجاوز مهلة الـ10 دقائق فيُسمح بالإصدار، وقيمته تُحفظ
+    // لتُسترجع حرفيًا عند فشل الإرسال (الرمز السابق يبقى كما كان).
+    const priorSentAt = new Date(Date.now() - 60 * 60 * 1000)
+    const priorExpiresAt = new Date(Date.now() + 23 * 60 * 60 * 1000)
+    currentUser = {
+      ...defaultUser(),
+      emailVerificationSentAt: priorSentAt,
+      emailVerificationExpiresAt: priorExpiresAt,
+      emailVerificationTokenHash: 'prior-hash',
+    }
+    windowConversation = null
+    templateThrows = true
+    const res = await POST(post('student@example.test'))
+    expect(res.status).toBe(500)
+    expect(templateCalls).toHaveLength(1)
+    expect(userUpdateCalls).toHaveLength(2)
+    expect(userUpdateCalls[1].data.emailVerificationSentAt).toEqual(priorSentAt)
+    expect(userUpdateCalls[1].data.emailVerificationExpiresAt).toEqual(priorExpiresAt)
+    expect(userUpdateCalls[1].data.emailVerificationTokenHash).toBe('prior-hash')
+  })
+
+  test('الإرسال الناجح لا يسترجع شيئًا — تحديث الإصدار فقط', async () => {
+    windowConversation = { lastInboundAt: new Date() }
+    const res = await POST(post('student@example.test'))
+    expect(res.status).toBe(200)
+    expect(userUpdateCalls).toHaveLength(1)
+    expect(userUpdateCalls[0].data.emailVerificationSentAt).toBeInstanceOf(Date)
   })
 
   test('واجهة الزر موصولة بحقول الهاتف والتوثيق', () => {

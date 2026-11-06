@@ -186,6 +186,34 @@ export function DefenseRoom({
   const [liveThesisContext, setLiveThesisContext] = useState('')
   const [resumeHint, setResumeHint] = useState(false)
   const liveAdvisorRef = useRef<VoiceAgent | null>(null)
+  // تسوية دقائق الصوت: كل جلسة مباشرة تُنشأ للمشرف الصوتي تُسجَّل هنا، وعند
+  // الإيقاف أو مغادرة القاعة أو إغلاق المكوّن تُسوّى عبر /api/ai/live-usage
+  // — بنفس نمط محطة الاجتماعات (MeetingInviteView) حتى لا تُسترد محجوزاتها
+  // كاملة آخر الليل رغم استعمالها.
+  const pendingLiveUsageSessions = useRef(new Map<string, number>())
+  const settleLiveUsageSessions = useCallback(() => {
+    const sessions = [...pendingLiveUsageSessions.current.entries()]
+    pendingLiveUsageSessions.current.clear()
+    for (const [sessionId, startedAt] of sessions) {
+      void fetch('/api/ai/live-usage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          actualSeconds: Math.max(0, Math.ceil((Date.now() - startedAt) / 1000)),
+        }),
+        keepalive: true,
+      }).then((response) => {
+        if (!response.ok) {
+          pendingLiveUsageSessions.current.set(sessionId, startedAt)
+          toast({ title: 'تعذر تسوية جلسة المشرف الصوتي', description: 'تعذر تسجيل دقائق الجلسة الصوتية؛ ستتم إعادة المحاولة عند الإيقاف التالي.', variant: 'destructive' })
+        }
+      }).catch(() => {
+        pendingLiveUsageSessions.current.set(sessionId, startedAt)
+        toast({ title: 'تعذر تسوية جلسة المشرف الصوتي', description: 'تعذر الاتصال بخدمة تسجيل دقائق الصوت.', variant: 'destructive' })
+      })
+    }
+  }, [toast])
 
   // ===== 12.3: تسجيل الجلسة وأرشفتها =====
   const [recState, setRecState] = useState<'IDLE' | 'RECORDING' | 'SAVING' | 'SAVED' | 'FAILED' | 'NA'>('IDLE')
@@ -317,12 +345,14 @@ export function DefenseRoom({
       recognitionRef.current?.abort()
       transcriptRecRef.current?.abort()
       liveAdvisorRef.current?.stop()
+      liveAdvisorRef.current = null
+      settleLiveUsageSessions()
       cleanupRecordingMixer()
       streamRef.current?.getTracks().forEach((t) => t.stop())
       screenStreamRef.current?.getTracks().forEach((t) => t.stop())
       audioRef.current?.pause()
     }
-  }, [cleanupRecordingMixer, thesis.id, guestInviteToken])
+  }, [cleanupRecordingMixer, thesis.id, guestInviteToken, settleLiveUsageSessions])
 
   // فتح قناة الصوت بأول لمسة داخل القاعة — لضمان نطق الخبير على iOS
   useEffect(() => {
@@ -438,6 +468,7 @@ ${recent || 'بدأت الجلسة للتو.'}
   const stopLiveAdvisor = useCallback(() => {
     liveAdvisorRef.current?.stop()
     liveAdvisorRef.current = null
+    settleLiveUsageSessions()
     advisorAudioStreamRef.current = null
     suppressLocalTtsRef.current = false
     setLiveAdvisorOn(false)
@@ -445,7 +476,7 @@ ${recent || 'بدأت الجلسة للتو.'}
     setLiveAdvisorLevel(0)
     setLiveUserCaption('')
     setLiveAiCaption('')
-  }, [])
+  }, [settleLiveUsageSessions])
 
   const startLiveAdvisor = useCallback(async (initialMessages?: DefenseMsg[]) => {
     if (!isStudent || finished || liveAdvisorRef.current) return
@@ -480,6 +511,7 @@ ${recent || 'بدأت الجلسة للتو.'}
       }
     }
     const agent = new VoiceAgent({
+      onSessionCreated: (sessionId) => pendingLiveUsageSessions.current.set(sessionId, Date.now()),
       context: buildDefenseVoiceContext(initialMessages, processedContext),
       purpose: 'DISCUSSION',
       // صوت أخف من Charon الافتراضي حتى لا يظهر صوت الرجل الفصيح داخل المناقشة.
@@ -507,7 +539,11 @@ ${recent || 'بدأت الجلسة للتو.'}
         setLiveAiCaption('')
       },
       onInterrupted: () => setLiveAiCaption(''),
-      onError: (msg) => toast({ title: 'تنبيه المشرف الصوتي', description: msg, variant: 'destructive' }),
+      onError: (msg) => {
+        toast({ title: 'تنبيه المشرف الصوتي', description: msg, variant: 'destructive' })
+        // انقطاع اتصال Live نهائي: سوِّ الجلسات المحجوزة بدل تركها لتسوية الليل.
+        if (String(msg || '').includes('انقطع اتصال Gemini Live')) settleLiveUsageSessions()
+      },
     })
     liveAdvisorRef.current = agent
     setLiveAdvisorOn(true)
