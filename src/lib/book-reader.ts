@@ -6,7 +6,7 @@ import { fixArabicPdfText } from '@/lib/arabic-pdf-text'
 import { textAiCompleteJsonWithMetadata, type TextAiPreferredModel, type TextAiProvider, type TextAiRouterPolicy } from '@/lib/text-ai'
 import { buildStageRoutingOverrides, resolveEffectiveStageProfile, type StageRoutingOverrides } from '@/lib/ai-stage-profiles'
 import { withPipelineRun } from '@/lib/ai-pipeline-log'
-import { mergeBookPageReadIssues, type BookPageReadIssue } from '@/lib/book-read-job-control'
+import { mergeBookPageReadIssues, parseBookOcrSoloPages, withBookOcrSoloPages, type BookPageReadIssue } from '@/lib/book-read-job-control'
 
 export type ExtractedBookPage = { page: number; text: string; textProvenance: 'NATIVE_TEXT' | 'VISION_OCR'; readError?: string }
 export type PlannedBookChunk = { index: number; pageStart: number; pageEnd: number; headingPath: string | null; text: string; charCount: number; textProvenance: 'NATIVE_TEXT' | 'VISION_OCR'; contentHash: string }
@@ -136,10 +136,13 @@ export async function transcribeScannedDocumentWithVision(buffer: Buffer, pageNu
 export type ExtractStepStore = {
   upsertChunk: (chunk: PlannedBookChunk, bookId: string, programId: string) => Promise<void>
   saveProgress: (jobId: string, pagesDone: number, totalPages: number, totalChunks: number, phase: 'EXTRACT' | 'ANALYZE', issues?: readonly BookPageReadIssue[], processedPages?: readonly number[]) => Promise<void>
+  /** Record pages whose group OCR call died with the budget spent, so the
+   *  next run retries them one by one instead of repeating the group call. */
+  saveOcrSoloPages?: (jobId: string, pages: readonly number[]) => Promise<void>
 }
 
 /** One durable batch is at most eight pages. Progress advances only after every chunk is saved. */
-async function extractPdfBatchInner(input: { buffer: Buffer; bookId: string; programId: string; jobId: string; pagesDone: number; totalPages: number; existingChunks: number; store: ExtractStepStore; deadlineMs: number; extractPages?: typeof extractNumberedPdfPages; ocrPages?: typeof transcribeScannedDocumentWithVision; routing?: { preferredModels: { provider: string; model: string }[]; preferredProviders: string[]; policy: string | null; allowGlobalFallback: boolean } | null; aiUsage?: { provider: string | null; model: string | null; fallbackUsed?: boolean; fallbackReason?: string } }): Promise<{ pagesDone: number; totalPages: number; totalChunks: number; phase: 'EXTRACT' | 'ANALYZE' }> {
+async function extractPdfBatchInner(input: { buffer: Buffer; bookId: string; programId: string; jobId: string; pagesDone: number; totalPages: number; existingChunks: number; store: ExtractStepStore; deadlineMs: number; extractPages?: typeof extractNumberedPdfPages; ocrPages?: typeof transcribeScannedDocumentWithVision; soloPages?: ReadonlySet<number>; routing?: { preferredModels: { provider: string; model: string }[]; preferredProviders: string[]; policy: string | null; allowGlobalFallback: boolean } | null; aiUsage?: { provider: string | null; model: string | null; fallbackUsed?: boolean; fallbackReason?: string } }): Promise<{ pagesDone: number; totalPages: number; totalChunks: number; phase: 'EXTRACT' | 'ANALYZE' }> {
   const { buffer, bookId, programId, jobId, store } = input
   if (Date.now() >= input.deadlineMs) throw new Error('BOOK_EXTRACT_DEADLINE')
   const lastPage = Math.min(input.totalPages, input.pagesDone + 8)
@@ -210,6 +213,23 @@ async function extractPdfBatchInner(input: { buffer: Buffer; bookId: string; pro
       ? persistPages(numbers.slice(0, count))
       : { pagesDone: input.pagesDone, totalPages: input.totalPages, totalChunks: input.existingChunks, phase: 'EXTRACT' }
   }
+  // One-by-one recovery for a batch: every page is attempted on its own,
+  // its outcome sealed, and a spent budget stops BEFORE the next page.
+  const ocrBatchSolo = async (batch: number[]): Promise<'DONE' | 'STOP'> => {
+    for (const page of batch) {
+      if (input.deadlineMs - Date.now() < 25_000) return 'STOP'
+      try {
+        const single = await callOcr([page])
+        const recovered = single.find((item) => item.page === page && item.text.trim())
+        if (recovered) pageMap.set(page, recovered)
+        else ocrFailures.set(page, 'OCR_RETURNED_NO_TEXT')
+      } catch (error) {
+        ocrFailures.set(page, 'OCR_FAILED: ' + String(error instanceof Error ? error.message : error).slice(0, 120))
+      }
+      ocrSealed.add(page)
+    }
+    return 'DONE'
+  }
   for (let offset = 0; offset < needsOcr.length; offset += 4) {
     const batch = needsOcr.slice(offset, offset + 4)
     // If the worker budget is nearly exhausted, stop BEFORE starting a
@@ -217,26 +237,29 @@ async function extractPdfBatchInner(input: { buffer: Buffer; bookId: string; pro
     // batch first, so the next run resumes where this one stopped
     // instead of re-reading (and re-paying for) the same pages.
     if (input.deadlineMs - Date.now() < 25_000) return persistDecidedPrefix()
+    if (batch.some((page) => input.soloPages?.has(page))) {
+      // A previous run's group call for these pages died with the budget
+      // spent. Never repeat that group request — work the pages solo.
+      if (await ocrBatchSolo(batch) === 'STOP') return persistDecidedPrefix()
+      continue
+    }
     try {
       const ocr = await callOcr(batch)
       for (const item of ocr) if (batch.includes(item.page) && item.text.trim()) pageMap.set(item.page, item)
       for (const page of batch) if (!ocr.some((item) => item.page === page && item.text.trim())) ocrFailures.set(page, 'OCR_RETURNED_NO_TEXT')
       for (const page of batch) ocrSealed.add(page)
     } catch {
+      // The group call failed. If it also consumed the remaining budget,
+      // solo recovery cannot even start now — record the batch as
+      // solo-retry state so the NEXT run goes straight to single pages
+      // instead of repeating the identical group request and stalling.
+      if (input.deadlineMs - Date.now() < 25_000) {
+        await store.saveOcrSoloPages?.(jobId, batch)?.catch(() => {})
+        return persistDecidedPrefix()
+      }
       // A failure on one page of a four-page OCR call must not discard the
       // other three. Try each page, then preserve every remaining failure.
-      for (const page of batch) {
-        if (input.deadlineMs - Date.now() < 25_000) return persistDecidedPrefix()
-        try {
-          const single = await callOcr([page])
-          const recovered = single.find((item) => item.page === page && item.text.trim())
-          if (recovered) pageMap.set(page, recovered)
-          else ocrFailures.set(page, 'OCR_RETURNED_NO_TEXT')
-        } catch (error) {
-          ocrFailures.set(page, 'OCR_FAILED: ' + String(error instanceof Error ? error.message : error).slice(0, 120))
-        }
-        ocrSealed.add(page)
-      }
+      if (await ocrBatchSolo(batch) === 'STOP') return persistDecidedPrefix()
     }
   }
   return persistPages(numbers)
@@ -305,6 +328,13 @@ export async function runExtractStep(jobId: string, deadlineMs: number) {
         data: { pagesDone, totalPages, totalChunks, phase, lastError },
       })
     },
+    saveOcrSoloPages: async (id, pages) => {
+      const previous = await db.bookReadJob.findUnique({ where: { id }, select: { lastError: true } })
+      await db.bookReadJob.update({
+        where: { id },
+        data: { lastError: withBookOcrSoloPages(previous?.lastError, pages) },
+      })
+    },
   }
-  return extractPdfBatch({ buffer: stored.buffer, bookId: job.bookId, programId: job.programId, jobId, pagesDone: job.pagesDone, totalPages, existingChunks: job.totalChunks, store, deadlineMs })
+  return extractPdfBatch({ buffer: stored.buffer, bookId: job.bookId, programId: job.programId, jobId, pagesDone: job.pagesDone, totalPages, existingChunks: job.totalChunks, store, deadlineMs, soloPages: new Set(parseBookOcrSoloPages(job.lastError)) })
 }

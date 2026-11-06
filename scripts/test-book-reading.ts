@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { nextExtractionPage, pagesNeedingOcr, planBookChunks, extractPdfBatch, extractNumberedPdfPages } from '../src/lib/book-reader'
 import { PDFDocument, StandardFonts } from 'pdf-lib'
 import { analyzeStepWithStore, isRepeatedBookConcept, validateBookKnowledgeCandidate } from '../src/lib/book-chunk-analyzer'
-import { mergeBookPageReadIssues, parseBookPageReadIssues, preserveBookPageReadIssues } from '../src/lib/book-read-job-control'
+import { mergeBookPageReadIssues, parseBookOcrSoloPages, parseBookPageReadIssues, preserveBookPageReadIssues, withBookOcrSoloPages } from '../src/lib/book-read-job-control'
 
 const pages = [{ page: 1, text: `${'هذه جملة طويلة عن المعرفة. '.repeat(120)}`, textProvenance: 'NATIVE_TEXT' as const }, { page: 2, text: `${'هذه جملة ثانية عن العلم. '.repeat(120)}`, textProvenance: 'NATIVE_TEXT' as const }]
 const chunks = planBookChunks(pages)
@@ -137,8 +137,74 @@ async function analyzeResumeRegression() {
   assert.equal(completedJob, true)
 }
 
+function ocrSoloStateSurvivesPipelineWrites() {
+  const marked = withBookOcrSoloPages(null, [4, 3])
+  assert.deepEqual(parseBookOcrSoloPages(marked), [3, 4], 'حالة المحاولة الفردية تُحفظ وتُقرأ مرتبة')
+  const afterError = preserveBookPageReadIssues(marked, 'AI_DEADLINE_EXCEEDED')
+  assert.deepEqual(parseBookOcrSoloPages(afterError), [3, 4], 'خطأ لاحق في خط الأنابيب لا يمحو حالة المحاولة الفردية')
+  assert.deepEqual(parseBookPageReadIssues(afterError), [], 'لا مشكلات صفحات مسجلة بعد')
+  const withIssue = mergeBookPageReadIssues(afterError, [], [{ page: 3, kind: 'PARTIAL', reason: 'OCR_FAILED: بطء' }])
+  assert.deepEqual(parseBookOcrSoloPages(withIssue), [3, 4], 'حفظ التقدم لا يمحو حالة المحاولة الفردية')
+  assert.deepEqual(parseBookPageReadIssues(withIssue).map((i) => i.page), [3], 'مشكلة الصفحة تتعايش مع حالة المحاولة في نفس الحقل')
+  const progressed = mergeBookPageReadIssues(withIssue, [3, 4], [])
+  assert.equal(progressed, null, 'اكتمال الصفحات الفردية يمسح الحالة والمشكلة معًا')
+}
+
+async function deadlineKilledGroupOcrResumesSolo() {
+  const content = 'محتوى الصفحة الممسوحة ضوئيًا للاستئناف الفردي. '.repeat(6)
+  const extractPages = async (_buffer: Buffer, numbers: readonly number[]) => numbers.map((page) => ({
+    page, text: '', textProvenance: 'NATIVE_TEXT' as const,
+  }))
+  // Run 1: the group OCR call burns the remaining budget and dies before
+  // any page is decided. No progress may be invented, but the batch must
+  // be recorded as solo-retry state.
+  let soloRecorded: number[] | null = null
+  const first = await extractPdfBatch({
+    buffer: Buffer.from('%PDF-TEST'), bookId: 'solo-book', programId: 'solo-program',
+    jobId: 'solo-job', pagesDone: 0, totalPages: 5, existingChunks: 0,
+    deadlineMs: Date.now() + 26_000,
+    extractPages: extractPages as any,
+    ocrPages: (async (_buffer: Buffer, numbers: readonly number[]) => {
+      if (numbers.length > 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1500))
+        throw new Error('AI_DEADLINE_EXCEEDED')
+      }
+      return [{ page: numbers[0], text: content + numbers[0], textProvenance: 'VISION_OCR' as const }]
+    }) as any,
+    store: {
+      upsertChunk: async () => {},
+      saveProgress: async () => {},
+      saveOcrSoloPages: async (_job: string, pages: readonly number[]) => { soloRecorded = [...pages] },
+    },
+  })
+  assert.equal(first.pagesDone, 0, 'لا تقدم مُخترع عند موت النداء الجماعي بالمهلة')
+  assert.deepEqual(soloRecorded, [1, 2, 3, 4], 'الدفعة العالقة تُسجَّل للاستئناف الفردي بدل تكرارها جماعيًا')
+  const persisted = withBookOcrSoloPages(null, soloRecorded!)
+  assert.deepEqual(parseBookOcrSoloPages(persisted), [1, 2, 3, 4], 'الحالة المحفوظة في lastError تُقرأ كما هي')
+  // Run 2: the resume must never repeat the group call for those pages,
+  // and the book completes one page at a time.
+  const callShapes: number[] = []
+  const second = await extractPdfBatch({
+    buffer: Buffer.from('%PDF-TEST'), bookId: 'solo-book', programId: 'solo-program',
+    jobId: 'solo-job', pagesDone: 0, totalPages: 5, existingChunks: 0,
+    deadlineMs: Date.now() + 90_000,
+    extractPages: extractPages as any,
+    ocrPages: (async (_buffer: Buffer, numbers: readonly number[]) => {
+      callShapes.push(numbers.length)
+      if (numbers.length > 1) throw new Error('GROUP_CALL_REPEATED')
+      return [{ page: numbers[0], text: content + numbers[0], textProvenance: 'VISION_OCR' as const }]
+    }) as any,
+    store: { upsertChunk: async () => {}, saveProgress: async () => {} },
+    soloPages: new Set(parseBookOcrSoloPages(persisted)),
+  })
+  assert.equal(second.pagesDone, 5, 'الاستئناف الفردي يكمل الكتاب كاملًا')
+  assert.ok(callShapes.length > 0 && callShapes.every((n) => n === 1), 'لا نداء جماعي إطلاقًا في الاستئناف')
+}
+
 pdfExtractionRegression()
   .then(() => unreadablePdfPageDoesNotStopFollowingPages())
   .then(() => analyzeResumeRegression())
+  .then(() => ocrSoloStateSurvivesPipelineWrites())
+  .then(() => deadlineKilledGroupOcrResumesSolo())
   .then(() => console.log('book-reading regression checks passed'))
   .catch((error) => { console.error(error); process.exitCode = 1 })
