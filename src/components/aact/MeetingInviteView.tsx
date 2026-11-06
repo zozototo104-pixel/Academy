@@ -562,6 +562,7 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
             load()
           }}
         />
+        {data?.canOperateAi && aiDeviceMode && <MeetingAiVoiceControl basePath={basePath} provider="PLATFORM" />}
       </div>
     )
   }
