@@ -277,6 +277,25 @@ async function testSourceVerifiedWhitePagesCannotMaskMissingBookContent() {
     'حدود القسم المجهولة لا تُعالَج بإثبات صفحات بيضاء')
 }
 
+function testMergeAcrossUnreadPageRetainsSourceEvidenceGap() {
+  const a = draftSection(1, 'استراتيجيات الرقابة المالية', 1, 7)
+  const b = draftSection(2, 'تطبيقات الرقابة المالية', 9, 16)
+  const merged = balanceBookOutlineSections([a, b])
+  assert(merged.merged === 1 && merged.sections.length === 1,
+    'الفاصل عند الصفحة 8 لا يمنع ضم قسمين متجانسين')
+  assert(merged.sections[0].pageStart === 1 && merged.sections[0].pageEnd === 16,
+    'حدود القسم المدموج تبقى كما هي دون اختراع محتوى')
+  const sourceGaps = missingBookSourcePageRanges([
+    { pageStart: 1, pageEnd: 7 }, { pageStart: 9, pageEnd: 16 },
+  ], { pageStart: 1, pageEnd: 16 })
+  assert(sourceGaps.length === 1 && sourceGaps[0].pageStart === 8 && sourceGaps[0].pageEnd === 8,
+    'الصفحة 8 يجب أن تظل مشكلة قراءة في المصدر بعد دمج الفصول')
+  const unrelated = balanceBookOutlineSections([
+    a, { ...b, title: 'التعليم والفلسفة اليونانية' },
+  ])
+  assert(unrelated.merged === 0, 'الفجوة لا تبرر دمج موضوعين غير مرتبطين')
+}
+
 function testCoverageRejectsShortSectionsWithMissingPages() {
   const sections = [draftSection(1, 'قسم أ', 1, 40), draftSection(2, 'قسم ب', 50, 80)]
   const report = auditOutlineCoverage(sections)
