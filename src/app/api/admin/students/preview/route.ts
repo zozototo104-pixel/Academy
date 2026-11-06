@@ -430,8 +430,25 @@ export async function GET(req: NextRequest) {
     ].filter((x): x is number => typeof x === 'number')
     const completedPayments = payments.filter((p) => p.status === 'PAID').reduce((sum, p) => sum + Number(p.amount || 0), 0)
     const unpaidPayments = payments.filter((p) => p.status !== 'PAID').reduce((sum, p) => sum + Number(p.amount || 0), 0)
+    // AcademicMemory.weaknesses is cumulative history. An earlier admission
+    // analysis must never remain an "urgent" administrative warning after the
+    // latest saved review confirms the documents are now satisfactory.
+    const admissionSignals = admissions.flatMap((a) => {
+      if (!a.aiReview || a.aiVerdict === 'RECOMMEND_APPROVE' || ['CERTIFIED', 'REJECTED'].includes(a.status)) return []
+      try {
+        const review = JSON.parse(a.aiReview)
+        if (!Array.isArray(review?.findings)) return []
+        return review.findings
+          .filter((f: any) => f && ['HIGH', 'MEDIUM'].includes(f.severity) && f.title)
+          .slice(0, 4)
+          .map((f: any) => `طلب ${a.reference}: ${String(f.title).replace(/\\s+/g, ' ').slice(0, 120)} — ${String(f.detail || '').replace(/\\s+/g, ' ').slice(0, 180)}`)
+      } catch {
+        // A malformed older review is not proof of an active document issue.
+        return []
+      }
+    })
     const atRiskSignals = [
-      ...(student.academicMemory ? safeJsonArray(student.academicMemory.weaknesses) : []),
+      ...admissionSignals,
       ...programAttempts.filter((a) => a.passed === false || Number(a.score || 0) < 60).slice(0, 5).map((a) => `تعثر أو انخفاض في امتحان ${a.exam.title}`),
       ...assignments.filter((a) => a.status === 'NEEDS_REVISION').slice(0, 5).map((a) => `واجب يحتاج مراجعة: ${a.assignment.title}`),
     ].slice(0, 12)
