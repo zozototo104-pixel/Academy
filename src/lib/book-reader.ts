@@ -177,7 +177,7 @@ async function extractPdfBatchInner(input: { buffer: Buffer; bookId: string; pro
       const ocr = await callOcr(batch)
       for (const item of ocr) if (batch.includes(item.page) && item.text.trim()) pageMap.set(item.page, item)
       for (const page of batch) if (!ocr.some((item) => item.page === page && item.text.trim())) ocrFailures.set(page, 'OCR_RETURNED_NO_TEXT')
-    } catch (batchError) {
+    } catch {
       // A failure on one page of a four-page OCR call must not discard the
       // other three. Try each page, then preserve every remaining failure.
       for (const page of batch) {
