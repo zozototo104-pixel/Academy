@@ -282,11 +282,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
     const peerId = normalizePeerId(req.nextUrl.searchParams.get('peerId'))
 
     if (peerId) {
-      assertValidPeerId(peerId)
-      // أول استطلاع من مشارك مستلِم = دخول فعلي: سجّل الحضور
+      // Polling is allowed only after a successful join created a fresh,
+      // owned presence. A missing presence is NOT permission to consume
+      // signals addressed to an arbitrary peerId.
+      await requireOwnedPeer(actor.meeting.id, peerId, actor.user.id)
       await recordAttendance(actor)
-      const presence = await latestPresence(actor.meeting.id, peerId)
-      if (presence && presence.info.userId !== actor.user.id) throw new Error('FORBIDDEN_PEER')
     }
 
     let signals: any[] = []
