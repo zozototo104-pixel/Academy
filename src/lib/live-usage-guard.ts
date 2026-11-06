@@ -288,7 +288,10 @@ export async function reserveGeminiLiveUsage(input: {
         // بنفس سياسة كنس الجلسات المنتهية (refundExpiredGeminiLiveSessions).
         // الحجز دقيقتان كحد أقصى فكلفة جلسة تعطّلت فعلاً محدودة، أما
         // الاسترداد الكامل فكان يجعل كل جلسة صوت بلا تسوية مجانية تماماً.
-        await tx.aiLiveSession.update({ where: { id: existing.id }, data: { status: 'SETTLED', settledAt: now, actualMinutes: existing.reservedMinutes } })
+        await tx.aiLiveSession.updateMany({
+          where: { id: existing.id, status: 'RESERVED', expiresAt: { lt: now } },
+          data: { status: 'SETTLED', settledAt: now, actualMinutes: existing.reservedMinutes },
+        })
       }
       effectiveSessionId = sessionIdValue(null)
     }
