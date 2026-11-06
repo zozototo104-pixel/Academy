@@ -25,7 +25,7 @@ async function actorScope(client: AnyClient, actorId: string, studentUserId: str
   if (actor?.role === 'ADMIN') return 'ADMIN'
   if (actor?.role === 'SUPERVISOR') {
     const assigned = await client.admissionApplication.findFirst({
-      where: { userId: studentUserId, supervisorId: actorId },
+      where: { userId: studentUserId, programId, supervisorId: actorId },
       select: { id: true },
     }).catch(() => null)
     if (assigned) return 'SUPERVISOR'
