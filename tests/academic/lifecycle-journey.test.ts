@@ -216,6 +216,33 @@ describe('outbox guarantees', () => {
     expect(outboxRows[0].emailAttempts).toBe(2)
   })
 
+  test('failed second admin recipient retries only that recipient, not the first successful one', async () => {
+    const { client, outboxRows } = fakeOutboxWorld()
+    client.user.findMany = async () => [
+      { id: 'admin1', email: 'admin1@example.com', name: 'الأول' },
+      { id: 'admin2', email: 'admin2@example.com', name: 'الثاني' },
+    ]
+    await enqueueOutbox(client, { key: 'partial-admin-email', kind: 'SEMESTER_FAILED', recipientRole: 'ADMINS', title: 't', body: 'b' })
+    emailBehavior = 'SENT'
+    emailRecipientsSent.length = 0
+    failTheseEmailRecipients.add('admin2@example.com')
+    try {
+      const first = await dispatchOutboxBatch(client)
+      expect(first.emailsFailed).toBe(1)
+      expect(outboxRows[0].emailStatus).toBe('FAILED')
+      expect(outboxRows[0].lastError).toContain('EMAIL_SENT_IDS:["admin1"]')
+      failTheseEmailRecipients.clear()
+      const second = await dispatchOutboxBatch(client)
+      expect(second.emailsSent).toBe(1)
+      expect(outboxRows[0].emailStatus).toBe('SENT')
+      expect(emailRecipientsSent.filter((to) => to === 'admin1@example.com')).toHaveLength(1)
+      expect(emailRecipientsSent.filter((to) => to === 'admin2@example.com')).toHaveLength(2)
+    } finally {
+      failTheseEmailRecipients.clear()
+      emailRecipientsSent.length = 0
+    }
+  })
+
   test('concurrent dispatchers claim the email once — exactly one send', async () => {
     const { client, outboxRows } = fakeOutboxWorld()
     await enqueueOutbox(client, { key: 'k-email-race', kind: 'SEMESTER_CLOSED', recipientUserId: 'u1', title: 't', body: 'b' })
