@@ -178,6 +178,7 @@ function MeetingAiVoiceControl({ basePath, provider }: { basePath: string; provi
       sessionEndpoint: basePath,
       sessionAction: 'voice-session',
       meetingDataEndpoint: basePath,
+      onSessionCreated: (sessionId) => pendingUsageSessions.current.set(sessionId, Date.now()),
       inputDeviceId,
       outputDeviceId,
       logEndpoint: basePath,
