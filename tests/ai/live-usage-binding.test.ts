@@ -178,6 +178,7 @@ beforeEach(() => {
   credits = []
   paidInvoices.clear()
   transactionQueue = Promise.resolve()
+  queriedRowLocks.length = 0
   process.env.AACT_LIVE_FREE_MONTHLY_MINUTES_STUDENT = '30'
 })
 
