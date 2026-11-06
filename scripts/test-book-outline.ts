@@ -540,7 +540,7 @@ function testOutlineReviewNeverSilentlyDeletesSourceCoverage() {
   const view = readFileSync('src/components/aact/AdminBooks.tsx', 'utf8')
   assert(route.includes("mergeInto !== 'previous' && mergeInto !== 'next'"), 'حذف الفهرس يجب أن يطلب اتجاه ضم صريح')
   assert(route.includes("code: 'OUTLINE_MERGE_UNVERIFIED_PAGES'"), 'لا يجوز ضم عناوين بصفحات غير موثقة')
-  assert(route.includes("code: 'OUTLINE_MERGE_GAP'"), 'لا يجوز تخطي فجوة عند ضم العناوين')
+  assert(route.includes('OUTLINE_MERGE_SOURCE_GAP:'), 'ضم العناوين عبر فجوة يجب أن يحفظ سجلها')
   assert(route.includes('await db.$transaction(async (tx) => {'), 'ضم القسم وإعادة الترقيم يجب أن تكون عملية ذرّية')
   assert(route.includes('itemsCount = await db.bookKnowledgeItem.count('), 'العدّاد يجب أن يعكس المقاطع بعد الدمج')
   assert(!route.includes('await db.bookOutlineSection.delete({ where: { id: sectionId } })'), 'حظر العودة للحذف غير الذرّي')
