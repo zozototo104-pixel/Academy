@@ -3,6 +3,7 @@
 // المُحاكاة تتسرب بين الملفات).
 import { describe, expect, mock, test } from 'bun:test'
 import { createHmac } from 'node:crypto'
+import { NextRequest } from 'next/server'
 
 mock.module('@/lib/rate-limit', () => ({
   checkDatabaseRateLimit: async () => ({ allowed: true, ok: true }),
