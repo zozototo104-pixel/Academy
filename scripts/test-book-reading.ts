@@ -56,6 +56,45 @@ async function pdfExtractionRegression() {
   assert.ok(firstChunkText.includes('Page 1:'))
 }
 
+async function unreadablePdfPageDoesNotStopFollowingPages() {
+  const content = 'تطبيقات الإدارة الاستراتيجية والتخطيط التشغيلي والرقابة على الأداء المؤسسي. '.repeat(5)
+  const saved: { pageStart: number; pageEnd: number; text: string }[] = []
+  let progress: { pagesDone: number; issuePages: number[]; processedPages: number[] } | null = null
+  const extractPages = async (_buffer: Buffer, numbers: readonly number[]) => numbers.map((page) => ({
+    page,
+    text: [2, 4].includes(page) ? '' : content + 'رقم الصفحة ' + page,
+    textProvenance: 'NATIVE_TEXT' as const,
+  }))
+  const ocrPages = async (_buffer: Buffer, numbers: readonly number[]) => {
+    if (numbers.length > 1 || numbers[0] === 2) throw new Error('OCR_PAGE_UNREADABLE')
+    return [{ page: numbers[0], text: content + 'نص الصفحة الرابعة المستعاد', textProvenance: 'VISION_OCR' as const }]
+  }
+  const result = await extractPdfBatch({
+    buffer: Buffer.from('%PDF-TEST'), bookId: 'test-book', programId: 'test-program',
+    jobId: 'test-job', pagesDone: 0, totalPages: 5, existingChunks: 0,
+    deadlineMs: Date.now() + 90_000,
+    extractPages: extractPages as any, ocrPages: ocrPages as any,
+    store: {
+      upsertChunk: async (chunk) => { saved.push(chunk) },
+      saveProgress: async (_job, pagesDone, _total, _chunks, _phase, issues = [], processedPages = []) => {
+        progress = { pagesDone, issuePages: issues.map((i) => i.page), processedPages: [...processedPages] }
+        const ledger = mergeBookPageReadIssues(null, processedPages, issues)
+        assert.deepEqual(parseBookPageReadIssues(ledger).map((i) => i.page), [2],
+          'يجب حفظ فشل الصفحة الثانية مع تقدم بقية الكتاب')
+        assert.equal(mergeBookPageReadIssues(ledger, [2], []), null,
+          'القراءة اللاحقة الناجحة تزيل المشكلة القديمة فقط')
+      },
+    },
+  })
+  assert.equal(result.pagesDone, 5, 'الكتاب يتقدم للصفحة الخامسة رغم فشل OCR للثانية')
+  assert.deepEqual(progress?.issuePages, [2], 'الفشل موثّق على الصفحة المحددة')
+  assert.deepEqual(progress?.processedPages, [1, 2, 3, 4, 5], 'التقدم يسجل دفعة الصفحات بأكملها')
+  assert(saved.some((chunk) => chunk.text.includes('الصفحة الرابعة المستعاد')), 'لا يجوز خسارة صفحة نجح OCR لها')
+  assert(saved.some((chunk) => chunk.text.includes('رقم الصفحة 5')), 'الصفحات التالية لم تتوقف')
+  assert(saved.every((chunk) => chunk.pageEnd < 2 || chunk.pageStart > 2),
+    'لا يجوز أن يدّعي أي مقطع أنه غطى الصفحة غير المقروءة')
+}
+
 async function analyzeResumeRegression() {
   // Resume proof (Haris's closing criterion, 2026-11-04): a job whose first
   // chunks were analyzed in an earlier run continues from the saved progress —
