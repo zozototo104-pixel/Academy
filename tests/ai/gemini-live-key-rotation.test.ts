@@ -42,6 +42,7 @@ mock.module('@/lib/live-usage-guard', () => ({
   getGeminiLiveAllowance: async () => ({ ok: true, status: 200, sessionLimitMinutes: 10, totalRemainingMinutes: 10, message: 'ok' }),
   reserveGeminiLiveUsage: async () => {
     reserveUsageCalls++
+    if (failReserveUsage) return { ok: false, status: 503, message: 'tracking unavailable' }
     return { ok: true, status: 200, sessionId: 'live-session-1', sessionLimitMinutes: 10, totalRemainingMinutes: 8, message: 'ok' }
   },
 }))
