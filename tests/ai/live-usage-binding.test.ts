@@ -37,7 +37,10 @@ const db: any = {
     await previous
     try { return await work(db) } finally { release() }
   },
-  $queryRaw: async (_strings: TemplateStringsArray, paymentId: string) => {
+  $queryRaw: async (strings: TemplateStringsArray, paymentId: string) => {
+    const query = strings.join(' ')
+    if (query.includes('FOR UPDATE')) queriedRowLocks.push(query)
+    if (!query.includes('"Payment"')) return []
     const payment = paidInvoices.get(paymentId)
     return payment ? [{ ...payment }] : []
   },
