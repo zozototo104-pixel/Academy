@@ -33,14 +33,23 @@ export async function GET(_req: NextRequest, context: Context) {
       const sourceChunks = await db.bookChunk.findMany({
         where: { bookId: id }, select: { pageStart: true, pageEnd: true },
       })
+      const readJob = await db.bookReadJob.findFirst({
+        where: { bookId: id, totalPages: { gt: 0 } }, orderBy: { createdAt: 'desc' },
+        select: { totalPages: true, lastError: true },
+      })
       const range = sourceChunks.length ? {
-        pageStart: Math.min(...sourceChunks.map((chunk) => chunk.pageStart)),
-        pageEnd: Math.max(...sourceChunks.map((chunk) => chunk.pageEnd)),
+        pageStart: 1,
+        pageEnd: Math.max(readJob?.totalPages || 0, ...sourceChunks.map((chunk) => chunk.pageEnd)),
       } : undefined
       const unchecked = auditOutlineCoverage(outline.sections, range)
-      const verifiedBlankPages = unchecked.gaps.length
-        ? await verifyBlankPdfGapPages(id, unchecked.gaps) : []
+      const rawSourceGaps = range ? missingBookSourcePageRanges(sourceChunks, range) : []
+      const possibleGaps = [...unchecked.gaps, ...rawSourceGaps]
+      const verifiedBlankPages = possibleGaps.length
+        ? await verifyBlankPdfGapPages(id, possibleGaps) : []
       const coverage = auditOutlineCoverage(outline.sections, range, verifiedBlankPages)
+      const unresolvedSource = subtractVerifiedBlankPages(rawSourceGaps, verifiedBlankPages)
+      const readIssues = parseBookPageReadIssues(readJob?.lastError)
+        .filter((issue) => !verifiedBlankPages.includes(issue.page))
       const warnings = (() => { try { const x = JSON.parse(outline.warnings || '[]'); return Array.isArray(x) ? x.map(String) : [] } catch { return [] as string[] } })()
         .filter((warning) => !warning.startsWith('تنبيه تغطية:') && !warning.startsWith('OUTLINE_COVERAGE:'))
       for (const section of coverage.review) {
