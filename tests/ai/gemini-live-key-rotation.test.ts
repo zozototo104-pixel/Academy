@@ -348,3 +348,46 @@ describe('Gemini Live key rotation uses the text AI router state', () => {
     expect(serialized).not.toContain('AIza…2222')
   })
 })
+
+describe('independent meeting Gemini Live token and usage accounting', () => {
+  const meeting = () => ({
+    id: 'meeting-test', title: 'اجتماع الإدارة', agenda: 'نتائج الطلاب',
+    endsAt: new Date(Date.now() + 20 * 60_000),
+  })
+  const admin = { id: 'admin-live-test', role: 'ADMIN' }
+
+  test('rotates auth-failed key, returns meeting-only setup and tracked session ID', async () => {
+    configureGeminiKeys('AIzaBAD1111', 'AIzaGOOD2222')
+    mockTokenFetch((key) => key === 'AIzaBAD1111'
+      ? { status: 403, body: { error: { message: 'PERMISSION_DENIED' } } }
+      : { status: 200, body: { name: 'meeting-ephemeral-token' } })
+    const result = await createMeetingLiveVoiceSession(meeting(), admin)
+    expect(result.status).toBe(200)
+    expect(result.body.sessionId).toBe('live-session-1')
+    expect(result.body.token).toBe('meeting-ephemeral-token')
+    expect(result.body.sdkConfig?.tools?.[0]?.functionDeclarations?.[0]?.name).toBe('query_meeting_academy')
+    expect(result.body.sdkConfig?.systemInstruction).toContain('عضو صوتي مستقل')
+    expect(fetchKeys).toEqual(['AIzaBAD1111', 'AIzaGOOD2222'])
+    expect(reserveUsageCalls).toBe(1)
+  })
+
+  test('all upstream key failures leave no session reservation or token', async () => {
+    configureGeminiKeys('AIzaBAD1111')
+    mockTokenFetch(() => ({ status: 401, body: { error: { message: 'UNAUTHENTICATED' } } }))
+    const result = await createMeetingLiveVoiceSession(meeting(), admin)
+    expect(result.status).toBe(502)
+    expect(result.body).not.toHaveProperty('token')
+    expect(JSON.stringify(result.body)).not.toContain('AIzaBAD1111')
+    expect(reserveUsageCalls).toBe(0)
+  })
+
+  test('unavailable usage ledger refuses to expose a successfully issued token', async () => {
+    configureGeminiKeys('AIzaGOOD2222')
+    mockTokenFetch(() => ({ status: 200, body: { name: 'token-not-to-release' } }))
+    failReserveUsage = true
+    const result = await createMeetingLiveVoiceSession(meeting(), admin)
+    expect(result.status).toBe(503)
+    expect(JSON.stringify(result.body)).not.toContain('token-not-to-release')
+    expect(reserveUsageCalls).toBe(1)
+  })
+})
