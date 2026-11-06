@@ -2151,7 +2151,12 @@ export function AdminBooksTab() {
     try {
       // Preserve the single guarded API call for normal and documented approval.
       const attempt = (body: Record<string, unknown>) => api<{ outline: NonNullable<typeof bookOutlines[string]> }>(`/api/admin/books/${bookId}/outline/approve`, { method: 'POST', body: JSON.stringify(body) })
-      const result = await attempt(overrideReason ? { overrideOversized: true, overrideReason } : {})
+      const acknowledgmentKey = outlineCoverageAcksRef.current[bookId]
+      const result = await attempt({
+        ...(overrideReason ? { overrideOversized: true, overrideReason } : {}),
+        ...(acknowledgmentKey ? { acknowledgeCoverage: true, acknowledgmentKey } : {}),
+      })
+      delete outlineCoverageAcksRef.current[bookId]
       setBookOutlines((previous) => ({ ...previous, [bookId]: result.outline }))
       if (overrideReason) setOutlineApprovalDialog(null)
       toast({ title: overrideReason ? 'تم اعتماد الفهرس بتجاوز موثّق' : 'تم اعتماد الفهرس', description: `نسخة ${result.outline.version}` })
