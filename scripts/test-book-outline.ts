@@ -532,7 +532,39 @@ function testVerifiedMidChunkArticleKeepsPreviousPageAndEvidence() {
   assert(withoutVerifiedPage.sections[0].chunkEndIndex === 0, 'No guessing an overlap when PDF page evidence is absent')
 }
 
+function testGenericChunkHeadingsYieldToSemanticSourceChapterTitles() {
+  const chapters = [
+    { index: 0, heading: 'الفصل الأول', title: 'مبادئ تخطيط المشروعات', page: 1 },
+    { index: 1, heading: 'الفصل الثاني', title: 'إدارة الموارد والميزانية', page: 21 },
+    { index: 2, heading: 'الفصل التاسع', title: 'مراقبة أداء المشروع', page: 89 },
+  ]
+  const chunks = chapters.map((c) => ({
+    index: c.index, headingPath: c.heading,
+    text: c.heading + '\\n' + c.title + '\\n' + ('شرح واقعي لهذا الفصل في الكتاب. '.repeat(6)),
+    pageStart: c.page, pageEnd: c.page + 12,
+  }))
+  const result = planBookOutline(chunks, [], new Map(chunks.map((c) => [c.index, 'chunk-' + c.index])), 1, [], 'إدارة المشروعات بنجاح')
+  for (const chapter of chapters) {
+    assert(result.sections.some((s) => s.title.includes(chapter.title)),
+      'عنوان الفصل ' + chapter.heading + ' يجب أن يأتي من متن الكتاب لا من اسم الفصل المجرد: ' + titles(result))
+  }
+  assert(result.sections.length === 3, 'تغيير العناوين يجب ألا يغيّر حدود الأقسام')
+}
+
+function testRepeatedBookHeaderWithPageNumberNeverBecomesChapterTitle() {
+  const chunks = [
+    chunk(0, 'الفصل الثامن\\nإدارة المخاطر\\nشرح عمليات المخاطر وإجراءات تخفيفها.', 69),
+    chunk(1, 'الفصل التاسع\\nإدارة المشروعات بنجاح ١٠٣\\nإدارة فرق التنفيذ\\nشرح مفصل عن الفرق والتعاون والتنسيق.', 89),
+  ]
+  const result = planBookOutline(chunks, [], new Map(chunks.map((c) => [c.index, 'chunk-' + c.index])), 1, [], 'إدارة المشروعات بنجاح')
+  const ninth = result.sections.find((s) => s.title.startsWith('الفصل التاسع'))
+  assert(ninth?.title.includes('إدارة فرق التنفيذ'), 'ترويسة اسم الكتاب مع رقم الصفحة لا يمكن أن تصبح عنوان الفصل: ' + titles(result))
+  assert(!ninth?.title.includes('١٠٣'), 'رقم صفحة ترويسة الكتاب ليس عنوانًا أكاديميًا')
+}
+
 const tests = [
+  testGenericChunkHeadingsYieldToSemanticSourceChapterTitles,
+  testRepeatedBookHeaderWithPageNumberNeverBecomesChapterTitle,
   testRepeatedMergesRetainOriginalTitles,
   testOutlineReviewNeverSilentlyDeletesSourceCoverage,
   testTwoHeadingsOnSameOriginalPdfPageHaveKnownEnds,
