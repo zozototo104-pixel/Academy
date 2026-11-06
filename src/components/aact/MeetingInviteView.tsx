@@ -188,6 +188,38 @@ function MeetingAiVoiceControl({ basePath, provider }: { basePath: string; provi
           : 'هذه محطة المشرف الذكي داخل غرفة WebRTC. استخدم مدخلًا افتراضيًا لصوت الأعضاء ومخرجًا افتراضيًا لصوت Gemini، واضبط الميكروفون المرسل إلى الغرفة على مخرج Gemini.'}
         {' '}المشرف يسمع ويرد مباشرة، وليس زر تشغيل تسجيل. فعّل صوت الكمبيوتر مرة واحدة بإذن صاحب الجهاز.
       </p>
+      <div className="mt-3 space-y-2 rounded-xl border border-violet-200 bg-white p-3">
+        <Button type="button" size="sm" variant="outline" disabled={deviceBusy || running}
+          onClick={() => void checkAudioDevices()}>
+          {deviceBusy ? 'جارٍ فحص أجهزة الصوت…' : 'فحص أجهزة الصوت الافتراضية'}
+        </Button>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <label className="block text-xs font-bold text-violet-900">
+            مدخل صوت الحاضرين إلى Gemini
+            <select value={inputDeviceId} disabled={running} onChange={(e) => setInputDeviceId(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-violet-200 bg-white px-2 py-2 text-xs">
+              <option value="">اختر مدخل الصوت</option>
+              {audioDevices.filter((d) => d.kind === 'audioinput').map((d) => (
+                <option key={d.deviceId} value={d.deviceId}>{d.label || 'مدخل صوت ' + d.deviceId.slice(0, 8)}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-xs font-bold text-violet-900">
+            مخرج صوت Gemini إلى الاجتماع
+            <select value={outputDeviceId} disabled={running} onChange={(e) => setOutputDeviceId(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-violet-200 bg-white px-2 py-2 text-xs">
+              <option value="">اختر مخرج الصوت</option>
+              {audioDevices.filter((d) => d.kind === 'audiooutput').map((d) => (
+                <option key={d.deviceId} value={d.deviceId}>{d.label || 'مخرج صوت ' + d.deviceId.slice(0, 8)}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <p className="text-[11px] leading-relaxed text-slate-600">
+          لا تختَر نفس حلقة الصوت للمدخل والمخرج. وصّل مخرج Zoom إلى المدخل الأول،
+          ومخرج Gemini إلى ميكروفون Zoom عبر مسار افتراضي ثانٍ؛ وإلا قد يتكرر الصوت أو يتوقف.
+        </p>
+      </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Button type="button" size="sm" onClick={() => void (running ? stop() : start())}
           disabled={busy} className={running ? 'bg-red-700 text-white hover:bg-red-800' : 'bg-violet-700 text-white hover:bg-violet-800'}>
