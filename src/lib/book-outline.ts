@@ -221,7 +221,7 @@ function rejectedChapterNameCandidate(line: string, bookTitle: string): boolean 
   if (value.length < 3 || value.length > 80) return true
   if (/^\d+$/.test(normalized)) return true
   if (/^(?:صفحه|صفحة|page)\s*\d+$/u.test(normalized)) return true
-  if (normalizeHeading(bookTitle) && normalized === normalizeHeading(bookTitle)) return true
+  if (isBookRunningHeader(value, bookTitle)) return true
   if (tocPattern.test(value)) return true
   if (matchChapterLine(value)) return true
   if (/^(?:المبحث|المطلب|الفرع)\s/u.test(value)) return true
