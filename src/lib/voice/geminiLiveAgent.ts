@@ -354,7 +354,8 @@ export class GeminiLiveAgent {
     if (this.cb.dialect) body.dialect = this.cb.dialect
     if (this.cb.purpose) body.purpose = this.cb.purpose
     if (this.cb.context) body.context = this.cb.context
-    const sessionRes = await fetch('/api/ai/gemini-live/session', {
+    if (this.cb.sessionAction) body.action = this.cb.sessionAction
+    const sessionRes = await fetch(this.cb.sessionEndpoint || '/api/ai/gemini-live/session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}) },
       body: JSON.stringify(body),
