@@ -381,11 +381,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       if (!peerId) return NextResponse.json({ error: 'معرف الاتصال مطلوب' }, { status: 400 })
       assertValidPeerId(peerId)
       assertJoinOpen(actor.meeting)
-      const existing = await latestPresence(meetingId, peerId)
-      if (existing && existing.info.userId !== actor.user.id) throw new Error('PEER_IN_USE')
       const name = String(body.name || actor.user.name || actor.invite.inviteeName || 'مشارك').slice(0, 80)
+      await refreshOwnedPresence(meetingId, peerId, actor.user.id, name, 'join')
       await recordAttendance(actor)
-      await touchPresence(meetingId, peerId, { name, userId: actor.user.id })
       // تنظيف صفوف حضور قديمة انتهت نافذتها
       await db.adminMeetingSignal
         .deleteMany({
