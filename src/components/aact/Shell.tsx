@@ -458,6 +458,9 @@ function NotificationBell({ mobile = false }: { mobile?: boolean } = {}) {
     const explicit = params?.get('tab') || params?.get('adminTab') || params?.get('section')
     if (explicit) return explicit
     const text = normalizeForRoute(`${n.type || ''} ${n.title || ''} ${n.body || ''} ${n.link || ''}`)
+    // Historical graduation notifications used the generic 'admin' link.
+    // Route them to the actual certification/approval workspace as well.
+    if (text.includes('طلب تخرج') || text.includes('معامله تخرج') || text.includes('graduation request')) return 'certs'
     if (text.includes('whatsapp') || text.includes('واتساب') || text.includes('محادث')) return 'whatsapp-inbox'
     if (text.includes('رسائل التواصل') || text.includes('طلب تواصل') || text.includes('contact message')) return 'messages'
     if (text.includes('دفع') || text.includes('مالي') || text.includes('فاتور') || n.type === 'PAYMENT') return 'finance'
@@ -515,8 +518,9 @@ function NotificationBell({ mobile = false }: { mobile?: boolean } = {}) {
 
       const view = viewLinks.has(legacyView) ? legacyView : viewLinks.has(first) ? first : rawLink.replace(/^\?view=/, '').replace(/^\//, '').split(/[?#&]/)[0]
       if (viewLinks.has(view)) {
-        navigate(view as any, routeParams)
-        if (view === 'admin') dispatchAdminTab(adminTabForNotification(n, params), routeParams)
+        const adminTab = view === 'admin' ? adminTabForNotification(n, params) : null
+        navigate(view as any, adminTab ? { ...routeParams, tab: adminTab } : routeParams)
+        if (adminTab) dispatchAdminTab(adminTab, routeParams)
         return true
       }
 
@@ -528,7 +532,7 @@ function NotificationBell({ mobile = false }: { mobile?: boolean } = {}) {
 
     const adminTab = user?.role === 'ADMIN' ? adminTabForNotification(n) : null
     if (adminTab) {
-      navigate('admin' as any)
+      navigate('admin' as any, { tab: adminTab })
       dispatchAdminTab(adminTab)
       return true
     }

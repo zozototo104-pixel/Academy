@@ -8,7 +8,7 @@ import {
 } from '@/lib/admin-meetings'
 import { checkDatabaseRateLimit } from '@/lib/rate-limit'
 import { createHmac } from 'node:crypto'
-import { addMeetingNote, askMeetingAssistant } from '@/lib/meeting-assistant'
+import { addMeetingNote, addMeetingTranscript, askMeetingAssistant, collectMeetingAcademyEvidence, createMeetingLiveVoiceSession } from '@/lib/meeting-assistant'
 
 // منطق دخول الاجتماع المشترك بين مسارَي الدخول: رابط الدعوة
 // (/api/meetings/[token]) والدخول بالحساب بعد الاستلام
@@ -80,6 +80,7 @@ export async function meetingState(db: any, invite: any, user: { id: string; rol
     body: {
       ok: true,
       level: access.level,
+      canOperateAi: access.level === 'FULL' && user.role === 'ADMIN' && meeting.aiAssistantEnabled === true && ['ZOOM', 'PLATFORM'].includes(meeting.provider),
       meeting: access.level === 'FULL'
         ? {
             ...teaserOf(meeting),
@@ -105,7 +106,7 @@ export async function meetingAction(
   invite: any,
   user: { id: string; role?: string; name?: string } | null,
   action: string,
-  payload?: { question?: string; text?: string },
+  payload?: { question?: string; text?: string; userText?: string; aiText?: string },
 ): Promise<Json> {
   const problem = meetingInviteProblem(invite)
   if (problem) return { status: 410, body: { error: 'رابط الدعوة غير صالح', code: problem } }
@@ -164,8 +165,66 @@ export async function meetingAction(
     return { status: 200, body: result }
   }
 
+  // The bot runs under a dedicated, authenticated ADMIN account and is
+  // physically connected as a participant on a separate device. No meeting
+  // invite or guest account can obtain voice tokens or privileged DB tools.
+  if (action === 'voice-session' || action === 'live-data' || action === 'live-turn') {
+    if (access.level !== 'FULL' || user.role !== 'ADMIN') {
+      return { status: 403, body: { error: 'تشغيل المشارك الذكي والبيانات الإدارية يتطلب حساب إدارة مخوّلاً', code: 'MEETING_AGENT_ADMIN_REQUIRED' } }
+    }
+    if (!meeting.aiAssistantEnabled || !['ZOOM', 'PLATFORM'].includes(meeting.provider)) {
+      return { status: 403, body: { error: 'المشارك الصوتي غير مفعّل لهذا النوع من الاجتماعات', code: 'MEETING_AGENT_DISABLED' } }
+    }
+    if (!isMeetingJoinOpen(meeting)) {
+      return { status: 403, body: { error: 'الجلسة الصوتية متاحة أثناء الاجتماع فقط', code: 'NOT_LIVE' } }
+    }
+    const max = action === 'voice-session' ? 6 : action === 'live-data' ? 120 : 80
+    const guard = await checkDatabaseRateLimit(
+      'meetings:ai-live:' + action + ':' + meeting.id + ':' + user.id, max, 10 * 60_000,
+    ).catch(() => null)
+    if (!guard) return { status: 503, body: { error: 'تعذر التحقق من قيود الاستخدام', code: 'RATE_GUARD_UNAVAILABLE' } }
+    if (!guard.ok) return { status: 429, body: { error: 'تجاوزت الحد المسموح لاستخدام المشرف الصوتي', code: 'RATE_LIMITED' } }
+
+    if (action === 'voice-session') {
+      try { return await createMeetingLiveVoiceSession(meeting, user) }
+      catch (error) {
+        console.error('meeting live session failure:', String((error as Error)?.message || error).slice(0, 200))
+        return { status: 502, body: { error: 'تعذر بدء جلسة Gemini Live لهذا الاجتماع', code: 'MEETING_LIVE_UNAVAILABLE' } }
+      }
+    }
+    if (action === 'live-data') {
+      const query = String(payload?.question || '').trim().slice(0, 300)
+      if (!query) return { status: 400, body: { error: 'سؤال الاستعلام مطلوب', code: 'EMPTY_QUERY' } }
+      try {
+        return { status: 200, body: { ok: true, snippets: await collectMeetingAcademyEvidence(db, query, user) } }
+      } catch {
+        return { status: 503, body: { error: 'بيانات الأكاديمية غير متاحة الآن. لا تقدم أرقاماً غير متحقق منها.', code: 'MEETING_DATA_UNAVAILABLE' } }
+      }
+    }
+    const studentSpeech = String(payload?.userText || '').replace(/\s+/g, ' ').trim().slice(0, 2200)
+    const agentSpeech = String(payload?.aiText || '').replace(/\s+/g, ' ').trim().slice(0, 2200)
+    if (!studentSpeech && !agentSpeech) return { status: 400, body: { error: 'لا توجد مداخلة مسموعة للحفظ', code: 'EMPTY_LIVE_TURN' } }
+    if (!meeting.minutesEnabled) return { status: 200, body: { ok: true, recorded: false } }
+    try {
+      await db.adminMeetingAgentEvent.createMany({ data: [
+        ...(studentSpeech ? [{ meetingId: meeting.id, userId: user.id, kind: 'TRANSCRIPT',
+          text: 'صوت الاجتماع — المتحدث غير محدد: ' + studentSpeech }] : []),
+        ...(agentSpeech ? [{ meetingId: meeting.id, userId: user.id, kind: 'AI_SPEECH',
+          text: 'المشرف الذكي — مداخلة صوتية: ' + agentSpeech }] : []),
+      ] })
+      return { status: 200, body: { ok: true, recorded: true } }
+    } catch {
+      return { status: 503, body: { error: 'تعذر حفظ تفريغ المداخلة', code: 'TRANSCRIPT_SAVE_FAILED' } }
+    }
+  }
+
   if (action === 'note') {
     const res = await addMeetingNote(db, invite, user, String(payload?.text || ''))
+    return { status: res.status, body: res.body }
+  }
+
+  if (action === 'transcript') {
+    const res = await addMeetingTranscript(db, invite, user, String(payload?.text || ''))
     return { status: res.status, body: res.body }
   }
 

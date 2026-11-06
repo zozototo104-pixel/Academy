@@ -460,6 +460,21 @@ export function AdminView() {
   const [appsLoading, setAppsLoading] = useState(true)
   const [announcementsLoading, setAnnouncementsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('admissions')
+  // Deep links from notifications must survive reloads and fresh admin mounts.
+  useEffect(() => {
+    const tab = new URLSearchParams(window.location.search).get('tab')
+    const allowed = new Set([
+      'admissions', 'service-requests', 'rules', 'students', 'supervisors', 'agents',
+      'representatives', 'books', 'study-schedule', 'quality', 'attempts',
+      'grading-review', 'thesis', 'ai', 'finance', 'certs', 'legacy-graduates',
+      'system', 'announcements', 'lectures', 'meetings', 'ai-stage-profiles',
+      'settings', 'admins', 'audit', 'messages', 'admin-messages',
+      'student-follow-up', 'whatsapp-inbox',
+    ])
+    if (!tab || !allowed.has(tab)) return
+    const frame = window.requestAnimationFrame(() => setActiveTab(tab))
+    return () => window.cancelAnimationFrame(frame)
+  }, [])
   const [admissionSearch, setAdmissionSearch] = useState('')
   const [admissionStatusFilter, setAdmissionStatusFilter] = useState('ACTIVE')
   const [admissionPage, setAdmissionPage] = useState(1)

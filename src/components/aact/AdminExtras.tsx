@@ -2085,7 +2085,7 @@ export function AdminCertificatesTab() {
               <h4 className="text-sm font-black text-[#0f2b46]">معاملات التخرج — المصادقة الإدارية</h4>
               <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">كل طالب أنهى حدثًا أكاديميًا تُنشأ له معاملة هنا مع نتيجة فحص الأهلية وأسباب النقص. الاعتماد محفوظ في قاعدة البيانات، والإصدار بعده يعيد فحص الشروط طازجة — فلا زرّ وحده ولا استدعاء مباشر يصدر شهادة دون اعتماد صالح.</p>
             </div>
-            <Badge className="bg-[#c9a227]/15 text-[#a8841a]">{gradRequests.filter((r) => r.status === 'PENDING').length} بانتظار المصادقة</Badge>
+            <Badge className="bg-[#c9a227]/15 text-[#a8841a]">{gradRequests.filter((r) => r.status === 'PENDING' && r.ready).length} مؤهلة وبانتظار المصادقة</Badge>
           </div>
           {gradLoading ? (
             <div className="flex h-20 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-[#c9a227]" /></div>
@@ -2101,7 +2101,9 @@ export function AdminCertificatesTab() {
                       ? { label: 'معتمد — بانتظار الإصدار', cls: 'bg-sky-100 text-sky-700' }
                       : r.status === 'REJECTED'
                         ? { label: 'مرفوض', cls: 'bg-red-100 text-red-700' }
-                        : { label: 'بانتظار المصادقة', cls: 'bg-amber-100 text-amber-700' }
+                        : r.ready
+                          ? { label: 'مؤهل — بانتظار المصادقة', cls: 'bg-amber-100 text-amber-700' }
+                          : { label: 'قيد استكمال متطلبات التخرج', cls: 'bg-slate-100 text-slate-700' }
                     return (
                       <div key={r.id} className="space-y-3 rounded-xl border border-[#0f2b46]/10 p-3">
                         <div className="flex items-start justify-between gap-3">
@@ -2125,7 +2127,7 @@ export function AdminCertificatesTab() {
                         <div className="flex flex-wrap gap-2">
                           <Button disabled={busy} variant="outline" onClick={() => refreshGraduation(r)} className="border-[#0f2b46]/20 font-black text-[#0f2b46] hover:bg-slate-50">تحديث الفحص</Button>
                           {(r.status === 'PENDING' || r.status === 'REJECTED') && (
-                            <Button disabled={busy} onClick={() => decideGraduation(r, 'APPROVE')} className="bg-emerald-600 font-black text-white hover:bg-emerald-700">{busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="ml-2 h-4 w-4" />} اعتماد الطلب</Button>
+                            <Button disabled={busy || !r.ready} onClick={() => decideGraduation(r, 'APPROVE')} className="bg-emerald-600 font-black text-white hover:bg-emerald-700">{busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="ml-2 h-4 w-4" />} اعتماد الطلب</Button>
                           )}
                           {(r.status === 'PENDING' || r.status === 'APPROVED') && (
                             <Button disabled={busy} variant="outline" onClick={() => decideGraduation(r, 'REJECT')} className="border-red-200 font-black text-red-600 hover:bg-red-50">{busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <XCircle className="ml-2 h-4 w-4" />} رفض</Button>

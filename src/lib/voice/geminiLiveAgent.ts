@@ -13,6 +13,16 @@ export interface AgentCallbacks {
   onError?: (msg: string, code?: string, status?: number) => void
   /** سياق إضافي يرسل إلى جلسة Gemini Live، مثل سياق قاعة المناقشة أو الوحدة الدراسية. */
   context?: string
+  /** Optional meeting-only endpoint; existing supervisor/defense sessions keep the default. */
+  sessionEndpoint?: string
+  sessionAction?: string
+  /** Optional meeting-scoped tool endpoint; never used by existing voice consumers. */
+  meetingDataEndpoint?: string
+  /** Meeting station only: reports every reserved provider connection for settlement. */
+  onSessionCreated?: (sessionId: string) => void
+  /** Explicit device routing for the separate meeting bot station only. */
+  inputDeviceId?: string
+  outputDeviceId?: string
   /** صوت Gemini Live المطلوب. قاعة المناقشة تستخدم صوتاً أخف حتى لا يظهر صوت الرجل الفصيح الآلي. */
   voice?: string
   /** لهجة التفريغ/التعرّف على الصوت المطلوبة مثل ar-PS أو ar-EG. */
@@ -28,6 +38,7 @@ type SetupVariant = 'minimal' | 'generationConfig' | 'bare'
 
 type LiveSessionPayload = {
   token?: string
+  sessionId?: string
   wsUrl: string
   setup: unknown
   sdkConfig?: Record<string, unknown>
@@ -141,9 +152,11 @@ class Pcm24Player {
   private nextTime = 0
   private readonly volumeBoost = 1.7
   private onOutputStream?: (stream: MediaStream | null) => void
+  private sinkId?: string
 
-  constructor(onOutputStream?: (stream: MediaStream | null) => void) {
+  constructor(onOutputStream?: (stream: MediaStream | null) => void, sinkId?: string) {
     this.onOutputStream = onOutputStream
+    this.sinkId = sinkId
   }
 
   private ensureRecorderDestination() {
@@ -159,7 +172,14 @@ class Pcm24Player {
   async play(b64: string) {
     const Ctx = window.AudioContext || (window as any).webkitAudioContext
     if (!Ctx) throw new Error('AudioContext غير مدعوم في هذا المتصفح')
-    if (!this.ctx) this.ctx = new Ctx({ sampleRate: 24000 }) as AudioContext
+    if (!this.ctx) {
+      this.ctx = new Ctx({ sampleRate: 24000 }) as AudioContext
+      if (this.sinkId) {
+        const setSinkId = (this.ctx as any).setSinkId
+        if (typeof setSinkId !== 'function') throw new Error('هذا المتصفح لا يدعم اختيار مخرج الصوت للمشرف الذكي؛ استخدم Chrome حديثاً على الجهاز المستقل.')
+        await setSinkId.call(this.ctx, this.sinkId)
+      }
+    }
     if (this.ctx.state === 'suspended') await this.ctx.resume().catch(() => {})
     this.ensureRecorderDestination()
 
@@ -215,7 +235,7 @@ export class GeminiLiveAgent {
 
   constructor(callbacks: AgentCallbacks = {}) {
     this.cb = callbacks
-    this.player = new Pcm24Player((stream) => this.cb.onOutputStream?.(stream))
+    this.player = new Pcm24Player((stream) => this.cb.onOutputStream?.(stream), this.cb.outputDeviceId)
   }
 
   private state(s: VoiceState) { this.cb.onState?.(s) }
@@ -264,6 +284,7 @@ export class GeminiLiveAgent {
         noiseSuppression: true,
         autoGainControl: true,
         channelCount: 1,
+        ...(this.cb.inputDeviceId ? { deviceId: { exact: this.cb.inputDeviceId } } : {}),
       },
     })
 
@@ -349,7 +370,8 @@ export class GeminiLiveAgent {
     if (this.cb.dialect) body.dialect = this.cb.dialect
     if (this.cb.purpose) body.purpose = this.cb.purpose
     if (this.cb.context) body.context = this.cb.context
-    const sessionRes = await fetch('/api/ai/gemini-live/session', {
+    if (this.cb.sessionAction) body.action = this.cb.sessionAction
+    const sessionRes = await fetch(this.cb.sessionEndpoint || '/api/ai/gemini-live/session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}) },
       body: JSON.stringify(body),
@@ -368,6 +390,9 @@ export class GeminiLiveAgent {
       error.code = session.code
       throw error
     }
+    // Each provider setup attempt may reserve a distinct server-side record.
+    // The meeting station settles all attempts, even failed connections.
+    if (session.sessionId) this.cb.onSessionCreated?.(session.sessionId)
     return session
   }
 
@@ -574,6 +599,32 @@ export class GeminiLiveAgent {
     this.sendBookSearchToolResponses(functionResponses)
   }
 
+  // Only the dedicated meeting participant uses this function tool.
+  // Fail closed: API errors become explicit unavailable evidence, never zero totals.
+  private async handleMeetingQueryToolCall(toolCall: any) {
+    const calls: LiveFunctionCall[] = Array.isArray(toolCall?.functionCalls) ? toolCall.functionCalls : []
+    const targets = calls.filter((call) => call?.name === 'query_meeting_academy')
+    if (!targets.length || !this.cb.meetingDataEndpoint) return
+    const functionResponses = await Promise.all(targets.map(async (call) => {
+      const query = liveBookSearchQuery(call)
+      let snippets = 'تعذّر التحقق من المعلومات الآن؛ لا تقدّم أرقامًا أو أسماء غير مؤكدة.'
+      if (query) {
+        try {
+          const response = await fetch(this.cb.meetingDataEndpoint!, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}) },
+            body: JSON.stringify({ action: 'live-data', question: query }),
+          })
+          const result = await response.json().catch(() => ({}))
+          if (response.ok && typeof result?.snippets === 'string') snippets = result.snippets.slice(0, 18000)
+          else snippets = String(result?.error || 'بيانات المنصة غير متاحة لهذا السؤال أو لهذا الحساب.').slice(0, 400)
+        } catch { /* keep explicit unavailable evidence */ }
+      }
+      return { id: String(call.id || ''), name: 'query_meeting_academy', response: { snippets } }
+    }))
+    this.sendBookSearchToolResponses(functionResponses)
+  }
+
   private handleServerMessage(msg: any): boolean {
     if (!msg) return false
     if (msg.error) {
@@ -587,7 +638,8 @@ export class GeminiLiveAgent {
     }
     if (msg.setupComplete) return true
     if (msg.toolCall) {
-      void this.handleBookSearchToolCall(msg.toolCall)
+      if (this.cb.meetingDataEndpoint) void this.handleMeetingQueryToolCall(msg.toolCall)
+      else void this.handleBookSearchToolCall(msg.toolCall)
       return false
     }
 

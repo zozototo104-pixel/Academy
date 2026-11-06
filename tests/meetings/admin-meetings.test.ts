@@ -114,6 +114,7 @@ const {
 } = await import('@/lib/admin-meetings')
 const { meetingState, meetingAction } = await import('@/lib/meeting-entry')
 const { generateMinutesDraft } = await import('@/lib/meeting-minutes')
+const { collectMeetingAcademyEvidence } = await import('@/lib/meeting-assistant')
 const adminMeetingDetailRoute = await import('@/app/api/admin/meetings/[id]/route')
 const meetingRoomRoute = await import('@/app/api/meetings/[token]/room/route')
 
@@ -797,5 +798,201 @@ describe('admin meeting hard delete (route level)', () => {
     const body = await res.json()
     expect(body.error).toBe('الاجتماع غير موجود')
     expect(routeDeletedIds).toEqual([])
+  })
+})
+
+
+describe('dedicated voice participant scope and minutes integrity', () => {
+  const liveInvite = () => {
+    const now = Date.now()
+    return invite({
+      claimedByUserId: visitor.id,
+      meeting: meeting({
+        provider: 'PLATFORM', meetingUrl: null,
+        aiAssistantEnabled: true, minutesEnabled: true,
+        startsAt: new Date(now - 60_000), endsAt: new Date(now + 60 * 60_000),
+      }),
+    })
+  }
+  test('guest cannot create a voice session, query admin data or log AI turns', async () => {
+    const db = fakeDb(liveInvite())
+    for (const action of ['voice-session', 'live-data', 'live-turn']) {
+      const result = await meetingAction(db as any, db.state.inv, visitor, action, {
+        question: 'نتيجة الطالب جميل ناصر', userText: 'نتيجة', aiText: 'تعليق',
+      })
+      expect(result.status).toBe(403)
+      expect((result.body as any).code).toBe('MEETING_AGENT_ADMIN_REQUIRED')
+    }
+    expect(db.state.events).toHaveLength(0)
+  })
+  test('only authorized admins see the independent bot switch', async () => {
+    const db = fakeDb(liveInvite())
+    const guest = await meetingState(db as any, db.state.inv, visitor)
+    expect((guest.body as any).canOperateAi).toBe(false)
+    const admin = await meetingState(db as any, db.state.inv, { id: 'admin-1', role: 'ADMIN', name: 'مسؤول' })
+    expect((admin.body as any).canOperateAi).toBe(true)
+  })
+  test('admin data question resolves from meeting-scoped DB with no model SQL', async () => {
+    const db = fakeDb(liveInvite())
+    const result = await meetingAction(db as any, db.state.inv, { id: 'admin-1', role: 'ADMIN' },
+      'live-data', { question: 'نتيجة الطالب جميل ناصر' })
+    expect(result.status).toBe(200)
+    expect((result.body as any).snippets).toContain('لم يُعثر على طالب')
+  })
+  test('meeting speech is stored with unknown speaker and AI provenance, never as a formal decision', async () => {
+    const db = fakeDb(liveInvite()) as any
+    db.adminMeetingAgentEvent.createMany = async ({ data }: any) => {
+      db.state.events.push(...data)
+      return { count: data.length }
+    }
+    const result = await meetingAction(db, db.state.inv, { id: 'admin-1', role: 'ADMIN' }, 'live-turn', {
+      userText: 'سأراجع خطة البرنامج', aiText: 'أقترح أن نراجع أعداد الطلاب أولاً',
+    })
+    expect(result.status).toBe(200)
+    expect(db.state.events.map((e: any) => e.kind)).toEqual(['TRANSCRIPT', 'AI_SPEECH'])
+    expect(db.state.events[0].text).toContain('المتحدث غير محدد')
+    expect(db.state.events[1].text).toContain('المشرف الذكي')
+  })
+})
+
+describe('meeting AI academy evidence is admin-only and current', () => {
+  test('a claimed guest or supervisor never triggers an administrative query', async () => {
+    const forbiddenDb = new Proxy({}, { get() { throw new Error('UNAUTHORIZED_QUERY') } })
+    for (const role of ['STUDENT', 'VISITOR', 'SUPERVISOR']) {
+      const context = await collectMeetingAcademyEvidence(forbiddenDb, 'نتيجة الطالب أحمد صالح', { role })
+      expect(context).toContain('صلاحيات')
+    }
+  })
+
+  test('the admin student count comes from a live read and is not a static number', async () => {
+    let count = 11
+    const fake: any = {
+      user: { count: async () => count },
+      enrollment: { count: async () => 4 },
+      examAttempt: { count: async () => 0 },
+      programExamAttempt: { count: async () => 0 },
+      programAssignment: { count: async () => 0 },
+      assignmentSubmission: { count: async () => 0 },
+      payment: { count: async () => 0 },
+      book: { count: async () => 0 },
+      thesisSubmission: { count: async () => 0 },
+      lectureVideoResource: { count: async () => 0 },
+      admissionApplication: { count: async () => 0 },
+      certificate: { count: async () => 0 },
+      program: { findMany: async () => [] },
+    }
+    const first = await collectMeetingAcademyEvidence(fake, 'كم عدد الطلاب في المنصة؟', { role: 'ADMIN' })
+    expect(first).toContain('حسابات الطلاب النشطة: 11')
+    count = 14
+    const second = await collectMeetingAcademyEvidence(fake, 'كم عدد الطلاب في المنصة؟', { role: 'ADMIN' })
+    expect(second).toContain('حسابات الطلاب النشطة: 14')
+  })
+
+  test('one selected student returns the stored grade and unit/exam results, without mutations', async () => {
+    const fake: any = {
+      user: { findMany: async () => [{ id: 's-1', name: 'أحمد صالح', status: 'ACTIVE' }] },
+      enrollment: { findMany: async () => [{
+        programId: 'p-1', status: 'ACTIVE', completedUnits: '["u-1"]',
+        finalScore: 70.5, certificateNo: null,
+        program: { titleAr: 'برنامج الإدارة', units: [
+          { id: 'u-1', title: 'التخطيط', status: 'APPROVED' },
+          { id: 'u-2', title: 'القيادة', status: 'APPROVED' },
+        ] },
+      }] },
+      examAttempt: { findMany: async () => [{ score: 83, passed: true, exam: { title: 'اختبار التخطيط' } }] },
+      programExamAttempt: { findMany: async () => [{ score: 60, finalScore: 72, exam: { title: 'الاختبار الفصلي', semester: 1 } }] },
+    }
+    const result = await collectMeetingAcademyEvidence(fake, 'ما نتائج الطالب أحمد صالح ووحداته؟', { role: 'ADMIN' })
+    expect(result).toContain('70.5')
+    expect(result).toContain('الوحدات المعتمدة المتبقية: 1')
+    expect(result).toContain('اختبار التخطيط=83')
+    expect(result).toContain('الاختبار الفصلي (الفصل 1)=72')
+  })
+
+  test('an ambiguous student name never mixes two academic records', async () => {
+    const fake: any = {
+      user: { findMany: async () => [
+        { id: 's-1', name: 'أحمد صالح' },
+        { id: 's-2', name: 'أحمد صالح' },
+      ] },
+      enrollment: { findMany: async () => { throw new Error('should not load grades') } },
+    }
+    const result = await collectMeetingAcademyEvidence(fake, 'نتيجة الطالب أحمد صالح', { role: 'ADMIN' })
+    expect(result).toContain('أكثر من سجل')
+  })
+
+  test('focused Whatsapp inquiry does not trigger unrelated student or program queries', async () => {
+    const count = async () => 7
+    const fake: any = {
+      contactMessage: { count }, humanHandoffRequest: { count },
+      whatsAppConversation: { count }, whatsAppConversationMessage: { count },
+      notification: { count }, notificationOutbox: { count }, emailLog: { count },
+      studentFollowUpLog: { count }, supervisorChannelMessage: { count },
+      user: { count: () => { throw new Error('UNRELATED_STUDENT_QUERY') } },
+      program: { findMany: () => { throw new Error('UNRELATED_PROGRAM_QUERY') } },
+    }
+    const result = await collectMeetingAcademyEvidence(fake, 'ما وضع محادثات واتساب؟', { role: 'ADMIN' })
+    expect(result).toContain('محادثات واتساب المسجلة 7')
+    expect(result).toContain('رسائل واتساب المسجلة 7')
+    expect(result).not.toContain('حسابات الطلاب النشطة')
+  })
+
+  test('financial evidence groups actual paid amounts by currency, not mixed revenues', async () => {
+    const fake: any = {
+      payment: {
+        count: async () => 8,
+        groupBy: async () => [
+          { currency: 'USD', _sum: { amount: 100 }, _count: { _all: 2 } },
+          { currency: 'EUR', _sum: { amount: 80 }, _count: { _all: 1 } },
+        ],
+      },
+      paymentWaiverCode: { count: async () => 1 },
+      paymentProof: { count: async () => 2 },
+      revenueShareTransaction: { count: async () => 3 },
+    }
+    const result = await collectMeetingAcademyEvidence(fake, 'كم الإيرادات حسب العملة؟', { role: 'ADMIN' })
+    expect(result).toContain('USD: 100 (2 سجل)')
+    expect(result).toContain('EUR: 80 (1 سجل)')
+    expect(result).toContain('ليست أرباحًا صافية')
+  })
+
+  test('admissions questions can read latest applications without unrelated areas', async () => {
+    const fake: any = {
+      admissionApplication: {
+        count: async () => 5,
+        findMany: async () => [
+          { reference: 'A-1', fullName: 'أحمد', program: 'إدارة الأعمال', status: 'UNDER_REVIEW' },
+        ],
+      },
+      serviceDeliverable: { count: async () => 1 },
+    }
+    const result = await collectMeetingAcademyEvidence(fake, 'آخر طلبات القبول', { role: 'ADMIN' })
+    expect(result).toContain('جميع طلبات القبول/الخدمات 5')
+    expect(result).toContain('A-1، أحمد، إدارة الأعمال، UNDER_REVIEW')
+  })
+
+  test('named student certificate query does not mix with another student', async () => {
+    const fake: any = {
+      user: { findMany: async () => [{ id: 's-1', name: 'جميل ناصر', status: 'ACTIVE' }] },
+      enrollment: { findMany: async () => [] },
+      certificate: { findMany: async () => [
+        { serial: 'CERT-1', valid: true, revokedAt: null, program: 'الماجستير' },
+      ] },
+    }
+    const result = await collectMeetingAcademyEvidence(fake, 'شهادات الطالب جميل ناصر', { role: 'ADMIN' })
+    expect(result).toContain('CERT-1')
+    expect(result).toContain('الصلاحية سارية')
+  })
+
+  test('database failures propagate instead of converting to zero or fabricated answers', async () => {
+    const fake: any = { user: { count: async () => { throw new Error('DB_OFFLINE') } },
+      enrollment: { count: async () => 0 }, examAttempt: { count: async () => 0 },
+      programExamAttempt: { count: async () => 0 }, programAssignment: { count: async () => 0 },
+      assignmentSubmission: { count: async () => 0 }, payment: { count: async () => 0 },
+      book: { count: async () => 0 }, thesisSubmission: { count: async () => 0 },
+      lectureVideoResource: { count: async () => 0 }, admissionApplication: { count: async () => 0 },
+      certificate: { count: async () => 0 }, program: { findMany: async () => [] } }
+    await expect(collectMeetingAcademyEvidence(fake, 'كم عدد الطلاب في المنصة؟', { role: 'ADMIN' }))
+      .rejects.toThrow('DB_OFFLINE')
   })
 })

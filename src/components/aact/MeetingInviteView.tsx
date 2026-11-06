@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useAppStore } from '@/lib/store'
+import { GeminiLiveAgent } from '@/lib/voice/geminiLiveAgent'
 import { clearPendingMeetingInvite, peekPendingMeetingInvite, setPendingMeetingInvite } from '@/lib/pending-meeting-invite'
 import { AcademyLogo } from '@/components/aact/Shell'
 import { Button } from '@/components/ui/button'
@@ -33,6 +34,7 @@ type MeetingInfo = {
   hostName?: string | null
   inviteeNames?: string[]
   aiAssistantEnabled?: boolean
+  minutesEnabled?: boolean
 }
 
 type MeetingNote = { id: string; authorName: string; text: string; createdAt: string }
@@ -41,6 +43,7 @@ type InviteState = {
   ok?: boolean
   level: 'TEASER' | 'CLAIMABLE' | 'FULL' | 'NONE'
   loginRequired?: boolean
+  canOperateAi?: boolean
   myInvite?: { inviteeName: string }
   meeting?: MeetingInfo
   joinOpen: boolean
@@ -96,6 +99,186 @@ function formatCountdown(ms: number): string {
   return parts.join(' و')
 }
 
+// Dedicated bot station. The machine joins Zoom through the official desktop
+// client or joins the PLATFORM room as a separate peer. This panel only routes
+// meeting audio to/from Gemini Live; it is NOT a Zoom Meeting SDK bot.
+function MeetingAiVoiceControl({ basePath, provider }: { basePath: string; provider: string }) {
+  const [running, setRunning] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [voiceState, setVoiceState] = useState('IDLE')
+  const [heard, setHeard] = useState('')
+  const [spoken, setSpoken] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const agentRef = useRef<GeminiLiveAgent | null>(null)
+  const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([])
+  const [inputDeviceId, setInputDeviceId] = useState('')
+  const [outputDeviceId, setOutputDeviceId] = useState('')
+  const [deviceBusy, setDeviceBusy] = useState(false)
+  const pendingUsageSessions = useRef(new Map<string, number>())
+  const settleUsageSessions = useCallback(() => {
+    const sessions = [...pendingUsageSessions.current.entries()]
+    pendingUsageSessions.current.clear()
+    for (const [sessionId, startedAt] of sessions) {
+      void fetch('/api/ai/live-usage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          actualSeconds: Math.max(0, Math.ceil((Date.now() - startedAt) / 1000)),
+        }),
+        keepalive: true,
+      }).then((response) => {
+        if (!response.ok) {
+          pendingUsageSessions.current.set(sessionId, startedAt)
+          setError('تعذر تسوية جلسة المشرف الصوتي؛ حاول إيقاف وتشغيل الجلسة مجددًا.')
+        }
+      }).catch(() => {
+        pendingUsageSessions.current.set(sessionId, startedAt)
+        setError('تعذر الاتصال بخدمة تسجيل دقائق الاجتماع.')
+      })
+    }
+  }, [])
+  const checkAudioDevices = async () => {
+    if (!navigator.mediaDevices?.getUserMedia || !navigator.mediaDevices?.enumerateDevices) {
+      setError('هذا المتصفح لا يدعم اختيار أجهزة الصوت. استخدم Chrome حديثاً على الكمبيوتر.')
+      return
+    }
+    setDeviceBusy(true)
+    try {
+      const test = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+      test.getTracks().forEach((track) => track.stop())
+      const devices = await navigator.mediaDevices.enumerateDevices()
+      setAudioDevices(devices.filter((device) => device.deviceId && (device.kind === 'audioinput' || device.kind === 'audiooutput')))
+      setError(null)
+    } catch {
+      setError('اسمح للمتصفح بالميكروفون أولًا، ثم اختر المدخل والمخرج الافتراضيين.')
+    } finally {
+      setDeviceBusy(false)
+    }
+  }
+
+  const stop = () => {
+    agentRef.current?.stop()
+    agentRef.current = null
+    settleUsageSessions()
+    setRunning(false)
+    setVoiceState('IDLE')
+  }
+  const start = async () => {
+    if (agentRef.current || busy) return
+    if (!inputDeviceId || !outputDeviceId) {
+      setError('اختر مدخل صوت الاجتماع ومخرج صوت المشرف الافتراضيين قبل تشغيل المشاركة.')
+      return
+    }
+    setBusy(true)
+    setError(null)
+    setHeard('')
+    setSpoken('')
+    const agent = new GeminiLiveAgent({
+      sessionEndpoint: basePath,
+      sessionAction: 'voice-session',
+      meetingDataEndpoint: basePath,
+      onSessionCreated: (sessionId) => pendingUsageSessions.current.set(sessionId, Date.now()),
+      inputDeviceId,
+      outputDeviceId,
+      logEndpoint: basePath,
+      logExtra: { action: 'live-turn' },
+      onState: (state) => setVoiceState(state),
+      onUserCaption: (text) => setHeard(text),
+      onAiCaption: (text) => setSpoken(text),
+      onError: (msg) => {
+        setError(msg)
+        // A terminated Live connection must also reset the station controls.
+        if (msg.includes('انقطع اتصال Gemini Live')) {
+          agentRef.current?.stop()
+          agentRef.current = null
+          settleUsageSessions()
+          setRunning(false)
+          setVoiceState('IDLE')
+        }
+      },
+    })
+    agentRef.current = agent
+    try {
+      await agent.start()
+      setRunning(true)
+    } catch (e) {
+      agent.stop()
+      agentRef.current = null
+      settleUsageSessions()
+      setError(e instanceof Error ? e.message : 'تعذّر تشغيل المشرف الصوتي')
+    } finally {
+      setBusy(false)
+    }
+  }
+  useEffect(() => {
+    const agent = agentRef
+    return () => {
+      agent.current?.stop()
+      agent.current = null
+      settleUsageSessions()
+    }
+  }, [settleUsageSessions])
+
+  return (
+    <section className="mt-3 rounded-2xl border border-violet-300 bg-violet-50 p-4 text-right" dir="rtl" aria-label="المشارك الصوتي المستقل">
+      <p className="text-sm font-black text-violet-950">المشرف الذكي — مشارك صوتي مستقل (Gemini Live)</p>
+      <p className="mt-1 text-xs leading-relaxed text-violet-900">
+        {provider === 'ZOOM'
+          ? 'افتح اجتماع Zoom بعميل Zoom الرسمي على هذا الجهاز كمشارك مستقل باسم «المشرف الذكي — AACT». اضبط Zoom ليستقبل صوت Gemini من منفذ صوت افتراضي ويرسل صوت بقية الأعضاء إلى مدخل Gemini منفصل.'
+          : 'هذه محطة المشرف الذكي داخل غرفة WebRTC. استخدم مدخلًا افتراضيًا لصوت الأعضاء ومخرجًا افتراضيًا لصوت Gemini، واضبط الميكروفون المرسل إلى الغرفة على مخرج Gemini.'}
+        {' '}المشرف يسمع ويرد مباشرة، وليس زر تشغيل تسجيل. فعّل صوت الكمبيوتر مرة واحدة بإذن صاحب الجهاز.
+      </p>
+      <div className="mt-3 space-y-2 rounded-xl border border-violet-200 bg-white p-3">
+        <Button type="button" size="sm" variant="outline" disabled={deviceBusy || running}
+          onClick={() => void checkAudioDevices()}>
+          {deviceBusy ? 'جارٍ فحص أجهزة الصوت…' : 'فحص أجهزة الصوت الافتراضية'}
+        </Button>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <label className="block text-xs font-bold text-violet-900">
+            مدخل صوت الحاضرين إلى Gemini
+            <select value={inputDeviceId} disabled={running} onChange={(e) => setInputDeviceId(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-violet-200 bg-white px-2 py-2 text-xs">
+              <option value="">اختر مدخل الصوت</option>
+              {audioDevices.filter((d) => d.kind === 'audioinput').map((d) => (
+                <option key={d.deviceId} value={d.deviceId}>{d.label || 'مدخل صوت ' + d.deviceId.slice(0, 8)}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-xs font-bold text-violet-900">
+            مخرج صوت Gemini إلى الاجتماع
+            <select value={outputDeviceId} disabled={running} onChange={(e) => setOutputDeviceId(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-violet-200 bg-white px-2 py-2 text-xs">
+              <option value="">اختر مخرج الصوت</option>
+              {audioDevices.filter((d) => d.kind === 'audiooutput').map((d) => (
+                <option key={d.deviceId} value={d.deviceId}>{d.label || 'مخرج صوت ' + d.deviceId.slice(0, 8)}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <p className="text-[11px] leading-relaxed text-slate-600">
+          لا تختَر نفس حلقة الصوت للمدخل والمخرج. وصّل مخرج Zoom إلى المدخل الأول،
+          ومخرج Gemini إلى ميكروفون Zoom عبر مسار افتراضي ثانٍ؛ وإلا قد يتكرر الصوت أو يتوقف.
+        </p>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Button type="button" size="sm" onClick={() => void (running ? stop() : start())}
+          disabled={busy} className={running ? 'bg-red-700 text-white hover:bg-red-800' : 'bg-violet-700 text-white hover:bg-violet-800'}>
+          {busy ? 'جارٍ وصل الصوت الحي…' : running ? 'إيقاف مشاركة المشرف الذكي' : 'بدء مشاركة المشرف الذكي بصوته'}
+        </Button>
+        <span role="status" className="text-xs font-semibold text-violet-900">{running ? 'Gemini Live متصل — ' + voiceState + '؛ تحقق من مسار صوت الاجتماع' : 'غير متصل صوتياً'}</span>
+      </div>
+      {heard && <p className="mt-2 text-xs text-slate-700">الكلام المسموع (قد يحتاج تصحيحاً): {heard}</p>}
+      {spoken && <p className="mt-2 text-xs text-violet-900">مداخلة المشرف: {spoken}</p>}
+      {error && <p role="alert" className="mt-2 text-xs font-semibold text-red-700">{error}</p>}
+      <p className="mt-2 text-[11px] text-slate-600">
+        عند تشغيل المحضر، يُحفظ التفريغ بوسم «المتحدث غير محدد» ما لم تُثبت هويته.
+        تُراجع الإدارة المحضر قبل اعتماده. لا تشارك صوت الاجتماع دون موافقة الحاضرين.
+      </p>
+    </section>
+  )
+}
+
 export function MeetingInviteView({ token, inviteId }: { token?: string; inviteId?: string }) {
   const segment = token || inviteId || ''
   const basePath = token
@@ -110,6 +293,7 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
   const [revealedPasscode, setRevealedPasscode] = useState<string | null>(null)
   const [joinedExternal, setJoinedExternal] = useState(false)
   const [inRoom, setInRoom] = useState(false)
+  const [aiDeviceMode, setAiDeviceMode] = useState(false)
   const [zoomConfig, setZoomConfig] = useState<null | { signature: string; sdkKey: string; meetingNumber: string; userName: string; password: string }>(null)
   const [zoomError, setZoomError] = useState<string | null>(null)
   const [zoomExternalUrl, setZoomExternalUrl] = useState<string | null>(null)
@@ -163,6 +347,12 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
   const [assistantAnswer, setAssistantAnswer] = useState<string | null>(null)
   const [assistantGreeting, setAssistantGreeting] = useState<string | null>(null)
   const [assistantError, setAssistantError] = useState<string | null>(null)
+  // تفريغ محلي لصوت صاحب الجهاز فقط؛ لا يدّعي سماع Zoom الخارجي.
+  const [transcriptOn, setTranscriptOn] = useState(false)
+  const [transcriptError, setTranscriptError] = useState<string | null>(null)
+  const transcriptActiveRef = useRef(false)
+  const recognitionRef = useRef<any>(null)
+  const recognitionRestartRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // إنشاء حساب زائر من صفحة الدعوة نفسها (للضيف بلا حساب)
   const [regName, setRegName] = useState('')
   const [regEmail, setRegEmail] = useState('')
@@ -248,6 +438,88 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
     }
   }
 
+  const stopTranscript = () => {
+    transcriptActiveRef.current = false
+    if (recognitionRestartRef.current) clearTimeout(recognitionRestartRef.current)
+    recognitionRestartRef.current = null
+    try { recognitionRef.current?.abort() } catch { /* unavailable */ }
+    recognitionRef.current = null
+    setTranscriptOn(false)
+  }
+
+  const toggleTranscript = () => {
+    if (transcriptActiveRef.current) { stopTranscript(); return }
+    const browser = window as any
+    const Recognizer = browser.SpeechRecognition || browser.webkitSpeechRecognition
+    if (!Recognizer) {
+      setTranscriptError('التفريغ الصوتي غير مدعوم في هذا المتصفح؛ استخدم متصفحاً يدعم SpeechRecognition.')
+      return
+    }
+    const recognition = new Recognizer()
+    recognition.lang = 'ar-SA'
+    recognition.continuous = true
+    recognition.interimResults = false
+    recognition.maxAlternatives = 1
+    recognition.onresult = (event: any) => {
+      for (let i = event.resultIndex || 0; i < event.results.length; i++) {
+        const result = event.results[i]
+        if (!result?.isFinal) continue
+        const text = String(result[0]?.transcript || '').trim().slice(0, 2200)
+        if (text.length < 3 || !transcriptActiveRef.current) continue
+        // Only finalized captions from the speaker's own microphone, never
+        // the meeting audio of absent participants. Sender identity is server-set.
+        void fetch(basePath, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'transcript', text }),
+        }).then(async (res) => {
+          if (res.ok) return
+          const error = await res.json().catch(() => ({}))
+          if (res.status === 403 || res.status === 429) stopTranscript()
+          setTranscriptError(error?.error || 'تعذر حفظ التفريغ الصوتي')
+        }).catch(() => setTranscriptError('انقطع الاتصال أثناء حفظ التفريغ؛ تحقق من اتصالك.'))
+      }
+    }
+    recognition.onerror = (event: any) => {
+      if (event?.error === 'no-speech') return
+      setTranscriptError('تعذر استقبال الكلام من الميكروفون (' + String(event?.error || 'غير معروف') + ').')
+      stopTranscript()
+    }
+    recognition.onend = () => {
+      if (!transcriptActiveRef.current) return
+      recognitionRestartRef.current = setTimeout(() => {
+        if (!transcriptActiveRef.current) return
+        try { recognition.start() } catch {
+          stopTranscript()
+          setTranscriptError('توقف التعرف الصوتي. يمكن تفعيله مجددًا من القاعة.')
+        }
+      }, 750)
+    }
+    try {
+      transcriptActiveRef.current = true
+      recognitionRef.current = recognition
+      recognition.start()
+      setTranscriptOn(true)
+      setTranscriptError(null)
+    } catch {
+      stopTranscript()
+      setTranscriptError('لم يُسمح بالميكروفون أو لم يبدأ التعرف على الكلام.')
+    }
+  }
+
+  // On navigation/unmount, stop browser speech capture and all scheduled restarts.
+  useEffect(() => {
+    const active = transcriptActiveRef
+    const recognizer = recognitionRef
+    const restart = recognitionRestartRef
+    return () => {
+      active.current = false
+      if (restart.current) clearTimeout(restart.current)
+      try { recognizer.current?.abort() } catch { /* unavailable */ }
+      recognizer.current = null
+    }
+  }, [])
+
   const doClaim = async () => {
     setBusy('claim')
     setActionError(null)
@@ -325,7 +597,9 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok || !d?.meetingUrl) throw new Error(d?.error || 'تعذّر فتح رابط الاجتماع')
-      if (d.zoomSdk) {
+      // Zoom Meeting SDK is for human attendees. The dedicated AI station
+      // instead joins via the installed Zoom client as a separate participant.
+      if (d.zoomSdk && !aiDeviceMode) {
         setZoomExternalUrl(d.meetingUrl)
         setZoomError(null)
         setZoomConfig(d.zoomSdk)
@@ -371,14 +645,25 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
             <div className="text-[11px] font-semibold text-muted-foreground">أكاديمية AACT — قاعة الاجتماعات</div>
           </div>
         </div>
+        {data?.meeting?.aiAssistantEnabled && data?.meeting?.minutesEnabled && (
+          <div className="mb-3 rounded-xl bg-white p-3 text-xs font-semibold text-slate-700">
+            <Button onClick={toggleTranscript} variant="outline" size="sm">
+              {transcriptOn ? 'إيقاف تفريغ صوتي للمحضر' : 'تفعيل تفريغ صوتي للمحضر'}
+            </Button>
+            <p className="mt-2">التفريغ يلتقط صوت ميكروفونك فقط بعد إذنك؛ بقية المشاركين يفعّلونه من أجهزتهم. راجعوا النص قبل اعتماد المحضر.</p>
+            {transcriptError && <p role="alert" className="mt-2 text-red-600">{transcriptError}</p>}
+          </div>
+        )}
         <MeetingRoom
           token={segment}
-          displayName={storeUserName || undefined}
+          displayName={data?.canOperateAi && aiDeviceMode ? 'المشرف الذكي — AACT' : storeUserName || undefined}
           onLeave={() => {
+            stopTranscript()
             setInRoom(false)
             load()
           }}
         />
+        {data?.canOperateAi && aiDeviceMode && <MeetingAiVoiceControl basePath={basePath} provider="PLATFORM" />}
       </div>
     )
   }
@@ -481,10 +766,10 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
                   <div className="rounded-2xl bg-violet-50 p-4 ring-1 ring-violet-200">
                     <div className="mb-2 flex items-center gap-2 text-xs font-black text-violet-900">
                       <Sparkles className="h-4 w-4 text-violet-500" />
-                      مساعد الاجتماع الذكي
+                      المشرف الذكي — عضو الاجتماع
                     </div>
                     <p className="mb-3 text-[11px] font-semibold leading-relaxed text-violet-700">
-                      يجيب أثناء الاجتماع فقط، ومن جدول الأعمال وملاحظات المشاركين المكتوبة هنا حصرًا — لا يسمع صوت الاجتماعات الخارجية ولا يتخذ قرارات.
+                      يشارك بملاحظات واقتراحات مهنية عند سؤاله، اعتمادًا على جدول الأعمال والملاحظات المكتوبة. الربط بالصوت المباشر والتدخل التلقائي لم يُفعّلا بعد، ولا يتخذ قرارات نيابة عن المجتمعين.
                     </p>
                     {assistantGreeting && (
                       <p className="mb-2 rounded-xl bg-white/70 px-3 py-2 text-xs font-bold leading-relaxed text-violet-900">{assistantGreeting}</p>
@@ -540,6 +825,22 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
                   </div>
                 </div>
               </>
+            )}
+
+            {data?.canOperateAi && (
+              <div className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-3">
+                <label className="flex cursor-pointer items-center gap-2 text-xs font-black text-violet-950">
+                  <input type="checkbox" checked={aiDeviceMode} onChange={(e) => setAiDeviceMode(e.target.checked)} />
+                  هذا جهاز المشرف الذكي المستقل — الانضمام كمشارك AI
+                </label>
+                <p className="mt-1 text-[11px] leading-relaxed text-violet-800">
+                  اختر هذا على الجهاز المخصص فقط؛ الحساب الإداري مخوّل بالاستعلام عن سجلات الأكاديمية.
+                  في Zoom يُفتح عميل Zoom المستقل، وليس Meeting SDK، ويحتاج ضبط مساري الصوت الافتراضيين.
+                </p>
+              </div>
+            )}
+            {data?.canOperateAi && aiDeviceMode && meeting.provider === 'ZOOM' && joinOpenNow && (
+              <MeetingAiVoiceControl basePath={basePath} provider="ZOOM" />
             )}
 
             {actionError && (
@@ -672,6 +973,15 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
                           <button type="button" onClick={() => setShowZoomAudioHint(false)} aria-label="إغلاق تنبيه الصوت" className="shrink-0 rounded px-2 py-1 hover:bg-amber-100">إغلاق</button>
                         </div>
                       )}
+                      {meeting.aiAssistantEnabled && meeting.minutesEnabled && (
+                        <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs font-semibold text-slate-700">
+                          <Button onClick={toggleTranscript} variant="outline" size="sm">
+                            {transcriptOn ? 'إيقاف تفريغ صوتي للمحضر' : 'تفعيل تفريغ صوتي للمحضر'}
+                          </Button>
+                          <p className="mt-2">يلتقط التفريغ كلامك من هذا الجهاز فقط، ولا يستمع تلقائياً إلى أصوات بقية أعضاء Zoom. يجب مراجعة التفريغ قبل اعتماد المحضر.</p>
+                          {transcriptError && <p role="alert" className="mt-2 text-red-600">{transcriptError}</p>}
+                        </div>
+                      )}
                       <div ref={zoomRootRef} className="min-h-[480px] w-full overflow-hidden rounded-xl bg-slate-950" dir="ltr" />
                       {zoomError && (
                         <p role="alert" className="text-center text-sm font-bold text-red-600">{zoomError}</p>
@@ -685,7 +995,7 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
                   )}
                   {joinedExternal && (
                     <p className="text-center text-xs font-bold text-emerald-600">
-                      فُتح رابط الاجتماع في نافذة جديدة وسُجّل انضمامك.
+                      {aiDeviceMode ? 'فُتح رابط Zoom؛ تأكد من دخول المشرف الذكي عبر عميل Zoom ومن ظهور اسمه بين المشاركين. فتح الرابط وحده ليس إثباتًا لدخول الصوت.' : 'فُتح رابط الاجتماع في نافذة جديدة وسُجّلت محاولة الدخول.'}
                     </p>
                   )}
                   {revealedPasscode && (

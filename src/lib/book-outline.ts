@@ -70,6 +70,16 @@ export function normalizeOutlineText(value: unknown): string {
 }
 
 const normalizeHeading = (value: unknown) => normalizeOutlineText(clean(value)).replace(/[^\p{L}\p{N}]+/gu, ' ').toLowerCase().trim()
+// Running headers in PDF scans often contain the book title + printed page
+// number. They are not chapter/article titles even when the first word (e.g.
+// «إدارة») otherwise satisfies the generic heading recognizer.
+function isBookRunningHeader(value: string, bookTitle: string): boolean {
+  const title = normalizeHeading(value)
+  const book = normalizeHeading(bookTitle)
+  if (!book || !title.startsWith(book)) return false
+  const suffix = title.slice(book.length).trim()
+  return !suffix || (/^\d{1,4}(?:\s+\d{1,4})?$/u.test(suffix) && title[book.length] === ' ')
+}
 const normalizeLineForMatch = (value: unknown) => normalizeOutlineText(value).toLowerCase()
 const pageNumber = (value: string) => Number(normalizeOutlineText(value).replace(/[^0-9]/g, ''))
 const offsetForSort = (value: number | null | undefined) => Math.max(0, value ?? 0)
@@ -211,7 +221,7 @@ function rejectedChapterNameCandidate(line: string, bookTitle: string): boolean 
   if (value.length < 3 || value.length > 80) return true
   if (/^\d+$/.test(normalized)) return true
   if (/^(?:صفحه|صفحة|page)\s*\d+$/u.test(normalized)) return true
-  if (normalizeHeading(bookTitle) && normalized === normalizeHeading(bookTitle)) return true
+  if (isBookRunningHeader(value, bookTitle)) return true
   if (tocPattern.test(value)) return true
   if (matchChapterLine(value)) return true
   if (/^(?:المبحث|المطلب|الفرع)\s/u.test(value)) return true
@@ -436,9 +446,17 @@ export function planBookOutline(chunks: readonly Chunk[], items: readonly Item[]
       if (number === null) return entry
       const label = chapterLabel(entry.title)
       const tocTitle = tocNames.get(number)
+      const generic = normalizeHeading(entry.title) === normalizeHeading(label)
+      // A persisted headingPath may contain only «الفصل التاسع» even when
+      // the actual chapter line and topic are already present in OCR text.
+      // Prefer that same chapter's source title without moving its boundary.
+      const textTitle = generic ? fromText.find((candidate) =>
+        candidate.at === entry.at && chapterNumber(candidate.title) === number &&
+        normalizeHeading(candidate.title) !== normalizeHeading(chapterLabel(candidate.title)) &&
+        !isBookRunningHeader(candidate.title, bookTitle))?.title : undefined
       return {
         ...entry,
-        title: tocTitle && normalizeHeading(entry.title) === normalizeHeading(label) ? tocTitle : entry.title,
+        title: generic ? textTitle || tocTitle || entry.title : entry.title,
       }
     })
   const sections = normalizeBoundaries(chunks, boundaries, items, chunkIds, semester)
@@ -447,6 +465,54 @@ export function planBookOutline(chunks: readonly Chunk[], items: readonly Item[]
   if (expected.length && detected.size !== expected.length) warnings.push(`عدد الفصول المكتشفة ${detected.size} من ${expected.length} في فهرس الكتاب`)
   for (let n = 1; n <= maximum; n++) if (!detected.has(n)) warnings.push(`الفصل رقم ${n} غير مكتشف`)
   return { source, sections, warnings }
+}
+
+// A chapter name like «الفصل التاسع» identifies a position, not a subject.
+// We can improve the draft with a model, but only using a verified knowledge
+// title belonging to this *same* chapter's saved chunk range.
+function isBareChapterTitle(title: string): boolean {
+  return chapterNumber(title) !== null && normalizeHeading(title) === normalizeHeading(chapterLabel(title))
+}
+
+export function applyGroundedChapterTitleProposals(
+  sections: readonly OutlineSectionDraft[],
+  chunks: readonly Chunk[],
+  items: readonly Item[],
+  chunkIds: ReadonlyMap<number, string>,
+  raw: string,
+  bookTitle: string,
+): { sections: OutlineSectionDraft[]; warnings: string[]; accepted: number } {
+  const parsed = JSON.parse(raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim())
+  const proposals = Array.isArray(parsed?.proposals) ? parsed.proposals : []
+  const result = sections.map((section) => ({ ...section }))
+  const warnings: string[] = []
+  const used = new Set<number>()
+  let accepted = 0
+  for (const proposal of proposals) {
+    const order = proposal?.order
+    if (!Number.isInteger(order) || used.has(order)) continue
+    used.add(order)
+    const section = result.find((s) => s.order === order)
+    if (!section || !isBareChapterTitle(section.title)) continue
+    const title = clean(proposal?.title, 110)
+    const sourceItemTitle = clean(proposal?.sourceItemTitle, 120)
+    if (title.length < 7 || title.length > 95 || !usableOutlineTitle(title, bookTitle) ||
+        isBookRunningHeader(title, bookTitle) || chapterNumber(title) !== null) continue
+    const sectionIds = new Set(chunks.filter((chunk) =>
+      chunk.index >= section.chunkStartIndex && chunk.index <= section.chunkEndIndex)
+      .map((chunk) => chunkIds.get(chunk.index)).filter((id): id is string => !!id))
+    if (!items.some((item) => item.chunkId && sectionIds.has(item.chunkId) && clean(item.title, 120) === sourceItemTitle)) continue
+    const topicWords = outlineTopicWords(title)
+    const evidenceWords = outlineTopicWords(sourceItemTitle)
+    if (!topicWords.size || ![...topicWords].some((word) => evidenceWords.has(word))) continue
+    section.title = chapterLabel(section.title) + ': ' + title
+    warnings.push('OUTLINE_INFERRED_TITLE:' + JSON.stringify({
+      sectionOrder: section.order, title, sourceItemTitle,
+      pageStart: section.pageStart, pageEnd: section.pageEnd,
+    }))
+    accepted++
+  }
+  return { sections: result, warnings, accepted }
 }
 
 // ---------------------------------------------------------------------------
@@ -813,7 +879,7 @@ export function detectOriginalSourceHeadings(pages: readonly ExtractedBookPage[]
       const rawLine = page.lines[i].trim()
       const key = normalizeHeading(rawLine)
       if (rawLine.length > 115 || !key) continue
-      if ((pagesPerLine.get(key)?.size || 0) >= 3 || key === normalizeHeading(bookTitle)) continue
+      if ((pagesPerLine.get(key)?.size || 0) >= 3 || isBookRunningHeader(rawLine, bookTitle)) continue
       if (subordinateHeading.test(normalizeOutlineText(rawLine)) || numberedOrQuestion.test(rawLine)) continue
       if (/[؟?،,؛;.!]$/.test(rawLine) || /^\s*(?:https?:\/\/|www\.)/i.test(rawLine)) continue
       // Real PDF evidence (e.g. uploaded 297-page management compilation):
@@ -1037,7 +1103,9 @@ export function validateThematicArticleGrouping(raw: string, source: readonly Ou
   return { sections: output, subheadings }
 }
 
+// The API route has a 300-second execution cap; reserve time to audit and persist the draft.
 export async function buildBookOutline(bookId: string, options: { reuseReadChunks?: boolean; deterministicOnly?: boolean } = {}) {
+  const buildStartedAt = Date.now()
   const book = await db.book.findUnique({ where: { id: bookId }, select: { id: true, semester: true, title: true } })
   if (!book) throw new Error('BOOK_NOT_FOUND')
   const [chunks, items] = await Promise.all([
@@ -1137,6 +1205,60 @@ export async function buildBookOutline(bookId: string, options: { reuseReadChunk
     // explicitly shared topics, and the originals remain attached to the
     // initial group ordering for administrative inspection.
     draft.warnings.push('OUTLINE_SUBHEADING:' + JSON.stringify(marker))
+  }
+  // Resolve generic labels AFTER page segmentation and balancing, so a
+  // suggested name never shifts page boundaries or overwrites knowledge.
+  if (!options.deterministicOnly) {
+    const unnamed = draft.sections.filter((section) => isBareChapterTitle(section.title))
+    const maxBatches = 3
+    const batchSize = 8
+    // Optional inference gets at most 75 seconds, and never extends the
+    // full request beyond 250 seconds. Keep 50 seconds for persistence.
+    const titleStageDeadline = Math.min(buildStartedAt + 250_000, Date.now() + 75_000)
+    for (let start = 0; start < unnamed.length && start < maxBatches * batchSize; start += batchSize) {
+      if (Date.now() + 15_000 >= titleStageDeadline) break
+      const batch = unnamed.slice(start, start + batchSize)
+      const evidence = batch.map((section) => {
+        const segment = chunks.filter((chunk) =>
+          chunk.index >= section.chunkStartIndex && chunk.index <= section.chunkEndIndex)
+        const sampleIndexes = [0, Math.floor((segment.length - 1) / 2), segment.length - 1]
+        const samples = [...new Set(sampleIndexes)].map((index) => segment[index]).filter((chunk) => chunk !== undefined)
+          .map((chunk) => ({
+            pages: [chunk.pageStart, chunk.pageEnd],
+            text: chunk.text.slice(0, 650) + (chunk.text.length > 950 ? ' … ' + chunk.text.slice(-300) : ''),
+          }))
+        const ids = new Set(segment.map((chunk) => chunkIds.get(chunk.index)))
+        const knowledge = items.filter((item) => item.chunkId && ids.has(item.chunkId))
+          .slice(0, 14).map((item) => ({ title: item.title, summary: item.summary.slice(0, 140) }))
+        return { order: section.order, chapter: section.title,
+          pages: [section.pageStart, section.pageEnd], samples, knowledge }
+      })
+      // No knowledge = no defensible claim that the title was learned from
+      // the book. Keep the generic chapter name for human review.
+      const grounded = evidence.filter((entry) => entry.knowledge.length > 0 && entry.samples.length > 0)
+      if (!grounded.length) continue
+      try {
+        const raw = await geminiCompleteJson({
+          system: 'أنت محرر فهرس كتاب أكاديمي. لكل فصل يحمل عنوانًا رقميًا عامًا، اقرأ مقتطفات النص عبر بداية ووسط ونهاية نطاقه وعناصر المعرفة المستخرجة من نطاقه نفسه. اقترح عنوانًا عربيًا دقيقًا يلخص الموضوع الفعلي، دون تخمين أو نقل عنوان من فصل آخر. لا تستخدم اسم الكتاب أو رقم الصفحة كعنوان. لكل اقتراح أرجع sourceItemTitle مطابقًا حرفيًا لأحد عناوين المعرفة المرسلة للفصل نفسه. إذا الأدلة ضعيفة احذف الاقتراح. لا تغير حدود الفصول أو أرقامها. JSON فقط.',
+          history: [{ role: 'user', text: 'أرجع {"proposals":[{"order":9,"title":"عنوان الموضوع","sourceItemTitle":"عنوان عنصر معرفة موجود حرفيًا"}]}. اجعل العنوان دقيقًا ومفهومًا، ولابد أن يتشارك كلمة موضوعية مع sourceItemTitle. الفصول: ' + JSON.stringify(grounded) }],
+          taskLevel: 'ACADEMIC_DRAFT', temperature: 0.1, maxOutputTokens: 2400,
+          deadlineMs: Math.min(Date.now() + 35_000, titleStageDeadline),
+        })
+        const renamed = applyGroundedChapterTitleProposals(draft.sections, chunks, items, chunkIds, raw, book.title)
+        draft = { ...draft, sections: renamed.sections, warnings: [...draft.warnings, ...renamed.warnings] }
+      } catch (error) {
+        console.warn('[book-outline] grounded title proposals rejected', {
+          bookId, reason: error instanceof Error ? error.message : 'UNKNOWN',
+        })
+        draft.warnings.push('تعذّر اقتراح عنوان موضوعي موثّق لبعض الفصول؛ احتُفظ بالعناوين الأصلية للمراجعة.')
+      }
+    }
+    const unresolved = draft.sections.filter((section) => isBareChapterTitle(section.title))
+    if (unresolved.length) draft.warnings.push(
+      'بقي ' + unresolved.length + ' فصلًا بعنوان رقمي فقط؛ لم تتوفر له عناوين موثّقة كافية أو تعذّر إكمال الاستدلال. يُراجع قبل اعتماد المسودة.')
+    if (draft.warnings.some((warning) => warning.startsWith('OUTLINE_INFERRED_TITLE:'))) {
+      draft.warnings.push('العناوين الموسومة «عنوان مقترح من المحتوى» استنتجها الذكاء من نص الفصل ومعرفته المحفوظة وليست عناوين حرفية مثبتة في أصل الكتاب؛ راجعها قبل الاعتماد.')
+    }
   }
   const coverage = auditOutlineCoverage(draft.sections)
   for (const section of coverage.review) draft.warnings.push(section.pages === null ? `تنبيه تغطية: حدود صفحات القسم «${section.title}» غير مكتملة؛ راجعها قبل الاعتماد.` : `تنبيه تغطية: القسم «${section.title}» يغطي ${section.pages} صفحة (صفحات ${section.pageStart}–${section.pageEnd}) — فوق حد المراجعة ${OUTLINE_SECTION_REVIEW_PAGES} صفحة؛ أعد فحص عناوين هذا النطاق قبل الاعتماد.`)
