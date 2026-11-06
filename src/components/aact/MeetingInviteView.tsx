@@ -460,10 +460,20 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
             <div className="text-[11px] font-semibold text-muted-foreground">أكاديمية AACT — قاعة الاجتماعات</div>
           </div>
         </div>
+        {data?.meeting?.aiAssistantEnabled && data?.meeting?.minutesEnabled && (
+          <div className="mb-3 rounded-xl bg-white p-3 text-xs font-semibold text-slate-700">
+            <Button onClick={toggleTranscript} variant="outline" size="sm">
+              {transcriptOn ? 'إيقاف تفريغ صوتي للمحضر' : 'تفعيل تفريغ صوتي للمحضر'}
+            </Button>
+            <p className="mt-2">التفريغ يلتقط صوت ميكروفونك فقط بعد إذنك؛ بقية المشاركين يفعّلونه من أجهزتهم. راجعوا النص قبل اعتماد المحضر.</p>
+            {transcriptError && <p role="alert" className="mt-2 text-red-600">{transcriptError}</p>}
+          </div>
+        )}
         <MeetingRoom
           token={segment}
           displayName={storeUserName || undefined}
           onLeave={() => {
+            stopTranscript()
             setInRoom(false)
             load()
           }}
