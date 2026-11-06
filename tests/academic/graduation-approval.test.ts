@@ -142,6 +142,59 @@ beforeEach(() => {
 })
 
 describe('graduation approval law', () => {
+  test('paid programme without any tuition invoice is not ready and cannot issue even after an approval', async () => {
+    world.state.payments = []
+    const request = await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
+    expect(request.registered).toBe(true)
+    expect(world.state.request.ready).toBe(false)
+    expect(world.state.request.snapshot.financeError).toContain('فاتورة')
+    world.state.request.status = 'APPROVED'
+    world.state.request.decidedById = 'admin-1'
+    world.state.request.decidedAt = new Date()
+    const result = await completeEnrollmentIfEligibleInTransaction(world.tx, {
+      enrollmentId: 'enrollment-1', admissionId: 'admission-1',
+    })
+    expect(result.ok).toBe(false)
+    expect(result.code).toBe('PAYMENT_REQUIRED')
+    expect(world.state.createdCertificate).toBeNull()
+  })
+
+  test('documented full scholarship still allows readiness without tuition invoices', async () => {
+    world.state.payments = []
+    world.state.scholarshipFull = true
+    await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
+    expect(world.state.request.ready).toBe(true)
+    world.state.request.status = 'APPROVED'
+    world.state.request.decidedById = 'admin-1'
+    world.state.request.decidedAt = new Date()
+    const result = await completeEnrollmentIfEligibleInTransaction(world.tx, {
+      enrollmentId: 'enrollment-1', admissionId: 'admission-1',
+    })
+    expect(result.ok).toBe(true)
+    expect(result.certificateIssued).toBe(true)
+  })
+
+  test('a genuinely free programme remains eligible without an invoice', async () => {
+    world.state.programPrice = 0
+    world.state.payments = []
+    await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
+    expect(world.state.request.ready).toBe(true)
+  })
+
+  test('previously issued linked certificate can be retrieved even when old tuition invoices are missing', async () => {
+    world.state.payments = []
+    world.state.enrollment.status = 'COMPLETED'
+    world.state.enrollment.certificateNo = 'CERT-HISTORICAL'
+    world.state.certificate = { id: 'cert-old', serial: 'CERT-HISTORICAL', enrollmentId: 'enrollment-1', type: 'PROGRAM_COMPLETION' }
+    const result = await completeEnrollmentIfEligibleInTransaction(world.tx, {
+      enrollmentId: 'enrollment-1', admissionId: 'admission-1',
+    })
+    expect(result.ok).toBe(true)
+    expect(result.certificateIssued).toBe(false)
+    expect(result.certificate?.serial).toBe('CERT-HISTORICAL')
+    expect(world.state.createdCertificate).toBeNull()
+  })
+
   test('registration creates one living PENDING transaction with a readiness snapshot', async () => {
     const first = await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
     expect(first.registered).toBe(true)
