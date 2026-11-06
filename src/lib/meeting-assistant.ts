@@ -149,7 +149,7 @@ export async function collectMeetingAcademyEvidence(db: any, question: string, u
       '؛ سجلات الشهادات: ' + certificates + '.')
   }
   if (programIntent || overview) {
-    const programs = await db.program.findMany({
+    const programs: any[] = await db.program.findMany({
       select: {
         id: true, titleAr: true, slug: true, active: true, category: true,
         semestersCount: true, academicReadinessStatus: true, academicApproved: true,
