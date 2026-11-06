@@ -89,10 +89,13 @@ mock.module('@/lib/auth', () => ({
   requireAdmin: async () => ({ id: 'admin-1', role: 'ADMIN' }),
   getCurrentUser: async () => ({ id: 'admin-1', role: 'ADMIN', name: 'المسؤول' }),
 }))
+const sentGraduationNotifications: Array<{ title: string; link?: string }> = []
 mock.module('@/lib/notify', () => ({
   AUDIT_ACTIONS: {},
   notify: async () => {},
-  notifyAdmins: async () => {},
+  notifyAdmins: async (_type: string, title: string, _body: string, link?: string) => {
+    sentGraduationNotifications.push({ title, link })
+  },
   audit: async () => {},
 }))
 // Keep the actual module's export surface for dependent payment/admission
