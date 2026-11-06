@@ -8,7 +8,7 @@ import {
 } from '@/lib/admin-meetings'
 import { checkDatabaseRateLimit } from '@/lib/rate-limit'
 import { createHmac } from 'node:crypto'
-import { addMeetingNote, askMeetingAssistant } from '@/lib/meeting-assistant'
+import { addMeetingNote, addMeetingTranscript, askMeetingAssistant } from '@/lib/meeting-assistant'
 
 // منطق دخول الاجتماع المشترك بين مسارَي الدخول: رابط الدعوة
 // (/api/meetings/[token]) والدخول بالحساب بعد الاستلام
