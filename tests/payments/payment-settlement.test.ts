@@ -375,6 +375,8 @@ beforeEach(() => {
   certificates.splice(0, certificates.length)
   examAttempts.splice(0, examAttempts.length)
   certPhantomSerial = null
+  tuitionInvoiceCollisionOnce = false
+  transactionCalls = 0
 })
 
 describe('payment waiver verification attempts', () => {
