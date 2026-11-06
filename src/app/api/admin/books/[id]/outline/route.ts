@@ -46,7 +46,9 @@ export async function GET(_req: NextRequest, context: Context) {
         if (section.pages === null) warnings.push(`تنبيه تغطية: حدود صفحات القسم «${section.title}» غير مكتملة؛ لا يمكن اعتماده حتى تصحيحها.`)
         else if (section.band === 'REVIEW') warnings.push(`تنبيه تغطية: القسم «${section.title}» يمتد ${section.pages} صفحة ويحتاج مراجعة.`)
       }
-      for (const gap of coverage.gaps) warnings.push(`تنبيه تغطية: صفحات ${gap.pageStart}–${gap.pageEnd} غير ممثلة في الفهرس الحالي؛ أعد بناء الفهرس أو ضم الأقسام بأدلة مصدرية.`)
+      if (verifiedBlankPages.length) warnings.push(
+        'صفحات بيضاء تم التحقق منها بصريًا في PDF الأصلي، ولا تُعد فجوات معرفية: ' + verifiedBlankPages.join('، ') + '.')
+      for (const gap of coverage.gaps) warnings.push(`تنبيه تغطية: صفحات ${gap.pageStart}–${gap.pageEnd} غير ممثلة في الفهرس الحالي؛ أعد فحص مصدر هذه الصفحات ولا تتجاوز الحارس دون دليل.`)
       for (const section of coverage.blocked) warnings.push(`تنبيه تغطية: القسم «${section.title}» يتجاوز 80 صفحة؛ يحتاج تقسيمًا موثقًا.`)
       currentOutline = { ...outline, warnings: JSON.stringify(warnings) }
     }
