@@ -96,6 +96,7 @@ const {
 const { meetingState, meetingAction } = await import('@/lib/meeting-entry')
 const { generateMinutesDraft } = await import('@/lib/meeting-minutes')
 const adminMeetingDetailRoute = await import('@/app/api/admin/meetings/[id]/route')
+const meetingRoomRoute = await import('@/app/api/meetings/[token]/room/route')
 
 const T0 = new Date('2026-11-10T12:00:00.000Z')
 const at = (min: number) => new Date(T0.getTime() + min * 60_000)
