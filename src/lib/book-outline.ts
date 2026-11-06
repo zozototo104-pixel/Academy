@@ -645,6 +645,20 @@ export function auditOutlineCoverage(
   if (sourceRange && (coveredUntil === null || coveredUntil < sourceRange.pageEnd)) {
     gaps.push({ pageStart: (coveredUntil ?? sourceRange.pageStart - 1) + 1, pageEnd: sourceRange.pageEnd })
   }
+  // Only server-verified WHITE PDF pages may be excluded. A missing chunk,
+  // missing text layer, or an administrator claim is never proof of blankness.
+  const blank = new Set(verifiedBlankPages.filter((page) => Number.isSafeInteger(page) && page > 0))
+  const unresolvedGaps = gaps.flatMap((gap) => {
+    const verifiedInGap = [...blank].filter((page) => page >= gap.pageStart && page <= gap.pageEnd).sort((a, b) => a - b)
+    const parts: typeof gaps = []
+    let start = gap.pageStart
+    for (const page of verifiedInGap) {
+      if (page > start) parts.push({ pageStart: start, pageEnd: page - 1 })
+      start = page + 1
+    }
+    if (start <= gap.pageEnd) parts.push({ pageStart: start, pageEnd: gap.pageEnd })
+    return parts
+  })
   return {
     totalPages: sourceRange ? sourceRange.pageEnd - sourceRange.pageStart + 1 : starts.length && ends.length ? Math.max(...ends) - Math.min(...starts) + 1 : null,
     maxSectionPages: audited.reduce<number | null>((max, section) => (section.pages === null ? max : Math.max(max ?? 0, section.pages)), null),
