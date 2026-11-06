@@ -185,7 +185,7 @@ async function refundReserved(tx: any, session: any, minutes: number) {
     // The pool is an approximation for legacy sessions without per-credit
     // allocation records. Never turn a missing expiring source into unlimited
     // credit: if no eligible source survives, the refund remains expired.
-    const inheritedExpiry = pool[0]?.expiresAt ?? poolAnchor
+    const inheritedExpiry = pool.length ? pool[0].expiresAt : poolAnchor
     await tx.aiLiveCredit.create({
       data: {
         userId: session.userId,
