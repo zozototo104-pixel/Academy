@@ -565,7 +565,7 @@ describe('academic B1 safety', () => {
 
   test('certificate English labels and admission English name are used on issuance', async () => {
     expect(certificateGradeLabelEn(95)).toBe('95% — Excellent')
-    const issued = await completionResult({ payments: [], fullNameEn: 'John Smith' })
+    const issued = await completionResult({ payments: [{ purpose: 'TUITION', status: 'PAID', amount: 1000, originalAmount: 1000 }], fullNameEn: 'John Smith' })
     expect(issued.result.ok).toBe(true)
     expect(issued.certificate.holderNameEn).toBe('John Smith')
     expect(issued.certificate.gradeEn).toBe('95% — Excellent')
