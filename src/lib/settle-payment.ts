@@ -6,6 +6,7 @@ import { getAdmissionTuitionPlan } from '@/lib/tuition-installments'
 import { grantGeminiLiveCredit } from '@/lib/live-usage-guard'
 import { paymentAmountDollars } from '@/lib/money'
 import { captureEnrollmentSnapshot } from '@/lib/rules-snapshot'
+import { ensureSemesterStates } from '@/lib/semester-lifecycle'
 import { randomBytes } from 'crypto'
 
 const ACC_TYPE_LABEL_SETTLE: Record<string, string> = {
