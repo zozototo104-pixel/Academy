@@ -390,6 +390,9 @@ export class GeminiLiveAgent {
       error.code = session.code
       throw error
     }
+    // Each provider setup attempt may reserve a distinct server-side record.
+    // The meeting station settles all attempts, even failed connections.
+    if (session.sessionId) this.cb.onSessionCreated?.(session.sessionId)
     return session
   }
 
