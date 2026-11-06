@@ -49,17 +49,15 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ se
         if (!enrollment) {
           return NextResponse.json({ error: 'تعذر التحقق من تسجيل الطالب لهذه المحاضرة', code: 'ENROLLMENT_REQUIRED' }, { status: 403 })
         }
-        {
-          const { progressionGate } = await import('@/lib/progression')
-          const gate = await progressionGate(
-            db as any,
-            { id: enrollment.id, userId: user.id, programId: session.series.programId },
-            unitSemester,
-            (unit as any)?.program?.category,
-          ).catch(() => ({ open: false, reasons: ['تعذر التحقق من اعتماد الفصل السابق'] }))
-          if (!gate.open) {
-            return NextResponse.json({ error: 'هذه المحاضرة من فصل غير مفتوح بعد — يُفتح بعد اعتماد نجاح الفصل السابق', code: 'PROGRESSION_LOCKED' }, { status: 403 })
-          }
+        const { progressionGate } = await import('@/lib/progression')
+        const gate = await progressionGate(
+          db as any,
+          { id: enrollment.id, userId: user.id, programId: session.series.programId },
+          unitSemester,
+          (unit as any)?.program?.category,
+        ).catch(() => ({ open: false, reasons: ['تعذر التحقق من اعتماد الفصل السابق'] }))
+        if (!gate.open) {
+          return NextResponse.json({ error: 'هذه المحاضرة من فصل غير مفتوح بعد — يُفتح بعد اعتماد نجاح الفصل السابق', code: 'PROGRESSION_LOCKED' }, { status: 403 })
         }
       }
     }
