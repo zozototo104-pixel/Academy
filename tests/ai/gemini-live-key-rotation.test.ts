@@ -31,7 +31,7 @@ mock.module('@/lib/student-ai-access', () => ({
     return { ok: true }
   },
 }))
-mock.module('@/lib/rate-limit', () => ({ enforceApiRateLimit: () => null }))
+mock.module('@/lib/rate-limit', () => ({ enforceApiRateLimit: () => null, checkDatabaseRateLimit: async () => ({ ok: true }) }))
 mock.module('@/lib/settings', () => ({ getSetting: async () => 'ar-PS' }))
 mock.module('@/lib/supervisor-ai', () => ({
   buildSupervisorContext: async () => '',
