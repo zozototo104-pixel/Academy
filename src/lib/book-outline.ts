@@ -1154,8 +1154,11 @@ async function originalBookPages(bookId: string): Promise<ExtractedBookPage[]> {
   // A synchronous Vercel request cannot safely run large-book OCR. Do not
   // persist an incomplete outline while claiming the scanned pages were read.
   if (ocrCount > 8) throw new Error('BOOK_OUTLINE_OCR_TOO_MANY_PAGES: الكتاب يحتوي ' + ocrCount + ' صفحة ممسوحة ضوئياً تحتاج OCR. لا يمكن إتمامها بأمان في طلب واحد؛ استخدم مهمة قراءة الكتاب المرحلية قبل إعادة الفهرسة. لم يُحفظ أي فهرس ناقص.')
+  // One shared time budget for bulk OCR and individual retries; a broken
+  // page must not consume the whole Vercel request by resetting the deadline.
+  const ocrDeadline = Date.now() + 120_000
   return recoverOutlineOcrPages(pages, ocrBatches,
-    (numbers) => transcribeScannedDocumentWithVision(stored.buffer, numbers, Date.now() + 100_000))
+    (numbers) => transcribeScannedDocumentWithVision(stored.buffer, numbers, ocrDeadline))
 }
 
 export function sourceBoundariesFromReadChunks(chunks: readonly Chunk[], bookTitle: string): Boundary[] {
