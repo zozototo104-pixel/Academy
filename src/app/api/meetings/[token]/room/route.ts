@@ -167,8 +167,8 @@ function parsePresence(payload: string): PresenceInfo {
   }
 }
 
-async function latestPresence(meetingId: string, peerId: string) {
-  const row = await db.adminMeetingSignal.findFirst({
+async function latestPresence(meetingId: string, peerId: string, client: Prisma.TransactionClient | typeof db = db) {
+  const row = await client.adminMeetingSignal.findFirst({
     where: {
       meetingId,
       type: PRESENCE_TYPE,
