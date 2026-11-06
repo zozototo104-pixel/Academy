@@ -114,6 +114,7 @@ const {
 } = await import('@/lib/admin-meetings')
 const { meetingState, meetingAction } = await import('@/lib/meeting-entry')
 const { generateMinutesDraft } = await import('@/lib/meeting-minutes')
+const { collectMeetingAcademyEvidence } = await import('@/lib/meeting-assistant')
 const adminMeetingDetailRoute = await import('@/app/api/admin/meetings/[id]/route')
 const meetingRoomRoute = await import('@/app/api/meetings/[token]/room/route')
 
