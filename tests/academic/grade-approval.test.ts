@@ -32,7 +32,7 @@ function resetWorld() {
   world.users.set('student-1', { id: 'student-1', role: 'STUDENT' })
   // sup-1 is the assigned supervisor of student-1 (assignment source:
   // AdmissionApplication.supervisorId, as in supervisor-scope.ts).
-  world.applications = [{ id: 'app-1', supervisorId: 'sup-1', userId: 'student-1' }]
+  world.applications = [{ id: 'app-1', supervisorId: 'sup-1', userId: 'student-1', programId: 'program-1' }]
   world.unitAttempts.set('unit-attempt-1', {
     id: 'unit-attempt-1',
     userId: 'student-1',
