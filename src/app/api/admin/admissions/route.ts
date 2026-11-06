@@ -439,6 +439,15 @@ export async function PATCH(req: NextRequest) {
     // إصدار الشهادة الرقمية (رقم تسلسلي + QR) عند الوصول لحالة CERTIFIED.
     // لا نحدّث حالة الطلب إلى CERTIFIED قبل إثبات الاستحقاق الأكاديمي والمالي حتى لا تظهر شهادة لطالب غير مستحق.
     if (status === 'CERTIFIED') {
+      // Retrieving an already-issued certificate (including older unlinked
+      // records) must not re-grade the graduate or demand today's payments.
+      if (app.status === 'CERTIFIED') {
+        const issued = await db.certificate.findFirst({
+          where: { admissionId: id, type: 'PROGRAM_COMPLETION' },
+        })
+        if (issued) return NextResponse.json({ ok: true, application: app })
+      }
+
       const allPayments = await db.payment.findMany({ where: { admissionId: id } })
       if (app.scholarshipFull !== true) {
         const nonTuitionUnpaid = allPayments.filter((p) => !TUITION_PURPOSES.includes(p.purpose) && !['PAID', 'WAIVED'].includes(p.status))
