@@ -192,6 +192,7 @@ function MeetingAiVoiceControl({ basePath, provider }: { basePath: string; provi
         if (msg.includes('انقطع اتصال Gemini Live')) {
           agentRef.current?.stop()
           agentRef.current = null
+          settleUsageSessions()
           setRunning(false)
           setVoiceState('IDLE')
         }
