@@ -40,7 +40,7 @@ function makeWorld() {
       update: async ({ data }: any) => { state.enrollmentUpdates.push(data); Object.assign(state.enrollment, data); return state.enrollment },
     },
     program: {
-      findUnique: async () => ({ id: 'program-1', titleAr: 'برنامج عربي للاختبار', titleEn: 'Arabic Test Program', price: 1000, category: 'DIPLOMA' }),
+      findUnique: async () => ({ id: 'program-1', titleAr: 'برنامج عربي للاختبار', titleEn: 'Arabic Test Program', price: state.programPrice, category: 'DIPLOMA' }),
     },
     payment: { findMany: async () => [] },
     certificate: {
