@@ -42,8 +42,19 @@ function makeWorld() {
     },
     graduationRequest: {
       findUnique: async () => state.request,
-      create: async ({ data }: any) => { state.request = { id: 'grad-1', ...data }; return state.request },
-      update: async ({ data }: any) => { Object.assign(state.request, data); return state.request },
+      create: async ({ data }: any) => { state.request = { id: 'grad-1', ...data, updatedAt: decisionUpdatedAt() }; return state.request },
+      update: async ({ data }: any) => { Object.assign(state.request, data, { updatedAt: decisionUpdatedAt() }); return state.request },
+      updateMany: async ({ where, data }: any) => {
+        const row = state.request
+        if (!row || row.id !== where.id || row.status !== where.status ||
+            (where.ready !== undefined && row.ready !== where.ready) ||
+            (where.score !== undefined && row.score !== where.score) ||
+            (where.updatedAt && row.updatedAt?.getTime() !== where.updatedAt.getTime())) {
+          return { count: 0 }
+        }
+        Object.assign(row, data, { updatedAt: decisionUpdatedAt() })
+        return { count: 1 }
+      },
     },
     exam: { findMany: async () => [{ id: 'unit-empty', title: 'اختبار فارغ', passScore: 51, unit: { title: 'وحدة' }, _count: { questions: 0 } }] },
     examAttempt: { findMany: async () => [] },
