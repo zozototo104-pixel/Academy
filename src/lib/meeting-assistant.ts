@@ -11,7 +11,7 @@ const shortValue = (value: unknown, max = 140) =>
 function selectedStudent(question: string): string | null {
   const match = question.match(/(?:الطالب(?:ة)?|للطالب(?:ة)?)\s+([\p{L}][\p{L}\s'-]{2,65})/u)
   if (!match) return null
-  const name = match[1].split(/\s+(?:في|عن|من|ضمن|كم|شو|كيف|هل|ما|نتيجته|نتيجتها|معدله|معدلها|درجاته|درجاتها|وحداته|وحداتها|بالبرنامج|ببرنامج|عنده|لديه|خلص|نجح|بالفصل)(?:\s|$)/u)[0]
+  const name = match[1].split(/\s+(?:و)?(?:في|عن|من|ضمن|كم|شو|كيف|هل|ما|نتيجته|نتيجتها|نتائجه|نتائجها|معدله|معدلها|درجاته|درجاتها|وحداته|وحداتها|بالبرنامج|ببرنامج|عنده|لديه|خلص|نجح|بالفصل)(?:\s|$)/u)[0]
   return shortValue(name, 55) || null
 }
 
