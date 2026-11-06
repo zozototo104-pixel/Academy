@@ -679,6 +679,7 @@ export function AdminBooksTab() {
   const [programOutlineDraft, setProgramOutlineDraft] = useState<{ id: string; bookId: string; bookTitle: string; title: string; semester: number | null; semesterNeedsReview: boolean; order: number; pageStart: number | null; pageEnd: number | null; itemsCount: number; startCharOffset?: number | null }[]>([])
   const [outlineBusyId, setOutlineBusyId] = useState<string | null>(null)
   const [outlineUnitBusyId, setOutlineUnitBusyId] = useState<string | null>(null)
+  const outlineCoverageAcksRef = useRef<Record<string, string>>({})
   const [outlineApprovalDialog, setOutlineApprovalDialog] = useState<null | {
     bookId: string
     stage: 'warning' | 'reason'
