@@ -2085,7 +2085,7 @@ export function AdminCertificatesTab() {
               <h4 className="text-sm font-black text-[#0f2b46]">معاملات التخرج — المصادقة الإدارية</h4>
               <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">كل طالب أنهى حدثًا أكاديميًا تُنشأ له معاملة هنا مع نتيجة فحص الأهلية وأسباب النقص. الاعتماد محفوظ في قاعدة البيانات، والإصدار بعده يعيد فحص الشروط طازجة — فلا زرّ وحده ولا استدعاء مباشر يصدر شهادة دون اعتماد صالح.</p>
             </div>
-            <Badge className="bg-[#c9a227]/15 text-[#a8841a]">{gradRequests.filter((r) => r.status === 'PENDING').length} بانتظار المصادقة</Badge>
+            <Badge className="bg-[#c9a227]/15 text-[#a8841a]">{gradRequests.filter((r) => r.status === 'PENDING' && r.ready).length} مؤهلة وبانتظار المصادقة</Badge>
           </div>
           {gradLoading ? (
             <div className="flex h-20 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-[#c9a227]" /></div>
