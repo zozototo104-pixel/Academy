@@ -2101,7 +2101,9 @@ export function AdminCertificatesTab() {
                       ? { label: 'معتمد — بانتظار الإصدار', cls: 'bg-sky-100 text-sky-700' }
                       : r.status === 'REJECTED'
                         ? { label: 'مرفوض', cls: 'bg-red-100 text-red-700' }
-                        : { label: 'بانتظار المصادقة', cls: 'bg-amber-100 text-amber-700' }
+                        : r.ready
+                          ? { label: 'مؤهل — بانتظار المصادقة', cls: 'bg-amber-100 text-amber-700' }
+                          : { label: 'قيد استكمال متطلبات التخرج', cls: 'bg-slate-100 text-slate-700' }
                     return (
                       <div key={r.id} className="space-y-3 rounded-xl border border-[#0f2b46]/10 p-3">
                         <div className="flex items-start justify-between gap-3">
