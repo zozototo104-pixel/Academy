@@ -2127,7 +2127,7 @@ export function AdminCertificatesTab() {
                         <div className="flex flex-wrap gap-2">
                           <Button disabled={busy} variant="outline" onClick={() => refreshGraduation(r)} className="border-[#0f2b46]/20 font-black text-[#0f2b46] hover:bg-slate-50">تحديث الفحص</Button>
                           {(r.status === 'PENDING' || r.status === 'REJECTED') && (
-                            <Button disabled={busy} onClick={() => decideGraduation(r, 'APPROVE')} className="bg-emerald-600 font-black text-white hover:bg-emerald-700">{busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="ml-2 h-4 w-4" />} اعتماد الطلب</Button>
+                            <Button disabled={busy || !r.ready} onClick={() => decideGraduation(r, 'APPROVE')} className="bg-emerald-600 font-black text-white hover:bg-emerald-700">{busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="ml-2 h-4 w-4" />} اعتماد الطلب</Button>
                           )}
                           {(r.status === 'PENDING' || r.status === 'APPROVED') && (
                             <Button disabled={busy} variant="outline" onClick={() => decideGraduation(r, 'REJECT')} className="border-red-200 font-black text-red-600 hover:bg-red-50">{busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <XCircle className="ml-2 h-4 w-4" />} رفض</Button>
