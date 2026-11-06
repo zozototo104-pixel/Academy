@@ -526,8 +526,8 @@ export async function addMeetingTranscript(
 // must request current, authorized facts through the meeting-scoped function.
 export async function createMeetingLiveVoiceSession(meeting: any, user: { id: string; role?: string }) {
   const { geminiActiveLiveModel, geminiTTSVoice, isValidGeminiLiveModel } = await import('@/lib/gemini')
-  const { geminiKeysForLive } = await import('@/lib/text-ai')
-  const { getGeminiLiveAllowance } = await import('@/lib/live-usage-guard')
+  const { geminiKeysForLive, reportGeminiLiveKeyFailure, reportGeminiLiveKeySuccess } = await import('@/lib/text-ai')
+  const { getGeminiLiveAllowance, reserveGeminiLiveUsage } = await import('@/lib/live-usage-guard')
   const allowance = await getGeminiLiveAllowance({ userId: user.id, role: user.role, purpose: 'SUPERVISOR' })
   if (!allowance.ok) return { status: allowance.status, body: { error: allowance.message || 'الدقائق الصوتية غير متاحة', code: 'MEETING_LIVE_LIMIT' } }
   const keys = await geminiKeysForLive()
