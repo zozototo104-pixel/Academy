@@ -25,6 +25,19 @@ function resetMessages() {
   unreadLinks.add('admin-messages:adm-1')
 }
 
+function matchesDigestLease(message: any, where: any): boolean {
+  if (where.emailSentAt === null && message.emailSentAt !== null) return false
+  if (where.emailSentAt instanceof Date && message.emailSentAt?.getTime() !== where.emailSentAt.getTime()) return false
+  if (!where.OR) return true
+  return where.OR.some((clause: any) => {
+    if (clause.emailSentAt === null) return message.emailSentAt === null
+    const range = clause.emailSentAt
+    return message.emailSentAt instanceof Date
+      && (!range?.gt || message.emailSentAt > range.gt)
+      && (!range?.lt || message.emailSentAt < range.lt)
+  })
+}
+
 const db: any = {
   supervisorChannelMessage: {
     findMany: async (args: any) => {
