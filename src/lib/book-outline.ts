@@ -1103,7 +1103,7 @@ export async function recoverOutlineOcrPages(
   batches: readonly number[][],
   readOcr: (numbers: number[]) => Promise<ExtractedBookPage[]>,
 ): Promise<ExtractedBookPage[]> {
-  const byPage = new Map(pages.map((page) => [page.page, { ...page }]))
+  const byPage = new Map<number, ExtractedBookPage>(pages.map((page) => [page.page, { ...page }]))
   for (const batch of batches) {
     let recovered: ExtractedBookPage[] = []
     try {
