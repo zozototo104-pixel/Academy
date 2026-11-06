@@ -133,17 +133,10 @@ export async function finalizeAdmissionAfterSettlement(tx: any, admissionId: str
         const existingEnrollment = await tx.enrollment.findUnique({
           where: { userId_programId: { userId: linkedUserId, programId: app.programId } },
         })
-        if (!existingEnrollment) {
-          const createdEnrollment = await tx.enrollment.create({
-            data: { userId: linkedUserId, programId: app.programId, status: 'ACTIVE' },
-          })
-          // لقطة القواعد المجمّدة تُنشأ مع الالتحاق نفسه (المرحلة 3): أي
-          // فشل هنا لا يُسقط تسوية الدفع — أول احتساب درجات يستكمل اللقطة
-          // كـBACKFILL من نفس الحسم.
-          await captureEnrollmentSnapshot(tx, createdEnrollment, 'ENROLLMENT').catch((err) => {
-            console.error('rules snapshot capture failed for enrollment', createdEnrollment.id, err)
-          })
-        }
+        const activeEnrollment = existingEnrollment || await tx.enrollment.create({
+          data: { userId: linkedUserId, programId: app.programId, status: 'ACTIVE' },
+        })
+        await initializeAcademicEnrollment(tx, activeEnrollment)
       }
     }
 
