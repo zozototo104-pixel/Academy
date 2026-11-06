@@ -105,7 +105,7 @@ export async function meetingAction(
   invite: any,
   user: { id: string; role?: string; name?: string } | null,
   action: string,
-  payload?: { question?: string; text?: string },
+  payload?: { question?: string; text?: string; userText?: string; aiText?: string },
 ): Promise<Json> {
   const problem = meetingInviteProblem(invite)
   if (problem) return { status: 410, body: { error: 'رابط الدعوة غير صالح', code: problem } }
