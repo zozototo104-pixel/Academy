@@ -25,6 +25,19 @@ export async function hasLifecycleFootprint(client: AnyClient, enrollmentId: str
     const n = await approvalStore.count({ where: { enrollmentId } })
     if (n > 0) return true
   }
+  // Newly activated students already have an ENROLLMENT rules snapshot
+  // before they have a semester state or an approved result. Without this
+  // marker they were mistakenly grandfathered into unrestricted S2 access,
+  // especially in programs without configured study-duration windows.
+  // BACKFILL snapshots for historical enrollments preserve the legacy rule.
+  const snapshotStore = client?.enrollmentRulesSnapshot
+  if (snapshotStore?.findUnique) {
+    const snapshot = await snapshotStore.findUnique({
+      where: { enrollmentId },
+      select: { basis: true },
+    })
+    if (snapshot?.basis === 'ENROLLMENT') return true
+  }
   return false
 }
 
