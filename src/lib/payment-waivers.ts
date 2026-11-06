@@ -555,7 +555,9 @@ export async function approvePaymentWaiver(params: { waiverId: string; actor: { 
   // وبلا مسار لإعادة الاعتماد. التفعيل (finalize) والتدقيق يبقيان بعد
   // الالتزام كما في مسار السداد نفسه: التفعيل محروس بحالته وقابل للاستئناف،
   // ولا نُبقي قفل صف الفاتورة مفتوحاً أثناء إرسال البريد والإشعارات.
-  const { updatedPayment, auditedCents, finalizeAdmissionId } = await db.$transaction(async (tx) => {
+  // A unique invoice-number race (P2002) invalidates the whole PostgreSQL
+  // transaction. Retry with a fresh transaction, never with the same tx.
+  const settleOnce = () => db.$transaction(async (tx) => {
     const current = await tx.paymentWaiverCode.findUnique({ where: { id: params.waiverId }, include: { payment: true } })
     if (!current) throw new Error('كود الإعفاء غير موجود')
     if (current.status !== 'VERIFIED') throw new Error(current.status === 'APPROVED' ? 'تم اعتماد هذا الكود مسبقاً' : 'لا يمكن اعتماد الكود قبل أن يدخله الطالب ويتحقق منه')
