@@ -255,6 +255,88 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
     }
   }
 
+  const stopTranscript = () => {
+    transcriptActiveRef.current = false
+    if (recognitionRestartRef.current) clearTimeout(recognitionRestartRef.current)
+    recognitionRestartRef.current = null
+    try { recognitionRef.current?.abort() } catch { /* unavailable */ }
+    recognitionRef.current = null
+    setTranscriptOn(false)
+  }
+
+  const toggleTranscript = () => {
+    if (transcriptActiveRef.current) { stopTranscript(); return }
+    const browser = window as any
+    const Recognizer = browser.SpeechRecognition || browser.webkitSpeechRecognition
+    if (!Recognizer) {
+      setTranscriptError('التفريغ الصوتي غير مدعوم في هذا المتصفح؛ استخدم متصفحاً يدعم SpeechRecognition.')
+      return
+    }
+    const recognition = new Recognizer()
+    recognition.lang = 'ar-SA'
+    recognition.continuous = true
+    recognition.interimResults = false
+    recognition.maxAlternatives = 1
+    recognition.onresult = (event: any) => {
+      for (let i = event.resultIndex || 0; i < event.results.length; i++) {
+        const result = event.results[i]
+        if (!result?.isFinal) continue
+        const text = String(result[0]?.transcript || '').trim().slice(0, 2200)
+        if (text.length < 3 || !transcriptActiveRef.current) continue
+        // Only finalized captions from the speaker's own microphone, never
+        // the meeting audio of absent participants. Sender identity is server-set.
+        void fetch(basePath, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'transcript', text }),
+        }).then(async (res) => {
+          if (res.ok) return
+          const error = await res.json().catch(() => ({}))
+          if (res.status === 403 || res.status === 429) stopTranscript()
+          setTranscriptError(error?.error || 'تعذر حفظ التفريغ الصوتي')
+        }).catch(() => setTranscriptError('انقطع الاتصال أثناء حفظ التفريغ؛ تحقق من اتصالك.'))
+      }
+    }
+    recognition.onerror = (event: any) => {
+      if (event?.error === 'no-speech') return
+      setTranscriptError('تعذر استقبال الكلام من الميكروفون (' + String(event?.error || 'غير معروف') + ').')
+      stopTranscript()
+    }
+    recognition.onend = () => {
+      if (!transcriptActiveRef.current) return
+      recognitionRestartRef.current = setTimeout(() => {
+        if (!transcriptActiveRef.current) return
+        try { recognition.start() } catch {
+          stopTranscript()
+          setTranscriptError('توقف التعرف الصوتي. يمكن تفعيله مجددًا من القاعة.')
+        }
+      }, 750)
+    }
+    try {
+      transcriptActiveRef.current = true
+      recognitionRef.current = recognition
+      recognition.start()
+      setTranscriptOn(true)
+      setTranscriptError(null)
+    } catch {
+      stopTranscript()
+      setTranscriptError('لم يُسمح بالميكروفون أو لم يبدأ التعرف على الكلام.')
+    }
+  }
+
+  // On navigation/unmount, stop browser speech capture and all scheduled restarts.
+  useEffect(() => {
+    const active = transcriptActiveRef
+    const recognizer = recognitionRef
+    const restart = recognitionRestartRef
+    return () => {
+      active.current = false
+      if (restart.current) clearTimeout(restart.current)
+      try { recognizer.current?.abort() } catch { /* unavailable */ }
+      recognizer.current = null
+    }
+  }, [])
+
   const doClaim = async () => {
     setBusy('claim')
     setActionError(null)
