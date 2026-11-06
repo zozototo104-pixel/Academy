@@ -19,6 +19,8 @@ function makeWorld() {
     id: 'admission-1', userId: 'user-1', programId: 'program-1', fullName: 'طالب عربي', fullNameEn: null,
     program: 'برنامج عربي للاختبار', country: 'فلسطين', email: 'student@example.test', status: 'APPROVED', scholarshipFull: false,
   }
+  let decisionRevision = 0
+  const decisionUpdatedAt = () => new Date(1_700_000_000_000 + ++decisionRevision * 1000)
   const tx: any = {
     $queryRaw: async () => [{ value: 1 }],
     admissionApplication: {
