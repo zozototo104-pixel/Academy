@@ -213,8 +213,11 @@ export async function askMeetingAssistant(
     await db.adminMeetingAgentEvent.create({ data: { meetingId: meeting.id, kind: 'GREETING', text: greeting } }).catch(() => {})
   }
 
-  // لا نولّد إجابة مبنية على سياق ناقص عند فشل قراءة بيانات الاجتماع.
-  // لا نصل إلى جداول الطلاب أو الدرجات أو بيانات الإدارة من هذا المسار.
+  // سجلات الأكاديمية تُجلب عند السؤال للقراءة فقط، مع تحقق صلاحية الإدارة.
+  // فشل الاستعلام يعني عدم القدرة على الإجابة، لا الصفر أو تخمين قيمة.
+  let academyEvidence = ''
+  const needsPlatformData = !minutesRequested &&
+    /طالب|طلاب|طلبة|درجات|نتائج|معدل|التحاق|وحدة|وحدات|برنامج|برامج|امتحان|اختبار|واجب|فصل|شهاد|كتاب|كتب|بحث|أبحاث|قبول|تسجيل|دفع|مالي|فاتور|إحصائ|احصائ|عدد|كم|المنصة|تبويب|لوحة|إدارة/i.test(clean)
   let notes: any[]
   let invites: any[]
   try {
@@ -222,6 +225,7 @@ export async function askMeetingAssistant(
       db.adminMeetingNote.findMany({ where: { meetingId: meeting.id }, orderBy: { createdAt: 'asc' }, take: 40 }),
       db.adminMeetingInvite.findMany({ where: { meetingId: meeting.id }, select: { inviteeName: true } }),
     ])
+    if (needsPlatformData) academyEvidence = await collectMeetingAcademyEvidence(db, clean, user)
   } catch {
     return { status: 503, body: { error: 'تعذّر التحقق من سياق الاجتماع — حاول لاحقًا', code: 'MEETING_CONTEXT_UNAVAILABLE', greeting } }
   }
@@ -233,6 +237,7 @@ export async function askMeetingAssistant(
     notes.length
       ? `ملاحظات المشاركين أثناء الاجتماع:\n${(notes as any[]).map((n) => `- ${n.authorName}: ${n.text}`).join('\n')}`
       : 'ملاحظات المشاركين: لا شيء مكتوب بعد.',
+    academyEvidence ? 'معلومات الأكاديمية المصرّح بها لهذا السائل:\n' + academyEvidence : '',
   ].filter(Boolean).join('\n\n')
 
   let answer: string
