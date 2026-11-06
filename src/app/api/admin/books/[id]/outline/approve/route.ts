@@ -100,7 +100,7 @@ export async function POST(req: NextRequest, context: Context) {
         code: 'OUTLINE_REVIEW_REQUIRED',
         error: 'يوجد تقرير صفحات ناقصة أو غير مقروءة. راجع كل بند، ثم اعتمد صراحة مع الإقرار أو ارفض الاعتماد.',
         issues: reviewMessages,
-        gaps: unresolvedGaps, readIssues, verifiedBlankPages, acknowledgmentKey,
+        gaps: unresolvedGaps, readIssues, pdfReadIssues, verifiedBlankPages, acknowledgmentKey,
       }, { status: 409 })
     }
     let warningsPrefix: string[] = reviewMessages.length ? [
