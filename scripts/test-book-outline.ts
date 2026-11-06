@@ -567,7 +567,7 @@ function testInferredChapterTitleRequiresSameChapterKnowledgeEvidence() {
     chunk(0, 'الفصل الأول', 1),
     chunk(1, 'الفصل الثاني', 21),
   ]
-  const source = plan(chunks).sections
+  const source = [draftSection(1, 'الفصل الأول', 1, 1), draftSection(2, 'الفصل الثاني', 21, 21)]
   const items = [
     { chunkId: 'chunk-0', title: 'مقدمة في إدارة العمليات', summary: 'مدخل إلى العمليات' },
     { chunkId: 'chunk-1', title: 'تحليل المخاطر المؤسسية', summary: 'مناهج التحليل' },
