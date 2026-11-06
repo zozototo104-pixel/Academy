@@ -4,6 +4,7 @@ import { NextRequest } from 'next/server'
 
 let supervisorAccessLocked = false
 let reserveUsageCalls = 0
+let failReserveUsage = false
 
 const db: any = {
   auditLog: { create: async () => ({}) },
