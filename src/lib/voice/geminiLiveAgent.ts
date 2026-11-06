@@ -18,6 +18,8 @@ export interface AgentCallbacks {
   sessionAction?: string
   /** Optional meeting-scoped tool endpoint; never used by existing voice consumers. */
   meetingDataEndpoint?: string
+  /** Meeting station only: reports every reserved provider connection for settlement. */
+  onSessionCreated?: (sessionId: string) => void
   /** Explicit device routing for the separate meeting bot station only. */
   inputDeviceId?: string
   outputDeviceId?: string
