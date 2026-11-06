@@ -9,6 +9,17 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 const UNREAD_AFTER_MS = 60 * 60 * 1000
+const DIGEST_CLAIM_STALE_MS = 10 * 60 * 1000
+// Backwards-compatible claim encoding for the existing single DateTime column:
+// a claimed-but-unconfirmed send is dated ~100 years ahead; a real delivered
+// digest is dated at the actual send time. This gives crashed workers a durable,
+// time-bounded lease without pretending that an unconfirmed send succeeded.
+// Only this cron writes claim dates; no migration or historic row rewrite.
+const DIGEST_CLAIM_OFFSET_MS = 100 * 365 * 24 * 60 * 60 * 1000
+const DIGEST_CLAIM_MIN = new Date('2100-01-01T00:00:00.000Z')
+function staleDigestClaim(now = Date.now()) {
+  return { gt: DIGEST_CLAIM_MIN, lt: new Date(now + DIGEST_CLAIM_OFFSET_MS - DIGEST_CLAIM_STALE_MS) }
+}
 
 // GET /api/cron/admin-message-digest — تذكير بالبريد لرسائل الإدارة غير المقروءة.
 // Runs every 30 minutes (vercel.json); emails only admin-scope messages from ADMIN
