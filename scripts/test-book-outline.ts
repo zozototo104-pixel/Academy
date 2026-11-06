@@ -249,6 +249,34 @@ function testWordFormChaptersElevenAndTwelve() {
   assert(result.sections.some((s) => s.title.includes('الثاني عشر') && s.chunkStartIndex === 2), 'الفصل الثاني عشر يجب ألا يُبتلع أو يُحسب فصلاً ثانياً مكرراً')
 }
 
+async function testSourceVerifiedWhitePagesCannotMaskMissingBookContent() {
+  const sharp = (await import('sharp')).default
+  const make = (background: string) => sharp({ create: {
+    width: 240, height: 320, channels: 3, background,
+  } }).png().toBuffer()
+  assert(await isVisuallyBlankPdfPage(await make('#ffffff')), 'الصفحة البيضاء بصرياً مثبتة')
+  assert(!await isVisuallyBlankPdfPage(await make('#000000')), 'الصفحة ذات المحتوى المرئي ليست فارغة')
+  const sections = [
+    draftSection(1, 'الفصل الأول', 1, 7),
+    draftSection(2, 'الفصل الثاني', 9, 16),
+    draftSection(3, 'الفصل الثالث', 21, 27),
+  ]
+  const original = outlineApprovalGuard(sections, { pageStart: 1, pageEnd: 27 })
+  assert(original.decision === 'BLOCK' && original.report.gaps.length === 2, 'الصفحات غير الموثقة تمنع الاعتماد')
+  const firstBlank = outlineApprovalGuard(sections, { pageStart: 1, pageEnd: 27 }, [8])
+  assert(firstBlank.decision === 'BLOCK' && firstBlank.report.gaps.length === 1 &&
+    firstBlank.report.gaps[0].pageStart === 17 && firstBlank.report.gaps[0].pageEnd === 20,
+    'توثيق الصفحة 8 لا يجوز أن يخفي نقص الصفحات 17–20')
+  const allBlank = outlineApprovalGuard(sections, { pageStart: 1, pageEnd: 27 }, [8, 17, 18, 19, 20])
+  assert(allBlank.decision === 'ALLOW' && allBlank.report.gaps.length === 0,
+    'تُستثنى فقط الصفحات البيضاء التي تحقق المصدر من كل واحدة منها')
+  assert(outlineApprovalGuard(sections, { pageStart: 1, pageEnd: 27 }, [8, 17, 18, 19]).decision === 'BLOCK',
+    'بقاء صفحة واحدة غير موثقة يمنع الاعتماد')
+  const incomplete = [{ ...sections[0], pageEnd: null }, ...sections.slice(1)]
+  assert(outlineApprovalGuard(incomplete, { pageStart: 1, pageEnd: 27 }, [8, 17, 18, 19, 20]).decision === 'BLOCK',
+    'حدود القسم المجهولة لا تُعالَج بإثبات صفحات بيضاء')
+}
+
 function testCoverageRejectsShortSectionsWithMissingPages() {
   const sections = [draftSection(1, 'قسم أ', 1, 40), draftSection(2, 'قسم ب', 50, 80)]
   const report = auditOutlineCoverage(sections)
