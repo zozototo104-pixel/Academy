@@ -24,6 +24,11 @@ export async function askMeetingAssistant(
   if (!isMeetingJoinOpen(meeting)) return { status: 403, body: { error: 'المساعد يعمل أثناء الاجتماع فقط', code: 'NOT_LIVE' } }
   const clean = String(question || '').trim().slice(0, 1000)
   if (!clean) return { status: 400, body: { error: 'اكتب سؤالك أولًا', code: 'EMPTY_QUESTION' } }
+  // مسودة المحضر قراءة وتحليل فقط، ولا تُعتمد أو تُحفظ كقرار تلقائيًا.
+  const minutesRequested = /(?:محضر|تلخيص الاجتماع|ملخص الاجتماع|meeting minutes)/i.test(clean)
+  if (minutesRequested && !meeting.minutesEnabled) {
+    return { status: 403, body: { error: 'إعداد محاضر الاجتماعات غير مفعّل', code: 'MINUTES_DISABLED' } }
+  }
   const limit = await checkDatabaseRateLimit(`meetings:assistant:${meeting.id}:${user.id}`, 20, 10 * 60_000).catch(() => null)
   if (limit && !limit.ok) return { status: 429, body: { error: 'أسئلة كثيرة — انتظر قليلًا', code: 'RATE_LIMITED' } }
 
