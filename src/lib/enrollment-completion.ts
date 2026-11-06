@@ -73,7 +73,11 @@ function financialFailure(payments: PaymentRow[], programPrice: number | null | 
   if (nonTuitionUnpaid.length > 0) {
     return 'لا يمكن إكمال التسجيل أو إصدار الشهادة قبل سداد جميع فواتير الطلب غير الدراسية.'
   }
-  if (tuitionRows.length === 0) return null
+  if (tuitionRows.length === 0) {
+    return Number(programPrice || 0) > 0
+      ? 'لا يمكن إكمال التسجيل أو إصدار الشهادة لبرنامج مدفوع دون فاتورة رسوم دراسية موثقة.'
+      : null
+  }
   const total = roundMoney(inferTotalTuition(rows, Number(programPrice || 0)))
   const paid = roundMoney(tuitionPaidTotal(rows))
   if (total > 0 && paid < total) {
