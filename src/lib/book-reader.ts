@@ -269,8 +269,13 @@ export async function runExtractStep(jobId: string, deadlineMs: number) {
         update: { ...chunk, status: 'EXTRACTED', attempts: 0, lastError: null },
       })
     },
-    saveProgress: async (id, pagesDone, totalPages, totalChunks, phase) => {
-      await db.bookReadJob.update({ where: { id }, data: { pagesDone, totalPages, totalChunks, phase } })
+    saveProgress: async (id, pagesDone, totalPages, totalChunks, phase, issues = [], processedPages = []) => {
+      const previous = await db.bookReadJob.findUnique({ where: { id }, select: { lastError: true } })
+      const lastError = mergeBookPageReadIssues(previous?.lastError, processedPages, issues)
+      await db.bookReadJob.update({
+        where: { id },
+        data: { pagesDone, totalPages, totalChunks, phase, lastError },
+      })
     },
   }
   return extractPdfBatch({ buffer: stored.buffer, bookId: job.bookId, programId: job.programId, jobId, pagesDone: job.pagesDone, totalPages, existingChunks: job.totalChunks, store, deadlineMs })
