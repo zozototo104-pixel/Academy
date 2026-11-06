@@ -62,6 +62,7 @@ function paymentMatches(payment: Record<string, any>, where: Record<string, any>
 const db: any = {
   $queryRaw: async () => [],
   $transaction: async (work: (tx: any) => Promise<any>) => {
+    transactionCalls++
     const snapshot = {
       payments: cloneMap(payments),
       admissions: cloneMap(admissions),
