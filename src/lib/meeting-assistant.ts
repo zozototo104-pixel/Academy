@@ -328,6 +328,81 @@ export async function collectMeetingAcademyEvidence(db: any, question: string, u
       '؛ طلبات تقسيط الرسوم ' + appeals +
       '. هذه إحصاءات لكل الحالات؛ لا تعتبر كل سجل منها حالة معلقة.')
   }
+  if (peopleIntent || overview) {
+    const [supervisors, representatives, agents, approvedAgents, partnerships, documents, proposals] = await Promise.all([
+      db.user.count({ where: { role: 'SUPERVISOR' } }),
+      db.academyRepresentative.count(), db.agentApplication.count(),
+      db.agentApplication.count({ where: { status: 'APPROVED' } }),
+      db.accreditationPartnership.count(), db.accreditationDocument.count(),
+      db.supervisorUnitProposal.count(),
+    ])
+    lines.push('المشرفون والوكلاء والاعتمادات: حسابات المشرفين ' + supervisors +
+      '؛ ممثلو الدول ' + representatives + '؛ طلبات الوكلاء والاعتماد ' + agents +
+      '؛ الطلبات المعتمدة ' + approvedAgents + '؛ الشراكات ' + partnerships +
+      '؛ وثائق الاعتماد ' + documents + '؛ مقترحات المشرفين للوحدات ' + proposals + '.')
+    if (/أسماء المشرفين|من هم المشرفون|المشرفين الموجودين|قائمة المشرفين/i.test(q) && !overview) {
+      const supervisorsList: any[] = await db.user.findMany({
+        where: { role: 'SUPERVISOR' }, select: { name: true, status: true },
+        orderBy: { name: 'asc' }, take: 30,
+      })
+      lines.push('أول 30 مشرفًا بحسب الاسم: ' + (supervisorsList.map((s) =>
+        shortValue(s.name) + ' (' + s.status + ')').join('؛ ') || 'لا يوجد') + '.')
+    }
+  }
+  if (communicationIntent || overview) {
+    const [contactsOpen, handoffs, whatsapp, whatsappMessages, notifications, outbox, emails, followUps, directMessages] = await Promise.all([
+      db.contactMessage.count({ where: { handled: false } }),
+      db.humanHandoffRequest.count(), db.whatsAppConversation.count(),
+      db.whatsAppConversationMessage.count(), db.notification.count(),
+      db.notificationOutbox.count(), db.emailLog.count(), db.studentFollowUpLog.count(),
+      db.supervisorChannelMessage.count(),
+    ])
+    lines.push('المراسلات والمتابعة: رسائل التواصل غير المعالجة ' + contactsOpen +
+      '؛ طلبات التدخل البشري ' + handoffs + '؛ محادثات واتساب المسجلة ' + whatsapp +
+      '؛ رسائل واتساب المسجلة ' + whatsappMessages + '؛ الإشعارات ' + notifications +
+      '؛ مهام إرسال الإشعارات ' + outbox + '؛ سجلات البريد ' + emails +
+      '؛ متابعات الطلاب ' + followUps + '؛ رسائل قنوات الإشراف ' + directMessages +
+      '. عدد الرسائل لا يثبت اتصال واتساب أو البريد حاليًا.')
+  }
+  if (financialIntent || overview) {
+    const [waivers, proofs, revenueShares, paidByCurrency] = await Promise.all([
+      db.paymentWaiverCode.count(), db.paymentProof.count(), db.revenueShareTransaction.count(),
+      db.payment.groupBy({ by: ['currency'], where: { status: 'PAID' },
+        _sum: { amount: true }, _count: { _all: true }, orderBy: { currency: 'asc' } }),
+    ])
+    lines.push('تفاصيل المالية: طلبات/رموز الإعفاء ' + waivers + '؛ إثباتات الدفع ' + proofs +
+      '؛ معاملات حصص الوكلاء ' + revenueShares + '.')
+    lines.push('إجمالي المبالغ في سجلات الدفع بحالة PAID، مفصولة حسب العملة: ' +
+      ((paidByCurrency as any[]).map((p) => p.currency + ': ' + (p._sum.amount ?? 0) +
+        ' (' + p._count._all + ' سجل)').join('؛ ') || 'لا توجد') +
+      '. هذه مبالغ سجلات مدفوعة وليست أرباحًا صافية ولا كشف تسوية مصرفية.')
+  }
+  if (operationsIntent || overview) {
+    const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    const [pipelineRuns, pipelineFailures, aiProfiles, aiUsage, audits24h, meetings, emailsFailed] = await Promise.all([
+      db.aiPipelineOperationLog.count(), db.aiPipelineOperationLog.count({ where: { success: false } }),
+      db.aiStageProfile.count(), db.aiUsageLog.count(),
+      db.auditLog.count({ where: { createdAt: { gte: dayAgo } } }),
+      db.adminMeeting.count(), db.emailLog.count({ where: { status: 'FAILED' } }),
+    ])
+    lines.push('التشغيل والذكاء الاصطناعي: سجلات مراحل الذكاء ' + pipelineRuns +
+      '؛ منها فاشلة ' + pipelineFailures + '؛ بروفايلات مراحل الذكاء ' + aiProfiles +
+      '؛ سجلات استخدام الذكاء ' + aiUsage + '؛ أحداث سجل التدقيق خلال 24 ساعة ' + audits24h +
+      '؛ اجتماعات الإدارة ' + meetings + '؛ رسائل البريد المسجلة FAILED ' + emailsFailed +
+      '. هذه قياسات قواعد بيانات وليست فحصًا لحالة الخوادم أو اتصال مزودي الذكاء أو النسخ الاحتياطي.')
+  }
+  if (tabIntent || overview) {
+    lines.push('خريطة تبويبات الإدارة كما في واجهة المنصة: ' +
+      'الالتحاق الدراسي (طلبات القبول)؛ الخدمات العابرة (طلبات الخدمات)؛ قواعد القبول (شروط البرامج)؛ ' +
+      'الطلاب (الحسابات والالتحاقات)؛ إدارة المشرفين؛ الوكالة والاعتماد؛ ممثلو الدول؛ ' +
+      'الكتب والاختبارات (الكتب والمعرفة والوحدات والأدلة والأسئلة والواجبات)؛ ' +
+      'جدول الدراسة؛ مركز الجودة؛ نتائج الامتحانات؛ مراجعة التصحيح؛ أبحاث التخرج والمناقشات؛ ' +
+      'سجل المشرف الذكي؛ المالية والفواتير؛ الشهادات؛ الخريجون السابقون؛ ' +
+      'البريد والدفع والفيديو (تهيئة النظام)؛ الإعلانات؛ المحاضرات واللقاءات؛ قاعة الاجتماعات؛ ' +
+      'بروفايلات الذكاء؛ الرسوم والقواعد؛ مدراء النظام؛ سجل التدقيق؛ رسائل التواصل؛ ' +
+      'مراسلة الإدارة؛ متابعة الطلاب؛ محادثات واتساب. ' +
+      'معرفة أسماء الأقسام لا تعني توفر التفاصيل الداخلية لكل تبويب؛ لا تقرأ أسرار تهيئة النظام.')
+  }
   lines.push('لا تخترع بيانات لتبويب لم يرد في هذا الدليل. اطلب اسم الطالب أو البرنامج أو التبويب عند الحاجة إلى تفاصيل إضافية.')
   return lines.join('\n')
 }
