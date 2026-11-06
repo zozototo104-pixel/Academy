@@ -665,7 +665,7 @@ export function auditOutlineCoverage(
     sections: audited,
     review: audited.filter((section) => section.band === 'REVIEW'),
     blocked: audited.filter((section) => section.band === 'BLOCKED'),
-    gaps,
+    gaps: unresolvedGaps,
   }
 }
 
