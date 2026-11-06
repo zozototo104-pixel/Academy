@@ -87,6 +87,11 @@ mock.module('@/lib/notify', () => ({
   notifyAdmins: async () => {},
   audit: async () => {},
 }))
+mock.module('@/lib/mailer', () => ({
+  emailAdmissionDecision: async () => {},
+  emailAdmissionDocumentsRequested: async () => {},
+  emailCertificateIssued: async () => {},
+}))
 
 const { completeEnrollmentIfEligibleInTransaction, registerGraduationRequest } = await import('../../src/lib/enrollment-completion')
 const { POST: graduationAction } = await import('../../src/app/api/admin/graduation-requests/route')
