@@ -112,6 +112,7 @@ beforeEach(() => {
   fetchKeys = []
   supervisorAccessLocked = false
   reserveUsageCalls = 0
+  failReserveUsage = false
   delete process.env.GEMINI_API_KEY
   delete process.env.GEMINI_API_KEYS
   delete process.env.ALBORIHI_API_KEY
