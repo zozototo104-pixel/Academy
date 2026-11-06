@@ -18,6 +18,7 @@ type Cfg = {
   examPassed?: Record<number, boolean>
   examPassScore?: number
   footprint?: boolean
+  snapshotBasis?: 'ENROLLMENT' | 'BACKFILL' | null
 }
 
 function fakeClient(cfg: Cfg) {
