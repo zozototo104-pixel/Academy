@@ -163,6 +163,8 @@ mock.module('@/lib/mailer', () => ({ emailTemplate: (t: string) => t, sendEmailD
 const { approveSemesterResult } = await import('../../src/lib/semester-approval')
 const { requestMercy, assignMercyActivity, submitMercyActivity, gradeMercyActivity, lapseOverdueMercy } = await import('../../src/lib/mercy')
 const { calculateSemesterAverages } = await import('../../src/lib/semester-grade')
+mock.module('@/lib/supervisor-scope', () => ({ requireSupervisor: async () => ({ id: 'sup-1', role: 'SUPERVISOR' }) }))
+const { GET: supervisorMercyList } = await import('../../src/app/api/supervisor/mercy/route')
 
 describe('مسار الاسترحام والنشاط العلاجي', () => {
   test('الدورة الكاملة: رسوب مغلق ⟹ نشاط مصحَّح ⟹ معدل جديد ومصادقة جديدة', async () => {
