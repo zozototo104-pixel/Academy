@@ -160,7 +160,16 @@ function MeetingAiVoiceControl({ basePath, provider }: { basePath: string; provi
       onState: (state) => setVoiceState(state),
       onUserCaption: (text) => setHeard(text),
       onAiCaption: (text) => setSpoken(text),
-      onError: (msg) => setError(msg),
+      onError: (msg) => {
+        setError(msg)
+        // A terminated Live connection must also reset the station controls.
+        if (msg.includes('انقطع اتصال Gemini Live')) {
+          agentRef.current?.stop()
+          agentRef.current = null
+          setRunning(false)
+          setVoiceState('IDLE')
+        }
+      },
     })
     agentRef.current = agent
     try {
