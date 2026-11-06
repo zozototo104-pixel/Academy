@@ -75,16 +75,29 @@ const MAX_EMAIL_ATTEMPTS = 5
 // نفسه (CAS) حتى لا يسرق موزّعٌ مطالبةً حيّة من آخر.
 const EMAIL_CLAIM_STALE_MS = 10 * 60 * 1000
 const EMAIL_CLAIM_PREFIX = 'EMAIL_CLAIM:'
+const EMAIL_SENT_IDS_PREFIX = 'EMAIL_SENT_IDS:'
 
-function emailClaimMarker(now = new Date()) {
-  return `${EMAIL_CLAIM_PREFIX}${now.toISOString()}`
+// Preserve delivered recipient user IDs across retries and worker crashes.
+// The legacy lastError column acts as a small durable checkpoint without
+// changing already deployed database tables.
+function deliveredEmailRecipientIds(lastError: unknown): Set<string> {
+  const line = String(lastError || '').split('\n').find((part) => part.startsWith(EMAIL_SENT_IDS_PREFIX))
+  if (!line) return new Set()
+  try {
+    const ids = JSON.parse(line.slice(EMAIL_SENT_IDS_PREFIX.length))
+    return new Set(Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string' && id.length <= 128) : [])
+  } catch { return new Set() }
+}
+
+function emailClaimMarker(now = new Date(), sentIds: ReadonlySet<string> = new Set()) {
+  return `${EMAIL_CLAIM_PREFIX}${now.toISOString()}\n${EMAIL_SENT_IDS_PREFIX}${JSON.stringify([...sentIds].sort())}`
 }
 
 function emailClaimIsStale(row: any, now = Date.now()) {
   if (row?.emailStatus !== 'SENDING') return false
-  const marker = String(row?.lastError || '')
-  if (!marker.startsWith(EMAIL_CLAIM_PREFIX)) return true
-  const claimedAt = Date.parse(marker.slice(EMAIL_CLAIM_PREFIX.length))
+  const firstLine = String(row?.lastError || '').split('\n')[0]
+  if (!firstLine.startsWith(EMAIL_CLAIM_PREFIX)) return true
+  const claimedAt = Date.parse(firstLine.slice(EMAIL_CLAIM_PREFIX.length))
   return !Number.isFinite(claimedAt) || now - claimedAt > EMAIL_CLAIM_STALE_MS
 }
 
