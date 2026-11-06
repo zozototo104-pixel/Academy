@@ -254,7 +254,10 @@ async function extractPdfBatchInner(input: { buffer: Buffer; bookId: string; pro
       // solo-retry state so the NEXT run goes straight to single pages
       // instead of repeating the identical group request and stalling.
       if (input.deadlineMs - Date.now() < 25_000) {
-        await store.saveOcrSoloPages?.(jobId, batch)?.catch(() => {})
+        // Never report a resumable prefix if the recovery checkpoint could
+        // not be saved: the next worker would repeat this exhausted group OCR.
+        if (!store.saveOcrSoloPages) throw new Error('BOOK_OCR_SOLO_CHECKPOINT_UNAVAILABLE')
+        await store.saveOcrSoloPages(jobId, batch)
         return persistDecidedPrefix()
       }
       // A failure on one page of a four-page OCR call must not discard the
