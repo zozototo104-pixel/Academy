@@ -1,4 +1,5 @@
 import { createHmac } from 'node:crypto'
+import { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
