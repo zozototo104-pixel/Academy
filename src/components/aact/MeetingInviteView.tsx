@@ -160,6 +160,7 @@ function MeetingAiVoiceControl({ basePath, provider }: { basePath: string; provi
   const stop = () => {
     agentRef.current?.stop()
     agentRef.current = null
+    settleUsageSessions()
     setRunning(false)
     setVoiceState('IDLE')
   }
