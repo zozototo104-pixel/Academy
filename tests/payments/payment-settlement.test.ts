@@ -121,6 +121,12 @@ const db: any = {
       return { ...payment }
     },
     create: async ({ data }: { data: Record<string, any> }) => {
+      if (tuitionInvoiceCollisionOnce && data.purpose === 'TUITION') {
+        tuitionInvoiceCollisionOnce = false
+        const error: any = new Error('Unique constraint failed on invoiceNo')
+        error.code = 'P2002'
+        throw error
+      }
       const payment = { ...data, id: data.id || `payment-${payments.size + 1}` }
       payments.set(payment.id, payment)
       return { ...payment }
