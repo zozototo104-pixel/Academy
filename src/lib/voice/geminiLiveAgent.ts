@@ -13,6 +13,11 @@ export interface AgentCallbacks {
   onError?: (msg: string, code?: string, status?: number) => void
   /** سياق إضافي يرسل إلى جلسة Gemini Live، مثل سياق قاعة المناقشة أو الوحدة الدراسية. */
   context?: string
+  /** Optional meeting-only endpoint; existing supervisor/defense sessions keep the default. */
+  sessionEndpoint?: string
+  sessionAction?: string
+  /** Optional meeting-scoped tool endpoint; never used by existing voice consumers. */
+  meetingDataEndpoint?: string
   /** صوت Gemini Live المطلوب. قاعة المناقشة تستخدم صوتاً أخف حتى لا يظهر صوت الرجل الفصيح الآلي. */
   voice?: string
   /** لهجة التفريغ/التعرّف على الصوت المطلوبة مثل ar-PS أو ar-EG. */
