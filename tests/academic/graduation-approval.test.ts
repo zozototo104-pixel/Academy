@@ -83,6 +83,7 @@ mock.module('@/lib/auth', () => ({
   getCurrentUser: async () => ({ id: 'admin-1', role: 'ADMIN', name: 'المسؤول' }),
 }))
 mock.module('@/lib/notify', () => ({
+  AUDIT_ACTIONS: {},
   notify: async () => {},
   notifyAdmins: async () => {},
   audit: async () => {},
