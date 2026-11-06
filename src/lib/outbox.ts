@@ -191,6 +191,10 @@ export async function dispatchOutboxBatch(client: AnyClient = db, limit = 50): P
     const outcomes: string[] = []
     let lastError: string | null = null
     for (const r of recipients) {
+      if (deliveredIds.has(r.id)) {
+        outcomes.push('SENT')
+        continue
+      }
       const status = await sendEmailDetailed({
         to: r.email as string,
         subject: row.title,
@@ -199,20 +203,33 @@ export async function dispatchOutboxBatch(client: AnyClient = db, limit = 50): P
       }).catch((e: any) => { lastError = String(e?.message || e); return 'FAILED' as const })
       outcomes.push(status)
       if (status === 'FAILED') lastError = lastError || 'send failed'
+      if (status === 'SENT') {
+        // Checkpoint after EACH accepted recipient, before the next send.
+        // A later failed recipient must not cause a duplicate to earlier ones.
+        const nextIds = new Set([...deliveredIds, r.id])
+        const nextMarker = emailClaimMarker(new Date(), nextIds)
+        const saved = await store.updateMany({
+          where: { id: row.id, emailStatus: 'SENDING', lastError: activeClaimMarker },
+          data: { lastError: nextMarker },
+        })
+        if (saved.count !== 1) throw new Error('OUTBOX_EMAIL_RECIPIENT_CHECKPOINT_FAILED')
+        deliveredIds.add(r.id)
+        activeClaimMarker = nextMarker
+      }
     }
-    // الحالة النهائية بأمانة: فشل أي مستلم = FAILED (يُعاد لاحقًا)،
-    // تخطّي المزوّد غير المهيأ = SKIPPED نهائي موثّق، غير ذلك SENT.
-    // عدّاد المحاولات زيد عند المطالبة لا هنا — محاولة واحدة لكل إرسال.
+    // A failure keeps the recipient ledger for the next retry; a success
+    // clears it. The final CAS cannot overwrite another worker's claim.
     const finalStatus = outcomes.includes('FAILED') ? 'FAILED' : outcomes.includes('SKIPPED') ? 'SKIPPED' : 'SENT'
+    const finalError = finalStatus === 'FAILED'
+      ? `${EMAIL_SENT_IDS_PREFIX}${JSON.stringify([...deliveredIds].sort())}\n${(lastError || 'send failed').slice(0, 1000)}`
+      : null
+    const finalized = await store.updateMany({
+      where: { id: row.id, emailStatus: 'SENDING', lastError: activeClaimMarker },
+      data: { emailStatus: finalStatus, lastError: finalError },
+    })
+    if (finalized.count !== 1) throw new Error('OUTBOX_EMAIL_FINALIZE_CONFLICT')
     if (finalStatus === 'SENT') emailsSent++
     else if (finalStatus === 'FAILED') emailsFailed++
-    await store.update({
-      where: { id: row.id },
-      data: {
-        emailStatus: finalStatus,
-        lastError: lastError || null,
-      },
-    }).catch(() => {})
   }
   return { platformSent, emailsSent, emailsFailed }
 }
