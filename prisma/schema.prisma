@@ -1749,6 +1749,7 @@ model SupervisorChannelMessage {
   audioMime    String?
   audioSize    Int?
   emailSentAt  DateTime? // digest email sent for unread admin messages (admin scope only)
+  emailClaimedAt DateTime? // recoverable lease for interrupted digest sends
   createdAt    DateTime @default(now())
 
   @@index([admissionId])
