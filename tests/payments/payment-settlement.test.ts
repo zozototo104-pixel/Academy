@@ -24,6 +24,8 @@ const agentApplications: RecordMap = new Map()
 const certificates: Record<string, any>[] = []
 const examAttempts: Record<string, any>[] = []
 let certPhantomSerial: string | null = null
+let tuitionInvoiceCollisionOnce = false
+let transactionCalls = 0
 
 function cloneMap(map: RecordMap): RecordMap {
   return new Map([...map.entries()].map(([key, value]) => [key, { ...value }]))
