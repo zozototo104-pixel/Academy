@@ -149,9 +149,11 @@ class Pcm24Player {
   private nextTime = 0
   private readonly volumeBoost = 1.7
   private onOutputStream?: (stream: MediaStream | null) => void
+  private sinkId?: string
 
-  constructor(onOutputStream?: (stream: MediaStream | null) => void) {
+  constructor(onOutputStream?: (stream: MediaStream | null) => void, sinkId?: string) {
     this.onOutputStream = onOutputStream
+    this.sinkId = sinkId
   }
 
   private ensureRecorderDestination() {
