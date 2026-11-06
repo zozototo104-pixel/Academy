@@ -55,6 +55,7 @@ export async function GET(request: NextRequest) {
     } catch (error: any) {
       const message = String(error?.message || error)
       const paused = message.includes('AI_ACADEMIC_PROVIDER_UNAVAILABLE')
+      const previous = await db.bookReadJob.findUnique({ where: { id: job.id }, select: { lastError: true } })
       await db.bookReadJob.update({ where: { id: job.id }, data: {
         status: paused ? 'PAUSED' : 'FAILED',
         retryAt: paused ? new Date(Date.now() + BOOK_READ_RETRY_MS) : null,
