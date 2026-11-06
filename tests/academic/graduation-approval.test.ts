@@ -91,6 +91,9 @@ mock.module('@/lib/mailer', () => ({
   emailAdmissionDecision: async () => {},
   emailAdmissionDocumentsRequested: async () => {},
   emailCertificateIssued: async () => {},
+  emailPaymentReceipt: async () => {},
+  emailFinalRegistration: async () => {},
+  emailPaymentWaiverCode: async () => {},
 }))
 
 const { completeEnrollmentIfEligibleInTransaction, registerGraduationRequest } = await import('../../src/lib/enrollment-completion')
