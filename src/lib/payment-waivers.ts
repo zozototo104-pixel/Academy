@@ -663,6 +663,19 @@ export async function approvePaymentWaiver(params: { waiverId: string; actor: { 
     }
   })
 
+  let settlement: Awaited<ReturnType<typeof settleOnce>> | null = null
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      settlement = await settleOnce()
+      break
+    } catch (error: any) {
+      // The failed transaction has already rolled back all code/payment
+      // writes. A new transaction can safely recompute the invoice sequence.
+      if (error?.code !== 'P2002' || attempt === 4) throw error
+    }
+  }
+  if (!settlement) throw new Error('WAIVER_SETTLEMENT_RETRY_EXHAUSTED')
+  const { updatedPayment, auditedCents, finalizeAdmissionId } = settlement
   if (finalizeAdmissionId) await finalizeAdmissionAfterSettlement(db, finalizeAdmissionId, { source: 'WAIVER', actor: params.actor })
   await audit(params.actor, 'PAYMENT_WAIVER_APPROVED', 'Payment', updatedPayment.id, `${updatedPayment.invoiceNo} — ${updatedPayment.waiverType} — ${centsToDollars(auditedCents).toFixed(2)}$`)
   return updatedPayment
