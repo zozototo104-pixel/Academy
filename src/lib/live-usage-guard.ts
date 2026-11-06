@@ -461,6 +461,12 @@ export async function settleGeminiLiveUsage(input: { userId: string; sessionId: 
     // التسوية مقيدة بصاحب الجلسة فقط — لا أحد ينهي جلسة غيره أو يعبث برصيده.
     if (session.userId !== input.userId) return { ok: false, status: 403, message: 'هذه الجلسة ليست جلستك' }
     if (session.status !== 'RESERVED') return { ok: true, status: 200, idempotent: true, session }
+    // Serialize settlement credit changes against simultaneous reservations
+    // for this account, month, and purpose; the actual counters are read
+    // only AFTER this ledger lock has been acquired.
+    if (session.reservedMinutes > 0) {
+      await tx.$queryRaw`SELECT "id" FROM "AiLiveUsage" WHERE "userId" = ${session.userId} AND "month" = ${session.month} AND "purpose" = ${session.purpose} FOR UPDATE`
+    }
     // المستهلك يُحسب من ساعة الخادم (startedAt) لا من ادعاء العميل؛ ادعاء
     // «صفر دقائق» بعد جلسة كاملة لا يسترجع شيئاً. الجلسات غير المعدودة
     // (أدمن، reservedMinutes=0) لا مال فيها فيبقى الادعاء سجلاً معلوماتياً.
