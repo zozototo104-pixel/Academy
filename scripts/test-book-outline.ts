@@ -542,7 +542,10 @@ async function testOutlinePdfOcrFailureContinuesAndRequiresAcknowledgment() {
   assert(result[3].text.includes('أصلي'), 'صفحة 4 تبقى مقروءة بعد الفشل')
   const source = readFileSync('src/lib/book-outline.ts', 'utf8')
   const approval = readFileSync('src/app/api/admin/books/[id]/outline/approve/route.ts', 'utf8')
-  assert(source.includes('OUTLINE_PDF_READ_ISSUES:'), 'أخطاء OCR المباشر يجب أن تحفظ مع المسودة')
+  const aiRebuild = source.indexOf('draft = { ...planBookOutline(chunks, items, chunkIds')
+  const savedWarning = source.indexOf("draft.warnings.push('OUTLINE_PDF_READ_ISSUES:'")
+  assert(aiRebuild >= 0 && savedWarning > aiRebuild,
+    'يجب حفظ التحذيرات بعد إعادة بناء المسودة حتى لا يمحوها التقسيم الذكي')
   assert(approval.includes('pdfReadIssues, verifiedBlankPages') &&
     approval.includes('...pdfReadIssues.map('), 'الإقرار يجب أن يغطي أخطاء OCR المباشر')
 }
