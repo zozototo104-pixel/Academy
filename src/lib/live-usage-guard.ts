@@ -293,11 +293,19 @@ export async function reserveGeminiLiveUsage(input: {
       effectiveSessionId = sessionIdValue(null)
     }
 
-    const usage = await tx.aiLiveUsage.upsert({
+    const usageRecord = await tx.aiLiveUsage.upsert({
       where: { userId_month_purpose: { userId: input.userId, month, purpose } },
       create: { userId: input.userId, month, purpose },
       update: {},
     })
+    // Two simultaneous session reservations must not both spend the same
+    // free or paid balance. Lock the per-user/month ledger, then READ its
+    // freshly committed counters before allocating credits.
+    await tx.$queryRaw`SELECT "id" FROM "AiLiveUsage" WHERE "id" = ${usageRecord.id} FOR UPDATE`
+    const usage = await tx.aiLiveUsage.findUnique({
+      where: { userId_month_purpose: { userId: input.userId, month, purpose } },
+    })
+    if (!usage) throw new Error('LIVE_USAGE_LEDGER_MISSING_AFTER_LOCK')
 
     const credits = await tx.aiLiveCredit.findMany({
       where: {
