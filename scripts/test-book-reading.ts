@@ -77,7 +77,7 @@ async function unreadablePdfPageDoesNotStopFollowingPages() {
     store: {
       upsertChunk: async (chunk) => { saved.push(chunk) },
       saveProgress: async (_job, pagesDone, _total, _chunks, _phase, issues = [], processedPages = []) => {
-        progress = { pagesDone, issuePages: issues.map((i) => i.page), processedPages: [...processedPages] }
+        progress.current = { pagesDone, issuePages: issues.map((i) => i.page), processedPages: [...processedPages] }
         const ledger = mergeBookPageReadIssues(null, processedPages, issues)
         assert.deepEqual(parseBookPageReadIssues(ledger).map((i) => i.page), [2],
           'يجب حفظ فشل الصفحة الثانية مع تقدم بقية الكتاب')
