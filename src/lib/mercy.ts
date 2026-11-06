@@ -20,7 +20,7 @@ export type MercyResult =
   | { ok: true; mercy: any }
   | { ok: false; code: 'INVALID_INPUT' | 'ENROLLMENT_NOT_FOUND' | 'SEMESTER_NOT_FAILED' | 'MERCY_ALREADY_EXISTS' | 'MERCY_NOT_FOUND' | 'MERCY_WRONG_STATE' | 'FORBIDDEN' | 'MERCY_DEADLINE_TOO_LONG' | 'MERCY_WEIGHT_INVALID' | 'MERCY_DEADLINE_PASSED' }
 
-async function actorScope(client: AnyClient, actorId: string, studentUserId: string): Promise<'ADMIN' | 'SUPERVISOR' | null> {
+async function actorScope(client: AnyClient, actorId: string, studentUserId: string, programId: string): Promise<'ADMIN' | 'SUPERVISOR' | null> {
   const actor = await client.user.findUnique({ where: { id: actorId }, select: { role: true } }).catch(() => null)
   if (actor?.role === 'ADMIN') return 'ADMIN'
   if (actor?.role === 'SUPERVISOR') {
