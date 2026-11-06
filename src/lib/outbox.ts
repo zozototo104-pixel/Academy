@@ -170,6 +170,8 @@ export async function dispatchOutboxBatch(client: AnyClient = db, limit = 50): P
     if (resolved === null) continue
     // المطالبة الذرية: انقلاب مشروط واحد فقط ينجح بين الموزّعين
     // المتزامنين؛ إعادة مطالبة القديم مشروطة بختمه المرصود نفسه.
+    const deliveredIds = deliveredEmailRecipientIds(row.lastError)
+    let activeClaimMarker = emailClaimMarker(new Date(), deliveredIds)
     const claim = await store.updateMany({
       where: {
         id: row.id,
