@@ -155,10 +155,14 @@ export async function POST(req: NextRequest) {
     if (request.status !== 'PENDING' && request.status !== 'APPROVED') {
       return NextResponse.json({ error: 'حالة الطلب الحالية لا تسمح بالرفض.', code: 'INVALID_TRANSITION' }, { status: 409 })
     }
-    const updated = await db.graduationRequest.update({
-      where: { id: requestId },
+    const decision = await db.graduationRequest.updateMany({
+      where: { id: requestId, status: request.status, updatedAt: request.updatedAt },
       data: { status: 'REJECTED', decidedById: admin.id, decidedAt: new Date(), decisionNote: note },
     })
+    if (decision.count !== 1) {
+      return NextResponse.json({ error: 'تغيّرت حالة طلب التخرج أثناء تسجيل الرفض. حدّث القائمة وأعد المحاولة.', code: 'GRADUATION_DECISION_CONFLICT' }, { status: 409 })
+    }
+    const updated = await db.graduationRequest.findUnique({ where: { id: requestId } })
     await audit(admin, 'REJECT_GRADUATION_REQUEST', 'GraduationRequest', requestId, `رفض طلب تخرج الطالب ${request.userId}${note ? ` — ${note}` : ''}`)
     await notify(
       request.userId,
