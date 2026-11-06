@@ -1302,11 +1302,6 @@ export async function buildBookOutline(bookId: string, options: { reuseReadChunk
     page: page.page, kind: page.text.trim() ? 'PARTIAL' as const : 'UNREADABLE' as const,
     reason: String(page.readError).slice(0, 160),
   }))
-  if (pdfReadIssues.length) {
-    draft.warnings.push('OUTLINE_PDF_READ_ISSUES:' + JSON.stringify(pdfReadIssues))
-    for (const issue of pdfReadIssues) draft.warnings.push(
-      `تنبيه إعادة قراءة PDF: صفحة ${issue.page} ${issue.kind === 'PARTIAL' ? 'قراءة جزئية' : 'غير مقروءة'}؛ ${issue.reason}. تُراجع عند الاعتماد.`)
-  }
   if (draft.source === 'AI_SEGMENTED' && !options.deterministicOnly) {
     const byChunk = new Map<string, Item[]>()
     for (const item of items) if (item.chunkId) byChunk.set(item.chunkId, [...(byChunk.get(item.chunkId) || []), item])
