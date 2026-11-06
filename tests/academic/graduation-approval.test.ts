@@ -14,6 +14,7 @@ function makeWorld() {
     request: null as any,
     enrollmentUpdates: [] as any[],
     failTransaction: false,
+    admissionStatus: 'APPROVED',
   }
   const admission = {
     id: 'admission-1', userId: 'user-1', programId: 'program-1', fullName: 'طالب عربي', fullNameEn: null,
