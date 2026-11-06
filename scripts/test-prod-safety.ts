@@ -357,7 +357,10 @@ function testSecurityBatchAFollowup() {
   assert(waiverLib.includes("? Math.min(Number(waiver.requestedAmountCents || 0), currentCents)"), 'partial waiver equal to remaining balance must be allowed and settle the invoice')
   const settlePayment = file('src/lib/settle-payment.ts')
   assert(settlePayment.includes('export async function finalizeAdmissionAfterSettlement') && settlePayment.includes("source: 'PAYMENT' | 'WAIVER'"), 'admission post-settlement side effects must be extracted to a shared finalizer')
-  assert(settlePayment.includes('await finalizeAdmissionAfterSettlement(db, payment.admissionId') && waiverLib.includes('await finalizeAdmissionAfterSettlement(db, updatedPayment.admissionId'), 'markInvoicePaid and waiver approval must both call finalizeAdmissionAfterSettlement')
+  assert(settlePayment.includes('await finalizeAdmissionAfterSettlement(db, payment.admissionId') &&
+    waiverLib.includes('if (finalizeAdmissionId) await finalizeAdmissionAfterSettlement(db, finalizeAdmissionId') &&
+    waiverLib.includes('const { updatedPayment, auditedCents, finalizeAdmissionId } = settlement'),
+    'payment and waiver approval must invoke the shared admission finalizer after the waiver transaction commits')
   assert(!waiverLib.includes('applyAdmissionWaiverEffects'), 'duplicate admission waiver finalizer must be removed')
   const dbClient = file('src/lib/db.ts')
   assert(!dbClient.includes('$extends') && !dbClient.includes('$use('), 'db client must remain the plain PrismaClient to preserve TransactionClient typing')
