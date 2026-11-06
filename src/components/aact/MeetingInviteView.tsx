@@ -771,6 +771,15 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
                           <button type="button" onClick={() => setShowZoomAudioHint(false)} aria-label="إغلاق تنبيه الصوت" className="shrink-0 rounded px-2 py-1 hover:bg-amber-100">إغلاق</button>
                         </div>
                       )}
+                      {meeting.aiAssistantEnabled && meeting.minutesEnabled && (
+                        <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs font-semibold text-slate-700">
+                          <Button onClick={toggleTranscript} variant="outline" size="sm">
+                            {transcriptOn ? 'إيقاف تفريغ صوتي للمحضر' : 'تفعيل تفريغ صوتي للمحضر'}
+                          </Button>
+                          <p className="mt-2">يلتقط التفريغ كلامك من هذا الجهاز فقط، ولا يستمع تلقائياً إلى أصوات بقية أعضاء Zoom. يجب مراجعة التفريغ قبل اعتماد المحضر.</p>
+                          {transcriptError && <p role="alert" className="mt-2 text-red-600">{transcriptError}</p>}
+                        </div>
+                      )}
                       <div ref={zoomRootRef} className="min-h-[480px] w-full overflow-hidden rounded-xl bg-slate-950" dir="ltr" />
                       {zoomError && (
                         <p role="alert" className="text-center text-sm font-bold text-red-600">{zoomError}</p>
