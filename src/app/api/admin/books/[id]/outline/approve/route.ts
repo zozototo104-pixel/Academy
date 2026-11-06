@@ -93,7 +93,7 @@ export async function POST(req: NextRequest, context: Context) {
         id: section.id, pageStart: section.pageStart, pageEnd: section.pageEnd,
         chunkStartIndex: section.chunkStartIndex, chunkEndIndex: section.chunkEndIndex,
       })),
-      gaps: unresolvedGaps, readIssues, verifiedBlankPages,
+      gaps: unresolvedGaps, readIssues, pdfReadIssues, verifiedBlankPages,
     })).digest('hex')
     if (reviewMessages.length && (body?.acknowledgeCoverage !== true || body?.acknowledgmentKey !== acknowledgmentKey)) {
       return NextResponse.json({
