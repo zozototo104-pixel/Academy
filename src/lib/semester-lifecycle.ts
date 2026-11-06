@@ -146,8 +146,8 @@ export async function submissionWindowCheck(
       { id: args.enrollment.id, userId: args.enrollment.userId, programId: args.enrollment.programId },
       args.semester,
       (args.program as any)?.category,
-    ).catch(() => null)
-    if (gate && !gate.open) {
+    ).catch(() => ({ open: false, reasons: ['تعذر التحقق من فتح الفصل؛ أعد المحاولة لاحقًا'] }))
+    if (!gate.open) {
       return {
         ok: false,
         code: 'PROGRESSION_LOCKED',
