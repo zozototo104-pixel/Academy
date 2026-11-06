@@ -459,6 +459,9 @@ async function chargeExtraLiveMinutes(tx: any, session: any, wantedMinutes: numb
 export async function settleGeminiLiveUsage(input: { userId: string; sessionId: string; actualSeconds?: number; actualMinutes?: number }) {
   const claimedMinutes = Math.max(0, Math.ceil(input.actualMinutes ?? ((Number(input.actualSeconds || 0) || 0) / 60)))
   return db.$transaction(async (tx) => {
+    // Lock the owner first (same order as reservation), because paid credit
+    // is shared across all live-voice purposes. Then lock the session.
+    await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${input.userId} FOR UPDATE`
     // Serialize settlements of the same session BEFORE checking RESERVED.
     // A second request must observe the first committed SETTLED state, not
     // refund or charge an identical reservation twice.
