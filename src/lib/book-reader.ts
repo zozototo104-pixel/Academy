@@ -6,6 +6,7 @@ import { fixArabicPdfText } from '@/lib/arabic-pdf-text'
 import { textAiCompleteJsonWithMetadata, type TextAiPreferredModel, type TextAiProvider, type TextAiRouterPolicy } from '@/lib/text-ai'
 import { buildStageRoutingOverrides, resolveEffectiveStageProfile, type StageRoutingOverrides } from '@/lib/ai-stage-profiles'
 import { withPipelineRun } from '@/lib/ai-pipeline-log'
+import { mergeBookPageReadIssues, type BookPageReadIssue } from '@/lib/book-read-job-control'
 
 export type ExtractedBookPage = { page: number; text: string; textProvenance: 'NATIVE_TEXT' | 'VISION_OCR' }
 export type PlannedBookChunk = { index: number; pageStart: number; pageEnd: number; headingPath: string | null; text: string; charCount: number; textProvenance: 'NATIVE_TEXT' | 'VISION_OCR'; contentHash: string }
