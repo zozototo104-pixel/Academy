@@ -493,7 +493,7 @@ function NotificationBell({ mobile = false }: { mobile?: boolean } = {}) {
       // Historical admin chat links use a colon separator, not an HTTP URL.
       // URL() treats "admin-messages:..." as a custom scheme and sends the
       // browser nowhere; route it internally to its actual thread instead.
-      const message = user?.role === 'ADMIN' ? rawLink.match(new RegExp('^/?admin-messages:([a-z0-9_-]{3,128}) : null
+      const message = user?.role === 'ADMIN' ? rawLink.match(/^\/?admin-messages:([a-z0-9_-]{3,128})$/i) : null
       if (message) {
         navigate('admin' as any, { tab: 'admin-messages' })
         dispatchAdminTab('admin-messages', { admissionId: message[1] })
