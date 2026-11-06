@@ -43,6 +43,7 @@ type InviteState = {
   ok?: boolean
   level: 'TEASER' | 'CLAIMABLE' | 'FULL' | 'NONE'
   loginRequired?: boolean
+  canOperateAi?: boolean
   myInvite?: { inviteeName: string }
   meeting?: MeetingInfo
   joinOpen: boolean
