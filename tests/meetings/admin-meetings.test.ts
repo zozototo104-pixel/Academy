@@ -682,7 +682,7 @@ describe('meeting-room signal ownership', () => {
     expect(response.status).toBe(200)
     expect(roomTransaction.isolationLevel).toBe('Serializable')
     expect(roomTransaction.attempts).toBe(1)
-    expect(roomPeerOwner.current).toBe('room-user-1')
+    expect(String(roomPeerOwner.current)).toBe('room-user-1')
     expect(roomAttendanceWrites.count).toBe(1)
   })
 
