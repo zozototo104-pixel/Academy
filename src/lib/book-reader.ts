@@ -131,7 +131,7 @@ export async function transcribeScannedDocumentWithVision(buffer: Buffer, pageNu
 
 export type ExtractStepStore = {
   upsertChunk: (chunk: PlannedBookChunk, bookId: string, programId: string) => Promise<void>
-  saveProgress: (jobId: string, pagesDone: number, totalPages: number, totalChunks: number, phase: 'EXTRACT' | 'ANALYZE') => Promise<void>
+  saveProgress: (jobId: string, pagesDone: number, totalPages: number, totalChunks: number, phase: 'EXTRACT' | 'ANALYZE', issues?: readonly BookPageReadIssue[], processedPages?: readonly number[]) => Promise<void>
 }
 
 /** One durable batch is at most eight pages. Progress advances only after every chunk is saved. */
