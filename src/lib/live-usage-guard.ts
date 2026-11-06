@@ -492,11 +492,19 @@ export async function refundExpiredGeminiLiveSessions(now = new Date()) {
   return db.$transaction(async (tx) => {
     const sessions = await tx.aiLiveSession.findMany({ where: { status: 'RESERVED', expiresAt: { lt: now } }, take: 50 })
     let charged = 0
+    let settled = 0
     for (const session of sessions) {
-      await tx.aiLiveSession.update({ where: { id: session.id }, data: { status: 'SETTLED', settledAt: now, actualMinutes: session.reservedMinutes } })
+      // CAS protects a session settled by another worker between findMany
+      // and this update. In particular, never overwrite its actual minutes.
+      const claim = await tx.aiLiveSession.updateMany({
+        where: { id: session.id, status: 'RESERVED', expiresAt: { lt: now } },
+        data: { status: 'SETTLED', settledAt: now, actualMinutes: session.reservedMinutes },
+      })
+      if (claim.count !== 1) continue
+      settled++
       charged += session.reservedMinutes
     }
-    return { sessions: sessions.length, refunded: 0, charged }
+    return { sessions: settled, refunded: 0, charged }
   })
 }
 
