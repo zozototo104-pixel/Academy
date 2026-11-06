@@ -141,6 +141,15 @@ describe('books workspace organization guard', () => {
     assert.deepEqual(functionHashes(), ORIGINAL_FUNCTION_HASHES)
   })
 
+  it('the knowledge-bank total uses full pagination count while retaining the old fallback', () => {
+    const sf = SOURCE.slice(SOURCE.indexOf('  const loadProgramData = useCallback('),
+      SOURCE.indexOf('  const hasActiveExamGenerationJob = useMemo('))
+    assert.ok(sf.includes('setKnowledgeTotalCount(k.total ?? k.count ?? 0)'),
+      'the full count comes from total, then safely falls back to count on old responses')
+    assert.ok(sf.includes('if (latestProgramLoadRef.current !== loadToken) return'),
+      'stale program responses must not overwrite the selected program')
+  })
+
   it('the API/fetch call surface is unchanged (full call expressions: path, method, body, headers)', () => {
     const surface = apiSurface()
     assert.equal(surface.count, ORIGINAL_API_CALL_COUNT)
