@@ -202,6 +202,15 @@ describe('thesis gate', () => {
     ...over,
   })
 
+  test('database outage cannot open a required thesis gate', async () => {
+    const client = fakeClient(thesisCfg({ states: { 1: 'CLOSED', 2: 'CLOSED' }, approvals: { 1: 90, 2: 90 } }))
+    client.enrollmentSemesterState.count = async () => { throw new Error('database unavailable') }
+    const gate = await thesisGate(client, ENROLLMENT, PROGRAM)
+    expect(gate.required).toBe(true)
+    expect(gate.open).toBe(false)
+    expect(gate.reasons.join(' ')).toContain('تعذر التحقق')
+  })
+
   test('not required by the frozen rules → no gate', async () => {
     const gate = await thesisGate(fakeClient({ requiredComponents: ['final_exam'] }), ENROLLMENT, PROGRAM)
     expect(gate.required).toBe(false)
