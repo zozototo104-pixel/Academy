@@ -17,9 +17,23 @@ function findBy(where: Row) {
 }
 
 const deletedSessionUserIds: string[] = []
+let failSessionRevocation = false
 const dbMock = {
+  // Transaction test double: preserve object identity while rolling back
+  // both the email mutation and the session-deletion audit on failure.
+  $transaction: async (fn: (tx: any) => Promise<any>) => {
+    const snapshot = users.map((u) => ({ ...u }))
+    const deletedAt = deletedSessionUserIds.length
+    try { return await fn(dbMock) }
+    catch (error) {
+      users.forEach((u, i) => Object.assign(u, snapshot[i]))
+      deletedSessionUserIds.length = deletedAt
+      throw error
+    }
+  },
   session: {
     deleteMany: async ({ where }: any) => {
+      if (failSessionRevocation) throw new Error('SESSION_REVOCATION_FAILED')
       if (where?.userId) deletedSessionUserIds.push(where.userId)
       return { count: 1 }
     },
