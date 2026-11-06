@@ -19,6 +19,23 @@ const routeAdmin = { current: true }
 const routeMeeting = { current: null as any }
 const routeDeletedIds: string[] = []
 const routeAudits: any[] = []
+const roomPeerOwner = { current: null as string | null }
+const roomSignalsConsumed = { count: 0 }
+const roomAttendanceWrites = { count: 0 }
+const roomInvite = {
+  id: 'room-invite-1',
+  inviteeName: 'Participant',
+  claimedByUserId: 'room-user-1',
+  revokedAt: null,
+  expiresAt: new Date(Date.now() + 2 * 60 * 60_000),
+  meeting: {
+    id: 'room-meeting-1',
+    provider: 'PLATFORM',
+    status: 'SCHEDULED',
+    startsAt: new Date(Date.now() - 60_000),
+    endsAt: new Date(Date.now() + 60 * 60_000),
+  },
+}
 mock.module('@/lib/db', () => ({
   db: {
     adminMeeting: {
