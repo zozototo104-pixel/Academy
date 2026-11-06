@@ -1093,6 +1093,48 @@ export function outlineSubheadingMarkers(pages: readonly ExtractedBookPage[], ch
   return markers.slice(0, 250)
 }
 
+/**
+ * Recover OCR per page. A malformed/empty response for one page must not
+ * abort the outline of an otherwise readable book. Only real OCR text may
+ * replace a page; unrecovered pages remain explicitly marked.
+ */
+export async function recoverOutlineOcrPages(
+  pages: readonly ExtractedBookPage[],
+  batches: readonly number[][],
+  readOcr: (numbers: number[]) => Promise<ExtractedBookPage[]>,
+): Promise<ExtractedBookPage[]> {
+  const byPage = new Map(pages.map((page) => [page.page, { ...page }]))
+  for (const batch of batches) {
+    let recovered: ExtractedBookPage[] = []
+    try {
+      recovered = await readOcr([...batch])
+    } catch (error) {
+      console.warn('[book-outline] OCR batch failed; inspecting pages separately', {
+        pages: batch, reason: error instanceof Error ? error.message : 'UNKNOWN',
+      })
+    }
+    for (const pageNumber of batch) {
+      const original = byPage.get(pageNumber)
+      if (!original) continue
+      let readable = recovered.find((page) => page.page === pageNumber && page.text.trim())
+      if (!readable && batch.length > 1) {
+        try {
+          readable = (await readOcr([pageNumber]))
+            .find((page) => page.page === pageNumber && page.text.trim())
+        } catch (error) {
+          console.warn('[book-outline] could not OCR individual page', {
+            page: pageNumber, reason: error instanceof Error ? error.message : 'UNKNOWN',
+          })
+        }
+      }
+      byPage.set(pageNumber, readable
+        ? { ...readable, readError: undefined }
+        : { ...original, readError: [original.readError, 'OCR_FAILED_OR_EMPTY'].filter(Boolean).join('; ') })
+    }
+  }
+  return pages.map((page) => byPage.get(page.page) ?? page)
+}
+
 async function originalBookPages(bookId: string): Promise<ExtractedBookPage[]> {
   const book = await db.book.findUnique({ where: { id: bookId }, select: { data: true, storageProvider: true, storageKey: true, fileUrl: true, mimeType: true } })
   if (!book) throw new Error('BOOK_NOT_FOUND')
