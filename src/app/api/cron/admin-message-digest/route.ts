@@ -92,6 +92,17 @@ export async function GET(request: NextRequest) {
       await releaseClaim()
       continue
     }
+    // Commit the actual delivery time only after the mailer accepts it.
+    // A crashed sender leaves its future-dated claim to be recovered by
+    // the next cron run after the lease expires.
+    const finalized = await db.supervisorChannelMessage.updateMany({
+      where: { id: { in: messageIds }, emailSentAt: claimedAt },
+      data: { emailSentAt: new Date() },
+    })
+    if (finalized.count !== messageIds.length) {
+      console.error('Admin digest finalization lost its email claim', { count: finalized.count, wanted: messageIds.length })
+      continue
+    }
     emailedStudents += 1
     emailedMessages += group.messages.length
   }
