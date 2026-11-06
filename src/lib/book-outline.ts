@@ -1103,7 +1103,9 @@ export function validateThematicArticleGrouping(raw: string, source: readonly Ou
   return { sections: output, subheadings }
 }
 
+// The API route has a 300-second execution cap; reserve time to audit and persist the draft.
 export async function buildBookOutline(bookId: string, options: { reuseReadChunks?: boolean; deterministicOnly?: boolean } = {}) {
+  const buildStartedAt = Date.now()
   const book = await db.book.findUnique({ where: { id: bookId }, select: { id: true, semester: true, title: true } })
   if (!book) throw new Error('BOOK_NOT_FOUND')
   const [chunks, items] = await Promise.all([
