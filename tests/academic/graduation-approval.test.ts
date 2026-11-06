@@ -197,6 +197,47 @@ describe('graduation approval law', () => {
     expect(world.state.request.certificateId).toBe('cert-new')
   })
 
+  test('admissions certification route refuses a missing administrative graduation approval', async () => {
+    const response = await certifyFromAdmissions()
+    expect(response.status).toBe(409)
+    expect((await response.json()).code).toBe('ADMIN_GRADUATION_APPROVAL_REQUIRED')
+    expect(world.state.createdCertificate).toBeNull()
+    expect(world.state.enrollment.status).toBe('ACTIVE')
+  })
+
+  test('admissions certification uses the same atomic issuer and links the certificate to the enrollment', async () => {
+    await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
+    world.state.request.status = 'APPROVED'
+    world.state.request.decidedById = 'admin-1'
+    world.state.request.decidedAt = new Date()
+
+    const response = await certifyFromAdmissions()
+    expect(response.status).toBe(200)
+    expect((await response.json()).ok).toBe(true)
+    expect(world.state.createdCertificate?.enrollmentId).toBe('enrollment-1')
+    expect(world.state.createdCertificate?.admissionId).toBe('admission-1')
+    expect(world.state.enrollment.status).toBe('COMPLETED')
+    expect(world.state.enrollment.certificateNo).toBe(world.state.createdCertificate?.serial)
+    expect(world.state.request.status).toBe('ISSUED')
+    expect(world.state.request.certificateId).toBe(world.state.createdCertificate?.id)
+
+    const existing = world.state.createdCertificate
+    const second = await certifyFromAdmissions()
+    expect(second.status).toBe(200)
+    expect(world.state.createdCertificate).toBe(existing)
+  })
+
+  test('admissions certification does not reissue a legacy unlinked certificate', async () => {
+    world.state.certificate = {
+      id: 'legacy-cert', admissionId: 'admission-1', enrollmentId: null,
+      type: 'PROGRAM_COMPLETION', serial: 'AACT-C-2026-OLD',
+    }
+    const response = await certifyFromAdmissions()
+    expect(response.status).toBe(409)
+    expect((await response.json()).code).toBe('CERTIFICATE_RECONCILIATION_REQUIRED')
+    expect(world.state.createdCertificate).toBeNull()
+  })
+
   test('stale 88 approval -> admin refresh to 95 -> new approval -> issuance at 95', async () => {
     await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
     world.state.request.status = 'APPROVED'
