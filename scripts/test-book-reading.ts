@@ -59,7 +59,7 @@ async function pdfExtractionRegression() {
 async function unreadablePdfPageDoesNotStopFollowingPages() {
   const content = 'تطبيقات الإدارة الاستراتيجية والتخطيط التشغيلي والرقابة على الأداء المؤسسي. '.repeat(5)
   const saved: { pageStart: number; pageEnd: number; text: string }[] = []
-  let progress: { pagesDone: number; issuePages: number[]; processedPages: number[] } | null = null
+  const progress: { current: { pagesDone: number; issuePages: number[]; processedPages: number[] } | null } = { current: null }
   const extractPages = async (_buffer: Buffer, numbers: readonly number[]) => numbers.map((page) => ({
     page,
     text: [2, 4].includes(page) ? '' : content + 'رقم الصفحة ' + page,
