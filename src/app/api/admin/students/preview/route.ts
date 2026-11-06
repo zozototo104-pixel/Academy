@@ -496,7 +496,7 @@ export async function GET(req: NextRequest) {
         assignmentsSolved: assignments.filter((a) => a.status === 'GRADED' || a.status === 'SUBMITTED').length,
         assignmentsPublishedTotal: publishedAssignmentsTotal,
       },
-      admissions,
+      admissions: admissions.map((a) => ({ ...a, aiReview: undefined })),
       enrollments: enrollments.map((e) => ({
         ...e,
         completedUnitsCount: safeJsonArray(e.completedUnits).length,
