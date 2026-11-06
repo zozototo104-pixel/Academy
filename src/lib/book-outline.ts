@@ -446,9 +446,17 @@ export function planBookOutline(chunks: readonly Chunk[], items: readonly Item[]
       if (number === null) return entry
       const label = chapterLabel(entry.title)
       const tocTitle = tocNames.get(number)
+      const generic = normalizeHeading(entry.title) === normalizeHeading(label)
+      // A persisted headingPath may contain only «الفصل التاسع» even when
+      // the actual chapter line and topic are already present in OCR text.
+      // Prefer that same chapter's source title without moving its boundary.
+      const textTitle = generic ? fromText.find((candidate) =>
+        candidate.at === entry.at && chapterNumber(candidate.title) === number &&
+        normalizeHeading(candidate.title) !== normalizeHeading(chapterLabel(candidate.title)) &&
+        !isBookRunningHeader(candidate.title, bookTitle))?.title : undefined
       return {
         ...entry,
-        title: tocTitle && normalizeHeading(entry.title) === normalizeHeading(label) ? tocTitle : entry.title,
+        title: generic ? textTitle || tocTitle || entry.title : entry.title,
       }
     })
   const sections = normalizeBoundaries(chunks, boundaries, items, chunkIds, semester)
