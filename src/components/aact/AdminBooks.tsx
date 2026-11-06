@@ -1040,7 +1040,7 @@ export function AdminBooksTab() {
       setQuestionBankProgress(null)
       setStudyGuides([])
 
-      void api<{ items: KnowledgeItemRow[]; stats: KnowledgeStats; count: number; v2CountsByBook: Record<string, number> }>(`/api/admin/knowledge-bank?programId=${pid}`)
+      void api<{ items: KnowledgeItemRow[]; stats: KnowledgeStats; count: number; total: number; v2CountsByBook: Record<string, number> }>(`/api/admin/knowledge-bank?programId=${pid}`)
         .then((k) => {
           if (latestProgramLoadRef.current !== loadToken) return
           setKnowledgeItems(k.items || [])
