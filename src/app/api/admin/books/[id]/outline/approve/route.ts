@@ -67,16 +67,36 @@ export async function POST(req: NextRequest, context: Context) {
         incomplete,
       }, { status: 409 })
     }
-    // A documented long-chapter override must NOT bypass missing pages.
-    if (guard.report.gaps.length) {
+    const reviewMessages = [
+      ...verifiedBlankPages.map((page) => `صفحة ${page}: بيضاء حسب فحص الصورة الأصلية (لا تحتوي معرفة مستخرجة).`),
+      ...unresolvedGaps.map((gap) => `صفحات ${gap.pageStart}–${gap.pageEnd}: غير ممثلة في نص المصدر المحفوظ؛ لا تعتبر مقروءة حتى لو تم دمج الفصلين المحيطين.`),
+      ...readIssues.map((issue) => `صفحة ${issue.page}: ${issue.kind === 'PARTIAL' ? 'قراءة جزئية' : 'تعذرت قراءتها'} — ${issue.reason}.`),
+    ]
+    const acknowledgmentKey = createHash('sha256').update(JSON.stringify({
+      outlineId: outline.id,
+      sections: outline.sections.map((section) => ({
+        id: section.id, pageStart: section.pageStart, pageEnd: section.pageEnd,
+        chunkStartIndex: section.chunkStartIndex, chunkEndIndex: section.chunkEndIndex,
+      })),
+      gaps: unresolvedGaps, readIssues, verifiedBlankPages,
+    })).digest('hex')
+    if (reviewMessages.length && (body?.acknowledgeCoverage !== true || body?.acknowledgmentKey !== acknowledgmentKey)) {
       return NextResponse.json({
-        code: 'OUTLINE_COVERAGE_GAPS',
-        error: `لا يمكن اعتماد فهرس فيه فجوات صفحات داخلية: ${guard.report.gaps.map((gap) => `${gap.pageStart}–${gap.pageEnd}`).join('، ')}. أعد فحص حدود الأقسام قبل الاعتماد.`,
-        gaps: guard.report.gaps,
+        code: 'OUTLINE_REVIEW_REQUIRED',
+        error: 'يوجد تقرير صفحات ناقصة أو غير مقروءة. راجع كل بند، ثم اعتمد صراحة مع الإقرار أو ارفض الاعتماد.',
+        issues: reviewMessages,
+        gaps: unresolvedGaps, readIssues, verifiedBlankPages, acknowledgmentKey,
       }, { status: 409 })
     }
-    let warningsPrefix: string[] = []
-    if (guard.decision === 'BLOCK') {
+    let warningsPrefix: string[] = reviewMessages.length ? [
+      'OUTLINE_REVIEW_ACK:' + JSON.stringify({
+        at: new Date().toISOString(), byAdminId: admin.id,
+        gaps: unresolvedGaps, readIssues, verifiedBlankPages, acknowledgmentKey,
+      }),
+    ] : []
+    // Acknowledging lost pages NEVER bypasses unknown section bounds or a
+    // genuinely oversized section; the latter keeps its documented gate.
+    if (guard.report.blocked.length) {
       const overrideReason = String(body?.overrideReason || '').replace(/\s+/g, ' ').trim().slice(0, 300)
       if (body?.overrideOversized !== true || overrideReason.length < 3) {
         return NextResponse.json({
