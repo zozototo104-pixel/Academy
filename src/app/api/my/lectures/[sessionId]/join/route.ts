@@ -56,8 +56,8 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ se
             { id: enrollment.id, userId: user.id, programId: session.series.programId },
             unitSemester,
             (unit as any)?.program?.category,
-          ).catch(() => null)
-          if (gate && !gate.open) {
+          ).catch(() => ({ open: false, reasons: ['تعذر التحقق من اعتماد الفصل السابق'] }))
+          if (!gate.open) {
             return NextResponse.json({ error: 'هذه المحاضرة من فصل غير مفتوح بعد — يُفتح بعد اعتماد نجاح الفصل السابق', code: 'PROGRESSION_LOCKED' }, { status: 403 })
           }
         }
