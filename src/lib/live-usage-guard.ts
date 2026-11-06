@@ -169,13 +169,23 @@ async function refundReserved(tx: any, session: any, minutes: number) {
     // وهي مجموعة السحب نفسها — بدل أن يولد بلا expiresAt فيتحوّل رصيد
     // مؤقت إلى رصيد دائم لا ينتهي أبداً. بلا أي انتهاء في المجموعة
     // (أرصدة دائمة أصلاً) يبقى المسترد بلا انتهاء وفاءً لمصدره.
-    const poolAnchor = session.startedAt || session.createdAt || new Date()
+    const poolAnchor = new Date(session.startedAt || session.createdAt || new Date())
     const pool = await tx.aiLiveCredit.findMany({
-      where: { userId: session.userId, createdAt: { lte: poolAnchor }, expiresAt: { not: null } },
-      orderBy: [{ expiresAt: 'asc' }],
+      where: {
+        userId: session.userId,
+        createdAt: { lte: poolAnchor },
+        status: { in: ['ACTIVE', 'CONSUMED'] },
+        // A credit that expired BEFORE this session started could not have
+        // funded the reservation, even if it still exists as a historical row.
+        OR: [{ expiresAt: null }, { expiresAt: { gt: poolAnchor } }],
+      },
+      orderBy: [{ expiresAt: 'asc' }, { createdAt: 'asc' }],
       take: 1,
     })
-    const inheritedExpiry = pool[0]?.expiresAt ?? null
+    // The pool is an approximation for legacy sessions without per-credit
+    // allocation records. Never turn a missing expiring source into unlimited
+    // credit: if no eligible source survives, the refund remains expired.
+    const inheritedExpiry = pool[0]?.expiresAt ?? poolAnchor
     await tx.aiLiveCredit.create({
       data: {
         userId: session.userId,
