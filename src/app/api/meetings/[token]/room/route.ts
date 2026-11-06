@@ -397,12 +397,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     if (action === 'heartbeat') {
       if (!peerId) return NextResponse.json({ error: 'معرف الاتصال مطلوب' }, { status: 400 })
       assertJoinOpen(actor.meeting)
-      await requireOwnedPeer(meetingId, peerId, actor.user.id)
-      const presence = await latestPresence(meetingId, peerId)
-      await touchPresence(meetingId, peerId, {
-        name: presence?.info.name || String(actor.user.name || 'مشارك').slice(0, 80),
-        userId: actor.user.id,
-      })
+      await refreshOwnedPresence(
+        meetingId,
+        peerId,
+        actor.user.id,
+        String(actor.user.name || 'مشارك').slice(0, 80),
+        'heartbeat',
+      )
       return NextResponse.json({ ok: true })
     }
 
