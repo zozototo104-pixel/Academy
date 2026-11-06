@@ -225,7 +225,7 @@ function MeetingAiVoiceControl({ basePath, provider }: { basePath: string; provi
           disabled={busy} className={running ? 'bg-red-700 text-white hover:bg-red-800' : 'bg-violet-700 text-white hover:bg-violet-800'}>
           {busy ? 'جارٍ وصل الصوت الحي…' : running ? 'إيقاف مشاركة المشرف الذكي' : 'بدء مشاركة المشرف الذكي بصوته'}
         </Button>
-        <span role="status" className="text-xs font-semibold text-violet-900">{running ? 'جلسة صوتية نشطة — ' + voiceState : 'غير متصل صوتياً'}</span>
+        <span role="status" className="text-xs font-semibold text-violet-900">{running ? 'Gemini Live متصل — ' + voiceState + '؛ تحقق من مسار صوت الاجتماع' : 'غير متصل صوتياً'}</span>
       </div>
       {heard && <p className="mt-2 text-xs text-slate-700">الكلام المسموع (قد يحتاج تصحيحاً): {heard}</p>}
       {spoken && <p className="mt-2 text-xs text-violet-900">مداخلة المشرف: {spoken}</p>}
