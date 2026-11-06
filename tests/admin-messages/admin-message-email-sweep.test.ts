@@ -131,6 +131,24 @@ describe('admin message digest sweep', () => {
     expect(emailedIds).not.toContain('m-old-emailed')
   })
 
+  test('a crashed worker digest claim older than ten minutes is retried and finalized with real send time', async () => {
+    const route = await import('@/app/api/cron/admin-message-digest/route')
+    const claimOffset = 100 * 365 * 24 * 60 * 60 * 1000
+    messages[0].emailSentAt = new Date(Date.now() + claimOffset - 11 * 60 * 1000)
+    await route.GET(cronRequest())
+    expect(emailCalls).toHaveLength(1)
+    expect(messages[0].emailSentAt.getTime()).toBeLessThan(Date.now() + 60_000)
+    expect(messages[0].emailSentAt.getTime()).toBeGreaterThan(Date.now() - 60_000)
+  })
+
+  test('a fresh unfinished digest claim is not stolen by overlapping cron', async () => {
+    const route = await import('@/app/api/cron/admin-message-digest/route')
+    const claimOffset = 100 * 365 * 24 * 60 * 60 * 1000
+    messages[0].emailSentAt = new Date(Date.now() + claimOffset - 3 * 60 * 1000)
+    await route.GET(cronRequest())
+    expect(emailCalls).toHaveLength(0)
+  })
+
   test('a failed send releases the claim — the next run retries and succeeds', async () => {
     const route = await import('@/app/api/cron/admin-message-digest/route')
     digestBehavior = 'fail'
