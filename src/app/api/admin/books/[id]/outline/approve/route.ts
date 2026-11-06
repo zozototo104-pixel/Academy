@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
-import { outlineApprovalGuard, OUTLINE_SECTION_BLOCK_PAGES } from '@/lib/book-outline'
+import { outlineApprovalGuard, verifyBlankPdfGapPages, OUTLINE_SECTION_BLOCK_PAGES } from '@/lib/book-outline'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
