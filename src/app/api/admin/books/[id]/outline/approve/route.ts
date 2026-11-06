@@ -85,6 +85,7 @@ export async function POST(req: NextRequest, context: Context) {
       ...verifiedBlankPages.map((page) => `صفحة ${page}: بيضاء حسب فحص الصورة الأصلية (لا تحتوي معرفة مستخرجة).`),
       ...unresolvedGaps.map((gap) => `صفحات ${gap.pageStart}–${gap.pageEnd}: غير ممثلة في نص المصدر المحفوظ؛ لا تعتبر مقروءة حتى لو تم دمج الفصلين المحيطين.`),
       ...readIssues.map((issue) => `صفحة ${issue.page}: ${issue.kind === 'PARTIAL' ? 'قراءة جزئية' : 'تعذرت قراءتها'} — ${issue.reason}.`),
+      ...pdfReadIssues.map((issue) => `صفحة ${issue.page}: تعذرت إعادة قراءة PDF مباشرة — ${issue.reason}.`),
     ]
     const acknowledgmentKey = createHash('sha256').update(JSON.stringify({
       outlineId: outline.id,
