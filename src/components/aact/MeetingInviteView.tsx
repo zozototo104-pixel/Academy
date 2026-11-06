@@ -113,6 +113,13 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
   const [zoomConfig, setZoomConfig] = useState<null | { signature: string; sdkKey: string; meetingNumber: string; userName: string; password: string }>(null)
   const [zoomError, setZoomError] = useState<string | null>(null)
   const [zoomExternalUrl, setZoomExternalUrl] = useState<string | null>(null)
+  const [showZoomAudioHint, setShowZoomAudioHint] = useState(false)
+  useEffect(() => {
+    if (!zoomConfig) { setShowZoomAudioHint(false); return }
+    setShowZoomAudioHint(true)
+    const timeout = window.setTimeout(() => setShowZoomAudioHint(false), 12_000)
+    return () => window.clearTimeout(timeout)
+  }, [zoomConfig])
   const zoomRootRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!zoomConfig || !zoomRootRef.current) return
