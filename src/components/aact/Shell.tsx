@@ -487,9 +487,20 @@ function NotificationBell({ mobile = false }: { mobile?: boolean } = {}) {
     const viewLinks = new Set(['home', 'programs', 'apply', 'auth', 'dashboard', 'chat', 'agent', 'admin', 'supervisor', 'verify', 'directory', 'about', 'contact'])
 
     if (rawLink) {
+      // Historical admin chat links use a colon separator, not an HTTP URL.
+      // URL() treats "admin-messages:..." as a custom scheme and sends the
+      // browser nowhere; route it internally to its actual thread instead.
+      const message = user?.role === 'ADMIN' ? rawLink.match(/^\\/?admin-messages:([a-z0-9_-]{3,128})$/i) : null
+      if (message) {
+        navigate('admin' as any, { tab: 'admin-messages' })
+        dispatchAdminTab('admin-messages', { admissionId: message[1] })
+        return true
+      }
       const url = new URL(rawLink, window.location.origin)
+      // Links stored in notifications are data, never executable protocols.
+      if (!['http:', 'https:'].includes(url.protocol)) return false
       if (url.origin !== window.location.origin) {
-        window.location.assign(rawLink)
+        window.location.assign(url.href)
         return true
       }
       const params = url.searchParams
