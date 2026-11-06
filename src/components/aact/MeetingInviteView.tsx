@@ -192,6 +192,7 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
   const [revealedPasscode, setRevealedPasscode] = useState<string | null>(null)
   const [joinedExternal, setJoinedExternal] = useState(false)
   const [inRoom, setInRoom] = useState(false)
+  const [aiDeviceMode, setAiDeviceMode] = useState(false)
   const [zoomConfig, setZoomConfig] = useState<null | { signature: string; sdkKey: string; meetingNumber: string; userName: string; password: string }>(null)
   const [zoomError, setZoomError] = useState<string | null>(null)
   const [zoomExternalUrl, setZoomExternalUrl] = useState<string | null>(null)
