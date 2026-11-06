@@ -87,8 +87,8 @@ async function unreadablePdfPageDoesNotStopFollowingPages() {
     },
   })
   assert.equal(result.pagesDone, 5, 'الكتاب يتقدم للصفحة الخامسة رغم فشل OCR للثانية')
-  assert.deepEqual(progress?.issuePages, [2], 'الفشل موثّق على الصفحة المحددة')
-  assert.deepEqual(progress?.processedPages, [1, 2, 3, 4, 5], 'التقدم يسجل دفعة الصفحات بأكملها')
+  assert.deepEqual(progress.current?.issuePages, [2], 'الفشل موثّق على الصفحة المحددة')
+  assert.deepEqual(progress.current?.processedPages, [1, 2, 3, 4, 5], 'التقدم يسجل دفعة الصفحات بأكملها')
   assert(saved.some((chunk) => chunk.text.includes('الصفحة الرابعة المستعاد')), 'لا يجوز خسارة صفحة نجح OCR لها')
   assert(saved.some((chunk) => chunk.text.includes('رقم الصفحة 5')), 'الصفحات التالية لم تتوقف')
   assert(saved.every((chunk) => chunk.pageEnd < 2 || chunk.pageStart > 2),
