@@ -90,6 +90,7 @@ mock.module('@/lib/notify', () => ({
 
 const { completeEnrollmentIfEligibleInTransaction, registerGraduationRequest } = await import('../../src/lib/enrollment-completion')
 const { POST: graduationAction } = await import('../../src/app/api/admin/graduation-requests/route')
+const { PATCH: admissionAction } = await import('../../src/app/api/admin/admissions/route')
 
 function postGraduationAction(action: 'REFRESH' | 'APPROVE' | 'REJECT') {
   return graduationAction(new NextRequest('http://localhost/api/admin/graduation-requests', {
