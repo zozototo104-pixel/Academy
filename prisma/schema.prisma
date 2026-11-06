@@ -2504,6 +2504,7 @@ model NotificationOutbox {
   status          String    @default("PENDING") // PENDING | SENT
   emailStatus     String    @default("PENDING") // PENDING | SENDING | SENT | FAILED | SKIPPED
   emailAttempts   Int       @default(0)
+  emailDeliveredTo Json? // recipient user IDs already accepted by the email provider
   lastError       String?
   createdAt       DateTime  @default(now())
   sentAt          DateTime?
