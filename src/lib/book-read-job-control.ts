@@ -3,9 +3,14 @@ const PAGE_ISSUES_PREFIX = 'BOOK_PAGE_ISSUES:'
 
 /** Persist per-page reading limitations with the resumable job, without schema migration. */
 export function parseBookPageReadIssues(lastError: string | null | undefined): BookPageReadIssue[] {
-  if (!lastError?.startsWith(PAGE_ISSUES_PREFIX)) return []
+  if (!lastError) return []
+  // Keep legacy ledger-only values readable, plus errors that carry the
+  // ledger as a suffix. Provider/analysis errors must not destroy page evidence.
+  const marker = lastError.startsWith(PAGE_ISSUES_PREFIX)
+    ? 0 : lastError.lastIndexOf('\n' + PAGE_ISSUES_PREFIX) + 1
+  if (marker < 0 || !lastError.slice(marker).startsWith(PAGE_ISSUES_PREFIX)) return []
   try {
-    const parsed = JSON.parse(lastError.slice(PAGE_ISSUES_PREFIX.length))
+    const parsed = JSON.parse(lastError.slice(marker + PAGE_ISSUES_PREFIX.length))
     if (!Array.isArray(parsed)) return []
     return parsed.filter((issue): issue is BookPageReadIssue =>
       Number.isSafeInteger(issue?.page) && issue.page > 0 &&
