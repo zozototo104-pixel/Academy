@@ -441,7 +441,7 @@ export async function GET(req: NextRequest) {
         return review.findings
           .filter((f: any) => f && ['HIGH', 'MEDIUM'].includes(f.severity) && f.title)
           .slice(0, 4)
-          .map((f: any) => `طلب ${a.reference}: ${String(f.title).replace(/\\s+/g, ' ').slice(0, 120)} — ${String(f.detail || '').replace(/\\s+/g, ' ').slice(0, 180)}`)
+          .map((f: any) => `طلب ${a.reference}: ${String(f.title).replace(/\s+/g, ' ').slice(0, 120)} — ${String(f.detail || '').replace(/\s+/g, ' ').slice(0, 180)}`)
       } catch {
         // A malformed older review is not proof of an active document issue.
         return []
