@@ -167,7 +167,7 @@ export async function collectMeetingAcademyEvidence(db: any, question: string, u
       '؛ الالتحاقات ' + p._count.enrollments + '؛ الجاهزية ' + p.academicReadinessStatus +
       '؛ الاعتماد ' + (p.academicApproved ? 'نعم' : 'لا')).join('\n'))
     if (selected.length === 1) {
-      const units = await db.unit.findMany({
+      const units: any[] = await db.unit.findMany({
         where: { programId: selected[0].id },
         select: { title: true, semester: true, order: true, status: true },
         orderBy: [{ semester: 'asc' }, { order: 'asc' }], take: 180,
