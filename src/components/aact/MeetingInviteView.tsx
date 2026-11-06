@@ -110,6 +110,28 @@ function MeetingAiVoiceControl({ basePath, provider }: { basePath: string; provi
   const [spoken, setSpoken] = useState('')
   const [error, setError] = useState<string | null>(null)
   const agentRef = useRef<GeminiLiveAgent | null>(null)
+  const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([])
+  const [inputDeviceId, setInputDeviceId] = useState('')
+  const [outputDeviceId, setOutputDeviceId] = useState('')
+  const [deviceBusy, setDeviceBusy] = useState(false)
+  const checkAudioDevices = async () => {
+    if (!navigator.mediaDevices?.getUserMedia || !navigator.mediaDevices?.enumerateDevices) {
+      setError('هذا المتصفح لا يدعم اختيار أجهزة الصوت. استخدم Chrome حديثاً على الكمبيوتر.')
+      return
+    }
+    setDeviceBusy(true)
+    try {
+      const test = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+      test.getTracks().forEach((track) => track.stop())
+      const devices = await navigator.mediaDevices.enumerateDevices()
+      setAudioDevices(devices.filter((device) => device.deviceId && (device.kind === 'audioinput' || device.kind === 'audiooutput')))
+      setError(null)
+    } catch {
+      setError('اسمح للمتصفح بالميكروفون أولًا، ثم اختر المدخل والمخرج الافتراضيين.')
+    } finally {
+      setDeviceBusy(false)
+    }
+  }
 
   const stop = () => {
     agentRef.current?.stop()
