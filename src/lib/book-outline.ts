@@ -1212,7 +1212,11 @@ export async function buildBookOutline(bookId: string, options: { reuseReadChunk
     const unnamed = draft.sections.filter((section) => isBareChapterTitle(section.title))
     const maxBatches = 3
     const batchSize = 8
+    // Optional inference gets at most 75 seconds, and never extends the
+    // full request beyond 250 seconds. Keep 50 seconds for persistence.
+    const titleStageDeadline = Math.min(buildStartedAt + 250_000, Date.now() + 75_000)
     for (let start = 0; start < unnamed.length && start < maxBatches * batchSize; start += batchSize) {
+      if (Date.now() + 15_000 >= titleStageDeadline) break
       const batch = unnamed.slice(start, start + batchSize)
       const evidence = batch.map((section) => {
         const segment = chunks.filter((chunk) =>
