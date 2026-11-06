@@ -95,7 +95,7 @@ export async function collectMeetingAcademyEvidence(db: any, question: string, u
           (programAttempts.map((a) => shortValue(a.exam.title) + ' (الفصل ' + a.exam.semester + ')=' + (a.finalScore ?? a.score ?? 'غير محدد')).join('؛ ') || 'لا توجد') + '.')
       }
       if (assignmentIntent) {
-        const submissions = await db.assignmentSubmission.findMany({
+        const submissions: any[] = await db.assignmentSubmission.findMany({
           where: { userId: student.id, assignment: { programId: enrollment.programId } },
           select: { status: true, score: true, assignment: { select: { title: true, points: true } } },
           orderBy: { submittedAt: 'desc' }, take: 40,
