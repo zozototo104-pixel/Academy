@@ -65,7 +65,7 @@ function makeWorld() {
     thesisSubmission: { findFirst: async () => null },
     user: {
       findMany: async () => [{ id: 'admin-1', email: 'admin@aact.academy' }],
-      findUnique: async () => ({ id: 'user-1', email: 'student@example.test' }),
+      findUnique: async () => ({ id: 'user-1', email: 'student@example.test', role: 'STUDENT', name: 'طالب عربي' }),
     },
     notification: { createMany: async () => ({ count: 1 }), create: async () => ({}) },
   }
