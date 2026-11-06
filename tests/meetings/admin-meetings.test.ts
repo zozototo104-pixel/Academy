@@ -22,6 +22,7 @@ const routeAudits: any[] = []
 const roomPeerOwner = { current: null as string | null }
 const roomSignalsConsumed = { count: 0 }
 const roomAttendanceWrites = { count: 0 }
+const roomTransaction = { attempts: 0, conflictsRemaining: 0, isolationLevel: '' }
 const roomInvite = {
   id: 'room-invite-1',
   inviteeName: 'Participant',
