@@ -51,8 +51,20 @@ mock.module('@/lib/db', () => ({
       },
     },
     user: { findMany: async () => [] },
+    adminMeetingInvite: { findUnique: async () => roomInvite },
+    adminMeetingAttendance: { upsert: async () => { roomAttendanceWrites.count++ } },
+    adminMeetingSignal: {
+      findFirst: async () => roomPeerOwner.current
+        ? { id: 'presence-1', payload: JSON.stringify({ userId: roomPeerOwner.current, name: 'Participant' }) }
+        : null,
+      findMany: async ({ where }: any) => where.type === 'PRESENCE'
+        ? []
+        : [{ id: 'signal-1', fromPeer: 'another-peer', toPeer: 'p_target', type: 'ICE', payload: '{}', consumed: false }],
+      updateMany: async () => { roomSignalsConsumed.count++; return { count: 1 } },
+    },
   },
 }))
+mock.module('@/lib/settings', () => ({ getSettings: async () => ({}) }))
 mock.module('@/lib/auth', () => ({
   requireAdmin: async () => {
     if (!routeAdmin.current) throw new Error('FORBIDDEN')
