@@ -624,7 +624,15 @@ function NotificationBell({ mobile = false }: { mobile?: boolean } = {}) {
               )}
             </div>
             <div className="aact-scroll max-h-80 overflow-y-auto">
-              {items.length === 0 ? (
+              {notificationDetail ? (
+                <div className="space-y-3 p-4 text-right" dir="rtl">
+                  <button type="button" onClick={() => setNotificationDetail(null)} className="text-xs font-bold text-[#a8841a] hover:underline">العودة إلى الإشعارات</button>
+                  <p className="text-sm font-black text-[#0f2b46]">{notificationDetail.title}</p>
+                  <p className="whitespace-pre-wrap break-words text-xs leading-6 text-slate-700">{notificationDetail.body}</p>
+                  <p className="text-[10px] text-slate-400">{new Date(notificationDetail.createdAt).toLocaleString('ar-EG')}</p>
+                  <p className="text-[10px] text-slate-500">هذا الإشعار لا يحتوي رابطًا مباشرًا صالحًا؛ تفاصيله معروضة هنا بدل توجيهك لصفحة خاطئة.</p>
+                </div>
+              ) : items.length === 0 ? (
                 <div className="p-6 text-center text-xs text-slate-400">لا توجد إشعارات بعد</div>
               ) : (
                 items.map((n) => (
