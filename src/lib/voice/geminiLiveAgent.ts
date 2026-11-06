@@ -38,6 +38,7 @@ type SetupVariant = 'minimal' | 'generationConfig' | 'bare'
 
 type LiveSessionPayload = {
   token?: string
+  sessionId?: string
   wsUrl: string
   setup: unknown
   sdkConfig?: Record<string, unknown>
