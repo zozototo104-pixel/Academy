@@ -327,6 +327,83 @@ describe('payment waiver verification attempts', () => {
   })
 })
 
+function seedAcademicAdmission(tuitionStatus: 'UNPAID' | 'WAIVED') {
+  users.set('student-1', { id: 'student-1', email: 'student@example.test', name: 'Student', role: 'STUDENT' })
+  admissions.set('admission-1', {
+    id: 'admission-1', userId: 'student-1', email: 'student@example.test',
+    fullName: 'Student', country: 'PS', reference: 'APP-STUDY',
+    program: 'دبلوم تجريبي', programId: 'program-1', status: 'AWAITING_TUITION', supervisorId: null,
+  })
+  payments.set('fee', {
+    id: 'fee', invoiceNo: 'INV-APPLICATION', admissionId: 'admission-1',
+    userId: 'student-1', status: 'PAID', purpose: 'APPLICATION_FEE',
+    description: 'رسوم تقديم', amount: 30, amountCents: 3_000,
+  })
+  payments.set('tuition', {
+    id: 'tuition', invoiceNo: 'INV-TUITION', admissionId: 'admission-1',
+    userId: 'student-1', status: tuitionStatus, purpose: 'TUITION',
+    description: 'رسوم الدراسة', amount: 350, amountCents: 35_000,
+    payerName: 'Student', payerEmail: 'student@example.test',
+  })
+}
+
+describe('new academic enrollment lifecycle', () => {
+  test('full tuition settlement stores ENROLLMENT snapshot and both semester states', async () => {
+    seedAcademicAdmission('UNPAID')
+    const paid = await markInvoicePaid('INV-TUITION', 'CARD', { actor: { id: 'admin-1', name: 'Admin' } })
+    expect(paid.ok).toBe(true)
+    const enrollment = enrollments.get('student-1:program-1')
+    expect(enrollment?.status).toBe('ACTIVE')
+    expect(rulesSnapshots.get(enrollment!.id)?.basis).toBe('ENROLLMENT')
+    expect(semesterStates.has(`${enrollment!.id}:1`)).toBe(true)
+    expect(semesterStates.has(`${enrollment!.id}:2`)).toBe(true)
+    expect(await hasLifecycleFootprint(db, enrollment!.id)).toBe(true)
+  })
+
+  test('approved installment activation stores the same frozen lifecycle', async () => {
+    seedAcademicAdmission('UNPAID')
+    payments.set('installment', {
+      id: 'installment', invoiceNo: 'INV-INSTALLMENT', admissionId: 'admission-1',
+      userId: 'student-1', status: 'UNPAID', purpose: 'TUITION_INSTALLMENT',
+      description: 'الدفعة الأولى', amount: 100, amountCents: 10_000,
+      payerName: 'Student', payerEmail: 'student@example.test',
+    })
+    tuitionPlan = { appealStatus: 'APPROVED', approvedInitialAmount: 100, paidTuition: 100 }
+    const paid = await markInvoicePaid('INV-INSTALLMENT', 'CARD', { actor: { id: 'admin-1', name: 'Admin' } })
+    expect(paid.ok).toBe(true)
+    const enrollment = enrollments.get('student-1:program-1')
+    expect(rulesSnapshots.get(enrollment!.id)?.basis).toBe('ENROLLMENT')
+    expect(semesterStates.has(`${enrollment!.id}:2`)).toBe(true)
+  })
+
+  test('tuition waiver activates the student with enrollment provenance and semester states', async () => {
+    seedAcademicAdmission('WAIVED')
+    await finalizeAdmissionAfterSettlement(db, 'admission-1', { source: 'WAIVER' })
+    const enrollment = enrollments.get('student-1:program-1')
+    expect(enrollment?.status).toBe('ACTIVE')
+    expect(rulesSnapshots.get(enrollment!.id)?.basis).toBe('ENROLLMENT')
+    expect(semesterStates.has(`${enrollment!.id}:1`)).toBe(true)
+    expect(semesterStates.has(`${enrollment!.id}:2`)).toBe(true)
+  })
+
+  test('failed snapshot creation does not finalize admission; retry completes without duplicate enrollment', async () => {
+    seedAcademicAdmission('UNPAID')
+    snapshotWriteFails = true
+    await expect(markInvoicePaid('INV-TUITION', 'CARD', { actor: { name: 'Admin' } }))
+      .rejects.toThrow('ENROLLMENT_RULES_SNAPSHOT_REQUIRED')
+    expect(admissions.get('admission-1')?.status).toBe('AWAITING_TUITION')
+    expect(rulesSnapshots.size).toBe(0)
+    expect(enrollments.size).toBe(1)
+    snapshotWriteFails = false
+    const resumed = await markInvoicePaid('INV-TUITION', 'CARD', { actor: { name: 'Admin' } })
+    expect(resumed.ok).toBe(true)
+    expect(enrollments.size).toBe(1)
+    const enrollment = enrollments.get('student-1:program-1')
+    expect(rulesSnapshots.get(enrollment!.id)?.basis).toBe('ENROLLMENT')
+    expect(admissions.get('admission-1')?.status).toBe('SUPERVISOR_ASSIGNED')
+  })
+})
+
 describe('invoice settlement admission finalization', () => {
   test('waived invoice cannot be converted to paid settlement', async () => {
     payments.set('payment-waived', {
