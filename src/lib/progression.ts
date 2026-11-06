@@ -195,9 +195,13 @@ export async function thesisGate(
   const category = program?.category || 'DIPLOMA'
   const required = ctx.requiredComponents.includes('thesis')
   if (!required) return { open: true, reasons: [], required: false, cumulative: null }
-  if (!(await hasLifecycleFootprint(client, enrollment.id))) {
-    return { open: true, reasons: [], required: true, cumulative: null }
+  let footprint: boolean
+  try {
+    footprint = await hasLifecycleFootprint(client, enrollment.id)
+  } catch {
+    return { open: false, reasons: ['تعذر التحقق من نتائج الفصول المعتمدة؛ أعد المحاولة لاحقًا'], required: true, cumulative: null }
   }
+  if (!footprint) return { open: true, reasons: [], required: true, cumulative: null }
   const semestersCount = ctx.semestersCount ?? program?.semestersCount ?? 2
   const reasons: string[] = []
   const approvedScores: number[] = []
