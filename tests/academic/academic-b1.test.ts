@@ -531,7 +531,9 @@ describe('academic B1 safety', () => {
   })
 
   test('certificate issuance finance rules match tuition gate cases', async () => {
-    expect((await completionResult({ payments: [] })).result.ok).toBe(true)
+    const withoutTuitionInvoice = await completionResult({ payments: [] })
+    expect(withoutTuitionInvoice.result.ok).toBe(false)
+    expect(withoutTuitionInvoice.result.code).toBe('PAYMENT_REQUIRED')
     expect((await completionResult({ payments: [], scholarshipFull: true })).result.ok).toBe(true)
     expect((await completionResult({ scholarshipFull: true, payments: [{ purpose: 'APPLICATION_FEE', status: 'UNPAID', amount: 30 }] })).result.ok).toBe(true)
 
