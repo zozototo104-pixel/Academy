@@ -395,7 +395,7 @@ export async function registerGraduationRequest(input: CompleteEnrollmentInput):
             } : {}),
           },
         })
-        return { registered: true, requestId: updated.id as string, status: updated.status as string, certificateNo: null, created: false, studentName: null, programTitle: null, ready, missing }
+        return { registered: true, requestId: updated.id as string, status: updated.status as string, certificateNo: null, created: false, becameReady: !existing.ready && ready, studentName: matchedAdmission?.fullName || null, programTitle: program.titleAr || program.titleEn || null, ready, missing }
       }
       const created = await table.create({
         data: { enrollmentId: enrollment.id, userId: enrollment.userId, programId: enrollment.programId, admissionId: matchedAdmission?.id || null, status: 'PENDING', ready, score: snapshot.score, snapshot },
