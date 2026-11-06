@@ -141,6 +141,32 @@ test('a supervisor cannot approve a grade of a student who is not his', async ()
   expect(world.approvals.size).toBe(0)
 })
 
+test('supervisor of programme A cannot approve the same student’s exam in programme B', async () => {
+  world.programAttempts.set('program-attempt-2', {
+    id: 'program-attempt-2',
+    userId: 'student-1',
+    status: 'GRADED',
+    score: 91,
+    appealStatus: 'NONE',
+    answers: [],
+    exam: { programId: 'program-2', semester: 1 },
+  })
+  world.applications.push({ id: 'app-2', supervisorId: 'sup-2', userId: 'student-1', programId: 'program-2' })
+  const wrongSupervisor = await approveGrade({
+    targetType: 'PROGRAM_EXAM', attemptId: 'program-attempt-2', actor: { id: 'sup-1' },
+  })
+  expect(wrongSupervisor).toEqual({ ok: false, code: 'GRADE_APPROVAL_FORBIDDEN' })
+  expect(world.approvals.size).toBe(0)
+  const assignedSupervisor = await approveGrade({
+    targetType: 'PROGRAM_EXAM', attemptId: 'program-attempt-2', actor: { id: 'sup-2' },
+  })
+  expect(assignedSupervisor.ok).toBe(true)
+  const administrator = await approveGrade({
+    targetType: 'PROGRAM_EXAM', attemptId: 'program-attempt-2', actor: { id: 'admin-1' },
+  })
+  expect(administrator.ok).toBe(true)
+})
+
 test('admin approval stands even though the student HAS a supervisor (parallel power)', async () => {
   const res = await approveGrade({
     targetType: 'PROGRAM_EXAM',
