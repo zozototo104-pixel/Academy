@@ -70,11 +70,15 @@ const db: any = {
     findMany: async ({ where, orderBy, take }: any) => {
       let rows = credits.filter((row) => {
         if (where.userId && row.userId !== where.userId) return false
-        if (where.status && row.status !== where.status) return false
+        if (where.status && (typeof where.status === 'string'
+          ? row.status !== where.status : !where.status.in?.includes(row.status))) return false
         if (where.remainingMinutes?.gt !== undefined && !(row.remainingMinutes > where.remainingMinutes.gt)) return false
         if (where.createdAt?.lte && !(row.createdAt && new Date(row.createdAt).getTime() <= new Date(where.createdAt.lte).getTime())) return false
         if (where.expiresAt?.not === null && (row.expiresAt === null || row.expiresAt === undefined)) return false
         if (where.expiresAt?.gt && !(row.expiresAt && new Date(row.expiresAt).getTime() > new Date(where.expiresAt.gt).getTime())) return false
+        if (where.OR && !where.OR.some((part: any) =>
+          (part.expiresAt === null && (row.expiresAt === null || row.expiresAt === undefined))
+          || (part.expiresAt?.gt && row.expiresAt && new Date(row.expiresAt).getTime() > new Date(part.expiresAt.gt).getTime()))) return false
         return true
       })
       if (Array.isArray(orderBy)) {
