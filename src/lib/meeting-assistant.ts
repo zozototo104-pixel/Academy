@@ -538,22 +538,66 @@ export async function createMeetingLiveVoiceSession(meeting: any, user: { id: st
   const now = Date.now()
   const expiresAt = new Date(Math.min(new Date(meeting.endsAt).getTime(), now + Math.min(allowance.sessionLimitMinutes, 30) * 60000))
   if (expiresAt.getTime() < now + 60000) return { status: 409, body: { error: 'انتهى وقت الاجتماع أو قارب الانتهاء', code: 'MEETING_ENDING' } }
-  const tokenResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/auth_tokens', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': keys[0].key },
-    body: JSON.stringify({
-      uses: 1,
-      expireTime: expiresAt.toISOString(),
-      newSessionExpireTime: new Date(now + 55000).toISOString(),
-    }),
-    signal: AbortSignal.timeout(12000),
-  })
-  const payload = await tokenResponse.json().catch(() => ({}))
-  if (!tokenResponse.ok) {
-    return { status: 502, body: { error: 'تعذر الاتصال بمزود Gemini Live للمشاركة الصوتية', code: 'MEETING_GEMINI_UPSTREAM' } }
+  // Same key pool, cooldown and health accounting as the established Live
+  // session route. Keep this meeting-specific setup separate from student RAG.
+  let token = ''
+  let lastFailureStatus = 502
+  for (const { key, keyIndex } of keys) {
+    const startedAt = Date.now()
+    try {
+      const response = await fetch('https://generativelanguage.googleapis.com/v1beta/auth_tokens', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+        body: JSON.stringify({
+          uses: 1,
+          expireTime: expiresAt.toISOString(),
+          newSessionExpireTime: new Date(now + 55000).toISOString(),
+        }),
+        signal: AbortSignal.timeout(12000),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        const failure = Object.assign(new Error('GEMINI_LIVE_TOKEN_UPSTREAM_' + response.status), {
+          status: response.status, model, ms: Date.now() - startedAt,
+        })
+        throw failure
+      }
+      const candidate = String(payload?.name || payload?.token || payload?.authToken?.name || '').trim()
+      if (!candidate) {
+        throw Object.assign(new Error('GEMINI_LIVE_TOKEN_EMPTY'), {
+          status: 502, model, ms: Date.now() - startedAt,
+        })
+      }
+      reportGeminiLiveKeySuccess(keyIndex, model, Date.now() - startedAt)
+      token = candidate
+      break
+    } catch (error) {
+      const failure = error as Error & { status?: number; model?: string; ms?: number }
+      failure.model = model
+      failure.ms = Date.now() - startedAt
+      const status = Number(failure.status || 502)
+      lastFailureStatus = status
+      // The key tracker owns cooldown policy. No credentials or upstream
+      // error bodies are ever returned to meeting participants.
+      await reportGeminiLiveKeyFailure(keyIndex, failure).catch(() => {})
+      // Match the central route: rotate only on auth/balance/quota errors.
+      if (![401, 402, 403, 429].includes(status)) break
+    }
   }
-  const token = String(payload?.name || payload?.token || payload?.authToken?.name || '')
-  if (!token) return { status: 502, body: { error: 'لم يُصدر مزود الصوت رمز جلسة صالحًا', code: 'MEETING_GEMINI_TOKEN_EMPTY' } }
+  if (!token) {
+    return { status: lastFailureStatus === 429 ? 429 : 502,
+      body: { error: 'تعذر إصدار رمز Gemini Live من المفاتيح المتاحة', code: 'MEETING_GEMINI_UPSTREAM' } }
+  }
+  // Admins have unlimited live allowance by current policy, but still
+  // require a real aiLiveSession row for operations and settlement.
+  const reserved = await reserveGeminiLiveUsage({
+    userId: user.id, role: user.role, purpose: 'SUPERVISOR',
+    requestedMinutes: Math.min(2, allowance.sessionLimitMinutes),
+  })
+  if (!reserved.ok || !reserved.sessionId) {
+    return { status: reserved.status || 503,
+      body: { error: reserved.message || 'تعذر تسجيل جلسة الصوت قبل البدء', code: 'MEETING_LIVE_RESERVATION_FAILED' } }
+  }
   const tool = {
     functionDeclarations: [{
       name: 'query_meeting_academy',
