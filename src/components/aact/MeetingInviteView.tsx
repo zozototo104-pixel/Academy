@@ -141,6 +141,10 @@ function MeetingAiVoiceControl({ basePath, provider }: { basePath: string; provi
   }
   const start = async () => {
     if (agentRef.current || busy) return
+    if (!inputDeviceId || !outputDeviceId) {
+      setError('اختر مدخل صوت الاجتماع ومخرج صوت المشرف الافتراضيين قبل تشغيل المشاركة.')
+      return
+    }
     setBusy(true)
     setError(null)
     setHeard('')
