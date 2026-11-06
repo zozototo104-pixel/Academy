@@ -281,6 +281,7 @@ export class GeminiLiveAgent {
         noiseSuppression: true,
         autoGainControl: true,
         channelCount: 1,
+        ...(this.cb.inputDeviceId ? { deviceId: { exact: this.cb.inputDeviceId } } : {}),
       },
     })
 
