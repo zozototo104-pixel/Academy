@@ -55,6 +55,23 @@ type FinalizeAdmissionAfterSettlementOptions = {
   resume?: boolean
 }
 
+// A freshly activated student must carry a durable ENROLLMENT snapshot:
+// the progression gate uses its provenance even when a program has no
+// configured semester windows. Never silently treat a failed write as a
+// grandfathered legacy enrollment; payment settlement can retry its effects.
+async function initializeAcademicEnrollment(tx: any, enrollment: {
+  id: string; userId: string; programId: string; createdAt: Date | string; extensionDays?: number | null
+}) {
+  const snapshot = await captureEnrollmentSnapshot(tx, enrollment, 'ENROLLMENT')
+  if (!snapshot) throw new Error('ENROLLMENT_RULES_SNAPSHOT_REQUIRED')
+  const program = await tx.program.findUnique({
+    where: { id: enrollment.programId },
+    select: { category: true, maxStudyDays: true, semestersCount: true },
+  })
+  if (!program) throw new Error('ENROLLMENT_PROGRAM_NOT_FOUND')
+  await ensureSemesterStates(tx, enrollment, program)
+}
+
 export async function finalizeAdmissionAfterSettlement(tx: any, admissionId: string, opts: FinalizeAdmissionAfterSettlementOptions = { source: 'PAYMENT' }) {
   const app = await tx.admissionApplication.findUnique({ where: { id: admissionId } })
   if (!app) return null
