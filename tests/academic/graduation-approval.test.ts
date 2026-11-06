@@ -132,6 +132,7 @@ beforeEach(() => {
   world.state.request = null
   world.state.enrollmentUpdates = []
   world.state.failTransaction = false
+  world.state.admissionStatus = 'APPROVED'
 })
 
 describe('graduation approval law', () => {
