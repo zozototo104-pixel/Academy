@@ -51,6 +51,20 @@ export async function POST(req: NextRequest, context: Context) {
     const unreadSource = subtractVerifiedBlankPages(missingSource, verifiedBlankPages)
     const readIssues = parseBookPageReadIssues(latestRead?.lastError)
       .filter((issue) => !verifiedBlankPages.includes(issue.page))
+    const pdfReadIssues = (() => {
+      try {
+        const warnings = JSON.parse(outline.warnings || '[]')
+        if (!Array.isArray(warnings)) return [] as { page: number; kind: string; reason: string }[]
+        return warnings.filter((warning): warning is string => typeof warning === 'string' && warning.startsWith('OUTLINE_PDF_READ_ISSUES:'))
+          .flatMap((warning) => {
+            try {
+              const items = JSON.parse(warning.slice('OUTLINE_PDF_READ_ISSUES:'.length))
+              return Array.isArray(items) ? items.filter((item) => Number.isSafeInteger(item?.page) && item.page > 0 && typeof item.reason === 'string') : []
+            } catch { return [] }
+          })
+          .filter((issue) => !verifiedBlankPages.includes(issue.page))
+      } catch { return [] }
+    })()
     const rawGaps = [...guard.report.gaps, ...unreadSource].sort((a, b) => a.pageStart - b.pageStart)
     const unresolvedGaps: typeof rawGaps = []
     for (const gap of rawGaps) {
