@@ -71,14 +71,15 @@ mock.module('@/lib/db', () => ({
     user: { findMany: async () => [] },
     adminMeetingInvite: { findUnique: async () => roomInvite },
     adminMeetingAttendance: { upsert: async () => { roomAttendanceWrites.count++ } },
-    adminMeetingSignal: {
-      findFirst: async () => roomPeerOwner.current
-        ? { id: 'presence-1', payload: JSON.stringify({ userId: roomPeerOwner.current, name: 'Participant' }) }
-        : null,
-      findMany: async ({ where }: any) => where.type === 'PRESENCE'
-        ? []
-        : [{ id: 'signal-1', fromPeer: 'another-peer', toPeer: 'p_target', type: 'ICE', payload: '{}', consumed: false }],
-      updateMany: async () => { roomSignalsConsumed.count++; return { count: 1 } },
+    adminMeetingSignal: roomSignalStore,
+    $transaction: async (work: any, options: any) => {
+      roomTransaction.attempts++
+      roomTransaction.isolationLevel = options?.isolationLevel || ''
+      if (roomTransaction.conflictsRemaining > 0) {
+        roomTransaction.conflictsRemaining--
+        throw Object.assign(new Error('serialization conflict'), { code: 'P2034' })
+      }
+      return work({ adminMeetingSignal: roomSignalStore })
     },
   },
 }))
