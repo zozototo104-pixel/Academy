@@ -471,7 +471,9 @@ export function AdminView() {
       'settings', 'admins', 'audit', 'messages', 'admin-messages',
       'student-follow-up', 'whatsapp-inbox',
     ])
-    if (tab && allowed.has(tab)) setActiveTab(tab)
+    if (!tab || !allowed.has(tab)) return
+    const frame = window.requestAnimationFrame(() => setActiveTab(tab))
+    return () => window.cancelAnimationFrame(frame)
   }, [])
   const [admissionSearch, setAdmissionSearch] = useState('')
   const [admissionStatusFilter, setAdmissionStatusFilter] = useState('ACTIVE')
