@@ -133,6 +133,17 @@ const db: any = {
       Object.assign(row, data)
       return row
     },
+    updateMany: async ({ where, data }: any) => {
+      let count = 0
+      for (const row of sessions.values()) {
+        if (where.id && row.id !== where.id) continue
+        if (where.status && row.status !== where.status) continue
+        if (where.expiresAt?.lt && !(row.expiresAt < where.expiresAt.lt)) continue
+        Object.assign(row, data)
+        count++
+      }
+      return { count }
+    },
   },
 }
 
