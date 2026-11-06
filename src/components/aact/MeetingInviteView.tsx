@@ -503,7 +503,13 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
                       <p className="mb-2 rounded-xl bg-white/70 px-3 py-2 text-xs font-bold leading-relaxed text-violet-900">{assistantGreeting}</p>
                     )}
                     {assistantAnswer && (
-                      <p className="mb-2 whitespace-pre-wrap rounded-xl bg-white px-3 py-2 text-xs font-semibold leading-relaxed text-slate-700">{assistantAnswer}</p>
+                      <div className="mb-2 rounded-xl bg-white px-3 py-2">
+                        <p className="whitespace-pre-wrap text-xs font-semibold leading-relaxed text-slate-700">{assistantAnswer}</p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <Button type="button" variant="outline" onClick={readAssistantAnswer} className="text-xs">استمع للرد على جهازي</Button>
+                          <Button type="button" variant="ghost" onClick={() => { if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel() }} className="text-xs">إيقاف الصوت</Button>
+                        </div>
+                      </div>
                     )}
                     {assistantError && (
                       <p className="mb-2 rounded-xl bg-red-50 px-3 py-2 text-xs font-bold text-red-600 ring-1 ring-red-200">{assistantError}</p>
