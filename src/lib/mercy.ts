@@ -164,7 +164,7 @@ export async function gradeMercyActivity(
   if (!store?.findUnique || !args.mercyId?.trim()) return { ok: false, code: 'INVALID_INPUT' }
   const mercy = await store.findUnique({ where: { id: args.mercyId } }).catch(() => null)
   if (!mercy) return { ok: false, code: 'MERCY_NOT_FOUND' }
-  const scope = await actorScope(client, args.actor?.id || '', mercy.userId)
+  const scope = await actorScope(client, args.actor?.id || '', mercy.userId, mercy.programId)
   if (!scope) return { ok: false, code: 'FORBIDDEN' }
   if (mercy.status !== 'SUBMITTED') return { ok: false, code: 'MERCY_WRONG_STATE' }
   const score = Number(args.score)
