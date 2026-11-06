@@ -367,6 +367,22 @@ describe('إصلاحات تدقيق 2026-11-06: محاسبة المنتهي + و
     expect(refund?.expiresAt?.getTime()).toBe(earliest.getTime())
   })
 
+  test('رصيد تاريخي انتهى قبل بدء الجلسة لا يحدد تاريخ انتهاء الاسترداد', async () => {
+    const startedAt = new Date(Date.now() - 20 * 1000)
+    const validExpiry = new Date(Date.now() + 12 * 24 * 60 * 60 * 1000)
+    seedUsage('stu-1', { freeMinutesUsed: 0, paidMinutesUsed: 2, sessionsCount: 1 })
+    credits.push({ id: 'historical-expired', userId: 'stu-1', remainingMinutes: 0, status: 'CONSUMED',
+      createdAt: new Date(startedAt.getTime() - 90 * 24 * 60 * 60 * 1000),
+      expiresAt: new Date(startedAt.getTime() - 30 * 24 * 60 * 60 * 1000) })
+    credits.push({ id: 'real-source', userId: 'stu-1', remainingMinutes: 1, status: 'ACTIVE',
+      createdAt: new Date(startedAt.getTime() - 2 * 24 * 60 * 60 * 1000), expiresAt: validExpiry })
+    seedSession({ sessionId: 's-exclude-expired', freeReserved: 0, paidReserved: 2, startedAt })
+    const res: any = await settleGeminiLiveUsage({ userId: 'stu-1', sessionId: 's-exclude-expired', actualMinutes: 0 })
+    expect(res.refundMinutes).toBe(1)
+    const refund = credits.find((c) => c.source === 'REFUND')
+    expect(refund?.expiresAt?.getTime()).toBe(validExpiry.getTime())
+  })
+
   test('بلا أي انتهاء في مسبح الشراء يبقى الاسترداد بلا انتهاء وفاءً لمصدره الدائم', async () => {
     const startedAt = new Date(Date.now() - 20 * 1000)
     seedUsage('stu-1', { freeMinutesUsed: 0, paidMinutesUsed: 2, sessionsCount: 1 })
