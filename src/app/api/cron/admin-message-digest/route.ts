@@ -64,9 +64,12 @@ export async function GET(request: NextRequest) {
     // ينجح لمُشغّل واحد فقط لكل مجموعة؛ مطالبة جزئية تعني تداخلًا مع تشغيل
     // آخر فتُحرَّر الصفوف المأخوذة وتُتخطى المجموعة.
     const messageIds = group.messages.map((m: any) => m.id)
-    const claimedAt = new Date()
+    const claimedAt = new Date(Date.now() + DIGEST_CLAIM_OFFSET_MS)
     const claim = await db.supervisorChannelMessage.updateMany({
-      where: { id: { in: messageIds }, emailSentAt: null },
+      where: {
+        id: { in: messageIds },
+        OR: [{ emailSentAt: null }, { emailSentAt: staleDigestClaim() }],
+      },
       data: { emailSentAt: claimedAt },
     })
     const releaseClaim = () =>
