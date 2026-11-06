@@ -153,7 +153,13 @@ export async function progressionGate(
   programCategory?: string | null,
 ): Promise<GateVerdict> {
   if (targetSemester <= 1) return { open: true, reasons: [] }
-  if (!(await hasLifecycleFootprint(client, enrollment.id))) return { open: true, reasons: [] }
+  let footprint: boolean
+  try {
+    footprint = await hasLifecycleFootprint(client, enrollment.id)
+  } catch {
+    return { open: false, reasons: ['تعذر التحقق من حالة الفصل السابق؛ أعد المحاولة لاحقًا'] }
+  }
+  if (!footprint) return { open: true, reasons: [] }
   const ctx = await gateContext(client, enrollment.id)
   const category = programCategory || 'DIPLOMA'
   const reasons: string[] = []
