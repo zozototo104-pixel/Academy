@@ -73,7 +73,7 @@ const fakeDb: AnyRow = {
   admissionApplication: {
     findFirst: async ({ where }: AnyRow) =>
       world.applications.find(
-        (a) => a.supervisorId === where.supervisorId && a.userId === where.userId,
+        (a) => a.supervisorId === where.supervisorId && a.userId === where.userId && a.programId === where.programId,
       ) ?? null,
   },
   gradeApproval: {
