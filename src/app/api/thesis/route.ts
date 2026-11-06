@@ -201,13 +201,13 @@ export async function POST(req: NextRequest) {
       const program = await db.program.findUnique({
         where: { id: admission.programId },
         select: { category: true, semestersCount: true },
-      }).catch(() => null)
+      })
       const tGate = await thesisGate(
         db as any,
         { id: enrollment.id, userId: user.id, programId: admission.programId },
         program || {},
-      ).catch(() => null)
-      if (tGate && tGate.required && !tGate.open) {
+      ).catch(() => ({ required: true, open: false, reasons: ['تعذر التحقق من أهلية الرسالة؛ أعد المحاولة لاحقًا'], cumulative: null }))
+      if (tGate.required && !tGate.open) {
         return NextResponse.json(
           { error: `مسار الرسالة غير مفتوح بعد: ${tGate.reasons[0] || 'شروط التأهل غير مكتملة'}.`, code: 'THESIS_GATE_CLOSED', reasons: tGate.reasons },
           { status: 403 }
