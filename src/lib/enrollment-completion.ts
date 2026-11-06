@@ -413,16 +413,16 @@ export async function registerGraduationRequest(input: CompleteEnrollmentInput):
       }
     })
     if (!outcome) return { registered: false, certificateNo: null }
-    if (outcome.created) {
+    // Do not ask admins to approve an ineligible new student's application.
+    // Notify once when the stored readiness changes from false to true,
+    // or when a genuinely ready transaction is first created.
+    if (outcome.ready && (outcome.created || ('becameReady' in outcome && outcome.becameReady))) {
       try {
-        const readinessLine = outcome.ready
-          ? 'الطالب مستوفٍ لشروط التخرج الحالية وبانتظار مصادقتكم على الدرجة والإصدار.'
-          : `أسباب عدم الاستحقاق الحالية: ${outcome.missing.slice(0, 4).join('؛ ') || 'غير مكتمل بعد'}`
         await notifyAdmins(
           'GENERAL',
-          'طلب تخرج بانتظار المصادقة',
-          `أُنشئت معاملة تخرج للطالب ${outcome.studentName || ''} في برنامج «${outcome.programTitle || ''}». ${readinessLine}`,
-          'admin',
+          'طلب تخرج مستوفٍ — بانتظار المصادقة',
+          `تأكدت أهلية الطالب ${outcome.studentName || ''} للتخرج من برنامج «${outcome.programTitle || ''}» عند آخر فحص؛ راجع الدرجة والشروط قبل اعتماد المعاملة.`,
+          '/?view=admin&tab=certs',
         )
       } catch {
         // إشعار الإدارة لا يعطّل تسجيل المعاملة أبدًا.
