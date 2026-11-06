@@ -954,7 +954,7 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
                   )}
                   {joinedExternal && (
                     <p className="text-center text-xs font-bold text-emerald-600">
-                      فُتح رابط الاجتماع في نافذة جديدة وسُجّل انضمامك.
+                      {aiDeviceMode ? 'فُتح رابط Zoom؛ تأكد من دخول المشرف الذكي عبر عميل Zoom ومن ظهور اسمه بين المشاركين. فتح الرابط وحده ليس إثباتًا لدخول الصوت.' : 'فُتح رابط الاجتماع في نافذة جديدة وسُجّلت محاولة الدخول.'}
                     </p>
                   )}
                   {revealedPasscode && (
