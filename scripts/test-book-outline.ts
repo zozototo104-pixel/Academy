@@ -562,7 +562,43 @@ function testRepeatedBookHeaderWithPageNumberNeverBecomesChapterTitle() {
   assert(!ninth?.title.includes('١٠٣'), 'رقم صفحة ترويسة الكتاب ليس عنوانًا أكاديميًا')
 }
 
+function testInferredChapterTitleRequiresSameChapterKnowledgeEvidence() {
+  const chunks = [
+    chunk(0, 'الفصل الأول', 1),
+    chunk(1, 'الفصل الثاني', 21),
+  ]
+  const source = plan(chunks).sections
+  const items = [
+    { chunkId: 'chunk-0', title: 'مقدمة في إدارة العمليات', summary: 'مدخل إلى العمليات' },
+    { chunkId: 'chunk-1', title: 'تحليل المخاطر المؤسسية', summary: 'مناهج التحليل' },
+  ]
+  const ids = new Map(chunks.map((c) => [c.index, 'chunk-' + c.index]))
+  const accepted = applyGroundedChapterTitleProposals(source, chunks, items, ids,
+    JSON.stringify({ proposals: [{ order: 2, title: 'تحليل المخاطر التشغيلية', sourceItemTitle: 'تحليل المخاطر المؤسسية' }] }),
+    'إدارة المشروعات بنجاح')
+  assert(accepted.accepted === 1, 'يجب قبول عنوان موثّق بعنصر معرفة من نفس الفصل')
+  assert(accepted.sections[1].title === 'الفصل الثاني: تحليل المخاطر التشغيلية', 'تظل هوية الفصل مع عنوانه المستنتج')
+  assert(accepted.sections[0].title === source[0].title, 'الفصول الأخرى لا تتغير')
+  assert(accepted.sections[1].pageStart === source[1].pageStart && accepted.sections[1].pageEnd === source[1].pageEnd,
+    'تغيير العنوان لا يغيّر صفحات الفصل')
+  assert(accepted.warnings.some((w) => w.startsWith('OUTLINE_INFERRED_TITLE:')), 'مصدر العنوان المقترح يُحفظ للمراجعة')
+
+  const outside = applyGroundedChapterTitleProposals(source, chunks, items, ids,
+    JSON.stringify({ proposals: [{ order: 2, title: 'مقدمة في إدارة العمليات', sourceItemTitle: 'مقدمة في إدارة العمليات' }] }),
+    'إدارة المشروعات بنجاح')
+  assert(outside.accepted === 0, 'لا يُسمح الاستشهاد بمعرفة فصل آخر')
+  const fabricated = applyGroundedChapterTitleProposals(source, chunks, items, ids,
+    JSON.stringify({ proposals: [{ order: 2, title: 'الفيزياء النووية', sourceItemTitle: 'تحليل المخاطر المؤسسية' }] }),
+    'إدارة المشروعات بنجاح')
+  assert(fabricated.accepted === 0, 'العنوان غير المتوافق مع دليل الفصل مرفوض')
+  const generic = applyGroundedChapterTitleProposals(source, chunks, items, ids,
+    JSON.stringify({ proposals: [{ order: 2, title: 'الفصل الثاني', sourceItemTitle: 'تحليل المخاطر المؤسسية' }] }),
+    'إدارة المشروعات بنجاح')
+  assert(generic.accepted === 0, 'إعادة تسمية الفصل بعنوانه الرقمي ليست تحسيناً')
+}
+
 const tests = [
+  testInferredChapterTitleRequiresSameChapterKnowledgeEvidence,
   testGenericChunkHeadingsYieldToSemanticSourceChapterTitles,
   testRepeatedBookHeaderWithPageNumberNeverBecomesChapterTitle,
   testRepeatedMergesRetainOriginalTitles,
