@@ -540,7 +540,7 @@ function testGenericChunkHeadingsYieldToSemanticSourceChapterTitles() {
   ]
   const chunks = chapters.map((c) => ({
     index: c.index, headingPath: c.heading,
-    text: c.heading + '\\n' + c.title + '\\n' + ('شرح واقعي لهذا الفصل في الكتاب. '.repeat(6)),
+    text: c.heading + '\n' + c.title + '\n' + ('شرح واقعي لهذا الفصل في الكتاب. '.repeat(6)),
     pageStart: c.page, pageEnd: c.page + 12,
   }))
   const result = planBookOutline(chunks, [], new Map(chunks.map((c) => [c.index, 'chunk-' + c.index])), 1, [], 'إدارة المشروعات بنجاح')
