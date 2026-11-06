@@ -31,16 +31,33 @@ export async function POST(req: NextRequest, context: Context) {
       where: { bookId: id }, select: { pageStart: true, pageEnd: true },
     })
     if (!sourceChunks.length) return NextResponse.json({ code: 'OUTLINE_SOURCE_MISSING', error: 'مقاطع الكتاب الأصلية غير متاحة للتحقق من التغطية' }, { status: 409 })
+    const latestRead = await db.bookReadJob.findFirst({
+      where: { bookId: id, totalPages: { gt: 0 } }, orderBy: { createdAt: 'desc' },
+      select: { totalPages: true, lastError: true },
+    })
     const sourceRange = {
-      pageStart: Math.min(...sourceChunks.map((chunk) => chunk.pageStart)),
-      pageEnd: Math.max(...sourceChunks.map((chunk) => chunk.pageEnd)),
+      pageStart: 1,
+      pageEnd: Math.max(latestRead?.totalPages || 0, ...sourceChunks.map((chunk) => chunk.pageEnd)),
     }
     const rawCoverage = outlineApprovalGuard(outline.sections, sourceRange)
-    // Blankness is verified against the current original PDF at approval time.
-    // Missing OCR/text must never be interpreted as empty content.
-    const verifiedBlankPages = rawCoverage.report.gaps.length
-      ? await verifyBlankPdfGapPages(id, rawCoverage.report.gaps) : []
+    // These gaps are computed from the actual stored source chunks, not only
+    // outline section spans. A successful section MERGE cannot hide a page
+    // that was never read or misrepresent it as academic evidence.
+    const missingSource = missingBookSourcePageRanges(sourceChunks, sourceRange)
+    const possibleGaps = [...rawCoverage.report.gaps, ...missingSource]
+    const verifiedBlankPages = possibleGaps.length
+      ? await verifyBlankPdfGapPages(id, possibleGaps) : []
     const guard = outlineApprovalGuard(outline.sections, sourceRange, verifiedBlankPages)
+    const unreadSource = subtractVerifiedBlankPages(missingSource, verifiedBlankPages)
+    const readIssues = parseBookPageReadIssues(latestRead?.lastError)
+      .filter((issue) => !verifiedBlankPages.includes(issue.page))
+    const rawGaps = [...guard.report.gaps, ...unreadSource].sort((a, b) => a.pageStart - b.pageStart)
+    const unresolvedGaps: typeof rawGaps = []
+    for (const gap of rawGaps) {
+      const previous = unresolvedGaps[unresolvedGaps.length - 1]
+      if (previous && gap.pageStart <= previous.pageEnd + 1) previous.pageEnd = Math.max(previous.pageEnd, gap.pageEnd)
+      else unresolvedGaps.push({ ...gap })
+    }
     // Unknown page ends must never be bypassed by the documented long-section override.
     const incomplete = guard.report.sections.filter((section) => section.pages === null)
     if (!outline.sections.length || incomplete.length) {
