@@ -75,6 +75,10 @@ export async function DELETE(request: NextRequest, context: Context) {
     const oldRemovedOrder = removed.order
     const oldWarnings = (() => { try { const x = JSON.parse(outline?.warnings || '[]'); return Array.isArray(x) ? x.map(String) : [] } catch { return [] as string[] } })()
     const warnings = remapOutlineReviewWarnings(oldWarnings, orderByOld, oldRemovedOrder, oldTargetOrder)
+    if (gapBetween) warnings.push('OUTLINE_MERGE_SOURCE_GAP:' + JSON.stringify({
+      ...gapBetween, sectionOrder: orderByOld.get(oldTargetOrder),
+      note: 'صفحات غير ممثلة في القراءة؛ الدمج لا يثبت قراءتها، وتُراجع عند اعتماد الفهرس.',
+    }))
     warnings.push('OUTLINE_MERGED_TITLE:' + JSON.stringify({
       sectionOrder: orderByOld.get(oldTargetOrder), title: removed.title,
       pageStart: removed.pageStart, pageEnd: removed.pageEnd,
