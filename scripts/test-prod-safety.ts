@@ -228,7 +228,17 @@ function testGradingCertificateFlowRegressions() {
 
   const completionLib = file('src/lib/enrollment-completion.ts')
   assert(completionLib.includes('storedGraduationRequest') && completionLib.includes('ADMIN_GRADUATION_APPROVAL_REQUIRED'), 'certificate creation must require a stored APPROVED graduation request')
-  assert(file('src/app/api/admin/admissions/route.ts').includes('ADMIN_GRADUATION_APPROVAL_REQUIRED'), 'admission CERTIFIED issuance must require a stored graduation approval')
+  const adminCertification = file('src/app/api/admin/admissions/route.ts')
+  assert(
+    adminCertification.includes('await completeEnrollmentIfEligible({') &&
+    !adminCertification.includes('db.certificate.create({') &&
+    !adminCertification.includes('nextCertSerial(') &&
+    completionLib.includes('storedGraduationRequest') &&
+    completionLib.includes('ADMIN_GRADUATION_APPROVAL_REQUIRED') &&
+    completionLib.includes('await tx.enrollment.update({') &&
+    completionLib.includes('graduationRequest.update({'),
+    'admission CERTIFIED issuance must delegate to the atomic, admin-approved completion service without a parallel certificate creator'
+  )
   assert(schema.includes('model GraduationRequest'), 'graduation requests table must exist in the schema')
 
   const examView = file('src/components/aact/ExamView.tsx')
