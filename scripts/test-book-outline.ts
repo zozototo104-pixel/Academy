@@ -508,10 +508,19 @@ function testThematicGroupCannotHideMissingPdfPages() {
     { startOrder: 1, endOrder: 2, title: 'قيادة وذكاء عاطفي' },
     { startOrder: 3, endOrder: 3, title: 'صراع' },
   ] }
+  const grouped = validateThematicArticleGrouping(JSON.stringify(proposal), source)
+  assert(grouped.sections.length === 2 && grouped.sections[0].pageEnd === 31,
+    'الفجوة في الصفحة 28 لا تمنع ضم موضوعين متجاورين مع بقاء النطاق الحقيقي')
+  const missing = missingBookSourcePageRanges(source.map(({ pageStart, pageEnd }) => ({
+    pageStart: pageStart!, pageEnd: pageEnd!,
+  })), { pageStart: 11, pageEnd: 33 })
+  assert(missing.length === 1 && missing[0].pageStart === 28 && missing[0].pageEnd === 28,
+    'يجب بقاء الصفحة 28 ناقصة في تدقيق المصدر المستقل حتى بعد الدمج')
   let reason = ''
-  try { validateThematicArticleGrouping(JSON.stringify(proposal), source) }
+  const overlapping = [source[0], { ...source[1], pageStart: 27 }, source[2]]
+  try { validateThematicArticleGrouping(JSON.stringify(proposal), overlapping) }
   catch (error) { reason = error instanceof Error ? error.message : String(error) }
-  assert(reason === 'OUTLINE_THEMATIC_SOURCE_COVERAGE_GAP', 'لا يجوز إخفاء الصفحة 28 المفقودة داخل وحدة أكبر')
+  assert(reason === 'OUTLINE_THEMATIC_SOURCE_COVERAGE_GAP', 'الحدود المتداخلة أو المعكوسة تظل مرفوضة')
 }
 
 function testRepeatedMergesRetainOriginalTitles() {
