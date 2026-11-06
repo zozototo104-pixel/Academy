@@ -153,6 +153,8 @@ function MeetingAiVoiceControl({ basePath, provider }: { basePath: string; provi
       sessionEndpoint: basePath,
       sessionAction: 'voice-session',
       meetingDataEndpoint: basePath,
+      inputDeviceId,
+      outputDeviceId,
       logEndpoint: basePath,
       logExtra: { action: 'live-turn' },
       onState: (state) => setVoiceState(state),
