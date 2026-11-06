@@ -121,6 +121,38 @@ describe('progression gate', () => {
     expect(gate.open).toBe(true)
   })
 
+  test('new enrollment snapshot locks semester two before any semester state is created', async () => {
+    const client = fakeClient({ footprint: false, snapshotBasis: 'ENROLLMENT' })
+    const gate = await progressionGate(client, ENROLLMENT, 2, 'DIPLOMA')
+    expect(gate.open).toBe(false)
+    expect(gate.reasons.join(' ')).toContain('غير معتمدة')
+
+    const window = await submissionWindowCheck(client, {
+      enrollment: { id: 'e1', userId: 'u1', programId: 'p1', createdAt: new Date(), extensionDays: 0 },
+      program: { category: 'DIPLOMA', maxStudyDays: null, semestersCount: 2 },
+      semester: 2,
+    })
+    expect(window.ok).toBe(false)
+    if (!window.ok) expect(window.code).toBe('PROGRESSION_LOCKED')
+  })
+
+  test('legacy BACKFILL snapshot without lifecycle state preserves grandfathered access', async () => {
+    const gate = await progressionGate(fakeClient({ footprint: false, snapshotBasis: 'BACKFILL' }), ENROLLMENT, 2, 'DIPLOMA')
+    expect(gate.open).toBe(true)
+  })
+
+  test('new enrollment snapshot without semester states also locks a required thesis', async () => {
+    const client = fakeClient({
+      footprint: false, snapshotBasis: 'ENROLLMENT',
+      requiredComponents: ['final_exam', 'thesis'],
+      weights: { quizzes: 10, assignments: 10, final_exam: 50, thesis: 30 },
+    })
+    const gate = await thesisGate(client, ENROLLMENT, PROGRAM)
+    expect(gate.required).toBe(true)
+    expect(gate.open).toBe(false)
+    expect(gate.reasons.join(' ')).toContain('غير مكتمل')
+  })
+
   test('database failure during lifecycle footprint lookup never grants S2 access', async () => {
     const client = fakeClient({ states: { 1: 'CLOSED' }, approvals: { 1: 80 }, examScore: { 1: 80 } })
     client.enrollmentSemesterState.count = async () => { throw new Error('database unavailable') }
