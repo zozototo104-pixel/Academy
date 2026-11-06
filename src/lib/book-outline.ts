@@ -1187,12 +1187,11 @@ export function validateThematicArticleGrouping(raw: string, source: readonly Ou
     }
     const group = source.slice(cursor, end)
     if (group.some((section, i) => section.order !== cursor + i + 1)) throw new Error('OUTLINE_THEMATIC_SOURCE_ORDER')
-    // A 30-page merged unit must not conceal missing page coverage from
-    // the underlying source sections. Real 297-page PDF replay uncovered
-    // gaps where a heading begins inside a persisted chunk. Never let AI
-    // grouping silently fill those missing source pages on paper.
+    // Missing pages are independently audited against BookChunk ranges on
+    // approval. A gap must not prevent grouping related neighboring articles,
+    // but overlapping/reversed/unknown boundaries must still fail validation.
     if (group.some((section) => section.pageStart === null || section.pageEnd === null) ||
-        group.some((section, i) => i > 0 && section.pageStart !== group[i - 1].pageEnd! + 1)) {
+        group.some((section, i) => i > 0 && section.pageStart! <= group[i - 1].pageEnd!)) {
       throw new Error('OUTLINE_THEMATIC_SOURCE_COVERAGE_GAP')
     }
     if (group.length > 1 && group.some((section) => chapterNumber(section.title) !== null)) {
