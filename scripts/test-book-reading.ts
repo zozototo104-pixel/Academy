@@ -201,6 +201,36 @@ async function deadlineKilledGroupOcrResumesSolo() {
   assert.ok(callShapes.length > 0 && callShapes.every((n) => n === 1), 'لا نداء جماعي إطلاقًا في الاستئناف')
 }
 
+async function failedOcrSoloCheckpointMustSurfaceError() {
+  // The group call consumes the remaining budget, then checkpoint storage
+  // fails. Silent catch would repeat the same expensive group forever.
+  let checkpointAttempts = 0
+  let progressWrites = 0
+  await assert.rejects(() => extractPdfBatch({
+    buffer: Buffer.from('%PDF-TEST'), bookId: 'checkpoint-book', programId: 'test-program',
+    jobId: 'checkpoint-job', pagesDone: 0, totalPages: 4, existingChunks: 0,
+    deadlineMs: Date.now() + 26_000,
+    extractPages: (async (_buffer: Buffer, numbers: readonly number[]) => numbers.map((page) => ({
+      page, text: '', textProvenance: 'NATIVE_TEXT' as const,
+    }))) as any,
+    ocrPages: (async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1500))
+      throw new Error('AI_DEADLINE_EXCEEDED')
+    }) as any,
+    store: {
+      upsertChunk: async () => { throw new Error('No chunk has been read') },
+      saveProgress: async () => { progressWrites++ },
+      saveOcrSoloPages: async () => {
+        checkpointAttempts++
+        throw new Error('SIMULATED_OCR_CHECKPOINT_WRITE_FAILURE')
+      },
+    },
+  }), /SIMULATED_OCR_CHECKPOINT_WRITE_FAILURE/,
+  'فشل حفظ حالة OCR يجب أن يظهر ولا يجوز اعتباره تقدماً ناجحاً')
+  assert.equal(checkpointAttempts, 1, 'يجب محاولة حفظ حالة الاستئناف قبل إكمال الدفعة')
+  assert.equal(progressWrites, 0, 'لا تُحفظ قراءة وهمية عند تعذر كتابة حالة الاستئناف')
+}
+
 pdfExtractionRegression()
   .then(() => unreadablePdfPageDoesNotStopFollowingPages())
   .then(() => analyzeResumeRegression())
