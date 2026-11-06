@@ -580,6 +580,32 @@ export class GeminiLiveAgent {
     this.sendBookSearchToolResponses(functionResponses)
   }
 
+  // Only the dedicated meeting participant uses this function tool.
+  // Fail closed: API errors become explicit unavailable evidence, never zero totals.
+  private async handleMeetingQueryToolCall(toolCall: any) {
+    const calls: LiveFunctionCall[] = Array.isArray(toolCall?.functionCalls) ? toolCall.functionCalls : []
+    const targets = calls.filter((call) => call?.name === 'query_meeting_academy')
+    if (!targets.length || !this.cb.meetingDataEndpoint) return
+    const functionResponses = await Promise.all(targets.map(async (call) => {
+      const query = liveBookSearchQuery(call)
+      let snippets = 'تعذّر التحقق من المعلومات الآن؛ لا تقدّم أرقامًا أو أسماء غير مؤكدة.'
+      if (query) {
+        try {
+          const response = await fetch(this.cb.meetingDataEndpoint!, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}) },
+            body: JSON.stringify({ action: 'live-data', question: query }),
+          })
+          const result = await response.json().catch(() => ({}))
+          if (response.ok && typeof result?.snippets === 'string') snippets = result.snippets.slice(0, 18000)
+          else snippets = String(result?.error || 'بيانات المنصة غير متاحة لهذا السؤال أو لهذا الحساب.').slice(0, 400)
+        } catch { /* keep explicit unavailable evidence */ }
+      }
+      return { id: String(call.id || ''), name: 'query_meeting_academy', response: { snippets } }
+    }))
+    this.sendBookSearchToolResponses(functionResponses)
+  }
+
   private handleServerMessage(msg: any): boolean {
     if (!msg) return false
     if (msg.error) {
