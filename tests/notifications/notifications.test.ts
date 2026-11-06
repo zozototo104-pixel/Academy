@@ -135,6 +135,16 @@ describe('PATCH /api/notifications — تعليم ما شُوهد فقط', () =>
 describe('وصلات الواجهة — التعليم عند المشاهدة وحضور الموبايل', () => {
   const shell = readFileSync(new URL('../../src/components/aact/Shell.tsx', import.meta.url), 'utf8')
   const dashboard = readFileSync(new URL('../../src/components/aact/DashboardView.tsx', import.meta.url), 'utf8')
+  const adminView = readFileSync(new URL('../../src/components/aact/AdminView.tsx', import.meta.url), 'utf8')
+
+  test('graduation notification opens the certificates section and survives browser refresh', () => {
+    expect(pathForView('admin', { tab: 'certs' })).toBe('/admin?tab=certs')
+    expect(shell).toContain('adminTabForNotification(n, params)')
+    expect(shell).toContain('navigate(view as any, adminTab ? { ...routeParams, tab: adminTab } : routeParams)')
+    expect(shell).toContain("navigate('admin' as any, { tab: adminTab })")
+    expect(adminView).toContain("new URLSearchParams(window.location.search).get('tab')")
+    expect(adminView).toContain("if (tab && allowed.has(tab)) setActiveTab(tab)")
+  })
 
   test('الجرس يجدول تعليم المعروض عند الفتح عبر PATCH ids', () => {
     expect(shell).toContain('scheduleMarkSeen')
