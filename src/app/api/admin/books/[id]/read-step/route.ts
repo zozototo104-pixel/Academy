@@ -4,7 +4,7 @@ import { requireAdmin } from '@/lib/auth'
 import { runExtractStep } from '@/lib/book-reader'
 import { runAnalyzeStep, runEnrichStep } from '@/lib/book-chunk-analyzer'
 import { buildBookOutline } from '@/lib/book-outline'
-import { BOOK_READ_RETRY_MS, BOOK_READ_TRANSIENT_RETRY_MS, canRunBookReadJob, claimBookReadLock, classifyBookReadFailure } from '@/lib/book-read-job-control'
+import { BOOK_READ_RETRY_MS, BOOK_READ_TRANSIENT_RETRY_MS, canRunBookReadJob, claimBookReadLock, classifyBookReadFailure, preserveBookPageReadIssues } from '@/lib/book-read-job-control'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -86,7 +86,9 @@ export async function POST(_request: NextRequest, context: Context) {
     }
     const updated = current?.status && ['COMPLETED', 'FAILED', 'PAUSED'].includes(current.status)
       ? await db.bookReadJob.findUniqueOrThrow({ where: { id: job.id } })
-      : await db.bookReadJob.update({ where: { id: job.id }, data: { status: 'QUEUED', lockedUntil: null, lastError: null, retryAt: null } })
+      // Never clear lastError here: it carries the durable per-page issue
+      // ledger (BOOK_PAGE_ISSUES) that outline approval must report.
+      : await db.bookReadJob.update({ where: { id: job.id }, data: { status: 'QUEUED', lockedUntil: null, retryAt: null } })
     const enrichment = job.phase === 'ENRICH' ? {
       totalChunks: await db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED' } }),
       saturatedChunks: await db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED', OR: [{ saturatedAt: { not: null } }, { analysisPasses: { gte: 3 } }] } }),
@@ -106,12 +108,16 @@ export async function POST(_request: NextRequest, context: Context) {
       : kind === 'CONFIG'
         ? `خطأ إعدادات: لا يوجد مزوّد ذكاء مُعدّ بمفتاح صالح — راجع إعدادات النظام ومفاتيح المزودين ثم أعد بدء القراءة. التفاصيل: ${message}`
         : message
+    const previous = await db.bookReadJob.findUnique({ where: { id: job.id }, select: { lastError: true } })
     const updated = await db.bookReadJob.update({
       where: { id: job.id },
       data: {
         status: transient ? 'PAUSED' : 'FAILED',
         retryAt: transient ? new Date(Date.now() + (providerUnavailable ? BOOK_READ_RETRY_MS : BOOK_READ_TRANSIENT_RETRY_MS)) : null,
-        lastError: adminMessage.slice(0, 2000),
+        // Keep the per-page issue ledger alongside the operator message,
+        // exactly as the cron path does — a failed step must not erase
+        // the evidence outline approval relies on.
+        lastError: preserveBookPageReadIssues(previous?.lastError, adminMessage),
         lockedUntil: null,
       },
     })

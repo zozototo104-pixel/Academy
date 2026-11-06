@@ -22,7 +22,7 @@ export async function POST(_request: NextRequest, context: Context) {
         const chunks = await tx.bookChunk.updateMany({ where: { bookId: id, status: 'FAILED' }, data: { status: 'PENDING', attempts: 0, lastError: null } })
         const active = await tx.bookReadJob.findFirst({ where: { bookId: id, status: { in: ['QUEUED', 'RUNNING', 'PAUSED'] } }, orderBy: { createdAt: 'desc' } })
         const job = active
-          ? await tx.bookReadJob.update({ where: { id: active.id }, data: { phase: 'ANALYZE', status: 'QUEUED', lastError: null, retryAt: null, lockedUntil: null, finishedAt: null } })
+          ? await tx.bookReadJob.update({ where: { id: active.id }, data: { phase: 'ANALYZE', status: 'QUEUED', retryAt: null, lockedUntil: null, finishedAt: null } })
           : await tx.bookReadJob.create({ data: { bookId: id, programId: book.programId, phase: 'ANALYZE', status: 'QUEUED' } })
         return { chunksReset: chunks.count, jobId: job.id }
       })

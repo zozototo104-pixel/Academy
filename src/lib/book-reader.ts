@@ -168,20 +168,65 @@ async function extractPdfBatchInner(input: { buffer: Buffer; bookId: string; pro
     return meta.pages
   }
   const needsOcr = numbers.filter((page) => (pageMap.get(page)?.text || '').trim().length < 80)
+  const needsOcrSet = new Set(needsOcr)
+  const ocrSealed = new Set<number>()
+  // Pages whose final text is already decided, counted as a prefix of
+  // `numbers`: native-text pages are decided immediately; an OCR page is
+  // sealed only when its batch call (or single-page recovery) completes.
+  const decidedPrefixLength = () => {
+    let count = 0
+    while (count < numbers.length && (!needsOcrSet.has(numbers[count]) || ocrSealed.has(numbers[count]))) count++
+    return count
+  }
+  // Persist a fully decided prefix of this batch (chunks + progress +
+  // issues). A nearly exhausted budget must never discard finished OCR
+  // work: the next run resumes at the first undecided page instead of
+  // re-reading pages that already completed.
+  const persistPages = async (pages: number[]): Promise<{ pagesDone: number; totalPages: number; totalChunks: number; phase: 'EXTRACT' | 'ANALYZE' }> => {
+    const issues: BookPageReadIssue[] = []
+    const ordered = pages.map((page): ExtractedBookPage => {
+      const result = pageMap.get(page) || { page, text: '', textProvenance: 'NATIVE_TEXT' as const }
+      const text = result.textProvenance === 'NATIVE_TEXT' ? fixArabicPdfText(result.text) : result.text
+      const reason = ocrFailures.get(page)
+      if (!text.trim() || reason) issues.push({
+        page, kind: text.trim() ? 'PARTIAL' : 'UNREADABLE',
+        reason: reason || result.readError || 'NO_EXTRACTABLE_TEXT_AFTER_OCR',
+      })
+      return { ...result, text }
+    })
+    const chunks = planBookChunks(ordered)
+    for (let index = 0; index < chunks.length; index++) {
+      await store.upsertChunk({ ...chunks[index], index: input.existingChunks + index }, bookId, programId)
+    }
+    const donePage = pages[pages.length - 1]
+    const phase: 'EXTRACT' | 'ANALYZE' = donePage >= input.totalPages ? 'ANALYZE' : 'EXTRACT'
+    const totalChunks = input.existingChunks + chunks.length
+    await store.saveProgress(jobId, donePage, input.totalPages, totalChunks, phase, issues, pages)
+    return { pagesDone: donePage, totalPages: input.totalPages, totalChunks, phase }
+  }
+  const persistDecidedPrefix = async (): Promise<{ pagesDone: number; totalPages: number; totalChunks: number; phase: 'EXTRACT' | 'ANALYZE' }> => {
+    const count = decidedPrefixLength()
+    return count > 0
+      ? persistPages(numbers.slice(0, count))
+      : { pagesDone: input.pagesDone, totalPages: input.totalPages, totalChunks: input.existingChunks, phase: 'EXTRACT' }
+  }
   for (let offset = 0; offset < needsOcr.length; offset += 4) {
     const batch = needsOcr.slice(offset, offset + 4)
-    // If the worker budget is nearly exhausted, resume this SAME batch on
-    // the next cron run instead of prematurely marking pages as unreadable.
-    if (input.deadlineMs - Date.now() < 25_000) return { pagesDone: input.pagesDone, totalPages: input.totalPages, totalChunks: input.existingChunks, phase: 'EXTRACT' }
+    // If the worker budget is nearly exhausted, stop BEFORE starting a
+    // new OCR batch — but persist every page already decided in this
+    // batch first, so the next run resumes where this one stopped
+    // instead of re-reading (and re-paying for) the same pages.
+    if (input.deadlineMs - Date.now() < 25_000) return persistDecidedPrefix()
     try {
       const ocr = await callOcr(batch)
       for (const item of ocr) if (batch.includes(item.page) && item.text.trim()) pageMap.set(item.page, item)
       for (const page of batch) if (!ocr.some((item) => item.page === page && item.text.trim())) ocrFailures.set(page, 'OCR_RETURNED_NO_TEXT')
+      for (const page of batch) ocrSealed.add(page)
     } catch {
       // A failure on one page of a four-page OCR call must not discard the
       // other three. Try each page, then preserve every remaining failure.
       for (const page of batch) {
-        if (input.deadlineMs - Date.now() < 25_000) return { pagesDone: input.pagesDone, totalPages: input.totalPages, totalChunks: input.existingChunks, phase: 'EXTRACT' }
+        if (input.deadlineMs - Date.now() < 25_000) return persistDecidedPrefix()
         try {
           const single = await callOcr([page])
           const recovered = single.find((item) => item.page === page && item.text.trim())
@@ -190,28 +235,11 @@ async function extractPdfBatchInner(input: { buffer: Buffer; bookId: string; pro
         } catch (error) {
           ocrFailures.set(page, 'OCR_FAILED: ' + String(error instanceof Error ? error.message : error).slice(0, 120))
         }
+        ocrSealed.add(page)
       }
     }
   }
-  const issues: BookPageReadIssue[] = []
-  const ordered = numbers.map((page): ExtractedBookPage => {
-    const result = pageMap.get(page) || { page, text: '', textProvenance: 'NATIVE_TEXT' as const }
-    const text = result.textProvenance === 'NATIVE_TEXT' ? fixArabicPdfText(result.text) : result.text
-    const reason = ocrFailures.get(page)
-    if (!text.trim() || reason) issues.push({
-      page, kind: text.trim() ? 'PARTIAL' : 'UNREADABLE',
-      reason: reason || result.readError || 'NO_EXTRACTABLE_TEXT_AFTER_OCR',
-    })
-    return { ...result, text }
-  })
-  const chunks = planBookChunks(ordered)
-  for (let index = 0; index < chunks.length; index++) {
-    await store.upsertChunk({ ...chunks[index], index: input.existingChunks + index }, bookId, programId)
-  }
-  const phase = lastPage >= input.totalPages ? 'ANALYZE' : 'EXTRACT'
-  const totalChunks = input.existingChunks + chunks.length
-  await store.saveProgress(jobId, lastPage, input.totalPages, totalChunks, phase, issues, numbers)
-  return { pagesDone: lastPage, totalPages: input.totalPages, totalChunks, phase }
+  return persistPages(numbers)
 }
 
 // D0+D2.1: كل دفعة استخراج تُسجَّل كتشغيلة قراءة. بروفايل القراءة
