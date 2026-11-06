@@ -77,7 +77,7 @@ export async function collectMeetingAcademyEvidence(db: any, question: string, u
           (remaining.map((u) => shortValue(u.title)).join('، ') || 'لا توجد') + '.')
       }
       if (examIntent) {
-        const [unitAttempts, programAttempts] = await Promise.all([
+        const [unitAttempts, programAttempts]: [any[], any[]] = await Promise.all([
           db.examAttempt.findMany({
             where: { userId: student.id, status: 'GRADED', exam: { unit: { programId: enrollment.programId } } },
             select: { score: true, passed: true, exam: { select: { title: true } } },
