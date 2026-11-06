@@ -80,6 +80,7 @@ export async function meetingState(db: any, invite: any, user: { id: string; rol
     body: {
       ok: true,
       level: access.level,
+      canOperateAi: access.level === 'FULL' && user.role === 'ADMIN' && meeting.aiAssistantEnabled === true && ['ZOOM', 'PLATFORM'].includes(meeting.provider),
       meeting: access.level === 'FULL'
         ? {
             ...teaserOf(meeting),
