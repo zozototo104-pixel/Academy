@@ -196,6 +196,40 @@ async function touchPresence(meetingId: string, peerId: string, info: PresenceIn
   })
 }
 
+// Serialize join and heartbeat for the same peer identity. Without a
+// serializable read/check/write cycle, two users can both see no presence
+// and overwrite each other's claim between deleteMany and create.
+async function refreshOwnedPresence(
+  meetingId: string,
+  peerId: string,
+  userId: string,
+  name: string,
+  action: 'join' | 'heartbeat',
+) {
+  const maxAttempts = 3
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      await db.$transaction(async (tx) => {
+        const existing = await latestPresence(meetingId, peerId, tx)
+        if (action === 'heartbeat' && !existing) throw new Error('FORBIDDEN_PEER')
+        if (existing && existing.info.userId !== userId) {
+          throw new Error(action === 'join' ? 'PEER_IN_USE' : 'FORBIDDEN_PEER')
+        }
+        await touchPresence(meetingId, peerId, {
+          name: action === 'heartbeat' ? (existing?.info.name || name) : name,
+          userId,
+        }, tx)
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
+      return
+    } catch (e: unknown) {
+      // PostgreSQL rolls back one of two conflicting serializable writes.
+      // Retry against the current owner; never turn a collision into access.
+      if ((e as { code?: string })?.code !== 'P2034') throw e
+      if (attempt === maxAttempts - 1) throw new Error('PEER_CONFLICT')
+    }
+  }
+}
+
 async function clearPresence(meetingId: string, peerId: string) {
   await db.adminMeetingSignal
     .deleteMany({ where: { meetingId, type: PRESENCE_TYPE, fromPeer: peerId } })
