@@ -169,6 +169,11 @@ export async function meetingAction(
     return { status: res.status, body: res.body }
   }
 
+  if (action === 'transcript') {
+    const res = await addMeetingTranscript(db, invite, user, String(payload?.text || ''))
+    return { status: res.status, body: res.body }
+  }
+
   if (action === 'ask') {
     const res = await askMeetingAssistant(db, invite, user, String(payload?.question || ''))
     return { status: res.status, body: res.body }
