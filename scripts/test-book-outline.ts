@@ -1,4 +1,4 @@
-import { planBookOutline, applyGroundedChapterTitleProposals, detectOriginalSourceHeadings, outlineSubheadingMarkers, sourceBoundariesFromReadChunks, parseAiOutlineBoundaries, auditOutlineCoverage, outlineApprovalGuard, isVisuallyBlankPdfPage, missingBookSourcePageRanges, remapOutlineReviewWarnings, refineOversizedSections, evidenceBoundariesForOversizedRange, balanceBookOutlineSections, validateThematicArticleGrouping, type OutlineSectionDraft } from '@/lib/book-outline'
+import { planBookOutline, applyGroundedChapterTitleProposals, detectOriginalSourceHeadings, outlineSubheadingMarkers, sourceBoundariesFromReadChunks, parseAiOutlineBoundaries, auditOutlineCoverage, outlineApprovalGuard, isVisuallyBlankPdfPage, missingBookSourcePageRanges, remapOutlineReviewWarnings, refineOversizedSections, evidenceBoundariesForOversizedRange, balanceBookOutlineSections, validateThematicArticleGrouping, recoverOutlineOcrPages, type OutlineSectionDraft } from '@/lib/book-outline'
 import { readFileSync } from 'node:fs'
 
 type ChunkInput = Parameters<typeof planBookOutline>[0][number]
