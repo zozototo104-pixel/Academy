@@ -704,7 +704,7 @@ describe('meeting-room signal ownership', () => {
     const response = await postRoom('join')
     expect(response.status).toBe(200)
     expect(roomTransaction.attempts).toBe(2)
-    expect(roomPeerOwner.current).toBe('room-user-1')
+    expect(String(roomPeerOwner.current)).toBe('room-user-1')
   })
 
   test('repeated serialization conflicts return retryable 409 without stealing a peer', async () => {
