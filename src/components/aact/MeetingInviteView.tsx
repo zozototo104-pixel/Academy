@@ -163,6 +163,12 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
   const [assistantAnswer, setAssistantAnswer] = useState<string | null>(null)
   const [assistantGreeting, setAssistantGreeting] = useState<string | null>(null)
   const [assistantError, setAssistantError] = useState<string | null>(null)
+  // تفريغ محلي لصوت صاحب الجهاز فقط؛ لا يدّعي سماع Zoom الخارجي.
+  const [transcriptOn, setTranscriptOn] = useState(false)
+  const [transcriptError, setTranscriptError] = useState<string | null>(null)
+  const transcriptActiveRef = useRef(false)
+  const recognitionRef = useRef<any>(null)
+  const recognitionRestartRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // إنشاء حساب زائر من صفحة الدعوة نفسها (للضيف بلا حساب)
   const [regName, setRegName] = useState('')
   const [regEmail, setRegEmail] = useState('')
