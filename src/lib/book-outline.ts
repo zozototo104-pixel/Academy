@@ -1216,7 +1216,7 @@ export async function buildBookOutline(bookId: string, options: { reuseReadChunk
         const segment = chunks.filter((chunk) =>
           chunk.index >= section.chunkStartIndex && chunk.index <= section.chunkEndIndex)
         const sampleIndexes = [0, Math.floor((segment.length - 1) / 2), segment.length - 1]
-        const samples = [...new Set(sampleIndexes)].map((index) => segment[index]).filter((chunk): chunk is Chunk => !!chunk)
+        const samples = [...new Set(sampleIndexes)].map((index) => segment[index]).filter((chunk) => chunk !== undefined)
           .map((chunk) => ({
             pages: [chunk.pageStart, chunk.pageEnd],
             text: chunk.text.slice(0, 650) + (chunk.text.length > 950 ? ' … ' + chunk.text.slice(-300) : ''),
