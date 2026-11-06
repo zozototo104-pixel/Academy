@@ -3017,6 +3017,16 @@ export function AdminBooksTab() {
                           {bookOutlines[b.id] && (() => {
                             const outline = bookOutlines[b.id]!
                             const outlineBusy = outlineUnitBusyId?.endsWith(`-${b.id}`)
+                            const inferredTitles = new Map<number, string>()
+                            try {
+                              for (const warning of JSON.parse(outline.warnings || '[]') as string[]) {
+                                if (!warning.startsWith('OUTLINE_INFERRED_TITLE:')) continue
+                                const marker = JSON.parse(warning.slice('OUTLINE_INFERRED_TITLE:'.length))
+                                if (Number.isInteger(marker?.sectionOrder) && typeof marker?.title === 'string') {
+                                  inferredTitles.set(marker.sectionOrder, marker.title)
+                                }
+                              }
+                            } catch { /* Broken historical warning metadata does not break the outline UI. */ }
                             return <div className="mt-2 rounded-lg border border-slate-200 bg-white p-2">
                               <div className="flex flex-wrap items-center justify-between gap-2">
                                 <p className="font-black text-[#0f2b46]">فهرس الكتاب — نسخة {outline.version} · {outline.source === 'HEADINGS' ? 'من العناوين' : outline.source === 'TOC' ? 'من فهرس الكتاب' : outline.source === 'SOURCE_HEADINGS' ? 'عناوين مقترحة من النص المقروء' : outline.source === 'CHUNK_SEGMENTED' ? 'تقسيم حتمي من المقاطع — للمراجعة' : 'تقسيم ذكي مقترح'} · {outline.status === 'APPROVED' ? 'معتمد' : 'مسودة'}</p>
