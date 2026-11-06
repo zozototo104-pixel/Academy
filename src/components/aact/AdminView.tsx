@@ -549,6 +549,9 @@ export function AdminView() {
         return
       }
       if (detail.tab) setActiveTab(detail.tab)
+      if (detail.tab === 'admin-messages' && typeof detail.admissionId === 'string') {
+        setDirectMessagesAdmissionId(detail.admissionId)
+      }
       if (detail.tab === 'books') {
         ;[80, 300, 700].forEach((delay) => {
           window.setTimeout(() => window.dispatchEvent(new CustomEvent('aact-admin-books-target', { detail })), delay)
