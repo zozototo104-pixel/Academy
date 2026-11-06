@@ -1,3 +1,41 @@
+export type BookPageReadIssue = { page: number; kind: 'UNREADABLE' | 'PARTIAL'; reason: string }
+const PAGE_ISSUES_PREFIX = 'BOOK_PAGE_ISSUES:'
+
+/** Persist per-page reading limitations with the resumable job, without schema migration. */
+export function parseBookPageReadIssues(lastError: string | null | undefined): BookPageReadIssue[] {
+  if (!lastError?.startsWith(PAGE_ISSUES_PREFIX)) return []
+  try {
+    const parsed = JSON.parse(lastError.slice(PAGE_ISSUES_PREFIX.length))
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((issue): issue is BookPageReadIssue =>
+      Number.isSafeInteger(issue?.page) && issue.page > 0 &&
+      (issue.kind === 'UNREADABLE' || issue.kind === 'PARTIAL') &&
+      typeof issue.reason === 'string').map((issue) => ({
+        page: issue.page, kind: issue.kind, reason: issue.reason.slice(0, 160),
+      }))
+  } catch { return [] }
+}
+
+/** A successful later re-read clears the corresponding old issue. */
+export function mergeBookPageReadIssues(
+  previous: string | null | undefined,
+  processedPages: readonly number[],
+  newIssues: readonly BookPageReadIssue[],
+): string | null {
+  const processed = new Set(processedPages)
+  const byPage = new Map(parseBookPageReadIssues(previous)
+    .filter((issue) => !processed.has(issue.page)).map((issue) => [issue.page, issue]))
+  for (const issue of newIssues) if (Number.isSafeInteger(issue.page) && issue.page > 0) {
+    byPage.set(issue.page, { page: issue.page, kind: issue.kind, reason: issue.reason.slice(0, 160) })
+  }
+  const report = [...byPage.values()].sort((a, b) => a.page - b.page)
+  return report.length ? PAGE_ISSUES_PREFIX + JSON.stringify(report) : null
+}
+
+export function hasBookPageReadIssues(value: string | null | undefined): boolean {
+  return parseBookPageReadIssues(value).length > 0
+}
+
 export const BOOK_READ_LOCK_MS = 270_000 // 240s work budget + 30s grace; below 300s maxDuration
 export const BOOK_READ_RETRY_MS = 5 * 60_000
 export const BOOK_READ_TRANSIENT_RETRY_MS = 60_000
