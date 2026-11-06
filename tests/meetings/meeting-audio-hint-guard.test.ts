@@ -32,6 +32,14 @@ describe('meeting invite Zoom audio hint guards', () => {
     expect(rootIdx).toBeGreaterThan(bannerIdx)
   })
 
+  test('the post-join banner auto-dismisses after a readable 12 seconds', () => {
+    // Long enough to read two lines at ease, short enough not to hang over
+    // the meeting: exactly 12s, timer cleaned up on manual dismiss/unmount.
+    expect(component).toContain('setTimeout(() => setAudioHintDismissed(true), 12000)')
+    expect(component).toContain('clearTimeout(t)')
+    expect(component).toContain('if (!zoomConfig || audioHintDismissed) return')
+  })
+
   test('the hint never renders for the platform WebRTC room', () => {
     // Both hint surfaces are gated away from PLATFORM meetings: the pre-join
     // note requires !isPlatform and the banner lives inside the zoomConfig

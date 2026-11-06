@@ -113,6 +113,7 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
   const [zoomConfig, setZoomConfig] = useState<null | { signature: string; sdkKey: string; meetingNumber: string; userName: string; password: string }>(null)
   // تنبيه الصوت: متصفحات الويب تمنع تشغيل الصوت تلقائيًا داخل Zoom المضمّن،
   // فيحتاج العضو لكبس أيقونة الصوت بنفسه بعد الدخول — ننبّهه قبل الدخول وبعده.
+  // الشريط بعد الدخول يختفي لحاله بعد 12 ثانية (وقت مريح لقراءته) أو بكبسة «فهمت».
   const [audioHintDismissed, setAudioHintDismissed] = useState(false)
   const [zoomError, setZoomError] = useState<string | null>(null)
   const [zoomExternalUrl, setZoomExternalUrl] = useState<string | null>(null)
@@ -150,6 +151,14 @@ export function MeetingInviteView({ token, inviteId }: { token?: string; inviteI
     void start()
     return () => { cancelled = true }
   }, [zoomConfig])
+
+  // إخفاء تلقائي مهذّب لشريط تنبيه الصوت: 12 ثانية تكفي لقراءته على مهل،
+  // ولا يبقى معلّقًا فوق الاجتماع بعدها. الكبس اليدوي على «فهمت» يلغي المؤقّت.
+  useEffect(() => {
+    if (!zoomConfig || audioHintDismissed) return
+    const t = setTimeout(() => setAudioHintDismissed(true), 12000)
+    return () => clearTimeout(t)
+  }, [zoomConfig, audioHintDismissed])
 
   const [nowMs, setNowMs] = useState(() => Date.now())
   const [noteText, setNoteText] = useState('')
