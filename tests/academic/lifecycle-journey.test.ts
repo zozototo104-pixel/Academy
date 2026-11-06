@@ -77,6 +77,33 @@ function fakeOutboxWorld() {
 }
 
 describe('outbox guarantees', () => {
+  test('concurrent dispatchers claim one platform delivery only', async () => {
+    const { client, outboxRows, notifications } = fakeOutboxWorld()
+    await enqueueOutbox(client, { key: 'race-platform', kind: 'SEMESTER_CLOSED', recipientUserId: 'u1', title: 't', body: 'b' })
+    const [first, second] = await Promise.all([
+      dispatchOutboxBatch(client),
+      dispatchOutboxBatch(client),
+    ])
+    expect(first.platformSent + second.platformSent).toBe(1)
+    expect(notifications).toHaveLength(1)
+    expect(outboxRows[0].status).toBe('SENT')
+  })
+
+  test('a failed platform transaction stays pending and is not counted as sent', async () => {
+    const { client, outboxRows, notifications } = fakeOutboxWorld()
+    await enqueueOutbox(client, { key: 'rollback-platform', kind: 'SEMESTER_CLOSED', recipientUserId: 'u1', title: 't', body: 'b' })
+    const transaction = client.$transaction
+    client.$transaction = async () => { throw new Error('transient database error') }
+    const failed = await dispatchOutboxBatch(client)
+    expect(failed.platformSent).toBe(0)
+    expect(notifications).toHaveLength(0)
+    expect(outboxRows[0].status).toBe('PENDING')
+    client.$transaction = transaction
+    const retried = await dispatchOutboxBatch(client)
+    expect(retried.platformSent).toBe(1)
+    expect(notifications).toHaveLength(1)
+  })
+
   test('same key enqueued twice → one row; dispatched twice → exactly one platform notification', async () => {
     const { client, outboxRows, notifications } = fakeOutboxWorld()
     const evt = { key: 'semester-closed:e1:1', kind: 'SEMESTER_CLOSED', recipientUserId: 'u1', title: 'أُغلق الفصل', body: 'نتيجتك معتمدة' }
