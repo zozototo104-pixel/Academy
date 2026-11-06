@@ -205,6 +205,7 @@ function MeetingAiVoiceControl({ basePath, provider }: { basePath: string; provi
     } catch (e) {
       agent.stop()
       agentRef.current = null
+      settleUsageSessions()
       setError(e instanceof Error ? e.message : 'تعذّر تشغيل المشرف الصوتي')
     } finally {
       setBusy(false)
@@ -212,8 +213,12 @@ function MeetingAiVoiceControl({ basePath, provider }: { basePath: string; provi
   }
   useEffect(() => {
     const agent = agentRef
-    return () => { agent.current?.stop(); agent.current = null }
-  }, [])
+    return () => {
+      agent.current?.stop()
+      agent.current = null
+      settleUsageSessions()
+    }
+  }, [settleUsageSessions])
 
   return (
     <section className="mt-3 rounded-2xl border border-violet-300 bg-violet-50 p-4 text-right" dir="rtl" aria-label="المشارك الصوتي المستقل">
