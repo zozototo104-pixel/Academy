@@ -16,7 +16,7 @@ export async function collectMinutesSources(db: any, meeting: any): Promise<Minu
   const [notes, speechEvents, attendance, invites, users] = await Promise.all([
     db.adminMeetingNote.findMany({ where: { meetingId: meeting.id }, orderBy: { createdAt: 'asc' }, take: 200 }).catch(() => []),
     // Speech is collected only from access-checked, finalized participant segments.
-    db.adminMeetingAgentEvent.findMany({ where: { meetingId: meeting.id, kind: 'TRANSCRIPT' }, orderBy: { createdAt: 'asc' }, take: 600 }).catch(() => []),
+    (db.adminMeetingAgentEvent?.findMany?.({ where: { meetingId: meeting.id, kind: 'TRANSCRIPT' }, orderBy: { createdAt: 'asc' }, take: 600 })?.catch(() => []) ?? []),
     db.adminMeetingAttendance.findMany({ where: { meetingId: meeting.id } }).catch(() => []),
     db.adminMeetingInvite.findMany({ where: { meetingId: meeting.id }, select: { inviteeName: true, claimedByUserId: true } }).catch(() => []),
     db.user.findMany({ where: {}, select: { id: true, name: true }, take: 0 }).catch(() => []),
