@@ -250,7 +250,16 @@ describe('books workspace organization guard', () => {
     const flow = SOURCE.slice(start, end)
     assert.ok(!flow.includes('window.confirm(') && !flow.includes('window.prompt('), 'browser system prompts must not be used')
     assert.ok(flow.includes("error?.code === 'OUTLINE_OVERSIZED_SECTIONS' && !overrideReason"), 'only the oversized guard may open the documented override flow')
-    assert.ok(flow.includes('attempt(overrideReason ? { overrideOversized: true, overrideReason } : {})'), 'server-side guard remains authoritative on both requests')
+    assert.ok(flow.includes('const result = await attempt({'), 'single server-guarded approval endpoint remains the source of truth')
+    assert.ok(flow.includes('...(overrideReason ? { overrideOversized: true, overrideReason } : {})'),
+      'oversized override must only carry the explicitly documented reason')
+    assert.ok(flow.includes('...(acknowledgmentKey ? { acknowledgeCoverage: true, acknowledgmentKey } : {})'),
+      'missing-page acknowledgment must carry the exact report key')
+    assert.ok(flow.includes("error?.code === 'OUTLINE_REVIEW_REQUIRED'"),
+      'coverage review is opened only in response to the server rejection')
+    assert.ok(flow.includes('outlineCoverageAcksRef.current[bookId] = key') &&
+      flow.includes('if (confirmed)') && flow.includes('await approveBookOutline(bookId, overrideReason)'),
+      'only confirmed admin consent may trigger the acknowledgment retry')
     assert.ok(flow.includes('reason.length < 3'), 'documented reason must be validated before submission')
     assert.ok(SOURCE.includes("outlineApprovalDialog.stage === 'warning'"), 'warning is an in-platform stage')
     assert.ok(SOURCE.includes("outlineApprovalDialog.stage === 'reason'") || SOURCE.includes("stage: 'reason'"), 'reason entry is an in-platform stage')
