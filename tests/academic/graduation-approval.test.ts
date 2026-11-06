@@ -88,7 +88,7 @@ mock.module('@/lib/notify', () => ({
 const { completeEnrollmentIfEligibleInTransaction, registerGraduationRequest } = await import('../../src/lib/enrollment-completion')
 const { POST: graduationAction } = await import('../../src/app/api/admin/graduation-requests/route')
 
-function postGraduationAction(action: 'REFRESH' | 'APPROVE') {
+function postGraduationAction(action: 'REFRESH' | 'APPROVE' | 'REJECT') {
   return graduationAction(new NextRequest('http://localhost/api/admin/graduation-requests', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
