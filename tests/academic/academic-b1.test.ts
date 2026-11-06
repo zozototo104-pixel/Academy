@@ -556,7 +556,7 @@ describe('academic B1 safety', () => {
   })
 
   test('issuance is refused without a stored administrative approval, even when finance and academics pass', async () => {
-    const refused = await completionResult({ payments: [], approved: false })
+    const refused = await completionResult({ payments: [{ purpose: 'TUITION', status: 'PAID', amount: 1000, originalAmount: 1000 }], approved: false })
     expect(refused.result.ok).toBe(false)
     expect(refused.result.code).toBe('ADMIN_GRADUATION_APPROVAL_REQUIRED')
     expect(refused.result.httpStatus).toBe(409)
