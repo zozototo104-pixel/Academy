@@ -46,7 +46,7 @@ function fakeClient(cfg: Cfg) {
       findUnique: async () => ({ id: 'e1', userId: 'u1', programId: 'p1', createdAt: new Date('2026-01-01'), status: 'ACTIVE', finalScore: null, extensionDays: 0 }),
     },
     enrollmentRulesSnapshot: {
-      findUnique: async () => snapshotRow,
+      findUnique: async () => cfg.snapshotBasis === null ? null : snapshotRow,
       create: async () => snapshotRow,
     },
     enrollmentSemesterState: {
