@@ -676,6 +676,26 @@ describe('waiver approval atomicity and expiry (audit fixes 1 + 4)', () => {
     expect(enrollment?.status).toBe('ACTIVE')
     expect(admissions.get('admission-1')?.status).toBe('SUPERVISOR_ASSIGNED')
   })
+  test('a tuition invoice P2002 rolls back then retries the entire waiver-approval transaction', async () => {
+    seedWaiverAdmission()
+    payments.set('fee', {
+      id: 'fee', invoiceNo: 'INV-FEE-RACE', admissionId: 'admission-1', userId: 'student-1',
+      status: 'UNPAID', purpose: 'APPLICATION_FEE', description: 'رسوم تقديم', amount: 30, amountCents: 3_000,
+    })
+    waiverCodes.push({
+      id: 'wv-race', paymentId: 'fee', status: 'VERIFIED', waiverType: 'PARTIAL_TUITION',
+      requestedAmountCents: 38_000, reason: 'إعفاء يغطي التقديم والدراسة', codePreview: '••••-5555',
+      expiresAt: new Date(Date.now() + 60_000), approvedById: null,
+    })
+    tuitionInvoiceCollisionOnce = true
+    const updated = await approvePaymentWaiver({ waiverId: 'wv-race', actor: { id: 'admin-1', name: 'Admin' } })
+    expect(tuitionInvoiceCollisionOnce).toBe(false)
+    expect(transactionCalls).toBeGreaterThanOrEqual(2)
+    expect(updated.status).toBe('WAIVED')
+    expect(waiverCodes.find((w) => w.id === 'wv-race')?.status).toBe('APPROVED')
+    expect([...payments.values()].filter((p) => p.purpose === 'TUITION')).toHaveLength(1)
+    expect(audits.filter((a) => a.action === 'PAYMENT_WAIVER_APPROVED')).toHaveLength(1)
+  })
 })
 
 describe('accreditation certificate serial collision retry (audit fix 6)', () => {
