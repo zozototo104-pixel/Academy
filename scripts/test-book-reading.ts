@@ -132,6 +132,7 @@ async function analyzeResumeRegression() {
 }
 
 pdfExtractionRegression()
+  .then(() => unreadablePdfPageDoesNotStopFollowingPages())
   .then(() => analyzeResumeRegression())
   .then(() => console.log('book-reading regression checks passed'))
   .catch((error) => { console.error(error); process.exitCode = 1 })
