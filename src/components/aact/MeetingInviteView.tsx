@@ -114,6 +114,30 @@ function MeetingAiVoiceControl({ basePath, provider }: { basePath: string; provi
   const [inputDeviceId, setInputDeviceId] = useState('')
   const [outputDeviceId, setOutputDeviceId] = useState('')
   const [deviceBusy, setDeviceBusy] = useState(false)
+  const pendingUsageSessions = useRef(new Map<string, number>())
+  const settleUsageSessions = useCallback(() => {
+    const sessions = [...pendingUsageSessions.current.entries()]
+    pendingUsageSessions.current.clear()
+    for (const [sessionId, startedAt] of sessions) {
+      void fetch('/api/ai/live-usage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          actualSeconds: Math.max(0, Math.ceil((Date.now() - startedAt) / 1000)),
+        }),
+        keepalive: true,
+      }).then((response) => {
+        if (!response.ok) {
+          pendingUsageSessions.current.set(sessionId, startedAt)
+          setError('تعذر تسوية جلسة المشرف الصوتي؛ حاول إيقاف وتشغيل الجلسة مجددًا.')
+        }
+      }).catch(() => {
+        pendingUsageSessions.current.set(sessionId, startedAt)
+        setError('تعذر الاتصال بخدمة تسجيل دقائق الاجتماع.')
+      })
+    }
+  }, [])
   const checkAudioDevices = async () => {
     if (!navigator.mediaDevices?.getUserMedia || !navigator.mediaDevices?.enumerateDevices) {
       setError('هذا المتصفح لا يدعم اختيار أجهزة الصوت. استخدم Chrome حديثاً على الكمبيوتر.')
