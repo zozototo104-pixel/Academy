@@ -113,7 +113,14 @@ export async function dispatchOutboxBatch(client: AnyClient = db, limit = 50): P
     take: limit,
   }).catch(() => [])
   for (const row of emailDue) {
-    const recipients = (await resolveRecipients(client, row)).filter((r) => r.email)
+    // A lookup outage is not an empty recipient list: leave the email
+    // PENDING/FAILED for the next cron tick and continue with other events.
+    const resolved = await resolveRecipients(client, row).catch((e: unknown) => {
+      console.error('outbox email recipient lookup failed', row.id, e)
+      return null
+    })
+    if (resolved === null) continue
+    const recipients = resolved.filter((r) => r.email)
     if (!recipients.length) {
       await store.update({ where: { id: row.id }, data: { emailStatus: 'SKIPPED' } }).catch(() => {})
       continue
