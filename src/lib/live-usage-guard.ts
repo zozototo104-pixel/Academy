@@ -243,6 +243,10 @@ export async function reserveGeminiLiveUsage(input: {
   const maxSession = Math.max(1, Math.min(input.requestedMinutes || 2, hardSessionLimit))
 
   return db.$transaction(async (tx) => {
+    // Paid credits are shared across SUPERVISOR and DISCUSSION. A user-row
+    // lock serializes all reservations for this account, across purposes,
+    // before reading the common credit pool.
+    await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${input.userId} FOR UPDATE`
     // معرّف جلسة وارد من العميل لا يُقبل على عماه: جلسة غيرك = تعارض،
     // وجلستك المنتهية/المسوّاة لا تُبعث من جديد — تُحجز جلسة جديدة بمعرّف جديد.
     let effectiveSessionId = sessionId
