@@ -823,7 +823,7 @@ export function detectOriginalSourceHeadings(pages: readonly ExtractedBookPage[]
       const rawLine = page.lines[i].trim()
       const key = normalizeHeading(rawLine)
       if (rawLine.length > 115 || !key) continue
-      if ((pagesPerLine.get(key)?.size || 0) >= 3 || key === normalizeHeading(bookTitle)) continue
+      if ((pagesPerLine.get(key)?.size || 0) >= 3 || isBookRunningHeader(rawLine, bookTitle)) continue
       if (subordinateHeading.test(normalizeOutlineText(rawLine)) || numberedOrQuestion.test(rawLine)) continue
       if (/[؟?،,؛;.!]$/.test(rawLine) || /^\s*(?:https?:\/\/|www\.)/i.test(rawLine)) continue
       // Real PDF evidence (e.g. uploaded 297-page management compilation):
