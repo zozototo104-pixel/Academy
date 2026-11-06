@@ -131,6 +131,26 @@ describe('حراس نصية للمسارات', () => {
     expect(route).toContain("status: 'SUBMITTED', submittedAt: { lt: stuckBefore } }, data: { status: 'NEEDS_REVIEW' }")
   })
 
+  test('إعادة تصحيح الإدارة: جواب آلي مشوّه الشكل = 422 واضحة لا 500 عامة', () => {
+    const route = read('src/app/api/admin/attempts-review/route.ts')
+    expect(route).toContain('error instanceof ZodError || error instanceof SyntaxError')
+    expect(route).toContain("code: 'ESSAY_GRADE_INVALID_SHAPE'")
+    expect(route).toContain('reviewRequired: true')
+    // الفرع يسبق السقوط العام إلى 500 في سلسلة الالتقاط نفسها
+    expect(route.indexOf('ESSAY_GRADE_INVALID_SHAPE')).toBeLessThan(route.indexOf('تعذر إعادة التصحيح الآلي'))
+  })
+
+  test('تحويل المحاولة العالقة للمراجعة يُشعر — في مسارَي الوحدة والبرنامج', () => {
+    const detail = read('src/app/api/exam/detail/route.ts')
+    // التحويل الطازج وحده يحمل علم recovered — المراجعة المعلّقة سلفًا لا تُشعر ثانية
+    expect(detail).toContain('recovered: true as const')
+    expect(detail).toContain("'recovered' in attemptState && attemptState.recovered")
+    expect(detail).toContain('notifyAttemptNeedsReview({ studentId: user.id')
+    const start = read('src/app/api/program-exam/start/route.ts')
+    const reviewBranch = start.slice(start.indexOf("blocked === 'REVIEW')"), start.indexOf("blocked === 'REVIEW_PENDING'"))
+    expect(reviewBranch).toContain('notifyAttemptNeedsReview({ studentId: user.id')
+  })
+
   test('دقائق الصوت: فهرس فريد + ترحيلة + P2002 ممنوح أصلًا', () => {
     const schema = read('prisma/schema.prisma')
     const creditModel = schema.slice(schema.indexOf('model AiLiveCredit'), schema.indexOf('model AiLiveSession'))

@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { EXAM_ATTEMPT_POLICY_SINCE, getExamMaxAttempts } from '@/lib/exam-attempt-policy'
 import { submissionWindowCheck, windowContextFor } from '@/lib/semester-lifecycle'
+import { notifyAttemptNeedsReview } from '@/lib/exam-attempt-notifications'
 
 const UNIT_EXAM_DURATION_MIN = Math.max(1, Number(process.env.AACT_UNIT_EXAM_DURATION_MIN || 60))
 const STALE_SUBMITTED_REVIEW_MS = 2 * 60 * 60 * 1000 // Expired only after the bounded essay grading window
@@ -115,7 +116,7 @@ export async function GET(req: NextRequest) {
               },
             })
             if (recovered.count === 1) {
-              return { blocked: true as const, reason: 'NEEDS_REVIEW' as const, maxAttempts, completedAttempts: completedAttempts + 1 }
+              return { blocked: true as const, reason: 'NEEDS_REVIEW' as const, recovered: true as const, maxAttempts, completedAttempts: completedAttempts + 1 }
             }
           }
         }
@@ -133,6 +134,15 @@ export async function GET(req: NextRequest) {
       return { blocked: false as const, attempt, maxAttempts, completedAttempts }
     })
     if (attemptState.blocked) {
+      // تحويل طازج لمحاولة عالقة إلى المراجعة البشرية حدث للتو داخل المعاملة:
+      // نُشعر الطالب والإدارة والمشرف المُسند كما يحدث عند التحويل من مسار
+      // التسليم نفسه — قبلها كان التحويل صامتًا ولا يُكتشف إلا من القوائم.
+      // (مراجعة معلّقة سلفًا لا تُشعر من جديد: العلم recovered وحده يميّزها.)
+      if ('recovered' in attemptState && attemptState.recovered) {
+        try {
+          await notifyAttemptNeedsReview({ studentId: user.id, studentName: user.name || null, examTitle: exam.title })
+        } catch { /* الإشعار لا يعطّل فتح الامتحان أبدًا */ }
+      }
       const pendingAttempt = attemptState.reason === 'NEEDS_REVIEW'
         ? await db.examAttempt.findFirst({ where: { userId: user.id, examId, status: 'NEEDS_REVIEW' }, select: { feedback: true }, orderBy: { submittedAt: 'desc' } })
         : null

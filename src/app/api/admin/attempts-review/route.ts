@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { ZodError } from 'zod'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { EssayNeedsReviewError, gradeEssayWithRubric } from '@/lib/essay-grading'
@@ -383,6 +384,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         error: descriptions[error.code] || 'التصحيح الآلي غير مكتمل، والمحاولة ما زالت بانتظار المراجعة.',
         code: error.code,
+        reviewRequired: true,
+      }, { status: 422 })
+    }
+    // جواب المصحح الآلي مشوّه الشكل (ZodError من مخطط النتيجة الصارم أو
+    // SyntaxError من تحليل JSON): نفس معاملة نتيجة المراجعة الناقصة —
+    // رسالة واضحة 422 والمحاولة تبقى بانتظار المراجعة، لا 500 عامة.
+    if (error instanceof ZodError || error instanceof SyntaxError) {
+      return NextResponse.json({
+        error: 'أرجع المصحح الآلي نتيجة غير صالحة الشكل، والمحاولة ما زالت بانتظار المراجعة. حاول إعادة التصحيح أو صحّح يدويًا.',
+        code: 'ESSAY_GRADE_INVALID_SHAPE',
         reviewRequired: true,
       }, { status: 422 })
     }
