@@ -583,7 +583,10 @@ async function scenarioD(db: any, approvePaymentWaiver: any) {
   const holdGate = new Promise<void>((resolve) => { releaseHold = resolve })
   let signalAcquired!: () => void
   const holdAcquired = new Promise<void>((resolve) => { signalAcquired = resolve })
+  let holderPid = 0
   const holdPromise = db.$transaction(async (holdTx: any) => {
+    const pidRows = await holdTx.$queryRaw`SELECT pg_backend_pid() AS pid`
+    holderPid = Number((pidRows as any)?.[0]?.pid || 0)
     await holdTx.$queryRaw`SELECT id FROM "AdmissionApplication" WHERE id = ${s.admissionId} FOR UPDATE`
     signalAcquired()
     await holdGate
@@ -602,9 +605,10 @@ async function scenarioD(db: any, approvePaymentWaiver: any) {
   while (Date.now() < windowDeadline && !secondSettled && !sawLockWait) {
     const rows = await db.$queryRaw`
       SELECT COUNT(*)::int AS waiting
-      FROM pg_locks l
-      JOIN pg_class c ON c.oid = l.relation
-      WHERE c.relname = 'AdmissionApplication' AND NOT l.granted
+      FROM pg_stat_activity a
+      WHERE a.datname = current_database()
+        AND a.pid <> pg_backend_pid()
+        AND ${holderPid}::int = ANY(pg_blocking_pids(a.pid))
     `
     sawLockWait = Number((rows as any)?.[0]?.waiting || 0) > 0
     if (!sawLockWait) await sleep(150)
@@ -619,7 +623,7 @@ async function scenarioD(db: any, approvePaymentWaiver: any) {
   check(`${scope}: second fee still UNPAID in committed state during the hold`, fee2DuringHold?.status === 'UNPAID',
     `status=${fee2DuringHold?.status}`)
   console.log(`[EVIDENCE] ${scope}: lockWaitObserved=${sawLockWait}`)
-  check(`${scope}: lock wait positively observed in pg_locks during the hold (asserted, not merely logged)`, sawLockWait,
+  check(`${scope}: a session is positively observed blocked by the holder during the hold (pg_blocking_pids, asserted, not merely logged)`, sawLockWait,
     `lockWaitObserved=${sawLockWait}`)
 
   releaseHold()
@@ -673,7 +677,10 @@ async function scenarioE(db: any, approvePaymentWaiver: any) {
   const holdGate = new Promise<void>((resolve) => { releaseHold = resolve })
   let signalAcquired!: () => void
   const holdAcquired = new Promise<void>((resolve) => { signalAcquired = resolve })
+  let holderPid = 0
   const holdPromise = db.$transaction(async (holdTx: any) => {
+    const pidRows = await holdTx.$queryRaw`SELECT pg_backend_pid() AS pid`
+    holderPid = Number((pidRows as any)?.[0]?.pid || 0)
     await holdTx.$queryRaw`SELECT id FROM "Payment" WHERE id = ${s.feeId} FOR UPDATE`
     signalAcquired()
     await holdGate
@@ -692,9 +699,10 @@ async function scenarioE(db: any, approvePaymentWaiver: any) {
   while (Date.now() < windowDeadline && !settled && !sawLockWait) {
     const rows = await db.$queryRaw`
       SELECT COUNT(*)::int AS waiting
-      FROM pg_locks l
-      JOIN pg_class c ON c.oid = l.relation
-      WHERE c.relname = 'Payment' AND NOT l.granted
+      FROM pg_stat_activity a
+      WHERE a.datname = current_database()
+        AND a.pid <> pg_backend_pid()
+        AND ${holderPid}::int = ANY(pg_blocking_pids(a.pid))
     `
     sawLockWait = Number((rows as any)?.[0]?.waiting || 0) > 0
     if (!sawLockWait) await sleep(150)
@@ -706,7 +714,7 @@ async function scenarioE(db: any, approvePaymentWaiver: any) {
   check(`${scope}: waiver code still VERIFIED in committed state during the hold`, codeDuringHold?.status === 'VERIFIED',
     `status=${codeDuringHold?.status}`)
   console.log(`[EVIDENCE] ${scope}: lockWaitObserved=${sawLockWait}`)
-  check(`${scope}: lock wait positively observed in pg_locks during the hold (asserted, not merely logged)`, sawLockWait,
+  check(`${scope}: a session is positively observed blocked by the holder during the hold (pg_blocking_pids, asserted, not merely logged)`, sawLockWait,
     `lockWaitObserved=${sawLockWait}`)
 
   releaseHold()
@@ -753,7 +761,10 @@ async function scenarioF(db: any, approvePaymentWaiver: any, markInvoicePaid: an
   const holdGate = new Promise<void>((resolve) => { releaseHold = resolve })
   let signalAcquired!: () => void
   const holdAcquired = new Promise<void>((resolve) => { signalAcquired = resolve })
+  let holderPid = 0
   const holdPromise = db.$transaction(async (holdTx: any) => {
+    const pidRows = await holdTx.$queryRaw`SELECT pg_backend_pid() AS pid`
+    holderPid = Number((pidRows as any)?.[0]?.pid || 0)
     await holdTx.$queryRaw`SELECT id FROM "Payment" WHERE id = ${tuitionId} FOR UPDATE`
     signalAcquired()
     await holdGate
@@ -772,9 +783,10 @@ async function scenarioF(db: any, approvePaymentWaiver: any, markInvoicePaid: an
   while (Date.now() < windowDeadline && !(waiverSettled && cashSettled) && !sawLockWait) {
     const rows = await db.$queryRaw`
       SELECT COUNT(*)::int AS waiting
-      FROM pg_locks l
-      JOIN pg_class c ON c.oid = l.relation
-      WHERE c.relname = 'Payment' AND NOT l.granted
+      FROM pg_stat_activity a
+      WHERE a.datname = current_database()
+        AND a.pid <> pg_backend_pid()
+        AND ${holderPid}::int = ANY(pg_blocking_pids(a.pid))
     `
     sawLockWait = Number((rows as any)?.[0]?.waiting || 0) > 0
     if (!sawLockWait) await sleep(150)
@@ -788,7 +800,7 @@ async function scenarioF(db: any, approvePaymentWaiver: any, markInvoicePaid: an
     feeDuringHold?.status === 'UNPAID' && tuitionDuringHold?.status === 'UNPAID',
     `fee=${feeDuringHold?.status} tuition=${tuitionDuringHold?.status}`)
   console.log(`[EVIDENCE] ${scope}: lockWaitObserved=${sawLockWait}`)
-  check(`${scope}: lock wait positively observed in pg_locks during the hold (asserted, not merely logged)`, sawLockWait,
+  check(`${scope}: a session is positively observed blocked by the holder during the hold (pg_blocking_pids, asserted, not merely logged)`, sawLockWait,
     `lockWaitObserved=${sawLockWait}`)
 
   releaseHold()
