@@ -48,6 +48,20 @@
  * داخل مسار الإلغاء نفسه فيُثبت في مجموعة الاختبارات الوهمية
  * (tests/payments/payment-settlement.test.ts).
  *
+ * السيناريو F (بند المرحلة الثالثة 8أ — نقدي ∥ إعفاء على نفس القبول):
+ * نمسك قفل صف فاتورة الدراسة (سطح التماس المشترك: قلب النقدي يكتبها
+ * وفرع الإعفاء ينشئها/يخصم عليها) ونطلق اعتماد إعفاء التقديم الجزئي
+ * وتسوية نقدية للدراسة معًا: لا أحد يلتزم أثناء الاحتجاز، وبعد
+ * الإفراج يتسلسلان على الصف نفسه. الفائز أيٌّ منهما مقبول؛ المحرَّم
+ * هو الفساد: فاتورة دراسة ثانية، أو إعفاء فوق قيمة الفاتورة، أو
+ * فاتورة PAID تحمل رصيد إعفاء، أو التحاقان، أو هروب خطأ اصطدام
+ * (P2002/25P02) إلى المستدعي.
+ *
+ * السيناريو G (بند 8ج — U08 على قاعدة حقيقية): فاتورة دراسة PAID
+ * بإيصال نقدي قائمة قبل اعتماد منحة كاملة على رسوم التقديم: كنس
+ * المنحة (waiveAll) يجب ألا يلمس المدفوعة أبدًا — تبقى PAID بإيصالها
+ * وبلا أي مبلغ معفى — بينما تُعفى التقديم ويُنشأ التحاق واحد.
+ *
  * Real-PostgreSQL concurrency proof for payment-waiver approval (PR #188):
  * two simultaneous approvals racing the invoiceNo unique index must both
  * land exactly once. The mocked suites cannot model a real PG transaction
@@ -227,9 +241,11 @@ async function importAppModules(databaseUrl: string) {
   console.log('[STAGE 2] Importing app modules against the test database')
   let db: any
   let approvePaymentWaiver: any
+  let markInvoicePaid: any
   try {
     ;({ db } = await import('@/lib/db'))
     ;({ approvePaymentWaiver } = await import('@/lib/payment-waivers'))
+    ;({ markInvoicePaid } = await import('@/lib/settle-payment'))
   } catch (error) {
     throw new StageError(`[ENV] WAIVER_PG stage 2: app module import failed — ${describeError(error)}`)
   }
@@ -244,7 +260,7 @@ async function importAppModules(databaseUrl: string) {
     throw new StageError(`[ENV] WAIVER_PG stage 2: could not create payment_receipt_no_seq — ${describeError(error)}`)
   }
   console.log('[STAGE 2] Modules imported; receipt sequence present')
-  return { db, approvePaymentWaiver }
+  return { db, approvePaymentWaiver, markInvoicePaid }
 }
 
 async function seedShared(db: any) {
@@ -699,6 +715,172 @@ async function scenarioE(db: any, approvePaymentWaiver: any) {
     `count=${tuitions.length} status=${tuitions[0]?.status} waivedAmountCents=${tuitions[0]?.waivedAmountCents}`)
 }
 
+// Scenario F — item 8a: a cash tuition settlement and a fee-branch
+// waiver approval racing the same admission. The tuition Payment row
+// is held externally: the cash flip writes it and the waiver branch
+// ensures/credits it, so both must stall; after release they serialize
+// on that row. Either winner is legitimate — corruption is not.
+async function scenarioF(db: any, approvePaymentWaiver: any, markInvoicePaid: any) {
+  const scope = 'Scenario F (cash settle ∥ waiver approval, tuition row held)'
+  const s = await seedFeeWaiverStudent(db, 'sf')
+  const actor = { id: ADMIN_ID, name: ADMIN_NAME }
+  const tuitionId = 'pgw-sf-tuition'
+  await db.payment.create({
+    data: {
+      id: tuitionId,
+      invoiceNo: 'PGW-TUIT-SF',
+      admissionId: s.admissionId,
+      userId: s.studentId,
+      status: 'UNPAID',
+      purpose: 'TUITION',
+      description: 'رسوم الدراسة',
+      amount: 350,
+      amountCents: TUITION_TOTAL_CENTS,
+      payerName: 'Student sf',
+      payerEmail: s.email,
+      payerCountry: 'PS',
+    },
+  })
+
+  let releaseHold!: () => void
+  const holdGate = new Promise<void>((resolve) => { releaseHold = resolve })
+  let signalAcquired!: () => void
+  const holdAcquired = new Promise<void>((resolve) => { signalAcquired = resolve })
+  const holdPromise = db.$transaction(async (holdTx: any) => {
+    await holdTx.$queryRaw`SELECT id FROM "Payment" WHERE id = ${tuitionId} FOR UPDATE`
+    signalAcquired()
+    await holdGate
+  }, { timeout: 30_000, maxWait: 15_000 })
+  holdPromise.catch(() => {})
+  await holdAcquired
+
+  let waiverSettled = false
+  let cashSettled = false
+  const waiverRun = approvePaymentWaiver({ waiverId: s.waiverId, actor })
+  const waiverTracked = waiverRun.then(() => { waiverSettled = true }, () => { waiverSettled = true })
+  const cashRun = markInvoicePaid('PGW-TUIT-SF', 'CASH', { actor })
+  const cashTracked = cashRun.then(() => { cashSettled = true }, () => { cashSettled = true })
+  let sawLockWait = false
+  const windowDeadline = Date.now() + 2_500
+  while (Date.now() < windowDeadline && !(waiverSettled && cashSettled) && !sawLockWait) {
+    const rows = await db.$queryRaw`
+      SELECT COUNT(*)::int AS waiting
+      FROM pg_locks l
+      JOIN pg_class c ON c.oid = l.relation
+      WHERE c.relname = 'Payment' AND NOT l.granted
+    `
+    sawLockWait = Number((rows as any)?.[0]?.waiting || 0) > 0
+    if (!sawLockWait) await sleep(150)
+  }
+  await sleep(500)
+  check(`${scope}: neither side commits while the tuition row is held`, !waiverSettled && !cashSettled,
+    `waiverSettled=${waiverSettled} cashSettled=${cashSettled} lockWaitObserved=${sawLockWait}`)
+  const feeDuringHold = await db.payment.findUnique({ where: { id: s.feeId } })
+  const tuitionDuringHold = await db.payment.findUnique({ where: { id: tuitionId } })
+  check(`${scope}: committed state untouched during the hold`,
+    feeDuringHold?.status === 'UNPAID' && tuitionDuringHold?.status === 'UNPAID',
+    `fee=${feeDuringHold?.status} tuition=${tuitionDuringHold?.status}`)
+  console.log(`[EVIDENCE] ${scope}: lockWaitObserved=${sawLockWait}`)
+
+  releaseHold()
+  await holdPromise
+  await Promise.all([waiverTracked, cashTracked])
+  const waiverError = await waiverRun.then(() => null, (e: any) => e)
+  const cashError = await cashRun.then(() => null, (e: any) => e)
+  check(`${scope}: no collision-shaped error escapes either side`,
+    !isCollisionShaped(waiverError) && !isCollisionShaped(cashError),
+    `waiver=${waiverError ? describeError(waiverError) : 'fulfilled'} cash=${cashError ? describeError(cashError) : 'fulfilled'}`)
+  if (waiverError || cashError) {
+    console.log(`[EVIDENCE] ${scope}: business refusal tolerated — waiver=${waiverError ? describeError(waiverError) : 'ok'} cash=${cashError ? describeError(cashError) : 'ok'}`)
+  }
+  const tuitions = await db.payment.findMany({ where: { admissionId: s.admissionId, purpose: 'TUITION' } })
+  check(`${scope}: exactly ONE tuition invoice`, tuitions.length === 1, `count=${tuitions.length}`)
+  const tuition = tuitions[0]
+  if (tuition) {
+    check(`${scope}: waiver credit never exceeds the invoice face`,
+      (tuition.waivedAmountCents || 0) <= tuition.amountCents,
+      `waived=${tuition.waivedAmountCents} face=${tuition.amountCents}`)
+    check(`${scope}: a cash-PAID invoice carries no waiver credit (no PAID+WAIVED hybrid)`,
+      !(tuition.status === 'PAID' && (tuition.waivedAmountCents || 0) > 0),
+      `status=${tuition.status} waived=${tuition.waivedAmountCents}`)
+    check(`${scope}: tuition ends settled exactly one way (PAID or WAIVED)`,
+      tuition.status === 'PAID' || tuition.status === 'WAIVED', `status=${tuition.status}`)
+  }
+  const code = await db.paymentWaiverCode.findUnique({ where: { id: s.waiverId } })
+  const fee = await db.payment.findUnique({ where: { id: s.feeId } })
+  check(`${scope}: code APPROVED exactly when its own fee invoice is WAIVED`,
+    (code?.status === 'APPROVED') === (fee?.status === 'WAIVED'),
+    `code=${code?.status} fee=${fee?.status}`)
+  const enrollmentCount = await db.enrollment.count({ where: { userId: s.studentId, programId: PROGRAM_ID } })
+  check(`${scope}: at most ONE enrollment`, enrollmentCount <= 1, `count=${enrollmentCount}`)
+}
+
+// Scenario G — item 8c / U08 on real PostgreSQL: a FULL_SCHOLARSHIP
+// approval whose sweep meets a tuition invoice already PAID in cash.
+// The sweep's status pin must leave the paid invoice byte-identical.
+async function scenarioG(db: any, approvePaymentWaiver: any) {
+  const scope = 'Scenario G (FULL_SCHOLARSHIP sweep never touches a PAID tuition)'
+  const studentId = 'pgw-sg-student'
+  const admissionId = 'pgw-sg-admission'
+  const feeId = 'pgw-sg-fee'
+  const tuitionId = 'pgw-sg-tuition'
+  const waiverId = 'pgw-sg-waiver'
+  const email = 'pgw-sg@example.test'
+  await db.user.create({
+    data: { id: studentId, email, password: 'pg-test-only', name: 'Student sg', role: 'STUDENT' },
+  })
+  await db.admissionApplication.create({
+    data: {
+      id: admissionId, reference: 'PGW-SG', fullName: 'Student sg', email,
+      phone: '+970000000000', country: 'PS', education: 'BACHELOR',
+      program: 'دبلوم تجريبي', programId: PROGRAM_ID, status: 'AWAITING_TUITION',
+      userId: studentId, supervisorId: null, approvedAt: new Date(), scholarshipFull: false,
+    },
+  })
+  await db.payment.create({
+    data: {
+      id: feeId, invoiceNo: 'PGW-FEE-SG', admissionId, userId: studentId, status: 'UNPAID',
+      purpose: 'APPLICATION_FEE', description: 'رسوم تقديم', amount: 30, amountCents: FEE_AMOUNT_CENTS,
+      payerName: 'Student sg', payerEmail: email, payerCountry: 'PS',
+    },
+  })
+  const paidAt = new Date(Date.now() - 60 * 60 * 1000)
+  await db.payment.create({
+    data: {
+      id: tuitionId, invoiceNo: 'PGW-TUIT-SG', admissionId, userId: studentId, status: 'PAID',
+      purpose: 'TUITION', description: 'رسوم الدراسة', amount: 350, amountCents: TUITION_TOTAL_CENTS,
+      payerName: 'Student sg', payerEmail: email, payerCountry: 'PS',
+      method: 'CASH', receiptNo: 'RCPT-SG-1', paidAt,
+    },
+  })
+  await db.paymentWaiverCode.create({
+    data: {
+      id: waiverId, paymentId: feeId,
+      codeHash: createHash('sha256').update('PGW-CODE-SG').digest('hex'),
+      codePreview: '••••-SG01', waiverType: 'FULL_SCHOLARSHIP',
+      requestedAmount: null, requestedAmountCents: null,
+      reason: 'منحة كاملة معتمدة', status: 'VERIFIED',
+      verifiedById: studentId, verifiedAt: new Date(),
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    },
+  })
+  const actor = { id: ADMIN_ID, name: ADMIN_NAME }
+  const approvalError = await approvePaymentWaiver({ waiverId, actor }).then(() => null, (e: any) => e)
+  check(`${scope}: approval fulfilled`, !approvalError, approvalError ? describeError(approvalError) : 'fulfilled')
+  const fee = await db.payment.findUnique({ where: { id: feeId } })
+  check(`${scope}: fee invoice WAIVED by the scholarship`, fee?.status === 'WAIVED', `status=${fee?.status}`)
+  const tuition = await db.payment.findUnique({ where: { id: tuitionId } })
+  check(`${scope}: PAID tuition untouched — status, receipt, paidAt, amounts identical`,
+    tuition?.status === 'PAID' && tuition?.receiptNo === 'RCPT-SG-1'
+      && tuition?.paidAt?.getTime() === paidAt.getTime()
+      && tuition?.amountCents === TUITION_TOTAL_CENTS && (tuition?.waivedAmountCents || 0) === 0,
+    `status=${tuition?.status} receipt=${tuition?.receiptNo} waived=${tuition?.waivedAmountCents}`)
+  const code = await db.paymentWaiverCode.findUnique({ where: { id: waiverId } })
+  check(`${scope}: waiver code APPROVED`, code?.status === 'APPROVED', `status=${code?.status}`)
+  const enrollmentCount = await db.enrollment.count({ where: { userId: studentId, programId: PROGRAM_ID } })
+  check(`${scope}: exactly ONE enrollment`, enrollmentCount === 1, `count=${enrollmentCount}`)
+}
+
 async function cleanup() {
   if (dbRef) {
     await dbRef.$disconnect().catch(() => {})
@@ -714,7 +896,7 @@ async function cleanup() {
 async function main(): Promise<number> {
   const databaseUrl = await resolveDatabaseUrl()
   await pushSchema(databaseUrl)
-  const { db, approvePaymentWaiver } = await importAppModules(databaseUrl)
+  const { db, approvePaymentWaiver, markInvoicePaid } = await importAppModules(databaseUrl)
   console.log('[STAGE 3] Seeding fixtures and running concurrency scenarios')
   await seedShared(db)
   await scenarioA(db, approvePaymentWaiver, 1)
@@ -723,6 +905,8 @@ async function main(): Promise<number> {
   await scenarioC(db, approvePaymentWaiver)
   await scenarioD(db, approvePaymentWaiver)
   await scenarioE(db, approvePaymentWaiver)
+  await scenarioF(db, approvePaymentWaiver, markInvoicePaid)
+  await scenarioG(db, approvePaymentWaiver)
   if (failures.length) {
     console.error(`\nWAIVER_PG_CONCURRENCY: FAILED — ${failures.length} assertion(s) failed`)
     return 1

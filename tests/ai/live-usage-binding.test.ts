@@ -682,6 +682,25 @@ describe('دفتر تخصيص الدقائق E01: كل دقيقة تعود لم�
     expect(credits.find((c) => c.id === 'c-b')?.remainingMinutes).toBe(8)
   })
 
+  test('بند 10 — كنس 51 جلسة منتهية: يُصرَّف عبر تشغيلات متلاحقة بسقف 50 ولا يختفي شيء بصمت', async () => {
+    seedUsage('stu-1', { freeMinutesUsed: 102, sessionsCount: 51 })
+    for (let i = 0; i < 51; i++) {
+      seedSession({ sessionId: `sweep-${i}`, expiresAt: new Date(Date.now() - 60_000) })
+    }
+    const first: any = await refundExpiredGeminiLiveSessions(new Date())
+    expect(first.sessions).toBe(50)
+    expect(first.charged).toBe(100)
+    expect(first.refunded).toBe(0)
+    expect([...sessions.values()].filter((s) => s.status === 'RESERVED')).toHaveLength(1)
+    const second: any = await refundExpiredGeminiLiveSessions(new Date())
+    expect(second.sessions).toBe(1)
+    expect(second.charged).toBe(2)
+    expect([...sessions.values()].filter((s) => s.status === 'SETTLED')).toHaveLength(51)
+    const third: any = await refundExpiredGeminiLiveSessions(new Date())
+    expect(third.sessions).toBe(0)
+    expect(third.charged).toBe(0)
+  })
+
   test('حجز مختلط مجاني+مدفوع: صفّان، والمجاني يُستهلك أولًا عند التسوية', async () => {
     seedUsage('stu-1', { freeMinutesUsed: 29 })
     credits = [

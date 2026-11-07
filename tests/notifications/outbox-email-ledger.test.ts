@@ -53,7 +53,7 @@ const ADMINS = [
   { id: 'admin3', email: 'admin3@example.com', name: 'الثالث' },
 ]
 
-function fakeWorld() {
+function fakeWorld(opts: { failCheckpointFor?: Set<string> } = {}) {
   const outboxRows: any[] = []
   const recipientRows: any[] = []
   let seq = 0
@@ -100,6 +100,10 @@ function fakeWorld() {
       update: async ({ where, data }: any) => {
         const row = recipientRows.find((r) => r.id === where.id)
         if (!row) return null
+        // حقن عطل البند 9: قبول SMTP تمّ لكن كتابة نقطة الحفظ تفشل.
+        if (opts.failCheckpointFor?.has(row.email) && (data as any).status === 'SENT') {
+          throw new Error('checkpoint write failed (injected)')
+        }
         applyData(row, data)
         return row
       },
@@ -241,6 +245,28 @@ describe('E02/E03 outbox email ledger', () => {
     expect(recipientRows.find((r) => r.recipientUserId === 'admin2')?.status).toBe('SENT')
     expect(recipientRows.find((r) => r.recipientUserId === 'admin2')?.attempts).toBe(2)
     expect(row.emailStatus).toBe('SENT')
+  })
+
+  test('item 9 — SMTP accepted but the checkpoint write dies: recipient closes UNKNOWN and is never resent', async () => {
+    const failCheckpointFor = new Set<string>(['admin1@example.com'])
+    const { client, outboxRows, recipientRows } = fakeWorld({ failCheckpointFor })
+    await enqueueAdminsEvent(client, 'e03-checkpoint-crash')
+    sentTo.length = 0
+    const first = await dispatchOutboxBatch(client)
+    // المزوّد قبل الثلاثة، لكن نتيجة الأول لم تُحفظ: الحدث لا يُحسم.
+    expect(sentTo.sort()).toEqual(['admin1@example.com', 'admin2@example.com', 'admin3@example.com'])
+    expect(first.emailsSent).toBe(0)
+    expect(outboxRows[0].emailStatus).toBe('SENDING')
+    expect(recipientRows.find((r) => r.recipientUserId === 'admin1')?.status).toBe('PROCESSING')
+    expect(recipientRows.find((r) => r.recipientUserId === 'admin2')?.status).toBe('SENT')
+    // العامل مات؛ عقد المطالبة انقضى. التوزيعة التالية تتبنّى الحدث:
+    // المجهول يُقفل UNKNOWN ولا يُعاد، والمحفوظ لا يُكرَّر، والحدث يُحسم.
+    outboxRows[0].emailClaimLeaseUntil = new Date(Date.now() - 1000)
+    const second = await dispatchOutboxBatch(client)
+    expect(second.emailsSent).toBe(1)
+    expect(sentTo.filter((to) => to === 'admin1@example.com')).toHaveLength(1)
+    expect(recipientRows.find((r) => r.recipientUserId === 'admin1')?.status).toBe('UNKNOWN')
+    expect(outboxRows[0].emailStatus).toBe('SENT')
   })
 
   test('mailer failure marks only that recipient FAILED and the event FAILED with a plain error', async () => {

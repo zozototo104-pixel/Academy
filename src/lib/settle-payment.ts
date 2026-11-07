@@ -216,7 +216,12 @@ export async function finalizeAdmissionAfterSettlement(tx: any, admissionId: str
 
   if (allSettled && tuitionSettled && ['AWAITING_FEE', 'UNDER_REVIEW', 'AWAITING_TUITION'].includes(String(app.status || ''))) {
     const newStatus = app.supervisorId ? 'THESIS' : 'SUPERVISOR_ASSIGNED'
-    await tx.admissionApplication.update({ where: { id: app.id }, data: { status: newStatus } })
+    // ترتيب الآثار (بند 7 — مرآة فرع PAYMENT): الالتحاق يُنشأ ويُهيَّأ
+    // أولًا، وحالة القبول تُكتب بعده. كتابة الحالة أولًا كانت تجعل أي
+    // عطل منتصف التفعيل (إنشاء الالتحاق مثلًا) يترك القبول متقدمًا بلا
+    // التحاق وشرط دخول هذا الفرع منتفيًا — فلا ترى إعادة المحاولة
+    // شيئًا تستأنفه ويضيع التفعيل بصمت رغم التزام المال.
+    let activated = false
     if (app.programId && linkedUserId) {
       const existingEnrollment = await tx.enrollment.findUnique({ where: { userId_programId: { userId: linkedUserId, programId: app.programId } } })
       const foundEnrollment = existingEnrollment || await createEnrollmentAfterRace(tx, linkedUserId, app.programId)
@@ -224,6 +229,10 @@ export async function finalizeAdmissionAfterSettlement(tx: any, admissionId: str
         ? await tx.enrollment.update({ where: { id: foundEnrollment.id }, data: { status: 'ACTIVE' } })
         : foundEnrollment
       await initializeAcademicEnrollment(tx, activeEnrollment)
+      activated = true
+    }
+    await tx.admissionApplication.update({ where: { id: app.id }, data: { status: newStatus } })
+    if (activated && linkedUserId) {
       await notify(linkedUserId, 'ADMISSION', 'تم تفعيل تسجيلك بمنحة/إعفاء', `أصبح تسجيلك في «${app.program}» فعالاً.`, 'dashboard')
       const student = await tx.user.findUnique({ where: { id: linkedUserId }, select: { email: true, name: true } }).catch(() => null)
       if (student) await emailFinalRegistration(student.email, student.name, app.program)

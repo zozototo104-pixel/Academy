@@ -38,6 +38,7 @@ let transactionCalls = 0
 let beforeTransactionHook: (() => void) | null = null
 const rawQueries: string[] = []
 let enrollmentRacePhantom = false
+let enrollmentCreateFails = false
 let siblingPaidRaceId: string | null = null
 
 function consumeSiblingPaidRace(targetId: string | undefined) {
@@ -246,6 +247,7 @@ const db: any = {
       return enrollments.get(key) || null
     },
     create: async ({ data }: { data: Record<string, any> }) => {
+      if (enrollmentCreateFails) throw new Error('INJECTED_ENROLLMENT_CREATE_OUTAGE')
       if (enrollmentRacePhantom) {
         enrollmentRacePhantom = false
         const key = `${data.userId}:${data.programId}`
@@ -425,6 +427,7 @@ beforeEach(() => {
   beforeTransactionHook = null
   rawQueries.splice(0, rawQueries.length)
   enrollmentRacePhantom = false
+  enrollmentCreateFails = false
   siblingPaidRaceId = null
 })
 
@@ -546,6 +549,36 @@ describe('new academic enrollment lifecycle', () => {
     const enrollment = enrollments.get('student-1:program-1')
     expect(rulesSnapshots.get(enrollment!.id)?.basis).toBe('ENROLLMENT')
     expect(admissions.get('admission-1')?.status).toBe('SUPERVISOR_ASSIGNED')
+  })
+
+  test('item 7 — WAIVER finalize fault at enrollment creation (after money committed) retries safely: one enrollment, one activation notice', async () => {
+    seedAcademicAdmission('WAIVED')
+    // المال ملتزم أصلًا في هذا الفرع (الفواتير WAIVED) والتفعيل هو الأثر
+    // اللاحق وحده: العطل المحقون يضرب إنشاء الالتحاق منتصف التفعيل.
+    enrollmentCreateFails = true
+    await expect(finalizeAdmissionAfterSettlement(db, 'admission-1', { source: 'WAIVER' }))
+      .rejects.toThrow('INJECTED_ENROLLMENT_CREATE_OUTAGE')
+    // الحالة الوسيطة الآمنة: القبول لم يتقدم (بقي قبل البوابة) فترى
+    // إعادة المحاولة عملها كاملًا — قبل الإصلاح كانت الحالة تتقدم هنا
+    // ولا يعود الفرع يُدخل أبدًا فيضيع الالتحاق رغم التزام المال.
+    expect(admissions.get('admission-1')?.status).toBe('AWAITING_TUITION')
+    expect(enrollments.size).toBe(0)
+    enrollmentCreateFails = false
+    const retried = await finalizeAdmissionAfterSettlement(db, 'admission-1', { source: 'WAIVER' })
+    expect(retried?.allSettled).toBe(true)
+    expect(enrollments.size).toBe(1)
+    const enrollment = enrollments.get('student-1:program-1')
+    expect(enrollment?.status).toBe('ACTIVE')
+    expect(rulesSnapshots.get(enrollment!.id)?.basis).toBe('ENROLLMENT')
+    expect(admissions.get('admission-1')?.status).toBe('SUPERVISOR_ASSIGNED')
+    // إشعار التفعيل وبريد التسجيل النهائي صدرا مرة واحدة فقط (من
+    // المحاولة الناجحة) — لا تضاعف من المحاولة المعطوبة.
+    expect(notifications.filter((n) => n.userId === 'student-1' && n.title === 'تم تفعيل تسجيلك بمنحة/إعفاء')).toHaveLength(1)
+    expect(finalRegistrationEmails).toHaveLength(1)
+    // إعادة ثالثة فوق المكتمل: لا التحاق ثانٍ ولا إشعارات جديدة.
+    await finalizeAdmissionAfterSettlement(db, 'admission-1', { source: 'WAIVER' })
+    expect(enrollments.size).toBe(1)
+    expect(notifications.filter((n) => n.userId === 'student-1' && n.title === 'تم تفعيل تسجيلك بمنحة/إعفاء')).toHaveLength(1)
   })
 })
 
@@ -1042,6 +1075,26 @@ describe('waiver cancel/reject: decision from the fresh in-transaction read (U07
     expect(waiverCodes.find((w) => w.id === 'wv-u07')?.status).toBe('APPROVED')
     expect(payments.get('tuition')?.status).toBe('WAIVED')
     expect(payments.get('tuition')?.waiverStatus).toBe('APPROVED')
+  })
+
+  test('item 8b — approve after a cancel that committed while waiting for the payment lock: clean refusal, zero money movement', async () => {
+    seedVerifiedFullScholarship()
+    // الإلغاء التزم بين قراءة الاعتماد قبل المعاملة وقراءته الطازجة
+    // داخلها (حاجز التداخل نفسه): الاعتماد يجب أن يرفض من القراءة
+    // الطازجة لا أن يعيد إحياء كود ملغي أو يحرك مالًا.
+    beforeTransactionHook = () => {
+      const code = waiverCodes.find((w) => w.id === 'wv-u07')!
+      code.status = 'CANCELLED'
+    }
+    await expect(approvePaymentWaiver({ waiverId: 'wv-u07', actor: { id: 'admin-1', name: 'Admin' } }))
+      .rejects.toThrow('لا يمكن اعتماد الكود قبل أن يدخله الطالب ويتحقق منه')
+    expect(waiverCodes.find((w) => w.id === 'wv-u07')?.status).toBe('CANCELLED')
+    const tuition = payments.get('tuition')!
+    expect(tuition.status).toBe('UNPAID')
+    expect(tuition.waivedAmountCents || 0).toBe(0)
+    // علم المنحة كما زرعه الـfixture (قائم من الإصدار/التحقق) — الاعتماد
+    // المرفوض لم يلمس القبول أصلًا؛ عكسُ العلم وظيفة إلغاء ناجح لا رفضِ اعتماد.
+    expect(admissions.get('admission-1')?.scholarshipFull).toBe(true)
   })
 })
 
