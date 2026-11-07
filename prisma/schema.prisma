@@ -116,6 +116,7 @@ model AiLiveCredit {
   expiresAt        DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+  allocations      AiLiveCreditAllocation[]
 
   @@index([userId, status])
   @@index([expiresAt])
@@ -139,8 +140,34 @@ model AiLiveSession {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  allocations AiLiveCreditAllocation[]
+
   @@index([userId, status])
   @@index([status, expiresAt])
+}
+
+// دفتر تخصيص دقائق الصوت الحي (E01): كل دقيقة تُسحب لحساب جلسة — عند
+// الحجز أو كشحن إضافي عند التسوية — تُنسب هنا إلى مصدرها: رصيد مدفوع
+// بعينه (creditId) أو الحصة المجانية الشهرية للغرض (creditId = null).
+// عند إقفال الجلسة يعود كل جزء غير مستعمل من كل صف إلى مصدره نفسه
+// وبانتهائه الأصلي، ويتحقق: minutesReserved = minutesUsed +
+// minutesRefunded لكل صف. الجلسات المحجوزة قبل هذه الهجرة بلا صفوف
+// تخصيص وتُسوّى بالمسار التقديري القديم (LEGACY_APPROXIMATE) في
+// live-usage-guard — لا ترحيل رجعيًا للبيانات.
+model AiLiveCreditAllocation {
+  id              String        @id @default(cuid())
+  sessionId       String
+  session         AiLiveSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  creditId        String?
+  credit          AiLiveCredit? @relation(fields: [creditId], references: [id], onDelete: Cascade)
+  minutesReserved Int
+  minutesUsed     Int           @default(0)
+  minutesRefunded Int           @default(0)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([sessionId, creditId])
+  @@index([creditId])
 }
 
 model AiUsageLog {

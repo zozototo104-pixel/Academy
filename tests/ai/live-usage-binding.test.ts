@@ -12,11 +12,14 @@ type SessionRow = {
   actualMinutes?: number | null; settledAt?: Date | null; startedAt?: Date; createdAt?: Date; expiresAt: Date
 }
 
+type AllocationRow = { id: string; sessionId: string; creditId: string | null; minutesReserved: number; minutesUsed: number; minutesRefunded: number; createdAt?: Date }
+
 const month = () => new Date().toISOString().slice(0, 7)
 const usageKey = (userId: string, m: string, purpose: string) => `${userId}:${m}:${purpose}`
 const usages = new Map<string, UsageRow>()
 const sessions = new Map<string, SessionRow>()
 let credits: CreditRow[] = []
+let allocations: AllocationRow[] = []
 const paidInvoices = new Map<string, { id: string; userId: string; status: string }>()
 let transactionQueue: Promise<void> = Promise.resolve()
 const queriedRowLocks: string[] = []
@@ -108,7 +111,11 @@ const db: any = {
     update: async ({ where, data }: any) => {
       const row = credits.find((item) => item.id === where.id)
       if (!row) throw new Error('credit not found')
-      Object.assign(row, data)
+      // E01: استرداد التخصيص يزيد المتبقي بـ increment — المحاكاة تطبّقه
+      // رقميًا كما يفعل العميل الحقيقي (بقية الحقول تعيين مباشر).
+      const { remainingMinutes, ...rest } = data
+      if (remainingMinutes !== undefined) row.remainingMinutes = updateNumber(row.remainingMinutes, remainingMinutes)
+      Object.assign(row, rest)
       return row
     },
     create: async ({ data }: any) => {
@@ -149,6 +156,32 @@ const db: any = {
       return { count }
     },
   },
+  // E01: دفتر التخصيص — محاكاة كاملة (إنشاء/دمج/قراءة مع ربط الرصيد/
+  // تحديث رقمي) حتى تُختبَر نسبة كل دقيقة لمصدرها بصدق.
+  aiLiveCreditAllocation: {
+    create: async ({ data }: any) => {
+      const row: AllocationRow = { id: `alloc-${allocations.length + 1}`, creditId: null, minutesUsed: 0, minutesRefunded: 0, createdAt: new Date(), ...data }
+      allocations.push(row)
+      return row
+    },
+    findFirst: async ({ where }: any) =>
+      allocations.find((row) => row.sessionId === where.sessionId && (row.creditId ?? null) === (where.creditId ?? null)) || null,
+    findMany: async ({ where, include }: any) => {
+      let rows = allocations.filter((row) => !where?.sessionId || row.sessionId === where.sessionId)
+      if (include?.credit) {
+        rows = rows.map((row) => ({ ...row, credit: row.creditId ? credits.find((c) => c.id === row.creditId) || null : null } as any))
+      }
+      return rows
+    },
+    update: async ({ where, data }: any) => {
+      const row = allocations.find((item) => item.id === where.id)
+      if (!row) throw new Error('allocation not found')
+      for (const key of ['minutesReserved', 'minutesUsed', 'minutesRefunded'] as const) {
+        if (data[key] !== undefined) row[key] = updateNumber(row[key], data[key])
+      }
+      return row
+    },
+  },
 }
 
 mock.module('@/lib/db', () => ({ db }))
@@ -176,6 +209,7 @@ beforeEach(() => {
   usages.clear()
   sessions.clear()
   credits = []
+  allocations = []
   paidInvoices.clear()
   transactionQueue = Promise.resolve()
   queriedRowLocks.length = 0
@@ -514,5 +548,159 @@ describe('إصلاحات تدقيق 2026-11-06: محاسبة المنتهي + و
     const decision: any = await getGeminiLiveAllowance({ userId: 'stu-1', role: 'STUDENT' })
     expect(decision.ok).toBe(true)
     expect(decision.sessionLimitMinutes).toBe(2)
+  })
+})
+
+describe('دفتر تخصيص الدقائق E01: كل دقيقة تعود لمصدرها', () => {
+  const day = 24 * 60 * 60 * 1000
+  function ageSession(sessionId: string, msAgo: number) {
+    const row = [...sessions.values()].find((s) => s.sessionId === sessionId)
+    if (!row) throw new Error('session missing')
+    row.startedAt = new Date(Date.now() - msAgo)
+    return row
+  }
+
+  test('حالة القبول المسماة: رصيد مستهلَك ينتهي غدًا لا يقصّر استرداد دقيقة موّلها رصيد 30 يومًا', async () => {
+    seedUsage('stu-1', { freeMinutesUsed: 30 })
+    credits = [
+      { id: 'c-old', userId: 'stu-1', minutes: 5, remainingMinutes: 0, status: 'CONSUMED', source: 'PURCHASE', expiresAt: new Date(Date.now() + day), createdAt: new Date(Date.now() - 10 * day) },
+      { id: 'c-30', userId: 'stu-1', minutes: 10, remainingMinutes: 10, status: 'ACTIVE', source: 'PURCHASE', expiresAt: new Date(Date.now() + 30 * day), createdAt: new Date(Date.now() - day) },
+    ]
+    const res: any = await reserveGeminiLiveUsage({ userId: 'stu-1', role: 'STUDENT', requestedMinutes: 2 })
+    expect(res.ok).toBe(true)
+    expect(credits.find((c) => c.id === 'c-30')?.remainingMinutes).toBe(8)
+    expect(allocations).toHaveLength(1)
+    expect(allocations[0].creditId).toBe('c-30')
+    expect(allocations[0].minutesReserved).toBe(2)
+    ageSession(res.sessionId, 20_000)
+    const settled: any = await settleGeminiLiveUsage({ userId: 'stu-1', sessionId: res.sessionId, actualMinutes: 0 })
+    expect(settled.ok).toBe(true)
+    expect(settled.refundMinutes).toBe(1)
+    // الدقيقة عادت إلى رصيد الثلاثين يومًا نفسه — لا رصيد REFUND مولّد،
+    // والرصيد المستهلَك المنتهي غدًا لم يُلمس ولم يقصّر شيئًا.
+    expect(credits.find((c) => c.id === 'c-30')?.remainingMinutes).toBe(9)
+    expect(credits.find((c) => c.id === 'c-30')?.status).toBe('ACTIVE')
+    expect(credits.find((c) => c.id === 'c-old')?.remainingMinutes).toBe(0)
+    expect(credits.filter((c) => c.source === 'REFUND')).toHaveLength(0)
+    expect(credits).toHaveLength(2)
+    expect(allocations[0].minutesUsed).toBe(1)
+    expect(allocations[0].minutesRefunded).toBe(1)
+    expect(usages.get(usageKey('stu-1', month(), 'SUPERVISOR'))?.paidMinutesUsed).toBe(1)
+  })
+
+  test('تمويل مشترك من رصيدين: المسترد يعود ذيلًا لكل مصدر بحصته', async () => {
+    seedUsage('stu-1', { freeMinutesUsed: 30 })
+    credits = [
+      { id: 'c-a', userId: 'stu-1', minutes: 1, remainingMinutes: 1, status: 'ACTIVE', source: 'PURCHASE', expiresAt: new Date(Date.now() + 5 * day), createdAt: new Date(Date.now() - 2 * day) },
+      { id: 'c-b', userId: 'stu-1', minutes: 5, remainingMinutes: 5, status: 'ACTIVE', source: 'PURCHASE', expiresAt: new Date(Date.now() + 30 * day), createdAt: new Date(Date.now() - day) },
+    ]
+    const res: any = await reserveGeminiLiveUsage({ userId: 'stu-1', role: 'STUDENT', requestedMinutes: 2 })
+    expect(res.ok).toBe(true)
+    expect(allocations).toHaveLength(2)
+    ageSession(res.sessionId, 20_000)
+    const settled: any = await settleGeminiLiveUsage({ userId: 'stu-1', sessionId: res.sessionId, actualMinutes: 0 })
+    expect(settled.refundMinutes).toBe(1)
+    // المستعمل نُسب للأقدم سحبًا (A) والمسترد عاد إلى B وحده.
+    const allocA = allocations.find((a) => a.creditId === 'c-a')
+    const allocB = allocations.find((a) => a.creditId === 'c-b')
+    expect(allocA?.minutesUsed).toBe(1)
+    expect(allocA?.minutesRefunded).toBe(0)
+    expect(allocB?.minutesUsed).toBe(0)
+    expect(allocB?.minutesRefunded).toBe(1)
+    expect(credits.find((c) => c.id === 'c-a')?.remainingMinutes).toBe(0)
+    expect(credits.find((c) => c.id === 'c-b')?.remainingMinutes).toBe(5)
+    expect(credits.filter((c) => c.source === 'REFUND')).toHaveLength(0)
+  })
+
+  test('تكرار تسوية نفس الجلسة لا يسترد مرتين', async () => {
+    seedUsage('stu-1', { freeMinutesUsed: 30 })
+    credits = [
+      { id: 'c-30', userId: 'stu-1', minutes: 10, remainingMinutes: 10, status: 'ACTIVE', source: 'PURCHASE', expiresAt: new Date(Date.now() + 30 * day), createdAt: new Date(Date.now() - day) },
+    ]
+    const res: any = await reserveGeminiLiveUsage({ userId: 'stu-1', role: 'STUDENT', requestedMinutes: 2 })
+    ageSession(res.sessionId, 20_000)
+    const first: any = await settleGeminiLiveUsage({ userId: 'stu-1', sessionId: res.sessionId, actualMinutes: 0 })
+    const second: any = await settleGeminiLiveUsage({ userId: 'stu-1', sessionId: res.sessionId, actualMinutes: 0 })
+    expect(first.refundMinutes).toBe(1)
+    expect(second.idempotent).toBe(true)
+    expect(credits.find((c) => c.id === 'c-30')?.remainingMinutes).toBe(9)
+    expect(allocations[0].minutesRefunded).toBe(1)
+    expect(usages.get(usageKey('stu-1', month(), 'SUPERVISOR'))?.paidMinutesUsed).toBe(1)
+  })
+
+  test('شحن إضافي فوق الحجز يُنسب لمصدره ويُوسم مستخدمًا بالكامل', async () => {
+    seedUsage('stu-1', { freeMinutesUsed: 30 })
+    credits = [
+      { id: 'c-b', userId: 'stu-1', minutes: 10, remainingMinutes: 10, status: 'ACTIVE', source: 'PURCHASE', expiresAt: new Date(Date.now() + 30 * day), createdAt: new Date(Date.now() - day) },
+    ]
+    const res: any = await reserveGeminiLiveUsage({ userId: 'stu-1', role: 'STUDENT', requestedMinutes: 2 })
+    ageSession(res.sessionId, 3.5 * 60 * 1000)
+    const settled: any = await settleGeminiLiveUsage({ userId: 'stu-1', sessionId: res.sessionId, actualMinutes: 0 })
+    expect(settled.extraChargedMinutes).toBe(2)
+    expect(settled.session.actualMinutes).toBe(4)
+    expect(settled.refundMinutes).toBe(0)
+    expect(credits.find((c) => c.id === 'c-b')?.remainingMinutes).toBe(6)
+    expect(allocations).toHaveLength(1)
+    expect(allocations[0].minutesReserved).toBe(4)
+    expect(allocations[0].minutesUsed).toBe(4)
+    expect(allocations[0].minutesRefunded).toBe(0)
+    expect(usages.get(usageKey('stu-1', month(), 'SUPERVISOR'))?.paidMinutesUsed).toBe(4)
+  })
+
+  test('رصيد ينتهي أثناء الجلسة يستقبل مسترده منتهيًا — لا دائمًا ولا جديدًا', async () => {
+    seedUsage('stu-1', { freeMinutesUsed: 30 })
+    credits = [
+      { id: 'c-x', userId: 'stu-1', minutes: 3, remainingMinutes: 3, status: 'ACTIVE', source: 'PURCHASE', expiresAt: new Date(Date.now() + 30_000), createdAt: new Date(Date.now() - day) },
+    ]
+    const res: any = await reserveGeminiLiveUsage({ userId: 'stu-1', role: 'STUDENT', requestedMinutes: 2 })
+    expect(credits.find((c) => c.id === 'c-x')?.remainingMinutes).toBe(1)
+    // الوقت مرّ: الرصيد انتهى والجلسة عمرها 20 ثانية.
+    credits[0].expiresAt = new Date(Date.now() - 1000)
+    ageSession(res.sessionId, 20_000)
+    const settled: any = await settleGeminiLiveUsage({ userId: 'stu-1', sessionId: res.sessionId, actualMinutes: 0 })
+    expect(settled.refundMinutes).toBe(1)
+    expect(credits.find((c) => c.id === 'c-x')?.remainingMinutes).toBe(2)
+    expect(credits.find((c) => c.id === 'c-x')?.status).toBe('EXPIRED')
+    expect(credits.filter((c) => c.source === 'REFUND')).toHaveLength(0)
+  })
+
+  test('كنس جلسة منتهية بلا تسوية يُقفل تخصيصها مستخدمًا كاملًا بلا استرداد', async () => {
+    seedUsage('stu-1', { freeMinutesUsed: 30 })
+    credits = [
+      { id: 'c-b', userId: 'stu-1', minutes: 10, remainingMinutes: 10, status: 'ACTIVE', source: 'PURCHASE', expiresAt: new Date(Date.now() + 30 * day), createdAt: new Date(Date.now() - day) },
+    ]
+    const res: any = await reserveGeminiLiveUsage({ userId: 'stu-1', role: 'STUDENT', requestedMinutes: 2 })
+    const row = [...sessions.values()].find((s) => s.sessionId === res.sessionId)
+    if (!row) throw new Error('session missing')
+    row.expiresAt = new Date(Date.now() - 1000)
+    const sweep: any = await refundExpiredGeminiLiveSessions(new Date())
+    expect(sweep.sessions).toBe(1)
+    expect(sweep.charged).toBe(2)
+    expect(row.status).toBe('SETTLED')
+    expect(allocations[0].minutesUsed).toBe(2)
+    expect(allocations[0].minutesRefunded).toBe(0)
+    expect(credits.find((c) => c.id === 'c-b')?.remainingMinutes).toBe(8)
+  })
+
+  test('حجز مختلط مجاني+مدفوع: صفّان، والمجاني يُستهلك أولًا عند التسوية', async () => {
+    seedUsage('stu-1', { freeMinutesUsed: 29 })
+    credits = [
+      { id: 'c-b', userId: 'stu-1', minutes: 5, remainingMinutes: 5, status: 'ACTIVE', source: 'PURCHASE', expiresAt: new Date(Date.now() + 30 * day), createdAt: new Date(Date.now() - day) },
+    ]
+    const res: any = await reserveGeminiLiveUsage({ userId: 'stu-1', role: 'STUDENT', requestedMinutes: 2 })
+    expect(res.ok).toBe(true)
+    expect(allocations).toHaveLength(2)
+    expect(allocations.find((a) => a.creditId === null)?.minutesReserved).toBe(1)
+    expect(allocations.find((a) => a.creditId === 'c-b')?.minutesReserved).toBe(1)
+    ageSession(res.sessionId, 20_000)
+    const settled: any = await settleGeminiLiveUsage({ userId: 'stu-1', sessionId: res.sessionId, actualMinutes: 0 })
+    expect(settled.refundMinutes).toBe(1)
+    // الدقيقة المستعملة من المجاني، والمستردة عادت إلى الرصيد المدفوع.
+    expect(allocations.find((a) => a.creditId === null)?.minutesUsed).toBe(1)
+    expect(allocations.find((a) => a.creditId === 'c-b')?.minutesRefunded).toBe(1)
+    expect(credits.find((c) => c.id === 'c-b')?.remainingMinutes).toBe(5)
+    const usage = usages.get(usageKey('stu-1', month(), 'SUPERVISOR'))
+    expect(usage?.freeMinutesUsed).toBe(30)
+    expect(usage?.paidMinutesUsed).toBe(0)
   })
 })

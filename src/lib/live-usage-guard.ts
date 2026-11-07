@@ -147,8 +147,115 @@ export async function getGeminiLiveAllowance(input: {
   }
 }
 
+// E01 — دفتر التخصيص: دمج سحب إضافي (شحن التسوية فوق الحجز) في صف
+// تخصيص الجلسة من المصدر نفسه، أو إنشاء الصف إن كان المصدر جديدًا على
+// الجلسة. الشحن الإضافي مستهلَك بتعريفه فيُوسم مستخدمًا فورًا.
+async function mergeAllocation(tx: any, liveSessionId: string, creditId: string | null, minutes: number, markUsed: boolean) {
+  if (minutes <= 0) return
+  const existing = await tx.aiLiveCreditAllocation.findFirst({ where: { sessionId: liveSessionId, creditId } })
+  if (existing) {
+    await tx.aiLiveCreditAllocation.update({
+      where: { id: existing.id },
+      data: {
+        minutesReserved: { increment: minutes },
+        ...(markUsed ? { minutesUsed: { increment: minutes } } : {}),
+      },
+    })
+  } else {
+    await tx.aiLiveCreditAllocation.create({
+      data: { sessionId: liveSessionId, creditId, minutesReserved: minutes, minutesUsed: markUsed ? minutes : 0 },
+    })
+  }
+}
+
+// إقفال تخصيصات جلسة مُحاسَبة على حجزها كاملًا بلا استرداد (الكنس
+// الليلي، ومسار الحجز المنتهي داخل الحجز نفسه): كل محجوز = مستخدم.
+async function closeAllocationsAsFullyUsed(tx: any, liveSessionId: string) {
+  const rows = await tx.aiLiveCreditAllocation.findMany({ where: { sessionId: liveSessionId } })
+  for (const row of rows) {
+    if (row.minutesUsed !== row.minutesReserved || row.minutesRefunded !== 0) {
+      await tx.aiLiveCreditAllocation.update({
+        where: { id: row.id },
+        data: { minutesUsed: row.minutesReserved, minutesRefunded: 0 },
+      })
+    }
+  }
+}
+
+// E01: تسوية جلسة لها صفوف تخصيص — المستعمل يُنسب بترتيب السحب
+// (المجاني أولًا ثم المدفوع بأقرب انتهاء ثم الأقدم إنشاءً، مرآة ترتيب
+// الحجز)، وكل جزء غير مستعمل يعود إلى مصدره بعينه: المجاني إلى عدّاد
+// الشهر، والمدفوع إلى رصيده الأصلي نفسه بذات انتهائه — يُعاد تفعيله إن
+// كان حيًّا، ويستقبل الدقائق منتهيًا (EXPIRED) إن انتهى أثناء الجلسة،
+// فلا تتحول دقيقة مؤقتة إلى دائمة ولا يُولد رصيد REFUND تخميني.
+async function settleAllocations(tx: any, session: any, refund: number, allocations: any[]) {
+  const ordered = [...allocations].sort((a, b) => {
+    if (!a.creditId && b.creditId) return -1
+    if (a.creditId && !b.creditId) return 1
+    if (a.creditId && b.creditId) {
+      const ea = a.credit?.expiresAt ? new Date(a.credit.expiresAt).getTime() : Number.POSITIVE_INFINITY
+      const eb = b.credit?.expiresAt ? new Date(b.credit.expiresAt).getTime() : Number.POSITIVE_INFINITY
+      if (ea !== eb) return ea - eb
+      const ca = a.credit?.createdAt ? new Date(a.credit.createdAt).getTime() : 0
+      const cb = b.credit?.createdAt ? new Date(b.credit.createdAt).getTime() : 0
+      if (ca !== cb) return ca - cb
+    }
+    return String(a.id).localeCompare(String(b.id))
+  })
+  let remainingUsed = Math.max(0, (session.reservedMinutes || 0) - refund)
+  let freeRefund = 0
+  let paidRefund = 0
+  const now = new Date()
+  for (const row of ordered) {
+    const open = Math.max(0, row.minutesReserved - row.minutesUsed)
+    const usedShare = Math.min(open, remainingUsed)
+    remainingUsed -= usedShare
+    const refunded = open - usedShare
+    await tx.aiLiveCreditAllocation.update({
+      where: { id: row.id },
+      data: { minutesUsed: row.minutesUsed + usedShare, minutesRefunded: refunded },
+    })
+    if (refunded <= 0) continue
+    if (!row.creditId) {
+      freeRefund += refunded
+      continue
+    }
+    paidRefund += refunded
+    const expired = row.credit?.expiresAt ? new Date(row.credit.expiresAt).getTime() <= now.getTime() : false
+    await tx.aiLiveCredit.update({
+      where: { id: row.creditId },
+      data: {
+        remainingMinutes: { increment: refunded },
+        status: expired ? 'EXPIRED' : 'ACTIVE',
+      },
+    })
+  }
+  if (freeRefund > 0 || paidRefund > 0) {
+    const usage = await tx.aiLiveUsage.findUnique({ where: { userId_month_purpose: { userId: session.userId, month: session.month, purpose: session.purpose } } })
+    if (usage) {
+      await tx.aiLiveUsage.update({
+        where: { id: usage.id },
+        data: {
+          freeMinutesUsed: { decrement: Math.min(freeRefund, usage.freeMinutesUsed || 0) },
+          paidMinutesUsed: { decrement: Math.min(paidRefund, usage.paidMinutesUsed || 0) },
+        },
+      })
+    }
+  }
+  return { freeRefund, paidRefund }
+}
+
 async function refundReserved(tx: any, session: any, minutes: number) {
   const refund = Math.max(0, Math.min(Math.floor(minutes || 0), session.reservedMinutes || 0))
+  // E01: جلسة لها صفوف تخصيص تُسوّى دفتريًا ولو كان المسترد صفرًا
+  // (إقفال الصفوف نفسها جزء من التسوية). بلا صفوف: جلسة سابقة للدفتر.
+  const allocations = await tx.aiLiveCreditAllocation
+    .findMany({ where: { sessionId: session.id }, include: { credit: true } })
+    .catch(() => [])
+  if (allocations.length > 0) return settleAllocations(tx, session, refund, allocations)
+  // LEGACY_APPROXIMATE: جلسة محجوزة قبل دفتر التخصيص (E01) — تُسترد
+  // بالمسار التقديري التالي كما هو: رصيد REFUND واحد يرث أقرب انتهاء
+  // من مجموعة السحب المحتملة. لا يُستخدم لأي جلسة لها صفوف تخصيص.
   if (!refund) return { freeRefund: 0, paidRefund: 0 }
   const paidRefund = Math.min(session.paidReserved || 0, refund)
   const freeRefund = Math.min(session.freeReserved || 0, refund - paidRefund)
@@ -292,10 +399,12 @@ export async function reserveGeminiLiveUsage(input: {
         // بنفس سياسة كنس الجلسات المنتهية (refundExpiredGeminiLiveSessions).
         // الحجز دقيقتان كحد أقصى فكلفة جلسة تعطّلت فعلاً محدودة، أما
         // الاسترداد الكامل فكان يجعل كل جلسة صوت بلا تسوية مجانية تماماً.
-        await tx.aiLiveSession.updateMany({
+        const staleClaim = await tx.aiLiveSession.updateMany({
           where: { id: existing.id, status: 'RESERVED', expiresAt: { lt: now } },
           data: { status: 'SETTLED', settledAt: now, actualMinutes: existing.reservedMinutes },
         })
+        // E01: جلسة مُحاسَبة على حجزها كاملًا تُقفل تخصيصاتها مستخدمةً كلها.
+        if (staleClaim.count === 1) await closeAllocationsAsFullyUsed(tx, existing.id)
       }
       effectiveSessionId = sessionIdValue(null)
     }
@@ -349,6 +458,9 @@ export async function reserveGeminiLiveUsage(input: {
 
     const freeTake = Math.min(reserve, freeRemaining)
     let paidTake = reserve - freeTake
+    // E01: كل سحب مدفوع يُسجَّل بحصته ورصيده حتى تُبنى صفوف التخصيص
+    // بعد إنشاء الجلسة — الاسترداد عند التسوية يعود لهذه الأرصدة بعينها.
+    const paidAllocations: Array<{ creditId: string; minutes: number }> = []
 
     for (const credit of credits) {
       if (paidTake <= 0) break
@@ -358,6 +470,7 @@ export async function reserveGeminiLiveUsage(input: {
         where: { id: credit.id },
         data: { remainingMinutes: remaining, status: remaining <= 0 ? 'CONSUMED' : 'ACTIVE' },
       })
+      if (take > 0) paidAllocations.push({ creditId: credit.id, minutes: take })
       paidTake -= take
     }
 
@@ -372,7 +485,7 @@ export async function reserveGeminiLiveUsage(input: {
       },
     })
 
-    await tx.aiLiveSession.create({
+    const sessionRow = await tx.aiLiveSession.create({
       data: {
         sessionId: effectiveSessionId,
         userId: input.userId,
@@ -388,6 +501,20 @@ export async function reserveGeminiLiveUsage(input: {
         expiresAt: new Date(now.getTime() + hardSessionLimit * 60 * 1000),
       },
     })
+
+    // E01: صفوف تخصيص هذا الحجز بترتيب السحب نفسه (المجاني أولًا ثم
+    // المدفوع بأقرب انتهاء) — تُقفل عند التسوية/الكنس بتحقق
+    // محجوز = مستخدم + مسترد لكل صف.
+    if (freeTake > 0) {
+      await tx.aiLiveCreditAllocation.create({
+        data: { sessionId: sessionRow.id, creditId: null, minutesReserved: freeTake },
+      })
+    }
+    for (const alloc of paidAllocations) {
+      await tx.aiLiveCreditAllocation.create({
+        data: { sessionId: sessionRow.id, creditId: alloc.creditId, minutesReserved: alloc.minutes },
+      })
+    }
 
     return {
       ok: true,
@@ -433,6 +560,9 @@ async function chargeExtraLiveMinutes(tx: any, session: any, wantedMinutes: numb
   const freeTake = Math.min(wanted, freeRemaining)
   let paidTake = Math.min(wanted - freeTake, credits.reduce((sum: number, c: any) => sum + Math.max(0, c.remainingMinutes), 0))
   const paidWanted = paidTake
+  // E01: سحوبات الشحن الإضافي تُنسب لمصادرها في دفتر تخصيص الجلسة
+  // (مدموجة في صفوف الحجز إن وُجدت) وتُوسم مستخدمة فورًا.
+  const extraAllocations: Array<{ creditId: string; minutes: number }> = []
   for (const credit of credits) {
     if (paidTake <= 0) break
     const take = Math.min(paidTake, credit.remainingMinutes)
@@ -441,9 +571,14 @@ async function chargeExtraLiveMinutes(tx: any, session: any, wantedMinutes: numb
       where: { id: credit.id },
       data: { remainingMinutes: remaining, status: remaining <= 0 ? 'CONSUMED' : 'ACTIVE' },
     })
+    if (take > 0) extraAllocations.push({ creditId: credit.id, minutes: take })
     paidTake -= take
   }
   const paidCharged = paidWanted - paidTake
+  if (freeTake > 0) await mergeAllocation(tx, session.id, null, freeTake, true)
+  for (const alloc of extraAllocations) {
+    await mergeAllocation(tx, session.id, alloc.creditId, alloc.minutes, true)
+  }
   if (freeTake > 0 || paidCharged > 0) {
     await tx.aiLiveUsage.update({
       where: { id: usage.id },
@@ -551,6 +686,8 @@ export async function refundExpiredGeminiLiveSessions(now = new Date()) {
         data: { status: 'SETTLED', settledAt: now, actualMinutes: session.reservedMinutes },
       })
       if (claim.count !== 1) continue
+      // E01: إقفال دفتري مطابق للمحاسبة الكاملة — كل محجوز مستخدم.
+      await closeAllocationsAsFullyUsed(tx, session.id)
       settled++
       charged += session.reservedMinutes
     }

@@ -34,6 +34,7 @@ const usageKey = (userId: string, m: string, purpose: string) => `${userId}:${m}
 const usages = new Map<string, UsageRow>()
 const sessions = new Map<string, SessionRow>()
 let credits: CreditRow[] = []
+let allocations: Array<{ id: string; sessionId: string; creditId: string | null; minutesReserved: number; minutesUsed: number; minutesRefunded: number }> = []
 let currentUser = { id: 'student-1', role: 'STUDENT' }
 let studentAiAllowed = true
 let latestThesisStatus: string | null = null
@@ -94,7 +95,10 @@ const db: any = {
       operations.creditWrites++
       const row = credits.find((item) => item.id === where.id)
       if (!row) throw new Error('credit not found')
-      Object.assign(row, data)
+      // E01: استرداد التخصيص يزيد المتبقي بـ increment رقميًا.
+      const { remainingMinutes, ...rest } = data
+      if (remainingMinutes !== undefined) row.remainingMinutes = updateNumber(row.remainingMinutes, remainingMinutes)
+      Object.assign(row, rest)
       return row
     },
     create: async ({ data }: any) => {
@@ -115,6 +119,31 @@ const db: any = {
       const row = [...sessions.values()].find((item) => item.id === where.id)
       if (!row) throw new Error('session not found')
       Object.assign(row, data)
+      return row
+    },
+  },
+  // E01: دفتر التخصيص — محاكاة بنفس دلالات العميل الحقيقي.
+  aiLiveCreditAllocation: {
+    create: async ({ data }: any) => {
+      const row = { id: `alloc-${allocations.length + 1}`, creditId: null, minutesUsed: 0, minutesRefunded: 0, ...data }
+      allocations.push(row)
+      return row
+    },
+    findFirst: async ({ where }: any) =>
+      allocations.find((row) => row.sessionId === where.sessionId && (row.creditId ?? null) === (where.creditId ?? null)) || null,
+    findMany: async ({ where, include }: any) => {
+      let rows = allocations.filter((row) => !where?.sessionId || row.sessionId === where.sessionId)
+      if (include?.credit) {
+        rows = rows.map((row) => ({ ...row, credit: row.creditId ? credits.find((c) => c.id === row.creditId) || null : null } as any))
+      }
+      return rows
+    },
+    update: async ({ where, data }: any) => {
+      const row = allocations.find((item) => item.id === where.id)
+      if (!row) throw new Error('allocation not found')
+      for (const key of ['minutesReserved', 'minutesUsed', 'minutesRefunded'] as const) {
+        if (data[key] !== undefined) row[key] = updateNumber(row[key], data[key])
+      }
       return row
     },
   },
@@ -161,6 +190,7 @@ beforeEach(() => {
   usages.clear()
   sessions.clear()
   credits = []
+  allocations = []
   currentUser = { id: 'student-1', role: 'STUDENT' }
   studentAiAllowed = true
   latestThesisStatus = null

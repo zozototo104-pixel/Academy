@@ -12,6 +12,7 @@ let currentRole = 'STUDENT'
 const liveUsages = new Map<string, LiveUsageRow>()
 let liveCredits: LiveCreditRow[] = []
 const liveSessions = new Map<string, LiveSessionRow>()
+let liveAllocations: Array<{ id: string; sessionId: string; creditId: string | null; minutesReserved: number; minutesUsed: number; minutesRefunded: number }> = []
 let chatDeleteWhere: any = null
 let whatsappDeleteWhere: any = null
 
@@ -83,7 +84,10 @@ const db: any = {
     update: async ({ where, data }: any) => {
       const row = liveCredits.find((item) => item.id === where.id)
       if (!row) throw new Error('credit not found')
-      Object.assign(row, data)
+      // E01: استرداد التخصيص يزيد المتبقي بـ increment رقميًا.
+      const { remainingMinutes, ...rest } = data
+      if (remainingMinutes !== undefined) (row as any).remainingMinutes = applyNumberMutation((row as any).remainingMinutes, remainingMinutes)
+      Object.assign(row, rest)
       return row
     },
     create: async ({ data }: any) => {
@@ -104,6 +108,31 @@ const db: any = {
       const row = [...liveSessions.values()].find((item) => item.id === where.id)
       if (!row) throw new Error('session not found')
       Object.assign(row, data)
+      return row
+    },
+  },
+  // E01: دفتر التخصيص — محاكاة بنفس دلالات العميل الحقيقي.
+  aiLiveCreditAllocation: {
+    create: async ({ data }: any) => {
+      const row = { id: `alloc-${liveAllocations.length + 1}`, creditId: null, minutesUsed: 0, minutesRefunded: 0, ...data }
+      liveAllocations.push(row)
+      return row
+    },
+    findFirst: async ({ where }: any) =>
+      liveAllocations.find((row) => row.sessionId === where.sessionId && (row.creditId ?? null) === (where.creditId ?? null)) || null,
+    findMany: async ({ where, include }: any) => {
+      let rows = liveAllocations.filter((row) => !where?.sessionId || row.sessionId === where.sessionId)
+      if (include?.credit) {
+        rows = rows.map((row) => ({ ...row, credit: row.creditId ? liveCredits.find((c) => c.id === row.creditId) || null : null } as any))
+      }
+      return rows
+    },
+    update: async ({ where, data }: any) => {
+      const row = liveAllocations.find((item) => item.id === where.id)
+      if (!row) throw new Error('allocation not found')
+      for (const key of ['minutesReserved', 'minutesUsed', 'minutesRefunded'] as const) {
+        if (data[key] !== undefined) row[key] = applyNumberMutation(row[key], data[key])
+      }
       return row
     },
   },
@@ -137,6 +166,7 @@ beforeEach(() => {
   liveUsages.clear()
   liveCredits = []
   liveSessions.clear()
+  liveAllocations = []
   chatDeleteWhere = null
   whatsappDeleteWhere = null
   delete process.env.GEMINI_API_KEY
