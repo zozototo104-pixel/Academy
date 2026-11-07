@@ -523,9 +523,19 @@ export function AdminStudentPreview() {
                     {d.cumulative && d.cumulative.components.length > 0 && (
                       <div className="mt-2 grid gap-2 sm:grid-cols-2">
                         {d.cumulative.components.map((c) => (
-                          <p key={c.key} className="rounded-xl bg-white p-3 font-bold text-slate-600">
-                            {c.label} (الوزن {c.weight}%) — {c.exempt ? 'معفى' : c.score != null ? `${Math.round(c.score)}%` : 'غير مكتمل'}
-                          </p>
+                          <div key={c.key} className="rounded-xl bg-white p-3 font-bold text-slate-600">
+                            <p>{c.label} (الوزن {c.weight}%)</p>
+                            <p className="mt-1 text-slate-800">
+                              {c.exempt ? 'معفى' : c.score != null
+                                ? `${c.ready ? 'النتيجة' : 'النتيجة الحالية'}: ${formatGradeValue(c.score)}%${c.ready ? '' : ' — لم يكتمل بعد'}`
+                                : 'غير مكتمل'}
+                            </p>
+                            {!c.exempt && c.score != null && typeof c.weighted === 'number' && Number.isFinite(c.weighted) && (
+                              <p className="mt-1 text-[11px] font-medium text-slate-500">
+                                المساهمة في المعدل: {formatGradeValue(c.weighted)} نقطة مئوية
+                              </p>
+                            )}
+                          </div>
                         ))}
                       </div>
                     )}
