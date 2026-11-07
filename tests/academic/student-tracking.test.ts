@@ -181,21 +181,37 @@ describe('متابعة الفصول — حالة إشراق (7/11)', () => {
     expect(tracking.programme?.score).toBeNull()
   })
 
-  test('بعد اعتماد الفصل الأول: معتمد، والثاني يظهر ضمن تقدمه بنفس الأرقام', async () => {
+  test('اعتماد الفصل مع امتحان راسب لا يفتح الثاني؛ النجاح والاعتماد معًا يكشفان النتائج المحفوظة', async () => {
     const fx = ishrakFixture()
-    const averages = await calculateSemesterAverages({ userId: 'u1', programId: 'p1', client: fakeClient(fx) })
-    const s1Average = averages.semesters[0].average
-    expect(s1Average).not.toBeNull()
-    fx.approvals = { 1: { score: s1Average as number } }
-    const tracking = await getStudentSemesterTracking(fakeClient(fx), { userId: 'u1', programId: 'p1' })
-    const [s1, s2] = tracking.semesters
-    expect(s1.approval).toBe('APPROVED')
-    expect(s1.approvedScore).toBe(s1Average)
-    expect(s1.semesterAverage).toBe(s1Average)
-    expect(s2.preserved).toBe(false)
-    // Preservation through the transition: identical S2 numbers.
-    expect(s2.unitExamsGraded).toBe(5)
-    expect(s2.unitAverage).toBeCloseTo(34.30, 2)
+    const client = fakeClient(fx)
+
+    // A graded 55% programme exam raises the semester average above 50,
+    // but does NOT satisfy the frozen requirement to pass its semester exam.
+    fx.programAttempts.pe1 = [{ score: 55, passed: false }]
+    let averages = await calculateSemesterAverages({ userId: 'u1', programId: 'p1', client })
+    expect(averages.semesters[0].average).toBeCloseTo(63.30, 2)
+    fx.approvals[1] = { score: averages.semesters[0].average as number }
+    const withoutExamPass = await getStudentSemesterTracking(client, { userId: 'u1', programId: 'p1' })
+    expect(withoutExamPass.semesters[0].approval).toBe('APPROVED')
+    expect(withoutExamPass.semesters[0].semesterPassed).toBe(true)
+    expect(withoutExamPass.semesters[1].preserved).toBe(true)
+    expect(withoutExamPass.semesters[1].unitExamsGraded).toBe(5)
+
+    // Regrade/retake to a passing 90% and approve the UPDATED semester
+    // result. The existing S2 grades remain intact and become ordinary
+    // progress, without changing its count or average.
+    const beforeS2 = JSON.stringify(fx.unitAttempts)
+    fx.programAttempts.pe1 = [{ score: 90, passed: true }]
+    averages = await calculateSemesterAverages({ userId: 'u1', programId: 'p1', client })
+    expect(averages.semesters[0].average).toBeCloseTo(84.30, 2)
+    fx.approvals[1] = { score: averages.semesters[0].average as number }
+    const afterExamPass = await getStudentSemesterTracking(client, { userId: 'u1', programId: 'p1' })
+    expect(afterExamPass.semesters[0].approval).toBe('APPROVED')
+    expect(afterExamPass.semesters[0].approvedScore).toBe(averages.semesters[0].average)
+    expect(afterExamPass.semesters[1].preserved).toBe(false)
+    expect(afterExamPass.semesters[1].unitExamsGraded).toBe(5)
+    expect(afterExamPass.semesters[1].unitAverage).toBeCloseTo(34.30, 2)
+    expect(JSON.stringify(fx.unitAttempts)).toBe(beforeS2)
   })
 
   test('الطبقة قراءة فقط: بيانات الدرجات لا تتغير بعد الاستدعاءات', async () => {
