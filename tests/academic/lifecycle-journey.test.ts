@@ -55,9 +55,34 @@ function applyData(row: any, data: any) {
 
 function fakeOutboxWorld() {
   const outboxRows: any[] = []
+  const recipientRows: any[] = []
   const notifications: any[] = []
   let seq = 0
   const client: any = {
+    // E02: سجل نتيجة البريد لكل مستلم — بنفس مطبق الشروط/البيانات.
+    notificationOutboxRecipient: {
+      createMany: async ({ data, skipDuplicates }: any) => {
+        let count = 0
+        for (const d of data) {
+          if (skipDuplicates && recipientRows.some((r) => r.outboxId === d.outboxId && r.recipientUserId === d.recipientUserId)) continue
+          recipientRows.push({ id: `rcp${recipientRows.length + 1}`, status: 'PENDING', attempts: 0, createdAt: new Date(), ...d })
+          count++
+        }
+        return { count }
+      },
+      findMany: async ({ where }: any) => recipientRows.filter((r) => matchesWhere(r, where)).map((r) => ({ ...r })),
+      update: async ({ where, data }: any) => {
+        const row = recipientRows.find((r) => r.id === where.id)
+        if (!row) return null
+        applyData(row, data)
+        return row
+      },
+      updateMany: async ({ where, data }: any) => {
+        const rows = recipientRows.filter((r) => matchesWhere(r, where))
+        for (const row of rows) applyData(row, data)
+        return { count: rows.length }
+      },
+    },
     notificationOutbox: {
       create: async ({ data }: any) => {
         if (outboxRows.some((r) => r.idempotencyKey === data.idempotencyKey)) {
@@ -100,7 +125,7 @@ function fakeOutboxWorld() {
     },
     $transaction: async (fn: any) => fn(client),
   }
-  return { client, outboxRows, notifications }
+  return { client, outboxRows, recipientRows, notifications }
 }
 
 describe('outbox guarantees', () => {
@@ -217,7 +242,7 @@ describe('outbox guarantees', () => {
   })
 
   test('failed second admin recipient retries only that recipient, not the first successful one', async () => {
-    const { client, outboxRows } = fakeOutboxWorld()
+    const { client, outboxRows, recipientRows } = fakeOutboxWorld()
     client.user.findMany = async () => [
       { id: 'admin1', email: 'admin1@example.com', name: 'الأول' },
       { id: 'admin2', email: 'admin2@example.com', name: 'الثاني' },
@@ -230,7 +255,10 @@ describe('outbox guarantees', () => {
       const first = await dispatchOutboxBatch(client)
       expect(first.emailsFailed).toBe(1)
       expect(outboxRows[0].emailStatus).toBe('FAILED')
-      expect(outboxRows[0].lastError).toContain('EMAIL_SENT_IDS:["admin1"]')
+      // E02: نقطة الحفظ صارت سجل المستلمين نفسه لا ختمًا داخل lastError.
+      expect(recipientRows.find((r) => r.recipientUserId === 'admin1')?.status).toBe('SENT')
+      expect(recipientRows.find((r) => r.recipientUserId === 'admin2')?.status).toBe('FAILED')
+      expect(outboxRows[0].lastError).not.toContain('EMAIL_SENT_IDS')
       failTheseEmailRecipients.clear()
       const second = await dispatchOutboxBatch(client)
       expect(second.emailsSent).toBe(1)

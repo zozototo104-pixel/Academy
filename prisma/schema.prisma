@@ -1776,6 +1776,12 @@ model SupervisorChannelMessage {
   audioMime    String?
   audioSize    Int?
   emailSentAt  DateTime? // digest email sent for unread admin messages (admin scope only)
+  // E02: مطالبة بريد الملخص حقول مستقلة — كانت مشفّرة تاريخًا مستقبليًا
+  // (~100 سنة) داخل emailSentAt؛ الصفوف المطالَبة بالترميز القديم وقت
+  // الترحيل تُقرأ انتقاليًا بمنطقها القديم حتى تُحسم، ولا تُكتب مطالبة
+  // جديدة إلا بهذين الحقلين وتبقى emailSentAt للحظة التسليم الحقيقية.
+  emailClaimId         String?
+  emailClaimLeaseUntil DateTime?
   createdAt    DateTime @default(now())
 
   @@index([admissionId])
@@ -2530,11 +2536,40 @@ model NotificationOutbox {
   status          String    @default("PENDING") // PENDING | SENT
   emailStatus     String    @default("PENDING") // PENDING | SENDING | SENT | FAILED | SKIPPED
   emailAttempts   Int       @default(0)
+  // E02: مطالبة البريد حقول مستقلة لا ختم داخل lastError — معرّف
+  // المطالبة الحية ووقت انتهاء عقدها؛ كتابات المالك مشروطة بهما (CAS).
+  emailClaimId         String?
+  emailClaimLeaseUntil DateTime?
   lastError       String?
   createdAt       DateTime  @default(now())
   sentAt          DateTime?
+  recipients      NotificationOutboxRecipient[]
 
   @@index([status, createdAt])
+}
+
+// E02/E03: سجل نتيجة بريد الصادر لكل مستلم — كل محاولة إرسال لمستلم
+// تنتهي بحالة موثقة هنا (SENT/FAILED/SKIPPED)، والمستلم الذي كان قيد
+// الإرسال (PROCESSING) حين ماتت مطالبة عامل تُقفل UNKNOWN ولا يُعاد
+// إرساله تلقائيًا أبدًا: SMTP بلا مفتاح عدم تكرار، فإعادة إرسال نتيجة
+// مجهولة هي بالضبط نافذة التكرار التي يغلقها هذا السجل. مرجع المزوّد
+// (providerRef) محجوز لبنية المرسل الحالية التي لا تعيده بعد.
+model NotificationOutboxRecipient {
+  id              String           @id @default(cuid())
+  outboxId        String
+  outbox          NotificationOutbox @relation(fields: [outboxId], references: [id], onDelete: Cascade)
+  recipientUserId String
+  email           String
+  status          String           @default("PENDING") // PENDING | PROCESSING | SENT | FAILED | SKIPPED | UNKNOWN
+  attempts        Int              @default(0)
+  lastError       String?
+  providerRef     String?
+  sentAt          DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@unique([outboxId, recipientUserId])
+  @@index([outboxId, status])
 }
 
 // التماس إعادة فتح (المرحلة 4) — نظام مستقل عن التماسات الدرجات: طلب

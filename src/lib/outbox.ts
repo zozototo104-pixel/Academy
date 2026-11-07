@@ -7,10 +7,12 @@ import { emailTemplate, sendEmailDetailed } from './mailer'
 // بمفتاح عدم تكرار فريد، ويوزّعها الموزّع لاحقًا:
 // - داخل المنصة: إنشاء الإشعارات وانقلاب الحدث إلى SENT بمعاملة واحدة
 //   ⟹ عدم تكرار مضمون بمفتاح الحدث.
-// - البريد: يُطالَب به ذرّيًا قبل الإرسال (انقلاب مشروط إلى SENDING مع
-//   ختم وقت المطالبة) فلا يرسله موزّعان متزامنان؛ المطالبة التي لا تُحسم
-//   خلال 10 دقائق (موزّع مات بعد قبول المزوّد وقبل تسجيل النتيجة) تصبح
-//   قديمة وتُسترد — في تلك النافذة الضيقة فقط قد يصل البريد مرتين.
+// - البريد: يُطالَب به ذرّيًا قبل الإرسال بحقول مطالبة مستقلة
+//   (emailClaimId + emailClaimLeaseUntil — E02) فلا يرسله موزّعان
+//   متزامنان، ونتيجة كل مستلم تُحفظ في سجل NotificationOutboxRecipient
+//   فور قبول المزوّد لها. مستلم كان قيد الإرسال حين ماتت مطالبة عامل
+//   يُقفل UNKNOWN ولا يُعاد إرساله تلقائيًا أبدًا — SMTP بلا مفتاح عدم
+//   تكرار، فتلك النافذة تُوسم ولا تُدّعى مضمونة الإغلاق.
 type AnyClient = any
 
 export type OutboxEvent = {
@@ -68,19 +70,21 @@ async function resolveRecipients(client: AnyClient, row: any): Promise<Array<{ i
 
 const MAX_EMAIL_ATTEMPTS = 5
 
-// مطالبة البريد: لا يوجد عمود updatedAt على صف الحدث، فيُحمل وقت
-// المطالبة داخل lastError كختم «EMAIL_CLAIM:<ISO>» ريثما تُكتب النتيجة
-// الحقيقية (نجاح يمسح الختم، وفشل يستبدله بنص الخطأ). المطالبة الأقدم
-// من المهلة تُعدّ يتيمة — صاحبها مات قبل الحسم — وتُسترد بمطابقة الختم
-// نفسه (CAS) حتى لا يسرق موزّعٌ مطالبةً حيّة من آخر.
-const EMAIL_CLAIM_STALE_MS = 10 * 60 * 1000
+// E02: مطالبة البريد بحقول مستقلة (emailClaimId/emailClaimLeaseUntil)
+// وسجل نتيجة لكل مستلم (NotificationOutboxRecipient). العقد 10 دقائق
+// كالسابق؛ المطالبة المنتهية عقدها يتيمة — صاحبها مات قبل الحسم —
+// وتُسترد بمطابقة معرّف مطالبتها المرصود (CAS).
+const EMAIL_CLAIM_LEASE_MS = 10 * 60 * 1000
+
+// قراءة انتقالية فقط (لا تُكتب أبدًا بعد E02): صفوف كانت مطالَبة
+// بالترميز القديم — ختم «EMAIL_CLAIM:<ISO>» وقائمة «EMAIL_SENT_IDS:»
+// داخل lastError — وقت نشر هذا الكود تُتبنّى كما هي: حداثتها تُحسب
+// من ختمها، ومستلموها المُسلَّمون يُزرعون في السجل من قائمتها، ثم
+// تُدار بالحقول الجديدة كبقية الصفوف.
 const EMAIL_CLAIM_PREFIX = 'EMAIL_CLAIM:'
 const EMAIL_SENT_IDS_PREFIX = 'EMAIL_SENT_IDS:'
 
-// Preserve delivered recipient user IDs across retries and worker crashes.
-// The legacy lastError column acts as a small durable checkpoint without
-// changing already deployed database tables.
-function deliveredEmailRecipientIds(lastError: unknown): Set<string> {
+function legacyDeliveredRecipientIds(lastError: unknown): Set<string> {
   const line = String(lastError || '').split('\n').find((part) => part.startsWith(EMAIL_SENT_IDS_PREFIX))
   if (!line) return new Set()
   try {
@@ -89,16 +93,20 @@ function deliveredEmailRecipientIds(lastError: unknown): Set<string> {
   } catch { return new Set() }
 }
 
-function emailClaimMarker(now = new Date(), sentIds: ReadonlySet<string> = new Set()) {
-  return `${EMAIL_CLAIM_PREFIX}${now.toISOString()}\n${EMAIL_SENT_IDS_PREFIX}${JSON.stringify([...sentIds].sort())}`
-}
-
-function emailClaimIsStale(row: any, now = Date.now()) {
-  if (row?.emailStatus !== 'SENDING') return false
+function legacyEmailClaimIsStale(row: any, now = Date.now()) {
   const firstLine = String(row?.lastError || '').split('\n')[0]
   if (!firstLine.startsWith(EMAIL_CLAIM_PREFIX)) return true
   const claimedAt = Date.parse(firstLine.slice(EMAIL_CLAIM_PREFIX.length))
-  return !Number.isFinite(claimedAt) || now - claimedAt > EMAIL_CLAIM_STALE_MS
+  return !Number.isFinite(claimedAt) || now - claimedAt > EMAIL_CLAIM_LEASE_MS
+}
+
+function emailClaimIsLive(row: any, now = Date.now()) {
+  if (row?.emailStatus !== 'SENDING') return false
+  if (row.emailClaimId) {
+    return row.emailClaimLeaseUntil ? new Date(row.emailClaimLeaseUntil).getTime() > now : false
+  }
+  // مطالبة بالترميز القديم (بلا حقول): حداثتها من ختم lastError.
+  return !legacyEmailClaimIsStale(row, now)
 }
 
 export async function dispatchOutboxBatch(client: AnyClient = db, limit = 50): Promise<{ platformSent: number; emailsSent: number; emailsFailed: number }> {
@@ -142,7 +150,8 @@ export async function dispatchOutboxBatch(client: AnyClient = db, limit = 50): P
   }
 
   // ٢) البريد: محاولات موثّقة للمنصّة المُسلَّمة التي بريدها لم يُحسم.
-  // تُرشَّح أيضًا صفوف SENDING (مطالبات سابقة) وتُفحص حداثتها بالحلقة.
+  // تُرشَّح أيضًا صفوف SENDING (مطالبات سابقة) وتُفحص حداثة عقدها.
+  const ledger = (client as AnyClient)?.notificationOutboxRecipient
   const emailDue = await store.findMany({
     where: {
       status: 'SENT',
@@ -156,7 +165,7 @@ export async function dispatchOutboxBatch(client: AnyClient = db, limit = 50): P
     take: limit,
   }).catch(() => [])
   for (const row of emailDue) {
-    if (row.emailStatus === 'SENDING' && !emailClaimIsStale(row)) continue
+    if (emailClaimIsLive(row)) continue
     if (row.emailStatus !== 'SENDING' && row.emailStatus !== 'PENDING' && row.emailStatus !== 'FAILED') continue
     if (!(Number(row.emailAttempts || 0) < MAX_EMAIL_ATTEMPTS)) continue
     // A lookup outage is not an empty recipient list: leave the email
@@ -168,68 +177,111 @@ export async function dispatchOutboxBatch(client: AnyClient = db, limit = 50): P
       return null
     })
     if (resolved === null) continue
-    // المطالبة الذرية: انقلاب مشروط واحد فقط ينجح بين الموزّعين
-    // المتزامنين؛ إعادة مطالبة القديم مشروطة بختمه المرصود نفسه.
-    const deliveredIds = deliveredEmailRecipientIds(row.lastError)
-    let activeClaimMarker = emailClaimMarker(new Date(), deliveredIds)
+    // مستلمو الترميز القديم المُسلَّمون فعلًا (يُقرؤون قبل المطالبة لأن
+    // المطالبة تمسح lastError) — يُزرعون SENT في السجل عند التبنّي.
+    const legacyDeliveredIds = row.emailClaimId ? new Set<string>() : legacyDeliveredRecipientIds(row.lastError)
+    // المطالبة الذرية بحقول مستقلة: انقلاب مشروط واحد فقط ينجح بين
+    // الموزّعين؛ استرداد مطالبة ميتة مشروط بمعرّفها المرصود (أو بختمها
+    // القديم للصفوف السابقة لـE02).
+    const claimId = `claim_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`
+    const claimOr: any[] = [{ emailStatus: { in: ['PENDING', 'FAILED'] } }]
+    if (row.emailStatus === 'SENDING' && row.emailClaimId) {
+      claimOr.push({ emailStatus: 'SENDING', emailClaimId: row.emailClaimId, emailClaimLeaseUntil: { lt: new Date() } })
+    } else if (row.emailStatus === 'SENDING') {
+      claimOr.push({ emailStatus: 'SENDING', emailClaimId: null, lastError: row.lastError ?? null })
+    }
     const claim = await store.updateMany({
-      where: {
-        id: row.id,
-        OR: [
-          { emailStatus: { in: ['PENDING', 'FAILED'] } },
-          { emailStatus: 'SENDING', lastError: row.lastError ?? null },
-        ],
+      where: { id: row.id, OR: claimOr },
+      data: {
+        emailStatus: 'SENDING',
+        emailAttempts: { increment: 1 },
+        emailClaimId: claimId,
+        emailClaimLeaseUntil: new Date(Date.now() + EMAIL_CLAIM_LEASE_MS),
+        lastError: null,
       },
-      data: { emailStatus: 'SENDING', emailAttempts: { increment: 1 }, lastError: activeClaimMarker },
     }).catch(() => ({ count: 0 }))
     if ((claim as any)?.count !== 1) continue
+    const finalizeClaim = async (finalStatus: string, finalError: string | null) => {
+      const finalized = await store.updateMany({
+        where: { id: row.id, emailStatus: 'SENDING', emailClaimId: claimId },
+        data: { emailStatus: finalStatus, lastError: finalError, emailClaimId: null, emailClaimLeaseUntil: null },
+      }).catch(() => ({ count: 0 }))
+      if ((finalized as any)?.count !== 1) {
+        // مطالبتنا استُردت أثناء الإرسال الطويل؛ المالك الجديد يحسم.
+        console.error('outbox email finalize lost claim', row.id)
+        return false
+      }
+      if (finalStatus === 'SENT') emailsSent++
+      else if (finalStatus === 'FAILED') emailsFailed++
+      return true
+    }
     const recipients = resolved.filter((r) => r.email)
     if (!recipients.length) {
-      await store.update({ where: { id: row.id }, data: { emailStatus: 'SKIPPED', lastError: null } }).catch(() => {})
+      await finalizeClaim('SKIPPED', null)
       continue
     }
-    const outcomes: string[] = []
-    let lastError: string | null = null
-    for (const r of recipients) {
-      if (deliveredIds.has(r.id)) {
-        outcomes.push('SENT')
-        continue
-      }
+    // تبنّي أيتام المطالبة الميتة: من كان PROCESSING حين مات عاملها
+    // نتيجته مجهولة بنيويًا (قُبلت ربما ولم تُحفظ) — يُقفل UNKNOWN ولا
+    // يُعاد إرساله تلقائيًا أبدًا.
+    await ledger.updateMany({
+      where: { outboxId: row.id, status: 'PROCESSING' },
+      data: { status: 'UNKNOWN', lastError: 'CLAIM_EXPIRED_WHILE_SENDING' },
+    }).catch(() => ({ count: 0 }))
+    // ضمان صفوف السجل لكل مستلم حالي (موجودة تبقى بحالتها: SENT لا
+    // يُرسل ثانية، وFAILED يُعاد ضمن هذه المطالبة، وUNKNOWN لا يُلمس).
+    await ledger.createMany({
+      data: recipients.map((r) => ({ outboxId: row.id, recipientUserId: r.id, email: r.email as string })),
+      skipDuplicates: true,
+    }).catch(() => {})
+    if (legacyDeliveredIds.size) {
+      await ledger.updateMany({
+        where: { outboxId: row.id, recipientUserId: { in: [...legacyDeliveredIds] }, status: 'PENDING' },
+        data: { status: 'SENT', sentAt: new Date(), lastError: 'LEGACY_CHECKPOINT' },
+      }).catch(() => ({ count: 0 }))
+    }
+    const due = await ledger.findMany({
+      where: { outboxId: row.id, status: { in: ['PENDING', 'FAILED'] } },
+      orderBy: { createdAt: 'asc' },
+    }).catch(() => [])
+    for (const entry of due) {
+      const picked = await ledger.updateMany({
+        where: { id: entry.id, status: { in: ['PENDING', 'FAILED'] } },
+        data: { status: 'PROCESSING', attempts: { increment: 1 } },
+      }).catch(() => ({ count: 0 }))
+      if ((picked as any)?.count !== 1) continue
+      let sendError: string | null = null
       const status = await sendEmailDetailed({
-        to: r.email as string,
+        to: entry.email,
         subject: row.title,
         event: row.kind,
         html: emailTemplate(row.title, row.body),
-      }).catch((e: any) => { lastError = String(e?.message || e); return 'FAILED' as const })
-      outcomes.push(status)
-      if (status === 'FAILED') lastError = lastError || 'send failed'
-      if (status === 'SENT') {
-        // Checkpoint after EACH accepted recipient, before the next send.
-        // A later failed recipient must not cause a duplicate to earlier ones.
-        const nextIds = new Set([...deliveredIds, r.id])
-        const nextMarker = emailClaimMarker(new Date(), nextIds)
-        const saved = await store.updateMany({
-          where: { id: row.id, emailStatus: 'SENDING', lastError: activeClaimMarker },
-          data: { lastError: nextMarker },
-        })
-        if (saved.count !== 1) throw new Error('OUTBOX_EMAIL_RECIPIENT_CHECKPOINT_FAILED')
-        deliveredIds.add(r.id)
-        activeClaimMarker = nextMarker
-      }
+      }).catch((e: any) => { sendError = String(e?.message || e); return 'FAILED' as const })
+      // نقطة الحفظ بعد قبول المزوّد مباشرة وقبل المستلم التالي: نتيجة
+      // هذا المستلم صارت دائمة في سجله، فموت العامل الآن لا يكرّره.
+      await ledger.update({
+        where: { id: entry.id },
+        data: status === 'SENT'
+          ? { status: 'SENT', sentAt: new Date(), lastError: null }
+          : status === 'SKIPPED'
+            ? { status: 'SKIPPED', lastError: null }
+            : { status: 'FAILED', lastError: (sendError || 'send failed').slice(0, 1000) },
+      }).catch((e: unknown) => {
+        // تعذّر حفظ النتيجة: يبقى الصف PROCESSING فيُقفل UNKNOWN عند
+        // استرداد المطالبة بدل أن يُعاد إرساله على عماه.
+        console.error('outbox email recipient checkpoint failed', row.id, entry.id, e)
+      })
     }
-    // A failure keeps the recipient ledger for the next retry; a success
-    // clears it. The final CAS cannot overwrite another worker's claim.
-    const finalStatus = outcomes.includes('FAILED') ? 'FAILED' : outcomes.includes('SKIPPED') ? 'SKIPPED' : 'SENT'
-    const finalError = finalStatus === 'FAILED'
-      ? `${EMAIL_SENT_IDS_PREFIX}${JSON.stringify([...deliveredIds].sort())}\n${(lastError || 'send failed').slice(0, 1000)}`
-      : null
-    const finalized = await store.updateMany({
-      where: { id: row.id, emailStatus: 'SENDING', lastError: activeClaimMarker },
-      data: { emailStatus: finalStatus, lastError: finalError },
-    })
-    if (finalized.count !== 1) throw new Error('OUTBOX_EMAIL_FINALIZE_CONFLICT')
-    if (finalStatus === 'SENT') emailsSent++
-    else if (finalStatus === 'FAILED') emailsFailed++
+    // الحسم من حالة السجل النهائية لا من ذاكرة الحلقة.
+    const finalRows = await ledger.findMany({ where: { outboxId: row.id } }).catch(() => [])
+    if (finalRows.some((entry: any) => entry.status === 'PENDING' || entry.status === 'PROCESSING')) {
+      // بقي عمل غير محسوم (صف تعذّر حفظ نتيجته): تبقى المطالبة حتى
+      // ينتهي عقدها فيُسترد ويُقفل المجهول UNKNOWN — لا حسم كاذب.
+      continue
+    }
+    const failedRow = finalRows.find((entry: any) => entry.status === 'FAILED')
+    const anyDelivered = finalRows.some((entry: any) => entry.status === 'SENT' || entry.status === 'UNKNOWN')
+    const finalStatus = failedRow ? 'FAILED' : anyDelivered ? 'SENT' : 'SKIPPED'
+    await finalizeClaim(finalStatus, failedRow ? String(failedRow.lastError || 'send failed').slice(0, 1000) : null)
   }
   return { platformSent, emailsSent, emailsFailed }
 }

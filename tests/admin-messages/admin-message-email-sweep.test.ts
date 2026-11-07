@@ -16,47 +16,49 @@ const unreadLinks = new Set<string>()
 
 function resetMessages() {
   messages = [
-    { id: 'm-old-unread', admissionId: 'adm-1', studentId: 'student-1', scope: 'ADMIN', senderRole: 'ADMIN', emailSentAt: null, content: 'رسالة إدارة قديمة غير مقروءة', createdAt: oldDate },
-    { id: 'm-fresh', admissionId: 'adm-1', studentId: 'student-1', scope: 'ADMIN', senderRole: 'ADMIN', emailSentAt: null, content: 'رسالة حديثة', createdAt: freshDate },
-    { id: 'm-old-read', admissionId: 'adm-2', studentId: 'student-2', scope: 'ADMIN', senderRole: 'ADMIN', emailSentAt: null, content: 'رسالة قديمة لكن مقروءة', createdAt: oldDate },
-    { id: 'm-old-emailed', admissionId: 'adm-1', studentId: 'student-1', scope: 'ADMIN', senderRole: 'ADMIN', emailSentAt: new Date(), content: 'رسالة أُرسلت من قبل', createdAt: oldDate },
+    { id: 'm-old-unread', admissionId: 'adm-1', studentId: 'student-1', scope: 'ADMIN', senderRole: 'ADMIN', emailSentAt: null, emailClaimId: null, emailClaimLeaseUntil: null, content: 'رسالة إدارة قديمة غير مقروءة', createdAt: oldDate },
+    { id: 'm-fresh', admissionId: 'adm-1', studentId: 'student-1', scope: 'ADMIN', senderRole: 'ADMIN', emailSentAt: null, emailClaimId: null, emailClaimLeaseUntil: null, content: 'رسالة حديثة', createdAt: freshDate },
+    { id: 'm-old-read', admissionId: 'adm-2', studentId: 'student-2', scope: 'ADMIN', senderRole: 'ADMIN', emailSentAt: null, emailClaimId: null, emailClaimLeaseUntil: null, content: 'رسالة قديمة لكن مقروءة', createdAt: oldDate },
+    { id: 'm-old-emailed', admissionId: 'adm-1', studentId: 'student-1', scope: 'ADMIN', senderRole: 'ADMIN', emailSentAt: new Date(), emailClaimId: null, emailClaimLeaseUntil: null, content: 'رسالة أُرسلت من قبل', createdAt: oldDate },
   ]
   unreadLinks.clear()
   unreadLinks.add('admin-messages:adm-1')
 }
 
-function matchesDigestLease(message: any, where: any): boolean {
-  if (where.emailSentAt === null && message.emailSentAt !== null) return false
-  if (where.emailSentAt instanceof Date && message.emailSentAt?.getTime() !== where.emailSentAt.getTime()) return false
-  if (!where.OR) return true
-  return where.OR.some((clause: any) => {
-    if (clause.emailSentAt === null) return message.emailSentAt === null
-    const range = clause.emailSentAt
-    return message.emailSentAt instanceof Date
-      && (!range?.gt || message.emailSentAt > range.gt)
-      && (!range?.lt || message.emailSentAt < range.lt)
-  })
+// مطابقة where عامة مصغّرة (مساواة/null/تاريخ/in/lt/gt/OR/AND) —
+// E02: شروط القابلية للمطالبة مركّبة (ترميز قديم + حقول جديدة).
+function matchesWhere(row: any, where: any): boolean {
+  for (const [key, cond] of Object.entries(where || {})) {
+    if (key === 'OR') { if (!(cond as any[]).some((w) => matchesWhere(row, w))) return false; continue }
+    if (key === 'AND') { if (!(cond as any[]).every((w) => matchesWhere(row, w))) return false; continue }
+    const actual = row[key]
+    if (cond instanceof Date) { if (!(actual instanceof Date) || actual.getTime() !== cond.getTime()) return false; continue }
+    if (cond === null) { if (actual !== null && actual !== undefined) return false; continue }
+    if (cond && typeof cond === 'object') {
+      // كل العوامل الحاضرة تُقيَّم اقترانيًا (نافذة gt+lt معًا شرط واحد).
+      if ('in' in (cond as any) && !(cond as any).in.includes(actual)) return false
+      if ('lt' in (cond as any) && !(actual < (cond as any).lt)) return false
+      if ('gt' in (cond as any) && !(actual > (cond as any).gt)) return false
+      continue
+    }
+    if (actual !== cond) return false
+  }
+  return true
 }
 
 const db: any = {
   supervisorChannelMessage: {
     findMany: async (args: any) => {
       const w = args?.where || {}
-      return messages.filter((m) =>
-        (!w.scope || m.scope === w.scope) &&
-        (!w.senderRole || m.senderRole === w.senderRole) &&
-        matchesDigestLease(m, w) &&
-        (!w.createdAt?.lt || m.createdAt < w.createdAt.lt)
-      )
+      return messages.filter((m) => matchesWhere(m, w))
     },
     updateMany: async (args: any) => {
       updateManyCalls.push(args)
       const w = args?.where || {}
       let count = 0
       for (const m of messages) {
-        if (w.id?.in && !w.id.in.includes(m.id)) continue
-        if (!matchesDigestLease(m, w)) continue
-        m.emailSentAt = args.data.emailSentAt
+        if (!matchesWhere(m, w)) continue
+        Object.assign(m, args.data)
         count++
       }
       return { count }
@@ -157,11 +159,30 @@ describe('admin message digest sweep', () => {
     expect(emailCalls.length).toBe(1)
     const old = messages.find((m) => m.id === 'm-old-unread')
     expect(old.emailSentAt).toBeNull()
+    // E02: التحرير يمسح حقول المطالبة لا يحرّك emailSentAt أبدًا.
+    expect(old.emailClaimId).toBeNull()
+    expect(old.emailClaimLeaseUntil).toBeNull()
     digestBehavior = 'success'
     const res2 = await route.GET(cronRequest())
     expect(res2.status).toBe(200)
     expect(emailCalls.length).toBe(2)
     expect(old.emailSentAt).toBeInstanceOf(Date)
+    expect(old.emailClaimId).toBeNull()
+  })
+
+  test('E02 claim fields: a live lease blocks the sweep; an expired lease is reclaimed and finalized', async () => {
+    const route = await import('@/app/api/cron/admin-message-digest/route')
+    const target = messages.find((m) => m.id === 'm-old-unread')
+    target.emailClaimId = 'digest_other_worker'
+    target.emailClaimLeaseUntil = new Date(Date.now() + 5 * 60 * 1000)
+    await route.GET(cronRequest())
+    expect(emailCalls).toHaveLength(0)
+    target.emailClaimLeaseUntil = new Date(Date.now() - 60 * 1000)
+    await route.GET(cronRequest())
+    expect(emailCalls).toHaveLength(1)
+    expect(target.emailSentAt).toBeInstanceOf(Date)
+    expect(target.emailClaimId).toBeNull()
+    expect(target.emailClaimLeaseUntil).toBeNull()
   })
 
   test('an overlapping run during an in-flight send does not double-send', async () => {
