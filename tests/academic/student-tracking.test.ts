@@ -108,12 +108,13 @@ function fakeClient(fx: Fixture) {
   } as any
 }
 
-// Ishraq's shape: 7 S1 units with 5 graded (incl. the 52.2), 11 S2 units
-// with 5 legacy graded, one graded S1 assignment at 93.2, no program
-// exams taken yet, no approvals anywhere.
+// Realistic, synthetic Ishraq-shaped scenario: 7 S1 units (5 graded),
+// 11 S2 units (5 graded before the access gate), five S1 graded assignments,
+// and one READY, unattempted programme examination in EACH semester.
+// No personal records or production IDs are copied into these fixtures.
 function ishrakFixture(): Fixture {
-  const s1Scores: Record<string, number> = { ue1: 52.2, ue2: 88, ue3: 90, ue4: 85, ue5: 92.97 }
-  const s2Scores: Record<string, number> = { ue8: 70, ue9: 65, ue10: 80, ue11: 75, ue12: 87.3 }
+  const s1Scores: Record<string, number> = { ue1: 99.8, ue2: 52.2, ue3: 80, ue4: 79.7, ue5: 96.5 }
+  const s2Scores: Record<string, number> = { ue8: 80, ue9: 80, ue10: 82.3, ue11: 66.7, ue12: 68.3 }
   const unitExams: UnitExamRow[] = []
   const unitAttempts: Fixture['unitAttempts'] = {}
   for (let i = 1; i <= 18; i++) {
@@ -125,8 +126,21 @@ function ishrakFixture(): Fixture {
   return {
     unitExams,
     unitAttempts,
-    assignments: [{ id: 'a1', points: 100, weight: 10, semester: 1 }],
-    submissions: { a1: { status: 'GRADED', score: 93.2 } },
+    programExams: [
+      { id: 'pe1', semester: 1, passScore: 60, status: 'READY' },
+      { id: 'pe2', semester: 2, passScore: 60, status: 'READY' },
+    ],
+    programAttempts: {},
+    assignments: Array.from({ length: 5 }, (_, i) => ({
+      id: `a${i + 1}`, points: i === 4 ? 20 : 100, weight: 20, semester: 1,
+    })),
+    submissions: {
+      a1: { status: 'GRADED', score: 85 },
+      a2: { status: 'GRADED', score: 88 },
+      a3: { status: 'GRADED', score: 95 },
+      a4: { status: 'GRADED', score: 98 },
+      a5: { status: 'GRADED', score: 20 },
+    },
     approvals: {},
   }
 }
