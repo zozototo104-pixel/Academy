@@ -98,7 +98,7 @@ async function unitExamCounters(
 
 export async function getStudentSemesterTracking(
   client: DbClient,
-  input: { userId: string; programId: string; admissionId?: string | null },
+  input: { userId: string; programId: string; admissionId?: string | null; finalGrade?: FinalGradeResult | null },
 ): Promise<StudentTracking> {
   const enrollment = (client as any)?.enrollment?.findUnique
     ? await client.enrollment.findUnique({
