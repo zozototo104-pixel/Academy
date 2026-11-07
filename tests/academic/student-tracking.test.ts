@@ -43,6 +43,15 @@ function fakeClient(fx: Fixture) {
     enrollment: {
       findUnique: async () => ({ id: 'enr1', userId: 'u1', programId: 'p1', createdAt: new Date('2025-09-01'), status: 'ACTIVE', finalScore: null }),
     },
+    enrollmentRulesSnapshot: {
+      findUnique: async () => ({
+        id: 'snap1', enrollmentId: 'enr1', weightSource: 'category_default',
+        weightsJson: JSON.stringify({ quizzes: 20, assignments: 20, final_exam: 60 }),
+        requirementsJson: JSON.stringify({ semestersCount: 2, requiredComponents: ['final_exam'] }),
+        passThreshold: 50, thresholdStrict: true, basis: 'BACKFILL',
+        capturedAt: new Date('2026-11-06'),
+      }),
+    },
     exam: {
       findMany: async (args: any) => {
         const semester = args?.where?.unit?.semester
