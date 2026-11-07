@@ -56,12 +56,23 @@ function fakeClient(fx: Fixture) {
         (fx.unitAttempts[args?.where?.examId] || []).map((a) => ({ score: a.score, passed: a.passed, answers: [] as any[] })),
     },
     programExam: {
-      findMany: async (args: any) => {
-        const semester = args?.where?.semester
-        return [] as any[]
-      },
+      findMany: async (args: any) => fx.programExams
+        .filter((e) => args?.where?.semester === undefined || e.semester === args.where.semester)
+        .map((e) => ({
+          ...e, title: `امتحان الفصل ${e.semester}`,
+          createdAt: new Date(`2026-11-0${e.semester}`),
+          questions: [{ points: 100 }],
+        })),
     },
-    programExamAttempt: { findMany: async () => [] as any[] },
+    programExamAttempt: {
+      findMany: async (args: any) => (fx.programAttempts[args?.where?.examId] || [])
+        .filter((a) => args?.where?.passed !== true || a.passed)
+        .map((a, i) => ({
+          id: `pa${i}`, status: 'GRADED', score: a.score, finalScore: null,
+          passed: a.passed, appealStatus: null, feedback: null,
+          answers: [{ points: a.score, maxPoints: 100 }],
+        })),
+    },
     programAssignment: {
       findMany: async (args: any) => {
         const semester = args?.where?.semester
