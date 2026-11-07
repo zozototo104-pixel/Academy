@@ -19,24 +19,18 @@
  *    بختم الترميز القديم ورسالة ملخص بختم «+100 سنة»، ثم نشر كامل
  *    يثبت أن الترقية تعدّي والصفوف القديمة تبقى سليمة لتتبناها
  *    الآليات الجديدة.
- * 6) استئناف النشر من نصف مطبق (حالة أي نشر مقطوع): نصف الهجرات
- *    ثم نشر كامل يكمل، وتشغيل ثانٍ بلا أثر.
+ * 6) استكمال الهجرات بين ملفات ناجحة (ليس فشلاً داخل هجرة).
+ * 7) فشل داخل نسخة اختبارية من هجرة البريد عبر migrate deploy:
+ *    سجل فاشل، رفض إعادة النشر، معالجة الأثر، resolve ثم نشر ناجح.
  *
- * خطة الرجوع المصححة لهجرتي المرحلة الثانية (منقحة 2026-11-07 بعد
- * مراجعة قرار الإصدار — خطة الحذف الأولى كانت آمنة قبل النشر فقط):
- * الرجوع بعد بدء الاستخدام هو رجوع **الكود** وحده (إعادة نشر البناء
- * السابق): الجدولان والأعمدة تبقى كما هي والبيانات المتراكمة فيها
- * تُحفظ؛ الكود السابق لا يقرأ هذه الأغراض أصلًا (قابل للتحقق ببحث
- * صفر النتائج عن أسمائها في شجرة ما قبل الدمج)، ووجودها لا يغيّر
- * أي جدول قديم. حذف الأغراض نفسها ليس إجراء طوارئ: إن قُرر يومًا
- * يكون بهجرة لاحقة للأمام بقرار مالك مستقل وبعد قرار احتفاظ
- * بالبيانات، لا بحذف يدوي أثناء حادث. وإن لمس أحدٌ القاعدة يدويًا
- * رغم ذلك، فالاتساق يُستعاد بأدوات Prisma نفسها لا بحذف صفوف:
- *   bunx prisma migrate resolve --rolled-back 20261107120000_live_credit_allocations
- *   bunx prisma migrate resolve --rolled-back 20261107130000_outbox_email_claim_ledger
- * (بعد إزالة الأغراض فعليًا) حتى يعود سجل "_prisma_migrations"
- * مطابقًا للواقع. SQL الحذف نفسه منفّذ ومُختبَر في المرحلة 3 من
- * هذا السكربت كإثبات تقني لقابلية الإزالة — لا كخطة تشغيل.
+ * خطة التعافي: احتفظ بالجداول والبيانات الجديدة عند رجوع التطبيق؛
+ * افحص توافق جلسات الصوت والبريد الجارية قبل تشغيل إصدار سابق.
+ * أي إزالة لاحقة تتطلب هجرة أمامية وخطة احتفاظ بالبيانات.
+ * لا تحذف صفوف _prisma_migrations، ولا تستخدم resolve --rolled-back
+ * لهجرة ناجحة حتى لو حُذفت أغراضها يدويًا؛ أصلح الانحراف للأمام.
+ * --rolled-back مخصص لسجل هجرة فاشلة فقط وبعد معالجة آثارها وفحص
+ * migrate status. المرحلة 8 تختبر هذا المسار على قاعدة مؤقتة فقط.
+ * SQL الحذف في المرحلة 3 تجربة إزالة على قاعدة فارغة، وليس خطة إنتاج.
  *
  * Migration deploy rehearsal + executed rollback for the stage-2
  * migrations (E01/E02): full replay from empty, push-equivalence,
@@ -54,7 +48,7 @@
  * 2 = environment could not be prepared.
  */
 import { spawn } from 'node:child_process'
-import { cpSync, mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs'
+import { cpSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 
 const ENV_URL = process.env.MIGRATION_REHEARSAL_DATABASE_URL || ''
 const DOCKER_CONTAINER = `aact-mig-rehearsal-${process.pid}`
@@ -63,6 +57,7 @@ const DEPLOY_DB = 'academy_rehearsal_deploy'
 const PUSH_DB = 'academy_rehearsal_push'
 const LEGACY_DB = 'academy_rehearsal_legacy'
 const RESUME_DB = 'academy_rehearsal_resume'
+const FAILURE_DB = 'academy_rehearsal_failure'
 const STAGE2_MIGRATIONS = ['20261107120000_live_credit_allocations', '20261107130000_outbox_email_claim_ledger']
 const DOCKER_URL_BASE = 'postgresql://mig_test:mig_test_only@localhost:55435'
 
@@ -196,7 +191,7 @@ async function resolveBase(): Promise<{ base: URL; psql: (db: string, sql: strin
   if (created.code !== 0) {
     throw new StageError(`[ENV] MIGRATION_REHEARSAL stage 0: could not create ${PUSH_DB}.\n${outputTail(created.stderr || created.stdout)}`)
   }
-  for (const extraDb of [LEGACY_DB, RESUME_DB]) {
+  for (const extraDb of [LEGACY_DB, RESUME_DB, FAILURE_DB]) {
     const extra = await runCommand('docker', ['exec', DOCKER_CONTAINER, 'createdb', '-U', 'mig_test', extraDb])
     if (extra.code !== 0) {
       throw new StageError(`[ENV] MIGRATION_REHEARSAL stage 0: could not create ${extraDb}.\n${outputTail(extra.stderr || extra.stdout)}`)
@@ -216,6 +211,7 @@ async function resolveBase(): Promise<{ base: URL; psql: (db: string, sql: strin
 async function deployWithFilteredMigrations(
   databaseUrl: string,
   keep: (folderName: string) => boolean,
+  injectFailure = false,
 ): Promise<{ code: number | null; stdout: string; stderr: string }> {
   const tmpDir = `/tmp/mig-rehearsal-${process.pid}-${Math.floor(Math.random() * 1e9)}`
   mkdirSync(`${tmpDir}/migrations`, { recursive: true })
@@ -226,6 +222,14 @@ async function deployWithFilteredMigrations(
       if (entry.isDirectory() && keep(entry.name)) {
         cpSync(`prisma/migrations/${entry.name}`, `${tmpDir}/migrations/${entry.name}`, { recursive: true })
       }
+    }
+    if (injectFailure) {
+      // Only the disposable copy is modified; committed SQL stays byte-identical.
+      const path = `${tmpDir}/migrations/${STAGE2_MIGRATIONS[1]}/migration.sql`
+      const sql = readFileSync(path, 'utf8')
+      const firstStatement = sql.indexOf(';') + 1
+      if (!firstStatement) throw new Error('No statement available for failure injection')
+      writeFileSync(path, sql.slice(0, firstStatement) + '\nSELECT 1 / 0; -- rehearsal failure\n' + sql.slice(firstStatement))
     }
     const env = { ...process.env, DATABASE_URL: databaseUrl, DIRECT_URL: databaseUrl }
     return await runCommand('bunx', ['prisma', 'migrate', 'deploy', '--schema', `${tmpDir}/schema.prisma`], env)
@@ -375,9 +379,7 @@ async function main(): Promise<number> {
     }
   }
 
-  // 7) استئناف النشر من حالة نصف مطبقة — وهي بالضبط الحالة التي
-  // يتركها نشر مقطوع، لأن كل هجرة تلتزم وتُسجَّل ذريًا: نصف الهجرات
-  // مطبقة، ثم النشر الكامل يكمل، ثم تشغيل ثانٍ بلا أثر.
+  // 7) Resume between successfully completed migration files.
   console.log('[STAGE 7] Deploy resume from a half-applied state')
   const resumeUrl = urlForDb(base, RESUME_DB)
   const allFolders = readdirSync('prisma/migrations', { withFileTypes: true })
@@ -399,6 +401,46 @@ async function main(): Promise<number> {
     check('a second deploy is a clean no-op', again.code === 0 && appliedAgain.stdout.trim() === String(migrationCount),
       `exit=${again.code} recorded=${appliedAgain.stdout.trim()}`)
   }
+
+  // 8) Actual Prisma failure record and recovery, not a successful prefix.
+  console.log('[STAGE 8] Failure inside the outbox migration and Prisma recovery')
+  const failureUrl = urlForDb(base, FAILURE_DB)
+  const failureEnv = { ...process.env, DATABASE_URL: failureUrl, DIRECT_URL: failureUrl }
+  const baseline = await deployWithFilteredMigrations(failureUrl, (name) => !STAGE2_MIGRATIONS.includes(name))
+  check('failure database baseline deploys', baseline.code === 0, outputTail(baseline.stdout + baseline.stderr, 3))
+  if (baseline.code !== 0) return 1
+  const seedFailure = await psql(FAILURE_DB, `INSERT INTO "User" (id, email, password, name, role, "createdAt", "updatedAt") VALUES ('recovery-user', 'recovery@example.test', 'x', 'Recovery', 'STUDENT', NOW(), NOW())`)
+  check('recovery sentinel is seeded', seedFailure.code === 0, 'pre-existing user')
+  const failed = await deployWithFilteredMigrations(failureUrl, () => true, true)
+  check('injected SQL failure is reported by migrate deploy (P3018)', failed.code !== 0 && /P3018/.test(failed.stdout + failed.stderr), outputTail(failed.stdout + failed.stderr, 8))
+  const failedRowsSql = `SELECT COUNT(*) FROM "_prisma_migrations" WHERE migration_name = '${STAGE2_MIGRATIONS[1]}' AND finished_at IS NULL AND rolled_back_at IS NULL AND logs IS NOT NULL`
+  const failedRows = await psql(FAILURE_DB, failedRowsSql)
+  check('Prisma records exactly one unresolved failed migration', failedRows.code === 0 && failedRows.stdout.trim() === '1', failedRows.stdout.trim())
+  const blocked = await runCommand('bunx', ['prisma', 'migrate', 'deploy'], failureEnv)
+  check('unresolved failure blocks redeployment (P3009)', blocked.code !== 0 && /P3009/.test(blocked.stdout + blocked.stderr), outputTail(blocked.stdout + blocked.stderr, 6))
+  // Prove the rejected instruction from the old runbook is invalid.
+  const invalidResolve = await runCommand('bunx', ['prisma', 'migrate', 'resolve', '--rolled-back', STAGE2_MIGRATIONS[0]], failureEnv)
+  check('a successful migration cannot be marked rolled back (P3012)', invalidResolve.code !== 0 && /P3012/.test(invalidResolve.stdout + invalidResolve.stderr), outputTail(invalidResolve.stdout + invalidResolve.stderr, 4))
+  // Revert only E02 effects, if any survived, on this never-used test DB.
+  // E01 and all legacy tables/data remain intact. Never run this on production.
+  const cleanupFailed = await psql(FAILURE_DB, ROLLBACK_SQL.replace('DROP TABLE IF EXISTS "AiLiveCreditAllocation";', ''))
+  check('failed E02 effects are cleaned without removing E01', cleanupFailed.code === 0 && await tableExists(psql, FAILURE_DB, 'AiLiveCreditAllocation'), 'E01 retained')
+  const resolved = await runCommand('bunx', ['prisma', 'migrate', 'resolve', '--rolled-back', STAGE2_MIGRATIONS[1]], failureEnv)
+  check('resolve accepts the failed migration', resolved.code === 0, outputTail(resolved.stdout + resolved.stderr, 4))
+  const unresolved = await psql(FAILURE_DB, failedRowsSql)
+  check('no unresolved failed migration remains', unresolved.code === 0 && unresolved.stdout.trim() === '0', unresolved.stdout.trim())
+  const recovered = await runCommand('bunx', ['prisma', 'migrate', 'deploy'], failureEnv)
+  check('original unmodified migrations deploy after recovery', recovered.code === 0, outputTail(recovered.stdout + recovered.stderr, 5))
+  const recoveredObjects = await stage2ObjectsPresent(psql, FAILURE_DB)
+  check('recovery restores all stage-2 objects', recoveredObjects.ok, recoveredObjects.evidence)
+  const history = await psql(FAILURE_DB, 'SELECT COUNT(*) FROM "_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL')
+  check('every migration has a successful record after recovery', history.code === 0 && history.stdout.trim() === String(migrationCount), history.stdout.trim())
+  const sentinel = await psql(FAILURE_DB, `SELECT COUNT(*) FROM "User" WHERE id = 'recovery-user' AND email = 'recovery@example.test'`)
+  check('pre-existing data survives failed deployment and recovery', sentinel.code === 0 && sentinel.stdout.trim() === '1', sentinel.stdout.trim())
+  const recoveredAgain = await runCommand('bunx', ['prisma', 'migrate', 'deploy'], failureEnv)
+  check('deploy after recovery is idempotent', recoveredAgain.code === 0 && /No pending migrations/.test(recoveredAgain.stdout + recoveredAgain.stderr), outputTail(recoveredAgain.stdout + recoveredAgain.stderr, 4))
+  const status = await runCommand('bunx', ['prisma', 'migrate', 'status'], failureEnv)
+  check('Prisma migration status is healthy after recovery', status.code === 0, outputTail(status.stdout + status.stderr, 4))
 
   if (failures.length) {
     console.error(`\nMIGRATION_REHEARSAL: FAILED — ${failures.length} assertion(s) failed`)
@@ -431,3 +473,4 @@ main()
     await cleanup()
     process.exit(1)
   })
+
