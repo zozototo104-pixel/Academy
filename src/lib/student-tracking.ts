@@ -1,5 +1,5 @@
 import { db } from './db'
-import { calculateFinalGrade } from './final-grade'
+import { calculateFinalGrade, type FinalGradeResult } from './final-grade'
 import { calculateSemesterAverages } from './semester-grade'
 import { semesterApprovalState, storedSemesterApproval } from './semester-approval'
 import { semesterExamPassed, semesterExamRequired } from './progression'
