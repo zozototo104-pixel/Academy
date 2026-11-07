@@ -2,17 +2,18 @@
  * بروفة نشر الهجرات وخطة الرجوع (بند المرحلة الثالثة 11 — المرجع 2.1).
  *
  * ماذا يثبت، على PostgreSQL حقيقية فارغة:
- * 1) انقطاع منتصف الترحيل: SQL هجرة E01 داخل معاملة ثم ROLLBACK ⇒
- *    الجدول غائب (DDL في PostgreSQL معاملي؛ انقطاع كهذا لا يترك
- *    نصف جدول ولا صفًّا في _prisma_migrations).
- * 2) `prisma migrate deploy` من الصفر: كل الهجرات تُعاد بالترتيب
+ * 1) `prisma migrate deploy` من الصفر: كل الهجرات تُعاد بالترتيب
  *    وتنجح، وجدولا المرحلة الثانية وعموداها الأربعة موجودون بعدها.
- * 3) التكافؤ مع db push: مجموعة جداول قاعدة الـdeploy تطابق مجموعة
+ * 2) التكافؤ مع db push: مجموعة جداول قاعدة الـdeploy تطابق مجموعة
  *    جداول قاعدة دُفعت بـ`prisma db push` من نفس السكيمة.
- * 4) الرجوع منفّذ لا مكتوب فقط: على قاعدة الـdeploy نفسها ننفّذ
+ * 3) الرجوع منفّذ لا مكتوب فقط: على قاعدة الـdeploy نفسها ننفّذ
  *    SQL الرجوع لهجرتي المرحلة الثانية (حذف الجدولين والأعمدة
- *    الأربعة) فتختفي الأغراض، ثم نعيد تطبيق ملفي الهجرة فيعود كل
- *    شيء — forward-fix والrollback كلاهما مجرّب.
+ *    الأربعة) فتختفي الأغراض.
+ * 4) انقطاع منتصف الترحيل على قاعدة ممثلة (فيها السكيمة الأساسية):
+ *    SQL الهجرتين داخل معاملة ثم ROLLBACK ⇒ لا أثر (DDL في
+ *    PostgreSQL معاملي؛ انقطاع كهذا لا يترك نصف جدول ولا صفًّا في
+ *    _prisma_migrations)، ثم إعادة تطبيق حقيقية تعيد كل شيء —
+ *    forward-fix والrollback كلاهما مجرّب.
  *
  * خطة الرجوع الموثقة لهجرتي المرحلة الثانية (تُستخدم فقط بقرار
  * المالك؛ الهجرتان إضافيتان صرفتان فالرجوع لا يمس بيانات قائمة):
@@ -225,16 +226,10 @@ async function main(): Promise<number> {
   const migrationCount = readdirSync('prisma/migrations', { withFileTypes: true })
     .filter((d) => d.isDirectory()).length
 
-  // 1) انقطاع منتصف الترحيل: تطبيق داخل معاملة ثم تراجع ⇒ لا أثر.
-  console.log('[STAGE 1] Interruption semantics: E01 migration inside a rolled-back transaction')
-  const rolled = await psql(DEPLOY_DB, `BEGIN;\n${e01Sql}\nROLLBACK;`)
-  check('interrupted (rolled-back) E01 migration applies inside its transaction', rolled.code === 0,
-    rolled.code === 0 ? 'transaction executed' : outputTail(rolled.stderr || rolled.stdout, 5))
-  check('after rollback the allocation table does not exist', !(await tableExists(psql, DEPLOY_DB, 'AiLiveCreditAllocation')),
-    'table absent — no half-applied DDL survives an interruption')
-
-  // 2) نشر كامل من الصفر بكل الهجرات بالترتيب.
-  console.log('[STAGE 2] prisma migrate deploy from empty')
+  // 1) نشر كامل من الصفر بكل الهجرات بالترتيب. (بروفة الانقطاع تأتي
+  // بعد النشر والرجوع: SQL الهجرة يبني مفاتيح أجنبية على جداول لا
+  // توجد في قاعدة فارغة، فمسرحها الصحيح قاعدة ممثلة فيها السكيمة.)
+  console.log('[STAGE 1] prisma migrate deploy from empty')
   const deployEnv = { ...process.env, DATABASE_URL: deployUrl, DIRECT_URL: deployUrl }
   const deploy = await runCommand('bunx', ['prisma', 'migrate', 'deploy'], deployEnv)
   check(`migrate deploy succeeds from empty (${migrationCount} migrations)`, deploy.code === 0,
@@ -246,8 +241,8 @@ async function main(): Promise<number> {
   const afterDeploy = await stage2ObjectsPresent(psql, DEPLOY_DB)
   check('stage-2 tables and claim columns exist after deploy', afterDeploy.ok, afterDeploy.evidence)
 
-  // 3) التكافؤ مع db push من نفس السكيمة.
-  console.log('[STAGE 3] prisma db push comparison database')
+  // 2) التكافؤ مع db push من نفس السكيمة.
+  console.log('[STAGE 2] prisma db push comparison database')
   const pushEnv = { ...process.env, DATABASE_URL: pushUrl, DIRECT_URL: pushUrl }
   const push = await runCommand('bunx', ['prisma', 'db', 'push', '--skip-generate'], pushEnv)
   check('db push succeeds on the comparison database', push.code === 0,
@@ -262,8 +257,8 @@ async function main(): Promise<number> {
       `deploy=${deployTables.length} push=${pushTables.length} onlyDeploy=[${onlyDeploy.join(',')}] onlyPush=[${onlyPush.join(',')}]`)
   }
 
-  // 4) الرجوع منفّذًا ثم إعادة التطبيق — على قاعدة الـdeploy نفسها.
-  console.log('[STAGE 4] Executed rollback of the two stage-2 migrations, then reapply')
+  // 3) الرجوع منفّذًا — على قاعدة الـdeploy نفسها.
+  console.log('[STAGE 3] Executed rollback of the two stage-2 migrations')
   const rb = await psql(DEPLOY_DB, ROLLBACK_SQL)
   check('rollback SQL executes', rb.code === 0, rb.code === 0 ? 'exit 0' : outputTail(rb.stderr || rb.stdout, 10))
   const afterRollback = await stage2ObjectsPresent(psql, DEPLOY_DB)
@@ -271,6 +266,19 @@ async function main(): Promise<number> {
     && !(await tableExists(psql, DEPLOY_DB, 'AiLiveCreditAllocation'))
     && !(await tableExists(psql, DEPLOY_DB, 'NotificationOutboxRecipient')),
     afterRollback.evidence)
+
+  // 4) انقطاع منتصف الترحيل على قاعدة ممثلة: تطبيق الهجرتين داخل
+  // معاملة ثم ROLLBACK ⇒ لا أثر لهما (DDL معاملي في PostgreSQL).
+  console.log('[STAGE 4] Interruption semantics: both migrations inside a rolled-back transaction')
+  const rolled = await psql(DEPLOY_DB, `BEGIN;\n${e01Sql}\n${e02Sql}\nROLLBACK;`)
+  check('interrupted (rolled-back) migrations apply inside their transaction', rolled.code === 0,
+    rolled.code === 0 ? 'transaction executed' : outputTail(rolled.stderr || rolled.stdout, 5))
+  check('after the rollback interruption no stage-2 object exists', !(await tableExists(psql, DEPLOY_DB, 'AiLiveCreditAllocation'))
+    && !(await tableExists(psql, DEPLOY_DB, 'NotificationOutboxRecipient')),
+    'no half-applied DDL survives an interruption')
+
+  // 5) إعادة التطبيق الحقيقية بعد الرجوع والانقطاع.
+  console.log('[STAGE 5] Reapply after rollback')
   const reapply = await psql(DEPLOY_DB, `${e01Sql}\n${e02Sql}`)
   check('reapplying the two migration files executes', reapply.code === 0,
     reapply.code === 0 ? 'exit 0' : outputTail(reapply.stderr || reapply.stdout, 10))
