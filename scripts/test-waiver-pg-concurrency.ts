@@ -122,6 +122,9 @@ function check(label: string, ok: boolean, evidence: string) {
     console.log(`[PASS] ${label} — ${evidence}`)
   } else {
     console.error(`[FAIL] ${label} — ${evidence}`)
+    // سطر أوامر GitHub Actions: يظهر كتعليق (annotation) قابل للقراءة
+    // عبر API حتى حين لا تُقرأ سجلات الوظيفة نفسها.
+    console.log(`::error title=WAIVER_PG_FAIL::${label} — ${evidence}`.replace(/[%]/g, '%25').replace(/[\r\n]/g, ' '))
     failures.push(label)
   }
 }
