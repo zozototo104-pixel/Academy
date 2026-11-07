@@ -108,7 +108,7 @@ export async function GET(req: NextRequest) {
       getStudentTuitionPlan(user.id, programId),
       calculateFinalGrade({ userId: user.id, programId }),
     ])
-    const semesterTracking = await getStudentSemesterTracking(db, { userId: user.id, programId }).catch(() => null)
+    const semesterTracking = await getStudentSemesterTracking(db, { userId: user.id, programId, finalGrade: grade }).catch(() => null)
     const finalExam = semesterExams[0] || null
 
     return NextResponse.json({
