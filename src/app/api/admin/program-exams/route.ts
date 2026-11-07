@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
+import { audit } from '@/lib/notify'
 import { fallbackExamQuestionBatch } from '@/lib/books-ai'
 
 async function seedStarterForZeroQuestionGeneratingExams(programId: string) {
@@ -142,13 +143,21 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// DELETE /api/admin/program-exams?id=xxx — حذف اختبار شامل
+// DELETE /api/admin/program-exams?id=xxx — حذف اختبار شامل.
+// الحذف متسلسل في المخطط (الأسئلة + كل محاولات الطلاب)، فامتحان له
+// محاولات لا يُحذف إطلاقًا — نفس قاعدة حذف الوحدات — والحذف المسموح
+// يُسجَّل في سجل التدقيق.
 export async function DELETE(req: NextRequest) {
   try {
-    await requireAdmin()
+    const admin = await requireAdmin()
     const id = req.nextUrl.searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'معرف الاختبار مطلوب' }, { status: 400 })
+    const exam = await db.programExam.findUnique({ where: { id }, select: { id: true, title: true } })
+    if (!exam) return NextResponse.json({ error: 'الاختبار غير موجود' }, { status: 404 })
+    const attempts = await db.programExamAttempt.count({ where: { examId: id } })
+    if (attempts > 0) return NextResponse.json({ error: 'هذا الاختبار له محاولات طلاب — حذفه يمسح محاولاتهم ونتائجهم، وهو غير مسموح' }, { status: 409 })
     await db.programExam.delete({ where: { id } })
+    await audit(admin, 'DELETE_PROGRAM_EXAM', 'ProgramExam', exam.id, `حذف اختبار شامل: ${exam.title}`)
     return NextResponse.json({ ok: true })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })

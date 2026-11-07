@@ -11,6 +11,15 @@ function cleanText(value: unknown, max = 500) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
 }
 
+class RefreshAmountConflictError extends Error {
+  status = 409
+  code = 'REFRESH_AMOUNT_CONFLICT'
+
+  constructor() {
+    super('تغيّرت حالة الفاتورة أو مبلغ إعفائها أثناء المعالجة. أعد تحميل البيانات وراجع الحالة الحالية قبل إعادة المحاولة.')
+  }
+}
+
 function isManualPaymentMethod(method?: string | null, provider?: string | null) {
   const value = String(method || provider || '').toUpperCase()
   return ['DIRECT_PAYMENT', 'BANK_TRANSFER', 'USDT', 'CASH'].includes(value)
@@ -227,17 +236,38 @@ export async function PATCH(req: NextRequest) {
       if (payment.status !== 'UNPAID') {
         return NextResponse.json({ error: 'لا يمكن تحديث مبلغ فاتورة مدفوعة. الفواتير المسددة تبقى كما صدرت.' }, { status: 400 })
       }
+      // فاتورة عليها إعفاء معتمد: إعادة حساب المبلغ من قواعد السعر الحالية
+      // يجب أن تحترم المبلغ المعفى — تجاهله كان يعيد المستحق إلى السعر
+      // الكامل ويجعل «المعفى + المستحق» أكبر من أصل الفاتورة. المنحة
+      // الكاملة المعتمدة على فاتورة غير مسددة حالة لا يعرّفها مسار الإعفاء
+      // (المنحة تجعل الفاتورة WAIVED أصلاً) فنرفض التحديث بدل تخمين معناه.
+      const waivedCents = payment.waivedAmountCents ?? dollarsToCents(Number(payment.waivedAmount || 0))
+      const hasApprovedWaiver = payment.waiverStatus === 'APPROVED' || payment.waiverStatus === 'PROGRAM_APPLIED'
+      if (hasApprovedWaiver && payment.waiverType === 'FULL_SCHOLARSHIP') {
+        return NextResponse.json({ error: 'لا يمكن تحديث مبلغ فاتورة خاضعة لمنحة كاملة معتمدة. ألغِ الإعفاء أولاً إذا أردت إعادة تسعير الفاتورة.' }, { status: 400 })
+      }
+      const waiverAware = hasApprovedWaiver && waivedCents > 0
       const resolved = await resolveCurrentInvoiceAmount(payment)
       if (!resolved.ok) return NextResponse.json({ error: resolved.error }, { status: 400 })
 
       const oldAmount = roundMoney(Number(payment.amount || 0))
-      const newAmount = roundMoney(resolved.amount)
+      const newTotalCents = dollarsToCents(roundMoney(resolved.amount))
+      const newAmountCents = waiverAware ? Math.max(0, newTotalCents - waivedCents) : newTotalCents
+      const newAmount = roundMoney(newAmountCents / 100)
       const oldAmountCents = payment.amountCents ?? dollarsToCents(oldAmount)
-      const newAmountCents = dollarsToCents(newAmount)
       const changed = oldAmountCents !== newAmountCents
 
+      // قاعدة محسومة لا تُعاد مناقشتها: مبلغ الإعفاء المعتمد جزء من عقد
+      // الفاتورة، وإعادة تسعير تجعل الإجمالي الجديد يساوي المعفى أو يقل
+      // عنه تترك «معفى أكبر من الأصل» أو فاتورة مستحقها صفر بحالة
+      // UNPAID — وكلاهما حالة مالية غير متسقة. الرفض هنا قبل فرع
+      // المعاينة حتى ترى المعاينة (dryRun) الرفض نفسه الذي يراه التنفيذ.
+      if (waiverAware && newTotalCents <= waivedCents) {
+        return NextResponse.json({ error: 'لا يمكن تحديث مبلغ الفاتورة إلى مبلغ يساوي الإعفاء المعتمد أو يقل عنه. ألغِ الإعفاء أو عدّله أولاً إذا أردت إعادة تسعير الفاتورة.' }, { status: 400 })
+      }
+
       if (body?.dryRun) {
-        return NextResponse.json({ ok: true, changed, oldAmount, newAmount, oldAmountCents, newAmountCents, source: resolved.source })
+        return NextResponse.json({ ok: true, changed, oldAmount, newAmount, oldAmountCents, newAmountCents, source: resolved.source, ...(waiverAware ? { waivedAmountCents: waivedCents, newTotalCents } : {}) })
       }
 
       const reason = cleanText(body?.reason, 700)
@@ -248,20 +278,49 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ ok: true, changed: false, oldAmount, newAmount, payment })
       }
 
-      const updated = await db.payment.update({
-        where: { id: payment.id },
-        data: {
-          amount: newAmount,
-          amountCents: newAmountCents,
-        },
-      })
+      // الكتابة داخل معاملة تقفل صف الفاتورة أولاً وتعيد التحقق من
+      // الحالة المرصودة عند قراءة المسار: القراءة الأولى تمت خارج أي
+      // قفل، فتأكيد نقدي أو اعتماد/تعديل إعفاء متزامن بين القراءة
+      // والكتابة يجب ألا يُكتب فوقه. أي تغيّر في الحالة أو مبلغ الإعفاء
+      // أو المستحق المرصود ⇒ 409 ولا كتابة.
+      let updated: any
+      try {
+        updated = await db.$transaction(async (tx) => {
+          await tx.$queryRaw`SELECT id FROM "Payment" WHERE id = ${payment.id} FOR UPDATE`
+          const fresh = await tx.payment.findUnique({ where: { id: payment.id } })
+          const freshWaivedCents = fresh ? (fresh.waivedAmountCents ?? dollarsToCents(Number(fresh.waivedAmount || 0))) : null
+          const freshAmountCents = fresh ? (fresh.amountCents ?? dollarsToCents(roundMoney(Number(fresh.amount || 0)))) : null
+          if (!fresh || fresh.status !== 'UNPAID' || freshWaivedCents !== waivedCents || freshAmountCents !== oldAmountCents) {
+            throw new RefreshAmountConflictError()
+          }
+          return tx.payment.update({
+            where: { id: payment.id },
+            data: waiverAware
+              ? {
+                  amount: newAmount,
+                  amountCents: newAmountCents,
+                  originalAmount: roundMoney(newTotalCents / 100),
+                  originalAmountCents: newTotalCents,
+                }
+              : {
+                  amount: newAmount,
+                  amountCents: newAmountCents,
+                },
+          })
+        })
+      } catch (e: any) {
+        if (e instanceof RefreshAmountConflictError || e?.code === 'REFRESH_AMOUNT_CONFLICT') {
+          return NextResponse.json({ error: e.message, code: 'REFRESH_AMOUNT_CONFLICT' }, { status: 409 })
+        }
+        throw e
+      }
 
       await audit(
         admin,
         'REFRESH_PAYMENT_AMOUNT',
         'Payment',
         id,
-        `تحديث مبلغ فاتورة غير مدفوعة ${payment.invoiceNo}: من ${oldAmount}$ إلى ${newAmount}$ — المصدر: ${resolved.source} — السبب: ${reason}`
+        `تحديث مبلغ فاتورة غير مدفوعة ${payment.invoiceNo}: من ${oldAmount}$ إلى ${newAmount}$ — المصدر: ${resolved.source} — السبب: ${reason}${waiverAware ? ` — مع الحفاظ على مبلغ معفى معتمد ${roundMoney(waivedCents / 100)}$ من إجمالي جديد ${roundMoney(newTotalCents / 100)}$` : ''}`
       )
 
       return NextResponse.json({ ok: true, changed: true, oldAmount, newAmount, payment: updated })

@@ -645,6 +645,10 @@ async function processWhatsAppEvent(eventId: string) {
       OR: [
         { status: 'RECEIVED' },
         { status: 'FAILED' },
+        // حدث عالق في PROCESSING منذ أكثر من مهلة الاسترداد: صاحب
+        // المعالجة مات قبل كتابة النتيجة، فيُسترد بدل أن يضيع — نفس
+        // عتبة shouldRetryExistingInboundEvent التي قبلته لإعادة الجدولة.
+        { status: 'PROCESSING', updatedAt: { lt: new Date(Date.now() - STALE_PROCESSING_RETRY_MS) } },
       ],
     },
     data: { status: 'PROCESSING', attempts: { increment: 1 }, error: null },
@@ -696,6 +700,76 @@ async function processWhatsAppEvent(eventId: string) {
   }
 }
 
+export async function __processWhatsAppEventForTests(eventId: string) {
+  return processWhatsAppEvent(eventId)
+}
+
+// ===== حالات تسليم واتساب (statuses) =====
+// استخراج كامل الدقة (بلا قصّ للمعرّف) بخلاف ملخص سجل التدقيق: حالة
+// التسليم تُكتب على صف الرسالة الصادرة المطابق بـ whatsappMessageId
+// حتى يفرّق الأدمن بين «قبلتها Meta» و«وصلت فعلًا» (رسالة مقبولة ثم
+// مقتولة عند التسليم — كرصيد Meta الصفري — تظهر FAILED لا SENT).
+type WhatsAppDeliveryStatusUpdate = {
+  id: string
+  status: string
+  errors: Array<{ code: any; title: any; message: any }>
+}
+
+function extractWhatsAppStatusUpdates(payload: any): WhatsAppDeliveryStatusUpdate[] {
+  const updates: WhatsAppDeliveryStatusUpdate[] = []
+  for (const entry of Array.isArray(payload?.entry) ? payload.entry : []) {
+    for (const change of Array.isArray(entry?.changes) ? entry.changes : []) {
+      const value = change?.value || {}
+      for (const status of Array.isArray(value?.statuses) ? value.statuses : []) {
+        const id = String(status?.id || '').trim()
+        if (!id) continue
+        updates.push({
+          id,
+          status: String(status?.status || ''),
+          errors: Array.isArray(status?.errors)
+            ? status.errors.map((e: any) => ({ code: e?.code ?? null, title: e?.title ?? null, message: e?.message ?? null })).slice(0, 3)
+            : [],
+        })
+      }
+    }
+  }
+  return updates
+}
+
+const WHATSAPP_DELIVERY_RANK: Record<string, number> = { SENT: 1, DELIVERED: 2, READ: 3 }
+
+async function applyWhatsAppDeliveryStatuses(updates: WhatsAppDeliveryStatusUpdate[]) {
+  for (const update of updates) {
+    const incoming = update.status.toUpperCase()
+    if (!['SENT', 'DELIVERED', 'READ', 'FAILED'].includes(incoming)) continue
+    const row = await db.whatsAppConversationMessage.findFirst({
+      where: { whatsappMessageId: update.id },
+      select: { id: true, status: true, meta: true },
+    }).catch(() => null)
+    if (!row) continue
+    const current = String(row.status || 'SENT').toUpperCase()
+    // لا تراجع: FAILED نهائية، وREAD لا تنزل ولا يبدّلها فشل لاحق.
+    if (current === 'FAILED' || current === 'READ') continue
+    if (incoming !== 'FAILED' && (WHATSAPP_DELIVERY_RANK[incoming] || 0) <= (WHATSAPP_DELIVERY_RANK[current] || 0)) continue
+    const failure = incoming === 'FAILED'
+      ? (update.errors.length ? update.errors : [{ code: null, title: null, message: 'delivery failed' }])
+      : null
+    await db.whatsAppConversationMessage.updateMany({
+      where: { id: row.id, status: row.status },
+      data: {
+        status: incoming,
+        ...(failure
+          ? { meta: { ...((row.meta as any) || {}), deliveryError: failure, deliveryFailedAt: new Date().toISOString() } }
+          : {}),
+      },
+    }).catch(() => ({ count: 0 }))
+  }
+}
+
+export async function __applyWhatsAppDeliveryStatusesForTests(updates: WhatsAppDeliveryStatusUpdate[]) {
+  return applyWhatsAppDeliveryStatuses(updates)
+}
+
 // Meta webhook verification for WhatsApp Business Platform.
 export async function GET(req: NextRequest) {
   const url = new URL(req.url)
@@ -739,6 +813,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'Invalid JSON body' }, { status: 400 })
   }
 
+  // حالات التسليم تُطبَّق على صفوف الرسائل سواء وصلت وحدها أو مع رسائل
+  // واردة — سجل التدقيق يبقى كما هو في فرع «لا رسائل» أدناه.
+  const payloadSummary = summarizeNonMessageWhatsAppPayload(payload)
+  if (payloadSummary.statusUpdates.length) {
+    await applyWhatsAppDeliveryStatuses(extractWhatsAppStatusUpdates(payload)).catch((error) => {
+      console.warn('WhatsApp delivery status apply failed:', String(error).slice(0, 300))
+    })
+  }
+
   const extractedMessages = extractWhatsAppInboundMessages(payload)
   const { accepted: messages, ignored: ignoredPhoneMessages } = filterMessagesForConfiguredPhoneNumber(extractedMessages)
   if (ignoredPhoneMessages.length) {
@@ -751,7 +834,7 @@ export async function POST(req: NextRequest) {
 
   // Always acknowledge non-message webhooks such as status updates.
   if (!messages.length) {
-    const nonMessage = summarizeNonMessageWhatsAppPayload(payload)
+    const nonMessage = payloadSummary
     await auditWhatsAppWebhook('WHATSAPP_WEBHOOK_RECEIVED', {
       received: 0,
       sent: 0,

@@ -679,6 +679,7 @@ export function AdminBooksTab() {
   const [programOutlineDraft, setProgramOutlineDraft] = useState<{ id: string; bookId: string; bookTitle: string; title: string; semester: number | null; semesterNeedsReview: boolean; order: number; pageStart: number | null; pageEnd: number | null; itemsCount: number; startCharOffset?: number | null }[]>([])
   const [outlineBusyId, setOutlineBusyId] = useState<string | null>(null)
   const [outlineUnitBusyId, setOutlineUnitBusyId] = useState<string | null>(null)
+  const outlineCoverageAcksRef = useRef<Record<string, string>>({})
   const [outlineApprovalDialog, setOutlineApprovalDialog] = useState<null | {
     bookId: string
     stage: 'warning' | 'reason'
@@ -1040,11 +1041,11 @@ export function AdminBooksTab() {
       setQuestionBankProgress(null)
       setStudyGuides([])
 
-      void api<{ items: KnowledgeItemRow[]; stats: KnowledgeStats; count: number; v2CountsByBook: Record<string, number> }>(`/api/admin/knowledge-bank?programId=${pid}`)
+      void api<{ items: KnowledgeItemRow[]; stats: KnowledgeStats; count: number; total: number; v2CountsByBook: Record<string, number> }>(`/api/admin/knowledge-bank?programId=${pid}`)
         .then((k) => {
           if (latestProgramLoadRef.current !== loadToken) return
           setKnowledgeItems(k.items || [])
-          setKnowledgeTotalCount(k.count || 0)
+          setKnowledgeTotalCount(k.total ?? k.count ?? 0)
           setShowAllKnowledge(false)
           setKnowledgeStats(k.stats || {})
           setV2CountsByBook(k.v2CountsByBook || {})
@@ -2150,13 +2151,40 @@ export function AdminBooksTab() {
     try {
       // Preserve the single guarded API call for normal and documented approval.
       const attempt = (body: Record<string, unknown>) => api<{ outline: NonNullable<typeof bookOutlines[string]> }>(`/api/admin/books/${bookId}/outline/approve`, { method: 'POST', body: JSON.stringify(body) })
-      const result = await attempt(overrideReason ? { overrideOversized: true, overrideReason } : {})
+      const acknowledgmentKey = outlineCoverageAcksRef.current[bookId]
+      const result = await attempt({
+        ...(overrideReason ? { overrideOversized: true, overrideReason } : {}),
+        ...(acknowledgmentKey ? { acknowledgeCoverage: true, acknowledgmentKey } : {}),
+      })
+      delete outlineCoverageAcksRef.current[bookId]
       setBookOutlines((previous) => ({ ...previous, [bookId]: result.outline }))
       if (overrideReason) setOutlineApprovalDialog(null)
       toast({ title: overrideReason ? 'تم اعتماد الفهرس بتجاوز موثّق' : 'تم اعتماد الفهرس', description: `نسخة ${result.outline.version}` })
     } catch (error: any) {
-      if (error?.code === 'OUTLINE_OVERSIZED_SECTIONS' && !overrideReason) {
-        // Page-gap errors cannot enter the documented oversized override.
+      if (error?.code === 'OUTLINE_REVIEW_REQUIRED') {
+        const issues = Array.isArray(error?.data?.issues)
+          ? error.data.issues.filter((issue: unknown): issue is string => typeof issue === 'string')
+          : []
+        const key = String(error?.data?.acknowledgmentKey || '')
+        if (!key || !issues.length) {
+          toast({ title: 'تعذر عرض تقرير النواقص', description: String(error?.message || error), variant: 'destructive' })
+        } else {
+          const confirmed = await confirmAction({
+            title: 'تقرير قراءة الكتاب قبل اعتماد الفهرس',
+            description: 'القراءة استمرت رغم المشكلات التالية، لكن الصفحات غير المقروءة ليست مصدرًا للمحتوى.\n\n' +
+              issues.map((item: string, index: number) => `${index + 1}. ${item}`).join('\n') +
+              '\n\nهل تقرّ باعتماد الفهرس مع حفظ هذه النواقص في سجل الاعتماد؟',
+            confirmLabel: 'اعتماد مع الإقرار بالنواقص',
+            cancelLabel: 'رفض الاعتماد والعودة للتصحيح',
+            tone: 'warning',
+          })
+          if (confirmed) {
+            outlineCoverageAcksRef.current[bookId] = key
+            await approveBookOutline(bookId, overrideReason)
+          } else delete outlineCoverageAcksRef.current[bookId]
+        }
+      } else if (error?.code === 'OUTLINE_OVERSIZED_SECTIONS' && !overrideReason) {
+        // Oversized sections retain their independent documented approval gate.
         const blocked = Array.isArray(error?.data?.blocked) ? error.data.blocked : []
         setOutlineApprovalDialog({
           bookId,
@@ -3097,7 +3125,7 @@ export function AdminBooksTab() {
 
                 <div className="rounded-2xl bg-white p-3 ring-1 ring-slate-100">
                   <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex flex-wrap items-center gap-2"><p className="text-xs font-black text-[#0f2b46]">أهم عناصر المعرفة المستخرجة</p><span className="text-[10px] text-slate-500">يُعرض {displayKnowledgeItems.length} من {knowledgeTotalCount || displayKnowledgeItems.length}</span>{!showAllKnowledge && knowledgeTotalCount > knowledgeItems.length && <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={async () => { if (!programId) return; try { const result = await api<{ items: KnowledgeItemRow[]; count: number }>(`/api/admin/knowledge-bank?programId=${programId}&all=1`); setKnowledgeItems(result.items || []); setKnowledgeTotalCount(result.count || 0); setShowAllKnowledge(true) } catch (error: any) { toast({ title: 'تعذر عرض كل العناصر', description: String(error?.message || error), variant: 'destructive' }) } }}>عرض الكل</Button>}</div>
+                    <div className="flex flex-wrap items-center gap-2"><p className="text-xs font-black text-[#0f2b46]">أهم عناصر المعرفة المستخرجة</p><span className="text-[10px] text-slate-500">يُعرض {displayKnowledgeItems.length} من {Math.max(knowledgeTotalCount, displayKnowledgeItems.length)}</span>{!showAllKnowledge && knowledgeTotalCount > knowledgeItems.length && <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={async () => { if (!programId) return; try { const result = await api<{ items: KnowledgeItemRow[]; count: number }>(`/api/admin/knowledge-bank?programId=${programId}&all=1`); setKnowledgeItems(result.items || []); setKnowledgeTotalCount(result.count || 0); setShowAllKnowledge(true) } catch (error: any) { toast({ title: 'تعذر عرض كل العناصر', description: String(error?.message || error), variant: 'destructive' }) } }}>عرض الكل</Button>}</div>
                     <div className="flex items-center gap-2">
                       <label className="flex cursor-pointer items-center gap-1 text-[10px] font-bold text-slate-500">
                         <input type="checkbox" checked={showLegacyKnowledge} onChange={(event) => setShowLegacyKnowledge(event.target.checked)} /> عرض القديمة

@@ -72,6 +72,27 @@ async function initializeAcademicEnrollment(tx: any, enrollment: {
   await ensureSemesterStates(tx, enrollment, program)
 }
 
+// إنشاء الالتحاق متسامح مع سباق الإنشاء: مسارا تسوية (تأكيد دفع نقدي
+// واعتماد إعفاء) قد يصلا إلى تفعيل نفس القبول في اللحظة نفسها، فيجد كلٌّ
+// منهما «لا التحاق» ثم يصطدم إنشاء الخاسر بقيد تفرد (userId, programId)
+// فيرمي P2002 — وفي مسار الإعفاء يُستدعى التفعيل بعد التزام المعاملة بلا
+// أي صيد، فيرى المشرف خطأ 500 رغم أن المال التزم والالتحاق موجود من
+// الفائز. عند الاصطدام نعيد قراءة صف الفائز ونكمل بقية آثار التفعيل
+// عليه (اللقطة وحالات الفصول محروسة بـcreate-once فلا تتكرر). كل
+// المستدعين الحاليين يمررون عميل الجذر (db) في وضع الالتزام التلقائي،
+// فإعادة القراءة بعد الاصطدام آمنة؛ داخل معاملة تفاعلية حقيقية تُبطل
+// PostgreSQL المعاملة عند P2002 ولا يصلح معها إلا إعادة تنفيذها كلها.
+async function createEnrollmentAfterRace(tx: any, userId: string, programId: string) {
+  try {
+    return await tx.enrollment.create({ data: { userId, programId, status: 'ACTIVE' } })
+  } catch (error: any) {
+    if (error?.code !== 'P2002') throw error
+    const winner = await tx.enrollment.findUnique({ where: { userId_programId: { userId, programId } } })
+    if (!winner) throw error
+    return winner
+  }
+}
+
 export async function finalizeAdmissionAfterSettlement(tx: any, admissionId: string, opts: FinalizeAdmissionAfterSettlementOptions = { source: 'PAYMENT' }) {
   const app = await tx.admissionApplication.findUnique({ where: { id: admissionId } })
   if (!app) return null
@@ -133,9 +154,7 @@ export async function finalizeAdmissionAfterSettlement(tx: any, admissionId: str
         const existingEnrollment = await tx.enrollment.findUnique({
           where: { userId_programId: { userId: linkedUserId, programId: app.programId } },
         })
-        const activeEnrollment = existingEnrollment || await tx.enrollment.create({
-          data: { userId: linkedUserId, programId: app.programId, status: 'ACTIVE' },
-        })
+        const activeEnrollment = existingEnrollment || await createEnrollmentAfterRace(tx, linkedUserId, app.programId)
         await initializeAcademicEnrollment(tx, activeEnrollment)
       }
     }
@@ -197,15 +216,23 @@ export async function finalizeAdmissionAfterSettlement(tx: any, admissionId: str
 
   if (allSettled && tuitionSettled && ['AWAITING_FEE', 'UNDER_REVIEW', 'AWAITING_TUITION'].includes(String(app.status || ''))) {
     const newStatus = app.supervisorId ? 'THESIS' : 'SUPERVISOR_ASSIGNED'
-    await tx.admissionApplication.update({ where: { id: app.id }, data: { status: newStatus } })
+    // ترتيب الآثار (بند 7 — مرآة فرع PAYMENT): الالتحاق يُنشأ ويُهيَّأ
+    // أولًا، وحالة القبول تُكتب بعده. كتابة الحالة أولًا كانت تجعل أي
+    // عطل منتصف التفعيل (إنشاء الالتحاق مثلًا) يترك القبول متقدمًا بلا
+    // التحاق وشرط دخول هذا الفرع منتفيًا — فلا ترى إعادة المحاولة
+    // شيئًا تستأنفه ويضيع التفعيل بصمت رغم التزام المال.
+    let activated = false
     if (app.programId && linkedUserId) {
       const existingEnrollment = await tx.enrollment.findUnique({ where: { userId_programId: { userId: linkedUserId, programId: app.programId } } })
-      const activeEnrollment = !existingEnrollment
-        ? await tx.enrollment.create({ data: { userId: linkedUserId, programId: app.programId, status: 'ACTIVE' } })
-        : !['ACTIVE', 'COMPLETED'].includes(existingEnrollment.status)
-          ? await tx.enrollment.update({ where: { id: existingEnrollment.id }, data: { status: 'ACTIVE' } })
-          : existingEnrollment
+      const foundEnrollment = existingEnrollment || await createEnrollmentAfterRace(tx, linkedUserId, app.programId)
+      const activeEnrollment = !['ACTIVE', 'COMPLETED'].includes(foundEnrollment.status)
+        ? await tx.enrollment.update({ where: { id: foundEnrollment.id }, data: { status: 'ACTIVE' } })
+        : foundEnrollment
       await initializeAcademicEnrollment(tx, activeEnrollment)
+      activated = true
+    }
+    await tx.admissionApplication.update({ where: { id: app.id }, data: { status: newStatus } })
+    if (activated && linkedUserId) {
       await notify(linkedUserId, 'ADMISSION', 'تم تفعيل تسجيلك بمنحة/إعفاء', `أصبح تسجيلك في «${app.program}» فعالاً.`, 'dashboard')
       const student = await tx.user.findUnique({ where: { id: linkedUserId }, select: { email: true, name: true } }).catch(() => null)
       if (student) await emailFinalRegistration(student.email, student.name, app.program)
@@ -316,18 +343,34 @@ async function applySettlementEffects(args: {
       }
       // إصدار شهادة الاعتماد عند سداد رسوم الفئة فقط — نطاق الحارس أعلاه.
       if (accreditationCertificateDue(payment, agent)) {
-        const serial = await nextCertSerial()
-        await db.certificate.create({
-          data: {
-            serial,
-            qrToken: randomBytes(16).toString('hex'),
-            type: 'ACCREDITATION',
-            holderName: agent.orgName,
-            program: ACC_TYPE_LABEL_SETTLE[agent.accreditationType || ''] || 'اعتماد دولي',
-            country: agent.country,
-            agentId: agent.id,
-          },
-        })
+        // الرقم التسلسلي محسوب من عدّ الشهادات الحالية: تسويتان متزامنتان
+        // قد تحسبان الرقم نفسه فيصطدم الإنشاء بقيد تفرد serial ويُجهض بقية
+        // آثار التسوية رغم أن الفاتورة قُلبت PAID. أعد حساب الرقم والمحاولة
+        // (حتى 3 مرات) عند الاصطدام فقط — الفائز المتزامن يرفع العدّ فينجح
+        // الرقم التالي — وأعد رمي أي خطأ آخر كما هو.
+        let serial = ''
+        let lastSerialError: any = null
+        for (let attempt = 0; attempt < 3 && !serial; attempt++) {
+          const candidate = await nextCertSerial()
+          try {
+            await db.certificate.create({
+              data: {
+                serial: candidate,
+                qrToken: randomBytes(16).toString('hex'),
+                type: 'ACCREDITATION',
+                holderName: agent.orgName,
+                program: ACC_TYPE_LABEL_SETTLE[agent.accreditationType || ''] || 'اعتماد دولي',
+                country: agent.country,
+                agentId: agent.id,
+              },
+            })
+            serial = candidate
+          } catch (error: any) {
+            if (error?.code !== 'P2002') throw error
+            lastSerialError = error
+          }
+        }
+        if (!serial) throw lastSerialError || new Error('CERT_SERIAL_COLLISION')
         if (agentOwner?.id) {
           await notify(
             agentOwner.id,

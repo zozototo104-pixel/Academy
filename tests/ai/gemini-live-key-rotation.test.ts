@@ -5,6 +5,9 @@ import { NextRequest } from 'next/server'
 let supervisorAccessLocked = false
 let reserveUsageCalls = 0
 let failReserveUsage = false
+// وضع testOnly صار يتطلب أدمن (إصلاح تدقيق 2026-11-06): اختبارات الصك
+// التجريبي ترفع الدور إلى ADMIN، وبقية الاختبارات تبقى طالباً.
+let mockUserRole = 'STUDENT'
 
 const db: any = {
   auditLog: { create: async () => ({}) },
@@ -19,7 +22,7 @@ const db: any = {
 }
 
 mock.module('@/lib/db', () => ({ db }))
-mock.module('@/lib/auth', () => ({ requireUser: async () => ({ id: 'student-1', role: 'STUDENT' }) }))
+mock.module('@/lib/auth', () => ({ requireUser: async () => ({ id: mockUserRole === 'ADMIN' ? 'admin-1' : 'student-1', role: mockUserRole }) }))
 mock.module('@/lib/student-ai-access', () => ({
   requireStudentAiSupervisorAccess: async () => {
     if (supervisorAccessLocked) {
@@ -114,6 +117,7 @@ beforeEach(() => {
   supervisorAccessLocked = false
   reserveUsageCalls = 0
   failReserveUsage = false
+  mockUserRole = 'STUDENT'
   delete process.env.GEMINI_API_KEY
   delete process.env.GEMINI_API_KEYS
   delete process.env.ALBORIHI_API_KEY
@@ -236,6 +240,7 @@ describe('Gemini Live key rotation uses the text AI router state', () => {
   })
 
   test('key 1 returns 403 and key 2 succeeds, while key 1 receives router cooldown', async () => {
+    mockUserRole = 'ADMIN'
     configureGeminiKeys('AIzaBAD1111', 'AIzaGOOD2222')
     mockTokenFetch((key) => key === 'AIzaBAD1111'
       ? { status: 403, body: { error: { message: 'PERMISSION_DENIED: Live API disabled for this key' } } }
@@ -264,6 +269,7 @@ describe('Gemini Live key rotation uses the text AI router state', () => {
   })
 
   test('a key cooled down only for a text model remains available for Live', async () => {
+    mockUserRole = 'ADMIN'
     configureGeminiKeys('AIzaTEXT1111', 'AIzaGOOD2222')
     values.set('AI_COOLDOWN:GEMINI:1:gemini-3.5-flash-lite', JSON.stringify({
       until: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
@@ -279,6 +285,7 @@ describe('Gemini Live key rotation uses the text AI router state', () => {
   })
 
   test('a memory cooldown for a text model remains available for Live', async () => {
+    mockUserRole = 'ADMIN'
     configureGeminiKeys('AIzaMODEL1111')
     textAi.__testMarkModelCooldownForTests('GEMINI', 'AIzaMODEL1111', 'gemini-3.5-flash-lite')
     mockTokenFetch(() => ({ status: 200, body: { name: 'live-token-from-model-cooled-key' } }))
@@ -290,6 +297,7 @@ describe('Gemini Live key rotation uses the text AI router state', () => {
   })
 
   test('a memory cooldown with status 429 and api_key in the reason remains available for Live', async () => {
+    mockUserRole = 'ADMIN'
     configureGeminiKeys('AIzaRATE1111')
     globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
       const urlText = String(url)
@@ -332,10 +340,16 @@ describe('Gemini Live key rotation uses the text AI router state', () => {
   })
 
   test('all key failures return a generic message without details to students', async () => {
+    // على مسار الطالب الحقيقي (لا testOnly — ذاك للأدمن وردّه التفصيلي
+    // مختلف): قصد الحارس ثابت — الطالب لا يرى تفاصيل المزوّد ولا المفاتيح.
     configureGeminiKeys('AIzaBAD1111', 'AIzaBAD2222')
     mockTokenFetch(() => ({ status: 401, body: { error: { message: 'UNAUTHENTICATED: invalid Live key' } } }))
 
-    const response = await POST(liveRequest())
+    const response = await POST(new NextRequest('http://localhost/api/ai/gemini-live/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ purpose: 'SUPERVISOR', model: 'gemini-3.1-flash-live-preview', dialect: 'ar-PS' }),
+    }))
     const payload = await response.json()
     const serialized = JSON.stringify(payload)
 

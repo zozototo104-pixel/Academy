@@ -16,7 +16,28 @@ function findBy(where: Row) {
   }) || null
 }
 
+const deletedSessionUserIds: string[] = []
+let failSessionRevocation = false
 const dbMock = {
+  // Transaction test double: preserve object identity while rolling back
+  // both the email mutation and the session-deletion audit on failure.
+  $transaction: async (fn: (tx: any) => Promise<any>) => {
+    const snapshot = users.map((u) => ({ ...u }))
+    const deletedAt = deletedSessionUserIds.length
+    try { return await fn(dbMock) }
+    catch (error) {
+      users.forEach((u, i) => Object.assign(u, snapshot[i]))
+      deletedSessionUserIds.length = deletedAt
+      throw error
+    }
+  },
+  session: {
+    deleteMany: async ({ where }: any) => {
+      if (failSessionRevocation) throw new Error('SESSION_REVOCATION_FAILED')
+      if (where?.userId) deletedSessionUserIds.push(where.userId)
+      return { count: 1 }
+    },
+  },
   user: {
     findUnique: async ({ where }: any) => findBy(where),
     findFirst: async ({ where }: any) => {
@@ -159,6 +180,22 @@ describe('applyPendingEmailChange (verify-email confirmation)', () => {
     expect(u.pendingEmail).toBeNull()
   })
 
+  test('LOGIN: session revocation failure rolls back the email and keeps the confirmation token retryable', async () => {
+    users.length = 0
+    deletedSessionUserIds.length = 0
+    const u = seed({ pendingEmail: 'new@student.com', pendingEmailPurpose: 'LOGIN', emailVerificationTokenHash: 'still-valid' })
+    failSessionRevocation = true
+    try {
+      await expect(applyPendingEmailChange(u as any)).rejects.toThrow('SESSION_REVOCATION_FAILED')
+      expect(u.email).toBe('old@student.com')
+      expect(u.pendingEmail).toBe('new@student.com')
+      expect(u.emailVerificationTokenHash).toBe('still-valid')
+      expect(deletedSessionUserIds).toHaveLength(0)
+    } finally {
+      failSessionRevocation = false
+    }
+  })
+
   test('LOGIN: an address taken in the meantime aborts the swap and clears the pending state', async () => {
     users.length = 0
     seed({ id: 'squatter', email: 'new@student.com' })
@@ -203,6 +240,7 @@ describe('routes', () => {
 
   test('verify-email route: a token carrying a LOGIN pending change redirects as verified with the NEW email', async () => {
     users.length = 0
+    deletedSessionUserIds.length = 0
     const token = 'a'.repeat(43)
     seed({ pendingEmail: 'new@student.com', pendingEmailPurpose: 'LOGIN', emailVerificationTokenHash: hashEmailVerificationToken(token), emailVerificationExpiresAt: new Date(Date.now() + 3600_000) })
     const res = await verifyGet(new NextRequest(`https://example.test/api/auth/verify-email?token=${token}`))
@@ -211,10 +249,13 @@ describe('routes', () => {
     expect(loc).toContain('email_verified=1')
     expect(loc).toContain('email=new%40student.com')
     expect(users[0].email).toBe('new@student.com')
+    // تغيير بريد الدخول يلغي جلسات المستخدم على كل الأجهزة (كإعادة تعيين كلمة المرور)
+    expect(deletedSessionUserIds).toEqual([users[0].id])
   })
 
   test('verify-email route: a NOTIFICATION confirmation redirects with notification_email=1 and keeps the session', async () => {
     users.length = 0
+    deletedSessionUserIds.length = 0
     const token = 'b'.repeat(43)
     seed({ pendingEmail: 'inbox@student.com', pendingEmailPurpose: 'NOTIFICATION', emailVerificationTokenHash: hashEmailVerificationToken(token), emailVerificationExpiresAt: new Date(Date.now() + 3600_000) })
     const res = await verifyGet(new NextRequest(`https://example.test/api/auth/verify-email?token=${token}`))
@@ -223,5 +264,7 @@ describe('routes', () => {
     expect(users[0].notificationEmail).toBe('inbox@student.com')
     expect(users[0].email).toBe('old@student.com')
     expect(res.headers.get('set-cookie') || '').not.toContain('aact_session=;')
+    // تغيير بريد الإشعارات ليس حدث هوية: لا إلغاء لأي جلسة
+    expect(deletedSessionUserIds).toEqual([])
   })
 })

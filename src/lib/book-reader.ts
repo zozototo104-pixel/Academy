@@ -6,8 +6,9 @@ import { fixArabicPdfText } from '@/lib/arabic-pdf-text'
 import { textAiCompleteJsonWithMetadata, type TextAiPreferredModel, type TextAiProvider, type TextAiRouterPolicy } from '@/lib/text-ai'
 import { buildStageRoutingOverrides, resolveEffectiveStageProfile, type StageRoutingOverrides } from '@/lib/ai-stage-profiles'
 import { withPipelineRun } from '@/lib/ai-pipeline-log'
+import { mergeBookPageReadIssues, parseBookOcrSoloPages, withBookOcrSoloPages, type BookPageReadIssue } from '@/lib/book-read-job-control'
 
-export type ExtractedBookPage = { page: number; text: string; textProvenance: 'NATIVE_TEXT' | 'VISION_OCR' }
+export type ExtractedBookPage = { page: number; text: string; textProvenance: 'NATIVE_TEXT' | 'VISION_OCR'; readError?: string }
 export type PlannedBookChunk = { index: number; pageStart: number; pageEnd: number; headingPath: string | null; text: string; charCount: number; textProvenance: 'NATIVE_TEXT' | 'VISION_OCR'; contentHash: string }
 
 export function pagesNeedingOcr(pages: readonly { page: number; text: string }[]): number[][] {
@@ -35,6 +36,10 @@ export function planBookChunks(pages: readonly ExtractedBookPage[], minChars = 2
     headingPath = null
   }
   for (const page of pages) {
+    // Skipped/blank pages are holes in evidence, not a bridge of readable
+    // content. Flush before them so chunk ranges never claim those pages.
+    if (!page.text.trim()) { flush(); continue }
+    if (text && end + 1 < page.page) flush()
     // Keep PDF line breaks: outline extraction identifies headings by line.
     // Each page (including middle pages of a chunk) can supply its heading.
     const pageHeading = heading(page.text)
@@ -62,9 +67,16 @@ export async function extractNumberedPdfPages(buffer: Buffer, pageNumbers: reado
   try {
     const pages: ExtractedBookPage[] = []
     for (const page of pageNumbers) {
-      const result = await parser.getText({ partial: [page] })
-      const raw = (result as any).pages?.find((entry: any) => entry.num === page)?.text ?? (result as any).pages?.[0]?.text ?? result.text ?? ''
-      pages.push({ page, text: String(raw).trim(), textProvenance: 'NATIVE_TEXT' })
+      try {
+        const result = await parser.getText({ partial: [page] })
+        const raw = (result as any).pages?.find((entry: any) => entry.num === page)?.text ?? (result as any).pages?.[0]?.text ?? result.text ?? ''
+        pages.push({ page, text: String(raw).trim(), textProvenance: 'NATIVE_TEXT' })
+      } catch (error) {
+        // One corrupt page must not cancel 297 otherwise readable pages. OCR
+        // can still recover this page; any failure is recorded later.
+        pages.push({ page, text: '', textProvenance: 'NATIVE_TEXT',
+          readError: 'NATIVE_EXTRACTION_FAILED: ' + String(error instanceof Error ? error.message : error).slice(0, 120) })
+      }
     }
     return pages
   } finally {
@@ -123,43 +135,137 @@ export async function transcribeScannedDocumentWithVision(buffer: Buffer, pageNu
 
 export type ExtractStepStore = {
   upsertChunk: (chunk: PlannedBookChunk, bookId: string, programId: string) => Promise<void>
-  saveProgress: (jobId: string, pagesDone: number, totalPages: number, totalChunks: number, phase: 'EXTRACT' | 'ANALYZE') => Promise<void>
+  saveProgress: (jobId: string, pagesDone: number, totalPages: number, totalChunks: number, phase: 'EXTRACT' | 'ANALYZE', issues?: readonly BookPageReadIssue[], processedPages?: readonly number[]) => Promise<void>
+  /** Record pages whose group OCR call died with the budget spent, so the
+   *  next run retries them one by one instead of repeating the group call. */
+  saveOcrSoloPages?: (jobId: string, pages: readonly number[]) => Promise<void>
 }
 
 /** One durable batch is at most eight pages. Progress advances only after every chunk is saved. */
-async function extractPdfBatchInner(input: { buffer: Buffer; bookId: string; programId: string; jobId: string; pagesDone: number; totalPages: number; existingChunks: number; store: ExtractStepStore; deadlineMs: number; extractPages?: typeof extractNumberedPdfPages; ocrPages?: typeof transcribeScannedDocumentWithVision; routing?: { preferredModels: { provider: string; model: string }[]; preferredProviders: string[]; policy: string | null; allowGlobalFallback: boolean } | null; aiUsage?: { provider: string | null; model: string | null; fallbackUsed?: boolean; fallbackReason?: string } }): Promise<{ pagesDone: number; totalPages: number; totalChunks: number; phase: 'EXTRACT' | 'ANALYZE' }> {
+async function extractPdfBatchInner(input: { buffer: Buffer; bookId: string; programId: string; jobId: string; pagesDone: number; totalPages: number; existingChunks: number; store: ExtractStepStore; deadlineMs: number; extractPages?: typeof extractNumberedPdfPages; ocrPages?: typeof transcribeScannedDocumentWithVision; soloPages?: ReadonlySet<number>; routing?: { preferredModels: { provider: string; model: string }[]; preferredProviders: string[]; policy: string | null; allowGlobalFallback: boolean } | null; aiUsage?: { provider: string | null; model: string | null; fallbackUsed?: boolean; fallbackReason?: string } }): Promise<{ pagesDone: number; totalPages: number; totalChunks: number; phase: 'EXTRACT' | 'ANALYZE' }> {
   const { buffer, bookId, programId, jobId, store } = input
   if (Date.now() >= input.deadlineMs) throw new Error('BOOK_EXTRACT_DEADLINE')
   const lastPage = Math.min(input.totalPages, input.pagesDone + 8)
   const numbers = Array.from({ length: lastPage - input.pagesDone }, (_, index) => input.pagesDone + index + 1)
-  const extracted = await (input.extractPages || extractNumberedPdfPages)(buffer, numbers)
-  const pageMap = new Map(extracted.map((page) => [page.page, page]))
-  for (const range of pagesNeedingOcr(extracted)) {
-    if (input.deadlineMs - Date.now() < 25_000) return { pagesDone: input.pagesDone, totalPages: input.totalPages, totalChunks: input.existingChunks, phase: 'EXTRACT' }
-    const ocr = input.ocrPages
-      ? await input.ocrPages(buffer, range, input.deadlineMs)
-      : await (async () => {
-          const meta = await transcribeWithMeta(buffer, range, input.deadlineMs, input.routing ?? null, () => {
-            if (input.aiUsage) { input.aiUsage.fallbackUsed = true; input.aiUsage.fallbackReason = 'all-stage-models-failed' }
-          })
-          if (input.aiUsage) { input.aiUsage.provider = meta.provider; input.aiUsage.model = meta.model; if (meta.fellBack) input.aiUsage.fallbackUsed = true }
-          return meta.pages
-        })()
-    for (const page of ocr) pageMap.set(page.page, page)
+  let extracted: ExtractedBookPage[]
+  try {
+    extracted = await (input.extractPages || extractNumberedPdfPages)(buffer, numbers)
+  } catch (error) {
+    // A broken native text layer may affect an entire PDF batch. Do not
+    // discard later pages; give OCR an independent chance on every page.
+    const reason = String(error instanceof Error ? error.message : error).slice(0, 120)
+    extracted = numbers.map((page) => ({ page, text: '', textProvenance: 'NATIVE_TEXT', readError: 'NATIVE_EXTRACTION_FAILED: ' + reason }))
   }
-  const ordered = numbers.map((page) => {
-    const result = pageMap.get(page)
-    if (!result) throw new Error(`BOOK_PAGE_MISSING_${page}`)
-    return result.textProvenance === 'NATIVE_TEXT' ? { ...result, text: fixArabicPdfText(result.text) } : result
-  })
-  const chunks = planBookChunks(ordered)
-  for (let index = 0; index < chunks.length; index++) {
-    await store.upsertChunk({ ...chunks[index], index: input.existingChunks + index }, bookId, programId)
+  const pageMap = new Map(extracted.filter((page) => numbers.includes(page.page)).map((page) => [page.page, page]))
+  const ocrFailures = new Map<number, string>()
+  const callOcr = async (pageNumbers: number[]): Promise<ExtractedBookPage[]> => {
+    if (input.ocrPages) return input.ocrPages(buffer, pageNumbers, input.deadlineMs)
+    const meta = await transcribeWithMeta(buffer, pageNumbers, input.deadlineMs, input.routing ?? null, () => {
+      if (input.aiUsage) { input.aiUsage.fallbackUsed = true; input.aiUsage.fallbackReason = 'all-stage-models-failed' }
+    })
+    if (input.aiUsage) {
+      input.aiUsage.provider = meta.provider
+      input.aiUsage.model = meta.model
+      if (meta.fellBack) input.aiUsage.fallbackUsed = true
+    }
+    return meta.pages
   }
-  const phase = lastPage >= input.totalPages ? 'ANALYZE' : 'EXTRACT'
-  const totalChunks = input.existingChunks + chunks.length
-  await store.saveProgress(jobId, lastPage, input.totalPages, totalChunks, phase)
-  return { pagesDone: lastPage, totalPages: input.totalPages, totalChunks, phase }
+  const needsOcr = numbers.filter((page) => (pageMap.get(page)?.text || '').trim().length < 80)
+  const needsOcrSet = new Set(needsOcr)
+  const ocrSealed = new Set<number>()
+  // Pages whose final text is already decided, counted as a prefix of
+  // `numbers`: native-text pages are decided immediately; an OCR page is
+  // sealed only when its batch call (or single-page recovery) completes.
+  const decidedPrefixLength = () => {
+    let count = 0
+    while (count < numbers.length && (!needsOcrSet.has(numbers[count]) || ocrSealed.has(numbers[count]))) count++
+    return count
+  }
+  // Persist a fully decided prefix of this batch (chunks + progress +
+  // issues). A nearly exhausted budget must never discard finished OCR
+  // work: the next run resumes at the first undecided page instead of
+  // re-reading pages that already completed.
+  const persistPages = async (pages: number[]): Promise<{ pagesDone: number; totalPages: number; totalChunks: number; phase: 'EXTRACT' | 'ANALYZE' }> => {
+    const issues: BookPageReadIssue[] = []
+    const ordered = pages.map((page): ExtractedBookPage => {
+      const result = pageMap.get(page) || { page, text: '', textProvenance: 'NATIVE_TEXT' as const }
+      const text = result.textProvenance === 'NATIVE_TEXT' ? fixArabicPdfText(result.text) : result.text
+      const reason = ocrFailures.get(page)
+      if (!text.trim() || reason) issues.push({
+        page, kind: text.trim() ? 'PARTIAL' : 'UNREADABLE',
+        reason: reason || result.readError || 'NO_EXTRACTABLE_TEXT_AFTER_OCR',
+      })
+      return { ...result, text }
+    })
+    const chunks = planBookChunks(ordered)
+    for (let index = 0; index < chunks.length; index++) {
+      await store.upsertChunk({ ...chunks[index], index: input.existingChunks + index }, bookId, programId)
+    }
+    const donePage = pages[pages.length - 1]
+    const phase: 'EXTRACT' | 'ANALYZE' = donePage >= input.totalPages ? 'ANALYZE' : 'EXTRACT'
+    const totalChunks = input.existingChunks + chunks.length
+    await store.saveProgress(jobId, donePage, input.totalPages, totalChunks, phase, issues, pages)
+    return { pagesDone: donePage, totalPages: input.totalPages, totalChunks, phase }
+  }
+  const persistDecidedPrefix = async (): Promise<{ pagesDone: number; totalPages: number; totalChunks: number; phase: 'EXTRACT' | 'ANALYZE' }> => {
+    const count = decidedPrefixLength()
+    return count > 0
+      ? persistPages(numbers.slice(0, count))
+      : { pagesDone: input.pagesDone, totalPages: input.totalPages, totalChunks: input.existingChunks, phase: 'EXTRACT' }
+  }
+  // One-by-one recovery for a batch: every page is attempted on its own,
+  // its outcome sealed, and a spent budget stops BEFORE the next page.
+  const ocrBatchSolo = async (batch: number[]): Promise<'DONE' | 'STOP'> => {
+    for (const page of batch) {
+      if (input.deadlineMs - Date.now() < 25_000) return 'STOP'
+      try {
+        const single = await callOcr([page])
+        const recovered = single.find((item) => item.page === page && item.text.trim())
+        if (recovered) pageMap.set(page, recovered)
+        else ocrFailures.set(page, 'OCR_RETURNED_NO_TEXT')
+      } catch (error) {
+        ocrFailures.set(page, 'OCR_FAILED: ' + String(error instanceof Error ? error.message : error).slice(0, 120))
+      }
+      ocrSealed.add(page)
+    }
+    return 'DONE'
+  }
+  for (let offset = 0; offset < needsOcr.length; offset += 4) {
+    const batch = needsOcr.slice(offset, offset + 4)
+    // If the worker budget is nearly exhausted, stop BEFORE starting a
+    // new OCR batch — but persist every page already decided in this
+    // batch first, so the next run resumes where this one stopped
+    // instead of re-reading (and re-paying for) the same pages.
+    if (input.deadlineMs - Date.now() < 25_000) return persistDecidedPrefix()
+    if (batch.some((page) => input.soloPages?.has(page))) {
+      // A previous run's group call for these pages died with the budget
+      // spent. Never repeat that group request — work the pages solo.
+      if (await ocrBatchSolo(batch) === 'STOP') return persistDecidedPrefix()
+      continue
+    }
+    try {
+      const ocr = await callOcr(batch)
+      for (const item of ocr) if (batch.includes(item.page) && item.text.trim()) pageMap.set(item.page, item)
+      for (const page of batch) if (!ocr.some((item) => item.page === page && item.text.trim())) ocrFailures.set(page, 'OCR_RETURNED_NO_TEXT')
+      for (const page of batch) ocrSealed.add(page)
+    } catch {
+      // The group call failed. If it also consumed the remaining budget,
+      // solo recovery cannot even start now — record the batch as
+      // solo-retry state so the NEXT run goes straight to single pages
+      // instead of repeating the identical group request and stalling.
+      if (input.deadlineMs - Date.now() < 25_000) {
+        // Never report a resumable prefix if the recovery checkpoint could
+        // not be saved: the next worker would repeat this exhausted group OCR.
+        if (!store.saveOcrSoloPages) throw new Error('BOOK_OCR_SOLO_CHECKPOINT_UNAVAILABLE')
+        await store.saveOcrSoloPages(jobId, batch)
+        return persistDecidedPrefix()
+      }
+      // A failure on one page of a four-page OCR call must not discard the
+      // other three. Try each page, then preserve every remaining failure.
+      if (await ocrBatchSolo(batch) === 'STOP') return persistDecidedPrefix()
+    }
+  }
+  return persistPages(numbers)
 }
 
 // D0+D2.1: كل دفعة استخراج تُسجَّل كتشغيلة قراءة. بروفايل القراءة
@@ -217,9 +323,21 @@ export async function runExtractStep(jobId: string, deadlineMs: number) {
         update: { ...chunk, status: 'EXTRACTED', attempts: 0, lastError: null },
       })
     },
-    saveProgress: async (id, pagesDone, totalPages, totalChunks, phase) => {
-      await db.bookReadJob.update({ where: { id }, data: { pagesDone, totalPages, totalChunks, phase } })
+    saveProgress: async (id, pagesDone, totalPages, totalChunks, phase, issues = [], processedPages = []) => {
+      const previous = await db.bookReadJob.findUnique({ where: { id }, select: { lastError: true } })
+      const lastError = mergeBookPageReadIssues(previous?.lastError, processedPages, issues)
+      await db.bookReadJob.update({
+        where: { id },
+        data: { pagesDone, totalPages, totalChunks, phase, lastError },
+      })
+    },
+    saveOcrSoloPages: async (id, pages) => {
+      const previous = await db.bookReadJob.findUnique({ where: { id }, select: { lastError: true } })
+      await db.bookReadJob.update({
+        where: { id },
+        data: { lastError: withBookOcrSoloPages(previous?.lastError, pages) },
+      })
     },
   }
-  return extractPdfBatch({ buffer: stored.buffer, bookId: job.bookId, programId: job.programId, jobId, pagesDone: job.pagesDone, totalPages, existingChunks: job.totalChunks, store, deadlineMs })
+  return extractPdfBatch({ buffer: stored.buffer, bookId: job.bookId, programId: job.programId, jobId, pagesDone: job.pagesDone, totalPages, existingChunks: job.totalChunks, store, deadlineMs, soloPages: new Set(parseBookOcrSoloPages(job.lastError)) })
 }

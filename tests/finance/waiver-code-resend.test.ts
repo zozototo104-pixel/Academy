@@ -99,6 +99,10 @@ mock.module('@/lib/settle-payment', () => ({
 mock.module('@/lib/settings', () => ({
   getSettings: async () => ({}),
   nextInvoiceNo: async () => 'AACT-INV-2026-0002',
+  // payment-waivers imports this helper for invoice creation; the resend
+  // paths under test never call it, so the stub only completes the mock's
+  // export surface to match the real settings module.
+  createPaymentWithInvoiceNo: async (data: any) => ({ ...data, invoiceNo: 'AACT-INV-2026-0002', id: 'pay-created' }),
 }))
 
 const { PATCH } = await import('../../src/app/api/admin/payments/waivers/route')

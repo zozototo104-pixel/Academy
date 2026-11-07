@@ -262,7 +262,12 @@ function testWhatsAppMinimalSafety() {
   assert(route.includes('return { ...payload, message: { ...(payload?.message || {}), fromEncrypted } }'), 'WhatsApp inbound payload must restore encrypted sender after redactDeep')
   assert(route.includes('decryptWhatsAppPhone(message?.fromEncrypted)'), 'saved WhatsApp inbound events must recover the encrypted sender for cron/after processing')
   assert(route.includes("{ status: 'RECEIVED' }") && route.includes("{ status: 'FAILED' }"), 'WhatsApp event processing must atomically claim RECEIVED or FAILED events')
-  assert(!route.includes("{ status: 'PROCESSING', updatedAt"), 'WhatsApp event processing must not double-claim an in-flight event')
+  // Recover only a stale PROCESSING row, never one owned by an active worker;
+  // the functional webhook-event-claim suite exercises both paths.
+  assert(route.includes("{ status: 'PROCESSING', updatedAt: { lt: new Date(Date.now() - STALE_PROCESSING_RETRY_MS) } }"),
+    'WhatsApp event processing may reclaim only expired PROCESSING leases, not in-flight work')
+  assert(route.includes("if (!claim.count) return"),
+    'WhatsApp event processing must not proceed without its atomic claim')
   assert(route.includes('if (!claim.count) return'), 'WhatsApp event processing must skip when the atomic claim was not acquired')
   const asr = file('src/lib/asr.ts')
   assert(route.includes('transcribeAudioBase64(audioBase64, {'), 'WhatsApp voice transcription must use the shared ASR path')
@@ -352,7 +357,10 @@ function testSecurityBatchAFollowup() {
   assert(waiverLib.includes("? Math.min(Number(waiver.requestedAmountCents || 0), currentCents)"), 'partial waiver equal to remaining balance must be allowed and settle the invoice')
   const settlePayment = file('src/lib/settle-payment.ts')
   assert(settlePayment.includes('export async function finalizeAdmissionAfterSettlement') && settlePayment.includes("source: 'PAYMENT' | 'WAIVER'"), 'admission post-settlement side effects must be extracted to a shared finalizer')
-  assert(settlePayment.includes('await finalizeAdmissionAfterSettlement(db, payment.admissionId') && waiverLib.includes('await finalizeAdmissionAfterSettlement(db, updatedPayment.admissionId'), 'markInvoicePaid and waiver approval must both call finalizeAdmissionAfterSettlement')
+  assert(settlePayment.includes('await finalizeAdmissionAfterSettlement(db, payment.admissionId') &&
+    waiverLib.includes('if (finalizeAdmissionId) await finalizeAdmissionAfterSettlement(db, finalizeAdmissionId') &&
+    waiverLib.includes('const { updatedPayment, auditedCents, finalizeAdmissionId } = settlement'),
+    'payment and waiver approval must invoke the shared admission finalizer after the waiver transaction commits')
   assert(!waiverLib.includes('applyAdmissionWaiverEffects'), 'duplicate admission waiver finalizer must be removed')
   const dbClient = file('src/lib/db.ts')
   assert(!dbClient.includes('$extends') && !dbClient.includes('$use('), 'db client must remain the plain PrismaClient to preserve TransactionClient typing')
@@ -361,7 +369,9 @@ function testSecurityBatchAFollowup() {
   const installmentRoute = file('src/app/api/payments/installment/route.ts')
   assert(/applyScholarshipToNewInvoiceData\((db|tx)\b/.test(adminAdmissions) && adminAdmissions.includes("purpose: 'TUITION'"), 'admin admission tuition invoice creation must call the scholarship helper')
   assert(/applyScholarshipToNewInvoiceData\((db|tx)\b/.test(installmentRoute) && installmentRoute.includes("purpose: 'TUITION_INSTALLMENT'"), 'student installment invoice creation must call the scholarship helper')
-  assert(/const newInvoiceData = await applyScholarshipToNewInvoiceData\((db|tx)\b/.test(waiverLib) && waiverLib.includes("purpose: 'TUITION'"), 'waiver-created tuition invoices must call the scholarship helper')
+  assert(/const newInvoiceData = await applyScholarshipToNewInvoiceData\((db|tx|client)\b/.test(waiverLib) &&
+    waiverLib.includes("purpose: 'TUITION'") && waiverLib.includes('client: tx'),
+    'waiver-created tuition invoices must use the scholarship helper inside the scoped approval transaction')
 
   const adminExtras = file('src/components/aact/AdminExtras.tsx')
   assert(adminExtras.includes('activeWaiverForPayment') && adminExtras.includes('كود إعفاء نشط'), 'admin payments UI must show an active waiver badge/state')

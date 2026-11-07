@@ -309,7 +309,7 @@ ${buildSupervisorPersonaBlock(persona)}
 - رسوم تقديم الطلب وحجز المقعد: ${money(runtime?.applicationFee)} غير مستردة.
 - التكلفة المالية الافتراضية عند عدم وجود سعر خاص للبرنامج: الدكتوراه المهنية تبدأ من ${money(runtime?.doctorateStartsFrom)} — الماجستير المهني يبدأ من ${money(runtime?.mastersStartsFrom)} — الدبلومات والبرامج الدولية تبدأ من ${money(runtime?.diplomaStartsFrom)} حسب البرنامج.
 - متطلبات التخرج: ${runtime?.admissionGraduationText || OFFICIAL_INFO_UNAVAILABLE_REPLY}
-- مدة بحث التخرج: ${runtime?.thesisMinMonths && runtime?.thesisMaxMonths ? `من ${runtime.thesisMinMonths} إلى ${runtime.thesisMaxMonths} شهور كحد أقصى` : OFFICIAL_INFO_UNAVAILABLE_REPLY}.
+- مدة البرنامج: ${runtime?.thesisMaxMonths ? `حتى ${runtime.thesisMaxMonths} شهور كحد أقصى — يُغلق البرنامج بعدها. لا يوجد حد أدنى إلزامي للمدة ولا فترة انتظار قبل تقديم بحث التخرج أو مناقشته: الطالب الذي ينهي كل متطلباته (بما فيها بحث التخرج) أبكر من ذلك يستطيع التقديم والإنهاء فوراً، وهذا مسموح ومقصود` : OFFICIAL_INFO_UNAVAILABLE_REPLY}.
 - ملاحظة رسمية: ${runtime?.admissionNoteText || OFFICIAL_INFO_UNAVAILABLE_REPLY}
 
 دليل الاعتمادات الدولية من الإعدادات:

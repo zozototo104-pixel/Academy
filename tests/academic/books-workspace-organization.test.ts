@@ -17,7 +17,8 @@ const digest = (text: string) => createHash('sha256').update(text.replace(/\s+/g
 const ORIGINAL_FUNCTION_HASHES: Record<string, string> = {
   isCatalogLikeUiLink: '93f7b3faf4202e69bb9eb9d1d7da1a508fbee90b88acc5e76c847c80e37419f4',
   bookNeedsReadableSource: '7f1883f10d3d63aa91c3037b31357e12215722e0c00ba727a76967e3fac84657',
-  loadProgramData: 'c8100488c57894107b24c1b9d50b2d661097442b8f8247409fef88ab5c69d9e9',
+  // PR #188: preserve total from paginated knowledge-bank response; count alone is page size.
+  loadProgramData: '6b12d54037f8095e36be378ef3db2d1f3db8e9979359d946e8973339c7a976f4',
   addBook: '4700faf06c1d307a54615f61b573370e64c79f519e25cb51de6dfe5dcd796599',
   updateBookSource: '5caaafdc9ebe990b2c4d36cb3f2e415bfc662929e4ec816e7caca5122271cd2f',
   deleteBook: '40b8c4120c1c782b73206f9998512221d36fc7b3d523e6d6266d13ea1e480d92',
@@ -62,8 +63,12 @@ const ORIGINAL_API_CALL_COUNT = 81 // Existing 80 reviewed calls plus the admin 
 // طريقة ولا جسم تغيّر. السلوك مثبّت في
 // tests/assignments/assignment-due-video-guard.test.ts و
 // tests/assignments/assignment-suggest-behavior.test.ts.
+// PR #188: the existing outline approval POST now also sends a report-bound
+// acknowledgeCoverage/acknowledgmentKey pair; endpoint and call count stay
+// unchanged. This digest pins the reviewed contract; separate assertions below
+// ensure the new acknowledgment is never sent before the admin confirms it.
 // Keep this declaration outside comments so TypeScript can validate the guard.
-const ORIGINAL_API_DIGEST = 'c8b806deb476242ed67c638a599506fdd7a04f6e5f75e513606d507581628769'
+const ORIGINAL_API_DIGEST = '06cd5c330f532a607bf472385424563049691648756fc0047abf598ff4d1c29d'
 
 function parseSource() {
   return ts.createSourceFile('AdminBooks.tsx', SOURCE, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
@@ -134,6 +139,15 @@ describe('books workspace organization guard', () => {
 
   it('protected academic function bodies are byte-equivalent (whitespace-normalized)', () => {
     assert.deepEqual(functionHashes(), ORIGINAL_FUNCTION_HASHES)
+  })
+
+  it('the knowledge-bank total uses full pagination count while retaining the old fallback', () => {
+    const sf = SOURCE.slice(SOURCE.indexOf('  const loadProgramData = useCallback('),
+      SOURCE.indexOf('  const hasActiveExamGenerationJob = useMemo('))
+    assert.ok(sf.includes('setKnowledgeTotalCount(k.total ?? k.count ?? 0)'),
+      'the full count comes from total, then safely falls back to count on old responses')
+    assert.ok(sf.includes('if (latestProgramLoadRef.current !== loadToken) return'),
+      'stale program responses must not overwrite the selected program')
   })
 
   it('the API/fetch call surface is unchanged (full call expressions: path, method, body, headers)', () => {
@@ -245,7 +259,16 @@ describe('books workspace organization guard', () => {
     const flow = SOURCE.slice(start, end)
     assert.ok(!flow.includes('window.confirm(') && !flow.includes('window.prompt('), 'browser system prompts must not be used')
     assert.ok(flow.includes("error?.code === 'OUTLINE_OVERSIZED_SECTIONS' && !overrideReason"), 'only the oversized guard may open the documented override flow')
-    assert.ok(flow.includes('attempt(overrideReason ? { overrideOversized: true, overrideReason } : {})'), 'server-side guard remains authoritative on both requests')
+    assert.ok(flow.includes('const result = await attempt({'), 'single server-guarded approval endpoint remains the source of truth')
+    assert.ok(flow.includes('...(overrideReason ? { overrideOversized: true, overrideReason } : {})'),
+      'oversized override must only carry the explicitly documented reason')
+    assert.ok(flow.includes('...(acknowledgmentKey ? { acknowledgeCoverage: true, acknowledgmentKey } : {})'),
+      'missing-page acknowledgment must carry the exact report key')
+    assert.ok(flow.includes("error?.code === 'OUTLINE_REVIEW_REQUIRED'"),
+      'coverage review is opened only in response to the server rejection')
+    assert.ok(flow.includes('outlineCoverageAcksRef.current[bookId] = key') &&
+      flow.includes('if (confirmed)') && flow.includes('await approveBookOutline(bookId, overrideReason)'),
+      'only confirmed admin consent may trigger the acknowledgment retry')
     assert.ok(flow.includes('reason.length < 3'), 'documented reason must be validated before submission')
     assert.ok(SOURCE.includes("outlineApprovalDialog.stage === 'warning'"), 'warning is an in-platform stage')
     assert.ok(SOURCE.includes("outlineApprovalDialog.stage === 'reason'") || SOURCE.includes("stage: 'reason'"), 'reason entry is an in-platform stage')
@@ -253,6 +276,13 @@ describe('books workspace organization guard', () => {
     assert.ok(SOURCE.includes('onClick={() => void submitDocumentedOutlineOverride()}'), 'documented override action remains wired')
     assert.ok(SOURCE.includes('void buildOutlineForBook(bookId)'), 'rebuild option remains functional')
     assert.ok(SOURCE.includes('aria-invalid={!!outlineApprovalDialog.error}'), 'invalid reasons are announced in the modal')
+    const approvalRoute = readFileSync(resolve(process.cwd(),
+      'src/app/api/admin/books/[id]/outline/approve/route.ts'), 'utf8')
+    assert.ok(approvalRoute.includes("code: 'OUTLINE_REVIEW_REQUIRED'") &&
+      approvalRoute.includes('body?.acknowledgeCoverage !== true || body?.acknowledgmentKey !== acknowledgmentKey'),
+      'the server must reject approvals without explicit acknowledgment of the exact report')
+    assert.ok(approvalRoute.includes("code: 'OUTLINE_INCOMPLETE_PAGE_RANGES'"),
+      'acknowledging gaps must not bypass unknown chapter boundaries')
   })
 
   it('assignment grading groups every student and never silently cuts off 200 submissions', () => {

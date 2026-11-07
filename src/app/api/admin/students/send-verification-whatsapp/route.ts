@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
         emailVerifiedAt: true,
         emailVerificationSentAt: true,
         emailVerificationExpiresAt: true,
+        emailVerificationTokenHash: true,
       },
     })
     if (!user) return NextResponse.json({ ok: false, error: 'لا يوجد حساب طالب مرتبط بهذا البريد' }, { status: 404 })
@@ -43,6 +44,14 @@ export async function POST(req: NextRequest) {
     if (!recipientLimit.ok) return NextResponse.json({ ok: false, error: 'تم تجاوز حد الإرسال لهذا الرقم، حاول لاحقاً' }, { status: 429 })
     const adminLimit = await checkDatabaseRateLimit(`whatsapp-verify:admin:${admin.id}`, 30, 60 * 60 * 1000)
     if (!adminLimit.ok) return NextResponse.json({ ok: false, error: 'تم تجاوز حد الإرسال، حاول لاحقاً' }, { status: 429 })
+    // ختم الإصدار السابق محفوظ: فشل إرسال واتساب يسترجعه حتى لا يحرق
+    // الإرسال الفاشل نافذة إعادة الإرسال (10 دقائق) ولا يقتل رمزًا سابقًا
+    // ما زال صالحًا.
+    const priorVerification = {
+      emailVerificationTokenHash: (user as any).emailVerificationTokenHash ?? null,
+      emailVerificationExpiresAt: user.emailVerificationExpiresAt ?? null,
+      emailVerificationSentAt: user.emailVerificationSentAt ?? null,
+    }
     const verification = await issueEmailVerificationToken(user.id)
     const url = emailVerificationUrl(req, verification.token)
     const conversation = await db.whatsAppConversation.findUnique({
@@ -51,30 +60,33 @@ export async function POST(req: NextRequest) {
     })
     const lastInboundAt = conversation?.lastInboundAt?.getTime() || 0
     const windowOpen = Boolean(lastInboundAt && Date.now() - lastInboundAt >= 0 && Date.now() - lastInboundAt < WHATSAPP_WINDOW_MS)
-    if (windowOpen) {
-      const text = `مرحباً ${user.name}، رابط التحقق الخاص بك في أكاديمية AACT: ${url} — الرابط صالح لمدة 24 ساعة.`
-      const result = await sendOfficialWhatsAppText(digits, text)
-      await recordWhatsAppOutboundMessage({
-        waId: digits,
-        phoneNumberId: null,
-        text,
-        sender: 'HUMAN',
-        whatsappMessageId: (result as any)?.messages?.[0]?.id || null,
-        sentById: admin.id,
-        sentByName: admin.name,
-      })
-      return NextResponse.json({ ok: true, sent: 'link', message: 'تم إرسال رابط التحقق إلى واتساب الطالب' })
+    const text = windowOpen
+      ? `مرحباً ${user.name}، رابط التحقق الخاص بك في أكاديمية AACT: ${url} — الرابط صالح لمدة 24 ساعة.`
+      : `تم إرسال قالب المتابعة المعتمد human_followup_ar إلى ${user.name}. رابط التحقق يُرسل بعد أن يرد الطالب.`
+    let result: any
+    try {
+      result = windowOpen
+        ? await sendOfficialWhatsAppText(digits, text)
+        : await sendOfficialWhatsAppHumanFollowup(digits, user.name)
+    } catch (sendError) {
+      await db.user.update({
+        where: { id: user.id },
+        data: priorVerification,
+      }).catch(() => {})
+      throw sendError
     }
-    const result = await sendOfficialWhatsAppHumanFollowup(digits, user.name)
     await recordWhatsAppOutboundMessage({
       waId: digits,
       phoneNumberId: null,
-      text: `تم إرسال قالب المتابعة المعتمد human_followup_ar إلى ${user.name}. رابط التحقق يُرسل بعد أن يرد الطالب.`,
+      text,
       sender: 'HUMAN',
       whatsappMessageId: (result as any)?.messages?.[0]?.id || null,
       sentById: admin.id,
       sentByName: admin.name,
     })
+    if (windowOpen) {
+      return NextResponse.json({ ok: true, sent: 'link', message: 'تم إرسال رابط التحقق إلى واتساب الطالب' })
+    }
     return NextResponse.json({ ok: true, sent: 'template', message: 'تم إرسال الرسالة المعتمدة — بيوصل الرابط لما الطالب يرد' })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ ok: false, error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })

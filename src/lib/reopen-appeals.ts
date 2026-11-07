@@ -35,28 +35,48 @@ export async function createReopenAppeal(
     select: { id: true },
   }).catch(() => null)
   if (!enrollment) return { ok: false, code: 'ENROLLMENT_NOT_FOUND' }
-  const state = await getSemesterState(client, enrollment.id, semester)
-  if (state?.status === 'CLOSED') return { ok: false, code: 'SEMESTER_CLOSED' }
-  const store = (client as AnyClient)?.reopenAppeal
-  if (!store?.create) return { ok: false, code: 'INVALID_INPUT' }
-  const existing = await store.findFirst({
-    where: { enrollmentId: enrollment.id, unitId: unitId ?? undefined, status: 'PENDING' },
-    select: { id: true },
-  }).catch(() => null)
-  if (existing) return { ok: false, code: 'APPEAL_ALREADY_PENDING' }
-  const now = new Date()
-  const appeal = await store.create({
-    data: {
-      enrollmentId: enrollment.id,
-      userId: args.userId,
-      programId,
-      semester,
-      unitId,
-      reason: reason.slice(0, 2000),
-      status: 'PENDING',
-      decisionDeadline: new Date(now.getTime() + REOPEN_APPEAL_DECISION_DAYS * 86_400_000),
-    },
-  })
+  // The pending check and the create must be atomic per enrollment:
+  // ReopenAppeal has no unique constraint, so two concurrent requests
+  // could both pass a bare check-then-create and file duplicates. Run
+  // both inside one transaction holding a row lock on the enrollment
+  // (the payment-waivers/settle-payment pattern) and re-check inside
+  // the lock. Clients without transactions (test doubles) keep the
+  // previous sequential path.
+  const createOnce = async (c: AnyClient): Promise<ReopenAppealResult> => {
+    const state = await getSemesterState(c, enrollment.id, semester)
+    if (state?.status === 'CLOSED') return { ok: false, code: 'SEMESTER_CLOSED' }
+    const store = (c as AnyClient)?.reopenAppeal
+    if (!store?.create) return { ok: false, code: 'INVALID_INPUT' }
+    const existing = await store.findFirst({
+      where: { enrollmentId: enrollment.id, unitId: unitId ?? undefined, status: 'PENDING' },
+      select: { id: true },
+    }).catch(() => null)
+    if (existing) return { ok: false, code: 'APPEAL_ALREADY_PENDING' }
+    const now = new Date()
+    const appeal = await store.create({
+      data: {
+        enrollmentId: enrollment.id,
+        userId: args.userId,
+        programId,
+        semester,
+        unitId,
+        reason: reason.slice(0, 2000),
+        status: 'PENDING',
+        decisionDeadline: new Date(now.getTime() + REOPEN_APPEAL_DECISION_DAYS * 86_400_000),
+      },
+    })
+    return { ok: true, appeal }
+  }
+  const created: ReopenAppealResult = typeof client.$transaction === 'function'
+    ? await client.$transaction(async (tx: AnyClient) => {
+      if (typeof tx.$queryRaw === 'function') {
+        await tx.$queryRaw`SELECT id FROM "Enrollment" WHERE id = ${enrollment.id} FOR UPDATE`
+      }
+      return createOnce(tx)
+    })
+    : await createOnce(client)
+  if (!created.ok) return created
+  const appeal = created.appeal
   await enqueueOutbox(client, {
     key: `reopen-appeal-created:${appeal.id}`,
     kind: 'REOPEN_APPEAL_CREATED',

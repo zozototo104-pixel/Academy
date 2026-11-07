@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useAdminActionDialog } from '@/components/aact/AdminActionDialog'
+import { SemesterTrackingCard, type StudentTrackingView } from '@/components/aact/SemesterTrackingCard'
 import {
   AlertTriangle,
   ArrowRight,
@@ -119,8 +120,9 @@ interface EnrollmentDetail {
     earnedScore: number
     progressScore: number
     weightSource: string
-    components: Array<{ key: string; label: string; weight: number; score: number | null; ready: boolean; exempt?: boolean }>
+    components: Array<{ key: string; label: string; weight: number; score: number | null; ready: boolean; exempt?: boolean; weighted?: number }>
   } | null
+  tracking?: StudentTrackingView | null
   counts: {
     unitsTotal: number
     unitsCompleted: number
@@ -194,6 +196,11 @@ function dateAr(value?: string | null) {
 
 function score(value: unknown) {
   return typeof value === 'number' ? `${Math.round(value)}%` : '—'
+}
+
+// Display only: preserve decimal precision so 19.6% is not presented as 20%.
+function formatGradeValue(value: number) {
+  return Number(value.toFixed(2)).toString()
 }
 
 const UNIT_STATE_AR: Record<string, string> = {
@@ -499,10 +506,10 @@ export function AdminStudentPreview() {
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       <Badge className="bg-[#0f2b46] text-[#f5f0e1] hover:bg-[#0f2b46]">المعدل التراكمي: {cumulativeLabel(d)}</Badge>
-                      <Badge variant="outline">وحدات مكتملة: {d.counts.unitsCompleted}/{d.counts.unitsTotal}</Badge>
-                      <Badge variant="outline">اختبارات وحدات ناجحة: {d.counts.unitExamsPassed}/{d.counts.unitExamsTotal}</Badge>
-                      <Badge variant="outline">واجبات مسلّمة: {d.counts.assignmentsSubmitted}/{d.counts.assignmentsTotal}</Badge>
-                      <Badge variant="outline">امتحانات برنامج ناجحة: {d.counts.programExamsPassed}/{d.counts.programExamsTotal}</Badge>
+                      <Badge variant="outline">إجمالي البرنامج — وحدات مكتملة: {d.counts.unitsCompleted}/{d.counts.unitsTotal}</Badge>
+                      <Badge variant="outline">إجمالي البرنامج — اختبارات وحدات ناجحة: {d.counts.unitExamsPassed}/{d.counts.unitExamsTotal}</Badge>
+                      <Badge variant="outline">إجمالي البرنامج — واجبات مسلّمة: {d.counts.assignmentsSubmitted}/{d.counts.assignmentsTotal}</Badge>
+                      <Badge variant="outline">إجمالي البرنامج — امتحانات برنامج ناجحة: {d.counts.programExamsPassed}/{d.counts.programExamsTotal}</Badge>
                       {d.remaining.daysLeft != null && (
                         <Badge className={d.remaining.daysLeft <= 0 ? 'bg-red-100 text-red-700 hover:bg-red-100' : 'bg-blue-100 text-blue-700 hover:bg-blue-100'}>
                           {d.remaining.daysLeft > 0 ? `متبقٍّ من مدة الدراسة: ${d.remaining.daysLeft} يوم` : 'انتهت مدة الدراسة المقررة'}
@@ -518,12 +525,23 @@ export function AdminStudentPreview() {
                     {d.cumulative && d.cumulative.components.length > 0 && (
                       <div className="mt-2 grid gap-2 sm:grid-cols-2">
                         {d.cumulative.components.map((c) => (
-                          <p key={c.key} className="rounded-xl bg-white p-3 font-bold text-slate-600">
-                            {c.label} (الوزن {c.weight}%) — {c.exempt ? 'معفى' : c.score != null ? `${Math.round(c.score)}%` : 'غير مكتمل'}
-                          </p>
+                          <div key={c.key} className="rounded-xl bg-white p-3 font-bold text-slate-600">
+                            <p>{c.label} (الوزن {c.weight}%)</p>
+                            <p className="mt-1 text-slate-800">
+                              {c.exempt ? 'معفى' : c.score != null
+                                ? `${c.ready ? 'النتيجة' : 'النتيجة الحالية'}: ${formatGradeValue(c.score)}%${c.ready ? '' : ' — لم يكتمل بعد'}`
+                                : 'غير مكتمل'}
+                            </p>
+                            {!c.exempt && c.score != null && typeof c.weighted === 'number' && Number.isFinite(c.weighted) && (
+                              <p className="mt-1 text-[11px] font-medium text-slate-500">
+                                المساهمة في المعدل: {formatGradeValue(c.weighted)} نقطة مئوية
+                              </p>
+                            )}
+                          </div>
                         ))}
                       </div>
                     )}
+                    <SemesterTrackingCard tracking={d.tracking} />
                   </div>
                 ))}
               </div>

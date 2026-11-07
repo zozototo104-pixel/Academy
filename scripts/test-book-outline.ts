@@ -1,4 +1,4 @@
-import { planBookOutline, applyGroundedChapterTitleProposals, detectOriginalSourceHeadings, outlineSubheadingMarkers, sourceBoundariesFromReadChunks, parseAiOutlineBoundaries, auditOutlineCoverage, outlineApprovalGuard, remapOutlineReviewWarnings, refineOversizedSections, evidenceBoundariesForOversizedRange, balanceBookOutlineSections, validateThematicArticleGrouping, type OutlineSectionDraft } from '@/lib/book-outline'
+import { planBookOutline, applyGroundedChapterTitleProposals, detectOriginalSourceHeadings, outlineSubheadingMarkers, sourceBoundariesFromReadChunks, parseAiOutlineBoundaries, auditOutlineCoverage, outlineApprovalGuard, isVisuallyBlankPdfPage, missingBookSourcePageRanges, remapOutlineReviewWarnings, refineOversizedSections, evidenceBoundariesForOversizedRange, balanceBookOutlineSections, validateThematicArticleGrouping, recoverOutlineOcrPages, type OutlineSectionDraft } from '@/lib/book-outline'
 import { readFileSync } from 'node:fs'
 
 type ChunkInput = Parameters<typeof planBookOutline>[0][number]
@@ -249,6 +249,53 @@ function testWordFormChaptersElevenAndTwelve() {
   assert(result.sections.some((s) => s.title.includes('الثاني عشر') && s.chunkStartIndex === 2), 'الفصل الثاني عشر يجب ألا يُبتلع أو يُحسب فصلاً ثانياً مكرراً')
 }
 
+async function testSourceVerifiedWhitePagesCannotMaskMissingBookContent() {
+  const sharp = (await import('sharp')).default
+  const make = (background: string) => sharp({ create: {
+    width: 240, height: 320, channels: 3, background,
+  } }).png().toBuffer()
+  assert(await isVisuallyBlankPdfPage(await make('#ffffff')), 'الصفحة البيضاء بصرياً مثبتة')
+  assert(!await isVisuallyBlankPdfPage(await make('#000000')), 'الصفحة ذات المحتوى المرئي ليست فارغة')
+  const sections = [
+    draftSection(1, 'الفصل الأول', 1, 7),
+    draftSection(2, 'الفصل الثاني', 9, 16),
+    draftSection(3, 'الفصل الثالث', 21, 27),
+  ]
+  const original = outlineApprovalGuard(sections, { pageStart: 1, pageEnd: 27 })
+  assert(original.decision === 'BLOCK' && original.report.gaps.length === 2, 'الصفحات غير الموثقة تمنع الاعتماد')
+  const firstBlank = outlineApprovalGuard(sections, { pageStart: 1, pageEnd: 27 }, [8])
+  assert(firstBlank.decision === 'BLOCK' && firstBlank.report.gaps.length === 1 &&
+    firstBlank.report.gaps[0].pageStart === 17 && firstBlank.report.gaps[0].pageEnd === 20,
+    'توثيق الصفحة 8 لا يجوز أن يخفي نقص الصفحات 17–20')
+  const allBlank = outlineApprovalGuard(sections, { pageStart: 1, pageEnd: 27 }, [8, 17, 18, 19, 20])
+  assert(allBlank.decision === 'ALLOW' && allBlank.report.gaps.length === 0,
+    'تُستثنى فقط الصفحات البيضاء التي تحقق المصدر من كل واحدة منها')
+  assert(outlineApprovalGuard(sections, { pageStart: 1, pageEnd: 27 }, [8, 17, 18, 19]).decision === 'BLOCK',
+    'بقاء صفحة واحدة غير موثقة يمنع الاعتماد')
+  const incomplete = [{ ...sections[0], pageEnd: null }, ...sections.slice(1)]
+  assert(outlineApprovalGuard(incomplete, { pageStart: 1, pageEnd: 27 }, [8, 17, 18, 19, 20]).decision === 'BLOCK',
+    'حدود القسم المجهولة لا تُعالَج بإثبات صفحات بيضاء')
+}
+
+function testMergeAcrossUnreadPageRetainsSourceEvidenceGap() {
+  const a = draftSection(1, 'استراتيجيات الرقابة المالية', 1, 7)
+  const b = draftSection(2, 'تطبيقات الرقابة المالية', 9, 16)
+  const merged = balanceBookOutlineSections([a, b])
+  assert(merged.merged === 1 && merged.sections.length === 1,
+    'الفاصل عند الصفحة 8 لا يمنع ضم قسمين متجانسين')
+  assert(merged.sections[0].pageStart === 1 && merged.sections[0].pageEnd === 16,
+    'حدود القسم المدموج تبقى كما هي دون اختراع محتوى')
+  const sourceGaps = missingBookSourcePageRanges([
+    { pageStart: 1, pageEnd: 7 }, { pageStart: 9, pageEnd: 16 },
+  ], { pageStart: 1, pageEnd: 16 })
+  assert(sourceGaps.length === 1 && sourceGaps[0].pageStart === 8 && sourceGaps[0].pageEnd === 8,
+    'الصفحة 8 يجب أن تظل مشكلة قراءة في المصدر بعد دمج الفصول')
+  const unrelated = balanceBookOutlineSections([
+    a, { ...b, title: 'التعليم والفلسفة اليونانية' },
+  ])
+  assert(unrelated.merged === 0, 'الفجوة لا تبرر دمج موضوعين غير مرتبطين')
+}
+
 function testCoverageRejectsShortSectionsWithMissingPages() {
   const sections = [draftSection(1, 'قسم أ', 1, 40), draftSection(2, 'قسم ب', 50, 80)]
   const report = auditOutlineCoverage(sections)
@@ -339,7 +386,7 @@ function testFullBalancingIsWiredBeforePersistingDraft() {
   const source = readFileSync('src/lib/book-outline.ts', 'utf8')
   const refine = source.indexOf('const refined = await refineOversizedSections(')
   const balance = source.indexOf('const balanced = thematic ? { sections: thematic.sections, merged: 0 } : balanceBookOutlineSections(refined.sections)', refine)
-  const coverage = source.indexOf('const coverage = auditOutlineCoverage(draft.sections)', balance)
+  const coverage = source.indexOf('const coverage = auditOutlineCoverage(draft.sections, {', balance)
   assert(refine >= 0 && balance > refine && coverage > balance, 'الفحص ثم التجميع الموضوعي المحروس ثم التغطية يجب أن تسبق حفظ الفهرس')
 }
 
@@ -461,10 +508,46 @@ function testThematicGroupCannotHideMissingPdfPages() {
     { startOrder: 1, endOrder: 2, title: 'قيادة وذكاء عاطفي' },
     { startOrder: 3, endOrder: 3, title: 'صراع' },
   ] }
+  const grouped = validateThematicArticleGrouping(JSON.stringify(proposal), source)
+  assert(grouped.sections.length === 2 && grouped.sections[0].pageEnd === 31,
+    'الفجوة في الصفحة 28 لا تمنع ضم موضوعين متجاورين مع بقاء النطاق الحقيقي')
+  const missing = missingBookSourcePageRanges(source.map(({ pageStart, pageEnd }) => ({
+    pageStart: pageStart!, pageEnd: pageEnd!,
+  })), { pageStart: 11, pageEnd: 33 })
+  assert(missing.length === 1 && missing[0].pageStart === 28 && missing[0].pageEnd === 28,
+    'يجب بقاء الصفحة 28 ناقصة في تدقيق المصدر المستقل حتى بعد الدمج')
   let reason = ''
-  try { validateThematicArticleGrouping(JSON.stringify(proposal), source) }
+  const overlapping = [source[0], { ...source[1], pageStart: 27 }, source[2]]
+  try { validateThematicArticleGrouping(JSON.stringify(proposal), overlapping) }
   catch (error) { reason = error instanceof Error ? error.message : String(error) }
-  assert(reason === 'OUTLINE_THEMATIC_SOURCE_COVERAGE_GAP', 'لا يجوز إخفاء الصفحة 28 المفقودة داخل وحدة أكبر')
+  assert(reason === 'OUTLINE_THEMATIC_SOURCE_COVERAGE_GAP', 'الحدود المتداخلة أو المعكوسة تظل مرفوضة')
+}
+
+async function testOutlinePdfOcrFailureContinuesAndRequiresAcknowledgment() {
+  const pages = [1, 2, 3, 4].map((page) => ({
+    page, text: [2, 3].includes(page) ? '' : 'نص أصلي مقروء',
+    textProvenance: 'NATIVE_TEXT' as const,
+  }))
+  const calls: string[] = []
+  const result = await recoverOutlineOcrPages(pages, [[2, 3]], async (numbers) => {
+    calls.push(numbers.join(','))
+    if (numbers.length > 1 || numbers[0] === 2) throw new Error('OCR_UNREADABLE')
+    return [{ page: numbers[0], text: 'نص الصفحة الثالثة المستعاد', textProvenance: 'VISION_OCR' as const }]
+  })
+  assert(calls.join('|') === '2,3|2|3', 'فشل OCR الجماعي يتبعه فحص كل صفحة منفردة')
+  assert(result[1].text === '' && !!result[1].readError,
+    'صفحة 2 تبقى مفقودة ومعلّمة عند فشل OCR')
+  assert(result[2].text.includes('الثالثة') && !result[2].readError,
+    'صفحة 3 تُستعاد رغم فشل الثانية')
+  assert(result[3].text.includes('أصلي'), 'صفحة 4 تبقى مقروءة بعد الفشل')
+  const source = readFileSync('src/lib/book-outline.ts', 'utf8')
+  const approval = readFileSync('src/app/api/admin/books/[id]/outline/approve/route.ts', 'utf8')
+  const aiRebuild = source.indexOf('draft = { ...planBookOutline(chunks, items, chunkIds')
+  const savedWarning = source.indexOf("draft.warnings.push('OUTLINE_PDF_READ_ISSUES:'")
+  assert(aiRebuild >= 0 && savedWarning > aiRebuild,
+    'يجب حفظ التحذيرات بعد إعادة بناء المسودة حتى لا يمحوها التقسيم الذكي')
+  assert(approval.includes('pdfReadIssues, verifiedBlankPages') &&
+    approval.includes('...pdfReadIssues.map('), 'الإقرار يجب أن يغطي أخطاء OCR المباشر')
 }
 
 function testRepeatedMergesRetainOriginalTitles() {
@@ -484,7 +567,7 @@ function testOutlineReviewNeverSilentlyDeletesSourceCoverage() {
   const view = readFileSync('src/components/aact/AdminBooks.tsx', 'utf8')
   assert(route.includes("mergeInto !== 'previous' && mergeInto !== 'next'"), 'حذف الفهرس يجب أن يطلب اتجاه ضم صريح')
   assert(route.includes("code: 'OUTLINE_MERGE_UNVERIFIED_PAGES'"), 'لا يجوز ضم عناوين بصفحات غير موثقة')
-  assert(route.includes("code: 'OUTLINE_MERGE_GAP'"), 'لا يجوز تخطي فجوة عند ضم العناوين')
+  assert(route.includes('OUTLINE_MERGE_SOURCE_GAP:'), 'ضم العناوين عبر فجوة يجب أن يحفظ سجلها')
   assert(route.includes('await db.$transaction(async (tx) => {'), 'ضم القسم وإعادة الترقيم يجب أن تكون عملية ذرّية')
   assert(route.includes('itemsCount = await db.bookKnowledgeItem.count('), 'العدّاد يجب أن يعكس المقاطع بعد الدمج')
   assert(!route.includes('await db.bookOutlineSection.delete({ where: { id: sectionId } })'), 'حظر العودة للحذف غير الذرّي')
@@ -598,6 +681,9 @@ function testInferredChapterTitleRequiresSameChapterKnowledgeEvidence() {
 }
 
 const tests = [
+  testOutlinePdfOcrFailureContinuesAndRequiresAcknowledgment,
+  testMergeAcrossUnreadPageRetainsSourceEvidenceGap,
+  testSourceVerifiedWhitePagesCannotMaskMissingBookContent,
   testInferredChapterTitleRequiresSameChapterKnowledgeEvidence,
   testGenericChunkHeadingsYieldToSemanticSourceChapterTitles,
   testRepeatedBookHeaderWithPageNumberNeverBecomesChapterTitle,

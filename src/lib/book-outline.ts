@@ -553,8 +553,9 @@ function outlineTopicWords(title: string): Set<string> {
 /**
  * Balance a WHOLE draft after heading discovery and oversized-range refinement.
  * Merge only adjacent short sections that have a common, specific source topic.
- * Never merge documented chapters, unknown-page boundaries, noncontiguous pages
- * or same-chunk divisions. Titles concatenate exact source headings; no new
+ * Never merge documented chapters, unknown-page boundaries, reversed source
+ * order, or same-chunk divisions. Missing intervening pages remain separately
+ * tracked by the source-chunk audit, never treated as read evidence. Titles concatenate exact source headings; no new
  * academic title or unsupported chapter is invented.
  */
 export function balanceBookOutlineSections(input: readonly OutlineSectionDraft[]): {
@@ -573,11 +574,14 @@ export function balanceBookOutlineSections(input: readonly OutlineSectionDraft[]
       const rightPages = sectionPageSpan(right)
       if (leftPages === null || rightPages === null) continue
       if (leftPages >= OUTLINE_TARGET_MIN_PAGES && rightPages >= OUTLINE_TARGET_MIN_PAGES) continue
-      if (left.pageEnd! + 1 !== right.pageStart || left.chunkEndIndex >= right.chunkStartIndex) continue
+      // A blank/unreadable source page may lie between otherwise compatible
+      // adjacent themes. Do not reject the merge solely for that missing
+      // page; independent BookChunk coverage audit keeps it reportable.
+      if (left.pageEnd! >= right.pageStart! || left.chunkEndIndex >= right.chunkStartIndex) continue
       if (chapterNumber(left.title) !== null || chapterNumber(right.title) !== null) continue
       if (/^(?:الفصل|الباب|chapter|part)\s/iu.test(normalizeOutlineText(left.title)) ||
           /^(?:الفصل|الباب|chapter|part)\s/iu.test(normalizeOutlineText(right.title))) continue
-      const combinedPages = leftPages + rightPages
+      const combinedPages = right.pageEnd! - left.pageStart! + 1 // include missing pages in the real span
       if (combinedPages > OUTLINE_SECTION_REVIEW_PAGES) continue
       const leftWords = outlineTopicWords(left.title)
       const rightWords = outlineTopicWords(right.title)
@@ -611,9 +615,50 @@ export function sectionPageSpan(section: Pick<OutlineSectionDraft, 'pageStart' |
   return section.pageEnd - section.pageStart + 1
 }
 
+/** Independent source audit: merged section ranges must not hide unread pages. */
+export function missingBookSourcePageRanges(
+  chunks: readonly { pageStart: number; pageEnd: number }[],
+  sourceRange: { pageStart: number; pageEnd: number },
+): Array<{ pageStart: number; pageEnd: number }> {
+  const ordered = chunks.filter((chunk) =>
+    Number.isSafeInteger(chunk.pageStart) && Number.isSafeInteger(chunk.pageEnd) &&
+    chunk.pageStart > 0 && chunk.pageEnd >= chunk.pageStart)
+    .sort((a, b) => a.pageStart - b.pageStart)
+  const gaps: Array<{ pageStart: number; pageEnd: number }> = []
+  let next = sourceRange.pageStart
+  for (const chunk of ordered) {
+    if (chunk.pageEnd < next) continue
+    if (chunk.pageStart > sourceRange.pageEnd) break
+    if (chunk.pageStart > next) gaps.push({ pageStart: next, pageEnd: Math.min(chunk.pageStart - 1, sourceRange.pageEnd) })
+    next = Math.max(next, chunk.pageEnd + 1)
+    if (next > sourceRange.pageEnd) break
+  }
+  if (next <= sourceRange.pageEnd) gaps.push({ pageStart: next, pageEnd: sourceRange.pageEnd })
+  return gaps
+}
+
+export function subtractVerifiedBlankPages(
+  gaps: readonly { pageStart: number; pageEnd: number }[],
+  verifiedBlankPages: readonly number[],
+): Array<{ pageStart: number; pageEnd: number }> {
+  const blanks = [...new Set(verifiedBlankPages.filter((page) => Number.isSafeInteger(page) && page > 0))].sort((a, b) => a - b)
+  const unresolved: Array<{ pageStart: number; pageEnd: number }> = []
+  for (const gap of gaps) {
+    let start = gap.pageStart
+    for (const page of blanks) {
+      if (page < start || page > gap.pageEnd) continue
+      if (page > start) unresolved.push({ pageStart: start, pageEnd: page - 1 })
+      start = page + 1
+    }
+    if (start <= gap.pageEnd) unresolved.push({ pageStart: start, pageEnd: gap.pageEnd })
+  }
+  return unresolved
+}
+
 export function auditOutlineCoverage(
   sections: readonly OutlineSectionDraft[],
   sourceRange?: { pageStart: number; pageEnd: number },
+  verifiedBlankPages: readonly number[] = [],
 ): OutlineCoverageReport {
   const audited = sections.map((section) => {
     const pages = sectionPageSpan(section)
@@ -644,13 +689,27 @@ export function auditOutlineCoverage(
   if (sourceRange && (coveredUntil === null || coveredUntil < sourceRange.pageEnd)) {
     gaps.push({ pageStart: (coveredUntil ?? sourceRange.pageStart - 1) + 1, pageEnd: sourceRange.pageEnd })
   }
+  // Only server-verified WHITE PDF pages may be excluded. A missing chunk,
+  // missing text layer, or an administrator claim is never proof of blankness.
+  const blank = new Set(verifiedBlankPages.filter((page) => Number.isSafeInteger(page) && page > 0))
+  const unresolvedGaps = gaps.flatMap((gap) => {
+    const verifiedInGap = [...blank].filter((page) => page >= gap.pageStart && page <= gap.pageEnd).sort((a, b) => a - b)
+    const parts: typeof gaps = []
+    let start = gap.pageStart
+    for (const page of verifiedInGap) {
+      if (page > start) parts.push({ pageStart: start, pageEnd: page - 1 })
+      start = page + 1
+    }
+    if (start <= gap.pageEnd) parts.push({ pageStart: start, pageEnd: gap.pageEnd })
+    return parts
+  })
   return {
     totalPages: sourceRange ? sourceRange.pageEnd - sourceRange.pageStart + 1 : starts.length && ends.length ? Math.max(...ends) - Math.min(...starts) + 1 : null,
     maxSectionPages: audited.reduce<number | null>((max, section) => (section.pages === null ? max : Math.max(max ?? 0, section.pages)), null),
     sections: audited,
     review: audited.filter((section) => section.band === 'REVIEW'),
     blocked: audited.filter((section) => section.band === 'BLOCKED'),
-    gaps,
+    gaps: unresolvedGaps,
   }
 }
 
@@ -678,11 +737,79 @@ export function remapOutlineReviewWarnings(
   })
 }
 
+// A missing text chunk could be a blank PDF page OR a failed OCR/page read.
+// Only a successful rendering of the ORIGINAL uploaded page, with virtually
+// no visible ink, can exempt it from the coverage guard.
+export async function isVisuallyBlankPdfPage(png: Uint8Array): Promise<boolean> {
+  const sharp = (await import('sharp')).default
+  const { data, info } = await sharp(Buffer.from(png))
+    .flatten({ background: '#ffffff' }).removeAlpha().raw().toBuffer({ resolveWithObject: true })
+  if (!info.width || !info.height || info.channels < 3) return false
+  const maxInk = Math.floor(info.width * info.height * 0.0002)
+  let ink = 0
+  for (let index = 0; index < data.length; index += info.channels) {
+    if (data[index] < 245 || data[index + 1] < 245 || data[index + 2] < 245) {
+      ink++
+      if (ink > maxInk) return false
+    }
+  }
+  return true
+}
+
+export async function verifyBlankPdfGapPages(
+  bookId: string,
+  gaps: readonly { pageStart: number; pageEnd: number }[],
+): Promise<number[]> {
+  const requested = [...new Set(gaps.flatMap((gap) =>
+    Number.isSafeInteger(gap.pageStart) && Number.isSafeInteger(gap.pageEnd) &&
+    gap.pageStart >= 1 && gap.pageEnd >= gap.pageStart && gap.pageEnd - gap.pageStart < 20
+      ? Array.from({ length: gap.pageEnd - gap.pageStart + 1 }, (_, i) => gap.pageStart + i)
+      : []))].sort((a, b) => a - b)
+  // Limit PDF rendering, and fail closed if the book/file cannot be verified.
+  if (!requested.length || requested.length > 12) return []
+  try {
+    const book = await db.book.findUnique({ where: { id: bookId },
+      select: { data: true, storageProvider: true, storageKey: true, fileUrl: true, mimeType: true } })
+    if (!book) return []
+    const stored = await getFileBufferFromStorageOrBase64({
+      provider: book.storageProvider, key: book.storageKey, url: book.fileUrl,
+      data: book.data, mimeType: book.mimeType,
+    })
+    if (!stored?.buffer?.length || stored.buffer.subarray(0, 5).toString() !== '%PDF-') return []
+    const original = await PDFDocument.load(stored.buffer)
+    if (requested.some((page) => page > original.getPageCount())) return []
+    const worker = await import('pdf-parse/worker')
+    const { PDFParse } = await import('pdf-parse')
+    const parser = new PDFParse({ data: new Uint8Array(stored.buffer),
+      CanvasFactory: (worker as any).CanvasFactory } as any)
+    try {
+      const rendered = await parser.getScreenshot({
+        partial: requested, desiredWidth: 420, imageBuffer: true, imageDataUrl: false,
+      })
+      if (rendered.pages.length !== requested.length) return []
+      const verified: number[] = []
+      for (let index = 0; index < requested.length; index++) {
+        const png = rendered.pages[index]?.data
+        if (png && await isVisuallyBlankPdfPage(png)) verified.push(requested[index])
+      }
+      return verified
+    } finally {
+      await parser.destroy().catch(() => {})
+    }
+  } catch (error) {
+    console.warn('[book-outline] could not verify original PDF blank pages', {
+      bookId, reason: error instanceof Error ? error.message : 'UNKNOWN',
+    })
+    return []
+  }
+}
+
 export function outlineApprovalGuard(
   sections: readonly OutlineSectionDraft[],
   sourceRange?: { pageStart: number; pageEnd: number },
+  verifiedBlankPages: readonly number[] = [],
 ): { decision: 'ALLOW' | 'ALLOW_WITH_REVIEW' | 'BLOCK'; report: OutlineCoverageReport } {
-  const report = auditOutlineCoverage(sections, sourceRange)
+  const report = auditOutlineCoverage(sections, sourceRange, verifiedBlankPages)
   // Unknown starts/ends (including same-chunk headings without reliable page
   // evidence) are never acceptable unit boundaries, even with an oversized
   // chapter override. A zero-knowledge section is NOT an empty book page.
@@ -966,6 +1093,48 @@ export function outlineSubheadingMarkers(pages: readonly ExtractedBookPage[], ch
   return markers.slice(0, 250)
 }
 
+/**
+ * Recover OCR per page. A malformed/empty response for one page must not
+ * abort the outline of an otherwise readable book. Only real OCR text may
+ * replace a page; unrecovered pages remain explicitly marked.
+ */
+export async function recoverOutlineOcrPages(
+  pages: readonly ExtractedBookPage[],
+  batches: readonly number[][],
+  readOcr: (numbers: number[]) => Promise<ExtractedBookPage[]>,
+): Promise<ExtractedBookPage[]> {
+  const byPage = new Map<number, ExtractedBookPage>(pages.map((page) => [page.page, { ...page }]))
+  for (const batch of batches) {
+    let recovered: ExtractedBookPage[] = []
+    try {
+      recovered = await readOcr([...batch])
+    } catch (error) {
+      console.warn('[book-outline] OCR batch failed; inspecting pages separately', {
+        pages: batch, reason: error instanceof Error ? error.message : 'UNKNOWN',
+      })
+    }
+    for (const pageNumber of batch) {
+      const original = byPage.get(pageNumber)
+      if (!original) continue
+      let readable = recovered.find((page) => page.page === pageNumber && page.text.trim())
+      if (!readable && batch.length > 1) {
+        try {
+          readable = (await readOcr([pageNumber]))
+            .find((page) => page.page === pageNumber && page.text.trim())
+        } catch (error) {
+          console.warn('[book-outline] could not OCR individual page', {
+            page: pageNumber, reason: error instanceof Error ? error.message : 'UNKNOWN',
+          })
+        }
+      }
+      byPage.set(pageNumber, readable
+        ? { ...readable, readError: undefined }
+        : { ...original, readError: [original.readError, 'OCR_FAILED_OR_EMPTY'].filter(Boolean).join('; ') })
+    }
+  }
+  return pages.map((page) => byPage.get(page.page) ?? page)
+}
+
 async function originalBookPages(bookId: string): Promise<ExtractedBookPage[]> {
   const book = await db.book.findUnique({ where: { id: bookId }, select: { data: true, storageProvider: true, storageKey: true, fileUrl: true, mimeType: true } })
   if (!book) throw new Error('BOOK_NOT_FOUND')
@@ -985,15 +1154,11 @@ async function originalBookPages(bookId: string): Promise<ExtractedBookPage[]> {
   // A synchronous Vercel request cannot safely run large-book OCR. Do not
   // persist an incomplete outline while claiming the scanned pages were read.
   if (ocrCount > 8) throw new Error('BOOK_OUTLINE_OCR_TOO_MANY_PAGES: الكتاب يحتوي ' + ocrCount + ' صفحة ممسوحة ضوئياً تحتاج OCR. لا يمكن إتمامها بأمان في طلب واحد؛ استخدم مهمة قراءة الكتاب المرحلية قبل إعادة الفهرسة. لم يُحفظ أي فهرس ناقص.')
-  for (const batch of ocrBatches) {
-    const scanned = await transcribeScannedDocumentWithVision(stored.buffer, batch, Date.now() + 100_000)
-    for (const page of scanned) {
-      const at = pages.findIndex((existing) => existing.page === page.page)
-      if (at < 0 || !page.text.trim()) throw new Error('BOOK_OUTLINE_OCR_EMPTY_PAGE_' + page.page)
-      pages[at] = page
-    }
-  }
-  return pages
+  // One shared time budget for bulk OCR and individual retries; a broken
+  // page must not consume the whole Vercel request by resetting the deadline.
+  const ocrDeadline = Date.now() + 120_000
+  return recoverOutlineOcrPages(pages, ocrBatches,
+    (numbers) => transcribeScannedDocumentWithVision(stored.buffer, numbers, ocrDeadline))
 }
 
 export function sourceBoundariesFromReadChunks(chunks: readonly Chunk[], bookTitle: string): Boundary[] {
@@ -1060,12 +1225,11 @@ export function validateThematicArticleGrouping(raw: string, source: readonly Ou
     }
     const group = source.slice(cursor, end)
     if (group.some((section, i) => section.order !== cursor + i + 1)) throw new Error('OUTLINE_THEMATIC_SOURCE_ORDER')
-    // A 30-page merged unit must not conceal missing page coverage from
-    // the underlying source sections. Real 297-page PDF replay uncovered
-    // gaps where a heading begins inside a persisted chunk. Never let AI
-    // grouping silently fill those missing source pages on paper.
+    // Missing pages are independently audited against BookChunk ranges on
+    // approval. A gap must not prevent grouping related neighboring articles,
+    // but overlapping/reversed/unknown boundaries must still fail validation.
     if (group.some((section) => section.pageStart === null || section.pageEnd === null) ||
-        group.some((section, i) => i > 0 && section.pageStart !== group[i - 1].pageEnd! + 1)) {
+        group.some((section, i) => i > 0 && section.pageStart! <= group[i - 1].pageEnd!)) {
       throw new Error('OUTLINE_THEMATIC_SOURCE_COVERAGE_GAP')
     }
     if (group.length > 1 && group.some((section) => chapterNumber(section.title) !== null)) {
@@ -1134,6 +1298,10 @@ export async function buildBookOutline(bookId: string, options: { reuseReadChunk
     }
   }
   let draft = planBookOutline(chunks, items, chunkIds, book.semester, sourceBoundaries, book.title, options.reuseReadChunks === true)
+  const pdfReadIssues = sourcePages.filter((page) => !!page.readError).map((page) => ({
+    page: page.page, kind: page.text.trim() ? 'PARTIAL' as const : 'UNREADABLE' as const,
+    reason: String(page.readError).slice(0, 160),
+  }))
   if (draft.source === 'AI_SEGMENTED' && !options.deterministicOnly) {
     const byChunk = new Map<string, Item[]>()
     for (const item of items) if (item.chunkId) byChunk.set(item.chunkId, [...(byChunk.get(item.chunkId) || []), item])
@@ -1260,7 +1428,25 @@ export async function buildBookOutline(bookId: string, options: { reuseReadChunk
       draft.warnings.push('العناوين الموسومة «عنوان مقترح من المحتوى» استنتجها الذكاء من نص الفصل ومعرفته المحفوظة وليست عناوين حرفية مثبتة في أصل الكتاب؛ راجعها قبل الاعتماد.')
     }
   }
-  const coverage = auditOutlineCoverage(draft.sections)
+  // Attach read failures only after every AI/legacy draft replacement, so
+  // no later re-segmentation can discard the mandatory approval evidence.
+  if (pdfReadIssues.length) {
+    draft.warnings.push('OUTLINE_PDF_READ_ISSUES:' + JSON.stringify(pdfReadIssues))
+    for (const issue of pdfReadIssues) draft.warnings.push(
+      `تنبيه إعادة قراءة PDF: صفحة ${issue.page} ${issue.kind === 'PARTIAL' ? 'قراءة جزئية' : 'غير مقروءة'}؛ ${issue.reason}. تُراجع عند الاعتماد.`)
+  }
+  // Audit against the book's full stored extent — the same source range
+  // the display and approval paths compute — so gaps at the head/tail of
+  // the book are visible in the draft's own warnings at build time, not
+  // only later at approval. Approval behavior itself is unchanged.
+  const latestRead = await db.bookReadJob.findFirst({
+    where: { bookId, totalPages: { gt: 0 } }, orderBy: { createdAt: 'desc' },
+    select: { totalPages: true },
+  })
+  const coverage = auditOutlineCoverage(draft.sections, {
+    pageStart: 1,
+    pageEnd: Math.max(latestRead?.totalPages || 0, ...chunks.map((chunk) => chunk.pageEnd)),
+  })
   for (const section of coverage.review) draft.warnings.push(section.pages === null ? `تنبيه تغطية: حدود صفحات القسم «${section.title}» غير مكتملة؛ راجعها قبل الاعتماد.` : `تنبيه تغطية: القسم «${section.title}» يغطي ${section.pages} صفحة (صفحات ${section.pageStart}–${section.pageEnd}) — فوق حد المراجعة ${OUTLINE_SECTION_REVIEW_PAGES} صفحة؛ أعد فحص عناوين هذا النطاق قبل الاعتماد.`)
   for (const gap of coverage.gaps) draft.warnings.push(`تنبيه تغطية: هناك فجوة غير مغطاة من الصفحة ${gap.pageStart} إلى ${gap.pageEnd}؛ لن يُعتمد الفهرس قبل تصحيحها.`)
   for (const section of coverage.blocked) draft.warnings.push(`تنبيه تغطية: القسم «${section.title}» يغطي ${section.pages} صفحة (صفحات ${section.pageStart}–${section.pageEnd}) — يتجاوز حد ${OUTLINE_SECTION_BLOCK_PAGES} صفحة؛ لن يُعتمد الفهرس حتى يُقسَّم هذا النطاق أو يُسجَّل تجاوز مشرف موثّق.`)
@@ -1270,5 +1456,13 @@ export async function buildBookOutline(bookId: string, options: { reuseReadChunk
     draft.warnings.push('OUTLINE_SUBHEADING:' + JSON.stringify(marker))
   }
   const latest = await db.bookOutline.findFirst({ where: { bookId }, orderBy: { version: 'desc' }, select: { version: true } })
-  return db.bookOutline.create({ data: { bookId, version: (latest?.version || 0) + 1, status: 'DRAFT', source: draft.source, warnings: JSON.stringify(draft.warnings), sections: { create: draft.sections } }, include: { sections: { orderBy: { order: 'asc' } } } })
+  try {
+    return await db.bookOutline.create({ data: { bookId, version: (latest?.version || 0) + 1, status: 'DRAFT', source: draft.source, warnings: JSON.stringify(draft.warnings), sections: { create: draft.sections } }, include: { sections: { orderBy: { order: 'asc' } } } })
+  } catch (error: any) {
+    // Two builds racing for the same book both read the same latest
+    // version; @@unique([bookId, version]) stops the loser. Surface a
+    // clean, retryable conflict instead of the raw Prisma error.
+    if (error?.code === 'P2002') throw new Error('BOOK_OUTLINE_VERSION_CONFLICT')
+    throw error
+  }
 }

@@ -41,6 +41,8 @@ export async function GET(req: NextRequest) {
     const applied = await applyPendingEmailChange(user)
     if (applied.outcome === 'EMAIL_TAKEN') return redirectAuth({ verify_email: 'email_taken' })
     if (applied.outcome === 'LOGIN_APPLIED') {
+      // applyPendingEmailChange already revoked all sessions in the same
+      // transaction as the identity change; never swallow revocation errors.
       emailEmailChangeNotice(applied.oldEmail, user.name, `تم تغيير بريد الدخول إلى حسابك إلى ${applied.newEmail}. إذا لم تطلب هذا التغيير، تواصل مع إدارة الأكاديمية فوراً.`).catch(() => {})
       const response = redirectAuth({ email_verified: '1', email: applied.newEmail, reset_session: '1' })
       response.cookies.set('aact_session', '', { path: '/', httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 0 })

@@ -924,7 +924,7 @@ export async function buildSupervisorContext(userId: string, options?: { scope?:
       admissionStore?.findFirst({
         where: { userId },
         orderBy: { createdAt: 'desc' },
-        select: { reference: true, program: true, status: true, thesisDeadline: true },
+        select: { program: true, status: true, thesisDeadline: true },
       }).catch(() => null),
       thesisStore?.findFirst({
         where: { userId },
@@ -1135,7 +1135,7 @@ export async function buildSupervisorContext(userId: string, options?: { scope?:
     }
 
     if (admission) {
-      parts.push(`طلب الالتحاق الأخير: رقم ${admission.reference || 'غير محدد'} — البرنامج: ${admission.program || 'غير محدد'} — الحالة: ${admission.status || 'غير محددة'}`)
+      parts.push(`طلب الالتحاق الأخير: البرنامج: ${admission.program || 'غير محدد'} — الحالة: ${admission.status || 'غير محددة'}`)
     }
 
     if (thesis) {

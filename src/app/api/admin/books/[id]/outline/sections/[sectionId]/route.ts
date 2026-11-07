@@ -37,12 +37,18 @@ export async function DELETE(request: NextRequest, context: Context) {
     }
     const left = mergeInto === 'previous' ? target : removed
     const right = mergeInto === 'previous' ? removed : target
+    // A missing PDF page is an evidence gap, not a reason to refuse an
+    // administrator's merge of two adjacent outline sections. Keep the
+    // ORIGINAL source ranges and report the missing pages for approval.
+    // Still reject reversed source order and invalid page boundaries.
     if (right.pageStart == null || left.pageEnd == null ||
-      right.pageStart > left.pageEnd + 1 ||
-      right.chunkStartIndex > left.chunkEndIndex + 1 ||
+      right.pageStart < left.pageStart! || right.pageEnd! < left.pageEnd ||
       right.chunkEndIndex < left.chunkStartIndex) {
-      return NextResponse.json({ code: 'OUTLINE_MERGE_GAP', error: 'لا يمكن ضم قسمين بينهما صفحات أو مقاطع غير موثقة؛ أعد بناء الفهرس.' }, { status: 409 })
+      return NextResponse.json({ code: 'OUTLINE_MERGE_ORDER', error: 'تعذر ضم القسمين بسبب ترتيب أو حدود مصادر غير صالحة.' }, { status: 409 })
     }
+    const gapBetween = right.pageStart > left.pageEnd + 1
+      ? { pageStart: left.pageEnd + 1, pageEnd: right.pageStart - 1 }
+      : null
     const linkedUnits = await db.unit.count({ where: { outlineSectionId: { in: [sectionId, target.id] } } })
     if (linkedUnits) return NextResponse.json({ error: 'لا يمكن ضم أقسام مرتبطة بوحدات قائمة' }, { status: 409 })
 
@@ -69,6 +75,10 @@ export async function DELETE(request: NextRequest, context: Context) {
     const oldRemovedOrder = removed.order
     const oldWarnings = (() => { try { const x = JSON.parse(outline?.warnings || '[]'); return Array.isArray(x) ? x.map(String) : [] } catch { return [] as string[] } })()
     const warnings = remapOutlineReviewWarnings(oldWarnings, orderByOld, oldRemovedOrder, oldTargetOrder)
+    if (gapBetween) warnings.push('OUTLINE_MERGE_SOURCE_GAP:' + JSON.stringify({
+      ...gapBetween, sectionOrder: orderByOld.get(oldTargetOrder),
+      note: 'صفحات غير ممثلة في القراءة؛ الدمج لا يثبت قراءتها، وتُراجع عند اعتماد الفهرس.',
+    }))
     warnings.push('OUTLINE_MERGED_TITLE:' + JSON.stringify({
       sectionOrder: orderByOld.get(oldTargetOrder), title: removed.title,
       pageStart: removed.pageStart, pageEnd: removed.pageEnd,

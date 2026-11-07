@@ -77,6 +77,7 @@ export const GEMINI_DISCUSSION_LIVE_MODEL_FALLBACKS = DISCUSSION_LIVE_MODELS
 let dbFetchedAt = 0
 let dbInflight: Promise<void> | null = null
 let dbKeyCache = ''
+let dbKeysCache: string[] = []
 let dbVoiceCache = ''
 let dbTextModelCache = ''
 let dbTtsModelCache = ''
@@ -84,8 +85,7 @@ let dbLiveModelCache = ''
 let dbSupervisorLiveModelCache = ''
 let dbDiscussionLiveModelCache = ''
 let dbDiscussionThinkingLevelCache = ''
-let geminiInstance: GoogleGenAI | null = null
-let instanceKey = ''
+const geminiInstances = new Map<string, GoogleGenAI>()
 let activeTextModel: string | null = null
 let lastTextResult: { provider: 'GEMINI'; model: string; ok: boolean; error?: string; at: string } | null = null
 let activeTtsModel: string | null = null
@@ -141,7 +141,8 @@ async function refreshFromDb(force = false): Promise<void> {
         readSetting('GEMINI_DISCUSSION_LIVE_MODEL'),
         readSetting('GEMINI_DISCUSSION_THINKING_LEVEL'),
       ])
-      dbKeyCache = [...decodeGeminiKeySetting(key, 'GEMINI_API_KEY'), ...decodeGeminiKeySetting(keys, 'GEMINI_API_KEYS')][0] || ''
+      dbKeysCache = [...decodeGeminiKeySetting(key, 'GEMINI_API_KEY'), ...decodeGeminiKeySetting(keys, 'GEMINI_API_KEYS')]
+      dbKeyCache = dbKeysCache[0] || ''
       dbVoiceCache = voice
       dbTextModelCache = normalizeGeminiModelName(textModel)
       dbTtsModelCache = normalizeGeminiModelName(ttsModel)
@@ -198,6 +199,33 @@ function resolvedKey(): string {
   return dbKeyCache || parseGeminiKeys(process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEYS || '')[0] || ''
 }
 
+// كل المفاتيح المفكوكة بالترتيب — قاعدة المسار الأصلي (native) بعد إصلاح
+// 2026-11-06: كان resolvedKey وحده ([0]) هو مصدر المسار الأصلي كله، فموت
+// أول مفتاح كان يكسر الرؤية والاحتياطي والمسبح بجانبه سليم. التدوير بين
+// هذه المفاتيح يحدث في مساعدي النداء الأصلي عند أخطاء المفتاح فقط.
+function resolvedKeys(): string[] {
+  if (dbKeysCache.length) return [...new Set(dbKeysCache)]
+  return [...new Set(parseGeminiKeys(process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEYS || ''))]
+}
+
+async function nativeGeminiKeys(): Promise<string[]> {
+  await refreshFromDb()
+  return resolvedKeys()
+}
+
+// مصدر المفاتيح نفسه لخدمات أصلية أخرى (ASR) حتى لا تنشأ قائمة ثالثة.
+export async function geminiApiKeys(): Promise<string[]> {
+  await refreshFromDb()
+  return resolvedKeys()
+}
+
+// أخطاء تُدان بها هوية المفتاح نفسه لا النموذج أو الطلب: صلاحية/فوترة/حصة.
+// عندها يُترك المفتاح كلياً ويُجرَّب التالي بنفس قاعدة تدوير مسار Live.
+export function isRetryableGeminiKeyError(e: any): boolean {
+  const status = Number(e?.status ?? e?.code ?? 0)
+  return status === 401 || status === 402 || status === 403 || status === 429 || isAuthError(e) || isQuotaError(e)
+}
+
 export async function ensureGeminiKey(): Promise<boolean> {
   await refreshFromDb()
   return resolvedKey().length > 0
@@ -235,14 +263,18 @@ export async function geminiApiKey(): Promise<string> {
   return resolvedKey()
 }
 
-export function getGemini(): GoogleGenAI | null {
-  const key = resolvedKey()
+function getGeminiForKey(key: string): GoogleGenAI | null {
   if (!key) return null
-  if (!geminiInstance || instanceKey !== key) {
-    geminiInstance = new GoogleGenAI({ apiKey: key })
-    instanceKey = key
+  let instance = geminiInstances.get(key)
+  if (!instance) {
+    instance = new GoogleGenAI({ apiKey: key })
+    geminiInstances.set(key, instance)
   }
-  return geminiInstance
+  return instance
+}
+
+export function getGemini(): GoogleGenAI | null {
+  return getGeminiForKey(resolvedKey())
 }
 
 async function textModelChain(): Promise<string[]> {
@@ -468,44 +500,56 @@ export async function* geminiStreamText(opts: GeminiCallOpts): AsyncGenerator<st
     }
   }
 
-  const ai = getGemini()
-  if (!ai) throw new Error('GEMINI_NOT_CONFIGURED')
+  const keys = await nativeGeminiKeys()
+  if (!keys.length) throw new Error('GEMINI_NOT_CONFIGURED')
   const contents = buildContents(opts.history)
+  const models = await textModelChain()
   let lastErr: any
-  for (const model of await textModelChain()) {
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      let emittedAnyChunk = false
-      try {
-        const stream = await ai.models.generateContentStream({ model, contents, config: textConfig(opts, false, model) })
-        for await (const chunk of stream) {
-          const text = (chunk as any).text as string | undefined
-          if (text) {
-            emittedAnyChunk = true
-            yield text
+  for (const key of keys) {
+    const ai = getGeminiForKey(key)!
+    let keyError = false
+    for (const model of models) {
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        let emittedAnyChunk = false
+        try {
+          const stream = await ai.models.generateContentStream({ model, contents, config: textConfig(opts, false, model) })
+          for await (const chunk of stream) {
+            const text = (chunk as any).text as string | undefined
+            if (text) {
+              emittedAnyChunk = true
+              yield text
+            }
           }
-        }
-        activeTextModel = model
-        lastTextResult = { provider: 'GEMINI', model, ok: true, at: new Date().toISOString() }
-        return
-      } catch (e) {
-        lastErr = e
-        if (emittedAnyChunk) {
-          yield STREAM_INTERRUPTED_RETRY_MESSAGE
+          activeTextModel = model
+          lastTextResult = { provider: 'GEMINI', model, ok: true, at: new Date().toISOString() }
           return
-        }
-        if (isAuthError(e)) throw e
-        if (isTransientGeminiError(e)) {
-          if (attempt < 2) {
-            const delay = aiRetryDelayMs(attempt - 1, { deadlineMs: opts.deadlineMs, retryAfter: (e as any)?.retryAfter || (e as any)?.headers?.get?.('retry-after') })
-            if (delay == null) break
-            await wait(delay)
+        } catch (e) {
+          lastErr = e
+          if (emittedAnyChunk) {
+            yield STREAM_INTERRUPTED_RETRY_MESSAGE
+            return
           }
-          continue
+          // خطأ مفتاح: يُترك هذا المفتاح كلياً ويُجرَّب التالي بدل إجهاض
+          // المسار كله عند أول مفتاح (كان isAuthError يرمي فوراً).
+          if (isRetryableGeminiKeyError(e)) { keyError = true; break }
+          if (isTransientGeminiError(e)) {
+            if (attempt < 2) {
+              const delay = aiRetryDelayMs(attempt - 1, { deadlineMs: opts.deadlineMs, retryAfter: (e as any)?.retryAfter || (e as any)?.headers?.get?.('retry-after') })
+              if (delay == null) break
+              await wait(delay)
+            }
+            continue
+          }
+          if (isModelUnavailableError(e) || isInvalidArgumentError(e)) break
+          throw e
         }
-        if (isModelUnavailableError(e) || isInvalidArgumentError(e) || isQuotaError(e)) break
-        throw e
       }
+      if (keyError) break
     }
+    if (keyError) continue
+    // استُنفدت سلسلة النماذج على هذا المفتاح دون خطأ مفتاح: السلوك
+    // التاريخي نفسه — يُرمى آخر خطأ ولا تُعاد السلسلة على مفتاح آخر.
+    break
   }
   throw lastErr
 }
@@ -535,8 +579,8 @@ export async function geminiCompleteJson(opts: GeminiCallOpts): Promise<string> 
     throw error
   }
 
-  const ai = getGemini()
-  if (!ai) throw new Error('GEMINI_NOT_CONFIGURED')
+  const keys = await nativeGeminiKeys()
+  if (!keys.length) throw new Error('GEMINI_NOT_CONFIGURED')
   const contents = buildContents(opts.history)
   let lastErr: any
   const fullChain = await textModelChain()
@@ -544,32 +588,39 @@ export async function geminiCompleteJson(opts: GeminiCallOpts): Promise<string> 
     ? fullChain.filter((model) => opts.restrictToModels!.some((m) => m.provider === 'GEMINI' && m.model.toLowerCase() === model.toLowerCase()))
     : fullChain
   if (!chain.length) throw routerError ?? new Error('GEMINI_NO_ALLOWED_MODELS')
-  for (const model of chain) {
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        const response = await ai.models.generateContent({ model, contents, config: { ...textConfig(opts, true, model), ...(opts.deadlineMs ? { httpOptions: { timeout: Math.max(1000, opts.deadlineMs - Date.now()) } } : {}) } })
-        const text = String((response as any).text || '').trim()
-        if (!text) throw new Error('EMPTY_AI_RESPONSE')
-        opts.validate?.(text, { provider: 'GEMINI', model })
-        activeTextModel = model
-        lastTextResult = { provider: 'GEMINI', model, ok: true, at: new Date().toISOString() }
-        return text
-      } catch (e) {
-        lastErr = e
-        if (String((e as { code?: string })?.code || '') === 'VALIDATION_REJECTED' || /INVALID_JSON|invalid_type|EMPTY_BATCH_AFTER_STRUCTURAL_VALIDATION/i.test(String((e as Error)?.message || ''))) break
-        if (isAuthError(e)) throw e
-        if (isTransientGeminiError(e)) {
-          if (attempt < 2) {
-            const delay = aiRetryDelayMs(attempt - 1, { deadlineMs: opts.deadlineMs, retryAfter: (e as any)?.retryAfter || (e as any)?.headers?.get?.('retry-after') })
-            if (delay == null) break
-            await wait(delay)
+  for (const key of keys) {
+    const ai = getGeminiForKey(key)!
+    let keyError = false
+    for (const model of chain) {
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          const response = await ai.models.generateContent({ model, contents, config: { ...textConfig(opts, true, model), ...(opts.deadlineMs ? { httpOptions: { timeout: Math.max(1000, opts.deadlineMs - Date.now()) } } : {}) } })
+          const text = String((response as any).text || '').trim()
+          if (!text) throw new Error('EMPTY_AI_RESPONSE')
+          opts.validate?.(text, { provider: 'GEMINI', model })
+          activeTextModel = model
+          lastTextResult = { provider: 'GEMINI', model, ok: true, at: new Date().toISOString() }
+          return text
+        } catch (e) {
+          lastErr = e
+          if (String((e as { code?: string })?.code || '') === 'VALIDATION_REJECTED' || /INVALID_JSON|invalid_type|EMPTY_BATCH_AFTER_STRUCTURAL_VALIDATION/i.test(String((e as Error)?.message || ''))) break
+          if (isRetryableGeminiKeyError(e)) { keyError = true; break }
+          if (isTransientGeminiError(e)) {
+            if (attempt < 2) {
+              const delay = aiRetryDelayMs(attempt - 1, { deadlineMs: opts.deadlineMs, retryAfter: (e as any)?.retryAfter || (e as any)?.headers?.get?.('retry-after') })
+              if (delay == null) break
+              await wait(delay)
+            }
+            continue
           }
-          continue
+          if (isModelUnavailableError(e) || isInvalidArgumentError(e)) break
+          throw e
         }
-        if (isModelUnavailableError(e) || isInvalidArgumentError(e) || isQuotaError(e)) break
-        throw e
       }
+      if (keyError) break
     }
+    if (keyError) continue
+    break
   }
   throw lastErr
 }
@@ -582,8 +633,8 @@ export async function geminiVisionJson(opts: {
   maxOutputTokens?: number
   timeoutMs?: number
 }): Promise<string> {
-  const ai = getGemini()
-  if (!ai) throw new Error('GEMINI_NOT_CONFIGURED')
+  const keys = await nativeGeminiKeys()
+  if (!keys.length) throw new Error('GEMINI_NOT_CONFIGURED')
   const parts: any[] = [{ text: opts.prompt }]
   for (const img of opts.images) {
     parts.push({ inlineData: { mimeType: img.mimeType || 'image/jpeg', data: img.dataBase64 } })
@@ -592,62 +643,75 @@ export async function geminiVisionJson(opts: {
   const customTextModels = (await textModelChain()).filter((m) => !/live|tts/i.test(m))
   const chain = [...new Set([...VISION_MODELS, ...customTextModels])]
   let lastErr: any
-  for (const model of chain) {
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        const response = await ai.models.generateContent({
-          model,
-          contents,
-          config: {
-            ...(opts.timeoutMs ? { httpOptions: { timeout: opts.timeoutMs } } : {}),
-            systemInstruction: opts.system || 'أنت قارئ مستندات بصري دقيق. أرجع JSON صالحاً فقط.',
-            temperature: opts.temperature ?? 0.1,
-            maxOutputTokens: opts.maxOutputTokens ?? 2048,
-            responseMimeType: 'application/json',
-          },
-        })
-        const text = String((response as any).text || '').trim()
-        if (!text) throw new Error('EMPTY_VISION_RESPONSE')
-        activeTextModel = model
-        return text
-      } catch (e) {
-        lastErr = e
-        if (isAuthError(e)) throw e
-        if (isTransientGeminiError(e)) {
-          if (attempt < 2) {
-            const delay = aiRetryDelayMs(attempt - 1, { deadlineMs: Date.now() + (opts.timeoutMs || 30_000), retryAfter: (e as any)?.retryAfter || (e as any)?.headers?.get?.('retry-after') })
-            if (delay == null) break
-            await wait(delay)
+  for (const key of keys) {
+    const ai = getGeminiForKey(key)!
+    let keyError = false
+    for (const model of chain) {
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          const response = await ai.models.generateContent({
+            model,
+            contents,
+            config: {
+              ...(opts.timeoutMs ? { httpOptions: { timeout: opts.timeoutMs } } : {}),
+              systemInstruction: opts.system || 'أنت قارئ مستندات بصري دقيق. أرجع JSON صالحاً فقط.',
+              temperature: opts.temperature ?? 0.1,
+              maxOutputTokens: opts.maxOutputTokens ?? 2048,
+              responseMimeType: 'application/json',
+            },
+          })
+          const text = String((response as any).text || '').trim()
+          if (!text) throw new Error('EMPTY_VISION_RESPONSE')
+          activeTextModel = model
+          return text
+        } catch (e) {
+          lastErr = e
+          // الرؤية كانت دائماً على المسار الأصلي بمفتاحه الأول وحده: موته
+          // كان يكسر قراءة المستندات كلها. خطأ المفتاح يدير إلى التالي.
+          if (isRetryableGeminiKeyError(e)) { keyError = true; break }
+          if (isTransientGeminiError(e)) {
+            if (attempt < 2) {
+              const delay = aiRetryDelayMs(attempt - 1, { deadlineMs: Date.now() + (opts.timeoutMs || 30_000), retryAfter: (e as any)?.retryAfter || (e as any)?.headers?.get?.('retry-after') })
+              if (delay == null) break
+              await wait(delay)
+            }
+            continue
           }
-          continue
+          if (isModelUnavailableError(e) || isInvalidArgumentError(e)) break
+          throw e
         }
-        if (isModelUnavailableError(e) || isInvalidArgumentError(e) || isQuotaError(e)) break
-        throw e
       }
+      if (keyError) break
     }
+    if (keyError) continue
+    break
   }
   throw lastErr
 }
 
 export async function geminiTestConnection(): Promise<{ ok: boolean; model?: string; reply?: string; error?: string; quotaExhausted?: boolean }> {
-  const ai = getGemini()
-  if (!ai) return { ok: false, error: 'GEMINI_NOT_CONFIGURED' }
+  const keys = await nativeGeminiKeys()
+  if (!keys.length) return { ok: false, error: 'GEMINI_NOT_CONFIGURED' }
   const errors: string[] = []
   let sawQuota = false
-  for (const model of await textModelChain()) {
-    try {
-      const resp = await ai.models.generateContent({
-        model,
-        contents: [{ role: 'user', parts: [{ text: 'أجب بكلمة واحدة فقط: جاهز' }] }],
-        config: { maxOutputTokens: 32 },
-      })
-      const reply = String((resp as any).text || '').trim()
-      activeTextModel = model
-      return { ok: true, model, reply }
-    } catch (e: any) {
-      errors.push(`${model}: ${String(e?.message || e).slice(0, 160)}`)
-      if (isAuthError(e)) break
-      if (isQuotaError(e)) sawQuota = true
+  const models = await textModelChain()
+  for (const key of keys) {
+    const ai = getGeminiForKey(key)!
+    for (const model of models) {
+      try {
+        const resp = await ai.models.generateContent({
+          model,
+          contents: [{ role: 'user', parts: [{ text: 'أجب بكلمة واحدة فقط: جاهز' }] }],
+          config: { maxOutputTokens: 32 },
+        })
+        const reply = String((resp as any).text || '').trim()
+        activeTextModel = model
+        return { ok: true, model, reply }
+      } catch (e: any) {
+        errors.push(`${model}: ${String(e?.message || e).slice(0, 160)}`)
+        if (isQuotaError(e)) sawQuota = true
+        if (isRetryableGeminiKeyError(e)) break
+      }
     }
   }
   return { ok: false, error: errors.join(' | '), quotaExhausted: sawQuota }
@@ -684,41 +748,49 @@ function amplifyPcm16(pcm: Buffer, gain = 1.8): Buffer {
 }
 
 async function generateAudio(text: string): Promise<Buffer> {
-  const ai = getGemini()
-  if (!ai) throw new Error('GEMINI_NOT_CONFIGURED')
+  const keys = await nativeGeminiKeys()
+  if (!keys.length) throw new Error('GEMINI_NOT_CONFIGURED')
   const voice = await geminiTTSVoice()
+  const models = await ttsModelChain()
   let lastErr: any
-  for (const model of await ttsModelChain()) {
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        const response = await ai.models.generateContent({
-          model,
-          contents: [{ role: 'user', parts: [{ text: `اقرأ بصوت أستاذ جامعي طبيعي ودافئ، بسرعة أعلى قليلاً وبدون إطالة أو توقفات كثيرة:\n${text}` }] }],
-          config: {
-            responseModalities: ['AUDIO'],
-            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
-          },
-        })
-        const parts = (response as any).candidates?.[0]?.content?.parts || []
-        const buffers = parts.map((p: any) => p?.inlineData?.data).filter(Boolean).map((b64: string) => Buffer.from(b64, 'base64'))
-        if (!buffers.length) throw new Error('GEMINI_TTS_EMPTY')
-        activeTtsModel = model
-        return pcmToWav(amplifyPcm16(Buffer.concat(buffers), 1.85))
-      } catch (e) {
-        lastErr = e
-        if (isAuthError(e)) throw e
-        if (isTransientGeminiError(e)) {
-          if (attempt < 2) {
-            const delay = aiRetryDelayMs(attempt - 1)
-            if (delay == null) break
-            await wait(delay)
+  for (const key of keys) {
+    const ai = getGeminiForKey(key)!
+    let keyError = false
+    for (const model of models) {
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          const response = await ai.models.generateContent({
+            model,
+            contents: [{ role: 'user', parts: [{ text: `اقرأ بصوت أستاذ جامعي طبيعي ودافئ، بسرعة أعلى قليلاً وبدون إطالة أو توقفات كثيرة:\n${text}` }] }],
+            config: {
+              responseModalities: ['AUDIO'],
+              speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
+            },
+          })
+          const parts = (response as any).candidates?.[0]?.content?.parts || []
+          const buffers = parts.map((p: any) => p?.inlineData?.data).filter(Boolean).map((b64: string) => Buffer.from(b64, 'base64'))
+          if (!buffers.length) throw new Error('GEMINI_TTS_EMPTY')
+          activeTtsModel = model
+          return pcmToWav(amplifyPcm16(Buffer.concat(buffers), 1.85))
+        } catch (e) {
+          lastErr = e
+          if (isRetryableGeminiKeyError(e)) { keyError = true; break }
+          if (isTransientGeminiError(e)) {
+            if (attempt < 2) {
+              const delay = aiRetryDelayMs(attempt - 1)
+              if (delay == null) break
+              await wait(delay)
+            }
+            continue
           }
-          continue
+          if (isModelUnavailableError(e) || isInvalidArgumentError(e)) break
+          throw e
         }
-        if (isModelUnavailableError(e) || isInvalidArgumentError(e) || isQuotaError(e)) break
-        throw e
       }
+      if (keyError) break
     }
+    if (keyError) continue
+    break
   }
   throw lastErr
 }

@@ -52,10 +52,16 @@ mock.module('@/lib/notify', () => ({
   },
 }))
 
+let emailOutcome: 'SENT' | 'FAILED' | 'SKIPPED' = 'SENT'
+
 mock.module('@/lib/mailer', () => ({
   sendEmail: async (args: any) => {
     emailCalls.push(args)
-    return { ok: true }
+    return emailOutcome === 'SENT'
+  },
+  sendEmailDetailed: async (args: any) => {
+    emailCalls.push(args)
+    return emailOutcome
   },
   emailTemplate: (title: string, body: string) => `<html>${title}${body}</html>`,
 }))
@@ -104,6 +110,7 @@ function enrollment(overrides: Record<string, any> = {}) {
 beforeEach(() => {
   fixtures = []
   conversation = null
+  emailOutcome = 'SENT'
   notifyCalls = []
   emailCalls = []
   waTextCalls = []
@@ -193,6 +200,26 @@ describe('processInactivityFollowUps', () => {
     expect(enrollmentUpdates[0].data.lastFollowUpAt).toBeNull()
     expect(logRows).toHaveLength(1)
     expect(logRows[0].kind).toBe('RETURNED')
+  })
+
+  test('email delivery FAILED is logged honestly as not sent', async () => {
+    emailOutcome = 'FAILED'
+    fixtures = [enrollment({ user: { ...enrollment().user, lastActivityAt: daysAgo(3) } })]
+    const stats = await processInactivityFollowUps(NOW)
+    expect(stats.sent).toBe(1)
+    expect(emailCalls).toHaveLength(1)
+    expect(logRows).toHaveLength(1)
+    expect(logRows[0].emailSent).toBe(false)
+  })
+
+  test('email SKIPPED (provider unconfigured) is logged honestly as not sent', async () => {
+    emailOutcome = 'SKIPPED'
+    fixtures = [enrollment({ user: { ...enrollment().user, lastActivityAt: daysAgo(3) } })]
+    const stats = await processInactivityFollowUps(NOW)
+    expect(stats.sent).toBe(1)
+    expect(emailCalls).toHaveLength(1)
+    expect(logRows).toHaveLength(1)
+    expect(logRows[0].emailSent).toBe(false)
   })
 
   test('no valid phone: WhatsApp is skipped but platform + email still go out', async () => {

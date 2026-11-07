@@ -54,15 +54,25 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    // إشعار المشرفين والإدارة بوجود اعتراض يحتاج مراجعة يدوية
-    const reviewers = await db.user.findMany({
-      where: { role: { in: ['ADMIN', 'SUPERVISOR'] } },
+    // إشعار الإدارة والمشرف المعيّن لهذا الطالب فقط: الاعتراض يُبتّ عند
+    // مشرف الطالب أو الإدارة، وبثّه لكل المشرفين ضجيج وإفصاح بلا داعٍ.
+    const admins = await db.user.findMany({
+      where: { role: 'ADMIN' },
       select: { id: true },
     })
-    for (const r of reviewers) {
+    const assigned = attempt.exam?.programId
+      ? await db.admissionApplication.findFirst({
+        where: { userId: attempt.userId, programId: attempt.exam.programId, supervisorId: { not: null } },
+        orderBy: { createdAt: 'desc' },
+        select: { supervisorId: true },
+      })
+      : null
+    const recipientIds = new Set(admins.map((r) => r.id))
+    if (assigned?.supervisorId) recipientIds.add(assigned.supervisorId)
+    for (const recipientId of recipientIds) {
       await db.notification.create({
         data: {
-          userId: r.id,
+          userId: recipientId,
           type: 'GENERAL',
           title: 'اعتراض جديد على نتيجة امتحان',
           body: `الطالب ${user.name} اعترض على نتيجته في «${attempt.exam.title}» — يتطلب المراجعة اليدوية من المشرف/الإدارة.`,
@@ -133,10 +143,15 @@ export async function PATCH(req: NextRequest) {
       if (!Number.isFinite(finalScore)) return NextResponse.json({ error: 'اعتماد الاعتراض يحتاج درجة نهائية رقمية' }, { status: 400 })
       const clamped = Math.max(0, Math.min(100, Math.round(finalScore * 10) / 10))
       const passed = clamped >= attempt.exam.passScore
-      await db.programExamAttempt.update({
-        where: { id: attempt.id },
+      // كتابة مشروطة بالحالة (كمسار الأدمن): جلسة أخرى حسمت الاعتراض
+      // أولًا ⟸ لا كتابة فوق قرارها.
+      const resolved = await db.programExamAttempt.updateMany({
+        where: { id: attempt.id, appealStatus: 'PENDING' },
         data: { finalScore: clamped, passed, appealStatus: 'REVIEWED', appealResponse: response || 'تم قبول الاعتراض واعتماد الدرجة النهائية بعد المراجعة.', reviewedById: resolver.id, reviewedAt: new Date() } as any,
       })
+      if (resolved.count !== 1) {
+        return NextResponse.json({ error: 'هذا الاعتراض حُسم من جلسة أخرى ولا يمكن الكتابة فوق القرار.' }, { status: 409 })
+      }
       if (passed) {
         const enrollment = await db.enrollment.findUnique({ where: { userId_programId: { userId: attempt.userId, programId: attempt.exam.programId } }, select: { id: true } })
         registration = enrollment ? await registerGraduationRequest({ enrollmentId: enrollment.id }) : null
@@ -144,10 +159,13 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ ok: true, finalScore: clamped, passed, certificateNo: registration?.certificateNo || null })
     }
 
-    await db.programExamAttempt.update({
-      where: { id: attempt.id },
+    const resolved = await db.programExamAttempt.updateMany({
+      where: { id: attempt.id, appealStatus: 'PENDING' },
       data: { appealStatus: 'REVIEWED', appealResponse: response || 'تم رفض الاعتراض بعد المراجعة.', reviewedById: resolver.id, reviewedAt: new Date() } as any,
     })
+    if (resolved.count !== 1) {
+      return NextResponse.json({ error: 'هذا الاعتراض حُسم من جلسة أخرى ولا يمكن الكتابة فوق القرار.' }, { status: 409 })
+    }
     return NextResponse.json({ ok: true, finalScore: attempt.finalScore ?? attempt.score, passed: attempt.score != null ? attempt.score >= attempt.exam.passScore : attempt.finalScore != null ? attempt.finalScore >= attempt.exam.passScore : null })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })

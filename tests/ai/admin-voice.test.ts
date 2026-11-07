@@ -34,6 +34,7 @@ const usageKey = (userId: string, m: string, purpose: string) => `${userId}:${m}
 const usages = new Map<string, UsageRow>()
 const sessions = new Map<string, SessionRow>()
 let credits: CreditRow[] = []
+let allocations: Array<{ id: string; sessionId: string; creditId: string | null; minutesReserved: number; minutesUsed: number; minutesRefunded: number }> = []
 let currentUser = { id: 'student-1', role: 'STUDENT' }
 let studentAiAllowed = true
 let latestThesisStatus: string | null = null
@@ -48,6 +49,15 @@ function updateNumber(current: number, change: any): number {
 
 const db: any = {
   $transaction: async (work: (tx: any) => Promise<any>) => work(db),
+  // This single-threaded fake supports the live-usage row-lock contract.
+  // A concurrent session cannot be proved by a fake and is tested separately.
+  $queryRaw: async (strings: TemplateStringsArray) => {
+    const sql = strings.join('?')
+    if (!sql.includes('FOR UPDATE') || !/FROM "(User|AiLiveUsage|AiLiveSession)"/.test(sql)) {
+      throw new Error('Unexpected SQL in admin voice test database')
+    }
+    return []
+  },
   enrollment: { count: async () => 0 },
   thesisSubmission: { findFirst: async () => latestThesisStatus ? { id: 'thesis-1', status: latestThesisStatus, createdAt: new Date() } : null },
   setting: { findUnique: async () => null, findMany: async () => [] },
@@ -85,7 +95,10 @@ const db: any = {
       operations.creditWrites++
       const row = credits.find((item) => item.id === where.id)
       if (!row) throw new Error('credit not found')
-      Object.assign(row, data)
+      // E01: استرداد التخصيص يزيد المتبقي بـ increment رقميًا.
+      const { remainingMinutes, ...rest } = data
+      if (remainingMinutes !== undefined) row.remainingMinutes = updateNumber(row.remainingMinutes, remainingMinutes)
+      Object.assign(row, rest)
       return row
     },
     create: async ({ data }: any) => {
@@ -106,6 +119,31 @@ const db: any = {
       const row = [...sessions.values()].find((item) => item.id === where.id)
       if (!row) throw new Error('session not found')
       Object.assign(row, data)
+      return row
+    },
+  },
+  // E01: دفتر التخصيص — محاكاة بنفس دلالات العميل الحقيقي.
+  aiLiveCreditAllocation: {
+    create: async ({ data }: any) => {
+      const row = { id: `alloc-${allocations.length + 1}`, creditId: null, minutesUsed: 0, minutesRefunded: 0, ...data }
+      allocations.push(row)
+      return row
+    },
+    findFirst: async ({ where }: any) =>
+      allocations.find((row) => row.sessionId === where.sessionId && (row.creditId ?? null) === (where.creditId ?? null)) || null,
+    findMany: async ({ where, include }: any) => {
+      let rows = allocations.filter((row) => !where?.sessionId || row.sessionId === where.sessionId)
+      if (include?.credit) {
+        rows = rows.map((row) => ({ ...row, credit: row.creditId ? credits.find((c) => c.id === row.creditId) || null : null } as any))
+      }
+      return rows
+    },
+    update: async ({ where, data }: any) => {
+      const row = allocations.find((item) => item.id === where.id)
+      if (!row) throw new Error('allocation not found')
+      for (const key of ['minutesReserved', 'minutesUsed', 'minutesRefunded'] as const) {
+        if (data[key] !== undefined) row[key] = updateNumber(row[key], data[key])
+      }
       return row
     },
   },
@@ -152,6 +190,7 @@ beforeEach(() => {
   usages.clear()
   sessions.clear()
   credits = []
+  allocations = []
   currentUser = { id: 'student-1', role: 'STUDENT' }
   studentAiAllowed = true
   latestThesisStatus = null
@@ -233,8 +272,10 @@ describe('Admin Gemini Live minutes and classified errors', () => {
     studentAiAllowed = false
     latestThesisStatus = 'SCHEDULED'
 
+    // بلا testOnly: وضع الاختبار صار للإدارة فقط (إصلاح تدقيق 2026-11-06)
+    // وقصد الاختبار هو بوابة المناقشة للطالب لا وضع الاختبار.
     const response = await POST(new NextRequest('http://localhost/api/ai/gemini-live/session', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ purpose: 'DISCUSSION', testOnly: true }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ purpose: 'DISCUSSION' }),
     }))
 
     expect(response.status).not.toBe(403)

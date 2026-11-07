@@ -340,12 +340,25 @@ async function scopedKnowledge(job: { programId: string; unitId: string | null }
   if (job.unitId) {
     const unit = await db.unit.findFirst({ where: { id: job.unitId, programId: job.programId }, select: { id: true, title: true, sourceBookId: true, chunkStartIndex: true, chunkEndIndex: true, semester: true } })
     if (!unit?.sourceBookId || unit.chunkStartIndex == null || unit.chunkEndIndex == null) throw new Error('UNIT_OUTLINE_SCOPE_REQUIRED')
-    const chunks = await db.bookChunk.findMany({ where: { bookId: unit.sourceBookId, index: { gte: unit.chunkStartIndex, lte: unit.chunkEndIndex } }, orderBy: { index: 'asc' }, select: { id: true } })
+    // A chunk whose (re-)analysis exhausted its attempts is FAILED: any
+    // items still attached to it predate its current text and must not
+    // ground new questions.
+    const chunks = await db.bookChunk.findMany({ where: { bookId: unit.sourceBookId, status: { not: 'FAILED' }, index: { gte: unit.chunkStartIndex, lte: unit.chunkEndIndex } }, orderBy: { index: 'asc' }, select: { id: true } })
     const chunkIds = chunks.map((chunk) => chunk.id)
     const knowledge = await db.bookKnowledgeItem.findMany({ where: { programId: job.programId, kbVersion: 2, chunkId: { in: chunkIds }, category: { notIn: ['QUESTION_SEED', 'LEGACY'] } }, orderBy: [{ importance: 'desc' }, { pageStart: 'asc' }], take: 120 })
     return { unit, knowledge, title: unit.title, scopeLabel: `الوحدة: ${unit.title}` }
   }
-  const knowledge = await db.bookKnowledgeItem.findMany({ where: { programId: job.programId, kbVersion: 2, category: { notIn: ['QUESTION_SEED', 'LEGACY'] } }, orderBy: [{ importance: 'desc' }, { updatedAt: 'desc' }], take: 400 })
+  const programKnowledge = await db.bookKnowledgeItem.findMany({ where: { programId: job.programId, kbVersion: 2, category: { notIn: ['QUESTION_SEED', 'LEGACY'] } }, orderBy: [{ importance: 'desc' }, { updatedAt: 'desc' }], take: 400 })
+  // Same FAILED-chunk exclusion as the unit scope above (this path does
+  // not join chunks, so filter the fetched items by their chunk's state).
+  const knowledgeChunkIds = [...new Set(programKnowledge.map((item) => item.chunkId).filter((id): id is string => Boolean(id)))]
+  const failedChunks = knowledgeChunkIds.length
+    ? await db.bookChunk.findMany({ where: { id: { in: knowledgeChunkIds }, status: 'FAILED' }, select: { id: true } })
+    : []
+  const failedChunkIds = new Set(failedChunks.map((chunk) => chunk.id))
+  const knowledge = failedChunkIds.size
+    ? programKnowledge.filter((item) => !item.chunkId || !failedChunkIds.has(item.chunkId))
+    : programKnowledge
   return { unit: null, knowledge, title: 'بنك أسئلة البرنامج', scopeLabel: 'البرنامج كاملاً' }
 }
 

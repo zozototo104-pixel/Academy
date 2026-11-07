@@ -23,7 +23,11 @@ const ADMISSION_RULES = {
 function makeWorld(unitScore: number) {
   const state: any = {
     unitAttempts: [
-      { id: 'ea1', userId: 'u1', examId: 'ue1', status: 'GRADED', score: unitScore, passed: true, appealStatus: 'NONE', answers: [] },
+      // حالة ينتجها التصحيح الحقيقي: passed تُشتق من الدرجة أمام حدّ
+      // نجاح الامتحان (60) كما تفعل مسارات التصحيح فعليًا
+      // (passed = score >= passScore) — فمحاولة بدرجة 20 راسبة
+      // (passed: false) لكنها نهائية ومصحَّحة ومعتمدة رسميًا.
+      { id: 'ea1', userId: 'u1', examId: 'ue1', status: 'GRADED', score: unitScore, passed: unitScore >= 60, appealStatus: 'NONE', answers: [] },
     ],
     programAttempts: [
       { id: 'pa1', userId: 'u1', examId: 'pe1', status: 'GRADED', score: 40, passed: true, appealStatus: 'NONE', answers: [] },
@@ -287,5 +291,25 @@ describe('مسار الاسترحام والنشاط العلاجي', () => {
       world.db.admissionApplication.findMany = originalAdmissionFindMany
       world.db.mercyRequest.findMany = originalMercyFindMany
     }
+  })
+})
+
+describe('سباق إنشاء الاسترحام (تدقيق 2026-11-06)', () => {
+  test('خرق قيد التفرد عند الإنشاء ⟹ MERCY_ALREADY_EXISTS لا خطأ 500، وأي خطأ آخر يصعد', async () => {
+    // عميل minimal: فصل مغلق راسب معتمد، لا طلب قائم، والإنشاء يخسر السباق.
+    const client: any = {
+      enrollment: { findUnique: async () => ({ id: 'enr-race' }) },
+      enrollmentSemesterState: { findUnique: async () => ({ status: 'CLOSED', result: 'FAILED' }) },
+      semesterResultApproval: { findUnique: async () => ({ id: 'appr-race' }) },
+      mercyRequest: {
+        findUnique: async () => null,
+        create: async () => { throw Object.assign(new Error('Unique constraint failed on the fields: (`enrollmentId`,`semester`)'), { code: 'P2002' }) },
+      },
+      notificationOutbox: { create: async () => ({}), findUnique: async () => null },
+    }
+    const raced = await requestMercy(client, { userId: 'u-race', programId: 'p-race', semester: 1 })
+    expect(raced).toEqual({ ok: false, code: 'MERCY_ALREADY_EXISTS' })
+    client.mercyRequest.create = async () => { throw new Error('DB_DOWN') }
+    await expect(requestMercy(client, { userId: 'u-race', programId: 'p-race', semester: 1 })).rejects.toThrow('DB_DOWN')
   })
 })

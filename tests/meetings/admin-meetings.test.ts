@@ -5,8 +5,13 @@ import { describe, expect, mock, test } from 'bun:test'
 import { createHmac } from 'node:crypto'
 import { NextRequest } from 'next/server'
 
+// محدّد المعدل قابل للتحكم: الافتراضي نجاح، واختبارات الحارس تقلبه
+// (رمي = الحارس غائب، ok:false = تجاوز الحد) ثم تعيده.
+const rateLimitImpl: { current: (key: string, max: number, windowMs: number) => Promise<any> } = {
+  current: async () => ({ allowed: true, ok: true }),
+}
 mock.module('@/lib/rate-limit', () => ({
-  checkDatabaseRateLimit: async () => ({ allowed: true, ok: true }),
+  checkDatabaseRateLimit: (key: string, max: number, windowMs: number) => rateLimitImpl.current(key, max, windowMs),
 }))
 
 // بيئة الخادم اللازمة لروابط الدعوات والنسخ المشفّرة (تُقرأ عند
@@ -329,6 +334,31 @@ describe('entry state & actions (fake db)', () => {
     const ok = await meetingAction(db as any, db.state.inv, visitor, 'join')
     expect(ok.status).toBe(200)
     expect((ok.body as any).meetingUrl).toContain('zoom.us')
+    expect(db.state.attendance?.status).toBe('JOINED')
+  })
+
+  test('join rate guard unavailable fails CLOSED with 503 (no attendance recorded); over-limit stays 429', async () => {
+    const inv = invite({ claimedByUserId: visitor.id })
+    inv.meeting = meeting({ startsAt: new Date(Date.now() - 5 * 60_000), endsAt: new Date(Date.now() + 55 * 60_000) })
+    const db = fakeDb(inv)
+    try {
+      rateLimitImpl.current = async () => { throw new Error('rate store down') }
+      const down = await meetingAction(db as any, db.state.inv, visitor, 'join')
+      expect(down.status).toBe(503)
+      expect((down.body as any).code).toBe('RATE_GUARD_UNAVAILABLE')
+      expect((down.body as any).meetingUrl).toBeUndefined()
+      expect(db.state.attendance).toBeNull()
+
+      rateLimitImpl.current = async () => ({ allowed: false, ok: false })
+      const over = await meetingAction(db as any, db.state.inv, visitor, 'join')
+      expect(over.status).toBe(429)
+      expect((over.body as any).code).toBe('RATE_LIMITED')
+      expect(db.state.attendance).toBeNull()
+    } finally {
+      rateLimitImpl.current = async () => ({ allowed: true, ok: true })
+    }
+    const ok = await meetingAction(db as any, db.state.inv, visitor, 'join')
+    expect(ok.status).toBe(200)
     expect(db.state.attendance?.status).toBe('JOINED')
   })
 

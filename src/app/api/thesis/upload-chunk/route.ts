@@ -2,12 +2,19 @@ import { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
+import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { deleteStoredFile, storeFileBuffer, storageErrorMessage } from '@/lib/storage'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
 
 const MAX_SIZE = 20 * 1024 * 1024
+// العميل الشرعي (StudentThesisTab) يجزّئ الملف إلى أجزاء 4MB؛ فعدد
+// الأجزاء المشروع لملف 20MB هو 5 كحد أقصى، وحجم الجزء الواحد 4MB لا
+// حجم الملف كله — وبدون هذين السقفين يستطيع أي طالب ملء قاعدة البيانات
+// بصفوف أجزاء لا تنتهي ولا تُجمَّع أبدًا.
+const CHUNK_SIZE = 4 * 1024 * 1024
+const MAX_CHUNKS = Math.ceil(MAX_SIZE / CHUNK_SIZE)
 const ALLOWED_STATUSES = ['PLAN_APPROVED', 'FINAL_NEEDS_REVISION', 'SUBMITTED']
 
 function clean(value: unknown, max = 220) {
@@ -54,6 +61,8 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireUser()
     cleanupUserId = user.id
+    const uploadLimit = enforceApiRateLimit(req, 'thesis:upload-chunk', 60, 10 * 60 * 1000, user.id)
+    if (uploadLimit) return uploadLimit
     await db.thesisUploadChunk.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 24 * 60 * 60 * 1000) } } })
     const form = await req.formData()
     const thesisId = clean(form.get('thesisId'), 100)
@@ -66,7 +75,7 @@ export async function POST(req: NextRequest) {
     const cancel = String(form.get('cancel') || form.get('abort') || '') === '1'
     const fileName = clean(form.get('fileName'), 220)
     const mimeType = clean(form.get('mimeType'), 180)
-    if (!thesisId || !uploadId || !Number.isInteger(total) || total <= 0) return NextResponse.json({ error: 'بيانات الرفع غير مكتملة' }, { status: 400 })
+    if (!thesisId || !uploadId || !Number.isInteger(total) || total <= 0 || total > MAX_CHUNKS) return NextResponse.json({ error: 'بيانات الرفع غير مكتملة' }, { status: 400 })
     const thesis = await ownedThesis(user.id, thesisId)
     if (!thesis) return NextResponse.json({ error: 'الأطروحة غير موجودة' }, { status: 404 })
     if (await rejectIfUploadOwnedByAnother(uploadId, user.id, thesisId)) return NextResponse.json({ error: 'معرف الرفع لا يخص هذه الأطروحة' }, { status: 403 })
@@ -81,7 +90,18 @@ export async function POST(req: NextRequest) {
       if (!(blob instanceof File)) return NextResponse.json({ error: 'جزء الملف مفقود' }, { status: 400 })
       if (!Number.isInteger(index) || index < 0 || index >= total) return NextResponse.json({ error: 'ترتيب الجزء غير صالح' }, { status: 400 })
       const buffer = Buffer.from(await blob.arrayBuffer())
-      if (!buffer.length || buffer.byteLength > MAX_SIZE) return NextResponse.json({ error: 'حجم الجزء غير صالح' }, { status: 413 })
+      if (!buffer.length || buffer.byteLength > CHUNK_SIZE) return NextResponse.json({ error: 'حجم الجزء غير صالح' }, { status: 413 })
+      // الحجم التراكمي المعلن يُفحص قبل التخزين لا عند التجميع فقط:
+      // مجموع الأجزاء المخزنة لهذا الرفع (عدا موضع هذا الجزء نفسه عند
+      // إعادة إرساله) + هذا الجزء لا يجوز أن يتجاوز حد الملف الكلي.
+      const storedRows = await db.thesisUploadChunk.findMany({
+        where: { uploadId, userId: user.id, thesisId },
+        select: { index: true, data: true },
+      })
+      const storedBytes = storedRows
+        .filter((row) => row.index !== index)
+        .reduce((sum, row) => sum + Buffer.from(row.data, 'base64').byteLength, 0)
+      if (storedBytes + buffer.byteLength > MAX_SIZE) return NextResponse.json({ error: 'حجم الملف يتجاوز 20MB' }, { status: 413 })
       await db.thesisUploadChunk.upsert({
         where: { uploadId_index: { uploadId, index } },
         create: { uploadId, userId: user.id, thesisId, index, data: buffer.toString('base64') },

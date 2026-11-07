@@ -132,7 +132,10 @@ export async function meetingAction(
       }
     }
     const limit = await checkDatabaseRateLimit(`meetings:join:${meeting.id}:${user.id}`, 10, 10 * 60_000).catch(() => null)
-    if (limit && !limit.ok) return { status: 429, body: { error: 'محاولات كثيرة — انتظر قليلًا', code: 'RATE_LIMITED' } }
+    // تعذُّر التحقق من قيود الاستخدام = رفض مغلق (503) كما في إجراءات
+    // الصوت أدناه — لا يُفتح الدخول عند غياب الحارس.
+    if (!limit) return { status: 503, body: { error: 'تعذر التحقق من قيود الاستخدام', code: 'RATE_GUARD_UNAVAILABLE' } }
+    if (!limit.ok) return { status: 429, body: { error: 'محاولات كثيرة — انتظر قليلًا', code: 'RATE_LIMITED' } }
     // JOINED = ضغط زر الدخول داخل النافذة (لا يدّعي حضورًا مؤكدًا)
     await db.adminMeetingAttendance.upsert({
       where: { meetingId_userId: { meetingId: meeting.id, userId: user.id } },

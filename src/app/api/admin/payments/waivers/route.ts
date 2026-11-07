@@ -8,6 +8,104 @@ function cleanText(value: unknown, max = 700) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
 }
 
+class WaiverCancelUnsafeError extends Error {
+  status = 409
+  code = 'WAIVER_CANCEL_UNSAFE'
+
+  constructor() {
+    super('تعذّر إلغاء هذا الإعفاء تلقائياً لأن تفعيل الطالب لم يعد قائماً على هذا الإعفاء وحده (توجد مبالغ مسددة فعلياً، أو إعفاء آخر مستقل، أو نشاط أكاديمي بدأ). راجع التحاق الطالب وعالج الإلغاء يدوياً من شاشة القبول والتسجيل ثم أعد المحاولة.')
+  }
+}
+
+class WaiverDecisionConflictError extends Error {
+  status = 409
+  code = 'WAIVER_DECISION_CONFLICT'
+
+  constructor() {
+    super('تغيّرت حالة هذا الإعفاء بقرار متزامن أثناء المعالجة. أعد تحميل البيانات وراجع الحالة الحالية قبل إعادة المحاولة.')
+  }
+}
+
+// عكس تفعيل الإعفاء عند إلغاء كود معتمد: اعتماد الإعفاء قد فعّل التحاق
+// الطالب (حالة القبول + التحاق ACTIVE) عبر finalizeAdmissionAfterSettlement،
+// فإعادة الفاتورة وحدها إلى UNPAID تترك المال والوصول على خلاف. نخطط العكس
+// داخل نفس معاملة الإلغاء، ولا ننفذه إلا إذا كان آمناً بالكامل:
+//  - لا فاتورة شقيقة مسددة فعلياً (PAID) لنفس القبول — التفعيل ليس من هذا
+//    الإعفاء وحده.
+//  - كل فاتورة شقيقة معفاة (WAIVED) صنعها هذا الإعفاء نفسه (نفس النوع والسبب
+//    والمعتمِد: مسح المنحة الكاملة أو رصيد فاتورة التقديم) — إعفاء شقيق
+//    مستقل يعني رفضاً.
+//  - القبول لم يتجاوز مرحلتي التفعيل (THESIS/SUPERVISOR_ASSIGNED).
+//  - لا بصمة أكاديمية: لا وحدات مكتملة، لا محاولات امتحانات، لا فصل مغلق
+//    أو نتيجة معتمدة، لا طلب تخرج، لا درجة نهائية/شهادة، والتحاق غير مكتمل.
+// عندها: الفواتير الشقيقة تُستعاد كما تُستعاد فاتورة الكود، والقبول يعود
+// إلى AWAITING_TUITION، والالتحاق النشط يعود إلى PENDING_PAYMENT (حالته
+// قبل التفعيل في مسار التسجيل المباشر). لقطة القواعد وحالات الفصول التي
+// أنشأها التفعيل تبقى كما هي: إنشاؤها عند أي تفعيل لاحق محروس بـ
+// create-once فلا تتكرر ولا تتعارض.
+async function planWaiverCancelReversal(tx: any, waiver: any) {
+  const plan: { siblings: any[]; admissionData: Record<string, any> | null; enrollmentUpdate: { id: string; data: Record<string, any> } | null } = {
+    siblings: [],
+    admissionData: null,
+    enrollmentUpdate: null,
+  }
+  const admissionId = waiver.payment.admissionId
+  const app = await tx.admissionApplication.findUnique({ where: { id: admissionId } })
+  if (!app) return plan
+
+  const payments = await tx.payment.findMany({ where: { admissionId } })
+  const others = payments.filter((p: any) => p.id !== waiver.paymentId)
+  if (others.some((p: any) => p.status === 'PAID')) throw new WaiverCancelUnsafeError()
+  for (const p of others) {
+    if (p.status !== 'WAIVED') continue
+    const byThisWaiver = p.waiverType === waiver.waiverType
+      && p.waiverReason === waiver.reason
+      && (p.waiverApprovedById || null) === (waiver.approvedById || null)
+    if (!byThisWaiver) throw new WaiverCancelUnsafeError()
+    plan.siblings.push(p)
+  }
+
+  const appStatus = String(app.status || '')
+  if (['SCHEDULED', 'RESULT_APPROVED', 'CERTIFIED'].includes(appStatus)) throw new WaiverCancelUnsafeError()
+
+  const userId = app.userId || waiver.payment.userId || null
+  if (app.programId && userId) {
+    const enrollment = await tx.enrollment.findUnique({ where: { userId_programId: { userId, programId: app.programId } } })
+    if (enrollment) {
+      let completedUnits: unknown[] = []
+      try {
+        const parsed = JSON.parse(enrollment.completedUnits || '[]')
+        if (Array.isArray(parsed)) completedUnits = parsed
+      } catch { /* قيمة غير صالحة تُعامل كقائمة فارغة */ }
+      const attempts = (await tx.examAttempt.count({ where: { userId } })) + (await tx.programExamAttempt.count({ where: { userId } }))
+      const semesterProgress = await tx.enrollmentSemesterState.findFirst({
+        where: { enrollmentId: enrollment.id, OR: [{ status: 'CLOSED' }, { result: { not: null } }, { approvedScore: { not: null } }] },
+      })
+      const graduation = await tx.graduationRequest.findUnique({ where: { enrollmentId: enrollment.id } })
+      if (
+        enrollment.status === 'COMPLETED'
+        || completedUnits.length > 0
+        || enrollment.finalScore != null
+        || !!enrollment.certificateNo
+        || attempts > 0
+        || !!semesterProgress
+        || !!graduation
+      ) {
+        throw new WaiverCancelUnsafeError()
+      }
+      if (enrollment.status === 'ACTIVE') {
+        plan.enrollmentUpdate = { id: enrollment.id, data: { status: 'PENDING_PAYMENT' } }
+      }
+    }
+  }
+
+  const admissionData: Record<string, any> = {}
+  if (['THESIS', 'SUPERVISOR_ASSIGNED'].includes(appStatus)) admissionData.status = 'AWAITING_TUITION'
+  if (waiver.waiverType === 'FULL_SCHOLARSHIP') admissionData.scholarshipFull = false
+  plan.admissionData = Object.keys(admissionData).length ? admissionData : null
+  return plan
+}
+
 export async function POST(req: NextRequest) {
   try {
     const admin = await requireAdmin()
@@ -32,7 +130,10 @@ export async function POST(req: NextRequest) {
     if (e instanceof ActivePaymentWaiverExistsError || e?.code === 'ACTIVE_WAIVER_EXISTS') {
       return NextResponse.json({ error: e.message, code: 'ACTIVE_WAIVER_EXISTS' }, { status: 409 })
     }
-    return NextResponse.json({ error: e?.message || 'تعذر توليد كود الإعفاء' }, { status: 400 })
+    // لا تعكس نص الخطأ الداخلي (Prisma/قاعدة بيانات) إلى المتصل: رسالة
+    // عامة للواجهة، والخطأ الحقيقي كاملاً في سجل الخادم فقط.
+    console.error('payment waiver code creation failed:', e)
+    return NextResponse.json({ error: 'تعذر توليد كود الإعفاء' }, { status: 400 })
   }
 }
 
@@ -62,39 +163,121 @@ export async function PATCH(req: NextRequest) {
       if (action === 'REJECT' && waiver.status === 'APPROVED') {
         return NextResponse.json({ error: 'لا يمكن رفض إعفاء معتمد. استخدم إلغاء الإعفاء لإعادة الفاتورة لحالتها.' }, { status: 400 })
       }
-      const result = await db.$transaction(async (tx) => {
-        await tx.$queryRaw`SELECT id FROM "Payment" WHERE id = ${waiver.paymentId} FOR UPDATE`
-        const updatedWaiver = await tx.paymentWaiverCode.update({ where: { id: waiverId }, data: { status } })
-        let updatedPayment: any = null
-        if (action === 'CANCEL' && waiver.status === 'APPROVED') {
-          const originalCents = Math.max(Number(waiver.payment.originalAmountCents || 0), Number(waiver.payment.amountCents || 0) + Number(waiver.payment.waivedAmountCents || 0))
-          const originalAmount = originalCents > 0 ? originalCents / 100 : Number(waiver.payment.originalAmount || waiver.payment.amount || 0)
-          updatedPayment = await tx.payment.update({
-            where: { id: waiver.paymentId },
-            data: {
-              status: 'UNPAID',
-              amount: originalAmount,
-              amountCents: Math.round(originalAmount * 100),
-              waivedAmount: 0,
-              waivedAmountCents: 0,
-              waiverStatus: 'CANCELLED',
-              waiverReason: waiver.payment.waiverReason ? `${waiver.payment.waiverReason} — تم إلغاء الإعفاء المعتمد` : 'تم إلغاء الإعفاء المعتمد',
-              waiverApprovedById: null,
-              waiverApprovedAt: null,
-              paidAt: null,
-              method: null,
-              receiptNo: null,
-            },
-          })
-          if (waiver.waiverType === 'FULL_SCHOLARSHIP' && waiver.payment.admissionId) {
-            await tx.admissionApplication.update({ where: { id: waiver.payment.admissionId }, data: { scholarshipFull: false } }).catch(() => null)
+      let result: any
+      let decidedStatus = waiver.status
+      try {
+        result = await db.$transaction(async (tx) => {
+          await tx.$queryRaw`SELECT id FROM "Payment" WHERE id = ${waiver.paymentId} FOR UPDATE`
+          // إعادة قراءة الكود والفاتورة داخل المعاملة بعد قفل صف الفاتورة:
+          // اللقطة المقروءة قبل المعاملة قد تسبق اعتماداً متزامناً التزم
+          // أثناء انتظار القفل، فبناء قرار الرفض/الإلغاء وخطة العكس عليها
+          // يترك الكود «ملغياً» والفاتورة ما زالت معفاة والتفعيل قائماً.
+          // كل القرارات أدناه تُبنى على القراءة الطازجة، والقلب نفسه مشروط
+          // بالحالة المرصودة (CAS) فيُكشف أي تغيير لا يمر بقفل الفاتورة.
+          const fresh = await tx.paymentWaiverCode.findUnique({ where: { id: waiverId }, include: { payment: true } })
+          if (!fresh?.payment) throw new WaiverDecisionConflictError()
+          decidedStatus = fresh.status
+          // قرار مطابق اتُّخذ متزامناً وانتهى: نجاح بلا أي كتابة إضافية.
+          if (fresh.status === status) {
+            const settledWaiver = await tx.paymentWaiverCode.findUnique({ where: { id: waiverId } })
+            return { waiver: settledWaiver, payment: fresh.payment }
           }
-        } else {
-          updatedPayment = await tx.payment.updateMany({ where: { id: waiver.paymentId, waiverStatus: { in: ['REQUESTED', 'VERIFIED'] } }, data: { waiverStatus: status } })
+          if (action === 'REJECT' && fresh.status === 'APPROVED') throw new WaiverDecisionConflictError()
+          // حارس إلغاء الإعفاء على فاتورته نفسها: مخطط أمان العكس يفحص
+          // الفواتير الشقيقة المسددة ويستبعد فاتورة الإعفاء نفسها، وإعادة
+          // الضبط أدناه تمسح حقول السداد — فلو دفع الطالب باقي فاتورة
+          // إعفاء جزئي فصارت PAID بإيصال، كان الإلغاء يمحو سداداً حقيقياً
+          // ويرجع 200. البصمة النقدية هنا: حالة PAID، أو ختم إيصال/دفع
+          // على فاتورة غير معفاة ليس من صنع الإعفاء (إيصال الإعفاء نفسه
+          // يُختم بطريقة WAIVER على فاتورة WAIVED، وهو مسار الإلغاء
+          // الآمن القائم ولا يدخل هذا الحارس). الحارس في جسم مسار
+          // الإلغاء نفسه فيعمل سواء ارتبطت الفاتورة بقبول أم لا.
+          if (action === 'CANCEL' && fresh.status === 'APPROVED') {
+            const own = fresh.payment
+            const cashCollected = own.status === 'PAID'
+              || (own.status !== 'WAIVED' && (!!own.receiptNo || !!own.paidAt) && own.method !== 'WAIVER')
+            if (cashCollected) throw new WaiverCancelUnsafeError()
+          }
+          // إلغاء كود معتمد مرتبط بقبول: خطط عكس التفعيل أولاً — إن لم يكن
+          // آمناً تُرفض العملية كلها (409) قبل أي كتابة.
+          const reversal = action === 'CANCEL' && fresh.status === 'APPROVED' && fresh.payment.admissionId
+            ? await planWaiverCancelReversal(tx, fresh)
+            : null
+          const flipped = await tx.paymentWaiverCode.updateMany({
+            where: { id: waiverId, status: fresh.status },
+            data: { status },
+          })
+          if (flipped.count === 0) throw new WaiverDecisionConflictError()
+          const updatedWaiver = await tx.paymentWaiverCode.findUnique({ where: { id: waiverId } })
+          let updatedPayment: any = null
+          if (action === 'CANCEL' && fresh.status === 'APPROVED') {
+            const originalCents = Math.max(Number(fresh.payment.originalAmountCents || 0), Number(fresh.payment.amountCents || 0) + Number(fresh.payment.waivedAmountCents || 0))
+            const originalAmount = originalCents > 0 ? originalCents / 100 : Number(fresh.payment.originalAmount || fresh.payment.amount || 0)
+            updatedPayment = await tx.payment.update({
+              where: { id: fresh.paymentId },
+              data: {
+                status: 'UNPAID',
+                amount: originalAmount,
+                amountCents: Math.round(originalAmount * 100),
+                waivedAmount: 0,
+                waivedAmountCents: 0,
+                waiverStatus: 'CANCELLED',
+                waiverReason: fresh.payment.waiverReason ? `${fresh.payment.waiverReason} — تم إلغاء الإعفاء المعتمد` : 'تم إلغاء الإعفاء المعتمد',
+                waiverApprovedById: null,
+                waiverApprovedAt: null,
+                paidAt: null,
+                method: null,
+                receiptNo: null,
+              },
+            })
+            if (reversal) {
+              for (const sibling of reversal.siblings) {
+                const siblingOriginalCents = Math.max(Number(sibling.originalAmountCents || 0), Number(sibling.amountCents || 0) + Number(sibling.waivedAmountCents || 0))
+                const siblingOriginalAmount = siblingOriginalCents > 0 ? siblingOriginalCents / 100 : Number(sibling.originalAmount || sibling.amount || 0)
+                await tx.payment.update({
+                  where: { id: sibling.id },
+                  data: {
+                    status: 'UNPAID',
+                    amount: siblingOriginalAmount,
+                    amountCents: Math.round(siblingOriginalAmount * 100),
+                    waivedAmount: 0,
+                    waivedAmountCents: 0,
+                    waiverStatus: 'CANCELLED',
+                    waiverReason: sibling.waiverReason ? `${sibling.waiverReason} — تم إلغاء الإعفاء المعتمد` : 'تم إلغاء الإعفاء المعتمد',
+                    waiverApprovedById: null,
+                    waiverApprovedAt: null,
+                    paidAt: null,
+                    method: null,
+                    receiptNo: null,
+                  },
+                })
+              }
+              if (reversal.admissionData) {
+                const admissionId = fresh.payment.admissionId
+                if (!admissionId) throw new WaiverCancelUnsafeError()
+                await tx.admissionApplication.update({ where: { id: admissionId }, data: reversal.admissionData })
+              }
+              if (reversal.enrollmentUpdate) {
+                await tx.enrollment.update({ where: { id: reversal.enrollmentUpdate.id }, data: reversal.enrollmentUpdate.data })
+              }
+            } else if (fresh.waiverType === 'FULL_SCHOLARSHIP' && fresh.payment.admissionId) {
+              await tx.admissionApplication.update({ where: { id: fresh.payment.admissionId }, data: { scholarshipFull: false } }).catch(() => null)
+            }
+          } else {
+            updatedPayment = await tx.payment.updateMany({ where: { id: fresh.paymentId, waiverStatus: { in: ['REQUESTED', 'VERIFIED'] } }, data: { waiverStatus: status } })
+          }
+          return { waiver: updatedWaiver, payment: updatedPayment }
+        })
+      } catch (e: any) {
+        if (e instanceof WaiverCancelUnsafeError || e?.code === 'WAIVER_CANCEL_UNSAFE') {
+          return NextResponse.json({ error: e.message, code: 'WAIVER_CANCEL_UNSAFE' }, { status: 409 })
         }
-        return { waiver: updatedWaiver, payment: updatedPayment }
-      })
-      await audit({ id: admin.id, name: admin.name || admin.email || 'Admin' }, `PAYMENT_WAIVER_${status}`, 'Payment', waiver.paymentId, `${waiver.codePreview} — ${waiver.waiverType}${waiver.status === 'APPROVED' ? ' — إعادة الفاتورة إلى UNPAID' : ''}`)
+        if (e instanceof WaiverDecisionConflictError || e?.code === 'WAIVER_DECISION_CONFLICT') {
+          return NextResponse.json({ error: e.message, code: 'WAIVER_DECISION_CONFLICT' }, { status: 409 })
+        }
+        throw e
+      }
+      await audit({ id: admin.id, name: admin.name || admin.email || 'Admin' }, `PAYMENT_WAIVER_${status}`, 'Payment', waiver.paymentId, `${waiver.codePreview} — ${waiver.waiverType}${decidedStatus === 'APPROVED' ? ' — إعادة الفاتورة إلى UNPAID' : ''}`)
       return NextResponse.json(result)
     }
 
