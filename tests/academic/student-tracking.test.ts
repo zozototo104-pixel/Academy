@@ -214,6 +214,56 @@ describe('متابعة الفصول — حالة إشراق (7/11)', () => {
     expect(JSON.stringify(fx.unitAttempts)).toBe(beforeS2)
   })
 
+  test('معدل فوق 50 بلا اعتماد يظل تقديرًا، لا نجاحًا رسميًا ولا يفتح الفصل التالي', async () => {
+    const fx = ishrakFixture()
+    fx.programAttempts.pe1 = [{ score: 90, passed: true }]
+    const tracking = await getStudentSemesterTracking(fakeClient(fx), { userId: 'u1', programId: 'p1' })
+    expect(tracking.semesters[0].semesterAverage).toBeCloseTo(84.30, 2)
+    expect(tracking.semesters[0].approval).toBe('PROVISIONAL')
+    expect(tracking.semesters[0].semesterPassed).toBeNull()
+    expect(tracking.semesters[1].preserved).toBe(true)
+  })
+
+  test('نفس المصدر يحترم برامج بأعداد وحدات مختلفة، وليس التقسيم 7/11 فقط', async () => {
+    const fx = ishrakFixture()
+    fx.unitExams = [
+      ...Array.from({ length: 3 }, (_, i) => ({
+        id: `s1-${i}`, semester: 1, unitTitle: `فصل 1 وحدة ${i}`, passScore: 60, questions: 5,
+      })),
+      ...Array.from({ length: 4 }, (_, i) => ({
+        id: `s2-${i}`, semester: 2, unitTitle: `فصل 2 وحدة ${i}`, passScore: 60, questions: 5,
+      })),
+    ]
+    fx.unitAttempts = {
+      's1-0': [{ score: 70, passed: true }],
+      's1-1': [{ score: 30, passed: false }],
+      's2-2': [{ score: 100, passed: true }],
+    }
+    const tracking = await getStudentSemesterTracking(fakeClient(fx), { userId: 'another-student', programId: 'another-program' })
+    const [s1, s2] = tracking.semesters
+    expect([s1.unitExamsGraded, s1.unitExamsTotal]).toEqual([2, 3])
+    expect([s2.unitExamsGraded, s2.unitExamsTotal]).toEqual([1, 4])
+    expect(s1.unitAverage).toBeCloseTo(33.33, 2)
+    expect(s2.unitAverage).toBeCloseTo(25, 2)
+    expect(s2.preserved).toBe(true)
+  })
+
+  test('إعادة استخدام نتيجة المحرك من المسار لا تعيد طلب المعدل المجمّع', async () => {
+    const fx = ishrakFixture()
+    const client = fakeClient(fx)
+    const finalGrade = await calculateFinalGrade({ userId: 'u1', programId: 'p1', client })
+    const originalFindMany = client.programAssignment.findMany
+    let pooledCalls = 0
+    client.programAssignment.findMany = async (args: any) => {
+      if (args?.where?.semester === undefined) pooledCalls++
+      return originalFindMany(args)
+    }
+    const tracking = await getStudentSemesterTracking(client, { userId: 'u1', programId: 'p1', finalGrade })
+    expect(pooledCalls).toBe(0)
+    expect(tracking.programme?.earnedScore).toBe(finalGrade.earnedScore)
+    expect(tracking.programme?.score).toBe(finalGrade.score)
+  })
+
   test('الطبقة قراءة فقط: بيانات الدرجات لا تتغير بعد الاستدعاءات', async () => {
     const fx = ishrakFixture()
     const before = JSON.stringify({ attempts: fx.unitAttempts, submissions: fx.submissions })
