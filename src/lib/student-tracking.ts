@@ -167,9 +167,8 @@ export async function getStudentSemesterTracking(
       unitAverage: quizzes && !quizzes.exempt ? quizzes.score : null,
       unitExempt: quizzes?.exempt ?? false,
       semesterAverage: approved ? approvedScore : entry.average,
-      semesterPassed: approved
-        ? (approvedScore != null ? approvedScore > threshold : entry.passed)
-        : entry.passed,
+      // Unapproved (or stale) estimates must never signal an official pass or fail.
+      semesterPassed: approved && approvedScore != null ? approvedScore > threshold : null,
       approval: approved ? 'APPROVED' : 'PROVISIONAL',
       approvedScore,
       preserved: entry.semester >= 2 && counters.graded > 0 && !progressed,
