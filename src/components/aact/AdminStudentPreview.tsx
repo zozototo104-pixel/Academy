@@ -196,6 +196,11 @@ function score(value: unknown) {
   return typeof value === 'number' ? `${Math.round(value)}%` : '—'
 }
 
+// Display only: preserve decimal precision so 19.6% is not presented as 20%.
+function formatGradeValue(value: number) {
+  return Number(value.toFixed(2)).toString()
+}
+
 const UNIT_STATE_AR: Record<string, string> = {
   COMPLETED: 'مكتملة',
   IN_PROGRESS: 'جارية',
