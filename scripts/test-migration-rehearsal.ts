@@ -14,17 +14,29 @@
  *    PostgreSQL معاملي؛ انقطاع كهذا لا يترك نصف جدول ولا صفًّا في
  *    _prisma_migrations)، ثم إعادة تطبيق حقيقية تعيد كل شيء —
  *    forward-fix والrollback كلاهما مجرّب.
+ * 5) ترقية فوق بيانات قديمة بمسار النشر الفعلي: قاعدة عند حالة ما
+ *    قبل المرحلة الثانية مزروعة بجلسة صوت بلا تخصيصات وصف بريد
+ *    بختم الترميز القديم ورسالة ملخص بختم «+100 سنة»، ثم نشر كامل
+ *    يثبت أن الترقية تعدّي والصفوف القديمة تبقى سليمة لتتبناها
+ *    الآليات الجديدة.
+ * 6) استئناف النشر من نصف مطبق (حالة أي نشر مقطوع): نصف الهجرات
+ *    ثم نشر كامل يكمل، وتشغيل ثانٍ بلا أثر.
  *
- * خطة الرجوع الموثقة لهجرتي المرحلة الثانية (تُستخدم فقط بقرار
- * المالك؛ الهجرتان إضافيتان صرفتان فالرجوع لا يمس بيانات قائمة):
- *   DROP TABLE IF EXISTS "NotificationOutboxRecipient";
- *   DROP TABLE IF EXISTS "AiLiveCreditAllocation";
- *   ALTER TABLE "NotificationOutbox" DROP COLUMN IF EXISTS "emailClaimId";
- *   ALTER TABLE "NotificationOutbox" DROP COLUMN IF EXISTS "emailClaimLeaseUntil";
- *   ALTER TABLE "SupervisorChannelMessage" DROP COLUMN IF EXISTS "emailClaimId";
- *   ALTER TABLE "SupervisorChannelMessage" DROP COLUMN IF EXISTS "emailClaimLeaseUntil";
- * ومعها حذف صفّي الهجرتين من "_prisma_migrations" إن طُبّق الرجوع
- * يدويًا خارج أدوات Prisma.
+ * خطة الرجوع المصححة لهجرتي المرحلة الثانية (منقحة 2026-11-07 بعد
+ * مراجعة قرار الإصدار — خطة الحذف الأولى كانت آمنة قبل النشر فقط):
+ * الرجوع بعد بدء الاستخدام هو رجوع **الكود** وحده (إعادة نشر البناء
+ * السابق): الجدولان والأعمدة تبقى كما هي والبيانات المتراكمة فيها
+ * تُحفظ؛ الكود السابق لا يقرأ هذه الأغراض أصلًا (قابل للتحقق ببحث
+ * صفر النتائج عن أسمائها في شجرة ما قبل الدمج)، ووجودها لا يغيّر
+ * أي جدول قديم. حذف الأغراض نفسها ليس إجراء طوارئ: إن قُرر يومًا
+ * يكون بهجرة لاحقة للأمام بقرار مالك مستقل وبعد قرار احتفاظ
+ * بالبيانات، لا بحذف يدوي أثناء حادث. وإن لمس أحدٌ القاعدة يدويًا
+ * رغم ذلك، فالاتساق يُستعاد بأدوات Prisma نفسها لا بحذف صفوف:
+ *   bunx prisma migrate resolve --rolled-back 20261107120000_live_credit_allocations
+ *   bunx prisma migrate resolve --rolled-back 20261107130000_outbox_email_claim_ledger
+ * (بعد إزالة الأغراض فعليًا) حتى يعود سجل "_prisma_migrations"
+ * مطابقًا للواقع. SQL الحذف نفسه منفّذ ومُختبَر في المرحلة 3 من
+ * هذا السكربت كإثبات تقني لقابلية الإزالة — لا كخطة تشغيل.
  *
  * Migration deploy rehearsal + executed rollback for the stage-2
  * migrations (E01/E02): full replay from empty, push-equivalence,
@@ -42,13 +54,16 @@
  * 2 = environment could not be prepared.
  */
 import { spawn } from 'node:child_process'
-import { readFileSync, readdirSync } from 'node:fs'
+import { cpSync, mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 
 const ENV_URL = process.env.MIGRATION_REHEARSAL_DATABASE_URL || ''
 const DOCKER_CONTAINER = `aact-mig-rehearsal-${process.pid}`
 const PG_READY_DEADLINE_MS = 90_000
 const DEPLOY_DB = 'academy_rehearsal_deploy'
 const PUSH_DB = 'academy_rehearsal_push'
+const LEGACY_DB = 'academy_rehearsal_legacy'
+const RESUME_DB = 'academy_rehearsal_resume'
+const STAGE2_MIGRATIONS = ['20261107120000_live_credit_allocations', '20261107130000_outbox_email_claim_ledger']
 const DOCKER_URL_BASE = 'postgresql://mig_test:mig_test_only@localhost:55435'
 
 const E01_SQL_PATH = 'prisma/migrations/20261107120000_live_credit_allocations/migration.sql'
@@ -181,11 +196,42 @@ async function resolveBase(): Promise<{ base: URL; psql: (db: string, sql: strin
   if (created.code !== 0) {
     throw new StageError(`[ENV] MIGRATION_REHEARSAL stage 0: could not create ${PUSH_DB}.\n${outputTail(created.stderr || created.stdout)}`)
   }
+  for (const extraDb of [LEGACY_DB, RESUME_DB]) {
+    const extra = await runCommand('docker', ['exec', DOCKER_CONTAINER, 'createdb', '-U', 'mig_test', extraDb])
+    if (extra.code !== 0) {
+      throw new StageError(`[ENV] MIGRATION_REHEARSAL stage 0: could not create ${extraDb}.\n${outputTail(extra.stderr || extra.stdout)}`)
+    }
+  }
   console.log('[STAGE 0] PostgreSQL is ready with both rehearsal databases')
   const base = assertSafeBaseUrl(`${DOCKER_URL_BASE}/${DEPLOY_DB}`)
   const psql = (db: string, sql: string) =>
     runCommand('docker', ['exec', DOCKER_CONTAINER, 'psql', '-U', 'mig_test', '-d', db, '-v', 'ON_ERROR_STOP=1', '-t', '-A', '-c', sql])
   return { base, psql }
+}
+
+// نشر بـ`prisma migrate deploy` الحقيقي لكن بمجلد هجرات مُصفّى:
+// يبني نسخة مؤقتة من السكيمة + مجلد هجرات جزئي، فيحاكي قاعدة عند
+// حالة ترحيل سابقة (قبل المرحلة الثانية، أو منتصف الطريق) دون لمس
+// مجلد الهجرات الحقيقي.
+async function deployWithFilteredMigrations(
+  databaseUrl: string,
+  keep: (folderName: string) => boolean,
+): Promise<{ code: number | null; stdout: string; stderr: string }> {
+  const tmpDir = `/tmp/mig-rehearsal-${process.pid}-${Math.floor(Math.random() * 1e9)}`
+  mkdirSync(`${tmpDir}/migrations`, { recursive: true })
+  try {
+    cpSync('prisma/schema.prisma', `${tmpDir}/schema.prisma`)
+    cpSync('prisma/migrations/migration_lock.toml', `${tmpDir}/migrations/migration_lock.toml`)
+    for (const entry of readdirSync('prisma/migrations', { withFileTypes: true })) {
+      if (entry.isDirectory() && keep(entry.name)) {
+        cpSync(`prisma/migrations/${entry.name}`, `${tmpDir}/migrations/${entry.name}`, { recursive: true })
+      }
+    }
+    const env = { ...process.env, DATABASE_URL: databaseUrl, DIRECT_URL: databaseUrl }
+    return await runCommand('bunx', ['prisma', 'migrate', 'deploy', '--schema', `${tmpDir}/schema.prisma`], env)
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true })
+  }
 }
 
 async function tableExists(psql: (db: string, sql: string) => Promise<any>, db: string, table: string): Promise<boolean> {
@@ -284,6 +330,75 @@ async function main(): Promise<number> {
     reapply.code === 0 ? 'exit 0' : outputTail(reapply.stderr || reapply.stdout, 10))
   const afterReapply = await stage2ObjectsPresent(psql, DEPLOY_DB)
   check('after reapply every stage-2 object is back', afterReapply.ok, afterReapply.evidence)
+
+  // 6) ترقية فوق بيانات قديمة عبر مسار النشر الفعلي: قاعدة عند حالة
+  // ما قبل المرحلة الثانية (كل الهجرات إلا هجرتيها) مزروعة بصفوف
+  // بالترميزات القديمة، ثم `prisma migrate deploy` الكامل عليها.
+  console.log('[STAGE 6] Upgrade over legacy data through the real deploy path')
+  const legacyUrl = urlForDb(base, LEGACY_DB)
+  const preStage2 = await deployWithFilteredMigrations(legacyUrl, (name) => !STAGE2_MIGRATIONS.includes(name))
+  check('deploy of all pre-stage-2 migrations succeeds on the legacy database', preStage2.code === 0,
+    preStage2.code === 0 ? 'exit 0' : outputTail(preStage2.stdout + '\n' + preStage2.stderr, 20))
+  if (preStage2.code === 0) {
+    const seed = await psql(LEGACY_DB, `
+      INSERT INTO "User" (id, email, password, name, role, "createdAt", "updatedAt")
+      VALUES ('legacy-user-1', 'legacy@example.test', 'x', 'Legacy', 'STUDENT', NOW(), NOW());
+      INSERT INTO "AiLiveSession" (id, "sessionId", "userId", month, purpose, status, "reservedMinutes", "freeReserved", "paidReserved", "startedAt", "expiresAt", "createdAt", "updatedAt")
+      VALUES ('legacy-session-1', 'legacy-live-1', 'legacy-user-1', '2026-11', 'SUPERVISOR', 'SETTLED', 2, 2, 0, NOW(), NOW() + INTERVAL '1 hour', NOW(), NOW());
+      INSERT INTO "NotificationOutbox" (id, "idempotencyKey", kind, "recipientRole", title, body, status, "emailStatus", "emailAttempts", "lastError", "createdAt")
+      VALUES ('legacy-outbox-1', 'legacy-key-1', 'SEMESTER_FAILED', 'ADMINS', 't', 'b', 'SENT', 'SENDING', 1,
+        'EMAIL_CLAIM:2026-11-01T00:00:00.000Z' || chr(10) || 'EMAIL_SENT_IDS:["legacy-admin-1"]', NOW());
+      INSERT INTO "SupervisorChannelMessage" (id, "studentId", "senderRole", scope, audience, mode, content, "emailSentAt", "createdAt")
+      VALUES ('legacy-msg-1', 'legacy-user-1', 'STUDENT', 'ADMIN', 'ALL', 'TEXT', 'رسالة قديمة', NOW() + INTERVAL '100 years', NOW());`)
+    check('legacy-shaped rows seed cleanly', seed.code === 0,
+      seed.code === 0 ? 'exit 0' : outputTail(seed.stderr || seed.stdout, 8))
+    const upgradeEnv = { ...process.env, DATABASE_URL: legacyUrl, DIRECT_URL: legacyUrl }
+    const upgrade = await runCommand('bunx', ['prisma', 'migrate', 'deploy'], upgradeEnv)
+    check('full migrate deploy upgrades the legacy database', upgrade.code === 0,
+      upgrade.code === 0 ? 'exit 0' : outputTail(upgrade.stdout + '\n' + upgrade.stderr, 20))
+    if (upgrade.code === 0) {
+      const appliedLegacy = await psql(LEGACY_DB, 'SELECT COUNT(*) FROM "_prisma_migrations" WHERE finished_at IS NOT NULL')
+      check('legacy database ends fully migrated', appliedLegacy.stdout.trim() === String(migrationCount),
+        `recorded=${appliedLegacy.stdout.trim()} folders=${migrationCount}`)
+      const legacyObjects = await stage2ObjectsPresent(psql, LEGACY_DB)
+      check('stage-2 objects exist after the upgrade', legacyObjects.ok, legacyObjects.evidence)
+      const marker = await psql(LEGACY_DB, `SELECT "emailStatus" FROM "NotificationOutbox" WHERE id = 'legacy-outbox-1'`)
+      const markerBody = await psql(LEGACY_DB, `SELECT COUNT(*) FROM "NotificationOutbox" WHERE id = 'legacy-outbox-1' AND "lastError" LIKE 'EMAIL_CLAIM:%' AND "lastError" LIKE '%EMAIL_SENT_IDS:%'`)
+      check('legacy outbox row survives untouched (old marker encoding intact for the adopting dispatcher)',
+        marker.stdout.trim() === 'SENDING' && markerBody.stdout.trim() === '1',
+        `emailStatus=${marker.stdout.trim()} markerIntact=${markerBody.stdout.trim()}`)
+      const voiceRow = await psql(LEGACY_DB, `SELECT COUNT(*) FROM "AiLiveSession" WHERE id = 'legacy-session-1'`)
+      const digestRow = await psql(LEGACY_DB, `SELECT COUNT(*) FROM "SupervisorChannelMessage" WHERE id = 'legacy-msg-1' AND "emailSentAt" > NOW() + INTERVAL '99 years'`)
+      check('legacy voice session and legacy digest claim (+100y encoding) survive the upgrade',
+        voiceRow.stdout.trim() === '1' && digestRow.stdout.trim() === '1',
+        `session=${voiceRow.stdout.trim()} digestClaim=${digestRow.stdout.trim()}`)
+    }
+  }
+
+  // 7) استئناف النشر من حالة نصف مطبقة — وهي بالضبط الحالة التي
+  // يتركها نشر مقطوع، لأن كل هجرة تلتزم وتُسجَّل ذريًا: نصف الهجرات
+  // مطبقة، ثم النشر الكامل يكمل، ثم تشغيل ثانٍ بلا أثر.
+  console.log('[STAGE 7] Deploy resume from a half-applied state')
+  const resumeUrl = urlForDb(base, RESUME_DB)
+  const allFolders = readdirSync('prisma/migrations', { withFileTypes: true })
+    .filter((d) => d.isDirectory()).map((d) => d.name).sort()
+  const prefix = allFolders.slice(0, Math.floor(allFolders.length / 2))
+  const half = await deployWithFilteredMigrations(resumeUrl, (name) => prefix.includes(name))
+  check(`prefix deploy applies the first half (${prefix.length}/${allFolders.length})`, half.code === 0,
+    half.code === 0 ? 'exit 0' : outputTail(half.stdout + '\n' + half.stderr, 20))
+  if (half.code === 0) {
+    const resumeEnv = { ...process.env, DATABASE_URL: resumeUrl, DIRECT_URL: resumeUrl }
+    const resumed = await runCommand('bunx', ['prisma', 'migrate', 'deploy'], resumeEnv)
+    check('full deploy resumes and completes from the half-applied state', resumed.code === 0,
+      resumed.code === 0 ? 'exit 0' : outputTail(resumed.stdout + '\n' + resumed.stderr, 20))
+    const appliedResume = await psql(RESUME_DB, 'SELECT COUNT(*) FROM "_prisma_migrations" WHERE finished_at IS NOT NULL')
+    check('resumed database ends fully migrated', appliedResume.stdout.trim() === String(migrationCount),
+      `recorded=${appliedResume.stdout.trim()} folders=${migrationCount}`)
+    const again = await runCommand('bunx', ['prisma', 'migrate', 'deploy'], resumeEnv)
+    const appliedAgain = await psql(RESUME_DB, 'SELECT COUNT(*) FROM "_prisma_migrations" WHERE finished_at IS NOT NULL')
+    check('a second deploy is a clean no-op', again.code === 0 && appliedAgain.stdout.trim() === String(migrationCount),
+      `exit=${again.code} recorded=${appliedAgain.stdout.trim()}`)
+  }
 
   if (failures.length) {
     console.error(`\nMIGRATION_REHEARSAL: FAILED — ${failures.length} assertion(s) failed`)

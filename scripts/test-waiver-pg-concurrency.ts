@@ -598,7 +598,7 @@ async function scenarioD(db: any, approvePaymentWaiver: any) {
     () => { secondSettled = true },
   )
   let sawLockWait = false
-  const windowDeadline = Date.now() + 2_500
+  const windowDeadline = Date.now() + 20_000
   while (Date.now() < windowDeadline && !secondSettled && !sawLockWait) {
     const rows = await db.$queryRaw`
       SELECT COUNT(*)::int AS waiting
@@ -619,6 +619,8 @@ async function scenarioD(db: any, approvePaymentWaiver: any) {
   check(`${scope}: second fee still UNPAID in committed state during the hold`, fee2DuringHold?.status === 'UNPAID',
     `status=${fee2DuringHold?.status}`)
   console.log(`[EVIDENCE] ${scope}: lockWaitObserved=${sawLockWait}`)
+  check(`${scope}: lock wait positively observed in pg_locks during the hold (asserted, not merely logged)`, sawLockWait,
+    `lockWaitObserved=${sawLockWait}`)
 
   releaseHold()
   await holdPromise
@@ -686,7 +688,7 @@ async function scenarioE(db: any, approvePaymentWaiver: any) {
     () => { settled = true },
   )
   let sawLockWait = false
-  const windowDeadline = Date.now() + 2_500
+  const windowDeadline = Date.now() + 20_000
   while (Date.now() < windowDeadline && !settled && !sawLockWait) {
     const rows = await db.$queryRaw`
       SELECT COUNT(*)::int AS waiting
@@ -704,6 +706,8 @@ async function scenarioE(db: any, approvePaymentWaiver: any) {
   check(`${scope}: waiver code still VERIFIED in committed state during the hold`, codeDuringHold?.status === 'VERIFIED',
     `status=${codeDuringHold?.status}`)
   console.log(`[EVIDENCE] ${scope}: lockWaitObserved=${sawLockWait}`)
+  check(`${scope}: lock wait positively observed in pg_locks during the hold (asserted, not merely logged)`, sawLockWait,
+    `lockWaitObserved=${sawLockWait}`)
 
   releaseHold()
   await holdPromise
@@ -764,7 +768,7 @@ async function scenarioF(db: any, approvePaymentWaiver: any, markInvoicePaid: an
   const cashRun = markInvoicePaid('PGW-TUIT-SF', 'CASH', { actor })
   const cashTracked = cashRun.then(() => { cashSettled = true }, () => { cashSettled = true })
   let sawLockWait = false
-  const windowDeadline = Date.now() + 2_500
+  const windowDeadline = Date.now() + 20_000
   while (Date.now() < windowDeadline && !(waiverSettled && cashSettled) && !sawLockWait) {
     const rows = await db.$queryRaw`
       SELECT COUNT(*)::int AS waiting
@@ -784,6 +788,8 @@ async function scenarioF(db: any, approvePaymentWaiver: any, markInvoicePaid: an
     feeDuringHold?.status === 'UNPAID' && tuitionDuringHold?.status === 'UNPAID',
     `fee=${feeDuringHold?.status} tuition=${tuitionDuringHold?.status}`)
   console.log(`[EVIDENCE] ${scope}: lockWaitObserved=${sawLockWait}`)
+  check(`${scope}: lock wait positively observed in pg_locks during the hold (asserted, not merely logged)`, sawLockWait,
+    `lockWaitObserved=${sawLockWait}`)
 
   releaseHold()
   await holdPromise
