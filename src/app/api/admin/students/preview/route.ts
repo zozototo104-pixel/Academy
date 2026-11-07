@@ -330,10 +330,11 @@ export async function GET(req: NextRequest) {
         if (meta) notePending('PROGRAM', a, meta.examTitle, meta.programTitle)
       }
 
-      const trackings = await Promise.all(activeEnrollments.map((e) => getStudentSemesterTracking(db, {
+      const trackings = await Promise.all(activeEnrollments.map((e, idx) => getStudentSemesterTracking(db, {
         userId: studentId,
         programId: e.program.id,
         admissionId: admissions.find((a) => a.programId === e.program.id)?.id ?? null,
+        finalGrade: grades[idx],
       }).catch(() => null)))
 
       enrollmentDetails = activeEnrollments.map((e, idx) => {
