@@ -114,7 +114,9 @@ export async function getStudentSemesterTracking(
 
   const [averages, finalGrade] = await Promise.all([
     calculateSemesterAverages({ userId: input.userId, programId: input.programId, admissionId: input.admissionId ?? null, client }),
-    calculateFinalGrade({ userId: input.userId, programId: input.programId, admissionId: input.admissionId ?? null, client }).catch(() => null),
+    input.finalGrade === undefined
+      ? calculateFinalGrade({ userId: input.userId, programId: input.programId, admissionId: input.admissionId ?? null, client }).catch(() => null)
+      : Promise.resolve(input.finalGrade),
   ])
 
   const snapshot = enrollment?.id
