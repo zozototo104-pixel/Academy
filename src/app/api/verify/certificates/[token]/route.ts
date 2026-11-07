@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { displayedCertificateSerial } from '@/lib/legacy-certificate-files'
 import { enforceApiRateLimit } from '@/lib/rate-limit'
-import { buildCertificateCredential, certificateVerificationUrl, verifyCertificateCredential } from '@/lib/w3c/certificate-credential'
+import { buildCertificateCredential, certificateSerialVerificationUrl, certificateVerificationUrl, resolveCertificateAccessMode, verifyCertificateCredential } from '@/lib/w3c/certificate-credential'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -70,7 +70,12 @@ export async function GET(req: NextRequest, context: RouteContext) {
 
     const revokedAt = cert.revokedAt ? new Date(cert.revokedAt).toISOString() : null
     const effectiveValid = cert.valid && !revokedAt
-    const credential = buildCertificateCredential({ ...cert, serial: displayedCertificateSerial(cert), valid: effectiveValid })
+    // البحث بالرقم التسلسلي/القديم (قابل للتخمين) لا يكشف qrToken ولا التقدير
+    // داخل الاعتماد ولا في روابطه — نفس سياسة الإفصاح في صفحة التحقق وواجهة
+    // /api/certificates/verify. من يقدّم الرمز نفسه يرى الاعتماد الكامل.
+    const accessMode = resolveCertificateAccessMode(cert, clean)
+    const displayedSerial = displayedCertificateSerial(cert)
+    const credential = buildCertificateCredential({ ...cert, serial: displayedSerial, valid: effectiveValid }, { accessMode })
     return new NextResponse(
       JSON.stringify({
         valid: effectiveValid,
@@ -78,7 +83,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
         revokedAt,
         revokedReason: cert.revokedReason || null,
         proofVerified: verifyCertificateCredential(credential),
-        verificationUrl: certificateVerificationUrl(cert),
+        verificationUrl: accessMode === 'TOKEN' ? certificateVerificationUrl(cert) : certificateSerialVerificationUrl(displayedSerial),
         credential,
       }),
       {

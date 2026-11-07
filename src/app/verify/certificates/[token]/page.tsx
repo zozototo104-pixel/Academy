@@ -1,8 +1,10 @@
 import type { Metadata } from 'next'
+import { headers } from 'next/headers'
 import QRCode from 'qrcode'
 import { db } from '@/lib/db'
 import { displayedCertificateSerial } from '@/lib/legacy-certificate-files'
-import { buildCertificateCredential, certificateVerificationUrl, verifyCertificateCredential } from '@/lib/w3c/certificate-credential'
+import { checkRateLimit, clientIpFromHeaders } from '@/lib/rate-limit'
+import { buildCertificateCredential, certificateVerificationUrl, resolveCertificateAccessMode, verifyCertificateCredential } from '@/lib/w3c/certificate-credential'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -22,12 +24,39 @@ function fmt(value: Date | string | null | undefined) {
   return d.toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' })
 }
 
+// رموز QR الحقيقية 32 حرفًا سداسيًا (createCertificateQrToken). أي مدخل
+// بغير هذا الشكل هو بحث برقم تسلسلي/قديم قابل للتعداد، فيخضع لحدّ المحاولات
+// قبل لمس قاعدة البيانات — بنفس مكوّنات حدّ واجهة التحقق العامة
+// (checkRateLimit: ‏20 محاولة/10 دقائق للرقم الواحد، و3 أضعافها لعنوان IP).
+const QR_TOKEN_SHAPE = /^[0-9a-f]{32}$/i
+
 export default async function CertificateVerifyPage({ params }: PageProps) {
   const { token } = await Promise.resolve(params)
   const clean = decodeURIComponent(token || '').trim()
+
+  if (clean && !QR_TOKEN_SHAPE.test(clean)) {
+    const ip = clientIpFromHeaders(await headers())
+    const ipLimit = checkRateLimit(`certificates:verify-page:ip:${ip}`, 60, 10 * 60 * 1000)
+    const subjectLimit = ipLimit.ok
+      ? checkRateLimit(`certificates:verify-page:subject:${clean.toLowerCase()}`, 20, 10 * 60 * 1000)
+      : ipLimit
+    if (!subjectLimit.ok) {
+      return (
+        <main dir="rtl" className="min-h-screen bg-[#f8fafc] px-4 py-12">
+          <section className="mx-auto max-w-2xl rounded-3xl border border-amber-200 bg-white p-8 text-center shadow-sm">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-50 text-2xl text-amber-600">!</div>
+            <h1 className="text-2xl font-black text-amber-700">محاولات تحقق كثيرة</h1>
+            <p className="mt-3 text-sm font-bold leading-7 text-slate-600">تم تجاوز حد محاولات التحقق بالرقم التسلسلي مؤقتًا. انتظر قليلًا ثم حاول مرة أخرى، أو امسح رمز QR المطبوع على الشهادة نفسها.</p>
+            <a href="/?view=verify" className="mt-6 inline-flex rounded-xl bg-[#0f2b46] px-5 py-3 text-sm font-black text-[#f5f0e1]">العودة إلى صفحة التحقق</a>
+          </section>
+        </main>
+      )
+    }
+  }
+
   const cert = clean
     ? await db.certificate.findFirst({
-        where: { OR: [{ qrToken: clean }, { serial: clean }] },
+        where: { OR: [{ qrToken: clean }, { serial: clean }, { legacySerial: clean }] },
         select: {
           id: true,
           serial: true,
@@ -62,9 +91,15 @@ export default async function CertificateVerifyPage({ params }: PageProps) {
     )
   }
 
-  const credential = buildCertificateCredential({ ...cert, serial: displayedCertificateSerial(cert) })
-  const verificationUrl = certificateVerificationUrl(cert)
-  const qr = await QRCode.toDataURL(verificationUrl, { width: 180, margin: 1 }).catch(() => '')
+  // وضع الوصول يقرر ما يُعرض: الرمز نفسه = تفاصيل كاملة؛ الرقم التسلسلي أو
+  // القديم = الحد الأدنى العام فقط (الاسم، البرنامج، الرقم المعروض، حالة
+  // الصلاحية) — بلا تقدير وبلا qrToken وبلا رابط PDF، وبلا QR لأنه يشفر
+  // رابطًا مبنيًا على الرمز.
+  const accessMode = resolveCertificateAccessMode(cert, clean)
+  const viaToken = accessMode === 'TOKEN'
+  const credential = buildCertificateCredential({ ...cert, serial: displayedCertificateSerial(cert) }, { accessMode })
+  const verificationUrl = viaToken ? certificateVerificationUrl(cert) : ''
+  const qr = viaToken ? await QRCode.toDataURL(verificationUrl, { width: 180, margin: 1 }).catch(() => '') : ''
   const proofOk = verifyCertificateCredential(credential)
 
   return (
@@ -76,7 +111,7 @@ export default async function CertificateVerifyPage({ params }: PageProps) {
           <p className="mt-2 text-sm font-bold leading-7 text-blue-100">هذه الصفحة تعرض حالة الشهادة وملف JSON قابل للتحقق وفق نموذج W3C Verifiable Credentials.</p>
         </div>
 
-        <div className="grid gap-6 p-6 sm:grid-cols-[1fr_240px] sm:p-10">
+        <div className={`grid gap-6 p-6 sm:p-10 ${viaToken ? 'sm:grid-cols-[1fr_240px]' : ''}`}>
           <div className="space-y-4">
             <div className={`rounded-2xl border p-4 ${cert.valid ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
               <p className={`text-lg font-black ${cert.valid ? 'text-emerald-700' : 'text-amber-700'}`}>{cert.valid ? 'الشهادة صالحة ومسجلة' : 'الشهادة موجودة لكنها غير فعالة'}</p>
@@ -87,25 +122,39 @@ export default async function CertificateVerifyPage({ params }: PageProps) {
               <Info label="صاحب الشهادة" value={cert.holderName} />
               <Info label="الرقم التسلسلي" value={displayedCertificateSerial(cert)} ltr />
               <Info label="البرنامج / الاعتماد" value={cert.program} wide />
-              <Info label="التقدير" value={cert.grade || '—'} />
-              <Info label="الدولة" value={cert.country || '—'} />
-              <Info label="تاريخ الإصدار" value={fmt(cert.issuedAt)} />
+              {viaToken ? (
+                <>
+                  <Info label="التقدير" value={cert.grade || '—'} />
+                  <Info label="الدولة" value={cert.country || '—'} />
+                  <Info label="تاريخ الإصدار" value={fmt(cert.issuedAt)} />
+                </>
+              ) : null}
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-sm font-black text-[#0f2b46]">روابط التحقق</p>
-              <div className="mt-3 space-y-2 text-xs font-bold">
-                <a className="block rounded-lg bg-white p-3 text-[#0f2b46] ring-1 ring-slate-200" href={verificationUrl} dir="ltr">{verificationUrl}</a>
+            {viaToken ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-black text-[#0f2b46]">روابط التحقق</p>
+                <div className="mt-3 space-y-2 text-xs font-bold">
+                  <a className="block rounded-lg bg-white p-3 text-[#0f2b46] ring-1 ring-slate-200" href={verificationUrl} dir="ltr">{verificationUrl}</a>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-black text-[#0f2b46]">تم البحث بالرقم التسلسلي</p>
+                <p className="mt-2 text-xs font-bold leading-6 text-slate-600">تظهر هنا بيانات التحقق العامة فقط. لعرض التقدير وملف الشهادة الرسمي، امسح رمز QR المطبوع على الشهادة نفسها، أو افتح التفاصيل من صفحة التحقق الرسمية ببيانات صاحب الشهادة (البريد المسجل وآخر 4 أرقام من الهاتف).</p>
+                <a href="/?view=verify" className="mt-3 inline-flex rounded-xl bg-[#0f2b46] px-4 py-2 text-xs font-black text-[#f5f0e1]">فتح التفاصيل ببيانات صاحب الشهادة</a>
+              </div>
+            )}
           </div>
 
-          <aside className="rounded-3xl border border-[#c9a227]/30 bg-[#fffaf0] p-5 text-center">
-            {qr ? <img src={qr} alt="QR JSON-LD" className="mx-auto h-44 w-44 rounded-xl bg-white p-2 ring-1 ring-[#c9a227]/30" /> : null}
-            <p className="mt-3 text-xs font-black text-[#0f2b46]">QR إلى صفحة التحقق الرسمية</p>
-            <p className="mt-2 font-mono text-[11px] font-bold text-slate-500" dir="ltr">{cert.qrToken}</p>
-            <a href={`/api/pdf/certificates/${encodeURIComponent(cert.qrToken)}`} className="mt-4 inline-flex w-full justify-center rounded-xl border border-[#c9a227] bg-white px-4 py-2 text-xs font-black text-[#a8841a]">PDF الشهادة</a>
-          </aside>
+          {viaToken ? (
+            <aside className="rounded-3xl border border-[#c9a227]/30 bg-[#fffaf0] p-5 text-center">
+              {qr ? <img src={qr} alt="QR JSON-LD" className="mx-auto h-44 w-44 rounded-xl bg-white p-2 ring-1 ring-[#c9a227]/30" /> : null}
+              <p className="mt-3 text-xs font-black text-[#0f2b46]">QR إلى صفحة التحقق الرسمية</p>
+              <p className="mt-2 font-mono text-[11px] font-bold text-slate-500" dir="ltr">{cert.qrToken}</p>
+              <a href={`/api/pdf/certificates/${encodeURIComponent(cert.qrToken)}`} className="mt-4 inline-flex w-full justify-center rounded-xl border border-[#c9a227] bg-white px-4 py-2 text-xs font-black text-[#a8841a]">PDF الشهادة</a>
+            </aside>
+          ) : null}
         </div>
       </section>
     </main>

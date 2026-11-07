@@ -1,3 +1,105 @@
+export type BookPageReadIssue = { page: number; kind: 'UNREADABLE' | 'PARTIAL'; reason: string }
+const PAGE_ISSUES_PREFIX = 'BOOK_PAGE_ISSUES:'
+
+/** Persist per-page reading limitations with the resumable job, without schema migration. */
+export function parseBookPageReadIssues(lastError: string | null | undefined): BookPageReadIssue[] {
+  if (!lastError) return []
+  // Keep legacy ledger-only values readable, plus errors that carry the
+  // ledger as a suffix. Provider/analysis errors must not destroy page evidence.
+  const marker = lastError.startsWith(PAGE_ISSUES_PREFIX)
+    ? 0 : lastError.lastIndexOf('\n' + PAGE_ISSUES_PREFIX) + 1
+  if (marker < 0 || !lastError.slice(marker).startsWith(PAGE_ISSUES_PREFIX)) return []
+  try {
+    const parsed = JSON.parse(lastError.slice(marker + PAGE_ISSUES_PREFIX.length))
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((issue): issue is BookPageReadIssue =>
+      Number.isSafeInteger(issue?.page) && issue.page > 0 &&
+      (issue.kind === 'UNREADABLE' || issue.kind === 'PARTIAL') &&
+      typeof issue.reason === 'string').map((issue) => ({
+        page: issue.page, kind: issue.kind, reason: issue.reason.slice(0, 160),
+      }))
+  } catch { return [] }
+}
+
+const OCR_SOLO_PREFIX = 'BOOK_OCR_SOLO:'
+
+/**
+ * Pages whose last group OCR call died with the worker budget spent.
+ * The next run must retry them one by one instead of repeating the same
+ * group request that already consumed a full budget without deciding a
+ * single page. Stored as its own lastError segment, always BEFORE the
+ * page-issues segment, so every lastError writer must carry it forward.
+ */
+export function parseBookOcrSoloPages(lastError: string | null | undefined): number[] {
+  if (!lastError) return []
+  const match = lastError.match(new RegExp('(?:^|\\n)' + OCR_SOLO_PREFIX + '([0-9,]+)'))
+  if (!match) return []
+  return [...new Set(match[1].split(',').map((n) => Number(n))
+    .filter((n) => Number.isSafeInteger(n) && n > 0))].sort((a, b) => a - b)
+}
+
+function bookLastErrorMessagePart(lastError: string | null | undefined): string {
+  if (!lastError) return ''
+  if (lastError.startsWith(OCR_SOLO_PREFIX) || lastError.startsWith(PAGE_ISSUES_PREFIX)) return ''
+  let cut = lastError.length
+  for (const prefix of [OCR_SOLO_PREFIX, PAGE_ISSUES_PREFIX]) {
+    const idx = lastError.indexOf('\n' + prefix)
+    if (idx >= 0 && idx < cut) cut = idx
+  }
+  return lastError.slice(0, cut)
+}
+
+/** Canonical lastError layout: message, solo segment, issues segment. */
+function composeBookLastError(
+  message: string,
+  soloPages: readonly number[],
+  issues: readonly BookPageReadIssue[],
+): string | null {
+  const parts: string[] = []
+  if (message) parts.push(message)
+  const solo = [...new Set(soloPages)]
+    .filter((n) => Number.isSafeInteger(n) && n > 0).sort((a, b) => a - b)
+  if (solo.length) parts.push(OCR_SOLO_PREFIX + solo.join(','))
+  if (issues.length) parts.push(PAGE_ISSUES_PREFIX + JSON.stringify([...issues].sort((a, b) => a.page - b.page)))
+  return parts.length ? parts.join('\n') : null
+}
+
+/** Record (replacing) the solo-retry page set without touching the rest. */
+export function withBookOcrSoloPages(previous: string | null | undefined, pages: readonly number[]): string {
+  return composeBookLastError(
+    bookLastErrorMessagePart(previous), pages, parseBookPageReadIssues(previous),
+  ) ?? ''
+}
+
+/** A successful later re-read clears the corresponding old issue. */
+export function mergeBookPageReadIssues(
+  previous: string | null | undefined,
+  processedPages: readonly number[],
+  newIssues: readonly BookPageReadIssue[],
+): string | null {
+  const processed = new Set(processedPages)
+  const byPage = new Map(parseBookPageReadIssues(previous)
+    .filter((issue) => !processed.has(issue.page)).map((issue) => [issue.page, issue]))
+  for (const issue of newIssues) if (Number.isSafeInteger(issue.page) && issue.page > 0) {
+    byPage.set(issue.page, { page: issue.page, kind: issue.kind, reason: issue.reason.slice(0, 160) })
+  }
+  const report = [...byPage.values()].sort((a, b) => a.page - b.page)
+  // Solo-retry pages that this batch processed are decided now; the rest
+  // of the marker must survive the progress write or the resume loses it.
+  const solo = parseBookOcrSoloPages(previous).filter((page) => !processed.has(page))
+  return composeBookLastError('', solo, report)
+}
+
+/** Append the immutable page evidence when a later phase needs lastError. */
+export function preserveBookPageReadIssues(previous: string | null | undefined, error: string): string {
+  const message = String(error).slice(0, 2000)
+  return composeBookLastError(message, parseBookOcrSoloPages(previous), parseBookPageReadIssues(previous)) ?? message
+}
+
+export function hasBookPageReadIssues(value: string | null | undefined): boolean {
+  return parseBookPageReadIssues(value).length > 0
+}
+
 export const BOOK_READ_LOCK_MS = 270_000 // 240s work budget + 30s grace; below 300s maxDuration
 export const BOOK_READ_RETRY_MS = 5 * 60_000
 export const BOOK_READ_TRANSIENT_RETRY_MS = 60_000

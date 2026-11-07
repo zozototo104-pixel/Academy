@@ -50,7 +50,12 @@ export interface SemesterComponentValue {
   /** The weight this component carries in the approved map. */
   weight: number
   score: number | null
+  /** Every required item in this component PASSED. */
   complete: boolean
+  /** Every required item in this component has a FINAL graded result —
+   * pass or fail. Distinct from `complete`: a failed item is final but
+   * not passed. */
+  gradedComplete: boolean
   exempt: boolean
 }
 
@@ -63,6 +68,12 @@ export interface SemesterAverage {
   passed: boolean | null
   /** Every component of the semester is complete (nothing missing). */
   complete: boolean
+  /** Grading is FINAL for every component of the semester: each required
+   * assessment has a final graded result (including failing scores and
+   * zeros) — the semester-result approval gate's completeness notion.
+   * Pass/fail is decided by `passed` (the average vs the strict
+   * threshold), never by per-component passing. */
+  gradesComplete: boolean
   components: SemesterComponentValue[]
   missing: string[]
   /** نشاط علاجي معتمد الدرجات (استرحام، المرحلة 4) دخل في هذا المعدل. */
@@ -85,11 +96,13 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100
 }
 
-function normalize(value: ComponentScore): { score: number | null; complete: boolean; exempt: boolean } {
-  if (value === 'EXEMPT') return { score: null, complete: true, exempt: true }
-  if (typeof value === 'number') return { score: value, complete: true, exempt: false }
-  if (value && typeof value === 'object') return { score: value.score, complete: value.complete, exempt: false }
-  return { score: null, complete: false, exempt: false }
+function normalize(value: ComponentScore): { score: number | null; complete: boolean; gradedComplete: boolean; exempt: boolean } {
+  if (value === 'EXEMPT') return { score: null, complete: true, gradedComplete: true, exempt: true }
+  if (typeof value === 'number') return { score: value, complete: true, gradedComplete: true, exempt: false }
+  if (value && typeof value === 'object') {
+    return { score: value.score, complete: value.complete, gradedComplete: value.gradedComplete ?? value.complete, exempt: false }
+  }
+  return { score: null, complete: false, gradedComplete: false, exempt: false }
 }
 
 interface ComponentSpec {
@@ -225,6 +238,7 @@ export async function calculateSemesterAverages(input: {
         weight: weightOf(spec.key),
         score: value.score,
         complete: value.complete,
+        gradedComplete: value.gradedComplete,
         exempt: value.exempt,
       })
     }
@@ -239,6 +253,12 @@ export async function calculateSemesterAverages(input: {
       average,
       passed: average === null ? null : average > passThreshold,
       complete: components.every((c) => c.complete) && missing.length === 0,
+      // Grading finality deliberately ignores `missing`: the loaders add
+      // missing labels for FAILED items too (guidance), and a failed but
+      // final grade must not block the semester decision. A component
+      // with no final result at all (null / not graded) reports
+      // gradedComplete=false and keeps the decision blocked.
+      gradesComplete: components.every((c) => c.gradedComplete),
       components,
       missing,
     })

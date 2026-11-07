@@ -375,6 +375,7 @@ function NotificationBell({ mobile = false }: { mobile?: boolean } = {}) {
   const { user, navigate, setMobileMenuOpen } = useAppStore()
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState<Notif[]>([])
+  const [notificationDetail, setNotificationDetail] = useState<Notif | null>(null)
   const [unread, setUnread] = useState(0)
   const unreadRef = useRef(0)
   const loadedOnceRef = useRef(false)
@@ -461,6 +462,9 @@ function NotificationBell({ mobile = false }: { mobile?: boolean } = {}) {
     // Historical graduation notifications used the generic 'admin' link.
     // Route them to the actual certification/approval workspace as well.
     if (text.includes('طلب تخرج') || text.includes('معامله تخرج') || text.includes('graduation request')) return 'certs'
+    if (n.type === 'ADMIN_MESSAGE' || text.includes('admin-messages:') || text.includes('مراسلة الإدارة')) return 'admin-messages'
+    if (text.includes('جودة') || text.includes('quality') || text.includes('مراجعة الجودة')) return 'quality'
+    if (text.includes('واجب') || text.includes('assignment')) return 'attempts'
     if (text.includes('whatsapp') || text.includes('واتساب') || text.includes('محادث')) return 'whatsapp-inbox'
     if (text.includes('رسائل التواصل') || text.includes('طلب تواصل') || text.includes('contact message')) return 'messages'
     if (text.includes('دفع') || text.includes('مالي') || text.includes('فاتور') || n.type === 'PAYMENT') return 'finance'
@@ -481,14 +485,41 @@ function NotificationBell({ mobile = false }: { mobile?: boolean } = {}) {
     })
   }
 
+  // Same staggered re-dispatch for the student dashboard (its tab listener
+  // may mount after navigation), mirroring the urgent-message alert.
+  const dispatchDashboardTab = (tab: string, admissionId?: string | null) => {
+    ;[80, 300, 700, 1200].forEach((delay) => {
+      window.setTimeout(() => window.dispatchEvent(new CustomEvent('aact:dashboard-tab', { detail: { tab, admissionId: admissionId || null } })), delay)
+    })
+  }
+
   const routeNotificationLink = (n: Notif) => {
     const rawLink = String(n.link || '').trim()
     const viewLinks = new Set(['home', 'programs', 'apply', 'auth', 'dashboard', 'chat', 'agent', 'admin', 'supervisor', 'verify', 'directory', 'about', 'contact'])
 
     if (rawLink) {
+      // Historical admin chat links use a colon separator, not an HTTP URL.
+      // URL() treats "admin-messages:..." as a custom scheme and sends the
+      // browser nowhere; route it internally to its actual thread instead.
+      const message = rawLink.match(/^\/?admin-messages:([a-z0-9_-]{3,128})$/i)
+      if (message && user?.role === 'ADMIN') {
+        navigate('admin' as any, { tab: 'admin-messages' })
+        dispatchAdminTab('admin-messages', { admissionId: message[1] })
+        return true
+      }
+      if (message && user?.role === 'STUDENT') {
+        // The same stored link in the student's own bell must open HIS
+        // admin-messages conversation (dashboard messages tab), not just
+        // the read-only alert detail.
+        navigate('dashboard' as any)
+        dispatchDashboardTab('messages', message[1])
+        return true
+      }
       const url = new URL(rawLink, window.location.origin)
+      // Links stored in notifications are data, never executable protocols.
+      if (!['http:', 'https:'].includes(url.protocol)) return false
       if (url.origin !== window.location.origin) {
-        window.location.assign(rawLink)
+        window.location.assign(url.href)
         return true
       }
       const params = url.searchParams
@@ -519,6 +550,7 @@ function NotificationBell({ mobile = false }: { mobile?: boolean } = {}) {
       const view = viewLinks.has(legacyView) ? legacyView : viewLinks.has(first) ? first : rawLink.replace(/^\?view=/, '').replace(/^\//, '').split(/[?#&]/)[0]
       if (viewLinks.has(view)) {
         const adminTab = view === 'admin' ? adminTabForNotification(n, params) : null
+        if (view === 'admin' && user?.role === 'ADMIN' && !adminTab) return false
         navigate(view as any, adminTab ? { ...routeParams, tab: adminTab } : routeParams)
         if (adminTab) dispatchAdminTab(adminTab, routeParams)
         return true
@@ -548,8 +580,6 @@ function NotificationBell({ mobile = false }: { mobile?: boolean } = {}) {
   }
 
   const openNotification = async (n: Notif) => {
-    closeBell()
-    if (mobile) setMobileMenuOpen(false)
     if (!n.read) {
       unreadRef.current = Math.max(0, unreadRef.current - 1)
       setUnread((v) => Math.max(0, v - 1))
@@ -557,7 +587,19 @@ function NotificationBell({ mobile = false }: { mobile?: boolean } = {}) {
       setItems(itemsRef.current)
       api('/api/notifications', { method: 'PATCH', body: JSON.stringify({ id: n.id }) }).then(load).catch((error) => { console.warn('Failed to mark notification as read.', error) })
     }
-    try { routeNotificationLink(n) } catch (error) { console.warn('Failed to route notification link.', error) }
+    let routed = false
+    try { routed = routeNotificationLink(n) } catch (error) {
+      console.warn('Failed to route notification link.', error)
+    }
+    if (routed) {
+      setNotificationDetail(null)
+      closeBell()
+      if (mobile) setMobileMenuOpen(false)
+    } else {
+      // Preserve access to the complete alert when it has no actionable URL.
+      setNotificationDetail(n)
+      setOpen(true)
+    }
   }
 
   return (
@@ -598,7 +640,15 @@ function NotificationBell({ mobile = false }: { mobile?: boolean } = {}) {
               )}
             </div>
             <div className="aact-scroll max-h-80 overflow-y-auto">
-              {items.length === 0 ? (
+              {notificationDetail ? (
+                <div className="space-y-3 p-4 text-right" dir="rtl">
+                  <button type="button" onClick={() => setNotificationDetail(null)} className="text-xs font-bold text-[#a8841a] hover:underline">العودة إلى الإشعارات</button>
+                  <p className="text-sm font-black text-[#0f2b46]">{notificationDetail.title}</p>
+                  <p className="whitespace-pre-wrap break-words text-xs leading-6 text-slate-700">{notificationDetail.body}</p>
+                  <p className="text-[10px] text-slate-400">{new Date(notificationDetail.createdAt).toLocaleString('ar-EG')}</p>
+                  <p className="text-[10px] text-slate-500">هذا الإشعار لا يحتوي رابطًا مباشرًا صالحًا؛ تفاصيله معروضة هنا بدل توجيهك لصفحة خاطئة.</p>
+                </div>
+              ) : items.length === 0 ? (
                 <div className="p-6 text-center text-xs text-slate-400">لا توجد إشعارات بعد</div>
               ) : (
                 items.map((n) => (

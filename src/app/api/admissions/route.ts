@@ -267,6 +267,13 @@ export async function POST(req: NextRequest) {
     if (!isSupportedCountry(country)) {
       return NextResponse.json({ error: 'يرجى اختيار الدولة من القائمة المعتمدة بدلاً من كتابتها يدوياً.' }, { status: 400 })
     }
+    // المؤهل يُحفظ كما أُرسل سابقاً دون فحص، رغم أنه يغذي طبقة الرسوم الاحتياطية ومرتبة
+    // الذكاء (EDU_RANK)؛ نتحقق منه ضد القيم الرسمية نفسها المعروضة بنموذج التقديم.
+    const EDUCATION_VALUES = ['HIGH_SCHOOL', 'BACHELOR', 'MASTER', 'PHD', 'OTHER', 'NONE']
+    const educationValue = String(education || 'OTHER').trim().toUpperCase()
+    if (!EDUCATION_VALUES.includes(educationValue)) {
+      return NextResponse.json({ error: 'قيمة المؤهل التعليمي غير صالحة — يرجى اختيار المؤهل من القائمة.' }, { status: 400 })
+    }
 
     // البحث عن البرنامج/الخدمة قبل فحص الهوية والمستندات حتى نفرق بين طلب الدراسة وطلب الخدمة المهنية.
     // لا نستخدم contains هنا؛ المطابقة الجزئية قد تربط الطلب بأول برنامج يشترك بجزء من الاسم.
@@ -424,7 +431,7 @@ export async function POST(req: NextRequest) {
           nationalId: String(nationalId || '').trim() ? String(nationalId).trim().slice(0, 40) : null,
           birthDate: birth,
           address: address?.trim().slice(0, 300) || null,
-          education: String(education || 'OTHER'),
+          education: educationValue,
           program: selectedTitle,
           programId: programRec?.id || null,
           documents: JSON.stringify(uniqueFiles.map((f) => f.docType)),

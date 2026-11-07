@@ -18,7 +18,8 @@ type WaMessage = {
   sender: 'CUSTOMER' | 'BOT' | 'HUMAN' | 'SYSTEM'
   text: string
   rawType?: string | null
-  meta?: { kind?: string | null; isVoice?: boolean | null; mediaId?: string | null; mediaCaption?: string | null; mediaFilename?: string | null } | null
+  meta?: { kind?: string | null; isVoice?: boolean | null; mediaId?: string | null; mediaCaption?: string | null; mediaFilename?: string | null; deliveryError?: unknown; deliveryFailedAt?: string | null } | null
+  status?: string | null
   sentByName?: string | null
   createdAt: string
 }
@@ -294,6 +295,8 @@ export function AdminWhatsAppInboxTab() {
                     const isVoice = m.rawType === 'audio' || m.meta?.kind === 'VOICE' || Boolean(m.meta?.isVoice)
                     const attachmentType = m.direction === 'INBOUND' && ['image', 'video', 'audio', 'document', 'sticker'].includes(m.rawType || '') ? m.rawType : null
                     const attachmentUrl = attachmentType && m.meta?.mediaId ? `/api/admin/whatsapp-conversations/media?messageId=${encodeURIComponent(m.id)}` : null
+                    const deliveryLabel = outbound ? ({ SENT: 'أُرسلت — بانتظار تأكيد التسليم', DELIVERED: 'تم التسليم', READ: 'تمت القراءة', FAILED: 'فشل التسليم' } as Record<string, string>)[m.status || ''] : undefined
+                    const deliveryErrorText = (() => { const e: any = (m.meta as any)?.deliveryError; if (!e) return ''; if (typeof e === 'string') return e; const first = Array.isArray(e) ? e[0] : e; return String(first?.title || first?.message || first?.error_data?.details || '').trim() })()
                     return (
                       <div key={m.id} className={`flex ${outbound ? 'justify-start' : 'justify-end'}`}>
                         <div className={`max-w-[82%] rounded-3xl px-4 py-3 shadow-sm ${outbound ? 'rounded-bl-md bg-[#dcf8c6]' : 'rounded-br-md bg-white'}`}>
@@ -324,6 +327,9 @@ export function AdminWhatsAppInboxTab() {
                           {m.meta?.mediaCaption && <p className="whitespace-pre-wrap text-sm font-bold leading-6 text-[#102a43]">{m.meta.mediaCaption}</p>}
                           <p className="whitespace-pre-wrap text-sm font-bold leading-7 text-[#102a43]">{m.text}</p>
                           <p className="mt-1 text-left text-[10px] font-bold text-slate-400">{m.sender === 'HUMAN' && m.sentByName ? `${m.sentByName} · ` : ''}{formatTime(m.createdAt)}</p>
+                          {outbound && deliveryLabel && (
+                            <p className={`mt-0.5 text-left text-[10px] font-bold ${m.status === 'FAILED' ? 'text-red-600' : m.status === 'READ' ? 'text-emerald-600' : 'text-slate-400'}`}>{deliveryLabel}{m.status === 'FAILED' && deliveryErrorText ? ` — ${deliveryErrorText}` : ''}</p>
+                          )}
                         </div>
                       </div>
                     )

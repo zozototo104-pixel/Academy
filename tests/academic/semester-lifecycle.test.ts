@@ -23,7 +23,7 @@ const ADMISSION_RULES = {
 function makeWorld(unitScore: number) {
   const state: any = {
     unitAttempts: [
-      { id: 'ea1', userId: 'u1', examId: 'ue1', status: 'GRADED', score: unitScore, passed: true, appealStatus: 'NONE', answers: [] },
+      { id: 'ea1', userId: 'u1', examId: 'ue1', status: 'GRADED', score: unitScore, passed: unitScore >= 60, appealStatus: 'NONE', answers: [] },
     ],
     programAttempts: [
       { id: 'pa1', userId: 'u1', examId: 'pe1', status: 'GRADED', score: 40, passed: true, appealStatus: 'NONE', answers: [] },

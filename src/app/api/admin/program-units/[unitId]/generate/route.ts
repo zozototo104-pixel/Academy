@@ -127,8 +127,10 @@ export async function POST(req: NextRequest, context: Context) {
     }
     job = createdJob
 
+    // مقطع FAILED (أُعيد استخراجه ثم فشل تحليله): عناصره ونصه يسبقان نصه
+    // الحالي فلا يؤسَّس عليهما محتوى — نفس استبعاد scopedKnowledge.
     const chunks = await db.bookChunk.findMany({
-      where: { bookId: unit.sourceBookId, index: { gte: unit.chunkStartIndex, lte: unit.chunkEndIndex } },
+      where: { bookId: unit.sourceBookId, status: { not: 'FAILED' }, index: { gte: unit.chunkStartIndex, lte: unit.chunkEndIndex } },
       orderBy: { index: 'asc' },
       select: { id: true, index: true, pageStart: true, pageEnd: true, headingPath: true, text: true },
     })

@@ -256,7 +256,15 @@ export async function approveSemesterResult(input: {
       client: tx,
     })
     const entry = averages.semesters.find((s) => s.semester === input.semester)
-    if (!entry || entry.average === null || !entry.complete) {
+    // The decision's completeness notion is GRADING FINALITY
+    // (entry.gradesComplete): every required assessment has a final
+    // graded result — failing scores included — and the blockers above
+    // have already refused every open procedure. Component PASSING is
+    // not a condition: the outcome (entry.passed) is decided by the
+    // semester average against the strict threshold alone, so a
+    // semester with failed components is approved as PASSED when its
+    // average passes and as FAILED when it does not.
+    if (!entry || entry.average === null || !entry.gradesComplete) {
       return { ok: false, code: 'SEMESTER_SCORE_NOT_VERIFIED' } as const
     }
     if (input.score != null && Math.abs(Number(input.score) - entry.average) > 0.009) {

@@ -309,6 +309,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'قاعة المناقشة متاحة فقط بعد جدولة مناقشتك', code: 'DEFENSE_NOT_SCHEDULED' }, { status: 403 })
     }
   }
+  // وضع الاختبار يتخطى فحص الرصيد والحجز كليهما ويصك توكناً حقيقياً عند
+  // المزوّد (وإن رُمي بعدها) — لا يملكه إلا أدمن. غير الأدمن كان يستطيع
+  // إجبار صكوك upstream بمعدل المسار نفسه دون أي محاسبة.
+  if (body.testOnly && user.role !== 'ADMIN') {
+    return NextResponse.json({ error: 'وضع اختبار إنشاء الجلسة متاح للإدارة فقط' }, { status: 403 })
+  }
   const allowance = body.testOnly
     ? null
     : await getGeminiLiveAllowance({ userId: user.id, role: user.role, purpose })
@@ -363,10 +369,20 @@ export async function POST(req: NextRequest) {
   const newSessionExpireTime = new Date(now + 60 * 1000).toISOString()
 
   // التوكن المؤقت قصير العمر ويُستخدم مرة واحدة. الإعدادات تُرسل كأول رسالة setup عبر WebSocket.
+  // التوكن مقفل بـ liveConnectConstraints على هذا النموذج وهذا الإعداد
+  // بالضبط — كما في createGeminiLiveEphemeralToken في gemini.ts — فلا
+  // يستطيع حامله الاتصال بنموذج أو إعداد من اختياره داخل نافذة الصلاحية.
   const tokenBody = {
     uses: 1,
     expireTime,
     newSessionExpireTime,
+    liveConnectConstraints: {
+      model,
+      config: {
+        ...sdkConfig,
+        systemInstruction: { parts: [{ text: sdkConfig.systemInstruction }] },
+      },
+    },
   }
 
   try {
@@ -429,6 +445,11 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       token,
+      // معرّف جلسة المحاسبة على المستوى الأعلى كما في مسار الاجتماعات:
+      // عميل الصوت (geminiLiveAgent) يقرأ sessionId من هنا ويمرره إلى
+      // onSessionCreated فتستطيع الواجهات تسوية الجلسة عند الإيقاف.
+      // بدونه لم تكن أي واجهة غير الاجتماعات قادرة على التسوية أصلاً.
+      sessionId: reservedUsage.sessionId,
       model,
       voice,
       dialect,

@@ -116,6 +116,7 @@ model AiLiveCredit {
   expiresAt        DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+  allocations      AiLiveCreditAllocation[]
 
   @@index([userId, status])
   @@index([expiresAt])
@@ -139,8 +140,34 @@ model AiLiveSession {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  allocations AiLiveCreditAllocation[]
+
   @@index([userId, status])
   @@index([status, expiresAt])
+}
+
+// دفتر تخصيص دقائق الصوت الحي (E01): كل دقيقة تُسحب لحساب جلسة — عند
+// الحجز أو كشحن إضافي عند التسوية — تُنسب هنا إلى مصدرها: رصيد مدفوع
+// بعينه (creditId) أو الحصة المجانية الشهرية للغرض (creditId = null).
+// عند إقفال الجلسة يعود كل جزء غير مستعمل من كل صف إلى مصدره نفسه
+// وبانتهائه الأصلي، ويتحقق: minutesReserved = minutesUsed +
+// minutesRefunded لكل صف. الجلسات المحجوزة قبل هذه الهجرة بلا صفوف
+// تخصيص وتُسوّى بالمسار التقديري القديم (LEGACY_APPROXIMATE) في
+// live-usage-guard — لا ترحيل رجعيًا للبيانات.
+model AiLiveCreditAllocation {
+  id              String        @id @default(cuid())
+  sessionId       String
+  session         AiLiveSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  creditId        String?
+  credit          AiLiveCredit? @relation(fields: [creditId], references: [id], onDelete: Cascade)
+  minutesReserved Int
+  minutesUsed     Int           @default(0)
+  minutesRefunded Int           @default(0)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([sessionId, creditId])
+  @@index([creditId])
 }
 
 model AiUsageLog {
@@ -1749,6 +1776,12 @@ model SupervisorChannelMessage {
   audioMime    String?
   audioSize    Int?
   emailSentAt  DateTime? // digest email sent for unread admin messages (admin scope only)
+  // E02: مطالبة بريد الملخص حقول مستقلة — كانت مشفّرة تاريخًا مستقبليًا
+  // (~100 سنة) داخل emailSentAt؛ الصفوف المطالَبة بالترميز القديم وقت
+  // الترحيل تُقرأ انتقاليًا بمنطقها القديم حتى تُحسم، ولا تُكتب مطالبة
+  // جديدة إلا بهذين الحقلين وتبقى emailSentAt للحظة التسليم الحقيقية.
+  emailClaimId         String?
+  emailClaimLeaseUntil DateTime?
   createdAt    DateTime @default(now())
 
   @@index([admissionId])
@@ -2501,13 +2534,42 @@ model NotificationOutbox {
   body            String
   link            String?
   status          String    @default("PENDING") // PENDING | SENT
-  emailStatus     String    @default("PENDING") // PENDING | SENT | FAILED | SKIPPED
+  emailStatus     String    @default("PENDING") // PENDING | SENDING | SENT | FAILED | SKIPPED
   emailAttempts   Int       @default(0)
+  // E02: مطالبة البريد حقول مستقلة لا ختم داخل lastError — معرّف
+  // المطالبة الحية ووقت انتهاء عقدها؛ كتابات المالك مشروطة بهما (CAS).
+  emailClaimId         String?
+  emailClaimLeaseUntil DateTime?
   lastError       String?
   createdAt       DateTime  @default(now())
   sentAt          DateTime?
+  recipients      NotificationOutboxRecipient[]
 
   @@index([status, createdAt])
+}
+
+// E02/E03: سجل نتيجة بريد الصادر لكل مستلم — كل محاولة إرسال لمستلم
+// تنتهي بحالة موثقة هنا (SENT/FAILED/SKIPPED)، والمستلم الذي كان قيد
+// الإرسال (PROCESSING) حين ماتت مطالبة عامل تُقفل UNKNOWN ولا يُعاد
+// إرساله تلقائيًا أبدًا: SMTP بلا مفتاح عدم تكرار، فإعادة إرسال نتيجة
+// مجهولة هي بالضبط نافذة التكرار التي يغلقها هذا السجل. مرجع المزوّد
+// (providerRef) محجوز لبنية المرسل الحالية التي لا تعيده بعد.
+model NotificationOutboxRecipient {
+  id              String           @id @default(cuid())
+  outboxId        String
+  outbox          NotificationOutbox @relation(fields: [outboxId], references: [id], onDelete: Cascade)
+  recipientUserId String
+  email           String
+  status          String           @default("PENDING") // PENDING | PROCESSING | SENT | FAILED | SKIPPED | UNKNOWN
+  attempts        Int              @default(0)
+  lastError       String?
+  providerRef     String?
+  sentAt          DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@unique([outboxId, recipientUserId])
+  @@index([outboxId, status])
 }
 
 // التماس إعادة فتح (المرحلة 4) — نظام مستقل عن التماسات الدرجات: طلب

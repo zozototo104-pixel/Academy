@@ -69,8 +69,8 @@ function seed() {
   const U1 = { id: 'U1', programId: 'P1', title: 'الوحدة الأولى', order: 1, semester: 1, status: 'APPROVED', summary: '', exam: { id: 'E1', title: 'امتحان الوحدة', status: 'READY', passScore: 60, _count: { questions: 2 } }, program: { titleAr: 'برنامج أ' } }
   const U2 = { id: 'U2', programId: 'P2', title: 'وحدة ب', order: 1, semester: 1, status: 'APPROVED', summary: '', exam: null, program: { titleAr: 'برنامج ب' } }
   P1.units = [U1]; P2.units = [U2]
-  const PQ1 = { id: 'PQ1', examId: 'PE1', order: 1, type: 'MCQ', text: 'سؤال قائم', options: '["أ","ب"]', correctAnswer: '0', modelAnswer: null, points: 2, status: 'PUBLISHED', difficulty: 'MEDIUM', exam: { id: 'PE1', title: 'فصلي أ', programId: 'P1', program: { titleAr: 'برنامج أ' } } }
-  const PQ2 = { id: 'PQ2', examId: 'PE1', order: 2, type: 'ESSAY', text: 'سؤال بلا إجابات', options: null, correctAnswer: null, modelAnswer: 'نموذج', points: 5, status: 'PUBLISHED', difficulty: 'MEDIUM', exam: { id: 'PE1', title: 'فصلي أ', programId: 'P1', program: { titleAr: 'برنامج أ' } } }
+  const PQ1 = { id: 'PQ1', examId: 'PE1', order: 1, type: 'MCQ', text: 'سؤال قائم', options: '["أ","ب"]', correctAnswer: '0', modelAnswer: null, points: 2, status: 'PUBLISHED', difficulty: 'MEDIUM', exam: { id: 'PE1', title: 'فصلي أ', status: 'READY', programId: 'P1', program: { titleAr: 'برنامج أ' } } }
+  const PQ2 = { id: 'PQ2', examId: 'PE1', order: 2, type: 'ESSAY', text: 'سؤال بلا إجابات', options: null, correctAnswer: null, modelAnswer: 'نموذج', points: 5, status: 'PUBLISHED', difficulty: 'MEDIUM', exam: { id: 'PE1', title: 'فصلي أ', status: 'READY', programId: 'P1', program: { titleAr: 'برنامج أ' } } }
   const PE1 = { id: 'PE1', programId: 'P1', title: 'فصلي أ', semester: 1, status: 'READY', passScore: 60, durationMin: 120, totalPoints: 7, generatedBy: 'AI', program: { titleAr: 'برنامج أ' }, _count: { questions: 2 }, questions: [PQ1, PQ2] }
   P1.programExams = [PE1]
   const UA1 = { id: 'UA1', attemptId: 'AT1', questionId: 'Q1', points: 10, maxPoints: 10, isCorrect: true, answerText: '', selectedOption: 0, aiFeedback: null, question: { order: 1, type: 'MCQ', text: 'اختر', options: '["أ","ب"]', correctAnswer: '0', modelAnswer: null, rubric: null, points: 10 } }
@@ -240,6 +240,23 @@ describe('supervisor manual questions', () => {
     const ok = await questionsRoute.DELETE(req('/api/supervisor/questions', 'DELETE', { kind: 'PROGRAM', questionId: 'PQ2' }))
     expect(ok.status).toBe(200)
     expect(S.programQuestions.find((q: any) => q.id === 'PQ2')).toBeUndefined()
+  })
+
+  test('U04: editing a program question in a published (READY) exam is 409 — answered or not', async () => {
+    const answered = await questionsRoute.PATCH(req('/api/supervisor/questions', 'PATCH', { kind: 'PROGRAM', questionId: 'PQ1', type: 'MCQ', text: 'نص معدل', options: ['أ', 'ب'], correctAnswer: '1' }))
+    expect(answered.status).toBe(409)
+    const unanswered = await questionsRoute.PATCH(req('/api/supervisor/questions', 'PATCH', { kind: 'PROGRAM', questionId: 'PQ2', type: 'ESSAY', text: 'نص معدل', modelAnswer: 'نموذج' }))
+    expect(unanswered.status).toBe(409)
+    expect(S.programQuestions.find((q: any) => q.id === 'PQ1').text).toBe('سؤال قائم')
+    expect(S.programQuestions.find((q: any) => q.id === 'PQ2').text).toBe('سؤال بلا إجابات')
+  })
+
+  test('U04: editing a program question in an unpublished (REVIEW) exam still works', async () => {
+    S.programExams.push({ id: 'PE2R', programId: 'P1', title: 'فصلي مسودة', semester: 1, status: 'REVIEW', passScore: 60, durationMin: 120, totalPoints: 2, generatedBy: 'AI', program: { titleAr: 'برنامج أ' }, _count: { questions: 1 }, questions: [] })
+    S.programQuestions.push({ id: 'PQ9', examId: 'PE2R', order: 1, type: 'MCQ', text: 'سؤال مسودة', options: '["أ","ب"]', correctAnswer: '0', modelAnswer: null, points: 2, status: 'PUBLISHED', difficulty: 'MEDIUM', exam: { id: 'PE2R', title: 'فصلي مسودة', status: 'REVIEW', programId: 'P1', program: { titleAr: 'برنامج أ' } } })
+    const res = await questionsRoute.PATCH(req('/api/supervisor/questions', 'PATCH', { kind: 'PROGRAM', questionId: 'PQ9', type: 'MCQ', text: 'سؤال مسودة معدل', options: ['أ', 'ب', 'ج'], correctAnswer: '2' }))
+    expect(res.status).toBe(200)
+    expect(S.programQuestions.find((q: any) => q.id === 'PQ9').text).toBe('سؤال مسودة معدل')
   })
 })
 

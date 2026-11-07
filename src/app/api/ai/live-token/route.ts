@@ -4,6 +4,7 @@ import { createGeminiLiveEphemeralToken, ensureGeminiKey, type GeminiLivePurpose
 import { enforceApiRateLimit } from '@/lib/rate-limit'
 import { getGeminiLiveAllowance, reserveGeminiLiveUsage } from '@/lib/live-usage-guard'
 import { buildDefenseLiveSystemInstruction, buildDefenseOnlyContextForStudent } from '@/lib/defense-agent-context'
+import { requireStudentAiSupervisorAccess } from '@/lib/student-ai-access'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -34,6 +35,18 @@ async function handler(req: NextRequest) {
       bodySessionId = body?.sessionId
     }
     const purpose = normalizePurpose(bodyPurpose || urlPurpose)
+    // نفس بوابة استحقاق المشرف الذكي في مسار الجلسة الأصلي: طالب مقفل
+    // أكاديميًا لا يسكّ رموز SUPERVISOR من هذا المدخل أيضًا.
+    if ((user as any).role === 'STUDENT' && purpose === 'SUPERVISOR') {
+      try {
+        await requireStudentAiSupervisorAccess(user as any)
+      } catch (err: any) {
+        if (err?.code === 'AI_SUPERVISOR_LOCKED' || err?.message === 'AI_SUPERVISOR_LOCKED') {
+          return NextResponse.json({ error: err.reason, code: 'AI_SUPERVISOR_LOCKED' }, { status: 403 })
+        }
+        throw err
+      }
+    }
     const thesisId = String(bodyThesisId || urlThesisId || '').trim() || null
     const sessionId = String(bodySessionId || req.nextUrl.searchParams.get('sessionId') || '').trim() || `live_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
     let systemInstruction: string | undefined

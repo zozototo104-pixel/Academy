@@ -95,8 +95,8 @@ export function useAdminActionDialog() {
     const Icon = tone.icon
     return (
       <Dialog open={!!state} onOpenChange={(open) => { if (!open) close(state.kind === 'confirm' ? false : null) }}>
-        <DialogContent className={`max-w-md overflow-hidden rounded-[2rem] border border-[#0f2b46]/10 bg-gradient-to-br ${tone.shell} p-0 shadow-2xl shadow-[#0f2b46]/20`} dir="rtl">
-          <div className="relative px-5 pb-3 pt-5">
+        <DialogContent className={`flex max-h-[92vh] flex-col gap-0 max-w-md overflow-hidden rounded-[2rem] border border-[#0f2b46]/10 bg-gradient-to-br ${tone.shell} p-0 shadow-2xl shadow-[#0f2b46]/20`} dir="rtl">
+          <div className="relative shrink-0 px-5 pb-3 pt-5">
             <div className="absolute inset-x-8 top-0 h-1 rounded-b-full bg-gradient-to-l from-[#c9a227] via-[#0f2b46] to-[#e0b83a]" />
             <DialogHeader className="items-center text-center">
               <div className={`mb-3 flex h-14 w-14 items-center justify-center rounded-2xl ${tone.ring} shadow-lg`}>
@@ -105,10 +105,15 @@ export function useAdminActionDialog() {
               <DialogTitle className="text-2xl font-black leading-9 text-[#0f2b46]">
                 {state.title}
               </DialogTitle>
-              {state.description && <DialogDescription className="max-w-sm whitespace-pre-line text-center text-sm font-bold leading-8 text-slate-600">{state.description}</DialogDescription>}
             </DialogHeader>
           </div>
-          <div className="space-y-4 px-5 pb-5">
+          {/* منطقة قابلة للتمرير وحدها (إصلاح U18): أوصاف طويلة — كتقارير
+              مشكلات صفحات الفهرس — كانت تدفع أزرار القرار خارج الشاشة لأن
+              النافذة بلا حدّ ارتفاع. الترويسة والأزرار ثابتتان الآن، والمتن
+              (الوصف + حقل الإدخال) يتمرر داخل max-h-[92vh] بنمط حوارات
+              المراجعة. min-h-0 ضرورية حتى ينكمش flex child ويتمرر فعلًا. */}
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5">
+            {state.description && <DialogDescription className="mx-auto max-w-sm whitespace-pre-line text-center text-sm font-bold leading-8 text-slate-600">{state.description}</DialogDescription>}
             {state.kind === 'prompt' && (
               <div className="space-y-2">
                 <Label className="text-xs font-black text-[#0f2b46]">{state.fieldLabel || 'الملاحظة'}</Label>
@@ -120,6 +125,8 @@ export function useAdminActionDialog() {
                 {error && <p className="text-[11px] font-bold text-red-600">{error}</p>}
               </div>
             )}
+          </div>
+          <div className="shrink-0 px-5 pb-5 pt-4">
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               {state.kind !== 'alert' && <Button type="button" variant="outline" onClick={() => close(state.kind === 'confirm' ? false : null)} className="rounded-2xl font-black">{state.cancelLabel || 'إلغاء'}</Button>}
               <Button type="button" onClick={submit} className={`rounded-2xl font-black ${tone.button}`}>{state.confirmLabel || 'تأكيد'}</Button>

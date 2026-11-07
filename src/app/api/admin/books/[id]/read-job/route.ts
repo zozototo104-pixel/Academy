@@ -48,7 +48,10 @@ export async function POST(request: NextRequest, context: Context) {
     if (mode === 'EXTRACT') {
       const lastJob = await db.bookReadJob.findFirst({ where: { bookId: id }, orderBy: { createdAt: 'desc' } })
       if (planBookReadJobResume(lastJob, body?.restart === true) === 'RESUME') {
-        const resumed = await db.bookReadJob.update({ where: { id: lastJob!.id }, data: { status: 'QUEUED', lastError: null, retryAt: null, lockedUntil: null } })
+        // Resuming keeps pagesDone, so it must also keep the per-page
+        // issue ledger stored in lastError — approval evidence is not
+        // reset by a resume.
+        const resumed = await db.bookReadJob.update({ where: { id: lastJob!.id }, data: { status: 'QUEUED', retryAt: null, lockedUntil: null } })
         return NextResponse.json({ ok: true, job: resumed, resumed: true })
       }
     }

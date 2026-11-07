@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
-import { auditOutlineCoverage, buildBookOutline } from '@/lib/book-outline'
+import { auditOutlineCoverage, buildBookOutline, verifyBlankPdfGapPages, missingBookSourcePageRanges, subtractVerifiedBlankPages } from '@/lib/book-outline'
+import { parseBookPageReadIssues } from '@/lib/book-read-job-control'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -32,18 +33,36 @@ export async function GET(_req: NextRequest, context: Context) {
       const sourceChunks = await db.bookChunk.findMany({
         where: { bookId: id }, select: { pageStart: true, pageEnd: true },
       })
+      const readJob = await db.bookReadJob.findFirst({
+        where: { bookId: id, totalPages: { gt: 0 } }, orderBy: { createdAt: 'desc' },
+        select: { totalPages: true, lastError: true },
+      })
       const range = sourceChunks.length ? {
-        pageStart: Math.min(...sourceChunks.map((chunk) => chunk.pageStart)),
-        pageEnd: Math.max(...sourceChunks.map((chunk) => chunk.pageEnd)),
+        pageStart: 1,
+        pageEnd: Math.max(readJob?.totalPages || 0, ...sourceChunks.map((chunk) => chunk.pageEnd)),
       } : undefined
-      const coverage = auditOutlineCoverage(outline.sections, range)
+      const unchecked = auditOutlineCoverage(outline.sections, range)
+      const rawSourceGaps = range ? missingBookSourcePageRanges(sourceChunks, range) : []
+      const possibleGaps = [...unchecked.gaps, ...rawSourceGaps]
+      const verifiedBlankPages = possibleGaps.length
+        ? await verifyBlankPdfGapPages(id, possibleGaps) : []
+      const coverage = auditOutlineCoverage(outline.sections, range, verifiedBlankPages)
+      const unresolvedSource = subtractVerifiedBlankPages(rawSourceGaps, verifiedBlankPages)
+      const readIssues = parseBookPageReadIssues(readJob?.lastError)
+        .filter((issue) => !verifiedBlankPages.includes(issue.page))
       const warnings = (() => { try { const x = JSON.parse(outline.warnings || '[]'); return Array.isArray(x) ? x.map(String) : [] } catch { return [] as string[] } })()
         .filter((warning) => !warning.startsWith('تنبيه تغطية:') && !warning.startsWith('OUTLINE_COVERAGE:'))
       for (const section of coverage.review) {
         if (section.pages === null) warnings.push(`تنبيه تغطية: حدود صفحات القسم «${section.title}» غير مكتملة؛ لا يمكن اعتماده حتى تصحيحها.`)
         else if (section.band === 'REVIEW') warnings.push(`تنبيه تغطية: القسم «${section.title}» يمتد ${section.pages} صفحة ويحتاج مراجعة.`)
       }
-      for (const gap of coverage.gaps) warnings.push(`تنبيه تغطية: صفحات ${gap.pageStart}–${gap.pageEnd} غير ممثلة في الفهرس الحالي؛ أعد بناء الفهرس أو ضم الأقسام بأدلة مصدرية.`)
+      if (verifiedBlankPages.length) warnings.push(
+        'صفحات بيضاء تم التحقق منها بصريًا في PDF الأصلي، ولا تُعد فجوات معرفية: ' + verifiedBlankPages.join('، ') + '.')
+      for (const gap of coverage.gaps) warnings.push(`تنبيه تغطية: صفحات ${gap.pageStart}–${gap.pageEnd} غير ممثلة في الفهرس؛ ستظهر في تقرير اعتماد مع الإقرار.`)
+      for (const gap of unresolvedSource) warnings.push(
+        `تنبيه تغطية: صفحات المصدر ${gap.pageStart}–${gap.pageEnd} غير مقروءة أو غير ممثلة بمقاطع النص؛ دمج الفصول لا يُخفي هذه الفجوة.`)
+      for (const issue of readIssues) warnings.push(
+        `تنبيه قراءة: صفحة ${issue.page} — ${issue.kind === 'PARTIAL' ? 'قراءة جزئية' : 'لم تُقرأ'}؛ ${issue.reason}.`)
       for (const section of coverage.blocked) warnings.push(`تنبيه تغطية: القسم «${section.title}» يتجاوز 80 صفحة؛ يحتاج تقسيمًا موثقًا.`)
       currentOutline = { ...outline, warnings: JSON.stringify(warnings) }
     }
@@ -77,6 +96,9 @@ export async function POST(_req: NextRequest, context: Context) {
     }
     return NextResponse.json({ ok: true, outline, programDraft: await programDraft(book.programId) })
   } catch (error: any) {
+    if (error?.message === 'BOOK_OUTLINE_VERSION_CONFLICT') {
+      return NextResponse.json({ code: 'BOOK_OUTLINE_VERSION_CONFLICT', error: 'يُبنى فهرس آخر لهذا الكتاب في هذه اللحظة — أعد المحاولة بعد لحظات' }, { status: 409 })
+    }
     return NextResponse.json({ error: String(error?.message || error) }, { status: error?.message === 'UNAUTHORIZED' ? 401 : 500 })
   }
 }

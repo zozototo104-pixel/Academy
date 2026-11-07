@@ -4,6 +4,10 @@ import { collectTimings, withServerTiming, withTiming } from '@/lib/timing'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+// قيمة وهمية ثابتة بصيغة hashPassword نفسها (salt:hash) تُستخدم لتشغيل تحقق scrypt
+// كامل الكلفة عندما لا يوجد الحساب أصلاً، حتى لا يكشف زمن الاستجابة وجود البريد من عدمه.
+const DUMMY_PASSWORD_HASH = '9f2c41aa07b34d5e8c1f6a0b3d5e7f90:b5d77581edeedb11c7217375229abdf853fe3ef262d3f8dd5c70a5443618f3ccef2d27c78d4ea3d88af3f124807ef36011de03c27164a85a6ca69e7c76f1761b'
+
 export async function POST(req: NextRequest) {
   const { result, metrics } = await collectTimings(async () => {
     try {
@@ -34,7 +38,8 @@ export async function POST(req: NextRequest) {
       }
 
       const user = await withTiming('auth_login_findUnique', () => db.user.findUnique({ where: { email: normalizedEmail } }))
-      const passwordOk = user ? await withTiming('auth_login_verifyPassword', () => verifyPassword(password, user.password)) : false
+      // التحقق يجرى دائماً (حقيقي عند وجود الحساب، ووهمي بنفس الكلفة عند غيابه) لمنع تسريب الوجود بالتوقيت.
+      const passwordOk = await withTiming('auth_login_verifyPassword', () => verifyPassword(password, user ? user.password : DUMMY_PASSWORD_HASH))
       if (!user || !passwordOk) {
         return NextResponse.json({ error: 'بيانات الدخول غير صحيحة' }, { status: 401 })
       }

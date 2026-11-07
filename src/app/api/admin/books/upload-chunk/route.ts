@@ -10,6 +10,10 @@ export const maxDuration = 300
 
 const MAX_BOOK_SIZE = 10 * 1024 * 1024 // 10MB
 const MAX_CHUNK_BASE64_LENGTH = 1_250_000 // يبقي كل طلب تحت حد Vercel بأمان
+// العميل الشرعي (AdminBooks) يجزّئ إلى 384KB؛ عدد أجزاء ملف 10MB
+// المشروع 27 كحد أقصى — وبدون سقف لعدد الأجزاء يمكن إغراق قاعدة
+// البيانات بصفوف أجزاء لملف لن يُجمَّع أبدًا.
+const MAX_BOOK_CHUNKS = Math.ceil(MAX_BOOK_SIZE / (384 * 1024))
 
 function cleanFileName(value: unknown) {
   return String(value || 'book-file').trim().slice(0, 180) || 'book-file'
@@ -152,7 +156,7 @@ export async function POST(req: NextRequest) {
     const total = Number(body.total)
     const size = Number(body.size || 0)
     const chunk = String(body.chunk || '')
-    if (!Number.isInteger(index) || !Number.isInteger(total) || index < 0 || total < 1 || index >= total) {
+    if (!Number.isInteger(index) || !Number.isInteger(total) || index < 0 || total < 1 || index >= total || total > MAX_BOOK_CHUNKS) {
       return NextResponse.json({ error: 'ترقيم أجزاء الملف غير صالح' }, { status: 400 })
     }
     if (!chunk || chunk.length > MAX_CHUNK_BASE64_LENGTH) {

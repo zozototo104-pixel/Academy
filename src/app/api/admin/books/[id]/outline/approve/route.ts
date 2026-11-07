@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
-import { outlineApprovalGuard, OUTLINE_SECTION_BLOCK_PAGES } from '@/lib/book-outline'
+import { createHash } from 'node:crypto'
+import { outlineApprovalGuard, verifyBlankPdfGapPages, missingBookSourcePageRanges, subtractVerifiedBlankPages, OUTLINE_SECTION_BLOCK_PAGES } from '@/lib/book-outline'
+import { parseBookPageReadIssues } from '@/lib/book-read-job-control'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -29,11 +31,47 @@ export async function POST(req: NextRequest, context: Context) {
       where: { bookId: id }, select: { pageStart: true, pageEnd: true },
     })
     if (!sourceChunks.length) return NextResponse.json({ code: 'OUTLINE_SOURCE_MISSING', error: 'مقاطع الكتاب الأصلية غير متاحة للتحقق من التغطية' }, { status: 409 })
+    const latestRead = await db.bookReadJob.findFirst({
+      where: { bookId: id, totalPages: { gt: 0 } }, orderBy: { createdAt: 'desc' },
+      select: { totalPages: true, lastError: true },
+    })
     const sourceRange = {
-      pageStart: Math.min(...sourceChunks.map((chunk) => chunk.pageStart)),
-      pageEnd: Math.max(...sourceChunks.map((chunk) => chunk.pageEnd)),
+      pageStart: 1,
+      pageEnd: Math.max(latestRead?.totalPages || 0, ...sourceChunks.map((chunk) => chunk.pageEnd)),
     }
-    const guard = outlineApprovalGuard(outline.sections, sourceRange)
+    const rawCoverage = outlineApprovalGuard(outline.sections, sourceRange)
+    // These gaps are computed from the actual stored source chunks, not only
+    // outline section spans. A successful section MERGE cannot hide a page
+    // that was never read or misrepresent it as academic evidence.
+    const missingSource = missingBookSourcePageRanges(sourceChunks, sourceRange)
+    const possibleGaps = [...rawCoverage.report.gaps, ...missingSource]
+    const verifiedBlankPages = possibleGaps.length
+      ? await verifyBlankPdfGapPages(id, possibleGaps) : []
+    const guard = outlineApprovalGuard(outline.sections, sourceRange, verifiedBlankPages)
+    const unreadSource = subtractVerifiedBlankPages(missingSource, verifiedBlankPages)
+    const readIssues = parseBookPageReadIssues(latestRead?.lastError)
+      .filter((issue) => !verifiedBlankPages.includes(issue.page))
+    const pdfReadIssues = (() => {
+      try {
+        const warnings = JSON.parse(outline.warnings || '[]')
+        if (!Array.isArray(warnings)) return [] as { page: number; kind: string; reason: string }[]
+        return warnings.filter((warning): warning is string => typeof warning === 'string' && warning.startsWith('OUTLINE_PDF_READ_ISSUES:'))
+          .flatMap((warning) => {
+            try {
+              const items = JSON.parse(warning.slice('OUTLINE_PDF_READ_ISSUES:'.length))
+              return Array.isArray(items) ? items.filter((item) => Number.isSafeInteger(item?.page) && item.page > 0 && typeof item.reason === 'string') : []
+            } catch { return [] }
+          })
+          .filter((issue) => !verifiedBlankPages.includes(issue.page))
+      } catch { return [] }
+    })()
+    const rawGaps = [...guard.report.gaps, ...unreadSource].sort((a, b) => a.pageStart - b.pageStart)
+    const unresolvedGaps: typeof rawGaps = []
+    for (const gap of rawGaps) {
+      const previous = unresolvedGaps[unresolvedGaps.length - 1]
+      if (previous && gap.pageStart <= previous.pageEnd + 1) previous.pageEnd = Math.max(previous.pageEnd, gap.pageEnd)
+      else unresolvedGaps.push({ ...gap })
+    }
     // Unknown page ends must never be bypassed by the documented long-section override.
     const incomplete = guard.report.sections.filter((section) => section.pages === null)
     if (!outline.sections.length || incomplete.length) {
@@ -43,16 +81,37 @@ export async function POST(req: NextRequest, context: Context) {
         incomplete,
       }, { status: 409 })
     }
-    // A documented long-chapter override must NOT bypass missing pages.
-    if (guard.report.gaps.length) {
+    const reviewMessages = [
+      ...verifiedBlankPages.map((page) => `صفحة ${page}: بيضاء حسب فحص الصورة الأصلية (لا تحتوي معرفة مستخرجة).`),
+      ...unresolvedGaps.map((gap) => `صفحات ${gap.pageStart}–${gap.pageEnd}: غير ممثلة في نص المصدر المحفوظ؛ لا تعتبر مقروءة حتى لو تم دمج الفصلين المحيطين.`),
+      ...readIssues.map((issue) => `صفحة ${issue.page}: ${issue.kind === 'PARTIAL' ? 'قراءة جزئية' : 'تعذرت قراءتها'} — ${issue.reason}.`),
+      ...pdfReadIssues.map((issue) => `صفحة ${issue.page}: تعذرت إعادة قراءة PDF مباشرة — ${issue.reason}.`),
+    ]
+    const acknowledgmentKey = createHash('sha256').update(JSON.stringify({
+      outlineId: outline.id,
+      sections: outline.sections.map((section) => ({
+        id: section.id, pageStart: section.pageStart, pageEnd: section.pageEnd,
+        chunkStartIndex: section.chunkStartIndex, chunkEndIndex: section.chunkEndIndex,
+      })),
+      gaps: unresolvedGaps, readIssues, pdfReadIssues, verifiedBlankPages,
+    })).digest('hex')
+    if (reviewMessages.length && (body?.acknowledgeCoverage !== true || body?.acknowledgmentKey !== acknowledgmentKey)) {
       return NextResponse.json({
-        code: 'OUTLINE_COVERAGE_GAPS',
-        error: `لا يمكن اعتماد فهرس فيه فجوات صفحات داخلية: ${guard.report.gaps.map((gap) => `${gap.pageStart}–${gap.pageEnd}`).join('، ')}. أعد فحص حدود الأقسام قبل الاعتماد.`,
-        gaps: guard.report.gaps,
+        code: 'OUTLINE_REVIEW_REQUIRED',
+        error: 'يوجد تقرير صفحات ناقصة أو غير مقروءة. راجع كل بند، ثم اعتمد صراحة مع الإقرار أو ارفض الاعتماد.',
+        issues: reviewMessages,
+        gaps: unresolvedGaps, readIssues, pdfReadIssues, verifiedBlankPages, acknowledgmentKey,
       }, { status: 409 })
     }
-    let warningsPrefix: string[] = []
-    if (guard.decision === 'BLOCK') {
+    let warningsPrefix: string[] = reviewMessages.length ? [
+      'OUTLINE_REVIEW_ACK:' + JSON.stringify({
+        at: new Date().toISOString(), byAdminId: admin.id,
+        gaps: unresolvedGaps, readIssues, pdfReadIssues, verifiedBlankPages, acknowledgmentKey,
+      }),
+    ] : []
+    // Acknowledging lost pages NEVER bypasses unknown section bounds or a
+    // genuinely oversized section; the latter keeps its documented gate.
+    if (guard.report.blocked.length) {
       const overrideReason = String(body?.overrideReason || '').replace(/\s+/g, ' ').trim().slice(0, 300)
       if (body?.overrideOversized !== true || overrideReason.length < 3) {
         return NextResponse.json({
@@ -61,7 +120,7 @@ export async function POST(req: NextRequest, context: Context) {
           blocked: guard.report.blocked,
         }, { status: 409 })
       }
-      warningsPrefix = ['OUTLINE_OVERSIZED_OVERRIDE:' + JSON.stringify({ at: new Date().toISOString(), byAdminId: admin.id, reason: overrideReason, sections: guard.report.blocked.map((section) => ({ order: section.order, title: section.title, pages: section.pages })) })]
+      warningsPrefix.push('OUTLINE_OVERSIZED_OVERRIDE:' + JSON.stringify({ at: new Date().toISOString(), byAdminId: admin.id, reason: overrideReason, sections: guard.report.blocked.map((section) => ({ order: section.order, title: section.title, pages: section.pages })) }))
     }
     const existingWarnings = (() => { try { const parsed = JSON.parse(outline.warnings || '[]'); return Array.isArray(parsed) ? parsed.map(String) : [] } catch { return [] } })()
     const updated = await db.bookOutline.update({

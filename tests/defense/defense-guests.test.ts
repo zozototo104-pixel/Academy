@@ -390,6 +390,41 @@ describe('صفحة تحقق الضيف وبيانات TURN', () => {
     expect(badJson.thesis).toBeUndefined()
   })
 
+  test('رابط اجتماع المناقشة للضيف: مخفي خارج النافذة، ظاهر داخلها (تفتح −15د وتغلق +3س)، والبيانات التعريفية ظاهرة دائمًا', async () => {
+    const { token } = await seedInvite()
+    theses[0].defenseMeetingUrl = 'https://meet.example/defense-room-secret'
+    const get = async () => (await (await guestRoute.GET(new NextRequest('http://x'), { params: Promise.resolve({ token }) })).json())
+
+    // الموعد غدًا: خارج النافذة — الرابط مخفي والباقي ظاهر
+    theses[0].defenseDate = new Date(Date.now() + 86400000)
+    let json = await get()
+    expect(json.status).toBe('VALID')
+    expect(json.thesis.title).toBe('بحث التخرج الأول')
+    expect(json.thesis.abstract).toBe('ملخص')
+    expect(json.thesis.defenseMeetingUrl).toBeNull()
+
+    // الموعد بعد 10 دقائق: داخل النافذة (تفتح قبل الموعد بـ15 دقيقة)
+    theses[0].defenseDate = new Date(Date.now() + 10 * 60_000)
+    json = await get()
+    expect(json.thesis.defenseMeetingUrl).toBe('https://meet.example/defense-room-secret')
+
+    // الموعد قبل ساعتين: ما زالت داخل النافذة (تغلق بعد الموعد بـ3 ساعات)
+    theses[0].defenseDate = new Date(Date.now() - 2 * 3600000)
+    json = await get()
+    expect(json.thesis.defenseMeetingUrl).toBe('https://meet.example/defense-room-secret')
+
+    // الموعد قبل 4 ساعات: أُغلقت النافذة — الرابط مخفي مجددًا
+    theses[0].defenseDate = new Date(Date.now() - 4 * 3600000)
+    json = await get()
+    expect(json.thesis.defenseMeetingUrl).toBeNull()
+    expect(json.thesis.defenseDate).toBeTruthy()
+
+    // بلا موعد محدد: الرابط مخفي دائمًا
+    theses[0].defenseDate = null
+    json = await get()
+    expect(json.thesis.defenseMeetingUrl).toBeNull()
+  })
+
   test('TURN: مشرف غير مسند لا يحصل عليه، والمسند يحصل، وسر اللوحة المشفر يُفك قبل الإصدار', async () => {
     settings = [
       { key: 'TURN_URL', value: 'turn:turn.example.com:3478' },

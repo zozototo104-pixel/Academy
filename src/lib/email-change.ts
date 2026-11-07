@@ -162,17 +162,23 @@ export async function applyPendingEmailChange(user: {
       await cancelPendingEmailChange(user.id)
       return { outcome: 'EMAIL_TAKEN' }
     }
-    await db.user.update({
-      where: { id: user.id },
-      data: {
-        email: newEmail,
-        emailVerifiedAt: new Date(),
-        pendingEmail: null,
-        pendingEmailPurpose: null,
-        emailVerificationTokenHash: null,
-        emailVerificationExpiresAt: null,
-        emailVerificationSentAt: null,
-      } as any,
+    // Changing login identity and revoking all existing sessions are one
+    // security transition. If session deletion fails, roll back the email
+    // and verification token too so the user can safely retry confirmation.
+    await db.$transaction(async (tx) => {
+      await tx.session.deleteMany({ where: { userId: user.id } })
+      await tx.user.update({
+        where: { id: user.id },
+        data: {
+          email: newEmail,
+          emailVerifiedAt: new Date(),
+          pendingEmail: null,
+          pendingEmailPurpose: null,
+          emailVerificationTokenHash: null,
+          emailVerificationExpiresAt: null,
+          emailVerificationSentAt: null,
+        } as any,
+      })
     })
     await audit('LOGIN_EMAIL_CHANGED', null, user.id, JSON.stringify({ from: user.email, to: newEmail }))
     return { outcome: 'LOGIN_APPLIED', oldEmail: user.email, newEmail }

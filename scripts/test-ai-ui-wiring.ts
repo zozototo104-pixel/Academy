@@ -236,3 +236,105 @@ testFailedBookReadRetry()
 testAlborihiProviderWiring()
 
 console.log('✓ ai/ui wiring behavioral checks passed')
+
+
+// U18: opt-in real Chromium acceptance test; the existing static suite stays intact.
+// Run with AACT_DIALOG_BROWSER=1 bun scripts/test-ai-ui-wiring.ts.
+async function testAdminActionDialogInBrowser() {
+  const { mkdtempSync, writeFileSync, mkdirSync, rmSync } = await import('node:fs')
+  const { chromium } = await import('@playwright/test')
+  const { default: postcss } = await import('postcss')
+  const { default: tailwind } = await import('@tailwindcss/postcss')
+  const dir = mkdtempSync(join(process.cwd(), '.dialog-browser-'))
+  let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined
+  let server: ReturnType<typeof Bun.serve> | undefined
+  try {
+    const entry = join(dir, 'fixture.tsx')
+    writeFileSync(entry, `
+      import React, { useState } from 'react'
+      import { createRoot } from 'react-dom/client'
+      import { useAdminActionDialog } from '../src/components/aact/AdminActionDialog'
+      function Fixture() {
+        const actions = useAdminActionDialog()
+        const [result, setResult] = useState('pending')
+        const open = async (kind) => {
+          setResult('pending')
+          const description = kind === 'short' ? 'سطر أول\\nسطر ثانٍ' : Array.from({ length: 20 }, (_, i) => 'الصفحة ' + (i + 1) + ': تعذرت قراءة النص؛ راجع الصفحة الأصلية قبل اعتماد الفهرس.').join('\\n')
+          const options = { title: 'مراجعة الفهرس', description, confirmLabel: 'اعتماد', cancelLabel: 'رفض' }
+          const value = kind === 'prompt' ? await actions.promptAction({ ...options, required: true, multiline: true }) : await actions.confirmAction(options)
+          setResult(String(value))
+        }
+        return <><button onClick={() => open('long')}>long</button><button onClick={() => open('short')}>short</button><button onClick={() => open('prompt')}>prompt</button><output>{result}</output>{actions.dialog}</>
+      }
+      createRoot(document.getElementById('root')).render(<Fixture />)
+    `)
+    const bundle = await Bun.build({ entrypoints: [entry], target: 'browser', outdir: join(dir, 'dist') })
+    assert(bundle.success, `dialog fixture build failed: ${bundle.logs.join('\n')}`)
+    const js = await bundle.outputs.find((o) => o.path.endsWith('.js'))!.text()
+    const css = await postcss([tailwind({ base: process.cwd() })]).process(file('src/app/globals.css'), { from: join(process.cwd(), 'src/app/globals.css') })
+    server = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch(req) {
+      const path = new URL(req.url).pathname
+      if (path === '/fixture.js') return new Response(js, { headers: { 'content-type': 'text/javascript' } })
+      if (path === '/fixture.css') return new Response(css.css, { headers: { 'content-type': 'text/css' } })
+      return new Response('<!doctype html><html lang="ar" dir="rtl"><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/fixture.css"></head><body><div id="root"></div><script type="module" src="/fixture.js"></script></body></html>', { headers: { 'content-type': 'text/html' } })
+    } })
+    browser = await chromium.launch({ headless: true })
+    mkdirSync('test-results/admin-dialog', { recursive: true })
+    for (const viewport of [{ width: 375, height: 812 }, { width: 1280, height: 800 }]) {
+      const page = await browser.newPage({ viewport, reducedMotion: 'reduce' })
+      const errors: string[] = []
+      page.on('pageerror', (e) => errors.push(e.message))
+      await page.goto(`http://127.0.0.1:${server.port}`)
+      for (const kind of ['long', 'short', 'prompt']) {
+        for (const decision of ['اعتماد', 'رفض']) {
+          await page.getByRole('button', { name: kind, exact: true }).click()
+          const dialog = page.getByRole('dialog')
+          await dialog.waitFor({ state: 'visible' })
+          await page.waitForTimeout(250) // Allow the real Radix/Tailwind entry animation to finish.
+          const metrics = await dialog.evaluate((el) => {
+            const r = el.getBoundingClientRect()
+            const body = el.querySelector('.overflow-y-auto') as HTMLElement
+            return { top: r.top, bottom: r.bottom, height: r.height, scrollHeight: body.scrollHeight, clientHeight: body.clientHeight, dir: getComputedStyle(el).direction }
+          })
+          assert(metrics.top >= 0 && metrics.bottom <= viewport.height, `${kind}: dialog exceeds viewport`)
+          assert(metrics.dir === 'rtl', 'dialog must remain RTL')
+          if (kind === 'short') assert(metrics.height < 500, 'short dialog must not expand to viewport height')
+          else {
+            assert(metrics.scrollHeight > metrics.clientHeight, 'long report must scroll internally')
+            await dialog.locator('.overflow-y-auto').evaluate((el) => { el.scrollTop = el.scrollHeight })
+            assert(await dialog.locator('.overflow-y-auto').evaluate((el) => el.scrollTop > 0), 'report did not scroll')
+          }
+          if (kind === 'prompt' && decision === 'اعتماد') await dialog.locator('textarea').fill('تمت مراجعة الصفحات')
+          for (const name of ['اعتماد', 'رفض']) {
+            const visibleAndHit = await dialog.getByRole('button', { name, exact: true }).evaluate((el) => {
+              const r = el.getBoundingClientRect()
+              const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)
+              return r.width > 0 && r.height > 0 && r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight && !!hit && el.contains(hit)
+            })
+            assert(visibleAndHit, `${viewport.width}/${kind}: ${name} is clipped or covered`)
+          }
+          await page.screenshot({ path: `test-results/admin-dialog/${viewport.width}-${kind}-${decision === 'اعتماد' ? 'confirm' : 'cancel'}.png` })
+          const scrollBefore = await page.evaluate(() => window.scrollY)
+          await dialog.getByRole('button', { name: decision, exact: true }).click()
+          await dialog.waitFor({ state: 'detached' })
+          const expected = kind === 'prompt' ? (decision === 'اعتماد' ? 'تمت مراجعة الصفحات' : 'null') : String(decision === 'اعتماد')
+          assert(await page.locator('output').textContent() === expected, 'dialog resolved the wrong result')
+          assert(await page.evaluate(() => window.scrollY) === scrollBefore, 'button click scrolled the document')
+          console.log(`U18 PASS ${viewport.width}x${viewport.height} ${kind} ${decision}: ${JSON.stringify(metrics)}`)
+        }
+      }
+      assert(errors.length === 0, `browser errors: ${errors.join('; ')}`)
+      await page.close()
+    }
+    console.log('U18_BROWSER: ALL 12 SCENARIOS PASSED (real component, CSS, Chromium)')
+  } finally {
+    await browser?.close()
+    server?.stop(true)
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
+
+if (process.env.AACT_DIALOG_BROWSER === '1') {
+  testAdminActionDialogInBrowser().catch((error) => { console.error(error); process.exitCode = 1 })
+}
+

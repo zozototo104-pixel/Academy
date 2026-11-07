@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 import { notify } from '@/lib/notify'
-import { sendEmail, emailTemplate } from '@/lib/mailer'
+import { sendEmailDetailed, emailTemplate } from '@/lib/mailer'
 import { officialWhatsAppConfigured, sendOfficialWhatsAppHumanFollowup, sendOfficialWhatsAppText } from '@/lib/whatsapp-cloud'
 import { hashWhatsAppId, recordWhatsAppOutboundMessage } from '@/lib/whatsapp-conversations'
 
@@ -64,13 +64,15 @@ export function followUpText(userName: string, programTitle: string, daysAbsent:
 async function sendFollowUpEmail(to: string, name: string, title: string, body: string): Promise<boolean> {
   try {
     const paragraphs = body.split('\n').map((line) => `<p>${line.replace(/[<>]/g, '')}</p>`).join('')
-    await sendEmail({
+    // النتيجة المفصّلة هي الحقيقة: FAILED/SKIPPED من المزوّد لا تُسجَّل
+    // «مُرسَلة» في سجل المتابعة (sendEmail لا يرمي عند فشل التسليم).
+    const status = await sendEmailDetailed({
       to,
       event: 'STUDENT_FOLLOW_UP',
       subject: title,
       html: emailTemplate(title, `<p>مرحبًا ${name}،</p>${paragraphs}`, { label: 'فتح لوحة الطالب', url: 'https://aactacademy.com/?view=dashboard' }),
     })
-    return true
+    return status === 'SENT'
   } catch (e) {
     console.error('follow-up email error', e)
     return false

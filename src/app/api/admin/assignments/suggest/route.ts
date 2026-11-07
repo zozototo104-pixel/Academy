@@ -152,7 +152,7 @@ async function unitKnowledge(programId: string, semester: number, unitId?: strin
   const out: any[] = []
   for (const unit of units) {
     if (!unit.sourceBookId || unit.chunkStartIndex == null || unit.chunkEndIndex == null) continue
-    const chunks = await db.bookChunk.findMany({ where: { bookId: unit.sourceBookId, index: { gte: unit.chunkStartIndex, lte: unit.chunkEndIndex } }, select: { id: true } })
+    const chunks = await db.bookChunk.findMany({ where: { bookId: unit.sourceBookId, status: { not: 'FAILED' }, index: { gte: unit.chunkStartIndex, lte: unit.chunkEndIndex } }, select: { id: true } })
     if (!chunks.length) continue
     const knowledge = await db.bookKnowledgeItem.findMany({ where: { programId, kbVersion: 2, chunkId: { in: chunks.map((chunk) => chunk.id) }, category: { notIn: ['QUESTION_SEED', 'LEGACY'] } }, orderBy: [{ importance: 'desc' }, { pageStart: 'asc' }], take: unitId ? 80 : 40 })
     for (const item of knowledge) out.push({ ...item, unitId: unit.id, unitTitle: unit.title, unitSemester: unit.semester })

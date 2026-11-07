@@ -143,7 +143,7 @@ const db: any = {
 mock.module('@/lib/db', () => ({ db }))
 mock.module('@/lib/auth', () => ({ requireAdmin: async () => ({ id: 'admin-1', role: 'ADMIN' }) }))
 mock.module('@/lib/notify', () => ({ notify: async () => ({}), notifyAdmins: async () => ({}), audit: async () => ({}) }))
-mock.module('@/lib/mailer', () => ({ sendEmail: async () => true, emailTemplate: () => '' }))
+mock.module('@/lib/mailer', () => ({ sendEmail: async () => true, sendEmailDetailed: async () => 'SENT', emailTemplate: () => '' }))
 mock.module('@/lib/whatsapp-cloud', () => ({ officialWhatsAppConfigured: () => false, sendOfficialWhatsAppHumanFollowup: async () => ({}), sendOfficialWhatsAppText: async () => ({}) }))
 mock.module('@/lib/whatsapp-conversations', () => ({ hashWhatsAppId: (x: string) => x, recordWhatsAppOutboundMessage: async () => ({}) }))
 
@@ -200,6 +200,41 @@ describe('admin student preview — detail payload', () => {
     expect(body.overview.examsSat).toBe(4)
     expect(body.overview.assignmentsSolved).toBe(1)
     expect(body.overview.assignmentsPublishedTotal).toBe(2)
+  })
+
+  test('zero-weight graded assignment remains counted as submitted but earns no weighted grade, with precise preview values', async () => {
+    fx = baseFx()
+    fx.publishedAssignments = [15, 15, 10, 0, 10].map((weight, i) => ({
+      id: `a${i + 1}`, title: `واجب ${i + 1}`, semester: 1,
+      programId: 'p1', points: 100, weight,
+    }))
+    fx.detailSubmissions = [
+      { id: 's3', assignmentId: 'a3', status: 'GRADED', score: 98 },
+      { id: 's4', assignmentId: 'a4', status: 'GRADED', score: 97 },
+    ]
+    fx.submissionByAssignment = {
+      a3: { status: 'GRADED', score: 98 },
+      a4: { status: 'GRADED', score: 97 },
+    }
+    const { status, body } = await getPreview()
+    expect(status).toBe(200)
+    const detail = body.enrollmentDetails[0]
+    expect(detail.counts.assignmentsSubmitted).toBe(2)
+    expect(detail.counts.assignmentsTotal).toBe(5)
+    const assignments = detail.cumulative.components.find((c: any) => c.key === 'assignments')
+    expect(assignments.weight).toBe(20)
+    expect(assignments.score).toBeCloseTo(19.6, 5)
+    expect(assignments.weighted).toBeCloseTo(3.92, 5)
+    expect(assignments.ready).toBe(false)
+    expect(detail.cumulative.score).toBeNull()
+    expect(detail.cumulative.progressScore).toBeCloseTo(3.92, 5)
+
+    // Presentation must not round 19.6 to 20 or hide the earned 3.92 points.
+    const view = readFileSync(join(import.meta.dir, '../../src/components/aact/AdminStudentPreview.tsx'), 'utf8')
+    expect(view).toContain('formatGradeValue(c.score)')
+    expect(view).toContain('formatGradeValue(c.weighted)')
+    expect(view).toContain('المساهمة في المعدل')
+    expect(view).not.toContain('Math.round(c.score)')
   })
 
   test('urgent signals follow the latest admission analysis, not historical supervisor memory', async () => {

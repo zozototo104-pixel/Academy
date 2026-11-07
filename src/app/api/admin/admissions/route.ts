@@ -290,6 +290,11 @@ export async function PATCH(req: NextRequest) {
       }
       const sup = await db.user.findUnique({ where: { id: supervisorId } })
       if (!sup) return NextResponse.json({ error: 'المشرف غير موجود' }, { status: 404 })
+      // التعيين لمستخدمين بدور مشرف فقط (أو أدمن كمشرّف بشري كما تعرضه الواجهة)؛
+      // حساب طالب/زائر هنا كان يلوّث كل استعلامات نطاق المشرفين دون أي فحص سابق.
+      if (!['SUPERVISOR', 'ADMIN'].includes(sup.role)) {
+        return NextResponse.json({ error: 'لا يمكن تعيين هذا المستخدم مشرفاً أكاديمياً — التعيين متاح لحسابات المشرفين أو الإدارة فقط، وليس لحسابات الطلاب أو الزوار.' }, { status: 400 })
+      }
       const updated = await db.admissionApplication.update({
         where: { id },
         data: {
@@ -319,6 +324,25 @@ export async function PATCH(req: NextRequest) {
 
     // ===== الإقرار بالقبول (دراسة الملف وتعيين المشرف ثم إصدار فاتورة الرسوم الدراسية) =====
     if (status === 'AWAITING_TUITION' || status === 'SUPERVISOR_ASSIGNED') {
+      // نفس انضباط الحالات المصدر في جدول انتقالات المسار العام أدناه — هذا
+      // الفرع لا يعيش خارج آلة الحالات:
+      // إعادة إرسال نفس الحالة: نجاح بلا أثر (لا بريد/إشعار/فاتورة مكررة).
+      if (status === app.status) {
+        return NextResponse.json({ ok: true, application: app })
+      }
+      // الإقرار بالقبول خطوة ما قبل البوابة: يدخلها الطلب من مراحل الدراسة
+      // فقط. CERTIFIED لا يخرج منها أبدًا، والمرفوض لا يُحيا مباشرة (يعود
+      // إلى UNDER_REVIEW عبر المسار العام)، ومن تجاوز القبول لا يرجع إليه.
+      const APPROVAL_FROM_STATUSES = ['AWAITING_FEE', 'UNDER_REVIEW', 'PENDING', 'UPLOADING_DOCUMENTS', 'STAGED', 'DOCUMENTS_NEED_REPLACEMENT']
+      if (!APPROVAL_FROM_STATUSES.includes(String(app.status || ''))) {
+        return NextResponse.json(
+          {
+            error: 'لا يمكن الإقرار بالقبول من مرحلة الطلب الحالية — اتبع تسلسل المراحل الرسمي لطلبات الالتحاق.',
+            code: 'ADMISSION_TRANSITION_NOT_ALLOWED',
+          },
+          { status: 409 }
+        )
+      }
       // قاعدة إلزامية: لا إقرار بالقبول قبل سداد الطالب رسوم التقديم (30$)
       const feePaid = await db.payment.findFirst({
         where: { admissionId: id, purpose: 'APPLICATION_FEE', status: { in: ['PAID', 'WAIVED'] } },
@@ -432,6 +456,62 @@ export async function PATCH(req: NextRequest) {
         `اعتماد طلب خدمة ${app.fullName} (${app.reference}) — أُصدرت فاتورة الخدمة`)
       emailAdmissionDecision(app.email, app.fullName, app.reference, app.program, true, 'تم قبول طلب الخدمة. يرجى سداد فاتورة الخدمة من حسابك ليتم تسليم المخرج النهائي.').catch(() => {})
       return NextResponse.json({ ok: true, application: updated })
+    }
+
+    // ===== حارس تسلسل الحالات للمسار العام (فرع الإقرار بالقبول أعلاه محروس بانضباط الحالات المصدر نفسه) =====
+    // الواجهة لا ترسل عبر هذا المسار إلا الرفض وبدء الدراسة؛ أما القفزات المباشرة الأخرى
+    // فتخضع لجدول انتقالات: طلب دراسة لا يدخل مراحل ما بعد القبول قبل سداد رسومه الدراسية،
+    // لأن تفعيل الالتحاق عند السداد يعمل من AWAITING_TUITION فقط — والقفزة تترك طالباً دافعاً عالقاً بلا تسجيل.
+    if (status !== 'CERTIFIED') {
+      if (status === app.status) {
+        // إعادة إرسال نفس الحالة: نجاح بلا أثر (يمنع أيضاً تكرار إشعارات/بريد الرفض)
+        return NextResponse.json({ ok: true, application: app })
+      }
+      const FROM = String(app.status || '')
+      const POST_GATE_STATUSES = ['SUPERVISOR_ASSIGNED', 'THESIS', 'SCHEDULED', 'RESULT_APPROVED']
+      const PRE_GATE_STATUSES = ['AWAITING_FEE', 'UNDER_REVIEW', 'PENDING', 'UPLOADING_DOCUMENTS', 'STAGED', 'DOCUMENTS_NEED_REPLACEMENT']
+      let transitionAllowed = false
+      let gateBlocked = false
+      if (FROM === 'CERTIFIED') {
+        transitionAllowed = false
+      } else if (status === 'REJECTED') {
+        transitionAllowed = true
+      } else if (status === 'UNDER_REVIEW') {
+        transitionAllowed = PRE_GATE_STATUSES.includes(FROM) || FROM === 'REJECTED'
+      } else if (status === 'AWAITING_FEE') {
+        transitionAllowed = ['PENDING', 'UPLOADING_DOCUMENTS', 'STAGED', 'UNDER_REVIEW', 'DOCUMENTS_NEED_REPLACEMENT'].includes(FROM)
+      } else if (status === 'PENDING') {
+        transitionAllowed = ['UPLOADING_DOCUMENTS', 'STAGED'].includes(FROM)
+      } else if (POST_GATE_STATUSES.includes(status)) {
+        if (POST_GATE_STATUSES.includes(FROM)) {
+          transitionAllowed = true
+        } else if (isStudyRequest && FROM !== 'REJECTED') {
+          gateBlocked = true
+          if (app.scholarshipFull === true) {
+            transitionAllowed = true
+          } else {
+            const gatePayments = await db.payment.findMany({
+              where: { admissionId: id },
+              select: { purpose: true, status: true, amount: true, amountCents: true, waiverType: true, waiverStatus: true, waivedAmount: true, waivedAmountCents: true, originalAmount: true, originalAmountCents: true },
+            })
+            const tuitionRows = gatePayments.filter((p) => TUITION_PURPOSES.includes(p.purpose))
+            const gateTotal = inferTotalTuition(tuitionRows)
+            const gatePaid = tuitionPaidTotal(tuitionRows)
+            transitionAllowed = tuitionRows.length > 0 && (gateTotal <= 0 || roundMoney(gatePaid) >= roundMoney(gateTotal))
+          }
+        }
+      }
+      if (!transitionAllowed) {
+        return NextResponse.json(
+          {
+            error: gateBlocked
+              ? 'لا يمكن نقل طلب دراسة إلى مرحلة ما بعد القبول قبل سداد الرسوم الدراسية — أكمل خطوة «الإقرار بالقبول» أولاً ثم انتظر سداد الطالب، لأن تسجيله يُفعَّل تلقائياً عند السداد من مرحلة انتظار الرسوم فقط.'
+              : 'لا يمكن نقل الطلب إلى هذه المرحلة مباشرة من مرحلته الحالية — اتبع تسلسل المراحل الرسمي لطلبات الالتحاق.',
+            code: 'ADMISSION_TRANSITION_NOT_ALLOWED',
+          },
+          { status: 409 }
+        )
+      }
     }
 
     let updated: any

@@ -5,6 +5,7 @@ import type { TextAiPreferredModel, TextAiProvider, TextAiRouterPolicy } from '@
 import { db } from '@/lib/db'
 import { normalizeArabic } from '@/lib/arabic-normalize'
 import { textContainsEvidenceAfterNormalization } from '@/lib/text-provenance'
+import { preserveBookPageReadIssues } from '@/lib/book-read-job-control'
 
 export const BOOK_KNOWLEDGE_CATEGORIES = ['CONCEPT', 'DEFINITION', 'THEORY', 'METHOD', 'CASE', 'PRINCIPLE', 'FACT'] as const
 export type BookKnowledgeCandidate = { category: typeof BOOK_KNOWLEDGE_CATEGORIES[number]; title: string; summary: string; excerpt: string; importance: number }
@@ -327,7 +328,12 @@ export async function runAnalyzeStep(jobId: string, deadlineMs: number) {
       if (remaining) return
       const failed = await db.bookChunk.count({ where: { bookId, status: 'FAILED' } })
       if (failed) {
-        await db.bookReadJob.update({ where: { id }, data: { phase: 'ANALYZE', status: 'FAILED', lastError: `${failed} مقطع فشل`, finishedAt: new Date(), lockedUntil: null, retryAt: null } })
+        const previous = await db.bookReadJob.findUnique({ where: { id }, select: { lastError: true } })
+        await db.bookReadJob.update({ where: { id }, data: {
+          phase: 'ANALYZE', status: 'FAILED',
+          lastError: preserveBookPageReadIssues(previous?.lastError, `${failed} مقطع فشل`),
+          finishedAt: new Date(), lockedUntil: null, retryAt: null,
+        } })
         return
       }
       // One parameterized statement regardless of historical item count; reruns skip LEGACY rows.

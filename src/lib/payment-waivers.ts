@@ -2,7 +2,7 @@ import { createHash, randomBytes } from 'crypto'
 import { db } from '@/lib/db'
 import { audit, notify } from '@/lib/notify'
 import { dollarsToCents, paymentAmountCents, centsToDollars } from '@/lib/money'
-import { getSettings, nextInvoiceNo } from '@/lib/settings'
+import { createPaymentWithInvoiceNo, getSettings } from '@/lib/settings'
 import { emailPaymentWaiverCode, isEmailDeliveryConfigured } from '@/lib/mailer'
 import { finalizeAdmissionAfterSettlement } from '@/lib/settle-payment'
 import { sendOfficialWhatsAppHumanFollowup, sendOfficialWhatsAppText } from '@/lib/whatsapp-cloud'
@@ -95,10 +95,10 @@ function addMonths(date: Date, months: number) {
   return next
 }
 
-async function resolveAdmissionTuitionCents(app: any) {
+async function resolveAdmissionTuitionCents(app: any, client: any = db) {
   const program = app.programId
-    ? await db.program.findUnique({ where: { id: app.programId }, select: { price: true, category: true } })
-    : await db.program.findFirst({ where: { titleAr: { contains: String(app.program || '').split(' — ')[0] } }, select: { price: true, category: true } })
+    ? await client.program.findUnique({ where: { id: app.programId }, select: { price: true, category: true } })
+    : await client.program.findFirst({ where: { titleAr: { contains: String(app.program || '').split(' — ')[0] } }, select: { price: true, category: true } })
   if (program?.category === 'SERVICE') return 0
   let tuition = Number(program?.price || 0)
   if (!tuition) {
@@ -117,11 +117,22 @@ async function ensureTuitionInvoiceWithWaiverCredit(params: {
   waiverType: PaymentWaiverType
   reason: string
   actor: { id?: string | null; name: string }
+  client?: any
 }) {
-  const tuitionCents = await resolveAdmissionTuitionCents(params.app)
+  const client = params.client || db
+  const tuitionCents = await resolveAdmissionTuitionCents(params.app, client)
   if (tuitionCents <= 0) return null
 
-  const existing = await db.payment.findFirst({ where: { admissionId: params.app.id, purpose: 'TUITION' }, orderBy: { createdAt: 'asc' } })
+  const existing = await client.payment.findFirst({ where: { admissionId: params.app.id, purpose: 'TUITION' }, orderBy: { createdAt: 'asc' } })
+  // فاتورة دراسة مُسوّاة أصلًا (PAID نقدًا أو WAIVED باعتماد سابق) لا
+  // تُعاد كتابتها من هذا المسار أبدًا: حساب «المتبقي» من amountCents
+  // لفاتورة PAID يعطي كامل قيمتها، فكانت المنحة الكاملة تقلبها إلى
+  // WAIVED بصفر وتمحو هويتها المالية (نفس فئة عيب M6، لكن من باب
+  // الإنشاء/الخصم لا من باب الكنس). التسوية النهائية لفاتورة كهذه
+  // تعني أنه لا رصيد متبقيًا يُخصم عليه الإعفاء أصلًا.
+  if (existing && (existing.status === 'PAID' || existing.status === 'WAIVED')) {
+    return existing
+  }
   const existingOriginalCents = existing?.originalAmountCents || existing?.amountCents || tuitionCents
   const originalCents = Math.max(existingOriginalCents, tuitionCents)
   const alreadyWaivedCents = existing?.waivedAmountCents || 0
@@ -152,22 +163,33 @@ async function ensureTuitionInvoiceWithWaiverCredit(params: {
   }
 
   if (existing) {
-    return db.payment.update({ where: { id: existing.id }, data })
+    // الكتابة مثبّتة بالحالة المرصودة لحظة القراءة (درس U08 نفسه):
+    // دفع نقدي متزامن قد يقلب الفاتورة إلى PAID أثناء انتظار قفل
+    // صفها، فتُكتب فوقها WAIVED وتمحى تسويتها. count = 0 تعني أنها
+    // سُوّيت في هذه الأثناء — تُعاد قراءتها وتُترك كما أصبحت.
+    const pinned = await client.payment.updateMany({
+      where: { id: existing.id, status: existing.status },
+      data,
+    })
+    if (pinned.count === 0) {
+      return client.payment.findUnique({ where: { id: existing.id } })
+    }
+    return client.payment.findUnique({ where: { id: existing.id } })
   }
-  const newInvoiceData = await applyScholarshipToNewInvoiceData(db, {
+  const newInvoiceData = await applyScholarshipToNewInvoiceData(client, {
     admissionId: params.app.id,
-    invoiceNo: await nextInvoiceNo(),
     ...data,
   })
-  return db.payment.create({
-    data: newInvoiceData,
-  })
+  // A P2002 aborts the PostgreSQL transaction. Never retry INSERT inside
+  // the same transaction: the outer approval transaction retries as a whole.
+  // With a plain client (non-transactional callers), retain the helper retries.
+  return createPaymentWithInvoiceNo(newInvoiceData, client, client === db ? 5 : 1)
 }
 
-async function moveAdmissionToTuitionStage(app: any, actor: { id?: string | null; name: string }) {
+async function moveAdmissionToTuitionStage(app: any, actor: { id?: string | null; name: string }, client: any = db) {
   if (!app.approvedAt) {
     const settings = await getSettings()
-    await db.admissionApplication.update({
+    await client.admissionApplication.update({
       where: { id: app.id },
       data: {
         status: 'AWAITING_TUITION',
@@ -176,7 +198,7 @@ async function moveAdmissionToTuitionStage(app: any, actor: { id?: string | null
       },
     })
   } else if (!['AWAITING_TUITION', 'SUPERVISOR_ASSIGNED', 'THESIS', 'SCHEDULED', 'RESULT_APPROVED', 'CERTIFIED'].includes(String(app.status || ''))) {
-    await db.admissionApplication.update({ where: { id: app.id }, data: { status: 'AWAITING_TUITION' } })
+    await client.admissionApplication.update({ where: { id: app.id }, data: { status: 'AWAITING_TUITION' } })
   }
   await audit(actor, 'ADMISSION_TUITION_STAGE_BY_WAIVER', 'AdmissionApplication', app.id, `${app.reference} — أُتيحت متابعة الرسوم بعد الإعفاء`)
 }
@@ -515,17 +537,22 @@ export async function verifyPaymentWaiverCode(params: { paymentId: string; code:
   return result.updated
 }
 
-async function waiveAllAdmissionTuitionPayments(admissionId: string, waiver: any, actor: { id?: string | null; name: string }) {
-  await db.admissionApplication.update({ where: { id: admissionId }, data: { scholarshipFull: true } })
-  const payments = await db.payment.findMany({
+async function waiveAllAdmissionTuitionPayments(admissionId: string, waiver: any, actor: { id?: string | null; name: string }, client: any = db) {
+  await client.admissionApplication.update({ where: { id: admissionId }, data: { scholarshipFull: true } })
+  const payments = await client.payment.findMany({
     where: { admissionId, purpose: { in: ['TUITION', 'TUITION_INSTALLMENT'] }, status: { notIn: ['PAID', 'WAIVED'] } },
   })
   for (const item of payments) {
     const remainingCents = paymentAmountCents(item)
     const originalCents = Math.max(Number(item.originalAmountCents || 0), remainingCents + Number(item.waivedAmountCents || 0), remainingCents)
     const waivedCents = Math.max(Number(item.waivedAmountCents || 0) + remainingCents, originalCents)
-    await db.payment.update({
-      where: { id: item.id },
+    // الكتابة مثبّتة بشرط الحالة المرصودة لحظة الكتابة لا بمرشح القراءة
+    // وحده: تأكيد نقدي متزامن قد يقلب الفاتورة إلى PAID بين قراءتها
+    // وكتابتها، فتُكتب فوقه WAIVED بصفر ويمحى إيصاله. count = 0 تعني أن
+    // الفاتورة أصبحت PAID (أو WAIVED من مسار آخر) في هذه الأثناء —
+    // تُترك كما أصبحت ولا تُمس.
+    await client.payment.updateMany({
+      where: { id: item.id, status: { notIn: ['PAID', 'WAIVED'] } },
       data: {
         status: 'WAIVED',
         waiverType: waiver.waiverType,
@@ -545,106 +572,150 @@ async function waiveAllAdmissionTuitionPayments(admissionId: string, waiver: any
 }
 
 export async function approvePaymentWaiver(params: { waiverId: string; actor: { id?: string | null; name: string } }) {
-  const waiver = await db.$transaction(async (tx) => {
+  // الاعتماد معاملة واحدة من القلب حتى آخر أثر مالي: قلب الكود إلى APPROVED،
+  // وفحص حالة الفاتورة الطازجة بعد قفل صفها، وتعديل الفاتورة، ورصيد الرسوم،
+  // ومسح المنحة الكاملة — كلها تنجح معاً أو تتراجع معاً. سابقاً كان القلب
+  // يلتزم وحده ثم تُقرأ حالة الفاتورة من لقطة قديمة وتُطبَّق الآثار بكتابات
+  // منفصلة، فأي رفض أو عطل بعد القلب يترك الكود «معتمداً» بلا آثار مالية
+  // وبلا مسار لإعادة الاعتماد. التفعيل (finalize) والتدقيق يبقيان بعد
+  // الالتزام كما في مسار السداد نفسه: التفعيل محروس بحالته وقابل للاستئناف،
+  // ولا نُبقي قفل صف الفاتورة مفتوحاً أثناء إرسال البريد والإشعارات.
+  // A unique invoice-number race (P2002) invalidates the whole PostgreSQL
+  // transaction. Retry with a fresh transaction, never with the same tx.
+  const settleOnce = () => db.$transaction(async (tx) => {
     const current = await tx.paymentWaiverCode.findUnique({ where: { id: params.waiverId }, include: { payment: true } })
     if (!current) throw new Error('كود الإعفاء غير موجود')
     if (current.status !== 'VERIFIED') throw new Error(current.status === 'APPROVED' ? 'تم اعتماد هذا الكود مسبقاً' : 'لا يمكن اعتماد الكود قبل أن يدخله الطالب ويتحقق منه')
+    // انتهاء الكود يقيّد الاعتماد أيضاً لا الإدخال فقط: كود دخل في مهلته ثم
+    // انتهت قبل قرار الإدارة لا يجوز اعتماده بعد انتهائه.
+    if (current.expiresAt && current.expiresAt < new Date()) throw new Error('انتهت صلاحية كود الإعفاء')
     await tx.$queryRaw`SELECT id FROM "Payment" WHERE id = ${current.paymentId} FOR UPDATE`
     const approved = await tx.paymentWaiverCode.updateMany({
       where: { id: current.id, status: 'VERIFIED' },
       data: { status: 'APPROVED', approvedById: params.actor.id || null, approvedAt: new Date() },
     })
     if (approved.count === 0) throw new Error('تم اعتماد هذا الكود مسبقاً أو تغيرت حالته أثناء المعالجة')
-    return tx.paymentWaiverCode.findUniqueOrThrow({ where: { id: params.waiverId }, include: { payment: true } })
-  })
-  const payment = waiver.payment
-  const purpose = String(payment.purpose || '').toUpperCase()
-  if (payment.status === 'PAID') throw new Error('لا يمكن إعفاء فاتورة مسددة فعلياً')
-  if (payment.status === 'WAIVED' && purpose !== 'APPLICATION_FEE') throw new Error('الفاتورة معفاة مسبقاً')
+    const waiver: any = { ...current, status: 'APPROVED', approvedById: params.actor.id || null, approvedAt: new Date() }
+    // قراءة طازجة للفاتورة بعد قفل صفها: قرارات الرفض والمال تُبنى عليها لا
+    // على لقطة ما قبل القفل.
+    const payment = await tx.payment.findUniqueOrThrow({ where: { id: current.paymentId } })
+    const purpose = String(payment.purpose || '').toUpperCase()
+    if (payment.status === 'PAID') throw new Error('لا يمكن إعفاء فاتورة مسددة فعلياً')
+    if (payment.status === 'WAIVED' && purpose !== 'APPLICATION_FEE') throw new Error('الفاتورة معفاة مسبقاً')
 
-  const currentCents = paymentAmountCents(payment)
-  const originalCents = payment.originalAmountCents ?? currentCents
+    // قفل صف طلب القبول — بعد قفل صف الفاتورة أعلاه (ترتيب الأقفال
+    // الموحد: الدفع أولاً ثم القبول، حتى لا يتعاكس مع أي مسار آخر) —
+    // وقبل أي بحث/إنشاء لفاتورة الدراسة أو مسح لفواتيرها: بحث «هل توجد
+    // فاتورة دراسة؟» وإنشاؤها عند غيابها يجب أن يتسلسلا على مستوى
+    // القبول. بدونه يقرأ اعتمادا إعفاءَين مختلفين على نفس القبول
+    // «الغياب» معاً قبل التزام أيٍّ منهما، فيحصل المتأخر على رقم فاتورة
+    // جديد (لا اصطدام P2002 فلا إعادة محاولة) وينشئ فاتورة دراسة ثانية.
+    // مسار الإقرار بالقبول عند الإدارة يقفل صف القبول بالطريقة نفسها
+    // قبل إنشاء فاتورته، فتتسلسل كل مسارات إنشاء فاتورة الدراسة على
+    // هذا القفل الواحد.
+    if (payment.admissionId) {
+      await tx.$queryRaw`SELECT id FROM "AdmissionApplication" WHERE id = ${payment.admissionId} FOR UPDATE`
+    }
 
-  if (purpose === 'APPLICATION_FEE') {
-    const applicationFeeCents = Math.max(originalCents, currentCents)
-    const requestedCents = waiver.waiverType === 'PARTIAL_TUITION'
-      ? Number(waiver.requestedAmountCents || 0)
-      : applicationFeeCents
-    const waiveApplicationCents = applicationFeeCents
-    const tuitionCreditCents = waiver.waiverType === 'PARTIAL_TUITION' ? Math.max(0, requestedCents - applicationFeeCents) : 0
-    const fullScholarship = waiver.waiverType === 'FULL_SCHOLARSHIP'
-    const updatedPayment = await db.payment.update({
+    const currentCents = paymentAmountCents(payment)
+    const originalCents = payment.originalAmountCents ?? currentCents
+
+    if (purpose === 'APPLICATION_FEE') {
+      const applicationFeeCents = Math.max(originalCents, currentCents)
+      const requestedCents = waiver.waiverType === 'PARTIAL_TUITION'
+        ? Number(waiver.requestedAmountCents || 0)
+        : applicationFeeCents
+      const waiveApplicationCents = applicationFeeCents
+      const tuitionCreditCents = waiver.waiverType === 'PARTIAL_TUITION' ? Math.max(0, requestedCents - applicationFeeCents) : 0
+      const fullScholarship = waiver.waiverType === 'FULL_SCHOLARSHIP'
+      const updated = await tx.payment.update({
+        where: { id: payment.id },
+        data: {
+          status: 'WAIVED',
+          waiverType: waiver.waiverType,
+          waiverStatus: 'PROGRAM_APPLIED',
+          waiverReason: waiver.reason,
+          waivedAmount: centsToDollars(Math.max(payment.waivedAmountCents || 0, waiveApplicationCents)),
+          waivedAmountCents: Math.max(payment.waivedAmountCents || 0, waiveApplicationCents),
+          originalAmount: payment.originalAmount ?? payment.amount,
+          originalAmountCents: originalCents,
+          amount: 0,
+          amountCents: 0,
+          waiverApprovedById: params.actor.id || null,
+          waiverApprovedAt: new Date(),
+        },
+      })
+
+      if (payment.admissionId) {
+        const app = await tx.admissionApplication.findUnique({ where: { id: payment.admissionId } })
+        if (app) {
+          await ensureTuitionInvoiceWithWaiverCredit({
+            app,
+            creditCents: tuitionCreditCents,
+            fullScholarship,
+            waiverType: waiver.waiverType as PaymentWaiverType,
+            reason: waiver.reason,
+            actor: params.actor,
+            client: tx,
+          })
+          if (fullScholarship) await waiveAllAdmissionTuitionPayments(app.id, waiver, params.actor, tx)
+          await moveAdmissionToTuitionStage(app, params.actor, tx)
+        }
+      }
+
+      const audited = waiver.waiverType === 'PARTIAL_TUITION' ? Math.max(requestedCents, waiveApplicationCents) : waiveApplicationCents
+      return { updatedPayment: updated, auditedCents: audited, finalizeAdmissionId: updated.admissionId || null }
+    }
+
+    const waiveCents = waiver.waiverType === 'PARTIAL_TUITION'
+      ? Math.min(Number(waiver.requestedAmountCents || 0), currentCents)
+      : currentCents
+    if (waiveCents <= 0) throw new Error('مبلغ الإعفاء غير صالح')
+    const remainingCents = Math.max(0, currentCents - waiveCents)
+    const isFull = remainingCents === 0
+
+    const updated = await tx.payment.update({
       where: { id: payment.id },
       data: {
-        status: 'WAIVED',
+        status: isFull ? 'WAIVED' : 'UNPAID',
         waiverType: waiver.waiverType,
-        waiverStatus: 'PROGRAM_APPLIED',
+        waiverStatus: 'APPROVED',
         waiverReason: waiver.reason,
-        waivedAmount: centsToDollars(Math.max(payment.waivedAmountCents || 0, waiveApplicationCents)),
-        waivedAmountCents: Math.max(payment.waivedAmountCents || 0, waiveApplicationCents),
+        waivedAmount: centsToDollars((payment.waivedAmountCents || 0) + waiveCents),
+        waivedAmountCents: (payment.waivedAmountCents || 0) + waiveCents,
         originalAmount: payment.originalAmount ?? payment.amount,
         originalAmountCents: originalCents,
-        amount: 0,
-        amountCents: 0,
+        amount: centsToDollars(remainingCents),
+        amountCents: remainingCents,
         waiverApprovedById: params.actor.id || null,
         waiverApprovedAt: new Date(),
       },
     })
 
-    await db.paymentWaiverCode.update({ where: { id: waiver.id }, data: { status: 'APPROVED', approvedById: params.actor.id || null, approvedAt: new Date() } })
-
-    if (payment.admissionId) {
-      const app = await db.admissionApplication.findUnique({ where: { id: payment.admissionId } })
-      if (app) {
-        await ensureTuitionInvoiceWithWaiverCredit({
-          app,
-          creditCents: tuitionCreditCents,
-          fullScholarship,
-          waiverType: waiver.waiverType as PaymentWaiverType,
-          reason: waiver.reason,
-          actor: params.actor,
-        })
-        if (fullScholarship) await waiveAllAdmissionTuitionPayments(app.id, waiver, params.actor)
-        await moveAdmissionToTuitionStage(app, params.actor)
-      }
+    if (waiver.waiverType === 'FULL_SCHOLARSHIP' && payment.admissionId) {
+      await waiveAllAdmissionTuitionPayments(payment.admissionId, waiver, params.actor, tx)
     }
-
-    if (updatedPayment.admissionId) await finalizeAdmissionAfterSettlement(db, updatedPayment.admissionId, { source: 'WAIVER', actor: params.actor })
-    const auditedCents = waiver.waiverType === 'PARTIAL_TUITION' ? Math.max(requestedCents, waiveApplicationCents) : waiveApplicationCents
-    await audit(params.actor, 'PAYMENT_WAIVER_APPROVED', 'Payment', payment.id, `${payment.invoiceNo} — ${waiver.waiverType} — ${centsToDollars(auditedCents).toFixed(2)}$`)
-    return updatedPayment
-  }
-
-  const waiveCents = waiver.waiverType === 'PARTIAL_TUITION'
-    ? Math.min(Number(waiver.requestedAmountCents || 0), currentCents)
-    : currentCents
-  if (waiveCents <= 0) throw new Error('مبلغ الإعفاء غير صالح')
-  const remainingCents = Math.max(0, currentCents - waiveCents)
-  const isFull = remainingCents === 0
-
-  const updatedPayment = await db.payment.update({
-    where: { id: payment.id },
-    data: {
-      status: isFull ? 'WAIVED' : 'UNPAID',
-      waiverType: waiver.waiverType,
-      waiverStatus: 'APPROVED',
-      waiverReason: waiver.reason,
-      waivedAmount: centsToDollars((payment.waivedAmountCents || 0) + waiveCents),
-      waivedAmountCents: (payment.waivedAmountCents || 0) + waiveCents,
-      originalAmount: payment.originalAmount ?? payment.amount,
-      originalAmountCents: originalCents,
-      amount: centsToDollars(remainingCents),
-      amountCents: remainingCents,
-      waiverApprovedById: params.actor.id || null,
-      waiverApprovedAt: new Date(),
-    },
+    return {
+      updatedPayment: updated,
+      auditedCents: waiveCents,
+      finalizeAdmissionId: (isFull || waiver.waiverType === 'FULL_SCHOLARSHIP') ? updated.admissionId || null : null,
+    }
   })
-  await db.paymentWaiverCode.update({ where: { id: waiver.id }, data: { status: 'APPROVED', approvedById: params.actor.id || null, approvedAt: new Date() } })
 
-  if (waiver.waiverType === 'FULL_SCHOLARSHIP' && payment.admissionId) {
-    await waiveAllAdmissionTuitionPayments(payment.admissionId, waiver, params.actor)
+  let settlement: Awaited<ReturnType<typeof settleOnce>> | null = null
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      settlement = await settleOnce()
+      break
+    } catch (error: any) {
+      // The failed transaction has already rolled back all code/payment
+      // writes. A new transaction can safely recompute the invoice sequence.
+      if (error?.code !== 'P2002' || attempt === 4) throw error
+    }
   }
-  if ((isFull || waiver.waiverType === 'FULL_SCHOLARSHIP') && updatedPayment.admissionId) await finalizeAdmissionAfterSettlement(db, updatedPayment.admissionId, { source: 'WAIVER', actor: params.actor })
-  await audit(params.actor, 'PAYMENT_WAIVER_APPROVED', 'Payment', payment.id, `${payment.invoiceNo} — ${waiver.waiverType} — ${centsToDollars(waiveCents).toFixed(2)}$`)
+  if (!settlement) throw new Error('WAIVER_SETTLEMENT_RETRY_EXHAUSTED')
+  const { updatedPayment, auditedCents, finalizeAdmissionId } = settlement
+  if (finalizeAdmissionId) await finalizeAdmissionAfterSettlement(db, finalizeAdmissionId, { source: 'WAIVER', actor: params.actor })
+  await audit(params.actor, 'PAYMENT_WAIVER_APPROVED', 'Payment', updatedPayment.id, `${updatedPayment.invoiceNo} — ${updatedPayment.waiverType} — ${centsToDollars(auditedCents).toFixed(2)}$`)
   return updatedPayment
 }

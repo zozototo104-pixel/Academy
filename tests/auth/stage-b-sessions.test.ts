@@ -13,6 +13,8 @@ type FakeUser = {
   emailVerificationTokenHash?: string | null
   emailVerificationExpiresAt?: Date | null
   emailVerificationSentAt?: Date | null
+  pendingEmail?: string | null
+  pendingEmailPurpose?: string | null
 }
 type FakeSession = { id: string; token: string; userId: string; expiresAt: Date }
 
@@ -110,6 +112,9 @@ const db = {
       return { count }
     },
   },
+  auditLog: {
+    create: async ({ data }: { data: Record<string, unknown> }) => data,
+  },
   $transaction: async <T>(work: (transaction: { user: { update: typeof db.user.update }; session: { deleteMany: typeof db.session.deleteMany } }) => Promise<T>): Promise<T> => work(db),
 }
 
@@ -135,7 +140,7 @@ mock.module('@/lib/admin-query', () => ({
   parseAdminPagination: () => ({ page: 1, pageSize: 25, skip: 0, take: 25 }),
 }))
 
-const { createSession, getCurrentUser, requireAdmin } = await import('../../src/lib/auth')
+const { createSession, destroySession, getCurrentUser, requireAdmin } = await import('../../src/lib/auth')
 const { PATCH: updateStudent } = await import('../../src/app/api/admin/students/route')
 const { GET: startGoogle } = await import('../../src/app/api/auth/google/route')
 const { GET: completeGoogle } = await import('../../src/app/api/auth/google/callback/route')
@@ -154,8 +159,11 @@ function seedUser(id: string, status = 'ACTIVE', role = 'STUDENT', email = `${id
 }
 
 function seedSession(token: string, userId: string, expiresAt = new Date(Date.now() + 60_000)) {
-  const session = { id: `seed-${token}`, token, userId, expiresAt }
-  sessions.set(token, session)
+  // الإنتاج يخزّن هاش SHA-256 للرمز الخام فقط (createSession)؛ البذرة تحاكي ذلك:
+  // الوسيط هو الرمز الخام الذي يحمله العميل، والمخزّن هو هاشه.
+  const stored = hashSessionToken(token)
+  const session = { id: `seed-${token}`, token: stored, userId, expiresAt }
+  sessions.set(stored, session)
   return session
 }
 
@@ -238,7 +246,7 @@ describe('server-side session security', () => {
       seedSession('stale-token', 'inactive')
       bearerToken = 'stale-token'
       expect(await getCurrentUser()).toBeNull()
-      expect(sessions.has('stale-token')).toBe(false)
+      expect(sessions.has(hashSessionToken('stale-token'))).toBe(false)
       expect(deletedSessions).toBe(1)
     })
   }
@@ -248,11 +256,11 @@ describe('server-side session security', () => {
     seedSession('expired', 'active', new Date(Date.now() - 60_000))
     bearerToken = 'expired'
     expect(await getCurrentUser()).toBeNull()
-    expect(sessions.has('expired')).toBe(false)
+    expect(sessions.has(hashSessionToken('expired'))).toBe(false)
     seedSession('valid', 'active')
     bearerToken = 'valid'
     expect((await getCurrentUser())?.id).toBe('active')
-    expect(sessions.has('valid')).toBe(true)
+    expect(sessions.has(hashSessionToken('valid'))).toBe(true)
   })
 
   for (const status of ['DISABLED', 'ARCHIVED']) {
@@ -271,9 +279,9 @@ describe('server-side session security', () => {
       }))
       expect(response.status).toBe(200)
       expect(users.get('student')?.status).toBe(status)
-      expect(sessions.has('laptop')).toBe(false)
-      expect(sessions.has('mobile')).toBe(false)
-      expect(sessions.has('admin-token')).toBe(true)
+      expect(sessions.has(hashSessionToken('laptop'))).toBe(false)
+      expect(sessions.has(hashSessionToken('mobile'))).toBe(false)
+      expect(sessions.has(hashSessionToken('admin-token'))).toBe(true)
       expect(deletedSessions).toBe(2)
       bearerToken = 'laptop'
       expect(await getCurrentUser()).toBeNull()
@@ -291,8 +299,34 @@ describe('server-side session security', () => {
     }))
     expect(response.status).toBe(200)
     expect(users.get('student')?.status).toBe('ACTIVE')
-    expect(sessions.has('laptop')).toBe(false)
+    expect(sessions.has(hashSessionToken('laptop'))).toBe(false)
     expect(deletedSessions).toBe(0)
+  })
+
+  test('the stored session hash is not itself a credential', async () => {
+    seedUser('active')
+    const token = await createSession('active')
+    const storedHash = hashSessionToken(token)
+    expect(sessions.has(storedHash)).toBe(true)
+    // تسريب قيمة صف الجلسة (الهاش المخزّن) لا يمنح دخولاً: البحث بالهاش فقط.
+    bearerToken = storedHash
+    expect(await getCurrentUser()).toBeNull()
+    expect(sessions.has(storedHash)).toBe(true)
+    bearerToken = token
+    expect((await getCurrentUser())?.id).toBe('active')
+  })
+
+  test('logout destroys the session via the raw token, not via the stored hash', async () => {
+    seedUser('active')
+    const token = await createSession('active')
+    const storedHash = hashSessionToken(token)
+    bearerToken = storedHash
+    await destroySession()
+    expect(sessions.has(storedHash)).toBe(true)
+    bearerToken = token
+    await destroySession()
+    expect(sessions.has(storedHash)).toBe(false)
+    expect(await getCurrentUser()).toBeNull()
   })
 })
 
@@ -316,6 +350,32 @@ describe('email verification redirects', () => {
     expect(url.searchParams.get('email_verified')).toBe('1')
     expect(url.searchParams.get('email')).toBe('verify@example.test')
     expect(users.get('verify-user')?.emailVerificationTokenHash).toBeNull()
+  })
+
+  test('applying a login email change revokes the user sessions on all devices', async () => {
+    const token = 'change-token-abcdefghijklmnopqrstuvwxyz'
+    const user = seedUser('changer', 'ACTIVE', 'STUDENT', 'old@example.test')
+    user.pendingEmail = 'new@example.test'
+    user.pendingEmailPurpose = 'LOGIN'
+    user.emailVerificationTokenHash = hashEmailVerificationToken(token)
+    user.emailVerificationExpiresAt = new Date(Date.now() + 60_000)
+    user.emailVerificationSentAt = new Date()
+    seedUser('bystander')
+    seedSession('changer-laptop', 'changer')
+    seedSession('changer-mobile', 'changer')
+    seedSession('bystander-token', 'bystander')
+
+    const response = await verifyEmail(new NextRequest(`https://aactacademy.com/api/auth/verify-email?token=${encodeURIComponent(token)}`, {
+      headers: { host: 'aactacademy.com' },
+    }))
+
+    expect(response.status).toBe(307)
+    expect(new URL(response.headers.get('location')!).searchParams.get('email_verified')).toBe('1')
+    expect(users.get('changer')?.email).toBe('new@example.test')
+    expect(sessions.has(hashSessionToken('changer-laptop'))).toBe(false)
+    expect(sessions.has(hashSessionToken('changer-mobile'))).toBe(false)
+    expect(sessions.has(hashSessionToken('bystander-token'))).toBe(true)
+    expect(deletedSessions).toBe(2)
   })
 })
 
