@@ -23,6 +23,31 @@
  * فاتورتا دراسة لطالب واحد. الإثبات من حالة القاعدة: فاتورة دراسة
  * واحدة فقط، معفاة بالكامل مرة واحدة، والتحاق واحد.
  *
+ * السيناريو D (متغير الاحتجاز المرحلي من C — إصلاح U16): نجاح C
+ * بالتوقيت الطبيعي لا يغلق النمط؛ إعادة إنتاج حتمية أثبتت أن مسارين
+ * يقرآن «لا فاتورة دراسة» قبل التزام أيٍّ منهما، فيحصل المتأخر على
+ * رقم فاتورة جديد فلا اصطدام ولا إعادة محاولة وينشئ فاتورة ثانية.
+ * الإصلاح: قفل صف طلب القبول داخل معاملة الاعتماد (بعد قفل صف
+ * الفاتورة — ترتيب الأقفال الموحد) قبل بحث/إنشاء فاتورة الدراسة.
+ * هنا نمسك قفل القبول من معاملة اختبارية، ونطلق الاعتماد الثاني
+ * أثناء الاحتجاز: على المسار المُصلح يجب ألا يُسوّى ولا ينشئ شيئاً
+ * قبل الإفراج، وبعده يُكمل ويعيد قراءة فاتورة الدراسة التي أنشأها،
+ * ثم يطبق الاعتماد الأول رصيده على الفاتورة نفسها لا على ثانية.
+ * عدم العبث: على المسار السابق للإصلاح يُكمل الاعتماد الثاني داخل
+ * نافذة الاحتجاز وينشئ فاتورة الدراسة بنفسه، فتفشل تأكيدات النافذة.
+ * ملاحظة زمنية: نافذة الاحتجاز هنا ~3 ثوانٍ كحد أقصى لأن معاملة
+ * الاعتماد التفاعلية لها مهلة Prisma الافتراضية (5 ثوانٍ) — الاحتجاز
+ * الأطول يحوّل الانتظار المشروع إلى خطأ مهلة.
+ *
+ * السيناريو E (قفل صف الفاتورة أولاً — أساس إصلاح U07): نمسك قفل صف
+ * فاتورة التقديم من معاملة اختبارية: الاعتماد لا يستطيع تجاوز قفل
+ * فاتورته فلا يُسوّى أثناء الاحتجاز، ويُكمل نظيفاً بعد الإفراج. هذا
+ * يثبت على PostgreSQL حقيقية أن القفل الأول المشترك (وهو نفسه أول
+ * ما يأخذه مسار إلغاء/رفض الإعفاء عند الإدارة) يُسلسل القرارات على
+ * الفاتورة الواحدة؛ أما سلوك إعادة القراءة الطازجة والقلب المشروط
+ * داخل مسار الإلغاء نفسه فيُثبت في مجموعة الاختبارات الوهمية
+ * (tests/payments/payment-settlement.test.ts).
+ *
  * Real-PostgreSQL concurrency proof for payment-waiver approval (PR #188):
  * two simultaneous approvals racing the invoiceNo unique index must both
  * land exactly once. The mocked suites cannot model a real PG transaction
@@ -524,6 +549,156 @@ async function scenarioC(db: any, approvePaymentWaiver: any) {
   check(`${scope}: admission finalized`, admission?.status === 'SUPERVISOR_ASSIGNED', `status=${admission?.status}`)
 }
 
+// Scenario D — staged-hold variant of Scenario C on the REAL approval
+// path (U16). A test-controlled transaction holds the AdmissionApplication
+// row lock — the lock the fixed approval takes after its payment lock and
+// before the tuition find/create. The observation window stays under the
+// interactive-transaction default timeout (5s): ~2.5s of polling plus a
+// 0.5s grace, then release.
+async function scenarioD(db: any, approvePaymentWaiver: any) {
+  const scope = 'Scenario D (staged hold on the admission lock)'
+  const s = await seedDualWaiverStudent(db, 'sd')
+  const actor = { id: ADMIN_ID, name: ADMIN_NAME }
+
+  let releaseHold!: () => void
+  const holdGate = new Promise<void>((resolve) => { releaseHold = resolve })
+  let signalAcquired!: () => void
+  const holdAcquired = new Promise<void>((resolve) => { signalAcquired = resolve })
+  const holdPromise = db.$transaction(async (holdTx: any) => {
+    await holdTx.$queryRaw`SELECT id FROM "AdmissionApplication" WHERE id = ${s.admissionId} FOR UPDATE`
+    signalAcquired()
+    await holdGate
+  }, { timeout: 30_000, maxWait: 15_000 })
+  holdPromise.catch(() => {})
+  await holdAcquired
+
+  let secondSettled = false
+  const second = approvePaymentWaiver({ waiverId: s.waiver2Id, actor })
+  const secondTracked = second.then(
+    () => { secondSettled = true },
+    () => { secondSettled = true },
+  )
+  let sawLockWait = false
+  const windowDeadline = Date.now() + 2_500
+  while (Date.now() < windowDeadline && !secondSettled && !sawLockWait) {
+    const rows = await db.$queryRaw`
+      SELECT COUNT(*)::int AS waiting
+      FROM pg_locks l
+      JOIN pg_class c ON c.oid = l.relation
+      WHERE c.relname = 'AdmissionApplication' AND NOT l.granted
+    `
+    sawLockWait = Number((rows as any)?.[0]?.waiting || 0) > 0
+    if (!sawLockWait) await sleep(150)
+  }
+  await sleep(500)
+  const tuitionDuringHold = await db.payment.count({ where: { admissionId: s.admissionId, purpose: 'TUITION' } })
+  const fee2DuringHold = await db.payment.findUnique({ where: { id: s.fee2Id } })
+  check(`${scope}: second approval cannot settle while the admission lock is held`, !secondSettled,
+    `settled=${secondSettled} lockWaitObserved=${sawLockWait}`)
+  check(`${scope}: no tuition invoice is created during the hold`, tuitionDuringHold === 0,
+    `count=${tuitionDuringHold}`)
+  check(`${scope}: second fee still UNPAID in committed state during the hold`, fee2DuringHold?.status === 'UNPAID',
+    `status=${fee2DuringHold?.status}`)
+  console.log(`[EVIDENCE] ${scope}: lockWaitObserved=${sawLockWait}`)
+
+  releaseHold()
+  await holdPromise
+  await secondTracked
+  const secondError = await second.then(() => null, (e: any) => e)
+  check(`${scope}: second approval fulfilled after release`, !secondError,
+    secondError ? describeError(secondError) : 'fulfilled')
+  const afterSecond = await db.payment.findMany({ where: { admissionId: s.admissionId, purpose: 'TUITION' } })
+  check(`${scope}: the released approval created exactly one tuition invoice`, afterSecond.length === 1,
+    `count=${afterSecond.length} invoiceNos=[${afterSecond.map((t: any) => t.invoiceNo).join(', ')}]`)
+  if (afterSecond[0]) {
+    check(`${scope}: that invoice starts UNPAID (fee-only waiver carries no tuition credit)`,
+      afterSecond[0].status === 'UNPAID' && afterSecond[0].amountCents === TUITION_TOTAL_CENTS,
+      `status=${afterSecond[0].status} amountCents=${afterSecond[0].amountCents}`)
+  }
+
+  const firstError = await approvePaymentWaiver({ waiverId: s.waiver1Id, actor }).then(() => null, (e: any) => e)
+  check(`${scope}: first approval fulfilled`, !firstError, firstError ? describeError(firstError) : 'fulfilled')
+  const tuitions = await db.payment.findMany({ where: { admissionId: s.admissionId, purpose: 'TUITION' } })
+  check(`${scope}: still exactly ONE tuition invoice after both approvals`, tuitions.length === 1,
+    `count=${tuitions.length} invoiceNos=[${tuitions.map((t: any) => t.invoiceNo).join(', ')}]`)
+  if (tuitions[0]) {
+    check(`${scope}: the first approval re-read and credited the SAME invoice (no second invoice, no lost credit)`,
+      tuitions[0].id === afterSecond[0]?.id && tuitions[0].status === 'WAIVED' && tuitions[0].waivedAmountCents === TUITION_TOTAL_CENTS,
+      `id matches released invoice=${tuitions[0].id === afterSecond[0]?.id} status=${tuitions[0].status} waivedAmountCents=${tuitions[0].waivedAmountCents} expected=${TUITION_TOTAL_CENTS}`)
+  }
+  for (const [label, waiverId] of [['waiver 1 (partial tuition)', s.waiver1Id], ['waiver 2 (fee)', s.waiver2Id]] as const) {
+    const code = await db.paymentWaiverCode.findUnique({ where: { id: waiverId } })
+    check(`${scope}: ${label} code APPROVED`, code?.status === 'APPROVED', `status=${code?.status}`)
+  }
+  const enrollmentCount = await db.enrollment.count({ where: { userId: s.studentId, programId: PROGRAM_ID } })
+  check(`${scope}: exactly ONE enrollment`, enrollmentCount === 1, `count=${enrollmentCount}`)
+  const admission = await db.admissionApplication.findUnique({ where: { id: s.admissionId } })
+  check(`${scope}: admission finalized`, admission?.status === 'SUPERVISOR_ASSIGNED', `status=${admission?.status}`)
+}
+
+// Scenario E — the Payment row lock is the shared first lock of both the
+// approval transaction and the admin cancel/reject transaction (the
+// discipline U07's fresh re-read relies on). Holding it externally must
+// stop an approval from settling at all; after release it completes
+// cleanly. The route-level fresh-read/CAS behavior itself is proven in
+// the mocked suite; this scenario proves the serialization premise on
+// real PostgreSQL.
+async function scenarioE(db: any, approvePaymentWaiver: any) {
+  const scope = 'Scenario E (payment row lock serializes approval)'
+  const s = await seedFeeWaiverStudent(db, 'se')
+  const actor = { id: ADMIN_ID, name: ADMIN_NAME }
+
+  let releaseHold!: () => void
+  const holdGate = new Promise<void>((resolve) => { releaseHold = resolve })
+  let signalAcquired!: () => void
+  const holdAcquired = new Promise<void>((resolve) => { signalAcquired = resolve })
+  const holdPromise = db.$transaction(async (holdTx: any) => {
+    await holdTx.$queryRaw`SELECT id FROM "Payment" WHERE id = ${s.feeId} FOR UPDATE`
+    signalAcquired()
+    await holdGate
+  }, { timeout: 30_000, maxWait: 15_000 })
+  holdPromise.catch(() => {})
+  await holdAcquired
+
+  let settled = false
+  const approval = approvePaymentWaiver({ waiverId: s.waiverId, actor })
+  const tracked = approval.then(
+    () => { settled = true },
+    () => { settled = true },
+  )
+  let sawLockWait = false
+  const windowDeadline = Date.now() + 2_500
+  while (Date.now() < windowDeadline && !settled && !sawLockWait) {
+    const rows = await db.$queryRaw`
+      SELECT COUNT(*)::int AS waiting
+      FROM pg_locks l
+      JOIN pg_class c ON c.oid = l.relation
+      WHERE c.relname = 'Payment' AND NOT l.granted
+    `
+    sawLockWait = Number((rows as any)?.[0]?.waiting || 0) > 0
+    if (!sawLockWait) await sleep(150)
+  }
+  await sleep(500)
+  const codeDuringHold = await db.paymentWaiverCode.findUnique({ where: { id: s.waiverId } })
+  check(`${scope}: approval cannot settle while the payment lock is held`, !settled,
+    `settled=${settled} lockWaitObserved=${sawLockWait}`)
+  check(`${scope}: waiver code still VERIFIED in committed state during the hold`, codeDuringHold?.status === 'VERIFIED',
+    `status=${codeDuringHold?.status}`)
+  console.log(`[EVIDENCE] ${scope}: lockWaitObserved=${sawLockWait}`)
+
+  releaseHold()
+  await holdPromise
+  await tracked
+  const approvalError = await approval.then(() => null, (e: any) => e)
+  check(`${scope}: approval fulfilled after release`, !approvalError,
+    approvalError ? describeError(approvalError) : 'fulfilled')
+  const code = await db.paymentWaiverCode.findUnique({ where: { id: s.waiverId } })
+  check(`${scope}: waiver code APPROVED after release`, code?.status === 'APPROVED', `status=${code?.status}`)
+  const tuitions = await db.payment.findMany({ where: { admissionId: s.admissionId, purpose: 'TUITION' } })
+  check(`${scope}: exactly one tuition invoice, fully waived`, tuitions.length === 1 && tuitions[0]?.status === 'WAIVED' && tuitions[0]?.waivedAmountCents === TUITION_TOTAL_CENTS,
+    `count=${tuitions.length} status=${tuitions[0]?.status} waivedAmountCents=${tuitions[0]?.waivedAmountCents}`)
+}
+
 async function cleanup() {
   if (dbRef) {
     await dbRef.$disconnect().catch(() => {})
@@ -546,6 +721,8 @@ async function main(): Promise<number> {
   await scenarioA(db, approvePaymentWaiver, 2)
   await scenarioB(db, approvePaymentWaiver)
   await scenarioC(db, approvePaymentWaiver)
+  await scenarioD(db, approvePaymentWaiver)
+  await scenarioE(db, approvePaymentWaiver)
   if (failures.length) {
     console.error(`\nWAIVER_PG_CONCURRENCY: FAILED — ${failures.length} assertion(s) failed`)
     return 1

@@ -456,6 +456,30 @@ async function chargeExtraLiveMinutes(tx: any, session: any, wantedMinutes: numb
   return freeTake + paidCharged
 }
 
+// سماح تسوية صغير فوق نهاية الجلسة المصرّح بها: يغطي انحراف ساعة الخادم
+// عن ساعة إصدار التوكن وزمن رحلة طلب التسوية الأخير، ولا يفتح باب محاسبة
+// مفتوحة — دقيقتان فقط فوق سقف جلسة أقصاه 30 دقيقة.
+const LIVE_SETTLE_GRACE_MINUTES = 2
+
+// نهاية الاحتساب عند التسوية (إصلاح U10/M8): ساعة الخادم تبقى مصدر حقيقة
+// الاستهلاك ضد ادعاء العميل، لكن لا جلسة تُحاسَب أبعد من نهايتها المصرّح
+// بها. التوكن يموت عند انتهاء الجلسة، فتسوية تصل بعد ساعات (طابور إعادة
+// محاولة عند العميل بعد انقطاع) كانت تُحمّل الطالب من رصيده ساعاتٍ لم
+// يعشها أصلًا. النهاية المخزّنة عند الحجز (expiresAt = البدء + حدّ
+// الجلسة) هي المرجع؛ ولسجل قديم بلا expiresAt يُبنى السقف من مصدر مسار
+// الإصدار نفسه — حدّ الجلسة liveSessionLimitMinutes للدور والغرض — لا من
+// تخمين جديد.
+async function settleChargeEndMs(tx: any, session: any, anchor: unknown): Promise<number> {
+  const nowMs = Date.now()
+  if (session.expiresAt) {
+    return Math.min(nowMs, new Date(session.expiresAt).getTime() + LIVE_SETTLE_GRACE_MINUTES * 60000)
+  }
+  if (!anchor) return nowMs
+  const owner = await tx.user.findUnique({ where: { id: session.userId }, select: { role: true } }).catch(() => null)
+  const limitMinutes = liveSessionLimitMinutes(owner?.role, purposeName(session.purpose))
+  return Math.min(nowMs, new Date(anchor as any).getTime() + (limitMinutes + LIVE_SETTLE_GRACE_MINUTES) * 60000)
+}
+
 export async function settleGeminiLiveUsage(input: { userId: string; sessionId: string; actualSeconds?: number; actualMinutes?: number }) {
   const claimedMinutes = Math.max(0, Math.ceil(input.actualMinutes ?? ((Number(input.actualSeconds || 0) || 0) / 60)))
   return db.$transaction(async (tx) => {
@@ -486,7 +510,9 @@ export async function settleGeminiLiveUsage(input: { userId: string; sessionId: 
       recordedMinutes = claimedMinutes
     } else {
       const anchor = session.startedAt || session.createdAt
-      const elapsedMinutes = anchor ? Math.max(0, Math.ceil((Date.now() - new Date(anchor).getTime()) / 60000)) : claimedMinutes
+      // المنقضي المحاسَب يُقاس حتى نهاية الاحتساب المسقوفة (settleChargeEndMs)
+      // لا حتى لحظة وصول التسوية مهما تأخرت.
+      const elapsedMinutes = anchor ? Math.max(0, Math.ceil(((await settleChargeEndMs(tx, session, anchor)) - new Date(anchor).getTime()) / 60000)) : claimedMinutes
       const coveredByReserve = Math.min(session.reservedMinutes, elapsedMinutes)
       // ما تجاوز الحجز يُخصم من الرصيد المتبقي داخل نفس المعاملة (انظر
       // chargeExtraLiveMinutes) — كان يُعفى كاملاً قبل هذا الإصلاح.

@@ -26,6 +26,31 @@ const examAttempts: Record<string, any>[] = []
 let certPhantomSerial: string | null = null
 let tuitionInvoiceCollisionOnce = false
 let transactionCalls = 0
+// أدوات محاكاة السباقات للبنود U07/U09/U16/U17 (فحص 2026-11-07):
+// - beforeTransactionHook: يُنفَّذ مرة واحدة في بداية أول $transaction
+//   تالية وقبل لقطة التراجع، فيحاكي التزام عملية متزامنة بين قراءة
+//   المسار قبل المعاملة وقراءته الطازجة داخلها.
+// - rawQueries: نصوص $queryRaw المنفذة (الأقفال) بترتيبها.
+// - enrollmentRacePhantom: إنشاء الالتحاق يزرع صف «فائز» متزامن ثم
+//   يرمي P2002 كما تفعل قاعدة البيانات عند سباق الإنشاء.
+// - siblingPaidRaceId: عند أول كتابة تستهدف هذه الفاتورة تُقلب أولاً
+//   إلى PAID بإيصال نقدي (تحصيل متزامن هبط بين القراءة والكتابة).
+let beforeTransactionHook: (() => void) | null = null
+const rawQueries: string[] = []
+let enrollmentRacePhantom = false
+let siblingPaidRaceId: string | null = null
+
+function consumeSiblingPaidRace(targetId: string | undefined) {
+  if (!targetId || siblingPaidRaceId !== targetId) return
+  siblingPaidRaceId = null
+  const stored = payments.get(targetId)
+  if (stored) {
+    stored.status = 'PAID'
+    stored.receiptNo = 'RCPT-RACE'
+    stored.paidAt = new Date()
+    stored.method = 'CASH'
+  }
+}
 
 function cloneMap(map: RecordMap): RecordMap {
   return new Map([...map.entries()].map(([key, value]) => [key, { ...value }]))
@@ -60,9 +85,17 @@ function paymentMatches(payment: Record<string, any>, where: Record<string, any>
 }
 
 const db: any = {
-  $queryRaw: async () => [],
+  $queryRaw: async (strings: any) => {
+    rawQueries.push(Array.isArray(strings) ? strings.join('?') : String(strings))
+    return []
+  },
   $transaction: async (work: (tx: any) => Promise<any>) => {
     transactionCalls++
+    if (beforeTransactionHook) {
+      const hook = beforeTransactionHook
+      beforeTransactionHook = null
+      hook()
+    }
     const snapshot = {
       payments: cloneMap(payments),
       admissions: cloneMap(admissions),
@@ -106,6 +139,7 @@ const db: any = {
     findMany: async ({ where }: { where: Record<string, any> }) =>
       [...payments.values()].filter((item) => paymentMatches(item, where)).map((item) => ({ ...item })),
     updateMany: async ({ where, data }: { where: Record<string, any>; data: Record<string, any> }) => {
+      consumeSiblingPaidRace(where.id)
       let count = 0
       for (const payment of payments.values()) {
         if (!paymentMatches(payment, where)) continue
@@ -117,6 +151,7 @@ const db: any = {
     update: async ({ where, data }: { where: { id: string }; data: Record<string, any> }) => {
       const payment = payments.get(where.id)
       if (!payment) throw new Error('PAYMENT_NOT_FOUND')
+      consumeSiblingPaidRace(where.id)
       Object.assign(payment, data)
       return { ...payment }
     },
@@ -211,6 +246,16 @@ const db: any = {
       return enrollments.get(key) || null
     },
     create: async ({ data }: { data: Record<string, any> }) => {
+      if (enrollmentRacePhantom) {
+        enrollmentRacePhantom = false
+        const key = `${data.userId}:${data.programId}`
+        if (!enrollments.has(key)) {
+          enrollments.set(key, { ...data, id: 'enrollment-winner', createdAt: new Date(), extensionDays: 0 })
+        }
+        const error: any = new Error('Unique constraint failed on the fields: (`userId`, `programId`)')
+        error.code = 'P2002'
+        throw error
+      }
       const enrollment = { ...data, id: `enrollment-${enrollments.size + 1}`, createdAt: new Date(), extensionDays: 0 }
       enrollments.set(`${data.userId}:${data.programId}`, enrollment)
       return { ...enrollment }
@@ -377,6 +422,10 @@ beforeEach(() => {
   certPhantomSerial = null
   tuitionInvoiceCollisionOnce = false
   transactionCalls = 0
+  beforeTransactionHook = null
+  rawQueries.splice(0, rawQueries.length)
+  enrollmentRacePhantom = false
+  siblingPaidRaceId = null
 })
 
 describe('payment waiver verification attempts', () => {
@@ -875,5 +924,282 @@ describe('REFRESH_AMOUNT waiver awareness (audit fix 3)', () => {
     const stored = payments.get('pay-refresh')!
     expect(stored.amountCents).toBe(40_000)
     expect(stored.originalAmountCents).toBe(null)
+  })
+})
+
+describe('waiver cancel: own paid invoice guard (U15, completion-audit finding 1)', () => {
+  function seedPartialWaiverPaidTuition() {
+    seedWaiverAdmission()
+    admissions.get('admission-1')!.status = 'SUPERVISOR_ASSIGNED'
+    payments.set('tuition', {
+      id: 'tuition', invoiceNo: 'INV-TUIT-U15', admissionId: 'admission-1', userId: 'student-1',
+      status: 'PAID', purpose: 'TUITION', description: 'رسوم الدراسة',
+      amount: 250, amountCents: 25_000, originalAmount: 350, originalAmountCents: 35_000,
+      waivedAmount: 100, waivedAmountCents: 10_000, waiverType: 'PARTIAL_TUITION',
+      waiverStatus: 'APPROVED', waiverReason: 'إعفاء جزئي موثق', waiverApprovedById: 'admin-1',
+      receiptNo: 'RCPT-CASH-1', paidAt: new Date(), method: 'CASH',
+    })
+    waiverCodes.push({
+      id: 'wv-u15', paymentId: 'tuition', status: 'APPROVED', waiverType: 'PARTIAL_TUITION',
+      requestedAmountCents: 10_000, reason: 'إعفاء جزئي موثق', codePreview: '••••-1501',
+      expiresAt: new Date(Date.now() + 60_000), approvedById: 'admin-1',
+    })
+    enrollments.set('student-1:program-1', {
+      id: 'enr-1', userId: 'student-1', programId: 'program-1', status: 'ACTIVE',
+      completedUnits: '[]', finalScore: null, certificateNo: null, createdAt: new Date(), extensionDays: 0,
+    })
+  }
+
+  test('cancel refused with 409 when the student paid the remainder of a partially waived invoice', async () => {
+    seedPartialWaiverPaidTuition()
+    const res = await waiversRoutePATCH(patchRequest('http://localhost/api/admin/payments/waivers', { action: 'CANCEL', waiverId: 'wv-u15' }))
+    const body = await res.json()
+    expect(res.status).toBe(409)
+    expect(body.code).toBe('WAIVER_CANCEL_UNSAFE')
+    // السداد الحقيقي وإيصاله والإعفاء المعتمد كلها تبقى كما هي.
+    expect(waiverCodes.find((w) => w.id === 'wv-u15')?.status).toBe('APPROVED')
+    const tuition = payments.get('tuition')!
+    expect(tuition.status).toBe('PAID')
+    expect(tuition.receiptNo).toBe('RCPT-CASH-1')
+    expect(tuition.waivedAmountCents).toBe(10_000)
+    expect(tuition.amountCents).toBe(25_000)
+    expect(enrollments.get('student-1:program-1')?.status).toBe('ACTIVE')
+    expect(admissions.get('admission-1')?.status).toBe('SUPERVISOR_ASSIGNED')
+  })
+
+  test('cancel refused with 409 for a paid invoice even when the waiver has no admission (planner never runs)', async () => {
+    payments.set('pay-y', {
+      id: 'pay-y', invoiceNo: 'INV-Y-1', status: 'PAID', purpose: 'SERVICE_FEE',
+      amount: 250, amountCents: 25_000, originalAmount: 350, originalAmountCents: 35_000,
+      waivedAmount: 100, waivedAmountCents: 10_000, waiverType: 'PARTIAL_TUITION',
+      waiverStatus: 'APPROVED', waiverReason: 'إعفاء جزئي', waiverApprovedById: 'admin-1',
+      receiptNo: 'RCPT-CASH-2', paidAt: new Date(), method: 'BANK_TRANSFER',
+    })
+    waiverCodes.push({
+      id: 'wv-y', paymentId: 'pay-y', status: 'APPROVED', waiverType: 'PARTIAL_TUITION',
+      requestedAmountCents: 10_000, reason: 'إعفاء جزئي', codePreview: '••••-1502',
+      expiresAt: new Date(Date.now() + 60_000), approvedById: 'admin-1',
+    })
+    const res = await waiversRoutePATCH(patchRequest('http://localhost/api/admin/payments/waivers', { action: 'CANCEL', waiverId: 'wv-y' }))
+    const body = await res.json()
+    expect(res.status).toBe(409)
+    expect(body.code).toBe('WAIVER_CANCEL_UNSAFE')
+    expect(waiverCodes.find((w) => w.id === 'wv-y')?.status).toBe('APPROVED')
+    expect(payments.get('pay-y')?.status).toBe('PAID')
+    expect(payments.get('pay-y')?.receiptNo).toBe('RCPT-CASH-2')
+  })
+})
+
+describe('waiver cancel/reject: decision from the fresh in-transaction read (U07/M5)', () => {
+  function seedVerifiedFullScholarship() {
+    seedWaiverAdmission()
+    admissions.get('admission-1')!.scholarshipFull = true
+    payments.set('tuition', {
+      id: 'tuition', invoiceNo: 'INV-TUIT-U07', admissionId: 'admission-1', userId: 'student-1',
+      status: 'UNPAID', purpose: 'TUITION', description: 'رسوم الدراسة', amount: 350, amountCents: 35_000,
+      waiverStatus: 'VERIFIED', waiverType: 'FULL_SCHOLARSHIP', waiverReason: 'منحة كاملة معتمدة',
+    })
+    waiverCodes.push({
+      id: 'wv-u07', paymentId: 'tuition', status: 'VERIFIED', waiverType: 'FULL_SCHOLARSHIP',
+      requestedAmountCents: null, reason: 'منحة كاملة معتمدة', codePreview: '••••-0701',
+      expiresAt: new Date(Date.now() + 60_000), approvedById: null,
+    })
+  }
+
+  function concurrentApprovalCommits() {
+    const code = waiverCodes.find((w) => w.id === 'wv-u07')!
+    code.status = 'APPROVED'
+    code.approvedById = 'admin-1'
+    const payment = payments.get('tuition')!
+    payment.status = 'WAIVED'
+    payment.amount = 0
+    payment.amountCents = 0
+    payment.waivedAmount = 350
+    payment.waivedAmountCents = 35_000
+    payment.waiverStatus = 'APPROVED'
+  }
+
+  test('cancel adapts to an approval that committed while waiting for the payment lock: full reversal, no WAIVED leftover', async () => {
+    seedVerifiedFullScholarship()
+    beforeTransactionHook = concurrentApprovalCommits
+    const res = await waiversRoutePATCH(patchRequest('http://localhost/api/admin/payments/waivers', { action: 'CANCEL', waiverId: 'wv-u07' }))
+    expect(res.status).toBe(200)
+    expect(waiverCodes.find((w) => w.id === 'wv-u07')?.status).toBe('CANCELLED')
+    const tuition = payments.get('tuition')!
+    expect(tuition.status).toBe('UNPAID')
+    expect(tuition.amountCents).toBe(35_000)
+    expect(tuition.waivedAmountCents).toBe(0)
+    expect(admissions.get('admission-1')?.scholarshipFull).toBe(false)
+  })
+
+  test('reject after a concurrent approval is a 409 conflict, not a silent overwrite', async () => {
+    seedVerifiedFullScholarship()
+    beforeTransactionHook = concurrentApprovalCommits
+    const res = await waiversRoutePATCH(patchRequest('http://localhost/api/admin/payments/waivers', { action: 'REJECT', waiverId: 'wv-u07' }))
+    const body = await res.json()
+    expect(res.status).toBe(409)
+    expect(body.code).toBe('WAIVER_DECISION_CONFLICT')
+    expect(waiverCodes.find((w) => w.id === 'wv-u07')?.status).toBe('APPROVED')
+    expect(payments.get('tuition')?.status).toBe('WAIVED')
+    expect(payments.get('tuition')?.waiverStatus).toBe('APPROVED')
+  })
+})
+
+describe('full scholarship sweep: a concurrent cash payment is never overwritten (U08/M6)', () => {
+  test('installment flipped to PAID between the sweep read and write stays PAID with its receipt', async () => {
+    seedWaiverAdmission()
+    payments.set('fee', {
+      id: 'fee', invoiceNo: 'INV-FEE-U08', admissionId: 'admission-1', userId: 'student-1',
+      status: 'UNPAID', purpose: 'APPLICATION_FEE', description: 'رسوم تقديم', amount: 30, amountCents: 3_000,
+    })
+    payments.set('inst-race', {
+      id: 'inst-race', invoiceNo: 'INV-INST-U08', admissionId: 'admission-1', userId: 'student-1',
+      status: 'UNPAID', purpose: 'TUITION_INSTALLMENT', description: 'دفعة أولى', amount: 100, amountCents: 10_000,
+    })
+    waiverCodes.push({
+      id: 'wv-u08', paymentId: 'fee', status: 'VERIFIED', waiverType: 'FULL_SCHOLARSHIP',
+      requestedAmountCents: null, reason: 'منحة كاملة معتمدة', codePreview: '••••-0801',
+      expiresAt: new Date(Date.now() + 60_000), approvedById: null,
+    })
+    siblingPaidRaceId = 'inst-race'
+    const updated = await approvePaymentWaiver({ waiverId: 'wv-u08', actor: { id: 'admin-1', name: 'Admin' } })
+    expect(updated.status).toBe('WAIVED')
+    const inst = payments.get('inst-race')!
+    expect(inst.status).toBe('PAID')
+    expect(inst.receiptNo).toBe('RCPT-RACE')
+    expect(inst.amountCents).toBe(10_000)
+    const tuitions = [...payments.values()].filter((p) => p.purpose === 'TUITION')
+    expect(tuitions).toHaveLength(1)
+    expect(tuitions[0].status).toBe('WAIVED')
+    expect(waiverCodes.find((w) => w.id === 'wv-u08')?.status).toBe('APPROVED')
+  })
+})
+
+describe('tuition invoice creation under the admission lock (U16)', () => {
+  test('fee-branch approval locks Payment first, then AdmissionApplication, before creating the tuition invoice', async () => {
+    seedWaiverAdmission()
+    payments.set('fee', {
+      id: 'fee', invoiceNo: 'INV-FEE-U16', admissionId: 'admission-1', userId: 'student-1',
+      status: 'UNPAID', purpose: 'APPLICATION_FEE', description: 'رسوم تقديم', amount: 30, amountCents: 3_000,
+    })
+    waiverCodes.push({
+      id: 'wv-u16', paymentId: 'fee', status: 'VERIFIED', waiverType: 'PARTIAL_TUITION',
+      requestedAmountCents: 38_000, reason: 'إعفاء يغطي التقديم والدراسة', codePreview: '••••-1601',
+      expiresAt: new Date(Date.now() + 60_000), approvedById: null,
+    })
+    await approvePaymentWaiver({ waiverId: 'wv-u16', actor: { id: 'admin-1', name: 'Admin' } })
+    const paymentLockIdx = rawQueries.findIndex((q) => q.includes('FROM "Payment"') && q.includes('FOR UPDATE'))
+    const admissionLockIdx = rawQueries.findIndex((q) => q.includes('FROM "AdmissionApplication"') && q.includes('FOR UPDATE'))
+    expect(paymentLockIdx).toBeGreaterThanOrEqual(0)
+    expect(admissionLockIdx).toBeGreaterThan(paymentLockIdx)
+    expect([...payments.values()].filter((p) => p.purpose === 'TUITION')).toHaveLength(1)
+  })
+
+  test('two different fee waivers on one admission, approved sequentially, still yield exactly one tuition invoice', async () => {
+    seedWaiverAdmission()
+    for (const suffix of ['1', '2']) {
+      payments.set(`fee${suffix}`, {
+        id: `fee${suffix}`, invoiceNo: `INV-FEE-U16-${suffix}`, admissionId: 'admission-1', userId: 'student-1',
+        status: 'UNPAID', purpose: 'APPLICATION_FEE', description: 'رسوم تقديم', amount: 30, amountCents: 3_000,
+      })
+    }
+    waiverCodes.push({
+      id: 'wv-c1', paymentId: 'fee1', status: 'VERIFIED', waiverType: 'PARTIAL_TUITION',
+      requestedAmountCents: 38_000, reason: 'إعفاء يغطي التقديم والدراسة', codePreview: '••••-1602',
+      expiresAt: new Date(Date.now() + 60_000), approvedById: null,
+    })
+    waiverCodes.push({
+      id: 'wv-c2', paymentId: 'fee2', status: 'VERIFIED', waiverType: 'APPLICATION_FEE',
+      requestedAmountCents: null, reason: 'إعفاء رسوم تقديم', codePreview: '••••-1603',
+      expiresAt: new Date(Date.now() + 60_000), approvedById: null,
+    })
+    await approvePaymentWaiver({ waiverId: 'wv-c1', actor: { id: 'admin-1', name: 'Admin' } })
+    await approvePaymentWaiver({ waiverId: 'wv-c2', actor: { id: 'admin-1', name: 'Admin' } })
+    expect(waiverCodes.find((w) => w.id === 'wv-c1')?.status).toBe('APPROVED')
+    expect(waiverCodes.find((w) => w.id === 'wv-c2')?.status).toBe('APPROVED')
+    const tuitions = [...payments.values()].filter((p) => p.purpose === 'TUITION')
+    expect(tuitions).toHaveLength(1)
+    expect(tuitions[0].status).toBe('WAIVED')
+    expect(tuitions[0].waivedAmountCents).toBe(35_000)
+    expect(payments.get('fee1')?.waivedAmountCents).toBe(3_000)
+    expect(payments.get('fee2')?.waivedAmountCents).toBe(3_000)
+  })
+})
+
+describe('REFRESH_AMOUNT waiver consistency rule (U17)', () => {
+  function seedRefreshCase(price: number) {
+    payments.set('pay-u17', {
+      id: 'pay-u17', invoiceNo: 'INV-U17', status: 'UNPAID', purpose: 'TUITION',
+      description: 'رسوم الدراسة', amount: 250, amountCents: 25_000,
+      originalAmount: 350, originalAmountCents: 35_000,
+      waivedAmount: 100, waivedAmountCents: 10_000,
+      waiverStatus: 'APPROVED', waiverType: 'PARTIAL_TUITION',
+      admission: { programRef: { price, category: 'DIPLOMA' }, program: 'دبلوم تجريبي', education: 'BACHELOR' },
+      enrollment: null, agent: null, proofs: [],
+    })
+  }
+
+  test('new total below the approved waiver is refused and nothing is written', async () => {
+    seedRefreshCase(50)
+    const res = await paymentsRoutePATCH(patchRequest('http://localhost/api/admin/payments', { id: 'pay-u17', action: 'REFRESH_AMOUNT', reason: 'تخفيض سعر البرنامج السنوي' }))
+    const body = await res.json()
+    expect(res.status).toBe(400)
+    expect(String(body.error)).toContain('يساوي الإعفاء المعتمد أو يقل عنه')
+    const stored = payments.get('pay-u17')!
+    expect(stored.amountCents).toBe(25_000)
+    expect(stored.originalAmountCents).toBe(35_000)
+    expect(stored.waivedAmountCents).toBe(10_000)
+  })
+
+  test('new total equal to the waiver is refused too — and the dry run shows the same refusal', async () => {
+    seedRefreshCase(100)
+    const res = await paymentsRoutePATCH(patchRequest('http://localhost/api/admin/payments', { id: 'pay-u17', action: 'REFRESH_AMOUNT', reason: 'مساواة السعر للإعفاء المعتمد' }))
+    expect(res.status).toBe(400)
+    const dry = await paymentsRoutePATCH(patchRequest('http://localhost/api/admin/payments', { id: 'pay-u17', action: 'REFRESH_AMOUNT', dryRun: true }))
+    expect(dry.status).toBe(400)
+    const stored = payments.get('pay-u17')!
+    expect(stored.amountCents).toBe(25_000)
+    expect(stored.originalAmountCents).toBe(35_000)
+    expect(stored.waivedAmountCents).toBe(10_000)
+  })
+
+  test('waiver amount changed by a concurrent decision between read and write: 409 and no write', async () => {
+    seedRefreshCase(400)
+    beforeTransactionHook = () => {
+      const stored = payments.get('pay-u17')!
+      stored.waivedAmountCents = 15_000
+      stored.waivedAmount = 150
+    }
+    const res = await paymentsRoutePATCH(patchRequest('http://localhost/api/admin/payments', { id: 'pay-u17', action: 'REFRESH_AMOUNT', reason: 'تحديث سعر البرنامج السنوي' }))
+    const body = await res.json()
+    expect(res.status).toBe(409)
+    expect(body.code).toBe('REFRESH_AMOUNT_CONFLICT')
+    expect(payments.get('pay-u17')?.amountCents).toBe(25_000)
+    expect(payments.get('pay-u17')?.originalAmountCents).toBe(35_000)
+  })
+})
+
+describe('finalize enrollment creation race (U09/M7)', () => {
+  test('PAYMENT branch: a concurrent enrollment winner turns the create P2002 into a completed activation', async () => {
+    seedAcademicAdmission('UNPAID')
+    enrollmentRacePhantom = true
+    const paid = await markInvoicePaid('INV-TUITION', 'CARD', { actor: { id: 'admin-1', name: 'Admin' } })
+    expect(paid.ok).toBe(true)
+    expect(enrollments.size).toBe(1)
+    const enrollment = enrollments.get('student-1:program-1')
+    expect(enrollment?.status).toBe('ACTIVE')
+    expect(rulesSnapshots.get(enrollment!.id)?.basis).toBe('ENROLLMENT')
+    expect(admissions.get('admission-1')?.status).toBe('SUPERVISOR_ASSIGNED')
+  })
+
+  test('WAIVER branch: the same race resolves onto the winner enrollment instead of throwing', async () => {
+    seedAcademicAdmission('WAIVED')
+    enrollmentRacePhantom = true
+    const result = await finalizeAdmissionAfterSettlement(db, 'admission-1', { source: 'WAIVER' })
+    expect(result?.tuitionSettled).toBe(true)
+    expect(enrollments.size).toBe(1)
+    const enrollment = enrollments.get('student-1:program-1')
+    expect(enrollment?.status).toBe('ACTIVE')
+    expect(rulesSnapshots.get(enrollment!.id)?.basis).toBe('ENROLLMENT')
   })
 })

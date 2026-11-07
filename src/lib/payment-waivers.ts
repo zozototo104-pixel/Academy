@@ -526,8 +526,13 @@ async function waiveAllAdmissionTuitionPayments(admissionId: string, waiver: any
     const remainingCents = paymentAmountCents(item)
     const originalCents = Math.max(Number(item.originalAmountCents || 0), remainingCents + Number(item.waivedAmountCents || 0), remainingCents)
     const waivedCents = Math.max(Number(item.waivedAmountCents || 0) + remainingCents, originalCents)
-    await client.payment.update({
-      where: { id: item.id },
+    // الكتابة مثبّتة بشرط الحالة المرصودة لحظة الكتابة لا بمرشح القراءة
+    // وحده: تأكيد نقدي متزامن قد يقلب الفاتورة إلى PAID بين قراءتها
+    // وكتابتها، فتُكتب فوقه WAIVED بصفر ويمحى إيصاله. count = 0 تعني أن
+    // الفاتورة أصبحت PAID (أو WAIVED من مسار آخر) في هذه الأثناء —
+    // تُترك كما أصبحت ولا تُمس.
+    await client.payment.updateMany({
+      where: { id: item.id, status: { notIn: ['PAID', 'WAIVED'] } },
       data: {
         status: 'WAIVED',
         waiverType: waiver.waiverType,
@@ -577,6 +582,20 @@ export async function approvePaymentWaiver(params: { waiverId: string; actor: { 
     const purpose = String(payment.purpose || '').toUpperCase()
     if (payment.status === 'PAID') throw new Error('لا يمكن إعفاء فاتورة مسددة فعلياً')
     if (payment.status === 'WAIVED' && purpose !== 'APPLICATION_FEE') throw new Error('الفاتورة معفاة مسبقاً')
+
+    // قفل صف طلب القبول — بعد قفل صف الفاتورة أعلاه (ترتيب الأقفال
+    // الموحد: الدفع أولاً ثم القبول، حتى لا يتعاكس مع أي مسار آخر) —
+    // وقبل أي بحث/إنشاء لفاتورة الدراسة أو مسح لفواتيرها: بحث «هل توجد
+    // فاتورة دراسة؟» وإنشاؤها عند غيابها يجب أن يتسلسلا على مستوى
+    // القبول. بدونه يقرأ اعتمادا إعفاءَين مختلفين على نفس القبول
+    // «الغياب» معاً قبل التزام أيٍّ منهما، فيحصل المتأخر على رقم فاتورة
+    // جديد (لا اصطدام P2002 فلا إعادة محاولة) وينشئ فاتورة دراسة ثانية.
+    // مسار الإقرار بالقبول عند الإدارة يقفل صف القبول بالطريقة نفسها
+    // قبل إنشاء فاتورته، فتتسلسل كل مسارات إنشاء فاتورة الدراسة على
+    // هذا القفل الواحد.
+    if (payment.admissionId) {
+      await tx.$queryRaw`SELECT id FROM "AdmissionApplication" WHERE id = ${payment.admissionId} FOR UPDATE`
+    }
 
     const currentCents = paymentAmountCents(payment)
     const originalCents = payment.originalAmountCents ?? currentCents

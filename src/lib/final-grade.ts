@@ -26,7 +26,17 @@ export interface FinalGradeResult {
 
 type DbClient = typeof db | Prisma.TransactionClient
 
-export type ComponentScore = number | null | 'EXEMPT' | { score: number; complete: boolean }
+/**
+ * A component value. The object form carries two distinct completeness
+ * notions that must never be conflated:
+ * - `complete`: every required item PASSED (the flat final-grade engine's
+ *   missing/guidance semantics; a failed item is "not complete" here).
+ * - `gradedComplete`: every required item has a FINAL graded result —
+ *   pass or fail, including 0 (grading finality). The semester-result
+ *   approval gate consumes this: a semester is decidable once grading is
+ *   final, and its pass/fail outcome comes from the average alone.
+ */
+export type ComponentScore = number | null | 'EXEMPT' | { score: number; complete: boolean; gradedComplete?: boolean }
 
 // Both Answer and ProgramAnswer expose the same selected scoring fields in Prisma.
 // Keep this small structural type shared by percentFromAnswers and exam score recovery.
@@ -163,6 +173,7 @@ export async function unitQuizAverage(client: DbClient, userId: string, programI
   if (!scorable.length) return 'EXEMPT'
   const earned: number[] = []
   let complete = true
+  let gradedComplete = true
   for (const exam of scorable) {
     const attempts = await client.examAttempt.findMany({
       where: { userId, examId: exam.id, status: 'GRADED' },
@@ -176,6 +187,10 @@ export async function unitQuizAverage(client: DbClient, userId: string, programI
         : percentFromAnswers(a.answers)
     )
     earned.push(best(scores) ?? 0)
+    // Grading finality for THIS exam: at least one GRADED attempt with a
+    // resolvable score — pass or fail. No graded attempt at all (or none
+    // with a score) means the exam has no final result yet.
+    if (!attempts.some((a, i) => scores[i] !== null)) gradedComplete = false
     if (!attempts.some((a, i) => a.passed === true && scores[i] !== null)) {
       addMissing(missing, `اختبار وحدة: ${exam.unit.title || exam.title}`)
       complete = false
@@ -183,7 +198,7 @@ export async function unitQuizAverage(client: DbClient, userId: string, programI
   }
   // All required quizzes occupy their original slots; missing quizzes count as zero, not a smaller denominator.
   const percent = avg(earned) ?? 0
-  return complete ? percent : { score: percent, complete: false }
+  return complete ? percent : { score: percent, complete: false, gradedComplete }
 }
 
 function rawProgramAttemptScore(attempt: {
@@ -219,6 +234,7 @@ export async function programExamAverage(client: DbClient, userId: string, progr
   }
   const earned: number[] = []
   let complete = true
+  let gradedComplete = true
   for (const exam of exams) {
     const attempts = await client.programExamAttempt.findMany({
       where: { userId, examId: exam.id, status: 'GRADED', OR: [{ appealStatus: null }, { appealStatus: { not: 'PENDING' } }] },
@@ -226,6 +242,10 @@ export async function programExamAverage(client: DbClient, userId: string, progr
     })
     const scores = attempts.map(rawProgramAttemptScore)
     earned.push(best(scores) ?? 0)
+    // Grading finality for THIS exam: at least one GRADED attempt (a
+    // pending-appeal attempt is already excluded by the query above)
+    // with a resolvable score — pass or fail.
+    if (!attempts.some((attempt, index) => scores[index] !== null)) gradedComplete = false
     if (!attempts.some((attempt, index) =>
       attempt.passed === true && scores[index] !== null && scores[index]! >= exam.passScore
     )) {
@@ -234,7 +254,7 @@ export async function programExamAverage(client: DbClient, userId: string, progr
     }
   }
   const percent = avg(earned) ?? 0
-  return complete ? percent : { score: percent, complete: false }
+  return complete ? percent : { score: percent, complete: false, gradedComplete }
 }
 
 export async function assignmentAverage(client: DbClient, userId: string, programId: string, missing: string[], requiredForGrade: boolean, semester?: number): Promise<ComponentScore> {
@@ -252,6 +272,7 @@ export async function assignmentAverage(client: DbClient, userId: string, progra
   const totalShares = shares.reduce((sum, v) => sum + v, 0)
   let percent = 0
   let complete = true
+  let gradedComplete = true
   for (let i = 0; i < assignments.length; i++) {
     const assignment = assignments[i]
     const submission = await client.assignmentSubmission.findUnique({
@@ -263,12 +284,16 @@ export async function assignmentAverage(client: DbClient, userId: string, progra
       ? clampPercent(assignment.points > 0 ? (submission!.score! / assignment.points) * 100 : submission!.score!)
       : 0
     percent += score * (shares[i] / totalShares)
+    // Grading finality for THIS assignment: a GRADED submission with a
+    // numeric score — a graded score below 60 is a final result, while a
+    // missing/ungraded submission is not final at all.
+    if (!graded) gradedComplete = false
     if (!graded || score < 60) {
       addMissing(missing, `واجب منشور غير مكتمل أو غير مجتاز: ${assignment.title}`)
       complete = false
     }
   }
-  return complete ? percent : { score: percent, complete: false }
+  return complete ? percent : { score: percent, complete: false, gradedComplete }
 }
 
 export async function thesisScores(client: DbClient, userId: string, admissionId?: string | null) {

@@ -12,7 +12,20 @@ function demoAccountsEnabled() {
 export async function GET() {
   try {
     await requireAdmin()
-    return NextResponse.json({ accounts: DEMO_ACCOUNTS })
+    // نفس بوابة الإنتاج في POST بالضبط: كلمات مرور الحسابات التجريبية معروفة
+    // من الكود، فحتى قراءة قائمتها ممنوعة في الإنتاج ما لم تُفعَّل صراحة.
+    if (!demoAccountsEnabled()) {
+      return NextResponse.json({ error: 'الحسابات التجريبية غير مفعلة في بيئة الإنتاج' }, { status: 403 })
+    }
+    // قائمة السماح صريحة: الاستجابة لا تحمل حقل كلمة المرور بنيويًا، فلا
+    // يمكن أن يتسرب حتى لو تغيّر شكل ثابت الحسابات لاحقًا.
+    const accounts = Object.fromEntries(
+      Object.entries(DEMO_ACCOUNTS).map(([key, account]) => [
+        key,
+        { email: account.email, role: account.role, note: account.note },
+      ])
+    )
+    return NextResponse.json({ accounts })
   } catch {
     return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
   }

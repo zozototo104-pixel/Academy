@@ -324,6 +324,25 @@ export async function PATCH(req: NextRequest) {
 
     // ===== الإقرار بالقبول (دراسة الملف وتعيين المشرف ثم إصدار فاتورة الرسوم الدراسية) =====
     if (status === 'AWAITING_TUITION' || status === 'SUPERVISOR_ASSIGNED') {
+      // نفس انضباط الحالات المصدر في جدول انتقالات المسار العام أدناه — هذا
+      // الفرع لا يعيش خارج آلة الحالات:
+      // إعادة إرسال نفس الحالة: نجاح بلا أثر (لا بريد/إشعار/فاتورة مكررة).
+      if (status === app.status) {
+        return NextResponse.json({ ok: true, application: app })
+      }
+      // الإقرار بالقبول خطوة ما قبل البوابة: يدخلها الطلب من مراحل الدراسة
+      // فقط. CERTIFIED لا يخرج منها أبدًا، والمرفوض لا يُحيا مباشرة (يعود
+      // إلى UNDER_REVIEW عبر المسار العام)، ومن تجاوز القبول لا يرجع إليه.
+      const APPROVAL_FROM_STATUSES = ['AWAITING_FEE', 'UNDER_REVIEW', 'PENDING', 'UPLOADING_DOCUMENTS', 'STAGED', 'DOCUMENTS_NEED_REPLACEMENT']
+      if (!APPROVAL_FROM_STATUSES.includes(String(app.status || ''))) {
+        return NextResponse.json(
+          {
+            error: 'لا يمكن الإقرار بالقبول من مرحلة الطلب الحالية — اتبع تسلسل المراحل الرسمي لطلبات الالتحاق.',
+            code: 'ADMISSION_TRANSITION_NOT_ALLOWED',
+          },
+          { status: 409 }
+        )
+      }
       // قاعدة إلزامية: لا إقرار بالقبول قبل سداد الطالب رسوم التقديم (30$)
       const feePaid = await db.payment.findFirst({
         where: { admissionId: id, purpose: 'APPLICATION_FEE', status: { in: ['PAID', 'WAIVED'] } },
@@ -439,7 +458,7 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ ok: true, application: updated })
     }
 
-    // ===== حارس تسلسل الحالات للمسار العام (الفروع المحروسة أعلاه لم تُمس) =====
+    // ===== حارس تسلسل الحالات للمسار العام (فرع الإقرار بالقبول أعلاه محروس بانضباط الحالات المصدر نفسه) =====
     // الواجهة لا ترسل عبر هذا المسار إلا الرفض وبدء الدراسة؛ أما القفزات المباشرة الأخرى
     // فتخضع لجدول انتقالات: طلب دراسة لا يدخل مراحل ما بعد القبول قبل سداد رسومه الدراسية،
     // لأن تفعيل الالتحاق عند السداد يعمل من AWAITING_TUITION فقط — والقفزة تترك طالباً دافعاً عالقاً بلا تسجيل.

@@ -49,7 +49,7 @@ export interface AactVerifiableCertificateCredential {
     type: string[]
     verifier: string
     serialNumber: string
-    verificationToken: string
+    verificationToken?: string
   }>
   proof?: {
     type: string
@@ -97,11 +97,33 @@ export function certificateCredentialUrl(cert: { qrToken: string }) {
   return `${getAppUrl()}/api/verify/certificates/${encodeURIComponent(cert.qrToken)}`
 }
 
-export function buildCertificateCredential(cert: CertificateCredentialInput): AactVerifiableCertificateCredential {
+// سياسة الإفصاح الموحدة (نفس سياسة /api/certificates/verify): من يقدّم رمز
+// QR نفسه (القدرة السرية) يرى التفاصيل الكاملة، ومن يبحث برقم تسلسلي أو
+// رقم قديم — وكلاهما قابل للتخمين/التعداد — يرى الحد الأدنى العام فقط:
+// لا تقدير، ولا qrToken، ولا روابط مبنية عليه.
+export type CertificateAccessMode = 'TOKEN' | 'SERIAL'
+
+export function resolveCertificateAccessMode(cert: { qrToken: string }, presented: string): CertificateAccessMode {
+  return presented && presented === cert.qrToken ? 'TOKEN' : 'SERIAL'
+}
+
+export function certificateSerialVerificationUrl(serial: string) {
+  return `${getAppUrl()}/verify/certificates/${encodeURIComponent(serial)}`
+}
+
+function certificateSerialCredentialUrl(serial: string) {
+  return `${getAppUrl()}/api/verify/certificates/${encodeURIComponent(serial)}`
+}
+
+export function buildCertificateCredential(
+  cert: CertificateCredentialInput,
+  opts?: { accessMode?: CertificateAccessMode }
+): AactVerifiableCertificateCredential {
+  const discloseToken = opts?.accessMode !== 'SERIAL'
   const base = getAppUrl()
   const issued = issuedIso(cert.issuedAt)
-  const verifyUrl = certificateVerificationUrl(cert)
-  const credentialUrl = certificateCredentialUrl(cert)
+  const verifyUrl = discloseToken ? certificateVerificationUrl(cert) : certificateSerialVerificationUrl(cert.serial)
+  const credentialUrl = discloseToken ? certificateCredentialUrl(cert) : certificateSerialCredentialUrl(cert.serial)
   const issuerId = `${base}/issuer/aact`
   const unsigned: AactVerifiableCertificateCredential = {
     '@context': [
@@ -131,7 +153,7 @@ export function buildCertificateCredential(cert: CertificateCredentialInput): Aa
       certificateSerial: cert.serial,
       certificateType: cert.type,
       program: cert.program,
-      grade: cert.grade || null,
+      grade: discloseToken ? cert.grade || null : null,
       country: cert.country || null,
     },
     credentialStatus: {
@@ -146,7 +168,7 @@ export function buildCertificateCredential(cert: CertificateCredentialInput): Aa
         type: ['DocumentVerification', 'AACTCertificateEvidence'],
         verifier: 'AACT Platform',
         serialNumber: cert.serial,
-        verificationToken: cert.qrToken,
+        ...(discloseToken ? { verificationToken: cert.qrToken } : {}),
       },
     ],
   }

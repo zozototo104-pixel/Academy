@@ -306,6 +306,46 @@ describe('تسوية الجلسة: تجاوز الحجز يُخصم من الر�
   })
 })
 
+describe('إصلاح U10/M8: التسوية لا تُحاسَب أبعد من نهاية الجلسة المصرّح بها', () => {
+  test('تسوية تصل بعد 3 ساعات على جلسة حدّها 10 دقائق تُحاسَب حتى الانتهاء + السماح فقط', async () => {
+    seedUsage('stu-1', { freeMinutesUsed: 2, sessionsCount: 1 })
+    const startedAt = new Date(Date.now() - 3 * 60 * 60 * 1000)
+    // نهاية الجلسة المصرّح بها كما يخزّنها الحجز = بدايتها + حدّ الطالب (10 دقائق)
+    seedSession({ sessionId: 's-late-cap', startedAt, createdAt: startedAt, expiresAt: new Date(startedAt.getTime() + 10 * 60 * 1000) })
+    const res: any = await settleGeminiLiveUsage({ userId: 'stu-1', sessionId: 's-late-cap', actualMinutes: 0 })
+    expect(res.ok).toBe(true)
+    // المنقضي المحاسَب = 10 (حتى الانتهاء) + 2 (سماح التسوية) = 12، لا ساعات الجدار كاملة
+    expect(res.session.actualMinutes).toBe(12)
+    expect(res.extraChargedMinutes).toBe(10)
+    expect(res.refundMinutes).toBe(0)
+    expect(usages.get(usageKey('stu-1', month(), 'SUPERVISOR'))?.freeMinutesUsed).toBe(12)
+  })
+
+  test('تسوية داخل النافذة المصرّح بها تبقى كما هي بالدقيقة', async () => {
+    seedUsage('stu-1', { freeMinutesUsed: 2, sessionsCount: 1 })
+    const startedAt = new Date(Date.now() - 7.5 * 60 * 1000)
+    seedSession({ sessionId: 's-in-window', startedAt, createdAt: startedAt, expiresAt: new Date(startedAt.getTime() + 10 * 60 * 1000) })
+    const res: any = await settleGeminiLiveUsage({ userId: 'stu-1', sessionId: 's-in-window', actualMinutes: 0 })
+    expect(res.ok).toBe(true)
+    expect(res.session.actualMinutes).toBe(8)
+    expect(res.extraChargedMinutes).toBe(6)
+    expect(res.refundMinutes).toBe(0)
+    expect(usages.get(usageKey('stu-1', month(), 'SUPERVISOR'))?.freeMinutesUsed).toBe(8)
+  })
+
+  test('جلسة بلا expiresAt مخزّن ترجع إلى حدّ الجلسة من مسار الإصدار نفسه', async () => {
+    seedUsage('stu-1', { freeMinutesUsed: 2, sessionsCount: 1 })
+    const startedAt = new Date(Date.now() - 3 * 60 * 60 * 1000)
+    seedSession({ sessionId: 's-null-expiry', startedAt, createdAt: startedAt, expiresAt: null as any })
+    const res: any = await settleGeminiLiveUsage({ userId: 'stu-1', sessionId: 's-null-expiry', actualMinutes: 0 })
+    expect(res.ok).toBe(true)
+    // السقف يُبنى من حدّ مسار الإصدار لدور الطالب وغرض المشرف (10) + السماح (2)
+    expect(res.session.actualMinutes).toBe(12)
+    expect(res.extraChargedMinutes).toBe(10)
+    expect(usages.get(usageKey('stu-1', month(), 'SUPERVISOR'))?.freeMinutesUsed).toBe(12)
+  })
+})
+
 describe('منح دقائق الصوت المشتراة لا يتكرر عند الدفع المتزامن أو الإعادة', () => {
   test('محاولتان متزامنتان على فاتورة واحدة تمنحان رصيداً واحداً فقط', async () => {
     paidInvoices.set('invoice-1', { id: 'invoice-1', userId: 'stu-1', status: 'PAID' })

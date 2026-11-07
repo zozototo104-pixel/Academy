@@ -72,6 +72,27 @@ async function initializeAcademicEnrollment(tx: any, enrollment: {
   await ensureSemesterStates(tx, enrollment, program)
 }
 
+// إنشاء الالتحاق متسامح مع سباق الإنشاء: مسارا تسوية (تأكيد دفع نقدي
+// واعتماد إعفاء) قد يصلا إلى تفعيل نفس القبول في اللحظة نفسها، فيجد كلٌّ
+// منهما «لا التحاق» ثم يصطدم إنشاء الخاسر بقيد تفرد (userId, programId)
+// فيرمي P2002 — وفي مسار الإعفاء يُستدعى التفعيل بعد التزام المعاملة بلا
+// أي صيد، فيرى المشرف خطأ 500 رغم أن المال التزم والالتحاق موجود من
+// الفائز. عند الاصطدام نعيد قراءة صف الفائز ونكمل بقية آثار التفعيل
+// عليه (اللقطة وحالات الفصول محروسة بـcreate-once فلا تتكرر). كل
+// المستدعين الحاليين يمررون عميل الجذر (db) في وضع الالتزام التلقائي،
+// فإعادة القراءة بعد الاصطدام آمنة؛ داخل معاملة تفاعلية حقيقية تُبطل
+// PostgreSQL المعاملة عند P2002 ولا يصلح معها إلا إعادة تنفيذها كلها.
+async function createEnrollmentAfterRace(tx: any, userId: string, programId: string) {
+  try {
+    return await tx.enrollment.create({ data: { userId, programId, status: 'ACTIVE' } })
+  } catch (error: any) {
+    if (error?.code !== 'P2002') throw error
+    const winner = await tx.enrollment.findUnique({ where: { userId_programId: { userId, programId } } })
+    if (!winner) throw error
+    return winner
+  }
+}
+
 export async function finalizeAdmissionAfterSettlement(tx: any, admissionId: string, opts: FinalizeAdmissionAfterSettlementOptions = { source: 'PAYMENT' }) {
   const app = await tx.admissionApplication.findUnique({ where: { id: admissionId } })
   if (!app) return null
@@ -133,9 +154,7 @@ export async function finalizeAdmissionAfterSettlement(tx: any, admissionId: str
         const existingEnrollment = await tx.enrollment.findUnique({
           where: { userId_programId: { userId: linkedUserId, programId: app.programId } },
         })
-        const activeEnrollment = existingEnrollment || await tx.enrollment.create({
-          data: { userId: linkedUserId, programId: app.programId, status: 'ACTIVE' },
-        })
+        const activeEnrollment = existingEnrollment || await createEnrollmentAfterRace(tx, linkedUserId, app.programId)
         await initializeAcademicEnrollment(tx, activeEnrollment)
       }
     }
@@ -200,11 +219,10 @@ export async function finalizeAdmissionAfterSettlement(tx: any, admissionId: str
     await tx.admissionApplication.update({ where: { id: app.id }, data: { status: newStatus } })
     if (app.programId && linkedUserId) {
       const existingEnrollment = await tx.enrollment.findUnique({ where: { userId_programId: { userId: linkedUserId, programId: app.programId } } })
-      const activeEnrollment = !existingEnrollment
-        ? await tx.enrollment.create({ data: { userId: linkedUserId, programId: app.programId, status: 'ACTIVE' } })
-        : !['ACTIVE', 'COMPLETED'].includes(existingEnrollment.status)
-          ? await tx.enrollment.update({ where: { id: existingEnrollment.id }, data: { status: 'ACTIVE' } })
-          : existingEnrollment
+      const foundEnrollment = existingEnrollment || await createEnrollmentAfterRace(tx, linkedUserId, app.programId)
+      const activeEnrollment = !['ACTIVE', 'COMPLETED'].includes(foundEnrollment.status)
+        ? await tx.enrollment.update({ where: { id: foundEnrollment.id }, data: { status: 'ACTIVE' } })
+        : foundEnrollment
       await initializeAcademicEnrollment(tx, activeEnrollment)
       await notify(linkedUserId, 'ADMISSION', 'تم تفعيل تسجيلك بمنحة/إعفاء', `أصبح تسجيلك في «${app.program}» فعالاً.`, 'dashboard')
       const student = await tx.user.findUnique({ where: { id: linkedUserId }, select: { email: true, name: true } }).catch(() => null)

@@ -189,9 +189,15 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (kind === 'PROGRAM') {
-      const item = await db.programQuestion.findUnique({ where: { id: questionId }, select: { id: true, text: true, exam: { select: { id: true, title: true, programId: true, program: { select: { titleAr: true } } } } } })
+      const item = await db.programQuestion.findUnique({ where: { id: questionId }, select: { id: true, text: true, exam: { select: { id: true, title: true, status: true, programId: true, program: { select: { titleAr: true } } } } } })
       if (!item) return NextResponse.json({ error: 'السؤال غير موجود' }, { status: 404 })
       if (!(await canAccessProgram(actor, item.exam.programId))) return NextResponse.json({ error: 'هذا البرنامج ليس ضمن برامجك' }, { status: 403 })
+      // نفس حارس الحذف: سؤال في امتحان منشور (READY) أو أجاب عليه طالب لا
+      // يُعدّل في مكانه — الطلاب في نفس الدفعة يجب أن يختبروا على النسخة
+      // نفسها، وتعديل نقاط/إجابة سؤال مُجاب يكسر محاولات قائمة.
+      if (item.exam.status === 'READY') return NextResponse.json({ error: 'لا يمكن تعديل سؤال في امتحان منشور — راسل الإدارة لإصدار نسخة جديدة من الامتحان' }, { status: 409 })
+      const answered = await db.programAnswer.count({ where: { questionId } })
+      if (answered > 0) return NextResponse.json({ error: 'لا يمكن تعديل سؤال أجاب عليه طلاب — راسل الإدارة' }, { status: 409 })
       const data: any = { type: q.type, text: q.text, options: q.options, correctAnswer: q.correctAnswer, modelAnswer: q.modelAnswer, rubric: q.rubric, difficulty: q.difficulty }
       if (q.points != null) data.points = q.points
       const updated = await db.programQuestion.update({ where: { id: questionId }, data })

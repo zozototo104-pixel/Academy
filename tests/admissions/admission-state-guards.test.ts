@@ -254,6 +254,50 @@ describe('admin admissions PATCH — fallback transition guard', () => {
     expect(res.status).toBe(409)
     expect(apps[0].status).toBe('THESIS')
   })
+
+  test('U06: CERTIFIED cannot regress through the dedicated approval branch', async () => {
+    apps = [studyApp('CERTIFIED')]
+    payments = [feeInvoice('PAID')]
+    const res = await patch({ id: 'app-1', status: 'AWAITING_TUITION' })
+    expect(res.status).toBe(409)
+    expect(res.json.code).toBe('ADMISSION_TRANSITION_NOT_ALLOWED')
+    expect(apps[0].status).toBe('CERTIFIED')
+    expect(decisionEmails).toBe(0)
+  })
+
+  test('U06: REJECTED cannot be resurrected directly into AWAITING_TUITION', async () => {
+    apps = [studyApp('REJECTED')]
+    payments = [feeInvoice('PAID')]
+    const res = await patch({ id: 'app-1', status: 'AWAITING_TUITION' })
+    expect(res.status).toBe(409)
+    expect(res.json.code).toBe('ADMISSION_TRANSITION_NOT_ALLOWED')
+    expect(apps[0].status).toBe('REJECTED')
+    expect(decisionEmails).toBe(0)
+  })
+
+  test('U06: REJECTED returns to UNDER_REVIEW through the generic path', async () => {
+    apps = [studyApp('REJECTED')]
+    const res = await patch({ id: 'app-1', status: 'UNDER_REVIEW' })
+    expect(res.status).toBe(200)
+    expect(apps[0].status).toBe('UNDER_REVIEW')
+  })
+
+  test('U06: legitimate approval from UNDER_REVIEW works once; a repeat PATCH is a silent no-op', async () => {
+    apps = [studyApp('UNDER_REVIEW')]
+    payments = [feeInvoice('PAID')]
+    const first = await patch({ id: 'app-1', status: 'AWAITING_TUITION' })
+    expect(first.status).toBe(200)
+    expect(apps[0].status).toBe('AWAITING_TUITION')
+    expect(decisionEmails).toBe(1)
+    const notifyAfterFirst = notifyCalls
+    const updatesAfterFirst = appUpdates.length
+    const repeat = await patch({ id: 'app-1', status: 'AWAITING_TUITION' })
+    expect(repeat.status).toBe(200)
+    expect(decisionEmails).toBe(1)
+    expect(notifyCalls).toBe(notifyAfterFirst)
+    expect(appUpdates.length).toBe(updatesAfterFirst)
+    expect(payments.filter((p) => p.purpose === 'TUITION').length).toBe(1)
+  })
 })
 
 describe('admin admissions PATCH — supervisor assignment role check', () => {
