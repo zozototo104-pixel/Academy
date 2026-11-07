@@ -905,9 +905,9 @@ async function main(): Promise<number> {
   await scenarioC(db, approvePaymentWaiver)
   await scenarioD(db, approvePaymentWaiver)
   await scenarioE(db, approvePaymentWaiver)
-  // CI BISECT (temporary): scenarios F/G disabled to isolate the
-  // stage-3 quality failure; re-enabled once the failing one is fixed.
+  // CI BISECT (temporary): scenario F still disabled; G re-enabled.
   void markInvoicePaid
+  await scenarioG(db, approvePaymentWaiver)
   if (failures.length) {
     console.error(`\nWAIVER_PG_CONCURRENCY: FAILED — ${failures.length} assertion(s) failed`)
     return 1
