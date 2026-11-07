@@ -13,7 +13,7 @@
     "ai:knowledge-check": "tsx scripts/ai-knowledge-check.ts",
     "settings:migrate:official-ai": "tsx scripts/migrate-official-ai-settings.ts",
     "test:stage-c-exams": "bun run db:generate && tsx scripts/test-stage-c-exams.ts",
-    "test:ai-ui-wiring": "tsx scripts/test-ai-ui-wiring.ts",
+    "test:ai-ui-wiring": "bunx playwright install --with-deps chromium && AACT_DIALOG_BROWSER=1 bun scripts/test-ai-ui-wiring.ts",
     "test:prod-safety": "bun run db:generate && tsx scripts/test-prod-safety.ts",
     "test:private-files-maintenance": "bun run db:generate && tsx scripts/test-private-files-maintenance.ts",
     "test:whatsapp-ai-only": "bun run db:generate && tsx scripts/test-whatsapp-ai-only.ts",
