@@ -168,10 +168,11 @@ describe('متابعة الفصول — حالة إشراق (7/11)', () => {
     const [s1, s2] = tracking.semesters
     expect(s1.approval).toBe('PROVISIONAL')
     expect(s2.approval).toBe('PROVISIONAL')
-    // Her provisional S1 semester average exists and exceeds 50 — and is
-    // still NOT an official pass (no approval stored).
-    expect(s1.semesterAverage).toBeCloseTo(75.76, 1)
-    expect(s1.semesterPassed).toBe(true)
+    // Two READY programme exams exist but have no attempts: each earns zero
+    // until graded. The S1 result is provisional, never an official pass/fail.
+    expect(s1.semesterAverage).toBeCloseTo(30.30, 2)
+    expect(s1.semesterPassed).toBeNull()
+    expect(s2.semesterPassed).toBeNull()
     expect(s2.preserved).toBe(true)
     expect(s1.preserved).toBe(false)
     const flat = await calculateFinalGrade({ userId: 'u1', programId: 'p1', client })
