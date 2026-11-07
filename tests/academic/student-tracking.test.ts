@@ -28,6 +28,8 @@ type UnitExamRow = { id: string; passScore: number; semester: number; unitTitle:
 interface Fixture {
   unitExams: UnitExamRow[]
   unitAttempts: Record<string, { score: number; passed: boolean }[]>
+  programExams: { id: string; semester: number; passScore: number; status: 'READY' }[]
+  programAttempts: Record<string, { score: number; passed: boolean }[]>
   assignments: { id: string; points: number; weight: number; semester: number }[]
   submissions: Record<string, { status: string; score: number }>
   approvals: Record<number, { score: number } | null>
