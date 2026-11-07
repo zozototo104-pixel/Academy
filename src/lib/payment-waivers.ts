@@ -163,7 +163,18 @@ async function ensureTuitionInvoiceWithWaiverCredit(params: {
   }
 
   if (existing) {
-    return client.payment.update({ where: { id: existing.id }, data })
+    // الكتابة مثبّتة بالحالة المرصودة لحظة القراءة (درس U08 نفسه):
+    // دفع نقدي متزامن قد يقلب الفاتورة إلى PAID أثناء انتظار قفل
+    // صفها، فتُكتب فوقها WAIVED وتمحى تسويتها. count = 0 تعني أنها
+    // سُوّيت في هذه الأثناء — تُعاد قراءتها وتُترك كما أصبحت.
+    const pinned = await client.payment.updateMany({
+      where: { id: existing.id, status: existing.status },
+      data,
+    })
+    if (pinned.count === 0) {
+      return client.payment.findUnique({ where: { id: existing.id } })
+    }
+    return client.payment.findUnique({ where: { id: existing.id } })
   }
   const newInvoiceData = await applyScholarshipToNewInvoiceData(client, {
     admissionId: params.app.id,

@@ -800,12 +800,18 @@ async function scenarioF(db: any, approvePaymentWaiver: any, markInvoicePaid: an
   check(`${scope}: exactly ONE tuition invoice`, tuitions.length === 1, `count=${tuitions.length}`)
   const tuition = tuitions[0]
   if (tuition) {
+    // قيمة الفاتورة الأصلية تُقرأ من originalAmountCents: الفاتورة
+    // المعفاة كليًا amountCents فيها صفر (المتبقي) شرعًا.
+    const faceCents = tuition.originalAmountCents ?? (tuition.amountCents + (tuition.waivedAmountCents || 0))
     check(`${scope}: waiver credit never exceeds the invoice face`,
-      (tuition.waivedAmountCents || 0) <= tuition.amountCents,
-      `waived=${tuition.waivedAmountCents} face=${tuition.amountCents}`)
+      (tuition.waivedAmountCents || 0) <= faceCents,
+      `waived=${tuition.waivedAmountCents} face=${faceCents}`)
     check(`${scope}: a cash-PAID invoice carries no waiver credit (no PAID+WAIVED hybrid)`,
       !(tuition.status === 'PAID' && (tuition.waivedAmountCents || 0) > 0),
       `status=${tuition.status} waived=${tuition.waivedAmountCents}`)
+    check(`${scope}: an invoice bearing a cash receipt is PAID — a receipted settlement is never overwritten by a waiver`,
+      !(tuition.receiptNo && tuition.status !== 'PAID'),
+      `status=${tuition.status} receipt=${tuition.receiptNo}`)
     check(`${scope}: tuition ends settled exactly one way (PAID or WAIVED)`,
       tuition.status === 'PAID' || tuition.status === 'WAIVED', `status=${tuition.status}`)
   }

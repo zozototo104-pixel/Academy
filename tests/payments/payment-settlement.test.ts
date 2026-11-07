@@ -1161,6 +1161,35 @@ describe('fee-branch ensure never rewrites a settled tuition invoice (item 8c �
     expect(enrollments.get('student-1:program-1')?.status).toBe('ACTIVE')
   })
 
+  test('cash flip landing between the ensure read and its write: the status pin misses and the PAID tuition survives', async () => {
+    seedWaiverAdmission()
+    payments.set('fee', {
+      id: 'fee', invoiceNo: 'INV-FEE-8C2', admissionId: 'admission-1', userId: 'student-1',
+      status: 'UNPAID', purpose: 'APPLICATION_FEE', description: 'رسوم تقديم', amount: 30, amountCents: 3_000,
+    })
+    payments.set('tuition', {
+      id: 'tuition', invoiceNo: 'INV-TUIT-8C2', admissionId: 'admission-1', userId: 'student-1',
+      status: 'UNPAID', purpose: 'TUITION', description: 'رسوم الدراسة', amount: 350, amountCents: 35_000,
+    })
+    waiverCodes.push({
+      id: 'wv-8c-race', paymentId: 'fee', status: 'VERIFIED', waiverType: 'FULL_SCHOLARSHIP',
+      requestedAmountCents: null, reason: 'منحة كاملة معتمدة', codePreview: '••••-0805',
+      expiresAt: new Date(Date.now() + 60_000), approvedById: null,
+    })
+    // أول كتابة تستهدف فاتورة الدراسة (كتابة الـensure) تجدها قد قُلبت
+    // PAID بإيصال نقدي في هذه الأثناء — التثبيت بالحالة المرصودة يجب
+    // أن يُخطئ فلا يُكتب فوق التسوية النقدية.
+    siblingPaidRaceId = 'tuition'
+    await approvePaymentWaiver({ waiverId: 'wv-8c-race', actor: { id: 'admin-1', name: 'Admin' } })
+    const tuition = payments.get('tuition')!
+    expect(tuition.status).toBe('PAID')
+    expect(tuition.receiptNo).toBe('RCPT-RACE')
+    expect(tuition.amountCents).toBe(35_000)
+    expect(tuition.waivedAmountCents || 0).toBe(0)
+    expect(payments.get('fee')?.status).toBe('WAIVED')
+    expect(waiverCodes.find((w) => w.id === 'wv-8c-race')?.status).toBe('APPROVED')
+  })
+
   test('PARTIAL_TUITION credit on the fee also leaves a cash-PAID tuition untouched', async () => {
     seedPaidTuition()
     waiverCodes.push({
