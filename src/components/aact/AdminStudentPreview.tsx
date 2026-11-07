@@ -119,7 +119,7 @@ interface EnrollmentDetail {
     earnedScore: number
     progressScore: number
     weightSource: string
-    components: Array<{ key: string; label: string; weight: number; score: number | null; ready: boolean; exempt?: boolean }>
+    components: Array<{ key: string; label: string; weight: number; score: number | null; ready: boolean; exempt?: boolean; weighted?: number }>
   } | null
   counts: {
     unitsTotal: number
