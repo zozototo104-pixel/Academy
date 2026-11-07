@@ -124,6 +124,15 @@ async function ensureTuitionInvoiceWithWaiverCredit(params: {
   if (tuitionCents <= 0) return null
 
   const existing = await client.payment.findFirst({ where: { admissionId: params.app.id, purpose: 'TUITION' }, orderBy: { createdAt: 'asc' } })
+  // فاتورة دراسة مُسوّاة أصلًا (PAID نقدًا أو WAIVED باعتماد سابق) لا
+  // تُعاد كتابتها من هذا المسار أبدًا: حساب «المتبقي» من amountCents
+  // لفاتورة PAID يعطي كامل قيمتها، فكانت المنحة الكاملة تقلبها إلى
+  // WAIVED بصفر وتمحو هويتها المالية (نفس فئة عيب M6، لكن من باب
+  // الإنشاء/الخصم لا من باب الكنس). التسوية النهائية لفاتورة كهذه
+  // تعني أنه لا رصيد متبقيًا يُخصم عليه الإعفاء أصلًا.
+  if (existing && (existing.status === 'PAID' || existing.status === 'WAIVED')) {
+    return existing
+  }
   const existingOriginalCents = existing?.originalAmountCents || existing?.amountCents || tuitionCents
   const originalCents = Math.max(existingOriginalCents, tuitionCents)
   const alreadyWaivedCents = existing?.waivedAmountCents || 0

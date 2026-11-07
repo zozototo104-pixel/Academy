@@ -1128,6 +1128,56 @@ describe('full scholarship sweep: a concurrent cash payment is never overwritten
   })
 })
 
+describe('fee-branch ensure never rewrites a settled tuition invoice (item 8c — found by PG Scenario G)', () => {
+  function seedPaidTuition() {
+    seedWaiverAdmission()
+    payments.set('fee', {
+      id: 'fee', invoiceNo: 'INV-FEE-8C', admissionId: 'admission-1', userId: 'student-1',
+      status: 'UNPAID', purpose: 'APPLICATION_FEE', description: 'رسوم تقديم', amount: 30, amountCents: 3_000,
+    })
+    payments.set('tuition', {
+      id: 'tuition', invoiceNo: 'INV-TUIT-8C', admissionId: 'admission-1', userId: 'student-1',
+      status: 'PAID', purpose: 'TUITION', description: 'رسوم الدراسة', amount: 350, amountCents: 35_000,
+      method: 'CASH', receiptNo: 'RCPT-8C-1', paidAt: new Date('2026-11-01T10:00:00.000Z'),
+    })
+  }
+
+  test('FULL_SCHOLARSHIP on the fee leaves a cash-PAID tuition byte-identical', async () => {
+    seedPaidTuition()
+    waiverCodes.push({
+      id: 'wv-8c-full', paymentId: 'fee', status: 'VERIFIED', waiverType: 'FULL_SCHOLARSHIP',
+      requestedAmountCents: null, reason: 'منحة كاملة معتمدة', codePreview: '••••-0803',
+      expiresAt: new Date(Date.now() + 60_000), approvedById: null,
+    })
+    await approvePaymentWaiver({ waiverId: 'wv-8c-full', actor: { id: 'admin-1', name: 'Admin' } })
+    const tuition = payments.get('tuition')!
+    expect(tuition.status).toBe('PAID')
+    expect(tuition.receiptNo).toBe('RCPT-8C-1')
+    expect(tuition.amountCents).toBe(35_000)
+    expect(tuition.waivedAmountCents || 0).toBe(0)
+    expect(tuition.waiverStatus).toBeUndefined()
+    expect(payments.get('fee')?.status).toBe('WAIVED')
+    expect(waiverCodes.find((w) => w.id === 'wv-8c-full')?.status).toBe('APPROVED')
+    expect(enrollments.get('student-1:program-1')?.status).toBe('ACTIVE')
+  })
+
+  test('PARTIAL_TUITION credit on the fee also leaves a cash-PAID tuition untouched', async () => {
+    seedPaidTuition()
+    waiverCodes.push({
+      id: 'wv-8c-part', paymentId: 'fee', status: 'VERIFIED', waiverType: 'PARTIAL_TUITION',
+      requestedAmountCents: 38_000, reason: 'إعفاء يغطي التقديم والدراسة', codePreview: '••••-0804',
+      expiresAt: new Date(Date.now() + 60_000), approvedById: null,
+    })
+    await approvePaymentWaiver({ waiverId: 'wv-8c-part', actor: { id: 'admin-1', name: 'Admin' } })
+    const tuition = payments.get('tuition')!
+    expect(tuition.status).toBe('PAID')
+    expect(tuition.receiptNo).toBe('RCPT-8C-1')
+    expect(tuition.amountCents).toBe(35_000)
+    expect(tuition.waivedAmountCents || 0).toBe(0)
+    expect(payments.get('fee')?.status).toBe('WAIVED')
+  })
+})
+
 describe('tuition invoice creation under the admission lock (U16)', () => {
   test('fee-branch approval locks Payment first, then AdmissionApplication, before creating the tuition invoice', async () => {
     seedWaiverAdmission()
