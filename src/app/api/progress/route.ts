@@ -5,6 +5,7 @@ import { getExamsGate } from '@/lib/exam-gate'
 import { academicProfileFromRules } from '@/lib/program-tracks'
 import { calculateSemesterReadiness, markSemesterReady } from '@/lib/semester-readiness'
 import { calculateFinalGrade, pickBestGradedAttempt } from '@/lib/final-grade'
+import { getStudentSemesterTracking } from '@/lib/student-tracking'
 import { enforceSemesterTuitionGate, getStudentTuitionPlan } from '@/lib/tuition-installments'
 import { registerGraduationRequest } from '@/lib/enrollment-completion'
 
@@ -107,6 +108,7 @@ export async function GET(req: NextRequest) {
       getStudentTuitionPlan(user.id, programId),
       calculateFinalGrade({ userId: user.id, programId }),
     ])
+    const semesterTracking = await getStudentSemesterTracking(db, { userId: user.id, programId }).catch(() => null)
     const finalExam = semesterExams[0] || null
 
     return NextResponse.json({
@@ -163,6 +165,7 @@ export async function GET(req: NextRequest) {
         weightSource: grade.weightSource,
         weightWarning: grade.weightWarning || null,
       },
+      semesterTracking,
       completedUnits,
       booksCount,
       finalExam,

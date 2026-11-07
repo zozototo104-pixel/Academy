@@ -17,6 +17,7 @@ import { StudentSupervisionTab } from '@/components/aact/StudentSupervisionTab'
 import { StudentAdminMessages } from '@/components/aact/StudentAdminMessages'
 import StudentReminderBanner from '@/components/aact/StudentReminderBanner'
 import { StudentLectures } from '@/components/aact/StudentLectures'
+import { SemesterTrackingCard, type StudentTrackingView } from '@/components/aact/SemesterTrackingCard'
 import {
   BookOpen, ClipboardCheck, ChevronLeft, Loader2, Lock,
   Award, Bot, CheckCircle2, CircleDashed, Trophy, Banknote, FileText,
@@ -161,6 +162,7 @@ interface ProgressData {
     weightSource: 'academic_profile' | 'category_default'
     weightWarning: string | null
   }
+  semesterTracking?: StudentTrackingView | null
   completedUnits: string[]
   booksCount?: number
   finalExam?: {
@@ -1348,6 +1350,8 @@ export function DashboardView() {
                     )}
                   </div>
                 )}
+
+                <SemesterTrackingCard tracking={active.semesterTracking} />
 
                 {active.finalScore != null && (
                   <div className="mt-3 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3.5 text-sm font-bold text-emerald-700">

@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useAdminActionDialog } from '@/components/aact/AdminActionDialog'
+import { SemesterTrackingCard, type StudentTrackingView } from '@/components/aact/SemesterTrackingCard'
 import {
   AlertTriangle,
   ArrowRight,
@@ -121,6 +122,7 @@ interface EnrollmentDetail {
     weightSource: string
     components: Array<{ key: string; label: string; weight: number; score: number | null; ready: boolean; exempt?: boolean; weighted?: number }>
   } | null
+  tracking?: StudentTrackingView | null
   counts: {
     unitsTotal: number
     unitsCompleted: number
@@ -539,6 +541,7 @@ export function AdminStudentPreview() {
                         ))}
                       </div>
                     )}
+                    <SemesterTrackingCard tracking={d.tracking} />
                   </div>
                 ))}
               </div>

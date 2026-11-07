@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { calculateFinalGrade } from '@/lib/final-grade'
+import { getStudentSemesterTracking } from '@/lib/student-tracking'
 import { getEnrollmentDeadline, daysLeftUntil } from '@/lib/program-duration'
 import { computeFollowUpStatus } from '@/lib/student-follow-up'
 
@@ -329,8 +330,15 @@ export async function GET(req: NextRequest) {
         if (meta) notePending('PROGRAM', a, meta.examTitle, meta.programTitle)
       }
 
+      const trackings = await Promise.all(activeEnrollments.map((e) => getStudentSemesterTracking(db, {
+        userId: studentId,
+        programId: e.program.id,
+        admissionId: admissions.find((a) => a.programId === e.program.id)?.id ?? null,
+      }).catch(() => null)))
+
       enrollmentDetails = activeEnrollments.map((e, idx) => {
         const grade = grades[idx]
+        const tracking = trackings[idx]
         const completedSet = new Set(safeJsonArray(e.completedUnits))
         const unitRows = programUnits.filter((u) => u.programId === e.program.id).map((u) => {
           const attempts = u.exam ? detailUnitAttempts.filter((a) => a.examId === u.exam!.id) : []
@@ -392,6 +400,7 @@ export async function GET(req: NextRequest) {
             weightSource: grade.weightSource,
             components: grade.components,
           } : null,
+          tracking,
           followUp: {
             daysAbsent: followUpStatus.daysAbsent,
             followUpCount: followUpStatus.followUpCount,
