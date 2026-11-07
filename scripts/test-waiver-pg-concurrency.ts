@@ -16,6 +16,13 @@
  * الإدخال داخل المعاملة نفسها) يفشل السيناريو A هنا: معاملة الخاسر الملغاة
  * ترمي 25P02 فيهرب الاعتماد كرفض ظاهر بدل أن ينجح بإعادة تنفيذ كاملة.
  *
+ * السيناريو C (أضافه فحص مستقل لاحقاً): إعفاءان مختلفان على طلب القبول
+ * نفسه — فاتورتا تقديم مفتوحتان، على كل واحدة كود محقق، واعتمادان
+ * متزامنان. الاعتماد يقفل صف فاتورته هو فقط، فلا قفل مشترك بينهما،
+ * وكلاهما يستدعي إنشاء فاتورة الدراسة عند غيابها داخل معاملته: الخطر
+ * فاتورتا دراسة لطالب واحد. الإثبات من حالة القاعدة: فاتورة دراسة
+ * واحدة فقط، معفاة بالكامل مرة واحدة، والتحاق واحد.
+ *
  * Real-PostgreSQL concurrency proof for payment-waiver approval (PR #188):
  * two simultaneous approvals racing the invoiceNo unique index must both
  * land exactly once. The mocked suites cannot model a real PG transaction
@@ -301,6 +308,94 @@ async function seedFeeWaiverStudent(db: any, tag: string) {
   return { studentId, admissionId, feeId, waiverId, email }
 }
 
+// Scenario C fixture: ONE admission carrying TWO open APPLICATION_FEE
+// payments, each with its own VERIFIED waiver code — a partial-tuition
+// waiver on the first fee (the Scenario A shape) and a plain fee waiver
+// on the second. Both approvals enter the fee branch and both call the
+// tuition-invoice ensure for the same admission, while each approval
+// locks only its OWN payment row.
+async function seedDualWaiverStudent(db: any, tag: string) {
+  const studentId = `pgw-${tag}-student`
+  const admissionId = `pgw-${tag}-admission`
+  const email = `pgw-${tag}@example.test`
+  await db.user.create({
+    data: { id: studentId, email, password: 'pg-test-only', name: `Student ${tag}`, role: 'STUDENT' },
+  })
+  await db.admissionApplication.create({
+    data: {
+      id: admissionId,
+      reference: `PGW-${tag.toUpperCase()}`,
+      fullName: `Student ${tag}`,
+      email,
+      phone: '+970000000000',
+      country: 'PS',
+      education: 'BACHELOR',
+      program: 'دبلوم تجريبي',
+      programId: PROGRAM_ID,
+      status: 'AWAITING_TUITION',
+      userId: studentId,
+      supervisorId: null,
+      approvedAt: new Date(),
+      scholarshipFull: false,
+    },
+  })
+  const mkFee = async (suffix: string) => {
+    const feeId = `pgw-${tag}-fee${suffix}`
+    await db.payment.create({
+      data: {
+        id: feeId,
+        invoiceNo: `PGW-FEE${suffix}-${tag.toUpperCase()}`,
+        admissionId,
+        userId: studentId,
+        status: 'UNPAID',
+        purpose: 'APPLICATION_FEE',
+        description: 'رسوم تقديم',
+        amount: 30,
+        amountCents: FEE_AMOUNT_CENTS,
+        payerName: `Student ${tag}`,
+        payerEmail: email,
+        payerCountry: 'PS',
+      },
+    })
+    return feeId
+  }
+  const fee1Id = await mkFee('1')
+  const fee2Id = await mkFee('2')
+  await db.paymentWaiverCode.create({
+    data: {
+      id: `pgw-${tag}-waiver1`,
+      paymentId: fee1Id,
+      codeHash: createHash('sha256').update(`PGW-CODE-${tag}-1`).digest('hex'),
+      codePreview: '••••-PG01',
+      waiverType: 'PARTIAL_TUITION',
+      requestedAmount: WAIVER_REQUESTED_CENTS / 100,
+      requestedAmountCents: WAIVER_REQUESTED_CENTS,
+      reason: 'إعفاء يغطي التقديم والدراسة',
+      status: 'VERIFIED',
+      verifiedById: studentId,
+      verifiedAt: new Date(),
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    },
+  })
+  await db.paymentWaiverCode.create({
+    data: {
+      id: `pgw-${tag}-waiver2`,
+      paymentId: fee2Id,
+      codeHash: createHash('sha256').update(`PGW-CODE-${tag}-2`).digest('hex'),
+      codePreview: '••••-PG02',
+      waiverType: 'APPLICATION_FEE',
+      requestedAmount: null,
+      requestedAmountCents: null,
+      reason: 'إعفاء رسوم تقديم',
+      status: 'VERIFIED',
+      verifiedById: studentId,
+      verifiedAt: new Date(),
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    },
+  })
+  return { studentId, admissionId, fee1Id, fee2Id, waiver1Id: `pgw-${tag}-waiver1`, waiver2Id: `pgw-${tag}-waiver2` }
+}
+
 function reportRejection(scope: string, error: any) {
   const kind = isCollisionShaped(error)
     ? 'COLLISION ESCAPED the whole-transaction retry'
@@ -391,6 +486,44 @@ async function scenarioB(db: any, approvePaymentWaiver: any) {
   check(`${scope}: admission finalized once`, admission?.status === 'SUPERVISOR_ASSIGNED', `status=${admission?.status}`)
 }
 
+async function scenarioC(db: any, approvePaymentWaiver: any) {
+  const scope = 'Scenario C (two different waivers, same admission)'
+  const s = await seedDualWaiverStudent(db, 'sc')
+  const actor = { id: ADMIN_ID, name: ADMIN_NAME }
+  const results = await Promise.allSettled([
+    approvePaymentWaiver({ waiverId: s.waiver1Id, actor }),
+    approvePaymentWaiver({ waiverId: s.waiver2Id, actor }),
+  ])
+  const outcomeSummary = results.map((r) => (r.status === 'fulfilled' ? 'fulfilled' : `rejected: ${describeError(r.reason)}`))
+  console.log(`[EVIDENCE] ${scope}: outcomes=[${outcomeSummary.join(' | ')}]`)
+  check(`${scope}: at least one approval fulfilled`, results.some((r) => r.status === 'fulfilled'),
+    `outcomes=[${results.map((r) => r.status).join(', ')}]`)
+  for (const [label, waiverId] of [['waiver 1 (partial tuition)', s.waiver1Id], ['waiver 2 (fee)', s.waiver2Id]] as const) {
+    const code = await db.paymentWaiverCode.findUnique({ where: { id: waiverId } })
+    check(`${scope}: ${label} code APPROVED`, code?.status === 'APPROVED', `status=${code?.status}`)
+  }
+  for (const [label, feeId] of [['fee 1', s.fee1Id], ['fee 2', s.fee2Id]] as const) {
+    const fee = await db.payment.findUnique({ where: { id: feeId } })
+    check(`${scope}: ${label} WAIVED exactly its own amount`, fee?.status === 'WAIVED' && fee?.waivedAmountCents === FEE_AMOUNT_CENTS,
+      `status=${fee?.status} waivedAmountCents=${fee?.waivedAmountCents} expected=${FEE_AMOUNT_CENTS}`)
+  }
+  // The assertion this scenario exists for: two approvals that each lock
+  // only their own payment row must NOT both create the admission's
+  // tuition invoice.
+  const tuitions = await db.payment.findMany({ where: { admissionId: s.admissionId, purpose: 'TUITION' } })
+  check(`${scope}: exactly ONE tuition invoice for the admission`, tuitions.length === 1,
+    `count=${tuitions.length} invoiceNos=[${tuitions.map((t: any) => t.invoiceNo).join(', ')}]`)
+  if (tuitions[0]) {
+    check(`${scope}: the single tuition invoice is fully waived exactly once`,
+      tuitions[0].status === 'WAIVED' && tuitions[0].amountCents === 0 && tuitions[0].waivedAmountCents === TUITION_TOTAL_CENTS,
+      `status=${tuitions[0].status} amountCents=${tuitions[0].amountCents} waivedAmountCents=${tuitions[0].waivedAmountCents} expected waived=${TUITION_TOTAL_CENTS}`)
+  }
+  const enrollmentCount = await db.enrollment.count({ where: { userId: s.studentId, programId: PROGRAM_ID } })
+  check(`${scope}: exactly ONE enrollment`, enrollmentCount === 1, `count=${enrollmentCount}`)
+  const admission = await db.admissionApplication.findUnique({ where: { id: s.admissionId } })
+  check(`${scope}: admission finalized`, admission?.status === 'SUPERVISOR_ASSIGNED', `status=${admission?.status}`)
+}
+
 async function cleanup() {
   if (dbRef) {
     await dbRef.$disconnect().catch(() => {})
@@ -412,6 +545,7 @@ async function main(): Promise<number> {
   await scenarioA(db, approvePaymentWaiver, 1)
   await scenarioA(db, approvePaymentWaiver, 2)
   await scenarioB(db, approvePaymentWaiver)
+  await scenarioC(db, approvePaymentWaiver)
   if (failures.length) {
     console.error(`\nWAIVER_PG_CONCURRENCY: FAILED — ${failures.length} assertion(s) failed`)
     return 1
