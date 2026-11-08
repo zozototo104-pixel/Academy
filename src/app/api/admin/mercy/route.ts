@@ -15,7 +15,7 @@ export async function GET() {
     const requests = await (db as any).mercyRequest.findMany({
       orderBy: { createdAt: 'desc' },
       take: 200,
-    }).catch(() => [])
+    })
     // أسماء وعناوين للعرض في قائمة الإدارة — دفعة واحدة ودفاعيًا.
     let enriched = requests as any[]
     try {
@@ -37,8 +37,12 @@ export async function GET() {
       }))
     } catch { /* الأسماء تجميلية — القائمة تعمل بدونها */ }
     return NextResponse.json({ ok: true, requests: enriched })
-  } catch {
-    return NextResponse.json({ error: 'صلاحية إدارية مطلوبة' }, { status: 403 })
+  } catch (error: any) {
+    if (error?.message === 'UNAUTHORIZED' || error?.message === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'صلاحية إدارية مطلوبة' }, { status: 403 })
+    }
+    console.error('admin mercy GET failed', error)
+    return NextResponse.json({ error: 'تعذر تحميل طلبات الاسترحام' }, { status: 500 })
   }
 }
 
