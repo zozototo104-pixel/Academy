@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
-import { auditLecture, canManageSession, isAdmin, requireLectureManager } from '@/lib/lectures/manage'
+import { auditLecture, canManageSession, isAdmin, notifyProgramStudents, requireLectureManager } from '@/lib/lectures/manage'
 import { isLecturesEnabled } from '@/lib/lectures/config'
 
 const patchSessionSchema = z.object({
@@ -80,5 +80,64 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: 'غير مصرّح' }, { status: 401 })
     }
     return NextResponse.json({ error: 'خطأ في تعديل اللقاء' }, { status: 500 })
+  }
+}
+
+// DELETE /api/admin/lectures/sessions/[id] — حذف نهائي للأدمن فقط.
+// حضور الطلاب سجل أكاديمي لا يُمحى؛ عند وجوده يُستخدم الإلغاء بدل الحذف.
+// الفيديوهات محفوظة في البرنامج ويرجع ربطها باللقاء إلى null (SetNull).
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const actor = await requireLectureManager()
+    if (!isLecturesEnabled()) {
+      return NextResponse.json({ error: 'المحاضرات غير مفعّلة حاليًا' }, { status: 404 })
+    }
+    if (!isAdmin(actor)) {
+      return NextResponse.json({ error: 'حذف اللقاء صلاحية الإدارة فقط' }, { status: 403 })
+    }
+    const { id } = await params
+    const session = await db.lectureSession.findUnique({
+      where: { id },
+      include: {
+        series: { select: { programId: true } },
+        _count: { select: { attendances: true, videos: true } },
+      },
+    })
+    if (!session) return NextResponse.json({ error: 'اللقاء غير موجود' }, { status: 404 })
+    if (session._count.attendances > 0) {
+      return NextResponse.json({
+        error: 'لا يمكن حذف لقاء لديه سجل حضور؛ استخدم الإلغاء للحفاظ على سجل الطلاب',
+      }, { status: 409 })
+    }
+    // Conditional delete additionally protects against attendance being recorded
+    // between the initial lookup and the delete request.
+    const deleted = await db.lectureSession.deleteMany({
+      where: { id, attendances: { none: {} } },
+    })
+    if (deleted.count === 0) {
+      return NextResponse.json({ error: 'تعذر الحذف لأن حضورًا سُجل لهذا اللقاء؛ استخدم الإلغاء' }, { status: 409 })
+    }
+    await auditLecture(actor, 'LECTURE_SESSION_DELETED', 'LectureSession', id, {
+      title: session.title,
+      programId: session.series.programId,
+      status: session.status,
+      detachedVideos: session._count.videos,
+    })
+    if (new Date(session.startsAt).getTime() > Date.now() && session.status !== 'CANCELLED') {
+      // Students were notified of the original schedule: clarify its removal.
+      await notifyProgramStudents(session.series.programId, {
+        type: 'LECTURE_CANCELLED',
+        title: 'إزالة لقاء من جدول المحاضرات',
+        body: `أُزيل اللقاء «${session.title}» من جدول المحاضرات. يرجى مراجعة جدول التخصص المحدّث.`,
+        emailSubject: 'تحديث جدول محاضرات البرنامج',
+      }).catch((error) => console.error('lecture delete notification error:', error))
+    }
+    return NextResponse.json({ deleted: true, detachedVideos: session._count.videos })
+  } catch (error: any) {
+    if (error?.message === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'غير مصرّح' }, { status: 401 })
+    }
+    console.error('lecture session DELETE error:', error)
+    return NextResponse.json({ error: 'تعذر حذف اللقاء' }, { status: 500 })
   }
 }
