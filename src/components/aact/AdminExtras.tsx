@@ -800,6 +800,31 @@ interface PaymentRow {
   admission?: { reference: string; fullName: string; country?: string; program: string } | null
 }
 
+interface OrganizedGrantPolicy {
+  id: string
+  title: string
+  scope: 'GENERAL' | 'PROGRAM' | 'INDIVIDUAL'
+  programIds: string[]
+  admissionId: string | null
+  coverage: 'REGISTRATION' | 'TUITION' | 'BOTH'
+  valueMode: 'FULL' | 'PERCENT' | 'AMOUNT'
+  value: number
+  reason: string
+  active: boolean
+  createdAt: string
+}
+
+interface OrganizedGrantQuote {
+  policy: OrganizedGrantPolicy
+  paymentId: string
+  baseCents: number
+  grantCents: number
+  paymentIds: string[]
+  signature: string
+  summary: string
+  waiverType: string
+}
+
 interface Report {
   totalRevenue: number
   byPurpose: Record<string, number>
