@@ -493,6 +493,7 @@ export async function GET(req: NextRequest) {
       note: 'هذه معاينة إدارية للمتابعة فقط؛ لا تسمح بالدفع أو حل الاختبارات أو تسليم الواجبات نيابة عن الطالب.',
       student: {
         ...student,
+        officialName: admissions.find((a) => a.fullName?.trim())?.fullName?.trim() || null,
         academicMemory: student.academicMemory ? {
           ...student.academicMemory,
           strengths: safeJsonArray(student.academicMemory.strengths),
