@@ -19,9 +19,14 @@ export async function GET(req: NextRequest) {
     }).catch(() => [])
     // أسماء وعناوين للعرض في قائمة البتّ — دفعة واحدة ودفاعيًا.
     try {
-      const userIds = [...new Set(appeals.map((a: any) => a.userId).filter(Boolean))]
-      const programIds = [...new Set(appeals.map((a: any) => a.programId).filter(Boolean))]
-      const unitIds = [...new Set(appeals.map((a: any) => a.unitId).filter(Boolean))]
+      // Treat the dynamic appeal store as untrusted input: Prisma's
+      // StringFilter.in requires string[], never unknown[].
+      const userIds = [...new Set<string>((appeals as Array<{ userId?: unknown }>)
+        .map((a) => a.userId).filter((id): id is string => typeof id === 'string' && id.length > 0))]
+      const programIds = [...new Set<string>((appeals as Array<{ programId?: unknown }>)
+        .map((a) => a.programId).filter((id): id is string => typeof id === 'string' && id.length > 0))]
+      const unitIds = [...new Set<string>((appeals as Array<{ unitId?: unknown }>)
+        .map((a) => a.unitId).filter((id): id is string => typeof id === 'string' && id.length > 0))]
       const [users, programs, units]: [any[], any[], any[]] = await Promise.all([
         userIds.length ? db.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true, email: true } }) : [],
         programIds.length ? db.program.findMany({ where: { id: { in: programIds } }, select: { id: true, titleAr: true, titleEn: true } }) : [],
