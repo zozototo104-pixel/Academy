@@ -730,6 +730,7 @@ export function SupervisorView() {
                 </TabsContent>
 
                 <TabsContent value="exams" className="space-y-4">
+                  {assessmentLoadError && <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-bold text-red-700">تعذر تحميل الاختبارات الخاصة: {assessmentLoadError}<Button size="sm" variant="outline" onClick={() => void loadDetails(selected.id)}>إعادة المحاولة</Button></div>}
                   <Card><CardContent className="p-5">
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                       <h3 className="text-base font-black text-[#0f2b46]">امتحانات الطالب المولدة/المعتمدة</h3>
