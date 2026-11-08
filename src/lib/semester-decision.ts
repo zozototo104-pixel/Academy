@@ -1,5 +1,6 @@
 import { audit } from '@/lib/notify'
 import { getSemesterWindows } from '@/lib/semester-lifecycle'
+import { enqueueOutbox } from '@/lib/outbox'
 
 // ===== قرار الطالب بشأن إنهاء الفصل — سجل القرار الوحيد وحق الإغلاق =====
 // The student's semester-finalization decision lives HERE and nowhere
