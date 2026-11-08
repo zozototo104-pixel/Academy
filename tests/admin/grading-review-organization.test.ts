@@ -13,6 +13,10 @@ const listRoute = readFileSync(join(root, 'src/app/api/admin/attempts-review/rou
 const adminApprovals = readFileSync(join(root, 'src/app/api/admin/grade-approvals/route.ts'), 'utf8')
 const supervisorApprovals = readFileSync(join(root, 'src/app/api/supervisor/grade-approvals/route.ts'), 'utf8')
 const approvalLib = readFileSync(join(root, 'src/lib/grade-approval.ts'), 'utf8')
+const certificatesUi = readFileSync(join(root, 'src/components/aact/AdminExtras.tsx'), 'utf8')
+const studentsApi = readFileSync(join(root, 'src/app/api/admin/students/route.ts'), 'utf8')
+const mercyUi = readFileSync(join(root, 'src/components/aact/AdminMercy.tsx'), 'utf8')
+const reopenUi = readFileSync(join(root, 'src/components/aact/AdminReopenAppeals.tsx'), 'utf8')
 
 describe('التجميع حسب الطالب وحالات المصادقة', () => {
   test('القائمة مجمعة حسب الطالب لا مسطّحة', () => {
@@ -44,10 +48,37 @@ describe('منع التكرار والمصادقة الجماعية', () => {
     expect(adminApprovals).toContain('approveGradesBulk')
     expect(supervisorApprovals).toContain('approveGradesBulk')
   })
+  test('فشل قاعدة البيانات لا ينتحل هوية انتهاء جلسة ولا يُخفي نتائج بقية الدرجات', () => {
+    expect(approvalLib).toContain('::text AS acquired')
+    expect(approvalLib).toContain("code: 'INTERNAL_ERROR'")
+    expect(adminApprovals).toContain("code: 'GRADE_APPROVAL_INTERNAL_ERROR'")
+    expect(adminApprovals).toContain('status: 500')
+    expect(tab).toContain("item.code === 'INTERNAL_ERROR'")
+  })
   test('أزرار الجماعية على الواجهة بخطوة تأكيد وتقرير بعدي', () => {
     expect(tab).toContain('مصادقة كل الدرجات النهائية غير المصادقة')
     expect(tab).toContain('مصادقة الكل')
     expect(tab).toContain('نتيجة المصادقة الجماعية')
     expect(tab).toContain('armBulk')
+  })
+})
+
+describe('تنظيم معاملات الشهادات والالتماسات على الجوال', () => {
+  test('قائمتان أساسيتان للمكتمل وقيد الاستكمال وتفاصيل بالضغط على الاسم', () => {
+    expect(certificatesUi).toContain("certificatePhase === 'IN_PROGRESS'")
+    expect(certificatesUi).toContain("certificatePhase === 'COMPLETED'")
+    expect(certificatesUi).toContain('expandedGraduationRequestId === r.id')
+    expect(certificatesUi).toContain('expandedCertificateId === c.serial')
+    expect(certificatesUi).toContain('expandedCandidateId === c.id')
+  })
+  test('البحث في الطلاب يدعم الاسم الرسمي وفصل العرض عن اسم الحساب', () => {
+    expect(studentsApi).toContain("nameWords.map((word)")
+    expect(studentsApi).toContain('officialName: latestAdmission?.fullName')
+  })
+  test('قوائم الالتماسات لا تختفي عند الصفر ولا تخفي خطأ القراءة', () => {
+    expect(mercyUi).toContain('لا توجد طلبات استرحام حاليًا')
+    expect(reopenUi).toContain('لا توجد التماسات إعادة فتح قيد البتّ حاليًا')
+    expect(mercyUi).toContain('role="alert"')
+    expect(reopenUi).toContain('role="alert"')
   })
 })
