@@ -644,7 +644,7 @@ export async function summarizeSemesterDecision(
       program: input.program,
       semester: input.semester,
       now: input.now,
-    }).catch(() => ({ endAt: null, ended: false })),
+    }),
   ])
   return {
     decision,
