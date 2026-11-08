@@ -15,7 +15,7 @@ export async function GET() {
     const applications = await dbAny.admissionApplication.findMany({
       where: { supervisorId: supervisor.id, userId: { not: null }, programId: { not: null } },
       select: { userId: true, programId: true },
-    }).catch(() => [])
+    })
     // Scope each mercy request to the same student AND programme assignment.
     // Independent userId/programId lists would allow cross-product leakage.
     const assignedPairs = (applications as any[])
