@@ -57,14 +57,17 @@ async function loadMaturityFacts(
       programId: input.programId,
       semester: input.semester,
     }).catch(() => [{ code: 'BLOCKER_SCAN_FAILED', count: 1 }] as SemesterBlocker[]),
+    // A failed fact read is not equivalent to "the student has no work"
+    // or "the average is missing": refuse the action and let the API
+    // report a real error rather than saving an ambiguous decision.
     getSemesterStanding(client, {
       userId: input.userId,
       programId: input.programId,
       enrollment: input.enrollment,
       program: input.program,
       semester: input.semester,
-    }).catch(() => null),
-    calculateSemesterAverages({ userId: input.userId, programId: input.programId, client }).catch(() => null),
+    }),
+    calculateSemesterAverages({ userId: input.userId, programId: input.programId, client }),
   ])
   return { blockers, standing, averages }
 }
