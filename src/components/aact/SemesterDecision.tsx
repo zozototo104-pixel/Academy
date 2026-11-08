@@ -61,7 +61,7 @@ export function SemesterDecisionDialog({
   semester: number
   mode: 'ready' | 'raise'
   busy: boolean
-  onConfirm: (intent: 'EARLY_FINISH' | 'CONTINUE') => void
+  onConfirm: (intent: 'EARLY_FINISH' | 'CONTINUE', consentToZeros: boolean) => void
   onClose: () => void
 }) {
   // تُركَّب النافذة بمفتاح (فصل × وضع) من الأب، فتبدأ كل مرة بحالة
