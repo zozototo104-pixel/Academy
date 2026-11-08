@@ -80,8 +80,8 @@ export async function PATCH(req: NextRequest) {
 
     const detail = await reviewAttemptDetail(type, attemptId)
     if (!detail) return NextResponse.json({ error: 'المحاولة غير موجودة' }, { status: 404 })
-    if (!(await isAssignedStudent(actor, detail.student.id))) {
-      return NextResponse.json({ error: 'هذه المحاولة ليست لطالب معيّن عليك' }, { status: 403 })
+    if (!detail.exam.programId || !(await isAssignedStudent(actor, detail.student.id, detail.exam.programId))) {
+      return NextResponse.json({ error: 'هذه المحاولة ليست ضمن الطالب والبرنامج المعيّنين عليك' }, { status: 403 })
     }
     const result = await applyScoreAdjustments(actor, type, attemptId, scores)
     return NextResponse.json({ ok: true, ...result })
