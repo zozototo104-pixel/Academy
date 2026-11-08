@@ -177,6 +177,11 @@ describe('أسلاك الخطوة 5 (مصادر)', () => {
     expect(graduation).toContain('await lockSemesterDecision(tx, fresh.enrollmentId, initial.semester)')
     expect(graduation).toContain('isGraduationRaiseEligible(live.gate)')
     expect(graduation).toContain('GRADUATION_NOT_RAISED')
+    // The API must also block REJECT for a premature PENDING request;
+    // hiding a draft from the list is not sufficient against direct POST.
+    expect(graduation).toContain("SEMESTER_DECISION_ACTIVE && request.status === 'PENDING'")
+    expect(graduation).toContain('if (rejection.raiseNotAllowed)')
+    expect(graduation).toContain('await tx.graduationRequest.updateMany(rejectionWrite)')
     const extras = read('src/components/aact/AdminExtras.tsx')
     expect(extras).toContain('جاهزة لقرار الإدارة')
     expect(extras).toContain('قيد الاستكمال')
