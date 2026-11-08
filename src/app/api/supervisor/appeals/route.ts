@@ -31,7 +31,7 @@ export async function GET() {
     const dbAny = db as any
     const [unitAppeals, programAppeals] = await Promise.all([
       dbAny.examAttempt.findMany({
-        where: { userId: { in: studentIds }, appealStatus: 'PENDING' },
+        where: { ...unitScope, appealStatus: 'PENDING' },
         orderBy: { appealedAt: 'asc' },
         take: 100,
         select: {
