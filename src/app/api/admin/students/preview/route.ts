@@ -266,7 +266,10 @@ export async function GET(req: NextRequest) {
     // كانت للنشطين فقط، مع أن سجلاته ودرجاته محفوظة).
     const activeEnrollments = enrollments.filter((e) => e.status === 'ACTIVE').slice(0, 5)
     const completedEnrollments = enrollments.filter((e) => e.status === 'COMPLETED' || e.status === 'CERTIFIED').slice(0, 5)
-    const detailEnrollments = [...activeEnrollments, ...completedEnrollments]
+    // Retain expired academic history in its own read-only section. Do not
+    // count these rows as active studies or completed graduations.
+    const expiredEnrollments = enrollments.filter((e) => e.status === 'EXPIRED').slice(0, 5)
+    const detailEnrollments = [...activeEnrollments, ...completedEnrollments, ...expiredEnrollments]
     const activeProgramIds = new Set(activeEnrollments.map((e) => e.program.id))
     const detailProgramIds = [...new Set(detailEnrollments.map((e) => e.program.id))]
     let enrollmentDetails: any[] = []
