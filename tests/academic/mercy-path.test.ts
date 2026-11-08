@@ -44,7 +44,8 @@ function makeWorld(unitScore: number) {
   const inList = (v: string, cond: any) => !cond || !cond.in || cond.in.includes(v)
   const matchAttempt = (a: any, where: any) =>
     a.userId === where.userId && inList(a.examId, where.examId) &&
-    (!where.status || a.status === where.status) &&
+    (!where.status || (typeof where.status === 'string'
+      ? a.status === where.status : Array.isArray(where.status?.in) && where.status.in.includes(a.status))) &&
     (!Object.prototype.hasOwnProperty.call(where, 'score') || (where.score === null ? a.score == null : where.score?.not === null ? a.score != null : true)) &&
     (!where.answers?.some || a.answerPointsMissing === true) &&
     (!where.NOT?.answers || a.answerPointsMissing !== true) &&
