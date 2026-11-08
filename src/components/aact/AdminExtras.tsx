@@ -1585,6 +1585,18 @@ interface SemesterCheckState {
     programExams: { ready: number; satCount: number; rows: { examId: string; title: string; status: string; sat: boolean; bestScore: number | null; passed: boolean }[] }
     semesterPeriod: { endAt: string | null; ended: boolean | null }
   } | null
+  decisionSummary?: {
+    decision: {
+      intent: string | null
+      status: string
+      raiseSource: string | null
+      raisedAt: string | null
+      scoreAtRaise: number | null
+    } | null
+    periodEndAt: string | null
+    periodEnded: boolean
+    closure: { allowed: boolean; source: 'STUDENT' | 'DEADLINE' | null; reason: string }
+  } | null
 }
 
 interface CertificateTemplateItem {
@@ -1753,7 +1765,7 @@ export function AdminCertificatesTab() {
     const key = `${request.enrollmentId}:${semester}`
     setSemesterChecks((prev) => ({ ...prev, [key]: { ...prev[key], loading: true, error: undefined } }))
     try {
-      const data = await api<{ blockers?: { code: string; count: number }[]; approvalActive?: boolean; approval?: unknown; averages?: SemesterCheckState['averages']; snapshot?: SemesterCheckState['snapshot']; standing?: SemesterCheckState['standing'] }>(`/api/admin/semester-approvals?enrollmentId=${encodeURIComponent(request.enrollmentId)}&semester=${semester}`)
+      const data = await api<{ blockers?: { code: string; count: number }[]; approvalActive?: boolean; approval?: unknown; averages?: SemesterCheckState['averages']; snapshot?: SemesterCheckState['snapshot']; standing?: SemesterCheckState['standing']; decisionSummary?: SemesterCheckState['decisionSummary'] }>(`/api/admin/semester-approvals?enrollmentId=${encodeURIComponent(request.enrollmentId)}&semester=${semester}`)
       let gradeApprovals: { id: string; targetType: string; score: number }[] = []
       try {
         const g = await api<{ approvals?: { id: string; targetType: string; score: number }[] }>(`/api/admin/grade-approvals?userId=${encodeURIComponent(request.userId)}&programId=${encodeURIComponent(request.programId)}&semester=${semester}`)
@@ -1770,6 +1782,7 @@ export function AdminCertificatesTab() {
           averages: data?.averages ?? null,
           snapshot: data?.snapshot ?? null,
           standing: data?.standing ?? null,
+          decisionSummary: data?.decisionSummary ?? null,
         },
       }))
     } catch (e: any) {
@@ -2154,7 +2167,7 @@ export function AdminCertificatesTab() {
                           {[1, 2].map((s) => {
                             const chk = semesterChecks[`${r.enrollmentId}:${s}`]
                             if (!chk || (!chk.loading && !chk.blockers && !chk.error)) return null
-                            const canDecide = Boolean(chk.approvalActive) && Array.isArray(chk.blockers) && chk.blockers.length === 0
+                            const canDecide = Boolean(chk.approvalActive) && Array.isArray(chk.blockers) && chk.blockers.length === 0 && (chk.decisionSummary ? chk.decisionSummary.closure.allowed : true)
                             return (
                               <div key={s} className="space-y-2 rounded-xl bg-slate-50 p-3 text-xs font-bold leading-6 text-slate-700">
                                 <p className="font-black text-[#0f2b46]">الفصل {s === 1 ? 'الأول' : 'الثاني'}</p>
@@ -2173,6 +2186,38 @@ export function AdminCertificatesTab() {
                                       <p className="text-emerald-700">كل شروط الدرجات مكتملة في هذا الفصل.</p>
                                     )}
                                     {chk.hasApproval && <p>يوجد اعتماد نتيجة محفوظ لهذا الفصل.</p>}
+                                    {chk.decisionSummary && !chk.hasApproval && (
+                                      <div className="rounded-lg border border-[#0f2b46]/10 bg-white p-2">
+                                        <p className="font-black text-[#0f2b46]">قرار الطالب وحق الإغلاق — من سجل القرار على الخادم</p>
+                                        {chk.decisionSummary.closure.allowed && chk.decisionSummary.closure.source === 'STUDENT' && (
+                                          <>
+                                            <p className="text-emerald-700">
+                                              الطالب رفع نتيجته للاعتماد{chk.decisionSummary.decision?.raisedAt ? ` بتاريخ ${new Date(chk.decisionSummary.decision.raisedAt).toLocaleDateString('ar-EG')}` : ''}
+                                              {chk.decisionSummary.decision?.scoreAtRaise != null ? ` — نتيجته وقت الرفع ${chk.decisionSummary.decision.scoreAtRaise}` : ''}.
+                                            </p>
+                                            {(() => {
+                                              const live = chk.averages?.semesters.find((x) => x.semester === s)?.average
+                                              const atRaise = chk.decisionSummary?.decision?.scoreAtRaise
+                                              return live != null && atRaise != null && Math.abs(live - atRaise) > 0.05 ? (
+                                                <p className="text-amber-700">تنبيه: درجات الطالب تغيّرت منذ الرفع — المعدل الحالي من الخادم ({live}) هو ما سيُعتمد، لا رقم الرفع القديم.</p>
+                                              ) : null
+                                            })()}
+                                          </>
+                                        )}
+                                        {chk.decisionSummary.closure.allowed && chk.decisionSummary.closure.source === 'DEADLINE' && (
+                                          <p className="text-emerald-700">انتهت فترة هذا الفصل — الاعتماد متاح بقوة انتهاء المهلة حتى دون طلب من الطالب.</p>
+                                        )}
+                                        {!chk.decisionSummary.closure.allowed && chk.decisionSummary.closure.reason === 'AWAITING_STUDENT' && (
+                                          <p className="text-amber-700">بانتظار قرار الطالب: فترة الفصل مفتوحة{chk.decisionSummary.periodEndAt ? ` (تنتهي ${new Date(chk.decisionSummary.periodEndAt).toLocaleDateString('ar-EG')})` : ''} والطالب لم يرفع نتيجته — لا يمكن الاعتماد قبل رفعه أو انتهاء الفترة، والخادم يرفض أي محاولة.</p>
+                                        )}
+                                        {!chk.decisionSummary.closure.allowed && chk.decisionSummary.closure.reason === 'INTENT_NOT_MATURE' && (
+                                          <p className="text-amber-700">الطالب طلب الإنهاء المبكر — الطلب لم ينضج بعد: بانتظار اكتمال تصحيح امتحان الفصل والدرجات المعلّقة.</p>
+                                        )}
+                                        {!chk.decisionSummary.closure.allowed && chk.decisionSummary.closure.reason === 'WITHDRAWN' && (
+                                          <p className="text-amber-700">الطالب سحب طلب الرفع — الاعتماد عند انتهاء فترة الفصل أو بطلب جديد منه.</p>
+                                        )}
+                                      </div>
+                                    )}
                                     {chk.averages && (
                                       <p className="font-bold text-[#0f2b46]">
                                         معدلات الفصول من الخادم:{' '}

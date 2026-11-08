@@ -50,3 +50,25 @@ describe('مسار الطالب الخادمي', () => {
     expect(progressRoute).toContain('decisionActive: SEMESTER_DECISION_ACTIVE')
   })
 })
+
+const adminExtras = readFileSync(join(root, 'src/components/aact/AdminExtras.tsx'), 'utf8')
+const approvalLib = readFileSync(join(root, 'src/lib/semester-approval.ts'), 'utf8')
+const decisionLib = readFileSync(join(root, 'src/lib/semester-decision.ts'), 'utf8')
+
+describe('تطابق زر الإدارة مع الخادم (الخطوة 3)', () => {
+  test('بطاقة التخرج تقرأ ملخص القرار وتعطّل الزر على نفس حق الإغلاق', () => {
+    expect(adminExtras).toContain('decisionSummary')
+    expect(adminExtras).toContain('chk.decisionSummary.closure.allowed')
+    expect(adminExtras).toContain('قرار الطالب وحق الإغلاق')
+    expect(adminExtras).toContain('بانتظار قرار الطالب')
+    expect(adminExtras).toContain('درجات الطالب تغيّرت منذ الرفع')
+  })
+  test('الحارس الخادمي فيه النهائية السياقية وبوابة الإغلاق الأخيرة', () => {
+    expect(approvalLib).toContain('evaluateContextualFinality')
+    expect(approvalLib).toContain("code: 'SEMESTER_NOT_RAISED'")
+    expect(approvalLib).toContain('CONTEXTUAL FINALITY')
+  })
+  test('الصمّام مفعّل بعد اكتمال الخطوات 1-3', () => {
+    expect(decisionLib).toContain('SEMESTER_DECISION_ACTIVE = true')
+  })
+})

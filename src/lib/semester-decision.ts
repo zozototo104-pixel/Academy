@@ -31,12 +31,13 @@ import { getSemesterWindows } from '@/lib/semester-lifecycle'
 // caller: routes go through src/lib/semester-raise.ts, which derives
 // it from the actual exam/grading state on the server.
 //
-// ACTIVATION VALVE: the record, the evaluator and the server guard
-// ship with the valve OFF, so no user-visible behavior changes until
-// the student-facing choice UI exists (stage 2) and the contextual-
-// finality fix lands (stage 3 flips this to true).
+// ACTIVATION: stages 1–2 shipped the record, the guard and the
+// student UI behind this valve; stage 3 (contextual finality inside
+// the approval guard + admin/student surfaces reading the same
+// brief) activates the system. The constant stays as the single
+// kill-switch for the whole decision mechanism.
 
-export const SEMESTER_DECISION_ACTIVE = false
+export const SEMESTER_DECISION_ACTIVE = true
 
 type AnyClient = any
 
