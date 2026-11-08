@@ -170,7 +170,13 @@ describe('أسلاك الخطوة 5 (مصادر)', () => {
     }
   })
   test('قائمة التخرج تحمل البوابة والأقسام مفصولة', () => {
-    expect(read('src/app/api/admin/graduation-requests/route.ts')).toContain('raiseGateOf')
+    const graduation = read('src/app/api/admin/graduation-requests/route.ts')
+    expect(graduation).toContain('raiseGateOf')
+    expect(graduation).toContain('requests.filter((r) =>')
+    expect(graduation).toContain('actionableRequests.map((r) =>')
+    expect(graduation).toContain('await lockSemesterDecision(tx, fresh.enrollmentId, initial.semester)')
+    expect(graduation).toContain('isGraduationRaiseEligible(live.gate)')
+    expect(graduation).toContain('GRADUATION_NOT_RAISED')
     const extras = read('src/components/aact/AdminExtras.tsx')
     expect(extras).toContain('جاهزة لقرار الإدارة')
     expect(extras).toContain('قيد الاستكمال')
