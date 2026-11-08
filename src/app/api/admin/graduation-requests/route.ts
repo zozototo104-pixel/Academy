@@ -110,23 +110,22 @@ export async function GET(req: NextRequest) {
           gateByEnrollment.set(r.enrollmentId, raiseGateOf(decision, nowMs > last.endAt.getTime()))
         }
       } catch (error) {
-        // A failed raise scan must never expose unraised drafts as
-        // actionable graduation files or silently hide legitimate ones.
+        // A failed raise scan degrades the gate chips only — the list
+        // itself stays visible (owner ruling 2026-11-08: in-progress
+        // records are SHOWN in their own section, never hidden), and
+        // actionability is enforced by the POST decision guard, which
+        // re-reads the gate live under the decision lock.
         console.error('graduation raise-gate read error:', error)
-        throw error
       }
     }
     const admissionById = new Map(admissions.map((a) => [a.id, a]))
-    // Keep live eligibility records in the DB; the admin graduation
-    // decisions list includes PENDING only once the student has raised
-    // the last semester or its legal window has ended. Historical
-    // APPROVED/REJECTED/ISSUED records remain visible for audit.
-    const actionableRequests = requests.filter((r) =>
-      !SEMESTER_DECISION_ACTIVE || r.status !== 'PENDING' ||
-      isGraduationRaiseEligible(gateByEnrollment.get(r.enrollmentId)),
-    )
+    // Owner ruling 2026-11-08: EVERY record is returned. Unraised
+    // PENDING records appear in the admin's «قيد الاستكمال» section
+    // (visible, with their raise-gate chip) but are NOT decidable —
+    // the POST handlers below refuse approval/rejection until the
+    // student raises, the semester is decided, or the period ends.
     return NextResponse.json({
-      requests: actionableRequests.map((r) => ({
+      requests: requests.map((r) => ({
         id: r.id,
         enrollmentId: r.enrollmentId,
         userId: r.userId,

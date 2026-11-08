@@ -2121,10 +2121,16 @@ export function AdminCertificatesTab() {
                 <>
                   {(() => {
                     const openRequests = gradRequests.filter((r) => r.status !== 'ISSUED')
-                    const decisionQueue = openRequests.filter((r) => r.status === 'PENDING' && r.ready)
-                    const inProgress = openRequests.filter((r) => !(r.status === 'PENDING' && r.ready))
+                    const gateActionable = (r: GraduationRequestItem) => r.raiseGate == null || r.raiseGate === 'RAISED' || r.raiseGate === 'DECIDED' || r.raiseGate === 'PERIOD_ENDED'
+                    const decisionQueue = openRequests.filter((r) => r.status === 'PENDING' && r.ready && gateActionable(r))
+                    const inProgress = openRequests.filter((r) => !(r.status === 'PENDING' && r.ready && gateActionable(r)))
                     const renderRequestCard = (r: GraduationRequestItem) => {
                     const missing = Array.isArray(r.snapshot?.missing) ? r.snapshot!.missing! : []
+                    // قرار المالك 2026-11-08: المعاملة المعلّقة التي لم تُرفع
+                    // بعد (ولم تُقرَّر ولم تنتهِ مدتها) ظاهرة لكن غير قابلة
+                    // للقرار — أزرار الاعتماد/الرفض معطّلة عليها، والحارس
+                    // الخادمي يرفض أي قرار عليها أصلًا.
+                    const gateBlocked = r.status === 'PENDING' && r.raiseGate != null && r.raiseGate !== 'RAISED' && r.raiseGate !== 'DECIDED' && r.raiseGate !== 'PERIOD_ENDED'
                     const statusMeta = r.status === 'APPROVED'
                       ? { label: 'معتمد — بانتظار الإصدار', cls: 'bg-sky-100 text-sky-700' }
                       : r.status === 'REJECTED'
@@ -2160,10 +2166,10 @@ export function AdminCertificatesTab() {
                         <div className="flex flex-wrap gap-2">
                           <Button disabled={busy} variant="outline" onClick={() => refreshGraduation(r)} className="border-[#0f2b46]/20 font-black text-[#0f2b46] hover:bg-slate-50">تحديث الفحص</Button>
                           {(r.status === 'PENDING' || r.status === 'REJECTED') && (
-                            <Button disabled={busy || !r.ready} onClick={() => decideGraduation(r, 'APPROVE')} className="bg-emerald-600 font-black text-white hover:bg-emerald-700">{busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="ml-2 h-4 w-4" />} اعتماد الطلب</Button>
+                            <Button disabled={busy || !r.ready || gateBlocked} onClick={() => decideGraduation(r, 'APPROVE')} className="bg-emerald-600 font-black text-white hover:bg-emerald-700">{busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="ml-2 h-4 w-4" />} اعتماد الطلب</Button>
                           )}
                           {(r.status === 'PENDING' || r.status === 'APPROVED') && (
-                            <Button disabled={busy} variant="outline" onClick={() => decideGraduation(r, 'REJECT')} className="border-red-200 font-black text-red-600 hover:bg-red-50">{busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <XCircle className="ml-2 h-4 w-4" />} رفض</Button>
+                            <Button disabled={busy || gateBlocked} variant="outline" onClick={() => decideGraduation(r, 'REJECT')} className="border-red-200 font-black text-red-600 hover:bg-red-50">{busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <XCircle className="ml-2 h-4 w-4" />} رفض</Button>
                           )}
                           {r.status === 'APPROVED' && (
                             <Button disabled={busy} onClick={() => issueForRequest(r)} className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">{busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Award className="ml-2 h-4 w-4" />} إصدار الشهادة</Button>

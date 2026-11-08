@@ -172,8 +172,11 @@ describe('أسلاك الخطوة 5 (مصادر)', () => {
   test('قائمة التخرج تحمل البوابة والأقسام مفصولة', () => {
     const graduation = read('src/app/api/admin/graduation-requests/route.ts')
     expect(graduation).toContain('raiseGateOf')
-    expect(graduation).toContain('requests.filter((r) =>')
-    expect(graduation).toContain('actionableRequests.map((r) =>')
+    // قرار المالك 2026-11-08: السجلات غير المرفوعة ظاهرة في قسم
+    // «قيد الاستكمال» — ممنوع إخفاؤها من القائمة؛ الحسم عند القرار.
+    expect(graduation).toContain('requests: requests.map((r) => ({')
+    expect(graduation).not.toContain('actionableRequests')
+    expect(read('src/components/aact/AdminExtras.tsx')).toContain('gateBlocked')
     expect(graduation).toContain('await lockSemesterDecision(tx, fresh.enrollmentId, initial.semester)')
     expect(graduation).toContain('isGraduationRaiseEligible(live.gate)')
     expect(graduation).toContain('GRADUATION_NOT_RAISED')
