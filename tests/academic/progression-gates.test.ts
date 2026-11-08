@@ -169,10 +169,10 @@ describe('progression gate', () => {
     if (!window.ok) expect(window.code).toBe('PROGRESSION_LOCKED')
   })
 
-  test('approved S1 at exactly 50.0 stays locked (strict >)', async () => {
+  test('approved S1 at exactly 50.0 permits S2 despite not passing; graduation threshold stays separate', async () => {
     const client = fakeClient({ states: { 1: 'CLOSED' }, approvals: { 1: 50 }, unitScore: { 1: 50 }, examScore: { 1: 50 } })
     const gate = await progressionGate(client, ENROLLMENT, 2, 'DIPLOMA')
-    expect(gate.open).toBe(false)
+    expect(gate.open).toBe(true)
   })
 
   test('approved S1 at 50.1 with its exam passed opens S2', async () => {
