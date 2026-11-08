@@ -201,7 +201,10 @@ export async function POST(req: NextRequest) {
       )
     }
     return NextResponse.json({ ok: true, approval: result.approval })
-  } catch {
-    return NextResponse.json({ ok: false, code: 'UNAUTHORIZED' }, { status: 401 })
+  } catch (error: any) {
+    if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ ok: false, code: 'UNAUTHORIZED' }, { status: 401 })
+    if (error?.message === 'FORBIDDEN') return NextResponse.json({ ok: false, code: 'FORBIDDEN' }, { status: 403 })
+    console.error('semester-approval decision failed:', error)
+    return NextResponse.json({ ok: false, code: 'SEMESTER_DECISION_FAILED', error: 'تعذر اعتماد نتيجة الفصل بسبب خطأ خادمي' }, { status: 503 })
   }
 }
