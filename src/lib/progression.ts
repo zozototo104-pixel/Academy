@@ -188,10 +188,13 @@ export async function progressionGate(
       reasons.push(`نتيجة الفصل ${s} المعتمدة غير قابلة للتحقق`)
       continue
     }
-    // A final FAILED result is a lawful academic decision, not a veto
-    // on continuing the programme. Its actual mark still counts in
-    // the cumulative grade; appeals can revise it through the existing
-    // grade-approval lifecycle.
+    // Passing the semester or its exam is NOT required for progression.
+    // However, the student must actually have submitted the designated
+    // semester exam before moving on (an approved end-of-period zero
+    // without sitting is not an exam submission). An approved FAILED
+    // result keeps its true weighted mark and can be improved later.
+    const sat = await semesterExamsSat(client, enrollment.userId, enrollment.programId, s).catch(() => false)
+    if (!sat) reasons.push(`امتحان الفصل ${s} لم يُقدَّم بعد`)
   }
   return { open: reasons.length === 0, reasons }
 }
