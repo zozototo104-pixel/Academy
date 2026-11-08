@@ -1,6 +1,9 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
+import { calculateFinalGrade } from '@/lib/final-grade'
+import { getStudentSemesterTracking } from '@/lib/student-tracking'
+import { getEnrollmentDeadline, daysLeftUntil } from '@/lib/program-duration'
 
 function pct(n: number, d: number) {
   return d > 0 ? Math.round((n / d) * 100) : 0
