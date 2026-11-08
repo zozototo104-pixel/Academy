@@ -67,6 +67,93 @@ export function isGraduationRaiseEligible(gate: RaiseGate | null | undefined): b
 }
 
 /**
+ * A graduation readiness event may be registered well before the student
+ * submits the final semester. Only enqueue the administrator notification
+ * once BOTH independently persisted conditions hold: academic readiness
+ * and a lawful final-semester raise (or expiry). The outbox key prevents
+ * duplicate notifications on grading, request refresh and cron retries.
+ */
+export async function enqueueReadyGraduationAdminNotice(
+  client: AnyClient,
+  input: { enrollmentId: string; expectedSemester?: number; now?: Date },
+): Promise<boolean> {
+  if (!SEMESTER_DECISION_ACTIVE || !client?.graduationRequest?.findUnique) return false
+  const enrollment = await client.enrollment.findUnique({
+    where: { id: input.enrollmentId },
+    select: {
+      id: true, userId: true, programId: true, createdAt: true, extensionDays: true,
+      program: { select: { category: true, maxStudyDays: true, semestersCount: true } },
+    },
+  })
+  if (!enrollment?.program) return false
+  const units = await client.unit.findMany({
+    where: { programId: enrollment.programId },
+    select: { id: true, semester: true, order: true },
+  })
+  const windows = getSemesterWindows(
+    new Date(enrollment.createdAt), enrollment.program, units, enrollment.extensionDays ?? 0,
+  )
+  const last = windows[windows.length - 1]
+  if (!last || (input.expectedSemester != null && input.expectedSemester !== last.semester)) return false
+
+  return withDecisionLock(client, input.enrollmentId, last.semester, async (tx) => {
+    const fresh = await tx.enrollment.findUnique({
+      where: { id: input.enrollmentId },
+      select: {
+        createdAt: true, programId: true, extensionDays: true,
+        program: { select: { category: true, maxStudyDays: true, semestersCount: true } },
+      },
+    })
+    if (!fresh?.program) return false
+    const period = await loadSemesterPeriod(tx, {
+      programId: fresh.programId,
+      enrollmentCreatedAt: fresh.createdAt,
+      extensionDays: fresh.extensionDays,
+      program: fresh.program,
+      semester: last.semester,
+      now: input.now,
+    })
+    const decision = await getSemesterDecision(tx, input.enrollmentId, last.semester)
+    if (!isGraduationRaiseEligible(raiseGateOf(decision, period.ended))) return false
+    const request = await tx.graduationRequest.findUnique({
+      where: { enrollmentId: input.enrollmentId },
+      select: { id: true, status: true, ready: true, score: true },
+    })
+    if (!request?.ready || request.status !== 'PENDING') return false
+    await enqueueOutbox(tx, {
+      key: `graduation-ready-to-approve:${input.enrollmentId}:${request.id}:${request.score ?? 'none'}`,
+      kind: 'GRADUATION_READY_FOR_REVIEW',
+      recipientRole: 'ADMINS',
+      title: 'معاملة تخرج جاهزة لقرار الإدارة',
+      body: 'استوفى الطالب شروط التخرج ورُفع فصله الأخير، أو انتهت مدته النظامية. راجع الدرجة والرسوم والملف قبل المصادقة.',
+      link: '/?view=admin&tab=certs',
+    })
+    return true
+  })
+}
+
+/** Periodic catch-up: a prior grading event or outbox write may have
+ * failed; retry the eligibility/raise check without creating fake
+ * approval records or repeating previously enqueued notifications. */
+export async function reconcileReadyGraduationNotices(
+  client: AnyClient,
+  input: { limit?: number } = {},
+): Promise<number> {
+  if (!SEMESTER_DECISION_ACTIVE) return 0
+  const rows = await client.graduationRequest.findMany({
+    where: { status: 'PENDING', ready: true },
+    orderBy: { updatedAt: 'desc' },
+    take: input.limit ?? 100,
+    select: { enrollmentId: true },
+  })
+  let checked = 0
+  for (const row of rows) {
+    if (await enqueueReadyGraduationAdminNotice(client, { enrollmentId: row.enrollmentId })) checked++
+  }
+  return checked
+}
+
+/**
  * Referral when ONE semester's own window expires. Every active enrollment
  * is eligible for a deadline referral, including students who selected
  * CONTINUE, withdrew an early request or never pressed a decision button.
