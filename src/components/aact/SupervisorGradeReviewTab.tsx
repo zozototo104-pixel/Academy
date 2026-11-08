@@ -42,6 +42,10 @@ export function SupervisorGradeReviewTab({ focus }: { focus?: { type: 'PROGRAM' 
   const [edits, setEdits] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
   const [appealDrafts, setAppealDrafts] = useState<Record<string, { response: string; finalScore: string }>>({})
+  const [expandedStudents, setExpandedStudents] = useState<Record<string, boolean>>({})
+  const [bulkConfirmKey, setBulkConfirmKey] = useState<string | null>(null)
+  const [bulkBusy, setBulkBusy] = useState<string | null>(null)
+  const [bulkReport, setBulkReport] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
