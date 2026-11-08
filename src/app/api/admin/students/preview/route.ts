@@ -528,7 +528,7 @@ export async function GET(req: NextRequest) {
       admissions: admissions.map((a) => ({ ...a, aiReview: undefined })),
       enrollments: enrollments.map((e) => ({
         ...e,
-        completedUnitsCount: safeJsonArray(e.completedUnits).length,
+        completedUnitsCount: safeJsonArray(e.completedUnits, 2000).length,
       })),
       programAttempts,
       unitAttempts,
