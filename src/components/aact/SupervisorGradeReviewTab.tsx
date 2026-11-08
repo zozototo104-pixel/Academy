@@ -45,12 +45,19 @@ export function SupervisorGradeReviewTab({ focus }: { focus?: { type: 'PROGRAM' 
 
   const load = useCallback(async () => {
     try {
-      const [a, t] = await Promise.all([
-        api<{ appeals: any[] }>('/api/supervisor/appeals').catch(() => ({ appeals: [] })),
-        api<{ attempts: any[] }>('/api/supervisor/grade-review').catch(() => ({ attempts: [] })),
+      // Keep the successful list visible if the other endpoint fails.
+      // An API error must never be reported as "no appeals/attempts".
+      const [a, t] = await Promise.allSettled([
+        api<{ appeals: any[] }>('/api/supervisor/appeals'),
+        api<{ attempts: any[] }>('/api/supervisor/grade-review'),
       ])
-      setAppeals(a.appeals || [])
-      setAttempts(t.attempts || [])
+      if (a.status === 'fulfilled') setAppeals(a.value.appeals || [])
+      if (t.status === 'fulfilled') setAttempts(t.value.attempts || [])
+      const failures = [
+        a.status === 'rejected' ? `الالتماسات: ${a.reason instanceof Error ? a.reason.message : 'تعذر التحميل'}` : null,
+        t.status === 'rejected' ? `المحاولات: ${t.reason instanceof Error ? t.reason.message : 'تعذر التحميل'}` : null,
+      ].filter(Boolean)
+      setLoadError(failures.length ? failures.join(' — ') : null)
     } finally { setLoading(false) }
   }, [])
 
