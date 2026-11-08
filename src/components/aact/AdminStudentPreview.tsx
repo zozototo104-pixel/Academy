@@ -368,6 +368,8 @@ export function AdminStudentPreview() {
   }
 
   const s = data.student
+  const displayName = s.officialName || s.name
+  const historicalDetails = [...(data.completedDetails ?? []), ...(data.expiredDetails ?? [])]
   const memory = s.academicMemory
   const pendingTotal = data.pendingReview.needsReviewCount + data.pendingReview.pendingAppealsCount
   const metrics = [
