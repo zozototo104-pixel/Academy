@@ -125,7 +125,9 @@ export async function approveGrade(input: {
     // and rewrite the approver/time or emit duplicate audit events.
     if (typeof tx.$queryRaw === 'function') {
       const lockKey = `grade-approval:${input.targetType}:${input.attemptId}`
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`
+      // PostgreSQL returns VOID for this lock; Prisma cannot deserialize VOID.
+      // Cast the result to text while keeping the transaction-scoped lock intact.
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))::text AS acquired`
     }
     const resolved = await resolveAttempt(tx, input.targetType, input.attemptId)
     if (!resolved) return { ok: false, code: 'ATTEMPT_NOT_FOUND' } as const
@@ -247,16 +249,27 @@ export async function approveGradesBulk(input: {
       results.push({ ...item, ok: false, code: 'BULK_LIMIT_EXCEEDED' })
       continue
     }
-    const decision = await approveGrade({
-      targetType: item.targetType,
-      attemptId: item.attemptId,
-      actor: input.actor,
-      note: input.note,
-    })
-    if (decision.ok) {
-      results.push({ ...item, ok: true, alreadyApproved: decision.alreadyApproved === true })
-    } else {
-      results.push({ ...item, ok: false, code: decision.code })
+    try {
+      const decision = await approveGrade({
+        targetType: item.targetType,
+        attemptId: item.attemptId,
+        actor: input.actor,
+        note: input.note,
+      })
+      if (decision.ok) {
+        results.push({ ...item, ok: true, alreadyApproved: decision.alreadyApproved === true })
+      } else {
+        results.push({ ...item, ok: false, code: decision.code })
+      }
+    } catch (error) {
+      // Each grade is an independent, audited transaction. An operational
+      // failure on one row must not hide successful earlier approvals or
+      // prevent later rows from being checked through the same gate.
+      console.error('bulk grade approval item failed', {
+        targetType: item.targetType,
+        code: (error as { code?: string })?.code || 'UNKNOWN',
+      })
+      results.push({ ...item, ok: false, code: 'INTERNAL_ERROR' })
     }
   }
   return {
