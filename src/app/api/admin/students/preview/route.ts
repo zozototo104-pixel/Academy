@@ -10,7 +10,7 @@ function safeJsonArray(raw?: string | null, maxItems = 12): string[] {
   if (!raw) return []
   try {
     const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed.map((x) => String(x)).filter(Boolean).slice(0, 12) : []
+    return Array.isArray(parsed) ? parsed.map((x) => String(x)).filter(Boolean).slice(0, maxItems) : []
   } catch {
     return []
   }
