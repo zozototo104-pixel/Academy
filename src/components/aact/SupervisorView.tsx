@@ -196,6 +196,9 @@ export function SupervisorView() {
 
   const selected = useMemo(() => students.find((s) => s.id === selectedId) || students[0] || null, [students, selectedId])
   const currentAcademic = academicState?.admissionId === selected?.id ? academicState : null
+  const academicPreview = currentAcademic?.preview
+  const academicEnrollment = academicPreview?.enrollment
+  const pctLabel = (n: number | null | undefined) => n == null ? '—' : `${Number(n.toFixed(2))}%`
 
   const load = async () => {
     setLoading(true)
