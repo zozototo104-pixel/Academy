@@ -433,6 +433,7 @@ const { PATCH: paymentsRoutePATCH } = await import('../../src/app/api/admin/paym
 const { hasLifecycleFootprint, progressionGate } = await import('../../src/lib/progression')
 
 beforeEach(() => {
+  grantSettings.clear()
   payments.clear()
   admissions.clear()
   users.clear()
