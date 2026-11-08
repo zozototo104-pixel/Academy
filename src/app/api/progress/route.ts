@@ -270,7 +270,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser()
-    const { programId, unitId, action, semester, intent } = await req.json()
+    const { programId, unitId, action, semester, intent, consentToZeros } = await req.json()
     if (action === 'SEMESTER_DECISION' || action === 'SEMESTER_DECISION_WITHDRAW') {
       // قرار إنهاء الفصل بيد الطالب: النضج يُشتق على الخادم دائمًا،
       // ولا يُقبل أي اختيار قبل تفعيل الميزة (الصمّام).
