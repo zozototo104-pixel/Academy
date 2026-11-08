@@ -356,10 +356,10 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
             sessions.map((s) => {
               const meta = STATUS_META[s.status] ?? STATUS_META.SCHEDULED
               return (
-                <div key={s.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 py-3 last:border-0">
-                  <div className="min-w-0">
+                <div key={s.id} className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-slate-100 py-3 last:border-0">
+                  <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-bold text-slate-800">{s.title}</span>
+                      <span className="break-words font-bold text-slate-800 [overflow-wrap:anywhere]">{s.title}</span>
                       <Badge className={meta.className}>{meta.label}</Badge>
                       <span className="text-[11px] text-slate-400">محاولات دخول: {s._count.attendances}</span>
                     </div>
@@ -434,10 +434,10 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
               const unconfirmedUpload =
                 v.source === 'S3' && Boolean(v.storageKey?.startsWith('lectures/videos/')) && v.sizeBytes == null
               return (
-              <div key={v.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 py-2.5 last:border-0">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-slate-800">{v.title}</span>
+              <div key={v.id} className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-slate-100 py-2.5 last:border-0">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="break-words text-sm font-bold text-slate-800 [overflow-wrap:anywhere]">{v.title}</span>
                     <Badge className={v.status === 'PUBLISHED' ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600'}>
                       {v.status === 'PUBLISHED' ? 'منشور' : 'مسودة'}
                     </Badge>
@@ -449,9 +449,9 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
                     {v.session ? ` • مرتبط بلقاء: ${v.session.title}` : ''}
                   </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
                   <select
-                    className={selectClass}
+                    className={`${selectClass} w-full min-w-0 max-w-full sm:w-auto sm:max-w-[320px]`}
                     value={v.sessionId ?? ''}
                     onChange={(e) => {
                       const sessionId = e.target.value || null
