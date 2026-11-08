@@ -68,6 +68,17 @@ function makeClient() {
         { id: 'u2', semester: 2, order: 1 },
       ],
     },
+    programExamAttempt: {
+      findMany: async ({ where }: any) =>
+        facts.satCount > 0 && where?.status === facts.finalExamStatus
+          ? [{
+              score: facts.finalExamScore,
+              finalScore: null,
+              appealStatus: facts.appealStatus,
+              answers: facts.answerPoints.map((points) => ({ points })),
+            }]
+          : [],
+    },
     semesterDecision: {
       findUnique: async ({ where }: any) =>
         decisions.get(key(where.enrollmentId_semester.enrollmentId, where.enrollmentId_semester.semester)) ?? null,
