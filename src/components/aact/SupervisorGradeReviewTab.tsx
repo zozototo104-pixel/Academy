@@ -31,25 +31,44 @@ function dateAr(value: string | null | undefined) {
   try { return new Date(value).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' }) } catch { return '—' }
 }
 
+function isApprovable(a: any): boolean {
+  // UI is a preview only; the server rechecks assigned programme,
+  // complete points, finality, appeal state and stored grade on every item.
+  return a.status === 'GRADED' && typeof a.score === 'number' &&
+    Number.isFinite(a.score) && a.appealStatus !== 'PENDING' && a.approvalState !== 'APPROVED'
+}
+
 export function SupervisorGradeReviewTab({ focus }: { focus?: { type: 'PROGRAM' | 'UNIT'; id: string; nonce: number } | null }) {
   const { toast } = useToast()
   const openDetailRef = useRef<(type: string, id: string) => void>(() => {})
   const [appeals, setAppeals] = useState<any[]>([])
   const [attempts, setAttempts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [detail, setDetail] = useState<any>(null)
   const [edits, setEdits] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
   const [appealDrafts, setAppealDrafts] = useState<Record<string, { response: string; finalScore: string }>>({})
+  const [expandedStudents, setExpandedStudents] = useState<Record<string, boolean>>({})
+  const [bulkConfirmKey, setBulkConfirmKey] = useState<string | null>(null)
+  const [bulkBusy, setBulkBusy] = useState<string | null>(null)
+  const [bulkReport, setBulkReport] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
-      const [a, t] = await Promise.all([
-        api<{ appeals: any[] }>('/api/supervisor/appeals').catch(() => ({ appeals: [] })),
-        api<{ attempts: any[] }>('/api/supervisor/grade-review').catch(() => ({ attempts: [] })),
+      // Keep the successful list visible if the other endpoint fails.
+      // An API error must never be reported as "no appeals/attempts".
+      const [a, t] = await Promise.allSettled([
+        api<{ appeals: any[] }>('/api/supervisor/appeals'),
+        api<{ attempts: any[] }>('/api/supervisor/grade-review'),
       ])
-      setAppeals(a.appeals || [])
-      setAttempts(t.attempts || [])
+      if (a.status === 'fulfilled') setAppeals(a.value.appeals || [])
+      if (t.status === 'fulfilled') setAttempts(t.value.attempts || [])
+      const failures = [
+        a.status === 'rejected' ? `الالتماسات: ${a.reason instanceof Error ? a.reason.message : 'تعذر التحميل'}` : null,
+        t.status === 'rejected' ? `المحاولات: ${t.reason instanceof Error ? t.reason.message : 'تعذر التحميل'}` : null,
+      ].filter(Boolean)
+      setLoadError(failures.length ? failures.join(' — ') : null)
     } finally { setLoading(false) }
   }, [])
 
@@ -113,6 +132,42 @@ export function SupervisorGradeReviewTab({ focus }: { focus?: { type: 'PROGRAM' 
     } finally { setSaving(false) }
   }
 
+  const runBulk = async (key: string, items: any[]) => {
+    if (bulkBusy || saving) return
+    const eligible = items.filter(isApprovable)
+    if (!eligible.length) return
+    if (bulkConfirmKey !== key) { setBulkConfirmKey(key); return }
+    setBulkConfirmKey(null)
+    setBulkBusy(key)
+    try {
+      const response = await api<{ report: {
+        approved: number; alreadyApproved: number; rejected: number
+        results: { ok: boolean; code?: string }[]
+      } }>('/api/supervisor/grade-approvals', {
+        method: 'POST',
+        body: JSON.stringify({
+          bulk: true,
+          items: eligible.map((a) => ({
+            targetType: a.type === 'PROGRAM' ? 'PROGRAM_EXAM' : 'UNIT_EXAM',
+            attemptId: a.id,
+          })),
+        }),
+      })
+      const report = response.report
+      const infrastructure = report.results.filter((item) => item.code === 'INTERNAL_ERROR').length
+      const ruledOut = report.rejected - infrastructure
+      setBulkReport(`صودقت ${report.approved} درجة جديدة · ${report.alreadyApproved} مصادقة سابقًا · ${ruledOut} مرفوضة بشروط المصادقة · ${infrastructure} أخطاء خادم.`)
+      toast({
+        title: infrastructure ? 'اكتملت المصادقة مع أخطاء خادم' : 'اكتملت المصادقة الجماعية',
+        description: `جديدة: ${report.approved} · مرفوضة: ${ruledOut} · أخطاء خادم: ${infrastructure}`,
+        ...(infrastructure ? { variant: 'destructive' as const } : {}),
+      })
+      await load()
+    } catch (error: any) {
+      toast({ title: 'تعذرت المصادقة الجماعية', description: error?.message || '', variant: 'destructive' })
+    } finally { setBulkBusy(null) }
+  }
+
   const resolveAppeal = async (appeal: any, action: 'APPROVE' | 'REJECT') => {
     const draft = appealDrafts[appeal.id] || { response: '', finalScore: '' }
     if (action === 'APPROVE' && draft.finalScore.trim() === '') { toast({ title: 'قبول الالتماس يحتاج درجة نهائية', variant: 'destructive' }); return }
@@ -141,8 +196,9 @@ export function SupervisorGradeReviewTab({ focus }: { focus?: { type: 'PROGRAM' 
   }
 
   return (
-    <div className="space-y-5" dir="rtl">
-      <Card className={appeals.length ? 'border-red-200' : ''}><CardContent className="space-y-3 p-5">
+    <div className="w-full min-w-0 max-w-full space-y-5 overflow-x-hidden" dir="rtl">
+      {loadError && <div role="alert" className="break-words rounded-xl border border-red-300 bg-red-50 p-3 text-xs font-bold text-red-800">تعذر تحميل بعض بيانات المشرف: {loadError} <button type="button" onClick={() => void load()} className="mr-2 underline">إعادة المحاولة</button></div>}
+      <Card className={`w-full min-w-0 overflow-hidden ${appeals.length ? 'border-red-200' : ''}`}><CardContent className="min-w-0 space-y-3 p-3 sm:p-5">
         <h3 className="flex items-center gap-2 text-base font-black text-[#0f2b46]"><Gavel className="h-5 w-5 text-[#a8841a]" /> التماسات مراجعة بانتظار بتّك ({appeals.length})</h3>
         {!appeals.length && <p className="text-xs font-bold text-slate-500">لا التماسات معلّقة من طلابك. الالتماس يصلك فقط من طالب معيّن عليك أنت.</p>}
         {appeals.map((a) => {
@@ -173,29 +229,58 @@ export function SupervisorGradeReviewTab({ focus }: { focus?: { type: 'PROGRAM' 
         })}
       </CardContent></Card>
 
-      <Card><CardContent className="space-y-3 p-5">
-        <h3 className="flex items-center gap-2 text-base font-black text-[#0f2b46]"><ClipboardCheck className="h-5 w-5 text-[#a8841a]" /> محاولات طلابي المصححة — مراجعة وتعديل ({attempts.length})</h3>
-        <p className="text-[11px] font-bold leading-6 text-slate-500">النتيجة وصلت الطالب فور تصحيح الذكاء. مراجعتك هنا لاحقة: افتح أي محاولة، شوف كيف صحّح الذكاء كل إجابة — والمقالي بالتفصيل — وعدّل ما تراه مقيّدًا؛ النتيجة عند الطالب تتحدث فورًا وتُوثَّق المراجعة باسمك.</p>
-        {!attempts.length && <p className="text-xs font-bold text-slate-500">لا محاولات مصححة بعد لطلابك.</p>}
-        {attemptsByStudent.map((group) => (
-          <div key={group.key} className="space-y-2">
-            <h4 className="flex items-center gap-2 pt-1 text-sm font-black text-[#0f2b46]">{group.name} <span className="text-[11px] font-bold text-slate-400">({group.items.length} محاولة)</span></h4>
-            {group.items.map((a) => (
-              <div key={`${a.type}-${a.id}`} className="rounded-2xl border border-slate-100 bg-slate-50/60 p-3.5 text-xs font-bold text-slate-600">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-black text-[#0f2b46]">{a.exam.title}</span>
-                  <Badge variant="outline" className="text-[10px]">{a.type === 'UNIT' ? `وحدة: ${a.exam.unitTitle || ''}` : 'امتحان فصلي'}</Badge>
-                  <Badge className={(a.finalScore ?? a.score ?? 0) >= 60 ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>{a.finalScore ?? a.score ?? '—'}%</Badge>
-                  {a.status === 'NEEDS_REVIEW' && <Badge className="bg-red-100 text-red-700 hover:bg-red-100">تحتاج مراجعة</Badge>}
-                  {a.appealStatus === 'PENDING' && <Badge className="bg-red-600 text-white hover:bg-red-600">عليها التماس</Badge>}
-                  {a.reviewedAt && <Badge variant="outline" className="text-[10px]">رُوجعت بشريًا</Badge>}
-                  <span className="mr-auto"><Button size="sm" className="bg-[#0f2b46] text-[11px] font-bold hover:bg-[#12365c]" onClick={() => void openDetail(a.type, a.id)}>مراجعة التصحيح</Button></span>
+      <Card className="w-full min-w-0 overflow-hidden"><CardContent className="min-w-0 space-y-3 p-3 sm:p-5">
+        <h3 className="flex flex-wrap items-center gap-2 break-words text-base font-black text-[#0f2b46]"><ClipboardCheck className="h-5 w-5 shrink-0 text-[#a8841a]" /> محاولات طلابي المصححة — مراجعة وتعديل ({attempts.length})</h3>
+        <p className="break-words text-[11px] font-bold leading-6 text-slate-500">النتيجة وصلت الطالب فور تصحيح الذكاء. مراجعتك هنا لاحقة: افتح محاولة الطالب لتراجع الإجابات وتعدّل درجاتها، ثم صادق على الدرجة رسميًا إذا كانت نهائية.</p>
+        {attempts.some(isApprovable) && (
+          <Button size="sm" disabled={bulkBusy !== null || saving} className="w-full whitespace-normal bg-emerald-600 py-3 text-xs font-black text-white hover:bg-emerald-700" onClick={() => void runBulk('ALL', attempts)}>
+            {bulkBusy === 'ALL' ? 'جارٍ تنفيذ المصادقة...' : bulkConfirmKey === 'ALL'
+              ? 'اضغط مرة ثانية لتأكيد مصادقة جميع الدرجات النهائية غير المصادقة (' + attempts.filter(isApprovable).length + ')'
+              : 'مصادقة كل الدرجات النهائية غير المصادقة (' + attempts.filter(isApprovable).length + ')'}
+          </Button>
+        )}
+        {bulkReport && <p role="status" className="break-words rounded-xl bg-emerald-50 p-3 text-xs font-bold leading-6 text-emerald-800">{bulkReport}</p>}
+        {!attempts.length && !loadError && <p className="text-xs font-bold text-slate-500">لا محاولات مصححة بعد لطلابك.</p>}
+        <div className="space-y-2">
+          {attemptsByStudent.map((group) => {
+            const pending = group.items.filter(isApprovable).length
+            const expanded = expandedStudents[group.key] === true
+            return (
+              <div key={group.key} className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                <div className="flex min-w-0 flex-col gap-2 p-3 sm:flex-row sm:items-center">
+                  <button type="button" aria-expanded={expanded} onClick={() => setExpandedStudents((previous) => ({ ...previous, [group.key]: !expanded }))} className="min-w-0 flex-1 break-words text-right text-sm font-black text-[#0f2b46]">
+                    {expanded ? '▾ ' : '▸ '}{group.name}
+                    <span className="mr-2 text-[11px] font-bold text-slate-500">({group.items.length} محاولة · {pending} بانتظار المصادقة)</span>
+                  </button>
+                  {pending > 0 && (
+                    <Button size="sm" disabled={bulkBusy !== null || saving} className="w-full shrink-0 bg-emerald-600 text-xs font-black text-white hover:bg-emerald-700 sm:w-auto" onClick={() => void runBulk(group.key, group.items)}>
+                      {bulkBusy === group.key ? 'جارٍ التنفيذ...' : bulkConfirmKey === group.key ? 'تأكيد مصادقة ' + pending + ' درجة؟' : 'مصادقة الكل (' + pending + ')'}
+                    </Button>
+                  )}
                 </div>
-                <p className="mt-1 text-[11px] text-slate-400">{a.exam.programTitle} — سُلّمت {dateAr(a.submittedAt)}</p>
+                {expanded && <div className="space-y-2 border-t bg-slate-50/70 p-2 sm:p-3">
+                  {group.items.map((a) => (
+                    <div key={[a.type,a.id].join(':')} className="min-w-0 break-words rounded-xl border border-slate-100 bg-white p-3 text-xs font-bold text-slate-600 [overflow-wrap:anywhere]">
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <span className="min-w-0 break-words text-sm font-black text-[#0f2b46]">{a.exam.title}</span>
+                        <Badge variant="outline" className="text-[10px]">{a.type === 'UNIT' ? 'وحدة: ' + (a.exam.unitTitle || '') : 'امتحان فصلي'}</Badge>
+                        <Badge variant="outline">{a.score ?? '—'}%</Badge>
+                        {a.approvalState === 'APPROVED' ? <Badge className="bg-emerald-100 text-emerald-800">مصادقة رسميًا</Badge> :
+                         a.approvalState === 'STALE' ? <Badge className="bg-amber-100 text-amber-800">مصادقة قديمة — الدرجة تغيّرت</Badge> :
+                         a.status === 'GRADED' ? <Badge className="bg-red-100 text-red-700">غير مصادقة</Badge> : null}
+                        {a.status === 'NEEDS_REVIEW' && <Badge className="bg-red-100 text-red-700">تحتاج مراجعة</Badge>}
+                        {a.appealStatus === 'PENDING' && <Badge className="bg-red-600 text-white">عليها التماس</Badge>}
+                        {a.reviewedAt && <Badge variant="outline">رُوجعت بشريًا</Badge>}
+                        <Button size="sm" className="w-full bg-[#0f2b46] text-[11px] font-bold hover:bg-[#12365c] sm:mr-auto sm:w-auto" onClick={() => void openDetail(a.type, a.id)}>مراجعة التصحيح والمصادقة</Button>
+                      </div>
+                      <p className="mt-2 break-words text-[11px] text-slate-400">{a.exam.programTitle} — سُلّمت {dateAr(a.submittedAt)}</p>
+                    </div>
+                  ))}
+                </div>}
               </div>
-            ))}
-          </div>
-        ))}
+            )
+          })}
+        </div>
       </CardContent></Card>
 
       <Dialog open={!!detail} onOpenChange={(open) => { if (!open) setDetail(null) }}>

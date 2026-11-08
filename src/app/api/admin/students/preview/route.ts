@@ -6,11 +6,11 @@ import { getStudentSemesterTracking } from '@/lib/student-tracking'
 import { getEnrollmentDeadline, daysLeftUntil } from '@/lib/program-duration'
 import { computeFollowUpStatus } from '@/lib/student-follow-up'
 
-function safeJsonArray(raw?: string | null): string[] {
+function safeJsonArray(raw?: string | null, maxItems = 12): string[] {
   if (!raw) return []
   try {
     const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed.map((x) => String(x)).filter(Boolean).slice(0, 12) : []
+    return Array.isArray(parsed) ? parsed.map((x) => String(x)).filter(Boolean).slice(0, maxItems) : []
   } catch {
     return []
   }
@@ -266,11 +266,15 @@ export async function GET(req: NextRequest) {
     // كانت للنشطين فقط، مع أن سجلاته ودرجاته محفوظة).
     const activeEnrollments = enrollments.filter((e) => e.status === 'ACTIVE').slice(0, 5)
     const completedEnrollments = enrollments.filter((e) => e.status === 'COMPLETED' || e.status === 'CERTIFIED').slice(0, 5)
-    const detailEnrollments = [...activeEnrollments, ...completedEnrollments]
+    // Retain expired academic history in its own read-only section. Do not
+    // count these rows as active studies or completed graduations.
+    const expiredEnrollments = enrollments.filter((e) => e.status === 'EXPIRED').slice(0, 5)
+    const detailEnrollments = [...activeEnrollments, ...completedEnrollments, ...expiredEnrollments]
     const activeProgramIds = new Set(activeEnrollments.map((e) => e.program.id))
     const detailProgramIds = [...new Set(detailEnrollments.map((e) => e.program.id))]
     let enrollmentDetails: any[] = []
     let completedDetails: any[] = []
+    let expiredDetails: any[] = []
     let publishedAssignmentsTotal = 0
     if (detailProgramIds.length) {
       const [programUnits, unitVideos, watchRows, detailUnitAttempts, programExams, detailProgramAttempts, publishedAssignments, detailSubmissions, grades] = await Promise.all([
@@ -351,7 +355,7 @@ export async function GET(req: NextRequest) {
       const allDetails = detailEnrollments.map((e, idx) => {
         const grade = grades[idx]
         const tracking = trackings[idx]
-        const completedSet = new Set(safeJsonArray(e.completedUnits))
+        const completedSet = new Set(safeJsonArray(e.completedUnits, 2000))
         const unitRows = programUnits.filter((u) => u.programId === e.program.id).map((u) => {
           const attempts = u.exam ? detailUnitAttempts.filter((a) => a.examId === u.exam!.id) : []
           const graded = attempts.filter((a) => a.status === 'GRADED')
@@ -445,6 +449,7 @@ export async function GET(req: NextRequest) {
       })
       enrollmentDetails = allDetails.filter((d) => d.status === 'ACTIVE')
       completedDetails = allDetails.filter((d) => d.status === 'COMPLETED' || d.status === 'CERTIFIED')
+      expiredDetails = allDetails.filter((d) => d.status === 'EXPIRED')
     }
 
     const allScores = [
@@ -491,6 +496,7 @@ export async function GET(req: NextRequest) {
       note: 'هذه معاينة إدارية للمتابعة فقط؛ لا تسمح بالدفع أو حل الاختبارات أو تسليم الواجبات نيابة عن الطالب.',
       student: {
         ...student,
+        officialName: admissions.find((a) => a.fullName?.trim())?.fullName?.trim() || null,
         academicMemory: student.academicMemory ? {
           ...student.academicMemory,
           strengths: safeJsonArray(student.academicMemory.strengths),
@@ -522,7 +528,7 @@ export async function GET(req: NextRequest) {
       admissions: admissions.map((a) => ({ ...a, aiReview: undefined })),
       enrollments: enrollments.map((e) => ({
         ...e,
-        completedUnitsCount: safeJsonArray(e.completedUnits).length,
+        completedUnitsCount: safeJsonArray(e.completedUnits, 2000).length,
       })),
       programAttempts,
       unitAttempts,
@@ -539,6 +545,7 @@ export async function GET(req: NextRequest) {
       recentChats: chats.map((c) => ({ ...c, content: c.content.length > 420 ? `${c.content.slice(0, 420)}...` : c.content })),
       enrollmentDetails,
       completedDetails,
+      expiredDetails,
       absence: enrollmentDetails.length ? {
         ...enrollmentDetails[0].followUp,
         programTitle: enrollmentDetails[0].programTitle,

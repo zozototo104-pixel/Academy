@@ -217,15 +217,17 @@ const auditExam = (type: 'UNIT' | 'PROGRAM', include?: any) => ({
   title: 'اختبار تجريبي',
   passScore: 50,
   semester: 1,
-  programId: null,
+  programId: 'program-1',
   program: { titleAr: 'برنامج تجريبي' },
-  unit: { programId: null, program: { titleAr: 'برنامج تجريبي' } },
+  unit: { programId: 'program-1', program: { titleAr: 'برنامج تجريبي' } },
   questions: type === 'PROGRAM' && include?.exam?.include?.questions?.where?.status === 'PUBLISHED'
     ? auditQuestions.filter((question) => question.status === 'PUBLISHED')
     : auditQuestions,
 })
 const auditDb: any = {
   $transaction: async (operation: (tx: any) => Promise<any>) => operation(auditDb),
+  // These grading fixtures have no enrollment to advance after review.
+  enrollment: { findUnique: async () => null },
   examAttempt: {
     findUnique: async ({ include }: any) => ({
       id: 'UNIT-attempt', userId: 'student-1', examId: 'UNIT-exam',

@@ -12,7 +12,7 @@ import { ChevronDown, ChevronLeft, ShieldCheck } from 'lucide-react'
 type ApprovalState = 'APPROVED' | 'STALE' | 'NONE' | null
 type ReviewAttempt = { type: 'UNIT' | 'PROGRAM'; id: string; status?: string; score?: number | null; approvalState?: ApprovalState; submittedAt: string; student: { id?: string; name: string; email: string }; exam: { title: string; programTitle?: string; unitTitle?: string } }
 type ReviewDetail = { type: 'UNIT' | 'PROGRAM'; id: string; status?: string; answers: Array<{ answerId: string; order: number; questionType?: string; question: string; studentAnswer: string; modelAnswer: string; source: string; points: number | null; maxPoints: number; aiFeedback: string | null }> }
-type BulkReport = { approved: number; alreadyApproved: number; rejected: number }
+type BulkReport = { approved: number; alreadyApproved: number; rejected: number; results?: Array<{ ok: boolean; code?: string }> }
 
 const studentKey = (a: ReviewAttempt) => a.student.id || a.student.email
 const isApprovable = (a: ReviewAttempt) => a.status === 'GRADED' && a.approvalState !== 'APPROVED'
@@ -174,8 +174,14 @@ export default function AdminGradingReviewTab() {
         }),
       })
       const r = res.report
-      setBulkReport(`نتيجة المصادقة الجماعية: صُدّقت ${r.approved} درجة الآن، و${r.alreadyApproved} كانت مصادقة أصلًا بنفس القيمة، ورُفضت ${r.rejected} (غير نهائية أو خارج الصلاحية وقت التنفيذ).`)
-      toast({ title: 'اكتملت المصادقة الجماعية', description: `جديدة: ${r.approved} · سابقة: ${r.alreadyApproved} · مرفوضة: ${r.rejected}` })
+      const internalFailures = (r.results || []).filter((item) => item.code === 'INTERNAL_ERROR').length
+      const rejectedByRules = r.rejected - internalFailures
+      setBulkReport(`نتيجة المصادقة الجماعية: صُدّقت ${r.approved} درجة الآن، و${r.alreadyApproved} كانت مصادقة أصلًا، ورُفضت ${rejectedByRules} بسبب شروط المصادقة${internalFailures ? `، وتعذرت ${internalFailures} بسبب خطأ خادم (يمكن إعادة المحاولة بأمان)` : ''}.`)
+      toast({
+        title: internalFailures ? 'اكتملت الدفعة مع أخطاء خادم' : 'اكتملت المصادقة الجماعية',
+        description: `جديدة: ${r.approved} · سابقة: ${r.alreadyApproved} · مرفوضة: ${rejectedByRules} · أخطاء خادم: ${internalFailures}`,
+        ...(internalFailures ? { variant: 'destructive' as const } : {}),
+      })
       await load()
     } catch (error: any) {
       toast({ title: 'تعذرت المصادقة الجماعية', description: String(error?.message || error), variant: 'destructive' })
@@ -189,10 +195,10 @@ export default function AdminGradingReviewTab() {
   useEffect(() => { void load() }, [load])
 
   return (
-    <div className="mt-4 grid gap-4 lg:grid-cols-[380px_1fr]" dir="rtl">
-      <Card className="border-amber-200">
-        <CardContent className="p-4">
-          <div className="mb-3 flex items-center justify-between"><h3 className="font-black text-[#0f2b46]">مراجعة التصحيح — حسب الطالب</h3><Badge>{groups.length} طالب · {attempts.length} محاولة</Badge></div>
+    <div className="mt-4 grid w-full min-w-0 max-w-full gap-4 overflow-x-hidden lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)]" dir="rtl">
+      <Card className="w-full min-w-0 overflow-hidden border-amber-200">
+        <CardContent className="min-w-0 p-3 sm:p-4">
+          <div className="mb-3 flex min-w-0 flex-wrap items-center justify-between gap-2"><h3 className="min-w-0 break-words font-black text-[#0f2b46]">مراجعة التصحيح — حسب الطالب</h3><Badge>{groups.length} طالب · {attempts.length} محاولة</Badge></div>
           <select value={statusFilter} onChange={(e) => { setSelected(null); setStatusFilter(e.target.value as any) }} className="mb-3 w-full rounded-xl border bg-white p-2 text-xs font-bold text-[#0f2b46]">
             <option value="NEEDS_REVIEW">قيد المراجعة</option>
             <option value="GRADED">مصححة/مجتازة</option>
@@ -212,8 +218,8 @@ export default function AdminGradingReviewTab() {
                 const isOpen = isExpanded(g.key, gi)
                 return (
                   <div key={g.key} className="overflow-hidden rounded-xl border bg-white">
-                    <div className="flex w-full items-center gap-2 p-3">
-                      <button type="button" onClick={() => toggleStudent(g.key, gi)} className="flex flex-1 items-center gap-2 text-right hover:opacity-80">
+                    <div className="flex w-full min-w-0 flex-col items-stretch gap-2 p-3 sm:flex-row sm:items-center">
+                      <button type="button" onClick={() => toggleStudent(g.key, gi)} className="flex min-w-0 flex-1 items-center gap-2 text-right hover:opacity-80">
                         {isOpen ? <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" /> : <ChevronLeft className="h-4 w-4 shrink-0 text-slate-400" />}
                         <span className="min-w-0">
                           <span className="block truncate text-xs font-black text-[#0f2b46]">{g.name}</span>
@@ -230,8 +236,8 @@ export default function AdminGradingReviewTab() {
                       <div className="space-y-1 border-t bg-slate-50/60 p-2">
                         {g.items.map((a) => (
                           <button key={`${a.type}:${a.id}`} onClick={() => open(a)} className="w-full rounded-lg border bg-white p-2.5 text-right text-xs hover:bg-amber-50">
-                            <span className="flex items-center justify-between gap-2">
-                              <span className="font-black text-[#0f2b46]">{a.exam.title}</span>
+                            <span className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+                              <span className="min-w-0 break-words font-black text-[#0f2b46]">{a.exam.title}</span>
                               <ApprovalBadge state={a.approvalState} />
                             </span>
                             <span className="mt-0.5 block text-slate-400">
@@ -248,11 +254,11 @@ export default function AdminGradingReviewTab() {
           )}
         </CardContent>
       </Card>
-      <Card>
-        <CardContent className="p-4">
+      <Card className="w-full min-w-0 overflow-hidden">
+        <CardContent className="min-w-0 p-3 sm:p-4">
           {!selected ? <p className="text-sm font-bold text-slate-500">اختر طالبًا ثم محاولة لعرض كل الأسئلة وإقرار النتيجة.</p> : <div className="space-y-4">
             {selected.status === 'NEEDS_REVIEW' ? <div className="flex flex-wrap gap-2"><Button onClick={regrade} variant="outline" disabled={busy !== null}>{busy === 'regrade' ? 'جارٍ التصحيح...' : 'إعادة التصحيح الآلي'}</Button><Button onClick={approve} disabled={busy !== null} className="bg-[#0f2b46] text-[#f5f0e1]">{busy === 'approve' ? 'جارٍ الاعتماد...' : 'اعتماد النتيجة'}</Button></div> : selected.status === 'SUBMITTED' ? <div className="flex flex-wrap items-center gap-2"><Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">محاولة عالقة قيد التصحيح</Badge><Button onClick={markReview} disabled={busy !== null} variant="outline">{busy === 'regrade' ? 'جارٍ النقل...' : 'نقل إلى المراجعة'}</Button></div> : <div className="flex flex-wrap items-center gap-2"><Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">محاولة مصححة</Badge><Button onClick={approveOfficial} disabled={busy !== null} className="bg-emerald-600 font-black text-white hover:bg-emerald-700">{busy === 'approve-grade' ? 'جارٍ المصادقة...' : 'مصادقة الدرجة رسميًا'}</Button></div>}
-            {selected.answers.map((a) => <div key={a.answerId} className="rounded-2xl border p-3 text-sm">
+            {selected.answers.map((a) => <div key={a.answerId} className="min-w-0 break-words rounded-2xl border p-3 text-sm [overflow-wrap:anywhere]">
               <p className="font-black text-[#0f2b46]">سؤال {a.order} ({a.questionType === 'MCQ' ? 'اختيار من متعدد' : a.questionType === 'TF' ? 'صح/خطأ' : a.questionType === 'SHORT' ? 'إجابة قصيرة' : 'مقالي'}): {a.question}</p>
               <p className="mt-2 whitespace-pre-wrap rounded-xl bg-slate-50 p-2"><b>إجابة الطالب:</b> {a.studentAnswer || '—'}</p>
               <p className="mt-2 whitespace-pre-wrap rounded-xl bg-emerald-50 p-2"><b>الإجابة النموذجية:</b> {a.modelAnswer || '—'}</p>

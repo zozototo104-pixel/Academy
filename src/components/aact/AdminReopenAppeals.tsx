@@ -33,6 +33,7 @@ type ReopenAppealRow = {
 export default function AdminReopenAppeals() {
   const { toast } = useToast()
   const [appeals, setAppeals] = useState<ReopenAppealRow[]>([])
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [notes, setNotes] = useState<Record<string, string>>({})
@@ -42,8 +43,9 @@ export default function AdminReopenAppeals() {
     try {
       const res = await api<{ appeals: ReopenAppealRow[] }>('/api/admin/reopen-appeals?status=PENDING')
       setAppeals(res.appeals || [])
-    } catch {
-      setAppeals([])
+      setLoadError(null)
+    } catch (error: any) {
+      setLoadError(error?.message || 'تعذر تحميل الالتماسات')
     } finally {
       setLoading(false)
     }
@@ -53,10 +55,10 @@ export default function AdminReopenAppeals() {
     let live = true
     api<{ appeals: ReopenAppealRow[] }>('/api/admin/reopen-appeals?status=PENDING')
       .then((res) => {
-        if (live) setAppeals(res.appeals || [])
+        if (live) { setAppeals(res.appeals || []); setLoadError(null) }
       })
-      .catch(() => {
-        if (live) setAppeals([])
+      .catch((error: any) => {
+        if (live) { setAppeals([]); setLoadError(error?.message || 'تعذر تحميل الالتماسات') }
       })
     return () => {
       live = false
@@ -82,9 +84,7 @@ export default function AdminReopenAppeals() {
     }
   }
 
-  if (!loading && appeals.length === 0) return null
-
-  return (
+   return (
     <Card className="mt-4 border-amber-300" dir="rtl">
       <CardContent className="p-4">
         <div className="mb-3 flex items-center justify-between">
@@ -93,8 +93,11 @@ export default function AdminReopenAppeals() {
           </h3>
           <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">{appeals.length} قيد البتّ</Badge>
         </div>
+        {loadError && <p role="alert" className="mb-3 rounded-xl bg-red-50 p-3 text-xs font-bold text-red-700">{loadError}</p>}
         {loading ? (
           <p className="text-sm text-slate-500">جاري التحميل...</p>
+        ) : appeals.length === 0 ? (
+          <p className="rounded-xl bg-slate-50 p-3 text-xs font-bold text-slate-500">{loadError ? 'تعذر تحديث القائمة' : 'لا توجد التماسات إعادة فتح قيد البتّ حاليًا.'}</p>
         ) : (
           <div className="space-y-2">
             {appeals.map((a) => {

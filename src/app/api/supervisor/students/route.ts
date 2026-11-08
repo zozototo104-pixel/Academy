@@ -1,6 +1,9 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
+import { calculateFinalGrade } from '@/lib/final-grade'
+import { getStudentSemesterTracking } from '@/lib/student-tracking'
+import { getEnrollmentDeadline, daysLeftUntil } from '@/lib/program-duration'
 
 function pct(n: number, d: number) {
   return d > 0 ? Math.round((n / d) * 100) : 0
@@ -280,11 +283,143 @@ async function buildStudentCard(app: any) {
   }
 }
 
-export async function GET() {
+// Read-only academic preview: same grade/semester engines as the admin's
+// student preview, but only the one student AND programme assigned to this supervisor.
+// Deliberately excludes administration messages, finances and account controls.
+async function buildAcademicPreview(admission: { id: string; userId: string | null; programId: string | null; fullName: string }) {
+  const userId = admission.userId!
+  const programId = admission.programId!
+  const enrollment = await db.enrollment.findUnique({
+    where: { userId_programId: { userId, programId } },
+    select: {
+      id: true, status: true, createdAt: true, completedUnits: true, extensionDays: true,
+      program: { select: { titleAr: true, category: true, maxStudyDays: true } },
+    },
+  })
+  if (!enrollment) {
+    return { previewMode: 'SUPERVISOR_ACADEMIC_READ_ONLY', studentName: admission.fullName,
+      programId, enrollment: null, cumulative: null, tracking: null, counts: null,
+      units: [], programExams: [], assignments: [], remaining: null }
+  }
+  const [units, unitVideos, watches, unitAttempts, programExams, programAttempts, publishedAssignments, submissions, grade] = await Promise.all([
+    db.unit.findMany({
+      where: { programId },
+      orderBy: [{ semester: 'asc' }, { order: 'asc' }],
+      select: { id: true, title: true, semester: true, order: true,
+        exam: { select: { id: true, title: true, passScore: true, status: true } } },
+    }),
+    db.lectureVideoResource.findMany({
+      where: { programId, unitId: { not: null }, status: 'PUBLISHED' },
+      select: { id: true, unitId: true },
+    }),
+    db.lectureWatchProgress.findMany({
+      where: { userId, video: { programId } },
+      select: { watchedPercent: true, completedAt: true, video: { select: { unitId: true } } },
+    }),
+    db.examAttempt.findMany({
+      where: { userId, exam: { unit: { programId } } },
+      orderBy: { createdAt: 'desc' }, take: 300,
+      select: { id: true, score: true, passed: true, status: true, examId: true },
+    }),
+    db.programExam.findMany({
+      where: { programId }, orderBy: [{ semester: 'asc' }, { createdAt: 'asc' }],
+      select: { id: true, title: true, semester: true, status: true },
+    }),
+    db.programExamAttempt.findMany({
+      where: { userId, exam: { programId } }, orderBy: { createdAt: 'desc' }, take: 100,
+      select: { id: true, status: true, examId: true, passed: true },
+    }),
+    db.programAssignment.findMany({
+      where: { programId, status: 'PUBLISHED' }, orderBy: { createdAt: 'asc' },
+      select: { id: true, title: true, semester: true },
+    }),
+    db.assignmentSubmission.findMany({
+      where: { userId, assignment: { programId } }, take: 200,
+      select: { id: true, assignmentId: true, status: true, score: true },
+    }),
+    calculateFinalGrade({ userId, programId, admissionId: admission.id }),
+  ])
+  const tracking = await getStudentSemesterTracking(db, { userId, programId, admissionId: admission.id, finalGrade: grade })
+  let completedIds: string[] = []
+  try {
+    const parsed = JSON.parse(enrollment.completedUnits || '[]')
+    if (Array.isArray(parsed)) completedIds = parsed.filter((id): id is string => typeof id === 'string')
+  } catch { /* Invalid legacy progress is not evidence of a completed unit. */ }
+  const completed = new Set(completedIds)
+  const unitRows = units.map((unit) => {
+    const attempts = unit.exam ? unitAttempts.filter((a) => a.examId === unit.exam!.id) : []
+    const graded = attempts.filter((a) => a.status === 'GRADED' && typeof a.score === 'number')
+    const bestScore = graded.length ? Math.max(...graded.map((a) => a.score!)) : null
+    const passed = unit.exam ? graded.some((a) => a.passed === true || (a.score != null && a.score >= unit.exam!.passScore)) : null
+    const videosCount = unitVideos.filter((v) => v.unitId === unit.id).length
+    const watched = watches.filter((w) => w.video.unitId === unit.id)
+    const watch = videosCount === 0 ? null
+      : watched.some((w) => w.completedAt) ? 'COMPLETED'
+      : watched.some((w) => (w.watchedPercent ?? 0) > 0) ? 'STARTED' : 'NONE'
+    const state = completed.has(unit.id) || passed === true ? 'COMPLETED'
+      : attempts.length || watch === 'STARTED' || watch === 'COMPLETED' ? 'IN_PROGRESS' : 'NOT_STARTED'
+    return {
+      id: unit.id, title: unit.title, semester: unit.semester, order: unit.order,
+      examTitle: unit.exam?.title ?? null, examStatus: unit.exam?.status ?? null,
+      bestScore, attemptsCount: attempts.length, passed, videosCount, watch, state,
+    }
+  })
+  const programExamRows = programExams.map((exam) => ({
+    id: exam.id, title: exam.title, semester: exam.semester, status: exam.status,
+    submitted: programAttempts.some((a) => a.examId === exam.id),
+    passed: programAttempts.some((a) => a.examId === exam.id && a.passed === true),
+  }))
+  const assignmentRows = publishedAssignments.map((assignment) => {
+    const submission = submissions.find((s) => s.assignmentId === assignment.id)
+    return {
+      id: assignment.id, title: assignment.title, semester: assignment.semester,
+      submitted: Boolean(submission), status: submission?.status ?? null, score: submission?.score ?? null,
+    }
+  })
+  const deadline = getEnrollmentDeadline(new Date(enrollment.createdAt), enrollment.program, enrollment.extensionDays || 0)
+  const thesisPending = grade.components.some((c) => (c.key === 'thesis' || c.key === 'defense') && !c.ready && !c.exempt)
+  return {
+    previewMode: 'SUPERVISOR_ACADEMIC_READ_ONLY', studentName: admission.fullName, programId,
+    enrollment: { id: enrollment.id, status: enrollment.status, programTitle: enrollment.program.titleAr,
+      category: enrollment.program.category, daysLeft: deadline ? daysLeftUntil(deadline) : null },
+    cumulative: { score: grade.score, earnedScore: grade.earnedScore, progressScore: grade.progressScore,
+      weightSource: grade.weightSource, components: grade.components },
+    tracking,
+    counts: {
+      unitsTotal: unitRows.length, unitsCompleted: unitRows.filter((u) => u.state === 'COMPLETED').length,
+      unitExamsTotal: unitRows.filter((u) => u.examTitle).length,
+      unitExamsPassed: unitRows.filter((u) => u.passed === true).length,
+      assignmentsTotal: assignmentRows.length, assignmentsSubmitted: assignmentRows.filter((a) => a.submitted).length,
+      programExamsTotal: programExamRows.length, programExamsPassed: programExamRows.filter((e) => e.passed).length,
+    },
+    units: unitRows, programExams: programExamRows, assignments: assignmentRows,
+    remaining: {
+      unitsNotCompleted: unitRows.filter((u) => u.state !== 'COMPLETED').map((u) => u.title),
+      unitExamsNotPassed: unitRows.filter((u) => u.examTitle && u.passed !== true).map((u) => u.title),
+      assignmentsNotSubmitted: assignmentRows.filter((a) => !a.submitted).map((a) => a.title),
+      programExamsNotPassed: programExamRows.filter((e) => !e.passed).map((e) => e.title),
+      thesisPending, gradeMissing: grade.missing,
+    },
+  }
+}
+
+export async function GET(req?: NextRequest) {
   try {
     const user = await requireUser()
     if (!['SUPERVISOR', 'ADMIN'].includes(user.role)) {
       return NextResponse.json({ error: 'هذه الصفحة مخصصة للمشرفين والإدارة' }, { status: 403 })
+    }
+    const admissionId = req?.nextUrl.searchParams.get('admissionId')?.trim()
+    if (admissionId) {
+      const admission = await db.admissionApplication.findFirst({
+        where: {
+          id: admissionId, userId: { not: null }, programId: { not: null },
+          ...(user.role === 'ADMIN' ? {} : { supervisorId: user.id }),
+        },
+        select: { id: true, userId: true, programId: true, fullName: true },
+      })
+      if (!admission) return NextResponse.json({ error: 'بطاقة الطالب غير موجودة ضمن نطاق إشرافك' }, { status: 404 })
+      return NextResponse.json({ preview: await buildAcademicPreview(admission) })
     }
     const apps = await db.admissionApplication.findMany({
       where: user.role === 'ADMIN' ? { userId: { not: null } } : { supervisorId: user.id },

@@ -16,10 +16,22 @@ export async function GET() {
     const actor = await requireSupervisor()
     const studentIds = await supervisorStudentIds(actor)
     if (!studentIds.length) return NextResponse.json({ appeals: [] })
+    // A student can have multiple programmes with different supervisors.
+    const assignedPairs = actor.role === 'ADMIN' ? [] : await db.admissionApplication.findMany({
+      where: { supervisorId: actor.id, userId: { not: null }, programId: { not: null } },
+      select: { userId: true, programId: true },
+    })
+    if (actor.role !== 'ADMIN' && !assignedPairs.length) return NextResponse.json({ appeals: [] })
+    const unitScope = actor.role === 'ADMIN'
+      ? { userId: { in: studentIds } }
+      : { OR: assignedPairs.map((p) => ({ userId: p.userId!, exam: { unit: { programId: p.programId! } } })) }
+    const programScope = actor.role === 'ADMIN'
+      ? { userId: { in: studentIds } }
+      : { OR: assignedPairs.map((p) => ({ userId: p.userId!, exam: { programId: p.programId! } })) }
     const dbAny = db as any
     const [unitAppeals, programAppeals] = await Promise.all([
       dbAny.examAttempt.findMany({
-        where: { userId: { in: studentIds }, appealStatus: 'PENDING' },
+        where: { ...unitScope, appealStatus: 'PENDING' },
         orderBy: { appealedAt: 'asc' },
         take: 100,
         select: {
@@ -29,7 +41,7 @@ export async function GET() {
         },
       }),
       dbAny.programExamAttempt.findMany({
-        where: { userId: { in: studentIds }, appealStatus: 'PENDING' },
+        where: { ...programScope, appealStatus: 'PENDING' },
         orderBy: { appealedAt: 'asc' },
         take: 100,
         select: {
@@ -65,11 +77,12 @@ export async function PATCH(req: NextRequest) {
 
     const dbAny = db as any
     const attempt: any = type === 'UNIT'
-      ? await dbAny.examAttempt.findUnique({ where: { id: attemptId }, select: { userId: true } })
-      : await dbAny.programExamAttempt.findUnique({ where: { id: attemptId }, select: { userId: true } })
+      ? await dbAny.examAttempt.findUnique({ where: { id: attemptId }, select: { userId: true, exam: { select: { unit: { select: { programId: true } } } } } })
+      : await dbAny.programExamAttempt.findUnique({ where: { id: attemptId }, select: { userId: true, exam: { select: { programId: true } } } })
     if (!attempt) return NextResponse.json({ error: 'المحاولة غير موجودة' }, { status: 404 })
-    if (!(await isAssignedStudent(actor, attempt.userId))) {
-      return NextResponse.json({ error: 'هذا الالتماس ليس لطالب معيّن عليك' }, { status: 403 })
+    const programId = type === 'UNIT' ? attempt.exam?.unit?.programId : attempt.exam?.programId
+    if (!programId || !(await isAssignedStudent(actor, attempt.userId, programId))) {
+      return NextResponse.json({ error: 'هذا الالتماس ليس ضمن الطالب والبرنامج المعيّنين عليك' }, { status: 403 })
     }
     const result = await resolveExamAppeal(actor, type, attemptId, action, String(body?.response || ''), body?.finalScore)
     return NextResponse.json({ ok: true, ...result })

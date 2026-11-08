@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
       where: { ...(status ? { status } : {}) },
       orderBy: { createdAt: 'asc' },
       take: 200,
-    }).catch(() => [])
+    })
     // أسماء وعناوين للعرض في قائمة البتّ — دفعة واحدة ودفاعيًا.
     try {
       // Treat the dynamic appeal store as untrusted input: Prisma's

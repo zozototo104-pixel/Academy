@@ -20,18 +20,31 @@ export async function GET(req: NextRequest) {
     if (id && (type === 'UNIT' || type === 'PROGRAM')) {
       const detail = await reviewAttemptDetail(type, id)
       if (!detail) return NextResponse.json({ error: 'المحاولة غير موجودة' }, { status: 404 })
-      if (!(await isAssignedStudent(actor, detail.student.id))) {
-        return NextResponse.json({ error: 'هذه المحاولة ليست لطالب معيّن عليك' }, { status: 403 })
+      if (!detail.exam.programId || !(await isAssignedStudent(actor, detail.student.id, detail.exam.programId))) {
+        return NextResponse.json({ error: 'هذه المحاولة ليست ضمن الطالب والبرنامج المعيّنين عليك' }, { status: 403 })
       }
       return NextResponse.json({ attempt: detail })
     }
 
     const studentIds = await supervisorStudentIds(actor)
     if (!studentIds.length) return NextResponse.json({ attempts: [] })
+    // A supervisor can be assigned to a student in programme A but NOT B.
+    // Limit the list at the database query, not just on opening a detail.
+    const assignedPairs = actor.role === 'ADMIN' ? [] : await db.admissionApplication.findMany({
+      where: { supervisorId: actor.id, userId: { not: null }, programId: { not: null } },
+      select: { userId: true, programId: true },
+    })
+    if (actor.role !== 'ADMIN' && !assignedPairs.length) return NextResponse.json({ attempts: [] })
+    const unitScope = actor.role === 'ADMIN'
+      ? { userId: { in: studentIds } }
+      : { OR: assignedPairs.map((p) => ({ userId: p.userId!, exam: { unit: { programId: p.programId! } } })) }
+    const programScope = actor.role === 'ADMIN'
+      ? { userId: { in: studentIds } }
+      : { OR: assignedPairs.map((p) => ({ userId: p.userId!, exam: { programId: p.programId! } })) }
     const dbAny = db as any
     const [unitAttempts, programAttempts] = await Promise.all([
       dbAny.examAttempt.findMany({
-        where: { userId: { in: studentIds }, status: { in: ['GRADED', 'NEEDS_REVIEW'] } },
+        where: { ...unitScope, status: { in: ['GRADED', 'NEEDS_REVIEW'] } },
         orderBy: { submittedAt: 'desc' },
         take: 100,
         select: {
@@ -42,7 +55,7 @@ export async function GET(req: NextRequest) {
         },
       }),
       dbAny.programExamAttempt.findMany({
-        where: { userId: { in: studentIds }, status: { in: ['GRADED', 'NEEDS_REVIEW'] } },
+        where: { ...programScope, status: { in: ['GRADED', 'NEEDS_REVIEW'] } },
         orderBy: { submittedAt: 'desc' },
         take: 100,
         select: {
@@ -57,6 +70,23 @@ export async function GET(req: NextRequest) {
       ...unitAttempts.map((a: any) => ({ type: 'UNIT', id: a.id, status: a.status, score: a.score, finalScore: null, passed: a.passed, aiGraded: a.aiGraded, appealStatus: a.appealStatus ?? 'NONE', reviewedAt: a.reviewedAt, submittedAt: a.submittedAt, student: a.user, exam: { id: a.exam.id, title: a.exam.title, programTitle: a.exam.unit.program.titleAr, unitTitle: a.exam.unit.title } })),
       ...programAttempts.map((a: any) => ({ type: 'PROGRAM', id: a.id, status: a.status, score: a.score, finalScore: a.finalScore, passed: a.passed, aiGraded: true, appealStatus: a.appealStatus ?? 'NONE', reviewedAt: a.reviewedAt, submittedAt: a.submittedAt, student: a.user, exam: { id: a.exam.id, title: a.exam.title, programTitle: a.exam.program.titleAr, unitTitle: null } })),
     ].sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime())
+    // Same official approval-state semantics used by the admin review queue.
+    // Only load rows already scoped to this supervisor and their programmes.
+    const graded = attempts.filter((a) => a.status === 'GRADED')
+    const approvals = graded.length ? await db.gradeApproval.findMany({
+      where: { OR: [
+        { targetType: 'UNIT_EXAM', attemptId: { in: graded.filter((a) => a.type === 'UNIT').map((a) => a.id) } },
+        { targetType: 'PROGRAM_EXAM', attemptId: { in: graded.filter((a) => a.type === 'PROGRAM').map((a) => a.id) } },
+      ] },
+      select: { targetType: true, attemptId: true, score: true },
+    }) : []
+    const approvedScore = new Map(approvals.map((a) => [`${a.targetType}:${a.attemptId}`, a.score]))
+    for (const a of attempts) {
+      const key = `${a.type === 'UNIT' ? 'UNIT_EXAM' : 'PROGRAM_EXAM'}:${a.id}`
+      ;(a as any).approvalState = a.status !== 'GRADED' ? null
+        : !approvedScore.has(key) ? 'NONE'
+        : approvedScore.get(key) === a.score ? 'APPROVED' : 'STALE'
+    }
     return NextResponse.json({ attempts })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'هذه الصفحة مخصصة للمشرفين والإدارة' }, { status: 403 })
@@ -80,8 +110,8 @@ export async function PATCH(req: NextRequest) {
 
     const detail = await reviewAttemptDetail(type, attemptId)
     if (!detail) return NextResponse.json({ error: 'المحاولة غير موجودة' }, { status: 404 })
-    if (!(await isAssignedStudent(actor, detail.student.id))) {
-      return NextResponse.json({ error: 'هذه المحاولة ليست لطالب معيّن عليك' }, { status: 403 })
+    if (!detail.exam.programId || !(await isAssignedStudent(actor, detail.student.id, detail.exam.programId))) {
+      return NextResponse.json({ error: 'هذه المحاولة ليست ضمن الطالب والبرنامج المعيّنين عليك' }, { status: 403 })
     }
     const result = await applyScoreAdjustments(actor, type, attemptId, scores)
     return NextResponse.json({ ok: true, ...result })

@@ -1649,6 +1649,10 @@ export function AdminCertificatesTab() {
   const [issueOpen, setIssueOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [section, setSection] = useState<'READY' | 'BLOCKED' | 'ISSUED'>('READY')
+  const [certificatePhase, setCertificatePhase] = useState<'IN_PROGRESS' | 'COMPLETED'>('IN_PROGRESS')
+  const [expandedGraduationRequestId, setExpandedGraduationRequestId] = useState<string | null>(null)
+  const [expandedCandidateId, setExpandedCandidateId] = useState<string | null>(null)
+  const [expandedCertificateId, setExpandedCertificateId] = useState<string | null>(null)
   const [readyCandidates, setReadyCandidates] = useState<CertificateCandidate[]>([])
   const [blockedCandidates, setBlockedCandidates] = useState<CertificateCandidate[]>([])
   const [candidatesLoading, setCandidatesLoading] = useState(true)
@@ -1831,7 +1835,7 @@ export function AdminCertificatesTab() {
       load()
       setGradRefresh((v) => v + 1)
       setCandidateRefresh((v) => v + 1)
-      setSection('ISSUED')
+      setCertificatePhase('COMPLETED')
     } catch (e: any) {
       toast({ title: 'تعذر إصدار الشهادة', description: e.message, variant: 'destructive' })
     } finally {
@@ -1873,7 +1877,7 @@ export function AdminCertificatesTab() {
       toast({ title: 'تم إصدار الشهادة', description: `أُصدرت شهادة ${candidate.fullName} وربطت بطلبه وبرنامجه.` })
       load()
       setCandidateRefresh((v) => v + 1)
-      setSection('ISSUED')
+      setCertificatePhase('COMPLETED')
     } catch (e: any) {
       toast({ title: 'تعذر إصدار الشهادة', description: e.message, variant: 'destructive' })
     } finally {
@@ -1942,7 +1946,7 @@ export function AdminCertificatesTab() {
       setFinancialOverrideReasons((prev) => ({ ...prev, [candidate.id]: '' }))
       load()
       setCandidateRefresh((v) => v + 1)
-      setSection('ISSUED')
+      setCertificatePhase('COMPLETED')
     } catch (e: any) {
       toast({ title: 'تعذر إصدار الشهادة', description: e.message, variant: 'destructive' })
     } finally {
@@ -2091,9 +2095,9 @@ export function AdminCertificatesTab() {
   }
 
   return (
-    <div className="mt-4 space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
+    <div className="mt-4 w-full min-w-0 max-w-full space-y-4 overflow-x-hidden [overflow-wrap:anywhere]">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
           <h3 className="text-lg font-black text-[#0f2b46]">مركز إصدار الشهادات</h3>
           <p className="text-xs font-bold text-slate-500">لا إصدار دون مصادقة إدارية محفوظة على معاملة التخرج، والخادم يعيد فحص الشروط وقت الإصدار نفسه.</p>
         </div>
@@ -2102,10 +2106,21 @@ export function AdminCertificatesTab() {
         </Button>
       </div>
 
-      <Card className="border-[#c9a227]/40 bg-white">
-        <CardContent className="space-y-3 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
+      <div role="tablist" aria-label="حالة معاملات الشهادات" className="grid w-full min-w-0 grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-white p-2">
+        <button type="button" role="tab" aria-selected={certificatePhase === 'IN_PROGRESS'} onClick={() => setCertificatePhase('IN_PROGRESS')} className={`min-w-0 rounded-xl px-2 py-3 text-center text-xs font-black sm:text-sm ${certificatePhase === 'IN_PROGRESS' ? 'bg-[#0f2b46] text-white' : 'bg-slate-50 text-[#0f2b46]'}`}>
+          قيد الاستكمال ({gradRequests.filter((r) => r.status !== 'ISSUED').length})
+        </button>
+        <button type="button" role="tab" aria-selected={certificatePhase === 'COMPLETED'} onClick={() => setCertificatePhase('COMPLETED')} className={`min-w-0 rounded-xl px-2 py-3 text-center text-xs font-black sm:text-sm ${certificatePhase === 'COMPLETED' ? 'bg-[#0f2b46] text-white' : 'bg-slate-50 text-[#0f2b46]'}`}>
+          مكتمل / شهادات صادرة ({certTotal})
+        </button>
+      </div>
+
+      {certificatePhase === 'IN_PROGRESS' && (
+      <>
+      <Card className="w-full min-w-0 overflow-hidden border-[#c9a227]/40 bg-white">
+        <CardContent className="min-w-0 space-y-3 p-3 sm:p-4">
+          <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
               <h4 className="text-sm font-black text-[#0f2b46]">معاملات التخرج — المصادقة الإدارية</h4>
               <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">كل طالب أنهى حدثًا أكاديميًا تُنشأ له معاملة هنا مع نتيجة فحص الأهلية وأسباب النقص. الاعتماد محفوظ في قاعدة البيانات، والإصدار بعده يعيد فحص الشروط طازجة — فلا زرّ وحده ولا استدعاء مباشر يصدر شهادة دون اعتماد صالح.</p>
             </div>
@@ -2139,8 +2154,17 @@ export function AdminCertificatesTab() {
                           ? { label: 'مؤهل — بانتظار المصادقة', cls: 'bg-amber-100 text-amber-700' }
                           : { label: 'قيد استكمال متطلبات التخرج', cls: 'bg-slate-100 text-slate-700' }
                     return (
-                      <div key={r.id} className="space-y-3 rounded-xl border border-[#0f2b46]/10 p-3">
-                        <div className="flex items-start justify-between gap-3">
+                      <div key={r.id} className="w-full min-w-0 overflow-hidden rounded-xl border border-[#0f2b46]/10 bg-white p-3">
+                        <button type="button" aria-expanded={expandedGraduationRequestId === r.id} onClick={() => setExpandedGraduationRequestId((previous) => previous === r.id ? null : r.id)} className="flex w-full min-w-0 flex-wrap items-center justify-between gap-2 text-right">
+                          <span className="min-w-0 flex-1">
+                            <span className="block break-words text-sm font-black text-[#0f2b46]">{r.studentName || 'طالب'}</span>
+                            <span className="block break-words text-xs font-bold text-slate-500">{r.programTitle || ''}</span>
+                          </span>
+                          <Badge className={statusMeta.cls}>{statusMeta.label}</Badge>
+                        </button>
+                        {expandedGraduationRequestId === r.id && (
+                        <div className="min-w-0 space-y-3 border-t pt-3 [overflow-wrap:anywhere]">
+                        <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
                           <div>
                             <h5 className="text-sm font-black text-[#0f2b46]">{r.studentName || 'طالب'}</h5>
                             <p className="text-xs font-bold text-slate-500">{r.programTitle || ''}</p>
@@ -2292,6 +2316,8 @@ export function AdminCertificatesTab() {
                             )
                           })}
                         </div>
+                        </div>
+                        )}
                       </div>
                     )
                     }
@@ -2338,8 +2364,7 @@ export function AdminCertificatesTab() {
         {[
           ['READY', 'جاهزة للإصدار', readyCandidates.length, CheckCircle2] as const,
           ['BLOCKED', 'ممنوعة حالياً', blockedCandidates.length, XCircle] as const,
-          ['ISSUED', 'سجل الصادرة', certTotal, Award] as const,
-        ].map(([key, label, count, Icon]) => (
+         ].map(([key, label, count, Icon]) => (
           <button key={key} type="button" onClick={() => setSection(key)} className={`rounded-xl px-3 py-3 text-right text-xs font-black transition ${section === key ? 'bg-[#0f2b46] text-[#f5f0e1]' : 'bg-slate-50 text-[#0f2b46] hover:bg-slate-100'}`}>
             <span className="flex items-center justify-between gap-2"><span className="inline-flex items-center gap-2"><Icon className="h-4 w-4" />{label}</span><Badge className={section === key ? 'bg-white/15 text-white' : 'bg-[#c9a227]/15 text-[#a8841a]'}>{count}</Badge></span>
           </button>
@@ -2363,12 +2388,18 @@ export function AdminCertificatesTab() {
         ) : (
           <div className="grid gap-3 lg:grid-cols-2">
             {readyCandidates.map((c) => (
-              <Card key={c.id} className="border-emerald-200 bg-white">
-                <CardContent className="space-y-3 p-4">
+              <Card key={c.id} className="w-full min-w-0 overflow-hidden border-emerald-200 bg-white">
+                <button type="button" aria-expanded={expandedCandidateId === c.id} onClick={() => setExpandedCandidateId((previous) => previous === c.id ? null : c.id)} className="flex w-full min-w-0 flex-wrap items-center justify-between gap-2 p-3 text-right">
+                  <span className="min-w-0 flex-1"><span className="block break-words text-sm font-black text-[#0f2b46]">{c.fullName}</span><span className="block break-words text-xs font-bold text-slate-500">{c.program}</span></span>
+                  <Badge className="bg-emerald-100 text-emerald-700">جاهز</Badge>
+                </button>
+                {expandedCandidateId === c.id && (
+                <CardContent className="min-w-0 space-y-3 border-t p-3 sm:p-4 [overflow-wrap:anywhere]">
                   <div className="flex items-start justify-between gap-3"><div><h4 className="text-sm font-black text-[#0f2b46]">{c.fullName}</h4><p className="text-xs font-bold text-slate-500">{c.program}</p><p className="mt-1 font-mono text-[10px] text-slate-400" dir="ltr">{c.reference}</p></div><Badge className="bg-emerald-100 text-emerald-700">جاهز</Badge></div>
                   <div className="grid gap-2 rounded-xl bg-emerald-50 p-3 text-xs font-bold text-emerald-900 sm:grid-cols-2"><span>النتيجة: {c.eligibility.gradeLabel || 'جاهز أكاديمياً'}</span><span>الرسوم: {c.payments.tuitionPaid}$ / {c.payments.tuitionTotal}$</span></div>
                   <Button disabled={busy} onClick={() => issueCandidate(c)} className="w-full bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">{busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Award className="ml-2 h-4 w-4" />} إصدار الشهادة</Button>
                 </CardContent>
+                )}
               </Card>
             ))}
           </div>
@@ -2381,8 +2412,13 @@ export function AdminCertificatesTab() {
         ) : (
           <div className="grid gap-3 lg:grid-cols-2">
             {blockedCandidates.map((c) => (
-              <Card key={c.id} className="border-red-100 bg-white">
-                <CardContent className="space-y-3 p-4">
+              <Card key={c.id} className="w-full min-w-0 overflow-hidden border-red-100 bg-white">
+                <button type="button" aria-expanded={expandedCandidateId === c.id} onClick={() => setExpandedCandidateId((previous) => previous === c.id ? null : c.id)} className="flex w-full min-w-0 flex-wrap items-center justify-between gap-2 p-3 text-right">
+                  <span className="min-w-0 flex-1"><span className="block break-words text-sm font-black text-[#0f2b46]">{c.fullName}</span><span className="block break-words text-xs font-bold text-slate-500">{c.program}</span></span>
+                  <Badge className="bg-red-100 text-red-700">غير جاهز</Badge>
+                </button>
+                {expandedCandidateId === c.id && (
+                <CardContent className="min-w-0 space-y-3 border-t p-3 sm:p-4 [overflow-wrap:anywhere]">
                   <div className="flex items-start justify-between gap-3"><div><h4 className="text-sm font-black text-[#0f2b46]">{c.fullName}</h4><p className="text-xs font-bold text-slate-500">{c.program}</p><p className="mt-1 font-mono text-[10px] text-slate-400" dir="ltr">{c.reference}</p></div><Badge className="bg-red-100 text-red-700">ممنوع</Badge></div>
                   <div className="rounded-xl bg-red-50 p-3 text-xs font-bold leading-6 text-red-900"><p className="mb-1 font-black">سبب المنع:</p><ul className="list-inside list-disc space-y-1">{c.missing.slice(0, 6).map((m, i) => <li key={i}>{m}</li>)}</ul></div>
                   {c.eligibility?.ok && (!c.payments.tuitionOk || c.payments.nonTuitionUnpaid > 0) ? (
@@ -2404,13 +2440,29 @@ export function AdminCertificatesTab() {
                     <p className="text-[11px] font-bold text-slate-500">لا يمكن الإصدار هنا لأن شروط النجاح الأكاديمي غير مكتملة. التجاوز المالي لا يتجاوز الرسوب أو نقص التقييمات.</p>
                   )}
                 </CardContent>
+                )}
               </Card>
             ))}
           </div>
         )
       )}
+      </>
+      )}
 
-      {section === 'ISSUED' && (
+      {certificatePhase === 'COMPLETED' && (
+        <AdminListToolbar
+          search={certSearch}
+          onSearchChange={(v) => { setCertSearch(v); setCertPage(1) }}
+          searchPlaceholder="ابحث باسم صاحب الشهادة أو البرنامج أو الرقم التسلسلي..."
+          pageSize={certPageSize}
+          onPageSizeChange={(v) => { setCertPageSize(v); setCertPage(1) }}
+          total={certTotal}
+          filtered={certTotal}
+          label="شهادة مكتملة"
+        />
+      )}
+
+      {certificatePhase === 'COMPLETED' && (
         certTotal === 0 && !certSearch ? (
           <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا توجد شهادات صادرة بعد — تصدرها الإدارة بعد اكتمال النجاح الأكاديمي وسداد الرسوم.</CardContent></Card>
         ) : certs.length === 0 ? (
@@ -2418,8 +2470,16 @@ export function AdminCertificatesTab() {
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {pagedCerts.map((c) => (
-              <Card key={c.serial} className={`bg-white ${c.valid === false ? 'border-red-200' : 'border-[#c9a227]/30'}`}>
-                <CardContent className="p-4">
+              <Card key={c.serial} className={`w-full min-w-0 overflow-hidden bg-white ${c.valid === false ? 'border-red-200' : 'border-[#c9a227]/30'}`}>
+                <button type="button" aria-expanded={expandedCertificateId === c.serial} onClick={() => setExpandedCertificateId((previous) => previous === c.serial ? null : c.serial)} className="flex w-full min-w-0 flex-wrap items-center justify-between gap-2 p-3 text-right">
+                  <span className="min-w-0 flex-1">
+                    <span className="block break-words text-sm font-black text-[#0f2b46]">{c.holderName}</span>
+                    <span className="block break-words text-xs font-bold text-slate-500">{c.program}</span>
+                  </span>
+                  <Badge className={c.valid === false ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}>{c.valid === false ? 'ملغاة' : 'مكتملة'}</Badge>
+                </button>
+                {expandedCertificateId === c.serial && (
+                <CardContent className="min-w-0 border-t p-3 sm:p-4 [overflow-wrap:anywhere]">
                   <div className="flex items-start justify-between"><Award className={`h-5 w-5 ${c.valid === false ? 'text-red-500' : 'text-[#a8841a]'}`} /><span className="font-mono text-[10px] text-slate-400" dir="ltr">{c.serial}</span></div>
                   <h4 className="mt-2 text-xs font-black text-[#0f2b46]">{c.holderName}</h4>
                   <p className="mt-0.5 line-clamp-1 text-[11px] font-bold text-slate-500">{c.program}</p>
@@ -2434,12 +2494,13 @@ export function AdminCertificatesTab() {
                     {c.valid !== false && <Button size="sm" variant="outline" disabled={busy} className="w-full border-red-200 font-bold text-red-600" onClick={() => revokeCertificate(c)}><XCircle className="ml-1 h-3.5 w-3.5" /> إلغاء الشهادة</Button>}
                   </div>
                 </CardContent>
+                )}
               </Card>
             ))}
           </div>
         )
       )}
-      {section === 'ISSUED' && <AdminPager page={currentCertPage} pageSize={certPageSize} total={certTotal} onPageChange={setCertPage} label="شهادة" />}
+      {certificatePhase === 'COMPLETED' && <AdminPager page={currentCertPage} pageSize={certPageSize} total={certTotal} onPageChange={setCertPage} label="شهادة" />}
 
       <Card className="border-[#0f2b46]/10 bg-white">
         <CardContent className="space-y-4 p-4">

@@ -333,7 +333,7 @@ const ACC_TYPE_LABEL: Record<string, string> = {
 }
 
 interface StudentRow {
-  id: string; name: string; email: string; country?: string | null; createdAt: string
+  id: string; name: string; officialName?: string | null; email: string; country?: string | null; createdAt: string
   phone?: string | null; emailVerifiedAt?: string | null; hasAccount?: boolean
   rowKind?: 'STUDENT' | 'INCOMPLETE_ADMISSION'
   enrollments: { program: string; status: string; certificateNo?: string | null; finalScore?: number | null }[]
@@ -2242,7 +2242,7 @@ export function AdminView() {
         </TabsContent>
 
         {/* مراجعة التصحيح اليدوي للمحاولات المعلقة */}
-        <TabsContent value="grading-review">
+        <TabsContent value="grading-review" className="w-full min-w-0 max-w-full overflow-x-hidden">
           <AdminGradingReviewTab />
           <AdminReopenAppeals />
           <AdminMercyQueue />
@@ -2315,7 +2315,7 @@ export function AdminView() {
                         >
                           <td className="p-3">
                             <div className="flex flex-wrap items-center gap-1.5">
-                              <div className="font-extrabold text-[#0f2b46]">{s.name}</div>
+                              <div className="font-extrabold text-[#0f2b46]">{s.officialName || s.name}</div>
                               {s.rowKind === 'INCOMPLETE_ADMISSION' && (
                                 <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">طلب غير مستكمل</Badge>
                               )}
@@ -2649,7 +2649,7 @@ export function AdminView() {
         </TabsContent>
 
         {/* الشهادات */}
-        <TabsContent value="certs">
+        <TabsContent value="certs" className="w-full min-w-0 max-w-full overflow-x-hidden">
           <AdminCertificatesTab />
         </TabsContent>
 

@@ -16,6 +16,7 @@ import { SupervisorLiveVoiceCall } from '@/components/aact/SupervisorLiveVoiceCa
 import { SupervisorFollowUpBoard } from '@/components/aact/SupervisorFollowUpBoard'
 import { SupervisorContentTab } from '@/components/aact/SupervisorContentTab'
 import { SupervisorGradeReviewTab } from '@/components/aact/SupervisorGradeReviewTab'
+import { SemesterTrackingCard, type StudentTrackingView } from '@/components/aact/SemesterTrackingCard'
 import { AdminLectures } from '@/components/aact/AdminLectures'
 
 interface SupervisorMessage {
@@ -95,6 +96,31 @@ interface SupervisedStudent {
   weakSignals: any[]
 }
 
+interface SupervisorAcademicPreview {
+  previewMode: 'SUPERVISOR_ACADEMIC_READ_ONLY'
+  studentName: string
+  programId: string
+  enrollment: { id: string; status: string; programTitle: string; category: string; daysLeft: number | null } | null
+  cumulative: {
+    score: number | null
+    earnedScore: number
+    progressScore: number
+    components: Array<{ key: string; label: string; weight: number; score: number | null; weighted: number; ready: boolean; exempt?: boolean }>
+  } | null
+  tracking: StudentTrackingView | null
+  counts: {
+    unitsTotal: number; unitsCompleted: number; unitExamsTotal: number; unitExamsPassed: number
+    assignmentsTotal: number; assignmentsSubmitted: number; programExamsTotal: number; programExamsPassed: number
+  } | null
+  units: Array<{ id: string; title: string; semester: number; order: number; examTitle: string | null; bestScore: number | null; attemptsCount: number; passed: boolean | null; videosCount: number; watch: string | null; state: string }>
+  programExams: Array<{ id: string; title: string; semester: number; submitted: boolean; passed: boolean }>
+  assignments: Array<{ id: string; title: string; semester: number; submitted: boolean; status: string | null; score: number | null }>
+  remaining: {
+    unitsNotCompleted: string[]; unitExamsNotPassed: string[]; assignmentsNotSubmitted: string[]
+    programExamsNotPassed: string[]; thesisPending: boolean; gradeMissing: string[]
+  } | null
+}
+
 const assessmentTypeLabels: Record<string, string> = {
   DAILY_TEST: 'اختبار يومي',
   EXAM: 'امتحان خاص',
@@ -142,8 +168,12 @@ export function SupervisorView() {
   }
   const [students, setStudents] = useState<SupervisedStudent[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [academicState, setAcademicState] = useState<{ admissionId: string; loading: boolean; error: string | null; preview: SupervisorAcademicPreview | null } | null>(null)
+  const [academicReload, setAcademicReload] = useState(0)
   const [messages, setMessages] = useState<SupervisorMessage[]>([])
+  const [messageLoadError, setMessageLoadError] = useState('')
   const [assessments, setAssessments] = useState<PrivateAssessment[]>([])
+  const [assessmentLoadError, setAssessmentLoadError] = useState('')
   const [loadingDetails, setLoadingDetails] = useState(false)
   const [sending, setSending] = useState(false)
   const [chatText, setChatText] = useState('')
@@ -166,7 +196,17 @@ export function SupervisorView() {
     sourceBookIds: [] as string[],
   })
 
+  const [rosterSemester, setRosterSemester] = useState(1)
+  const [rosterPage, setRosterPage] = useState(1)
+  const [assignmentRoster, setAssignmentRoster] = useState<any | null>(null)
+  const [rosterLoading, setRosterLoading] = useState(false)
+  const [rosterStudentId, setRosterStudentId] = useState<string | null>(null)
+
   const selected = useMemo(() => students.find((s) => s.id === selectedId) || students[0] || null, [students, selectedId])
+  const currentAcademic = academicState?.admissionId === selected?.id ? academicState : null
+  const academicPreview = currentAcademic?.preview
+  const academicEnrollment = academicPreview?.enrollment
+  const pctLabel = (n: number | null | undefined) => n == null ? '—' : `${Number(n.toFixed(2))}%`
 
   const load = async () => {
     setLoading(true)
@@ -188,26 +228,49 @@ export function SupervisorView() {
     setLoadingDetails(true)
     setMessages([])
     setAssessments([])
+    setMessageLoadError('')
+    setAssessmentLoadError('')
     try {
-      const m = await api<{ messages: SupervisorMessage[] }>(`/api/supervisor/messages?admissionId=${admissionId}`).catch(() => ({ messages: [] }))
-      if (detailsRequestRef.current !== requestId) return
-      setMessages(m.messages || [])
-      setLoadingDetails(false)
-
-      api<{ assessments: PrivateAssessment[] }>(`/api/supervisor/assessments?admissionId=${admissionId}`)
-        .then((a) => {
-          if (detailsRequestRef.current === requestId) setAssessments(a.assessments || [])
-        })
-        .catch(() => {
-          if (detailsRequestRef.current === requestId) setAssessments([])
-        })
+      const messagesResponse = await api<{ messages: SupervisorMessage[] }>(`/api/supervisor/messages?admissionId=${encodeURIComponent(admissionId)}`)
+      if (detailsRequestRef.current === requestId) setMessages(messagesResponse.messages || [])
+    } catch (error) {
+      if (detailsRequestRef.current === requestId) setMessageLoadError(error instanceof Error ? error.message : 'تعذر تحميل المحادثات')
     } finally {
       if (detailsRequestRef.current === requestId) setLoadingDetails(false)
     }
+    void api<{ assessments: PrivateAssessment[] }>(`/api/supervisor/assessments?admissionId=${encodeURIComponent(admissionId)}`)
+      .then((result) => {
+        if (detailsRequestRef.current === requestId) setAssessments(result.assessments || [])
+      })
+      .catch((error: unknown) => {
+        if (detailsRequestRef.current === requestId) setAssessmentLoadError(error instanceof Error ? error.message : 'تعذر تحميل الاختبارات الخاصة')
+      })
   }
 
   useEffect(() => { load() }, [])
   useEffect(() => { if (selected?.id) loadDetails(selected.id) }, [selected?.id])
+  useEffect(() => {
+    const admissionId = selected?.id
+    if (!admissionId) {
+      setAcademicState(null)
+      return
+    }
+    let active = true
+    setAcademicState({ admissionId, loading: true, error: null, preview: null })
+    api<{ preview: SupervisorAcademicPreview }>(`/api/supervisor/students?admissionId=${encodeURIComponent(admissionId)}`)
+      .then((response) => {
+        if (!active) return
+        if (response.preview?.previewMode !== 'SUPERVISOR_ACADEMIC_READ_ONLY' || response.preview.programId !== selected?.programId) {
+          throw new Error('معاينة الطالب لا تطابق البرنامج المحدد')
+        }
+        setAcademicState({ admissionId, loading: false, error: null, preview: response.preview })
+      })
+      .catch((error: unknown) => {
+        if (!active) return
+        setAcademicState({ admissionId, loading: false, error: error instanceof Error ? error.message : 'تعذر تحميل المسار الأكاديمي', preview: null })
+      })
+    return () => { active = false }
+  }, [selected?.id, selected?.programId, academicReload])
   useEffect(() => { setAssignmentRoster(null); setRosterStudentId(null); setRosterPage(1) }, [selected?.programId])
 
   const sendMessage = async (payload?: { mode?: 'TEXT' | 'VOICE'; audioData?: string; audioMime?: string; content?: string }) => {
@@ -285,11 +348,6 @@ export function SupervisorView() {
     }
   }
 
-  const [rosterSemester, setRosterSemester] = useState(1)
-  const [rosterPage, setRosterPage] = useState(1)
-  const [assignmentRoster, setAssignmentRoster] = useState<any | null>(null)
-  const [rosterLoading, setRosterLoading] = useState(false)
-  const [rosterStudentId, setRosterStudentId] = useState<string | null>(null)
   const loadAssignmentRoster = async (programId: string, semester: number, page: number) => {
     setRosterLoading(true)
     try {
@@ -403,7 +461,7 @@ export function SupervisorView() {
   }
 
   return (
-    <div className="aact-fade-in mx-auto max-w-7xl px-4 py-10">
+    <div className="aact-fade-in mx-auto w-full min-w-0 max-w-7xl overflow-x-hidden px-3 py-5 sm:px-4 sm:py-10">
       <div className="mb-6 rounded-3xl border border-[#c9a227]/40 bg-[#0f2b46] p-6 text-[#f5f0e1] shadow">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -446,8 +504,8 @@ export function SupervisorView() {
       ) : students.length === 0 ? (
         <Card className="border-dashed"><CardContent className="p-8 text-center text-sm font-bold leading-7 text-slate-500">لا يوجد طلاب معيّنون لك حالياً. التعيين يتم من لوحة الإدارة.</CardContent></Card>
       ) : (
-        <div className="grid gap-5 lg:grid-cols-[310px_1fr]">
-          <aside className="space-y-3">
+        <div className="grid w-full min-w-0 gap-4 lg:grid-cols-[minmax(0,310px)_minmax(0,1fr)]">
+          <aside className="min-w-0 space-y-3">
             <Card className="border-[#0f2b46]/10"><CardContent className="p-4">
               <h2 className="mb-3 flex items-center gap-2 text-sm font-black text-[#0f2b46]"><Users2 className="h-4 w-4 text-[#a8841a]" /> الطلاب تحت الإشراف ({students.length})</h2>
               <div className="space-y-2">
@@ -466,7 +524,7 @@ export function SupervisorView() {
           </aside>
 
           {selected && (
-            <main id="supervisor-student-card" className="scroll-mt-4 space-y-5">
+            <main id="supervisor-student-card" className="min-w-0 w-full max-w-full scroll-mt-4 space-y-5 overflow-x-hidden">
               <Card className="border-[#0f2b46]/10"><CardContent className="p-5">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
@@ -486,8 +544,9 @@ export function SupervisorView() {
                 </div>
               </CardContent></Card>
 
-              <Tabs defaultValue="overview" dir="rtl" className="space-y-4">
-                <TabsList className="flex h-auto flex-wrap gap-1 bg-slate-100 p-1">
+              <Tabs key={selected.id} defaultValue="academic" dir="rtl" className="w-full min-w-0 space-y-4">
+                <TabsList className="flex h-auto w-full min-w-0 flex-wrap gap-1 bg-slate-100 p-1">
+                  <TabsTrigger value="academic" className="text-[11px] font-black"><GraduationCap className="ml-1 h-3.5 w-3.5" /> المسار الأكاديمي</TabsTrigger>
                   <TabsTrigger value="overview" className="text-[11px] font-black"><BarChart3 className="ml-1 h-3.5 w-3.5" /> متابعة عامة</TabsTrigger>
                   <TabsTrigger value="chat" className="text-[11px] font-black"><MessageCircle className="ml-1 h-3.5 w-3.5" /> محادثة الطالب</TabsTrigger>
                   <TabsTrigger value="exams" className="text-[11px] font-black"><ClipboardCheck className="ml-1 h-3.5 w-3.5" /> اختبارات وواجبات</TabsTrigger>
@@ -495,6 +554,124 @@ export function SupervisorView() {
                   <TabsTrigger value="lectures" className="text-[11px] font-black"><Video className="ml-1 h-3.5 w-3.5" /> محاضراتي</TabsTrigger>
                   <TabsTrigger value="thesis" className="text-[11px] font-black"><FileText className="ml-1 h-3.5 w-3.5" /> بحث ومناقشة</TabsTrigger>
                 </TabsList>
+
+                <TabsContent value="academic" className="w-full min-w-0 space-y-4">
+                  <Card className="w-full min-w-0 overflow-hidden border-[#c9a227]/30">
+                    <CardContent className="min-w-0 space-y-4 p-3 sm:p-5">
+                      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <h3 className="text-base font-black text-[#0f2b46]">بطاقة المسار الأكاديمي — {selected.fullName}</h3>
+                          <p className="text-xs font-bold text-slate-500">قراءة فقط، من محرك المعدل ومتابعة الفصول المستخدم في الإدارة، ولبرنامج إشرافك فقط.</p>
+                        </div>
+                        <Button size="sm" variant="outline" disabled={currentAcademic?.loading} onClick={() => setAcademicReload((n) => n + 1)}>
+                          {currentAcademic?.loading ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : <RefreshCcw className="ml-1 h-4 w-4" />}
+                          تحديث البطاقة
+                        </Button>
+                      </div>
+                      {!currentAcademic || currentAcademic.loading ? (
+                        <div role="status" className="flex items-center gap-2 rounded-xl bg-slate-50 p-4 text-sm font-bold text-slate-600">
+                          <Loader2 className="h-4 w-4 animate-spin" /> جارٍ تحميل سجل الطالب الأكاديمي...
+                        </div>
+                      ) : currentAcademic.error ? (
+                        <div role="alert" className="space-y-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-800">
+                          <p>تعذر تحميل بطاقة المسار: {currentAcademic.error}</p>
+                          <Button variant="outline" size="sm" onClick={() => setAcademicReload((n) => n + 1)}>إعادة المحاولة</Button>
+                        </div>
+                      ) : !academicEnrollment ? (
+                        <p className="rounded-xl bg-slate-50 p-4 text-sm font-bold text-slate-600">هذا الطالب معيّن للإشراف، لكن لا يوجد تسجيل دراسي مرتبط بهذا البرنامج حتى الآن.</p>
+                      ) : (
+                        <div className="min-w-0 space-y-4 [overflow-wrap:anywhere]">
+                          <div className="flex min-w-0 flex-wrap items-center gap-2">
+                            <Badge className="bg-[#0f2b46] text-white">{academicEnrollment.programTitle}</Badge>
+                            <Badge variant="outline">{academicEnrollment.status === 'COMPLETED' ? 'مكتمل' : academicEnrollment.status === 'EXPIRED' ? 'منتهية المدة' : academicEnrollment.status === 'ACTIVE' ? 'نشط' : academicEnrollment.status}</Badge>
+                            {academicEnrollment.daysLeft != null && (
+                              <Badge className={academicEnrollment.daysLeft <= 0 ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}>
+                                {academicEnrollment.daysLeft > 0 ? 'أيام متبقية: ' + academicEnrollment.daysLeft : 'انتهت المدة المقررة'}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="grid min-w-0 grid-cols-2 gap-2 md:grid-cols-4">
+                            {[
+                              { label: 'وحدات مكتملة', value: (academicPreview?.counts?.unitsCompleted ?? 0) + ' / ' + (academicPreview?.counts?.unitsTotal ?? 0) },
+                              { label: 'اختبارات وحدات ناجحة', value: (academicPreview?.counts?.unitExamsPassed ?? 0) + ' / ' + (academicPreview?.counts?.unitExamsTotal ?? 0) },
+                              { label: 'واجبات مسلّمة', value: (academicPreview?.counts?.assignmentsSubmitted ?? 0) + ' / ' + (academicPreview?.counts?.assignmentsTotal ?? 0) },
+                              { label: 'امتحانات برنامج ناجحة', value: (academicPreview?.counts?.programExamsPassed ?? 0) + ' / ' + (academicPreview?.counts?.programExamsTotal ?? 0) },
+                            ].map((metric) => (
+                              <div key={metric.label} className="min-w-0 rounded-xl bg-slate-50 p-3 text-center">
+                                <p className="text-lg font-black text-[#0f2b46]">{metric.value}</p>
+                                <p className="text-[11px] font-bold text-slate-600">{metric.label}</p>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="rounded-xl bg-[#fff8e6] p-3 text-xs font-bold leading-6 text-[#0f2b46]">
+                            <p>المحصّل من كامل البرنامج حتى الآن: {pctLabel(academicPreview?.cumulative?.earnedScore)}</p>
+                            <p>الدرجة الرسمية النهائية: {academicPreview?.cumulative?.score == null ? 'غير معتمدة بعد' : pctLabel(academicPreview.cumulative.score)}</p>
+                            {academicPreview?.cumulative?.components?.length ? (
+                              <div className="mt-2 grid min-w-0 gap-2 sm:grid-cols-2">
+                                {academicPreview.cumulative.components.map((component) => (
+                                  <div key={component.key} className="min-w-0 rounded-lg bg-white p-2">
+                                    {component.label} — الوزن {component.weight}% — {component.exempt ? 'معفى' : component.score == null ? 'لم يكتمل' : pctLabel(component.score)}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                          <SemesterTrackingCard tracking={academicPreview?.tracking} />
+                          <details className="min-w-0 rounded-xl border border-slate-200 p-3">
+                            <summary className="cursor-pointer text-sm font-black text-[#0f2b46]">الوحدات بالتفصيل ({academicPreview?.units.length ?? 0})</summary>
+                            <div className="mt-3 space-y-2">
+                              {(academicPreview?.units ?? []).map((unit) => (
+                                <div key={unit.id} className="min-w-0 rounded-lg bg-slate-50 p-2 text-xs">
+                                  <p className="font-black">{unit.title} — الفصل {unit.semester}</p>
+                                  <p className="text-slate-600">
+                                    {unit.state === 'COMPLETED' ? 'مكتملة' : unit.state === 'IN_PROGRESS' ? 'قيد الدراسة' : 'لم تبدأ'}
+                                    {' · '}اختبار الوحدة: {unit.examTitle || 'غير مرتبط'}
+                                    {' · '}أفضل درجة: {pctLabel(unit.bestScore)}
+                                    {' · '}محاولات: {unit.attemptsCount}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </details>
+                          <details className="min-w-0 rounded-xl border border-slate-200 p-3">
+                            <summary className="cursor-pointer text-sm font-black text-[#0f2b46]">امتحانات البرنامج والواجبات</summary>
+                            <div className="mt-3 space-y-2">
+                              {(academicPreview?.programExams ?? []).map((exam) => (
+                                <p key={exam.id} className="rounded-lg bg-slate-50 p-2 text-xs font-bold">
+                                  {exam.title} — فصل {exam.semester} — {exam.passed ? 'ناجح' : exam.submitted ? 'قُدّم ولم يُجتز' : 'لم يُقدَّم'}
+                                </p>
+                              ))}
+                              {(academicPreview?.assignments ?? []).map((assignment) => (
+                                <p key={assignment.id} className="rounded-lg bg-slate-50 p-2 text-xs font-bold">
+                                  {assignment.title} — فصل {assignment.semester} — {assignment.submitted ? 'مسلّم' : 'غير مسلّم'} — الدرجة: {assignment.score ?? '—'}
+                                </p>
+                              ))}
+                              {!academicPreview?.programExams.length && !academicPreview?.assignments.length && (
+                                <p className="text-xs text-slate-500">لا توجد امتحانات برنامج أو واجبات منشورة.</p>
+                              )}
+                            </div>
+                          </details>
+                          <details className="min-w-0 rounded-xl border border-amber-200 p-3">
+                            <summary className="cursor-pointer text-sm font-black text-amber-900">{academicEnrollment.status === 'EXPIRED' ? 'متطلبات لم تكتمل عند انتهاء التسجيل' : 'ما تبقّى على الطالب'}</summary>
+                            <div className="mt-3 space-y-2 text-xs font-bold leading-6 text-slate-700">
+                              {[
+                                ['وحدات غير مكتملة', academicPreview?.remaining?.unitsNotCompleted],
+                                ['اختبارات وحدات لم تُجتز', academicPreview?.remaining?.unitExamsNotPassed],
+                                ['واجبات لم تُسلّم', academicPreview?.remaining?.assignmentsNotSubmitted],
+                                ['امتحانات برنامج لم تُجتز', academicPreview?.remaining?.programExamsNotPassed],
+                                ['مكوّنات التقييم الناقصة', academicPreview?.remaining?.gradeMissing],
+                              ].filter((item) => (item[1] as string[] | undefined)?.length).map(([label, items]) => (
+                                <p key={label as string}>{label}: {(items as string[]).join('، ')}</p>
+                              ))}
+                              {academicPreview?.remaining?.thesisPending && <p>بحث التخرج أو المناقشة لم يكتمل.</p>}
+                              {academicEnrollment.status === 'EXPIRED' && <p className="text-amber-800">السجل مغلق لانتهاء المدة، ولا يمنح العرض أي حق في تعديل الدرجة أو إعادة فتحه.</p>}
+                            </div>
+                          </details>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
 
                 <TabsContent value="overview" className="space-y-4">
                   <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
@@ -522,6 +699,7 @@ export function SupervisorView() {
                 </TabsContent>
 
                 <TabsContent value="chat" className="space-y-3">
+                  {messageLoadError && <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-bold text-red-700">تعذر تحميل الرسائل: {messageLoadError}<Button size="sm" variant="outline" onClick={() => void loadDetails(selected.id)}>إعادة المحاولة</Button></div>}
                   <SupervisorLiveVoiceCall admissionId={selected.id} role="SUPERVISOR" title="مكالمة صوتية حية مع الطالب" />
                   <Card><CardContent className="p-5">
                     <div className="mb-3 flex items-center justify-between gap-2">
@@ -553,6 +731,7 @@ export function SupervisorView() {
                 </TabsContent>
 
                 <TabsContent value="exams" className="space-y-4">
+                  {assessmentLoadError && <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-bold text-red-700">تعذر تحميل الاختبارات الخاصة: {assessmentLoadError}<Button size="sm" variant="outline" onClick={() => void loadDetails(selected.id)}>إعادة المحاولة</Button></div>}
                   <Card><CardContent className="p-5">
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                       <h3 className="text-base font-black text-[#0f2b46]">امتحانات الطالب المولدة/المعتمدة</h3>

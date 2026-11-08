@@ -31,6 +31,7 @@ interface PreviewData {
     id: string
     name: string
     email: string
+    officialName?: string | null
     phone?: string | null
     country?: string | null
     role: string
@@ -82,6 +83,7 @@ interface PreviewData {
   recentChats: any[]
   enrollmentDetails: EnrollmentDetail[]
   completedDetails: EnrollmentDetail[]
+  expiredDetails: EnrollmentDetail[]
   absence: (FollowUpInfo & { programTitle: string }) | null
   pendingReview: {
     needsReviewCount: number
@@ -177,6 +179,7 @@ const STATUS_AR: Record<string, string> = {
   ARCHIVED: 'مؤرشف',
   ACTIVE: 'نشط',
   COMPLETED: 'مكتمل',
+  EXPIRED: 'منتهية المدة',
   PAID: 'مدفوع',
   UNPAID: 'غير مدفوع',
   SUBMITTED: 'مسلّم',
@@ -365,6 +368,8 @@ export function AdminStudentPreview() {
   }
 
   const s = data.student
+  const displayName = s.officialName || s.name
+  const historicalDetails = [...(data.completedDetails ?? []), ...(data.expiredDetails ?? [])]
   const memory = s.academicMemory
   const pendingTotal = data.pendingReview.needsReviewCount + data.pendingReview.pendingAppealsCount
   const metrics = [
@@ -396,7 +401,7 @@ export function AdminStudentPreview() {
           <Badge className="mb-3 bg-[#c9a227] text-[#0f2b46] hover:bg-[#c9a227]">معاينة السجل الأكاديمي — قراءة فقط</Badge>
           <span className="mb-3 mr-2 inline-block rounded-full border border-white/40 px-3 py-1 text-xs font-bold">حالة الحساب: {arStatus(s.status)}</span>
           <h1 className="flex items-center gap-2 text-2xl font-black sm:text-3xl">
-            <UserRound className="h-6 w-6 text-[#c9a227]" /> {s.name}
+            <UserRound className="h-6 w-6 text-[#c9a227]" /> {displayName}
           </h1>
           <p className="mt-2 text-sm font-bold text-[#f5f0e1]/75" dir="ltr">{s.email}</p>
           {s.phone && <p className="mt-1 text-sm font-bold text-[#f5f0e1]/75" dir="ltr">{s.phone}</p>}
@@ -409,6 +414,11 @@ export function AdminStudentPreview() {
           {(data.completedDetails?.length || 0) > 0 && (
             <p className="mt-1 text-xs font-bold text-[#f5f0e1]/60">
               برامج مكتملة: {data.completedDetails.map((d) => `${d.programTitle} — المعدل التراكمي: ${cumulativeLabel(d)}`).join(' · ')}
+            </p>
+          )}
+          {(data.expiredDetails?.length || 0) > 0 && (
+            <p className="mt-1 text-xs font-bold text-amber-200">
+              تسجيلات منتهية المدة: {data.expiredDetails.map((d) => `${d.programTitle} — المحصّل: ${cumulativeLabel(d)}`).join(' · ')}
             </p>
           )}
           {(data.absence || pendingTotal > 0) && (
@@ -495,13 +505,13 @@ export function AdminStudentPreview() {
 
           <Section title="بيانات الطالب وبرامجه" icon={UserRound}>
             <div className="grid gap-2 text-xs sm:grid-cols-2">
-              <p className="rounded-xl bg-slate-50 p-3 font-bold text-slate-600">الاسم: <b className="text-[#0f2b46]">{s.name}</b></p>
+              <p className="rounded-xl bg-slate-50 p-3 font-bold text-slate-600">الاسم الرسمي: <b className="text-[#0f2b46]">{displayName}</b>{s.officialName && s.officialName !== s.name && <span className="mt-1 block text-slate-500">اسم الحساب: {s.name}</span>}</p>
               <p className="rounded-xl bg-slate-50 p-3 font-bold text-slate-600">البريد: <b className="text-[#0f2b46]" dir="ltr">{s.email}</b></p>
               <p className="rounded-xl bg-slate-50 p-3 font-bold text-slate-600">رقم الهاتف: <b className="text-[#0f2b46]" dir="ltr">{s.phone || 'غير مسجل'}</b></p>
               <p className="rounded-xl bg-slate-50 p-3 font-bold text-slate-600">الدولة: <b className="text-[#0f2b46]">{s.country || 'غير محددة'}</b> — حالة الحساب: <b className="text-[#0f2b46]">{arStatus(s.status)}</b></p>
             </div>
             {data.enrollmentDetails.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-400">{(data.completedDetails?.length || 0) > 0 ? 'لا توجد تسجيلات نشطة — برامجه المكتملة معروضة بتفاصيلها في قسم «برامج مكتملة» التالي.' : 'لا توجد تسجيلات نشطة — تفاصيل التقدم والمعدل التراكمي تظهر هنا عند وجود تسجيل نشط.'}</p>
+              <p className="mt-3 text-sm text-slate-400">{historicalDetails.length > 0 ? 'لا توجد تسجيلات نشطة — التسجيلات المكتملة أو المنتهية معروضة أدناه بسجلها الأكاديمي.' : 'لا توجد تسجيلات نشطة — تفاصيل التقدم تظهر عند وجود تسجيل نشط.'}</p>
             ) : (
               <div className="mt-3 space-y-3">
                 {data.enrollmentDetails.map((d) => (
@@ -596,6 +606,24 @@ export function AdminStudentPreview() {
             </Section>
           )}
 
+          {(data.expiredDetails?.length || 0) > 0 && (
+            <Section title="تسجيلات منتهية المدة — سجل أكاديمي للقراءة فقط" icon={AlertTriangle}>
+              <div className="space-y-3">
+                {data.expiredDetails.map((d) => (
+                  <div key={d.enrollmentId} className="min-w-0 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-black text-[#0f2b46]">{d.programTitle}</p>
+                      <Badge className="bg-amber-100 text-amber-800">منتهية المدة</Badge>
+                    </div>
+                    <p className="mt-2 font-bold text-slate-700">المحصّل من البرنامج: {cumulativeLabel(d)} — وحدات مكتملة: {d.counts.unitsCompleted}/{d.counts.unitsTotal} — واجبات مسلّمة: {d.counts.assignmentsSubmitted}/{d.counts.assignmentsTotal}</p>
+                    <p className="mt-1 text-amber-900">هذا سجل لحالة الطالب عند انتهاء المدة وليس تسجيلًا نشطًا أو شهادة تخرج.</p>
+                    <SemesterTrackingCard tracking={d.tracking} />
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+
           {data.overview.atRiskSignals.length > 0 && (
             <Section title="إشارات متابعة عاجلة" icon={AlertTriangle}>
               <div className="grid gap-2 md:grid-cols-2">
@@ -626,12 +654,12 @@ export function AdminStudentPreview() {
 
       {tab === 'units' && (
         <div className="space-y-5">
-          {data.enrollmentDetails.length === 0 && (data.completedDetails?.length || 0) === 0 ? (
+          {data.enrollmentDetails.length === 0 && historicalDetails.length === 0 ? (
             <Section title="الوحدات بالتفصيل" icon={BookOpen}>
               <p className="text-sm text-slate-400">لا توجد تسجيلات لعرض وحداتها.</p>
             </Section>
-          ) : [...data.enrollmentDetails, ...(data.completedDetails ?? [])].map((d) => (
-            <Section key={d.enrollmentId} title={`الوحدات بالتفصيل — ${d.programTitle}${d.status !== 'ACTIVE' ? ' (مكتمل)' : ''}`} icon={BookOpen}>
+          ) : [...data.enrollmentDetails, ...historicalDetails].map((d) => (
+            <Section key={d.enrollmentId} title={`الوحدات بالتفصيل — ${d.programTitle}${d.status !== 'ACTIVE' ? ` (${arStatus(d.status)})` : ''}`} icon={BookOpen}>
               {d.units.length === 0 ? <p className="text-sm text-slate-400">لا توجد وحدات في هذا البرنامج.</p> : (
                 <div className="space-y-2">
                   {d.units.map((u) => (
@@ -698,9 +726,9 @@ export function AdminStudentPreview() {
             )}
           </Section>
 
-          {[...data.enrollmentDetails, ...(data.completedDetails ?? [])].map((d) => (
+          {[...data.enrollmentDetails, ...historicalDetails].map((d) => (
             (d.programExams.length > 0 || d.assignments.length > 0) && (
-              <Section key={d.enrollmentId} title={`امتحانات البرنامج والواجبات — ${d.programTitle}${d.status !== 'ACTIVE' ? ' (مكتمل)' : ''}`} icon={ClipboardCheck}>
+              <Section key={d.enrollmentId} title={`امتحانات البرنامج والواجبات — ${d.programTitle}${d.status !== 'ACTIVE' ? ` (${arStatus(d.status)})` : ''}`} icon={ClipboardCheck}>
                 <div className="grid gap-3 md:grid-cols-2">
                   {d.programExams.length > 0 && (
                     <div>
@@ -772,6 +800,22 @@ export function AdminStudentPreview() {
               {d.remaining.daysLeft != null && (
                 <p className="mt-3 text-xs font-bold text-slate-500">{d.remaining.daysLeft > 0 ? `متبقٍّ من مدة الدراسة المقررة: ${d.remaining.daysLeft} يوم` : 'انتهت مدة الدراسة المقررة لهذا التسجيل'}</p>
               )}
+            </Section>
+          ))}
+          {(data.expiredDetails ?? []).map((d) => (
+            <Section key={d.enrollmentId} title={`متطلبات لم تكتمل عند انتهاء التسجيل — ${d.programTitle}`} icon={AlertTriangle}>
+              <p className="mb-3 rounded-xl bg-amber-50 p-3 text-xs font-bold text-amber-900">
+                هذه صورة السجل الأكاديمي بعد انتهاء المدة، وليست تكليفات مفتوحة أو إذنًا بإعادة التسجيل.
+              </p>
+              <ul className="list-inside list-disc space-y-1 text-xs font-bold leading-6 text-slate-700">
+                {d.remaining.unitsNotCompleted.length > 0 && <li>وحدات غير مكتملة: {d.remaining.unitsNotCompleted.join('، ')}</li>}
+                {d.remaining.unitExamsNotPassed.length > 0 && <li>اختبارات وحدات لم تُجتز: {d.remaining.unitExamsNotPassed.join('، ')}</li>}
+                {d.remaining.assignmentsNotSubmitted.length > 0 && <li>واجبات لم تُسلّم: {d.remaining.assignmentsNotSubmitted.join('، ')}</li>}
+                {d.remaining.programExamsNotPassed.length > 0 && <li>امتحانات برنامج لم تُجتز: {d.remaining.programExamsNotPassed.join('، ')}</li>}
+                {d.remaining.thesisPending && <li>بحث التخرج أو المناقشة لم يكتمل</li>}
+                {d.remaining.gradeMissing.length > 0 && <li>مكونات ناقصة: {d.remaining.gradeMissing.join('، ')}</li>}
+              </ul>
+              <SemesterTrackingCard tracking={d.tracking} />
             </Section>
           ))}
         </div>

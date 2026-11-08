@@ -56,7 +56,17 @@ export async function POST(req: NextRequest) {
       )
     }
     return NextResponse.json({ ok: true, approval: result.approval, alreadyApproved: result.alreadyApproved === true })
-  } catch {
-    return NextResponse.json({ ok: false, code: 'UNAUTHORIZED' }, { status: 401 })
+  } catch (error) {
+    // Database/transaction failures are not expired sessions; a fake 401
+    // would clear the supervisor's local account in the shared API client.
+    if (error instanceof Error && error.message === 'UNAUTHORIZED') {
+      return NextResponse.json({ ok: false, code: 'UNAUTHORIZED' }, { status: 401 })
+    }
+    console.error('supervisor grade approval POST failed', error)
+    return NextResponse.json({
+      ok: false,
+      code: 'GRADE_APPROVAL_INTERNAL_ERROR',
+      error: 'تعذر حفظ المصادقة بسبب خطأ في الخادم',
+    }, { status: 500 })
   }
 }

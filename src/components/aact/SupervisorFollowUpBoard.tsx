@@ -13,19 +13,30 @@ import { FollowUpDutyChips, FollowUpRecordView, absenceLabel, type FollowUpBoard
 export function SupervisorFollowUpBoard({ onOpenStudent }: { onOpenStudent: (userId: string, admissionId: string | null) => void }) {
   const [rows, setRows] = useState<FollowUpBoardRow[]>([])
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState('')
 
-  useEffect(() => {
-    ;(async () => {
-      try {
-        const d = await api<{ students: FollowUpBoardRow[] }>('/api/supervisor/student-follow-up')
-        setRows(d.students || [])
-      } catch {
-        setRows([])
-      }
-    })()
-  }, [])
+  const load = async () => {
+    try {
+      const d = await api<{ students: FollowUpBoardRow[] }>('/api/supervisor/student-follow-up')
+      setRows(d.students || [])
+      setLoadError('')
+    } catch (error) {
+      // Do not conceal a failed follow-up request as an empty roster.
+      setLoadError(error instanceof Error ? error.message : 'تعذر تحميل متابعة الطلاب')
+    }
+  }
 
-  if (!rows.length) return null
+  useEffect(() => { void load() }, [])
+
+  if (!rows.length && !loadError) return null
+  if (!rows.length && loadError) return (
+    <Card className="mb-5 border-red-200" dir="rtl">
+      <CardContent role="alert" className="space-y-2 p-4 text-sm text-red-800">
+        <p>تعذر تحميل متابعة الغياب والواجبات: {loadError}</p>
+        <Button variant="outline" size="sm" onClick={() => void load()}>إعادة المحاولة</Button>
+      </CardContent>
+    </Card>
+  )
   const sorted = [...rows].sort((a, b) => {
     if (a.needsIntervention !== b.needsIntervention) return a.needsIntervention ? -1 : 1
     return b.daysAbsent - a.daysAbsent

@@ -58,8 +58,13 @@ export async function POST(req: NextRequest) {
       )
     }
     return NextResponse.json({ ok: true, approval: result.approval, alreadyApproved: result.alreadyApproved === true })
-  } catch {
-    return NextResponse.json({ ok: false, code: 'UNAUTHORIZED' }, { status: 401 })
+  } catch (error) {
+    // Only an actual missing admin session is a 401. A database error is not logout.
+    if (error instanceof Error && error.message === 'UNAUTHORIZED') {
+      return NextResponse.json({ ok: false, code: 'UNAUTHORIZED' }, { status: 401 })
+    }
+    console.error('admin grade approval POST failed', error)
+    return NextResponse.json({ ok: false, code: 'GRADE_APPROVAL_INTERNAL_ERROR', error: 'تعذر حفظ المصادقة بسبب خطأ في الخادم' }, { status: 500 })
   }
 }
 
@@ -79,7 +84,11 @@ export async function GET(req: NextRequest) {
       orderBy: { approvedAt: 'desc' },
     })
     return NextResponse.json({ ok: true, approvals })
-  } catch {
-    return NextResponse.json({ ok: false, code: 'UNAUTHORIZED' }, { status: 401 })
+  } catch (error) {
+    if (error instanceof Error && error.message === 'UNAUTHORIZED') {
+      return NextResponse.json({ ok: false, code: 'UNAUTHORIZED' }, { status: 401 })
+    }
+    console.error('admin grade approvals GET failed', error)
+    return NextResponse.json({ ok: false, code: 'GRADE_APPROVAL_INTERNAL_ERROR', error: 'تعذر تحميل المصادقات بسبب خطأ في الخادم' }, { status: 500 })
   }
 }

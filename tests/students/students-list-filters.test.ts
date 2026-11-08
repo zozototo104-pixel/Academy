@@ -81,6 +81,17 @@ beforeEach(() => {
 })
 
 describe('فلاتر قائمة الطلاب', () => {
+  test('البحث بالاسم الرسمي يقبل كلمات عربية متباعدة في اسم طلب الالتحاق', async () => {
+    await GET(get('/api/admin/students?status=COMPLETED&q=' + encodeURIComponent('عبدالله خضر')))
+    const or = userFindManyCalls[0].where.OR as any[]
+    expect(or).toContainEqual({
+      ownedAdmissions: { some: { AND: [
+        { fullName: { contains: 'عبدالله', mode: 'insensitive' } },
+        { fullName: { contains: 'خضر', mode: 'insensitive' } },
+      ] } },
+    })
+  })
+
   test('بانتظار تحقق: يعيد طلاباً مسجّلين بلا إيميل موثّق فقط، بلا قيد التحاق', async () => {
     userRows = [
       { id: 'user-1', email: 'a@example.test', name: 'أ', country: 'فلسطين', status: 'ACTIVE', createdAt: new Date(), phone: '+970500000001', emailVerifiedAt: null },
