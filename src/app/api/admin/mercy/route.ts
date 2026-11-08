@@ -16,7 +16,27 @@ export async function GET() {
       orderBy: { createdAt: 'desc' },
       take: 200,
     }).catch(() => [])
-    return NextResponse.json({ ok: true, requests })
+    // أسماء وعناوين للعرض في قائمة الإدارة — دفعة واحدة ودفاعيًا.
+    let enriched = requests as any[]
+    try {
+      const userIds = [...new Set<string>((requests as Array<{ userId?: unknown }>)
+        .map((r) => r.userId).filter((id): id is string => typeof id === 'string' && id.length > 0))]
+      const programIds = [...new Set<string>((requests as Array<{ programId?: unknown }>)
+        .map((r) => r.programId).filter((id): id is string => typeof id === 'string' && id.length > 0))]
+      const [users, programs]: [any[], any[]] = await Promise.all([
+        userIds.length ? db.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true, email: true } }) : [],
+        programIds.length ? db.program.findMany({ where: { id: { in: programIds } }, select: { id: true, titleAr: true, titleEn: true } }) : [],
+      ])
+      const userById = new Map(users.map((u) => [u.id, u]))
+      const programById = new Map(programs.map((p) => [p.id, p]))
+      enriched = (requests as any[]).map((r) => ({
+        ...r,
+        studentName: userById.get(r.userId)?.name || null,
+        studentEmail: userById.get(r.userId)?.email || null,
+        programTitle: programById.get(r.programId)?.titleAr || programById.get(r.programId)?.titleEn || null,
+      }))
+    } catch { /* الأسماء تجميلية — القائمة تعمل بدونها */ }
+    return NextResponse.json({ ok: true, requests: enriched })
   } catch {
     return NextResponse.json({ error: 'صلاحية إدارية مطلوبة' }, { status: 403 })
   }

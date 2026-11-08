@@ -68,6 +68,7 @@ const AdminWhatsAppInboxTab = dynamic(() => loadAdminWhatsAppInboxModule().then(
 const AdminRepresentativesTab = dynamic(() => loadAdminRepresentativesModule(), { ssr: false, loading: AdminTabLoader })
 const AdminGradingReviewTab = dynamic(() => loadAdminGradingReviewModule(), { ssr: false, loading: AdminTabLoader })
 const AdminReopenAppeals = dynamic(() => import('@/components/aact/AdminReopenAppeals'), { ssr: false, loading: AdminTabLoader })
+const AdminMercyQueue = dynamic(() => import('@/components/aact/AdminMercy').then((m) => m.AdminMercyQueue), { ssr: false, loading: AdminTabLoader })
 const AdminStudyScheduleTab = dynamic(() => loadAdminStudyScheduleModule(), { ssr: false, loading: AdminTabLoader })
 const AdminLegacyGraduatesTab = dynamic(() => loadAdminLegacyGraduatesModule(), { ssr: false, loading: AdminTabLoader })
 const AdminAnnouncementsTab = dynamic(() => loadAdminAnnouncementsModule().then((m) => m.AdminAnnouncementsTab), { ssr: false, loading: AdminTabLoader })
@@ -2244,6 +2245,7 @@ export function AdminView() {
         <TabsContent value="grading-review">
           <AdminGradingReviewTab />
           <AdminReopenAppeals />
+          <AdminMercyQueue />
         </TabsContent>
 
         {/* Students */}

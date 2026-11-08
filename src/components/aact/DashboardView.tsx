@@ -24,6 +24,7 @@ import {
   type SemesterDecisionBrief,
 } from '@/components/aact/SemesterDecision'
 import { AssignmentReopenAppeal } from '@/components/aact/ReopenAppeal'
+import { StudentMercyPanel } from '@/components/aact/Mercy'
 import {
   BookOpen, ClipboardCheck, ChevronLeft, Loader2, Lock,
   Award, Bot, CheckCircle2, CircleDashed, Trophy, Banknote, FileText,
@@ -1442,6 +1443,7 @@ export function DashboardView() {
                 )}
 
                 <SemesterTrackingCard tracking={active.semesterTracking} />
+                <StudentMercyPanel />
 
                 {active.finalScore != null && (
                   <div className="mt-3 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3.5 text-sm font-bold text-emerald-700">

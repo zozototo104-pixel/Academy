@@ -151,6 +151,27 @@ export async function semesterExamsSat(
   return true
 }
 
+// استرحام مكتمل يغطّي شرط تقديم امتحان الفصل لغرض الانتقال:
+// حالة الاسترحام لا تصبح COMPLETED إلا داخل معاملة إعادة اعتماد
+// نتيجة الفصل نفسها — أي إن النشاط صُحّح وأُعيد اعتماد المعدل
+// الجديد رسميًا. الإدارة وثّقت نشاطًا علاجيًا بديلًا وقبلته، فلا
+// يبقى الطالب محبوسًا عند البوابة لأنه لم يجلس للامتحان الأصلي.
+// لا محاولة وهمية تُخلق، وصفر الامتحان النظامي داخل المعدل
+// المعتمد يبقى كما هو. (قرار المالك 2026-11-08.)
+export async function semesterExamCoveredByMercy(
+  client: AnyClient,
+  enrollmentId: string,
+  semester: number,
+): Promise<boolean> {
+  const store = (client as AnyClient)?.mercyRequest
+  if (!store?.findFirst) return false
+  const row = await store.findFirst({
+    where: { enrollmentId, semester, status: 'COMPLETED' },
+    select: { id: true },
+  }).catch(() => null)
+  return Boolean(row)
+}
+
 async function gateContext(client: AnyClient, enrollmentId: string) {
   const snapshot = await readEnrollmentSnapshot(client, enrollmentId).catch(() => null)
   return {
@@ -198,7 +219,8 @@ export async function progressionGate(
     // semester exam before moving on (an approved end-of-period zero
     // without sitting is not an exam submission). An approved FAILED
     // result keeps its true weighted mark and can be improved later.
-    const sat = await semesterExamsSat(client, enrollment.userId, enrollment.programId, s).catch(() => false)
+    const sat = (await semesterExamsSat(client, enrollment.userId, enrollment.programId, s).catch(() => false))
+      || (await semesterExamCoveredByMercy(client, enrollment.id, s))
     if (!sat) reasons.push(`امتحان الفصل ${s} لم يُقدَّم بعد`)
   }
   return { open: reasons.length === 0, reasons }
@@ -250,8 +272,10 @@ export async function markSemesterReadyAfterApprovedResult(
 }
 
 // بوابة الرسالة: تُفتح فقط إن كانت الرسالة مطلوبة بقواعد القبول
-// المجمّدة، وبعد اكتمال كل الفصول واعتماد نتائجها، وتراكميٍّ من
-// المعدلات المعتمدة فقط أكبر تمامًا من العتبة. (50.0 لا تكفي.)
+// المجمّدة، وبعد اكتمال كل الفصول واعتماد نتائجها. التراكمي يُحسب
+// من المعدلات المعتمدة فقط لكنه ليس شرط فتح (قرار المالك
+// 2026-11-08: الرسالة نفسها فرصة لتحسينه)؛ شرط المجموع الكامل
+// يُفحص عند إصدار الشهادة.
 export async function thesisGate(
   client: AnyClient,
   enrollment: { id: string; userId: string; programId: string },
@@ -289,7 +313,8 @@ export async function thesisGate(
     }
     approvedScores[s] = Number(stored.score)
   }
-  const sat = await semesterExamsSat(client, enrollment.userId, enrollment.programId, semestersCount).catch(() => false)
+  const sat = (await semesterExamsSat(client, enrollment.userId, enrollment.programId, semestersCount).catch(() => false))
+    || (await semesterExamCoveredByMercy(client, enrollment.id, semestersCount))
   if (!sat) reasons.push('امتحانات الفصل الأخير لم تُقدَّم كلها بعد')
   let cumulative: number | null = null
   if (approvedScores.filter((x) => typeof x === 'number').length === semestersCount && ctx.weights) {
