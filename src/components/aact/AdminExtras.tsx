@@ -5896,9 +5896,27 @@ export function AdminFinanceTab() {
                                   </div>
                                 )
                               }
+                              if (grantPolicies.length > 0 && p.admission && ['APPLICATION_FEE', 'TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose)) {
+                                return (
+                                  <div className="flex min-w-0 max-w-[260px] flex-col gap-2">
+                                    <label htmlFor={`grant-for-${p.id}`} className="text-[10px] font-black text-[#0f2b46]">منحة منظمة لهذا الطالب</label>
+                                    <select id={`grant-for-${p.id}`} className="h-9 w-full min-w-0 rounded-lg border bg-white px-2 text-[11px]"
+                                      value={grantSelection[p.id] || ''} onChange={(e) => setGrantSelection((prev) => ({ ...prev, [p.id]: e.target.value }))}>
+                                      <option value="">اختر منحة</option>
+                                      {grantPolicies.filter((policy) => policy.active).map((policy) => (
+                                        <option key={policy.id} value={policy.id}>{policy.title} — {policy.scope === 'INDIVIDUAL' ? 'فردية' : policy.scope === 'PROGRAM' ? 'تخصصية' : 'عامة'}</option>
+                                      ))}
+                                    </select>
+                                    <Button size="sm" type="button" variant="outline" disabled={busy || !grantSelection[p.id]}
+                                      onClick={() => void previewOrganizedGrant(p)} className="border-emerald-200 text-[11px] font-black text-emerald-700">
+                                      فحص الأهلية ومعاينة المنحة
+                                    </Button>
+                                  </div>
+                                )
+                              }
                               return (
                                 <div className="flex flex-wrap gap-1">
-                                  {p.purpose === 'APPLICATION_FEE' && <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => generateWaiver(p, 'APPLICATION_FEE')} className="h-7 border-blue-200 text-[10px] font-black text-blue-700">{busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}كود إعفاء 30$</Button>}
+                                  {p.purpose === 'APPLICATION_FEE' && <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => generateWaiver(p, 'APPLICATION_FEE')} className="h-7 border-blue-200 text-[10px] font-black text-blue-700">{busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}كود إعفاء التسجيل</Button>}
                                   {['APPLICATION_FEE', 'TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => generateWaiver(p, 'PARTIAL_TUITION')} className="h-7 border-amber-200 text-[10px] font-black text-amber-700">{busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}إعفاء جزئي</Button>}
                                   {['TUITION', 'TUITION_INSTALLMENT', 'APPLICATION_FEE'].includes(p.purpose) && <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => generateWaiver(p, 'FULL_SCHOLARSHIP')} className="h-7 border-emerald-200 text-[10px] font-black text-emerald-700">{busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}منحة كاملة</Button>}
                                 </div>
