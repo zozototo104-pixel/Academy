@@ -74,13 +74,16 @@ describe('AdminFinanceTab workspace organization', () => {
     expect(financeBlock.includes('setOpenFinanceSection(value); api')).toBe(false)
   })
 
-  test('keeps both workspaces mounted and only hides their wrappers', () => {
+  test('keeps all three workspaces mounted and only hides their wrappers', () => {
     required(financeBlock, 'id="finance-section-reports"')
     required(financeBlock, 'id="finance-section-payments"')
+    required(financeBlock, 'id="finance-section-grants"')
     required(financeBlock, "hidden={openFinanceSection !== 'reports'}")
     required(financeBlock, "hidden={openFinanceSection !== 'payments'}")
+    required(financeBlock, "hidden={openFinanceSection !== 'grants'}")
     expect(financeBlock.includes("openFinanceSection === 'reports' &&")).toBe(false)
     expect(financeBlock.includes("openFinanceSection === 'payments' &&")).toBe(false)
+    expect(financeBlock.includes("openFinanceSection === 'grants' &&")).toBe(false)
   })
 
   test('keeps finance KPI and warning content visible outside workspaces', () => {
