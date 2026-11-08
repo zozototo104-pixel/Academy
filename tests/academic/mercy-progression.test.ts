@@ -153,13 +153,23 @@ describe('بوابة الانتقال والاسترحام المكتمل', () =
     expect(gate.open).toBe(true)
   })
 
-  test('بوابة الرسالة: آخر فصل لم يُجلس له + استرحام مكتمل له → تُفتح', async () => {
+  test('بوابة الرسالة: آخر فصل لم يُجلس له + استرحام مكتمل له → تبقى مغلقة', async () => {
     const gate = await thesisGate(fakeClient({
       unitScore: { 1: 40, 2: 48 }, examScore: { 1: 40 },
       states: { 1: 'CLOSED', 2: 'CLOSED' }, approvals: { 1: 40, 2: 56 },
       mercy: [{ semester: 2, status: 'COMPLETED', score: 100, weightPercent: 50 }],
       requiredComponents: ['final_exam', 'thesis'],
     }), ENROLLMENT, PROGRAM)
+    expect(gate.open).toBe(false)
+    expect(gate.reasons.join(' ')).toContain('لم تُقدَّم')
+  })
+
+  test('جلس للامتحان الفصلي ورسب ثم حسّن درجته بالاسترحام → ينتقل بعد اعتماد نتيجته', async () => {
+    const gate = await progressionGate(fakeClient({
+      unitScore: { 1: 100 }, examScore: { 1: 30 },
+      states: { 1: 'CLOSED' }, approvals: { 1: 62.5 },
+      mercy: [{ semester: 1, status: 'COMPLETED', score: 100, weightPercent: 50 }],
+    }), ENROLLMENT, 2, 'DIPLOMA')
     expect(gate.open).toBe(true)
   })
 
