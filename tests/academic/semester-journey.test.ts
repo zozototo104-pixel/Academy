@@ -81,6 +81,8 @@ function makeWorld() {
     user: { findUnique: async () => ({ role: 'ADMIN', name: 'مسؤول' }) },
     program: { findUnique: async () => ({ category: 'DIPLOMA', admissionRules: null, semestersCount: 2 }) },
     enrollment: {
+      findMany: async ({ where }: any) =>
+        where?.status === 'ACTIVE' && enrollmentRow.status === 'ACTIVE' ? [enrollmentRow] : [],
       findUnique: async ({ where }: any) => {
         if (where.id) return where.id === 'enr1' ? enrollmentRow : null
         return enrollmentRow
