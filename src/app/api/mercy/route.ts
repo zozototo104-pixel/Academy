@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
     if (!result.ok) {
       const messages: Record<string, string> = {
         SEMESTER_NOT_FAILED: 'الاسترحام متاح فقط لفصل أُغلق بنتيجة راسب معتمدة.',
+        SEMESTER_EXAM_NOT_TAKEN: 'يجب تقديم الامتحان الفصلي فعليًا قبل طلب الاسترحام؛ الاسترحام لتحسين درجة الرسوب وليس بديلًا عن الامتحان.',
         MERCY_ALREADY_EXISTS: 'سبق أن استُخدم مسار الاسترحام لهذا الفصل.',
         ENROLLMENT_NOT_FOUND: 'لا تسجيل مطابقًا في هذا البرنامج.',
         INVALID_INPUT: 'بيانات الطلب ناقصة.',
