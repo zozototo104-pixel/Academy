@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { requestMercy } from '@/lib/mercy'
+import { semesterExamsSat } from '@/lib/progression'
 import { assignedSupervisorForStudent } from '@/lib/supervisor-scope'
 
 export const runtime = 'nodejs'
