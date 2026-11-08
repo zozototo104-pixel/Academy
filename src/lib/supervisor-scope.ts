@@ -56,11 +56,11 @@ export async function canAccessProgram(actor: SupervisorActor, programId: string
 }
 
 // هل هذا الطالب معيّن على هذا المشرف؟ (طلب التحاق واحد على الأقل)
-export async function isAssignedStudent(actor: SupervisorActor, studentUserId: string): Promise<boolean> {
-  if (!studentUserId) return false
+export async function isAssignedStudent(actor: SupervisorActor, studentUserId: string, programId?: string): Promise<boolean> {
+  if (!studentUserId || (programId !== undefined && !programId)) return false
   if (isSupervisorAdmin(actor)) return true
   const found = await db.admissionApplication.findFirst({
-    where: { supervisorId: actor.id, userId: studentUserId },
+    where: { supervisorId: actor.id, userId: studentUserId, ...(programId ? { programId } : {}) },
     select: { id: true },
   })
   return Boolean(found)
