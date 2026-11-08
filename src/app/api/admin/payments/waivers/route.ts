@@ -28,11 +28,15 @@ function grantError(message: string, status = 409) {
 }
 async function loadGrantPolicies(): Promise<GrantPolicy[]> {
   const rows = await db.setting.findMany({ where: { key: { startsWith: GRANT_POLICY_PREFIX } }, orderBy: { updatedAt: 'desc' } })
-  return rows.flatMap((row) => {
+  return rows.map((row) => {
+    let policy: GrantPolicy
     try {
-      const policy = JSON.parse(row.value) as GrantPolicy
-      return policy?.id && row.key === GRANT_POLICY_PREFIX + policy.id ? [policy] : []
-    } catch { return [] }
+      policy = JSON.parse(row.value) as GrantPolicy
+    } catch { throw grantError('تعذر قراءة بيانات تنظيم المنح؛ إيقاف الإصدار لحماية الفواتير') }
+    if (!policy?.id || row.key !== GRANT_POLICY_PREFIX + policy.id) {
+      throw grantError('تعريف منحة غير متسق في قاعدة البيانات؛ إيقاف الإصدار لحماية الفواتير')
+    }
+    return policy
   })
 }
 async function loadGrantPolicy(id: string): Promise<GrantPolicy> {
