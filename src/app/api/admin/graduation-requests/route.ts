@@ -19,7 +19,7 @@ function snapshotOf(request: any) {
 // Read the last semester's actual raise right from the server. A stored
 // eligibility snapshot alone must never authorize administrative approval.
 async function liveGraduationRaiseGate(
-  client: typeof db,
+  client: Pick<typeof db, 'enrollment' | 'unit' | 'semesterDecision'>,
   enrollmentId: string,
 ): Promise<{ gate: RaiseGate | null; semester: number | null }> {
   const enrollment = await client.enrollment.findUnique({
