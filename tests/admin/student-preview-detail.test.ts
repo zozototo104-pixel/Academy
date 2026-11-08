@@ -332,6 +332,42 @@ describe('admin student preview — detail payload', () => {
     expect(body.correspondence.admin.messages).toEqual([])
   })
 
+  test('EXPIRED enrollments retain read-only academic details without becoming ACTIVE or COMPLETED', async () => {
+    fx.enrollments[0] = {
+      ...fx.enrollments[0], status: 'EXPIRED',
+      createdAt: daysAgo(120), updatedAt: daysAgo(1),
+    }
+    const { status, body } = await getPreview()
+    expect(status).toBe(200)
+    expect(body.enrollmentDetails).toHaveLength(0)
+    expect(body.completedDetails).toHaveLength(0)
+    expect(body.expiredDetails).toHaveLength(1)
+    const expired = body.expiredDetails[0]
+    expect(expired.status).toBe('EXPIRED')
+    expect(expired.enrollmentId).toBe('enr-1')
+    expect(expired.units).toHaveLength(3)
+    expect(expired.counts.unitsCompleted).toBe(1)
+    expect(expired.remaining.unitsNotCompleted).toEqual(['الوحدة الثانية', 'الوحدة الثالثة'])
+    expect(expired.cumulative).not.toBeNull()
+    expect(body.absence).toBeNull()
+    expect(body.overview.activeEnrollments).toBe(0)
+    expect(body.overview.completedEnrollments).toBe(0)
+  })
+
+  test('official admissions name is displayed without overwriting the account name', async () => {
+    fx.admissions = [{
+      id: 'adm-1', fullName: 'عبدالله امين عبدالحافظ خضر',
+      reference: 'AACT-TEST', programId: 'p1',
+      program: 'دبلوم', status: 'CERTIFIED', files: [], payments: [],
+      createdAt: daysAgo(80),
+    }]
+    fx.student.name = 'abdulla Khader'
+    const { status, body } = await getPreview()
+    expect(status).toBe(200)
+    expect(body.student.name).toBe('abdulla Khader')
+    expect(body.student.officialName).toBe('عبدالله امين عبدالحافظ خضر')
+  })
+
   test('completed enrollments get full details in their own list — never inside the active/follow-up flow (عرض الخريجين القدامى، 2026-11-08)', async () => {
     fx.enrollments.push({
       id: 'enr-2', status: 'COMPLETED', completedUnits: '[]', finalScore: 71, certificateNo: 'C-1',
