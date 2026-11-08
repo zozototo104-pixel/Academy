@@ -5,6 +5,7 @@ import {
   SEMESTER_APPROVAL_ACTIVE,
   approveSemesterResult,
   collectSemesterApprovalBlockers,
+  evaluateContextualFinality,
   storedSemesterApproval,
 } from '@/lib/semester-approval'
 import { calculateSemesterAverages } from '@/lib/semester-grade'
