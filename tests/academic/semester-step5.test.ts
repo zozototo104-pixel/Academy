@@ -121,6 +121,51 @@ describe('materializeDeadlineRaises — تجسيد رفع المهلة', () => {
     expect(count).toBe(0)
     expect(decisions.get('enr1:1').status).toBe('INTENT')
   })
+
+  test('طالب لم يختر شيئًا: يُرفع فصله المنتهي دون افتراض موافقة مبكرة', async () => {
+    const { decisions, notices, db } = sweepWorld(new Date('2026-01-01T00:00:00Z'))
+    const now = new Date('2026-03-01T00:00:00Z')
+    expect(await materializeDeadlineRaises(db, { now })).toBe(1)
+    expect(decisions.get('enr1:1')).toMatchObject({
+      status: 'RAISED', intent: null, raiseSource: 'DEADLINE',
+    })
+    expect(notices.has('semester-deadline-raised:enr1:1')).toBe(true)
+    // Retry/next cron tick MUST NOT reopen or resend a new notice.
+    expect(await materializeDeadlineRaises(db, { now })).toBe(0)
+    expect(notices.size).toBe(1)
+  })
+
+  test('استكمال الأعمال وسحب الطلب لا يمنعان الرفع التلقائي عند نهاية مدة الفصل', async () => {
+    for (const previous of [
+      { status: 'NONE', intent: 'CONTINUE' },
+      { status: 'WITHDRAWN', intent: 'EARLY_FINISH' },
+    ]) {
+      const { decisions, db } = sweepWorld(new Date('2026-01-01T00:00:00Z'))
+      decisions.set('enr1:1', { enrollmentId: 'enr1', semester: 1, ...previous })
+      expect(await materializeDeadlineRaises(db, { now: new Date('2026-03-01T00:00:00Z') })).toBe(1)
+      expect(decisions.get('enr1:1')).toMatchObject({
+        ...{ intent: previous.intent }, status: 'RAISED', raiseSource: 'DEADLINE',
+      })
+    }
+  })
+
+  test('لا يلمس فصلًا مغلقًا أو نتيجة اعتمدتها الإدارة', async () => {
+    const { decisions, approvals, closed, db } = sweepWorld(new Date('2026-01-01T00:00:00Z'))
+    approvals.add('enr1:1')
+    expect(await materializeDeadlineRaises(db, { now: new Date('2026-03-01T00:00:00Z') })).toBe(0)
+    expect(decisions.size).toBe(0)
+    approvals.clear()
+    closed.add('enr1:1')
+    expect(await materializeDeadlineRaises(db, { now: new Date('2026-03-01T00:00:00Z') })).toBe(0)
+    expect(decisions.size).toBe(0)
+  })
+
+  test('التمديد يمنع الرفع التلقائي قبل نهاية المدة الممددة', async () => {
+    const { decisions, enrollment, db } = sweepWorld(new Date('2026-01-01T00:00:00Z'))
+    enrollment.extensionDays = 70
+    expect(await materializeDeadlineRaises(db, { now: new Date('2026-03-01T00:00:00Z') })).toBe(0)
+    expect(decisions.size).toBe(0)
+  })
 })
 
 function hookWorld() {
