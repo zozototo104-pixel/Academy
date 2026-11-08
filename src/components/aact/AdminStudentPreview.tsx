@@ -658,7 +658,7 @@ export function AdminStudentPreview() {
             <Section title="الوحدات بالتفصيل" icon={BookOpen}>
               <p className="text-sm text-slate-400">لا توجد تسجيلات لعرض وحداتها.</p>
             </Section>
-          ) : [...data.enrollmentDetails, ...(data.completedDetails ?? [])].map((d) => (
+          ) : [...data.enrollmentDetails, ...historicalDetails].map((d) => (
             <Section key={d.enrollmentId} title={`الوحدات بالتفصيل — ${d.programTitle}${d.status !== 'ACTIVE' ? ' (مكتمل)' : ''}`} icon={BookOpen}>
               {d.units.length === 0 ? <p className="text-sm text-slate-400">لا توجد وحدات في هذا البرنامج.</p> : (
                 <div className="space-y-2">
