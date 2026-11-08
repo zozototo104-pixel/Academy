@@ -67,6 +67,33 @@ describe('منع التكرار والمصادقة الجماعية', () => {
   })
 })
 
+describe('الاحتفاظ بسجل التسجيل المنتهي وبطاقة المشرف الأكاديمية', () => {
+  test('السجل المنتهي لا يُحسب نشطًا أو متخرجًا، ويظهر باسمه الرسمي', () => {
+    expect(adminPreviewApi).toContain("expiredDetails = allDetails.filter((d) => d.status === 'EXPIRED')")
+    expect(adminPreviewApi).toContain('officialName: admissions.find')
+    expect(adminPreviewUi).toContain('تسجيلات منتهية المدة — سجل أكاديمي للقراءة فقط')
+    expect(adminPreviewUi).toContain('historicalDetails')
+    expect(adminPreviewUi).toContain('s.officialName || s.name')
+  })
+  test('معاينة المشرف تقصر الطالب على طلب الالتحاق والبرنامج المعيّنين قبل تحميل الدرجات', () => {
+    expect(supervisorStudentsApi).toContain("id: admissionId, userId: { not: null }, programId: { not: null }")
+    expect(supervisorStudentsApi).toContain("supervisorId: user.id")
+    expect(supervisorStudentsApi).toContain("if (!admission) return NextResponse.json")
+    expect(supervisorStudentsApi).toContain("previewMode: 'SUPERVISOR_ACADEMIC_READ_ONLY'")
+    expect(supervisorStudentsApi).toContain('calculateFinalGrade({ userId, programId')
+    expect(supervisorStudentsApi).toContain('getStudentSemesterTracking(db')
+  })
+  test('بطاقة المشرف تظهر المسار والفصول وحالات الخطأ دون فتح صلاحيات الإدارة', () => {
+    expect(supervisorUi).toContain('value="academic"')
+    expect(supervisorUi).toContain('defaultValue="academic"')
+    expect(supervisorUi).toContain('SemesterTrackingCard tracking={academicPreview?.tracking}')
+    expect(supervisorUi).toContain('/api/supervisor/students?admissionId=')
+    expect(supervisorUi).toContain('currentAcademic.error')
+    expect(supervisorUi).toContain('overflow-x-hidden')
+    expect(supervisorUi).not.toContain('/api/admin/students/preview?')
+  })
+})
+
 describe('تنظيم معاملات الشهادات والالتماسات على الجوال', () => {
   test('قائمتان أساسيتان للمكتمل وقيد الاستكمال وتفاصيل بالضغط على الاسم', () => {
     expect(certificatesUi).toContain("certificatePhase === 'IN_PROGRESS'")
