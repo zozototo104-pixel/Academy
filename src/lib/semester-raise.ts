@@ -268,7 +268,7 @@ export async function matureSemesterRaiseIfReady(
     semester: number
   } & StandingContext,
 ): Promise<{ decision: SemesterDecisionRecord; maturity: SemesterRaiseMaturity }> {
-  return withRaiseEvaluationLock(client, input.enrollmentId, input.semester, async (tx) => {
+  const result = await withRaiseEvaluationLock(client, input.enrollmentId, input.semester, async (tx) => {
     const maturity = await computeSemesterRaiseMaturity(tx, input)
     const decision = await tryMatureSemesterRaise(tx, {
       enrollmentId: input.enrollmentId,
@@ -277,4 +277,10 @@ export async function matureSemesterRaiseIfReady(
     })
     return { decision, maturity }
   })
+  if (result.decision?.status === 'RAISED') {
+    await enqueueReadyGraduationAdminNotice(client, {
+      enrollmentId: input.enrollmentId, expectedSemester: input.semester,
+    }).catch((error: unknown) => console.error('graduation matured notice deferred', error))
+  }
+  return result
 }
