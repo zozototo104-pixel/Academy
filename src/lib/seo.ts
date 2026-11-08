@@ -97,3 +97,42 @@ export function websiteJsonLd() {
     },
   }
 }
+
+// Moved from the catch-all to serve the actual dedicated program route.
+export function seoForProgram(program: {
+  id: string
+  slug: string | null
+  titleAr: string
+  description: string
+  category: string
+  price: number | null
+  hours: number | null
+}): Metadata {
+  const path = `/programs/${encodeURIComponent(program.slug || program.id)}`
+  const title = program.titleAr
+  const description = program.description?.slice(0, 240) || 'برنامج مهني لدى الأكاديمية الأمريكية للاستشارات والتدريب.'
+  return {
+    title,
+    description,
+    alternates: { canonical: path },
+    robots: { index: true, follow: true },
+    openGraph: {
+      title,
+      description,
+      url: absoluteUrl(path),
+      siteName: 'AACT',
+      type: 'website',
+      locale: 'ar',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+    },
+    other: {
+      'program:category': program.category,
+      ...(program.hours != null ? { 'program:hours': String(program.hours) } : {}),
+      ...(program.price != null ? { 'program:price': String(program.price) } : {}),
+    },
+  }
+}
