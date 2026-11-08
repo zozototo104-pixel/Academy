@@ -204,9 +204,12 @@ export async function loadSemesterPeriod(
     now?: Date
   },
 ): Promise<{ endAt: Date | null; ended: boolean }> {
-  const units = await client.unit
-    .findMany({ where: { programId: input.programId }, select: { id: true, semester: true, order: true } })
-    .catch(() => [])
+  // Missing units can affect semester count and therefore its deadline.
+  // A DB outage must not be mistaken for an empty programme.
+  const units = await client.unit.findMany({
+    where: { programId: input.programId },
+    select: { id: true, semester: true, order: true },
+  })
   const windows = getSemesterWindows(
     new Date(input.enrollmentCreatedAt),
     input.program || {},
