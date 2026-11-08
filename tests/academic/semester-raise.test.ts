@@ -11,6 +11,10 @@ const facts = {
   satCount: 0,
   readyExams: 1,
   average: 63.25 as number | null,
+  finalExamStatus: 'GRADED',
+  finalExamScore: 75 as number | null,
+  answerPoints: [5] as (number | null)[],
+  appealStatus: 'NONE',
 }
 
 mock.module('@/lib/db', () => ({ db: {} }))
