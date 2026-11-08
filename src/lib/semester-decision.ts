@@ -48,12 +48,15 @@ export const SEMESTER_DECISION_ACTIVE = true
 export type RaiseGate = 'DECIDED' | 'RAISED' | 'PERIOD_ENDED' | 'INTENT_PENDING' | 'AWAITING_STUDENT'
 
 export function raiseGateOf(
-  decision: { status?: string | null } | null | undefined,
+  decision: { status?: string | null; raiseSource?: string | null } | null | undefined,
   periodEnded: boolean,
 ): RaiseGate {
   const status = decision?.status ?? null
   if (status === 'DECIDED') return 'DECIDED'
-  if (status === 'RAISED') return 'RAISED'
+  // A deadline-generated raise is NOT an explicit student request.
+  // An extension after the old deadline reopens the legal window;
+  // old DEADLINE status must not authorize an early admin decision.
+  if (status === 'RAISED' && decision?.raiseSource !== 'DEADLINE') return 'RAISED'
   if (periodEnded) return 'PERIOD_ENDED'
   if (status === 'INTENT') return 'INTENT_PENDING'
   return 'AWAITING_STUDENT'
