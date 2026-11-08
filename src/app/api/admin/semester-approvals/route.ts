@@ -150,8 +150,11 @@ export async function GET(req: NextRequest) {
       standing,
       decisionSummary,
     })
-  } catch {
-    return NextResponse.json({ ok: false, code: 'UNAUTHORIZED' }, { status: 401 })
+  } catch (error: any) {
+    if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ ok: false, code: 'UNAUTHORIZED' }, { status: 401 })
+    if (error?.message === 'FORBIDDEN') return NextResponse.json({ ok: false, code: 'FORBIDDEN' }, { status: 403 })
+    console.error('semester-approval check failed:', error)
+    return NextResponse.json({ ok: false, code: 'SEMESTER_CHECK_FAILED', error: 'تعذر قراءة بيانات اعتماد الفصل' }, { status: 503 })
   }
 }
 
