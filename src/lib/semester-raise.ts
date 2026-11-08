@@ -75,11 +75,51 @@ export async function computeSemesterRaiseMaturity(
 ): Promise<SemesterRaiseMaturity> {
   const { blockers, standing, averages } = await loadMaturityFacts(client, input)
   const entry = averages?.semesters?.find((s: { semester: number }) => s.semester === input.semester)
+  // A submission or EXPIRED attempt counts as "sat" for the student's
+  // progress display, but NEVER proves a finalized semester exam.
+  // Only an actually GRADED attempt with a usable score and fully
+  // scored answers can mature an early-close request.
+  const readyExamIds: string[] = (standing?.programExams?.rows ?? [])
+    .filter((row: { status: string }) => row.status === 'READY')
+    .map((row: { examId: string }) => row.examId)
+  const gradedAttempts: Array<{
+    score: number | null
+    finalScore: number | null
+    appealStatus: string | null
+    answers: Array<{ points: number | null }>
+  }> = readyExamIds.length
+    ? await client.programExamAttempt.findMany({
+        where: {
+          userId: input.userId,
+          examId: { in: readyExamIds },
+          status: 'GRADED',
+        },
+        select: {
+          score: true,
+          finalScore: true,
+          appealStatus: true,
+          answers: { select: { points: true } },
+        },
+      }).catch(() => [])
+    : []
+  const finalExamGraded = gradedAttempts.some((attempt) => {
+    const score = attempt.finalScore ?? attempt.score
+    return typeof score === 'number'
+      && Number.isFinite(score)
+      && score >= 0
+      && score <= 100
+      && attempt.appealStatus !== 'PENDING'
+      && Array.isArray(attempt.answers)
+      && attempt.answers.length > 0
+      && attempt.answers.every((answer) => typeof answer.points === 'number' && Number.isFinite(answer.points))
+  })
   const examTaken = (standing?.programExams?.satCount ?? 0) > 0
-  const examPublished = (standing?.programExams?.ready ?? 0) > 0
+  const examPublished = readyExamIds.length > 0
+  const score = typeof entry?.average === 'number' && Number.isFinite(entry.average)
+    && entry.average >= 0 && entry.average <= 100 ? entry.average : null
   return {
-    mature: examPublished && examTaken && blockers.length === 0,
-    score: entry?.average ?? null,
+    mature: examPublished && finalExamGraded && score !== null && blockers.length === 0,
+    score,
     examTaken,
     examPublished,
     blockers,
