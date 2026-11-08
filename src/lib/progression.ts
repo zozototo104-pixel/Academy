@@ -151,27 +151,6 @@ export async function semesterExamsSat(
   return true
 }
 
-// استرحام مكتمل يغطّي شرط تقديم امتحان الفصل لغرض الانتقال:
-// حالة الاسترحام لا تصبح COMPLETED إلا داخل معاملة إعادة اعتماد
-// نتيجة الفصل نفسها — أي إن النشاط صُحّح وأُعيد اعتماد المعدل
-// الجديد رسميًا. الإدارة وثّقت نشاطًا علاجيًا بديلًا وقبلته، فلا
-// يبقى الطالب محبوسًا عند البوابة لأنه لم يجلس للامتحان الأصلي.
-// لا محاولة وهمية تُخلق، وصفر الامتحان النظامي داخل المعدل
-// المعتمد يبقى كما هو. (قرار المالك 2026-11-08.)
-export async function semesterExamCoveredByMercy(
-  client: AnyClient,
-  enrollmentId: string,
-  semester: number,
-): Promise<boolean> {
-  const store = (client as AnyClient)?.mercyRequest
-  if (!store?.findFirst) return false
-  const row = await store.findFirst({
-    where: { enrollmentId, semester, status: 'COMPLETED' },
-    select: { id: true },
-  }).catch(() => null)
-  return Boolean(row)
-}
-
 async function gateContext(client: AnyClient, enrollmentId: string) {
   const snapshot = await readEnrollmentSnapshot(client, enrollmentId).catch(() => null)
   return {
