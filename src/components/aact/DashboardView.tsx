@@ -190,6 +190,7 @@ interface ProgressData {
     questionCount: number
     bestScore: number | null
     passed: boolean
+    progression?: { open: boolean; reasons: string[] }
     decisionBrief?: SemesterDecisionBrief | null
     readiness?: {
       semester: number
