@@ -31,6 +31,7 @@ interface PreviewData {
     id: string
     name: string
     email: string
+    officialName?: string | null
     phone?: string | null
     country?: string | null
     role: string
