@@ -87,6 +87,32 @@ function paymentMatches(payment: Record<string, any>, where: Record<string, any>
 }
 
 const db: any = {
+  setting: {
+    findMany: async ({ where }: any = {}) => [...grantSettings.values()]
+      .filter((row) => !where?.key?.startsWith || row.key.startsWith(where.key.startsWith))
+      .map((row) => ({ ...row })),
+    findUnique: async ({ where }: any) => grantSettings.get(where.key) || null,
+    create: async ({ data }: any) => {
+      if (grantSettings.has(data.key)) throw new Error('UNIQUE_SETTING')
+      const row = { ...data, updatedAt: new Date() }
+      grantSettings.set(row.key, row)
+      return { ...row }
+    },
+    update: async ({ where, data }: any) => {
+      const row = grantSettings.get(where.key)
+      if (!row) throw new Error('SETTING_NOT_FOUND')
+      Object.assign(row, data)
+      return { ...row }
+    },
+    upsert: async ({ where, create, update }: any) => {
+      const row = grantSettings.get(where.key) || { ...create }
+      if (grantSettings.has(where.key)) Object.assign(row, update)
+      grantSettings.set(where.key, row)
+      return { ...row }
+    },
+    delete: async ({ where }: any) => { grantSettings.delete(where.key); return {} },
+    deleteMany: async ({ where }: any) => { grantSettings.delete(where.key); return { count: 1 } },
+  },
   $queryRaw: async (strings: any) => {
     rawQueries.push(Array.isArray(strings) ? strings.join('?') : String(strings))
     return []
