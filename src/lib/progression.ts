@@ -244,12 +244,11 @@ export async function thesisGate(
     const totalWeight = comp.perSemester.reduce((a, b) => a + b, 0)
     if (totalWeight > 0) {
       cumulative = Math.round((comp.perSemester.reduce((sum, w, i) => sum + w * (approvedScores[i + 1] || 0), 0) / totalWeight) * 100) / 100
-      if (!(cumulative > ctx.threshold)) {
-        reasons.push(`المعدل التراكمي من الفصول المعتمدة (${cumulative}) لا يتجاوز ${ctx.threshold}`)
-      }
     }
-  } else if (reasons.length === 0) {
-    reasons.push('تعذّر حساب التراكمي من النتائج المعتمدة')
   }
+  // The thesis/research is itself a weighted chance to improve an
+  // otherwise failing cumulative result. Never require a passing
+  // pre-thesis average just to let the student submit that work.
+  // Final certificate issuance still rechecks the FULL weighted score.
   return { open: reasons.length === 0, reasons, required: true, cumulative }
 }
