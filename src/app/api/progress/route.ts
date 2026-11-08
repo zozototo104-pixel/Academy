@@ -312,6 +312,12 @@ export async function POST(req: NextRequest) {
       if (intent !== 'EARLY_FINISH' && intent !== 'CONTINUE') {
         return NextResponse.json({ error: 'اختيار غير صالح', code: 'INVALID_INTENT' }, { status: 400 })
       }
+      if (intent === 'EARLY_FINISH' && consentToZeros !== true) {
+        return NextResponse.json({
+          error: 'يجب الموافقة صراحة على احتساب الأعمال غير المقدمة صفراً عند رفع الفصل مبكراً',
+          code: 'EARLY_CLOSE_CONSENT_REQUIRED',
+        }, { status: 400 })
+      }
       const result = await requestSemesterDecision(db, {
         enrollmentId: enrollment.id,
         userId: user.id,
