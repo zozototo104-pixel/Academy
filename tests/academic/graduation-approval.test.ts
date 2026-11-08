@@ -97,6 +97,18 @@ function makeWorld() {
       findUnique: async () => ({ id: 'user-1', email: 'student@example.test', role: 'STUDENT', name: 'طالب عربي' }),
     },
     notification: { createMany: async () => ({ count: 1 }), create: async () => ({}) },
+    notificationOutbox: {
+      create: async ({ data }: any) => {
+        if (state.outbox.some((row: any) => row.idempotencyKey === data.idempotencyKey)) {
+          throw Object.assign(new Error('duplicate'), { code: 'P2002' })
+        }
+        const row = { id: `outbox-${state.outbox.length + 1}`, ...data }
+        state.outbox.push(row)
+        return row
+      },
+      findUnique: async ({ where }: any) =>
+        state.outbox.find((row: any) => row.idempotencyKey === where.idempotencyKey) ?? null,
+    },
   }
   const db: any = { ...tx, $transaction: async (work: any) => {
     if (state.failTransaction) throw new Error('simulated readiness refresh failure')
