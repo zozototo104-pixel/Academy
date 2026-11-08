@@ -726,7 +726,7 @@ export function AdminStudentPreview() {
             )}
           </Section>
 
-          {[...data.enrollmentDetails, ...(data.completedDetails ?? [])].map((d) => (
+          {[...data.enrollmentDetails, ...historicalDetails].map((d) => (
             (d.programExams.length > 0 || d.assignments.length > 0) && (
               <Section key={d.enrollmentId} title={`امتحانات البرنامج والواجبات — ${d.programTitle}${d.status !== 'ACTIVE' ? ' (مكتمل)' : ''}`} icon={ClipboardCheck}>
                 <div className="grid gap-3 md:grid-cols-2">
