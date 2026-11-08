@@ -870,6 +870,38 @@ export function AdminFinanceTab() {
     if (typeof window !== 'undefined') window.setTimeout(() => window.scrollTo({ top: y, behavior: 'auto' }), 0)
   }
 
+  const loadGrantPolicies = useCallback(async () => {
+    try {
+      const response = await api<{ policies: OrganizedGrantPolicy[] }>('/api/admin/payments/waivers?mode=policies')
+      setGrantPolicies(Array.isArray(response.policies) ? response.policies : [])
+      setGrantPolicyError('')
+    } catch (error: any) {
+      setGrantPolicyError(error?.message || 'تعذر تحميل تعريفات المنح')
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadGrantPolicies()
+    api<{ programs: Array<{ id: string; titleAr: string }> }>('/api/programs?summary=1')
+      .then((result) => setGrantPrograms(Array.isArray(result.programs) ? result.programs : []))
+      .catch(() => setGrantPolicyError('تعذر تحميل قائمة التخصصات'))
+  }, [loadGrantPolicies])
+
+  useEffect(() => {
+    if (grantForm.scope !== 'INDIVIDUAL' || grantStudentSearch.trim().length < 2) {
+      setGrantAdmissions([])
+      return
+    }
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      const params = new URLSearchParams({ search: grantStudentSearch.trim(), pageSize: '20' })
+      api<{ applications: Array<{ id: string; reference: string; fullName: string; program: string }> }>(`/api/admin/admissions?${params}`)
+        .then((result) => { if (!cancelled) setGrantAdmissions(Array.isArray(result.applications) ? result.applications : []) })
+        .catch(() => { if (!cancelled) setGrantAdmissions([]) })
+    }, 300)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [grantStudentSearch, grantForm.scope])
+
   const load = () => setPaymentRefresh((v) => v + 1)
 
   useEffect(() => {
