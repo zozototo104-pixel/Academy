@@ -16,6 +16,18 @@ export async function GET() {
     const actor = await requireSupervisor()
     const studentIds = await supervisorStudentIds(actor)
     if (!studentIds.length) return NextResponse.json({ appeals: [] })
+    // A student can have multiple programmes with different supervisors.
+    const assignedPairs = actor.role === 'ADMIN' ? [] : await db.admissionApplication.findMany({
+      where: { supervisorId: actor.id, userId: { not: null }, programId: { not: null } },
+      select: { userId: true, programId: true },
+    })
+    if (actor.role !== 'ADMIN' && !assignedPairs.length) return NextResponse.json({ appeals: [] })
+    const unitScope = actor.role === 'ADMIN'
+      ? { userId: { in: studentIds } }
+      : { OR: assignedPairs.map((p) => ({ userId: p.userId!, exam: { unit: { programId: p.programId! } } })) }
+    const programScope = actor.role === 'ADMIN'
+      ? { userId: { in: studentIds } }
+      : { OR: assignedPairs.map((p) => ({ userId: p.userId!, exam: { programId: p.programId! } })) }
     const dbAny = db as any
     const [unitAppeals, programAppeals] = await Promise.all([
       dbAny.examAttempt.findMany({
