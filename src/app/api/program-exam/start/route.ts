@@ -67,11 +67,22 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (exam.semester >= 2 && !(await hasPassedFirstSemesterExam(user.id, exam.programId))) {
-      return NextResponse.json(
-        { error: 'يجب اجتياز امتحان الفصل الدراسي الأول قبل فتح امتحان الفصل الثاني', code: 'SEM1_REQUIRED' },
-        { status: 403 },
+    if (exam.semester >= 2) {
+      const progression = await progressionGate(
+        db,
+        { id: enrollment.id, userId: user.id, programId: exam.programId },
+        exam.semester,
+        exam.program.category,
       )
+      if (!progression.open) {
+        return NextResponse.json(
+          {
+            error: progression.reasons[0] || 'يجب تقديم امتحان الفصل السابق واعتماد نتيجته قبل فتح الفصل التالي؛ النجاح ليس شرطاً.',
+            code: 'PROGRESSION_LOCKED',
+          },
+          { status: 403 },
+        )
+      }
     }
 
     const readiness = await calculateSemesterReadiness(user.id, exam.programId, exam.semester)
