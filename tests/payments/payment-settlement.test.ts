@@ -463,6 +463,69 @@ beforeEach(() => {
   siblingPaidRaceId = null
 })
 
+describe('organized grant eligibility before issuing an existing waiver code', () => {
+  const programPolicyId = 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa'
+  const individualPolicyId = 'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb'
+  const basePolicy = {
+    title: 'منحة اختبار', scope: 'PROGRAM', programIds: ['program-A'], admissionId: null,
+    coverage: 'TUITION', valueMode: 'PERCENT', value: 25, reason: 'قرار لجنة المنح',
+    active: true, createdAt: new Date().toISOString(),
+  }
+  function seedPolicy(id: string, overrides: Record<string, any> = {}) {
+    const policy = { id, ...basePolicy, ...overrides }
+    const key = 'GRANT_ORGANIZATION_POLICY_V1_' + id
+    grantSettings.set(key, { key, value: JSON.stringify(policy), updatedAt: new Date() })
+  }
+  function seedStudentPayment(programId: string) {
+    const payment = {
+      id: 'grant-payment', admissionId: 'admission-1',
+      admission: { id: 'admission-1', fullName: 'طالب تجريبي', programId },
+      purpose: 'TUITION', status: 'UNPAID', amount: 199.99, amountCents: 19999,
+      invoiceNo: 'GRANT-INVOICE',
+    }
+    payments.set(payment.id, payment)
+    return payment
+  }
+  function quoteRequest(id: string) {
+    const params = new URLSearchParams({
+      mode: 'quote', policyId: id, paymentId: 'grant-payment',
+      requestedAmount: '999999', // injected amount must not override the server calculation
+    })
+    return new NextRequest('http://localhost/api/admin/payments/waivers?' + params.toString())
+  }
+  test('server blocks a program grant when the applicant belongs to another specialty', async () => {
+    seedStudentPayment('program-B')
+    seedPolicy(programPolicyId)
+    const response = await waiversRouteGET(quoteRequest(programPolicyId))
+    expect(response.status).toBe(409)
+    const body = await response.json()
+    expect(body.code).toBe('GRANT_NOT_ELIGIBLE')
+    expect(body.error).toContain('غير مشمول')
+  })
+  test('individual exception can serve any specialty but remains bound to that admission', async () => {
+    seedStudentPayment('program-B')
+    seedPolicy(individualPolicyId, { scope: 'INDIVIDUAL', programIds: [], admissionId: 'admission-1' })
+    const response = await waiversRouteGET(quoteRequest(individualPolicyId))
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.quote.baseCents).toBe(19999)
+    expect(body.quote.grantCents).toBe(5000)
+    expect(body.quote.requestedAmount).toBe(50)
+    expect(body.quote.waiverType).toBe('PARTIAL_TUITION')
+  })
+  test('individual grant for a different admission and an active existing code are both blocked', async () => {
+    seedStudentPayment('program-A')
+    seedPolicy(individualPolicyId, { scope: 'INDIVIDUAL', programIds: [], admissionId: 'admission-other' })
+    const wrongStudent = await waiversRouteGET(quoteRequest(individualPolicyId))
+    expect(wrongStudent.status).toBe(409)
+    seedPolicy(programPolicyId)
+    waiverCodes.push({ id: 'active-existing', paymentId: 'grant-payment', status: 'ISSUED' })
+    const activeCode = await waiversRouteGET(quoteRequest(programPolicyId))
+    expect(activeCode.status).toBe(409)
+    expect((await activeCode.json()).error).toContain('كود إعفاء نشط')
+  })
+})
+
 describe('payment waiver verification attempts', () => {
   test('failed attempts survive transaction rollback and the sixth invalid code is rate-limited without a new attempt', async () => {
     payments.set('payment-1', {
