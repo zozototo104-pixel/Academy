@@ -423,9 +423,12 @@ export function evaluateClosureRight(input: {
   decision: { status?: string | null; raiseSource?: string | null } | null
   periodEnded: boolean
 }): ClosureRight {
-  if (input.decision?.status === 'RAISED') {
+  if (input.decision?.status === 'RAISED' && input.decision.raiseSource !== 'DEADLINE') {
     return { allowed: true, source: 'STUDENT', reason: 'RAISED' }
   }
+  // Do not mislabel an automatic deadline referral as student consent.
+  // If an extension moved the deadline into the future, this right
+  // is not active again until the extended period actually ends.
   if (input.periodEnded) {
     return { allowed: true, source: 'DEADLINE', reason: 'PERIOD_ENDED' }
   }
