@@ -403,11 +403,23 @@ async function buildAcademicPreview(admission: { id: string; userId: string | nu
   }
 }
 
-export async function GET(req: NextRequest) {
+export async function GET(req?: NextRequest) {
   try {
     const user = await requireUser()
     if (!['SUPERVISOR', 'ADMIN'].includes(user.role)) {
       return NextResponse.json({ error: 'هذه الصفحة مخصصة للمشرفين والإدارة' }, { status: 403 })
+    }
+    const admissionId = req?.nextUrl.searchParams.get('admissionId')?.trim()
+    if (admissionId) {
+      const admission = await db.admissionApplication.findFirst({
+        where: {
+          id: admissionId, userId: { not: null }, programId: { not: null },
+          ...(user.role === 'ADMIN' ? {} : { supervisorId: user.id }),
+        },
+        select: { id: true, userId: true, programId: true, fullName: true },
+      })
+      if (!admission) return NextResponse.json({ error: 'بطاقة الطالب غير موجودة ضمن نطاق إشرافك' }, { status: 404 })
+      return NextResponse.json({ preview: await buildAcademicPreview(admission) })
     }
     const apps = await db.admissionApplication.findMany({
       where: user.role === 'ADMIN' ? { userId: { not: null } } : { supervisorId: user.id },
