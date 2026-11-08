@@ -196,6 +196,12 @@ export function SupervisorView() {
     sourceBookIds: [] as string[],
   })
 
+  const [rosterSemester, setRosterSemester] = useState(1)
+  const [rosterPage, setRosterPage] = useState(1)
+  const [assignmentRoster, setAssignmentRoster] = useState<any | null>(null)
+  const [rosterLoading, setRosterLoading] = useState(false)
+  const [rosterStudentId, setRosterStudentId] = useState<string | null>(null)
+
   const selected = useMemo(() => students.find((s) => s.id === selectedId) || students[0] || null, [students, selectedId])
   const currentAcademic = academicState?.admissionId === selected?.id ? academicState : null
   const academicPreview = currentAcademic?.preview
@@ -342,11 +348,6 @@ export function SupervisorView() {
     }
   }
 
-  const [rosterSemester, setRosterSemester] = useState(1)
-  const [rosterPage, setRosterPage] = useState(1)
-  const [assignmentRoster, setAssignmentRoster] = useState<any | null>(null)
-  const [rosterLoading, setRosterLoading] = useState(false)
-  const [rosterStudentId, setRosterStudentId] = useState<string | null>(null)
   const loadAssignmentRoster = async (programId: string, semester: number, page: number) => {
     setRosterLoading(true)
     try {
