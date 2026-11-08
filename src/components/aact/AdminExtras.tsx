@@ -1572,6 +1572,7 @@ interface SemesterCheckState {
   error?: string
   blockers?: { code: string; count: number }[]
   approvalActive?: boolean
+  canApprove?: boolean
   hasApproval?: boolean
   gradeApprovals?: { id: string; targetType: string; score: number }[]
   averages?: {
