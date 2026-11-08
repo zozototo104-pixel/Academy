@@ -517,7 +517,7 @@ export function SupervisorView() {
           </aside>
 
           {selected && (
-            <main id="supervisor-student-card" className="scroll-mt-4 space-y-5">
+            <main id="supervisor-student-card" className="min-w-0 w-full max-w-full scroll-mt-4 space-y-5 overflow-x-hidden">
               <Card className="border-[#0f2b46]/10"><CardContent className="p-5">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
