@@ -116,9 +116,25 @@ const ENROLLMENT = { id: 'e1', userId: 'u1', programId: 'p1' }
 const PROGRAM = { category: 'DIPLOMA', semestersCount: 2 }
 
 describe('progression gate', () => {
-  test('no lifecycle footprint → grandfathered open', async () => {
+  test('ACTIVE enrollment with no lifecycle footprint cannot bypass S2 approval', async () => {
     const gate = await progressionGate(fakeClient({ footprint: false }), ENROLLMENT, 2, 'DIPLOMA')
+    expect(gate.open).toBe(false)
+    expect(gate.reasons.join(' ')).toContain('غير معتمدة')
+  })
+
+  test('COMPLETED enrollment with no lifecycle footprint preserves historical access', async () => {
+    const client = fakeClient({ footprint: false })
+    client.enrollment.findUnique = async () => ({ id: 'e1', status: 'COMPLETED' })
+    const gate = await progressionGate(client, ENROLLMENT, 2, 'DIPLOMA')
     expect(gate.open).toBe(true)
+  })
+
+  test('missing enrollment status cannot grant access when lifecycle records are absent', async () => {
+    const client = fakeClient({ footprint: false })
+    client.enrollment.findUnique = async () => null
+    const gate = await progressionGate(client, ENROLLMENT, 2, 'DIPLOMA')
+    expect(gate.open).toBe(false)
+    expect(gate.reasons.join(' ')).toContain('تعذر التحقق')
   })
 
   test('new enrollment snapshot locks semester two before any semester state is created', async () => {
