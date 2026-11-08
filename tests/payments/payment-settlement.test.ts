@@ -196,6 +196,10 @@ const db: any = {
     },
   },
   paymentWaiverCode: {
+    count: async ({ where }: any) => waiverCodes.filter((row) =>
+      (!where?.paymentId?.in || where.paymentId.in.includes(row.paymentId))
+      && (!where?.status?.in || where.status.in.includes(row.status))
+    ).length,
     findUnique: async ({ where, include }: { where: Record<string, any>; include?: Record<string, any> }) => {
       const waiver = waiverCodes.find((item) => item.id === where.id)
       if (!waiver) return null
