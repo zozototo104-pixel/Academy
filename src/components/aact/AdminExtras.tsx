@@ -2693,6 +2693,7 @@ export function AdminFinanceTab() {
       <div className="grid gap-2 rounded-2xl border border-[#0f2b46]/10 bg-white p-3 sm:grid-cols-2" aria-label="مساحات عمل المالية والفواتير">
         {([
           ['payments', 'الفواتير والإثباتات والإعفاءات', `${paymentTotal} فاتورة ضمن الفلتر الحالي`],
+          ['grants', 'تنظيم المنح', `${grantPolicies.length} تعريف منحة · عامة وتخصصات وفردية`],
           ['reports', 'التقارير والتحليلات', report ? `${report.admissionStats.total} طلب · ${report.agentPerformance.length} وكيل` : 'التقارير غير محملة بعد'],
         ] as const).map(([value, title, summary]) => {
           const active = openFinanceSection === value
