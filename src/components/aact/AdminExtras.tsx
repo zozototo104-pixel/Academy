@@ -892,10 +892,7 @@ export function AdminFinanceTab() {
   }, [loadGrantPolicies])
 
   useEffect(() => {
-    if (grantForm.scope !== 'INDIVIDUAL' || grantStudentSearch.trim().length < 2) {
-      setGrantAdmissions([])
-      return
-    }
+    if (grantForm.scope !== 'INDIVIDUAL' || grantStudentSearch.trim().length < 2) return
     let cancelled = false
     const timer = window.setTimeout(() => {
       const params = new URLSearchParams({ search: grantStudentSearch.trim(), pageSize: '20' })
