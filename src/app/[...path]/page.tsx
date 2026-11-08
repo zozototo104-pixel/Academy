@@ -16,12 +16,16 @@ const LEGACY_SINGLE_PATHS = new Set([
 function isKnownLegacyPath(parts: string[]) {
   if (parts.length === 1) return LEGACY_SINGLE_PATHS.has(parts[0])
   if (parts.length === 2) {
-    return (parts[0] === 'unit' || parts[0] === 'exam') && !!parts[1]
-      || (parts[0] === 'verify' && parts[1] === 'certificates')
+    const [first, second] = parts
+    return ((first === 'unit' || first === 'exam') && Boolean(second))
+      || (first === 'verify' && second === 'certificates')
   }
   if (parts.length === 3) {
-    return parts[0] === 'dashboard' && parts[1] === 'program' && !!parts[2]
-      || parts[0] === 'admin' && (parts[1] === 'students' || parts[1] === 'agents') && !!parts[2]
+    const [first, second, third] = parts
+    return Boolean(third) && (
+      (first === 'dashboard' && second === 'program')
+      || (first === 'admin' && (second === 'students' || second === 'agents'))
+    )
   }
   return false
 }
