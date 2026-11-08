@@ -305,9 +305,11 @@ test('failed approval record lookup does not trigger a second approval or audit'
 test('grade approval obtains a transaction-scoped attempt lock on capable clients', async () => {
   const original = fakeDb.$queryRaw
   const locks: unknown[][] = []
-  fakeDb.$queryRaw = async (_parts: TemplateStringsArray, ...values: unknown[]) => {
+  const statements: string[] = []
+  fakeDb.$queryRaw = async (parts: TemplateStringsArray, ...values: unknown[]) => {
     locks.push(values)
-    return []
+    statements.push(parts.join('?'))
+    return [{ acquired: '' }]
   }
   try {
     const approved = await approveGrade({
@@ -316,6 +318,8 @@ test('grade approval obtains a transaction-scoped attempt lock on capable client
     expect(approved.ok).toBe(true)
     expect(locks.length).toBe(1)
     expect(locks[0]).toContain('grade-approval:UNIT_EXAM:unit-attempt-1')
+    // pg_advisory_xact_lock returns PostgreSQL VOID, which Prisma cannot decode.
+    expect(statements[0]).toContain('::text')
   } finally {
     if (original === undefined) delete fakeDb.$queryRaw
     else fakeDb.$queryRaw = original
@@ -364,4 +368,29 @@ test('bulk approval: per-item report with scope and finality inherited (§10)', 
   // audits: 1 (the pre-approval) + 1 (program exam in admin bulk) — the
   // already-approved item wrote none.
   expect(world.audits.length).toBe(2)
+})
+
+test('bulk approval continues after a database failure on one attempt and reports its code', async () => {
+  const { approveGradesBulk } = await import('@/lib/grade-approval')
+  const original = fakeDb.examAttempt.findUnique
+  fakeDb.examAttempt.findUnique = async ({ where }: AnyRow) => {
+    if (where.id === 'broken-attempt') throw new Error('SIMULATED_DB_ERROR')
+    return original({ where })
+  }
+  try {
+    const report = await approveGradesBulk({
+      items: [
+        { targetType: 'UNIT_EXAM', attemptId: 'broken-attempt' },
+        { targetType: 'PROGRAM_EXAM', attemptId: 'program-attempt-1' },
+      ],
+      actor: { id: 'admin-1' },
+    })
+    expect(report.results[0]).toMatchObject({ ok: false, code: 'INTERNAL_ERROR' })
+    expect(report.results[1]).toMatchObject({ ok: true })
+    expect(report.approved).toBe(1)
+    expect(report.rejected).toBe(1)
+    expect(world.approvals.size).toBe(1)
+  } finally {
+    fakeDb.examAttempt.findUnique = original
+  }
 })
