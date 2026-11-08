@@ -1,26 +1,54 @@
+import type { Metadata } from 'next'
+import { cache } from 'react'
+import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import QRCode from 'qrcode'
 import RepresentativePhoto from '@/components/aact/RepresentativePhoto'
 import { db } from '@/lib/db'
+import { absoluteUrl } from '@/lib/seo'
 import { representativeLookupCandidates, representativeVerifyUrl, serializeRepresentative, type RepresentativePublicProfile } from '@/lib/academy-representatives'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-async function loadRepresentative(slug: string): Promise<RepresentativePublicProfile | null> {
-  try {
-    const candidates = representativeLookupCandidates(slug)
-    const row = await db.academyRepresentative.findFirst({
-      where: {
-        deletedAt: null,
-        status: 'ACTIVE',
-        OR: [{ slug: { in: candidates } }, { id: { in: candidates } }],
-      },
-      include: { files: { orderBy: [{ displayOrder: 'asc' }, { createdAt: 'desc' }] } },
-    })
-    return row ? serializeRepresentative(row, null, true) : null
-  } catch {
-    return null
+// The page and its metadata must resolve the same published profile once.
+// A database failure must surface as an error, not a misleading 404.
+const loadRepresentative = cache(async (slug: string): Promise<RepresentativePublicProfile | null> => {
+  const candidates = representativeLookupCandidates(slug)
+  const row = await db.academyRepresentative.findFirst({
+    where: {
+      deletedAt: null,
+      status: 'ACTIVE',
+      OR: [{ slug: { in: candidates } }, { id: { in: candidates } }],
+    },
+    include: { files: { orderBy: [{ displayOrder: 'asc' }, { createdAt: 'desc' }] } },
+  })
+  return row ? serializeRepresentative(row, null, true) : null
+})
+
+type PageProps = { params: Promise<{ slug: string }> }
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { slug } = await params
+  const rep = await loadRepresentative(slug)
+  if (!rep) notFound()
+
+  const path = `/representatives/${encodeURIComponent(rep.slug || rep.id)}`
+  const title = `${rep.fullName} — ${rep.displayTitle || 'ممثل الأكاديمية'}`
+  const description = (rep.shortBio || rep.professionalBio || `الملف الرسمي لممثل الأكاديمية ${rep.fullName} في ${rep.country}.`).trim().slice(0, 240)
+  return {
+    title,
+    description,
+    alternates: { canonical: path },
+    robots: { index: true, follow: true },
+    openGraph: {
+      title,
+      description,
+      url: absoluteUrl(path),
+      siteName: 'AACT',
+      type: 'profile',
+      locale: 'ar',
+    },
   }
 }
 
