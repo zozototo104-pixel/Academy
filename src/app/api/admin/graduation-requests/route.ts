@@ -268,11 +268,33 @@ export async function POST(req: NextRequest) {
     if (request.status !== 'PENDING' && request.status !== 'APPROVED') {
       return NextResponse.json({ error: 'حالة الطلب الحالية لا تسمح بالرفض.', code: 'INVALID_TRANSITION' }, { status: 409 })
     }
-    const decision = await db.graduationRequest.updateMany({
+    const rejectionWrite = {
       where: { id: requestId, status: request.status, updatedAt: request.updatedAt },
-      data: { status: 'REJECTED', decidedById: admin.id, decidedAt: new Date(), decisionNote: note },
-    })
-    if (decision.count !== 1) {
+      data: { status: 'REJECTED' as const, decidedById: admin.id, decidedAt: new Date(), decisionNote: note },
+    }
+    // REJECT is also a final administrative decision. A direct HTTP call
+    // must not reject a pending record while the student's last semester
+    // is still open and the student has not submitted it.
+    const rejection = SEMESTER_DECISION_ACTIVE && request.status === 'PENDING'
+      ? await db.$transaction(async (tx) => {
+          const initial = await liveGraduationRaiseGate(tx, request.enrollmentId)
+          if (initial.semester == null) return { count: 0, raiseNotAllowed: true }
+          await lockSemesterDecision(tx, request.enrollmentId, initial.semester)
+          const live = await liveGraduationRaiseGate(tx, request.enrollmentId)
+          if (live.semester !== initial.semester || !isGraduationRaiseEligible(live.gate)) {
+            return { count: 0, raiseNotAllowed: true }
+          }
+          const updated = await tx.graduationRequest.updateMany(rejectionWrite)
+          return { count: updated.count, raiseNotAllowed: false }
+        })
+      : { ...(await db.graduationRequest.updateMany(rejectionWrite)), raiseNotAllowed: false }
+    if (rejection.raiseNotAllowed) {
+      return NextResponse.json({
+        error: 'لا يجوز رفض معاملة تخرج قبل رفع الطالب فصله الأخير أو انتهاء المدة النظامية.',
+        code: 'GRADUATION_NOT_RAISED',
+      }, { status: 409 })
+    }
+    if (rejection.count !== 1) {
       return NextResponse.json({ error: 'تغيّرت حالة طلب التخرج أثناء تسجيل الرفض. حدّث القائمة وأعد المحاولة.', code: 'GRADUATION_DECISION_CONFLICT' }, { status: 409 })
     }
     const updated = await db.graduationRequest.findUnique({ where: { id: requestId } })
