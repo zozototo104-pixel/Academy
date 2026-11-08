@@ -333,7 +333,7 @@ const ACC_TYPE_LABEL: Record<string, string> = {
 }
 
 interface StudentRow {
-  id: string; name: string; email: string; country?: string | null; createdAt: string
+  id: string; name: string; officialName?: string | null; email: string; country?: string | null; createdAt: string
   phone?: string | null; emailVerifiedAt?: string | null; hasAccount?: boolean
   rowKind?: 'STUDENT' | 'INCOMPLETE_ADMISSION'
   enrollments: { program: string; status: string; certificateNo?: string | null; finalScore?: number | null }[]
@@ -1488,7 +1488,335 @@ export function AdminView() {
               )}
               {unpaid.length > 0 && (
                 <p className="mt-1 text-[11px] font-bold text-amber-600">
-                  فواتير غير مسددة: {unpaid.map((p) => `${p.amount}$`).join(' + ')}
+                  فواتير غير مسددة: {unpaid.map((p) => `${p.amount}'use client'
+
+import { useAppStore, api } from '@/lib/store'
+import type { SiteAnnouncement } from '@/lib/site-announcements'
+import { useEffect, useMemo, useState } from 'react'
+import dynamic from 'next/dynamic'
+import { toast, useToast } from '@/hooks/use-toast'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent } from '@/components/ui/card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { AdminListToolbar, AdminPager, matchesAdminSearch, pageItems, safePage } from '@/components/aact/AdminListTools'
+import AdminExtensionRequests from '@/components/aact/AdminExtensionRequests'
+import {
+  Users2, ClipboardCheck, Bot, Globe2, Loader2, TrendingUp,
+  CheckCircle2, XCircle, Clock3, GraduationCap, BarChart3, ClipboardList, Search,
+  Gavel, Banknote, Award, Settings2, ScrollText, Mail, UserCheck,
+  Paperclip, FileText, FileWarning, BookMarked, AlertTriangle, Sparkles, Eye, PackageCheck, Send, ArrowRight,
+} from 'lucide-react'
+
+function AdminTabLoader() {
+  return (
+    <Card className="mt-4 border-[#0f2b46]/10">
+      <CardContent className="flex h-48 flex-col items-center justify-center gap-3 text-center">
+        <Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" />
+        <p className="text-sm font-black text-[#0f2b46]">جاري تحميل هذا القسم...</p>
+        <p className="text-xs font-bold text-slate-400">تم فصل التبويبات الثقيلة لتفتح لوحة الإدارة بسرعة أكبر.</p>
+      </CardContent>
+    </Card>
+  )
+}
+
+const loadAdminExtrasModule = () => import('@/components/aact/AdminExtras')
+const loadAdminBooksModule = () => import('@/components/aact/AdminBooks')
+const loadAdminAIModule = () => import('@/components/aact/AdminAITab')
+const loadAdminSystemModule = () => import('@/components/aact/AdminSystemTab')
+const loadAdminRulesModule = () => import('@/components/aact/AdminRulesTab')
+const loadAdminQualityModule = () => import('@/components/aact/AdminQualityTab')
+const loadAdminSupervisorsModule = () => import('@/components/aact/AdminSupervisors')
+const loadAdminWhatsAppInboxModule = () => import('@/components/aact/AdminWhatsAppInbox')
+const loadAdminRepresentativesModule = () => import('@/components/aact/AdminRepresentativesTab')
+const loadAdminGradingReviewModule = () => import('@/components/aact/AdminGradingReviewTab')
+const loadAdminStudyScheduleModule = () => import('@/components/aact/AdminStudyScheduleTab')
+const loadAdminLegacyGraduatesModule = () => import('@/components/aact/AdminLegacyGraduatesTab')
+const loadAdminAnnouncementsModule = () => import('@/components/aact/AdminAnnouncementsTab')
+
+const AdminThesisTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminThesisTab), { ssr: false, loading: AdminTabLoader })
+const AdminFinanceTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminFinanceTab), { ssr: false, loading: AdminTabLoader })
+const AdminCertificatesTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminCertificatesTab), { ssr: false, loading: AdminTabLoader })
+const AdminSettingsTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminSettingsTab), { ssr: false, loading: AdminTabLoader })
+const AdminAdminsTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminAdminsTab), { ssr: false, loading: AdminTabLoader })
+const AdminAuditTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminAuditTab), { ssr: false, loading: AdminTabLoader })
+const AdminMessagesTab = dynamic(() => loadAdminExtrasModule().then((m) => m.AdminMessagesTab), { ssr: false, loading: AdminTabLoader })
+const AdminDirectMessagesTab = dynamic(() => import('@/components/aact/AdminDirectMessagesTab').then((m) => m.AdminDirectMessagesTab), { ssr: false, loading: AdminTabLoader })
+const AdminFollowUpTab = dynamic(() => import('@/components/aact/AdminFollowUpTab').then((m) => m.AdminFollowUpTab), { ssr: false, loading: AdminTabLoader })
+const AdminBooksTab = dynamic(() => loadAdminBooksModule().then((m) => m.AdminBooksTab), { ssr: false, loading: AdminTabLoader })
+const AdminAITab = dynamic(() => loadAdminAIModule().then((m) => m.AdminAITab), { ssr: false, loading: AdminTabLoader })
+const AdminSystemTab = dynamic(() => loadAdminSystemModule().then((m) => m.AdminSystemTab), { ssr: false, loading: AdminTabLoader })
+const AdminRulesTab = dynamic(() => loadAdminRulesModule().then((m) => m.AdminRulesTab), { ssr: false, loading: AdminTabLoader })
+const AdminQualityTab = dynamic(() => loadAdminQualityModule().then((m) => m.AdminQualityTab), { ssr: false, loading: AdminTabLoader })
+const AdminSupervisorsTab = dynamic(() => loadAdminSupervisorsModule().then((m) => m.AdminSupervisorsTab), { ssr: false, loading: AdminTabLoader })
+const AdminWhatsAppInboxTab = dynamic(() => loadAdminWhatsAppInboxModule().then((m) => m.AdminWhatsAppInboxTab), { ssr: false, loading: AdminTabLoader })
+const AdminRepresentativesTab = dynamic(() => loadAdminRepresentativesModule(), { ssr: false, loading: AdminTabLoader })
+const AdminGradingReviewTab = dynamic(() => loadAdminGradingReviewModule(), { ssr: false, loading: AdminTabLoader })
+const AdminReopenAppeals = dynamic(() => import('@/components/aact/AdminReopenAppeals'), { ssr: false, loading: AdminTabLoader })
+const AdminMercyQueue = dynamic(() => import('@/components/aact/AdminMercy').then((m) => m.AdminMercyQueue), { ssr: false, loading: AdminTabLoader })
+const AdminStudyScheduleTab = dynamic(() => loadAdminStudyScheduleModule(), { ssr: false, loading: AdminTabLoader })
+const AdminLegacyGraduatesTab = dynamic(() => loadAdminLegacyGraduatesModule(), { ssr: false, loading: AdminTabLoader })
+const AdminAnnouncementsTab = dynamic(() => loadAdminAnnouncementsModule().then((m) => m.AdminAnnouncementsTab), { ssr: false, loading: AdminTabLoader })
+const AdminLectures = dynamic(() => import('@/components/aact/AdminLectures').then((m) => m.AdminLectures), { ssr: false, loading: AdminTabLoader })
+const AdminMeetings = dynamic(() => import('@/components/aact/AdminMeetings').then((m) => m.AdminMeetings), { ssr: false, loading: AdminTabLoader })
+const AdminAiStageProfiles = dynamic(() => import('@/components/aact/AdminAiStageProfiles').then((m) => m.AdminAiStageProfiles), { ssr: false, loading: AdminTabLoader })
+
+interface Stats {
+  stats: {
+    totalStudents: number
+    totalEnrollments: number
+    totalAttempts: number
+    totalChats: number
+    pendingAgents: number
+    pendingAdmissions: number
+    incompleteAdmissions?: number
+    pendingServices?: number
+    paidServicesWaitingDelivery?: number
+    passRate: number
+  }
+  recentAttempts: {
+    id: string; student: string; email: string; exam: string; program: string
+    score: number | null; passed: boolean | null; submittedAt: string
+  }[]
+  programCounts: { titleAr: string; enrollments: number }[]
+}
+
+interface AgentApp {
+  id: string; kind: string; accreditationType?: string | null
+  orgName: string; repName: string; email: string; phone?: string | null
+  country: string; territory?: string | null; experience?: string | null
+  status: string; createdAt: string
+  user?: { id: string; name: string; email: string; role: string } | null
+  submittedByStaff?: boolean
+  contractNo?: string | null
+  commissionRate?: number | null
+  committeeFee?: number | null
+  exclusive?: boolean
+  startDate?: string | null
+  endDate?: string | null
+  revokedAt?: string | null
+  revokedReason?: string | null
+  revokedById?: string | null
+  // وثائق الاعتماد الرسمية المرفوعة + فاتورة رسوم التقديم
+  documents?: { id: string; docType: string; fileName: string; size: number; mimeType: string }[]
+  certificates?: { id: string; serial: string; valid: boolean; issuedAt: string }[]
+  applicationFee?: { invoiceNo: string; amount: number; status: string } | null
+}
+
+interface ServiceWorkflowStageView {
+  id: string
+  label: string
+  description: string
+  deliverableTypes?: string[]
+  state: 'done' | 'active' | 'pending'
+}
+
+interface ServiceWorkflowView {
+  workflow: { kind: string; title: string; summary: string }
+  stages: ServiceWorkflowStageView[]
+  activeStage: ServiceWorkflowStageView
+  nextAction: string
+  clientNextAction?: string
+  expectedDeliverableTypes: string[]
+  paid: boolean
+  hasInvoice: boolean
+  publishedDeliverables: number
+}
+
+interface AdmissionApp {
+  id: string; reference: string; fullName: string; fullNameEn?: string | null; email: string; phone: string
+  country: string; education: string; program: string; documents: string; notes?: string | null
+  documentReplacementRequest?: { note: string; docTypes: string[]; previousStatus: string; requestedAt: string; requestedByName?: string | null } | null
+  requiredDocs?: { type: string; label: string }[]
+  missingDocs?: { type: string; label: string }[]
+  files?: { id: string; docType: string; fileName: string; size: number; mimeType: string }[]
+  deliverables?: { id: string; type: string; status: string; title: string; description?: string | null; fileName?: string | null; mimeType?: string | null; size?: number | null; externalUrl?: string | null; certificateId?: string | null; verificationUrl?: string | null; meetingAt?: string | null; expiresAt?: string | null; visibleToStudent?: boolean; createdAt: string }[]
+  serviceWorkflow?: ServiceWorkflowView | null
+  tuitionAppeal?: { id: string; status: string; requestedInitialAmount: number; proposedSchedule?: string | null; reason?: string | null; adminNote?: string | null; approvedInitialAmount?: number | null; firstSemesterRequiredAmount?: number | null; finalRequiredAmount?: number | null; createdAt: string } | null
+  tuitionPlan?: { totalTuition: number; paidTuition: number; remainingTuition: number; firstSemesterRequiredAmount: number; finalRequiredAmount: number; firstSemesterAllowed: boolean; secondSemesterAllowed: boolean } | null
+  status: string; createdAt: string
+  programSlug?: string | null
+  requestKind?: string | null
+  requestLabel?: string | null
+  requestActionLabel?: string | null
+  isStudyProgram?: boolean
+  user?: { id: string; name: string; email: string; role: string } | null
+  supervisor?: { id: string; name: string } | null
+  supervisorId?: string | null
+  thesisDeadline?: string | null
+  payments?: { id: string; invoiceNo?: string; purpose: string; status: string; amount: number; method?: string | null; receiptNo?: string | null; cryptoNetwork?: string | null; cryptoTxHash?: string | null; cryptoVerificationStatus?: string | null; cryptoVerificationNote?: string | null }[]
+  theses?: { id: string; status: string; title: string }[]
+  // التقييم الذكي المخزّن — يظهر للإدارة قبل زر الاعتماد
+  aiVerdict?: string | null
+  aiScore?: number | null
+  aiReviewedAt?: string | null
+}
+
+interface DeliverableFormState {
+  type: string
+  title: string
+  description: string
+  externalUrl: string
+  certificateId: string
+  verificationUrl: string
+  visibleToStudent: boolean
+}
+
+const emptyDeliverableForm = (): DeliverableFormState => ({
+  type: 'PACKAGE_DOWNLOAD',
+  title: '',
+  description: '',
+  externalUrl: '',
+  certificateId: '',
+  verificationUrl: '',
+  visibleToStudent: true,
+})
+
+interface ChecklistItem { requirement: string; status: string; detail: string }
+interface AIFinding { severity: string; title: string; detail: string }
+interface AdmissionDocumentAnalysis {
+  fileName: string
+  declaredType: string
+  declaredLabel: string
+  detectedKind: string
+  detectedLabel: string
+  reader: string
+  readable: boolean
+  clearEnough: boolean
+  belongsToStudent: 'YES' | 'NO' | 'UNVERIFIED'
+  relatedToProgram: 'YES' | 'NO' | 'UNVERIFIED'
+  coverage: number
+  coverageReason: string
+  finalGradeExtracted?: string | null
+  recommendation: string
+  reasons: string[]
+}
+interface AdmissionAIReview {
+  verdict: string
+  fitScore: number
+  summaryForAdmin: string
+  checklist: ChecklistItem[]
+  documentAnalyses?: AdmissionDocumentAnalysis[]
+  findings: AIFinding[]
+  strengths: string[]
+  recommendedAction: string
+  engine: string
+  analyzedAt: string
+}
+
+const AI_VERDICT_META: Record<string, { label: string; cls: string; border: string }> = {
+  RECOMMEND_APPROVE: { label: 'خبير الذكاء الاصطناعي يوصي بالاعتماد', cls: 'bg-emerald-100 text-emerald-700', border: 'border-emerald-300' },
+  NEEDS_CLARIFICATION: { label: 'خبير الذكاء الاصطناعي: ملاحظات تحتاج مراجعة قبل الاعتماد', cls: 'bg-amber-100 text-amber-700', border: 'border-amber-300' },
+  RECOMMEND_REJECT: { label: 'خبير الذكاء الاصطناعي: نواقص جوهرية — راجع بجدية قبل الاعتماد', cls: 'bg-red-100 text-red-700', border: 'border-red-300' },
+  INSUFFICIENT_DATA: { label: 'خبير الذكاء الاصطناعي: بيانات غير كافية للتحليل', cls: 'bg-slate-100 text-slate-600', border: 'border-slate-300' },
+}
+
+const DOC_RECOMMENDATION_AR: Record<string, string> = {
+  ACCEPT_AS_EVIDENCE: 'يُقبل كدليل',
+  REQUEST_CLEARER_COPY: 'اطلب نسخة أوضح',
+  REQUEST_REPLACEMENT: 'اطلب استبدال المرفق',
+  IGNORE_AS_NON_ADMISSION: 'لا يُحتسب كمرفق قبول',
+}
+
+const TRI_STATE_AR: Record<string, string> = { YES: 'نعم', NO: 'لا', UNVERIFIED: 'غير متحقق' }
+
+const CHECK_STATUS_META: Record<string, { icon: typeof CheckCircle2; cls: string }> = {
+  FOUND: { icon: CheckCircle2, cls: 'text-emerald-600' },
+  MISSING: { icon: XCircle, cls: 'text-red-500' },
+  UNVERIFIED: { icon: Search, cls: 'text-amber-500' },
+  PROBLEM: { icon: AlertTriangle, cls: 'text-red-500' },
+}
+
+const SEVERITY_META: Record<string, { label: string; cls: string }> = {
+  HIGH: { label: 'ملاحظة جوهرية', cls: 'bg-red-100 text-red-700' },
+  MEDIUM: { label: 'ملاحظة متوسطة', cls: 'bg-amber-100 text-amber-700' },
+  LOW: { label: 'ملاحظة بسيطة', cls: 'bg-slate-100 text-slate-600' },
+}
+
+interface SupervisorOption { id: string; name: string; role: string }
+
+const STATUS_LABEL: Record<string, string> = {
+  AWAITING_FEE: 'بانتظار سداد رسوم التقديم (30$)',
+  UNDER_REVIEW: 'قيد دراسة الإدارة',
+  DOCUMENTS_NEED_REPLACEMENT: 'مطلوب استبدال مستندات',
+  UPLOADING_DOCUMENTS: 'طلب غير مكتمل، بانتظار المرفقات',
+  STAGED: 'طلب غير مكتمل، بانتظار المرفقات',
+  AWAITING_TUITION: 'مقبول — بانتظار سداد الرسوم الدراسية',
+  SUPERVISOR_ASSIGNED: 'تم تعيين مشرف',
+  THESIS: 'التسجيل النهائي — قيد إعداد بحث التخرج',
+  SCHEDULED: 'مجدول للمناقشة',
+  RESULT_APPROVED: 'تم اعتماد النتيجة',
+  CERTIFIED: 'تم إصدار الشهادة',
+  REJECTED: 'غير مقبول',
+  PENDING: 'تم التقديم',
+}
+
+const STATUS_BADGE: Record<string, string> = {
+  AWAITING_FEE: 'bg-amber-100 text-amber-700',
+  UNDER_REVIEW: 'bg-blue-100 text-blue-700',
+  DOCUMENTS_NEED_REPLACEMENT: 'bg-red-100 text-red-700',
+  UPLOADING_DOCUMENTS: 'bg-orange-100 text-orange-700',
+  STAGED: 'bg-orange-100 text-orange-700',
+  AWAITING_TUITION: 'bg-[#c9a227]/20 text-[#a8841a]',
+  SUPERVISOR_ASSIGNED: 'bg-purple-100 text-purple-700',
+  THESIS: 'bg-[#f7edd0] text-[#a8841a]',
+  SCHEDULED: 'bg-blue-100 text-blue-700',
+  RESULT_APPROVED: 'bg-emerald-100 text-emerald-700',
+  CERTIFIED: 'bg-emerald-100 text-emerald-700',
+  REJECTED: 'bg-red-100 text-red-600',
+  PENDING: 'bg-amber-100 text-amber-700',
+}
+
+const EDUCATION_LABEL: Record<string, string> = {
+  HIGH_SCHOOL: 'ثانوية عامة',
+  BACHELOR: 'بكالوريوس',
+  MASTER: 'ماجستير',
+  OTHER: 'أخرى',
+}
+
+const DOC_TYPE_AR: Record<string, string> = {
+  DEGREE: 'الشهادة وكشف العلامات',
+  ID: 'الهوية / الجواز',
+  PHOTO: 'صورة شخصية',
+  CV: 'السيرة الذاتية',
+  SERVICE_FILE: 'مرفق داعم للخدمة',
+  FLOW_DOC_1: 'مستند مسار الخدمة 1',
+  FLOW_DOC_2: 'مستند مسار الخدمة 2',
+  FLOW_DOC_3: 'مستند مسار الخدمة 3',
+  FLOW_DOC_4: 'مستند مسار الخدمة 4',
+  FLOW_DOC_5: 'مستند مسار الخدمة 5',
+}
+
+const DELIVERABLE_TYPE_AR: Record<string, string> = {
+  CERTIFICATE_PDF: 'شهادة PDF',
+  EQUIVALENCY_CERTIFICATE: 'شهادة معادلة',
+  PACKAGE_DOWNLOAD: 'رابط/ملف تحميل حقيبة',
+  CONSULTATION_LINK: 'رابط جلسة استشارية',
+  CONSULTATION_REPORT: 'تقرير استشارة',
+  MEMBERSHIP_CARD: 'بطاقة عضوية',
+  ACCREDITATION_CERTIFICATE: 'شهادة اعتماد',
+  CUSTOM_PACKAGE_DRAFT: 'مسودة حقيبة مخصصة',
+  CUSTOM_PACKAGE_FINAL: 'التسليم النهائي للحقيبة',
+  OTHER: 'مخرج آخر',
+}
+
+const DELIVERABLE_TYPE_OPTIONS = Object.entries(DELIVERABLE_TYPE_AR).map(([value, label]) => ({ value, label }))
+
+// وثائق طلبات الاعتماد الرسمية (وفق دليل الإجراءات — خطوة إرفاق الوثائق)
+const AGENT_DOC_AR: Record<string, string> = {
+  LICENSE: 'شهادة الترخيص/مزاولة المهنة',
+  ID: 'الهوية / الجواز',
+  PHOTO: 'صورة شخصية',
+  CV: 'السيرة الذاتية',
+}
+
+const ACC_TYPE_LABEL: Record<string, string> = {
+  COMPANY: 'اعتم).join(' + ')}
                 </p>
               )}
               {a.notes && <p className="mt-1.5 max-w-2xl text-[11px] leading-relaxed text-slate-500">ملاحظات: {a.notes}</p>}
@@ -2315,7 +2643,7 @@ export function AdminView() {
                         >
                           <td className="p-3">
                             <div className="flex flex-wrap items-center gap-1.5">
-                              <div className="font-extrabold text-[#0f2b46]">{s.name}</div>
+                              <div className="font-extrabold text-[#0f2b46]">{s.officialName || s.name}</div>
                               {s.rowKind === 'INCOMPLETE_ADMISSION' && (
                                 <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">طلب غير مستكمل</Badge>
                               )}
