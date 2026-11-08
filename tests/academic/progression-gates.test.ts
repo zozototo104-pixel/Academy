@@ -256,9 +256,10 @@ describe('progression gate', () => {
     expect(blocked.ok).toBe(false)
     if (!blocked.ok) expect(blocked.code).toBe('PROGRESSION_LOCKED')
 
-    const legacy = fakeClient({ footprint: false })
-    const legacyVerdict = await submissionWindowCheck(legacy, args)
-    expect(legacyVerdict.ok).toBe(true)
+    const backfilledActive = fakeClient({ footprint: false })
+    const backfilledVerdict = await submissionWindowCheck(backfilledActive, args)
+    expect(backfilledVerdict.ok).toBe(false)
+    if (!backfilledVerdict.ok) expect(backfilledVerdict.code).toBe('PROGRESSION_LOCKED')
   })
 
   test('exam requirement keys per category', () => {
