@@ -46,6 +46,7 @@ export async function POST(_request: NextRequest, context: Context) {
       let examQuestionsUpdated = 0
       let unitsUpdated = 0
       let studyGuidesUpdated = 0
+      let outlineSectionsUpdated = 0
 
       const chunks = await tx.bookChunk.findMany({ where: { bookId: id }, select: { id: true, text: true } })
       for (const chunk of chunks) {
@@ -159,7 +160,22 @@ export async function POST(_request: NextRequest, context: Context) {
         examQuestionsUpdated += 1
       }
 
-      return { chunksUpdated, knowledgeItemsUpdated, questionsUpdated, examQuestionsUpdated, unitsUpdated, studyGuidesUpdated }
+      const outlines = await tx.bookOutline.findMany({ where: { bookId: id }, select: { id: true } })
+      const outlineIds = outlines.map((outline) => outline.id)
+      const outlineSections = outlineIds.length
+        ? await tx.bookOutlineSection.findMany({
+            where: { outlineId: { in: outlineIds } },
+            select: { id: true, title: true },
+          })
+        : []
+      for (const section of outlineSections) {
+        const title = fixArabicPdfText(section.title)
+        if (!changed(section.title, title)) continue
+        await tx.bookOutlineSection.update({ where: { id: section.id }, data: { title } })
+        outlineSectionsUpdated += 1
+      }
+
+      return { chunksUpdated, knowledgeItemsUpdated, questionsUpdated, examQuestionsUpdated, unitsUpdated, studyGuidesUpdated, outlineSectionsUpdated }
     }, { timeout: 120000, maxWait: 10000 })
 
     return NextResponse.json(result)
