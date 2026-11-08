@@ -258,19 +258,17 @@ type EnrollmentContext = {
 }
 
 async function loadEnrollmentContext(client: AnyClient, enrollmentId: string): Promise<EnrollmentContext | null> {
-  const row = await client.enrollment
-    .findUnique({
-      where: { id: enrollmentId },
-      select: {
-        id: true,
-        userId: true,
-        programId: true,
-        createdAt: true,
-        extensionDays: true,
-        program: { select: { category: true, maxStudyDays: true, semestersCount: true } },
-      },
-    })
-    .catch(() => null)
+  const row = await client.enrollment.findUnique({
+    where: { id: enrollmentId },
+    select: {
+      id: true,
+      userId: true,
+      programId: true,
+      createdAt: true,
+      extensionDays: true,
+      program: { select: { category: true, maxStudyDays: true, semestersCount: true } },
+    },
+  })
   return (row as EnrollmentContext) ?? null
 }
 
