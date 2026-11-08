@@ -2269,6 +2269,7 @@ export function AdminView() {
                   { value: 'SUPERVISOR_ASSIGNED', label: 'مفعل دراسياً' },
                   { value: 'THESIS', label: 'بحث التخرج' },
                   { value: 'CERTIFIED', label: 'شهادة صادرة' },
+                  { value: 'EXPIRED', label: 'منتهية المدة' },
                 ]}
                 pageSize={studentPageSize}
                 onPageSizeChange={(v) => { setStudentPageSize(v); setStudentPage(1) }}

@@ -9,6 +9,7 @@ import {
 } from '@/lib/semester-approval'
 import { calculateSemesterAverages } from '@/lib/semester-grade'
 import { readEnrollmentSnapshot } from '@/lib/rules-snapshot'
+import { getSemesterStanding } from '@/lib/student-standing'
 
 // اعتماد نتيجة الفصل بيد الإدارة (المرحلة 2 من خطة دورة التخرج).
 // GET يعرض بيانات شاشة المصادقة: موانع الاعتماد الحالية + الاعتماد المحفوظ
@@ -29,7 +30,15 @@ export async function GET(req: NextRequest) {
     }
     const enrollment = await db.enrollment.findUnique({
       where: { id: enrollmentId },
-      select: { id: true, userId: true, programId: true },
+      select: {
+        id: true,
+        userId: true,
+        programId: true,
+        createdAt: true,
+        status: true,
+        extensionDays: true,
+        program: { select: { category: true, maxStudyDays: true, semestersCount: true } },
+      },
     })
     if (!enrollment) {
       return NextResponse.json({ ok: false, code: 'ENROLLMENT_NOT_FOUND' }, { status: 404 })
@@ -64,6 +73,27 @@ export async function GET(req: NextRequest) {
     } catch {
       snapshot = null
     }
+    // كشف وضع الطالب في هذا الفصل (قرار المالك 2026-11-08): وقائع
+    // التقديم والمواعيد التي يحتاجها قرار الاعتماد — ما قُدّم وما لم
+    // يُقدَّم بالأسماء، جلسة امتحان الفصل، نوافذ الوحدات، ومهلة
+    // التسجيل. قراءة فقط من lib/student-standing؛ دفاعي كالمعدلات:
+    // أي فشل لا يُسقط بيانات الشروط.
+    let standing: Awaited<ReturnType<typeof getSemesterStanding>> | null = null
+    try {
+      standing = await getSemesterStanding(db, {
+        userId: enrollment.userId,
+        programId: enrollment.programId,
+        enrollment: {
+          createdAt: enrollment.createdAt,
+          status: enrollment.status,
+          extensionDays: enrollment.extensionDays,
+        },
+        program: enrollment.program,
+        semester,
+      })
+    } catch {
+      standing = null
+    }
     return NextResponse.json({
       ok: true,
       enrollmentId,
@@ -73,6 +103,7 @@ export async function GET(req: NextRequest) {
       approval,
       averages,
       snapshot,
+      standing,
     })
   } catch {
     return NextResponse.json({ ok: false, code: 'UNAUTHORIZED' }, { status: 401 })

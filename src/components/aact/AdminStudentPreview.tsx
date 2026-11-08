@@ -81,6 +81,7 @@ interface PreviewData {
   microCredentials: any[]
   recentChats: any[]
   enrollmentDetails: EnrollmentDetail[]
+  completedDetails: EnrollmentDetail[]
   absence: (FollowUpInfo & { programTitle: string }) | null
   pendingReview: {
     needsReviewCount: number
@@ -405,6 +406,11 @@ export function AdminStudentPreview() {
               {data.enrollmentDetails.map((d) => `${d.programTitle} — المعدل التراكمي: ${cumulativeLabel(d)}`).join(' · ')}
             </p>
           )}
+          {(data.completedDetails?.length || 0) > 0 && (
+            <p className="mt-1 text-xs font-bold text-[#f5f0e1]/60">
+              برامج مكتملة: {data.completedDetails.map((d) => `${d.programTitle} — المعدل التراكمي: ${cumulativeLabel(d)}`).join(' · ')}
+            </p>
+          )}
           {(data.absence || pendingTotal > 0) && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {data.absence && <FollowUpBadges f={data.absence} />}
@@ -495,7 +501,7 @@ export function AdminStudentPreview() {
               <p className="rounded-xl bg-slate-50 p-3 font-bold text-slate-600">الدولة: <b className="text-[#0f2b46]">{s.country || 'غير محددة'}</b> — حالة الحساب: <b className="text-[#0f2b46]">{arStatus(s.status)}</b></p>
             </div>
             {data.enrollmentDetails.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-400">لا توجد تسجيلات نشطة — تفاصيل التقدم والمعدل التراكمي تظهر هنا عند وجود تسجيل نشط.</p>
+              <p className="mt-3 text-sm text-slate-400">{(data.completedDetails?.length || 0) > 0 ? 'لا توجد تسجيلات نشطة — برامجه المكتملة معروضة بتفاصيلها في قسم «برامج مكتملة» التالي.' : 'لا توجد تسجيلات نشطة — تفاصيل التقدم والمعدل التراكمي تظهر هنا عند وجود تسجيل نشط.'}</p>
             ) : (
               <div className="mt-3 space-y-3">
                 {data.enrollmentDetails.map((d) => (
@@ -548,6 +554,48 @@ export function AdminStudentPreview() {
             )}
           </Section>
 
+          {(data.completedDetails?.length || 0) > 0 && (
+            <Section title="برامج مكتملة — خريجون" icon={GraduationCap}>
+              <div className="space-y-3">
+                {data.completedDetails.map((d) => (
+                  <div key={d.enrollmentId} className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3 text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-black text-[#0f2b46]">التخصص: {d.programTitle}</p>
+                      <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">{arStatus(d.status)}</Badge>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <Badge className="bg-[#0f2b46] text-[#f5f0e1] hover:bg-[#0f2b46]">المعدل التراكمي: {cumulativeLabel(d)}</Badge>
+                      <Badge variant="outline">إجمالي البرنامج — وحدات مكتملة: {d.counts.unitsCompleted}/{d.counts.unitsTotal}</Badge>
+                      <Badge variant="outline">إجمالي البرنامج — اختبارات وحدات ناجحة: {d.counts.unitExamsPassed}/{d.counts.unitExamsTotal}</Badge>
+                      <Badge variant="outline">إجمالي البرنامج — واجبات مسلّمة: {d.counts.assignmentsSubmitted}/{d.counts.assignmentsTotal}</Badge>
+                      <Badge variant="outline">إجمالي البرنامج — امتحانات برنامج ناجحة: {d.counts.programExamsPassed}/{d.counts.programExamsTotal}</Badge>
+                    </div>
+                    {d.cumulative && d.cumulative.components.length > 0 && (
+                      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                        {d.cumulative.components.map((c) => (
+                          <div key={c.key} className="rounded-xl bg-white p-3 font-bold text-slate-600">
+                            <p>{c.label} (الوزن {c.weight}%)</p>
+                            <p className="mt-1 text-slate-800">
+                              {c.exempt ? 'معفى' : c.score != null
+                                ? `${c.ready ? 'النتيجة' : 'النتيجة الحالية'}: ${formatGradeValue(c.score)}%${c.ready ? '' : ' — لم يكتمل بعد'}`
+                                : 'غير مكتمل'}
+                            </p>
+                            {!c.exempt && c.score != null && typeof c.weighted === 'number' && Number.isFinite(c.weighted) && (
+                              <p className="mt-1 text-[11px] font-medium text-slate-500">
+                                المساهمة في المعدل: {formatGradeValue(c.weighted)} نقطة مئوية
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <SemesterTrackingCard tracking={d.tracking} />
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+
           {data.overview.atRiskSignals.length > 0 && (
             <Section title="إشارات متابعة عاجلة" icon={AlertTriangle}>
               <div className="grid gap-2 md:grid-cols-2">
@@ -578,12 +626,12 @@ export function AdminStudentPreview() {
 
       {tab === 'units' && (
         <div className="space-y-5">
-          {data.enrollmentDetails.length === 0 ? (
+          {data.enrollmentDetails.length === 0 && (data.completedDetails?.length || 0) === 0 ? (
             <Section title="الوحدات بالتفصيل" icon={BookOpen}>
-              <p className="text-sm text-slate-400">لا توجد تسجيلات نشطة لعرض وحداتها.</p>
+              <p className="text-sm text-slate-400">لا توجد تسجيلات لعرض وحداتها.</p>
             </Section>
-          ) : data.enrollmentDetails.map((d) => (
-            <Section key={d.enrollmentId} title={`الوحدات بالتفصيل — ${d.programTitle}`} icon={BookOpen}>
+          ) : [...data.enrollmentDetails, ...(data.completedDetails ?? [])].map((d) => (
+            <Section key={d.enrollmentId} title={`الوحدات بالتفصيل — ${d.programTitle}${d.status !== 'ACTIVE' ? ' (مكتمل)' : ''}`} icon={BookOpen}>
               {d.units.length === 0 ? <p className="text-sm text-slate-400">لا توجد وحدات في هذا البرنامج.</p> : (
                 <div className="space-y-2">
                   {d.units.map((u) => (
@@ -650,9 +698,9 @@ export function AdminStudentPreview() {
             )}
           </Section>
 
-          {data.enrollmentDetails.map((d) => (
+          {[...data.enrollmentDetails, ...(data.completedDetails ?? [])].map((d) => (
             (d.programExams.length > 0 || d.assignments.length > 0) && (
-              <Section key={d.enrollmentId} title={`امتحانات البرنامج والواجبات — ${d.programTitle}`} icon={ClipboardCheck}>
+              <Section key={d.enrollmentId} title={`امتحانات البرنامج والواجبات — ${d.programTitle}${d.status !== 'ACTIVE' ? ' (مكتمل)' : ''}`} icon={ClipboardCheck}>
                 <div className="grid gap-3 md:grid-cols-2">
                   {d.programExams.length > 0 && (
                     <div>

@@ -259,9 +259,18 @@ export async function GET(req: NextRequest) {
 
     // ----- تفاصيل التقدم لكل تسجيل نشط: المعدل التراكمي بمحرك الدرجات نفسه،
     // ونتيجة كل وحدة، وما تبقّى على الطالب. كلها مشتقة من بيانات مقروءة فقط.
+    // التسجيلات المكتملة/المُصدَّقة تُبنى تفاصيلها بنفس الباني تمامًا لكنها
+    // تُسلَّم في قائمة مستقلة (completedDetails) حتى لا تدخل منطق المتابعة
+    // والغياب الخاص بالنشطين — قرار المالك 2026-11-08 (عرض الخريجين
+    // القدامى: خريج ما قبل النظام كانت معاينته قشرة فارغة لأن التفاصيل
+    // كانت للنشطين فقط، مع أن سجلاته ودرجاته محفوظة).
     const activeEnrollments = enrollments.filter((e) => e.status === 'ACTIVE').slice(0, 5)
-    const detailProgramIds = [...new Set(activeEnrollments.map((e) => e.program.id))]
+    const completedEnrollments = enrollments.filter((e) => e.status === 'COMPLETED' || e.status === 'CERTIFIED').slice(0, 5)
+    const detailEnrollments = [...activeEnrollments, ...completedEnrollments]
+    const activeProgramIds = new Set(activeEnrollments.map((e) => e.program.id))
+    const detailProgramIds = [...new Set(detailEnrollments.map((e) => e.program.id))]
     let enrollmentDetails: any[] = []
+    let completedDetails: any[] = []
     let publishedAssignmentsTotal = 0
     if (detailProgramIds.length) {
       const [programUnits, unitVideos, watchRows, detailUnitAttempts, programExams, detailProgramAttempts, publishedAssignments, detailSubmissions, grades] = await Promise.all([
@@ -305,21 +314,23 @@ export async function GET(req: NextRequest) {
           take: 200,
           select: { id: true, status: true, score: true, assignmentId: true },
         }),
-        Promise.all(activeEnrollments.map((e) => calculateFinalGrade({
+        Promise.all(detailEnrollments.map((e) => calculateFinalGrade({
           userId: studentId,
           programId: e.program.id,
           admissionId: admissions.find((a) => a.programId === e.program.id)?.id ?? null,
         }).catch(() => null))),
       ])
-      publishedAssignmentsTotal = publishedAssignments.length
+      // عدّاد «الواجبات المنشورة» في النظرة العامة يبقى خاصًا بالبرامج
+      // النشطة كما كان قبل توسيع التفاصيل — لا يتغيّر معناه بالمكتملة.
+      publishedAssignmentsTotal = publishedAssignments.filter((a) => activeProgramIds.has(a.programId)).length
       const unitExamMeta = new Map<string, { examTitle: string; programTitle: string }>()
       for (const u of programUnits) {
         if (!u.exam) continue
-        unitExamMeta.set(u.exam.id, { examTitle: u.exam.title, programTitle: activeEnrollments.find((e) => e.program.id === u.programId)?.program.titleAr || '' })
+        unitExamMeta.set(u.exam.id, { examTitle: u.exam.title, programTitle: detailEnrollments.find((e) => e.program.id === u.programId)?.program.titleAr || '' })
       }
       const programExamMeta = new Map<string, { examTitle: string; programTitle: string }>()
       for (const x of programExams) {
-        programExamMeta.set(x.id, { examTitle: x.title, programTitle: activeEnrollments.find((e) => e.program.id === x.programId)?.program.titleAr || '' })
+        programExamMeta.set(x.id, { examTitle: x.title, programTitle: detailEnrollments.find((e) => e.program.id === x.programId)?.program.titleAr || '' })
       }
       for (const a of detailUnitAttempts) {
         const meta = unitExamMeta.get(a.examId)
@@ -330,14 +341,14 @@ export async function GET(req: NextRequest) {
         if (meta) notePending('PROGRAM', a, meta.examTitle, meta.programTitle)
       }
 
-      const trackings = await Promise.all(activeEnrollments.map((e, idx) => getStudentSemesterTracking(db, {
+      const trackings = await Promise.all(detailEnrollments.map((e, idx) => getStudentSemesterTracking(db, {
         userId: studentId,
         programId: e.program.id,
         admissionId: admissions.find((a) => a.programId === e.program.id)?.id ?? null,
         finalGrade: grades[idx],
       }).catch(() => null)))
 
-      enrollmentDetails = activeEnrollments.map((e, idx) => {
+      const allDetails = detailEnrollments.map((e, idx) => {
         const grade = grades[idx]
         const tracking = trackings[idx]
         const completedSet = new Set(safeJsonArray(e.completedUnits))
@@ -432,6 +443,8 @@ export async function GET(req: NextRequest) {
           },
         }
       })
+      enrollmentDetails = allDetails.filter((d) => d.status === 'ACTIVE')
+      completedDetails = allDetails.filter((d) => d.status === 'COMPLETED' || d.status === 'CERTIFIED')
     }
 
     const allScores = [
@@ -525,6 +538,7 @@ export async function GET(req: NextRequest) {
       microCredentials,
       recentChats: chats.map((c) => ({ ...c, content: c.content.length > 420 ? `${c.content.slice(0, 420)}...` : c.content })),
       enrollmentDetails,
+      completedDetails,
       absence: enrollmentDetails.length ? {
         ...enrollmentDetails[0].followUp,
         programTitle: enrollmentDetails[0].programTitle,

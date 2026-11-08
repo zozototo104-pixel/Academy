@@ -1578,6 +1578,13 @@ interface SemesterCheckState {
     composedFinal: number | null
   } | null
   snapshot?: { basis: string; weightSource: string } | null
+  standing?: {
+    enrollment: { status: string; deadlineAt: string | null; daysLeft: number | null; periodEnded: boolean }
+    units: { total: number; scorable: number; graded: number; missingTitles: string[]; rows: { unitId: string; title: string; state: string; windowEnded: boolean | null }[] }
+    assignments: { total: number; submitted: number; missingTitles: string[] }
+    programExams: { ready: number; satCount: number; rows: { examId: string; title: string; status: string; sat: boolean; bestScore: number | null; passed: boolean }[] }
+    semesterPeriod: { endAt: string | null; ended: boolean | null }
+  } | null
 }
 
 interface CertificateTemplateItem {
@@ -1746,7 +1753,7 @@ export function AdminCertificatesTab() {
     const key = `${request.enrollmentId}:${semester}`
     setSemesterChecks((prev) => ({ ...prev, [key]: { ...prev[key], loading: true, error: undefined } }))
     try {
-      const data = await api<{ blockers?: { code: string; count: number }[]; approvalActive?: boolean; approval?: unknown; averages?: SemesterCheckState['averages']; snapshot?: SemesterCheckState['snapshot'] }>(`/api/admin/semester-approvals?enrollmentId=${encodeURIComponent(request.enrollmentId)}&semester=${semester}`)
+      const data = await api<{ blockers?: { code: string; count: number }[]; approvalActive?: boolean; approval?: unknown; averages?: SemesterCheckState['averages']; snapshot?: SemesterCheckState['snapshot']; standing?: SemesterCheckState['standing'] }>(`/api/admin/semester-approvals?enrollmentId=${encodeURIComponent(request.enrollmentId)}&semester=${semester}`)
       let gradeApprovals: { id: string; targetType: string; score: number }[] = []
       try {
         const g = await api<{ approvals?: { id: string; targetType: string; score: number }[] }>(`/api/admin/grade-approvals?userId=${encodeURIComponent(request.userId)}&programId=${encodeURIComponent(request.programId)}&semester=${semester}`)
@@ -1762,6 +1769,7 @@ export function AdminCertificatesTab() {
           gradeApprovals,
           averages: data?.averages ?? null,
           snapshot: data?.snapshot ?? null,
+          standing: data?.standing ?? null,
         },
       }))
     } catch (e: any) {
@@ -2171,6 +2179,41 @@ export function AdminCertificatesTab() {
                                         {chk.averages.semesters.map((s) => `الفصل ${s.semester}: ${s.average === null ? 'غير متاح بعد' : `${s.average} (${s.passed ? 'ناجح' : 'غير ناجح'}${s.complete ? '' : ' — غير مكتمل'})`}`).join(' · ')}
                                         {' · '}المعدل النهائي المركّب: {chk.averages.composedFinal === null ? 'غير متاح بعد' : chk.averages.composedFinal}
                                       </p>
+                                    )}
+                                    {chk.standing && (
+                                      <div className="space-y-1 rounded-lg border border-[#0f2b46]/10 bg-white p-2">
+                                        <p className="font-black text-[#0f2b46]">كشف وضع الطالب في هذا الفصل — وقائع التقديم والمواعيد من الخادم</p>
+                                        <p>
+                                          حالة التسجيل: {{ ACTIVE: 'نشط', EXPIRED: 'منتهية المدة', COMPLETED: 'مكتمل', CERTIFIED: 'شهادة صادرة', SUPERVISOR_ASSIGNED: 'مفعّل دراسيًا', THESIS: 'بحث التخرج' }[chk.standing.enrollment.status] || chk.standing.enrollment.status}
+                                          {chk.standing.enrollment.deadlineAt && (
+                                            <> · مهلة الدراسة {chk.standing.enrollment.periodEnded ? `انتهت بتاريخ ${new Date(chk.standing.enrollment.deadlineAt).toLocaleDateString('ar-EG')}` : `تنتهي ${new Date(chk.standing.enrollment.deadlineAt).toLocaleDateString('ar-EG')} (باقي ${chk.standing.enrollment.daysLeft} يوم)`}</>
+                                          )}
+                                        </p>
+                                        <p>
+                                          الوحدات: قُدّمت وصُحّحت {chk.standing.units.graded} من {chk.standing.units.scorable} وحدة لها امتحان جاهز (مجموع وحدات الفصل {chk.standing.units.total}).
+                                          {chk.standing.units.missingTitles.length > 0 && <> الوحدات التي لم تُقدَّم: {chk.standing.units.missingTitles.join('، ')}.</>}
+                                          {chk.standing.units.rows.some((u) => u.windowEnded != null) && <> نوافذ الوحدات: انتهى وقت {chk.standing.units.rows.filter((u) => u.windowEnded).length} من {chk.standing.units.rows.filter((u) => u.windowEnded != null).length} وحدة.</>}
+                                        </p>
+                                        {chk.standing.programExams.rows.length > 0 ? (
+                                          <p>
+                                            امتحان الفصل: {chk.standing.programExams.rows.map((x) => x.status !== 'READY' ? `«${x.title}» غير جاهز بعد (${x.status})` : x.sat ? `«${x.title}» قُدّم${x.bestScore != null ? ` — أفضل درجة ${x.bestScore}` : ''}${x.passed ? ' (ناجح)' : ''}` : `«${x.title}» لم يُقدَّم بعد`).join(' · ')}
+                                            {chk.standing.semesterPeriod.endAt && <> · نهاية فترة الفصل {new Date(chk.standing.semesterPeriod.endAt).toLocaleDateString('ar-EG')} ({chk.standing.semesterPeriod.ended ? 'انتهت' : 'لم تنتهِ بعد'})</>}
+                                          </p>
+                                        ) : (
+                                          <p>امتحان الفصل: لا يوجد امتحان فصل محفوظ لهذا الفصل.</p>
+                                        )}
+                                        {chk.standing.assignments.total > 0 && (
+                                          <p>الواجبات: سُلّم {chk.standing.assignments.submitted} من {chk.standing.assignments.total}{chk.standing.assignments.missingTitles.length > 0 ? ` · لم تُسلَّم: ${chk.standing.assignments.missingTitles.join('، ')}` : ''}</p>
+                                        )}
+                                        <p className="font-black text-[#0f2b46]">
+                                          شو ضايل عليه في هذا الفصل:{' '}
+                                          {[
+                                            ...chk.standing.units.missingTitles.map((t) => `وحدة «${t}»`),
+                                            ...chk.standing.programExams.rows.filter((x) => x.status === 'READY' && !x.sat).map((x) => `امتحان الفصل «${x.title}»`),
+                                            ...chk.standing.assignments.missingTitles.map((t) => `واجب «${t}»`),
+                                          ].join('، ') || 'لا شيء — كل متطلبات التقديم في هذا الفصل مكتملة'}
+                                        </p>
+                                      </div>
                                     )}
                                     {chk.gradeApprovals && chk.gradeApprovals.length > 0 && (
                                       <p>الدرجات المعتمدة رسميًا: {chk.gradeApprovals.map((g) => `${g.targetType === 'UNIT_EXAM' ? 'وحدة' : 'امتحان فصل'} (${g.score})`).join('، ')}</p>
