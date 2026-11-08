@@ -149,8 +149,9 @@ export function SupervisorGradeReviewTab({ focus }: { focus?: { type: 'PROGRAM' 
   }
 
   return (
-    <div className="space-y-5" dir="rtl">
-      <Card className={appeals.length ? 'border-red-200' : ''}><CardContent className="space-y-3 p-5">
+    <div className="w-full min-w-0 max-w-full space-y-5 overflow-x-hidden" dir="rtl">
+      {loadError && <div role="alert" className="break-words rounded-xl border border-red-300 bg-red-50 p-3 text-xs font-bold text-red-800">تعذر تحميل بعض بيانات المشرف: {loadError} <button type="button" onClick={() => void load()} className="mr-2 underline">إعادة المحاولة</button></div>}
+      <Card className={`w-full min-w-0 overflow-hidden ${appeals.length ? 'border-red-200' : ''}`}><CardContent className="min-w-0 space-y-3 p-3 sm:p-5">
         <h3 className="flex items-center gap-2 text-base font-black text-[#0f2b46]"><Gavel className="h-5 w-5 text-[#a8841a]" /> التماسات مراجعة بانتظار بتّك ({appeals.length})</h3>
         {!appeals.length && <p className="text-xs font-bold text-slate-500">لا التماسات معلّقة من طلابك. الالتماس يصلك فقط من طالب معيّن عليك أنت.</p>}
         {appeals.map((a) => {
