@@ -17,6 +17,7 @@ function makeWorld() {
     certificate: null as any,
     createdCertificate: null as any,
     request: null as any,
+    outbox: [] as any[],
     enrollmentUpdates: [] as any[],
     failTransaction: false,
     admissionStatus: 'APPROVED',
