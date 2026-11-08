@@ -91,6 +91,9 @@ async function grantQuote(paymentId: string, policyId: string): Promise<GrantQuo
     if (tuition.some((row) => row.status === 'PAID' || row.status === 'WAIVED')) {
       throw grantError('يوجد قسط دراسي مسدد أو معفى؛ لا يمكن احتساب منحة موحدة للفاتورتين')
     }
+    if (policy.valueMode !== 'FULL' && tuition.some((row) => row.purpose === 'TUITION_INSTALLMENT')) {
+      throw grantError('لا يمكن جمع منحة التسجيل والدراسة الجزئية مع خطة تقسيط موجودة؛ اختر إعفاءً متوافقًا مع الفواتير الحالية')
+    }
     relatedTuition = tuition.find((row) => row.purpose === 'TUITION')?.status === 'UNPAID'
       ? { id: tuition.find((row) => row.purpose === 'TUITION')!.id, amountCents: amountCents(tuition.find((row) => row.purpose === 'TUITION')!), status: 'UNPAID' }
       : null
