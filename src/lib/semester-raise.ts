@@ -99,6 +99,7 @@ export async function computeSemesterRaiseMaturity(
           status: 'GRADED',
         },
         select: {
+          examId: true,
           score: true,
           finalScore: true,
           appealStatus: true,
