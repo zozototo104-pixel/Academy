@@ -248,11 +248,13 @@ export async function matureSemesterRaiseIfReady(
     semester: number
   } & StandingContext,
 ): Promise<{ decision: SemesterDecisionRecord; maturity: SemesterRaiseMaturity }> {
-  const maturity = await computeSemesterRaiseMaturity(client, input)
-  const decision = await tryMatureSemesterRaise(client, {
-    enrollmentId: input.enrollmentId,
-    semester: input.semester,
-    maturity,
+  return withRaiseEvaluationLock(client, input.enrollmentId, input.semester, async (tx) => {
+    const maturity = await computeSemesterRaiseMaturity(tx, input)
+    const decision = await tryMatureSemesterRaise(tx, {
+      enrollmentId: input.enrollmentId,
+      semester: input.semester,
+      maturity,
+    })
+    return { decision, maturity }
   })
-  return { decision, maturity }
 }
