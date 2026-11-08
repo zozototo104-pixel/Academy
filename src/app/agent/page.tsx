@@ -4,8 +4,9 @@ import { AgentView } from '@/components/aact/AgentView'
 import { PublicBackButton } from '@/components/aact/PublicBackButton'
 
 export const metadata: Metadata = {
-  title: 'الوكالة والاعتماد | AACT',
+  title: 'الوكالة والاعتماد',
   description: 'صفحة الوكالة الدولية واعتماد الجهات والأفراد لدى الأكاديمية الأمريكية للاستشارات والتدريب.',
+  alternates: { canonical: '/agent' },
 }
 
 export default function AgentPage() {
