@@ -28,6 +28,19 @@ export async function GET(req: NextRequest) {
 
     const studentIds = await supervisorStudentIds(actor)
     if (!studentIds.length) return NextResponse.json({ attempts: [] })
+    // A supervisor can be assigned to a student in programme A but NOT B.
+    // Limit the list at the database query, not just on opening a detail.
+    const assignedPairs = actor.role === 'ADMIN' ? [] : await db.admissionApplication.findMany({
+      where: { supervisorId: actor.id, userId: { not: null }, programId: { not: null } },
+      select: { userId: true, programId: true },
+    })
+    if (actor.role !== 'ADMIN' && !assignedPairs.length) return NextResponse.json({ attempts: [] })
+    const unitScope = actor.role === 'ADMIN'
+      ? { userId: { in: studentIds } }
+      : { OR: assignedPairs.map((p) => ({ userId: p.userId!, exam: { unit: { programId: p.programId! } } })) }
+    const programScope = actor.role === 'ADMIN'
+      ? { userId: { in: studentIds } }
+      : { OR: assignedPairs.map((p) => ({ userId: p.userId!, exam: { programId: p.programId! } })) }
     const dbAny = db as any
     const [unitAttempts, programAttempts] = await Promise.all([
       dbAny.examAttempt.findMany({
