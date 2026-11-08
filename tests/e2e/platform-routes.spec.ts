@@ -177,6 +177,36 @@ test.describe('SEO and route semantics', () => {
     expect(xml).toContain('/representatives</loc>')
   })
 
+  test('nonexistent or inactive representative profiles return a real 404', async ({ request }) => {
+    const response = await request.get('/representatives/__seo_nonexistent_representative__')
+    expect(response.status()).toBe(404)
+  })
+
+  test('published representative profiles have their own metadata and canonical', async ({ request }) => {
+    const listing = await request.get('/representatives')
+    expect(listing.status()).toBe(200)
+
+    const listingHtml = await listing.text()
+    const profileLinks = [...listingHtml.matchAll(/href="(\/representatives\/[^"?#]+)"/gi)]
+      .map((match) => match[1])
+      .filter((path) => path.split('/').filter(Boolean).length === 2)
+    const slug = process.env.SEO_TEST_REPRESENTATIVE_SLUG
+    const path = slug ? `/representatives/${encodeURIComponent(slug)}` : profileLinks[0]
+
+    if (!path) {
+      test.skip(true, 'No published representative profile is available in this environment')
+      return
+    }
+
+    const response = await request.get(path)
+    expect(response.status()).toBe(200)
+    const html = await response.text()
+    expect(canonicalPath(html)).toBe(path)
+    const title = html.match(/<title>([^<]+)<\/title>/i)?.[1]
+    expect(title).toBeTruthy()
+    expect(title).not.toMatch(/AACT \| AACT/)
+  })
+
   test('standalone invite, verification, and password routes bypass the catch-all', async ({ request }) => {
     for (const path of [
       '/meetings/seo-route-probe',
