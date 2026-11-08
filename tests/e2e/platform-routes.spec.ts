@@ -164,6 +164,35 @@ test.describe('SEO and route semantics', () => {
     }
   })
 
+  test('other public pages and sitemap use their own URLs', async ({ request }) => {
+    for (const path of ['/apply', '/accreditation', '/agent', '/representatives']) {
+      const response = await request.get(path)
+      expect(response.status(), path).toBe(200)
+      expect(canonicalPath(await response.text()), path).toBe(path)
+    }
+    const sitemap = await request.get('/sitemap.xml')
+    expect(sitemap.status()).toBe(200)
+    const xml = await sitemap.text()
+    expect(xml).toContain('/agent</loc>')
+    expect(xml).toContain('/representatives</loc>')
+  })
+
+  test('standalone invite, verification, and password routes bypass the catch-all', async ({ request }) => {
+    for (const path of [
+      '/meetings/seo-route-probe',
+      '/meetings/claimed/seo-route-probe',
+      '/defense/guest/seo-route-probe',
+      '/representatives/onboarding/seo-route-probe',
+      '/representatives/verify/seo-route-probe',
+      '/verify/certificates/seo-route-probe',
+      '/forgot-password',
+      '/reset-password',
+    ]) {
+      const response = await request.get(path)
+      expect(response.status(), path).not.toBe(404)
+    }
+  })
+
   test('llms.txt is a real text response', async ({ request }) => {
     const response = await request.get('/llms.txt')
     expect(response.status()).toBe(200)
