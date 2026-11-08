@@ -551,6 +551,124 @@ export function SupervisorView() {
                   <TabsTrigger value="thesis" className="text-[11px] font-black"><FileText className="ml-1 h-3.5 w-3.5" /> بحث ومناقشة</TabsTrigger>
                 </TabsList>
 
+                <TabsContent value="academic" className="w-full min-w-0 space-y-4">
+                  <Card className="w-full min-w-0 overflow-hidden border-[#c9a227]/30">
+                    <CardContent className="min-w-0 space-y-4 p-3 sm:p-5">
+                      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <h3 className="text-base font-black text-[#0f2b46]">بطاقة المسار الأكاديمي — {selected.fullName}</h3>
+                          <p className="text-xs font-bold text-slate-500">قراءة فقط، من محرك المعدل ومتابعة الفصول المستخدم في الإدارة، ولبرنامج إشرافك فقط.</p>
+                        </div>
+                        <Button size="sm" variant="outline" disabled={currentAcademic?.loading} onClick={() => setAcademicReload((n) => n + 1)}>
+                          {currentAcademic?.loading ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : <RefreshCcw className="ml-1 h-4 w-4" />}
+                          تحديث البطاقة
+                        </Button>
+                      </div>
+                      {!currentAcademic || currentAcademic.loading ? (
+                        <div role="status" className="flex items-center gap-2 rounded-xl bg-slate-50 p-4 text-sm font-bold text-slate-600">
+                          <Loader2 className="h-4 w-4 animate-spin" /> جارٍ تحميل سجل الطالب الأكاديمي...
+                        </div>
+                      ) : currentAcademic.error ? (
+                        <div role="alert" className="space-y-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-800">
+                          <p>تعذر تحميل بطاقة المسار: {currentAcademic.error}</p>
+                          <Button variant="outline" size="sm" onClick={() => setAcademicReload((n) => n + 1)}>إعادة المحاولة</Button>
+                        </div>
+                      ) : !academicEnrollment ? (
+                        <p className="rounded-xl bg-slate-50 p-4 text-sm font-bold text-slate-600">هذا الطالب معيّن للإشراف، لكن لا يوجد تسجيل دراسي مرتبط بهذا البرنامج حتى الآن.</p>
+                      ) : (
+                        <div className="min-w-0 space-y-4 [overflow-wrap:anywhere]">
+                          <div className="flex min-w-0 flex-wrap items-center gap-2">
+                            <Badge className="bg-[#0f2b46] text-white">{academicEnrollment.programTitle}</Badge>
+                            <Badge variant="outline">{academicEnrollment.status === 'COMPLETED' ? 'مكتمل' : academicEnrollment.status === 'EXPIRED' ? 'منتهية المدة' : academicEnrollment.status === 'ACTIVE' ? 'نشط' : academicEnrollment.status}</Badge>
+                            {academicEnrollment.daysLeft != null && (
+                              <Badge className={academicEnrollment.daysLeft <= 0 ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}>
+                                {academicEnrollment.daysLeft > 0 ? 'أيام متبقية: ' + academicEnrollment.daysLeft : 'انتهت المدة المقررة'}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="grid min-w-0 grid-cols-2 gap-2 md:grid-cols-4">
+                            {[
+                              { label: 'وحدات مكتملة', value: (academicPreview?.counts?.unitsCompleted ?? 0) + ' / ' + (academicPreview?.counts?.unitsTotal ?? 0) },
+                              { label: 'اختبارات وحدات ناجحة', value: (academicPreview?.counts?.unitExamsPassed ?? 0) + ' / ' + (academicPreview?.counts?.unitExamsTotal ?? 0) },
+                              { label: 'واجبات مسلّمة', value: (academicPreview?.counts?.assignmentsSubmitted ?? 0) + ' / ' + (academicPreview?.counts?.assignmentsTotal ?? 0) },
+                              { label: 'امتحانات برنامج ناجحة', value: (academicPreview?.counts?.programExamsPassed ?? 0) + ' / ' + (academicPreview?.counts?.programExamsTotal ?? 0) },
+                            ].map((metric) => (
+                              <div key={metric.label} className="min-w-0 rounded-xl bg-slate-50 p-3 text-center">
+                                <p className="text-lg font-black text-[#0f2b46]">{metric.value}</p>
+                                <p className="text-[11px] font-bold text-slate-600">{metric.label}</p>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="rounded-xl bg-[#fff8e6] p-3 text-xs font-bold leading-6 text-[#0f2b46]">
+                            <p>المحصّل من كامل البرنامج حتى الآن: {pctLabel(academicPreview?.cumulative?.earnedScore)}</p>
+                            <p>الدرجة الرسمية النهائية: {academicPreview?.cumulative?.score == null ? 'غير معتمدة بعد' : pctLabel(academicPreview.cumulative.score)}</p>
+                            {academicPreview?.cumulative?.components?.length ? (
+                              <div className="mt-2 grid min-w-0 gap-2 sm:grid-cols-2">
+                                {academicPreview.cumulative.components.map((component) => (
+                                  <div key={component.key} className="min-w-0 rounded-lg bg-white p-2">
+                                    {component.label} — الوزن {component.weight}% — {component.exempt ? 'معفى' : component.score == null ? 'لم يكتمل' : pctLabel(component.score)}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                          <SemesterTrackingCard tracking={academicPreview?.tracking} />
+                          <details className="min-w-0 rounded-xl border border-slate-200 p-3">
+                            <summary className="cursor-pointer text-sm font-black text-[#0f2b46]">الوحدات بالتفصيل ({academicPreview?.units.length ?? 0})</summary>
+                            <div className="mt-3 space-y-2">
+                              {(academicPreview?.units ?? []).map((unit) => (
+                                <div key={unit.id} className="min-w-0 rounded-lg bg-slate-50 p-2 text-xs">
+                                  <p className="font-black">{unit.title} — الفصل {unit.semester}</p>
+                                  <p className="text-slate-600">
+                                    {unit.state === 'COMPLETED' ? 'مكتملة' : unit.state === 'IN_PROGRESS' ? 'قيد الدراسة' : 'لم تبدأ'}
+                                    {' · '}اختبار الوحدة: {unit.examTitle || 'غير مرتبط'}
+                                    {' · '}أفضل درجة: {pctLabel(unit.bestScore)}
+                                    {' · '}محاولات: {unit.attemptsCount}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </details>
+                          <details className="min-w-0 rounded-xl border border-slate-200 p-3">
+                            <summary className="cursor-pointer text-sm font-black text-[#0f2b46]">امتحانات البرنامج والواجبات</summary>
+                            <div className="mt-3 space-y-2">
+                              {(academicPreview?.programExams ?? []).map((exam) => (
+                                <p key={exam.id} className="rounded-lg bg-slate-50 p-2 text-xs font-bold">
+                                  {exam.title} — فصل {exam.semester} — {exam.passed ? 'ناجح' : exam.submitted ? 'قُدّم ولم يُجتز' : 'لم يُقدَّم'}
+                                </p>
+                              ))}
+                              {(academicPreview?.assignments ?? []).map((assignment) => (
+                                <p key={assignment.id} className="rounded-lg bg-slate-50 p-2 text-xs font-bold">
+                                  {assignment.title} — فصل {assignment.semester} — {assignment.submitted ? 'مسلّم' : 'غير مسلّم'} — الدرجة: {assignment.score ?? '—'}
+                                </p>
+                              ))}
+                              {!academicPreview?.programExams.length && !academicPreview?.assignments.length && (
+                                <p className="text-xs text-slate-500">لا توجد امتحانات برنامج أو واجبات منشورة.</p>
+                              )}
+                            </div>
+                          </details>
+                          <details className="min-w-0 rounded-xl border border-amber-200 p-3">
+                            <summary className="cursor-pointer text-sm font-black text-amber-900">{academicEnrollment.status === 'EXPIRED' ? 'متطلبات لم تكتمل عند انتهاء التسجيل' : 'ما تبقّى على الطالب'}</summary>
+                            <div className="mt-3 space-y-2 text-xs font-bold leading-6 text-slate-700">
+                              {[
+                                ['وحدات غير مكتملة', academicPreview?.remaining?.unitsNotCompleted],
+                                ['اختبارات وحدات لم تُجتز', academicPreview?.remaining?.unitExamsNotPassed],
+                                ['واجبات لم تُسلّم', academicPreview?.remaining?.assignmentsNotSubmitted],
+                                ['امتحانات برنامج لم تُجتز', academicPreview?.remaining?.programExamsNotPassed],
+                                ['مكوّنات التقييم الناقصة', academicPreview?.remaining?.gradeMissing],
+                              ].filter((item) => (item[1] as string[] | undefined)?.length).map(([label, items]) => (
+                                <p key={label as string}>{label}: {(items as string[]).join('، ')}</p>
+                              ))}
+                              {academicPreview?.remaining?.thesisPending && <p>بحث التخرج أو المناقشة لم يكتمل.</p>}
+                              {academicEnrollment.status === 'EXPIRED' && <p className="text-amber-800">السجل مغلق لانتهاء المدة، ولا يمنح العرض أي حق في تعديل الدرجة أو إعادة فتحه.</p>}
+                            </div>
+                          </details>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
                 <TabsContent value="overview" className="space-y-4">
                   <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
                     <Card><CardContent className="p-4 text-center"><GraduationCap className="mx-auto mb-2 h-5 w-5 text-[#a8841a]" /><p className="text-2xl font-black text-[#0f2b46]">{selected.metrics.attemptsCount}</p><p className="text-xs font-bold text-slate-500">محاولات مسلّمة</p></CardContent></Card>
