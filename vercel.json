@@ -46,6 +46,7 @@
   "git": {
     "deploymentEnabled": {
       "main": true,
+      "fix/seo-canonical-404-indexing": true,
       "*": false
     }
   }
