@@ -123,6 +123,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
       status: session.status,
       detachedVideos: session._count.videos,
     })
+    let notificationWarning = false
     if (new Date(session.startsAt).getTime() > Date.now() && session.status !== 'CANCELLED') {
       // Students were notified of the original schedule: clarify its removal.
       await notifyProgramStudents(session.series.programId, {
@@ -130,14 +131,13 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
         title: 'إزالة لقاء من جدول المحاضرات',
         body: `أُزيل اللقاء «${session.title}» من جدول المحاضرات. يرجى مراجعة جدول التخصص المحدّث.`,
         emailSubject: 'تحديث جدول محاضرات البرنامج',
-      }).catch((error) => console.error('lecture delete notification error:', error))
+      }).catch(() => { notificationWarning = true })
     }
-    return NextResponse.json({ deleted: true, detachedVideos: session._count.videos })
+    return NextResponse.json({ deleted: true, detachedVideos: session._count.videos, notificationWarning })
   } catch (error: any) {
     if (error?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'غير مصرّح' }, { status: 401 })
     }
-    console.error('lecture session DELETE error:', error)
     return NextResponse.json({ error: 'تعذر حذف اللقاء' }, { status: 500 })
   }
 }
