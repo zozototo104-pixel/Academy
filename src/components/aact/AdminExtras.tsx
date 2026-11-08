@@ -902,6 +902,34 @@ export function AdminFinanceTab() {
     return () => { cancelled = true; window.clearTimeout(timer) }
   }, [grantStudentSearch, grantForm.scope])
 
+  const saveGrantPolicy = async () => {
+    if (grantSaving) return
+    setGrantSaving(true)
+    try {
+      const result = await api<{ policy: OrganizedGrantPolicy }>('/api/admin/payments/waivers', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'CREATE_POLICY', ...grantForm, value: Number(grantForm.value || 0) }),
+      })
+      toast({ title: 'تم حفظ تعريف المنحة', description: result.policy.title })
+      setGrantForm({ title: '', scope: 'PROGRAM', programIds: [], admissionId: '', coverage: 'TUITION', valueMode: 'FULL', value: '', reason: '' })
+      setGrantStudentSearch('')
+      await loadGrantPolicies()
+    } catch (error: any) {
+      toast({ title: 'لم تُحفظ المنحة', description: error?.message || 'تحقق من الحقول والشروط', variant: 'destructive' })
+    } finally { setGrantSaving(false) }
+  }
+
+  const toggleGrantPolicy = async (policyId: string) => {
+    if (grantSaving) return
+    setGrantSaving(true)
+    try {
+      await api('/api/admin/payments/waivers', { method: 'PATCH', body: JSON.stringify({ action: 'TOGGLE_POLICY', policyId }) })
+      await loadGrantPolicies()
+    } catch (error: any) {
+      toast({ title: 'تعذر تغيير حالة المنحة', description: error?.message || 'حاول مجددًا', variant: 'destructive' })
+    } finally { setGrantSaving(false) }
+  }
+
   const load = () => setPaymentRefresh((v) => v + 1)
 
   useEffect(() => {
