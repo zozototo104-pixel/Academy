@@ -168,6 +168,8 @@ export function SupervisorView() {
   }
   const [students, setStudents] = useState<SupervisedStudent[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [academicState, setAcademicState] = useState<{ admissionId: string; loading: boolean; error: string | null; preview: SupervisorAcademicPreview | null } | null>(null)
+  const [academicReload, setAcademicReload] = useState(0)
   const [messages, setMessages] = useState<SupervisorMessage[]>([])
   const [assessments, setAssessments] = useState<PrivateAssessment[]>([])
   const [loadingDetails, setLoadingDetails] = useState(false)
