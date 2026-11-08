@@ -539,6 +539,7 @@ export function SupervisorView() {
 
               <Tabs defaultValue="academic" dir="rtl" className="w-full min-w-0 space-y-4">
                 <TabsList className="flex h-auto w-full min-w-0 flex-wrap gap-1 bg-slate-100 p-1">
+                  <TabsTrigger value="academic" className="text-[11px] font-black"><GraduationCap className="ml-1 h-3.5 w-3.5" /> المسار الأكاديمي</TabsTrigger>
                   <TabsTrigger value="overview" className="text-[11px] font-black"><BarChart3 className="ml-1 h-3.5 w-3.5" /> متابعة عامة</TabsTrigger>
                   <TabsTrigger value="chat" className="text-[11px] font-black"><MessageCircle className="ml-1 h-3.5 w-3.5" /> محادثة الطالب</TabsTrigger>
                   <TabsTrigger value="exams" className="text-[11px] font-black"><ClipboardCheck className="ml-1 h-3.5 w-3.5" /> اختبارات وواجبات</TabsTrigger>
