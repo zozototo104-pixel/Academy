@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { certificateGradeLabel, certificateGradeLabelEn, evaluateProgramCertificateEligibility, type ProgramCertificateEligibility } from '@/lib/certificate-eligibility'
 import { createCertificateQrToken, nextCertificateSerial } from '@/lib/certificate-identity'
 import { notify, notifyAdmins } from '@/lib/notify'
-import { SEMESTER_DECISION_ACTIVE, summarizeSemesterDecision } from '@/lib/semester-decision'
+import { SEMESTER_DECISION_ACTIVE, enqueueReadyGraduationAdminNotice, summarizeSemesterDecision } from '@/lib/semester-decision'
 import { TUITION_PURPOSES, inferTotalTuition, roundMoney, tuitionPaidTotal } from '@/lib/tuition-installments'
 
 type Tx = Prisma.TransactionClient
