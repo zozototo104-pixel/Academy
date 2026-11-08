@@ -659,7 +659,7 @@ export function AdminStudentPreview() {
               <p className="text-sm text-slate-400">لا توجد تسجيلات لعرض وحداتها.</p>
             </Section>
           ) : [...data.enrollmentDetails, ...historicalDetails].map((d) => (
-            <Section key={d.enrollmentId} title={`الوحدات بالتفصيل — ${d.programTitle}${d.status !== 'ACTIVE' ? ' (مكتمل)' : ''}`} icon={BookOpen}>
+            <Section key={d.enrollmentId} title={`الوحدات بالتفصيل — ${d.programTitle}${d.status !== 'ACTIVE' ? ` (${arStatus(d.status)})` : ''}`} icon={BookOpen}>
               {d.units.length === 0 ? <p className="text-sm text-slate-400">لا توجد وحدات في هذا البرنامج.</p> : (
                 <div className="space-y-2">
                   {d.units.map((u) => (
