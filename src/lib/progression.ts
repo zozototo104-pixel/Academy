@@ -201,6 +201,51 @@ export async function progressionGate(
   return { open: reasons.length === 0, reasons }
 }
 
+/** Student's explicit exam-readiness mark for semester 2+.
+ * The original readiness engine is frozen by owner decision; its old
+ * first-semester PASS check is not the new transition policy. Validate
+ * the official preceding semester approvals here, then store only the
+ * existing readiness marker and use its original read calculation.
+ * The exam-start endpoint must independently enforce the same gate. */
+export async function markSemesterReadyAfterApprovedResult(
+  client: AnyClient,
+  userId: string,
+  programId: string,
+  semester: number,
+) {
+  const enrollment = await client.enrollment.findUnique({
+    where: { userId_programId: { userId, programId } },
+    select: { id: true, userId: true, programId: true, examReadiness: true },
+  })
+  if (!enrollment) throw new Error('ENROLLMENT_NOT_FOUND')
+  const program = await client.program.findUnique({
+    where: { id: programId },
+    select: { category: true, semestersCount: true },
+  })
+  if (!program || !Number.isInteger(semester) || semester < 2
+    || (program.semestersCount != null && semester > program.semestersCount)) {
+    throw new Error('INVALID_SEMESTER')
+  }
+  const gate = await progressionGate(client, enrollment, semester, program.category)
+  if (!gate.open) throw new Error('PROGRESSION_LOCKED')
+  let marked: unknown[] = []
+  try {
+    const decoded = JSON.parse(enrollment.examReadiness || '[]')
+    if (Array.isArray(decoded)) marked = decoded
+  } catch {
+    marked = []
+  }
+  const existing = new Set(marked.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0))
+  if (!existing.has(semester)) {
+    existing.add(semester)
+    await client.enrollment.update({
+      where: { id: enrollment.id },
+      data: { examReadiness: JSON.stringify([...existing].sort((a, b) => a - b)) },
+    })
+  }
+  return calculateSemesterReadiness(userId, programId, semester)
+}
+
 // بوابة الرسالة: تُفتح فقط إن كانت الرسالة مطلوبة بقواعد القبول
 // المجمّدة، وبعد اكتمال كل الفصول واعتماد نتائجها، وتراكميٍّ من
 // المعدلات المعتمدة فقط أكبر تمامًا من العتبة. (50.0 لا تكفي.)
