@@ -802,6 +802,22 @@ export function AdminStudentPreview() {
               )}
             </Section>
           ))}
+          {(data.expiredDetails ?? []).map((d) => (
+            <Section key={d.enrollmentId} title={`متطلبات لم تكتمل عند انتهاء التسجيل — ${d.programTitle}`} icon={AlertTriangle}>
+              <p className="mb-3 rounded-xl bg-amber-50 p-3 text-xs font-bold text-amber-900">
+                هذه صورة السجل الأكاديمي بعد انتهاء المدة، وليست تكليفات مفتوحة أو إذنًا بإعادة التسجيل.
+              </p>
+              <ul className="list-inside list-disc space-y-1 text-xs font-bold leading-6 text-slate-700">
+                {d.remaining.unitsNotCompleted.length > 0 && <li>وحدات غير مكتملة: {d.remaining.unitsNotCompleted.join('، ')}</li>}
+                {d.remaining.unitExamsNotPassed.length > 0 && <li>اختبارات وحدات لم تُجتز: {d.remaining.unitExamsNotPassed.join('، ')}</li>}
+                {d.remaining.assignmentsNotSubmitted.length > 0 && <li>واجبات لم تُسلّم: {d.remaining.assignmentsNotSubmitted.join('، ')}</li>}
+                {d.remaining.programExamsNotPassed.length > 0 && <li>امتحانات برنامج لم تُجتز: {d.remaining.programExamsNotPassed.join('، ')}</li>}
+                {d.remaining.thesisPending && <li>بحث التخرج أو المناقشة لم يكتمل</li>}
+                {d.remaining.gradeMissing.length > 0 && <li>مكونات ناقصة: {d.remaining.gradeMissing.join('، ')}</li>}
+              </ul>
+              <SemesterTrackingCard tracking={d.tracking} />
+            </Section>
+          ))}
         </div>
       )}
 
