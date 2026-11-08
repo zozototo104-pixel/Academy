@@ -29,6 +29,9 @@ describe('نافذة الخيارين ولوحة الحالة', () => {
     expect(decisionUi).toContain('أريد استكمال أعمال الفصل')
     expect(decisionUi).toContain('أوافق على احتساب الأعمال غير المقدَّمة صفرًا وإغلاق الفصل عند الاعتماد')
     expect(decisionUi).toContain('كيف تريد متابعة الفصل الدراسي؟')
+    expect(decisionUi).toContain("onConfirm(choice, choice === 'EARLY_FINISH' && consent)")
+    expect(dashboard).toContain('consentToZeros')
+    expect(progressRoute).toContain('EARLY_CLOSE_CONSENT_REQUIRED')
   })
   test('حالات الطلب كلها معروضة للطالب بما فيها تغيّر الدرجات بعد الرفع', () => {
     expect(decisionUi).toContain('نتيجتك مرفوعة للإدارة بانتظار الاعتماد')
