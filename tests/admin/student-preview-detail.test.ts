@@ -332,6 +332,19 @@ describe('admin student preview — detail payload', () => {
     expect(body.correspondence.admin.messages).toEqual([])
   })
 
+  test('unit completion counts are not silently truncated to 12 in larger programmes', async () => {
+    fx = baseFx()
+    fx.units = Array.from({ length: 16 }, (_, i) => ({
+      id: `u${i + 1}`, title: `الوحدة ${i + 1}`, semester: 1, order: i, programId: 'p1', exam: null,
+    }))
+    fx.enrollments[0].program._count.units = 16
+    fx.enrollments[0].completedUnits = JSON.stringify(fx.units.map((u: any) => u.id))
+    const { status, body } = await getPreview()
+    expect(status).toBe(200)
+    expect(body.enrollments[0].completedUnitsCount).toBe(16)
+    expect(body.enrollmentDetails[0].counts.unitsCompleted).toBe(16)
+  })
+
   test('EXPIRED enrollments retain read-only academic details without becoming ACTIVE or COMPLETED', async () => {
     fx.enrollments[0] = {
       ...fx.enrollments[0], status: 'EXPIRED',
