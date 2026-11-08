@@ -355,7 +355,7 @@ export async function GET(req: NextRequest) {
       const allDetails = detailEnrollments.map((e, idx) => {
         const grade = grades[idx]
         const tracking = trackings[idx]
-        const completedSet = new Set(safeJsonArray(e.completedUnits))
+        const completedSet = new Set(safeJsonArray(e.completedUnits, 2000))
         const unitRows = programUnits.filter((u) => u.programId === e.program.id).map((u) => {
           const attempts = u.exam ? detailUnitAttempts.filter((a) => a.examId === u.exam!.id) : []
           const graded = attempts.filter((a) => a.status === 'GRADED')
