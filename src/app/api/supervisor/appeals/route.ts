@@ -77,11 +77,12 @@ export async function PATCH(req: NextRequest) {
 
     const dbAny = db as any
     const attempt: any = type === 'UNIT'
-      ? await dbAny.examAttempt.findUnique({ where: { id: attemptId }, select: { userId: true } })
-      : await dbAny.programExamAttempt.findUnique({ where: { id: attemptId }, select: { userId: true } })
+      ? await dbAny.examAttempt.findUnique({ where: { id: attemptId }, select: { userId: true, exam: { select: { unit: { select: { programId: true } } } } } })
+      : await dbAny.programExamAttempt.findUnique({ where: { id: attemptId }, select: { userId: true, exam: { select: { programId: true } } } })
     if (!attempt) return NextResponse.json({ error: 'المحاولة غير موجودة' }, { status: 404 })
-    if (!(await isAssignedStudent(actor, attempt.userId))) {
-      return NextResponse.json({ error: 'هذا الالتماس ليس لطالب معيّن عليك' }, { status: 403 })
+    const programId = type === 'UNIT' ? attempt.exam?.unit?.programId : attempt.exam?.programId
+    if (!programId || !(await isAssignedStudent(actor, attempt.userId, programId))) {
+      return NextResponse.json({ error: 'هذا الالتماس ليس ضمن الطالب والبرنامج المعيّنين عليك' }, { status: 403 })
     }
     const result = await resolveExamAppeal(actor, type, attemptId, action, String(body?.response || ''), body?.finalScore)
     return NextResponse.json({ ok: true, ...result })
