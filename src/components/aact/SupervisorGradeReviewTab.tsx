@@ -31,6 +31,13 @@ function dateAr(value: string | null | undefined) {
   try { return new Date(value).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' }) } catch { return '—' }
 }
 
+function isApprovable(a: any): boolean {
+  // UI is a preview only; the server rechecks assigned programme,
+  // complete points, finality, appeal state and stored grade on every item.
+  return a.status === 'GRADED' && typeof a.score === 'number' &&
+    Number.isFinite(a.score) && a.appealStatus !== 'PENDING' && a.approvalState !== 'APPROVED'
+}
+
 export function SupervisorGradeReviewTab({ focus }: { focus?: { type: 'PROGRAM' | 'UNIT'; id: string; nonce: number } | null }) {
   const { toast } = useToast()
   const openDetailRef = useRef<(type: string, id: string) => void>(() => {})
