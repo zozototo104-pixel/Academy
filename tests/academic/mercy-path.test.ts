@@ -316,11 +316,24 @@ describe('مسار الاسترحام والنشاط العلاجي', () => {
 
 describe('سباق إنشاء الاسترحام (تدقيق 2026-11-06)', () => {
   test('خرق قيد التفرد عند الإنشاء ⟹ MERCY_ALREADY_EXISTS لا خطأ 500، وأي خطأ آخر يصعد', async () => {
-    // عميل minimal: فصل مغلق راسب معتمد، لا طلب قائم، والإنشاء يخسر السباق.
+    // العميل: فصل مغلق راسب معتمد، وقد جلس الطالب لامتحانه
+    // فعليًا. نصل لاختبار سباق الإنشاء بدون تجاوز حارس الامتحان.
     const client: any = {
       enrollment: { findUnique: async () => ({ id: 'enr-race' }) },
       enrollmentSemesterState: { findUnique: async () => ({ status: 'CLOSED', result: 'FAILED' }) },
       semesterResultApproval: { findUnique: async () => ({ id: 'appr-race' }) },
+      programExam: {
+        findMany: async () => [{
+          id: 'race-pe1', status: 'READY', createdAt: new Date(),
+          questions: [{ points: 10 }],
+        }],
+      },
+      programExamAttempt: {
+        findMany: async ({ where }: any) =>
+          where.userId === 'u-race' && where.examId === 'race-pe1' &&
+          where.status?.in?.includes('GRADED')
+            ? [{ id: 'race-submitted' }] : [],
+      },
       mercyRequest: {
         findUnique: async () => null,
         create: async () => { throw Object.assign(new Error('Unique constraint failed on the fields: (`enrollmentId`,`semester`)'), { code: 'P2002' }) },
