@@ -167,7 +167,9 @@ describe('بوابة الانتقال والاسترحام المكتمل', () =
   test('جلس للامتحان الفصلي ورسب ثم حسّن درجته بالاسترحام → ينتقل بعد اعتماد نتيجته', async () => {
     const gate = await progressionGate(fakeClient({
       unitScore: { 1: 100 }, examScore: { 1: 30 },
-      states: { 1: 'CLOSED' }, approvals: { 1: 62.5 },
+      // Original approved average was 47.5. Mercy weight 50 with
+      // score 100 makes the re-approved average exactly 73.75.
+      states: { 1: 'CLOSED' }, approvals: { 1: 73.75 },
       mercy: [{ semester: 1, status: 'COMPLETED', score: 100, weightPercent: 50 }],
     }), ENROLLMENT, 2, 'DIPLOMA')
     expect(gate.open).toBe(true)
