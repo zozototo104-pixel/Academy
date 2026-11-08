@@ -16,6 +16,44 @@ function snapshotOf(request: any) {
   try { return JSON.parse(String(raw || '{}')) } catch { return {} }
 }
 
+// Read the last semester's actual raise right from the server. A stored
+// eligibility snapshot alone must never authorize administrative approval.
+async function liveGraduationRaiseGate(
+  client: typeof db,
+  enrollmentId: string,
+): Promise<{ gate: RaiseGate | null; semester: number | null }> {
+  const enrollment = await client.enrollment.findUnique({
+    where: { id: enrollmentId },
+    select: {
+      createdAt: true,
+      extensionDays: true,
+      programId: true,
+      program: { select: { category: true, maxStudyDays: true, semestersCount: true } },
+    },
+  })
+  if (!enrollment?.program) return { gate: null, semester: null }
+  const units = await client.unit.findMany({
+    where: { programId: enrollment.programId },
+    select: { id: true, semester: true, order: true },
+  })
+  const windows = getSemesterWindows(
+    new Date(enrollment.createdAt),
+    enrollment.program,
+    units,
+    enrollment.extensionDays ?? 0,
+  )
+  const last = windows[windows.length - 1]
+  if (!last) return { gate: null, semester: null }
+  const decision = await client.semesterDecision.findUnique({
+    where: { enrollmentId_semester: { enrollmentId, semester: last.semester } },
+    select: { status: true },
+  })
+  return {
+    gate: raiseGateOf(decision, Date.now() > last.endAt.getTime()),
+    semester: last.semester,
+  }
+}
+
 export async function GET(req: NextRequest) {
   try {
     await requireAdmin()
