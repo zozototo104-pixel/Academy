@@ -122,6 +122,12 @@ describe('progression gate', () => {
     expect(gate.reasons.join(' ')).toContain('غير معتمدة')
   })
 
+  test('ACTIVE enrollment without any rules snapshot must use the new gate', async () => {
+    const gate = await progressionGate(fakeClient({ footprint: false, snapshotBasis: null }), ENROLLMENT, 2, 'DIPLOMA')
+    expect(gate.open).toBe(false)
+    expect(gate.reasons.join(' ')).toContain('غير معتمدة')
+  })
+
   test('COMPLETED enrollment with no lifecycle footprint preserves historical access', async () => {
     const client = fakeClient({ footprint: false })
     client.enrollment.findUnique = async () => ({ id: 'e1', status: 'COMPLETED' })
