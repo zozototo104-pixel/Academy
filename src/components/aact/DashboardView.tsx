@@ -617,6 +617,15 @@ export function DashboardView() {
   const markReadyForSemesterExam = async (semester: number) => {
     if (!active) return
     if (active.decisionActive) {
+      const exam = (active.semesterExams || []).find((item) => item.semester === semester)
+      if (!exam?.decisionBrief) {
+        toast({
+          title: 'تعذر التحقق من حالة الفصل',
+          description: 'لم تُقرأ حالة أعمالك وموعد الفصل بصورة مكتملة. أعد فتح البرنامج قبل اتخاذ قرار الإنهاء.',
+          variant: 'destructive',
+        })
+        return
+      }
       setDecisionDialog({ semester, mode: 'ready' })
       return
     }
