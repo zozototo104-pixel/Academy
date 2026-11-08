@@ -268,8 +268,8 @@ async function createOrganizedPolicy(body: any, admin: { id: string; name?: stri
   if (valueMode === 'AMOUNT' && (!Number.isFinite(value) || value <= 0 || value > 100000 || Math.round(value * 100) / 100 !== value)) {
     throw grantError('المبلغ الجزئي يجب أن يكون موجبًا ودقيقًا بالسنت', 400)
   }
-  const programIds = scope === 'PROGRAM'
-    ? [...new Set((Array.isArray(body.programIds) ? body.programIds : []).filter((id: unknown): id is string => typeof id === 'string' && id.length <= 80))]
+  const programIds: string[] = scope === 'PROGRAM'
+    ? Array.from(new Set<string>((Array.isArray(body.programIds) ? body.programIds : []).filter((id: unknown): id is string => typeof id === 'string' && id.length <= 80)))
     : []
   if (scope === 'PROGRAM') {
     if (!programIds.length || programIds.length > 100) throw grantError('اختر تخصصًا واحدًا على الأقل', 400)
