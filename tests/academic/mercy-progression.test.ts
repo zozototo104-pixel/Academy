@@ -111,20 +111,22 @@ describe('بوابة الانتقال والاسترحام المكتمل', () =
     expect(gate.reasons.join(' ')).toContain('لم يُقدَّم')
   })
 
-  test('استرحام مكتمل رفع المعدل المعتمد إلى 62.5 → ينتقل', async () => {
+  test('لم يجلس للامتحان + استرحام مكتمل ومعدل ناجح → الانتقال ممنوع', async () => {
     const gate = await progressionGate(fakeClient({
       ...NEVER_SAT_S1, approvals: { 1: 62.5 },
       mercy: [{ semester: 1, status: 'COMPLETED', score: 100, weightPercent: 50 }],
     }), ENROLLMENT, 2, 'DIPLOMA')
-    expect(gate.open).toBe(true)
+    expect(gate.open).toBe(false)
+    expect(gate.reasons.join(' ')).toContain('لم يُقدَّم')
   })
 
-  test('استرحام مكتمل بقي بصاحبه راسبًا (27.5) → ينتقل أيضًا (لا شرط نجاح من الباب الخلفي)', async () => {
+  test('لم يجلس للامتحان + استرحام مكتمل ومعدل راسب → الانتقال ممنوع', async () => {
     const gate = await progressionGate(fakeClient({
       ...NEVER_SAT_S1, approvals: { 1: 27.5 },
       mercy: [{ semester: 1, status: 'COMPLETED', score: 30, weightPercent: 50 }],
     }), ENROLLMENT, 2, 'DIPLOMA')
-    expect(gate.open).toBe(true)
+    expect(gate.open).toBe(false)
+    expect(gate.reasons.join(' ')).toContain('لم يُقدَّم')
   })
 
   test('استرحام مدرَّج فقط (GRADED) والاعتماد لم يُجدَّد → تبقى البوابة مغلقة', async () => {
