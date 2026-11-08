@@ -190,6 +190,24 @@ export async function getSemesterDecisionBrief(
   }
 }
 
+/** Hold the SAME per-enrollment/semester lock as the approval and
+ * decision mutations while computing maturity. Otherwise a grade or
+ * approval could change between the fact scan and the state transition.
+ * The transaction client has no nested $transaction, so the inner
+ * decision functions use the already-locked transaction directly. */
+async function withRaiseEvaluationLock<T>(
+  client: AnyClient,
+  enrollmentId: string,
+  semester: number,
+  action: (tx: AnyClient) => Promise<T>,
+): Promise<T> {
+  if (typeof client?.$transaction !== 'function') return action(client)
+  return client.$transaction(async (tx: AnyClient) => {
+    await lockSemesterDecision(tx, enrollmentId, semester)
+    return action(tx)
+  })
+}
+
 /** The student-facing entry point for recording a choice: derives
  * maturity on the server, then records the intent through the locked,
  * status-conditioned transition. */
