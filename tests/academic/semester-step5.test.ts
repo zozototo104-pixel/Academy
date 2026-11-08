@@ -7,8 +7,15 @@ import { join } from 'node:path'
 mock.module('@/lib/db', () => ({ db: {}, prisma: {} }))
 mock.module('@/lib/notify', () => ({ audit: async () => {}, notify: async () => {}, notifyAdmins: async () => {} }))
 mock.module('@/lib/outbox', () => ({
-  enqueueOutbox: async (client: any, evt: any) =>
-    client.notificationOutbox?.create({ data: { ...evt, idempotencyKey: evt.key } }) ?? null,
+  enqueueOutbox: async (client: any, evt: any) => {
+    if (!client.notificationOutbox?.create) return null
+    try {
+      return await client.notificationOutbox.create({ data: { ...evt, idempotencyKey: evt.key } })
+    } catch (error: any) {
+      if (error?.code !== 'P2002') throw error
+      return client.notificationOutbox.findUnique({ where: { idempotencyKey: evt.key } })
+    }
+  },
 }))
 
 const matureCalls: any[] = []
