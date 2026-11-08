@@ -511,7 +511,7 @@ export function AdminStudentPreview() {
               <p className="rounded-xl bg-slate-50 p-3 font-bold text-slate-600">الدولة: <b className="text-[#0f2b46]">{s.country || 'غير محددة'}</b> — حالة الحساب: <b className="text-[#0f2b46]">{arStatus(s.status)}</b></p>
             </div>
             {data.enrollmentDetails.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-400">{(data.completedDetails?.length || 0) > 0 ? 'لا توجد تسجيلات نشطة — برامجه المكتملة معروضة بتفاصيلها في قسم «برامج مكتملة» التالي.' : 'لا توجد تسجيلات نشطة — تفاصيل التقدم والمعدل التراكمي تظهر هنا عند وجود تسجيل نشط.'}</p>
+              <p className="mt-3 text-sm text-slate-400">{historicalDetails.length > 0 ? 'لا توجد تسجيلات نشطة — التسجيلات المكتملة أو المنتهية معروضة أدناه بسجلها الأكاديمي.' : 'لا توجد تسجيلات نشطة — تفاصيل التقدم تظهر عند وجود تسجيل نشط.'}</p>
             ) : (
               <div className="mt-3 space-y-3">
                 {data.enrollmentDetails.map((d) => (
