@@ -111,6 +111,7 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
   const [supervisors, setSupervisors] = useState<SupervisorOption[]>([])
   const [filterProgram, setFilterProgram] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
+  const [contentTab, setContentTab] = useState<'meetings' | 'videos'>('meetings')
   const [createOpen, setCreateOpen] = useState(false)
   const [videoOpen, setVideoOpen] = useState(false)
   const [editSession, setEditSession] = useState<SessionRow | null>(null)
@@ -192,8 +193,10 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
         await fn()
         toast({ title: success })
         await load()
+        return true
       } catch (e: any) {
         toast({ title: 'حدث خطأ', description: e?.message || 'حاول مجددًا', variant: 'destructive' })
+        return false
       } finally {
         setBusy(false)
       }
@@ -214,6 +217,25 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
     },
     [toast],
   )
+
+  const occupiedPrograms = useMemo(() => {
+    const groups = new Map<string, { id: string; title: string; meetings: number; recordings: number }>()
+    const nameFor = (id: string, fallback?: string | null) =>
+      programs.find((p) => p.id === id)?.titleAr || fallback || 'تخصص غير محدد'
+    for (const session of sessions) {
+      const id = session.series.programId
+      const group = groups.get(id) || { id, title: nameFor(id, session.series.program?.titleAr), meetings: 0, recordings: 0 }
+      group.meetings += 1
+      groups.set(id, group)
+    }
+    for (const video of videos) {
+      const id = video.programId
+      const group = groups.get(id) || { id, title: nameFor(id, video.program?.titleAr), meetings: 0, recordings: 0 }
+      group.recordings += 1
+      groups.set(id, group)
+    }
+    return Array.from(groups.values()).sort((a, b) => a.title.localeCompare(b.title, 'ar'))
+  }, [programs, sessions, videos])
 
   const attendanceByUser = useMemo(() => {
     const map = new Map<string, string>()
@@ -274,26 +296,59 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <select className={selectClass} value={filterProgram} onChange={(e) => setFilterProgram(e.target.value)}>
-          <option value="">كل البرامج</option>
-          {programs.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.titleAr}
-            </option>
-          ))}
-        </select>
-        <select className={selectClass} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-          <option value="">كل الحالات</option>
-          {Object.entries(STATUS_META).map(([key, meta]) => (
-            <option key={key} value={key}>
-              {meta.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      {!filterProgram ? (
+        <div className="space-y-3">
+          <p className="text-sm font-bold text-slate-600">اختر التخصص لعرض لقاءاته ومحاضراته المسجلة، بدل عرض جميع البرامج في قائمة واحدة.</p>
+          {occupiedPrograms.length === 0 ? (
+            <Card><CardContent className="py-8 text-center text-sm text-slate-500">لا توجد تخصصات أُضيفت لها لقاءات أو فيديوهات بعد. ابدأ بإضافة محاضرة أو فيديو.</CardContent></Card>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {occupiedPrograms.map((program) => (
+                <button key={program.id} type="button"
+                  onClick={() => { setFilterProgram(program.id); setFilterStatus(''); setContentTab('meetings') }}
+                  className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 text-right shadow-sm transition hover:border-[#c9a227] hover:bg-amber-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#c9a227]">
+                  <span className="block break-words text-base font-black text-[#0f2b46]">{program.title}</span>
+                  <span className="mt-3 flex flex-wrap gap-2 text-xs font-bold text-slate-600">
+                    <span className="rounded-lg bg-blue-50 px-2.5 py-1.5">اللقاءات: {program.meetings}</span>
+                    <span className="rounded-lg bg-amber-50 px-2.5 py-1.5">الفيديوهات: {program.recordings}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <Button size="sm" variant="outline" onClick={() => { setFilterProgram(''); setFilterStatus('') }}>العودة للتخصصات</Button>
+              <h3 className="mt-3 break-words text-base font-black text-[#0f2b46]">
+                {occupiedPrograms.find((p) => p.id === filterProgram)?.title || programs.find((p) => p.id === filterProgram)?.titleAr || 'التخصص'}
+              </h3>
+            </div>
+            {contentTab === 'meetings' && (
+              <select aria-label="تصفية حالة اللقاءات" className={selectClass} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+                <option value="">كل الحالات</option>
+                {Object.entries(STATUS_META).map(([key, meta]) => <option key={key} value={key}>{meta.label}</option>)}
+              </select>
+            )}
+          </div>
+          <div role="tablist" aria-label="محتوى التخصص" className="grid grid-cols-2 gap-2">
+            <button type="button" role="tab" aria-selected={contentTab === 'meetings'}
+              onClick={() => setContentTab('meetings')}
+              className={`rounded-xl px-3 py-3 text-sm font-black ${contentTab === 'meetings' ? 'bg-[#0f2b46] text-white' : 'border border-slate-200 bg-slate-50 text-slate-700'}`}>
+              اللقاءات والمحاضرات ({sessions.length})
+            </button>
+            <button type="button" role="tab" aria-selected={contentTab === 'videos'}
+              onClick={() => setContentTab('videos')}
+              className={`rounded-xl px-3 py-3 text-sm font-black ${contentTab === 'videos' ? 'bg-[#0f2b46] text-white' : 'border border-slate-200 bg-slate-50 text-slate-700'}`}>
+              التسجيلات والفيديوهات ({videos.length})
+            </button>
+          </div>
+        </div>
+      )}
 
-      <Card>
+      {filterProgram && contentTab === 'meetings' && <Card className="min-w-0 overflow-hidden">
         <CardContent className="py-3">
           {sessions.length === 0 ? (
             <p className="py-6 text-center text-sm text-slate-500">لا توجد لقاءات مطابقة.</p>
@@ -340,15 +395,27 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
                     >
                       <XCircle className="ml-1 h-4 w-4" /> إلغاء
                     </Button>
+                    {surface === 'admin' && (
+                      <Button variant="ghost" size="sm" className="text-red-700"
+                        disabled={busy || s._count.attendances > 0}
+                        title={s._count.attendances > 0 ? 'لا يمكن حذف لقاء فيه سجل حضور؛ استخدم الإلغاء للاحتفاظ بالسجل الأكاديمي' : 'حذف اللقاء من قاعدة البيانات'}
+                        onClick={() => {
+                          if (window.confirm(`حذف لقاء «${s.title}» نهائيًا؟ سيُزال موعده ويُفصل عنه أي فيديو مرتبط، ولن تتأثر الفيديوهات نفسها. لا يمكن استعادة اللقاء بعد الحذف.`)) {
+                            void act(() => api(`/api/admin/lectures/sessions/${s.id}`, { method: 'DELETE' }), 'حُذف اللقاء')
+                          }
+                        }}>
+                        <Trash2 className="ml-1 h-4 w-4" /> حذف
+                      </Button>
+                    )}
                   </div>
                 </div>
               )
             })
           )}
         </CardContent>
-      </Card>
+      </Card>}
 
-      <Card>
+      {filterProgram && contentTab === 'videos' && <Card className="min-w-0 overflow-hidden">
         <CardContent className="py-3">
           <div className="mb-2 flex items-center justify-between">
             <h3 className="font-black text-slate-800">التسجيلات والفيديوهات</h3>
@@ -506,29 +573,48 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
             })
           )}
         </CardContent>
-      </Card>
+      </Card>}
 
       <CreateSeriesDialog
+        key={filterProgram || 'all-programs'}
+        initialProgramId={filterProgram}
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         programs={programs}
         supervisors={supervisors}
         showSupervisorSelect={surface === 'admin'}
         onSubmit={async (payload) => {
-          await act(() => api('/api/admin/lectures/series', { method: 'POST', body: JSON.stringify(payload) }), 'أُنشئت المحاضرة')
-          setCreateOpen(false)
+          const saved = await act(() => api('/api/admin/lectures/series', { method: 'POST', body: JSON.stringify(payload) }), 'أُنشئت المحاضرة')
+          if (saved) {
+            setFilterProgram(String(payload.programId))
+            setFilterStatus('')
+            setContentTab('meetings')
+            setCreateOpen(false)
+          }
         }}
       />
       <CreateVideoDialog
+        key={filterProgram || 'all-programs'}
+        initialProgramId={filterProgram}
         open={videoOpen}
         onClose={() => setVideoOpen(false)}
         programs={programs}
         storageConfigured={storageConfigured}
         uploadMaxBytes={uploadMaxBytes}
-        onUploaded={() => void load()}
+        onUploaded={(programId) => {
+          setFilterProgram(programId)
+          setFilterStatus('')
+          setContentTab('videos')
+          void load()
+        }
         onSubmit={async (payload) => {
-          await act(() => api('/api/admin/lectures/videos', { method: 'POST', body: JSON.stringify(payload) }), 'أُضيف الفيديو كمسودة')
-          setVideoOpen(false)
+          const saved = await act(() => api('/api/admin/lectures/videos', { method: 'POST', body: JSON.stringify(payload) }), 'أُضيف الفيديو كمسودة')
+          if (saved) {
+            setFilterProgram(String(payload.programId))
+            setFilterStatus('')
+            setContentTab('videos')
+            setVideoOpen(false)
+          }
         }}
       />
       {editSession && (
@@ -674,6 +760,7 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
 
 function CreateSeriesDialog({
   open,
+  initialProgramId = '',
   onClose,
   programs,
   supervisors,
@@ -681,6 +768,7 @@ function CreateSeriesDialog({
   onSubmit,
 }: {
   open: boolean
+  initialProgramId?: string
   onClose: () => void
   programs: ProgramOption[]
   supervisors: SupervisorOption[]
@@ -689,7 +777,7 @@ function CreateSeriesDialog({
 }) {
   const [form, setForm] = useState({
     title: '',
-    programId: '',
+    programId: initialProgramId,
     unitId: '',
     supervisorId: '',
     timezone: 'Asia/Gaza',
@@ -883,6 +971,7 @@ function CreateSeriesDialog({
 
 function CreateVideoDialog({
   open,
+  initialProgramId = '',
   onClose,
   programs,
   storageConfigured,
@@ -891,16 +980,17 @@ function CreateVideoDialog({
   onUploaded,
 }: {
   open: boolean
+  initialProgramId?: string
   onClose: () => void
   programs: ProgramOption[]
   storageConfigured: boolean
   uploadMaxBytes: number
   onSubmit: (payload: Record<string, unknown>) => Promise<void>
-  onUploaded: () => void
+  onUploaded: (programId: string) => void
 }) {
   const { toast } = useToast()
   const [mode, setMode] = useState<'link' | 'upload'>('link')
-  const [form, setForm] = useState({ title: '', programId: '', source: '', url: '' })
+  const [form, setForm] = useState({ title: '', programId: initialProgramId, source: '', url: '' })
   const [file, setFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -937,7 +1027,7 @@ function CreateVideoDialog({
         body: JSON.stringify({ videoId: init.video.id }),
       })
       toast({ title: 'اكتمل الرفع وتم تأكيده — الفيديو مسودة بانتظار النشر' })
-      onUploaded()
+      onUploaded(form.programId)
       onClose()
     } catch (e: any) {
       if (e?.message !== 'aborted') {
