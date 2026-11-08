@@ -3788,10 +3788,17 @@ function AuditDetailsDisplay({ log }: { log: AuditRow }) {
   return <span className="text-xs font-bold text-slate-600">{log.details || log.entity}</span>
 }
 
+function localAuditDate(date: Date) {
+  const n = (value: number) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${n(date.getMonth() + 1)}-${n(date.getDate())}`
+}
+
 export function AdminAuditTab() {
   const [logs, setLogs] = useState<AuditRow[]>([])
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState({ search: '', action: 'ALL', entity: 'ALL' })
+  const [auditDay, setAuditDay] = useState(() => localAuditDate(new Date()))
+  const [auditError, setAuditError] = useState('')
   const [auditPage, setAuditPage] = useState(1)
   const [auditPageSize, setAuditPageSize] = useState(50)
   const [auditTotal, setAuditTotal] = useState(0)
@@ -3806,19 +3813,33 @@ export function AdminAuditTab() {
       if (filters.search.trim()) params.set('search', filters.search.trim())
       if (filters.action !== 'ALL') params.set('action', filters.action)
       if (filters.entity !== 'ALL') params.set('entity', filters.entity)
+      if (auditDay !== 'ALL') {
+        const from = new Date(`${auditDay}T00:00:00`)
+        const to = new Date(from)
+        to.setDate(to.getDate() + 1)
+        params.set('from', from.toISOString())
+        params.set('to', to.toISOString())
+      }
       api<{ logs: AuditRow[]; total: number; actions: string[]; entities: string[] }>(`/api/admin/audit?${params.toString()}`)
         .then((d) => {
           if (cancelled) return
           setLogs(Array.isArray(d.logs) ? d.logs : [])
           setAuditTotal(Number(d.total || 0))
+          setAuditError('')
           setActionOptions(Array.isArray(d.actions) ? d.actions : [])
           setEntityOptions(Array.isArray(d.entities) ? d.entities : [])
         })
-        .catch(() => { if (!cancelled) setLogs([]) })
+        .catch(() => {
+          if (!cancelled) {
+            setLogs([])
+            setAuditTotal(0)
+            setAuditError('تعذر تحميل سجل التدقيق لهذا التاريخ. حاول مجددًا.')
+          }
+        })
         .finally(() => { if (!cancelled) setLoading(false) })
     }, 250)
     return () => { cancelled = true; window.clearTimeout(timer) }
-  }, [filters, auditPage, auditPageSize])
+  }, [filters, auditDay, auditPage, auditPageSize])
 
   const currentAuditPage = auditPage
 
@@ -3831,6 +3852,33 @@ export function AdminAuditTab() {
           <h3 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]">
             <ScrollText className="h-4.5 w-4.5 text-[#c9a227]" /> سجل التدقيق الكامل — كل إجراء إداري مسجل بمن قام به ومتى
           </h3>
+          <div className="mt-3 space-y-2 rounded-xl border border-slate-100 bg-slate-50 p-3">
+            <p className="text-xs font-black text-[#0f2b46]">سجل كل يوم — اختر التاريخ للاطلاع على جميع عملياته</p>
+            <div className="flex flex-wrap gap-2">
+              {Array.from({ length: 7 }, (_, index) => {
+                const date = new Date()
+                date.setHours(12, 0, 0, 0)
+                date.setDate(date.getDate() - index)
+                const value = localAuditDate(date)
+                return (
+                  <button key={value} type="button" onClick={() => { setAuditDay(value); setAuditPage(1) }}
+                    className={`rounded-lg border px-3 py-2 text-xs font-bold ${auditDay === value ? 'border-[#0f2b46] bg-[#0f2b46] text-white' : 'border-slate-200 bg-white text-slate-700'}`}>
+                    {index === 0 ? 'اليوم' : index === 1 ? 'أمس' : date.toLocaleDateString('ar-EG', { weekday: 'short' })} — {date.toLocaleDateString('ar-EG', { day: 'numeric', month: 'short' })}
+                  </button>
+                )
+              })}
+              <button type="button" onClick={() => { setAuditDay('ALL'); setAuditPage(1) }}
+                className={`rounded-lg border px-3 py-2 text-xs font-bold ${auditDay === 'ALL' ? 'border-[#0f2b46] bg-[#0f2b46] text-white' : 'border-slate-200 bg-white text-slate-700'}`}>
+                كل التواريخ
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <label htmlFor="audit-select-day" className="text-xs font-bold text-slate-600">تاريخ آخر:</label>
+              <input id="audit-select-day" type="date" value={auditDay === 'ALL' ? '' : auditDay}
+                onChange={(event) => { if (event.target.value) { setAuditDay(event.target.value); setAuditPage(1) } }}
+                className="h-10 max-w-full rounded-lg border border-slate-200 bg-white px-3 text-sm" dir="ltr" />
+            </div>
+          </div>
           <div className="mt-3 grid gap-2 md:grid-cols-4">
             <Input
               value={filters.search}
@@ -3864,10 +3912,11 @@ export function AdminAuditTab() {
               <option value="100">عرض 100</option>
             </select>
           </div>
-          <p className="mt-2 text-[11px] font-bold text-slate-400">المعروض: {logs.length} من {auditTotal} إجراء مطابق</p>
+          <p className="mt-2 text-[11px] font-bold text-slate-400">المعروض: {logs.length} من {auditTotal} إجراء مطابق {auditDay !== 'ALL' ? `بتاريخ ${auditDay}` : 'في جميع الأيام'}</p>
+          {auditError && <p role="alert" className="mt-2 text-xs font-bold text-red-600">{auditError}</p>}
         </div>
         <div className="aact-scroll w-full max-h-[560px] overflow-y-auto">
-          {auditTotal === 0 && !filters.search && filters.action === 'ALL' && filters.entity === 'ALL' ? (
+          {auditTotal === 0 && auditDay === 'ALL' && !filters.search && filters.action === 'ALL' && filters.entity === 'ALL' ? (
             <p className="p-10 text-center text-xs text-slate-400">لا إجراءات مسجلة بعد</p>
           ) : logs.length === 0 ? (
             <p className="p-10 text-center text-xs text-slate-400">لا توجد إجراءات مطابقة للبحث أو الفلاتر الحالية</p>
@@ -3875,14 +3924,14 @@ export function AdminAuditTab() {
             <div className="w-full divide-y divide-slate-50">
               {logs.map((l) => (
                 <div key={l.id} className="w-full p-3.5">
-                  <div className="flex w-full flex-col gap-2 rounded-2xl bg-white px-3 py-2 text-right sm:px-4">
+                  <div className="flex w-full min-w-0 flex-col gap-2 overflow-hidden rounded-2xl bg-white px-3 py-2 text-right sm:px-4">
                     <div className="flex w-full flex-wrap items-center justify-between gap-2">
                       <Badge variant="outline" className="text-[10px] font-bold text-[#0f2b46]">{ACTION_L[l.action] || l.action}</Badge>
                       <span className="text-[10px] font-bold text-slate-400">
                         بواسطة: {l.actorName} — {new Date(l.createdAt).toLocaleString('ar-EG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
-                    <div className="w-full min-w-0">
+                    <div className="w-full min-w-0 break-words [overflow-wrap:anywhere]">
                       <AuditDetailsDisplay log={l} />
                     </div>
                   </div>
