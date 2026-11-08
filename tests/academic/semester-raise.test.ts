@@ -121,6 +121,10 @@ function resetFacts(patch: Partial<typeof facts>) {
   facts.satCount = patch.satCount ?? 0
   facts.readyExams = patch.readyExams ?? 1
   facts.average = patch.average === undefined ? 63.25 : patch.average
+  facts.finalExamStatus = patch.finalExamStatus ?? 'GRADED'
+  facts.finalExamScore = patch.finalExamScore === undefined ? 75 : patch.finalExamScore
+  facts.answerPoints = patch.answerPoints ?? [5]
+  facts.appealStatus = patch.appealStatus ?? 'NONE'
 }
 
 describe('computeSemesterRaiseMaturity — الاشتقاق الخادمي', () => {
