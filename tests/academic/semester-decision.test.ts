@@ -240,6 +240,35 @@ describe('recordSemesterIntent — تسجيل اختيار الطالب', () => 
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.code).toBe('SEMESTER_ALREADY_RAISED')
   })
+  test('تمديد بعد رفع مهلة آلي: يعود حق اختيار الطالب دون تحويل الرفع القديم إلى موافقة', async () => {
+    const { client, decisions } = makeClient()
+    const enrollment = await client.enrollment.findUnique({ where: { id: 'enr-1' } })
+    enrollment.extensionDays = 70 // Feb 15 old end -> March 22 after extension
+    decisions.set('enr-1:1', {
+      id: 'deadline-1', enrollmentId: 'enr-1', semester: 1,
+      status: 'RAISED', intent: null, raiseSource: 'DEADLINE', raisedAt: new Date('2026-02-15T00:00:00Z'),
+    })
+    const continued = await recordSemesterIntent(client, {
+      enrollmentId: 'enr-1', userId: 'user-1', semester: 1,
+      intent: 'CONTINUE', now: ENDED_NOW,
+    })
+    expect(continued.ok).toBe(true)
+    if (continued.ok) {
+      expect(continued.decision?.status).toBe('NONE')
+      expect(continued.decision?.raiseSource).toBeNull()
+    }
+    const early = await recordSemesterIntent(client, {
+      enrollmentId: 'enr-1', userId: 'user-1', semester: 1,
+      intent: 'EARLY_FINISH', maturity: { mature: true, score: 42 },
+      now: ENDED_NOW,
+    })
+    expect(early.ok).toBe(true)
+    if (early.ok) {
+      expect(early.decision?.status).toBe('RAISED')
+      expect(early.decision?.raiseSource).toBe('STUDENT')
+    }
+  })
+
   test('لا اختيار بعد انتهاء فترة الفصل', async () => {
     const { client } = makeClient()
     const r = await recordSemesterIntent(client, {
