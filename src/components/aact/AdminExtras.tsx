@@ -881,10 +881,14 @@ export function AdminFinanceTab() {
   }, [])
 
   useEffect(() => {
-    void loadGrantPolicies()
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      if (!cancelled) void loadGrantPolicies()
+    }, 0)
     api<{ programs: Array<{ id: string; titleAr: string }> }>('/api/programs?summary=1')
-      .then((result) => setGrantPrograms(Array.isArray(result.programs) ? result.programs : []))
-      .catch(() => setGrantPolicyError('تعذر تحميل قائمة التخصصات'))
+      .then((result) => { if (!cancelled) setGrantPrograms(Array.isArray(result.programs) ? result.programs : []) })
+      .catch(() => { if (!cancelled) setGrantPolicyError('تعذر تحميل قائمة التخصصات') })
+    return () => { cancelled = true; window.clearTimeout(timer) }
   }, [loadGrantPolicies])
 
   useEffect(() => {
