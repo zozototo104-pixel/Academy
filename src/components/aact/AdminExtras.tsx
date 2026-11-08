@@ -1314,6 +1314,1342 @@ export function AdminFinanceTab() {
   return (
     <div className="mt-4 space-y-5">
       {actionDialog}
+      <Dialog open={Boolean(grantQuoteDialog)} onOpenChange={(open) => { if (!open && !grantSaving) setGrantQuoteDialog(null) }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>مراجعة المنحة قبل إصدار الكود</DialogTitle>
+            <DialogDescription>المعاينة محسوبة من الفواتير على الخادم، ويعاد فحص الأهلية والمبلغ لحظة الإصدار.</DialogDescription>
+          </DialogHeader>
+          {grantQuoteDialog && (
+            <div className="min-w-0 space-y-3 text-sm">
+              <p className="break-words font-black text-[#0f2b46]">{grantQuoteDialog.quote.policy.title}</p>
+              <p className="break-words text-slate-700">{grantQuoteDialog.payment.admission?.fullName || grantQuoteDialog.payment.payerName || 'طالب'}</p>
+              <p className="break-words text-slate-600">{grantQuoteDialog.payment.admission?.program || 'تخصص غير محدد'}</p>
+              <p className="rounded-xl bg-slate-50 p-3 font-bold leading-6">{grantQuoteDialog.quote.summary}</p>
+              <p className="text-xs text-slate-500">النسبة/المبلغ المحدد في السياسة: {grantQuoteDialog.quote.policy.valueMode === 'FULL' ? '100%' : grantQuoteDialog.quote.policy.valueMode === 'PERCENT' ? `${grantQuoteDialog.quote.policy.value}%` : `${grantQuoteDialog.quote.policy.value}'use client'
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import dynamic from 'next/dynamic'
+import { api, getToken } from '@/lib/store'
+import { useToast } from '@/hooks/use-toast'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { CertificateDialog, CertificateData } from '@/components/aact/CertificateDialog'
+import { AdminAITab } from '@/components/aact/AdminAITab'
+import { AdminListToolbar, AdminPager, matchesAdminSearch, pageItems, safePage } from '@/components/aact/AdminListTools'
+import { RefreshPaymentAmountButton } from '@/components/aact/RefreshPaymentAmountButton'
+import { useAdminActionDialog } from '@/components/aact/AdminActionDialog'
+import {
+  Loader2, Gavel, CalendarClock, CheckCircle2, XCircle, Banknote, TrendingUp, Globe2,
+  Award, Settings2, ScrollText, Mail, FileDown, Plus, Users2, ReceiptText, Bot,
+  FileSignature, Video, RefreshCw, ShieldCheck, Trash2, KeyRound, Upload, Eye, ExternalLink, FileText, Copy, Check,
+} from 'lucide-react'
+
+import { DefenseInvitesManager } from '@/components/aact/DefenseInvitesManager'
+
+const DefenseRoom = dynamic(
+  () => import('@/components/aact/DefenseRoom').then((mod) => mod.DefenseRoom),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex min-h-[240px] flex-col items-center justify-center gap-3 rounded-2xl bg-slate-50 text-center">
+        <Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" />
+        <p className="text-sm font-black text-[#0f2b46]">جاري تجهيز قاعة المناقشة...</p>
+      </div>
+    ),
+  }
+)
+
+// ============ جدولة المناقشات واللجان ============
+
+interface ThesisReviewNoteItem {
+  id: string
+  stage: string
+  action: string
+  note: string
+  authorName?: string | null
+  visibleToStudent?: boolean
+  createdAt: string
+}
+
+interface Thesis {
+  id: string
+  title: string
+  abstract: string
+  reviewNote?: string | null
+  reviewNotes?: ThesisReviewNoteItem[]
+  status: string
+  defenseDate?: string | null
+  committee?: string | null
+  agentMember?: string | null
+  defenseMeetingUrl?: string | null
+  defenseStatus?: string | null
+  aiScore?: number | null
+  aiRecommendation?: string | null
+  defenseMinutes?: string | null
+  fileUrl?: string | null
+  downloadUrl?: string | null
+  recordingUrl?: string | null
+  fileStorageKey?: string | null
+  extractionStatus?: string | null
+  extractionError?: string | null
+  pageCount?: number | null
+  wordCount?: number | null
+  digest?: any
+  defenseBreakdown?: any
+  recordingSize?: number | null
+  recordingDurationSec?: number | null
+  hasRecording?: boolean | null
+  resultScore?: number | null
+  passed?: boolean | null
+  createdAt: string
+  user?: { id: string; name: string; email: string; country?: string | null } | null
+  admission?: { id: string; reference: string; program: string; status: string } | null
+}
+
+function safeText(value: unknown, fallback = ''): string {
+  const text = String(value ?? '').trim()
+  return text || fallback
+}
+
+function parseCommitteeNames(raw?: string | null): string[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed)) return parsed.map((x) => safeText(x)).filter(Boolean).slice(0, 8)
+    if (typeof parsed === 'string') return parsed.split(/[,،\n]/).map((x) => x.trim()).filter(Boolean).slice(0, 8)
+    if (parsed && typeof parsed === 'object') return Object.values(parsed).map((x) => safeText(x)).filter(Boolean).slice(0, 8)
+  } catch (error) {
+    console.warn('Failed to parse thesis committee names; falling back to plain text split.', error)
+  }
+  return raw.split(/[,،\n]/).map((x) => x.trim()).filter(Boolean).slice(0, 8)
+}
+
+function formatArabicDate(value?: string | null): string {
+  if (!value) return 'موعد غير محدد'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'موعد غير صالح يحتاج إعادة جدولة'
+  return date.toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'long' })
+}
+
+export function AdminThesisTab() {
+  const { toast } = useToast()
+  const { promptAction, dialog: actionDialog } = useAdminActionDialog()
+  const [theses, setTheses] = useState<Thesis[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [sched, setSched] = useState<Thesis | null>(null)
+  const [date, setDate] = useState('')
+  const [members, setMembers] = useState('')
+  const [agentMember, setAgentMember] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [resulting, setResulting] = useState<Thesis | null>(null)
+  const [score, setScore] = useState('85')
+  const [passed, setPassed] = useState('true')
+  // 12.3: دخول الإدارة للقاعة كعضو لجنة + محضر الجلسة + التسجيل المؤرشف
+  const [roomThesis, setRoomThesis] = useState<Thesis | null>(null)
+  const [minutesThesis, setMinutesThesis] = useState<Thesis | null>(null)
+  const [showRecording, setShowRecording] = useState<Thesis | null>(null)
+  const [thesisSearch, setThesisSearch] = useState('')
+  const [thesisStatusFilter, setThesisStatusFilter] = useState('ACTIVE')
+  const [thesisPage, setThesisPage] = useState(1)
+  const [thesisPageSize, setThesisPageSize] = useState(10)
+  const [expandedThesisId, setExpandedThesisId] = useState<string | null>(null)
+
+  const load = () => {
+    setLoading(true)
+    setLoadError(null)
+    api<{ theses: Thesis[] }>('/api/admin/thesis')
+      .then((d) => {
+        setTheses(Array.isArray(d.theses) ? d.theses : [])
+        setLoadError(null)
+      })
+      .catch((e) => {
+        setTheses([])
+        const msg = e?.message || 'حدث خطأ أثناء تحميل بيانات المناقشات'
+        setLoadError(msg)
+        toast({ title: 'تعذر تحميل أبحاث التخرج', description: msg, variant: 'destructive' })
+      })
+      .finally(() => setLoading(false))
+  }
+  useEffect(load, [])
+
+  const schedule = async () => {
+    if (!sched) return
+    setBusy(true)
+    try {
+      await api('/api/admin/thesis', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          id: sched.id,
+          action: 'SCHEDULE',
+          defenseDate: date,
+          committee: JSON.stringify(members.split(/[,،\n]/).map((s) => s.trim()).filter(Boolean)),
+          agentMember,
+        }),
+      })
+      toast({ title: 'تمت الجدولة', description: 'حُدد موعد المناقشة وأُبلغ الطالب — وإن أُضيف عضو وكيل سُجل مستحقه 100$ تلقائياً' })
+      setSched(null)
+      load()
+    } catch (e: any) {
+      toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const reprocessThesis = async (thesis: Thesis) => {
+    setBusy(true)
+    try {
+      await api('/api/admin/thesis', { method: 'PATCH', body: JSON.stringify({ id: thesis.id, action: 'REPROCESS' }) })
+      toast({ title: 'تمت إعادة تفعيل معالجة البحث', description: 'يمكن للطالب أو الإدارة تشغيل خطوات المعالجة من جديد.' })
+      load()
+    } catch (e: any) {
+      toast({ title: 'تعذر إعادة المعالجة', description: e.message, variant: 'destructive' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const thesisAction = async (thesis: Thesis, action: 'APPROVE_PLAN' | 'REQUEST_PLAN_REVISION' | 'REQUEST_FINAL_REVISION') => {
+    const reviewNote = await promptAction({
+      title: action === 'APPROVE_PLAN' ? 'اعتماد خطة البحث' : action === 'REQUEST_FINAL_REVISION' ? 'طلب تعديل البحث النهائي' : 'طلب تعديل خطة البحث',
+      description: action === 'APPROVE_PLAN'
+        ? 'اكتب ملاحظة اختيارية تظهر للطالب مع اعتماد الخطة.'
+        : action === 'REQUEST_FINAL_REVISION'
+          ? 'اكتب ملاحظة تعديل البحث النهائي التي ستظهر للطالب.'
+          : 'اكتب ملاحظة التعديل التي ستظهر للطالب.',
+      fieldLabel: 'ملاحظة للطالب',
+      defaultValue: thesis.reviewNote || '',
+      multiline: true,
+      confirmLabel: 'متابعة',
+      tone: action === 'APPROVE_PLAN' ? 'success' : 'warning',
+    })
+    if (reviewNote === null) return
+    setBusy(true)
+    try {
+      await api('/api/admin/thesis', {
+        method: 'PATCH',
+        body: JSON.stringify({ id: thesis.id, action, reviewNote }),
+      })
+      toast({
+        title: action === 'APPROVE_PLAN' ? 'تم اعتماد الخطة' : action === 'REQUEST_FINAL_REVISION' ? 'تم طلب تعديل البحث النهائي' : 'تم طلب تعديل الخطة',
+        description: action === 'APPROVE_PLAN'
+          ? 'أُبلغ الطالب ويمكنه الآن تسليم البحث النهائي'
+          : action === 'REQUEST_FINAL_REVISION'
+            ? 'أُبلغ الطالب أن البحث النهائي يحتاج تعديلاً قبل المناقشة'
+            : 'أُبلغ الطالب أن خطة البحث تحتاج تعديلاً',
+      })
+      load()
+    } catch (e: any) {
+      toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const recordResult = async () => {
+    if (!resulting) return
+    const reviewNote = await promptAction({
+      title: 'اعتماد نتيجة المناقشة',
+      description: 'اكتب ملاحظة اختيارية على نتيجة المناقشة تظهر في سجل الطالب.',
+      fieldLabel: 'ملاحظة النتيجة',
+      defaultValue: resulting.reviewNote || '',
+      multiline: true,
+      confirmLabel: 'اعتماد النتيجة',
+      tone: 'success',
+    })
+    if (reviewNote === null) return
+    setBusy(true)
+    try {
+      await api('/api/admin/thesis', {
+        method: 'PATCH',
+        body: JSON.stringify({ id: resulting.id, action: 'RESULT', resultScore: parseFloat(score), passed: passed === 'true', reviewNote }),
+      })
+      toast({ title: 'تم اعتماد النتيجة', description: 'أُبلغ الطالب بالنتيجة وتحديث حالة طلبه' })
+      setResulting(null)
+      load()
+    } catch (e: any) {
+      toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const filteredTheses = useMemo(() => theses.filter((t) => {
+    const active = !['RESULT_APPROVED'].includes(t.status)
+    const statusOk = thesisStatusFilter === 'ALL' || (thesisStatusFilter === 'ACTIVE' && active) || t.status === thesisStatusFilter
+    return statusOk && matchesAdminSearch(thesisSearch, [t.title, t.abstract, t.status, t.user?.name, t.user?.email, t.admission?.program, t.admission?.reference])
+  }), [theses, thesisSearch, thesisStatusFilter])
+  const pagedTheses = pageItems(filteredTheses, thesisPage, thesisPageSize)
+  const currentThesisPage = safePage(filteredTheses.length, thesisPageSize, thesisPage)
+  const loadedActiveCount = theses.filter((t) => !['RESULT_APPROVED'].includes(t.status)).length
+  const loadedScheduledCount = theses.filter((t) => t.status === 'SCHEDULED').length
+  const loadedApprovedResultsCount = theses.filter((t) => t.status === 'RESULT_APPROVED').length
+
+  // إنهاء اختيار البحث أثناء الرسم عندما يخرج من الصفحة الحالية (بحث/فلتر/ترقيم/تحديث) — النمط المعتمد من مرحلة الكتب، دون أثر جانبي أو تحذير lint
+  if (expandedThesisId && !pagedTheses.some((t) => t.id === expandedThesisId)) {
+    setExpandedThesisId(null)
+  }
+
+  if (loading) return (
+    <Card className="mt-4 border-[#0f2b46]/10">
+      <CardContent className="flex h-48 flex-col items-center justify-center gap-3 text-center">
+        <Loader2 className="h-8 w-8 animate-spin text-[#c9a227]" />
+        <p className="text-sm font-black text-[#0f2b46]">جاري تحميل أبحاث التخرج والمناقشات...</p>
+        <p className="text-xs font-bold text-slate-400">يتم الآن جلب الملخصات فقط بدون تحميل تسجيلات الفيديو الثقيلة.</p>
+      </CardContent>
+    </Card>
+  )
+
+  const ST: Record<string, { label: string; cls: string }> = {
+    PLAN_SUBMITTED: { label: 'خطة البحث قيد المراجعة', cls: 'bg-amber-100 text-amber-700' },
+    PLAN_NEEDS_REVISION: { label: 'خطة البحث تحتاج تعديلًا', cls: 'bg-red-100 text-red-600' },
+    PLAN_APPROVED: { label: 'خطة البحث معتمدة', cls: 'bg-emerald-100 text-emerald-700' },
+    FINAL_NEEDS_REVISION: { label: 'البحث النهائي يحتاج تعديلًا', cls: 'bg-red-100 text-red-600' },
+    SUBMITTED: { label: 'البحث النهائي — بانتظار الجدولة', cls: 'bg-amber-100 text-amber-700' },
+    SCHEDULED: { label: 'مجدول للمناقشة', cls: 'bg-blue-100 text-blue-700' },
+    RESULT_APPROVED: { label: 'تم اعتماد النتيجة', cls: 'bg-emerald-100 text-emerald-700' },
+    NEEDS_REVISION: { label: 'يحتاج تعديلات', cls: 'bg-red-100 text-red-600' },
+  }
+
+  return (
+    <div className="mt-4 space-y-4">
+      {actionDialog}
+      <div className="space-y-3 rounded-2xl border border-[#0f2b46]/10 bg-white p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-base font-black text-[#0f2b46]">أبحاث التخرج والمناقشات</h2>
+            <p className="mt-1 text-xs font-bold leading-5 text-slate-500">
+              تعرض هذه القائمة ملخصات الأبحاث فقط لتفتح بسرعة، أما تسجيل الفيديو فيُحمّل عند الضغط على تشغيل التسجيل.
+            </p>
+          </div>
+          <Button onClick={load} variant="outline" className="w-full border-[#c9a227]/50 text-xs font-black text-[#a8841a] hover:bg-[#fff7df] sm:w-auto">
+            <RefreshCw className="ml-1.5 h-4 w-4" /> تحديث القائمة
+          </Button>
+        </div>
+        {!loadError && (
+          <div className="grid gap-2 sm:grid-cols-4" aria-label="ملخص الأبحاث المحملة">
+            {[
+              ['الأبحاث المحمّلة', theses.length],
+              ['النشطة ضمن المحمّل', loadedActiveCount],
+              ['المناقشات المجدولة', loadedScheduledCount],
+              ['النتائج المعتمدة', loadedApprovedResultsCount],
+            ].map(([label, value]) => (
+              <div key={String(label)} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                <p className="text-[10px] font-black text-slate-400">ضمن الأبحاث المحمّلة</p>
+                <p className="mt-1 text-lg font-black text-[#0f2b46]">{value}</p>
+                <p className="text-[11px] font-bold text-slate-500">{label}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <AdminListToolbar
+        search={thesisSearch}
+        onSearchChange={(v) => { setThesisSearch(v); setThesisPage(1) }}
+        searchPlaceholder="ابحث باسم الباحث أو عنوان البحث أو البرنامج أو كود الطلب..."
+        status={thesisStatusFilter}
+        onStatusChange={(v) => { setThesisStatusFilter(v); setThesisPage(1) }}
+        statusOptions={[
+          { value: 'ACTIVE', label: 'النشطة فقط' },
+          { value: 'PLAN_SUBMITTED', label: 'خطة قيد المراجعة' },
+          { value: 'PLAN_NEEDS_REVISION', label: 'خطة تحتاج تعديل' },
+          { value: 'PLAN_APPROVED', label: 'خطة معتمدة' },
+          { value: 'SUBMITTED', label: 'بحث نهائي مسلم' },
+          { value: 'SCHEDULED', label: 'مجدول' },
+          { value: 'RESULT_APPROVED', label: 'نتيجة معتمدة' },
+          { value: 'ALL', label: 'كل الأبحاث' },
+        ]}
+        pageSize={thesisPageSize}
+        onPageSizeChange={(v) => { setThesisPageSize(v); setThesisPage(1) }}
+        total={theses.length}
+        filtered={filteredTheses.length}
+        label="بحث"
+      />
+      <p className="rounded-xl border border-[#0f2b46]/10 bg-white px-3 py-2 text-xs font-bold text-slate-500">
+        ضمن الأبحاث المحمّلة: {theses.length} إجماليًا · {filteredTheses.length} مطابقة للبحث/الفلتر · {pagedTheses.length} ظاهرة في الصفحة الحالية.
+      </p>
+
+      {loadError ? (
+        <Card className="border-red-100 bg-red-50">
+          <CardContent className="p-6 text-center">
+            <XCircle className="mx-auto mb-2 h-8 w-8 text-red-500" />
+            <p className="text-sm font-black text-red-700">تعذر تحميل أبحاث التخرج</p>
+            <p className="mt-1 text-xs font-bold text-red-600">{loadError}</p>
+            <Button onClick={load} className="mt-4 bg-[#0f2b46] text-[#f5f0e1] hover:bg-[#12365c]">
+              إعادة المحاولة
+            </Button>
+          </CardContent>
+        </Card>
+      ) : theses.length === 0 ? (
+        <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا توجد أبحاث تخرج مسلَّمة بعد</CardContent></Card>
+      ) : filteredTheses.length === 0 ? (
+        <Card className="border-[#0f2b46]/10"><CardContent className="p-10 text-center text-sm text-slate-400">لا توجد أبحاث مطابقة للبحث أو الفلتر الحالي.</CardContent></Card>
+      ) : (
+        <>
+        {pagedTheses.map((t) => {
+          const committee = parseCommitteeNames(t.committee)
+          const studentName = safeText(t.user?.name, 'طالب غير محدد')
+          const programName = safeText(t.admission?.program, 'برنامج غير محدد')
+          const abstractText = safeText(t.abstract, 'لا يوجد ملخص محفوظ لهذا البحث')
+          const journey = [
+            { title: 'الخطة', done: ['PLAN_SUBMITTED', 'PLAN_APPROVED', 'FINAL_NEEDS_REVISION', 'SUBMITTED', 'SCHEDULED', 'RESULT_APPROVED'].includes(t.status), active: t.status === 'PLAN_SUBMITTED' || ['PLAN_NEEDS_REVISION', 'NEEDS_REVISION'].includes(t.status) },
+            { title: 'اعتماد الخطة', done: ['PLAN_APPROVED', 'FINAL_NEEDS_REVISION', 'SUBMITTED', 'SCHEDULED', 'RESULT_APPROVED'].includes(t.status), active: t.status === 'PLAN_SUBMITTED' },
+            { title: 'البحث النهائي', done: ['SUBMITTED', 'SCHEDULED', 'RESULT_APPROVED'].includes(t.status), active: ['PLAN_APPROVED', 'FINAL_NEEDS_REVISION'].includes(t.status) },
+            { title: 'المناقشة', done: ['SCHEDULED', 'RESULT_APPROVED'].includes(t.status), active: t.status === 'SUBMITTED' },
+            { title: 'النتيجة', done: t.status === 'RESULT_APPROVED', active: t.status === 'SCHEDULED' },
+          ]
+          const isExpanded = expandedThesisId === t.id
+          const detailsPanelId = `thesis-details-${t.id}`
+          return (
+            <Card key={t.id} className="overflow-hidden border-[#0f2b46]/10">
+              <CardContent className="p-4 sm:p-5">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-start gap-2">
+                      <h4 className="w-full text-sm font-black leading-6 text-[#0f2b46] sm:w-auto sm:text-base">{t.title}</h4>
+                      <Badge className={ST[t.status]?.cls || 'bg-slate-100 text-slate-600'}>{ST[t.status]?.label || t.status}</Badge>
+                      {t.admission && (
+                        <span className="rounded-md bg-[#0f2b46] px-2 py-0.5 font-mono text-[10px] font-bold text-[#e0b83a]" dir="ltr">{t.admission.reference}</span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs font-bold text-slate-600">
+                      الباحث: {studentName} — {programName}
+                    </p>
+                    <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-slate-500">{abstractText}</p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-bold text-slate-500">
+                      {t.defenseDate && (
+                        <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-1 text-blue-700">
+                          <CalendarClock className="ml-1 h-3 w-3" /> {formatArabicDate(t.defenseDate)}
+                        </span>
+                      )}
+                      {t.status === 'RESULT_APPROVED' && (
+                        <span className={`inline-flex rounded-full px-2 py-1 ${t.passed ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>نتيجة معتمدة</span>
+                      )}
+                      {t.extractionStatus === 'FAILED' && (
+                        <span className="inline-flex rounded-full bg-red-50 px-2 py-1 text-red-600">تحذير: فشلت معالجة الملف</span>
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      aria-expanded={isExpanded}
+                      aria-controls={detailsPanelId}
+                      onClick={() => setExpandedThesisId(isExpanded ? null : t.id)}
+                      className="mt-3 border-[#0f2b46]/20 text-xs font-black text-[#0f2b46] focus-visible:ring-2 focus-visible:ring-[#c9a227] focus-visible:ring-offset-2"
+                    >
+                      {isExpanded ? 'إغلاق التفاصيل' : 'عرض تفاصيل البحث'}
+                    </Button>
+                    {isExpanded && (
+                      <div id={detailsPanelId} className="mt-4 space-y-3 rounded-2xl border border-[#0f2b46]/10 bg-slate-50/60 p-3">
+                    <p className="text-[11px] font-black text-[#0f2b46]">الخطة والملاحظات</p>
+                    <p className="whitespace-pre-line rounded-xl bg-white p-3 text-[11px] font-bold leading-6 text-slate-600">{abstractText}</p>
+                    {t.reviewNote ? (
+                      <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] font-bold leading-6 text-amber-800">
+                        <span className="font-black">ملاحظة الإدارة/المشرف:</span> {t.reviewNote}
+                      </div>
+                    ) : null}
+                    {t.reviewNotes?.length ? (
+                      <div className="mt-2 rounded-xl border border-slate-100 bg-white p-3">
+                        <p className="mb-2 text-[11px] font-black text-[#0f2b46]">سجل الملاحظات</p>
+                        <div className="max-h-32 space-y-1.5 overflow-y-auto">
+                          {t.reviewNotes.slice(0, 4).map((note) => (
+                            <div key={note.id} className="rounded-lg bg-slate-50 p-2 text-[10px] font-bold leading-5 text-slate-600">
+                              <div className="flex flex-wrap items-center justify-between gap-1">
+                                <span className="font-black text-[#0f2b46]">{note.stage === 'PLAN' ? 'خطة البحث' : note.stage === 'FINAL' ? 'البحث النهائي' : note.stage === 'RESULT' ? 'النتيجة' : 'عام'}</span>
+                                <span className="text-slate-400">{new Date(note.createdAt).toLocaleDateString('ar-EG')}</span>
+                              </div>
+                              <p className="mt-0.5 whitespace-pre-line">{note.note}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                    <div className="mt-3 grid gap-1.5 sm:grid-cols-5">
+                      {journey.map((step, index) => (
+                        <div key={step.title} className={`rounded-xl border px-2 py-2 ${step.done ? 'border-emerald-200 bg-emerald-50' : step.active ? 'border-[#c9a227] bg-[#fffaf0]' : 'border-slate-100 bg-slate-50'}`}>
+                          <div className="flex items-center justify-between gap-1">
+                            <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-black ${step.done ? 'bg-emerald-600 text-white' : step.active ? 'bg-[#c9a227] text-white' : 'bg-white text-slate-400'}`}>{step.done ? '✓' : index + 1}</span>
+                            <span className={`text-[9px] font-black ${step.done ? 'text-emerald-700' : step.active ? 'text-[#a8841a]' : 'text-slate-400'}`}>{step.done ? 'مكتملة' : step.active ? 'الحالية' : 'لاحقًا'}</span>
+                          </div>
+                          <p className="mt-1 text-[10px] font-black text-[#0f2b46]">{step.title}</p>
+                        </div>
+                      ))}
+                    </div>
+                    {t.status === 'SCHEDULED' && t.defenseDate && (
+                      <>
+                      <p className="mt-3 text-[11px] font-black text-[#0f2b46]">المناقشة واللجنة</p>
+                      <p className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-bold text-blue-700">
+                        <CalendarClock className="h-3.5 w-3.5" />
+                        {formatArabicDate(t.defenseDate)}
+                        — اللجنة: {committee.length ? committee.join('، ') : 'لم تُحفظ أسماء اللجنة'}
+                        {t.agentMember ? ` + عضو الوكيل (${t.agentMember})` : ''}
+                      </p>
+                      </>
+                    )}
+                    {/* نتيجة جلسة المناقشة المرئية وخبير الذكاء الاصطناعي */}
+                    {t.aiScore != null && (
+                      <>
+                      <p className="mt-3 text-[11px] font-black text-[#0f2b46]">الملف والمعالجة والتحليل</p>
+                      <div className="mt-2 rounded-xl border border-[#c9a227]/40 bg-[#f7edd0]/60 p-3">
+                        <p className="flex flex-wrap items-center gap-2 text-xs font-black text-[#0f2b46]">
+                          <Bot className="h-4 w-4 text-[#a8841a]" />
+                          تقييم خبير الذكاء الاصطناعي: {t.aiScore}/100
+                          <Badge className={t.aiScore >= 60 ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>
+                            {t.aiScore >= 80 ? 'توصية بالقبول' : t.aiScore >= 60 ? 'قبول مع ملاحظات' : 'يحتاج مراجعة'}
+                          </Badge>
+                          {t.defenseStatus === 'COMPLETED' && <span className="text-[10px] font-bold text-slate-500">انتهت الجلسة</span>}
+                        </p>
+                        <p className="mt-1.5 text-[11px] font-bold text-slate-600">معالجة الملف: {t.extractionStatus || 'غير مرفوع'}{t.pageCount ? ` · ${t.pageCount} صفحة` : ''}{t.wordCount ? ` · ${t.wordCount} كلمة` : ''}</p>
+                        {t.status === 'SCHEDULED' && !t.extractionStatus && !(t.fileUrl || t.downloadUrl || t.fileStorageKey) && <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">مناقشة بدون ملف البحث</Badge>}
+                        {t.extractionError && <p className="mt-1 text-[11px] font-bold text-red-600">خطأ المعالجة: {t.extractionError}</p>}
+                        {t.digest && <pre className="mt-2 max-h-32 overflow-auto rounded-xl bg-slate-50 p-2 text-[10px] text-slate-600">{JSON.stringify(t.digest, null, 2).slice(0, 1200)}</pre>}
+                        {t.defenseBreakdown && <pre className="mt-2 max-h-24 overflow-auto rounded-xl bg-amber-50 p-2 text-[10px] text-[#5c4d1a]">{JSON.stringify(t.defenseBreakdown, null, 2).slice(0, 900)}</pre>}
+                        {t.aiRecommendation && (
+                          <p className="mt-1.5 whitespace-pre-line text-[11px] font-semibold leading-relaxed text-[#5c4d1a]">{t.aiRecommendation}</p>
+                        )}
+                        {/* 12.3: محضر الجلسة والتسجيل المؤرشف */}
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {(t.fileUrl || t.downloadUrl) && (
+                            <a href={t.fileUrl || t.downloadUrl || '#'} target="_blank" rel="noreferrer" className="inline-flex h-7 items-center rounded-md border border-[#0f2b46]/20 bg-white/70 px-2 text-[10px] font-black text-[#0f2b46] hover:bg-slate-50">
+                              <FileSignature className="ml-1 h-3 w-3" /> فتح ملف البحث
+                            </a>
+                          )}
+                          {t.defenseMinutes && (
+                            <Button size="sm" variant="outline" disabled={busy} onClick={() => setMinutesThesis(t)} className="h-7 border-[#a8841a]/40 bg-white/60 text-[10px] font-black text-[#a8841a]">
+                              <FileSignature className="ml-1 h-3 w-3" /> محضر الجلسة التلقائي
+                            </Button>
+                          )}
+                          {t.recordingSize && (
+                            <Button size="sm" variant="outline" disabled={busy} onClick={() => setShowRecording(t)} className="h-7 border-[#0f2b46]/30 bg-white/60 text-[10px] font-black text-[#0f2b46]">
+                              <Video className="ml-1 h-3 w-3" /> تشغيل تسجيل الجلسة ({Math.round((t.recordingSize || 0) / 1024)} ك.ب)
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      </>
+                    )}
+                    {t.status === 'RESULT_APPROVED' && (
+                      <p className={`mt-2 text-xs font-black ${t.passed ? 'text-emerald-600' : 'text-red-500'}`}>
+                        النتيجة: {t.resultScore} — {t.passed ? 'مجتاز' : 'غير مجتاز'}
+                      </p>
+                    )}
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 xl:w-56 xl:grid-cols-1">
+                    {isExpanded ? (
+                      <>
+                    <p className="text-[11px] font-black text-[#0f2b46]">الإجراءات والقرارات</p>
+                    {t.extractionStatus === 'FAILED' && (
+                      <Button size="sm" variant="outline" disabled={busy} onClick={() => reprocessThesis(t)} className="w-full justify-center border-red-200 font-bold text-red-700 hover:bg-red-50">
+                        إعادة المعالجة
+                      </Button>
+                    )}
+                    {t.status === 'PLAN_SUBMITTED' && (
+                      <>
+                        <Button size="sm" disabled={busy} onClick={() => thesisAction(t, 'APPROVE_PLAN')}
+                          className="w-full justify-center bg-emerald-600 font-bold text-white hover:bg-emerald-700">
+                          <CheckCircle2 className="ml-1 h-3.5 w-3.5" /> اعتماد خطة البحث
+                        </Button>
+                        <Button size="sm" variant="outline" disabled={busy} onClick={() => thesisAction(t, 'REQUEST_PLAN_REVISION')}
+                          className="w-full justify-center border-amber-200 font-bold text-amber-700 hover:bg-amber-50">
+                          طلب تعديل الخطة
+                        </Button>
+                      </>
+                    )}
+                    {t.status === 'SUBMITTED' && (
+                      <>
+                        <Button size="sm" variant="outline" disabled={busy} onClick={() => thesisAction(t, 'REQUEST_FINAL_REVISION')}
+                          className="w-full justify-center border-amber-200 font-bold text-amber-700 hover:bg-amber-50">
+                          طلب تعديل البحث النهائي
+                        </Button>
+                        <Button size="sm" disabled={busy} onClick={() => { setSched(t); setDate(''); setMembers(''); setAgentMember('') }}
+                          className="w-full justify-center bg-[#0f2b46] font-bold text-[#f5f0e1] hover:bg-[#12365c]">
+                          <Gavel className="ml-1 h-3.5 w-3.5" /> جدولة المناقشة
+                        </Button>
+                      </>
+                    )}
+                    {['PLAN_NEEDS_REVISION', 'NEEDS_REVISION'].includes(t.status) && (
+                      <Button size="sm" variant="outline" disabled={busy} onClick={() => thesisAction(t, 'REQUEST_PLAN_REVISION')}
+                        className="w-full justify-center border-amber-200 font-bold text-amber-700 hover:bg-amber-50">
+                        تحديث ملاحظة تعديل الخطة
+                      </Button>
+                    )}
+                    {t.status === 'FINAL_NEEDS_REVISION' && (
+                      <Button size="sm" variant="outline" disabled={busy} onClick={() => thesisAction(t, 'REQUEST_FINAL_REVISION')}
+                        className="w-full justify-center border-amber-200 font-bold text-amber-700 hover:bg-amber-50">
+                        تحديث ملاحظة تعديل البحث النهائي
+                      </Button>
+                    )}
+                    {t.status === 'SCHEDULED' && (
+                      <>
+                        <Button size="sm" disabled={busy} onClick={() => setRoomThesis(t)}
+                          className="w-full justify-center bg-[#c9a227] font-bold text-[#0f2b46] hover:bg-[#e0b83a]">
+                          <Video className="ml-1 h-3.5 w-3.5" /> دخول قاعة المناقشة
+                        </Button>
+                        <Button size="sm" disabled={busy} onClick={() => setResulting(t)}
+                          className="w-full justify-center bg-emerald-600 font-bold text-white hover:bg-emerald-700">
+                          <CheckCircle2 className="ml-1 h-3.5 w-3.5" /> تسجيل النتيجة
+                        </Button>
+                      </>
+                    )}
+                    {t.status === 'RESULT_APPROVED' && (t.defenseMinutes || t.recordingSize) && (
+                      <Button size="sm" variant="outline" disabled={busy} onClick={() => setMinutesThesis(t)} className="w-full justify-center border-[#c9a227]/40 text-[10px] font-bold text-[#a8841a]">
+                        <FileSignature className="ml-1 h-3 w-3" /> محضر الجلسة
+                      </Button>
+                    )}
+                      </>
+                    ) : (
+                      <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3 text-center text-[11px] font-bold text-slate-500">
+                        افتح تفاصيل البحث لإظهار إجراءات الاعتماد والجدولة والنتيجة.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
+        <AdminPager page={currentThesisPage} pageSize={thesisPageSize} total={filteredTheses.length} onPageChange={setThesisPage} label="بحث" />
+        </>
+      )}
+
+      {/* نافذة الجدولة */}
+      <Dialog open={!!sched} onOpenChange={(v) => !v && setSched(null)}>
+        <DialogContent className="max-w-md" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-black text-[#0f2b46]">
+              <Gavel className="h-5 w-5 text-[#c9a227]" /> جدولة مناقشة بحث التخرج
+            </DialogTitle>
+            <DialogDescription>{sched?.title}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3.5">
+            <div className="space-y-1.5">
+              <Label>تاريخ المناقشة *</Label>
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>أعضاء اللجنة المتخصصة * (افصل بفاصلة)</Label>
+              <Input value={members} onChange={(e) => setMembers(e.target.value)}
+                placeholder="د. أحمد سمير، د. منى عبد الله، أ. خالد يوسف" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>عضو من الوكيل الدولي (اختياري — يسجل 100$ مستحقات تلقائياً)</Label>
+              <Input value={agentMember} onChange={(e) => setAgentMember(e.target.value)} placeholder="اسم العضو من جهة الوكيل" />
+            </div>
+            <Button onClick={schedule} disabled={busy} className="w-full bg-[#0f2b46] font-extrabold text-[#f5f0e1] hover:bg-[#12365c]">
+              {busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Gavel className="ml-2 h-4 w-4" />}
+              تأكيد الجدولة وإشعار الطالب
+            </Button>
+            {sched && <DefenseInvitesManager key={sched.id} thesisId={sched.id} initialMeetingUrl={sched.defenseMeetingUrl} />}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* نافذة النتيجة */}
+      <Dialog open={!!resulting} onOpenChange={(v) => !v && setResulting(null)}>
+        <DialogContent className="max-w-sm" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="font-black text-[#0f2b46]">تسجيل نتيجة المناقشة</DialogTitle>
+            <DialogDescription>{resulting?.title}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3.5">
+            <div className="space-y-1.5">
+              <Label>الدرجة (من 100)</Label>
+              <Input type="number" min="0" max="100" value={score} onChange={(e) => setScore(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>القرار</Label>
+              <Select value={passed} onValueChange={setPassed}>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="true">اجتاز المناقشة</SelectItem>
+                  <SelectItem value="false">لم يجتز — يحتاج تعديلات</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={recordResult} disabled={busy} className="w-full bg-emerald-600 font-extrabold text-white hover:bg-emerald-700">
+              {busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="ml-2 h-4 w-4" />}
+              اعتماد النتيجة وإشعار الطالب
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {/* 12.3: نافذة قاعة المناقشة — دخول الإدارة كعضو لجنة */}
+      <Dialog open={!!roomThesis} onOpenChange={(v) => !v && setRoomThesis(null)}>
+        <DialogContent className="max-h-[95vh] max-w-4xl overflow-y-auto" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-black text-[#0f2b46]">
+              <Video className="h-5 w-5 text-[#a8841a]" /> قاعة المناقشة — اتصال الإدارة كعضو لجنة
+            </DialogTitle>
+            <DialogDescription>
+              {roomThesis?.title} — أنت متصل بفيديو وصوت مباشر مع الطالب وبقية أعضاء اللجنة من مواقعهم المختلفة
+            </DialogDescription>
+          </DialogHeader>
+          {roomThesis && (
+            <DefenseRoom
+              thesis={{
+                id: roomThesis.id,
+                title: roomThesis.title,
+                abstract: roomThesis.abstract,
+                defenseDate: roomThesis.defenseDate,
+                committee: roomThesis.committee,
+                agentMember: roomThesis.agentMember,
+                defenseMeetingUrl: roomThesis.defenseMeetingUrl,
+                defenseStatus: roomThesis.defenseStatus,
+                aiScore: roomThesis.aiScore,
+                aiRecommendation: roomThesis.aiRecommendation,
+                defenseMinutes: roomThesis.defenseMinutes,
+              }}
+              mode="committee"
+              onFinished={load}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 12.3: نافذة محضر الجلسة */}
+      <Dialog open={!!minutesThesis} onOpenChange={(v) => !v && setMinutesThesis(null)}>
+        <DialogContent className="max-w-xl" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-black text-[#0f2b46]">
+              <FileSignature className="h-5 w-5 text-[#a8841a]" /> محضر جلسة المناقشة (توليد تلقائي)
+            </DialogTitle>
+            <DialogDescription>{minutesThesis?.title}</DialogDescription>
+          </DialogHeader>
+          {minutesThesis?.defenseMinutes && (
+            <div className="max-h-[50vh] overflow-y-auto rounded-xl bg-slate-50 p-4 text-xs leading-loose text-slate-700">
+              <p className="whitespace-pre-line">{minutesThesis.defenseMinutes}</p>
+            </div>
+          )}
+          {minutesThesis?.recordingSize && (
+            <video
+              src={minutesThesis.recordingUrl || `/api/admin/defense-recording?thesisId=${minutesThesis.id}`}
+              controls
+              className="w-full rounded-xl border"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 12.3: مشغل تسجيل الجلسة */}
+      <Dialog open={!!showRecording} onOpenChange={(v) => !v && setShowRecording(null)}>
+        <DialogContent className="max-w-2xl" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-black text-[#0f2b46]">
+              <Video className="h-5 w-5 text-[#a8841a]" /> تسجيل جلسة المناقشة (فيديو + صوت — مؤرشف في ملف الطالب)
+            </DialogTitle>
+            <DialogDescription>{showRecording?.title}</DialogDescription>
+          </DialogHeader>
+          {showRecording && (
+            <video
+              src={showRecording.recordingUrl || `/api/admin/defense-recording?thesisId=${showRecording.id}`}
+              controls
+              className="w-full rounded-xl border bg-black"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+// ============ المالية: المدفوعات + التقارير ============
+
+interface PaymentProofRow {
+  id: string
+  proofType: string
+  status: string
+  note?: string | null
+  adminNote?: string | null
+  declaredAmount?: number | null
+  declaredAmountCents?: number | null
+  fileName: string
+  mimeType: string
+  fileSize: number
+  fileUrl?: string | null
+  downloadUrl?: string | null
+  createdAt: string
+  reviewedAt?: string | null
+  uploadedBy?: { id: string; name: string; email: string } | null
+  reviewedBy?: { id: string; name: string; email: string } | null
+}
+
+interface PaymentWaiverCodeRow {
+  id: string
+  codePreview: string
+  waiverType: string
+  requestedAmount?: number | null
+  reason?: string | null
+  status: string
+  emailStatus?: 'SENT' | 'FAILED' | 'SKIPPED' | string | null
+  expiresAt?: string | null
+  verifiedAt?: string | null
+  approvedAt?: string | null
+  createdAt: string
+}
+
+interface PaymentRow {
+  id: string
+  invoiceNo: string
+  purpose: string
+  description: string
+  amount: number
+  status: string
+  waiverType?: string | null
+  waiverStatus?: string | null
+  waiverReason?: string | null
+  waivedAmount?: number | null
+  originalAmount?: number | null
+  waiverCodes?: PaymentWaiverCodeRow[]
+  method?: string | null
+  provider?: string | null
+  cryptoNetwork?: string | null
+  cryptoTxHash?: string | null
+  cryptoWalletAddress?: string | null
+  cryptoVerificationStatus?: string | null
+  cryptoVerificationNote?: string | null
+  manualApprovalReference?: string | null
+  manualApprovalNote?: string | null
+  receiptNo?: string | null
+  payerName?: string | null
+  payerCountry?: string | null
+  createdAt: string
+  proofs?: PaymentProofRow[]
+  admission?: { reference: string; fullName: string; country?: string; program: string } | null
+}
+
+interface OrganizedGrantPolicy {
+  id: string
+  title: string
+  scope: 'GENERAL' | 'PROGRAM' | 'INDIVIDUAL'
+  programIds: string[]
+  admissionId: string | null
+  coverage: 'REGISTRATION' | 'TUITION' | 'BOTH'
+  valueMode: 'FULL' | 'PERCENT' | 'AMOUNT'
+  value: number
+  reason: string
+  active: boolean
+  createdAt: string
+}
+
+interface OrganizedGrantQuote {
+  policy: OrganizedGrantPolicy
+  paymentId: string
+  baseCents: number
+  grantCents: number
+  paymentIds: string[]
+  signature: string
+  summary: string
+  waiverType: string
+}
+
+interface Report {
+  totalRevenue: number
+  byPurpose: Record<string, number>
+  byCountry: Record<string, number>
+  admissionStats: { total: number; approved: number; rejected: number; pending: number; certified: number }
+  agentPerformance: { orgName: string; territory: string; due: number; paid: number; entries: number }[]
+}
+
+export function AdminFinanceTab() {
+  const { toast } = useToast()
+  const { confirmAction, promptAction, dialog: actionDialog } = useAdminActionDialog()
+  const [payments, setPayments] = useState<PaymentRow[]>([])
+  const [totals, setTotals] = useState({ collected: 0, pending: 0, count: 0, paidCount: 0, manualPendingCount: 0, manualPendingAmount: 0, manualAiLiveCreditCount: 0, manualAiLiveCreditAmount: 0 })
+  const [report, setReport] = useState<Report | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [paymentSearch, setPaymentSearch] = useState('')
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState('ALL')
+  const [paymentPage, setPaymentPage] = useState(1)
+  const [paymentPageSize, setPaymentPageSize] = useState(25)
+  const [paymentTotal, setPaymentTotal] = useState(0)
+  const [paymentRefresh, setPaymentRefresh] = useState(0)
+  const [pdfBusy, setPdfBusy] = useState<string | null>(null)
+  const [waiverBusy, setWaiverBusy] = useState<string | null>(null)
+  const [proofReviewBusy, setProofReviewBusy] = useState<string | null>(null)
+  const [generatedWaiverCodes, setGeneratedWaiverCodes] = useState<Record<string, string>>({})
+  const [copiedWaiverPaymentId, setCopiedWaiverPaymentId] = useState<string | null>(null)
+  const [grantPolicies, setGrantPolicies] = useState<OrganizedGrantPolicy[]>([])
+  const [grantPrograms, setGrantPrograms] = useState<Array<{ id: string; titleAr: string }>>([])
+  const [grantAdmissions, setGrantAdmissions] = useState<Array<{ id: string; reference: string; fullName: string; program: string }>>([])
+  const [grantStudentSearch, setGrantStudentSearch] = useState('')
+  const [grantSaving, setGrantSaving] = useState(false)
+  const [grantPolicyError, setGrantPolicyError] = useState('')
+  const [grantSelection, setGrantSelection] = useState<Record<string, string>>({})
+  const [grantQuoteDialog, setGrantQuoteDialog] = useState<{ payment: PaymentRow; quote: OrganizedGrantQuote } | null>(null)
+  const [grantForm, setGrantForm] = useState({
+    title: '', scope: 'PROGRAM', programIds: [] as string[], admissionId: '',
+    coverage: 'TUITION', valueMode: 'FULL', value: '', reason: '',
+  })
+  const [openFinanceSection, setOpenFinanceSection] = useState<'payments' | 'reports' | 'grants' | null>('payments')
+  const toggleFinanceSection = (section: 'payments' | 'reports' | 'grants') => {
+    const y = typeof window !== 'undefined' ? window.scrollY : 0
+    setOpenFinanceSection((current) => (current === section ? null : section))
+    if (typeof window !== 'undefined') window.setTimeout(() => window.scrollTo({ top: y, behavior: 'auto' }), 0)
+  }
+
+  const loadGrantPolicies = useCallback(async () => {
+    try {
+      const response = await api<{ policies: OrganizedGrantPolicy[] }>('/api/admin/payments/waivers?mode=policies')
+      setGrantPolicies(Array.isArray(response.policies) ? response.policies : [])
+      setGrantPolicyError('')
+    } catch (error: any) {
+      setGrantPolicyError(error?.message || 'تعذر تحميل تعريفات المنح')
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadGrantPolicies()
+    api<{ programs: Array<{ id: string; titleAr: string }> }>('/api/programs?summary=1')
+      .then((result) => setGrantPrograms(Array.isArray(result.programs) ? result.programs : []))
+      .catch(() => setGrantPolicyError('تعذر تحميل قائمة التخصصات'))
+  }, [loadGrantPolicies])
+
+  useEffect(() => {
+    if (grantForm.scope !== 'INDIVIDUAL' || grantStudentSearch.trim().length < 2) {
+      setGrantAdmissions([])
+      return
+    }
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      const params = new URLSearchParams({ search: grantStudentSearch.trim(), pageSize: '20' })
+      api<{ applications: Array<{ id: string; reference: string; fullName: string; program: string }> }>(`/api/admin/admissions?${params}`)
+        .then((result) => { if (!cancelled) setGrantAdmissions(Array.isArray(result.applications) ? result.applications : []) })
+        .catch(() => { if (!cancelled) setGrantAdmissions([]) })
+    }, 300)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [grantStudentSearch, grantForm.scope])
+
+  const saveGrantPolicy = async () => {
+    if (grantSaving) return
+    setGrantSaving(true)
+    try {
+      const result = await api<{ policy: OrganizedGrantPolicy }>('/api/admin/payments/waivers', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'CREATE_POLICY', ...grantForm, value: Number(grantForm.value || 0) }),
+      })
+      toast({ title: 'تم حفظ تعريف المنحة', description: result.policy.title })
+      setGrantForm({ title: '', scope: 'PROGRAM', programIds: [], admissionId: '', coverage: 'TUITION', valueMode: 'FULL', value: '', reason: '' })
+      setGrantStudentSearch('')
+      await loadGrantPolicies()
+    } catch (error: any) {
+      toast({ title: 'لم تُحفظ المنحة', description: error?.message || 'تحقق من الحقول والشروط', variant: 'destructive' })
+    } finally { setGrantSaving(false) }
+  }
+
+  const toggleGrantPolicy = async (policyId: string) => {
+    if (grantSaving) return
+    setGrantSaving(true)
+    try {
+      await api('/api/admin/payments/waivers', { method: 'PATCH', body: JSON.stringify({ action: 'TOGGLE_POLICY', policyId }) })
+      await loadGrantPolicies()
+    } catch (error: any) {
+      toast({ title: 'تعذر تغيير حالة المنحة', description: error?.message || 'حاول مجددًا', variant: 'destructive' })
+    } finally { setGrantSaving(false) }
+  }
+
+  const previewOrganizedGrant = async (payment: PaymentRow) => {
+    const policyId = grantSelection[payment.id]
+    if (!policyId) {
+      toast({ title: 'اختر منحة أولاً', description: 'حدّد منحة عامة أو مخصصة للتخصص، أو أنشئ منحة فردية لهذا الطالب', variant: 'destructive' })
+      return
+    }
+    setWaiverBusy(payment.id)
+    try {
+      const params = new URLSearchParams({ mode: 'quote', policyId, paymentId: payment.id })
+      const result = await api<{ quote: OrganizedGrantQuote }>(`/api/admin/payments/waivers?${params}`)
+      setGrantQuoteDialog({ payment, quote: result.quote })
+    } catch (error: any) {
+      toast({ title: 'الطالب غير مؤهل أو الفاتورة غير قابلة للإعفاء', description: error?.message || 'راجع المنحة والتخصص', variant: 'destructive' })
+    } finally { setWaiverBusy(null) }
+  }
+
+  const issueOrganizedGrant = async () => {
+    if (!grantQuoteDialog || grantSaving) return
+    const { payment, quote } = grantQuoteDialog
+    setGrantSaving(true)
+    try {
+      const result = await api<{ code: string; waiver: PaymentWaiverCodeRow; emailStatus?: string }>('/api/admin/payments/waivers', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'ISSUE_POLICY', paymentId: payment.id, policyId: quote.policy.id, signature: quote.signature }),
+      })
+      setGeneratedWaiverCodes((prev) => ({ ...prev, [payment.id]: result.code }))
+      await copyWaiverCode(payment.id, result.code)
+      toast({ title: 'صدر كود المنحة بالنظام المالي الحالي', description: result.emailStatus === 'SENT' ? 'تم إرسال الكود للطالب' : 'راجع إرسال البريد أو شارك الكود يدويًا' })
+      setGrantQuoteDialog(null)
+      load()
+    } catch (error: any) {
+      toast({ title: 'توقف إصدار المنحة', description: error?.message || 'أعد التحقق من الفواتير والتخصص', variant: 'destructive' })
+    } finally { setGrantSaving(false) }
+  }
+
+  const load = () => setPaymentRefresh((v) => v + 1)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    const timer = window.setTimeout(() => {
+      const params = new URLSearchParams({ page: String(paymentPage), pageSize: String(paymentPageSize), status: paymentStatusFilter })
+      if (paymentSearch.trim()) params.set('search', paymentSearch.trim())
+      api<{ payments: PaymentRow[]; totals: any; total: number }>(`/api/admin/payments?${params.toString()}`)
+        .then((p) => {
+          if (cancelled) return
+          setPayments(Array.isArray(p.payments) ? p.payments : [])
+          setTotals(p.totals || { collected: 0, pending: 0, count: 0, paidCount: 0, manualPendingCount: 0, manualPendingAmount: 0, manualAiLiveCreditCount: 0, manualAiLiveCreditAmount: 0 })
+          setPaymentTotal(Number(p.total || p.totals?.count || 0))
+        })
+        .catch(() => { if (!cancelled) setPayments([]) })
+        .finally(() => { if (!cancelled) setLoading(false) })
+    }, 250)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [paymentSearch, paymentStatusFilter, paymentPage, paymentPageSize, paymentRefresh])
+
+  useEffect(() => {
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      api<Report>('/api/admin/reports')
+        .then((r) => {
+          if (!cancelled) setReport(r)
+        })
+        .catch(() => {
+          if (!cancelled) setReport(null)
+        })
+    }, 700)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [paymentRefresh])
+
+  const confirm = async (payment: PaymentRow) => {
+    const method = String(payment.method || payment.provider || '').toUpperCase()
+    const hasProof = !!payment.proofs?.length
+    let approvalReference = ''
+    let approvalNote = ''
+    if (!hasProof && method !== 'USDT') {
+      const value = await promptAction({
+        title: 'تأكيد سداد بدون إثبات مرفوع',
+        description: 'اكتب رقم الحوالة أو ملاحظة الاعتماد قبل تأكيد السداد حتى يظهر السبب في السجل.',
+        fieldLabel: 'رقم الحوالة أو ملاحظة الاعتماد',
+        defaultValue: payment.manualApprovalReference || payment.manualApprovalNote || '',
+        placeholder: 'مثال: حوالة ويسترن رقم 123 أو اعتماد إداري موثق',
+        required: true,
+        minLength: 3,
+        multiline: true,
+        confirmLabel: 'تأكيد السداد',
+        tone: 'warning',
+      })
+      if (value === null) return
+      const trimmed = value.trim()
+      if (trimmed.length < 3) {
+        toast({ title: 'مطلوب دليل اعتماد', description: 'اكتب رقم حوالة أو ملاحظة واضحة، أو اطلب من الطالب رفع إثبات الدفع أولاً.', variant: 'destructive' })
+        return
+      }
+      approvalNote = trimmed
+    }
+    try {
+      await api('/api/admin/payments', { method: 'PATCH', body: JSON.stringify({ id: payment.id, approvalReference, approvalNote }) })
+      toast({ title: 'تم التأكيد', description: 'أُصدر إيصال الدفع وأُبلغ الطالب' })
+      load()
+    } catch (e: any) {
+      toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
+    }
+  }
+
+  const reviewPaymentProof = async (payment: PaymentRow, proof: PaymentProofRow, action: 'ACCEPT' | 'REJECT') => {
+    let reason = ''
+    if (action === 'REJECT') {
+      const value = await promptAction({
+        title: 'رفض إثبات الدفع',
+        description: `اكتب سبب رفض إثبات الفاتورة ${payment.invoiceNo}. سيصل السبب للطالب ليعيد رفع إثبات صحيح.`,
+        fieldLabel: 'سبب الرفض',
+        placeholder: 'مثال: الصورة غير واضحة أو المبلغ لا يطابق الفاتورة',
+        required: true,
+        minLength: 6,
+        multiline: true,
+        confirmLabel: 'رفض الإثبات',
+        tone: 'danger',
+      })
+      if (value === null) return
+      reason = value.trim()
+      if (reason.length < 6) {
+        toast({ title: 'سبب الرفض إلزامي', description: 'اكتب سبباً واضحاً يصل للطالب.', variant: 'destructive' })
+        return
+      }
+    } else {
+      const ok = await confirmAction({
+        title: 'قبول إثبات الدفع',
+        description: `سيتم قبول إثبات الفاتورة ${payment.invoiceNo} وتسوية الفاتورة وتفعيل أي أثر مرتبط بالسداد.`,
+        confirmLabel: 'قبول وتسوية الفاتورة',
+        tone: 'success',
+      })
+      if (!ok) return
+    }
+    setProofReviewBusy(proof.id)
+    try {
+      await api(`/api/admin/payments/proofs/${encodeURIComponent(proof.id)}`, { method: 'PATCH', body: JSON.stringify({ action, reason }) })
+      toast({ title: action === 'ACCEPT' ? 'تم قبول الإثبات' : 'تم رفض الإثبات', description: action === 'ACCEPT' ? 'سُويت الفاتورة بعد قبول الإثبات.' : 'وصل سبب الرفض للطالب.' })
+      load()
+    } catch (e: any) {
+      if (action === 'ACCEPT' && e?.code === 'UNDERPAYMENT_CONFIRMATION_REQUIRED') {
+        const ok = await confirmAction({
+          title: 'تأكيد قبول دفع ناقص',
+          description: `المبلغ المحوّل ${e.declaredAmount}$ أقل من المبلغ المطلوب ${e.expectedAmount}$. هل تريد قبول هذا الإثبات وتسوية الفاتورة رغم الفرق؟`,
+          confirmLabel: 'قبول الدفع الناقص',
+          tone: 'warning',
+        })
+        if (ok) {
+          await api(`/api/admin/payments/proofs/${encodeURIComponent(proof.id)}`, { method: 'PATCH', body: JSON.stringify({ action: 'ACCEPT', confirmUnderpayment: true }) })
+          toast({ title: 'تم قبول الإثبات', description: 'سُويت الفاتورة بعد تأكيد قبول الدفع الناقص.' })
+          load()
+        }
+      } else {
+        toast({ title: 'تعذر مراجعة الإثبات', description: e.message, variant: 'destructive' })
+      }
+    } finally {
+      setProofReviewBusy(null)
+    }
+  }
+
+  const waiverLabel = (type?: string | null) => type === 'APPLICATION_FEE'
+    ? 'إعفاء رسوم التقديم'
+    : type === 'PARTIAL_TUITION'
+      ? 'إعفاء جزئي'
+      : type === 'FULL_SCHOLARSHIP'
+        ? 'منحة كاملة'
+        : 'إعفاء'
+
+  const activeWaiverForPayment = (payment: PaymentRow) => payment.waiverCodes?.find((w) => ['ISSUED', 'VERIFIED'].includes(w.status)) || null
+
+  const copyText = async (value: string) => {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value)
+      return
+    }
+    const textarea = document.createElement('textarea')
+    textarea.value = value
+    textarea.setAttribute('readonly', 'true')
+    textarea.style.position = 'fixed'
+    textarea.style.left = '-9999px'
+    document.body.appendChild(textarea)
+    textarea.select()
+    textarea.setSelectionRange(0, textarea.value.length)
+    try {
+      const ok = document.execCommand('copy')
+      if (!ok) throw new Error('copy command failed')
+    } finally {
+      document.body.removeChild(textarea)
+    }
+  }
+
+  const copyWaiverCode = async (paymentId: string, code: string) => {
+    try {
+      await copyText(code)
+      setCopiedWaiverPaymentId(paymentId)
+      toast({ title: 'تم نسخ كود الإعفاء', description: code })
+      window.setTimeout(() => setCopiedWaiverPaymentId((current) => (current === paymentId ? null : current)), 1800)
+    } catch (error) {
+      console.warn('Failed to copy waiver code.', error)
+      toast({ title: 'تعذر النسخ التلقائي', description: 'انسخ الكود الظاهر يدوياً.', variant: 'destructive' })
+    }
+  }
+
+  const generateWaiver = async (payment: PaymentRow, waiverType: 'APPLICATION_FEE' | 'PARTIAL_TUITION' | 'FULL_SCHOLARSHIP') => {
+    if (payment.status !== 'UNPAID') {
+      toast({ title: 'لا يمكن إصدار كود إعفاء', description: 'الكود يصدر فقط للفواتير غير المسددة.', variant: 'destructive' })
+      return
+    }
+    const activeWaiver = activeWaiverForPayment(payment)
+    if (activeWaiver) {
+      toast({ title: 'يوجد كود إعفاء نشط', description: `الكود الحالي ${activeWaiver.codePreview}. لا يمكن توليد كود آخر قبل استخدامه أو اعتماده.`, variant: 'destructive' })
+      return
+    }
+    if (waiverBusy === payment.id) return
+    let requestedAmount: number | null = null
+    if (waiverType === 'PARTIAL_TUITION') {
+      const amountText = await promptAction({
+        title: 'مبلغ الإعفاء الجزئي',
+        description: payment.purpose === 'APPLICATION_FEE'
+          ? `اكتب مبلغ الإعفاء الإجمالي. سيتم احتساب ${payment.amount}$ لرسوم التقديم، وأي مبلغ زائد سيخصم من رسوم البرنامج.`
+          : `اكتب مبلغ الإعفاء من فاتورة ${payment.invoiceNo}. المبلغ المتبقي الحالي ${payment.amount}$.`,
+        fieldLabel: 'مبلغ الإعفاء بالدولار',
+        placeholder: 'مثال: 100',
+        required: true,
+        minLength: 1,
+        confirmLabel: 'متابعة',
+        tone: 'warning',
+      })
+      if (amountText === null) return
+      requestedAmount = Number(amountText)
+      const isApplicationFee = payment.purpose === 'APPLICATION_FEE'
+      if (!Number.isFinite(requestedAmount) || requestedAmount <= 0 || (!isApplicationFee && requestedAmount > Number(payment.amount || 0)) || (isApplicationFee && requestedAmount <= Number(payment.amount || 0))) {
+        toast({
+          title: 'مبلغ غير صالح',
+          description: isApplicationFee ? 'في فاتورة التقديم، اكتب مبلغاً أكبر من 30$ حتى يخصم 30$ للتقديم والباقي من رسوم البرنامج.' : 'الإعفاء الجزئي يجب أن يكون أكبر من صفر وأقل من المبلغ المتبقي.',
+          variant: 'destructive',
+        })
+        return
+      }
+    }
+    const reason = await promptAction({
+      title: `توليد كود ${waiverLabel(waiverType)}`,
+      description: 'اكتب سبباً إدارياً واضحاً. سيظهر السبب في سجل التدقيق ولا يعتبر دفعاً فعلياً.',
+      fieldLabel: 'سبب الإعفاء',
+      placeholder: 'مثال: حالة إنسانية / قرار لجنة / منحة ممثل معتمدة',
+      required: true,
+      minLength: 6,
+      multiline: true,
+      confirmLabel: 'توليد الكود',
+      tone: waiverType === 'FULL_SCHOLARSHIP' ? 'success' : 'warning',
+    })
+    if (reason === null) return
+    setWaiverBusy(payment.id)
+    try {
+      const result = await api<{ code: string; waiver: PaymentWaiverCodeRow; emailStatus?: 'SENT' | 'FAILED' | 'SKIPPED' }>('/api/admin/payments/waivers', {
+        method: 'POST',
+        body: JSON.stringify({ paymentId: payment.id, waiverType, requestedAmount, reason }),
+      })
+      setGeneratedWaiverCodes((prev) => ({ ...prev, [payment.id]: result.code }))
+      await copyWaiverCode(payment.id, result.code)
+      const mailNote = result.emailStatus === 'SENT'
+        ? 'تم إرسال البريد ✅'
+        : result.emailStatus === 'FAILED'
+          ? 'فشل إرسال البريد، انسخ الكود يدوياً'
+          : 'لم يتم إرسال بريد، انسخ الكود يدوياً'
+      toast({ title: 'تم توليد ونسخ كود الإعفاء', description: `الكود: ${result.code} — ${mailNote}` })
+      load()
+    } catch (e: any) {
+      toast({ title: 'تعذر توليد كود الإعفاء', description: e.message, variant: 'destructive' })
+    } finally {
+      setWaiverBusy((current) => (current === payment.id ? null : current))
+    }
+  }
+
+  const approveWaiver = async (payment: PaymentRow) => {
+    const waiver = payment.waiverCodes?.find((w) => w.status === 'VERIFIED') || payment.waiverCodes?.[0]
+    if (!waiver) return
+    const ok = await confirmAction({
+      title: `اعتماد ${waiverLabel(waiver.waiverType)}`,
+      description: 'سيتم تطبيق الإعفاء مالياً. الإعفاء الكامل يحول الفاتورة إلى معفاة وليس مدفوعة، والإعفاء الجزئي يخفض المبلغ المتبقي فقط.',
+      confirmLabel: 'اعتماد الإعفاء',
+      tone: 'success',
+    })
+    if (!ok) return
+    try {
+      await api('/api/admin/payments/waivers', { method: 'PATCH', body: JSON.stringify({ action: 'APPROVE', waiverId: waiver.id }) })
+      toast({ title: 'تم اعتماد الإعفاء', description: 'تم تحديث الفاتورة وتسجيل القرار في سجل التدقيق.' })
+      load()
+    } catch (e: any) {
+      toast({ title: 'تعذر اعتماد الإعفاء', description: e.message, variant: 'destructive' })
+    }
+  }
+
+  const resendWaiver = async (payment: PaymentRow) => {
+    if (waiverBusy === payment.id) return
+    setWaiverBusy(payment.id)
+    try {
+      const result = await api<{ code: string; waiver: PaymentWaiverCodeRow; emailStatus?: 'SENT' | 'FAILED' | 'SKIPPED'; whatsapp?: string }>('/api/admin/payments/waivers', {
+        method: 'PATCH',
+        body: JSON.stringify({ action: 'RESEND', paymentId: payment.id }),
+      })
+      setGeneratedWaiverCodes((prev) => ({ ...prev, [payment.id]: result.code }))
+      const mailNote = result.emailStatus === 'SENT'
+        ? 'تم إرسال البريد ✅'
+        : result.emailStatus === 'FAILED'
+          ? 'فشل إرسال البريد'
+          : 'لم يتم إرسال بريد'
+      const waNote = result.whatsapp === 'sent'
+        ? 'تم إرسال واتساب ✅'
+        : result.whatsapp === 'template_pending'
+          ? 'واتساب: أُرسل قالب الموافقة، والكود يُرسل بعد رد الطالب'
+          : result.whatsapp === 'skipped'
+            ? 'لا يوجد رقم واتساب صالح'
+            : 'فشل إرسال واتساب'
+      toast({ title: 'تم إعادة إرسال التحقق', description: `الكود الجديد: ${result.code} — ${mailNote} — ${waNote}` })
+      load()
+    } catch (e: any) {
+      toast({ title: 'تعذر إعادة إرسال التحقق', description: e.message, variant: 'destructive' })
+    } finally {
+      setWaiverBusy((current) => (current === payment.id ? null : current))
+    }
+  }
+
+  const openInvoicePdf = async (id: string) => {
+    const popup = window.open('', '_blank')
+    if (popup) {
+      popup.document.write('<p style="font-family:Arial;padding:24px;text-align:center">Preparing invoice PDF...</p>')
+      try { popup.opener = null } catch (error) { console.warn('Unable to detach invoice PDF popup opener.', error) }
+    }
+    setPdfBusy(id)
+    try {
+      const token = getToken()
+      const res = await fetch(`/api/pdf/invoices/${encodeURIComponent(id)}`, {
+        cache: 'no-store',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data?.error || `HTTP ${res.status}`)
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      if (popup) {
+        popup.location.href = url
+      } else {
+        const a = document.createElement('a')
+        a.href = url
+        a.download = 'aact-invoice.pdf'
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+      }
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    } catch (e: any) {
+      try { popup?.close() } catch (closeError) { console.warn('Unable to close invoice PDF popup after failure.', closeError) }
+      toast({ title: 'تعذر فتح PDF الفاتورة', description: e.message, variant: 'destructive' })
+    } finally {
+      setPdfBusy(null)
+    }
+  }
+
+  const filteredPayments = payments
+  const pagedPayments = payments
+  const currentPaymentPage = paymentPage
+  const manualPendingCount = Number(totals.manualPendingCount || 0)
+  const manualPendingAmount = Number(totals.manualPendingAmount || 0)
+  const manualAiLiveCreditCount = Number(totals.manualAiLiveCreditCount || 0)
+  const manualAiLiveCreditAmount = Number(totals.manualAiLiveCreditAmount || 0)
+
+  const PURPOSE_L: Record<string, string> = {
+    APPLICATION_FEE: 'رسوم تقديم',
+    TUITION: 'رسوم دراسية',
+    TUITION_INSTALLMENT: 'دفعة رسوم دراسية',
+    ACCREDITATION_APP: 'تقديم اعتماد',
+    ACCREDITATION_FEE: 'رسوم تقديم اعتماد',
+    ACCREDITATION: 'اعتماد',
+    SERVICE_FEE: 'رسوم خدمة',
+    AI_LIVE_CREDIT: 'باقة دقائق صوت للمشرف الذكي',
+    OTHER: 'أخرى',
+  }
+
+  return (
+} — أساس الحساب: {(grantQuoteDialog.quote.baseCents / 100).toFixed(2)}$.</p>
+              <p className="text-xs text-slate-600">الكود الذي سيصدر: كود واحد على فاتورة {grantQuoteDialog.payment.invoiceNo} عبر نظام المنح الحالي. لا تُصدر عدة أكواد تلقائيًا.</p>
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button type="button" variant="outline" disabled={grantSaving} onClick={() => setGrantQuoteDialog(null)}>إلغاء</Button>
+                <Button type="button" disabled={grantSaving} onClick={() => void issueOrganizedGrant()}>{grantSaving ? 'جارٍ الإصدار…' : 'تأكيد وإصدار الكود'}</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
       {/* KPIs المالية */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Card className="border-[#0f2b46]/10"><CardContent className="p-4 text-center">
