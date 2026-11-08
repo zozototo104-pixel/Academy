@@ -606,6 +606,24 @@ export function AdminStudentPreview() {
             </Section>
           )}
 
+          {(data.expiredDetails?.length || 0) > 0 && (
+            <Section title="تسجيلات منتهية المدة — سجل أكاديمي للقراءة فقط" icon={AlertTriangle}>
+              <div className="space-y-3">
+                {data.expiredDetails.map((d) => (
+                  <div key={d.enrollmentId} className="min-w-0 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-black text-[#0f2b46]">{d.programTitle}</p>
+                      <Badge className="bg-amber-100 text-amber-800">منتهية المدة</Badge>
+                    </div>
+                    <p className="mt-2 font-bold text-slate-700">المحصّل من البرنامج: {cumulativeLabel(d)} — وحدات مكتملة: {d.counts.unitsCompleted}/{d.counts.unitsTotal} — واجبات مسلّمة: {d.counts.assignmentsSubmitted}/{d.counts.assignmentsTotal}</p>
+                    <p className="mt-1 text-amber-900">هذا سجل لحالة الطالب عند انتهاء المدة وليس تسجيلًا نشطًا أو شهادة تخرج.</p>
+                    <SemesterTrackingCard tracking={d.tracking} />
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+
           {data.overview.atRiskSignals.length > 0 && (
             <Section title="إشارات متابعة عاجلة" icon={AlertTriangle}>
               <div className="grid gap-2 md:grid-cols-2">
