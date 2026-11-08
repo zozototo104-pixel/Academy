@@ -70,6 +70,23 @@ export async function GET(req: NextRequest) {
       ...unitAttempts.map((a: any) => ({ type: 'UNIT', id: a.id, status: a.status, score: a.score, finalScore: null, passed: a.passed, aiGraded: a.aiGraded, appealStatus: a.appealStatus ?? 'NONE', reviewedAt: a.reviewedAt, submittedAt: a.submittedAt, student: a.user, exam: { id: a.exam.id, title: a.exam.title, programTitle: a.exam.unit.program.titleAr, unitTitle: a.exam.unit.title } })),
       ...programAttempts.map((a: any) => ({ type: 'PROGRAM', id: a.id, status: a.status, score: a.score, finalScore: a.finalScore, passed: a.passed, aiGraded: true, appealStatus: a.appealStatus ?? 'NONE', reviewedAt: a.reviewedAt, submittedAt: a.submittedAt, student: a.user, exam: { id: a.exam.id, title: a.exam.title, programTitle: a.exam.program.titleAr, unitTitle: null } })),
     ].sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime())
+    // Same official approval-state semantics used by the admin review queue.
+    // Only load rows already scoped to this supervisor and their programmes.
+    const graded = attempts.filter((a) => a.status === 'GRADED')
+    const approvals = graded.length ? await db.gradeApproval.findMany({
+      where: { OR: [
+        { targetType: 'UNIT_EXAM', attemptId: { in: graded.filter((a) => a.type === 'UNIT').map((a) => a.id) } },
+        { targetType: 'PROGRAM_EXAM', attemptId: { in: graded.filter((a) => a.type === 'PROGRAM').map((a) => a.id) } },
+      ] },
+      select: { targetType: true, attemptId: true, score: true },
+    }) : []
+    const approvedScore = new Map(approvals.map((a) => [`${a.targetType}:${a.attemptId}`, a.score]))
+    for (const a of attempts) {
+      const key = `${a.type === 'UNIT' ? 'UNIT_EXAM' : 'PROGRAM_EXAM'}:${a.id}`
+      ;(a as any).approvalState = a.status !== 'GRADED' ? null
+        : !approvedScore.has(key) ? 'NONE'
+        : approvedScore.get(key) === a.score ? 'APPROVED' : 'STALE'
+    }
     return NextResponse.json({ attempts })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'هذه الصفحة مخصصة للمشرفين والإدارة' }, { status: 403 })
