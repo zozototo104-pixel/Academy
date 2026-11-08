@@ -2713,6 +2713,20 @@ export function AdminFinanceTab() {
         })}
       </div>
 
+      <div id="finance-section-grants" role="region" aria-label="تنظيم المنح" hidden={openFinanceSection !== 'grants'} className="space-y-3">
+        <Card className="min-w-0 border-[#0f2b46]/10">
+          <CardContent className="space-y-4 p-4">
+            <div>
+              <h3 className="text-base font-black text-[#0f2b46]">تنظيم المنح العامة والتخصصية والفردية</h3>
+              <p className="mt-1 text-xs font-bold leading-6 text-slate-600">هذه الطبقة تنظم من يستحق الإعفاء وقيمته، ثم تسلمه لنظام الأكواد والفواتير الحالي. حملات المقاعد ومواعيد التقديم منفصلة عن هذه الإدارة.</p>
+            </div>
+            {/* ORGANIZED_GRANT_FORM_SLOT */}
+          </CardContent>
+        </Card>
+        {/* ORGANIZED_GRANT_LIST_SLOT */}
+        {grantPolicyError && <p role="alert" className="rounded-xl bg-red-50 p-3 text-xs font-bold text-red-700">{grantPolicyError}</p>}
+      </div>
+
       <div id="finance-section-reports" role="region" aria-label="التقارير والتحليلات المالية" hidden={openFinanceSection !== 'reports'} className="space-y-3">
       {/* معدلات القبول */}
       {report && (
