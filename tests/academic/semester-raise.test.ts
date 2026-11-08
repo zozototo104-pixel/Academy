@@ -135,6 +135,38 @@ describe('computeSemesterRaiseMaturity — الاشتقاق الخادمي', () 
     expect(m.score).toBe(63.25)
     expect(m.examTaken).toBe(true)
   })
+  test('محاولة انتهت EXPIRED لا تُنضج الرفع ولو ظهرت ضمن الامتحانات المجلوسة', async () => {
+    resetFacts({ satCount: 1, finalExamStatus: 'EXPIRED' })
+    const m = await computeSemesterRaiseMaturity(makeClient(), ctx as any)
+    expect(m.examTaken).toBe(true)
+    expect(m.mature).toBe(false)
+  })
+  test('محاولة SUBMITTED لم تُصحح لا تُنضج الرفع', async () => {
+    resetFacts({ satCount: 1, finalExamStatus: 'SUBMITTED' })
+    const m = await computeSemesterRaiseMaturity(makeClient(), ctx as any)
+    expect(m.mature).toBe(false)
+  })
+  test('نتيجة امتحان مصحح بلا درجة قابلة للاستخدام تمنع الرفع', async () => {
+    resetFacts({ satCount: 1, finalExamScore: null })
+    const m = await computeSemesterRaiseMaturity(makeClient(), ctx as any)
+    expect(m.mature).toBe(false)
+  })
+  test('نقاط إجابة ناقصة تمنع الرفع حتى لو حالة الامتحان GRADED', async () => {
+    resetFacts({ satCount: 1, answerPoints: [5, null] })
+    const m = await computeSemesterRaiseMaturity(makeClient(), ctx as any)
+    expect(m.mature).toBe(false)
+  })
+  test('التماس امتحان الفصل المعلق يمنع رفعه', async () => {
+    resetFacts({ satCount: 1, appealStatus: 'PENDING' })
+    const m = await computeSemesterRaiseMaturity(makeClient(), ctx as any)
+    expect(m.mature).toBe(false)
+  })
+  test('المعدل غير المتاح لا يتحول إلى رفع ناضج', async () => {
+    resetFacts({ satCount: 1, average: null })
+    const m = await computeSemesterRaiseMaturity(makeClient(), ctx as any)
+    expect(m.mature).toBe(false)
+    expect(m.score).toBeNull()
+  })
   test('امتحان لم يُجلس: لا نضج ولو فرغت الموانع (لا صفر مفترض أثناء الفترة)', async () => {
     resetFacts({ satCount: 0 })
     const m = await computeSemesterRaiseMaturity(makeClient(), ctx as any)
