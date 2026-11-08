@@ -9,6 +9,7 @@ import { buildSupervisorContext, mergeContext, updateStudentAcademicMemory } fro
 import { calculateSemesterReadiness } from '@/lib/semester-readiness'
 import { enforceSemesterTuitionGate } from '@/lib/tuition-installments'
 import { registerGraduationRequest } from '@/lib/enrollment-completion'
+import { matureSemesterRaisesAfterGrading } from '@/lib/semester-raise-hooks'
 import { EXAM_ATTEMPT_POLICY_SINCE, getExamMaxAttempts, shouldRevealCorrectAnswers } from '@/lib/exam-attempt-policy'
 import { gradeObjectiveAnswer, parseObjectiveOptions } from '@/lib/answer-completeness'
 
@@ -575,6 +576,7 @@ export async function POST(req: NextRequest) {
       console.error('Post-grade graduation request registration failed; preserving programme grade', { code: 'PROGRAM_GRADUATION_REQUEST_FAILED', attemptId: claimedProgramAttemptId || null })
       return null
     })
+    await matureSemesterRaisesAfterGrading(db, { enrollmentId: enrollment.id })
     const completedAttempts = completedAttemptsBeforeSubmit + 1
     const revealCorrectAnswers = shouldRevealCorrectAnswers({ passed, completedAttempts, maxAttempts })
     if (!revealCorrectAnswers) await hidePersistedProgramAnswerFeedback(attempt.id)

@@ -8,6 +8,7 @@ import { calculateFinalGrade, pickBestGradedAttempt } from '@/lib/final-grade'
 import { getStudentSemesterTracking } from '@/lib/student-tracking'
 import { enforceSemesterTuitionGate, getStudentTuitionPlan } from '@/lib/tuition-installments'
 import { registerGraduationRequest } from '@/lib/enrollment-completion'
+import { matureSemesterRaisesAfterGrading } from '@/lib/semester-raise-hooks'
 import { SEMESTER_DECISION_ACTIVE, withdrawSemesterRaise } from '@/lib/semester-decision'
 import { getSemesterDecisionBrief, requestSemesterDecision } from '@/lib/semester-raise'
 
@@ -385,6 +386,7 @@ export async function POST(req: NextRequest) {
     // transaction — it never issues a certificate. A certificate is shown
     // only when one was actually issued through administrative approval.
     const registration = await registerGraduationRequest({ enrollmentId: enrollment.id })
+    await matureSemesterRaisesAfterGrading(db, { enrollmentId: enrollment.id })
     const certificate = registration?.certificateNo
       ? { serial: registration.certificateNo }
       : null

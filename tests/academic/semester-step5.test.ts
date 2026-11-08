@@ -1,0 +1,172 @@
+import { describe, expect, mock, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
+// ===== الخطوة 5: الرفع عند نهاية الفترة + ربط النضج + التنظيم =====
+
+mock.module('@/lib/db', () => ({ db: {}, prisma: {} }))
+mock.module('@/lib/notify', () => ({ audit: async () => {}, notify: async () => {}, notifyAdmins: async () => {} }))
+
+const matureCalls: any[] = []
+let matureThrows = false
+mock.module('@/lib/semester-raise', () => ({
+  matureSemesterRaiseIfReady: async (_client: any, input: any) => {
+    matureCalls.push(input)
+    if (matureThrows) throw new Error('maturity failed')
+    return { decision: null, maturity: { mature: true } }
+  },
+}))
+
+const { raiseGateOf, materializeDeadlineRaises } = await import('../../src/lib/semester-decision')
+const { matureSemesterRaisesAfterGrading } = await import('../../src/lib/semester-raise-hooks')
+
+describe('raiseGateOf — بوابة الرفع الواحدة', () => {
+  test('كل الحالات من السجل والفترة', () => {
+    expect(raiseGateOf({ status: 'DECIDED' }, false)).toBe('DECIDED')
+    expect(raiseGateOf({ status: 'RAISED' }, false)).toBe('RAISED')
+    expect(raiseGateOf({ status: 'INTENT' }, true)).toBe('PERIOD_ENDED')
+    expect(raiseGateOf(null, true)).toBe('PERIOD_ENDED')
+    expect(raiseGateOf({ status: 'INTENT' }, false)).toBe('INTENT_PENDING')
+    expect(raiseGateOf({ status: 'WITHDRAWN' }, false)).toBe('AWAITING_STUDENT')
+    expect(raiseGateOf(null, false)).toBe('AWAITING_STUDENT')
+  })
+})
+
+function sweepWorld(createdAt: Date) {
+  const decisions = new Map<string, any>()
+  const db: any = {
+    semesterDecision: {
+      findMany: async ({ where, take }: any) =>
+        [...decisions.values()].filter((d) => d.status === where.status).slice(0, take),
+      findUnique: async ({ where }: any) =>
+        decisions.get(`${where.enrollmentId_semester.enrollmentId}:${where.enrollmentId_semester.semester}`) ?? null,
+      updateMany: async ({ where, data }: any) => {
+        const key = `${where.enrollmentId}:${where.semester}`
+        const row = decisions.get(key)
+        if (!row || row.status !== where.status) return { count: 0 }
+        decisions.set(key, { ...row, ...data })
+        return { count: 1 }
+      },
+    },
+    enrollment: {
+      findUnique: async () => ({
+        createdAt,
+        extensionDays: 0,
+        programId: 'p1',
+        program: { category: 'DIPLOMA', maxStudyDays: 90, semestersCount: 2 },
+      }),
+    },
+    unit: {
+      findMany: async () => [
+        { id: 'u1', programId: 'p1', semester: 1 },
+        { id: 'u2', programId: 'p1', semester: 2 },
+      ],
+    },
+  }
+  return { decisions, db }
+}
+
+describe('materializeDeadlineRaises — تجسيد رفع المهلة', () => {
+  test('طلب INTENT فترته انتهت يصير RAISED بمصدر DEADLINE وتاريخ نهاية الفترة', async () => {
+    const { decisions, db } = sweepWorld(new Date('2026-01-01T00:00:00Z'))
+    decisions.set('enr1:1', { enrollmentId: 'enr1', semester: 1, status: 'INTENT', intentAt: new Date(), scoreAtIntent: 61 })
+    const count = await materializeDeadlineRaises(db, { now: new Date('2026-03-01T00:00:00Z') })
+    expect(count).toBe(1)
+    const row = decisions.get('enr1:1')
+    expect(row.status).toBe('RAISED')
+    expect(row.raiseSource).toBe('DEADLINE')
+    expect(row.scoreAtRaise).toBe(61)
+    expect(new Date(row.raisedAt).getTime()).toBeLessThan(new Date('2026-03-01T00:00:00Z').getTime())
+  })
+  test('طلب INTENT فترته مفتوحة لا يُلمس، وسجل RAISED لا يُعاد كتابته', async () => {
+    const { decisions, db } = sweepWorld(new Date(Date.now() - 5 * 86400000))
+    decisions.set('enr1:1', { enrollmentId: 'enr1', semester: 1, status: 'INTENT', intentAt: new Date(), scoreAtIntent: 40 })
+    const count = await materializeDeadlineRaises(db)
+    expect(count).toBe(0)
+    expect(decisions.get('enr1:1').status).toBe('INTENT')
+  })
+})
+
+function hookWorld() {
+  const decisions = new Map<string, any>()
+  const db: any = {
+    enrollment: {
+      findUnique: async () => ({
+        id: 'enr1',
+        userId: 'u1',
+        programId: 'p1',
+        createdAt: new Date(),
+        status: 'ACTIVE',
+        extensionDays: 0,
+        program: { category: 'DIPLOMA', maxStudyDays: 90, semestersCount: 2 },
+      }),
+    },
+    semesterDecision: {
+      findUnique: async ({ where }: any) =>
+        decisions.get(`${where.enrollmentId_semester.enrollmentId}:${where.enrollmentId_semester.semester}`) ?? null,
+    },
+  }
+  return { decisions, db }
+}
+
+describe('matureSemesterRaisesAfterGrading — ربط النضج بأحداث التصحيح', () => {
+  test('يستدعي النضج للفصول ذات INTENT فقط', async () => {
+    matureCalls.length = 0
+    matureThrows = false
+    const { decisions, db } = hookWorld()
+    decisions.set('enr1:1', { enrollmentId: 'enr1', semester: 1, status: 'INTENT' })
+    await matureSemesterRaisesAfterGrading(db, { enrollmentId: 'enr1' })
+    expect(matureCalls.length).toBe(1)
+    expect(matureCalls[0].semester).toBe(1)
+  })
+  test('بلا طلبات INTENT لا يستدعي شيئًا، وفشل النضج لا يرمي', async () => {
+    matureCalls.length = 0
+    const { db } = hookWorld()
+    await matureSemesterRaisesAfterGrading(db, { enrollmentId: 'enr1' })
+    expect(matureCalls.length).toBe(0)
+    const world2 = hookWorld()
+    world2.decisions.set('enr1:2', { enrollmentId: 'enr1', semester: 2, status: 'INTENT' })
+    matureThrows = true
+    await matureSemesterRaisesAfterGrading(world2.db, { enrollmentId: 'enr1' })
+    expect(matureCalls.length).toBe(1)
+    matureThrows = false
+  })
+})
+
+describe('أسلاك الخطوة 5 (مصادر)', () => {
+  const root = join(import.meta.dir, '..', '..')
+  const read = (p: string) => readFileSync(join(root, p), 'utf8')
+  test('الكرون يجسّد رفع المهلة، والأهلية تدمج أسباب النقص كاملة', () => {
+    expect(read('src/app/api/cron/academic-lifecycle/route.ts')).toContain('materializeDeadlineRaises')
+    expect(read('src/lib/certificate-eligibility.ts')).toContain('finalGrade.missing')
+  })
+  test('إشعار الطالب المستوفي مربوط ببوابة الرفع', () => {
+    const completion = read('src/lib/enrollment-completion.ts')
+    expect(completion).toContain('أصبحت مؤهلًا للتخرج')
+    expect(completion).toContain('ارفع نتيجة فصلك الأخير للإدارة للاعتماد')
+    expect(completion).toContain('summarizeSemesterDecision')
+  })
+  test('مواقع الاستدعاء بعد كل حدث تصحيح', () => {
+    for (const f of [
+      'src/app/api/admin/attempts-review/route.ts',
+      'src/lib/supervisor-grade-review.ts',
+      'src/app/api/admin/appeals/route.ts',
+      'src/app/api/admin/assignments/route.ts',
+      'src/lib/supervisor-assignment-grading.ts',
+      'src/app/api/program-exam/appeal/route.ts',
+      'src/app/api/program-exam/submit/route.ts',
+      'src/app/api/exam/submit/route.ts',
+      'src/app/api/progress/route.ts',
+    ]) {
+      expect(read(f)).toContain('matureSemesterRaisesAfterGrading')
+    }
+  })
+  test('قائمة التخرج تحمل البوابة والأقسام مفصولة', () => {
+    expect(read('src/app/api/admin/graduation-requests/route.ts')).toContain('raiseGateOf')
+    const extras = read('src/components/aact/AdminExtras.tsx')
+    expect(extras).toContain('جاهزة لقرار الإدارة')
+    expect(extras).toContain('قيد الاستكمال')
+    expect(extras).toContain('الطالب رفع ملفه')
+    expect(extras).toContain('بانتظار رفع الطالب أو نهاية الفترة')
+  })
+})

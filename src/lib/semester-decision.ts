@@ -39,6 +39,85 @@ import { getSemesterWindows } from '@/lib/semester-lifecycle'
 
 export const SEMESTER_DECISION_ACTIVE = true
 
+// ===== بوابة الرفع لمعاملات التخرج (الخطوة 5) =====
+// أين يقف ملف الطالب بالنسبة لرفعه هو: الحالة الواحدة التي تقرأها
+// قائمة معاملات التخرج وإشعار الطالب المستوفي — من سجل القرار ونهاية
+// فترة الفصل الأخير، بلا أي كتابة.
+
+export type RaiseGate = 'DECIDED' | 'RAISED' | 'PERIOD_ENDED' | 'INTENT_PENDING' | 'AWAITING_STUDENT'
+
+export function raiseGateOf(
+  decision: { status?: string | null } | null | undefined,
+  periodEnded: boolean,
+): RaiseGate {
+  const status = decision?.status ?? null
+  if (status === 'DECIDED') return 'DECIDED'
+  if (status === 'RAISED') return 'RAISED'
+  if (periodEnded) return 'PERIOD_ENDED'
+  if (status === 'INTENT') return 'INTENT_PENDING'
+  return 'AWAITING_STUDENT'
+}
+
+/**
+ * Period-end materialization (cron): a stored early-finish INTENT
+ * whose semester period has ENDED becomes an effective raise by
+ * deadline (RAISED / DEADLINE, raised at the period end) — the
+ * record stops claiming "pending" forever after its window closed.
+ * Only INTENT rows are touched (they exist only where a student
+ * actually chose, so legacy enrollments without any interaction are
+ * never given records), each write is status-conditioned, and the
+ * sweep is capped per run so it drains gradually.
+ */
+export async function materializeDeadlineRaises(
+  client: AnyClient,
+  input: { now?: Date; limit?: number } = {},
+): Promise<number> {
+  if (!SEMESTER_DECISION_ACTIVE) return 0
+  const store = client?.semesterDecision
+  if (typeof store?.findMany !== 'function' || typeof store?.updateMany !== 'function') return 0
+  const now = input.now ?? new Date()
+  const rows: any[] = await store
+    .findMany({ where: { status: 'INTENT' }, take: input.limit ?? 100, orderBy: { intentAt: 'asc' } })
+    .catch(() => [])
+  let count = 0
+  for (const row of rows) {
+    try {
+      const enrollment = await client.enrollment.findUnique({
+        where: { id: row.enrollmentId },
+        select: {
+          createdAt: true,
+          extensionDays: true,
+          programId: true,
+          program: { select: { category: true, maxStudyDays: true, semestersCount: true } },
+        },
+      })
+      if (!enrollment) continue
+      const period = await loadSemesterPeriod(client, {
+        programId: enrollment.programId,
+        enrollmentCreatedAt: enrollment.createdAt,
+        extensionDays: enrollment.extensionDays,
+        program: enrollment.program || {},
+        semester: row.semester,
+        now,
+      })
+      if (!period.ended || !period.endAt) continue
+      const res = await store.updateMany({
+        where: { enrollmentId: row.enrollmentId, semester: row.semester, status: 'INTENT' },
+        data: {
+          status: 'RAISED',
+          raiseSource: 'DEADLINE',
+          raisedAt: period.endAt,
+          scoreAtRaise: row.scoreAtIntent ?? null,
+        },
+      })
+      count += res?.count ?? 0
+    } catch {
+      // صف واحد معطوب لا يوقف المسح.
+    }
+  }
+  return count
+}
+
 type AnyClient = any
 
 export type SemesterDecisionStatus = 'NONE' | 'INTENT' | 'RAISED' | 'WITHDRAWN' | 'DECIDED'

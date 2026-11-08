@@ -1544,6 +1544,7 @@ interface GraduationRequestItem {
   studentName: string | null
   studentEmail: string | null
   programTitle: string | null
+  raiseGate?: 'DECIDED' | 'RAISED' | 'PERIOD_ENDED' | 'INTENT_PENDING' | 'AWAITING_STUDENT' | null
   createdAt: string
   updatedAt: string
 }
@@ -2115,8 +2116,12 @@ export function AdminCertificatesTab() {
               {gradRequests.filter((r) => r.status !== 'ISSUED').length === 0 && readyCandidates.filter((c) => !gradRequests.some((r) => r.status !== 'ISSUED' && ((r.admissionId && r.admissionId === c.id) || (c.userId && r.userId === c.userId && c.programId && r.programId === c.programId)))).length === 0 ? (
                 <p className="rounded-xl bg-slate-50 p-3 text-center text-xs font-bold text-slate-400">لا توجد معاملات تخرج مفتوحة حاليًا.</p>
               ) : (
-                <div className="grid gap-3 lg:grid-cols-2">
-                  {gradRequests.filter((r) => r.status !== 'ISSUED').map((r) => {
+                <>
+                  {(() => {
+                    const openRequests = gradRequests.filter((r) => r.status !== 'ISSUED')
+                    const decisionQueue = openRequests.filter((r) => r.status === 'PENDING' && r.ready)
+                    const inProgress = openRequests.filter((r) => !(r.status === 'PENDING' && r.ready))
+                    const renderRequestCard = (r: GraduationRequestItem) => {
                     const missing = Array.isArray(r.snapshot?.missing) ? r.snapshot!.missing! : []
                     const statusMeta = r.status === 'APPROVED'
                       ? { label: 'معتمد — بانتظار الإصدار', cls: 'bg-sky-100 text-sky-700' }
@@ -2134,6 +2139,11 @@ export function AdminCertificatesTab() {
                             {r.studentEmail && <p className="mt-1 font-mono text-[10px] text-slate-400" dir="ltr">{r.studentEmail}</p>}
                           </div>
                           <Badge className={statusMeta.cls}>{statusMeta.label}</Badge>
+                          {r.raiseGate === 'RAISED' && <Badge className="bg-emerald-100 text-emerald-700">الطالب رفع ملفه</Badge>}
+                          {r.raiseGate === 'DECIDED' && <Badge className="bg-sky-100 text-sky-700">نتيجة الفصل الأخير معتمدة</Badge>}
+                          {r.raiseGate === 'PERIOD_ENDED' && <Badge className="bg-teal-100 text-teal-700">انتهت فترة البرنامج — الرفع بقوة المهلة</Badge>}
+                          {r.raiseGate === 'INTENT_PENDING' && <Badge className="bg-amber-100 text-amber-700">طلب إنهاء مبكر محفوظ — بانتظار اكتمال التصحيح</Badge>}
+                          {r.raiseGate === 'AWAITING_STUDENT' && <Badge className="bg-slate-100 text-slate-500">بانتظار رفع الطالب أو نهاية الفترة</Badge>}
                         </div>
                         <div className="grid gap-2 rounded-xl bg-slate-50 p-3 text-xs font-bold text-slate-700 sm:grid-cols-2">
                           <span>الدرجة التراكمية: {typeof r.score === 'number' ? `${r.score}%` : '—'}</span>
@@ -2276,7 +2286,25 @@ export function AdminCertificatesTab() {
                         </div>
                       </div>
                     )
-                  })}
+                    }
+                    return (
+                      <div className="space-y-4">
+                        {decisionQueue.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-xs font-black text-emerald-700">جاهزة لقرار الإدارة ({decisionQueue.length}) — استوفت الشروط، وبانتظار مصادقتك</p>
+                            <div className="grid gap-3 lg:grid-cols-2">{decisionQueue.map((r) => renderRequestCard(r))}</div>
+                          </div>
+                        )}
+                        {inProgress.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-xs font-black text-slate-500">قيد الاستكمال ({inProgress.length}) — سجلات حية تُحدَّث تلقائيًا مع كل حدث أكاديمي أو مالي، وليست قرارات بانتظارك</p>
+                            <div className="grid gap-3 lg:grid-cols-2">{inProgress.map((r) => renderRequestCard(r))}</div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
+                <div className="grid gap-3 lg:grid-cols-2">
                   {readyCandidates.filter((c) => !gradRequests.some((r) => r.status !== 'ISSUED' && ((r.admissionId && r.admissionId === c.id) || (c.userId && r.userId === c.userId && c.programId && r.programId === c.programId)))).map((c) => (
                     <div key={`orphan-${c.id}`} className="space-y-3 rounded-xl border border-dashed border-[#c9a227]/60 p-3">
                       <div className="flex items-start justify-between gap-3">
@@ -2291,6 +2319,7 @@ export function AdminCertificatesTab() {
                     </div>
                   ))}
                 </div>
+                </>
               )}
             </>
           )}

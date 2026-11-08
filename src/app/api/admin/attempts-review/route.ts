@@ -7,6 +7,7 @@ import { buildEssaySourceMap } from '@/lib/essay-source'
 import { notifyStudentReviewResolved } from '@/lib/exam-attempt-notifications'
 import { calculateSemesterReadiness } from '@/lib/semester-readiness'
 import { registerGraduationRequest } from '@/lib/enrollment-completion'
+import { matureSemesterRaisesAfterGrading } from '@/lib/semester-raise-hooks'
 import { findDuplicateAnswerQuestionIds, findMissingAnswerQuestionIds, findUngradedAnswers, sumRequiredAnswerPoints, gradeObjectiveAnswer, parseObjectiveIndex, parseObjectiveOptions } from '@/lib/answer-completeness'
 
 export const runtime = 'nodejs'
@@ -299,13 +300,17 @@ async function registerGraduationAfterReview(type: AttemptType, attemptId: strin
     const programId = attempt?.exam?.unit?.programId
     if (!attempt?.userId || !programId) return null
     const enrollment = await db.enrollment.findUnique({ where: { userId_programId: { userId: attempt.userId, programId } }, select: { id: true } })
-    return enrollment ? registerGraduationRequest({ enrollmentId: enrollment.id }) : null
+    if (!enrollment) return null
+    await matureSemesterRaisesAfterGrading(db, { enrollmentId: enrollment.id })
+    return registerGraduationRequest({ enrollmentId: enrollment.id })
   }
   const attempt = await db.programExamAttempt.findUnique({ where: { id: attemptId }, select: { userId: true, exam: { select: { programId: true } } } })
   const programId = attempt?.exam?.programId
   if (!attempt?.userId || !programId) return null
   const enrollment = await db.enrollment.findUnique({ where: { userId_programId: { userId: attempt.userId, programId } }, select: { id: true } })
-  return enrollment ? registerGraduationRequest({ enrollmentId: enrollment.id }) : null
+  if (!enrollment) return null
+  await matureSemesterRaisesAfterGrading(db, { enrollmentId: enrollment.id })
+  return registerGraduationRequest({ enrollmentId: enrollment.id })
 }
 
 export async function GET(req: NextRequest) {

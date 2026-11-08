@@ -3,6 +3,8 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit, notify } from '@/lib/notify'
 import { registerGraduationRequest } from '@/lib/enrollment-completion'
+import { SEMESTER_DECISION_ACTIVE, raiseGateOf, type RaiseGate } from '@/lib/semester-decision'
+import { getSemesterWindows } from '@/lib/semester-lifecycle'
 
 // معاملات التخرج: السجلّ المحفوظ الذي يوثّق فحص الأهلية والمصادقة الإدارية.
 // لا يصدر أي مسار شهادة برنامج دون طلب بحالة APPROVED هنا، والإصدار نفسه
@@ -34,6 +36,43 @@ export async function GET(req: NextRequest) {
     ])
     const userById = new Map(users.map((u) => [u.id, u]))
     const programById = new Map(programs.map((p) => [p.id, p]))
+    // بوابة رفع الطالب لكل معاملة (الخطوة 5): أين يقف ملفه بالنسبة
+    // لرفعه هو — تُحسب دفعة واحدة من سجلات القرار ونوافذ الفصول،
+    // ودفاعيًا: أي غياب يترك البوابة فارغة ولا يُسقط القائمة.
+    const gateByEnrollment = new Map<string, RaiseGate>()
+    if (SEMESTER_DECISION_ACTIVE && requests.length) {
+      try {
+        const enrollmentIds = [...new Set(requests.map((r) => r.enrollmentId))]
+        const [enrollments, programRows, units, decisions]: [any[], any[], any[], any[]] = await Promise.all([
+          db.enrollment.findMany({ where: { id: { in: enrollmentIds } }, select: { id: true, programId: true, createdAt: true, extensionDays: true } }),
+          db.program.findMany({ where: { id: { in: programIds } }, select: { id: true, category: true, maxStudyDays: true, semestersCount: true } }),
+          db.unit.findMany({ where: { programId: { in: programIds } }, select: { id: true, programId: true, semester: true, order: true } }),
+          (db as any).semesterDecision?.findMany
+            ? (db as any).semesterDecision.findMany({ where: { enrollmentId: { in: enrollmentIds } } })
+            : Promise.resolve([]),
+        ])
+        const enrollmentById = new Map(enrollments.map((e) => [e.id, e]))
+        const gateProgramById = new Map(programRows.map((p) => [p.id, p]))
+        const unitsByProgram = new Map<string, { id: string; semester: number; order: number }[]>()
+        for (const u of units) {
+          const list = unitsByProgram.get(u.programId) || []
+          list.push({ id: u.id, semester: u.semester ?? 1, order: u.order ?? 0 })
+          unitsByProgram.set(u.programId, list)
+        }
+        const decisionByKey = new Map(decisions.map((d) => [`${d.enrollmentId}:${d.semester}`, d]))
+        const nowMs = Date.now()
+        for (const r of requests) {
+          const enr = enrollmentById.get(r.enrollmentId)
+          const prog = gateProgramById.get(r.programId)
+          if (!enr || !prog) continue
+          const windows = getSemesterWindows(new Date(enr.createdAt), prog, unitsByProgram.get(r.programId) || [], enr.extensionDays ?? 0)
+          if (!windows.length) continue
+          const last = windows[windows.length - 1]
+          const decision = decisionByKey.get(`${r.enrollmentId}:${last.semester}`) ?? null
+          gateByEnrollment.set(r.enrollmentId, raiseGateOf(decision, nowMs > last.endAt.getTime()))
+        }
+      } catch { /* raiseGate stays empty — the list still renders */ }
+    }
     const admissionById = new Map(admissions.map((a) => [a.id, a]))
     return NextResponse.json({
       requests: requests.map((r) => ({
@@ -53,6 +92,7 @@ export async function GET(req: NextRequest) {
         issuedAt: r.issuedAt,
         createdAt: r.createdAt,
         updatedAt: r.updatedAt,
+        raiseGate: gateByEnrollment.get(r.enrollmentId) ?? null,
         studentName: admissionById.get(r.admissionId || '')?.fullName || userById.get(r.userId)?.name || null,
         studentEmail: userById.get(r.userId)?.email || null,
         programTitle: programById.get(r.programId)?.titleAr || programById.get(r.programId)?.titleEn || null,

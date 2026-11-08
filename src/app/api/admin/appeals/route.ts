@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth'
 import { audit } from '@/lib/notify'
 import { notify } from '@/lib/notify'
 import { registerGraduationRequest } from '@/lib/enrollment-completion'
+import { matureSemesterRaisesAfterGrading } from '@/lib/semester-raise-hooks'
 
 // ===== 12.2 لوحة الاعتراضات — مراجعة يدوية من المشرف البشري/الإدارة =====
 
@@ -179,6 +180,7 @@ export async function PATCH(req: NextRequest) {
         console.warn('Unit appeal resolved but the graduation request was not refreshed.', error)
         return null
       })
+      await matureSemesterRaisesAfterGrading(db, { userId: unitAttempt.userId, programId: unitAttempt.exam.unit.programId })
       await audit(
         { id: admin.id, name: admin.name },
         'RESOLVE_APPEAL',
@@ -221,6 +223,7 @@ export async function PATCH(req: NextRequest) {
       console.warn('Appeal resolved but the graduation request was not refreshed.', error)
       return null
     })
+    await matureSemesterRaisesAfterGrading(db, { userId: attempt.userId, programId: attempt.exam.programId })
 
     await audit(
       { id: admin.id, name: admin.name },

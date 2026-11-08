@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { registerGraduationRequest } from '@/lib/enrollment-completion'
+import { matureSemesterRaisesAfterGrading } from '@/lib/semester-raise-hooks'
 import { textAiCompleteJson, textAiCompleteJsonWithMetadata } from '@/lib/text-ai'
 import { extractDocumentText, isPdfLike } from '@/lib/document-extract'
 import { getFileBufferFromStorageOrBase64, getStorageDownloadPathForKey } from '@/lib/storage'
@@ -868,6 +869,7 @@ export async function gradeAssignmentSubmission(
   if (input.status === 'GRADED') {
     // Re-evaluate the cumulative mark; a component's individual passing flag is not a prerequisite.
     await registerGraduationRequest({ userId: submission.userId, programId: submission.assignment.programId })
+    await matureSemesterRaisesAfterGrading(db, { userId: submission.userId, programId: submission.assignment.programId })
       .catch((error) => console.error('Supervisor assignment graduation request registration failed:', error))
   }
   return updated

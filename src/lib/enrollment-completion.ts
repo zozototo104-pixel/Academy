@@ -2,7 +2,8 @@ import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { certificateGradeLabel, certificateGradeLabelEn, evaluateProgramCertificateEligibility, type ProgramCertificateEligibility } from '@/lib/certificate-eligibility'
 import { createCertificateQrToken, nextCertificateSerial } from '@/lib/certificate-identity'
-import { notifyAdmins } from '@/lib/notify'
+import { notify, notifyAdmins } from '@/lib/notify'
+import { SEMESTER_DECISION_ACTIVE, summarizeSemesterDecision } from '@/lib/semester-decision'
 import { TUITION_PURPOSES, inferTotalTuition, roundMoney, tuitionPaidTotal } from '@/lib/tuition-installments'
 
 type Tx = Prisma.TransactionClient
@@ -397,7 +398,7 @@ export async function registerGraduationRequest(input: CompleteEnrollmentInput):
             } : {}),
           },
         })
-        return { registered: true, requestId: updated.id as string, status: updated.status as string, certificateNo: null, created: false, becameReady, studentName: matchedAdmission?.fullName || null, programTitle: program.titleAr || program.titleEn || null, ready, missing }
+        return { registered: true, requestId: updated.id as string, status: updated.status as string, certificateNo: null, created: false, becameReady, studentName: matchedAdmission?.fullName || null, programTitle: program.titleAr || program.titleEn || null, ready, missing, enrollmentId: enrollment.id as string, userId: enrollment.userId as string }
       }
       const created = await table.create({
         data: { enrollmentId: enrollment.id, userId: enrollment.userId, programId: enrollment.programId, admissionId: matchedAdmission?.id || null, status: 'PENDING', ready, score: snapshot.score, snapshot },
@@ -412,6 +413,8 @@ export async function registerGraduationRequest(input: CompleteEnrollmentInput):
         programTitle: program.titleAr || program.titleEn || null,
         ready,
         missing,
+        enrollmentId: enrollment.id as string,
+        userId: enrollment.userId as string,
       }
     })
     if (!outcome) return { registered: false, certificateNo: null }
@@ -428,6 +431,45 @@ export async function registerGraduationRequest(input: CompleteEnrollmentInput):
         )
       } catch {
         // إشعار الإدارة لا يعطّل تسجيل المعاملة أبدًا.
+      }
+      // إشعار الطالب المستوفي نفسه: خطوته الأخيرة بيده. يُرسل فقط إن
+      // كان ملف فصله الأخير لم يصل الإدارة بعد (لا رفع ناضج ولا قرار) —
+      // عندها يدفعه الإشعار لضغط «ارفع نتيجة فصلي للاعتماد» من لوحته.
+      try {
+        const gateOutcome = outcome as { enrollmentId?: string; userId?: string }
+        if (SEMESTER_DECISION_ACTIVE && gateOutcome.enrollmentId && gateOutcome.userId) {
+          const enr = await db.enrollment.findUnique({
+            where: { id: gateOutcome.enrollmentId },
+            select: {
+              createdAt: true,
+              extensionDays: true,
+              programId: true,
+              program: { select: { category: true, maxStudyDays: true, semestersCount: true } },
+            },
+          })
+          const lastSemester = enr?.program?.semestersCount ?? null
+          if (enr && lastSemester) {
+            const summary = await summarizeSemesterDecision(db as any, {
+              enrollmentId: gateOutcome.enrollmentId,
+              programId: enr.programId,
+              enrollmentCreatedAt: enr.createdAt,
+              extensionDays: enr.extensionDays,
+              program: enr.program || {},
+              semester: lastSemester,
+            })
+            if (!summary.closure.allowed) {
+              await notify(
+                gateOutcome.userId,
+                'GENERAL',
+                'أصبحت مؤهلًا للتخرج',
+                `استوفيت شروط التخرج من برنامج «${outcome.programTitle || ''}». خطوة أخيرة بيدك: من لوحتك، ارفع نتيجة فصلك الأخير للإدارة للاعتماد حتى يبدأ إصدار شهادتك.`,
+                '/?view=dashboard',
+              )
+            }
+          }
+        }
+      } catch {
+        // إشعار الطالب لا يعطّل تسجيل المعاملة أبدًا.
       }
     }
     return { registered: outcome.registered, requestId: (outcome as any).requestId ?? null, status: outcome.status, ready: outcome.ready, certificateNo: outcome.certificateNo }

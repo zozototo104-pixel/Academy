@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { registerGraduationRequest } from '@/lib/enrollment-completion'
+import { matureSemesterRaisesAfterGrading } from '@/lib/semester-raise-hooks'
 import { isAssignedStudent } from '@/lib/supervisor-scope'
 import { getSemesterState, windowContextFor } from '@/lib/semester-lifecycle'
 
@@ -155,6 +156,7 @@ export async function PATCH(req: NextRequest) {
       if (passed) {
         const enrollment = await db.enrollment.findUnique({ where: { userId_programId: { userId: attempt.userId, programId: attempt.exam.programId } }, select: { id: true } })
         registration = enrollment ? await registerGraduationRequest({ enrollmentId: enrollment.id }) : null
+        if (enrollment) await matureSemesterRaisesAfterGrading(db, { enrollmentId: enrollment.id })
       }
       return NextResponse.json({ ok: true, finalScore: clamped, passed, certificateNo: registration?.certificateNo || null })
     }
