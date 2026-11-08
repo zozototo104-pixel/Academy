@@ -202,23 +202,24 @@ describe('progression gate', () => {
     expect(gate.open).toBe(false)
   })
 
-  test('window check refuses S2 activity with PROGRESSION_LOCKED, and passes without footprint', async () => {
-    const locked = fakeClient({ states: { 1: 'CLOSED' }, approvals: { 1: 40 }, unitScore: { 1: 40 }, examScore: { 1: 40 } })
-    const verdict = await submissionWindowCheck(locked, {
+  test('window check opens S2 for an approved failed S1 but blocks unapproved results', async () => {
+    const approvedFailed = fakeClient({ states: { 1: 'CLOSED' }, approvals: { 1: 40 }, unitScore: { 1: 40 }, examScore: { 1: 40 } })
+    const args = {
       enrollment: { id: 'e1', userId: 'u1', programId: 'p1', createdAt: new Date(), extensionDays: 0 },
       program: { category: 'DIPLOMA', maxStudyDays: null, semestersCount: 2 },
       semester: 2,
-    })
-    expect(verdict.ok).toBe(false)
-    if (!verdict.ok) expect(verdict.code).toBe('PROGRESSION_LOCKED')
+    }
+    const allowed = await submissionWindowCheck(approvedFailed, args)
+    expect(allowed.ok).toBe(true)
+
+    const unapproved = fakeClient({ states: { 1: 'OPEN' }, unitScore: { 1: 90 }, examScore: { 1: 90 } })
+    const blocked = await submissionWindowCheck(unapproved, args)
+    expect(blocked.ok).toBe(false)
+    if (!blocked.ok) expect(blocked.code).toBe('PROGRESSION_LOCKED')
 
     const legacy = fakeClient({ footprint: false })
-    const okVerdict = await submissionWindowCheck(legacy, {
-      enrollment: { id: 'e1', userId: 'u1', programId: 'p1', createdAt: new Date(), extensionDays: 0 },
-      program: { category: 'DIPLOMA', maxStudyDays: null, semestersCount: 2 },
-      semester: 2,
-    })
-    expect(okVerdict.ok).toBe(true)
+    const legacyVerdict = await submissionWindowCheck(legacy, args)
+    expect(legacyVerdict.ok).toBe(true)
   })
 
   test('exam requirement keys per category', () => {
