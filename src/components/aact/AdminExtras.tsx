@@ -1314,6 +1314,28 @@ export function AdminFinanceTab() {
   return (
     <div className="mt-4 space-y-5">
       {actionDialog}
+      <Dialog open={Boolean(grantQuoteDialog)} onOpenChange={(open) => { if (!open && !grantSaving) setGrantQuoteDialog(null) }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>معاينة المنحة قبل إصدار الكود</DialogTitle>
+            <DialogDescription>يُعاد حساب الأهلية والمبلغ من الخادم لحظة الإصدار، دون تغيير نظام المنح المالي.</DialogDescription>
+          </DialogHeader>
+          {grantQuoteDialog && (
+            <div className="min-w-0 space-y-3 text-sm">
+              <p className="break-words font-black">{grantQuoteDialog.quote.policy.title}</p>
+              <p className="break-words">{grantQuoteDialog.payment.admission?.fullName || grantQuoteDialog.payment.payerName || 'طالب'}</p>
+              <p className="break-words text-slate-600">{grantQuoteDialog.payment.admission?.program || 'تخصص غير محدد'}</p>
+              <p className="rounded-xl bg-slate-50 p-3 font-bold leading-6">{grantQuoteDialog.quote.summary}</p>
+              <p className="text-xs text-slate-500">قيمة السياسة: {grantQuoteDialog.quote.policy.valueMode === 'FULL' ? '100%' : String(grantQuoteDialog.quote.policy.value) + (grantQuoteDialog.quote.policy.valueMode === 'PERCENT' ? '%' : ' دولار')} — أساس الحساب: {(grantQuoteDialog.quote.baseCents / 100).toFixed(2)} دولار.</p>
+              <p className="text-xs text-slate-600">كود واحد لفاتورة {grantQuoteDialog.payment.invoiceNo}، بنفس إجراءات الأكواد والتحقق والاعتماد الموجودة.</p>
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button type="button" variant="outline" disabled={grantSaving} onClick={() => setGrantQuoteDialog(null)}>إلغاء</Button>
+                <Button type="button" disabled={grantSaving} onClick={() => void issueOrganizedGrant()}>{grantSaving ? 'جارٍ الإصدار…' : 'تأكيد وإصدار الكود'}</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
       {/* KPIs المالية */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Card className="border-[#0f2b46]/10"><CardContent className="p-4 text-center">
