@@ -17,6 +17,10 @@ const certificatesUi = readFileSync(join(root, 'src/components/aact/AdminExtras.
 const studentsApi = readFileSync(join(root, 'src/app/api/admin/students/route.ts'), 'utf8')
 const mercyUi = readFileSync(join(root, 'src/components/aact/AdminMercy.tsx'), 'utf8')
 const reopenUi = readFileSync(join(root, 'src/components/aact/AdminReopenAppeals.tsx'), 'utf8')
+const adminPreviewApi = readFileSync(join(root, 'src/app/api/admin/students/preview/route.ts'), 'utf8')
+const adminPreviewUi = readFileSync(join(root, 'src/components/aact/AdminStudentPreview.tsx'), 'utf8')
+const supervisorStudentsApi = readFileSync(join(root, 'src/app/api/supervisor/students/route.ts'), 'utf8')
+const supervisorUi = readFileSync(join(root, 'src/components/aact/SupervisorView.tsx'), 'utf8')
 
 describe('التجميع حسب الطالب وحالات المصادقة', () => {
   test('القائمة مجمعة حسب الطالب لا مسطّحة', () => {
