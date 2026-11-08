@@ -500,7 +500,7 @@ export function AdminStudentPreview() {
 
           <Section title="بيانات الطالب وبرامجه" icon={UserRound}>
             <div className="grid gap-2 text-xs sm:grid-cols-2">
-              <p className="rounded-xl bg-slate-50 p-3 font-bold text-slate-600">الاسم: <b className="text-[#0f2b46]">{s.name}</b></p>
+              <p className="rounded-xl bg-slate-50 p-3 font-bold text-slate-600">الاسم الرسمي: <b className="text-[#0f2b46]">{displayName}</b>{s.officialName && s.officialName !== s.name && <span className="mt-1 block text-slate-500">اسم الحساب: {s.name}</span>}</p>
               <p className="rounded-xl bg-slate-50 p-3 font-bold text-slate-600">البريد: <b className="text-[#0f2b46]" dir="ltr">{s.email}</b></p>
               <p className="rounded-xl bg-slate-50 p-3 font-bold text-slate-600">رقم الهاتف: <b className="text-[#0f2b46]" dir="ltr">{s.phone || 'غير مسجل'}</b></p>
               <p className="rounded-xl bg-slate-50 p-3 font-bold text-slate-600">الدولة: <b className="text-[#0f2b46]">{s.country || 'غير محددة'}</b> — حالة الحساب: <b className="text-[#0f2b46]">{arStatus(s.status)}</b></p>
