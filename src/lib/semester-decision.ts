@@ -287,6 +287,11 @@ export async function materializeDeadlineRaises(
             body: `انتهت مدة الفصل ${window.semester} لطالب، وارتفعت نتيجته للمراجعة. تُحتسب الأعمال غير المقدمة صفرًا، ولا يجوز الاعتماد قبل إنهاء تصحيح الأعمال المقدمة والمصادقات المطلوبة.`,
             link: '/?view=admin&tab=certs',
           })
+          // When this was the LAST semester and the student's graduation
+          // record is already ready, notify administrators now too.
+          await enqueueReadyGraduationAdminNotice(tx, {
+            enrollmentId: enrollment.id, expectedSemester: window.semester, now,
+          })
           return true
         })
         if (changed) raised++
