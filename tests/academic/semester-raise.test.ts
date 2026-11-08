@@ -33,7 +33,11 @@ mock.module('@/lib/semester-grade', () => ({
 }))
 mock.module('@/lib/student-standing', () => ({
   getSemesterStanding: async () => ({
-    programExams: { ready: facts.readyExams, satCount: facts.satCount, rows: [] },
+    programExams: {
+      ready: facts.readyExams,
+      satCount: facts.satCount,
+      rows: facts.readyExams ? [{ examId: 'sem-exam-1', status: 'READY' }] : [],
+    },
   }),
 }))
 
