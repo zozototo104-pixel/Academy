@@ -626,28 +626,37 @@ export function DashboardView() {
     if (!active || !decisionDialog) return
     const { semester, mode } = decisionDialog
     setDecisionBusy(true)
+    let readinessActivated = false
     try {
+      if (mode === 'ready') {
+        // Never store an irreversible early-finish intent if the exam
+        // readiness action failed (tuition gate, progression gate, etc.).
+        readinessActivated = await doMarkReadyForSemesterExam(semester)
+        if (!readinessActivated) return
+      }
       const res = await api<{ ok: boolean; decision?: { status?: string } | null }>(`/api/progress`, {
         method: 'POST',
         body: JSON.stringify({ action: 'SEMESTER_DECISION', programId: active.program.id, semester, intent }),
       })
       setDecisionDialog(null)
-      if (mode === 'ready') {
-        await doMarkReadyForSemesterExam(semester)
-      } else {
-        toast({
-          title: res.decision?.status === 'RAISED' ? 'تم رفع نتيجتك للإدارة' : 'تم حفظ قرارك',
-          description:
-            res.decision?.status === 'RAISED'
-              ? 'نتيجتك الآن عند الإدارة بانتظار الاعتماد.'
-              : intent === 'EARLY_FINISH'
-                ? 'طلب الإنهاء المبكر محفوظ — يُرفع تلقائيًا عند اكتمال تصحيح امتحان الفصل ودرجاتك المعلّقة.'
-                : 'اخترت استكمال أعمال الفصل — لا تُرفع نتيجتك إلا بطلبك أو عند انتهاء فترة الفصل.',
-        })
-        await open(active.program.id)
-      }
+      toast({
+        title: res.decision?.status === 'RAISED' ? 'تم رفع نتيجتك للإدارة' : 'تم حفظ قرارك',
+        description:
+          res.decision?.status === 'RAISED'
+            ? 'نتيجتك الآن عند الإدارة بانتظار الاعتماد.'
+            : intent === 'EARLY_FINISH'
+              ? 'طلب الإنهاء المبكر محفوظ — يُرفع عند اكتمال تصحيح امتحان الفصل ودرجاتك المعلّقة.'
+              : 'اخترت استكمال أعمال الفصل — لا تُرفع نتيجتك إلا بطلبك أو عند انتهاء فترة الفصل.',
+      })
+      await open(active.program.id)
     } catch (e: any) {
-      toast({ title: 'تعذر حفظ القرار', description: e.message, variant: 'destructive' })
+      toast({
+        title: readinessActivated ? 'تفعّل الامتحان لكن لم يُحفظ قرار الفصل' : 'تعذر حفظ القرار',
+        description: readinessActivated
+          ? 'يمكنك تقديم الامتحان الآن، لكن طلب الرفع لم يُحفظ. افتح النافذة مجددًا وحدد اختيارك. لا يوجد طلب رفع ضمني.'
+          : e.message,
+        variant: 'destructive',
+      })
     } finally {
       setDecisionBusy(false)
     }
