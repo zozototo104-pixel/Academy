@@ -132,6 +132,42 @@ export function SupervisorGradeReviewTab({ focus }: { focus?: { type: 'PROGRAM' 
     } finally { setSaving(false) }
   }
 
+  const runBulk = async (key: string, items: any[]) => {
+    if (bulkBusy || saving) return
+    const eligible = items.filter(isApprovable)
+    if (!eligible.length) return
+    if (bulkConfirmKey !== key) { setBulkConfirmKey(key); return }
+    setBulkConfirmKey(null)
+    setBulkBusy(key)
+    try {
+      const response = await api<{ report: {
+        approved: number; alreadyApproved: number; rejected: number
+        results: { ok: boolean; code?: string }[]
+      } }>('/api/supervisor/grade-approvals', {
+        method: 'POST',
+        body: JSON.stringify({
+          bulk: true,
+          items: eligible.map((a) => ({
+            targetType: a.type === 'PROGRAM' ? 'PROGRAM_EXAM' : 'UNIT_EXAM',
+            attemptId: a.id,
+          })),
+        }),
+      })
+      const report = response.report
+      const infrastructure = report.results.filter((item) => item.code === 'INTERNAL_ERROR').length
+      const ruledOut = report.rejected - infrastructure
+      setBulkReport(`صودقت ${report.approved} درجة جديدة · ${report.alreadyApproved} مصادقة سابقًا · ${ruledOut} مرفوضة بشروط المصادقة · ${infrastructure} أخطاء خادم.`)
+      toast({
+        title: infrastructure ? 'اكتملت المصادقة مع أخطاء خادم' : 'اكتملت المصادقة الجماعية',
+        description: `جديدة: ${report.approved} · مرفوضة: ${ruledOut} · أخطاء خادم: ${infrastructure}`,
+        ...(infrastructure ? { variant: 'destructive' as const } : {}),
+      })
+      await load()
+    } catch (error: any) {
+      toast({ title: 'تعذرت المصادقة الجماعية', description: error?.message || '', variant: 'destructive' })
+    } finally { setBulkBusy(null) }
+  }
+
   const resolveAppeal = async (appeal: any, action: 'APPROVE' | 'REJECT') => {
     const draft = appealDrafts[appeal.id] || { response: '', finalScore: '' }
     if (action === 'APPROVE' && draft.finalScore.trim() === '') { toast({ title: 'قبول الالتماس يحتاج درجة نهائية', variant: 'destructive' }); return }
