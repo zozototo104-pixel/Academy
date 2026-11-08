@@ -2179,7 +2179,7 @@ export function AdminCertificatesTab() {
                           {[1, 2].map((s) => {
                             const chk = semesterChecks[`${r.enrollmentId}:${s}`]
                             if (!chk || (!chk.loading && !chk.blockers && !chk.error)) return null
-                            const canDecide = Boolean(chk.approvalActive) && Array.isArray(chk.blockers) && chk.blockers.length === 0 && (chk.decisionSummary ? chk.decisionSummary.closure.allowed : true)
+                            const canDecide = chk.canApprove === true
                             return (
                               <div key={s} className="space-y-2 rounded-xl bg-slate-50 p-3 text-xs font-bold leading-6 text-slate-700">
                                 <p className="font-black text-[#0f2b46]">الفصل {s === 1 ? 'الأول' : 'الثاني'}</p>
