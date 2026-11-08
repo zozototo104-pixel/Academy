@@ -86,6 +86,7 @@ export async function computeSemesterRaiseMaturity(
     .filter((row: { status: string }) => row.status === 'READY')
     .map((row: { examId: string }) => row.examId)
   const gradedAttempts: Array<{
+    examId: string
     score: number | null
     finalScore: number | null
     appealStatus: string | null
