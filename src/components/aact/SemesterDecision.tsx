@@ -127,7 +127,7 @@ export function SemesterDecisionDialog({
         </div>
 
         <div className="mt-4 flex gap-2">
-          <Button type="button" onClick={() => onConfirm(choice)} disabled={busy || !canConfirm} className="flex-1 bg-emerald-600 font-black text-white hover:bg-emerald-700 disabled:opacity-50">
+          <Button type="button" onClick={() => onConfirm(choice, choice === 'EARLY_FINISH' && consent)} disabled={busy || !canConfirm} className="flex-1 bg-emerald-600 font-black text-white hover:bg-emerald-700 disabled:opacity-50">
             {busy ? 'جارٍ الحفظ...' : mode === 'ready' ? 'تأكيد وفتح الامتحان' : 'تأكيد القرار'}
           </Button>
           <Button type="button" variant="outline" onClick={onClose} disabled={busy} className="font-black">
