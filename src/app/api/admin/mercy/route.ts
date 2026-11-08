@@ -76,6 +76,7 @@ export async function POST(req: NextRequest) {
     if (!result.ok) {
       const messages: Record<string, string> = {
         SEMESTER_NOT_FAILED: 'الاسترحام يبدأ فقط لفصل مغلق بنتيجة راسب معتمدة.',
+        SEMESTER_EXAM_NOT_TAKEN: 'لا يمكن بدء الاسترحام لطالب لم يقدّم الامتحان الفصلي فعليًا، حتى لو اعتُمد الفصل راسبًا.',
         MERCY_ALREADY_EXISTS: 'سبق أن استُخدم مسار الاسترحام لهذا الفصل.',
         MERCY_DEADLINE_TOO_LONG: 'مهلة النشاط لا تتجاوز 7 أيام تقويمية من الإسناد.',
         MERCY_WEIGHT_INVALID: 'وزن النشاط بين 1 و50 بالمئة من معدل الفصل.',
