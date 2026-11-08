@@ -96,6 +96,31 @@ interface SupervisedStudent {
   weakSignals: any[]
 }
 
+interface SupervisorAcademicPreview {
+  previewMode: 'SUPERVISOR_ACADEMIC_READ_ONLY'
+  studentName: string
+  programId: string
+  enrollment: { id: string; status: string; programTitle: string; category: string; daysLeft: number | null } | null
+  cumulative: {
+    score: number | null
+    earnedScore: number
+    progressScore: number
+    components: Array<{ key: string; label: string; weight: number; score: number | null; weighted: number; ready: boolean; exempt?: boolean }>
+  } | null
+  tracking: StudentTrackingView | null
+  counts: {
+    unitsTotal: number; unitsCompleted: number; unitExamsTotal: number; unitExamsPassed: number
+    assignmentsTotal: number; assignmentsSubmitted: number; programExamsTotal: number; programExamsPassed: number
+  } | null
+  units: Array<{ id: string; title: string; semester: number; order: number; examTitle: string | null; bestScore: number | null; attemptsCount: number; passed: boolean | null; videosCount: number; watch: string | null; state: string }>
+  programExams: Array<{ id: string; title: string; semester: number; submitted: boolean; passed: boolean }>
+  assignments: Array<{ id: string; title: string; semester: number; submitted: boolean; status: string | null; score: number | null }>
+  remaining: {
+    unitsNotCompleted: string[]; unitExamsNotPassed: string[]; assignmentsNotSubmitted: string[]
+    programExamsNotPassed: string[]; thesisPending: boolean; gradeMissing: string[]
+  } | null
+}
+
 const assessmentTypeLabels: Record<string, string> = {
   DAILY_TEST: 'اختبار يومي',
   EXAM: 'امتحان خاص',
