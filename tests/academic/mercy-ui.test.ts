@@ -41,11 +41,16 @@ describe('باب الاسترحام — واجهات', () => {
     expect(route).toContain('programTitle')
   })
 
-  test('بوابة الانتقال والرسالة تقرآن تغطية الاسترحام المكتمل', () => {
+  test('لا الاسترحام ولا البحث يعوّضان الجلوس الفعلي لامتحان الفصل', () => {
     const progression = read('src/lib/progression.ts')
-    expect(progression).toContain('semesterExamCoveredByMercy')
-    expect(progression).toContain("status: 'COMPLETED'")
-    expect(progression).toContain('await semesterExamCoveredByMercy(client, enrollment.id, s)')
-    expect(progression).toContain('await semesterExamCoveredByMercy(client, enrollment.id, semestersCount)')
+    expect(progression).toContain('semesterExamsSat(client, enrollment.userId, enrollment.programId, s)')
+    expect(progression).toContain('semesterExamsSat(client, enrollment.userId, enrollment.programId, semestersCount)')
+    expect(progression).not.toContain('semesterExamCoveredByMercy')
+    const mercy = read('src/lib/mercy.ts')
+    expect(mercy).toContain("code: 'SEMESTER_EXAM_NOT_TAKEN'")
+    const studentApi = read('src/app/api/mercy/route.ts')
+    expect(studentApi).toContain('await semesterExamsSat(db, user.id, enr.programId, s.semester)')
+    const panel = read('src/components/aact/Mercy.tsx')
+    expect(panel).toContain('الاسترحام لا يحل محل الامتحان')
   })
 })
