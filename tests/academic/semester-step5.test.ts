@@ -6,6 +6,10 @@ import { join } from 'node:path'
 
 mock.module('@/lib/db', () => ({ db: {}, prisma: {} }))
 mock.module('@/lib/notify', () => ({ audit: async () => {}, notify: async () => {}, notifyAdmins: async () => {} }))
+mock.module('@/lib/outbox', () => ({
+  enqueueOutbox: async (client: any, evt: any) =>
+    client.notificationOutbox?.create({ data: { ...evt, idempotencyKey: evt.key } }) ?? null,
+}))
 
 const matureCalls: any[] = []
 let matureThrows = false
