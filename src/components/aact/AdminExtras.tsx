@@ -1474,6 +1474,7 @@ export function AdminFinanceTab() {
                 <Label htmlFor="grant-student">الطالب المستفيد من المنحة الفردية</Label>
                 <Input id="grant-student" value={grantStudentSearch} onChange={(e) => {
                   setGrantStudentSearch(e.target.value)
+                  setGrantAdmissions([])
                   setGrantForm((p) => ({ ...p, admissionId: '' }))
                 }} placeholder="ابحث بالاسم أو رقم طلب الالتحاق…" />
                 {grantForm.admissionId ? (
