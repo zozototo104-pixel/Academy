@@ -446,6 +446,7 @@ export async function GET(req: NextRequest) {
       })
       enrollmentDetails = allDetails.filter((d) => d.status === 'ACTIVE')
       completedDetails = allDetails.filter((d) => d.status === 'COMPLETED' || d.status === 'CERTIFIED')
+      expiredDetails = allDetails.filter((d) => d.status === 'EXPIRED')
     }
 
     const allScores = [
