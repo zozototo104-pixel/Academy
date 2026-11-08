@@ -654,7 +654,7 @@ export function AdminStudentPreview() {
 
       {tab === 'units' && (
         <div className="space-y-5">
-          {data.enrollmentDetails.length === 0 && (data.completedDetails?.length || 0) === 0 ? (
+          {data.enrollmentDetails.length === 0 && historicalDetails.length === 0 ? (
             <Section title="الوحدات بالتفصيل" icon={BookOpen}>
               <p className="text-sm text-slate-400">لا توجد تسجيلات لعرض وحداتها.</p>
             </Section>
