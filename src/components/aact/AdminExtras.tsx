@@ -851,8 +851,20 @@ export function AdminFinanceTab() {
   const [proofReviewBusy, setProofReviewBusy] = useState<string | null>(null)
   const [generatedWaiverCodes, setGeneratedWaiverCodes] = useState<Record<string, string>>({})
   const [copiedWaiverPaymentId, setCopiedWaiverPaymentId] = useState<string | null>(null)
-  const [openFinanceSection, setOpenFinanceSection] = useState<'payments' | 'reports' | null>('payments')
-  const toggleFinanceSection = (section: 'payments' | 'reports') => {
+  const [grantPolicies, setGrantPolicies] = useState<OrganizedGrantPolicy[]>([])
+  const [grantPrograms, setGrantPrograms] = useState<Array<{ id: string; titleAr: string }>>([])
+  const [grantAdmissions, setGrantAdmissions] = useState<Array<{ id: string; reference: string; fullName: string; program: string }>>([])
+  const [grantStudentSearch, setGrantStudentSearch] = useState('')
+  const [grantSaving, setGrantSaving] = useState(false)
+  const [grantPolicyError, setGrantPolicyError] = useState('')
+  const [grantSelection, setGrantSelection] = useState<Record<string, string>>({})
+  const [grantQuoteDialog, setGrantQuoteDialog] = useState<{ payment: PaymentRow; quote: OrganizedGrantQuote } | null>(null)
+  const [grantForm, setGrantForm] = useState({
+    title: '', scope: 'PROGRAM', programIds: [] as string[], admissionId: '',
+    coverage: 'TUITION', valueMode: 'FULL', value: '', reason: '',
+  })
+  const [openFinanceSection, setOpenFinanceSection] = useState<'payments' | 'reports' | 'grants' | null>('payments')
+  const toggleFinanceSection = (section: 'payments' | 'reports' | 'grants') => {
     const y = typeof window !== 'undefined' ? window.scrollY : 0
     setOpenFinanceSection((current) => (current === section ? null : section))
     if (typeof window !== 'undefined') window.setTimeout(() => window.scrollTo({ top: y, behavior: 'auto' }), 0)
