@@ -247,10 +247,15 @@ export async function GET(req: NextRequest) {
         : buildAdminStudentsEnrollmentRelationFilter(status || 'ALL', programId)
     }
     if (q) {
+      // Official admission names may differ from account display names.
+      // Match each search word against the SAME official name so that a
+      // query like "عبدالله خضر" finds "عبدالله امين عبدالحافظ خضر".
+      const nameWords = q.split(/\s+/).filter(Boolean).slice(0, 6)
       where.OR = [
         { name: { contains: q, mode: 'insensitive' } },
         { email: { contains: q, mode: 'insensitive' } },
         { country: { contains: q, mode: 'insensitive' } },
+        { ownedAdmissions: { some: { AND: nameWords.map((word) => ({ fullName: { contains: word, mode: 'insensitive' } })) } } },
         { enrollments: { some: { program: { titleAr: { contains: q, mode: 'insensitive' } } } } },
         { ownedAdmissions: { some: { reference: { contains: q, mode: 'insensitive' } } } },
         { ownedAdmissions: { some: { program: { contains: q, mode: 'insensitive' } } } },
@@ -294,7 +299,7 @@ export async function GET(req: NextRequest) {
       }),
       db.admissionApplication.findMany({
         where: { userId: { in: userIds } },
-        select: { userId: true, id: true, reference: true, status: true, program: true, programRef: { select: { titleAr: true } }, createdAt: true },
+        select: { userId: true, id: true, reference: true, fullName: true, status: true, program: true, programRef: { select: { titleAr: true } }, createdAt: true },
         orderBy: { createdAt: 'desc' },
       }),
       db.examAttempt.groupBy({
@@ -352,6 +357,7 @@ export async function GET(req: NextRequest) {
         id: user.id,
         email: user.email,
         name: user.name,
+        officialName: latestAdmission?.fullName?.trim() || null,
         country: user.country,
         status: user.status,
         createdAt: user.createdAt,
