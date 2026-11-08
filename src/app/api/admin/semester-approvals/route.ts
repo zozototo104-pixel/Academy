@@ -112,11 +112,37 @@ export async function GET(req: NextRequest) {
     } catch {
       decisionSummary = null
     }
+    // Use the SAME grading-finality rule as approveSemesterResult.
+    // An empty blocker list alone does not prove completion: omissions
+    // are final zeros only after the right to close is established.
+    const entry = averages?.semesters.find((s) => s.semester === semester)
+    const closureAllowed = Boolean(approval || decisionSummary?.closure.allowed)
+    let gradesFinal = entry?.gradesComplete === true
+    if (!gradesFinal && entry && closureAllowed && blockers.length === 0) {
+      try {
+        gradesFinal = (await evaluateContextualFinality(db, {
+          userId: enrollment.userId,
+          programId: enrollment.programId,
+          semester,
+          entry,
+        })).final
+      } catch {
+        gradesFinal = false
+      }
+    }
+    const canApprove = Boolean(
+      SEMESTER_APPROVAL_ACTIVE &&
+      blockers.length === 0 &&
+      closureAllowed &&
+      entry?.average != null &&
+      gradesFinal,
+    )
     return NextResponse.json({
       ok: true,
       enrollmentId,
       semester,
       approvalActive: SEMESTER_APPROVAL_ACTIVE,
+      canApprove,
       blockers,
       approval,
       averages,
