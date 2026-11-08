@@ -52,6 +52,7 @@ const STATUS_META: Record<string, { label: string; cls: string }> = {
 export function AdminMercyQueue() {
   const { toast } = useToast()
   const [rows, setRows] = useState<MercyRow[] | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [assign, setAssign] = useState<Record<string, { title: string; instructions: string; weight: string; dueAt: string }>>({})
   const [scores, setScores] = useState<Record<string, string>>({})
@@ -60,18 +61,21 @@ export function AdminMercyQueue() {
     try {
       const r = await api<{ requests: MercyRow[] }>('/api/admin/mercy')
       setRows(r.requests || [])
-    } catch { setRows([]) }
+      setLoadError(null)
+    } catch (error: any) {
+      setLoadError(error?.message || 'تعذر تحميل طلبات الاسترحام')
+    }
   }, [])
 
   useEffect(() => {
     let alive = true
     api<{ requests: MercyRow[] }>('/api/admin/mercy')
-      .then((r) => { if (alive) setRows(r.requests || []) })
-      .catch(() => { if (alive) setRows([]) })
+      .then((r) => { if (alive) { setRows(r.requests || []); setLoadError(null) } })
+      .catch((error: any) => { if (alive) { setRows([]); setLoadError(error?.message || 'تعذر تحميل طلبات الاسترحام') } })
     return () => { alive = false }
   }, [])
 
-  if (rows === null || rows.length === 0) return null
+  if (rows === null) return <p className="mt-4 text-xs font-bold text-slate-500">جاري تحميل قائمة الاسترحام...</p>
 
   const actionable = rows.filter((r) => r.status === 'REQUESTED' || r.status === 'SUBMITTED').length
 
@@ -129,6 +133,8 @@ export function AdminMercyQueue() {
           بعد تصحيح النشاط، أعد اعتماد نتيجة الفصل من بطاقة الطالب (شروط الفصل) — يُختم الطلب مكتملًا ويُفتح للطالب باب الانتقال.
         </p>
 
+        {loadError && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700">{loadError}</p>}
+        {!loadError && rows.length === 0 && <p className="rounded-xl bg-slate-50 p-3 text-xs font-bold text-slate-500">لا توجد طلبات استرحام حاليًا.</p>}
         {rows.map((m) => {
           const meta = STATUS_META[m.status] || { label: m.status, cls: 'bg-slate-100 text-slate-500' }
           const f = assign[m.id] || { title: '', instructions: '', weight: '', dueAt: '' }
