@@ -1,6 +1,7 @@
 import { db } from './db'
 import { getSemesterState } from './semester-lifecycle'
 import { storedSemesterApproval } from './semester-approval'
+import { semesterExamsSat } from './progression'
 import { calculateSemesterAverages } from './semester-grade'
 import { enqueueOutbox } from './outbox'
 
