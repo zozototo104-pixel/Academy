@@ -221,16 +221,18 @@ export async function requestSemesterDecision(
     intent: SemesterIntent
   } & StandingContext,
 ): Promise<RecordIntentResult & { maturity: SemesterRaiseMaturity }> {
-  const maturity = await computeSemesterRaiseMaturity(client, input)
-  const result = await recordSemesterIntent(client, {
-    enrollmentId: input.enrollmentId,
-    userId: input.userId,
-    semester: input.semester,
-    intent: input.intent,
-    scoreSnapshot: maturity.score,
-    maturity,
+  return withRaiseEvaluationLock(client, input.enrollmentId, input.semester, async (tx) => {
+    const maturity = await computeSemesterRaiseMaturity(tx, input)
+    const result = await recordSemesterIntent(tx, {
+      enrollmentId: input.enrollmentId,
+      userId: input.userId,
+      semester: input.semester,
+      intent: input.intent,
+      scoreSnapshot: maturity.score,
+      maturity,
+    })
+    return { ...result, maturity }
   })
-  return { ...result, maturity }
 }
 
 /** Grading / review / appeal flows call this after settling work: a
