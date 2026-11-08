@@ -29,6 +29,8 @@ describe('نافذة الخيارين ولوحة الحالة', () => {
     expect(decisionUi).toContain('أريد استكمال أعمال الفصل')
     expect(decisionUi).toContain('أوافق على احتساب الأعمال غير المقدَّمة صفرًا وإغلاق الفصل عند الاعتماد')
     expect(decisionUi).toContain('كيف تريد متابعة الفصل الدراسي؟')
+    expect(decisionUi).toContain('يمكنني الانتقال للفصل التالي حتى لو كانت النتيجة راسبًا')
+    expect(decisionUi).not.toContain('إذا نجحت واستوفيت شروط الانتقال')
     expect(decisionUi).toContain("onConfirm(choice, choice === 'EARLY_FINISH' && consent)")
     expect(dashboard).toContain('consentToZeros')
     expect(progressRoute).toContain('EARLY_CLOSE_CONSENT_REQUIRED')
