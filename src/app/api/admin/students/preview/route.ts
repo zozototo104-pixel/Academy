@@ -6,7 +6,7 @@ import { getStudentSemesterTracking } from '@/lib/student-tracking'
 import { getEnrollmentDeadline, daysLeftUntil } from '@/lib/program-duration'
 import { computeFollowUpStatus } from '@/lib/student-follow-up'
 
-function safeJsonArray(raw?: string | null): string[] {
+function safeJsonArray(raw?: string | null, maxItems = 12): string[] {
   if (!raw) return []
   try {
     const parsed = JSON.parse(raw)
