@@ -2242,7 +2242,7 @@ export function AdminView() {
         </TabsContent>
 
         {/* مراجعة التصحيح اليدوي للمحاولات المعلقة */}
-        <TabsContent value="grading-review">
+        <TabsContent value="grading-review" className="w-full min-w-0 max-w-full overflow-x-hidden">
           <AdminGradingReviewTab />
           <AdminReopenAppeals />
           <AdminMercyQueue />
@@ -2649,7 +2649,7 @@ export function AdminView() {
         </TabsContent>
 
         {/* الشهادات */}
-        <TabsContent value="certs">
+        <TabsContent value="certs" className="w-full min-w-0 max-w-full overflow-x-hidden">
           <AdminCertificatesTab />
         </TabsContent>
 
