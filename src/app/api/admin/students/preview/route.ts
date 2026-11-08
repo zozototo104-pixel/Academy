@@ -271,6 +271,7 @@ export async function GET(req: NextRequest) {
     const detailProgramIds = [...new Set(detailEnrollments.map((e) => e.program.id))]
     let enrollmentDetails: any[] = []
     let completedDetails: any[] = []
+    let expiredDetails: any[] = []
     let publishedAssignmentsTotal = 0
     if (detailProgramIds.length) {
       const [programUnits, unitVideos, watchRows, detailUnitAttempts, programExams, detailProgramAttempts, publishedAssignments, detailSubmissions, grades] = await Promise.all([
