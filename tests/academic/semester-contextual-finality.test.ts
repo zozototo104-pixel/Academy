@@ -221,6 +221,33 @@ beforeEach(() => {
 })
 
 describe('حارس الإغلاق والنهائية السياقية', () => {
+  test('فشل قراءة محاولة وحدة لا يُحوَّل إلى إغفال نهائي صفر', async () => {
+    seedOmissions(state)
+    const original = world.db.examAttempt.findMany
+    world.db.examAttempt.findMany = async () => { throw new Error('UNIT_ATTEMPTS_DB_UNAVAILABLE') }
+    try {
+      await expect(evaluateContextualFinality(world.db, {
+        userId: 'u1', programId: 'p1', semester: 1,
+        entry: { components: [{ key: 'quizzes', gradedComplete: false, exempt: false }] },
+      })).rejects.toThrow('UNIT_ATTEMPTS_DB_UNAVAILABLE')
+    } finally {
+      world.db.examAttempt.findMany = original
+    }
+  })
+
+  test('فشل قراءة تسليم الواجب لا يُحوَّل إلى إغفال نهائي صفر', async () => {
+    const original = world.db.assignmentSubmission.findUnique
+    world.db.assignmentSubmission.findUnique = async () => { throw new Error('ASSIGNMENT_DB_UNAVAILABLE') }
+    try {
+      await expect(evaluateContextualFinality(world.db, {
+        userId: 'u1', programId: 'p1', semester: 1,
+        entry: { components: [{ key: 'assignments', gradedComplete: false, exempt: false }] },
+      })).rejects.toThrow('ASSIGNMENT_DB_UNAVAILABLE')
+    } finally {
+      world.db.assignmentSubmission.findUnique = original
+    }
+  })
+
   test('كل الدرجات نهائية لكن بلا رفع والفترة مفتوحة: SEMESTER_NOT_RAISED ولا اعتماد', async () => {
     seedOmissions(state)
     // أكمل كل شيء: ue2 مصححة والواجب مسلّم مصحح — الدرجات نهائية بالكامل
