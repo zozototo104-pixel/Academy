@@ -331,7 +331,13 @@ export async function POST(req: NextRequest) {
       if (!tuitionGate.ok) {
         return NextResponse.json({ error: tuitionGate.error, code: tuitionGate.code, tuitionPlan: tuitionGate.plan }, { status: 402 })
       }
-      const readiness = await markSemesterReady(user.id, programId, Number(semester))
+      // Semester 2+ needs an officially approved previous result,
+      // whether PASSED or FAILED. The frozen readiness engine retains
+      // its original semantics for semester 1.
+      const requestedSemester = Number(semester)
+      const readiness = requestedSemester > 1
+        ? await markSemesterReadyAfterApprovedResult(db, user.id, programId, requestedSemester)
+        : await markSemesterReady(user.id, programId, requestedSemester)
       const message = readiness.complete
         ? 'تم تفعيل زر بدء امتحان الفصل. جميع الاختبارات والواجبات الفصلية مكتملة.'
         : 'تم تفعيل زر بدء امتحان الفصل. الوحدات والواجبات الناقصة تظل متطلبات مستقلة ويُحتسب إنجازها في المجموع التراكمي دون خصم من الامتحان الفصلي.'
