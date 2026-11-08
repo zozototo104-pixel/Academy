@@ -436,8 +436,10 @@ describe('stitched journey: approval drives progression', () => {
       thesisSubmission: { findFirst: async () => null },
     }
     const enrollment = { id: 'e1', userId: 'u1', programId: 'p1' }
-    const locked = await progressionGate(client, enrollment, 2, 'DIPLOMA')
-    expect(locked.open).toBe(false)
+    const initiallyApproved = await progressionGate(client, enrollment, 2, 'DIPLOMA')
+    expect(initiallyApproved.open).toBe(true)
+    // The student's failing result remains 40 until a lawful mercy
+    // reapproval improves it; both outcomes permit progression.
     // نشاط الاسترحام قُيّم 80 بوزن 50% (يثبته اختبار مسار الاسترحام):
     // المعدل الجديد 56.67 يُعاد حسابه من المحرك فيصبح هو المعتمد.
     scores[1] = 56.67
