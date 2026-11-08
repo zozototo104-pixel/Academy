@@ -195,6 +195,7 @@ export function SupervisorView() {
   })
 
   const selected = useMemo(() => students.find((s) => s.id === selectedId) || students[0] || null, [students, selectedId])
+  const currentAcademic = academicState?.admissionId === selected?.id ? academicState : null
 
   const load = async () => {
     setLoading(true)
