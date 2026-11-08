@@ -22,14 +22,23 @@ async function run(request: NextRequest) {
   }
   const dispatch = await dispatchOutboxBatch(db as any).catch(() => ({ platformSent: 0, emailsSent: 0, emailsFailed: 0 }))
   const escalated = await escalateOverdueReopenAppeals(db as any).catch(() => 0)
-  const deadlineRaises = await materializeDeadlineRaises(db as any).catch(() => 0)
+  const deadlineRaises = await materializeDeadlineRaises(db as any).catch((error) => {
+    console.error('semester deadline referral failed', error)
+    return 0
+  })
+  // A ready graduation record may predate the student's last-semester
+  // raise; reconcile the official admin notice only AFTER that gate.
+  const readyGraduationNotices = await reconcileReadyGraduationNotices(db as any).catch((error) => {
+    console.error('graduation notice reconciliation failed', error)
+    return 0
+  })
   const lapsed = await lapseOverdueMercy(db as any).catch(() => 0)
   const warnings = await scanDeadlineWarnings(db as any).catch(() => ({ warned: 0, scanned: 0 }))
-  // أحداث التحذير المسجّلة للتوّ تُرسل في نفس الجولة.
-  if (warnings.warned > 0) {
-    await dispatchOutboxBatch(db as any).catch(() => {})
+  // Dispatch newly queued deadline/graduation notices in this round.
+  if (warnings.warned > 0 || deadlineRaises > 0 || readyGraduationNotices > 0) {
+    await dispatchOutboxBatch(db as any).catch((error) => console.error('academic outbox dispatch failed', error))
   }
-  return NextResponse.json({ ok: true, dispatch, escalated, deadlineRaises, lapsed, warnings })
+  return NextResponse.json({ ok: true, dispatch, escalated, deadlineRaises, readyGraduationNotices, lapsed, warnings })
 }
 
 export async function GET(request: NextRequest) {
