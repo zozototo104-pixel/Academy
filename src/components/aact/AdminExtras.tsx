@@ -2766,7 +2766,45 @@ export function AdminFinanceTab() {
                   placeholder="ظروف إنسانية، قرار لجنة، تفوق، أو أي سبب خاص تقرره الإدارة" />
               </div>
             </div>
-            {/* ORGANIZED_GRANT_SCOPE_SLOT */}
+            {grantForm.scope === 'PROGRAM' && (
+              <div className="space-y-2">
+                <Label>التخصصات المشمولة (يمكن اختيار أكثر من تخصص)</Label>
+                <div className="grid max-h-52 min-w-0 gap-2 overflow-y-auto rounded-xl border p-3 sm:grid-cols-2">
+                  {grantPrograms.map((program) => (
+                    <label key={program.id} className="flex min-w-0 cursor-pointer items-start gap-2 text-xs font-bold">
+                      <input type="checkbox" className="mt-1" checked={grantForm.programIds.includes(program.id)}
+                        onChange={(e) => setGrantForm((p) => ({ ...p, programIds: e.target.checked
+                          ? [...p.programIds, program.id] : p.programIds.filter((id) => id !== program.id) }))} />
+                      <span className="min-w-0 break-words">{program.titleAr}</span>
+                    </label>
+                  ))}
+                  {grantPrograms.length === 0 && <p className="text-xs text-red-600">لم تُحمّل قائمة التخصصات؛ لا يمكن حفظ منحة تخصصية الآن.</p>}
+                </div>
+              </div>
+            )}
+            {grantForm.scope === 'INDIVIDUAL' && (
+              <div className="space-y-2 rounded-xl border bg-slate-50 p-3">
+                <Label htmlFor="grant-student">الطالب المستفيد من المنحة الفردية</Label>
+                <Input id="grant-student" value={grantStudentSearch} onChange={(e) => {
+                  setGrantStudentSearch(e.target.value)
+                  setGrantForm((p) => ({ ...p, admissionId: '' }))
+                }} placeholder="ابحث بالاسم أو رقم طلب الالتحاق…" />
+                {grantForm.admissionId ? (
+                  <p className="text-xs font-bold text-emerald-700">تم تحديد طلب الطالب. المنحة خاصة بهذا الطلب حتى إن لم يكن تخصصه ضمن المنح العامة.</p>
+                ) : (
+                  <div className="max-h-48 space-y-1 overflow-y-auto">
+                    {grantAdmissions.map((admission) => (
+                      <button key={admission.id} type="button" className="block w-full min-w-0 rounded-lg border bg-white px-3 py-2 text-right text-xs hover:bg-blue-50"
+                        onClick={() => { setGrantForm((p) => ({ ...p, admissionId: admission.id })); setGrantStudentSearch(`${admission.fullName} — ${admission.reference} — ${admission.program}`) }}>
+                        <span className="block break-words font-black">{admission.fullName} — {admission.reference}</span>
+                        <span className="block break-words text-slate-500">{admission.program}</span>
+                      </button>
+                    ))}
+                    {grantStudentSearch.length >= 2 && grantAdmissions.length === 0 && <p className="text-xs text-slate-500">لا توجد نتائج مطابقة في الصفحة الأولى من الطلبات.</p>}
+                  </div>
+                )}
+              </div>
+            )}
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="max-w-xl text-[11px] font-bold leading-5 text-slate-500">النسبة تُحوّل إلى سنتات على الخادم وقت إصدار الكود. الإعفاء الجزئي من رسوم التسجيل وحدها غير مدعوم حاليًا، لذلك لا يُعرض كخيار قابل للإصدار.</p>
               <Button type="button" disabled={grantSaving} onClick={() => void saveGrantPolicy()}>
