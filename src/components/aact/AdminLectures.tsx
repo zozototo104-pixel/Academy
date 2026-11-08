@@ -404,7 +404,12 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
                         title={s._count.attendances > 0 ? 'لا يمكن حذف لقاء فيه سجل حضور؛ استخدم الإلغاء للاحتفاظ بالسجل الأكاديمي' : 'حذف اللقاء من قاعدة البيانات'}
                         onClick={() => {
                           if (window.confirm(`حذف لقاء «${s.title}» نهائيًا؟ سيُزال موعده ويُفصل عنه أي فيديو مرتبط، ولن تتأثر الفيديوهات نفسها. لا يمكن استعادة اللقاء بعد الحذف.`)) {
-                            void act(() => api(`/api/admin/lectures/sessions/${s.id}`, { method: 'DELETE' }), 'حُذف اللقاء')
+                            void act(async () => {
+                              const result = await api<{ deleted: boolean; notificationWarning?: boolean }>(`/api/admin/lectures/sessions/${s.id}`, { method: 'DELETE' })
+                              if (result.notificationWarning) {
+                                toast({ title: 'حُذف اللقاء، لكن تعذر إرسال إشعار لبعض الطلاب', variant: 'destructive' })
+                              }
+                            }, 'حُذف اللقاء')
                           }
                         }}>
                         <Trash2 className="ml-1 h-4 w-4" /> حذف
