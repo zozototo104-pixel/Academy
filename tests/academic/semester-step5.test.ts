@@ -30,6 +30,14 @@ describe('raiseGateOf — بوابة الرفع الواحدة', () => {
     expect(raiseGateOf({ status: 'WITHDRAWN' }, false)).toBe('AWAITING_STUDENT')
     expect(raiseGateOf(null, false)).toBe('AWAITING_STUDENT')
   })
+  test('القرار النهائي لا يظهر من سجل أهلية مبكر أو نية لم تنضج', () => {
+    expect(isGraduationRaiseEligible('AWAITING_STUDENT')).toBe(false)
+    expect(isGraduationRaiseEligible('INTENT_PENDING')).toBe(false)
+    expect(isGraduationRaiseEligible(null)).toBe(false)
+    expect(isGraduationRaiseEligible('RAISED')).toBe(true)
+    expect(isGraduationRaiseEligible('DECIDED')).toBe(true)
+    expect(isGraduationRaiseEligible('PERIOD_ENDED')).toBe(true)
+  })
 })
 
 function sweepWorld(createdAt: Date) {
