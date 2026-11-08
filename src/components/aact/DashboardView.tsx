@@ -19,6 +19,11 @@ import StudentReminderBanner from '@/components/aact/StudentReminderBanner'
 import { StudentLectures } from '@/components/aact/StudentLectures'
 import { SemesterTrackingCard, type StudentTrackingView } from '@/components/aact/SemesterTrackingCard'
 import {
+  SemesterDecisionDialog,
+  SemesterDecisionPanel,
+  type SemesterDecisionBrief,
+} from '@/components/aact/SemesterDecision'
+import {
   BookOpen, ClipboardCheck, ChevronLeft, Loader2, Lock,
   Award, Bot, CheckCircle2, CircleDashed, Trophy, Banknote, FileText,
   BookMarked, Hourglass, ScrollText, MessageCircle, Bell, ListChecks, Download, ExternalLink, Video,
@@ -163,6 +168,7 @@ interface ProgressData {
     weightWarning: string | null
   }
   semesterTracking?: StudentTrackingView | null
+  decisionActive?: boolean
   completedUnits: string[]
   booksCount?: number
   finalExam?: {
@@ -184,6 +190,7 @@ interface ProgressData {
     questionCount: number
     bestScore: number | null
     passed: boolean
+    decisionBrief?: SemesterDecisionBrief | null
     readiness?: {
       semester: number
       readyMarked: boolean
@@ -386,6 +393,8 @@ export function DashboardView() {
   const [enrollments, setEnrollments] = useState<MyEnrollment[]>([])
   const [programs, setPrograms] = useState<any[]>([])
   const [active, setActive] = useState<ProgressData | null>(null)
+  const [decisionDialog, setDecisionDialog] = useState<{ semester: number; mode: 'ready' | 'raise' } | null>(null)
+  const [decisionBusy, setDecisionBusy] = useState(false)
   const [studyGuides, setStudyGuides] = useState<StudentStudyGuide[]>([])
   const [studyScheduleItems, setStudyScheduleItems] = useState<StudentStudyScheduleItem[]>([])
   const [assignments, setAssignments] = useState<StudentAssignment[]>([])
@@ -586,7 +595,7 @@ export function DashboardView() {
     }
   }
 
-  const markReadyForSemesterExam = async (semester: number) => {
+  const doMarkReadyForSemesterExam = async (semester: number) => {
     if (!active) return
     try {
       const res = await api<{ ok: boolean; message: string }>(`/api/progress`, {
@@ -597,6 +606,66 @@ export function DashboardView() {
       await open(active.program.id)
     } catch (e: any) {
       toast({ title: 'تعذر تفعيل الامتحان', description: e.message, variant: 'destructive' })
+    }
+  }
+
+  // عند تفعيل ميزة قرار إنهاء الفصل، ضغطة «جاهز للامتحان» تفتح نافذة
+  // الخيارين أولًا: اختيار الطالب يُحفظ قبل تفعيل الامتحان، وإلغاء
+  // النافذة لا يغيّر شيئًا.
+  const markReadyForSemesterExam = async (semester: number) => {
+    if (!active) return
+    if (active.decisionActive) {
+      setDecisionDialog({ semester, mode: 'ready' })
+      return
+    }
+    await doMarkReadyForSemesterExam(semester)
+  }
+
+  const confirmDecisionDialog = async (intent: 'EARLY_FINISH' | 'CONTINUE') => {
+    if (!active || !decisionDialog) return
+    const { semester, mode } = decisionDialog
+    setDecisionBusy(true)
+    try {
+      const res = await api<{ ok: boolean; decision?: { status?: string } | null }>(`/api/progress`, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'SEMESTER_DECISION', programId: active.program.id, semester, intent }),
+      })
+      setDecisionDialog(null)
+      if (mode === 'ready') {
+        await doMarkReadyForSemesterExam(semester)
+      } else {
+        toast({
+          title: res.decision?.status === 'RAISED' ? 'تم رفع نتيجتك للإدارة' : 'تم حفظ قرارك',
+          description:
+            res.decision?.status === 'RAISED'
+              ? 'نتيجتك الآن عند الإدارة بانتظار الاعتماد.'
+              : intent === 'EARLY_FINISH'
+                ? 'طلب الإنهاء المبكر محفوظ — يُرفع تلقائيًا عند اكتمال تصحيح امتحان الفصل ودرجاتك المعلّقة.'
+                : 'اخترت استكمال أعمال الفصل — لا تُرفع نتيجتك إلا بطلبك أو عند انتهاء فترة الفصل.',
+        })
+        await open(active.program.id)
+      }
+    } catch (e: any) {
+      toast({ title: 'تعذر حفظ القرار', description: e.message, variant: 'destructive' })
+    } finally {
+      setDecisionBusy(false)
+    }
+  }
+
+  const withdrawDecision = async (semester: number) => {
+    if (!active) return
+    setDecisionBusy(true)
+    try {
+      await api(`/api/progress`, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'SEMESTER_DECISION_WITHDRAW', programId: active.program.id, semester }),
+      })
+      toast({ title: 'تم سحب طلب الرفع', description: 'يمكنك استكمال أعمال الفصل والرفع مجددًا قبل انتهاء فترته.' })
+      await open(active.program.id)
+    } catch (e: any) {
+      toast({ title: 'تعذر سحب الطلب', description: e.message, variant: 'destructive' })
+    } finally {
+      setDecisionBusy(false)
     }
   }
 
@@ -1861,6 +1930,14 @@ export function DashboardView() {
                                     </Button>
                                   </div>
                                 </div>
+                                {active.decisionActive && exam.decisionBrief ? (
+                                  <SemesterDecisionPanel
+                                    brief={exam.decisionBrief}
+                                    busy={decisionBusy}
+                                    onRaise={() => setDecisionDialog({ semester: exam.semester, mode: 'raise' })}
+                                    onWithdraw={() => void withdrawDecision(exam.semester)}
+                                  />
+                                ) : null}
                               </article>
                             )
                           })}
@@ -1889,6 +1966,24 @@ export function DashboardView() {
           ) : null}
 
           {/* 12.2: امتحانا الفصلين من الكتب المقررة */}
+          {decisionDialog && active?.decisionActive
+            ? (() => {
+                const exam = (active.semesterExams || []).find((e: any) => e.semester === decisionDialog.semester)
+                if (!exam?.decisionBrief) return null
+                return (
+                  <SemesterDecisionDialog
+                    key={`${decisionDialog.semester}:${decisionDialog.mode}`}
+                    brief={exam.decisionBrief}
+                    examTitle={exam.title}
+                    semester={decisionDialog.semester}
+                    mode={decisionDialog.mode}
+                    busy={decisionBusy}
+                    onConfirm={(intent) => void confirmDecisionDialog(intent)}
+                    onClose={() => setDecisionDialog(null)}
+                  />
+                )
+              })()
+            : null}
           {programSection !== 'content' && active?.semesterExams && active.semesterExams.length > 0 && curriculumReady && (
             active.semesterExams.map((exam: any, idx: number) => {
               // بوابة التسلسل: امتحان الفصل الثاني يفتح بعد اجتياز الفصل الأول
@@ -1952,6 +2047,14 @@ export function DashboardView() {
                         </Button>
                       </div>
                     </div>
+                    {active.decisionActive && exam.decisionBrief ? (
+                      <SemesterDecisionPanel
+                        brief={exam.decisionBrief}
+                        busy={decisionBusy}
+                        onRaise={() => setDecisionDialog({ semester: exam.semester, mode: 'raise' })}
+                        onWithdraw={() => void withdrawDecision(exam.semester)}
+                      />
+                    ) : null}
                   </CardContent>
                 </Card>
               )

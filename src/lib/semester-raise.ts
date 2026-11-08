@@ -3,7 +3,9 @@ import { calculateSemesterAverages } from '@/lib/semester-grade'
 import { getSemesterStanding } from '@/lib/student-standing'
 import {
   recordSemesterIntent,
+  summarizeSemesterDecision,
   tryMatureSemesterRaise,
+  type ClosureRight,
   type RaiseMaturity,
   type RecordIntentResult,
   type SemesterDecisionRecord,
@@ -44,10 +46,10 @@ type StandingContext = {
   program: { category?: string | null; maxStudyDays?: number | null; semestersCount?: number | null }
 }
 
-export async function computeSemesterRaiseMaturity(
+async function loadMaturityFacts(
   client: AnyClient,
   input: { userId: string; programId: string; semester: number } & StandingContext,
-): Promise<SemesterRaiseMaturity> {
+) {
   const [blockers, standing, averages] = await Promise.all([
     collectSemesterApprovalBlockers(client, {
       userId: input.userId,
@@ -63,6 +65,14 @@ export async function computeSemesterRaiseMaturity(
     }).catch(() => null),
     calculateSemesterAverages({ userId: input.userId, programId: input.programId, client }).catch(() => null),
   ])
+  return { blockers, standing, averages }
+}
+
+export async function computeSemesterRaiseMaturity(
+  client: AnyClient,
+  input: { userId: string; programId: string; semester: number } & StandingContext,
+): Promise<SemesterRaiseMaturity> {
+  const { blockers, standing, averages } = await loadMaturityFacts(client, input)
   const entry = averages?.semesters?.find((s: { semester: number }) => s.semester === input.semester)
   const examTaken = (standing?.programExams?.satCount ?? 0) > 0
   const examPublished = (standing?.programExams?.ready ?? 0) > 0
@@ -72,6 +82,70 @@ export async function computeSemesterRaiseMaturity(
     examTaken,
     examPublished,
     blockers,
+  }
+}
+
+export type SemesterDecisionBrief = {
+  decision: SemesterDecisionRecord
+  periodEndAt: string | null
+  periodEnded: boolean
+  closure: ClosureRight
+  examTaken: boolean
+  examPublished: boolean
+  pendingCount: number
+  provisionalAverage: number | null
+  scoreAtRaise: number | null
+  changedSinceRaise: boolean
+  units: { graded: number; total: number; missingTitles: string[] }
+  assignments: { submitted: number; total: number; missingTitles: string[] }
+}
+
+/** The one brief every decision display reads — the student's choice
+ * dialog and status panel, and any later admin surface: the stored
+ * decision, the period facts, the closure right, the maturity facts,
+ * and whether the live result has materially moved since the raise
+ * the student consented to (the administration must re-see the file,
+ * never silently approve a stale number). */
+export async function getSemesterDecisionBrief(
+  client: AnyClient,
+  input: { enrollmentId: string; userId: string; programId: string; semester: number } & StandingContext,
+): Promise<SemesterDecisionBrief> {
+  const [summary, facts] = await Promise.all([
+    summarizeSemesterDecision(client, {
+      enrollmentId: input.enrollmentId,
+      programId: input.programId,
+      enrollmentCreatedAt: input.enrollment.createdAt,
+      extensionDays: input.enrollment.extensionDays,
+      program: input.program,
+      semester: input.semester,
+    }),
+    loadMaturityFacts(client, input),
+  ])
+  const entry = facts.averages?.semesters?.find((s: { semester: number }) => s.semester === input.semester)
+  const provisionalAverage = entry?.average ?? null
+  const scoreAtRaise = summary.decision?.scoreAtRaise ?? null
+  return {
+    decision: summary.decision,
+    periodEndAt: summary.periodEndAt,
+    periodEnded: summary.periodEnded,
+    closure: summary.closure,
+    examTaken: (facts.standing?.programExams?.satCount ?? 0) > 0,
+    examPublished: (facts.standing?.programExams?.ready ?? 0) > 0,
+    pendingCount: facts.blockers.reduce((sum, b) => sum + (b.count || 0), 0),
+    provisionalAverage,
+    scoreAtRaise,
+    changedSinceRaise:
+      scoreAtRaise != null && provisionalAverage != null && Math.abs(provisionalAverage - scoreAtRaise) > 0.05,
+    units: {
+      graded: facts.standing?.units?.graded ?? 0,
+      total: facts.standing?.units?.total ?? 0,
+      missingTitles: facts.standing?.units?.missingTitles ?? [],
+    },
+    assignments: {
+      submitted: facts.standing?.assignments?.submitted ?? 0,
+      total: facts.standing?.assignments?.total ?? 0,
+      missingTitles: facts.standing?.assignments?.missingTitles ?? [],
+    },
   }
 }
 

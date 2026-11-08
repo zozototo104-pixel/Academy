@@ -8,6 +8,8 @@ import { calculateFinalGrade, pickBestGradedAttempt } from '@/lib/final-grade'
 import { getStudentSemesterTracking } from '@/lib/student-tracking'
 import { enforceSemesterTuitionGate, getStudentTuitionPlan } from '@/lib/tuition-installments'
 import { registerGraduationRequest } from '@/lib/enrollment-completion'
+import { SEMESTER_DECISION_ACTIVE, withdrawSemesterRaise } from '@/lib/semester-decision'
+import { getSemesterDecisionBrief, requestSemesterDecision } from '@/lib/semester-raise'
 
 // GET /api/progress?programId=xxx — تفاصيل البرنامج مع وحداته وتقدم الطالب
 export async function GET(req: NextRequest) {
@@ -104,6 +106,35 @@ export async function GET(req: NextRequest) {
     const semesterReadiness = await Promise.all(
       semesterExams.map((e) => calculateSemesterReadiness(user.id, programId, e.semester))
     )
+    // موجز قرار إنهاء الفصل لكل فصل (سجل القرار): وقائع النافذة وحالة
+    // الطلب من مصدر الخادم الوحيد. يُحسب فقط عند تفعيل الميزة، ودفاعي
+    // لكل فصل: أي فشل يترك الموجز فارغًا ولا يُسقط بقية التقدم.
+    const decisionBriefs = SEMESTER_DECISION_ACTIVE
+      ? await Promise.all(
+          semesterExams.map(async (e) => {
+            try {
+              return await getSemesterDecisionBrief(db, {
+                enrollmentId: enrollment.id,
+                userId: user.id,
+                programId,
+                semester: e.semester,
+                enrollment: {
+                  createdAt: enrollment.createdAt,
+                  status: enrollment.status,
+                  extensionDays: enrollment.extensionDays,
+                },
+                program: {
+                  category: program.category,
+                  maxStudyDays: program.maxStudyDays,
+                  semestersCount: program.semestersCount,
+                },
+              })
+            } catch {
+              return null
+            }
+          }),
+        )
+      : semesterExams.map(() => null)
     const [tuitionPlan, grade] = await Promise.all([
       getStudentTuitionPlan(user.id, programId),
       calculateFinalGrade({ userId: user.id, programId }),
@@ -170,12 +201,14 @@ export async function GET(req: NextRequest) {
       booksCount,
       finalExam,
       pendingReviewExams: reviewCount,
-      semesterExams: semesterExams.map((exam) => {
+      decisionActive: SEMESTER_DECISION_ACTIVE,
+      semesterExams: semesterExams.map((exam, examIndex) => {
         const requiredAmount = exam.semester >= 2 ? tuitionPlan?.finalRequired ?? 0 : tuitionPlan?.halfRequired ?? 0
         const allowed = !tuitionPlan || tuitionPlan.totalTuition <= 0 || (exam.semester >= 2 ? tuitionPlan.secondSemesterAllowed : tuitionPlan.firstSemesterAllowed)
         return {
           ...exam,
           readiness: semesterReadiness.find((r) => r.semester === exam.semester) || null,
+          decisionBrief: decisionBriefs[examIndex] ?? null,
           tuitionGate: {
             allowed,
             code: allowed ? null : exam.semester >= 2 ? 'TUITION_FULL_REQUIRED' : 'TUITION_HALF_REQUIRED',
@@ -218,7 +251,78 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser()
-    const { programId, unitId, action, semester } = await req.json()
+    const { programId, unitId, action, semester, intent } = await req.json()
+    if (action === 'SEMESTER_DECISION' || action === 'SEMESTER_DECISION_WITHDRAW') {
+      // قرار إنهاء الفصل بيد الطالب: النضج يُشتق على الخادم دائمًا،
+      // ولا يُقبل أي اختيار قبل تفعيل الميزة (الصمّام).
+      if (!SEMESTER_DECISION_ACTIVE) {
+        return NextResponse.json({ error: 'ميزة قرار إنهاء الفصل غير مفعّلة بعد', code: 'SEMESTER_DECISION_INACTIVE' }, { status: 409 })
+      }
+      if (!programId || !semester) return NextResponse.json({ error: 'معرف البرنامج والفصل مطلوبان' }, { status: 400 })
+      const enrollment = await db.enrollment.findUnique({
+        where: { userId_programId: { userId: user.id, programId } },
+      })
+      if (!enrollment) return NextResponse.json({ error: 'غير مسجل في البرنامج' }, { status: 403 })
+      const program = await db.program.findUnique({
+        where: { id: programId },
+        select: { category: true, maxStudyDays: true, semestersCount: true },
+      })
+      if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
+      const DECISION_ERRORS: Record<string, string> = {
+        ENROLLMENT_NOT_FOUND: 'التسجيل غير موجود',
+        INVALID_SEMESTER: 'فصل غير صالح لهذا البرنامج',
+        SEMESTER_ALREADY_DECIDED: 'نتيجة هذا الفصل معتمدة — لا يمكن تغيير القرار',
+        SEMESTER_PERIOD_ENDED: 'انتهت فترة هذا الفصل — تُرفع النتيجة للإدارة تلقائيًا عند اكتمال التصحيح',
+        SEMESTER_ALREADY_RAISED: 'نتيجتك مرفوعة بالفعل — يمكنك سحب الطلب بدل تغيير الاختيار',
+        NO_ACTIVE_RAISE: 'لا يوجد طلب رفع قائم لسحبه',
+      }
+      if (action === 'SEMESTER_DECISION_WITHDRAW') {
+        const result = await withdrawSemesterRaise(db, {
+          enrollmentId: enrollment.id,
+          userId: user.id,
+          semester: Number(semester),
+        })
+        if (!result.ok) {
+          return NextResponse.json(
+            { error: DECISION_ERRORS[result.code] || 'تعذر سحب الطلب', code: result.code },
+            { status: 409 },
+          )
+        }
+        return NextResponse.json({ ok: true, decision: result.decision })
+      }
+      if (intent !== 'EARLY_FINISH' && intent !== 'CONTINUE') {
+        return NextResponse.json({ error: 'اختيار غير صالح', code: 'INVALID_INTENT' }, { status: 400 })
+      }
+      const result = await requestSemesterDecision(db, {
+        enrollmentId: enrollment.id,
+        userId: user.id,
+        programId,
+        semester: Number(semester),
+        intent,
+        enrollment: {
+          createdAt: enrollment.createdAt,
+          status: enrollment.status,
+          extensionDays: enrollment.extensionDays,
+        },
+        program,
+      })
+      if (!result.ok) {
+        return NextResponse.json(
+          { error: DECISION_ERRORS[result.code] || 'تعذر حفظ القرار', code: result.code },
+          { status: 409 },
+        )
+      }
+      return NextResponse.json({
+        ok: true,
+        decision: result.decision,
+        maturity: {
+          mature: result.maturity.mature,
+          examTaken: result.maturity.examTaken,
+          examPublished: result.maturity.examPublished,
+          blockers: result.maturity.blockers,
+        },
+      })
+    }
     if (action === 'READY_FOR_EXAM') {
       if (!programId || !semester) return NextResponse.json({ error: 'معرف البرنامج والفصل مطلوبان' }, { status: 400 })
       const tuitionGate = await enforceSemesterTuitionGate(user.id, programId, Number(semester))

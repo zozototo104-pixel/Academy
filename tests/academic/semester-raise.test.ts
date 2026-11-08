@@ -162,3 +162,47 @@ describe('requestSemesterDecision / matureSemesterRaiseIfReady', () => {
     }
   })
 })
+
+describe('getSemesterDecisionBrief — موجز العرض الوحيد', () => {
+  test('بلا قرار: حق الإغلاق بانتظار الطالب والوقائع من الخادم', async () => {
+    resetFacts({ satCount: 1 })
+    const { getSemesterDecisionBrief } = await import('../../src/lib/semester-raise')
+    const brief = await getSemesterDecisionBrief(makeClient(), { ...ctx, enrollmentId: 'enr-1' } as any)
+    expect(brief.decision).toBeNull()
+    expect(brief.closure.allowed).toBe(false)
+    expect(brief.closure.reason).toBe('AWAITING_STUDENT')
+    expect(brief.provisionalAverage).toBe(63.25)
+    expect(brief.examTaken).toBe(true)
+    expect(brief.periodEndAt).not.toBeNull()
+    expect(brief.periodEnded).toBe(false)
+  })
+  test('درجة تغيّرت بعد الرفع تُعلَّم: changedSinceRaise', async () => {
+    resetFacts({ satCount: 1, average: 63.25 })
+    const client = makeClient()
+    await client.semesterDecision.create({
+      data: {
+        enrollmentId: 'enr-1', semester: 1, intent: 'EARLY_FINISH', status: 'RAISED',
+        raiseSource: 'STUDENT', raisedAt: new Date(), scoreAtIntent: 50, scoreAtRaise: 50,
+      },
+    })
+    const { getSemesterDecisionBrief } = await import('../../src/lib/semester-raise')
+    const brief = await getSemesterDecisionBrief(client, { ...ctx, enrollmentId: 'enr-1' } as any)
+    expect(brief.scoreAtRaise).toBe(50)
+    expect(brief.changedSinceRaise).toBe(true)
+    expect(brief.closure.allowed).toBe(true)
+    expect(brief.closure.source).toBe('STUDENT')
+  })
+  test('نفس النتيجة بعد الرفع: لا علم تغيير', async () => {
+    resetFacts({ satCount: 1, average: 50 })
+    const client = makeClient()
+    await client.semesterDecision.create({
+      data: {
+        enrollmentId: 'enr-1', semester: 1, intent: 'EARLY_FINISH', status: 'RAISED',
+        raiseSource: 'STUDENT', raisedAt: new Date(), scoreAtIntent: 50, scoreAtRaise: 50,
+      },
+    })
+    const { getSemesterDecisionBrief } = await import('../../src/lib/semester-raise')
+    const brief = await getSemesterDecisionBrief(client, { ...ctx, enrollmentId: 'enr-1' } as any)
+    expect(brief.changedSinceRaise).toBe(false)
+  })
+})
