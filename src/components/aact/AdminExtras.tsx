@@ -930,6 +930,41 @@ export function AdminFinanceTab() {
     } finally { setGrantSaving(false) }
   }
 
+  const previewOrganizedGrant = async (payment: PaymentRow) => {
+    const policyId = grantSelection[payment.id]
+    if (!policyId) {
+      toast({ title: 'اختر منحة أولاً', description: 'حدّد منحة عامة أو مخصصة للتخصص، أو أنشئ منحة فردية لهذا الطالب', variant: 'destructive' })
+      return
+    }
+    setWaiverBusy(payment.id)
+    try {
+      const params = new URLSearchParams({ mode: 'quote', policyId, paymentId: payment.id })
+      const result = await api<{ quote: OrganizedGrantQuote }>(`/api/admin/payments/waivers?${params}`)
+      setGrantQuoteDialog({ payment, quote: result.quote })
+    } catch (error: any) {
+      toast({ title: 'الطالب غير مؤهل أو الفاتورة غير قابلة للإعفاء', description: error?.message || 'راجع المنحة والتخصص', variant: 'destructive' })
+    } finally { setWaiverBusy(null) }
+  }
+
+  const issueOrganizedGrant = async () => {
+    if (!grantQuoteDialog || grantSaving) return
+    const { payment, quote } = grantQuoteDialog
+    setGrantSaving(true)
+    try {
+      const result = await api<{ code: string; waiver: PaymentWaiverCodeRow; emailStatus?: string }>('/api/admin/payments/waivers', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'ISSUE_POLICY', paymentId: payment.id, policyId: quote.policy.id, signature: quote.signature }),
+      })
+      setGeneratedWaiverCodes((prev) => ({ ...prev, [payment.id]: result.code }))
+      await copyWaiverCode(payment.id, result.code)
+      toast({ title: 'صدر كود المنحة بالنظام المالي الحالي', description: result.emailStatus === 'SENT' ? 'تم إرسال الكود للطالب' : 'راجع إرسال البريد أو شارك الكود يدويًا' })
+      setGrantQuoteDialog(null)
+      load()
+    } catch (error: any) {
+      toast({ title: 'توقف إصدار المنحة', description: error?.message || 'أعد التحقق من الفواتير والتخصص', variant: 'destructive' })
+    } finally { setGrantSaving(false) }
+  }
+
   const load = () => setPaymentRefresh((v) => v + 1)
 
   useEffect(() => {
