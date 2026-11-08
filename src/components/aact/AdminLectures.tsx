@@ -286,12 +286,15 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
             </p>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => void load()}>
             <RefreshCw className="ml-1 h-4 w-4" /> تحديث
           </Button>
           <Button size="sm" onClick={() => setCreateOpen(true)}>
             <Plus className="ml-1 h-4 w-4" /> محاضرة جديدة
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setVideoOpen(true)}>
+            <Video className="ml-1 h-4 w-4" /> إضافة فيديو
           </Button>
         </div>
       </div>
