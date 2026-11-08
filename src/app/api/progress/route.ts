@@ -226,6 +226,7 @@ export async function GET(req: NextRequest) {
         return {
           ...exam,
           readiness: semesterReadiness.find((r) => r.semester === exam.semester) || null,
+          progression: semesterProgression[examIndex] ?? { open: false, reasons: ['تعذر التحقق من حالة الفصل السابق'] },
           decisionBrief: decisionBriefs[examIndex] ?? null,
           tuitionGate: {
             allowed,
