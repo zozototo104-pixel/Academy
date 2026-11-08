@@ -258,7 +258,6 @@ export async function evaluateContextualFinality(
           where: { status: 'READY', unit: { programId: input.programId, semester: input.semester } },
           select: { id: true, _count: { select: { questions: true } } },
         })
-        .catch(() => [])
       const scorable = exams.filter((e) => Number(e?._count?.questions || 0) > 0)
       for (const exam of scorable) {
         const attempts: any[] = await client.examAttempt
@@ -266,7 +265,6 @@ export async function evaluateContextualFinality(
             where: { userId: input.userId, examId: exam.id },
             select: { status: true, score: true, answers: { select: { points: true, maxPoints: true } } },
           })
-          .catch(() => [])
         if (attempts.length === 0) continue // pure omission
         if (attempts.some((a) => a.status === 'GRADED' && attemptHasUsableScore(a))) continue
         return { final: false, nonFinalComponent: component.key }
@@ -277,7 +275,6 @@ export async function evaluateContextualFinality(
           where: { programId: input.programId, status: 'READY', semester: input.semester },
           select: { id: true },
         })
-        .catch(() => [])
       if (!exams.length) return { final: false, nonFinalComponent: component.key }
       for (const exam of exams) {
         const attempts: any[] = await client.programExamAttempt
@@ -291,7 +288,6 @@ export async function evaluateContextualFinality(
               answers: { select: { points: true, maxPoints: true } },
             },
           })
-          .catch(() => [])
         if (attempts.length === 0) continue // pure omission
         if (
           attempts.some(
@@ -308,14 +304,12 @@ export async function evaluateContextualFinality(
           where: { programId: input.programId, status: 'PUBLISHED', semester: input.semester },
           select: { id: true },
         })
-        .catch(() => [])
       for (const assignment of assignments) {
         const submission = await client.assignmentSubmission
           .findUnique({
             where: { assignmentId_userId: { assignmentId: assignment.id, userId: input.userId } },
             select: { status: true, score: true },
           })
-          .catch(() => null)
         if (!submission) continue // pure omission
         if (submission.status === 'GRADED' && typeof submission.score === 'number') continue
         return { final: false, nonFinalComponent: component.key }
