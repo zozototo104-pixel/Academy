@@ -58,6 +58,13 @@ export function raiseGateOf(
   return 'AWAITING_STUDENT'
 }
 
+/** A graduation transaction is actionable only after the student's
+ * last semester has actually been raised, decided, or has reached its
+ * scheduled end. A draft INTENT is not a submission. */
+export function isGraduationRaiseEligible(gate: RaiseGate | null | undefined): boolean {
+  return gate === 'RAISED' || gate === 'DECIDED' || gate === 'PERIOD_ENDED'
+}
+
 /**
  * Period-end materialization (cron): a stored early-finish INTENT
  * whose semester period has ENDED becomes an effective raise by
