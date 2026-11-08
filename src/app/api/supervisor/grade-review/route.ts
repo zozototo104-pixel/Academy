@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
         },
       }),
       dbAny.programExamAttempt.findMany({
-        where: { userId: { in: studentIds }, status: { in: ['GRADED', 'NEEDS_REVIEW'] } },
+        where: { ...programScope, status: { in: ['GRADED', 'NEEDS_REVIEW'] } },
         orderBy: { submittedAt: 'desc' },
         take: 100,
         select: {
