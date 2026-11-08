@@ -71,17 +71,6 @@ export function AdminDirectMessagesTab({ initialAdmissionId }: { initialAdmissio
     }
   }, [toast])
 
-  const threadRef = useRef<HTMLDivElement>(null)
-  // فتح المحادثة يرسم بطاقتها أسفل القائمة، فبدون تمرير يبقى الشاشة على
-  // القائمة ويظن المسؤول أن الضغطة لم تعمل — ننزل مباشرة إلى المحادثة.
-  useEffect(() => {
-    if (!activeId) return
-    const t = setTimeout(() => {
-      threadRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }, 120)
-    return () => clearTimeout(t)
-  }, [activeId])
-
   const mountThreadLoadedRef = useRef(false)
   useEffect(() => {
     let cancelled = false
@@ -107,8 +96,10 @@ export function AdminDirectMessagesTab({ initialAdmissionId }: { initialAdmissio
 
   const openConversation = (admissionId: string) => {
     setActiveId(admissionId)
+    setMessages([])
+    setDraft('')
     setMessagesLoading(true)
-    loadThread(admissionId)
+    void loadThread(admissionId)
     loadList()
   }
 
@@ -130,11 +121,11 @@ export function AdminDirectMessagesTab({ initialAdmissionId }: { initialAdmissio
   const active = conversations.find((c) => c.admission.id === activeId)
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardContent className="space-y-3 p-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <Input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} placeholder="ابحث بالاسم أو البريد أو رقم الطلب…" className="max-w-md" />
+    <div className="min-w-0 max-w-full space-y-4 overflow-hidden">
+      {!activeId && <Card className="min-w-0 overflow-hidden">
+        <CardContent className="min-w-0 space-y-3 p-3 sm:p-4">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <Input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} placeholder="ابحث باسم الطالب أو البريد…" className="min-w-0 w-full sm:max-w-md" />
             <Button variant="outline" onClick={() => { setLoading(true); loadList() }}>تحديث</Button>
           </div>
           {loading ? (
@@ -142,17 +133,17 @@ export function AdminDirectMessagesTab({ initialAdmissionId }: { initialAdmissio
           ) : conversations.length === 0 ? (
             <p className="text-sm text-muted-foreground">لا توجد محادثات بعد. تظهر هنا محادثات مقدمي طلبات الالتحاق فقط.</p>
           ) : (
-            <div className="divide-y rounded-xl border">
+            <div className="max-h-[65vh] min-w-0 divide-y overflow-y-auto rounded-xl border">
               {conversations.map((c) => (
-                <button key={c.admission.id} type="button" onClick={() => openConversation(c.admission.id)} className="flex w-full items-center justify-between gap-3 px-3 py-3 text-right hover:bg-muted/50">
-                  <span>
-                    <span className="block font-bold">{c.admission.fullName} <span className="font-normal text-muted-foreground">({c.admission.reference})</span></span>
-                    <span className="block text-xs text-muted-foreground">{c.admission.email} — {c.admission.program || 'برنامج غير محدد'}</span>
-                    {c.lastMessage && <span className="block truncate text-sm">{c.lastMessage.senderRole === 'ADMIN' ? 'أنت: ' : 'الطالب: '}{c.lastMessage.content}</span>}
+                <button key={c.admission.id} type="button" onClick={() => openConversation(c.admission.id)} className="flex w-full min-w-0 items-center justify-between gap-2 px-3 py-3 text-right transition-colors hover:bg-muted/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary">
+                  <span className="block min-w-0 flex-1 overflow-hidden">
+                    <span className="block truncate text-sm font-black text-[#0f2b46]">{c.admission.fullName}</span>
+                    <span className="block truncate text-xs text-muted-foreground">{c.admission.program || 'برنامج غير محدد'}</span>
+                    {c.lastMessage && <span className="block truncate text-xs text-slate-500">{c.lastMessage.senderRole === 'ADMIN' ? 'أنت: ' : 'الطالب: '}{c.lastMessage.content}</span>}
                   </span>
-                  <span className="flex shrink-0 items-center gap-2">
+                  <span className="flex shrink-0 flex-col items-end gap-1">
                     {c.unread > 0 && <Badge>{c.unread} جديد</Badge>}
-                    {c.lastMessage && <span className="text-xs text-muted-foreground">{dateAr(c.lastMessage.createdAt)}</span>}
+                    {c.lastMessage && <span className="text-[10px] text-muted-foreground">{dateAr(c.lastMessage.createdAt)}</span>}
                   </span>
                 </button>
               ))}
@@ -166,32 +157,35 @@ export function AdminDirectMessagesTab({ initialAdmissionId }: { initialAdmissio
             </div>
           )}
         </CardContent>
-      </Card>
+      </Card>}
 
       {activeId && (
-        <div ref={threadRef}>
-        <Card>
-          <CardContent className="space-y-3 p-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold">محادثة: {active?.admission.fullName || 'طالب'} ({active?.admission.reference || ''})</h3>
-              <Button variant="outline" onClick={() => setActiveId(null)}>إغلاق</Button>
+        <div className="min-w-0 max-w-full">
+        <Card className="min-w-0 overflow-hidden">
+          <CardContent className="min-w-0 space-y-3 p-3 sm:p-4">
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <h3 className="break-words text-base font-black text-[#0f2b46] [overflow-wrap:anywhere]">محادثة: {active?.admission.fullName || 'الطالب'}</h3>
+                {active?.admission.program && <p className="mt-1 truncate text-xs text-muted-foreground">{active.admission.program}</p>}
+              </div>
+              <Button variant="outline" size="sm" onClick={() => { setActiveId(null); setMessages([]); setDraft('') }}>العودة للطلاب</Button>
             </div>
             {messagesLoading ? (
               <p className="text-sm text-muted-foreground">جارٍ تحميل الرسائل…</p>
             ) : messages.length === 0 ? (
               <p className="text-sm text-muted-foreground">لا توجد رسائل بعد في هذه المحادثة.</p>
             ) : (
-              <div className="max-h-[420px] space-y-2 overflow-y-auto">
+              <div className="max-h-[55vh] min-w-0 space-y-2 overflow-y-auto overscroll-contain">
                 {messages.map((m) => (
-                  <div key={m.id} className={`rounded-xl border p-3 ${m.senderRole === 'ADMIN' ? 'bg-primary/5' : 'bg-muted/40'}`}>
+                  <div key={m.id} className={`min-w-0 max-w-full rounded-xl border p-3 ${m.senderRole === 'ADMIN' ? 'bg-primary/5' : 'bg-muted/40'}`}>
                     <p className="mb-1 text-[11px] opacity-70">{m.senderRole === 'ADMIN' ? 'أنت (الإدارة)' : 'الطالب'} — {dateAr(m.createdAt)}</p>
-                    <p className="whitespace-pre-wrap text-sm">{m.content}</p>
+                    <p className="whitespace-pre-wrap break-words text-sm [overflow-wrap:anywhere]">{m.content}</p>
                   </div>
                 ))}
               </div>
             )}
             <div className="space-y-2">
-              <Textarea value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="اكتب رسالة للطالب…" rows={3} />
+              <Textarea value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="اكتب رسالة للطالب…" rows={3} className="min-w-0 max-w-full break-words" />
               <Button onClick={send} disabled={sending || !draft.trim()}>إرسال</Button>
             </div>
           </CardContent>
