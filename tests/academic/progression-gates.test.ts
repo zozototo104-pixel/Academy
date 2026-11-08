@@ -196,6 +196,16 @@ describe('progression gate', () => {
     expect(gate.open).toBe(false)
   })
 
+  test('approved S1 cannot open S2 without an actual semester exam to sit', async () => {
+    const client = fakeClient({
+      states: { 1: 'CLOSED' }, approvals: { 1: 40 }, unitScore: { 1: 40 }, examScore: { 1: 40 },
+    })
+    client.programExam.findMany = async () => []
+    const gate = await progressionGate(client, ENROLLMENT, 2, 'DIPLOMA')
+    expect(gate.open).toBe(false)
+    expect(gate.reasons.join(' ')).toContain('لم يُقدَّم')
+  })
+
   test('computed-but-unapproved average never counts', async () => {
     const client = fakeClient({ states: { 1: 'OPEN' }, unitScore: { 1: 90 }, examScore: { 1: 90 } })
     const gate = await progressionGate(client, ENROLLMENT, 2, 'DIPLOMA')
