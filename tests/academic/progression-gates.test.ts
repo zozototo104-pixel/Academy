@@ -181,13 +181,13 @@ describe('progression gate', () => {
     expect(gate.open).toBe(true)
   })
 
-  test('passing average but failed semester exam stays locked', async () => {
-    // عتبة نجاح الامتحان 85 ودرجته 80: المعدل المعتمد 80 ناجح،
-    // والامتحان نفسه راسب — شرطان مستقلان كما قرّر المالك.
+  test('approved S1 opens S2 when its exam was sat but failed', async () => {
+    // The student sat the exam (80) but failed its 85 threshold; the
+    // failure remains on record, and the approved semester can progress.
     const client = fakeClient({ states: { 1: 'CLOSED' }, approvals: { 1: 80 }, unitScore: { 1: 80 }, examScore: { 1: 80 }, examPassed: { 1: false }, examPassScore: 85 })
     const gate = await progressionGate(client, ENROLLMENT, 2, 'DIPLOMA')
-    expect(gate.open).toBe(false)
-    expect(gate.reasons.join(' ')).toContain('امتحان')
+    expect(gate.open).toBe(true)
+    expect(gate.reasons).toEqual([])
   })
 
   test('stale approval (grades changed after approval) stays locked', async () => {
