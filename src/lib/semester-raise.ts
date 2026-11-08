@@ -103,7 +103,7 @@ export async function computeSemesterRaiseMaturity(
           appealStatus: true,
           answers: { select: { points: true } },
         },
-      }).catch(() => [])
+      })
     : []
   const finalExamGraded = gradedAttempts.some((attempt) => {
     const score = attempt.finalScore ?? attempt.score
