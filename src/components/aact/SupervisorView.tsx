@@ -237,6 +237,28 @@ export function SupervisorView() {
 
   useEffect(() => { load() }, [])
   useEffect(() => { if (selected?.id) loadDetails(selected.id) }, [selected?.id])
+  useEffect(() => {
+    const admissionId = selected?.id
+    if (!admissionId) {
+      setAcademicState(null)
+      return
+    }
+    let active = true
+    setAcademicState({ admissionId, loading: true, error: null, preview: null })
+    api<{ preview: SupervisorAcademicPreview }>(`/api/supervisor/students?admissionId=${encodeURIComponent(admissionId)}`)
+      .then((response) => {
+        if (!active) return
+        if (response.preview?.previewMode !== 'SUPERVISOR_ACADEMIC_READ_ONLY' || response.preview.programId !== selected?.programId) {
+          throw new Error('معاينة الطالب لا تطابق البرنامج المحدد')
+        }
+        setAcademicState({ admissionId, loading: false, error: null, preview: response.preview })
+      })
+      .catch((error: unknown) => {
+        if (!active) return
+        setAcademicState({ admissionId, loading: false, error: error instanceof Error ? error.message : 'تعذر تحميل المسار الأكاديمي', preview: null })
+      })
+    return () => { active = false }
+  }, [selected?.id, selected?.programId, academicReload])
   useEffect(() => { setAssignmentRoster(null); setRosterStudentId(null); setRosterPage(1) }, [selected?.programId])
 
   const sendMessage = async (payload?: { mode?: 'TEXT' | 'VOICE'; audioData?: string; audioMime?: string; content?: string }) => {
