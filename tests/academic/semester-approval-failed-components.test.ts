@@ -46,7 +46,11 @@ function makeWorld() {
   const matchAttempt = (a: any, where: any) => {
     if (a.userId !== where.userId) return false
     if (!matchExamId(a, where.examId)) return false
-    if (where.status && a.status !== where.status) return false
+    // Prisma uses status: { in: [...] } to detect an actually submitted
+    // semester exam. A test double must model this filter correctly.
+    if (where.status && (typeof where.status === 'string'
+      ? a.status !== where.status
+      : Array.isArray(where.status?.in) && !where.status.in.includes(a.status))) return false
     if (Object.prototype.hasOwnProperty.call(where, 'score')) {
       if (where.score === null && a.score != null) return false
       if (where.score?.not === null && a.score == null) return false
