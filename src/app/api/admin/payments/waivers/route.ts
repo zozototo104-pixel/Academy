@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { randomUUID } from 'node:crypto'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { ActivePaymentWaiverExistsError, approvePaymentWaiver, createPaymentWaiverCode, isPaymentWaiverType, resendPaymentWaiverCode } from '@/lib/payment-waivers'
@@ -231,15 +232,124 @@ async function planWaiverCancelReversal(tx: any, waiver: any) {
   return plan
 }
 
+export async function GET(req: NextRequest) {
+  try {
+    await requireAdmin()
+    const mode = req.nextUrl.searchParams.get('mode')
+    if (mode === 'policies') {
+      return NextResponse.json({ policies: await loadGrantPolicies() }, { headers: { 'Cache-Control': 'no-store' } })
+    }
+    if (mode === 'quote') {
+      const policyId = cleanText(req.nextUrl.searchParams.get('policyId'), 60)
+      const paymentId = cleanText(req.nextUrl.searchParams.get('paymentId'), 80)
+      const quote = await grantQuote(paymentId, policyId)
+      return NextResponse.json({ quote }, { headers: { 'Cache-Control': 'no-store' } })
+    }
+    return NextResponse.json({ error: 'طلب غير مدعوم' }, { status: 400 })
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.code === 'GRANT_NOT_ELIGIBLE' ? e.message : 'تعذر فحص المنح', code: e?.code }, { status: e?.status || 400 })
+  }
+}
+
+async function createOrganizedPolicy(body: any, admin: { id: string; name?: string | null; email?: string | null }) {
+  const title = cleanText(body.title, 100)
+  const reason = cleanText(body.reason, 500)
+  const scope = String(body.scope || '')
+  const coverage = String(body.coverage || '')
+  const valueMode = String(body.valueMode || '')
+  const value = Number(body.value || 0)
+  if (title.length < 3 || reason.length < 6) throw grantError('اسم المنحة وسببها مطلوبان', 400)
+  if (!['GENERAL', 'PROGRAM', 'INDIVIDUAL'].includes(scope)) throw grantError('نوع المنحة غير صحيح', 400)
+  if (!['REGISTRATION', 'TUITION', 'BOTH'].includes(coverage)) throw grantError('نطاق الرسوم غير صحيح', 400)
+  if (!['FULL', 'PERCENT', 'AMOUNT'].includes(valueMode)) throw grantError('قيمة المنحة غير صحيحة', 400)
+  if (coverage === 'REGISTRATION' && valueMode !== 'FULL') {
+    throw grantError('إعفاء التسجيل الجزئي غير مدعوم ماليًا في النظام الحالي؛ لا يمكن إصدار وعد غير قابل للتطبيق', 400)
+  }
+  if (valueMode === 'PERCENT' && (!Number.isFinite(value) || value <= 0 || value >= 100)) {
+    throw grantError('النسبة الجزئية يجب أن تكون أكبر من صفر وأقل من 100%', 400)
+  }
+  if (valueMode === 'AMOUNT' && (!Number.isFinite(value) || value <= 0 || value > 100000 || Math.round(value * 100) / 100 !== value)) {
+    throw grantError('المبلغ الجزئي يجب أن يكون موجبًا ودقيقًا بالسنت', 400)
+  }
+  const programIds = scope === 'PROGRAM'
+    ? [...new Set((Array.isArray(body.programIds) ? body.programIds : []).filter((id: unknown): id is string => typeof id === 'string' && id.length <= 80))]
+    : []
+  if (scope === 'PROGRAM') {
+    if (!programIds.length || programIds.length > 100) throw grantError('اختر تخصصًا واحدًا على الأقل', 400)
+    const count = await db.program.count({ where: { id: { in: programIds } } })
+    if (count !== programIds.length) throw grantError('بعض التخصصات المختارة غير موجودة', 400)
+  }
+  const admissionId = scope === 'INDIVIDUAL' ? cleanText(body.admissionId, 80) : null
+  if (scope === 'INDIVIDUAL') {
+    const admission = admissionId && await db.admissionApplication.findUnique({ where: { id: admissionId }, select: { id: true } })
+    if (!admission) throw grantError('اختر طلب طالب موجود لإصدار منحة فردية', 400)
+  }
+  const policy: GrantPolicy = {
+    id: randomUUID(), title, scope: scope as GrantPolicy['scope'], programIds,
+    admissionId, coverage: coverage as GrantPolicy['coverage'], valueMode: valueMode as GrantPolicy['valueMode'],
+    value: valueMode === 'FULL' ? 0 : value, reason, active: true, createdAt: new Date().toISOString(),
+  }
+  await db.setting.create({ data: { key: GRANT_POLICY_PREFIX + policy.id, value: JSON.stringify(policy) } })
+  await audit(admin, 'GRANT_POLICY_CREATED', 'Setting', GRANT_POLICY_PREFIX + policy.id, `${title} — ${scope} — ${coverage} — ${valueMode}`)
+  return policy
+}
+
 export async function POST(req: NextRequest) {
   try {
     const admin = await requireAdmin()
     const body = await req.json().catch(() => ({}))
+    if (body.action === 'CREATE_POLICY') {
+      const policy = await createOrganizedPolicy(body, admin)
+      return NextResponse.json({ policy }, { status: 201 })
+    }
+    if (body.action === 'ISSUE_POLICY') {
+      const quote = await grantQuote(cleanText(body.paymentId, 80), cleanText(body.policyId, 60))
+      if (quote.signature !== String(body.signature || '')) {
+        return NextResponse.json({ error: 'تغيّرت الفاتورة أو قيمة المنحة منذ المعاينة؛ أعد المعاينة قبل إصدار الكود', code: 'GRANT_QUOTE_CHANGED' }, { status: 409 })
+      }
+      const intentKey = 'GRANT_ORGANIZATION_INTENT_V1_' + quote.paymentId
+      const existingIntent = await db.setting.findUnique({ where: { key: intentKey } })
+      if (existingIntent) {
+        return NextResponse.json({ error: 'إصدار منحة لهذه الفاتورة قيد المراجعة؛ لا تكرر إصدار الكود', code: 'GRANT_ISSUE_PENDING' }, { status: 409 })
+      }
+      const intent = { policyId: quote.policy.id, admissionId: quote.admissionId, programId: quote.programId, signature: quote.signature, createdAt: new Date().toISOString() }
+      await db.setting.create({ data: { key: intentKey, value: JSON.stringify(intent) } })
+      try {
+        const result = await createPaymentWaiverCode({
+          paymentId: quote.paymentId, waiverType: quote.waiverType,
+          requestedAmount: quote.requestedAmount,
+          reason: `${quote.policy.reason} [GRANT:${quote.policy.id}]`,
+          actor: { id: admin.id, name: admin.name || admin.email || 'Admin' },
+        })
+        const linkKey = GRANT_LINK_PREFIX + result.waiver.id
+        await db.setting.create({ data: {
+          key: linkKey,
+          value: JSON.stringify({ ...intent, waiverCodeId: result.waiver.id, paymentId: quote.paymentId, baseCents: quote.baseCents, grantCents: quote.grantCents }),
+        } })
+        await db.setting.delete({ where: { key: intentKey } })
+        await audit({ id: admin.id, name: admin.name || admin.email || 'Admin' }, 'GRANT_POLICY_ISSUED', 'Payment', quote.paymentId, `${quote.policy.title} — ${quote.summary}`)
+        return NextResponse.json({ ...result, quote })
+      } catch (e: any) {
+        const maybeIssued = await db.paymentWaiverCode.findFirst({
+          where: { paymentId: quote.paymentId, status: { in: ['ISSUED', 'VERIFIED'] } },
+          select: { id: true },
+        }).catch(() => null)
+        if (!maybeIssued) await db.setting.deleteMany({ where: { key: intentKey } }).catch(() => null)
+        throw e
+      }
+    }
     const paymentId = cleanText(body.paymentId, 80)
     const waiverType = cleanText(body.waiverType, 40)
     const reason = cleanText(body.reason)
     const requestedAmount = body.requestedAmount === undefined || body.requestedAmount === null || body.requestedAmount === '' ? null : Number(body.requestedAmount)
     if (!paymentId) return NextResponse.json({ error: 'معرّف الفاتورة مطلوب' }, { status: 400 })
+    const policies = await loadGrantPolicies()
+    if (policies.length) {
+      const admissionLinked = await db.payment.findUnique({ where: { id: paymentId }, select: { admissionId: true } })
+      if (admissionLinked?.admissionId) {
+        return NextResponse.json({ error: 'أصدر الإعفاء من تبويب تنظيم المنح بعد تحديد السياسة المناسبة أو المنحة الفردية', code: 'GRANT_POLICY_REQUIRED' }, { status: 409 })
+      }
+    }
     if (!isPaymentWaiverType(waiverType)) return NextResponse.json({ error: 'نوع الإعفاء غير صحيح' }, { status: 400 })
     const result = await createPaymentWaiverCode({
       paymentId,
@@ -252,6 +362,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ code: result.code, waiver: result.waiver, emailStatus: result.emailStatus })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
+    if (e?.code === 'GRANT_NOT_ELIGIBLE') return NextResponse.json({ error: e.message, code: e.code }, { status: e.status || 409 })
     if (e instanceof ActivePaymentWaiverExistsError || e?.code === 'ACTIVE_WAIVER_EXISTS') {
       return NextResponse.json({ error: e.message, code: 'ACTIVE_WAIVER_EXISTS' }, { status: 409 })
     }
