@@ -377,7 +377,7 @@ describe('deadline warnings scan', () => {
 })
 
 describe('stitched journey: approval drives progression', () => {
-  test('failed approved S1 locks S2; re-approved pass opens it', async () => {
+  test('failed approved S1 opens S2; later mercy reapproval improves the recorded result', async () => {
     // عالم مبسّط: امتحان وحدة واحد لكل فصل درجته هي المعدل.
     const approvals: Record<number, number> = { 1: 40 }
     const scores: Record<number, number> = { 1: 40 }
