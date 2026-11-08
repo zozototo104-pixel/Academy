@@ -122,7 +122,7 @@ export async function getSemesterStanding(
   )
   const windowByUnit = new Map(windows.map((w) => [w.unitId, w]))
 
-  const [unitAttempts, programExams, assignments] = await Promise.all([
+  const [unitAttempts, programExams, assignments]: [any[], any[], any[]] = await Promise.all([
     semesterExamIds.length
       ? client.examAttempt.findMany({
           where: { userId: args.userId, examId: { in: semesterExamIds } },
@@ -143,7 +143,7 @@ export async function getSemesterStanding(
 
   const programExamIds = programExams.map((x: any) => x.id)
   const assignmentIds = assignments.map((a: any) => a.id)
-  const [programAttempts, submissions] = await Promise.all([
+  const [programAttempts, submissions]: [any[], any[]] = await Promise.all([
     programExamIds.length
       ? client.programExamAttempt.findMany({
           where: { userId: args.userId, examId: { in: programExamIds } },
@@ -203,7 +203,7 @@ export async function getSemesterStanding(
     }
   })
 
-  const submissionByAssignment = new Map(submissions.map((s: any) => [s.assignmentId, s]))
+  const submissionByAssignment = new Map<string, any>(submissions.map((s: any) => [s.assignmentId, s]))
   const assignmentRows: StandingAssignmentRow[] = assignments.map((a: any) => {
     const sub = submissionByAssignment.get(a.id)
     return {
