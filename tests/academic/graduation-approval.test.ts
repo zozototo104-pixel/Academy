@@ -236,23 +236,32 @@ describe('graduation approval law', () => {
     expect(world.state.createdCertificate).toBeNull()
   })
 
-  test('a new student missing tuition is tracked without an approval notification; only becoming eligible alerts admins once', async () => {
+  test('a student becoming ready alerts admins only after final-semester period end, once via outbox', async () => {
     world.state.payments = []
     const first = await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
     expect(first.registered).toBe(true)
     expect(first.ready).toBe(false)
     expect(world.state.request.status).toBe('PENDING')
-    expect(sentGraduationNotifications).toHaveLength(0)
+    expect(world.state.outbox).toHaveLength(0)
 
     world.state.payments = [{ purpose: 'TUITION', status: 'PAID', amount: 1000, amountCents: 100000 }]
     const second = await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
     expect(second.ready).toBe(true)
-    expect(sentGraduationNotifications).toHaveLength(1)
-    expect(sentGraduationNotifications[0].title).toContain('مستوفٍ')
-    expect(sentGraduationNotifications[0].link).toContain('tab=certs')
+    expect(world.state.outbox).toHaveLength(1)
+    expect(world.state.outbox[0].kind).toBe('GRADUATION_READY_FOR_REVIEW')
+    expect(world.state.outbox[0].link).toContain('tab=certs')
+    expect(sentGraduationNotifications).toHaveLength(0)
 
     await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
-    expect(sentGraduationNotifications).toHaveLength(1)
+    expect(world.state.outbox).toHaveLength(1)
+  })
+
+  test('a student ready before the last-semester raise causes no premature admin alert', async () => {
+    world.state.enrollmentCreatedAt = new Date()
+    const result = await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
+    expect(result.ready).toBe(true)
+    expect(world.state.outbox).toHaveLength(0)
+    expect(sentGraduationNotifications).toHaveLength(0)
   })
 
   test('registration creates one living PENDING transaction with a readiness snapshot', async () => {
