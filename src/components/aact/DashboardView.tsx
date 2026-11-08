@@ -1987,7 +1987,7 @@ export function DashboardView() {
                     semester={decisionDialog.semester}
                     mode={decisionDialog.mode}
                     busy={decisionBusy}
-                    onConfirm={(intent) => void confirmDecisionDialog(intent)}
+                    onConfirm={(intent, consentToZeros) => void confirmDecisionDialog(intent, consentToZeros)}
                     onClose={() => setDecisionDialog(null)}
                   />
                 )
