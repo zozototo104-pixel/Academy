@@ -416,6 +416,11 @@ export function AdminStudentPreview() {
               برامج مكتملة: {data.completedDetails.map((d) => `${d.programTitle} — المعدل التراكمي: ${cumulativeLabel(d)}`).join(' · ')}
             </p>
           )}
+          {(data.expiredDetails?.length || 0) > 0 && (
+            <p className="mt-1 text-xs font-bold text-amber-200">
+              تسجيلات منتهية المدة: {data.expiredDetails.map((d) => `${d.programTitle} — المحصّل: ${cumulativeLabel(d)}`).join(' · ')}
+            </p>
+          )}
           {(data.absence || pendingTotal > 0) && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {data.absence && <FollowUpBadges f={data.absence} />}
