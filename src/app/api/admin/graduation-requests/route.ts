@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit, notify } from '@/lib/notify'
 import { registerGraduationRequest } from '@/lib/enrollment-completion'
-import { SEMESTER_DECISION_ACTIVE, raiseGateOf, type RaiseGate } from '@/lib/semester-decision'
+import { SEMESTER_DECISION_ACTIVE, isGraduationRaiseEligible, lockSemesterDecision, raiseGateOf, type RaiseGate } from '@/lib/semester-decision'
 import { getSemesterWindows } from '@/lib/semester-lifecycle'
 
 // معاملات التخرج: السجلّ المحفوظ الذي يوثّق فحص الأهلية والمصادقة الإدارية.
