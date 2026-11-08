@@ -65,6 +65,21 @@ function makeClient(opts?: { approval?: any; state?: any; examReadiness?: string
         decisions.set(k, row)
         return row
       },
+      updateMany: async ({ where, data }: any) => {
+        const k = key(where.enrollmentId, where.semester)
+        let existing = decisions.get(k)
+        if (!existing) return { count: 0 }
+        // سباق مُحاكى: التبديل يحدث قبل تقييم شرط الحالة، كما في قاعدة حقيقية
+        if ((opts as any)?.raceOnce && !(opts as any).__raced) {
+          ;(opts as any).__raced = true
+          ;(opts as any).raceOnce(existing, decisions, k)
+          existing = decisions.get(k)
+        }
+        const allowed: string[] = where.status?.in ?? []
+        if (!allowed.includes(existing.status)) return { count: 0 }
+        decisions.set(k, { ...existing, ...data })
+        return { count: 1 }
+      },
       create: async ({ data }: any) => {
         const row = { id: `dec-${decisions.size + 1}`, ...data }
         decisions.set(key(data.enrollmentId, data.semester), row)
@@ -146,7 +161,7 @@ describe('recordSemesterIntent — تسجيل اختيار الطالب', () => 
     const { client } = makeClient()
     const r = await recordSemesterIntent(client, {
       enrollmentId: 'enr-1', userId: 'user-1', semester: 1,
-      intent: 'EARLY_FINISH', scoreSnapshot: 61.5, mature: false, now: OPEN_NOW,
+      intent: 'EARLY_FINISH', scoreSnapshot: 61.5, maturity: { mature: false, score: null }, now: OPEN_NOW,
     })
     expect(r.ok).toBe(true)
     if (r.ok) {
@@ -160,7 +175,7 @@ describe('recordSemesterIntent — تسجيل اختيار الطالب', () => 
     const { client } = makeClient()
     const r = await recordSemesterIntent(client, {
       enrollmentId: 'enr-1', userId: 'user-1', semester: 1,
-      intent: 'EARLY_FINISH', scoreSnapshot: 61.5, mature: true, matureScore: 63, now: OPEN_NOW,
+      intent: 'EARLY_FINISH', scoreSnapshot: 61.5, maturity: { mature: true, score: 63 }, now: OPEN_NOW,
     })
     expect(r.ok).toBe(true)
     if (r.ok) {
@@ -173,11 +188,11 @@ describe('recordSemesterIntent — تسجيل اختيار الطالب', () => 
     const { client } = makeClient()
     const first = await recordSemesterIntent(client, {
       enrollmentId: 'enr-1', userId: 'user-1', semester: 1,
-      intent: 'EARLY_FINISH', mature: true, matureScore: 63, now: OPEN_NOW,
+      intent: 'EARLY_FINISH', maturity: { mature: true, score: 63 }, now: OPEN_NOW,
     })
     const second = await recordSemesterIntent(client, {
       enrollmentId: 'enr-1', userId: 'user-1', semester: 1,
-      intent: 'EARLY_FINISH', mature: true, matureScore: 70, now: new Date('2026-01-25T00:00:00Z'),
+      intent: 'EARLY_FINISH', maturity: { mature: true, score: 70 }, now: new Date('2026-01-25T00:00:00Z'),
     })
     expect(first.ok && second.ok).toBe(true)
     if (first.ok && second.ok) {
@@ -189,7 +204,7 @@ describe('recordSemesterIntent — تسجيل اختيار الطالب', () => 
     const { client } = makeClient()
     await recordSemesterIntent(client, {
       enrollmentId: 'enr-1', userId: 'user-1', semester: 1,
-      intent: 'EARLY_FINISH', mature: false, now: OPEN_NOW,
+      intent: 'EARLY_FINISH', maturity: { mature: false, score: null }, now: OPEN_NOW,
     })
     const r = await recordSemesterIntent(client, {
       enrollmentId: 'enr-1', userId: 'user-1', semester: 1,
@@ -205,7 +220,7 @@ describe('recordSemesterIntent — تسجيل اختيار الطالب', () => 
     const { client } = makeClient()
     await recordSemesterIntent(client, {
       enrollmentId: 'enr-1', userId: 'user-1', semester: 1,
-      intent: 'EARLY_FINISH', mature: true, now: OPEN_NOW,
+      intent: 'EARLY_FINISH', maturity: { mature: true, score: 50 }, now: OPEN_NOW,
     })
     const r = await recordSemesterIntent(client, {
       enrollmentId: 'enr-1', userId: 'user-1', semester: 1,
@@ -218,7 +233,7 @@ describe('recordSemesterIntent — تسجيل اختيار الطالب', () => 
     const { client } = makeClient()
     const r = await recordSemesterIntent(client, {
       enrollmentId: 'enr-1', userId: 'user-1', semester: 1,
-      intent: 'EARLY_FINISH', mature: true, now: ENDED_NOW,
+      intent: 'EARLY_FINISH', maturity: { mature: true, score: 50 }, now: ENDED_NOW,
     })
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.code).toBe('SEMESTER_PERIOD_ENDED')
@@ -227,7 +242,7 @@ describe('recordSemesterIntent — تسجيل اختيار الطالب', () => 
     const { client } = makeClient({ approval: { id: 'ap-1', status: 'APPROVED' } })
     const r = await recordSemesterIntent(client, {
       enrollmentId: 'enr-1', userId: 'user-1', semester: 1,
-      intent: 'EARLY_FINISH', mature: true, now: OPEN_NOW,
+      intent: 'EARLY_FINISH', maturity: { mature: true, score: 50 }, now: OPEN_NOW,
     })
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.code).toBe('SEMESTER_ALREADY_DECIDED')
@@ -247,12 +262,12 @@ describe('tryMatureSemesterRaise + withdrawSemesterRaise', () => {
     const { client } = makeClient()
     await recordSemesterIntent(client, {
       enrollmentId: 'enr-1', userId: 'user-1', semester: 1,
-      intent: 'EARLY_FINISH', scoreSnapshot: 55, mature: false, now: OPEN_NOW,
+      intent: 'EARLY_FINISH', scoreSnapshot: 55, maturity: { mature: false, score: null }, now: OPEN_NOW,
     })
-    const early = await tryMatureSemesterRaise(client, { enrollmentId: 'enr-1', semester: 1, mature: false })
+    const early = await tryMatureSemesterRaise(client, { enrollmentId: 'enr-1', semester: 1, maturity: { mature: false, score: null } })
     expect(early?.status).toBe('INTENT')
     const matured = await tryMatureSemesterRaise(client, {
-      enrollmentId: 'enr-1', semester: 1, mature: true, matureScore: 58, now: OPEN_NOW,
+      enrollmentId: 'enr-1', semester: 1, maturity: { mature: true, score: 58 }, now: OPEN_NOW,
     })
     expect(matured?.status).toBe('RAISED')
     expect(matured?.raiseSource).toBe('STUDENT')
@@ -262,7 +277,7 @@ describe('tryMatureSemesterRaise + withdrawSemesterRaise', () => {
     const { client } = makeClient()
     await recordSemesterIntent(client, {
       enrollmentId: 'enr-1', userId: 'user-1', semester: 1,
-      intent: 'EARLY_FINISH', mature: true, now: OPEN_NOW,
+      intent: 'EARLY_FINISH', maturity: { mature: true, score: 50 }, now: OPEN_NOW,
     })
     const r = await withdrawSemesterRaise(client, {
       enrollmentId: 'enr-1', userId: 'user-1', semester: 1, now: OPEN_NOW,
@@ -276,7 +291,7 @@ describe('tryMatureSemesterRaise + withdrawSemesterRaise', () => {
     const { client } = makeClient()
     await recordSemesterIntent(client, {
       enrollmentId: 'enr-1', userId: 'user-1', semester: 1,
-      intent: 'EARLY_FINISH', mature: true, now: OPEN_NOW,
+      intent: 'EARLY_FINISH', maturity: { mature: true, score: 50 }, now: OPEN_NOW,
     })
     const r = await withdrawSemesterRaise(client, {
       enrollmentId: 'enr-1', userId: 'user-1', semester: 1, now: ENDED_NOW,
@@ -305,7 +320,7 @@ describe('markSemesterDecided — ختم القرار عند اعتماد الإ
     const { client } = makeClient()
     await recordSemesterIntent(client, {
       enrollmentId: 'enr-1', userId: 'user-1', semester: 1,
-      intent: 'EARLY_FINISH', mature: true, now: OPEN_NOW,
+      intent: 'EARLY_FINISH', maturity: { mature: true, score: 50 }, now: OPEN_NOW,
     })
     await markSemesterDecided(client, { enrollmentId: 'enr-1', semester: 1, periodEnded: false, now: OPEN_NOW })
     const d = await getSemesterDecision(client, 'enr-1', 1)
@@ -321,5 +336,97 @@ describe('markSemesterDecided — ختم القرار عند اعتماد الإ
     const d = await getSemesterDecision(client, 'enr-1', 1)
     expect(d?.status).toBe('DECIDED')
     expect(d?.raiseSource).toBe('DEADLINE')
+  })
+})
+
+describe('تحصين التزامن والنطاق والربط (إغلاق ملاحظات المرحلة 1)', () => {
+  test('طالب آخر لا يملك التسجيل: الرفض كأن التسجيل غير موجود', async () => {
+    const { client } = makeClient()
+    const r = await recordSemesterIntent(client, {
+      enrollmentId: 'enr-1', userId: 'user-OTHER', semester: 1,
+      intent: 'EARLY_FINISH', maturity: { mature: true, score: 50 }, now: OPEN_NOW,
+    })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.code).toBe('ENROLLMENT_NOT_FOUND')
+  })
+  test('فصل خارج نطاق البرنامج مرفوض في التسجيل والسحب', async () => {
+    const { client } = makeClient()
+    const r = await recordSemesterIntent(client, {
+      enrollmentId: 'enr-1', userId: 'user-1', semester: 3,
+      intent: 'EARLY_FINISH', maturity: { mature: true, score: 50 }, now: OPEN_NOW,
+    })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.code).toBe('INVALID_SEMESTER')
+    const w = await withdrawSemesterRaise(client, {
+      enrollmentId: 'enr-1', userId: 'user-1', semester: 3, now: OPEN_NOW,
+    })
+    expect(w.ok).toBe(false)
+    if (!w.ok) expect(w.code).toBe('INVALID_SEMESTER')
+  })
+  test('طلب مسحوب لا يبعثه تصحيح متأخر أبدًا', async () => {
+    const { client } = makeClient()
+    await recordSemesterIntent(client, {
+      enrollmentId: 'enr-1', userId: 'user-1', semester: 1,
+      intent: 'EARLY_FINISH', maturity: { mature: false, score: null }, now: OPEN_NOW,
+    })
+    await withdrawSemesterRaise(client, {
+      enrollmentId: 'enr-1', userId: 'user-1', semester: 1, now: OPEN_NOW,
+    })
+    const after = await tryMatureSemesterRaise(client, {
+      enrollmentId: 'enr-1', semester: 1, maturity: { mature: true, score: 80 }, now: OPEN_NOW,
+    })
+    expect(after?.status).toBe('WITHDRAWN')
+  })
+  test('سباق: قرار إدارة يهبط أثناء السحب — السحب يرفض ولا يطغى على القرار', async () => {
+    const raced = makeClient({
+      raceOnce: (existing: any, decisions: Map<string, any>, k: string) => {
+        decisions.set(k, { ...existing, status: 'DECIDED', decidedAt: new Date() })
+      },
+    } as any)
+    await recordSemesterIntent(raced.client, {
+      enrollmentId: 'enr-1', userId: 'user-1', semester: 1,
+      intent: 'EARLY_FINISH', maturity: { mature: true, score: 50 }, now: OPEN_NOW,
+    })
+    const w = await withdrawSemesterRaise(raced.client, {
+      enrollmentId: 'enr-1', userId: 'user-1', semester: 1, now: OPEN_NOW,
+    })
+    // التحديث المشروط لم يجد RAISED (سبقه القرار) فرفض بدل الكتابة فوقه
+    expect(w.ok).toBe(false)
+    const d = await getSemesterDecision(raced.client, 'enr-1', 1)
+    expect(d?.status).toBe('DECIDED')
+  })
+  test('فشل حفظ ختم القرار ينتشر ولا يُبتلع (الاعتماد يجب أن يرتد)', async () => {
+    const { client } = makeClient()
+    await recordSemesterIntent(client, {
+      enrollmentId: 'enr-1', userId: 'user-1', semester: 1,
+      intent: 'EARLY_FINISH', maturity: { mature: true, score: 50 }, now: OPEN_NOW,
+    })
+    client.semesterDecision.update = async () => {
+      throw new Error('db write failed')
+    }
+    await expect(
+      markSemesterDecided(client, { enrollmentId: 'enr-1', semester: 1, periodEnded: false, now: OPEN_NOW }),
+    ).rejects.toThrow('db write failed')
+  })
+})
+
+describe('سباق النضج ضد السحب — طبقة التحديث المشروط نفسها', () => {
+  test('سحب يهبط بين قراءة النية وكتابة الرفع: الرفع لا يحدث', async () => {
+    const raced = makeClient({
+      raceOnce: (existing: any, decisions: Map<string, any>, k: string) => {
+        decisions.set(k, { ...existing, status: 'WITHDRAWN', withdrawnAt: new Date() })
+      },
+    } as any)
+    await recordSemesterIntent(raced.client, {
+      enrollmentId: 'enr-1', userId: 'user-1', semester: 1,
+      intent: 'EARLY_FINISH', maturity: { mature: false, score: null }, now: OPEN_NOW,
+    })
+    const after = await tryMatureSemesterRaise(raced.client, {
+      enrollmentId: 'enr-1', semester: 1, maturity: { mature: true, score: 88 }, now: OPEN_NOW,
+    })
+    expect(after?.status).toBe('WITHDRAWN')
+    const stored = await getSemesterDecision(raced.client, 'enr-1', 1)
+    expect(stored?.status).toBe('WITHDRAWN')
+    expect(stored?.scoreAtRaise).toBeNull()
   })
 })

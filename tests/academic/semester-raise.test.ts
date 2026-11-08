@@ -1,0 +1,164 @@
+import { describe, expect, mock, test } from 'bun:test'
+
+// ===== اشتقاق نضج الرفع على الخادم =====
+// النضج لا يصل من أي مستدعٍ: يُشتق هنا من وقائع الامتحان والتصحيح —
+// امتحان منشور، والطالب جلسه فعلًا، ولا عمل مقدَّم مفتوح (ماسح الموانع
+// فارغ). اختبار وحدة أو واجب غير مقدَّم لا يمنع النضج: اختيار الطالب
+// الصريح هو ما يقبل صفره الحسابي.
+
+const facts = {
+  blockers: [] as { code: string; count: number }[],
+  satCount: 0,
+  readyExams: 1,
+  average: 63.25 as number | null,
+}
+
+mock.module('@/lib/db', () => ({ db: {} }))
+mock.module('@/lib/notify', () => ({
+  audit: async () => {},
+  notify: async () => {},
+  notifyAdmins: async () => {},
+}))
+mock.module('@/lib/semester-approval', () => ({
+  collectSemesterApprovalBlockers: async () => facts.blockers,
+}))
+mock.module('@/lib/semester-grade', () => ({
+  calculateSemesterAverages: async () => ({
+    semesters: [{ semester: 1, average: facts.average, gradesComplete: false }],
+  }),
+}))
+mock.module('@/lib/student-standing', () => ({
+  getSemesterStanding: async () => ({
+    programExams: { ready: facts.readyExams, satCount: facts.satCount, rows: [] },
+  }),
+}))
+
+const { computeSemesterRaiseMaturity, requestSemesterDecision, matureSemesterRaiseIfReady } = await import(
+  '../../src/lib/semester-raise'
+)
+const { getSemesterDecision } = await import('../../src/lib/semester-decision')
+
+const CREATED = new Date(Date.now() - 5 * 86400000) // قبل 5 أيام: نافذة الفصل الأول مفتوحة بالساعة الحقيقية
+
+function makeClient() {
+  const decisions = new Map<string, any>()
+  const key = (enrollmentId: string, semester: number) => `${enrollmentId}:${semester}`
+  const client: any = {
+    enrollment: {
+      findUnique: async () => ({
+        id: 'enr-1',
+        userId: 'user-1',
+        programId: 'prog-1',
+        createdAt: CREATED,
+        extensionDays: 0,
+        program: { category: 'DIPLOMA', maxStudyDays: 90, semestersCount: 2 },
+      }),
+    },
+    unit: {
+      findMany: async () => [
+        { id: 'u1', semester: 1, order: 1 },
+        { id: 'u2', semester: 2, order: 1 },
+      ],
+    },
+    semesterDecision: {
+      findUnique: async ({ where }: any) =>
+        decisions.get(key(where.enrollmentId_semester.enrollmentId, where.enrollmentId_semester.semester)) ?? null,
+      create: async ({ data }: any) => {
+        const row = { id: `dec-${decisions.size + 1}`, ...data }
+        decisions.set(key(data.enrollmentId, data.semester), row)
+        return row
+      },
+      update: async ({ where, data }: any) => {
+        const k = key(where.enrollmentId_semester.enrollmentId, where.enrollmentId_semester.semester)
+        const row = { ...decisions.get(k), ...data }
+        decisions.set(k, row)
+        return row
+      },
+      updateMany: async ({ where, data }: any) => {
+        const k = key(where.enrollmentId, where.semester)
+        const existing = decisions.get(k)
+        if (!existing || !(where.status?.in ?? []).includes(existing.status)) return { count: 0 }
+        decisions.set(k, { ...existing, ...data })
+        return { count: 1 }
+      },
+    },
+    semesterResultApproval: { findUnique: async () => null },
+    enrollmentSemesterState: { findUnique: async () => null },
+  }
+  return client
+}
+
+const ctx = {
+  enrollmentId: 'enr-1',
+  userId: 'user-1',
+  programId: 'prog-1',
+  semester: 1,
+  enrollment: { createdAt: CREATED, status: 'ACTIVE', extensionDays: 0 },
+  program: { category: 'DIPLOMA', maxStudyDays: 90, semestersCount: 2 },
+}
+
+function resetFacts(patch: Partial<typeof facts>) {
+  facts.blockers = patch.blockers ?? []
+  facts.satCount = patch.satCount ?? 0
+  facts.readyExams = patch.readyExams ?? 1
+  facts.average = patch.average === undefined ? 63.25 : patch.average
+}
+
+describe('computeSemesterRaiseMaturity — الاشتقاق الخادمي', () => {
+  test('امتحان مجلوس + لا موانع + منشور = ناضج بلقطة المعدل الخادمية', async () => {
+    resetFacts({ satCount: 1 })
+    const m = await computeSemesterRaiseMaturity(makeClient(), ctx as any)
+    expect(m.mature).toBe(true)
+    expect(m.score).toBe(63.25)
+    expect(m.examTaken).toBe(true)
+  })
+  test('امتحان لم يُجلس: لا نضج ولو فرغت الموانع (لا صفر مفترض أثناء الفترة)', async () => {
+    resetFacts({ satCount: 0 })
+    const m = await computeSemesterRaiseMaturity(makeClient(), ctx as any)
+    expect(m.mature).toBe(false)
+    expect(m.examTaken).toBe(false)
+  })
+  test('عمل مقدَّم قيد التصحيح يمنع النضج', async () => {
+    resetFacts({ satCount: 1, blockers: [{ code: 'PROGRAM_EXAM_UNGRADED', count: 1 }] })
+    const m = await computeSemesterRaiseMaturity(makeClient(), ctx as any)
+    expect(m.mature).toBe(false)
+    expect(m.blockers.length).toBe(1)
+  })
+  test('لا امتحان منشور أصلًا: لا نضج', async () => {
+    resetFacts({ satCount: 0, readyExams: 0 })
+    const m = await computeSemesterRaiseMaturity(makeClient(), ctx as any)
+    expect(m.mature).toBe(false)
+    expect(m.examPublished).toBe(false)
+  })
+})
+
+describe('requestSemesterDecision / matureSemesterRaiseIfReady', () => {
+  test('طلب إنهاء مبكر والامتحان غير مجلوس: يُحفظ نية ولا يرفع', async () => {
+    resetFacts({ satCount: 0 })
+    const client = makeClient()
+    const r = await requestSemesterDecision(client, { ...ctx, intent: 'EARLY_FINISH' } as any)
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.decision?.status).toBe('INTENT')
+  })
+  test('بعد جلوس الامتحان وفراغ الموانع: النية تنضج عبر مسار التصحيح', async () => {
+    resetFacts({ satCount: 0 })
+    const client = makeClient()
+    await requestSemesterDecision(client, { ...ctx, intent: 'EARLY_FINISH' } as any)
+    resetFacts({ satCount: 1 })
+    const { decision } = await matureSemesterRaiseIfReady(client, ctx as any)
+    expect(decision?.status).toBe('RAISED')
+    expect(decision?.scoreAtRaise).toBe(63.25)
+    const stored = await getSemesterDecision(client, 'enr-1', 1)
+    expect(stored?.status).toBe('RAISED')
+  })
+  test('طلب مباشر والشروط مكتملة: يرفع فورًا', async () => {
+    resetFacts({ satCount: 1 })
+    const client = makeClient()
+    const r = await requestSemesterDecision(client, { ...ctx, intent: 'EARLY_FINISH' } as any)
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.decision?.status).toBe('RAISED')
+      expect(r.decision?.raiseSource).toBe('STUDENT')
+    }
+  })
+})

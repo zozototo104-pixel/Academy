@@ -12,18 +12,29 @@ import { getSemesterWindows } from '@/lib/semester-lifecycle'
 //
 // Closure right (the administration may approve a semester result) is
 // granted by exactly two sources: a MATURED student raise (the student
-// asked for early finalization AND the conditions matured: semester
-// exam taken and graded, submitted work final), or the END of the
-// semester's own period (the existing window computation, extensions
-// included). An unsubmitted item is computationally zero in the
-// average long before either source exists; it becomes FINAL for
-// approval only once a closure right exists. Submitted work still
+// asked for early finalization AND the server-derived maturity held:
+// semester exam taken and graded, submitted work final), or the END
+// of the semester's own period (the existing window computation,
+// extensions included). An unsubmitted item is computationally zero
+// in the average long before either source exists; it becomes FINAL
+// for approval only once a closure right exists. Submitted work still
 // being graded or appealed blocks approval under every source.
 //
-// ACTIVATION VALVE: stage 1 ships the record, the evaluator and the
-// server guard with the valve OFF, so no user-visible behavior changes
-// until the student-facing choice UI exists (stage 2) and the
-// contextual-finality fix lands (stage 3 flips this to true).
+// CONCURRENCY LAW: every state transition is a status-conditioned
+// update (updateMany on the expected prior status, count-checked) —
+// a withdrawn request can never be resurrected by a late grading
+// event, and a decided record can never be overwritten. On the real
+// database the public transitions additionally run inside one
+// transaction holding a per-(enrollment, semester) advisory lock,
+// the same lock the approval guard takes, so a withdrawal and an
+// approval can never interleave. Maturity is NEVER taken from a
+// caller: routes go through src/lib/semester-raise.ts, which derives
+// it from the actual exam/grading state on the server.
+//
+// ACTIVATION VALVE: the record, the evaluator and the server guard
+// ship with the valve OFF, so no user-visible behavior changes until
+// the student-facing choice UI exists (stage 2) and the contextual-
+// finality fix lands (stage 3 flips this to true).
 
 export const SEMESTER_DECISION_ACTIVE = false
 
@@ -58,6 +69,42 @@ export async function getSemesterDecision(
     .findUnique({ where: { enrollmentId_semester: { enrollmentId, semester } } })
     .catch(() => null)
   return (row as SemesterDecisionRecord) ?? null
+}
+
+/** Serializes every decision transition for one (enrollment, semester)
+ * on the real database: an advisory transaction lock keyed by the
+ * pair. The approval guard takes the same lock inside its own
+ * transaction, so approve/withdraw/record can never interleave.
+ * A client without $queryRaw (test doubles) simply skips the lock —
+ * the status-conditioned updates still guard those paths. A lock
+ * FAILURE on a capable client throws: a silently unlocked transition
+ * is worse than a failed one. */
+export async function lockSemesterDecision(
+  client: AnyClient,
+  enrollmentId: string,
+  semester: number,
+): Promise<void> {
+  if (!client?.$queryRaw) return
+  const key = `semester-decision:${enrollmentId}:${semester}`
+  await client.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${key}))`
+}
+
+/** Runs a decision transition under the pair lock when the client is
+ * the real database (exposes $transaction); test doubles run directly
+ * and rely on the status-conditioned updates alone. */
+async function withDecisionLock<T>(
+  client: AnyClient,
+  enrollmentId: string,
+  semester: number,
+  fn: (tx: AnyClient) => Promise<T>,
+): Promise<T> {
+  if (typeof client?.$transaction === 'function') {
+    return client.$transaction(async (tx: AnyClient) => {
+      await lockSemesterDecision(tx, enrollmentId, semester)
+      return fn(tx)
+    })
+  }
+  return fn(client)
 }
 
 /** The semester's own period end from the ONE window computation the
@@ -145,6 +192,13 @@ async function loadEnrollmentContext(client: AnyClient, enrollmentId: string): P
   return (row as EnrollmentContext) ?? null
 }
 
+function semesterInRange(enrollment: EnrollmentContext, semester: number): boolean {
+  if (!Number.isInteger(semester) || semester < 1) return false
+  const count = enrollment.program?.semestersCount
+  if (count != null && semester > count) return false
+  return true
+}
+
 async function semesterAlreadyDecided(client: AnyClient, enrollmentId: string, semester: number): Promise<boolean> {
   const approvalStore = (client as AnyClient)?.semesterResultApproval
   if (approvalStore?.findUnique) {
@@ -163,18 +217,168 @@ async function semesterAlreadyDecided(client: AnyClient, enrollmentId: string, s
   return false
 }
 
+/** Status-conditioned transition: applies `data` only while the stored
+ * status is one of `expected`. Returns the affected row count — 0 means
+ * a concurrent transition won the race and the caller must re-read and
+ * classify instead of overwriting. */
+async function transition(
+  client: AnyClient,
+  enrollmentId: string,
+  semester: number,
+  expected: string[],
+  data: Record<string, unknown>,
+): Promise<number> {
+  const store = (client as AnyClient)?.semesterDecision
+  if (!store?.updateMany) return 0
+  const res = await store.updateMany({
+    where: { enrollmentId, semester, status: { in: expected } },
+    data,
+  })
+  return Number(res?.count ?? 0)
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return (error as { code?: string } | null)?.code === 'P2002'
+}
+
 export type RecordIntentResult =
   | { ok: true; decision: SemesterDecisionRecord }
   | { ok: false; code: 'ENROLLMENT_NOT_FOUND' | 'SEMESTER_ALREADY_DECIDED' | 'SEMESTER_PERIOD_ENDED' | 'SEMESTER_ALREADY_RAISED' | 'INVALID_SEMESTER' }
 
+/** The maturity seam is INTERNAL: `maturity` is derived on the server by
+ * src/lib/semester-raise.ts from the actual exam/grading state. No HTTP
+ * handler may pass it — routes call the semester-raise orchestrators. */
+export type RaiseMaturity = { mature: boolean; score: number | null }
+
+async function recordSemesterIntentTx(
+  tx: AnyClient,
+  input: {
+    enrollmentId: string
+    userId: string
+    semester: number
+    intent: SemesterIntent
+    scoreSnapshot?: number | null
+    maturity?: RaiseMaturity
+    now?: Date
+  },
+): Promise<RecordIntentResult> {
+  const maturity: RaiseMaturity = input.maturity ?? { mature: false, score: null }
+  const enrollment = await loadEnrollmentContext(tx, input.enrollmentId)
+  if (!enrollment || enrollment.userId !== input.userId) return { ok: false, code: 'ENROLLMENT_NOT_FOUND' }
+  if (!semesterInRange(enrollment, input.semester)) return { ok: false, code: 'INVALID_SEMESTER' }
+  if (await semesterAlreadyDecided(tx, input.enrollmentId, input.semester)) {
+    return { ok: false, code: 'SEMESTER_ALREADY_DECIDED' }
+  }
+  const period = await loadSemesterPeriod(tx, {
+    programId: enrollment.programId,
+    enrollmentCreatedAt: enrollment.createdAt,
+    extensionDays: enrollment.extensionDays,
+    program: enrollment.program || {},
+    semester: input.semester,
+    now: input.now,
+  })
+  if (period.ended) return { ok: false, code: 'SEMESTER_PERIOD_ENDED' }
+
+  const store = (tx as AnyClient)?.semesterDecision
+  if (!store?.updateMany || !store?.create) return { ok: false, code: 'ENROLLMENT_NOT_FOUND' }
+  const existing = await getSemesterDecision(tx, input.enrollmentId, input.semester)
+  if (existing?.status === 'DECIDED') return { ok: false, code: 'SEMESTER_ALREADY_DECIDED' }
+  const now = input.now ?? new Date()
+
+  if (input.intent === 'CONTINUE') {
+    if (existing?.status === 'RAISED') return { ok: false, code: 'SEMESTER_ALREADY_RAISED' }
+    if (!existing) {
+      const row = await store.create({
+        data: {
+          enrollmentId: input.enrollmentId,
+          semester: input.semester,
+          intent: 'CONTINUE',
+          status: 'NONE',
+          intentAt: now,
+        },
+      })
+      return { ok: true, decision: row as SemesterDecisionRecord }
+    }
+    if (existing.intent === 'CONTINUE' && existing.status !== 'INTENT') {
+      return { ok: true, decision: existing }
+    }
+    const count = await transition(tx, input.enrollmentId, input.semester, ['INTENT', 'NONE', 'WITHDRAWN'], {
+      intent: 'CONTINUE',
+      status: 'NONE',
+      intentAt: now,
+      withdrawnAt: null,
+    })
+    const current = await getSemesterDecision(tx, input.enrollmentId, input.semester)
+    if (count === 0) {
+      if (current?.status === 'RAISED') return { ok: false, code: 'SEMESTER_ALREADY_RAISED' }
+      if (current?.status === 'DECIDED') return { ok: false, code: 'SEMESTER_ALREADY_DECIDED' }
+    }
+    return { ok: true, decision: current }
+  }
+
+  // EARLY_FINISH
+  if (existing?.status === 'RAISED' && existing?.intent === 'EARLY_FINISH') {
+    return { ok: true, decision: existing }
+  }
+  const matures = maturity.mature === true
+  const data = {
+    intent: 'EARLY_FINISH',
+    status: matures ? 'RAISED' : 'INTENT',
+    raiseSource: matures ? 'STUDENT' : null,
+    intentAt: now,
+    raisedAt: matures ? now : null,
+    withdrawnAt: null,
+    scoreAtIntent: input.scoreSnapshot ?? existing?.scoreAtIntent ?? null,
+    scoreAtRaise: matures ? maturity.score ?? input.scoreSnapshot ?? null : null,
+  }
+  if (!existing) {
+    try {
+      const row = await store.create({
+        data: { enrollmentId: input.enrollmentId, semester: input.semester, ...data },
+      })
+      await audit(
+        { id: input.userId, name: 'طالب' },
+        matures ? 'SEMESTER_RAISED' : 'SEMESTER_INTENT_EARLY_FINISH',
+        'Enrollment',
+        input.enrollmentId,
+        `semester ${input.semester}`,
+      ).catch(() => {})
+      return { ok: true, decision: row as SemesterDecisionRecord }
+    } catch (error) {
+      if (!isUniqueViolation(error)) throw error
+      const current = await getSemesterDecision(tx, input.enrollmentId, input.semester)
+      if (current?.status === 'RAISED' && current?.intent === 'EARLY_FINISH') {
+        return { ok: true, decision: current }
+      }
+      if (current?.status === 'DECIDED') return { ok: false, code: 'SEMESTER_ALREADY_DECIDED' }
+      return { ok: true, decision: current }
+    }
+  }
+  const count = await transition(tx, input.enrollmentId, input.semester, ['NONE', 'INTENT', 'WITHDRAWN'], data)
+  const current = await getSemesterDecision(tx, input.enrollmentId, input.semester)
+  if (count === 0) {
+    if (current?.status === 'DECIDED') return { ok: false, code: 'SEMESTER_ALREADY_DECIDED' }
+    if (current?.status === 'RAISED' && current?.intent === 'EARLY_FINISH') {
+      return { ok: true, decision: current }
+    }
+  }
+  await audit(
+    { id: input.userId, name: 'طالب' },
+    matures ? 'SEMESTER_RAISED' : 'SEMESTER_INTENT_EARLY_FINISH',
+    'Enrollment',
+    input.enrollmentId,
+    `semester ${input.semester}`,
+  ).catch(() => {})
+  return { ok: true, decision: current }
+}
+
 /**
- * Records the student's explicit choice for one semester. The caller
- * (student route) computes maturity from the grading facts: an
- * EARLY_FINISH choice matures to RAISED only when the semester exam
- * has been taken and graded and no submitted work is still open;
- * otherwise the intent is stored and matures later. Repeating the
- * same choice is idempotent. A CONTINUE choice cancels an unmatured
- * early-finish intent; a matured raise is left to the withdraw path.
+ * Records the student's explicit choice for one semester, under the
+ * pair lock. An EARLY_FINISH choice matures to RAISED only when the
+ * server-derived maturity holds; otherwise the intent is stored and
+ * matures later. Repeating the same choice is idempotent. A CONTINUE
+ * choice cancels an unmatured early-finish intent; a matured raise is
+ * left to the withdraw path.
  */
 export async function recordSemesterIntent(
   client: AnyClient,
@@ -184,186 +388,110 @@ export async function recordSemesterIntent(
     semester: number
     intent: SemesterIntent
     scoreSnapshot?: number | null
-    mature?: boolean
-    matureScore?: number | null
+    maturity?: RaiseMaturity
     now?: Date
   },
 ): Promise<RecordIntentResult> {
-  const enrollment = await loadEnrollmentContext(client, input.enrollmentId)
-  if (!enrollment || enrollment.userId !== input.userId) return { ok: false, code: 'ENROLLMENT_NOT_FOUND' }
-  if (!Number.isInteger(input.semester) || input.semester < 1) return { ok: false, code: 'INVALID_SEMESTER' }
-  if (await semesterAlreadyDecided(client, input.enrollmentId, input.semester)) {
-    return { ok: false, code: 'SEMESTER_ALREADY_DECIDED' }
-  }
-  const period = await loadSemesterPeriod(client, {
-    programId: enrollment.programId,
-    enrollmentCreatedAt: enrollment.createdAt,
-    extensionDays: enrollment.extensionDays,
-    program: enrollment.program || {},
-    semester: input.semester,
-    now: input.now,
-  })
-  if (period.ended) return { ok: false, code: 'SEMESTER_PERIOD_ENDED' }
-
-  const store = (client as AnyClient)?.semesterDecision
-  if (!store?.upsert) return { ok: false, code: 'ENROLLMENT_NOT_FOUND' }
-  const existing = await getSemesterDecision(client, input.enrollmentId, input.semester)
-  const now = input.now ?? new Date()
-
-  if (input.intent === 'CONTINUE') {
-    if (existing?.status === 'RAISED') return { ok: false, code: 'SEMESTER_ALREADY_RAISED' }
-    if (existing?.intent === 'CONTINUE' && existing?.status !== 'INTENT') {
-      return { ok: true, decision: existing }
-    }
-    const row = await store.upsert({
-      where: { enrollmentId_semester: { enrollmentId: input.enrollmentId, semester: input.semester } },
-      create: {
-        enrollmentId: input.enrollmentId,
-        semester: input.semester,
-        intent: 'CONTINUE',
-        status: 'NONE',
-        intentAt: now,
-      },
-      update: { intent: 'CONTINUE', status: 'NONE', intentAt: now, withdrawnAt: null },
-    })
-    await audit(
-      { id: input.userId, name: 'طالب' },
-      'SEMESTER_INTENT_CONTINUE',
-      'Enrollment',
-      input.enrollmentId,
-      `semester ${input.semester}`,
-    ).catch(() => {})
-    return { ok: true, decision: row as SemesterDecisionRecord }
-  }
-
-  // EARLY_FINISH
-  if (existing?.status === 'RAISED' && existing?.intent === 'EARLY_FINISH') {
-    return { ok: true, decision: existing }
-  }
-  const matures = input.mature === true
-  const row = await store.upsert({
-    where: { enrollmentId_semester: { enrollmentId: input.enrollmentId, semester: input.semester } },
-    create: {
-      enrollmentId: input.enrollmentId,
-      semester: input.semester,
-      intent: 'EARLY_FINISH',
-      status: matures ? 'RAISED' : 'INTENT',
-      raiseSource: matures ? 'STUDENT' : null,
-      intentAt: now,
-      raisedAt: matures ? now : null,
-      scoreAtIntent: input.scoreSnapshot ?? null,
-      scoreAtRaise: matures ? input.matureScore ?? input.scoreSnapshot ?? null : null,
-    },
-    update: {
-      intent: 'EARLY_FINISH',
-      status: matures ? 'RAISED' : 'INTENT',
-      raiseSource: matures ? 'STUDENT' : null,
-      intentAt: now,
-      raisedAt: matures ? now : existing?.raisedAt ?? null,
-      withdrawnAt: null,
-      scoreAtIntent: input.scoreSnapshot ?? existing?.scoreAtIntent ?? null,
-      scoreAtRaise: matures ? input.matureScore ?? input.scoreSnapshot ?? null : existing?.scoreAtRaise ?? null,
-    },
-  })
-  await audit(
-    { id: input.userId, name: 'طالب' },
-    matures ? 'SEMESTER_RAISED' : 'SEMESTER_INTENT_EARLY_FINISH',
-    'Enrollment',
-    input.enrollmentId,
-    `semester ${input.semester}`,
-  ).catch(() => {})
-  return { ok: true, decision: row as SemesterDecisionRecord }
+  return withDecisionLock(client, input.enrollmentId, input.semester, (tx) =>
+    recordSemesterIntentTx(tx, input),
+  )
 }
 
 /**
- * Matures a stored EARLY_FINISH intent into a raise once the grading
- * facts allow it. The caller computes maturity (semester exam taken
- * and graded + no open submitted work); this function owns the state
- * transition and its idempotency, so grading flows, appeals and reads
- * can all safely attempt maturation.
+ * Matures a stored EARLY_FINISH intent into a raise once the
+ * server-derived maturity holds. The transition is conditioned on the
+ * stored status still being INTENT — a request the student withdrew
+ * in the meantime is NEVER resurrected by a late grading event, and a
+ * decided semester is never touched.
  */
 export async function tryMatureSemesterRaise(
   client: AnyClient,
-  input: { enrollmentId: string; semester: number; mature: boolean; matureScore?: number | null; now?: Date },
+  input: { enrollmentId: string; semester: number; maturity: RaiseMaturity; now?: Date },
 ): Promise<SemesterDecisionRecord> {
-  const existing = await getSemesterDecision(client, input.enrollmentId, input.semester)
-  if (!existing || existing.status !== 'INTENT' || existing.intent !== 'EARLY_FINISH' || !input.mature) {
-    return existing
-  }
-  const store = (client as AnyClient)?.semesterDecision
-  if (!store?.update) return existing
-  const now = input.now ?? new Date()
-  const row = await store
-    .update({
-      where: { enrollmentId_semester: { enrollmentId: input.enrollmentId, semester: input.semester } },
-      data: {
-        status: 'RAISED',
-        raiseSource: 'STUDENT',
-        raisedAt: now,
-        scoreAtRaise: input.matureScore ?? existing.scoreAtIntent ?? null,
-      },
+  return withDecisionLock(client, input.enrollmentId, input.semester, async (tx) => {
+    const existing = await getSemesterDecision(tx, input.enrollmentId, input.semester)
+    if (!existing || existing.status !== 'INTENT' || existing.intent !== 'EARLY_FINISH' || !input.maturity.mature) {
+      return existing
+    }
+    const now = input.now ?? new Date()
+    const count = await transition(tx, input.enrollmentId, input.semester, ['INTENT'], {
+      status: 'RAISED',
+      raiseSource: 'STUDENT',
+      raisedAt: now,
+      scoreAtRaise: input.maturity.score ?? existing.scoreAtIntent ?? null,
     })
-    .catch(() => null)
-  if (row) {
-    await audit(
-      null,
-      'SEMESTER_RAISED',
-      'Enrollment',
-      input.enrollmentId,
-      `semester ${input.semester} (matured)`,
-    ).catch(() => {})
-  }
-  return (row as SemesterDecisionRecord) ?? existing
+    const current = await getSemesterDecision(tx, input.enrollmentId, input.semester)
+    if (count > 0) {
+      await audit(
+        null,
+        'SEMESTER_RAISED',
+        'Enrollment',
+        input.enrollmentId,
+        `semester ${input.semester} (matured)`,
+      ).catch(() => {})
+    }
+    return current
+  })
 }
 
 export type WithdrawResult =
   | { ok: true; decision: SemesterDecisionRecord }
-  | { ok: false; code: 'ENROLLMENT_NOT_FOUND' | 'SEMESTER_ALREADY_DECIDED' | 'SEMESTER_PERIOD_ENDED' | 'NO_ACTIVE_RAISE' }
+  | { ok: false; code: 'ENROLLMENT_NOT_FOUND' | 'SEMESTER_ALREADY_DECIDED' | 'SEMESTER_PERIOD_ENDED' | 'NO_ACTIVE_RAISE' | 'INVALID_SEMESTER' }
 
 /**
- * Withdraws an intent or a matured raise. Allowed only while the
- * administration has not decided AND the semester period is still
- * open — after the period ends, withdrawal cannot resurrect time and
- * the deadline path (or an extension) governs instead. A changed
- * grade after the raise never cancels this right by itself.
+ * Withdraws an intent or a matured raise, under the pair lock. Allowed
+ * only while the administration has not decided AND the semester
+ * period is still open — after the period ends, withdrawal cannot
+ * resurrect time and the deadline path (or an extension) governs
+ * instead. A changed grade after the raise never cancels this right
+ * by itself. The transition is conditioned on INTENT/RAISED, so a
+ * decision stamped in the meantime wins and the withdrawal refuses.
  */
 export async function withdrawSemesterRaise(
   client: AnyClient,
   input: { enrollmentId: string; userId: string; semester: number; now?: Date },
 ): Promise<WithdrawResult> {
-  const enrollment = await loadEnrollmentContext(client, input.enrollmentId)
-  if (!enrollment || enrollment.userId !== input.userId) return { ok: false, code: 'ENROLLMENT_NOT_FOUND' }
-  if (await semesterAlreadyDecided(client, input.enrollmentId, input.semester)) {
-    return { ok: false, code: 'SEMESTER_ALREADY_DECIDED' }
-  }
-  const period = await loadSemesterPeriod(client, {
-    programId: enrollment.programId,
-    enrollmentCreatedAt: enrollment.createdAt,
-    extensionDays: enrollment.extensionDays,
-    program: enrollment.program || {},
-    semester: input.semester,
-    now: input.now,
+  return withDecisionLock(client, input.enrollmentId, input.semester, async (tx) => {
+    const enrollment = await loadEnrollmentContext(tx, input.enrollmentId)
+    if (!enrollment || enrollment.userId !== input.userId) return { ok: false, code: 'ENROLLMENT_NOT_FOUND' }
+    if (!semesterInRange(enrollment, input.semester)) return { ok: false, code: 'INVALID_SEMESTER' }
+    if (await semesterAlreadyDecided(tx, input.enrollmentId, input.semester)) {
+      return { ok: false, code: 'SEMESTER_ALREADY_DECIDED' }
+    }
+    const period = await loadSemesterPeriod(tx, {
+      programId: enrollment.programId,
+      enrollmentCreatedAt: enrollment.createdAt,
+      extensionDays: enrollment.extensionDays,
+      program: enrollment.program || {},
+      semester: input.semester,
+      now: input.now,
+    })
+    if (period.ended) return { ok: false, code: 'SEMESTER_PERIOD_ENDED' }
+    const existing = await getSemesterDecision(tx, input.enrollmentId, input.semester)
+    if (!existing || (existing.status !== 'INTENT' && existing.status !== 'RAISED')) {
+      return { ok: false, code: 'NO_ACTIVE_RAISE' }
+    }
+    const now = input.now ?? new Date()
+    const count = await transition(tx, input.enrollmentId, input.semester, ['INTENT', 'RAISED'], {
+      status: 'WITHDRAWN',
+      withdrawnAt: now,
+    })
+    if (count === 0) {
+      if (await semesterAlreadyDecided(tx, input.enrollmentId, input.semester)) {
+        return { ok: false, code: 'SEMESTER_ALREADY_DECIDED' }
+      }
+      return { ok: false, code: 'NO_ACTIVE_RAISE' }
+    }
+    const current = await getSemesterDecision(tx, input.enrollmentId, input.semester)
+    await audit(
+      { id: input.userId, name: 'طالب' },
+      'SEMESTER_RAISE_WITHDRAWN',
+      'Enrollment',
+      input.enrollmentId,
+      `semester ${input.semester}`,
+    ).catch(() => {})
+    return { ok: true, decision: current }
   })
-  if (period.ended) return { ok: false, code: 'SEMESTER_PERIOD_ENDED' }
-  const existing = await getSemesterDecision(client, input.enrollmentId, input.semester)
-  if (!existing || (existing.status !== 'INTENT' && existing.status !== 'RAISED')) {
-    return { ok: false, code: 'NO_ACTIVE_RAISE' }
-  }
-  const store = (client as AnyClient)?.semesterDecision
-  if (!store?.update) return { ok: false, code: 'NO_ACTIVE_RAISE' }
-  const now = input.now ?? new Date()
-  const row = await store.update({
-    where: { enrollmentId_semester: { enrollmentId: input.enrollmentId, semester: input.semester } },
-    data: { status: 'WITHDRAWN', withdrawnAt: now },
-  })
-  await audit(
-    { id: input.userId, name: 'طالب' },
-    'SEMESTER_RAISE_WITHDRAWN',
-    'Enrollment',
-    input.enrollmentId,
-    `semester ${input.semester}`,
-  ).catch(() => {})
-  return { ok: true, decision: row as SemesterDecisionRecord }
 }
 
 /**
@@ -371,38 +499,37 @@ export async function withdrawSemesterRaise(
  * the administration records the semester result. When the closure
  * came from the period end without any student record, a minimal
  * DEADLINE record is created so the file shows why approval was
- * lawful. Runs only when the decision system is active.
+ * lawful. Write failures PROPAGATE: an approval must never be stored
+ * while its decision stamp failed — the approval transaction rolls
+ * back instead. (A client that lacks the delegate entirely — test
+ * doubles — skips the stamp as a capability matter, not an error.)
  */
 export async function markSemesterDecided(
   client: AnyClient,
   input: { enrollmentId: string; semester: number; periodEnded: boolean; periodEndAt?: Date | null; now?: Date },
 ): Promise<void> {
   const store = (client as AnyClient)?.semesterDecision
-  if (!store?.upsert) return
+  if (!store?.update || !store?.create) return
   const now = input.now ?? new Date()
   const existing = await getSemesterDecision(client, input.enrollmentId, input.semester)
   if (existing) {
-    await store
-      .update({
-        where: { enrollmentId_semester: { enrollmentId: input.enrollmentId, semester: input.semester } },
-        data: { status: 'DECIDED', decidedAt: now },
-      })
-      .catch(() => {})
+    await store.update({
+      where: { enrollmentId_semester: { enrollmentId: input.enrollmentId, semester: input.semester } },
+      data: { status: 'DECIDED', decidedAt: now },
+    })
     return
   }
-  await store
-    .create({
-      data: {
-        enrollmentId: input.enrollmentId,
-        semester: input.semester,
-        intent: null,
-        status: 'DECIDED',
-        raiseSource: input.periodEnded ? 'DEADLINE' : 'STUDENT',
-        raisedAt: input.periodEnded ? input.periodEndAt ?? now : now,
-        decidedAt: now,
-      },
-    })
-    .catch(() => {})
+  await store.create({
+    data: {
+      enrollmentId: input.enrollmentId,
+      semester: input.semester,
+      intent: null,
+      status: 'DECIDED',
+      raiseSource: input.periodEnded ? 'DEADLINE' : 'STUDENT',
+      raisedAt: input.periodEnded ? input.periodEndAt ?? now : now,
+      decidedAt: now,
+    },
+  })
 }
 
 /** Read model shared by the admin approvals surface and (stage 2) the

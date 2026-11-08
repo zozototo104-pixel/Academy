@@ -1,0 +1,123 @@
+import { collectSemesterApprovalBlockers, type SemesterBlocker } from '@/lib/semester-approval'
+import { calculateSemesterAverages } from '@/lib/semester-grade'
+import { getSemesterStanding } from '@/lib/student-standing'
+import {
+  recordSemesterIntent,
+  tryMatureSemesterRaise,
+  type RaiseMaturity,
+  type RecordIntentResult,
+  type SemesterDecisionRecord,
+  type SemesterIntent,
+} from '@/lib/semester-decision'
+
+// ===== اشتقاق نضج الرفع على الخادم =====
+// Maturity is derived HERE, on the server, from the actual exam and
+// grading state — never accepted from a request. A student's early-
+// finish raise matures only when ALL of these hold:
+//   (a) a PUBLISHED semester exam exists for this semester;
+//   (b) the student actually SAT it (a real attempt, any settled or
+//       in-review state — never an assumed zero while the window is
+//       open);
+//   (c) no submitted work in the semester is still open: the approval
+//       blocker scan (ungraded attempts, unscored answers, pending
+//       reviews/appeals, ungraded assignments, unapproved grades)
+//       comes back empty — which also proves the sat exam is graded.
+// Unsubmitted units/assignments do not block maturity: the student's
+// explicit choice is exactly what accepts their computational zero.
+// The score snapshot is the server-computed provisional semester
+// average at this moment.
+//
+// Routes and grading/appeal flows call THIS module's orchestrators;
+// the lower-level transitions in semester-decision.ts take the
+// derived maturity as an internal seam only.
+
+type AnyClient = any
+
+export type SemesterRaiseMaturity = RaiseMaturity & {
+  examTaken: boolean
+  examPublished: boolean
+  blockers: SemesterBlocker[]
+}
+
+type StandingContext = {
+  enrollment: { createdAt: Date | string; status: string; extensionDays?: number | null }
+  program: { category?: string | null; maxStudyDays?: number | null; semestersCount?: number | null }
+}
+
+export async function computeSemesterRaiseMaturity(
+  client: AnyClient,
+  input: { userId: string; programId: string; semester: number } & StandingContext,
+): Promise<SemesterRaiseMaturity> {
+  const [blockers, standing, averages] = await Promise.all([
+    collectSemesterApprovalBlockers(client, {
+      userId: input.userId,
+      programId: input.programId,
+      semester: input.semester,
+    }).catch(() => [{ code: 'BLOCKER_SCAN_FAILED', count: 1 }] as SemesterBlocker[]),
+    getSemesterStanding(client, {
+      userId: input.userId,
+      programId: input.programId,
+      enrollment: input.enrollment,
+      program: input.program,
+      semester: input.semester,
+    }).catch(() => null),
+    calculateSemesterAverages({ userId: input.userId, programId: input.programId, client }).catch(() => null),
+  ])
+  const entry = averages?.semesters?.find((s: { semester: number }) => s.semester === input.semester)
+  const examTaken = (standing?.programExams?.satCount ?? 0) > 0
+  const examPublished = (standing?.programExams?.ready ?? 0) > 0
+  return {
+    mature: examPublished && examTaken && blockers.length === 0,
+    score: entry?.average ?? null,
+    examTaken,
+    examPublished,
+    blockers,
+  }
+}
+
+/** The student-facing entry point for recording a choice: derives
+ * maturity on the server, then records the intent through the locked,
+ * status-conditioned transition. */
+export async function requestSemesterDecision(
+  client: AnyClient,
+  input: {
+    enrollmentId: string
+    userId: string
+    programId: string
+    semester: number
+    intent: SemesterIntent
+  } & StandingContext,
+): Promise<RecordIntentResult & { maturity: SemesterRaiseMaturity }> {
+  const maturity = await computeSemesterRaiseMaturity(client, input)
+  const result = await recordSemesterIntent(client, {
+    enrollmentId: input.enrollmentId,
+    userId: input.userId,
+    semester: input.semester,
+    intent: input.intent,
+    scoreSnapshot: maturity.score,
+    maturity,
+  })
+  return { ...result, maturity }
+}
+
+/** Grading / review / appeal flows call this after settling work: a
+ * stored early-finish intent matures exactly when the server-derived
+ * facts now allow it — and never resurrects a withdrawn request,
+ * because the transition itself is conditioned on INTENT. */
+export async function matureSemesterRaiseIfReady(
+  client: AnyClient,
+  input: {
+    enrollmentId: string
+    userId: string
+    programId: string
+    semester: number
+  } & StandingContext,
+): Promise<{ decision: SemesterDecisionRecord; maturity: SemesterRaiseMaturity }> {
+  const maturity = await computeSemesterRaiseMaturity(client, input)
+  const decision = await tryMatureSemesterRaise(client, {
+    enrollmentId: input.enrollmentId,
+    semester: input.semester,
+    maturity,
+  })
+  return { decision, maturity }
+}

@@ -8,6 +8,7 @@ import {
   evaluateClosureRight,
   getSemesterDecision,
   loadSemesterPeriod,
+  lockSemesterDecision,
   markSemesterDecided,
 } from '@/lib/semester-decision'
 
@@ -275,6 +276,10 @@ export async function approveSemesterResult(input: {
     // activates it together with the contextual-finality fix.
     let decisionCtx: { periodEnded: boolean; periodEndAt: Date | null } | null = null
     if (SEMESTER_DECISION_ACTIVE) {
+      // Serialize against the student's own transitions (record /
+      // withdraw take the same pair lock): the decision read below
+      // and the DECIDED stamp at the end are one atomic segment.
+      await lockSemesterDecision(tx, input.enrollmentId, input.semester)
       const period = await loadSemesterPeriod(tx, {
         programId: enrollment.programId,
         enrollmentCreatedAt: enrollment.createdAt,
