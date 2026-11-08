@@ -422,54 +422,62 @@ export async function registerGraduationRequest(input: CompleteEnrollmentInput):
     // Notify once when the stored readiness changes from false to true,
     // or when a genuinely ready transaction is first created.
     if (outcome.ready && (outcome.created || ('becameReady' in outcome && outcome.becameReady))) {
-      try {
-        await notifyAdmins(
-          'GENERAL',
-          'طلب تخرج مستوفٍ — بانتظار المصادقة',
-          `تأكدت أهلية الطالب ${outcome.studentName || ''} للتخرج من برنامج «${outcome.programTitle || ''}» عند آخر فحص؛ راجع الدرجة والشروط قبل اعتماد المعاملة.`,
-          '/?view=admin&tab=certs',
-        )
-      } catch {
-        // إشعار الإدارة لا يعطّل تسجيل المعاملة أبدًا.
-      }
-      // إشعار الطالب المستوفي نفسه: خطوته الأخيرة بيده. يُرسل فقط إن
-      // كان ملف فصله الأخير لم يصل الإدارة بعد (لا رفع ناضج ولا قرار) —
-      // عندها يدفعه الإشعار لضغط «ارفع نتيجة فصلي للاعتماد» من لوحته.
+      // A READY graduation record is NOT necessarily submitted by its
+      // student. Do not notify admins about a draft they cannot decide.
+      // Send the admin notice only after the last semester is raised or
+      // the period ends. Subsequent raises/retries reconcile the notice
+      // using its stable outbox key.
       try {
         const gateOutcome = outcome as { enrollmentId?: string; userId?: string }
-        if (SEMESTER_DECISION_ACTIVE && gateOutcome.enrollmentId && gateOutcome.userId) {
-          const enr = await db.enrollment.findUnique({
-            where: { id: gateOutcome.enrollmentId },
-            select: {
-              createdAt: true,
-              extensionDays: true,
-              programId: true,
-              program: { select: { category: true, maxStudyDays: true, semestersCount: true } },
-            },
+        if (SEMESTER_DECISION_ACTIVE && gateOutcome.enrollmentId) {
+          const adminNoticeAllowed = await enqueueReadyGraduationAdminNotice(db, {
+            enrollmentId: gateOutcome.enrollmentId,
           })
-          const lastSemester = enr?.program?.semestersCount ?? null
-          if (enr && lastSemester) {
-            const summary = await summarizeSemesterDecision(db as any, {
-              enrollmentId: gateOutcome.enrollmentId,
-              programId: enr.programId,
-              enrollmentCreatedAt: enr.createdAt,
-              extensionDays: enr.extensionDays,
-              program: enr.program || {},
-              semester: lastSemester,
+          if (!adminNoticeAllowed && gateOutcome.userId) {
+            const enr = await db.enrollment.findUnique({
+              where: { id: gateOutcome.enrollmentId },
+              select: {
+                createdAt: true,
+                extensionDays: true,
+                programId: true,
+                program: { select: { category: true, maxStudyDays: true, semestersCount: true } },
+              },
             })
-            if (!summary.closure.allowed) {
-              await notify(
-                gateOutcome.userId,
-                'GENERAL',
-                'أصبحت مؤهلًا للتخرج',
-                `استوفيت شروط التخرج من برنامج «${outcome.programTitle || ''}». خطوة أخيرة بيدك: من لوحتك، ارفع نتيجة فصلك الأخير للإدارة للاعتماد حتى يبدأ إصدار شهادتك.`,
-                '/?view=dashboard',
-              )
+            const lastSemester = enr?.program?.semestersCount ?? null
+            if (enr && lastSemester) {
+              const summary = await summarizeSemesterDecision(db as any, {
+                enrollmentId: gateOutcome.enrollmentId,
+                programId: enr.programId,
+                enrollmentCreatedAt: enr.createdAt,
+                extensionDays: enr.extensionDays,
+                program: enr.program || {},
+                semester: lastSemester,
+              })
+              if (!summary.closure.allowed) {
+                await notify(
+                  gateOutcome.userId,
+                  'GENERAL',
+                  'أصبحت مؤهلًا للتخرج',
+                  `استوفيت شروط التخرج من برنامج «${outcome.programTitle || ''}». خطوة أخيرة بيدك: من لوحتك، ارفع نتيجة فصلك الأخير للإدارة للاعتماد حتى يبدأ إصدار شهادتك.`,
+                  '/?view=dashboard',
+                )
+              }
             }
           }
+        } else {
+          // Compatibility only while the new semester decision system is
+          // intentionally disabled. Its active path never notifies early.
+          await notifyAdmins(
+            'GENERAL',
+            'طلب تخرج مستوفٍ — بانتظار المصادقة',
+            `تأكدت أهلية الطالب ${outcome.studentName || ''} للتخرج من برنامج «${outcome.programTitle || ''}» عند آخر فحص؛ راجع الدرجة والشروط قبل اعتماد المعاملة.`,
+            '/?view=admin&tab=certs',
+          )
         }
-      } catch {
-        // إشعار الطالب لا يعطّل تسجيل المعاملة أبدًا.
+      } catch (error) {
+        console.error('graduation readiness notice deferred', error)
+        // Notification failures never undo an already saved grade or
+        // graduation readiness snapshot; cron can reconcile admin notices.
       }
     }
     return { registered: outcome.registered, requestId: (outcome as any).requestId ?? null, status: outcome.status, ready: outcome.ready, certificateNo: outcome.certificateNo }
