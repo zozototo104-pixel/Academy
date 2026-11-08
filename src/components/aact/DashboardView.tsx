@@ -637,7 +637,7 @@ export function DashboardView() {
       }
       const res = await api<{ ok: boolean; decision?: { status?: string } | null }>(`/api/progress`, {
         method: 'POST',
-        body: JSON.stringify({ action: 'SEMESTER_DECISION', programId: active.program.id, semester, intent }),
+        body: JSON.stringify({ action: 'SEMESTER_DECISION', programId: active.program.id, semester, intent, consentToZeros }),
       })
       setDecisionDialog(null)
       toast({
