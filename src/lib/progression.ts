@@ -198,8 +198,9 @@ export async function progressionGate(
     // semester exam before moving on (an approved end-of-period zero
     // without sitting is not an exam submission). An approved FAILED
     // result keeps its true weighted mark and can be improved later.
-    const sat = (await semesterExamsSat(client, enrollment.userId, enrollment.programId, s).catch(() => false))
-      || (await semesterExamCoveredByMercy(client, enrollment.id, s))
+    // Mandatory: an approved failing semester can progress, but mercy
+    // improves the grade; it can NEVER substitute for sitting its exam.
+    const sat = await semesterExamsSat(client, enrollment.userId, enrollment.programId, s).catch(() => false)
     if (!sat) reasons.push(`امتحان الفصل ${s} لم يُقدَّم بعد`)
   }
   return { open: reasons.length === 0, reasons }
