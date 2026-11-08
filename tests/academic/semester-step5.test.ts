@@ -17,7 +17,7 @@ mock.module('@/lib/semester-raise', () => ({
   },
 }))
 
-const { raiseGateOf, materializeDeadlineRaises } = await import('../../src/lib/semester-decision')
+const { raiseGateOf, isGraduationRaiseEligible, materializeDeadlineRaises } = await import('../../src/lib/semester-decision')
 const { matureSemesterRaisesAfterGrading } = await import('../../src/lib/semester-raise-hooks')
 
 describe('raiseGateOf — بوابة الرفع الواحدة', () => {
