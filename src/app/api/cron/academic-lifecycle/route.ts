@@ -4,7 +4,7 @@ import { dispatchOutboxBatch } from '@/lib/outbox'
 import { escalateOverdueReopenAppeals } from '@/lib/reopen-appeals'
 import { lapseOverdueMercy } from '@/lib/mercy'
 import { scanDeadlineWarnings } from '@/lib/lifecycle-scans'
-import { materializeDeadlineRaises } from '@/lib/semester-decision'
+import { materializeDeadlineRaises, reconcileReadyGraduationNotices } from '@/lib/semester-decision'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
