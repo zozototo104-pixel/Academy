@@ -623,7 +623,7 @@ export function DashboardView() {
     await doMarkReadyForSemesterExam(semester)
   }
 
-  const confirmDecisionDialog = async (intent: 'EARLY_FINISH' | 'CONTINUE') => {
+  const confirmDecisionDialog = async (intent: 'EARLY_FINISH' | 'CONTINUE', consentToZeros: boolean) => {
     if (!active || !decisionDialog) return
     const { semester, mode } = decisionDialog
     setDecisionBusy(true)
