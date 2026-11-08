@@ -107,17 +107,23 @@ export async function computeSemesterRaiseMaturity(
         },
       })
     : []
-  const finalExamGraded = gradedAttempts.some((attempt) => {
-    const score = attempt.finalScore ?? attempt.score
-    return typeof score === 'number'
-      && Number.isFinite(score)
-      && score >= 0
-      && score <= 100
-      && attempt.appealStatus !== 'PENDING'
-      && Array.isArray(attempt.answers)
-      && attempt.answers.length > 0
-      && attempt.answers.every((answer) => typeof answer.points === 'number' && Number.isFinite(answer.points))
-  })
+  // A program may have multiple READY semester exams. Every published
+  // exam must be settled; one graded attempt cannot mature the whole
+  // semester while another designated exam is still unsubmitted.
+  const finalExamGraded = readyExamIds.length > 0 && readyExamIds.every((examId) =>
+    gradedAttempts.some((attempt) => {
+      if (attempt.examId !== examId) return false
+      const score = attempt.finalScore ?? attempt.score
+      return typeof score === 'number'
+        && Number.isFinite(score)
+        && score >= 0
+        && score <= 100
+        && attempt.appealStatus !== 'PENDING'
+        && Array.isArray(attempt.answers)
+        && attempt.answers.length > 0
+        && attempt.answers.every((answer) => typeof answer.points === 'number' && Number.isFinite(answer.points))
+    }),
+  )
   const examTaken = (standing?.programExams?.satCount ?? 0) > 0
   const examPublished = readyExamIds.length > 0
   const score = typeof entry?.average === 'number' && Number.isFinite(entry.average)
