@@ -1499,7 +1499,36 @@ export function AdminFinanceTab() {
             </div>
           </CardContent>
         </Card>
-        {/* ORGANIZED_GRANT_LIST_SLOT */}
+        <Card className="min-w-0 border-[#0f2b46]/10">
+          <CardContent className="space-y-3 p-4">
+            <h4 className="text-sm font-black text-[#0f2b46]">تعريفات المنح المحفوظة ({grantPolicies.length})</h4>
+            {grantPolicies.length === 0 ? (
+              <p className="text-xs font-bold text-slate-500">لا توجد منح منظمة بعد. أضف تعريفًا من النموذج أعلاه.</p>
+            ) : grantPolicies.map((policy) => (
+              <div key={policy.id} className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-xl border bg-slate-50 p-3">
+                <div className="min-w-0 flex-1">
+                  <p className="break-words text-sm font-black">{policy.title}</p>
+                  <p className="mt-1 break-words text-xs text-slate-600">
+                    {policy.scope === 'INDIVIDUAL' ? 'طالب محدد' : policy.scope === 'GENERAL' ? 'عامة' : 'تخصصات محددة: ' + policy.programIds.length}
+                    {' · '}{policy.coverage === 'REGISTRATION' ? 'تسجيل' : policy.coverage === 'TUITION' ? 'دراسة' : 'تسجيل ودراسة'}
+                    {' · '}{policy.valueMode === 'FULL' ? '100%' : String(policy.value) + (policy.valueMode === 'PERCENT' ? '%' : ' دولار')}
+                  </p>
+                  {policy.scope === 'PROGRAM' && (
+                    <p className="mt-1 break-words text-[11px] text-slate-500">
+                      {policy.programIds.map((id) => grantPrograms.find((p) => p.id === id)?.titleAr || id).join('، ')}
+                    </p>
+                  )}
+                </div>
+                <div className="flex shrink-0 flex-col items-end gap-2">
+                  <Badge className={policy.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'}>{policy.active ? 'نشطة' : 'موقوفة'}</Badge>
+                  <Button size="sm" type="button" variant="outline" disabled={grantSaving} onClick={() => void toggleGrantPolicy(policy.id)}>
+                    {policy.active ? 'إيقاف إصدار جديد' : 'إعادة التفعيل'}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
         {grantPolicyError && <p role="alert" className="rounded-xl bg-red-50 p-3 text-xs font-bold text-red-700">{grantPolicyError}</p>}
       </div>
 
