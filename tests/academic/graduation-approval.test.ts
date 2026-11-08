@@ -9,6 +9,11 @@ import { NextRequest } from 'next/server'
 function makeWorld() {
   const state: any = {
     enrollment: { id: 'enrollment-1', userId: 'user-1', programId: 'program-1', status: 'ACTIVE', certificateNo: null as string | null },
+    // Historical graduation-approval cases start after the programme
+    // period; dedicated tests below use a recent start to verify that
+    // a direct admin POST cannot decide an unraised pending request.
+    enrollmentCreatedAt: new Date('2025-01-01T00:00:00Z'),
+    lastSemesterDecision: null as string | null,
     certificate: null as any,
     createdCertificate: null as any,
     request: null as any,
