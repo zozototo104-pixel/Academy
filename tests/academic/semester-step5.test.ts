@@ -35,6 +35,8 @@ describe('raiseGateOf — بوابة الرفع الواحدة', () => {
   test('كل الحالات من السجل والفترة', () => {
     expect(raiseGateOf({ status: 'DECIDED' }, false)).toBe('DECIDED')
     expect(raiseGateOf({ status: 'RAISED' }, false)).toBe('RAISED')
+    expect(raiseGateOf({ status: 'RAISED', raiseSource: 'DEADLINE' }, true)).toBe('PERIOD_ENDED')
+    expect(raiseGateOf({ status: 'RAISED', raiseSource: 'DEADLINE' }, false)).toBe('AWAITING_STUDENT')
     expect(raiseGateOf({ status: 'INTENT' }, true)).toBe('PERIOD_ENDED')
     expect(raiseGateOf(null, true)).toBe('PERIOD_ENDED')
     expect(raiseGateOf({ status: 'INTENT' }, false)).toBe('INTENT_PENDING')
