@@ -2,6 +2,7 @@ import { collectSemesterApprovalBlockers, type SemesterBlocker } from '@/lib/sem
 import { calculateSemesterAverages } from '@/lib/semester-grade'
 import { getSemesterStanding } from '@/lib/student-standing'
 import {
+  lockSemesterDecision,
   recordSemesterIntent,
   summarizeSemesterDecision,
   tryMatureSemesterRaise,
