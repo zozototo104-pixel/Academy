@@ -498,7 +498,7 @@ export function SupervisorView() {
         <Card className="border-dashed"><CardContent className="p-8 text-center text-sm font-bold leading-7 text-slate-500">لا يوجد طلاب معيّنون لك حالياً. التعيين يتم من لوحة الإدارة.</CardContent></Card>
       ) : (
         <div className="grid w-full min-w-0 gap-4 lg:grid-cols-[minmax(0,310px)_minmax(0,1fr)]">
-          <aside className="space-y-3">
+          <aside className="min-w-0 space-y-3">
             <Card className="border-[#0f2b46]/10"><CardContent className="p-4">
               <h2 className="mb-3 flex items-center gap-2 text-sm font-black text-[#0f2b46]"><Users2 className="h-4 w-4 text-[#a8841a]" /> الطلاب تحت الإشراف ({students.length})</h2>
               <div className="space-y-2">
