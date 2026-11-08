@@ -183,6 +183,12 @@ describe('computeSemesterRaiseMaturity — الاشتقاق الخادمي', () 
     expect(m.mature).toBe(false)
     expect(m.blockers.length).toBe(1)
   })
+  test('امتحانان منشوران: تصحيح واحد فقط لا يكفي للرفع', async () => {
+    resetFacts({ readyExams: 2, satCount: 1 })
+    const m = await computeSemesterRaiseMaturity(makeClient(), ctx as any)
+    expect(m.mature).toBe(false)
+    expect(m.examPublished).toBe(true)
+  })
   test('لا امتحان منشور أصلًا: لا نضج', async () => {
     resetFacts({ satCount: 0, readyExams: 0 })
     const m = await computeSemesterRaiseMaturity(makeClient(), ctx as any)
