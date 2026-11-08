@@ -282,16 +282,16 @@ function semesterInRange(enrollment: EnrollmentContext, semester: number): boole
 async function semesterAlreadyDecided(client: AnyClient, enrollmentId: string, semester: number): Promise<boolean> {
   const approvalStore = (client as AnyClient)?.semesterResultApproval
   if (approvalStore?.findUnique) {
-    const approval = await approvalStore
-      .findUnique({ where: { enrollmentId_semester: { enrollmentId, semester } } })
-      .catch(() => null)
+    const approval = await approvalStore.findUnique({
+      where: { enrollmentId_semester: { enrollmentId, semester } },
+    })
     if (approval) return true
   }
   const stateStore = (client as AnyClient)?.enrollmentSemesterState
   if (stateStore?.findUnique) {
-    const state = await stateStore
-      .findUnique({ where: { enrollmentId_semester: { enrollmentId, semester } } })
-      .catch(() => null)
+    const state = await stateStore.findUnique({
+      where: { enrollmentId_semester: { enrollmentId, semester } },
+    })
     if (state?.status === 'CLOSED') return true
   }
   return false
