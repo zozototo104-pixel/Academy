@@ -109,7 +109,9 @@ describe('materializeDeadlineRaises — تجسيد رفع المهلة', () => {
     const row = decisions.get('enr1:1')
     expect(row.status).toBe('RAISED')
     expect(row.raiseSource).toBe('DEADLINE')
-    expect(row.scoreAtRaise).toBe(61)
+    // Deadline is not the student's earlier consent snapshot. Recompute
+    // the official grade at approval; do not reuse a stale provisional mark.
+    expect(row.scoreAtRaise).toBeNull()
     expect(new Date(row.raisedAt).getTime()).toBeLessThan(new Date('2026-03-01T00:00:00Z').getTime())
   })
   test('طلب INTENT فترته مفتوحة لا يُلمس، وسجل RAISED لا يُعاد كتابته', async () => {
