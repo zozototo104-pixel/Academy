@@ -454,7 +454,7 @@ export function SupervisorView() {
   }
 
   return (
-    <div className="aact-fade-in mx-auto max-w-7xl px-4 py-10">
+    <div className="aact-fade-in mx-auto w-full min-w-0 max-w-7xl overflow-x-hidden px-3 py-5 sm:px-4 sm:py-10">
       <div className="mb-6 rounded-3xl border border-[#c9a227]/40 bg-[#0f2b46] p-6 text-[#f5f0e1] shadow">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
