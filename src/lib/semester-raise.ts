@@ -233,7 +233,7 @@ export async function requestSemesterDecision(
     intent: SemesterIntent
   } & StandingContext,
 ): Promise<RecordIntentResult & { maturity: SemesterRaiseMaturity }> {
-  return withRaiseEvaluationLock(client, input.enrollmentId, input.semester, async (tx) => {
+  const saved = await withRaiseEvaluationLock(client, input.enrollmentId, input.semester, async (tx) => {
     const maturity = await computeSemesterRaiseMaturity(tx, input)
     const result = await recordSemesterIntent(tx, {
       enrollmentId: input.enrollmentId,
@@ -245,6 +245,14 @@ export async function requestSemesterDecision(
     })
     return { ...result, maturity }
   })
+  if (saved.ok && saved.decision?.status === 'RAISED') {
+    // Never roll back a successfully saved student choice because a
+    // notification service failed. The academic cron retries the notice.
+    await enqueueReadyGraduationAdminNotice(client, {
+      enrollmentId: input.enrollmentId, expectedSemester: input.semester,
+    }).catch((error: unknown) => console.error('graduation raised notice deferred', error))
+  }
+  return saved
 }
 
 /** Grading / review / appeal flows call this after settling work: a
