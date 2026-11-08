@@ -20,7 +20,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(redactDeep({ error: 'UNAUTHORIZED' }), { status: 401 })
   }
   try {
+    // Successful CRON requests were previously silent in runtime logs, making
+    // it impossible to distinguish an empty cohort from a missed execution.
+    console.info('student-reminders cron started')
     const stats = await processDailyReminders()
+    console.info('student-reminders daily enrollment pass completed', {
+      checked: stats.checked, warned: stats.warned, reminded: stats.reminded, expired: stats.closed,
+    })
     let followUp: Awaited<ReturnType<typeof processInactivityFollowUps>> | null = null
     try {
       followUp = await processInactivityFollowUps()
