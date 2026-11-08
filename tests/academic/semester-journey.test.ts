@@ -296,8 +296,10 @@ describe('رحلة الطالب: اختيار → نضج → اعتماد', () =
     })
     expect(choice.ok).toBe(true)
     expect(state.decisions.get('enr1:1')?.status).toBe('INTENT')
-    state.createdAt = OLD // مرّت الفترة كلها
-    const swept = await materializeDeadlineRaises(world.db)
+    state.createdAt = OLD // انتهى الفصل الأول وحده في نقطة الفحص
+    const swept = await materializeDeadlineRaises(world.db, {
+      now: new Date('2026-03-01T00:00:00Z'),
+    })
     expect(swept).toBe(1)
     expect(state.decisions.get('enr1:1')?.status).toBe('RAISED')
     expect(state.decisions.get('enr1:1')?.raiseSource).toBe('DEADLINE')
