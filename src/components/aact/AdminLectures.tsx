@@ -606,7 +606,7 @@ export function AdminLectures({ surface = 'admin' }: { surface?: LecturesSurface
           setFilterStatus('')
           setContentTab('videos')
           void load()
-        }
+        }}
         onSubmit={async (payload) => {
           const saved = await act(() => api('/api/admin/lectures/videos', { method: 'POST', body: JSON.stringify(payload) }), 'أُضيف الفيديو كمسودة')
           if (saved) {
