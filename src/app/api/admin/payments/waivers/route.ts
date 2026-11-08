@@ -287,7 +287,7 @@ async function createOrganizedPolicy(body: any, admin: { id: string; name?: stri
     value: valueMode === 'FULL' ? 0 : value, reason, active: true, createdAt: new Date().toISOString(),
   }
   await db.setting.create({ data: { key: GRANT_POLICY_PREFIX + policy.id, value: JSON.stringify(policy) } })
-  await audit(admin, 'GRANT_POLICY_CREATED', 'Setting', GRANT_POLICY_PREFIX + policy.id, `${title} — ${scope} — ${coverage} — ${valueMode}`)
+  await audit({ id: admin.id, name: admin.name || admin.email || 'Admin' }, 'GRANT_POLICY_CREATED', 'Setting', GRANT_POLICY_PREFIX + policy.id, `${title} — ${scope} — ${coverage} — ${valueMode}`)
   return policy
 }
 
