@@ -109,11 +109,24 @@ export async function GET(req: NextRequest) {
           const decision = decisionByKey.get(`${r.enrollmentId}:${last.semester}`) ?? null
           gateByEnrollment.set(r.enrollmentId, raiseGateOf(decision, nowMs > last.endAt.getTime()))
         }
-      } catch { /* raiseGate stays empty — the list still renders */ }
+      } catch (error) {
+        // A failed raise scan must never expose unraised drafts as
+        // actionable graduation files or silently hide legitimate ones.
+        console.error('graduation raise-gate read error:', error)
+        throw error
+      }
     }
     const admissionById = new Map(admissions.map((a) => [a.id, a]))
+    // Keep live eligibility records in the DB; the admin graduation
+    // decisions list includes PENDING only once the student has raised
+    // the last semester or its legal window has ended. Historical
+    // APPROVED/REJECTED/ISSUED records remain visible for audit.
+    const actionableRequests = requests.filter((r) =>
+      !SEMESTER_DECISION_ACTIVE || r.status !== 'PENDING' ||
+      isGraduationRaiseEligible(gateByEnrollment.get(r.enrollmentId)),
+    )
     return NextResponse.json({
-      requests: requests.map((r) => ({
+      requests: actionableRequests.map((r) => ({
         id: r.id,
         enrollmentId: r.enrollmentId,
         userId: r.userId,
