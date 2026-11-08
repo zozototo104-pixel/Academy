@@ -29,6 +29,12 @@ describe('تصحيح انقلاب اللام والميم أول الكلمة', 
     expect(fixArabicPdfText('واملشروع')).toBe('والمشروع')
   })
 
+  test('انقلاب اللام مع الجيم (الجودة) يُصلَح أيضًا', () => {
+    expect(fixArabicPdfText('إدارة اجلودة للمشروع')).toBe('إدارة الجودة للمشروع')
+    expect(fixArabicPdfText('اجلودة الشاملة')).toBe('الجودة الشاملة')
+    expect(fixArabicPdfText('باجلودة')).toBe('بالجودة')
+  })
+
   test('الكلمات السليمة التي تبدأ أو تحتوي «امل» لا تُلمَس', () => {
     expect(fixArabicPdfText('المشروع')).toBe('المشروع')
     expect(fixArabicPdfText('للمشروع')).toBe('للمشروع')
@@ -39,6 +45,10 @@ describe('تصحيح انقلاب اللام والميم أول الكلمة', 
     expect(fixArabicPdfText('العامل الكامل والشامل')).toBe('العامل الكامل والشامل')
     expect(fixArabicPdfText('التعامل بالمعروف')).toBe('التعامل بالمعروف')
     expect(fixArabicPdfText('الاملاك العامة')).toBe('الاملاك العامة')
+    expect(fixArabicPdfText('اجلال وتقدير')).toBe('اجلال وتقدير')
+    expect(fixArabicPdfText('حتى لا يقع في املاق')).toBe('حتى لا يقع في املاق')
+    expect(fixArabicPdfText('اسلوب الاعلام والاطلاق')).toBe('اسلوب الاعلام والاطلاق')
+    expect(fixArabicPdfText('الجودة')).toBe('الجودة')
   })
 
   test('إصلاحات اللام والألف القديمة ما زالت تعمل', () => {

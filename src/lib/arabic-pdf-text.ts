@@ -6,7 +6,7 @@ function escapeRegExp(value: string) {
 
 // Genuine words that begin with «امل» and must never be reordered:
 // أملاك (properties) and the possessive forms of أمل (hope).
-const LAM_MEEM_EXCEPTIONS = new Set(['املاك', 'املنا', 'املهم', 'املهن', 'املها', 'املكم', 'املكن'])
+const LAM_REVERSAL_EXCEPTIONS = new Set(['املاك', 'املنا', 'املهم', 'املهن', 'املها', 'املكم', 'املكن'])
 
 function replaceIndependentWord(text: string, word: string, replacement: string) {
   const pattern = new RegExp(`(^|${WORD_BOUNDARY})${escapeRegExp(word)}(?=$|${WORD_BOUNDARY})`, 'gu')
@@ -23,19 +23,24 @@ export function fixArabicPdfText(text: string): string {
     .replace(/اإل/g, 'الإ')
     .replace(/اآل/g, 'الآ')
 
-  // Reversed lam-meem at the start of a word: the extractor emits
-  // «امل» where the word is «الم» (المشروع تُستخرج «املشروع»،
-  // والمؤثرات «املؤثرات»). Swap only at a word start — allowing one
-  // proclitic (ب/ل/و/ف/ك/س) — and only for words of five letters or
-  // more, so genuine short «امل» words are never touched; a small
-  // exception list protects the rest (أملاك وأخواتها). «امل» inside a
-  // word (كامل، شامل، التعامل) is correct Arabic and is never matched:
-  // the pattern must begin at a non-Arabic boundary.
+  // Reversed lam at the start of a word: the extractor emits the
+  // article's lam AFTER the following letter — «المشروع» comes out
+  // «املشروع» and «الجودة» comes out «اجلودة» (attested in book
+  // outlines; the same artifact family as the lam-alef fixes above).
+  // Only the two attested letters (م، ج) are swapped, only at a word
+  // start — allowing one proclitic (ب/ل/و/ف/ك/س) — and only for words
+  // of five letters or more. Two further guards keep genuine words
+  // safe: a word whose fourth letter is an alef form is never touched
+  // (إجلال «اجلال» and إملاق «املاق» are real words, not reversals),
+  // and a small exception list protects the rest (أملاك وأخواتها).
+  // «امل» inside a word (كامل، شامل، التعامل) is correct Arabic and
+  // is never matched: the pattern must begin at a non-Arabic boundary.
   value = value.replace(
-    /(^|[^\u0621-\u064A\u0660-\u0669\u06F0-\u06F9A-Za-z0-9_])([بلوفكس]?)(امل[\u0621-\u064A]{2,})/gu,
+    /(^|[^\u0621-\u064A\u0660-\u0669\u06F0-\u06F9A-Za-z0-9_])([بلوفكس]?)(ا[مج]ل[\u0621-\u064A]{2,})/gu,
     (match, boundary: string, clitic: string, word: string) => {
-      if (LAM_MEEM_EXCEPTIONS.has(word)) return match
-      return `${boundary}${clitic}الم${word.slice(3)}`
+      if ('اأإآ'.includes(word[3])) return match
+      if (LAM_REVERSAL_EXCEPTIONS.has(word)) return match
+      return `${boundary}${clitic}ال${word[1]}${word.slice(3)}`
     },
   )
 
