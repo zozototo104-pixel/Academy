@@ -231,10 +231,32 @@ export async function POST(req: NextRequest) {
       }
       // Compare-and-set: a concurrent rejection/approval or readiness refresh
       // must never be overwritten by a decision based on an older snapshot.
-      const decision = await db.graduationRequest.updateMany({
+      // Protect the graduation decision against withdrawing a student
+      // raise concurrently. Use the SAME pair lock as the student and
+      // the semester-approval route, and re-read the gate under it.
+      const approvalWrite = {
         where: { id: requestId, status: fresh.status, ready: true, score: fresh.score, updatedAt: fresh.updatedAt },
-        data: { status: 'APPROVED', decidedById: admin.id, decidedAt: new Date(), decisionNote: note },
-      })
+        data: { status: 'APPROVED' as const, decidedById: admin.id, decidedAt: new Date(), decisionNote: note },
+      }
+      const decision = SEMESTER_DECISION_ACTIVE
+        ? await db.$transaction(async (tx) => {
+            const initial = await liveGraduationRaiseGate(tx, fresh.enrollmentId)
+            if (initial.semester == null) return { count: 0, raiseNotAllowed: true }
+            await lockSemesterDecision(tx, fresh.enrollmentId, initial.semester)
+            const live = await liveGraduationRaiseGate(tx, fresh.enrollmentId)
+            if (live.semester !== initial.semester || !isGraduationRaiseEligible(live.gate)) {
+              return { count: 0, raiseNotAllowed: true }
+            }
+            const updated = await tx.graduationRequest.updateMany(approvalWrite)
+            return { count: updated.count, raiseNotAllowed: false }
+          })
+        : { ...(await db.graduationRequest.updateMany(approvalWrite)), raiseNotAllowed: false }
+      if (decision.raiseNotAllowed) {
+        return NextResponse.json({
+          error: 'لا يجوز اعتماد معاملة تخرج قبل رفع الطالب فصله الأخير أو انتهاء مدته النظامية.',
+          code: 'GRADUATION_NOT_RAISED',
+        }, { status: 409 })
+      }
       if (decision.count !== 1) {
         return NextResponse.json({ error: 'تغيّرت حالة طلب التخرج أثناء اعتماد القرار. حدّث القائمة وأعد المحاولة.', code: 'GRADUATION_DECISION_CONFLICT' }, { status: 409 })
       }
