@@ -36,7 +36,10 @@ mock.module('@/lib/student-standing', () => ({
     programExams: {
       ready: facts.readyExams,
       satCount: facts.satCount,
-      rows: facts.readyExams ? [{ examId: 'sem-exam-1', status: 'READY' }] : [],
+      rows: Array.from({ length: facts.readyExams }, (_, i) => ({
+        examId: `sem-exam-${i + 1}`,
+        status: 'READY',
+      })),
     },
   }),
 }))
