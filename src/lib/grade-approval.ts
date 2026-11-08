@@ -159,8 +159,9 @@ export async function approveGrade(input: {
                 targetType_attemptId: { targetType: input.targetType, attemptId: input.attemptId },
               },
             })
-            .catch(() => null)
         : null
+    // A transient read failure is not "no existing approval": abort
+    // rather than writing a new audit event for an already-final grade.
     if (existing && existing.score === resolved.score) {
       return { ok: true, approval: existing, alreadyApproved: true } as const
     }
