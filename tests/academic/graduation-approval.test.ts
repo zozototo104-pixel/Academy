@@ -155,6 +155,8 @@ function postGraduationAction(action: 'REFRESH' | 'APPROVE' | 'REJECT') {
 beforeEach(() => {
   sentGraduationNotifications.length = 0
   world.state.enrollment = { id: 'enrollment-1', userId: 'user-1', programId: 'program-1', status: 'ACTIVE', certificateNo: null }
+  world.state.enrollmentCreatedAt = new Date('2025-01-01T00:00:00Z')
+  world.state.lastSemesterDecision = null
   world.state.certificate = null
   world.state.createdCertificate = null
   world.state.request = null
