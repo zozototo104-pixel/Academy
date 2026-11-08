@@ -135,6 +135,17 @@ export async function applyScoreAdjustments(
       ? await txAny.examAttempt.findUnique({ where: { id: attemptId }, include: { exam: { include: { questions: true, unit: { select: { programId: true } } } }, answers: { include: { question: { select: { points: true } } } } } })
       : await txAny.programExamAttempt.findUnique({ where: { id: attemptId }, include: { exam: { include: { questions: true } }, answers: { include: { question: { select: { points: true } } } } } })
     if (!attempt) throw Object.assign(new Error('NOT_FOUND'), { userMessage: 'المحاولة غير موجودة' })
+    const programId = type === 'UNIT' ? attempt.exam?.unit?.programId : attempt.exam?.programId
+    if (!programId) throw Object.assign(new Error('FORBIDDEN'), { userMessage: 'تعذر التحقق من برنامج المحاولة', status: 403 })
+    if (actor.role !== 'ADMIN') {
+      // Re-check authorization inside the write transaction; a different
+      // programme belonging to the same student is not in this supervisor's scope.
+      const assignment = await txAny.admissionApplication.findFirst({
+        where: { supervisorId: actor.id, userId: attempt.userId, programId },
+        select: { id: true },
+      })
+      if (!assignment) throw Object.assign(new Error('FORBIDDEN'), { userMessage: 'هذا الامتحان خارج البرنامج المعيّن عليك', status: 403 })
+    }
     if (!['GRADED', 'NEEDS_REVIEW'].includes(attempt.status)) {
       throw Object.assign(new Error('NOT_REVIEWABLE'), { userMessage: 'هذه المحاولة ليست مصححة بعد' })
     }
