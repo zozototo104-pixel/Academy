@@ -542,6 +542,7 @@ export async function GET(req: NextRequest) {
       recentChats: chats.map((c) => ({ ...c, content: c.content.length > 420 ? `${c.content.slice(0, 420)}...` : c.content })),
       enrollmentDetails,
       completedDetails,
+      expiredDetails,
       absence: enrollmentDetails.length ? {
         ...enrollmentDetails[0].followUp,
         programTitle: enrollmentDetails[0].programTitle,
