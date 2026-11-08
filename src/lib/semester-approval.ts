@@ -3,6 +3,13 @@ import { audit } from '@/lib/notify'
 import { calculateSemesterAverages } from '@/lib/semester-grade'
 import { closeSemesterState, ensureSemesterStates } from '@/lib/semester-lifecycle'
 import { enqueueOutbox } from '@/lib/outbox'
+import {
+  SEMESTER_DECISION_ACTIVE,
+  evaluateClosureRight,
+  getSemesterDecision,
+  loadSemesterPeriod,
+  markSemesterDecided,
+} from '@/lib/semester-decision'
 
 // ===== اعتماد نتيجة الفصل — سجل قرار مستقل وحارس خادمي =====
 // Grade REVIEW (the attempts' reviewedById/reviewedAt, written by the
@@ -202,7 +209,19 @@ export async function storedSemesterApproval(client: AnyClient, enrollmentId: st
 
 export type SemesterApprovalDecision =
   | { ok: true; approval: unknown }
-  | { ok: false; code: 'INVALID_SEMESTER_APPROVAL_INPUT' | 'ENROLLMENT_NOT_FOUND' | 'SEMESTER_GRADES_INCOMPLETE' | 'SEMESTER_APPROVAL_NOT_ACTIVE' | 'SEMESTER_APPROVAL_FORBIDDEN' | 'SEMESTER_SCORE_NOT_VERIFIED'; blockers?: SemesterBlocker[] }
+  | {
+      ok: false
+      code:
+        | 'INVALID_SEMESTER_APPROVAL_INPUT'
+        | 'ENROLLMENT_NOT_FOUND'
+        | 'SEMESTER_GRADES_INCOMPLETE'
+        | 'SEMESTER_APPROVAL_NOT_ACTIVE'
+        | 'SEMESTER_APPROVAL_FORBIDDEN'
+        | 'SEMESTER_SCORE_NOT_VERIFIED'
+        | 'SEMESTER_NOT_RAISED'
+      blockers?: SemesterBlocker[]
+      decision?: { status: string | null; periodEnded: boolean; reason: string }
+    }
 
 /**
  * The single server-side gate for approving a semester result. Refuses,
@@ -247,6 +266,34 @@ export async function approveSemesterResult(input: {
     const actor = await tx.user.findUnique({ where: { id: input.actor.id }, select: { role: true, name: true } })
     if (actor?.role !== 'ADMIN') return { ok: false, code: 'SEMESTER_APPROVAL_FORBIDDEN' } as const
     if (!SEMESTER_APPROVAL_ACTIVE) return { ok: false, code: 'SEMESTER_APPROVAL_NOT_ACTIVE' } as const
+    // STUDENT CLOSURE RIGHT (decision record): while the semester's own
+    // period is still open, approval is lawful only on the student's
+    // matured raise; the period end grants the right on its own. This
+    // guard sits on the server even if a client shows the button
+    // enabled in error — an open semester is never closed silently.
+    // Inert while SEMESTER_DECISION_ACTIVE is off (stage 1); stage 3
+    // activates it together with the contextual-finality fix.
+    let decisionCtx: { periodEnded: boolean; periodEndAt: Date | null } | null = null
+    if (SEMESTER_DECISION_ACTIVE) {
+      const period = await loadSemesterPeriod(tx, {
+        programId: enrollment.programId,
+        enrollmentCreatedAt: enrollment.createdAt,
+        extensionDays: enrollment.extensionDays,
+        program: enrollment.program || {},
+        semester: input.semester,
+      })
+      const decision = await getSemesterDecision(tx, input.enrollmentId, input.semester)
+      const closure = evaluateClosureRight({ decision, periodEnded: period.ended })
+      if (!closure.allowed) {
+        return {
+          ok: false,
+          code: 'SEMESTER_NOT_RAISED',
+          blockers,
+          decision: { status: decision?.status ?? null, periodEnded: period.ended, reason: closure.reason },
+        } as const
+      }
+      decisionCtx = { periodEnded: period.ended, periodEndAt: period.endAt }
+    }
     // The official score is computed HERE from the student's frozen
     // rules — never taken from the caller. A caller-supplied score is
     // tolerated only as a freshness echo of the computed value.
@@ -306,6 +353,14 @@ export async function approveSemesterResult(input: {
         where: { enrollmentId: input.enrollmentId, semester: input.semester, status: 'GRADED' },
         data: { status: 'COMPLETED', newAverage: entry.average },
       }).catch(() => {})
+    }
+    if (SEMESTER_DECISION_ACTIVE && decisionCtx) {
+      await markSemesterDecided(tx, {
+        enrollmentId: input.enrollmentId,
+        semester: input.semester,
+        periodEnded: decisionCtx.periodEnded,
+        periodEndAt: decisionCtx.periodEndAt,
+      })
     }
     await enqueueOutbox(tx, {
       key: `semester-closed:${input.enrollmentId}:${input.semester}:${entry.average}`,

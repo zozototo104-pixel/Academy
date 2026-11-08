@@ -1008,6 +1008,31 @@ model SemesterResultApproval {
   @@index([enrollmentId])
 }
 
+// قرار الطالب بشأن إنهاء الفصل (جاهزية/رفع/سحب): سجل واحد لكل
+// (التحاق × فصل) — مصدر القرار الوحيد. النية وحدها لا تُغلق فصلًا؛
+// الرفع الناضج أو انتهاء فترة الفصل هما ما يمنح الإدارة حق الاعتماد.
+// غياب السجل يعني «لا قرار» — لا يُفسَّر أبدًا كموافقة ضمنية، وخصوصًا
+// لضغطة «جاهز للامتحان» القديمة (examReadiness) التي لا تُقرأ هنا.
+model SemesterDecision {
+  id              String    @id @default(cuid())
+  enrollmentId    String
+  semester        Int
+  intent          String? // EARLY_FINISH | CONTINUE — آخر اختيار صريح للطالب
+  status          String    @default("NONE") // NONE | INTENT | RAISED | WITHDRAWN | DECIDED
+  raiseSource     String? // STUDENT | DEADLINE — مصدر حق الإغلاق عند نضجه
+  intentAt        DateTime?
+  raisedAt        DateTime?
+  withdrawnAt     DateTime?
+  decidedAt       DateTime?
+  scoreAtIntent   Float? // لقطة المعدل المؤقت وقت اختيار الإنهاء المبكر
+  scoreAtRaise    Float? // لقطة المعدل وقت نضج الرفع (تغيّرها لاحقًا يُعلَّم للإدارة)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([enrollmentId, semester])
+  @@index([status])
+}
+
 model LegacyCertificateZipImport {
   id         String   @id @default(cuid())
   adminId    String

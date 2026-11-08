@@ -10,6 +10,7 @@ import {
 import { calculateSemesterAverages } from '@/lib/semester-grade'
 import { readEnrollmentSnapshot } from '@/lib/rules-snapshot'
 import { getSemesterStanding } from '@/lib/student-standing'
+import { summarizeSemesterDecision } from '@/lib/semester-decision'
 
 // اعتماد نتيجة الفصل بيد الإدارة (المرحلة 2 من خطة دورة التخرج).
 // GET يعرض بيانات شاشة المصادقة: موانع الاعتماد الحالية + الاعتماد المحفوظ
@@ -94,6 +95,22 @@ export async function GET(req: NextRequest) {
     } catch {
       standing = null
     }
+    // قرار الطالب وحق الإغلاق (سجل القرار): تعرضه الشاشة من نفس مصدر
+    // حارس الخادم — حالة الرفع، نهاية فترة الفصل، وهل الاعتماد مشروع
+    // الآن ولماذا. دفاعي كالباقي: أي فشل لا يُسقط بيانات الشروط.
+    let decisionSummary: Awaited<ReturnType<typeof summarizeSemesterDecision>> | null = null
+    try {
+      decisionSummary = await summarizeSemesterDecision(db, {
+        enrollmentId,
+        programId: enrollment.programId,
+        enrollmentCreatedAt: enrollment.createdAt,
+        extensionDays: enrollment.extensionDays,
+        program: enrollment.program,
+        semester,
+      })
+    } catch {
+      decisionSummary = null
+    }
     return NextResponse.json({
       ok: true,
       enrollmentId,
@@ -104,6 +121,7 @@ export async function GET(req: NextRequest) {
       averages,
       snapshot,
       standing,
+      decisionSummary,
     })
   } catch {
     return NextResponse.json({ ok: false, code: 'UNAUTHORIZED' }, { status: 401 })
@@ -114,6 +132,7 @@ const STATUS_BY_CODE: Record<string, number> = {
   INVALID_SEMESTER_APPROVAL_INPUT: 400,
   ENROLLMENT_NOT_FOUND: 404,
   SEMESTER_GRADES_INCOMPLETE: 409,
+  SEMESTER_NOT_RAISED: 409,
   SEMESTER_APPROVAL_NOT_ACTIVE: 409,
   SEMESTER_APPROVAL_FORBIDDEN: 403,
   SEMESTER_SCORE_NOT_VERIFIED: 409,
@@ -123,6 +142,7 @@ const ERROR_BY_CODE: Record<string, string> = {
   INVALID_SEMESTER_APPROVAL_INPUT: 'طلب اعتماد غير صالح',
   ENROLLMENT_NOT_FOUND: 'التسجيل غير موجود',
   SEMESTER_GRADES_INCOMPLETE: 'توجد في هذا الفصل درجات غير مكتملة أو غير معتمدة أو إجراءات مفتوحة تمنع الاعتماد',
+  SEMESTER_NOT_RAISED: 'لا يمكن اعتماد هذا الفصل الآن: فترته ما زالت مفتوحة والطالب لم يرفع نتيجته للاعتماد بعد — الاعتماد يتم بطلب الطالب أو عند انتهاء فترة الفصل',
   SEMESTER_APPROVAL_NOT_ACTIVE: 'اعتماد نتيجة الفصل النهائي غير مفعّل بعد — يُفعَّل بعد اكتمال حساب معدلات الفصول ودورة حياة الفصل',
   SEMESTER_APPROVAL_FORBIDDEN: 'قرار اعتماد نتيجة الفصل للإدارة فقط',
   SEMESTER_SCORE_NOT_VERIFIED: 'الدرجة الرسمية للفصل غير متاحة بعد — لا تُقبل درجة مرسلة يدويًا',
