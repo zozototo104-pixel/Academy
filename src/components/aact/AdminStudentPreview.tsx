@@ -83,6 +83,7 @@ interface PreviewData {
   recentChats: any[]
   enrollmentDetails: EnrollmentDetail[]
   completedDetails: EnrollmentDetail[]
+  expiredDetails: EnrollmentDetail[]
   absence: (FollowUpInfo & { programTitle: string }) | null
   pendingReview: {
     needsReviewCount: number
