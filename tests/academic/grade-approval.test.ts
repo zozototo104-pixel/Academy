@@ -288,6 +288,40 @@ test('re-approving an unchanged grade is a no-op: no rewrite, no second audit (�
   expect(storedAfterSecond.approvedById).toBe(storedAfterFirst.approvedById)
 })
 
+test('failed approval record lookup does not trigger a second approval or audit', async () => {
+  const original = fakeDb.gradeApproval.findUnique
+  fakeDb.gradeApproval.findUnique = async () => { throw new Error('APPROVAL_LOOKUP_UNAVAILABLE') }
+  try {
+    await expect(approveGrade({
+      targetType: 'UNIT_EXAM', attemptId: 'unit-attempt-1', actor: { id: 'admin-1' },
+    })).rejects.toThrow('APPROVAL_LOOKUP_UNAVAILABLE')
+    expect(world.approvals.size).toBe(0)
+    expect(world.audits.length).toBe(0)
+  } finally {
+    fakeDb.gradeApproval.findUnique = original
+  }
+})
+
+test('grade approval obtains a transaction-scoped attempt lock on capable clients', async () => {
+  const original = fakeDb.$queryRaw
+  const locks: unknown[][] = []
+  fakeDb.$queryRaw = async (_parts: TemplateStringsArray, ...values: unknown[]) => {
+    locks.push(values)
+    return []
+  }
+  try {
+    const approved = await approveGrade({
+      targetType: 'UNIT_EXAM', attemptId: 'unit-attempt-1', actor: { id: 'admin-1' },
+    })
+    expect(approved.ok).toBe(true)
+    expect(locks.length).toBe(1)
+    expect(locks[0]).toContain('grade-approval:UNIT_EXAM:unit-attempt-1')
+  } finally {
+    if (original === undefined) delete fakeDb.$queryRaw
+    else fakeDb.$queryRaw = original
+  }
+})
+
 test('a changed grade re-approves on the new value only — a real audited decision (§9)', async () => {
   await approveGrade({ targetType: 'UNIT_EXAM', attemptId: 'unit-attempt-1', actor: { id: 'admin-1' } })
   const attempt = world.unitAttempts.get('unit-attempt-1') as AnyRow
