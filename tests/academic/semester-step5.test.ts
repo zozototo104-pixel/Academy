@@ -179,6 +179,46 @@ describe('materializeDeadlineRaises — تجسيد رفع المهلة', () => {
   })
 })
 
+describe('إشعارات التخرج — لا تنبيه إداري قبل رفع الفصل الأخير', () => {
+  test('مؤهل لكن لم يرفع فصله الأخير: لا إشعار للإدارة، وبعد الرفع إشعار واحد فقط', async () => {
+    const { decisions, notices, db } = sweepWorld(new Date())
+    const graduation = { id: 'grad1', status: 'PENDING', ready: true, score: 63 }
+    db.graduationRequest = { findUnique: async () => graduation }
+    expect(await enqueueReadyGraduationAdminNotice(db, { enrollmentId: 'enr1' })).toBe(false)
+    expect(notices.size).toBe(0)
+    decisions.set('enr1:2', { status: 'RAISED', enrollmentId: 'enr1', semester: 2 })
+    expect(await enqueueReadyGraduationAdminNotice(db, { enrollmentId: 'enr1' })).toBe(true)
+    expect(notices.has('graduation-ready-to-approve:enr1:grad1:63')).toBe(true)
+    expect(await enqueueReadyGraduationAdminNotice(db, { enrollmentId: 'enr1' })).toBe(true)
+    expect(notices.size).toBe(1)
+  })
+
+  test('الرفع وحده غير كافٍ إذا المعاملة غير جاهزة أو سبق إصدار شهادتها', async () => {
+    const { decisions, notices, db } = sweepWorld(new Date())
+    decisions.set('enr1:2', { status: 'RAISED', enrollmentId: 'enr1', semester: 2 })
+    const graduation = { id: 'grad1', status: 'PENDING', ready: false, score: 45 }
+    db.graduationRequest = { findUnique: async () => graduation }
+    expect(await enqueueReadyGraduationAdminNotice(db, { enrollmentId: 'enr1' })).toBe(false)
+    graduation.ready = true
+    graduation.status = 'ISSUED'
+    expect(await enqueueReadyGraduationAdminNotice(db, { enrollmentId: 'enr1' })).toBe(false)
+    expect(notices.size).toBe(0)
+  })
+
+  test('الكرون يلحق ملف تخرج جاهزًا قبل نهاية المدة ثم تأخر تنبيه الإدارة', async () => {
+    const { notices, db } = sweepWorld(new Date('2026-01-01T00:00:00Z'))
+    const graduation = { id: 'grad1', status: 'PENDING', ready: true, score: 72 }
+    db.graduationRequest = {
+      findUnique: async () => graduation,
+      findMany: async () => [{ enrollmentId: 'enr1' }],
+    }
+    expect(await reconcileReadyGraduationNotices(db)).toBe(1)
+    expect(notices.has('graduation-ready-to-approve:enr1:grad1:72')).toBe(true)
+    expect(await reconcileReadyGraduationNotices(db)).toBe(1)
+    expect(notices.size).toBe(1)
+  })
+})
+
 function hookWorld() {
   const decisions = new Map<string, any>()
   const db: any = {
