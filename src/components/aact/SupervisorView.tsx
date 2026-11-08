@@ -222,22 +222,23 @@ export function SupervisorView() {
     setLoadingDetails(true)
     setMessages([])
     setAssessments([])
+    setMessageLoadError('')
+    setAssessmentLoadError('')
     try {
-      const m = await api<{ messages: SupervisorMessage[] }>(`/api/supervisor/messages?admissionId=${admissionId}`).catch(() => ({ messages: [] }))
-      if (detailsRequestRef.current !== requestId) return
-      setMessages(m.messages || [])
-      setLoadingDetails(false)
-
-      api<{ assessments: PrivateAssessment[] }>(`/api/supervisor/assessments?admissionId=${admissionId}`)
-        .then((a) => {
-          if (detailsRequestRef.current === requestId) setAssessments(a.assessments || [])
-        })
-        .catch(() => {
-          if (detailsRequestRef.current === requestId) setAssessments([])
-        })
+      const messagesResponse = await api<{ messages: SupervisorMessage[] }>(`/api/supervisor/messages?admissionId=${encodeURIComponent(admissionId)}`)
+      if (detailsRequestRef.current === requestId) setMessages(messagesResponse.messages || [])
+    } catch (error) {
+      if (detailsRequestRef.current === requestId) setMessageLoadError(error instanceof Error ? error.message : 'تعذر تحميل المحادثات')
     } finally {
       if (detailsRequestRef.current === requestId) setLoadingDetails(false)
     }
+    void api<{ assessments: PrivateAssessment[] }>(`/api/supervisor/assessments?admissionId=${encodeURIComponent(admissionId)}`)
+      .then((result) => {
+        if (detailsRequestRef.current === requestId) setAssessments(result.assessments || [])
+      })
+      .catch((error: unknown) => {
+        if (detailsRequestRef.current === requestId) setAssessmentLoadError(error instanceof Error ? error.message : 'تعذر تحميل الاختبارات الخاصة')
+      })
   }
 
   useEffect(() => { load() }, [])
