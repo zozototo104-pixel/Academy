@@ -4,6 +4,131 @@ import { requireAdmin } from '@/lib/auth'
 import { ActivePaymentWaiverExistsError, approvePaymentWaiver, createPaymentWaiverCode, isPaymentWaiverType, resendPaymentWaiverCode } from '@/lib/payment-waivers'
 import { audit } from '@/lib/notify'
 
+// Administrative grant organization metadata is separate from the established
+// waiver ledger. A dedicated schema migration is intentionally NOT attempted here:
+// the connected GitHub writer cannot create new migration files.
+const GRANT_POLICY_PREFIX = 'GRANT_ORGANIZATION_POLICY_V1_'
+const GRANT_LINK_PREFIX = 'GRANT_ORGANIZATION_LINK_V1_'
+type GrantPolicy = {
+  id: string; title: string; scope: 'GENERAL' | 'PROGRAM' | 'INDIVIDUAL'
+  programIds: string[]; admissionId: string | null
+  coverage: 'REGISTRATION' | 'TUITION' | 'BOTH'
+  valueMode: 'FULL' | 'PERCENT' | 'AMOUNT'
+  value: number; reason: string; active: boolean; createdAt: string
+}
+type GrantQuote = {
+  policy: GrantPolicy; paymentId: string; admissionId: string; programId: string
+  waiverType: 'APPLICATION_FEE' | 'PARTIAL_TUITION' | 'FULL_SCHOLARSHIP'
+  requestedAmount: number | null; grantCents: number; baseCents: number
+  paymentIds: string[]; signature: string; summary: string
+}
+function grantError(message: string, status = 409) {
+  return Object.assign(new Error(message), { status, code: 'GRANT_NOT_ELIGIBLE' })
+}
+async function loadGrantPolicies(): Promise<GrantPolicy[]> {
+  const rows = await db.setting.findMany({ where: { key: { startsWith: GRANT_POLICY_PREFIX } }, orderBy: { updatedAt: 'desc' } })
+  return rows.flatMap((row) => {
+    try {
+      const policy = JSON.parse(row.value) as GrantPolicy
+      return policy?.id && row.key === GRANT_POLICY_PREFIX + policy.id ? [policy] : []
+    } catch { return [] }
+  })
+}
+async function loadGrantPolicy(id: string): Promise<GrantPolicy> {
+  if (!/^[a-f0-9-]{36}$/.test(id)) throw grantError('معرف المنحة غير صالح', 400)
+  const record = await db.setting.findUnique({ where: { key: GRANT_POLICY_PREFIX + id } })
+  if (!record) throw grantError('تعريف المنحة غير موجود')
+  try { return JSON.parse(record.value) as GrantPolicy } catch { throw grantError('تعريف المنحة غير قابل للقراءة') }
+}
+function amountCents(row: { amountCents?: number | null; amount: number }) {
+  const cents = row.amountCents == null ? Math.round(row.amount * 100) : row.amountCents
+  if (!Number.isSafeInteger(cents) || cents < 0) throw grantError('قيمة الفاتورة غير قابلة للحساب')
+  return cents
+}
+async function grantQuote(paymentId: string, policyId: string): Promise<GrantQuote> {
+  const policy = await loadGrantPolicy(policyId)
+  if (!policy.active) throw grantError('هذه المنحة موقوفة عن الإصدار')
+  const payment = await db.payment.findUnique({
+    where: { id: paymentId },
+    include: { admission: { select: { id: true, programId: true, fullName: true } } },
+  })
+  if (!payment || !payment.admission || !payment.admission.programId) {
+    throw grantError('الفاتورة ليست مرتبطة بطلب قبول وتخصص محدد')
+  }
+  if (payment.status !== 'UNPAID') throw grantError('لا يمكن إعفاء فاتورة مدفوعة أو معفاة')
+  const admissionId = payment.admission.id
+  const programId = payment.admission.programId
+  if (policy.scope === 'INDIVIDUAL' && policy.admissionId !== admissionId) {
+    throw grantError('هذه منحة فردية لطالب آخر')
+  }
+  if (policy.scope === 'PROGRAM' && !policy.programIds.includes(programId)) {
+    throw grantError('تخصص هذا الطالب غير مشمول بالمنحة المختارة')
+  }
+  const purpose = payment.purpose
+  if (policy.coverage === 'REGISTRATION' && purpose !== 'APPLICATION_FEE') throw grantError('هذه المنحة لرسوم التسجيل فقط')
+  if (policy.coverage === 'BOTH' && purpose !== 'APPLICATION_FEE') throw grantError('منحة الرسوم معًا يجب إصدارها من فاتورة التسجيل')
+  if (policy.coverage === 'TUITION' && !['TUITION', 'TUITION_INSTALLMENT'].includes(purpose)) throw grantError('هذه المنحة للرسوم الدراسية فقط')
+  if (policy.valueMode === 'FULL' && purpose === 'TUITION_INSTALLMENT') {
+    throw grantError('المنحة الدراسية الكاملة تُصدر من فاتورة الرسوم الكاملة، وليس من قسط منفرد')
+  }
+  if (policy.coverage === 'REGISTRATION' && policy.valueMode !== 'FULL') {
+    throw grantError('المنظومة المالية الحالية لا تدعم إعفاءً جزئيًا من رسوم التسجيل وحدها')
+  }
+  const basePaymentCents = amountCents(payment)
+  let baseCents = basePaymentCents
+  let relatedTuition: { id: string; amountCents: number; status: string } | null = null
+  const paymentIds = [payment.id]
+  if (policy.coverage === 'BOTH') {
+    const tuition = await db.payment.findMany({
+      where: { admissionId, purpose: { in: ['TUITION', 'TUITION_INSTALLMENT'] } },
+      select: { id: true, purpose: true, status: true, amount: true, amountCents: true },
+    })
+    if (tuition.some((row) => row.status === 'PAID' || row.status === 'WAIVED')) {
+      throw grantError('يوجد قسط دراسي مسدد أو معفى؛ لا يمكن احتساب منحة موحدة للفاتورتين')
+    }
+    relatedTuition = tuition.find((row) => row.purpose === 'TUITION')?.status === 'UNPAID'
+      ? { id: tuition.find((row) => row.purpose === 'TUITION')!.id, amountCents: amountCents(tuition.find((row) => row.purpose === 'TUITION')!), status: 'UNPAID' }
+      : null
+    if (policy.valueMode !== 'FULL' && !relatedTuition) {
+      throw grantError('المنحة الجزئية للتسجيل والدراسة معًا تتطلب فاتورة رسوم دراسية كاملة غير مسددة')
+    }
+    paymentIds.push(...tuition.map((row) => row.id))
+    if (policy.valueMode !== 'FULL') baseCents = relatedTuition!.amountCents
+  }
+  if (baseCents <= 0) throw grantError('لا توجد رسوم متبقية قابلة للإعفاء')
+  const pending = await db.paymentWaiverCode.count({
+    where: { paymentId: { in: paymentIds }, status: { in: ['ISSUED', 'VERIFIED'] } },
+  })
+  if (pending) throw grantError('يوجد كود إعفاء نشط مرتبط بإحدى الفواتير؛ أوقف الإصدار حتى تُحسم الأكواد السابقة')
+
+  let grantCents = policy.valueMode === 'FULL' ? baseCents
+    : policy.valueMode === 'PERCENT' ? Math.round(baseCents * policy.value / 100)
+    : Math.round(policy.value * 100)
+  if (!Number.isSafeInteger(grantCents) || grantCents <= 0 || grantCents > baseCents) {
+    throw grantError('قيمة المنحة أكبر من المستحق أو لا يمكن احتسابها')
+  }
+  if (policy.valueMode !== 'FULL' && grantCents === baseCents) {
+    throw grantError('الإعفاء الجزئي يساوي كامل المتبقي؛ استخدم منحة كاملة')
+  }
+  const waiverType = policy.valueMode === 'FULL'
+    ? (policy.coverage === 'REGISTRATION' ? 'APPLICATION_FEE' : 'FULL_SCHOLARSHIP')
+    : 'PARTIAL_TUITION'
+  const requestedAmount = policy.valueMode === 'FULL' ? null
+    : (policy.coverage === 'BOTH' ? basePaymentCents + grantCents : grantCents) / 100
+  const signature = [policy.id, payment.id, policy.coverage, policy.valueMode,
+    policy.value, baseCents, grantCents, basePaymentCents, ...paymentIds.sort()].join(':')
+  const summary = policy.coverage === 'BOTH'
+    ? `إعفاء كامل من رسوم التسجيل ${(basePaymentCents / 100).toFixed(2)}$، و${policy.valueMode === 'FULL' ? 'منحة دراسية كاملة' : `خصم ${(grantCents / 100).toFixed(2)}$ من الرسوم الدراسية`}`
+    : `${policy.coverage === 'REGISTRATION' ? 'رسوم التسجيل' : 'الرسوم الدراسية'}: أساس ${(baseCents / 100).toFixed(2)}$، إعفاء ${(grantCents / 100).toFixed(2)}import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/db'
+import { requireAdmin } from '@/lib/auth'
+import { ActivePaymentWaiverExistsError, approvePaymentWaiver, createPaymentWaiverCode, isPaymentWaiverType, resendPaymentWaiverCode } from '@/lib/payment-waivers'
+import { audit } from '@/lib/notify'
+
+
+  return { policy, paymentId, admissionId, programId, waiverType, requestedAmount, grantCents, baseCents, paymentIds, signature, summary }
+}
+
 function cleanText(value: unknown, max = 700) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
 }
