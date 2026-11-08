@@ -595,8 +595,8 @@ export function DashboardView() {
     }
   }
 
-  const doMarkReadyForSemesterExam = async (semester: number) => {
-    if (!active) return
+  const doMarkReadyForSemesterExam = async (semester: number): Promise<boolean> => {
+    if (!active) return false
     try {
       const res = await api<{ ok: boolean; message: string }>(`/api/progress`, {
         method: 'POST',
@@ -604,14 +604,15 @@ export function DashboardView() {
       })
       toast({ title: 'تم تحديث جاهزية الامتحان', description: res.message })
       await open(active.program.id)
+      return true
     } catch (e: any) {
       toast({ title: 'تعذر تفعيل الامتحان', description: e.message, variant: 'destructive' })
+      return false
     }
   }
 
-  // عند تفعيل ميزة قرار إنهاء الفصل، ضغطة «جاهز للامتحان» تفتح نافذة
-  // الخيارين أولًا: اختيار الطالب يُحفظ قبل تفعيل الامتحان، وإلغاء
-  // النافذة لا يغيّر شيئًا.
+  // نفعّل الامتحان أولًا، ثم نحفظ قرار الطالب؛ فشل تفعيل الامتحان
+  // لا يجوز أن يترك طلب إغلاق مبكر محفوظًا بالخطأ.
   const markReadyForSemesterExam = async (semester: number) => {
     if (!active) return
     if (active.decisionActive) {
