@@ -67,63 +67,147 @@ export function isGraduationRaiseEligible(gate: RaiseGate | null | undefined): b
 }
 
 /**
- * Period-end materialization (cron): a stored early-finish INTENT
- * whose semester period has ENDED becomes an effective raise by
- * deadline (RAISED / DEADLINE, raised at the period end) — the
- * record stops claiming "pending" forever after its window closed.
- * Only INTENT rows are touched (they exist only where a student
- * actually chose, so legacy enrollments without any interaction are
- * never given records), each write is status-conditioned, and the
- * sweep is capped per run so it drains gradually.
+ * Referral when ONE semester's own window expires. Every active enrollment
+ * is eligible for a deadline referral, including students who selected
+ * CONTINUE, withdrew an early request or never pressed a decision button.
+ *
+ * No automatic approval, passing mark, fake exam attempt or certificate:
+ * the regular administrator grading/approval blockers still apply.
+ * Rows are created only after the actual period end, under the SAME
+ * enrollment+semester lock used by student withdrawal/admin approval.
+ * Repeated cron ticks are idempotent. Do not touch old certified records.
  */
 export async function materializeDeadlineRaises(
   client: AnyClient,
   input: { now?: Date; limit?: number } = {},
 ): Promise<number> {
   if (!SEMESTER_DECISION_ACTIVE) return 0
-  const store = client?.semesterDecision
-  if (typeof store?.findMany !== 'function' || typeof store?.updateMany !== 'function') return 0
-  const now = input.now ?? new Date()
-  const rows: any[] = await store
-    .findMany({ where: { status: 'INTENT' }, take: input.limit ?? 100, orderBy: { intentAt: 'asc' } })
-    .catch(() => [])
-  let count = 0
-  for (const row of rows) {
-    try {
-      const enrollment = await client.enrollment.findUnique({
-        where: { id: row.enrollmentId },
-        select: {
-          createdAt: true,
-          extensionDays: true,
-          programId: true,
-          program: { select: { category: true, maxStudyDays: true, semestersCount: true } },
-        },
-      })
-      if (!enrollment) continue
-      const period = await loadSemesterPeriod(client, {
-        programId: enrollment.programId,
-        enrollmentCreatedAt: enrollment.createdAt,
-        extensionDays: enrollment.extensionDays,
-        program: enrollment.program || {},
-        semester: row.semester,
-        now,
-      })
-      if (!period.ended || !period.endAt) continue
-      const res = await store.updateMany({
-        where: { enrollmentId: row.enrollmentId, semester: row.semester, status: 'INTENT' },
-        data: {
-          status: 'RAISED',
-          raiseSource: 'DEADLINE',
-          raisedAt: period.endAt,
-          scoreAtRaise: row.scoreAtIntent ?? null,
-        },
-      })
-      count += res?.count ?? 0
-    } catch {
-      // صف واحد معطوب لا يوقف المسح.
-    }
+  if (!client?.enrollment?.findMany || !client?.semesterDecision?.findUnique) {
+    throw new Error('SEMESTER_DEADLINE_SCAN_UNAVAILABLE')
   }
-  return count
+  const now = input.now ?? new Date()
+  const maxRaises = Math.min(500, Math.max(1, input.limit ?? 100))
+  const batchSize = 100
+  let raised = 0
+  let cursor: string | undefined
+
+  while (raised < maxRaises) {
+    const enrollments: any[] = await client.enrollment.findMany({
+      where: { status: 'ACTIVE' },
+      orderBy: { id: 'asc' },
+      take: batchSize,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      select: {
+        id: true,
+        userId: true,
+        programId: true,
+        createdAt: true,
+        status: true,
+        extensionDays: true,
+        program: { select: { category: true, maxStudyDays: true, semestersCount: true } },
+      },
+    })
+    if (!enrollments.length) break
+    cursor = enrollments[enrollments.length - 1].id
+
+    for (const enrollment of enrollments) {
+      if (raised >= maxRaises) break
+      if (!enrollment.program) continue
+      const units: Array<{ id: string; semester: number; order: number }> = await client.unit.findMany({
+        where: { programId: enrollment.programId },
+        select: { id: true, semester: true, order: true },
+      })
+      const windows = getSemesterWindows(
+        new Date(enrollment.createdAt), enrollment.program, units,
+        enrollment.extensionDays ?? 0,
+      )
+      for (const window of windows) {
+        if (raised >= maxRaises) break
+        if (now.getTime() <= window.endAt.getTime()) continue
+        const changed = await withDecisionLock(client, enrollment.id, window.semester, async (tx) => {
+          // Re-read the deadline and extension under the decision lock.
+          const fresh = await tx.enrollment.findUnique({
+            where: { id: enrollment.id },
+            select: {
+              status: true,
+              createdAt: true,
+              programId: true,
+              extensionDays: true,
+              program: { select: { category: true, maxStudyDays: true, semestersCount: true } },
+            },
+          })
+          if (fresh?.status !== 'ACTIVE' || !fresh.program) return false
+          const period = await loadSemesterPeriod(tx, {
+            programId: fresh.programId,
+            enrollmentCreatedAt: fresh.createdAt,
+            extensionDays: fresh.extensionDays,
+            program: fresh.program,
+            semester: window.semester,
+            now,
+          })
+          if (!period.ended || !period.endAt) return false
+
+          // The result may already have been approved/closed by an
+          // administrator. Never resurrect a decided semester.
+          const [approval, state, existing] = await Promise.all([
+            tx.semesterResultApproval.findUnique({
+              where: { enrollmentId_semester: { enrollmentId: enrollment.id, semester: window.semester } },
+              select: { id: true },
+            }),
+            tx.enrollmentSemesterState.findUnique({
+              where: { enrollmentId_semester: { enrollmentId: enrollment.id, semester: window.semester } },
+              select: { status: true },
+            }),
+            getSemesterDecision(tx, enrollment.id, window.semester),
+          ])
+          if (approval || state?.status === 'CLOSED' ||
+              existing?.status === 'DECIDED' || existing?.status === 'RAISED') return false
+
+          let count = 0
+          if (existing) {
+            const updated = await tx.semesterDecision.updateMany({
+              where: {
+                enrollmentId: enrollment.id,
+                semester: window.semester,
+                status: { in: ['NONE', 'INTENT', 'WITHDRAWN'] },
+              },
+              data: {
+                status: 'RAISED', raiseSource: 'DEADLINE',
+                raisedAt: period.endAt, scoreAtRaise: null,
+              },
+            })
+            count = updated.count
+          } else {
+            try {
+              await tx.semesterDecision.create({
+                data: {
+                  enrollmentId: enrollment.id, semester: window.semester,
+                  intent: null, status: 'RAISED', raiseSource: 'DEADLINE',
+                  raisedAt: period.endAt, scoreAtRaise: null,
+                },
+              })
+              count = 1
+            } catch (error) {
+              if (!isUniqueViolation(error)) throw error
+            }
+          }
+          if (count !== 1) return false
+          await enqueueOutbox(tx, {
+            key: `semester-deadline-raised:${enrollment.id}:${window.semester}`,
+            kind: 'SEMESTER_DEADLINE_RAISED',
+            recipientRole: 'ADMINS',
+            title: `انتهت فترة الفصل ${window.semester} — للمراجعة`,
+            body: `انتهت مدة الفصل ${window.semester} لطالب، وارتفعت نتيجته للمراجعة. تُحتسب الأعمال غير المقدمة صفرًا، ولا يجوز الاعتماد قبل إنهاء تصحيح الأعمال المقدمة والمصادقات المطلوبة.`,
+            link: '/?view=admin&tab=certs',
+          })
+          return true
+        })
+        if (changed) raised++
+      }
+    }
+    if (enrollments.length < batchSize) break
+  }
+  return raised
 }
 
 type AnyClient = any
