@@ -51,6 +51,11 @@ export async function requestMercy(
   if (state?.status !== 'CLOSED' || state?.result !== 'FAILED' || !approval) {
     return { ok: false, code: 'SEMESTER_NOT_FAILED' }
   }
+  // Mercy only improves a failing result AFTER the real semester exam
+  // was submitted. Neither a zero from an omitted exam nor a completed
+  // remedial activity can substitute for sitting that exam.
+  const satExam = await semesterExamsSat(client, args.userId, args.programId, args.semester)
+  if (!satExam) return { ok: false, code: 'SEMESTER_EXAM_NOT_TAKEN' }
   const store = (client as AnyClient)?.mercyRequest
   if (!store?.create) return { ok: false, code: 'INVALID_INPUT' }
   const existing = await store.findUnique({
