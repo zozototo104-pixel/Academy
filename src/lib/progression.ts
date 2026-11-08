@@ -293,8 +293,9 @@ export async function thesisGate(
     }
     approvedScores[s] = Number(stored.score)
   }
-  const sat = (await semesterExamsSat(client, enrollment.userId, enrollment.programId, semestersCount).catch(() => false))
-    || (await semesterExamCoveredByMercy(client, enrollment.id, semestersCount))
+  // A thesis may improve the cumulative grade, but it cannot waive
+  // mandatory sitting of the last semester's actual exam(s).
+  const sat = await semesterExamsSat(client, enrollment.userId, enrollment.programId, semestersCount).catch(() => false)
   if (!sat) reasons.push('امتحانات الفصل الأخير لم تُقدَّم كلها بعد')
   let cumulative: number | null = null
   if (approvedScores.filter((x) => typeof x === 'number').length === semestersCount && ctx.weights) {
