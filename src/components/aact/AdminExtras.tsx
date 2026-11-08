@@ -2720,7 +2720,59 @@ export function AdminFinanceTab() {
               <h3 className="text-base font-black text-[#0f2b46]">تنظيم المنح العامة والتخصصية والفردية</h3>
               <p className="mt-1 text-xs font-bold leading-6 text-slate-600">هذه الطبقة تنظم من يستحق الإعفاء وقيمته، ثم تسلمه لنظام الأكواد والفواتير الحالي. حملات المقاعد ومواعيد التقديم منفصلة عن هذه الإدارة.</p>
             </div>
-            {/* ORGANIZED_GRANT_FORM_SLOT */}
+            <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="grant-title">اسم المنحة</Label>
+                <Input id="grant-title" value={grantForm.title} onChange={(e) => setGrantForm((p) => ({ ...p, title: e.target.value }))} placeholder="مثال: منحة تخصص الإدارة" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="grant-scope">نوع المنحة</Label>
+                <select id="grant-scope" className="h-10 w-full min-w-0 rounded-lg border bg-white px-3 text-sm"
+                  value={grantForm.scope} onChange={(e) => setGrantForm((p) => ({ ...p, scope: e.target.value, programIds: [], admissionId: '' }))}>
+                  <option value="PROGRAM">تخصص أو تخصصات محددة</option>
+                  <option value="INDIVIDUAL">طالب محدد لأي سبب</option>
+                  <option value="GENERAL">عامة لكل التخصصات</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="grant-coverage">الرسوم المشمولة</Label>
+                <select id="grant-coverage" className="h-10 w-full min-w-0 rounded-lg border bg-white px-3 text-sm"
+                  value={grantForm.coverage} onChange={(e) => setGrantForm((p) => ({ ...p, coverage: e.target.value, valueMode: e.target.value === 'REGISTRATION' ? 'FULL' : p.valueMode }))}>
+                  <option value="REGISTRATION">رسوم التسجيل فقط</option>
+                  <option value="TUITION">الرسوم الدراسية فقط</option>
+                  <option value="BOTH">رسوم التسجيل والرسوم الدراسية</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="grant-value-mode">قيمة المنحة</Label>
+                <select id="grant-value-mode" className="h-10 w-full min-w-0 rounded-lg border bg-white px-3 text-sm"
+                  value={grantForm.valueMode} onChange={(e) => setGrantForm((p) => ({ ...p, valueMode: e.target.value }))}>
+                  <option value="FULL">كاملة 100%</option>
+                  <option value="PERCENT" disabled={grantForm.coverage === 'REGISTRATION'}>جزئية بالنسبة المئوية</option>
+                  <option value="AMOUNT" disabled={grantForm.coverage === 'REGISTRATION'}>جزئية بمبلغ بالدولار</option>
+                </select>
+              </div>
+              {grantForm.valueMode !== 'FULL' && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="grant-value">القيمة {grantForm.valueMode === 'PERCENT' ? '(%)' : '($)'}</Label>
+                  <Input id="grant-value" dir="ltr" type="number" min="0.01" step={grantForm.valueMode === 'PERCENT' ? '0.1' : '0.01'}
+                    value={grantForm.value} onChange={(e) => setGrantForm((p) => ({ ...p, value: e.target.value }))} />
+                </div>
+              )}
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="grant-reason">سبب المنحة ومرجع القرار</Label>
+                <Textarea id="grant-reason" rows={2} value={grantForm.reason}
+                  onChange={(e) => setGrantForm((p) => ({ ...p, reason: e.target.value }))}
+                  placeholder="ظروف إنسانية، قرار لجنة، تفوق، أو أي سبب خاص تقرره الإدارة" />
+              </div>
+            </div>
+            {/* ORGANIZED_GRANT_SCOPE_SLOT */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="max-w-xl text-[11px] font-bold leading-5 text-slate-500">النسبة تُحوّل إلى سنتات على الخادم وقت إصدار الكود. الإعفاء الجزئي من رسوم التسجيل وحدها غير مدعوم حاليًا، لذلك لا يُعرض كخيار قابل للإصدار.</p>
+              <Button type="button" disabled={grantSaving} onClick={() => void saveGrantPolicy()}>
+                {grantSaving ? 'جارٍ الحفظ…' : 'حفظ تعريف المنحة'}
+              </Button>
+            </div>
           </CardContent>
         </Card>
         {/* ORGANIZED_GRANT_LIST_SLOT */}
