@@ -91,6 +91,30 @@ describe('admin lecture route guards', () => {
     expect(attendance).toContain("'ABSENT'")
   })
 
+  test('permanent session deletion requires admin and cannot erase attendance history', () => {
+    const route = read(apiRoot, 'sessions/[id]/route.ts')
+    expect(route).toContain('export async function DELETE(')
+    expect(route).toContain('if (!isAdmin(actor))')
+    expect(route).toContain('session._count.attendances > 0')
+    expect(route).toContain('attendances: { none: {} }')
+    expect(route).toContain('lectureSession.deleteMany')
+    expect(route).not.toContain('lectureAttendance.delete')
+    expect(route).toContain('LECTURE_SESSION_DELETED')
+    expect(route).toContain('notificationWarning')
+  })
+
+  test('lecture overview groups by program and keeps separate meeting and video tabs', () => {
+    const ui = readFileSync(join(import.meta.dir, '../../src/components/aact/AdminLectures.tsx'), 'utf8')
+    expect(ui).toContain('occupiedPrograms.map((program)')
+    expect(ui).toContain("setFilterProgram(program.id)")
+    expect(ui).toContain("contentTab === 'meetings'")
+    expect(ui).toContain("contentTab === 'videos'")
+    expect(ui).toContain("setContentTab('videos')")
+    expect(ui).toContain("setContentTab('meetings')")
+    expect(ui).toContain("surface === 'admin'")
+    expect(ui).toContain("method: 'DELETE'")
+  })
+
   test('no lecture route or library file writes to the console', () => {
     for (const rel of routeFiles) {
       expect(read(apiRoot, rel)).not.toContain('console.')
