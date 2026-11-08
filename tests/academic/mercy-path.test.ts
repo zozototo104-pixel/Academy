@@ -172,6 +172,25 @@ mock.module('@/lib/supervisor-scope', () => ({ requireSupervisor: async () => ({
 const { GET: supervisorMercyList } = await import('../../src/app/api/supervisor/mercy/route')
 
 describe('مسار الاسترحام والنشاط العلاجي', () => {
+  test('فصل راسب معتمد بلا تقديم امتحان: الاسترحام مرفوض؛ بعد تقديمه يحق الطلب', async () => {
+    const isolated = extendWorld(makeWorld(20))
+    isolated.state.programAttempts = []
+    isolated.state.semesterStates.set('enr1:1', { status: 'CLOSED', result: 'FAILED' })
+    isolated.state.approvals.set('enr1:1', { status: 'APPROVED', score: 25 })
+    const request = { userId: 'u1', programId: 'p1', semester: 1 }
+    const denied = await requestMercy(isolated.db, request)
+    expect(denied).toEqual({ ok: false, code: 'SEMESTER_EXAM_NOT_TAKEN' })
+    expect(isolated.state.mercyRows).toHaveLength(0)
+
+    isolated.state.programAttempts.push({
+      id: 'submitted-pe1', userId: 'u1', examId: 'pe1',
+      status: 'GRADED', score: 25, passed: false, appealStatus: 'NONE', answers: [],
+    })
+    const permitted = await requestMercy(isolated.db, request)
+    expect(permitted.ok).toBe(true)
+    expect(isolated.state.mercyRows).toHaveLength(1)
+  })
+
   test('الدورة الكاملة: رسوب مغلق ⟹ نشاط مصحَّح ⟹ معدل جديد ومصادقة جديدة', async () => {
     // ١) اعتماد الفصل الأول راسبًا وإغلاقه (معدل 33.33)
     const approval = await approveSemesterResult({ enrollmentId: 'enr1', semester: 1, actor: { id: 'admin-1' } })
