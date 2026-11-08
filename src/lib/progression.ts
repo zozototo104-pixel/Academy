@@ -134,9 +134,12 @@ export async function semesterExamsSat(
   semester: number,
 ): Promise<boolean> {
   const attemptStore = client?.programExamAttempt
-  if (!attemptStore?.findMany) return true
+  // Do not infer the student sat a semester exam from missing data.
+  // For progression and required thesis alike, a designated exam must
+  // actually exist and have a submitted attempt.
+  if (!attemptStore?.findMany) return false
   const designated = await designatedSemesterExams(client, programId, semester)
-  if (!designated || designated.length === 0) return true
+  if (!designated || designated.length === 0) return false
   for (const exam of designated as any[]) {
     const attempts = await attemptStore.findMany({
       where: { userId, examId: exam.id, status: { in: ['GRADED', 'NEEDS_REVIEW', 'SUBMITTED'] } },
