@@ -46,7 +46,7 @@ async function liveGraduationRaiseGate(
   if (!last) return { gate: null, semester: null }
   const decision = await client.semesterDecision.findUnique({
     where: { enrollmentId_semester: { enrollmentId, semester: last.semester } },
-    select: { status: true },
+    select: { status: true, raiseSource: true },
   })
   return {
     gate: raiseGateOf(decision, Date.now() > last.endAt.getTime()),
