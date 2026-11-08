@@ -273,3 +273,95 @@ test('a later grade change invalidates the approval (STALE); re-approval stores 
     await gradeApprovalState(fakeDb, 'UNIT_EXAM', 'unit-attempt-1', 91),
   ).toBe('APPROVED')
 })
+
+test('re-approving an unchanged grade is a no-op: no rewrite, no second audit (§9)', async () => {
+  const first = await approveGrade({ targetType: 'UNIT_EXAM', attemptId: 'unit-attempt-1', actor: { id: 'admin-1' } })
+  expect(first.ok).toBe(true)
+  const storedAfterFirst = { ...(world.approvals.get('UNIT_EXAM:unit-attempt-1') as AnyRow) }
+  expect(world.audits.length).toBe(1)
+  const second = await approveGrade({ targetType: 'UNIT_EXAM', attemptId: 'unit-attempt-1', actor: { id: 'admin-1' } })
+  expect(second.ok).toBe(true)
+  if (second.ok) expect(second.alreadyApproved).toBe(true)
+  expect(world.audits.length).toBe(1)
+  const storedAfterSecond = world.approvals.get('UNIT_EXAM:unit-attempt-1') as AnyRow
+  expect(storedAfterSecond.approvedAt).toBe(storedAfterFirst.approvedAt)
+  expect(storedAfterSecond.approvedById).toBe(storedAfterFirst.approvedById)
+})
+
+test('failed approval record lookup does not trigger a second approval or audit', async () => {
+  const original = fakeDb.gradeApproval.findUnique
+  fakeDb.gradeApproval.findUnique = async () => { throw new Error('APPROVAL_LOOKUP_UNAVAILABLE') }
+  try {
+    await expect(approveGrade({
+      targetType: 'UNIT_EXAM', attemptId: 'unit-attempt-1', actor: { id: 'admin-1' },
+    })).rejects.toThrow('APPROVAL_LOOKUP_UNAVAILABLE')
+    expect(world.approvals.size).toBe(0)
+    expect(world.audits.length).toBe(0)
+  } finally {
+    fakeDb.gradeApproval.findUnique = original
+  }
+})
+
+test('grade approval obtains a transaction-scoped attempt lock on capable clients', async () => {
+  const original = fakeDb.$queryRaw
+  const locks: unknown[][] = []
+  fakeDb.$queryRaw = async (_parts: TemplateStringsArray, ...values: unknown[]) => {
+    locks.push(values)
+    return []
+  }
+  try {
+    const approved = await approveGrade({
+      targetType: 'UNIT_EXAM', attemptId: 'unit-attempt-1', actor: { id: 'admin-1' },
+    })
+    expect(approved.ok).toBe(true)
+    expect(locks.length).toBe(1)
+    expect(locks[0]).toContain('grade-approval:UNIT_EXAM:unit-attempt-1')
+  } finally {
+    if (original === undefined) delete fakeDb.$queryRaw
+    else fakeDb.$queryRaw = original
+  }
+})
+
+test('a changed grade re-approves on the new value only — a real audited decision (§9)', async () => {
+  await approveGrade({ targetType: 'UNIT_EXAM', attemptId: 'unit-attempt-1', actor: { id: 'admin-1' } })
+  const attempt = world.unitAttempts.get('unit-attempt-1') as AnyRow
+  attempt.score = 91
+  const res = await approveGrade({ targetType: 'UNIT_EXAM', attemptId: 'unit-attempt-1', actor: { id: 'admin-1' } })
+  expect(res.ok).toBe(true)
+  if (res.ok) expect(res.alreadyApproved).toBeFalsy()
+  expect((world.approvals.get('UNIT_EXAM:unit-attempt-1') as AnyRow).score).toBe(91)
+  expect(world.audits.length).toBe(2)
+})
+
+test('bulk approval: per-item report with scope and finality inherited (§10)', async () => {
+  const { approveGradesBulk } = await import('@/lib/grade-approval')
+  await approveGrade({ targetType: 'UNIT_EXAM', attemptId: 'unit-attempt-1', actor: { id: 'admin-1' } })
+  const report = await approveGradesBulk({
+    items: [
+      { targetType: 'UNIT_EXAM', attemptId: 'unit-attempt-1' }, // already approved at 88
+      { targetType: 'PROGRAM_EXAM', attemptId: 'program-attempt-1' }, // new approval
+      { targetType: 'UNIT_EXAM', attemptId: 'missing-attempt' }, // rejected
+      { targetType: 'PROGRAM_EXAM', attemptId: 'program-attempt-1' }, // duplicate in list — deduped
+    ],
+    actor: { id: 'sup-2' }, // not the assigned supervisor → his items are forbidden
+  })
+  // sup-2 is forbidden for everything: the already-approved item must NOT
+  // be reported as skipped-by-him — scope is checked before idempotency.
+  expect(report.approved).toBe(0)
+  expect(report.rejected).toBe(3)
+  const adminReport = await approveGradesBulk({
+    items: [
+      { targetType: 'UNIT_EXAM', attemptId: 'unit-attempt-1' },
+      { targetType: 'PROGRAM_EXAM', attemptId: 'program-attempt-1' },
+      { targetType: 'UNIT_EXAM', attemptId: 'missing-attempt' },
+    ],
+    actor: { id: 'admin-1' },
+  })
+  expect(adminReport.alreadyApproved).toBe(1)
+  expect(adminReport.approved).toBe(1)
+  expect(adminReport.rejected).toBe(1)
+  expect(adminReport.results.find((r) => r.attemptId === 'missing-attempt')?.code).toBe('ATTEMPT_NOT_FOUND')
+  // audits: 1 (the pre-approval) + 1 (program exam in admin bulk) — the
+  // already-approved item wrote none.
+  expect(world.audits.length).toBe(2)
+})

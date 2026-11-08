@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { requestMercy } from '@/lib/mercy'
+import { semesterExamsSat } from '@/lib/progression'
 import { assignedSupervisorForStudent } from '@/lib/supervisor-scope'
 
 export const runtime = 'nodejs'
@@ -23,6 +24,7 @@ export async function POST(req: NextRequest) {
     if (!result.ok) {
       const messages: Record<string, string> = {
         SEMESTER_NOT_FAILED: 'الاسترحام متاح فقط لفصل أُغلق بنتيجة راسب معتمدة.',
+        SEMESTER_EXAM_NOT_TAKEN: 'يجب تقديم الامتحان الفصلي فعليًا قبل طلب الاسترحام؛ الاسترحام لتحسين درجة الرسوب وليس بديلًا عن الامتحان.',
         MERCY_ALREADY_EXISTS: 'سبق أن استُخدم مسار الاسترحام لهذا الفصل.',
         ENROLLMENT_NOT_FOUND: 'لا تسجيل مطابقًا في هذا البرنامج.',
         INVALID_INPUT: 'بيانات الطلب ناقصة.',
@@ -57,9 +59,11 @@ export async function GET() {
         select: { semester: true },
       }).catch(() => [])
       for (const s of states as any[]) {
-        if (!(requests as any[]).some((r) => r.enrollmentId === enr.id && r.semester === s.semester)) {
-          eligible.push({ enrollmentId: enr.id, programId: enr.programId, semester: s.semester })
-        }
+        if ((requests as any[]).some((r) => r.enrollmentId === enr.id && r.semester === s.semester)) continue
+        // The button must agree with the server-side mercy gate:
+        // no sitting of the actual semester exam, no mercy request.
+        if (!(await semesterExamsSat(db, user.id, enr.programId, s.semester))) continue
+        eligible.push({ enrollmentId: enr.id, programId: enr.programId, semester: s.semester })
       }
     }
     return NextResponse.json({ ok: true, requests, eligible })

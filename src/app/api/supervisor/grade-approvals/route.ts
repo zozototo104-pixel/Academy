@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSupervisor } from '@/lib/supervisor-scope'
-import { approveGrade, type GradeTargetType } from '@/lib/grade-approval'
+import { approveGrade, approveGradesBulk, type GradeTargetType } from '@/lib/grade-approval'
 
 // اعتماد الدرجات بيد المشرف البشري (المرحلة 2 من خطة دورة التخرج): المشرف
 // يعتمد درجات طلابه هو فقط — النطاق تفرضه approveGrade نفسها خادميًا
@@ -28,7 +28,21 @@ export async function POST(req: NextRequest) {
       targetType?: string
       attemptId?: string
       note?: string
+      bulk?: boolean
+      items?: { targetType?: string; attemptId?: string }[]
     } | null
+    if (body?.bulk === true && Array.isArray(body.items)) {
+      // مصادقة جماعية لطلاب المشرف فقط: النطاق يُفرض داخل البوابة لكل عنصر.
+      const report = await approveGradesBulk({
+        items: body.items.map((item) => ({
+          targetType: String(item?.targetType || '') as GradeTargetType,
+          attemptId: String(item?.attemptId || ''),
+        })),
+        actor: { id: actor.id, name: actor.name ?? '' },
+        note: body?.note,
+      })
+      return NextResponse.json({ ok: true, report })
+    }
     const result = await approveGrade({
       targetType: String(body?.targetType || '') as GradeTargetType,
       attemptId: String(body?.attemptId || ''),
@@ -41,7 +55,7 @@ export async function POST(req: NextRequest) {
         { status: STATUS_BY_CODE[result.code] ?? 400 },
       )
     }
-    return NextResponse.json({ ok: true, approval: result.approval })
+    return NextResponse.json({ ok: true, approval: result.approval, alreadyApproved: result.alreadyApproved === true })
   } catch {
     return NextResponse.json({ ok: false, code: 'UNAUTHORIZED' }, { status: 401 })
   }

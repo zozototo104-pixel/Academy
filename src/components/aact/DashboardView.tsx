@@ -19,6 +19,13 @@ import StudentReminderBanner from '@/components/aact/StudentReminderBanner'
 import { StudentLectures } from '@/components/aact/StudentLectures'
 import { SemesterTrackingCard, type StudentTrackingView } from '@/components/aact/SemesterTrackingCard'
 import {
+  SemesterDecisionDialog,
+  SemesterDecisionPanel,
+  type SemesterDecisionBrief,
+} from '@/components/aact/SemesterDecision'
+import { AssignmentReopenAppeal } from '@/components/aact/ReopenAppeal'
+import { StudentMercyPanel } from '@/components/aact/Mercy'
+import {
   BookOpen, ClipboardCheck, ChevronLeft, Loader2, Lock,
   Award, Bot, CheckCircle2, CircleDashed, Trophy, Banknote, FileText,
   BookMarked, Hourglass, ScrollText, MessageCircle, Bell, ListChecks, Download, ExternalLink, Video,
@@ -163,6 +170,7 @@ interface ProgressData {
     weightWarning: string | null
   }
   semesterTracking?: StudentTrackingView | null
+  decisionActive?: boolean
   completedUnits: string[]
   booksCount?: number
   finalExam?: {
@@ -184,6 +192,8 @@ interface ProgressData {
     questionCount: number
     bestScore: number | null
     passed: boolean
+    progression?: { open: boolean; reasons: string[] }
+    decisionBrief?: SemesterDecisionBrief | null
     readiness?: {
       semester: number
       readyMarked: boolean
@@ -248,6 +258,7 @@ interface StudentAssignment {
   weight: number
   dueDays?: number | null
   dueAt?: string | null
+  unitId?: string | null
   rubric?: string | null
   status: string
   submitted: boolean
@@ -386,6 +397,8 @@ export function DashboardView() {
   const [enrollments, setEnrollments] = useState<MyEnrollment[]>([])
   const [programs, setPrograms] = useState<any[]>([])
   const [active, setActive] = useState<ProgressData | null>(null)
+  const [decisionDialog, setDecisionDialog] = useState<{ semester: number; mode: 'ready' | 'raise' } | null>(null)
+  const [decisionBusy, setDecisionBusy] = useState(false)
   const [studyGuides, setStudyGuides] = useState<StudentStudyGuide[]>([])
   const [studyScheduleItems, setStudyScheduleItems] = useState<StudentStudyScheduleItem[]>([])
   const [assignments, setAssignments] = useState<StudentAssignment[]>([])
@@ -586,8 +599,8 @@ export function DashboardView() {
     }
   }
 
-  const markReadyForSemesterExam = async (semester: number) => {
-    if (!active) return
+  const doMarkReadyForSemesterExam = async (semester: number): Promise<boolean> => {
+    if (!active) return false
     try {
       const res = await api<{ ok: boolean; message: string }>(`/api/progress`, {
         method: 'POST',
@@ -595,8 +608,87 @@ export function DashboardView() {
       })
       toast({ title: 'تم تحديث جاهزية الامتحان', description: res.message })
       await open(active.program.id)
+      return true
     } catch (e: any) {
       toast({ title: 'تعذر تفعيل الامتحان', description: e.message, variant: 'destructive' })
+      return false
+    }
+  }
+
+  // نفعّل الامتحان أولًا، ثم نحفظ قرار الطالب؛ فشل تفعيل الامتحان
+  // لا يجوز أن يترك طلب إغلاق مبكر محفوظًا بالخطأ.
+  const markReadyForSemesterExam = async (semester: number) => {
+    if (!active) return
+    if (active.decisionActive) {
+      const exam = (active.semesterExams || []).find((item) => item.semester === semester)
+      if (!exam?.decisionBrief) {
+        toast({
+          title: 'تعذر التحقق من حالة الفصل',
+          description: 'لم تُقرأ حالة أعمالك وموعد الفصل بصورة مكتملة. أعد فتح البرنامج قبل اتخاذ قرار الإنهاء.',
+          variant: 'destructive',
+        })
+        return
+      }
+      setDecisionDialog({ semester, mode: 'ready' })
+      return
+    }
+    await doMarkReadyForSemesterExam(semester)
+  }
+
+  const confirmDecisionDialog = async (intent: 'EARLY_FINISH' | 'CONTINUE', consentToZeros: boolean) => {
+    if (!active || !decisionDialog) return
+    const { semester, mode } = decisionDialog
+    setDecisionBusy(true)
+    let readinessActivated = false
+    try {
+      if (mode === 'ready') {
+        // Never store an irreversible early-finish intent if the exam
+        // readiness action failed (tuition gate, progression gate, etc.).
+        readinessActivated = await doMarkReadyForSemesterExam(semester)
+        if (!readinessActivated) return
+      }
+      const res = await api<{ ok: boolean; decision?: { status?: string } | null }>(`/api/progress`, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'SEMESTER_DECISION', programId: active.program.id, semester, intent, consentToZeros }),
+      })
+      setDecisionDialog(null)
+      toast({
+        title: res.decision?.status === 'RAISED' ? 'تم رفع نتيجتك للإدارة' : 'تم حفظ قرارك',
+        description:
+          res.decision?.status === 'RAISED'
+            ? 'نتيجتك الآن عند الإدارة بانتظار الاعتماد.'
+            : intent === 'EARLY_FINISH'
+              ? 'طلب الإنهاء المبكر محفوظ — يُرفع عند اكتمال تصحيح امتحان الفصل ودرجاتك المعلّقة.'
+              : 'اخترت استكمال أعمال الفصل — لا تُرفع نتيجتك إلا بطلبك أو عند انتهاء فترة الفصل.',
+      })
+      await open(active.program.id)
+    } catch (e: any) {
+      toast({
+        title: readinessActivated ? 'تفعّل الامتحان لكن لم يُحفظ قرار الفصل' : 'تعذر حفظ القرار',
+        description: readinessActivated
+          ? 'يمكنك تقديم الامتحان الآن، لكن طلب الرفع لم يُحفظ. افتح النافذة مجددًا وحدد اختيارك. لا يوجد طلب رفع ضمني.'
+          : e.message,
+        variant: 'destructive',
+      })
+    } finally {
+      setDecisionBusy(false)
+    }
+  }
+
+  const withdrawDecision = async (semester: number) => {
+    if (!active) return
+    setDecisionBusy(true)
+    try {
+      await api(`/api/progress`, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'SEMESTER_DECISION_WITHDRAW', programId: active.program.id, semester }),
+      })
+      toast({ title: 'تم سحب طلب الرفع', description: 'يمكنك استكمال أعمال الفصل والرفع مجددًا قبل انتهاء فترته.' })
+      await open(active.program.id)
+    } catch (e: any) {
+      toast({ title: 'تعذر سحب الطلب', description: e.message, variant: 'destructive' })
+    } finally {
+      setDecisionBusy(false)
     }
   }
 
@@ -736,11 +828,10 @@ export function DashboardView() {
 
   const handleSemesterExamAction = (exam: any) => {
     if (!active) return
-    const sem1 = (active.semesterExams || []).find((e: any) => e.semester === 1)
     const readiness = exam.readiness
     const tuitionGate = exam.tuitionGate
     const tuitionLocked = Boolean(tuitionGate && !tuitionGate.allowed)
-    const prereqLocked = exam.semester === 2 && sem1 && !sem1.passed
+    const prereqLocked = exam.semester > 1 && exam.progression?.open !== true
     const locked = prereqLocked || tuitionLocked || !readiness?.readyMarked
     if (locked) return
     return openExam(exam.id, 'final')
@@ -1352,6 +1443,7 @@ export function DashboardView() {
                 )}
 
                 <SemesterTrackingCard tracking={active.semesterTracking} />
+                <StudentMercyPanel />
 
                 {active.finalScore != null && (
                   <div className="mt-3 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3.5 text-sm font-bold text-emerald-700">
@@ -1763,6 +1855,9 @@ export function DashboardView() {
                                 </div>
                               </div>
                             )}
+                            {a.dueAt && new Date(a.dueAt).getTime() < Date.now() && !graded && (
+                              <AssignmentReopenAppeal programId={a.programId} semester={a.semester} unitId={a.unitId ?? null} />
+                            )}
                           </article>
                         )
                       })}
@@ -1835,10 +1930,9 @@ export function DashboardView() {
                       {(active.semesterExams?.length || 0) > 0 ? (
                         <div className="space-y-3">
                           {active.semesterExams!.map((exam: any) => {
-                            const sem1 = (active.semesterExams || []).find((e: any) => e.semester === 1)
                             const tuitionGate = exam.tuitionGate
                             const tuitionLocked = Boolean(tuitionGate && !tuitionGate.allowed)
-                            const prereqLocked = exam.semester === 2 && sem1 && !sem1.passed
+                            const prereqLocked = exam.semester > 1 && exam.progression?.open !== true
                             const locked = prereqLocked || tuitionLocked || !exam.readiness?.readyMarked
                             return (
                               <article key={exam.id} className="rounded-2xl border border-[#0f2b46]/10 bg-[#f8fafc] p-4">
@@ -1861,6 +1955,14 @@ export function DashboardView() {
                                     </Button>
                                   </div>
                                 </div>
+                                {active.decisionActive && exam.decisionBrief ? (
+                                  <SemesterDecisionPanel
+                                    brief={exam.decisionBrief}
+                                    busy={decisionBusy}
+                                    onRaise={() => setDecisionDialog({ semester: exam.semester, mode: 'raise' })}
+                                    onWithdraw={() => void withdrawDecision(exam.semester)}
+                                  />
+                                ) : null}
                               </article>
                             )
                           })}
@@ -1889,14 +1991,31 @@ export function DashboardView() {
           ) : null}
 
           {/* 12.2: امتحانا الفصلين من الكتب المقررة */}
+          {decisionDialog && active?.decisionActive
+            ? (() => {
+                const exam = (active.semesterExams || []).find((e: any) => e.semester === decisionDialog.semester)
+                if (!exam?.decisionBrief) return null
+                return (
+                  <SemesterDecisionDialog
+                    key={`${decisionDialog.semester}:${decisionDialog.mode}`}
+                    brief={exam.decisionBrief}
+                    examTitle={exam.title}
+                    semester={decisionDialog.semester}
+                    mode={decisionDialog.mode}
+                    busy={decisionBusy}
+                    onConfirm={(intent, consentToZeros) => void confirmDecisionDialog(intent, consentToZeros)}
+                    onClose={() => setDecisionDialog(null)}
+                  />
+                )
+              })()
+            : null}
           {programSection !== 'content' && active?.semesterExams && active.semesterExams.length > 0 && curriculumReady && (
             active.semesterExams.map((exam: any, idx: number) => {
-              // بوابة التسلسل: امتحان الفصل الثاني يفتح بعد اجتياز الفصل الأول
-              const sem1 = (active.semesterExams || []).find((e: any) => e.semester === 1)
+              // بوابة التسلسل: الاعتماد الرسمي يكفي حتى مع رسوب الفصل السابق.
               const readiness = exam.readiness
               const tuitionGate = exam.tuitionGate
               const tuitionLocked = Boolean(tuitionGate && !tuitionGate.allowed)
-              const prereqLocked = exam.semester === 2 && sem1 && !sem1.passed
+              const prereqLocked = exam.semester > 1 && exam.progression?.open !== true
               const locked = prereqLocked || tuitionLocked || !readiness?.readyMarked
               return (
                 <Card key={exam.id} className={`border-[#0f2b46]/15 bg-[#0f2b46] text-[#f5f0e1] ${locked ? 'opacity-80' : ''}`}>
@@ -1908,7 +2027,9 @@ export function DashboardView() {
                           <h2 className="text-base font-black">{exam.title}</h2>
                           {locked && (
                             <Badge className="bg-amber-500/20 text-[9px] font-black text-amber-300 hover:bg-amber-500/20">
-                              {prereqLocked ? 'مقفل — اجتز امتحان الفصل الأول أولاً' : 'مقفل — اضغط جاهز للامتحان أولاً'}
+                              {prereqLocked
+                                ? `مقفل — ${exam.progression?.reasons?.[0] || 'يلزم اعتماد نتيجة الفصل السابق'}`
+                                : tuitionLocked ? 'مقفل لحين سداد الرسوم المستحقة' : 'مقفل — اضغط جاهز للامتحان أولاً'}
                             </Badge>
                           )}
                         </div>
@@ -1952,6 +2073,14 @@ export function DashboardView() {
                         </Button>
                       </div>
                     </div>
+                    {active.decisionActive && exam.decisionBrief ? (
+                      <SemesterDecisionPanel
+                        brief={exam.decisionBrief}
+                        busy={decisionBusy}
+                        onRaise={() => setDecisionDialog({ semester: exam.semester, mode: 'raise' })}
+                        onWithdraw={() => void withdrawDecision(exam.semester)}
+                      />
+                    ) : null}
                   </CardContent>
                 </Card>
               )

@@ -332,6 +332,33 @@ describe('admin student preview — detail payload', () => {
     expect(body.correspondence.admin.messages).toEqual([])
   })
 
+  test('completed enrollments get full details in their own list — never inside the active/follow-up flow (عرض الخريجين القدامى، 2026-11-08)', async () => {
+    fx.enrollments.push({
+      id: 'enr-2', status: 'COMPLETED', completedUnits: '[]', finalScore: 71, certificateNo: 'C-1',
+      extensionDays: 0, followUpCount: 0, createdAt: daysAgo(50), updatedAt: daysAgo(20),
+      program: fx.enrollments[0].program,
+    })
+    const { status, body } = await getPreview()
+    expect(status).toBe(200)
+    // The active list is untouched: still exactly the ACTIVE enrollment,
+    // and absence still derives from it alone.
+    expect(body.enrollmentDetails).toHaveLength(1)
+    expect(body.enrollmentDetails[0].enrollmentId).toBe('enr-1')
+    expect(body.absence).not.toBeNull()
+    // The completed enrollment is fully detailed in its own list: same
+    // builder, same program facts — a pre-system graduate's preview is
+    // no longer an empty shell.
+    expect(body.completedDetails).toHaveLength(1)
+    const done = body.completedDetails[0]
+    expect(done.enrollmentId).toBe('enr-2')
+    expect(done.status).toBe('COMPLETED')
+    expect(done.programTitle).toBe('دبلوم إدارة الموارد البشرية')
+    expect(done.counts.unitsTotal).toBe(3)
+    expect(done.units).toHaveLength(3)
+    expect(done.cumulative).not.toBeNull()
+    expect(body.overview.completedEnrollments).toBe(1)
+  })
+
   test('correspondence payloads exist for both tabs, chronological and read-only shaped', async () => {
     const { body } = await getPreview()
     const ai = body.correspondence.aiSupervisor
@@ -373,6 +400,20 @@ describe('student preview — wiring & tab pins', () => {
     expect(src).toContain('الانتقال إلى صفحة المراجعة')
     expect(src).toContain("'aact-admin-tab'")
     expect(src).toContain("tab: 'grading-review'")
+  })
+  test('legacy عرض entry + standing brief are wired (2026-11-08)', () => {
+    const legacy = readFileSync(join(root, 'src/components/aact/AdminLegacyGraduatesTab.tsx'), 'utf8')
+    expect(legacy).toContain('openStudentPreview(cert.user.id)')
+    expect(legacy).toContain('ملف الخريج القديم')
+    const extras = readFileSync(join(root, 'src/components/aact/AdminExtras.tsx'), 'utf8')
+    expect(extras).toContain('كشف وضع الطالب في هذا الفصل')
+    expect(extras).toContain('شو ضايل عليه في هذا الفصل')
+    const approvalsRoute = readFileSync(join(root, 'src/app/api/admin/semester-approvals/route.ts'), 'utf8')
+    expect(approvalsRoute).toContain('getSemesterStanding')
+    const standingLib = readFileSync(join(root, 'src/lib/student-standing.ts'), 'utf8')
+    expect(standingLib).not.toContain('.create(')
+    expect(standingLib).not.toContain('.update(')
+    expect(standingLib).not.toContain('.delete(')
   })
   test('preview route performs no writes and consumes the shared engines (read-only monitoring contract)', () => {
     const src = readFileSync(join(root, 'src/app/api/admin/students/preview/route.ts'), 'utf8')

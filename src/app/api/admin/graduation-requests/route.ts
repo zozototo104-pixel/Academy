@@ -3,6 +3,8 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit, notify } from '@/lib/notify'
 import { registerGraduationRequest } from '@/lib/enrollment-completion'
+import { SEMESTER_DECISION_ACTIVE, isGraduationRaiseEligible, lockSemesterDecision, raiseGateOf, type RaiseGate } from '@/lib/semester-decision'
+import { getSemesterWindows } from '@/lib/semester-lifecycle'
 
 // معاملات التخرج: السجلّ المحفوظ الذي يوثّق فحص الأهلية والمصادقة الإدارية.
 // لا يصدر أي مسار شهادة برنامج دون طلب بحالة APPROVED هنا، والإصدار نفسه
@@ -12,6 +14,44 @@ function snapshotOf(request: any) {
   const raw = request.snapshot
   if (raw && typeof raw === 'object') return raw
   try { return JSON.parse(String(raw || '{}')) } catch { return {} }
+}
+
+// Read the last semester's actual raise right from the server. A stored
+// eligibility snapshot alone must never authorize administrative approval.
+async function liveGraduationRaiseGate(
+  client: Pick<typeof db, 'enrollment' | 'unit' | 'semesterDecision'>,
+  enrollmentId: string,
+): Promise<{ gate: RaiseGate | null; semester: number | null }> {
+  const enrollment = await client.enrollment.findUnique({
+    where: { id: enrollmentId },
+    select: {
+      createdAt: true,
+      extensionDays: true,
+      programId: true,
+      program: { select: { category: true, maxStudyDays: true, semestersCount: true } },
+    },
+  })
+  if (!enrollment?.program) return { gate: null, semester: null }
+  const units = await client.unit.findMany({
+    where: { programId: enrollment.programId },
+    select: { id: true, semester: true, order: true },
+  })
+  const windows = getSemesterWindows(
+    new Date(enrollment.createdAt),
+    enrollment.program,
+    units,
+    enrollment.extensionDays ?? 0,
+  )
+  const last = windows[windows.length - 1]
+  if (!last) return { gate: null, semester: null }
+  const decision = await client.semesterDecision.findUnique({
+    where: { enrollmentId_semester: { enrollmentId, semester: last.semester } },
+    select: { status: true, raiseSource: true },
+  })
+  return {
+    gate: raiseGateOf(decision, Date.now() > last.endAt.getTime()),
+    semester: last.semester,
+  }
 }
 
 export async function GET(req: NextRequest) {
@@ -34,7 +74,56 @@ export async function GET(req: NextRequest) {
     ])
     const userById = new Map(users.map((u) => [u.id, u]))
     const programById = new Map(programs.map((p) => [p.id, p]))
+    // بوابة رفع الطالب لكل معاملة (الخطوة 5): أين يقف ملفه بالنسبة
+    // لرفعه هو — تُحسب دفعة واحدة من سجلات القرار ونوافذ الفصول،
+    // ودفاعيًا: أي غياب يترك البوابة فارغة ولا يُسقط القائمة.
+    const gateByEnrollment = new Map<string, RaiseGate>()
+    if (SEMESTER_DECISION_ACTIVE && requests.length) {
+      try {
+        const enrollmentIds = [...new Set(requests.map((r) => r.enrollmentId))]
+        const [enrollments, programRows, units, decisions]: [any[], any[], any[], any[]] = await Promise.all([
+          db.enrollment.findMany({ where: { id: { in: enrollmentIds } }, select: { id: true, programId: true, createdAt: true, extensionDays: true } }),
+          db.program.findMany({ where: { id: { in: programIds } }, select: { id: true, category: true, maxStudyDays: true, semestersCount: true } }),
+          db.unit.findMany({ where: { programId: { in: programIds } }, select: { id: true, programId: true, semester: true, order: true } }),
+          (db as any).semesterDecision?.findMany
+            ? (db as any).semesterDecision.findMany({ where: { enrollmentId: { in: enrollmentIds } } })
+            : Promise.resolve([]),
+        ])
+        const enrollmentById = new Map(enrollments.map((e) => [e.id, e]))
+        const gateProgramById = new Map(programRows.map((p) => [p.id, p]))
+        const unitsByProgram = new Map<string, { id: string; semester: number; order: number }[]>()
+        for (const u of units) {
+          const list = unitsByProgram.get(u.programId) || []
+          list.push({ id: u.id, semester: u.semester ?? 1, order: u.order ?? 0 })
+          unitsByProgram.set(u.programId, list)
+        }
+        const decisionByKey = new Map(decisions.map((d) => [`${d.enrollmentId}:${d.semester}`, d]))
+        const nowMs = Date.now()
+        for (const r of requests) {
+          const enr = enrollmentById.get(r.enrollmentId)
+          const prog = gateProgramById.get(r.programId)
+          if (!enr || !prog) continue
+          const windows = getSemesterWindows(new Date(enr.createdAt), prog, unitsByProgram.get(r.programId) || [], enr.extensionDays ?? 0)
+          if (!windows.length) continue
+          const last = windows[windows.length - 1]
+          const decision = decisionByKey.get(`${r.enrollmentId}:${last.semester}`) ?? null
+          gateByEnrollment.set(r.enrollmentId, raiseGateOf(decision, nowMs > last.endAt.getTime()))
+        }
+      } catch (error) {
+        // A failed raise scan degrades the gate chips only — the list
+        // itself stays visible (owner ruling 2026-11-08: in-progress
+        // records are SHOWN in their own section, never hidden), and
+        // actionability is enforced by the POST decision guard, which
+        // re-reads the gate live under the decision lock.
+        console.error('graduation raise-gate read error:', error)
+      }
+    }
     const admissionById = new Map(admissions.map((a) => [a.id, a]))
+    // Owner ruling 2026-11-08: EVERY record is returned. Unraised
+    // PENDING records appear in the admin's «قيد الاستكمال» section
+    // (visible, with their raise-gate chip) but are NOT decidable —
+    // the POST handlers below refuse approval/rejection until the
+    // student raises, the semester is decided, or the period ends.
     return NextResponse.json({
       requests: requests.map((r) => ({
         id: r.id,
@@ -53,6 +142,7 @@ export async function GET(req: NextRequest) {
         issuedAt: r.issuedAt,
         createdAt: r.createdAt,
         updatedAt: r.updatedAt,
+        raiseGate: gateByEnrollment.get(r.enrollmentId) ?? null,
         studentName: admissionById.get(r.admissionId || '')?.fullName || userById.get(r.userId)?.name || null,
         studentEmail: userById.get(r.userId)?.email || null,
         programTitle: programById.get(r.programId)?.titleAr || programById.get(r.programId)?.titleEn || null,
@@ -140,10 +230,32 @@ export async function POST(req: NextRequest) {
       }
       // Compare-and-set: a concurrent rejection/approval or readiness refresh
       // must never be overwritten by a decision based on an older snapshot.
-      const decision = await db.graduationRequest.updateMany({
+      // Protect the graduation decision against withdrawing a student
+      // raise concurrently. Use the SAME pair lock as the student and
+      // the semester-approval route, and re-read the gate under it.
+      const approvalWrite = {
         where: { id: requestId, status: fresh.status, ready: true, score: fresh.score, updatedAt: fresh.updatedAt },
-        data: { status: 'APPROVED', decidedById: admin.id, decidedAt: new Date(), decisionNote: note },
-      })
+        data: { status: 'APPROVED' as const, decidedById: admin.id, decidedAt: new Date(), decisionNote: note },
+      }
+      const decision = SEMESTER_DECISION_ACTIVE
+        ? await db.$transaction(async (tx) => {
+            const initial = await liveGraduationRaiseGate(tx, fresh.enrollmentId)
+            if (initial.semester == null) return { count: 0, raiseNotAllowed: true }
+            await lockSemesterDecision(tx, fresh.enrollmentId, initial.semester)
+            const live = await liveGraduationRaiseGate(tx, fresh.enrollmentId)
+            if (live.semester !== initial.semester || !isGraduationRaiseEligible(live.gate)) {
+              return { count: 0, raiseNotAllowed: true }
+            }
+            const updated = await tx.graduationRequest.updateMany(approvalWrite)
+            return { count: updated.count, raiseNotAllowed: false }
+          })
+        : { ...(await db.graduationRequest.updateMany(approvalWrite)), raiseNotAllowed: false }
+      if (decision.raiseNotAllowed) {
+        return NextResponse.json({
+          error: 'لا يجوز اعتماد معاملة تخرج قبل رفع الطالب فصله الأخير أو انتهاء مدته النظامية.',
+          code: 'GRADUATION_NOT_RAISED',
+        }, { status: 409 })
+      }
       if (decision.count !== 1) {
         return NextResponse.json({ error: 'تغيّرت حالة طلب التخرج أثناء اعتماد القرار. حدّث القائمة وأعد المحاولة.', code: 'GRADUATION_DECISION_CONFLICT' }, { status: 409 })
       }
@@ -155,11 +267,33 @@ export async function POST(req: NextRequest) {
     if (request.status !== 'PENDING' && request.status !== 'APPROVED') {
       return NextResponse.json({ error: 'حالة الطلب الحالية لا تسمح بالرفض.', code: 'INVALID_TRANSITION' }, { status: 409 })
     }
-    const decision = await db.graduationRequest.updateMany({
+    const rejectionWrite = {
       where: { id: requestId, status: request.status, updatedAt: request.updatedAt },
-      data: { status: 'REJECTED', decidedById: admin.id, decidedAt: new Date(), decisionNote: note },
-    })
-    if (decision.count !== 1) {
+      data: { status: 'REJECTED' as const, decidedById: admin.id, decidedAt: new Date(), decisionNote: note },
+    }
+    // REJECT is also a final administrative decision. A direct HTTP call
+    // must not reject a pending record while the student's last semester
+    // is still open and the student has not submitted it.
+    const rejection = SEMESTER_DECISION_ACTIVE && request.status === 'PENDING'
+      ? await db.$transaction(async (tx) => {
+          const initial = await liveGraduationRaiseGate(tx, request.enrollmentId)
+          if (initial.semester == null) return { count: 0, raiseNotAllowed: true }
+          await lockSemesterDecision(tx, request.enrollmentId, initial.semester)
+          const live = await liveGraduationRaiseGate(tx, request.enrollmentId)
+          if (live.semester !== initial.semester || !isGraduationRaiseEligible(live.gate)) {
+            return { count: 0, raiseNotAllowed: true }
+          }
+          const updated = await tx.graduationRequest.updateMany(rejectionWrite)
+          return { count: updated.count, raiseNotAllowed: false }
+        })
+      : { ...(await db.graduationRequest.updateMany(rejectionWrite)), raiseNotAllowed: false }
+    if (rejection.raiseNotAllowed) {
+      return NextResponse.json({
+        error: 'لا يجوز رفض معاملة تخرج قبل رفع الطالب فصله الأخير أو انتهاء المدة النظامية.',
+        code: 'GRADUATION_NOT_RAISED',
+      }, { status: 409 })
+    }
+    if (rejection.count !== 1) {
       return NextResponse.json({ error: 'تغيّرت حالة طلب التخرج أثناء تسجيل الرفض. حدّث القائمة وأعد المحاولة.', code: 'GRADUATION_DECISION_CONFLICT' }, { status: 409 })
     }
     const updated = await db.graduationRequest.findUnique({ where: { id: requestId } })

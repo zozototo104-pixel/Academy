@@ -44,7 +44,8 @@ function makeWorld(unitScore: number) {
   const inList = (v: string, cond: any) => !cond || !cond.in || cond.in.includes(v)
   const matchAttempt = (a: any, where: any) =>
     a.userId === where.userId && inList(a.examId, where.examId) &&
-    (!where.status || a.status === where.status) &&
+    (!where.status || (typeof where.status === 'string'
+      ? a.status === where.status : Array.isArray(where.status?.in) && where.status.in.includes(a.status))) &&
     (!Object.prototype.hasOwnProperty.call(where, 'score') || (where.score === null ? a.score == null : where.score?.not === null ? a.score != null : true)) &&
     (!where.answers?.some || a.answerPointsMissing === true) &&
     (!where.NOT?.answers || a.answerPointsMissing !== true) &&
@@ -171,6 +172,25 @@ mock.module('@/lib/supervisor-scope', () => ({ requireSupervisor: async () => ({
 const { GET: supervisorMercyList } = await import('../../src/app/api/supervisor/mercy/route')
 
 describe('مسار الاسترحام والنشاط العلاجي', () => {
+  test('فصل راسب معتمد بلا تقديم امتحان: الاسترحام مرفوض؛ بعد تقديمه يحق الطلب', async () => {
+    const isolated = extendWorld(makeWorld(20))
+    isolated.state.programAttempts = []
+    isolated.state.semesterStates.set('enr1:1', { status: 'CLOSED', result: 'FAILED' })
+    isolated.state.approvals.set('enr1:1', { status: 'APPROVED', score: 25 })
+    const request = { userId: 'u1', programId: 'p1', semester: 1 }
+    const denied = await requestMercy(isolated.db, request)
+    expect(denied).toEqual({ ok: false, code: 'SEMESTER_EXAM_NOT_TAKEN' })
+    expect(isolated.state.mercyRows).toHaveLength(0)
+
+    isolated.state.programAttempts.push({
+      id: 'submitted-pe1', userId: 'u1', examId: 'pe1',
+      status: 'GRADED', score: 25, passed: false, appealStatus: 'NONE', answers: [],
+    })
+    const permitted = await requestMercy(isolated.db, request)
+    expect(permitted.ok).toBe(true)
+    expect(isolated.state.mercyRows).toHaveLength(1)
+  })
+
   test('الدورة الكاملة: رسوب مغلق ⟹ نشاط مصحَّح ⟹ معدل جديد ومصادقة جديدة', async () => {
     // ١) اعتماد الفصل الأول راسبًا وإغلاقه (معدل 33.33)
     const approval = await approveSemesterResult({ enrollmentId: 'enr1', semester: 1, actor: { id: 'admin-1' } })
@@ -296,11 +316,24 @@ describe('مسار الاسترحام والنشاط العلاجي', () => {
 
 describe('سباق إنشاء الاسترحام (تدقيق 2026-11-06)', () => {
   test('خرق قيد التفرد عند الإنشاء ⟹ MERCY_ALREADY_EXISTS لا خطأ 500، وأي خطأ آخر يصعد', async () => {
-    // عميل minimal: فصل مغلق راسب معتمد، لا طلب قائم، والإنشاء يخسر السباق.
+    // العميل: فصل مغلق راسب معتمد، وقد جلس الطالب لامتحانه
+    // فعليًا. نصل لاختبار سباق الإنشاء بدون تجاوز حارس الامتحان.
     const client: any = {
       enrollment: { findUnique: async () => ({ id: 'enr-race' }) },
       enrollmentSemesterState: { findUnique: async () => ({ status: 'CLOSED', result: 'FAILED' }) },
       semesterResultApproval: { findUnique: async () => ({ id: 'appr-race' }) },
+      programExam: {
+        findMany: async () => [{
+          id: 'race-pe1', status: 'READY', createdAt: new Date(),
+          questions: [{ points: 10 }],
+        }],
+      },
+      programExamAttempt: {
+        findMany: async ({ where }: any) =>
+          where.userId === 'u-race' && where.examId === 'race-pe1' &&
+          where.status?.in?.includes('GRADED')
+            ? [{ id: 'race-submitted' }] : [],
+      },
       mercyRequest: {
         findUnique: async () => null,
         create: async () => { throw Object.assign(new Error('Unique constraint failed on the fields: (`enrollmentId`,`semester`)'), { code: 'P2002' }) },

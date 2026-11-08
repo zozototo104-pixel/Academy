@@ -4,10 +4,14 @@ import { requireUser } from '@/lib/auth'
 import { getExamsGate } from '@/lib/exam-gate'
 import { academicProfileFromRules } from '@/lib/program-tracks'
 import { calculateSemesterReadiness, markSemesterReady } from '@/lib/semester-readiness'
+import { progressionGate, markSemesterReadyAfterApprovedResult } from '@/lib/progression'
 import { calculateFinalGrade, pickBestGradedAttempt } from '@/lib/final-grade'
 import { getStudentSemesterTracking } from '@/lib/student-tracking'
 import { enforceSemesterTuitionGate, getStudentTuitionPlan } from '@/lib/tuition-installments'
 import { registerGraduationRequest } from '@/lib/enrollment-completion'
+import { matureSemesterRaisesAfterGrading } from '@/lib/semester-raise-hooks'
+import { SEMESTER_DECISION_ACTIVE, withdrawSemesterRaise } from '@/lib/semester-decision'
+import { getSemesterDecisionBrief, requestSemesterDecision } from '@/lib/semester-raise'
 
 // GET /api/progress?programId=xxx — تفاصيل البرنامج مع وحداته وتقدم الطالب
 export async function GET(req: NextRequest) {
@@ -104,6 +108,51 @@ export async function GET(req: NextRequest) {
     const semesterReadiness = await Promise.all(
       semesterExams.map((e) => calculateSemesterReadiness(user.id, programId, e.semester))
     )
+    // The student's exam buttons must reflect the exact same official
+    // progression guard enforced by the exam-start endpoint, including
+    // an APPROVED FAILED first semester (not an exam-passed shortcut).
+    const semesterProgression = await Promise.all(
+      semesterExams.map(async (e) => e.semester <= 1
+        ? { open: true, reasons: [] as string[] }
+        : progressionGate(db, {
+            id: enrollment.id,
+            userId: user.id,
+            programId,
+          }, e.semester, program.category).catch(() => ({
+            open: false,
+            reasons: ['تعذر التحقق من اعتماد نتيجة الفصل السابق'],
+          })),
+      )
+    )
+    // موجز قرار إنهاء الفصل لكل فصل (سجل القرار): وقائع النافذة وحالة
+    // الطلب من مصدر الخادم الوحيد. يُحسب فقط عند تفعيل الميزة، ودفاعي
+    // لكل فصل: أي فشل يترك الموجز فارغًا ولا يُسقط بقية التقدم.
+    const decisionBriefs = SEMESTER_DECISION_ACTIVE
+      ? await Promise.all(
+          semesterExams.map(async (e) => {
+            try {
+              return await getSemesterDecisionBrief(db, {
+                enrollmentId: enrollment.id,
+                userId: user.id,
+                programId,
+                semester: e.semester,
+                enrollment: {
+                  createdAt: enrollment.createdAt,
+                  status: enrollment.status,
+                  extensionDays: enrollment.extensionDays,
+                },
+                program: {
+                  category: program.category,
+                  maxStudyDays: program.maxStudyDays,
+                  semestersCount: program.semestersCount,
+                },
+              })
+            } catch {
+              return null
+            }
+          }),
+        )
+      : semesterExams.map(() => null)
     const [tuitionPlan, grade] = await Promise.all([
       getStudentTuitionPlan(user.id, programId),
       calculateFinalGrade({ userId: user.id, programId }),
@@ -170,12 +219,15 @@ export async function GET(req: NextRequest) {
       booksCount,
       finalExam,
       pendingReviewExams: reviewCount,
-      semesterExams: semesterExams.map((exam) => {
+      decisionActive: SEMESTER_DECISION_ACTIVE,
+      semesterExams: semesterExams.map((exam, examIndex) => {
         const requiredAmount = exam.semester >= 2 ? tuitionPlan?.finalRequired ?? 0 : tuitionPlan?.halfRequired ?? 0
         const allowed = !tuitionPlan || tuitionPlan.totalTuition <= 0 || (exam.semester >= 2 ? tuitionPlan.secondSemesterAllowed : tuitionPlan.firstSemesterAllowed)
         return {
           ...exam,
           readiness: semesterReadiness.find((r) => r.semester === exam.semester) || null,
+          progression: semesterProgression[examIndex] ?? { open: false, reasons: ['تعذر التحقق من حالة الفصل السابق'] },
+          decisionBrief: decisionBriefs[examIndex] ?? null,
           tuitionGate: {
             allowed,
             code: allowed ? null : exam.semester >= 2 ? 'TUITION_FULL_REQUIRED' : 'TUITION_HALF_REQUIRED',
@@ -218,14 +270,97 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser()
-    const { programId, unitId, action, semester } = await req.json()
+    const { programId, unitId, action, semester, intent, consentToZeros } = await req.json()
+    if (action === 'SEMESTER_DECISION' || action === 'SEMESTER_DECISION_WITHDRAW') {
+      // قرار إنهاء الفصل بيد الطالب: النضج يُشتق على الخادم دائمًا،
+      // ولا يُقبل أي اختيار قبل تفعيل الميزة (الصمّام).
+      if (!SEMESTER_DECISION_ACTIVE) {
+        return NextResponse.json({ error: 'ميزة قرار إنهاء الفصل غير مفعّلة بعد', code: 'SEMESTER_DECISION_INACTIVE' }, { status: 409 })
+      }
+      if (!programId || !semester) return NextResponse.json({ error: 'معرف البرنامج والفصل مطلوبان' }, { status: 400 })
+      const enrollment = await db.enrollment.findUnique({
+        where: { userId_programId: { userId: user.id, programId } },
+      })
+      if (!enrollment) return NextResponse.json({ error: 'غير مسجل في البرنامج' }, { status: 403 })
+      const program = await db.program.findUnique({
+        where: { id: programId },
+        select: { category: true, maxStudyDays: true, semestersCount: true },
+      })
+      if (!program) return NextResponse.json({ error: 'البرنامج غير موجود' }, { status: 404 })
+      const DECISION_ERRORS: Record<string, string> = {
+        ENROLLMENT_NOT_FOUND: 'التسجيل غير موجود',
+        INVALID_SEMESTER: 'فصل غير صالح لهذا البرنامج',
+        SEMESTER_ALREADY_DECIDED: 'نتيجة هذا الفصل معتمدة — لا يمكن تغيير القرار',
+        SEMESTER_PERIOD_ENDED: 'انتهت فترة هذا الفصل — تُرفع النتيجة للإدارة تلقائيًا عند اكتمال التصحيح',
+        SEMESTER_ALREADY_RAISED: 'نتيجتك مرفوعة بالفعل — يمكنك سحب الطلب بدل تغيير الاختيار',
+        NO_ACTIVE_RAISE: 'لا يوجد طلب رفع قائم لسحبه',
+      }
+      if (action === 'SEMESTER_DECISION_WITHDRAW') {
+        const result = await withdrawSemesterRaise(db, {
+          enrollmentId: enrollment.id,
+          userId: user.id,
+          semester: Number(semester),
+        })
+        if (!result.ok) {
+          return NextResponse.json(
+            { error: DECISION_ERRORS[result.code] || 'تعذر سحب الطلب', code: result.code },
+            { status: 409 },
+          )
+        }
+        return NextResponse.json({ ok: true, decision: result.decision })
+      }
+      if (intent !== 'EARLY_FINISH' && intent !== 'CONTINUE') {
+        return NextResponse.json({ error: 'اختيار غير صالح', code: 'INVALID_INTENT' }, { status: 400 })
+      }
+      if (intent === 'EARLY_FINISH' && consentToZeros !== true) {
+        return NextResponse.json({
+          error: 'يجب الموافقة صراحة على احتساب الأعمال غير المقدمة صفراً عند رفع الفصل مبكراً',
+          code: 'EARLY_CLOSE_CONSENT_REQUIRED',
+        }, { status: 400 })
+      }
+      const result = await requestSemesterDecision(db, {
+        enrollmentId: enrollment.id,
+        userId: user.id,
+        programId,
+        semester: Number(semester),
+        intent,
+        enrollment: {
+          createdAt: enrollment.createdAt,
+          status: enrollment.status,
+          extensionDays: enrollment.extensionDays,
+        },
+        program,
+      })
+      if (!result.ok) {
+        return NextResponse.json(
+          { error: DECISION_ERRORS[result.code] || 'تعذر حفظ القرار', code: result.code },
+          { status: 409 },
+        )
+      }
+      return NextResponse.json({
+        ok: true,
+        decision: result.decision,
+        maturity: {
+          mature: result.maturity.mature,
+          examTaken: result.maturity.examTaken,
+          examPublished: result.maturity.examPublished,
+          blockers: result.maturity.blockers,
+        },
+      })
+    }
     if (action === 'READY_FOR_EXAM') {
       if (!programId || !semester) return NextResponse.json({ error: 'معرف البرنامج والفصل مطلوبان' }, { status: 400 })
       const tuitionGate = await enforceSemesterTuitionGate(user.id, programId, Number(semester))
       if (!tuitionGate.ok) {
         return NextResponse.json({ error: tuitionGate.error, code: tuitionGate.code, tuitionPlan: tuitionGate.plan }, { status: 402 })
       }
-      const readiness = await markSemesterReady(user.id, programId, Number(semester))
+      // Semester 2+ needs an officially approved previous result,
+      // whether PASSED or FAILED. The frozen readiness engine retains
+      // its original semantics for semester 1.
+      const requestedSemester = Number(semester)
+      const readiness = requestedSemester > 1
+        ? await markSemesterReadyAfterApprovedResult(db, user.id, programId, requestedSemester)
+        : await markSemesterReady(user.id, programId, requestedSemester)
       const message = readiness.complete
         ? 'تم تفعيل زر بدء امتحان الفصل. جميع الاختبارات والواجبات الفصلية مكتملة.'
         : 'تم تفعيل زر بدء امتحان الفصل. الوحدات والواجبات الناقصة تظل متطلبات مستقلة ويُحتسب إنجازها في المجموع التراكمي دون خصم من الامتحان الفصلي.'
@@ -281,6 +416,7 @@ export async function POST(req: NextRequest) {
     // transaction — it never issues a certificate. A certificate is shown
     // only when one was actually issued through administrative approval.
     const registration = await registerGraduationRequest({ enrollmentId: enrollment.id })
+    await matureSemesterRaisesAfterGrading(db, { enrollmentId: enrollment.id })
     const certificate = registration?.certificateNo
       ? { serial: registration.certificateNo }
       : null
@@ -299,8 +435,11 @@ export async function POST(req: NextRequest) {
     if (e?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'يجب تسجيل الدخول أولاً' }, { status: 401 })
     }
-    if (e?.message === 'SEM1_REQUIRED') {
-      return NextResponse.json({ error: 'يجب اجتياز امتحان الفصل الدراسي الأول قبل فتح الثاني', code: 'SEM1_REQUIRED' }, { status: 403 })
+    if (e?.message === 'SEM1_REQUIRED' || e?.message === 'PROGRESSION_LOCKED') {
+      return NextResponse.json({
+        error: 'يلزم تقديم امتحان الفصل السابق واعتماد نتيجته رسمياً لفتح الفصل التالي، ولا يشترط النجاح فيه.',
+        code: 'PROGRESSION_LOCKED',
+      }, { status: 403 })
     }
     console.error('Progress POST error:', e)
     return NextResponse.json({ error: 'خطأ في تحديث التقدم' }, { status: 500 })

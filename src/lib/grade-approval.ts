@@ -20,7 +20,7 @@ type AnyClient = any
 export type GradeTargetType = 'UNIT_EXAM' | 'PROGRAM_EXAM'
 
 export type GradeApprovalDecision =
-  | { ok: true; approval: unknown }
+  | { ok: true; approval: unknown; alreadyApproved?: boolean }
   | {
       ok: false
       code:
@@ -120,6 +120,13 @@ export async function approveGrade(input: {
     if (!actor || (actor.role !== 'ADMIN' && actor.role !== 'SUPERVISOR')) {
       return { ok: false, code: 'GRADE_APPROVAL_FORBIDDEN' } as const
     }
+    // Serialize approval requests for this exact attempt on PostgreSQL.
+    // Concurrent clicks must not both read the prior record as missing
+    // and rewrite the approver/time or emit duplicate audit events.
+    if (typeof tx.$queryRaw === 'function') {
+      const lockKey = `grade-approval:${input.targetType}:${input.attemptId}`
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`
+    }
     const resolved = await resolveAttempt(tx, input.targetType, input.attemptId)
     if (!resolved) return { ok: false, code: 'ATTEMPT_NOT_FOUND' } as const
     if (actor.role === 'SUPERVISOR') {
@@ -137,6 +144,26 @@ export async function approveGrade(input: {
       resolved.unscoredAnswers > 0
     ) {
       return { ok: false, code: 'GRADE_NOT_FINAL' } as const
+    }
+    // IDEMPOTENCY (§9): a grade already approved AT THIS EXACT SCORE is
+    // a completed decision, not a new one — pressing approve again
+    // must not rewrite the record (decider/time) nor write a duplicate
+    // GRADE_APPROVED audit. A moved score falls through to the upsert:
+    // the STALE approval is replaced by a fresh decision on the new
+    // value only, which is a real decision and is audited as one.
+    const existing =
+      typeof tx.gradeApproval?.findUnique === 'function'
+        ? await tx.gradeApproval
+            .findUnique({
+              where: {
+                targetType_attemptId: { targetType: input.targetType, attemptId: input.attemptId },
+              },
+            })
+        : null
+    // A transient read failure is not "no existing approval": abort
+    // rather than writing a new audit event for an already-final grade.
+    if (existing && existing.score === resolved.score) {
+      return { ok: true, approval: existing, alreadyApproved: true } as const
     }
     const approval = await tx.gradeApproval.upsert({
       where: {
@@ -172,6 +199,72 @@ export async function approveGrade(input: {
     )
     return { ok: true, approval } as const
   })
+}
+
+export interface BulkGradeApprovalItemResult {
+  targetType: GradeTargetType
+  attemptId: string
+  ok: boolean
+  alreadyApproved?: boolean
+  code?: string
+}
+
+export interface BulkGradeApprovalReport {
+  results: BulkGradeApprovalItemResult[]
+  approved: number
+  alreadyApproved: number
+  rejected: number
+}
+
+const BULK_APPROVAL_LIMIT = 200
+
+/**
+ * Bulk approval (§10): approves a PRE-LISTED set of grades by running
+ * the single-grade gate per item — scope, finality and idempotency
+ * are inherited from approveGrade, never re-implemented or weakened.
+ * Every item reports its own outcome: newly approved, already
+ * approved at the same score (skipped, no rewrite), or rejected with
+ * the gate's code. Nothing outside the caller's list is touched, and
+ * no item is approved silently: the caller shows the list before and
+ * this report after.
+ */
+export async function approveGradesBulk(input: {
+  items: { targetType: GradeTargetType; attemptId: string }[]
+  actor: { id: string; name?: string }
+  note?: string
+}): Promise<BulkGradeApprovalReport> {
+  const seen = new Set<string>()
+  const unique: { targetType: GradeTargetType; attemptId: string }[] = []
+  for (const item of Array.isArray(input?.items) ? input.items : []) {
+    const key = `${item?.targetType}:${item?.attemptId}`
+    if (!item?.attemptId || seen.has(key)) continue
+    seen.add(key)
+    unique.push({ targetType: item.targetType, attemptId: item.attemptId })
+  }
+  const results: BulkGradeApprovalItemResult[] = []
+  for (const item of unique) {
+    if (results.length >= BULK_APPROVAL_LIMIT) {
+      results.push({ ...item, ok: false, code: 'BULK_LIMIT_EXCEEDED' })
+      continue
+    }
+    const decision = await approveGrade({
+      targetType: item.targetType,
+      attemptId: item.attemptId,
+      actor: input.actor,
+      note: input.note,
+    })
+    if (decision.ok) {
+      results.push({ ...item, ok: true, alreadyApproved: decision.alreadyApproved === true })
+    } else {
+      results.push({ ...item, ok: false, code: decision.code })
+    }
+  }
+  return {
+    results,
+    approved: results.filter((r) => r.ok && !r.alreadyApproved).length,
+    alreadyApproved: results.filter((r) => r.ok && r.alreadyApproved).length,
+    rejected: results.filter((r) => !r.ok).length,
+  }
 }
 
 export type GradeApprovalState = 'APPROVED' | 'STALE' | 'NONE'

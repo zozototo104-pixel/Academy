@@ -203,6 +203,13 @@ mock.module('@/lib/notify', () => ({
   },
 }))
 mock.module('@/lib/mailer', () => ({
+  // Other imported academic notification modules also use this named
+  // export. Keep the test double's module shape compatible with the
+  // real mailer so Bun cannot fail module-linking before tests start.
+  emailTemplate: (_title: string, bodyHtml: string) => bodyHtml,
+  sendEmailDetailed: async () => 'SKIPPED' as const,
+  sendEmail: async () => false,
+  isEmailDeliveryConfigured: async () => false,
   emailAssignmentGraded: async (...args: any[]) => {
     emailCalls.push(args)
   },

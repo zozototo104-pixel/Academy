@@ -67,6 +67,8 @@ const AdminSupervisorsTab = dynamic(() => loadAdminSupervisorsModule().then((m) 
 const AdminWhatsAppInboxTab = dynamic(() => loadAdminWhatsAppInboxModule().then((m) => m.AdminWhatsAppInboxTab), { ssr: false, loading: AdminTabLoader })
 const AdminRepresentativesTab = dynamic(() => loadAdminRepresentativesModule(), { ssr: false, loading: AdminTabLoader })
 const AdminGradingReviewTab = dynamic(() => loadAdminGradingReviewModule(), { ssr: false, loading: AdminTabLoader })
+const AdminReopenAppeals = dynamic(() => import('@/components/aact/AdminReopenAppeals'), { ssr: false, loading: AdminTabLoader })
+const AdminMercyQueue = dynamic(() => import('@/components/aact/AdminMercy').then((m) => m.AdminMercyQueue), { ssr: false, loading: AdminTabLoader })
 const AdminStudyScheduleTab = dynamic(() => loadAdminStudyScheduleModule(), { ssr: false, loading: AdminTabLoader })
 const AdminLegacyGraduatesTab = dynamic(() => loadAdminLegacyGraduatesModule(), { ssr: false, loading: AdminTabLoader })
 const AdminAnnouncementsTab = dynamic(() => loadAdminAnnouncementsModule().then((m) => m.AdminAnnouncementsTab), { ssr: false, loading: AdminTabLoader })
@@ -2242,6 +2244,8 @@ export function AdminView() {
         {/* مراجعة التصحيح اليدوي للمحاولات المعلقة */}
         <TabsContent value="grading-review">
           <AdminGradingReviewTab />
+          <AdminReopenAppeals />
+          <AdminMercyQueue />
         </TabsContent>
 
         {/* Students */}
@@ -2269,6 +2273,7 @@ export function AdminView() {
                   { value: 'SUPERVISOR_ASSIGNED', label: 'مفعل دراسياً' },
                   { value: 'THESIS', label: 'بحث التخرج' },
                   { value: 'CERTIFIED', label: 'شهادة صادرة' },
+                  { value: 'EXPIRED', label: 'منتهية المدة' },
                 ]}
                 pageSize={studentPageSize}
                 onPageSizeChange={(v) => { setStudentPageSize(v); setStudentPage(1) }}

@@ -1,13 +1,15 @@
 import { readEnrollmentSnapshot } from './rules-snapshot'
 import { semesterApprovalState, storedSemesterApproval } from './semester-approval'
 import { compositionWeights } from './semester-grade'
+import { calculateSemesterReadiness } from './semester-readiness'
 
 // ===== بوابات الانتقال والرسالة (المرحلة 5) =====
-// لا انتقال إلا بنجاح معتمد، ولا رسالة إلا ببوابتها — وكل حساب من
-// نتائج معتمدة مخزّنة فقط (لا معدل محسوب مؤقتًا أبدًا). القاعدة
-// الجدّية (قرار التنفيذ): البوابات تعمل حيث توجد بصمة دورة حياة
-// (حالة فصل أو اعتماد نتيجة)؛ التحاق بلا بصمة يبقى على سلوك اليوم
-// حتى يحسم المالك حكمًا عامًا.
+// الانتقال بعد اعتماد نتيجة الفصل السابق (نجاحًا أو رسوبًا) وتقديم
+// امتحانه، والبحث المطلوب فرصة لتحسين المعدل قبل الشهادة.
+// لا تُستخدم نتائج مؤقتة لفتح الفصول أو إصدار الشهادات.
+// قرار 2026-11-08 بعد فحص قاعدة الإنتاج: كل تسجيل ACTIVE يخضع
+// لبوابة الامتحان والاعتماد، حتى لو لم تُنشأ حالة الفصل أو كانت
+// لقطة القواعد BACKFILL؛ توافق التسجيل المكتمل فقط يبقى محفوظًا.
 type AnyClient = any
 
 export type GateVerdict = { open: boolean; reasons: string[] }
@@ -15,8 +17,7 @@ export type GateVerdict = { open: boolean; reasons: string[] }
 export async function hasLifecycleFootprint(client: AnyClient, enrollmentId: string): Promise<boolean> {
   const stateStore = client?.enrollmentSemesterState
   if (stateStore?.count) {
-    // Distinguish a real zero-count (legacy enrollment) from a database
-    // failure: never grandfather a student in because a lookup failed.
+    // A database failure must never be treated as an absence of lifecycle records.
     const n = await stateStore.count({ where: { enrollmentId } })
     if (n > 0) return true
   }
@@ -25,11 +26,6 @@ export async function hasLifecycleFootprint(client: AnyClient, enrollmentId: str
     const n = await approvalStore.count({ where: { enrollmentId } })
     if (n > 0) return true
   }
-  // Newly activated students already have an ENROLLMENT rules snapshot
-  // before they have a semester state or an approved result. Without this
-  // marker they were mistakenly grandfathered into unrestricted S2 access,
-  // especially in programs without configured study-duration windows.
-  // BACKFILL snapshots for historical enrollments preserve the legacy rule.
   const snapshotStore = client?.enrollmentRulesSnapshot
   if (snapshotStore?.findUnique) {
     const snapshot = await snapshotStore.findUnique({
@@ -38,7 +34,18 @@ export async function hasLifecycleFootprint(client: AnyClient, enrollmentId: str
     })
     if (snapshot?.basis === 'ENROLLMENT') return true
   }
-  return false
+
+  // A missing semester state or a BACKFILL snapshot does not mean that
+  // an ACTIVE student is historical: even recent registrations have these
+  // gaps. Only completed enrollments keep the legacy read compatibility.
+  // If status cannot be verified, fail closed rather than granting access.
+  if (!client?.enrollment?.findUnique) throw new Error('ENROLLMENT_STATUS_LOOKUP_UNAVAILABLE')
+  const enrollment = await client.enrollment.findUnique({
+    where: { id: enrollmentId },
+    select: { status: true },
+  })
+  if (!enrollment) throw new Error('ENROLLMENT_STATUS_LOOKUP_UNAVAILABLE')
+  return enrollment.status !== 'COMPLETED'
 }
 
 const EXAM_KEY_BY_SEMESTER: Record<string, (semester: number) => string> = {
@@ -132,9 +139,12 @@ export async function semesterExamsSat(
   semester: number,
 ): Promise<boolean> {
   const attemptStore = client?.programExamAttempt
-  if (!attemptStore?.findMany) return true
+  // Do not infer the student sat a semester exam from missing data.
+  // For progression and required thesis alike, a designated exam must
+  // actually exist and have a submitted attempt.
+  if (!attemptStore?.findMany) return false
   const designated = await designatedSemesterExams(client, programId, semester)
-  if (!designated || designated.length === 0) return true
+  if (!designated || designated.length === 0) return false
   for (const exam of designated as any[]) {
     const attempts = await attemptStore.findMany({
       where: { userId, examId: exam.id, status: { in: ['GRADED', 'NEEDS_REVIEW', 'SUBMITTED'] } },
@@ -156,9 +166,11 @@ async function gateContext(client: AnyClient, enrollmentId: string) {
   }
 }
 
-// بوابة الانتقال: الفصل الهدف (٢+) لا يفتح إلا بعد نجاح كل فصل سابق
-// بنتيجة معتمدة صالحة (غير بالية) معدّلها أكبر تمامًا من العتبة، مع
-// نجاح امتحانه إن كان مطلوبًا بقواعد القبول المجمّدة.
+// قرار المالك 2026-11-08: الانتقال للفصل التالي يحتاج نتيجة فصل
+// سابقة معتمدة وصالحة (PASSED أو FAILED)، وليس شرط نجاح كل فصل
+// أو امتحانه على حدة. يُحفظ الرسوب بدرجته الفعلية ويؤثر على
+// التراكمي، ويمكن تعويضه في الفصول التالية/الالتماس/البحث.
+// الاستحقاق النهائي للشهادة يظل مستقلاً بشروطه الرسمية.
 export async function progressionGate(
   client: AnyClient,
   enrollment: { id: string; userId: string; programId: string },
@@ -173,8 +185,6 @@ export async function progressionGate(
     return { open: false, reasons: ['تعذر التحقق من حالة الفصل السابق؛ أعد المحاولة لاحقًا'] }
   }
   if (!footprint) return { open: true, reasons: [] }
-  const ctx = await gateContext(client, enrollment.id)
-  const category = programCategory || 'DIPLOMA'
   const reasons: string[] = []
   for (let s = 1; s < targetSemester; s++) {
     const state = await semesterApprovalState(client, enrollment, s).catch(() => 'NONE' as const)
@@ -184,21 +194,73 @@ export async function progressionGate(
     }
     const stored = await storedSemesterApproval(client, enrollment.id, s).catch(() => null)
     const score = stored?.score == null ? null : Number(stored.score)
-    if (score === null || !(score > ctx.threshold)) {
-      reasons.push(`معدل الفصل ${s} المعتمد (${score ?? '—'}) لا يتجاوز ${ctx.threshold}`)
+    if (score === null || !Number.isFinite(score) || score < 0 || score > 100) {
+      reasons.push(`نتيجة الفصل ${s} المعتمدة غير قابلة للتحقق`)
       continue
     }
-    if (semesterExamRequired(category, ctx.requiredComponents, s)) {
-      const passed = await semesterExamPassed(client, enrollment.userId, enrollment.programId, s).catch(() => false)
-      if (!passed) reasons.push(`امتحان الفصل ${s} غير ناجح بعد`)
-    }
+    // Passing the semester or its exam is NOT required for progression.
+    // However, the student must actually have submitted the designated
+    // semester exam before moving on (an approved end-of-period zero
+    // without sitting is not an exam submission). An approved FAILED
+    // result keeps its true weighted mark and can be improved later.
+    // Mandatory: an approved failing semester can progress, but mercy
+    // improves the grade; it can NEVER substitute for sitting its exam.
+    const sat = await semesterExamsSat(client, enrollment.userId, enrollment.programId, s).catch(() => false)
+    if (!sat) reasons.push(`امتحان الفصل ${s} لم يُقدَّم بعد`)
   }
   return { open: reasons.length === 0, reasons }
 }
 
+/** Student's explicit exam-readiness mark for semester 2+.
+ * The original readiness engine is frozen by owner decision; its old
+ * first-semester PASS check is not the new transition policy. Validate
+ * the official preceding semester approvals here, then store only the
+ * existing readiness marker and use its original read calculation.
+ * The exam-start endpoint must independently enforce the same gate. */
+export async function markSemesterReadyAfterApprovedResult(
+  client: AnyClient,
+  userId: string,
+  programId: string,
+  semester: number,
+) {
+  const enrollment = await client.enrollment.findUnique({
+    where: { userId_programId: { userId, programId } },
+    select: { id: true, userId: true, programId: true, examReadiness: true },
+  })
+  if (!enrollment) throw new Error('ENROLLMENT_NOT_FOUND')
+  const program = await client.program.findUnique({
+    where: { id: programId },
+    select: { category: true, semestersCount: true },
+  })
+  if (!program || !Number.isInteger(semester) || semester < 2
+    || (program.semestersCount != null && semester > program.semestersCount)) {
+    throw new Error('INVALID_SEMESTER')
+  }
+  const gate = await progressionGate(client, enrollment, semester, program.category)
+  if (!gate.open) throw new Error('PROGRESSION_LOCKED')
+  let marked: unknown[] = []
+  try {
+    const decoded = JSON.parse(enrollment.examReadiness || '[]')
+    if (Array.isArray(decoded)) marked = decoded
+  } catch {
+    marked = []
+  }
+  const existing = new Set(marked.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0))
+  if (!existing.has(semester)) {
+    existing.add(semester)
+    await client.enrollment.update({
+      where: { id: enrollment.id },
+      data: { examReadiness: JSON.stringify([...existing].sort((a, b) => a - b)) },
+    })
+  }
+  return calculateSemesterReadiness(userId, programId, semester)
+}
+
 // بوابة الرسالة: تُفتح فقط إن كانت الرسالة مطلوبة بقواعد القبول
-// المجمّدة، وبعد اكتمال كل الفصول واعتماد نتائجها، وتراكميٍّ من
-// المعدلات المعتمدة فقط أكبر تمامًا من العتبة. (50.0 لا تكفي.)
+// المجمّدة، وبعد اكتمال كل الفصول واعتماد نتائجها. التراكمي يُحسب
+// من المعدلات المعتمدة فقط لكنه ليس شرط فتح (قرار المالك
+// 2026-11-08: الرسالة نفسها فرصة لتحسينه)؛ شرط المجموع الكامل
+// يُفحص عند إصدار الشهادة.
 export async function thesisGate(
   client: AnyClient,
   enrollment: { id: string; userId: string; programId: string },
@@ -236,6 +298,8 @@ export async function thesisGate(
     }
     approvedScores[s] = Number(stored.score)
   }
+  // A thesis may improve the cumulative grade, but it cannot waive
+  // mandatory sitting of the last semester's actual exam(s).
   const sat = await semesterExamsSat(client, enrollment.userId, enrollment.programId, semestersCount).catch(() => false)
   if (!sat) reasons.push('امتحانات الفصل الأخير لم تُقدَّم كلها بعد')
   let cumulative: number | null = null
@@ -244,12 +308,11 @@ export async function thesisGate(
     const totalWeight = comp.perSemester.reduce((a, b) => a + b, 0)
     if (totalWeight > 0) {
       cumulative = Math.round((comp.perSemester.reduce((sum, w, i) => sum + w * (approvedScores[i + 1] || 0), 0) / totalWeight) * 100) / 100
-      if (!(cumulative > ctx.threshold)) {
-        reasons.push(`المعدل التراكمي من الفصول المعتمدة (${cumulative}) لا يتجاوز ${ctx.threshold}`)
-      }
     }
-  } else if (reasons.length === 0) {
-    reasons.push('تعذّر حساب التراكمي من النتائج المعتمدة')
   }
+  // The thesis/research is itself a weighted chance to improve an
+  // otherwise failing cumulative result. Never require a passing
+  // pre-thesis average just to let the student submit that work.
+  // Final certificate issuance still rechecks the FULL weighted score.
   return { open: reasons.length === 0, reasons, required: true, cumulative }
 }

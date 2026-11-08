@@ -164,6 +164,7 @@ describe('فلاتر قائمة الطلاب', () => {
     const view = readFileSync(new URL('../../src/components/aact/AdminView.tsx', import.meta.url), 'utf-8')
     expect(view).toContain('بانتظار تحقق')
     expect(view).toContain('بده مرفقات')
+    expect(view).toContain("{ value: 'EXPIRED', label: 'منتهية المدة' }")
     expect(view).toContain('INCOMPLETE_WITHOUT_ACCOUNT')
     expect(view).toContain('incompleteReason')
     expect(view).toContain('hasAccount')

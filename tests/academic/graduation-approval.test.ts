@@ -9,9 +9,15 @@ import { NextRequest } from 'next/server'
 function makeWorld() {
   const state: any = {
     enrollment: { id: 'enrollment-1', userId: 'user-1', programId: 'program-1', status: 'ACTIVE', certificateNo: null as string | null },
+    // Historical graduation-approval cases start after the programme
+    // period; dedicated tests below use a recent start to verify that
+    // a direct admin POST cannot decide an unraised pending request.
+    enrollmentCreatedAt: new Date('2025-01-01T00:00:00Z'),
+    lastSemesterDecision: null as string | null,
     certificate: null as any,
     createdCertificate: null as any,
     request: null as any,
+    outbox: [] as any[],
     enrollmentUpdates: [] as any[],
     failTransaction: false,
     admissionStatus: 'APPROVED',
@@ -36,8 +42,24 @@ function makeWorld() {
       },
     },
     enrollment: {
-      findUnique: async () => state.enrollment,
+      findUnique: async () => ({
+        ...state.enrollment,
+        createdAt: state.enrollmentCreatedAt,
+        extensionDays: 0,
+        program: { category: 'DIPLOMA', maxStudyDays: 90, semestersCount: 2 },
+      }),
       update: async ({ data }: any) => { state.enrollmentUpdates.push(data); Object.assign(state.enrollment, data); return state.enrollment },
+    },
+    unit: {
+      findMany: async () => [
+        { id: 'unit-sem1', semester: 1, order: 1 },
+        { id: 'unit-sem2', semester: 2, order: 1 },
+      ],
+    },
+    semesterDecision: {
+      findUnique: async () => state.lastSemesterDecision
+        ? { status: state.lastSemesterDecision }
+        : null,
     },
     program: {
       findUnique: async () => ({ id: 'program-1', titleAr: 'برنامج عربي للاختبار', titleEn: 'Arabic Test Program', price: state.programPrice, category: 'DIPLOMA' }),
@@ -75,6 +97,18 @@ function makeWorld() {
       findUnique: async () => ({ id: 'user-1', email: 'student@example.test', role: 'STUDENT', name: 'طالب عربي' }),
     },
     notification: { createMany: async () => ({ count: 1 }), create: async () => ({}) },
+    notificationOutbox: {
+      create: async ({ data }: any) => {
+        if (state.outbox.some((row: any) => row.idempotencyKey === data.idempotencyKey)) {
+          throw Object.assign(new Error('duplicate'), { code: 'P2002' })
+        }
+        const row = { id: `outbox-${state.outbox.length + 1}`, ...data }
+        state.outbox.push(row)
+        return row
+      },
+      findUnique: async ({ where }: any) =>
+        state.outbox.find((row: any) => row.idempotencyKey === where.idempotencyKey) ?? null,
+    },
   }
   const db: any = { ...tx, $transaction: async (work: any) => {
     if (state.failTransaction) throw new Error('simulated readiness refresh failure')
@@ -134,9 +168,12 @@ function postGraduationAction(action: 'REFRESH' | 'APPROVE' | 'REJECT') {
 beforeEach(() => {
   sentGraduationNotifications.length = 0
   world.state.enrollment = { id: 'enrollment-1', userId: 'user-1', programId: 'program-1', status: 'ACTIVE', certificateNo: null }
+  world.state.enrollmentCreatedAt = new Date('2025-01-01T00:00:00Z')
+  world.state.lastSemesterDecision = null
   world.state.certificate = null
   world.state.createdCertificate = null
   world.state.request = null
+  world.state.outbox = []
   world.state.enrollmentUpdates = []
   world.state.failTransaction = false
   world.state.admissionStatus = 'APPROVED'
@@ -199,23 +236,32 @@ describe('graduation approval law', () => {
     expect(world.state.createdCertificate).toBeNull()
   })
 
-  test('a new student missing tuition is tracked without an approval notification; only becoming eligible alerts admins once', async () => {
+  test('a student becoming ready alerts admins only after final-semester period end, once via outbox', async () => {
     world.state.payments = []
     const first = await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
     expect(first.registered).toBe(true)
     expect(first.ready).toBe(false)
     expect(world.state.request.status).toBe('PENDING')
-    expect(sentGraduationNotifications).toHaveLength(0)
+    expect(world.state.outbox).toHaveLength(0)
 
     world.state.payments = [{ purpose: 'TUITION', status: 'PAID', amount: 1000, amountCents: 100000 }]
     const second = await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
     expect(second.ready).toBe(true)
-    expect(sentGraduationNotifications).toHaveLength(1)
-    expect(sentGraduationNotifications[0].title).toContain('مستوفٍ')
-    expect(sentGraduationNotifications[0].link).toContain('tab=certs')
+    expect(world.state.outbox).toHaveLength(1)
+    expect(world.state.outbox[0].kind).toBe('GRADUATION_READY_FOR_REVIEW')
+    expect(world.state.outbox[0].link).toContain('tab=certs')
+    expect(sentGraduationNotifications).toHaveLength(0)
 
     await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
-    expect(sentGraduationNotifications).toHaveLength(1)
+    expect(world.state.outbox).toHaveLength(1)
+  })
+
+  test('a student ready before the last-semester raise causes no premature admin alert', async () => {
+    world.state.enrollmentCreatedAt = new Date()
+    const result = await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
+    expect(result.ready).toBe(true)
+    expect(world.state.outbox).toHaveLength(0)
+    expect(sentGraduationNotifications).toHaveLength(0)
   })
 
   test('registration creates one living PENDING transaction with a readiness snapshot', async () => {
@@ -350,6 +396,36 @@ describe('graduation approval law', () => {
     } finally {
       world.db.payment.findMany = payments
     }
+  })
+
+  test('an open last semester without student raise blocks BOTH direct admin approval and rejection', async () => {
+    world.state.enrollmentCreatedAt = new Date()
+    await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
+    expect(world.state.request.status).toBe('PENDING')
+    for (const action of ['APPROVE', 'REJECT'] as const) {
+      const response = await postGraduationAction(action)
+      expect(response.status).toBe(409)
+      expect((await response.json()).code).toBe('GRADUATION_NOT_RAISED')
+      expect(world.state.request.status).toBe('PENDING')
+    }
+  })
+
+  test('an explicit mature student raise permits an early graduation decision', async () => {
+    world.state.enrollmentCreatedAt = new Date()
+    world.state.lastSemesterDecision = 'RAISED'
+    await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
+    const response = await postGraduationAction('APPROVE')
+    expect(response.status).toBe(200)
+    expect(world.state.request.status).toBe('APPROVED')
+  })
+
+  test('a withdrawn early raise does not authorize a graduation decision', async () => {
+    world.state.enrollmentCreatedAt = new Date()
+    world.state.lastSemesterDecision = 'WITHDRAWN'
+    await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
+    const response = await postGraduationAction('REJECT')
+    expect(response.status).toBe(409)
+    expect((await response.json()).code).toBe('GRADUATION_NOT_RAISED')
   })
 
   test('stale 88 approval -> admin refresh to 95 -> new approval -> issuance at 95', async () => {

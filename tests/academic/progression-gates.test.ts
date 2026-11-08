@@ -116,9 +116,31 @@ const ENROLLMENT = { id: 'e1', userId: 'u1', programId: 'p1' }
 const PROGRAM = { category: 'DIPLOMA', semestersCount: 2 }
 
 describe('progression gate', () => {
-  test('no lifecycle footprint → grandfathered open', async () => {
+  test('ACTIVE enrollment with no lifecycle footprint cannot bypass S2 approval', async () => {
     const gate = await progressionGate(fakeClient({ footprint: false }), ENROLLMENT, 2, 'DIPLOMA')
+    expect(gate.open).toBe(false)
+    expect(gate.reasons.join(' ')).toContain('غير معتمدة')
+  })
+
+  test('ACTIVE enrollment without any rules snapshot must use the new gate', async () => {
+    const gate = await progressionGate(fakeClient({ footprint: false, snapshotBasis: null }), ENROLLMENT, 2, 'DIPLOMA')
+    expect(gate.open).toBe(false)
+    expect(gate.reasons.join(' ')).toContain('غير معتمدة')
+  })
+
+  test('COMPLETED enrollment with no lifecycle footprint preserves historical access', async () => {
+    const client = fakeClient({ footprint: false })
+    client.enrollment.findUnique = async () => ({ id: 'e1', status: 'COMPLETED' })
+    const gate = await progressionGate(client, ENROLLMENT, 2, 'DIPLOMA')
     expect(gate.open).toBe(true)
+  })
+
+  test('missing enrollment status cannot grant access when lifecycle records are absent', async () => {
+    const client = fakeClient({ footprint: false })
+    client.enrollment.findUnique = async () => null
+    const gate = await progressionGate(client, ENROLLMENT, 2, 'DIPLOMA')
+    expect(gate.open).toBe(false)
+    expect(gate.reasons.join(' ')).toContain('تعذر التحقق')
   })
 
   test('new enrollment snapshot locks semester two before any semester state is created', async () => {
@@ -136,9 +158,22 @@ describe('progression gate', () => {
     if (!window.ok) expect(window.code).toBe('PROGRESSION_LOCKED')
   })
 
-  test('legacy BACKFILL snapshot without lifecycle state preserves grandfathered access', async () => {
+  test('ACTIVE BACKFILL snapshot without lifecycle state must use the new S2 gate', async () => {
     const gate = await progressionGate(fakeClient({ footprint: false, snapshotBasis: 'BACKFILL' }), ENROLLMENT, 2, 'DIPLOMA')
-    expect(gate.open).toBe(true)
+    expect(gate.open).toBe(false)
+    expect(gate.reasons.join(' ')).toContain('غير معتمدة')
+  })
+
+  test('ACTIVE BACKFILL snapshot without lifecycle state must not open a required thesis', async () => {
+    const client = fakeClient({
+      footprint: false, snapshotBasis: 'BACKFILL',
+      requiredComponents: ['final_exam', 'thesis'],
+      weights: { quizzes: 10, assignments: 10, final_exam: 50, thesis: 30 },
+    })
+    const gate = await thesisGate(client, ENROLLMENT, PROGRAM)
+    expect(gate.required).toBe(true)
+    expect(gate.open).toBe(false)
+    expect(gate.reasons.join(' ')).toContain('غير مكتمل')
   })
 
   test('new enrollment snapshot without semester states also locks a required thesis', async () => {
@@ -169,10 +204,10 @@ describe('progression gate', () => {
     if (!window.ok) expect(window.code).toBe('PROGRESSION_LOCKED')
   })
 
-  test('approved S1 at exactly 50.0 stays locked (strict >)', async () => {
+  test('approved S1 at exactly 50.0 permits S2 despite not passing; graduation threshold stays separate', async () => {
     const client = fakeClient({ states: { 1: 'CLOSED' }, approvals: { 1: 50 }, unitScore: { 1: 50 }, examScore: { 1: 50 } })
     const gate = await progressionGate(client, ENROLLMENT, 2, 'DIPLOMA')
-    expect(gate.open).toBe(false)
+    expect(gate.open).toBe(true)
   })
 
   test('approved S1 at 50.1 with its exam passed opens S2', async () => {
@@ -181,13 +216,13 @@ describe('progression gate', () => {
     expect(gate.open).toBe(true)
   })
 
-  test('passing average but failed semester exam stays locked', async () => {
-    // عتبة نجاح الامتحان 85 ودرجته 80: المعدل المعتمد 80 ناجح،
-    // والامتحان نفسه راسب — شرطان مستقلان كما قرّر المالك.
+  test('approved S1 opens S2 when its exam was sat but failed', async () => {
+    // The student sat the exam (80) but failed its 85 threshold; the
+    // failure remains on record, and the approved semester can progress.
     const client = fakeClient({ states: { 1: 'CLOSED' }, approvals: { 1: 80 }, unitScore: { 1: 80 }, examScore: { 1: 80 }, examPassed: { 1: false }, examPassScore: 85 })
     const gate = await progressionGate(client, ENROLLMENT, 2, 'DIPLOMA')
-    expect(gate.open).toBe(false)
-    expect(gate.reasons.join(' ')).toContain('امتحان')
+    expect(gate.open).toBe(true)
+    expect(gate.reasons).toEqual([])
   })
 
   test('stale approval (grades changed after approval) stays locked', async () => {
@@ -196,29 +231,41 @@ describe('progression gate', () => {
     expect(gate.open).toBe(false)
   })
 
+  test('approved S1 cannot open S2 without an actual semester exam to sit', async () => {
+    const client = fakeClient({
+      states: { 1: 'CLOSED' }, approvals: { 1: 40 }, unitScore: { 1: 40 }, examScore: { 1: 40 },
+    })
+    client.programExam.findMany = async () => []
+    const gate = await progressionGate(client, ENROLLMENT, 2, 'DIPLOMA')
+    expect(gate.open).toBe(false)
+    expect(gate.reasons.join(' ')).toContain('لم يُقدَّم')
+  })
+
   test('computed-but-unapproved average never counts', async () => {
     const client = fakeClient({ states: { 1: 'OPEN' }, unitScore: { 1: 90 }, examScore: { 1: 90 } })
     const gate = await progressionGate(client, ENROLLMENT, 2, 'DIPLOMA')
     expect(gate.open).toBe(false)
   })
 
-  test('window check refuses S2 activity with PROGRESSION_LOCKED, and passes without footprint', async () => {
-    const locked = fakeClient({ states: { 1: 'CLOSED' }, approvals: { 1: 40 }, unitScore: { 1: 40 }, examScore: { 1: 40 } })
-    const verdict = await submissionWindowCheck(locked, {
+  test('window check opens S2 for an approved failed S1 but blocks unapproved results', async () => {
+    const approvedFailed = fakeClient({ states: { 1: 'CLOSED' }, approvals: { 1: 40 }, unitScore: { 1: 40 }, examScore: { 1: 40 } })
+    const args = {
       enrollment: { id: 'e1', userId: 'u1', programId: 'p1', createdAt: new Date(), extensionDays: 0 },
       program: { category: 'DIPLOMA', maxStudyDays: null, semestersCount: 2 },
       semester: 2,
-    })
-    expect(verdict.ok).toBe(false)
-    if (!verdict.ok) expect(verdict.code).toBe('PROGRESSION_LOCKED')
+    }
+    const allowed = await submissionWindowCheck(approvedFailed, args)
+    expect(allowed.ok).toBe(true)
 
-    const legacy = fakeClient({ footprint: false })
-    const okVerdict = await submissionWindowCheck(legacy, {
-      enrollment: { id: 'e1', userId: 'u1', programId: 'p1', createdAt: new Date(), extensionDays: 0 },
-      program: { category: 'DIPLOMA', maxStudyDays: null, semestersCount: 2 },
-      semester: 2,
-    })
-    expect(okVerdict.ok).toBe(true)
+    const unapproved = fakeClient({ states: { 1: 'OPEN' }, unitScore: { 1: 90 }, examScore: { 1: 90 } })
+    const blocked = await submissionWindowCheck(unapproved, args)
+    expect(blocked.ok).toBe(false)
+    if (!blocked.ok) expect(blocked.code).toBe('PROGRESSION_LOCKED')
+
+    const backfilledActive = fakeClient({ footprint: false })
+    const backfilledVerdict = await submissionWindowCheck(backfilledActive, args)
+    expect(backfilledVerdict.ok).toBe(false)
+    if (!backfilledVerdict.ok) expect(backfilledVerdict.code).toBe('PROGRESSION_LOCKED')
   })
 
   test('exam requirement keys per category', () => {
@@ -252,7 +299,7 @@ describe('thesis gate', () => {
     expect(gate.open).toBe(true)
   })
 
-  test('cumulative from approved semesters at exactly 50.0 stays closed', async () => {
+  test('cumulative from approved semesters at 50.0 allows required thesis to improve result', async () => {
     const client = fakeClient(thesisCfg({
       states: { 1: 'CLOSED', 2: 'CLOSED' },
       approvals: { 1: 50, 2: 50 },
@@ -262,7 +309,7 @@ describe('thesis gate', () => {
     const gate = await thesisGate(client, ENROLLMENT, PROGRAM)
     expect(gate.required).toBe(true)
     expect(gate.cumulative).toBe(50)
-    expect(gate.open).toBe(false)
+    expect(gate.open).toBe(true)
   })
 
   test('cumulative 50.1 from approved semesters opens, with S2 exams sat', async () => {

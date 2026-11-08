@@ -6,6 +6,7 @@ import { gradeEssayWithRubric } from '@/lib/essay-grading'
 import { buildEssaySourceMap } from '@/lib/essay-source'
 import { notifyAttemptGraded, notifyAttemptNeedsReview } from '@/lib/exam-attempt-notifications'
 import { registerGraduationRequest } from '@/lib/enrollment-completion'
+import { matureSemesterRaisesAfterGrading } from '@/lib/semester-raise-hooks'
 import { EXAM_ATTEMPT_POLICY_SINCE, getExamMaxAttempts, shouldRevealCorrectAnswers } from '@/lib/exam-attempt-policy'
 
 const UNIT_EXAM_DURATION_MIN = Math.max(1, Number(process.env.AACT_UNIT_EXAM_DURATION_MIN || 60))
@@ -471,6 +472,7 @@ export async function POST(req: NextRequest) {
       console.error('Post-grade graduation request registration failed; preserving unit result', { code: 'UNIT_GRADUATION_REQUEST_FAILED', attemptId: claimedUnitAttemptId || null })
       return null
     })
+    await matureSemesterRaisesAfterGrading(db, { enrollmentId: enrollment.id })
     const certificateNo = registration?.certificateNo || null
     // النتيجة الواثقة معتمدة فورًا — تُشعر الإدارة والمشرف البشري بها
     // مع بقاء خيار إعادة التصحيح من شاشات المراجعة.

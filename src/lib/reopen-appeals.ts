@@ -160,3 +160,29 @@ export async function escalateOverdueReopenAppeals(client: AnyClient, now = new 
   }
   return count
 }
+
+// ===== منحة إعادة الفتح أمام موعد الواجب =====
+// موعد الواجب جدار مستقل عن نافذة الوحدة: تسليم متأخر يُرفض عنده
+// ولو كانت نافذة الفصل قائمة. منحة إعادة فتح معتمَدة لهذا الطالب
+// ترفع الجدار عنه وحده: إما منحة وحدته نفسها (حين يرتبط الواجب
+// بوحدة)، أو منحة فصلية (بلا وحدة) لنفس الفصل. فترة الفصل تبقى
+// الحد الخارجي — يفحصها حارس النوافذ بعد هذا الفحص في مسار التسليم.
+export async function hasApprovedReopenGrant(
+  client: AnyClient,
+  args: { enrollmentId: string; unitId?: string | null; semester: number },
+): Promise<boolean> {
+  const store = (client as AnyClient)?.reopenAppeal
+  if (!store?.findMany || !args.enrollmentId) return false
+  const grants: any[] = await store
+    .findMany({
+      where: { enrollmentId: args.enrollmentId, status: 'APPROVED' },
+      select: { unitId: true, semester: true },
+      take: 50,
+    })
+    .catch(() => [])
+  return grants.some(
+    (g) =>
+      (args.unitId != null && g.unitId === args.unitId) ||
+      (g.unitId == null && g.semester === args.semester),
+  )
+}

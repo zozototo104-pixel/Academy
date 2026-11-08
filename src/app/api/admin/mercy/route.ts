@@ -16,7 +16,27 @@ export async function GET() {
       orderBy: { createdAt: 'desc' },
       take: 200,
     }).catch(() => [])
-    return NextResponse.json({ ok: true, requests })
+    // أسماء وعناوين للعرض في قائمة الإدارة — دفعة واحدة ودفاعيًا.
+    let enriched = requests as any[]
+    try {
+      const userIds = [...new Set<string>((requests as Array<{ userId?: unknown }>)
+        .map((r) => r.userId).filter((id): id is string => typeof id === 'string' && id.length > 0))]
+      const programIds = [...new Set<string>((requests as Array<{ programId?: unknown }>)
+        .map((r) => r.programId).filter((id): id is string => typeof id === 'string' && id.length > 0))]
+      const [users, programs]: [any[], any[]] = await Promise.all([
+        userIds.length ? db.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true, email: true } }) : [],
+        programIds.length ? db.program.findMany({ where: { id: { in: programIds } }, select: { id: true, titleAr: true, titleEn: true } }) : [],
+      ])
+      const userById = new Map(users.map((u) => [u.id, u]))
+      const programById = new Map(programs.map((p) => [p.id, p]))
+      enriched = (requests as any[]).map((r) => ({
+        ...r,
+        studentName: userById.get(r.userId)?.name || null,
+        studentEmail: userById.get(r.userId)?.email || null,
+        programTitle: programById.get(r.programId)?.titleAr || programById.get(r.programId)?.titleEn || null,
+      }))
+    } catch { /* الأسماء تجميلية — القائمة تعمل بدونها */ }
+    return NextResponse.json({ ok: true, requests: enriched })
   } catch {
     return NextResponse.json({ error: 'صلاحية إدارية مطلوبة' }, { status: 403 })
   }
@@ -56,6 +76,7 @@ export async function POST(req: NextRequest) {
     if (!result.ok) {
       const messages: Record<string, string> = {
         SEMESTER_NOT_FAILED: 'الاسترحام يبدأ فقط لفصل مغلق بنتيجة راسب معتمدة.',
+        SEMESTER_EXAM_NOT_TAKEN: 'لا يمكن بدء الاسترحام لطالب لم يقدّم الامتحان الفصلي فعليًا، حتى لو اعتُمد الفصل راسبًا.',
         MERCY_ALREADY_EXISTS: 'سبق أن استُخدم مسار الاسترحام لهذا الفصل.',
         MERCY_DEADLINE_TOO_LONG: 'مهلة النشاط لا تتجاوز 7 أيام تقويمية من الإسناد.',
         MERCY_WEIGHT_INVALID: 'وزن النشاط بين 1 و50 بالمئة من معدل الفصل.',

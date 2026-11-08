@@ -3,6 +3,14 @@ import { audit } from '@/lib/notify'
 import { calculateSemesterAverages } from '@/lib/semester-grade'
 import { closeSemesterState, ensureSemesterStates } from '@/lib/semester-lifecycle'
 import { enqueueOutbox } from '@/lib/outbox'
+import {
+  SEMESTER_DECISION_ACTIVE,
+  evaluateClosureRight,
+  getSemesterDecision,
+  loadSemesterPeriod,
+  lockSemesterDecision,
+  markSemesterDecided,
+} from '@/lib/semester-decision'
 
 // ===== اعتماد نتيجة الفصل — سجل قرار مستقل وحارس خادمي =====
 // Grade REVIEW (the attempts' reviewedById/reviewedAt, written by the
@@ -190,6 +198,127 @@ export async function collectSemesterApprovalBlockers(
 }
 
 /** Defensive read: a missing table (unmigrated environment) means NO approval. */
+type ComponentKind = 'UNITS' | 'PROGRAM_EXAM' | 'ASSIGNMENTS'
+
+function componentKind(key: string): ComponentKind | null {
+  if (key === 'assignments') return 'ASSIGNMENTS'
+  if (key === 'final_exam' || key.endsWith('_exam')) return 'PROGRAM_EXAM'
+  if (key === 'quizzes' || key.endsWith('_quizzes')) return 'UNITS'
+  return null
+}
+
+function percentFromAnswers(answers: { points: number | null; maxPoints: number | null }[] | undefined): number | null {
+  if (!answers?.length) return null
+  const max = answers.reduce((sum, a) => sum + Math.max(0, Number(a.maxPoints || 0)), 0)
+  if (max <= 0) return null
+  if (answers.some((a) => a.points == null)) return null
+  const points = answers.reduce((sum, a) => sum + Math.max(0, Number(a.points || 0)), 0)
+  return (points / max) * 100
+}
+
+function attemptHasUsableScore(attempt: {
+  score?: number | null
+  finalScore?: number | null
+  answers?: { points: number | null; maxPoints: number | null }[]
+}): boolean {
+  if (typeof attempt.score === 'number' && Number.isFinite(attempt.score)) return true
+  if (typeof attempt.finalScore === 'number' && Number.isFinite(attempt.finalScore)) return true
+  return percentFromAnswers(attempt.answers) !== null
+}
+
+/**
+ * Contextual finality for the approval gate ONLY (the engine's
+ * gradesComplete is never altered): an incomplete component counts
+ * as final when EVERY one of its items is either already final on
+ * the loaders' own terms (a GRADED attempt/submission with a usable
+ * score) or a PURE OMISSION — the student never attempted/submitted
+ * it at all. Any item in between (started, submitted, under review,
+ * graded without a usable score) makes the component non-final.
+ * A semester-exam component with NO published exam at all is never
+ * final by omission: an unpublished exam is a setup state, not a
+ * student zero. Unit/assignment components with no items are
+ * vacuously final (nothing exists to submit).
+ */
+export async function evaluateContextualFinality(
+  client: AnyClient,
+  input: {
+    userId: string
+    programId: string
+    semester: number
+    entry: { components: { key: string; gradedComplete: boolean; exempt: boolean }[] }
+  },
+): Promise<{ final: boolean; nonFinalComponent?: string }> {
+  const incomplete = input.entry.components.filter((c) => !c.gradedComplete && !c.exempt)
+  for (const component of incomplete) {
+    const kind = componentKind(component.key)
+    if (!kind) return { final: false, nonFinalComponent: component.key }
+    if (kind === 'UNITS') {
+      const exams: any[] = await client.exam
+        .findMany({
+          where: { status: 'READY', unit: { programId: input.programId, semester: input.semester } },
+          select: { id: true, _count: { select: { questions: true } } },
+        })
+      const scorable = exams.filter((e) => Number(e?._count?.questions || 0) > 0)
+      for (const exam of scorable) {
+        const attempts: any[] = await client.examAttempt
+          .findMany({
+            where: { userId: input.userId, examId: exam.id },
+            select: { status: true, score: true, answers: { select: { points: true, maxPoints: true } } },
+          })
+        if (attempts.length === 0) continue // pure omission
+        if (attempts.some((a) => a.status === 'GRADED' && attemptHasUsableScore(a))) continue
+        return { final: false, nonFinalComponent: component.key }
+      }
+    } else if (kind === 'PROGRAM_EXAM') {
+      const exams: any[] = await client.programExam
+        .findMany({
+          where: { programId: input.programId, status: 'READY', semester: input.semester },
+          select: { id: true },
+        })
+      if (!exams.length) return { final: false, nonFinalComponent: component.key }
+      for (const exam of exams) {
+        const attempts: any[] = await client.programExamAttempt
+          .findMany({
+            where: { userId: input.userId, examId: exam.id },
+            select: {
+              status: true,
+              score: true,
+              finalScore: true,
+              appealStatus: true,
+              answers: { select: { points: true, maxPoints: true } },
+            },
+          })
+        if (attempts.length === 0) continue // pure omission
+        if (
+          attempts.some(
+            (a) => a.status === 'GRADED' && a.appealStatus !== 'PENDING' && attemptHasUsableScore(a),
+          )
+        ) {
+          continue
+        }
+        return { final: false, nonFinalComponent: component.key }
+      }
+    } else {
+      const assignments: any[] = await client.programAssignment
+        .findMany({
+          where: { programId: input.programId, status: 'PUBLISHED', semester: input.semester },
+          select: { id: true },
+        })
+      for (const assignment of assignments) {
+        const submission = await client.assignmentSubmission
+          .findUnique({
+            where: { assignmentId_userId: { assignmentId: assignment.id, userId: input.userId } },
+            select: { status: true, score: true },
+          })
+        if (!submission) continue // pure omission
+        if (submission.status === 'GRADED' && typeof submission.score === 'number') continue
+        return { final: false, nonFinalComponent: component.key }
+      }
+    }
+  }
+  return { final: true }
+}
+
 export async function storedSemesterApproval(client: AnyClient, enrollmentId: string, semester: number) {
   try {
     return await client.semesterResultApproval.findUnique({
@@ -202,7 +331,19 @@ export async function storedSemesterApproval(client: AnyClient, enrollmentId: st
 
 export type SemesterApprovalDecision =
   | { ok: true; approval: unknown }
-  | { ok: false; code: 'INVALID_SEMESTER_APPROVAL_INPUT' | 'ENROLLMENT_NOT_FOUND' | 'SEMESTER_GRADES_INCOMPLETE' | 'SEMESTER_APPROVAL_NOT_ACTIVE' | 'SEMESTER_APPROVAL_FORBIDDEN' | 'SEMESTER_SCORE_NOT_VERIFIED'; blockers?: SemesterBlocker[] }
+  | {
+      ok: false
+      code:
+        | 'INVALID_SEMESTER_APPROVAL_INPUT'
+        | 'ENROLLMENT_NOT_FOUND'
+        | 'SEMESTER_GRADES_INCOMPLETE'
+        | 'SEMESTER_APPROVAL_NOT_ACTIVE'
+        | 'SEMESTER_APPROVAL_FORBIDDEN'
+        | 'SEMESTER_SCORE_NOT_VERIFIED'
+        | 'SEMESTER_NOT_RAISED'
+      blockers?: SemesterBlocker[]
+      decision?: { status: string | null; periodEnded: boolean; reason: string }
+    }
 
 /**
  * The single server-side gate for approving a semester result. Refuses,
@@ -247,6 +388,57 @@ export async function approveSemesterResult(input: {
     const actor = await tx.user.findUnique({ where: { id: input.actor.id }, select: { role: true, name: true } })
     if (actor?.role !== 'ADMIN') return { ok: false, code: 'SEMESTER_APPROVAL_FORBIDDEN' } as const
     if (!SEMESTER_APPROVAL_ACTIVE) return { ok: false, code: 'SEMESTER_APPROVAL_NOT_ACTIVE' } as const
+    // STUDENT CLOSURE RIGHT (decision record): while the semester's own
+    // period is still open, approval is lawful only on the student's
+    // matured raise; the period end grants the right on its own. The
+    // segment below only MEASURES the right (under the pair lock, so
+    // the read and the DECIDED stamp at the end are one atomic
+    // segment); the refusals fire at their ordered points — score
+    // verification first (its historical codes preserved), then the
+    // closure gate as the last check before the decision is stored.
+    // A stored approval means this call is a RE-decision (the mercy
+    // completion path): the semester was already lawfully closed, so
+    // the closure right is moot and the segment is skipped.
+    let decisionCtx: {
+      closureAllowed: boolean
+      closureReason: string
+      decisionStatus: string | null
+      periodEnded: boolean
+      periodEndAt: Date | null
+      reapproval: boolean
+    } | null = null
+    if (SEMESTER_DECISION_ACTIVE) {
+      await lockSemesterDecision(tx, input.enrollmentId, input.semester)
+      const priorApproval = await storedSemesterApproval(tx, input.enrollmentId, input.semester)
+      if (priorApproval) {
+        decisionCtx = {
+          closureAllowed: true,
+          closureReason: 'REAPPROVAL',
+          decisionStatus: 'DECIDED',
+          periodEnded: false,
+          periodEndAt: null,
+          reapproval: true,
+        }
+      } else {
+        const period = await loadSemesterPeriod(tx, {
+          programId: enrollment.programId,
+          enrollmentCreatedAt: enrollment.createdAt,
+          extensionDays: enrollment.extensionDays,
+          program: enrollment.program || {},
+          semester: input.semester,
+        })
+        const decision = await getSemesterDecision(tx, input.enrollmentId, input.semester)
+        const closure = evaluateClosureRight({ decision, periodEnded: period.ended })
+        decisionCtx = {
+          closureAllowed: closure.allowed,
+          closureReason: closure.reason,
+          decisionStatus: decision?.status ?? null,
+          periodEnded: period.ended,
+          periodEndAt: period.endAt,
+          reapproval: false,
+        }
+      }
+    }
     // The official score is computed HERE from the student's frozen
     // rules — never taken from the caller. A caller-supplied score is
     // tolerated only as a freshness echo of the computed value.
@@ -264,11 +456,50 @@ export async function approveSemesterResult(input: {
     // semester average against the strict threshold alone, so a
     // semester with failed components is approved as PASSED when its
     // average passes and as FAILED when it does not.
-    if (!entry || entry.average === null || !entry.gradesComplete) {
+    if (!entry || entry.average === null) {
       return { ok: false, code: 'SEMESTER_SCORE_NOT_VERIFIED' } as const
+    }
+    if (!entry.gradesComplete) {
+      // CONTEXTUAL FINALITY (decision system): entry.gradesComplete is
+      // the engine/display notion and is NOT changed — a never-
+      // attempted item keeps it false everywhere else. For APPROVAL
+      // only, an incomplete component whose every item is a pure
+      // omission (never attempted, never submitted) counts as a
+      // final zero exactly when a closure right exists (the student's
+      // matured raise, the period end, or a re-decision). Any item
+      // carrying an attempt or submission in a non-final state keeps
+      // the refusal — a submitted exam under grading is never zeroed.
+      const contextual =
+        decisionCtx && decisionCtx.closureAllowed
+          ? await evaluateContextualFinality(tx, {
+              userId: enrollment.userId,
+              programId: enrollment.programId,
+              semester: input.semester,
+              entry,
+            })
+          : { final: false }
+      if (!contextual.final) {
+        return { ok: false, code: 'SEMESTER_SCORE_NOT_VERIFIED' } as const
+      }
     }
     if (input.score != null && Math.abs(Number(input.score) - entry.average) > 0.009) {
       return { ok: false, code: 'SEMESTER_SCORE_NOT_VERIFIED' } as const
+    }
+    // THE CLOSURE GATE — last before the decision is stored: with all
+    // grades verified final, an open semester still cannot be closed
+    // without the student's matured raise or the period end, even if
+    // a client showed the button enabled in error.
+    if (decisionCtx && !decisionCtx.reapproval && !decisionCtx.closureAllowed) {
+      return {
+        ok: false,
+        code: 'SEMESTER_NOT_RAISED',
+        blockers,
+        decision: {
+          status: decisionCtx.decisionStatus,
+          periodEnded: decisionCtx.periodEnded,
+          reason: decisionCtx.closureReason,
+        },
+      } as const
     }
     const passed = entry.passed === true
     const approval = await tx.semesterResultApproval.upsert({
@@ -306,6 +537,14 @@ export async function approveSemesterResult(input: {
         where: { enrollmentId: input.enrollmentId, semester: input.semester, status: 'GRADED' },
         data: { status: 'COMPLETED', newAverage: entry.average },
       }).catch(() => {})
+    }
+    if (SEMESTER_DECISION_ACTIVE && decisionCtx) {
+      await markSemesterDecided(tx, {
+        enrollmentId: input.enrollmentId,
+        semester: input.semester,
+        periodEnded: decisionCtx.periodEnded,
+        periodEndAt: decisionCtx.periodEndAt,
+      })
     }
     await enqueueOutbox(tx, {
       key: `semester-closed:${input.enrollmentId}:${input.semester}:${entry.average}`,

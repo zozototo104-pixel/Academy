@@ -7,6 +7,7 @@ import { buildEssaySourceMap } from '@/lib/essay-source'
 import { notifyStudentReviewResolved } from '@/lib/exam-attempt-notifications'
 import { calculateSemesterReadiness } from '@/lib/semester-readiness'
 import { registerGraduationRequest } from '@/lib/enrollment-completion'
+import { matureSemesterRaisesAfterGrading } from '@/lib/semester-raise-hooks'
 import { findDuplicateAnswerQuestionIds, findMissingAnswerQuestionIds, findUngradedAnswers, sumRequiredAnswerPoints, gradeObjectiveAnswer, parseObjectiveIndex, parseObjectiveOptions } from '@/lib/answer-completeness'
 
 export const runtime = 'nodejs'
@@ -61,13 +62,13 @@ async function listReviewAttempts(statusFilter: string = 'NEEDS_REVIEW') {
       where: { status: { in: statuses as any } },
       orderBy: { submittedAt: 'desc' },
       take: 100,
-      select: { id: true, status: true, submittedAt: true, user: { select: { id: true, name: true, email: true } }, exam: { select: { id: true, title: true, unit: { select: { title: true, program: { select: { titleAr: true } } } } } } },
+      select: { id: true, status: true, score: true, submittedAt: true, user: { select: { id: true, name: true, email: true } }, exam: { select: { id: true, title: true, unit: { select: { title: true, program: { select: { titleAr: true } } } } } } },
     }),
     db.programExamAttempt.findMany({
       where: { status: { in: statuses as any } },
       orderBy: { submittedAt: 'desc' },
       take: 100,
-      select: { id: true, status: true, submittedAt: true, user: { select: { id: true, name: true, email: true } }, exam: { select: { id: true, title: true, program: { select: { titleAr: true } } } } },
+      select: { id: true, status: true, score: true, submittedAt: true, user: { select: { id: true, name: true, email: true } }, exam: { select: { id: true, title: true, program: { select: { titleAr: true } } } } },
     }),
   ])
   let stuckUnit: Array<any> = []
@@ -79,22 +80,41 @@ async function listReviewAttempts(statusFilter: string = 'NEEDS_REVIEW') {
         where: { status: 'SUBMITTED', submittedAt: { lt: stuckBefore } },
         orderBy: { submittedAt: 'desc' },
         take: 100,
-        select: { id: true, status: true, submittedAt: true, user: { select: { id: true, name: true, email: true } }, exam: { select: { id: true, title: true, unit: { select: { title: true, program: { select: { titleAr: true } } } } } } },
+        select: { id: true, status: true, score: true, submittedAt: true, user: { select: { id: true, name: true, email: true } }, exam: { select: { id: true, title: true, unit: { select: { title: true, program: { select: { titleAr: true } } } } } } },
       }),
       db.programExamAttempt.findMany({
         where: { status: 'SUBMITTED', OR: [{ submittedAt: { lt: stuckBefore } }, { submittedAt: null, createdAt: { lt: stuckBefore } }] },
         orderBy: { submittedAt: 'desc' },
         take: 100,
-        select: { id: true, status: true, submittedAt: true, createdAt: true, user: { select: { id: true, name: true, email: true } }, exam: { select: { id: true, title: true, program: { select: { titleAr: true } } } } },
+        select: { id: true, status: true, score: true, submittedAt: true, createdAt: true, user: { select: { id: true, name: true, email: true } }, exam: { select: { id: true, title: true, program: { select: { titleAr: true } } } } },
       }),
     ])
   }
-  return [
-    ...unitAttempts.map((a) => ({ type: 'UNIT', id: a.id, status: a.status, submittedAt: a.submittedAt, student: a.user, exam: { id: a.exam.id, title: a.exam.title, programTitle: a.exam.unit.program.titleAr, unitTitle: a.exam.unit.title } })),
-    ...programAttempts.map((a) => ({ type: 'PROGRAM', id: a.id, status: a.status, submittedAt: a.submittedAt, student: a.user, exam: { id: a.exam.id, title: a.exam.title, programTitle: a.exam.program.titleAr } })),
-    ...stuckUnit.map((a) => ({ type: 'UNIT', id: a.id, status: a.status, stuck: true, submittedAt: a.submittedAt, student: a.user, exam: { id: a.exam.id, title: a.exam.title, programTitle: a.exam.unit.program.titleAr, unitTitle: a.exam.unit.title } })),
-    ...stuckProgram.map((a) => ({ type: 'PROGRAM', id: a.id, status: a.status, stuck: true, submittedAt: a.submittedAt ?? a.createdAt, student: a.user, exam: { id: a.exam.id, title: a.exam.title, programTitle: a.exam.program.titleAr } })),
+  const rows: Array<any> = [
+    ...unitAttempts.map((a) => ({ type: 'UNIT', id: a.id, status: a.status, score: (a as any).score ?? null, submittedAt: a.submittedAt, student: a.user, exam: { id: a.exam.id, title: a.exam.title, programTitle: a.exam.unit.program.titleAr, unitTitle: a.exam.unit.title } })),
+    ...programAttempts.map((a) => ({ type: 'PROGRAM', id: a.id, status: a.status, score: (a as any).score ?? null, submittedAt: a.submittedAt, student: a.user, exam: { id: a.exam.id, title: a.exam.title, programTitle: a.exam.program.titleAr } })),
+    ...stuckUnit.map((a) => ({ type: 'UNIT', id: a.id, status: a.status, score: (a as any).score ?? null, stuck: true, submittedAt: a.submittedAt, student: a.user, exam: { id: a.exam.id, title: a.exam.title, programTitle: a.exam.unit.program.titleAr, unitTitle: a.exam.unit.title } })),
+    ...stuckProgram.map((a) => ({ type: 'PROGRAM', id: a.id, status: a.status, score: (a as any).score ?? null, stuck: true, submittedAt: a.submittedAt ?? a.createdAt, student: a.user, exam: { id: a.exam.id, title: a.exam.title, programTitle: a.exam.program.titleAr } })),
   ].sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime())
+  // حالة المصادقة الرسمية لكل درجة نهائية — من سجلات المصادقة المخزونة
+  // وبنفس قاعدة الصلاحية (المساواة مع الدرجة الحالية). دفعة واحدة لكل
+  // القائمة، ودفاعي: أي فشل يترك الحالة غير معروفة ولا يُسقط القائمة.
+  try {
+    const gradedIds = rows.filter((r) => r.status === 'GRADED').map((r) => r.id)
+    if (gradedIds.length) {
+      const approvals = await db.gradeApproval.findMany({
+        where: { attemptId: { in: gradedIds } },
+        select: { targetType: true, attemptId: true, score: true },
+      })
+      const approvedScore = new Map(approvals.map((a) => [`${a.targetType}:${a.attemptId}`, a.score]))
+      for (const r of rows) {
+        if (r.status !== 'GRADED') { r.approvalState = null; continue }
+        const key = `${r.type === 'UNIT' ? 'UNIT_EXAM' : 'PROGRAM_EXAM'}:${r.id}`
+        r.approvalState = !approvedScore.has(key) ? 'NONE' : approvedScore.get(key) === r.score ? 'APPROVED' : 'STALE'
+      }
+    }
+  } catch { /* approvalState stays unset — the list still renders */ }
+  return rows
 }
 
 async function unitDetail(id: string) {
@@ -280,13 +300,17 @@ async function registerGraduationAfterReview(type: AttemptType, attemptId: strin
     const programId = attempt?.exam?.unit?.programId
     if (!attempt?.userId || !programId) return null
     const enrollment = await db.enrollment.findUnique({ where: { userId_programId: { userId: attempt.userId, programId } }, select: { id: true } })
-    return enrollment ? registerGraduationRequest({ enrollmentId: enrollment.id }) : null
+    if (!enrollment) return null
+    await matureSemesterRaisesAfterGrading(db, { enrollmentId: enrollment.id })
+    return registerGraduationRequest({ enrollmentId: enrollment.id })
   }
   const attempt = await db.programExamAttempt.findUnique({ where: { id: attemptId }, select: { userId: true, exam: { select: { programId: true } } } })
   const programId = attempt?.exam?.programId
   if (!attempt?.userId || !programId) return null
   const enrollment = await db.enrollment.findUnique({ where: { userId_programId: { userId: attempt.userId, programId } }, select: { id: true } })
-  return enrollment ? registerGraduationRequest({ enrollmentId: enrollment.id }) : null
+  if (!enrollment) return null
+  await matureSemesterRaisesAfterGrading(db, { enrollmentId: enrollment.id })
+  return registerGraduationRequest({ enrollmentId: enrollment.id })
 }
 
 export async function GET(req: NextRequest) {

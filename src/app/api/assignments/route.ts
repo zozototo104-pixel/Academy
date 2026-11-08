@@ -8,6 +8,7 @@ import { deleteStoredFile, getStorageDownloadPathForKey, storeFileBuffer, storag
 import { assignmentDueAt as dueDateFrom } from '@/lib/assignment-due-date'
 import { validateAdmissionFileSignature } from '@/lib/file-signature'
 import { submissionWindowCheck, windowContextFor } from '@/lib/semester-lifecycle'
+import { hasApprovedReopenGrant } from '@/lib/reopen-appeals'
 
 const MAX_FILE_SIZE = 6 * 1024 * 1024
 const ALLOWED_MIME = new Set([
@@ -36,6 +37,7 @@ function mapAssignment(a: any, enrollmentCreatedAt: Date) {
     title,
     description,
     semester: a.semester,
+    unitId: a.unitId ?? null,
     type: a.type,
     points: a.points,
     weight: a.weight,
@@ -143,7 +145,17 @@ export async function POST(req: NextRequest) {
     const enrollment = await db.enrollment.findFirst({ where: { userId: user.id, programId: assignment.programId, status: { in: ['ACTIVE', 'COMPLETED'] } } })
     if (!enrollment) return NextResponse.json({ error: 'هذا الواجب خاص ببرنامج غير مسجل في حسابك' }, { status: 403 })
     const dueAt = dueDateFrom(enrollment.createdAt, assignment.dueDays, (assignment as any).dueAt)
-    if (dueAt && Date.now() > dueAt.getTime()) return NextResponse.json({ error: 'انتهى موعد التسليم' }, { status: 400 })
+    if (dueAt && Date.now() > dueAt.getTime()) {
+      // منحة إعادة فتح معتمدة ترفع جدار الموعد عن صاحبها وحده
+      // (التماس إعادة الفتح، المرحلة 4) — فترة الفصل تبقى هي الحد
+      // الخارجي ويفحصها حارس النوافذ أدناه.
+      const granted = await hasApprovedReopenGrant(db, {
+        enrollmentId: enrollment.id,
+        unitId: (assignment as any).unitId ?? null,
+        semester: assignment.semester,
+      }).catch(() => false)
+      if (!granted) return NextResponse.json({ error: 'انتهى موعد التسليم' }, { status: 400 })
+    }
     // دورة حياة الفصل (المرحلة 4): نافذة الفصل حدّ خارجي فوق موعد الواجب
     // نفسه — فصل مغلق أو منتهي الفترة لا يقبل تسليمًا.
     {

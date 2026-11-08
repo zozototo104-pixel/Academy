@@ -137,7 +137,13 @@ export async function evaluateProgramCertificateEligibility(input: {
       ok: false,
       score: Number.isFinite(academicScore) ? academicScore : null,
       gradeLabel: Number.isFinite(academicScore) ? certificateGradeLabel(academicScore) : null,
-      missing: [`المعدل التراكمي لا يتجاوز ${CERTIFICATE_PASS_SCORE}%`],
+      // أسباب النقص كاملة: سبب المعدل وحده كان يخفي بقية الفجوات
+      // (امتحانات لم تُقدَّم ووحدات ناقصة) عن كشف «شو ضايل عليه» —
+      // تُدمج قائمة المحرك كما هي دون إعادة حساب.
+      missing: [
+        `المعدل التراكمي لا يتجاوز ${CERTIFICATE_PASS_SCORE}%`,
+        ...(finalGrade.missing || []).filter((m) => m !== `المعدل التراكمي لا يتجاوز ${CERTIFICATE_PASS_SCORE}%`),
+      ],
       components: finalGrade.components,
       error: `لا يمكن إصدار الشهادة لأن المعدل التراكمي المكتسب ${percent(Number.isFinite(academicScore) ? academicScore : 0)}% يجب أن يكون أعلى من ${CERTIFICATE_PASS_SCORE}%.`,
     }

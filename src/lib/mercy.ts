@@ -1,6 +1,7 @@
 import { db } from './db'
 import { getSemesterState } from './semester-lifecycle'
 import { storedSemesterApproval } from './semester-approval'
+import { semesterExamsSat } from './progression'
 import { calculateSemesterAverages } from './semester-grade'
 import { enqueueOutbox } from './outbox'
 
@@ -18,7 +19,7 @@ export const MERCY_MAX_DEADLINE_DAYS = 7
 
 export type MercyResult =
   | { ok: true; mercy: any }
-  | { ok: false; code: 'INVALID_INPUT' | 'ENROLLMENT_NOT_FOUND' | 'SEMESTER_NOT_FAILED' | 'MERCY_ALREADY_EXISTS' | 'MERCY_NOT_FOUND' | 'MERCY_WRONG_STATE' | 'FORBIDDEN' | 'MERCY_DEADLINE_TOO_LONG' | 'MERCY_WEIGHT_INVALID' | 'MERCY_DEADLINE_PASSED' }
+  | { ok: false; code: 'INVALID_INPUT' | 'ENROLLMENT_NOT_FOUND' | 'SEMESTER_NOT_FAILED' | 'SEMESTER_EXAM_NOT_TAKEN' | 'MERCY_ALREADY_EXISTS' | 'MERCY_NOT_FOUND' | 'MERCY_WRONG_STATE' | 'FORBIDDEN' | 'MERCY_DEADLINE_TOO_LONG' | 'MERCY_WEIGHT_INVALID' | 'MERCY_DEADLINE_PASSED' }
 
 async function actorScope(client: AnyClient, actorId: string, studentUserId: string, programId: string): Promise<'ADMIN' | 'SUPERVISOR' | null> {
   const actor = await client.user.findUnique({ where: { id: actorId }, select: { role: true } }).catch(() => null)
@@ -50,6 +51,11 @@ export async function requestMercy(
   if (state?.status !== 'CLOSED' || state?.result !== 'FAILED' || !approval) {
     return { ok: false, code: 'SEMESTER_NOT_FAILED' }
   }
+  // Mercy only improves a failing result AFTER the real semester exam
+  // was submitted. Neither a zero from an omitted exam nor a completed
+  // remedial activity can substitute for sitting that exam.
+  const satExam = await semesterExamsSat(client, args.userId, args.programId, args.semester)
+  if (!satExam) return { ok: false, code: 'SEMESTER_EXAM_NOT_TAKEN' }
   const store = (client as AnyClient)?.mercyRequest
   if (!store?.create) return { ok: false, code: 'INVALID_INPUT' }
   const existing = await store.findUnique({

@@ -1544,6 +1544,7 @@ interface GraduationRequestItem {
   studentName: string | null
   studentEmail: string | null
   programTitle: string | null
+  raiseGate?: 'DECIDED' | 'RAISED' | 'PERIOD_ENDED' | 'INTENT_PENDING' | 'AWAITING_STUDENT' | null
   createdAt: string
   updatedAt: string
 }
@@ -1571,6 +1572,7 @@ interface SemesterCheckState {
   error?: string
   blockers?: { code: string; count: number }[]
   approvalActive?: boolean
+  canApprove?: boolean
   hasApproval?: boolean
   gradeApprovals?: { id: string; targetType: string; score: number }[]
   averages?: {
@@ -1578,6 +1580,25 @@ interface SemesterCheckState {
     composedFinal: number | null
   } | null
   snapshot?: { basis: string; weightSource: string } | null
+  standing?: {
+    enrollment: { status: string; deadlineAt: string | null; daysLeft: number | null; periodEnded: boolean }
+    units: { total: number; scorable: number; graded: number; missingTitles: string[]; rows: { unitId: string; title: string; state: string; windowEnded: boolean | null }[] }
+    assignments: { total: number; submitted: number; missingTitles: string[] }
+    programExams: { ready: number; satCount: number; rows: { examId: string; title: string; status: string; sat: boolean; bestScore: number | null; passed: boolean }[] }
+    semesterPeriod: { endAt: string | null; ended: boolean | null }
+  } | null
+  decisionSummary?: {
+    decision: {
+      intent: string | null
+      status: string
+      raiseSource: string | null
+      raisedAt: string | null
+      scoreAtRaise: number | null
+    } | null
+    periodEndAt: string | null
+    periodEnded: boolean
+    closure: { allowed: boolean; source: 'STUDENT' | 'DEADLINE' | null; reason: string }
+  } | null
 }
 
 interface CertificateTemplateItem {
@@ -1746,7 +1767,7 @@ export function AdminCertificatesTab() {
     const key = `${request.enrollmentId}:${semester}`
     setSemesterChecks((prev) => ({ ...prev, [key]: { ...prev[key], loading: true, error: undefined } }))
     try {
-      const data = await api<{ blockers?: { code: string; count: number }[]; approvalActive?: boolean; approval?: unknown; averages?: SemesterCheckState['averages']; snapshot?: SemesterCheckState['snapshot'] }>(`/api/admin/semester-approvals?enrollmentId=${encodeURIComponent(request.enrollmentId)}&semester=${semester}`)
+      const data = await api<{ blockers?: { code: string; count: number }[]; approvalActive?: boolean; canApprove?: boolean; approval?: unknown; averages?: SemesterCheckState['averages']; snapshot?: SemesterCheckState['snapshot']; standing?: SemesterCheckState['standing']; decisionSummary?: SemesterCheckState['decisionSummary'] }>(`/api/admin/semester-approvals?enrollmentId=${encodeURIComponent(request.enrollmentId)}&semester=${semester}`)
       let gradeApprovals: { id: string; targetType: string; score: number }[] = []
       try {
         const g = await api<{ approvals?: { id: string; targetType: string; score: number }[] }>(`/api/admin/grade-approvals?userId=${encodeURIComponent(request.userId)}&programId=${encodeURIComponent(request.programId)}&semester=${semester}`)
@@ -1758,10 +1779,13 @@ export function AdminCertificatesTab() {
           loading: false,
           blockers: Array.isArray(data?.blockers) ? data.blockers : [],
           approvalActive: Boolean(data?.approvalActive),
+          canApprove: data?.canApprove === true,
           hasApproval: Boolean(data?.approval),
           gradeApprovals,
           averages: data?.averages ?? null,
           snapshot: data?.snapshot ?? null,
+          standing: data?.standing ?? null,
+          decisionSummary: data?.decisionSummary ?? null,
         },
       }))
     } catch (e: any) {
@@ -2094,9 +2118,19 @@ export function AdminCertificatesTab() {
               {gradRequests.filter((r) => r.status !== 'ISSUED').length === 0 && readyCandidates.filter((c) => !gradRequests.some((r) => r.status !== 'ISSUED' && ((r.admissionId && r.admissionId === c.id) || (c.userId && r.userId === c.userId && c.programId && r.programId === c.programId)))).length === 0 ? (
                 <p className="rounded-xl bg-slate-50 p-3 text-center text-xs font-bold text-slate-400">لا توجد معاملات تخرج مفتوحة حاليًا.</p>
               ) : (
-                <div className="grid gap-3 lg:grid-cols-2">
-                  {gradRequests.filter((r) => r.status !== 'ISSUED').map((r) => {
+                <>
+                  {(() => {
+                    const openRequests = gradRequests.filter((r) => r.status !== 'ISSUED')
+                    const gateActionable = (r: GraduationRequestItem) => r.raiseGate == null || r.raiseGate === 'RAISED' || r.raiseGate === 'DECIDED' || r.raiseGate === 'PERIOD_ENDED'
+                    const decisionQueue = openRequests.filter((r) => r.status === 'PENDING' && r.ready && gateActionable(r))
+                    const inProgress = openRequests.filter((r) => !(r.status === 'PENDING' && r.ready && gateActionable(r)))
+                    const renderRequestCard = (r: GraduationRequestItem) => {
                     const missing = Array.isArray(r.snapshot?.missing) ? r.snapshot!.missing! : []
+                    // قرار المالك 2026-11-08: المعاملة المعلّقة التي لم تُرفع
+                    // بعد (ولم تُقرَّر ولم تنتهِ مدتها) ظاهرة لكن غير قابلة
+                    // للقرار — أزرار الاعتماد/الرفض معطّلة عليها، والحارس
+                    // الخادمي يرفض أي قرار عليها أصلًا.
+                    const gateBlocked = r.status === 'PENDING' && r.raiseGate != null && r.raiseGate !== 'RAISED' && r.raiseGate !== 'DECIDED' && r.raiseGate !== 'PERIOD_ENDED'
                     const statusMeta = r.status === 'APPROVED'
                       ? { label: 'معتمد — بانتظار الإصدار', cls: 'bg-sky-100 text-sky-700' }
                       : r.status === 'REJECTED'
@@ -2113,6 +2147,11 @@ export function AdminCertificatesTab() {
                             {r.studentEmail && <p className="mt-1 font-mono text-[10px] text-slate-400" dir="ltr">{r.studentEmail}</p>}
                           </div>
                           <Badge className={statusMeta.cls}>{statusMeta.label}</Badge>
+                          {r.raiseGate === 'RAISED' && <Badge className="bg-emerald-100 text-emerald-700">الطالب رفع ملفه</Badge>}
+                          {r.raiseGate === 'DECIDED' && <Badge className="bg-sky-100 text-sky-700">نتيجة الفصل الأخير معتمدة</Badge>}
+                          {r.raiseGate === 'PERIOD_ENDED' && <Badge className="bg-teal-100 text-teal-700">انتهت فترة البرنامج — الرفع بقوة المهلة</Badge>}
+                          {r.raiseGate === 'INTENT_PENDING' && <Badge className="bg-amber-100 text-amber-700">طلب إنهاء مبكر محفوظ — بانتظار اكتمال التصحيح</Badge>}
+                          {r.raiseGate === 'AWAITING_STUDENT' && <Badge className="bg-slate-100 text-slate-500">بانتظار رفع الطالب أو نهاية الفترة</Badge>}
                         </div>
                         <div className="grid gap-2 rounded-xl bg-slate-50 p-3 text-xs font-bold text-slate-700 sm:grid-cols-2">
                           <span>الدرجة التراكمية: {typeof r.score === 'number' ? `${r.score}%` : '—'}</span>
@@ -2127,10 +2166,10 @@ export function AdminCertificatesTab() {
                         <div className="flex flex-wrap gap-2">
                           <Button disabled={busy} variant="outline" onClick={() => refreshGraduation(r)} className="border-[#0f2b46]/20 font-black text-[#0f2b46] hover:bg-slate-50">تحديث الفحص</Button>
                           {(r.status === 'PENDING' || r.status === 'REJECTED') && (
-                            <Button disabled={busy || !r.ready} onClick={() => decideGraduation(r, 'APPROVE')} className="bg-emerald-600 font-black text-white hover:bg-emerald-700">{busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="ml-2 h-4 w-4" />} اعتماد الطلب</Button>
+                            <Button disabled={busy || !r.ready || gateBlocked} onClick={() => decideGraduation(r, 'APPROVE')} className="bg-emerald-600 font-black text-white hover:bg-emerald-700">{busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="ml-2 h-4 w-4" />} اعتماد الطلب</Button>
                           )}
                           {(r.status === 'PENDING' || r.status === 'APPROVED') && (
-                            <Button disabled={busy} variant="outline" onClick={() => decideGraduation(r, 'REJECT')} className="border-red-200 font-black text-red-600 hover:bg-red-50">{busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <XCircle className="ml-2 h-4 w-4" />} رفض</Button>
+                            <Button disabled={busy || gateBlocked} variant="outline" onClick={() => decideGraduation(r, 'REJECT')} className="border-red-200 font-black text-red-600 hover:bg-red-50">{busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <XCircle className="ml-2 h-4 w-4" />} رفض</Button>
                           )}
                           {r.status === 'APPROVED' && (
                             <Button disabled={busy} onClick={() => issueForRequest(r)} className="bg-[#0f2b46] font-black text-[#f5f0e1] hover:bg-[#12365c]">{busy ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Award className="ml-2 h-4 w-4" />} إصدار الشهادة</Button>
@@ -2146,7 +2185,7 @@ export function AdminCertificatesTab() {
                           {[1, 2].map((s) => {
                             const chk = semesterChecks[`${r.enrollmentId}:${s}`]
                             if (!chk || (!chk.loading && !chk.blockers && !chk.error)) return null
-                            const canDecide = Boolean(chk.approvalActive) && Array.isArray(chk.blockers) && chk.blockers.length === 0
+                            const canDecide = chk.canApprove === true
                             return (
                               <div key={s} className="space-y-2 rounded-xl bg-slate-50 p-3 text-xs font-bold leading-6 text-slate-700">
                                 <p className="font-black text-[#0f2b46]">الفصل {s === 1 ? 'الأول' : 'الثاني'}</p>
@@ -2165,12 +2204,79 @@ export function AdminCertificatesTab() {
                                       <p className="text-emerald-700">كل شروط الدرجات مكتملة في هذا الفصل.</p>
                                     )}
                                     {chk.hasApproval && <p>يوجد اعتماد نتيجة محفوظ لهذا الفصل.</p>}
+                                    {chk.decisionSummary && !chk.hasApproval && (
+                                      <div className="rounded-lg border border-[#0f2b46]/10 bg-white p-2">
+                                        <p className="font-black text-[#0f2b46]">قرار الطالب وحق الإغلاق — من سجل القرار على الخادم</p>
+                                        {chk.decisionSummary.closure.allowed && chk.decisionSummary.closure.source === 'STUDENT' && (
+                                          <>
+                                            <p className="text-emerald-700">
+                                              الطالب رفع نتيجته للاعتماد{chk.decisionSummary.decision?.raisedAt ? ` بتاريخ ${new Date(chk.decisionSummary.decision.raisedAt).toLocaleDateString('ar-EG')}` : ''}
+                                              {chk.decisionSummary.decision?.scoreAtRaise != null ? ` — نتيجته وقت الرفع ${chk.decisionSummary.decision.scoreAtRaise}` : ''}.
+                                            </p>
+                                            {(() => {
+                                              const live = chk.averages?.semesters.find((x) => x.semester === s)?.average
+                                              const atRaise = chk.decisionSummary?.decision?.scoreAtRaise
+                                              return live != null && atRaise != null && Math.abs(live - atRaise) > 0.05 ? (
+                                                <p className="text-amber-700">تنبيه: درجات الطالب تغيّرت منذ الرفع — المعدل الحالي من الخادم ({live}) هو ما سيُعتمد، لا رقم الرفع القديم.</p>
+                                              ) : null
+                                            })()}
+                                          </>
+                                        )}
+                                        {chk.decisionSummary.closure.allowed && chk.decisionSummary.closure.source === 'DEADLINE' && (
+                                          <p className="text-emerald-700">انتهت فترة هذا الفصل — الاعتماد متاح بقوة انتهاء المهلة حتى دون طلب من الطالب.</p>
+                                        )}
+                                        {!chk.decisionSummary.closure.allowed && chk.decisionSummary.closure.reason === 'AWAITING_STUDENT' && (
+                                          <p className="text-amber-700">بانتظار قرار الطالب: فترة الفصل مفتوحة{chk.decisionSummary.periodEndAt ? ` (تنتهي ${new Date(chk.decisionSummary.periodEndAt).toLocaleDateString('ar-EG')})` : ''} والطالب لم يرفع نتيجته — لا يمكن الاعتماد قبل رفعه أو انتهاء الفترة، والخادم يرفض أي محاولة.</p>
+                                        )}
+                                        {!chk.decisionSummary.closure.allowed && chk.decisionSummary.closure.reason === 'INTENT_NOT_MATURE' && (
+                                          <p className="text-amber-700">الطالب طلب الإنهاء المبكر — الطلب لم ينضج بعد: بانتظار اكتمال تصحيح امتحان الفصل والدرجات المعلّقة.</p>
+                                        )}
+                                        {!chk.decisionSummary.closure.allowed && chk.decisionSummary.closure.reason === 'WITHDRAWN' && (
+                                          <p className="text-amber-700">الطالب سحب طلب الرفع — الاعتماد عند انتهاء فترة الفصل أو بطلب جديد منه.</p>
+                                        )}
+                                      </div>
+                                    )}
                                     {chk.averages && (
                                       <p className="font-bold text-[#0f2b46]">
                                         معدلات الفصول من الخادم:{' '}
                                         {chk.averages.semesters.map((s) => `الفصل ${s.semester}: ${s.average === null ? 'غير متاح بعد' : `${s.average} (${s.passed ? 'ناجح' : 'غير ناجح'}${s.complete ? '' : ' — غير مكتمل'})`}`).join(' · ')}
                                         {' · '}المعدل النهائي المركّب: {chk.averages.composedFinal === null ? 'غير متاح بعد' : chk.averages.composedFinal}
                                       </p>
+                                    )}
+                                    {chk.standing && (
+                                      <div className="space-y-1 rounded-lg border border-[#0f2b46]/10 bg-white p-2">
+                                        <p className="font-black text-[#0f2b46]">كشف وضع الطالب في هذا الفصل — وقائع التقديم والمواعيد من الخادم</p>
+                                        <p>
+                                          حالة التسجيل: {{ ACTIVE: 'نشط', EXPIRED: 'منتهية المدة', COMPLETED: 'مكتمل', CERTIFIED: 'شهادة صادرة', SUPERVISOR_ASSIGNED: 'مفعّل دراسيًا', THESIS: 'بحث التخرج' }[chk.standing.enrollment.status] || chk.standing.enrollment.status}
+                                          {chk.standing.enrollment.deadlineAt && (
+                                            <> · مهلة الدراسة {chk.standing.enrollment.periodEnded ? `انتهت بتاريخ ${new Date(chk.standing.enrollment.deadlineAt).toLocaleDateString('ar-EG')}` : `تنتهي ${new Date(chk.standing.enrollment.deadlineAt).toLocaleDateString('ar-EG')} (باقي ${chk.standing.enrollment.daysLeft} يوم)`}</>
+                                          )}
+                                        </p>
+                                        <p>
+                                          الوحدات: قُدّمت وصُحّحت {chk.standing.units.graded} من {chk.standing.units.scorable} وحدة لها امتحان جاهز (مجموع وحدات الفصل {chk.standing.units.total}).
+                                          {chk.standing.units.missingTitles.length > 0 && <> الوحدات التي لم تُقدَّم: {chk.standing.units.missingTitles.join('، ')}.</>}
+                                          {chk.standing.units.rows.some((u) => u.windowEnded != null) && <> نوافذ الوحدات: انتهى وقت {chk.standing.units.rows.filter((u) => u.windowEnded).length} من {chk.standing.units.rows.filter((u) => u.windowEnded != null).length} وحدة.</>}
+                                        </p>
+                                        {chk.standing.programExams.rows.length > 0 ? (
+                                          <p>
+                                            امتحان الفصل: {chk.standing.programExams.rows.map((x) => x.status !== 'READY' ? `«${x.title}» غير جاهز بعد (${x.status})` : x.sat ? `«${x.title}» قُدّم${x.bestScore != null ? ` — أفضل درجة ${x.bestScore}` : ''}${x.passed ? ' (ناجح)' : ''}` : `«${x.title}» لم يُقدَّم بعد`).join(' · ')}
+                                            {chk.standing.semesterPeriod.endAt && <> · نهاية فترة الفصل {new Date(chk.standing.semesterPeriod.endAt).toLocaleDateString('ar-EG')} ({chk.standing.semesterPeriod.ended ? 'انتهت' : 'لم تنتهِ بعد'})</>}
+                                          </p>
+                                        ) : (
+                                          <p>امتحان الفصل: لا يوجد امتحان فصل محفوظ لهذا الفصل.</p>
+                                        )}
+                                        {chk.standing.assignments.total > 0 && (
+                                          <p>الواجبات: سُلّم {chk.standing.assignments.submitted} من {chk.standing.assignments.total}{chk.standing.assignments.missingTitles.length > 0 ? ` · لم تُسلَّم: ${chk.standing.assignments.missingTitles.join('، ')}` : ''}</p>
+                                        )}
+                                        <p className="font-black text-[#0f2b46]">
+                                          شو ضايل عليه في هذا الفصل:{' '}
+                                          {[
+                                            ...chk.standing.units.missingTitles.map((t) => `وحدة «${t}»`),
+                                            ...chk.standing.programExams.rows.filter((x) => x.status === 'READY' && !x.sat).map((x) => `امتحان الفصل «${x.title}»`),
+                                            ...chk.standing.assignments.missingTitles.map((t) => `واجب «${t}»`),
+                                          ].join('، ') || 'لا شيء — كل متطلبات التقديم في هذا الفصل مكتملة'}
+                                        </p>
+                                      </div>
                                     )}
                                     {chk.gradeApprovals && chk.gradeApprovals.length > 0 && (
                                       <p>الدرجات المعتمدة رسميًا: {chk.gradeApprovals.map((g) => `${g.targetType === 'UNIT_EXAM' ? 'وحدة' : 'امتحان فصل'} (${g.score})`).join('، ')}</p>
@@ -2188,7 +2294,25 @@ export function AdminCertificatesTab() {
                         </div>
                       </div>
                     )
-                  })}
+                    }
+                    return (
+                      <div className="space-y-4">
+                        {decisionQueue.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-xs font-black text-emerald-700">جاهزة لقرار الإدارة ({decisionQueue.length}) — استوفت الشروط، وبانتظار مصادقتك</p>
+                            <div className="grid gap-3 lg:grid-cols-2">{decisionQueue.map((r) => renderRequestCard(r))}</div>
+                          </div>
+                        )}
+                        {inProgress.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-xs font-black text-slate-500">قيد الاستكمال ({inProgress.length}) — سجلات حية تُحدَّث تلقائيًا مع كل حدث أكاديمي أو مالي، وليست قرارات بانتظارك</p>
+                            <div className="grid gap-3 lg:grid-cols-2">{inProgress.map((r) => renderRequestCard(r))}</div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
+                <div className="grid gap-3 lg:grid-cols-2">
                   {readyCandidates.filter((c) => !gradRequests.some((r) => r.status !== 'ISSUED' && ((r.admissionId && r.admissionId === c.id) || (c.userId && r.userId === c.userId && c.programId && r.programId === c.programId)))).map((c) => (
                     <div key={`orphan-${c.id}`} className="space-y-3 rounded-xl border border-dashed border-[#c9a227]/60 p-3">
                       <div className="flex items-start justify-between gap-3">
@@ -2203,6 +2327,7 @@ export function AdminCertificatesTab() {
                     </div>
                   ))}
                 </div>
+                </>
               )}
             </>
           )}

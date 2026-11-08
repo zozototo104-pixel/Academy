@@ -42,6 +42,14 @@ describe('files C2 admin student listing', () => {
     expect(payload.students[0]).toMatchObject({ id: 'student-no-enrollment', enrollments: [] })
   })
 
+  test('expired filter reaches students whose enrollments all ended (قرار المالك 2026-11-08)', async () => {
+    capturedUserWhere = null
+    const res = await adminStudentsRoute.GET(new NextRequest('https://academy.test/api/admin/students?status=EXPIRED'))
+    expect(res.status).toBe(200)
+    expect(capturedUserWhere).toMatchObject({ role: 'STUDENT' })
+    expect(capturedUserWhere.enrollments).toEqual({ some: { status: 'EXPIRED' } })
+  })
+
   test('registered-only student list includes students without open enrollments', async () => {
     capturedUserWhere = null
     const res = await adminStudentsRoute.GET(new NextRequest('https://academy.test/api/admin/students?status=REGISTERED_ONLY'))

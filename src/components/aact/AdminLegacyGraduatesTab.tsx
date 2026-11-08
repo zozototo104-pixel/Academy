@@ -11,7 +11,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Award, Download, FileArchive, FileSpreadsheet, Loader2, Mail, PenLine, Plus, RefreshCw, Search, ShieldOff, Trash2, Upload } from 'lucide-react'
+import { Award, Download, Eye, FileArchive, FileSpreadsheet, Loader2, Mail, PenLine, Plus, RefreshCw, Search, ShieldOff, Trash2, Upload } from 'lucide-react'
+import { useAppStore } from '@/lib/store'
 
 type LegacyGraduateCertificate = {
   id: string
@@ -200,6 +201,8 @@ function parseStampLayout(positionValue?: string | null, sizeValue?: string | nu
 
 export default function AdminLegacyGraduatesTab() {
   const { confirmAction, dialog: actionDialog } = useAdminActionDialog()
+  const openStudentPreview = useAppStore((s) => s.openStudentPreview)
+  const [profileFor, setProfileFor] = useState<LegacyGraduateCertificate | null>(null)
   const [items, setItems] = useState<LegacyGraduateCertificate[]>([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(false)
@@ -887,6 +890,7 @@ export default function AdminLegacyGraduatesTab() {
                   <p className="text-xs text-slate-500">الرقم: <span dir="ltr">{cert.serial}</span>{cert.legacySerial ? <> · الرقم القديم: <span dir="ltr">{cert.legacySerial}</span></> : null} · تاريخ التخرج: {dateOnly(cert.issuedAt)}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" onClick={() => { if (cert.user?.id) openStudentPreview(cert.user.id); else setProfileFor(cert) }} className="gap-1"><Eye className="h-3.5 w-3.5" /> عرض</Button>
                   <Button size="sm" variant="outline" onClick={() => openUpload(cert)} className="gap-1"><Upload className="h-3.5 w-3.5" /> رفع/ختم</Button>
                   <Button size="sm" variant="outline" onClick={() => window.open(`/api/pdf/certificates/${encodeURIComponent(cert.serial)}`, '_blank')} className="gap-1"><Download className="h-3.5 w-3.5" /> تحميل PDF</Button>
                   <Button size="sm" variant="outline" onClick={() => resendInvite(cert)} disabled={busy === `invite:${cert.id}`} className="gap-1"><Mail className="h-3.5 w-3.5" /> إرسال التفعيل</Button>
@@ -900,6 +904,33 @@ export default function AdminLegacyGraduatesTab() {
         ))}
         {!loading && items.length === 0 ? <Card><CardContent className="p-8 text-center text-sm font-bold text-slate-500">لا توجد سجلات خريجين سابقين بعد.</CardContent></Card> : null}
       </div>
+
+      <Dialog open={profileFor != null} onOpenChange={(open) => { if (!open) setProfileFor(null) }}>
+        <DialogContent className="max-w-lg" dir="rtl">
+          <DialogHeader>
+            <DialogTitle>ملف الخريج القديم</DialogTitle>
+            <DialogDescription>عرض وقائع الشهادة كما هي محفوظة — هذا الخريج غير مربوط بحساب طالب في المنصة، فلا يوجد سجل أكاديمي داخلي له.</DialogDescription>
+          </DialogHeader>
+          {profileFor && (
+            <div className="grid gap-2 text-xs sm:grid-cols-2">
+              <p className="rounded-xl bg-slate-50 p-3 font-bold text-slate-600">الاسم: <b className="text-[#0f2b46]">{profileFor.holderName}</b></p>
+              <p className="rounded-xl bg-slate-50 p-3 font-bold text-slate-600">الاسم الإنجليزي: <b className="text-[#0f2b46]">{profileFor.holderNameEn || 'غير مسجل'}</b></p>
+              <p className="rounded-xl bg-slate-50 p-3 font-bold text-slate-600">البرنامج: <b className="text-[#0f2b46]">{profileFor.program}</b></p>
+              <p className="rounded-xl bg-slate-50 p-3 font-bold text-slate-600">التقدير: <b className="text-[#0f2b46]">{profileFor.grade || 'غير مسجل'}</b></p>
+              <p className="rounded-xl bg-slate-50 p-3 font-bold text-slate-600">رقم الشهادة: <b className="text-[#0f2b46]" dir="ltr">{profileFor.serial}</b></p>
+              <p className="rounded-xl bg-slate-50 p-3 font-bold text-slate-600">الرقم القديم: <b className="text-[#0f2b46]" dir="ltr">{profileFor.legacySerial || '—'}</b></p>
+              <p className="rounded-xl bg-slate-50 p-3 font-bold text-slate-600">تاريخ التخرج: <b className="text-[#0f2b46]">{dateOnly(profileFor.issuedAt)}</b></p>
+              <p className="rounded-xl bg-slate-50 p-3 font-bold text-slate-600">الدولة: <b className="text-[#0f2b46]">{profileFor.country || 'غير محددة'}</b></p>
+              <p className="rounded-xl bg-slate-50 p-3 font-bold text-slate-600">حالة الشهادة: <b className="text-[#0f2b46]">{profileFor.valid ? 'صالحة' : 'ملغاة'}</b></p>
+              <p className="rounded-xl bg-slate-50 p-3 font-bold text-slate-600">الملف: <b className="text-[#0f2b46]">{profileFor.stampedFileKey ? 'ملف مختوم محفوظ' : profileFor.uploadedFileKey ? 'ملف مرفوع محفوظ' : 'يُولّد من القالب عند التحميل'}</b></p>
+              {profileFor.enrollment && (
+                <p className="rounded-xl bg-slate-50 p-3 font-bold text-slate-600 sm:col-span-2">تسجيل مرتبط: <b className="text-[#0f2b46]">{profileFor.enrollment.status}</b>{typeof profileFor.enrollment.finalScore === 'number' ? <> — الدرجة النهائية المحفوظة: <b className="text-[#0f2b46]">{profileFor.enrollment.finalScore}</b></> : null}</p>
+              )}
+            </div>
+          )}
+          <DialogFooter><Button variant="outline" onClick={() => setProfileFor(null)}>إغلاق</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent className="max-w-3xl" dir="rtl">
