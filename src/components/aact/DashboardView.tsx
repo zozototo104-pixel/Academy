@@ -23,6 +23,7 @@ import {
   SemesterDecisionPanel,
   type SemesterDecisionBrief,
 } from '@/components/aact/SemesterDecision'
+import { AssignmentReopenAppeal } from '@/components/aact/ReopenAppeal'
 import {
   BookOpen, ClipboardCheck, ChevronLeft, Loader2, Lock,
   Award, Bot, CheckCircle2, CircleDashed, Trophy, Banknote, FileText,
@@ -256,6 +257,7 @@ interface StudentAssignment {
   weight: number
   dueDays?: number | null
   dueAt?: string | null
+  unitId?: string | null
   rubric?: string | null
   status: string
   submitted: boolean
@@ -1850,6 +1852,9 @@ export function DashboardView() {
                                   </Button>
                                 </div>
                               </div>
+                            )}
+                            {a.dueAt && new Date(a.dueAt).getTime() < Date.now() && !graded && (
+                              <AssignmentReopenAppeal programId={a.programId} semester={a.semester} unitId={a.unitId ?? null} />
                             )}
                           </article>
                         )

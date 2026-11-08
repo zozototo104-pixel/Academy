@@ -17,6 +17,26 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'asc' },
       take: 200,
     }).catch(() => [])
+    // أسماء وعناوين للعرض في قائمة البتّ — دفعة واحدة ودفاعيًا.
+    try {
+      const userIds = [...new Set(appeals.map((a: any) => a.userId).filter(Boolean))]
+      const programIds = [...new Set(appeals.map((a: any) => a.programId).filter(Boolean))]
+      const unitIds = [...new Set(appeals.map((a: any) => a.unitId).filter(Boolean))]
+      const [users, programs, units]: [any[], any[], any[]] = await Promise.all([
+        userIds.length ? db.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true, email: true } }) : [],
+        programIds.length ? db.program.findMany({ where: { id: { in: programIds } }, select: { id: true, titleAr: true, titleEn: true } }) : [],
+        unitIds.length ? db.unit.findMany({ where: { id: { in: unitIds as string[] } }, select: { id: true, title: true } }) : [],
+      ])
+      const userById = new Map(users.map((u) => [u.id, u]))
+      const programById = new Map(programs.map((p) => [p.id, p]))
+      const unitById = new Map(units.map((u) => [u.id, u]))
+      for (const a of appeals as any[]) {
+        a.studentName = userById.get(a.userId)?.name || null
+        a.studentEmail = userById.get(a.userId)?.email || null
+        a.programTitle = programById.get(a.programId)?.titleAr || programById.get(a.programId)?.titleEn || null
+        a.unitTitle = a.unitId ? unitById.get(a.unitId)?.title || null : null
+      }
+    } catch { /* الأسماء تجميلية — القائمة تعمل بدونها */ }
     return NextResponse.json({ ok: true, appeals })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED' || e?.message === 'FORBIDDEN') return NextResponse.json({ error: 'صلاحية إدارية مطلوبة' }, { status: 403 })
