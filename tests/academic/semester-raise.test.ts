@@ -75,6 +75,7 @@ function makeClient() {
       findMany: async ({ where }: any) =>
         facts.satCount > 0 && where?.status === facts.finalExamStatus
           ? [{
+              examId: 'sem-exam-1',
               score: facts.finalExamScore,
               finalScore: null,
               appealStatus: facts.appealStatus,
