@@ -120,6 +120,13 @@ export async function approveGrade(input: {
     if (!actor || (actor.role !== 'ADMIN' && actor.role !== 'SUPERVISOR')) {
       return { ok: false, code: 'GRADE_APPROVAL_FORBIDDEN' } as const
     }
+    // Serialize approval requests for this exact attempt on PostgreSQL.
+    // Concurrent clicks must not both read the prior record as missing
+    // and rewrite the approver/time or emit duplicate audit events.
+    if (typeof tx.$queryRaw === 'function') {
+      const lockKey = `grade-approval:${input.targetType}:${input.attemptId}`
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`
+    }
     const resolved = await resolveAttempt(tx, input.targetType, input.attemptId)
     if (!resolved) return { ok: false, code: 'ATTEMPT_NOT_FOUND' } as const
     if (actor.role === 'SUPERVISOR') {
