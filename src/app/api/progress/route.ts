@@ -108,6 +108,22 @@ export async function GET(req: NextRequest) {
     const semesterReadiness = await Promise.all(
       semesterExams.map((e) => calculateSemesterReadiness(user.id, programId, e.semester))
     )
+    // The student's exam buttons must reflect the exact same official
+    // progression guard enforced by the exam-start endpoint, including
+    // an APPROVED FAILED first semester (not an exam-passed shortcut).
+    const semesterProgression = await Promise.all(
+      semesterExams.map(async (e) => e.semester <= 1
+        ? { open: true, reasons: [] as string[] }
+        : progressionGate(db, {
+            id: enrollment.id,
+            userId: user.id,
+            programId,
+          }, e.semester, program.category).catch(() => ({
+            open: false,
+            reasons: ['تعذر التحقق من اعتماد نتيجة الفصل السابق'],
+          })),
+      )
+    )
     // موجز قرار إنهاء الفصل لكل فصل (سجل القرار): وقائع النافذة وحالة
     // الطلب من مصدر الخادم الوحيد. يُحسب فقط عند تفعيل الميزة، ودفاعي
     // لكل فصل: أي فشل يترك الموجز فارغًا ولا يُسقط بقية التقدم.
