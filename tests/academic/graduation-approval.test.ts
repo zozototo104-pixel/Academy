@@ -375,6 +375,36 @@ describe('graduation approval law', () => {
     }
   })
 
+  test('an open last semester without student raise blocks BOTH direct admin approval and rejection', async () => {
+    world.state.enrollmentCreatedAt = new Date()
+    await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
+    expect(world.state.request.status).toBe('PENDING')
+    for (const action of ['APPROVE', 'REJECT'] as const) {
+      const response = await postGraduationAction(action)
+      expect(response.status).toBe(409)
+      expect((await response.json()).code).toBe('GRADUATION_NOT_RAISED')
+      expect(world.state.request.status).toBe('PENDING')
+    }
+  })
+
+  test('an explicit mature student raise permits an early graduation decision', async () => {
+    world.state.enrollmentCreatedAt = new Date()
+    world.state.lastSemesterDecision = 'RAISED'
+    await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
+    const response = await postGraduationAction('APPROVE')
+    expect(response.status).toBe(200)
+    expect(world.state.request.status).toBe('APPROVED')
+  })
+
+  test('a withdrawn early raise does not authorize a graduation decision', async () => {
+    world.state.enrollmentCreatedAt = new Date()
+    world.state.lastSemesterDecision = 'WITHDRAWN'
+    await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
+    const response = await postGraduationAction('REJECT')
+    expect(response.status).toBe(409)
+    expect((await response.json()).code).toBe('GRADUATION_NOT_RAISED')
+  })
+
   test('stale 88 approval -> admin refresh to 95 -> new approval -> issuance at 95', async () => {
     await registerGraduationRequest({ enrollmentId: 'enrollment-1' })
     world.state.request.status = 'APPROVED'
