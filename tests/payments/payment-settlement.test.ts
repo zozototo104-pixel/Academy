@@ -5,6 +5,7 @@ import { NextRequest } from 'next/server'
 type RecordMap = Map<string, Record<string, any>>
 
 const payments: RecordMap = new Map()
+const grantSettings: RecordMap = new Map()
 const admissions: RecordMap = new Map()
 const users: RecordMap = new Map()
 const enrollments: RecordMap = new Map()
