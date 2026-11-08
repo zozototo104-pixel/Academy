@@ -152,9 +152,22 @@ describe('progression gate', () => {
     if (!window.ok) expect(window.code).toBe('PROGRESSION_LOCKED')
   })
 
-  test('legacy BACKFILL snapshot without lifecycle state preserves grandfathered access', async () => {
+  test('ACTIVE BACKFILL snapshot without lifecycle state must use the new S2 gate', async () => {
     const gate = await progressionGate(fakeClient({ footprint: false, snapshotBasis: 'BACKFILL' }), ENROLLMENT, 2, 'DIPLOMA')
-    expect(gate.open).toBe(true)
+    expect(gate.open).toBe(false)
+    expect(gate.reasons.join(' ')).toContain('غير معتمدة')
+  })
+
+  test('ACTIVE BACKFILL snapshot without lifecycle state must not open a required thesis', async () => {
+    const client = fakeClient({
+      footprint: false, snapshotBasis: 'BACKFILL',
+      requiredComponents: ['final_exam', 'thesis'],
+      weights: { quizzes: 10, assignments: 10, final_exam: 50, thesis: 30 },
+    })
+    const gate = await thesisGate(client, ENROLLMENT, PROGRAM)
+    expect(gate.required).toBe(true)
+    expect(gate.open).toBe(false)
+    expect(gate.reasons.join(' ')).toContain('غير مكتمل')
   })
 
   test('new enrollment snapshot without semester states also locks a required thesis', async () => {
