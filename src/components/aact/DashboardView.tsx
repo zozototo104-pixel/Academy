@@ -1914,10 +1914,9 @@ export function DashboardView() {
                       {(active.semesterExams?.length || 0) > 0 ? (
                         <div className="space-y-3">
                           {active.semesterExams!.map((exam: any) => {
-                            const sem1 = (active.semesterExams || []).find((e: any) => e.semester === 1)
                             const tuitionGate = exam.tuitionGate
                             const tuitionLocked = Boolean(tuitionGate && !tuitionGate.allowed)
-                            const prereqLocked = exam.semester === 2 && sem1 && !sem1.passed
+                            const prereqLocked = exam.semester > 1 && exam.progression?.open !== true
                             const locked = prereqLocked || tuitionLocked || !exam.readiness?.readyMarked
                             return (
                               <article key={exam.id} className="rounded-2xl border border-[#0f2b46]/10 bg-[#f8fafc] p-4">
