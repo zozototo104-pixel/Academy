@@ -61,9 +61,10 @@ describe('AdminFinanceTab workspace organization', () => {
     expect(certificatesAndAfter.includes('finance-section-')).toBe(false)
   })
 
-  test('renders two visual workspaces without changing behavior on open', () => {
+  test('renders three isolated visual workspaces without changing behavior on open', () => {
     required(financeBlock, 'aria-label="مساحات عمل المالية والفواتير"')
     required(financeBlock, "['payments', 'الفواتير والإثباتات والإعفاءات'")
+    required(financeBlock, "['grants', 'تنظيم المنح'")
     required(financeBlock, "['reports', 'التقارير والتحليلات'")
     required(financeBlock, 'type="button"')
     required(financeBlock, 'aria-expanded={active}')
