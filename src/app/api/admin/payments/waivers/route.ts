@@ -312,7 +312,7 @@ export async function POST(req: NextRequest) {
       if (existingIntent) {
         return NextResponse.json({ error: 'إصدار منحة لهذه الفاتورة قيد المراجعة؛ لا تكرر إصدار الكود', code: 'GRANT_ISSUE_PENDING' }, { status: 409 })
       }
-      const intent = { policyId: quote.policy.id, admissionId: quote.admissionId, programId: quote.programId, signature: quote.signature, createdAt: new Date().toISOString() }
+      const intent = { policyId: quote.policy.id, admissionId: quote.admissionId, programId: quote.programId, signature: quote.signature, baseCents: quote.baseCents, grantCents: quote.grantCents, createdAt: new Date().toISOString() }
       await db.setting.create({ data: { key: intentKey, value: JSON.stringify(intent) } })
       try {
         const result = await createPaymentWaiverCode({
@@ -378,16 +378,83 @@ export async function PATCH(req: NextRequest) {
     const admin = await requireAdmin()
     const body = await req.json().catch(() => ({}))
     const action = cleanText(body.action, 40).toUpperCase()
+    if (action === 'TOGGLE_POLICY') {
+      const id = cleanText(body.policyId, 60)
+      const policy = await loadGrantPolicy(id)
+      const updated = { ...policy, active: !policy.active }
+      await db.setting.update({ where: { key: GRANT_POLICY_PREFIX + id }, data: { value: JSON.stringify(updated) } })
+      await audit({ id: admin.id, name: admin.name || admin.email || 'Admin' }, 'GRANT_POLICY_TOGGLED', 'Setting', GRANT_POLICY_PREFIX + id, `${policy.title} — ${updated.active ? 'نشطة' : 'موقوفة'}`)
+      return NextResponse.json({ policy: updated })
+    }
     if (action === 'RESEND') {
       const paymentId = cleanText(body.paymentId, 80)
       if (!paymentId) return NextResponse.json({ error: 'معرّف الفاتورة مطلوب' }, { status: 400 })
+      const previous = await db.paymentWaiverCode.findFirst({ where: { paymentId, status: { in: ['ISSUED', 'VERIFIED'] } }, orderBy: { createdAt: 'desc' }, select: { id: true } })
+      const oldLink = previous ? await db.setting.findUnique({ where: { key: GRANT_LINK_PREFIX + previous.id } }) : null
       const result = await resendPaymentWaiverCode({ paymentId, actor: { id: admin.id, name: admin.name || admin.email || 'Admin' } })
+      if (oldLink) {
+        await db.setting.upsert({
+          where: { key: GRANT_LINK_PREFIX + result.waiver.id },
+          create: { key: GRANT_LINK_PREFIX + result.waiver.id, value: JSON.stringify({ ...JSON.parse(oldLink.value), waiverCodeId: result.waiver.id }) },
+          update: { value: JSON.stringify({ ...JSON.parse(oldLink.value), waiverCodeId: result.waiver.id }) },
+        })
+      }
       return NextResponse.json({ code: result.code, waiver: result.waiver, emailStatus: result.emailStatus, whatsapp: result.whatsapp })
     }
     const waiverId = cleanText(body.waiverId, 80)
     if (!waiverId) return NextResponse.json({ error: 'معرّف كود الإعفاء مطلوب' }, { status: 400 })
 
     if (action === 'APPROVE') {
+      const existing = await db.paymentWaiverCode.findUnique({
+        where: { id: waiverId },
+        include: { payment: { include: { admission: { select: { id: true, programId: true } } } } },
+      })
+      const marker = existing?.reason.match(/\\[GRANT:([a-f0-9-]{36})\\]/)
+      if (marker) {
+        const policy = await loadGrantPolicy(marker[1])
+        const linkKey = GRANT_LINK_PREFIX + waiverId
+        let link = await db.setting.findUnique({ where: { key: linkKey } })
+        if (!link && existing) {
+          const oldCodes = await db.paymentWaiverCode.findMany({
+            where: { paymentId: existing.paymentId, reason: existing.reason, id: { not: waiverId } },
+            select: { id: true },
+          })
+          const links = await Promise.all(oldCodes.map((code) => db.setting.findUnique({ where: { key: GRANT_LINK_PREFIX + code.id } })))
+          const previous = links.find(Boolean)
+          if (previous) {
+            link = await db.setting.upsert({
+              where: { key: linkKey },
+              create: { key: linkKey, value: JSON.stringify({ ...JSON.parse(previous.value), waiverCodeId: waiverId }) },
+              update: { value: JSON.stringify({ ...JSON.parse(previous.value), waiverCodeId: waiverId }) },
+            })
+          }
+          if (!link) {
+            const pending = await db.setting.findUnique({ where: { key: 'GRANT_ORGANIZATION_INTENT_V1_' + existing.paymentId } })
+            if (pending) {
+              const intent = JSON.parse(pending.value)
+              if (intent.policyId === policy.id) {
+                link = await db.setting.upsert({
+                  where: { key: linkKey },
+                  create: { key: linkKey, value: JSON.stringify({ ...intent, paymentId: existing.paymentId, waiverCodeId: waiverId }) },
+                  update: { value: JSON.stringify({ ...intent, paymentId: existing.paymentId, waiverCodeId: waiverId }) },
+                })
+                await db.setting.deleteMany({ where: { key: 'GRANT_ORGANIZATION_INTENT_V1_' + existing.paymentId } })
+              }
+            }
+          }
+        }
+        if (!link) {
+          return NextResponse.json({ error: 'ربط هذه المنحة بسجل التنظيم مفقود؛ لا يمكن اعتمادها قبل مراجعته', code: 'GRANT_LINK_MISSING' }, { status: 409 })
+        }
+        const snapshot = JSON.parse(link.value)
+        if (snapshot.policyId !== policy.id
+          || snapshot.admissionId !== existing?.payment.admission?.id
+          || snapshot.programId !== existing?.payment.admission?.programId
+          || (policy.scope === 'PROGRAM' && !policy.programIds.includes(snapshot.programId))
+          || (policy.scope === 'INDIVIDUAL' && policy.admissionId !== snapshot.admissionId)) {
+          return NextResponse.json({ error: 'تغيّر تخصص الطالب أو ارتباط المنحة؛ لا يجوز اعتمادها لهذا التسجيل', code: 'GRANT_PROGRAM_CHANGED' }, { status: 409 })
+        }
+      }
       const payment = await approvePaymentWaiver({ waiverId, actor: { id: admin.id, name: admin.name || admin.email || 'Admin' } })
       return NextResponse.json({ payment })
     }
