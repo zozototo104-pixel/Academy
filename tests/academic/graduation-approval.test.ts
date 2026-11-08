@@ -173,6 +173,7 @@ beforeEach(() => {
   world.state.certificate = null
   world.state.createdCertificate = null
   world.state.request = null
+  world.state.outbox = []
   world.state.enrollmentUpdates = []
   world.state.failTransaction = false
   world.state.admissionStatus = 'APPROVED'
