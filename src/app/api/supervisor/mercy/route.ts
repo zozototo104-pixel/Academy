@@ -22,11 +22,15 @@ export async function GET() {
       .filter((a) => a.userId && a.programId)
       .map((a) => ({ userId: a.userId, programId: a.programId }))
     const requests = assignedPairs.length
-      ? await dbAny.mercyRequest.findMany({ where: { OR: assignedPairs }, orderBy: { createdAt: 'desc' } }).catch(() => [])
+      ? await dbAny.mercyRequest.findMany({ where: { OR: assignedPairs }, orderBy: { createdAt: 'desc' } })
       : []
     return NextResponse.json({ ok: true, requests })
-  } catch {
-    return NextResponse.json({ error: 'صلاحية مشرف مطلوبة' }, { status: 403 })
+  } catch (error) {
+    if (error instanceof Error && error.message === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'صلاحية مشرف مطلوبة' }, { status: 403 })
+    }
+    console.error('supervisor mercy GET failed', error)
+    return NextResponse.json({ error: 'تعذر تحميل طلبات الاسترحام' }, { status: 500 })
   }
 }
 
