@@ -175,8 +175,6 @@ export async function progressionGate(
     return { open: false, reasons: ['تعذر التحقق من حالة الفصل السابق؛ أعد المحاولة لاحقًا'] }
   }
   if (!footprint) return { open: true, reasons: [] }
-  const ctx = await gateContext(client, enrollment.id)
-  const category = programCategory || 'DIPLOMA'
   const reasons: string[] = []
   for (let s = 1; s < targetSemester; s++) {
     const state = await semesterApprovalState(client, enrollment, s).catch(() => 'NONE' as const)
@@ -186,14 +184,14 @@ export async function progressionGate(
     }
     const stored = await storedSemesterApproval(client, enrollment.id, s).catch(() => null)
     const score = stored?.score == null ? null : Number(stored.score)
-    if (score === null || !(score > ctx.threshold)) {
-      reasons.push(`معدل الفصل ${s} المعتمد (${score ?? '—'}) لا يتجاوز ${ctx.threshold}`)
+    if (score === null || !Number.isFinite(score) || score < 0 || score > 100) {
+      reasons.push(`نتيجة الفصل ${s} المعتمدة غير قابلة للتحقق`)
       continue
     }
-    if (semesterExamRequired(category, ctx.requiredComponents, s)) {
-      const passed = await semesterExamPassed(client, enrollment.userId, enrollment.programId, s).catch(() => false)
-      if (!passed) reasons.push(`امتحان الفصل ${s} غير ناجح بعد`)
-    }
+    // A final FAILED result is a lawful academic decision, not a veto
+    // on continuing the programme. Its actual mark still counts in
+    // the cumulative grade; appeals can revise it through the existing
+    // grade-approval lifecycle.
   }
   return { open: reasons.length === 0, reasons }
 }
