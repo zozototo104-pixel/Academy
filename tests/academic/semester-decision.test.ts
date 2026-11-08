@@ -107,6 +107,15 @@ describe('evaluateClosureRight — جدول حق الإغلاق', () => {
     expect(r.allowed).toBe(true)
     expect(r.source).toBe('DEADLINE')
   })
+  test('رفع المهلة لا يُنسب للطالب، والتمديد يسحب حق الإغلاق الآلي حتى ينتهي', () => {
+    const deadline = { status: 'RAISED', raiseSource: 'DEADLINE' }
+    const afterEnd = evaluateClosureRight({ decision: deadline, periodEnded: true })
+    expect(afterEnd.allowed).toBe(true)
+    expect(afterEnd.source).toBe('DEADLINE')
+    const afterExtension = evaluateClosureRight({ decision: deadline, periodEnded: false })
+    expect(afterExtension.allowed).toBe(false)
+    expect(afterExtension.source).toBeNull()
+  })
   test('نية غير ناضجة لا تمنح الحق أثناء الفترة', () => {
     const r = evaluateClosureRight({ decision: { status: 'INTENT' }, periodEnded: false })
     expect(r.allowed).toBe(false)
