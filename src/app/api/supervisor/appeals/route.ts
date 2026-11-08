@@ -41,7 +41,7 @@ export async function GET() {
         },
       }),
       dbAny.programExamAttempt.findMany({
-        where: { userId: { in: studentIds }, appealStatus: 'PENDING' },
+        where: { ...programScope, appealStatus: 'PENDING' },
         orderBy: { appealedAt: 'asc' },
         take: 100,
         select: {
