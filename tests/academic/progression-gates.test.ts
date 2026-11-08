@@ -253,7 +253,7 @@ describe('thesis gate', () => {
     expect(gate.open).toBe(true)
   })
 
-  test('cumulative from approved semesters at exactly 50.0 stays closed', async () => {
+  test('cumulative from approved semesters at 50.0 allows required thesis to improve result', async () => {
     const client = fakeClient(thesisCfg({
       states: { 1: 'CLOSED', 2: 'CLOSED' },
       approvals: { 1: 50, 2: 50 },
@@ -263,7 +263,7 @@ describe('thesis gate', () => {
     const gate = await thesisGate(client, ENROLLMENT, PROGRAM)
     expect(gate.required).toBe(true)
     expect(gate.cumulative).toBe(50)
-    expect(gate.open).toBe(false)
+    expect(gate.open).toBe(true)
   })
 
   test('cumulative 50.1 from approved semesters opens, with S2 exams sat', async () => {
