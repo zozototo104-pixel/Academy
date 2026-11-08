@@ -559,7 +559,9 @@ async function recordSemesterIntentTx(
   const now = input.now ?? new Date()
 
   if (input.intent === 'CONTINUE') {
-    if (existing?.status === 'RAISED') return { ok: false, code: 'SEMESTER_ALREADY_RAISED' }
+    if (existing?.status === 'RAISED' && existing.raiseSource !== 'DEADLINE') {
+      return { ok: false, code: 'SEMESTER_ALREADY_RAISED' }
+    }
     if (!existing) {
       const row = await store.create({
         data: {
@@ -572,15 +574,29 @@ async function recordSemesterIntentTx(
       })
       return { ok: true, decision: row as SemesterDecisionRecord }
     }
-    if (existing.intent === 'CONTINUE' && existing.status !== 'INTENT') {
+    if (existing.intent === 'CONTINUE' && existing.status !== 'INTENT' && existing.status !== 'RAISED') {
       return { ok: true, decision: existing }
     }
-    const count = await transition(tx, input.enrollmentId, input.semester, ['INTENT', 'NONE', 'WITHDRAWN'], {
+    const continueData = {
       intent: 'CONTINUE',
       status: 'NONE',
       intentAt: now,
       withdrawnAt: null,
-    })
+      raiseSource: null,
+      raisedAt: null,
+      scoreAtRaise: null,
+    }
+    const count = existing.status === 'RAISED' && existing.raiseSource === 'DEADLINE'
+      ? (await tx.semesterDecision.updateMany({
+          where: {
+            enrollmentId: input.enrollmentId,
+            semester: input.semester,
+            status: 'RAISED',
+            raiseSource: 'DEADLINE',
+          },
+          data: continueData,
+        })).count
+      : await transition(tx, input.enrollmentId, input.semester, ['INTENT', 'NONE', 'WITHDRAWN'], continueData)
     const current = await getSemesterDecision(tx, input.enrollmentId, input.semester)
     if (count === 0) {
       if (current?.status === 'RAISED') return { ok: false, code: 'SEMESTER_ALREADY_RAISED' }
@@ -627,7 +643,21 @@ async function recordSemesterIntentTx(
       return { ok: true, decision: current }
     }
   }
-  const count = await transition(tx, input.enrollmentId, input.semester, ['NONE', 'INTENT', 'WITHDRAWN'], data)
+  // If a newly granted extension reopened a previously expired semester,
+  // its system-created DEADLINE raise is NOT the student's consent.
+  // Allow a fresh choice without reopening any administratively DECIDED
+  // record or overwriting an explicit student RAISED request.
+  const count = existing.status === 'RAISED' && existing.raiseSource === 'DEADLINE'
+    ? (await tx.semesterDecision.updateMany({
+        where: {
+          enrollmentId: input.enrollmentId,
+          semester: input.semester,
+          status: 'RAISED',
+          raiseSource: 'DEADLINE',
+        },
+        data,
+      })).count
+    : await transition(tx, input.enrollmentId, input.semester, ['NONE', 'INTENT', 'WITHDRAWN'], data)
   const current = await getSemesterDecision(tx, input.enrollmentId, input.semester)
   if (count === 0) {
     if (current?.status === 'DECIDED') return { ok: false, code: 'SEMESTER_ALREADY_DECIDED' }
