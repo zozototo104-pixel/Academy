@@ -75,8 +75,10 @@ function makeClient(opts?: { approval?: any; state?: any; examReadiness?: string
           ;(opts as any).raceOnce(existing, decisions, k)
           existing = decisions.get(k)
         }
-        const allowed: string[] = where.status?.in ?? []
+        const allowed: string[] = typeof where.status === 'string'
+          ? [where.status] : (where.status?.in ?? [])
         if (!allowed.includes(existing.status)) return { count: 0 }
+        if (where.raiseSource && where.raiseSource !== existing.raiseSource) return { count: 0 }
         decisions.set(k, { ...existing, ...data })
         return { count: 1 }
       },
