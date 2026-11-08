@@ -41,8 +41,24 @@ function makeWorld() {
       },
     },
     enrollment: {
-      findUnique: async () => state.enrollment,
+      findUnique: async () => ({
+        ...state.enrollment,
+        createdAt: state.enrollmentCreatedAt,
+        extensionDays: 0,
+        program: { category: 'DIPLOMA', maxStudyDays: 90, semestersCount: 2 },
+      }),
       update: async ({ data }: any) => { state.enrollmentUpdates.push(data); Object.assign(state.enrollment, data); return state.enrollment },
+    },
+    unit: {
+      findMany: async () => [
+        { id: 'unit-sem1', semester: 1, order: 1 },
+        { id: 'unit-sem2', semester: 2, order: 1 },
+      ],
+    },
+    semesterDecision: {
+      findUnique: async () => state.lastSemesterDecision
+        ? { status: state.lastSemesterDecision }
+        : null,
     },
     program: {
       findUnique: async () => ({ id: 'program-1', titleAr: 'برنامج عربي للاختبار', titleEn: 'Arabic Test Program', price: state.programPrice, category: 'DIPLOMA' }),
