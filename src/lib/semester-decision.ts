@@ -145,9 +145,11 @@ export async function getSemesterDecision(
 ): Promise<SemesterDecisionRecord> {
   const store = (client as AnyClient)?.semesterDecision
   if (!store?.findUnique) return null
-  const row = await store
-    .findUnique({ where: { enrollmentId_semester: { enrollmentId, semester } } })
-    .catch(() => null)
+  // A real database failure must not masquerade as "the student never
+  // requested anything". Let the caller fail closed with a clear error.
+  const row = await store.findUnique({
+    where: { enrollmentId_semester: { enrollmentId, semester } },
+  })
   return (row as SemesterDecisionRecord) ?? null
 }
 
