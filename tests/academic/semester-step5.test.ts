@@ -42,36 +42,62 @@ describe('raiseGateOf — بوابة الرفع الواحدة', () => {
 
 function sweepWorld(createdAt: Date) {
   const decisions = new Map<string, any>()
+  const notices = new Map<string, any>()
+  const approvals = new Set<string>()
+  const closed = new Set<string>()
+  const enrollment = {
+    id: 'enr1', userId: 'u1', programId: 'p1', status: 'ACTIVE',
+    createdAt, extensionDays: 0,
+    program: { category: 'DIPLOMA', maxStudyDays: 90, semestersCount: 2 },
+  }
   const db: any = {
     semesterDecision: {
-      findMany: async ({ where, take }: any) =>
-        [...decisions.values()].filter((d) => d.status === where.status).slice(0, take),
       findUnique: async ({ where }: any) =>
         decisions.get(`${where.enrollmentId_semester.enrollmentId}:${where.enrollmentId_semester.semester}`) ?? null,
       updateMany: async ({ where, data }: any) => {
         const key = `${where.enrollmentId}:${where.semester}`
         const row = decisions.get(key)
-        if (!row || row.status !== where.status) return { count: 0 }
+        if (!row || !where.status.in.includes(row.status)) return { count: 0 }
         decisions.set(key, { ...row, ...data })
         return { count: 1 }
       },
+      create: async ({ data }: any) => {
+        const key = `${data.enrollmentId}:${data.semester}`
+        if (decisions.has(key)) throw Object.assign(new Error('duplicate'), { code: 'P2002' })
+        decisions.set(key, { ...data })
+        return decisions.get(key)
+      },
     },
     enrollment: {
-      findUnique: async () => ({
-        createdAt,
-        extensionDays: 0,
-        programId: 'p1',
-        program: { category: 'DIPLOMA', maxStudyDays: 90, semestersCount: 2 },
-      }),
+      findMany: async () => enrollment.status === 'ACTIVE' ? [enrollment] : [],
+      findUnique: async () => enrollment,
+    },
+    semesterResultApproval: {
+      findUnique: async ({ where }: any) =>
+        approvals.has(`${where.enrollmentId_semester.enrollmentId}:${where.enrollmentId_semester.semester}`)
+          ? { id: 'approved' } : null,
+    },
+    enrollmentSemesterState: {
+      findUnique: async ({ where }: any) =>
+        closed.has(`${where.enrollmentId_semester.enrollmentId}:${where.enrollmentId_semester.semester}`)
+          ? { status: 'CLOSED' } : null,
+    },
+    notificationOutbox: {
+      create: async ({ data }: any) => {
+        if (notices.has(data.idempotencyKey)) throw Object.assign(new Error('duplicate'), { code: 'P2002' })
+        notices.set(data.idempotencyKey, data)
+        return data
+      },
+      findUnique: async ({ where }: any) => notices.get(where.idempotencyKey) ?? null,
     },
     unit: {
       findMany: async () => [
-        { id: 'u1', programId: 'p1', semester: 1 },
-        { id: 'u2', programId: 'p1', semester: 2 },
+        { id: 'u1', programId: 'p1', semester: 1, order: 1 },
+        { id: 'u2', programId: 'p1', semester: 2, order: 1 },
       ],
     },
   }
-  return { decisions, db }
+  return { decisions, notices, approvals, closed, db, enrollment }
 }
 
 describe('materializeDeadlineRaises — تجسيد رفع المهلة', () => {
