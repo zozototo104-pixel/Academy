@@ -59,9 +59,11 @@ export async function GET() {
         select: { semester: true },
       }).catch(() => [])
       for (const s of states as any[]) {
-        if (!(requests as any[]).some((r) => r.enrollmentId === enr.id && r.semester === s.semester)) {
-          eligible.push({ enrollmentId: enr.id, programId: enr.programId, semester: s.semester })
-        }
+        if ((requests as any[]).some((r) => r.enrollmentId === enr.id && r.semester === s.semester)) continue
+        // The button must agree with the server-side mercy gate:
+        // no sitting of the actual semester exam, no mercy request.
+        if (!(await semesterExamsSat(db, user.id, enr.programId, s.semester))) continue
+        eligible.push({ enrollmentId: enr.id, programId: enr.programId, semester: s.semester })
       }
     }
     return NextResponse.json({ ok: true, requests, eligible })
