@@ -17,8 +17,7 @@ export type GateVerdict = { open: boolean; reasons: string[] }
 export async function hasLifecycleFootprint(client: AnyClient, enrollmentId: string): Promise<boolean> {
   const stateStore = client?.enrollmentSemesterState
   if (stateStore?.count) {
-    // Distinguish a real zero-count (legacy enrollment) from a database
-    // failure: never grandfather a student in because a lookup failed.
+    // A database failure must never be treated as an absence of lifecycle records.
     const n = await stateStore.count({ where: { enrollmentId } })
     if (n > 0) return true
   }
@@ -27,11 +26,6 @@ export async function hasLifecycleFootprint(client: AnyClient, enrollmentId: str
     const n = await approvalStore.count({ where: { enrollmentId } })
     if (n > 0) return true
   }
-  // Newly activated students already have an ENROLLMENT rules snapshot
-  // before they have a semester state or an approved result. Without this
-  // marker they were mistakenly grandfathered into unrestricted S2 access,
-  // especially in programs without configured study-duration windows.
-  // BACKFILL snapshots for historical enrollments preserve the legacy rule.
   const snapshotStore = client?.enrollmentRulesSnapshot
   if (snapshotStore?.findUnique) {
     const snapshot = await snapshotStore.findUnique({
@@ -40,7 +34,18 @@ export async function hasLifecycleFootprint(client: AnyClient, enrollmentId: str
     })
     if (snapshot?.basis === 'ENROLLMENT') return true
   }
-  return false
+
+  // A missing semester state or a BACKFILL snapshot does not mean that
+  // an ACTIVE student is historical: even recent registrations have these
+  // gaps. Only completed enrollments keep the legacy read compatibility.
+  // If status cannot be verified, fail closed rather than granting access.
+  if (!client?.enrollment?.findUnique) throw new Error('ENROLLMENT_STATUS_LOOKUP_UNAVAILABLE')
+  const enrollment = await client.enrollment.findUnique({
+    where: { id: enrollmentId },
+    select: { status: true },
+  })
+  if (!enrollment) throw new Error('ENROLLMENT_STATUS_LOOKUP_UNAVAILABLE')
+  return enrollment.status !== 'COMPLETED'
 }
 
 const EXAM_KEY_BY_SEMESTER: Record<string, (semester: number) => string> = {
