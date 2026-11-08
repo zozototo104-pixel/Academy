@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
     const dbAny = db as any
     const [unitAttempts, programAttempts] = await Promise.all([
       dbAny.examAttempt.findMany({
-        where: { userId: { in: studentIds }, status: { in: ['GRADED', 'NEEDS_REVIEW'] } },
+        where: { ...unitScope, status: { in: ['GRADED', 'NEEDS_REVIEW'] } },
         orderBy: { submittedAt: 'desc' },
         take: 100,
         select: {
