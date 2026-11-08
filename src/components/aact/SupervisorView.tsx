@@ -16,6 +16,7 @@ import { SupervisorLiveVoiceCall } from '@/components/aact/SupervisorLiveVoiceCa
 import { SupervisorFollowUpBoard } from '@/components/aact/SupervisorFollowUpBoard'
 import { SupervisorContentTab } from '@/components/aact/SupervisorContentTab'
 import { SupervisorGradeReviewTab } from '@/components/aact/SupervisorGradeReviewTab'
+import { SemesterTrackingCard, type StudentTrackingView } from '@/components/aact/SemesterTrackingCard'
 import { AdminLectures } from '@/components/aact/AdminLectures'
 
 interface SupervisorMessage {
