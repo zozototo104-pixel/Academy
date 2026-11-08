@@ -123,8 +123,8 @@ async function checkPage(page: Page, path: string, authenticated: boolean) {
 // Run against the SEO branch's deployment using E2E_BASE_URL.
 test.describe('SEO and route semantics', () => {
   function canonicalPath(html: string) {
-    const canonical = html.match(/<link\\b[^>]*\\brel=["']canonical["'][^>]*>/i)?.[0]
-    const href = canonical?.match(/\\bhref=["']([^"']+)["']/i)?.[1]
+    const canonical = html.match(/<link\b[^>]*\brel=["']canonical["'][^>]*>/i)?.[0]
+    const href = canonical?.match(/\bhref=["']([^"']+)["']/i)?.[1]
     return href ? new URL(href, 'https://www.aactacademy.com').pathname : null
   }
 
@@ -140,9 +140,9 @@ test.describe('SEO and route semantics', () => {
     expect(detail.status()).toBe(200)
     const html = await detail.text()
     expect(canonicalPath(html)).toBe(`/programs/${slug}`)
-    const title = html.match(/<title>([^<]+)<\\/title>/i)?.[1]
+    const title = html.match(/<title>([^<]+)<\/title>/i)?.[1]
     expect(title).toBeTruthy()
-    expect(title).not.toMatch(/تفاصيل البرنامج|AACT \\| AACT/)
+    expect(title).not.toMatch(/تفاصيل البرنامج|AACT \| AACT/)
     expect(html).toContain('EducationalOccupationalProgram')
   })
 
@@ -167,7 +167,7 @@ test.describe('SEO and route semantics', () => {
   test('llms.txt is a real text response', async ({ request }) => {
     const response = await request.get('/llms.txt')
     expect(response.status()).toBe(200)
-    expect(response.headers()['content-type']).toMatch(/^text\\/plain/i)
+    expect(response.headers()['content-type']).toMatch(/^text\/plain/i)
     const body = await response.text()
     expect(body).toContain('/programs')
     expect(body).not.toContain('<!DOCTYPE html>')
