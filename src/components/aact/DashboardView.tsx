@@ -816,11 +816,10 @@ export function DashboardView() {
 
   const handleSemesterExamAction = (exam: any) => {
     if (!active) return
-    const sem1 = (active.semesterExams || []).find((e: any) => e.semester === 1)
     const readiness = exam.readiness
     const tuitionGate = exam.tuitionGate
     const tuitionLocked = Boolean(tuitionGate && !tuitionGate.allowed)
-    const prereqLocked = exam.semester === 2 && sem1 && !sem1.passed
+    const prereqLocked = exam.semester > 1 && exam.progression?.open !== true
     const locked = prereqLocked || tuitionLocked || !readiness?.readyMarked
     if (locked) return
     return openExam(exam.id, 'final')
