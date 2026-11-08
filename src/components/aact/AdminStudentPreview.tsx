@@ -401,7 +401,7 @@ export function AdminStudentPreview() {
           <Badge className="mb-3 bg-[#c9a227] text-[#0f2b46] hover:bg-[#c9a227]">معاينة السجل الأكاديمي — قراءة فقط</Badge>
           <span className="mb-3 mr-2 inline-block rounded-full border border-white/40 px-3 py-1 text-xs font-bold">حالة الحساب: {arStatus(s.status)}</span>
           <h1 className="flex items-center gap-2 text-2xl font-black sm:text-3xl">
-            <UserRound className="h-6 w-6 text-[#c9a227]" /> {s.name}
+            <UserRound className="h-6 w-6 text-[#c9a227]" /> {displayName}
           </h1>
           <p className="mt-2 text-sm font-bold text-[#f5f0e1]/75" dir="ltr">{s.email}</p>
           {s.phone && <p className="mt-1 text-sm font-bold text-[#f5f0e1]/75" dir="ltr">{s.phone}</p>}
