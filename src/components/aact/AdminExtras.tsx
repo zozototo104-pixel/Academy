@@ -1779,6 +1779,7 @@ export function AdminCertificatesTab() {
           loading: false,
           blockers: Array.isArray(data?.blockers) ? data.blockers : [],
           approvalActive: Boolean(data?.approvalActive),
+          canApprove: data?.canApprove === true,
           hasApproval: Boolean(data?.approval),
           gradeApprovals,
           averages: data?.averages ?? null,
