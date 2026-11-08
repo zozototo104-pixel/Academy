@@ -181,7 +181,7 @@ const world = makeWorld()
 mock.module('@/lib/db', () => ({ db: world.db }))
 mock.module('@/lib/notify', () => ({ audit: async () => {}, notify: async () => {}, notifyAdmins: async () => {} }))
 mock.module('@/lib/mailer', () => ({ emailTemplate: (t: string) => t, sendEmailDetailed: async () => 'SKIPPED' }))
-const { approveSemesterResult } = await import('../../src/lib/semester-approval')
+const { approveSemesterResult, evaluateContextualFinality } = await import('../../src/lib/semester-approval')
 const { calculateSemesterAverages } = await import('../../src/lib/semester-grade')
 
 const ADMIN = { id: 'admin-1' }
