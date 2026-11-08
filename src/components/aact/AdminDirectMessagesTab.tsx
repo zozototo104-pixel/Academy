@@ -95,6 +95,7 @@ export function AdminDirectMessagesTab({ initialAdmissionId }: { initialAdmissio
   }, [activeId, loadThread])
 
   const openConversation = (admissionId: string) => {
+    mountThreadLoadedRef.current = true
     setActiveId(admissionId)
     setMessages([])
     setDraft('')
@@ -102,6 +103,13 @@ export function AdminDirectMessagesTab({ initialAdmissionId }: { initialAdmissio
     void loadThread(admissionId)
     loadList()
   }
+
+  // Keep an open conversation fresh when the student replies, without remounting the list.
+  useEffect(() => {
+    if (!activeId) return
+    const refresh = window.setInterval(() => { void loadThread(activeId) }, 25_000)
+    return () => window.clearInterval(refresh)
+  }, [activeId, loadThread])
 
   const send = async () => {
     if (!activeId || !draft.trim() || sending) return
@@ -143,7 +151,7 @@ export function AdminDirectMessagesTab({ initialAdmissionId }: { initialAdmissio
                   </span>
                   <span className="flex shrink-0 flex-col items-end gap-1">
                     {c.unread > 0 && <Badge>{c.unread} جديد</Badge>}
-                    {c.lastMessage && <span className="text-[10px] text-muted-foreground">{dateAr(c.lastMessage.createdAt)}</span>}
+                    {c.lastMessage && <span className="text-[10px] text-muted-foreground">{new Date(c.lastMessage.createdAt).toLocaleDateString('ar-EG', { day: 'numeric', month: 'short' })}</span>}
                   </span>
                 </button>
               ))}
@@ -168,7 +176,10 @@ export function AdminDirectMessagesTab({ initialAdmissionId }: { initialAdmissio
                 <h3 className="break-words text-base font-black text-[#0f2b46] [overflow-wrap:anywhere]">محادثة: {active?.admission.fullName || 'الطالب'}</h3>
                 {active?.admission.program && <p className="mt-1 truncate text-xs text-muted-foreground">{active.admission.program}</p>}
               </div>
-              <Button variant="outline" size="sm" onClick={() => { setActiveId(null); setMessages([]); setDraft('') }}>العودة للطلاب</Button>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" disabled={messagesLoading} onClick={() => { setMessagesLoading(true); void loadThread(activeId) }}>تحديث المحادثة</Button>
+                <Button variant="outline" size="sm" onClick={() => { setActiveId(null); setMessages([]); setDraft('') }}>العودة للطلاب</Button>
+              </div>
             </div>
             {messagesLoading ? (
               <p className="text-sm text-muted-foreground">جارٍ تحميل الرسائل…</p>
