@@ -406,7 +406,7 @@ export async function PATCH(req: NextRequest) {
         where: { id: waiverId },
         include: { payment: { include: { admission: { select: { id: true, programId: true } } } } },
       })
-      const marker = existing?.reason.match(/\[GRANT:([a-f0-9-]{36})\]/)
+      const marker = existing?.reason?.match(/\[GRANT:([a-f0-9-]{36})\]/)
       if (marker) {
         const policy = await loadGrantPolicy(marker[1])
         const linkKey = GRANT_LINK_PREFIX + waiverId
