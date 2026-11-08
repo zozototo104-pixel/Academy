@@ -179,6 +179,7 @@ const STATUS_AR: Record<string, string> = {
   ARCHIVED: 'مؤرشف',
   ACTIVE: 'نشط',
   COMPLETED: 'مكتمل',
+  EXPIRED: 'منتهية المدة',
   PAID: 'مدفوع',
   UNPAID: 'غير مدفوع',
   SUBMITTED: 'مسلّم',
