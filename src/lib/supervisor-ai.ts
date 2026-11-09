@@ -29,11 +29,6 @@ function stripContactData(value: unknown): string {
     .replace(/(?:\+|00)?\d[\d\s().-]{6,}\d/g, '[رقم محجوب]')
 }
 
-function firstNameOnly(value: unknown): string {
-  const name = stripContactData(value).replace(/\s+/g, ' ').trim()
-  return name.split(' ')[0] || 'غير محدد'
-}
-
 function safeContextText(value: unknown, max = 240): string {
   return compactText(stripContactData(value), max)
 }
@@ -924,7 +919,7 @@ export async function buildSupervisorContext(userId: string, options?: { scope?:
       admissionStore?.findFirst({
         where: { userId },
         orderBy: { createdAt: 'desc' },
-        select: { program: true, status: true, thesisDeadline: true },
+        select: { program: true, status: true, thesisDeadline: true, reference: true },
       }).catch(() => null),
       thesisStore?.findFirst({
         where: { userId },
@@ -1105,7 +1100,8 @@ export async function buildSupervisorContext(userId: string, options?: { scope?:
     const parts: string[] = []
 
     if (profile) {
-      parts.push(`بطاقة المستخدم: الاسم الأول ${firstNameOnly(profile.name)} — الدور ${profile.role || 'غير محدد'}`)
+      const fullName = safeContextText(profile.name, 120)
+      parts.push(`بطاقة المستخدم: الاسم الكامل ${fullName || 'غير محدد'} — الدور ${profile.role || 'غير محدد'}`)
     }
 
     if (memory) {
@@ -1135,7 +1131,7 @@ export async function buildSupervisorContext(userId: string, options?: { scope?:
     }
 
     if (admission) {
-      parts.push(`طلب الالتحاق الأخير: البرنامج: ${admission.program || 'غير محدد'} — الحالة: ${admission.status || 'غير محددة'}`)
+      parts.push(`طلب الالتحاق الأخير: البرنامج: ${admission.program || 'غير محدد'} — الحالة: ${admission.status || 'غير محددة'}${admission.reference ? ` — الرقم المرجعي: ${admission.reference}` : ''}`)
     }
 
     if (thesis) {
