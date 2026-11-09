@@ -17,6 +17,16 @@ import {
 } from '@/lib/gemini'
 import { appVersion, serviceConfigurationStatus } from '@/lib/monitoring'
 import { ensureLaunchQualityStudyGuide } from '@/lib/launch-quality-study-guide'
+import {
+  LAUNCH_QUALITY_EMAIL,
+  LAUNCH_QUALITY_PROGRAM_SLUG,
+  LAUNCH_QUALITY_REFERENCE,
+  LAUNCH_QUALITY_REQUEST_BUDGET_MS,
+  diagnosticStudentIsComplete,
+  isLaunchQualityDeadlineError,
+  launchQualityDeadlineError,
+  remainingLaunchQualityBudget,
+} from '@/lib/launch-quality-diagnostic'
 import { textAiDiagnostics } from '@/lib/text-ai'
 import { redactDeep } from '@/lib/secret-crypto'
 import { qaProdFixturesAllowed } from '@/lib/prod-safety'
@@ -112,7 +122,6 @@ function elapsed(start: number) {
   return Math.round(performance.now() - start)
 }
 
-const LAUNCH_QUALITY_REQUEST_BUDGET_MS = 70_000
 const PROVIDER_DIAGNOSTICS_TTL_MS = 60_000
 let providerDiagnosticsCache: { expiresAt: number; value: Awaited<ReturnType<typeof textAiDiagnostics>> } | null = null
 let providerDiagnosticsInFlight: Promise<Awaited<ReturnType<typeof textAiDiagnostics>>> | null = null
@@ -130,16 +139,6 @@ async function cachedProviderDiagnostics() {
 
 function logLaunchQualityStage(stage: string, start: number, ok: boolean) {
   console.info(`[launch-quality] stage=${stage} durationMs=${elapsed(start)} ok=${ok}`)
-}
-
-function launchQualityDeadlineError(stage: string) {
-  return `LAUNCH_QUALITY_DEADLINE_EXCEEDED_AT_${stage.replace(/[^A-Z0-9]/gi, '_').toUpperCase()}`
-}
-
-function remainingLaunchQualityBudget(deadline: number, stage: string): number {
-  const remaining = Math.floor(deadline - performance.now())
-  if (remaining <= 0) throw new Error(launchQualityDeadlineError(stage))
-  return remaining
 }
 
 const diagnosticStudentInclude = {
@@ -160,21 +159,6 @@ const diagnosticStudentInclude = {
   theses: { take: 1, orderBy: { updatedAt: 'desc' as const }, select: { title: true, status: true, resultScore: true, aiScore: true, defenseDate: true } },
   ownedAdmissions: { take: 1, orderBy: { createdAt: 'desc' as const }, select: { reference: true, program: true, status: true, thesisDeadline: true } },
   academicMemory: true,
-}
-
-function diagnosticStudentIsComplete(student: any): boolean {
-  if (!student || student.role !== 'STUDENT' || student.email !== LAUNCH_QUALITY_EMAIL) return false
-  if (student.name !== 'طالب فحص جاهزية الإطلاق') return false
-  const enrollment = (student.enrollments || []).find((entry: any) =>
-    entry.status === 'ACTIVE' && entry.program?.slug === LAUNCH_QUALITY_PROGRAM_SLUG
-      && entry.program?.units?.length >= 2
-      && entry.program?.books?.length >= 1
-      && entry.program?.studyGuides?.length >= 1)
-  if (!enrollment) return false
-  if (!(student.ownedAdmissions || []).some((entry: any) => entry.reference === LAUNCH_QUALITY_REFERENCE)) return false
-  if (!(student.theses || []).some((entry: any) => !!entry.title && !!entry.status)) return false
-  const memory = student.academicMemory
-  return !!(memory?.profileDigest && memory?.lastConversationSummary && memory?.examSignals && memory?.thesisSignals && memory?.lastFileAnalysis)
 }
 
 function diagnosticStudentScore(student: any): number {
@@ -199,10 +183,6 @@ function chooseBestDiagnosticStudent<T>(students: T[]): T | null {
     .slice()
     .sort((a: any, b: any) => diagnosticStudentScore(b) - diagnosticStudentScore(a) || new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())[0]
 }
-
-const LAUNCH_QUALITY_EMAIL = 'launch.quality.student@aact.test'
-const LAUNCH_QUALITY_PROGRAM_SLUG = 'launch-quality-diagnostic-program'
-const LAUNCH_QUALITY_REFERENCE = 'AACT-LAUNCH-QUALITY'
 
 async function ensureLaunchQualityDiagnosticStudent() {
   const password = hashPassword(`launch-quality-${process.env.NEXTAUTH_SECRET || 'local'}`)
@@ -623,6 +603,29 @@ function timeoutAfter<T>(promise: Promise<T>, ms: number, message: string): Prom
   })
 }
 
+// مجس فاشل صراحة عند استنفاد الميزانية قبل تشغيله: نفس شكل نتيجة خطأ
+// runAiProbe، بـpassed=false وskipped=false وخطأ يسمّي المرحلة المستنفدة.
+function deadlineFailedProbe(kind: ProbeKind, student: Awaited<ReturnType<typeof findDiagnosticStudent>>, error: string) {
+  const expected = student ? expectedForProbe(kind, student) : []
+  return {
+    kind,
+    question: student ? questionForProbe(kind, student) : '',
+    agent: 'ERROR',
+    expectedAgent: expectedAgentForProbe(kind),
+    engine: 'AI_PROVIDER_ROUTER_ERROR',
+    ms: 0,
+    replyChars: 0,
+    replySample: '',
+    expected,
+    keywordScore: 0,
+    hits: [],
+    missed: expected,
+    passed: false,
+    skipped: false,
+    error,
+  }
+}
+
 async function runAiProbe(kind: ProbeKind, student: Awaited<ReturnType<typeof findDiagnosticStudent>>, context: string, requestDeadline: number) {
   const started = performance.now()
   if (!student) return { kind, skipped: true, reason: 'لا يوجد طالب مناسب للفحص' }
@@ -770,31 +773,52 @@ export async function POST(req: NextRequest) {
     const requestDeadline = started + LAUNCH_QUALITY_REQUEST_BUDGET_MS
     let stageStarted = performance.now()
     let student: Awaited<ReturnType<typeof findDiagnosticStudent>> = null
+    // استنفاد الميزانية في أي مرحلة سابقة للمجسات أو لاحقة لها لا يخرج خطأ
+    // HTTP عاماً: يُحوَّل إلى حمولة الفحص نفسها بمجسات فاشلة صراحة تسمّي
+    // المرحلة المستنفدة (passed=false وskipped=false)، فلا نجاح وهمي ولا
+    // تخطٍّ ولا مهلة عميل صامتة.
+    let stageFailure: string | null = null
     try {
       student = await timeoutAfter(findDiagnosticStudent(studentId), remainingLaunchQualityBudget(requestDeadline, 'DIAGNOSTIC_STUDENT'), launchQualityDeadlineError('DIAGNOSTIC_STUDENT'))
       logLaunchQualityStage('diagnostic-student', stageStarted, true)
     } catch (error) {
       logLaunchQualityStage('diagnostic-student', stageStarted, false)
-      throw error
+      if (!isLaunchQualityDeadlineError(error)) throw error
+      stageFailure = String((error as any)?.message || error)
     }
     stageStarted = performance.now()
     let context = ''
-    try {
-      context = student ? await timeoutAfter(buildSupervisorContext(student.id), remainingLaunchQualityBudget(requestDeadline, 'CONTEXT'), launchQualityDeadlineError('CONTEXT')) : ''
-      logLaunchQualityStage('context', stageStarted, true)
-    } catch (error) {
-      logLaunchQualityStage('context', stageStarted, false)
-      throw error
+    if (!stageFailure) {
+      try {
+        context = student ? await timeoutAfter(buildSupervisorContext(student.id), remainingLaunchQualityBudget(requestDeadline, 'CONTEXT'), launchQualityDeadlineError('CONTEXT')) : ''
+        logLaunchQualityStage('context', stageStarted, true)
+      } catch (error) {
+        logLaunchQualityStage('context', stageStarted, false)
+        if (!isLaunchQualityDeadlineError(error)) throw error
+        stageFailure = String((error as any)?.message || error)
+      }
     }
     const contextCoverage = buildContextCoverage(student, context)
 
     stageStarted = performance.now()
-    const voiceSupervisor = includeVoice ? await timeoutAfter(liveReadiness(runVoiceToken, 'SUPERVISOR'), remainingLaunchQualityBudget(requestDeadline, 'VOICE'), launchQualityDeadlineError('VOICE')) : null
-    const voiceDiscussion = includeVoice ? await timeoutAfter(liveReadiness(runVoiceToken, 'DISCUSSION'), remainingLaunchQualityBudget(requestDeadline, 'VOICE'), launchQualityDeadlineError('VOICE')) : null
-    if (includeVoice) logLaunchQualityStage('voice', stageStarted, true)
+    let voiceSupervisor: Awaited<ReturnType<typeof liveReadiness>> | null = null
+    let voiceDiscussion: Awaited<ReturnType<typeof liveReadiness>> | null = null
+    if (!stageFailure) {
+      try {
+        voiceSupervisor = includeVoice ? await timeoutAfter(liveReadiness(runVoiceToken, 'SUPERVISOR'), remainingLaunchQualityBudget(requestDeadline, 'VOICE'), launchQualityDeadlineError('VOICE')) : null
+        voiceDiscussion = includeVoice ? await timeoutAfter(liveReadiness(runVoiceToken, 'DISCUSSION'), remainingLaunchQualityBudget(requestDeadline, 'VOICE'), launchQualityDeadlineError('VOICE')) : null
+        if (includeVoice) logLaunchQualityStage('voice', stageStarted, true)
+      } catch (error) {
+        if (includeVoice) logLaunchQualityStage('voice', stageStarted, false)
+        if (!isLaunchQualityDeadlineError(error)) throw error
+        stageFailure = String((error as any)?.message || error)
+      }
+    }
 
     const probes: Array<Awaited<ReturnType<typeof runAiProbe>>> = []
-    if (runAi && student) {
+    if (stageFailure) {
+      if (runAi) for (const kind of probeKinds) probes.push(deadlineFailedProbe(kind, student, stageFailure))
+    } else if (runAi && student) {
       for (const kind of probeKinds) {
         stageStarted = performance.now()
         const result = await runAiProbe(kind, student, context, requestDeadline)
@@ -803,8 +827,19 @@ export async function POST(req: NextRequest) {
       }
     }
     stageStarted = performance.now()
-    const providerDiagnostics = await timeoutAfter(cachedProviderDiagnostics(), remainingLaunchQualityBudget(requestDeadline, 'PROVIDER_DIAGNOSTICS'), launchQualityDeadlineError('PROVIDER_DIAGNOSTICS')).catch((error: any) => ({ error: String(error?.message || error).slice(0, 240) }))
-    logLaunchQualityStage('provider-diagnostics', stageStarted, !('error' in providerDiagnostics))
+    let providerDiagnostics: Awaited<ReturnType<typeof textAiDiagnostics>> | { error: string }
+    if (stageFailure) {
+      providerDiagnostics = { error: stageFailure }
+      logLaunchQualityStage('provider-diagnostics', stageStarted, false)
+    } else {
+      try {
+        providerDiagnostics = await timeoutAfter(cachedProviderDiagnostics(), remainingLaunchQualityBudget(requestDeadline, 'PROVIDER_DIAGNOSTICS'), launchQualityDeadlineError('PROVIDER_DIAGNOSTICS'))
+        logLaunchQualityStage('provider-diagnostics', stageStarted, true)
+      } catch (error: any) {
+        providerDiagnostics = { error: String(error?.message || error).slice(0, 240) }
+        logLaunchQualityStage('provider-diagnostics', stageStarted, false)
+      }
+    }
 
     const passedProbes = probes.filter((p: any) => p.passed).length
     const skippedProbes = probes.filter((p: any) => p.skipped).length
@@ -822,10 +857,11 @@ export async function POST(req: NextRequest) {
     const hasUsefulContext = !!contextCoverage && contextCoverage.contextChars > 500 && (
       contextCoverage.contextIncludes.programTitle || contextCoverage.contextIncludes.firstBook || contextCoverage.contextIncludes.thesisTitle
     )
-    const aiStatus = !runAi ? 'skipped' : score >= 75 && hasUsefulContext ? 'ok' : score >= 50 ? 'warn' : 'fail'
+    const aiStatus = stageFailure ? 'fail' : !runAi ? 'skipped' : score >= 75 && hasUsefulContext ? 'ok' : score >= 50 ? 'warn' : 'fail'
 
     return NextResponse.json({
       status: aiStatus,
+      ...(stageFailure ? { error: stageFailure } : {}),
       timestamp: new Date().toISOString(),
       durationMs: elapsed(started),
       runAi,
@@ -844,7 +880,9 @@ export async function POST(req: NextRequest) {
         skippedProbes,
         failedProbes,
         totalProbes: probes.length,
-        recommendation: !runAi
+        recommendation: stageFailure
+          ? `استُنفدت الميزانية الزمنية للطلب قبل إكمال الفحص: ${stageFailure}`
+          : !runAi
           ? 'لم يتم تشغيل فحوص الذكاء في هذا الطلب؛ هذا ليس دليلاً على نجاح المشرف أو المناقش.'
           : !student
             ? 'لا يوجد طالب ببيانات كافية للفحص. أنشئ طالباً تجريبياً مع برنامج و/أو بحث.'
