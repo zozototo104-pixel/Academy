@@ -84,6 +84,20 @@ describe('AdminFinanceTab workspace organization', () => {
     required(financeBlock, 'تأكيد وصول المبلغ')
   })
 
+  test('admin grant form captures campaign windows and scoped seat limits without local financial calculations', () => {
+    requireAll(financeBlock, [
+      'id="grant-starts-at"',
+      'id="grant-ends-at"',
+      'type="datetime-local"',
+      'new Date(grantForm.startsAt).toISOString()',
+      'new Date(grantForm.endsAt).toISOString()',
+      'grantForm.seatLimits[program.id]',
+      'aria-label={\'عدد مقاعد منحة \'+',
+      'seatLimits: {}',
+    ])
+    expect(financeBlock.includes("grantOrganizationReady && grantPolicies.length > 0")).toBe(true)
+  })
+
   test('keeps all three workspaces mounted and only hides their wrappers', () => {
     required(financeBlock, 'id="finance-section-reports"')
     required(financeBlock, 'id="finance-section-payments"')
