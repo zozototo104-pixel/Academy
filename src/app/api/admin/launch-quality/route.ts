@@ -16,6 +16,7 @@ import {
   type GeminiLivePurpose,
 } from '@/lib/gemini'
 import { appVersion, serviceConfigurationStatus } from '@/lib/monitoring'
+import { ensureLaunchQualityStudyGuide } from '@/lib/launch-quality-study-guide'
 import { textAiDiagnostics } from '@/lib/text-ai'
 import { redactDeep } from '@/lib/secret-crypto'
 import { qaProdFixturesAllowed } from '@/lib/prod-safety'
@@ -254,31 +255,9 @@ async function ensureLaunchQualityDiagnosticStudent() {
     },
   }))
 
-  await (db.programStudyGuide as any).upsert({
-    where: { programId_semester: { programId: program.id, semester: 1 } },
-    update: {
-      title: 'دليل دراسة الفصل الأول: الحوكمة والمخاطر',
-      overview: 'يركز هذا الدليل على قراءة الكتاب المقرر، فهم سجل المخاطر، وتطبيق الضوابط على حالة عملية.',
-      objectives: JSON.stringify(['تلخيص مفاهيم الحوكمة', 'تحليل سجل مخاطر', 'اقتراح ضوابط قابلة للقياس']),
-      keyTerms: JSON.stringify(['الحوكمة', 'سجل المخاطر', 'الخطر المتبقي', 'مؤشرات المخاطر']),
-      sections: JSON.stringify(['مفاهيم أساسية', 'تطبيقات عملية', 'أسئلة مراجعة']),
-      discussionQuestions: JSON.stringify(['لماذا لا يكفي وجود ضابط دون مؤشر قياس؟', 'كيف تشرح الفرق بين الخطر المتأصل والمتبقي؟']),
-      status: 'PUBLISHED',
-    },
-    create: {
-      programId: program.id,
-      semester: 1,
-      title: 'دليل دراسة الفصل الأول: الحوكمة والمخاطر',
-      overview: 'يركز هذا الدليل على قراءة الكتاب المقرر، فهم سجل المخاطر، وتطبيق الضوابط على حالة عملية.',
-      objectives: JSON.stringify(['تلخيص مفاهيم الحوكمة', 'تحليل سجل مخاطر', 'اقتراح ضوابط قابلة للقياس']),
-      keyTerms: JSON.stringify(['الحوكمة', 'سجل المخاطر', 'الخطر المتبقي', 'مؤشرات المخاطر']),
-      sections: JSON.stringify(['مفاهيم أساسية', 'تطبيقات عملية', 'أسئلة مراجعة']),
-      activities: JSON.stringify(['ارسم سجل مخاطر مختصر', 'اكتب توصية رقابية قابلة للتنفيذ']),
-      discussionQuestions: JSON.stringify(['لماذا لا يكفي وجود ضابط دون مؤشر قياس؟', 'كيف تشرح الفرق بين الخطر المتأصل والمتبقي؟']),
-      status: 'PUBLISHED',
-      generatedBy: 'ADMIN',
-    },
-  })
+  // بحث-أو-إنشاء آمن عند التزامن وإعادة التشغيل (لا upsert بمفتاح مركّب:
+  // النموذج بلا قيد فريد على (programId, semester) — فهرس فقط).
+  await ensureLaunchQualityStudyGuide(program.id)
 
   const unitExam = await (db.exam as any).upsert({
     where: { unitId: unit1.id },
