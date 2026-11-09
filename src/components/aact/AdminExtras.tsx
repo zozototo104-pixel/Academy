@@ -1598,8 +1598,27 @@ export function AdminFinanceTab() {
                     {' · '}{policy.valueMode === 'FULL' ? '100%' : String(policy.value) + (policy.valueMode === 'PERCENT' ? '%' : ' دولار')}
                   </p>
                   {policy.scope === 'PROGRAM' && (
+                    <div className="mt-2 space-y-1 text-[11px] text-slate-600">
+                      {policy.programIds.map((id) => {
+                        const capacity = policy.programAvailability?.find((item) => item.programId === id)
+                        const title = grantPrograms.find((program) => program.id === id)?.titleAr || id
+                        return (
+                          <p key={id} className="break-words">
+                            {title}
+                            {' — '}
+                            {capacity?.seats == null
+                              ? 'بدون حد مقاعد'
+                              : 'متبقي ' + capacity.remaining + ' من ' + capacity.seats + ' مقعد (' + capacity.occupied + ' محجوز)'}
+                          </p>
+                        )
+                      })}
+                    </div>
+                  )}
+                  {(policy.startsAt || policy.endsAt) && (
                     <p className="mt-1 break-words text-[11px] text-slate-500">
-                      {policy.programIds.map((id) => grantPrograms.find((p) => p.id === id)?.titleAr || id).join('، ')}
+                      {policy.startsAt ? 'تبدأ: ' + new Date(policy.startsAt).toLocaleString('ar-PS') : 'بداية مفتوحة'}
+                      {' · '}
+                      {policy.endsAt ? 'تنتهي: ' + new Date(policy.endsAt).toLocaleString('ar-PS') : 'بدون تاريخ نهاية'}
                     </p>
                   )}
                 </div>
