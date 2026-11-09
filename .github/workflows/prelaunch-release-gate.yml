@@ -105,9 +105,9 @@ jobs:
           retention-days: 14
 
   static-build:
-    name: TypeScript and clean Next.js build
+    name: TypeScript, build and platform domain regressions
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 55
 
     env:
       CI: true
