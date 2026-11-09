@@ -1229,6 +1229,47 @@ export function AdminFinanceTab() {
     }
   }
 
+  const cancelStudentWaiver = async (payment: PaymentRow, waiver: PaymentWaiverCodeRow) => {
+    if (waiverBusy === payment.id) return
+    const approved = waiver.status === 'APPROVED'
+    const confirmed = await confirmAction({
+      title: approved ? 'إلغاء المنحة المعتمدة عن الطالب' : 'إلغاء كود المنحة عن الطالب',
+      description: approved
+        ? 'سيعيد النظام المبالغ المعفاة إلى فواتير مستحقة ويوقف وصول الطالب إلى البرنامج فور نجاح الإلغاء إذا كان التحاقه قائمًا على هذه المنحة وحدها. إذا كان للطالب سداد مستقل أو نشاط أكاديمي، سيُرفض الإلغاء لحماية أمواله وسجله، ولن يظهر نجاح وهمي.'
+        : 'سيُلغى كود الإعفاء الحالي ولن يستطيع الطالب استخدامه. لا تُعتبر العملية إلغاءً لأي سداد مستقل.',
+      confirmLabel: approved ? 'تأكيد إلغاء المنحة وإيقاف الاستفادة' : 'تأكيد إلغاء الكود',
+      tone: 'danger',
+    })
+    if (!confirmed) return
+    setWaiverBusy(payment.id)
+    try {
+      await api('/api/admin/payments/waivers', {
+        method: 'PATCH',
+        body: JSON.stringify({ action: 'CANCEL', waiverId: waiver.id }),
+      })
+      setGeneratedWaiverCodes((prev) => {
+        const next = { ...prev }
+        delete next[payment.id]
+        return next
+      })
+      toast({
+        title: approved ? 'أُلغيت المنحة مع انعكاسها المالي الآمن' : 'تم إلغاء كود الإعفاء',
+        description: approved
+          ? 'أُعيدت الفواتير إلى حالتها المستحقة وعُكس التفعيل المرتبط بالمنحة وفق حراسات الخادم. تحقق من حالة التحاق الطالب بعد تحديث البيانات.'
+          : 'لم يعد الكود قابلًا للاستخدام.',
+      })
+      load()
+    } catch (error: any) {
+      toast({
+        title: 'لم يتم إلغاء المنحة',
+        description: error?.message || 'الإلغاء لم يكتمل. راجع وضع الفواتير والنشاط الأكاديمي قبل إعادة المحاولة.',
+        variant: 'destructive',
+      })
+    } finally {
+      setWaiverBusy((current) => current === payment.id ? null : current)
+    }
+  }
+
   const resendWaiver = async (payment: PaymentRow) => {
     if (waiverBusy === payment.id) return
     setWaiverBusy(payment.id)
