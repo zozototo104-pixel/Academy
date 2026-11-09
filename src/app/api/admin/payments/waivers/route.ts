@@ -233,7 +233,7 @@ async function grantQuote(paymentId: string, policyId: string): Promise<GrantQuo
     : (policy.coverage === 'REGISTRATION' ? 'رسوم التسجيل' : 'الرسوم الدراسية')
       + ': أساس ' + (baseCents / 100).toFixed(2) + ' دولار، إعفاء ' + (grantCents / 100).toFixed(2) + ' دولار'
 
-  return { policy, paymentId, admissionId, programId, waiverType, requestedAmount, grantCents, baseCents, paymentIds, signature, summary }
+  return { policy, paymentId, admissionId, programId, userId: studentUserId, waiverType, requestedAmount, grantCents, baseCents, paymentIds, signature, summary }
 }
 
 function cleanText(value: unknown, max = 700) {
