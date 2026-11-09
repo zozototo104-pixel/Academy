@@ -52,7 +52,7 @@ type StoredGrantDefinition = {
   startsAt: Date | null
   endsAt: Date | null
   createdAt: Date
-  programs: Array<{ programId: string }>
+  programs: Array<{ programId: string; seats?: number | null }>
   operations: Array<{ admissionId: string; userId: string; status: string }>
 }
 function toGrantPolicy(row: StoredGrantDefinition): GrantPolicy {
