@@ -1002,31 +1002,6 @@ export async function PATCH(req: NextRequest) {
               }
             }
           }
-          if (fresh.reason?.includes('[GRANT:')) {
-            // Release a reserved seat only after the financial decision has
-            // passed all legacy safety checks. Both writes share this
-            // transaction; a rejected reversal retains its occupied seat.
-            const linked = await tx.scholarshipGrantLink.findUnique({
-              where: { waiverCodeId: waiverId },
-              select: { operationId: true },
-            })
-            if (linked?.operationId) {
-              const siblings = await tx.scholarshipGrantLink.findMany({
-                where: { operationId: linked.operationId },
-                select: { waiverCodeId: true },
-              })
-              const stillActive = await tx.paymentWaiverCode.count({
-                where: {
-                  id: { in: siblings.map((item: { waiverCodeId: string }) => item.waiverCodeId) },
-                  status: { in: ['ISSUED', 'VERIFIED', 'APPROVED'] },
-                },
-              })
-              await tx.scholarshipGrantOperation.update({
-                where: { id: linked.operationId },
-                data: { status: stillActive === 0 ? 'CANCELLED' : 'INCOMPLETE' },
-              })
-            }
-          }
           return { waiver: updatedWaiver, payment: updatedPayment }
         })
       } catch (e: any) {
