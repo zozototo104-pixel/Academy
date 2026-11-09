@@ -161,9 +161,13 @@ async function grantQuote(paymentId: string, policyId: string): Promise<GrantQuo
   if (priorScholarships.length) {
     throw grantError('لدى هذا الطالب منحة دراسية نشطة أو معتمدة على تسجيل آخر؛ لا يجوز إصدار منحة دراسية ثانية')
   }
-  if (policy.scope === 'INDIVIDUAL' && policy.admissionId !== admissionId) {
-    throw grantError('هذه منحة فردية لطالب آخر')
+  if (policy.scope === 'INDIVIDUAL'
+    && (policy.admissionId !== admissionId || policy.targetUserId !== studentUserId)) {
+    throw grantError('هذه منحة فردية لطالب أو طلب قبول آخر')
   }
+  const now = Date.now()
+  if (policy.startsAt && now < Date.parse(policy.startsAt)) throw grantError('لم تبدأ فترة إصدار المنحة بعد')
+  if (policy.endsAt && now > Date.parse(policy.endsAt)) throw grantError('انتهت فترة إصدار هذه المنحة')
   if (policy.scope === 'PROGRAM' && !policy.programIds.includes(programId)) {
     throw grantError('تخصص هذا الطالب غير مشمول بالمنحة المختارة')
   }
