@@ -87,7 +87,10 @@ function toGrantPolicy(row: StoredGrantDefinition): GrantPolicy {
 }
 async function loadGrantPolicies(): Promise<GrantPolicy[]> {
   const rows = await db.scholarshipDefinition.findMany({
-    include: { programs: { select: { programId: true } } },
+    include: {
+      programs: { select: { programId: true } },
+      operations: { where: { status: 'TARGETED' }, select: { userId: true, admissionId: true, status: true } },
+    },
     orderBy: { createdAt: 'desc' },
   })
   return rows.map(toGrantPolicy)
@@ -96,7 +99,10 @@ async function loadGrantPolicy(id: string): Promise<GrantPolicy> {
   if (!id || id.length > 80 || !/^[a-zA-Z0-9_-]+$/.test(id)) throw grantError('معرف المنحة غير صالح', 400)
   const record = await db.scholarshipDefinition.findUnique({
     where: { id },
-    include: { programs: { select: { programId: true } } },
+    include: {
+      programs: { select: { programId: true } },
+      operations: { where: { status: 'TARGETED' }, select: { userId: true, admissionId: true, status: true } },
+    },
   })
   if (!record) throw grantError('تعريف المنحة غير موجود')
   return toGrantPolicy(record)
