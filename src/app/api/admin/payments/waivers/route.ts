@@ -36,24 +36,62 @@ type GrantQuote = {
 function grantError(message: string, status = 409) {
   return Object.assign(new Error(message), { status, code: 'GRANT_NOT_ELIGIBLE' })
 }
+type StoredGrantDefinition = {
+  id: string
+  title: string
+  scope: string
+  coverage: string
+  valueMode: string
+  value: number
+  reason: string
+  active: boolean
+  startsAt: Date | null
+  endsAt: Date | null
+  createdAt: Date
+  programs: Array<{ programId: string }>
+}
+function toGrantPolicy(row: StoredGrantDefinition): GrantPolicy {
+  if (!['GENERAL', 'PROGRAM', 'INDIVIDUAL'].includes(row.scope)
+    || !['REGISTRATION', 'TUITION', 'BOTH'].includes(row.coverage)
+    || !['FULL', 'PERCENT', 'AMOUNT'].includes(row.valueMode)) {
+    throw grantError('تعريف منحة في قاعدة البيانات يحتوي نوعاً غير معروف؛ أوقف الإصدار')
+  }
+  if (!Number.isSafeInteger(row.value) || row.value < 0) {
+    throw grantError('قيمة المنحة في قاعدة البيانات غير صالحة')
+  }
+  return {
+    id: row.id,
+    title: row.title,
+    scope: row.scope as GrantPolicy['scope'],
+    coverage: row.coverage as GrantPolicy['coverage'],
+    valueMode: row.valueMode as GrantPolicy['valueMode'],
+    value: row.valueMode === 'FULL' ? 0 : row.value / 100,
+    reason: row.reason,
+    active: row.active,
+    programIds: row.programs.map((program) => program.programId),
+    // The additive schema lacks a binding to one admission for INDIVIDUAL.
+    // Individual awards stay non-issuable until that field is migrated.
+    admissionId: null,
+    createdAt: row.createdAt.toISOString(),
+    startsAt: row.startsAt?.toISOString() || null,
+    endsAt: row.endsAt?.toISOString() || null,
+  }
+}
 async function loadGrantPolicies(): Promise<GrantPolicy[]> {
-  const rows = await db.setting.findMany({ where: { key: { startsWith: GRANT_POLICY_PREFIX } }, orderBy: { updatedAt: 'desc' } })
-  return rows.map((row) => {
-    let policy: GrantPolicy
-    try {
-      policy = JSON.parse(row.value) as GrantPolicy
-    } catch { throw grantError('تعذر قراءة بيانات تنظيم المنح؛ إيقاف الإصدار لحماية الفواتير') }
-    if (!policy?.id || row.key !== GRANT_POLICY_PREFIX + policy.id) {
-      throw grantError('تعريف منحة غير متسق في قاعدة البيانات؛ إيقاف الإصدار لحماية الفواتير')
-    }
-    return policy
+  const rows = await db.scholarshipDefinition.findMany({
+    include: { programs: { select: { programId: true } } },
+    orderBy: { createdAt: 'desc' },
   })
+  return rows.map(toGrantPolicy)
 }
 async function loadGrantPolicy(id: string): Promise<GrantPolicy> {
-  if (!/^[a-f0-9-]{36}$/.test(id)) throw grantError('معرف المنحة غير صالح', 400)
-  const record = await db.setting.findUnique({ where: { key: GRANT_POLICY_PREFIX + id } })
+  if (!id || id.length > 80 || !/^[a-zA-Z0-9_-]+$/.test(id)) throw grantError('معرف المنحة غير صالح', 400)
+  const record = await db.scholarshipDefinition.findUnique({
+    where: { id },
+    include: { programs: { select: { programId: true } } },
+  })
   if (!record) throw grantError('تعريف المنحة غير موجود')
-  try { return JSON.parse(record.value) as GrantPolicy } catch { throw grantError('تعريف المنحة غير قابل للقراءة') }
+  return toGrantPolicy(record)
 }
 function amountCents(row: { amountCents?: number | null; amount: number }) {
   const cents = row.amountCents == null ? Math.round(row.amount * 100) : row.amountCents
