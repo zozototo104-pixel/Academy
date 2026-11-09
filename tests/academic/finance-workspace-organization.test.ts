@@ -97,7 +97,8 @@ describe('AdminFinanceTab workspace organization', () => {
       "aria-label={'عدد مقاعد منحة ' + program.titleAr}",
       'seatLimits: {}',
     ])
-    expect(financeBlock.includes("grantOrganizationReady && grantPolicies.length > 0")).toBe(true)
+    expect(financeBlock.includes("grantOrganizationReady && grantPolicies.length > 0")).toBe(false)
+    required(financeBlock, "if (grantOrganizationReady && p.admission && ['APPLICATION_FEE'")
   })
 
   test('keeps all three workspaces mounted and only hides their wrappers', () => {
