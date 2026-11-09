@@ -107,7 +107,7 @@ jobs:
   static-build:
     name: TypeScript, build and platform domain regressions
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    timeout-minutes: 120
 
     env:
       CI: true
