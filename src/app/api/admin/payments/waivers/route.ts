@@ -312,6 +312,9 @@ export async function POST(req: NextRequest) {
   try {
     const admin = await requireAdmin()
     const body = await req.json().catch(() => ({}))
+    if ((body.action === 'CREATE_POLICY' || body.action === 'ISSUE_POLICY') && !GRANT_ORGANIZATION_SCHEMA_READY) {
+      return grantOrganizationUnavailable()
+    }
     if (body.action === 'CREATE_POLICY') {
       const policy = await createOrganizedPolicy(body, admin)
       return NextResponse.json({ policy }, { status: 201 })
