@@ -51,7 +51,7 @@ type StoredGrantDefinition = {
   endsAt: Date | null
   createdAt: Date
   programs: Array<{ programId: string }>
-  operations: Array<{ admissionId: string; status: string }>
+  operations: Array<{ admissionId: string; userId: string; status: string }>
 }
 function toGrantPolicy(row: StoredGrantDefinition): GrantPolicy {
   if (!['GENERAL', 'PROGRAM', 'INDIVIDUAL'].includes(row.scope)
