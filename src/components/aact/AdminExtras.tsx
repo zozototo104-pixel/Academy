@@ -914,7 +914,11 @@ export function AdminFinanceTab() {
     try {
       const result = await api<{ policy: OrganizedGrantPolicy }>('/api/admin/payments/waivers', {
         method: 'POST',
-        body: JSON.stringify({ action: 'CREATE_POLICY', ...grantForm, value: Number(grantForm.value || 0) }),
+        body: JSON.stringify({
+          action: 'CREATE_POLICY', ...grantForm, value: Number(grantForm.value || 0),
+          startsAt: grantForm.startsAt ? new Date(grantForm.startsAt).toISOString() : null,
+          endsAt: grantForm.endsAt ? new Date(grantForm.endsAt).toISOString() : null,
+        }),
       })
       toast({ title: 'تم حفظ تعريف المنحة', description: result.policy.title })
       setGrantForm({ title: '', scope: 'PROGRAM', programIds: [], admissionId: '', coverage: 'TUITION', valueMode: 'FULL', value: '', reason: '' })
