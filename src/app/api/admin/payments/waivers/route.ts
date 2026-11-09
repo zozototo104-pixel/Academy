@@ -62,6 +62,10 @@ function toGrantPolicy(row: StoredGrantDefinition): GrantPolicy {
   if (!Number.isSafeInteger(row.value) || row.value < 0) {
     throw grantError('قيمة المنحة في قاعدة البيانات غير صالحة')
   }
+  const targets = row.operations.filter((operation) => operation.status === 'TARGETED')
+  if (row.scope === 'INDIVIDUAL' && (targets.length !== 1 || !targets[0].admissionId || !targets[0].userId)) {
+    throw grantError('منحة فردية بلا مستفيد واحد موثق؛ لا يجوز إصدارها')
+  }
   return {
     id: row.id,
     title: row.title,
