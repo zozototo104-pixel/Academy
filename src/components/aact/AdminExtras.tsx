@@ -1526,12 +1526,23 @@ export function AdminFinanceTab() {
                 <Label>التخصصات المشمولة (يمكن اختيار أكثر من تخصص)</Label>
                 <div className="grid max-h-52 min-w-0 gap-2 overflow-y-auto rounded-xl border p-3 sm:grid-cols-2">
                   {grantPrograms.map((program) => (
-                    <label key={program.id} className="flex min-w-0 cursor-pointer items-start gap-2 text-xs font-bold">
-                      <input type="checkbox" className="mt-1" checked={grantForm.programIds.includes(program.id)}
-                        onChange={(e) => setGrantForm((p) => ({ ...p, programIds: e.target.checked
-                          ? [...p.programIds, program.id] : p.programIds.filter((id) => id !== program.id) }))} />
-                      <span className="min-w-0 break-words">{program.titleAr}</span>
-                    </label>
+                    <div key={program.id} className="min-w-0 space-y-1.5 rounded-lg border bg-white p-2">
+                      <label className="flex min-w-0 cursor-pointer items-start gap-2 text-xs font-bold">
+                        <input type="checkbox" className="mt-1" checked={grantForm.programIds.includes(program.id)}
+                          onChange={(e) => setGrantForm((p) => ({ ...p, programIds: e.target.checked
+                            ? [...p.programIds, program.id] : p.programIds.filter((id) => id !== program.id) }))} />
+                        <span className="min-w-0 break-words">{program.titleAr}</span>
+                      </label>
+                      {grantForm.programIds.includes(program.id) && (
+                        <Input type="number" inputMode="numeric" min={1} max={100000} step={1} dir="ltr"
+                          aria-label={'عدد مقاعد منحة ' + program.titleAr}
+                          placeholder="عدد المقاعد (فارغ = غير محدود)"
+                          value={grantForm.seatLimits[program.id] || ''}
+                          onChange={(e) => setGrantForm((p) => ({
+                            ...p, seatLimits: { ...p.seatLimits, [program.id]: e.target.value },
+                          }))} />
+                      )}
+                    </div>
                   ))}
                   {grantPrograms.length === 0 && <p className="text-xs text-red-600">لم تُحمّل قائمة التخصصات؛ لا يمكن حفظ منحة تخصصية الآن.</p>}
                 </div>
