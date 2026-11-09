@@ -441,7 +441,7 @@ async function createOrganizedPolicy(body: any, admin: { id: string; name?: stri
     data: {
       title, scope, coverage, valueMode, value: integerValue, reason,
       active: true, createdById: admin.id, startsAt, endsAt,
-      ...(scope === 'PROGRAM' ? { programs: { create: programIds.map((programId) => ({ programId })) } } : {}),
+      ...(scope === 'PROGRAM' ? { programs: { create: programIds.map((programId) => ({ programId, seats: seatLimits[programId] })) } } : {}),
       ...(scope === 'INDIVIDUAL' && admission ? {
         operations: {
           create: {
