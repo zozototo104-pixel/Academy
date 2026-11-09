@@ -222,6 +222,8 @@ const db: any = {
       replaceMap(admissions, snapshot.admissions)
       replaceMap(users, snapshot.users)
       replaceMap(enrollments, snapshot.enrollments)
+      replaceMap(scholarshipOperations, snapshot.scholarshipOperations)
+      replaceMap(scholarshipLinks, snapshot.scholarshipLinks)
       waiverCodes.splice(0, waiverCodes.length, ...snapshot.waiverCodes)
       waiverAttempts.splice(0, waiverAttempts.length, ...snapshot.waiverAttempts)
       throw error
