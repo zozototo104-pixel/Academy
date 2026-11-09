@@ -27,7 +27,7 @@ const NextResponse = {
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-export const maxDuration = 60
+export const maxDuration = 75
 
 type ProbeKind = 'PROFILE' | 'CURRICULUM' | 'THESIS' | 'DEFENSE'
 const ALL_PROBE_KINDS: ProbeKind[] = ['PROFILE', 'CURRICULUM', 'THESIS', 'DEFENSE']
