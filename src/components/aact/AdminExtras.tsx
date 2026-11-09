@@ -1503,7 +1503,7 @@ export function AdminFinanceTab() {
             )}
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="max-w-xl text-[11px] font-bold leading-5 text-slate-500">النسبة تُحوّل إلى سنتات على الخادم وقت إصدار الكود. الإعفاء الجزئي من رسوم التسجيل وحدها غير مدعوم حاليًا، لذلك لا يُعرض كخيار قابل للإصدار.</p>
-              <Button type="button" disabled={grantSaving} onClick={() => void saveGrantPolicy()}>
+              <Button type="button" disabled={grantSaving || !grantOrganizationReady} onClick={() => void saveGrantPolicy()}>
                 {grantSaving ? 'جارٍ الحفظ…' : 'حفظ تعريف المنحة'}
               </Button>
             </div>
