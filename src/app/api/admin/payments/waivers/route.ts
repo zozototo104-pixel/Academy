@@ -30,7 +30,7 @@ type GrantPolicy = {
   startsAt?: string | null; endsAt?: string | null
 }
 type GrantQuote = {
-  policy: GrantPolicy; paymentId: string; admissionId: string; programId: string
+  policy: GrantPolicy; paymentId: string; admissionId: string; programId: string; userId: string
   waiverType: 'APPLICATION_FEE' | 'PARTIAL_TUITION' | 'FULL_SCHOLARSHIP'
   requestedAmount: number | null; grantCents: number; baseCents: number
   paymentIds: string[]; signature: string; summary: string
