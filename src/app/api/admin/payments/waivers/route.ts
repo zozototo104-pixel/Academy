@@ -571,7 +571,7 @@ export async function PATCH(req: NextRequest) {
       })
       // Only organized codes contain this marker. Historical waivers continue
       // through the same financial engine with no extra approval prerequisites.
-      const marker = existing?.reason?.match(/\\[GRANT:([a-zA-Z0-9_-]{1,80})\\]/)
+      const marker = existing?.reason?.match(/\[GRANT:([a-zA-Z0-9_-]{1,80})\]/)
       if (marker) {
         const policy = await loadGrantPolicy(marker[1])
         const link = await db.scholarshipGrantLink.findUnique({
