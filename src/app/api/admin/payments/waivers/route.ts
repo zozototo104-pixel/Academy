@@ -60,6 +60,21 @@ function amountCents(row: { amountCents?: number | null; amount: number }) {
   if (!Number.isSafeInteger(cents) || cents < 0) throw grantError('قيمة الفاتورة غير قابلة للحساب')
   return cents
 }
+function percentageGrantCents(baseCents: number, percentage: number): number {
+  const rawBasisPoints = percentage * 100
+  const basisPoints = Math.round(rawBasisPoints)
+  if (!Number.isSafeInteger(baseCents) || baseCents <= 0
+    || !Number.isFinite(rawBasisPoints) || basisPoints <= 0 || basisPoints >= 10000
+    || Math.abs(rawBasisPoints - basisPoints) > 0.00000001) {
+    throw grantError('نسبة المنحة الجزئية يجب أن تكون أكبر من صفر وأقل من 100، بدقة منزلتين عشريتين كحد أقصى')
+  }
+  // A half-up integer division avoids floating-point rounding of money.
+  const result = Number(
+    (BigInt(baseCents) * BigInt(basisPoints) + BigInt(5000)) / BigInt(10000),
+  )
+  if (!Number.isSafeInteger(result)) throw grantError('قيمة المنحة خارج حدود السنتات المدعومة')
+  return result
+}
 async function grantQuote(paymentId: string, policyId: string): Promise<GrantQuote> {
   const policy = await loadGrantPolicy(policyId)
   if (!policy.active) throw grantError('هذه المنحة موقوفة عن الإصدار')
