@@ -396,6 +396,25 @@ async function createOrganizedPolicy(body: any, admin: { id: string; name?: stri
     const count = await db.program.count({ where: { id: { in: programIds } } })
     if (count !== programIds.length) throw grantError('بعض التخصصات المختارة غير موجودة', 400)
   }
+  const seatLimits: Record<string, number | null> = {}
+  if (scope === 'PROGRAM') {
+    const requestedLimits = body.seatLimits
+    if (requestedLimits != null && (typeof requestedLimits !== 'object' || Array.isArray(requestedLimits))) {
+      throw grantError('بيانات المقاعد لكل تخصص غير صالحة', 400)
+    }
+    for (const programId of programIds) {
+      const raw = requestedLimits?.[programId]
+      if (raw === undefined || raw === null || raw === '') {
+        seatLimits[programId] = null
+        continue
+      }
+      const seats = Number(raw)
+      if (!Number.isSafeInteger(seats) || seats < 1 || seats > 100000) {
+        throw grantError('عدد مقاعد كل تخصص يجب أن يكون عددًا صحيحًا بين 1 و100000', 400)
+      }
+      seatLimits[programId] = seats
+    }
+  }
   const admissionId = scope === 'INDIVIDUAL' ? cleanText(body.admissionId, 80) : null
   const admission = scope === 'INDIVIDUAL' && admissionId
     ? await db.admissionApplication.findUnique({
