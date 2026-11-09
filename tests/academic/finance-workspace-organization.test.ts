@@ -92,7 +92,7 @@ describe('AdminFinanceTab workspace organization', () => {
       'new Date(grantForm.startsAt).toISOString()',
       'new Date(grantForm.endsAt).toISOString()',
       'grantForm.seatLimits[program.id]',
-      'aria-label={\'عدد مقاعد منحة \'+',
+      "aria-label={'عدد مقاعد منحة ' + program.titleAr}",
       'seatLimits: {}',
     ])
     expect(financeBlock.includes("grantOrganizationReady && grantPolicies.length > 0")).toBe(true)
