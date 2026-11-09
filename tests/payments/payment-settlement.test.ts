@@ -649,6 +649,47 @@ describe('active organized-grants issuance guard', () => {
     expect(waiverCodes).toHaveLength(0)
     expect(scholarshipOperations.size).toBe(0)
   })
+
+  test('program grant stores exact seats and time window in dedicated tables, not Setting', async () => {
+    process.env.SCHOLARSHIP_ORGANIZATION_ENABLED = '1'
+    const start = '2030-03-15T08:00:00.000Z'
+    const end = '2030-04-15T08:00:00.000Z'
+    const response = await waiversRoutePOST(new NextRequest('http://localhost/api/admin/payments/waivers', {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'CREATE_POLICY', title: 'منحة تخصص الإدارة', scope: 'PROGRAM',
+        programIds: ['program-A'], seatLimits: { 'program-A': '3' },
+        coverage: 'TUITION', valueMode: 'PERCENT', value: 25,
+        reason: 'قرار لجنة المنح المعتمد', startsAt: start, endsAt: end,
+      }),
+    }))
+    expect(response.status).toBe(201)
+    const body = await response.json()
+    const persisted = scholarshipDefinitions.get(body.policy.id)!
+    expect(persisted.value).toBe(2500)
+    expect(persisted.programs).toEqual([{ programId: 'program-A', seats: 3 }])
+    expect(persisted.startsAt.toISOString()).toBe(start)
+    expect(persisted.endsAt.toISOString()).toBe(end)
+    expect(grantSettings.size).toBe(0)
+    expect(waiverCodes).toHaveLength(0)
+  })
+
+  test('invalid campaign seat limits are rejected server-side without creating a policy', async () => {
+    process.env.SCHOLARSHIP_ORGANIZATION_ENABLED = '1'
+    for (const seats of [0, -1, 2.5, 100001, 'not-a-number']) {
+      const response = await waiversRoutePOST(new NextRequest('http://localhost/api/admin/payments/waivers', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'CREATE_POLICY', title: 'منحة اختبار المقاعد', scope: 'PROGRAM',
+          programIds: ['program-A'], seatLimits: { 'program-A': seats },
+          coverage: 'TUITION', valueMode: 'FULL', reason: 'قرار إداري للتحقق',
+        }),
+      }))
+      expect(response.status).toBe(400)
+    }
+    expect(scholarshipDefinitions.size).toBe(0)
+    expect(waiverCodes).toHaveLength(0)
+  })
 })
 
 describe('organized grant eligibility before issuing an existing waiver code', () => {
