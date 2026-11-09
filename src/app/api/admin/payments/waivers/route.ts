@@ -135,7 +135,7 @@ async function grantQuote(paymentId: string, policyId: string): Promise<GrantQuo
   if (pending) throw grantError('يوجد كود إعفاء نشط مرتبط بإحدى الفواتير؛ أوقف الإصدار حتى تُحسم الأكواد السابقة')
 
   let grantCents = policy.valueMode === 'FULL' ? baseCents
-    : policy.valueMode === 'PERCENT' ? Math.round(baseCents * policy.value / 100)
+    : policy.valueMode === 'PERCENT' ? percentageGrantCents(baseCents, policy.value)
     : Math.round(policy.value * 100)
   if (!Number.isSafeInteger(grantCents) || grantCents <= 0 || grantCents > baseCents) {
     throw grantError('قيمة المنحة أكبر من المستحق أو لا يمكن احتسابها')
