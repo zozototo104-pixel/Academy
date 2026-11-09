@@ -156,6 +156,16 @@ test.describe('AACT full platform journey suite', () => {
     await expect(admissionCard.getByText(/فواتير غير مسددة/), 'Covered tuition installments must not leave a stale unpaid tuition warning').toHaveCount(0)
 
     const studentLogin = await login(page, setup.student.email, setup.student.password)
+    expect(studentLogin.user?.role, 'The journey account must be a STUDENT, not an admin fixture').toBe('STUDENT')
+    const studentAdminExams = await page.request.get(`/api/admin/program-exams?programId=${encodeURIComponent(setup.program.id)}&includeQuestions=1`, {
+      headers: { Authorization: `Bearer ${studentLogin.token}` },
+    })
+    expect([401, 403], `Student accessed admin exam question bank: ${studentAdminExams.status()}`).toContain(studentAdminExams.status())
+    const studentAdminJourney = await page.request.post('/api/admin/full-journey', {
+      headers: { Authorization: `Bearer ${studentLogin.token}` },
+      data: {},
+    })
+    expect([401, 403], `Student created an admin journey fixture: ${studentAdminJourney.status()}`).toContain(studentAdminJourney.status())
     await page.goto('/', { waitUntil: 'domcontentloaded' })
     await page.evaluate((token) => {
       localStorage.setItem('aact_token', token)
