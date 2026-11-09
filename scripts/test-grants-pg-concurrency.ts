@@ -9,6 +9,13 @@
  *     يُسلسلهما، والثانية ترى العملية الحاجزة وتُرفض. لا منحتان أبداً.
  *  C) تحرير الانتهاء بكود حقيقي: releaseStaleGrantOperations من مكتبة طبقة
  *     التنظيم نفسها تُقفل عملية أكوادها كلها منتهية على المخطط الحقيقي.
+ *  D) سباق دعوات الانتظار: مقعد واحد وطالبان منتظران ومنفّذان متزامنان
+ *     يستدعيان notifyWaitlistForFreeSeats من المكتبة نفسها — دعوة واحدة
+ *     فقط تخرج، للأول بترتيب التسجيل، وصف Outbox واحد فقط.
+ *  E) سلامة التسوية: التحرير التلقائي لا يلغي أبداً عملية حية — عملية
+ *     مُصدَرة بكود حي تبقى، وعملية INCOMPLETE بكود حي تبقى، وعملية
+ *     ISSUING قديمة لها رابط تبقى؛ وحدها ISSUING المهجورة بلا روابط
+ *     تُحرَّر.
  *
  * حدود الإثبات بصراحة: دالة الحجز داخل مسار الإدارة (reserveGrantOperation)
  * ليست قابلة للاستيراد من سكربت، فالمعاملة هنا تُعيد تنفيذ نمطها حرفياً
@@ -21,8 +28,9 @@
  * Environment:
  *   GRANTS_PG_TEST_DATABASE_URL — optional. Otherwise a disposable docker
  *     postgres:16 container is started on port 55434 and removed at exit.
- *   Safety: refuses to run unless the host is localhost OR the database
- *     name contains "test"/"ci" — it can never touch production.
+ *   Safety: refuses to run unless the host is localhost AND the database
+ *     name carries "test" as a whole token AND no "prod" marker — a
+ *     substring rule is not a guard ("official_production" contains "ci").
  *
  * Exit codes: 0 = every assertion passed · 1 = an assertion failed ·
  * 2 = environment could not be prepared.
@@ -157,7 +165,7 @@ async function main() {
   process.env.DATABASE_URL = databaseUrl
   const { db } = await import('@/lib/db')
   dbRef = db
-  const { releaseStaleGrantOperations } = await import('@/lib/scholarship-waitlist')
+  const { releaseStaleGrantOperations, notifyWaitlistForFreeSeats } = await import('@/lib/scholarship-waitlist')
 
   await db.user.createMany({
     data: [
@@ -236,6 +244,99 @@ async function main() {
   check('C: expiry release closes the stale operation on the real schema',
     released.some((op: any) => op.id === staleOp.id) && staleAfter?.status === 'CANCELLED',
     `released=${released.length} status=${staleAfter?.status}`)
+
+  // Scenario D: one free seat, two waiting students, two concurrent
+  // executors running the shipped notify pass — exactly one invitation
+  // may leave, for the first student in registration order.
+  process.env.SCHOLARSHIP_ORGANIZATION_ENABLED = '1'
+  await db.user.createMany({
+    data: [
+      { id: 'pg-g-user-w1', email: 'w1@grants.test', name: 'W1', password: '<redacted>', role: 'STUDENT', status: 'ACTIVE' },
+      { id: 'pg-g-user-w2', email: 'w2@grants.test', name: 'W2', password: '<redacted>', role: 'STUDENT', status: 'ACTIVE' },
+    ],
+  })
+  const waitlistDefinition = await db.scholarshipDefinition.create({
+    data: {
+      title: 'حملة سباق الانتظار', scope: 'PROGRAM', coverage: 'TUITION',
+      valueMode: 'PERCENT', value: 2500, reason: 'اختبار تنافس', active: true,
+      programs: { create: [{ programId: 'pg-g-program', seats: 1 }] },
+    },
+  })
+  const entryW1 = await db.scholarshipWaitlistEntry.create({
+    data: {
+      definitionId: waitlistDefinition.id, userId: 'pg-g-user-w1', admissionId: 'adm-w1',
+      programId: 'pg-g-program', status: 'WAITING', createdAt: new Date(Date.now() - 2000),
+    },
+  })
+  const entryW2 = await db.scholarshipWaitlistEntry.create({
+    data: {
+      definitionId: waitlistDefinition.id, userId: 'pg-g-user-w2', admissionId: 'adm-w2',
+      programId: 'pg-g-program', status: 'WAITING', createdAt: new Date(Date.now() - 1000),
+    },
+  })
+  const [invited1, invited2] = await Promise.all([
+    notifyWaitlistForFreeSeats(db, waitlistDefinition.id, 'pg-g-program'),
+    notifyWaitlistForFreeSeats(db, waitlistDefinition.id, 'pg-g-program'),
+  ])
+  const entryW1After = await db.scholarshipWaitlistEntry.findUnique({ where: { id: entryW1.id } })
+  const entryW2After = await db.scholarshipWaitlistEntry.findUnique({ where: { id: entryW2.id } })
+  const outboxCount = await db.notificationOutbox.count({ where: { kind: 'SCHOLARSHIP_WAITLIST_OPENING' } })
+  check('D: two concurrent executors send exactly one invitation for one seat',
+    invited1 + invited2 === 1 && outboxCount === 1,
+    `invited=${invited1}+${invited2} outbox=${outboxCount}`)
+  check('D: the invitation goes to the first in registration order only',
+    entryW1After?.status === 'NOTIFIED' && entryW2After?.status === 'WAITING',
+    `w1=${entryW1After?.status} w2=${entryW2After?.status}`)
+
+  // Scenario E: the automatic settlement never cancels a live grant —
+  // only a truly abandoned ISSUING operation (old, no links) is freed.
+  const settleUser = await db.user.create({ data: { email: 'e@grants.test', name: 'E', password: '<redacted>', role: 'STUDENT', status: 'ACTIVE' } })
+  const seedLiveOperation = async (suffix: string, status: string, withLink: boolean, createdAt?: Date) => {
+    const op = await db.scholarshipGrantOperation.create({
+      data: {
+        definitionId: definition.id, userId: settleUser.id, admissionId: 'adm-e-' + suffix,
+        programId: 'pg-g-program-3', status, expectedCodes: 1, expectedCents: 5000,
+        ...(createdAt ? { createdAt } : {}),
+      },
+    })
+    if (withLink) {
+      const livePayment = await db.payment.create({
+        data: {
+          userId: settleUser.id, purpose: 'TUITION', status: 'UNPAID', description: 'رسوم دراسية — اختبار تسوية',
+          amount: 199.99, amountCents: 19999, invoiceNo: 'PG-GRANTS-INV-E-' + suffix,
+        },
+      })
+      const liveCode = await db.paymentWaiverCode.create({
+        data: {
+          paymentId: livePayment.id, codeHash: 'pg-grants-hash-e-' + suffix, codePreview: 'PG-E-' + suffix,
+          waiverType: 'PARTIAL_TUITION', reason: 'اختبار تسوية', status: 'ISSUED',
+          expiresAt: new Date(Date.now() + 3600_000),
+        },
+      })
+      await db.scholarshipGrantLink.create({
+        data: {
+          definitionId: definition.id, operationId: op.id, waiverCodeId: liveCode.id,
+          paymentId: livePayment.id, userId: settleUser.id, admissionId: 'adm-e-' + suffix,
+          programId: 'pg-g-program-3', baseCents: 19999, grantCents: 5000,
+        },
+      })
+    }
+    return op
+  }
+  const liveIssued = await seedLiveOperation('issued', 'ISSUED', true)
+  const liveIncomplete = await seedLiveOperation('incomplete', 'INCOMPLETE', true)
+  const oldIssuingLinked = await seedLiveOperation('issuing-linked', 'ISSUING', true, new Date(Date.now() - 3600_000))
+  const oldIssuingAbandoned = await seedLiveOperation('issuing-abandoned', 'ISSUING', false, new Date(Date.now() - 3600_000))
+  await releaseStaleGrantOperations(db, {})
+  const statusOf = async (id: string) => (await db.scholarshipGrantOperation.findUnique({ where: { id } }))?.status
+  check('E: settlement never cancels an ISSUED operation with a live code',
+    (await statusOf(liveIssued.id)) === 'ISSUED', `status=${await statusOf(liveIssued.id)}`)
+  check('E: settlement never cancels an INCOMPLETE operation with a live code',
+    (await statusOf(liveIncomplete.id)) === 'INCOMPLETE', `status=${await statusOf(liveIncomplete.id)}`)
+  check('E: settlement never cancels an old ISSUING operation that has a link',
+    (await statusOf(oldIssuingLinked.id)) === 'ISSUING', `status=${await statusOf(oldIssuingLinked.id)}`)
+  check('E: settlement frees only the abandoned linkless ISSUING operation',
+    (await statusOf(oldIssuingAbandoned.id)) === 'CANCELLED', `status=${await statusOf(oldIssuingAbandoned.id)}`)
 
   if (failures.length) {
     console.error(`\nGRANTS_PG: ${failures.length} assertion(s) failed`)
