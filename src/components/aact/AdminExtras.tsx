@@ -1334,7 +1334,7 @@ export function AdminFinanceTab() {
               <p className="text-xs text-slate-600">كود واحد لفاتورة {grantQuoteDialog.payment.invoiceNo}، بنفس إجراءات الأكواد والتحقق والاعتماد الموجودة.</p>
               <div className="flex flex-wrap justify-end gap-2">
                 <Button type="button" variant="outline" disabled={grantSaving} onClick={() => setGrantQuoteDialog(null)}>إلغاء</Button>
-                <Button type="button" disabled={grantSaving} onClick={() => void issueOrganizedGrant()}>{grantSaving ? 'جارٍ الإصدار…' : 'تأكيد وإصدار الكود'}</Button>
+                <Button type="button" disabled={grantSaving || !grantOrganizationReady} onClick={() => void issueOrganizedGrant()}>{grantSaving ? 'جارٍ الإصدار…' : 'تأكيد وإصدار الكود'}</Button>
               </div>
             </div>
           )}
