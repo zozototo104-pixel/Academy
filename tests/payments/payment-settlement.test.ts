@@ -428,7 +428,7 @@ mock.module('@/lib/auth', () => ({
 
 const { verifyPaymentWaiverCode, approvePaymentWaiver } = await import('../../src/lib/payment-waivers')
 const { markInvoicePaid, finalizeAdmissionAfterSettlement } = await import('../../src/lib/settle-payment')
-const { GET: waiversRouteGET, PATCH: waiversRoutePATCH } = await import('../../src/app/api/admin/payments/waivers/route')
+const { GET: waiversRouteGET, POST: waiversRoutePOST, PATCH: waiversRoutePATCH } = await import('../../src/app/api/admin/payments/waivers/route')
 const { PATCH: paymentsRoutePATCH } = await import('../../src/app/api/admin/payments/route')
 const { hasLifecycleFootprint, progressionGate } = await import('../../src/lib/progression')
 
