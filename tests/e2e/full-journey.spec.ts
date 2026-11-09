@@ -79,6 +79,19 @@ test.describe('AACT full platform journey suite', () => {
     expect([401, 403], `Unauthenticated journey deletion returned ${remove.status()}`).toContain(remove.status())
   })
 
+  test('admin cleanup rejects malformed and out-of-scope fixture identifiers without deleting records', async ({ page }) => {
+    const admin = await loginAsAdmin(page)
+    for (const stamp of ['', '20261109', '../../20261109123456', '20261109123456-extra']) {
+      const response = await page.request.delete('/api/admin/full-journey', {
+        headers: { Authorization: `Bearer ${admin.token}` },
+        data: { stamp },
+      })
+      const body = await response.json().catch(() => ({}))
+      expect(response.status(), `Invalid cleanup stamp ${JSON.stringify(stamp)} was accepted`).toBe(400)
+      expect(body.ok, `Invalid cleanup stamp ${JSON.stringify(stamp)} returned success`).toBe(false)
+    }
+  })
+
   async function cleanupFullJourney(request: any, testInfo: TestInfo, target: { token: string; stamp: string }) {
     const cleanupRes = await request.delete('/api/admin/full-journey', {
       headers: { Authorization: `Bearer ${target.token}` },
