@@ -149,6 +149,22 @@ jobs:
           bun run test:graduation-approval
           bun run test:certificate-disclosure
 
+      - name: Require scholarship implementation before certifying full platform QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          for required in \
+            tests/payments/scholarship-waitlist.test.ts \
+            scripts/test-grants-pg-concurrency.ts \
+            src/lib/scholarship-waitlist.ts \
+            prisma/migrations/20261109120000_scholarship_organization/migration.sql; do
+            if [ ! -f "$required" ]; then
+              echo "::error::Scholarship QA prerequisite missing: $required. Integrate PR #191 before running the unified release gate."
+              exit 1
+            fi
+          done
+          bun run test:grants-pg-concurrency
+
       - name: Run finance, scholarships, supervisor and meeting regression tests
         run: |
           bun run test:payments
