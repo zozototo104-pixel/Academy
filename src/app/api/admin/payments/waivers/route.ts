@@ -28,7 +28,7 @@ type GrantPolicy = {
 type GrantQuote = {
   policy: GrantPolicy; paymentId: string; admissionId: string; programId: string; userId: string
   waiverType: 'APPLICATION_FEE' | 'PARTIAL_TUITION' | 'FULL_SCHOLARSHIP'
-  requestedAmount: number | null; grantCents: number; baseCents: number
+  requestedAmount: number | null; grantCents: number; baseCents: number; invoiceBaseCents: number
   paymentIds: string[]; signature: string; summary: string
 }
 function grantError(message: string, status = 409) {
