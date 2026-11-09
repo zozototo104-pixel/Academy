@@ -10,6 +10,16 @@ import { audit } from '@/lib/notify'
 // the connected GitHub writer cannot create new migration files.
 const GRANT_POLICY_PREFIX = 'GRANT_ORGANIZATION_POLICY_V1_'
 const GRANT_LINK_PREFIX = 'GRANT_ORGANIZATION_LINK_V1_'
+// Do not enable administrative grant issuance until dedicated grant tables,
+// migration and transactional seat/issue linking are deployed and verified.
+// Legacy financial waiver operations must remain available and unchanged.
+const GRANT_ORGANIZATION_SCHEMA_READY = false
+function grantOrganizationUnavailable() {
+  return NextResponse.json({
+    error: 'تنظيم المنح قيد الاستكمال: يلزم ترحيل الجداول المستقلة والتحقق من سلامة المقاعد قبل الإصدار.',
+    code: 'GRANT_ORGANIZATION_NOT_READY',
+  }, { status: 503 })
+}
 type GrantPolicy = {
   id: string; title: string; scope: 'GENERAL' | 'PROGRAM' | 'INDIVIDUAL'
   programIds: string[]; admissionId: string | null
