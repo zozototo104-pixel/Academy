@@ -546,6 +546,29 @@ describe('organized grant eligibility before issuing an existing waiver code', (
     expect(body.quote.requestedAmount).toBe(50)
     expect(body.quote.waiverType).toBe('PARTIAL_TUITION')
   })
+  test('percentage discounts use exact basis-point rounding to whole cents', async () => {
+    seedStudentPayment('program-A')
+    seedPolicy(programPolicyId, { value: 33.33 })
+    const result = await waiversRouteGET(quoteRequest(programPolicyId))
+    expect(result.status).toBe(200)
+    const quote = (await result.json()).quote
+    expect(quote.baseCents).toBe(19999)
+    expect(quote.grantCents).toBe(6666)
+    expect(quote.requestedAmount).toBe(66.66)
+  })
+  test('unsupported percentage precision and rounded full waiver are rejected', async () => {
+    const payment = seedStudentPayment('program-A')
+    seedPolicy(programPolicyId, { value: 33.333 })
+    const excessivePrecision = await waiversRouteGET(quoteRequest(programPolicyId))
+    expect(excessivePrecision.status).toBe(409)
+
+    payment.amountCents = 1
+    payment.amount = 0.01
+    seedPolicy(programPolicyId, { value: 99.99 })
+    const accidentallyFull = await waiversRouteGET(quoteRequest(programPolicyId))
+    expect(accidentallyFull.status).toBe(409)
+    expect((await accidentallyFull.json()).error).toContain('كامل')
+  })
   test('individual grant for a different admission and an active existing code are both blocked', async () => {
     seedStudentPayment('program-A')
     seedPolicy(individualPolicyId, { scope: 'INDIVIDUAL', programIds: [], admissionId: 'admission-other' })
