@@ -7,7 +7,10 @@ import { db } from '@/lib/db'
 // إعادة التشغيل: قفل استشاري داخل معاملة يُسلسِل النداءات المتزامنة على
 // نفس البرنامج، والبحث مقصور على الدليل العام (unitId: null) فلا تُلمس
 // أدلة الوحدات أبداً، وأي إعادة تشغيل تحدّث الدليل نفسه بدل إنشاء نسخة.
-const GUIDE_LOCK_NAMESPACE = 741209
+// ملاحظة توقيع القفل: رقم القفل الأول مكتوب حرفياً داخل SQL كما في
+// scholarship-waitlist — تمريره كمعامل مربوط (${...}) يجعله Prisma من نوع
+// bigint فيرفضه PostgreSQL مع hashtext (integer): لا يوجد توقيع
+// pg_advisory_xact_lock(bigint, integer) — خطأ 42883 (بوابة #704).
 
 const GUIDE_UPDATE_DATA = {
   title: 'دليل دراسة الفصل الأول: الحوكمة والمخاطر',
@@ -21,7 +24,7 @@ const GUIDE_UPDATE_DATA = {
 
 export async function ensureLaunchQualityStudyGuide(programId: string) {
   return db.$transaction(async (tx) => {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${GUIDE_LOCK_NAMESPACE}, hashtext(${'launch-quality-guide:' + programId}))`
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(741209, hashtext(${'launch-quality-guide:' + programId}))`
     const existing = await tx.programStudyGuide.findFirst({
       where: { programId, semester: 1, unitId: null },
       orderBy: { createdAt: 'asc' },
