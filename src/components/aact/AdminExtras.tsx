@@ -1848,7 +1848,10 @@ export function AdminFinanceTab() {
                                   </div>
                                 )
                               }
-                              if (grantOrganizationReady && grantPolicies.length > 0 && p.admission && ['APPLICATION_FEE', 'TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose)) {
+                              if (grantOrganizationReady && !p.admission) {
+                                return <span className="text-xs font-bold text-amber-700">لا يمكن إصدار منحة قبل ربط الفاتورة بطلب قبول موثّق</span>
+                              }
+                              if (grantOrganizationReady && p.admission && ['APPLICATION_FEE', 'TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose)) {
                                 return (
                                   <div className="flex min-w-0 max-w-[260px] flex-col gap-2">
                                     <label htmlFor={`grant-for-${p.id}`} className="text-[10px] font-black text-[#0f2b46]">منحة منظمة لهذا الطالب</label>
