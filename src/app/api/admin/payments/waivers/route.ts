@@ -76,9 +76,10 @@ function toGrantPolicy(row: StoredGrantDefinition): GrantPolicy {
     reason: row.reason,
     active: row.active,
     programIds: row.programs.map((program) => program.programId),
-    // The additive schema lacks a binding to one admission for INDIVIDUAL.
-    // Individual awards stay non-issuable until that field is migrated.
-    admissionId: null,
+    // A TARGETED operation is an immutable recipient assignment (not an
+    // issued code): it consumes no seat and does not affect financial state.
+    admissionId: row.scope === 'INDIVIDUAL' ? targets[0].admissionId : null,
+    targetUserId: row.scope === 'INDIVIDUAL' ? targets[0].userId : null,
     createdAt: row.createdAt.toISOString(),
     startsAt: row.startsAt?.toISOString() || null,
     endsAt: row.endsAt?.toISOString() || null,
