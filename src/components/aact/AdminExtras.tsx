@@ -1639,7 +1639,7 @@ export function AdminFinanceTab() {
                 <div className="flex shrink-0 flex-col items-end gap-2">
                   <Badge className={grantOrganizationReady && policy.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'}>{!grantOrganizationReady ? 'معلّقة لحين جاهزية التنظيم' : policy.active ? 'نشطة' : 'غير مفعّلة'}</Badge>
                   <Button size="sm" type="button" variant="outline" disabled={grantSaving || !grantOrganizationReady} onClick={() => void toggleGrantPolicy(policy.id)}>
-                    {policy.active ? 'إيقاف إصدار جديد' : 'إعادة التفعيل'}
+                    {policy.active ? 'إيقاف إصدار جديد' : 'تفعيل المنحة'}
                   </Button>
                 </div>
               </div>
