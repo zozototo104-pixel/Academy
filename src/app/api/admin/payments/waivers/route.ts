@@ -677,7 +677,7 @@ export async function PATCH(req: NextRequest) {
       // Historical resends continue through the same engine without any extra
       // preflight reads. Only organized codes have post-resend ledger linking.
       const result = await resendPaymentWaiverCode({ paymentId, actor: { id: admin.id, name: admin.name || admin.email || 'Admin' } })
-      const marker = result.waiver.reason?.match(/\\[GRANT:([a-zA-Z0-9_-]{1,80})\\]/)
+      const marker = result.waiver.reason?.match(/\[GRANT:([a-zA-Z0-9_-]{1,80})\]/)
       let organizationWarning: string | undefined
       if (marker) {
         try {
