@@ -812,6 +812,9 @@ interface OrganizedGrantPolicy {
   reason: string
   active: boolean
   createdAt: string
+  startsAt?: string | null
+  endsAt?: string | null
+  programAvailability?: Array<{ programId: string; seats: number | null; occupied: number; remaining: number | null }>
 }
 
 interface OrganizedGrantQuote {
