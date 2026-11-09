@@ -1501,6 +1501,19 @@ export function AdminFinanceTab() {
                     value={grantForm.value} onChange={(e) => setGrantForm((p) => ({ ...p, value: e.target.value }))} />
                 </div>
               )}
+              <div className="space-y-1.5">
+                <Label htmlFor="grant-starts-at">بداية فترة المنحة (اختياري)</Label>
+                <Input id="grant-starts-at" type="datetime-local" dir="ltr"
+                  value={grantForm.startsAt}
+                  onChange={(e) => setGrantForm((prev) => ({ ...prev, startsAt: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="grant-ends-at">نهاية فترة المنحة (اختياري)</Label>
+                <Input id="grant-ends-at" type="datetime-local" dir="ltr"
+                  min={grantForm.startsAt || undefined}
+                  value={grantForm.endsAt}
+                  onChange={(e) => setGrantForm((prev) => ({ ...prev, endsAt: e.target.value }))} />
+              </div>
               <div className="space-y-1.5 sm:col-span-2">
                 <Label htmlFor="grant-reason">سبب المنحة ومرجع القرار</Label>
                 <Textarea id="grant-reason" rows={2} value={grantForm.reason}
