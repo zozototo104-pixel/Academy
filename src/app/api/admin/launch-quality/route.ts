@@ -731,7 +731,7 @@ export async function GET() {
     const student = await findDiagnosticStudent()
     const context = student ? await buildSupervisorContext(student.id).catch(() => '') : ''
     const textModel = await geminiActiveTextModel().catch(() => '')
-    const providerDiagnostics = await textAiDiagnostics().catch((error: any) => ({ error: String(error?.message || error).slice(0, 240) }))
+    const providerDiagnostics = await cachedProviderDiagnostics().catch((error: any) => ({ error: String(error?.message || error).slice(0, 240) }))
     const voice = await liveReadiness(false, 'SUPERVISOR')
     const discussion = await liveReadiness(false, 'DISCUSSION')
     return NextResponse.json({
