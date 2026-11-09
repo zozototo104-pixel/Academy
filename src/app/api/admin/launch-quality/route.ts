@@ -671,6 +671,7 @@ async function runAiProbe(kind: ProbeKind, student: Awaited<ReturnType<typeof fi
       kind,
       question,
       agent: 'ERROR',
+      expectedAgent: expectedAgentForProbe(kind),
       engine: 'AI_PROVIDER_ROUTER_ERROR',
       ms: elapsed(started),
       replyChars: 0,
@@ -680,6 +681,7 @@ async function runAiProbe(kind: ProbeKind, student: Awaited<ReturnType<typeof fi
       hits: [],
       missed: expected,
       passed: false,
+      skipped: false,
       error,
     }
   }
