@@ -1409,6 +1409,11 @@ export function AdminFinanceTab() {
             <div>
               <h3 className="text-base font-black text-[#0f2b46]">تنظيم المنح العامة والتخصصية والفردية</h3>
               <p className="mt-1 text-xs font-bold leading-6 text-slate-600">هذه الطبقة تنظم من يستحق الإعفاء وقيمته، ثم تسلمه لنظام الأكواد والفواتير الحالي. حملات المقاعد ومواعيد التقديم منفصلة عن هذه الإدارة.</p>
+              {!grantOrganizationReady && (
+                <p role="status" className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-black leading-6 text-amber-900">
+                  تنظيم المنح والحملات قيد التحصين. إنشاء تعريفات جديدة وإصدار أكواد من التنظيم موقوفان حتى اكتمال الجداول المستقلة والتحقق من سلامة المقاعد. إصدار الإعفاءات الحالي وإعادة الإرسال والاعتماد في المالية مستمر كما كان.
+                </p>
+              )}
             </div>
             <div className="grid min-w-0 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
