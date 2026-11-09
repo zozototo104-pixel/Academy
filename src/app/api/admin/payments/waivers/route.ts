@@ -555,36 +555,59 @@ export async function POST(req: NextRequest) {
       if (quote.signature !== String(body.signature || '')) {
         return NextResponse.json({ error: 'تغيّرت الفاتورة أو قيمة المنحة منذ المعاينة؛ أعد المعاينة قبل إصدار الكود', code: 'GRANT_QUOTE_CHANGED' }, { status: 409 })
       }
-      const intentKey = 'GRANT_ORGANIZATION_INTENT_V1_' + quote.paymentId
-      const existingIntent = await db.setting.findUnique({ where: { key: intentKey } })
-      if (existingIntent) {
-        return NextResponse.json({ error: 'إصدار منحة لهذه الفاتورة قيد المراجعة؛ لا تكرر إصدار الكود', code: 'GRANT_ISSUE_PENDING' }, { status: 409 })
-      }
-      const intent = { policyId: quote.policy.id, admissionId: quote.admissionId, programId: quote.programId, signature: quote.signature, baseCents: quote.baseCents, grantCents: quote.grantCents, createdAt: new Date().toISOString() }
-      await db.setting.create({ data: { key: intentKey, value: JSON.stringify(intent) } })
+      const operation = await reserveGrantOperation(quote, admin.id)
+      const reason = quote.policy.reason + ' [GRANT:' + quote.policy.id + ']'
+      let result: Awaited<ReturnType<typeof createPaymentWaiverCode>>
       try {
-        const result = await createPaymentWaiverCode({
-          paymentId: quote.paymentId, waiverType: quote.waiverType,
+        // Preserve the one established financial code issuer and its delivery.
+        result = await createPaymentWaiverCode({
+          paymentId: quote.paymentId,
+          waiverType: quote.waiverType,
           requestedAmount: quote.requestedAmount,
-          reason: `${quote.policy.reason} [GRANT:${quote.policy.id}]`,
+          reason,
           actor: { id: admin.id, name: admin.name || admin.email || 'Admin' },
         })
-        const linkKey = GRANT_LINK_PREFIX + result.waiver.id
-        await db.setting.create({ data: {
-          key: linkKey,
-          value: JSON.stringify({ ...intent, waiverCodeId: result.waiver.id, paymentId: quote.paymentId, baseCents: quote.baseCents, grantCents: quote.grantCents }),
-        } })
-        await db.setting.delete({ where: { key: intentKey } })
-        await audit({ id: admin.id, name: admin.name || admin.email || 'Admin' }, 'GRANT_POLICY_ISSUED', 'Payment', quote.paymentId, `${quote.policy.title} — ${quote.summary}`)
-        return NextResponse.json({ ...result, quote })
-      } catch (e: any) {
-        const maybeIssued = await db.paymentWaiverCode.findFirst({
-          where: { paymentId: quote.paymentId, status: { in: ['ISSUED', 'VERIFIED'] } },
+      } catch (issueError) {
+        // The existing engine can persist a code before a delivery failure.
+        // Never free the reserved seat when an unlinked code may exist.
+        const possiblyIssued = await db.paymentWaiverCode.findFirst({
+          where: { paymentId: quote.paymentId, reason,
+            createdAt: { gte: operation.createdAt } },
           select: { id: true },
         }).catch(() => null)
-        if (!maybeIssued) await db.setting.deleteMany({ where: { key: intentKey } }).catch(() => null)
-        throw e
+        await db.scholarshipGrantOperation.update({
+          where: { id: operation.id },
+          data: { status: possiblyIssued ? 'INCOMPLETE' : 'CANCELLED' },
+        }).catch((error) => console.error('Failed to reconcile grant operation after issuance error:', error))
+        throw issueError
       }
+      try {
+        await db.$transaction(async (tx) => {
+          await tx.scholarshipGrantLink.create({
+            data: {
+              definitionId: quote.policy.id, operationId: operation.id,
+              waiverCodeId: result.waiver.id, paymentId: quote.paymentId,
+              userId: quote.userId, admissionId: quote.admissionId, programId: quote.programId,
+              percentBps: quote.policy.valueMode === 'PERCENT' ? Math.round(quote.policy.value * 100) : null,
+              baseCents: quote.baseCents, grantCents: quote.grantCents,
+            },
+          })
+          await tx.scholarshipGrantOperation.update({
+            where: { id: operation.id },
+            data: { status: 'ISSUED' },
+          })
+        })
+      } catch (linkError) {
+        await db.scholarshipGrantOperation.update({
+          where: { id: operation.id }, data: { status: 'INCOMPLETE' },
+        }).catch((error) => console.error('Failed to quarantine unlinked grant:', error))
+        console.error('Organized scholarship code issued but ledger linking failed:', linkError)
+        throw grantError('صدر الكود ولكن ربط العملية لم يكتمل. تم منع الاعتماد ويجب أن تراجع الإدارة العملية قبل إعادة المحاولة')
+      }
+      await audit({ id: admin.id, name: admin.name || admin.email || 'Admin' },
+        'GRANT_POLICY_ISSUED', 'ScholarshipGrantOperation', operation.id,
+        quote.policy.title + ' — ' + quote.summary)
+      return NextResponse.json({ ...result, quote, operationId: operation.id })
     }
     const paymentId = cleanText(body.paymentId, 80)
     const waiverType = cleanText(body.waiverType, 40)
