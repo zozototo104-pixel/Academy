@@ -889,6 +889,25 @@ describe('organized grant eligibility before issuing an existing waiver code', (
     expect(response.status).toBe(200)
   })
 
+  test('an unresolved organized operation still blocks a quote even when the old code expired', async () => {
+    seedStudentPayment('program-A')
+    seedPolicy(programPolicyId)
+    scholarshipDefinitions.set('old-policy', {
+      id: 'old-policy', scope: 'PROGRAM', coverage: 'TUITION',
+      programs: [{ programId: 'program-B' }], operations: [],
+      title: 'منحة سابقة', valueMode: 'FULL', value: 0, reason: 'قرار قديم',
+      active: true, startsAt: null, endsAt: null, createdAt: new Date(),
+    })
+    scholarshipOperations.set('pending-old', {
+      id: 'pending-old', definitionId: 'old-policy',
+      userId: 'student-grant-1', admissionId: 'admission-2',
+      programId: 'program-B', status: 'ISSUED',
+    })
+    const response = await waiversRouteGET(quoteRequest(programPolicyId))
+    expect(response.status).toBe(409)
+    expect((await response.json()).error).toContain('عملية منحة')
+  })
+
   test('registration-only waiver does not consume the one tuition scholarship', async () => {
     seedStudentPayment('program-A')
     payments.set('grant-registration-other', {
