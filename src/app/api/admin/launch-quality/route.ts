@@ -162,7 +162,7 @@ const diagnosticStudentInclude = {
   academicMemory: true,
 }
 
-export function diagnosticStudentIsComplete(student: any): boolean {
+function diagnosticStudentIsComplete(student: any): boolean {
   if (!student || student.role !== 'STUDENT' || student.email !== LAUNCH_QUALITY_EMAIL) return false
   if (student.name !== 'طالب فحص جاهزية الإطلاق') return false
   const enrollment = (student.enrollments || []).find((entry: any) =>
