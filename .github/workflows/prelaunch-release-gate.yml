@@ -326,8 +326,8 @@ jobs:
           for endpoint in robots.txt sitemap.xml; do
             curl --fail --silent --show-error --location --retry 2 --max-time 30 \
               "${headers[@]}" "$base/$endpoint" \
-              -o "test-results/prelaunch/seo/${endpoint}.txt"
-            test -s "test-results/prelaunch/seo/${endpoint}.txt"
+              -o "test-results/prelaunch/seo/${endpoint}"
+            test -s "test-results/prelaunch/seo/${endpoint}"
           done
           grep -qi 'sitemap' test-results/prelaunch/seo/robots.txt
           grep -qi '<urlset\|<sitemapindex' test-results/prelaunch/seo/sitemap.xml
