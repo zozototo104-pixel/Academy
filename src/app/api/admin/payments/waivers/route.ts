@@ -574,7 +574,10 @@ async function reserveGrantOperation(quote: GrantQuote, adminId: string) {
       if (otherIssue) throw grantError('يوجد إصدار منحة دراسية قائم لهذا الطالب أو قيد المراجعة')
       const otherCode = await tx.paymentWaiverCode.findFirst({
         where: {
-          status: { in: ['ISSUED', 'VERIFIED', 'APPROVED'] },
+          OR: [
+            { status: 'APPROVED' },
+            { status: { in: ['ISSUED', 'VERIFIED'] }, expiresAt: { gt: new Date() } },
+          ],
           waiverType: { in: ['PARTIAL_TUITION', 'FULL_SCHOLARSHIP'] },
           payment: { is: { OR: [{ userId: quote.userId }, { admission: { is: { userId: quote.userId } } }] } },
         },
