@@ -196,6 +196,19 @@ async function grantQuote(paymentId: string, policyId: string): Promise<GrantQuo
   if (priorScholarships.length) {
     throw grantError('لدى هذا الطالب منحة دراسية نشطة أو معتمدة على تسجيل آخر؛ لا يجوز إصدار منحة دراسية ثانية')
   }
+  if (policy.coverage !== 'REGISTRATION') {
+    const reservedOperation = await db.scholarshipGrantOperation.findFirst({
+      where: {
+        userId: studentUserId,
+        status: { in: ['ISSUING', 'ISSUED', 'APPROVED', 'INCOMPLETE'] },
+        definition: { is: { coverage: { in: ['TUITION', 'BOTH'] } } },
+      },
+      select: { id: true },
+    })
+    if (reservedOperation) {
+      throw grantError('هناك عملية منحة دراسية محجوزة أو قيد المراجعة لهذا الطالب؛ يجب إنهاؤها بأمان قبل إصدار منحة جديدة')
+    }
+  }
   if (policy.scope === 'INDIVIDUAL'
     && (policy.admissionId !== admissionId || policy.targetUserId !== studentUserId)) {
     throw grantError('هذه منحة فردية لطالب أو طلب قبول آخر')
