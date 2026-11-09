@@ -774,6 +774,7 @@ export async function PATCH(req: NextRequest) {
     if (!waiverId) return NextResponse.json({ error: 'معرّف كود الإعفاء مطلوب' }, { status: 400 })
 
     if (action === 'APPROVE') {
+      let approvedOperationId: string | null = null
       const existing = await db.paymentWaiverCode.findUnique({
         where: { id: waiverId },
         include: { payment: { include: { admission: { select: { id: true, programId: true, userId: true } } } } },
