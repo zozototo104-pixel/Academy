@@ -419,3 +419,46 @@ jobs:
         env:
           AACT_CONFIRM_QA_ONLY_CLEANUP: DELETE_QA_ONLY
         run: bun run data:cleanup:qa
+
+  unified-report:
+    name: Unified QA Preview PASS/FAIL report
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    needs:
+      - production-smoke
+      - static-build
+      - critical-e2e
+      - experience-guardrails
+      - cleanup-qa-fixtures
+    steps:
+      - name: Publish single release gate verdict
+        env:
+          SMOKE: ${{ needs.production-smoke.result }}
+          STATIC: ${{ needs.static-build.result }}
+          CRITICAL: ${{ needs.critical-e2e.result }}
+          EXPERIENCE: ${{ needs.experience-guardrails.result }}
+          CLEANUP: ${{ needs.cleanup-qa-fixtures.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          verdict=PASS
+          {
+            echo '## QA Preview — unified release gate'
+            echo ''
+            echo '| Phase | Result |'
+            echo '|---|---|'
+            for entry in "Public smoke:$SMOKE" "Build and domain regressions:$STATIC" "Critical E2E:$CRITICAL" "UX, mobile, quality and performance:$EXPERIENCE" "QA fixture cleanup:$CLEANUP"; do
+              phase="${entry%%:*}"
+              result="${entry#*:}"
+              echo "| $phase | $result |"
+              if [ "$result" != success ]; then verdict=FAIL; fi
+            done
+            echo ''
+            echo "**Final verdict: $verdict**"
+            echo ''
+            echo 'A PASS covers only the suites listed above; unimplemented feature scenarios are not certified.'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+          if [ "$verdict" != PASS ]; then
+            echo '::error::QA Preview release gate failed or skipped one or more required phases'
+            exit 1
+          fi
