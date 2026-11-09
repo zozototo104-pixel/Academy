@@ -752,6 +752,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const started = performance.now()
   try {
     if (!qaProdFixturesAllowed()) {
       return NextResponse.json(
