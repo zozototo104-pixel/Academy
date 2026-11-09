@@ -391,6 +391,9 @@ export async function PATCH(req: NextRequest) {
     const admin = await requireAdmin()
     const body = await req.json().catch(() => ({}))
     const action = cleanText(body.action, 40).toUpperCase()
+    if (action === 'TOGGLE_POLICY' && !GRANT_ORGANIZATION_SCHEMA_READY) {
+      return grantOrganizationUnavailable()
+    }
     if (action === 'TOGGLE_POLICY') {
       const id = cleanText(body.policyId, 60)
       const policy = await loadGrantPolicy(id)
