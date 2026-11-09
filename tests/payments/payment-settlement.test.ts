@@ -539,8 +539,19 @@ describe('organized grant eligibility before issuing an existing waiver code', (
   }
   function seedPolicy(id: string, overrides: Record<string, any> = {}) {
     const policy = { id, ...basePolicy, ...overrides }
-    const key = 'GRANT_ORGANIZATION_POLICY_V1_' + id
-    grantSettings.set(key, { key, value: JSON.stringify(policy), updatedAt: new Date() })
+    scholarshipDefinitions.set(id, {
+      ...policy,
+      value: policy.valueMode === 'FULL' ? 0 : policy.value * 100,
+      createdAt: new Date(policy.createdAt),
+      startsAt: null,
+      endsAt: null,
+      programs: (policy.programIds || []).map((programId: string) => ({ programId })),
+      operations: policy.scope === 'INDIVIDUAL' ? [{
+        admissionId: policy.admissionId,
+        userId: 'student-grant-1',
+        status: 'TARGETED',
+      }] : [],
+    })
   }
   function seedStudentPayment(programId: string) {
     const payment = {
