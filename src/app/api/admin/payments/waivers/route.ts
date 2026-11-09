@@ -90,12 +90,40 @@ function toGrantPolicy(row: StoredGrantDefinition): GrantPolicy {
 async function loadGrantPolicies(): Promise<GrantPolicy[]> {
   const rows = await db.scholarshipDefinition.findMany({
     include: {
-      programs: { select: { programId: true } },
+      programs: { select: { programId: true, seats: true } },
       operations: { where: { status: 'TARGETED' }, select: { userId: true, admissionId: true, status: true } },
     },
     orderBy: { createdAt: 'desc' },
   })
-  return rows.map(toGrantPolicy)
+  if (!rows.length) return []
+  // An issued or incomplete operation still occupies a campaign seat.
+  // Terminal cancelled operations release it. This is a read-only live count;
+  // the issuer uses its own serialized lock before reserving a seat.
+  const counts = await db.scholarshipGrantOperation.groupBy({
+    by: ['definitionId', 'programId'],
+    where: {
+      definitionId: { in: rows.map((row) => row.id) },
+      status: { in: ['ISSUING', 'ISSUED', 'APPROVED', 'INCOMPLETE'] },
+    },
+    _count: { _all: true },
+  })
+  const occupied = new Map(counts.map((item) => [
+    item.definitionId + ':' + item.programId, item._count._all,
+  ]))
+  return rows.map((row) => {
+    const policy = toGrantPolicy(row)
+    policy.programAvailability = row.programs.map((program) => {
+      const seats = program.seats ?? null
+      const used = occupied.get(row.id + ':' + program.programId) || 0
+      return {
+        programId: program.programId,
+        seats,
+        occupied: used,
+        remaining: seats == null ? null : Math.max(0, seats - used),
+      }
+    })
+    return policy
+  })
 }
 async function loadGrantPolicy(id: string): Promise<GrantPolicy> {
   if (!id || id.length > 80 || !/^[a-zA-Z0-9_-]+$/.test(id)) throw grantError('معرف المنحة غير صالح', 400)
