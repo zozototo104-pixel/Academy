@@ -1304,7 +1304,12 @@ export function AdminFinanceTab() {
           : result.whatsapp === 'skipped'
             ? 'لا يوجد رقم واتساب صالح'
             : 'فشل إرسال واتساب'
-      toast({ title: 'تم إعادة إرسال التحقق', description: `الكود الجديد: ${result.code} — ${mailNote} — ${waNote}` })
+      toast({
+        title: result.organizationWarning ? 'أعيد إرسال التحقق — ربط المنحة يحتاج مراجعة' : 'تم إعادة إرسال التحقق',
+        description: 'الكود الجديد: ' + result.code + ' — ' + mailNote + ' — ' + waNote
+          + (result.organizationWarning ? ' — ' + result.organizationWarning : ''),
+        variant: result.organizationWarning ? 'destructive' : undefined,
+      })
       load()
     } catch (e: any) {
       toast({ title: 'تعذر إعادة إرسال التحقق', description: e.message, variant: 'destructive' })
