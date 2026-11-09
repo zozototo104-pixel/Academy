@@ -973,7 +973,16 @@ export function AdminFinanceTab() {
       })
       setGeneratedWaiverCodes((prev) => ({ ...prev, [payment.id]: result.code }))
       await copyWaiverCode(payment.id, result.code)
-      toast({ title: 'صدر كود المنحة بالنظام المالي الحالي', description: result.emailStatus === 'SENT' ? 'تم إرسال الكود للطالب' : 'راجع إرسال البريد أو شارك الكود يدويًا' })
+      const mailNote = result.emailStatus === 'SENT'
+        ? 'تم إرسال البريد ✅'
+        : result.emailStatus === 'FAILED'
+          ? 'فشل إرسال البريد، انسخ الكود يدوياً'
+          : 'لم يتم إرسال بريد، انسخ الكود يدوياً'
+      toast({
+        title: 'صدر كود المنحة بالنظام المالي الحالي',
+        description: mailNote,
+        variant: result.emailStatus === 'FAILED' ? 'destructive' : undefined,
+      })
       setGrantQuoteDialog(null)
       load()
     } catch (error: any) {
