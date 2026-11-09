@@ -228,6 +228,25 @@ jobs:
       - name: Run full platform route crawler
         run: bun run e2e:routes
 
+      - name: Verify public SEO discovery endpoints on QA Preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="${E2E_BASE_URL%/}"
+          headers=()
+          if [ -n "${VERCEL_AUTOMATION_BYPASS_SECRET:-}" ]; then
+            headers=(-H "x-vercel-protection-bypass: ${VERCEL_AUTOMATION_BYPASS_SECRET}")
+          fi
+          mkdir -p test-results/prelaunch/seo
+          for endpoint in robots.txt sitemap.xml; do
+            curl --fail --silent --show-error --location --retry 2 --max-time 30 \
+              "${headers[@]}" "$base/$endpoint" \
+              -o "test-results/prelaunch/seo/${endpoint}.txt"
+            test -s "test-results/prelaunch/seo/${endpoint}.txt"
+          done
+          grep -qi 'sitemap' test-results/prelaunch/seo/robots.txt
+          grep -qi '<urlset\|<sitemapindex' test-results/prelaunch/seo/sitemap.xml
+
       - name: Sanitize critical E2E diagnostics before upload
         if: always()
         run: bash scripts/sanitize-e2e-artifacts.sh test-results playwright-report
