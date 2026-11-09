@@ -768,6 +768,46 @@ describe('organized grant eligibility before issuing an existing waiver code', (
     expect(availableSeats.remaining).toBe(2)
   })
 
+  test('organized approval refuses missing links, unfinished operation and changed student program', async () => {
+    const payment = seedStudentPayment('program-A')
+    seedPolicy(programPolicyId)
+    const waiverId = 'organized-verified-1'
+    waiverCodes.push({
+      id: waiverId, paymentId: payment.id, status: 'VERIFIED', waiverType: 'PARTIAL_TUITION',
+      reason: 'قرار لجنة المنح [GRANT:' + programPolicyId + ']',
+      requestedAmountCents: 5000, codePreview: 'TEST-ONLY',
+    })
+    const approve = () => waiversRoutePATCH(new NextRequest('http://localhost/api/admin/payments/waivers', {
+      method: 'PATCH', body: JSON.stringify({ action: 'APPROVE', waiverId }),
+    }))
+    const withoutLink = await approve()
+    expect(withoutLink.status).toBe(409)
+    expect((await withoutLink.json()).code).toBe('GRANT_LINK_MISSING')
+
+    scholarshipOperations.set('op-organized-1', {
+      id: 'op-organized-1', definitionId: programPolicyId,
+      userId: 'student-grant-1', admissionId: 'admission-1', programId: 'program-A',
+      status: 'INCOMPLETE', expectedCodes: 1, expectedCents: 5000,
+    })
+    scholarshipLinks.set('link-organized-1', {
+      id: 'link-organized-1', operationId: 'op-organized-1',
+      definitionId: programPolicyId, waiverCodeId: waiverId, paymentId: payment.id,
+      userId: 'student-grant-1', admissionId: 'admission-1', programId: 'program-A',
+      baseCents: 19999, grantCents: 5000,
+    })
+    const incomplete = await approve()
+    expect(incomplete.status).toBe(409)
+    expect((await incomplete.json()).code).toBe('GRANT_OPERATION_INCOMPLETE')
+
+    scholarshipOperations.get('op-organized-1')!.status = 'ISSUED'
+    payment.admission.programId = 'program-B'
+    const changedProgram = await approve()
+    expect(changedProgram.status).toBe(409)
+    expect((await changedProgram.json()).code).toBe('GRANT_PROGRAM_CHANGED')
+    expect(waiverCodes.find((item) => item.id === waiverId)?.status).toBe('VERIFIED')
+    expect(payments.get(payment.id)?.status).toBe('UNPAID')
+  })
+
   test('server blocks a program grant when the applicant belongs to another specialty', async () => {
     seedStudentPayment('program-B')
     seedPolicy(programPolicyId)
