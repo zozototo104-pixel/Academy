@@ -435,6 +435,131 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  database-concurrency:
+    name: Real PostgreSQL concurrency and migration rehearsal
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: aact_concurrency_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+
+    env:
+      CI: true
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aact_concurrency_test
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/aact_concurrency_test
+      WAIVER_PG_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/academy_waiver_test
+      GRANTS_PG_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aact_concurrency_test
+      LIVE_PG_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/academy_live_test
+      MIGRATION_REHEARSAL_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile || bun install
+
+      - name: Generate Prisma client
+        run: bunx prisma generate
+
+      - name: Create isolated per-suite databases on the throwaway service
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PGPASSWORD=postgres
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -c "CREATE DATABASE academy_waiver_test" \
+            -c "CREATE DATABASE academy_live_test"
+
+      - name: Run waiver and scholarship concurrency races on real PostgreSQL
+        run: bun run test:waiver-pg-concurrency
+
+      - name: Run live-allocation concurrency on real PostgreSQL
+        run: bun run test:live-allocation-pg
+
+      - name: Run migration rehearsal against the throwaway service
+        run: bun run test:migration-rehearsal
+
+  security-authorization:
+    name: Security and authorization regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: qa-e2e
+
+    env:
+      CI: true
+      E2E_BASE_URL: ${{ inputs.base_url }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.QA_VERCEL_BYPASS }}
+      E2E_ALLOWED_BASE_URLS: ${{ vars.QA_ALLOWED_BASE_URLS }}
+      E2E_QA_ONLY: "1"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile || bun install
+
+      - name: Generate Prisma client
+        run: bunx prisma generate
+
+      - name: Install Chromium for Playwright
+        run: bunx playwright install --with-deps chromium
+
+      - name: Validate security QA base URL allowlist
+        run: bash scripts/validate-e2e-base-url.sh "${E2E_BASE_URL}"
+
+      - name: Run security and authorization suites
+        run: |
+          set -euo pipefail
+          for suite in \
+            test:security-audit test:stage-b-sessions test:demo-accounts-gate \
+            test:cron-auth test:supervisor-scope; do
+            echo "::group::${suite}"
+            bun run "$suite"
+            echo "::endgroup::"
+          done
+
+      - name: Run public settings secret-exposure spec
+        run: bunx playwright test --config=playwright.config.ts tests/e2e/settings-security.spec.ts
+
+      - name: Sanitize security diagnostics before upload
+        if: always()
+        run: bash scripts/sanitize-e2e-artifacts.sh test-results playwright-report
+
+      - name: Upload security diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prelaunch-security-authorization
+          path: |
+            test-results/**
+            playwright-report/**
+          if-no-files-found: warn
+          retention-days: 14
+
   cleanup-qa-fixtures:
     name: Cleanup QA workflow fixtures
     runs-on: ubuntu-latest
@@ -490,6 +615,8 @@ jobs:
       - static-build
       - critical-e2e
       - experience-guardrails
+      - database-concurrency
+      - security-authorization
       - cleanup-qa-fixtures
     steps:
       - name: Publish single release gate verdict
@@ -498,28 +625,90 @@ jobs:
           STATIC: ${{ needs.static-build.result }}
           CRITICAL: ${{ needs.critical-e2e.result }}
           EXPERIENCE: ${{ needs.experience-guardrails.result }}
+          CONCURRENCY: ${{ needs.database-concurrency.result }}
+          SECURITY: ${{ needs.security-authorization.result }}
           CLEANUP: ${{ needs.cleanup-qa-fixtures.result }}
+          GATE_BRANCH: ${{ github.ref_name }}
+          GATE_COMMIT: ${{ github.sha }}
+          GATE_PREVIEW: ${{ inputs.base_url }}
         shell: bash
         run: |
           set -euo pipefail
-          verdict=PASS
+          verdict=GO
+          blockers=''
+          classify() {
+            # success -> PASS; failure -> FAILED (blocks GO);
+            # skipped/cancelled -> NOT RUN (blocks GO: a critical phase that
+            # never ran can never be certified by an aggregate pass rate).
+            case "$1" in
+              success) echo 'PASS' ;;
+              failure) echo 'FAILED' ;;
+              *) echo 'NOT RUN' ;;
+            esac
+          }
           {
-            echo '## QA Preview — unified release gate'
+            echo '# AACT Academy — Unified Release Gate Report'
             echo ''
-            echo '| Phase | Result |'
+            echo '| Field | Value |'
             echo '|---|---|'
-            for entry in "Public smoke:$SMOKE" "Build and domain regressions:$STATIC" "Critical E2E:$CRITICAL" "UX, mobile, quality and performance:$EXPERIENCE" "QA fixture cleanup:$CLEANUP"; do
+            echo "| Branch | $GATE_BRANCH |"
+            echo "| Commit | $GATE_COMMIT |"
+            echo "| Preview | $GATE_PREVIEW |"
+            echo '| QA Database | Isolated QA database (secret-managed QA_DATABASE_URL); every preview-facing job validates the base URL against QA_ALLOWED_BASE_URLS before any test runs, and production is never a default target. Concurrency suites run against a throwaway PostgreSQL 16 service created for this job only. |'
+            echo ''
+            echo '## Phase results'
+            echo ''
+            echo '| Phase | Job result | Classification |'
+            echo '|---|---|---|'
+            for entry in "Public smoke:$SMOKE" "Build, schema and domain regressions:$STATIC" "Critical browser E2E:$CRITICAL" "Launch quality, UX, mobile and performance:$EXPERIENCE" "Real-PostgreSQL concurrency and migration rehearsal:$CONCURRENCY" "Security and authorization:$SECURITY" "QA fixture cleanup:$CLEANUP"; do
               phase="${entry%%:*}"
               result="${entry#*:}"
-              echo "| $phase | $result |"
-              if [ "$result" != success ]; then verdict=FAIL; fi
+              cls="$(classify "$result")"
+              echo "| $phase | $result | $cls |"
+              if [ "$cls" != 'PASS' ]; then
+                verdict=NO-GO
+                blockers="${blockers}- ${phase}: ${cls} (job result: ${result})\n"
+              fi
             done
             echo ''
-            echo "**Final verdict: $verdict**"
+            echo '## Coverage map (required area -> gate job)'
             echo ''
-            echo 'A PASS covers only the suites listed above; unimplemented feature scenarios are not certified.'
-          } | tee -a "$GITHUB_STEP_SUMMARY"
-          if [ "$verdict" != PASS ]; then
-            echo '::error::QA Preview release gate failed or skipped one or more required phases'
+            echo '| Area | Covered by |'
+            echo '|---|---|'
+            echo '| Static checks (TypeScript) | Build, schema and domain regressions |'
+            echo '| Build and schema validation | Build, schema and domain regressions; migration rehearsal inside Real-PostgreSQL concurrency |'
+            echo '| Academic lifecycle regressions (units, semester exams, approvals, mercy, progression, graduation) | Build, schema and domain regressions (bun suites) + Critical browser E2E (full journey) |'
+            echo '| Finance and scholarship regressions | Build, schema and domain regressions (payments, waiver, scholarship suites) + Real-PostgreSQL concurrency |'
+            echo '| Books and assignments | Build, schema and domain regressions + Critical browser E2E (book access guard) |'
+            echo '| AI and agents (PROFILE, CURRICULUM, THESIS, DEFENSE probes, fail-closed) | Build, schema and domain regressions (AI suites) + Launch quality |'
+            echo '| Security and authorization | Security and authorization job + authorization probes inside the full journey and admin smoke |'
+            echo '| Browser E2E | Critical browser E2E |'
+            echo '| Mobile, UX and accessibility guardrails | Launch quality, UX, mobile and performance |'
+            echo '| Performance guardrails | Launch quality, UX, mobile and performance |'
+            echo '| Database concurrency (real PostgreSQL) | Real-PostgreSQL concurrency and migration rehearsal |'
+            echo '| Cleanup and isolation verification | QA fixture cleanup (dry-run then QA-only execute) + malformed-identifier guards inside the full journey |'
+            echo '| Unified release verdict | This report |'
+            echo ''
+            echo "## Release Verdict: $verdict"
+            echo ''
+            if [ "$verdict" = 'NO-GO' ]; then
+              echo '### Blockers'
+              echo ''
+              printf '%b' "$blockers"
+              echo ''
+            fi
+            echo 'A GO covers only the suites and scenarios that actually ran above; anything classified NOT RUN blocks GO and is listed as a blocker. Per-suite test counts live in each job artifact (test-results, playwright-report, full-journey and launch-quality reports). Voice coverage is readiness/token level unless E2E_RUN_VOICE_TOKEN is enabled by the operator; a live voice session is never claimed from a token check.'
+          } | tee release-verdict.md | tee -a "$GITHUB_STEP_SUMMARY"
+          if [ "$verdict" != GO ]; then
+            echo '::error::QA Preview release gate verdict is NO-GO (a required phase failed or did not run)'
             exit 1
           fi
+
+      - name: Upload unified release verdict
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prelaunch-release-verdict
+          path: release-verdict.md
+          if-no-files-found: warn
+          retention-days: 14
