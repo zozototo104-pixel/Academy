@@ -112,6 +112,36 @@ function elapsed(start: number) {
   return Math.round(performance.now() - start)
 }
 
+const LAUNCH_QUALITY_REQUEST_BUDGET_MS = 70_000
+const PROVIDER_DIAGNOSTICS_TTL_MS = 60_000
+let providerDiagnosticsCache: { expiresAt: number; value: Awaited<ReturnType<typeof textAiDiagnostics>> } | null = null
+let providerDiagnosticsInFlight: Promise<Awaited<ReturnType<typeof textAiDiagnostics>>> | null = null
+
+async function cachedProviderDiagnostics() {
+  if (providerDiagnosticsCache && Date.now() < providerDiagnosticsCache.expiresAt) return providerDiagnosticsCache.value
+  if (providerDiagnosticsInFlight) return providerDiagnosticsInFlight
+  const pending = textAiDiagnostics().then((value) => {
+    providerDiagnosticsCache = { expiresAt: Date.now() + PROVIDER_DIAGNOSTICS_TTL_MS, value }
+    return value
+  })
+  providerDiagnosticsInFlight = pending
+  try { return await pending } finally { if (providerDiagnosticsInFlight === pending) providerDiagnosticsInFlight = null }
+}
+
+function logLaunchQualityStage(stage: string, start: number, ok: boolean) {
+  console.info(`[launch-quality] stage=${stage} durationMs=${elapsed(start)} ok=${ok}`)
+}
+
+function launchQualityDeadlineError(stage: string) {
+  return `LAUNCH_QUALITY_DEADLINE_EXCEEDED_AT_${stage.replace(/[^A-Z0-9]/gi, '_').toUpperCase()}`
+}
+
+function remainingLaunchQualityBudget(deadline: number, stage: string): number {
+  const remaining = Math.floor(deadline - performance.now())
+  if (remaining <= 0) throw new Error(launchQualityDeadlineError(stage))
+  return remaining
+}
+
 const diagnosticStudentInclude = {
   enrollments: {
     where: { status: { in: ['ACTIVE', 'COMPLETED'] } },
