@@ -27,6 +27,9 @@ type GrantPolicy = {
   value: number; reason: string; active: boolean; createdAt: string
   targetUserId?: string | null
   startsAt?: string | null; endsAt?: string | null
+  programAvailability?: Array<{
+    programId: string; seats: number | null; occupied: number; remaining: number | null
+  }>
 }
 type GrantQuote = {
   policy: GrantPolicy; paymentId: string; admissionId: string; programId: string; userId: string
