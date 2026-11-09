@@ -360,13 +360,9 @@ export async function POST(req: NextRequest) {
     const reason = cleanText(body.reason)
     const requestedAmount = body.requestedAmount === undefined || body.requestedAmount === null || body.requestedAmount === '' ? null : Number(body.requestedAmount)
     if (!paymentId) return NextResponse.json({ error: 'معرّف الفاتورة مطلوب' }, { status: 400 })
-    const policies = await loadGrantPolicies()
-    if (policies.length) {
-      const admissionLinked = await db.payment.findUnique({ where: { id: paymentId }, select: { admissionId: true } })
-      if (admissionLinked?.admissionId) {
-        return NextResponse.json({ error: 'أصدر الإعفاء من تبويب تنظيم المنح بعد تحديد السياسة المناسبة أو المنحة الفردية', code: 'GRANT_POLICY_REQUIRED' }, { status: 409 })
-      }
-    }
+    // Existing financial waivers continue on their original route while
+    // the separate organization schema is not active. Never use draft
+    // definitions in Setting to change eligibility for historical invoices.
     if (!isPaymentWaiverType(waiverType)) return NextResponse.json({ error: 'نوع الإعفاء غير صحيح' }, { status: 400 })
     const result = await createPaymentWaiverCode({
       paymentId,
