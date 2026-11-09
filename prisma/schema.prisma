@@ -2783,3 +2783,101 @@ model AdminMeetingAgentEvent {
 
   @@index([meetingId, createdAt])
 }
+
+// ─── Scholarship organization layer (additive; the waiver engine in
+// src/lib/payment-waivers.ts is untouched and remains the only issuer) ───
+
+model ScholarshipDefinition {
+  id          String   @id @default(cuid())
+  title       String
+  scope       String   @default("GENERAL") // GENERAL | PROGRAM | INDIVIDUAL
+  coverage    String   @default("TUITION") // REGISTRATION | TUITION | BOTH
+  valueMode   String   @default("FULL") // FULL | PERCENT | AMOUNT
+  value       Int      @default(0) // PERCENT: basis points (2500 = 25%); AMOUNT: cents; FULL: unused
+  reason      String   @default("")
+  active      Boolean  @default(false)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  programs   ScholarshipDefinitionProgram[]
+  operations ScholarshipGrantOperation[]
+  links      ScholarshipGrantLink[]
+  waitlist   ScholarshipWaitlistEntry[]
+
+  @@index([scope, active])
+}
+
+model ScholarshipDefinitionProgram {
+  id           String @id @default(cuid())
+  definitionId String
+  programId    String
+  seats        Int? // null = no seat cap for this program under this definition
+
+  definition ScholarshipDefinition @relation(fields: [definitionId], references: [id], onDelete: Cascade)
+
+  @@unique([definitionId, programId])
+  @@index([programId])
+}
+
+model ScholarshipGrantOperation {
+  id            String   @id @default(cuid())
+  definitionId  String
+  userId        String
+  admissionId   String
+  programId     String
+  status        String   @default("ISSUING") // ISSUING | ISSUED | INCOMPLETE | CANCELLED
+  expectedCodes Int      @default(0)
+  expectedCents Int      @default(0)
+  createdById   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  definition ScholarshipDefinition @relation(fields: [definitionId], references: [id], onDelete: Restrict)
+  links      ScholarshipGrantLink[]
+
+  @@index([userId])
+  @@index([admissionId])
+  @@index([definitionId, status])
+}
+
+model ScholarshipGrantLink {
+  id           String   @id @default(cuid())
+  definitionId String
+  operationId  String?
+  waiverCodeId String   @unique
+  paymentId    String
+  userId       String
+  admissionId  String
+  programId    String
+  percentBps   Int?
+  baseCents    Int
+  grantCents   Int
+  createdAt    DateTime @default(now())
+
+  definition ScholarshipDefinition      @relation(fields: [definitionId], references: [id], onDelete: Restrict)
+  operation  ScholarshipGrantOperation? @relation(fields: [operationId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([admissionId])
+  @@index([operationId])
+}
+
+model ScholarshipWaitlistEntry {
+  id           String   @id @default(cuid())
+  definitionId String
+  userId       String
+  admissionId  String?
+  programId    String
+  status       String   @default("WAITING") // WAITING | NOTIFIED | FULFILLED | LEFT
+  releaseKey   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  definition ScholarshipDefinition @relation(fields: [definitionId], references: [id], onDelete: Cascade)
+
+  @@unique([definitionId, userId])
+  @@index([definitionId, status, createdAt])
+}
