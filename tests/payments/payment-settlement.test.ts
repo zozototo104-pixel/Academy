@@ -607,7 +607,7 @@ describe('organized grant eligibility before issuing an existing waiver code', (
     expect(response.status).toBe(200)
   })
   test('unlinked student identity is not accepted for tuition scholarships', async () => {
-    const payment = seedStudentPayment('program-A')
+    const payment: any = seedStudentPayment('program-A')
     payment.userId = null
     payment.admission.userId = null
     seedPolicy(programPolicyId)
