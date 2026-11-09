@@ -1835,11 +1835,9 @@ export function AdminFinanceTab() {
                                 )
                               }
                               return (
-                                <div className="flex flex-wrap gap-1">
-                                  {p.purpose === 'APPLICATION_FEE' && <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => generateWaiver(p, 'APPLICATION_FEE')} className="h-7 border-blue-200 text-[10px] font-black text-blue-700">{busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}كود إعفاء التسجيل</Button>}
-                                  {['APPLICATION_FEE', 'TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => generateWaiver(p, 'PARTIAL_TUITION')} className="h-7 border-amber-200 text-[10px] font-black text-amber-700">{busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}إعفاء جزئي</Button>}
-                                  {['TUITION', 'TUITION_INSTALLMENT', 'APPLICATION_FEE'].includes(p.purpose) && <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => generateWaiver(p, 'FULL_SCHOLARSHIP')} className="h-7 border-emerald-200 text-[10px] font-black text-emerald-700">{busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}منحة كاملة</Button>}
-                                </div>
+                                <span className="block max-w-[260px] text-xs font-bold leading-5 text-slate-600">
+                                  إصدار المنح الجديدة متاح حصريًا من تنظيم المنح بعد استكمال التفعيل. تبقى إعادة الإرسال والاعتماد والإلغاء متاحة للأكواد الحالية.
+                                </span>
                               )
                             })()}
                           </div>
