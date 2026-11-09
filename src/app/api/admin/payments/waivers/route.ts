@@ -446,6 +446,99 @@ async function createOrganizedPolicy(body: any, admin: { id: string; name?: stri
   return policy
 }
 
+// One engine-issued code per operation. The existing waiver engine may apply
+// that code to multiple invoices; do not make extra codes for those effects.
+async function reserveGrantOperation(quote: GrantQuote, adminId: string) {
+  return db.$transaction(async (tx) => {
+    // These row locks serialize separate admins racing for one student or the
+    // final campaign seat. They do not change any existing student records.
+    const userRows = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM "User" WHERE id = ${quote.userId} FOR UPDATE`
+    if (userRows.length !== 1) throw grantError('تعذر تثبيت هوية الطالب وقت إصدار المنحة')
+    const policyRows = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM "ScholarshipDefinition" WHERE id = ${quote.policy.id} FOR UPDATE`
+    if (policyRows.length !== 1) throw grantError('تعذر تثبيت تعريف المنحة وقت الإصدار')
+    const definition = await tx.scholarshipDefinition.findUnique({
+      where: { id: quote.policy.id },
+      include: { programs: { select: { programId: true, seats: true } } },
+    })
+    if (!definition?.active) throw grantError('تم إيقاف هذه المنحة')
+    if ((definition.startsAt && new Date() < definition.startsAt)
+      || (definition.endsAt && new Date() > definition.endsAt)) {
+      throw grantError('المنحة خارج فترة الإصدار المسموحة')
+    }
+    if (definition.scope === 'PROGRAM'
+      && !definition.programs.some((item) => item.programId === quote.programId)) {
+      throw grantError('البرنامج غير مشمول بهذه المنحة')
+    }
+    if (definition.scope === 'INDIVIDUAL') {
+      const target = await tx.scholarshipGrantOperation.findFirst({
+        where: { definitionId: quote.policy.id, status: 'TARGETED' },
+        select: { userId: true, admissionId: true },
+      })
+      if (!target || target.userId !== quote.userId || target.admissionId !== quote.admissionId) {
+        throw grantError('مستفيد المنحة الفردية لا يطابق الطالب الحالي')
+      }
+    }
+    const invoice = await tx.payment.findUnique({
+      where: { id: quote.paymentId },
+      include: { admission: { select: { id: true, userId: true, programId: true } } },
+    })
+    if (!invoice || invoice.status !== 'UNPAID'
+      || invoice.admission?.id !== quote.admissionId
+      || invoice.admission?.userId !== quote.userId
+      || invoice.admission?.programId !== quote.programId
+      || amountCents(invoice) !== quote.invoiceBaseCents) {
+      throw grantError('تغيرت الفاتورة أو صاحبها؛ أعد معاينة المنحة قبل الإصدار')
+    }
+    const coveredInvoices = await tx.payment.findMany({
+      where: { id: { in: quote.paymentIds } },
+      select: { id: true, status: true, purpose: true, amount: true, amountCents: true },
+    })
+    if (coveredInvoices.length !== quote.paymentIds.length
+      || coveredInvoices.some((item) => item.status !== 'UNPAID')) {
+      throw grantError('تغيرت فواتير الرسوم المشمولة؛ لا يمكن إصدار المنحة الجزئية')
+    }
+    if (definition.coverage !== 'REGISTRATION') {
+      const otherIssue = await tx.scholarshipGrantOperation.findFirst({
+        where: {
+          userId: quote.userId,
+          status: { in: ['ISSUING', 'ISSUED', 'APPROVED', 'INCOMPLETE'] },
+          definition: { is: { coverage: { in: ['TUITION', 'BOTH'] } } },
+        },
+        select: { id: true },
+      })
+      if (otherIssue) throw grantError('يوجد إصدار منحة دراسية قائم لهذا الطالب أو قيد المراجعة')
+      const otherCode = await tx.paymentWaiverCode.findFirst({
+        where: {
+          status: { in: ['ISSUED', 'VERIFIED', 'APPROVED'] },
+          waiverType: { in: ['PARTIAL_TUITION', 'FULL_SCHOLARSHIP'] },
+          payment: { is: { OR: [{ userId: quote.userId }, { admission: { is: { userId: quote.userId } } }] } },
+        },
+        select: { id: true },
+      })
+      if (otherCode) throw grantError('لدى الطالب منحة دراسية قديمة سارية؛ يمنع إصدار منحة ثانية')
+    }
+    const seatRule = definition.programs.find((item) => item.programId === quote.programId)
+    if (seatRule?.seats != null) {
+      if (!Number.isSafeInteger(seatRule.seats) || seatRule.seats < 1) throw grantError('عدد مقاعد المنحة غير صالح')
+      const occupied = await tx.scholarshipGrantOperation.count({
+        where: {
+          definitionId: definition.id, programId: quote.programId,
+          status: { in: ['ISSUING', 'ISSUED', 'APPROVED', 'INCOMPLETE'] },
+        },
+      })
+      if (occupied >= seatRule.seats) throw grantError('اكتملت المقاعد المتاحة لهذا البرنامج')
+    }
+    return tx.scholarshipGrantOperation.create({
+      data: {
+        definitionId: definition.id, userId: quote.userId,
+        admissionId: quote.admissionId, programId: quote.programId,
+        status: 'ISSUING', expectedCodes: 1,
+        expectedCents: quote.grantCents, createdById: adminId,
+      },
+    })
+  })
+}
+
 export async function POST(req: NextRequest) {
   try {
     const admin = await requireAdmin()
