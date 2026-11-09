@@ -196,6 +196,18 @@ const db: any = {
     },
   },
   paymentWaiverCode: {
+    findMany: async ({ where }: any) => waiverCodes.filter((row) => {
+      if (where?.status?.in && !where.status.in.includes(row.status)) return false
+      if (where?.waiverType?.in && !where.waiverType.in.includes(row.waiverType)) return false
+      const payment = payments.get(row.paymentId)
+      if (!payment) return false
+      const ownership = where?.payment?.is?.OR
+      if (ownership && !ownership.some((rule: any) =>
+        (rule.userId && payment.userId === rule.userId) ||
+        (rule.admission?.is?.userId && payment.admission?.userId === rule.admission.is.userId)
+      )) return false
+      return true
+    }).map((row) => ({ ...row, payment: payments.get(row.paymentId) })),
     count: async ({ where }: any) => waiverCodes.filter((row) =>
       (!where?.paymentId?.in || where.paymentId.in.includes(row.paymentId))
       && (!where?.status?.in || where.status.in.includes(row.status))
