@@ -691,6 +691,29 @@ describe('organized grant eligibility before issuing an existing waiver code', (
     expect(grantSettings.size).toBe(0)
   })
 
+  test('campaign seat counts include pending issues but release successfully cancelled operations', async () => {
+    seedPolicy(programPolicyId)
+    scholarshipDefinitions.get(programPolicyId)!.programs[0].seats = 2
+    scholarshipOperations.set('seat-a', {
+      id: 'seat-a', definitionId: programPolicyId, programId: 'program-A', status: 'INCOMPLETE',
+    })
+    scholarshipOperations.set('seat-b', {
+      id: 'seat-b', definitionId: programPolicyId, programId: 'program-A', status: 'CANCELLED',
+    })
+    const request = new NextRequest('http://localhost/api/admin/payments/waivers?mode=policies')
+    const first = await waiversRouteGET(request)
+    expect(first.status).toBe(200)
+    const firstSeats = (await first.json()).policies[0].programAvailability[0]
+    expect(firstSeats.seats).toBe(2)
+    expect(firstSeats.occupied).toBe(1)
+    expect(firstSeats.remaining).toBe(1)
+    scholarshipOperations.get('seat-a')!.status = 'CANCELLED'
+    const second = await waiversRouteGET(new NextRequest('http://localhost/api/admin/payments/waivers?mode=policies'))
+    const availableSeats = (await second.json()).policies[0].programAvailability[0]
+    expect(availableSeats.occupied).toBe(0)
+    expect(availableSeats.remaining).toBe(2)
+  })
+
   test('server blocks a program grant when the applicant belongs to another specialty', async () => {
     seedStudentPayment('program-B')
     seedPolicy(programPolicyId)
