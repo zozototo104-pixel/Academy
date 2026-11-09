@@ -293,6 +293,7 @@ const db: any = {
     }).map((row) => ({ ...row, payment: payments.get(row.paymentId) })),
     count: async ({ where }: any) => waiverCodes.filter((row) =>
       (!where?.paymentId?.in || where.paymentId.in.includes(row.paymentId))
+      && (!where?.id?.in || where.id.in.includes(row.id))
       && (!where?.status?.in || where.status.in.includes(row.status))
     ).length,
     findUnique: async ({ where, include }: { where: Record<string, any>; include?: Record<string, any> }) => {
