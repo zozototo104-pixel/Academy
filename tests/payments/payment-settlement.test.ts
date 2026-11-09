@@ -1174,6 +1174,53 @@ describe('waiver cancel reversal (audit fix 2)', () => {
     })
   }
 
+  function seedOrganizedFullGrant() {
+    seedFullScholarshipActivation()
+    const reason = 'منحة كاملة معتمدة [GRANT:organized-policy-1]'
+    for (const paymentId of ['fee', 'tuition']) {
+      payments.get(paymentId)!.waiverReason = reason
+    }
+    waiverCodes.find((code) => code.id === 'wv-full')!.reason = reason
+    scholarshipOperations.set('grant-operation-1', {
+      id: 'grant-operation-1', definitionId: 'organized-policy-1',
+      userId: 'student-1', admissionId: 'admission-1', programId: 'program-1',
+      status: 'APPROVED', expectedCodes: 1, expectedCents: 35000,
+    })
+    scholarshipLinks.set('grant-link-1', {
+      id: 'grant-link-1', operationId: 'grant-operation-1',
+      waiverCodeId: 'wv-full', paymentId: 'tuition', definitionId: 'organized-policy-1',
+      userId: 'student-1', admissionId: 'admission-1', programId: 'program-1',
+      baseCents: 35000, grantCents: 35000,
+    })
+  }
+
+  test('successful organized grant cancellation releases the seat with the financial reversal', async () => {
+    seedOrganizedFullGrant()
+    const res = await waiversRoutePATCH(patchRequest('http://localhost/api/admin/payments/waivers', {
+      action: 'CANCEL', waiverId: 'wv-full',
+    }))
+    expect(res.status).toBe(200)
+    expect(scholarshipOperations.get('grant-operation-1')?.status).toBe('CANCELLED')
+    expect(enrollments.get('student-1:program-1')?.status).toBe('PENDING_PAYMENT')
+    expect(payments.get('tuition')?.status).toBe('UNPAID')
+  })
+
+  test('unsafe organized cancellation keeps both enrollment and campaign seat reserved', async () => {
+    seedOrganizedFullGrant()
+    payments.set('paid-installment', {
+      id: 'paid-installment', admissionId: 'admission-1', userId: 'student-1',
+      purpose: 'TUITION_INSTALLMENT', status: 'PAID', amount: 40, amountCents: 4000,
+    })
+    const res = await waiversRoutePATCH(patchRequest('http://localhost/api/admin/payments/waivers', {
+      action: 'CANCEL', waiverId: 'wv-full',
+    }))
+    expect(res.status).toBe(409)
+    expect((await res.json()).code).toBe('WAIVER_CANCEL_UNSAFE')
+    expect(scholarshipOperations.get('grant-operation-1')?.status).toBe('APPROVED')
+    expect(enrollments.get('student-1:program-1')?.status).toBe('ACTIVE')
+    expect(payments.get('tuition')?.status).toBe('WAIVED')
+  })
+
   test('safe cancel restores both invoices, the admission stage and the enrollment', async () => {
     seedFullScholarshipActivation()
     const res = await waiversRoutePATCH(patchRequest('http://localhost/api/admin/payments/waivers', { action: 'CANCEL', waiverId: 'wv-full' }))
