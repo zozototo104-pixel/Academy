@@ -929,7 +929,7 @@ export async function PATCH(req: NextRequest) {
         return { status: 200, body: { ok: true, operationId, decision, operation }, audit: 'GRANT_OPERATION_RESOLVED_RESTORE' }
       })
       if (outcome.audit) {
-        await audit(admin.id, outcome.audit, 'ScholarshipGrantOperation', operationId,
+        await audit({ id: admin.id, name: admin.name || admin.email || 'Admin' }, outcome.audit, 'ScholarshipGrantOperation', operationId,
           'تسوية عملية منحة عالقة — ' + decision + ' — طالب ' + outcome.body.operation.userId)
         if (decision === 'RELEASE') {
           await pruneWaitlistsQuietly(outcome.body.operation.userId)
