@@ -4,14 +4,11 @@ import { requireAdmin } from '@/lib/auth'
 import { ActivePaymentWaiverExistsError, approvePaymentWaiver, createPaymentWaiverCode, isPaymentWaiverType, resendPaymentWaiverCode } from '@/lib/payment-waivers'
 import { audit } from '@/lib/notify'
 
-// Administrative grant organization metadata is separate from the established
-// waiver ledger. A dedicated schema migration is intentionally NOT attempted here:
-// the connected GitHub writer cannot create new migration files.
-const GRANT_POLICY_PREFIX = 'GRANT_ORGANIZATION_POLICY_V1_'
+// Administrative scholarship metadata has its own additive Prisma migration.
+// The legacy waiver ledger remains the only source of financial settlement.
+// Organization issuance is gated until seat reservations, linked-code
+// approvals and rollout tests are complete. Historical codes remain valid.
 const GRANT_LINK_PREFIX = 'GRANT_ORGANIZATION_LINK_V1_'
-// Do not enable administrative grant issuance until dedicated grant tables,
-// migration and transactional seat/issue linking are deployed and verified.
-// Legacy financial waiver operations must remain available and unchanged.
 const GRANT_ORGANIZATION_SCHEMA_READY = false
 function grantOrganizationUnavailable() {
   return NextResponse.json({
