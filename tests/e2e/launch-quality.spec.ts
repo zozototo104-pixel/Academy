@@ -210,6 +210,16 @@ test.describe('AACT launch quality suite', () => {
     expect(ai.studentContext?.contextChars || 0, 'Supervisor context must contain enough student/curriculum/research data').toBeGreaterThan(500)
     expect(ai.summary?.hasUsefulContext, 'AI context must include useful student curriculum/research data').toBe(true)
     expect(ai.summary?.score || 0, `AI probe score is too low: ${JSON.stringify(ai.summary)}`).toBeGreaterThanOrEqual(75)
+    // A high aggregate score must not conceal a failed or skipped academic AI scenario.
+    for (const kind of probeKinds) {
+      const matching = probes.filter((probe: any) => probe.kind === kind)
+      expect(matching.length, `Missing required AI E2E probe: ${kind}`).toBeGreaterThan(0)
+      for (const probe of matching) {
+        expect(probe.skipped, `Required AI E2E probe ${kind} was skipped: ${JSON.stringify(probe)}`).not.toBe(true)
+        expect(probe.passed, `Required AI E2E probe ${kind} failed: ${JSON.stringify(probe)}`).toBe(true)
+        expect(probe.genericFallback, `Required AI E2E probe ${kind} returned a generic fallback`).not.toBe(true)
+      }
+    }
     if (requireVoiceReady) {
       expect(ai.voiceReadiness?.supervisor?.ok, `Supervisor voice readiness must be OK: ${JSON.stringify(ai.voiceReadiness?.supervisor)}`).toBe(true)
       expect(ai.voiceReadiness?.discussion?.ok, `Discussion voice readiness must be OK: ${JSON.stringify(ai.voiceReadiness?.discussion)}`).toBe(true)
