@@ -175,13 +175,22 @@ describe('AdminFinanceTab workspace organization', () => {
       'setProofReviewBusy(null)',
     ])
 
-    requireAll(functionBody('generateWaiver'), [
-      "api<{ code: string; waiver: PaymentWaiverCodeRow; emailStatus?: 'SENT' | 'FAILED' | 'SKIPPED' }>('/api/admin/payments/waivers', {",
-      "method: 'POST'",
-      'body: JSON.stringify({ paymentId: payment.id, waiverType, requestedAmount, reason })',
-      'setGeneratedWaiverCodes((prev) => ({ ...prev, [payment.id]: result.code }))',
-      'await copyWaiverCode(payment.id, result.code)',
-      'load()',
+    // Issuing a new grant now requires a saved definition, a server quote,
+    // and the dedicated ISSUE_POLICY action. Historical waiver creation
+    // is not available through the finance UI.
+    expect(financeBlock.includes('const generateWaiver =')).toBe(false)
+    expect(financeBlock.includes('onClick={() => generateWaiver(p,')).toBe(false)
+    requireAll(functionBody('previewOrganizedGrant'), [
+      "const policyId = grantSelection[payment.id]",
+      "mode: 'quote'",
+      "setGrantQuoteDialog({ payment, quote: result.quote })",
+    ])
+    requireAll(functionBody('issueOrganizedGrant'), [
+      "action: 'ISSUE_POLICY'",
+      "policyId: quote.policy.id",
+      "signature: quote.signature",
+      "await copyWaiverCode(payment.id, result.code)",
+      "load()",
     ])
 
     requireAll(functionBody('approveWaiver'), [
