@@ -471,7 +471,8 @@ async function createOrganizedPolicy(body: any, admin: { id: string; name?: stri
   const record = await db.scholarshipDefinition.create({
     data: {
       title, scope, coverage, valueMode, value: integerValue, reason,
-      active: true, createdById: admin.id, startsAt, endsAt,
+      // New scholarship definitions are drafts until an admin explicitly activates them.
+      active: false, createdById: admin.id, startsAt, endsAt,
       ...(scope === 'PROGRAM' ? { programs: { create: programIds.map((programId) => ({ programId, seats: seatLimits[programId] })) } } : {}),
       ...(scope === 'INDIVIDUAL' && admission ? {
         operations: {
