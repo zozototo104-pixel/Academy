@@ -90,6 +90,59 @@ function paymentMatches(payment: Record<string, any>, where: Record<string, any>
 }
 
 const db: any = {
+  scholarshipGrantOperation: {
+    findFirst: async ({ where }: any) => [...scholarshipOperations.values()].find((op) => {
+      if (where?.definitionId && op.definitionId !== where.definitionId) return false
+      if (where?.userId && op.userId !== where.userId) return false
+      if (where?.status && typeof where.status === 'string' && op.status !== where.status) return false
+      if (where?.status?.in && !where.status.in.includes(op.status)) return false
+      if (where?.definition?.is?.coverage?.in) {
+        const def = scholarshipDefinitions.get(op.definitionId)
+        if (!def || !where.definition.is.coverage.in.includes(def.coverage)) return false
+      }
+      return true
+    }) || null,
+    count: async ({ where }: any) => [...scholarshipOperations.values()].filter((op) => {
+      if (where.definitionId && op.definitionId !== where.definitionId) return false
+      if (where.userId && op.userId !== where.userId) return false
+      if (where.programId && op.programId !== where.programId) return false
+      if (where.status?.in && !where.status.in.includes(op.status)) return false
+      return true
+    }).length,
+    create: async ({ data }: any) => {
+      const op = {
+        ...data, id: 'test-operation-' + (scholarshipOperations.size + 1),
+        createdAt: new Date(), updatedAt: new Date(),
+      }
+      scholarshipOperations.set(op.id, op)
+      return { ...op }
+    },
+    update: async ({ where, data }: any) => {
+      const op = scholarshipOperations.get(where.id)
+      if (!op) throw new Error('OPERATION_NOT_FOUND')
+      Object.assign(op, data)
+      return { ...op }
+    },
+  },
+  scholarshipGrantLink: {
+    findUnique: async ({ where, include }: any) => {
+      const row = [...scholarshipLinks.values()].find((item) => item.waiverCodeId === where.waiverCodeId) || null
+      return row ? { ...row, ...(include?.operation ? { operation: scholarshipOperations.get(row.operationId) || null } : {}) } : null
+    },
+    findFirst: async ({ where }: any) => [...scholarshipLinks.values()].find((link) =>
+      (!where.definitionId || link.definitionId === where.definitionId)
+      && (!where.paymentId || link.paymentId === where.paymentId)
+    ) || null,
+    findMany: async ({ where }: any) => [...scholarshipLinks.values()].filter((link) =>
+      !where?.operationId || link.operationId === where.operationId
+    ),
+    create: async ({ data }: any) => {
+      if ([...scholarshipLinks.values()].some((item) => item.waiverCodeId === data.waiverCodeId)) throw new Error('DUPLICATE_GRANT_LINK')
+      const row = { ...data, id: 'test-link-' + (scholarshipLinks.size + 1), createdAt: new Date() }
+      scholarshipLinks.set(row.id, row)
+      return { ...row }
+    },
+  },
   scholarshipDefinition: {
     findMany: async () => [...scholarshipDefinitions.values()].map((row) => ({ ...row })),
     findUnique: async ({ where }: any) => scholarshipDefinitions.get(where.id) || null,
