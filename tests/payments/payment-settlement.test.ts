@@ -185,8 +185,15 @@ const db: any = {
     delete: async ({ where }: any) => { grantSettings.delete(where.key); return {} },
     deleteMany: async ({ where }: any) => { grantSettings.delete(where.key); return { count: 1 } },
   },
-  $queryRaw: async (strings: any) => {
-    rawQueries.push(Array.isArray(strings) ? strings.join('?') : String(strings))
+  $queryRaw: async (strings: any, ...values: any[]) => {
+    const statement = Array.isArray(strings) ? strings.join('?') : String(strings)
+    rawQueries.push(statement)
+    if (statement.includes('FROM "User"') && statement.includes('FOR UPDATE')) {
+      return values[0] && users.has(values[0]) ? [{ id: values[0] }] : []
+    }
+    if (statement.includes('FROM "ScholarshipDefinition"') && statement.includes('FOR UPDATE')) {
+      return values[0] && scholarshipDefinitions.has(values[0]) ? [{ id: values[0] }] : []
+    }
     return []
   },
   $transaction: async (work: (tx: any) => Promise<any>) => {
