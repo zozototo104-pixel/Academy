@@ -598,6 +598,24 @@ describe('organization schema migration gate', () => {
   })
 })
 
+describe('active organized-grants issuance guard', () => {
+  test('direct legacy POST is rejected once organization becomes active, without a waiver write', async () => {
+    process.env.SCHOLARSHIP_ORGANIZATION_ENABLED = '1'
+    const response = await waiversRoutePOST(new NextRequest('http://localhost/api/admin/payments/waivers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        paymentId: 'any-invoice', waiverType: 'FULL_SCHOLARSHIP',
+        requestedAmount: 999999, reason: 'محاولة تجاوز تنظيم المنح',
+      }),
+    }))
+    expect(response.status).toBe(409)
+    expect((await response.json()).code).toBe('GRANT_POLICY_REQUIRED')
+    expect(waiverCodes).toHaveLength(0)
+    expect(scholarshipOperations.size).toBe(0)
+  })
+})
+
 describe('organized grant eligibility before issuing an existing waiver code', () => {
   const programPolicyId = 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa'
   const individualPolicyId = 'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb'
