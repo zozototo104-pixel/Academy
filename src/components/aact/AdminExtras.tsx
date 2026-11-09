@@ -923,7 +923,10 @@ export function AdminFinanceTab() {
           endsAt: grantForm.endsAt ? new Date(grantForm.endsAt).toISOString() : null,
         }),
       })
-      toast({ title: 'تم حفظ تعريف المنحة', description: result.policy.title })
+      toast({
+        title: 'تم حفظ المنحة غير مفعّلة',
+        description: result.policy.title + ' — راجع الشروط والمقاعد، ثم فعّلها من القائمة.',
+      })
       setGrantForm({ title: '', scope: 'PROGRAM', programIds: [], seatLimits: {}, admissionId: '', coverage: 'TUITION', valueMode: 'FULL', value: '', reason: '', startsAt: '', endsAt: '' })
       setGrantStudentSearch('')
       await loadGrantPolicies()
