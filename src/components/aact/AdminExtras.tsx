@@ -1228,8 +1228,14 @@ export function AdminFinanceTab() {
     })
     if (!ok) return
     try {
-      await api('/api/admin/payments/waivers', { method: 'PATCH', body: JSON.stringify({ action: 'APPROVE', waiverId: waiver.id }) })
-      toast({ title: 'تم اعتماد الإعفاء', description: 'تم تحديث الفاتورة وتسجيل القرار في سجل التدقيق.' })
+      const decision = await api<{ organizationWarning?: string }>('/api/admin/payments/waivers', {
+        method: 'PATCH', body: JSON.stringify({ action: 'APPROVE', waiverId: waiver.id }),
+      })
+      toast({
+        title: decision.organizationWarning ? 'تم الاعتماد المالي — مراجعة سجل المنحة مطلوبة' : 'تم اعتماد الإعفاء',
+        description: decision.organizationWarning || 'تم تحديث الفاتورة وتسجيل القرار في سجل التدقيق.',
+        variant: decision.organizationWarning ? 'destructive' : undefined,
+      })
       load()
     } catch (e: any) {
       toast({ title: 'تعذر اعتماد الإعفاء', description: e.message, variant: 'destructive' })
