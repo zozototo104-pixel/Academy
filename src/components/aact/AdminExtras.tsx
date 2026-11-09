@@ -863,7 +863,7 @@ export function AdminFinanceTab() {
   const [grantSelection, setGrantSelection] = useState<Record<string, string>>({})
   const [grantQuoteDialog, setGrantQuoteDialog] = useState<{ payment: PaymentRow; quote: OrganizedGrantQuote } | null>(null)
   const [grantForm, setGrantForm] = useState({
-    title: '', scope: 'PROGRAM', programIds: [] as string[], admissionId: '',
+    title: '', scope: 'PROGRAM', programIds: [] as string[], seatLimits: {} as Record<string, string>, admissionId: '',
     coverage: 'TUITION', valueMode: 'FULL', value: '', reason: '', startsAt: '', endsAt: '',
   })
   const [openFinanceSection, setOpenFinanceSection] = useState<'payments' | 'reports' | 'grants' | null>('payments')
