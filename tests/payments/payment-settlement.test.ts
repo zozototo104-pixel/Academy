@@ -476,6 +476,16 @@ describe('organization schema migration gate', () => {
     expect(grantSettings.size).toBe(0)
     expect(waiverCodes.length).toBe(0)
   })
+
+  test('draft policy status cannot change before migration', async () => {
+    const response = await waiversRoutePATCH(new NextRequest('http://localhost/api/admin/payments/waivers', {
+      method: 'PATCH',
+      body: JSON.stringify({ action: 'TOGGLE_POLICY', policyId: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa' }),
+    }))
+    expect(response.status).toBe(503)
+    expect((await response.json()).code).toBe('GRANT_ORGANIZATION_NOT_READY')
+    expect(grantSettings.size).toBe(0)
+  })
 })
 
 describe('organized grant eligibility before issuing an existing waiver code', () => {
