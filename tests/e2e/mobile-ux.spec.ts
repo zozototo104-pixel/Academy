@@ -11,8 +11,12 @@ async function login(page: Page, email: string, password: string) {
   const response = await page.request.post('/api/auth/login', { data: { email, password } })
   const body = await response.json().catch(() => ({}))
   expect(response.ok(), `Login failed for ${email}: ${response.status()} ${JSON.stringify(body).slice(0, 900)}`).toBeTruthy()
-  expect(body.token, 'Login response must include token').toBeTruthy()
-  return { token: String(body.token), user: body.user }
+  // Cookie-based login: the raw session token arrives only as the
+  // httpOnly aact_session cookie; it doubles as the bearer token.
+  const sessionCookie = response.headersArray().filter((h) => h.name.toLowerCase() === 'set-cookie').map((h) => h.value).join('; ')
+  const sessionToken = decodeURIComponent(sessionCookie.match(/aact_session=([^;]+)/)?.[1] || '')
+  expect(sessionToken, 'Login must set the aact_session session cookie').toBeTruthy()
+  return { token: sessionToken, user: body.user }
 }
 
 async function setBrowserToken(page: Page, token: string) {

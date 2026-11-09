@@ -82,7 +82,11 @@ async function loginAsAdmin(page: Page): Promise<string> {
   const body = await response.json().catch(() => ({}))
 
   expect(response.ok(), `Admin API login failed with ${response.status()}: ${JSON.stringify(body)}`).toBeTruthy()
-  expect(body?.token, 'Login response must include a session token').toBeTruthy()
+  // Cookie-based login: the raw session token arrives only as the
+  // httpOnly aact_session cookie; it doubles as the bearer token.
+  const sessionCookie = response.headersArray().filter((h) => h.name.toLowerCase() === 'set-cookie').map((h) => h.value).join('; ')
+  const sessionToken = decodeURIComponent(sessionCookie.match(/aact_session=([^;]+)/)?.[1] || '')
+  expect(sessionToken, 'Login must set the aact_session session cookie').toBeTruthy()
   expect(body?.user?.role, 'Test account must have ADMIN role').toBe('ADMIN')
 
   await page.addInitScript((arg: { token: string; origin: string }) => {
@@ -92,9 +96,9 @@ async function loginAsAdmin(page: Page): Promise<string> {
     localStorage.setItem('aact_token', arg.token)
     localStorage.setItem('aact_startup_seen_v2', '1')
     sessionStorage.setItem('aact_skip_startup', '1')
-  }, { token: String(body.token), origin: QA_ORIGIN })
+  }, { token: sessionToken, origin: QA_ORIGIN })
 
-  return String(body.token)
+  return sessionToken
 }
 
 async function waitForAdminReady(page: Page) {

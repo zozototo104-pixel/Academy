@@ -15,12 +15,26 @@ function requiredAnyEnv(names: string[]) {
   throw new Error(`Missing required environment variable. Expected one of: ${names.join(', ')}`)
 }
 
+// The login route is cookie-based: createSession sets the raw session token
+// only as the httpOnly aact_session cookie, and the JSON body carries the
+// user object, never a token. Session reading accepts Authorization: Bearer
+// first, so the cookie value doubles as the bearer token used below.
+function sessionTokenFromHeaders(headers: { name: string; value: string }[]) {
+  const cookies = headers
+    .filter((h) => h.name.toLowerCase() === 'set-cookie')
+    .map((h) => h.value)
+    .join('; ')
+  const match = cookies.match(/aact_session=([^;]+)/)
+  return match ? decodeURIComponent(match[1]) : ''
+}
+
 async function login(page: Page, email: string, password: string) {
   const response = await page.request.post('/api/auth/login', { data: { email, password } })
   const body = await response.json().catch(() => ({}))
   expect(response.ok(), `Login failed for ${email}: ${response.status()} ${JSON.stringify(body).slice(0, 700)}`).toBeTruthy()
-  expect(body.token, 'Login response must include token').toBeTruthy()
-  return { token: String(body.token), user: body.user }
+  const token = sessionTokenFromHeaders(response.headersArray())
+  expect(token, 'Login must set the aact_session session cookie').toBeTruthy()
+  return { token, user: body.user }
 }
 
 async function loginAsAdmin(page: Page) {

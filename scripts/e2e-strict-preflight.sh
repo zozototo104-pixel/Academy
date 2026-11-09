@@ -214,10 +214,15 @@ PY
 login_status=$(curl_json admin-login POST "$base/api/auth/login" "$login_payload")
 login_type=$(awk -F= '/^content_type=/{print $2}' "$out/admin-login.meta")
 login_role=$(json_field "$out/admin-login.body" user.role)
-login_token=$(json_field "$out/admin-login.body" token)
-echo "Admin login: HTTP $login_status; content-type=$login_type; role=${login_role:-missing}; token=$([ -n "$login_token" ] && echo present || echo missing)"
+# The login route is cookie-based: createSession sets the raw session token
+# only as the httpOnly aact_session cookie, and the JSON body carries the
+# user object, never a token. Session reading accepts Authorization: Bearer
+# first, so the cookie value doubles as the bearer token for the checks
+# below. (The headers file is redacted by the EXIT trap before upload.)
+login_token=$(grep -i '^set-cookie:' "$out/admin-login.headers" | grep -o 'aact_session=[^;]*' | tail -1 | cut -d= -f2- || true)
+echo "Admin login: HTTP $login_status; content-type=$login_type; role=${login_role:-missing}; session-cookie=$([ -n "$login_token" ] && echo present || echo missing)"
 if [ "$login_status" != "200" ] || ! echo "$login_type" | grep -qi 'application/json' || [ "$login_role" != "ADMIN" ] || [ -z "$login_token" ]; then
-  fail_check admin-login "admin login must return 200 JSON with user.role=ADMIN and token."
+  fail_check admin-login "admin login must return 200 JSON with user.role=ADMIN and set the aact_session session cookie."
 fi
 
 if [ "${CHECK_LAUNCH_QUALITY:-0}" = "1" ]; then

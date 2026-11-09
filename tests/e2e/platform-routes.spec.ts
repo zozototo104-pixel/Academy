@@ -59,13 +59,17 @@ async function loginAsAdmin(page: Page) {
   }
 
   expect(response.ok(), `Admin API login failed with ${response.status()}: ${JSON.stringify(body).slice(0, 2000)}`).toBeTruthy()
-  expect(body?.token, 'Login response must include token').toBeTruthy()
+  // Cookie-based login: the raw session token arrives only as the
+  // httpOnly aact_session cookie; it doubles as the bearer token.
+  const sessionCookie = response.headersArray().filter((h) => h.name.toLowerCase() === 'set-cookie').map((h) => h.value).join('; ')
+  const sessionToken = decodeURIComponent(sessionCookie.match(/aact_session=([^;]+)/)?.[1] || '')
+  expect(sessionToken, 'Login must set the aact_session session cookie').toBeTruthy()
   expect(body?.user?.role, 'Route smoke account must be ADMIN').toBe('ADMIN')
 
   await page.addInitScript((token: string) => {
     window.localStorage.setItem('aact_token', token)
-  }, body.token)
-  return body.token as string
+  }, sessionToken)
+  return sessionToken
 }
 
 async function collectLinks(page: Page) {
