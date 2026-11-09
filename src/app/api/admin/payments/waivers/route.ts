@@ -553,7 +553,7 @@ export async function POST(req: NextRequest) {
   try {
     const admin = await requireAdmin()
     const body = await req.json().catch(() => ({}))
-    if ((body.action === 'CREATE_POLICY' || body.action === 'ISSUE_POLICY') && !GRANT_ORGANIZATION_SCHEMA_READY) {
+    if ((body.action === 'CREATE_POLICY' || body.action === 'ISSUE_POLICY') && !grantOrganizationReady()) {
       return grantOrganizationUnavailable()
     }
     if (body.action === 'CREATE_POLICY') {
