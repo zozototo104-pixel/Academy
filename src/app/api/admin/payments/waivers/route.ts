@@ -393,16 +393,9 @@ export async function PATCH(req: NextRequest) {
     if (action === 'RESEND') {
       const paymentId = cleanText(body.paymentId, 80)
       if (!paymentId) return NextResponse.json({ error: 'معرّف الفاتورة مطلوب' }, { status: 400 })
-      const previous = await db.paymentWaiverCode.findFirst({ where: { paymentId, status: { in: ['ISSUED', 'VERIFIED'] } }, orderBy: { createdAt: 'desc' }, select: { id: true } })
-      const oldLink = previous ? await db.setting.findUnique({ where: { key: GRANT_LINK_PREFIX + previous.id } }) : null
+      // Keep historical waiver resend exactly on the original financial route.
+      // Any organization link recovery happens at approval, not before resend.
       const result = await resendPaymentWaiverCode({ paymentId, actor: { id: admin.id, name: admin.name || admin.email || 'Admin' } })
-      if (oldLink) {
-        await db.setting.upsert({
-          where: { key: GRANT_LINK_PREFIX + result.waiver.id },
-          create: { key: GRANT_LINK_PREFIX + result.waiver.id, value: JSON.stringify({ ...JSON.parse(oldLink.value), waiverCodeId: result.waiver.id }) },
-          update: { value: JSON.stringify({ ...JSON.parse(oldLink.value), waiverCodeId: result.waiver.id }) },
-        })
-      }
       return NextResponse.json({ code: result.code, waiver: result.waiver, emailStatus: result.emailStatus, whatsapp: result.whatsapp })
     }
     const waiverId = cleanText(body.waiverId, 80)
