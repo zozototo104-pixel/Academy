@@ -674,10 +674,41 @@ export async function PATCH(req: NextRequest) {
     if (action === 'RESEND') {
       const paymentId = cleanText(body.paymentId, 80)
       if (!paymentId) return NextResponse.json({ error: 'معرّف الفاتورة مطلوب' }, { status: 400 })
-      // Keep historical waiver resend exactly on the original financial route.
-      // Any organization link recovery happens at approval, not before resend.
+      // Historical resends continue through the same engine without any extra
+      // preflight reads. Only organized codes have post-resend ledger linking.
       const result = await resendPaymentWaiverCode({ paymentId, actor: { id: admin.id, name: admin.name || admin.email || 'Admin' } })
-      return NextResponse.json({ code: result.code, waiver: result.waiver, emailStatus: result.emailStatus, whatsapp: result.whatsapp })
+      const marker = result.waiver.reason?.match(/\\[GRANT:([a-zA-Z0-9_-]{1,80})\\]/)
+      let organizationWarning: string | undefined
+      if (marker) {
+        try {
+          const oldLink = await db.scholarshipGrantLink.findFirst({
+            where: { definitionId: marker[1], paymentId },
+            orderBy: { createdAt: 'desc' },
+          })
+          if (!oldLink?.operationId) throw new Error('NO_ORGANIZATION_LINK')
+          await db.scholarshipGrantLink.create({
+            data: {
+              definitionId: oldLink.definitionId,
+              operationId: oldLink.operationId,
+              waiverCodeId: result.waiver.id,
+              paymentId,
+              userId: oldLink.userId,
+              admissionId: oldLink.admissionId,
+              programId: oldLink.programId,
+              percentBps: oldLink.percentBps,
+              baseCents: oldLink.baseCents,
+              grantCents: oldLink.grantCents,
+            },
+          })
+        } catch (error) {
+          console.error('Waiver reissued, but organization ledger could not be linked:', error)
+          organizationWarning = 'تم إنشاء كود جديد لكن ربط المنحة بحاجة لمراجعة الإدارة؛ يمنع الاعتماد حتى التصحيح'
+        }
+      }
+      return NextResponse.json({
+        code: result.code, waiver: result.waiver, emailStatus: result.emailStatus,
+        whatsapp: result.whatsapp, organizationWarning,
+      })
     }
     const waiverId = cleanText(body.waiverId, 80)
     if (!waiverId) return NextResponse.json({ error: 'معرّف كود الإعفاء مطلوب' }, { status: 400 })
