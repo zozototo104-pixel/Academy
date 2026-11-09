@@ -132,6 +132,21 @@ const diagnosticStudentInclude = {
   academicMemory: true,
 }
 
+export function diagnosticStudentIsComplete(student: any): boolean {
+  if (!student || student.role !== 'STUDENT' || student.email !== LAUNCH_QUALITY_EMAIL) return false
+  if (student.name !== 'طالب فحص جاهزية الإطلاق') return false
+  const enrollment = (student.enrollments || []).find((entry: any) =>
+    entry.status === 'ACTIVE' && entry.program?.slug === LAUNCH_QUALITY_PROGRAM_SLUG
+      && entry.program?.units?.length >= 2
+      && entry.program?.books?.length >= 1
+      && entry.program?.studyGuides?.length >= 1)
+  if (!enrollment) return false
+  if (!(student.ownedAdmissions || []).some((entry: any) => entry.reference === LAUNCH_QUALITY_REFERENCE)) return false
+  if (!(student.theses || []).some((entry: any) => !!entry.title && !!entry.status)) return false
+  const memory = student.academicMemory
+  return !!(memory?.profileDigest && memory?.lastConversationSummary && memory?.examSignals && memory?.thesisSignals && memory?.lastFileAnalysis)
+}
+
 function diagnosticStudentScore(student: any): number {
   const enrollmentScores = (student.enrollments || []).map((enr: any) => {
     const p = enr.program
