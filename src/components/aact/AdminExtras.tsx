@@ -851,9 +851,9 @@ export function AdminFinanceTab() {
   const [proofReviewBusy, setProofReviewBusy] = useState<string | null>(null)
   const [generatedWaiverCodes, setGeneratedWaiverCodes] = useState<Record<string, string>>({})
   const [copiedWaiverPaymentId, setCopiedWaiverPaymentId] = useState<string | null>(null)
-  // The separate campaign/grant schema and migration have not landed yet.
-  // Display organization work-in-progress read-only; keep historical finance live.
-  const grantOrganizationReady = false
+  // Readiness is controlled by the server-side grant migration gate.
+  // Existing waiver actions remain available even when organization is not ready.
+  const [grantOrganizationReady, setGrantOrganizationReady] = useState(false)
   const [grantPolicies, setGrantPolicies] = useState<OrganizedGrantPolicy[]>([])
   const [grantPrograms, setGrantPrograms] = useState<Array<{ id: string; titleAr: string }>>([])
   const [grantAdmissions, setGrantAdmissions] = useState<Array<{ id: string; reference: string; fullName: string; program: string }>>([])
