@@ -581,6 +581,40 @@ describe('organized grant eligibility before issuing an existing waiver code', (
     expect(accidentallyFull.status).toBe(409)
     expect((await accidentallyFull.json()).error).toContain('كامل')
   })
+  test('student with a scholarship on another admission cannot receive a second scholarship', async () => {
+    seedStudentPayment('program-A')
+    payments.set('grant-payment-other', {
+      id: 'grant-payment-other', userId: 'student-grant-1', admissionId: 'admission-2',
+      admission: { id: 'admission-2', userId: 'student-grant-1', programId: 'program-B' },
+      purpose: 'TUITION', status: 'UNPAID', amount: 200, amountCents: 20000,
+    })
+    waiverCodes.push({ id: 'prior-scholarship', paymentId: 'grant-payment-other', waiverType: 'FULL_SCHOLARSHIP', status: 'APPROVED' })
+    seedPolicy(programPolicyId)
+    const response = await waiversRouteGET(quoteRequest(programPolicyId))
+    expect(response.status).toBe(409)
+    expect((await response.json()).error).toContain('منحة')
+  })
+  test('registration-only waiver does not consume the one tuition scholarship', async () => {
+    seedStudentPayment('program-A')
+    payments.set('grant-registration-other', {
+      id: 'grant-registration-other', userId: 'student-grant-1', admissionId: 'admission-2',
+      admission: { id: 'admission-2', userId: 'student-grant-1', programId: 'program-B' },
+      purpose: 'APPLICATION_FEE', status: 'WAIVED', amount: 30, amountCents: 3000,
+    })
+    waiverCodes.push({ id: 'registration-only', paymentId: 'grant-registration-other', waiverType: 'APPLICATION_FEE', status: 'APPROVED' })
+    seedPolicy(programPolicyId)
+    const response = await waiversRouteGET(quoteRequest(programPolicyId))
+    expect(response.status).toBe(200)
+  })
+  test('unlinked student identity is not accepted for tuition scholarships', async () => {
+    const payment = seedStudentPayment('program-A')
+    payment.userId = null
+    payment.admission.userId = null
+    seedPolicy(programPolicyId)
+    const response = await waiversRouteGET(quoteRequest(programPolicyId))
+    expect(response.status).toBe(409)
+    expect((await response.json()).error).toContain('هوية')
+  })
   test('individual grant for a different admission and an active existing code are both blocked', async () => {
     seedStudentPayment('program-A')
     seedPolicy(individualPolicyId, { scope: 'INDIVIDUAL', programIds: [], admissionId: 'admission-other' })
