@@ -80,7 +80,7 @@ async function grantQuote(paymentId: string, policyId: string): Promise<GrantQuo
   if (!policy.active) throw grantError('هذه المنحة موقوفة عن الإصدار')
   const payment = await db.payment.findUnique({
     where: { id: paymentId },
-    include: { admission: { select: { id: true, programId: true, fullName: true } } },
+    include: { admission: { select: { id: true, programId: true, fullName: true, userId: true } } },
   })
   if (!payment || !payment.admission || !payment.admission.programId) {
     throw grantError('الفاتورة ليست مرتبطة بطلب قبول وتخصص محدد')
