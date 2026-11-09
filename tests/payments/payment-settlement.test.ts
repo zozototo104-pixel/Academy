@@ -286,6 +286,7 @@ const db: any = {
   },
   paymentWaiverCode: {
     findMany: async ({ where }: any) => waiverCodes.filter((row) => {
+      if (where?.id?.in && !where.id.in.includes(row.id)) return false
       if (where?.status?.in && !where.status.in.includes(row.status)) return false
       if (where?.waiverType?.in && !where.waiverType.in.includes(row.waiverType)) return false
       const payment = payments.get(row.paymentId)
