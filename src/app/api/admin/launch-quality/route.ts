@@ -765,18 +765,44 @@ export async function POST(req: NextRequest) {
     const probeKinds = selectedProbeKinds(body)
     const studentId = typeof body.studentId === 'string' ? body.studentId : undefined
     const started = performance.now()
-    const student = await findDiagnosticStudent(studentId)
-    const context = student ? await buildSupervisorContext(student.id).catch(() => '') : ''
+    const requestDeadline = started + LAUNCH_QUALITY_REQUEST_BUDGET_MS
+    let stageStarted = performance.now()
+    let student: Awaited<ReturnType<typeof findDiagnosticStudent>> = null
+    try {
+      student = await timeoutAfter(findDiagnosticStudent(studentId), remainingLaunchQualityBudget(requestDeadline, 'DIAGNOSTIC_STUDENT'), launchQualityDeadlineError('DIAGNOSTIC_STUDENT'))
+      logLaunchQualityStage('diagnostic-student', stageStarted, true)
+    } catch (error) {
+      logLaunchQualityStage('diagnostic-student', stageStarted, false)
+      throw error
+    }
+    stageStarted = performance.now()
+    let context = ''
+    try {
+      context = student ? await timeoutAfter(buildSupervisorContext(student.id), remainingLaunchQualityBudget(requestDeadline, 'CONTEXT'), launchQualityDeadlineError('CONTEXT')) : ''
+      logLaunchQualityStage('context', stageStarted, true)
+    } catch (error) {
+      logLaunchQualityStage('context', stageStarted, false)
+      throw error
+    }
     const contextCoverage = buildContextCoverage(student, context)
 
-    const voiceSupervisor = includeVoice ? await liveReadiness(runVoiceToken, 'SUPERVISOR') : null
-    const voiceDiscussion = includeVoice ? await liveReadiness(runVoiceToken, 'DISCUSSION') : null
+    stageStarted = performance.now()
+    const voiceSupervisor = includeVoice ? await timeoutAfter(liveReadiness(runVoiceToken, 'SUPERVISOR'), remainingLaunchQualityBudget(requestDeadline, 'VOICE'), launchQualityDeadlineError('VOICE')) : null
+    const voiceDiscussion = includeVoice ? await timeoutAfter(liveReadiness(runVoiceToken, 'DISCUSSION'), remainingLaunchQualityBudget(requestDeadline, 'VOICE'), launchQualityDeadlineError('VOICE')) : null
+    if (includeVoice) logLaunchQualityStage('voice', stageStarted, true)
 
     const probes: Array<Awaited<ReturnType<typeof runAiProbe>>> = []
     if (runAi && student) {
-      for (const kind of probeKinds) probes.push(await runAiProbe(kind, student, context))
+      for (const kind of probeKinds) {
+        stageStarted = performance.now()
+        const result = await runAiProbe(kind, student, context, requestDeadline)
+        probes.push(result)
+        logLaunchQualityStage(`probe:${kind}`, stageStarted, result.passed === true)
+      }
     }
-    const providerDiagnostics = await textAiDiagnostics().catch((error: any) => ({ error: String(error?.message || error).slice(0, 240) }))
+    stageStarted = performance.now()
+    const providerDiagnostics = await timeoutAfter(cachedProviderDiagnostics(), remainingLaunchQualityBudget(requestDeadline, 'PROVIDER_DIAGNOSTICS'), launchQualityDeadlineError('PROVIDER_DIAGNOSTICS')).catch((error: any) => ({ error: String(error?.message || error).slice(0, 240) }))
+    logLaunchQualityStage('provider-diagnostics', stageStarted, !('error' in providerDiagnostics))
 
     const passedProbes = probes.filter((p: any) => p.passed).length
     const skippedProbes = probes.filter((p: any) => p.skipped).length
