@@ -88,6 +88,22 @@ function paymentMatches(payment: Record<string, any>, where: Record<string, any>
 }
 
 const db: any = {
+  scholarshipDefinition: {
+    findMany: async () => [...scholarshipDefinitions.values()].map((row) => ({ ...row })),
+    findUnique: async ({ where }: any) => scholarshipDefinitions.get(where.id) || null,
+    create: async ({ data }: any) => {
+      const id = 'test-scholarship-' + (scholarshipDefinitions.size + 1)
+      const row = { ...data, id, programs: (data.programs?.create || []).map((p: any) => ({ programId: p.programId })), createdAt: new Date(), updatedAt: new Date() }
+      scholarshipDefinitions.set(id, row)
+      return { ...row }
+    },
+    update: async ({ where, data }: any) => {
+      const row = scholarshipDefinitions.get(where.id)
+      if (!row) throw new Error('SCHOLARSHIP_NOT_FOUND')
+      Object.assign(row, data)
+      return { ...row }
+    },
+  },
   setting: {
     findMany: async ({ where }: any = {}) => [...grantSettings.values()]
       .filter((row) => !where?.key?.startsWith || row.key.startsWith(where.key.startsWith))
