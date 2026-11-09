@@ -666,6 +666,8 @@ describe('active organized-grants issuance guard', () => {
     expect(response.status).toBe(201)
     const body = await response.json()
     const persisted = scholarshipDefinitions.get(body.policy.id)!
+    expect(persisted.active).toBe(false)
+    expect(body.policy.active).toBe(false)
     expect(persisted.value).toBe(2500)
     expect(persisted.programs).toEqual([{ programId: 'program-A', seats: 3 }])
     expect(persisted.startsAt.toISOString()).toBe(start)
