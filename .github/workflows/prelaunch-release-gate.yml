@@ -141,13 +141,46 @@ jobs:
       - name: Build Next.js application
         run: bunx next build
 
-      - name: Run academic progression, appeals, graduation and certificate regression tests
+      - name: Run complete academic lifecycle, unit exams, grading, retries, appeals and graduation regressions
         run: |
-          bun run test:semester-journey
-          bun run test:progression-gates
-          bun run test:mercy-progression
-          bun run test:graduation-approval
-          bun run test:certificate-disclosure
+          set -euo pipefail
+          for suite in \
+            test:lifecycle-journey test:semester-journey test:semester-lifecycle \
+            test:semester-readiness test:semester-decision test:semester-decision-ui \
+            test:semester-raise test:semester-step5 test:progression-gates \
+            test:assessment-attempt-policy test:attempt-grading-integrity \
+            test:exam-grading-flow test:unit-exam-reverify-grounding \
+            test:exam-threshold-freeze test:submission-windows \
+            test:semester-approval test:semester-approval-failed-components \
+            test:grade-approval test:grade-approval-concurrency \
+            test:semester-grade test:final-grade-golden test:final-grade-cap \
+            test:final-grade-approved-score test:contextual-finality \
+            test:mercy-path test:mercy-progression test:mercy-ui \
+            test:reopen-appeals test:reopen-grants test:rules-snapshot \
+            test:graduation-approval test:certificate-disclosure \
+            test:student-standing test:student-tracking; do
+            echo "::group::${suite}"
+            bun run "$suite"
+            echo "::endgroup::"
+          done
+
+      - name: Run AI answers, grounding, student context, grading and agent regression suites
+        run: |
+          set -euo pipefail
+          for suite in \
+            test:ai-ui-wiring test:academic-ai-router test:student-ai-access \
+            test:ai-d1 test:ai-d2 test:ai-stage-profiles test:ai-stage-reading \
+            test:ai-router-restriction test:ai-stage-analysis \
+            test:ai-stage-generation test:ai-stage-review \
+            test:ai-recheck-queue test:ai-recheck-runner test:ai-recheck-admin \
+            test:ai-question-length test:ai-stage-profiles-admin \
+            test:ai-advisor-readiness test:supervisor-assignment-grading \
+            test:supervisor-performance-context test:supervisor-scope \
+            test:whatsapp-ai-only test:live-token-supervisor-gate; do
+            echo "::group::${suite}"
+            bun run "$suite"
+            echo "::endgroup::"
+          done
 
       - name: Require scholarship implementation before certifying full platform QA
         shell: bash
