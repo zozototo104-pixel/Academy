@@ -1021,6 +1021,7 @@ export async function POST() {
       questionBank: { count: scaffold.questions.length, ids: scaffold.questions.map((q) => q.id) },
     }, { status: allOk ? 200 : 207, headers: { 'Cache-Control': 'no-store' } })
   } catch (e: any) {
+    if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ ok: false, error: 'صلاحيات الإدارة مطلوبة' }, { status: 403, headers: { 'Cache-Control': 'no-store' } })
     console.error('full journey diagnostic error:', e)
     return NextResponse.json({ ok: false, error: e?.message || 'تعذر تنفيذ رحلة المنصة الكاملة' }, { status: 500 })
   }
