@@ -258,7 +258,14 @@ async function planWaiverCancelReversal(tx: any, waiver: any) {
         const parsed = JSON.parse(enrollment.completedUnits || '[]')
         if (Array.isArray(parsed)) completedUnits = parsed
       } catch { /* قيمة غير صالحة تُعامل كقائمة فارغة */ }
-      const attempts = (await tx.examAttempt.count({ where: { userId } })) + (await tx.programExamAttempt.count({ where: { userId } }))
+      // Only academic attempts in the affected program make reversal unsafe.
+      // An exam the student took in another program must not block revoking
+      // this unrelated scholarship.
+      const attempts = (await tx.examAttempt.count({
+        where: { userId, exam: { is: { unit: { is: { programId: app.programId } } } } },
+      })) + (await tx.programExamAttempt.count({
+        where: { userId, exam: { is: { programId: app.programId } } },
+      }))
       const semesterProgress = await tx.enrollmentSemesterState.findFirst({
         where: { enrollmentId: enrollment.id, OR: [{ status: 'CLOSED' }, { result: { not: null } }, { approvedScore: { not: null } }] },
       })
