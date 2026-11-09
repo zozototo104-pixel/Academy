@@ -1043,6 +1043,48 @@ function seedWaiverAdmission() {
 }
 
 describe('waiver approval atomicity and expiry (audit fixes 1 + 4)', () => {
+  test('approving an organized tuition grant settles financially and marks the reserved seat approved', async () => {
+    seedWaiverAdmission()
+    const policyId = 'organized-policy-1'
+    scholarshipDefinitions.set(policyId, {
+      id: policyId, title: 'منحة تخصصية', scope: 'PROGRAM', coverage: 'TUITION',
+      valueMode: 'AMOUNT', value: 10000, reason: 'قرار لجنة المنح',
+      active: true, createdAt: new Date(), startsAt: null, endsAt: null,
+      programs: [{ programId: 'program-1' }], operations: [],
+    })
+    scholarshipOperations.set('organized-op-1', {
+      id: 'organized-op-1', definitionId: policyId, userId: 'student-1',
+      admissionId: 'admission-1', programId: 'program-1',
+      status: 'ISSUED', expectedCodes: 1, expectedCents: 10000,
+    })
+    scholarshipLinks.set('organized-link-1', {
+      id: 'organized-link-1', waiverCodeId: 'organized-waiver-1',
+      operationId: 'organized-op-1', definitionId: policyId,
+      paymentId: 'tuition', userId: 'student-1', admissionId: 'admission-1',
+      programId: 'program-1', baseCents: 35000, grantCents: 10000,
+    })
+    payments.set('tuition', {
+      id: 'tuition', invoiceNo: 'INV-TUIT-ORG', admissionId: 'admission-1',
+      userId: 'student-1', status: 'UNPAID', purpose: 'TUITION',
+      description: 'رسوم الدراسة', amount: 350, amountCents: 35000,
+      admission: { id: 'admission-1', userId: 'student-1', programId: 'program-1' },
+    })
+    waiverCodes.push({
+      id: 'organized-waiver-1', paymentId: 'tuition', status: 'VERIFIED',
+      waiverType: 'PARTIAL_TUITION', requestedAmountCents: 10000,
+      reason: 'قرار لجنة المنح [GRANT:organized-policy-1]', codePreview: '••••-1122',
+      expiresAt: new Date(Date.now() + 60000), approvedById: null,
+    })
+    const response = await waiversRoutePATCH(patchRequest('http://localhost/api/admin/payments/waivers', {
+      action: 'APPROVE', waiverId: 'organized-waiver-1',
+    }))
+    expect(response.status).toBe(200)
+    expect((await response.json()).organizationWarning).toBeUndefined()
+    expect(waiverCodes.find((w) => w.id === 'organized-waiver-1')?.status).toBe('APPROVED')
+    expect(payments.get('tuition')?.waivedAmountCents).toBe(10000)
+    expect(scholarshipOperations.get('organized-op-1')?.status).toBe('APPROVED')
+  })
+
   test('expired VERIFIED code cannot be approved and stays VERIFIED', async () => {
     seedWaiverAdmission()
     payments.set('tuition', {
