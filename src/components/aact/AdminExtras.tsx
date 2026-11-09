@@ -1287,7 +1287,7 @@ export function AdminFinanceTab() {
     if (waiverBusy === payment.id) return
     setWaiverBusy(payment.id)
     try {
-      const result = await api<{ code: string; waiver: PaymentWaiverCodeRow; emailStatus?: 'SENT' | 'FAILED' | 'SKIPPED'; whatsapp?: string }>('/api/admin/payments/waivers', {
+      const result = await api<{ code: string; waiver: PaymentWaiverCodeRow; emailStatus?: 'SENT' | 'FAILED' | 'SKIPPED'; whatsapp?: string; organizationWarning?: string }>('/api/admin/payments/waivers', {
         method: 'PATCH',
         body: JSON.stringify({ action: 'RESEND', paymentId: payment.id }),
       })
