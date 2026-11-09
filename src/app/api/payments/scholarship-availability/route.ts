@@ -16,13 +16,13 @@ export const dynamic = 'force-dynamic'
 // currently covers it and how many seats remain. A remaining-seat count is
 // a live snapshot, never a reservation or a promise.
 async function campaignsForProgram(programId: string) {
-  const definitions = await db.scholarshipDefinition.findMany({
+  const definitions: any[] = await db.scholarshipDefinition.findMany({
     where: { active: true, programs: { some: { programId } } },
     include: { programs: { select: { programId: true, seats: true } } },
     orderBy: { createdAt: 'desc' },
   })
   const now = Date.now()
-  const campaigns = []
+  const campaigns: any[] = []
   for (const definition of definitions) {
     if (definition.startsAt && new Date(definition.startsAt).getTime() > now) continue
     if (definition.endsAt && new Date(definition.endsAt).getTime() < now) continue
@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
     where: { userId: user.id },
     select: { id: true, programId: true },
   })
-  const campaigns = []
+  const campaigns: any[] = []
   for (const admission of admissions) {
     if (!admission.programId) continue
     for (const campaign of await campaignsForProgram(admission.programId)) {
