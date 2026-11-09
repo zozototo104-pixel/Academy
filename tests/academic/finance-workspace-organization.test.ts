@@ -175,11 +175,19 @@ describe('AdminFinanceTab workspace organization', () => {
       'setProofReviewBusy(null)',
     ])
 
-    // Issuing a new grant now requires a saved definition, a server quote,
-    // and the dedicated ISSUE_POLICY action. Historical waiver creation
-    // is not available through the finance UI.
-    expect(financeBlock.includes('const generateWaiver =')).toBe(false)
-    expect(financeBlock.includes('onClick={() => generateWaiver(p,')).toBe(false)
+    // Transitional bridge (owner decision 2026-11-09): organized issuance
+    // requires a saved definition, a server quote, and the dedicated
+    // ISSUE_POLICY action — but while the organization is NOT enabled,
+    // the legacy generateWaiver path stays available in finance. The
+    // legacy buttons must render only inside the not-ready branch, and
+    // the server independently refuses legacy creation once enabled
+    // (GRANT_POLICY_REQUIRED, pinned in the settlement suite).
+    expect(financeBlock.includes('const generateWaiver =')).toBe(true)
+    expect(financeBlock.includes('if (!grantOrganizationReady)')).toBe(true)
+    expect(financeBlock.includes("generateWaiver(p, 'APPLICATION_FEE')")).toBe(true)
+    expect(financeBlock.includes("generateWaiver(p, 'PARTIAL_TUITION')")).toBe(true)
+    expect(financeBlock.includes("generateWaiver(p, 'FULL_SCHOLARSHIP')")).toBe(true)
+    expect(financeBlock.includes('إصدار المنح الجديدة متاح حصريًا من تنظيم المنح.')).toBe(true)
     requireAll(functionBody('previewOrganizedGrant'), [
       "const policyId = grantSelection[payment.id]",
       "mode: 'quote'",

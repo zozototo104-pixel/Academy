@@ -1158,6 +1158,78 @@ export function AdminFinanceTab() {
     }
   }
 
+  const generateWaiver = async (payment: PaymentRow, waiverType: 'APPLICATION_FEE' | 'PARTIAL_TUITION' | 'FULL_SCHOLARSHIP') => {
+    if (payment.status !== 'UNPAID') {
+      toast({ title: 'لا يمكن إصدار كود إعفاء', description: 'الكود يصدر فقط للفواتير غير المسددة.', variant: 'destructive' })
+      return
+    }
+    const activeWaiver = activeWaiverForPayment(payment)
+    if (activeWaiver) {
+      toast({ title: 'يوجد كود إعفاء نشط', description: `الكود الحالي ${activeWaiver.codePreview}. لا يمكن توليد كود آخر قبل استخدامه أو اعتماده.`, variant: 'destructive' })
+      return
+    }
+    if (waiverBusy === payment.id) return
+    let requestedAmount: number | null = null
+    if (waiverType === 'PARTIAL_TUITION') {
+      const amountText = await promptAction({
+        title: 'مبلغ الإعفاء الجزئي',
+        description: payment.purpose === 'APPLICATION_FEE'
+          ? `اكتب مبلغ الإعفاء الإجمالي. سيتم احتساب ${payment.amount}$ لرسوم التقديم، وأي مبلغ زائد سيخصم من رسوم البرنامج.`
+          : `اكتب مبلغ الإعفاء من فاتورة ${payment.invoiceNo}. المبلغ المتبقي الحالي ${payment.amount}$.`,
+        fieldLabel: 'مبلغ الإعفاء بالدولار',
+        placeholder: 'مثال: 100',
+        required: true,
+        minLength: 1,
+        confirmLabel: 'متابعة',
+        tone: 'warning',
+      })
+      if (amountText === null) return
+      requestedAmount = Number(amountText)
+      const isApplicationFee = payment.purpose === 'APPLICATION_FEE'
+      if (!Number.isFinite(requestedAmount) || requestedAmount <= 0 || (!isApplicationFee && requestedAmount > Number(payment.amount || 0)) || (isApplicationFee && requestedAmount <= Number(payment.amount || 0))) {
+        toast({
+          title: 'مبلغ غير صالح',
+          description: isApplicationFee ? 'في فاتورة التقديم، اكتب مبلغاً أكبر من 30$ حتى يخصم 30$ للتقديم والباقي من رسوم البرنامج.' : 'الإعفاء الجزئي يجب أن يكون أكبر من صفر وأقل من المبلغ المتبقي.',
+          variant: 'destructive',
+        })
+        return
+      }
+    }
+    const reason = await promptAction({
+      title: `توليد كود ${waiverLabel(waiverType)}`,
+      description: 'اكتب سبباً إدارياً واضحاً. سيظهر السبب في سجل التدقيق ولا يعتبر دفعاً فعلياً.',
+      fieldLabel: 'سبب الإعفاء',
+      placeholder: 'مثال: حالة إنسانية / قرار لجنة / منحة ممثل معتمدة',
+      required: true,
+      minLength: 6,
+      multiline: true,
+      confirmLabel: 'توليد الكود',
+      tone: waiverType === 'FULL_SCHOLARSHIP' ? 'success' : 'warning',
+    })
+    if (reason === null) return
+    setWaiverBusy(payment.id)
+    try {
+      const result = await api<{ code: string; waiver: PaymentWaiverCodeRow; emailStatus?: 'SENT' | 'FAILED' | 'SKIPPED' }>('/api/admin/payments/waivers', {
+        method: 'POST',
+        body: JSON.stringify({ paymentId: payment.id, waiverType, requestedAmount, reason }),
+      })
+      setGeneratedWaiverCodes((prev) => ({ ...prev, [payment.id]: result.code }))
+      await copyWaiverCode(payment.id, result.code)
+      const mailNote = result.emailStatus === 'SENT'
+        ? 'تم إرسال البريد ✅'
+        : result.emailStatus === 'FAILED'
+          ? 'فشل إرسال البريد، انسخ الكود يدوياً'
+          : 'لم يتم إرسال بريد، انسخ الكود يدوياً'
+      toast({ title: 'تم توليد ونسخ كود الإعفاء', description: `الكود: ${result.code} — ${mailNote}` })
+      load()
+    } catch (e: any) {
+      toast({ title: 'تعذر توليد كود الإعفاء', description: e.message, variant: 'destructive' })
+    } finally {
+      setWaiverBusy((current) => (current === payment.id ? null : current))
+    }
+  }
+
+
   const approveWaiver = async (payment: PaymentRow) => {
     const waiver = payment.waiverCodes?.find((w) => w.status === 'VERIFIED') || payment.waiverCodes?.[0]
     if (!waiver) return
@@ -1843,9 +1915,26 @@ export function AdminFinanceTab() {
                                   </div>
                                 )
                               }
+                              if (!grantOrganizationReady) {
+                                // Transitional bridge (owner decision 2026-11-09):
+                                // while the organized-grants system is not yet
+                                // enabled, legacy waiver issuance stays available
+                                // here and runs on the unchanged waiver engine.
+                                // The moment the organization is enabled, this
+                                // block disappears and issuance is organized-only;
+                                // the server independently refuses legacy
+                                // creation while enabled (GRANT_POLICY_REQUIRED).
+                                return (
+                                  <div className="flex flex-wrap gap-1">
+                                    {p.purpose === 'APPLICATION_FEE' && <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => generateWaiver(p, 'APPLICATION_FEE')} className="h-7 border-blue-200 text-[10px] font-black text-blue-700">{busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}كود إعفاء التسجيل</Button>}
+                                    {['APPLICATION_FEE', 'TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => generateWaiver(p, 'PARTIAL_TUITION')} className="h-7 border-amber-200 text-[10px] font-black text-amber-700">{busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}إعفاء جزئي</Button>}
+                                    {['TUITION', 'TUITION_INSTALLMENT', 'APPLICATION_FEE'].includes(p.purpose) && <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => generateWaiver(p, 'FULL_SCHOLARSHIP')} className="h-7 border-emerald-200 text-[10px] font-black text-emerald-700">{busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}منحة كاملة</Button>}
+                                  </div>
+                                )
+                              }
                               return (
                                 <span className="block max-w-[260px] text-xs font-bold leading-5 text-slate-600">
-                                  إصدار المنح الجديدة متاح حصريًا من تنظيم المنح بعد استكمال التفعيل. تبقى إعادة الإرسال والاعتماد والإلغاء متاحة للأكواد الحالية.
+                                  إصدار المنح الجديدة متاح حصريًا من تنظيم المنح. تبقى إعادة الإرسال والاعتماد والإلغاء متاحة للأكواد الحالية.
                                 </span>
                               )
                             })()}

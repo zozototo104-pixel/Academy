@@ -33,6 +33,12 @@ function opMatches(op: any, where: any): boolean {
 const db: any = {
   scholarshipDefinition: {
     findUnique: async ({ where }: any) => definitions.get(where.id) || null,
+    findMany: async ({ where }: any) => [...definitions.values()].filter((def) => {
+      if (where?.active !== undefined && def.active !== where.active) return false
+      const programId = where?.programs?.some?.programId
+      if (programId && !(def.programs || []).some((row: any) => row.programId === programId)) return false
+      return true
+    }).map((def) => ({ ...def })),
   },
   scholarshipGrantOperation: {
     findMany: async ({ where }: any) => [...operations.values()].filter((op) => opMatches(op, where)).map((op) => ({ ...op })),
@@ -130,11 +136,14 @@ const db: any = {
 }
 
 mock.module('@/lib/db', () => ({ db }))
+mock.module('@/lib/auth', () => ({ getCurrentUser: async () => null }))
 
 const {
   joinScholarshipWaitlist, leaveScholarshipWaitlist, notifyWaitlistForFreeSeats,
   releaseStaleGrantOperations, WaitlistError,
 } = await import('../../src/lib/scholarship-waitlist')
+const { GET: availabilityGET } = await import('../../src/app/api/payments/scholarship-availability/route')
+const { NextRequest } = await import('next/server')
 
 const DEF = 'def-campaign'
 function seedCampaign(seats: number | null, overrides: Record<string, any> = {}) {
@@ -265,6 +274,24 @@ describe('scholarship waitlist', () => {
     const rejoined = await joinScholarshipWaitlist(db, { userId: 'back', admissionId: 'adm-back', definitionId: DEF })
     expect(rejoined.status).toBe('WAITING')
     expect(new Date(rejoined.createdAt).getTime()).toBeGreaterThanOrEqual(joinedAt)
+  })
+
+  test('general-scope grants stay admin-only: never listed for students (owner decision 2026-11-09)', async () => {
+    seedCampaign(3)
+    definitions.set('def-general', {
+      id: 'def-general', title: 'منحة عامة', scope: 'GENERAL', coverage: 'TUITION',
+      active: true, startsAt: null, endsAt: null, programs: [],
+    })
+    const response = await availabilityGET(new NextRequest('http://localhost/api/payments/scholarship-availability?programId=program-A'))
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.enabled).toBe(true)
+    expect(body.campaigns.map((c: any) => c.definitionId)).toEqual([DEF])
+    // And while the organization is disabled, nothing is listed at all.
+    delete process.env.SCHOLARSHIP_ORGANIZATION_ENABLED
+    const off = await availabilityGET(new NextRequest('http://localhost/api/payments/scholarship-availability?programId=program-A'))
+    expect((await off.json()).enabled).toBe(false)
+    process.env.SCHOLARSHIP_ORGANIZATION_ENABLED = '1'
   })
 
   test('expiry release closes a fully expired reservation and frees its seat for the waitlist', async () => {
