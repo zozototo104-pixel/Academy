@@ -312,6 +312,12 @@ const db: any = {
     findMany: async ({ where }: any) => waiverCodes.filter((row) => {
       if (where?.id?.in && !where.id.in.includes(row.id)) return false
       if (where?.status?.in && !where.status.in.includes(row.status)) return false
+      if (where?.OR && !where.OR.some((condition: any) => {
+        if (typeof condition.status === 'string') return row.status === condition.status
+        if (condition.status?.in && !condition.status.in.includes(row.status)) return false
+        if (condition.expiresAt?.gt && (!row.expiresAt || row.expiresAt <= condition.expiresAt.gt)) return false
+        return true
+      })) return false
       if (where?.waiverType?.in && !where.waiverType.in.includes(row.waiverType)) return false
       const payment = payments.get(row.paymentId)
       if (!payment) return false
