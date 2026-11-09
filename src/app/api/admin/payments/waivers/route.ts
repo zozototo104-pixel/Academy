@@ -9,7 +9,11 @@ import { audit } from '@/lib/notify'
 // Organization issuance is gated until seat reservations, linked-code
 // approvals and rollout tests are complete. Historical codes remain valid.
 const GRANT_LINK_PREFIX = 'GRANT_ORGANIZATION_LINK_V1_'
-const GRANT_ORGANIZATION_SCHEMA_READY = false
+function grantOrganizationReady(): boolean {
+  // Off by default: only enable after the deployment migration, ledger
+  // checks and end-to-end financial regressions pass.
+  return process.env.SCHOLARSHIP_ORGANIZATION_ENABLED === '1'
+}
 function grantOrganizationUnavailable() {
   return NextResponse.json({
     error: 'تنظيم المنح قيد الاستكمال: يلزم ترحيل الجداول المستقلة والتحقق من سلامة المقاعد قبل الإصدار.',
