@@ -921,7 +921,7 @@ export function AdminFinanceTab() {
         }),
       })
       toast({ title: 'تم حفظ تعريف المنحة', description: result.policy.title })
-      setGrantForm({ title: '', scope: 'PROGRAM', programIds: [], admissionId: '', coverage: 'TUITION', valueMode: 'FULL', value: '', reason: '' })
+      setGrantForm({ title: '', scope: 'PROGRAM', programIds: [], admissionId: '', coverage: 'TUITION', valueMode: 'FULL', value: '', reason: '', startsAt: '', endsAt: '' })
       setGrantStudentSearch('')
       await loadGrantPolicies()
     } catch (error: any) {
