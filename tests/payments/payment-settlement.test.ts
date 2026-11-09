@@ -71,7 +71,8 @@ function cloneArray(items: Record<string, any>[]) {
 }
 
 function paymentMatches(payment: Record<string, any>, where: Record<string, any>) {
-  if (where.id && payment.id !== where.id) return false
+  if (where.id?.in && !where.id.in.includes(payment.id)) return false
+  if (typeof where.id === 'string' && payment.id !== where.id) return false
   if (where.invoiceNo && payment.invoiceNo !== where.invoiceNo) return false
   if (where.admissionId && payment.admissionId !== where.admissionId) return false
   if (typeof where.status === 'string' && payment.status !== where.status) return false
@@ -363,7 +364,21 @@ const db: any = {
       return result
     },
     findFirst: async ({ where }: { where: Record<string, any> }) =>
-      waiverCodes.find((item) => item.paymentId === where.paymentId && item.codeHash === where.codeHash) || null,
+      waiverCodes.find((item) => {
+        if (item.paymentId !== where.paymentId) return false
+        if (where.codeHash !== undefined && item.codeHash !== where.codeHash) return false
+        if (where.status?.in && !where.status.in.includes(item.status)) return false
+        if (typeof where.status === 'string' && item.status !== where.status) return false
+        return true
+      }) || null,
+    create: async ({ data }: { data: Record<string, any> }) => {
+      const waiver = {
+        ...data, id: `waiver-${waiverCodes.length + 1}`, status: 'ISSUED',
+        createdAt: new Date(), verifiedAt: null, approvedAt: null,
+      }
+      waiverCodes.push(waiver)
+      return { ...waiver }
+    },
     update: async ({ where, data }: { where: { id: string }; data: Record<string, any> }) => {
       const waiver = waiverCodes.find((item) => item.id === where.id)
       if (!waiver) throw new Error('WAIVER_NOT_FOUND')
@@ -2179,5 +2194,189 @@ describe('finalize enrollment creation race (U09/M7)', () => {
     const enrollment = enrollments.get('student-1:program-1')
     expect(enrollment?.status).toBe('ACTIVE')
     expect(rulesSnapshots.get(enrollment!.id)?.basis).toBe('ENROLLMENT')
+  })
+})
+
+describe('organized issuance end-to-end: retry, seat contention, comparative finance', () => {
+  const policyId = 'dddddddd-dddd-4ddd-dddd-dddddddddddd'
+  function seedPolicyC(overrides: Record<string, any> = {}) {
+    scholarshipDefinitions.set(policyId, {
+      id: policyId, title: 'منحة مقارنة', scope: 'PROGRAM', coverage: 'TUITION',
+      valueMode: 'PERCENT', value: 2500, reason: 'قرار لجنة المنح',
+      active: true, startsAt: null, endsAt: null, createdAt: new Date(),
+      programs: [{ programId: 'program-A', seats: null }],
+      operations: [],
+      ...overrides,
+    })
+  }
+  function seedStudentC(suffix: string) {
+    const userId = 'student-c-' + suffix
+    const admissionId = 'admission-c-' + suffix
+    const paymentId = 'payment-c-' + suffix
+    users.set(userId, { id: userId, email: userId + '@example.test', name: 'Student ' + suffix, role: 'STUDENT' })
+    admissions.set(admissionId, {
+      id: admissionId, userId, email: userId + '@example.test', fullName: 'Student ' + suffix,
+      country: 'PS', reference: 'APP-C-' + suffix, program: 'برنامج تجريبي', programId: 'program-A',
+      status: 'AWAITING_TUITION', supervisorId: null, approvedAt: new Date(), scholarshipFull: false,
+    })
+    payments.set(paymentId, {
+      id: paymentId, admissionId, userId,
+      admission: { id: admissionId, fullName: 'Student ' + suffix, programId: 'program-A', userId },
+      purpose: 'TUITION', status: 'UNPAID', amount: 199.99, amountCents: 19999,
+      invoiceNo: 'INV-C-' + suffix, waiverStatus: null, waivedAmountCents: 0,
+    })
+    return { userId, admissionId, paymentId }
+  }
+  async function quoteFor(paymentId: string) {
+    const params = new URLSearchParams({ mode: 'quote', policyId, paymentId })
+    return waiversRouteGET(new NextRequest('http://localhost/api/admin/payments/waivers?' + params.toString()))
+  }
+  async function issueFor(paymentId: string) {
+    const quoteRes = await quoteFor(paymentId)
+    if (quoteRes.status !== 200) return quoteRes
+    const quote = (await quoteRes.json()).quote
+    return waiversRoutePOST(new NextRequest('http://localhost/api/admin/payments/waivers', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'ISSUE_POLICY', paymentId, policyId, signature: quote.signature }),
+    }))
+  }
+  function financialSnapshot(paymentId: string, admissionId: string) {
+    const payment = payments.get(paymentId)
+    const admission = admissions.get(admissionId)
+    return {
+      status: payment?.status, waivedAmountCents: payment?.waivedAmountCents || 0,
+      waiverStatus: payment?.waiverStatus || null, scholarshipFull: admission?.scholarshipFull || false,
+    }
+  }
+
+  test('ISSUE_POLICY runs reserve, engine issuance and linking end to end', async () => {
+    process.env.SCHOLARSHIP_ORGANIZATION_ENABLED = '1'
+    seedPolicyC()
+    const s = seedStudentC('one')
+    const response = await issueFor(s.paymentId)
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.operationId).toBeTruthy()
+    const operation = scholarshipOperations.get(body.operationId)
+    expect(operation?.status).toBe('ISSUED')
+    expect(operation?.userId).toBe(s.userId)
+    const link = [...scholarshipLinks.values()].find((row) => row.operationId === body.operationId)
+    expect(link?.grantCents).toBe(5000)
+    expect(link?.baseCents).toBe(19999)
+    expect(link?.percentBps).toBe(2500)
+    expect(waiverCodes).toHaveLength(1)
+    expect(waiverCodes[0].status).toBe('ISSUED')
+    expect(waiverCodes[0].reason).toContain('[GRANT:' + policyId + ']')
+  })
+
+  test('a repeated submission of the same grant is refused and writes nothing twice', async () => {
+    process.env.SCHOLARSHIP_ORGANIZATION_ENABLED = '1'
+    seedPolicyC()
+    const s = seedStudentC('retry')
+    const first = await issueFor(s.paymentId)
+    expect(first.status).toBe(200)
+    const second = await issueFor(s.paymentId)
+    expect(second.status).toBe(409)
+    expect(scholarshipOperations.size).toBe(1)
+    expect(waiverCodes).toHaveLength(1)
+    expect(scholarshipLinks.size).toBe(1)
+  })
+
+  test('the last seat goes to the first issuer; after cancellation the next student can issue', async () => {
+    process.env.SCHOLARSHIP_ORGANIZATION_ENABLED = '1'
+    seedPolicyC({ programs: [{ programId: 'program-A', seats: 1 }] })
+    const a = seedStudentC('seat-a')
+    const b = seedStudentC('seat-b')
+    const issuedA = await issueFor(a.paymentId)
+    expect(issuedA.status).toBe(200)
+    const refusedB = await issueFor(b.paymentId)
+    expect(refusedB.status).toBe(409)
+    expect((await refusedB.json()).error).toContain('المقاعد')
+    expect(scholarshipOperations.size).toBe(1)
+    const cancel = await waiversRoutePATCH(new NextRequest('http://localhost/api/admin/payments/waivers', {
+      method: 'PATCH',
+      body: JSON.stringify({ action: 'CANCEL', waiverId: waiverCodes[0].id }),
+    }))
+    expect(cancel.status).toBe(200)
+    expect([...scholarshipOperations.values()][0].status).toBe('CANCELLED')
+    const issuedB = await issueFor(b.paymentId)
+    expect(issuedB.status).toBe(200)
+    expect(scholarshipOperations.size).toBe(2)
+  })
+
+  test('organized and legacy partial tuition waivers settle to identical finances', async () => {
+    // Organized path
+    process.env.SCHOLARSHIP_ORGANIZATION_ENABLED = '1'
+    seedPolicyC()
+    const org = seedStudentC('cmp-org')
+    const issued = await issueFor(org.paymentId)
+    expect(issued.status).toBe(200)
+    const orgCode = waiverCodes[0]
+    orgCode.status = 'VERIFIED'
+    const orgApprove = await waiversRoutePATCH(new NextRequest('http://localhost/api/admin/payments/waivers', {
+      method: 'PATCH',
+      body: JSON.stringify({ action: 'APPROVE', waiverId: orgCode.id }),
+    }))
+    expect(orgApprove.status).toBe(200)
+    const orgSnapshot = financialSnapshot(org.paymentId, org.admissionId)
+    expect(orgSnapshot.waivedAmountCents).toBe(5000)
+    expect([...scholarshipOperations.values()][0].status).toBe('APPROVED')
+
+    // Legacy path on identical fixtures
+    delete process.env.SCHOLARSHIP_ORGANIZATION_ENABLED
+    const leg = seedStudentC('cmp-leg')
+    const created = await waiversRoutePOST(new NextRequest('http://localhost/api/admin/payments/waivers', {
+      method: 'POST',
+      body: JSON.stringify({
+        paymentId: leg.paymentId, waiverType: 'PARTIAL_TUITION',
+        requestedAmount: 50, reason: 'قرار لجنة المنح',
+      }),
+    }))
+    expect(created.status).toBe(200)
+    const legCode = waiverCodes.find((row) => row.paymentId === leg.paymentId)!
+    legCode.status = 'VERIFIED'
+    const legApprove = await waiversRoutePATCH(new NextRequest('http://localhost/api/admin/payments/waivers', {
+      method: 'PATCH',
+      body: JSON.stringify({ action: 'APPROVE', waiverId: legCode.id }),
+    }))
+    expect(legApprove.status).toBe(200)
+    expect(financialSnapshot(leg.paymentId, leg.admissionId)).toEqual(orgSnapshot)
+  })
+
+  test('organized and legacy full scholarships settle to identical finances', async () => {
+    process.env.SCHOLARSHIP_ORGANIZATION_ENABLED = '1'
+    seedPolicyC({ valueMode: 'FULL', value: 0 })
+    const org = seedStudentC('full-org')
+    const issued = await issueFor(org.paymentId)
+    expect(issued.status).toBe(200)
+    const orgCode = waiverCodes[0]
+    expect(orgCode.waiverType).toBe('FULL_SCHOLARSHIP')
+    orgCode.status = 'VERIFIED'
+    const orgApprove = await waiversRoutePATCH(new NextRequest('http://localhost/api/admin/payments/waivers', {
+      method: 'PATCH',
+      body: JSON.stringify({ action: 'APPROVE', waiverId: orgCode.id }),
+    }))
+    expect(orgApprove.status).toBe(200)
+    const orgSnapshot = financialSnapshot(org.paymentId, org.admissionId)
+    expect(orgSnapshot).toEqual({ status: 'WAIVED', waivedAmountCents: 19999, waiverStatus: 'APPROVED', scholarshipFull: true })
+
+    delete process.env.SCHOLARSHIP_ORGANIZATION_ENABLED
+    const leg = seedStudentC('full-leg')
+    const created = await waiversRoutePOST(new NextRequest('http://localhost/api/admin/payments/waivers', {
+      method: 'POST',
+      body: JSON.stringify({
+        paymentId: leg.paymentId, waiverType: 'FULL_SCHOLARSHIP',
+        requestedAmount: null, reason: 'قرار لجنة المنح',
+      }),
+    }))
+    expect(created.status).toBe(200)
+    const legCode = waiverCodes.find((row) => row.paymentId === leg.paymentId)!
+    legCode.status = 'VERIFIED'
+    const legApprove = await waiversRoutePATCH(new NextRequest('http://localhost/api/admin/payments/waivers', {
+      method: 'PATCH',
+      body: JSON.stringify({ action: 'APPROVE', waiverId: legCode.id }),
+    }))
+    expect(legApprove.status).toBe(200)
+    expect(financialSnapshot(leg.paymentId, leg.admissionId)).toEqual(orgSnapshot)
   })
 })
