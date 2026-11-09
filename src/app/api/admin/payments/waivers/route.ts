@@ -836,11 +836,29 @@ export async function PATCH(req: NextRequest) {
             code: 'GRANT_PROGRAM_CHANGED',
           }, { status: 409 })
         }
+        approvedOperationId = operation.id
       }
       const payment = await approvePaymentWaiver({
         waiverId, actor: { id: admin.id, name: admin.name || admin.email || 'Admin' },
       })
-      return NextResponse.json({ payment })
+      // The financial engine commits independently. A later metadata sync
+      // problem must never be reported as a failed financial approval.
+      let organizationWarning: string | undefined
+      if (approvedOperationId) {
+        try {
+          const synced = await db.scholarshipGrantOperation.updateMany({
+            where: { id: approvedOperationId, status: 'ISSUED' },
+            data: { status: 'APPROVED' },
+          })
+          if (synced.count !== 1) {
+            organizationWarning = 'اعتمد الإعفاء ماليًا، لكن سجل المنحة يحتاج مراجعة إدارية'
+          }
+        } catch (error) {
+          console.error('Financial waiver approved but grant operation sync failed:', error)
+          organizationWarning = 'اعتمد الإعفاء ماليًا، لكن تحديث سجل المنحة تعذّر؛ المقعد لا يزال محجوزًا للمراجعة'
+        }
+      }
+      return NextResponse.json({ payment, organizationWarning })
     }
     if (action === 'REJECT' || action === 'CANCEL') {
       const status = action === 'REJECT' ? 'REJECTED' : 'CANCELLED'
