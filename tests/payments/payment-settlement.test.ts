@@ -123,6 +123,12 @@ const db: any = {
       Object.assign(op, data)
       return { ...op }
     },
+    updateMany: async ({ where, data }: any) => {
+      const op = scholarshipOperations.get(where.id)
+      if (!op || (where.status?.in && !where.status.in.includes(op.status))) return { count: 0 }
+      Object.assign(op, data)
+      return { count: 1 }
+    },
   },
   scholarshipGrantLink: {
     findUnique: async ({ where, include }: any) => {
