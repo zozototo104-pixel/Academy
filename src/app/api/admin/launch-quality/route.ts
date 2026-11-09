@@ -623,19 +623,22 @@ function timeoutAfter<T>(promise: Promise<T>, ms: number, message: string): Prom
   })
 }
 
-async function runAiProbe(kind: ProbeKind, student: Awaited<ReturnType<typeof findDiagnosticStudent>>, context: string) {
+async function runAiProbe(kind: ProbeKind, student: Awaited<ReturnType<typeof findDiagnosticStudent>>, context: string, requestDeadline: number) {
   const started = performance.now()
   if (!student) return { kind, skipped: true, reason: 'لا يوجد طالب مناسب للفحص' }
   const question = questionForProbe(kind, student)
   const expected = expectedForProbe(kind, student)
 
   try {
+    const remaining = remainingLaunchQualityBudget(requestDeadline, `PROBE_${kind}`)
+    const deadlineMs = Date.now() + remaining
     const result = await timeoutAfter(platformAgentComplete({
       userId: student.id,
       mode: kind === 'DEFENSE' ? 'VOICE' : 'TEXT',
       uiContext: `Launch Quality Probe: افحص معرفة الوكيل بسياق الطالب. لا تخترع بيانات غير موجودة.\n\n${context.slice(0, 12000)}`,
       messages: [{ role: 'user', content: question }],
-    }), launchQualityAiTimeoutMs(), `LAUNCH_QUALITY_AI_PROBE_TIMEOUT_${kind}`)
+      deadlineMs,
+    }), Math.min(launchQualityAiTimeoutMs(), remaining), launchQualityDeadlineError(`PROBE_${kind}`))
 
     const hits = keywordHits(result.reply, expected)
     const minScore = kind === 'THESIS' && !student.theses[0] ? 0 : expected.length ? 40 : 0
