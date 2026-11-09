@@ -17,7 +17,55 @@ type Campaign = {
   waitlistStatus?: string | null
 }
 
-type Availability = { enabled: boolean; campaigns: Campaign[] }
+type GeneralOffer = {
+  definitionId: string
+  title: string
+  valueMode: string
+  percentBps: number | null
+  coverage: string
+  originalCents: number
+  discountCents: number
+  discountedCents: number
+  programId?: string
+  admissionId?: string
+}
+
+type Availability = {
+  enabled: boolean
+  campaigns: Campaign[]
+  generalOffer?: GeneralOffer | null
+  generalOffers?: GeneralOffer[]
+}
+
+const formatCents = (cents: number) => {
+  const value = cents / 100
+  return '$' + (Number.isInteger(value) ? String(value) : value.toFixed(2))
+}
+
+const percentLabel = (bps: number) => String(bps / 100) + '٪'
+
+// A general grant is a price offer, not a seat campaign: the real price
+// struck through with the discounted price beside it. The wording is
+// explicit that the discount itself is granted by an admin-issued code
+// after registration — the display never changes an invoice by itself.
+function GeneralOfferBlock({ offer }: { offer: GeneralOffer }) {
+  const coversTuition = offer.coverage === 'TUITION' || offer.coverage === 'BOTH'
+  return (
+    <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 text-xs font-bold leading-relaxed text-[#0f2b46]">
+      <p className="font-black text-emerald-700">منحة عامة متاحة: {offer.title}</p>
+      {coversTuition && offer.originalCents > 0 && offer.discountCents > 0 ? (
+        <p className="mt-1">
+          سعر البرنامج: <span className="line-through opacity-70">{formatCents(offer.originalCents)}</span>{' '}
+          <span className="font-black text-emerald-700">{offer.discountedCents === 0 ? 'مشمول بالكامل' : formatCents(offer.discountedCents)}</span>
+          {offer.percentBps != null ? <> — خصم {percentLabel(offer.percentBps)}</> : null}
+        </p>
+      ) : offer.coverage === 'REGISTRATION' && offer.percentBps != null ? (
+        <p className="mt-1">خصم {percentLabel(offer.percentBps)} على رسوم التسجيل.</p>
+      ) : null}
+      <p className="mt-1">الخصم بيتم بكود من الإدارة: بيوصلك الكود بعد التسجيل، وبينخصم المبلغ من فاتورتك عند اعتماد الإدارة للكود.</p>
+    </div>
+  )
+}
 
 // Public notice shown while a prospective student picks a program in the
 // registration form. Seat counts are a live snapshot, never a promise.
@@ -33,18 +81,25 @@ export function ScholarshipProgramNotice({ programId }: { programId: string }) {
     return () => { cancelled = true }
   }, [programId])
   const data = state && state.programId === programId ? state.data : null
-  if (!data?.enabled || !data.campaigns.length) return null
+  if (!data?.enabled) return null
   const campaign = data.campaigns[0]
+  const offer = data.generalOffer
+  if (!campaign && !offer) return null
   return (
-    <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 text-xs font-bold leading-relaxed text-[#0f2b46]">
-      <p className="font-black text-emerald-700">منحة متاحة لهذا التخصص: {campaign.title}</p>
-      {campaign.full ? (
-        <p className="mt-1">مقاعد المنحة ممتلئة مؤقتًا حاليًا. بعد إتمام التسجيل يمكنك الانضمام إلى قائمة الانتظار من لوحة الطالب، وسيصلك تنبيه عند تحرّر مقعد.</p>
-      ) : campaign.remaining != null ? (
-        <p className="mt-1">المقاعد المتبقية الآن: {campaign.remaining} من {campaign.seats}. هذا العدد لحظي ولا يعني حجز مقعد؛ إصدار المنحة يتم بقرار الإدارة بعد التسجيل.</p>
-      ) : (
-        <p className="mt-1">إصدار هذه المنحة يتم بقرار الإدارة بعد إتمام التسجيل.</p>
+    <div className="space-y-2">
+      {campaign && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 text-xs font-bold leading-relaxed text-[#0f2b46]">
+          <p className="font-black text-emerald-700">منحة متاحة لهذا التخصص: {campaign.title}</p>
+          {campaign.full ? (
+            <p className="mt-1">مقاعد المنحة ممتلئة مؤقتًا حاليًا. بعد إتمام التسجيل يمكنك الانضمام إلى قائمة الانتظار من لوحة الطالب، وسيصلك تنبيه عند تحرّر مقعد.</p>
+          ) : campaign.remaining != null ? (
+            <p className="mt-1">المقاعد المتبقية الآن: {campaign.remaining} من {campaign.seats}. هذا العدد لحظي ولا يعني حجز مقعد؛ إصدار المنحة يتم بقرار الإدارة بعد التسجيل.</p>
+          ) : (
+            <p className="mt-1">إصدار هذه المنحة يتم بقرار الإدارة بعد إتمام التسجيل.</p>
+          )}
+        </div>
       )}
+      {offer && <GeneralOfferBlock offer={offer} />}
     </div>
   )
 }
@@ -79,9 +134,16 @@ export function ScholarshipCampaignsCard() {
     }
   }
 
-  if (!data?.enabled || !data.campaigns.length) return null
+  if (!data?.enabled || (!data.campaigns.length && !(data.generalOffers || []).length)) return null
   return (
     <>
+      {(data.generalOffers || []).map((offer) => (
+        <Card key={'offer-' + offer.definitionId} className="border-emerald-200 bg-emerald-50/40">
+          <CardContent className="p-4">
+            <GeneralOfferBlock offer={offer} />
+          </CardContent>
+        </Card>
+      ))}
       {data.campaigns.map((campaign) => (
         <Card key={campaign.definitionId} className="border-emerald-200 bg-emerald-50/40">
           <CardContent className="space-y-2 p-4">

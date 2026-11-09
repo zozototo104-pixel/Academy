@@ -10,6 +10,7 @@ const waiverCodes: any[] = []
 const payments = new Map<string, any>()
 const admissions = new Map<string, any>()
 const entries = new Map<string, any>()
+const programs = new Map<string, any>([['program-A', { id: 'program-A', price: 200 }]])
 const outboxRows: any[] = []
 const notifications: any[] = []
 let entrySeq = 0
@@ -38,6 +39,7 @@ const db: any = {
     findUnique: async ({ where }: any) => definitions.get(where.id) || null,
     findMany: async ({ where }: any) => [...definitions.values()].filter((def) => {
       if (where?.active !== undefined && def.active !== where.active) return false
+      if (where?.scope && def.scope !== where.scope) return false
       const programId = where?.programs?.some?.programId
       if (programId && !(def.programs || []).some((row: any) => row.programId === programId)) return false
       return true
@@ -154,6 +156,9 @@ const db: any = {
   },
   user: {
     findUnique: async ({ where }: any) => ({ id: where.id, email: where.id + '@example.com' }),
+  },
+  program: {
+    findUnique: async ({ where }: any) => programs.get(where.id) || null,
   },
 }
 
@@ -347,22 +352,48 @@ describe('scholarship waitlist', () => {
     expect(new Date(rejoined.createdAt).getTime()).toBeGreaterThanOrEqual(joinedAt)
   })
 
-  test('general-scope grants stay admin-only: never listed for students (owner decision 2026-11-09)', async () => {
+  test('general grants show as a price offer only — never as a seat campaign (owner spec 2026-11-09)', async () => {
     seedCampaign(3)
     definitions.set('def-general', {
       id: 'def-general', title: 'منحة عامة', scope: 'GENERAL', coverage: 'TUITION',
+      valueMode: 'PERCENT', value: 2500,
       active: true, startsAt: null, endsAt: null, programs: [],
     })
     const response = await availabilityGET(new NextRequest('http://localhost/api/payments/scholarship-availability?programId=program-A'))
     expect(response.status).toBe(200)
     const body = await response.json()
     expect(body.enabled).toBe(true)
+    // Never a campaign: no seats, no waitlist entry point for general grants.
     expect(body.campaigns.map((c: any) => c.definitionId)).toEqual([DEF])
+    // But the offer IS displayed with the struck-price math done server-side:
+    // program price $200, 25% off → $150 required.
+    expect(body.generalOffer).toMatchObject({
+      definitionId: 'def-general', percentBps: 2500,
+      originalCents: 20000, discountCents: 5000, discountedCents: 15000,
+    })
     // And while the organization is disabled, nothing is listed at all.
     delete process.env.SCHOLARSHIP_ORGANIZATION_ENABLED
     const off = await availabilityGET(new NextRequest('http://localhost/api/payments/scholarship-availability?programId=program-A'))
     expect((await off.json()).enabled).toBe(false)
+    expect((await availabilityGET(new NextRequest('http://localhost/api/payments/scholarship-availability?programId=program-A'))).status).toBe(200)
     process.env.SCHOLARSHIP_ORGANIZATION_ENABLED = '1'
+  })
+
+  test('the general offer respects its window and a full grant zeroes the price', async () => {
+    definitions.set('def-general-expired', {
+      id: 'def-general-expired', title: 'عرض منتهي', scope: 'GENERAL', coverage: 'TUITION',
+      valueMode: 'FULL', value: 0,
+      active: true, startsAt: null, endsAt: new Date(Date.now() - 1000), programs: [],
+    })
+    definitions.set('def-general-full', {
+      id: 'def-general-full', title: 'منحة عامة كاملة', scope: 'GENERAL', coverage: 'TUITION',
+      valueMode: 'FULL', value: 0,
+      active: true, startsAt: new Date(Date.now() - 1000), endsAt: null, programs: [],
+    })
+    const body = await (await availabilityGET(new NextRequest('http://localhost/api/payments/scholarship-availability?programId=program-A'))).json()
+    expect(body.generalOffer?.definitionId).toBe('def-general-full')
+    expect(body.generalOffer?.discountedCents).toBe(0)
+    expect(body.generalOffer?.percentBps).toBe(10000)
   })
 
   test('a resend gap cannot release the seat: a live unlinked replacement on the same invoice keeps the operation alive', async () => {

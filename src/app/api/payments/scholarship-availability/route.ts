@@ -41,14 +41,65 @@ async function campaignsForProgram(programId: string) {
   return campaigns
 }
 
+// The best live GENERAL offer for a program (owner's display spec,
+// 2026-11-09): a general grant carries no seats and no waitlist — it is
+// a price offer. The discounted figure is computed here from the
+// program's real price (percent stored as basis points, half-up cent
+// rounding, the same rule the issuance quote uses). The display never
+// changes an invoice: the discount itself lands only when the admin
+// issues the grant code and it is approved, exactly like today.
+async function generalOfferForProgram(programId: string) {
+  const program = await db.program
+    .findUnique({ where: { id: programId }, select: { price: true } })
+    .catch(() => null)
+  const priceCents = Math.max(0, Math.round(Number(program?.price || 0) * 100))
+  const definitions: any[] = await db.scholarshipDefinition.findMany({
+    where: { active: true, scope: 'GENERAL' },
+    orderBy: { createdAt: 'desc' },
+  })
+  const now = Date.now()
+  let best: any = null
+  for (const definition of definitions) {
+    if (definition.startsAt && new Date(definition.startsAt).getTime() > now) continue
+    if (definition.endsAt && new Date(definition.endsAt).getTime() < now) continue
+    const coversTuition = definition.coverage === 'TUITION' || definition.coverage === 'BOTH'
+    let percentBps: number | null = null
+    let discountCents = 0
+    if (definition.valueMode === 'FULL') {
+      percentBps = 10000
+      discountCents = coversTuition ? priceCents : 0
+    } else if (definition.valueMode === 'PERCENT') {
+      percentBps = definition.value
+      discountCents = coversTuition ? Math.round((priceCents * definition.value) / 10000) : 0
+    } else if (coversTuition) {
+      discountCents = Math.min(definition.value, priceCents)
+    }
+    const candidate = {
+      definitionId: definition.id,
+      title: definition.title,
+      valueMode: definition.valueMode,
+      percentBps,
+      coverage: definition.coverage,
+      originalCents: priceCents,
+      discountCents,
+      discountedCents: Math.max(0, priceCents - discountCents),
+    }
+    if (!best || candidate.discountCents > best.discountCents) best = candidate
+  }
+  return best
+}
+
 export async function GET(req: NextRequest) {
   if (!scholarshipOrganizationEnabled()) {
-    return NextResponse.json({ enabled: false, campaigns: [] }, { headers: { 'Cache-Control': 'no-store' } })
+    return NextResponse.json({ enabled: false, campaigns: [], generalOffer: null }, { headers: { 'Cache-Control': 'no-store' } })
   }
   const programId = req.nextUrl.searchParams.get('programId')
   if (programId) {
-    const campaigns = await campaignsForProgram(programId)
-    return NextResponse.json({ enabled: true, campaigns }, { headers: { 'Cache-Control': 'no-store' } })
+    const [campaigns, generalOffer] = await Promise.all([
+      campaignsForProgram(programId),
+      generalOfferForProgram(programId).catch(() => null),
+    ])
+    return NextResponse.json({ enabled: true, campaigns, generalOffer }, { headers: { 'Cache-Control': 'no-store' } })
   }
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'يلزم تسجيل الدخول' }, { status: 401 })
@@ -57,6 +108,7 @@ export async function GET(req: NextRequest) {
     select: { id: true, programId: true },
   })
   const campaigns: any[] = []
+  const generalOffers: any[] = []
   for (const admission of admissions) {
     if (!admission.programId) continue
     for (const campaign of await campaignsForProgram(admission.programId)) {
@@ -66,8 +118,10 @@ export async function GET(req: NextRequest) {
       })
       campaigns.push({ ...campaign, programId: admission.programId, admissionId: admission.id, waitlistStatus: entry?.status || null })
     }
+    const generalOffer = await generalOfferForProgram(admission.programId).catch(() => null)
+    if (generalOffer) generalOffers.push({ ...generalOffer, programId: admission.programId, admissionId: admission.id })
   }
-  return NextResponse.json({ enabled: true, campaigns }, { headers: { 'Cache-Control': 'no-store' } })
+  return NextResponse.json({ enabled: true, campaigns, generalOffers }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
 export async function POST(req: NextRequest) {
