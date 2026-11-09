@@ -184,6 +184,21 @@ describe('AdminFinanceTab workspace organization', () => {
     ])
   })
 
+  test('cancel scholarship control invokes existing audited reversal without bypassing financial safety', () => {
+    requireAll(functionBody('cancelStudentWaiver'), [
+      "const approved = waiver.status === 'APPROVED'",
+      "confirmAction({",
+      "method: 'PATCH'",
+      "action: 'CANCEL', waiverId: waiver.id",
+      "title: 'لم يتم إلغاء المنحة'",
+      "load()",
+    ])
+    required(financeBlock, "إلغاء المنحة عن الطالب")
+    required(financeBlock, "p.status !== 'PAID'")
+    required(financeBlock, "['ISSUED', 'VERIFIED', 'APPROVED'].includes(code.status)")
+    required(financeBlock, "onClick={() => void cancelStudentWaiver(p, cancellable)}")
+  })
+
   test('keeps payment filters, statuses, purposes, and manual pending shortcut', () => {
     for (const value of ['ALL', 'UNPAID', 'PAID', 'WAIVED', 'MANUAL_PENDING', 'APPLICATION_FEE', 'TUITION', 'TUITION_INSTALLMENT', 'SERVICE_FEE', 'AI_LIVE_CREDIT']) {
       required(financeBlock, `value: '${value}'`)
