@@ -398,17 +398,55 @@ async function createOrganizedPolicy(body: any, admin: { id: string; name?: stri
     if (count !== programIds.length) throw grantError('بعض التخصصات المختارة غير موجودة', 400)
   }
   const admissionId = scope === 'INDIVIDUAL' ? cleanText(body.admissionId, 80) : null
-  if (scope === 'INDIVIDUAL') {
-    const admission = admissionId && await db.admissionApplication.findUnique({ where: { id: admissionId }, select: { id: true } })
-    if (!admission) throw grantError('اختر طلب طالب موجود لإصدار منحة فردية', 400)
+  const admission = scope === 'INDIVIDUAL' && admissionId
+    ? await db.admissionApplication.findUnique({
+      where: { id: admissionId },
+      select: { id: true, userId: true, programId: true },
+    })
+    : null
+  if (scope === 'INDIVIDUAL' && (!admission?.userId || !admission.programId)) {
+    throw grantError('المنحة الفردية تتطلب طلب قبول مرتبطًا بهوية طالب وبرنامج موثّقين', 400)
   }
-  const policy: GrantPolicy = {
-    id: randomUUID(), title, scope: scope as GrantPolicy['scope'], programIds,
-    admissionId, coverage: coverage as GrantPolicy['coverage'], valueMode: valueMode as GrantPolicy['valueMode'],
-    value: valueMode === 'FULL' ? 0 : value, reason, active: true, createdAt: new Date().toISOString(),
+  const integerValue = valueMode === 'FULL' ? 0 : Math.round(value * 100)
+  if (!Number.isSafeInteger(integerValue)
+    || (valueMode !== 'FULL' && Math.abs(value * 100 - integerValue) > 0.00000001)) {
+    throw grantError('قيمة المنحة يجب أن تكون دقيقة للسنت أو لنقطتين عشريتين في النسبة', 400)
   }
-  await db.setting.create({ data: { key: GRANT_POLICY_PREFIX + policy.id, value: JSON.stringify(policy) } })
-  await audit({ id: admin.id, name: admin.name || admin.email || 'Admin' }, 'GRANT_POLICY_CREATED', 'Setting', GRANT_POLICY_PREFIX + policy.id, `${title} — ${scope} — ${coverage} — ${valueMode}`)
+  const startsAt = body.startsAt ? new Date(body.startsAt) : null
+  const endsAt = body.endsAt ? new Date(body.endsAt) : null
+  if ((startsAt && Number.isNaN(startsAt.getTime()))
+    || (endsAt && Number.isNaN(endsAt.getTime()))
+    || (startsAt && endsAt && endsAt <= startsAt)) {
+    throw grantError('تاريخ بداية أو نهاية المنحة غير صالح', 400)
+  }
+  const record = await db.scholarshipDefinition.create({
+    data: {
+      title, scope, coverage, valueMode, value: integerValue, reason,
+      active: true, createdById: admin.id, startsAt, endsAt,
+      ...(scope === 'PROGRAM' ? { programs: { create: programIds.map((programId) => ({ programId })) } } : {}),
+      ...(scope === 'INDIVIDUAL' && admission ? {
+        operations: {
+          create: {
+            userId: admission.userId as string,
+            admissionId: admission.id,
+            programId: admission.programId as string,
+            status: 'TARGETED',
+            expectedCodes: 0,
+            expectedCents: 0,
+            createdById: admin.id,
+          },
+        },
+      } : {}),
+    },
+    include: {
+      programs: { select: { programId: true } },
+      operations: { where: { status: 'TARGETED' }, select: { userId: true, admissionId: true, status: true } },
+    },
+  })
+  const policy = toGrantPolicy(record)
+  await audit({ id: admin.id, name: admin.name || admin.email || 'Admin' },
+    'GRANT_POLICY_CREATED', 'ScholarshipDefinition', policy.id,
+    title + ' — ' + scope + ' — ' + coverage + ' — ' + valueMode)
   return policy
 }
 
