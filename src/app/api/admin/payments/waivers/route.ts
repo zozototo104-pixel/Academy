@@ -88,6 +88,27 @@ async function grantQuote(paymentId: string, policyId: string): Promise<GrantQuo
   if (payment.status !== 'UNPAID') throw grantError('لا يمكن إعفاء فاتورة مدفوعة أو معفاة')
   const admissionId = payment.admission.id
   const programId = payment.admission.programId
+  const admissionUserId = payment.admission.userId || null
+  const paymentUserId = payment.userId || null
+  if (admissionUserId && paymentUserId && admissionUserId !== paymentUserId) {
+    throw grantError('هوية طالب الفاتورة مختلفة عن صاحب طلب القبول')
+  }
+  const studentUserId = admissionUserId || paymentUserId
+  if (!studentUserId) throw grantError('هوية الطالب غير مربوطة بحساب موثق؛ لا يجوز إصدار منحة دراسية قبل المطابقة')
+  const priorScholarships = await db.paymentWaiverCode.findMany({
+    where: {
+      status: { in: ['ISSUED', 'VERIFIED', 'APPROVED'] },
+      waiverType: { in: ['FULL_SCHOLARSHIP', 'PARTIAL_TUITION'] },
+      payment: { is: {
+        OR: [{ userId: studentUserId }, { admission: { is: { userId: studentUserId } } }],
+      } },
+    },
+    select: { id: true },
+    take: 1,
+  })
+  if (priorScholarships.length) {
+    throw grantError('لدى هذا الطالب منحة دراسية نشطة أو معتمدة على تسجيل آخر؛ لا يجوز إصدار منحة دراسية ثانية')
+  }
   if (policy.scope === 'INDIVIDUAL' && policy.admissionId !== admissionId) {
     throw grantError('هذه منحة فردية لطالب آخر')
   }
