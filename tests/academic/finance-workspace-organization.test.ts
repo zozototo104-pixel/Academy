@@ -186,8 +186,11 @@ describe('AdminFinanceTab workspace organization', () => {
     ])
 
     requireAll(functionBody('approveWaiver'), [
-      "await api('/api/admin/payments/waivers', { method: 'PATCH', body: JSON.stringify({ action: 'APPROVE', waiverId: waiver.id }) })",
-      "toast({ title: 'تم اعتماد الإعفاء'",
+      "const decision = await api<{ organizationWarning?: string }>('/api/admin/payments/waivers', {",
+      "method: 'PATCH', body: JSON.stringify({ action: 'APPROVE', waiverId: waiver.id })",
+      "decision.organizationWarning",
+      "تم الاعتماد المالي — مراجعة سجل المنحة مطلوبة",
+      "تم اعتماد الإعفاء",
       'load()',
     ])
 
