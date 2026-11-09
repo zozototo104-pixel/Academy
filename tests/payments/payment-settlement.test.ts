@@ -1054,6 +1054,35 @@ describe('waiver cancel reversal (audit fix 2)', () => {
     expect(waiverCodes.find((w) => w.id === 'wv-full')?.status).toBe('CANCELLED')
   })
 
+  test('revoking a tuition grant keeps the separately paid application fee and blocks enrollment immediately', async () => {
+    seedFullScholarshipActivation()
+    Object.assign(payments.get('fee')!, {
+      status: 'PAID',
+      amount: 30,
+      amountCents: 3_000,
+      waivedAmount: 0,
+      waivedAmountCents: 0,
+      waiverType: null,
+      waiverStatus: null,
+      waiverReason: null,
+      waiverApprovedById: null,
+      receiptNo: 'RCPT-CASH-APPLICATION',
+      method: 'BANK_TRANSFER',
+    })
+    const response = await waiversRoutePATCH(patchRequest('http://localhost/api/admin/payments/waivers', {
+      action: 'CANCEL', waiverId: 'wv-full',
+    }))
+    expect(response.status).toBe(200)
+    expect(payments.get('fee')?.status).toBe('PAID')
+    expect(payments.get('fee')?.amountCents).toBe(3_000)
+    expect(payments.get('fee')?.receiptNo).toBe('RCPT-CASH-APPLICATION')
+    expect(payments.get('fee')?.method).toBe('BANK_TRANSFER')
+    expect(payments.get('tuition')?.status).toBe('UNPAID')
+    expect(payments.get('tuition')?.amountCents).toBe(35_000)
+    expect(admissions.get('admission-1')?.scholarshipFull).toBe(false)
+    expect(enrollments.get('student-1:program-1')?.status).toBe('PENDING_PAYMENT')
+  })
+
   test('cancel refused with 409 when another invoice was really paid', async () => {
     seedFullScholarshipActivation()
     payments.set('inst', {
