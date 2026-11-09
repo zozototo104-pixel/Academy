@@ -511,8 +511,8 @@ describe('organized grant eligibility before issuing an existing waiver code', (
   }
   function seedStudentPayment(programId: string) {
     const payment = {
-      id: 'grant-payment', admissionId: 'admission-1',
-      admission: { id: 'admission-1', fullName: 'طالب تجريبي', programId },
+      id: 'grant-payment', admissionId: 'admission-1', userId: 'student-grant-1',
+      admission: { id: 'admission-1', fullName: 'طالب تجريبي', programId, userId: 'student-grant-1' },
       purpose: 'TUITION', status: 'UNPAID', amount: 199.99, amountCents: 19999,
       invoiceNo: 'GRANT-INVOICE',
     }
