@@ -497,6 +497,12 @@ async function reserveGrantOperation(quote: GrantQuote, adminId: string) {
       || coveredInvoices.some((item) => item.status !== 'UNPAID')) {
       throw grantError('تغيرت فواتير الرسوم المشمولة؛ لا يمكن إصدار المنحة الجزئية')
     }
+    if (definition.coverage === 'BOTH' && definition.valueMode !== 'FULL') {
+      const tuitionInvoices = coveredInvoices.filter((item) => item.purpose === 'TUITION')
+      if (tuitionInvoices.length !== 1 || amountCents(tuitionInvoices[0]) !== quote.baseCents) {
+        throw grantError('تغير أساس احتساب خصم الدراسة؛ أعد المعاينة')
+      }
+    }
     if (definition.coverage !== 'REGISTRATION') {
       const otherIssue = await tx.scholarshipGrantOperation.findFirst({
         where: {
