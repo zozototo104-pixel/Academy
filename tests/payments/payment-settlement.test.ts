@@ -208,6 +208,8 @@ const db: any = {
       admissions: cloneMap(admissions),
       users: cloneMap(users),
       enrollments: cloneMap(enrollments),
+      scholarshipOperations: cloneMap(scholarshipOperations),
+      scholarshipLinks: cloneMap(scholarshipLinks),
       waiverCodes: cloneArray(waiverCodes),
       waiverAttempts: cloneArray(waiverAttempts),
     }
