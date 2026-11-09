@@ -74,6 +74,16 @@ describe('AdminFinanceTab workspace organization', () => {
     expect(financeBlock.includes('setOpenFinanceSection(value); api')).toBe(false)
   })
 
+  test('keeps organized grant issuance off until the server migration gate is ready', () => {
+    required(financeBlock, 'setGrantOrganizationReady(response.ready === true)')
+    required(financeBlock, 'setGrantOrganizationReady(false)')
+    required(financeBlock, 'disabled={grantSaving || !grantOrganizationReady}')
+    required(financeBlock, 'grantOrganizationReady && grantPolicies.length > 0')
+    required(financeBlock, 'تنظيم المنح والحملات قيد التحصين')
+    required(financeBlock, 'إعادة إرسال تحقق')
+    required(financeBlock, 'تأكيد وصول المبلغ')
+  })
+
   test('keeps all three workspaces mounted and only hides their wrappers', () => {
     required(financeBlock, 'id="finance-section-reports"')
     required(financeBlock, 'id="finance-section-payments"')
