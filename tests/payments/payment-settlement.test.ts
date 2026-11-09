@@ -386,7 +386,10 @@ const db: any = {
     },
   },
   examAttempt: {
-    count: async ({ where }: { where: Record<string, any> }) => examAttempts.filter((item) => item.userId === where.userId).length,
+    count: async ({ where }: { where: Record<string, any> }) => examAttempts.filter((item) => (
+      item.userId === where.userId
+      && (!where.exam?.is?.unit?.is?.programId || item.programId === where.exam.is.unit.is.programId)
+    )).length,
   },
   programExamAttempt: { count: async () => 0 },
   graduationRequest: { findUnique: async () => null },
