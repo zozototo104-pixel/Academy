@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { ActivePaymentWaiverExistsError, approvePaymentWaiver, createPaymentWaiverCode, isPaymentWaiverType, resendPaymentWaiverCode } from '@/lib/payment-waivers'
+import { releaseStaleGrantOperations, notifyWaitlistForFreeSeats } from '@/lib/scholarship-waitlist'
 import { audit } from '@/lib/notify'
 
 // Administrative scholarship metadata has its own additive Prisma migration.
@@ -86,57 +87,6 @@ function toGrantPolicy(row: StoredGrantDefinition): GrantPolicy {
     startsAt: row.startsAt?.toISOString() || null,
     endsAt: row.endsAt?.toISOString() || null,
   }
-}
-// Seat law: an organized reservation lives only while at least one of its
-// codes can still be verified, or was approved. A code is live when it is
-// APPROVED, or ISSUED/VERIFIED and not past its expiry — the same rule the
-// eligibility checks apply to legacy codes. When every linked code is dead
-// (expired or terminal), the ISSUED operation is closed as CANCELLED, which
-// returns its seat to the campaign pool and lifts the one-scholarship hold
-// for that student. The waiver ledger itself is never modified here, and an
-// operation with no links is never auto-closed (it belongs to the
-// incomplete-operation review path, not to expiry).
-async function releaseStaleGrantOperations(
-  client: any,
-  scope: { definitionId?: string; definitionIds?: string[]; programId?: string; userId?: string },
-): Promise<Array<{ id: string; definitionId: string; programId: string; userId: string }>> {
-  const where: Record<string, any> = { status: 'ISSUED' }
-  if (scope.definitionId) where.definitionId = scope.definitionId
-  if (scope.definitionIds) where.definitionId = { in: scope.definitionIds }
-  if (scope.programId) where.programId = scope.programId
-  if (scope.userId) where.userId = scope.userId
-  const operations = await client.scholarshipGrantOperation.findMany({
-    where,
-    select: { id: true, definitionId: true, programId: true, userId: true },
-  })
-  if (!operations.length) return []
-  const links = await client.scholarshipGrantLink.findMany({
-    where: { operationId: { in: operations.map((op: any) => op.id) } },
-    select: { operationId: true, waiverCodeId: true },
-  })
-  if (!links.length) return []
-  const codes = await client.paymentWaiverCode.findMany({
-    where: { id: { in: links.map((link: any) => link.waiverCodeId) } },
-    select: { id: true, status: true, expiresAt: true },
-  })
-  const codeById = new Map(codes.map((code: any) => [code.id, code]))
-  const now = Date.now()
-  const isLive = (code: any) => !!code && (code.status === 'APPROVED'
-    || ((code.status === 'ISSUED' || code.status === 'VERIFIED')
-      && (!code.expiresAt || new Date(code.expiresAt).getTime() > now)))
-  const linkedOperations = new Set<string>()
-  const liveOperations = new Set<string>()
-  for (const link of links) {
-    linkedOperations.add(link.operationId)
-    if (isLive(codeById.get(link.waiverCodeId))) liveOperations.add(link.operationId)
-  }
-  const stale = operations.filter((op: any) => linkedOperations.has(op.id) && !liveOperations.has(op.id))
-  if (!stale.length) return []
-  const closed = await client.scholarshipGrantOperation.updateMany({
-    where: { id: { in: stale.map((op: any) => op.id) }, status: 'ISSUED' },
-    data: { status: 'CANCELLED' },
-  })
-  return closed.count ? stale : []
 }
 async function loadGrantPolicies(): Promise<GrantPolicy[]> {
   const rows = await db.scholarshipDefinition.findMany({
@@ -1096,6 +1046,26 @@ export async function PATCH(req: NextRequest) {
         throw e
       }
       await audit({ id: admin.id, name: admin.name || admin.email || 'Admin' }, `PAYMENT_WAIVER_${status}`, 'Payment', waiver.paymentId, `${waiver.codePreview} — ${waiver.waiverType}${decidedStatus === 'APPROVED' ? ' — إعادة الفاتورة إلى UNPAID' : ''}`)
+      // If this decision closed an organized grant operation, a campaign
+      // seat just freed: invite the head of that campaign's waitlist.
+      // Notification failure never fails the financial decision.
+      try {
+        const grantLink = await db.scholarshipGrantLink.findUnique({
+          where: { waiverCodeId: waiverId },
+          select: { operationId: true },
+        })
+        if (grantLink?.operationId) {
+          const operation = await db.scholarshipGrantOperation.findUnique({
+            where: { id: grantLink.operationId },
+            select: { status: true, definitionId: true, programId: true },
+          })
+          if (operation?.status === 'CANCELLED') {
+            await notifyWaitlistForFreeSeats(db, operation.definitionId, operation.programId)
+          }
+        }
+      } catch (notifyError) {
+        console.error('Failed to notify scholarship waitlist after cancellation:', notifyError)
+      }
       return NextResponse.json(result)
     }
 

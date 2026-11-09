@@ -84,6 +84,10 @@ mock.module('@/lib/notify', () => ({
 mock.module('@/lib/mailer', () => ({
   emailPaymentWaiverCode: async (...args: any[]) => { calls.email.push(args); return true },
   isEmailDeliveryConfigured: async () => true,
+  // The waivers route now reaches the outbox module (waitlist invitations),
+  // which imports these two mailer helpers; the resend flow never calls them.
+  emailTemplate: (title: string, body: string) => title + '\n' + body,
+  sendEmailDetailed: async () => ({ status: 'SENT' }),
 }))
 mock.module('@/lib/whatsapp-cloud', () => ({
   sendOfficialWhatsAppText: async (...args: any[]) => { calls.waText.push(args); return { messages: [{ id: 'wamid-1' }] } },
