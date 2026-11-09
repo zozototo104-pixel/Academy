@@ -182,19 +182,21 @@ async function main() {
   const afterA = await db.scholarshipGrantOperation.count({ where: { definitionId: definition.id } })
   check('A: exactly one operation exists after the race', afterA === 1, `operations=${afterA}`)
 
-  // Scenario B: the seat winner races himself — the user lock serializes
-  // both attempts and the second sees the occupying operation.
-  const winnerId = wonA.length === 1 ? (raceA.find((r) => r.status === 'fulfilled') as PromiseFulfilledResult<any>).value.userId : 'pg-g-user-a'
+  // Scenario B: a FRESH student with no reservation races himself — the
+  // user lock serializes both attempts, exactly one wins and the second
+  // sees the occupying operation it just created.
+  await db.user.create({ data: { id: 'pg-g-user-d', email: 'd@grants.test', name: 'D', password: '<redacted>', role: 'STUDENT', status: 'ACTIVE' } })
   const raceB = await Promise.allSettled([
-    reservePattern(db, { userId: winnerId, definitionId: definition.id, programId: 'pg-g-program', seats: 99, holdMs: 300 }),
-    reservePattern(db, { userId: winnerId, definitionId: definition.id, programId: 'pg-g-program', seats: 99 }),
+    reservePattern(db, { userId: 'pg-g-user-d', definitionId: definition.id, programId: 'pg-g-program', seats: 99, holdMs: 300 }),
+    reservePattern(db, { userId: 'pg-g-user-d', definitionId: definition.id, programId: 'pg-g-program', seats: 99 }),
   ])
+  const wonB = raceB.filter((r) => r.status === 'fulfilled')
   const rejectedB = raceB.filter((r) => r.status === 'rejected') as PromiseRejectedResult[]
-  check('B: a same-student double submission is refused with ALREADY_RESERVED',
-    raceB.every((r) => r.status === 'rejected') && rejectedB.every((r) => String(r.reason?.message || '').includes('ALREADY_RESERVED')),
+  check('B: a fresh student racing himself wins exactly once',
+    wonB.length === 1 && rejectedB.length === 1 && String(rejectedB[0].reason?.message || '').includes('ALREADY_RESERVED'),
     `outcomes=${raceB.map((r) => r.status).join(',')}`)
-  const afterB = await db.scholarshipGrantOperation.count({ where: { definitionId: definition.id } })
-  check('B: still exactly one operation for the student', afterB === 1, `operations=${afterB}`)
+  const afterB = await db.scholarshipGrantOperation.count({ where: { definitionId: definition.id, userId: 'pg-g-user-d' } })
+  check('B: exactly one operation exists for the fresh student', afterB === 1, `operations=${afterB}`)
 
   // Scenario C: the shipped waitlist library closes a fully expired
   // reservation against the real schema and constraints.

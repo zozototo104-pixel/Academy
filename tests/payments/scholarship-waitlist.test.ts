@@ -73,6 +73,7 @@ const db: any = {
   paymentWaiverCode: {
     findMany: async ({ where }: any) => waiverCodes.filter((row) => {
       if (where?.id?.in && !where.id.in.includes(row.id)) return false
+      if (where?.paymentId?.in && !where.paymentId.in.includes(row.paymentId)) return false
       if (where?.waiverType?.in && !where.waiverType.in.includes(row.waiverType)) return false
       const ownership = where?.payment?.is?.OR
       if (ownership) {
@@ -140,7 +141,7 @@ mock.module('@/lib/auth', () => ({ getCurrentUser: async () => null }))
 
 const {
   joinScholarshipWaitlist, leaveScholarshipWaitlist, notifyWaitlistForFreeSeats,
-  releaseStaleGrantOperations, WaitlistError,
+  releaseStaleGrantOperations, countOccupiedSeats, WaitlistError,
 } = await import('../../src/lib/scholarship-waitlist')
 const { GET: availabilityGET } = await import('../../src/app/api/payments/scholarship-availability/route')
 const { NextRequest } = await import('next/server')
@@ -165,7 +166,7 @@ function seedOccupyingOperation(opId: string, userId: string, code: Record<strin
   })
   const waiverId = opId + '-code'
   waiverCodes.push({ id: waiverId, paymentId: 'pay-adm-' + userId, waiverType: 'PARTIAL_TUITION', ...code })
-  links.set('link-' + opId, { id: 'link-' + opId, operationId: opId, definitionId: DEF, waiverCodeId: waiverId })
+  links.set('link-' + opId, { id: 'link-' + opId, operationId: opId, definitionId: DEF, waiverCodeId: waiverId, paymentId: 'pay-adm-' + userId })
 }
 async function seedWaitingEntry(userId: string, createdAt: Date) {
   seedAdmission('adm-' + userId, userId)
@@ -292,6 +293,25 @@ describe('scholarship waitlist', () => {
     const off = await availabilityGET(new NextRequest('http://localhost/api/payments/scholarship-availability?programId=program-A'))
     expect((await off.json()).enabled).toBe(false)
     process.env.SCHOLARSHIP_ORGANIZATION_ENABLED = '1'
+  })
+
+  test('a resend gap cannot release the seat: a live unlinked replacement on the same invoice keeps the operation alive', async () => {
+    seedCampaign(1)
+    // The engine has just resent: the linked code is CANCELLED and the
+    // replacement exists on the same invoice but is not linked yet.
+    seedOccupyingOperation('op-resent', 'resent-user', { status: 'CANCELLED' })
+    waiverCodes.push({ id: 'replacement-code', paymentId: 'pay-adm-resent-user', waiverType: 'PARTIAL_TUITION', status: 'ISSUED', expiresAt: new Date(Date.now() + 60_000) })
+    const released = await releaseStaleGrantOperations(db, {})
+    expect(released).toEqual([])
+    expect(operations.get('op-resent')?.status).toBe('ISSUED')
+    expect(await countOccupiedSeats(db, DEF, 'program-A')).toBe(1)
+    // Once the replacement is dead too, the release works again — the
+    // guard delays a release, it never disables it.
+    const replacement = waiverCodes.find((row) => row.id === 'replacement-code')!
+    replacement.status = 'CANCELLED'
+    const releasedAfter = await releaseStaleGrantOperations(db, {})
+    expect(releasedAfter.map((op: any) => op.id)).toEqual(['op-resent'])
+    expect(operations.get('op-resent')?.status).toBe('CANCELLED')
   })
 
   test('expiry release closes a fully expired reservation and frees its seat for the waitlist', async () => {

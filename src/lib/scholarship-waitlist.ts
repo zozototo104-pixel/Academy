@@ -48,7 +48,7 @@ export async function findStaleGrantOperations(client: any, scope: StaleScope) {
   if (!operations.length) return []
   const links = await client.scholarshipGrantLink.findMany({
     where: { operationId: { in: operations.map((op: any) => op.id) } },
-    select: { operationId: true, waiverCodeId: true },
+    select: { operationId: true, waiverCodeId: true, paymentId: true },
   })
   if (!links.length) return []
   const codes = await client.paymentWaiverCode.findMany({
@@ -58,9 +58,35 @@ export async function findStaleGrantOperations(client: any, scope: StaleScope) {
   const codeById = new Map(codes.map((code: any) => [code.id, code]))
   const linkedOperations = new Set<string>()
   const liveOperations = new Set<string>()
+  const paymentIdsByOperation = new Map<string, Set<string>>()
   for (const link of links) {
     linkedOperations.add(link.operationId)
     if (isLiveWaiverCode(codeById.get(link.waiverCodeId))) liveOperations.add(link.operationId)
+    if (link.paymentId) {
+      if (!paymentIdsByOperation.has(link.operationId)) paymentIdsByOperation.set(link.operationId, new Set())
+      paymentIdsByOperation.get(link.operationId)!.add(link.paymentId)
+    }
+  }
+  // A resend replaces the code inside the engine BEFORE the route links the
+  // replacement to this operation. During that gap the operation's linked
+  // code is dead while a live replacement already exists on the same
+  // invoice — the operation must not read as stale, or its seat is released
+  // under a live code and the approval guard then refuses it forever. Any
+  // live code on any of the operation's invoices (linked or not yet linked)
+  // keeps the operation alive; the bias is always toward releasing late,
+  // never toward releasing under a live code.
+  const paymentIds = [...new Set(links.map((link: any) => link.paymentId).filter(Boolean))]
+  if (paymentIds.length) {
+    const paymentCodes = await client.paymentWaiverCode.findMany({
+      where: { paymentId: { in: paymentIds } },
+      select: { paymentId: true, status: true, expiresAt: true },
+    })
+    const livePayments = new Set(
+      paymentCodes.filter((code: any) => isLiveWaiverCode(code)).map((code: any) => code.paymentId),
+    )
+    for (const [operationId, ids] of paymentIdsByOperation) {
+      if ([...ids].some((paymentId) => livePayments.has(paymentId))) liveOperations.add(operationId)
+    }
   }
   return operations.filter((op: any) => linkedOperations.has(op.id) && !liveOperations.has(op.id))
 }
