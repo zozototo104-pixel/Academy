@@ -91,6 +91,20 @@ function paymentMatches(payment: Record<string, any>, where: Record<string, any>
 
 const db: any = {
   scholarshipGrantOperation: {
+    groupBy: async ({ where }: any) => {
+      const counts = new Map<string, { definitionId: string; programId: string; _count: { _all: number } }>()
+      for (const operation of scholarshipOperations.values()) {
+        if (where.definitionId?.in && !where.definitionId.in.includes(operation.definitionId)) continue
+        if (where.status?.in && !where.status.in.includes(operation.status)) continue
+        const key = operation.definitionId + ':' + operation.programId
+        const current = counts.get(key)
+        if (current) current._count._all++
+        else counts.set(key, {
+          definitionId: operation.definitionId, programId: operation.programId, _count: { _all: 1 },
+        })
+      }
+      return [...counts.values()]
+    },
     findFirst: async ({ where }: any) => [...scholarshipOperations.values()].find((op) => {
       if (where?.definitionId && op.definitionId !== where.definitionId) return false
       if (where?.userId && op.userId !== where.userId) return false
