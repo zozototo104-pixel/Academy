@@ -1102,6 +1102,25 @@ describe('waiver cancel reversal (audit fix 2)', () => {
     expect(admissions.get('admission-1')?.status).toBe('THESIS')
   })
 
+  test('academic attempts in another program do not block safe scholarship cancellation', async () => {
+    seedFullScholarshipActivation()
+    examAttempts.push({ id: 'attempt-other', userId: 'student-1', programId: 'program-2' })
+    const res = await waiversRoutePATCH(patchRequest('http://localhost/api/admin/payments/waivers', { action: 'CANCEL', waiverId: 'wv-full' }))
+    expect(res.status).toBe(200)
+    expect(enrollments.get('student-1:program-1')?.status).toBe('PENDING_PAYMENT')
+    expect(payments.get('tuition')?.status).toBe('UNPAID')
+  })
+
+  test('academic attempts in the affected program still refuse cancellation without touching grades', async () => {
+    seedFullScholarshipActivation()
+    examAttempts.push({ id: 'attempt-current', userId: 'student-1', programId: 'program-1' })
+    const res = await waiversRoutePATCH(patchRequest('http://localhost/api/admin/payments/waivers', { action: 'CANCEL', waiverId: 'wv-full' }))
+    expect(res.status).toBe(409)
+    expect((await res.json()).code).toBe('WAIVER_CANCEL_UNSAFE')
+    expect(waiverCodes.find((w) => w.id === 'wv-full')?.status).toBe('APPROVED')
+    expect(enrollments.get('student-1:program-1')?.status).toBe('ACTIVE')
+  })
+
   test('cancel refused with 409 when the student already completed a unit', async () => {
     seedFullScholarshipActivation()
     enrollments.get('student-1:program-1')!.completedUnits = '["unit-1"]'
