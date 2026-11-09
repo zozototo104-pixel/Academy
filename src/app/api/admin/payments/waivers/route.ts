@@ -537,11 +537,20 @@ export async function PATCH(req: NextRequest) {
       return grantOrganizationUnavailable()
     }
     if (action === 'TOGGLE_POLICY') {
-      const id = cleanText(body.policyId, 60)
+      const id = cleanText(body.policyId, 80)
       const policy = await loadGrantPolicy(id)
-      const updated = { ...policy, active: !policy.active }
-      await db.setting.update({ where: { key: GRANT_POLICY_PREFIX + id }, data: { value: JSON.stringify(updated) } })
-      await audit({ id: admin.id, name: admin.name || admin.email || 'Admin' }, 'GRANT_POLICY_TOGGLED', 'Setting', GRANT_POLICY_PREFIX + id, `${policy.title} — ${updated.active ? 'نشطة' : 'موقوفة'}`)
+      const record = await db.scholarshipDefinition.update({
+        where: { id },
+        data: { active: !policy.active },
+        include: {
+          programs: { select: { programId: true } },
+          operations: { where: { status: 'TARGETED' }, select: { userId: true, admissionId: true, status: true } },
+        },
+      })
+      const updated = toGrantPolicy(record)
+      await audit({ id: admin.id, name: admin.name || admin.email || 'Admin' },
+        'GRANT_POLICY_TOGGLED', 'ScholarshipDefinition', id,
+        policy.title + ' — ' + (updated.active ? 'نشطة' : 'موقوفة'))
       return NextResponse.json({ policy: updated })
     }
     if (action === 'RESEND') {
