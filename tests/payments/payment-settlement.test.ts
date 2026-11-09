@@ -420,6 +420,9 @@ const db: any = {
   },
   program: {
     findUnique: async () => ({ id: 'program-1', category: 'DIPLOMA', admissionRules: null, semestersCount: 2, maxStudyDays: 90 }),
+    count: async ({ where }: any) => (where?.id?.in || []).filter(
+      (id: string) => ['program-1', 'program-A', 'program-B'].includes(id),
+    ).length,
   },
   unit: {
     findMany: async () => [
