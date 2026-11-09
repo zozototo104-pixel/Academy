@@ -800,6 +800,44 @@ interface PaymentRow {
   admission?: { reference: string; fullName: string; country?: string; program: string } | null
 }
 
+interface OrganizedGrantPolicy {
+  id: string
+  title: string
+  scope: 'GENERAL' | 'PROGRAM' | 'INDIVIDUAL'
+  programIds: string[]
+  admissionId: string | null
+  coverage: 'REGISTRATION' | 'TUITION' | 'BOTH'
+  valueMode: 'FULL' | 'PERCENT' | 'AMOUNT'
+  value: number
+  reason: string
+  active: boolean
+  createdAt: string
+  startsAt?: string | null
+  endsAt?: string | null
+  programAvailability?: Array<{ programId: string; seats: number | null; occupied: number; remaining: number | null }>
+}
+
+interface StuckGrantOperation {
+  id: string
+  status: string
+  createdAt: string
+  userId: string
+  programId: string
+  expectedCodes: number
+  definition?: { title: string } | null
+}
+
+interface OrganizedGrantQuote {
+  policy: OrganizedGrantPolicy
+  paymentId: string
+  baseCents: number
+  grantCents: number
+  paymentIds: string[]
+  signature: string
+  summary: string
+  waiverType: string
+}
+
 interface Report {
   totalRevenue: number
   byPurpose: Record<string, number>
@@ -826,11 +864,155 @@ export function AdminFinanceTab() {
   const [proofReviewBusy, setProofReviewBusy] = useState<string | null>(null)
   const [generatedWaiverCodes, setGeneratedWaiverCodes] = useState<Record<string, string>>({})
   const [copiedWaiverPaymentId, setCopiedWaiverPaymentId] = useState<string | null>(null)
-  const [openFinanceSection, setOpenFinanceSection] = useState<'payments' | 'reports' | null>('payments')
-  const toggleFinanceSection = (section: 'payments' | 'reports') => {
+  // Readiness is controlled by the server-side grant migration gate.
+  // Existing waiver actions remain available even when organization is not ready.
+  const [grantOrganizationReady, setGrantOrganizationReady] = useState(false)
+  const [grantPolicies, setGrantPolicies] = useState<OrganizedGrantPolicy[]>([])
+  const [stuckGrantOperations, setStuckGrantOperations] = useState<StuckGrantOperation[]>([])
+  const [resolvingGrantOperationId, setResolvingGrantOperationId] = useState('')
+  const [grantPrograms, setGrantPrograms] = useState<Array<{ id: string; titleAr: string }>>([])
+  const [grantAdmissions, setGrantAdmissions] = useState<Array<{ id: string; reference: string; fullName: string; program: string }>>([])
+  const [grantStudentSearch, setGrantStudentSearch] = useState('')
+  const [grantSaving, setGrantSaving] = useState(false)
+  const [grantPolicyError, setGrantPolicyError] = useState('')
+  const [grantSelection, setGrantSelection] = useState<Record<string, string>>({})
+  const [grantQuoteDialog, setGrantQuoteDialog] = useState<{ payment: PaymentRow; quote: OrganizedGrantQuote } | null>(null)
+  const [grantForm, setGrantForm] = useState({
+    title: '', scope: 'PROGRAM', programIds: [] as string[], seatLimits: {} as Record<string, string>, admissionId: '',
+    coverage: 'TUITION', valueMode: 'FULL', value: '', reason: '', startsAt: '', endsAt: '',
+  })
+  const [openFinanceSection, setOpenFinanceSection] = useState<'payments' | 'reports' | 'grants' | null>('payments')
+  const toggleFinanceSection = (section: 'payments' | 'reports' | 'grants') => {
     const y = typeof window !== 'undefined' ? window.scrollY : 0
     setOpenFinanceSection((current) => (current === section ? null : section))
     if (typeof window !== 'undefined') window.setTimeout(() => window.scrollTo({ top: y, behavior: 'auto' }), 0)
+  }
+
+  const loadGrantPolicies = useCallback(async () => {
+    try {
+      const response = await api<{ policies: OrganizedGrantPolicy[]; ready: boolean; stuckOperations?: StuckGrantOperation[] }>('/api/admin/payments/waivers?mode=policies')
+      setGrantPolicies(Array.isArray(response.policies) ? response.policies : [])
+      setStuckGrantOperations(Array.isArray(response.stuckOperations) ? response.stuckOperations : [])
+      setGrantOrganizationReady(response.ready === true)
+      setGrantPolicyError('')
+    } catch (error: any) {
+      setGrantOrganizationReady(false)
+      setGrantPolicyError(error?.message || 'تعذر تحميل تعريفات المنح')
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      if (!cancelled) void loadGrantPolicies()
+    }, 0)
+    api<{ programs: Array<{ id: string; titleAr: string }> }>('/api/programs?summary=1')
+      .then((result) => { if (!cancelled) setGrantPrograms(Array.isArray(result.programs) ? result.programs : []) })
+      .catch(() => { if (!cancelled) setGrantPolicyError('تعذر تحميل قائمة التخصصات') })
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [loadGrantPolicies])
+
+  useEffect(() => {
+    if (grantForm.scope !== 'INDIVIDUAL' || grantStudentSearch.trim().length < 2) return
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      const params = new URLSearchParams({ search: grantStudentSearch.trim(), pageSize: '20' })
+      api<{ applications: Array<{ id: string; reference: string; fullName: string; program: string }> }>(`/api/admin/admissions?${params}`)
+        .then((result) => { if (!cancelled) setGrantAdmissions(Array.isArray(result.applications) ? result.applications : []) })
+        .catch(() => { if (!cancelled) setGrantAdmissions([]) })
+    }, 300)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [grantStudentSearch, grantForm.scope])
+
+  const saveGrantPolicy = async () => {
+    if (grantSaving) return
+    setGrantSaving(true)
+    try {
+      const result = await api<{ policy: OrganizedGrantPolicy }>('/api/admin/payments/waivers', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'CREATE_POLICY', ...grantForm, value: Number(grantForm.value || 0),
+          startsAt: grantForm.startsAt ? new Date(grantForm.startsAt).toISOString() : null,
+          endsAt: grantForm.endsAt ? new Date(grantForm.endsAt).toISOString() : null,
+        }),
+      })
+      toast({
+        title: 'تم حفظ المنحة غير مفعّلة',
+        description: result.policy.title + ' — راجع الشروط والمقاعد، ثم فعّلها من القائمة.',
+      })
+      setGrantForm({ title: '', scope: 'PROGRAM', programIds: [], seatLimits: {}, admissionId: '', coverage: 'TUITION', valueMode: 'FULL', value: '', reason: '', startsAt: '', endsAt: '' })
+      setGrantStudentSearch('')
+      await loadGrantPolicies()
+    } catch (error: any) {
+      toast({ title: 'لم تُحفظ المنحة', description: error?.message || 'تحقق من الحقول والشروط', variant: 'destructive' })
+    } finally { setGrantSaving(false) }
+  }
+
+  const toggleGrantPolicy = async (policyId: string) => {
+    if (grantSaving) return
+    setGrantSaving(true)
+    try {
+      await api('/api/admin/payments/waivers', { method: 'PATCH', body: JSON.stringify({ action: 'TOGGLE_POLICY', policyId }) })
+      await loadGrantPolicies()
+    } catch (error: any) {
+      toast({ title: 'تعذر تغيير حالة المنحة', description: error?.message || 'حاول مجددًا', variant: 'destructive' })
+    } finally { setGrantSaving(false) }
+  }
+
+  const resolveStuckGrantOperation = async (operationId: string, decision: 'RELEASE' | 'RESTORE') => {
+    if (resolvingGrantOperationId) return
+    setResolvingGrantOperationId(operationId)
+    try {
+      await api('/api/admin/payments/waivers', { method: 'PATCH', body: JSON.stringify({ action: 'RESOLVE_GRANT_OPERATION', operationId, decision }) })
+      toast({ title: decision === 'RELEASE' ? 'حُرّر مقعد العملية' : 'استُعيدت العملية كمُصدَرة', description: 'تمت تسوية العملية العالقة وتحديث القائمة' })
+      await loadGrantPolicies()
+    } catch (error: any) {
+      toast({ title: 'تعذرت تسوية العملية', description: error?.message || 'حاول مجددًا', variant: 'destructive' })
+    } finally { setResolvingGrantOperationId('') }
+  }
+
+  const previewOrganizedGrant = async (payment: PaymentRow) => {
+    const policyId = grantSelection[payment.id]
+    if (!policyId) {
+      toast({ title: 'اختر منحة أولاً', description: 'حدّد منحة عامة أو مخصصة للتخصص، أو أنشئ منحة فردية لهذا الطالب', variant: 'destructive' })
+      return
+    }
+    setWaiverBusy(payment.id)
+    try {
+      const params = new URLSearchParams({ mode: 'quote', policyId, paymentId: payment.id })
+      const result = await api<{ quote: OrganizedGrantQuote }>(`/api/admin/payments/waivers?${params}`)
+      setGrantQuoteDialog({ payment, quote: result.quote })
+    } catch (error: any) {
+      toast({ title: 'الطالب غير مؤهل أو الفاتورة غير قابلة للإعفاء', description: error?.message || 'راجع المنحة والتخصص', variant: 'destructive' })
+    } finally { setWaiverBusy(null) }
+  }
+
+  const issueOrganizedGrant = async () => {
+    if (!grantQuoteDialog || grantSaving) return
+    const { payment, quote } = grantQuoteDialog
+    setGrantSaving(true)
+    try {
+      const result = await api<{ code: string; waiver: PaymentWaiverCodeRow; emailStatus?: string }>('/api/admin/payments/waivers', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'ISSUE_POLICY', paymentId: payment.id, policyId: quote.policy.id, signature: quote.signature }),
+      })
+      setGeneratedWaiverCodes((prev) => ({ ...prev, [payment.id]: result.code }))
+      await copyWaiverCode(payment.id, result.code)
+      const mailNote = result.emailStatus === 'SENT'
+        ? 'تم إرسال البريد ✅'
+        : result.emailStatus === 'FAILED'
+          ? 'فشل إرسال البريد، انسخ الكود يدوياً'
+          : 'لم يتم إرسال بريد، انسخ الكود يدوياً'
+      toast({
+        title: 'صدر كود المنحة بالنظام المالي الحالي',
+        description: mailNote,
+        variant: result.emailStatus === 'FAILED' ? 'destructive' : undefined,
+      })
+      setGrantQuoteDialog(null)
+      load()
+    } catch (error: any) {
+      toast({ title: 'توقف إصدار المنحة', description: error?.message || 'أعد التحقق من الفواتير والتخصص', variant: 'destructive' })
+    } finally { setGrantSaving(false) }
   }
 
   const load = () => setPaymentRefresh((v) => v + 1)
@@ -1072,6 +1254,7 @@ export function AdminFinanceTab() {
     }
   }
 
+
   const approveWaiver = async (payment: PaymentRow) => {
     const waiver = payment.waiverCodes?.find((w) => w.status === 'VERIFIED') || payment.waiverCodes?.[0]
     if (!waiver) return
@@ -1083,11 +1266,58 @@ export function AdminFinanceTab() {
     })
     if (!ok) return
     try {
-      await api('/api/admin/payments/waivers', { method: 'PATCH', body: JSON.stringify({ action: 'APPROVE', waiverId: waiver.id }) })
-      toast({ title: 'تم اعتماد الإعفاء', description: 'تم تحديث الفاتورة وتسجيل القرار في سجل التدقيق.' })
+      const decision = await api<{ organizationWarning?: string }>('/api/admin/payments/waivers', {
+        method: 'PATCH', body: JSON.stringify({ action: 'APPROVE', waiverId: waiver.id }),
+      })
+      toast({
+        title: decision.organizationWarning ? 'تم الاعتماد المالي — مراجعة سجل المنحة مطلوبة' : 'تم اعتماد الإعفاء',
+        description: decision.organizationWarning || 'تم تحديث الفاتورة وتسجيل القرار في سجل التدقيق.',
+        variant: decision.organizationWarning ? 'destructive' : undefined,
+      })
       load()
     } catch (e: any) {
       toast({ title: 'تعذر اعتماد الإعفاء', description: e.message, variant: 'destructive' })
+    }
+  }
+
+  const cancelStudentWaiver = async (payment: PaymentRow, waiver: PaymentWaiverCodeRow) => {
+    if (waiverBusy === payment.id) return
+    const approved = waiver.status === 'APPROVED'
+    const confirmed = await confirmAction({
+      title: approved ? 'إلغاء المنحة المعتمدة عن الطالب' : 'إلغاء كود المنحة عن الطالب',
+      description: approved
+        ? 'سيعيد النظام المبالغ المعفاة إلى فواتير مستحقة ويوقف وصول الطالب إلى البرنامج فور نجاح الإلغاء إذا كان التحاقه قائمًا على هذه المنحة وحدها. إذا كان للطالب سداد مستقل أو نشاط أكاديمي، سيُرفض الإلغاء لحماية أمواله وسجله، ولن يظهر نجاح وهمي.'
+        : 'سيُلغى كود الإعفاء الحالي ولن يستطيع الطالب استخدامه. لا تُعتبر العملية إلغاءً لأي سداد مستقل.',
+      confirmLabel: approved ? 'تأكيد إلغاء المنحة وإيقاف الاستفادة' : 'تأكيد إلغاء الكود',
+      tone: 'danger',
+    })
+    if (!confirmed) return
+    setWaiverBusy(payment.id)
+    try {
+      await api('/api/admin/payments/waivers', {
+        method: 'PATCH',
+        body: JSON.stringify({ action: 'CANCEL', waiverId: waiver.id }),
+      })
+      setGeneratedWaiverCodes((prev) => {
+        const next = { ...prev }
+        delete next[payment.id]
+        return next
+      })
+      toast({
+        title: approved ? 'أُلغيت المنحة مع انعكاسها المالي الآمن' : 'تم إلغاء كود الإعفاء',
+        description: approved
+          ? 'أُعيدت الفواتير إلى حالتها المستحقة وعُكس التفعيل المرتبط بالمنحة وفق حراسات الخادم. تحقق من حالة التحاق الطالب بعد تحديث البيانات.'
+          : 'لم يعد الكود قابلًا للاستخدام.',
+      })
+      load()
+    } catch (error: any) {
+      toast({
+        title: 'لم يتم إلغاء المنحة',
+        description: error?.message || 'الإلغاء لم يكتمل. راجع وضع الفواتير والنشاط الأكاديمي قبل إعادة المحاولة.',
+        variant: 'destructive',
+      })
+    } finally {
+      setWaiverBusy((current) => current === payment.id ? null : current)
     }
   }
 
@@ -1095,7 +1325,7 @@ export function AdminFinanceTab() {
     if (waiverBusy === payment.id) return
     setWaiverBusy(payment.id)
     try {
-      const result = await api<{ code: string; waiver: PaymentWaiverCodeRow; emailStatus?: 'SENT' | 'FAILED' | 'SKIPPED'; whatsapp?: string }>('/api/admin/payments/waivers', {
+      const result = await api<{ code: string; waiver: PaymentWaiverCodeRow; emailStatus?: 'SENT' | 'FAILED' | 'SKIPPED'; whatsapp?: string; organizationWarning?: string }>('/api/admin/payments/waivers', {
         method: 'PATCH',
         body: JSON.stringify({ action: 'RESEND', paymentId: payment.id }),
       })
@@ -1112,7 +1342,12 @@ export function AdminFinanceTab() {
           : result.whatsapp === 'skipped'
             ? 'لا يوجد رقم واتساب صالح'
             : 'فشل إرسال واتساب'
-      toast({ title: 'تم إعادة إرسال التحقق', description: `الكود الجديد: ${result.code} — ${mailNote} — ${waNote}` })
+      toast({
+        title: result.organizationWarning ? 'أعيد إرسال التحقق — ربط المنحة يحتاج مراجعة' : 'تم إعادة إرسال التحقق',
+        description: 'الكود الجديد: ' + result.code + ' — ' + mailNote + ' — ' + waNote
+          + (result.organizationWarning ? ' — ' + result.organizationWarning : ''),
+        variant: result.organizationWarning ? 'destructive' : undefined,
+      })
       load()
     } catch (e: any) {
       toast({ title: 'تعذر إعادة إرسال التحقق', description: e.message, variant: 'destructive' })
@@ -1182,6 +1417,28 @@ export function AdminFinanceTab() {
   return (
     <div className="mt-4 space-y-5">
       {actionDialog}
+      <Dialog open={Boolean(grantQuoteDialog)} onOpenChange={(open) => { if (!open && !grantSaving) setGrantQuoteDialog(null) }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>معاينة المنحة قبل إصدار الكود</DialogTitle>
+            <DialogDescription>يُعاد حساب الأهلية والمبلغ من الخادم لحظة الإصدار، دون تغيير نظام المنح المالي.</DialogDescription>
+          </DialogHeader>
+          {grantQuoteDialog && (
+            <div className="min-w-0 space-y-3 text-sm">
+              <p className="break-words font-black">{grantQuoteDialog.quote.policy.title}</p>
+              <p className="break-words">{grantQuoteDialog.payment.admission?.fullName || grantQuoteDialog.payment.payerName || 'طالب'}</p>
+              <p className="break-words text-slate-600">{grantQuoteDialog.payment.admission?.program || 'تخصص غير محدد'}</p>
+              <p className="rounded-xl bg-slate-50 p-3 font-bold leading-6">{grantQuoteDialog.quote.summary}</p>
+              <p className="text-xs text-slate-500">قيمة السياسة: {grantQuoteDialog.quote.policy.valueMode === 'FULL' ? '100%' : String(grantQuoteDialog.quote.policy.value) + (grantQuoteDialog.quote.policy.valueMode === 'PERCENT' ? '%' : ' دولار')} — أساس الحساب: {(grantQuoteDialog.quote.baseCents / 100).toFixed(2)} دولار.</p>
+              <p className="text-xs text-slate-600">كود واحد لفاتورة {grantQuoteDialog.payment.invoiceNo}، بنفس إجراءات الأكواد والتحقق والاعتماد الموجودة.</p>
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button type="button" variant="outline" disabled={grantSaving} onClick={() => setGrantQuoteDialog(null)}>إلغاء</Button>
+                <Button type="button" disabled={grantSaving || !grantOrganizationReady} onClick={() => void issueOrganizedGrant()}>{grantSaving ? 'جارٍ الإصدار…' : 'تأكيد وإصدار الكود'}</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
       {/* KPIs المالية */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Card className="border-[#0f2b46]/10"><CardContent className="p-4 text-center">
@@ -1225,6 +1482,7 @@ export function AdminFinanceTab() {
       <div className="grid gap-2 rounded-2xl border border-[#0f2b46]/10 bg-white p-3 sm:grid-cols-2" aria-label="مساحات عمل المالية والفواتير">
         {([
           ['payments', 'الفواتير والإثباتات والإعفاءات', `${paymentTotal} فاتورة ضمن الفلتر الحالي`],
+          ['grants', 'تنظيم المنح', `${grantPolicies.length} تعريف منحة · عامة وتخصصات وفردية`],
           ['reports', 'التقارير والتحليلات', report ? `${report.admissionStats.total} طلب · ${report.agentPerformance.length} وكيل` : 'التقارير غير محملة بعد'],
         ] as const).map(([value, title, summary]) => {
           const active = openFinanceSection === value
@@ -1242,6 +1500,209 @@ export function AdminFinanceTab() {
             </button>
           )
         })}
+      </div>
+
+      <div id="finance-section-grants" role="region" aria-label="تنظيم المنح" hidden={openFinanceSection !== 'grants'} className="space-y-3">
+        <Card className="min-w-0 border-[#0f2b46]/10">
+          <CardContent className="space-y-4 p-4">
+            <div>
+              <h3 className="text-base font-black text-[#0f2b46]">تنظيم المنح العامة والتخصصية والفردية</h3>
+              <p className="mt-1 text-xs font-bold leading-6 text-slate-600">هذه الطبقة تنظم من يستحق الإعفاء وقيمته، ثم تسلمه لنظام الأكواد والفواتير الحالي. حملات المقاعد ومواعيد التقديم منفصلة عن هذه الإدارة.</p>
+              {!grantOrganizationReady && (
+                <p role="status" className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-black leading-6 text-amber-900">
+                  تنظيم المنح والحملات قيد التحصين. إنشاء تعريفات جديدة وإصدار أكواد من التنظيم موقوفان حتى اكتمال الجداول المستقلة والتحقق من سلامة المقاعد. إصدار الإعفاءات الحالي وإعادة الإرسال والاعتماد في المالية مستمر كما كان.
+                </p>
+              )}
+            </div>
+            <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="grant-title">اسم المنحة</Label>
+                <Input id="grant-title" value={grantForm.title} onChange={(e) => setGrantForm((p) => ({ ...p, title: e.target.value }))} placeholder="مثال: منحة تخصص الإدارة" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="grant-scope">نوع المنحة</Label>
+                <select id="grant-scope" className="h-10 w-full min-w-0 rounded-lg border bg-white px-3 text-sm"
+                  value={grantForm.scope} onChange={(e) => setGrantForm((p) => ({ ...p, scope: e.target.value, programIds: [], seatLimits: {}, admissionId: '' }))}>
+                  <option value="PROGRAM">تخصص أو تخصصات محددة</option>
+                  <option value="INDIVIDUAL">طالب محدد لأي سبب</option>
+                  <option value="GENERAL">عامة لكل التخصصات</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="grant-coverage">الرسوم المشمولة</Label>
+                <select id="grant-coverage" className="h-10 w-full min-w-0 rounded-lg border bg-white px-3 text-sm"
+                  value={grantForm.coverage} onChange={(e) => setGrantForm((p) => ({ ...p, coverage: e.target.value, valueMode: e.target.value === 'REGISTRATION' ? 'FULL' : p.valueMode }))}>
+                  <option value="REGISTRATION">رسوم التسجيل فقط</option>
+                  <option value="TUITION">الرسوم الدراسية فقط</option>
+                  <option value="BOTH">رسوم التسجيل والرسوم الدراسية</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="grant-value-mode">قيمة المنحة</Label>
+                <select id="grant-value-mode" className="h-10 w-full min-w-0 rounded-lg border bg-white px-3 text-sm"
+                  value={grantForm.valueMode} onChange={(e) => setGrantForm((p) => ({ ...p, valueMode: e.target.value }))}>
+                  <option value="FULL">كاملة 100%</option>
+                  <option value="PERCENT" disabled={grantForm.coverage === 'REGISTRATION'}>جزئية بالنسبة المئوية</option>
+                  <option value="AMOUNT" disabled={grantForm.coverage === 'REGISTRATION'}>جزئية بمبلغ بالدولار</option>
+                </select>
+              </div>
+              {grantForm.valueMode !== 'FULL' && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="grant-value">القيمة {grantForm.valueMode === 'PERCENT' ? '(%)' : '($)'}</Label>
+                  <Input id="grant-value" dir="ltr" type="number" min="0.01" step={grantForm.valueMode === 'PERCENT' ? '0.1' : '0.01'}
+                    value={grantForm.value} onChange={(e) => setGrantForm((p) => ({ ...p, value: e.target.value }))} />
+                </div>
+              )}
+              <div className="space-y-1.5">
+                <Label htmlFor="grant-starts-at">بداية فترة المنحة (اختياري)</Label>
+                <Input id="grant-starts-at" type="datetime-local" dir="ltr"
+                  value={grantForm.startsAt}
+                  onChange={(e) => setGrantForm((prev) => ({ ...prev, startsAt: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="grant-ends-at">نهاية فترة المنحة (اختياري)</Label>
+                <Input id="grant-ends-at" type="datetime-local" dir="ltr"
+                  min={grantForm.startsAt || undefined}
+                  value={grantForm.endsAt}
+                  onChange={(e) => setGrantForm((prev) => ({ ...prev, endsAt: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="grant-reason">سبب المنحة ومرجع القرار</Label>
+                <Textarea id="grant-reason" rows={2} value={grantForm.reason}
+                  onChange={(e) => setGrantForm((p) => ({ ...p, reason: e.target.value }))}
+                  placeholder="ظروف إنسانية، قرار لجنة، تفوق، أو أي سبب خاص تقرره الإدارة" />
+              </div>
+            </div>
+            {grantForm.scope === 'PROGRAM' && (
+              <div className="space-y-2">
+                <Label>التخصصات المشمولة (يمكن اختيار أكثر من تخصص)</Label>
+                <div className="grid max-h-52 min-w-0 gap-2 overflow-y-auto rounded-xl border p-3 sm:grid-cols-2">
+                  {grantPrograms.map((program) => (
+                    <div key={program.id} className="min-w-0 space-y-1.5 rounded-lg border bg-white p-2">
+                      <label className="flex min-w-0 cursor-pointer items-start gap-2 text-xs font-bold">
+                        <input type="checkbox" className="mt-1" checked={grantForm.programIds.includes(program.id)}
+                          onChange={(e) => setGrantForm((p) => ({ ...p, programIds: e.target.checked
+                            ? [...p.programIds, program.id] : p.programIds.filter((id) => id !== program.id) }))} />
+                        <span className="min-w-0 break-words">{program.titleAr}</span>
+                      </label>
+                      {grantForm.programIds.includes(program.id) && (
+                        <Input type="number" inputMode="numeric" min={1} max={100000} step={1} dir="ltr"
+                          aria-label={'عدد مقاعد منحة ' + program.titleAr}
+                          placeholder="عدد المقاعد (فارغ = غير محدود)"
+                          value={grantForm.seatLimits[program.id] || ''}
+                          onChange={(e) => setGrantForm((p) => ({
+                            ...p, seatLimits: { ...p.seatLimits, [program.id]: e.target.value },
+                          }))} />
+                      )}
+                    </div>
+                  ))}
+                  {grantPrograms.length === 0 && <p className="text-xs text-red-600">لم تُحمّل قائمة التخصصات؛ لا يمكن حفظ منحة تخصصية الآن.</p>}
+                </div>
+              </div>
+            )}
+            {grantForm.scope === 'INDIVIDUAL' && (
+              <div className="space-y-2 rounded-xl border bg-slate-50 p-3">
+                <Label htmlFor="grant-student">الطالب المستفيد من المنحة الفردية</Label>
+                <Input id="grant-student" value={grantStudentSearch} onChange={(e) => {
+                  setGrantStudentSearch(e.target.value)
+                  setGrantAdmissions([])
+                  setGrantForm((p) => ({ ...p, admissionId: '' }))
+                }} placeholder="ابحث بالاسم أو رقم طلب الالتحاق…" />
+                {grantForm.admissionId ? (
+                  <p className="text-xs font-bold text-emerald-700">تم تحديد طلب الطالب. المنحة خاصة بهذا الطلب حتى إن لم يكن تخصصه ضمن المنح العامة.</p>
+                ) : (
+                  <div className="max-h-48 space-y-1 overflow-y-auto">
+                    {grantAdmissions.map((admission) => (
+                      <button key={admission.id} type="button" className="block w-full min-w-0 rounded-lg border bg-white px-3 py-2 text-right text-xs hover:bg-blue-50"
+                        onClick={() => { setGrantForm((p) => ({ ...p, admissionId: admission.id })); setGrantStudentSearch(`${admission.fullName} — ${admission.reference} — ${admission.program}`) }}>
+                        <span className="block break-words font-black">{admission.fullName} — {admission.reference}</span>
+                        <span className="block break-words text-slate-500">{admission.program}</span>
+                      </button>
+                    ))}
+                    {grantStudentSearch.length >= 2 && grantAdmissions.length === 0 && <p className="text-xs text-slate-500">لا توجد نتائج مطابقة في الصفحة الأولى من الطلبات.</p>}
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="max-w-xl text-[11px] font-bold leading-5 text-slate-500">النسبة تُحوّل إلى سنتات على الخادم وقت إصدار الكود. الإعفاء الجزئي من رسوم التسجيل وحدها غير مدعوم حاليًا، لذلك لا يُعرض كخيار قابل للإصدار.</p>
+              <Button type="button" disabled={grantSaving || !grantOrganizationReady} onClick={() => void saveGrantPolicy()}>
+                {grantSaving ? 'جارٍ الحفظ…' : 'حفظ تعريف المنحة'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="min-w-0 border-[#0f2b46]/10">
+          <CardContent className="space-y-3 p-4">
+            {stuckGrantOperations.length > 0 && (
+              <div className="space-y-2 rounded-xl border border-amber-300 bg-amber-50 p-3">
+                <h5 className="text-xs font-black text-amber-900">عمليات إصدار عالقة تحتاج تسوية ({stuckGrantOperations.length})</h5>
+                <p className="text-[11px] font-bold text-amber-800">هذه العمليات تحجز مقاعد رغم أن إصدارها لم يكتمل. «تحرير المقعد» يلغي العملية ويعيد المقعد — ويرفضه النظام إذا وُجد كود حي مرتبط بها. «استعادة» تعيد العملية المكتملة الروابط إلى حالة مُصدَرة.</p>
+                {stuckGrantOperations.map((operation) => (
+                  <div key={operation.id} className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-white p-2">
+                    <div className="min-w-0 text-[11px] font-bold text-slate-600">
+                      <span className="font-black text-[#0f2b46]">{operation.definition?.title || 'منحة'}</span>
+                      {' · '}{operation.status === 'INCOMPLETE' ? 'غير مكتملة' : 'قيد الإصدار'}
+                      {' · منذ '}{new Date(operation.createdAt).toLocaleString('ar-EG')}
+                    </div>
+                    <div className="flex shrink-0 gap-2">
+                      <Button size="sm" variant="outline" className="h-7 text-[11px] font-black" disabled={resolvingGrantOperationId === operation.id} onClick={() => resolveStuckGrantOperation(operation.id, 'RELEASE')}>تحرير المقعد</Button>
+                      {operation.status === 'INCOMPLETE' && (
+                        <Button size="sm" className="h-7 text-[11px] font-black" disabled={resolvingGrantOperationId === operation.id} onClick={() => resolveStuckGrantOperation(operation.id, 'RESTORE')}>استعادة كمُصدَرة</Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <h4 className="text-sm font-black text-[#0f2b46]">تعريفات المنح المحفوظة ({grantPolicies.length})</h4>
+            {grantPolicies.length === 0 ? (
+              <p className="text-xs font-bold text-slate-500">لا توجد منح منظمة بعد. أضف تعريفًا من النموذج أعلاه.</p>
+            ) : grantPolicies.map((policy) => (
+              <div key={policy.id} className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-xl border bg-slate-50 p-3">
+                <div className="min-w-0 flex-1">
+                  <p className="break-words text-sm font-black">{policy.title}</p>
+                  <p className="mt-1 break-words text-xs text-slate-600">
+                    {policy.scope === 'INDIVIDUAL' ? 'طالب محدد' : policy.scope === 'GENERAL' ? 'عامة' : 'تخصصات محددة: ' + policy.programIds.length}
+                    {' · '}{policy.coverage === 'REGISTRATION' ? 'تسجيل' : policy.coverage === 'TUITION' ? 'دراسة' : 'تسجيل ودراسة'}
+                    {' · '}{policy.valueMode === 'FULL' ? '100%' : String(policy.value) + (policy.valueMode === 'PERCENT' ? '%' : ' دولار')}
+                  </p>
+                  {policy.scope === 'PROGRAM' && (
+                    <div className="mt-2 space-y-1 text-[11px] text-slate-600">
+                      {policy.programIds.map((id) => {
+                        const capacity = policy.programAvailability?.find((item) => item.programId === id)
+                        const title = grantPrograms.find((program) => program.id === id)?.titleAr || id
+                        return (
+                          <p key={id} className="break-words">
+                            {title}
+                            {' — '}
+                            {capacity?.seats == null
+                              ? 'بدون حد مقاعد'
+                              : 'متبقي ' + capacity.remaining + ' من ' + capacity.seats + ' مقعد (' + capacity.occupied + ' محجوز)'}
+                          </p>
+                        )
+                      })}
+                    </div>
+                  )}
+                  {(policy.startsAt || policy.endsAt) && (
+                    <p className="mt-1 break-words text-[11px] text-slate-500">
+                      {policy.startsAt ? 'تبدأ: ' + new Date(policy.startsAt).toLocaleString('ar-PS') : 'بداية مفتوحة'}
+                      {' · '}
+                      {policy.endsAt ? 'تنتهي: ' + new Date(policy.endsAt).toLocaleString('ar-PS') : 'بدون تاريخ نهاية'}
+                    </p>
+                  )}
+                </div>
+                <div className="flex shrink-0 flex-col items-end gap-2">
+                  <Badge className={grantOrganizationReady && policy.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'}>{!grantOrganizationReady ? 'معلّقة لحين جاهزية التنظيم' : policy.active ? 'نشطة' : 'غير مفعّلة'}</Badge>
+                  <Button size="sm" type="button" variant="outline" disabled={grantSaving || !grantOrganizationReady} onClick={() => void toggleGrantPolicy(policy.id)}>
+                    {policy.active ? 'إيقاف إصدار جديد' : 'تفعيل المنحة'}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+        {grantPolicyError && <p role="alert" className="rounded-xl bg-red-50 p-3 text-xs font-bold text-red-700">{grantPolicyError}</p>}
       </div>
 
       <div id="finance-section-reports" role="region" aria-label="التقارير والتحليلات المالية" hidden={openFinanceSection !== 'reports'} className="space-y-3">
@@ -1479,12 +1940,48 @@ export function AdminFinanceTab() {
                                   </div>
                                 )
                               }
+                              if (grantOrganizationReady && !p.admission) {
+                                return <span className="text-xs font-bold text-amber-700">لا يمكن إصدار منحة قبل ربط الفاتورة بطلب قبول موثّق</span>
+                              }
+                              if (grantOrganizationReady && p.admission && ['APPLICATION_FEE', 'TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose)) {
+                                return (
+                                  <div className="flex min-w-0 max-w-[260px] flex-col gap-2">
+                                    <label htmlFor={`grant-for-${p.id}`} className="text-[10px] font-black text-[#0f2b46]">منحة منظمة لهذا الطالب</label>
+                                    <select id={`grant-for-${p.id}`} className="h-9 w-full min-w-0 rounded-lg border bg-white px-2 text-[11px]"
+                                      value={grantSelection[p.id] || ''} onChange={(e) => setGrantSelection((prev) => ({ ...prev, [p.id]: e.target.value }))}>
+                                      <option value="">اختر منحة</option>
+                                      {grantPolicies.filter((policy) => policy.active).map((policy) => (
+                                        <option key={policy.id} value={policy.id}>{policy.title} — {policy.scope === 'INDIVIDUAL' ? 'فردية' : policy.scope === 'PROGRAM' ? 'تخصصية' : 'عامة'}</option>
+                                      ))}
+                                    </select>
+                                    <Button size="sm" type="button" variant="outline" disabled={busy || !grantSelection[p.id]}
+                                      onClick={() => void previewOrganizedGrant(p)} className="border-emerald-200 text-[11px] font-black text-emerald-700">
+                                      فحص الأهلية ومعاينة المنحة
+                                    </Button>
+                                  </div>
+                                )
+                              }
+                              if (!grantOrganizationReady) {
+                                // Transitional bridge (owner decision 2026-11-09):
+                                // while the organized-grants system is not yet
+                                // enabled, legacy waiver issuance stays available
+                                // here and runs on the unchanged waiver engine.
+                                // The moment the organization is enabled, this
+                                // block disappears and issuance is organized-only;
+                                // the server independently refuses legacy
+                                // creation while enabled (GRANT_POLICY_REQUIRED).
+                                return (
+                                  <div className="flex flex-wrap gap-1">
+                                    {p.purpose === 'APPLICATION_FEE' && <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => generateWaiver(p, 'APPLICATION_FEE')} className="h-7 border-blue-200 text-[10px] font-black text-blue-700">{busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}كود إعفاء التسجيل</Button>}
+                                    {['APPLICATION_FEE', 'TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => generateWaiver(p, 'PARTIAL_TUITION')} className="h-7 border-amber-200 text-[10px] font-black text-amber-700">{busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}إعفاء جزئي</Button>}
+                                    {['TUITION', 'TUITION_INSTALLMENT', 'APPLICATION_FEE'].includes(p.purpose) && <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => generateWaiver(p, 'FULL_SCHOLARSHIP')} className="h-7 border-emerald-200 text-[10px] font-black text-emerald-700">{busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}منحة كاملة</Button>}
+                                  </div>
+                                )
+                              }
                               return (
-                                <div className="flex flex-wrap gap-1">
-                                  {p.purpose === 'APPLICATION_FEE' && <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => generateWaiver(p, 'APPLICATION_FEE')} className="h-7 border-blue-200 text-[10px] font-black text-blue-700">{busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}كود إعفاء 30$</Button>}
-                                  {['APPLICATION_FEE', 'TUITION', 'TUITION_INSTALLMENT'].includes(p.purpose) && <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => generateWaiver(p, 'PARTIAL_TUITION')} className="h-7 border-amber-200 text-[10px] font-black text-amber-700">{busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}إعفاء جزئي</Button>}
-                                  {['TUITION', 'TUITION_INSTALLMENT', 'APPLICATION_FEE'].includes(p.purpose) && <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => generateWaiver(p, 'FULL_SCHOLARSHIP')} className="h-7 border-emerald-200 text-[10px] font-black text-emerald-700">{busy ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}منحة كاملة</Button>}
-                                </div>
+                                <span className="block max-w-[260px] text-xs font-bold leading-5 text-slate-600">
+                                  إصدار المنح الجديدة متاح حصريًا من تنظيم المنح. تبقى إعادة الإرسال والاعتماد والإلغاء متاحة للأكواد الحالية.
+                                </span>
                               )
                             })()}
                           </div>
@@ -1493,6 +1990,19 @@ export function AdminFinanceTab() {
                             <ShieldCheck className="ml-1 h-3 w-3" /> تطبيق الإعفاء على البرنامج
                           </Button>
                         ) : p.status === 'WAIVED' ? 'معفاة' : '—'}
+                        {p.status !== 'PAID' && (() => {
+                          const cancellable = p.waiverCodes?.find((code) => ['ISSUED', 'VERIFIED', 'APPROVED'].includes(code.status))
+                          if (!cancellable) return null
+                          return (
+                            <Button type="button" size="sm" variant="outline"
+                              className="mt-2 h-auto min-h-8 border-red-200 px-2 py-1 text-[11px] font-black text-red-700"
+                              disabled={waiverBusy === p.id}
+                              onClick={() => void cancelStudentWaiver(p, cancellable)}>
+                              {waiverBusy === p.id ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
+                              إلغاء المنحة عن الطالب
+                            </Button>
+                          )
+                        })()}
                       </td>
                     </tr>
                   ))}
@@ -3634,6 +4144,11 @@ const ACTION_L: Record<string, string> = {
   CLEAR_AI_PROVIDER_COOLDOWN: 'مسح تبريد مزود ذكاء',
   ADD_REVENUE_SHARE: 'تسجيل مستحق وكيل', MARK_SHARE_PAID: 'تأكيد تحويل مستحقات',
   RESOLVE_MESSAGE: 'معالجة رسالة',
+  LECTURE_SESSION_DELETED: 'حذف لقاء من جدول المحاضرات',
+  LECTURE_SESSION_CANCELLED: 'إلغاء لقاء',
+  LECTURE_SERIES_CREATED: 'إنشاء محاضرة أو سلسلة لقاءات',
+  LECTURE_VIDEO_PUBLISHED: 'نشر فيديو',
+  LECTURE_VIDEO_DELETED: 'حذف فيديو',
   GENERATE_CURRICULUM_UNITS: 'اقتراح وحدات المنهج من الكتب',
   UPDATE_CURRICULUM_UNIT: 'تعديل وحدة منهج',
   DELETE_CURRICULUM_UNIT: 'حذف وحدة منهج',
@@ -3974,10 +4489,17 @@ function AuditDetailsDisplay({ log }: { log: AuditRow }) {
   return <span className="text-xs font-bold text-slate-600">{log.details || log.entity}</span>
 }
 
+function localAuditDate(date: Date) {
+  const n = (value: number) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${n(date.getMonth() + 1)}-${n(date.getDate())}`
+}
+
 export function AdminAuditTab() {
   const [logs, setLogs] = useState<AuditRow[]>([])
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState({ search: '', action: 'ALL', entity: 'ALL' })
+  const [auditDay, setAuditDay] = useState(() => localAuditDate(new Date()))
+  const [auditError, setAuditError] = useState('')
   const [auditPage, setAuditPage] = useState(1)
   const [auditPageSize, setAuditPageSize] = useState(50)
   const [auditTotal, setAuditTotal] = useState(0)
@@ -3992,19 +4514,33 @@ export function AdminAuditTab() {
       if (filters.search.trim()) params.set('search', filters.search.trim())
       if (filters.action !== 'ALL') params.set('action', filters.action)
       if (filters.entity !== 'ALL') params.set('entity', filters.entity)
+      if (auditDay !== 'ALL') {
+        const from = new Date(`${auditDay}T00:00:00`)
+        const to = new Date(from)
+        to.setDate(to.getDate() + 1)
+        params.set('from', from.toISOString())
+        params.set('to', to.toISOString())
+      }
       api<{ logs: AuditRow[]; total: number; actions: string[]; entities: string[] }>(`/api/admin/audit?${params.toString()}`)
         .then((d) => {
           if (cancelled) return
           setLogs(Array.isArray(d.logs) ? d.logs : [])
           setAuditTotal(Number(d.total || 0))
+          setAuditError('')
           setActionOptions(Array.isArray(d.actions) ? d.actions : [])
           setEntityOptions(Array.isArray(d.entities) ? d.entities : [])
         })
-        .catch(() => { if (!cancelled) setLogs([]) })
+        .catch(() => {
+          if (!cancelled) {
+            setLogs([])
+            setAuditTotal(0)
+            setAuditError('تعذر تحميل سجل التدقيق لهذا التاريخ. حاول مجددًا.')
+          }
+        })
         .finally(() => { if (!cancelled) setLoading(false) })
     }, 250)
     return () => { cancelled = true; window.clearTimeout(timer) }
-  }, [filters, auditPage, auditPageSize])
+  }, [filters, auditDay, auditPage, auditPageSize])
 
   const currentAuditPage = auditPage
 
@@ -4017,6 +4553,33 @@ export function AdminAuditTab() {
           <h3 className="flex items-center gap-2 text-sm font-black text-[#0f2b46]">
             <ScrollText className="h-4.5 w-4.5 text-[#c9a227]" /> سجل التدقيق الكامل — كل إجراء إداري مسجل بمن قام به ومتى
           </h3>
+          <div className="mt-3 space-y-2 rounded-xl border border-slate-100 bg-slate-50 p-3">
+            <p className="text-xs font-black text-[#0f2b46]">سجل كل يوم — اختر التاريخ للاطلاع على جميع عملياته</p>
+            <div className="flex flex-wrap gap-2">
+              {Array.from({ length: 7 }, (_, index) => {
+                const date = new Date()
+                date.setHours(12, 0, 0, 0)
+                date.setDate(date.getDate() - index)
+                const value = localAuditDate(date)
+                return (
+                  <button key={value} type="button" onClick={() => { setAuditDay(value); setAuditPage(1) }}
+                    className={`rounded-lg border px-3 py-2 text-xs font-bold ${auditDay === value ? 'border-[#0f2b46] bg-[#0f2b46] text-white' : 'border-slate-200 bg-white text-slate-700'}`}>
+                    {index === 0 ? 'اليوم' : index === 1 ? 'أمس' : date.toLocaleDateString('ar-EG', { weekday: 'short' })} — {date.toLocaleDateString('ar-EG', { day: 'numeric', month: 'short' })}
+                  </button>
+                )
+              })}
+              <button type="button" onClick={() => { setAuditDay('ALL'); setAuditPage(1) }}
+                className={`rounded-lg border px-3 py-2 text-xs font-bold ${auditDay === 'ALL' ? 'border-[#0f2b46] bg-[#0f2b46] text-white' : 'border-slate-200 bg-white text-slate-700'}`}>
+                كل التواريخ
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <label htmlFor="audit-select-day" className="text-xs font-bold text-slate-600">تاريخ آخر:</label>
+              <input id="audit-select-day" type="date" value={auditDay === 'ALL' ? '' : auditDay}
+                onChange={(event) => { if (event.target.value) { setAuditDay(event.target.value); setAuditPage(1) } }}
+                className="h-10 max-w-full rounded-lg border border-slate-200 bg-white px-3 text-sm" dir="ltr" />
+            </div>
+          </div>
           <div className="mt-3 grid gap-2 md:grid-cols-4">
             <Input
               value={filters.search}
@@ -4050,10 +4613,11 @@ export function AdminAuditTab() {
               <option value="100">عرض 100</option>
             </select>
           </div>
-          <p className="mt-2 text-[11px] font-bold text-slate-400">المعروض: {logs.length} من {auditTotal} إجراء مطابق</p>
+          <p className="mt-2 text-[11px] font-bold text-slate-400">المعروض: {logs.length} من {auditTotal} إجراء مطابق {auditDay !== 'ALL' ? `بتاريخ ${auditDay}` : 'في جميع الأيام'}</p>
+          {auditError && <p role="alert" className="mt-2 text-xs font-bold text-red-600">{auditError}</p>}
         </div>
         <div className="aact-scroll w-full max-h-[560px] overflow-y-auto">
-          {auditTotal === 0 && !filters.search && filters.action === 'ALL' && filters.entity === 'ALL' ? (
+          {auditTotal === 0 && auditDay === 'ALL' && !filters.search && filters.action === 'ALL' && filters.entity === 'ALL' ? (
             <p className="p-10 text-center text-xs text-slate-400">لا إجراءات مسجلة بعد</p>
           ) : logs.length === 0 ? (
             <p className="p-10 text-center text-xs text-slate-400">لا توجد إجراءات مطابقة للبحث أو الفلاتر الحالية</p>
@@ -4061,14 +4625,14 @@ export function AdminAuditTab() {
             <div className="w-full divide-y divide-slate-50">
               {logs.map((l) => (
                 <div key={l.id} className="w-full p-3.5">
-                  <div className="flex w-full flex-col gap-2 rounded-2xl bg-white px-3 py-2 text-right sm:px-4">
+                  <div className="flex w-full min-w-0 flex-col gap-2 overflow-hidden rounded-2xl bg-white px-3 py-2 text-right sm:px-4">
                     <div className="flex w-full flex-wrap items-center justify-between gap-2">
                       <Badge variant="outline" className="text-[10px] font-bold text-[#0f2b46]">{ACTION_L[l.action] || l.action}</Badge>
                       <span className="text-[10px] font-bold text-slate-400">
                         بواسطة: {l.actorName} — {new Date(l.createdAt).toLocaleString('ar-EG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
-                    <div className="w-full min-w-0">
+                    <div className="w-full min-w-0 break-words [overflow-wrap:anywhere]">
                       <AuditDetailsDisplay log={l} />
                     </div>
                   </div>
