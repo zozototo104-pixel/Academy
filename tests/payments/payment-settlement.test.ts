@@ -1243,6 +1243,39 @@ describe('waiver cancel reversal (audit fix 2)', () => {
     expect(payments.get('tuition')?.status).toBe('UNPAID')
   })
 
+  test('cancelling one pending grouped code keeps the remaining code and campaign seat reserved', async () => {
+    const reason = 'Grouped grant [GRANT:group-policy-1]'
+    for (const suffix of ['a', 'b']) {
+      const id = 'group-payment-' + suffix
+      payments.set(id, {
+        id, userId: 'student-1', status: 'UNPAID', purpose: 'TUITION',
+        amount: 100, amountCents: 10000, waiverStatus: 'REQUESTED',
+      })
+      waiverCodes.push({
+        id: 'group-code-' + suffix, paymentId: id, status: 'ISSUED',
+        waiverType: 'PARTIAL_TUITION', reason, codePreview: '••••-0001',
+      })
+      scholarshipLinks.set('group-link-' + suffix, {
+        id: 'group-link-' + suffix, operationId: 'group-operation',
+        definitionId: 'group-policy-1', waiverCodeId: 'group-code-' + suffix,
+        paymentId: id, userId: 'student-1', admissionId: 'admission-1',
+        programId: 'program-1', baseCents: 10000, grantCents: 5000,
+      })
+    }
+    scholarshipOperations.set('group-operation', {
+      id: 'group-operation', definitionId: 'group-policy-1',
+      userId: 'student-1', admissionId: 'admission-1', programId: 'program-1',
+      status: 'ISSUED', expectedCodes: 2, expectedCents: 10000,
+    })
+    const res = await waiversRoutePATCH(patchRequest('http://localhost/api/admin/payments/waivers', {
+      action: 'CANCEL', waiverId: 'group-code-a',
+    }))
+    expect(res.status).toBe(200)
+    expect(waiverCodes.find((code) => code.id === 'group-code-a')?.status).toBe('CANCELLED')
+    expect(waiverCodes.find((code) => code.id === 'group-code-b')?.status).toBe('ISSUED')
+    expect(scholarshipOperations.get('group-operation')?.status).toBe('ISSUED')
+  })
+
   test('unsafe organized cancellation keeps both enrollment and campaign seat reserved', async () => {
     seedOrganizedFullGrant()
     payments.set('paid-installment', {
