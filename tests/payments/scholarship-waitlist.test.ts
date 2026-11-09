@@ -23,6 +23,7 @@ function opMatches(op: any, where: any): boolean {
   if (where.programId && op.programId !== where.programId) return false
   if (where.userId && op.userId !== where.userId) return false
   if (where.id?.in && !where.id.in.includes(op.id)) return false
+  if (where.createdAt?.lt && !(new Date(op.createdAt || 0).getTime() < new Date(where.createdAt.lt).getTime())) return false
   if (where.definition?.is?.coverage?.in) {
     const def = definitions.get(op.definitionId)
     if (!def || !where.definition.is.coverage.in.includes(def.coverage)) return false
@@ -31,6 +32,8 @@ function opMatches(op: any, where: any): boolean {
 }
 
 const db: any = {
+  $transaction: async (fn: any) => fn(db),
+  $executeRaw: async () => 0,
   scholarshipDefinition: {
     findUnique: async ({ where }: any) => definitions.get(where.id) || null,
     findMany: async ({ where }: any) => [...definitions.values()].filter((def) => {
@@ -90,6 +93,11 @@ const db: any = {
     findUnique: async ({ where }: any) => admissions.get(where.id) || null,
   },
   scholarshipWaitlistEntry: {
+    count: async ({ where }: any) => [...entries.values()].filter((row) =>
+      (!where.definitionId || row.definitionId === where.definitionId)
+      && (!where.programId || row.programId === where.programId)
+      && (!where.status || row.status === where.status)
+      && (!('releaseKey' in where) || row.releaseKey === where.releaseKey)).length,
     findUnique: async ({ where }: any) => {
       const key = where.definitionId_userId
       const row = [...entries.values()].find((e) => e.definitionId === key.definitionId && e.userId === key.userId)
@@ -136,7 +144,10 @@ const db: any = {
       .map((row) => ({ ...row })),
   },
   notificationOutbox: {
-    create: async ({ data }: any) => { outboxRows.push(data); return data },
+    create: async ({ data }: any) => {
+      if ((globalThis as any).__outboxFails) throw new Error('outbox unavailable')
+      outboxRows.push(data); return data
+    },
   },
   notification: {
     create: async ({ data }: any) => { notifications.push(data); return data },
@@ -259,6 +270,40 @@ describe('scholarship waitlist', () => {
     expect(entries.get(first.id)?.status).toBe('NOTIFIED')
   })
 
+  test('a failed outbox write rolls the invitation back so a later pass retries it', async () => {
+    seedCampaign(1)
+    seedOccupyingOperation('op-outbox', 'leaver-outbox')
+    const entry = await seedWaitingEntry('outbox-user', new Date(Date.now() - 1000))
+    operations.get('op-outbox')!.status = 'CANCELLED'
+    ;(globalThis as any).__outboxFails = true
+    expect(await notifyWaitlistForFreeSeats(db, DEF, 'program-A')).toBe(0)
+    expect(entries.get(entry.id)?.status).toBe('WAITING')
+    expect(entries.get(entry.id)?.releaseKey).toBe(null)
+    expect(notifications).toHaveLength(0)
+    ;(globalThis as any).__outboxFails = false
+    expect(await notifyWaitlistForFreeSeats(db, DEF, 'program-A')).toBe(1)
+    expect(entries.get(entry.id)?.status).toBe('NOTIFIED')
+    expect(outboxRows).toHaveLength(1)
+    expect(notifications).toHaveLength(1)
+  })
+
+  test('one seat and two waiting students: concurrent passes still send only one invitation', async () => {
+    seedCampaign(1)
+    seedOccupyingOperation('op-batch', 'leaver-batch')
+    const first = await seedWaitingEntry('batch-first', new Date(Date.now() - 2000))
+    const second = await seedWaitingEntry('batch-second', new Date(Date.now() - 1000))
+    operations.get('op-batch')!.status = 'CANCELLED'
+    const [a, b] = await Promise.all([
+      notifyWaitlistForFreeSeats(db, DEF, 'program-A'),
+      notifyWaitlistForFreeSeats(db, DEF, 'program-A'),
+    ])
+    expect(a + b).toBe(1)
+    expect(notifications).toHaveLength(1)
+    expect(outboxRows).toHaveLength(1)
+    expect(entries.get(first.id)?.status).toBe('NOTIFIED')
+    expect(entries.get(second.id)?.status).toBe('WAITING')
+  })
+
   test('a freed pair of seats invites the first two in registration order', async () => {
     seedCampaign(2)
     const a = await seedWaitingEntry('w-a', new Date(Date.now() - 3000))
@@ -337,6 +382,20 @@ describe('scholarship waitlist', () => {
     const releasedAfter = await releaseStaleGrantOperations(db, {})
     expect(releasedAfter.map((op: any) => op.id)).toEqual(['op-resent'])
     expect(operations.get('op-resent')?.status).toBe('CANCELLED')
+  })
+
+  test('an abandoned ISSUING operation with no links is auto-released; a linked or fresh one is not', async () => {
+    seedCampaign(3)
+    const old = new Date(Date.now() - 60 * 60 * 1000)
+    operations.set('op-abandoned', { id: 'op-abandoned', definitionId: DEF, programId: 'program-A', userId: 'crashed', admissionId: 'adm-crashed', status: 'ISSUING', createdAt: old, updatedAt: old })
+    operations.set('op-issuing-linked', { id: 'op-issuing-linked', definitionId: DEF, programId: 'program-A', userId: 'linked', admissionId: 'adm-linked', status: 'ISSUING', createdAt: old, updatedAt: old })
+    links.set('link-issuing', { id: 'link-issuing', operationId: 'op-issuing-linked', definitionId: DEF, waiverCodeId: 'some-code', paymentId: 'pay-adm-linked' })
+    operations.set('op-issuing-fresh', { id: 'op-issuing-fresh', definitionId: DEF, programId: 'program-A', userId: 'fresh', admissionId: 'adm-fresh', status: 'ISSUING', createdAt: new Date(), updatedAt: new Date() })
+    const released = await releaseStaleGrantOperations(db, {})
+    expect(released.map((op: any) => op.id)).toEqual(['op-abandoned'])
+    expect(operations.get('op-abandoned')?.status).toBe('CANCELLED')
+    expect(operations.get('op-issuing-linked')?.status).toBe('ISSUING')
+    expect(operations.get('op-issuing-fresh')?.status).toBe('ISSUING')
   })
 
   test('expiry release closes a fully expired reservation and frees its seat for the waitlist', async () => {

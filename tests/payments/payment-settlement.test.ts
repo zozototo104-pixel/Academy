@@ -2426,3 +2426,75 @@ describe('organized issuance end-to-end: retry, seat contention, comparative fin
     expect(financialSnapshot(leg.paymentId, leg.admissionId)).toEqual(orgSnapshot)
   })
 })
+
+describe('stuck grant operation settlement (RESOLVE_GRANT_OPERATION)', () => {
+  const resolvePolicyId = 'eeeeeeee-eeee-4eee-eeee-eeeeeeeeeeee'
+  function seedResolveFixture(suffix: string, codeStatus: string) {
+    scholarshipDefinitions.set(resolvePolicyId, {
+      id: resolvePolicyId, title: 'منحة تسوية', scope: 'PROGRAM', coverage: 'TUITION',
+      valueMode: 'PERCENT', value: 2500, reason: 'قرار لجنة المنح',
+      active: true, startsAt: null, endsAt: null, createdAt: new Date(),
+      programs: [{ programId: 'program-A', seats: null }],
+      operations: [],
+    })
+    const userId = 'student-resolve-' + suffix
+    const admissionId = 'admission-resolve-' + suffix
+    const paymentId = 'payment-resolve-' + suffix
+    users.set(userId, { id: userId, email: userId + '@example.test', name: 'Student ' + suffix, role: 'STUDENT' })
+    admissions.set(admissionId, {
+      id: admissionId, userId, email: userId + '@example.test', fullName: 'Student ' + suffix,
+      country: 'PS', reference: 'APP-R-' + suffix, program: 'برنامج تجريبي', programId: 'program-A',
+      status: 'AWAITING_TUITION', supervisorId: null, approvedAt: new Date(), scholarshipFull: false,
+    })
+    payments.set(paymentId, {
+      id: paymentId, admissionId, userId,
+      admission: { id: admissionId, fullName: 'Student ' + suffix, programId: 'program-A', userId },
+      purpose: 'TUITION', status: 'UNPAID', amount: 199.99, amountCents: 19999,
+      invoiceNo: 'INV-R-' + suffix, waiverStatus: null, waivedAmountCents: 0,
+    })
+    const operationId = 'op-stuck-' + suffix
+    const codeId = 'code-stuck-' + suffix
+    scholarshipOperations.set(operationId, {
+      id: operationId, definitionId: resolvePolicyId, userId, admissionId, programId: 'program-A',
+      status: 'INCOMPLETE', expectedCodes: 1, expectedCents: 5000, createdById: 'admin-1',
+      createdAt: new Date(), updatedAt: new Date(),
+    })
+    waiverCodes.push({
+      id: codeId, paymentId, userId, waiverType: 'PARTIAL_TUITION', status: codeStatus,
+      expiresAt: new Date(Date.now() + 3600_000), reason: '[GRANT:' + resolvePolicyId + '] stuck',
+      createdAt: new Date(),
+    })
+    scholarshipLinks.set('link-stuck-' + suffix, {
+      id: 'link-stuck-' + suffix, definitionId: resolvePolicyId, operationId, waiverCodeId: codeId,
+      paymentId, userId, admissionId, programId: 'program-A',
+    })
+    return { userId, admissionId, paymentId, operationId, codeId }
+  }
+  const resolve = (operationId: string, decision: string) => waiversRoutePATCH(new NextRequest('http://localhost/api/admin/payments/waivers', {
+    method: 'PATCH',
+    body: JSON.stringify({ action: 'RESOLVE_GRANT_OPERATION', operationId, decision }),
+  }))
+
+  test('release is refused while a linked code is live; restore completes the quarantined operation', async () => {
+    process.env.SCHOLARSHIP_ORGANIZATION_ENABLED = '1'
+    const fixture = seedResolveFixture('live', 'ISSUED')
+    const refused = await resolve(fixture.operationId, 'RELEASE')
+    expect(refused.status).toBe(409)
+    expect((await refused.json()).code).toBe('GRANT_OPERATION_HAS_LIVE_CODE')
+    expect(scholarshipOperations.get(fixture.operationId)?.status).toBe('INCOMPLETE')
+    const restored = await resolve(fixture.operationId, 'RESTORE')
+    expect(restored.status).toBe(200)
+    expect(scholarshipOperations.get(fixture.operationId)?.status).toBe('ISSUED')
+    const notStuck = await resolve(fixture.operationId, 'RELEASE')
+    expect(notStuck.status).toBe(409)
+    expect((await notStuck.json()).code).toBe('GRANT_OPERATION_NOT_STUCK')
+  })
+
+  test('release succeeds once every code on the operation is dead', async () => {
+    process.env.SCHOLARSHIP_ORGANIZATION_ENABLED = '1'
+    const fixture = seedResolveFixture('dead', 'CANCELLED')
+    const released = await resolve(fixture.operationId, 'RELEASE')
+    expect(released.status).toBe(200)
+    expect(scholarshipOperations.get(fixture.operationId)?.status).toBe('CANCELLED')
+  })
+})

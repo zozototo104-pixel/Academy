@@ -817,6 +817,16 @@ interface OrganizedGrantPolicy {
   programAvailability?: Array<{ programId: string; seats: number | null; occupied: number; remaining: number | null }>
 }
 
+interface StuckGrantOperation {
+  id: string
+  status: string
+  createdAt: string
+  userId: string
+  programId: string
+  expectedCodes: number
+  definition?: { title: string } | null
+}
+
 interface OrganizedGrantQuote {
   policy: OrganizedGrantPolicy
   paymentId: string
@@ -858,6 +868,8 @@ export function AdminFinanceTab() {
   // Existing waiver actions remain available even when organization is not ready.
   const [grantOrganizationReady, setGrantOrganizationReady] = useState(false)
   const [grantPolicies, setGrantPolicies] = useState<OrganizedGrantPolicy[]>([])
+  const [stuckGrantOperations, setStuckGrantOperations] = useState<StuckGrantOperation[]>([])
+  const [resolvingGrantOperationId, setResolvingGrantOperationId] = useState('')
   const [grantPrograms, setGrantPrograms] = useState<Array<{ id: string; titleAr: string }>>([])
   const [grantAdmissions, setGrantAdmissions] = useState<Array<{ id: string; reference: string; fullName: string; program: string }>>([])
   const [grantStudentSearch, setGrantStudentSearch] = useState('')
@@ -878,8 +890,9 @@ export function AdminFinanceTab() {
 
   const loadGrantPolicies = useCallback(async () => {
     try {
-      const response = await api<{ policies: OrganizedGrantPolicy[]; ready: boolean }>('/api/admin/payments/waivers?mode=policies')
+      const response = await api<{ policies: OrganizedGrantPolicy[]; ready: boolean; stuckOperations?: StuckGrantOperation[] }>('/api/admin/payments/waivers?mode=policies')
       setGrantPolicies(Array.isArray(response.policies) ? response.policies : [])
+      setStuckGrantOperations(Array.isArray(response.stuckOperations) ? response.stuckOperations : [])
       setGrantOrganizationReady(response.ready === true)
       setGrantPolicyError('')
     } catch (error: any) {
@@ -944,6 +957,18 @@ export function AdminFinanceTab() {
     } catch (error: any) {
       toast({ title: 'تعذر تغيير حالة المنحة', description: error?.message || 'حاول مجددًا', variant: 'destructive' })
     } finally { setGrantSaving(false) }
+  }
+
+  const resolveStuckGrantOperation = async (operationId: string, decision: 'RELEASE' | 'RESTORE') => {
+    if (resolvingGrantOperationId) return
+    setResolvingGrantOperationId(operationId)
+    try {
+      await api('/api/admin/payments/waivers', { method: 'PATCH', body: JSON.stringify({ action: 'RESOLVE_GRANT_OPERATION', operationId, decision }) })
+      toast({ title: decision === 'RELEASE' ? 'حُرّر مقعد العملية' : 'استُعيدت العملية كمُصدَرة', description: 'تمت تسوية العملية العالقة وتحديث القائمة' })
+      await loadGrantPolicies()
+    } catch (error: any) {
+      toast({ title: 'تعذرت تسوية العملية', description: error?.message || 'حاول مجددًا', variant: 'destructive' })
+    } finally { setResolvingGrantOperationId('') }
   }
 
   const previewOrganizedGrant = async (payment: PaymentRow) => {
@@ -1609,6 +1634,27 @@ export function AdminFinanceTab() {
         </Card>
         <Card className="min-w-0 border-[#0f2b46]/10">
           <CardContent className="space-y-3 p-4">
+            {stuckGrantOperations.length > 0 && (
+              <div className="space-y-2 rounded-xl border border-amber-300 bg-amber-50 p-3">
+                <h5 className="text-xs font-black text-amber-900">عمليات إصدار عالقة تحتاج تسوية ({stuckGrantOperations.length})</h5>
+                <p className="text-[11px] font-bold text-amber-800">هذه العمليات تحجز مقاعد رغم أن إصدارها لم يكتمل. «تحرير المقعد» يلغي العملية ويعيد المقعد — ويرفضه النظام إذا وُجد كود حي مرتبط بها. «استعادة» تعيد العملية المكتملة الروابط إلى حالة مُصدَرة.</p>
+                {stuckGrantOperations.map((operation) => (
+                  <div key={operation.id} className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-white p-2">
+                    <div className="min-w-0 text-[11px] font-bold text-slate-600">
+                      <span className="font-black text-[#0f2b46]">{operation.definition?.title || 'منحة'}</span>
+                      {' · '}{operation.status === 'INCOMPLETE' ? 'غير مكتملة' : 'قيد الإصدار'}
+                      {' · منذ '}{new Date(operation.createdAt).toLocaleString('ar-EG')}
+                    </div>
+                    <div className="flex shrink-0 gap-2">
+                      <Button size="sm" variant="outline" className="h-7 text-[11px] font-black" disabled={resolvingGrantOperationId === operation.id} onClick={() => resolveStuckGrantOperation(operation.id, 'RELEASE')}>تحرير المقعد</Button>
+                      {operation.status === 'INCOMPLETE' && (
+                        <Button size="sm" className="h-7 text-[11px] font-black" disabled={resolvingGrantOperationId === operation.id} onClick={() => resolveStuckGrantOperation(operation.id, 'RESTORE')}>استعادة كمُصدَرة</Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
             <h4 className="text-sm font-black text-[#0f2b46]">تعريفات المنح المحفوظة ({grantPolicies.length})</h4>
             {grantPolicies.length === 0 ? (
               <p className="text-xs font-bold text-slate-500">لا توجد منح منظمة بعد. أضف تعريفًا من النموذج أعلاه.</p>

@@ -88,6 +88,13 @@ export function ScholarshipCampaignsCard() {
             <p className="text-sm font-black text-[#0f2b46]">منحة برنامجك: {campaign.title}</p>
             {campaign.waitlistStatus === 'FULFILLED' ? (
               <p className="text-xs font-bold leading-6 text-emerald-700">لديك منحة دراسية سارية على حسابك.</p>
+            ) : campaign.waitlistStatus === 'NOTIFIED' ? (
+              <div className="space-y-2 rounded-xl border border-emerald-300 bg-emerald-100/70 p-3">
+                <p className="text-xs font-black leading-6 text-emerald-800">
+                  وصلك تنبيه: صار في مقعد متاح بهذه المنحة الآن. المقعد غير محجوز باسمك والأولوية لمن يبادر أولًا — تواصل مع الإدارة لإصدار كود المنحة قبل ما يروح المقعد لغيرك.
+                </p>
+                <Button size="sm" variant="outline" disabled={busy === campaign.definitionId + 'LEAVE'} onClick={() => act(campaign, 'LEAVE')}>إلغاء الانضمام لقائمة الانتظار</Button>
+              </div>
             ) : campaign.full ? (
               <>
                 <p className="text-xs font-bold leading-6 text-slate-600">

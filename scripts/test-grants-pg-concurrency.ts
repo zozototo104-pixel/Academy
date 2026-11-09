@@ -75,9 +75,14 @@ function assertSafeDatabaseUrl(rawUrl: string): string {
   const host = parsed.hostname.toLowerCase()
   const dbName = decodeURIComponent(parsed.pathname.replace(/^\//, '')).toLowerCase()
   const localHost = host === 'localhost' || host === '127.0.0.1' || host === '::1'
-  const markedDb = dbName.includes('test') || dbName.includes('ci')
-  if (!localHost && !markedDb) {
-    throw new StageError(`[ENV] GRANTS_PG stage 0: SAFETY REFUSAL — host "${host}" is not localhost and database "${dbName}" contains neither "test" nor "ci".`)
+  // All three conditions must hold: a local host, a name carrying "test"
+  // as a whole token, and no production marker anywhere in the name. A
+  // substring rule alone is not a guard — "official_production" contains
+  // "ci" and must never pass.
+  const testToken = /(^|[^a-z0-9])test([^a-z0-9]|$)/.test(dbName)
+  const productionName = dbName.includes('prod')
+  if (!localHost || !testToken || productionName) {
+    throw new StageError(`[ENV] GRANTS_PG stage 0: SAFETY REFUSAL — host "${host}", database "${dbName}": this script only runs against a localhost database whose name marks it as a test database and never against a production-named one.`)
   }
   return rawUrl
 }

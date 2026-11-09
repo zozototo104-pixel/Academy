@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { ActivePaymentWaiverExistsError, approvePaymentWaiver, createPaymentWaiverCode, isPaymentWaiverType, resendPaymentWaiverCode } from '@/lib/payment-waivers'
-import { releaseStaleGrantOperations, notifyWaitlistForFreeSeats, pruneWaitlistForHolder } from '@/lib/scholarship-waitlist'
+import { releaseStaleGrantOperations, notifyWaitlistForFreeSeats, pruneWaitlistForHolder, isLiveWaiverCode } from '@/lib/scholarship-waitlist'
 import { audit } from '@/lib/notify'
 
 // Administrative scholarship metadata has its own additive Prisma migration.
@@ -417,7 +417,16 @@ export async function GET(req: NextRequest) {
     await requireAdmin()
     const mode = req.nextUrl.searchParams.get('mode')
     if (mode === 'policies') {
-      return NextResponse.json({ policies: await loadGrantPolicies(), ready: grantOrganizationReady() }, { headers: { 'Cache-Control': 'no-store' } })
+      const stuckOperations = await db.scholarshipGrantOperation.findMany({
+        where: { status: { in: ['ISSUING', 'INCOMPLETE'] } },
+        select: {
+          id: true, status: true, createdAt: true, userId: true, programId: true,
+          expectedCodes: true, definition: { select: { title: true } },
+        },
+        orderBy: { createdAt: 'asc' },
+        take: 100,
+      }).catch(() => [])
+      return NextResponse.json({ policies: await loadGrantPolicies(), ready: grantOrganizationReady(), stuckOperations }, { headers: { 'Cache-Control': 'no-store' } })
     }
     if (mode === 'quote') {
       const policyId = cleanText(req.nextUrl.searchParams.get('policyId'), 60)
@@ -830,20 +839,40 @@ export async function PATCH(req: NextRequest) {
             orderBy: { createdAt: 'desc' },
           })
           if (!oldLink?.operationId) throw new Error('NO_ORGANIZATION_LINK')
-          await db.scholarshipGrantLink.create({
-            data: {
-              definitionId: oldLink.definitionId,
-              operationId: oldLink.operationId,
-              waiverCodeId: result.waiver.id,
-              paymentId,
-              userId: oldLink.userId,
-              admissionId: oldLink.admissionId,
-              programId: oldLink.programId,
-              percentBps: oldLink.percentBps,
-              baseCents: oldLink.baseCents,
-              grantCents: oldLink.grantCents,
-            },
-          })
+          // Link under the operation's row lock, re-checking its status
+          // inside the lock: if a release closed the operation after the
+          // preflight, the replacement is NOT linked to a cancelled
+          // operation (the approval guard would refuse it forever) and
+          // the admin is warned instead of seeing a silent success.
+          const linkData = {
+            definitionId: oldLink.definitionId,
+            operationId: oldLink.operationId,
+            waiverCodeId: result.waiver.id,
+            paymentId,
+            userId: oldLink.userId,
+            admissionId: oldLink.admissionId,
+            programId: oldLink.programId,
+            percentBps: oldLink.percentBps,
+            baseCents: oldLink.baseCents,
+            grantCents: oldLink.grantCents,
+          }
+          if (typeof db.$transaction === 'function') {
+            const linked = await db.$transaction(async (tx: any) => {
+              if (typeof tx.$queryRaw === 'function') {
+                await tx.$queryRaw`SELECT id FROM "ScholarshipGrantOperation" WHERE id = ${oldLink.operationId} FOR UPDATE`
+              }
+              const current = await tx.scholarshipGrantOperation.findUnique({
+                where: { id: oldLink.operationId },
+                select: { status: true },
+              })
+              if (!current || current.status === 'CANCELLED') return false
+              await tx.scholarshipGrantLink.create({ data: linkData })
+              return true
+            })
+            if (!linked) throw new Error('GRANT_OPERATION_CLOSED_AT_LINK')
+          } else {
+            await db.scholarshipGrantLink.create({ data: linkData })
+          }
         } catch (error) {
           console.error('Waiver reissued, but organization ledger could not be linked:', error)
           organizationWarning = 'تم إنشاء كود جديد لكن ربط المنحة بحاجة لمراجعة الإدارة؛ يمنع الاعتماد حتى التصحيح'
@@ -854,6 +883,64 @@ export async function PATCH(req: NextRequest) {
         whatsapp: result.whatsapp, organizationWarning,
       })
     }
+    if (action === 'RESOLVE_GRANT_OPERATION') {
+      // Admin settlement for operations stuck in ISSUING or INCOMPLETE.
+      // RELEASE frees the seat only when no live code depends on the
+      // operation — neither a linked code nor any live code sitting on
+      // the operation's payments — so settlement can never orphan money.
+      // RESTORE returns a quarantined operation to ISSUED only when its
+      // link set is complete and at least one linked code is live.
+      const operationId = cleanText(body.operationId, 80)
+      const decision = body.decision === 'RESTORE' ? 'RESTORE' : 'RELEASE'
+      if (!operationId) return NextResponse.json({ error: 'معرف العملية مطلوب', code: 'GRANT_OPERATION_REQUIRED' }, { status: 400 })
+      const outcome = await db.$transaction(async (tx: any) => {
+        if (typeof tx.$queryRaw === 'function') {
+          await tx.$queryRaw`SELECT id FROM "ScholarshipGrantOperation" WHERE id = ${operationId} FOR UPDATE`
+        }
+        const operation = await tx.scholarshipGrantOperation.findUnique({ where: { id: operationId } })
+        if (!operation) return { status: 404, body: { error: 'العملية غير موجودة', code: 'GRANT_OPERATION_NOT_FOUND' } }
+        if (!['ISSUING', 'INCOMPLETE'].includes(operation.status)) {
+          return { status: 409, body: { error: 'هذه العملية ليست عالقة؛ حالتها الحالية: ' + operation.status, code: 'GRANT_OPERATION_NOT_STUCK' } }
+        }
+        const links = await tx.scholarshipGrantLink.findMany({ where: { operationId }, select: { waiverCodeId: true, paymentId: true } })
+        const linkedCodes = links.length
+          ? await tx.paymentWaiverCode.findMany({ where: { id: { in: links.map((link: any) => link.waiverCodeId) } }, select: { status: true, expiresAt: true } })
+          : []
+        const anyLinkedLive = linkedCodes.some((code: any) => isLiveWaiverCode(code))
+        if (decision === 'RELEASE') {
+          if (anyLinkedLive) {
+            return { status: 409, body: { error: 'يوجد كود حي مرتبط بهذه العملية؛ ألغِ الكود أولًا أو انتظر انتهاءه قبل تحرير المقعد.', code: 'GRANT_OPERATION_HAS_LIVE_CODE' } }
+          }
+          const paymentIds = [...new Set(links.map((link: any) => link.paymentId).filter(Boolean))]
+          if (paymentIds.length) {
+            const paymentCodes = await tx.paymentWaiverCode.findMany({ where: { paymentId: { in: paymentIds } }, select: { status: true, expiresAt: true } })
+            if (paymentCodes.some((code: any) => isLiveWaiverCode(code))) {
+              return { status: 409, body: { error: 'يوجد كود حي على فواتير هذه العملية؛ لا يمكن تحرير المقعد قبل إلغائه أو انتهائه.', code: 'GRANT_OPERATION_HAS_LIVE_CODE' } }
+            }
+          }
+          await tx.scholarshipGrantOperation.update({ where: { id: operationId }, data: { status: 'CANCELLED' } })
+          return { status: 200, body: { ok: true, operationId, decision, operation }, audit: 'GRANT_OPERATION_RESOLVED_RELEASE' }
+        }
+        const expected = operation.expectedCodes || 0
+        if (!links.length || (expected > 0 && links.length < expected) || !anyLinkedLive) {
+          return { status: 409, body: { error: 'لا يمكن الاستعادة: روابط العملية غير مكتملة أو لا يوجد كود حي مرتبط بها.', code: 'GRANT_OPERATION_NOT_RESTORABLE' } }
+        }
+        await tx.scholarshipGrantOperation.update({ where: { id: operationId }, data: { status: 'ISSUED' } })
+        return { status: 200, body: { ok: true, operationId, decision, operation }, audit: 'GRANT_OPERATION_RESOLVED_RESTORE' }
+      })
+      if (outcome.audit) {
+        await audit(admin.id, outcome.audit, 'ScholarshipGrantOperation', operationId,
+          'تسوية عملية منحة عالقة — ' + decision + ' — طالب ' + outcome.body.operation.userId)
+        if (decision === 'RELEASE') {
+          await pruneWaitlistsQuietly(outcome.body.operation.userId)
+          await notifyWaitlistForFreeSeats(db, outcome.body.operation.definitionId, outcome.body.operation.programId).catch(() => {})
+        }
+      }
+      const { audit: _audit, ...responseBody } = outcome.body as any
+      return NextResponse.json(responseBody, { status: outcome.status })
+    }
+
+
     const waiverId = cleanText(body.waiverId, 80)
     if (!waiverId) return NextResponse.json({ error: 'معرّف كود الإعفاء مطلوب' }, { status: 400 })
 

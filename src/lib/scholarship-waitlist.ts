@@ -94,14 +94,67 @@ export async function findStaleGrantOperations(client: any, scope: StaleScope) {
 // Close every stale reservation in scope as CANCELLED, which returns its
 // seat to the campaign pool and lifts the one-scholarship hold. Status-
 // guarded, so concurrent closers cannot double-apply it.
+// An ISSUING operation older than this with no link at all was abandoned
+// before any code existed (issuance completes inside one request), so no
+// money can depend on it and its seat is safe to release automatically.
+export const ABANDONED_ISSUING_AFTER_MS = 15 * 60 * 1000
+
+export async function findAbandonedIssuingOperations(client: any, scope: StaleScope) {
+  const where: any = {
+    status: 'ISSUING',
+    createdAt: { lt: new Date(Date.now() - ABANDONED_ISSUING_AFTER_MS) },
+  }
+  if (scope.definitionId) where.definitionId = scope.definitionId
+  if (scope.definitionIds?.length) where.definitionId = { in: scope.definitionIds }
+  if (scope.programId) where.programId = scope.programId
+  if (scope.userId) where.userId = scope.userId
+  if (scope.operationIds?.length) where.id = { in: scope.operationIds }
+  const ops = await client.scholarshipGrantOperation.findMany({ where, select: { id: true } })
+  if (!ops.length) return []
+  const links = await client.scholarshipGrantLink.findMany({
+    where: { operationId: { in: ops.map((op: any) => op.id) } },
+    select: { operationId: true },
+  })
+  const linked = new Set(links.map((link: any) => link.operationId))
+  return ops.filter((op: any) => !linked.has(op.id))
+}
+
 export async function releaseStaleGrantOperations(client: any, scope: StaleScope) {
   const stale = await findStaleGrantOperations(client, scope)
-  if (!stale.length) return []
-  const closed = await client.scholarshipGrantOperation.updateMany({
-    where: { id: { in: stale.map((op: any) => op.id) }, status: 'ISSUED' },
-    data: { status: 'CANCELLED' },
-  })
-  return closed.count ? stale : []
+  const abandoned = await findAbandonedIssuingOperations(client, scope).catch(() => [])
+  const candidates = [...stale, ...abandoned.filter((op: any) => !stale.some((s: any) => s.id === op.id))]
+  if (!candidates.length) return []
+  const closedOps: any[] = []
+  for (const candidate of candidates) {
+    // Close one operation per transaction: lock its row, then RE-VALIDATE
+    // liveness inside the lock before closing. A resend completing
+    // between the outer scan and this close leaves a live code on the
+    // operation's payments, the revalidation sees it, and the close is
+    // aborted — a seat is never freed under a live code. When the caller
+    // already runs inside a transaction, its client has no $transaction
+    // of its own and the close runs directly under the outer transaction.
+    const close = async (tx: any): Promise<boolean> => {
+      if (typeof tx.$queryRaw === 'function') {
+        await tx.$queryRaw`SELECT id FROM "ScholarshipGrantOperation" WHERE id = ${candidate.id} FOR UPDATE`
+      }
+      const stillStale = await findStaleGrantOperations(tx, { ...scope, operationIds: [candidate.id] })
+      const stillAbandoned = await findAbandonedIssuingOperations(tx, { ...scope, operationIds: [candidate.id] }).catch(() => [])
+      if (!stillStale.length && !stillAbandoned.length) return false
+      const result = await tx.scholarshipGrantOperation.updateMany({
+        where: { id: candidate.id, status: { in: ['ISSUED', 'ISSUING'] } },
+        data: { status: 'CANCELLED' },
+      })
+      return result.count === 1
+    }
+    let closed = false
+    if (typeof client.$transaction === 'function') {
+      closed = await client.$transaction(close).catch(() => false)
+    } else {
+      closed = await close(client).catch(() => false)
+    }
+    if (closed) closedOps.push(candidate)
+  }
+  return closedOps
 }
 
 // Seats currently held for one definition+program, discounting reservations
@@ -258,6 +311,33 @@ export async function notifyWaitlistForFreeSeats(
   programId: string,
 ): Promise<number> {
   if (!scholarshipOrganizationEnabled()) return 0
+  // Serialize concurrent passes for the same campaign+program under a
+  // database advisory lock. Per-entry claims alone cannot bound the
+  // batch: two executors reading the same snapshot would each spend the
+  // same free seat on a different student. Inside the lock the second
+  // pass recomputes free seats and invitations from committed state, so
+  // invitations for one opening never exceed the seats actually free.
+  if (typeof client.$transaction === 'function') {
+    try {
+      return await client.$transaction(async (tx: any) => {
+        if (typeof tx.$executeRaw === 'function') {
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(191191, hashtext(${'waitlist:' + definitionId + ':' + programId}))`
+        }
+        return notifyWaitlistPass(tx, definitionId, programId)
+      })
+    } catch (error) {
+      console.error('Waitlist notify pass failed under lock; a later pass will retry:', error)
+      return 0
+    }
+  }
+  return notifyWaitlistPass(client, definitionId, programId)
+}
+
+async function notifyWaitlistPass(
+  client: any,
+  definitionId: string,
+  programId: string,
+): Promise<number> {
   const { definition, program } = await loadCampaignForProgram(client, definitionId, programId)
     .catch(() => ({ definition: null, program: null }))
   if (!definition || !program) return 0
@@ -290,6 +370,13 @@ export async function notifyWaitlistForFreeSeats(
   for (const entry of entries) {
     if (slots <= 0) break
     if (entry.releaseKey === openingKey) continue
+    // Re-count this opening's invitations from committed state before
+    // spending another seat: a concurrent pass may already have used
+    // the budget this pass computed from its starting snapshot.
+    const invitedNow = await client.scholarshipWaitlistEntry.count({
+      where: { definitionId, programId, status: 'NOTIFIED', releaseKey: openingKey },
+    })
+    if (invitedNow >= free) break
     if (await userHoldsScholarship(client, entry.userId)) {
       await client.scholarshipWaitlistEntry.update({
         where: { id: entry.id },
@@ -314,15 +401,31 @@ export async function notifyWaitlistForFreeSeats(
     if (!claim.count) continue
     const title = 'مقعد متاح في منحة ' + definition.title
     const body = 'صار في مقعد مفتوح في منحة «' + definition.title + '» المشمول بها برنامجك. هذا تنبيه وليس حجزًا: المقعد يُحجز فقط عند إصدار كود المنحة من الإدارة، والأولوية لمن يبادر أولًا. تابع من لوحة الطالب أو تواصل مع الإدارة.'
+    // Queue the email BEFORE the in-platform notice: if the outbox write
+    // fails, the claim is rolled back so a later pass retries this
+    // opening instead of the invitation being lost with the entry already
+    // marked NOTIFIED.
+    let queued: any = null
+    try {
+      queued = await enqueueOutbox(client, {
+        key: 'waitlist-opening:' + entry.id + ':' + openingKey,
+        kind: 'SCHOLARSHIP_WAITLIST_OPENING',
+        recipientUserId: entry.userId,
+        title,
+        body,
+        link: '/dashboard',
+      })
+    } catch (error) {
+      console.error('Waitlist opening outbox write failed; claim rolled back for a later retry:', error)
+    }
+    if (!queued) {
+      await client.scholarshipWaitlistEntry.updateMany({
+        where: { id: entry.id, status: 'NOTIFIED', releaseKey: openingKey },
+        data: { status: entry.status, releaseKey: entry.releaseKey ?? null },
+      }).catch(() => {})
+      continue
+    }
     await notify(entry.userId, 'SCHOLARSHIP_WAITLIST_OPENING', title, body, '/dashboard')
-    await enqueueOutbox(client, {
-      key: 'waitlist-opening:' + entry.id + ':' + openingKey,
-      kind: 'SCHOLARSHIP_WAITLIST_OPENING',
-      recipientUserId: entry.userId,
-      title,
-      body,
-      link: '/dashboard',
-    }).catch(() => {})
     slots--
     notified++
   }
