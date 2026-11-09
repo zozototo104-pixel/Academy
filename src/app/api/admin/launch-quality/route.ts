@@ -485,6 +485,12 @@ async function findDiagnosticStudent(studentId?: string) {
     return chooseBestDiagnosticStudent(explicit)
   }
 
+  const existing = await db.user.findFirst({
+    where: { email: LAUNCH_QUALITY_EMAIL, role: 'STUDENT' },
+    include: diagnosticStudentInclude,
+  })
+  if (diagnosticStudentIsComplete(existing)) return existing
+
   const stableStudent = await ensureLaunchQualityDiagnosticStudent()
   if (!stableStudent?.id) return null
   return db.user.findFirst({
