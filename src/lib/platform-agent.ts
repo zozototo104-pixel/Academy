@@ -1061,7 +1061,10 @@ export async function platformAgentComplete(opts: {
   if (intentAnalysis.intent !== 'HUMAN_HANDOFF' && wantsHumanSupport(last)) platformRoutingHints.push('قواعد التصنيف وجدت طلب تواصل/موظف؛ صغ الرد عبر النموذج ولا تستخدم رداً جاهزاً.')
   if (intentAnalysis.intent === 'PAYMENT_METHODS' && intentAnalysis.confidence >= 0.55) return { reply: await buildDynamicPaymentMethodsReply(), agent: 'ADMISSIONS', engine: 'GEMINI' }
   if (wantsPaymentMethodsInfo(last)) return { reply: await buildDynamicPaymentMethodsReply(), agent: 'ADMISSIONS', engine: 'LOCAL_RULE' }
-  const agent = intentAnalysis.suggestedAgent || routeAgent(last, user?.role)
+  // A student's own academic record belongs to the academic supervisor, even if
+  // the probabilistic intent classifier suggests general admissions.
+  const academicStudentQuestion = user?.role === 'STUDENT' && hasStudentAcademicIntent(normalizeArabic(last))
+  const agent = academicStudentQuestion ? routeAgent(last, user?.role) : (intentAnalysis.suggestedAgent || routeAgent(last, user?.role))
   const persona = personaForAgent(agent)
   const dataContext = await buildUserSnapshot(opts.userId, agent, last)
   const routingContext = platformRoutingHints.length ? ['إشارات تصنيف للنموذج فقط وليست ردوداً جاهزة:', ...platformRoutingHints].join('\n') : ''
