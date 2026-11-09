@@ -1894,6 +1894,19 @@ export function AdminFinanceTab() {
                             <ShieldCheck className="ml-1 h-3 w-3" /> تطبيق الإعفاء على البرنامج
                           </Button>
                         ) : p.status === 'WAIVED' ? 'معفاة' : '—'}
+                        {p.status !== 'PAID' && (() => {
+                          const cancellable = p.waiverCodes?.find((code) => ['ISSUED', 'VERIFIED', 'APPROVED'].includes(code.status))
+                          if (!cancellable) return null
+                          return (
+                            <Button type="button" size="sm" variant="outline"
+                              className="mt-2 h-auto min-h-8 border-red-200 px-2 py-1 text-[11px] font-black text-red-700"
+                              disabled={waiverBusy === p.id}
+                              onClick={() => void cancelStudentWaiver(p, cancellable)}>
+                              {waiverBusy === p.id ? <Loader2 className="ml-1 h-3 w-3 animate-spin" /> : null}
+                              إلغاء المنحة عن الطالب
+                            </Button>
+                          )
+                        })()}
                       </td>
                     </tr>
                   ))}
