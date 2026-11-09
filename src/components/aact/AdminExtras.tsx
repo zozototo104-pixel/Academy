@@ -875,10 +875,12 @@ export function AdminFinanceTab() {
 
   const loadGrantPolicies = useCallback(async () => {
     try {
-      const response = await api<{ policies: OrganizedGrantPolicy[] }>('/api/admin/payments/waivers?mode=policies')
+      const response = await api<{ policies: OrganizedGrantPolicy[]; ready: boolean }>('/api/admin/payments/waivers?mode=policies')
       setGrantPolicies(Array.isArray(response.policies) ? response.policies : [])
+      setGrantOrganizationReady(response.ready === true)
       setGrantPolicyError('')
     } catch (error: any) {
+      setGrantOrganizationReady(false)
       setGrantPolicyError(error?.message || 'تعذر تحميل تعريفات المنح')
     }
   }, [])
