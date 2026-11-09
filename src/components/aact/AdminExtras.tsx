@@ -1270,48 +1270,6 @@ export function AdminFinanceTab() {
     }
   }
 
-  const cancelWaiver = async (payment: PaymentRow, waiver: PaymentWaiverCodeRow) => {
-    if (waiverBusy === payment.id) return
-    const approved = waiver.status === 'APPROVED'
-    const student = payment.admission?.fullName || payment.payerName || 'الطالب'
-    const confirmed = await confirmAction({
-      title: approved ? 'إلغاء منحة معتمدة وسحب أثرها' : 'إلغاء كود المنحة',
-      description: approved
-        ? 'الطالب: ' + student + '. سيُعيد النظام الرسوم المعفاة إلى مستحقة، ويلغي أثر المنحة ويوقف التحاق الطالب فورًا إذا كان تفعيله معتمدًا على المنحة وحدها ولم يبدأ نشاطًا أكاديميًا. إذا وُجد دفع حقيقي أو نشاط أكاديمي يمنع عكس العملية بأمان فستُرفض بالكامل دون تغيير السجلات.'
-        : 'الطالب: ' + student + '. سيُلغى كود المنحة غير المعتمد ولن يستطيع الطالب استخدامه. لن يتغيّر التحاق الطالب لأن الإعفاء لم يُعتمد ماليًا بعد.',
-      confirmLabel: approved ? 'تأكيد إلغاء المنحة' : 'إلغاء الكود',
-      tone: 'danger',
-    })
-    if (!confirmed) return
-    setWaiverBusy(payment.id)
-    try {
-      await api('/api/admin/payments/waivers', {
-        method: 'PATCH',
-        body: JSON.stringify({ action: 'CANCEL', waiverId: waiver.id }),
-      })
-      setGeneratedWaiverCodes((prev) => {
-        const next = { ...prev }
-        delete next[payment.id]
-        return next
-      })
-      toast({
-        title: approved ? 'تم إلغاء المنحة ماليًا' : 'تم إلغاء كود المنحة',
-        description: approved
-          ? 'أُجري العكس المالي عبر المعاملة الآمنة؛ وتحوّل الالتحاق المموّل حصريًا بالمنحة إلى انتظار السداد عند انطباق الشروط.'
-          : 'لم يعد الكود صالحًا للاستخدام.',
-      })
-      load()
-    } catch (error: any) {
-      toast({
-        title: 'لم تُلغَ المنحة',
-        description: error?.message || 'تعذر إلغاء الكود؛ لم يُؤكّد النظام أي تغيير.',
-        variant: 'destructive',
-      })
-    } finally {
-      setWaiverBusy((current) => (current === payment.id ? null : current))
-    }
-  }
-
   const resendWaiver = async (payment: PaymentRow) => {
     if (waiverBusy === payment.id) return
     setWaiverBusy(payment.id)
