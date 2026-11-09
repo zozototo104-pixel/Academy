@@ -26,6 +26,7 @@ type GrantPolicy = {
   coverage: 'REGISTRATION' | 'TUITION' | 'BOTH'
   valueMode: 'FULL' | 'PERCENT' | 'AMOUNT'
   value: number; reason: string; active: boolean; createdAt: string
+  targetUserId?: string | null
   startsAt?: string | null; endsAt?: string | null
 }
 type GrantQuote = {
