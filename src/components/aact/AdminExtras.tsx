@@ -1470,7 +1470,7 @@ export function AdminFinanceTab() {
               <div className="space-y-1.5">
                 <Label htmlFor="grant-scope">نوع المنحة</Label>
                 <select id="grant-scope" className="h-10 w-full min-w-0 rounded-lg border bg-white px-3 text-sm"
-                  value={grantForm.scope} onChange={(e) => setGrantForm((p) => ({ ...p, scope: e.target.value, programIds: [], admissionId: '' }))}>
+                  value={grantForm.scope} onChange={(e) => setGrantForm((p) => ({ ...p, scope: e.target.value, programIds: [], seatLimits: {}, admissionId: '' }))}>
                   <option value="PROGRAM">تخصص أو تخصصات محددة</option>
                   <option value="INDIVIDUAL">طالب محدد لأي سبب</option>
                   <option value="GENERAL">عامة لكل التخصصات</option>
