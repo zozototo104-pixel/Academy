@@ -8,7 +8,6 @@ import { audit } from '@/lib/notify'
 // The legacy waiver ledger remains the only source of financial settlement.
 // Organization issuance is gated until seat reservations, linked-code
 // approvals and rollout tests are complete. Historical codes remain valid.
-const GRANT_LINK_PREFIX = 'GRANT_ORGANIZATION_LINK_V1_'
 function grantOrganizationReady(): boolean {
   // Off by default: only enable after the deployment migration, ledger
   // checks and end-to-end financial regressions pass.
