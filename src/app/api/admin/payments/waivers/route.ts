@@ -920,6 +920,38 @@ export async function PATCH(req: NextRequest) {
           } else {
             updatedPayment = await tx.payment.updateMany({ where: { id: fresh.paymentId, waiverStatus: { in: ['REQUESTED', 'VERIFIED'] } }, data: { waiverStatus: status } })
           }
+          // Release an organized campaign seat only when every code in its
+          // operation is terminal. This runs in the SAME financial reversal
+          // transaction, so a failed reversal cannot release a seat.
+          const organized = fresh.reason?.match(/\[GRANT:([a-zA-Z0-9_-]{1,80})\]/)
+          if (organized) {
+            const link = await tx.scholarshipGrantLink.findUnique({
+              where: { waiverCodeId: waiverId },
+              select: { operationId: true },
+            })
+            if (link?.operationId) {
+              const linked = await tx.scholarshipGrantLink.findMany({
+                where: { operationId: link.operationId },
+                select: { waiverCodeId: true },
+              })
+              if (linked.length) {
+                const codes = await tx.paymentWaiverCode.findMany({
+                  where: { id: { in: linked.map((item) => item.waiverCodeId) } },
+                  select: { id: true, status: true },
+                })
+                if (codes.length === linked.length
+                  && codes.every((code) => ['CANCELLED', 'REJECTED', 'EXPIRED'].includes(code.status))) {
+                  await tx.scholarshipGrantOperation.updateMany({
+                    where: {
+                      id: link.operationId,
+                      status: { in: ['ISSUING', 'ISSUED', 'APPROVED', 'INCOMPLETE'] },
+                    },
+                    data: { status: 'CANCELLED' },
+                  })
+                }
+              }
+            }
+          }
           return { waiver: updatedWaiver, payment: updatedPayment }
         })
       } catch (e: any) {
