@@ -169,7 +169,16 @@ const db: any = {
     findUnique: async ({ where }: any) => scholarshipDefinitions.get(where.id) || null,
     create: async ({ data }: any) => {
       const id = 'test-scholarship-' + (scholarshipDefinitions.size + 1)
-      const row = { ...data, id, programs: (data.programs?.create || []).map((p: any) => ({ programId: p.programId })), createdAt: new Date(), updatedAt: new Date() }
+      const row = {
+        ...data,
+        id,
+        programs: (data.programs?.create || []).map((p: any) => ({
+          programId: p.programId, seats: p.seats ?? null,
+        })),
+        operations: data.operations?.create ? [{ ...data.operations.create }] : [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
       scholarshipDefinitions.set(id, row)
       return { ...row }
     },
