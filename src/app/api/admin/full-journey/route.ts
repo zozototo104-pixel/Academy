@@ -844,6 +844,10 @@ async function cleanupFullJourneyByStamp(stamp: string) {
   remember('theses', await db.thesisSubmission.deleteMany({ where: { id: { in: thesisIds } } }))
   remember('studentAcademicMemory', await db.studentAcademicMemory.deleteMany({ where: student ? { userId: student.id } : { userId: '__none__' } }))
   remember('notifications', await db.notification.deleteMany({ where: student ? { userId: student.id } : { userId: '__none__' } }))
+  // Exam attempts reference the student with onDelete: Restrict, so they
+  // must be removed before the user row (their answers cascade).
+  remember('examAttempts', await db.examAttempt.deleteMany({ where: student ? { userId: student.id } : { userId: '__none__' } }))
+  remember('programExamAttempts', await db.programExamAttempt.deleteMany({ where: student ? { userId: student.id } : { userId: '__none__' } }))
   remember('admissions', await db.admissionApplication.deleteMany({ where: { id: { in: admissionIds } } }))
   remember('enrollments', await db.enrollment.deleteMany({ where: { id: { in: enrollmentIds } } }))
   remember('student', await db.user.deleteMany({ where: { email } }))
