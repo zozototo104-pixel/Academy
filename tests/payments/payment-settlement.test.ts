@@ -872,6 +872,23 @@ describe('organized grant eligibility before issuing an existing waiver code', (
     expect(response.status).toBe(409)
     expect((await response.json()).error).toContain('منحة')
   })
+  test('expired and unapproved previous waiver does not block a new eligible quote', async () => {
+    seedStudentPayment('program-A')
+    payments.set('prior-expired-invoice', {
+      id: 'prior-expired-invoice', userId: 'student-grant-1', admissionId: 'admission-2',
+      admission: { id: 'admission-2', userId: 'student-grant-1', programId: 'program-B' },
+      purpose: 'TUITION', status: 'UNPAID', amount: 200, amountCents: 20000,
+    })
+    waiverCodes.push({
+      id: 'expired-scholarship', paymentId: 'prior-expired-invoice',
+      waiverType: 'FULL_SCHOLARSHIP', status: 'ISSUED',
+      expiresAt: new Date(Date.now() - 60000),
+    })
+    seedPolicy(programPolicyId)
+    const response = await waiversRouteGET(quoteRequest(programPolicyId))
+    expect(response.status).toBe(200)
+  })
+
   test('registration-only waiver does not consume the one tuition scholarship', async () => {
     seedStudentPayment('program-A')
     payments.set('grant-registration-other', {
