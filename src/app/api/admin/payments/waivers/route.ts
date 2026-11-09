@@ -567,58 +567,71 @@ export async function PATCH(req: NextRequest) {
     if (action === 'APPROVE') {
       const existing = await db.paymentWaiverCode.findUnique({
         where: { id: waiverId },
-        include: { payment: { include: { admission: { select: { id: true, programId: true } } } } },
+        include: { payment: { include: { admission: { select: { id: true, programId: true, userId: true } } } } },
       })
-      const marker = existing?.reason?.match(/\[GRANT:([a-f0-9-]{36})\]/)
+      // Only organized codes contain this marker. Historical waivers continue
+      // through the same financial engine with no extra approval prerequisites.
+      const marker = existing?.reason?.match(/\\[GRANT:([a-zA-Z0-9_-]{1,80})\\]/)
       if (marker) {
         const policy = await loadGrantPolicy(marker[1])
-        const linkKey = GRANT_LINK_PREFIX + waiverId
-        let link = await db.setting.findUnique({ where: { key: linkKey } })
-        if (!link && existing) {
-          const oldCodes = await db.paymentWaiverCode.findMany({
-            where: { paymentId: existing.paymentId, reason: existing.reason, id: { not: waiverId } },
-            select: { id: true },
-          })
-          const links = await Promise.all(oldCodes.map((code) => db.setting.findUnique({ where: { key: GRANT_LINK_PREFIX + code.id } })))
-          const previous = links.find(Boolean)
-          if (previous) {
-            link = await db.setting.upsert({
-              where: { key: linkKey },
-              create: { key: linkKey, value: JSON.stringify({ ...JSON.parse(previous.value), waiverCodeId: waiverId }) },
-              update: { value: JSON.stringify({ ...JSON.parse(previous.value), waiverCodeId: waiverId }) },
-            })
-          }
-          if (!link) {
-            const pending = await db.setting.findUnique({ where: { key: 'GRANT_ORGANIZATION_INTENT_V1_' + existing.paymentId } })
-            if (pending) {
-              const intent = JSON.parse(pending.value)
-              if (intent.policyId === policy.id) {
-                link = await db.setting.upsert({
-                  where: { key: linkKey },
-                  create: { key: linkKey, value: JSON.stringify({ ...intent, paymentId: existing.paymentId, waiverCodeId: waiverId }) },
-                  update: { value: JSON.stringify({ ...intent, paymentId: existing.paymentId, waiverCodeId: waiverId }) },
-                })
-                await db.setting.deleteMany({ where: { key: 'GRANT_ORGANIZATION_INTENT_V1_' + existing.paymentId } })
-              }
-            }
-          }
+        const link = await db.scholarshipGrantLink.findUnique({
+          where: { waiverCodeId: waiverId },
+          include: { operation: true },
+        })
+        if (!link || !link.operation || link.operation.definitionId !== policy.id) {
+          return NextResponse.json({
+            error: 'ربط المنحة بعملية إصدار مكتملة مفقود. لا يمكن اعتماد كود غير موثق.',
+            code: 'GRANT_LINK_MISSING',
+          }, { status: 409 })
         }
-        if (!link) {
-          return NextResponse.json({ error: 'ربط هذه المنحة بسجل التنظيم مفقود؛ لا يمكن اعتمادها قبل مراجعته', code: 'GRANT_LINK_MISSING' }, { status: 409 })
+        const operation = link.operation
+        if (operation.status !== 'ISSUED' || operation.expectedCodes < 1) {
+          return NextResponse.json({
+            error: 'عملية إصدار المنحة لم تكتمل أو تحتاج مراجعة؛ لا يجوز اعتماد جزء منها.',
+            code: 'GRANT_OPERATION_INCOMPLETE',
+          }, { status: 409 })
         }
-        const snapshot = JSON.parse(link.value)
-        if (snapshot.policyId !== policy.id
-          || snapshot.admissionId !== existing?.payment.admission?.id
-          || snapshot.programId !== existing?.payment.admission?.programId
-          || (policy.scope === 'PROGRAM' && !policy.programIds.includes(snapshot.programId))
-          || (policy.scope === 'INDIVIDUAL' && policy.admissionId !== snapshot.admissionId)) {
-          return NextResponse.json({ error: 'تغيّر تخصص الطالب أو ارتباط المنحة؛ لا يجوز اعتمادها لهذا التسجيل', code: 'GRANT_PROGRAM_CHANGED' }, { status: 409 })
+        const operationLinks = await db.scholarshipGrantLink.findMany({
+          where: { operationId: operation.id },
+          select: { waiverCodeId: true, grantCents: true },
+        })
+        const linkedCodes = await db.paymentWaiverCode.findMany({
+          where: { id: { in: operationLinks.map((item) => item.waiverCodeId) },
+            status: { in: ['ISSUED', 'VERIFIED', 'APPROVED'] } },
+          select: { id: true },
+        })
+        const currentCodes = new Set(linkedCodes.map((item) => item.id))
+        const validLinks = operationLinks.filter((item) => currentCodes.has(item.waiverCodeId))
+        const grantedCents = validLinks.reduce((total, item) => total + item.grantCents, 0)
+        if (validLinks.length !== operation.expectedCodes || grantedCents !== operation.expectedCents) {
+          return NextResponse.json({
+            error: 'مجموعة أكواد المنحة غير مكتملة أو مبالغها غير متطابقة؛ يمنع الاعتماد.',
+            code: 'GRANT_OPERATION_MISMATCH',
+          }, { status: 409 })
+        }
+        const paymentAdmission = existing?.payment.admission
+        if (!paymentAdmission
+          || link.paymentId !== existing?.paymentId
+          || link.userId !== operation.userId
+          || paymentAdmission.userId !== operation.userId
+          || paymentAdmission.id !== link.admissionId
+          || paymentAdmission.programId !== link.programId
+          || operation.admissionId !== link.admissionId
+          || operation.programId !== link.programId
+          || (policy.scope === 'PROGRAM' && !policy.programIds.includes(link.programId))
+          || (policy.scope === 'INDIVIDUAL'
+            && (policy.admissionId !== link.admissionId || policy.targetUserId !== link.userId))) {
+          return NextResponse.json({
+            error: 'تغير مستفيد المنحة أو تخصصه؛ يلزم تصحيح إداري موثق قبل الاعتماد.',
+            code: 'GRANT_PROGRAM_CHANGED',
+          }, { status: 409 })
         }
       }
-      const payment = await approvePaymentWaiver({ waiverId, actor: { id: admin.id, name: admin.name || admin.email || 'Admin' } })
+      const payment = await approvePaymentWaiver({
+        waiverId, actor: { id: admin.id, name: admin.name || admin.email || 'Admin' },
+      })
       return NextResponse.json({ payment })
     }
-
     if (action === 'REJECT' || action === 'CANCEL') {
       const status = action === 'REJECT' ? 'REJECTED' : 'CANCELLED'
       const waiver = await db.paymentWaiverCode.findUnique({ where: { id: waiverId }, include: { payment: true } })
