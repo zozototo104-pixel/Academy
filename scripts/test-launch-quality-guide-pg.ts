@@ -99,7 +99,7 @@ async function resolveDatabaseUrl(): Promise<string> {
   const run = await runCommand('docker', [
     'run', '-d', '--name', DOCKER_CONTAINER,
     '-e', 'POSTGRES_USER=guide_test',
-    '-e', 'POSTGRES_PASSWORD=<redacted>',
+    '-e', 'POSTGRES_PASSWORD=guide_test_only',
     '-e', 'POSTGRES_DB=academy_launch_quality_test',
     '-p', '55437:5432',
     'postgres:16',
