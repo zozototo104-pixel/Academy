@@ -464,6 +464,14 @@ beforeEach(() => {
 })
 
 describe('organization schema migration gate', () => {
+  test('finance UI sees server-side readiness as false until grant migration is present', async () => {
+    const response = await waiversRouteGET(new NextRequest('http://localhost/api/admin/payments/waivers?mode=policies'))
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.ready).toBe(false)
+    expect(body.policies).toEqual([])
+  })
+
   test('new grant issuance and definition creation reject without writing', async () => {
     for (const action of ['CREATE_POLICY', 'ISSUE_POLICY']) {
       const response = await waiversRoutePOST(new NextRequest('http://localhost/api/admin/payments/waivers', {
