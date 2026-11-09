@@ -118,6 +118,16 @@ test.describe('AACT full platform journey suite', () => {
     expect(setup.academicJourney?.tuitionGate?.semester2BeforeFinalPayment?.ok, 'Semester 2 exam must be blocked before full installment payment').toBe(false)
     expect(setup.academicJourney?.tuitionGate?.semester2BeforeFinalPayment?.code, 'Semester 2 block code must be TUITION_FULL_REQUIRED').toBe('TUITION_FULL_REQUIRED')
     expect(setup.academicJourney?.tuitionGate?.semester2AfterFinalPayment?.ok, 'Semester 2 exam must open after completing installment payment').toBe(true)
+    for (const semester of ['semester1', 'semester2'] as const) {
+      const state = setup.academicJourney?.semesters?.[semester]
+      expect(state, `${semester}: missing semester journey`).toBeTruthy()
+      for (const component of ['assignmentScore', 'unitQuizScore', 'examScore'] as const) {
+        expect(typeof state?.[component], `${semester}: missing ${component}`).toBe('number')
+        expect(Number.isFinite(state[component]), `${semester}: invalid ${component}`).toBe(true)
+        expect(state[component], `${semester}: ${component} must be a passing QA fixture`).toBeGreaterThanOrEqual(60)
+      }
+      expect(state?.readinessAfterMark?.complete, `${semester}: unit/assignment/exam readiness incomplete`).toBe(true)
+    }
     expect(setup.academicJourney?.semesters?.semester1?.passed, 'Semester 1 assignment/exam average must pass').toBe(true)
     expect(setup.academicJourney?.semesters?.semester1?.average || 0, 'Semester 1 average must be at least 60').toBeGreaterThanOrEqual(60)
     expect(setup.academicJourney?.semesters?.semester2?.passed, 'Semester 2 assignment/exam average must pass').toBe(true)
