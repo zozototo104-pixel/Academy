@@ -1,0 +1,127 @@
+name: QA Database Migrate (one-off)
+
+# One-off operator workflow: applies pending Prisma migrations to the
+# ISOLATED QA database only.
+#
+# Identity is proven three independent ways BEFORE any migration runs:
+#   1. The database name parsed from QA_DATABASE_URL must equal the
+#      separately configured qa-e2e variable QA_DATABASE_NAME.
+#   2. The host parsed from QA_DATABASE_URL must equal the separately
+#      configured qa-e2e variable QA_DATABASE_HOST.
+#   3. A live read-only probe asks the server itself: SELECT
+#      current_database() must return QA_DATABASE_NAME.
+# Values 1 and 2 are configured independently of the URL, and check 3 is
+# answered by the database server, not by string parsing — a mistyped or
+# swapped connection string fails closed instead of migrating the wrong
+# database. The workflow can only read qa-e2e environment values; the
+# production database URL is never in scope. Host and credentials are
+# never printed beyond the configured host/name pair being verified.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type MIGRATE_QA to apply pending migrations to the QA database"
+        required: true
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qa-database-migrate
+  cancel-in-progress: false
+
+jobs:
+  migrate-qa:
+    name: Verify QA database identity, then apply Prisma migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: qa-e2e
+
+    env:
+      DATABASE_URL: ${{ secrets.QA_DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.QA_DATABASE_URL }}
+      EXPECTED_QA_DB_NAME: ${{ vars.QA_DATABASE_NAME }}
+      EXPECTED_QA_DB_HOST: ${{ vars.QA_DATABASE_HOST }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile || bun install
+
+      - name: Guard — confirmation and configured identity present
+        shell: bash
+        env:
+          CONFIRM_INPUT: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          if [ "$CONFIRM_INPUT" != "MIGRATE_QA" ]; then
+            echo "::error::Confirmation missing: re-dispatch with confirm=MIGRATE_QA"
+            exit 1
+          fi
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "::error::QA_DATABASE_URL is empty in the qa-e2e environment"
+            exit 1
+          fi
+          if [ -z "${EXPECTED_QA_DB_NAME:-}" ] || [ -z "${EXPECTED_QA_DB_HOST:-}" ]; then
+            echo "::error::QA_DATABASE_NAME and QA_DATABASE_HOST must both be set as qa-e2e environment variables before this workflow can verify the target identity"
+            exit 1
+          fi
+
+      - name: Guard — URL identity matches the independently configured QA identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          import os, sys, urllib.parse as u
+          url = u.urlparse(os.environ['DATABASE_URL'])
+          name = url.path.lstrip('/')
+          host = url.hostname or ''
+          expected_name = os.environ['EXPECTED_QA_DB_NAME'].strip()
+          expected_host = os.environ['EXPECTED_QA_DB_HOST'].strip()
+          print(f"URL database name: {name}")
+          print(f"URL host: {host}")
+          print(f"Expected QA database name: {expected_name}")
+          print(f"Expected QA host: {expected_host}")
+          if name != expected_name:
+              print("::error::Database name in QA_DATABASE_URL does not match QA_DATABASE_NAME — refusing to migrate an unverified target")
+              sys.exit(1)
+          if host != expected_host:
+              print("::error::Host in QA_DATABASE_URL does not match QA_DATABASE_HOST — refusing to migrate an unverified target")
+              sys.exit(1)
+          print("URL identity matches the independently configured QA identity.")
+          PY
+
+      - name: Guard — the server itself confirms its identity (live probe)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client >/dev/null
+          fi
+          server_db=$(psql "$DATABASE_URL" -t -A -c 'SELECT current_database()')
+          server_addr=$(psql "$DATABASE_URL" -t -A -c 'SELECT inet_server_addr()' || echo 'unknown')
+          echo "Server-reported database: ${server_db}"
+          echo "Server-reported address: ${server_addr}"
+          if [ "$server_db" != "$EXPECTED_QA_DB_NAME" ]; then
+            echo "::error::The connected server reports database '${server_db}', not the expected QA database '${EXPECTED_QA_DB_NAME}' — refusing to migrate"
+            exit 1
+          fi
+          echo "Live server identity confirmed: this connection is the QA database."
+
+      - name: Migration status before (informational)
+        run: bunx prisma migrate status || true
+
+      - name: Apply pending migrations (verified QA database only)
+        run: bunx prisma migrate deploy
+
+      - name: Migration status after
+        run: bunx prisma migrate status
