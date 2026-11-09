@@ -87,6 +87,57 @@ function toGrantPolicy(row: StoredGrantDefinition): GrantPolicy {
     endsAt: row.endsAt?.toISOString() || null,
   }
 }
+// Seat law: an organized reservation lives only while at least one of its
+// codes can still be verified, or was approved. A code is live when it is
+// APPROVED, or ISSUED/VERIFIED and not past its expiry — the same rule the
+// eligibility checks apply to legacy codes. When every linked code is dead
+// (expired or terminal), the ISSUED operation is closed as CANCELLED, which
+// returns its seat to the campaign pool and lifts the one-scholarship hold
+// for that student. The waiver ledger itself is never modified here, and an
+// operation with no links is never auto-closed (it belongs to the
+// incomplete-operation review path, not to expiry).
+async function releaseStaleGrantOperations(
+  client: any,
+  scope: { definitionId?: string; definitionIds?: string[]; programId?: string; userId?: string },
+): Promise<Array<{ id: string; definitionId: string; programId: string; userId: string }>> {
+  const where: Record<string, any> = { status: 'ISSUED' }
+  if (scope.definitionId) where.definitionId = scope.definitionId
+  if (scope.definitionIds) where.definitionId = { in: scope.definitionIds }
+  if (scope.programId) where.programId = scope.programId
+  if (scope.userId) where.userId = scope.userId
+  const operations = await client.scholarshipGrantOperation.findMany({
+    where,
+    select: { id: true, definitionId: true, programId: true, userId: true },
+  })
+  if (!operations.length) return []
+  const links = await client.scholarshipGrantLink.findMany({
+    where: { operationId: { in: operations.map((op: any) => op.id) } },
+    select: { operationId: true, waiverCodeId: true },
+  })
+  if (!links.length) return []
+  const codes = await client.paymentWaiverCode.findMany({
+    where: { id: { in: links.map((link: any) => link.waiverCodeId) } },
+    select: { id: true, status: true, expiresAt: true },
+  })
+  const codeById = new Map(codes.map((code: any) => [code.id, code]))
+  const now = Date.now()
+  const isLive = (code: any) => !!code && (code.status === 'APPROVED'
+    || ((code.status === 'ISSUED' || code.status === 'VERIFIED')
+      && (!code.expiresAt || new Date(code.expiresAt).getTime() > now)))
+  const linkedOperations = new Set<string>()
+  const liveOperations = new Set<string>()
+  for (const link of links) {
+    linkedOperations.add(link.operationId)
+    if (isLive(codeById.get(link.waiverCodeId))) liveOperations.add(link.operationId)
+  }
+  const stale = operations.filter((op: any) => linkedOperations.has(op.id) && !liveOperations.has(op.id))
+  if (!stale.length) return []
+  const closed = await client.scholarshipGrantOperation.updateMany({
+    where: { id: { in: stale.map((op: any) => op.id) }, status: 'ISSUED' },
+    data: { status: 'CANCELLED' },
+  })
+  return closed.count ? stale : []
+}
 async function loadGrantPolicies(): Promise<GrantPolicy[]> {
   const rows = await db.scholarshipDefinition.findMany({
     include: {
@@ -96,6 +147,9 @@ async function loadGrantPolicies(): Promise<GrantPolicy[]> {
     orderBy: { createdAt: 'desc' },
   })
   if (!rows.length) return []
+  // Reservations whose codes have all expired release their seat on their
+  // own; close them before counting so availability is never overstated.
+  await releaseStaleGrantOperations(db, { definitionIds: rows.map((row) => row.id) })
   // An issued or incomplete operation still occupies a campaign seat.
   // Terminal cancelled operations release it. This is a read-only live count;
   // the issuer uses its own serialized lock before reserving a seat.
@@ -197,6 +251,7 @@ async function grantQuote(paymentId: string, policyId: string): Promise<GrantQuo
     throw grantError('لدى هذا الطالب منحة دراسية نشطة أو معتمدة على تسجيل آخر؛ لا يجوز إصدار منحة دراسية ثانية')
   }
   if (policy.coverage !== 'REGISTRATION') {
+    await releaseStaleGrantOperations(db, { userId: studentUserId })
     const reservedOperation = await db.scholarshipGrantOperation.findFirst({
       where: {
         userId: studentUserId,
@@ -550,6 +605,11 @@ async function reserveGrantOperation(quote: GrantQuote, adminId: string) {
         throw grantError('مستفيد المنحة الفردية لا يطابق الطالب الحالي')
       }
     }
+    // Free seats (and the one-scholarship hold) of reservations whose codes
+    // have all expired, under the row locks above, before the checks below
+    // read the operation ledger.
+    await releaseStaleGrantOperations(tx, { userId: quote.userId })
+    await releaseStaleGrantOperations(tx, { definitionId: definition.id, programId: quote.programId })
     const invoice = await tx.payment.findUnique({
       where: { id: quote.paymentId },
       include: { admission: { select: { id: true, userId: true, programId: true } } },

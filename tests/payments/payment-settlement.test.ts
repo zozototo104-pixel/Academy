@@ -137,12 +137,28 @@ const db: any = {
       Object.assign(op, data)
       return { ...op }
     },
+    findMany: async ({ where }: any) => [...scholarshipOperations.values()].filter((op) => {
+      if (where?.status && typeof where.status === 'string' && op.status !== where.status) return false
+      if (where?.status?.in && !where.status.in.includes(op.status)) return false
+      if (where?.definitionId && typeof where.definitionId === 'string' && op.definitionId !== where.definitionId) return false
+      if (where?.definitionId?.in && !where.definitionId.in.includes(op.definitionId)) return false
+      if (where?.programId && op.programId !== where.programId) return false
+      if (where?.userId && op.userId !== where.userId) return false
+      if (where?.id?.in && !where.id.in.includes(op.id)) return false
+      return true
+    }).map((op) => ({ ...op })),
     updateMany: async ({ where, data }: any) => {
-      const op = scholarshipOperations.get(where.id)
-      if (!op || (typeof where.status === 'string' && where.status !== op.status)
-        || (where.status?.in && !where.status.in.includes(op.status))) return { count: 0 }
-      Object.assign(op, data)
-      return { count: 1 }
+      const ids = where.id?.in || (where.id ? [where.id] : [])
+      let count = 0
+      for (const id of ids) {
+        const op = scholarshipOperations.get(id)
+        if (!op) continue
+        if (typeof where.status === 'string' && where.status !== op.status) continue
+        if (where.status?.in && !where.status.in.includes(op.status)) continue
+        Object.assign(op, data)
+        count++
+      }
+      return { count }
     },
   },
   scholarshipGrantLink: {
@@ -155,7 +171,10 @@ const db: any = {
       && (!where.paymentId || link.paymentId === where.paymentId)
     ) || null,
     findMany: async ({ where }: any) => [...scholarshipLinks.values()].filter((link) =>
-      !where?.operationId || link.operationId === where.operationId
+      !where?.operationId
+      || (typeof where.operationId === 'string'
+        ? link.operationId === where.operationId
+        : where.operationId.in?.includes(link.operationId))
     ),
     create: async ({ data }: any) => {
       if ([...scholarshipLinks.values()].some((item) => item.waiverCodeId === data.waiverCodeId)) throw new Error('DUPLICATE_GRANT_LINK')
@@ -774,6 +793,104 @@ describe('organized grant eligibility before issuing an existing waiver code', (
     const availableSeats = (await second.json()).policies[0].programAvailability[0]
     expect(availableSeats.occupied).toBe(0)
     expect(availableSeats.remaining).toBe(2)
+  })
+
+  function seedIssuedOperation(opId: string, ownerId: string, codeRows: Array<Record<string, any>>) {
+    payments.set('payment-' + opId, {
+      id: 'payment-' + opId, admissionId: 'admission-' + opId, userId: ownerId,
+      admission: { id: 'admission-' + opId, fullName: 'طالب آخر', programId: 'program-A', userId: ownerId },
+      purpose: 'TUITION', status: 'UNPAID', amount: 199.99, amountCents: 19999,
+    })
+    scholarshipOperations.set(opId, {
+      id: opId, definitionId: programPolicyId, programId: 'program-A',
+      userId: ownerId, admissionId: 'admission-' + opId, status: 'ISSUED',
+      expectedCodes: codeRows.length, expectedCents: 5000,
+    })
+    codeRows.forEach((code, index) => {
+      const waiverId = opId + '-code-' + index
+      waiverCodes.push({ paymentId: 'payment-' + opId, waiverType: 'PARTIAL_TUITION', codePreview: 'TEST-ONLY', ...code, id: waiverId })
+      scholarshipLinks.set('link-' + waiverId, {
+        id: 'link-' + waiverId, operationId: opId, definitionId: programPolicyId,
+        waiverCodeId: waiverId, paymentId: 'payment-' + opId, userId: ownerId,
+        admissionId: 'admission-' + opId, programId: 'program-A', baseCents: 19999, grantCents: 5000,
+      })
+    })
+  }
+
+  test('a fully expired organized reservation releases its campaign seat on its own', async () => {
+    seedPolicy(programPolicyId)
+    scholarshipDefinitions.get(programPolicyId)!.programs[0].seats = 1
+    seedIssuedOperation('op-expired', 'student-other', [
+      { status: 'EXPIRED', expiresAt: new Date(Date.now() - 60_000) },
+    ])
+    const response = await waiversRouteGET(new NextRequest('http://localhost/api/admin/payments/waivers?mode=policies'))
+    expect(response.status).toBe(200)
+    const seats = (await response.json()).policies[0].programAvailability[0]
+    expect(seats.occupied).toBe(0)
+    expect(seats.remaining).toBe(1)
+    expect(scholarshipOperations.get('op-expired')?.status).toBe('CANCELLED')
+  })
+
+  test('an issued code past its expiry releases the seat even before the sweep flips its status', async () => {
+    seedPolicy(programPolicyId)
+    scholarshipDefinitions.get(programPolicyId)!.programs[0].seats = 1
+    seedIssuedOperation('op-lapsed', 'student-other', [
+      { status: 'ISSUED', expiresAt: new Date(Date.now() - 60_000) },
+    ])
+    const response = await waiversRouteGET(new NextRequest('http://localhost/api/admin/payments/waivers?mode=policies'))
+    const seats = (await response.json()).policies[0].programAvailability[0]
+    expect(seats.occupied).toBe(0)
+    expect(seats.remaining).toBe(1)
+    expect(scholarshipOperations.get('op-lapsed')?.status).toBe('CANCELLED')
+  })
+
+  test('one live code keeps the whole reservation and its seat', async () => {
+    seedPolicy(programPolicyId)
+    scholarshipDefinitions.get(programPolicyId)!.programs[0].seats = 1
+    seedIssuedOperation('op-mixed', 'student-other', [
+      { status: 'EXPIRED', expiresAt: new Date(Date.now() - 60_000) },
+      { status: 'VERIFIED', expiresAt: new Date(Date.now() + 60_000) },
+    ])
+    const response = await waiversRouteGET(new NextRequest('http://localhost/api/admin/payments/waivers?mode=policies'))
+    const seats = (await response.json()).policies[0].programAvailability[0]
+    expect(seats.occupied).toBe(1)
+    expect(seats.remaining).toBe(0)
+    expect(scholarshipOperations.get('op-mixed')?.status).toBe('ISSUED')
+  })
+
+  test('an approved code never releases its reservation through expiry', async () => {
+    seedPolicy(programPolicyId)
+    scholarshipDefinitions.get(programPolicyId)!.programs[0].seats = 1
+    seedIssuedOperation('op-approved', 'student-other', [
+      { status: 'APPROVED', expiresAt: new Date(Date.now() - 60_000) },
+    ])
+    const response = await waiversRouteGET(new NextRequest('http://localhost/api/admin/payments/waivers?mode=policies'))
+    const seats = (await response.json()).policies[0].programAvailability[0]
+    expect(seats.occupied).toBe(1)
+    expect(scholarshipOperations.get('op-approved')?.status).toBe('ISSUED')
+  })
+
+  test('a student whose organized reservation expired can be quoted a new scholarship', async () => {
+    seedStudentPayment('program-A')
+    seedPolicy('cccccccc-cccc-4ccc-cccc-cccccccccccc')
+    seedPolicy(programPolicyId)
+    scholarshipOperations.set('op-stale-own', {
+      id: 'op-stale-own', definitionId: 'cccccccc-cccc-4ccc-cccc-cccccccccccc', programId: 'program-A',
+      userId: 'student-grant-1', admissionId: 'admission-1', status: 'ISSUED',
+      expectedCodes: 1, expectedCents: 5000,
+    })
+    waiverCodes.push({
+      id: 'stale-own-code', paymentId: 'grant-payment', status: 'EXPIRED',
+      waiverType: 'PARTIAL_TUITION', expiresAt: new Date(Date.now() - 60_000), codePreview: 'TEST-ONLY',
+    })
+    scholarshipLinks.set('link-stale-own', {
+      id: 'link-stale-own', operationId: 'op-stale-own', definitionId: 'cccccccc-cccc-4ccc-cccc-cccccccccccc',
+      waiverCodeId: 'stale-own-code', paymentId: 'grant-payment', userId: 'student-grant-1',
+      admissionId: 'admission-1', programId: 'program-A', baseCents: 19999, grantCents: 5000,
+    })
+    const response = await waiversRouteGET(quoteRequest(programPolicyId))
+    expect(response.status).toBe(200)
+    expect(scholarshipOperations.get('op-stale-own')?.status).toBe('CANCELLED')
   })
 
   test('organized approval refuses missing links, unfinished operation and changed student program', async () => {
