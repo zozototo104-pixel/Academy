@@ -218,6 +218,9 @@ jobs:
           bun run db:generate
           bunx playwright test --config=playwright.config.ts tests/e2e/manual-payment-guard.spec.ts
 
+      - name: Run book access guardrails
+        run: bun run e2e:books
+
       - name: Run full platform journey
         if: ${{ github.event_name == 'push' || inputs.run_full_journey }}
         run: bun run e2e:journey
