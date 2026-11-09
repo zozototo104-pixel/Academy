@@ -179,7 +179,12 @@ async function grantQuote(paymentId: string, policyId: string): Promise<GrantQuo
   if (!studentUserId) throw grantError('هوية الطالب غير مربوطة بحساب موثق؛ لا يجوز إصدار منحة دراسية قبل المطابقة')
   const priorScholarships = await db.paymentWaiverCode.findMany({
     where: {
-      status: { in: ['ISSUED', 'VERIFIED', 'APPROVED'] },
+      // An expired unapproved code cannot be verified or approved by the
+      // existing engine. It must not block a later eligible scholarship.
+      OR: [
+        { status: 'APPROVED' },
+        { status: { in: ['ISSUED', 'VERIFIED'] }, expiresAt: { gt: new Date() } },
+      ],
       waiverType: { in: ['FULL_SCHOLARSHIP', 'PARTIAL_TUITION'] },
       payment: { is: {
         OR: [{ userId: studentUserId }, { admission: { is: { userId: studentUserId } } }],
