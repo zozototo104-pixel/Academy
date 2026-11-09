@@ -231,7 +231,12 @@ async function planWaiverCancelReversal(tx: any, waiver: any) {
 
   const payments = await tx.payment.findMany({ where: { admissionId } })
   const others = payments.filter((p: any) => p.id !== waiver.paymentId)
-  if (others.some((p: any) => p.status === 'PAID')) throw new WaiverCancelUnsafeError()
+  // A separately paid application fee does not finance tuition. Preserve its
+  // paid invoice/receipt, and revoke tuition access if this grant alone covered
+  // tuition. Any other real cash settlement still prevents automatic reversal.
+  if (others.some((p: any) => p.status === 'PAID' && p.purpose !== 'APPLICATION_FEE')) {
+    throw new WaiverCancelUnsafeError()
+  }
   for (const p of others) {
     if (p.status !== 'WAIVED') continue
     const byThisWaiver = p.waiverType === waiver.waiverType
