@@ -72,6 +72,13 @@ function md(report: any) {
 test.describe('AACT full platform journey suite', () => {
   test.setTimeout(180_000)
 
+  test('unauthenticated visitors cannot create or delete academic journey fixtures', async ({ request }) => {
+    const create = await request.post('/api/admin/full-journey', { data: {} })
+    expect([401, 403], `Unauthenticated journey creation returned ${create.status()}`).toContain(create.status())
+    const remove = await request.delete('/api/admin/full-journey', { data: { stamp: 'qa-unauthorized-probe' } })
+    expect([401, 403], `Unauthenticated journey deletion returned ${remove.status()}`).toContain(remove.status())
+  })
+
   async function cleanupFullJourney(request: any, testInfo: TestInfo, target: { token: string; stamp: string }) {
     const cleanupRes = await request.delete('/api/admin/full-journey', {
       headers: { Authorization: `Bearer ${target.token}` },
