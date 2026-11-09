@@ -139,7 +139,8 @@ const db: any = {
     },
     updateMany: async ({ where, data }: any) => {
       const op = scholarshipOperations.get(where.id)
-      if (!op || (where.status?.in && !where.status.in.includes(op.status))) return { count: 0 }
+      if (!op || (typeof where.status === 'string' && where.status !== op.status)
+        || (where.status?.in && !where.status.in.includes(op.status))) return { count: 0 }
       Object.assign(op, data)
       return { count: 1 }
     },
