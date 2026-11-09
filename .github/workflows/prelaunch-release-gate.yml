@@ -141,6 +141,30 @@ jobs:
       - name: Build Next.js application
         run: bunx next build
 
+      - name: Run academic progression, appeals, graduation and certificate regression tests
+        run: |
+          bun run test:semester-journey
+          bun run test:progression-gates
+          bun run test:mercy-progression
+          bun run test:graduation-approval
+          bun run test:certificate-disclosure
+
+      - name: Run finance, scholarships, supervisor and meeting regression tests
+        run: |
+          bun run test:payments
+          bun run test:waiver-code-filters
+          bun run test:waiver-code-resend
+          bun run test:supervisor-assignment-grading
+          bun run test:supervisor-scope
+          bun run test:meetings
+
+      - name: Run notification and student dashboard regression tests
+        run: |
+          bun run test:notifications
+          bun run test:student-preview
+          bun run test:students-list-filters
+          bun run test:student-dashboard-organization
+
   critical-e2e:
     name: Admin, routes, books, payments, certificates, and full journey
     runs-on: ubuntu-latest
