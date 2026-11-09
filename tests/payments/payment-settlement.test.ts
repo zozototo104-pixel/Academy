@@ -467,7 +467,10 @@ const { PATCH: paymentsRoutePATCH } = await import('../../src/app/api/admin/paym
 const { hasLifecycleFootprint, progressionGate } = await import('../../src/lib/progression')
 
 beforeEach(() => {
+  delete process.env.SCHOLARSHIP_ORGANIZATION_ENABLED
   scholarshipDefinitions.clear()
+  scholarshipOperations.clear()
+  scholarshipLinks.clear()
   grantSettings.clear()
   payments.clear()
   admissions.clear()
