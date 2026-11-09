@@ -207,12 +207,24 @@ jobs:
           bun run test:supervisor-scope
           bun run test:meetings
 
-      - name: Run notification and student dashboard regression tests
+      - name: Run admissions, book integrity, assignments, student UX, voice and operational regressions
         run: |
-          bun run test:notifications
-          bun run test:student-preview
-          bun run test:students-list-filters
-          bun run test:student-dashboard-organization
+          set -euo pipefail
+          for suite in \
+            test:admission-required-documents test:admission-state-guards \
+            test:admissions-table test:books-workspace-organization \
+            test:book-outline test:book-read-lock test:book-read-honesty \
+            test:assignment-due-video test:attempt-notifications \
+            test:notifications test:student-preview test:students-list-filters \
+            test:student-dashboard-organization test:thesis-workspace-organization \
+            test:defense-guests test:admin-voice test:meetings \
+            test:finance-workspace-organization test:payment-method-default \
+            test:waiver-code-filters test:waiver-code-resend \
+            test:legacy-certificate-stamp-fonts test:cron-auth; do
+            echo "::group::${suite}"
+            bun run "$suite"
+            echo "::endgroup::"
+          done
 
   critical-e2e:
     name: Admin, routes, books, payments, certificates, and full journey
