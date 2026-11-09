@@ -767,7 +767,6 @@ export async function POST(req: NextRequest) {
     const includeVoice = body.includeVoice !== false
     const probeKinds = selectedProbeKinds(body)
     const studentId = typeof body.studentId === 'string' ? body.studentId : undefined
-    const started = performance.now()
     const requestDeadline = started + LAUNCH_QUALITY_REQUEST_BUDGET_MS
     let stageStarted = performance.now()
     let student: Awaited<ReturnType<typeof findDiagnosticStudent>> = null
