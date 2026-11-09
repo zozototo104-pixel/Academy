@@ -251,7 +251,7 @@ export async function GET(req: NextRequest) {
     await requireAdmin()
     const mode = req.nextUrl.searchParams.get('mode')
     if (mode === 'policies') {
-      return NextResponse.json({ policies: await loadGrantPolicies() }, { headers: { 'Cache-Control': 'no-store' } })
+      return NextResponse.json({ policies: await loadGrantPolicies(), ready: GRANT_ORGANIZATION_SCHEMA_READY }, { headers: { 'Cache-Control': 'no-store' } })
     }
     if (mode === 'quote') {
       const policyId = cleanText(req.nextUrl.searchParams.get('policyId'), 60)
