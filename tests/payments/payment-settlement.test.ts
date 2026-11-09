@@ -570,6 +570,18 @@ describe('organized grant eligibility before issuing an existing waiver code', (
     })
     return new NextRequest('http://localhost/api/admin/payments/waivers?' + params.toString())
   }
+  test('read-only scholarship catalog is backed by migrated tables and converts stored basis points', async () => {
+    seedPolicy(programPolicyId, { value: 33.33 })
+    const response = await waiversRouteGET(new NextRequest('http://localhost/api/admin/payments/waivers?mode=policies'))
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.ready).toBe(false)
+    expect(body.policies).toHaveLength(1)
+    expect(body.policies[0].value).toBe(33.33)
+    expect(body.policies[0].programIds).toEqual(['program-A'])
+    expect(grantSettings.size).toBe(0)
+  })
+
   test('server blocks a program grant when the applicant belongs to another specialty', async () => {
     seedStudentPayment('program-B')
     seedPolicy(programPolicyId)
