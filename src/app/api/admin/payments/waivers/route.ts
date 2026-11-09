@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { ActivePaymentWaiverExistsError, approvePaymentWaiver, createPaymentWaiverCode, isPaymentWaiverType, resendPaymentWaiverCode } from '@/lib/payment-waivers'
-import { releaseStaleGrantOperations, notifyWaitlistForFreeSeats } from '@/lib/scholarship-waitlist'
+import { releaseStaleGrantOperations, notifyWaitlistForFreeSeats, pruneWaitlistForHolder } from '@/lib/scholarship-waitlist'
 import { audit } from '@/lib/notify'
 
 // Administrative scholarship metadata has its own additive Prisma migration.
@@ -13,6 +13,15 @@ function grantOrganizationReady(): boolean {
   // Off by default: only enable after the deployment migration, ledger
   // checks and end-to-end financial regressions pass.
   return process.env.SCHOLARSHIP_ORGANIZATION_ENABLED === '1'
+}
+// Receiving a scholarship anywhere removes the student from every
+// waitlist (locked rule). Pruning runs after issuance and approval and is
+// always failure-isolated: it must never block the financial action that
+// granted the benefit.
+async function pruneWaitlistsQuietly(userId: string | null | undefined) {
+  if (!userId) return
+  await pruneWaitlistForHolder(db, userId)
+    .catch((error) => console.error('Waitlist prune after grant failed:', error))
 }
 function grantOrganizationUnavailable() {
   return NextResponse.json({
@@ -698,6 +707,7 @@ export async function POST(req: NextRequest) {
       await audit({ id: admin.id, name: admin.name || admin.email || 'Admin' },
         'GRANT_POLICY_ISSUED', 'ScholarshipGrantOperation', operation.id,
         quote.policy.title + ' — ' + quote.summary)
+      await pruneWaitlistsQuietly(operation.userId)
       return NextResponse.json({ ...result, quote, operationId: operation.id })
     }
     const paymentId = cleanText(body.paymentId, 80)
@@ -724,6 +734,11 @@ export async function POST(req: NextRequest) {
       actor: { id: admin.id, name: admin.name || admin.email || 'Admin' },
       expiresDays: Number(body.expiresDays || 7),
     })
+    const createdPayment = await db.payment.findUnique({
+      where: { id: paymentId },
+      select: { userId: true, admission: { select: { userId: true } } },
+    }).catch(() => null)
+    await pruneWaitlistsQuietly(createdPayment?.userId || createdPayment?.admission?.userId)
     return NextResponse.json({ code: result.code, waiver: result.waiver, emailStatus: result.emailStatus })
   } catch (e: any) {
     if (e?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 403 })
@@ -766,6 +781,43 @@ export async function PATCH(req: NextRequest) {
     if (action === 'RESEND') {
       const paymentId = cleanText(body.paymentId, 80)
       if (!paymentId) return NextResponse.json({ error: 'معرّف الفاتورة مطلوب' }, { status: 400 })
+      // Organized grants: never mint a replacement code for a grant
+      // operation that is no longer ISSUED. After the stale-release closes
+      // an expired operation, its seat may already belong to another
+      // student, and the approval guard would refuse the replacement
+      // forever — refuse the resend up front and point at a fresh issuance
+      // instead of handing out a code that can never be approved. Legacy
+      // codes (no [GRANT:] marker) keep the historical behavior untouched.
+      let preOperationClosed = false
+      try {
+        const currentCode = await db.paymentWaiverCode.findFirst({
+          where: { paymentId, status: 'ISSUED' },
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, reason: true },
+        })
+        const preMarker = currentCode?.reason?.match(/\[GRANT:([a-zA-Z0-9_-]{1,80})\]/)
+        if (preMarker && currentCode) {
+          const preLink = await db.scholarshipGrantLink.findFirst({
+            where: { waiverCodeId: currentCode.id },
+            select: { operationId: true },
+          })
+          const preOperation = preLink?.operationId ? await db.scholarshipGrantOperation.findUnique({
+            where: { id: preLink.operationId },
+            select: { status: true },
+          }) : null
+          preOperationClosed = !preOperation || preOperation.status === 'CANCELLED'
+        }
+      } catch (error) {
+        // The preflight must never break the historical resend path: if its
+        // reads fail, the resend proceeds exactly as before.
+        console.error('Resend grant-operation preflight failed; continuing with the resend:', error)
+      }
+      if (preOperationClosed) {
+        return NextResponse.json({
+          error: 'عملية المنحة المرتبطة بهذا الكود مغلقة وتحرر مقعدها؛ لا يمكن إعادة الإرسال. أعِد إصدار المنحة من جديد عبر تنظيم المنح.',
+          code: 'GRANT_OPERATION_CLOSED',
+        }, { status: 409 })
+      }
       // Historical resends continue through the same engine without any extra
       // preflight reads. Only organized codes have post-resend ledger linking.
       const result = await resendPaymentWaiverCode({ paymentId, actor: { id: admin.id, name: admin.name || admin.email || 'Admin' } })
@@ -890,6 +942,7 @@ export async function PATCH(req: NextRequest) {
           organizationWarning = 'اعتمد الإعفاء ماليًا، لكن تحديث سجل المنحة تعذّر؛ المقعد لا يزال محجوزًا للمراجعة'
         }
       }
+      await pruneWaitlistsQuietly(existing?.payment?.userId || existing?.payment?.admission?.userId)
       return NextResponse.json({ payment, organizationWarning })
     }
     if (action === 'REJECT' || action === 'CANCEL') {

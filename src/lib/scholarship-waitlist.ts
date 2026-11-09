@@ -297,6 +297,21 @@ export async function notifyWaitlistForFreeSeats(
       })
       continue
     }
+    // Claim the entry BEFORE notifying: this guarded update is the
+    // concurrency lock for the opening. Two callers racing the same
+    // release (a cancellation hook and the hourly sweep, or two
+    // cancellations) read the same waiting entries, but only the one
+    // whose claim lands notifies — the loser sees count 0 and skips, so
+    // no student is ever invited twice for the same opening.
+    const claim = await client.scholarshipWaitlistEntry.updateMany({
+      where: {
+        id: entry.id,
+        status: { in: ['WAITING', 'NOTIFIED'] },
+        OR: [{ releaseKey: null }, { releaseKey: { not: openingKey } }],
+      },
+      data: { status: 'NOTIFIED', releaseKey: openingKey },
+    })
+    if (!claim.count) continue
     const title = 'مقعد متاح في منحة ' + definition.title
     const body = 'صار في مقعد مفتوح في منحة «' + definition.title + '» المشمول بها برنامجك. هذا تنبيه وليس حجزًا: المقعد يُحجز فقط عند إصدار كود المنحة من الإدارة، والأولوية لمن يبادر أولًا. تابع من لوحة الطالب أو تواصل مع الإدارة.'
     await notify(entry.userId, 'SCHOLARSHIP_WAITLIST_OPENING', title, body, '/dashboard')
@@ -308,10 +323,6 @@ export async function notifyWaitlistForFreeSeats(
       body,
       link: '/dashboard',
     }).catch(() => {})
-    await client.scholarshipWaitlistEntry.update({
-      where: { id: entry.id },
-      data: { status: 'NOTIFIED', releaseKey: openingKey },
-    })
     slots--
     notified++
   }

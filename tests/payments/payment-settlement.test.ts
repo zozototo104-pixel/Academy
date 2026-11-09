@@ -9,6 +9,7 @@ const grantSettings: RecordMap = new Map()
 const scholarshipDefinitions: RecordMap = new Map()
 const scholarshipOperations: RecordMap = new Map()
 const scholarshipLinks: RecordMap = new Map()
+const waitlistEntries: RecordMap = new Map()
 const admissions: RecordMap = new Map()
 const users: RecordMap = new Map()
 const enrollments: RecordMap = new Map()
@@ -92,6 +93,7 @@ function paymentMatches(payment: Record<string, any>, where: Record<string, any>
 
 const db: any = {
   scholarshipGrantOperation: {
+    findUnique: async ({ where }: any) => scholarshipOperations.get(where.id) || null,
     groupBy: async ({ where }: any) => {
       const counts = new Map<string, { definitionId: string; programId: string; _count: { _all: number } }>()
       for (const operation of scholarshipOperations.values()) {
@@ -170,6 +172,7 @@ const db: any = {
     findFirst: async ({ where }: any) => [...scholarshipLinks.values()].find((link) =>
       (!where.definitionId || link.definitionId === where.definitionId)
       && (!where.paymentId || link.paymentId === where.paymentId)
+      && (!where.waiverCodeId || link.waiverCodeId === where.waiverCodeId)
     ) || null,
     findMany: async ({ where }: any) => [...scholarshipLinks.values()].filter((link) =>
       !where?.operationId
@@ -182,6 +185,18 @@ const db: any = {
       const row = { ...data, id: 'test-link-' + (scholarshipLinks.size + 1), createdAt: new Date() }
       scholarshipLinks.set(row.id, row)
       return { ...row }
+    },
+  },
+  scholarshipWaitlistEntry: {
+    updateMany: async ({ where, data }: any) => {
+      let count = 0
+      for (const row of waitlistEntries.values()) {
+        if (where.userId && row.userId !== where.userId) continue
+        if (where.status?.in && !where.status.in.includes(row.status)) continue
+        Object.assign(row, data)
+        count++
+      }
+      return { count }
     },
   },
   scholarshipDefinition: {
@@ -610,6 +625,7 @@ beforeEach(() => {
   scholarshipDefinitions.clear()
   scholarshipOperations.clear()
   scholarshipLinks.clear()
+  waitlistEntries.clear()
   grantSettings.clear()
   payments.clear()
   admissions.clear()
@@ -844,6 +860,23 @@ describe('organized grant eligibility before issuing an existing waiver code', (
     expect(seats.occupied).toBe(0)
     expect(seats.remaining).toBe(1)
     expect(scholarshipOperations.get('op-expired')?.status).toBe('CANCELLED')
+  })
+
+  test('resend after the seat was released is refused up front and mints no code', async () => {
+    seedPolicy(programPolicyId)
+    seedIssuedOperation('op-closed', 'student-closed', [
+      { status: 'ISSUED', reason: '[GRANT:' + programPolicyId + '] قرار لجنة المنح', expiresAt: new Date(Date.now() + 60_000) },
+    ])
+    // The expiry release already closed the operation and freed the seat.
+    scholarshipOperations.get('op-closed')!.status = 'CANCELLED'
+    const response = await waiversRoutePATCH(new NextRequest('http://localhost/api/admin/payments/waivers', {
+      method: 'PATCH',
+      body: JSON.stringify({ action: 'RESEND', paymentId: 'payment-op-closed' }),
+    }))
+    expect(response.status).toBe(409)
+    expect((await response.json()).code).toBe('GRANT_OPERATION_CLOSED')
+    expect(waiverCodes).toHaveLength(1)
+    expect(waiverCodes[0].status).toBe('ISSUED')
   })
 
   test('an issued code past its expiry releases the seat even before the sweep flips its status', async () => {
@@ -2267,6 +2300,19 @@ describe('organized issuance end-to-end: retry, seat contention, comparative fin
     expect(waiverCodes).toHaveLength(1)
     expect(waiverCodes[0].status).toBe('ISSUED')
     expect(waiverCodes[0].reason).toContain('[GRANT:' + policyId + ']')
+  })
+
+  test('issuing a grant removes the beneficiary from every waitlist', async () => {
+    process.env.SCHOLARSHIP_ORGANIZATION_ENABLED = '1'
+    seedPolicyC()
+    const s = seedStudentC('waitlisted')
+    waitlistEntries.set('entry-beneficiary', {
+      id: 'entry-beneficiary', definitionId: 'some-other-campaign', programId: 'program-B',
+      userId: s.userId, status: 'WAITING', releaseKey: null,
+    })
+    const response = await issueFor(s.paymentId)
+    expect(response.status).toBe(200)
+    expect(waitlistEntries.get('entry-beneficiary')?.status).toBe('FULFILLED')
   })
 
   test('a repeated submission of the same grant is refused and writes nothing twice', async () => {

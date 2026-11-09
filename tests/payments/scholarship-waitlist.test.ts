@@ -109,10 +109,20 @@ const db: any = {
     updateMany: async ({ where, data }: any) => {
       let count = 0
       for (const row of entries.values()) {
+        if (where.id && row.id !== where.id) continue
         if (where.userId && row.userId !== where.userId) continue
         if (where.definitionId && row.definitionId !== where.definitionId) continue
         if (where.programId && row.programId !== where.programId) continue
         if (where.status?.in && !where.status.in.includes(row.status)) continue
+        if (where.OR) {
+          const matched = where.OR.some((cond: any) => {
+            if (!('releaseKey' in cond)) return false
+            if (cond.releaseKey === null) return row.releaseKey === null || row.releaseKey === undefined
+            if (cond.releaseKey?.not !== undefined) return row.releaseKey !== cond.releaseKey.not
+            return false
+          })
+          if (!matched) continue
+        }
         Object.assign(row, data, { updatedAt: new Date() })
         count++
       }
@@ -232,6 +242,21 @@ describe('scholarship waitlist', () => {
     // same opening again: nobody new is invited
     expect(await notifyWaitlistForFreeSeats(db, DEF, 'program-A')).toBe(0)
     expect(outboxRows).toHaveLength(1)
+  })
+
+  test('two concurrent notifiers for the same opening invite the head of the queue only once', async () => {
+    seedCampaign(1)
+    seedOccupyingOperation('op-race', 'leaver-race')
+    const first = await seedWaitingEntry('racer', new Date(Date.now() - 2000))
+    operations.get('op-race')!.status = 'CANCELLED'
+    const [a, b] = await Promise.all([
+      notifyWaitlistForFreeSeats(db, DEF, 'program-A'),
+      notifyWaitlistForFreeSeats(db, DEF, 'program-A'),
+    ])
+    expect(a + b).toBe(1)
+    expect(notifications).toHaveLength(1)
+    expect(outboxRows).toHaveLength(1)
+    expect(entries.get(first.id)?.status).toBe('NOTIFIED')
   })
 
   test('a freed pair of seats invites the first two in registration order', async () => {

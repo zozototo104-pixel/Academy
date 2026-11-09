@@ -60,6 +60,11 @@ const db: any = {
     update: async (args: any) => { calls.paymentUpdate.push(args); return { ...paymentFixture, ...args.data } },
   },
   paymentWaiverCode: {
+    findFirst: async (args: any) => {
+      let list = waivers.filter((w) => w.paymentId === args.where.paymentId && (args.where.status === undefined || w.status === args.where.status))
+      if (args.orderBy?.createdAt === 'desc') list = [...list].sort((a, b) => Number(b.createdAt) - Number(a.createdAt))
+      return list[0] || null
+    },
     update: async (args: any) => {
       const w = waivers.find((x) => x.id === args.where.id)
       if (w) Object.assign(w, args.data)
