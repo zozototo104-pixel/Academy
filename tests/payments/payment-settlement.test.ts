@@ -463,6 +463,21 @@ beforeEach(() => {
   siblingPaidRaceId = null
 })
 
+describe('organization schema migration gate', () => {
+  test('new grant issuance and definition creation reject without writing', async () => {
+    for (const action of ['CREATE_POLICY', 'ISSUE_POLICY']) {
+      const response = await waiversRoutePOST(new NextRequest('http://localhost/api/admin/payments/waivers', {
+        method: 'POST',
+        body: JSON.stringify({ action, paymentId: 'missing', policyId: 'missing' }),
+      }))
+      expect(response.status).toBe(503)
+      expect((await response.json()).code).toBe('GRANT_ORGANIZATION_NOT_READY')
+    }
+    expect(grantSettings.size).toBe(0)
+    expect(waiverCodes.length).toBe(0)
+  })
+})
+
 describe('organized grant eligibility before issuing an existing waiver code', () => {
   const programPolicyId = 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa'
   const individualPolicyId = 'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb'
