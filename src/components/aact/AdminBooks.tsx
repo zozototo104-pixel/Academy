@@ -2603,7 +2603,7 @@ export function AdminBooksTab() {
     const { mode, submission, assignment } = gradingDialog
     const parsedScore = Number(gradingDialog.score)
     const feedback = gradingDialog.feedback.trim()
-    if (mode === 'GRADE' && (!Number.isFinite(parsedScore) || parsedScore < 0 || parsedScore > assignment.points)) {
+    if (mode === 'GRADE' && (gradingDialog.score.trim() === '' || !Number.isFinite(parsedScore) || parsedScore < 0 || parsedScore > assignment.points)) {
       toast({ title: 'درجة غير صالحة', description: `أدخل درجة بين 0 و ${assignment.points}.`, variant: 'destructive' })
       return
     }
