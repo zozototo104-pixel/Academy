@@ -163,7 +163,20 @@ export async function applyScoreAdjustments(
     const changes: Array<{ answerId: string; from: number | null; to: number | null }> = []
     for (const [answerId, raw] of Object.entries(scores)) {
       const answer = answerById.get(answerId)
-      const points = clampPoints(raw, answer.maxPoints || answer.question?.points || 0)
+      const maxPoints = Number(answer.maxPoints || answer.question?.points || 0)
+      if (options?.expectedPoints && (
+        !Object.prototype.hasOwnProperty.call(options.expectedPoints, answerId) ||
+        options.expectedPoints[answerId] !== (answer.points ?? null)
+      )) {
+        throw Object.assign(new Error('CONCURRENT_REVIEW'), { userMessage: 'تغيرت نقاط هذا السؤال منذ فتح المحاولة؛ حدّث الصفحة قبل التعديل', status: 409 })
+      }
+      if (options?.strictPoints && (
+        raw == null || String(raw).trim() === '' || !Number.isFinite(Number(raw)) ||
+        Number(raw) < 0 || Number(raw) > maxPoints
+      )) {
+        throw Object.assign(new Error('INVALID_ANSWER_POINTS'), { userMessage: `درجة السؤال يجب أن تكون بين 0 و ${maxPoints}`, status: 400 })
+      }
+      const points = clampPoints(raw, maxPoints)
       changes.push({ answerId, from: answer.points ?? null, to: points })
       const data = { points, isCorrect: points == null ? answer.isCorrect : points > 0 ? answer.isCorrect : false }
       if (type === 'UNIT') await txAny.answer.update({ where: { id: answerId }, data })
