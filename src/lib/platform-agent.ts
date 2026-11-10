@@ -1064,7 +1064,13 @@ export async function platformAgentComplete(opts: {
   // A student's own academic record belongs to the academic supervisor, even if
   // the probabilistic intent classifier suggests general admissions.
   const academicStudentQuestion = user?.role === 'STUDENT' && hasStudentAcademicIntent(normalizeArabic(last))
-  const agent = academicStudentQuestion ? routeAgent(last, user?.role) : (intentAnalysis.suggestedAgent || routeAgent(last, user?.role))
+  // Explicit thesis-defense intent also outranks the classifier: routeAgent
+  // itself checks defense intent before exams, but that law only applies when
+  // routeAgent is consulted. A defense question that mentions «سؤال» (the
+  // launch-quality DEFENSE probe does, twice) is otherwise classified EXAMS
+  // and the deterministic router never gets a say.
+  const defenseQuestion = hasThesisDefenseIntent(normalizeArabic(last))
+  const agent = academicStudentQuestion || defenseQuestion ? routeAgent(last, user?.role) : (intentAnalysis.suggestedAgent || routeAgent(last, user?.role))
   const persona = personaForAgent(agent)
   const dataContext = await buildUserSnapshot(opts.userId, agent, last)
   const routingContext = platformRoutingHints.length ? ['إشارات تصنيف للنموذج فقط وليست ردوداً جاهزة:', ...platformRoutingHints].join('\n') : ''
@@ -1202,7 +1208,10 @@ export async function platformAgentStream(opts: {
     return { reply, agent: 'ADMISSIONS', engine: 'LOCAL_RULE' }
   }
 
-  const agent = intentAnalysis.suggestedAgent || routeAgent(last, user?.role)
+  // Same precedence as platformAgentComplete: explicit thesis-defense intent
+  // is decided by the deterministic router, not the probabilistic classifier.
+  const defenseQuestion = hasThesisDefenseIntent(normalizeArabic(last))
+  const agent = defenseQuestion ? routeAgent(last, user?.role) : (intentAnalysis.suggestedAgent || routeAgent(last, user?.role))
   const dataContext = await buildUserSnapshot(opts.userId, agent, last)
   const routingContext = platformRoutingHints.length ? ['إشارات تصنيف للنموذج فقط وليست ردوداً جاهزة:', ...platformRoutingHints].join('\n') : ''
   const context = mergeContext(mergeContext(mergeContext(dataContext, routingContext), conversationStyleContext(intentAnalysis, opts.mode)), opts.uiContext)
