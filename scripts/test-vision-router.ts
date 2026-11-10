@@ -47,7 +47,7 @@ assert(bookReader.includes("purpose: 'VISION'") && bookReader.includes("attachme
 assert(!gemini.includes('gemini-1.5-flash') && !gemini.includes('gemini-1.5-pro'), 'deprecated hard-coded Gemini 1.5 vision fallbacks must be removed')
 
 assert(textAi.includes('TEXT_AI_ROUTER_NO_VISION_PROVIDER') && textAi.includes('TEXT_AI_ROUTER_FAILED'), 'all-provider failure must surface as router failure so callers return the safe unreadable/clarification path')
-assert(textAi.includes('if (isNoBalanceLike(e))') && textAi.includes('markPersistentNoBalance'), 'no-balance handling must remain in router cooldown policy')
+assert(textAi.includes('if (status === 402 || isNoBalanceLike(e))') && textAi.includes('if (status === 402 && !isExplicitKeyBalanceExhaustion(msg))') && textAi.includes('markPersistentNoBalance'), 'no-balance handling must preserve model-specific 402 fallback and key-wide exhaustion')
 assert(textAi.includes('if (isDeadModelLike(e))') && textAi.includes('markPersistentModelDead'), 'dead-model handling must remain in router policy')
 
 console.log('✓ vision router wiring checks passed')
