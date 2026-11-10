@@ -249,7 +249,7 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json().catch(() => ({}))
     const submissionId = asString(body.submissionId, 80)
     if (!submissionId) return NextResponse.json({ error: 'معرف التسليم مطلوب' }, { status: 400 })
-    const score = body.score == null || body.score === '' ? null : Number(body.score)
+    const score = body.score == null || String(body.score).trim() === '' ? null : Number(body.score)
     if (score != null && (!Number.isFinite(score) || score < 0)) return NextResponse.json({ error: 'درجة غير صالحة' }, { status: 400 })
     const feedback = asString(body.feedback, 4000)
     const status = asString(body.status, 30).toUpperCase()
