@@ -215,3 +215,41 @@ describe('assignment suggestions: semester scope and pinning (behavioral)', () =
     expect(mine.map((a) => a.unitId).sort()).toEqual(['u1', 'u2'])
   })
 })
+
+function gradePatch(payload: Record<string, unknown>) {
+  return savePATCH(new NextRequest('http://t/api/admin/assignments', {
+    method: 'PATCH', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ submissionId: gradedSubmission.id, ...payload }),
+  }))
+}
+
+describe('assignment manual grade persistence (actual PATCH route)', () => {
+  test('updates an already graded submission and confirms the value read back', async () => {
+    gradedSubmission.score = 4
+    gradeWrites = 0
+    const response = await gradePatch({ status: 'GRADED', score: 8, feedback: 'Updated by admin' })
+    expect(response.status).toBe(200)
+    expect((await response.json()).submission.score).toBe(8)
+    expect(gradedSubmission.score).toBe(8)
+    expect(gradedSubmission.status).toBe('GRADED')
+    expect(gradeWrites).toBe(1)
+  })
+  test('accepts a deliberate zero, but never treats an empty grade as zero', async () => {
+    gradedSubmission.score = 4
+    gradeWrites = 0
+    const zero = await gradePatch({ status: 'GRADED', score: '0', feedback: 'Explicit zero' })
+    expect(zero.status).toBe(200)
+    expect(gradedSubmission.score).toBe(0)
+    expect((await gradePatch({ status: 'GRADED', score: '' })).status).toBe(400)
+    expect(gradedSubmission.score).toBe(0)
+    expect(gradeWrites).toBe(1)
+  })
+  test('rejects an out-of-range grade rather than silently clamping it', async () => {
+    gradedSubmission.score = 4
+    gradeWrites = 0
+    const response = await gradePatch({ status: 'GRADED', score: 11 })
+    expect(response.status).toBe(400)
+    expect(gradedSubmission.score).toBe(4)
+    expect(gradeWrites).toBe(0)
+  })
+})
