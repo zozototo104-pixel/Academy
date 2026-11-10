@@ -299,7 +299,7 @@ export default function AdminGradingReviewTab() {
               {a.source && <p className="mt-2 whitespace-pre-wrap rounded-xl bg-amber-50 p-2"><b>المصدر:</b> {a.source}</p>}
               {a.aiFeedback && <p className="mt-2 whitespace-pre-wrap rounded-xl bg-blue-50 p-2"><b>نتيجة AI:</b> {a.aiFeedback}</p>}
               <label className="mt-3 block text-xs font-black">النقاط من {a.maxPoints}</label>
-              <Input value={scores[a.answerId] || ''} onChange={(e) => setScores((prev) => ({ ...prev, [a.answerId]: e.target.value }))} />
+              <Input value={scores[a.answerId] ?? ''} onChange={(e) => setScores((prev) => ({ ...prev, [a.answerId]: e.target.value }))} />
             </div>)}
           </div>}
         </CardContent>
