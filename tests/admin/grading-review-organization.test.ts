@@ -56,7 +56,7 @@ describe('التجميع حسب الطالب وحالات المصادقة', () 
 describe('حفظ علامات الأسئلة قبل المصادقة الرسمية', () => {
   test('زر الحفظ موصول بتعديل الأسئلة ويحفظ المتغير فقط مع حماية الدرجة القديمة', () => {
     expect(tab).toContain('onClick={saveGradedCorrections}')
-    expect(tab).toContain('disabled={busy !== null || !pendingScoreEdits.length}')
+    expect(tab).toContain('pendingScoreEdits.length > 0 && <Button onClick={saveGradedCorrections}')
     expect(tab).toContain("action: 'ADJUST_GRADED'")
     expect(tab).toContain('expectedPoints')
     expect(tab).toContain('expectedScore: selected.score')
