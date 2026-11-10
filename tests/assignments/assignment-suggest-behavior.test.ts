@@ -129,6 +129,7 @@ mock.module('@/lib/academic-output-quality', () => ({
 let suggestGET: any
 let suggestPOST: any
 let savePOST: any
+let savePATCH: any
 beforeAll(async () => {
   const suggest = await import('../../src/app/api/admin/assignments/suggest/route')
   const save = await import('../../src/app/api/admin/assignments/route')
