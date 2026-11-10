@@ -3856,6 +3856,12 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
             break
           }
           if (isNoBalanceLike(e)) {
+            // A subscription restriction belongs to this model, not to the API key.
+            // Keep other APINEX models eligible for the same request.
+            if (provider === 'APINEX' && status === 402 && /model.*(only with a subscription|requires? (a )?subscription)|subscription.*(model|to use it)/i.test(msg)) {
+              skipModelsThisRequest.add(`${provider}:${model}`)
+              break
+            }
             markCooldown(provider, currentKey, msg, 24 * 60, status)
             await markPersistentNoBalance(provider, keyIndex, msg, status)
             continue
