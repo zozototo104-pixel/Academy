@@ -1121,7 +1121,7 @@ export async function platformAgentComplete(opts: {
     }
   }
 
-  const localCfg = await localAgentConfig().catch(() => null)
+  const localCfg = useAdminRouterPolicy ? null : await localAgentConfig().catch(() => null)
   if (localCfg?.enabled) {
     try {
       const reply = await withPlatformTimeout(localChatComplete({
