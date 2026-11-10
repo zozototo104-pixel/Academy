@@ -150,6 +150,12 @@ export async function applyScoreAdjustments(
     if (!['GRADED', 'NEEDS_REVIEW'].includes(attempt.status)) {
       throw Object.assign(new Error('NOT_REVIEWABLE'), { userMessage: 'هذه المحاولة ليست مصححة بعد' })
     }
+    if (options?.requireGraded && attempt.status !== 'GRADED') {
+      throw Object.assign(new Error('GRADE_NOT_FINAL'), { userMessage: 'التعديل الرسمي متاح فقط بعد اكتمال تصحيح المحاولة', status: 409 })
+    }
+    if (options && Object.prototype.hasOwnProperty.call(options, 'expectedScore') && attempt.score !== options.expectedScore) {
+      throw Object.assign(new Error('CONCURRENT_REVIEW'), { userMessage: 'تغيرت نتيجة المحاولة منذ فتحها؛ حدّث الصفحة قبل التعديل', status: 409 })
+    }
     const answerById = new Map<string, any>(attempt.answers.map((a: any) => [a.id, a]))
     for (const answerId of answerIds) {
       if (!answerById.has(answerId)) throw Object.assign(new Error('ANSWER_NOT_IN_ATTEMPT'), { userMessage: 'يوجد إجابة لا تتبع هذه المحاولة' })
