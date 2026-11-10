@@ -76,6 +76,25 @@ describe('router admin policy B1', () => {
     expect(await store.scan('AI_NO_BALANCE:APINEX:')).toEqual({})
   })
 
+  test('explicit APINEX account credit exhaustion persists a key-wide block', async () => {
+    const store = fakeSettingStore({
+      AI_TEXT_PROVIDER: 'APINEX', AI_ROUTER_POLICY_SOURCE: 'admin', AI_ROUTER_POLICY: 'fallback_only',
+      APINEX_API_KEY: 'test-key-not-a-secret', APINEX_TEXT_MODEL: 'free/glm-5.3-flashx',
+    })
+    __setTextAiSettingStoreForTests(store)
+    globalThis.fetch = (async (url: any) => {
+      if (String(url).endsWith('/models')) return new Response(JSON.stringify({ data: [] }), { status: 200 })
+      return new Response(JSON.stringify({ error: { message: 'You have no credits remaining. Add credits to continue using the API.' } }), { status: 402 })
+    }) as any
+    try {
+      await textAiComplete({ system: 'Answer', history: [{ role: 'user', text: 'Hello' }],
+        restrictToModels: [{ provider: 'APINEX', model: 'free/glm-5.3-flashx' }] })
+    } catch { /* No other provider is permitted in this test. */ }
+    const blocks = await store.scan('AI_NO_BALANCE:APINEX:')
+    expect(Object.keys(blocks)).toHaveLength(1)
+    expect(Object.values(blocks)[0]).toContain('no credits remaining')
+  })
+
   afterEach(() => {
     globalThis.fetch = originalFetch
     if (originalOpenAiCompatApiKeys === undefined) delete process.env.OPENAI_COMPAT_API_KEYS
