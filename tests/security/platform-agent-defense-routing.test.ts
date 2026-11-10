@@ -38,7 +38,10 @@ mock.module('@/lib/ai', () => ({
 mock.module('@/lib/gemini', () => ({
   ensureGeminiKey: async () => true,
   geminiActiveTextModel: async () => 'gemini-test',
-  geminiComplete: async () => 'إجابة نموذجية طويلة بما يكفي لتجاوز أي حد أدنى لطول الرد في هذا المسار التجريبي.',
+  geminiComplete: async () => {
+    directGeminiCalls++
+    return 'إجابة نموذجية طويلة بما يكفي لتجاوز أي حد أدنى لطول الرد في هذا المسار التجريبي.'
+  },
   geminiCompleteJson: async () => JSON.stringify({
     intent: 'QUESTION',
     confidence: 0.9,
