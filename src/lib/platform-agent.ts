@@ -1103,7 +1103,7 @@ export async function platformAgentComplete(opts: {
         temperature: agent === 'ADMIN_QUALITY' ? 0.25 : 0.4,
         thinkingLevel,
         maxOutputTokens: opts.mode === 'VOICE' ? 1100 : 1800,
-      }), timeoutMs, 'Gemini platform agent timed out')
+      }), Math.min(timeoutMs, Math.max(4_000, Math.floor(timeoutMs / 3))), 'Gemini platform agent timed out')
       logPlatformProviderAttempt({ ok: true, provider: 'GEMINI_DIRECT', model, agent, ms: Date.now() - started })
       return { reply: annotateReply(agent, reply, 'GEMINI'), agent, engine: 'GEMINI' as const }
     } catch (e: any) {
