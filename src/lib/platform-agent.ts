@@ -1138,7 +1138,7 @@ export async function platformAgentComplete(opts: {
     }
   }
 
-  if (!shouldPreferGemini) {
+  if (!shouldPreferGemini && !useAdminRouterPolicy) {
     try {
       const geminiReply = await runGemini()
       if (geminiReply) return geminiReply
@@ -1149,8 +1149,8 @@ export async function platformAgentComplete(opts: {
 
   const reply = await chatComplete(opts.messages, context, persona, {
     skipGemini: true,
-    timeoutMs,
-    requireModelResponse: shouldPreferGemini,
+    timeoutMs: remainingDeadlineMs(opts.deadlineMs, timeoutMs),
+    requireModelResponse: shouldPreferGemini || useAdminRouterPolicy,
     includeGeneralCatalog: !(agent === 'ACADEMIC_SUPERVISOR' || agent === 'THESIS_DEFENSE'),
     userId: opts.userId,
     taskType: opts.mode === 'VOICE' ? 'CHAT_VOICE' : 'CHAT',
