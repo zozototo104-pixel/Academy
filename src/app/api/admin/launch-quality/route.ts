@@ -21,12 +21,15 @@ import {
   LAUNCH_QUALITY_EMAIL,
   LAUNCH_QUALITY_PROGRAM_SLUG,
   LAUNCH_QUALITY_REFERENCE,
+  LAUNCH_QUALITY_MIN_PROBE_WINDOW_MS,
   LAUNCH_QUALITY_REQUEST_BUDGET_MS,
   diagnosticStudentIsComplete,
   isLaunchQualityDeadlineError,
   launchQualityDeadlineError,
+  probeStageWindow,
   remainingLaunchQualityBudget,
 } from '@/lib/launch-quality-diagnostic'
+import { evaluateProbeReply, normalizeArabic } from '@/lib/launch-quality-scoring'
 import { textAiDiagnostics } from '@/lib/text-ai'
 import { redactDeep } from '@/lib/secret-crypto'
 import { qaProdFixturesAllowed } from '@/lib/prod-safety'
@@ -48,74 +51,10 @@ function selectedProbeKinds(body: any): ProbeKind[] {
   return selected.length ? selected : ALL_PROBE_KINDS
 }
 
-function normalizeArabic(text: string) {
-  return String(text || '')
-    .toLowerCase()
-    .replace(/[إأآا]/g, 'ا')
-    .replace(/ى/g, 'ي')
-    .replace(/ة/g, 'ه')
-    .replace(/ؤ/g, 'و')
-    .replace(/ئ/g, 'ي')
-    .replace(/[ـًٌٍَُِّْ]/g, '')
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function compact(value: unknown, max = 240) {
-  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
-}
-
-function keywordHits(reply: string, expected: string[]) {
-  const n = normalizeArabic(reply)
-  const filtered = expected.map((x) => compact(x, 80)).filter((x) => x.length >= 3)
-  const hits = filtered.filter((x) => n.includes(normalizeArabic(x)))
-  return {
-    expected: filtered,
-    hits,
-    missed: filtered.filter((x) => !hits.includes(x)),
-    score: filtered.length ? Math.round((hits.length / filtered.length) * 100) : 100,
-  }
-}
-
-function isGenericFallbackReply(reply: string) {
-  const n = normalizeArabic(reply)
-  return [
-    'وضح لي هل سوالك عن برنامج',
-    'ساعطيك جوابا مباشرا',
-    'هل سوالك عن برنامج معين الرسوم الشهاده الاعتماد او خطوات التسجيل',
-  ].some((phrase) => n.includes(normalizeArabic(phrase)))
-}
-
 function expectedAgentForProbe(kind: ProbeKind) {
   if (kind === 'PROFILE' || kind === 'CURRICULUM') return 'ACADEMIC_SUPERVISOR'
   if (kind === 'THESIS' || kind === 'DEFENSE') return 'THESIS_DEFENSE'
   return null
-}
-
-function hasGroundingForProbe(kind: ProbeKind, reply: string, student: Awaited<ReturnType<typeof findDiagnosticStudent>>) {
-  if (!student) return false
-  const n = normalizeArabic(reply)
-  const enrollment = student.enrollments[0]
-  const program = enrollment?.program
-  const thesis = student.theses[0]
-  const admission = student.ownedAdmissions[0]
-  const programTitle = program?.titleAr ? normalizeArabic(program.titleAr) : ''
-  const firstBook = program?.books?.[0]?.title ? normalizeArabic(program.books[0].title) : ''
-  const firstUnit = program?.units?.[0]?.title ? normalizeArabic(program.units[0].title) : ''
-  const thesisTitle = thesis?.title ? normalizeArabic(thesis.title) : ''
-  const reference = admission?.reference ? normalizeArabic(admission.reference) : ''
-
-  if (kind === 'PROFILE') return [normalizeArabic(student.name || ''), programTitle, reference].filter(Boolean).some((x) => n.includes(x))
-  if (kind === 'CURRICULUM') return [programTitle, firstBook, firstUnit].filter(Boolean).some((x) => n.includes(x))
-  if (kind === 'THESIS') return !!thesisTitle && (n.includes(thesisTitle) || (n.includes('منهجيه') && n.includes('نتائج')))
-  if (kind === 'DEFENSE') return !!thesisTitle && (
-    n.includes(thesisTitle)
-    || n.includes('موشرات المخاطر')
-    || n.includes('الحوكمه الموسسيه')
-    || n.includes('الحوكمه المؤسسيه')
-  )
-  return false
 }
 
 function elapsed(start: number) {
@@ -607,6 +546,7 @@ function timeoutAfter<T>(promise: Promise<T>, ms: number, message: string): Prom
 // runAiProbe، بـpassed=false وskipped=false وخطأ يسمّي المرحلة المستنفدة.
 function deadlineFailedProbe(kind: ProbeKind, student: Awaited<ReturnType<typeof findDiagnosticStudent>>, error: string) {
   const expected = student ? expectedForProbe(kind, student) : []
+  const contextSufficient = kind === 'THESIS' || kind === 'DEFENSE' ? !!student?.theses?.[0]?.title : true
   return {
     kind,
     question: student ? questionForProbe(kind, student) : '',
@@ -620,6 +560,8 @@ function deadlineFailedProbe(kind: ProbeKind, student: Awaited<ReturnType<typeof
     keywordScore: 0,
     hits: [],
     missed: expected,
+    contextSufficient,
+    note: contextSufficient ? null : 'INSUFFICIENT_THESIS_CONTEXT',
     passed: false,
     skipped: false,
     error,
@@ -633,23 +575,44 @@ async function runAiProbe(kind: ProbeKind, student: Awaited<ReturnType<typeof fi
   const expected = expectedForProbe(kind, student)
 
   try {
-    const remaining = remainingLaunchQualityBudget(requestDeadline, `PROBE_${kind}`)
-    const deadlineMs = Date.now() + remaining
+    // نافذة مستقلة لهذا المجس: محسوبة من انقضاء طلبه هو وسقفه الخاص، وتفشل
+    // فوراً دون بدء مشية مزوّدات إذا صارت أصغر من الحد الأدنى الجدير بالبدء.
+    const window = probeStageWindow({
+      elapsedMs: Math.max(0, Math.round(performance.now() - (requestDeadline - LAUNCH_QUALITY_REQUEST_BUDGET_MS))),
+      requestBudgetMs: LAUNCH_QUALITY_REQUEST_BUDGET_MS,
+      probeCapMs: launchQualityAiTimeoutMs(),
+      minWindowMs: LAUNCH_QUALITY_MIN_PROBE_WINDOW_MS,
+    })
+    if (window.starved) throw new Error(launchQualityDeadlineError(`PROBE_${kind}`))
+    const deadlineMs = Date.now() + window.windowMs
     const result = await timeoutAfter(platformAgentComplete({
       userId: student.id,
       mode: kind === 'DEFENSE' ? 'VOICE' : 'TEXT',
       uiContext: `Launch Quality Probe: افحص معرفة الوكيل بسياق الطالب. لا تخترع بيانات غير موجودة.\n\n${context.slice(0, 12000)}`,
       messages: [{ role: 'user', content: question }],
       deadlineMs,
-    }), Math.min(launchQualityAiTimeoutMs(), remaining), launchQualityDeadlineError(`PROBE_${kind}`))
+    }), window.windowMs, launchQualityDeadlineError(`PROBE_${kind}`))
 
-    const hits = keywordHits(result.reply, expected)
     const minScore = kind === 'THESIS' && !student.theses[0] ? 0 : expected.length ? 40 : 0
     const expectedAgent = expectedAgentForProbe(kind)
     const agentMatches = expectedAgent ? result.agent === expectedAgent : true
-    const genericFallback = isGenericFallbackReply(result.reply)
-    const grounded = hasGroundingForProbe(kind, result.reply, student)
-    const passed = !genericFallback && agentMatches && grounded && hits.score >= minScore && result.reply.length >= 80
+    const enrollment = student.enrollments[0]
+    const program = enrollment?.program
+    const evaluation = evaluateProbeReply({
+      kind,
+      reply: result.reply,
+      agentMatches,
+      expected,
+      minScore,
+      context: {
+        studentName: student.name,
+        programTitle: program?.titleAr,
+        firstBook: program?.books?.[0]?.title,
+        firstUnit: program?.units?.[0]?.title,
+        thesisTitle: student.theses[0]?.title,
+        reference: student.ownedAdmissions[0]?.reference,
+      },
+    })
     return {
       kind,
       question,
@@ -661,15 +624,18 @@ async function runAiProbe(kind: ProbeKind, student: Awaited<ReturnType<typeof fi
       replyChars: result.reply.length,
       replySample: result.reply.slice(0, 900),
       expected,
-      keywordScore: genericFallback ? 0 : hits.score,
-      hits: genericFallback ? [] : hits.hits,
-      missed: genericFallback ? expected : hits.missed,
-      genericFallback,
-      grounded,
-      passed,
+      keywordScore: evaluation.keywordScore,
+      hits: evaluation.hits,
+      missed: evaluation.missed,
+      genericFallback: evaluation.genericFallback,
+      grounded: evaluation.grounded,
+      contextSufficient: evaluation.contextSufficient,
+      note: evaluation.note,
+      passed: evaluation.passed,
     }
   } catch (e: any) {
     const error = String(e?.message || e).slice(0, 900)
+    const contextSufficient = kind === 'THESIS' || kind === 'DEFENSE' ? !!student.theses?.[0]?.title : true
     return {
       kind,
       question,
@@ -683,6 +649,8 @@ async function runAiProbe(kind: ProbeKind, student: Awaited<ReturnType<typeof fi
       keywordScore: 0,
       hits: [],
       missed: expected,
+      contextSufficient,
+      note: contextSufficient ? null : 'INSUFFICIENT_THESIS_CONTEXT',
       passed: false,
       skipped: false,
       error,

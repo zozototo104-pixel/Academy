@@ -99,7 +99,11 @@ function markdownReport(report: any) {
 }
 
 test.describe('AACT launch quality suite', () => {
-  test.setTimeout(240_000)
+  // سقف إجمالي متماسك مع سقوف الطلبات الجزئية: صوت 45ث + 4 مجسات × 80ث
+  // = 365ث، والباقي هامش للصفحات والجاهزية. كان السقف 240ث أصغر من مجموع
+  // سقوف المجسات نفسها، فتستهلك المجسات البطيئة ميزانية الاختبار وتجوع
+  // المجسات اللاحقة قبل أن تبدأ. سقوف كل طلب على حدة لم تتغير.
+  test.setTimeout(480_000)
 
   test('public settings never expose secret-looking keys', async ({ request }) => {
     const response = await request.get('/api/settings')

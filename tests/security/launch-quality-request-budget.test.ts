@@ -13,10 +13,12 @@ import {
   LAUNCH_QUALITY_EMAIL,
   LAUNCH_QUALITY_PROGRAM_SLUG,
   LAUNCH_QUALITY_REFERENCE,
+  LAUNCH_QUALITY_MIN_PROBE_WINDOW_MS,
   LAUNCH_QUALITY_REQUEST_BUDGET_MS,
   diagnosticStudentIsComplete,
   isLaunchQualityDeadlineError,
   launchQualityDeadlineError,
+  probeStageWindow,
   remainingLaunchQualityBudget,
 } from '@/lib/launch-quality-diagnostic'
 
@@ -140,11 +142,13 @@ describe('توصيلات المسار (دبابيس مصدرية)', () => {
     expect(readIdx).toBeLessThan(ensureIdx)
   })
 
-  test('المجس يمرر deadlineMs فعلياً إلى وكيل المنصة وسقفه هو المتبقي من الميزانية', () => {
+  test('المجس يحسب نافذته المستقلة ويمرر deadlineMs فعلياً إلى وكيل المنصة', () => {
     const start = routeSource.indexOf('async function runAiProbe')
     const segment = routeSource.slice(start, start + 2500)
     expect(segment).toContain('deadlineMs,')
-    expect(segment).toContain('Math.min(launchQualityAiTimeoutMs(), remaining)')
+    expect(segment).toContain('probeStageWindow({')
+    expect(segment).toContain('window.windowMs')
+    expect(segment).toContain('if (window.starved) throw')
   })
 
   test('فشل المجس عند الاستنفاد صريح: passed وskipped كلاهما false في نتيجة الخطأ وفي مجس ما قبل التشغيل', () => {
@@ -172,5 +176,38 @@ describe('توصيلات المسار (دبابيس مصدرية)', () => {
 
   test('سجل المراحل يحمل الاسم والمدة وحالة النجاح فقط', () => {
     expect(routeSource).toContain('[launch-quality] stage=${stage} durationMs=${elapsed(start)} ok=${ok}')
+  })
+})
+
+describe('نافذة المجس المستقلة (البند 3 — قرار 2026-11-10)', () => {
+  const base = {
+    requestBudgetMs: LAUNCH_QUALITY_REQUEST_BUDGET_MS,
+    probeCapMs: 48_000,
+    minWindowMs: LAUNCH_QUALITY_MIN_PROBE_WINDOW_MS,
+  }
+
+  test('طلب جديد: النافذة هي سقف المجس نفسه', () => {
+    expect(probeStageWindow({ ...base, elapsedMs: 0 })).toEqual({ windowMs: 48_000, starved: false })
+    expect(probeStageWindow({ ...base, elapsedMs: 5_000 }).windowMs).toBe(48_000)
+  })
+
+  test('انقضاء جزئي: النافذة تنكمش بالمتبقي فقط', () => {
+    expect(probeStageWindow({ ...base, elapsedMs: 40_000 }).windowMs).toBe(30_000)
+  })
+
+  test('استنفاد: نافذة أصغر من الحد الأدنى تُعلَّم جائعة ليفشل المجس فوراً دون مشية مزوّدات', () => {
+    const w = probeStageWindow({ ...base, elapsedMs: 60_000 })
+    expect(w.windowMs).toBe(10_000)
+    expect(w.starved).toBe(true)
+    expect(probeStageWindow({ ...base, elapsedMs: 70_000 }).starved).toBe(true)
+  })
+
+  test('الاستقلال: مهلة مجس سابق لا تنتقل إلى طلب مجس لاحق', () => {
+    // المجس الأول استهلك طلبه كله تقريباً؛ طلب المجس الثاني مستقل ويبدأ
+    // من انقضائه هو (قريب من الصفر) فيأخذ نافذته الكاملة.
+    const first = probeStageWindow({ ...base, elapsedMs: 65_000 })
+    const second = probeStageWindow({ ...base, elapsedMs: 2_000 })
+    expect(first.starved).toBe(true)
+    expect(second).toEqual({ windowMs: 48_000, starved: false })
   })
 })

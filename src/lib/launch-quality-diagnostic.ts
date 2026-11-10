@@ -48,3 +48,21 @@ export function remainingLaunchQualityBudget(deadline: number, stage: string): n
   if (remaining <= 0) throw new Error(launchQualityDeadlineError(stage))
   return remaining
 }
+
+// أصغر نافذة مجس تستحق بدء مشية مزوّدات: دونها يفشل المجس فوراً بخطأ يسمّي
+// مرحلته بدل حرق محاولات مزوّدات محكوم عليها بالقطع.
+export const LAUNCH_QUALITY_MIN_PROBE_WINDOW_MS = 15_000
+
+// نافذة مجس مستقلة: تُحسب من انقضاء طلب هذا المجس نفسه وسقفه الخاص، فلا
+// تنتقل مهلة مستهلكة من مجس سابق إلى مجس لاحق (الفحص يرسل طلباً مستقلاً
+// لكل نوع مجس). دالة نقية حتمية — لا تستدعي أي مزوّد.
+export function probeStageWindow(input: {
+  elapsedMs: number
+  requestBudgetMs: number
+  probeCapMs: number
+  minWindowMs: number
+}): { windowMs: number; starved: boolean } {
+  const remaining = Math.max(0, Math.floor(input.requestBudgetMs - input.elapsedMs))
+  const windowMs = Math.min(input.probeCapMs, remaining)
+  return { windowMs, starved: windowMs < input.minWindowMs }
+}
