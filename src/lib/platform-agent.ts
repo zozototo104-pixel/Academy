@@ -1078,11 +1078,13 @@ export async function platformAgentComplete(opts: {
   const system = buildPlatformAgentSystem(agent, context)
   const timeoutMs = remainingDeadlineMs(opts.deadlineMs, platformAiTimeoutMs(opts.mode === 'VOICE' ? 40_000 : 48_000))
   if (timeoutMs <= 0) throw new Error('Platform agent deadline exceeded')
-  const shouldPreferGemini = user?.role === 'STUDENT'
+  const routerPolicySource = await getSettings(['AI_ROUTER_POLICY_SOURCE'])
+  const useAdminRouterPolicy = String(routerPolicySource.AI_ROUTER_POLICY_SOURCE || process.env.AI_ROUTER_POLICY_SOURCE || '').trim().toLowerCase() === 'admin'
+  const shouldPreferGemini = !useAdminRouterPolicy && (user?.role === 'STUDENT'
     || agent === 'ACADEMIC_SUPERVISOR'
     || agent === 'EXAMS'
     || agent === 'THESIS_DEFENSE'
-    || String(opts.uiContext || '').includes('Launch Quality Probe')
+    || String(opts.uiContext || '').includes('Launch Quality Probe'))
 
   const runGemini = async () => {
     const geminiReady = await ensureGeminiKey().catch(() => false)
