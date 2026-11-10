@@ -54,6 +54,25 @@ function evaluateDefense(reply: string, overrides: Partial<Parameters<typeof eva
 }
 
 describe('launch-quality concept scoring (owner ruling 2026-11-10)', () => {
+  test('QA #718 first defense answer passes on concrete methodology, not verbatim thesis terms', () => {
+    const result = evaluateDefense(DEFENSE_718_REPLY)
+    expect(result.grounded).toBe(true)
+    expect(result.keywordScore).toBe(67)
+    expect(result.hits).toContain(THESIS_TITLE)
+    expect(result.hits).toContain('مؤشرات المخاطر الرئيسية')
+    expect(result.passed).toBe(true)
+  })
+
+  test('generic discussion or another thesis cannot borrow #718 evidence equivalence', () => {
+    const generic = evaluateDefense('المؤشر مهم لفعالية الضوابط، وتقارير الإدارة الذاتية وسجل المخاطر تساعد على قياس فعالية الضابط في المنهجية، لكن لا توجد دراسة محددة أو سؤال بحثي مطروح.')
+    expect(generic.passed).toBe(false)
+    const other = evaluateDefense(DEFENSE_718_REPLY, {
+      expected: ['أثر التحول الرقمي على رضا العملاء في البنوك التجارية', 'مؤشرات المخاطر الرئيسية', 'الحوكمة المؤسسية'],
+      context: { ...CONTEXT_A, thesisTitle: 'أثر التحول الرقمي على رضا العملاء في البنوك التجارية' },
+    })
+    expect(other.grounded).toBe(false)
+    expect(other.passed).toBe(false)
+  })
   test('النص الحرفي لإجابة #716 من سجل التشغيل ينجح (67 نقطة)', () => {
     // وكيل THESIS_DEFENSE صحيح وgrounded لكن الرد رُفض يومها بـ
     // keywordScore=0. مفهوم الحوكمة يبقى missed عمداً: الرد يختم
