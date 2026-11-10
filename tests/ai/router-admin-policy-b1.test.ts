@@ -43,6 +43,37 @@ function fakeSettingStore(initial: Record<string, string> = {}) {
 }
 
 describe('router admin policy B1', () => {
+  test('APINEX subscription-only model 402 keeps the same key available for the next model', async () => {
+    const store = fakeSettingStore({
+      AI_TEXT_PROVIDER: 'APINEX',
+      AI_ROUTER_POLICY_SOURCE: 'admin',
+      AI_ROUTER_POLICY: 'fallback_only',
+      APINEX_API_KEY: 'test-key-not-a-secret',
+      APINEX_TEXT_MODEL: 'free/glm-5.3-flashx,free/deepseek-v4.1-flash',
+    })
+    __setTextAiSettingStoreForTests(store)
+    const attempted: string[] = []
+    globalThis.fetch = (async (url: any, init: any) => {
+      if (String(url).endsWith('/models')) return new Response(JSON.stringify({ data: [] }), { status: 200 })
+      const model = JSON.parse(String(init?.body || '{}')).model
+      attempted.push(model)
+      if (model === 'free/glm-5.3-flashx') {
+        return new Response(JSON.stringify({ error: { message: 'This model is currently available only with a subscription. Buy a subscription at https://apinex.bond/subscriptions to use it.' } }), { status: 402 })
+      }
+      return new Response(JSON.stringify({ choices: [{ message: { content: 'Working model response' } }] }), { status: 200 })
+    }) as any
+    const answer = await textAiComplete({
+      system: 'Answer the user', history: [{ role: 'user', text: 'Hello' }],
+      restrictToModels: [
+        { provider: 'APINEX', model: 'free/glm-5.3-flashx' },
+        { provider: 'APINEX', model: 'free/deepseek-v4.1-flash' },
+      ],
+    })
+    expect(answer).toContain('Working model response')
+    expect(attempted).toContain('free/glm-5.3-flashx')
+    expect(attempted).toContain('free/deepseek-v4.1-flash')
+  })
+
   afterEach(() => {
     globalThis.fetch = originalFetch
     if (originalOpenAiCompatApiKeys === undefined) delete process.env.OPENAI_COMPAT_API_KEYS
