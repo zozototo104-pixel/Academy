@@ -46,6 +46,14 @@ function matchesWhere(row: any, where: any): boolean {
 }
 
 const fakeDb = {
+  assignmentSubmission: {
+    findUnique: async ({ where }: any) => where.id === gradedSubmission.id ? gradedSubmission : null,
+    update: async ({ data }: any) => {
+      gradeWrites += 1
+      Object.assign(gradedSubmission, data)
+      return gradedSubmission
+    },
+  },
   program: {
     findUnique: async ({ where }: any) => (where.id === program.id ? program : null),
   },
