@@ -240,7 +240,7 @@ const auditDb: any = {
   programExamAttempt: {
     findUnique: async ({ include }: any) => ({
       id: 'PROGRAM-attempt', userId: 'student-1', examId: 'PROGRAM-exam',
-      status: 'NEEDS_REVIEW', exam: auditExam('PROGRAM', include), answers: auditAnswers,
+      status: auditAttemptStatus, score: 40, reviewedAt: null, exam: auditExam('PROGRAM', include), answers: auditAnswers,
     }),
     updateMany: async ({ data }: any) => { auditFinalGrade = data; return { count: 1 } },
     update: async ({ data }: any) => { auditFinalGrade = data; return data },
