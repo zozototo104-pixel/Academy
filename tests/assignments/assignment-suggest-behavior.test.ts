@@ -136,6 +136,7 @@ beforeAll(async () => {
   suggestGET = suggest.GET
   suggestPOST = suggest.POST
   savePOST = save.POST
+  savePATCH = save.PATCH
 })
 
 function postReq(url: string, body: unknown) {
