@@ -105,6 +105,37 @@ function completeWith(question: string, suggestion: string) {
 }
 
 describe('platform agent defense-intent precedence', () => {
+  test('admin router policy bypasses direct Gemini for academic defense and preserves its agent', async () => {
+    routerPolicySource = 'admin'
+    directGeminiCalls = 0
+    routedCalls = 0
+    try {
+      const result = await completeWith(DEFENSE_QUESTION, 'EXAMS')
+      expect(result.agent).toBe('THESIS_DEFENSE')
+      expect(directGeminiCalls).toBe(0)
+      expect(routedCalls).toBe(1)
+    } finally {
+      routerPolicySource = ''
+    }
+  })
+
+  test('admin router policy bypasses direct Gemini in the streaming path', async () => {
+    routerPolicySource = 'admin'
+    directGeminiCalls = 0
+    routedCalls = 0
+    try {
+      const result = await platformAgentStream(
+        { messages: [{ role: 'user', content: DEFENSE_QUESTION }], mode: 'TEXT', userId: 'student-1' },
+        async () => {},
+      )
+      expect(result.agent).toBe('THESIS_DEFENSE')
+      expect(directGeminiCalls).toBe(0)
+      expect(routedCalls).toBe(1)
+    } finally {
+      routerPolicySource = ''
+    }
+  })
+
   test('the #711 DEFENSE probe question beats a classifier EXAMS suggestion', async () => {
     const result = await completeWith(DEFENSE_QUESTION, 'EXAMS')
     expect(result.agent).toBe('THESIS_DEFENSE')
