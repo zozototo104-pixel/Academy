@@ -3864,7 +3864,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
             await markPersistentModelDead(provider, model, msg, status)
             break
           }
-          if (isNoBalanceLike(e)) {
+          if (status === 402 || isNoBalanceLike(e)) {
             // HTTP 402 alone does not prove that the entire key is out of credit.
             // A model-specific payment/subscription restriction must not block its siblings.
             if (status === 402 && !isExplicitKeyBalanceExhaustion(msg)) {
