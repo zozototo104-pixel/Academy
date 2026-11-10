@@ -94,6 +94,60 @@ describe('router admin policy B1', () => {
     expect(Object.values(blocks)[0]).toContain('no credits remaining')
   })
 
+  test('APINEX per-minute 429 escalates to a SHORT key cooldown from the provider retry hint, not the 15-minute default', async () => {
+    const store = fakeSettingStore({
+      AI_TEXT_PROVIDER: 'APINEX',
+      AI_ROUTER_POLICY_SOURCE: 'admin',
+      AI_ROUTER_POLICY: 'fallback_only',
+      APINEX_API_KEY: 'test-key-not-a-secret',
+      APINEX_TEXT_MODEL: 'free/glm-5.3-flashx,free/deepseek-v4.1-flash,free/minimax-m3.1-flash',
+    })
+    __setTextAiSettingStoreForTests(store)
+    const attempted: string[] = []
+    globalThis.fetch = (async (url: any, init: any) => {
+      if (String(url).endsWith('/models')) return new Response(JSON.stringify({ data: [] }), { status: 200 })
+      const model = JSON.parse(String(init?.body || '{}')).model
+      attempted.push(model)
+      if (model === 'free/minimax-m3.1-flash') {
+        return new Response(JSON.stringify({ choices: [{ message: { content: 'Third model response' } }] }), { status: 200 })
+      }
+      // APINEX's account-wide cap from gate #718: 15 requests per minute for
+      // the whole account, with the provider's own short retry hint. The cap
+      // is account-level evidence, so a key cooldown is correct — but its
+      // length must come from the hint (~1 minute), never from the
+      // 15-minute general fallback the pre-fix call sites dropped to.
+      return new Response(
+        JSON.stringify({ error: { message: 'Rate limit exceeded: this account is limited to 15 requests per minute. Please retry in 14 seconds.' } }),
+        { status: 429, headers: { 'retry-after': '14' } },
+      )
+    }) as any
+    const startedAt = Date.now()
+    try {
+      await textAiComplete({
+        system: 'Answer the user', history: [{ role: 'user', text: 'Hello' }],
+        restrictToModels: [
+          { provider: 'APINEX', model: 'free/glm-5.3-flashx' },
+          { provider: 'APINEX', model: 'free/deepseek-v4.1-flash' },
+          { provider: 'APINEX', model: 'free/minimax-m3.1-flash' },
+        ],
+      })
+    } catch { /* The key ban may legitimately block the third model mid-request. */ }
+    expect(attempted).toContain('free/glm-5.3-flashx')
+    expect(attempted).toContain('free/deepseek-v4.1-flash')
+    const rows = await store.scan('AI_COOLDOWN:APINEX:')
+    const keyRow = rows['AI_COOLDOWN:APINEX:1']
+    expect(keyRow).toBeTruthy()
+    const payload = JSON.parse(keyRow)
+    expect(payload.status).toBe(429)
+    const untilMs = Date.parse(payload.until)
+    expect(untilMs).toBeGreaterThan(startedAt)
+    // ~1 minute from the provider's 14-second hint (rounded up), with slack
+    // for execution time — and decisively NOT the 15 minutes recorded in the
+    // QA database during gate #718 (ban written until +15:00 pre-fix).
+    expect(untilMs).toBeLessThan(startedAt + 4 * 60_000)
+    expect(rows['AI_COOLDOWN:APINEX:1:free/glm-5.3-flashx']).toBeTruthy()
+  })
+
   afterEach(() => {
     globalThis.fetch = originalFetch
     if (originalOpenAiCompatApiKeys === undefined) delete process.env.OPENAI_COMPAT_API_KEYS
