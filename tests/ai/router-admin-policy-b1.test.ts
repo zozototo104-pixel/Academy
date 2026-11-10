@@ -14,9 +14,19 @@ import {
 } from '../../src/lib/text-ai'
 import { verifyQuestionsWithCrossProvider } from '../../src/lib/question-verifier'
 import { isPausableQuestionBankError } from '../../src/lib/question-bank-job'
+import { encryptSecret } from '../../src/lib/secret-crypto'
 
 const originalFetch = globalThis.fetch
 const originalOpenAiCompatApiKeys = process.env.OPENAI_COMPAT_API_KEYS
+const originalSecretsKey = process.env.AACT_SECRETS_KEY
+
+// APINEX is a strict-encrypted provider: a plaintext key stored in settings
+// is (correctly) discarded when read back, so the fake store must hold the
+// key sealed — exactly as the admin panel stores it in production. The
+// isolated test encryption key is set on module load so encryptSecret and
+// the router's decrypt-on-read use it consistently; afterEach restores env.
+process.env.AACT_SECRETS_KEY = Buffer.alloc(32, 7).toString('base64')
+const sealedApinexTestKey = encryptSecret('test-key-not-a-secret')
 
 function fakeSettingStore(initial: Record<string, string> = {}) {
   const values = new Map<string, string>(Object.entries(initial))
@@ -47,7 +57,7 @@ describe('router admin policy B1', () => {
       AI_TEXT_PROVIDER: 'APINEX',
       AI_ROUTER_POLICY_SOURCE: 'admin',
       AI_ROUTER_POLICY: 'fallback_only',
-      APINEX_API_KEY: 'test-key-not-a-secret',
+      APINEX_API_KEY: sealedApinexTestKey,
       APINEX_TEXT_MODEL: 'free/glm-5.3-flashx,free/deepseek-v4.1-flash',
     })
     __setTextAiSettingStoreForTests(store)
@@ -78,7 +88,7 @@ describe('router admin policy B1', () => {
   test('explicit APINEX account credit exhaustion persists a key-wide block', async () => {
     const store = fakeSettingStore({
       AI_TEXT_PROVIDER: 'APINEX', AI_ROUTER_POLICY_SOURCE: 'admin', AI_ROUTER_POLICY: 'fallback_only',
-      APINEX_API_KEY: 'test-key-not-a-secret', APINEX_TEXT_MODEL: 'free/glm-5.3-flashx',
+      APINEX_API_KEY: sealedApinexTestKey, APINEX_TEXT_MODEL: 'free/glm-5.3-flashx',
     })
     __setTextAiSettingStoreForTests(store)
     globalThis.fetch = (async (url: any) => {
@@ -99,7 +109,7 @@ describe('router admin policy B1', () => {
       AI_TEXT_PROVIDER: 'APINEX',
       AI_ROUTER_POLICY_SOURCE: 'admin',
       AI_ROUTER_POLICY: 'fallback_only',
-      APINEX_API_KEY: 'test-key-not-a-secret',
+      APINEX_API_KEY: sealedApinexTestKey,
       APINEX_TEXT_MODEL: 'free/glm-5.3-flashx,free/deepseek-v4.1-flash,free/minimax-m3.1-flash',
     })
     __setTextAiSettingStoreForTests(store)
@@ -152,6 +162,8 @@ describe('router admin policy B1', () => {
     globalThis.fetch = originalFetch
     if (originalOpenAiCompatApiKeys === undefined) delete process.env.OPENAI_COMPAT_API_KEYS
     else process.env.OPENAI_COMPAT_API_KEYS = originalOpenAiCompatApiKeys
+    if (originalSecretsKey === undefined) delete process.env.AACT_SECRETS_KEY
+    else process.env.AACT_SECRETS_KEY = originalSecretsKey
     __setTextAiSettingStoreForTests(null)
     __resetTextAiStateForTests()
   })
