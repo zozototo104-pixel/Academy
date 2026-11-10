@@ -253,9 +253,7 @@ const VISION_NATIVE_PROVIDERS = new Set<TextAiProvider>(['GEMINI', 'ANTHROPIC', 
 const cooldowns = new Map<string, { until: number; reason: string; status?: number; model?: string }>()
 const providerRateLimitHits = new Map<string, number[]>()
 const modelRateLimitHits = new Map<string, Array<{ model: string; at: number }>>()
-const transientModelFailureHits = new Map<string, Array<{ model: string; at: number }>>()
 const nvidiaHardModelFailureHits = new Map<string, number[]>()
-const TRANSIENT_MODEL_FAILURE_WINDOW_MS = 2 * 60 * 1000
 let roundRobin = 0
 let lastResult: TextAiDiagnostics['lastResult'] = null
 let recentAttempts: TextAiAttemptDiagnostics[] = []
@@ -331,7 +329,6 @@ export function __setTextAiSettingStoreForTests(store: TextAiSettingStore | null
 export function __resetTextAiStateForTests() {
   cooldowns.clear()
   modelRateLimitHits.clear()
-  transientModelFailureHits.clear()
   nvidiaHardModelFailureHits.clear()
   roundRobin = 0
   lastResult = null
@@ -837,34 +834,24 @@ function highDemandCooldownScope(model: string, message: unknown, status?: numbe
   return 'key'
 }
 
-function recordTransientModelFailureAndShouldCoolKey(provider: ConcreteProvider, key: string, model: string, now = Date.now()): boolean {
-  const id = `${provider}:${key}`
-  const recent = (transientModelFailureHits.get(id) || [])
-    .filter((item) => now - item.at <= TRANSIENT_MODEL_FAILURE_WINDOW_MS)
-  recent.push({ model, at: now })
-  transientModelFailureHits.set(id, recent)
-  return new Set(recent.map((item) => item.model)).size >= 3
-}
-
-async function applyTransientModelFailureCooldown(provider: ConcreteProvider, key: string, keyIndex: number, model: string, message: string, status: number | undefined, keyCooldownMinutes: number): Promise<void> {
+// Transient per-model failures (timeouts, HTTP 504, model-scoped high
+// demand) cool the MODEL only. They never escalate to a key-level ban:
+// a timeout or an upstream 5xx is evidence about that model's current
+// responsiveness, not about the key or the account, so sibling models
+// on the same key stay available. Key-level bans are reserved for
+// key/account evidence and live in their own paths (auth failures,
+// explicit balance exhaustion, classified quota scope).
+async function applyTransientModelFailureCooldown(provider: ConcreteProvider, key: string, keyIndex: number, model: string, message: string, status: number | undefined): Promise<void> {
   markModelCooldown(provider, key, model, message, 2, status)
   await markPersistentCooldown(provider, keyIndex, model, message, status, 2)
-  if (recordTransientModelFailureAndShouldCoolKey(provider, key, model)) {
-    markCooldown(provider, key, message, keyCooldownMinutes, status)
-    await markPersistentCooldown(provider, keyIndex, undefined, message, status, keyCooldownMinutes)
-  }
 }
 
 export function __testHighDemandCooldownDecisionForTests(model: string, message: string, status?: number): 'model' | 'key' {
   return highDemandCooldownScope(model, message, status)
 }
 
-export function __testTransientModelFailureEscalationForTests(provider: ConcreteProvider, key: string, models: string[], now = Date.now()): boolean[] {
-  return models.map((model, index) => recordTransientModelFailureAndShouldCoolKey(provider, key, model, now + index * 1000))
-}
-
 export async function __testApplyTransientModelFailureCooldownForTests(provider: ConcreteProvider, key: string, keyIndex: number, model: string, checkModel: string, message = 'provider timeout', status?: number) {
-  await applyTransientModelFailureCooldown(provider, key, keyIndex, model, message, status, 2)
+  await applyTransientModelFailureCooldown(provider, key, keyIndex, model, message, status)
   return {
     keyCooling: !!activeMemoryCooldown(provider, key),
     modelCooling: !!activeMemoryModelCooldown(provider, key, model),
@@ -3885,7 +3872,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           if (isHighDemandLike(e)) {
             skipModelsThisRequest.add(`${provider}:${model}`)
             if (highDemandCooldownScope(model, msg, status) === 'model') {
-              await applyTransientModelFailureCooldown(provider, currentKey, keyIndex, model, msg, status, 1)
+              await applyTransientModelFailureCooldown(provider, currentKey, keyIndex, model, msg, status)
             } else {
               markCooldown(provider, currentKey, msg, 1, status)
               await markPersistentCooldown(provider, keyIndex, undefined, msg, status, 1)
@@ -3894,7 +3881,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           }
           if (isTimeoutLike(e)) {
             skipModelsThisRequest.add(`${provider}:${model}`)
-            await applyTransientModelFailureCooldown(provider, currentKey, keyIndex, model, msg, status, 2)
+            await applyTransientModelFailureCooldown(provider, currentKey, keyIndex, model, msg, status)
             break
           }
           if (isQuotaLike(e)) {

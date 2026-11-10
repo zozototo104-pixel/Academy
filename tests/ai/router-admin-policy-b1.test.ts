@@ -10,7 +10,6 @@ import {
   __testStickyCandidateOrderForTests,
   __testStickyScopeForTests,
   __testStrictCandidateModelsForTests,
-  __testTransientModelFailureEscalationForTests,
   textAiComplete,
 } from '../../src/lib/text-ai'
 import { verifyQuestionsWithCrossProvider } from '../../src/lib/question-verifier'
@@ -199,23 +198,33 @@ describe('router admin policy B1', () => {
     expect(__testResolveRouterPolicyForTests('admin', 'cost_saver', 'balanced')).toBe('cost_saver')
   })
 
-  test('503 and timeout cool known models before cooling the key', async () => {
+  test('503 and timeout cool the model only and never escalate to the key', async () => {
     __setTextAiSettingStoreForTests(fakeSettingStore())
     expect(__testHighDemandCooldownDecisionForTests('gpt-5.6-luna', 'upstream unavailable', 503)).toBe('model')
 
     const singleFailure = await __testApplyTransientModelFailureCooldownForTests('ALBORIHI', 'fake-key', 1, 'gpt-5.6-luna', 'claude-sonnet-5', 'upstream 503', 503)
     expect(singleFailure).toEqual({ keyCooling: false, modelCooling: true, checkModelCooling: false })
 
-    expect(__testTransientModelFailureEscalationForTests('ALBORIHI', 'other-key', [
-      'gpt-5.6-luna',
-      'claude-sonnet-5',
-      'claude-opus-4-6',
-    ])).toEqual([false, false, true])
-
+    // Three distinct models timing out on one key must NOT ban the key:
+    // each failure cools only its own model, and an untouched sibling
+    // model stays available so the router can still fail over to it.
     await __testApplyTransientModelFailureCooldownForTests('ALBORIHI', 'third-key', 1, 'gpt-5.6-luna', 'claude-sonnet-5', 'timeout', 504)
     await __testApplyTransientModelFailureCooldownForTests('ALBORIHI', 'third-key', 1, 'claude-sonnet-5', 'gpt-5.6-luna', 'timeout', 504)
-    const thirdFailure = await __testApplyTransientModelFailureCooldownForTests('ALBORIHI', 'third-key', 1, 'claude-opus-4-6', 'gpt-5.6-luna', 'timeout', 504)
-    expect(thirdFailure.keyCooling).toBe(true)
+    const thirdFailure = await __testApplyTransientModelFailureCooldownForTests('ALBORIHI', 'third-key', 1, 'claude-opus-4-6', 'gpt-5.6', 'timeout', 504)
+    expect(thirdFailure).toEqual({ keyCooling: false, modelCooling: true, checkModelCooling: false })
+  })
+
+  test('APINEX models keep failing over after three transient failures on one key', async () => {
+    __setTextAiSettingStoreForTests(fakeSettingStore())
+
+    // Mirrors the launch-quality incident: APINEX is first in the manual
+    // order and several of its free models stumble (504, timeout, 503)
+    // inside one short window. None of that is key/account evidence, so
+    // the key must stay usable and the next APINEX model must be tried.
+    await __testApplyTransientModelFailureCooldownForTests('APINEX', 'apinex-key', 1, 'free/glm-5.3-flashx', 'free/kimi-k3', 'provider timeout', 504)
+    await __testApplyTransientModelFailureCooldownForTests('APINEX', 'apinex-key', 1, 'free/deepseek-v4.1-flash', 'free/kimi-k3', 'request timed out', undefined)
+    const thirdFailure = await __testApplyTransientModelFailureCooldownForTests('APINEX', 'apinex-key', 1, 'free/gpt-6-luna', 'free/kimi-k3', 'upstream 503', 503)
+    expect(thirdFailure).toEqual({ keyCooling: false, modelCooling: true, checkModelCooling: false })
   })
 
   test('sticky on success derives separate scopes and stays disabled by default', () => {
