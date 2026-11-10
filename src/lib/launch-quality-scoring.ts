@@ -131,7 +131,7 @@ export function scoreConcepts(reply: string, groups: ConceptGroup[], thesisTitle
   for (const group of usable) {
     let hit: boolean
     if (group.isThesisTitle && thesisTitle) {
-      hit = n.includes(normalizedTitle) || titleTokenCoverage(reply, thesisTitle) >= 0.5
+      hit = n.includes(normalizedTitle) || titleTokenCoverage(reply, thesisTitle) >= 0.5 || engagesRiskIndicatorThesis(reply, thesisTitle)
     } else {
       hit = group.variants.some((v) => discussion.includes(v))
     }
