@@ -488,6 +488,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ ok: true, ...result, certificateNo: registration?.certificateNo || null })
   } catch (error: any) {
     if (error?.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'صلاحيات الإدارة مطلوبة' }, { status: 401 })
+    if (error?.userMessage) return NextResponse.json({ error: error.userMessage }, { status: error.status || 400 })
     if (error?.code) return NextResponse.json({ error: error.userMessage || String(error.message || error) }, { status: error.status || 400 })
     console.error('attempts-review PATCH error:', error)
     return NextResponse.json({ error: 'تعذر اعتماد نتيجة المراجعة' }, { status: 500 })
