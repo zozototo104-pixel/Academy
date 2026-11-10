@@ -25,6 +25,12 @@ const knowledge = [
   { id: 'k2', programId: 'prog1', kbVersion: 2, chunkId: 'c1', category: 'CONCEPT', title: 'مفهوم الفصل الثاني', summary: 'ملخص المفهوم الثاني', excerpt: 'مقتطف المفهوم الثاني', importance: 5, pageStart: 3, pageEnd: 4 },
 ]
 const createdAssignments: any[] = []
+let gradeWrites = 0
+const gradedSubmission: any = {
+  id: 'submission-grade-test', userId: 'student-1', status: 'GRADED', score: 4,
+  feedback: 'Previous feedback', assignment: { id: 'assignment-grade-test', title: 'واجب تجريبي', points: 10, programId: 'prog1' },
+  user: { id: 'student-1', name: 'طالب', email: 'student@example.com' },
+}
 
 function matchesWhere(row: any, where: any): boolean {
   for (const [key, cond] of Object.entries(where || {})) {
