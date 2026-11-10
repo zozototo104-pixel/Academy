@@ -60,7 +60,7 @@ mock.module('@/lib/text-ai', () => ({
   textAiModelHealthSnapshot: () => ({}),
 }))
 mock.module('@/lib/settings', () => ({
-  getSettings: async () => ({}),
+  getSettings: async () => ({ AI_ROUTER_POLICY_SOURCE: routerPolicySource }),
   getOfficialContact: async () => ({}),
 }))
 mock.module('@/lib/supervisor-ai', () => ({
