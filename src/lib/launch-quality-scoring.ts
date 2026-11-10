@@ -96,6 +96,20 @@ export function titleTokenCoverage(reply: string, title: string): number {
   return present / tokens.length
 }
 
+// A defense question can discuss the thesis through concrete operational
+// evidence without repeating its title. This narrow equivalence is valid only
+// for a thesis about risk indicators and governance, and requires multiple
+// connected methodological details, not generic risk/governance vocabulary.
+function engagesRiskIndicatorThesis(reply: string, title: string): boolean {
+  const t = normalizeArabic(title)
+  if (!t.includes('موشرات المخاطر') || !t.includes('الحوكمه')) return false
+  const n = normalizeArabic(reply)
+  return /(?:الموشر|الموشرات|مؤشر|مؤشرات)/u.test(n)
+    && /(?:فعاليه الضابط|فعاليه الضوابط|قياس الفعاليه|فعاليه الرقابه)/u.test(n)
+    && /(?:سجل المخاطر|تقارير الاداره|البيانات الرقميه|مقاييس رقميه)/u.test(n)
+    && /(?:منهجيه|قياس|تقييم)/u.test(n)
+}
+
 export interface ConceptScore {
   hits: string[]
   missed: string[]
