@@ -104,7 +104,9 @@ function engagesRiskIndicatorThesis(reply: string, title: string): boolean {
   const t = normalizeArabic(title)
   if (!t.includes('موشرات المخاطر') || !t.includes('الحوكمه')) return false
   const n = normalizeArabic(reply)
-  return /(?:الموشر|الموشرات|مؤشر|مؤشرات)/u.test(n)
+  return /(?:في بحثك|بحثك الحالي|دراستك|في دراستك)/u.test(n)
+    && /(?:سوالي|هل اعتمدت|كيف تقيس|كيف تقيم)/u.test(n)
+    && /(?:الموشر|الموشرات)/u.test(n)
     && /(?:فعاليه الضابط|فعاليه الضوابط|قياس الفعاليه|فعاليه الرقابه)/u.test(n)
     && /(?:سجل المخاطر|تقارير الاداره|البيانات الرقميه|مقاييس رقميه)/u.test(n)
     && /(?:منهجيه|قياس|تقييم)/u.test(n)
