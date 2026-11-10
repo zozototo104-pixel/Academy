@@ -125,6 +125,7 @@ export async function applyScoreAdjustments(
   type: AttemptKind,
   attemptId: string,
   scores: Record<string, unknown>,
+  options?: { expectedScore?: number | null; expectedPoints?: Record<string, number | null>; requireGraded?: boolean; strictPoints?: boolean },
 ): Promise<{ score: number; passed: boolean }> {
   const answerIds = Object.keys(scores || {})
   if (!answerIds.length) throw Object.assign(new Error('NO_SCORES'), { userMessage: 'لا توجد درجات معدّلة' })
