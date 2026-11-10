@@ -3889,14 +3889,14 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
             const scope = classifyRateLimitScope(model, msg, status)
             const minutes = rateLimitCooldownMinutes(e, msg, model)
             if (scope === 'key') {
-              markCooldown(provider, currentKey, msg, undefined, status)
-              await markPersistentCooldown(provider, keyIndex, undefined, msg, status)
+              markCooldown(provider, currentKey, msg, minutes, status)
+              await markPersistentCooldown(provider, keyIndex, undefined, msg, status, minutes)
             } else {
               markModelCooldown(provider, currentKey, model, msg, minutes, status)
               await markPersistentCooldown(provider, keyIndex, model, msg, status, minutes)
               if (shouldEscalateModelRateLimit(provider, currentKey, model, msg)) {
-                markCooldown(provider, currentKey, msg, undefined, status)
-                await markPersistentCooldown(provider, keyIndex, undefined, msg, status)
+                markCooldown(provider, currentKey, msg, minutes, status)
+                await markPersistentCooldown(provider, keyIndex, undefined, msg, status, minutes)
               }
             }
           }
