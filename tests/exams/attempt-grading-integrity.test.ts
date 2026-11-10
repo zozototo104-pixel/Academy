@@ -232,9 +232,9 @@ const auditDb: any = {
   examAttempt: {
     findUnique: async ({ include }: any) => ({
       id: 'UNIT-attempt', userId: 'student-1', examId: 'UNIT-exam',
-      status: 'NEEDS_REVIEW', exam: auditExam('UNIT', include), answers: auditAnswers,
+      status: auditAttemptStatus, score: 40, reviewedAt: null, exam: auditExam('UNIT', include), answers: auditAnswers,
     }),
-    updateMany: async () => ({ count: 1 }),
+    updateMany: async ({ data }: any) => { if (data?.score != null) auditFinalGrade = data; return { count: 1 } },
     update: async ({ data }: any) => { auditFinalGrade = data; return data },
   },
   programExamAttempt: {
