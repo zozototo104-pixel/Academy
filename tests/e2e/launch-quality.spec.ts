@@ -166,7 +166,7 @@ test.describe('AACT launch quality suite', () => {
           probes: [{
             kind: probeKind,
             agent: 'ERROR',
-            expectedAgent: null,
+            expectedAgent: probeKind === 'PROFILE' || probeKind === 'CURRICULUM' ? 'ACADEMIC_SUPERVISOR' : 'THESIS_DEFENSE',
             genericFallback: false,
             grounded: false,
             keywordScore: 0,
