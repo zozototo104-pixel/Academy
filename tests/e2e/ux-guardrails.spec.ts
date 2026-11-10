@@ -107,9 +107,11 @@ test.describe('AACT UX guardrails suite', () => {
     await setBrowserToken(page, studentLogin.token)
     await page.goto('/dashboard', { waitUntil: 'domcontentloaded', timeout: 45_000 })
     await page.waitForLoadState('networkidle', { timeout: 12_000 }).catch(() => {})
-    const programsTab = page.getByRole('tab', { name: /برامجي/ })
-    await expect(programsTab).toBeVisible()
+    // The dashboard uses a hidden Radix TabsList for state and visible navigation
+    // buttons for students. Assert the active panel, not a deliberately hidden tab.
+    const programsTab = page.getByRole('tab', { name: /برامجي/, includeHidden: true })
     await expect(programsTab, 'Student dashboard should open on programs, not payments').toHaveAttribute('data-state', 'active')
+    await expect(page.getByText(/برامجي المسجل بها/)).toBeVisible({ timeout: 30_000 })
     await expect(page.getByText(setup.program.title).first()).toBeVisible({ timeout: 30_000 })
     await expect(page.getByText(/برامجي المسجل بها/)).toHaveCount(0)
     await expect(page.getByText(/ملفك الأكاديمي/).first()).toBeVisible()
