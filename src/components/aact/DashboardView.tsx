@@ -1221,8 +1221,8 @@ export function DashboardView() {
             ))}
           </div>
 
-          <div className="grid gap-3 lg:grid-cols-3">
-            <div className="rounded-[1.75rem] border border-[#0f2b46]/10 bg-white p-4 shadow-sm lg:col-span-2">
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-3">
+            <div className="min-w-0 rounded-[1.75rem] border border-[#0f2b46]/10 bg-white p-4 shadow-sm lg:col-span-2">
               <div className="mb-3 flex items-center justify-between">
                 <h3 className="text-sm font-black text-[#0f2b46]">الوحدات الأقرب لك</h3>
                 <Button type="button" variant="ghost" size="sm" onClick={() => openProgramWorkspace('content')} className="text-xs font-black text-[#2f6df6]">عرض الكل</Button>
