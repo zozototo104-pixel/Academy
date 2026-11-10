@@ -430,12 +430,28 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    await requireAdmin()
+    const admin = await requireAdmin()
     const body = await req.json()
     const type = clean(body?.type, 20) as AttemptType
     const id = clean(body?.attemptId, 100)
-    const scores = body?.scores && typeof body.scores === 'object' ? body.scores as Record<string, unknown> : {}
+    const scores = body?.scores && typeof body.scores === 'object' && !Array.isArray(body.scores) ? body.scores as Record<string, unknown> : {}
     const answerIds = Object.keys(scores).map((answerId) => clean(answerId, 120)).filter(Boolean)
+    // Correct an already GRADED unit/semester exam BEFORE official approval.
+    // Compare the score and original answer points inside the same write
+    // transaction to prevent an old browser tab overwriting a newer review.
+    if (body?.action === 'ADJUST_GRADED') {
+      if ((type !== 'UNIT' && type !== 'PROGRAM') || !id || !answerIds.length ||
+        !Number.isFinite(body?.expectedScore) ||
+        !body?.expectedPoints || typeof body.expectedPoints !== 'object' || Array.isArray(body.expectedPoints)) {
+        return NextResponse.json({ error: 'بيانات تعديل الدرجة غير مكتملة؛ حدّث المحاولة وأعد المحاولة' }, { status: 400 })
+      }
+      const result = await applyScoreAdjustments(
+        { id: admin.id, name: admin.name || 'الإدارة', role: 'ADMIN' },
+        type, id, scores,
+        { expectedScore: body.expectedScore, expectedPoints: body.expectedPoints, requireGraded: true, strictPoints: true },
+      )
+      return NextResponse.json({ ok: true, ...result })
+    }
     const readiness = type === 'PROGRAM' ? await readinessForProgramAttempt(id) : null
     const result = await db.$transaction(async (tx) => {
       await ensureNeedsReview(tx, type, id)
