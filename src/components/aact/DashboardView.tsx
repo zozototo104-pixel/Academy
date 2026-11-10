@@ -396,6 +396,7 @@ export function DashboardView() {
   const { toast } = useToast()
   const [enrollments, setEnrollments] = useState<MyEnrollment[]>([])
   const [programs, setPrograms] = useState<any[]>([])
+  const [enrollmentsLoadError, setEnrollmentsLoadError] = useState(false)
   const [active, setActive] = useState<ProgressData | null>(null)
   const [decisionDialog, setDecisionDialog] = useState<{ semester: number; mode: 'ready' | 'raise' } | null>(null)
   const [decisionBusy, setDecisionBusy] = useState(false)
@@ -526,12 +527,18 @@ export function DashboardView() {
   const loadList = useCallback(async () => {
     try {
       // الأولوية لظهور البرامج المسجلة بسرعة؛ لا ننتظر الشات والذاكرة والشارات حتى تظهر قائمة «برامجي».
+      // فشل تحميل التسجيلات لا يُبتلع بصمت: نعرض حالة خطأ مع إعادة محاولة بدل اعتبار الطالب غير مسجل.
+      let enrollmentsFailed = false
       const [p, e] = await Promise.all([
         api<{ programs: any[] }>('/api/programs?summary=1'),
-        api<{ enrollments: MyEnrollment[] }>('/api/my/enrollments').catch(() => ({ enrollments: [] as any[] })),
+        api<{ enrollments: MyEnrollment[] }>('/api/my/enrollments').catch(() => {
+          enrollmentsFailed = true
+          return { enrollments: [] as MyEnrollment[] }
+        }),
       ])
       setPrograms(p.programs)
       setEnrollments(e.enrollments || [])
+      setEnrollmentsLoadError(enrollmentsFailed)
 
       setServiceDeliverablesLoading(true)
       Promise.all([
@@ -1013,6 +1020,15 @@ export function DashboardView() {
       </div>
 
       <StudentReminderBanner />
+
+      {enrollmentsLoadError && (
+        <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700" role="alert">
+          <p>تعذّر تحميل تسجيلاتك الدراسية. برامجك لم تختفِ — حدثت مشكلة أثناء التحميل.</p>
+          <Button type="button" size="sm" variant="outline" className="mt-2 border-red-300 font-black text-red-700 hover:bg-red-100" onClick={() => { void loadList() }}>
+            إعادة المحاولة
+          </Button>
+        </div>
+      )}
 
       {studentSummary && (
         <details className="mb-6 rounded-[2rem] border border-[#0f2b46]/10 bg-white/90 p-3 shadow-sm">

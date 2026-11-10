@@ -111,7 +111,10 @@ test.describe('AACT UX guardrails suite', () => {
     // buttons for students. Assert the active panel, not a deliberately hidden tab.
     const programsTab = page.getByRole('tab', { name: /برامجي/, includeHidden: true })
     await expect(programsTab, 'Student dashboard should open on programs, not payments').toHaveAttribute('data-state', 'active')
-    await expect(page.getByText(/برامجي المسجل بها/)).toBeVisible({ timeout: 30_000 })
+    // Prove the programs section with the student's actual program name and real
+    // content. The program title comes from the enrollment itself, so this holds
+    // whether the student has one enrollment or several (the enrolled-programs
+    // card heading only renders when the count is not exactly one).
     await expect(page.getByText(setup.program.title).first()).toBeVisible({ timeout: 30_000 })
     await expect(page.getByText(/ملفك الأكاديمي/).first()).toBeVisible()
     await page.getByRole('button', { name: /المحتوى والواجبات/ }).click()
@@ -120,8 +123,9 @@ test.describe('AACT UX guardrails suite', () => {
     await expect(page.getByText(/جدول الدراسة للفصول والمواد المطلوبة/)).toBeVisible()
     checks.push({ name: 'بوابة الطالب تبدأ ببرامجي وتستخدم أقسام داخلية بدل تحميل كل البطاقات دفعة واحدة', ok: true })
 
-    // Main Radix tabs are intentionally hidden; use the visible student control.
-    await page.getByRole('button', { name: 'الدفعات', exact: true }).first().click()
+    // Main Radix tabs are intentionally hidden; navigate via the always-visible
+    // student navigation entry for payments (shown unconditionally in the nav).
+    await page.getByRole('button', { name: 'المدفوعات والرسوم', exact: true }).click()
     await expect(page.getByText(/قواعد فتح الاختبارات حسب السداد/)).toBeVisible()
     await expect(page.getByText(/يفتح امتحان الفصل الأول بعد سداد نصف الرسوم/)).toBeVisible()
     await expect(page.getByText(/فاتورة غير مسددة|فواتير غير مسددة/)).toHaveCount(0)
