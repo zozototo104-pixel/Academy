@@ -1120,9 +1120,9 @@ export function DashboardView() {
           </div>
         </aside>
 
-        <div className="space-y-4">
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_320px]">
-            <div className="relative overflow-hidden rounded-[2rem] border border-blue-100 bg-gradient-to-br from-[#0f2b46] via-[#2856d6] to-[#6d5dfc] p-5 text-white shadow-sm sm:p-6">
+        <div className="min-w-0 space-y-4">
+          <div className="min-w-0 grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1.35fr)_320px]">
+            <div className="relative min-w-0 overflow-hidden rounded-[2rem] border border-blue-100 bg-gradient-to-br from-[#0f2b46] via-[#2856d6] to-[#6d5dfc] p-5 text-white shadow-sm sm:p-6">
               <div className="absolute -right-16 -top-16 h-44 w-44 rounded-full bg-white/10 blur-2xl" />
               <div className="absolute -bottom-20 left-8 h-56 w-56 rounded-full bg-[#c9a227]/20 blur-3xl" />
               <div className="relative grid gap-5 md:grid-cols-[1fr_250px] md:items-center">
