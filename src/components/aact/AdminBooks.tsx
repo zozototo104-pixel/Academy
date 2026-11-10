@@ -2613,7 +2613,7 @@ export function AdminBooksTab() {
     }
     setGradingSubmissionId(submission.id)
     try {
-      await api('/api/admin/assignments', {
+      const saved = await api<{ submission: { score: number | null } }>('/api/admin/assignments', {
         method: 'PATCH',
         body: JSON.stringify({
           submissionId: submission.id,
@@ -2622,12 +2622,17 @@ export function AdminBooksTab() {
           status: mode === 'GRADE' ? 'GRADED' : 'NEEDS_REVISION',
         }),
       })
-      await loadProgramData(programId, true)
-      if (adminRoster && adminRoster.students.some(student => student.assignments.some(item => item.submissionId === submission.id))) {
-        await loadAdminRoster(adminRosterPage)
-      }
-      toast({ title: mode === 'GRADE' ? 'تم تصحيح الواجب' : 'تم طلب تعديل الواجب', description: mode === 'GRADE' ? `${submission.studentName || 'الطالب'} — ${parsedScore}/${assignment.points}` : undefined })
+      if (mode === 'GRADE' && saved.submission?.score !== parsedScore) throw new Error('الدرجة المحفوظة لا تطابق الدرجة المدخلة')
+      toast({ title: mode === 'GRADE' ? 'تم حفظ درجة الواجب' : 'تم طلب تعديل الواجب', description: mode === 'GRADE' ? `${submission.studentName || 'الطالب'} — ${parsedScore}/${assignment.points}` : undefined })
       setGradingDialog(null)
+      try {
+        await loadProgramData(programId, true)
+        if (adminRoster && adminRoster.students.some(student => student.assignments.some(item => item.submissionId === submission.id))) {
+          await loadAdminRoster(adminRosterPage)
+        }
+      } catch {
+        toast({ title: 'حُفظت الدرجة لكن تعذر تحديث القائمة', description: 'حدّث الصفحة لرؤية النتيجة الجديدة.', variant: 'destructive' })
+      }
     } catch (e: any) {
       toast({ title: 'خطأ', description: e.message, variant: 'destructive' })
     } finally {
