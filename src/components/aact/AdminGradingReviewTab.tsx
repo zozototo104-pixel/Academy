@@ -169,6 +169,10 @@ export default function AdminGradingReviewTab() {
   // بنفس القيمة لا تغيّر شيئًا (الخادم يرجع alreadyApproved).
   const approveOfficial = async () => {
     if (!selected) return
+    if (pendingScoreEdits.length) {
+      toast({ title: 'هناك درجات معدّلة لم تُحفظ', description: 'احفظ التعديل أولًا، ثم افتح المحاولة وصادق على النتيجة المحدّثة.', variant: 'destructive' })
+      return
+    }
     setBusy('approve-grade')
     try {
       const res = await api<{ alreadyApproved?: boolean }>(`/api/admin/grade-approvals`, { method: 'POST', body: JSON.stringify({ targetType: selected.type === 'UNIT' ? 'UNIT_EXAM' : 'PROGRAM_EXAM', attemptId: selected.id }) })
