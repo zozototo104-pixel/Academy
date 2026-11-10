@@ -113,7 +113,6 @@ test.describe('AACT UX guardrails suite', () => {
     await expect(programsTab, 'Student dashboard should open on programs, not payments').toHaveAttribute('data-state', 'active')
     await expect(page.getByText(/برامجي المسجل بها/)).toBeVisible({ timeout: 30_000 })
     await expect(page.getByText(setup.program.title).first()).toBeVisible({ timeout: 30_000 })
-    await expect(page.getByText(/برامجي المسجل بها/)).toHaveCount(0)
     await expect(page.getByText(/ملفك الأكاديمي/).first()).toBeVisible()
     await page.getByRole('button', { name: /المحتوى والواجبات/ }).click()
     await expect(page.getByRole('tab', { name: /أدلة الدراسة/ })).toBeVisible()
