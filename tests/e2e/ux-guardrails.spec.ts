@@ -120,7 +120,8 @@ test.describe('AACT UX guardrails suite', () => {
     await expect(page.getByText(/جدول الدراسة للفصول والمواد المطلوبة/)).toBeVisible()
     checks.push({ name: 'بوابة الطالب تبدأ ببرامجي وتستخدم أقسام داخلية بدل تحميل كل البطاقات دفعة واحدة', ok: true })
 
-    await page.getByRole('tab', { name: /الدفعات/ }).click()
+    // Main Radix tabs are intentionally hidden; use the visible student control.
+    await page.getByRole('button', { name: 'الدفعات', exact: true }).first().click()
     await expect(page.getByText(/قواعد فتح الاختبارات حسب السداد/)).toBeVisible()
     await expect(page.getByText(/يفتح امتحان الفصل الأول بعد سداد نصف الرسوم/)).toBeVisible()
     await expect(page.getByText(/فاتورة غير مسددة|فواتير غير مسددة/)).toHaveCount(0)
