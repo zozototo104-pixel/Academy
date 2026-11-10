@@ -193,7 +193,7 @@ async function programDetail(id: string) {
       aiFeedback: a.aiFeedback,
     }
   })
-  return { type: 'PROGRAM', id: attempt.id, status: attempt.status, student: attempt.user, exam: { id: attempt.exam.id, title: attempt.exam.title, programTitle: attempt.exam.program.titleAr, passScore: attempt.exam.passScore }, answers: rows }
+  return { type: 'PROGRAM', id: attempt.id, status: attempt.status, score: attempt.score, student: attempt.user, exam: { id: attempt.exam.id, title: attempt.exam.title, programTitle: attempt.exam.program.titleAr, passScore: attempt.exam.passScore }, answers: rows }
 }
 
 async function readinessForProgramAttempt(attemptId: string): Promise<ReviewReadiness> {
