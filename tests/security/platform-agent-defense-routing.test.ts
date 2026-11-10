@@ -14,6 +14,7 @@ import { readFileSync } from 'node:fs'
 
 let classifierSuggestion = 'EXAMS'
 let routerPolicySource = ''
+let settingsReadFails = false
 let directGeminiCalls = 0
 let routedCalls = 0
 
