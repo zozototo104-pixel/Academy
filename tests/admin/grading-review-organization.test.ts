@@ -53,6 +53,29 @@ describe('التجميع حسب الطالب وحالات المصادقة', () 
   })
 })
 
+describe('حفظ علامات الأسئلة قبل المصادقة الرسمية', () => {
+  test('زر الحفظ موصول بتعديل الأسئلة ويحفظ المتغير فقط مع حماية الدرجة القديمة', () => {
+    expect(tab).toContain('onClick={saveGradedCorrections}')
+    expect(tab).toContain('disabled={busy !== null || !pendingScoreEdits.length}')
+    expect(tab).toContain("action: 'ADJUST_GRADED'")
+    expect(tab).toContain('expectedPoints')
+    expect(tab).toContain('expectedScore: selected.score')
+  })
+
+  test('المصادقة الرسمية تمنع التعديلات غير المحفوظة قبل طلب الحفظ الرسمي', () => {
+    const officialFlow = tab.slice(tab.indexOf('const approveOfficial = async'), tab.indexOf('const runBulk = async'))
+    expect(officialFlow).toContain('if (pendingScoreEdits.length)')
+    expect(officialFlow).toContain('احفظ التعديل أولًا')
+    expect(officialFlow.indexOf('if (pendingScoreEdits.length)')).toBeLessThan(officialFlow.indexOf('/api/admin/grade-approvals'))
+  })
+
+  test('حفظ نقاط المحاولة المصححة يمر بحارس الخادم ولا يتجاوز المصادقة', () => {
+    expect(listRoute).toContain("body?.action === 'ADJUST_GRADED'")
+    expect(listRoute).toContain('strictPoints: true')
+    expect(listRoute).toContain('requireGraded: true')
+  })
+})
+
 describe('منع التكرار والمصادقة الجماعية', () => {
   test('المصادقة المفردة تقصر عند نفس القيمة بلا إعادة كتابة ولا تدقيق مكرر', () => {
     expect(approvalLib).toContain('alreadyApproved: true')
