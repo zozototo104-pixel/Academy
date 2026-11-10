@@ -3867,9 +3867,7 @@ export async function textAiComplete(opts: TextAiCallOpts): Promise<string> {
           if (isNoBalanceLike(e)) {
             // HTTP 402 alone does not prove that the entire key is out of credit.
             // A model-specific payment/subscription restriction must not block its siblings.
-            const modelRestricted = status === 402 && /model.*(only with a subscription|requires? (a )?subscription|not available|not accessible)|subscription.*(model|to use it)|model.*(paid plan|payment required)/i.test(msg)
-            const keyBalanceExhausted = /(?:no|insufficient|exhausted|remaining|zero)\s+(?:account\s+)?(?:balance|credits?|funds)|(?:balance|credits?)\s+(?:is\s+)?(?:insufficient|exhausted|empty)|recharge|top.?up|billing.*(?:account|key)/i.test(msg)
-            if (modelRestricted || (status === 402 && !keyBalanceExhausted)) {
+            if (status === 402 && !isExplicitKeyBalanceExhaustion(msg)) {
               skipModelsThisRequest.add(`${provider}:${model}`)
               break
             }
