@@ -214,7 +214,7 @@ export function groundedForProbe(kind: ProbeKind, reply: string, context: ProbeS
     const engaged = n.includes(thesisTitle) || titleTokenCoverage(reply, context.thesisTitle) >= 0.5 || evidenceEngaged
     if (!engaged) return false
     const discussion = n.split(thesisTitle).join(' ')
-    return evidenceEngaged || variantHit(discussion, 'مؤشرات المخاطر الرئيسية') || variantHit(discussion, 'الحوكمة المؤسسية')
+    return evidenceEngaged || discussesRiskIndicators(discussion, context.thesisTitle) || variantHit(discussion, 'مؤشرات المخاطر الرئيسية') || variantHit(discussion, 'الحوكمة المؤسسية')
   }
   return false
 }
