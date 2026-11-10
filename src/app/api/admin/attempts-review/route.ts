@@ -154,7 +154,7 @@ async function unitDetail(id: string) {
       aiFeedback: a.aiFeedback,
     }
   })
-  return { type: 'UNIT', id: attempt.id, status: attempt.status, student: attempt.user, exam: { id: attempt.exam.id, title: attempt.exam.title, unitTitle: attempt.exam.unit.title, programTitle: attempt.exam.unit.program.titleAr, passScore: attempt.exam.passScore }, answers: rows }
+  return { type: 'UNIT', id: attempt.id, status: attempt.status, score: attempt.score, student: attempt.user, exam: { id: attempt.exam.id, title: attempt.exam.title, unitTitle: attempt.exam.unit.title, programTitle: attempt.exam.unit.program.titleAr, passScore: attempt.exam.passScore }, answers: rows }
 }
 
 async function programDetail(id: string) {
