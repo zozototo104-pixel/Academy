@@ -3064,8 +3064,15 @@ export async function reportGeminiLiveKeyFailure(keyIndex: number, error: unknow
     return
   }
   if (isQuotaLike(error)) {
-    markCooldown('GEMINI', key, msg, undefined, status)
-    await markPersistentCooldown('GEMINI', keyIndex, GEMINI_LIVE_ROUTER_MODEL, msg, status)
+    const scope = classifyRateLimitScope(model, msg, status)
+    const minutes = rateLimitCooldownMinutes(error, msg, model)
+    if (scope === 'model') {
+      markModelCooldown('GEMINI', key, model, msg, minutes, status)
+      await markPersistentCooldown('GEMINI', keyIndex, model, msg, status, minutes)
+    } else {
+      markCooldown('GEMINI', key, msg, minutes, status)
+      await markPersistentCooldown('GEMINI', keyIndex, undefined, msg, status, minutes)
+    }
     return
   }
   if (isAuthLike(error)) {
