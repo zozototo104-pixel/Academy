@@ -276,29 +276,38 @@ export async function PATCH(req: NextRequest) {
       include: { user: { select: { id: true, name: true, email: true } }, assignment: true },
     })
 
-    await notify(
-      submission.userId,
-      'ASSIGNMENT',
-      finalStatus === 'NEEDS_REVISION' ? 'واجب يحتاج تعديل' : 'تم تصحيح واجبك',
-      `واجب «${submission.assignment.title}»: ${safeScore == null ? 'تمت المراجعة' : `${safeScore}/${submission.assignment.points}`}${feedback ? ` — ${feedback.slice(0, 120)}` : ''}`,
-      'dashboard'
-    )
-    if (submission.user?.email && finalStatus !== 'SUBMITTED') {
-      await emailAssignmentGraded(
-        submission.user.email,
-        submission.user.name || 'الطالب',
-        submission.assignment.title,
-        finalStatus,
-        safeScore,
-        submission.assignment.points,
-        feedback || null
+    // The grade is already committed. Delivery/audit/eligibility side effects
+    // must not turn a successful save into a misleading HTTP 500.
+    try {
+      await notify(
+        submission.userId,
+        'ASSIGNMENT',
+        finalStatus === 'NEEDS_REVISION' ? 'واجب يحتاج تعديل' : 'تم تصحيح واجبك',
+        `واجب «${submission.assignment.title}»: ${safeScore == null ? 'تمت المراجعة' : `${safeScore}/${submission.assignment.points}`}${feedback ? ` — ${feedback.slice(0, 120)}` : ''}`,
+        'dashboard'
       )
+    } catch (error) { console.error('Admin assignment grade notification failed:', error) }
+    if (submission.user?.email && finalStatus !== 'SUBMITTED') {
+      try {
+        await emailAssignmentGraded(
+          submission.user.email,
+          submission.user.name || 'الطالب',
+          submission.assignment.title,
+          finalStatus,
+          safeScore,
+          submission.assignment.points,
+          feedback || null
+        )
+      } catch (error) { console.error('Admin assignment grade email failed:', error) }
     }
-    await audit(admin, 'GRADE_ASSIGNMENT', 'AssignmentSubmission', submission.id, `تصحيح واجب ${submission.assignment.title} للطالب ${existing.user.name}`)
+    try {
+      await audit(admin, 'GRADE_ASSIGNMENT', 'AssignmentSubmission', submission.id, `تصحيح واجب ${submission.assignment.title} للطالب ${existing.user.name}`)
+    } catch (error) { console.error('Admin assignment grade audit failed:', error) }
     if (finalStatus === 'GRADED') {
-      await registerGraduationRequest({ userId: submission.userId, programId: submission.assignment.programId })
-      await matureSemesterRaisesAfterGrading(db, { userId: submission.userId, programId: submission.assignment.programId })
-        .catch((error) => console.error('Admin assignment graduation request registration failed:', error))
+      try {
+        await registerGraduationRequest({ userId: submission.userId, programId: submission.assignment.programId })
+        await matureSemesterRaisesAfterGrading(db, { userId: submission.userId, programId: submission.assignment.programId })
+      } catch (error) { console.error('Admin assignment graduation request registration failed:', error) }
     }
 
     return NextResponse.json({ submission })
