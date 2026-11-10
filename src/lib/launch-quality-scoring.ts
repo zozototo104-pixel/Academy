@@ -112,6 +112,19 @@ function engagesRiskIndicatorThesis(reply: string, title: string): boolean {
     && /(?:منهجيه|قياس|تقييم)/u.test(n)
 }
 
+// A committee question contrasting KRI with KPI is a substantive discussion
+// of risk indicators only when it also connects risk, controls and the thesis.
+// Apply after title masking so quoting the thesis title alone cannot pass.
+function discussesRiskIndicators(reply: string, title: string): boolean {
+  const t = normalizeArabic(title)
+  if (!t.includes('موشرات المخاطر') || !t.includes('الحوكمه')) return false
+  const n = normalizeArabic(reply)
+  return /\bkri\b/i.test(n) && /\bkpi\b/i.test(n)
+    && /(?:ضابط|ضوابط|الضابط|الضوابط)/u.test(n)
+    && /(?:خطر|مخاطر|الخطر|المخاطر)/u.test(n)
+    && /(?:كيف تميز|ماذا يحدث|ما تاثير|لماذا)/u.test(n)
+}
+
 export interface ConceptScore {
   hits: string[]
   missed: string[]
