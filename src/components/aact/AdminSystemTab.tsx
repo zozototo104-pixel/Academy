@@ -889,15 +889,15 @@ export function AdminSystemTab() {
   }
 
   const F = (k: string, label: string, placeholder = '', type = 'text', hint = '') => (
-    <div key={k} className="space-y-1">
-      <Label className="text-[11px] font-black text-[#0f2b46]">{label}</Label>
+    <div key={k} className="min-w-0 space-y-1">
+      <Label className="block max-w-full break-words text-[11px] font-black text-[#0f2b46]">{label}</Label>
       <Input
         type={type}
         value={form[k] ?? ''}
         onChange={(e) => set(k, e.target.value)}
         placeholder={placeholder}
-        dir={type === 'password' || k.includes('KEY') || k.includes('SECRET') || k.includes('PASS') ? 'ltr' : undefined}
-        className="h-9 bg-white text-sm"
+        dir={type === 'password' || k.includes('KEY') || k.includes('SECRET') || k.includes('PASS') || k === 'AI_PROVIDER_TIERS' || k === 'AI_FAMILY_QUALITY_ORDER' || k === 'AI_FAMILY_COST_ORDER' ? 'ltr' : undefined}
+        className="h-9 min-w-0 w-full max-w-full bg-white text-sm"
       />
       {hint && <p className="text-[10px] leading-relaxed text-slate-400">{hint}</p>}
     </div>
