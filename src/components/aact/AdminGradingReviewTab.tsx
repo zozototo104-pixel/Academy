@@ -135,6 +135,34 @@ export default function AdminGradingReviewTab() {
     }
   }
 
+  // Correction is saved first, with old score and per-answer values as
+  // optimistic guards. Official certification is always a separate action.
+  const saveGradedCorrections = async () => {
+    if (!selected || selected.status !== 'GRADED' || !pendingScoreEdits.length) return
+    setBusy('save-grade')
+    try {
+      const changedScores = Object.fromEntries(pendingScoreEdits.map((a) => [a.answerId, scores[a.answerId]]))
+      const expectedPoints = Object.fromEntries(pendingScoreEdits.map((a) => [a.answerId, a.points]))
+      const res = await api<{ score: number }>('/api/admin/attempts-review', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          action: 'ADJUST_GRADED', type: selected.type, attemptId: selected.id,
+          scores: changedScores, expectedPoints, expectedScore: selected.score,
+        }),
+      })
+      toast({ title: 'حُفظ تعديل التصحيح', description: `النتيجة الجديدة ${res.score}% — يمكنك الآن مصادقتها رسميًا.` })
+      setSelected(null)
+      setScores({})
+      await load().catch(() => {
+        toast({ title: 'حُفظت الدرجة لكن تعذّر تحديث القائمة', description: 'أعد فتح المحاولة لتحديث العرض.', variant: 'destructive' })
+      })
+    } catch (error: any) {
+      toast({ title: 'تعذر حفظ تعديل الدرجة', description: String(error?.message || error), variant: 'destructive' })
+    } finally {
+      setBusy(null)
+    }
+  }
+
   // مصادقة الدرجة رسميًا (المرحلة 2): صلاحية الإدارة الأصلية الكاملة
   // بالتوازي مع المشرف — سجل اعتماد محفوظ مستقل عن اعتماد نتيجة المراجعة
   // أعلاه، والخادم يرفض أي درجة غير نهائية. ضغطة ثانية على درجة مصادقة
