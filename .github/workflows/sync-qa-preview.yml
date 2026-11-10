@@ -1,9 +1,8 @@
 name: Sync QA Preview Branch
 
+# QA branch sync is operator-only after the prelaunch verification.
+# Never recreate the QA preview branch automatically when main is released.
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:
