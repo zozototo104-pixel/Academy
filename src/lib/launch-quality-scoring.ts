@@ -195,10 +195,11 @@ export function groundedForProbe(kind: ProbeKind, reply: string, context: ProbeS
     return n.includes(thesisTitle) || (variantHit(reply, 'منهجية') && variantHit(reply, 'نتائج'))
   }
   if (kind === 'DEFENSE') {
-    const engaged = n.includes(thesisTitle) || titleTokenCoverage(reply, context.thesisTitle) >= 0.5
+    const evidenceEngaged = engagesRiskIndicatorThesis(reply, context.thesisTitle)
+    const engaged = n.includes(thesisTitle) || titleTokenCoverage(reply, context.thesisTitle) >= 0.5 || evidenceEngaged
     if (!engaged) return false
     const discussion = n.split(thesisTitle).join(' ')
-    return variantHit(discussion, 'مؤشرات المخاطر الرئيسية') || variantHit(discussion, 'الحوكمة المؤسسية')
+    return evidenceEngaged || variantHit(discussion, 'مؤشرات المخاطر الرئيسية') || variantHit(discussion, 'الحوكمة المؤسسية')
   }
   return false
 }
