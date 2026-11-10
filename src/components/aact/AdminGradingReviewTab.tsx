@@ -37,6 +37,8 @@ export default function AdminGradingReviewTab() {
   const [bulkBusy, setBulkBusy] = useState<string | null>(null)
   const [armBulk, setArmBulk] = useState<string | null>(null)
   const [bulkReport, setBulkReport] = useState<string | null>(null)
+  // Only modified answers are written. Unsaved edits must never be silently approved.
+  const pendingScoreEdits = selected ? selected.answers.filter((answer) => scores[answer.answerId] !== String(answer.points ?? '')) : []
 
   const load = useCallback(async () => {
     setLoading(true)
