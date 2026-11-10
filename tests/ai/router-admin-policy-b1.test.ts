@@ -73,6 +73,7 @@ describe('router admin policy B1', () => {
     expect(answer).toContain('Working model response')
     expect(attempted).toContain('free/glm-5.3-flashx')
     expect(attempted).toContain('free/deepseek-v4.1-flash')
+    expect(await store.scan('AI_NO_BALANCE:APINEX:')).toEqual({})
   })
 
   afterEach(() => {
