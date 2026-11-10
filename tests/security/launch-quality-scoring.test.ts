@@ -54,6 +54,19 @@ function evaluateDefense(reply: string, overrides: Partial<Parameters<typeof eva
 }
 
 describe('launch-quality concept scoring (owner ruling 2026-11-10)', () => {
+  test('QA #719 first defense answer with verbatim title and KPI/KRI reasoning passes', () => {
+    const reply = 'سؤالي لك: في بحثك «أثر مؤشرات المخاطر الرئيسية على فعالية الحوكمة المؤسسية»، كيف تميّز عملياً بين مؤشر أداء (KPI) ومؤشر خطر (KRI) عند تصميم ضابط رقابي، وماذا يحدث لفعالية الحوكمة إذا تمّ اعتماد KPI كأداة إنذار مبكر لمخاطر لم تُقيّم؟\n\nأهمية السؤال: لأن خلط المؤشرين قد يجعل الإدارة تظنّ أن الضابط يعمل بينما الخطر يتصاعد، وهذا يتعارض مع نتيجتك التي تربط المؤشر بمالك واضح لزيادة فعالية الضوابط. كما أن فهمك للخطر المتبقي مقابل المتأصل سيساعد في تحديد ما إذا كان التصعيد مبكراً أم متأخراً.'
+    const result = evaluateDefense(reply)
+    expect(result.grounded).toBe(true)
+    expect(result.keywordScore).toBe(67)
+    expect(result.hits).toContain('مؤشرات المخاطر الرئيسية')
+    expect(result.passed).toBe(true)
+  })
+
+  test('KPI/KRI abbreviations without actual risk-control discussion do not suffice', () => {
+    const reply = `بحثي عنوانه ${THESIS_TITLE}. KPI وKRI مصطلحان مهمان. أريد فقط أن أذكر عنوان بحثي وأن أطلب من اللجنة تأجيل المناقشة إلى الأسبوع المقبل، لأنني لم أستعد بعد لتقديم أي تفاصيل أو أمثلة عن موضوع البحث.`
+    expect(evaluateDefense(reply).passed).toBe(false)
+  })
   test('QA #718 first defense answer passes on concrete methodology, not verbatim thesis terms', () => {
     const result = evaluateDefense(DEFENSE_718_REPLY)
     expect(result.grounded).toBe(true)
