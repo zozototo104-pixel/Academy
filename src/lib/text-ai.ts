@@ -809,10 +809,19 @@ function isDeadModelLike(e: any): boolean {
   return status === 404 && /no longer available|does not exist|not found/i.test(msg)
 }
 
+function isModelSubscriptionRestriction(message: string, status: number): boolean {
+  return status === 402 && /model.*(only with a subscription|requires? (a )?subscription|not available|not accessible)|subscription.*(model|to use it)|model.*(paid plan|payment required)/i.test(message)
+}
+
+function isExplicitKeyBalanceExhaustion(message: string): boolean {
+  return /(?:no|insufficient|exhausted|zero)\s+(?:account\s+)?(?:balance|credits?|funds)|(?:balance|credits?)\s+(?:is\s+)?(?:insufficient|exhausted|empty)|no credits remaining|recharge|top.?up|billing.*(?:account|key)/i.test(message)
+}
+
 function isNoBalanceLike(e: any): boolean {
   const msg = String(e?.message || e || '').toLowerCase()
   const status = Number(e?.status || e?.code || 0)
-  return status === 402 || /balance|recharge|top.?up|top up|insufficient credits|payment required|no credits|credit balance/i.test(msg)
+  if (isModelSubscriptionRestriction(msg, status)) return false
+  return isExplicitKeyBalanceExhaustion(msg)
 }
 
 function isHighDemandLike(e: any): boolean {
