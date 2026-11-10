@@ -134,6 +134,8 @@ export function scoreConcepts(reply: string, groups: ConceptGroup[], thesisTitle
       hit = n.includes(normalizedTitle) || titleTokenCoverage(reply, thesisTitle) >= 0.5 || engagesRiskIndicatorThesis(reply, thesisTitle)
     } else {
       hit = group.variants.some((v) => discussion.includes(v))
+        || (normalizeArabic(group.canonical) === 'موشرات المخاطر الرييسيه'
+          && !!thesisTitle && engagesRiskIndicatorThesis(discussion, thesisTitle))
     }
     ;(hit ? hits : missed).push(group.canonical)
   }
