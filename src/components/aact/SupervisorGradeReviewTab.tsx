@@ -115,6 +115,17 @@ export function SupervisorGradeReviewTab({ focus }: { focus?: { type: 'PROGRAM' 
   // يُرفض من المسار نفسه وتظهر رسالته.
   const approveOfficialGrade = async () => {
     if (!detail) return
+    // Do not certify a previously stored score while edited answer marks
+    // are still sitting only in the supervisor's browser.
+    const unsaved = Object.entries(edits).some(([answerId, value]) => {
+      if (value.trim() === '') return false
+      const answer = detail.answers.find((item: any) => item.answerId === answerId)
+      return answer && Number(value) !== answer.points
+    })
+    if (unsaved) {
+      toast({ title: 'هناك درجات معدّلة لم تُحفظ', description: 'اعتمد التعديلات وتحديث النتيجة أولًا، ثم افتح المحاولة للمصادقة الرسمية.', variant: 'destructive' })
+      return
+    }
     setSaving(true)
     try {
       await api('/api/supervisor/grade-approvals', {
