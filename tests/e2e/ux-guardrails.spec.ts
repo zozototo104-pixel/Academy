@@ -127,7 +127,11 @@ test.describe('AACT UX guardrails suite', () => {
     // student navigation entry for payments (shown unconditionally in the nav).
     await page.getByRole('button', { name: 'المدفوعات والرسوم', exact: true }).click()
     await expect(page.getByText(/قواعد فتح الاختبارات حسب السداد/)).toBeVisible()
-    await expect(page.getByText(/يفتح امتحان الفصل الأول بعد سداد نصف الرسوم/)).toBeVisible()
+    // The payments tab explains BOTH tuition gates in the product's current
+    // wording: coverage counts payment OR waiver, so the rule says "استيفاء"
+    // (fulfilment), never the older payment-only phrasing.
+    await expect(page.getByText(/يفتح امتحان الفصل الأول بعد استيفاء نصف الرسوم الدراسية على الأقل دفعاً أو إعفاءً/)).toBeVisible()
+    await expect(page.getByText(/يفتح امتحان الفصل الثاني بعد استيفاء كامل الرسوم/)).toBeVisible()
     await expect(page.getByText(/فاتورة غير مسددة|فواتير غير مسددة/)).toHaveCount(0)
     checks.push({ name: 'تبويب الدفعات يشرح بوابات الرسوم ولا يعرض فواتير متقادمة', ok: true })
 
