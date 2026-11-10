@@ -248,8 +248,16 @@ export async function applyScoreAdjustments(
     return { score, passed, userId: attempt.userId, examTitle: attempt.exam.title, programId: attempt.exam.programId as string | undefined }
   }, { timeout: 120000, maxWait: 10000 })
 
-  await completeIfEligible(result.userId, result.programId).catch(() => null)
-  await notify(result.userId, 'GENERAL', 'تمت مراجعة نتيجتك من مشرفك', `راجع ${actor.name} تصحيح «${result.examTitle}» وحدّث نتيجتك — نتيجتك الحالية: ${result.score}%.`, '/?view=dashboard')
+  // Once the transaction committed a corrected grade, ancillary services
+  // must not respond with a 500 that incorrectly implies the grade was lost.
+  await completeIfEligible(result.userId, result.programId).catch((error) => {
+    console.error('Grade correction eligibility refresh failed after save:', error)
+  })
+  try {
+    await notify(result.userId, 'GENERAL', 'تمت مراجعة نتيجتك من مشرفك', `راجع ${actor.name} تصحيح «${result.examTitle}» وحدّث نتيجتك — نتيجتك الحالية: ${result.score}%.`, '/?view=dashboard')
+  } catch (error) {
+    console.error('Grade correction notification failed after save:', error)
+  }
   return { score: result.score, passed: result.passed }
 }
 
