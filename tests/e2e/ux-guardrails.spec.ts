@@ -119,7 +119,7 @@ test.describe('AACT UX guardrails suite', () => {
     await expect(page.getByText(/ملفك الأكاديمي/).first()).toBeVisible()
     await page.getByRole('button', { name: /المحتوى والواجبات/ }).click()
     await expect(page.getByRole('tab', { name: /أدلة الدراسة/ })).toBeVisible()
-    await page.getByRole('button', { name: /جدول الدراسة/ }).click()
+    await page.getByRole('button', { name: 'جدول الدراسة', exact: true }).click()
     await expect(page.getByText(/جدول الدراسة للفصول والمواد المطلوبة/)).toBeVisible()
     checks.push({ name: 'بوابة الطالب تبدأ ببرامجي وتستخدم أقسام داخلية بدل تحميل كل البطاقات دفعة واحدة', ok: true })
 
