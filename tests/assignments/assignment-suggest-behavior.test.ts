@@ -112,6 +112,8 @@ mock.module('@/lib/mailer', () => ({
   emailAssignmentPublished: async () => {},
 }))
 mock.module('@/lib/storage', () => ({ getStorageDownloadPathForKey: (k: string) => k }))
+mock.module('@/lib/enrollment-completion', () => ({ registerGraduationRequest: async () => null }))
+mock.module('@/lib/semester-raise-hooks', () => ({ matureSemesterRaisesAfterGrading: async () => null }))
 mock.module('@prisma/client', () => ({ Prisma: {} }))
 mock.module('@/lib/knowledge-bank', () => ({
   cleanAcademicGeneratedText: (s: unknown) => String(s || '').trim(),
