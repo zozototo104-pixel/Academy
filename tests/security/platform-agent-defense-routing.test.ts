@@ -109,6 +109,21 @@ function completeWith(question: string, suggestion: string) {
 }
 
 describe('platform agent defense-intent precedence', () => {
+  test('settings read outage does not crash completion or streaming', async () => {
+    settingsReadFails = true
+    try {
+      const complete = await completeWith(DEFENSE_QUESTION, 'EXAMS')
+      expect(complete.agent).toBe('THESIS_DEFENSE')
+      const streamed = await platformAgentStream(
+        { messages: [{ role: 'user', content: DEFENSE_QUESTION }], mode: 'TEXT', userId: 'student-1' },
+        async () => {},
+      )
+      expect(streamed.agent).toBe('THESIS_DEFENSE')
+    } finally {
+      settingsReadFails = false
+    }
+  })
+
   test('admin router policy bypasses direct Gemini for academic defense and preserves its agent', async () => {
     routerPolicySource = 'admin'
     directGeminiCalls = 0
