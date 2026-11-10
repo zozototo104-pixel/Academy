@@ -64,6 +64,7 @@ describe('router admin policy B1', () => {
     }) as any
     const answer = await textAiComplete({
       system: 'Answer the user', history: [{ role: 'user', text: 'Hello' }],
+      preferredModels: [{ provider: 'APINEX', model: 'free/glm-5.3-flashx' }],
       restrictToModels: [
         { provider: 'APINEX', model: 'free/glm-5.3-flashx' },
         { provider: 'APINEX', model: 'free/deepseek-v4.1-flash' },
