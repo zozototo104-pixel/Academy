@@ -30,7 +30,7 @@ export default function AdminGradingReviewTab() {
   const [selected, setSelected] = useState<ReviewDetail | null>(null)
   const [scores, setScores] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
-  const [busy, setBusy] = useState<'regrade' | 'approve' | 'approve-grade' | null>(null)
+  const [busy, setBusy] = useState<'regrade' | 'approve' | 'approve-grade' | 'save-grade' | null>(null)
   const [statusFilter, setStatusFilter] = useState<'NEEDS_REVIEW' | 'GRADED' | 'ALL'>('NEEDS_REVIEW')
   // null = لم يلمس الإداري التجميع بعد → أول طالب مفتوح افتراضيًا.
   const [expanded, setExpanded] = useState<Set<string> | null>(null)
