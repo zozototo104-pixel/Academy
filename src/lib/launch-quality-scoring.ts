@@ -150,7 +150,7 @@ export function scoreConcepts(reply: string, groups: ConceptGroup[], thesisTitle
     } else {
       hit = group.variants.some((v) => discussion.includes(v))
         || (normalizeArabic(group.canonical) === 'موشرات المخاطر الرييسيه'
-          && !!thesisTitle && engagesRiskIndicatorThesis(discussion, thesisTitle))
+          && !!thesisTitle && (engagesRiskIndicatorThesis(discussion, thesisTitle) || discussesRiskIndicators(discussion, thesisTitle)))
     }
     ;(hit ? hits : missed).push(group.canonical)
   }
