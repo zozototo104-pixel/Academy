@@ -260,7 +260,9 @@ export async function PATCH(req: NextRequest) {
       include: { assignment: { include: { program: { select: { titleAr: true } } } }, user: { select: { id: true, name: true } } },
     })
     if (!existing) return NextResponse.json({ error: 'التسليم غير موجود' }, { status: 404 })
-    const safeScore = score == null ? null : Math.min(score, existing.assignment.points)
+    if (finalStatus === 'GRADED' && score == null) return NextResponse.json({ error: 'يجب إدخال درجة الواجب قبل اعتماد تصحيحه' }, { status: 400 })
+    if (score != null && score > existing.assignment.points) return NextResponse.json({ error: `درجة الواجب يجب ألا تتجاوز ${existing.assignment.points}` }, { status: 400 })
+    const safeScore = score
 
     const submission = await db.assignmentSubmission.update({
       where: { id: submissionId },
