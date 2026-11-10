@@ -212,6 +212,7 @@ describe('منع تكرار الإجابات وعدم احتساب الأسئل�
 let auditAnswers: Array<Record<string, any>> = []
 let auditQuestions: Array<Record<string, any>> = []
 let auditFinalGrade: Record<string, any> | null = null
+let auditAttemptStatus: 'NEEDS_REVIEW' | 'GRADED' = 'NEEDS_REVIEW'
 const auditExam = (type: 'UNIT' | 'PROGRAM', include?: any) => ({
   id: type + '-exam',
   title: 'اختبار تجريبي',
