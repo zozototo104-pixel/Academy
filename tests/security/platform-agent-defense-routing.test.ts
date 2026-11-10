@@ -13,6 +13,9 @@ import { readFileSync } from 'node:fs'
 // the #711 condition.
 
 let classifierSuggestion = 'EXAMS'
+let routerPolicySource = ''
+let directGeminiCalls = 0
+let routedCalls = 0
 
 const studentRow = { id: 'student-1', name: 'طالب فحص', role: 'STUDENT', createdAt: new Date('2026-01-01T00:00:00Z') }
 const anyDelegate: any = new Proxy({}, { get: () => async () => null })
