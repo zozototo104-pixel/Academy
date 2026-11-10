@@ -145,14 +145,37 @@ test.describe('AACT launch quality suite', () => {
     const probeKinds = ['PROFILE', 'CURRICULUM', 'THESIS', 'DEFENSE'] as const
     const probePayloads: any[] = []
     for (const probeKind of probeKinds) {
-      const probeRes = await page.request.post('/api/admin/launch-quality', {
-        headers: { Authorization: `Bearer ${token}` },
-        data: { runAi: true, runVoiceToken: false, includeVoice: false, probeKind },
-        timeout: 80_000,
-      })
-      const probeBody = await probeRes.json().catch(() => ({}))
-      expect(probeRes.ok(), `Launch quality AI probe ${probeKind} failed with ${probeRes.status()}: ${JSON.stringify(probeBody).slice(0, 1200)}`).toBeTruthy()
-      probePayloads.push(probeBody)
+      // استقلال المجسات (قرار 2026-11-10): فشل نقل أو حالة HTTP غير ناجحة
+      // لمجس واحد يُسجَّل كمسبار فاشل في التجميع ولا يوقف الحلقة، فتُقاس
+      // المجسات الباقية دائماً. الحكم النهائي لا يضعف: التجميع يشترط نجاح
+      // كل مجس ونسبة >= 75، وأي سجل فشل هنا يُسقطهما معاً.
+      try {
+        const probeRes = await page.request.post('/api/admin/launch-quality', {
+          headers: { Authorization: `Bearer ${token}` },
+          data: { runAi: true, runVoiceToken: false, includeVoice: false, probeKind },
+          timeout: 80_000,
+        })
+        const probeBody = await probeRes.json().catch(() => ({}))
+        if (!probeRes.ok()) {
+          throw new Error(`HTTP ${probeRes.status()}: ${JSON.stringify(probeBody).slice(0, 800)}`)
+        }
+        probePayloads.push(probeBody)
+      } catch (probeError: any) {
+        console.log(`[launch-quality] probe ${probeKind} transport failure recorded, continuing: ${String(probeError?.message || probeError).slice(0, 300)}`)
+        probePayloads.push({
+          probes: [{
+            kind: probeKind,
+            agent: 'ERROR',
+            expectedAgent: null,
+            genericFallback: false,
+            grounded: false,
+            keywordScore: 0,
+            passed: false,
+            skipped: false,
+            error: `PROBE_TRANSPORT_FAILURE: ${String(probeError?.message || probeError).slice(0, 500)}`,
+          }],
+        })
+      }
     }
 
     const probes = probePayloads.flatMap((p) => Array.isArray(p.probes) ? p.probes : [])
