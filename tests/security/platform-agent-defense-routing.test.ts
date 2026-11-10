@@ -61,7 +61,10 @@ mock.module('@/lib/text-ai', () => ({
   textAiModelHealthSnapshot: () => ({}),
 }))
 mock.module('@/lib/settings', () => ({
-  getSettings: async () => ({ AI_ROUTER_POLICY_SOURCE: routerPolicySource }),
+  getSettings: async () => {
+    if (settingsReadFails) throw new Error('SETTING_STORE_UNAVAILABLE')
+    return { AI_ROUTER_POLICY_SOURCE: routerPolicySource }
+  },
   getOfficialContact: async () => ({}),
 }))
 mock.module('@/lib/supervisor-ai', () => ({
