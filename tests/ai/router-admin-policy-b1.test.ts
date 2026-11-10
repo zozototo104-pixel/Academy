@@ -110,7 +110,8 @@ describe('router admin policy B1', () => {
       AI_ROUTER_POLICY_SOURCE: 'admin',
       AI_ROUTER_POLICY: 'fallback_only',
       APINEX_API_KEY: sealedApinexTestKey,
-      APINEX_TEXT_MODEL: 'free/glm-5.3-flashx,free/deepseek-v4.1-flash,free/minimax-m3.1-flash',
+      // The selected model is a single ID; restrictToModels below controls the candidate set.
+      APINEX_TEXT_MODEL: 'free/glm-5.3-flashx',
     })
     __setTextAiSettingStoreForTests(store)
     const attempted: string[] = []
