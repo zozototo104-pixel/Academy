@@ -30,7 +30,10 @@ const db: any = new Proxy(
 mock.module('@/lib/db', () => ({ db }))
 mock.module('@/lib/ai', () => ({
   OFFICIAL_INFO_UNAVAILABLE_REPLY: 'غير متاح رسميًا',
-  chatComplete: async () => 'رد احتياطي طويل بما يكفي ليكون ردًا حقيقيًا من النموذج الاحتياطي في هذا المسار.',
+  chatComplete: async () => {
+    routedCalls++
+    return 'رد احتياطي طويل بما يكفي ليكون ردًا حقيقيًا من النموذج الاحتياطي في هذا المسار.'
+  },
 }))
 mock.module('@/lib/gemini', () => ({
   ensureGeminiKey: async () => true,
