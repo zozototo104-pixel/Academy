@@ -226,7 +226,39 @@ const retryDb: any = {
       changedChunks += count
       return { count }
     },
+    deleteMany: async () => {
+      const count = retryChunks.length
+      retryChunks = []
+      rebuildDeletionCount += count
+      return { count }
+    },
   },
+  bookKnowledgeItem: {
+    findMany: async () => rebuildKnowledgeIds.map((id) => ({ id })),
+    count: async () => 0,
+    deleteMany: async () => {
+      const count = rebuildKnowledgeIds.length
+      rebuildKnowledgeIds = []
+      rebuildDeletionCount += count
+      return { count }
+    },
+  },
+  bookOutline: {
+    count: async () => approvedRebuildOutlines,
+    deleteMany: async () => {
+      const count = draftRebuildOutlines
+      draftRebuildOutlines = 0
+      rebuildDeletionCount += count
+      return { count }
+    },
+  },
+  unit: { count: async () => linkedAcademicUnits },
+  questionBankItem: { count: async () => linkedExamEvidence },
+  question: { count: async () => 0 },
+  programQuestion: { count: async () => 0 },
+  programAssignment: { findMany: async () => linkedAssignments.map((sourceKnowledgeIds) => ({ sourceKnowledgeIds })) },
+  programStudyGuide: { findMany: async () => linkedGuides.map((sourceKnowledgeIds) => ({ sourceKnowledgeIds })) },
+  $queryRaw: async () => [{ id: 'book-1' }],
   $transaction: async (callback: (tx: any) => Promise<unknown>) => callback(retryDb),
 }
 mock.module('@/lib/db', () => ({ db: retryDb }))
