@@ -350,7 +350,7 @@ export async function runAnalyzeStep(jobId: string, deadlineMs: number) {
           AND ("kbVersion" = 1 OR "kbVersion" IS NULL)
           AND "category" <> 'LEGACY'
       `
-      await db.bookReadJob.update({ where: { id }, data: { phase: 'DONE', status: 'COMPLETED', finishedAt: new Date(), lockedUntil: null, retryAt: null } })
+      await db.bookReadJob.updateMany({ where: { id, status: 'RUNNING' }, data: { phase: 'DONE', status: 'COMPLETED', finishedAt: new Date(), lockedUntil: null, retryAt: null } })
     },
   }
   return analyzeStepWithStore(jobId, deadlineMs, store)
