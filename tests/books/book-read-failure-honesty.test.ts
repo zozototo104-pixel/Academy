@@ -189,6 +189,8 @@ const retryDb: any = {
     },
   },
   bookChunk: {
+    count: async ({ where }: any) =>
+      retryChunks.filter((chunk) => !where?.status || chunk.status === where.status).length,
     updateMany: async ({ where, data }: any) => {
       let count = 0
       for (const chunk of retryChunks) {
