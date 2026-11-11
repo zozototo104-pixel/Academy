@@ -49,14 +49,20 @@ export async function GET(request: NextRequest) {
       } else if (job.phase === 'ENRICH') {
         await runEnrichStep(job.id, deadline)
       }
-      const current = await db.bookReadJob.findUnique({ where: { id: job.id }, select: { status: true } })
-      // An admin may have stopped the task while this worker was processing.
-      // Only the lock owner's RUNNING state may be released into the queue.
-      if (current?.status === 'RUNNING') await db.bookReadJob.updateMany({
-        where: { id: job.id, status: 'RUNNING' },
+      const current = await db.bookReadJob.findUnique({ where: { id: job.id }, select: { status: true, retryAt: true } })
+      const manuallyStopped = current?.status === 'PAUSED' && current.retryAt?.getUTCFullYear() === 9999
+      // Preserve the original cron rescheduling for every legacy status.
+      // The only exception is a manual stop for this specific book. CAS on
+      // status (and retryAt for PAUSED) protects a concurrent STOP request.
+      if (current && current.status !== 'COMPLETED' && !manuallyStopped) await db.bookReadJob.updateMany({
+        where: {
+          id: job.id,
+          status: current.status,
+          ...(current.status === 'PAUSED' ? { retryAt: { lt: new Date('9999-01-01T00:00:00.000Z') } } : {}),
+        },
         data: { status: 'QUEUED', lockedUntil: null, retryAt: null },
       })
-      outcomes.push({ jobId: job.id, outcome: current?.status === 'COMPLETED' ? 'COMPLETED' : current?.status === 'PAUSED' ? 'PAUSED' : 'PROGRESSED' })
+      outcomes.push({ jobId: job.id, outcome: current?.status === 'COMPLETED' ? 'COMPLETED' : manuallyStopped ? 'PAUSED_BY_ADMIN' : 'PROGRESSED' })
     } catch (error: any) {
       const message = String(error?.message || error)
       const providerUnavailable = message.includes('AI_ACADEMIC_PROVIDER_UNAVAILABLE')
