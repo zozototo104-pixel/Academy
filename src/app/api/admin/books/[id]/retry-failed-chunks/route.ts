@@ -30,18 +30,25 @@ export async function POST(_request: NextRequest, context: Context) {
         if (latest?.status === 'FAILED' && latest.phase === 'EXTRACT') {
           return { blockedByExtraction: true, jobId: latest.id, chunksReset: 0 }
         }
-        const chunks = await tx.bookChunk.updateMany({ where: { bookId: id, status: 'FAILED' }, data: { status: 'PENDING', attempts: 0, lastError: null } })
-        if (latest?.status === 'FAILED' && latest.phase === 'ANALYZE') {
-          // Keep the same job, its completed page/chunk counters and saved
-          // knowledge; only failed chunks go back to PENDING for another try.
-          const changed = await tx.bookReadJob.updateMany({
-            where: { id: latest.id, status: 'FAILED' },
-            data: { status: 'QUEUED', chunksFailed: 0, retryAt: null, lockedUntil: null, finishedAt: null },
-          })
-          if (changed.count) return { chunksReset: chunks.count, jobId: latest.id, resumed: true }
+        // Only a failed ANALYZE job owns this operation. Do not create a
+        // different-phase job on completed or failed-enrichment records.
+        if (latest?.status !== 'FAILED' || latest.phase !== 'ANALYZE') {
+          return { wrongPhase: true, jobId: latest?.id ?? null, phase: latest?.phase ?? null }
         }
-        const job = await tx.bookReadJob.create({ data: { bookId: id, programId: book.programId, phase: 'ANALYZE', status: 'QUEUED' } })
-        return { chunksReset: chunks.count, jobId: job.id, resumed: false }
+        const failedCount = await tx.bookChunk.count({ where: { bookId: id, status: 'FAILED' } })
+        if (!failedCount) return { noFailedChunks: true, jobId: latest.id }
+        // Claim the failed job before changing any chunks; both writes commit
+        // together, so a competing admin cannot reset chunks of another job.
+        const changed = await tx.bookReadJob.updateMany({
+          where: { id: latest.id, status: 'FAILED' },
+          data: { status: 'QUEUED', chunksFailed: 0, retryAt: null, lockedUntil: null, finishedAt: null },
+        })
+        if (!changed.count) return { conflict: true, jobId: latest.id }
+        const chunks = await tx.bookChunk.updateMany({
+          where: { bookId: id, status: 'FAILED' },
+          data: { status: 'PENDING', attempts: 0, lastError: null },
+        })
+        return { chunksReset: chunks.count, jobId: latest.id, resumed: true }
       })
       if ('blockedByExtraction' in result && result.blockedByExtraction) {
         return NextResponse.json({
