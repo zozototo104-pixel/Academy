@@ -256,6 +256,11 @@ export async function analyzeStepWithStore(
   let analyzed = 0, failed = 0
   const attempted = new Set<string>()
   while (Date.now() < deadlineMs - 1500) {
+    // A manual stop can arrive while the AI provider is answering. Persist
+    // the completed chunk, but never begin another after the admin pauses.
+    if ((await store.getJob(jobId))?.status === 'PAUSED') {
+      return { analyzed, failed, completed: false, paused: true }
+    }
     const chunk = await store.nextChunk(job.bookId, [...attempted])
     if (!chunk) {
       if (attempted.size > analyzed + failed) return { analyzed, failed, completed: false, paused: false }
