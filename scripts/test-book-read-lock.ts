@@ -157,5 +157,5 @@ function testFailureClassification() {
 }
 
 Promise.all([testConcurrentStepLock(), testActiveJobUniqueness(), testPauseRetry(), testBookScopedStopAndResume()])
-  .then(() => { testFailureClassification(); console.log('book read lock and retry tests passed') })
+  .then(() => { testResumeFromSavedPhase(); testFailureClassification(); console.log('book read lock and retry tests passed') })
   .catch((error) => { console.error(error); process.exitCode = 1 })
