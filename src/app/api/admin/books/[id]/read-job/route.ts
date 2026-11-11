@@ -65,6 +65,126 @@ export async function POST(request: NextRequest, context: Context) {
     const book = await db.book.findUnique({ where: { id }, select: { id: true, programId: true } })
     if (!book) return NextResponse.json({ error: 'BOOK_NOT_FOUND' }, { status: 404 })
 
+    if (body?.action === 'REBUILD') {
+      // This is a deliberate destructive reset of GENERATED material only,
+      // separate from resumable reading. The book/file and legacy knowledge
+      // remain intact; linked academic evidence must never be orphaned.
+      const source = await db.book.findUnique({ where: { id }, select: {
+        id: true, programId: true, title: true, storageProvider: true,
+        storageKey: true, fileUrl: true, data: true, mimeType: true,
+      } })
+      if (!source) return NextResponse.json({ error: 'BOOK_NOT_FOUND' }, { status: 404 })
+      if (body?.confirmation !== 'REBUILD_FROM_ZERO' || body?.confirmBookTitle !== source.title) {
+        return NextResponse.json({ error: 'BOOK_REBUILD_CONFIRMATION_REQUIRED', message: 'يجب تأكيد اسم الكتاب وإعادة البناء من الصفر صراحةً.' }, { status: 400 })
+      }
+      // Verify the actual PDF is still readable BEFORE changing stored work.
+      let readablePdf = false
+      try {
+        const stored = await getFileBufferFromStorageOrBase64({
+          provider: source.storageProvider, key: source.storageKey,
+          url: source.fileUrl, data: source.data, mimeType: source.mimeType,
+        })
+        if (stored?.buffer?.length && stored.buffer.subarray(0, 5).toString() === '%PDF-') {
+          const pdf = await PDFDocument.load(stored.buffer)
+          readablePdf = pdf.getPageCount() > 0
+        }
+      } catch (error) {
+        console.warn('Book rebuild PDF source preflight failed:', error)
+      }
+      if (!readablePdf) return NextResponse.json({
+        error: 'BOOK_REBUILD_SOURCE_UNREADABLE',
+        message: 'الملف الأصلي غير متاح أو ليس PDF مقروءًا. لن تُمس البيانات السابقة.',
+      }, { status: 422 })
+
+      const outcome = await db.$transaction(async (tx) => {
+        // Serialize two rebuild requests for this book. Other books and the
+        // global cron are not locked, cancelled, or modified.
+        await tx.$queryRaw`SELECT "id" FROM "Book" WHERE "id" = ${id} FOR UPDATE`
+        const currentSource = await tx.book.findUnique({ where: { id }, select: {
+          storageProvider: true, storageKey: true, fileUrl: true, data: true, title: true,
+        } })
+        if (!currentSource || currentSource.title !== source.title ||
+          currentSource.storageProvider !== source.storageProvider ||
+          currentSource.storageKey !== source.storageKey ||
+          currentSource.fileUrl !== source.fileUrl || currentSource.data !== source.data) {
+          return { error: 'BOOK_REBUILD_SOURCE_CHANGED' as const }
+        }
+        const active = await tx.bookReadJob.findFirst({
+          where: { bookId: id, status: { in: ['QUEUED', 'RUNNING', 'PAUSED'] } },
+          orderBy: { createdAt: 'desc' },
+        })
+        // Manual STOP may be rebuilt only AFTER the last worker has released
+        // its lease. Automatic pauses and running/queued work must be left alone.
+        const stoppedAndReleased = active?.status === 'PAUSED' &&
+          active.retryAt?.getUTCFullYear() === 9999 && !active.lockedUntil
+        if (active && !stoppedAndReleased) return { error: 'BOOK_REBUILD_JOB_ACTIVE' as const }
+
+        const known = await tx.bookKnowledgeItem.findMany({
+          where: { bookId: id, kbVersion: 2 }, select: { id: true },
+        })
+        const ids = known.map((item) => item.id)
+        const [
+          linkedUnits, approvedOutlines, linkedQuestions, linkedExamQuestions,
+          linkedProgramQuestions, legacyChunkKnowledge, assignments, guides,
+        ] = await Promise.all([
+          tx.unit.count({ where: { sourceBookId: id } }),
+          tx.bookOutline.count({ where: { bookId: id, status: 'APPROVED' } }),
+          tx.questionBankItem.count({ where: { OR: [
+            { bookId: id }, ...(ids.length ? [{ knowledgeItemId: { in: ids } }] : []),
+          ] } }),
+          ids.length ? tx.question.count({ where: { knowledgeItemId: { in: ids } } }) : Promise.resolve(0),
+          ids.length ? tx.programQuestion.count({ where: { knowledgeItemId: { in: ids } } }) : Promise.resolve(0),
+          tx.bookKnowledgeItem.count({ where: { bookId: id, kbVersion: { not: 2 }, chunkId: { not: null } } }),
+          ids.length ? tx.programAssignment.findMany({ where: { programId: source.programId }, select: { sourceKnowledgeIds: true } }) : Promise.resolve([]),
+          ids.length ? tx.programStudyGuide.findMany({ where: { programId: source.programId }, select: { sourceKnowledgeIds: true } }) : Promise.resolve([]),
+        ])
+        const linkedAssignments = assignments.filter((a) => usesAnyKnowledgeId(a.sourceKnowledgeIds, ids)).length
+        const linkedGuides = guides.filter((g) => usesAnyKnowledgeId(g.sourceKnowledgeIds, ids)).length
+        const blockers = {
+          linkedUnits, approvedOutlines, linkedQuestions, linkedExamQuestions,
+          linkedProgramQuestions, linkedAssignments, linkedGuides, legacyChunkKnowledge,
+        }
+        if (Object.values(blockers).some((count) => count > 0)) {
+          return { error: 'BOOK_REBUILD_ACADEMIC_REFERENCES' as const, blockers }
+        }
+
+        // Reset only generated artifacts, atomically. Do not delete the book,
+        // its file, uploads, historical read jobs or non-v2 knowledge records.
+        const outlines = await tx.bookOutline.deleteMany({ where: { bookId: id, status: 'DRAFT' } })
+        const knowledge = await tx.bookKnowledgeItem.deleteMany({ where: { bookId: id, kbVersion: 2 } })
+        const chunks = await tx.bookChunk.deleteMany({ where: { bookId: id } })
+        if (active && stoppedAndReleased) {
+          await tx.bookReadJob.updateMany({
+            where: { id: active.id, status: 'PAUSED', lockedUntil: null },
+            data: { status: 'FAILED', finishedAt: new Date() },
+          })
+        }
+        const job = await tx.bookReadJob.create({
+          data: { bookId: id, programId: source.programId, phase: 'EXTRACT', status: 'QUEUED' },
+        })
+        return { job, removed: { outlines: outlines.count, knowledge: knowledge.count, chunks: chunks.count } }
+      })
+      if ('error' in outcome) {
+        const errors = {
+          BOOK_REBUILD_JOB_ACTIVE: 'هناك مهمة قراءة/تحليل تعمل أو لم تُحرر قفلها. أوقف هذا الكتاب أولًا وانتظر اكتمال الخطوة الجارية.',
+          BOOK_REBUILD_ACADEMIC_REFERENCES: 'لا يمكن إعادة البناء من الصفر لأن معلومات هذا الكتاب مرتبطة بوحدات أو أسئلة أو واجبات أو أدلة أو فهرس معتمد. لم تتغير أي بيانات.',
+          BOOK_REBUILD_SOURCE_CHANGED: 'تغيّر ملف الكتاب أثناء التأكيد. حدّث الصفحة وأعد التحقق.',
+        }
+        return NextResponse.json({
+          error: outcome.error,
+          message: errors[outcome.error],
+          ...('blockers' in outcome ? { blockers: outcome.blockers } : {}),
+        }, { status: 409 })
+      }
+      // Audit must not turn a successful committed rebuild into a false 500.
+      try {
+        const admin = await authorize()
+        await audit({ id: admin.id, name: admin.name }, 'REBUILD_BOOK', 'Book', id,
+          `إعادة بناء من PDF أصلي مع تأكيد إداري: ${source.title} (مقاطع ${outcome.removed.chunks}، معرفة ${outcome.removed.knowledge}، مسودات ${outcome.removed.outlines})`)
+      } catch (error) { console.error('Book rebuild audit failed:', error) }
+      return NextResponse.json({ ok: true, rebuilt: true, job: outcome.job, removed: outcome.removed })
+    }
+
     // A manual stop is PAUSED with an out-of-range retry time: the cron,
     // read-step lock, and browser driver must never resume it automatically.
     // Keep the existing lock until its owner finishes, avoiding concurrent
