@@ -169,7 +169,7 @@ mock.module('@/lib/auth', () => ({ getCurrentUser: async () => null }))
 
 const {
   joinScholarshipWaitlist, leaveScholarshipWaitlist, notifyWaitlistForFreeSeats,
-  releaseStaleGrantOperations, countOccupiedSeats, WaitlistError,
+  releaseStaleGrantOperations, countOccupiedSeats, hasLiveWaiverOnAdmission, WaitlistError,
 } = await import('../../src/lib/scholarship-waitlist')
 const { GET: availabilityGET } = await import('../../src/app/api/payments/scholarship-availability/route')
 const { NextRequest } = await import('next/server')
