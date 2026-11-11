@@ -17,10 +17,25 @@ export async function GET(_request: NextRequest, context: Context) {
     const book = await db.book.findUnique({ where: { id }, select: { id: true } })
     if (!book) return NextResponse.json({ error: 'BOOK_NOT_FOUND' }, { status: 404 })
     const job = await db.bookReadJob.findFirst({ where: { bookId: id }, orderBy: { createdAt: 'desc' } })
+    // Retried/enrichment jobs start with zero local counters. Report persisted
+    // book totals separately so the UI never mistakes a retry for lost work.
+    const [storedChunks, analyzedChunks, failedChunks, saturatedChunks, knowledgeTotal, previousRead] = await Promise.all([
+      db.bookChunk.count({ where: { bookId: id } }),
+      db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED' } }),
+      db.bookChunk.count({ where: { bookId: id, status: 'FAILED' } }),
+      db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED', OR: [{ saturatedAt: { not: null } }, { analysisPasses: { gte: 3 } }] } }),
+      db.bookKnowledgeItem.count({ where: { bookId: id, kbVersion: 2 } }),
+      db.bookReadJob.findFirst({ where: { bookId: id, totalPages: { gt: 0 } }, orderBy: { createdAt: 'desc' }, select: { totalPages: true, pagesDone: true } }),
+    ])
     const enrichment = {
-      totalChunks: await db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED' } }),
-      saturatedChunks: await db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED', OR: [{ saturatedAt: { not: null } }, { analysisPasses: { gte: 3 } }] } }),
-      addedItems: job?.phase === 'ENRICH' || (job?.phase === 'DONE' && job.totalChunks === 0)
+      totalChunks: analyzedChunks,
+      storedChunks,
+      failedChunks,
+      knowledgeTotal,
+      sourcePages: previousRead?.totalPages || 0,
+      pagesSaved: previousRead?.pagesDone || 0,
+      saturatedChunks,
+      addedItems: job && (job.phase === 'ENRICH' || (job.phase === 'DONE' && job.totalChunks === 0))
         ? await db.bookKnowledgeItem.count({ where: { bookId: id, kbVersion: 2, createdAt: { gte: job.createdAt } } }) : 0,
     }
     return NextResponse.json({ ok: true, job, enrichment })
