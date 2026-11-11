@@ -185,7 +185,7 @@ function seedCampaign(seats: number | null, overrides: Record<string, any> = {})
 }
 function seedAdmission(id: string, userId: string) {
   admissions.set(id, { id, userId, programId: 'program-A' })
-  payments.set('pay-' + id, { id: 'pay-' + id, userId, admission: { userId } })
+  payments.set('pay-' + id, { id: 'pay-' + id, admissionId: id, userId, admission: { userId } })
 }
 function seedOccupyingOperation(opId: string, userId: string, code: Record<string, any> = { status: 'ISSUED', expiresAt: new Date(Date.now() + 60_000) }) {
   operations.set(opId, {
