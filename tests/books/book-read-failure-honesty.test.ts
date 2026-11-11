@@ -240,6 +240,13 @@ const retryDb: any = {
     },
     updateMany: async ({ where, data }: any) => {
       if (!retryJob || retryJob.id !== where.id || (where.status && where.status !== retryJob.status)) return { count: 0 }
+      if (where.retryAt instanceof Date && retryJob.retryAt?.getTime() !== where.retryAt.getTime()) return { count: 0 }
+      if (where.OR && !where.OR.some((condition: any) => {
+        if (condition.lockedUntil === null) return retryJob.lockedUntil === null
+        if (condition.lockedUntil?.lte) return !!retryJob.lockedUntil &&
+          retryJob.lockedUntil.getTime() <= condition.lockedUntil.lte.getTime()
+        return false
+      })) return { count: 0 }
       Object.assign(retryJob, data)
       return { count: 1 }
     },
