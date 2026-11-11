@@ -908,6 +908,11 @@ export async function PATCH(req: NextRequest) {
           : []
         const anyLinkedLive = linkedCodes.some((code: any) => isLiveWaiverCode(code))
         if (decision === 'RELEASE') {
+          // A live issuance request can still be between reservation and
+          // creating the waiver. Do not let an operator free that seat early.
+          if (operation.status === 'ISSUING' && Date.now() - new Date(operation.createdAt).getTime() < ABANDONED_ISSUING_AFTER_MS) {
+            return { status: 409, body: { error: 'إصدار المنحة لا يزال ضمن مهلة التنفيذ؛ لا يمكن تحرير الحجز الآن.', code: 'GRANT_OPERATION_ISSUING_IN_PROGRESS' } }
+          }
           if (anyLinkedLive) {
             return { status: 409, body: { error: 'يوجد كود حي مرتبط بهذه العملية؛ ألغِ الكود أولًا أو انتظر انتهاءه قبل تحرير المقعد.', code: 'GRANT_OPERATION_HAS_LIVE_CODE' } }
           }
