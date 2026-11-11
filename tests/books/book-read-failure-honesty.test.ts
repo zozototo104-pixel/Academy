@@ -119,7 +119,34 @@ describe('terminal book failure recovery in admin UI', () => {
 
   it('retries failed enrichment as enrichment, never as a fresh PDF read', () => {
     expect(adminBooks).toContain("job.phase === 'ENRICH' ? startBookEnrichment(b.id)")
-    expect(adminBooks).toContain("job.chunksFailed > 0 ? retryFailedBookChunks(b.id) : startBookReadJob(b.id)")
+    expect(adminBooks).toContain("chunksFailed > 0 ? retryFailedBookChunks(b.id) : startBookReadJob(b.id)")
     expect(adminBooks).toContain('إعادة محاولة استخراج المزيد')
+  })
+})
+
+describe('manual resume keeps saved book progress', () => {
+  it('revives failed extraction, analysis or enrichment in the same job without resetting page/chunk counters', () => {
+    expect(readJobRoute).toContain("lastJob?.phase === 'ENRICH'")
+    expect(readJobRoute).toContain("['EXTRACT', 'ANALYZE'].includes(String(lastJob?.phase || ''))")
+    expect(readJobRoute).toContain("planBookReadJobResume(lastJob, body?.restart === true)")
+    expect(readJobRoute).toContain("where: { id: lastJob!.id, status: 'FAILED' }")
+    expect(readJobRoute).toContain("data: { status: 'QUEUED', retryAt: null, lockedUntil: null, finishedAt: null }")
+    expect(readJobRoute).not.toContain("data: { status: 'QUEUED', pagesDone: 0")
+    expect(readJobRoute).not.toContain("data: { status: 'QUEUED', chunksAnalyzed: 0")
+  })
+
+  it('retries only failed knowledge chunks without erasing completed chunks or replacing the job', () => {
+    expect(retryFailedChunksRoute).toContain("where: { bookId: id, status: 'FAILED' }")
+    expect(retryFailedChunksRoute).toContain("data: { status: 'PENDING', attempts: 0, lastError: null }")
+    expect(retryFailedChunksRoute).toContain("latest?.status === 'FAILED' && latest.phase === 'ANALYZE'")
+    expect(retryFailedChunksRoute).toContain("where: { id: latest.id, status: 'FAILED' }")
+    expect(retryFailedChunksRoute).toContain("chunksFailed: 0")
+    expect(retryFailedChunksRoute).not.toContain("bookKnowledgeItem.deleteMany")
+    expect(retryFailedChunksRoute).not.toContain("chunksAnalyzed: 0")
+  })
+
+  it('leaves an actively working or manually stopped book alone', () => {
+    expect(retryFailedChunksRoute).toContain("if (active) return { chunksReset: 0, jobId: active.id, resumed: true }")
+    expect(adminBooks).toContain("chunksFailed > 0 ? retryFailedBookChunks(b.id)")
   })
 })
