@@ -23,6 +23,18 @@ export function isLiveWaiverCode(code: any, now = Date.now()): boolean {
   return !code.expiresAt || new Date(code.expiresAt).getTime() > now
 }
 
+// Independent of ScholarshipGrantLink: the established issuer commits its
+// waiver code before linking it to the organized operation. Treat unknown
+// admission identity as unsafe, and propagate query failures (fail closed).
+export async function hasLiveWaiverOnAdmission(client: any, admissionId: string): Promise<boolean> {
+  if (!admissionId) return true
+  const codes = await client.paymentWaiverCode.findMany({
+    where: { payment: { is: { admissionId } } },
+    select: { status: true, expiresAt: true },
+  })
+  return codes.some((code: any) => isLiveWaiverCode(code))
+}
+
 export type StaleScope = {
   definitionId?: string
   definitionIds?: string[]
