@@ -80,6 +80,8 @@ const db: any = {
       if (where?.id?.in && !where.id.in.includes(row.id)) return false
       if (where?.paymentId?.in && !where.paymentId.in.includes(row.paymentId)) return false
       if (where?.waiverType?.in && !where.waiverType.in.includes(row.waiverType)) return false
+      const admissionId = where?.payment?.is?.admissionId
+      if (admissionId && payments.get(row.paymentId)?.admissionId !== admissionId) return false
       const ownership = where?.payment?.is?.OR
       if (ownership) {
         const payment = payments.get(row.paymentId)
