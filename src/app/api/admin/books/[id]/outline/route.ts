@@ -82,16 +82,27 @@ export async function POST(_req: NextRequest, context: Context) {
     try {
       outline = await buildBookOutline(id)
     } catch (error: unknown) {
-      if (!(error instanceof Error) || !error.message.startsWith('BOOK_OUTLINE_OCR_TOO_MANY_PAGES')) throw error
-      // The resumable reader has already completed OCR for this book. Use its
-      // persisted evidence instead of paying for or truncating OCR a second time.
-      const completeRead = await db.bookReadJob.findFirst({
-        where: { bookId: id, status: 'COMPLETED', phase: 'DONE', totalChunks: { gt: 0 } },
-        orderBy: { createdAt: 'desc' }, select: { id: true },
+      const reason = bookOutlineReuseReason(error)
+      if (!reason) throw error
+      // For >500 pages, require the latest read job for THIS book to cover the
+      // original PDF's exact page count. An old or partial read is not evidence.
+      // Preserve the existing completed-OCR fallback for shorter scanned PDFs.
+      const latestRead = await db.bookReadJob.findFirst({
+        where: reason.kind === 'LONG_PDF'
+          ? { bookId: id }
+          : { bookId: id, status: 'COMPLETED', phase: 'DONE', totalChunks: { gt: 0 } },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, status: true, phase: true, totalPages: true, pagesDone: true, totalChunks: true },
       })
-      if (!completeRead) throw error
-      // Reuse completed OCR evidence, but retain the legacy evidence-grounded AI
-      // segmentation when no trustworthy chapter/article headings are present.
+      if (reason.kind === 'LONG_PDF' && !hasCompleteBookOutlineRead(latestRead, reason.totalPages)) {
+        return NextResponse.json({
+          code: 'BOOK_OUTLINE_FULL_READ_REQUIRED',
+          error: 'هذا الكتاب يزيد عن 500 صفحة. أكمل «قراءة وتحليل كامل» لجميع صفحاته، ثم أعد بناء الفهرس. لن يتم حفظ فهرس ناقص.',
+        }, { status: 409 })
+      }
+      if (!latestRead) throw error
+      // The reader persisted the book's text/OCR in source-bound chunks.
+      // Reuse them without reopening the entire PDF in a Vercel request.
       outline = await buildBookOutline(id, { reuseReadChunks: true })
     }
     return NextResponse.json({ ok: true, outline, programDraft: await programDraft(book.programId) })
