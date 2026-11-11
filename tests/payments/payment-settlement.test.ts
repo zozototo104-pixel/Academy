@@ -356,6 +356,10 @@ const db: any = {
       if (where?.waiverType?.in && !where.waiverType.in.includes(row.waiverType)) return false
       const payment = payments.get(row.paymentId)
       if (!payment) return false
+      // Match Prisma's relation filter used by organized-grant RELEASE:
+      // waiver codes belong to the original admission, not necessarily a link.
+      const admissionId = where?.payment?.is?.admissionId
+      if (admissionId && payment.admissionId !== admissionId) return false
       const ownership = where?.payment?.is?.OR
       if (ownership && !ownership.some((rule: any) =>
         (rule.userId && payment.userId === rule.userId) ||
