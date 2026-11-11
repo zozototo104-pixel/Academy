@@ -97,6 +97,14 @@ export async function POST(_request: NextRequest, context: Context) {
     return NextResponse.json({ ok: true, result, job: updated, enrichment })
   } catch (error: any) {
     const message = String(error?.message || error)
+    if (message === 'BOOK_READ_LEASE_LOST') {
+      // Lease expiry/takeover is NOT a fatal book error. Requeue only if
+      // this invocation still owns the job; never touch a newer worker or
+      // undo an administrator's manual STOP.
+      await releaseBookReadLock(db, job.id, now, false)
+      const current = await db.bookReadJob.findUniqueOrThrow({ where: { id: job.id } })
+      return NextResponse.json({ ok: true, skipped: 'LEASE_LOST', job: current })
+    }
     const providerUnavailable = message.includes('AI_ACADEMIC_PROVIDER_UNAVAILABLE')
     // Four-way handling (Haris's taxonomy): pressure pauses and auto-retries;
     // proven billing exhaustion and missing configuration stop the job with
