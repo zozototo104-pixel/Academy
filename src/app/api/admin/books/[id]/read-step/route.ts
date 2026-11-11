@@ -119,6 +119,7 @@ export async function POST(_request: NextRequest, context: Context) {
         lockedUntil: null,
       },
     })
+    if (!changed.count) await releaseBookReadLock(db, job.id, now, false)
     const updated = await db.bookReadJob.findUniqueOrThrow({ where: { id: job.id } })
     return changed.count
       ? NextResponse.json({ ok: false, error: adminMessage, job: updated }, { status: transient ? 503 : 500 })
