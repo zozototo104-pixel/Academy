@@ -39,6 +39,32 @@ export async function POST(request: NextRequest, context: Context) {
     const mode = body?.mode === 'ENRICH' ? 'ENRICH' : 'EXTRACT'
     const book = await db.book.findUnique({ where: { id }, select: { id: true, programId: true } })
     if (!book) return NextResponse.json({ error: 'BOOK_NOT_FOUND' }, { status: 404 })
+
+    // A manual stop is PAUSED with an out-of-range retry time: the cron,
+    // read-step lock, and browser driver must never resume it automatically.
+    // Keep the existing lock until its owner finishes, avoiding concurrent
+    // workers if the admin resumes before the in-flight request returns.
+    if (body?.action === 'STOP' || body?.action === 'RESUME') {
+      const current = await db.bookReadJob.findFirst({
+        where: { bookId: id, status: { in: ['QUEUED', 'RUNNING', 'PAUSED'] } },
+        orderBy: { createdAt: 'desc' },
+      })
+      if (!current) return NextResponse.json({ error: 'لا توجد مهمة جارية يمكن التحكم بها' }, { status: 409 })
+      const manualStop = current.status === 'PAUSED' && current.retryAt?.getUTCFullYear() === 9999
+      if (body.action === 'STOP' && !manualStop) {
+        await db.bookReadJob.updateMany({
+          where: { id: current.id, status: { in: ['QUEUED', 'RUNNING', 'PAUSED'] } },
+          data: { status: 'PAUSED', retryAt: new Date('9999-12-31T00:00:00.000Z') },
+        })
+      } else if (body.action === 'RESUME' && current.status === 'PAUSED') {
+        await db.bookReadJob.updateMany({
+          where: { id: current.id, status: 'PAUSED' },
+          data: { status: 'QUEUED', retryAt: null },
+        })
+      }
+      const job = await db.bookReadJob.findUniqueOrThrow({ where: { id: current.id } })
+      return NextResponse.json({ ok: true, job, manuallyStopped: job.status === 'PAUSED' && job.retryAt?.getUTCFullYear() === 9999 })
+    }
     if (mode === 'ENRICH') {
       const readable = await db.bookChunk.count({ where: { bookId: id, status: 'ANALYZED' } })
       if (!readable) return NextResponse.json({ error: 'شغّل القراءة الكاملة أولاً' }, { status: 400 })
