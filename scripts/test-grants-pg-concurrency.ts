@@ -337,8 +337,8 @@ async function main() {
     (await statusOf(liveIncomplete.id)) === 'INCOMPLETE', `status=${await statusOf(liveIncomplete.id)}`)
   check('E: settlement never cancels an old ISSUING operation that has a link',
     (await statusOf(oldIssuingLinked.id)) === 'ISSUING', `status=${await statusOf(oldIssuingLinked.id)}`)
-  check('E: settlement frees only the abandoned linkless ISSUING operation',
-    (await statusOf(oldIssuingAbandoned.id)) === 'CANCELLED', `status=${await statusOf(oldIssuingAbandoned.id)}`)
+  check('E: settlement retains old unlinked ISSUING for safe manual reconciliation',
+    (await statusOf(oldIssuingAbandoned.id)) === 'ISSUING', `status=${await statusOf(oldIssuingAbandoned.id)}`)
 
   if (failures.length) {
     console.error(`\nGRANTS_PG: ${failures.length} assertion(s) failed`)
