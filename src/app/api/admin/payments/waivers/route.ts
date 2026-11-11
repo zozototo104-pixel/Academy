@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { ActivePaymentWaiverExistsError, approvePaymentWaiver, createPaymentWaiverCode, isPaymentWaiverType, resendPaymentWaiverCode } from '@/lib/payment-waivers'
-import { releaseStaleGrantOperations, notifyWaitlistForFreeSeats, pruneWaitlistForHolder, isLiveWaiverCode, hasLiveWaiverOnAdmission } from '@/lib/scholarship-waitlist'
+import { releaseStaleGrantOperations, notifyWaitlistForFreeSeats, pruneWaitlistForHolder, isLiveWaiverCode, hasLiveWaiverOnAdmission, ABANDONED_ISSUING_AFTER_MS } from '@/lib/scholarship-waitlist'
 import { audit } from '@/lib/notify'
 
 // Administrative scholarship metadata has its own additive Prisma migration.
