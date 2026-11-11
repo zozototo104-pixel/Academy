@@ -109,18 +109,19 @@ export async function POST(_request: NextRequest, context: Context) {
         ? `خطأ إعدادات: لا يوجد مزوّد ذكاء مُعدّ بمفتاح صالح — راجع إعدادات النظام ومفاتيح المزودين ثم أعد بدء القراءة. التفاصيل: ${message}`
         : message
     const previous = await db.bookReadJob.findUnique({ where: { id: job.id }, select: { lastError: true } })
-    const updated = await db.bookReadJob.update({
-      where: { id: job.id },
+    const changed = await db.bookReadJob.updateMany({
+      where: { id: job.id, status: 'RUNNING' },
       data: {
         status: transient ? 'PAUSED' : 'FAILED',
         retryAt: transient ? new Date(Date.now() + (providerUnavailable ? BOOK_READ_RETRY_MS : BOOK_READ_TRANSIENT_RETRY_MS)) : null,
-        // Keep the per-page issue ledger alongside the operator message,
-        // exactly as the cron path does — a failed step must not erase
-        // the evidence outline approval relies on.
+        // Keep the per-page issue ledger; never overwrite an admin stop.
         lastError: preserveBookPageReadIssues(previous?.lastError, adminMessage),
         lockedUntil: null,
       },
     })
-    return NextResponse.json({ ok: false, error: adminMessage, job: updated }, { status: transient ? 503 : 500 })
+    const updated = await db.bookReadJob.findUniqueOrThrow({ where: { id: job.id } })
+    return changed.count
+      ? NextResponse.json({ ok: false, error: adminMessage, job: updated }, { status: transient ? 503 : 500 })
+      : NextResponse.json({ ok: true, skipped: 'STOPPED_OR_COMPLETED', job: updated })
   }
 }
