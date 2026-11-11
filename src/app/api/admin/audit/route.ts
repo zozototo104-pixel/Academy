@@ -12,8 +12,22 @@ export async function GET(req: NextRequest) {
     const search = cleanAdminQuery(sp.get('search'))
     const action = cleanAdminQuery(sp.get('action'))
     const entity = cleanAdminQuery(sp.get('entity'))
+    const fromRaw = sp.get('from')
+    const toRaw = sp.get('to')
+    let dateRange: { gte: Date; lt: Date } | undefined
+    if (fromRaw || toRaw) {
+      if (!fromRaw || !toRaw) return NextResponse.json({ error: 'يلزم تحديد بداية ونهاية اليوم' }, { status: 400 })
+      const from = new Date(fromRaw)
+      const to = new Date(toRaw)
+      if (!Number.isFinite(from.getTime()) || !Number.isFinite(to.getTime()) ||
+        to.getTime() <= from.getTime() || to.getTime() - from.getTime() > 26 * 60 * 60 * 1000) {
+        return NextResponse.json({ error: 'نطاق التاريخ غير صالح' }, { status: 400 })
+      }
+      dateRange = { gte: from, lt: to }
+    }
 
     const where: any = {
+      ...(dateRange ? { createdAt: dateRange } : {}),
       ...(action && action !== 'ALL' ? { action } : {}),
       ...(entity && entity !== 'ALL' ? { entity } : {}),
       ...(search

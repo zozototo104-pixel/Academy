@@ -18,8 +18,10 @@ export const PUBLIC_SEO_ROUTES = [
   { path: '/programs', title: 'البرامج والخدمات المهنية', description: 'استعرض برامج الدبلوم والماجستير والدكتوراه المهنية والاعتمادات والخدمات التدريبية في AACT.', priority: 0.95 },
   { path: '/apply', title: 'طلب الالتحاق', description: 'قدّم طلب الالتحاق أو طلب خدمة مهنية عبر منصة AACT.', priority: 0.85 },
   { path: '/verify', title: 'التحقق من الشهادات', description: 'تحقق من صحة شهادات AACT عبر الرقم التسلسلي أو رمز QR وملف JSON قابل للتحقق.', priority: 0.85 },
-  { path: '/certificates', title: 'التحقق من الشهادات', description: 'صفحة التحقق العامة من شهادات الأكاديمية الأمريكية للاستشارات والتدريب.', priority: 0.8 },
+  { path: '/certificates', title: 'أداة التحقق من صحة الشهادات', description: 'أدخل رقم الشهادة أو رمز QR للتحقق التفاعلي، واطلب تفاصيل صاحب الشهادة بعد مطابقة بياناته.', priority: 0.8 },
   { path: '/accreditation', title: 'التراخيص والوثائق الرسمية', description: 'صفحة التراخيص والوثائق الرسمية للأكاديمية الأمريكية للاستشارات والتدريب وروابط التحقق والدليل العام.', priority: 0.8 },
+  { path: '/agent', title: 'الوكالة والاعتماد', description: 'الوكالة الدولية واعتماد الجهات والأفراد لدى الأكاديمية الأمريكية للاستشارات والتدريب.', priority: 0.7 },
+  { path: '/representatives', title: 'ممثلو الأكاديمية في الدول والمناطق', description: 'دليل ملفات الممثلين المنشورة لدى الأكاديمية.', priority: 0.7 },
   { path: '/directory', title: 'دليل الاعتمادات', description: 'دليل الاعتمادات والعضويات والجهات المعتمدة لدى AACT.', priority: 0.7 },
   { path: '/about', title: 'من نحن', description: 'تعرف على الأكاديمية الأمريكية للاستشارات والتدريب ورسالتها وبرامجها.', priority: 0.7 },
   { path: '/contact', title: 'تواصل معنا', description: 'تواصل مع فريق AACT للاستفسارات وطلبات الدعم.', priority: 0.65 },
@@ -35,6 +37,7 @@ export function isPrivateSeoPath(pathname: string) {
 }
 
 export function seoForPath(pathname: string): Metadata {
+  // The public introduction and the interactive certificate lookup are distinct destinations.
   const cleanPath = pathname || '/'
   const matched = PUBLIC_SEO_ROUTES.find((r) => r.path === cleanPath)
   const isProgramDetail = cleanPath.startsWith('/programs/')
@@ -94,6 +97,45 @@ export function websiteJsonLd() {
       '@type': 'SearchAction',
       target: `${absoluteUrl('/programs')}?q={search_term_string}`,
       'query-input': 'required name=search_term_string',
+    },
+  }
+}
+
+// Moved from the catch-all to serve the actual dedicated program route.
+export function seoForProgram(program: {
+  id: string
+  slug: string | null
+  titleAr: string
+  description: string
+  category: string
+  price: number | null
+  hours: number | null
+}): Metadata {
+  const path = `/programs/${encodeURIComponent(program.slug || program.id)}`
+  const title = program.titleAr
+  const description = program.description?.slice(0, 240) || 'برنامج مهني لدى الأكاديمية الأمريكية للاستشارات والتدريب.'
+  return {
+    title,
+    description,
+    alternates: { canonical: path },
+    robots: { index: true, follow: true },
+    openGraph: {
+      title,
+      description,
+      url: absoluteUrl(path),
+      siteName: 'AACT',
+      type: 'website',
+      locale: 'ar',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+    },
+    other: {
+      'program:category': program.category,
+      ...(program.hours != null ? { 'program:hours': String(program.hours) } : {}),
+      ...(program.price != null ? { 'program:price': String(program.price) } : {}),
     },
   }
 }

@@ -1,26 +1,54 @@
+import type { Metadata } from 'next'
+import { cache } from 'react'
+import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import QRCode from 'qrcode'
 import RepresentativePhoto from '@/components/aact/RepresentativePhoto'
 import { db } from '@/lib/db'
+import { absoluteUrl } from '@/lib/seo'
 import { representativeLookupCandidates, representativeVerifyUrl, serializeRepresentative, type RepresentativePublicProfile } from '@/lib/academy-representatives'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-async function loadRepresentative(slug: string): Promise<RepresentativePublicProfile | null> {
-  try {
-    const candidates = representativeLookupCandidates(slug)
-    const row = await db.academyRepresentative.findFirst({
-      where: {
-        deletedAt: null,
-        status: 'ACTIVE',
-        OR: [{ slug: { in: candidates } }, { id: { in: candidates } }],
-      },
-      include: { files: { orderBy: [{ displayOrder: 'asc' }, { createdAt: 'desc' }] } },
-    })
-    return row ? serializeRepresentative(row, null, true) : null
-  } catch {
-    return null
+// The page and its metadata must resolve the same published profile once.
+// A database failure must surface as an error, not a misleading 404.
+const loadRepresentative = cache(async (slug: string): Promise<RepresentativePublicProfile | null> => {
+  const candidates = representativeLookupCandidates(slug)
+  const row = await db.academyRepresentative.findFirst({
+    where: {
+      deletedAt: null,
+      status: 'ACTIVE',
+      OR: [{ slug: { in: candidates } }, { id: { in: candidates } }],
+    },
+    include: { files: { orderBy: [{ displayOrder: 'asc' }, { createdAt: 'desc' }] } },
+  })
+  return row ? serializeRepresentative(row, null, true) : null
+})
+
+type PageProps = { params: Promise<{ slug: string }> }
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { slug } = await params
+  const rep = await loadRepresentative(slug)
+  if (!rep) notFound()
+
+  const path = `/representatives/${encodeURIComponent(rep.slug || rep.id)}`
+  const title = `${rep.fullName} — ${rep.displayTitle || 'ممثل الأكاديمية'}`
+  const description = (rep.shortBio || rep.professionalBio || `الملف الرسمي لممثل الأكاديمية ${rep.fullName} في ${rep.country}.`).trim().slice(0, 240)
+  return {
+    title,
+    description,
+    alternates: { canonical: path },
+    robots: { index: true, follow: true },
+    openGraph: {
+      title,
+      description,
+      url: absoluteUrl(path),
+      siteName: 'AACT',
+      type: 'profile',
+      locale: 'ar',
+    },
   }
 }
 
@@ -40,9 +68,7 @@ async function makeQr(token?: string | null) {
 export default async function RepresentativeProfilePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const rep = await loadRepresentative(slug)
-  if (!rep) {
-    return <main dir="rtl" className="min-h-screen bg-slate-50 p-8 text-center text-[#0f2b46]"><h1 className="text-3xl font-black">لم يتم العثور على الممثل</h1><Link href="/representatives" className="mt-6 inline-block rounded-full bg-[#0f2b46] px-6 py-3 text-sm font-black text-white">العودة للقائمة</Link></main>
-  }
+  if (!rep) notFound()
   const qr = await makeQr(rep.qrToken)
   return (
     <main dir="rtl" className="min-h-screen bg-[#f4f7fb] text-[#0f2b46]">

@@ -1,7 +1,14 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import RepresentativePhoto from '@/components/aact/RepresentativePhoto'
 import { db } from '@/lib/db'
 import { serializeRepresentative, type RepresentativePublicProfile } from '@/lib/academy-representatives'
+
+export const metadata: Metadata = {
+  title: 'ممثلو الأكاديمية في الدول والمناطق',
+  description: 'دليل ملفات ممثلي الأكاديمية المنشورة، ومجالات التمثيل والسير المهنية المعتمدة.',
+  alternates: { canonical: '/representatives' },
+}
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
