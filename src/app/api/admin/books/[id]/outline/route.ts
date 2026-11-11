@@ -82,6 +82,23 @@ export async function POST(_req: NextRequest, context: Context) {
     try {
       outline = await buildBookOutline(id)
     } catch (error: unknown) {
+      if (error instanceof Error && error.message === 'BOOK_OUTLINE_INSUFFICIENT_GROUNDED_SECTIONS') {
+        // Failed AI proposals must never erase a previously grounded draft or
+        // fabricate chapter boundaries. Reopen the saved draft for admin review.
+        const existingDraft = await db.bookOutline.findFirst({
+          where: { bookId: id, status: 'DRAFT' },
+          orderBy: { version: 'desc' },
+          include: { sections: { orderBy: { order: 'asc' } } },
+        })
+        if (existingDraft) return NextResponse.json({
+          ok: true, reusedExisting: true, outline: existingDraft,
+          programDraft: await programDraft(book.programId),
+        })
+        return NextResponse.json({
+          code: 'BOOK_OUTLINE_INSUFFICIENT_GROUNDED_SECTIONS',
+          error: 'لم يقدّم النموذج قسمين مسنودين بنص الكتاب على الأقل. لم يُحفظ فهرس غير موثّق؛ راجع تشخيص العناوين أو المقاطع المحفوظة ثم أعد المحاولة.',
+        }, { status: 422 })
+      }
       if (!(error instanceof Error) || !error.message.startsWith('BOOK_OUTLINE_OCR_TOO_MANY_PAGES')) throw error
       // The resumable reader has already completed OCR for this book. Use its
       // persisted evidence instead of paying for or truncating OCR a second time.
