@@ -94,9 +94,10 @@ export async function findStaleGrantOperations(client: any, scope: StaleScope) {
 // Close every stale reservation in scope as CANCELLED, which returns its
 // seat to the campaign pool and lifts the one-scholarship hold. Status-
 // guarded, so concurrent closers cannot double-apply it.
-// An ISSUING operation older than this with no link at all was abandoned
-// before any code existed (issuance completes inside one request), so no
-// money can depend on it and its seat is safe to release automatically.
+// An old ISSUING operation with no link is *not* proof no code was created.
+// The established issuer persists its code before the organized link; a crash
+// in between can leave a live unlinked code. Report this state for manual
+// reconciliation only. Never automatically release its reserved seat.
 export const ABANDONED_ISSUING_AFTER_MS = 15 * 60 * 1000
 
 export async function findAbandonedIssuingOperations(client: any, scope: StaleScope) {
