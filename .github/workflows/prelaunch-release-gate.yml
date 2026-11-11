@@ -63,7 +63,10 @@ jobs:
 
           header_args=()
           if [ -n "${VERCEL_AUTOMATION_BYPASS_SECRET:-}" ]; then
-            header_args=(-H "x-vercel-protection-bypass: ${VERCEL_AUTOMATION_BYPASS_SECRET}" -H "x-vercel-set-bypass-cookie: true")
+            # Raw curl has no browser cookie jar. Setting a bypass cookie causes
+            # Vercel to issue 307 redirects on every -L retry of this header.
+            # The protection bypass token alone authenticates HTTP smoke tests.
+            header_args=(-H "x-vercel-protection-bypass: ${VERCEL_AUTOMATION_BYPASS_SECRET}")
           fi
 
           check_url() {
