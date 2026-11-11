@@ -2501,4 +2501,41 @@ describe('stuck grant operation settlement (RESOLVE_GRANT_OPERATION)', () => {
     expect(released.status).toBe(200)
     expect(scholarshipOperations.get(fixture.operationId)?.status).toBe('CANCELLED')
   })
+
+  test('a live code persisted before its grant link prevents manual release after the issuing timeout', async () => {
+    process.env.SCHOLARSHIP_ORGANIZATION_ENABLED = '1'
+    const fixture = seedResolveFixture('unlinked-live', 'ISSUED')
+    scholarshipLinks.delete('link-stuck-unlinked-live')
+    const operation = scholarshipOperations.get(fixture.operationId)!
+    operation.status = 'ISSUING'
+    operation.createdAt = new Date(Date.now() - 60 * 60 * 1000)
+    const refused = await resolve(fixture.operationId, 'RELEASE')
+    expect(refused.status).toBe(409)
+    expect((await refused.json()).code).toBe('GRANT_OPERATION_HAS_LIVE_CODE')
+    expect(scholarshipOperations.get(fixture.operationId)?.status).toBe('ISSUING')
+  })
+
+  test('fresh ISSUING operation is not releasable while an issuer may still be working', async () => {
+    process.env.SCHOLARSHIP_ORGANIZATION_ENABLED = '1'
+    const fixture = seedResolveFixture('unlinked-fresh', 'CANCELLED')
+    scholarshipLinks.delete('link-stuck-unlinked-fresh')
+    const operation = scholarshipOperations.get(fixture.operationId)!
+    operation.status = 'ISSUING'
+    const refused = await resolve(fixture.operationId, 'RELEASE')
+    expect(refused.status).toBe(409)
+    expect((await refused.json()).code).toBe('GRANT_OPERATION_ISSUING_IN_PROGRESS')
+    expect(scholarshipOperations.get(fixture.operationId)?.status).toBe('ISSUING')
+  })
+
+  test('only an explicit administrative release can free an old unlinked ISSUING seat with no live code', async () => {
+    process.env.SCHOLARSHIP_ORGANIZATION_ENABLED = '1'
+    const fixture = seedResolveFixture('unlinked-dead', 'CANCELLED')
+    scholarshipLinks.delete('link-stuck-unlinked-dead')
+    const operation = scholarshipOperations.get(fixture.operationId)!
+    operation.status = 'ISSUING'
+    operation.createdAt = new Date(Date.now() - 60 * 60 * 1000)
+    const released = await resolve(fixture.operationId, 'RELEASE')
+    expect(released.status).toBe(200)
+    expect(scholarshipOperations.get(fixture.operationId)?.status).toBe('CANCELLED')
+  })
 })
