@@ -92,6 +92,55 @@ async function testBookScopedStopAndResume() {
   assert.equal(b.retryAt, null)
 }
 
+async function testFencedWritesAfterWorkerTakeover() {
+  const now = Date.now()
+  const oldClaim = new Date(now - 80_000)
+  const freshClaim = new Date(now - 2_000)
+  const state = {
+    id: 'book-A-job', status: 'RUNNING',
+    startedAt: oldClaim, lockedUntil: new Date(now + 100_000),
+    pagesDone: 48, chunksAnalyzed: 11, knowledgeCount: 32,
+  }
+  const tx = {
+    $queryRaw: async (parts: TemplateStringsArray, id: string, claimedAt: Date) => {
+      // The real SQL must lock the job row, not merely check it before writes.
+      assert.match(parts.join('?'), /FOR UPDATE/)
+      assert.match(parts.join('?'), /"lockedUntil" > NOW\(\)/)
+      return state.id === id && state.status === 'RUNNING'
+        && state.startedAt.getTime() === claimedAt.getTime()
+        && state.lockedUntil.getTime() > Date.now() ? [{ id }] : []
+    },
+  }
+  const persist = async (claimedAt: Date, updates: { pages?: number; chunks?: number; items?: number }) => {
+    await assertBookReadLease(tx as any, state.id, claimedAt)
+    if (updates.pages !== undefined) state.pagesDone = updates.pages
+    if (updates.chunks) state.chunksAnalyzed += updates.chunks
+    if (updates.items) state.knowledgeCount += updates.items
+  }
+
+  await persist(oldClaim, { pages: 56, chunks: 1, items: 2 })
+  assert.deepEqual([state.pagesDone, state.chunksAnalyzed, state.knowledgeCount], [56, 12, 34])
+
+  // A newer cron worker reclaims the very same job after an old function
+  // freezes. The old timestamp must fail for ALL three saved-data types.
+  state.startedAt = freshClaim
+  await assert.rejects(persist(oldClaim, { pages: 8, chunks: 1, items: 20 }), /BOOK_READ_LEASE_LOST/)
+  assert.deepEqual([state.pagesDone, state.chunksAnalyzed, state.knowledgeCount], [56, 12, 34])
+  await persist(freshClaim, { pages: 64, chunks: 1, items: 3 })
+  assert.deepEqual([state.pagesDone, state.chunksAnalyzed, state.knowledgeCount], [64, 13, 37])
+
+  // Even when no new worker has claimed yet, an expired lease cannot write.
+  state.lockedUntil = new Date(now - 1000)
+  await assert.rejects(persist(freshClaim, { pages: 16, chunks: 1, items: 4 }), /BOOK_READ_LEASE_LOST/)
+  assert.deepEqual([state.pagesDone, state.chunksAnalyzed, state.knowledgeCount], [64, 13, 37])
+
+  // Manual STOP also excludes a still-finishing provider call.
+  state.status = 'PAUSED'
+  state.lockedUntil = new Date(now + 100_000)
+  await assert.rejects(persist(freshClaim, { pages: 1, chunks: 1, items: 4 }), /BOOK_READ_LEASE_LOST/)
+  assert.deepEqual([state.pagesDone, state.chunksAnalyzed, state.knowledgeCount], [64, 13, 37])
+}
+
 function testResumeFromSavedPhase() {
   for (const phase of ['EXTRACT', 'ANALYZE', 'ENRICH']) {
     assert.equal(planBookReadJobResume({ status: 'FAILED', phase }), 'RESUME', `failed ${phase} must continue the saved job`)
