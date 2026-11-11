@@ -918,6 +918,18 @@ export async function PATCH(req: NextRequest) {
               return { status: 409, body: { error: 'يوجد كود حي على فواتير هذه العملية؛ لا يمكن تحرير المقعد قبل إلغائه أو انتهائه.', code: 'GRANT_OPERATION_HAS_LIVE_CODE' } }
             }
           }
+          // The code issuer commits its waiver before creating the organized
+          // operation link. A crashed request can therefore leave ISSUING
+          // with zero links but a real, live code on this admission.
+          // Query the underlying waiver ledger independently of grant links.
+          // Any DB failure aborts this transaction instead of freeing a seat.
+          const admissionCodes = await tx.paymentWaiverCode.findMany({
+            where: { payment: { is: { admissionId: operation.admissionId } } },
+            select: { status: true, expiresAt: true },
+          })
+          if (admissionCodes.some((code: any) => isLiveWaiverCode(code))) {
+            return { status: 409, body: { error: 'يوجد كود حي لطلب القبول، حتى لو لم يكتمل ربطه بعملية المنحة. لا يمكن تحرير المقعد قبل تسوية الكود.', code: 'GRANT_OPERATION_HAS_LIVE_CODE' } }
+          }
           await tx.scholarshipGrantOperation.update({ where: { id: operationId }, data: { status: 'CANCELLED' } })
           return { status: 200, body: { ok: true, operationId, decision, operation }, audit: 'GRANT_OPERATION_RESOLVED_RELEASE' }
         }
