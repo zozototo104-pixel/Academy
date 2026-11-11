@@ -125,6 +125,12 @@ async function testFencedWritesAfterWorkerTakeover() {
   // freezes. The old timestamp must fail for ALL three saved-data types.
   state.startedAt = freshClaim
   await assert.rejects(persist(oldClaim, { pages: 8, chunks: 1, items: 20 }), /BOOK_READ_LEASE_LOST/)
+  // The stale worker must not mark the newer worker's task completed either.
+  await assert.rejects((async () => {
+    await assertBookReadLease(tx as any, state.id, oldClaim)
+    state.status = 'COMPLETED'
+  })(), /BOOK_READ_LEASE_LOST/)
+  assert.equal(state.status, 'RUNNING')
   assert.deepEqual([state.pagesDone, state.chunksAnalyzed, state.knowledgeCount], [56, 12, 34])
   await persist(freshClaim, { pages: 64, chunks: 1, items: 3 })
   assert.deepEqual([state.pagesDone, state.chunksAnalyzed, state.knowledgeCount], [64, 13, 37])
