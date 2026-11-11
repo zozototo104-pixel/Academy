@@ -275,6 +275,7 @@ type BookReadJobRow = {
   chunksFailed: number
   lastError?: string | null
   retryAt?: string | null
+  lockedUntil?: string | null
 }
 
 type KnowledgeStats = Record<string, { count: number; avgImportance: number }>
