@@ -119,7 +119,7 @@ describe('terminal book failure recovery in admin UI', () => {
 
   it('retries failed enrichment as enrichment, never as a fresh PDF read', () => {
     expect(adminBooks).toContain("job.phase === 'ENRICH' ? startBookEnrichment(b.id)")
-    expect(adminBooks).toContain("chunksFailed > 0 ? retryFailedBookChunks(b.id) : startBookReadJob(b.id)")
+    expect(adminBooks).toContain("job.phase === 'ANALYZE' && chunksFailed > 0 ? retryFailedBookChunks(b.id) : startBookReadJob(b.id)")
     expect(adminBooks).toContain('إعادة محاولة استخراج المزيد')
   })
 })
