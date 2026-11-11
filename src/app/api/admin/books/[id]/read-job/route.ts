@@ -156,17 +156,25 @@ export async function POST(request: NextRequest, context: Context) {
           return { error: 'BOOK_REBUILD_ACADEMIC_REFERENCES' as const, blockers }
         }
 
+        // Retire a manually stopped job BEFORE deleting anything. The
+        // server-side predicate accepts either no lock or an expired one;
+        // a racing state change rejects the rebuild without losing data.
+        if (active && stoppedAndReleased) {
+          const retired = await tx.bookReadJob.updateMany({
+            where: {
+              id: active.id, status: 'PAUSED',
+              retryAt: new Date('9999-12-31T00:00:00.000Z'),
+              OR: [{ lockedUntil: null }, { lockedUntil: { lte: new Date() } }],
+            },
+            data: { status: 'FAILED', lockedUntil: null, finishedAt: new Date() },
+          })
+          if (retired.count !== 1) return { error: 'BOOK_REBUILD_JOB_ACTIVE' as const }
+        }
         // Reset only generated artifacts, atomically. Do not delete the book,
         // its file, uploads, historical read jobs or non-v2 knowledge records.
         const outlines = await tx.bookOutline.deleteMany({ where: { bookId: id, status: 'DRAFT' } })
         const knowledge = await tx.bookKnowledgeItem.deleteMany({ where: { bookId: id, kbVersion: 2 } })
         const chunks = await tx.bookChunk.deleteMany({ where: { bookId: id } })
-        if (active && stoppedAndReleased) {
-          await tx.bookReadJob.updateMany({
-            where: { id: active.id, status: 'PAUSED', lockedUntil: null },
-            data: { status: 'FAILED', finishedAt: new Date() },
-          })
-        }
         const job = await tx.bookReadJob.create({
           data: { bookId: id, programId: source.programId, phase: 'EXTRACT', status: 'QUEUED' },
         })
