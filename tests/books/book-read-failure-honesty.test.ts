@@ -173,6 +173,10 @@ const retryDb: any = {
   bookReadJob: {
     findFirst: async ({ where }: any) =>
       !retryJob || (where?.status?.in && !where.status.in.includes(retryJob.status)) ? null : { ...retryJob },
+    findUniqueOrThrow: async ({ where }: any) => {
+      if (!retryJob || retryJob.id !== where.id) throw new Error('JOB_NOT_FOUND')
+      return { ...retryJob }
+    },
     updateMany: async ({ where, data }: any) => {
       if (!retryJob || retryJob.id !== where.id || (where.status && where.status !== retryJob.status)) return { count: 0 }
       Object.assign(retryJob, data)
