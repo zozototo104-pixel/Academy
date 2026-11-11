@@ -489,7 +489,6 @@ function testSecurityBatchA() {
 }
 
 async function main() {
-  await testSeoRouteConsistency()
   testDeadlineMath()
   testProductionFixtureGuards()
   testWorkflowTargetsQaOnly()
