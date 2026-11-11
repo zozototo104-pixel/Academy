@@ -69,3 +69,27 @@ describe('router error names skipped candidates', () => {
     expect(textAi).toContain("errors.join(' | ') || 'TEXT_AI_ROUTER_FAILED'")
   })
 })
+
+describe('per-book stop preserves existing background scheduling', () => {
+  it('keeps the same cron selection for old queued, running, and retry-due jobs', () => {
+    expect(cron).toContain("status: { in: ['QUEUED', 'RUNNING'] }")
+    expect(cron).toContain("{ status: 'PAUSED', retryAt: { lte: new Date() } }")
+    expect(cron).toContain("if (!(await claimBookReadLock(db, job.id)))")
+  })
+
+  it('never requeues a manually stopped job or overwrites it when work finishes', () => {
+    expect(cron).toContain("current.retryAt?.getUTCFullYear() === 9999")
+    expect(cron).toContain("!manuallyStopped")
+    expect(cron).toContain("status: current.status")
+    expect(readStep).toContain("where: { id: job.id, status: 'RUNNING' }")
+  })
+
+  it('STOP and RESUME target only the current book and retain its existing job', () => {
+    expect(readJobRoute).toContain("body?.action === 'STOP' || body?.action === 'RESUME'")
+    expect(readJobRoute).toContain("where: { bookId: id, status: { in: ['QUEUED', 'RUNNING', 'PAUSED'] } }")
+    expect(readJobRoute).toContain("where: { id: current.id, status: { in: ['QUEUED', 'RUNNING', 'PAUSED'] } }")
+    expect(readJobRoute).toContain("where: { id: current.id, status: 'PAUSED' }")
+    expect(readJobRoute).toContain("new Date('9999-12-31T00:00:00.000Z')")
+    expect(readJobRoute).toContain("db.bookReadJob.findUniqueOrThrow({ where: { id: current.id } })")
+  })
+})
