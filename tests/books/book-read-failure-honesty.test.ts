@@ -15,6 +15,7 @@ const textAi = readFileSync(join(root, 'src/lib/text-ai.ts'), 'utf8')
 const jobControl = readFileSync(join(root, 'src/lib/book-read-job-control.ts'), 'utf8')
 const cron = readFileSync(join(root, 'src/app/api/cron/book-read-jobs/route.ts'), 'utf8')
 const readJobRoute = readFileSync(join(root, 'src/app/api/admin/books/[id]/read-job/route.ts'), 'utf8')
+const adminBooks = readFileSync(join(root, 'src/components/aact/AdminBooks.tsx'), 'utf8')
 
 describe('read-step honest job states', () => {
   it('never answers the bare BOOK_READ_JOB_NOT_FOUND code', () => {
