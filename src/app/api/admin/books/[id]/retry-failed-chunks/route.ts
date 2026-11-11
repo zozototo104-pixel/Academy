@@ -58,6 +58,19 @@ export async function POST(_request: NextRequest, context: Context) {
           resumeMode: 'EXTRACT',
         }, { status: 409 })
       }
+      if ('wrongPhase' in result && result.wrongPhase) {
+        return NextResponse.json({
+          error: 'BOOK_ANALYSIS_PHASE_REQUIRED',
+          message: 'إعادة المقاطع الفاشلة متاحة فقط لمهمة تحليل فاشلة. استكمل المرحلة الحالية من زرها المخصص.',
+          jobId: result.jobId, failedPhase: result.phase,
+        }, { status: 409 })
+      }
+      if ('noFailedChunks' in result && result.noFailedChunks) {
+        return NextResponse.json({ error: 'BOOK_NO_FAILED_CHUNKS', message: 'لا توجد مقاطع فاشلة لإعادة تحليلها.', jobId: result.jobId }, { status: 409 })
+      }
+      if ('conflict' in result && result.conflict) {
+        return NextResponse.json({ error: 'BOOK_RETRY_CONFLICT', message: 'المهمة قيد الاستكمال بالفعل — حدّث حالتها.', jobId: result.jobId }, { status: 409 })
+      }
       return NextResponse.json({ ok: true, ...result })
     } catch (error: any) {
       if (error?.code === 'P2002') {
