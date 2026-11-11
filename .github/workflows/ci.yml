@@ -46,6 +46,52 @@ jobs:
       - run: bunx prisma generate
       # This database exists only as a disposable GitHub Actions service.
       - run: bunx prisma db push
+      - name: Verify book-read lease ownership on real isolated PostgreSQL
+        run: |
+          psql "$DIRECT_URL" -X -v ON_ERROR_STOP=1 <<'SQL'
+          BEGIN;
+          INSERT INTO "Program" ("id", "slug", "titleAr", "description", "category")
+            VALUES ('lease-ci-program', 'lease-ci-program', 'Lease test', 'Only for CI', 'DIPLOMA');
+          INSERT INTO "Book" ("id", "programId", "title")
+            VALUES ('lease-ci-book', 'lease-ci-program', 'Lease CI book');
+          INSERT INTO "BookReadJob" ("id", "bookId", "programId", "phase", "status", "startedAt", "lockedUntil", "updatedAt")
+            VALUES ('lease-ci-job', 'lease-ci-book', 'lease-ci-program', 'ANALYZE', 'RUNNING',
+              TIMESTAMP '2026-11-11 10:00:00', clock_timestamp() + INTERVAL '5 minutes', NOW());
+          DO $
+          DECLARE found_id text;
+          DECLARE changed_rows integer;
+          BEGIN
+            -- The actual lease SQL must find and lock exactly the current owner.
+            SELECT "id" INTO found_id FROM "BookReadJob"
+              WHERE "id"='lease-ci-job' AND "status"='RUNNING'
+                AND "startedAt"=TIMESTAMP '2026-11-11 10:00:00'
+                AND "lockedUntil">clock_timestamp() FOR UPDATE;
+            IF found_id IS DISTINCT FROM 'lease-ci-job' THEN
+              RAISE EXCEPTION 'live owner must acquire its row lock';
+            END IF;
+            -- The old worker must never claim a successor's lock.
+            found_id := NULL;
+            SELECT "id" INTO found_id FROM "BookReadJob"
+              WHERE "id"='lease-ci-job' AND "status"='RUNNING'
+                AND "startedAt"=TIMESTAMP '2026-11-11 09:00:00'
+                AND "lockedUntil">clock_timestamp() FOR UPDATE;
+            IF found_id IS NOT NULL THEN RAISE EXCEPTION 'stale owner was accepted'; END IF;
+            UPDATE "BookReadJob" SET "status"='COMPLETED'
+              WHERE "id"='lease-ci-job' AND "status"='RUNNING'
+                AND "startedAt"=TIMESTAMP '2026-11-11 09:00:00';
+            GET DIAGNOSTICS changed_rows = ROW_COUNT;
+            IF changed_rows <> 0 THEN RAISE EXCEPTION 'stale worker completed new worker job'; END IF;
+            UPDATE "BookReadJob" SET "lockedUntil"=clock_timestamp() - INTERVAL '1 second'
+              WHERE "id"='lease-ci-job';
+            found_id := NULL;
+            SELECT "id" INTO found_id FROM "BookReadJob"
+              WHERE "id"='lease-ci-job' AND "status"='RUNNING'
+                AND "startedAt"=TIMESTAMP '2026-11-11 10:00:00'
+                AND "lockedUntil">clock_timestamp() FOR UPDATE;
+            IF found_id IS NOT NULL THEN RAISE EXCEPTION 'expired owner was accepted'; END IF;
+          END $;
+          ROLLBACK;
+          SQL
       - name: Build a full-schema encrypted fixture
         run: |
           node <<'NODE'
