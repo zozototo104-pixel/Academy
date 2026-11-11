@@ -68,6 +68,12 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/api/pdf/**/*": ["./public/fonts/**"],
   },
+  async redirects() {
+    return [
+      { source: "/register", destination: "/login", permanent: true },
+      { source: "/services", destination: "/programs", permanent: true },
+    ];
+  },
   async headers() {
     return [
       {
