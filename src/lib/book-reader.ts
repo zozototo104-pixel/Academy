@@ -302,7 +302,7 @@ export async function extractPdfBatch(input: Parameters<typeof extractPdfBatchIn
   )
 }
 
-export async function runExtractStep(jobId: string, deadlineMs: number) {
+export async function runExtractStep(jobId: string, deadlineMs: number, claimedAt: Date) {
   const job = await db.bookReadJob.findUnique({ where: { id: jobId } })
   if (!job) throw new Error('BOOK_READ_JOB_NOT_FOUND')
   if (job.phase !== 'EXTRACT') return { pagesDone: job.pagesDone, totalPages: job.totalPages, totalChunks: job.totalChunks, phase: job.phase }
