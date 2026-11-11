@@ -37,6 +37,14 @@ async function testPauseRetry() {
   assert.equal(canRunBookReadJob(job, now), false)
   assert.equal(canRunBookReadJob(job, new Date(retryAt.getTime() + 1)), true)
   assert.deepEqual(bookReadLockWhere('job', now).OR[1], { lockedUntil: { lt: now } })
+
+  // Only the manually stopped book becomes ineligible: cron keeps processing
+  // every other queued, running, and due-for-retry job as before.
+  const manualStop = { status: 'PAUSED', retryAt: new Date('9999-12-31T00:00:00.000Z') }
+  assert.equal(canRunBookReadJob(manualStop, now), false)
+  assert.equal(canRunBookReadJob({ status: 'QUEUED', retryAt: null }, now), true)
+  assert.equal(canRunBookReadJob({ status: 'RUNNING', retryAt: null }, now), true)
+  assert.equal(canRunBookReadJob(job, new Date(retryAt.getTime() + 1)), true)
 }
 
 function testFailureClassification() {
