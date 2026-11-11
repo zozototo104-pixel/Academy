@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
           ? `خطأ إعدادات: لا يوجد مزوّد ذكاء مُعدّ بمفتاح صالح — راجع إعدادات النظام ومفاتيح المزودين ثم أعد بدء القراءة. التفاصيل: ${message}`
           : message
       const previous = await db.bookReadJob.findUnique({ where: { id: job.id }, select: { lastError: true } })
-      const saved = await db.bookReadJob.updateMany({ where: { id: job.id, status: 'RUNNING' }, data: {
+      const saved = await db.bookReadJob.updateMany({ where: { id: job.id, status: 'RUNNING', startedAt: claimedAt }, data: {
         status: transient ? 'PAUSED' : 'FAILED',
         retryAt: transient ? new Date(Date.now() + (providerUnavailable ? BOOK_READ_RETRY_MS : BOOK_READ_TRANSIENT_RETRY_MS)) : null,
         lockedUntil: null,
