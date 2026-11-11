@@ -923,11 +923,7 @@ export async function PATCH(req: NextRequest) {
           // with zero links but a real, live code on this admission.
           // Query the underlying waiver ledger independently of grant links.
           // Any DB failure aborts this transaction instead of freeing a seat.
-          const admissionCodes = await tx.paymentWaiverCode.findMany({
-            where: { payment: { is: { admissionId: operation.admissionId } } },
-            select: { status: true, expiresAt: true },
-          })
-          if (admissionCodes.some((code: any) => isLiveWaiverCode(code))) {
+          if (await hasLiveWaiverOnAdmission(tx, operation.admissionId)) {
             return { status: 409, body: { error: 'يوجد كود حي لطلب القبول، حتى لو لم يكتمل ربطه بعملية المنحة. لا يمكن تحرير المقعد قبل تسوية الكود.', code: 'GRANT_OPERATION_HAS_LIVE_CODE' } }
           }
           await tx.scholarshipGrantOperation.update({ where: { id: operationId }, data: { status: 'CANCELLED' } })
