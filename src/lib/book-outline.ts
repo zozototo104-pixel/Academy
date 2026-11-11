@@ -1162,7 +1162,7 @@ async function originalBookPages(bookId: string): Promise<ExtractedBookPage[]> {
   if (!stored?.buffer?.length || stored.buffer.subarray(0, 5).toString() !== '%PDF-') throw new Error('BOOK_ORIGINAL_PDF_REQUIRED')
   const pdf = await PDFDocument.load(stored.buffer)
   const count = pdf.getPageCount()
-  if (count > 500) throw new Error('BOOK_REINDEX_MAX_500_PAGES')
+  if (count > 500) throw new Error(`BOOK_REINDEX_MAX_500_PAGES:${count}`)
   const pages: ExtractedBookPage[] = []
   for (let start = 1; start <= count; start += 16) {
     const numbers = Array.from({ length: Math.min(16, count - start + 1) }, (_, i) => start + i)
