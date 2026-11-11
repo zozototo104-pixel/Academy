@@ -1,3 +1,5 @@
+import type { Prisma } from '@prisma/client'
+
 export type BookPageReadIssue = { page: number; kind: 'UNREADABLE' | 'PARTIAL'; reason: string }
 const PAGE_ISSUES_PREFIX = 'BOOK_PAGE_ISSUES:'
 
