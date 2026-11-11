@@ -680,7 +680,33 @@ function testInferredChapterTitleRequiresSameChapterKnowledgeEvidence() {
   assert(generic.accepted === 0, 'إعادة تسمية الفصل بعنوانه الرقمي ليست تحسيناً')
 }
 
+function testLongPdfOutlineUsesOnlyCompleteMatchingRead() {
+  const large = bookOutlineReuseReason(new Error('BOOK_REINDEX_MAX_500_PAGES:501'))
+  assert(large?.kind === 'LONG_PDF' && large.totalPages === 501, 'الكتاب من 501 صفحة يجب أن يستخدم مسار القراءة المحفوظة')
+  assert(bookOutlineReuseReason(new Error('BOOK_REINDEX_MAX_500_PAGES:1200'))?.kind === 'LONG_PDF', 'الكتب الأكبر من 500 صفحة يجب أن تدعم المسار نفسه')
+  assert(bookOutlineReuseReason(new Error('BOOK_REINDEX_MAX_500_PAGES:500')) === null, 'لا نغيّر مسار كتاب من 500 صفحة')
+  assert(bookOutlineReuseReason(new Error('BOOK_REINDEX_MAX_500_PAGES')) === null, 'عدد الصفحات غير المعروف لا يثبت اكتمال القراءة')
+  assert(bookOutlineReuseReason(new Error('BOOK_OUTLINE_OCR_TOO_MANY_PAGES: 12'))?.kind === 'OCR', 'مسار OCR الحالي يجب أن يبقى شغالاً')
+  assert(bookOutlineReuseReason(new Error('BOOK_CHUNKS_REQUIRED')) === null, 'لا نُخفي أخطاء بيانات الكتاب غير المرتبطة')
+
+  const complete = { status: 'COMPLETED', phase: 'DONE', totalPages: 742, pagesDone: 742, totalChunks: 98 }
+  assert(hasCompleteBookOutlineRead(complete, 742), 'يُسمح فقط لقراءة مكتملة تطابق عدد صفحات PDF الأصلي')
+  assert(!hasCompleteBookOutlineRead(null, 742), 'بدون مهمة قراءة لا يمكن إنشاء الفهرس')
+  assert(!hasCompleteBookOutlineRead({ ...complete, status: 'RUNNING' }, 742), 'القراءة الجارية غير مؤهلة')
+  assert(!hasCompleteBookOutlineRead({ ...complete, phase: 'ANALYZE' }, 742), 'التحليل غير المنتهي غير مؤهل')
+  assert(!hasCompleteBookOutlineRead({ ...complete, pagesDone: 741 }, 742), 'آخر صفحة غير مقروءة تمنع الادعاء باكتمال القراءة')
+  assert(!hasCompleteBookOutlineRead({ ...complete, totalPages: 500 }, 742), 'القراءة القديمة لملف أقصر غير مؤهلة')
+  assert(!hasCompleteBookOutlineRead({ ...complete, totalChunks: 0 }, 742), 'لا يجوز فهرسة كتاب بلا مقاطع محفوظة')
+
+  const route = readFileSync(new URL('../src/app/api/admin/books/[id]/outline/route.ts', import.meta.url), 'utf8')
+  assert(route.includes('bookOutlineReuseReason(error)'), 'يجب ربط فحص الخطأ بمسار إنشاء الفهرس الفعلي')
+  assert(route.includes('hasCompleteBookOutlineRead(latestRead, reason.totalPages)'), 'يجب التحقق من تطابق عدد صفحات PDF')
+  assert(route.includes("code: 'BOOK_OUTLINE_FULL_READ_REQUIRED'"), 'القراءة غير المكتملة تحتاج رسالة إرشاد واضحة')
+  assert(route.includes('buildBookOutline(id, { reuseReadChunks: true })'), 'يجب إعادة استخدام المعرفة المخزنة لا إعادة OCR كامل')
+}
+
 const tests = [
+  testLongPdfOutlineUsesOnlyCompleteMatchingRead,
   testOutlinePdfOcrFailureContinuesAndRequiresAcknowledgment,
   testMergeAcrossUnreadPageRetainsSourceEvidenceGap,
   testSourceVerifiedWhitePagesCannotMaskMissingBookContent,
