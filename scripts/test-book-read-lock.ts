@@ -92,6 +92,16 @@ async function testBookScopedStopAndResume() {
   assert.equal(b.retryAt, null)
 }
 
+function testResumeFromSavedPhase() {
+  for (const phase of ['EXTRACT', 'ANALYZE', 'ENRICH']) {
+    assert.equal(planBookReadJobResume({ status: 'FAILED', phase }), 'RESUME', `failed ${phase} must continue the saved job`)
+    assert.equal(planBookReadJobResume({ status: 'FAILED', phase }, true), 'CREATE', 'only an explicit restart opts out of resume')
+  }
+  assert.equal(planBookReadJobResume({ status: 'COMPLETED', phase: 'ENRICH' }), 'CREATE')
+  assert.equal(planBookReadJobResume({ status: 'FAILED', phase: 'UNKNOWN' }), 'CREATE')
+  assert.equal(planBookReadJobResume(null), 'CREATE')
+}
+
 async function testPauseRetry() {
   const now = new Date('2026-10-08T12:00:00.000Z')
   const retryAt = new Date(now.getTime() + 60_000)
