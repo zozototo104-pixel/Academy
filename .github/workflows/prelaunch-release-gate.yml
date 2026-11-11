@@ -89,21 +89,8 @@ jobs:
             if [ "$path" = "/api/health" ]; then
               # The deep-health JSON is an app-specific identity proof.
               # A Vercel Authentication login page cannot pass as QA health.
-              if ! python3 - "$body" <<'PY'
-import json, sys
-try:
-    with open(sys.argv[1], encoding='utf-8') as stream:
-        health = json.load(stream)
-    assert isinstance(health, dict)
-    assert health.get('ok') is True
-    assert health.get('status') == 'ok'
-    assert health.get('kind') == 'deep-health'
-except (ValueError, OSError, AssertionError) as exc:
-    print(f"::error::QA deep-health did not return the expected healthy application JSON: {exc}")
-    sys.exit(1)
-PY
-              then
-                echo "Prelaunch HTTP check received a non-application response for $path"
+              if ! python3 -c 'import json, sys; health = json.load(open(sys.argv[1], encoding="utf-8")); assert health.get("ok") is True and health.get("status") == "ok" and health.get("kind") == "deep-health"' "$body"; then
+                echo "::error::QA deep-health did not return healthy application JSON (possible Vercel Authentication page)"
                 exit 1
               fi
             fi
