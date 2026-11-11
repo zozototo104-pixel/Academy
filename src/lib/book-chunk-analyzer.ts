@@ -230,7 +230,7 @@ export async function runEnrichStep(jobId: string, deadlineMs = Date.now() + 45_
         db.bookChunk.update({ where: { id: chunk.id }, data: capacity === 0 ? { saturatedAt: new Date() } : { analysisPasses: { increment: 1 } } }),
       ])
     },
-    finish: async (id) => { await db.bookReadJob.update({ where: { id }, data: { phase: 'DONE', status: 'COMPLETED', finishedAt: new Date(), lockedUntil: null, retryAt: null } }) },
+    finish: async (id) => { await db.bookReadJob.updateMany({ where: { id, status: 'RUNNING' }, data: { phase: 'DONE', status: 'COMPLETED', finishedAt: new Date(), lockedUntil: null, retryAt: null } }) },
   }
   return enrichStepWithStore(jobId, deadlineMs, store)
 }
