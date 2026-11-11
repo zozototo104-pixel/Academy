@@ -3156,14 +3156,23 @@ export function AdminBooksTab() {
                           {bookEnrichment[b.id]?.totalChunks > 0 && <p className="mt-1 text-[11px] text-slate-600">{bookEnrichment[b.id].saturatedChunks >= bookEnrichment[b.id].totalChunks ? 'اكتملت جولات الإثراء' : `مشبع ${bookEnrichment[b.id].saturatedChunks} من ${bookEnrichment[b.id].totalChunks} مقطع · أضيف ${bookEnrichment[b.id].addedItems} عنصر`}</p>}
                           {bookReadJobs[b.id] && (() => {
                             const job = bookReadJobs[b.id]
-                            const phase = job.status === 'PAUSED' ? 'متوقف مؤقتاً' : job.status === 'COMPLETED' ? 'مكتمل' : job.phase === 'EXTRACT' ? 'قراءة' : job.phase === 'ANALYZE' ? 'تحليل' : job.status === 'FAILED' ? 'فشل' : 'مكتمل'
+                            const manuallyStopped = job.status === 'PAUSED' && !!job.retryAt && new Date(job.retryAt).getUTCFullYear() === 9999
+                            const phase = manuallyStopped ? 'موقوف بأمر الإدارة' : job.status === 'FAILED' ? 'فشل' : job.status === 'PAUSED' ? 'متوقف مؤقتاً' : job.status === 'COMPLETED' ? 'مكتمل' : job.phase === 'EXTRACT' ? 'قراءة' : job.phase === 'ANALYZE' ? 'تحليل' : job.phase === 'ENRICH' ? 'استخراج المزيد' : 'بانتظار المعالجة'
+                            const saved = bookEnrichment[b.id]
+                            const pagesTotal = saved?.sourcePages || job.totalPages
+                            const pagesDone = saved?.pagesSaved ?? job.pagesDone
+                            const chunksTotal = saved?.storedChunks || job.totalChunks
+                            const chunksDone = saved?.totalChunks ?? job.chunksAnalyzed
+                            const chunksFailed = saved?.failedChunks ?? job.chunksFailed
                             return <div className="mt-2 space-y-1 rounded-lg border border-slate-200 bg-white p-2">
                               <p className="text-[#0f2b46]">المرحلة: {phase}</p>
-                              <p>قراءة الصفحات {job.totalPages > 0 ? `${Math.min(job.pagesDone, job.totalPages)} من ${job.totalPages}` : aiProgressLabel(job.pagesDone, job.totalPages)}</p>
-                              <div role="progressbar" aria-label="تقدم قراءة الصفحات" aria-valuenow={job.pagesDone} aria-valuemin={0} aria-valuemax={Math.max(1, job.totalPages)} className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-emerald-500" style={{ width: `${aiProgressPercent(job.pagesDone, job.totalPages) ?? 0}%` }} /></div>
-                              <p>تحليل المقاطع {job.totalChunks > 0 ? `${Math.min(job.chunksAnalyzed, job.totalChunks)} من ${job.totalChunks}` : aiProgressLabel(job.chunksAnalyzed, job.totalChunks)} · عناصر المعرفة v2: {v2CountsByBook[b.id] ?? 0}</p>
-                              <div role="progressbar" aria-label="تقدم تحليل المقاطع" aria-valuenow={job.chunksAnalyzed} aria-valuemin={0} aria-valuemax={Math.max(1, job.totalChunks)} className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-blue-500" style={{ width: `${aiProgressPercent(job.chunksAnalyzed, job.totalChunks) ?? 0}%` }} /></div>
-                              <p>فشل {job.chunksFailed}</p>
+                              {manuallyStopped && <p className="text-amber-700">إيقاف هذا الكتاب فقط؛ مهمة الجدولة لم تُلغَ ولا تتوقف عن معالجة الكتب الأخرى.</p>}
+                              <p>الصفحات المحفوظة {pagesTotal > 0 ? `${Math.min(pagesDone, pagesTotal)} من ${pagesTotal}` : 'لا توجد قراءة صفحات جديدة في هذه المهمة'}</p>
+                              <div role="progressbar" aria-label="تقدم قراءة الصفحات" aria-valuenow={pagesDone} aria-valuemin={0} aria-valuemax={Math.max(1, pagesTotal)} className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-emerald-500" style={{ width: `${aiProgressPercent(pagesDone, pagesTotal) ?? 0}%` }} /></div>
+                              <p>المقاطع المحللة والمحفوظة {chunksTotal > 0 ? `${Math.min(chunksDone, chunksTotal)} من ${chunksTotal}` : 'لا توجد مقاطع محفوظة'} · عناصر المعرفة v2: {saved?.knowledgeTotal ?? v2CountsByBook[b.id] ?? 0}</p>
+                              <div role="progressbar" aria-label="تقدم تحليل المقاطع" aria-valuenow={chunksDone} aria-valuemin={0} aria-valuemax={Math.max(1, chunksTotal)} className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-blue-500" style={{ width: `${aiProgressPercent(chunksDone, chunksTotal) ?? 0}%` }} /></div>
+                              {job.phase === 'ENRICH' && <p>استخراج المزيد: أضيف {saved?.addedItems ?? 0} عنصر في المهمة الحالية · اكتملت الجولات في {saved?.saturatedChunks ?? 0} مقطع</p>}
+                              <p>المقاطع الفاشلة المحفوظة: {chunksFailed}</p>
                               {aiStatusHelp(job.status, job.lastError) ? <p className="break-words text-red-700">{aiStatusHelp(job.status, job.lastError)}</p> : null}
                               {job.lastError && ['PAUSED', 'FAILED'].includes(String(job.status || '')) ? <p className="break-words text-[10px] text-slate-500">الكود الأصلي: {job.lastError}</p> : null}
                               {job.status === 'PAUSED' && job.retryAt && <p>موعد الاستئناف: {new Date(job.retryAt).toLocaleString('ar')}</p>}
