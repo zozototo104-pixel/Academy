@@ -417,6 +417,18 @@ describe('scholarship waitlist', () => {
     expect(operations.get('op-resent')?.status).toBe('CANCELLED')
   })
 
+  test('a live code is detected by admission even before any organized grant link exists', async () => {
+    seedAdmission('adm-gap', 'gap')
+    waiverCodes.push({ id: 'gap-unlinked', paymentId: 'pay-adm-gap', waiverType: 'PARTIAL_TUITION', status: 'ISSUED', expiresAt: new Date(Date.now() + 86_400_000) })
+    expect(await hasLiveWaiverOnAdmission(db, 'adm-gap')).toBe(true)
+    expect(await hasLiveWaiverOnAdmission(db, '')).toBe(true) // unknown identity: fail closed
+    expect(await hasLiveWaiverOnAdmission(db, 'adm-other')).toBe(false)
+    waiverCodes[0].status = 'EXPIRED'
+    expect(await hasLiveWaiverOnAdmission(db, 'adm-gap')).toBe(false)
+    waiverCodes[0].status = 'APPROVED'
+    expect(await hasLiveWaiverOnAdmission(db, 'adm-gap')).toBe(true)
+  })
+
   test('an old unlinked ISSUING operation is held for manual reconciliation, even when its code has no grant link', async () => {
     seedCampaign(3)
     const old = new Date(Date.now() - 60 * 60 * 1000)
