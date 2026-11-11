@@ -701,6 +701,7 @@ function testLongPdfOutlineUsesOnlyCompleteMatchingRead() {
   const route = readFileSync(new URL('../src/app/api/admin/books/[id]/outline/route.ts', import.meta.url), 'utf8')
   assert(route.includes('bookOutlineReuseReason(error)'), 'يجب ربط فحص الخطأ بمسار إنشاء الفهرس الفعلي')
   assert(route.includes('hasCompleteBookOutlineRead(latestRead, reason.totalPages)'), 'يجب التحقق من تطابق عدد صفحات PDF')
+  assert(route.includes('bookId: id, totalPages: { gt: 0 }'), 'لا يجوز لمهمة الإثراء اللاحقة إخفاء سجل قراءة صفحات الكتاب المكتمل')
   assert(route.includes("code: 'BOOK_OUTLINE_FULL_READ_REQUIRED'"), 'القراءة غير المكتملة تحتاج رسالة إرشاد واضحة')
   assert(route.includes('buildBookOutline(id, { reuseReadChunks: true })'), 'يجب إعادة استخدام المعرفة المخزنة لا إعادة OCR كامل')
 }
