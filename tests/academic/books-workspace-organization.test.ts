@@ -71,7 +71,10 @@ const ORIGINAL_API_CALL_COUNT = 79 // Reviewed 81-call baseline minus two unsafe
 // and verifies the persisted score. Its URL, method and request payload are
 // unchanged; the 81-call baseline and protected academic function hashes stay pinned.
 // Keep this declaration outside comments so TypeScript can validate the guard.
-const ORIGINAL_API_DIGEST = '68f42c49041f5971fee5da03310e035e4c7817518b33732ea62d14dfabf60229'
+// Reviewed 2026-11-11: the two POST calls that silently restarted FAILED
+// books in the 5-second UI poll have been removed. Manual retry, queued and
+// PAUSED scheduling, and all other protected API call expressions are intact.
+const ORIGINAL_API_DIGEST = '6d7014593582d1de6dda2823cd5837dd04e14af32ebbf5715e3fd434b1210bc9'
 
 function parseSource() {
   return ts.createSourceFile('AdminBooks.tsx', SOURCE, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
