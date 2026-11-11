@@ -80,6 +80,7 @@ export async function GET(request: NextRequest) {
         // an in-flight provider call fails after the stop request.
         lastError: preserveBookPageReadIssues(previous?.lastError, adminMessage),
       } })
+      if (!saved.count) await releaseBookReadLock(db, job.id, claimedAt, true)
       outcomes.push({ jobId: job.id, outcome: saved.count ? (transient ? 'PAUSED' : 'FAILED') : 'STOPPED_OR_COMPLETED' })
     }
   }
