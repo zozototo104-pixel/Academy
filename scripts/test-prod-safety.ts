@@ -490,10 +490,20 @@ function testSecurityBatchA() {
 
 async function testSeoRouteConsistency() {
   const { PUBLIC_SEO_ROUTES, seoForPath } = await import('../src/lib/seo')
-  assert(seoForPath('/certificates').alternates?.canonical === '/verify', 'legacy certificate page must canonicalize to the official verifier')
-  assert(seoForPath('/verify').alternates?.canonical === '/verify', 'official verification page must self-canonicalize')
-  assert(PUBLIC_SEO_ROUTES.some((route) => route.path === '/verify'), 'official verification page must remain in sitemap')
-  assert(!PUBLIC_SEO_ROUTES.some((route) => route.path === '/certificates'), 'legacy verification alias must not appear in sitemap')
+  assert(seoForPath('/certificates').alternates?.canonical === '/certificates', 'interactive certificate lookup must keep its own canonical')
+  assert(seoForPath('/verify').alternates?.canonical === '/verify', 'public verification introduction must keep its own canonical')
+  assert(seoForPath('/certificates').title !== seoForPath('/verify').title, 'verification introduction and lookup must have distinct page titles')
+  assert(PUBLIC_SEO_ROUTES.some((route) => route.path === '/verify'), 'public verification introduction must remain in sitemap')
+  assert(PUBLIC_SEO_ROUTES.some((route) => route.path === '/certificates'), 'interactive certificate lookup must remain in sitemap')
+
+  const verifyLanding = file('src/app/verify/page.tsx')
+  const interactiveVerifier = file('src/components/aact/VerifyView.tsx')
+  const qrPage = file('src/app/verify/certificates/[token]/page.tsx')
+  const credentialApi = file('src/app/api/verify/certificates/[token]/route.ts')
+  assert(verifyLanding.includes('href="/?view=verify"'), 'verification introduction must link to the interactive tool')
+  assert(interactiveVerifier.includes('/api/certificates/verify'), 'interactive lookup must retain its certificate verification API')
+  assert(qrPage.includes('resolveCertificateAccessMode'), 'certificate QR route must retain token-aware disclosure rules')
+  assert(credentialApi.includes('application/ld+json'), 'W3C route must retain separate JSON-LD credential output')
 
   const sitemap = file('src/app/sitemap.ts')
   assert(sitemap.includes("where: { status: 'ACTIVE', deletedAt: null }"), 'representative sitemap must exclude soft-deleted public records')
