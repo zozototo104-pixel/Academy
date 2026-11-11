@@ -46,7 +46,7 @@ async function testBookScopedStopAndResume() {
     if (where.retryAt instanceof Date && job.retryAt?.getTime() !== where.retryAt.getTime()) return { count: 0 }
     if (where.OR && !where.OR.some((part: any) =>
       ('retryAt' in part && part.retryAt === null && job.retryAt === null)
-      || (part.retryAt?.lt && job.retryAt && job.retryAt < part.retryAt)
+      || (part.retryAt?.lt && job.retryAt && job.retryAt < part.retryAt.lt)
     )) return { count: 0 }
     Object.assign(job, data)
     return { count: 1 }
