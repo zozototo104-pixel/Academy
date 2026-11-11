@@ -35,7 +35,8 @@ export async function GET(request: NextRequest) {
   })
   for (const job of jobs) {
     if (Date.now() >= endAt - 48_000) break
-    if (!(await claimBookReadLock(db, job.id))) {
+    const claimedAt = new Date()
+    if (!(await claimBookReadLock(db, job.id, claimedAt))) {
       outcomes.push({ jobId: job.id, outcome: 'LOCKED' })
       continue
     }
