@@ -349,20 +349,22 @@ export async function runAnalyzeStep(jobId: string, deadlineMs: number, claimedA
       })
     },
     saveAnalyzed: async (chunk, items, id) => {
-      // Keep the persistence batch short; no AI calls or per-item inserts in a transaction.
-      const current = await db.bookChunk.findUnique({ where: { id: chunk.id }, select: { status: true } })
-      if (!current || !['EXTRACTED', 'PENDING'].includes(current.status)) return
-      await db.$transaction([
-        db.bookKnowledgeItem.deleteMany({ where: { chunkId: chunk.id, kbVersion: 2 } }),
-        db.bookKnowledgeItem.createMany({ data: items.map((item) => ({
+      // The read lease and knowledge/chunk/counter writes share one short
+      // transaction. A frozen old worker cannot replace the new worker's items.
+      await db.$transaction(async (tx) => {
+        await assertBookReadLease(tx, id, claimedAt)
+        const current = await tx.bookChunk.findUnique({ where: { id: chunk.id }, select: { status: true } })
+        if (!current || !['EXTRACTED', 'PENDING'].includes(current.status)) return
+        await tx.bookKnowledgeItem.deleteMany({ where: { chunkId: chunk.id, kbVersion: 2 } })
+        await tx.bookKnowledgeItem.createMany({ data: items.map((item) => ({
           bookId: chunk.bookId, programId: chunk.programId, chunkId: chunk.id,
           pageStart: chunk.pageStart, pageEnd: chunk.pageEnd, textProvenance: chunk.textProvenance,
           kbVersion: 2, category: item.category, title: item.title, summary: item.summary,
           excerpt: item.excerpt, importance: item.importance,
-        })) }),
-        db.bookChunk.update({ where: { id: chunk.id }, data: { status: 'ANALYZED', lastError: null } }),
-        db.bookReadJob.update({ where: { id }, data: { chunksAnalyzed: { increment: 1 } } }),
-      ])
+        })) })
+        await tx.bookChunk.update({ where: { id: chunk.id }, data: { status: 'ANALYZED', lastError: null } })
+        await tx.bookReadJob.update({ where: { id }, data: { chunksAnalyzed: { increment: 1 } } })
+      })
     },
     saveFailure: async (chunkId, id, error, exhausted) => {
       await db.$transaction([
