@@ -43,6 +43,14 @@ export async function POST(_request: NextRequest, context: Context) {
         const job = await tx.bookReadJob.create({ data: { bookId: id, programId: book.programId, phase: 'ANALYZE', status: 'QUEUED' } })
         return { chunksReset: chunks.count, jobId: job.id, resumed: false }
       })
+      if ('blockedByExtraction' in result && result.blockedByExtraction) {
+        return NextResponse.json({
+          error: 'BOOK_EXTRACTION_INCOMPLETE',
+          message: 'قراءة الكتاب فشلت قبل اكتمال الصفحات. استكمل القراءة أولاً من آخر صفحة محفوظة عبر مسار read-job؛ لا يمكن البدء بالتحليل الآن.',
+          jobId: result.jobId,
+          resumeMode: 'EXTRACT',
+        }, { status: 409 })
+      }
       return NextResponse.json({ ok: true, ...result })
     } catch (error: any) {
       if (error?.code === 'P2002') {
