@@ -73,15 +73,15 @@ export async function GET(request: NextRequest) {
           ? `خطأ إعدادات: لا يوجد مزوّد ذكاء مُعدّ بمفتاح صالح — راجع إعدادات النظام ومفاتيح المزودين ثم أعد بدء القراءة. التفاصيل: ${message}`
           : message
       const previous = await db.bookReadJob.findUnique({ where: { id: job.id }, select: { lastError: true } })
-      await db.bookReadJob.update({ where: { id: job.id }, data: {
+      const saved = await db.bookReadJob.updateMany({ where: { id: job.id, status: 'RUNNING' }, data: {
         status: transient ? 'PAUSED' : 'FAILED',
         retryAt: transient ? new Date(Date.now() + (providerUnavailable ? BOOK_READ_RETRY_MS : BOOK_READ_TRANSIENT_RETRY_MS)) : null,
         lockedUntil: null,
-        // Keep the per-page issue ledger alongside the operator message,
-        // exactly as the read-step path does.
+        // Preserve a manual stop and its long-lived retry guard, even when
+        // an in-flight provider call fails after the stop request.
         lastError: preserveBookPageReadIssues(previous?.lastError, adminMessage),
       } })
-      outcomes.push({ jobId: job.id, outcome: transient ? 'PAUSED' : 'FAILED' })
+      outcomes.push({ jobId: job.id, outcome: saved.count ? (transient ? 'PAUSED' : 'FAILED') : 'STOPPED_OR_COMPLETED' })
     }
   }
   return NextResponse.json({ ok: true, processed: outcomes.length, outcomes }, { headers: { 'Cache-Control': 'no-store' } })
