@@ -57,7 +57,7 @@ jobs:
           INSERT INTO "BookReadJob" ("id", "bookId", "programId", "phase", "status", "startedAt", "lockedUntil", "updatedAt")
             VALUES ('lease-ci-job', 'lease-ci-book', 'lease-ci-program', 'ANALYZE', 'RUNNING',
               TIMESTAMP '2026-11-11 10:00:00', clock_timestamp() + INTERVAL '5 minutes', NOW());
-          DO $
+          DO $lease_check$
           DECLARE found_id text;
           DECLARE changed_rows integer;
           BEGIN
