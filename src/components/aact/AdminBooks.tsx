@@ -1998,14 +1998,10 @@ export function AdminBooksTab() {
   }
 
   const fetchBookReadJob = useCallback(async (bookId: string) => {
-    const response = await api<{ job: BookReadJobRow | null; enrichment?: {
-      totalChunks: number; saturatedChunks: number; addedItems: number
-      storedChunks?: number; failedChunks?: number; knowledgeTotal?: number
-      sourcePages?: number; pagesSaved?: number
-    } }>(`/api/admin/books/${bookId}/read-job`)
+    const response = await api<{ job: BookReadJobRow | null; enrichment?: { totalChunks: number; saturatedChunks: number; addedItems: number } }>(`/api/admin/books/${bookId}/read-job`)
     if (response.enrichment) {
       setBookEnrichment((previous) => ({ ...previous, [bookId]: response.enrichment! }))
-      const total = response.enrichment.knowledgeTotal
+      const total = (response.enrichment as typeof response.enrichment & { knowledgeTotal?: number }).knowledgeTotal
       if (total !== undefined) setV2CountsByBook((previous) => previous[bookId] === total ? previous : { ...previous, [bookId]: total })
     }
     if (response.job) {
