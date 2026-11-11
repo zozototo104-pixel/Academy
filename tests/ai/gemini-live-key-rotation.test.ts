@@ -221,6 +221,31 @@ describe('Gemini Live raw setup shape', () => {
 })
 
 describe('Gemini Live key rotation uses the text AI router state', () => {
+  test('token request keeps the previously working one-use REST shape and preserves Live setup', async () => {
+    mockUserRole = 'ADMIN'
+    configureGeminiKeys('AIzaGOOD2222')
+    let tokenRequestBody: Record<string, unknown> | null = null
+    globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+      expect(String(url)).toBe('https://generativelanguage.googleapis.com/v1beta/auth_tokens')
+      tokenRequestBody = JSON.parse(String(init?.body || '{}'))
+      return new Response(JSON.stringify({ name: 'live-token' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }) as any
+
+    const response = await POST(liveRequest())
+    const payload = await response.json()
+    expect(response.status).toBe(200)
+    expect(tokenRequestBody).not.toBeNull()
+    expect(Object.keys(tokenRequestBody!).sort()).toEqual(['uses', 'expireTime', 'newSessionExpireTime'].sort())
+    expect(tokenRequestBody!.uses).toBe(1)
+    expect(Date.parse(String(tokenRequestBody!.newSessionExpireTime))).toBeGreaterThan(Date.now())
+    expect(payload.setup.setup.model).toBe('models/gemini-3.1-flash-live-preview')
+    expect(payload.sdkConfig.systemInstruction).toContain('voice:')
+    expect(reserveUsageCalls).toBe(0)
+  })
+
   test('student without supervisor AI access receives 403 before minutes are reserved', async () => {
     supervisorAccessLocked = true
     configureGeminiKeys('AIzaGOOD2222')
