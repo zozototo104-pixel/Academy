@@ -121,9 +121,10 @@ export async function findAbandonedIssuingOperations(client: any, scope: StaleSc
 }
 
 export async function releaseStaleGrantOperations(client: any, scope: StaleScope) {
-  const stale = await findStaleGrantOperations(client, scope)
-  const abandoned = await findAbandonedIssuingOperations(client, scope).catch(() => [])
-  const candidates = [...stale, ...abandoned.filter((op: any) => !stale.some((s: any) => s.id === op.id))]
+  // Only operations with linked codes proven dead can be auto-released.
+  // Unlinked ISSUING records require explicit reconciliation with the code
+  // issuer, even after the abandoned-operation diagnostic threshold.
+  const candidates = await findStaleGrantOperations(client, scope)
   if (!candidates.length) return []
   const closedOps: any[] = []
   for (const candidate of candidates) {
