@@ -504,4 +504,92 @@ describe('direct failed-chunk API cannot skip unfinished extraction', () => {
     expect(createdJobs).toBe(0)
     expect(changedChunks).toBe(1)
   })
+
+  it('requires the dedicated destructive action and exact book title', async () => {
+    const response = await requestRebuild({ confirmBookTitle: 'عنوان مختلف' })
+    expect(response.status).toBe(400)
+    expect((await response.json()).error).toBe('BOOK_REBUILD_CONFIRMATION_REQUIRED')
+    expect(rebuildDeletionCount).toBe(0)
+    expect(createdJobs).toBe(0)
+  })
+
+  it('does not discard any work if the original PDF is unavailable', async () => {
+    rebuildSourceAvailable = false
+    const response = await requestRebuild()
+    expect(response.status).toBe(422)
+    expect((await response.json()).error).toBe('BOOK_REBUILD_SOURCE_UNREADABLE')
+    expect(retryJob.pagesDone).toBe(86)
+    expect(rebuildDeletionCount).toBe(0)
+    expect(createdJobs).toBe(0)
+  })
+
+  it('rejects rebuilding a book with a queued or running job', async () => {
+    retryJob.status = 'RUNNING'
+    const response = await requestRebuild()
+    expect(response.status).toBe(409)
+    expect((await response.json()).error).toBe('BOOK_REBUILD_JOB_ACTIVE')
+    expect(rebuildDeletionCount).toBe(0)
+    expect(createdJobs).toBe(0)
+  })
+
+  it('rejects rebuilding a manually stopped book while its worker still owns the lease', async () => {
+    retryJob.status = 'PAUSED'
+    retryJob.retryAt = new Date('9999-12-31T00:00:00.000Z')
+    retryJob.lockedUntil = new Date('2026-11-12T01:00:00.000Z')
+    const response = await requestRebuild()
+    expect(response.status).toBe(409)
+    expect((await response.json()).error).toBe('BOOK_REBUILD_JOB_ACTIVE')
+    expect(rebuildDeletionCount).toBe(0)
+  })
+
+  it('blocks an approved outline or an academic unit instead of orphaning academic work', async () => {
+    approvedRebuildOutlines = 1
+    const response = await requestRebuild()
+    const body = await response.json()
+    expect(response.status).toBe(409)
+    expect(body.error).toBe('BOOK_REBUILD_ACADEMIC_REFERENCES')
+    expect(body.blockers.approvedOutlines).toBe(1)
+    expect(rebuildDeletionCount).toBe(0)
+    expect(retryJob.status).toBe('FAILED')
+  })
+
+  it('protects knowledge referenced in exams, assignments and study guides', async () => {
+    linkedExamEvidence = 1
+    linkedAssignments = [['knowledge-1']]
+    linkedGuides = ['["knowledge-2"]']
+    const response = await requestRebuild()
+    const body = await response.json()
+    expect(response.status).toBe(409)
+    expect(body.error).toBe('BOOK_REBUILD_ACADEMIC_REFERENCES')
+    expect(body.blockers.linkedQuestions).toBe(1)
+    expect(body.blockers.linkedAssignments).toBe(1)
+    expect(body.blockers.linkedGuides).toBe(1)
+    expect(rebuildDeletionCount).toBe(0)
+    expect(createdJobs).toBe(0)
+  })
+
+  it('rebuilds from page one only after PDF and evidence checks pass, preserving the book', async () => {
+    const response = await requestRebuild()
+    const body = await response.json()
+    expect(response.status).toBe(200)
+    expect(body.rebuilt).toBe(true)
+    expect(body.job.id).toBe('new-analysis-job')
+    expect(body.job.status).toBe('QUEUED')
+    expect(body.job.phase).toBe('EXTRACT')
+    expect(body.job.pagesDone).toBe(0)
+    expect(body.job.chunksAnalyzed).toBe(0)
+    expect(body.removed).toEqual({ outlines: 1, knowledge: 2, chunks: 2 })
+    expect(rebuildDeletionCount).toBe(5)
+    expect(createdJobs).toBe(1)
+  })
+
+  it('allows rebuilding a manually stopped book only after its worker released the lease', async () => {
+    retryJob.status = 'PAUSED'
+    retryJob.retryAt = new Date('9999-12-31T00:00:00.000Z')
+    retryJob.lockedUntil = null
+    const response = await requestRebuild()
+    expect(response.status).toBe(200)
+    expect((await response.json()).rebuilt).toBe(true)
+    expect(createdJobs).toBe(1)
+  })
 })
