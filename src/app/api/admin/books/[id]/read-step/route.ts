@@ -84,12 +84,9 @@ export async function POST(_request: NextRequest, context: Context) {
         result = { reading: result, outlineWarning: 'تعذر إنشاء مسودة الفهرس تلقائياً؛ يمكنك إعادة المحاولة من زر بناء الفهرس' }
       }
     }
-    // Compare-and-swap: a concurrent STOP must not be overwritten between
-    // reading the job and returning the step's result.
-    if (current?.status === 'RUNNING') await db.bookReadJob.updateMany({
-      where: { id: job.id, status: 'RUNNING' },
-      data: { status: 'QUEUED', lockedUntil: null, retryAt: null },
-    })
+    // Release our own lease even if an admin stopped/resumed this book while
+    // the provider call was in flight. Do not touch another worker's lease.
+    await releaseBookReadLock(db, job.id, now, false)
     // Keep lastError untouched: it contains the per-page issue ledger.
     const updated = await db.bookReadJob.findUniqueOrThrow({ where: { id: job.id } })
     const enrichment = job.phase === 'ENRICH' ? {
