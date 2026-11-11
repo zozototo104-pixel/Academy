@@ -73,10 +73,10 @@ trap redact_sensitive_artifacts EXIT
 
 bypass_headers=()
 if [ -n "${VERCEL_AUTOMATION_BYPASS_SECRET:-}" ]; then
-  bypass_headers=(
-    -H "x-vercel-protection-bypass: ${VERCEL_AUTOMATION_BYPASS_SECRET}"
-    -H "x-vercel-set-bypass-cookie: true"
-  )
+  # This script uses curl -L without a browser cookie jar. Asking Vercel to
+  # set a bypass cookie repeats a 307 redirect for the same URL indefinitely.
+  # The automation bypass header alone authenticates all preflight requests.
+  bypass_headers=(-H "x-vercel-protection-bypass: ${VERCEL_AUTOMATION_BYPASS_SECRET}")
 fi
 
 curl_json() {
