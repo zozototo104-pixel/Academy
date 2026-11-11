@@ -36,7 +36,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   try {
     const { db } = await import('@/lib/db')
     representatives = await db.academyRepresentative.findMany({
-      where: { status: 'ACTIVE' },
+      where: { status: 'ACTIVE', deletedAt: null },
       select: { slug: true },
       orderBy: [{ fullName: 'asc' }],
       take: 500,
