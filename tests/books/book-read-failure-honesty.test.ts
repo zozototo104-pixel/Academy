@@ -22,6 +22,44 @@ const readJobRoute = readFileSync(join(root, 'src/app/api/admin/books/[id]/read-
 const retryFailedChunksRoute = readFileSync(join(root, 'src/app/api/admin/books/[id]/retry-failed-chunks/route.ts'), 'utf8')
 const adminBooks = readFileSync(join(root, 'src/components/aact/AdminBooks.tsx'), 'utf8')
 
+describe('lease-fenced writes across book pipeline', () => {
+  it('passes the claim timestamp from both cron and admin drivers into every engine', () => {
+    for (const call of [
+      'runExtractStep(job.id, deadlineMs, now)',
+      'runAnalyzeStep(job.id, deadlineMs, now)',
+      'runEnrichStep(job.id, deadlineMs, now)',
+    ]) expect(readStep).toContain(call)
+    for (const call of [
+      'runExtractStep(job.id, deadline, claimedAt)',
+      'runAnalyzeStep(job.id, deadline, claimedAt)',
+      'runEnrichStep(job.id, deadline, claimedAt)',
+    ]) expect(cron).toContain(call)
+  })
+
+  it('locks the owned job row using the live clock before any transaction writes', () => {
+    expect(jobControl).toContain('SELECT "id" FROM "BookReadJob"')
+    expect(jobControl).toContain('"startedAt" = ${claimedAt}')
+    expect(jobControl).toContain('"lockedUntil" > clock_timestamp()')
+    expect(jobControl).toContain('FOR UPDATE')
+    expect(jobControl).toContain("throw new Error('BOOK_READ_LEASE_LOST')")
+  })
+
+  it('fences PDF chunks, pages, and OCR progress without overwriting newer progress', () => {
+    expect((bookReader.match(/await assertBookReadLease\(tx, /g) || []).length).toBe(3)
+    expect(bookReader).toContain('pagesDone: { lte: pagesDone }')
+    expect(bookReader).not.toContain('await db.bookChunk.upsert(')
+    expect(bookReader).not.toContain('await db.bookReadJob.update({')
+  })
+
+  it('fences enrichment knowledge, passes, analysis counters, failures and completion', () => {
+    expect((bookAnalyzer.match(/await assertBookReadLease\(tx, /g) || []).length).toBe(5)
+    expect(bookAnalyzer).not.toContain('db.bookKnowledgeItem.createMany(')
+    expect(bookAnalyzer).not.toContain('db.bookReadJob.update({')
+    expect(bookAnalyzer).toContain("message.includes('BOOK_READ_LEASE_LOST')")
+    expect(bookAnalyzer).toContain('const available = Math.max(0, 20 - rows.length)')
+  })
+})
+
 describe('read-step honest job states', () => {
   it('never answers the bare BOOK_READ_JOB_NOT_FOUND code', () => {
     expect(readStep.includes('BOOK_READ_JOB_NOT_FOUND')).toBe(false)
