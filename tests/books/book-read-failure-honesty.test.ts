@@ -151,3 +151,119 @@ describe('manual resume keeps saved book progress', () => {
     expect(adminBooks).toContain("chunksFailed > 0 ? retryFailedBookChunks(b.id)")
   })
 })
+
+// Exercise the real route against an isolated in-memory DB contract, not just
+// its source text. No production records or external services are touched.
+type RetryJob = {
+  id: string; bookId: string; programId: string; status: string
+  phase: string; pagesDone: number; totalPages: number; chunksAnalyzed: number
+  chunksFailed: number; lockedUntil: Date | null; retryAt: Date | null
+}
+type RetryChunk = { status: string; attempts: number; lastError: string | null }
+let retryJob: RetryJob
+let retryChunks: RetryChunk[]
+let createdJobs = 0
+let changedChunks = 0
+
+const retryDb: any = {
+  book: { findUnique: async () => ({ id: 'book-1', programId: 'program-1' }) },
+  bookReadJob: {
+    findFirst: async ({ where }: any) =>
+      !retryJob || (where?.status?.in && !where.status.in.includes(retryJob.status)) ? null : { ...retryJob },
+    updateMany: async ({ where, data }: any) => {
+      if (!retryJob || retryJob.id !== where.id || (where.status && where.status !== retryJob.status)) return { count: 0 }
+      Object.assign(retryJob, data)
+      return { count: 1 }
+    },
+    create: async ({ data }: any) => {
+      createdJobs++
+      retryJob = { ...retryJob, ...data, id: 'new-analysis-job' }
+      return { ...retryJob }
+    },
+  },
+  bookChunk: {
+    updateMany: async ({ where, data }: any) => {
+      let count = 0
+      for (const chunk of retryChunks) {
+        if (chunk.status !== where.status) continue
+        Object.assign(chunk, data)
+        count++
+      }
+      changedChunks += count
+      return { count }
+    },
+  },
+  $transaction: async (callback: (tx: any) => Promise<unknown>) => callback(retryDb),
+}
+mock.module('@/lib/db', () => ({ db: retryDb }))
+mock.module('@/lib/auth', () => ({ requireAdmin: async () => ({ id: 'admin-1', role: 'ADMIN' }) }))
+const retryApi = await import('@/app/api/admin/books/[id]/retry-failed-chunks/route')
+
+function requestFailedChunkRetry() {
+  return retryApi.POST(
+    new NextRequest('https://academy.test/api/admin/books/book-1/retry-failed-chunks', { method: 'POST' }),
+    { params: Promise.resolve({ id: 'book-1' }) },
+  )
+}
+
+describe('direct failed-chunk API cannot skip unfinished extraction', () => {
+  beforeEach(() => {
+    retryJob = {
+      id: 'saved-job', bookId: 'book-1', programId: 'program-1',
+      status: 'FAILED', phase: 'EXTRACT', pagesDone: 86, totalPages: 227,
+      chunksAnalyzed: 24, chunksFailed: 1, lockedUntil: null, retryAt: null,
+    }
+    retryChunks = [
+      { status: 'FAILED', attempts: 3, lastError: 'previous analysis problem' },
+      { status: 'ANALYZED', attempts: 0, lastError: null },
+    ]
+    createdJobs = 0
+    changedChunks = 0
+  })
+
+  it('returns 409 with the saved extraction job and changes nothing when pages remain', async () => {
+    const response = await requestFailedChunkRetry()
+    const body = await response.json()
+    expect(response.status).toBe(409)
+    expect(body.error).toBe('BOOK_EXTRACTION_INCOMPLETE')
+    expect(body.resumeMode).toBe('EXTRACT')
+    expect(body.jobId).toBe('saved-job')
+    expect(retryJob.phase).toBe('EXTRACT')
+    expect(retryJob.pagesDone).toBe(86)
+    expect(retryJob.status).toBe('FAILED')
+    expect(retryChunks[0]).toEqual({ status: 'FAILED', attempts: 3, lastError: 'previous analysis problem' })
+    expect(changedChunks).toBe(0)
+    expect(createdJobs).toBe(0)
+  })
+
+  it('continues to retry only failed chunks within the saved analysis job', async () => {
+    retryJob.phase = 'ANALYZE'
+    retryJob.pagesDone = 227
+    const response = await requestFailedChunkRetry()
+    const body = await response.json()
+    expect(response.status).toBe(200)
+    expect(body.jobId).toBe('saved-job')
+    expect(body.chunksReset).toBe(1)
+    expect(retryJob.status).toBe('QUEUED')
+    expect(retryJob.phase).toBe('ANALYZE')
+    expect(retryJob.pagesDone).toBe(227)
+    expect(retryJob.chunksAnalyzed).toBe(24)
+    expect(retryChunks[0].status).toBe('PENDING')
+    expect(retryChunks[1].status).toBe('ANALYZED')
+    expect(createdJobs).toBe(0)
+  })
+
+  it('does not reset chunks or leases of an already active book', async () => {
+    retryJob.status = 'RUNNING'
+    retryJob.phase = 'ANALYZE'
+    retryJob.lockedUntil = new Date('2026-11-11T21:00:00.000Z')
+    const response = await requestFailedChunkRetry()
+    const body = await response.json()
+    expect(response.status).toBe(200)
+    expect(body.jobId).toBe('saved-job')
+    expect(body.chunksReset).toBe(0)
+    expect(changedChunks).toBe(0)
+    expect(createdJobs).toBe(0)
+    expect(retryJob.lockedUntil?.toISOString()).toBe('2026-11-11T21:00:00.000Z')
+  })
+})
