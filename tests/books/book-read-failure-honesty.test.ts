@@ -582,7 +582,7 @@ describe('direct failed-chunk API cannot skip unfinished extraction', () => {
   it('rejects rebuilding a manually stopped book while its worker still owns the lease', async () => {
     retryJob.status = 'PAUSED'
     retryJob.retryAt = new Date('9999-12-31T00:00:00.000Z')
-    retryJob.lockedUntil = new Date('2026-11-12T01:00:00.000Z')
+    retryJob.lockedUntil = new Date(Date.now() + 60_000)
     const response = await requestRebuild()
     expect(response.status).toBe(409)
     expect((await response.json()).error).toBe('BOOK_REBUILD_JOB_ACTIVE')
