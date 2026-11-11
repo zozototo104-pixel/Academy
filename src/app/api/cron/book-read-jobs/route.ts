@@ -58,6 +58,14 @@ export async function GET(request: NextRequest) {
       outcomes.push({ jobId: job.id, outcome: current?.status === 'COMPLETED' ? 'COMPLETED' : manuallyStopped ? 'PAUSED_BY_ADMIN' : 'PROGRESSED' })
     } catch (error: any) {
       const message = String(error?.message || error)
+      if (message === 'BOOK_READ_LEASE_LOST') {
+        // An expired/overwritten lease is not a content failure. Requeue
+        // only the old owner's still-RUNNING job; CAS preserves a newer
+        // worker's lease and the admin's manual PAUSED sentinel.
+        await releaseBookReadLock(db, job.id, claimedAt, true)
+        outcomes.push({ jobId: job.id, outcome: 'LEASE_LOST' })
+        continue
+      }
       const providerUnavailable = message.includes('AI_ACADEMIC_PROVIDER_UNAVAILABLE')
       // Four-way handling, identical to the manual read-step driver
       // (Haris's taxonomy): pressure pauses and auto-retries; proven
