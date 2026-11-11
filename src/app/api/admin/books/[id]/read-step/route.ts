@@ -65,8 +65,8 @@ export async function POST(_request: NextRequest, context: Context) {
     } else {
       result = { phase: job.phase }
     }
-    const current = await db.bookReadJob.findUnique({ where: { id: job.id }, select: { status: true, phase: true, createdAt: true } })
-    if (job.phase !== 'ENRICH' && current?.status === 'COMPLETED' && current.phase === 'DONE' ) {
+    const current = await db.bookReadJob.findUnique({ where: { id: job.id }, select: { status: true, phase: true, createdAt: true, startedAt: true } })
+    if (job.phase !== 'ENRICH' && current?.status === 'COMPLETED' && current.phase === 'DONE' && current.startedAt?.getTime() === now.getTime()) {
       // A source-backed draft is created from persisted chunks; all OCR work
       // was already performed during extraction. Never regenerate knowledge.
       try {
