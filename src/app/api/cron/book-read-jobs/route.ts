@@ -43,12 +43,12 @@ export async function GET(request: NextRequest) {
     try {
       const deadline = Math.min(Date.now() + 240_000, endAt)
       if (job.phase === 'EXTRACT') {
-        const extraction = await runExtractStep(job.id, deadline)
-        if (extraction.phase === 'ANALYZE' && Date.now() < deadline - 1500) await runAnalyzeStep(job.id, deadline)
+        const extraction = await runExtractStep(job.id, deadline, claimedAt)
+        if (extraction.phase === 'ANALYZE' && Date.now() < deadline - 1500) await runAnalyzeStep(job.id, deadline, claimedAt)
       } else if (job.phase === 'ANALYZE') {
-        await runAnalyzeStep(job.id, deadline)
+        await runAnalyzeStep(job.id, deadline, claimedAt)
       } else if (job.phase === 'ENRICH') {
-        await runEnrichStep(job.id, deadline)
+        await runEnrichStep(job.id, deadline, claimedAt)
       }
       // Release only this invocation's lock. The shared helper preserves
       // manual STOP and the historical auto-requeue behavior for other jobs.
