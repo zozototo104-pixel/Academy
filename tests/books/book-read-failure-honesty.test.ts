@@ -283,6 +283,13 @@ function requestFailedChunkRetry() {
   )
 }
 
+function requestRebuild(extra: Record<string, unknown> = {}) {
+  return requestBookJob('EXTRACT', {
+    action: 'REBUILD', confirmation: 'REBUILD_FROM_ZERO',
+    confirmBookTitle: 'كتاب اختبار إعادة البناء', ...extra,
+  })
+}
+
 describe('direct failed-chunk API cannot skip unfinished extraction', () => {
   beforeEach(() => {
     retryJob = {
