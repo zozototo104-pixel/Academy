@@ -223,3 +223,38 @@ export async function claimBookReadLock(db: { bookReadJob: { updateMany: (args: 
   })
   return updated.count === 1
 }
+
+/** Release only the lease owned by this step. A STOP keeps its manual pause;
+ * a RESUME during an in-flight step becomes runnable as soon as it finishes.
+ * Stale workers cannot clear the lease of another worker or another book.
+ */
+export async function releaseBookReadLock(
+  db: { bookReadJob: { updateMany: (args: any) => Promise<{ count: number }> } },
+  id: string,
+  claimedAt: Date,
+  cron: boolean,
+): Promise<void> {
+  const base = { id, startedAt: claimedAt }
+  const manualStopAt = new Date('9999-12-31T00:00:00.000Z')
+  // The original success path requeues a RUNNING job.
+  if ((await db.bookReadJob.updateMany({
+    where: { ...base, status: 'RUNNING' },
+    data: { status: 'QUEUED', lockedUntil: null, retryAt: null },
+  })).count) return
+  // An admin may pause the book before the worker finishes. Unlock only;
+  // do not reset the manual stop, and do not cancel background scheduling.
+  if ((await db.bookReadJob.updateMany({
+    where: { ...base, status: 'PAUSED', retryAt: manualStopAt },
+    data: { lockedUntil: null },
+  })).count) return
+  // A RESUME during the provider call leaves QUEUED with our old lock.
+  if ((await db.bookReadJob.updateMany({
+    where: { ...base, status: 'QUEUED' },
+    data: { lockedUntil: null },
+  })).count) return
+  // Preserve the legacy cron-only handling for automatic PAUSED retries.
+  if (cron) await db.bookReadJob.updateMany({
+    where: { ...base, status: 'PAUSED', OR: [{ retryAt: null }, { retryAt: { lt: new Date('9999-01-01T00:00:00.000Z') } }] },
+    data: { status: 'QUEUED', lockedUntil: null, retryAt: null },
+  })
+}
