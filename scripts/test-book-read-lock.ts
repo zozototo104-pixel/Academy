@@ -90,6 +90,39 @@ async function testBookScopedStopAndResume() {
   assert.equal(b.status, 'QUEUED')
   assert.equal(b.lockedUntil, null)
   assert.equal(b.retryAt, null)
+
+  // A provider call outlives its 270-second lease but no successor has
+  // claimed yet. The driver's LEASE_LOST handler must requeue this exact
+  // owner, not mark the book FAILED or touch another book.
+  const expiredOwner = new Date(Date.now() - 6 * 60_000)
+  states.set('book-C', {
+    status: 'RUNNING', startedAt: expiredOwner,
+    lockedUntil: new Date(Date.now() - 60_000), retryAt: null,
+  })
+  await releaseBookReadLock(db, 'book-C', expiredOwner, false)
+  assert.equal(states.get('book-C')?.status, 'QUEUED')
+  assert.equal(states.get('book-C')?.lockedUntil, null)
+  assert.equal(states.get('book-B')?.status, 'QUEUED')
+
+  // If a new worker claimed it, the obsolete owner cannot requeue,
+  // complete, or clear that newer lease.
+  const replacementOwner = new Date(Date.now())
+  const nextLock = new Date(Date.now() + 270_000)
+  states.set('book-C', {
+    status: 'RUNNING', startedAt: replacementOwner,
+    lockedUntil: nextLock, retryAt: null,
+  })
+  await releaseBookReadLock(db, 'book-C', expiredOwner, true)
+  assert.equal(states.get('book-C')?.status, 'RUNNING')
+  assert.equal(states.get('book-C')?.lockedUntil?.getTime(), nextLock.getTime())
+
+  // A manual STOP keeps its year-9999 sentinel and never auto-retries.
+  states.get('book-C')!.status = 'PAUSED'
+  states.get('book-C')!.retryAt = new Date('9999-12-31T00:00:00.000Z')
+  await releaseBookReadLock(db, 'book-C', replacementOwner, true)
+  assert.equal(states.get('book-C')?.status, 'PAUSED')
+  assert.equal(states.get('book-C')?.lockedUntil, null)
+  assert.equal(states.get('book-C')?.retryAt?.getUTCFullYear(), 9999)
 }
 
 async function testFencedWritesAfterWorkerTakeover() {
