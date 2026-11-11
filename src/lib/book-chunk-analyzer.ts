@@ -215,7 +215,7 @@ export async function enrichStepWithStore(jobId: string, deadlineMs: number, sto
 }
 
 /** Requires the shared read-step job lock. Processes exactly one chunk per call. */
-export async function runEnrichStep(jobId: string, deadlineMs = Date.now() + 45_000) {
+export async function runEnrichStep(jobId: string, deadlineMs: number, claimedAt: Date) {
   const store: EnrichStepStore = {
     getJob: (id) => db.bookReadJob.findUnique({ where: { id }, select: { id: true, bookId: true, phase: true } }),
     nextChunk: (bookId) => db.bookChunk.findFirst({ where: { bookId, status: 'ANALYZED', saturatedAt: null, analysisPasses: { lt: 3 } }, orderBy: [{ analysisPasses: 'asc' }, { index: 'asc' }], select: { id: true, bookId: true, programId: true, index: true, text: true, pageStart: true, pageEnd: true, textProvenance: true, analysisPasses: true } }),
