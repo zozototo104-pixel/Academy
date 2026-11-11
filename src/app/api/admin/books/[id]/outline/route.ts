@@ -89,7 +89,7 @@ export async function POST(_req: NextRequest, context: Context) {
       // Preserve the existing completed-OCR fallback for shorter scanned PDFs.
       const latestRead = await db.bookReadJob.findFirst({
         where: reason.kind === 'LONG_PDF'
-          ? { bookId: id }
+          ? { bookId: id, totalPages: { gt: 0 } }
           : { bookId: id, status: 'COMPLETED', phase: 'DONE', totalChunks: { gt: 0 } },
         orderBy: { createdAt: 'desc' },
         select: { id: true, status: true, phase: true, totalPages: true, pagesDone: true, totalChunks: true },
