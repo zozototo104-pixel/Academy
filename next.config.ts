@@ -70,7 +70,6 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
-      { source: "/register", destination: "/login", permanent: true },
       { source: "/services", destination: "/programs", permanent: true },
     ];
   },
