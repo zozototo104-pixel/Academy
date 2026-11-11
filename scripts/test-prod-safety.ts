@@ -499,7 +499,7 @@ async function testSeoRouteConsistency() {
   assert(sitemap.includes("where: { status: 'ACTIVE', deletedAt: null }"), 'representative sitemap must exclude soft-deleted public records')
 
   const redirects = file('next.config.ts')
-  assert(redirects.includes('{ source: "/register", destination: "/login", permanent: true }'), 'legacy registration URL must redirect to real login/registration screen')
+  assert(!redirects.includes('{ source: "/register", destination: "/login"'), 'new-account registration must not redirect to the login screen')
   assert(redirects.includes('{ source: "/services", destination: "/programs", permanent: true }'), 'legacy services URL must redirect to real program listing')
 
   const legacy = file('src/app/[...path]/page.tsx')
