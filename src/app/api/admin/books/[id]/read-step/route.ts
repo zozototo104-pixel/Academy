@@ -110,7 +110,7 @@ export async function POST(_request: NextRequest, context: Context) {
         : message
     const previous = await db.bookReadJob.findUnique({ where: { id: job.id }, select: { lastError: true } })
     const changed = await db.bookReadJob.updateMany({
-      where: { id: job.id, status: 'RUNNING' },
+      where: { id: job.id, status: 'RUNNING', startedAt: now },
       data: {
         status: transient ? 'PAUSED' : 'FAILED',
         retryAt: transient ? new Date(Date.now() + (providerUnavailable ? BOOK_READ_RETRY_MS : BOOK_READ_TRANSIENT_RETRY_MS)) : null,
