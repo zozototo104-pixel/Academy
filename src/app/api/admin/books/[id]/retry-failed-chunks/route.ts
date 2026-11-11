@@ -22,8 +22,15 @@ export async function POST(_request: NextRequest, context: Context) {
         const active = await tx.bookReadJob.findFirst({ where: { bookId: id, status: { in: ['QUEUED', 'RUNNING', 'PAUSED'] } }, orderBy: { createdAt: 'desc' } })
         // Never clear an in-flight worker's lease or undo a manual STOP.
         if (active) return { chunksReset: 0, jobId: active.id, resumed: true }
-        const chunks = await tx.bookChunk.updateMany({ where: { bookId: id, status: 'FAILED' }, data: { status: 'PENDING', attempts: 0, lastError: null } })
         const latest = await tx.bookReadJob.findFirst({ where: { bookId: id }, orderBy: { createdAt: 'desc' } })
+        // A direct request must not skip unread PDF pages by creating an
+        // ANALYZE job after an EXTRACT failure. The read-job endpoint already
+        // resumes this same extraction job from its saved pagesDone cursor.
+        // Check before resetting any failed chunks: rejection is read-only.
+        if (latest?.status === 'FAILED' && latest.phase === 'EXTRACT') {
+          return { blockedByExtraction: true, jobId: latest.id, chunksReset: 0 }
+        }
+        const chunks = await tx.bookChunk.updateMany({ where: { bookId: id, status: 'FAILED' }, data: { status: 'PENDING', attempts: 0, lastError: null } })
         if (latest?.status === 'FAILED' && latest.phase === 'ANALYZE') {
           // Keep the same job, its completed page/chunk counters and saved
           // knowledge; only failed chunks go back to PENDING for another try.
