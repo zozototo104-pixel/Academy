@@ -168,9 +168,29 @@ let retryJob: RetryJob
 let retryChunks: RetryChunk[]
 let createdJobs = 0
 let changedChunks = 0
+let rebuildSourceAvailable = true
+let linkedAcademicUnits = 0
+let linkedExamEvidence = 0
+let approvedRebuildOutlines = 0
+let draftRebuildOutlines = 1
+let rebuildKnowledgeIds = ['knowledge-1', 'knowledge-2']
+let linkedAssignments: unknown[] = []
+let linkedGuides: unknown[] = []
+let rebuildDeletionCount = 0
+
+const pdfFixture = await PDFDocument.create()
+pdfFixture.addPage([595, 842])
+const rebuildPdf = Buffer.from(await pdfFixture.save())
+mock.module('@/lib/storage', () => ({
+  getFileBufferFromStorageOrBase64: async () => rebuildSourceAvailable ? { buffer: rebuildPdf } : null,
+}))
+mock.module('@/lib/notify', () => ({ audit: async () => undefined }))
 
 const retryDb: any = {
-  book: { findUnique: async () => ({ id: 'book-1', programId: 'program-1' }) },
+  book: { findUnique: async () => ({
+    id: 'book-1', programId: 'program-1', title: 'كتاب اختبار إعادة البناء',
+    storageProvider: 'TEST', storageKey: 'test-pdf', fileUrl: null, data: null, mimeType: 'application/pdf',
+  }) },
   bookReadJob: {
     findFirst: async ({ where }: any) =>
       !retryJob || (where?.status?.in && !where.status.in.includes(retryJob.status)) ? null : { ...retryJob },
