@@ -288,8 +288,10 @@ async function main() {
     entryW1After?.status === 'NOTIFIED' && entryW2After?.status === 'WAITING',
     `w1=${entryW1After?.status} w2=${entryW2After?.status}`)
 
-  // Scenario E: the automatic settlement never cancels a live grant —
-  // only a truly abandoned ISSUING operation (old, no links) is freed.
+  // Scenario E: automatic settlement must never cancel a live grant or
+  // an unlinked ISSUING reservation. The code issuer can persist a live
+  // waiver before the organizer links it, so old+unlinked is not evidence
+  // of safe abandonment. Reconciliation/release is an explicit admin action.
   const settleUser = await db.user.create({ data: { email: 'e@grants.test', name: 'E', password: '<redacted>', role: 'STUDENT', status: 'ACTIVE' } })
   const seedLiveOperation = async (suffix: string, status: string, withLink: boolean, createdAt?: Date) => {
     const op = await db.scholarshipGrantOperation.create({
