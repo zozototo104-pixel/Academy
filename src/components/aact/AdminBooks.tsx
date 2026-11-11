@@ -2149,12 +2149,13 @@ export function AdminBooksTab() {
   const buildOutlineForBook = async (bookId: string) => {
     setOutlineBusyId(bookId)
     try {
-      const result = await api<{ outline: NonNullable<typeof bookOutlines[string]>; programDraft: typeof programOutlineDraft; reusedExisting?: boolean }>(`/api/admin/books/${bookId}/outline`, { method: 'POST' })
+      const result = await api<{ outline: NonNullable<typeof bookOutlines[string]>; programDraft: typeof programOutlineDraft }>(`/api/admin/books/${bookId}/outline`, { method: 'POST' })
+      const reusedExisting = (result as typeof result & { reusedExisting?: boolean }).reusedExisting
       setBookOutlines((previous) => ({ ...previous, [bookId]: result.outline }))
       setProgramOutlineDraft(result.programDraft || [])
       toast({
-        title: result.reusedExisting ? 'لم يُنشأ فهرس جديد — المسودة السابقة محفوظة' : 'تم إنشاء مسودة فهرس الكتاب',
-        description: result.reusedExisting
+        title: reusedExisting ? 'لم يُنشأ فهرس جديد — المسودة السابقة محفوظة' : 'تم إنشاء مسودة فهرس الكتاب',
+        description: reusedExisting
           ? `النسخة ${result.outline.version} فيها ${result.outline.sections.length} أقسام. راجعها، وافحص الصفحات الناقصة قبل الاعتماد.`
           : `الإصدار ${result.outline.version} — ${result.outline.sections.length} أقسام`,
       })
