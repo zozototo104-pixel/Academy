@@ -67,8 +67,11 @@ const ORIGINAL_API_CALL_COUNT = 81 // Existing 80 reviewed calls plus the admin 
 // acknowledgeCoverage/acknowledgmentKey pair; endpoint and call count stay
 // unchanged. This digest pins the reviewed contract; separate assertions below
 // ensure the new acknowledgment is never sent before the admin confirms it.
+// Reviewed 2026-11-11: assignment grading PATCH now captures the typed response
+// and verifies the persisted score. Its URL, method and request payload are
+// unchanged; the 81-call baseline and protected academic function hashes stay pinned.
 // Keep this declaration outside comments so TypeScript can validate the guard.
-const ORIGINAL_API_DIGEST = '06cd5c330f532a607bf472385424563049691648756fc0047abf598ff4d1c29d'
+const ORIGINAL_API_DIGEST = '68f42c49041f5971fee5da03310e035e4c7817518b33732ea62d14dfabf60229'
 
 function parseSource() {
   return ts.createSourceFile('AdminBooks.tsx', SOURCE, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
