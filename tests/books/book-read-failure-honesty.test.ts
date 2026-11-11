@@ -589,6 +589,31 @@ describe('direct failed-chunk API cannot skip unfinished extraction', () => {
     expect(rebuildDeletionCount).toBe(0)
   })
 
+  it('accepts an expired lease on a manually stopped book and starts a fresh job', async () => {
+    retryJob.status = 'PAUSED'
+    retryJob.retryAt = new Date('9999-12-31T00:00:00.000Z')
+    retryJob.lockedUntil = new Date(Date.now() - 60_000)
+    const response = await requestRebuild()
+    const body = await response.json()
+    expect(response.status).toBe(200)
+    expect(body.rebuilt).toBe(true)
+    expect(body.job.phase).toBe('EXTRACT')
+    expect(body.job.pagesDone).toBe(0)
+    expect(createdJobs).toBe(1)
+    expect(rebuildDeletionCount).toBe(5)
+  })
+
+  it('never permits a transient PAUSED retry to bypass the manual STOP requirement', async () => {
+    retryJob.status = 'PAUSED'
+    retryJob.retryAt = new Date(Date.now() - 60_000)
+    retryJob.lockedUntil = new Date(Date.now() - 90_000)
+    const response = await requestRebuild()
+    expect(response.status).toBe(409)
+    expect((await response.json()).error).toBe('BOOK_REBUILD_JOB_ACTIVE')
+    expect(createdJobs).toBe(0)
+    expect(rebuildDeletionCount).toBe(0)
+  })
+
   it('blocks an approved outline or an academic unit instead of orphaning academic work', async () => {
     approvedRebuildOutlines = 1
     const response = await requestRebuild()
