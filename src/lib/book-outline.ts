@@ -1135,6 +1135,26 @@ export async function recoverOutlineOcrPages(
   return pages.map((page) => byPage.get(page.page) ?? page)
 }
 
+// Long PDFs cannot be re-read safely in a single outline request. Reuse the
+// book's completed, page-count-matched reading job instead of relaxing the limit.
+export type BookOutlineReuseReason = { kind: 'OCR' } | { kind: 'LONG_PDF'; totalPages: number }
+
+export function bookOutlineReuseReason(error: unknown): BookOutlineReuseReason | null {
+  if (!(error instanceof Error)) return null
+  if (error.message.startsWith('BOOK_OUTLINE_OCR_TOO_MANY_PAGES')) return { kind: 'OCR' }
+  const match = /^BOOK_REINDEX_MAX_500_PAGES:(\\d+)$/.exec(error.message)
+  const totalPages = match ? Number(match[1]) : 0
+  return Number.isSafeInteger(totalPages) && totalPages > 500 ? { kind: 'LONG_PDF', totalPages } : null
+}
+
+export function hasCompleteBookOutlineRead(
+  job: { status: string; phase: string; totalPages: number; pagesDone: number; totalChunks: number } | null,
+  pdfPages: number,
+): boolean {
+  return Boolean(job && job.status === 'COMPLETED' && job.phase === 'DONE' &&
+    job.totalPages === pdfPages && job.pagesDone >= pdfPages && job.totalChunks > 0)
+}
+
 async function originalBookPages(bookId: string): Promise<ExtractedBookPage[]> {
   const book = await db.book.findUnique({ where: { id: bookId }, select: { data: true, storageProvider: true, storageKey: true, fileUrl: true, mimeType: true } })
   if (!book) throw new Error('BOOK_NOT_FOUND')
