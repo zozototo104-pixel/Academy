@@ -1142,7 +1142,7 @@ export type BookOutlineReuseReason = { kind: 'OCR' } | { kind: 'LONG_PDF'; total
 export function bookOutlineReuseReason(error: unknown): BookOutlineReuseReason | null {
   if (!(error instanceof Error)) return null
   if (error.message.startsWith('BOOK_OUTLINE_OCR_TOO_MANY_PAGES')) return { kind: 'OCR' }
-  const match = /^BOOK_REINDEX_MAX_500_PAGES:(\\d+)$/.exec(error.message)
+  const match = /^BOOK_REINDEX_MAX_500_PAGES:(\d+)$/.exec(error.message)
   const totalPages = match ? Number(match[1]) : 0
   return Number.isSafeInteger(totalPages) && totalPages > 500 ? { kind: 'LONG_PDF', totalPages } : null
 }
