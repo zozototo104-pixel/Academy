@@ -3175,8 +3175,9 @@ export function AdminBooksTab() {
                               <p>المقاطع الفاشلة المحفوظة: {chunksFailed}</p>
                               {aiStatusHelp(job.status, job.lastError) ? <p className="break-words text-red-700">{aiStatusHelp(job.status, job.lastError)}</p> : null}
                               {job.lastError && ['PAUSED', 'FAILED'].includes(String(job.status || '')) ? <p className="break-words text-[10px] text-slate-500">الكود الأصلي: {job.lastError}</p> : null}
-                              {job.status === 'PAUSED' && job.retryAt && <p>موعد الاستئناف: {new Date(job.retryAt).toLocaleString('ar')}</p>}
-                              {job.status === 'PAUSED' && <Button size="sm" variant="outline" disabled={!!job.retryAt && new Date(job.retryAt).getTime() > Date.now()} onClick={() => advanceBookReadJob(b.id)}>استئناف</Button>}
+                              {job.status === 'PAUSED' && !manuallyStopped && job.retryAt && <p>موعد الاستئناف التلقائي: {new Date(job.retryAt).toLocaleString('ar')}</p>}
+                              {['QUEUED', 'RUNNING'].includes(job.status) && <Button size="sm" variant="outline" disabled={bookReadBusyId === b.id} onClick={() => void controlBookReadJob(b.id, 'STOP')}>إيقاف هذا الكتاب</Button>}
+                              {job.status === 'PAUSED' && <Button size="sm" variant="outline" disabled={bookReadBusyId === b.id} onClick={() => void controlBookReadJob(b.id, 'RESUME')}>استكمال الآن</Button>}
                               {job.status === 'FAILED' && <Button size="sm" variant="outline" disabled={bookReadBusyId === b.id} onClick={() => job.chunksFailed > 0 ? retryFailedBookChunks(b.id) : startBookReadJob(b.id)}>{job.chunksFailed > 0 ? 'إعادة المحاولة للمقاطع الفاشلة' : 'إعادة محاولة قراءة الكتاب'}</Button>}
                             </div>
                           })()}
