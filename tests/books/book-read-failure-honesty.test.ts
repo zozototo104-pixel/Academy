@@ -74,14 +74,16 @@ describe('per-book stop preserves existing background scheduling', () => {
   it('keeps the same cron selection for old queued, running, and retry-due jobs', () => {
     expect(cron).toContain("status: { in: ['QUEUED', 'RUNNING'] }")
     expect(cron).toContain("{ status: 'PAUSED', retryAt: { lte: new Date() } }")
-    expect(cron).toContain("if (!(await claimBookReadLock(db, job.id)))")
+    expect(cron).toContain("if (!(await claimBookReadLock(db, job.id, claimedAt)))")
+    expect(jobControl).toContain("if (cron) await db.bookReadJob.updateMany({")
   })
 
   it('never requeues a manually stopped job or overwrites it when work finishes', () => {
     expect(cron).toContain("current.retryAt?.getUTCFullYear() === 9999")
-    expect(cron).toContain("!manuallyStopped")
-    expect(cron).toContain("status: current.status")
-    expect(readStep).toContain("where: { id: job.id, status: 'RUNNING' }")
+    expect(cron).toContain("releaseBookReadLock(db, job.id, claimedAt, true)")
+    expect(readStep).toContain("releaseBookReadLock(db, job.id, now, false)")
+    expect(jobControl).toContain("where: { ...base, status: 'PAUSED', retryAt: manualStopAt }")
+    expect(jobControl).toContain("where: { ...base, status: 'QUEUED' }")
   })
 
   it('STOP and RESUME target only the current book and retain its existing job', () => {
