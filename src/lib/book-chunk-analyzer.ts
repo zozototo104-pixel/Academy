@@ -334,7 +334,7 @@ export async function runAnalyzeStep(jobId: string, deadlineMs: number) {
       const failed = await db.bookChunk.count({ where: { bookId, status: 'FAILED' } })
       if (failed) {
         const previous = await db.bookReadJob.findUnique({ where: { id }, select: { lastError: true } })
-        await db.bookReadJob.update({ where: { id }, data: {
+        await db.bookReadJob.updateMany({ where: { id, status: 'RUNNING' }, data: {
           phase: 'ANALYZE', status: 'FAILED',
           lastError: preserveBookPageReadIssues(previous?.lastError, `${failed} مقطع فشل`),
           finishedAt: new Date(), lockedUntil: null, retryAt: null,
