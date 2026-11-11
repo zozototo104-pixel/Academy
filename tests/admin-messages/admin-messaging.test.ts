@@ -250,3 +250,17 @@ describe('notifications PATCH — id marks only that notification', () => {
     expect(updateManyCalls[0].where).toEqual({ userId: 'admin-1', link: 'admin-messages:adm-1', read: false })
   })
 })
+
+describe('admin messaging mobile width regression', () => {
+  test('conversation cards wrap long RTL and mixed-direction text instead of overflowing', async () => {
+    const source = await Bun.file(`${import.meta.dir}/../../src/components/aact/AdminDirectMessagesTab.tsx`).text()
+    expect(source).toContain('className="min-w-0 max-w-full space-y-4 overflow-hidden"')
+    expect(source).toContain('className="block min-w-0 flex-1 overflow-hidden"')
+    expect(source).toContain('max-w-full break-words text-sm font-black')
+    expect(source).toContain('line-clamp-2 max-w-full break-words text-xs')
+    expect(source).toContain('[overflow-wrap:anywhere]')
+    // Opaque admission reference and email must not stretch the conversation row.
+    expect(source).not.toContain('{c.admission.reference}')
+    expect(source).not.toContain('{c.admission.email}')
+  })
+})
