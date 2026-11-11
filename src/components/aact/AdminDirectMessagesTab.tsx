@@ -145,9 +145,9 @@ export function AdminDirectMessagesTab({ initialAdmissionId }: { initialAdmissio
               {conversations.map((c) => (
                 <button key={c.admission.id} type="button" onClick={() => openConversation(c.admission.id)} className="flex w-full min-w-0 items-center justify-between gap-2 px-3 py-3 text-right transition-colors hover:bg-muted/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary">
                   <span className="block min-w-0 flex-1 overflow-hidden">
-                    <span className="block truncate text-sm font-black text-[#0f2b46]">{c.admission.fullName}</span>
-                    <span className="block truncate text-xs text-muted-foreground">{c.admission.program || 'برنامج غير محدد'}</span>
-                    {c.lastMessage && <span className="block truncate text-xs text-slate-500">{c.lastMessage.senderRole === 'ADMIN' ? 'أنت: ' : 'الطالب: '}{c.lastMessage.content}</span>}
+                    <span className="block max-w-full break-words text-sm font-black text-[#0f2b46] [overflow-wrap:anywhere]">{c.admission.fullName}</span>
+                    <span className="block max-w-full break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">{c.admission.program || 'برنامج غير محدد'}</span>
+                    {c.lastMessage && <span className="line-clamp-2 max-w-full break-words text-xs text-slate-500 [overflow-wrap:anywhere]">{c.lastMessage.senderRole === 'ADMIN' ? 'أنت: ' : 'الطالب: '}{c.lastMessage.content}</span>}
                   </span>
                   <span className="flex shrink-0 flex-col items-end gap-1">
                     {c.unread > 0 && <Badge>{c.unread} جديد</Badge>}
