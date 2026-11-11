@@ -79,10 +79,33 @@ jobs:
               echo "body_start:"
               head -c 2000 "$body" || true
             } > "$out"
-            if [ "$status" -lt 200 ] || [ "$status" -ge 500 ]; then
+            # A protected preview can return 401/403 or even an HTML login
+            # page with HTTP 200 after curl -L. Neither is application health.
+            if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
               echo "Prelaunch HTTP check failed for $path with status $status"
               cat "$out"
               exit 1
+            fi
+            if [ "$path" = "/api/health" ]; then
+              # The deep-health JSON is an app-specific identity proof.
+              # A Vercel Authentication login page cannot pass as QA health.
+              if ! python3 - "$body" <<'PY'
+import json, sys
+try:
+    with open(sys.argv[1], encoding='utf-8') as stream:
+        health = json.load(stream)
+    assert isinstance(health, dict)
+    assert health.get('ok') is True
+    assert health.get('status') == 'ok'
+    assert health.get('kind') == 'deep-health'
+except (ValueError, OSError, AssertionError) as exc:
+    print(f"::error::QA deep-health did not return the expected healthy application JSON: {exc}")
+    sys.exit(1)
+PY
+              then
+                echo "Prelaunch HTTP check received a non-application response for $path"
+                exit 1
+              fi
             fi
           }
 
