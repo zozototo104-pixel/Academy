@@ -140,8 +140,7 @@ export async function releaseStaleGrantOperations(client: any, scope: StaleScope
         await tx.$queryRaw`SELECT id FROM "ScholarshipGrantOperation" WHERE id = ${candidate.id} FOR UPDATE`
       }
       const stillStale = await findStaleGrantOperations(tx, { ...scope, operationIds: [candidate.id] })
-      const stillAbandoned = await findAbandonedIssuingOperations(tx, { ...scope, operationIds: [candidate.id] }).catch(() => [])
-      if (!stillStale.length && !stillAbandoned.length) return false
+      if (!stillStale.length) return false
       const result = await tx.scholarshipGrantOperation.updateMany({
         where: { id: candidate.id, status: { in: ['ISSUED', 'ISSUING'] } },
         data: { status: 'CANCELLED' },
