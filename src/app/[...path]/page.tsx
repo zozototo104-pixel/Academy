@@ -1,13 +1,20 @@
 import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
 import { db } from '@/lib/db'
 import { absoluteUrl, seoForPath } from '@/lib/seo'
-export { default } from '../page'
+import { isKnownAppPath } from '@/lib/app-paths'
+import Home from '../page'
 
 type PageProps = { params: Promise<{ path?: string[] }> | { path?: string[] } }
 
+async function resolveParts(params: PageProps['params']) {
+  const { path = [] } = await Promise.resolve(params)
+  if (!isKnownAppPath(path)) notFound()
+  return path
+}
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const resolved = await Promise.resolve(params)
-  const parts = resolved.path || []
+  const parts = await resolveParts(params)
   const pathname = `/${parts.join('/')}`
 
   if (parts[0] === 'programs' && parts[1]) {
@@ -49,4 +56,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 
   return seoForPath(pathname)
+}
+
+export default async function CatchAllPage({ params }: PageProps) {
+  await resolveParts(params)
+  return <Home />
 }
