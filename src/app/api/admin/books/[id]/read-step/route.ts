@@ -54,14 +54,14 @@ export async function POST(_request: NextRequest, context: Context) {
     const deadlineMs = Date.now() + 240_000
     let result: unknown
     if (job.phase === 'EXTRACT') {
-      result = await runExtractStep(job.id, deadlineMs)
+      result = await runExtractStep(job.id, deadlineMs, now)
       if ((result as { phase?: string }).phase === 'ANALYZE' && Date.now() < deadlineMs - 1500) {
-        result = { extraction: result, analysis: await runAnalyzeStep(job.id, deadlineMs) }
+        result = { extraction: result, analysis: await runAnalyzeStep(job.id, deadlineMs, now) }
       }
     } else if (job.phase === 'ANALYZE') {
-      result = await runAnalyzeStep(job.id, deadlineMs)
+      result = await runAnalyzeStep(job.id, deadlineMs, now)
     } else if (job.phase === 'ENRICH') {
-      result = await runEnrichStep(job.id, deadlineMs)
+      result = await runEnrichStep(job.id, deadlineMs, now)
     } else {
       result = { phase: job.phase }
     }
