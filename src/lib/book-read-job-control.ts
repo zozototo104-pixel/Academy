@@ -119,7 +119,7 @@ export async function assertBookReadLease(
     WHERE "id" = ${id}
       AND "status" = 'RUNNING'
       AND "startedAt" = ${claimedAt}
-      AND "lockedUntil" > NOW()
+      AND "lockedUntil" > clock_timestamp()
     FOR UPDATE
   `
   if (owned.length !== 1) throw new Error('BOOK_READ_LEASE_LOST')
