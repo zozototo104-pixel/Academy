@@ -2303,9 +2303,36 @@ export function AdminBooksTab() {
     try {
       const response = await api<{ job: BookReadJobRow }>(`/api/admin/books/${bookId}/read-job`, { method: 'POST', body: JSON.stringify({ mode: 'ENRICH' }) })
       setBookReadJobs((previous) => ({ ...previous, [bookId]: response.job }))
-      if (response.job.status !== 'COMPLETED' && response.job.status !== 'FAILED') void advanceBookReadJob(bookId)
+      toast({
+        title: response.job.phase === 'ENRICH' ? 'بدأ استخراج المزيد' : 'هناك مهمة قراءة أو تحليل جارية',
+        description: 'تظهر الحالة والتقدم أدناه. يمكنك إيقاف المهمة أو استكمالها دون مسح العمل المحفوظ.',
+      })
+      if (['QUEUED', 'RUNNING'].includes(response.job.status)) void advanceBookReadJob(bookId)
     } catch (error: any) {
       toast({ title: 'تعذر بدء استخراج المزيد', description: String(error?.message || error), variant: 'destructive' })
+    } finally { setBookReadBusyId(null) }
+  }
+
+  const controlBookReadJob = async (bookId: string, action: 'STOP' | 'RESUME') => {
+    setBookReadBusyId(bookId)
+    try {
+      const response = await api<{ job: BookReadJobRow; manuallyStopped?: boolean }>(`/api/admin/books/${bookId}/read-job`, {
+        method: 'POST', body: JSON.stringify({ action }),
+      })
+      setBookReadJobs((previous) => ({ ...previous, [bookId]: response.job }))
+      await fetchBookReadJob(bookId)
+      if (action === 'STOP') {
+        delete bookReadRetryRef.current[bookId]
+        setBookReadRetryCounts((previous) => ({ ...previous, [bookId]: 0 }))
+        toast({ title: 'تم طلب إيقاف المهمة', description: 'لن تبدأ خطوات جديدة بعد انتهاء الطلب الجاري. التقدم والمعرفة المحفوظان لن يُحذفا.' })
+      } else {
+        delete bookReadRetryRef.current[bookId]
+        setBookReadRetryCounts((previous) => ({ ...previous, [bookId]: 0 }))
+        toast({ title: 'تم استكمال المهمة', description: 'ستتابع من المقاطع والصفحات المتبقية دون إعادة المعالجة الناجحة.' })
+        void advanceBookReadJob(bookId)
+      }
+    } catch (error: any) {
+      toast({ title: action === 'STOP' ? 'تعذر إيقاف المهمة' : 'تعذر استكمال المهمة', description: String(error?.message || error), variant: 'destructive' })
     } finally { setBookReadBusyId(null) }
   }
 
