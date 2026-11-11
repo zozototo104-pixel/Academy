@@ -140,9 +140,11 @@ describe('manual resume keeps saved book progress', () => {
   it('retries only failed knowledge chunks without erasing completed chunks or replacing the job', () => {
     expect(retryFailedChunksRoute).toContain("where: { bookId: id, status: 'FAILED' }")
     expect(retryFailedChunksRoute).toContain("data: { status: 'PENDING', attempts: 0, lastError: null }")
-    expect(retryFailedChunksRoute).toContain("latest?.status === 'FAILED' && latest.phase === 'ANALYZE'")
+    expect(retryFailedChunksRoute).toContain("latest?.status !== 'FAILED' || latest.phase !== 'ANALYZE'")
+    expect(retryFailedChunksRoute).toContain("if (!failedCount) return { noFailedChunks: true")
     expect(retryFailedChunksRoute).toContain("where: { id: latest.id, status: 'FAILED' }")
     expect(retryFailedChunksRoute).toContain("chunksFailed: 0")
+    expect(retryFailedChunksRoute).not.toContain("tx.bookReadJob.create(")
     expect(retryFailedChunksRoute).not.toContain("bookKnowledgeItem.deleteMany")
     expect(retryFailedChunksRoute).not.toContain("chunksAnalyzed: 0")
   })
