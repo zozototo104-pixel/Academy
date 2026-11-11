@@ -65,6 +65,12 @@ function testWorkflowTargetsQaOnly() {
   const preflight = file('scripts/e2e-strict-preflight.sh')
   assert(preflight.includes('x-vercel-protection-bypass'), 'strict QA preflight must authenticate protected preview requests')
   assert(!preflight.includes('x-vercel-set-bypass-cookie'), 'strict curl preflight must not request a bypass cookie: Vercel would loop through 307 redirects')
+
+  const routes = file('tests/e2e/platform-routes.spec.ts')
+  assert(routes.includes("await page.request.get('/', { maxRedirects: 0 })"), 'protected route crawler must mint a Vercel bypass cookie without browser subresource requests')
+  assert(routes.includes("cookie.name === '_vercel_jwt'"), 'protected route crawler must fail closed when Vercel does not mint its bypass cookie')
+  assert(routes.includes('await page.context().setExtraHTTPHeaders({})'), 'protected route crawler must strip global Vercel headers before loading third-party resources')
+  assert(routes.indexOf('await bootstrapPreviewProtection(page)') < routes.indexOf('for (const path of publicSeeds)'), 'route crawler must initialize scoped protection before navigating to public pages')
 }
 
 function testFinallyCleanup() {
