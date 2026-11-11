@@ -367,10 +367,16 @@ export async function runAnalyzeStep(jobId: string, deadlineMs: number, claimedA
       })
     },
     saveFailure: async (chunkId, id, error, exhausted) => {
-      await db.$transaction([
-        db.bookChunk.update({ where: { id: chunkId }, data: { attempts: { increment: 1 }, lastError: error, ...(exhausted ? { status: 'FAILED' } : {}) } }),
-        ...(exhausted ? [db.bookReadJob.update({ where: { id }, data: { chunksFailed: { increment: 1 } } })] : []),
-      ])
+      await db.$transaction(async (tx) => {
+        await assertBookReadLease(tx, id, claimedAt)
+        const current = await tx.bookChunk.findUnique({ where: { id: chunkId }, select: { status: true } })
+        if (!current || !['PENDING', 'EXTRACTED'].includes(current.status)) return
+        await tx.bookChunk.update({
+          where: { id: chunkId },
+          data: { attempts: { increment: 1 }, lastError: error, ...(exhausted ? { status: 'FAILED' } : {}) },
+        })
+        if (exhausted) await tx.bookReadJob.update({ where: { id }, data: { chunksFailed: { increment: 1 } } })
+      })
     },
     complete: async (bookId, id) => {
       const remaining = await db.bookChunk.count({ where: { bookId, status: { in: ['EXTRACTED', 'PENDING'] } } })
