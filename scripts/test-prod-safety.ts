@@ -54,6 +54,13 @@ function testWorkflowTargetsQaOnly() {
   const validator = file('scripts/validate-e2e-base-url.sh')
   assert(validator.includes('academy-raqaba.vercel.app'), 'E2E validator must know production origin')
   assert(validator.includes('Refusing to run QA E2E against a production origin'), 'E2E validator must refuse production in QA-only mode')
+
+  const gate = file('.github/workflows/prelaunch-release-gate.yml')
+  const smoke = gate.split('      - name: Check health, login, programs, and home pages')[1]?.split('      - name: Sanitize production smoke diagnostics before upload')[0] || ''
+  assert(smoke.includes('x-vercel-protection-bypass'), 'protected QA HTTP smoke must send automation bypass header')
+  assert(!smoke.includes('x-vercel-set-bypass-cookie'), 'curl smoke must not request bypass cookie: Vercel otherwise redirects until curl -L fails')
+  assert(smoke.includes('if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]'), 'HTTP smoke must reject redirects and auth errors')
+  assert(smoke.includes('deep-health'), 'HTTP smoke must check application JSON health, not just HTTP 200')
 }
 
 function testFinallyCleanup() {
