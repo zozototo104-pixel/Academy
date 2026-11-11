@@ -205,6 +205,6 @@ function testFailureClassification() {
   assert.equal(isTransientBookReadError('BOOK_PDF_REQUIRED'), false)
 }
 
-Promise.all([testConcurrentStepLock(), testActiveJobUniqueness(), testPauseRetry(), testBookScopedStopAndResume()])
+Promise.all([testConcurrentStepLock(), testActiveJobUniqueness(), testPauseRetry(), testBookScopedStopAndResume(), testFencedWritesAfterWorkerTakeover()])
   .then(() => { testResumeFromSavedPhase(); testFailureClassification(); console.log('book read lock and retry tests passed') })
   .catch((error) => { console.error(error); process.exitCode = 1 })
