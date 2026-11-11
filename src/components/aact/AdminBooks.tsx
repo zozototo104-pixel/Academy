@@ -2250,6 +2250,49 @@ export function AdminBooksTab() {
     }
   }
 
+  const rebuildBookFromZero = async (book: BookRow) => {
+    const confirmed = await askAdminConfirm({
+      title: `إعادة بناء الكتاب من الصفر: ${book.title}`,
+      description: 'إجراء مختلف عن الاستكمال: ستُزال المقاطع وعناصر المعرفة الآلية v2 ومسودات فهرس هذا الكتاب، وتُعاد قراءة ملف PDF الأصلي من الصفحة الأولى. لن يُحذف الكتاب أو ملفه أو سجلات القراءة التاريخية أو المعرفة القديمة. يُرفض الطلب إذا كانت أي بيانات ستُحذف مرتبطة بوحدات أو أسئلة أو واجبات أو أدلة أو فهرس معتمد. أوقف مهمة هذا الكتاب أولاً إن كانت تعمل. لا يمكن التراجع عن حذف البيانات المولّدة.',
+      confirmLabel: 'أؤكد إعادة البناء من الصفر',
+      danger: true,
+    })
+    if (!confirmed) return
+    setBookReadBusyId(book.id)
+    try {
+      const result = await api<{ job: BookReadJobRow; removed: { chunks: number; knowledge: number; outlines: number } }>(
+        `/api/admin/books/${book.id}/read-job`,
+        { method: 'POST', body: JSON.stringify({
+          action: 'REBUILD', confirmation: 'REBUILD_FROM_ZERO', confirmBookTitle: book.title,
+        }) },
+      )
+      delete bookReadRetryRef.current[book.id]
+      setBookReadRetryCounts((previous) => ({ ...previous, [book.id]: 0 }))
+      setBookReadJobs((previous) => ({ ...previous, [book.id]: result.job }))
+      setBookEnrichment((previous) => ({ ...previous, [book.id]: {
+        totalChunks: 0, saturatedChunks: 0, addedItems: 0,
+        storedChunks: 0, failedChunks: 0, knowledgeTotal: 0, sourcePages: 0, pagesSaved: 0,
+      } }))
+      setV2CountsByBook((previous) => ({ ...previous, [book.id]: 0 }))
+      setKnowledgeItems((previous) => previous.filter((item) => item.bookId !== book.id || item.kbVersion !== 2))
+      setProgramKnowledgeV2States((previous) => ({ ...previous, [book.id]: { state: 'READING', retryAt: null } }))
+      await loadBookOutline(book.id).catch(() => {
+        setBookOutlines((previous) => ({ ...previous, [book.id]: null }))
+      })
+      toast({
+        title: 'بدأت إعادة بناء الكتاب من الصفحة الأولى',
+        description: `المقاطع المُعاد بناؤها: ${result.removed.chunks} · عناصر المعرفة السابقة: ${result.removed.knowledge} · مسودات الفهرس: ${result.removed.outlines}. الجدولة تواصل العمل لبقية الكتب.`,
+      })
+      void advanceBookReadJob(book.id)
+    } catch (error: any) {
+      toast({
+        title: 'لم تبدأ إعادة بناء الكتاب',
+        description: String(error?.data?.message || error?.message || error),
+        variant: 'destructive',
+      })
+    } finally { setBookReadBusyId(null) }
+  }
+
   const fixBookArabicText = async (bookId: string) => {
     const ok = await askAdminConfirm({
       title: 'تصحيح النص العربي',
