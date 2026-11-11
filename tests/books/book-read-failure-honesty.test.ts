@@ -127,11 +127,12 @@ describe('terminal book failure recovery in admin UI', () => {
 
 describe('manual resume keeps saved book progress', () => {
   it('revives failed extraction, analysis or enrichment in the same job without resetting page/chunk counters', () => {
-    expect(readJobRoute).toContain("lastJob?.phase === 'ENRICH'")
-    expect(readJobRoute).toContain("['EXTRACT', 'ANALYZE'].includes(String(lastJob?.phase || ''))")
-    expect(readJobRoute).toContain("planBookReadJobResume(lastJob, body?.restart === true)")
-    expect(readJobRoute).toContain("where: { id: lastJob!.id, status: 'FAILED' }")
+    expect(readJobRoute).toContain("if (lastJob?.status === 'FAILED')")
+    expect(readJobRoute).toContain("lastJob.phase === 'ENRICH' ? 'ENRICH' : 'EXTRACT'")
+    expect(readJobRoute).toContain("mode !== resumeMode || body?.restart === true")
+    expect(readJobRoute).toContain("where: { id: lastJob.id, status: 'FAILED' }")
     expect(readJobRoute).toContain("data: { status: 'QUEUED', retryAt: null, lockedUntil: null, finishedAt: null }")
+    expect(readJobRoute).toContain("await tx.bookChunk.updateMany({")
     expect(readJobRoute).not.toContain("data: { status: 'QUEUED', pagesDone: 0")
     expect(readJobRoute).not.toContain("data: { status: 'QUEUED', chunksAnalyzed: 0")
   })
