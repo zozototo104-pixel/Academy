@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { bookReadLockWhere, canRunBookReadJob, claimBookReadLock, releaseBookReadLock, classifyBookReadFailure, isTransientBookReadError } from '../src/lib/book-read-job-control'
+import { bookReadLockWhere, canRunBookReadJob, claimBookReadLock, releaseBookReadLock, planBookReadJobResume, classifyBookReadFailure, isTransientBookReadError } from '../src/lib/book-read-job-control'
 
 async function testConcurrentStepLock() {
   let lockedUntil: Date | null = null
