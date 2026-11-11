@@ -3066,6 +3066,8 @@ export function AdminBooksTab() {
                       const countForBook = v2CountsByBook[b.id] ?? 0
                       const activeJob = bookReadJobs[b.id]
                       const isEnriching = activeJob?.phase === 'ENRICH' && ['QUEUED', 'RUNNING', 'PAUSED'].includes(activeJob.status)
+                      const unfinishedRead = !!activeJob && ['EXTRACT', 'ANALYZE'].includes(activeJob.phase) && ['QUEUED', 'RUNNING', 'PAUSED', 'FAILED'].includes(activeJob.status)
+                      const failedAnalysisChunks = bookEnrichment[b.id]?.failedChunks ?? activeJob?.chunksFailed ?? 0
                       return (
                         <div key={b.id} className="rounded-xl bg-[#f8fafc] p-2 text-[11px] font-bold text-slate-600">
                           <div className="flex flex-col gap-2">
