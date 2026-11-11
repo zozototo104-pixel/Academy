@@ -32,5 +32,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.82,
   }))
 
-  return [...publicRoutes, ...programRoutes]
+  let representatives: Array<{ slug: string }> = []
+  try {
+    const { db } = await import('@/lib/db')
+    representatives = await db.academyRepresentative.findMany({
+      where: { status: 'ACTIVE' },
+      select: { slug: true },
+      orderBy: [{ fullName: 'asc' }],
+      take: 500,
+    })
+  } catch (error) {
+    console.warn('Sitemap representative route lookup failed; returning routes without representatives.', error)
+  }
+
+  const representativeRoutes: MetadataRoute.Sitemap = representatives.map((representative) => ({
+    url: absoluteUrl(`/representatives/${representative.slug}`),
+    lastModified: now,
+    changeFrequency: 'monthly' as const,
+    priority: 0.6,
+  }))
+
+  return [...publicRoutes, ...programRoutes, ...representativeRoutes]
 }
