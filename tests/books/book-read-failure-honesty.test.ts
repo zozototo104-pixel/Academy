@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test'
 import { NextRequest } from 'next/server'
+import { PDFDocument } from 'pdf-lib'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
