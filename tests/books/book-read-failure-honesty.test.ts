@@ -207,6 +207,17 @@ const retryDb: any = {
 mock.module('@/lib/db', () => ({ db: retryDb }))
 mock.module('@/lib/auth', () => ({ requireAdmin: async () => ({ id: 'admin-1', role: 'ADMIN' }) }))
 const retryApi = await import('@/app/api/admin/books/[id]/retry-failed-chunks/route')
+const readJobApi = await import('@/app/api/admin/books/[id]/read-job/route')
+
+function requestBookJob(mode: 'EXTRACT' | 'ENRICH', extra: Record<string, unknown> = {}) {
+  return readJobApi.POST(
+    new NextRequest('https://academy.test/api/admin/books/book-1/read-job', {
+      method: 'POST', body: JSON.stringify({ mode, ...extra }),
+      headers: { 'Content-Type': 'application/json' },
+    }),
+    { params: Promise.resolve({ id: 'book-1' }) },
+  )
+}
 
 function requestFailedChunkRetry() {
   return retryApi.POST(
