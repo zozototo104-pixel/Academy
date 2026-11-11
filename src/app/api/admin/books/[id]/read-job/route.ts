@@ -172,7 +172,7 @@ export async function POST(request: NextRequest, context: Context) {
         }
         return NextResponse.json({
           error: outcome.error,
-          message: errors[outcome.error],
+          message: outcome.error ? errors[outcome.error] : 'تعذر إعادة بناء الكتاب؛ لم تُعدَّل البيانات.',
           ...('blockers' in outcome ? { blockers: outcome.blockers } : {}),
         }, { status: 409 })
       }
