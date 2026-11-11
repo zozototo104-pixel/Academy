@@ -50,8 +50,13 @@ export async function GET(request: NextRequest) {
         await runEnrichStep(job.id, deadline)
       }
       const current = await db.bookReadJob.findUnique({ where: { id: job.id }, select: { status: true } })
-      if (current?.status !== 'COMPLETED') await db.bookReadJob.update({ where: { id: job.id }, data: { status: 'QUEUED', lockedUntil: null, retryAt: null } })
-      outcomes.push({ jobId: job.id, outcome: current?.status === 'COMPLETED' ? 'COMPLETED' : 'PROGRESSED' })
+      // An admin may have stopped the task while this worker was processing.
+      // Only the lock owner's RUNNING state may be released into the queue.
+      if (current?.status === 'RUNNING') await db.bookReadJob.updateMany({
+        where: { id: job.id, status: 'RUNNING' },
+        data: { status: 'QUEUED', lockedUntil: null, retryAt: null },
+      })
+      outcomes.push({ jobId: job.id, outcome: current?.status === 'COMPLETED' ? 'COMPLETED' : current?.status === 'PAUSED' ? 'PAUSED' : 'PROGRESSED' })
     } catch (error: any) {
       const message = String(error?.message || error)
       const providerUnavailable = message.includes('AI_ACADEMIC_PROVIDER_UNAVAILABLE')
