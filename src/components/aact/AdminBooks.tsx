@@ -3079,6 +3079,8 @@ export function AdminBooksTab() {
                   <div className="max-h-72 space-y-2 overflow-auto pr-1">
                     {books.length === 0 ? <p className="text-[11px] font-bold text-slate-500">لا توجد كتب بعد.</p> : books.map((b) => {
                       const countForBook = v2CountsByBook[b.id] ?? 0
+                      const activeJob = bookReadJobs[b.id]
+                      const isEnriching = activeJob?.phase === 'ENRICH' && ['QUEUED', 'RUNNING'].includes(activeJob.status)
                       return (
                         <div key={b.id} className="rounded-xl bg-[#f8fafc] p-2 text-[11px] font-bold text-slate-600">
                           <div className="flex flex-col gap-2">
