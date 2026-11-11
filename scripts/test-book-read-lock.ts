@@ -30,6 +30,68 @@ async function testActiveJobUniqueness() {
   assert.equal(active.size, 1)
 }
 
+async function testBookScopedStopAndResume() {
+  const first = new Date('2026-11-11T12:00:00.000Z')
+  const second = new Date(first.getTime() + 1000)
+  const lease = new Date(first.getTime() + 270_000)
+  type State = { status: string; startedAt: Date; lockedUntil: Date | null; retryAt: Date | null }
+  const states = new Map<string, State>([
+    ['book-A', { status: 'RUNNING', startedAt: first, lockedUntil: lease, retryAt: null }],
+    ['book-B', { status: 'RUNNING', startedAt: second, lockedUntil: new Date(lease.getTime() + 1000), retryAt: null }],
+  ])
+  const db = { bookReadJob: { updateMany: async ({ where, data }: any) => {
+    const job = states.get(where.id)
+    if (!job || (where.status && job.status !== where.status)) return { count: 0 }
+    if (where.startedAt && job.startedAt.getTime() !== new Date(where.startedAt).getTime()) return { count: 0 }
+    if (where.retryAt instanceof Date && job.retryAt?.getTime() !== where.retryAt.getTime()) return { count: 0 }
+    if (where.OR && !where.OR.some((part: any) =>
+      ('retryAt' in part && part.retryAt === null && job.retryAt === null)
+      || (part.retryAt?.lt && job.retryAt && job.retryAt < part.retryAt)
+    )) return { count: 0 }
+    Object.assign(job, data)
+    return { count: 1 }
+  } } }
+
+  // STOP A while its provider call is in flight. Its lease is freed only
+  // when the owning worker returns; B continues entirely unchanged.
+  const a = states.get('book-A')!
+  const b = states.get('book-B')!
+  a.status = 'PAUSED'
+  a.retryAt = new Date('9999-12-31T00:00:00.000Z')
+  await releaseBookReadLock(db, 'book-A', first, true)
+  assert.equal(a.status, 'PAUSED')
+  assert.equal(a.lockedUntil, null)
+  assert.equal(canRunBookReadJob(a, new Date()), false)
+  assert.equal(b.status, 'RUNNING')
+  assert.notEqual(b.lockedUntil, null)
+
+  // RESUME while the old call is still finishing. The old lease releases
+  // without waiting 270 seconds and no second worker can start before it.
+  a.status = 'QUEUED'
+  a.retryAt = null
+  a.lockedUntil = lease
+  await releaseBookReadLock(db, 'book-A', first, false)
+  assert.equal(a.status, 'QUEUED')
+  assert.equal(a.lockedUntil, null)
+  assert.equal(canRunBookReadJob(a, new Date()), true)
+
+  // A delayed older worker must never unlock a newer worker's lease.
+  a.status = 'RUNNING'
+  a.startedAt = second
+  a.lockedUntil = new Date(lease.getTime() + 1000)
+  await releaseBookReadLock(db, 'book-A', first, true)
+  assert.equal(a.status, 'RUNNING')
+  assert.equal(a.lockedUntil?.getTime(), lease.getTime() + 1000)
+
+  // Cron keeps its previous automatic-retry behavior for book B.
+  b.status = 'PAUSED'
+  b.retryAt = new Date('2026-11-11T12:01:00.000Z')
+  await releaseBookReadLock(db, 'book-B', second, true)
+  assert.equal(b.status, 'QUEUED')
+  assert.equal(b.lockedUntil, null)
+  assert.equal(b.retryAt, null)
+}
+
 async function testPauseRetry() {
   const now = new Date('2026-10-08T12:00:00.000Z')
   const retryAt = new Date(now.getTime() + 60_000)
