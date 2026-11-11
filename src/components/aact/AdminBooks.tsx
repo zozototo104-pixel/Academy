@@ -2064,8 +2064,16 @@ export function AdminBooksTab() {
     let active = true
     Promise.all(books.map(async (book) => {
       try {
-        const response = await api<{ job: BookReadJobRow | null; enrichment?: { totalChunks: number; saturatedChunks: number; addedItems: number } }>(`/api/admin/books/${book.id}/read-job`)
-        if (active && response.enrichment) setBookEnrichment((previous) => ({ ...previous, [book.id]: response.enrichment! }))
+        const response = await api<{ job: BookReadJobRow | null; enrichment?: {
+          totalChunks: number; saturatedChunks: number; addedItems: number
+          storedChunks?: number; failedChunks?: number; knowledgeTotal?: number
+          sourcePages?: number; pagesSaved?: number
+        } }>(`/api/admin/books/${book.id}/read-job`)
+        if (active && response.enrichment) {
+          setBookEnrichment((previous) => ({ ...previous, [book.id]: response.enrichment! }))
+          const total = response.enrichment.knowledgeTotal
+          if (total !== undefined) setV2CountsByBook((previous) => previous[book.id] === total ? previous : { ...previous, [book.id]: total })
+        }
         if (active && response.job) {
           setBookReadJobs((previous) => ({ ...previous, [book.id]: response.job! }))
           setProgramKnowledgeV2States((previous) => ({ ...previous, [book.id]: {
