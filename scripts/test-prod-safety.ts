@@ -488,7 +488,26 @@ function testSecurityBatchA() {
   assert(aiHealthCron.includes("status: 'ISSUED'") && aiHealthCron.includes("status: 'EXPIRED'") && aiHealthCron.includes('PAYMENT_WAIVER_CODES_EXPIRED'), 'existing cron must expire issued waiver codes with audit')
 }
 
+async function testSeoRouteConsistency() {
+  const { PUBLIC_SEO_ROUTES, seoForPath } = await import('../src/lib/seo')
+  assert(seoForPath('/certificates').alternates?.canonical === '/verify', 'legacy certificate page must canonicalize to the official verifier')
+  assert(seoForPath('/verify').alternates?.canonical === '/verify', 'official verification page must self-canonicalize')
+  assert(PUBLIC_SEO_ROUTES.some((route) => route.path === '/verify'), 'official verification page must remain in sitemap')
+  assert(!PUBLIC_SEO_ROUTES.some((route) => route.path === '/certificates'), 'legacy verification alias must not appear in sitemap')
+
+  const sitemap = file('src/app/sitemap.ts')
+  assert(sitemap.includes("where: { status: 'ACTIVE', deletedAt: null }"), 'representative sitemap must exclude soft-deleted public records')
+
+  const redirects = file('next.config.ts')
+  assert(redirects.includes('{ source: "/register", destination: "/login", permanent: true }'), 'legacy registration URL must redirect to real login/registration screen')
+  assert(redirects.includes('{ source: "/services", destination: "/programs", permanent: true }'), 'legacy services URL must redirect to real program listing')
+
+  const legacy = file('src/app/[...path]/page.tsx')
+  assert(legacy.includes("'certificates'") && legacy.includes("verify/certificates"), 'existing certificate verification app aliases must remain reachable')
+}
+
 async function main() {
+  await testSeoRouteConsistency()
   testDeadlineMath()
   testProductionFixtureGuards()
   testWorkflowTargetsQaOnly()
