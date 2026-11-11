@@ -96,3 +96,29 @@ describe('per-book stop preserves existing background scheduling', () => {
     expect(readJobRoute).toContain("db.bookReadJob.findUniqueOrThrow({ where: { id: current.id } })")
   })
 })
+
+describe('terminal book failure recovery in admin UI', () => {
+  const pollingStart = adminBooks.indexOf("if (workspaceTab !== 'knowledge') return\n    const timer = setInterval")
+  const pollingEnd = adminBooks.indexOf('    }, 5000)', pollingStart)
+  it('never silently restarts a FAILED book when the page is open', () => {
+    expect(pollingStart).toBeGreaterThan(-1)
+    expect(pollingEnd).toBeGreaterThan(pollingStart)
+    const polling = adminBooks.slice(pollingStart, pollingEnd)
+    expect(polling).toContain("if (job?.status === 'FAILED') continue")
+    expect(polling).not.toContain('/retry-failed-chunks')
+    expect(polling).not.toContain("method: 'POST'")
+  })
+
+  it('retains background progress for scheduled and retry-due jobs', () => {
+    const polling = adminBooks.slice(pollingStart, pollingEnd)
+    expect(polling).toContain("['QUEUED', 'RUNNING', 'PAUSED'].includes(job.status)")
+    expect(polling).toContain("job.retryAt && new Date(job.retryAt).getTime() > Date.now()")
+    expect(polling).toContain('void advanceBookReadJob(book.id)')
+  })
+
+  it('retries failed enrichment as enrichment, never as a fresh PDF read', () => {
+    expect(adminBooks).toContain("job.phase === 'ENRICH' ? startBookEnrichment(b.id)")
+    expect(adminBooks).toContain("job.chunksFailed > 0 ? retryFailedBookChunks(b.id) : startBookReadJob(b.id)")
+    expect(adminBooks).toContain('إعادة محاولة استخراج المزيد')
+  })
+})
