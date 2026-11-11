@@ -3114,7 +3114,8 @@ export function AdminBooksTab() {
                       const failedAnalysisChunks = bookEnrichment[b.id]?.failedChunks ?? activeJob?.chunksFailed ?? 0
                       const canRebuild = !activeJob || ['COMPLETED', 'FAILED'].includes(activeJob.status) ||
                         (activeJob.status === 'PAUSED' && !!activeJob.retryAt &&
-                          new Date(activeJob.retryAt).getUTCFullYear() === 9999 && !activeJob.lockedUntil)
+                          new Date(activeJob.retryAt).getUTCFullYear() === 9999 &&
+                          (!activeJob.lockedUntil || new Date(activeJob.lockedUntil).getTime() <= Date.now()))
                       return (
                         <div key={b.id} className="rounded-xl bg-[#f8fafc] p-2 text-[11px] font-bold text-slate-600">
                           <div className="flex flex-col gap-2">
